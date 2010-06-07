@@ -1,0 +1,215 @@
+Verifies the functionality of the new array-like objects in the WebGL spec
+
+On success, you will see a series of "PASS" messages, followed by "TEST COMPLETE".
+
+PASS test WebGLByteArray SetAndGetPos10ToNeg10
+PASS test WebGLByteArray SetAndGetMethodsPos10ToNeg10
+PASS test WebGLByteArray ConstructWithArrayOfSignedValues
+PASS test WebGLByteArray ConstructWithWebGLArrayOfSignedValues
+PASS test WebGLByteArray OffsetsAndSizes
+PASS test WebGLByteArray SetFromWebGLArray
+PASS negativeTest WebGLByteArray SetFromWebGLArray
+PASS test WebGLByteArray SetFromArray
+PASS negativeTest WebGLByteArray SetFromArray
+PASS test WebGLByteArray Slice
+PASS negativeTest WebGLByteArray Slice
+PASS test WebGLByteArray BoundaryConditions(-128, -128, 127, 127)
+PASS Construction of WebGLByteArray with null buffer threw exception
+PASS Construction of WebGLByteArray with out-of-range values threw exception
+PASS Construction of WebGLByteArray with negative out-of-range values threw exception
+Testing slicing of WebGLByteArray
+PASS array.length is 32 / typeSize
+PASS array.slice(4, 0x3FFFFFFF).length is (32 / typeSize) - 4
+PASS array.slice(4, -2147483648).length is 0
+Testing slicing with default inputs of WebGLByteArray
+PASS array.length is 32 / typeSize
+PASS array.slice().length is (32 / typeSize)
+PASS array.slice(2).length is (32 / typeSize) - 2
+PASS array.slice(-2).length is 2
+PASS array.slice(-2147483648).length is (32 / typeSize)
+PASS Setting WebGLByteArray from array with out-of-range offset was caught
+PASS Setting WebGLByteArray from fake array with invalid length was caught
+PASS Setting WebGLByteArray from WebGLByteArray with out-of-range offset was caught
+PASS test WebGLFloatArray SetAndGetPos10ToNeg10
+PASS test WebGLFloatArray SetAndGetMethodsPos10ToNeg10
+PASS test WebGLFloatArray ConstructWithArrayOfSignedValues
+PASS test WebGLFloatArray ConstructWithWebGLArrayOfSignedValues
+PASS test WebGLFloatArray OffsetsAndSizes
+PASS test WebGLFloatArray SetFromWebGLArray
+PASS negativeTest WebGLFloatArray SetFromWebGLArray
+PASS test WebGLFloatArray SetFromArray
+PASS negativeTest WebGLFloatArray SetFromArray
+PASS test WebGLFloatArray Slice
+PASS negativeTest WebGLFloatArray Slice
+PASS test WebGLFloatArray BoundaryConditions(-500.5, -500.5, 500.5, 500.5)
+PASS Construction of WebGLFloatArray with null buffer threw exception
+PASS Construction of WebGLFloatArray with out-of-range values threw exception
+PASS Construction of WebGLFloatArray with negative out-of-range values threw exception
+PASS Construction of huge WebGLFloatArray threw exception
+Testing slicing of WebGLFloatArray
+PASS array.length is 32 / typeSize
+PASS array.slice(4, 0x3FFFFFFF).length is (32 / typeSize) - 4
+PASS array.slice(4, -2147483648).length is 0
+PASS array.length is 0
+Testing slicing with default inputs of WebGLFloatArray
+PASS array.length is 32 / typeSize
+PASS array.slice().length is (32 / typeSize)
+PASS array.slice(2).length is (32 / typeSize) - 2
+PASS array.slice(-2).length is 2
+PASS array.slice(-2147483648).length is (32 / typeSize)
+PASS Setting WebGLFloatArray from array with out-of-range offset was caught
+PASS Setting WebGLFloatArray from fake array with invalid length was caught
+PASS Setting WebGLFloatArray from WebGLFloatArray with out-of-range offset was caught
+PASS test WebGLIntArray SetAndGetPos10ToNeg10
+PASS test WebGLIntArray SetAndGetMethodsPos10ToNeg10
+PASS test WebGLIntArray ConstructWithArrayOfSignedValues
+PASS test WebGLIntArray ConstructWithWebGLArrayOfSignedValues
+PASS test WebGLIntArray OffsetsAndSizes
+PASS test WebGLIntArray SetFromWebGLArray
+PASS negativeTest WebGLIntArray SetFromWebGLArray
+PASS test WebGLIntArray SetFromArray
+PASS negativeTest WebGLIntArray SetFromArray
+PASS test WebGLIntArray Slice
+PASS negativeTest WebGLIntArray Slice
+PASS test WebGLIntArray BoundaryConditions(-2147483648, -2147483648, 2147483647, 2147483647)
+PASS Construction of WebGLIntArray with null buffer threw exception
+PASS Construction of WebGLIntArray with out-of-range values threw exception
+PASS Construction of WebGLIntArray with negative out-of-range values threw exception
+PASS Construction of huge WebGLIntArray threw exception
+Testing slicing of WebGLIntArray
+PASS array.length is 32 / typeSize
+PASS array.slice(4, 0x3FFFFFFF).length is (32 / typeSize) - 4
+PASS array.slice(4, -2147483648).length is 0
+PASS array.length is 0
+Testing slicing with default inputs of WebGLIntArray
+PASS array.length is 32 / typeSize
+PASS array.slice().length is (32 / typeSize)
+PASS array.slice(2).length is (32 / typeSize) - 2
+PASS array.slice(-2).length is 2
+PASS array.slice(-2147483648).length is (32 / typeSize)
+PASS Setting WebGLIntArray from array with out-of-range offset was caught
+PASS Setting WebGLIntArray from fake array with invalid length was caught
+PASS Setting WebGLIntArray from WebGLIntArray with out-of-range offset was caught
+PASS test WebGLShortArray SetAndGetPos10ToNeg10
+PASS test WebGLShortArray SetAndGetMethodsPos10ToNeg10
+PASS test WebGLShortArray ConstructWithArrayOfSignedValues
+PASS test WebGLShortArray ConstructWithWebGLArrayOfSignedValues
+PASS test WebGLShortArray OffsetsAndSizes
+PASS test WebGLShortArray SetFromWebGLArray
+PASS negativeTest WebGLShortArray SetFromWebGLArray
+PASS test WebGLShortArray SetFromArray
+PASS negativeTest WebGLShortArray SetFromArray
+PASS test WebGLShortArray Slice
+PASS negativeTest WebGLShortArray Slice
+PASS test WebGLShortArray BoundaryConditions(-32768, -32768, 32767, 32767)
+PASS Construction of WebGLShortArray with null buffer threw exception
+PASS Construction of WebGLShortArray with out-of-range values threw exception
+PASS Construction of WebGLShortArray with negative out-of-range values threw exception
+PASS Construction of huge WebGLShortArray threw exception
+Testing slicing of WebGLShortArray
+PASS array.length is 32 / typeSize
+PASS array.slice(4, 0x3FFFFFFF).length is (32 / typeSize) - 4
+PASS array.slice(4, -2147483648).length is 0
+PASS array.length is 0
+Testing slicing with default inputs of WebGLShortArray
+PASS array.length is 32 / typeSize
+PASS array.slice().length is (32 / typeSize)
+PASS array.slice(2).length is (32 / typeSize) - 2
+PASS array.slice(-2).length is 2
+PASS array.slice(-2147483648).length is (32 / typeSize)
+PASS Setting WebGLShortArray from array with out-of-range offset was caught
+PASS Setting WebGLShortArray from fake array with invalid length was caught
+PASS Setting WebGLShortArray from WebGLShortArray with out-of-range offset was caught
+PASS test WebGLUnsignedByteArray SetAndGet10To1
+PASS test WebGLUnsignedByteArray SetAndGetMethods10To1
+PASS test WebGLUnsignedByteArray ConstructWithArrayOfUnsignedValues
+PASS test WebGLUnsignedByteArray ConstructWithWebGLArrayOfUnsignedValues
+PASS test WebGLUnsignedByteArray OffsetsAndSizes
+PASS test WebGLUnsignedByteArray SetFromWebGLArray
+PASS negativeTest WebGLUnsignedByteArray SetFromWebGLArray
+PASS test WebGLUnsignedByteArray SetFromArray
+PASS negativeTest WebGLUnsignedByteArray SetFromArray
+PASS test WebGLUnsignedByteArray Slice
+PASS negativeTest WebGLUnsignedByteArray Slice
+PASS test WebGLUnsignedByteArray BoundaryConditions(0, 0, 255, 255)
+PASS Construction of WebGLUnsignedByteArray with null buffer threw exception
+PASS Construction of WebGLUnsignedByteArray with out-of-range values threw exception
+PASS Construction of WebGLUnsignedByteArray with negative out-of-range values threw exception
+Testing slicing of WebGLUnsignedByteArray
+PASS array.length is 32 / typeSize
+PASS array.slice(4, 0x3FFFFFFF).length is (32 / typeSize) - 4
+PASS array.slice(4, -2147483648).length is 0
+Testing slicing with default inputs of WebGLUnsignedByteArray
+PASS array.length is 32 / typeSize
+PASS array.slice().length is (32 / typeSize)
+PASS array.slice(2).length is (32 / typeSize) - 2
+PASS array.slice(-2).length is 2
+PASS array.slice(-2147483648).length is (32 / typeSize)
+PASS Setting WebGLUnsignedByteArray from array with out-of-range offset was caught
+PASS Setting WebGLUnsignedByteArray from fake array with invalid length was caught
+PASS Setting WebGLUnsignedByteArray from WebGLUnsignedByteArray with out-of-range offset was caught
+PASS test WebGLUnsignedIntArray SetAndGet10To1
+PASS test WebGLUnsignedIntArray SetAndGetMethods10To1
+PASS test WebGLUnsignedIntArray ConstructWithArrayOfUnsignedValues
+PASS test WebGLUnsignedIntArray ConstructWithWebGLArrayOfUnsignedValues
+PASS test WebGLUnsignedIntArray OffsetsAndSizes
+PASS test WebGLUnsignedIntArray SetFromWebGLArray
+PASS negativeTest WebGLUnsignedIntArray SetFromWebGLArray
+PASS test WebGLUnsignedIntArray SetFromArray
+PASS negativeTest WebGLUnsignedIntArray SetFromArray
+PASS test WebGLUnsignedIntArray Slice
+PASS negativeTest WebGLUnsignedIntArray Slice
+PASS test WebGLUnsignedIntArray BoundaryConditions(0, 0, 4294967295, 4294967295)
+PASS Construction of WebGLUnsignedIntArray with null buffer threw exception
+PASS Construction of WebGLUnsignedIntArray with out-of-range values threw exception
+PASS Construction of WebGLUnsignedIntArray with negative out-of-range values threw exception
+PASS Construction of huge WebGLUnsignedIntArray threw exception
+Testing slicing of WebGLUnsignedIntArray
+PASS array.length is 32 / typeSize
+PASS array.slice(4, 0x3FFFFFFF).length is (32 / typeSize) - 4
+PASS array.slice(4, -2147483648).length is 0
+PASS array.length is 0
+Testing slicing with default inputs of WebGLUnsignedIntArray
+PASS array.length is 32 / typeSize
+PASS array.slice().length is (32 / typeSize)
+PASS array.slice(2).length is (32 / typeSize) - 2
+PASS array.slice(-2).length is 2
+PASS array.slice(-2147483648).length is (32 / typeSize)
+PASS Setting WebGLUnsignedIntArray from array with out-of-range offset was caught
+PASS Setting WebGLUnsignedIntArray from fake array with invalid length was caught
+PASS Setting WebGLUnsignedIntArray from WebGLUnsignedIntArray with out-of-range offset was caught
+PASS test WebGLUnsignedShortArray SetAndGet10To1
+PASS test WebGLUnsignedShortArray SetAndGetMethods10To1
+PASS test WebGLUnsignedShortArray ConstructWithArrayOfUnsignedValues
+PASS test WebGLUnsignedShortArray ConstructWithWebGLArrayOfUnsignedValues
+PASS test WebGLUnsignedShortArray OffsetsAndSizes
+PASS test WebGLUnsignedShortArray SetFromWebGLArray
+PASS negativeTest WebGLUnsignedShortArray SetFromWebGLArray
+PASS test WebGLUnsignedShortArray SetFromArray
+PASS negativeTest WebGLUnsignedShortArray SetFromArray
+PASS test WebGLUnsignedShortArray Slice
+PASS negativeTest WebGLUnsignedShortArray Slice
+PASS test WebGLUnsignedShortArray BoundaryConditions(0, 0, 65535, 65535)
+PASS Construction of WebGLUnsignedShortArray with null buffer threw exception
+PASS Construction of WebGLUnsignedShortArray with out-of-range values threw exception
+PASS Construction of WebGLUnsignedShortArray with negative out-of-range values threw exception
+PASS Construction of huge WebGLUnsignedShortArray threw exception
+Testing slicing of WebGLUnsignedShortArray
+PASS array.length is 32 / typeSize
+PASS array.slice(4, 0x3FFFFFFF).length is (32 / typeSize) - 4
+PASS array.slice(4, -2147483648).length is 0
+PASS array.length is 0
+Testing slicing with default inputs of WebGLUnsignedShortArray
+PASS array.length is 32 / typeSize
+PASS array.slice().length is (32 / typeSize)
+PASS array.slice(2).length is (32 / typeSize) - 2
+PASS array.slice(-2).length is 2
+PASS array.slice(-2147483648).length is (32 / typeSize)
+PASS Setting WebGLUnsignedShortArray from array with out-of-range offset was caught
+PASS Setting WebGLUnsignedShortArray from fake array with invalid length was caught
+PASS Setting WebGLUnsignedShortArray from WebGLUnsignedShortArray with out-of-range offset was caught
+Test passed.
+PASS successfullyParsed is true
+
+TEST COMPLETE
+
