@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2007, 2008, 2009, 2010 Apple Inc. All rights reserved.
+# Copyright (C) 2007, 2008, 2009, 2010, 2011 Apple Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -38,9 +38,19 @@ svg/custom/manually-parsed-svg-disallowed-in-dashboard.html
 svg/custom/svg-disallowed-in-dashboard-object.html
 
 # Apache 1.3 doesn't support SSL <rdar://problem/5345985>
+http/tests/navigation/ping-cross-origin-from-https.html
 http/tests/ssl
 http/tests/security/cross-frame-access-protocol-explicit-domain.html
 http/tests/security/cross-frame-access-protocol.html
+http/tests/inspector/console-websocket-error.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=55372
+http/tests/inspector/network/network-size.html
+http/tests/inspector/network/network-timing.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=19793
+http/tests/inspector/network/network-size-chunked.html
+http/tests/inspector/network/network-size-sync.html
 
 # Fails <rdar://problem/5674289>
 media/video-seek-past-end-paused.html
@@ -57,6 +67,9 @@ media/video-volume-slider.html
 # These tests requires fullscreen <video> support
 media/media-fullscreen-inline.html
 media/media-fullscreen-not-in-document.html
+
+# Times out https://bugs.webkit.org/show_bug.cgi?id=51787
+media/video-element-other-namespace-crash.html
 
 # <rdar://problem/5075790> Layout tests that depend on certain fonts don't match Mac results:
 #                          - Mac OS X and Windows do not have an Arabic font in common
@@ -107,10 +120,11 @@ editing/execCommand/copy-without-selection.html
 
 # Drag & Drop doesn't work correctly in DRT <rdar://5621244>
 editing/pasteboard/drag-image-in-about-blank-frame.html
+editing/pasteboard/drop-file-svg.html
 editing/pasteboard/get-data-text-plain-drop.html
-editing/selection/drag-in-iframe.html
 fast/events/drag-in-frames.html
 fast/events/standalone-image-drag-to-editable.html
+http/tests/security/drag-drop-same-unique-origin.html
 
 # <rdar://problem/5643675> window.scrollTo scrolls a window with no scrollbars
 fast/events/attempt-scroll-with-no-scrollbars.html
@@ -137,16 +151,10 @@ fast/js/kde/Number.html
 http/tests/navigation/anchor-frames.html
 
 # No built-in plugin in DRT <rdar://problem/5074411>
-plugins/call-as-function-test.html
 plugins/get-url-that-the-resource-load-delegate-will-disallow.html
 plugins/get-url-with-blank-target.html
-plugins/jsobjc-dom-wrappers.html
-plugins/jsobjc-simple.html
 plugins/open-and-close-window-with-plugin.html
 plugins/plugin-javascript-access.html
-plugins/root-object-premature-delete-crash.html
-plugins/throw-on-dealloc.html
-plugins/undefined-property-crash.html
 
 # String::Number prints floating point numbers differently on Win than X. <rdar://problem/5127993>
 svg/hixie/perf/001.xml
@@ -192,6 +200,7 @@ http/tests/webarchive
 
 # <rdar://problem/5230396> eventSender.beginDragWithFiles is unimplemented
 editing/pasteboard/dataTransfer-setData-getData.html
+editing/pasteboard/file-drag-to-editable.html
 editing/pasteboard/file-input-files-access.html
 fast/events/drag-to-navigate.html
 fast/events/prevent-drag-to-navigate.html
@@ -200,6 +209,11 @@ fast/forms/input-file-re-render.html
 http/tests/security/clipboard/clipboard-file-access.html
 fast/events/drag-file-crash.html
 fast/dom/Window/window-postmessage-clone.html
+fast/dom/Window/window-postmessage-clone-frames.html
+
+# File API is not supported yet
+fast/files
+http/tests/fileapi
 
 # Need to add functionality to DumpRenderTree to test IDN <rdar://problem/5301954>
 fast/encoding/idn-security.html
@@ -292,6 +306,130 @@ fast/loader/frame-creation-removal.html
 fast/text/international/danda-space.html
 fast/text/international/thai-baht-space.html
 
+# Sensitive to load timing or PHP behavior (https://bugs.webkit.org/show_bug.cgi?id=44873) 
+http/tests/css/css-image-loading.html
+
+# missing DRT feature, see also https://bugs.webkit.org/show_bug.cgi?id=39102
+editing/selection/context-menu-on-text.html
+# and https://bugs.webkit.org/show_bug.cgi?id=45021
+media/context-menu-actions.html
+
+# requires video.buffered to be able to return multiple timeranges
+http/tests/media/video-buffered.html
+
+# Assertion failure in replaySavedEvents http://webkit.org/b/21796
+editing/pasteboard/drop-text-events.html
+editing/selection/drag-in-iframe.html
+fast/events/dragging-mouse-moves.html
+
+# Causes next test to time out http://webkit.org/b/46975
+http/tests/xmlhttprequest/xmlhttprequest-sync-vs-async-assertion-failure.html
+
+# Failing in Release builds http://webkit.org/b/46976
+sputnik/Conformance/11_Expressions/11.7_Bitwise_Shift_Operators/11.7.3_The_Unsigned_Right_Shift_Operator/S11.7.3_A2.3_T1.html
+
+# Sometimes fails https://webkit.org/b/49412
+inspector/timeline/timeline-network-resource.html
+
+# Times out all the time: http://webkit.org/b/60195
+inspector/elements/shadow-dom.html
+
+# Sometimes fails http://webkit.org/b/46998
+svg/dom/SVGScriptElement/script-load-and-error-events.svg
+
+# Times out in Release builds http://webkit.org/b/47091
+http/tests/misc/copy-resolves-urls.html
+
+# Actual values are sometimes slightly out of range of expected values http://webkit.org/b/48451
+animations/combo-transform-translate+scale.html
+animations/play-state.html
+animations/suspend-resume-animation.html
+animations/3d/transform-origin-vs-functions.html
+
+# Sometimes fail http://webkit.org/b/48452
+compositing/reflections/animation-inside-reflection.html
+compositing/reflections/nested-reflection-animated.html
+
+# Sometimes fail http://webkit.org/b/48454
+compositing/tiling/huge-layer-resize.html
+compositing/tiling/huge-layer-with-layer-children-resize.html
+
+# http://webkit.org/b/48455
+transitions/cancel-transition.html
+
+# http://webkit.org/b/48456
+transitions/change-values-during-transition.html
+
+# Sometimes times out http://webkit.org/b/48457
+fast/workers/storage/use-same-database-in-page-and-workers.html
+
+# Times out on apple-windows-3 http://webkit.org/b/48750
+fast/frames/sandboxed-iframe-storage.html
+
+# Times out on apple-windows-3 http://webkit.org/b/48999
+fast/js/exceptions-thrown-in-callbacks.html
+
+# Sometimes times out http://webkit.org/b/48753
+http/tests/security/window-events-clear-port.html
+http/tests/security/window-properties-clear-port.html
+
+# Sometimes fails http://webkit.org/b/48909
+animations/play-state-suspend.html
+
+# Assertion failure http://webkit.org/b/48910
+http/tests/media/pdf-served-as-pdf.html
+http/tests/media/video-cancel-load.html
+
+# Sometimes crashes http://webkit.org/b/48996
+http/tests/websocket/tests/workers/close-in-onmessage-crash.html
+
+# Sometimes times out http://webkit.org/b/48997
+animations/animation-iteration-event-destroy-renderer.html
+
+# Sometimes times out http://webkit.org/b/49014
+fast/workers/storage/change-version-handle-reuse-sync.html
+
+# Sometimes fails http://webkit.org/b/49182
+animations/stop-animation-on-suspend.html
+
+# Crashing in AccessibilityUIElement::parentElement http://webkit.org/b/49379
+accessibility/iframe-bastardization.html
+
+# Spews a console message into the next test under Aero http://webkit.org/b/49945
+svg/custom/clip-path-referencing-use2.svg
+
+# Assertion failure http://webkit.org/b/52913
+transitions/transition-end-event-destroy-iframe.html
+
+# Fails on some bots. Maybe sensitive to display color depth? http://webkit.org/b/53677
+fast/canvas/set-colors.html
+
+# Fails when run after other SVG tests http://webkit.org/b/53700
+svg/W3C-SVG-1.1-SE/types-dom-01-b.svg
+
+# Flakey http://webkit.org/b/53332
+transitions/transition-end-event-multiple-04.html
+
+# Fails (but not on all machines? Or only when run with certain other tests?) http://webkit.org/b/54655
+http/tests/security/xssAuditor/script-tag-with-fancy-unicode.html
+
+# Sometimes fails http://webkit.org/b/55329
+fast/events/pageshow-pagehide-on-back-cached.html
+# Sometimes fails, maybe dependent on which other tests are run? http://webkit.org/b/58441
+fast/events/pageshow-pagehide-on-back-cached-with-frames.html
+
+# Different tests sometimes time out on apple-windows-5 http://webkit.org/b/55579
+http/tests/websocket
+
+# Timing out http://webkit.org/b/58654
+media/video-controls-in-media-document.html
+
+# Sometimes fails http://webkit.org/b/58367
+http/tests/inspector/resource-tree/resource-tree-document-url.html
+http/tests/inspector/resource-tree/resource-tree-frame-navigate.html
+http/tests/inspector/resource-tree/resource-tree-reload.html
+http/tests/inspector/resource-tree/resource-tree-frame-add.html
+
 ################################################################################
 ####################### No bugs filed about the below yet#######################
 ################################################################################
@@ -352,7 +490,6 @@ editing/deleting/deletionUI-single-instance.html
 editing/pasteboard/input-field-1.html
 editing/selection/contains-boundaries.html
 editing/undo/5378473.html
-http/tests/xmlhttprequest/failed-auth.html
 http/tests/xmlhttprequest/connection-error-sync.html
 plugins/netscape-plugin-setwindow-size.html
 svg/custom/gradient-stop-style-change.svg
@@ -373,6 +510,7 @@ accessibility/aria-combobox.html
 accessibility/aria-controls-with-tabs.html
 accessibility/aria-describedby-on-input.html
 accessibility/aria-disabled.html
+accessibility/aria-help.html
 accessibility/aria-hidden.html
 accessibility/aria-hidden-with-elements.html
 accessibility/aria-label.html
@@ -381,6 +519,7 @@ accessibility/aria-labelledby-on-input.html
 accessibility/aria-labelledby-stay-within.html
 accessibility/aria-link-supports-press.html
 accessibility/aria-list-and-listitem.html
+accessibility/aria-menubar-menuitems.html
 accessibility/aria-presentational-role.html
 accessibility/aria-readonly.html
 accessibility/aria-roles.html
@@ -393,14 +532,12 @@ accessibility/button-press-action.html
 accessibility/canvas.html
 accessibility/document-attributes.html
 accessibility/editable-webarea-context-menu-point.html
-accessibility/iframe-bastardization.html
 accessibility/ignore-spacer-elements.html
 accessibility/image-link.html
 accessibility/image-map1.html
 accessibility/image-map2.html
 accessibility/img-aria-button-alt-tag.html
 accessibility/input-image-alt.html
-accessibility/input-slider.html
 accessibility/internal-link-anchors2.html
 accessibility/label-for-control-hittest.html
 accessibility/language-attribute.html
@@ -537,31 +674,11 @@ http/tests/security/local-iFrame-from-remote.html
 http/tests/security/local-image-from-remote.html
 http/tests/security/local-user-CSS-from-remote.html
 http/tests/security/originHeader/origin-header-for-https.html
-plugins/npruntime.html
+plugins/npruntime/npruntime.html
 
 ################################################################################
 ######################### End list of r41995 failures ##########################
 ################################################################################
-
-# Bug 25038: [Windows] Implement layoutTestController.waitForPolicyDelegate <https://bugs.webkit.org/show_bug.cgi?id=25038>
-fast/encoding/mailto-always-utf-8.html
-fast/forms/mailto/advanced-get.html
-fast/forms/mailto/advanced-put.html
-fast/forms/mailto/get-multiple-items-text-plain.html
-fast/forms/mailto/get-multiple-items-x-www-form-urlencoded.html
-fast/forms/mailto/get-multiple-items.html
-fast/forms/mailto/get-non-ascii-always-utf-8.html
-fast/forms/mailto/get-non-ascii-text-plain-latin-1.html
-fast/forms/mailto/get-non-ascii-text-plain.html
-fast/forms/mailto/get-non-ascii.html
-fast/forms/mailto/get-overwrite-query.html
-fast/forms/mailto/post-append-query.html
-fast/forms/mailto/post-multiple-items-multipart-form-data.html
-fast/forms/mailto/post-multiple-items-text-plain.html
-fast/forms/mailto/post-multiple-items-x-www-form-urlencoded.html
-fast/forms/mailto/post-multiple-items.html
-fast/forms/mailto/post-text-plain-with-accept-charset.html
-fast/forms/mailto/post-text-plain.html
 
 # <rdar://6772112> Cookies expire 1 hour too early
 fast/cookies/local-file-can-set-cookies.html
@@ -612,7 +729,8 @@ fast/replaced/table-percent-height-text-controls.html
 http/tests/loading/deleted-host-in-resource-load-delegate-callback.html
 
 # <rdar://problem/7091605> http/tests/cache/subresource-expiration.html fails intermittently
-http/tests/cache/subresource-expiration.html
+http/tests/cache/subresource-expiration-1.html
+http/tests/cache/subresource-expiration-2.html
 
 # Try and get Windows buildbots back in green
 # FIXME: File bugs and examine these tests
@@ -641,10 +759,7 @@ fast/dom/Geolocation
 
 # This port doesn't support Notifications.
 fast/notifications
-
-# MediaPlayerPrivateQuickTimeWin doesn't return to NETWORK_IDLE and hence doesn't fire a suspend event
-# https://bugs.webkit.org/show_bug.cgi?id=37035
-http/tests/media/video-play-suspend.html
+http/tests/notifications
 
 # These media tests regressed on the bots.  Skipping to make the bots green again.
 # https://bugs.webkit.org/show_bug.cgi?id=28281
@@ -674,11 +789,15 @@ editing/pasteboard/files-during-page-drags.html
 fast/forms/input-selectedoption.html
 
 # <https://bugs.webkit.org/show_bug.cgi?id=29287>
-http/tests/local/send-dragged-file.html
-http/tests/local/send-sliced-dragged-file.html
-http/tests/local/formdata/send-form-data.html
-http/tests/local/formdata/send-form-data-with-sliced-file.html
-http/tests/local/formdata/upload-events.html
+http/tests/local/fileapi
+http/tests/local/blob/send-hybrid-blob.html
+http/tests/local/formdata
+
+# Need Blob.slice support
+http/tests/local/blob/send-sliced-data-blob.html
+
+# BlodBuilder is not enabled
+http/tests/local/blob/send-data-blob.html
 
 # <https://bugs.webkit.org/show_bug.cgi?id=29289>
 plugins/destroy-during-npp-new.html
@@ -696,9 +815,6 @@ http/tests/globalhistory/history-delegate-basic-visited-links.html
 # This test has never passed on Windows (https://bugs.webkit.org/show_bug.cgi?id=30234)
 platform/win/editing/selection/doubleclick-should-not-expand-across-lines.html
 
-# https://bugs.webkit.org/show_bug.cgi?id=31315
-fast/dom/HTMLObjectElement/children-changed.html
-
 # Need rebaseline: https://bugs.webkit.org/show_bug.cgi?id=26830
 fast/multicol/single-line.html
 
@@ -711,16 +827,6 @@ fast/history/nested-visited-test.html
 fast/history/self-is-visited.html
 fast/history/sibling-visited-test.html
 
-# ACCELERATED_COMPOSITING tests that crash
-compositing/layers-inside-overflow-scroll.html
-compositing/self-painting-layers.html
-compositing/geometry/clipped-video-controller.html
-compositing/geometry/video-fixed-scrolling.html
-compositing/geometry/video-opacity-overlay.html
-compositing/overflow/scroll-ancestor-update.html
-compositing/reflections/load-video-in-reflection.html
-compositing/video/video-background-color.html
-
 # ACCELERATED_COMPOSITING tests that have incorrect layout
 compositing/webgl/webgl-background-color.html
 compositing/webgl/webgl-reflection.html
@@ -731,9 +837,6 @@ fast/forms/validationMessage.html
 # Need to implement this in plugins code in WebKit
 plugins/reloadplugins-and-pages.html
 plugins/reloadplugins-no-pages.html
-
-# These tests require Qt Widgets
-plugins/qt-qwidget-plugin.html
 
 # This test requires ogg codecs
 media/media-can-play-ogg.html
@@ -748,9 +851,6 @@ http/tests/security/xss-DENIED-getSVGDocument-object.html
 # http://webkit.org/b/32532 - Time out
 http/tests/navigation/dynamic-iframe-dynamic-form-back-entry.html
 http/tests/navigation/parsed-iframe-dynamic-form-back-entry.html
-
-# Shows subtle 0.0 vs -0.0 difference in path debug string, see https://bugs.webkit.org/show_bug.cgi?id=17393
-svg/custom/use-on-symbol-inside-pattern.svg
 
 # Crashes debug slave, see https://bugs.webkit.org/show_bug.cgi?id=33155
 fast/frames/iframe-onload-remove-self-no-crash.html
@@ -791,8 +891,8 @@ media/video-display-aspect-ratio.html
 http/tests/misc/image-checks-for-accept.html
 
 # Tests timeout: https://bugs.webkit.org/show_bug.cgi?id=35041
-websocket/tests/frame-lengths.html
-websocket/tests/simple-stress.html
+http/tests/websocket/tests/frame-lengths.html
+http/tests/websocket/tests/simple-stress.html
 
 # Needs platform specific API implemented in DRT, maybe not relevant for non-Mac and non-Windows ports
 fast/loader/api-test-new-window-data-load-base-url.html
@@ -800,15 +900,13 @@ fast/loader/api-test-new-window-data-load-base-url.html
 # Needs to implement NPP_HandleEvent() in TestNetscapePlugin
 plugins/keyboard-events.html
 http/tests/plugins/plugin-document-has-focus.html
+plugins/plugin-initiate-popup-window.html
 
 # DumpRenderTree code to enable Java is currently a no-op. Windows doesn't come with Java by default.
 java
 
 # Need to add functionality to DumpRenderTree to handle enable/disable Spatial Navigation
-fast/events/spatial-navigation
-
-# <rdar://problem/7718442> Implement 'preload=none'
-media/video-preload.html
+fast/spatial-navigation
 
 # For some reason crashes when run with all tests. Passes individually.
 fast/forms/multiple-form-submission-protection-mouse.html
@@ -818,6 +916,9 @@ fast/forms/multiple-form-submission-protection-mouse.html
 fast/events/remove-child-onscroll.html
 fast/events/platform-wheelevent-in-scrolling-div.html
 fast/events/continuous-platform-wheelevent-in-scrolling-div.html
+fast/events/wheelevent-in-horizontal-scrollbar-in-rtl.html
+fast/events/wheelevent-in-vertical-scrollbar-in-rtl.html
+scrollbars/scrollevent-iframe-no-scrolling-wheel.html
 
 # Windows port doesn't yet support rendering of non-BMP characters even though there's a font available.
 fast/text/international/plane2.html 
@@ -828,13 +929,23 @@ fast/media/print-restores-previous-mediatype.html
 # https://bugs.webkit.org/show_bug.cgi?id=35973
 fast/multicol/hit-test-above-or-below.html
 
-# renderTheme is not ready to draw progress element
+# Needs progress element support
+# https://bugs.webkit.org/show_bug.cgi?id=49769
 fast/dom/HTMLProgressElement/progress-element.html
 fast/dom/HTMLProgressElement/set-progress-properties.html
 fast/dom/HTMLProgressElement/progress-bar-value-pseudo-element.html
+fast/dom/HTMLProgressElement/progress-element-form.html
+fast/dom/HTMLProgressElement/progress-writing-mode.html
+fast/forms/form-attribute.html
 
-# No Widgets 1.0 support
-fast/media/media-feature-wgt-view-mode.html
+# view mode media feature
+fast/media/view-mode-media-feature.html
+fast/media/media-query-list-02.html
+fast/media/media-query-list-03.html
+fast/media/media-query-list-04.html
+fast/media/media-query-list-05.html
+fast/media/media-query-list-06.html
+fast/media/media-query-list-07.html
 
 # Need expectations. See https://bugs.webkit.org/show_bug.cgi?id=36461
 fast/repaint/overflow-scroll-body-appear.html
@@ -842,26 +953,348 @@ fast/repaint/overflow-scroll-body-appear.html
 # Need to add functionality to DumpRenderTree to handle scrollbar police changes
 fast/overflow/scrollbar-restored-and-then-locked.html
 
-# Need to handle getting text/html in ClipboardWin::getData.
-editing/pasteboard/onpaste-text-html.html
-fast/events/ondrop-text-html.html
-
 # <http://webkit.org/b/37096> http/tests/security/xss-DENIED-iframe-src-alias.html sometimes times out on Windows
 http/tests/security/xss-DENIED-iframe-src-alias.html
 
-# Missing an implementation of LayoutTestController::markerTextForListItem()
-fast/lists/ol-nested-items-dynamic-insert.html
-fast/lists/ol-nested-items-dynamic-remove.html
-fast/lists/ol-nested-items.html
-fast/lists/ol-nested-list-dynamic-insert.html
-fast/lists/ol-nested-list-dynamic-remove.html
-fast/lists/ol-nested-list.html
-
-# Doesn't support WOFF yet.
-fast/css/font-face-woff.html
-
-# multiple tests fail on different platforms, need to find the cause(s)
-fast/js/sputnik
-
 # https://bugs.webkit.org/show_bug.cgi?id=38376
 media/media-document-audio-size.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=38794 - contains an ALERT message, indicating a failure
+fast/css/display-none-inline-style-change-crash.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=38795 - doesn't print PaintEvent instrumentation output
+inspector/timeline/timeline-paint.html
+
+# New canvas test suite from http://philip.html5.org/tests/canvas/suite/tests/
+canvas/philip
+
+# Need to dump context menu items on eventSender.contextClick(true).
+# https://bugs.webkit.org/show_bug.cgi?id=39104
+editing/spelling/context-menu-suggestions.html
+
+# https://webkit.org/b/32021 - DRT's textInputController is unimplemented on Windows
+editing/input/ime-composition-clearpreedit.html
+editing/input/setting-input-value-cancel-ime-composition.html
+editing/inserting/insert-composition-whitespace.html
+editing/selection/5825350-1.html
+editing/selection/5825350-2.html
+fast/text/international/thai-cursor-position.html
+fast/dom/tab-in-right-alignment.html
+svg/text/caret-in-svg-text.xhtml
+
+# textInputController.hasGrammarMarkers() is not implemented.
+editing/spelling/grammar.html
+
+# EditorClient::requestCheckingOfString() is not implemented
+editing/spelling/spellcheck-paste.html
+
+# IndexedDB is not yet enabled.
+storage/indexeddb
+
+# StorageTracker is not enabled.
+storage/domstorage/localstorage/storagetracker
+
+# This port doesn't support DeviceMotion or DeviceOrientation.
+fast/dom/DeviceMotion
+fast/dom/DeviceOrientation
+fast/dom/Window/window-properties-device-orientation.html
+
+# Link prefetch is disabled by default
+fast/dom/HTMLLinkElement/link-and-subresource-test.html
+fast/dom/HTMLLinkElement/prefetch.html
+fast/dom/HTMLLinkElement/prefetch-beforeload.html
+fast/dom/HTMLLinkElement/prefetch-onerror.html
+fast/dom/HTMLLinkElement/prefetch-onload.html
+fast/dom/HTMLLinkElement/subresource.html
+http/tests/misc/link-rel-prefetch-and-subresource.html
+http/tests/misc/prefetch-purpose.html
+
+# LayoutTestController::pageProperty is not implemented for WIN yet.
+printing/page-rule-selection.html
+
+# Hyphenation is not implemented yet.
+fast/text/hyphenate-character.html
+fast/text/hyphens.html
+
+# DRT doesn't support showModalDialog http://webkit.org/b/53675
+fast/events/show-modal-dialog-onblur-onfocus.html
+fast/harness/show-modal-dialog.html
+fast/events/scroll-event-during-modal-dialog.html
+inspector/console/console-long-eval-crash.html
+
+# These tests fail when showModalDialog is unsupported, even though they don't
+# rely on it directly http://webkit.org/b/53676
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.1_T1.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.1_T10.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.1_T11.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.1_T2.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.1_T3.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.1_T4.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.1_T5.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.1_T6.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.1_T7.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.1_T8.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.1_T9.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.2_T1.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.2_T10.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.2_T11.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.2_T2.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.2_T3.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.2_T4.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.2_T5.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.2_T6.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.2_T7.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.2_T8.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.2_T9.html
+
+# LayoutTestController::isPageBoxVisible, pageAreaRectInPixels, and preferredPageSizeInPixels are not implemented yet for WIN.
+printing/page-format-data.html
+
+# Need to implement inner-spin-button
+# https://bugs.webkit.org/show_bug.cgi?id=38381
+fast/forms/input-appearance-spinbutton-disabled-readonly.html
+fast/forms/input-appearance-spinbutton-layer.html
+fast/forms/input-appearance-spinbutton-visibility.html
+fast/forms/input-number-events.html
+fast/forms/input-number-large-padding.html
+fast/forms/input-spinbutton-capturing.html
+
+# Speech input is not yet enabled.
+fast/speech
+
+# Media Stream API is not yet enabled.
+fast/dom/MediaStream
+
+# Needs to be fixed at image decoder layer for Safari.
+fast/images/large-size-image-crash.html
+
+# Disable until the windows WebKit API supports injecting in the top frame only.
+# https://bugs.webkit.org/show_bug.cgi?id=41800
+userscripts/user-script-all-frames.html
+userscripts/user-script-top-frame-only.html
+userscripts/user-style-all-frames.html
+userscripts/user-style-top-frame-only.html
+
+# Directory upload is not enabled.
+fast/forms/input-file-directory-upload.html
+
+# Need setPrinting. See https://bugs.webkit.org/show_bug.cgi?id=20011
+printing/setPrinting.html
+
+# Need to call Settings::setInteractiveFormValidationEnabled(true).
+fast/forms/interactive-validation-prevented.html
+fast/forms/interactive-validation-attach-assertion.html
+fast/forms/interactive-validation-assertion-by-validate-twice.html
+fast/forms/interactive-validation-select-crash.html
+fast/forms/interactive-validation-crash-by-style-override.html
+# Need to call Settings::setValidationMessageTimerMagnification(-1) in DRT.
+fast/forms/validation-message-appearance.html
+fast/forms/validation-message-on-checkbox.html
+fast/forms/validation-message-on-listbox.html
+fast/forms/validation-message-on-menulist.html
+fast/forms/validation-message-on-radio.html
+fast/forms/validation-message-on-textarea.html
+
+# Web Timing is not enabled.
+# https://bugs.webkit.org/show_bug.cgi?id=42435
+fast/dom/Window/window-properties-performance.html
+fast/dom/navigation-type-back-forward.html
+fast/dom/navigation-type-navigate.html
+fast/dom/navigation-type-reload.html
+fast/dom/webtiming.html
+fast/dom/webtiming-document-open.html
+fast/dom/webtiming-navigate-within-document.html
+http/tests/misc/webtiming-origins.html
+http/tests/misc/webtiming-one-redirect.php
+http/tests/misc/webtiming-slow-load.php
+http/tests/misc/webtiming-ssl.php
+http/tests/misc/webtiming-two-redirects.php
+
+# Still working out flakiness issues with the perf tests.
+# https://bugs.webkit.org/show_bug.cgi?id=44199
+perf/
+
+# Application Cache Quotas
+# https://bugs.webkit.org/show_bug.cgi?id=43458
+http/tests/appcache/origin-quota.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=43332
+inspector/debugger/dom-breakpoints.html
+inspector/debugger/event-listener-breakpoints.html
+inspector/debugger/xhr-breakpoints.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=40300
+inspector/debugger/live-edit.html
+
+# <https://bugs.webkit.org/show_bug.cgi?id=44484>
+svg/batik/paints/patternRegions-positioned-objects.svg
+
+# Full Screen support is not yet enabled.
+fullscreen/
+
+# viewport meta tag support
+fast/viewport
+
+# https://bugs.webkit.org/show_bug.cgi?id=45983
+media/media-can-play-mpeg4-video.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=46111
+http/tests/media/video-served-as-text.html
+
+# Pre-HMTL5 parser quirks only apply to the mac port for now.
+fast/parser/pre-html5-parser-quirks.html
+
+# FileSystem API is not supported.
+fast/filesystem
+http/tests/filesystem
+http/tests/security/filesystem-iframe-from-remote.html
+
+# LayoutTestController::nodesFromRect is not supported.
+fast/dom/nodesFromRect-basic.html
+fast/dom/nodesFromRect-links-and-text.html
+fast/dom/nodesFromRect-inner-documents.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=46223
+# The WebKit plugin implementation does not support iframe shims.
+plugins/iframe-shims.html
+
+# Requires WebP support.
+fast/images/webp-image-decoding.html
+
+# Missing layoutTestController.findString() http://webkit.org/b/50234
+editing/text-iterator/findString.html
+ 
+# The following tests requires the DRT's dumpUserGestureInFrameLoadCallbacks
+# method. But that method is not implemented in win port since win port can't
+# not get user gesture in frameload callbacks.
+# The relevant bugs are https://bugs.webkit.org/show_bug.cgi?id=47849/47817.
+fast/frames/location-redirect-user-gesture.html
+fast/frames/meta-refresh-user-gesture.html
+
+# For https://bugs.webkit.org/show_bug.cgi?id=50758
+# These require DRT setSerializeHTTPLoads implementation to be reliable.
+http/tests/local/link-stylesheet-load-order.html
+http/tests/local/link-stylesheet-load-order-preload.html
+fast/preloader/document-write.html
+fast/preloader/document-write-2.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=50994
+fast/loader/user-stylesheet-fast-path.html
+
+# DRT does not support toggling caret browsing on / off
+editing/selection/caret-mode-paragraph-keys-navigation.html
+
+# DRT does not obey addURLToRedirect
+http/tests/loading/cross-origin-XHR-willLoadRequest.html
+
+# Request ENABLE(REQUEST_ANIMATION_FRAME) support
+fast/animation
+
+# This port doesn't support v8 i18n extension.
+fast/js/i18n-bindings-locale.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=55921
+# Windows port doesn't support HTML in pastes.
+editing/pasteboard/onpaste-text-html-types.html
+
+# DataTransferItems is not yet implemented.
+editing/pasteboard/data-transfer-items.html
+
+# Needs expectation update
+fast/dom/HTMLMeterElement/meter-element.html
+fast/dom/HTMLMeterElement/meter-boundary-values.html
+fast/dom/HTMLMeterElement/meter-optimums.html
+fast/dom/HTMLMeterElement/meter-styles-changing-pseudo.html
+fast/dom/HTMLMeterElement/meter-styles.html
+fast/dom/HTMLMeterElement/meter-appearances-capacity.html
+fast/dom/HTMLMeterElement/meter-appearances-rating-relevancy.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=56167
+http/tests/media/reload-after-dialog.html
+http/tests/media/remove-while-loading.html
+http/tests/media/video-seekable-stall.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=56347
+fast/html/details-add-summary-1-and-click.html
+fast/html/details-add-summary-2-and-click.html
+fast/html/details-add-summary-3-and-click.html
+fast/html/details-add-summary-4-and-click.html
+fast/html/details-add-summary-5-and-click.html
+fast/html/details-add-summary-6-and-click.html
+fast/html/details-add-summary-7-and-click.html
+fast/html/details-add-summary-8-and-click.html
+fast/html/details-add-summary-9-and-click.html
+fast/html/details-add-summary-10-and-click.html
+fast/html/details-remove-summary-1-and-click.html
+fast/html/details-remove-summary-2-and-click.html
+fast/html/details-remove-summary-3-and-click.html
+fast/html/details-remove-summary-4-and-click.html
+fast/html/details-remove-summary-5-and-click.html
+fast/html/details-remove-summary-6-and-click.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=56496
+fast/js/array-sort-modifying-tostring.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=56573
+fast/dom/HTMLKeygenElement/keygen.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=57693
+plugins/windowless_plugin_paint_test.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=58421
+svg/W3C-SVG-1.1-SE/svgdom-over-01-f.svg    
+
+# scalePage is currently Mac-specific WebKit API. http://webkit.org/b/59098
+fast/dom/Element/scale-page-bounding-client-rect.html
+fast/dom/Element/scale-page-client-rects.html
+fast/dom/Range/scale-page-bounding-client-rect.html
+fast/dom/Range/scale-page-client-rects.html
+fast/repaint/scale-page-shrink.html
+fast/transforms/selection-bounds-in-transformed-view.html
+
+# Quota API is not supported.
+storage/storageinfo-query-usage.html
+
+# Expose title direction in WebKit API
+# https://bugs.webkit.org/show_bug.cgi?id=58845
+fast/dom/title-directionality.html
+
+# Timing out for unknown reasons.  Passes on Chromium, QT and GTK+.
+# https://bugs.webkit.org/show_bug.cgi?id=58924
+plugins/mouse-click-iframe-to-plugin.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=59062
+fast/images/animated-gif-restored-from-bfcache.html
+
+# Windows DRT needs an implementation of shadowRoot
+# https://bugs.webkit.org/show_bug.cgi?id=59081
+fast/dom/shadow
+inspector/elements/shadow-dom.html
+media/audio-controls-do-not-fade-out.html
+media/video-controls-visible-audio-only.html
+
+# Causes the next test to fail http://webkit.org/b/59099
+http/tests/security/contentSecurityPolicy/frame-src-blocked.html
+
+# Times out https://bugs.webkit.org/show_bug.cgi?id=59324
+media/invalid-media-url-crash.html
+
+# Times out in Debug builds http://webkit.org/b/51596
+http/tests/xmlhttprequest/basic-auth-nopassword.html
+http/tests/xmlhttprequest/basic-auth-nouser.html
+
+# Animation API is disabled by default
+animations/animation-api-1.html
+
+# HTTP 204 (No Content) should be ignored
+# https://bugs.webkit.org/show_bug.cgi?id=60206
+http/tests/navigation/response204.html
+
+# This platform does not support the Page Visibility API.
+fast/events/page-visibility-iframe-delete-test.html
+fast/events/page-visibility-iframe-move-test.html
+fast/events/page-visibility-iframe-propagation-test.html
+fast/events/page-visibility-transition-test.html
+
+# Unskip after implementing LayoutTestController::setDefersLoading and ::goBack.
+loader/navigation-while-deferring-loads.html

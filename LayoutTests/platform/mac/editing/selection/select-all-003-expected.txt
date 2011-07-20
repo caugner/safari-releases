@@ -5,7 +5,7 @@ EDITING DELEGATE: shouldChangeSelectedDOMRange:range from 6 of BODY > HTML > #do
 EDITING DELEGATE: webViewDidChangeSelection:WebViewDidChangeSelectionNotification
 layer at (0,0) size 812x1044
   RenderView at (0,0) size 785x585
-layer at (0,0) size 812x1044
+layer at (0,0) size 785x1044
   RenderBlock {HTML} at (0,0) size 785x1044
     RenderBody {BODY} at (64,64) size 748x916 [border: (50px solid #FF0000)]
       RenderBlock (anonymous) at (74,74) size 600x768
@@ -40,5 +40,5 @@ layer at (0,0) size 812x1044
         RenderBR {BR} at (142,704) size 0x0
         RenderBR {BR} at (0,730) size 0x28
       RenderBlock {DIV} at (74,842) size 600x0
-selection start: position 0 of child 1 {BR} of child 1 {BODY} of child 0 {HTML} of document
-selection end:   position 1 of child 5 {BR} of child 1 {BODY} of child 0 {HTML} of document
+selection start: position 0 of child 1 {BR} of body
+selection end:   position 1 of child 5 {BR} of body

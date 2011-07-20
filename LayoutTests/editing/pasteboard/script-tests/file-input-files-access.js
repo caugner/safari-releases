@@ -45,7 +45,7 @@ function draggingPathsShouldResultInFiles(pathsArray, filesArray)
 {
     dragFilesOntoInput(pathsArray);
     // WebKit seems to always take the first file in the dragged list as .value:
-    shouldBeEqualToString("fileInput.value", filesArray[0] ? filesArray[0]['name'] : '');
+    shouldBeEqualToString("fileInput.value", filesArray[0] ? "C:\\fakepath\\" + filesArray[0]['name'] : '');
     filesShouldBe(filesArray);
 }
 
@@ -74,11 +74,6 @@ function testOrderedDraggingWithDirectory()
 
 function runTest()
 {
-    debug("Dragging to a disabled file input control:");
-    fileInput.disabled = true;
-    draggingPathsShouldResultInFiles(['DRTFakeFile'], [])
-    fileInput.disabled = false;
-
     debug("Dragging a single (non-existant) file to a file input control:");
     testDraggingFiles([
         { 'path': 'DRTFakeFile', 'name' : 'DRTFakeFile', 'size' : 0, 'type' : '' }
@@ -104,22 +99,39 @@ function runTest()
 
     fileInput.multiple = true;
 
-    debug("Dragging two files to a multi-file input control:");
+    debug("Dragging three files to a multi-file input control:");
     testDraggingFiles([
         { 'path': 'resources/apple.gif', 'name' : 'apple.gif', 'size' : 1476, 'type' : 'image/gif' },
-        { 'path': 'resources/mozilla.gif', 'name' : 'mozilla.gif', 'size' : 2593, 'type' : 'image/gif' }
+        { 'path': 'resources/mozilla.gif', 'name' : 'mozilla.gif', 'size' : 2593, 'type' : 'image/gif' },
+        { 'path': 'resources/file.invalidext', 'name' : 'file.invalidext', 'size' : 10, 'type' : '' }
     ]);
 
     testOrderedDraggingWithDirectory();
+
+    debug("Dragging to a disabled file input control:");
+    fileInput.disabled = true;
+    window.onbeforeunload = function() {
+        // Since the drop triggered a navigation, verify the properties of the file input here.
+        shouldBeEqualToString("fileInput.value", "");
+        filesShouldBe([]);
+        shouldBeTrue("successfullyParsed");
+        debug('<br /><span class="pass">TEST COMPLETE</span>');
+
+        // Clean up after ourselves
+        fileInput.parentNode.removeChild(fileInput);
+
+        layoutTestController.notifyDone();
+
+        window.onbeforeunload = null;
+    };
+    draggingPathsShouldResultInFiles(['DRTFakeFile'], []);
+    testFailed("The final test case should have resulted in navigation");
 }
+
+var successfullyParsed = true;
 
 if (window.eventSender) {
     runTest();
-    // Clean up after ourselves
-    fileInput.parentNode.removeChild(fileInput);
 } else {
     testFailed("This test is not interactive, please run using DumpRenderTree");
 }
-
-
-var successfullyParsed = true;

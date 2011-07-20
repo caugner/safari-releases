@@ -2,20 +2,20 @@ layer at (0,0) size 800x600
   RenderView at (0,0) size 800x600
 layer at (0,0) size 800x600
   RenderBlock {HTML} at (0,0) size 800x600
-    RenderBody {BODY} at (8,8) size 784x578
-      RenderBlock {P} at (0,0) size 784x38
-        RenderText {#text} at (0,0) size 752x38
-          text run at (0,0) width 373: "This test places the caret before the 'b' in 'bar' and Delete. "
-          text run at (373,0) width 379: "Afterword, 'foobar' should be in the first paragraph and 'baz'"
-          text run at (0,19) width 155: "should be in the second."
-      RenderBlock {DIV} at (0,52) size 784x52
-        RenderBlock {DIV} at (0,0) size 784x19
-          RenderText {#text} at (0,0) size 20x19
-            text run at (0,0) width 20: "foo"
-          RenderInline {SPAN} at (0,0) size 21x19
-            RenderText {#text} at (20,0) size 21x19
-              text run at (20,0) width 21: "bar"
-        RenderBlock {PRE} at (0,33) size 784x19
-          RenderText {#text} at (0,0) size 23x19
-            text run at (0,0) width 23: "baz"
-caret: position 3 of child 0 {#text} of child 1 {DIV} of child 2 {DIV} of child 1 {BODY} of child 0 {HTML} of document
+    RenderBody {BODY} at (8,8) size 784x579
+      RenderBlock {P} at (0,0) size 784x44
+        RenderText {#text} at (0,0) size 777x44
+          text run at (0,0) width 395: "This test places the caret before the 'b' in 'bar' and Delete. "
+          text run at (395,0) width 382: "Afterword, 'foobar' should be in the first paragraph and"
+          text run at (0,22) width 197: "'baz' should be in the second."
+      RenderBlock {DIV} at (0,60) size 784x52
+        RenderBlock {DIV} at (0,0) size 784x22
+          RenderText {#text} at (0,0) size 21x22
+            text run at (0,0) width 21: "foo"
+          RenderInline {SPAN} at (0,0) size 18x17
+            RenderText {#text} at (21,3) size 18x17
+              text run at (21,3) width 18: "bar"
+        RenderBlock {PRE} at (0,35) size 784x17
+          RenderText {#text} at (0,0) size 21x17
+            text run at (0,0) width 21: "baz"
+caret: position 3 of child 0 {#text} of child 1 {DIV} of child 2 {DIV} of body

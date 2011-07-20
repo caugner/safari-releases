@@ -41,6 +41,12 @@ textarea.value = 'abcde';
 shouldBeTrue('textarea.validity.tooLong');
 
 debug('');
+debug('Disabled');
+textarea.disabled = true;
+shouldBeFalse('textarea.validity.tooLong');
+textarea.disabled = false;
+
+debug('');
 debug('Grapheme length is not greater than maxLength though character length is greater');
 // fancyX should be treated as 1 grapheme.
 // U+0305 COMBINING OVERLINE
@@ -70,7 +76,7 @@ textarea = parent.firstChild;
 textarea.value = 'def';
 shouldBeTrue('textarea.validity.tooLong');
 parent.firstChild.innerHTML = 'abcdef';
-shouldBe('textarea.value', '"abcdef"');
-shouldBeFalse('textarea.validity.tooLong');
+shouldBe('textarea.value', '"def"');
+shouldBeTrue('textarea.validity.tooLong');
 
 var successfullyParsed = true;

@@ -1,4 +1,4 @@
-CONSOLE MESSAGE: line 76: TypeError: Result of expression 'file.slice' [undefined] is not a function.
+CONSOLE MESSAGE: line 76: TypeError: 'undefined' is not a function (evaluating 'file.webkitSlice(dataList[i]['start'], dataList[i]['start'] + dataList[i]['length'])')
 
 Test for sending FormData with sliced files via XMLHttpRequest.
 

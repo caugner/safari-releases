@@ -1,6 +1,6 @@
 layer at (0,0) size 800x600
   RenderView at (0,0) size 800x600
-layer at (0,0) size 800x313
+layer at (0,0) size 800x302
   RenderBlock {HTML} at (0,0) size 800x302
     RenderBody {BODY} at (8,16) size 784x278
       RenderBlock {P} at (0,0) size 784x20
@@ -14,7 +14,6 @@ layer at (0,0) size 800x313
       RenderBlock (anonymous) at (0,36) size 784x20
       RenderBlock (anonymous) at (0,56) size 784x202
       RenderBlock (anonymous) at (0,258) size 784x20
-        RenderText {#text} at (0,0) size 0x0
         RenderText {#text} at (0,0) size 0x0
 layer at (18,112) size 79x59
   RenderInline (relative positioned) {SPAN} at (0,0) size 79x59 [bgcolor=#DDDDDD]

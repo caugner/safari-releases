@@ -14,8 +14,22 @@ var skippedProperties = [
     "appleScriptController", "plainText", "accessibilityController",
     // Ignore these properties because they do not exist in all implementations. They will be tested separately
     "webkitNotifications",
-    "WebGLRenderingContext", "WebGLArrayBuffer", 
-    "WebGLByteArray", "WebGLFloatArray", "WebGLIntArray", "WebGLShortArray", "WebGLUnsignedByteArray", "WebGLUnsignedIntArray", "WebGLUnsignedShortArray", 
+    "webkitAudioPannerNode",
+    "performance",
+    "WebGLRenderingContext", "WebGLActiveInfo", "WebGLBuffer", "WebGLFramebuffer", "WebGLProgram", "WebGLRenderbuffer", "WebGLShader", "WebGLTexture", "WebGLUniformLocation",
+    "ArrayBuffer",
+    "DataView", "Int8Array", "Uint8Array", "Int16Array", "Uint16Array", "Int32Array", "Uint32Array", "Float32Array",
+    "FileError", "FileReader", "WebKitBlobBuilder", "requestFileSystem",
+    "indexedDB", "IDBKeyRange", "IDBCursor", "IDBDatabase", "IDBDatabaseError", "IDBDatabaseException", "IDBErrorEvent", "IDBEvent", "IDBFactory", "IDBIndex", "IDBObjectStore", "IDBRequest", "IDBSuccessEvent", "IDBTransaction",
+    "showModalDialog",
+    "webkitURL",
+    "DeviceOrientationEvent",
+    "DeviceMotionEvent",
+    "TEMPORARY", "PERSISTENT",
+    "WebKitFlags",
+    "v8Locale",
+    // Ignore this property because it only appears in debug builds.
+    "jscprint"
 ];
 
 var skippedPropertiesSet = {};
@@ -26,11 +40,21 @@ for (var i = 0; i < skippedProperties.length; i++)
 window.Object.prototype.isInner = false;
 inner.Object.prototype.isInner = true;
 
-var windowProperites = [];
-for (property in window) {
-    windowProperites.push(property);
+function propertiesOnObject(o) {
+    var namesSet = {};
+    while (o && typeof o == "object") {
+        var names = Object.getOwnPropertyNames(o);
+        for (var i = 0; i < names.length; ++i)
+            namesSet[names[i]] = 1;
+        o = Object.getPrototypeOf(o);
+    }
+    var result = [];
+    for (var p in namesSet)
+        result.push(p);
+    return result;
 }
-windowProperties = windowProperites.sort();
+
+windowProperites = propertiesOnObject(window).sort();
 
 for (var x = 0; x < windowProperites.length; x++) {
     var property = windowProperites[x];
@@ -43,6 +67,9 @@ for (var x = 0; x < windowProperites.length; x++) {
         continue;
     // Skip enumerable properties which default to null (like on* listeners)
     if (value === null)
+        continue;
+    // Ignore primitive types like numbers because their prototype rules are different.
+    if (typeof value !== "object" && typeof value !== "function")
         continue;
     shouldBeTrue("inner." + property + ".isInner");
     shouldBeTrue("inner." + property + ".constructor.isInner");

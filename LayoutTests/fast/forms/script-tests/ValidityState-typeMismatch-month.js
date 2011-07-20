@@ -2,21 +2,22 @@ description('This test aims to check for typeMismatch flag with type=month input
 var i = document.createElement('input');
 i.type = 'month';
 
-function check(value, mismatchExpected)
+function check(value, mismatchExpected, disabled)
 {
     i.value = value;
+    i.disabled = !!disabled;
     var actual = i.validity.typeMismatch;
     var didPass = actual == mismatchExpected;
-    var resultText = '"' + value + '" is ' + (didPass ? 'a correct ' : 'an incorrect ') + (actual ? 'invalid' : 'valid') + ' month string.';
+    var resultText = '"' + value + '" is ' + (didPass ? 'a correct ' : 'an incorrect ') + (actual ? 'invalid' : 'valid') + ' month string' + (disabled ? ' when disabled.' : '.');
     if (didPass)
         testPassed(resultText);
     else
         testFailed(resultText);
 }
 
-function shouldBeValid(value)
+function shouldBeValid(value, disabled)
 {
-    check(value, false);
+    check(value, false, disabled);
 }
 
 function shouldBeInvalid(value)
@@ -26,9 +27,9 @@ function shouldBeInvalid(value)
 
 // Valid values
 shouldBeValid('');
-shouldBeValid('1582-10');
+shouldBeValid('0001-01');
 shouldBeValid('9999-12');
-shouldBeValid('2147483647-12');
+shouldBeValid('275760-09');
 shouldBeValid('2009-01');
 shouldBeValid('2009-02');
 shouldBeValid('2009-03');
@@ -46,9 +47,9 @@ shouldBeValid('2009-12');
 shouldBeInvalid(' 2009-09 ');
 shouldBeInvalid('a');
 shouldBeInvalid('-1-09');
-shouldBeInvalid('1581-10');
-shouldBeInvalid('1582-09');
+shouldBeInvalid('0000-12');
 shouldBeInvalid('2147483648-12');
+shouldBeInvalid('275760-10');
 shouldBeInvalid('2009/09');
 shouldBeInvalid('200909');
 shouldBeInvalid('2009--2');
@@ -59,5 +60,8 @@ shouldBeInvalid('2009-9');
 shouldBeInvalid('2009-009');
 shouldBeInvalid('2009-xx');
 shouldBeInvalid('2009');
+
+// Disabled
+shouldBeValid('invalid', true);
 
 var successfullyParsed = true;

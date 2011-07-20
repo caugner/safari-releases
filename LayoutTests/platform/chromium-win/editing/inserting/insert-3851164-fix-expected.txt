@@ -5,6 +5,7 @@ EDITING DELEGATE: shouldChangeSelectedDOMRange:range from 0 of P > BODY > HTML >
 EDITING DELEGATE: webViewDidChangeSelection:WebViewDidChangeSelectionNotification
 EDITING DELEGATE: shouldDeleteDOMRange:range from 0 of #text > P > BODY > HTML > #document to 19 of #text > P > BODY > HTML > #document
 EDITING DELEGATE: webViewDidChangeSelection:WebViewDidChangeSelectionNotification
+EDITING DELEGATE: webViewDidChangeSelection:WebViewDidChangeSelectionNotification
 EDITING DELEGATE: shouldChangeSelectedDOMRange:(null) toDOMRange:range from 0 of P > BODY > HTML > #document to 0 of P > BODY > HTML > #document affinity:NSSelectionAffinityDownstream stillSelecting:FALSE
 EDITING DELEGATE: webViewDidChangeSelection:WebViewDidChangeSelectionNotification
 EDITING DELEGATE: webViewDidChange:WebViewDidChangeNotification
@@ -20,4 +21,4 @@ layer at (0,0) size 800x600
       RenderBlock {P} at (0,0) size 784x28
         RenderText {#text} at (0,0) size 11x27
           text run at (0,0) width 11: "x"
-caret: position 1 of child 0 {#text} of child 0 {P} of child 1 {BODY} of child 0 {HTML} of document
+caret: position 1 of child 0 {#text} of child 0 {P} of body

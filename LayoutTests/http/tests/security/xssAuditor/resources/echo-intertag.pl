@@ -20,6 +20,13 @@ print "Content-Type: text/html; charset=UTF-8\n\n";
 
 print "<!DOCTYPE html>\n";
 print "<html>\n";
+if ($cgi->param('relay-target-ids-for-event')) {
+    print "<script>\n";
+    print "document.addEventListener('" . $cgi->param('relay-target-ids-for-event') . "', function(event) {\n";
+    print "    window.parent.postMessage(event.target.id, '*');\n";
+    print "}, true);\n";
+    print "</script>\n";
+}
 print "<body>\n";
 print $cgi->param('q');
 if ($cgi->param('notifyDone')) {
@@ -30,6 +37,9 @@ if ($cgi->param('notifyDone')) {
 }
 if ($cgi->param('enable-full-block')) {
     print "<p>If you see this message then the test FAILED.</p>\n";
+}
+if ($cgi->param('alert-cookie')) {
+    print "<script>alert('cookie: ' + document.cookie); document.cookie = 'testcookie=remove; max-age=-1';</script>\n";
 }
 print "</body>\n";
 print "</html>\n";

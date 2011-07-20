@@ -1,26 +1,26 @@
 layer at (0,0) size 800x600
   RenderView at (0,0) size 800x600
-layer at (0,0) size 800x348
-  RenderBlock {HTML} at (0,0) size 800x348
-    RenderBody {BODY} at (8,16) size 784x324
-      RenderBlock {P} at (0,0) size 784x20
-        RenderText {#text} at (0,0) size 527x20
-          text run at (0,0) width 527: "There should be a solid single uninterrupted smooth column of blue below."
-      RenderBlock {DIV} at (96,36) size 592x48 [color=#000080]
-        RenderText {#text} at (0,0) size 48x48
+layer at (0,0) size 800x350
+  RenderBlock {HTML} at (0,0) size 800x350
+    RenderBody {BODY} at (8,16) size 784x326
+      RenderBlock {P} at (0,0) size 784x22
+        RenderText {#text} at (0,0) size 504x22
+          text run at (0,0) width 504: "There should be a solid single uninterrupted smooth column of blue below."
+      RenderBlock {DIV} at (96,38) size 592x48 [color=#000080]
+        RenderText {#text} at (0,0) size 48x49
           text run at (0,0) width 48: "x"
-      RenderBlock {DIV} at (96,84) size 592x48 [color=#000080]
-        RenderText {#text} at (0,0) size 48x48
+      RenderBlock {DIV} at (96,86) size 592x48 [color=#000080]
+        RenderText {#text} at (0,0) size 48x49
           text run at (0,0) width 48: "x"
-      RenderBlock {DIV} at (96,132) size 592x48 [color=#000080]
-        RenderText {#text} at (0,0) size 48x48
+      RenderBlock {DIV} at (96,134) size 592x48 [color=#000080]
+        RenderText {#text} at (0,0) size 48x49
           text run at (0,0) width 48: "x"
-      RenderBlock {DIV} at (96,180) size 592x48 [color=#000080]
-        RenderText {#text} at (0,0) size 48x48
+      RenderBlock {DIV} at (96,182) size 592x48 [color=#000080]
+        RenderText {#text} at (0,0) size 48x49
           text run at (0,0) width 48: "x"
-      RenderBlock {DIV} at (96,228) size 592x48 [color=#000080]
-        RenderText {#text} at (0,0) size 48x48
+      RenderBlock {DIV} at (96,230) size 592x48 [color=#000080]
+        RenderText {#text} at (0,0) size 48x49
           text run at (0,0) width 48: "x"
-      RenderBlock {DIV} at (96,276) size 592x48 [color=#000080]
-        RenderText {#text} at (0,0) size 48x48
+      RenderBlock {DIV} at (96,278) size 592x48 [color=#000080]
+        RenderText {#text} at (0,0) size 48x49
           text run at (0,0) width 48: "x"

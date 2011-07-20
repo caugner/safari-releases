@@ -1,3 +1,0 @@
-Tests audit rules.    
-Exception: TypeError: Result of expression 'WebInspector.panels.audits' [undefined] is not an object.
-

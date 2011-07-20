@@ -3,7 +3,6 @@
 <link rel="stylesheet" href="../../js/resources/js-test-style.css"/>
 <script src="../../js/resources/js-test-pre.js"></script>
 <script src="resources/webgl-test.js"></script>
-<script src="resources/utils3d.js"> </script>
 <script id="vshader" type="x-shader/x-vertex">
 attribute vec3 g_Position;
 attribute vec2 g_TexCoord0;
@@ -18,9 +17,11 @@ void main()
 </script>
 
 <script id="fshader" type="x-shader/x-fragment">
+#ifdef GL_ES
+precision mediump float;
+#endif
 uniform sampler2D tex;
 varying vec2 texCoord;
-
 void main()
 {
     gl_FragColor = texture2D(tex, texCoord);
@@ -32,10 +33,8 @@ var successfullyParsed = false;
 
 function init()
 {
-    if (window.layoutTestController) {
-        layoutTestController.overridePreference("WebKitWebGLEnabled", "1");
-        layoutTestController.dumpAsText();
-        layoutTestController.waitUntilDone();
+    if (window.initNonKhronosFramework) {
+        window.initNonKhronosFramework(true);
     }
 
     description('Verify copyTexImage2D and copyTexSubImage2D');
@@ -57,14 +56,14 @@ function runTestIteration(antialias)
 
     var textureLoc = gl.getUniformLocation(gl.program, "tex");
 
-    var vertices = new WebGLFloatArray([
+    var vertices = new Float32Array([
          1.0,  1.0, 0.0,
         -1.0,  1.0, 0.0,
         -1.0, -1.0, 0.0,
          1.0,  1.0, 0.0,
         -1.0, -1.0, 0.0,
          1.0, -1.0, 0.0]);
-    var texCoords = new WebGLFloatArray([
+    var texCoords = new Float32Array([
         1.0, 1.0,
         0.0, 1.0,
         0.0, 0.0,
@@ -84,7 +83,7 @@ function runTestIteration(antialias)
     gl.enableVertexAttribArray(0);
     gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(1);
-    gl.vertexAttribPointer(1, 2, gl.FLOAT, gl.FALSE, 0, texCoordOffset);
+    gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 0, texCoordOffset);
 
     gl.colorMask(1, 1, 1, 0);
     gl.disable(gl.BLEND);
@@ -98,13 +97,13 @@ function runTestIteration(antialias)
     // Bind the texture to texture unit 0
     gl.bindTexture(gl.TEXTURE_2D, texture);
     // Set up texture
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 2, 2, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);    
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 2, 2, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
 
-    shouldBe("gl.getError()", "gl.NO_ERROR");
+    glErrorShouldBe(gl, gl.NO_ERROR);
     gl.copyTexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 0, 0, 2, 2, 0);
-    shouldBe("gl.getError()", "gl.NO_ERROR");
+    glErrorShouldBe(gl, gl.NO_ERROR);
 
     // Green canvas
     gl.clearColor(0, 1, 0, 1);
@@ -116,7 +115,8 @@ function runTestIteration(antialias)
     gl.drawArrays(gl.TRIANGLES, 0, 6);
 
     // Read back the rendering results, should be red
-    var buf = gl.readPixels(0, 0, 2, 2, gl.RGBA, gl.UNSIGNED_BYTE);
+    var buf = new Uint8Array(2 * 2 * 4);
+    gl.readPixels(0, 0, 2, 2, gl.RGBA, gl.UNSIGNED_BYTE, buf);
     var idx = 0;
     correctColor = [255, 0, 0];
     for (var y = 0; y < 2; y++) {
@@ -135,9 +135,9 @@ function runTestIteration(antialias)
     gl.clearColor(0, 1, 0, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    shouldBe("gl.getError()", "gl.NO_ERROR");
+    glErrorShouldBe(gl, gl.NO_ERROR);
     gl.copyTexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 0, 0, 2, 2);
-    shouldBe("gl.getError()", "gl.NO_ERROR");
+    glErrorShouldBe(gl, gl.NO_ERROR);
 
     // Blue canvas
     gl.clearColor(0, 0, 1, 1);
@@ -147,7 +147,7 @@ function runTestIteration(antialias)
     gl.drawArrays(gl.TRIANGLES, 0, 6);
 
     // Read back the rendering results, should be green
-    buf = gl.readPixels(0, 0, 2, 2, gl.RGBA, gl.UNSIGNED_BYTE);
+    gl.readPixels(0, 0, 2, 2, gl.RGBA, gl.UNSIGNED_BYTE, buf);
     correctColor = [0, 255, 0];
     for (var y = 0; y < 2; y++) {
         for (var x = 0; x < 2; x++) {
@@ -175,8 +175,8 @@ function runTest(antialias)
 }
 
 function finish() {
-    if (window.layoutTestController) {
-        layoutTestController.notifyDone();
+    if (window.nonKhronosFrameworkNotifyDone) {
+        window.nonKhronosFrameworkNotifyDone();
     }
 }
 </script>

@@ -2,21 +2,22 @@ description('This test aims to check for typeMismatch flag with type=date input 
 var i = document.createElement('input');
 i.type = 'date';
 
-function check(value, mismatchExpected)
+function check(value, mismatchExpected, disabled)
 {
     i.value = value;
+    i.disabled = !!disabled;
     var actual = i.validity.typeMismatch;
     var didPass = actual == mismatchExpected;
-    var resultText = '"' + value + '" is ' + (didPass ? 'a correct ' : 'an incorrect ') + (actual ? 'invalid' : 'valid') + ' date string.';
+    var resultText = '"' + value + '" is ' + (didPass ? 'a correct ' : 'an incorrect ') + (actual ? 'invalid' : 'valid') + ' date string' + (disabled ? ' when disabled.' : '.');
     if (didPass)
         testPassed(resultText);
     else
         testFailed(resultText);
 }
 
-function shouldBeValid(value)
+function shouldBeValid(value, disabled)
 {
-    check(value, false);
+    check(value, false, disabled);
 }
 
 function shouldBeInvalid(value)
@@ -28,8 +29,9 @@ function shouldBeInvalid(value)
 shouldBeValid('');
 shouldBeValid('2009-09-07');
 shouldBeValid('9999-12-31');
-shouldBeValid('2147483647-12-31');
+shouldBeValid('275760-09-13');
 shouldBeValid('1582-10-15');
+shouldBeValid('0001-01-01');
 shouldBeValid('2009-01-31');
 shouldBeValid('2009-02-28');
 shouldBeValid('2009-03-31');
@@ -49,15 +51,15 @@ shouldBeValid('2000-02-29');
 shouldBeInvalid(' 2009-09-07 ');
 shouldBeInvalid('a');
 shouldBeInvalid('-1-09-07');
-shouldBeInvalid('1581-09-07');
-shouldBeInvalid('1582-10-14');
+shouldBeInvalid('0000-12-31');
+shouldBeInvalid('0000-01-01');
+shouldBeInvalid('275760-09-14');
 shouldBeInvalid('2147483648-12-31');
 shouldBeInvalid('2009/09/07');
 shouldBeInvalid('20090907');
 shouldBeInvalid('2009--2-07');
 shouldBeInvalid('2009-00-07');
 shouldBeInvalid('2009-13-07');
-shouldBeInvalid('1582-09-30');
 shouldBeInvalid('2009-xx-30');
 shouldBeInvalid('2009-01-32');
 shouldBeInvalid('2009-02-29');
@@ -79,5 +81,8 @@ shouldBeInvalid('2009-09-001');
 shouldBeInvalid('2009-09-xx');
 shouldBeInvalid('2009-09');
 shouldBeInvalid('2009');
+
+// Disabled
+shouldBeValid('2009-09', true);
 
 var successfullyParsed = true;

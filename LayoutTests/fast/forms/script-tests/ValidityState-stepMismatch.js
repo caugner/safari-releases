@@ -3,10 +3,11 @@ description('Check stepMismatch results for type=date, datetime, datetime-local,
 var input = document.createElement('input');
 document.body.appendChild(input);
 
-function stepMismatchFor(value, step, min) {
+function stepMismatchFor(value, step, min, disabled) {
     input.min = min;
     input.step = step;
     input.value = value;
+    input.disabled = !!disabled;
     return input.validity.stepMismatch;
 }
 
@@ -37,6 +38,8 @@ shouldBeFalse('stepMismatchFor("2010-02-10", "-1", "2010-02-09")');
 shouldBeFalse('stepMismatchFor("2010-02-10", "foo", "2010-02-09")');
 debug('Special step value');
 shouldBeFalse('stepMismatchFor("2010-02-10", "any", "2010-02-09")');
+debug('Disabled');
+shouldBeFalse('stepMismatchFor("2010-02-10", "2", "2010-02-09", true)');
 
 debug('');
 debug('Datetime type');
@@ -52,8 +55,10 @@ shouldBeTrue('stepMismatchFor("2010-02-09T12:34:55Z", "0.333", "2010-02-09T12:34
 shouldBeFalse('stepMismatchFor("2010-02-09T12:34:55.001Z", "0.333", "2010-02-09T12:34:56Z")');
 shouldBeFalse('stepMismatchFor("2010-02-09T12:34Z", "86400", "2010-02-08T12:34Z")');
 shouldBeTrue('stepMismatchFor("2010-02-09T12:34:56Z", "86400", "2010-02-08T12:34Z")');
-shouldBeTrue('stepMismatchFor("275760-09-13T00:00Z", "3", "275760-09-13T23:50:50Z")');
-shouldBeFalse('stepMismatchFor("275760-09-13T00:00Z", "2", "275760-09-13T23:50:50Z")');
+shouldBeTrue('stepMismatchFor("275760-09-13T00:00Z", "3", "275760-09-12T23:59:50Z")');
+shouldBeFalse('stepMismatchFor("275760-09-13T00:00Z", "2", "275760-09-12T23:59:50Z")');
+shouldBeTrue('stepMismatchFor("0001-01-01T00:00Z", "3", "0001-01-11T00:00:02Z")');
+shouldBeFalse('stepMismatchFor("0001-01-01T00:00Z", "2", "0001-01-11T00:00:02Z")');
 debug('Implicit step base');
 shouldBeFalse('stepMismatchFor("1970-01-01T12:34Z", "120", null)');
 shouldBeTrue('stepMismatchFor("1970-01-01T12:35Z", "120", null)');
@@ -67,6 +72,8 @@ shouldBeFalse('stepMismatchFor("2010-02-10T12:34Z", "-1", "2010-02-09T12:34Z")')
 shouldBeFalse('stepMismatchFor("2010-02-10T12:34Z", "foo", "2010-02-09T12:34Z")');
 debug('Special step value');
 shouldBeFalse('stepMismatchFor("2010-02-09T12:34Z", "any", "2010-02-09T12:34Z")');
+debug('Disabled');
+shouldBeFalse('stepMismatchFor("2010-02-09T12:34:55.001Z", "1", "2010-02-09T12:34:56Z", true)');
 
 debug('');
 debug('Datetime-local type');
@@ -82,8 +89,10 @@ shouldBeTrue('stepMismatchFor("2010-02-09T12:34:55", "0.333", "2010-02-09T12:34:
 shouldBeFalse('stepMismatchFor("2010-02-09T12:34:55.001", "0.333", "2010-02-09T12:34:56")');
 shouldBeFalse('stepMismatchFor("2010-02-09T12:34", "86400", "2010-02-08T12:34")');
 shouldBeTrue('stepMismatchFor("2010-02-09T12:34:56", "86400", "2010-02-08T12:34")');
-shouldBeTrue('stepMismatchFor("275760-09-13T00:00", "3", "275760-09-13T23:50:50")');
-shouldBeFalse('stepMismatchFor("275760-09-13T00:00", "2", "275760-09-13T23:50:50")');
+shouldBeTrue('stepMismatchFor("275760-09-13T00:00", "3", "275760-09-12T23:59:50")');
+shouldBeFalse('stepMismatchFor("275760-09-13T00:00", "2", "275760-09-12T23:59:50")');
+shouldBeTrue('stepMismatchFor("0001-01-01T00:00", "3", "0001-01-11T00:00:02")');
+shouldBeFalse('stepMismatchFor("0001-01-01T00:00", "2", "0001-01-11T00:00:02")');
 debug('Implicit step base');
 shouldBeFalse('stepMismatchFor("1970-01-01T12:34", "120", null)');
 shouldBeTrue('stepMismatchFor("1970-01-01T12:35", "120", null)');
@@ -97,6 +106,8 @@ shouldBeFalse('stepMismatchFor("2010-02-10T12:34", "-1", "2010-02-09T12:34")');
 shouldBeFalse('stepMismatchFor("2010-02-10T12:34", "foo", "2010-02-09T12:34")');
 debug('Special step value');
 shouldBeFalse('stepMismatchFor("2010-02-09T12:34", "any", "2010-02-09T12:34")');
+debug('Disabled');
+shouldBeFalse('stepMismatchFor("2010-02-09T12:34:55.001", "1", "2010-02-09T12:34:56", true)');
 
 debug('');
 debug('Month type');
@@ -126,6 +137,8 @@ shouldBeFalse('stepMismatchFor("2010-03", "-1", "2010-02")');
 shouldBeFalse('stepMismatchFor("2010-03", "foo", "2010-02")');
 debug('Special step value');
 shouldBeFalse('stepMismatchFor("2010-03", "any", "2010-02")');
+debug('Disabled');
+shouldBeFalse('stepMismatchFor("2010-03", "2", "2010-02", true)');
 
 debug('');
 debug('Number type');
@@ -144,17 +157,21 @@ shouldBe('stepMismatchFor("-3", "-2", "-4")', 'false');
 shouldBe('stepMismatchFor("-3", null, "-4")', 'false');
 shouldBe('stepMismatchFor("-3", undefined, "-4")', 'false');
 debug('Huge numbers and small step; uncomparable');
-shouldBe('stepMismatchFor("1.7976931348623157e+308", "3", "")', 'false');
-shouldBe('stepMismatchFor("1.7976931348623156e+308", "3", "")', 'false');
-shouldBe('stepMismatchFor("1.7976931348623155e+308", "3", "")', 'false');
+shouldBe('stepMismatchFor("3.40282347e+38", "3", "")', 'false');
+shouldBe('stepMismatchFor("3.40282346e+38", "3", "")', 'false');
+shouldBe('stepMismatchFor("3.40282345e+38", "3", "")', 'false');
 debug('Huge numbers and huge step');
-shouldBe('stepMismatchFor("1.60e+308", "0.20e+308", "")', 'false');
-shouldBe('stepMismatchFor("1.60e+308", "0.22e+308", "")', 'true');
+shouldBe('stepMismatchFor("3.20e+38", "0.20e+38", "")', 'false');
+shouldBe('stepMismatchFor("3.20e+38", "0.22e+38", "")', 'true');
 debug('Fractional numbers');
 shouldBe('stepMismatchFor("0.9", "0.1", "")', 'false');
 shouldBe('stepMismatchFor("0.9", "0.1000001", "")', 'true');
 shouldBe('stepMismatchFor("0.9", "0.1000000000000001", "")', 'false');
 shouldBe('stepMismatchFor("1.0", "0.3333333333333333", "")', 'false');
+debug('Rounding');
+shouldBe('stepMismatchFor("5.005", "0.005", "4")', 'false');
+debug('Disabled');
+shouldBe('stepMismatchFor("1", "2", "0", true)', 'false');
 
 debug('');
 debug('Range type');
@@ -175,17 +192,19 @@ shouldBe('stepMismatchFor("-3", "-2", "-4")', 'false');
 shouldBe('stepMismatchFor("-3", null, "-4")', 'false');
 shouldBe('stepMismatchFor("-3", undefined, "-4")', 'false');
 debug('Huge numbers and small step; uncomparable');
-shouldBe('stepMismatchFor("1.7976931348623157e+308", "3", "")', 'false');
-shouldBe('stepMismatchFor("1.7976931348623156e+308", "3", "")', 'false');
-shouldBe('stepMismatchFor("1.7976931348623155e+308", "3", "")', 'false');
+shouldBe('stepMismatchFor("3.40282347e+38", "3", "")', 'false');
+shouldBe('stepMismatchFor("3.40282346e+38", "3", "")', 'false');
+shouldBe('stepMismatchFor("3.40282345e+38", "3", "")', 'false');
 debug('Huge numbers and huge step');
-shouldBe('stepMismatchFor("1.60e+308", "0.20e+308", "")', 'false');
-shouldBe('stepMismatchFor("1.60e+308", "0.22e+308", "")', 'false');
+shouldBe('stepMismatchFor("3.20e+38", "0.20e+38", "")', 'false');
+shouldBe('stepMismatchFor("3.20e+38", "0.22e+38", "")', 'false');
 debug('Fractional numbers');
 shouldBe('stepMismatchFor("0.9", "0.1", "")', 'false');
 shouldBe('stepMismatchFor("0.9", "0.1000001", "")', 'false');
 shouldBe('stepMismatchFor("0.9", "0.1000000000000001", "")', 'false');
 shouldBe('stepMismatchFor("1.0", "0.3333333333333333", "")', 'false');
+debug('Disabled');
+shouldBe('stepMismatchFor("1", "2", "0", true)', 'false');
 
 debug('');
 debug('Time type');
@@ -216,6 +235,8 @@ shouldBeFalse('stepMismatchFor("12:34", "-1", "12:34")');
 shouldBeFalse('stepMismatchFor("12:34", "foo", "12:34")');
 debug('Special step value');
 shouldBeFalse('stepMismatchFor("12:35", "any", "12:34")');
+debug('Disabled');
+shouldBeFalse('stepMismatchFor("12:34:55.001", "1", "12:34:56", true)');
 
 debug('');
 debug('Week type');
@@ -247,6 +268,8 @@ shouldBeFalse('stepMismatchFor("2010-W03", "-1", "2010-W02")');
 shouldBeFalse('stepMismatchFor("2010-W03", "foo", "2010-W02")');
 debug('Special step value');
 shouldBeFalse('stepMismatchFor("2010-W03", "any", "2010-W02")');
+debug('Disabled');
+shouldBeFalse('stepMismatchFor("2010-W03", "2", "2010-W02", true)');
 
 debug('');
 debug('Unsupported types');

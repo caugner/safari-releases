@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <head>
-<title>Image link test</tile>
+<title>Image link test</title>
 <script>
 if (window.layoutTestController)
     layoutTestController.dumpAsText();
@@ -27,10 +27,12 @@ function axTree(elt)
     return result;
 }
 
-if (window.accessibilityController) {
-    var result = document.getElementById("result");
-    document.getElementById("test").focus();
-    result.innerText += axTree(accessibilityController.focusedElement);
+window.onload = function () {
+    if (window.accessibilityController) {
+        var result = document.getElementById("result");
+        document.getElementById("test").focus();
+        result.innerText += axTree(accessibilityController.focusedElement);
+    }
 }
 </script>
 </body>

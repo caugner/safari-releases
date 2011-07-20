@@ -18,14 +18,26 @@ for (var x in constructorNames) {
 
     // Ignore these properties because they do not exist in all implementations. They will be tested separately
     if (name == "WebGLRenderingContext" ||
-        name == "WebGLArrayBuffer" ||
-        name =="WebGLByteArray" ||
-        name =="WebGLFloatArray" ||
-        name =="WebGLIntArray" ||
-        name =="WebGLShortArray" ||
-        name =="WebGLUnsignedByteArray" ||
-        name =="WebGLUnsignedIntArray" ||
-        name =="WebGLUnsignedShortArray")
+        name == "WebGLActiveInfo" ||
+        name == "WebGLBuffer" ||
+        name == "WebGLFramebuffer" ||
+        name == "WebGLProgram" ||
+        name == "WebGLRenderbuffer" ||
+        name == "WebGLShader" ||
+        name == "WebGLTexture" ||
+        name == "WebGLUniformLocation" ||
+        name == "ArrayBuffer" ||
+        name == "DataView" ||
+        name == "Int8Array" ||
+        name == "Uint8Array" ||
+        name == "Int16Array" ||
+        name == "Uint16Array" ||
+        name == "Int32Array" ||
+        name == "Uint32Array" ||
+        name == "Float32Array" ||
+        name == "FileError" ||
+        name == "FileReader" ||
+        name == "WebKitBlobBuilder")
         continue;
 
     if (name == "XMLDocument")

@@ -5,6 +5,7 @@ EDITING DELEGATE: webViewDidChangeSelection:WebViewDidChangeSelectionNotificatio
 EDITING DELEGATE: webViewDidChangeSelection:WebViewDidChangeSelectionNotification
 EDITING DELEGATE: shouldDeleteDOMRange:range from 0 of #text > PRE > DIV > DIV > BODY > HTML > #document to 7 of #text > PRE > DIV > DIV > BODY > HTML > #document
 EDITING DELEGATE: webViewDidChangeSelection:WebViewDidChangeSelectionNotification
+EDITING DELEGATE: webViewDidChangeSelection:WebViewDidChangeSelectionNotification
 EDITING DELEGATE: shouldChangeSelectedDOMRange:(null) toDOMRange:range from 0 of PRE > DIV > DIV > BODY > HTML > #document to 0 of PRE > DIV > DIV > BODY > HTML > #document affinity:NSSelectionAffinityDownstream stillSelecting:FALSE
 EDITING DELEGATE: webViewDidChangeSelection:WebViewDidChangeSelectionNotification
 EDITING DELEGATE: webViewDidChange:WebViewDidChangeNotification
@@ -57,4 +58,4 @@ layer at (0,0) size 800x600
                   text run at (0,27) width 42: "bar"
             RenderBlock (anonymous) at (0,78) size 780x0
               RenderInline {SPAN} at (0,0) size 0x0
-caret: position 7 of child 0 {#text} of child 0 {PRE} of child 0 {SPAN} of child 1 {PRE} of child 1 {DIV} of child 3 {DIV} of child 1 {BODY} of child 0 {HTML} of document
+caret: position 7 of child 0 {#text} of child 0 {PRE} of child 0 {SPAN} of child 1 {PRE} of child 1 {DIV} of child 3 {DIV} of body

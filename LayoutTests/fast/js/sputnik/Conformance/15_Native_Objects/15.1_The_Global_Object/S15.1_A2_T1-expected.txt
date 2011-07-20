@@ -1,6 +1,0 @@
-S15.1_A2_T1
-
-PASS TypeError: Result of expression 'this' [[object DOMWindow]] is not a function.
-
-TEST COMPLETE
-

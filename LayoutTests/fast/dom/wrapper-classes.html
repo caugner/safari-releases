@@ -11,9 +11,6 @@
 </style>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
-<iframe id="xmlframe" onload="frameLoaded()" style="height:0px" src="data:application/xhtml+xml,<?xml version='1.0' encoding='UTF-8'?><body/>"></iframe>
 <script>
 
 if (window.layoutTestController)
@@ -157,6 +154,8 @@ function runTest()
     testTag("address", "HTMLElement");
     testTag("applet", "HTMLAppletElement");
     testTag("area", "HTMLAreaElement");
+    testTag("article", "HTMLElement");
+    testTag("aside", "HTMLElement");
     testTag("b", "HTMLElement");
     testTag("base", "HTMLBaseElement");
     testTag("basefont", "HTMLBaseFontElement");
@@ -184,6 +183,7 @@ function runTest()
     testTag("embed", "HTMLEmbedElement");
     testTag("fieldset", "HTMLFieldSetElement");
     testTag("font", "HTMLFontElement");
+    testTag("footer", "HTMLElement");
     testTag("form", "HTMLFormElement");
     testTag("frame", "HTMLFrameElement");
     testTag("frameset", "HTMLFrameSetElement");
@@ -194,6 +194,9 @@ function runTest()
     testTag("h4", "HTMLHeadingElement");
     testTag("h5", "HTMLHeadingElement");
     testTag("h6", "HTMLHeadingElement");
+    testTag("head", "HTMLHeadElement");
+    testTag("header", "HTMLElement");
+    testTag("hgroup", "HTMLElement");
     testTag("hr", "HTMLHRElement");
     testTag("html", "HTMLHtmlElement");
     testTag("i", "HTMLElement");
@@ -204,7 +207,7 @@ function runTest()
     testTag("ins", "HTMLModElement");
     testTag("isindex", "HTMLIsIndexElement");
     testTag("kbd", "HTMLElement");
-    testTag("keygen", "HTMLSelectElement");
+    testTag("keygen", "HTMLKeygenElement");
     testTag("label", "HTMLLabelElement");
     testTag("layer", "HTMLElement");
     testTag("legend", "HTMLLegendElement");
@@ -215,6 +218,7 @@ function runTest()
     testTag("marquee", "HTMLMarqueeElement");
     testTag("menu", "HTMLMenuElement");
     testTag("meta", "HTMLMetaElement");
+    testTag("nav", "HTMLElement");
     testTag("nobr", "HTMLElement");
     testTag("noembed", "HTMLElement");
     testTag("noframes", "HTMLElement");
@@ -229,9 +233,13 @@ function runTest()
     testTag("plaintext", "HTMLElement");
     testTag("pre", "HTMLPreElement");
     testTag("q", "HTMLQuoteElement");
+    testTag("rp", "HTMLElement");
+    testTag("rt", "HTMLElement");
+    testTag("ruby", "HTMLElement");
     testTag("s", "HTMLElement");
     testTag("samp", "HTMLElement");
     testTag("script", "HTMLScriptElement");
+    testTag("section", "HTMLElement");
     testTag("select", "HTMLSelectElement");
     testTag("small", "HTMLElement");
     testTag("span", "HTMLElement");
@@ -272,6 +280,8 @@ function runTest()
     // SVGPaint
     // SVGZoomEvent
 
+    // Conditional elements, VIDEO, PROGRESS_TAG, RUBY, DATAGRID, DATALIST, METER_TAG.
+
     // the various window sub-objects
 
     // what else is missing?
@@ -286,5 +296,8 @@ function frameLoaded()
 }
 
 </script>
+<p id="description"></p>
+<div id="console"></div>
+<iframe id="xmlframe" onload="frameLoaded()" style="height:0px" src="data:application/xhtml+xml,<?xml version='1.0' encoding='UTF-8'?><body/>"></iframe>
 </body>
 </html>

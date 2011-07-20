@@ -7,8 +7,8 @@
   If this test is successful it will terminate with a blank page.
   This test should finish without crashing.
 
-  <script src=../../../media/media-file.js></script>
-  <script src=../../../media/video-test.js></script>
+  <script src=../../media-resources/media-file.js></script>
+  <script src=../../media-resources/video-test.js></script>
   <video controls id="video"></video>
 
   <textarea id="child_content" style="display: none;">
@@ -32,7 +32,7 @@
   }
 
   var video = document.getElementById("video");
-  var file = findMediaFile("video", "resources/test");
+  var file = findMediaFile("video", "../resources/test");
 
   // Opens a window and writes the child content into the document.
   video.addEventListener("loadedmetadata", function main()

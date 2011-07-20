@@ -3,7 +3,6 @@
 <link rel="stylesheet" href="../../js/resources/js-test-style.css"/>
 <script src="../../js/resources/js-test-pre.js"></script>
 <script src="resources/webgl-test.js"></script>
-<script src="resources/utils3d.js"></script>
 <script id="vshader" type="x-shader/x-vertex">
 attribute vec3 pos;
 attribute vec4 colorIn;
@@ -17,6 +16,9 @@ void main()
 </script>
 
 <script id="fshader" type="x-shader/x-fragment">
+#ifdef GL_ES
+precision highp float;
+#endif
 varying vec4 color;
 
 void main()
@@ -36,16 +38,12 @@ var correctColor = null;
 
 function init()
 {
-    if (window.layoutTestController) {
-        layoutTestController.overridePreference("WebKitWebGLEnabled", "1");
-        layoutTestController.dumpAsText();
-        layoutTestController.waitUntilDone();
+    if (window.initNonKhronosFramework) {
+        window.initNonKhronosFramework(true);
     }
 
     description('Verify WebGLContextAttributes are working as specified, including alpha, depth, stencil, antialias, but not premultipliedAlpha');
 
-    debug('Regression test for <a href="https://bugs.webkit.org/show_bug.cgi?id=33416">https://bugs.webkit.org/show_bug.cgi?id=33416</a> : <code>Hook up WebGLContextAttributes to OpenGL context creation code</code>');
-    
     runTest();
 }
 
@@ -57,8 +55,7 @@ function getWebGL(canvasName, contextAttribs, clearColor, clearDepth, clearStenc
         alert("No WebGL context found");
         return null;
     }
-    var actualContextAttribs = gl.getContextAttributes();
-    
+
     // Add a console
     gl.console = ("console" in window) ? window.console : { log: function() { } };
 
@@ -82,7 +79,7 @@ function getWebGL(canvasName, contextAttribs, clearColor, clearDepth, clearStenc
     // Bind attributes
     var attribs = [ "pos", "colorIn" ];
     for (var i in attribs)
-        gl.bindAttribLocation(gl.program, i, attribs[i]);
+        gl.bindAttribLocation(gl.program, parseInt(i), attribs[i]);
 
     // Link the program
     gl.linkProgram(gl.program);
@@ -130,7 +127,9 @@ function drawAndReadPixel(gl, vertices, colors, x, y)
 
     gl.drawArrays(gl.TRIANGLES, 0, vertices.length / 3);
 
-    return gl.readPixels(x, y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE);
+    var buf = new Uint8Array(1 * 1 * 4);
+    gl.readPixels(x, y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, buf);
+    return buf;
 }
 
 function testAlpha(alpha)
@@ -141,18 +140,19 @@ function testAlpha(alpha)
     else
         shouldBeNonNull("webGL = getWebGL('alphaOff', { alpha: false, depth: false, stencil: false, antialias: false }, [ 0, 0, 0, 0 ], 1, 0)");
     shouldBeNonNull("contextAttribs = webGL.getContextAttributes()");
-    shouldBe("contextAttribs.alpha", (alpha ? "true" : "false"));
-    shouldBe("contextAttribs.depth", "false");
-    shouldBe("contextAttribs.stencil", "false");
-    shouldBe("contextAttribs.antialias", "false");
-    shouldBe("contextAttribs.premultipliedAlpha", "true");
+    shouldBeDefined("contextAttribs.alpha");
+    shouldBeDefined("contextAttribs.depth");
+    shouldBeDefined("contextAttribs.stencil");
+    shouldBeDefined("contextAttribs.antialias");
+    shouldBeDefined("contextAttribs.premultipliedAlpha");
 
-    var buf = webGL.readPixels(0, 0, 1, 1, webGL.RGBA, webGL.UNSIGNED_BYTE);
+    var buf = new Uint8Array(1 * 1 * 4);
+    webGL.readPixels(0, 0, 1, 1, webGL.RGBA, webGL.UNSIGNED_BYTE, buf);
     pixel[0] = buf[0];
     pixel[1] = buf[1];
     pixel[2] = buf[2];
     pixel[3] = buf[3];
-    correctColor = (alpha ? [0, 0, 0, 0] : [0, 0, 0, 255]);
+    correctColor = (contextAttribs.alpha ? [0, 0, 0, 0] : [0, 0, 0, 255]);
     shouldBe("pixel", "correctColor");
 }
 
@@ -164,22 +164,22 @@ function testDepth(depth)
     else
         shouldBeNonNull("webGL = getWebGL('depthOff', { depth: false, stencil: false, antialias: false }, [ 0, 0, 0, 1 ], 1, 0)");
     shouldBeNonNull("contextAttribs = webGL.getContextAttributes()");
-    shouldBe("contextAttribs.depth", (depth ? "true" : "false"));
-    shouldBe("contextAttribs.alpha", "true");
-    shouldBe("contextAttribs.stencil", "false");
-    shouldBe("contextAttribs.antialias", "false");
-    shouldBe("contextAttribs.premultipliedAlpha", "true");
+    shouldBeDefined("contextAttribs.depth");
+    shouldBeDefined("contextAttribs.alpha");
+    shouldBeDefined("contextAttribs.stencil");
+    shouldBeDefined("contextAttribs.antialias");
+    shouldBeDefined("contextAttribs.premultipliedAlpha");
 
     webGL.depthFunc(webGL.NEVER);
 
-    var vertices = new WebGLFloatArray([
+    var vertices = new Float32Array([
          1.0,  1.0, 0.0,
         -1.0,  1.0, 0.0,
         -1.0, -1.0, 0.0,
          1.0,  1.0, 0.0,
         -1.0, -1.0, 0.0,
          1.0, -1.0, 0.0]);
-    var colors = new WebGLUnsignedByteArray([
+    var colors = new Uint8Array([
         255, 0, 0, 255,
         255, 0, 0, 255,
         255, 0, 0, 255,
@@ -192,7 +192,7 @@ function testDepth(depth)
     pixel[1] = buf[1];
     pixel[2] = buf[2];
     pixel[3] = buf[3];
-    correctColor = (depth ? [0, 0, 0, 255] : [255, 0, 0, 255]);
+    correctColor = (contextAttribs.depth ? [0, 0, 0, 255] : [255, 0, 0, 255]);
     shouldBe("pixel", "correctColor");
 }
 
@@ -204,25 +204,25 @@ function testStencil(stencil)
     else
         shouldBeNonNull("webGL = getWebGL('stencilOff', { depth: false, stencil: false, antialias: false }, [ 0, 0, 0, 1 ], 1, 0)");
     shouldBeNonNull("contextAttribs = webGL.getContextAttributes()");
-    // If EXT_packed_depth_stencil is supported, both depth & stencil will be true; otherwise, both will be false.
-    shouldBe("contextAttribs.depth == contextAttribs.stencil", "true");
-    shouldBe("contextAttribs.alpha", "true");
-    shouldBe("contextAttribs.antialias", "false");
-    shouldBe("contextAttribs.premultipliedAlpha", "true");
+    shouldBeDefined("contextAttribs.depth");
+    shouldBeDefined("contextAttribs.alpha");
+    shouldBeDefined("contextAttribs.stencil");
+    shouldBeDefined("contextAttribs.antialias");
+    shouldBeDefined("contextAttribs.premultipliedAlpha");
 
     webGL.depthFunc(webGL.ALWAYS);
 
     webGL.stencilFunc(webGL.NEVER, 1, 1);
     webGL.stencilOp(webGL.KEEP, webGL.KEEP, webGL.KEEP);
 
-    var vertices = new WebGLFloatArray([
+    var vertices = new Float32Array([
          1.0, 1.0, 0.0,
         -1.0, 1.0, 0.0,
         -1.0, -1.0, 0.0,
          1.0, 1.0, 0.0,
         -1.0, -1.0, 0.0,
          1.0, -1.0, 0.0]);
-    var colors = new WebGLUnsignedByteArray([
+    var colors = new Uint8Array([
         255, 0, 0, 255,
         255, 0, 0, 255,
         255, 0, 0, 255,
@@ -235,10 +235,7 @@ function testStencil(stencil)
     pixel[1] = buf[1];
     pixel[2] = buf[2];
     pixel[3] = buf[3];
-    correctColor = (stencil ? [0, 0, 0, 255] : [255, 0, 0, 255]);
-    // If stencil is requested but not supported, we fake the effect.
-    if (stencil && !contextAttribs.stencil)
-        pixel[0] = 0;
+    correctColor = (contextAttribs.stencil ? [0, 0, 0, 255] : [255, 0, 0, 255]);
     shouldBe("pixel", "correctColor");
 }
 
@@ -250,26 +247,23 @@ function testAntialias(antialias)
     else
         shouldBeNonNull("webGL = getWebGL('antialiasOff', { depth: false, stencil: false, alpha: false, antialias: false }, [ 0, 0, 0, 1 ], 1, 0)");
     shouldBeNonNull("contextAttribs = webGL.getContextAttributes()");
-    shouldBe("contextAttribs.depth", "false");
-    shouldBe("contextAttribs.stencil", "false");
-    shouldBe("contextAttribs.alpha", "false");
-    shouldBe("contextAttribs.antialias == true || contextAttribs.antialias == false", "true");
-    shouldBe("contextAttribs.premultipliedAlpha", "true");
+    shouldBeDefined("contextAttribs.depth");
+    shouldBeDefined("contextAttribs.alpha");
+    shouldBeDefined("contextAttribs.stencil");
+    shouldBeDefined("contextAttribs.antialias");
+    shouldBeDefined("contextAttribs.premultipliedAlpha");
 
-    var vertices = new WebGLFloatArray([
+    var vertices = new Float32Array([
          1.0, 1.0, 0.0,
         -1.0, 1.0, 0.0,
         -1.0, -1.0, 0.0]);
-    var colors = new WebGLUnsignedByteArray([
+    var colors = new Uint8Array([
         255, 0, 0, 255,
         255, 0, 0, 255,
         255, 0, 0, 255]);
     var buf = drawAndReadPixel(webGL, vertices, colors, 0, 0);
     pixel[0] = buf[0];
-    // If antialias is requested but not supported, we fake the effect.
-    if (antialias && !contextAttribs.antialias)
-        pixel[0] = 127;
-    shouldBe("pixel[0] == 255 || pixel[0] == 0", (antialias ? "false" : "true"));
+    shouldBe("pixel[0] != 255 && pixel[0] != 0", "contextAttribs.antialias");
 }
 
 function runTest()
@@ -292,8 +286,8 @@ function runTest()
 }
 
 function finish() {
-    if (window.layoutTestController) {
-        layoutTestController.notifyDone();
+    if (window.nonKhronosFrameworkNotifyDone) {
+        window.nonKhronosFrameworkNotifyDone();
     }
 }
 </script>

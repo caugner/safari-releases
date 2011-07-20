@@ -12,7 +12,8 @@ EDITING DELEGATE: shouldChangeSelectedDOMRange:(null) toDOMRange:range from 1 of
 EDITING DELEGATE: webViewDidChangeSelection:WebViewDidChangeSelectionNotification
 EDITING DELEGATE: webViewDidChange:WebViewDidChangeNotification
 EDITING DELEGATE: shouldInsertText:b replacingDOMRange:range from 1 of #text > B > DIV > DIV > BODY > HTML > #document to 1 of #text > B > DIV > DIV > BODY > HTML > #document givenAction:WebViewInsertActionPasted
-EDITING DELEGATE: shouldChangeSelectedDOMRange:range from 1 of #text > B > DIV > DIV > BODY > HTML > #document to 1 of #text > B > DIV > DIV > BODY > HTML > #document toDOMRange:range from 2 of #text > B > DIV > DIV > BODY > HTML > #document to 2 of #text > B > DIV > DIV > BODY > HTML > #document affinity:NSSelectionAffinityDownstream stillSelecting:FALSE
+EDITING DELEGATE: webViewDidChangeSelection:WebViewDidChangeSelectionNotification
+EDITING DELEGATE: shouldChangeSelectedDOMRange:range from 1 of #text > B > DIV > DIV > BODY > HTML > #document to 2 of #text > B > DIV > DIV > BODY > HTML > #document toDOMRange:range from 2 of #text > B > DIV > DIV > BODY > HTML > #document to 2 of #text > B > DIV > DIV > BODY > HTML > #document affinity:NSSelectionAffinityDownstream stillSelecting:FALSE
 EDITING DELEGATE: webViewDidChangeSelection:WebViewDidChangeSelectionNotification
 EDITING DELEGATE: webViewDidChange:WebViewDidChangeNotification
 layer at (0,0) size 800x600
@@ -44,4 +45,4 @@ layer at (0,0) size 800x600
           RenderInline {B} at (0,0) size 25x26
             RenderText {#text} at (2,2) size 25x26
               text run at (2,2) width 25: "ab"
-caret: position 2 of child 0 {#text} of child 0 {B} of child 1 {DIV} of child 3 {DIV} of child 1 {BODY} of child 0 {HTML} of document
+caret: position 2 of child 0 {#text} of child 0 {B} of child 1 {DIV} of child 3 {DIV} of body

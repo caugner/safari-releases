@@ -18,6 +18,8 @@ var skippedProperties = [
     "prototype",
     // Skip Geolocation until it is supported on most platforms.
     "geolocation",
+    // Skip webkitURL until it is supported on most platforms.
+    "webkitURL",
 ];
 
 var skippedPropertiesSet = {};
@@ -59,15 +61,28 @@ function constructorNamesForWindow(globalObject)
             continue;
         var type = classNameForObject(value);
         // Ignore these properties because they do not exist in all implementations. They will be tested separately
-        if (type == "WebGLRenderingContextConstructor" || 
-            type == "WebGLArrayBufferConstructor" ||
-            type == "WebGLByteArrayConstructor" ||
-            type =="WebGLFloatArrayConstructor" ||
-            type =="WebGLIntArrayConstructor" ||
-            type =="WebGLShortArrayConstructor" ||
-            type =="WebGLUnsignedByteArrayConstructor" ||
-            type =="WebGLUnsignedIntArrayConstructor" ||
-            type =="WebGLUnsignedShortArrayConstructor")
+        if (type == "WebGLRenderingContextConstructor" ||
+            type == "WebGLActiveInfoConstructor" ||
+            type == "WebGLBufferConstructor" ||
+            type == "WebGLFramebufferConstructor" ||
+            type == "WebGLProgramConstructor" ||
+            type == "WebGLRenderbufferConstructor" ||
+            type == "WebGLShaderConstructor" ||
+            type == "WebGLTextureConstructor" ||
+            type == "WebGLUniformLocationConstructor" ||
+            type == "ArrayBufferConstructor" ||
+            type == "DataViewConstructor" ||
+            type =="Float32ArrayConstructor" ||
+            type =="Int8ArrayConstructor" ||
+            type =="Int16ArrayConstructor" ||
+            type =="Int32ArrayConstructor" ||
+            type =="Uint8ArrayConstructor" ||
+            type =="Uint16ArrayConstructor" ||
+            type =="Uint32ArrayConstructor" ||
+            type == "FileErrorConstructor" ||
+            type == "FileReaderConstructor" ||
+            type == "WebKitBlobBuilderConstructor" ||
+            type == "HTMLProgressElementConstructor")
             continue; // We ignore WebGLRenderingContext and test it elsewhere, since it is not in all builds
         if (!type.match('Constructor$'))
             continue;
@@ -144,6 +159,12 @@ function crawl(crawlStarts) {
                 if (object.isInner || object.isInner === resultsByType[type].value)
                     continue;
             }
+            if (typeof(object) == "string")
+                continue;
+            if (typeof(object) == "boolean")
+                continue;
+            if (typeof(object) == "number")
+                continue;
 
             resultsByType[type] = makeCrawlObject(object.isInner, crawlTarget.valuePath);
             pushPropertyValuesWithUnseenTypes(toCrawl, object, crawlTarget.valuePath);
@@ -209,6 +230,7 @@ inner.document.body.style.display = "none";
 inner.document.body.innerHTML = htmlToAdd;
 
 var crawlStartPaths = [
+    evalToCrawlObject('inner.document.createElement'),
     evalToCrawlObject('inner.document.location'), // window.location is tested by other tests, so test document.location in this one.
     //evalToCrawlObject('inner.testForm'), // Causes many failures
     evalToCrawlObject('inner.document.forms.testForm'), // NamedNodesCollection has the wrong prototype, test that.

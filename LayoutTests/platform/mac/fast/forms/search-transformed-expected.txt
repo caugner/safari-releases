@@ -1,8 +1,8 @@
-layer at (0,0) size 800x600
-  RenderView at (0,0) size 800x600
-layer at (0,0) size 800x600
-  RenderBlock {HTML} at (0,0) size 800x600
-    RenderBody {BODY} at (8,8) size 784x576
+layer at (0,0) size 842x585
+  RenderView at (0,0) size 800x585
+layer at (0,0) size 800x585
+  RenderBlock {HTML} at (0,0) size 800x585
+    RenderBody {BODY} at (8,8) size 784x561
       RenderBlock {P} at (0,0) size 784x36
         RenderText {#text} at (0,0) size 53x18
           text run at (0,0) width 53: "Test for "
@@ -24,8 +24,8 @@ layer at (8,60) size 784x23
         RenderBlock {DIV} at (0,0) size 22x11
         RenderBlock {DIV} at (106,0) size 13x11
     RenderText {#text} at (0,0) size 0x0
-layer at (35,65) size 84x13 scrollWidth 89
+layer at (35,65) size 84x13 scrollWidth 88
   RenderBlock {DIV} at (22,0) size 84x13
-    RenderText {#text} at (1,0) size 87x13
-      text run at (1,0) width 87: "Some other text"
-caret: position 15 of child 0 {#text} of child 1 {DIV} of child 0 {DIV} of child 1 {INPUT} of child 3 {P} of child 1 {BODY} of child 0 {HTML} of document
+    RenderText {#text} at (1,0) size 86x13
+      text run at (1,0) width 86: "Some other text"
+caret: position 15 of child 0 {#text} of child 1 {DIV} of child 0 {DIV} of child 1 {INPUT} of child 3 {P} of body
