@@ -31,8 +31,9 @@ from webkitpy.common.checkout.changelog import parse_bug_id_from_changelog
 
 
 class ChangeLogChecker(object):
-
     """Processes text lines for checking style."""
+
+    categories = set(['changelog/bugnumber', 'changelog/filechangedescriptionwhitespace'])
 
     def __init__(self, file_path, handle_style_error, should_line_be_checked):
         self.file_path = file_path
@@ -54,6 +55,27 @@ class ChangeLogChecker(object):
             self.handle_style_error(first_line_checked,
                                     "changelog/bugnumber", 5,
                                     "ChangeLog entry has no bug number")
+        # check file change descriptions for style violations
+        line_no = first_line_checked - 1
+        for line in entry_lines:
+            line_no = line_no + 1
+            # filter file change descriptions
+            if not re.match('\s*\*\s', line):
+                continue
+            if re.search(':\s*$', line) or re.search(':\s', line):
+                continue
+            self.handle_style_error(line_no,
+                                    "changelog/filechangedescriptionwhitespace", 5,
+                                    "Need whitespace between colon and description")
+
+        # check for a lingering "No new tests. (OOPS!)" left over from prepare-changeLog.
+        line_no = first_line_checked - 1
+        for line in entry_lines:
+            line_no = line_no + 1
+            if re.match('\s*No new tests. \(OOPS!\)$', line):
+                self.handle_style_error(line_no,
+                                        "changelog/nonewtests", 5,
+                                        "You should remove the 'No new tests' and either add and list tests, or explain why no new tests were possible.")
 
     def check(self, lines):
         self._tab_checker.check(lines)

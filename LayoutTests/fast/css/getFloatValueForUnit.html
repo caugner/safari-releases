@@ -1,13 +1,10 @@
 <!DOCTYPE html>
 <html>
 <head>
-<link rel="stylesheet" href="../js/resources/js-test-style.css">
 <script src="../js/resources/js-test-pre.js"></script>
 </head>
 <body>
-<p id="description"></p>
 <div id="test-div" style="font-size: 10pt; -webkit-transform: rotate(100grad); -webkit-animation-delay: 0.2s;"></div>
-<div id="console"></div>
 <script>
 if (window.layoutTestController)
     layoutTestController.dumpAsText();
@@ -60,8 +57,6 @@ shouldThrow("getFloatValue('-webkit-animation-delay', CSSPrimitiveValue.CSS_PX)"
 shouldThrow("getFloatValue('-webkit-animation-delay', CSSPrimitiveValue.CSS_DEG)", "invalidAccessError");
 shouldThrow("getFloatValue('-webkit-animation-delay', CSSPrimitiveValue.CSS_HZ)", "invalidAccessError");
 shouldThrow("getFloatValue('-webkit-animation-delay', CSSPrimitiveValue.CSS_RGBCOLOR)", "invalidAccessError");
-
-var successfullyParsed = true;
 </script>
 <script src="../js/resources/js-test-post.js"></script>
 </body>

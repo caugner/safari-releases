@@ -32,6 +32,7 @@
 #include "PlatformWebView.h"
 #include "StringFunctions.h"
 #include "TestController.h"
+#include <WebCore/PageVisibilityState.h>
 #include <WebKit2/WKBundleBackForwardList.h>
 #include <WebKit2/WKBundleFrame.h>
 #include <WebKit2/WKBundleFramePrivate.h>
@@ -43,6 +44,7 @@
 #include <WebKit2/WKRetainPtr.h>
 #include <WebKit2/WebKit2.h>
 #include <wtf/HashMap.h>
+#include <wtf/text/StringBuilder.h>
 
 namespace WTR {
 
@@ -104,6 +106,10 @@ LayoutTestController::LayoutTestController()
     , m_testRepaint(false)
     , m_testRepaintSweepHorizontally(false)
     , m_willSendRequestReturnsNull(false)
+    , m_policyDelegateEnabled(false)
+    , m_policyDelegatePermissive(false)
+    , m_globalFlag(false)
+    , m_customFullScreenBehavior(false)
 {
     platformInitialize();
 }
@@ -119,26 +125,45 @@ JSClassRef LayoutTestController::wrapperClass()
 
 void LayoutTestController::display()
 {
-    // FIXME: actually implement, once we want pixel tests
+    WKBundlePageRef page = InjectedBundle::shared().page()->page();
+    WKBundlePageForceRepaint(page);
+    WKBundlePageSetTracksRepaints(page, true);
+    WKBundlePageResetTrackedRepaints(page);
 }
 
 void LayoutTestController::dumpAsText(bool dumpPixels)
 {
-    m_whatToDump = MainFrameText;
+    if (m_whatToDump < MainFrameText)
+        m_whatToDump = MainFrameText;
     m_dumpPixels = dumpPixels;
 }
-    
+
+// FIXME: Needs a full implementation see https://bugs.webkit.org/show_bug.cgi?id=42546
+void LayoutTestController::setCustomPolicyDelegate(bool enabled, bool permissive)
+{
+    m_policyDelegateEnabled = enabled;
+    m_policyDelegatePermissive = permissive;
+}
+
+void LayoutTestController::waitForPolicyDelegate()
+{
+    setCustomPolicyDelegate(true);
+    waitUntilDone();
+}
+
 void LayoutTestController::waitUntilDone()
 {
     m_waitToDump = true;
-    initializeWaitToDumpWatchdogTimerIfNeeded();
+    if (InjectedBundle::shared().useWaitToDumpWatchdogTimer())
+        initializeWaitToDumpWatchdogTimerIfNeeded();
 }
 
 void LayoutTestController::waitToDumpWatchdogTimerFired()
 {
     invalidateWaitToDumpWatchdogTimer();
     const char* message = "FAIL: Timed out waiting for notifyDone to be called\n";
-    InjectedBundle::shared().os() << message << "\n";
+    InjectedBundle::shared().stringBuilder()->append(message);
+    InjectedBundle::shared().stringBuilder()->append("\n");
     InjectedBundle::shared().done();
 }
 
@@ -167,6 +192,14 @@ bool LayoutTestController::pauseAnimationAtTimeOnElementWithId(JSStringRef anima
     // FIXME: If this is needed only for the main frame, then why is the function on WKBundleFrame instead of WKBundlePage?
     WKBundleFrameRef mainFrame = WKBundlePageGetMainFrame(InjectedBundle::shared().page()->page());
     return WKBundleFramePauseAnimationOnElementWithId(mainFrame, toWK(animationName).get(), toWK(elementId).get(), time);
+}
+
+bool LayoutTestController::pauseTransitionAtTimeOnElementWithId(JSStringRef propertyName, double time, JSStringRef elementId)
+{
+    // FIXME: Is it OK this works only for the main frame?
+    // FIXME: If this is needed only for the main frame, then why is the function on WKBundleFrame instead of WKBundlePage?
+    WKBundleFrameRef mainFrame = WKBundlePageGetMainFrame(InjectedBundle::shared().page()->page());
+    return WKBundleFramePauseTransitionOnElementWithId(mainFrame, toWK(propertyName).get(), toWK(elementId).get(), time);
 }
 
 void LayoutTestController::suspendAnimations()
@@ -300,6 +333,16 @@ void LayoutTestController::setDatabaseQuota(uint64_t quota)
     return WKBundleSetDatabaseQuota(InjectedBundle::shared().bundle(), quota);
 }
 
+void LayoutTestController::clearAllApplicationCaches()
+{
+    WKBundleClearApplicationCache(InjectedBundle::shared().bundle());
+}
+
+void LayoutTestController::setAppCacheMaximumSize(uint64_t size)
+{
+    WKBundleSetAppCacheMaximumSize(InjectedBundle::shared().bundle(), size);
+}
+
 bool LayoutTestController::isCommandEnabled(JSStringRef name)
 {
     return WKBundlePageIsEditingCommandEnabled(InjectedBundle::shared().page()->page(), toWK(name).get());
@@ -313,7 +356,8 @@ void LayoutTestController::setCanOpenWindows(bool)
 
 void LayoutTestController::setXSSAuditorEnabled(bool enabled)
 {
-    WKBundleOverrideXSSAuditorEnabledForTestRunner(InjectedBundle::shared().bundle(), InjectedBundle::shared().pageGroup(), true);
+    WKRetainPtr<WKStringRef> key(AdoptWK, WKStringCreateWithUTF8CString("WebKitXSSAuditorEnabled"));
+    WKBundleOverrideBoolPreferenceForTestRunner(InjectedBundle::shared().bundle(), InjectedBundle::shared().pageGroup(), key.get(), enabled);
 }
 
 void LayoutTestController::setAllowUniversalAccessFromFileURLs(bool enabled)
@@ -329,6 +373,31 @@ void LayoutTestController::setAllowFileAccessFromFileURLs(bool enabled)
 void LayoutTestController::setFrameFlatteningEnabled(bool enabled)
 {
     WKBundleSetFrameFlatteningEnabled(InjectedBundle::shared().bundle(), InjectedBundle::shared().pageGroup(), enabled);
+}
+
+void LayoutTestController::setGeolocationPermission(bool enabled)
+{
+    WKBundleSetGeolocationPermission(InjectedBundle::shared().bundle(), InjectedBundle::shared().pageGroup(), enabled);
+}
+
+void LayoutTestController::setJavaScriptCanAccessClipboard(bool enabled)
+{
+     WKBundleSetJavaScriptCanAccessClipboard(InjectedBundle::shared().bundle(), InjectedBundle::shared().pageGroup(), enabled);
+}
+
+void LayoutTestController::setPrivateBrowsingEnabled(bool enabled)
+{
+     WKBundleSetPrivateBrowsingEnabled(InjectedBundle::shared().bundle(), InjectedBundle::shared().pageGroup(), enabled);
+}
+
+void LayoutTestController::setPopupBlockingEnabled(bool enabled)
+{
+     WKBundleSetPopupBlockingEnabled(InjectedBundle::shared().bundle(), InjectedBundle::shared().pageGroup(), enabled);
+}
+
+void LayoutTestController::setAuthorAndUserStylesEnabled(bool enabled)
+{
+     WKBundleSetAuthorAndUserStylesEnabled(InjectedBundle::shared().bundle(), InjectedBundle::shared().pageGroup(), enabled);
 }
 
 void LayoutTestController::addOriginAccessWhitelistEntry(JSStringRef sourceOrigin, JSStringRef destinationProtocol, JSStringRef destinationHost, bool allowDestinationSubdomains)
@@ -365,80 +434,18 @@ bool LayoutTestController::isPageBoxVisible(int pageIndex)
     return WKBundleIsPageBoxVisible(InjectedBundle::shared().bundle(), mainFrame, pageIndex);
 }
 
+void LayoutTestController::setValueForUser(JSContextRef context, JSValueRef element, JSStringRef value)
+{
+    if (!element || !JSValueIsObject(context, element))
+        return;
+
+    WKRetainPtr<WKBundleNodeHandleRef> nodeHandle(AdoptWK, WKBundleNodeHandleCreate(context, const_cast<JSObjectRef>(element)));
+    WKBundleNodeHandleSetHTMLInputElementValueForUser(nodeHandle.get(), toWK(value).get());
+}
+
 unsigned LayoutTestController::windowCount()
 {
     return InjectedBundle::shared().pageCount();
-}
-
-JSValueRef LayoutTestController::shadowRoot(JSValueRef element)
-{
-    WKBundleFrameRef mainFrame = WKBundlePageGetMainFrame(InjectedBundle::shared().page()->page());
-    JSContextRef context = WKBundleFrameGetJavaScriptContext(mainFrame);
-
-    if (!element || !JSValueIsObject(context, element))
-        return JSValueMakeNull(context);
-
-    WKRetainPtr<WKBundleNodeHandleRef> domElement = adoptWK(WKBundleNodeHandleCreate(context, const_cast<JSObjectRef>(element)));
-    if (!domElement)
-        return JSValueMakeNull(context);
-
-    WKRetainPtr<WKBundleNodeHandleRef> shadowRootDOMNode = adoptWK(WKBundleNodeHandleCopyElementShadowRoot(domElement.get()));
-    if (!shadowRootDOMNode)
-        return JSValueMakeNull(context);
-
-    return WKBundleFrameGetJavaScriptWrapperForNodeForWorld(mainFrame, shadowRootDOMNode.get(), WKBundleScriptWorldNormalWorld());
-}
-
-JSValueRef LayoutTestController::ensureShadowRoot(JSValueRef element)
-{
-    WKBundleFrameRef mainFrame = WKBundlePageGetMainFrame(InjectedBundle::shared().page()->page());
-    JSContextRef context = WKBundleFrameGetJavaScriptContext(mainFrame);
-
-    if (!element || !JSValueIsObject(context, element))
-        return JSValueMakeNull(context);
-
-    WKRetainPtr<WKBundleNodeHandleRef> domElement = adoptWK(WKBundleNodeHandleCreate(context, const_cast<JSObjectRef>(element)));
-    if (!domElement)
-        return JSValueMakeNull(context);
-
-    WKRetainPtr<WKBundleNodeHandleRef> shadowRootDOMNode = adoptWK(WKBundleNodeHandleCopyElementEnsureShadowRoot(domElement.get()));
-    if (!shadowRootDOMNode)
-        return JSValueMakeNull(context);
-
-    return WKBundleFrameGetJavaScriptWrapperForNodeForWorld(mainFrame, shadowRootDOMNode.get(), WKBundleScriptWorldNormalWorld());
-}
-
-void LayoutTestController::removeShadowRoot(JSValueRef element)
-{
-    WKBundleFrameRef mainFrame = WKBundlePageGetMainFrame(InjectedBundle::shared().page()->page());
-    JSContextRef context = WKBundleFrameGetJavaScriptContext(mainFrame);
-
-    if (!element || !JSValueIsObject(context, element))
-        return;
-
-    WKRetainPtr<WKBundleNodeHandleRef> domElement = adoptWK(WKBundleNodeHandleCreate(context, const_cast<JSObjectRef>(element)));
-    if (!domElement)
-        return;
-
-    WKBundleNodeHandleRemoveShadowRoot(domElement.get());
-}
-
-JSRetainPtr<JSStringRef> LayoutTestController::shadowPseudoId(JSValueRef element) const
-{
-    WKBundleFrameRef mainFrame = WKBundlePageGetMainFrame(InjectedBundle::shared().page()->page());
-    JSContextRef context = WKBundleFrameGetJavaScriptContext(mainFrame);
-
-    if (!element || !JSValueIsObject(context, element))
-        return 0;
-
-    WKRetainPtr<WKBundleNodeHandleRef> domElement = adoptWK(WKBundleNodeHandleCreate(context, const_cast<JSObjectRef>(element)));
-    if (!domElement)
-        return 0;
-
-    WKRetainPtr<WKStringRef> id(AdoptWK, WKBundleNodeHandleShadowPseudoId(domElement.get()));
-    if (WKStringIsEmpty(id.get()))
-        return 0;
-    return toJS(id);
 }
 
 void LayoutTestController::clearBackForwardList()
@@ -455,23 +462,31 @@ void LayoutTestController::makeWindowObject(JSContextRef context, JSObjectRef wi
 
 void LayoutTestController::showWebInspector()
 {
+#if ENABLE(INSPECTOR)
     WKBundleInspectorShow(WKBundlePageGetInspector(InjectedBundle::shared().page()->page()));
+#endif // ENABLE(INSPECTOR)
 }
 
 void LayoutTestController::closeWebInspector()
 {
+#if ENABLE(INSPECTOR)
     WKBundleInspectorClose(WKBundlePageGetInspector(InjectedBundle::shared().page()->page()));
+#endif // ENABLE(INSPECTOR)
 }
 
 void LayoutTestController::evaluateInWebInspector(long callID, JSStringRef script)
 {
+#if ENABLE(INSPECTOR)
     WKRetainPtr<WKStringRef> scriptWK = toWK(script);
     WKBundleInspectorEvaluateScriptForTest(WKBundlePageGetInspector(InjectedBundle::shared().page()->page()), callID, scriptWK.get());
+#endif // ENABLE(INSPECTOR)
 }
 
-void LayoutTestController::setTimelineProfilingEnabled(bool enabled)
+void LayoutTestController::setJavaScriptProfilingEnabled(bool enabled)
 {
-    WKBundleInspectorSetPageProfilingEnabled(WKBundlePageGetInspector(InjectedBundle::shared().page()->page()), enabled);
+#if ENABLE(INSPECTOR)
+    WKBundleInspectorSetJavaScriptProfilingEnabled(WKBundlePageGetInspector(InjectedBundle::shared().page()->page()), enabled);
+#endif // ENABLE(INSPECTOR)
 }
 
 typedef WTF::HashMap<unsigned, WKRetainPtr<WKBundleScriptWorldRef> > WorldMap;
@@ -500,7 +515,7 @@ void LayoutTestController::evaluateScriptInIsolatedWorld(JSContextRef context, u
     if (!worldID)
         world.adopt(WKBundleScriptWorldCreateWorld());
     else {
-        WKRetainPtr<WKBundleScriptWorldRef>& worldSlot = worldMap().add(worldID, 0).first->second;
+        WKRetainPtr<WKBundleScriptWorldRef>& worldSlot = worldMap().add(worldID, 0).iterator->second;
         if (!worldSlot)
             worldSlot.adopt(WKBundleScriptWorldCreateWorld());
         world = worldSlot;
@@ -519,6 +534,130 @@ void LayoutTestController::setPOSIXLocale(JSStringRef locale)
     char localeBuf[32];
     JSStringGetUTF8CString(locale, localeBuf, sizeof(localeBuf));
     setlocale(LC_ALL, localeBuf);
+}
+
+void LayoutTestController::setTextDirection(JSStringRef direction)
+{
+    WKBundleFrameRef mainFrame = WKBundlePageGetMainFrame(InjectedBundle::shared().page()->page());
+    return WKBundleFrameSetTextDirection(mainFrame, toWK(direction).get());
+}
+    
+void LayoutTestController::setShouldStayOnPageAfterHandlingBeforeUnload(bool shouldStayOnPage)
+{
+    InjectedBundle::shared().postNewBeforeUnloadReturnValue(!shouldStayOnPage);
+}
+
+void LayoutTestController::setPageVisibility(JSStringRef state)
+{
+    WKStringRef visibilityStateKey = toWK(state).get();
+    WebCore::PageVisibilityState visibilityState = WebCore::PageVisibilityStateVisible;
+
+    if (WKStringIsEqualToUTF8CString(visibilityStateKey, "hidden"))
+        visibilityState = WebCore::PageVisibilityStateHidden;
+    else if (WKStringIsEqualToUTF8CString(visibilityStateKey, "prerender"))
+        visibilityState = WebCore::PageVisibilityStatePrerender;
+
+    WKBundleSetPageVisibilityState(InjectedBundle::shared().bundle(), InjectedBundle::shared().pageGroup(), visibilityState, /* isInitialState */ false);
+}
+
+void LayoutTestController::resetPageVisibility()
+{
+    WKBundleSetPageVisibilityState(InjectedBundle::shared().bundle(), InjectedBundle::shared().pageGroup(), WebCore::PageVisibilityStateVisible, /* isInitialState */ true);
+}
+
+void LayoutTestController::dumpConfigurationForViewport(int deviceDPI, int deviceWidth, int deviceHeight, int availableWidth, int availableHeight)
+{
+    InjectedBundle::shared().stringBuilder()->append(toWTFString(adoptWK(WKBundlePageViewportConfigurationAsText(InjectedBundle::shared().page()->page(), deviceDPI, deviceWidth, deviceHeight, availableWidth, availableHeight))));
+}
+
+typedef WTF::HashMap<unsigned, JSValueRef> CallbackMap;
+static CallbackMap& callbackMap()
+{
+    static CallbackMap& map = *new CallbackMap;
+    return map;
+}
+
+enum {
+    AddChromeInputFieldCallbackID = 1,
+    RemoveChromeInputFieldCallbackID,
+    FocusWebViewCallbackID,
+    SetBackingScaleFactorCallbackID
+};
+
+static void cacheLayoutTestControllerCallback(unsigned index, JSValueRef callback)
+{
+    if (!callback)
+        return;
+
+    WKBundleFrameRef mainFrame = WKBundlePageGetMainFrame(InjectedBundle::shared().page()->page());
+    JSContextRef context = WKBundleFrameGetJavaScriptContext(mainFrame);
+    JSValueProtect(context, callback);
+    callbackMap().add(index, callback);
+}
+
+static void callLayoutTestControllerCallback(unsigned index)
+{
+    if (!callbackMap().contains(index))
+        return;
+    WKBundleFrameRef mainFrame = WKBundlePageGetMainFrame(InjectedBundle::shared().page()->page());
+    JSContextRef context = WKBundleFrameGetJavaScriptContext(mainFrame);
+    JSObjectRef callback = JSValueToObject(context, callbackMap().take(index), 0);
+    JSObjectCallAsFunction(context, callback, JSContextGetGlobalObject(context), 0, 0, 0);
+    JSValueUnprotect(context, callback);
+}
+
+void LayoutTestController::addChromeInputField(JSValueRef callback)
+{
+    cacheLayoutTestControllerCallback(AddChromeInputFieldCallbackID, callback);
+    InjectedBundle::shared().postAddChromeInputField();
+}
+
+void LayoutTestController::removeChromeInputField(JSValueRef callback)
+{
+    cacheLayoutTestControllerCallback(RemoveChromeInputFieldCallbackID, callback);
+    InjectedBundle::shared().postRemoveChromeInputField();
+}
+
+void LayoutTestController::focusWebView(JSValueRef callback)
+{
+    cacheLayoutTestControllerCallback(FocusWebViewCallbackID, callback);
+    InjectedBundle::shared().postFocusWebView();
+}
+
+void LayoutTestController::setBackingScaleFactor(double backingScaleFactor, JSValueRef callback)
+{
+    cacheLayoutTestControllerCallback(SetBackingScaleFactorCallbackID, callback);
+    InjectedBundle::shared().postSetBackingScaleFactor(backingScaleFactor);
+}
+
+void LayoutTestController::setWindowIsKey(bool isKey)
+{
+    InjectedBundle::shared().postSetWindowIsKey(isKey);
+}
+
+void LayoutTestController::callAddChromeInputFieldCallback()
+{
+    callLayoutTestControllerCallback(AddChromeInputFieldCallbackID);
+}
+
+void LayoutTestController::callRemoveChromeInputFieldCallback()
+{
+    callLayoutTestControllerCallback(RemoveChromeInputFieldCallbackID);
+}
+
+void LayoutTestController::callFocusWebViewCallback()
+{
+    callLayoutTestControllerCallback(FocusWebViewCallbackID);
+}
+
+void LayoutTestController::callSetBackingScaleFactorCallback()
+{
+    callLayoutTestControllerCallback(SetBackingScaleFactorCallbackID);
+}
+
+void LayoutTestController::overridePreference(JSStringRef preference, bool value)
+{
+    WKBundleOverrideBoolPreferenceForTestRunner(InjectedBundle::shared().bundle(), InjectedBundle::shared().pageGroup(), toWK(preference).get(), value);
 }
 
 } // namespace WTR

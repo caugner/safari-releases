@@ -15,6 +15,7 @@ var attributes = [
     [ "input", "multiple" ],
     [ "input", "readOnly" ],
     [ "input", "required" ],
+    [ "link", "disabled" ],
     [ "menu", "compact" ],
     [ "object", "declare" ],
     [ "ol", "compact" ],
@@ -57,5 +58,3 @@ for (var i = 0; i < attributes.length; ++i) {
         + "e.getAttribute('" + contentAttribute + "')",
         "''");
 }
-
-var successfullyParsed = true;

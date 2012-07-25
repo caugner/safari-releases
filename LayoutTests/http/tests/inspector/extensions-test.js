@@ -1,8 +1,3 @@
-function log(message)
-{
-    output(message);
-}
-
 function extensionFunctions()
 {
     var functions = "";
@@ -17,19 +12,32 @@ function extensionFunctions()
 var initialize_ExtensionsTest = function()
 {
 
-InspectorTest.dispatchOnMessage = function(messageId, callback, recurring)
+InspectorTest._replyToExtension = function(port, data)
 {
-    function onMessage(event)
-    {
-        if (typeof(event.data) !== "object" || event.data.command !== messageId)
-            return;
-        if (!recurring)
-            window.removeEventListener("message", onMessage, false);
-        var port = event.ports && event.ports[0];
-        if (callback(event.data, port) && port)
-            port.postMessage("");
+    port.postMessage({ response: data });
+}
+
+function onMessage(event)
+{
+    if (typeof event.data !== "object" || !event.data.expression)
+        return;
+    if (event.ports && event.ports[0])
+        var reply = InspectorTest._replyToExtension.bind(null, event.ports[0]); // reply() is intended to be used by the code being evaluated.
+    try {
+        var result = eval(event.data.expression);
+    } catch (e) {
+        InspectorTest.addResult("Exception while running: " + event.data.expression + "\n" + (e.stack || e));
+        InspectorTest.completeTest();
     }
-    window.addEventListener("message", onMessage, false);
+}
+
+window.addEventListener("message", InspectorTest.safeWrap(onMessage), false);
+
+InspectorTest.showPanel = function(panelId)
+{
+    if (panelId === "extension")
+        panelId = WebInspector.inspectorView._panelOrder[WebInspector.inspectorView._panelOrder.length - 1].name;
+    WebInspector.showPanel(panelId);
 }
 
 InspectorTest.runExtensionTests = function()
@@ -37,61 +45,20 @@ InspectorTest.runExtensionTests = function()
     RuntimeAgent.evaluate("location.href", "console", false, function(error, result) {
         if (error)
             return;
-        var pageURL = result.description;
+        var pageURL = result.value;
         var extensionURL = (/^https?:/.test(pageURL) ?
             pageURL.replace(/^(https?:\/\/[^/]*\/).*$/,"$1") :
             pageURL.replace(/\/inspector\/extensions\/[^/]*$/, "/http/tests")) +
             "/inspector/resources/extension-main.html";
-        WebInspector.addExtensions([{ startPage: extensionURL }]);
+        WebInspector.addExtensions([{ startPage: extensionURL, name: "test extension", exposeWebInspectorNamespace: true }]);
     });
 }
 
-InspectorTest.dispatchOnMessage("extension-tests-done", InspectorTest.completeTest, true);
-
-function extensionOutput(message)
-{
-    InspectorTest.addResult(message.text);
 }
-InspectorTest.dispatchOnMessage("output", extensionOutput, true);
 
-function dumpSidebarContent(message, port)
+function extension_showPanel(panelId, callback)
 {
-    var sidebarPanes = WebInspector.panels.elements.sidebarPanes;
-    // the sidebar of interest is presumed to always be last.
-    var sidebar = sidebarPanes[Object.keys(sidebarPanes).pop()];
-    InspectorTest.runAfterPendingDispatches(function() {
-        InspectorTest.addResult("Sidebar content: " + sidebar.bodyElement.textContent);
-        port.postMessage("");
-    });
-}
-InspectorTest.dispatchOnMessage("dump-sidebar-content", dumpSidebarContent, true);
-
-function showPanel(message, port)
-{
-    var panelId = message.panelId;
-    if (panelId === "extension")
-        panelId = WebInspector.panelOrder[WebInspector.panelOrder.length - 1].name;
-    WebInspector.showPanel(panelId);
-    port.postMessage("");
-}
-InspectorTest.dispatchOnMessage("show-panel", showPanel, true);
-
-function reloadPage(data, port)
-{
-    InspectorTest.reloadPage(function() {
-        port.postMessage("");
-    });
-}
-InspectorTest.dispatchOnMessage("reload", reloadPage, true);
-
-function runWhenPageLoads(data, port)
-{
-    InspectorTest.runWhenPageLoads(function() {
-        port.postMessage("");
-    });
-}
-InspectorTest.dispatchOnMessage("run-when-page-loads", runWhenPageLoads, true);
-
+    evaluateOnFrontend("InspectorTest.showPanel(unescape('" + escape(panelId) + "')); reply();", callback);
 }
 
 var test = function()

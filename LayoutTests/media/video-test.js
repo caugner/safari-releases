@@ -5,6 +5,11 @@ var console = null;
 var printFullTestDetails = true; // This is optionaly switched of by test whose tested values can differ. (see disableFullTestDetailsPrinting())
 var Failed = false;
 
+var track = null; // Current TextTrack being tested.
+var cues = null; // Current TextTrackCueList being tested.
+var numberOfTrackTests = 0;
+var numberOfTracksLoaded = 0;
+
 findMediaElement();
 logConsole();
 
@@ -74,9 +79,27 @@ function testExpected(testFuncString, expected, comparison)
         case '>=': success = observed >= expected; break;
         case '!=':  success = observed != expected; break;
         case '==': success = observed == expected; break;
+        case '===': success = observed === expected; break;
     }
 
     reportExpected(success, testFuncString, comparison, expected, observed)
+}
+
+function testArraysEqual(testFuncString, expected)
+{
+    var observed;
+    try {
+        observed = eval(testFuncString);
+    } catch (ex) {
+        consoleWrite(ex);
+        return;
+    }
+  
+    testExpected(testFuncString + ".length", expected.length);
+
+    for (var i = 0; i < observed.length; i++) {
+        testExpected(testFuncString + "[" + i + "]", expected[i]);
+    }
 }
 
 var testNumber = 0;
@@ -122,15 +145,26 @@ function run(testFuncString)
     }
 }
 
+function waitForEventOnce(eventName, func, endit)
+{
+    waitForEvent(eventName, func, endit, true)
+}
+
 function waitForEventAndEnd(eventName, funcString)
 {
     waitForEvent(eventName, funcString, true)
 }
 
-function waitForEvent(eventName, func, endit)
+function waitForEvent(eventName, func, endit, oneTimeOnly, element)
 {
+    if (!element)
+        element = mediaElement;
+
     function _eventCallback(event)
     {
+        if (oneTimeOnly)
+            element.removeEventListener(eventName, _eventCallback, true);
+
         consoleWrite("EVENT(" + eventName + ")");
 
         if (func)
@@ -140,7 +174,7 @@ function waitForEvent(eventName, func, endit)
             endTest();
     }
 
-    mediaElement.addEventListener(eventName, _eventCallback, true);
+    element.addEventListener(eventName, _eventCallback, true);
 }
 
 function waitForEventTestAndEnd(eventName, testFuncString)
@@ -234,4 +268,77 @@ function isInTimeRanges(ranges, time)
         }
     }
     return false;
+}
+
+function testTracks(expected)
+{
+    tracks = video.textTracks;
+    testExpected("tracks.length", expected.length);
+
+    for (var i = 0; i < tracks.length; i++) {
+        consoleWrite("<br>*** Testing text track " + i);
+
+        track = tracks[i];
+        for (j = 0; j < expected.tests.length; j++) {
+            var test = expected.tests[j];
+            testExpected("track." + test.property, test.values[i]);
+        }
+    }
+}
+
+function testCues(index, expected)
+{
+    consoleWrite("<br>*** Testing text track " + index);
+
+    cues = video.textTracks[index].cues;
+    testExpected("cues.length", expected.length);
+    for (var i = 0; i < cues.length; i++) {
+        for (j = 0; j < expected.tests.length; j++) {
+            var test = expected.tests[j];
+            testExpected("cues[" + i + "]." + test.property, test.values[i]);
+        }
+    }
+}
+
+function allTestsEnded()
+{
+    numberOfTrackTests--;
+    if (numberOfTrackTests == 0)
+        endTest();
+}
+
+function enableAllTextTracks()
+{
+    findMediaElement();
+    for (var i = 0; i < video.textTracks.length; i++) {
+        if (video.textTracks[i].mode == TextTrack.DISABLED)
+            video.textTracks[i].mode = TextTrack.HIDDEN;
+    }
+}
+
+var requiredEvents = [];
+
+function waitForEventsAndCall(eventList, func)
+{
+    function _eventCallback(event)
+    {
+        if (!requiredEvents.length)
+            return;
+
+        var index = requiredEvents.indexOf(event.type);
+        if (index < 0)
+            return;
+
+        requiredEvents.splice(index, 1);
+        if (requiredEvents.length)
+            return;
+
+        func();
+    }
+
+    requiredEvents = [];
+    for (var i = 0; i < eventList.length; i++) {
+        requiredEvents[i] = eventList[i][1];
+        eventList[i][0].addEventListener(requiredEvents[i], _eventCallback, true);
+    }
 }

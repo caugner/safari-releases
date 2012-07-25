@@ -1,3 +1,10 @@
-CONSOLE MESSAGE: line 13: ReferenceError: Can't find variable: webkitURL
 Test calling revokeObjectURL with no argument.
+PASS: Not enough arguments
+Test calling revokeObjectURL with empty URL.
+PASS
+Test calling revokeObjectURL with invalid URL.
+PASS
+Test calling revokeObjectURL with non-existent URL.
+PASS
+DONE
 

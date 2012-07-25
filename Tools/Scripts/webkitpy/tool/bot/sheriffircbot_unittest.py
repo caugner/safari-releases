@@ -30,6 +30,8 @@ import unittest
 import random
 
 from webkitpy.common.system.outputcapture import OutputCapture
+from webkitpy.tool.bot import irc_command
+from webkitpy.tool.bot.queueengine import TerminateQueue
 from webkitpy.tool.bot.sheriff import Sheriff
 from webkitpy.tool.bot.sheriffircbot import SheriffIRCBot
 from webkitpy.tool.bot.sheriff_unittest import MockSheriffBot
@@ -45,74 +47,111 @@ def run(message):
 
 
 class SheriffIRCBotTest(unittest.TestCase):
+    def test_parse_command_and_args(self):
+        tool = MockTool()
+        bot = SheriffIRCBot(tool, Sheriff(tool, MockSheriffBot()))
+        self.assertEqual(bot._parse_command_and_args(""), (irc_command.Eliza, [""]))
+        self.assertEqual(bot._parse_command_and_args("   "), (irc_command.Eliza, [""]))
+        self.assertEqual(bot._parse_command_and_args(" hi "), (irc_command.Hi, []))
+        self.assertEqual(bot._parse_command_and_args(" hi there "), (irc_command.Hi, ["there"]))
+
+    def test_exception_during_command(self):
+        tool = MockTool()
+        tool.ensure_irc_connected(None)
+        bot = SheriffIRCBot(tool, Sheriff(tool, MockSheriffBot()))
+
+        class CommandWithException(object):
+            def execute(self, nick, args, tool, sheriff):
+                raise Exception("mock_exception")
+
+        bot._parse_command_and_args = lambda request: (CommandWithException, [])
+        expected_stderr = 'MOCK: irc.post: Exception executing command: mock_exception\n'
+        OutputCapture().assert_outputs(self, bot.process_message, args=["mock_nick", "ignored message"], expected_stderr=expected_stderr)
+
+        class CommandWithException(object):
+            def execute(self, nick, args, tool, sheriff):
+                raise KeyboardInterrupt()
+
+        bot._parse_command_and_args = lambda request: (CommandWithException, [])
+        # KeyboardInterrupt and SystemExit are not subclasses of Exception and thus correctly will not be caught.
+        OutputCapture().assert_outputs(self, bot.process_message, args=["mock_nick", "ignored message"], expected_exception=KeyboardInterrupt)
+
     def test_hi(self):
         random.seed(23324)
         expected_stderr = 'MOCK: irc.post: "Only you can prevent forest fires." -- Smokey the Bear\n'
         OutputCapture().assert_outputs(self, run, args=["hi"], expected_stderr=expected_stderr)
 
     def test_help(self):
-        expected_stderr = "MOCK: irc.post: mock_nick: Available commands: whois, create-bug, hi, last-green-revision, rollout, restart, help\n"
+        expected_stderr = "MOCK: irc.post: mock_nick: Available commands: create-bug, help, hi, restart, roll-chromium-deps, rollout, whois\n"
         OutputCapture().assert_outputs(self, run, args=["help"], expected_stderr=expected_stderr)
 
-    def test_lgr(self):
-        expected_stderr = "MOCK: irc.post: mock_nick: http://trac.webkit.org/changeset/9479\n"
-        OutputCapture().assert_outputs(self, run, args=["last-green-revision"], expected_stderr=expected_stderr)
+    def test_restart(self):
+        expected_stderr = "MOCK: irc.post: Restarting...\n"
+        OutputCapture().assert_outputs(self, run, args=["restart"], expected_stderr=expected_stderr, expected_exception=TerminateQueue)
 
     def test_rollout(self):
-        expected_stderr = "MOCK: irc.post: Preparing rollout for r21654...\nMOCK: irc.post: mock_nick: Created rollout: http://example.com/36936\n"
+        expected_stderr = "MOCK: irc.post: mock_nick: Preparing rollout for http://trac.webkit.org/changeset/21654 ...\nMOCK: irc.post: mock_nick, abarth, darin, eseidel: Created rollout: http://example.com/36936\n"
         OutputCapture().assert_outputs(self, run, args=["rollout 21654 This patch broke the world"], expected_stderr=expected_stderr)
 
+    def test_revert(self):
+        expected_stderr = "MOCK: irc.post: mock_nick: Preparing rollout for http://trac.webkit.org/changeset/21654 ...\nMOCK: irc.post: mock_nick, abarth, darin, eseidel: Created rollout: http://example.com/36936\n"
+        OutputCapture().assert_outputs(self, run, args=["revert 21654 This patch broke the world"], expected_stderr=expected_stderr)
+
+    def test_roll_chromium_deps(self):
+        expected_stderr = "MOCK: irc.post: mock_nick: Rolling Chromium DEPS to r21654\nMOCK: irc.post: mock_nick: Created DEPS roll: http://example.com/36936\n"
+        OutputCapture().assert_outputs(self, run, args=["roll-chromium-deps 21654"], expected_stderr=expected_stderr)
+
+    def test_roll_chromium_deps_to_lkgr(self):
+        expected_stderr = "MOCK: irc.post: mock_nick: Rolling Chromium DEPS to last-known good revision\nMOCK: irc.post: mock_nick: Created DEPS roll: http://example.com/36936\n"
+        OutputCapture().assert_outputs(self, run, args=["roll-chromium-deps"], expected_stderr=expected_stderr)
+
     def test_multi_rollout(self):
-        expected_stderr = "MOCK: irc.post: Preparing rollout for r21654, r21655, and r21656...\nMOCK: irc.post: mock_nick: Created rollout: http://example.com/36936\n"
+        expected_stderr = "MOCK: irc.post: mock_nick: Preparing rollout for http://trac.webkit.org/changeset/21654, http://trac.webkit.org/changeset/21655, and http://trac.webkit.org/changeset/21656 ...\nMOCK: irc.post: mock_nick, abarth, darin, eseidel: Created rollout: http://example.com/36936\n"
         OutputCapture().assert_outputs(self, run, args=["rollout 21654 21655 21656 This 21654 patch broke the world"], expected_stderr=expected_stderr)
 
     def test_rollout_with_r_in_svn_revision(self):
-        expected_stderr = "MOCK: irc.post: Preparing rollout for r21654...\nMOCK: irc.post: mock_nick: Created rollout: http://example.com/36936\n"
+        expected_stderr = "MOCK: irc.post: mock_nick: Preparing rollout for http://trac.webkit.org/changeset/21654 ...\nMOCK: irc.post: mock_nick, abarth, darin, eseidel: Created rollout: http://example.com/36936\n"
         OutputCapture().assert_outputs(self, run, args=["rollout r21654 This patch broke the world"], expected_stderr=expected_stderr)
 
     def test_multi_rollout_with_r_in_svn_revision(self):
-        expected_stderr = "MOCK: irc.post: Preparing rollout for r21654, r21655, and r21656...\nMOCK: irc.post: mock_nick: Created rollout: http://example.com/36936\n"
+        expected_stderr = "MOCK: irc.post: mock_nick: Preparing rollout for http://trac.webkit.org/changeset/21654, http://trac.webkit.org/changeset/21655, and http://trac.webkit.org/changeset/21656 ...\nMOCK: irc.post: mock_nick, abarth, darin, eseidel: Created rollout: http://example.com/36936\n"
         OutputCapture().assert_outputs(self, run, args=["rollout r21654 21655 r21656 This r21654 patch broke the world"], expected_stderr=expected_stderr)
 
     def test_rollout_bananas(self):
-        expected_stderr = "MOCK: irc.post: mock_nick: Usage: SVN_REVISION [SVN_REVISIONS] REASON\n"
+        expected_stderr = "MOCK: irc.post: mock_nick: Usage: rollout SVN_REVISION [SVN_REVISIONS] REASON\n"
         OutputCapture().assert_outputs(self, run, args=["rollout bananas"], expected_stderr=expected_stderr)
 
     def test_rollout_invalidate_revision(self):
-        expected_stderr = ("MOCK: irc.post: Preparing rollout for r--component=Tools...\n"
-                           "MOCK: irc.post: mock_nick: Failed to create rollout patch:\n"
-                           "MOCK: irc.post: Invalid svn revision number \"--component=Tools\".\n")
+        # When folks pass junk arguments, we should just spit the usage back at them.
+        expected_stderr = "MOCK: irc.post: mock_nick: Usage: rollout SVN_REVISION [SVN_REVISIONS] REASON\n"
         OutputCapture().assert_outputs(self, run,
-                                       args=["rollout "
-                                             "--component=Tools 21654"],
+                                       args=["rollout --component=Tools 21654"],
                                        expected_stderr=expected_stderr)
 
     def test_rollout_invalidate_reason(self):
-        expected_stderr = ("MOCK: irc.post: Preparing rollout for "
-                           "r21654...\nMOCK: irc.post: mock_nick: Failed to "
-                           "create rollout patch:\nMOCK: irc.post: The rollout"
-                           " reason may not begin with - (\"-bad (Requested "
-                           "by mock_nick on #webkit).\").\n")
+        # FIXME: I'm slightly confused as to why this doesn't return the USAGE message.
+        expected_stderr = """MOCK: irc.post: mock_nick: Preparing rollout for http://trac.webkit.org/changeset/21654 ...
+MOCK: irc.post: mock_nick, abarth, darin, eseidel: Failed to create rollout patch:
+MOCK: irc.post: The rollout reason may not begin with - (\"-bad (Requested by mock_nick on #webkit).\").
+"""
         OutputCapture().assert_outputs(self, run,
-                                       args=["rollout "
-                                             "21654 -bad"],
+                                       args=["rollout 21654 -bad"],
                                        expected_stderr=expected_stderr)
 
     def test_multi_rollout_invalidate_reason(self):
-        expected_stderr = ("MOCK: irc.post: Preparing rollout for "
-                           "r21654, r21655, and r21656...\nMOCK: irc.post: mock_nick: Failed to "
-                           "create rollout patch:\nMOCK: irc.post: The rollout"
-                           " reason may not begin with - (\"-bad (Requested "
-                           "by mock_nick on #webkit).\").\n")
+        expected_stderr = """MOCK: irc.post: mock_nick: Preparing rollout for http://trac.webkit.org/changeset/21654, http://trac.webkit.org/changeset/21655, and http://trac.webkit.org/changeset/21656 ...
+MOCK: irc.post: mock_nick, abarth, darin, eseidel: Failed to create rollout patch:
+MOCK: irc.post: The rollout reason may not begin with - (\"-bad (Requested by mock_nick on #webkit).\").
+"""
         OutputCapture().assert_outputs(self, run,
                                        args=["rollout "
                                              "21654 21655 r21656 -bad"],
                                        expected_stderr=expected_stderr)
 
     def test_rollout_no_reason(self):
-        expected_stderr = "MOCK: irc.post: mock_nick: Usage: SVN_REVISION [SVN_REVISIONS] REASON\n"
+        expected_stderr = "MOCK: irc.post: mock_nick: Usage: rollout SVN_REVISION [SVN_REVISIONS] REASON\n"
         OutputCapture().assert_outputs(self, run, args=["rollout 21654"], expected_stderr=expected_stderr)
 
     def test_multi_rollout_no_reason(self):
-        expected_stderr = "MOCK: irc.post: mock_nick: Usage: SVN_REVISION [SVN_REVISIONS] REASON\n"
+        expected_stderr = "MOCK: irc.post: mock_nick: Usage: rollout SVN_REVISION [SVN_REVISIONS] REASON\n"
         OutputCapture().assert_outputs(self, run, args=["rollout 21654 21655 r21656"], expected_stderr=expected_stderr)

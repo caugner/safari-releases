@@ -1,8 +1,70 @@
+function trimURL(url)
+{
+    if (!url)
+        return;
+    if (/^data:/.test(url))
+        return url.replace(/,.*$/, "...");
+    return url.replace(/.*\//, ".../");
+}
+
+function dumpObject(object, nondeterministicProps, prefix, firstLinePrefix)
+{
+    prefix = prefix || "";
+    firstLinePrefix = firstLinePrefix || prefix;
+    output(firstLinePrefix + "{");
+    for (var prop in object) {
+        var prefixWithName = prefix + "    " + prop + " : ";
+        var propValue = object[prop];
+        if (nondeterministicProps && prop in nondeterministicProps) {
+            var value = nondeterministicProps[prop] === "url" ? trimURL(propValue) : "<" + typeof propValue + ">";
+            output(prefixWithName + value);
+        } else if (typeof propValue === "object" && propValue != null)
+            dumpObject(propValue, nondeterministicProps, prefix + "    ", prefixWithName);
+        else if (typeof propValue === "string")
+            output(prefixWithName + "\"" + propValue + "\"");
+        else if (typeof propValue === "function")
+            output(prefixWithName + "<function>");
+        else
+            output(prefixWithName + propValue);
+    }
+    output(prefix + "}");
+}
+
+function dumpArray(result)
+{
+    if (result instanceof Array) {
+        for (var i = 0; i < result.length; ++i)
+            output(result[i]);
+    } else
+        output(result);
+}
+
+function evaluateOnFrontend(expression, callback)
+{
+    function callbackWrapper(event)
+    {
+        channel.port1.removeEventListener("message", callbackWrapper, false);
+        callback(event.data.response);
+    }
+    var channel = new MessageChannel();
+    channel.port1.start();
+    if (callback)
+        channel.port1.addEventListener("message", callbackWrapper, false);
+    webInspector.inspectedWindow.eval("", function() {
+        top.postMessage({ expression: expression }, [ channel.port2 ], "*");
+    });
+}
+
+function output(message)
+{
+    evaluateOnFrontend("InspectorTest.addResult(unescape('" + escape(message) + "'));");
+}
+
 function onError(event)
 {
     window.removeEventListener("error", onError);
     output("Uncaught exception in extension context: " + event.message + " [" + event.filename + ":" + event.lineno + "]");
-    top.postMessage({ command: "extension-tests-done" }, "*");
+    evaluateOnFrontend("InspectorTest.completeTest();");
 }
 
 window.addEventListener("error", onError);
@@ -35,7 +97,7 @@ function runTests()
 function onTestsDone()
 {
     output("All tests done.");
-    top.postMessage({ command: "extension-tests-done" }, "*");
+    evaluateOnFrontend("InspectorTest.completeTest();");
 }
 
 function runTest(test, name)
@@ -46,25 +108,6 @@ function runTest(test, name)
     } catch (e) {
         output(name + ": " + e);
     }
-}
-
-function dispatchOnFrontend(message, callback)
-{
-    function callbackWrapper()
-    {
-        channel.port1.removeEventListener("message", callbackWrapper, false);
-        callback();
-    }
-    var channel = new MessageChannel();
-    channel.port1.start();
-    if (callback)
-        channel.port1.addEventListener("message", callbackWrapper, false);
-    top.postMessage(message, [ channel.port2 ], "*");
-}
-
-function showPanel(panelId, callback)
-{
-    dispatchOnFrontend({ command: "show-panel", panelId: panelId }, callback);
 }
 
 function callbackAndNextTest(callback, nextTest)
@@ -82,5 +125,3 @@ function bind(func, thisObject)
     var args = Array.prototype.slice.call(arguments, 2);
     return function() { return func.apply(thisObject, args.concat(Array.prototype.slice.call(arguments, 0))); };
 }
-
-fetchTests();

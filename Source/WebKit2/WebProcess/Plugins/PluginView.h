@@ -29,13 +29,12 @@
 #include "NPRuntimeObjectMap.h"
 #include "Plugin.h"
 #include "PluginController.h"
-#include "RunLoop.h"
 #include "WebFrame.h"
-
 #include <WebCore/MediaCanStartListener.h>
+#include <WebCore/PluginViewBase.h>
 #include <WebCore/ResourceError.h>
 #include <WebCore/ResourceResponse.h>
-#include <WebCore/PluginViewBase.h>
+#include <WebCore/RunLoop.h>
 #include <wtf/Deque.h>
 
 // FIXME: Eventually this should move to WebCore.
@@ -47,7 +46,7 @@ namespace WebCore {
 
 namespace WebKit {
 
-class PluginView : public WebCore::PluginViewBase, WebCore::MediaCanStartListener, PluginController, WebFrame::LoadListener {
+class PluginView : public WebCore::PluginViewBase, public PluginController, private WebCore::MediaCanStartListener, private WebFrame::LoadListener {
 public:
     static PassRefPtr<PluginView> create(PassRefPtr<WebCore::HTMLPlugInElement>, PassRefPtr<Plugin>, const Plugin::Parameters&);
 
@@ -63,9 +62,18 @@ public:
 #if PLATFORM(MAC)
     void setWindowIsVisible(bool);
     void setWindowIsFocused(bool);
+    void setDeviceScaleFactor(float);
     void windowAndViewFramesChanged(const WebCore::IntRect& windowFrameInScreenCoordinates, const WebCore::IntRect& viewFrameInWindowCoordinates);
     bool sendComplexTextInput(uint64_t pluginComplexTextInputIdentifier, const String& textInput);
+    void setLayerHostingMode(LayerHostingMode);
+    RetainPtr<PDFDocument> pdfDocumentForPrinting() const { return m_plugin->pdfDocumentForPrinting(); }
 #endif
+
+    // FIXME: Remove this; nobody should have to know about the plug-in view's renderer except the plug-in view itself.
+    WebCore::RenderBoxModelObject* renderer() const;
+
+    void pageScaleFactorDidChange();
+    void webPageDestroyed();
 
 private:
     PluginView(PassRefPtr<WebCore::HTMLPlugInElement>, PassRefPtr<Plugin>, const Plugin::Parameters& parameters);
@@ -102,10 +110,14 @@ private:
 #endif
     virtual JSC::JSObject* scriptObject(JSC::JSGlobalObject*);
     virtual void privateBrowsingStateChanged(bool);
-    
+    virtual bool getFormValue(String&);
+    virtual bool scroll(WebCore::ScrollDirection, WebCore::ScrollGranularity);
+    virtual WebCore::Scrollbar* horizontalScrollbar();
+    virtual WebCore::Scrollbar* verticalScrollbar();
+    virtual bool wantsWheelEvents();
+
     // WebCore::Widget
     virtual void setFrameRect(const WebCore::IntRect&);
-    virtual void setBoundsSize(const WebCore::IntSize&);
     virtual void paint(WebCore::GraphicsContext*, const WebCore::IntRect&);
     virtual void invalidateRect(const WebCore::IntRect&);
     virtual void setFocus(bool);
@@ -115,6 +127,7 @@ private:
     virtual void notifyWidget(WebCore::WidgetNotification);
     virtual void show();
     virtual void hide();
+    virtual bool transformsAffectFrameRect();
 
     // WebCore::MediaCanStartListener
     virtual void mediaCanStart();
@@ -130,7 +143,6 @@ private:
     virtual NPObject* windowScriptNPObject();
     virtual NPObject* pluginElementNPObject();
     virtual bool evaluate(NPObject*, const String&scriptString, NPVariant* result, bool allowPopups);
-    virtual bool tryToShortCircuitInvoke(NPObject*, NPIdentifier methodName, const NPVariant* arguments, uint32_t argumentCount, bool& returnValue, NPVariant& result);
     virtual void setStatusbarText(const String&);
     virtual bool isAcceleratedCompositingEnabled();
     virtual void pluginProcessCrashed();
@@ -140,9 +152,11 @@ private:
     virtual void scheduleWindowedPluginGeometryUpdate(const WindowGeometry&);
 #endif
 #if PLATFORM(MAC)
-    virtual void setComplexTextInputEnabled(bool);
+    virtual void pluginFocusOrWindowFocusChanged(bool pluginHasFocusAndWindowHasFocus);
+    virtual void setComplexTextInputState(PluginComplexTextInputState);
     virtual mach_port_t compositingRenderServerPort();
 #endif
+    virtual float contentsScaleFactor();
     virtual String proxiesForURL(const String&);
     virtual String cookiesForURL(const String&);
     virtual void setCookiesForURL(const String& urlString, const String& cookieString);
@@ -150,6 +164,10 @@ private:
     virtual bool isPrivateBrowsingEnabled();
     virtual void protectPluginFromDestruction();
     virtual void unprotectPluginFromDestruction();
+#if PLUGIN_ARCHITECTURE(X11)
+    virtual uint64_t createPluginContainer();
+    virtual void windowedPluginGeometryDidChange(const WebCore::IntRect& frameRect, const WebCore::IntRect& clipRect, uint64_t windowID);
+#endif
 
     // WebFrame::LoadListener
     virtual void didFinishLoad(WebFrame*);
@@ -166,7 +184,7 @@ private:
 
     // Pending URLRequests that the plug-in has made.
     Deque<RefPtr<URLRequest> > m_pendingURLRequests;
-    RunLoop::Timer<PluginView> m_pendingURLRequestsTimer;
+    WebCore::RunLoop::Timer<PluginView> m_pendingURLRequestsTimer;
 
     // Pending frame loads that the plug-in has made.
     typedef HashMap<RefPtr<WebFrame>, RefPtr<URLRequest> > FrameLoadMap;
@@ -193,7 +211,6 @@ private:
     RefPtr<WebCore::SharedBuffer> m_manualStreamData;
     
     RefPtr<ShareableBitmap> m_snapshot;
-    WebCore::IntSize m_boundsSize;
 };
 
 } // namespace WebKit

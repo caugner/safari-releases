@@ -27,18 +27,18 @@
 
 #include "stdafx.h"
 #include "WinLauncher.h"
-#include <WebKit/WebKitCOMAPI.h>
 
-#include <string>
+#include "DOMDefaultImpl.h"
+#include "PrintWebUIDelegate.h"
+#include <WebKit/WebKitCOMAPI.h>
 
 #include <commctrl.h>
 #include <commdlg.h>
 #include <objbase.h>
 #include <shellapi.h>
 #include <shlwapi.h>
+#include <string>
 #include <wininet.h>
-
-#include "PrintWebUIDelegate.h"
 
 #define MAX_LOADSTRING 100
 #define URLBAR_HEIGHT  24
@@ -65,7 +65,6 @@ bool s_fullDesktop = false;
 
 // Forward declarations of functions included in this code module:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
-BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 LRESULT CALLBACK    MyEditProc(HWND, UINT, WPARAM, LPARAM);
@@ -81,6 +80,27 @@ static bool shouldUseFullDesktop()
 {
     return s_fullDesktop;
 }
+
+class SimpleEventListener : public DOMEventListener {
+public:
+    SimpleEventListener(LPWSTR type)
+    {
+        wcsncpy_s(m_eventType, 100, type, 100);
+        m_eventType[99] = 0;
+    }
+
+    virtual HRESULT STDMETHODCALLTYPE handleEvent(IDOMEvent* evt)
+    {
+        wchar_t message[255];
+        wcscpy_s(message, 255, m_eventType);
+        wcscat_s(message, 255, L" event fired!");
+        ::MessageBox(0, message, L"Event Handler", MB_OK);
+        return S_OK;
+    }
+
+private:
+    wchar_t m_eventType[100];
+};
 
 HRESULT WinLauncherWebHost::updateAddressBar(IWebView* webView)
 {
@@ -150,6 +170,36 @@ ULONG STDMETHODCALLTYPE WinLauncherWebHost::Release(void)
     return newRef;
 }
 
+HRESULT WinLauncherWebHost::didFinishLoadForFrame(IWebView* webView, IWebFrame* frame)
+{
+    IDOMDocument* doc = 0;
+    frame->DOMDocument(&doc);
+
+    IDOMElement* element = 0;
+    IDOMEventTarget* target = 0;
+    HRESULT hr = doc->getElementById(L"webkit logo", &element);
+    if (!SUCCEEDED(hr))
+        goto exit;
+
+    hr = element->QueryInterface(IID_IDOMEventTarget, reinterpret_cast<void**>(&target));
+    if (!SUCCEEDED(hr))
+        goto exit;
+
+    hr = target->addEventListener(L"click", new SimpleEventListener (L"webkit logo click"), FALSE);
+    if (!SUCCEEDED(hr))
+        goto exit;
+
+exit:
+    if (target)
+        target->Release();
+    if (element)
+        element->Release();
+    if (doc)
+        doc->Release();
+
+    return hr;
+}
+
 static void resizeSubViews()
 {
     if (usesLayeredWebView() || !gViewWindow)
@@ -180,18 +230,20 @@ static void computeFullDesktopFrame()
     s_windowSize.cy = desktop.bottom - desktop.top;
 }
 
-int APIENTRY _tWinMain(HINSTANCE hInstance,
-                     HINSTANCE hPrevInstance,
-                     LPTSTR    lpCmdLine,
-                     int       nCmdShow)
+BOOL WINAPI DllMain(HINSTANCE dllInstance, DWORD reason, LPVOID)
+{
+    if (reason == DLL_PROCESS_ATTACH)
+        hInst = dllInstance;
+
+    return TRUE;
+}
+
+extern "C" __declspec(dllexport) int WINAPI dllLauncherEntryPoint(HINSTANCE, HINSTANCE, LPTSTR, int nCmdShow)
 {
 #ifdef _CRTDBG_MAP_ALLOC
     _CrtSetReportFile(_CRT_WARN, _CRTDBG_FILE_STDERR);
     _CrtSetReportMode(_CRT_WARN, _CRTDBG_MODE_FILE);
 #endif
-
-    UNREFERENCED_PARAMETER(hPrevInstance);
-    UNREFERENCED_PARAMETER(lpCmdLine);
 
      // TODO: Place code here.
     MSG msg = {0};
@@ -213,16 +265,12 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
     }
 
     // Initialize global strings
-    LoadString(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
-    LoadString(hInstance, IDC_WINLAUNCHER, szWindowClass, MAX_LOADSTRING);
-    MyRegisterClass(hInstance);
+    LoadString(hInst, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
+    LoadString(hInst, IDC_WINLAUNCHER, szWindowClass, MAX_LOADSTRING);
+    MyRegisterClass(hInst);
 
     if (shouldUseFullDesktop())
         computeFullDesktopFrame();
-
-    // Perform application initialization:
-    if (!InitInstance (hInstance, nCmdShow))
-        return FALSE;
 
     // Init COM
     OleInitialize(NULL);
@@ -233,14 +281,23 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
                     s_windowPosition.x, s_windowPosition.y + s_windowSize.cy, s_windowSize.cx, URLBAR_HEIGHT,
                     0,
                     0,
-                    hInstance, 0);
+                    hInst, 0);
     } else {
+        hMainWnd = CreateWindow(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
+                       CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, 0, 0, hInst, 0);
+
+        if (!hMainWnd)
+            return FALSE;
+
         hURLBarWnd = CreateWindow(L"EDIT", 0,
                     WS_CHILD | WS_VISIBLE | WS_BORDER | ES_LEFT | ES_AUTOVSCROLL, 
                     0, 0, 0, 0,
                     hMainWnd,
                     0,
-                    hInstance, 0);
+                    hInst, 0);
+
+        ShowWindow(hMainWnd, nCmdShow);
+        UpdateWindow(hMainWnd);
     }
 
     DefEditProc = reinterpret_cast<WNDPROC>(GetWindowLongPtr(hURLBarWnd, GWL_WNDPROC));
@@ -292,7 +349,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
     if (FAILED(hr))
         goto exit;
 
-    static BSTR defaultHTML = SysAllocString(TEXT("<p style=\"background-color: #00FF00\">Testing</p><img src=\"http://webkit.org/images/icon-gold.png\" alt=\"Face\"><div style=\"border: solid blue; background: white;\" contenteditable=\"true\">div with blue border</div><ul><li>foo<li>bar<li>baz</ul>"));
+    static BSTR defaultHTML = SysAllocString(TEXT("<p style=\"background-color: #00FF00\">Testing</p><img id=\"webkit logo\" src=\"http://webkit.org/images/icon-gold.png\" alt=\"Face\"><div style=\"border: solid blue; background: white;\" contenteditable=\"true\">div with blue border</div><ul><li>foo<li>bar<li>baz</ul>"));
     frame->loadHTMLString(defaultHTML, 0);
     frame->Release();
 
@@ -316,7 +373,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,
     ShowWindow(gViewWindow, nCmdShow);
     UpdateWindow(gViewWindow);
 
-    hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_WINLAUNCHER));
+    hAccelTable = LoadAccelerators(hInst, MAKEINTRESOURCE(IDC_WINLAUNCHER));
 
     // Main message loop:
     while (GetMessage(&msg, NULL, 0, 0)) {
@@ -365,25 +422,6 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
     wcex.hIconSm        = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
 
     return RegisterClassEx(&wcex);
-}
-
-BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
-{
-    hInst = hInstance; // Store instance handle in our global variable
-
-    if (usesLayeredWebView())
-        return TRUE;
-
-    hMainWnd = CreateWindow(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
-                   CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, 0, 0, hInstance, 0);
-
-    if (!hMainWnd)
-        return FALSE;
-
-    ShowWindow(hMainWnd, nCmdShow);
-    UpdateWindow(hMainWnd);
-
-    return TRUE;
 }
 
 static BOOL CALLBACK AbortProc(HDC hDC, int Error)
@@ -488,10 +526,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
             if ((y > window.top) && (y < window.top + dragBarHeight))
                 return HTCAPTION;
-
-            return CallWindowProc(parentProc, hWnd, message, wParam, lParam);
         }
-        break;
+        return CallWindowProc(parentProc, hWnd, message, wParam, lParam);
     case WM_COMMAND: {
         int wmId = LOWORD(wParam);
         int wmEvent = HIWORD(wParam);
@@ -522,7 +558,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         break;
     default:
         return CallWindowProc(parentProc, hWnd, message, wParam, lParam);
-        break;
     }
 
     return 0;

@@ -26,8 +26,6 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import os
-
 from webkitpy.common.system.executive import ScriptError
 from webkitpy.tool.steps.abstractstep import AbstractStep
 from webkitpy.tool.steps.options import Options
@@ -39,13 +37,13 @@ class CheckStyle(AbstractStep):
         return AbstractStep.options() + [
             Options.non_interactive,
             Options.check_style,
+            Options.check_style_filter,
             Options.git_commit,
         ]
 
     def run(self, state):
         if not self._options.check_style:
             return
-        os.chdir(self._tool.scm().checkout_root)
 
         args = []
         if self._options.git_commit:
@@ -55,12 +53,16 @@ class CheckStyle(AbstractStep):
         args.append("--diff-files")
         args.extend(self._changed_files(state))
 
+        if self._options.check_style_filter:
+            args.append("--filter")
+            args.append(self._options.check_style_filter)
+
         try:
-            self._tool.executive.run_and_throw_if_fail(self._tool.port().check_webkit_style_command() + args)
+            self._tool.executive.run_and_throw_if_fail(self._tool.port().check_webkit_style_command() + args, cwd=self._tool.scm().checkout_root)
         except ScriptError, e:
             if self._options.non_interactive:
                 # We need to re-raise the exception here to have the
                 # style-queue do the right thing.
                 raise e
             if not self._tool.user.confirm("Are you sure you want to continue?"):
-                exit(1)
+                self._exit(1)

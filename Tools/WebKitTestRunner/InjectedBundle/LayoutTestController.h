@@ -41,6 +41,8 @@ typedef UINT_PTR PlatformTimerRef;
 #elif PLATFORM(QT)
 #include <QTimer>
 typedef QTimer PlatformTimerRef;
+#elif PLATFORM(GTK)
+typedef unsigned int PlatformTimerRef;
 #endif
 
 namespace WTR {
@@ -57,6 +59,7 @@ public:
 
     // The basics.
     void dumpAsText(bool dumpPixels);
+    void waitForPolicyDelegate();
     void dumpChildFramesAsText() { m_whatToDump = AllFramesText; }
     void waitUntilDone();
     void notifyDone();
@@ -69,6 +72,7 @@ public:
     void dumpStatusCallbacks() { m_dumpStatusCallbacks = true; }
     void dumpTitleChanges() { m_dumpTitleChanges = true; }
     void dumpFullScreenCallbacks() { m_dumpFullScreenCallbacks = true; }
+    void dumpConfigurationForViewport(int deviceDPI, int deviceWidth, int deviceHeight, int availableWidth, int availableHeight);
 
     // Special options.
     void keepWebHistory();
@@ -79,6 +83,12 @@ public:
     void setAllowUniversalAccessFromFileURLs(bool);
     void setAllowFileAccessFromFileURLs(bool);
     void setFrameFlatteningEnabled(bool);
+    void setGeolocationPermission(bool);
+    void setJavaScriptCanAccessClipboard(bool);
+    void setPrivateBrowsingEnabled(bool);
+    void setPopupBlockingEnabled(bool);
+    void setAuthorAndUserStylesEnabled(bool);
+    void setCustomPolicyDelegate(bool enabled, bool permissive = false);
     void addOriginAccessWhitelistEntry(JSStringRef sourceOrigin, JSStringRef destinationProtocol, JSStringRef destinationHost, bool allowDestinationSubdomains);
     void removeOriginAccessWhitelistEntry(JSStringRef sourceOrigin, JSStringRef destinationProtocol, JSStringRef destinationHost, bool allowDestinationSubdomains);
 
@@ -91,12 +101,6 @@ public:
     JSRetainPtr<JSStringRef> markerTextForListItem(JSValueRef element);
     unsigned windowCount();
 
-    // Shadow DOM.
-    JSValueRef shadowRoot(JSValueRef element);
-    JSValueRef ensureShadowRoot(JSValueRef element);
-    void removeShadowRoot(JSValueRef element);
-    JSRetainPtr<JSStringRef> shadowPseudoId(JSValueRef) const;
-
     // Repaint testing.
     void testRepaint() { m_testRepaint = true; }
     void repaintSweepHorizontally() { m_testRepaintSweepHorizontally = true; }
@@ -105,6 +109,7 @@ public:
     // Animation testing.
     unsigned numberOfActiveAnimations() const;
     bool pauseAnimationAtTimeOnElementWithId(JSStringRef animationName, double time, JSStringRef elementId);
+    bool pauseTransitionAtTimeOnElementWithId(JSStringRef propertyName, double time, JSStringRef elementId);
     void suspendAnimations();
     void resumeAnimations();
     
@@ -123,11 +128,17 @@ public:
     void setDatabaseQuota(uint64_t);
     JSRetainPtr<JSStringRef> pathToLocalResource(JSStringRef);
 
+    // Application Cache
+    void clearAllApplicationCaches();
+    void setAppCacheMaximumSize(uint64_t);
+
     // Printing
     int numberOfPages(double pageWidthInPixels, double pageHeightInPixels);
     int pageNumberForElementById(JSStringRef, double pageWidthInPixels, double pageHeightInPixels);
     JSRetainPtr<JSStringRef> pageSizeAndMarginsInPixels(int pageIndex, int width, int height, int marginTop, int marginRight, int marginBottom, int marginLeft);
     bool isPageBoxVisible(int pageIndex);
+
+    void setValueForUser(JSContextRef, JSValueRef element, JSStringRef value);
 
     enum WhatToDump { RenderTree, MainFrameText, AllFramesText };
     WhatToDump whatToDump() const { return m_whatToDump; }
@@ -140,6 +151,8 @@ public:
     bool shouldDumpTitleChanges() const { return m_dumpTitleChanges; }
     bool shouldDumpPixels() const { return m_dumpPixels; }
     bool shouldDumpFullScreenCallbacks() const { return m_dumpFullScreenCallbacks; }
+    bool isPolicyDelegateEnabled() const { return m_policyDelegateEnabled; }
+    bool isPolicyDelegatePermissive() const { return m_policyDelegatePermissive; }
 
     bool waitToDump() const { return m_waitToDump; }
     void waitToDumpWatchdogTimerFired();
@@ -155,12 +168,42 @@ public:
     void showWebInspector();
     void closeWebInspector();
     void evaluateInWebInspector(long callId, JSStringRef script);
-    void setTimelineProfilingEnabled(bool);
+    void setJavaScriptProfilingEnabled(bool);
 
     void setPOSIXLocale(JSStringRef);
 
     bool willSendRequestReturnsNull() { return m_willSendRequestReturnsNull; }
     void setWillSendRequestReturnsNull(bool f) { m_willSendRequestReturnsNull = f; }
+
+    void setTextDirection(JSStringRef);
+
+    void setShouldStayOnPageAfterHandlingBeforeUnload(bool);
+    
+    bool globalFlag() const { return m_globalFlag; }
+    void setGlobalFlag(bool value) { m_globalFlag = value; }
+    
+    void addChromeInputField(JSValueRef);
+    void removeChromeInputField(JSValueRef);
+    void focusWebView(JSValueRef);
+    void setBackingScaleFactor(double, JSValueRef);
+
+    void setWindowIsKey(bool);
+
+    void callAddChromeInputFieldCallback();
+    void callRemoveChromeInputFieldCallback();
+    void callFocusWebViewCallback();
+    void callSetBackingScaleFactorCallback();
+
+    void overridePreference(JSStringRef preference, bool value);
+
+    // Custom full screen behavior.
+    void setHasCustomFullScreenBehavior(bool value) { m_customFullScreenBehavior = value; }
+    bool hasCustomFullScreenBehavior() const { return m_customFullScreenBehavior; }
+
+    JSRetainPtr<JSStringRef> platformName();
+
+    void setPageVisibility(JSStringRef state);
+    void resetPageVisibility();
 
 private:
     static const double waitToDumpWatchdogTimerInterval;
@@ -187,6 +230,12 @@ private:
     bool m_testRepaintSweepHorizontally;
 
     bool m_willSendRequestReturnsNull;
+
+    bool m_policyDelegateEnabled;
+    bool m_policyDelegatePermissive;
+    
+    bool m_globalFlag;
+    bool m_customFullScreenBehavior;
 
     PlatformTimerRef m_waitToDumpWatchdogTimer;
 };

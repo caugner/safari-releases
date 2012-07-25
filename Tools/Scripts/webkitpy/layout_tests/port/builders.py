@@ -29,61 +29,100 @@
 
 import re
 
+from webkitpy.common.memoized import memoized
 
-def _path_from_name(name):
-    return re.sub(r'[\s().]', '_', name)
 
-# Compiled manually from http://build.chromium.org/p/chromium/json/builders/help?as_text=1
-# Values of None mean there are no bots running at build.webkit.org or
-# build.chromium.org for that port.
-# FIXME Make the values in this map into lists.
-CHROMIUM_PORT_TO_BUILDER_NAME = {
-    'chromium-gpu-linux': _path_from_name('Webkit Linux - GPU'),
+# In this dictionary, each item stores:
+# * port_name -- a fully qualified port name
+# * specifiers -- a set of specifiers, representing configurations covered by this builder.
+_exact_matches = {
+    # These builders are on build.chromium.org.
+    "Webkit Win": {"port_name": "chromium-win-xp", "specifiers": set(["xp", "release"])},
+    "Webkit Vista": {"port_name": "chromium-win-vista", "specifiers": set(["vista"])},
+    "Webkit Win7": {"port_name": "chromium-win-win7", "specifiers": set(["win7"])},
+    "Webkit Win (dbg)(1)": {"port_name": "chromium-win-xp", "specifiers": set(["win", "debug"])},
+    "Webkit Win (dbg)(2)": {"port_name": "chromium-win-xp", "specifiers": set(["win", "debug"])},
+    "Webkit Linux": {"port_name": "chromium-linux-x86_64", "specifiers": set(["linux", "x86_64", "release"])},
+    "Webkit Linux 32": {"port_name": "chromium-linux-x86", "specifiers": set(["linux", "x86"])},
+    "Webkit Linux (dbg)": {"port_name": "chromium-linux-x86_64", "specifiers": set(["linux", "debug"])},
+    "Webkit Mac10.5": {"port_name": "chromium-mac-leopard", "specifiers": set(["leopard"])},
+    "Webkit Mac10.5 (dbg)(1)": {"port_name": "chromium-mac-leopard", "specifiers": set(["leopard", "debug"])},
+    "Webkit Mac10.5 (dbg)(2)": {"port_name": "chromium-mac-leopard", "specifiers": set(["leopard", "debug"])},
+    "Webkit Mac10.6": {"port_name": "chromium-mac-snowleopard", "specifiers": set(["snowleopard"])},
+    "Webkit Mac10.6 (dbg)": {"port_name": "chromium-mac-snowleopard", "specifiers": set(["snowleopard", "debug"])},
+    "Webkit Mac10.7": {"port_name": "chromium-mac-lion", "specifiers": set(["lion"])},
 
-    'chromium-gpu-mac-snowleopard': _path_from_name('Webkit Mac10.6 - GPU'),
-    'chromium-gpu-mac-leopard': _path_from_name('Webkit Mac10.5 - GPU'),
-
-    'chromium-gpu-win-xp': _path_from_name('Webkit Win - GPU'),
-    'chromium-gpu-win-vista': _path_from_name('Webkit Vista - GPU'),
-    'chromium-gpu-win-win7': _path_from_name('Webkit Win7 - GPU'),
-
-    'chromium-linux-x86_64': _path_from_name('Linux Tests x64'),
-    'chromium-linux-x86': _path_from_name('Linux Tests (dbg)(1)'),
-
-    'chromium-mac-leopard': _path_from_name('Mac10.5 Tests (1)'),
-    'chromium-mac-snowleopard': _path_from_name('Mac 10.6 Tests (dbg)(1)'),
-
-    'chromium-win-xp': _path_from_name('XP Tests (dbg)(5)'),
-    'chromium-win-vista': _path_from_name('Vista Tests (dbg)(1)'),
-    'chromium-win-win7': None,
-
-    'google-chrome-linux32': None,
-    'google-chrome-linux64': None,
+    # These builders are on build.webkit.org.
+    "GTK Linux 32-bit Debug": {"port_name": "gtk", "specifiers": set(["gtk"])},
+    "Leopard Intel Debug (Tests)": {"port_name": "mac-leopard", "specifiers": set(["leopard"])},
+    "SnowLeopard Intel Release (Tests)": {"port_name": "mac-snowleopard", "specifiers": set(["snowleopard"])},
+    "SnowLeopard Intel Release (WebKit2 Tests)": {"port_name": "mac-snowleopard-wk2", "specifiers": set(["wk2"])},
+    "Qt Linux Release": {"port_name": "qt-linux", "specifiers": set(["win", "linux", "mac"])},
+    "Windows XP Debug (Tests)": {"port_name": "win-xp", "specifiers": set(["win"])},
+    "Windows 7 Release (WebKit2 Tests)": {"port_name": "win-future-wk2", "specifiers": set(["wk2"])},
+    "EFL Linux Release": {"port_name": "efl", "specifiers": set(["efl"])},
 }
 
-# Compiled manually from http://build.webkit.org/builders
-WEBKIT_PORT_TO_BUILDER_NAME = {
-    'gtk': 'GTK Linux 32-bit Debug',
 
-    'mac-tiger': None,
-    'mac-leopard': 'Leopard Intel Debug (Tests)',
-    'mac-snowleopard': 'SnowLeopard Intel Release (Tests)',
-    'mac-wk2': 'SnowLeopard Intel Release (WebKit2 Tests)',
-
-    'qt-linux': 'Qt Linux Release',
-    'qt-mac': None,
-    'qt-win': None,
-    'qt-wk2': None,
-
-    'win-xp': 'Windows XP Debug (Tests)',
-    'win': None,
-    'win-wk2': 'Windows 7 Release (WebKit2 Tests)',
+_fuzzy_matches = {
+    # These builders are on build.webkit.org.
+    r"SnowLeopard": "mac-snowleopard",
+    r"Leopard": "mac-leopard",
+    r"Windows": "win",
+    r"GTK": "gtk",
+    r"Qt": "qt",
+    r"Chromium Mac": "chromium-mac",
+    r"Chromium Linux": "chromium-linux",
+    r"Chromium Win": "chromium-win",
 }
 
-PORT_TO_BUILDER_NAME = {}
-PORT_TO_BUILDER_NAME.update(CHROMIUM_PORT_TO_BUILDER_NAME)
-PORT_TO_BUILDER_NAME.update(WEBKIT_PORT_TO_BUILDER_NAME)
+
+_ports_without_builders = [
+    "google-chrome-linux32",
+    "google-chrome-linux64",
+    "qt-mac",
+    "qt-win",
+    "qt-wk2",
+]
 
 
-def builder_name_for_platform(platform):
-    return PORT_TO_BUILDER_NAME.get(platform)
+def builder_path_from_name(builder_name):
+    return re.sub(r'[\s().]', '_', builder_name)
+
+
+@memoized
+def all_builder_names():
+    return sorted(set(_exact_matches.keys()))
+
+
+@memoized
+def all_port_names():
+    return sorted(set(map(lambda x: x["port_name"], _exact_matches.values()) + _ports_without_builders))
+
+
+def coverage_specifiers_for_builder_name(builder_name):
+    return _exact_matches[builder_name].get("specifiers", set())
+
+
+def port_name_for_builder_name(builder_name):
+    if builder_name in _exact_matches:
+        return _exact_matches[builder_name]["port_name"]
+
+    for regexp, port_name in _fuzzy_matches.items():
+        if re.match(regexp, builder_name):
+            return port_name
+
+
+def builder_name_for_port_name(target_port_name):
+    for builder_name, builder_info in _exact_matches.items():
+        if builder_info['port_name'] == target_port_name and 'debug' not in builder_info['specifiers']:
+            return builder_name
+    return None
+
+
+def builder_path_for_port_name(port_name):
+    builder_path_from_name(builder_name_for_port_name(port_name))
+
+
+def fallback_port_names_for_new_port(builder_name):
+    return _exact_matches[builder_name].get("move_overwritten_baselines_to", [])

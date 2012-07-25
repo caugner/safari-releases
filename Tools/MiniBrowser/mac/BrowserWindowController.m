@@ -28,6 +28,7 @@
 #import <WebKit2/WKPagePrivate.h>
 #import <WebKit2/WKStringCF.h>
 #import <WebKit2/WKURLCF.h>
+#import <WebKit2/WKViewPrivate.h>
 
 @interface BrowserWindowController ()
 - (void)didStartProgress;
@@ -43,10 +44,11 @@
 
 @implementation BrowserWindowController
 
-- (id)initWithContext:(WKContextRef)context
+- (id)initWithContext:(WKContextRef)context pageGroup:(WKPageGroupRef)pageGroup
 {
     if ((self = [super initWithWindowNibName:@"BrowserWindow"])) {
         _context = WKRetain(context);
+        _pageGroup = WKRetain(pageGroup);
         _zoomTextOnly = NO;
     }
     
@@ -159,6 +161,8 @@
 {
     WKRelease(_context);
     _context = 0;
+    WKRelease(_pageGroup);
+    _pageGroup = 0;
 }
 
 - (void)applicationTerminating
@@ -321,6 +325,11 @@ static void didRunInsecureContentForFrame(WKPageRef page, WKFrameRef frame, WKTy
     LOG(@"didRunInsecureContentForFrame");
 }
 
+static void didDetectXSSForFrame(WKPageRef page, WKFrameRef frame, WKTypeRef userData, const void *clientInfo) 
+{ 
+    LOG(@"didDetectXSSForFrame"); 
+}
+ 
 static void didStartProgress(WKPageRef page, const void *clientInfo)
 {
     [(BrowserWindowController *)clientInfo didStartProgress];
@@ -377,10 +386,10 @@ static void decidePolicyForResponse(WKPageRef page, WKFrameRef frame, WKURLRespo
 
 // MARK: UI Client Callbacks
 
-static WKPageRef createNewPage(WKPageRef page, WKDictionaryRef features, WKEventModifiers modifiers, WKEventMouseButton button, const void* clientInfo)
+static WKPageRef createNewPage(WKPageRef page, WKURLRequestRef request, WKDictionaryRef features, WKEventModifiers modifiers, WKEventMouseButton button, const void* clientInfo)
 {
     LOG(@"createNewPage");
-    BrowserWindowController *controller = [[BrowserWindowController alloc] initWithContext:WKPageGetContext(page)];
+    BrowserWindowController *controller = [[BrowserWindowController alloc] initWithContext:WKPageGetContext(page) pageGroup:WKPageGetPageGroup(page)];
     [controller loadWindow];
 
     return controller->_webView.pageRef;
@@ -490,7 +499,7 @@ static void setStatusText(WKPageRef page, WKStringRef text, const void* clientIn
     LOG(@"setStatusText");
 }
 
-static void mouseDidMoveOverElement(WKPageRef page, WKEventModifiers modifiers, WKTypeRef userData, const void *clientInfo)
+static void mouseDidMoveOverElement(WKPageRef page, WKHitTestResultRef hitTestResult, WKEventModifiers modifiers, WKTypeRef userData, const void *clientInfo)
 {
     LOG(@"mouseDidMoveOverElement");
 }
@@ -565,15 +574,13 @@ static void runOpenPanel(WKPageRef page, WKFrameRef frame, WKOpenPanelParameters
 
 - (void)awakeFromNib
 {
-    _webView = [[WKView alloc] initWithFrame:[containerView frame] contextRef:_context];
+    _webView = [[WKView alloc] initWithFrame:[containerView bounds] contextRef:_context pageGroupRef:_pageGroup];
 
-    [containerView addSubview:_webView];
-    [_webView setFrame:[containerView frame]];
-    
     [_webView setAutoresizingMask:(NSViewWidthSizable | NSViewHeightSizable)];
+    [containerView addSubview:_webView];
     
     WKPageLoaderClient loadClient = {
-        0,      /* version */
+        kWKPageLoaderClientCurrentVersion,
         self,   /* clientInfo */
         didStartProvisionalLoadForFrame,
         didReceiveServerRedirectForProvisionalLoadForFrame,
@@ -599,12 +606,17 @@ static void runOpenPanel(WKPageRef page, WKFrameRef frame, WKOpenPanelParameters
         processDidExit,
         didChangeBackForwardList,
         0, // shouldGoToBackForwardItem
-        0  // didFailToInitializePlugin
+        0, // didFailToInitializePlugin
+        didDetectXSSForFrame,
+        0, // didNewFirstVisuallyNonEmptyLayout
+        0, // willGoToBackForwardListItem
+        0, // interactionOccurredWhileProcessUnresponsive
+        0, // pluginDidFail
     };
     WKPageSetPageLoaderClient(_webView.pageRef, &loadClient);
     
     WKPagePolicyClient policyClient = {
-        0,          /* version */
+        kWKPagePolicyClientCurrentVersion,
         self,       /* clientInfo */
         decidePolicyForNavigationAction,
         decidePolicyForNewWindowAction,
@@ -614,9 +626,9 @@ static void runOpenPanel(WKPageRef page, WKFrameRef frame, WKOpenPanelParameters
     WKPageSetPagePolicyClient(_webView.pageRef, &policyClient);
 
     WKPageUIClient uiClient = {
-        0,          /* version */
+        kWKPageUIClientCurrentVersion,
         self,       /* clientInfo */
-        createNewPage,
+        0,          /* createNewPage_deprecatedForUseWithV0 */
         showPage,
         closePage,
         0,          /* takeFocus */
@@ -626,7 +638,7 @@ static void runOpenPanel(WKPageRef page, WKFrameRef frame, WKOpenPanelParameters
         runJavaScriptConfirm,
         runJavaScriptPrompt,
         setStatusText,
-        mouseDidMoveOverElement,
+        0,          /* mouseDidMoveOverElement_deprecatedForUseWithV0 */
         0,          /* missingPluginButtonClicked */
         0,          /* didNotHandleKeyEvent */
         0,          /* didNotHandleWheelEvent */
@@ -655,6 +667,10 @@ static void runOpenPanel(WKPageRef page, WKFrameRef frame, WKOpenPanelParameters
         0, // didCompleteRubberBandForMainFrame
         0, // saveDataToFileInDownloadsFolder
         0, // shouldInterruptJavaScript
+        createNewPage,
+        mouseDidMoveOverElement,
+        0, // decidePolicyForNotificationPermissionRequest
+        0, // unavailablePluginButtonClicked
     };
     WKPageSetPageUIClient(_webView.pageRef, &uiClient);
 }
@@ -683,6 +699,10 @@ static void runOpenPanel(WKPageRef page, WKFrameRef frame, WKOpenPanelParameters
         emptyURL = WKURLCreateWithUTF8CString("");
 
     WKURLRef url = WKFrameCopyProvisionalURL(frame);
+
+    if (!url)
+        return;
+
     if (WKURLIsEqual(url, emptyURL)) {
         WKRelease(url);
         return;

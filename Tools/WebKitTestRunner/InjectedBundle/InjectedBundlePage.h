@@ -63,6 +63,7 @@ private:
     static void didHandleOnloadEventsForFrame(WKBundlePageRef, WKBundleFrameRef, const void*);
     static void didDisplayInsecureContentForFrame(WKBundlePageRef, WKBundleFrameRef, WKTypeRef*, const void*);
     static void didRunInsecureContentForFrame(WKBundlePageRef, WKBundleFrameRef, WKTypeRef*, const void*);
+    static void didDetectXSSForFrame(WKBundlePageRef, WKBundleFrameRef, WKTypeRef*, const void*);
     static void didInitiateLoadForResource(WKBundlePageRef, WKBundleFrameRef, uint64_t identifier, WKURLRequestRef, bool pageLoadIsProvisional, const void*);
     static WKURLRequestRef willSendRequestForFrame(WKBundlePageRef, WKBundleFrameRef, uint64_t identifier, WKURLRequestRef, WKURLResponseRef, const void*);
     static void didReceiveResponseForResource(WKBundlePageRef, WKBundleFrameRef, uint64_t identifier, WKURLResponseRef, const void*);
@@ -85,6 +86,7 @@ private:
     void didHandleOnloadEventsForFrame(WKBundleFrameRef);
     void didDisplayInsecureContentForFrame(WKBundleFrameRef);
     void didRunInsecureContentForFrame(WKBundleFrameRef);
+    void didDetectXSSForFrame(WKBundleFrameRef);
 
     // Resource Load Client
     void didInitiateLoadForResource(WKBundlePageRef, WKBundleFrameRef, uint64_t identifier, WKURLRequestRef, bool pageLoadIsProvisional);
@@ -119,8 +121,12 @@ private:
 #if ENABLE(FULLSCREEN_API)
     // Full Screen client
     static bool supportsFullScreen(WKBundlePageRef, WKFullScreenKeyboardRequestType);
+    static void setHasCustomFullScreenBehavior(WKBundlePageRef, bool value);
     static void enterFullScreenForElement(WKBundlePageRef, WKBundleNodeHandleRef element);
     static void exitFullScreenForElement(WKBundlePageRef, WKBundleNodeHandleRef element);
+    static void beganEnterFullScreen(WKBundlePageRef, WKRect initialFrame, WKRect finalFrame);
+    static void beganExitFullScreen(WKBundlePageRef, WKRect initialFrame, WKRect finalFrame);
+    static void closeFullScreen(WKBundlePageRef);
 #endif
 
     // Editor client

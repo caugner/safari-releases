@@ -119,7 +119,7 @@ static void populateVisitedLinks(WKContextRef context, const void *clientInfo)
             _currentProcessModel = kProcessModelSharedSecondaryProcess;
 
         WKContextHistoryClient historyClient = {
-            0,
+            kWKContextHistoryClientCurrentVersion,
             self,
             didNavigateWithNavigationData,
             didPerformClientRedirect,
@@ -138,7 +138,7 @@ static void populateVisitedLinks(WKContextRef context, const void *clientInfo)
         _processContext = WKContextCreateWithInjectedBundlePath(bundlePath);
         
         WKContextInjectedBundleClient bundleClient = {
-            0,      /* version */
+            kWKContextInjectedBundleClientCurrentVersion,
             0,      /* clientInfo */
             didRecieveMessageFromInjectedBundle,
             0
@@ -148,6 +148,10 @@ static void populateVisitedLinks(WKContextRef context, const void *clientInfo)
         WKContextSetCacheModel(_processContext, kWKCacheModelPrimaryWebBrowser);
 
         WKRelease(bundlePath);
+        
+        WKStringRef pageGroupIdentifier = WKStringCreateWithCFString(CFSTR("MiniBrowser"));
+        _pageGroup = WKPageGroupCreateWithIdentifier(pageGroupIdentifier);
+        WKRelease(pageGroupIdentifier);
     }
 
     return self;
@@ -155,7 +159,7 @@ static void populateVisitedLinks(WKContextRef context, const void *clientInfo)
 
 - (IBAction)newWindow:(id)sender
 {
-    BrowserWindowController *controller = [[BrowserWindowController alloc] initWithContext:[self getCurrentContext]];
+    BrowserWindowController *controller = [[BrowserWindowController alloc] initWithContext:[self getCurrentContext] pageGroup:_pageGroup];
     [[controller window] makeKeyAndOrderFront:sender];
     
     [controller loadURLString:defaultURL];
@@ -256,7 +260,7 @@ static void populateVisitedLinks(WKContextRef context, const void *clientInfo)
 
     BrowserWindowController *controller = [self frontmostBrowserWindowController];
     if (!controller) {
-        controller = [[BrowserWindowController alloc] initWithContext:[self getCurrentContext]];
+        controller = [[BrowserWindowController alloc] initWithContext:[self getCurrentContext] pageGroup:_pageGroup];
         [[controller window] makeKeyAndOrderFront:self];
     }
     

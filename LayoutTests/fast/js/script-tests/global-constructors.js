@@ -24,17 +24,20 @@ for (var x in constructorNames) {
         name == "WebGLProgram" ||
         name == "WebGLRenderbuffer" ||
         name == "WebGLShader" ||
+        name == "WebGLShaderPrecisionFormat" ||
         name == "WebGLTexture" ||
         name == "WebGLUniformLocation" ||
         name == "ArrayBuffer" ||
         name == "DataView" ||
         name == "Int8Array" ||
         name == "Uint8Array" ||
+        name == "Uint8ClampedArray" ||
         name == "Int16Array" ||
         name == "Uint16Array" ||
         name == "Int32Array" ||
         name == "Uint32Array" ||
         name == "Float32Array" ||
+        name == "Float64Array" ||
         name == "FileError" ||
         name == "FileReader" ||
         name == "WebKitBlobBuilder")
@@ -46,5 +49,3 @@ for (var x in constructorNames) {
 
     shouldBe("" + name + ".toString()", expectedConstructorName);
 }
-
-var successfullyParsed = true;

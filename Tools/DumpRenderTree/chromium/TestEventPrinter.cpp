@@ -37,11 +37,13 @@
 
 class DRTPrinter : public TestEventPrinter {
 public:
-    DRTPrinter() {}
+    DRTPrinter() { }
     void handleTestHeader(const char* url) const;
     void handleTimedOut() const;
     void handleTextHeader() const;
     void handleTextFooter() const;
+    void handleAudioHeader() const;
+    void handleAudioFooter() const;
     void handleImage(const char* actualHash, const char* expectedHash, const unsigned char* imageData, size_t imageSize, const char* fileName) const;
     void handleImageFooter() const;
     void handleTestFooter(bool dumpedAnything) const;
@@ -49,15 +51,21 @@ public:
 
 class TestShellPrinter : public TestEventPrinter {
 public:
-    TestShellPrinter() {}
+    TestShellPrinter() { }
     void handleTestHeader(const char* url) const;
     void handleTimedOut() const;
     void handleTextHeader() const;
     void handleTextFooter() const;
+    void handleAudioHeader() const;
+    void handleAudioFooter() const;
     void handleImage(const char* actualHash, const char* expectedHash, const unsigned char* imageData, size_t imageSize, const char* fileName) const;
     void handleImageFooter() const;
     void handleTestFooter(bool dumpedAnything) const;
 };
+
+TestEventPrinter::~TestEventPrinter()
+{
+}
 
 PassOwnPtr<TestEventPrinter> TestEventPrinter::createDRTPrinter()
 {
@@ -89,6 +97,18 @@ void DRTPrinter::handleTextHeader() const
 void DRTPrinter::handleTextFooter() const
 {
     printf("#EOF\n");
+    fprintf(stderr, "#EOF\n");
+}
+
+void DRTPrinter::handleAudioHeader() const
+{
+    printf("Content-Type: audio/wav\n");
+}
+
+void DRTPrinter::handleAudioFooter() const
+{
+    printf("#EOF\n");
+    fprintf(stderr, "#EOF\n");
 }
 
 void DRTPrinter::handleImage(const char* actualHash, const char* expectedHash, const unsigned char* imageData, size_t imageSize, const char*) const
@@ -108,13 +128,9 @@ void DRTPrinter::handleImage(const char* actualHash, const char* expectedHash, c
     }
 }
 
-void DRTPrinter::handleImageFooter() const
-{
-    printf("#EOF\n");
-}
-
 void DRTPrinter::handleTestFooter(bool) const
 {
+    printf("#EOF\n");
 }
 
 // ----------------------------------------------------------------
@@ -137,6 +153,16 @@ void TestShellPrinter::handleTextFooter() const
 {
 }
 
+void TestShellPrinter::handleAudioHeader() const
+{
+    printf("Content-Type: audio/wav\n");
+}
+
+void TestShellPrinter::handleAudioFooter() const
+{
+    printf("\n");
+}
+
 void TestShellPrinter::handleImage(const char* actualHash, const char*, const unsigned char* imageData, size_t imageSize, const char* fileName) const
 {
     ASSERT(actualHash);
@@ -155,10 +181,6 @@ void TestShellPrinter::handleImage(const char* actualHash, const char*, const un
         fclose(fp);
     }
     printf("#MD5:%s\n", actualHash);
-}
-
-void TestShellPrinter::handleImageFooter() const
-{
 }
 
 void TestShellPrinter::handleTestFooter(bool dumpedAnything) const

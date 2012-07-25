@@ -1,10 +1,6 @@
 <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
 <html>
 <head>
-<link rel="stylesheet" href="../../../fast/js/resources/js-test-style.css">
-<script>
-var successfullyParsed = false;
-</script>
 <script src="../../../fast/js/resources/js-test-pre.js"></script>
 </head>
 <body id="body">
@@ -15,6 +11,7 @@ var successfullyParsed = false;
 
 <p id="description"></p>
 <div id="console"></div>
+<div id="notifications"></div>
 
 <script>
 
@@ -23,7 +20,7 @@ var successfullyParsed = false;
     var liveRegionText = 0;
     function ariaCallbackText(notification) {
         if (notification == "AXLiveRegionChanged") {
-           alert("Successfully received " + notification);
+           document.getElementById("notifications").innerHTML += "Successfully received " + notification;
            liveRegionText.removeNotificationListener();
            window.layoutTestController.notifyDone();
         }
@@ -42,7 +39,6 @@ var successfullyParsed = false;
         document.getElementById("innerlive").innerText = "changed text";
     }
 
-    successfullyParsed = true;
 </script>
 
 <script src="../../../fast/js/resources/js-test-post.js"></script>

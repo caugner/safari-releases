@@ -69,7 +69,7 @@ shouldBeTrue("testDelete('data-', '')");
 shouldBeTrue("testDelete('data-\xE0', '\xE0')");
 debug("");
 
-shouldThrow("testDelete('dummy', '-foo')", "'Error: SYNTAX_ERR: DOM Exception 12'");
+shouldBeFalse("testDelete('dummy', '-foo')");
 debug("");
 
 function testForIn(array)
@@ -90,5 +90,3 @@ shouldBe("testForIn(['data-foo', 'data-bar', 'data-baz'])", "3");
 shouldBe("testForIn(['data-foo', 'data-bar', 'dataFoo'])", "2");
 shouldBe("testForIn(['data-foo', 'data-bar', 'style'])", "2");
 shouldBe("testForIn(['data-foo', 'data-bar', 'data-'])", "3");
-
-var successfullyParsed = true;

@@ -29,70 +29,46 @@
 #ifndef BrowserWindow_h
 #define BrowserWindow_h
 
-#include "BrowserView.h"
-
 #include "MiniBrowserApplication.h"
 #include <QStringList>
-#include <QtGui>
+#include <QtQuick/QQuickView>
 
-class UrlLoader;
+class QQuickWebView;
+class QQuickWebViewExperimental;
 
-class BrowserWindow : public QMainWindow {
+class BrowserWindow : public QQuickView {
     Q_OBJECT
 
 public:
-    BrowserWindow(QWKContext*, WindowOptions* = 0);
+    BrowserWindow(WindowOptions*);
     ~BrowserWindow();
     void load(const QString& url);
+    void reload();
+    void focusAddressBar();
+    QQuickWebView* webView() const;
+    QQuickWebViewExperimental* webViewExperimental() const;
 
-    QWKPage* page();
+    void updateVisualMockTouchPoints(const QList<QTouchEvent::TouchPoint>& touchPoints);
 
 public slots:
     BrowserWindow* newWindow(const QString& url = "about:blank");
-    void openLocation();
-
-signals:
-    void enteredFullScreenMode(bool on);
 
 protected slots:
-    void changeLocation();
-    void loadProgress(int progress);
-    void urlChanged(const QUrl&);
-    void openFile();
-
-    void zoomIn();
-    void zoomOut();
-    void resetZoom();
-    void toggleZoomTextOnly(bool on);
     void screenshot();
 
-    void toggleFullScreenMode(bool enable);
-
-    void toggleFrameFlattening(bool);
-    void showUserAgentDialog();
-
-    void loadURLListFromFile();
-
-    void printURL(const QUrl&);
-
-    void toggleAutoLoadImages(bool);
-    void toggleDisableJavaScript(bool);
+private slots:
+    void onTitleChanged(QString);
 
 private:
-    void updateUserAgentList();
+    void zoomIn();
+    void zoomOut();
 
-    void applyZoom();
+    virtual void keyPressEvent(QKeyEvent*);
+    virtual void wheelEvent(QWheelEvent*);
 
-    static QVector<qreal> m_zoomLevels;
-    bool m_isZoomTextOnly;
-    qreal m_currentZoom;
-
-    UrlLoader* m_urlLoader;
-    QWKContext* m_context;
-    WindowOptions m_windowOptions;
-    BrowserView* m_browser;
-    QLineEdit* m_addressBar;
-    QStringList m_userAgentList;
+    WindowOptions* m_windowOptions;
+    QVector<qreal> m_zoomLevels;
+    unsigned m_currentZoomLevel;
 };
 
 #endif

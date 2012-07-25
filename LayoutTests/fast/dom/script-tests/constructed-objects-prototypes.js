@@ -30,15 +30,18 @@ function constructorPropertiesOnWindow(globalObject)
         if (type == "WebGLRenderingContextConstructor" ||
             type == "ArrayBufferConstructor" ||
             type =="Float32ArrayConstructor" ||
+            type =="Float64ArrayConstructor" ||
             type =="Int8ArrayConstructor" ||
             type =="Int16ArrayConstructor" ||
             type =="Int32ArrayConstructor" ||
             type =="Uint8ArrayConstructor" ||
+            type =="Uint8ClampedArrayConstructor" ||
             type =="Uint16ArrayConstructor" ||
             type =="Uint32ArrayConstructor" ||
             type == "FileErrorConstructor" ||
             type == "FileReaderConstructor" ||
-            type == "WebKitBlobBuilderConstructor")
+            type == "WebKitBlobBuilderConstructor" ||
+            type == "AudioContextConstructor")
             continue;
         if (!type.match('Constructor$'))
             continue;
@@ -70,5 +73,3 @@ for (var x = 0; x < constructorNames.length; x++) {
 }
 
 document.body.removeChild(subframe);
-
-var successfullyParsed = true;

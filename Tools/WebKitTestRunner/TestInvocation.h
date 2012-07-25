@@ -39,14 +39,15 @@ public:
     ~TestInvocation();
 
     void setIsPixelTest(const std::string& expectedPixelHash);
-    
+
     void invoke();
     void didReceiveMessageFromInjectedBundle(WKStringRef messageName, WKTypeRef messageBody);
     WKRetainPtr<WKTypeRef> didReceiveSynchronousMessageFromInjectedBundle(WKStringRef messageName, WKTypeRef messageBody);
 
 private:
     void dump(const char*, bool singleEOF = false);
-    void dumpPixelsAndCompareWithExpected(WKImageRef);
+    void dumpPixelsAndCompareWithExpected(WKImageRef, WKArrayRef repaintRects);
+    bool compareActualHashToExpectedAndDumpResults(const char[33]);
     
     WKRetainPtr<WKURLRef> m_url;
     std::string m_pathOrURL;

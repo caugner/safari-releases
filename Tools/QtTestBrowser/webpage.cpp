@@ -34,9 +34,20 @@
 
 #include "launcherwindow.h"
 
+#include <QAction>
+#include <QApplication>
 #include <QAuthenticator>
+#ifndef QT_NO_DESKTOPSERVICES
 #include <QDesktopServices>
-#include <QtGui>
+#endif
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QLabel>
+#include <QLayout>
+#ifndef QT_NO_LINEEDIT
+#include <QLineEdit>
+#endif
+#include <QProgressBar>
 #include <QtNetwork/QNetworkReply>
 #include <QtNetwork/QNetworkRequest>
 #include <QtNetwork/QNetworkProxy>
@@ -199,12 +210,10 @@ QObject* WebPage::createPlugin(const QString &classId, const QUrl&, const QStrin
         return l;
     }
 
-#ifndef QT_NO_UITOOLS
-    QUiLoader loader;
-    return loader.createWidget(classId, view());
-#else
-    Q_UNUSED(classId);
+    if (classId == QLatin1String("QProgressBar"))
+        return new QProgressBar(view());
+    if (classId == QLatin1String("QLabel"))
+        return new QLabel(view());
     return 0;
-#endif
 }
 

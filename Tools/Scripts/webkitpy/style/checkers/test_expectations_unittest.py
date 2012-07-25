@@ -27,22 +27,12 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-"""Unit tests for test_expectations.py."""
-
 import os
 import sys
 import unittest
 
-# We need following workaround hack to run this unit tests in stand-alone.
-try:
-    d = os.path.dirname(__file__)
-except NameError:
-    d = os.path.dirname(sys.argv[0])
-sys.path.append(os.path.abspath(os.path.join(d, '../../../')))
-
 from test_expectations import TestExpectationsChecker
-from webkitpy.style_references import port
-from webkitpy.style_references import test_expectations as test_expectations_style
+from webkitpy.common.host_mock import MockHost
 
 
 class ErrorCollector(object):
@@ -57,6 +47,7 @@ class ErrorCollector(object):
 
     def __call__(self, lineno, category, confidence, message):
         self._errors.append('%s  [%s] [%d]' % (message, category, confidence))
+        return True
 
     def get_errors(self):
         return ''.join(self._errors)
@@ -71,100 +62,53 @@ class TestExpectationsTestCase(unittest.TestCase):
 
     def setUp(self):
         self._error_collector = ErrorCollector()
-        port_obj = port.get('test')
-        self._test_file = port_obj._filesystem.join(port_obj.layout_tests_dir(), 'passes/text.html')
+        self._test_file = 'passes/text.html'
 
-    def process_expectations(self, expectations, overrides=None):
-        self._checker = TestExpectationsChecker()
+    def _expect_port_for_expectations_path(self, expected_port_implementation, expectations_path):
+        host = MockHost()
+        checker = TestExpectationsChecker(expectations_path, ErrorCollector(), host=host)
+        port = checker._determine_port_from_expectations_path(host, expectations_path)
+        if port:
+            self.assertTrue(port.name().startswith(expected_port_implementation))
+        else:
+            self.assertEquals(None, expected_port_implementation)
 
-    def assert_lines_lint(self, lines, expected):
+    def test_determine_port_from_expectations_path(self):
+        self._expect_port_for_expectations_path(None, '/')
+        self._expect_port_for_expectations_path(None, 'LayoutTests/chromium-mac/test_expectations.txt')
+        self._expect_port_for_expectations_path('chromium', 'LayoutTests/platform/chromium/test_expectations.txt')
+        self._expect_port_for_expectations_path(None, '/mock-checkout/LayoutTests/platform/win/test_expectations.txt')
+        self._expect_port_for_expectations_path('win', 'LayoutTests/platform/win/test_expectations.txt')
+
+    def assert_lines_lint(self, lines, should_pass, expected_output=None):
         self._error_collector.reset_errors()
+
+        host = MockHost()
         checker = TestExpectationsChecker('test/test_expectations.txt',
-                                          self._error_collector)
+                                          self._error_collector, host=host)
+
+        # We should have failed to find a valid port object for that path.
+        self.assertEquals(checker._port_obj, None)
+
+        # Now use a test port so we can check the lines.
+        checker._port_obj = host.port_factory.get('test-mac-leopard')
         checker.check_test_expectations(expectations_str='\n'.join(lines),
                                         tests=[self._test_file],
                                         overrides=None)
         checker.check_tabs(lines)
-        self.assertEqual(expected, self._error_collector.get_errors())
+        if should_pass:
+            self.assertEqual('', self._error_collector.get_errors())
+        elif expected_output:
+            self.assertEquals(expected_output, self._error_collector.get_errors())
+        else:
+            self.assertNotEquals('', self._error_collector.get_errors())
         self.assertTrue(self._error_collector.turned_off_filtering)
 
     def test_valid_expectations(self):
-        self.assert_lines_lint(
-            ["BUGCR1234 MAC : passes/text.html = PASS FAIL"],
-            "")
-        self.assert_lines_lint(
-            ["SKIP BUGCR1234 : passes/text.html = TIMEOUT PASS"],
-            "")
-        self.assert_lines_lint(
-            ["BUGCR1234 DEBUG : passes/text.html = TIMEOUT PASS"],
-            "")
-        self.assert_lines_lint(
-            ["BUGCR1234 DEBUG SKIP : passes/text.html = TIMEOUT PASS"],
-            "")
-        self.assert_lines_lint(
-            ["BUGCR1234 MAC DEBUG SKIP : passes/text.html = TIMEOUT PASS"],
-            "")
-        self.assert_lines_lint(
-            ["BUGCR1234 DEBUG MAC : passes/text.html = TIMEOUT PASS"],
-            "")
-        self.assert_lines_lint(
-            ["SLOW BUGCR1234 : passes/text.html = PASS"],
-            "")
-        self.assert_lines_lint(
-            ["WONTFIX SKIP : passes/text.html = TIMEOUT"],
-            "")
+        self.assert_lines_lint(["BUGCR1234 MAC : passes/text.html = PASS FAIL"], should_pass=True)
 
-    def test_modifier_errors(self):
-        self.assert_lines_lint(
-            ["BUG1234 : passes/text.html = FAIL"],
-            "BUG\\d+ is not allowed, must be one of BUGCR\\d+, BUGWK\\d+, BUGV8_\\d+, or a non-numeric bug identifier. passes/text.html  [test/expectations] [5]")
-
-    def test_valid_modifiers(self):
-        self.assert_lines_lint(
-            ["INVALID-MODIFIER : passes/text.html = PASS"],
-            "Unrecognized option 'invalid-modifier' "
-            "passes/text.html  [test/expectations] [5]")
-        self.assert_lines_lint(
-            ["SKIP : passes/text.html = PASS"],
-            "Test lacks BUG modifier. "
-            "passes/text.html  [test/expectations] [2]")
-
-    def test_expectation_errors(self):
-        self.assert_lines_lint(
-            ["missing expectations"],
-            "Missing a ':' missing expectations  [test/expectations] [5]")
-        self.assert_lines_lint(
-            ["SLOW : passes/text.html = TIMEOUT"],
-            "A test can not be both SLOW and TIMEOUT. "
-            "If it times out indefinitely, then it should be just TIMEOUT. "
-            "passes/text.html  [test/expectations] [5]")
-        self.assert_lines_lint(
-            ["BUGWK1 : does/not/exist.html = FAIL"],
-            "Path does not exist. does/not/exist.html  [test/expectations] [2]")
-
-    def test_parse_expectations(self):
-        self.assert_lines_lint(
-            ["BUGWK1 : passes/text.html = PASS"],
-            "")
-        self.assert_lines_lint(
-            ["BUGWK1 : passes/text.html = UNSUPPORTED"],
-            "Unsupported expectation: unsupported "
-            "passes/text.html  [test/expectations] [5]")
-        self.assert_lines_lint(
-            ["BUGWK1 : passes/text.html = PASS UNSUPPORTED"],
-            "Unsupported expectation: unsupported "
-            "passes/text.html  [test/expectations] [5]")
-
-    def test_already_seen_test(self):
-        self.assert_lines_lint(
-            ["BUGWK1 : passes/text.html = PASS",
-             "BUGWK1 : passes/text.html = TIMEOUT"],
-            "Duplicate or ambiguous expectation. %s  [test/expectations] [5]" % self._test_file)
+    def test_invalid_expectations(self):
+        self.assert_lines_lint(["BUG1234 : passes/text.html = GIVE UP"], should_pass=False)
 
     def test_tab(self):
-        self.assert_lines_lint(
-            ["\tBUGWK1 : passes/text.html = PASS"],
-            "Line contains tab character.  [whitespace/tab] [5]")
-
-if __name__ == '__main__':
-    unittest.main()
+        self.assert_lines_lint(["\tBUGWK1 : passes/text.html = PASS"], should_pass=False, expected_output="Line contains tab character.  [whitespace/tab] [5]")

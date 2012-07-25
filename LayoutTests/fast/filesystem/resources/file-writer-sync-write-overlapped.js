@@ -1,5 +1,6 @@
 if (this.importScripts) {
     importScripts('../resources/fs-worker-common.js');
+    importScripts('../../js/resources/js-test-pre.js');
     importScripts('../resources/fs-test-util.js');
     importScripts('../resources/file-writer-utils.js');
 }
@@ -14,10 +15,8 @@ removeAllInDirectorySync(fileSystem.root);
 var entry = fileSystem.root.getFile('a', {create:true, exclusive:true});
 var writer = entry.createWriter();
 assert(!writer.position);
-var builder = new WebKitBlobBuilder();
 var testData = "test data";
-builder.append(testData);
-var blob = builder.getBlob();
+var blob = new Blob([testData]);
 writer.write(blob);
 assert(writer.length == testData.length);
 assert(writer.position == writer.length);
@@ -89,6 +88,4 @@ for (j = 0; i < testData.length + extensionOffset; ++i, ++j)
 for (j = extensionOffset; i < writer.length; ++i, ++j)
     assert(contents.charCodeAt(i) == testData.charCodeAt(j));
 testPassed("Overlapped write 3 verified.");
-
-var successfullyParsed = true;
 finishJSTest();

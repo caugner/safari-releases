@@ -31,8 +31,6 @@
 # important; without it, Python will choke while trying to parse the file,
 # since it includes non-ASCII characters.
 
-from __future__ import with_statement
-
 import os
 import stat
 import sys
@@ -42,11 +40,52 @@ import unittest
 from filesystem import FileSystem
 
 
-class FileSystemTest(unittest.TestCase):
+class GenericFileSystemTests(object):
+    """Tests that should pass on either a real or mock filesystem."""
+    def setup_generic_test_dir(self):
+        fs = self.fs
+        self.generic_test_dir = str(self.fs.mkdtemp())
+        self.orig_cwd = fs.getcwd()
+        fs.chdir(self.generic_test_dir)
+        fs.write_text_file('foo.txt', 'foo')
+        fs.write_text_file('foobar', 'foobar')
+        fs.maybe_make_directory('foodir')
+        fs.write_text_file(fs.join('foodir', 'baz'), 'baz')
+        fs.chdir(self.orig_cwd)
+
+    def teardown_generic_test_dir(self):
+        self.fs.rmtree(self.generic_test_dir)
+        self.fs.chdir(self.orig_cwd)
+        self.generic_test_dir = None
+
+    def test_glob__trailing_asterisk(self):
+        self.fs.chdir(self.generic_test_dir)
+        self.assertEquals(set(self.fs.glob('fo*')), set(['foo.txt', 'foobar', 'foodir']))
+
+    def test_glob__leading_asterisk(self):
+        self.fs.chdir(self.generic_test_dir)
+        self.assertEquals(set(self.fs.glob('*xt')), set(['foo.txt']))
+
+    def test_glob__middle_asterisk(self):
+        self.fs.chdir(self.generic_test_dir)
+        self.assertEquals(set(self.fs.glob('f*r')), set(['foobar', 'foodir']))
+
+    def test_glob__period_is_escaped(self):
+        self.fs.chdir(self.generic_test_dir)
+        self.assertEquals(set(self.fs.glob('foo.*')), set(['foo.txt']))
+
+class RealFileSystemTest(unittest.TestCase, GenericFileSystemTests):
     def setUp(self):
+        self.fs = FileSystem()
+        self.setup_generic_test_dir()
+
         self._this_dir = os.path.dirname(os.path.abspath(__file__))
         self._missing_file = os.path.join(self._this_dir, 'missing_file.py')
         self._this_file = os.path.join(self._this_dir, 'filesystem_unittest.py')
+
+    def tearDown(self):
+        self.teardown_generic_test_dir()
+        self.fs = None
 
     def test_chdir(self):
         fs = FileSystem()
@@ -142,12 +181,33 @@ class FileSystemTest(unittest.TestCase):
             if os.path.exists(sub_dir):
                 os.rmdir(sub_dir)
 
+    def test_read_and_write_text_file(self):
+        fs = FileSystem()
+        text_path = None
+
+        unicode_text_string = u'\u016An\u012Dc\u014Dde\u033D'
+        hex_equivalent = '\xC5\xAA\x6E\xC4\xAD\x63\xC5\x8D\x64\x65\xCC\xBD'
+        try:
+            text_path = tempfile.mktemp(prefix='tree_unittest_')
+            file = fs.open_text_file_for_writing(text_path)
+            file.write(unicode_text_string)
+            file.close()
+
+            file = fs.open_text_file_for_reading(text_path)
+            read_text = file.read()
+            file.close()
+
+            self.assertEqual(read_text, unicode_text_string)
+        finally:
+            if text_path and fs.isfile(text_path):
+                os.remove(text_path)
+
     def test_read_and_write_file(self):
         fs = FileSystem()
         text_path = None
         binary_path = None
 
-        unicode_text_string = u'Ūnĭcōde̽'
+        unicode_text_string = u'\u016An\u012Dc\u014Dde\u033D'
         hex_equivalent = '\xC5\xAA\x6E\xC4\xAD\x63\xC5\x8D\x64\x65\xCC\xBD'
         try:
             text_path = tempfile.mktemp(prefix='tree_unittest_')
@@ -156,13 +216,13 @@ class FileSystemTest(unittest.TestCase):
             contents = fs.read_binary_file(text_path)
             self.assertEqual(contents, hex_equivalent)
 
-            fs.write_text_file(binary_path, hex_equivalent)
+            fs.write_binary_file(binary_path, hex_equivalent)
             text_contents = fs.read_text_file(binary_path)
             self.assertEqual(text_contents, unicode_text_string)
-        except:
-            if text_path:
+        finally:
+            if text_path and fs.isfile(text_path):
                 os.remove(text_path)
-            if binary_path:
+            if binary_path and fs.isfile(binary_path):
                 os.remove(binary_path)
 
     def test_read_binary_file__missing(self):
@@ -174,11 +234,11 @@ class FileSystemTest(unittest.TestCase):
         self.assertRaises(IOError, fs.read_text_file, self._missing_file)
 
     def test_remove_file_with_retry(self):
-        FileSystemTest._remove_failures = 2
+        RealFileSystemTest._remove_failures = 2
 
         def remove_with_exception(filename):
-            FileSystemTest._remove_failures -= 1
-            if FileSystemTest._remove_failures >= 0:
+            RealFileSystemTest._remove_failures -= 1
+            if RealFileSystemTest._remove_failures >= 0:
                 try:
                     raise WindowsError
                 except NameError:
@@ -186,7 +246,7 @@ class FileSystemTest(unittest.TestCase):
 
         fs = FileSystem()
         self.assertTrue(fs.remove('filename', remove_with_exception))
-        self.assertEquals(-1, FileSystemTest._remove_failures)
+        self.assertEquals(-1, RealFileSystemTest._remove_failures)
 
     def test_sep(self):
         fs = FileSystem()
@@ -200,7 +260,6 @@ class FileSystemTest(unittest.TestCase):
             fs.sep = ' '
         fs = FileSystem()
         self.assertRaises(AttributeError, assign_sep)
-
 
 if __name__ == '__main__':
     unittest.main()

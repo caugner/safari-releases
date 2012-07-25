@@ -1,5 +1,5 @@
-CONSOLE MESSAGE: line 1: SyntaxError: Parse error
+CONSOLE MESSAGE: line 1: SyntaxError: Unexpected token ')'
 Tests that syntax errors are logged into console and doesn't cause browser crash.
 
-syntax-error.js:1SyntaxError: Parse error
+SyntaxError: Unexpected token ')' syntax-error.js:1
 

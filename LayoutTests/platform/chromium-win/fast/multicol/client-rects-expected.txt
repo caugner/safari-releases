@@ -61,7 +61,9 @@ layer at (8,398) size 136x76
     RenderBlock {DIV} at (13,38) size 50x54
       RenderBR {BR} at (0,0) size 0x25
       RenderSlider {INPUT} at (2,27) size 25x25 [color=#000000] [bgcolor=#ADD8E6]
-        RenderBlock {DIV} at (12,12) size 0x0
+        RenderDeprecatedFlexibleBox {DIV} at (0,0) size 25x25
+          RenderBlock {DIV} at (0,12) size 25x0
+          RenderBlock {DIV} at (25,12) size 0x0
 layer at (8,484) size 136x76
   RenderBlock {DIV} at (0,476) size 136x76 [color=#ADD8E6] [border: (3px solid #000000)]
     RenderBlock (anonymous) at (13,13) size 50x25
@@ -71,7 +73,7 @@ layer at (8,484) size 136x76
       RenderImage {IMG} at (0,25) size 25x25 [bgcolor=#ADD8E6]
 layer at (8,612) size 136x76
   RenderBlock {DIV} at (0,604) size 136x76 [color=#ADD8E6] [border: (3px solid #000000)]
-    RenderBlock {DIV} at (13,13) size 25x25 [bgcolor=#ADD8E6]
+    RenderBlock {DIV} at (13,53) size 25x25 [bgcolor=#ADD8E6]
 layer at (21,92) size 25x25
   RenderBlock (positioned) {DIV} at (21,92) size 25x25 [border: (3px solid #0000FF7F)]
 layer at (81,67) size 25x25
@@ -98,5 +100,5 @@ layer at (83,413) size 25x25
   RenderBlock (positioned) {DIV} at (83,413) size 25x25 [border: (3px solid #0000FF7F)]
 layer at (81,497) size 25x25
   RenderBlock (positioned) {DIV} at (81,497) size 25x25 [border: (3px solid #0000FF7F)]
-layer at (21,625) size 25x25
-  RenderBlock (positioned) {DIV} at (21,625) size 25x25 [border: (3px solid #0000FF7F)]
+layer at (81,615) size 25x25
+  RenderBlock (positioned) {DIV} at (81,615) size 25x25 [border: (3px solid #0000FF7F)]

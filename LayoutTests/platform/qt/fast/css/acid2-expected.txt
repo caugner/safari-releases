@@ -41,13 +41,13 @@ layer at (36,2644) size 764x226
           RenderTableCell {LI} at (24,0) size 12x0 [bgcolor=#000000] [r=0 c=2 rs=1 cs=1]
           RenderTableCell (anonymous) at (36,0) size 12x12 [r=0 c=3 rs=1 cs=1]
             RenderListItem {LI} at (0,0) size 12x12 [bgcolor=#000000]
-layer at (48,2848) size 740x10 scrollHeight 313
+layer at (48,2848) size 740x10 scrollHeight 298
   RenderBlock {DIV} at (12,204) size 740x10
-    RenderTable {TABLE} at (0,0) size 64x313
-      RenderTableSection {TBODY} at (0,0) size 64x313
-        RenderTableRow {TR} at (0,0) size 64x313
-          RenderTableCell {TD} at (0,0) size 64x313 [r=0 c=0 rs=1 cs=1]
-            RenderImage {IMG} at (0,167) size 64x64
+    RenderTable {TABLE} at (0,0) size 64x298
+      RenderTableSection {TBODY} at (0,0) size 64x298
+        RenderTableRow {TR} at (0,0) size 64x298
+          RenderTableCell {TD} at (0,0) size 64x298 [r=0 c=0 rs=1 cs=1]
+            RenderImage {IMG} at (0,165) size 64x64
 layer at (132,108) size 48x18
   RenderBlock (positioned) {P} at (132,108) size 48x18 [bgcolor=#000000] [border: none (6px solid #FFFF00) none]
 layer at (132,144) size 48x15
@@ -58,13 +58,9 @@ layer at (108,2692) size 96x12
 layer at (84,2716) size 144x24
   RenderBlock (positioned) {DIV} at (48,72) size 144x24 [bgcolor=#FF0000]
     RenderBlock {DIV} at (0,0) size 144x0
-      RenderInline {OBJECT} at (0,0) size 90x16
-        RenderEmbeddedObject {OBJECT} at (54,0) size 90x30
-          layer at (0,0) size 90x30
-            RenderView at (0,0) size 90x30
-          layer at (0,0) size 90x30
-            RenderBlock {HTML} at (0,0) size 90x30
-              RenderBody {BODY} at (8,8) size 74x14
+      RenderInline {OBJECT} at (0,0) size 131x16
+        RenderInline {OBJECT} at (0,0) size 131x16
+          RenderImage {OBJECT} at (13,0) size 131x24 [border: (12px solid #000000) none]
     RenderBlock (floating) {DIV} at (0,0) size 144x24 [border: (12px solid #FF0000) none (12px solid #000000)]
     RenderBlock {DIV} at (0,0) size 144x24 [border: (24px solid #FFFF00)]
 layer at (84,2788) size 144x24

@@ -32,8 +32,8 @@
 from webkitpy.common.net.resultsjsonparser import ResultsJSONParser
 from webkitpy.common.system.deprecated_logging import log
 from webkitpy.thirdparty.BeautifulSoup import BeautifulSoup, SoupStrainer
-from webkitpy.layout_tests.layout_package import test_results
-from webkitpy.layout_tests.layout_package import test_failures
+from webkitpy.layout_tests.models import test_results
+from webkitpy.layout_tests.models import test_failures
 
 
 # FIXME: This should be unified with all the layout test results code in the layout_tests package
@@ -48,6 +48,7 @@ class ORWTResultsHTMLParser(object):
     stderr_key = u'Tests that had stderr output:'
     fail_key = u'Tests where results did not match expected results:'
     timeout_key = u'Tests that timed out:'
+    # FIXME: This may need to be made aware of WebKitTestRunner results for WebKit2.
     crash_key = u'Tests that caused the DumpRenderTree tool to crash:'
     missing_key = u'Tests that had no expected results (probably new):'
     webprocess_crash_key = u'Tests that caused the Web process to crash:'
@@ -89,7 +90,7 @@ class ORWTResultsHTMLParser(object):
         if table_title == cls.crash_key:
             return [test_failures.FailureCrash()]
         if table_title == cls.webprocess_crash_key:
-            return [test_failures.FailureCrash()]
+            return [test_failures.FailureCrash(process_name="WebProcess")]
         if table_title == cls.timeout_key:
             return [test_failures.FailureTimeout()]
         if table_title == cls.missing_key:
@@ -143,6 +144,7 @@ class LayoutTestResults(object):
     def __init__(self, test_results):
         self._test_results = test_results
         self._failure_limit_count = None
+        self._unit_test_failures = []
 
     # FIXME: run-webkit-tests should store the --exit-after-N-failures value
     # (or some indication of early exit) somewhere in the results.html/results.json
@@ -160,10 +162,10 @@ class LayoutTestResults(object):
         return self._test_results
 
     def results_matching_failure_types(self, failure_types):
-        return [result for result in self._test_results if result.has_failure_matching_types(failure_types)]
+        return [result for result in self._test_results if result.has_failure_matching_types(*failure_types)]
 
     def tests_matching_failure_types(self, failure_types):
-        return [result.filename for result in self.results_matching_failure_types(failure_types)]
+        return [result.test_name for result in self.results_matching_failure_types(failure_types)]
 
     def failing_test_results(self):
         # These should match the "fail", "crash", and "timeout" keys.
@@ -171,4 +173,7 @@ class LayoutTestResults(object):
         return self.results_matching_failure_types(failure_types)
 
     def failing_tests(self):
-        return [result.filename for result in self.failing_test_results()]
+        return [result.test_name for result in self.failing_test_results()] + self._unit_test_failures
+
+    def add_unit_test_failures(self, unit_test_results):
+        self._unit_test_failures = unit_test_results

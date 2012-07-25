@@ -29,80 +29,139 @@
 """QtWebKit implementation of the Port interface."""
 
 import logging
-import os
-import signal
+import re
 import sys
+import os
 
 import webkit
 
+from webkitpy.common.memoized import memoized
+from webkitpy.layout_tests.models.test_configuration import TestConfiguration
 from webkitpy.layout_tests.port.webkit import WebKitPort
+from webkitpy.layout_tests.port.xvfbdriver import XvfbDriver
 
-_log = logging.getLogger("webkitpy.layout_tests.port.qt")
+_log = logging.getLogger(__name__)
 
 
 class QtPort(WebKitPort):
-    """QtWebKit implementation of the Port class."""
+    ALL_VERSIONS = ['linux', 'win', 'mac']
+    port_name = "qt"
 
-    def __init__(self, **kwargs):
-        kwargs.setdefault('port_name', 'qt')
-        WebKitPort.__init__(self, **kwargs)
+    def _wk2_port_name(self):
+        return "qt-5.0-wk2"
 
-    def baseline_search_path(self):
-        port_names = []
-        if sys.platform == 'linux2':
-            port_names.append("qt-linux")
-        elif sys.platform in ('win32', 'cygwin'):
-            port_names.append("qt-win")
-        elif sys.platform == 'darwin':
-            port_names.append("qt-mac")
-        port_names.append("qt")
-        return map(self._webkit_baseline_path, port_names)
+    def _port_flag_for_scripts(self):
+        return "--qt"
 
-    def _path_to_apache_config_file(self):
-        # FIXME: This needs to detect the distribution and change config files.
-        return self._filesystem.join(self.layout_tests_dir(), 'http', 'conf',
-                                     'apache2-debian-httpd.conf')
+    @classmethod
+    def determine_full_port_name(cls, host, options, port_name):
+        if port_name and port_name != cls.port_name:
+            return port_name
+        return port_name + '-' + host.platform.os_name
 
-    def _shut_down_http_server(self, server_pid):
-        """Shut down the httpd web server. Blocks until it's fully
-        shut down.
+    # sys_platform exists only for unit testing.
+    def __init__(self, host, port_name, **kwargs):
+        WebKitPort.__init__(self, host, port_name, **kwargs)
 
-        Args:
-            server_pid: The process ID of the running server.
-        """
-        # server_pid is not set when "http_server.py stop" is run manually.
-        if server_pid is None:
-            # FIXME: This isn't ideal, since it could conflict with
-            # lighttpd processes not started by http_server.py,
-            # but good enough for now.
-            self._executive.kill_all('apache2')
-        else:
-            try:
-                os.kill(server_pid, signal.SIGTERM)
-                # TODO(mmoss) Maybe throw in a SIGKILL just to be sure?
-            except OSError:
-                # Sometimes we get a bad PID (e.g. from a stale httpd.pid
-                # file), so if kill fails on the given PID, just try to
-                # 'killall' web servers.
-                self._shut_down_http_server(None)
+        # FIXME: This will allow WebKitPort.baseline_search_path and WebKitPort._skipped_file_search_paths
+        # to do the right thing, but doesn't include support for qt-4.8 or qt-arm (seen in LayoutTests/platform) yet.
+        self._operating_system = port_name.replace('qt-', '')
+
+        # FIXME: Why is this being set at all?
+        self._version = self.operating_system()
+
+    def _generate_all_test_configurations(self):
+        configurations = []
+        for version in self.ALL_VERSIONS:
+            for build_type in self.ALL_BUILD_TYPES:
+                configurations.append(TestConfiguration(version=version, architecture='x86', build_type=build_type))
+        return configurations
 
     def _build_driver(self):
         # The Qt port builds DRT as part of the main build step
         return True
 
+    def _driver_class(self):
+        return XvfbDriver
+
     def _path_to_driver(self):
-        return self._build_path('bin/DumpRenderTree')
+        return self._build_path('bin/%s' % self.driver_name())
 
     def _path_to_image_diff(self):
         return self._build_path('bin/ImageDiff')
 
     def _path_to_webcore_library(self):
-        return self._build_path('lib/libQtWebKit.so')
+        if self.operating_system() == 'mac':
+            return self._build_path('lib/QtWebKit.framework/QtWebKit')
+        else:
+            return self._build_path('lib/libQtWebKit.so')
 
-    def _runtime_feature_list(self):
-        return None
+    @memoized
+    def qt_version(self):
+        version = ''
+        try:
+            for line in self._executive.run_command(['qmake', '-v']).split('\n'):
+                match = re.search('Qt\sversion\s(?P<version>\d\.\d)', line)
+                if match:
+                    version = match.group('version')
+                    break
+        except OSError:
+            version = '4.8'
+        return version
 
-    def setup_environ_for_server(self):
-        env = WebKitPort.setup_environ_for_server(self)
-        env['QTWEBKIT_PLUGIN_PATH'] = self._build_path('lib/plugins')
-        return env
+    def baseline_search_path(self):
+        search_paths = []
+        if self.get_option('webkit_test_runner'):
+            search_paths.append(self._wk2_port_name())
+        search_paths.append(self.name())
+        version = self.qt_version()
+        if '4.8' in version:
+            search_paths.append('qt-4.8')
+        elif version:
+            search_paths.append('qt-5.0')
+        search_paths.append(self.port_name)
+        return map(self._webkit_baseline_path, search_paths)
+
+    def _skipped_file_search_paths(self):
+        search_paths = set([self.port_name, self.name()])
+        version = self.qt_version()
+        if '4.8' in version:
+            search_paths.add('qt-4.8')
+        elif version:
+            search_paths.add('qt-5.0')
+            if self.get_option('webkit_test_runner'):
+                search_paths.update(['qt-5.0-wk2', 'wk2'])
+            else:
+                search_paths.add('qt-5.0-wk1')
+        return search_paths
+
+    def setup_environ_for_server(self, server_name=None):
+        clean_env = WebKitPort.setup_environ_for_server(self, server_name)
+        clean_env['QTWEBKIT_PLUGIN_PATH'] = self._build_path('lib/plugins')
+        self._copy_value_from_environ_if_set(clean_env, 'QT_DRT_WEBVIEW_MODE')
+        self._copy_value_from_environ_if_set(clean_env, 'DYLD_IMAGE_SUFFIX')
+        self._copy_value_from_environ_if_set(clean_env, 'QT_WEBKIT_LOG')
+        self._copy_value_from_environ_if_set(clean_env, 'DISABLE_NI_WARNING')
+        self._copy_value_from_environ_if_set(clean_env, 'QT_WEBKIT_PAUSE_UI_PROCESS')
+        return clean_env
+
+    # FIXME: We should find a way to share this implmentation with Gtk,
+    # or teach run-launcher how to call run-safari and move this down to WebKitPort.
+    def show_results_html_file(self, results_filename):
+        run_launcher_args = []
+        if self.get_option('webkit_test_runner'):
+            run_launcher_args.append('-2')
+        run_launcher_args.append("file://%s" % results_filename)
+        self._run_script("run-launcher", run_launcher_args)
+
+    def operating_system(self):
+        return self._operating_system
+
+    def check_sys_deps(self, needs_http):
+        result = super(QtPort, self).check_sys_deps(needs_http)
+        if not 'WEBKIT_TESTFONTS' in os.environ:
+            _log.error('\nThe WEBKIT_TESTFONTS environment variable is not defined or not set properly.')
+            _log.error('You must set it before running the tests.')
+            _log.error('Use git to grab the actual fonts from http://gitorious.org/qtwebkit/testfonts')
+            return False
+        return result

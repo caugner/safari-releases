@@ -33,19 +33,14 @@
 #ifndef launcherwindow_h
 #define launcherwindow_h
 
-#include <QtGui>
 #include <QtNetwork/QNetworkRequest>
 
-#if defined(QT_CONFIGURED_WITH_OPENGL)
+#ifndef QT_NO_OPENGL
 #include <QtOpenGL/QGLWidget>
 #endif
 
 #if !defined(QT_NO_PRINTER)
 #include <QPrintPreviewDialog>
-#endif
-
-#ifndef QT_NO_UITOOLS
-#include <QtUiTools/QUiLoader>
 #endif
 
 #include <QDebug>
@@ -57,11 +52,6 @@
 #include <qwebinspector.h>
 #include <qwebsettings.h>
 
-#ifdef Q_WS_MAEMO_5
-#include <qx11info_x11.h>
-#endif
-
-#include "DumpRenderTreeSupportQt.h"
 #include "mainwindow.h"
 #include "urlloader.h"
 #include "utils.h"
@@ -69,26 +59,18 @@
 #include "webpage.h"
 #include "webview.h"
 
-#ifdef Q_WS_MAEMO_5
-#include <X11/Xatom.h>
-#include <X11/Xlib.h>
-#undef KeyPress
-#endif
-
 class QPropertyAnimation;
+class QLineEdit;
 
 class WindowOptions {
 public:
     WindowOptions()
         : useGraphicsView(false)
+        , useDiskCache(false)
         , useCompositing(true)
         , useTiledBackingStore(false)
         , useWebGL(false)
-#if defined(Q_WS_MAEMO_5) || defined(Q_OS_SYMBIAN)
-        , useFrameFlattening(true)
-#else
         , useFrameFlattening(false)
-#endif
         , cacheWebView(false)
         , showFrameRate(false)
         , resizesToContents(false)
@@ -96,23 +78,18 @@ public:
         , useLocalStorage(false)
         , useOfflineStorageDatabase(false)
         , useOfflineWebApplicationCache(false)
+        , useDiskCookies(true)
         , offlineStorageDefaultQuotaSize(0)
-#if defined(QT_CONFIGURED_WITH_OPENGL)
+#ifndef QT_NO_OPENGL
         , useQGLWidgetViewport(false)
 #endif
-#if defined(Q_WS_X11)
-        , useTestFonts(false)
-#endif
         , printLoadedUrls(false)
-#if defined(Q_OS_SYMBIAN)
-        , startMaximized(true)
-#else
         , startMaximized(false)
-#endif
     {
     }
 
     bool useGraphicsView;
+    bool useDiskCache;
     bool useCompositing;
     bool useTiledBackingStore;
     bool useWebGL;
@@ -124,12 +101,10 @@ public:
     bool useLocalStorage;
     bool useOfflineStorageDatabase;
     bool useOfflineWebApplicationCache;
+    bool useDiskCookies;
     quint64 offlineStorageDefaultQuotaSize;
-#if defined(QT_CONFIGURED_WITH_OPENGL)
+#ifndef QT_NO_OPENGL
     bool useQGLWidgetViewport;
-#endif
-#if defined(Q_WS_X11)
-    bool useTestFonts;
 #endif
     bool printLoadedUrls;
     QUrl inspectorUrl;
@@ -143,9 +118,6 @@ class LauncherWindow : public MainWindow {
 public:
     LauncherWindow(WindowOptions* data = 0, QGraphicsScene* sharedScene = 0);
     virtual ~LauncherWindow();
-
-    virtual void keyPressEvent(QKeyEvent* event);
-    void grabZoomKeys(bool grab);
 
     void sendTouchEvent();
 
@@ -173,6 +145,7 @@ protected slots:
 
     void loadURLListFromFile();
 
+    void setDiskCache(bool enable);
     void setTouchMocking(bool on);
     void toggleWebView(bool graphicsBased);
     void toggleAcceleratedCompositing(bool toggle);
@@ -185,13 +158,18 @@ protected slots:
     void toggleInterruptingJavaScriptEnabled(bool enable);
     void toggleJavascriptCanOpenWindows(bool enable);
     void toggleAutoLoadImages(bool enable);
+    void setUseDiskCookies(bool enable);
+    void clearCookies();
     void togglePlugins(bool enable);
     void toggleLocalStorage(bool toggle);
     void toggleOfflineStorageDatabase(bool toggle);
     void toggleOfflineWebApplicationCache(bool toggle);
     void setOfflineStorageDefaultQuota();
-
-#if defined(QT_CONFIGURED_WITH_OPENGL)
+#ifndef QT_NO_LINEEDIT
+    void showFindBar();
+    void find(int mode);
+#endif
+#ifndef QT_NO_OPENGL
     void toggleQGLWidgetViewport(bool enable);
 #endif
 
@@ -203,6 +181,10 @@ protected slots:
     void showUserAgentDialog();
 
     void printURL(const QUrl&);
+#if !defined(QT_NO_FILEDIALOG) && !defined(QT_NO_MESSAGEBOX)
+    void downloadRequest(const QNetworkRequest&);
+    void fileDownloadFinished();
+#endif
 
 public slots:
     LauncherWindow* newWindow();
@@ -235,10 +217,19 @@ private:
     QAction* m_formatMenuAction;
 
     QPropertyAnimation* m_zoomAnimation;
+#if !defined(QT_NO_FILEDIALOG) && !defined(QT_NO_MESSAGEBOX)
+    QNetworkReply* m_reply;
+#endif
     QList<QTouchEvent::TouchPoint> m_touchPoints;
     bool m_touchMocking;
 
     QString m_inputUrl;
+#ifndef QT_NO_LINEEDIT
+    QToolBar* m_findBar;
+    QLineEdit* m_lineEdit;
+    int m_findFlag;
+    static const int s_findNormalFlag = 0;
+#endif
 };
 
 #endif

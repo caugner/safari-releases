@@ -19,17 +19,8 @@ InspectorTest.findNode = function(matchFunction, callback)
                 callback(result);
                 return;
             }
-            if (childNode.shadowRoot && matchFunction(childNode.shadowRoot)) {
-                result = childNode.shadowRoot;
-                callback(result);
-                return;
-            }
             pendingRequests++;
             childNode.getChildNodes(processChildren.bind(null, false));
-            if (childNode.shadowRoot) {
-                pendingRequests++;
-                childNode.shadowRoot.getChildNodes(processChildren.bind(null, false));
-            }
         }
 
         if (topLevel)
@@ -42,7 +33,7 @@ InspectorTest.findNode = function(matchFunction, callback)
     WebInspector.domAgent.requestDocument(documentRequested.bind(this));
     function documentRequested(doc)
     {
-        doc.getChildNodes(processChildren.bind(null, true));
+        doc.getChildNodes(processChildren.bind(this, true));
     }
 };
 
@@ -68,23 +59,76 @@ InspectorTest.expandedNodeWithId = function(idValue)
 
 InspectorTest.selectNodeWithId = function(idValue, callback)
 {
+    callback = InspectorTest.safeWrap(callback);
     function onNodeFound(node)
     {
-        InspectorTest.selectNode(node, callback);
+        if (node)
+            WebInspector.updateFocusedNode(node.id);
+        callback(node);
     }
     InspectorTest.nodeWithId(idValue, onNodeFound);
-};
+}
 
-InspectorTest.selectNode = function(node, callback)
+InspectorTest.waitForStyles = function(idValue, callback, requireRebuild)
 {
     callback = InspectorTest.safeWrap(callback);
-    if (node)
-        WebInspector.updateFocusedNode(node.id);
-    InspectorTest.runAfterPendingDispatches(callback.bind(null, node));
+
+    (function sniff(node, rebuild)
+    {
+        if ((rebuild || !requireRebuild) && node && node.getAttribute("id") === idValue) {
+            callback();
+            return;
+        }
+        InspectorTest.addSniffer(WebInspector.StylesSidebarPane.prototype, "_nodeStylesUpdatedForTest", sniff);
+    })(null);
+}
+
+InspectorTest.selectNodeAndWaitForStyles = function(idValue, callback)
+{
+    WebInspector.showPanel("elements");
+
+    callback = InspectorTest.safeWrap(callback);
+
+    var targetNode;
+
+    InspectorTest.waitForStyles(idValue, stylesUpdated, true);
+    InspectorTest.selectNodeWithId(idValue, nodeSelected);
+
+    function nodeSelected(node)
+    {
+        targetNode = node;
+    }
+
+    function stylesUpdated()
+    {
+        callback(targetNode);
+    }
+}
+
+InspectorTest.selectNodeAndWaitForStylesWithComputed = function(idValue, callback)
+{
+    callback = InspectorTest.safeWrap(callback);
+
+    function stylesCallback(targetNode)
+    {
+        InspectorTest.addSniffer(WebInspector.SidebarPane.prototype, "expand", callback);
+        WebInspector.panels.elements.sidebarPanes.computedStyle.expand();
+    }
+
+    InspectorTest.selectNodeAndWaitForStyles(idValue, stylesCallback);
 }
 
 InspectorTest.dumpSelectedElementStyles = function(excludeComputed, excludeMatched, omitLonghands)
 {
+    function extractText(element)
+    {
+        var text = element.textContent;
+        if (text)
+            return text;
+        element = element.querySelector("[data-uncopyable]");
+        return element ? element.getAttribute("data-uncopyable") : "";
+    }
+
     var styleSections = WebInspector.panels.elements.sidebarPanes.styles.sections;
     for (var pseudoId in styleSections) {
         var pseudoName = WebInspector.StylesSidebarPane.PseudoIdNames[pseudoId];
@@ -95,9 +139,18 @@ InspectorTest.dumpSelectedElementStyles = function(excludeComputed, excludeMatch
                 continue;
             if (section.rule && excludeMatched)
                 continue;
-            if (section.element.previousSibling && section.element.previousSibling.className === "styles-sidebar-separator")
+            if (section.element.previousSibling && section.element.previousSibling.className === "sidebar-separator")
                 InspectorTest.addResult("======== " + section.element.previousSibling.textContent + " ========");
-            InspectorTest.addResult((section.expanded ? "[expanded] " : "[collapsed] ") + section.titleElement.textContent + " (" + section.subtitleAsTextForTest + ")");
+            InspectorTest.addResult(section.expanded ? "[expanded] " : "[collapsed] ");
+            var chainEntries = section.titleElement.children;
+            for (var j = 0; j < chainEntries.length; ++j) {
+                var chainEntry = chainEntries[j];
+                var entryLine = chainEntry.children[1].textContent;
+                if (chainEntry.children[2])
+                    entryLine += " " + chainEntry.children[2].textContent;
+                entryLine += " (" + extractText(chainEntry.children[0]) + ")";
+                InspectorTest.addResult(entryLine);
+            }
             section.expand();
             InspectorTest.dumpStyleTreeOutline(section.propertiesTreeOutline, omitLonghands ? 1 : 2);
             InspectorTest.addResult("");
@@ -106,12 +159,113 @@ InspectorTest.dumpSelectedElementStyles = function(excludeComputed, excludeMatch
     }
 };
 
+InspectorTest.expandAndDumpSelectedElementEventListeners = function(callback)
+{
+    InspectorTest.expandSelectedElementEventListeners(function() {
+        InspectorTest.dumpSelectedElementEventListeners(callback);
+    });
+}
+
+InspectorTest.expandSelectedElementEventListeners = function(callback)
+{
+    var sidebarPane = WebInspector.panels.elements.sidebarPanes.eventListeners;
+    sidebarPane.expand();
+
+    InspectorTest.runAfterPendingDispatches(function() {
+        InspectorTest.expandSelectedElementEventListenersSubsections(callback);
+    });
+}
+
+InspectorTest.expandSelectedElementEventListenersSubsections = function(callback)
+{
+    var eventListenerSections = WebInspector.panels.elements.sidebarPanes.eventListeners.sections;
+    for (var i = 0; i < eventListenerSections.length; ++i)
+        eventListenerSections[i].expand();
+
+    // Multiple sections may expand.
+    InspectorTest.runAfterPendingDispatches(function() {
+        InspectorTest.expandSelectedElementEventListenersEventBars(callback);
+    });
+}
+
+InspectorTest.expandSelectedElementEventListenersEventBars = function(callback)
+{
+    var eventListenerSections = WebInspector.panels.elements.sidebarPanes.eventListeners.sections;
+    for (var i = 0; i < eventListenerSections.length; ++i) {
+        var eventBarChildren = eventListenerSections[i]._eventBars.children;
+        for (var j = 0; j < eventBarChildren.length; ++j)
+            eventBarChildren[j]._section.expand();
+    }
+
+    // Multiple sections may expand.
+    InspectorTest.runAfterPendingDispatches(callback);
+}
+
+InspectorTest.dumpSelectedElementEventListeners = function(callback)
+{
+    function formatSourceNameProperty(value)
+    {
+        return "[clipped-for-test]/" + value.replace(/(.*?\/)LayoutTests/, "LayoutTests");
+    }
+
+    var eventListenerSections = WebInspector.panels.elements.sidebarPanes.eventListeners.sections;
+    for (var i = 0; i < eventListenerSections.length; ++i) {
+        var section = eventListenerSections[i];
+        var eventType = section._title;
+        InspectorTest.addResult("");
+        InspectorTest.addResult("======== " + eventType + " ========");
+        var eventBarChildren = section._eventBars.children;
+        for (var j = 0; j < eventBarChildren.length; ++j) {
+            var objectPropertiesSection = eventBarChildren[j]._section;
+            InspectorTest.dumpObjectPropertySection(objectPropertiesSection, {
+                sourceName: formatSourceNameProperty
+            });
+        }
+    }
+
+    callback();
+}
+
+InspectorTest.dumpObjectPropertySection = function(section, formatters)
+{
+    var expandedSubstring = section.expanded ? "[expanded]" : "[collapsed]";
+    InspectorTest.addResult(expandedSubstring + " " + section.titleElement.textContent + " " + section.subtitleAsTextForTest);
+    if (!section.propertiesForTest)
+        return;
+
+    for (var i = 0; i < section.propertiesForTest.length; ++i) {
+        var property = section.propertiesForTest[i];
+        var key = property.name;
+        var value = property.value._description;
+        if (key in formatters)
+            value = formatters[key](value);
+        InspectorTest.addResult("    " + key + ": " + value);
+    }
+}
+
 // FIXME: this returns the first tree item found (may fail for same-named properties in a style).
 InspectorTest.getElementStylePropertyTreeItem = function(propertyName)
 {
     var styleSections = WebInspector.panels.elements.sidebarPanes.styles.sections[0];
     var elementStyleSection = styleSections[1];
-    var outline = elementStyleSection.propertiesTreeOutline;
+    return InspectorTest.getFirstPropertyTreeItemForSection(elementStyleSection, propertyName);
+};
+
+// FIXME: this returns the first tree item found (may fail for same-named properties in a style).
+InspectorTest.getMatchedStylePropertyTreeItem = function(propertyName)
+{
+    var styleSections = WebInspector.panels.elements.sidebarPanes.styles.sections[0];
+    for (var i = 1; i < styleSections.length; ++i) {
+        var treeItem = InspectorTest.getFirstPropertyTreeItemForSection(styleSections[i], propertyName);
+        if (treeItem)
+            return treeItem;
+    }
+    return null;
+};
+
+InspectorTest.getFirstPropertyTreeItemForSection = function(section, propertyName)
+{
+    var outline = section.propertiesTreeOutline;
     for (var i = 0; i < outline.children.length; ++i) {
         var treeItem = outline.children[i];
         if (treeItem.name === propertyName)
@@ -157,14 +311,14 @@ InspectorTest.dumpStyleTreeItem = function(treeItem, prefix, depth)
     }
 };
 
-InspectorTest.dumpElementsTree = function(rootNode)
+InspectorTest.dumpElementsTree = function(rootNode, depth)
 {
     function beautify(element)
     {
         return element.textContent.replace(/\u200b/g, "").replace(/\n/g, "").trim();
     }
 
-    function print(treeItem, prefix)
+    function print(treeItem, prefix, depth)
     {
         if (treeItem.listItemElement) {
             var expander;
@@ -178,23 +332,22 @@ InspectorTest.dumpElementsTree = function(rootNode)
 
             InspectorTest.addResult(prefix + expander + beautify(treeItem.listItemElement));
         }
-        
 
         if (!treeItem.expanded)
             return;
 
         var children = treeItem.children;
-        for (var i = 0; children && i < children.length - 1; ++i)
-            print(children[i], prefix + "    ");
+        for (var i = 0; depth && children && i < children.length - 1; ++i)
+            print(children[i], prefix + "    ", depth - 1);
 
         // Closing tag.
         if (children && children.length)
-            print(children[children.length - 1], prefix);
+            print(children[children.length - 1], prefix, depth);
     }
 
-    WebInspector.panels.elements.updateModifiedNodes();
+    WebInspector.panels.elements.treeOutline._updateModifiedNodes();
     var treeOutline = WebInspector.panels.elements.treeOutline;
-    print(rootNode ? treeOutline.findTreeElement(rootNode) : treeOutline, "");
+    print(rootNode ? treeOutline.findTreeElement(rootNode) : treeOutline, "", depth || 10000);
 };
 
 InspectorTest.expandElementsTree = function(callback)
@@ -212,10 +365,11 @@ InspectorTest.expandElementsTree = function(callback)
 
     function onAllNodesAvailable()
     {
-        WebInspector.panels.elements.updateModifiedNodes();
+        WebInspector.panels.elements.treeOutline._updateModifiedNodes();
         expand(WebInspector.panels.elements.treeOutline);
         callback();
     }
+    WebInspector.inspectorView.setCurrentPanel(WebInspector.panels.elements);
     InspectorTest.findNode(function() { return false; }, onAllNodesAvailable);
 };
 
@@ -239,6 +393,56 @@ InspectorTest.rangeText = function(range)
     if (!range)
         return "[undefined-undefined]";
     return "[" + range.start + "-" + range.end + "]";
-};
+}
+
+InspectorTest.generateUndoTest = function(testBody)
+{
+    function result(next)
+    {
+        var testNode = InspectorTest.expandedNodeWithId(/function\s([^(]*)/.exec(testBody)[1]);
+        InspectorTest.addResult("Initial:");
+        InspectorTest.dumpElementsTree(testNode);
+
+        testBody(undo);
+
+        function undo()
+        {
+            InspectorTest.addResult("Post-action:");
+            InspectorTest.dumpElementsTree(testNode);
+            WebInspector.domAgent.undo(redo);
+        }
+
+        function redo()
+        {
+            InspectorTest.addResult("Post-undo (initial):");
+            InspectorTest.dumpElementsTree(testNode);
+            WebInspector.domAgent.redo(done);
+        }
+
+        function done()
+        {
+            InspectorTest.addResult("Post-redo (action):");
+            InspectorTest.dumpElementsTree(testNode);
+            next();
+        }
+    }
+    result.toString = function()
+    {
+        return testBody.toString();
+    }
+    return result;
+}
 
 };
+
+function dumpInspectorHighlightRects()
+{
+    var rectNames = ["margin", "border", "padding", "content"];
+    var rects = window.internals.inspectorHighlightRects(document);
+    for (var i = 0; i < rects.length; i++)
+    {
+        var rectName = (i < rectNames.length ? rectNames[i] : "untitled");
+        var rect = rects.item(i);
+        output(rectName + " rect is " + rect.width + " x " + rect.height + " at (" + rect.left + ", " + rect.top + ")");
+    }
+}

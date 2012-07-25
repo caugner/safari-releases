@@ -1,9 +1,9 @@
 {
   'targets': [{
     'target_name': 'libtess',
-    'type': '<(library)',
+    'type': 'static_library',
     'include_dirs': [
-      '../..',
+      '.',
     ],
     'sources': [
       'gluos.h',

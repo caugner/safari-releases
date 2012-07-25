@@ -29,6 +29,7 @@
 #import "NativeWebMouseEvent.h"
 #import "PageClientImpl.h"
 #import "PlatformPopupMenuData.h"
+#import "StringUtilities.h"
 #import "WKView.h"
 #import "WebPopupItem.h"
 #import <WebKitSystemInterface.h>
@@ -90,12 +91,12 @@ void WebPopupMenuProxyMac::populate(const Vector<WebPopupItem>& items, NSFont *f
     }
 }
 
-void WebPopupMenuProxyMac::showPopupMenu(const IntRect& rect, TextDirection textDirection, double scaleFactor, const Vector<WebPopupItem>& items, const PlatformPopupMenuData& data, int32_t selectedIndex)
+void WebPopupMenuProxyMac::showPopupMenu(const IntRect& rect, TextDirection textDirection, double pageScaleFactor, const Vector<WebPopupItem>& items, const PlatformPopupMenuData& data, int32_t selectedIndex)
 {
     NSFont *font;
     if (data.fontInfo.fontAttributeDictionary) {
         NSFontDescriptor *fontDescriptor = [NSFontDescriptor fontDescriptorWithFontAttributes:(NSDictionary *)data.fontInfo.fontAttributeDictionary.get()];
-        font = [NSFont fontWithDescriptor:fontDescriptor size:((scaleFactor != 1) ? [fontDescriptor pointSize] * scaleFactor : 0)];
+        font = [NSFont fontWithDescriptor:fontDescriptor size:((pageScaleFactor != 1) ? [fontDescriptor pointSize] * pageScaleFactor : 0)];
     } else
         font = [NSFont menuFontOfSize:0];
 

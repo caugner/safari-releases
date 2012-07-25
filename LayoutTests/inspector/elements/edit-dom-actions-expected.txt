@@ -1,7 +1,9 @@
 Tests that user can mutate DOM by means of elements panel.
 
+ 
 Edited Text
 Span contents
+Element
 
 Running: testSetUp
 
@@ -22,6 +24,16 @@ Running: testSetNodeName
 ==== after ====
 - <div id="testSetNodeName">
       <span id="node-to-set-name" ></span>
+  </div>
+
+Running: testSetNodeNameInput
+==== before ====
+- <div id="testSetNodeNameInput">
+      <div id="node-to-set-name-input"></div>
+  </div>
+==== after ====
+- <div id="testSetNodeNameInput">
+      <input id="node-to-set-name-input" >
   </div>
 
 Running: testSetNodeValue
@@ -64,6 +76,17 @@ Running: testAddAttribute
       <div id="node-to-add-attribute" newattr="new-value"></div>
   </div>
 
+Running: testEditCommentAsHTML
+==== before ====
+- <div id="testEditCommentAsHTML">
+      <!-- Comment -->
+  </div>
+<!-- Comment -->
+==== after ====
+- <div id="testEditCommentAsHTML">
+      <div foo="bar-comment">Element</div>
+  </div>
+
 Running: testEditAsHTML
 ==== before ====
 - <div id="testEditAsHTML">
@@ -74,8 +97,8 @@ Running: testEditAsHTML
 <div id="node-to-edit-as-html"><span id="span">Text</span></div>
 ==== after ====
 - <div id="testEditAsHTML">
-    - <div foo="bar">
+    - <span foo="bar">
           <span id="inner-span">Span contents</span>
-      </div>
+      </span>
   </div>
 

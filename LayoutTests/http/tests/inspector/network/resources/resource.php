@@ -7,25 +7,44 @@
     $jsdelay = $_GET["jsdelay"];
     $jscontent = $_GET["jscontent"];
     $chunked = $_GET["chunked"];
-
-    # Enable gzip compression if needed
-    if ($gzip)
-        ob_start("ob_gzhandler");
+    $random = $_GET["random"];
+    $cached = $_GET["cached"];
 
     # Wait before sending response
     if ($wait)
         usleep($wait * 1000);
 
+    # Exit early if we return 304 code.
+    if ($cached && $_SERVER["HTTP_IF_MODIFIED_SINCE"]) {
+        header("HTTP/1.0 304 Not Modified");
+        exit;
+    }
+
+    # Enable gzip compression if needed
+    if ($gzip)
+        ob_start("ob_gzhandler");
+
     # Send headers
-    header("Expires: Thu, 01 Dec 2003 16:00:00 GMT");
-    header("Cache-Control: no-store, no-cache, must-revalidate");
-    header("Pragma: no-cache");
+    if ($cached) {
+        $max_age = 12 * 31 * 24 * 60 * 60; //one year
+        $expires = gmdate(DATE_RFC1123, time() + $max_age);
+        $last_modified = gmdate(DATE_RFC1123, time() - $max_age);
+
+        header("Cache-Control: public, max-age=" . 5*$max_age);
+        header("Cache-control: max-age=0");
+        header("Expires: " . $expires);
+        header("Last-Modified: " . $last_modified);
+    } else {
+        header("Expires: Thu, 01 Dec 2003 16:00:00 GMT");
+        header("Cache-Control: no-store, no-cache, must-revalidate");
+        header("Pragma: no-cache");
+    }
     if ($type == "js")
         header("Content-Type:text/javascript; charset=UTF-8");
     else if ($type == "image")
         header("Content-Type: image/png");
     else
-        header("Content-Type: text/html");
+        header("Content-Type: text/plain");
 
     # Flush headers and sleep bofore sending response
     if ($send) {
@@ -74,7 +93,8 @@ __foo(<?php echo($jsdelay)?>);
             }
             for ($i = 0; $size && $i < $size - $data_len; ++$i)
                 echo("=");
-        }
+        } else if ($random)
+            echo(rand());
     } else {
         # Generate dummy text/html.
         if ($size) {
@@ -92,6 +112,8 @@ __foo(<?php echo($jsdelay)?>);
                 flush();
             }
             echo("world");
+            if ($random)
+                echo(": " . rand());
         }
     }
 ?>

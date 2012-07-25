@@ -26,9 +26,6 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import os
-import re
-
 from webkitpy.common.checkout.changelog import ChangeLog
 from webkitpy.tool.steps.abstractstep import AbstractStep
 from webkitpy.tool.steps.options import Options
@@ -37,15 +34,11 @@ from webkitpy.common.system.deprecated_logging import error, log
 
 # FIXME: Some of this logic should probably be unified with CommitterValidator?
 class ValidateReviewer(AbstractStep):
-    # FIXME: This should probably move onto ChangeLogEntry
-    def _has_valid_reviewer(self, changelog_entry):
-        if changelog_entry.reviewer():
-            return True
-        if re.search("unreviewed", changelog_entry.contents(), re.IGNORECASE):
-            return True
-        if re.search("rubber[ -]stamp", changelog_entry.contents(), re.IGNORECASE):
-            return True
-        return False
+    @classmethod
+    def options(cls):
+        return AbstractStep.options() + [
+            Options.non_interactive,
+        ]
 
     def run(self, state):
         # FIXME: For now we disable this check when a user is driving the script
@@ -54,7 +47,7 @@ class ValidateReviewer(AbstractStep):
             return
         for changelog_path in self.cached_lookup(state, "changelogs"):
             changelog_entry = ChangeLog(changelog_path).latest_entry()
-            if self._has_valid_reviewer(changelog_entry):
+            if changelog_entry.has_valid_reviewer():
                 continue
             reviewer_text = changelog_entry.reviewer_text()
             if reviewer_text:

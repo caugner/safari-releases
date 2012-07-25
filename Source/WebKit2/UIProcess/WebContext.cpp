@@ -30,8 +30,9 @@
 #include "ImmutableArray.h"
 #include "InjectedBundleMessageKinds.h"
 #include "Logging.h"
-#include "RunLoop.h"
+#include "MutableDictionary.h"
 #include "SandboxExtension.h"
+#include "StatisticsData.h"
 #include "TextChecker.h"
 #include "WKContextPrivate.h"
 #include "WebApplicationCacheManagerProxy.h"
@@ -44,6 +45,7 @@
 #include "WebIconDatabase.h"
 #include "WebKeyValueStorageManagerProxy.h"
 #include "WebMediaCacheManagerProxy.h"
+#include "WebNotificationManagerProxy.h"
 #include "WebPluginSiteDataManager.h"
 #include "WebPageGroup.h"
 #include "WebMemorySampler.h"
@@ -55,24 +57,35 @@
 #include <WebCore/LinkHash.h>
 #include <WebCore/Logging.h>
 #include <WebCore/ResourceRequest.h>
+#include <WebCore/RunLoop.h>
+#include <runtime/InitializeThreading.h>
 #include <wtf/CurrentTime.h>
+#include <wtf/MainThread.h>
+
+#if PLATFORM(MAC)
+#include "BuiltInPDFView.h"
+#endif
+
+#if USE(SOUP)
+#include "WebSoupRequestManagerProxy.h"
+#endif
 
 #ifndef NDEBUG
 #include <wtf/RefCountedLeakCounter.h>
 #endif
 
-#define MESSAGE_CHECK(assertion) MESSAGE_CHECK_BASE(assertion, process()->connection())
+#define MESSAGE_CHECK(assertion) MESSAGE_CHECK_BASE(assertion, m_process->connection())
+#define MESSAGE_CHECK_URL(url) MESSAGE_CHECK_BASE(m_process->checkURLReceivedFromWebProcess(url), m_process->connection())
 
 using namespace WebCore;
 
 namespace WebKit {
 
-#ifndef NDEBUG
-static WTF::RefCountedLeakCounter webContextCounter("WebContext");
-#endif
+DEFINE_DEBUG_ONLY_GLOBAL(WTF::RefCountedLeakCounter, webContextCounter, ("WebContext"));
 
 WebContext* WebContext::sharedProcessContext()
 {
+    JSC::initializeThreading();
     WTF::initializeMainThread();
     RunLoop::initializeMainRunLoop();
     static WebContext* context = adoptRef(new WebContext(ProcessModelSharedSecondaryProcess, String())).leakRef();
@@ -88,6 +101,7 @@ WebContext* WebContext::sharedThreadContext()
 
 PassRefPtr<WebContext> WebContext::create(const String& injectedBundlePath)
 {
+    JSC::initializeThreading();
     WTF::initializeMainThread();
     RunLoop::initializeMainRunLoop();
     return adoptRef(new WebContext(ProcessModelSecondaryProcess, injectedBundlePath));
@@ -111,6 +125,7 @@ WebContext::WebContext(ProcessModel processModel, const String& injectedBundlePa
     , m_injectedBundlePath(injectedBundlePath)
     , m_visitedLinkProvider(this)
     , m_alwaysUsesComplexTextCodePath(false)
+    , m_shouldUseFontSmoothing(true)
     , m_cacheModel(CacheModelDocumentViewer)
     , m_memorySamplerEnabled(false)
     , m_memorySamplerInterval(1400.0)
@@ -121,15 +136,20 @@ WebContext::WebContext(ProcessModel processModel, const String& injectedBundlePa
     , m_iconDatabase(WebIconDatabase::create(this))
     , m_keyValueStorageManagerProxy(WebKeyValueStorageManagerProxy::create(this))
     , m_mediaCacheManagerProxy(WebMediaCacheManagerProxy::create(this))
+    , m_notificationManagerProxy(WebNotificationManagerProxy::create(this))
     , m_pluginSiteDataManager(WebPluginSiteDataManager::create(this))
     , m_resourceCacheManagerProxy(WebResourceCacheManagerProxy::create(this))
+#if USE(SOUP)
+    , m_soupRequestManagerProxy(WebSoupRequestManagerProxy::create(this))
+#endif
 #if PLATFORM(WIN)
     , m_shouldPaintNativeControls(true)
     , m_initialHTTPCookieAcceptPolicy(HTTPCookieAcceptPolicyAlways)
 #endif
     , m_processTerminationEnabled(true)
+    , m_pluginWorkQueue("com.apple.CoreIPC.PluginQueue")
 {
-#ifndef NDEBUG
+#if !LOG_DISABLED
     WebKit::initializeLogChannelsIfNecessary();
 #endif
 
@@ -137,7 +157,7 @@ WebContext::WebContext(ProcessModel processModel, const String& injectedBundlePa
 
     addLanguageChangeObserver(this, languageChanged);
 
-    WebCore::InitializeLoggingChannelsIfNecessary();
+    WebCore::initializeLoggingChannelsIfNecessary();
 
 #ifndef NDEBUG
     webContextCounter.increment();
@@ -146,6 +166,11 @@ WebContext::WebContext(ProcessModel processModel, const String& injectedBundlePa
 
 WebContext::~WebContext()
 {
+    m_pluginWorkQueue.invalidate();
+
+    if (m_process && m_process->isValid())
+        m_process->connection()->removeQueueClient(this);
+
     ASSERT(contexts().find(this) != notFound);
     contexts().remove(contexts().find(this));
 
@@ -171,12 +196,22 @@ WebContext::~WebContext()
 
     m_mediaCacheManagerProxy->invalidate();
     m_mediaCacheManagerProxy->clearContext();
+    
+    m_notificationManagerProxy->invalidate();
+    m_notificationManagerProxy->clearContext();
 
     m_pluginSiteDataManager->invalidate();
     m_pluginSiteDataManager->clearContext();
 
     m_resourceCacheManagerProxy->invalidate();
     m_resourceCacheManagerProxy->clearContext();
+
+#if USE(SOUP)
+    m_soupRequestManagerProxy->invalidate();
+    m_soupRequestManagerProxy->clearContext();
+#endif
+
+    invalidateCallbackMap(m_dictionaryCallbacks);
 
     platformInvalidateContext();
     
@@ -188,6 +223,11 @@ WebContext::~WebContext()
 void WebContext::initializeInjectedBundleClient(const WKContextInjectedBundleClient* client)
 {
     m_injectedBundleClient.initialize(client);
+}
+
+void WebContext::initializeConnectionClient(const WKContextConnectionClient* client)
+{
+    m_connectionClient.initialize(client);
 }
 
 void WebContext::initializeHistoryClient(const WKContextHistoryClient* client)
@@ -209,7 +249,12 @@ void WebContext::languageChanged(void* context)
 
 void WebContext::languageChanged()
 {
-    sendToAllProcesses(Messages::WebProcess::LanguageChanged(defaultLanguage()));
+    sendToAllProcesses(Messages::WebProcess::UserPreferredLanguagesChanged(userPreferredLanguages()));
+}
+
+void WebContext::fullKeyboardAccessModeChanged(bool fullKeyboardAccessEnabled)
+{
+    sendToAllProcesses(Messages::WebProcess::FullKeyboardAccessModeChanged(fullKeyboardAccessEnabled));
 }
 
 void WebContext::ensureWebProcess()
@@ -228,10 +273,11 @@ void WebContext::ensureWebProcess()
 
     parameters.shouldTrackVisitedLinks = m_historyClient.shouldTrackVisitedLinks();
     parameters.cacheModel = m_cacheModel;
-    parameters.languageCode = defaultLanguage();
+    parameters.languages = userPreferredLanguages();
     parameters.applicationCacheDirectory = applicationCacheDirectory();
     parameters.databaseDirectory = databaseDirectory();
     parameters.localStorageDirectory = localStorageDirectory();
+
 #if PLATFORM(MAC)
     parameters.presenterApplicationPid = getpid();
 #endif
@@ -241,12 +287,19 @@ void WebContext::ensureWebProcess()
     copyToVector(m_schemesToSetDomainRelaxationForbiddenFor, parameters.urlSchemesForWhichDomainRelaxationIsForbidden);
 
     parameters.shouldAlwaysUseComplexTextCodePath = m_alwaysUsesComplexTextCodePath;
+    parameters.shouldUseFontSmoothing = m_shouldUseFontSmoothing;
     
     parameters.iconDatabaseEnabled = !iconDatabasePath().isEmpty();
 
     parameters.textCheckerState = TextChecker::state();
 
+    parameters.fullKeyboardAccessEnabled = WebProcessProxy::fullKeyboardAccessEnabled();
+
     parameters.defaultRequestTimeoutInterval = WebURLRequest::defaultTimeoutInterval();
+
+#if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
+    m_notificationManagerProxy->populateCopyOfNotificationPermissions(parameters.notificationPermissions);
+#endif
 
     // Add any platform specific parameters
     platformInitializeWebProcess(parameters);
@@ -307,17 +360,21 @@ void WebContext::processDidFinishLaunching(WebProcessProxy* process)
     ASSERT_UNUSED(process, process == m_process);
 
     m_visitedLinkProvider.processDidFinishLaunching();
+
+    m_process->connection()->addQueueClient(this);
     
     // Sometimes the memorySampler gets initialized after process initialization has happened but before the process has finished launching
     // so check if it needs to be started here
     if (m_memorySamplerEnabled) {
         SandboxExtension::Handle sampleLogSandboxHandle;        
         double now = WTF::currentTime();
-        String sampleLogFilePath = String::format("WebProcess%llu", static_cast<uint64_t>(now));
+        String sampleLogFilePath = String::format("WebProcess%llu", static_cast<unsigned long long>(now));
         sampleLogFilePath = SandboxExtension::createHandleForTemporaryFile(sampleLogFilePath, SandboxExtension::WriteOnly, sampleLogSandboxHandle);
         
         m_process->send(Messages::WebProcess::StartMemorySampler(sampleLogSandboxHandle, sampleLogFilePath, m_memorySamplerInterval), 0);
     }
+
+    m_connectionClient.didCreateConnection(this, process->webConnection());
 }
 
 void WebContext::disconnectProcess(WebProcessProxy* process)
@@ -341,7 +398,11 @@ void WebContext::disconnectProcess(WebProcessProxy* process)
     m_geolocationManagerProxy->invalidate();
     m_keyValueStorageManagerProxy->invalidate();
     m_mediaCacheManagerProxy->invalidate();
+    m_notificationManagerProxy->invalidate();
     m_resourceCacheManagerProxy->invalidate();
+#if USE(SOUP)
+    m_soupRequestManagerProxy->invalidate();
+#endif
 
     // When out of process plug-ins are enabled, we don't want to invalidate the plug-in site data
     // manager just because the web process crashes since it's not involved.
@@ -373,8 +434,15 @@ WebProcessProxy* WebContext::relaunchProcessIfNecessary()
 
 DownloadProxy* WebContext::download(WebPageProxy* initiatingPage, const ResourceRequest& request)
 {
+    ensureWebProcess();
+
     DownloadProxy* download = createDownloadProxy();
     uint64_t initiatingPageID = initiatingPage ? initiatingPage->pageID() : 0;
+
+#if PLATFORM(QT)
+    ASSERT(initiatingPage); // Our design does not suppport downloads without a WebPage.
+    initiatingPage->handleDownloadRequest(download);
+#endif
 
     process()->send(Messages::WebProcess::DownloadRequest(download->downloadID(), initiatingPageID, request), 0);
     return download;
@@ -424,11 +492,16 @@ void WebContext::didPerformClientRedirect(uint64_t pageID, const String& sourceU
     WebPageProxy* page = m_process->webPage(pageID);
     if (!page)
         return;
+
+    if (sourceURLString.isEmpty() || destinationURLString.isEmpty())
+        return;
     
     WebFrameProxy* frame = m_process->webFrame(frameID);
     MESSAGE_CHECK(frame);
     MESSAGE_CHECK(frame->page() == page);
-    
+    MESSAGE_CHECK_URL(sourceURLString);
+    MESSAGE_CHECK_URL(destinationURLString);
+
     m_historyClient.didPerformClientRedirect(this, page, sourceURLString, destinationURLString, frame);
 }
 
@@ -438,10 +511,15 @@ void WebContext::didPerformServerRedirect(uint64_t pageID, const String& sourceU
     if (!page)
         return;
     
+    if (sourceURLString.isEmpty() || destinationURLString.isEmpty())
+        return;
+    
     WebFrameProxy* frame = m_process->webFrame(frameID);
     MESSAGE_CHECK(frame);
     MESSAGE_CHECK(frame->page() == page);
-    
+    MESSAGE_CHECK_URL(sourceURLString);
+    MESSAGE_CHECK_URL(destinationURLString);
+
     m_historyClient.didPerformServerRedirect(this, page, sourceURLString, destinationURLString, frame);
 }
 
@@ -454,8 +532,9 @@ void WebContext::didUpdateHistoryTitle(uint64_t pageID, const String& title, con
     WebFrameProxy* frame = m_process->webFrame(frameID);
     MESSAGE_CHECK(frame);
     MESSAGE_CHECK(frame->page() == page);
+    MESSAGE_CHECK_URL(url);
 
-    m_historyClient.didUpdateHistoryTitle(this, frame->page(), title, url, frame);
+    m_historyClient.didUpdateHistoryTitle(this, page, title, url, frame);
 }
 
 void WebContext::populateVisitedLinks()
@@ -482,6 +561,12 @@ void WebContext::setAlwaysUsesComplexTextCodePath(bool alwaysUseComplexText)
 {
     m_alwaysUsesComplexTextCodePath = alwaysUseComplexText;
     sendToAllProcesses(Messages::WebProcess::SetAlwaysUsesComplexTextCodePath(alwaysUseComplexText));
+}
+
+void WebContext::setShouldUseFontSmoothing(bool useFontSmoothing)
+{
+    m_shouldUseFontSmoothing = useFontSmoothing;
+    sendToAllProcesses(Messages::WebProcess::SetShouldUseFontSmoothing(useFontSmoothing));
 }
 
 void WebContext::registerURLSchemeAsEmptyDocument(const String& urlScheme)
@@ -527,23 +612,58 @@ void WebContext::addVisitedLinkHash(LinkHash linkHash)
     m_visitedLinkProvider.addVisitedLink(linkHash);
 }
 
-void WebContext::getPlugins(bool refresh, Vector<PluginInfo>& pluginInfos)
+void WebContext::sendDidGetPlugins(uint64_t requestID, PassOwnPtr<Vector<PluginInfo> > pluginInfos)
+{
+    ASSERT(isMainThread());
+
+    OwnPtr<Vector<PluginInfo> > plugins(pluginInfos);
+
+#if PLATFORM(MAC)
+    // Add built-in PDF last, so that it's not used when a real plug-in is installed.
+    // NOTE: This has to be done on the main thread as it calls localizedString().
+    if (!omitPDFSupport())
+        plugins->append(BuiltInPDFView::pluginInfo());
+#endif
+
+    process()->send(Messages::WebProcess::DidGetPlugins(requestID, *plugins), 0);
+}
+
+void WebContext::handleGetPlugins(uint64_t requestID, bool refresh)
 {
     if (refresh)
         m_pluginInfoStore.refresh();
 
-    Vector<PluginInfoStore::Plugin> plugins = m_pluginInfoStore.plugins();
+    OwnPtr<Vector<PluginInfo> > pluginInfos = adoptPtr(new Vector<PluginInfo>);
+
+    Vector<PluginModuleInfo> plugins = m_pluginInfoStore.plugins();
     for (size_t i = 0; i < plugins.size(); ++i)
-        pluginInfos.append(plugins[i].info);
+        pluginInfos->append(plugins[i].info);
+
+    // NOTE: We have to pass the PluginInfo vector to the secondary thread via a pointer as otherwise
+    //       we'd end up with a deref() race on all the WTF::Strings it contains.
+    RunLoop::main()->dispatch(bind(&WebContext::sendDidGetPlugins, this, requestID, pluginInfos.release()));
 }
 
-void WebContext::getPluginPath(const String& mimeType, const String& urlString, String& pluginPath)
+void WebContext::getPlugins(CoreIPC::Connection*, uint64_t requestID, bool refresh)
 {
+    m_pluginWorkQueue.dispatch(bind(&WebContext::handleGetPlugins, this, requestID, refresh));
+}
+
+void WebContext::getPluginPath(const String& mimeType, const String& urlString, String& pluginPath, bool& blocked)
+{
+    MESSAGE_CHECK_URL(urlString);
+
     String newMimeType = mimeType.lower();
 
-    PluginInfoStore::Plugin plugin = pluginInfoStore().findPlugin(newMimeType, KURL(ParsedURLString, urlString));
+    blocked = false;
+    PluginModuleInfo plugin = pluginInfoStore().findPlugin(newMimeType, KURL(KURL(), urlString));
     if (!plugin.path)
         return;
+
+    if (pluginInfoStore().shouldBlockPlugin(plugin)) {
+        blocked = true;
+        return;
+    }
 
     pluginPath = plugin.path;
 }
@@ -635,11 +755,23 @@ void WebContext::didReceiveMessage(CoreIPC::Connection* connection, CoreIPC::Mes
         m_mediaCacheManagerProxy->didReceiveMessage(connection, messageID, arguments);
         return;
     }
+    
+    if (messageID.is<CoreIPC::MessageClassWebNotificationManagerProxy>()) {
+        m_notificationManagerProxy->didReceiveMessage(connection, messageID, arguments);
+        return;
+    }
 
     if (messageID.is<CoreIPC::MessageClassWebResourceCacheManagerProxy>()) {
         m_resourceCacheManagerProxy->didReceiveWebResourceCacheManagerProxyMessage(connection, messageID, arguments);
         return;
     }
+
+#if USE(SOUP)
+    if (messageID.is<CoreIPC::MessageClassWebSoupRequestManagerProxy>()) {
+        m_soupRequestManagerProxy->didReceiveMessage(connection, messageID, arguments);
+        return;
+    }
+#endif
 
     switch (messageID.get<WebContextLegacyMessage::Kind>()) {
         case WebContextLegacyMessage::PostMessage: {
@@ -659,20 +791,23 @@ void WebContext::didReceiveMessage(CoreIPC::Connection* connection, CoreIPC::Mes
     ASSERT_NOT_REACHED();
 }
 
-CoreIPC::SyncReplyMode WebContext::didReceiveSyncMessage(CoreIPC::Connection* connection, CoreIPC::MessageID messageID, CoreIPC::ArgumentDecoder* arguments, CoreIPC::ArgumentEncoder* reply)
+void WebContext::didReceiveSyncMessage(CoreIPC::Connection* connection, CoreIPC::MessageID messageID, CoreIPC::ArgumentDecoder* arguments, OwnPtr<CoreIPC::ArgumentEncoder>& reply)
 {
-    if (messageID.is<CoreIPC::MessageClassWebContext>())
-        return didReceiveSyncWebContextMessage(connection, messageID, arguments, reply);
+    if (messageID.is<CoreIPC::MessageClassWebContext>()) {
+        didReceiveSyncWebContextMessage(connection, messageID, arguments, reply);
+        return;
+    }
 
     if (messageID.is<CoreIPC::MessageClassDownloadProxy>()) {
         if (DownloadProxy* downloadProxy = m_downloads.get(arguments->destinationID()).get())
-            return downloadProxy->didReceiveSyncDownloadProxyMessage(connection, messageID, arguments, reply);
-
-        return CoreIPC::AutomaticReply;
+            downloadProxy->didReceiveSyncDownloadProxyMessage(connection, messageID, arguments, reply);
+        return;
     }
     
-    if (messageID.is<CoreIPC::MessageClassWebIconDatabase>())
-        return m_iconDatabase->didReceiveSyncMessage(connection, messageID, arguments, reply);
+    if (messageID.is<CoreIPC::MessageClassWebIconDatabase>()) {
+        m_iconDatabase->didReceiveSyncMessage(connection, messageID, arguments, reply);
+        return;
+    }
     
     switch (messageID.get<WebContextLegacyMessage::Kind>()) {
         case WebContextLegacyMessage::PostSynchronousMessage: {
@@ -682,18 +817,16 @@ CoreIPC::SyncReplyMode WebContext::didReceiveSyncMessage(CoreIPC::Connection* co
             RefPtr<APIObject> messageBody;
             WebContextUserMessageDecoder messageDecoder(messageBody, this);
             if (!arguments->decode(CoreIPC::Out(messageName, messageDecoder)))
-                return CoreIPC::AutomaticReply;
+                return;
 
             RefPtr<APIObject> returnData;
             didReceiveSynchronousMessageFromInjectedBundle(messageName, messageBody.get(), returnData);
             reply->encode(CoreIPC::In(WebContextUserMessageEncoder(returnData.get())));
-            return CoreIPC::AutomaticReply;
+            return;
         }
         case WebContextLegacyMessage::PostMessage:
             ASSERT_NOT_REACHED();
     }
-
-    return CoreIPC::AutomaticReply;
 }
 
 void WebContext::setEnhancedAccessibility(bool flag)
@@ -715,7 +848,7 @@ void WebContext::startMemorySampler(const double interval)
     // For WebProcess
     SandboxExtension::Handle sampleLogSandboxHandle;    
     double now = WTF::currentTime();
-    String sampleLogFilePath = String::format("WebProcess%llu", static_cast<uint64_t>(now));
+    String sampleLogFilePath = String::format("WebProcess%llu", static_cast<unsigned long long>(now));
     sampleLogFilePath = SandboxExtension::createHandleForTemporaryFile(sampleLogFilePath, SandboxExtension::WriteOnly, sampleLogSandboxHandle);
     
     sendToAllProcesses(Messages::WebProcess::StartMemorySampler(sampleLogSandboxHandle, sampleLogFilePath, interval));
@@ -771,13 +904,66 @@ void WebContext::setHTTPPipeliningEnabled(bool enabled)
 #endif
 }
 
-bool WebContext::httpPipeliningEnabled()
+bool WebContext::httpPipeliningEnabled() const
 {
 #if PLATFORM(MAC)
     return ResourceRequest::httpPipeliningEnabled();
 #else
     return false;
 #endif
+}
+
+void WebContext::getWebCoreStatistics(PassRefPtr<DictionaryCallback> prpCallback)
+{
+    RefPtr<DictionaryCallback> callback = prpCallback;
+    
+    uint64_t callbackID = callback->callbackID();
+    m_dictionaryCallbacks.set(callbackID, callback.get());
+    process()->send(Messages::WebProcess::GetWebCoreStatistics(callbackID), 0);
+}
+
+static PassRefPtr<MutableDictionary> createDictionaryFromHashMap(const HashMap<String, uint64_t>& map)
+{
+    RefPtr<MutableDictionary> result = MutableDictionary::create();
+    HashMap<String, uint64_t>::const_iterator end = map.end();
+    for (HashMap<String, uint64_t>::const_iterator it = map.begin(); it != end; ++it)
+        result->set(it->first, RefPtr<WebUInt64>(WebUInt64::create(it->second)).get());
+    
+    return result;
+}
+
+void WebContext::didGetWebCoreStatistics(const StatisticsData& statisticsData, uint64_t callbackID)
+{
+    RefPtr<DictionaryCallback> callback = m_dictionaryCallbacks.take(callbackID);
+    if (!callback) {
+        // FIXME: Log error or assert.
+        return;
+    }
+
+    RefPtr<MutableDictionary> statistics = createDictionaryFromHashMap(statisticsData.statisticsNumbers);
+    statistics->set("JavaScriptProtectedObjectTypeCounts", createDictionaryFromHashMap(statisticsData.javaScriptProtectedObjectTypeCounts).get());
+    statistics->set("JavaScriptObjectTypeCounts", createDictionaryFromHashMap(statisticsData.javaScriptObjectTypeCounts).get());
+    
+    size_t cacheStatisticsCount = statisticsData.webCoreCacheStatistics.size();
+    Vector<RefPtr<APIObject> > cacheStatisticsVector(cacheStatisticsCount);
+    for (size_t i = 0; i < cacheStatisticsCount; ++i)
+        cacheStatisticsVector[i] = createDictionaryFromHashMap(statisticsData.webCoreCacheStatistics[i]);
+    statistics->set("WebCoreCacheStatistics", ImmutableArray::adopt(cacheStatisticsVector).get());
+    
+    callback->performCallbackWithReturnValue(statistics.get());
+}
+    
+void WebContext::garbageCollectJavaScriptObjects()
+{
+    sendToAllProcesses(Messages::WebProcess::GarbageCollectJavaScriptObjects());
+}
+
+void WebContext::didReceiveMessageOnConnectionWorkQueue(CoreIPC::Connection* connection, CoreIPC::MessageID messageID, CoreIPC::ArgumentDecoder* arguments, bool& didHandleMessage)
+{
+    if (messageID.is<CoreIPC::MessageClassWebContext>()) {
+        didReceiveWebContextMessageOnConnectionWorkQueue(connection, messageID, arguments, didHandleMessage);
+        return;
+    }
 }
 
 } // namespace WebKit

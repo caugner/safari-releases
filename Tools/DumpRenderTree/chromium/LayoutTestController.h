@@ -43,17 +43,19 @@
 
 #include "CppBoundClass.h"
 #include "Task.h"
-#include "WebString.h"
+#include "platform/WebArrayBufferView.h"
+#include "platform/WebString.h"
 #include "WebTextDirection.h"
-#include "WebURL.h"
+#include "platform/WebURL.h"
 #include <wtf/Deque.h>
 #include <wtf/OwnPtr.h>
 
 namespace WebKit {
 class WebGeolocationClientMock;
-class WebSpeechInputController;
-class WebSpeechInputControllerMock;
-class WebSpeechInputListener;
+}
+
+namespace webkit_support {
+class ScopedTempDirectory;
 }
 
 class TestShell;
@@ -72,33 +74,38 @@ public:
     void dumpAsText(const CppArgumentList&, CppVariant*);
 
     // This function should set a flag that tells the test_shell to print a line
-    // of descriptive text for each database command.  It should take no
+    // of descriptive text for each database command. It should take no
     // arguments, and ignore any that may be present. However, at the moment, we
     // don't have any DB function that prints messages, so for now this function
     // doesn't do anything.
     void dumpDatabaseCallbacks(const CppArgumentList&, CppVariant*);
 
     // This function sets a flag that tells the test_shell to print a line of
-    // descriptive text for each editing command.  It takes no arguments, and
+    // descriptive text for each editing command. It takes no arguments, and
     // ignores any that may be present.
     void dumpEditingCallbacks(const CppArgumentList&, CppVariant*);
 
     // This function sets a flag that tells the test_shell to print a line of
-    // descriptive text for each frame load callback.  It takes no arguments, and
+    // descriptive text for each frame load callback. It takes no arguments, and
     // ignores any that may be present.
     void dumpFrameLoadCallbacks(const CppArgumentList&, CppVariant*);
 
     // This function sets a flag that tells the test_shell to print a line of
-    // user gesture status text for some frame load callbacks.  It takes no
+    // descriptive text for the progress finished callback. It takes no
+    // arguments, and ignores any that may be present.
+    void dumpProgressFinishedCallback(const CppArgumentList&, CppVariant*);
+
+    // This function sets a flag that tells the test_shell to print a line of
+    // user gesture status text for some frame load callbacks. It takes no
     // arguments, and ignores any that may be present.
     void dumpUserGestureInFrameLoadCallbacks(const CppArgumentList&, CppVariant*);
 
     // This function sets a flag that tells the test_shell to print out a text
-    // representation of the back/forward list.  It ignores all arguments.
+    // representation of the back/forward list. It ignores all arguments.
     void dumpBackForwardList(const CppArgumentList&, CppVariant*);
 
     // This function sets a flag that tells the test_shell to print out the
-    // scroll offsets of the child frames.  It ignores all.
+    // scroll offsets of the child frames. It ignores all.
     void dumpChildFrameScrollPositions(const CppArgumentList&, CppVariant*);
 
     // This function sets a flag that tells the test_shell to recursively
@@ -121,22 +128,27 @@ public:
     // It takes no arguments, and ignores any that may be present.
     void dumpWindowStatusChanges(const CppArgumentList&, CppVariant*);
 
+    // This function sets a flag that tells the test_shell to dump all calls to
+    // WebViewClient::createView().
+    // It takes no arguments, and ignores any that may be present.
+    void dumpCreateView(const CppArgumentList&, CppVariant*);
+
     // When called with a boolean argument, this sets a flag that controls
     // whether content-editable elements accept editing focus when an editing
     // attempt is made. It ignores any additional arguments.
     void setAcceptsEditing(const CppArgumentList&, CppVariant*);
 
-    // Functions for dealing with windows.  By default we block all new windows.
+    // Functions for dealing with windows. By default we block all new windows.
     void windowCount(const CppArgumentList&, CppVariant*);
     void setCanOpenWindows(const CppArgumentList&, CppVariant*);
     void setCloseRemainingWindowsWhenComplete(const CppArgumentList&, CppVariant*);
 
-    // By default, tests end when page load is complete.  These methods are used
+    // By default, tests end when page load is complete. These methods are used
     // to delay the completion of the test until notifyDone is called.
     void waitUntilDone(const CppArgumentList&, CppVariant*);
     void notifyDone(const CppArgumentList&, CppVariant*);
 
-    // Methods for adding actions to the work queue.  Used in conjunction with
+    // Methods for adding actions to the work queue. Used in conjunction with
     // waitUntilDone/notifyDone above.
     void queueBackNavigation(const CppArgumentList&, CppVariant*);
     void queueForwardNavigation(const CppArgumentList&, CppVariant*);
@@ -219,7 +231,7 @@ public:
     // the test.
     void setStopProvisionalFrameLoads(const CppArgumentList&, CppVariant*);
 
-    // Enable or disable smart insert/delete.  This is enabled by default.
+    // Enable or disable smart insert/delete. This is enabled by default.
     void setSmartInsertDeleteEnabled(const CppArgumentList&, CppVariant*);
 
     // Enable or disable trailing whitespace selection on double click.
@@ -228,10 +240,11 @@ public:
     void pauseAnimationAtTimeOnElementWithId(const CppArgumentList&, CppVariant*);
     void pauseTransitionAtTimeOnElementWithId(const CppArgumentList&, CppVariant*);
     void elementDoesAutoCompleteForElementWithId(const CppArgumentList&, CppVariant*);
+    void enableAutoResizeMode(const CppArgumentList&, CppVariant*);
+    void disableAutoResizeMode(const CppArgumentList&, CppVariant*);
     void numberOfActiveAnimations(const CppArgumentList&, CppVariant*);
     void suspendAnimations(const CppArgumentList&, CppVariant*);
     void resumeAnimations(const CppArgumentList&, CppVariant*);
-    void sampleSVGAnimationForElementAtTime(const CppArgumentList&, CppVariant*);
     void disableImageLoading(const CppArgumentList&, CppVariant*);
     void setIconDatabaseEnabled(const CppArgumentList&, CppVariant*);
     void dumpSelectionRect(const CppArgumentList&, CppVariant*);
@@ -245,8 +258,12 @@ public:
     void setDeferMainResourceDataLoad(const CppArgumentList&, CppVariant*);
     void setEditingBehavior(const CppArgumentList&, CppVariant*);
 
-    // The following are only stubs.  TODO(pamg): Implement any of these that
-    // are needed to pass the layout tests.
+    // Deals with Web Audio WAV file data.
+    void setAudioData(const CppArgumentList&, CppVariant*);
+    const WebKit::WebArrayBufferView& audioData() const { return m_audioData; } 
+
+    // The following are only stubs.
+    // FIXME: Implement any of these that are needed to pass the layout tests.
     void dumpAsWebArchive(const CppArgumentList&, CppVariant*);
     void dumpTitleChanges(const CppArgumentList&, CppVariant*);
     void setMainFrameIsFirstResponder(const CppArgumentList&, CppVariant*);
@@ -266,17 +283,15 @@ public:
 
     void setJavaScriptCanAccessClipboard(const CppArgumentList&, CppVariant*);
     void setXSSAuditorEnabled(const CppArgumentList&, CppVariant*);
-    void evaluateScriptInIsolatedWorld(const CppArgumentList&, CppVariant*);
     void overridePreference(const CppArgumentList&, CppVariant*);
     void setAllowUniversalAccessFromFileURLs(const CppArgumentList&, CppVariant*);
     void setAllowDisplayOfInsecureContent(const CppArgumentList&, CppVariant*);
     void setAllowFileAccessFromFileURLs(const CppArgumentList&, CppVariant*);
     void setAllowRunningOfInsecureContent(const CppArgumentList&, CppVariant*);
 
-    void shadowRoot(const CppArgumentList&, CppVariant*);
-    void ensureShadowRoot(const CppArgumentList&, CppVariant*);
-    void removeShadowRoot(const CppArgumentList&, CppVariant*);
-    void shadowPseudoId(const CppArgumentList&, CppVariant*);
+    void evaluateScriptInIsolatedWorldAndReturnValue(const CppArgumentList&, CppVariant*);
+    void evaluateScriptInIsolatedWorld(const CppArgumentList&, CppVariant*);
+    void setIsolatedWorldSecurityOrigin(const CppArgumentList&, CppVariant*);
 
     // The fallback method is called when a nonexistent method is called on
     // the layout test controller object.
@@ -312,8 +327,24 @@ public:
     // Gets the value of the counter in the element specified by its ID.
     void counterValueForElementById(const CppArgumentList&, CppVariant*);
 
+    // Causes layout to happen as if targetted to printed pages.
+    void setPrinting(const CppArgumentList&, CppVariant*);
+
     // Gets the number of page where the specified element will be put.
     void pageNumberForElementById(const CppArgumentList&, CppVariant*);
+
+    // Gets the page size and margins for a printed page.
+    void pageSizeAndMarginsInPixels(const CppArgumentList&, CppVariant*);
+
+    // Returns true if the current page box has custom page size style for
+    // printing.
+    void hasCustomPageSizeStyle(const CppArgumentList&, CppVariant*);
+
+    // Returns the visibililty status of a page box for printing
+    void isPageBoxVisible(const CppArgumentList&, CppVariant*);
+
+    // Gets the page-related property for printed content
+    void pageProperty(const CppArgumentList&, CppVariant*);
 
     // Gets the number of pages to be printed.
     void numberOfPages(const CppArgumentList&, CppVariant*);
@@ -321,11 +352,14 @@ public:
     // Gets the number of geolocation permissions requests pending.
     void numberOfPendingGeolocationPermissionRequests(const CppArgumentList&, CppVariant*);
 
-    // Allows layout tests to start Timeline profiling.
-    void setTimelineProfilingEnabled(const CppArgumentList&, CppVariant*);
+    // Allows layout tests to start JavaScript profiling.
+    void setJavaScriptProfilingEnabled(const CppArgumentList&, CppVariant*);
 
     // Allows layout tests to exec scripts at WebInspector side.
     void evaluateInWebInspector(const CppArgumentList&, CppVariant*);
+
+    // Forces the selection colors for testing under Linux.
+    void forceRedSelectionColors(const CppArgumentList&, CppVariant*);
 
     // Adds a user script or user style sheet to be injected into new documents.
     void addUserScript(const CppArgumentList&, CppVariant*);
@@ -344,11 +378,15 @@ public:
 
     // Speech input related functions.
     void addMockSpeechInputResult(const CppArgumentList&, CppVariant*);
+    void setMockSpeechInputDumpRect(const CppArgumentList&, CppVariant*);
+    void startSpeechInput(const CppArgumentList&, CppVariant*);
 
     void layerTreeAsText(const CppArgumentList& args, CppVariant* result);
 
+    void loseCompositorContext(const CppArgumentList& args, CppVariant* result);
+
     void markerTextForListItem(const CppArgumentList&, CppVariant*);
-    void hasSpellingMarker(const CppArgumentList&, CppVariant*);
+    void findString(const CppArgumentList&, CppVariant*);
 
     void setMinimumTimerInterval(const CppArgumentList&, CppVariant*);
 
@@ -368,6 +406,13 @@ public:
     void observeStorageTrackerNotifications(const CppArgumentList&, CppVariant*);
     void syncLocalStorage(const CppArgumentList&, CppVariant*);
 
+    // WebPermissionClient related.
+    void setImagesAllowed(const CppArgumentList&, CppVariant*);
+    void setScriptsAllowed(const CppArgumentList&, CppVariant*);
+    void setStorageAllowed(const CppArgumentList&, CppVariant*);
+    void setPluginsAllowed(const CppArgumentList&, CppVariant*);
+    void dumpPermissionClientCallbacks(const CppArgumentList&, CppVariant*);
+
     // Enable or disable plugins.
     void setPluginsEnabled(const CppArgumentList&, CppVariant*);
 
@@ -375,16 +420,41 @@ public:
     void setPageVisibility(const CppArgumentList&, CppVariant*);
     void resetPageVisibility(const CppArgumentList&, CppVariant*);
 
+    // Changes the direction of the focused element.
+    void setTextDirection(const CppArgumentList&, CppVariant*);
+
+    void setShouldStayOnPageAfterHandlingBeforeUnload(const CppArgumentList&, CppVariant*);
+
+    void enableFixedLayoutMode(const CppArgumentList&, CppVariant*);
+    void setFixedLayoutSize(const CppArgumentList&, CppVariant*);
+
+    void selectionAsMarkup(const CppArgumentList&, CppVariant*);
+
+#if ENABLE(POINTER_LOCK)
+    void didLosePointerLock(const CppArgumentList&, CppVariant*);
+    void setPointerLockWillFailSynchronously(const CppArgumentList&, CppVariant*);
+    void setPointerLockWillFailAsynchronously(const CppArgumentList&, CppVariant*);
+#endif
+
+    void workerThreadCount(CppVariant*);
+
+    // Expects one string argument for sending successful result, zero
+    // for sending a failure result.
+    void sendWebIntentResponse(const CppArgumentList&, CppVariant*);
+
 public:
     // The following methods are not exposed to JavaScript.
     void setWorkQueueFrozen(bool frozen) { m_workQueue.setFrozen(frozen); }
 
-    WebKit::WebSpeechInputController* speechInputController(WebKit::WebSpeechInputListener*);
+    bool shouldDumpAsAudio() const { return m_dumpAsAudio; } 
+    void setShouldDumpAsAudio(bool dumpAsAudio) { m_dumpAsAudio = dumpAsAudio; } 
     bool shouldDumpAsText() { return m_dumpAsText; }
     void setShouldDumpAsText(bool value) { m_dumpAsText = value; }
     bool shouldDumpEditingCallbacks() { return m_dumpEditingCallbacks; }
     bool shouldDumpFrameLoadCallbacks() { return m_dumpFrameLoadCallbacks; }
     void setShouldDumpFrameLoadCallbacks(bool value) { m_dumpFrameLoadCallbacks = value; }
+    bool shouldDumpProgressFinishedCallback() { return m_dumpProgressFinishedCallback; }
+    void setShouldDumpProgressFinishedCallback(bool value) { m_dumpProgressFinishedCallback = value; }
     bool shouldDumpUserGestureInFrameLoadCallbacks() { return m_dumpUserGestureInFrameLoadCallbacks; }
     void setShouldDumpUserGestureInFrameLoadCallbacks(bool value) { m_dumpUserGestureInFrameLoadCallbacks = value; }
     bool shouldDumpResourceLoadCallbacks() {return m_dumpResourceLoadCallbacks; }
@@ -394,10 +464,12 @@ public:
     bool shouldDumpSelectionRect() { return m_dumpSelectionRect; }
     bool shouldDumpBackForwardList() { return m_dumpBackForwardList; }
     bool shouldDumpTitleChanges() { return m_dumpTitleChanges; }
+    bool shouldDumpPermissionClientCallbacks() { return m_dumpPermissionClientCallbacks; }
     bool shouldDumpChildFrameScrollPositions() { return m_dumpChildFrameScrollPositions; }
     bool shouldDumpChildFramesAsText() { return m_dumpChildFramesAsText; }
     bool shouldGeneratePixelResults() { return m_generatePixelResults; }
     void setShouldGeneratePixelResults(bool value) { m_generatePixelResults = value; }
+    bool shouldDumpCreateView() { return m_dumpCreateView; }
     bool acceptsEditing() { return m_acceptsEditing; }
     bool canOpenWindows() { return m_canOpenWindows; }
     bool shouldAddFileToPasteboard() { return m_shouldAddFileToPasteboard; }
@@ -409,8 +481,19 @@ public:
         m_titleTextDirection.set(dir == WebKit::WebTextDirectionLeftToRight ? "ltr" : "rtl");
     }
 
+    bool shouldInterceptPostMessage()
+    {
+        return m_interceptPostMessage.isBool() && m_interceptPostMessage.toBoolean();
+    }
+
+    void setIsPrinting(bool value) { m_isPrinting = value; }
+    bool isPrinting() { return m_isPrinting; }
+
     bool testRepaint() const { return m_testRepaint; }
     bool sweepHorizontally() const { return m_sweepHorizontally; }
+
+    void setHasCustomFullScreenBehavior(const CppArgumentList&, CppVariant*);
+    bool hasCustomFullScreenBehavior() const { return m_hasCustomFullScreenBehavior; }
 
     // Called by the webview delegate when the toplevel frame load is done.
     void locationChangeDone();
@@ -419,21 +502,22 @@ public:
     // waitForPolicyDelegate was called.
     void policyDelegateDone();
 
-    // Reinitializes all static values.  The reset() method should be called
-    // before the start of each test (currently from
-    // TestShell::runFileTest).
+    // Reinitializes all static values. The reset() method should be called
+    // before the start of each test (currently from TestShell::runFileTest).
     void reset();
 
     // A single item in the work queue.
     class WorkItem {
     public:
-        virtual ~WorkItem() {}
+        virtual ~WorkItem() { }
 
         // Returns true if this started a load.
-        virtual bool run(TestShell* shell) = 0;
+        virtual bool run(TestShell*) = 0;
     };
 
     TaskList* taskList() { return &m_taskList; }
+
+    bool shouldStayOnPageAfterHandlingBeforeUnload() const { return m_shouldStayOnPageAfterHandlingBeforeUnload; }
 
 private:
     friend class WorkItem;
@@ -443,14 +527,14 @@ private:
     // queueScript.
     class WorkQueue {
     public:
-        WorkQueue(LayoutTestController* controller) : m_frozen(false), m_controller(controller) {}
+        WorkQueue(LayoutTestController* controller) : m_frozen(false), m_controller(controller) { }
         virtual ~WorkQueue();
         void processWorkSoon();
 
         // Reset the state of the class between tests.
         void reset();
 
-        void addWork(WorkItem* work);
+        void addWork(WorkItem*);
 
         void setFrozen(bool frozen) { m_frozen = frozen; }
         bool isEmpty() { return m_queue.isEmpty(); }
@@ -460,7 +544,7 @@ private:
         void processWork();
         class WorkQueueTask: public MethodTask<WorkQueue> {
         public:
-            WorkQueueTask(WorkQueue* object): MethodTask<WorkQueue>(object) {}
+            WorkQueueTask(WorkQueue* object): MethodTask<WorkQueue>(object) { }
             virtual void runIfValid() { m_object->processWork(); }
         };
 
@@ -474,12 +558,13 @@ private:
     bool cppVariantToBool(const CppVariant&);
     int32_t cppVariantToInt32(const CppVariant&);
     WebKit::WebString cppVariantToWebString(const CppVariant&);
+    Vector<WebKit::WebString> cppVariantToWebStringArray(const CppVariant&);
 
     void logErrorToConsole(const std::string&);
     void completeNotifyDone(bool isTimeout);
     class NotifyDoneTimedOutTask: public MethodTask<LayoutTestController> {
     public:
-        NotifyDoneTimedOutTask(LayoutTestController* object): MethodTask<LayoutTestController>(object) {}
+        NotifyDoneTimedOutTask(LayoutTestController* object): MethodTask<LayoutTestController>(object) { }
         virtual void runIfValid() { m_object->completeNotifyDone(true); }
     };
 
@@ -494,12 +579,15 @@ private:
     // Used for test timeouts.
     TaskList m_taskList;
 
-    // Non-owning pointer.  The LayoutTestController is owned by the host.
+    // Non-owning pointer. The LayoutTestController is owned by the host.
     TestShell* m_shell;
 
     // If true, the test_shell will produce a plain text dump rather than a
     // text representation of the renderer.
     bool m_dumpAsText;
+
+    // If true, the test_shell will output a base64 encoded WAVE file.
+    bool m_dumpAsAudio;
 
     // If true, the test_shell will write a descriptive line for each editing
     // command.
@@ -512,6 +600,10 @@ private:
     // If true, the test_shell will output a descriptive line for each frame
     // load callback.
     bool m_dumpFrameLoadCallbacks;
+
+    // If true, the test_shell will output a descriptive line for the progress
+    // finished callback.
+    bool m_dumpProgressFinishedCallback;
 
     // If true, the test_shell will output a line of the user gesture status
     // text for some frame load callbacks.
@@ -543,21 +635,29 @@ private:
     // If true, output a message when the page title is changed.
     bool m_dumpTitleChanges;
 
+    // If true, output a descriptive line each time a permission client
+    // callback is invoked. Currently only implemented for allowImage.
+    bool m_dumpPermissionClientCallbacks;
+
     // If true, the test_shell will generate pixel results in dumpAsText mode
     bool m_generatePixelResults;
 
-    // If true, the element will be treated as editable.  This value is returned
+    // If true, output a descriptive line each time WebViewClient::createView
+    // is invoked.
+    bool m_dumpCreateView;
+
+    // If true, the element will be treated as editable. This value is returned
     // from various editing callbacks that are called just before edit operations
     // are allowed.
     bool m_acceptsEditing;
 
-    // If true, new windows can be opened via javascript or by plugins.  By
+    // If true, new windows can be opened via javascript or by plugins. By
     // default, set to false and can be toggled to true using
     // setCanOpenWindows().
     bool m_canOpenWindows;
 
     // When reset is called, go through and close all but the main test shell
-    // window.  By default, set to true but toggled to false using
+    // window. By default, set to true but toggled to false using
     // setCloseRemainingWindowsWhenComplete().
     bool m_closeRemainingWindows;
 
@@ -584,6 +684,9 @@ private:
     // If true, we will show extended information in the graphics layer tree.
     bool m_showDebugLayerTree;
 
+    // If true, layout is to target printed pages.
+    bool m_isPrinting;
+
     WorkQueue m_workQueue;
 
     CppVariant m_globalFlag;
@@ -594,9 +697,22 @@ private:
     // Bound variable tracking the directionality of the <title> tag.
     CppVariant m_titleTextDirection;
 
+    // Bound variable to return the name of this platform (chromium).
+    CppVariant m_platformName;
+
+    // Bound variable to set whether postMessages should be intercepted or not
+    CppVariant m_interceptPostMessage;
+
     WebKit::WebURL m_userStyleSheetLocation;
 
-    OwnPtr<WebKit::WebSpeechInputControllerMock> m_speechInputControllerMock;
+    // WAV audio data is stored here.
+    WebKit::WebArrayBufferView m_audioData;
+
+    bool m_shouldStayOnPageAfterHandlingBeforeUnload;
+
+    // If true, calls to WebViewHost::enter/exitFullScreenNow will not result in 
+    // calls to Document::will/did/Enter/ExitFullScreen.
+    bool m_hasCustomFullScreenBehavior;
 };
 
 #endif // LayoutTestController_h

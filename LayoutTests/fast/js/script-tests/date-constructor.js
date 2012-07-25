@@ -6,7 +6,7 @@ description(
 
 var object = new Object;
 object.valueOf = function() { return 1111; }
-object.toSTring = function() { return "2222"; }
+object.toString = function() { return "2222"; }
 
 shouldBe('isNaN(new Date(""))', 'true');
 
@@ -35,6 +35,15 @@ shouldBe('new Date(new Date(1111, 1, 1, 1, 1, 1, 1)).getTime() - timeZoneOffset'
 shouldBe('new Date(new Date(1111, 1, 1, 1, 1, 1, 1, 1)).getTime() - timeZoneOffset', '-27104799538999');
 shouldBe('new Date(new Date(1111, 1, 1, 1, 1, 1, 1, 1, 1)).getTime() - timeZoneOffset', '-27104799538999');
 
+shouldBe("Number(new Date(new Date(Infinity, 1, 1, 1, 1, 1, 1, 1, 1)).getTime() - timeZoneOffset)", 'Number.NaN');
+shouldBe("Number(new Date(new Date(1, Infinity, 1, 1, 1, 1, 1, 1, 1)).getTime() - timeZoneOffset)", 'Number.NaN');
+shouldBe("Number(new Date(new Date(1, 1, Infinity, 1, 1, 1, 1, 1, 1)).getTime() - timeZoneOffset)", 'Number.NaN');
+shouldBe("Number(new Date(new Date(1, 1, 1, Infinity, 1, 1, 1, 1, 1)).getTime() - timeZoneOffset)", 'Number.NaN');
+shouldBe("Number(new Date(new Date(1, 1, 1, 1, Infinity, 1, 1, 1, 1)).getTime() - timeZoneOffset)", 'Number.NaN');
+shouldBe("Number(new Date(new Date(1, 1, 1, 1, 1, Infinity, 1, 1, 1)).getTime() - timeZoneOffset)", 'Number.NaN');
+shouldBe("Number(new Date(new Date(1, 1, 1, 1, 1, 1, Infinity, 1, 1)).getTime() - timeZoneOffset)", 'Number.NaN');
+shouldBe("Number(new Date(new Date(1, 1, 1, 1, 1, 1, 1, 1, Infinity)).getTime() - timeZoneOffset)", '-2174770738999');
+
 // In Firefox, the results of the following tests are timezone-dependent, which likely implies that the implementation is not quite correct.
 // Our results are even worse, though, as the dates are clipped: (new Date(1111, 1201).getTime()) == (new Date(1111, 601).getTime())
 // shouldBe('new Date(1111, 1111, 1111, 1111, 1111, 1111, 1111, 1111).getTime() - timeZoneOffset', '-24085894227889');
@@ -57,5 +66,3 @@ shouldBe('testStr', '\"1234567\"');
 testStr = "";
 Date.UTC(year, month, date, hours, minutes, seconds, ms);
 shouldBe('testStr', '\"1234567\"');
-
-var successfullyParsed = true;

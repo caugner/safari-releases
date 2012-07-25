@@ -41,7 +41,7 @@
 #include "Task.h"
 #include "WebDragOperation.h"
 #include "WebInputEvent.h"
-#include "WebPoint.h"
+#include "platform/WebPoint.h"
 
 class TestShell;
 
@@ -62,6 +62,9 @@ public:
     // Simulate drag&drop system call.
     void doDragDrop(const WebKit::WebDragData&, WebKit::WebDragOperationsMask);
 
+    // Test helper for dragging out images.
+    void dumpFilenameBeingDragged(const CppArgumentList&, CppVariant*);
+
     // JS callback methods.
     void mouseDown(const CppArgumentList&, CppVariant*);
     void mouseUp(const CppArgumentList&, CppVariant*);
@@ -69,13 +72,17 @@ public:
     void leapForward(const CppArgumentList&, CppVariant*);
     void keyDown(const CppArgumentList&, CppVariant*);
     void dispatchMessage(const CppArgumentList&, CppVariant*);
+    // FIXME: These aren't really events. They should be moved to layout controller.
     void textZoomIn(const CppArgumentList&, CppVariant*);
     void textZoomOut(const CppArgumentList&, CppVariant*);
     void zoomPageIn(const CppArgumentList&, CppVariant*);
     void zoomPageOut(const CppArgumentList&, CppVariant*);
+    void scalePageBy(const CppArgumentList&, CppVariant*);
+
     void mouseScrollBy(const CppArgumentList&, CppVariant*);
     void continuousMouseScrollBy(const CppArgumentList&, CppVariant*);
     void scheduleAsynchronousClick(const CppArgumentList&, CppVariant*);
+    void scheduleAsynchronousKeyDown(const CppArgumentList&, CppVariant*);
     void beginDragWithFiles(const CppArgumentList&, CppVariant*);
     CppVariant dragMode;
 
@@ -89,6 +96,15 @@ public:
     void touchMove(const CppArgumentList&, CppVariant*);
     void touchStart(const CppArgumentList&, CppVariant*);
     void updateTouchPoint(const CppArgumentList&, CppVariant*);
+
+    void gestureFlingCancel(const CppArgumentList&, CppVariant*);
+    void gestureFlingStart(const CppArgumentList&, CppVariant*);
+    void gestureScrollBegin(const CppArgumentList&, CppVariant*);
+    void gestureScrollEnd(const CppArgumentList&, CppVariant*);
+    void gestureScrollFirstPoint(const CppArgumentList&, CppVariant*);
+    void gestureScrollUpdate(const CppArgumentList&, CppVariant*);
+    void gestureTap(const CppArgumentList&, CppVariant*);
+    void gestureEvent(WebKit::WebInputEvent::Type, const CppArgumentList&);
 
     // Unimplemented stubs
     void contextClick(const CppArgumentList&, CppVariant*);
@@ -118,7 +134,7 @@ private:
     bool isDragMode() { return dragMode.isBool() && dragMode.toBoolean(); }
 
     // Sometimes we queue up mouse move and mouse up events for drag drop
-    // handling purposes.  These methods dispatch the event.
+    // handling purposes. These methods dispatch the event.
     void doMouseMove(const WebKit::WebMouseEvent&);
     void doMouseUp(const WebKit::WebMouseEvent&);
     static void doLeapForward(int milliseconds);
@@ -145,8 +161,11 @@ private:
 
     TaskList m_taskList;
 
-    // Non-owning pointer.  The EventSender is owned by the TestShell.
+    // Non-owning pointer. The EventSender is owned by the TestShell.
     TestShell* m_shell;
+
+    // Location of the touch point that initiated a gesture.
+    WebKit::WebPoint m_currentGestureLocation;
 
     // Location of last mouseMoveTo event.
     static WebKit::WebPoint lastMousePos;

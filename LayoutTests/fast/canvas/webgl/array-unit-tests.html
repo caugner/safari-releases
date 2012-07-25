@@ -1,6 +1,5 @@
 <html>
 <head>
-<link rel="stylesheet" href="../../js/resources/js-test-style.css"/>
 <script src="../../js/resources/js-test-pre.js"></script>
 <script src="resources/webgl-test.js"></script>
 </head>
@@ -55,6 +54,56 @@ function printSummary() {
     debug("Test passed.");
   } else {
     debug("TEST FAILED");
+  }
+}
+
+var byteLength;
+var subBuffer;
+function testSlice() {
+  function test(subBuf, starts, size) {
+    byteLength = size;
+    subBuffer = eval(subBuf);
+    var subArray = new Int8Array(subBuffer);
+    assertEq(subBuf, subBuffer.byteLength, byteLength);
+    for (var i = 0; i < size; ++i)
+      assertEq('Element ' + i, starts + i, subArray[i]);
+  }
+
+  try {
+    var buffer = new ArrayBuffer(32);
+    var array = new Int8Array(buffer);
+    for (var i = 0; i < 32; ++i)
+      array[i] = i;
+
+    test("buffer.slice(0)", 0, 32);
+    test("buffer.slice(16)", 16, 16);
+    test("buffer.slice(24)", 24, 8);
+    test("buffer.slice(32)", 32, 0);
+    test("buffer.slice(40)", 32, 0);
+    test("buffer.slice(80)", 32, 0);
+
+    test("buffer.slice(-8)", 24, 8);
+    test("buffer.slice(-16)", 16, 16);
+    test("buffer.slice(-24)", 8, 24);
+    test("buffer.slice(-32)", 0, 32);
+    test("buffer.slice(-40)", 0, 32);
+    test("buffer.slice(-80)", 0, 32);
+
+    test("buffer.slice(0, 32)", 0, 32);
+    test("buffer.slice(0, 16)", 0, 16);
+    test("buffer.slice(8, 24)", 8, 16);
+    test("buffer.slice(16, 32)", 16, 16);
+    test("buffer.slice(24, 16)", 24, 0);
+
+    test("buffer.slice(16, -8)", 16, 8);
+    test("buffer.slice(-20, 30)", 12, 18);
+
+    test("buffer.slice(-8, -20)", 24, 0);
+    test("buffer.slice(-20, -8)", 12, 12);
+    test("buffer.slice(-40, 16)", 0, 16);
+    test("buffer.slice(-40, 40)", 0, 32);
+  } catch (e) {
+    fail(e);
   }
 }
 
@@ -170,7 +219,11 @@ function testIntegralArrayTruncationBehavior(type, name, unsigned) {
 
   if (unsigned) {
     sourceData = [0.6, 10.6];
-    expectedResults = [0, 10];
+    if (type === Uint8ClampedArray) {
+      expectedResults = [1, 11];
+    } else {
+      expectedResults = [0, 10];
+    }
   } else {
     sourceData = [0.6, 10.6, -0.6, -10.6];
     expectedResults = [0, 10, 0, -10];
@@ -210,6 +263,14 @@ function testIntegralArrayTruncationBehavior(type, name, unsigned) {
       }
       break;
     case Uint8Array:
+      for (var ii = 0; ii < sourceData.length; ++ii) {
+        for (var jj = 0; jj < numIterations; ++jj) {
+          array[jj] = sourceData[ii];
+          assertEq('Storing ' + sourceData[ii], expectedResults[ii], array[jj]);
+        }
+      }
+      break;
+    case Uint8ClampedArray:
       for (var ii = 0; ii < sourceData.length; ++ii) {
         for (var jj = 0; jj < numIterations; ++jj) {
           array[jj] = sourceData[ii];
@@ -393,6 +454,21 @@ function testSubarray(type, name) {
   }
 }
 
+function testSubarrayOffsetAndLengthClamping(type, name) {
+  running('test ' + name + ' Subarray offset and length clamping');
+  try {
+    var array = new type([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    var subarray1 = array.subarray(0, 5);
+    var subarray2 = subarray1.subarray(-2, 10);
+    assertEq('subarray2.length', 2, subarray2.length);
+    assertEq('Element ' + 0, 3, subarray2[0]);
+    assertEq('Element ' + 1, 4, subarray2[1]);
+    pass();
+  } catch (e) {
+    fail(e);
+  }
+}
+
 function negativeTestSubarray(type, name) {
   running('negativeTest ' + name + ' Subarray');
   try {
@@ -480,7 +556,11 @@ function testConstructionWithOutOfRangeValues(type, name) {
     shouldThrowIndexSizeErr(function() {
         var buffer = new ArrayBuffer(4);
         var array = new type(buffer, 4, 0x3FFFFFFF);
-    }, "Construction of " + name + " with out-of-range values");
+    }, "Construction of " + name + " with out-of-range number of elements");
+    shouldThrowIndexSizeErr(function() {
+        var buffer = new ArrayBuffer(4);
+        var array = new type(buffer, 8);
+    }, "Construction of " + name + " with out-of-range offset");
 }
 
 function testConstructionWithNegativeOutOfRangeValues(type, name) {
@@ -545,6 +625,21 @@ function testConstructionWithBothArrayBufferAndLength(type, name, elementSizeInB
     }
 }
 
+function testConstructionWithSubPortionOfArrayBuffer(type, name, elementSizeInBytes) {
+    if (elementSizeInBytes > 1) {
+        // Test construction with a valid sub-portion of an array buffer
+        // (whose size is not an integral multiple of the element size).
+        var size = 4 * elementSizeInBytes + (elementSizeInBytes / 2);
+        var buf = new ArrayBuffer(size);
+        try {
+            var array = new type(buf, 0, 2);
+            testPassed("new " + name + "(new ArrayBuffer(" + size + "), 0, 2) succeeded");
+        } catch (e) {
+            testFailed("new " + name + "(new ArrayBuffer(" + size + "), 0, 2) failed: " + e);
+        }
+    }
+}
+
 // These need to be global for shouldBe to see them
 var array;
 var typeSize;
@@ -597,18 +692,93 @@ function testSubarrayWithDefaultValues(type, name, sz) {
     }
 }
 
-function testSettingFromArrayWithOutOfRangeOffset(type, name) {
-    var webglArray = new type(32);
-    var array = [];
-    for (var i = 0; i < 16; i++) {
-        array.push(i);
-    }
+function setWithInvalidOffset(type, name, length,
+                              sourceType, sourceName, sourceLength,
+                              offset, offsetDescription) {
+    var webglArray = new type(length);
+    var sourceArray = new sourceType(sourceLength);
+    for (var i = 0; i < sourceLength; i++)
+        sourceArray[i] = 42 + i;
     try {
-        webglArray.set(array, 0x7FFFFFF8);
-        testFailed("Setting " + name + " from array with out-of-range offset was not caught");
+        webglArray.set(sourceArray, offset);
+        testFailed("Setting " + name + " from " + sourceName + " with " +
+                   offsetDescription + " offset was not caught");
     } catch (e) {
-        testPassed("Setting " + name + " from array with out-of-range offset was caught");
+        testPassed("Setting " + name + " from " + sourceName + " with " +
+                   offsetDescription + " offset was caught");
     }
+}
+
+function setWithValidOffset(type, name, length,
+                            sourceType, sourceName, sourceLength,
+                            offset, offsetDescription) {
+    running("Setting " + name + " from " + sourceName + " with " +
+            offsetDescription + " offset");
+    var webglArray = new type(length);
+    var sourceArray = new sourceType(sourceLength);
+    for (var i = 0; i < sourceLength; i++)
+        sourceArray[i] = 42 + i;
+    try {
+        webglArray.set(sourceArray, offset);
+        offset = Math.floor(offset);
+        for (var i = 0; i < sourceLength; i++) {
+            assertEq("Element " + i + offset, sourceArray[i], webglArray[i + offset]);
+        }
+        pass();
+    } catch (e) {
+        fail(e);
+    }
+}
+
+
+function testSettingFromArrayWithOutOfRangeOffset(type, name) {
+    setWithInvalidOffset(type, name, 32, Array, "array", 16,
+                         0x7FFFFFF8, "out-of-range");
+}
+
+function testSettingFromTypedArrayWithOutOfRangeOffset(type, name) {
+    setWithInvalidOffset(type, name, 32, type, name, 16,
+                         0x7FFFFFF8, "out-of-range");
+}
+
+function testSettingFromArrayWithNegativeOffset(type, name) {
+    setWithInvalidOffset(type, name, 32, Array, "array", 16,
+                         -1, "negative");
+}
+
+function testSettingFromTypedArrayWithNegativeOffset(type, name) {
+    setWithInvalidOffset(type, name, 32, type, name, 16,
+                         -1, "negative");
+}
+
+function testSettingFromArrayWithMinusZeroOffset(type, name) {
+    setWithValidOffset(type, name, 32, Array, "array", 16,
+                       -0, "-0");
+}
+
+function testSettingFromTypedArrayWithMinusZeroOffset(type, name) {
+    setWithValidOffset(type, name, 32, type, name, 16,
+                       -0, "-0");
+}
+
+function testSettingFromArrayWithBoundaryOffset(type, name) {
+    setWithValidOffset(type, name, 32, Array, "array", 16,
+                       16, "boundary");
+}
+
+function testSettingFromTypedArrayWithBoundaryOffset(type, name) {
+    setWithValidOffset(type, name, 32, type, name, 16,
+                       16, "boundary");
+}
+
+function testSettingFromArrayWithNonIntegerOffset(type, name) {
+    setWithValidOffset(type, name, 32, Array, "array", 16,
+                       16.999, "non-integer");
+}
+
+function testSettingFromTypedArrayWithNonIntegerOffset(type, name) {
+    setWithValidOffset(type, name, 32, type, name, 16,
+                       16.999, "non-integer");
 }
 
 function testSettingFromFakeArrayWithOutOfRangeLength(type, name) {
@@ -623,19 +793,6 @@ function testSettingFromFakeArrayWithOutOfRangeLength(type, name) {
     }
 }
 
-function testSettingFromTypedArrayWithOutOfRangeOffset(type, name) {
-    var webglArray = new type(32);
-    var srcArray = new type(16);
-    for (var i = 0; i < 16; i++) {
-        srcArray[i] = i;
-    }
-    try {
-        webglArray.set(srcArray, 0x7FFFFFF8);
-        testFailed("Setting " + name + " from " + name + " with out-of-range offset was not caught");
-    } catch (e) {
-        testPassed("Setting " + name + " from " + name + " with out-of-range offset was caught");
-    }
-}
 
 function negativeTestGetAndSetMethods(type, name) {
     array = new type([2, 3]);
@@ -674,6 +831,12 @@ function testNaNConversion(type, name) {
         results[i] = array[i];
       }
       break;
+    case Float64Array:
+      for (var i = 0; i < array.length; ++i) {
+        array[i] = NaN;
+        results[i] = array[i];
+      }
+      break;
     case Int8Array:
       for (var i = 0; i < array.length; ++i) {
         array[i] = NaN;
@@ -698,6 +861,12 @@ function testNaNConversion(type, name) {
         results[i] = array[i];
       }
       break;
+    case Uint8ClampedArray:
+      for (var i = 0; i < array.length; ++i) {
+        array[i] = NaN;
+        results[i] = array[i];
+      }
+      break;
     case Uint16Array:
       for (var i = 0; i < array.length; ++i) {
         array[i] = NaN;
@@ -716,7 +885,7 @@ function testNaNConversion(type, name) {
     }
 
     // Some types preserve NaN values; all other types convert NaN to zero.
-    if (type === Float32Array) {
+    if (type === Float32Array || type === Float64Array) {
       assert('initial NaN preserved', isNaN(new type([NaN])[0]));
       for (var i = 0; i < array.length; ++i)
         assert('NaN preserved via setter', isNaN(results[i]));
@@ -739,6 +908,8 @@ function testNaNConversion(type, name) {
 function runTests() {
   allPassed = true;
 
+  testSlice();
+
   // The "name" attribute is a concession to browsers which don't
   // implement the "name" property on function objects
   var testCases =
@@ -746,6 +917,13 @@ function runTests() {
        unsigned: false,
        integral: false,
        elementSizeInBytes: 4,
+       testValues:     [ -500.5, 500.5 ],
+       expectedValues: [ -500.5, 500.5 ]
+      },
+      {name: "Float64Array",
+       unsigned: false,
+       integral: false,
+       elementSizeInBytes: 8,
        testValues:     [ -500.5, 500.5 ],
        expectedValues: [ -500.5, 500.5 ]
       },
@@ -776,6 +954,13 @@ function runTests() {
        elementSizeInBytes: 1,
        testValues:     [ 0, 255,  -1, 256 ],
        expectedValues: [ 0, 255, 255,   0 ]
+      },
+      {name: "Uint8ClampedArray",
+       unsigned: true,
+       integral: true,
+       elementSizeInBytes: 1,
+       testValues:     [ 0, 255,  -1, 256 ],
+       expectedValues: [ 0, 255,   0, 255 ]
       },
       {name: "Uint16Array",
        unsigned: true,
@@ -820,6 +1005,7 @@ function runTests() {
     testSetFromArray(type, name);
     negativeTestSetFromArray(type, name);
     testSubarray(type, name);
+    testSubarrayOffsetAndLengthClamping(type, name);
     negativeTestSubarray(type, name);
     testSetBoundaryConditions(type,
                               name,
@@ -836,11 +1022,20 @@ function runTests() {
     testConstructionWithUnalignedLength(type, name, testCase.elementSizeInBytes);
     testConstructionOfHugeArray(type, name, testCase.elementSizeInBytes);
     testConstructionWithBothArrayBufferAndLength(type, name, testCase.elementSizeInBytes);
+    testConstructionWithSubPortionOfArrayBuffer(type, name, testCase.elementSizeInBytes);
     testSubarrayWithOutOfRangeValues(type, name, testCase.elementSizeInBytes);
     testSubarrayWithDefaultValues(type, name, testCase.elementSizeInBytes);
     testSettingFromArrayWithOutOfRangeOffset(type, name);
-    testSettingFromFakeArrayWithOutOfRangeLength(type, name);
     testSettingFromTypedArrayWithOutOfRangeOffset(type, name);
+    testSettingFromArrayWithNegativeOffset(type, name);
+    testSettingFromTypedArrayWithNegativeOffset(type, name);
+    testSettingFromArrayWithMinusZeroOffset(type, name);
+    testSettingFromTypedArrayWithMinusZeroOffset(type, name);
+    testSettingFromArrayWithBoundaryOffset(type, name);
+    testSettingFromTypedArrayWithBoundaryOffset(type, name);
+    testSettingFromArrayWithNonIntegerOffset(type, name);
+    testSettingFromTypedArrayWithNonIntegerOffset(type, name);
+    testSettingFromFakeArrayWithOutOfRangeLength(type, name);
     negativeTestGetAndSetMethods(type, name);
     testNaNConversion(type, name);
   }
@@ -849,7 +1044,6 @@ function runTests() {
 }
 
 runTests();
-successfullyParsed = true;
 
 </script>
 <script src="../../js/resources/js-test-post.js"></script>

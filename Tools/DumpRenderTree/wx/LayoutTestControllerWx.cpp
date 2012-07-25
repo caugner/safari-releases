@@ -376,18 +376,24 @@ void LayoutTestController::addMockSpeechInputResult(JSStringRef result, double c
     // See https://bugs.webkit.org/show_bug.cgi?id=39485.
 }
 
+void LayoutTestController::setMockSpeechInputDumpRect(bool flag)
+{
+    // FIXME: Implement for speech input layout tests.
+    // See https://bugs.webkit.org/show_bug.cgi?id=39485.
+}
+
+void LayoutTestController::startSpeechInput(JSContextRef inputElement)
+{
+    // FIXME: Implement for speech input layout tests.
+    // See https://bugs.webkit.org/show_bug.cgi?id=39485.
+}
+
 void LayoutTestController::setIconDatabaseEnabled(bool iconDatabaseEnabled)
 {
     // FIXME: implement
 }
 
 bool LayoutTestController::pauseAnimationAtTimeOnElementWithId(JSStringRef animationName, double time, JSStringRef elementId)
-{
-    // FIXME: implement
-    return false;
-}
-
-bool LayoutTestController::sampleSVGAnimationForElementAtTime(JSStringRef animationId, double time, JSStringRef elementId)
 {
     // FIXME: implement
     return false;
@@ -450,12 +456,12 @@ void LayoutTestController::removeAllVisitedLinks()
     // FIXME: Implement this.
 }
 
-void LayoutTestController::setTimelineProfilingEnabled(bool enabled)
+void LayoutTestController::evaluateScriptInIsolatedWorldAndReturnValue(unsigned worldID, JSObjectRef globalObject, JSStringRef script)
 {
 
 }
 
-void LayoutTestController::evaluateScriptInIsolatedWorld(unsigned worldId, JSObjectRef globalObject, JSStringRef script)
+void LayoutTestController::evaluateScriptInIsolatedWorld(unsigned worldID, JSObjectRef globalObject, JSStringRef script)
 {
 
 }
@@ -531,19 +537,8 @@ JSRetainPtr<JSStringRef> LayoutTestController::markerTextForListItem(JSContextRe
     return 0;
 }
 
-JSRetainPtr<JSStringRef> LayoutTestController::shadowPseudoId(JSContextRef context, JSValueRef nodeObject) const
-{
-    return 0;
-}
-
 JSValueRef LayoutTestController::computedStyleIncludingVisitedInfo(JSContextRef, JSValueRef)
 {
-    return 0;
-}
-
-JSValueRef LayoutTestController::nodesFromRect(JSContextRef context, JSValueRef value, int x, int y, unsigned top, unsigned right, unsigned bottom, unsigned left, bool ignoreClipping)
-{
-    // FIXME: Implement this.
     return 0;
 }
 
@@ -558,18 +553,6 @@ void LayoutTestController::setEditingBehavior(const char* editingBehavior)
 
 void LayoutTestController::abortModal()
 {
-}
-
-bool LayoutTestController::hasSpellingMarker(int, int)
-{
-    // FIXME: Implement
-    return false;
-}
-
-bool LayoutTestController::hasGrammarMarker(int, int)
-{
-    // FIXME: Implement
-    return false;
 }
 
 void LayoutTestController::dumpConfigurationForViewport(int /*deviceDPI*/, int /*deviceWidth*/, int /*deviceHeight*/, int /*availableWidth*/, int /*availableHeight*/)
@@ -641,19 +624,42 @@ void LayoutTestController::deleteLocalStorageForOrigin(JSStringRef URL)
     // FIXME: Implement.
 }
 
-const OpaqueJSValue* LayoutTestController::shadowRoot(const OpaqueJSContext*, const OpaqueJSValue*)
+void LayoutTestController::setTextDirection(JSStringRef direction)
 {
     // FIXME: Implement.
-    return 0;
 }
 
-JSValueRef LayoutTestController::ensureShadowRoot(JSContextRef context, JSValueRef jsElement)
+void LayoutTestController::allowRoundingHacks()
+{
+}
+
+void LayoutTestController::addChromeInputField()
+{
+}
+
+void LayoutTestController::removeChromeInputField()
+{
+}
+
+void LayoutTestController::focusWebView()
+{
+}
+
+void LayoutTestController::setBackingScaleFactor(double)
+{
+}
+
+void LayoutTestController::simulateDesktopNotificationClick(JSStringRef title)
+{
+    // FIXME: Implement.
+}
+
+void LayoutTestController::resetPageVisibility()
 {
     // FIXME: Implement this.
-    return JSValueMakeUndefined(context);
 }
 
-void LayoutTestController::removeShadowRoot(JSContextRef context, JSValueRef jsElement)
+void LayoutTestController::setPageVisibility(const char*)
 {
     // FIXME: Implement this.
 }

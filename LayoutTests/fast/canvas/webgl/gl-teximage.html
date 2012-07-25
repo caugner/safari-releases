@@ -3,7 +3,6 @@
 <html>
 <head>
 <title>WebGL texImage2D conformance test.</title>
-<link rel="stylesheet" href="../../js/resources/js-test-style.css"/>
 <script src="../../js/resources/js-test-pre.js"></script>
 <script src="resources/webgl-test.js"> </script>
 <script src="resources/webgl-test-utils.js"> </script>
@@ -394,12 +393,9 @@ function runTests(imgs) {
   checkPixelRange(buf, middle, center, [ 255, 0, 0, 255 ], 10);
 
   debug("");
-  successfullyParsed = true;
-  shouldBeTrue("successfullyParsed");
-  debug('<br /><span class="pass">TEST COMPLETE</span>');
-  if (window.layoutTestController)
-    layoutTestController.notifyDone();
+  isSuccessfullyParsed();
 }
+
 </script>
 </body>
 </html>

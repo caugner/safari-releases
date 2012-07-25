@@ -29,6 +29,7 @@ module WTR {
         // The basics.
         void dumpAsText(in boolean dumpPixels);
         void dumpChildFramesAsText();
+        void waitForPolicyDelegate();
         void waitUntilDone();
         void notifyDone();
 
@@ -40,6 +41,7 @@ module WTR {
         void dumpStatusCallbacks();
         void dumpTitleChanges();
         void dumpFullScreenCallbacks();
+        void dumpConfigurationForViewport(in int deviceDPI, in int deviceWidth, in int deviceHeight, in int availableWidth, in int availableHeight);
 
         // Special options.
         void keepWebHistory();
@@ -50,6 +52,11 @@ module WTR {
         void setAllowUniversalAccessFromFileURLs(in boolean value);
         void setAllowFileAccessFromFileURLs(in boolean value);
         void setFrameFlatteningEnabled(in boolean value);
+        void setGeolocationPermission(in boolean value);
+        void setJavaScriptCanAccessClipboard(in boolean value);
+        void setPrivateBrowsingEnabled(in boolean value);
+        void setPopupBlockingEnabled(in boolean value);
+        void setAuthorAndUserStylesEnabled(in boolean value);
         void addOriginAccessWhitelistEntry(in DOMString sourceOrigin, in DOMString destinationProtocol, in DOMString destinationHost, in boolean allowDestinationSubdomains);
         void removeOriginAccessWhitelistEntry(in DOMString sourceOrigin, in DOMString destinationProtocol, in DOMString destinationHost, in boolean allowDestinationSubdomains);
 
@@ -62,11 +69,8 @@ module WTR {
         DOMString markerTextForListItem(in object element);
         unsigned long windowCount();
 
-        // Shadow DOM.
-        object shadowRoot(in object element);
-        object ensureShadowRoot(in object element);
-        void removeShadowRoot(in object element);
-        DOMString shadowPseudoId(in object element);
+        // Special DOM variables.
+        attribute boolean globalFlag;
 
         // Repaint testing.
         void testRepaint();
@@ -79,9 +83,12 @@ module WTR {
         DOMString pageSizeAndMarginsInPixels(in int pageIndex, in int width, in int height, in int marginTop, in int marginRight, in int marginBottom, in int marginLeft);
         boolean isPageBoxVisible(in int pageIndex);
 
+        [PassContext] void setValueForUser(in object element, in DOMString value);
+
         // Animation testing.
         int numberOfActiveAnimations();
         boolean pauseAnimationAtTimeOnElementWithId(in DOMString animationName, in double time, in DOMString elementId);
+        boolean pauseTransitionAtTimeOnElementWithId(in DOMString propertyName, in double time, in DOMString elementId);
         void suspendAnimations();
         void resumeAnimations();
 
@@ -93,6 +100,10 @@ module WTR {
         void clearAllDatabases();
         void setDatabaseQuota(in unsigned long long quota);
         DOMString pathToLocalResource(in DOMString url);
+
+        // Application Cache API
+        void clearAllApplicationCaches();
+        void setAppCacheMaximumSize(in unsigned long long size);
 
         // Compositing testing.
         DOMString layerTreeAsText();
@@ -107,11 +118,35 @@ module WTR {
         void showWebInspector();
         void closeWebInspector();
         void evaluateInWebInspector(in long callID, in DOMString script);
-        void setTimelineProfilingEnabled(in boolean enabled);
 
         void setPOSIXLocale(in DOMString locale);
 
+        void setTextDirection(in DOMString direction);
+
         void setWillSendRequestReturnsNull(in boolean flag);
+        
+        void setShouldStayOnPageAfterHandlingBeforeUnload(in boolean flag);
+        
+        // Focus testing.
+        void addChromeInputField(in object callback);
+        void removeChromeInputField(in object callback);
+        void focusWebView(in object callback);
+
+        void setBackingScaleFactor(in double backingScaleFactor, in object callback);
+
+        void setWindowIsKey(in boolean isKey);
+
+        // FIXME: handle non-boolean preferences.
+        void overridePreference(in DOMString preference, in boolean value);
+
+        // Page Visibility API
+        void setPageVisibility(in DOMString state);
+        void resetPageVisibility();
+
+        readonly attribute DOMString platformName;
+
+        // Control full screen behavior.
+        void setHasCustomFullScreenBehavior(in boolean value);
     };
 
 }

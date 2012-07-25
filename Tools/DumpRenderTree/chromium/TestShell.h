@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Google Inc. All rights reserved.
+ * Copyright (C) 2012 Google Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -33,9 +33,9 @@
 
 #include "AccessibilityController.h"
 #include "EventSender.h"
+#include "GamepadController.h"
 #include "LayoutTestController.h"
 #include "NotificationPresenter.h"
-#include "PlainTextController.h"
 #include "TestEventPrinter.h"
 #include "TextInputController.h"
 #include "WebPreferences.h"
@@ -51,6 +51,7 @@ namespace WebKit {
 class WebDevToolsAgentClient;
 class WebFrame;
 class WebNotificationPresenter;
+class WebThread;
 class WebView;
 class WebURL;
 }
@@ -58,6 +59,7 @@ class WebURL;
 class DRTDevToolsAgent;
 class DRTDevToolsCallArgs;
 class DRTDevToolsClient;
+class WebPermissions;
 
 struct TestParams {
     bool dumpTree;
@@ -75,26 +77,31 @@ struct TestParams {
         , dumpPixels(false)
         , debugRenderTree(false)
         , debugLayerTree(false)
-        , printSeparators(false) {}
+        , printSeparators(false) { }
 };
 
 class TestShell {
 public:
-    TestShell(bool testShellMode);
+    TestShell();
     ~TestShell();
+
+    void initialize();
 
     // The main WebView.
     WebKit::WebView* webView() const { return m_webView; }
     // Returns the host for the main WebView.
-    WebViewHost* webViewHost() const { return m_webViewHost; }
+    WebViewHost* webViewHost() const { return m_webViewHost.get(); }
     LayoutTestController* layoutTestController() const { return m_layoutTestController.get(); }
     EventSender* eventSender() const { return m_eventSender.get(); }
     AccessibilityController* accessibilityController() const { return m_accessibilityController.get(); }
+    GamepadController* gamepadController() const { return m_gamepadController.get(); }
     NotificationPresenter* notificationPresenter() const { return m_notificationPresenter.get(); }
     TestEventPrinter* printer() const { return m_printer.get(); }
 
     WebPreferences* preferences() { return &m_prefs; }
     void applyPreferences() { m_prefs.applyTo(m_webView); }
+
+    WebPermissions* webPermissions() { return m_webPermissions.get(); }
 
     void bindJSObjectsToWindow(WebKit::WebFrame*);
     void runFileTest(const TestParams&);
@@ -103,7 +110,7 @@ public:
     void waitTestFinished();
 
     // Operations to the main window.
-    void loadURL(const WebKit::WebURL& url);
+    void loadURL(const WebKit::WebURL&);
     void reload();
     void goToOffset(int offset);
     int navigationEntryCount() const;
@@ -125,14 +132,16 @@ public:
     bool allowExternalPages() const { return m_allowExternalPages; }
     void setAllowExternalPages(bool allowExternalPages) { m_allowExternalPages = allowExternalPages; }
 
-    void setAcceleratedCompositingEnabled(bool enabled) { m_acceleratedCompositingEnabled = enabled; }
-    void setCompositeToTexture(bool enabled) { m_compositeToTexture = enabled; }
+    void setTestShellMode(bool testShellMode) { m_testShellMode = testShellMode; }
+    void setAcceleratedCompositingForVideoEnabled(bool enabled) { m_acceleratedCompositingForVideoEnabled = enabled; }
+    void setThreadedCompositingEnabled(bool enabled) { m_threadedCompositingEnabled = enabled; }
     void setForceCompositingMode(bool enabled) { m_forceCompositingMode = enabled; }
     void setAccelerated2dCanvasEnabled(bool enabled) { m_accelerated2dCanvasEnabled = enabled; }
-    void setLegacyAccelerated2dCanvasEnabled(bool enabled) { m_legacyAccelerated2dCanvasEnabled = enabled; }
-    void setAcceleratedDrawingEnabled(bool enabled) { m_acceleratedDrawingEnabled = enabled; }
+    void setDeferred2dCanvasEnabled(bool enabled) { m_deferred2dCanvasEnabled = enabled; }
+    void setAcceleratedPaintingEnabled(bool enabled) { m_acceleratedPaintingEnabled = enabled; }
+    void setPerTilePaintingEnabled(bool enabled) { m_perTilePaintingEnabled = enabled; }
 #if defined(OS_WIN)
-    // Access to the finished event.  Used by the static WatchDog thread.
+    // Access to the finished event. Used by the static WatchDog thread.
     HANDLE finishedEvent() { return m_finishedEvent; }
 #endif
 
@@ -155,6 +164,9 @@ public:
     // testing where we only want to have the output from the last load.
     void setDumpWhenFinished(bool dumpWhenFinished) { m_dumpWhenFinished = dumpWhenFinished; }
 
+    void setIsDisplayingModalDialog(bool isDisplayingModalDialog) { m_isDisplayingModalDialog = isDisplayingModalDialog; }
+    bool isDisplayingModalDialog() const { return m_isDisplayingModalDialog; }
+
     WebViewHost* createNewWindow(const WebKit::WebURL&);
     void closeWindow(WebViewHost*);
     void closeRemainingWindows();
@@ -173,6 +185,10 @@ public:
     typedef Vector<WebViewHost*> WindowList;
     WindowList windowList() const { return m_windowList; }
 
+    // Returns a string representation of an URL's spec that does not depend on
+    // the location of the layout test in the file system.
+    std::string normalizeLayoutTestURL(const std::string&);
+
 private:
     WebViewHost* createNewWindow(const WebKit::WebURL&, DRTDevToolsAgent*);
     void createMainWindow();
@@ -189,31 +205,38 @@ private:
     WebKit::WebView* m_webView;
     WebKit::WebWidget* m_focusedWidget;
     bool m_testShellMode;
-    WebViewHost* m_webViewHost;
     WebViewHost* m_devTools;
+
+    // Be careful of the destruction order of the following objects.
+    OwnPtr<TestEventPrinter> m_printer;
+    OwnPtr<WebPermissions> m_webPermissions;
     OwnPtr<DRTDevToolsAgent> m_drtDevToolsAgent;
     OwnPtr<DRTDevToolsClient> m_drtDevToolsClient;
     OwnPtr<AccessibilityController> m_accessibilityController;
+    OwnPtr<GamepadController> m_gamepadController;
     OwnPtr<EventSender> m_eventSender;
     OwnPtr<LayoutTestController> m_layoutTestController;
-    OwnPtr<PlainTextController> m_plainTextController;
     OwnPtr<TextInputController> m_textInputController;
     OwnPtr<NotificationPresenter> m_notificationPresenter;
-    OwnPtr<TestEventPrinter> m_printer;
+    OwnPtr<WebViewHost> m_webViewHost;
+    OwnPtr<WebKit::WebThread> m_webCompositorThread;
+
     TestParams m_params;
     int m_timeout; // timeout value in millisecond
     bool m_allowExternalPages;
-    bool m_acceleratedCompositingEnabled;
-    bool m_compositeToTexture;
+    bool m_acceleratedCompositingForVideoEnabled;
+    bool m_threadedCompositingEnabled;
     bool m_forceCompositingMode;
     bool m_accelerated2dCanvasEnabled;
-    bool m_legacyAccelerated2dCanvasEnabled;
-    bool m_acceleratedDrawingEnabled;
+    bool m_deferred2dCanvasEnabled;
+    bool m_acceleratedPaintingEnabled;
+    bool m_perTilePaintingEnabled;
     WebPreferences m_prefs;
     bool m_stressOpt;
     bool m_stressDeopt;
     std::string m_javaScriptFlags;
     bool m_dumpWhenFinished;
+    bool m_isDisplayingModalDialog;
 
 
     // List of all windows in this process.

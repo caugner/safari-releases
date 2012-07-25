@@ -26,9 +26,11 @@
 #ifndef InjectedBundle_h
 #define InjectedBundle_h
 
+#include "AccessibilityController.h"
 #include "EventSendingController.h"
 #include "GCController.h"
 #include "LayoutTestController.h"
+#include "TextInputController.h"
 #include <WebKit2/WKBase.h>
 #include <WebKit2/WKRetainPtr.h>
 #include <wtf/OwnPtr.h>
@@ -36,6 +38,10 @@
 #include <wtf/Vector.h>
 
 #include <sstream>
+
+namespace WTF {
+class StringBuilder;
+}
 
 namespace WTR {
 
@@ -54,6 +60,8 @@ public:
     LayoutTestController* layoutTestController() { return m_layoutTestController.get(); }
     GCController* gcController() { return m_gcController.get(); }
     EventSendingController* eventSendingController() { return m_eventSendingController.get(); }
+    TextInputController* textInputController() { return m_textInputController.get(); }
+    AccessibilityController* accessibilityController() { return m_accessibilityController.get(); }
 
     InjectedBundlePage* page() const;
     size_t pageCount() const { return m_pages.size(); }
@@ -62,8 +70,9 @@ public:
     void dumpBackForwardListsForAllPages();
 
     void done();
-    std::ostringstream& os() { return m_outputStream; }
+    WTF::StringBuilder* stringBuilder() { return m_stringBuilder.get(); }
     void setPixelResult(WKImageRef image) { m_pixelResult = image; }
+    void setRepaintRects(WKArrayRef rects) { m_repaintRects = rects; }
 
     bool isTestRunning() { return m_state == Testing; }
 
@@ -71,6 +80,14 @@ public:
     void setTopLoadingFrame(WKBundleFrameRef frame) { m_topLoadingFrame = frame; }
 
     bool shouldDumpPixels() const { return m_dumpPixels; }
+    bool useWaitToDumpWatchdogTimer() const { return m_useWaitToDumpWatchdogTimer; }
+    
+    void postNewBeforeUnloadReturnValue(bool);
+    void postAddChromeInputField();
+    void postRemoveChromeInputField();
+    void postFocusWebView();
+    void postSetBackingScaleFactor(double);
+    void postSetWindowIsKey(bool);
 
 private:
     InjectedBundle();
@@ -95,13 +112,15 @@ private:
     WKBundlePageGroupRef m_pageGroup;
     Vector<OwnPtr<InjectedBundlePage> > m_pages;
 
+    RefPtr<AccessibilityController> m_accessibilityController;
     RefPtr<LayoutTestController> m_layoutTestController;
     RefPtr<GCController> m_gcController;
     RefPtr<EventSendingController> m_eventSendingController;
+    RefPtr<TextInputController> m_textInputController;
 
     WKBundleFrameRef m_topLoadingFrame;
 
-    std::ostringstream m_outputStream;
+    OwnPtr<WTF::StringBuilder> m_stringBuilder;
     
     enum State {
         Idle,
@@ -111,8 +130,10 @@ private:
     State m_state;
 
     bool m_dumpPixels;
+    bool m_useWaitToDumpWatchdogTimer;
 
     WKRetainPtr<WKImageRef> m_pixelResult;
+    WKRetainPtr<WKArrayRef> m_repaintRects;
 };
 
 } // namespace WTR

@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8; -*-
 #
-# Copyright (C) 2009, 2010 Google Inc. All rights reserved.
+# Copyright (C) 2011 Google Inc. All rights reserved.
 # Copyright (C) 2009 Torch Mobile Inc.
 # Copyright (C) 2009 Apple Inc. All rights reserved.
 # Copyright (C) 2010 Chris Jerdonek (cjerdonek@webkit.org)
@@ -53,22 +53,28 @@ class ErrorCollector:
     # This is a list including all categories seen in any unit test.
     _seen_style_categories = {}
 
-    def __init__(self, assert_fn, filter=None):
+    def __init__(self, assert_fn, filter=None, lines_to_check=None):
         """assert_fn: a function to call when we notice a problem.
            filter: filters the errors that we are concerned about."""
         self._assert_fn = assert_fn
         self._errors = []
+        self._lines_to_check = lines_to_check
         if not filter:
             filter = FilterConfiguration()
         self._filter = filter
 
-    def __call__(self, unused_linenum, category, confidence, message):
+    def __call__(self, line_number, category, confidence, message):
         self._assert_fn(category in self._all_style_categories,
                         'Message "%s" has category "%s",'
                         ' which is not in STYLE_CATEGORIES' % (message, category))
+
+        if self._lines_to_check and not line_number in self._lines_to_check:
+            return False
+
         if self._filter.should_check(category, ""):
             self._seen_style_categories[category] = 1
             self._errors.append('%s  [%s] [%d]' % (message, category, confidence))
+        return True
 
     def results(self):
         if len(self._errors) < 2:
@@ -246,8 +252,8 @@ class CppStyleTestBase(unittest.TestCase):
         return cpp_style.process_file_data(filename, file_extension, lines,
                                            error, self.min_confidence, unit_test_config)
 
-    def perform_lint(self, code, filename, basic_error_rules, unit_test_config={}):
-        error_collector = ErrorCollector(self.assert_, FilterConfiguration(basic_error_rules))
+    def perform_lint(self, code, filename, basic_error_rules, unit_test_config={}, lines_to_check=None):
+        error_collector = ErrorCollector(self.assert_, FilterConfiguration(basic_error_rules), lines_to_check)
         lines = code.split('\n')
         extension = filename.split('.')[1]
         self.process_file_data(filename, extension, lines, error_collector, unit_test_config)
@@ -259,6 +265,7 @@ class CppStyleTestBase(unittest.TestCase):
                              '-legal/copyright',
                              '-readability/fn_size',
                              '-readability/parameter_name',
+                             '-readability/pass_ptr',
                              '-whitespace/ending_newline')
         return self.perform_lint(code, filename, basic_error_rules)
 
@@ -271,13 +278,13 @@ class CppStyleTestBase(unittest.TestCase):
         return self.perform_lint(code, 'test.' + file_extension, basic_error_rules)
 
     # Only keep some errors related to includes, namespaces and rtti.
-    def perform_language_rules_check(self, filename, code):
+    def perform_language_rules_check(self, filename, code, lines_to_check=None):
         basic_error_rules = ('-',
                              '+build/include',
                              '+build/include_order',
                              '+build/namespaces',
                              '+runtime/rtti')
-        return self.perform_lint(code, filename, basic_error_rules)
+        return self.perform_lint(code, filename, basic_error_rules, lines_to_check=lines_to_check)
 
     # Only keep function length errors.
     def perform_function_lengths_check(self, code):
@@ -289,6 +296,12 @@ class CppStyleTestBase(unittest.TestCase):
     def perform_pass_ptr_check(self, code):
         basic_error_rules = ('-',
                              '+readability/pass_ptr')
+        return self.perform_lint(code, 'test.cpp', basic_error_rules)
+
+    # Only keep leaky pattern errors.
+    def perform_leaky_pattern_check(self, code):
+        basic_error_rules = ('-',
+                             '+runtime/leaky_pattern')
         return self.perform_lint(code, 'test.cpp', basic_error_rules)
 
     # Only include what you use errors.
@@ -320,9 +333,9 @@ class CppStyleTestBase(unittest.TestCase):
         if not re.search(expected_message_re, message):
             self.fail('Message was:\n' + message + 'Expected match to "' + expected_message_re + '"')
 
-    def assert_language_rules_check(self, file_name, code, expected_message):
+    def assert_language_rules_check(self, file_name, code, expected_message, lines_to_check=None):
         self.assertEquals(expected_message,
-                          self.perform_language_rules_check(file_name, code))
+                          self.perform_language_rules_check(file_name, code, lines_to_check))
 
     def assert_include_what_you_use(self, code, expected_message):
         self.assertEquals(expected_message,
@@ -614,6 +627,11 @@ class FunctionDetectionTest(CppStyleTestBase):
 
 class CppStyleTest(CppStyleTestBase):
 
+    def test_asm_lines_ignored(self):
+        self.assert_lint(
+            '__asm mov [registration], eax',
+            '')
+
     # Test get line width.
     def test_get_line_width(self):
         self.assertEquals(0, cpp_style.get_line_width(''))
@@ -747,6 +765,14 @@ class CppStyleTest(CppStyleTestBase):
         self.assert_language_rules_check('foo.cpp', statement, error_message)
         self.assert_language_rules_check('foo.h', statement, error_message)
 
+    # Test for static_cast readability.
+    def test_static_cast_readability(self):
+        self.assert_lint(
+            'Text* x = static_cast<Text*>(foo);',
+            'Consider using toText helper function in WebCore/dom/Text.h '
+            'instead of static_cast<Text*>'
+            '  [readability/check] [4]')
+
     # We cannot test this functionality because of difference of
     # function definitions.  Anyway, we may never enable this.
     #
@@ -763,7 +789,7 @@ class CppStyleTest(CppStyleTestBase):
     #   self.assert_lint('void Method(char* /*x*/);', message)
     #   self.assert_lint('typedef void (*Method)(int32);', message)
     #   self.assert_lint('static void operator delete[](void*) throw();', message)
-    # 
+    #
     #   self.assert_lint('virtual void D(int* p);', '')
     #   self.assert_lint('void operator delete(void* x) throw();', '')
     #   self.assert_lint('void Method(char* x)\n{', '')
@@ -772,7 +798,7 @@ class CppStyleTest(CppStyleTestBase):
     #   self.assert_lint('typedef void (*Method)(int32 x);', '')
     #   self.assert_lint('static void operator delete[](void* x) throw();', '')
     #   self.assert_lint('static void operator delete[](void* /*x*/) throw();', '')
-    # 
+    #
     #   # This one should technically warn, but doesn't because the function
     #   # pointer is confusing.
     #   self.assert_lint('virtual void E(void (*fn)(int* p));', '')
@@ -1524,7 +1550,18 @@ class CppStyleTest(CppStyleTestBase):
             'int foo() const {',
             'Place brace on its own line for function definitions.  [whitespace/braces] [4]')
         self.assert_multi_line_lint(
+            'int foo() const OVERRIDE {',
+            'Place brace on its own line for function definitions.  [whitespace/braces] [4]')
+        self.assert_multi_line_lint(
+            'int foo() OVERRIDE {',
+            'Place brace on its own line for function definitions.  [whitespace/braces] [4]')
+        self.assert_multi_line_lint(
             'int foo() const\n'
+            '{\n'
+            '}\n',
+            '')
+        self.assert_multi_line_lint(
+            'int foo() OVERRIDE\n'
             '{\n'
             '}\n',
             '')
@@ -1692,6 +1729,7 @@ class CppStyleTest(CppStyleTestBase):
 
     def test_operator_methods(self):
         self.assert_lint('String operator+(const String&, const String&);', '')
+        self.assert_lint('String operator/(const String&, const String&);', '')
         self.assert_lint('bool operator==(const String&, const String&);', '')
         self.assert_lint('String& operator-=(const String&, const String&);', '')
         self.assert_lint('String& operator+=(const String&, const String&);', '')
@@ -2175,6 +2213,9 @@ class CppStyleTest(CppStyleTestBase):
                 '  [build/header_guard] [5]' % expected_guard),
             error_collector.result_list())
 
+        # Verify that we don't blindly suggest the WTF prefix for all headers.
+        self.assertFalse(expected_guard.startswith('WTF_'))
+
         # Allow the WTF_ prefix for files in that directory.
         header_guard_filter = FilterConfiguration(('-', '+build/header_guard'))
         error_collector = ErrorCollector(self.assert_, header_guard_filter)
@@ -2373,6 +2414,15 @@ class CppStyleTest(CppStyleTestBase):
                          'Changing pointer instead of value (or unused value of '
                          'operator*).  [runtime/invalid_increment] [5]')
 
+    # Integral bitfields must be declared with either signed or unsigned keyword.
+    def test_plain_integral_bitfields(self):
+        errmsg = ('Please declare integral type bitfields with either signed or unsigned.  [runtime/bitfields] [5]')
+
+        self.assert_lint('int a : 30;', errmsg)
+        self.assert_lint('mutable short a : 14;', errmsg)
+        self.assert_lint('const char a : 6;', errmsg)
+        self.assert_lint('long int a : 30;', errmsg)
+        self.assert_lint('int a = 1 ? 0 : 30;', '')
 
 class CleansedLinesTest(unittest.TestCase):
     def test_init(self):
@@ -2523,6 +2573,30 @@ class OrderOfIncludesTest(CppStyleTestBase):
                                          '#include "bar.h"\n'
                                          '#include <assert.h>\n',
                                          '')
+
+    def test_check_alphabetical_include_order_errors_reported_for_both_lines(self):
+        # If one of the two lines of out of order headers are filtered, the error should be
+        # reported on the other line.
+        self.assert_language_rules_check('foo.h',
+                                         '#include "a.h"\n'
+                                         '#include "c.h"\n'
+                                         '#include "b.h"\n',
+                                         'Alphabetical sorting problem.  [build/include_order] [4]',
+                                         lines_to_check=[2])
+
+        self.assert_language_rules_check('foo.h',
+                                         '#include "a.h"\n'
+                                         '#include "c.h"\n'
+                                         '#include "b.h"\n',
+                                         'Alphabetical sorting problem.  [build/include_order] [4]',
+                                         lines_to_check=[3])
+
+        # If no lines are filtered, the error should be reported only once.
+        self.assert_language_rules_check('foo.h',
+                                         '#include "a.h"\n'
+                                         '#include "c.h"\n'
+                                         '#include "b.h"\n',
+                                         'Alphabetical sorting problem.  [build/include_order] [4]')
 
     def test_check_line_break_after_own_header(self):
         self.assert_language_rules_check('foo.cpp',
@@ -2676,6 +2750,11 @@ class OrderOfIncludesTest(CppStyleTestBase):
         self.assertEqual(cpp_style._MOC_HEADER,
                          classify_include('foo.cpp',
                                           'moc_foo.cpp',
+                                          False, include_state))
+        # Qt private APIs use _p.h suffix.
+        self.assertEqual(cpp_style._PRIMARY_HEADER,
+                         classify_include('foo.cpp',
+                                          'foo_p.h',
                                           False, include_state))
         # Tricky example where both includes might be classified as primary.
         self.assert_language_rules_check('ScrollbarThemeWince.cpp',
@@ -3023,7 +3102,7 @@ class CheckForFunctionLengthsTest(CppStyleTestBase):
 
     def test_function_length_check_definition_huge_lines(self):
         # 5 is the limit
-        self.assert_function_length_check_definition(self.trigger_lines(10), 5)
+        self.assert_function_length_check_definition(self.trigger_lines(6), 5)
 
     def test_function_length_not_determinable(self):
         # Macro invocation without terminating semicolon.
@@ -3196,7 +3275,6 @@ class PassPtrTest(CppStyleTestBase):
                           self.perform_pass_ptr_check(code))
 
     def test_pass_ref_ptr_in_function(self):
-        # Local variables should never be PassRefPtr.
         self.assert_pass_ptr_check(
             'int myFunction()\n'
             '{\n'
@@ -3206,7 +3284,6 @@ class PassPtrTest(CppStyleTestBase):
             'http://webkit.org/coding/RefPtr.html).  [readability/pass_ptr] [5]')
 
     def test_pass_own_ptr_in_function(self):
-        # Local variables should never be PassRefPtr.
         self.assert_pass_ptr_check(
             'int myFunction()\n'
             '{\n'
@@ -3216,7 +3293,6 @@ class PassPtrTest(CppStyleTestBase):
             'http://webkit.org/coding/RefPtr.html).  [readability/pass_ptr] [5]')
 
     def test_pass_other_type_ptr_in_function(self):
-        # Local variables should never be PassRefPtr.
         self.assert_pass_ptr_check(
             'int myFunction()\n'
             '{\n'
@@ -3240,10 +3316,50 @@ class PassPtrTest(CppStyleTestBase):
         self.assert_pass_ptr_check(
             'PassRefPtr<Type1> myFunction();\n',
             '')
+        self.assert_pass_ptr_check(
+            'OwnRefPtr<Type1> myFunction();\n',
+            '')
+        self.assert_pass_ptr_check(
+            'RefPtr<Type1> myFunction(int)\n'
+            '{\n'
+            '}',
+            'The return type should use PassRefPtr instead of RefPtr.  [readability/pass_ptr] [5]')
+        self.assert_pass_ptr_check(
+            'OwnPtr<Type1> myFunction(int)\n'
+            '{\n'
+            '}',
+            'The return type should use PassOwnPtr instead of OwnPtr.  [readability/pass_ptr] [5]')
 
-    def test_pass_ref_ptr_parameter_value(self):
+    def test_ref_ptr_parameter_value(self):
         self.assert_pass_ptr_check(
             'int myFunction(PassRefPtr<Type1>)\n'
+            '{\n'
+            '}',
+            '')
+        self.assert_pass_ptr_check(
+            'int myFunction(RefPtr<Type1>)\n'
+            '{\n'
+            '}',
+            'The parameter type should use PassRefPtr instead of RefPtr.  [readability/pass_ptr] [5]')
+        self.assert_pass_ptr_check(
+            'int myFunction(RefPtr<Type1>&)\n'
+            '{\n'
+            '}',
+            '')
+
+    def test_own_ptr_parameter_value(self):
+        self.assert_pass_ptr_check(
+            'int myFunction(PassOwnPtr<Type1>)\n'
+            '{\n'
+            '}',
+            '')
+        self.assert_pass_ptr_check(
+            'int myFunction(OwnPtr<Type1>)\n'
+            '{\n'
+            '}',
+            'The parameter type should use PassOwnPtr instead of OwnPtr.  [readability/pass_ptr] [5]')
+        self.assert_pass_ptr_check(
+            'int myFunction(OwnPtr<Type1>& simple)\n'
             '{\n'
             '}',
             '')
@@ -3253,6 +3369,55 @@ class PassPtrTest(CppStyleTestBase):
             'class Foo {'
             '    RefPtr<Type1> m_other;\n'
             '};\n',
+            '')
+
+
+class LeakyPatternTest(CppStyleTestBase):
+
+    def assert_leaky_pattern_check(self, code, expected_message):
+        """Check warnings for leaky patterns are as expected.
+
+        Args:
+          code: C++ source code expected to generate a warning message.
+          expected_message: Message expected to be generated by the C++ code.
+        """
+        self.assertEquals(expected_message,
+                          self.perform_leaky_pattern_check(code))
+
+    def test_get_dc(self):
+        self.assert_leaky_pattern_check(
+            'HDC hdc = GetDC(hwnd);',
+            'Use the class HWndDC instead of calling GetDC to avoid potential '
+            'memory leaks.  [runtime/leaky_pattern] [5]')
+
+    def test_get_dc(self):
+        self.assert_leaky_pattern_check(
+            'HDC hdc = GetDCEx(hwnd, 0, 0);',
+            'Use the class HWndDC instead of calling GetDCEx to avoid potential '
+            'memory leaks.  [runtime/leaky_pattern] [5]')
+
+    def test_own_get_dc(self):
+        self.assert_leaky_pattern_check(
+            'HWndDC hdc(hwnd);',
+            '')
+
+    def test_create_dc(self):
+        self.assert_leaky_pattern_check(
+            'HDC dc2 = ::CreateDC();',
+            'Use adoptPtr and OwnPtr<HDC> when calling CreateDC to avoid potential '
+            'memory leaks.  [runtime/leaky_pattern] [5]')
+
+        self.assert_leaky_pattern_check(
+            'adoptPtr(CreateDC());',
+            '')
+
+    def test_create_compatible_dc(self):
+        self.assert_leaky_pattern_check(
+            'HDC dc2 = CreateCompatibleDC(dc);',
+            'Use adoptPtr and OwnPtr<HDC> when calling CreateCompatibleDC to avoid potential '
+            'memory leaks.  [runtime/leaky_pattern] [5]')
+        self.assert_leaky_pattern_check(
+            'adoptPtr(CreateCompatibleDC(dc));',
             '')
 
 
@@ -4052,6 +4217,33 @@ class WebKitStyleTest(CppStyleTestBase):
             'gst_element_unlink_many(foo, bar, boo, NULL);',
             '')
         self.assert_lint(
+            'gst_structure_get(foo, "value", G_TYPE_INT, &value, NULL);',
+            '')
+        self.assert_lint(
+            'gst_structure_set(foo, "value", G_TYPE_INT, value, NULL);',
+            '')
+        self.assert_lint(
+            'gst_structure_remove_fields(foo, "value", "bar", NULL);',
+            '')
+        self.assert_lint(
+            'gst_structure_new("foo", "value", G_TYPE_INT, value, NULL);',
+            '')
+        self.assert_lint(
+            'gst_structure_id_new(FOO, VALUE, G_TYPE_INT, value, NULL);',
+            '')
+        self.assert_lint(
+            'gst_structure_id_set(FOO, VALUE, G_TYPE_INT, value, NULL);',
+            '')
+        self.assert_lint(
+            'gst_structure_id_get(FOO, VALUE, G_TYPE_INT, &value, NULL);',
+            '')
+        self.assert_lint(
+            'gst_caps_new_simple(mime, "value", G_TYPE_INT, &value, NULL);',
+            '')
+        self.assert_lint(
+            'gst_caps_new_full(structure1, structure2, NULL);',
+            '')
+        self.assert_lint(
             'gchar* result = g_strconcat("part1", "part2", "part3", NULL);',
             '')
         self.assert_lint(
@@ -4074,6 +4266,9 @@ class WebKitStyleTest(CppStyleTestBase):
             '')
         self.assert_lint(
             'gtk_widget_style_get(style, "propertyName", &value, "otherName", &otherValue, NULL);',
+            '')
+        self.assert_lint(
+            'gtk_style_context_get_style(context, "propertyName", &value, "otherName", &otherValue, NULL);',
             '')
         self.assert_lint(
             'gtk_widget_style_get_property(style, NULL, NULL);',
@@ -4128,6 +4323,19 @@ class WebKitStyleTest(CppStyleTestBase):
         self.assert_lint(
             'if (othertrue == fontType)',
             '')
+        self.assert_lint(
+            'if (LIKELY(foo == 0))',
+            '')
+        self.assert_lint(
+            'if (UNLIKELY(foo == 0))',
+            '')
+        self.assert_lint(
+            'if (LIKELY(foo == NULL))',
+            'Use 0 instead of NULL.  [readability/null] [5]')
+        self.assert_lint(
+            'if (UNLIKELY(foo == NULL))',
+            'Use 0 instead of NULL.  [readability/null] [5]')
+
 
     def test_using_std(self):
         self.assert_lint(
@@ -4171,6 +4379,13 @@ class WebKitStyleTest(CppStyleTestBase):
             'Use std::min() or std::min<type>() instead of the MIN() macro.'
             '  [runtime/max_min_macros] [4]',
             'foo.h')
+
+    def test_ctype_fucntion(self):
+        self.assert_lint(
+            'int i = isascii(8);',
+            'Use equivelent function in <wtf/ASCIICType.h> instead of the '
+            'isascii() function.  [runtime/ctype_function] [4]',
+            'foo.cpp')
 
     def test_names(self):
         name_underscore_error_message = " is incorrectly named. Don't use underscores in your identifier names.  [readability/naming] [4]"
@@ -4310,17 +4525,39 @@ class WebKitStyleTest(CppStyleTestBase):
         self.assert_lint('void webkit_dom_object_init();', '')
         self.assert_lint('void webkit_dom_object_class_init();', '')
 
+        # There is an exception for GTK+ API.
+        self.assert_lint('void webkit_web_view_load(int var1, int var2)', '', 'Source/Webkit/gtk/webkit/foo.cpp')
+        self.assert_lint('void webkit_web_view_load(int var1, int var2)', '', 'Source/Webkit2/UIProcess/gtk/foo.cpp')
+
+        # Test that this doesn't also apply to files not in a 'gtk' directory.
+        self.assert_lint('void webkit_web_view_load(int var1, int var2)',
+            'webkit_web_view_load is incorrectly named. Don\'t use underscores in your identifier names.'
+            '  [readability/naming] [4]', 'Source/Webkit/webkit/foo.cpp')
+        # Test that this doesn't also apply to names that don't start with 'webkit_'.
+        self.assert_lint_one_of_many_errors_re('void otherkit_web_view_load(int var1, int var2)',
+            'otherkit_web_view_load is incorrectly named. Don\'t use underscores in your identifier names.'
+            '  [readability/naming] [4]', 'Source/Webkit/webkit/foo.cpp')
+
         # There is an exception for some unit tests that begin with "tst_".
         self.assert_lint('void tst_QWebFrame::arrayObjectEnumerable(int var1, int var2)', '')
 
-        # The Qt API uses names that begin with "qt_".
+        # The Qt API uses names that begin with "qt_" or "_q_".
         self.assert_lint('void QTFrame::qt_drt_is_awesome(int var1, int var2)', '')
+        self.assert_lint('void QTFrame::_q_drt_is_awesome(int var1, int var2)', '')
         self.assert_lint('void qt_drt_is_awesome(int var1, int var2);', '')
+        self.assert_lint('void _q_drt_is_awesome(int var1, int var2);', '')
 
         # Cairo forward-declarations should not be a failure.
         self.assert_lint('typedef struct _cairo cairo_t;', '')
         self.assert_lint('typedef struct _cairo_surface cairo_surface_t;', '')
         self.assert_lint('typedef struct _cairo_scaled_font cairo_scaled_font_t;', '')
+
+        # EFL forward-declarations should not be a failure.
+        self.assert_lint('typedef struct _Ecore_Evas Ecore_Evas;', '')
+        self.assert_lint('typedef struct _Ecore_Pipe Ecore_Pipe;', '')
+        self.assert_lint('typedef struct _Eina_Rectangle Eina_Rectangle;', '')
+        self.assert_lint('typedef struct _Evas_Object Evas_Object;', '')
+        self.assert_lint('typedef struct _Ewk_History_Item Ewk_History_Item;', '')
 
         # NPAPI functions that start with NPN_, NPP_ or NP_ are allowed.
         self.assert_lint('void NPN_Status(NPP, const char*)', '')
@@ -4402,47 +4639,51 @@ class WebKitStyleTest(CppStyleTestBase):
                          'One space before end of line comments'
                          '  [whitespace/comments] [5]')
 
-    def test_webkit_api_check(self):
-        webkit_api_error_rules = ('-',
-                                  '+readability/webkit_api')
+    def test_webkit_export_check(self):
+        webkit_export_error_rules = ('-',
+                                  '+readability/webkit_export')
         self.assertEquals('',
-                          self.perform_lint('WEBKIT_API int foo();\n',
+                          self.perform_lint('WEBKIT_EXPORT int foo();\n',
                                             'WebKit/chromium/public/test.h',
-                                            webkit_api_error_rules))
-        self.assertEquals('WEBKIT_API should only be used in header files.  [readability/webkit_api] [5]',
-                          self.perform_lint('WEBKIT_API int foo();\n',
+                                            webkit_export_error_rules))
+        self.assertEquals('',
+                          self.perform_lint('WEBKIT_EXPORT int foo();\n',
+                                            'WebKit/chromium/tests/test.h',
+                                            webkit_export_error_rules))
+        self.assertEquals('WEBKIT_EXPORT should only be used in header files.  [readability/webkit_export] [5]',
+                          self.perform_lint('WEBKIT_EXPORT int foo();\n',
                                             'WebKit/chromium/public/test.cpp',
-                                            webkit_api_error_rules))
-        self.assertEquals('WEBKIT_API should only appear in the chromium public directory.  [readability/webkit_api] [5]',
-                          self.perform_lint('WEBKIT_API int foo();\n',
+                                            webkit_export_error_rules))
+        self.assertEquals('WEBKIT_EXPORT should only appear in the chromium public (or tests) directory.  [readability/webkit_export] [5]',
+                          self.perform_lint('WEBKIT_EXPORT int foo();\n',
                                             'WebKit/chromium/src/test.h',
-                                            webkit_api_error_rules))
-        self.assertEquals('WEBKIT_API should not be used on a function with a body.  [readability/webkit_api] [5]',
-                          self.perform_lint('WEBKIT_API int foo() { }\n',
+                                            webkit_export_error_rules))
+        self.assertEquals('WEBKIT_EXPORT should not be used on a function with a body.  [readability/webkit_export] [5]',
+                          self.perform_lint('WEBKIT_EXPORT int foo() { }\n',
                                             'WebKit/chromium/public/test.h',
-                                            webkit_api_error_rules))
-        self.assertEquals('WEBKIT_API should not be used on a function with a body.  [readability/webkit_api] [5]',
-                          self.perform_lint('WEBKIT_API inline int foo()\n'
+                                            webkit_export_error_rules))
+        self.assertEquals('WEBKIT_EXPORT should not be used on a function with a body.  [readability/webkit_export] [5]',
+                          self.perform_lint('WEBKIT_EXPORT inline int foo()\n'
                                             '{\n'
                                             '}\n',
                                             'WebKit/chromium/public/test.h',
-                                            webkit_api_error_rules))
-        self.assertEquals('WEBKIT_API should not be used with a pure virtual function.  [readability/webkit_api] [5]',
+                                            webkit_export_error_rules))
+        self.assertEquals('WEBKIT_EXPORT should not be used with a pure virtual function.  [readability/webkit_export] [5]',
                           self.perform_lint('{}\n'
-                                            'WEBKIT_API\n'
+                                            'WEBKIT_EXPORT\n'
                                             'virtual\n'
                                             'int\n'
                                             'foo() = 0;\n',
                                             'WebKit/chromium/public/test.h',
-                                            webkit_api_error_rules))
+                                            webkit_export_error_rules))
         self.assertEquals('',
                           self.perform_lint('{}\n'
-                                            'WEBKIT_API\n'
+                                            'WEBKIT_EXPORT\n'
                                             'virtual\n'
                                             'int\n'
                                             'foo() = 0;\n',
                                             'test.h',
-                                            webkit_api_error_rules))
+                                            webkit_export_error_rules))
 
     def test_other(self):
         # FIXME: Implement this.

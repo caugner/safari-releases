@@ -29,14 +29,17 @@
 import os
 import unittest
 
-from webkitpy.common.checkout.changelog_unittest import ChangeLogTest
+# Do not import changelog_unittest.ChangeLogTest directly as that will cause it to be run again.
+from webkitpy.common.checkout import changelog_unittest
+
 from webkitpy.common.system.outputcapture import OutputCapture
 from webkitpy.tool.mocktool import MockOptions, MockTool
 from webkitpy.tool.steps.preparechangelog import PrepareChangeLog
 
 
-class PrepareChangeLogTest(ChangeLogTest):
+class PrepareChangeLogTest(changelog_unittest.ChangeLogTest):
     def test_ensure_bug_url(self):
+        # FIXME: This should use a MockFileSystem instead of a real FileSystem.
         capture = OutputCapture()
         step = PrepareChangeLog(MockTool(), MockOptions())
         changelog_contents = u"%s\n%s" % (self._new_entry_boilerplate, self._example_changelog)
@@ -51,4 +54,4 @@ class PrepareChangeLogTest(ChangeLogTest):
         expected_message = "Example title\n        http://example.com/1234"
         expected_contents = changelog_contents.replace("Need a short description and bug URL (OOPS!)", expected_message)
         os.remove(changelog_path)
-        self.assertEquals(actual_contents, expected_contents)
+        self.assertEquals(actual_contents.splitlines(), expected_contents.splitlines())

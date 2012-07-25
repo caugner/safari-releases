@@ -53,4 +53,6 @@ for (var i=0; i<100; ++i)
 totalizer.makeCall(addOneHundred);
 shouldBe('total', '200');
 
-var successfullyParsed = true;
+// Check that we don't assert when method_check is applied to a non-JSFunction
+for (var i = 0; i < 10000; i++)
+    Array.constructor(1);

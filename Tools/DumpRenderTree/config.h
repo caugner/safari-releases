@@ -21,37 +21,25 @@
 #define Config_H
 
 #if defined(HAVE_CONFIG_H) && HAVE_CONFIG_H
+#if defined(BUILDING_WITH_CMAKE)
+#include "cmakeconfig.h"
+#else
 #include "autotoolsconfig.h"
+#endif
 #endif
 
 #include <wtf/Platform.h>
-
-/* See note in wtf/Platform.h for more info on EXPORT_MACROS. */
-#if USE(EXPORT_MACROS)
-
 #include <wtf/ExportMacros.h>
-
-#define WTF_EXPORT_PRIVATE WTF_IMPORT
-#define JS_EXPORT_PRIVATE WTF_IMPORT
-#define WEBKIT_EXPORTDATA WTF_IMPORT
-
-#define JS_EXPORTDATA JS_EXPORT_PRIVATE
-#define JS_EXPORTCLASS JS_EXPORT_PRIVATE
-
-#else /* !USE(EXPORT_MACROS) */
-
-#if OS(WINDOWS) && !COMPILER(GCC) && !defined(BUILDING_WX__)
-#define JS_EXPORTDATA __declspec(dllimport)
-#define WEBKIT_EXPORTDATA __declspec(dllimport)
-#else
-#define JS_EXPORTDATA
-#define WEBKIT_EXPORTDATA
+#if USE(JSC)
+#include <runtime/JSExportMacros.h>
 #endif
 
-#define WTF_EXPORT_PRIVATE
-#define JS_EXPORT_PRIVATE
+// On MSW, wx headers need to be included before windows.h is.
+// The only way we can always ensure this is if we include wx here.
+#if PLATFORM(WX)
+#include <wx/defs.h>
+#endif
 
-#endif /* USE(EXPORT_MACROS) */
 
 #ifdef __cplusplus
 #undef new
@@ -69,9 +57,18 @@
 #endif
 #endif // PLATFORM(MAC)
 
+#if OS(WINDOWS)
+// If we don't define these, they get defined in windef.h. 
+// We want to use std::min and std::max
+#undef max
+#define max max
+#undef min
+#define min min
+#endif
+
 #if PLATFORM(WIN)
 #define WTF_USE_CF 1 
-#if defined(WIN_CAIRO)
+#if PLATFORM(WIN_CAIRO)
 #define WTF_USE_CAIRO 1
 #define WTF_USE_CURL 1
 #else
@@ -84,13 +81,6 @@
 
 #undef WINVER
 #define WINVER 0x0500
-
-// If we don't define these, they get defined in windef.h. 
-// We want to use std::min and std::max
-#undef max
-#define max max
-#undef min
-#define min min
 
 #undef _WINSOCKAPI_
 #define _WINSOCKAPI_ // Prevent inclusion of winsock.h in windows.h

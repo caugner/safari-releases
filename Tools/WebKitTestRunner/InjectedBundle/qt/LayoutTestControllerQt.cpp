@@ -27,9 +27,13 @@
 #include "config.h"
 #include "LayoutTestController.h"
 
+#include "ActivateFonts.h"
 #include "InjectedBundle.h"
+#include <QCoreApplication>
 #include <QDir>
+#include <QFontDatabase>
 #include <QObject>
+#include <qwebsettings.h>
 
 namespace WTR {
 
@@ -55,6 +59,15 @@ private:
 
 void LayoutTestController::platformInitialize()
 {
+    // Make WebKit2 mimic the behaviour of DumpRenderTree, which is incorrect,
+    // but tests are successfully passed. On the long run, Qt will move to QRawFont,
+    // which makes the use of QFontDatabase unnecessary.
+    // See https://bugs.webkit.org/show_bug.cgi?id=53427
+    QWebSettings::clearMemoryCaches();
+#if !(QT_VERSION <= QT_VERSION_CHECK(4, 6, 2))
+    QFontDatabase::removeAllApplicationFonts();
+#endif
+    activateFonts();
     QObject::connect(&m_waitToDumpWatchdogTimer, SIGNAL(timeout()), WatchdogTimerHelper::instance(), SLOT(timerFired()));
 }
 
@@ -65,6 +78,9 @@ void LayoutTestController::invalidateWaitToDumpWatchdogTimer()
 
 void LayoutTestController::initializeWaitToDumpWatchdogTimerIfNeeded()
 {
+    if (qgetenv("QT_WEBKIT2_DEBUG") == "1")
+        return;
+
     if (m_waitToDumpWatchdogTimer.isActive())
         return;
 
@@ -73,8 +89,27 @@ void LayoutTestController::initializeWaitToDumpWatchdogTimerIfNeeded()
 
 JSRetainPtr<JSStringRef> LayoutTestController::pathToLocalResource(JSStringRef url)
 {
-    QString path = QDir::toNativeSeparators(QString(reinterpret_cast<const QChar*>(JSStringGetCharactersPtr(url)), JSStringGetLength(url)));
-    return JSStringCreateWithCharacters(reinterpret_cast<const JSChar*>(path.constData()), path.length());
+    QString localTmpUrl(QStringLiteral("file:///tmp/LayoutTests"));
+    QString givenUrl(reinterpret_cast<const QChar*>(JSStringGetCharactersPtr(url)), JSStringGetLength(url));
+
+    // Translate a request for /tmp/LayoutTests to the repository LayoutTests directory.
+    // Do not rely on a symlink to be created via the test runner, which will not work on Windows.
+    if (givenUrl.startsWith(localTmpUrl)) {
+        // DumpRenderTree lives in WebKit/WebKitBuild/<build_mode>/bin.
+        // Translate from WebKit/WebKitBuild/Release/bin => WebKit/LayoutTests.
+        QFileInfo layoutTestsRoot(QCoreApplication::applicationDirPath() + QStringLiteral("/../../../LayoutTests/"));
+        if (layoutTestsRoot.exists()) {
+            QString path = QStringLiteral("file://") + layoutTestsRoot.absolutePath() + givenUrl.mid(localTmpUrl.length());
+            return JSStringCreateWithCharacters(reinterpret_cast<const JSChar*>(path.constData()), path.length());
+        }
+    }
+    return url;
+}
+
+JSRetainPtr<JSStringRef> LayoutTestController::platformName()
+{
+    JSRetainPtr<JSStringRef> platformName(Adopt, JSStringCreateWithUTF8CString("qt"));
+    return platformName;
 }
 
 } // namespace WTR

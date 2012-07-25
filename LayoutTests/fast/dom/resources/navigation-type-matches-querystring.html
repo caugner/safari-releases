@@ -1,7 +1,6 @@
 <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
 <html>
 <head>
-<link rel="stylesheet" href="../../js/resources/js-test-style.css">
 <script src="../../js/resources/js-test-pre.js"></script>
 </head>
 <body>
@@ -12,11 +11,9 @@
 
     description("This tests that performance.navigation.type is " + expectedType);
 
-    var performance = window.performance || {};
+    window.performance = window.performance || {};
     var navigation = performance.navigation || {};
     shouldBe("navigation.type", stringify(expectedType));
-
-    var successfullyParsed = true;
 </script>
 <script src="../../js/resources/js-test-post.js"></script>
 </body>

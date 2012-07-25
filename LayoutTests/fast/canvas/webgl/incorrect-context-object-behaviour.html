@@ -1,6 +1,5 @@
 <html>
 <head>
-<link rel="stylesheet" href="../../js/resources/js-test-style.css"/>
 <script src="../../js/resources/js-test-pre.js"></script>
 <script src="resources/webgl-test.js"></script>
 </head>
@@ -48,8 +47,6 @@ shouldGenerateGLError(contextA, contextA.INVALID_OPERATION, "contextA.getShaderI
 shouldGenerateGLError(contextA, contextA.INVALID_OPERATION, "contextA.getShaderSource(shaderB)");
 shouldGenerateGLError(contextA, contextA.INVALID_OPERATION, "contextA.getUniform(programB, locationA)");
 shouldGenerateGLError(contextA, contextA.INVALID_OPERATION, "contextA.getUniformLocation(programB, 'u_modelViewProjMatrix')");
-
-successfullyParsed = true;
 </script>
 
 <script src="../../js/resources/js-test-post.js"></script>

@@ -2,7 +2,7 @@ description(
 "This test checks that the following expressions or statements are valid ECMASCRIPT code or should throw parse error"
 );
 
-function runTest(_a, throws)
+function runTest(_a, errorType)
 {
     var success;
     if (typeof _a != "string")
@@ -11,18 +11,18 @@ function runTest(_a, throws)
         eval(_a);
         success = true;
     } catch (e) {
-        success = e.toString() != "SyntaxError: Parse error";
+        success = !(e instanceof SyntaxError);
     }
-    if (throws == !success) {
-        if (throws)
+    if ((!!errorType) == !success) {
+        if (errorType)
             testPassed('Invalid: "' + _a + '"');
         else
             testPassed('Valid:   "' + _a + '"');
     } else {
-        if (throws)
-            testFailed('Invalid: "' + _a + '" should throw SyntaxError: Parse error');
+        if (errorType)
+            testFailed('Invalid: "' + _a + '" should throw ' + errorType.name);
         else
-            testFailed('Valid:   "' + _a + '" should NOT throw SyntaxError: Parse error');
+            testFailed('Valid:   "' + _a + '" should NOT throw ');
     }
 }
 
@@ -33,8 +33,9 @@ function valid(_a)
     runTest("function f() { " + _a + " }", false);
 }
 
-function invalid(_a)
+function invalid(_a, _type)
 {
+    _type = _type || SyntaxError;
     // Test both the grammar and the syntax checker
     runTest(_a, true);
     runTest("function f() { " + _a + " }", true);
@@ -346,9 +347,31 @@ invalid("L: L1: L2: L3: L4: L: ;");
 invalid("for(var a,b 'this shouldn\'t be allowed' false ; ) ;");
 invalid("for(var a,b '");
 
-invalid("function __proto__(){}")
-invalid("(function __proto__(){})")
-invalid("'use strict'; function __proto__(){}")
-invalid("'use strict'; (function __proto__(){})")
+valid("function __proto__(){}")
+valid("(function __proto__(){})")
+valid("'use strict'; function __proto__(){}")
+valid("'use strict'; (function __proto__(){})")
 
-var successfullyParsed = true;
+valid("if (0) $foo; ")
+valid("if (0) _foo; ")
+valid("if (0) foo$; ")
+valid("if (0) foo_; ")
+valid("if (0) obj.$foo; ")
+valid("if (0) obj._foo; ")
+valid("if (0) obj.foo$; ")
+valid("if (0) obj.foo_; ")
+valid("if (0) obj.foo\\u03bb; ")
+valid("if (0) new a(b+c).d = 5");
+valid("if (0) new a(b+c) = 5");
+valid("([1 || 1].a = 1)");
+valid("({a: 1 || 1}.a = 1)");
+
+try { eval("a.b.c = {};"); } catch(e1) { e=e1; shouldBe("e.line", "1") }
+foo = 'FAIL';
+bar = 'PASS';
+try {
+     eval("foo = 'PASS'; a.b.c = {}; bar  = 'FAIL';");
+} catch(e) {
+     shouldBe("foo", "'PASS'");
+     shouldBe("bar", "'PASS'");
+}

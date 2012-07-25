@@ -63,6 +63,9 @@ var CODE_REVIEW_UNITTEST;
   if (!attachment_id)
     console.log('No attachment ID');
 
+  var minLeftSideRatio = 10;
+  var maxLeftSideRatio = 90;
+  var file_diff_being_resized = null;
   var next_line_id = 0;
   var files = {};
   var original_file_contents = {};
@@ -165,9 +168,19 @@ var CODE_REVIEW_UNITTEST;
     g_displayed_draft_comments = true;
 
     var comments = g_draftCommentSaver.saved_comments();
+    var errors = [];
     $(comments.comments).each(function() {
-      addDraftComment(this.start_line_id, this.end_line_id, this.contents);
+      try {
+        addDraftComment(this.start_line_id, this.end_line_id, this.contents);
+      } catch (e) {
+        errors.push({'start': this.start_line_id, 'end': this.end_line_id, 'contents': this.contents});
+      }
     });
+    
+    if (errors.length) {
+      console.log('DRAFT COMMENTS WITH ERRORS:', JSON.stringify(errors));
+      alert('Some draft comments failed to be added. See the console to manually resolve.');
+    }
     
     var overall_comments = comments['overall-comments'];
     if (overall_comments) {
@@ -182,9 +195,6 @@ var CODE_REVIEW_UNITTEST;
     this._save_comments = true;
   }
 
-  if (CODE_REVIEW_UNITTEST)
-    window['DraftCommentSaver'] = DraftCommentSaver;
-  
   DraftCommentSaver.prototype._json = function() {
     var comments = $('.comment');
     var comment_store = [];
@@ -210,8 +220,12 @@ var CODE_REVIEW_UNITTEST;
     return JSON.stringify({'born-on': Date.now(), 'comments': comment_store, 'overall-comments': overall_comments});
   }
   
+  DraftCommentSaver.prototype.localStorageKey = function() {
+    return DraftCommentSaver._keyPrefix + this._attachment_id;
+  }
+  
   DraftCommentSaver.prototype.saved_comments = function() {
-    var serialized_comments = this._localStorage.getItem(DraftCommentSaver._keyPrefix + this._attachment_id);
+    var serialized_comments = this._localStorage.getItem(this.localStorageKey());
     if (!serialized_comments)
       return [];
 
@@ -222,17 +236,12 @@ var CODE_REVIEW_UNITTEST;
       this._erase_corrupt_comments();
       return {};
     }
-    
+
     var individual_comments = comments.comments;
-    if (comments && !individual_comments.length)
-      return comments;
-    
-    // Sanity check comments are as expected.
-    if (!comments || !individual_comments[0].contents) {
+    if (!comments || !comments['born-on'] || !individual_comments || (individual_comments.length && !individual_comments[0].contents)) {
       this._erase_corrupt_comments();
       return {};
-    }
-    
+    }    
     return comments;
   }
   
@@ -246,7 +255,7 @@ var CODE_REVIEW_UNITTEST;
     if (!this._save_comments)
       return;
 
-    var key = DraftCommentSaver._keyPrefix + this._attachment_id;
+    var key = this.localStorageKey();
     var value = this._json();
 
     if (this._attemptToWrite(key, value))
@@ -286,7 +295,7 @@ var CODE_REVIEW_UNITTEST;
   DraftCommentSaver._keyPrefix = 'draft-comments-for-attachment-';
 
   DraftCommentSaver.prototype.erase = function() {
-    this._localStorage.removeItem(DraftCommentSaver._keyPrefix + this._attachment_id);
+    this._localStorage.removeItem(this.localStorageKey());
   }
 
   DraftCommentSaver.prototype._eraseOldCommentsForAllReviews = function() {
@@ -342,9 +351,9 @@ var CODE_REVIEW_UNITTEST;
   }
   
   function unfreezeCommentFor(line) {
-      // FIXME: This query is overly complex because we place comment blocks
-      // after Lines.  Instead, comment blocks should be children of Lines.
-      findCommentPositionFor(line).next().next().filter('.frozenComment').each(handleUnfreezeComment);
+    // FIXME: This query is overly complex because we place comment blocks
+    // after Lines.  Instead, comment blocks should be children of Lines.
+    findCommentPositionFor(line).next().next().filter('.frozenComment').each(handleUnfreezeComment);
   }
 
   function createCommentFor(line) {
@@ -369,13 +378,14 @@ var CODE_REVIEW_UNITTEST;
     comment_block.hide().slideDown('fast', function() {
       $(this).children('textarea').focus();
     });
+    return comment_block;
   }
 
   function addCommentField(comment_block) {
     var id = $(comment_block).attr('data-comment-for');
     if (!id)
       id = comment_block.id;
-    addCommentFor($('#' + id));
+    return addCommentFor($('#' + id));
   }
   
   function handleAddCommentField() {
@@ -383,13 +393,13 @@ var CODE_REVIEW_UNITTEST;
   }
 
   function addPreviousComment(line, author, comment_text) {
-    var line_id = line.attr('id');
+    var line_id = $(line).attr('id');
     var comment_block = $('<div data-comment-for="' + line_id + '" class="previousComment"></div>');
     var author_block = $('<div class="author"></div>').text(author + ':');
     var text_block = $('<div class="content"></div>').text(comment_text);
     comment_block.append(author_block).append(text_block).each(hoverify).click(handleAddCommentField);
-    addDataCommentBaseLine(line, line_id);
-    insertCommentFor(line, comment_block);
+    addDataCommentBaseLine($(line), line_id);
+    insertCommentFor($(line), comment_block);
   }
 
   function displayPreviousComments(comments) {
@@ -623,11 +633,24 @@ var CODE_REVIEW_UNITTEST;
     var trac_links = $('<a target="_blank">annotate</a><a target="_blank">revision log</a>');
     trac_links[0].href = 'http://trac.webkit.org/browser/trunk/' + file_name + '?annotate=blame' + url_hash;
     trac_links[1].href = 'http://trac.webkit.org/log/trunk/' + file_name;
+    var implementation_suffix_list = ['.cpp', '.mm'];
+    for (var i = 0; i < implementation_suffix_list.length; ++i) {
+      var suffix = implementation_suffix_list[i];
+      if (file_name.lastIndexOf(suffix) == file_name.length - suffix.length) {
+        trac_links.prepend('<a target="_blank">header</a>');
+        var stem = file_name.substr(0, file_name.length - suffix.length);
+        trac_links[0].href= 'http://trac.webkit.org/log/trunk/' + stem + '.h';
+      }
+    }
     return trac_links;
   }
 
+  function isChangeLog(file_name) {
+    return file_name.match(/\/ChangeLog$/) || file_name == 'ChangeLog';
+  }
+
   function addExpandLinks(file_name) {
-    if (file_name.indexOf('ChangeLog') != -1)
+    if (isChangeLog(file_name))
       return;
 
     var file_diff = files[file_name];
@@ -773,6 +796,10 @@ var CODE_REVIEW_UNITTEST;
     }
   }
 
+  function removeContextBarBelow(expand_bar) {
+    $('.context', expand_bar.nextElementSibling).detach();
+  }
+
   function expand(expand_bar, file_name, direction, amount) {
     if (file_name in original_file_contents && !patched_file_contents[file_name]) {
       // FIXME: In this case, try fetching the source file at the revision the patch was created at.
@@ -837,12 +864,12 @@ var CODE_REVIEW_UNITTEST;
     if (start_line_num == above_last_line_num && end_line_num == below_first_line_num) {
       $('.ExpandLinkContainer', expand_bar).detach();
       below_expansion.insertBefore(lines, below_expansion.firstChild);
-      // Now that we're filling in all the lines, the context line following this expand bar is no longer needed.
-      $('.context', expand_bar.nextElementSibling).detach();
+      removeContextBarBelow(expand_bar);
     } else if (direction == ABOVE) {
       above_expansion.appendChild(lines);
     } else {
       below_expansion.insertBefore(lines, below_expansion.firstChild);
+      removeContextBarBelow(expand_bar);
     }
   }
 
@@ -1036,11 +1063,6 @@ var CODE_REVIEW_UNITTEST;
   }
 
   function updateToolbarAnchorState() {
-    // For iPad, we always leave the toolbar at the bottom of the document
-    // because of the iPad's handling of position:fixed and scrolling.
-    if (navigator.platform.indexOf("iPad") != -1)
-      return;
-
     var toolbar = $('#toolbar');
     // Unanchor the toolbar and then see if it's bottom is below the body's bottom.
     toolbar.toggleClass('anchored', false);
@@ -1054,7 +1076,28 @@ var CODE_REVIEW_UNITTEST;
       '<a href="javascript:" class="side-by-side-link">side-by-side</a>';
   }
 
-  $(document).ready(function() {
+  function appendToolbar() {
+    $(document.body).append('<div id="toolbar">' +
+        '<div class="overallComments">' +
+          '<textarea placeholder="Overall comments"></textarea>' +
+        '</div>' +
+        '<div>' +
+          '<span id="statusBubbleContainer"></span>' +
+          '<span class="actions">' +
+            '<span class="links"><span class="bugLink"></span></span>' +
+            '<span id="flagContainer"></span>' +
+            '<button id="preview_comments">Preview</button>' +
+            '<button id="post_comments">Publish</button> ' +
+          '</span>' +
+        '</div>' +
+        '<div class="autosave-state"></div>' +
+        '</div>');
+
+    $('.overallComments textarea').bind('click', openOverallComments);
+    $('.overallComments textarea').bind('input', handleOverallCommentsInput);
+  }
+
+  function handleDocumentReady() {
     crawlDiff();
     fetchHistory();
     $(document.body).prepend('<div id="message">' +
@@ -1079,24 +1122,8 @@ var CODE_REVIEW_UNITTEST;
           '</div>' +
         '</div>' +
         '</div>');
-    $(document.body).append('<div id="toolbar">' +
-        '<div class="overallComments">' +
-            '<textarea placeholder="Overall comments"></textarea>' +
-        '</div>' +
-        '<div>' +
-          '<span id="statusBubbleContainer"></span>' +
-          '<span class="actions">' +
-              '<span class="links"><span class="bugLink"></span></span>' +
-              '<span id="flagContainer"></span>' +
-              '<button id="preview_comments">Preview</button>' +
-              '<button id="post_comments">Publish</button> ' +
-          '</span>' +
-        '</div>' +
-        '<div class="autosave-state"></div>' +
-        '</div>');
 
-    $('.overallComments textarea').bind('click', openOverallComments);
-    $('.overallComments textarea').bind('input', handleOverallCommentsInput);
+    appendToolbar();
 
     $(document.body).prepend('<div id="comment_form" class="inactive"><div class="winter"></div><div class="lightbox"><iframe id="reviewform" src="attachment.cgi?id=' + attachment_id + '&action=reviewform"></iframe></div></div>');
     $('#reviewform').bind('load', handleReviewFormLoad);
@@ -1110,7 +1137,8 @@ var CODE_REVIEW_UNITTEST;
 
     updateToolbarAnchorState();
     loadDiffState();
-  });
+    generateFileDiffResizeStyleElement();
+  };
 
   function handleReviewFormLoad() {
     var review_form_contents = $('#reviewform').contents();
@@ -1193,6 +1221,9 @@ var CODE_REVIEW_UNITTEST;
   function convertFileDiff(diff_type, file_diff) {
     if (diffState(file_diff) == diff_type)
       return;
+
+    if (!$('.resizeHandle', file_diff).length)
+      $(file_diff).append('<div class="resizeHandle"></div>');
 
     $(file_diff).removeClass('sidebyside unified');
     $(file_diff).addClass(diff_type);
@@ -1312,12 +1343,12 @@ var CODE_REVIEW_UNITTEST;
   }
 
   function discardComment(comment_block) {
-    var line_id = comment_block.find('textarea').attr('data-comment-for');
+    var line_id = $(comment_block).find('textarea').attr('data-comment-for');
     var line = $('#' + line_id)
-    findCommentBlockFor(line).slideUp('fast', function() {
+    $(comment_block).slideUp('fast', function() {
       $(this).remove();
       line.removeAttr('data-has-comment');
-      trimCommentContextToBefore(line, line.attr('data-comment-base-line'));
+      trimCommentContextToBefore(line, line_id);
       saveDraftComments();
     });
   }
@@ -1350,9 +1381,10 @@ var CODE_REVIEW_UNITTEST;
   }
   
   function acceptComment(comment) {
-    var frozen_comment = freezeComment(comment);
+    var frozen_comment = freezeComment($(comment));
     focusOn(frozen_comment);
     saveDraftComments();
+    return frozen_comment;
   }
 
   $('.FileDiff').live('mouseenter', showFileDiffLinks);
@@ -1661,7 +1693,8 @@ var CODE_REVIEW_UNITTEST;
       if (numberFrom(id) > line_to_trim_to)
         return;
 
-      removeDataCommentBaseLine(this, comment_base_line);
+      if (!$('[data-comment-for=' + comment_base_line + ']').length)
+        removeDataCommentBaseLine(this, comment_base_line);
     });
   }
 
@@ -1682,7 +1715,51 @@ var CODE_REVIEW_UNITTEST;
     return lineOffsetFrom(line, 1);
   }
 
-  $(document.body).bind('mouseup', processSelectedLines);
+  $('.resizeHandle').live('mousedown', function(event) {
+    file_diff_being_resized = $(this).parent('.FileDiff');
+  });
+
+  function generateFileDiffResizeStyleElement() {
+    // FIXME: Once we support calc, we can replace this with something that uses the attribute value.
+    var styleText = '';
+    for (var i = minLeftSideRatio; i <= maxLeftSideRatio; i++) {
+      // FIXME: Once we support calc, put the resize handle at calc(i% - 5) so it doesn't cover up
+      // the right-side line numbers.
+      styleText += '.FileDiff[leftsidewidth="' + i + '"] .resizeHandle {' +
+        'left: ' + i + '%' +
+      '}' +
+      '.FileDiff[leftsidewidth="' + i + '"] .LineSide:first-child,' +
+      '.FileDiff[leftsidewidth="' + i + '"].sidebyside .DiffBlockPart.remove {' +
+        'width:' + i + '%;' +
+      '}' +
+      '.FileDiff[leftsidewidth="' + i + '"] .LineSide:last-child,' +
+      '.FileDiff[leftsidewidth="' + i + '"].sidebyside .DiffBlockPart.add {' +
+        'width:' + (100 - i) + '%;' +
+      '}';
+    }
+    var styleElement = document.createElement('style');
+    styleElement.innerText = styleText;
+    document.head.appendChild(styleElement);
+  }
+
+  $(document).bind('mousemove', function(event) {
+    if (!file_diff_being_resized)
+      return;
+
+    var ratio = event.pageX / window.innerWidth;
+    var percentage = Math.floor(ratio * 100);
+    if (percentage < minLeftSideRatio)
+      percentage = minLeftSideRatio;
+    if (percentage > maxLeftSideRatio)
+      percentage = maxLeftSideRatio;
+    file_diff_being_resized.attr('leftsidewidth', percentage);
+    event.preventDefault();
+  });
+
+  $(document).bind('mouseup', function(event) {
+    file_diff_being_resized = null;
+    processSelectedLines();
+  });
 
   $('.lineNumber').live('click', function(e) {
     var line = lineFromLineDescendant($(this));
@@ -1954,4 +2031,21 @@ var CODE_REVIEW_UNITTEST;
     fillInReviewForm();
     $('#reviewform').contents().find('form').submit();
   });
+  
+  if (CODE_REVIEW_UNITTEST) {
+    window.DraftCommentSaver = DraftCommentSaver;
+    window.addPreviousComment = addPreviousComment;
+    window.tracLinks = tracLinks;
+    window.crawlDiff = crawlDiff;
+    window.discardComment = discardComment;
+    window.addCommentField = addCommentField;
+    window.acceptComment = acceptComment;
+    window.appendToolbar = appendToolbar;
+    window.eraseDraftComments = eraseDraftComments;
+    window.unfreezeComment = unfreezeComment;
+    window.g_draftCommentSaver = g_draftCommentSaver;
+    window.isChangeLog = isChangeLog;
+  } else {
+    $(document).ready(handleDocumentReady)
+  }
 })();

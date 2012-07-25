@@ -231,6 +231,12 @@ function generalSwitch(scrutinee) {
 }
 
 // Character switch
+var emptyString1 = "";
+var emptyString2 = "";
+shouldBe("characterSwitch('A' + emptyString1)", '"A"');
+shouldBe("characterSwitch('A' + emptyString1 + emptyString2)", '"A"');
+shouldBe("characterSwitch(emptyString1 + emptyString2)", '"default"');
+
 shouldBe("characterSwitch('\0')", '"\0"');
 shouldBe("characterSwitch('A')", '"A"');
 shouldBe("characterSwitch('a')", '"a"');
@@ -345,4 +351,3 @@ shouldBe("generalSwitch(-1)", '-1');
 shouldBe("generalSwitch(-1000000000)", '-1000000000');
 shouldBe("generalSwitch(1000000000)", '1000000000');
 shouldBe("generalSwitch({})", '"default"');
-var successfullyParsed = true;

@@ -26,22 +26,20 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import json
 import logging
-import os
 import subprocess
 import sys
 import time
 import urllib2
 import xml.dom.minidom
 
-from webkitpy.layout_tests.layout_package import test_results_uploader
-
-import webkitpy.thirdparty.simplejson as simplejson
+from webkitpy.common.net.file_uploader import FileUploader
 
 # A JSON results generator for generic tests.
 # FIXME: move this code out of the layout_package directory.
 
-_log = logging.getLogger("webkitpy.layout_tests.layout_package.json_results_generator")
+_log = logging.getLogger(__name__)
 
 _JSON_PREFIX = "ADD_RESULTS("
 _JSON_SUFFIX = ");"
@@ -52,23 +50,54 @@ def has_json_wrapper(string):
 
 
 def strip_json_wrapper(json_content):
-    return json_content[len(_JSON_PREFIX):len(json_content) - len(_JSON_SUFFIX)]
+    # FIXME: Kill this code once the server returns json instead of jsonp.
+    if has_json_wrapper(json_content):
+        return json_content[len(_JSON_PREFIX):len(json_content) - len(_JSON_SUFFIX)]
+    return json_content
 
 
 def load_json(filesystem, file_path):
     content = filesystem.read_text_file(file_path)
     content = strip_json_wrapper(content)
-    return simplejson.loads(content)
+    return json.loads(content)
 
 
-def write_json(filesystem, json_object, file_path):
+def write_json(filesystem, json_object, file_path, callback=None):
     # Specify separators in order to get compact encoding.
-    json_data = simplejson.dumps(json_object, separators=(',', ':'))
-    json_string = _JSON_PREFIX + json_data + _JSON_SUFFIX
+    json_string = json.dumps(json_object, separators=(',', ':'))
+    if callback:
+        json_string = callback + "(" + json_string + ");"
     filesystem.write_text_file(file_path, json_string)
 
+
+def convert_trie_to_flat_paths(trie, prefix=None):
+    """Converts the directory structure in the given trie to flat paths, prepending a prefix to each."""
+    result = {}
+    for name, data in trie.iteritems():
+        if prefix:
+            name = prefix + "/" + name
+
+        if len(data) and not "results" in data:
+            result.update(convert_trie_to_flat_paths(data, name))
+        else:
+            result[name] = data
+
+    return result
+
+
+def add_path_to_trie(path, value, trie):
+    """Inserts a single flat directory path and associated value into a directory trie structure."""
+    if not "/" in path:
+        trie[path] = value
+        return
+
+    directory, slash, rest = path.partition("/")
+    if not directory in trie:
+        trie[directory] = {}
+    add_path_to_trie(rest, value, trie[directory])
+
 def test_timings_trie(port, individual_test_timings):
-    """Breaks a filename into chunks by directory and puts the test time as a value in the lowest part, e.g.
+    """Breaks a test name into chunks by directory and puts the test time as a value in the lowest part, e.g.
     foo/bar/baz.html: 1ms
     foo/bar/baz1.html: 3ms
 
@@ -82,22 +111,10 @@ def test_timings_trie(port, individual_test_timings):
     """
     trie = {}
     for test_result in individual_test_timings:
-        try:
-            test = port.relative_test_filename(test_result.filename)
-        except AssertionError:
-            # FIXME: Handle this better. Non-layout tests shouldn't be relativized.
-            test = test_result.filename
+        test = test_result.test_name
 
-        parts = test.split('/')
-        current_map = trie
-        for i, part in enumerate(parts):
-            if i == (len(parts) - 1):
-                current_map[part] = int(1000 * test_result.test_run_time)
-                break
+        add_path_to_trie(test, int(1000 * test_result.test_run_time), trie)
 
-            if part not in current_map:
-                current_map[part] = {}
-            current_map = current_map[part]
     return trie
 
 # FIXME: We already have a TestResult class in test_results.py
@@ -107,17 +124,16 @@ class TestResult(object):
     # Test modifier constants.
     (NONE, FAILS, FLAKY, DISABLED) = range(4)
 
-    def __init__(self, name, failed=False, elapsed_time=0):
-        # FIXME: s/filename/name to be consistent with the rest of layout_package.
-        self.filename = name
+    def __init__(self, test, failed=False, elapsed_time=0):
+        self.test_name = test
         self.failed = failed
         self.test_run_time = elapsed_time
 
-        test_name = name
+        test_name = test
         try:
-            test_name = name.split('.')[1]
+            test_name = test.split('.')[1]
         except IndexError:
-            _log.warn("Invalid test name: %s.", name)
+            _log.warn("Invalid test name: %s.", test)
             pass
 
         if test_name.startswith('FAILS_'):
@@ -153,7 +169,7 @@ class JSONResultsGeneratorBase(object):
                         TestResult.FAILS: FAIL_RESULT,
                         TestResult.FLAKY: FLAKY_RESULT}
 
-    VERSION = 3
+    VERSION = 4
     VERSION_KEY = "version"
     RESULTS = "results"
     TIMES = "times"
@@ -169,8 +185,7 @@ class JSONResultsGeneratorBase(object):
     TIMES_MS_FILENAME = "times_ms.json"
     INCREMENTAL_RESULTS_FILENAME = "incremental_results.json"
 
-    URL_FOR_TEST_LIST_JSON = \
-        "http://%s/testfile?builder=%s&name=%s&testlistjson=1&testtype=%s"
+    URL_FOR_TEST_LIST_JSON = "http://%s/testfile?builder=%s&name=%s&testlistjson=1&testtype=%s&master=%s"
 
     # FIXME: Remove generate_incremental_results once the reference to it in
     # http://src.chromium.org/viewvc/chrome/trunk/tools/build/scripts/slave/gtest_slave_utils.py
@@ -203,7 +218,7 @@ class JSONResultsGeneratorBase(object):
           master_name: the name of the buildbot master.
         """
         self._port = port
-        self._fs = port._filesystem
+        self._filesystem = port._filesystem
         self._builder_name = builder_name
         self._build_name = build_name
         self._build_number = build_number
@@ -224,17 +239,17 @@ class JSONResultsGeneratorBase(object):
         self._archived_results = None
 
     def generate_json_output(self):
-        json = self.get_json()
-        if json:
-            file_path = self._fs.join(self._results_directory, self.INCREMENTAL_RESULTS_FILENAME)
-            write_json(self._fs, json, file_path)
+        json_object = self.get_json()
+        if json_object:
+            file_path = self._filesystem.join(self._results_directory, self.INCREMENTAL_RESULTS_FILENAME)
+            write_json(self._filesystem, json_object, file_path)
 
     def generate_times_ms_file(self):
         # FIXME: rename to generate_times_ms_file. This needs to be coordinated with
         # changing the calls to this on the chromium build slaves.
         times = test_timings_trie(self._port, self._test_results_map.values())
-        file_path = self._fs.join(self._results_directory, self.TIMES_MS_FILENAME)
-        write_json(self._fs, times, file_path)
+        file_path = self._filesystem.join(self._results_directory, self.TIMES_MS_FILENAME)
+        write_json(self._filesystem, times, file_path)
 
     def get_json(self):
         """Gets the results for the results.json file."""
@@ -271,7 +286,8 @@ class JSONResultsGeneratorBase(object):
         # Update the all failing tests with result type and time.
         tests = results_for_builder[self.TESTS]
         all_failing_tests = self._get_failed_test_names()
-        all_failing_tests.update(tests.iterkeys())
+        all_failing_tests.update(convert_trie_to_flat_paths(tests))
+
         for test in all_failing_tests:
             self._insert_test_time_and_result(test, tests)
 
@@ -295,20 +311,26 @@ class JSONResultsGeneratorBase(object):
                  ("testtype", self._test_type),
                  ("master", self._master_name)]
 
-        files = [(file, self._fs.join(self._results_directory, file))
+        files = [(file, self._filesystem.join(self._results_directory, file))
             for file in json_files]
 
-        uploader = test_results_uploader.TestResultsUploader(
-            self._test_results_server)
+        url = "http://%s/testfile/upload" % self._test_results_server
+        # Set uploading timeout in case appengine server is having problems.
+        # 120 seconds are more than enough to upload test results.
+        uploader = FileUploader(url, 120)
         try:
-            # Set uploading timeout in case appengine server is having problem.
-            # 120 seconds are more than enough to upload test results.
-            uploader.upload(attrs, files, 120)
+            response = uploader.upload_as_multipart_form_data(self._filesystem, files, attrs)
+            if response:
+                if response.code == 200:
+                    _log.info("JSON uploaded.")
+                else:
+                    _log.debug("JSON upload failed, %d: '%s'" % (response.code, response.read()))
+            else:
+                _log.error("JSON upload failed; no response returned")
         except Exception, err:
             _log.error("Upload failed: %s" % err)
             return
 
-        _log.info("JSON files uploaded.")
 
     def _get_test_timing(self, test_name):
         """Returns test timing data (elapsed time) in second
@@ -320,7 +342,7 @@ class JSONResultsGeneratorBase(object):
 
     def _get_failed_test_names(self):
         """Returns a set of failed test names."""
-        return set([r.filename for r in self._test_results if r.failed])
+        return set([r.test_name for r in self._test_results if r.failed])
 
     def _get_modifier_char(self, test_name):
         """Returns a single char (e.g. SKIP_RESULT, FAIL_RESULT,
@@ -362,7 +384,7 @@ class JSONResultsGeneratorBase(object):
         Args:
           in_directory: The directory where svn is to be run.
         """
-        if self._fs.exists(self._fs.join(in_directory, '.svn')):
+        if self._filesystem.exists(self._filesystem.join(in_directory, '.svn')):
             # Note: Not thread safe: http://bugs.python.org/issue2320
             output = subprocess.Popen(["svn", "info", "--xml"],
                                       cwd=in_directory,
@@ -396,9 +418,11 @@ class JSONResultsGeneratorBase(object):
             (urllib2.quote(self._test_results_server),
              urllib2.quote(self._builder_name),
              self.RESULTS_FILENAME,
-             urllib2.quote(self._test_type)))
+             urllib2.quote(self._test_type),
+             urllib2.quote(self._master_name)))
 
         try:
+            # FIXME: We should talk to the network via a Host object.
             results_file = urllib2.urlopen(results_file_url)
             info = results_file.info()
             old_results = results_file.read()
@@ -415,7 +439,7 @@ class JSONResultsGeneratorBase(object):
             old_results = strip_json_wrapper(old_results)
 
             try:
-                results_json = simplejson.loads(old_results)
+                results_json = json.loads(old_results)
             except:
                 _log.debug("results.json was not valid JSON. Clobbering.")
                 # The JSON file is not valid JSON. Just clobber the results.
@@ -504,6 +528,10 @@ class JSONResultsGeneratorBase(object):
 
         # Include SVN revisions for the given repositories.
         for (name, path) in self._svn_repositories:
+            # Note: for JSON file's backward-compatibility we use 'chrome' rather
+            # than 'chromium' here.
+            if name == 'chromium':
+                name = 'chrome'
             self._insert_item_into_raw_list(results_for_builder,
                 self._get_svn_revision(path),
                 name + 'Revision')
@@ -522,32 +550,57 @@ class JSONResultsGeneratorBase(object):
         result = self._get_result_char(test_name)
         time = self._get_test_timing(test_name)
 
-        if test_name not in tests:
-            tests[test_name] = self._create_results_and_times_json()
+        this_test = tests
+        for segment in test_name.split("/"):
+            if segment not in this_test:
+                this_test[segment] = {}
+            this_test = this_test[segment]
 
-        thisTest = tests[test_name]
-        if self.RESULTS in thisTest:
-            self._insert_item_run_length_encoded(result, thisTest[self.RESULTS])
-        else:
-            thisTest[self.RESULTS] = [[1, result]]
+        if not len(this_test):
+            self._populate_results_and_times_json(this_test)
 
-        if self.TIMES in thisTest:
-            self._insert_item_run_length_encoded(time, thisTest[self.TIMES])
+        if self.RESULTS in this_test:
+            self._insert_item_run_length_encoded(result, this_test[self.RESULTS])
         else:
-            thisTest[self.TIMES] = [[1, time]]
+            this_test[self.RESULTS] = [[1, result]]
+
+        if self.TIMES in this_test:
+            self._insert_item_run_length_encoded(time, this_test[self.TIMES])
+        else:
+            this_test[self.TIMES] = [[1, time]]
 
     def _convert_json_to_current_version(self, results_json):
         """If the JSON does not match the current version, converts it to the
         current version and adds in the new version number.
         """
-        if (self.VERSION_KEY in results_json and
-            results_json[self.VERSION_KEY] == self.VERSION):
-            return
+        if self.VERSION_KEY in results_json:
+            archive_version = results_json[self.VERSION_KEY]
+            if archive_version == self.VERSION:
+                return
+        else:
+            archive_version = 3
+
+        # version 3->4
+        if archive_version == 3:
+            num_results = len(results_json.values())
+            for builder, results in results_json.iteritems():
+                self._convert_tests_to_trie(results)
 
         results_json[self.VERSION_KEY] = self.VERSION
 
-    def _create_results_and_times_json(self):
-        results_and_times = {}
+    def _convert_tests_to_trie(self, results):
+        if not self.TESTS in results:
+            return
+
+        test_results = results[self.TESTS]
+        test_results_trie = {}
+        for test in test_results.iterkeys():
+            single_test_result = test_results[test]
+            add_path_to_trie(test, single_test_result, test_results_trie)
+
+        results[self.TESTS] = test_results_trie
+
+    def _populate_results_and_times_json(self, results_and_times):
         results_and_times[self.RESULTS] = []
         results_and_times[self.TIMES] = []
         return results_and_times

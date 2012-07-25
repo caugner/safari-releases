@@ -96,10 +96,8 @@ shouldBe(elBackground, 'validColor');
 // Make the value dirty by deleting the last character.
 el.focus();
 el.setSelectionRange(10, 10);
-document.execCommand('\x08');
+document.execCommand('delete');
 el.maxLength = 5;
 shouldBe(elBackground, 'invalidColor');
 el.maxLength = 10;
 shouldBe(elBackground, 'validColor');
-
-var successfullyParsed = true;

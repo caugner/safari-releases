@@ -3,14 +3,8 @@ Test IndexedDB cursor behavior
 On success, you will see a series of "PASS" messages, followed by "TEST COMPLETE".
 
 
-indexedDB = window.indexedDB || window.webkitIndexedDB || window.mozIndexedDB;
-PASS indexedDB == null is false
-IDBDatabaseException = window.IDBDatabaseException || window.webkitIDBDatabaseException;
-PASS IDBDatabaseException == null is false
-IDBCursor = window.IDBCursor || window.webkitIDBCursor;
-PASS IDBCursor == null is false
-IDBKeyRange = window.IDBKeyRange || window.webkitIDBKeyRange;
-PASS IDBKeyRange == null is false
+indexedDB = self.indexedDB || self.webkitIndexedDB || self.mozIndexedDB || self.msIndexedDB || self.OIndexedDB;
+
 indexedDB.open(name, description)
 db = event.target.result
 request = db.setVersion('1')
@@ -48,7 +42,7 @@ PASS cursor.value is 'foo'
 cursor.continue();
 Expecting exception from cursor.continue();
 PASS Exception was thrown.
-PASS code is IDBDatabaseException.NOT_ALLOWED_ERR
+PASS code is DOMException.INVALID_STATE_ERR
 PASS cursor.key is sortedKeys[keyIndex]
 PASS cursor.primaryKey is sortedKeys[keyIndex]
 PASS cursor.value is 'foo'
@@ -60,7 +54,7 @@ PASS cursor.value is 'foo'
 cursor.continue();
 Expecting exception from cursor.continue();
 PASS Exception was thrown.
-PASS code is IDBDatabaseException.NOT_ALLOWED_ERR
+PASS code is DOMException.INVALID_STATE_ERR
 PASS cursor.key is sortedKeys[keyIndex]
 PASS cursor.primaryKey is sortedKeys[keyIndex]
 PASS cursor.value is 'foo'
@@ -72,7 +66,7 @@ PASS cursor.value is 'foo'
 cursor.continue();
 Expecting exception from cursor.continue();
 PASS Exception was thrown.
-PASS code is IDBDatabaseException.NOT_ALLOWED_ERR
+PASS code is DOMException.INVALID_STATE_ERR
 PASS cursor.key is sortedKeys[keyIndex]
 PASS cursor.primaryKey is sortedKeys[keyIndex]
 PASS cursor.value is 'foo'
@@ -84,7 +78,7 @@ PASS cursor.value is 'foo'
 cursor.continue();
 Expecting exception from cursor.continue();
 PASS Exception was thrown.
-PASS code is IDBDatabaseException.NOT_ALLOWED_ERR
+PASS code is DOMException.INVALID_STATE_ERR
 PASS cursor.key is sortedKeys[keyIndex]
 PASS cursor.primaryKey is sortedKeys[keyIndex]
 PASS cursor.value is 'foo'
@@ -96,7 +90,7 @@ PASS cursor.value is 'foo'
 cursor.continue();
 Expecting exception from cursor.continue();
 PASS Exception was thrown.
-PASS code is IDBDatabaseException.NOT_ALLOWED_ERR
+PASS code is DOMException.INVALID_STATE_ERR
 PASS cursor.key is sortedKeys[keyIndex]
 PASS cursor.primaryKey is sortedKeys[keyIndex]
 PASS cursor.value is 'foo'
@@ -108,7 +102,7 @@ PASS cursor.value is 'foo'
 cursor.continue();
 Expecting exception from cursor.continue();
 PASS Exception was thrown.
-PASS code is IDBDatabaseException.NOT_ALLOWED_ERR
+PASS code is DOMException.INVALID_STATE_ERR
 PASS cursor.key is sortedKeys[keyIndex]
 PASS cursor.primaryKey is sortedKeys[keyIndex]
 PASS cursor.value is 'foo'
@@ -120,7 +114,7 @@ PASS cursor.value is 'foo'
 cursor.continue();
 Expecting exception from cursor.continue();
 PASS Exception was thrown.
-PASS code is IDBDatabaseException.NOT_ALLOWED_ERR
+PASS code is DOMException.INVALID_STATE_ERR
 PASS cursor.key is sortedKeys[keyIndex]
 PASS cursor.primaryKey is sortedKeys[keyIndex]
 PASS cursor.value is 'foo'
@@ -132,7 +126,7 @@ PASS cursor.value is 'foo'
 cursor.continue();
 Expecting exception from cursor.continue();
 PASS Exception was thrown.
-PASS code is IDBDatabaseException.NOT_ALLOWED_ERR
+PASS code is DOMException.INVALID_STATE_ERR
 PASS cursor.key is sortedKeys[keyIndex]
 PASS cursor.primaryKey is sortedKeys[keyIndex]
 PASS cursor.value is 'foo'
@@ -144,7 +138,7 @@ PASS cursor.value is 'foo'
 cursor.continue();
 Expecting exception from cursor.continue();
 PASS Exception was thrown.
-PASS code is IDBDatabaseException.NOT_ALLOWED_ERR
+PASS code is DOMException.INVALID_STATE_ERR
 PASS cursor.key is sortedKeys[keyIndex]
 PASS cursor.primaryKey is sortedKeys[keyIndex]
 PASS cursor.value is 'foo'
@@ -156,7 +150,7 @@ PASS cursor.value is 'foo'
 cursor.continue();
 Expecting exception from cursor.continue();
 PASS Exception was thrown.
-PASS code is IDBDatabaseException.NOT_ALLOWED_ERR
+PASS code is DOMException.INVALID_STATE_ERR
 PASS cursor.key is sortedKeys[keyIndex]
 PASS cursor.primaryKey is sortedKeys[keyIndex]
 PASS cursor.value is 'foo'

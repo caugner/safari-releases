@@ -37,8 +37,8 @@
 #include "config.h"
 #include "WebThemeControlDRTWin.h"
 
-#include "skia/ext/platform_canvas.h"
 #include "skia/ext/skia_utils_win.h"
+#include "third_party/skia/include/core/SkCanvas.h"
 #include "third_party/skia/include/core/SkPaint.h"
 #include "third_party/skia/include/core/SkPath.h"
 #include "third_party/skia/include/core/SkRect.h"
@@ -303,8 +303,6 @@ void WebThemeControlDRTWin::draw()
     // Indents for the the slider track.
     const int sliderIndent = 2;
 
-    skia::BeginPlatformPaint(m_canvas);
-
     switch (m_type) {
     case UnknownType:
         ASSERT_NOT_REACHED();
@@ -388,6 +386,7 @@ void WebThemeControlDRTWin::draw()
         break;
 
     case HorizontalSliderThumbType:
+    case VerticalSliderThumbType:
         // Slider thumbs are ovals.
         oval(m_bgColor);
         break;
@@ -459,6 +458,17 @@ void WebThemeControlDRTWin::draw()
         break;
     }
 
+    case VerticalSliderTrackType: {
+        // Draw a narrow rect for the track plus box hatches on the ends.
+        SkIRect lirect;
+        lirect = m_irect;
+        lirect.inset(halfWidth - sliderIndent, noOffset);
+        box(lirect, m_bgColor);
+        line(m_left, m_top, m_right, m_top, m_edgeColor);
+        line(m_left, m_bottom, m_right, m_bottom, m_edgeColor);
+        break;
+    }
+
     case DropDownButtonType:
         // Draw a box with a big down arrow on top.
         box(m_irect, m_bgColor);
@@ -474,7 +484,6 @@ void WebThemeControlDRTWin::draw()
     }
 
     markState();
-    skia::EndPlatformPaint(m_canvas);
 }
 
 // Because rendering a text field is dependent on input
@@ -484,7 +493,6 @@ void WebThemeControlDRTWin::drawTextField(bool drawEdges, bool fillContentArea, 
 {
     SkPaint paint;
 
-    skia::BeginPlatformPaint(m_canvas);
     if (fillContentArea) {
         paint.setColor(color);
         paint.setStyle(SkPaint::kFill_Style);
@@ -497,14 +505,12 @@ void WebThemeControlDRTWin::drawTextField(bool drawEdges, bool fillContentArea, 
     }
 
     markState();
-    skia::EndPlatformPaint(m_canvas);
 }
 
 void WebThemeControlDRTWin::drawProgressBar(const SkIRect& fillRect)
 {
     SkPaint paint;
 
-    skia::BeginPlatformPaint(m_canvas);
     paint.setColor(m_bgColor);
     paint.setStyle(SkPaint::kFill_Style);
     m_canvas->drawIRect(m_irect, paint);
@@ -517,6 +523,5 @@ void WebThemeControlDRTWin::drawProgressBar(const SkIRect& fillRect)
     m_canvas->drawIRect(tofill, paint);
 
     markState();
-    skia::EndPlatformPaint(m_canvas);
 }
 

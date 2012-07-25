@@ -71,6 +71,12 @@ shouldBe(elBackground, 'validColor');
 el.value = '';
 shouldBe(elBackground, 'invalidColor');
 
+debug('Change the value by DOM attribute for a focused text field:');
+el = makeInvalid();
+el.focus();
+el.value = 'abc';
+shouldBe(elBackground, 'validColor');
+
 debug('Change the value by key input:');
 el = makeInvalid();
 el.focus();
@@ -107,5 +113,3 @@ el.step = '2';
 shouldBe(elBackground, 'invalidColor');
 el.step = '0.5';
 shouldBe(elBackground, 'validColor');
-
-var successfullyParsed = true;

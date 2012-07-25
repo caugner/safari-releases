@@ -1,9 +1,15 @@
 var initialize_ConsoleTest = function() {
 
+InspectorTest.showConsolePanel = function()
+{
+    WebInspector.showPanel("console");
+    WebInspector.drawer.immediatelyFinishAnimation();
+}
+
 InspectorTest.dumpConsoleMessages = function()
 {
     var result = [];
-    var messages = WebInspector.console.messages;
+    var messages = WebInspector.consoleView.messages;
     for (var i = 0; i < messages.length; ++i) {
         var element = messages[i].toMessageElement();
         InspectorTest.addResult(element.textContent.replace(/\u200b/g, ""));
@@ -13,7 +19,7 @@ InspectorTest.dumpConsoleMessages = function()
 
 InspectorTest.dumpConsoleMessagesWithClasses = function(sortMessages) {
     var result = [];
-    var messages = WebInspector.console.messages;
+    var messages = WebInspector.consoleView.messages;
     for (var i = 0; i < messages.length; ++i) {
         var element = messages[i].toMessageElement();
         result.push(element.textContent.replace(/\u200b/g, "") + " " + element.getAttribute("class"));
@@ -26,7 +32,7 @@ InspectorTest.dumpConsoleMessagesWithClasses = function(sortMessages) {
 
 InspectorTest.expandConsoleMessages = function()
 {
-    var messages = WebInspector.console.messages;
+    var messages = WebInspector.consoleView.messages;
     for (var i = 0; i < messages.length; ++i) {
         var element = messages[i].toMessageElement();
         var node = element;
@@ -34,6 +40,24 @@ InspectorTest.expandConsoleMessages = function()
             if (node.treeElementForTest)
                 node.treeElementForTest.expand();
             node = node.traverseNextNode(element);
+        }
+    }
+}
+
+InspectorTest.checkConsoleMessagesDontHaveParameters = function()
+{
+    var messages = WebInspector.console.messages;
+    for (var i = 0; i < messages.length; ++i) {
+        var m = messages[i];
+        InspectorTest.addResult("Message[" + i + "]:");
+        InspectorTest.addResult("Message: " + WebInspector.displayNameForURL(m.url) + ":" + m.line + " " + m.message);
+        if ("_parameters" in m) {
+            if (m._parameters)
+                InspectorTest.addResult("FAILED: message parameters list is not empty: " + m._parameters);
+            else
+                InspectorTest.addResult("SUCCESS: message parameters list is empty. ");
+        } else {
+            InspectorTest.addResult("FAILED: didn't find _parameters field in the message.");
         }
     }
 }

@@ -13,7 +13,6 @@
     src: local(Courier);
 }
 </style>
-<link rel="stylesheet" href="../js/resources/js-test-style.css"/>
 <script src="../js/resources/js-test-pre.js"></script>
 </head>
 <body onload="test()">
@@ -36,8 +35,6 @@ function test()
     shouldBeTrue("document.getElementById('testText').offsetWidth == document.getElementById('mustMatch').offsetWidth");
     shouldBeTrue("document.getElementById('testText').offsetWidth != document.getElementById('mustNotMatch').offsetWidth");
 }
-
-var successfullyParsed = true;
 </script>
 <script src="../js/resources/js-test-post.js"></script>
 </body>

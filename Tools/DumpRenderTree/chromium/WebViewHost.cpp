@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Google Inc. All rights reserved.
+ * Copyright (C) 2010, 2011, 2012 Google Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -32,34 +32,44 @@
 #include "WebViewHost.h"
 
 #include "LayoutTestController.h"
+#include "MockWebSpeechInputController.h"
 #include "TestNavigationController.h"
 #include "TestShell.h"
-#include "TestWebWorker.h"
-#include "WebCString.h"
+#include "TestWebPlugin.h"
+#include "platform/WebCString.h"
 #include "WebConsoleMessage.h"
 #include "WebContextMenuData.h"
+#include "WebDOMMessageEvent.h"
 #include "WebDataSource.h"
 #include "WebDeviceOrientationClientMock.h"
-#include "WebDragData.h"
+#include "platform/WebDragData.h"
 #include "WebElement.h"
 #include "WebFrame.h"
 #include "WebGeolocationClientMock.h"
 #include "WebHistoryItem.h"
+#include "WebIntent.h"
+#include "WebKit.h"
 #include "WebNode.h"
+#include "WebPluginParams.h"
+#include "WebPopupMenu.h"
+#include "WebPopupType.h"
 #include "WebRange.h"
-#include "WebRect.h"
+#include "platform/WebRect.h"
 #include "WebScreenInfo.h"
-#include "WebSize.h"
-#include "WebSpeechInputControllerMock.h"
+#include "platform/WebSize.h"
 #include "WebStorageNamespace.h"
 #include "WebTextCheckingCompletion.h"
 #include "WebTextCheckingResult.h"
-#include "WebURLRequest.h"
-#include "WebURLResponse.h"
+#include "WebUserMediaClientMock.h"
+#include "platform/WebThread.h"
+#include "platform/WebURLRequest.h"
+#include "platform/WebURLResponse.h"
 #include "WebView.h"
 #include "WebWindowFeatures.h"
 #include "skia/ext/platform_canvas.h"
+#include "webkit/support/test_media_stream_client.h"
 #include "webkit/support/webkit_support.h"
+
 #include <wtf/Assertions.h>
 #include <wtf/PassOwnPtr.h>
 #include <wtf/Vector.h>
@@ -124,11 +134,14 @@ static string descriptionSuitableForTestResult(const string& url)
     return url.substr(pos + 1);
 }
 
-// Adds a file called "DRTFakeFile" to |data_object| (CF_HDROP).  Use to fake
+// Adds a file called "DRTFakeFile" to dragData (CF_HDROP). Use to fake
 // dragging a file.
 static void addDRTFakeFileToDataObject(WebDragData* dragData)
 {
-    dragData->appendToFilenames(WebString::fromUTF8("DRTFakeFile"));
+    WebDragData::Item item;
+    item.storageType = WebDragData::Item::StorageTypeFilename;
+    item.filenameData = WebString::fromUTF8("DRTFakeFile");
+    dragData->addItem(item);
 }
 
 // Get a debugging string from a WebNavigationType.
@@ -229,31 +242,53 @@ static string textAffinityDescription(WebTextAffinity affinity)
 
 // WebViewClient -------------------------------------------------------------
 
-WebView* WebViewHost::createView(WebFrame*, const WebURLRequest&, const WebWindowFeatures&, const WebString&)
+WebView* WebViewHost::createView(WebFrame*, const WebURLRequest& request, const WebWindowFeatures&, const WebString&, WebNavigationPolicy)
 {
     if (!layoutTestController()->canOpenWindows())
         return 0;
+    if (layoutTestController()->shouldDumpCreateView())
+        fprintf(stdout, "createView(%s)\n", URLDescription(request.url()).c_str());
     return m_shell->createNewWindow(WebURL())->webView();
 }
 
-WebWidget* WebViewHost::createPopupMenu(WebPopupType)
+WebWidget* WebViewHost::createPopupMenu(WebPopupType type)
 {
+    switch (type) {
+    case WebKit::WebPopupTypeNone:
+    case WebKit::WebPopupTypePage:
+        break;
+    case WebKit::WebPopupTypeSelect:
+    case WebKit::WebPopupTypeSuggestion:
+        m_popupmenus.append(WebPopupMenu::create(0));
+        return m_popupmenus.last();
+    }
     return 0;
 }
 
 WebWidget* WebViewHost::createPopupMenu(const WebPopupMenuInfo&)
 {
+    // Do not use this method. It's been replaced by createExternalPopupMenu.
+    ASSERT_NOT_REACHED();
     return 0;
 }
 
 WebStorageNamespace* WebViewHost::createSessionStorageNamespace(unsigned quota)
 {
-    return WebKit::WebStorageNamespace::createSessionStorageNamespace(quota);
+    return webkit_support::CreateSessionStorageNamespace(quota);
+}
+
+WebKit::WebGraphicsContext3D* WebViewHost::createGraphicsContext3D(const WebKit::WebGraphicsContext3D::Attributes& attributes)
+{
+    if (!webView())
+        return 0;
+    return webkit_support::CreateGraphicsContext3D(attributes, webView(), true);
 }
 
 void WebViewHost::didAddMessageToConsole(const WebConsoleMessage& message, const WebString& sourceName, unsigned sourceLine)
 {
     // This matches win DumpRenderTree's UIDelegate.cpp.
+    if (!m_logConsoleOutput)
+        return;
     string newMessage;
     if (!message.text.isEmpty()) {
         newMessage = message.text.utf8();
@@ -263,7 +298,10 @@ void WebViewHost::didAddMessageToConsole(const WebConsoleMessage& message, const
                 + urlSuitableForTestResult(newMessage.substr(fileProtocol));
         }
     }
-    printf("CONSOLE MESSAGE: line %d: %s\n", sourceLine, newMessage.data());
+    printf("CONSOLE MESSAGE: ");
+    if (sourceLine)
+        printf("line %d: ", sourceLine);
+    printf("%s\n", newMessage.data());
 }
 
 void WebViewHost::didStartLoading()
@@ -273,11 +311,13 @@ void WebViewHost::didStartLoading()
 
 void WebViewHost::didStopLoading()
 {
+    if (layoutTestController()->shouldDumpProgressFinishedCallback())
+        fputs("postProgressFinishedNotification\n", stdout);
     m_shell->setIsLoading(false);
 }
 
 // The output from these methods in layout test mode should match that
-// expected by the layout tests.  See EditingDelegate.m in DumpRenderTree.
+// expected by the layout tests. See EditingDelegate.m in DumpRenderTree.
 
 bool WebViewHost::shouldBeginEditing(const WebRange& range)
 {
@@ -413,6 +453,12 @@ void WebViewHost::spellCheck(const WebString& text, int& misspelledOffset, int& 
 
 void WebViewHost::requestCheckingOfText(const WebString& text, WebTextCheckingCompletion* completion)
 {
+    if (text.isEmpty()) {
+        if (completion)
+            completion->didCancelCheckingText();
+        return;
+    }
+
     m_lastRequestedTextCheckingCompletion = completion;
     m_lastRequestedTextCheckString = text;
     postDelayedTask(new HostMethodTask(this, &WebViewHost::finishLastTextCheck), 0);
@@ -430,9 +476,12 @@ void WebViewHost::finishLastTextCheck()
         m_spellcheck.spellCheckWord(WebString(text.characters(), text.length()), &misspelledPosition, &misspelledLength);
         if (!misspelledLength)
             break;
-        results.append(WebTextCheckingResult(WebTextCheckingResult::ErrorSpelling, offset + misspelledPosition, misspelledLength));
+        Vector<WebString> suggestions;
+        m_spellcheck.fillSuggestionList(WebString(text.characters() + misspelledPosition, misspelledLength), &suggestions);
+        results.append(WebTextCheckingResult(WebTextCheckingTypeSpelling, offset + misspelledPosition, misspelledLength,
+                                             suggestions.isEmpty() ? WebString() : suggestions[0]));
         text = text.substring(misspelledPosition + misspelledLength);
-        offset += misspelledPosition;
+        offset += misspelledPosition + misspelledLength;
     }
 
     m_lastRequestedTextCheckingCompletion->didFinishCheckingText(results);
@@ -467,9 +516,10 @@ bool WebViewHost::runModalPromptDialog(WebFrame* frame, const WebString& message
     return true;
 }
 
-bool WebViewHost::runModalBeforeUnloadDialog(WebFrame*, const WebString&)
+bool WebViewHost::runModalBeforeUnloadDialog(WebFrame*, const WebString& message)
 {
-    return true; // Allow window closure.
+    printf("CONFIRM NAVIGATION: %s\n", message.utf8().data());
+    return !layoutTestController()->shouldStayOnPageAfterHandlingBeforeUnload();
 }
 
 void WebViewHost::showContextMenu(WebFrame*, const WebContextMenuData& contextMenuData)
@@ -508,6 +558,23 @@ void WebViewHost::startDragging(const WebDragData& data, WebDragOperationsMask m
     m_shell->eventSender()->doDragDrop(mutableDragData, mask);
 }
 
+void WebViewHost::didUpdateLayout()
+{
+#if OS(MAC_OS_X)
+    static bool queryingPreferredSize = false;
+    if (queryingPreferredSize)
+        return;
+
+    queryingPreferredSize = true;
+    // Query preferred width to emulate the same functionality in Chromium:
+    // see RenderView::CheckPreferredSize (src/content/renderer/render_view.cc)
+    // and TabContentsViewMac::RenderViewCreated (src/chrome/browser/tab_contents/tab_contents_view_mac.mm)
+    webView()->mainFrame()->contentsPreferredWidth();
+    webView()->mainFrame()->documentElementScrollHeight();
+    queryingPreferredSize = false;
+#endif
+}
+
 void WebViewHost::navigateBackForwardSoon(int offset)
 {
     navigationController()->goToOffset(offset);
@@ -529,58 +596,71 @@ void WebViewHost::postAccessibilityNotification(const WebAccessibilityObject& ob
     if (notification == WebAccessibilityNotificationFocusedUIElementChanged)
         m_shell->accessibilityController()->setFocusedElement(obj);
 
-    if (m_shell->accessibilityController()->shouldDumpAccessibilityNotifications()) {
-        printf("AccessibilityNotification - ");
+    const char* notificationName;
+    switch (notification) {
+    case WebAccessibilityNotificationActiveDescendantChanged:
+        notificationName = "ActiveDescendantChanged";
+        break;
+    case WebAccessibilityNotificationAutocorrectionOccured:
+        notificationName = "AutocorrectionOccured";
+        break;
+    case WebAccessibilityNotificationCheckedStateChanged:
+        notificationName = "CheckedStateChanged";
+        break;
+    case WebAccessibilityNotificationChildrenChanged:
+        notificationName = "ChildrenChanged";
+        break;
+    case WebAccessibilityNotificationFocusedUIElementChanged:
+        notificationName = "FocusedUIElementChanged";
+        break;
+    case WebAccessibilityNotificationLayoutComplete:
+        notificationName = "LayoutComplete";
+        break;
+    case WebAccessibilityNotificationLoadComplete:
+        notificationName = "LoadComplete";
+        break;
+    case WebAccessibilityNotificationSelectedChildrenChanged:
+        notificationName = "SelectedChildrenChanged";
+        break;
+    case WebAccessibilityNotificationSelectedTextChanged:
+        notificationName = "SelectedTextChanged";
+        break;
+    case WebAccessibilityNotificationValueChanged:
+        notificationName = "ValueChanged";
+        break;
+    case WebAccessibilityNotificationScrolledToAnchor:
+        notificationName = "ScrolledToAnchor";
+        break;
+    case WebAccessibilityNotificationLiveRegionChanged:
+        notificationName = "LiveRegionChanged";
+        break;
+    case WebAccessibilityNotificationMenuListItemSelected:
+        notificationName = "MenuListItemSelected";
+        break;
+    case WebAccessibilityNotificationMenuListValueChanged:
+        notificationName = "MenuListValueChanged";
+        break;
+    case WebAccessibilityNotificationRowCountChanged:
+        notificationName = "RowCountChanged";
+        break;
+    case WebAccessibilityNotificationRowCollapsed:
+        notificationName = "RowCollapsed";
+        break;
+    case WebAccessibilityNotificationRowExpanded:
+        notificationName = "RowExpanded";
+        break;
+    case WebAccessibilityNotificationInvalidStatusChanged:
+        notificationName = "InvalidStatusChanged";
+        break;
+    default:
+        notificationName = "UnknownNotification";
+        break;
+    }
 
-        switch (notification) {
-        case WebAccessibilityNotificationActiveDescendantChanged:
-            printf("ActiveDescendantChanged");
-            break;
-        case WebAccessibilityNotificationCheckedStateChanged:
-            printf("CheckedStateChanged");
-            break;
-        case WebAccessibilityNotificationChildrenChanged:
-            printf("ChildrenChanged");
-            break;
-        case WebAccessibilityNotificationFocusedUIElementChanged:
-            printf("FocusedUIElementChanged");
-            break;
-        case WebAccessibilityNotificationLayoutComplete:
-            printf("LayoutComplete");
-            break;
-        case WebAccessibilityNotificationLoadComplete:
-            printf("LoadComplete");
-            break;
-        case WebAccessibilityNotificationSelectedChildrenChanged:
-            printf("SelectedChildrenChanged");
-            break;
-        case WebAccessibilityNotificationSelectedTextChanged:
-            printf("SelectedTextChanged");
-            break;
-        case WebAccessibilityNotificationValueChanged:
-            printf("ValueChanged");
-            break;
-        case WebAccessibilityNotificationScrolledToAnchor:
-            printf("ScrolledToAnchor");
-            break;
-        case WebAccessibilityNotificationLiveRegionChanged:
-            printf("LiveRegionChanged");
-            break;
-        case WebAccessibilityNotificationMenuListValueChanged:
-            printf("MenuListValueChanged");
-            break;
-        case WebAccessibilityNotificationRowCountChanged:
-            printf("RowCountChanged");
-            break;
-        case WebAccessibilityNotificationRowCollapsed:
-            printf("RowCollapsed");
-            break;
-        case WebAccessibilityNotificationRowExpanded:
-            printf("RowExpanded");
-            break;
-        default:
-            break;
-        }
+    m_shell->accessibilityController()->notificationReceived(obj, notificationName);
+
+    if (m_shell->accessibilityController()->shouldLogAccessibilityEvents()) {
+        printf("AccessibilityNotification - %s", notificationName);
 
         WebKit::WebNode node = obj.node();
         if (!node.isNull() && node.isElementNode()) {
@@ -613,7 +693,7 @@ WebKit::WebGeolocationClientMock* WebViewHost::geolocationClientMock()
 WebSpeechInputController* WebViewHost::speechInputController(WebKit::WebSpeechInputListener* listener)
 {
     if (!m_speechInputControllerMock)
-        m_speechInputControllerMock = adoptPtr(WebSpeechInputControllerMock::create(listener));
+        m_speechInputControllerMock = MockWebSpeechInputController::create(listener);
     return m_speechInputControllerMock.get();
 }
 
@@ -634,6 +714,20 @@ WebDeviceOrientationClient* WebViewHost::deviceOrientationClient()
     return deviceOrientationClientMock();
 }
 
+#if ENABLE(MEDIA_STREAM)
+WebUserMediaClient* WebViewHost::userMediaClient()
+{
+    return userMediaClientMock();
+}
+
+WebUserMediaClientMock* WebViewHost::userMediaClientMock()
+{
+    if (!m_userMediaClientMock.get())
+        m_userMediaClientMock = WebUserMediaClientMock::create();
+    return m_userMediaClientMock.get();
+}
+#endif
+
 // WebWidgetClient -----------------------------------------------------------
 
 void WebViewHost::didInvalidateRect(const WebRect& rect)
@@ -648,6 +742,13 @@ void WebViewHost::didScrollRect(int, int, const WebRect& clipRect)
     didInvalidateRect(clipRect);
 }
 
+void WebViewHost::didAutoResize(const WebSize& newSize)
+{
+    // Purposely don't include the virtualWindowBorder in this case so that
+    // window.inner[Width|Height] is the same as window.outer[Width|Height]
+    setWindowRect(WebRect(0, 0, newSize.width, newSize.height));
+}
+
 void WebViewHost::scheduleComposite()
 {
     WebSize widgetSize = webWidget()->size();
@@ -656,9 +757,16 @@ void WebViewHost::scheduleComposite()
 }
 
 #if ENABLE(REQUEST_ANIMATION_FRAME)
+void WebViewHost::serviceAnimation()
+{
+    if (webView()->settings()->scrollAnimatorEnabled())
+        webView()->animate(0.0);
+    scheduleComposite();
+}
+
 void WebViewHost::scheduleAnimation()
 {
-    postDelayedTask(new HostMethodTask(this, &WebViewHost::scheduleComposite), 0);
+    postDelayedTask(new HostMethodTask(this, &WebViewHost::serviceAnimation), 0);
 }
 #endif
 
@@ -686,6 +794,57 @@ WebScreenInfo WebViewHost::screenInfo()
                                  screenHeight - screenUnavailableBorder * 2);
     return info;
 }
+
+#if ENABLE(POINTER_LOCK)
+bool WebViewHost::requestPointerLock()
+{
+    switch (m_pointerLockPlannedResult) {
+    case PointerLockWillSucceed:
+        postDelayedTask(new HostMethodTask(this, &WebViewHost::didAcquirePointerLock), 0);
+        return true;
+    case PointerLockWillFailAsync:
+        ASSERT(!m_pointerLocked);
+        postDelayedTask(new HostMethodTask(this, &WebViewHost::didNotAcquirePointerLock), 0);
+        return true;
+    case PointerLockWillFailSync:
+        ASSERT(!m_pointerLocked);
+        return false;
+    default:
+        ASSERT_NOT_REACHED();
+        return false;
+    }
+}
+
+void WebViewHost::requestPointerUnlock()
+{
+    postDelayedTask(new HostMethodTask(this, &WebViewHost::didLosePointerLock), 0);
+}
+
+bool WebViewHost::isPointerLocked()
+{
+    return m_pointerLocked;
+}
+
+void WebViewHost::didAcquirePointerLock()
+{
+    m_pointerLocked = true;
+    webWidget()->didAcquirePointerLock();
+}
+
+void WebViewHost::didNotAcquirePointerLock()
+{
+    ASSERT(!m_pointerLocked);
+    m_pointerLocked = false;
+    webWidget()->didNotAcquirePointerLock();
+}
+
+void WebViewHost::didLosePointerLock()
+{
+    ASSERT(m_pointerLocked);
+    m_pointerLocked = false;
+    webWidget()->didLosePointerLock();
+}
+#endif
 
 void WebViewHost::show(WebNavigationPolicy)
 {
@@ -748,28 +907,51 @@ WebRect WebViewHost::windowResizerRect()
 
 void WebViewHost::runModal()
 {
+    if (m_shell->isDisplayingModalDialog()) {
+        // DumpRenderTree doesn't support real modal dialogs, so a test shouldn't try to start two modal dialogs at the same time.
+        ASSERT_NOT_REACHED();
+        return;
+    }
+    // This WebViewHost might get deleted before RunMessageLoop() returns, so keep a copy of the m_shell member variable around.
+    ASSERT(m_shell->webViewHost() != this);
+    TestShell* shell = m_shell;
+    shell->setIsDisplayingModalDialog(true);
     bool oldState = webkit_support::MessageLoopNestableTasksAllowed();
     webkit_support::MessageLoopSetNestableTasksAllowed(true);
     m_inModalLoop = true;
     webkit_support::RunMessageLoop();
     webkit_support::MessageLoopSetNestableTasksAllowed(oldState);
+    shell->setIsDisplayingModalDialog(false);
+}
+
+bool WebViewHost::enterFullScreen()
+{
+    postDelayedTask(new HostMethodTask(this, &WebViewHost::enterFullScreenNow), 0);
+    return true;
+}
+
+void WebViewHost::exitFullScreen()
+{
+    postDelayedTask(new HostMethodTask(this, &WebViewHost::exitFullScreenNow), 0);
 }
 
 // WebFrameClient ------------------------------------------------------------
 
 WebPlugin* WebViewHost::createPlugin(WebFrame* frame, const WebPluginParams& params)
 {
-    return webkit_support::CreateWebPlugin(frame, params);
-}
+    if (params.mimeType == TestWebPlugin::mimeType())
+        return new TestWebPlugin(frame, params);
 
-WebWorker* WebViewHost::createWorker(WebFrame*, WebWorkerClient*)
-{
-    return new TestWebWorker();
+    return webkit_support::CreateWebPlugin(frame, params);
 }
 
 WebMediaPlayer* WebViewHost::createMediaPlayer(WebFrame* frame, WebMediaPlayerClient* client)
 {
+#if ENABLE(MEDIA_STREAM)
+    return webkit_support::CreateMediaPlayer(frame, client, testMediaStreamClient());
+#else
     return webkit_support::CreateMediaPlayer(frame, client);
+#endif
 }
 
 WebApplicationCacheHost* WebViewHost::createApplicationCacheHost(WebFrame* frame, WebApplicationCacheHostClient* client)
@@ -777,17 +959,12 @@ WebApplicationCacheHost* WebViewHost::createApplicationCacheHost(WebFrame* frame
     return webkit_support::CreateApplicationCacheHost(frame, client);
 }
 
-bool WebViewHost::allowPlugins(WebFrame* frame, bool enabledPerSettings)
+void WebViewHost::loadURLExternally(WebFrame* frame, const WebURLRequest& request, WebNavigationPolicy policy)
 {
-    return enabledPerSettings;
+    loadURLExternally(frame, request, policy, WebString());
 }
 
-bool WebViewHost::allowImages(WebFrame* frame, bool enabledPerSettings)
-{
-    return enabledPerSettings;
-}
-
-void WebViewHost::loadURLExternally(WebFrame*, const WebURLRequest& request, WebNavigationPolicy policy)
+void WebViewHost::loadURLExternally(WebFrame*, const WebURLRequest& request, WebNavigationPolicy policy, const WebString& downloadName)
 {
     ASSERT(policy !=  WebKit::WebNavigationPolicyCurrentTab);
     WebViewHost* another = m_shell->createNewWindow(request.url());
@@ -1124,14 +1301,47 @@ void WebViewHost::didRunInsecureContent(WebFrame*, const WebSecurityOrigin& orig
         fputs("didRunInsecureContent\n", stdout);
 }
 
-bool WebViewHost::allowScript(WebFrame*, bool enabledPerSettings)
+void WebViewHost::didDetectXSS(WebFrame*, const WebURL&, bool)
 {
-    return enabledPerSettings;
+    if (m_shell->shouldDumpFrameLoadCallbacks())
+        fputs("didDetectXSS\n", stdout);
 }
 
 void WebViewHost::openFileSystem(WebFrame* frame, WebFileSystem::Type type, long long size, bool create, WebFileSystemCallbacks* callbacks)
 {
     webkit_support::OpenFileSystem(frame, type, size, create, callbacks);
+}
+
+bool WebViewHost::willCheckAndDispatchMessageEvent(WebFrame* source, WebSecurityOrigin target, WebDOMMessageEvent event)
+{
+    if (m_shell->layoutTestController()->shouldInterceptPostMessage()) {
+        fputs("intercepted postMessage\n", stdout);
+        return true;
+    }
+
+    return false;
+}
+
+void WebViewHost::dispatchIntent(WebFrame* source, const WebIntentRequest& request)
+{
+    printf("Received Web Intent: action=%s type=%s\n",
+           request.intent().action().utf8().data(),
+           request.intent().type().utf8().data());
+    WebMessagePortChannelArray* ports = request.intent().messagePortChannelsRelease();
+    m_currentRequest = request;
+    if (ports) {
+        printf("Have %d ports\n", static_cast<int>(ports->size()));
+        for (size_t i = 0; i < ports->size(); ++i)
+            (*ports)[i]->destroy();
+        delete ports;
+    }
+    if (!request.intent().service().isEmpty())
+        printf("Explicit intent service: %s\n", request.intent().service().spec().data());
+    WebVector<WebString> extras = request.intent().extrasNames();
+    for (size_t i = 0; i < extras.size(); ++i) {
+        printf("Extras[%s] = %s\n", extras[i].utf8().data(),
+               request.intent().extrasValue(extras[i]).utf8().data());
+    }
 }
 
 // Public functions -----------------------------------------------------------
@@ -1154,8 +1364,11 @@ WebViewHost::~WebViewHost()
         loadURLForFrame(GURL("about:blank"), WebString());
     }
 
-    webWidget()->close();
+    for (Vector<WebKit::WebWidget*>::iterator it = m_popupmenus.begin();
+         it < m_popupmenus.end(); ++it)
+        (*it)->close();
 
+    webWidget()->close();
     if (m_inModalLoop)
         webkit_support::QuitMessageLoop();
 }
@@ -1190,6 +1403,7 @@ void WebViewHost::reset()
     m_hasWindow = false;
     m_inModalLoop = false;
     m_smartInsertDeleteEnabled = true;
+    m_logConsoleOutput = true;
 #if OS(WINDOWS)
     m_selectTrailingWhitespaceEnabled = true;
 #else
@@ -1199,6 +1413,10 @@ void WebViewHost::reset()
     m_requestReturnNull = false;
     m_isPainting = false;
     m_canvas.clear();
+#if ENABLE(POINTER_LOCK)
+    m_pointerLocked = false;
+    m_pointerLockPlannedResult = PointerLockWillSucceed;
+#endif
 
     m_navigationController = adoptPtr(new TestNavigationController(this));
 
@@ -1238,6 +1456,11 @@ void WebViewHost::setSmartInsertDeleteEnabled(bool enabled)
     // In upstream WebKit, smart insert/delete is mutually exclusive with select
     // trailing whitespace, however, we allow both because Chromium on Windows
     // allows both.
+}
+
+void WebViewHost::setLogConsoleOutput(bool enabled)
+{
+    m_logConsoleOutput = enabled;
 }
 
 void WebViewHost::setCustomPolicyDelegate(bool isCustom, bool isPermissive)
@@ -1283,7 +1506,7 @@ bool WebViewHost::navigate(const TestNavigationEntry& entry, bool reload)
     // back/forward navigations maintain the target frame?
 
     // A navigation resulting from loading a javascript URL should not be
-    // treated as a browser initiated event.  Instead, we want it to look as if
+    // treated as a browser initiated event. Instead, we want it to look as if
     // the page initiated any load resulting from JS execution.
     if (!GURL(entry.URL()).SchemeIs("javascript"))
         setPendingExtraData(adoptPtr(new TestShellExtraData(entry.pageID())));
@@ -1390,7 +1613,7 @@ void WebViewHost::updateURL(WebFrame* frame)
 void WebViewHost::updateSessionHistory(WebFrame* frame)
 {
     // If we have a valid page ID at this point, then it corresponds to the page
-    // we are navigating away from.  Otherwise, this is the first navigation, so
+    // we are navigating away from. Otherwise, this is the first navigation, so
     // there is no past session history to record.
     if (m_pageId == -1)
         return;
@@ -1451,6 +1674,38 @@ void WebViewHost::setAddressBarURL(const WebURL&)
     // Nothing to do in layout test.
 }
 
+void WebViewHost::enterFullScreenNow()
+{
+    if (layoutTestController()->hasCustomFullScreenBehavior())
+        return;
+
+    webView()->willEnterFullScreen();
+    webView()->didEnterFullScreen();
+}
+
+void WebViewHost::exitFullScreenNow()
+{
+    if (layoutTestController()->hasCustomFullScreenBehavior())
+        return;
+
+    webView()->willExitFullScreen();
+    webView()->didExitFullScreen();
+}
+
+#if ENABLE(MEDIA_STREAM)
+webkit_support::MediaStreamUtil* WebViewHost::mediaStreamUtil()
+{
+    return userMediaClientMock();
+}
+
+webkit_support::TestMediaStreamClient* WebViewHost::testMediaStreamClient()
+{
+    if (!m_testMediaStreamClient.get())
+        m_testMediaStreamClient = adoptPtr(new webkit_support::TestMediaStreamClient(mediaStreamUtil()));
+    return m_testMediaStreamClient.get();
+}
+#endif
+
 // Painting functions ---------------------------------------------------------
 
 void WebViewHost::updatePaintRect(const WebRect& rect)
@@ -1486,13 +1741,13 @@ void WebViewHost::paintRect(const WebRect& rect)
 void WebViewHost::paintInvalidatedRegion()
 {
 #if ENABLE(REQUEST_ANIMATION_FRAME)
-    webWidget()->animate();
+    webWidget()->animate(0.0);
 #endif
     webWidget()->layout();
     WebSize widgetSize = webWidget()->size();
     WebRect clientRect(0, 0, widgetSize.width, widgetSize.height);
 
-    // Paint the canvas if necessary.  Allow painting to generate extra rects
+    // Paint the canvas if necessary. Allow painting to generate extra rects
     // for the first two calls. This is necessary because some WebCore rendering
     // objects update their layout only when painted.
     // Store the total area painted in total_paint. Then tell the gdk window
@@ -1515,6 +1770,47 @@ void WebViewHost::paintInvalidatedRegion()
         paintRect(rect);
     }
     ASSERT(m_paintRect.isEmpty());
+}
+
+void WebViewHost::paintPagesWithBoundaries()
+{
+    ASSERT(!m_isPainting);
+    ASSERT(canvas());
+    m_isPainting = true;
+
+    WebSize pageSizeInPixels = webWidget()->size();
+    WebFrame* webFrame = webView()->mainFrame();
+
+    int pageCount = webFrame->printBegin(pageSizeInPixels);
+    int totalHeight = pageCount * (pageSizeInPixels.height + 1) - 1;
+
+    SkCanvas* testCanvas = skia::TryCreateBitmapCanvas(pageSizeInPixels.width, totalHeight, true);
+    if (testCanvas) {
+        discardBackingStore();
+        m_canvas = adoptPtr(testCanvas);
+    } else {
+        webFrame->printEnd();
+        return;
+    }
+
+#if WEBKIT_USING_SKIA
+    WebCanvas* webCanvas = canvas();
+#elif WEBKIT_USING_CG
+    const SkBitmap& canvasBitmap = canvas()->getDevice()->accessBitmap(false);
+    WebCanvas* webCanvas = CGBitmapContextCreate(canvasBitmap.getPixels(),
+                                                 pageSizeInPixels.width, totalHeight,
+                                                 8, pageSizeInPixels.width * 4,
+                                                 CGColorSpaceCreateDeviceRGB(),
+                                                 kCGImageAlphaPremultipliedFirst |
+                                                 kCGBitmapByteOrder32Host);
+    CGContextTranslateCTM(webCanvas, 0.0, totalHeight);
+    CGContextScaleCTM(webCanvas, 1.0, -1.0f);
+#endif
+
+    webFrame->printPagesWithBoundaries(webCanvas, pageSizeInPixels);
+    webFrame->printEnd();
+
+    m_isPainting = false;
 }
 
 SkCanvas* WebViewHost::canvas()
@@ -1541,4 +1837,13 @@ void WebViewHost::discardBackingStore()
 void WebViewHost::displayRepaintMask()
 {
     canvas()->drawARGB(167, 0, 0, 0);
+}
+
+// Simulate a print by going into print mode and then exit straight away.
+void WebViewHost::printPage(WebKit::WebFrame* frame)
+{
+    WebSize pageSizeInPixels = webWidget()->size();
+
+    frame->printBegin(pageSizeInPixels);
+    frame->printEnd();
 }

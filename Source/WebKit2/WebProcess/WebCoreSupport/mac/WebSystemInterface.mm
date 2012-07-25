@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2006, 2007, 2008, 2009, 2010 Apple Inc. All rights reserved.
+ * Copyright (C) 2006, 2007, 2008, 2009, 2010, 2011 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -37,8 +37,13 @@ void InitWebCoreSystemInterface(void)
     
     dispatch_once(&initOnce, ^{
         INIT(AdvanceDefaultButtonPulseAnimation);
+#if !defined(BUILDING_ON_SNOW_LEOPARD)
+        INIT(CALayerEnumerateRectsBeingDrawnWithBlock);
+#endif
         INIT(CopyCFLocalizationPreferredName);
         INIT(CGContextGetShouldSmoothFonts);
+        INIT(CGPatternCreateWithImageAndTransform);
+        INIT(CGContextResetClip);
         INIT(CopyCONNECTProxyResponse);
         INIT(CopyNSURLResponseStatusLine);
         INIT(CreateCTLineWithUniCharProvider);
@@ -56,6 +61,7 @@ void InitWebCoreSystemInterface(void)
         INIT(GetFontInLanguageForRange);
         INIT(GetGlyphTransformedAdvances);
         INIT(GetGlyphsForCharacters);
+        INIT(GetVerticalGlyphsForCharacters);
         INIT(GetHTTPPipeliningPriority);
         INIT(GetMIMETypeForExtension);
         INIT(GetNSURLResponseLastModifiedDate);
@@ -63,6 +69,7 @@ void InitWebCoreSystemInterface(void)
         INIT(GetPreferredExtensionForMIMEType);
         INIT(GetUserToBaseCTM);
         INIT(GetWheelEventDeltas);
+        INIT(GetNSEventKeyChar);
         INIT(HitTestMediaUIPart);
         INIT(InitializeMaximumHTTPConnectionCountPerHost);
         INIT(MeasureMediaUIPart);
@@ -83,6 +90,7 @@ void InitWebCoreSystemInterface(void)
         INIT(QTGetSitesInMediaDownloadCache);
         INIT(QTClearMediaDownloadCacheForSite);
         INIT(QTClearMediaDownloadCache);
+        INIT(SetBaseCTM);
         INIT(SetCGFontRenderingMode);
         INIT(SetCONNECTProxyAuthorizationForStream);
         INIT(SetCONNECTProxyForStream);
@@ -93,7 +101,6 @@ void InitWebCoreSystemInterface(void)
         INIT(SetHTTPPipeliningMinimumFastLanePriority);
         INIT(SetNSURLConnectionDefersCallbacks);
         INIT(SetNSURLRequestShouldContentSniff);
-        INIT(SetPatternBaseCTM);
         INIT(SetPatternPhaseInUserSpace);
         INIT(SetUpFontCache);
         INIT(SignalCFReadStreamEnd);
@@ -103,57 +110,35 @@ void InitWebCoreSystemInterface(void)
         INIT(CopyRequestWithStorageSession);
         INIT(CopyHTTPCookieStorage);
         INIT(GetHTTPCookieAcceptPolicy);
+        INIT(SetHTTPCookieAcceptPolicy);
         INIT(HTTPCookiesForURL);
         INIT(SetHTTPCookiesForURL);
         INIT(DeleteHTTPCookie);
 
+        INIT(SetMetadataURL);
+        
 #if !defined(BUILDING_ON_SNOW_LEOPARD)
         INIT(IOSurfaceContextCreate);
         INIT(IOSurfaceContextCreateImage);
         INIT(CreateCTTypesetterWithUniCharProviderAndOptions);
-        INIT(MakeScrollbarPainter);
-        INIT(ScrollbarPainterSetDelegate);
-        INIT(ScrollbarPainterPaint);
-        INIT(ScrollbarPainterForceFlashScrollers);
-        INIT(ScrollbarThickness);
-        INIT(ScrollbarMinimumThumbLength);
-        INIT(ScrollbarMinimumTotalLengthNeededForThumb);
-        INIT(ScrollbarPainterKnobAlpha);
-        INIT(SetScrollbarPainterKnobAlpha);
-        INIT(ScrollbarPainterTrackAlpha);
-        INIT(SetScrollbarPainterTrackAlpha);
-        INIT(ScrollbarPainterIsHorizontal);
-        INIT(ScrollbarPainterKnobRect);
-        INIT(ScrollbarPainterSetOverlayState);
-        INIT(SetScrollbarPainterKnobStyle);
-        INIT(MakeScrollbarPainterController);
-        INIT(MakeScrollbarReplacementPainter);
-        INIT(SetPainterForPainterController);
-        INIT(VerticalScrollbarPainterForController);
-        INIT(HorizontalScrollbarPainterForController);
-        INIT(ScrollbarPainterControllerStyle);
-        INIT(SetScrollbarPainterControllerStyle);
-        INIT(ContentAreaScrolled);
-        INIT(ContentAreaWillPaint);
-        INIT(MouseEnteredContentArea);
-        INIT(MouseExitedContentArea);
-        INIT(MouseMovedInContentArea);
-        INIT(WillStartLiveResize);
-        INIT(ContentAreaResized);
-        INIT(WillEndLiveResize);
-        INIT(ContentAreaDidShow);
-        INIT(ContentAreaDidHide);
-        INIT(DidBeginScrollGesture);
-        INIT(DidEndScrollGesture);
-        INIT(ScrollbarPainterUsesOverlayScrollers);
+        INIT(RecommendedScrollerStyle);
         INIT(ExecutableWasLinkedOnOrBeforeSnowLeopard);
         INIT(CopyDefaultSearchProviderDisplayName);
         INIT(AVAssetResolvedURL);
+        INIT(Cursor);
 #else
         INIT(GetHyphenationLocationBeforeIndex);
         INIT(GetNSEventMomentumPhase);
 #endif
-        
+#if USE(CFNETWORK)
+        INIT(GetDefaultHTTPCookieStorage);
+        INIT(CopyCredentialFromCFPersistentStorage);
+        INIT(SetCFURLRequestShouldContentSniff);
+        INIT(CFURLRequestCopyHTTPRequestBodyParts);
+        INIT(CFURLRequestSetHTTPRequestBodyParts);
+        INIT(SetRequestStorageSession);
+#endif
+
         INIT(GetAXTextMarkerTypeID);
         INIT(GetAXTextMarkerRangeTypeID);
         INIT(CreateAXTextMarker);
@@ -163,12 +148,44 @@ void InitWebCoreSystemInterface(void)
         INIT(CopyAXTextMarkerRangeEnd);
         INIT(AccessibilityHandleFocusChanged);
         INIT(CreateAXUIElementRef);
-        INIT(UnregisterUniqueIdForElement);        
+        INIT(UnregisterUniqueIdForElement);
 
         INIT(GetCFURLResponseMIMEType);
         INIT(GetCFURLResponseURL);
         INIT(GetCFURLResponseHTTPResponse);
         INIT(CopyCFURLResponseSuggestedFilename);
         INIT(SetCFURLResponseMIMEType);
+
+        INIT(SetMetadataURL);
+
+#if !defined(BUILDING_ON_SNOW_LEOPARD)
+        INIT(CreateVMPressureDispatchOnMainQueue);
+#endif
+
+#if !defined(BUILDING_ON_SNOW_LEOPARD) && !defined(BUILDING_ON_LION)
+        INIT(GetMacOSXVersionString);
+        INIT(ExecutableWasLinkedOnOrBeforeLion);
+#endif
+
+#if !defined(BUILDING_ON_LEOPARD) && !defined(BUILDING_ON_SNOW_LEOPARD)
+        INIT(CGPathAddRoundedRect);
+#endif
+
+#if !defined(BUILDING_ON_SNOW_LEOPARD)
+        INIT(CFURLRequestAllowAllPostCaching);
+#endif
+#if PLATFORM(MAC) && !defined(BUILDING_ON_SNOW_LEOPARD) && !defined(BUILDING_ON_LION) && !PLATFORM(IOS)
+        INIT(FilterIsManagedSession);
+        INIT(FilterCreateInstance);
+        INIT(FilterRelease);
+        INIT(FilterWasBlocked);
+        INIT(FilterAddData);
+        INIT(FilterDataComplete);
+
+        INIT(NSElasticDeltaForTimeDelta);
+        INIT(NSElasticDeltaForReboundDelta);
+        INIT(NSReboundDeltaForElasticDelta);
+#endif
+
     });
 }

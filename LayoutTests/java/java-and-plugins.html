@@ -1,7 +1,6 @@
 <html>
 <head>
 <meta charset="utf-8">
-<link rel="stylesheet" href="../fast/js/resources/js-test-style.css">
 <script src="../fast/js/resources/js-test-pre.js"></script>
 <script>
 if (window.layoutTestController)
@@ -34,22 +33,6 @@ shouldBe('document.javaTest.getAndForgetRememberedObject().objectPointer', 'docu
 
 shouldBe('typeof document.javaTest.testGetMember(document.plg, "testDOMAccess")', '"function"');
 
-// Try calling a plug-in method with a Java object as this, and vice versa.
-// These should throw an exception.
-function tryCall(func, thisObj)
-{
-    var exception = "NO EXCEPTION";
-    try {
-        func.call(thisObj);
-    } catch (e) {
-        exception = e;
-    }
-    return String(exception);
-}
-shouldBe('tryCall(document.javaTest.getSelf, plg.testObject)', '"TypeError: Attempt to invoke non-plug-in method on plug-in object."');
-shouldBe('tryCall(plg.testObject.throwException, document.javaTest)', '"TypeError: Attempt to invoke non-Java method on Java object."');
-
-successfullyParsed = true;
 </script>
 <script src="../fast/js/resources/js-test-post.js"></script>
 </body>

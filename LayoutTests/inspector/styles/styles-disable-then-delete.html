@@ -6,7 +6,7 @@
 
 function test()
 {
-    InspectorTest.selectNodeWithId("container", step1);
+    InspectorTest.selectNodeAndWaitForStyles("container", step1);
 
     function step1()
     {
@@ -34,12 +34,13 @@ function test()
 
     function step3()
     {
-        InspectorTest.selectNodeWithId("other", step4);
+        InspectorTest.selectNodeWithId("other");
+        InspectorTest.runAfterPendingDispatches(step4);
     }
 
     function step4()
     {
-        InspectorTest.selectNodeWithId("container", step5);
+        InspectorTest.selectNodeAndWaitForStyles("container", step5);
     }
 
     function step5(node)

@@ -33,7 +33,7 @@
 
 #include "Task.h"
 #include "WebDevToolsAgentClient.h"
-#include "WebString.h"
+#include "platform/WebString.h"
 #include <wtf/HashMap.h>
 #include <wtf/Noncopyable.h>
 
@@ -52,7 +52,7 @@ class DRTDevToolsAgent : public WebKit::WebDevToolsAgentClient {
     WTF_MAKE_NONCOPYABLE(DRTDevToolsAgent);
 public:
     DRTDevToolsAgent();
-    virtual ~DRTDevToolsAgent() {}
+    virtual ~DRTDevToolsAgent() { }
     void reset();
 
     void setWebView(WebKit::WebView*);
@@ -67,30 +67,23 @@ public:
 
     void attach(DRTDevToolsClient*);
     void detach();
-    void frontendLoaded();
 
     bool evaluateInWebInspector(long callID, const std::string& script);
-    bool setTimelineProfilingEnabled(bool enable);
+    bool setJavaScriptProfilingEnabled(bool);
     TaskList* taskList() { return &m_taskList; }
 
 private:
     void call(const WebKit::WebString& args);
-    void delayedFrontendLoaded();
-    static void dispatchMessageLoop();
     WebKit::WebDevToolsAgent* webDevToolsAgent();
 
     class AsyncCallTask: public MethodTask<DRTDevToolsAgent> {
     public:
         AsyncCallTask(DRTDevToolsAgent* object, const WebKit::WebString& args)
-            : MethodTask<DRTDevToolsAgent>(object), m_args(args) {}
+            : MethodTask<DRTDevToolsAgent>(object), m_args(args) { }
         virtual void runIfValid() { m_object->call(m_args); }
+
     private:
         WebKit::WebString m_args;
-    };
-
-    struct DelayedFrontendLoadedTask: public MethodTask<DRTDevToolsAgent> {
-        DelayedFrontendLoadedTask(DRTDevToolsAgent* object) : MethodTask<DRTDevToolsAgent>(object) {}
-        virtual void runIfValid() { m_object->delayedFrontendLoaded(); }
     };
 
     TaskList m_taskList;

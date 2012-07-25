@@ -23,13 +23,14 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "config.h"
 #include "PlatformUtilities.h"
 
 #include <WebKit2/WKRetainPtr.h>
 #include <WebKit2/WKStringCF.h>
 #include <WebKit2/WKURLCF.h>
 #include <WebKit2/WKURLResponseNS.h>
-#include <WebKit2/WebKit2.h>
+#include <wtf/OwnArrayPtr.h>
 #include <wtf/RetainPtr.h>
 
 namespace TestWebKitAPI {
@@ -38,7 +39,7 @@ namespace Util {
 void run(bool* done)
 {
     while (!*done)
-        [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate distantFuture]];
+        [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate distantPast]];
 }
 
 void sleep(double seconds)
@@ -54,7 +55,7 @@ WKStringRef createInjectedBundlePath()
 
 WKURLRef createURLForResource(const char* resource, const char* extension)
 {
-    NSURL *nsURL = [[NSBundle mainBundle] URLForResource:[NSString stringWithUTF8String:resource] withExtension:[NSString stringWithUTF8String:extension]];
+    NSURL *nsURL = [[NSBundle mainBundle] URLForResource:[NSString stringWithUTF8String:resource] withExtension:[NSString stringWithUTF8String:extension] subdirectory:@"TestWebKitAPI.resources"];
     return WKURLCreateWithCFURL((CFURLRef)nsURL);
 }
 
@@ -73,6 +74,15 @@ WKRetainPtr<WKStringRef> MIMETypeForWKURLResponse(WKURLResponseRef wkResponse)
 bool isKeyDown(WKNativeEventPtr event)
 {
     return [event type] == NSKeyDown;
+}
+
+std::string toSTD(NSString *string)
+{
+    size_t bufferSize = [string lengthOfBytesUsingEncoding:NSUTF8StringEncoding];
+    OwnArrayPtr<char> buffer = adoptArrayPtr(new char[bufferSize]);
+    NSUInteger stringLength;
+    [string getBytes:buffer.get() maxLength:bufferSize usedLength:&stringLength encoding:NSUTF8StringEncoding options:0 range:NSMakeRange(0, [string length]) remainingRange:0];
+    return std::string(buffer.get(), stringLength);
 }
 
 } // namespace Util

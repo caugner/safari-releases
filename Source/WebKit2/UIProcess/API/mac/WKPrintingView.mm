@@ -27,9 +27,13 @@
 #import "WKPrintingView.h"
 
 #import "Logging.h"
+#import "PDFKitImports.h"
 #import "PrintInfo.h"
 #import "WebData.h"
 #import "WebPageProxy.h"
+#import <PDFKit/PDFKit.h>
+#import <WebCore/WebCoreObjCExtras.h>
+#import <wtf/MainThread.h>
 
 using namespace WebKit;
 using namespace WebCore;
@@ -53,6 +57,14 @@ static BOOL isForcingPreviewUpdate;
     _wkView = wkView;
 
     return self;
+}
+
+- (void)dealloc
+{
+    if (WebCoreObjCScheduleDeallocateOnMainThread([WKPrintingView class], self))
+        return;
+
+    [super dealloc];
 }
 
 - (BOOL)isFlipped
@@ -90,6 +102,10 @@ static BOOL isForcingPreviewUpdate;
     
     _autodisplayResumeTimer = nil;
     [self _setAutodisplay:YES];
+
+    // Enabling autodisplay normally implicitly calls endPrinting() via -[WKView drawRect:], but not when content is in accelerated compositing mode.
+    if (_webFrame->page())
+        _webFrame->page()->endPrinting();
 }
 
 - (void)_delayedResumeAutodisplay
@@ -105,6 +121,8 @@ static BOOL isForcingPreviewUpdate;
 
 - (void)_adjustPrintingMarginsForHeaderAndFooter
 {
+    ASSERT(isMainThread()); // This funciton calls the client, which should only be done on main thread.
+
     NSPrintInfo *info = [_printOperation printInfo];
     NSMutableDictionary *infoDictionary = [info dictionary];
 
@@ -211,8 +229,8 @@ static void pageDidDrawToPDF(WKDataRef dataRef, WKErrorRef, void* untypedContext
             ASSERT([view _isPrintingPreview]);
 
             if (data) {
-                pair<HashMap<WebCore::IntRect, Vector<uint8_t> >::iterator, bool> entry = view->_pagePreviews.add(iter->second, Vector<uint8_t>());
-                entry.first->second.append(data->bytes(), data->size());
+                HashMap<WebCore::IntRect, Vector<uint8_t> >::AddResult entry = view->_pagePreviews.add(iter->second, Vector<uint8_t>());
+                entry.iterator->second.append(data->bytes(), data->size());
             }
             view->_expectedPreviewCallbacks.remove(context->callbackID);
             bool receivedResponseToLatestRequest = view->_latestExpectedPreviewCallback == context->callbackID;
@@ -247,8 +265,9 @@ static void pageDidDrawToPDF(WKDataRef dataRef, WKErrorRef, void* untypedContext
     ASSERT(firstPage <= lastPage);
     LOG(View, "WKPrintingView requesting PDF data for pages %u...%u", firstPage, lastPage);
 
+    PrintInfo printInfo([_printOperation printInfo]);
     // Return to printing mode if we're already back to screen (e.g. due to window resizing).
-    _webFrame->page()->beginPrinting(_webFrame.get(), PrintInfo([_printOperation printInfo]));
+    _webFrame->page()->beginPrinting(_webFrame.get(), printInfo);
 
     IPCCallbackContext* context = new IPCCallbackContext;
     RefPtr<DataCallback> callback = DataCallback::create(context, pageDidDrawToPDF);
@@ -257,7 +276,7 @@ static void pageDidDrawToPDF(WKDataRef dataRef, WKErrorRef, void* untypedContext
     context->view = self;
     context->callbackID = callback->callbackID();
 
-    _webFrame->page()->drawPagesToPDF(_webFrame.get(), firstPage - 1, lastPage - firstPage + 1, callback.get());
+    _webFrame->page()->drawPagesToPDF(_webFrame.get(), printInfo, firstPage - 1, lastPage - firstPage + 1, callback.get());
 }
 
 static void pageDidComputePageRects(const Vector<WebCore::IntRect>& pageRects, double totalScaleFactorForPrinting, WKErrorRef, void* untypedContext)
@@ -358,7 +377,7 @@ static void prepareDataForPrintingOnSecondaryThread(void* untypedContext)
 
     [self _suspendAutodisplay];
     
-    [self _adjustPrintingMarginsForHeaderAndFooter];
+    [self performSelectorOnMainThread:@selector(_adjustPrintingMarginsForHeaderAndFooter) withObject:nil waitUntilDone:YES];
 
     if ([self _hasPageRects])
         *range = NSMakeRange(1, _printingPageRects.size());
@@ -393,16 +412,18 @@ static void prepareDataForPrintingOnSecondaryThread(void* untypedContext)
     return 0; // Invalid page number.
 }
 
-- (void)_drawPDFDocument:(CGPDFDocumentRef)pdfDocument page:(unsigned)page atPoint:(NSPoint)point
+- (void)_drawPDFDocument:(PDFDocument *)pdfDocument page:(unsigned)page atPoint:(NSPoint)point
 {
     if (!pdfDocument) {
         LOG_ERROR("Couldn't create a PDF document with data passed for preview");
         return;
     }
 
-    CGPDFPageRef pdfPage = CGPDFDocumentGetPage(pdfDocument, page);
-    if (!pdfPage) {
-        LOG_ERROR("Preview data doesn't have page %d", page);
+    PDFPage *pdfPage;
+    @try {
+        pdfPage = [pdfDocument pageAtIndex:page];
+    } @catch (id exception) {
+        LOG_ERROR("Preview data doesn't have page %d: %@", page, exception);
         return;
     }
 
@@ -412,8 +433,25 @@ static void prepareDataForPrintingOnSecondaryThread(void* untypedContext)
     CGContextSaveGState(context);
     CGContextTranslateCTM(context, point.x, point.y);
     CGContextScaleCTM(context, _totalScaleFactorForPrinting, -_totalScaleFactorForPrinting);
-    CGContextTranslateCTM(context, 0, -CGPDFPageGetBoxRect(pdfPage, kCGPDFMediaBox).size.height);
-    CGContextDrawPDFPage(context, pdfPage);
+    CGContextTranslateCTM(context, 0, -[pdfPage boundsForBox:kPDFDisplayBoxMediaBox].size.height);
+    [pdfPage drawWithBox:kPDFDisplayBoxMediaBox];
+
+    CGAffineTransform transform = CGContextGetCTM(context);
+
+    for (PDFAnnotation *annotation in [pdfPage annotations]) {
+        if (![annotation isKindOfClass:pdfAnnotationLinkClass()])
+            continue;
+
+        PDFAnnotationLink *linkAnnotation = (PDFAnnotationLink *)annotation;
+        NSURL *url = [linkAnnotation URL];
+        if (!url)
+            continue;
+
+        CGRect urlRect = NSRectToCGRect([linkAnnotation bounds]);
+        CGRect transformedRect = CGRectApplyAffineTransform(urlRect, transform);
+        CGPDFContextSetURLForRect(context, (CFURLRef)url, transformedRect);
+    }
+
     CGContextRestoreGState(context);
 }
 
@@ -447,7 +485,7 @@ static void prepareDataForPrintingOnSecondaryThread(void* untypedContext)
                 context->view = self;
                 context->callbackID = callback->callbackID();
 
-                _webFrame->page()->drawRectToPDF(_webFrame.get(), rect, callback.get());
+                _webFrame->page()->drawRectToPDF(_webFrame.get(), PrintInfo([_printOperation printInfo]), rect, callback.get());
                 return;
             }
         }
@@ -456,11 +494,11 @@ static void prepareDataForPrintingOnSecondaryThread(void* untypedContext)
         return;
     }
 
-    const Vector<uint8_t>& pdfData = pagePreviewIterator->second;
-    RetainPtr<CGDataProviderRef> pdfDataProvider(AdoptCF, CGDataProviderCreateWithData(0, pdfData.data(), pdfData.size(), 0));
-    RetainPtr<CGPDFDocumentRef> pdfDocument(AdoptCF, CGPDFDocumentCreateWithProvider(pdfDataProvider.get()));
+    const Vector<uint8_t>& pdfDataBytes = pagePreviewIterator->second;
+    RetainPtr<NSData> pdfData(AdoptNS, [[NSData alloc] initWithBytes:pdfDataBytes.data() length:pdfDataBytes.size()]);
+    RetainPtr<PDFDocument> pdfDocument(AdoptNS, [[pdfDocumentClass() alloc] initWithData:pdfData.get()]);
 
-    [self _drawPDFDocument:pdfDocument.get() page:1 atPoint:NSMakePoint(nsRect.origin.x, nsRect.origin.y)];
+    [self _drawPDFDocument:pdfDocument.get() page:0 atPoint:NSMakePoint(nsRect.origin.x, nsRect.origin.y)];
 }
 
 - (void)drawRect:(NSRect)nsRect
@@ -481,11 +519,11 @@ static void prepareDataForPrintingOnSecondaryThread(void* untypedContext)
     ASSERT(!_printedPagesData.isEmpty()); // Prepared by knowsPageRange:
 
     if (!_printedPagesPDFDocument) {
-        RetainPtr<CGDataProviderRef> pdfDataProvider(AdoptCF, CGDataProviderCreateWithData(0, _printedPagesData.data(), _printedPagesData.size(), 0));
-        _printedPagesPDFDocument.adoptCF(CGPDFDocumentCreateWithProvider(pdfDataProvider.get()));
+        RetainPtr<NSData> pdfData(AdoptNS, [[NSData alloc] initWithBytes:_printedPagesData.data() length:_printedPagesData.size()]);
+        _printedPagesPDFDocument.adoptNS([[pdfDocumentClass() alloc] initWithData:pdfData.get()]);
     }
 
-    unsigned printedPageNumber = [self _pageForRect:nsRect] - [self _firstPrintedPageNumber] + 1;
+    unsigned printedPageNumber = [self _pageForRect:nsRect] - [self _firstPrintedPageNumber];
     [self _drawPDFDocument:_printedPagesPDFDocument.get() page:printedPageNumber atPoint:NSMakePoint(nsRect.origin.x, nsRect.origin.y)];
 }
 

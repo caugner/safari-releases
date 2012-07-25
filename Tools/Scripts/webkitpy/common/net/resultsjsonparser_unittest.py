@@ -29,13 +29,13 @@
 import unittest
 
 from webkitpy.common.net.resultsjsonparser import ResultsJSONParser
-from webkitpy.layout_tests.layout_package import test_results
-from webkitpy.layout_tests.layout_package import test_failures
+from webkitpy.layout_tests.models import test_results
+from webkitpy.layout_tests.models import test_failures
 
 
 class ResultsJSONParserTest(unittest.TestCase):
     # The real files have no whitespace, but newlines make this much more readable.
-    _example_unexpected_results_json = """ADD_RESULTS({
+    _example_full_results_json = """ADD_RESULTS({
     "tests": {
         "fast": {
             "dom": {
@@ -51,9 +51,17 @@ class ResultsJSONParserTest(unittest.TestCase):
                     "expected": "PASS",
                     "actual": "PASS TEXT"
                 },
+                "prototype-chocolate.html": {
+                    "expected": "TEXT",
+                    "actual": "TEXT"
+                },
                 "prototype-strawberry.html": {
                     "expected": "PASS",
                     "actual": "TEXT PASS"
+                },
+                "prototype-peach.html": {
+                    "expected": "IMAGE+TEXT",
+                    "actual": "TEXT"
                 }
             }
         },
@@ -84,5 +92,5 @@ class ResultsJSONParserTest(unittest.TestCase):
             test_results.TestResult("svg/dynamic-updates/SVGFEDropShadowElement-dom-stdDeviation-attr.html", [test_failures.FailureImageHashMismatch()], 0),
             test_results.TestResult("fast/dom/prototype-inheritance.html", [test_failures.FailureTextMismatch()], 0),
         ]
-        results = ResultsJSONParser.parse_results_json(self._example_unexpected_results_json)
+        results = ResultsJSONParser.parse_results_json(self._example_full_results_json)
         self.assertEqual(expected_results, results)

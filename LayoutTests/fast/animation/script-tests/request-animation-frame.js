@@ -9,6 +9,15 @@ window.webkitRequestAnimationFrame(function() {
 if (window.layoutTestController)
     layoutTestController.display();
 
-shouldBeTrue("callbackInvoked");
-var successfullyParsed = true;
+setTimeout(function() {
+    shouldBeTrue("callbackInvoked");
+}, 100);
 
+if (window.layoutTestController)
+    layoutTestController.waitUntilDone();
+
+setTimeout(function() {
+    isSuccessfullyParsed();
+    if (window.layoutTestController)
+        layoutTestController.notifyDone();
+}, 200);

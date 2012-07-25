@@ -29,7 +29,7 @@
  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
 -->
 
-<title>SunSpider 0.9.1 JavaScript Benchmark (@SUITE@ test suite - In Progress...)</title>
+<title>SunSpider 1.0 JavaScript Benchmark (@SUITE@ test suite - In Progress...)</title>
 <link rel="stylesheet" href="../sunspider.css">
 </head>
 
@@ -70,12 +70,12 @@ function reallyNext()
     if (testIndex < tests.length) {
         testFrame.contentDocument.open();
         testFrame.contentDocument.write(testContents[testIndex]);
-        testFrame.contentDocument.close;
+        testFrame.contentDocument.close();
     } else if (++currentRepeat < repeatCount) { 
         testIndex = 0;
         testFrame.contentDocument.open();
         testFrame.contentDocument.write(testContents[testIndex]);
-        testFrame.contentDocument.close;
+        testFrame.contentDocument.close();
     } else {
         finish();
     }

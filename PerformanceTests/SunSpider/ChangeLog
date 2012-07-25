@@ -1,3 +1,114 @@
+2012-03-11  Maciej Stachowiak  <mjs@apple.com>
+
+        Add --instruments option to sunspider to profile with Instruments
+        https://bugs.webkit.org/show_bug.cgi?id=80783
+
+        Reviewed by Filip Pizlo.
+
+        * resources/TimeProfile20us.tracetemplate: Added.
+        * sunspider:
+        (runTestsOnce):
+
+2011-11-15  Andy Wingo  <wingo@igalia.com>
+
+        Extend sunspider driver to be able to run kraken
+        https://bugs.webkit.org/show_bug.cgi?id=71799
+
+        Reviewed by Filip Pizlo.
+
+        * resources/sunspider-standalone-driver.js: Try to load a -data
+        file.  If that succeeds, we have a kraken-like test, so we time
+        the test using `load'.  Otherwise fall back to using `run'.
+
+2011-08-11  Mark Rowe  <mrowe@apple.com>
+
+        Fix sunspider-compare-results to default to the same suite version as the sunspider script.
+
+        Rubber-stamped by Maciej Stachowiak.
+
+        * sunspider-compare-results:
+
+2011-07-02  Maciej Stachowiak  <mjs@apple.com>
+
+        Update SunSpider versioning to 1.0
+        https://bugs.webkit.org/show_bug.cgi?id=63870
+
+        Reviewed by Dan Bernstein.
+
+        * hosted/sunspider.html:
+        * hosted/versions.html:
+        * resources/driver-TEMPLATE.html:
+        * resources/results-TEMPLATE.html:
+        * sunspider:
+
+2011-07-02  Maciej Stachowiak  <mjs@apple.com>
+
+        Sunspider 0.9.1 harness doesn't actually close() its test documents
+        https://bugs.webkit.org/show_bug.cgi?id=47045
+
+        Reviewed by Daniel Bates.
+
+        * hosted/versions.html:
+        * resources/driver-TEMPLATE.html:
+
+2011-07-02  Maciej Stachowiak  <mjs@apple.com>
+
+        Not Reviewed. 
+        
+        Fix obviou typo in previous commit.
+
+        * tests/sunspider-1.0/bitops-bitwise-and.js:
+
+2011-07-02  Maciej Stachowiak  <mjs@apple.com>
+
+        Reviewed by Anders Carlsson.
+
+        SunSpider: all four bitops benchmarks can be replaced with NOP
+        https://bugs.webkit.org/show_bug.cgi?id=38446
+
+        * tests/sunspider-1.0/bitops-3bit-bits-in-byte.js:
+        (TimeFunc): Save the result.
+        * tests/sunspider-1.0/bitops-bits-in-byte.js:
+        (TimeFunc): Save the result.
+        * tests/sunspider-1.0/bitops-bitwise-and.js: More explicitly
+        save the results.
+        * tests/sunspider-1.0/bitops-nsieve-bits.js:
+        (sieve): Save the result.
+
+2011-07-02  Maciej Stachowiak  <mjs@apple.com>
+
+        SunSpider: string-validate-input.js uses an undeclared variable named 'name', which is a DOM API
+        https://bugs.webkit.org/show_bug.cgi?id=60937
+
+        Reviewed by Dan Bernstein.
+
+        * tests/sunspider-1.0/string-validate-input.js:
+        (doTest): Rename the variable to username
+
+2011-07-02  Maciej Stachowiak  <mjs@apple.com>
+
+        Reviewed by Darin Adler.
+
+        SunSpider: The main function of math-cordic is dead code
+        https://bugs.webkit.org/show_bug.cgi?id=63863
+        
+        Try to prevent math-cordic from being eliminated as dead code or
+        compiled down to a constant.
+
+        * tests/sunspider-1.0/math-cordic.js:
+        (cordicsincos):
+        (cordic):
+
+2011-06-30  Maciej Stachowiak  <mjs@apple.com>
+
+        Reviewed by Adam Barth.
+
+        Create sunspider-1.0 directory in preparation for fixing a bunch of bugs
+        https://bugs.webkit.org/show_bug.cgi?id=63782
+
+        * make-hosted: Learn about the new directory.
+        * tests/sunspider-1.0: Copied from PerformanceTests/SunSpider/tests/sunspider-0.9.1.
+
 2010-11-29  Geoffrey Garen  <ggaren@apple.com>
 
         Reviewed by Gavin Barraclough.

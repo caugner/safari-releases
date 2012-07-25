@@ -1,10 +1,6 @@
 <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
 <html>
 <head>
-<link rel="stylesheet" href="../../../fast/js/resources/js-test-style.css">
-<script>
-var successfullyParsed = false;
-</script>
 <script src="../../../fast/js/resources/js-test-pre.js"></script>
 </head>
 <body id="body">
@@ -23,6 +19,7 @@ var successfullyParsed = false;
 
 <p id="description"></p>
 <div id="console"></div>
+<div id="notifications"></div>
 
 <script>
 
@@ -32,20 +29,11 @@ var successfullyParsed = false;
     var notifyCount = 0;
     var notifyName = 0;
     // The order of notifications should be Row Count, Row Collapsed, Row Count, Row Expanded
-    function notifyCallback(notification) {  
+    function notifyCallback(element, notification) {  
         notifyName = notification;
-        if (notifyCount == 0) {
-            shouldBe("notifyName", "'AXRowCountChanged'");
-        } 
-        else if (notifyCount == 1) {
-            shouldBe("notifyName", "'AXRowCollapsed'");
-        }
-        else if (notifyCount == 2) {
-            shouldBe("notifyName", "'AXRowCountChanged'");
-        }
-        else if (notifyCount == 3) {
-            shouldBe("notifyName", "'AXRowExpanded'");
-            axTree.removeNotificationListener();
+        document.getElementById("notifications").innerHTML += "Notification: " + notifyName + "<br>";
+        if (notifyCount == 3) {
+            accessibilityController.removeNotificationListener();
             window.layoutTestController.notifyDone();
         }
         notifyCount++;
@@ -59,7 +47,7 @@ var successfullyParsed = false;
 
         axTree = window.accessibilityController.focusedElement;
 
-        var addedNotification = axTree.addNotificationListener(notifyCallback);
+        var addedNotification = accessibilityController.addNotificationListener(notifyCallback);
         shouldBe("addedNotification", "true");
 
         // the first aria-expanded should generate row count, row collapsed.
@@ -69,7 +57,6 @@ var successfullyParsed = false;
         document.getElementById("tree0_item0").setAttribute("aria-expanded", "true");
     }
 
-    successfullyParsed = true;
 </script>
 
 <script src="../../../fast/js/resources/js-test-post.js"></script>

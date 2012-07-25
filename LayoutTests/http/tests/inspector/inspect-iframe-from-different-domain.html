@@ -16,7 +16,7 @@ function onIFrameLoad()
 
 function test()
 {
-    InspectorTest.selectNodeWithId("iframe-body", step1);
+    InspectorTest.selectNodeAndWaitForStyles("iframe-body", step1);
 
     function step1()
     {

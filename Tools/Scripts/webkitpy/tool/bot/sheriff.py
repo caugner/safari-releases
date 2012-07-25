@@ -27,7 +27,6 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from webkitpy.common.config import urls
-from webkitpy.common.checkout.changelog import parse_bug_id
 from webkitpy.common.system.deprecated_logging import log
 from webkitpy.common.system.executive import ScriptError
 from webkitpy.tool.grammar import join_with_separators
@@ -38,10 +37,12 @@ class Sheriff(object):
         self._tool = tool
         self._sheriffbot = sheriffbot
 
+    def responsible_nicknames_from_commit_info(self, commit_info):
+        nestedList = [party.irc_nicknames for party in commit_info.responsible_parties() if party.irc_nicknames]
+        return reduce(lambda list, childList: list + childList, nestedList)
+
     def post_irc_warning(self, commit_info, builders):
-        irc_nicknames = sorted([party.irc_nickname for
-                                party in commit_info.responsible_parties()
-                                if party.irc_nickname])
+        irc_nicknames = sorted(self.responsible_nicknames_from_commit_info(commit_info))
         irc_prefix = ": " if irc_nicknames else ""
         irc_message = "%s%s%s might have broken %s" % (
             ", ".join(irc_nicknames),
@@ -49,6 +50,17 @@ class Sheriff(object):
             urls.view_revision_url(commit_info.revision()),
             join_with_separators([builder.name() for builder in builders]))
 
+        self._tool.irc().post(irc_message)
+
+    def post_irc_summary(self, failure_map):
+        failing_tests = failure_map.failing_tests()
+        if not failing_tests:
+            return
+        test_list_limit = 5
+        irc_message = "New failures: %s" % ", ".join(sorted(failing_tests)[:test_list_limit])
+        failure_count = len(failing_tests)
+        if failure_count > test_list_limit:
+            irc_message += " (and %s more...)" % (failure_count - test_list_limit)
         self._tool.irc().post(irc_message)
 
     def post_rollout_patch(self, svn_revision_list, rollout_reason):
@@ -75,7 +87,19 @@ class Sheriff(object):
             svn_revisions,
             rollout_reason,
         ])
-        return parse_bug_id(output)
+        return urls.parse_bug_id(output)
+
+    def post_chromium_deps_roll(self, revision, revision_name):
+        args = [
+            "post-chromium-deps-roll",
+            "--force-clean",
+            "--non-interactive",
+            "--parent-command=sheriff-bot",
+        ]
+        # revision can be None, but revision_name is always something meaningful.
+        args += [revision, revision_name]
+        output = self._sheriffbot.run_webkit_patch(args)
+        return urls.parse_bug_id(output)
 
     def post_blame_comment_on_bug(self, commit_info, builders, tests):
         if not commit_info.bug_id():

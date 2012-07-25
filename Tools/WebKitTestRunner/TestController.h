@@ -35,6 +35,7 @@ namespace WTR {
 
 class TestInvocation;
 class PlatformWebView;
+class EventSenderProxy;
 
 // FIXME: Rename this TestRunner?
 class TestController {
@@ -53,9 +54,13 @@ public:
     WKContextRef context() { return m_context.get(); }
 
     // Runs the run loop until `done` is true or the timeout elapses.
-    enum TimeoutDuration { ShortTimeout, LongTimeout };
+    enum TimeoutDuration { ShortTimeout, LongTimeout, NoTimeout };
+    bool useWaitToDumpWatchdogTimer() { return m_useWaitToDumpWatchdogTimer; }
     void runUntil(bool& done, TimeoutDuration);
     void notifyDone();
+    
+    bool beforeUnloadReturnValue() const { return m_beforeUnloadReturnValue; }
+    void setBeforeUnloadReturnValue(bool value) { m_beforeUnloadReturnValue = value; }
 
 private:
     void initialize(int argc, const char* argv[]);
@@ -67,6 +72,7 @@ private:
     void platformInitialize();
     void platformInitializeContext();
     void platformRunUntil(bool& done, double timeout);
+    void platformDidCommitLoadForFrame(WKPageRef, WKFrameRef);
     void initializeInjectedBundlePath();
     void initializeTestPluginDirectory();
 
@@ -79,13 +85,16 @@ private:
     WKRetainPtr<WKTypeRef> didReceiveSynchronousMessageFromInjectedBundle(WKStringRef messageName, WKTypeRef messageBody);
 
     // WKPageLoaderClient
-    static void didFinishLoadForFrame(WKPageRef page, WKFrameRef frame, WKTypeRef userData, const void*);
-    void didFinishLoadForFrame(WKPageRef page, WKFrameRef frame);
+    static void didCommitLoadForFrame(WKPageRef, WKFrameRef, WKTypeRef userData, const void*);
+    void didCommitLoadForFrame(WKPageRef, WKFrameRef);
+
+    static void didFinishLoadForFrame(WKPageRef, WKFrameRef, WKTypeRef userData, const void*);
+    void didFinishLoadForFrame(WKPageRef, WKFrameRef);
 
     static void processDidCrash(WKPageRef, const void* clientInfo);
     void processDidCrash();
 
-    static WKPageRef createOtherPage(WKPageRef oldPage, WKDictionaryRef, WKEventModifiers, WKEventMouseButton, const void*);
+    static WKPageRef createOtherPage(WKPageRef oldPage, WKURLRequestRef, WKDictionaryRef, WKEventModifiers, WKEventMouseButton, const void*);
 
     static void runModal(WKPageRef, const void* clientInfo);
     static void runModal(PlatformWebView*);
@@ -118,9 +127,15 @@ private:
 
     double m_longTimeout;
     double m_shortTimeout;
+    double m_noTimeout;
+    bool m_useWaitToDumpWatchdogTimer;
 
     bool m_didPrintWebProcessCrashedMessage;
     bool m_shouldExitWhenWebProcessCrashes;
+    
+    bool m_beforeUnloadReturnValue;
+
+    EventSenderProxy* m_eventSenderProxy;
 };
 
 } // namespace WTR

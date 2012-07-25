@@ -1,12 +1,9 @@
 <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
 <html>
 <head>
-<link rel="stylesheet" href="../../fast/js/resources/js-test-style.css">
 <script src="../../fast/js/resources/js-test-pre.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <div id="testParent" style="visibility:hidden"></div>
 <script>
 description('Various tests for the marquee element.');
@@ -298,8 +295,6 @@ testParent.innerHTML = '<marquee id="marquee" loop="5">test</marquee>';
 marquee = document.getElementById('marquee');
 marquee.loop = -1;
 shouldBe('marquee.loop', '-1');
-
-var successfullyParsed = true;
 </script>
 <script src="../../fast/js/resources/js-test-post.js"></script>
 </body>

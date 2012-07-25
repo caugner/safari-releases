@@ -26,13 +26,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from webkitpy.tool.bot.patchanalysistask import PatchAnalysisTask, PatchAnalysisTaskDelegate
-
-
-class UnableToApplyPatch(Exception):
-    def __init__(self, patch):
-        Exception.__init__(self)
-        self.patch = patch
+from webkitpy.tool.bot.patchanalysistask import PatchAnalysisTask, PatchAnalysisTaskDelegate, UnableToApplyPatch
 
 
 class EarlyWarningSystemTaskDelegate(PatchAnalysisTaskDelegate):
@@ -40,6 +34,10 @@ class EarlyWarningSystemTaskDelegate(PatchAnalysisTaskDelegate):
 
 
 class EarlyWarningSystemTask(PatchAnalysisTask):
+    def __init__(self, delegate, patch, should_run_tests=True):
+        PatchAnalysisTask.__init__(self, delegate, patch)
+        self._should_run_tests = should_run_tests
+
     def validate(self):
         self._patch = self._delegate.refetch_patch(self._patch)
         if self._patch.is_obsolete():
@@ -63,4 +61,6 @@ class EarlyWarningSystemTask(PatchAnalysisTask):
             if not self._build_without_patch():
                 return False
             return self.report_failure()
+        if not self._should_run_tests:
+            return True
         return self._test_patch()

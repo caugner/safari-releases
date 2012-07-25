@@ -69,7 +69,6 @@ public:
     bool isCommandEnabled(JSStringRef name);
     void keepWebHistory();
     JSValueRef computedStyleIncludingVisitedInfo(JSContextRef, JSValueRef);
-    JSValueRef nodesFromRect(JSContextRef, JSValueRef, int x, int y, unsigned top, unsigned right, unsigned bottom, unsigned left, bool ignoreClipping);
     void notifyDone();
     int numberOfPages(float pageWidthInPixels, float pageHeightInPixels);
     int numberOfPendingGeolocationPermissionRequests();
@@ -77,7 +76,6 @@ public:
     int pageNumberForElementById(JSStringRef id, float pageWidthInPixels, float pageHeightInPixels);
     JSRetainPtr<JSStringRef> pageProperty(const char* propertyName, int pageNumber) const;
     JSRetainPtr<JSStringRef> pageSizeAndMarginsInPixels(int pageNumber, int width, int height, int marginTop, int marginRight, int marginBottom, int marginLeft) const;
-    JSRetainPtr<JSStringRef> shadowPseudoId(JSContextRef, JSValueRef) const;
     bool isPageBoxVisible(int pageNumber) const;
     JSStringRef pathToLocalResource(JSContextRef, JSStringRef url);
     void queueBackNavigation(int howFarBackward);
@@ -109,6 +107,7 @@ public:
     void setMockGeolocationError(int code, JSStringRef message);
     void setMockGeolocationPosition(double latitude, double longitude, double accuracy);
     void addMockSpeechInputResult(JSStringRef result, double confidence, JSStringRef language);
+    void setMockSpeechInputDumpRect(bool flag);
     void setPersistentUserStyleSheetLocation(JSStringRef path);
     void setPluginsEnabled(bool flag);
     void setPopupBlockingEnabled(bool flag);
@@ -126,21 +125,24 @@ public:
     void setSpatialNavigationEnabled(bool enable);
     void setScrollbarPolicy(JSStringRef orientation, JSStringRef policy);
     void setEditingBehavior(const char* editingBehavior);
-
-    void setPageVisibility(const char* visibility) { }
-    void resetPageVisibility() { }
-
-    JSValueRef shadowRoot(JSContextRef, JSValueRef);
-    JSValueRef ensureShadowRoot(JSContextRef, JSValueRef);
-    void removeShadowRoot(JSContextRef, JSValueRef);
+    void startSpeechInput(JSContextRef inputElement);
+    void setPageVisibility(const char*);
+    void resetPageVisibility();
 
     void waitForPolicyDelegate();
     size_t webHistoryItemCount();
     unsigned workerThreadCount() const;
     int windowCount();
     
+#if PLATFORM(MAC) || PLATFORM(GTK) || PLATFORM(WIN)
+    JSRetainPtr<JSStringRef> platformName() const;
+#endif
+
     void grantDesktopNotificationPermission(JSStringRef origin);
     bool checkDesktopNotificationPermission(JSStringRef origin);
+    void ignoreDesktopNotificationPermissionRequests();
+    bool areDesktopNotificationPermissionRequestsIgnored() const { return m_areDesktopNotificationPermissionRequestsIgnored; }
+    void simulateDesktopNotificationClick(JSStringRef title);
 
     bool elementDoesAutoCompleteForElementWithId(JSStringRef id);
 
@@ -155,6 +157,9 @@ public:
 
     bool generatePixelResults() const { return m_generatePixelResults; }
     void setGeneratePixelResults(bool generatePixelResults) { m_generatePixelResults = generatePixelResults; }
+
+    bool disallowIncreaseForApplicationCacheQuota() const { return m_disallowIncreaseForApplicationCacheQuota; }
+    void setDisallowIncreaseForApplicationCacheQuota(bool disallowIncrease) { m_disallowIncreaseForApplicationCacheQuota = disallowIncrease; }
 
     bool dumpApplicationCacheDelegateCallbacks() const { return m_dumpApplicationCacheDelegateCallbacks; }
     void setDumpApplicationCacheDelegateCallbacks(bool dumpCallbacks) { m_dumpApplicationCacheDelegateCallbacks = dumpCallbacks; }
@@ -179,6 +184,9 @@ public:
 
     bool dumpFrameLoadCallbacks() const { return m_dumpFrameLoadCallbacks; }
     void setDumpFrameLoadCallbacks(bool dumpFrameLoadCallbacks) { m_dumpFrameLoadCallbacks = dumpFrameLoadCallbacks; }
+
+    bool dumpProgressFinishedCallback() const { return m_dumpProgressFinishedCallback; }
+    void setDumpProgressFinishedCallback(bool dumpProgressFinishedCallback) { m_dumpProgressFinishedCallback = dumpProgressFinishedCallback; }
     
     bool dumpUserGestureInFrameLoadCallbacks() const { return m_dumpUserGestureInFrameLoadCallbacks; }
     void setDumpUserGestureInFrameLoadCallbacks(bool dumpUserGestureInFrameLoadCallbacks) { m_dumpUserGestureInFrameLoadCallbacks = dumpUserGestureInFrameLoadCallbacks; }    
@@ -282,7 +290,6 @@ public:
     
     bool pauseAnimationAtTimeOnElementWithId(JSStringRef animationName, double time, JSStringRef elementId);
     bool pauseTransitionAtTimeOnElementWithId(JSStringRef propertyName, double time, JSStringRef elementId);
-    bool sampleSVGAnimationForElementAtTime(JSStringRef animationId, double time, JSStringRef elementId);
     unsigned numberOfActiveAnimations() const;
     void suspendAnimations() const;
     void resumeAnimations() const;
@@ -301,18 +308,25 @@ public:
     void setAsynchronousSpellCheckingEnabled(bool);
     void showWebInspector();
     void closeWebInspector();
-    void setTimelineProfilingEnabled(bool enabled);
     void evaluateInWebInspector(long callId, JSStringRef script);
-    void evaluateScriptInIsolatedWorld(unsigned worldId, JSObjectRef globalObject, JSStringRef script);
+    void evaluateScriptInIsolatedWorld(unsigned worldID, JSObjectRef globalObject, JSStringRef script);
+    void evaluateScriptInIsolatedWorldAndReturnValue(unsigned worldID, JSObjectRef globalObject, JSStringRef script);
+    void allowRoundingHacks();
+
+    bool shouldStayOnPageAfterHandlingBeforeUnload() const { return m_shouldStayOnPageAfterHandlingBeforeUnload; }
+    void setShouldStayOnPageAfterHandlingBeforeUnload(bool shouldStayOnPageAfterHandlingBeforeUnload) { m_shouldStayOnPageAfterHandlingBeforeUnload = shouldStayOnPageAfterHandlingBeforeUnload; }
+
+    void addChromeInputField();
+    void removeChromeInputField();
+    void focusWebView();
+
+    void setBackingScaleFactor(double);
 
     void setPOSIXLocale(JSStringRef locale);
 
     void setWebViewEditable(bool);
 
     void abortModal();
-
-    bool hasSpellingMarker(int from, int length);
-    bool hasGrammarMarker(int from, int length);
 
     void dumpConfigurationForViewport(int deviceDPI, int deviceWidth, int deviceHeight, int availableWidth, int availableHeight);
 
@@ -345,11 +359,18 @@ public:
 
     void setMinimumTimerInterval(double);
 
+    void setTextDirection(JSStringRef);
+
+    // Custom full screen behavior.
+    void setHasCustomFullScreenBehavior(bool value) { m_customFullScreenBehavior = value; }
+    bool hasCustomFullScreenBehavior() const { return m_customFullScreenBehavior; }
+
 private:
     LayoutTestController(const std::string& testPathOrURL, const std::string& expectedPixelHash);
 
     void setGeolocationPermissionCommon(bool allow);
 
+    bool m_disallowIncreaseForApplicationCacheQuota;
     bool m_dumpApplicationCacheDelegateCallbacks;
     bool m_dumpAsAudio;
     bool m_dumpAsPDF;
@@ -361,6 +382,7 @@ private:
     bool m_dumpDatabaseCallbacks;
     bool m_dumpEditingCallbacks;
     bool m_dumpFrameLoadCallbacks;
+    bool m_dumpProgressFinishedCallback;
     bool m_dumpUserGestureInFrameLoadCallbacks;
     bool m_dumpHistoryDelegateCallbacks;
     bool m_dumpResourceLoadCallbacks;
@@ -393,6 +415,9 @@ private:
     bool m_isPrinting;
     bool m_deferMainResourceDataLoad;
     bool m_shouldPaintBrokenImage;
+    bool m_shouldStayOnPageAfterHandlingBeforeUnload;
+    bool m_areDesktopNotificationPermissionRequestsIgnored;
+    bool m_customFullScreenBehavior;
 
     std::string m_authenticationUsername;
     std::string m_authenticationPassword; 

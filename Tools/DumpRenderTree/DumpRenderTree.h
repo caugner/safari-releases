@@ -42,6 +42,10 @@
 #include "DumpRenderTreeGtk.h"
 #elif PLATFORM(WX)
 #include "DumpRenderTreeWx.h"
+#elif PLATFORM(EFL)
+#include "DumpRenderTreeEfl.h"
+#elif PLATFORM(BLACKBERRY)
+#include "DumpRenderTreeBlackBerry.h"
 #endif
 
 #include <string>

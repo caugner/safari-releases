@@ -26,8 +26,6 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from __future__ import with_statement
-
 import codecs
 import os
 import shutil
@@ -36,16 +34,14 @@ import unittest
 
 from .checkout import Checkout
 from .changelog import ChangeLogEntry
-from .scm import detect_scm_system, CommitMessage
+from .scm import CommitMessage, SCMDetector
+from .scm.scm_mock import MockSCM
+from webkitpy.common.system.executive import Executive, ScriptError
+from webkitpy.common.system.filesystem import FileSystem  # FIXME: This should not be needed.
+from webkitpy.common.system.filesystem_mock import MockFileSystem
+from webkitpy.common.system.executive_mock import MockExecutive
 from webkitpy.common.system.outputcapture import OutputCapture
-from webkitpy.common.system.executive import ScriptError
 from webkitpy.thirdparty.mock import Mock
-
-
-# FIXME: Copied from scm_unittest.py
-def write_into_file_at_path(file_path, contents, encoding="utf-8"):
-    with codecs.open(file_path, "w", encoding) as file:
-        file.write(contents)
 
 
 _changelog1entry1 = u"""2010-03-25  Tor Arne Vestb\u00f8  <vestbo@webkit.org>
@@ -71,7 +67,7 @@ _changelog2 = u"""2010-03-25  Tor Arne Vestb\u00f8  <vestbo@webkit.org>
 
         Unreviewed build fix to un-break webkit-patch land.
 
-        Second part of this complicated change.
+        Second part of this complicated change by me, Tor Arne Vestb\u00f8!
 
         * Path/To/Complicated/File: Added.
 
@@ -83,49 +79,76 @@ _changelog2 = u"""2010-03-25  Tor Arne Vestb\u00f8  <vestbo@webkit.org>
 """
 
 class CommitMessageForThisCommitTest(unittest.TestCase):
-    expected_commit_message = u"""2010-03-25  Tor Arne Vestb\u00f8  <vestbo@webkit.org>
+    expected_commit_message = u"""Unreviewed build fix to un-break webkit-patch land.
 
-        Unreviewed build fix to un-break webkit-patch land.
+Tools: 
 
-        Move commit_message_for_this_commit from scm to checkout
-        https://bugs.webkit.org/show_bug.cgi?id=36629
+Move commit_message_for_this_commit from scm to checkout
+https://bugs.webkit.org/show_bug.cgi?id=36629
 
-        * Scripts/webkitpy/common/checkout/api.py: import scm.CommitMessage
-2010-03-25  Tor Arne Vestb\u00f8  <vestbo@webkit.org>
+* Scripts/webkitpy/common/checkout/api.py: import scm.CommitMessage
 
-        Unreviewed build fix to un-break webkit-patch land.
+LayoutTests: 
 
-        Second part of this complicated change.
+Second part of this complicated change by me, Tor Arne Vestb\u00f8!
 
-        * Path/To/Complicated/File: Added.
+* Path/To/Complicated/File: Added.
 """
 
     def setUp(self):
-        self.temp_dir = tempfile.mkdtemp(suffix="changelogs")
-        self.old_cwd = os.getcwd()
-        os.chdir(self.temp_dir)
-        write_into_file_at_path("ChangeLog1", _changelog1)
-        write_into_file_at_path("ChangeLog2", _changelog2)
+        # FIXME: This should not need to touch the filesystem, however
+        # ChangeLog is difficult to mock at current.
+        self.filesystem = FileSystem()
+        self.temp_dir = str(self.filesystem.mkdtemp(suffix="changelogs"))
+        self.old_cwd = self.filesystem.getcwd()
+        self.filesystem.chdir(self.temp_dir)
+
+        # Trick commit-log-editor into thinking we're in a Subversion working copy so it won't
+        # complain about not being able to figure out what SCM is in use.
+        # FIXME: VCSTools.pm is no longer so easily fooled.  It logs because "svn info" doesn't
+        # treat a bare .svn directory being part of an svn checkout.
+        self.filesystem.maybe_make_directory(".svn")
+
+        self.changelogs = map(self.filesystem.abspath, (self.filesystem.join("Tools", "ChangeLog"), self.filesystem.join("LayoutTests", "ChangeLog")))
+        for path, contents in zip(self.changelogs, (_changelog1, _changelog2)):
+            self.filesystem.maybe_make_directory(self.filesystem.dirname(path))
+            self.filesystem.write_text_file(path, contents)
 
     def tearDown(self):
-        shutil.rmtree(self.temp_dir, ignore_errors=True)
-        os.chdir(self.old_cwd)
+        self.filesystem.rmtree(self.temp_dir)
+        self.filesystem.chdir(self.old_cwd)
 
-    # FIXME: This should not need to touch the file system, however
-    # ChangeLog is difficult to mock at current.
     def test_commit_message_for_this_commit(self):
-        checkout = Checkout(None)
-        checkout.modified_changelogs = lambda git_commit, changed_files=None: ["ChangeLog1", "ChangeLog2"]
-        output = OutputCapture()
-        expected_stderr = "Parsing ChangeLog: ChangeLog1\nParsing ChangeLog: ChangeLog2\n"
-        commit_message = output.assert_outputs(self, checkout.commit_message_for_this_commit,
-            kwargs={"git_commit": None}, expected_stderr=expected_stderr)
+        executive = Executive()
+
+        def mock_run(*args, **kwargs):
+            # Note that we use a real Executive here, not a MockExecutive, so we can test that we're
+            # invoking commit-log-editor correctly.
+            env = os.environ.copy()
+            env['CHANGE_LOG_EMAIL_ADDRESS'] = 'vestbo@webkit.org'
+            kwargs['env'] = env
+            return executive.run_command(*args, **kwargs)
+
+        detector = SCMDetector(self.filesystem, executive)
+        real_scm = detector.detect_scm_system(self.old_cwd)
+
+        mock_scm = MockSCM()
+        mock_scm.run = mock_run
+        mock_scm.script_path = real_scm.script_path
+
+        checkout = Checkout(mock_scm)
+        checkout.modified_changelogs = lambda git_commit, changed_files=None: self.changelogs
+        commit_message = checkout.commit_message_for_this_commit(git_commit=None, return_stderr=True)
+        # Throw away the first line - a warning about unknown VCS root.
+        commit_message.message_lines = commit_message.message_lines[1:]
         self.assertEqual(commit_message.message(), self.expected_commit_message)
 
 
 class CheckoutTest(unittest.TestCase):
+    def _make_checkout(self):
+        return Checkout(scm=MockSCM(), filesystem=MockFileSystem(), executive=MockExecutive())
+
     def test_latest_entry_for_changelog_at_revision(self):
-        scm = Mock()
         def mock_contents_at_revision(changelog_path, revision):
             self.assertEqual(changelog_path, "foo")
             self.assertEqual(revision, "bar")
@@ -134,8 +157,8 @@ class CheckoutTest(unittest.TestCase):
             # The ChangeLog utf-8 decoding should ignore invalid codepoints.
             invalid_utf8 = "\255"
             return _changelog1.encode("utf-8") + invalid_utf8
-        scm.contents_at_revision = mock_contents_at_revision
-        checkout = Checkout(scm)
+        checkout = self._make_checkout()
+        checkout._scm.contents_at_revision = mock_contents_at_revision
         entry = checkout._latest_entry_for_changelog_at_revision("foo", "bar")
         self.assertEqual(entry.contents(), _changelog1entry1)
 
@@ -144,9 +167,8 @@ class CheckoutTest(unittest.TestCase):
     # from revisions, resulting in a ScriptError exception.  Test that we
     # recover from those and still return the other ChangeLog entries.
     def test_changelog_entries_for_revision(self):
-        scm = Mock()
-        scm.changed_files_for_revision = lambda revision: ['foo/ChangeLog', 'bar/ChangeLog']
-        checkout = Checkout(scm)
+        checkout = self._make_checkout()
+        checkout._scm.changed_files_for_revision = lambda revision: ['foo/ChangeLog', 'bar/ChangeLog']
 
         def mock_latest_entry_for_changelog_at_revision(path, revision):
             if path == "foo/ChangeLog":
@@ -161,10 +183,10 @@ class CheckoutTest(unittest.TestCase):
         self.assertEqual(entries[0], 'foo')
 
     def test_commit_info_for_revision(self):
-        scm = Mock()
-        scm.committer_email_for_revision = lambda revision: "committer@example.com"
-        checkout = Checkout(scm)
-        checkout.changelog_entries_for_revision = lambda revision: [ChangeLogEntry(_changelog1entry1)]
+        checkout = self._make_checkout()
+        checkout._scm.changed_files_for_revision = lambda revision: ['path/to/file', 'another/file']
+        checkout._scm.committer_email_for_revision = lambda revision, changed_files=None: "committer@example.com"
+        checkout.changelog_entries_for_revision = lambda revision, changed_files=None: [ChangeLogEntry(_changelog1entry1)]
         commitinfo = checkout.commit_info_for_revision(4)
         self.assertEqual(commitinfo.bug_id(), 36629)
         self.assertEqual(commitinfo.author_name(), u"Tor Arne Vestb\u00f8")
@@ -173,33 +195,40 @@ class CheckoutTest(unittest.TestCase):
         self.assertEqual(commitinfo.reviewer(), None)
         self.assertEqual(commitinfo.committer_email(), "committer@example.com")
         self.assertEqual(commitinfo.committer(), None)
+        self.assertEqual(commitinfo.to_json(), {
+            'bug_id': 36629,
+            'author_email': 'vestbo@webkit.org',
+            'changed_files': [
+                'path/to/file',
+                'another/file',
+            ],
+            'reviewer_text': None,
+            'author_name': u'Tor Arne Vestb\xf8',
+        })
 
-        checkout.changelog_entries_for_revision = lambda revision: []
+        checkout.changelog_entries_for_revision = lambda revision, changed_files=None: []
         self.assertEqual(checkout.commit_info_for_revision(1), None)
 
     def test_bug_id_for_revision(self):
-        scm = Mock()
-        scm.committer_email_for_revision = lambda revision: "committer@example.com"
-        checkout = Checkout(scm)
-        checkout.changelog_entries_for_revision = lambda revision: [ChangeLogEntry(_changelog1entry1)]
+        checkout = self._make_checkout()
+        checkout._scm.committer_email_for_revision = lambda revision: "committer@example.com"
+        checkout.changelog_entries_for_revision = lambda revision, changed_files=None: [ChangeLogEntry(_changelog1entry1)]
         self.assertEqual(checkout.bug_id_for_revision(4), 36629)
 
     def test_bug_id_for_this_commit(self):
-        scm = Mock()
-        checkout = Checkout(scm)
+        checkout = self._make_checkout()
         checkout.commit_message_for_this_commit = lambda git_commit, changed_files=None: CommitMessage(ChangeLogEntry(_changelog1entry1).contents().splitlines())
         self.assertEqual(checkout.bug_id_for_this_commit(git_commit=None), 36629)
 
     def test_modified_changelogs(self):
-        scm = Mock()
-        scm.checkout_root = "/foo/bar"
-        scm.changed_files = lambda git_commit: ["file1", "ChangeLog", "relative/path/ChangeLog"]
-        checkout = Checkout(scm)
+        checkout = self._make_checkout()
+        checkout._scm.checkout_root = "/foo/bar"
+        checkout._scm.changed_files = lambda git_commit: ["file1", "ChangeLog", "relative/path/ChangeLog"]
         expected_changlogs = ["/foo/bar/ChangeLog", "/foo/bar/relative/path/ChangeLog"]
         self.assertEqual(checkout.modified_changelogs(git_commit=None), expected_changlogs)
 
     def test_suggested_reviewers(self):
-        def mock_changelog_entries_for_revision(revision):
+        def mock_changelog_entries_for_revision(revision, changed_files=None):
             if revision % 2 == 0:
                 return [ChangeLogEntry(_changelog1entry1)]
             return [ChangeLogEntry(_changelog1entry2)]
@@ -209,12 +238,26 @@ class CheckoutTest(unittest.TestCase):
                 return [3]
             return [4, 8]
 
-        scm = Mock()
-        scm.checkout_root = "/foo/bar"
-        scm.changed_files = lambda git_commit: ["file1", "file2", "relative/path/ChangeLog"]
-        scm.revisions_changing_file = mock_revisions_changing_file
-        checkout = Checkout(scm)
+        checkout = self._make_checkout()
+        checkout._scm.checkout_root = "/foo/bar"
+        checkout._scm.changed_files = lambda git_commit: ["file1", "file2", "relative/path/ChangeLog"]
+        checkout._scm.revisions_changing_file = mock_revisions_changing_file
         checkout.changelog_entries_for_revision = mock_changelog_entries_for_revision
         reviewers = checkout.suggested_reviewers(git_commit=None)
         reviewer_names = [reviewer.full_name for reviewer in reviewers]
         self.assertEqual(reviewer_names, [u'Tor Arne Vestb\xf8'])
+
+    def test_chromium_deps(self):
+        checkout = self._make_checkout()
+        checkout._scm.checkout_root = "/foo/bar"
+        self.assertEqual(checkout.chromium_deps()._path, '/foo/bar/Source/WebKit/chromium/DEPS')
+
+    def test_apply_patch(self):
+        checkout = self._make_checkout()
+        checkout._executive = MockExecutive(should_log=True)
+        checkout._scm.script_path = lambda script: script
+        mock_patch = Mock()
+        mock_patch.contents = lambda: "foo"
+        mock_patch.reviewer = lambda: None
+        expected_stderr = "MOCK run_command: ['svn-apply', '--force'], cwd=/mock-checkout\n"
+        OutputCapture().assert_outputs(self, checkout.apply_patch, [mock_patch], expected_stderr=expected_stderr)

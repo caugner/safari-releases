@@ -31,7 +31,7 @@ import unittest
 from webkitpy.common.system.filesystem_mock import MockFileSystem
 from webkitpy.common.system.outputcapture import OutputCapture
 from webkitpy.common.system.workspace import Workspace
-from webkitpy.tool.mocktool import MockExecutive
+from webkitpy.common.system.executive_mock import MockExecutive
 
 
 class WorkspaceTest(unittest.TestCase):
@@ -50,7 +50,7 @@ class WorkspaceTest(unittest.TestCase):
 
     def test_create_zip(self):
         workspace = Workspace(None, MockExecutive(should_log=True))
-        expected_stderr = "MOCK run_command: ['zip', '-r', '/zip/path', '/source/path']\n"
+        expected_stderr = "MOCK run_command: ['zip', '-9', '-r', '/zip/path', '/source/path'], cwd=None\n"
         class MockZipFile(object):
             def __init__(self, path):
                 self.filename = path
@@ -59,7 +59,7 @@ class WorkspaceTest(unittest.TestCase):
 
     def test_create_zip_exception(self):
         workspace = Workspace(None, MockExecutive(should_log=True, should_throw=True))
-        expected_stderr = "MOCK run_command: ['zip', '-r', '/zip/path', '/source/path']\n"
+        expected_stderr = "MOCK run_command: ['zip', '-9', '-r', '/zip/path', '/source/path'], cwd=None\n"
         class MockZipFile(object):
             def __init__(self, path):
                 self.filename = path

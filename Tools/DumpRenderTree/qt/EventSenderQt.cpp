@@ -69,13 +69,31 @@ EventSender::EventSender(QWebPage* parent)
     m_currentButton = 0;
     resetClickCount();
     m_page->view()->installEventFilter(this);
-    // So that we can match Scrollbar::pixelsPerLineStep() in WheelEventQt.cpp and
-    // pass fast/events/platform-wheelevent-in-scrolling-div.html
+    // This is a hack that works because we normally scroll 60 pixels (3*20) per tick, but Apple scrolls 120.
+    // But Apple also has a bug where they report lines instead of ticks in PlatformWheelEvent, making 2 lines = 40 pixels match.
     QApplication::setWheelScrollLines(2);
 }
 
-void EventSender::mouseDown(int button)
+static Qt::KeyboardModifiers getModifiers(const QStringList& modifiers)
 {
+    Qt::KeyboardModifiers modifs = 0;
+    for (int i = 0; i < modifiers.size(); ++i) {
+        const QString& m = modifiers.at(i);
+        if (m == "ctrlKey")
+            modifs |= Qt::ControlModifier;
+        else if (m == "shiftKey")
+            modifs |= Qt::ShiftModifier;
+        else if (m == "altKey")
+            modifs |= Qt::AltModifier;
+        else if (m == "metaKey")
+            modifs |= Qt::MetaModifier;
+    }
+    return modifs;
+}
+
+void EventSender::mouseDown(int button, const QStringList& modifiers)
+{
+    Qt::KeyboardModifiers modifs = getModifiers(modifiers);
     Qt::MouseButton mouseButton;
     switch (button) {
     case 0:
@@ -114,11 +132,11 @@ void EventSender::mouseDown(int button)
     if (isGraphicsBased()) {
         event = createGraphicsSceneMouseEvent((m_clickCount == 2) ?
                     QEvent::GraphicsSceneMouseDoubleClick : QEvent::GraphicsSceneMousePress,
-                    m_mousePos, m_mousePos, mouseButton, m_mouseButtons, Qt::NoModifier);
+                    m_mousePos, m_mousePos, mouseButton, m_mouseButtons, modifs);
     } else {
         event = new QMouseEvent((m_clickCount == 2) ? QEvent::MouseButtonDblClick :
                     QEvent::MouseButtonPress, m_mousePos, m_mousePos,
-                    mouseButton, m_mouseButtons, Qt::NoModifier);
+                    mouseButton, m_mouseButtons, modifs);
     }
 
     sendOrQueueEvent(event);
@@ -181,22 +199,26 @@ void EventSender::mouseMoveTo(int x, int y)
 }
 
 #ifndef QT_NO_WHEELEVENT
-void EventSender::mouseScrollBy(int x, int y)
+void EventSender::mouseScrollBy(int ticksX, int ticksY)
 {
-    continuousMouseScrollBy((x*120), (y*120));
+    const int tickStep = QApplication::wheelScrollLines() * 20;
+    continuousMouseScrollBy((ticksX * tickStep), (ticksY * tickStep));
 }
 
 void EventSender::continuousMouseScrollBy(int x, int y)
 {
     // continuousMouseScrollBy() mimics devices that send fine-grained scroll events where the 'delta' specified is not the usual
     // multiple of 120. See http://doc.qt.nokia.com/4.6/qwheelevent.html#delta for a good explanation of this.
+
+    // A wheel delta of 120 (in 1/8 degrees) corresponds to one wheel tick, and we scroll tickStep pixels per wheel tick.
+    const int tickStep = QApplication::wheelScrollLines() * 20;
     if (x) {
         QEvent* event;
         if (isGraphicsBased()) {
             event = createGraphicsSceneWheelEvent(QEvent::GraphicsSceneWheel,
-                        m_mousePos, m_mousePos, x, Qt::NoModifier, Qt::Horizontal);
+                        m_mousePos, m_mousePos, (x * 120) / tickStep, Qt::NoModifier, Qt::Horizontal);
         } else
-            event = new QWheelEvent(m_mousePos, m_mousePos, x, m_mouseButtons, Qt::NoModifier, Qt::Horizontal);
+            event = new QWheelEvent(m_mousePos, m_mousePos, (x * 120) / tickStep, m_mouseButtons, Qt::NoModifier, Qt::Horizontal);
 
         sendOrQueueEvent(event);
     }
@@ -204,9 +226,9 @@ void EventSender::continuousMouseScrollBy(int x, int y)
         QEvent* event;
         if (isGraphicsBased()) {
             event = createGraphicsSceneWheelEvent(QEvent::GraphicsSceneWheel,
-                        m_mousePos, m_mousePos, y, Qt::NoModifier, Qt::Vertical);
+                        m_mousePos, m_mousePos, (y * 120) / tickStep, Qt::NoModifier, Qt::Vertical);
         } else
-            event = new QWheelEvent(m_mousePos, m_mousePos, y, m_mouseButtons, Qt::NoModifier, Qt::Vertical);
+            event = new QWheelEvent(m_mousePos, m_mousePos, (y * 120) / tickStep, m_mouseButtons, Qt::NoModifier, Qt::Vertical);
 
         sendOrQueueEvent(event);
     }
@@ -222,18 +244,7 @@ void EventSender::leapForward(int ms)
 void EventSender::keyDown(const QString& string, const QStringList& modifiers, unsigned int location)
 {
     QString s = string;
-    Qt::KeyboardModifiers modifs = 0;
-    for (int i = 0; i < modifiers.size(); ++i) {
-        const QString& m = modifiers.at(i);
-        if (m == "ctrlKey")
-            modifs |= Qt::ControlModifier;
-        else if (m == "shiftKey")
-            modifs |= Qt::ShiftModifier;
-        else if (m == "altKey")
-            modifs |= Qt::AltModifier;
-        else if (m == "metaKey")
-            modifs |= Qt::MetaModifier;
-    }
+    Qt::KeyboardModifiers modifs = getModifiers(modifiers);
     if (location == 3)
         modifs |= Qt::KeypadModifier;
     int code = 0;
@@ -400,6 +411,8 @@ void EventSender::addTouchPoint(int x, int y)
     point.setPos(pos);
     point.setStartPos(pos);
     point.setState(Qt::TouchPointPressed);
+    if (!m_touchPointRadius.isNull())
+        point.setRect(QRectF(pos - m_touchPointRadius, pos + m_touchPointRadius));
     m_touchPoints.append(point);
 }
 
@@ -408,9 +421,12 @@ void EventSender::updateTouchPoint(int index, int x, int y)
     if (index < 0 || index >= m_touchPoints.count())
         return;
 
-    QTouchEvent::TouchPoint &p = m_touchPoints[index];
-    p.setPos(QPointF(x, y));
-    p.setState(Qt::TouchPointMoved);
+    const QPointF pos(x, y);
+    QTouchEvent::TouchPoint &point = m_touchPoints[index];
+    point.setPos(pos);
+    point.setState(Qt::TouchPointMoved);
+    if (!m_touchPointRadius.isNull())
+        point.setRect(QRectF(pos - m_touchPointRadius, pos + m_touchPointRadius));
 }
 
 void EventSender::setTouchModifier(const QString &modifier, bool enable)
@@ -429,6 +445,11 @@ void EventSender::setTouchModifier(const QString &modifier, bool enable)
         m_touchModifiers |= mod;
     else
         m_touchModifiers &= ~mod;
+}
+
+void EventSender::setTouchPointRadius(int radiusX, int radiusY)
+{
+    m_touchPointRadius = QPoint(radiusX, radiusY);
 }
 
 void EventSender::touchStart()
@@ -456,11 +477,20 @@ void EventSender::touchEnd()
     m_touchActive = false;
 }
 
+#if QT_VERSION >= 0x050000
+void EventSender::touchCancel()
+{
+    sendTouchEvent(QEvent::TouchCancel);
+    m_touchActive = false;
+}
+#endif
+
 void EventSender::clearTouchPoints()
 {
     m_touchPoints.clear();
     m_touchModifiers = Qt::KeyboardModifiers();
     m_touchActive = false;
+    m_touchPointRadius = QPoint();
 }
 
 void EventSender::releaseTouchPoint(int index)
@@ -471,9 +501,28 @@ void EventSender::releaseTouchPoint(int index)
     m_touchPoints[index].setState(Qt::TouchPointReleased);
 }
 
+void EventSender::cancelTouchPoint(int index)
+{
+    // FIXME: No cancellation state in Qt 5, mapped to release instead.
+    // PlatformTouchEvent conversion later will map all touch points to
+    // cancelled.
+    releaseTouchPoint(index);
+}
+
 void EventSender::sendTouchEvent(QEvent::Type type)
 {
+#if QT_VERSION >= QT_VERSION_CHECK(5, 0, 0)
+    static QTouchDevice* device = 0;
+    if (!device) {
+        device = new QTouchDevice;
+        device->setType(QTouchDevice::TouchScreen);
+        QWindowSystemInterface::registerTouchDevice(device);
+    }
+
+    QTouchEvent event(type, device, m_touchModifiers);
+#else
     QTouchEvent event(type, QTouchEvent::TouchScreen, m_touchModifiers);
+#endif
     event.setTouchPoints(m_touchPoints);
     sendEvent(m_page, &event);
     QList<QTouchEvent::TouchPoint>::Iterator it = m_touchPoints.begin();
@@ -511,6 +560,12 @@ void EventSender::textZoomOut()
         frame->setTextSizeMultiplier(frame->textSizeMultiplier() / ZOOM_STEP);
 }
 
+void EventSender::scalePageBy(float scaleFactor, float x, float y)
+{
+    if (QWebFrame* frame = m_page->mainFrame())
+        DumpRenderTreeSupportQt::scalePageBy(frame, scaleFactor, QPoint(x, y));
+}
+
 QWebFrame* EventSender::frameUnderMouse() const
 {
     QWebFrame* frame = m_page->mainFrame();
@@ -530,10 +585,10 @@ redo:
 
 void EventSender::sendOrQueueEvent(QEvent* event)
 {
-    // Mouse move events are queued if 
+    // Mouse move events are queued if
     // 1. A previous event was queued.
     // 2. A delay was set-up by leapForward().
-    // 3. A call to mouseMoveTo while the mouse button is pressed could initiate a drag operation, and that does not return until mouseUp is processed. 
+    // 3. A call to mouseMoveTo while the mouse button is pressed could initiate a drag operation, and that does not return until mouseUp is processed.
     // To be safe and avoid a deadlock, this event is queued.
     if (endOfQueue == startOfQueue && !eventQueue[endOfQueue].m_delay && (!(m_mouseButtonPressed && (m_eventLoop && event->type() == QEvent::MouseButtonRelease)))) {
         sendEvent(m_page->view(), event);

@@ -1,11 +1,8 @@
 <html>
 <head>
-<link rel="stylesheet" href="../../js/resources/js-test-style.css">
 <script src="../../js/resources/js-test-pre.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 
 <ol name='name1' class='class2'/>
 <ol name='name2' class='class1'/>
@@ -19,8 +16,6 @@ function areSame(expr) { shouldBeTrue(expr + ' === ' + expr) };
 areSame('document.getElementsByTagName("ol")');
 areSame('document.getElementsByName("name1")');
 areSame('document.getElementsByClassName("class1")');
-
-var successfullyParsed = true;
 </script>
 <script src="../../js/resources/js-test-post.js"></script>
 </body>

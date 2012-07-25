@@ -48,6 +48,7 @@ DEFINE_HAS_MEMBER_CHECK(invoke, bool, (NPIdentifier methodName, const NPVariant*
 DEFINE_HAS_MEMBER_CHECK(invokeDefault, bool, (const NPVariant*, uint32_t, NPVariant* result));
 DEFINE_HAS_MEMBER_CHECK(hasProperty, bool, (NPIdentifier propertyName));
 DEFINE_HAS_MEMBER_CHECK(getProperty, bool, (NPIdentifier propertyName, NPVariant* result));
+DEFINE_HAS_MEMBER_CHECK(removeProperty, bool, (NPIdentifier propertyName));
 
 class PluginTest {
 public:
@@ -59,7 +60,7 @@ public:
     // NPP functions.
     virtual NPError NPP_New(NPMIMEType pluginType, uint16_t mode, int16_t argc, char *argn[], char *argv[], NPSavedData *saved);
     virtual NPError NPP_Destroy(NPSavedData**);
-    virtual NPError NPP_SetWindow(NPP, NPWindow*);
+    virtual NPError NPP_SetWindow(NPWindow*);
     virtual NPError NPP_NewStream(NPMIMEType, NPStream*, NPBool seekable, uint16_t* stype);
     virtual NPError NPP_DestroyStream(NPStream*, NPReason);
     virtual int32_t NPP_WriteReady(NPStream*);
@@ -68,6 +69,7 @@ public:
     virtual int16_t NPP_HandleEvent(void* event);
     virtual bool NPP_URLNotify(const char* url, NPReason, void* notifyData);
     virtual NPError NPP_GetValue(NPPVariable, void* value);
+    virtual NPError NPP_SetValue(NPNVariable, void *value);
 
     // NPN functions.
     NPError NPN_GetURL(const char* url, const char* target);
@@ -78,13 +80,20 @@ public:
     // NPRuntime NPN functions.
     NPIdentifier NPN_GetStringIdentifier(const NPUTF8* name);
     NPIdentifier NPN_GetIntIdentifier(int32_t intid);
+    bool NPN_IdentifierIsString(NPIdentifier);
+    NPUTF8* NPN_UTF8FromIdentifier(NPIdentifier);
+    int32_t NPN_IntFromIdentifier(NPIdentifier);
+
     NPObject* NPN_CreateObject(NPClass*);
+    NPObject* NPN_RetainObject(NPObject*);
+    void NPN_ReleaseObject(NPObject*);
     bool NPN_RemoveProperty(NPObject*, NPIdentifier propertyName);
 
 #ifdef XP_MACOSX
     bool NPN_ConvertPoint(double sourceX, double sourceY, NPCoordinateSpace sourceSpace, double *destX, double *destY, NPCoordinateSpace destSpace);
 #endif
 
+    bool executeScript(const NPString*, NPVariant* result);
     void executeScript(const char*);
     void log(const char* format, ...);
 
@@ -159,6 +168,18 @@ protected:
             return false;
         }
 
+        bool removeProperty(NPIdentifier propertyName)
+        {
+            assert(false);
+            return false;
+        }
+
+        // Helper functions.
+        bool identifierIs(NPIdentifier identifier, const char* value)
+        {
+            return pluginTest()->NPN_GetStringIdentifier(value) == identifier;
+        }
+
     protected:
         Object()
             : m_pluginTest(0)
@@ -207,6 +228,11 @@ protected:
             return static_cast<T*>(npObject)->getProperty(propertyName, result);
         }
 
+        static bool NP_RemoveProperty(NPObject* npObject, NPIdentifier propertyName)
+        {
+            return static_cast<T*>(npObject)->removeProperty(propertyName);
+        }
+
         static NPClass* npClass()
         {
             static NPClass npClass = {
@@ -220,7 +246,7 @@ protected:
                 has_member_hasProperty<T>::value ? NP_HasProperty : 0,
                 has_member_getProperty<T>::value ? NP_GetProperty : 0,
                 0, // NPClass::setProperty
-                0, // NPClass::removeProperty
+                has_member_removeProperty<T>::value ? NP_RemoveProperty : 0,
                 0, // NPClass::enumerate
                 0  // NPClass::construct
             };

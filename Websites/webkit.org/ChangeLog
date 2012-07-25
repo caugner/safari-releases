@@ -1,3 +1,381 @@
+2012-04-23  Daniel Bates  <dbates@webkit.org>
+
+        Add notice about running xcode-select before using Xcode 4.3.2 command line tools
+
+        Rubber-stamped by Eric Seidel.
+
+        Before you can use the Xcode 4.3.2 command line tools, you must either run
+        sudo xcode-select -switch /Applications/Xcode.app or set the environment variable
+        DEVELOPER_DIR to point to the Xcode developer tools directory. 
+
+        * building/tools.html:
+
+2012-04-23  Daniel Bates  <dbates@webkit.org>
+
+        Explicitly mention Xcode version 4.3.2 in Mac debug instructions
+
+        Rubber-stamped by Eric Seidel.
+
+        The build location instructions at the top of page building/{debug-mac-uiprocess.html, debug.html}
+        are specific to Xcode 4.3.2.
+
+        * building/debug-mac-uiprocess.html: Substitute "Xcode 4.3.2" for "Xcode 4".
+        * building/debug.html: Ditto.
+
+2012-04-19  Daniel Bates  <dbates@webkit.org>
+
+        Update Build Location notice on Mac debug instructions to reflect changes in Xcode 4.3.2
+        https://bugs.webkit.org/show_bug.cgi?id=84364
+
+        Reviewed by Eric Seidel.
+
+        As of Xcode 4.3.2, the build location "Locations Specified by Targets" has been renamed to
+        "Legacy".
+
+        * building/debug-mac-uiprocess.html:
+        * building/debug.html:
+
+2012-03-13  Rebecca Hauck  <rhauck@adobe.com>
+
+        Working With Code > Installing Developer Tools needs to be updated with OS X Lion & App Store details
+        https://bugs.webkit.org/show_bug.cgi?id=80429
+
+        Reviewed by Dan Bernstein.
+
+        * building/tools.html:
+
+2012-03-10  Daniel Bates  <dbates@webkit.org>
+
+        Switch from HTTP to HTTPS for Xcode developer.apple.com hyperlinks
+
+        The Debugging and Analyzing Your Code page cannot be viewed at <http://developer.apple.com/library/mac/#documentation/ToolsLanguages/Conceptual/Xcode4UserGuide/Debugging/Debugging.html#//apple_ref/doc/uid/TP40010215-CH3-SW1> (1) as this URL redirects to the Mac OS X Developer Library <https://developer.apple.com/library/mac/navigation/>.
+        Substituting https for http in (1) returns the expected page. 
+
+        * building/debug-mac-uiprocess.html:
+        * building/debug.html:
+
+2012-03-01  Seo Sanghyeon  <sh4.seo@samsung.com>
+
+        Add a link to the EFL wiki page
+        https://bugs.webkit.org/show_bug.cgi?id=79439
+
+        Reviewed by Adam Barth.
+
+        * building/tools.html:
+        * css/main.css: Cross-browser border-radius.
+
+2012-02-24  Tom Zakrajsek  <tomz@codeaurora.org>
+
+        team.html (on webkit.org) doesn't recognize codeaurora.org
+        https://bugs.webkit.org/show_bug.cgi?id=79529
+
+        Reviewed by Ryosuke Niwa.
+
+        * team.html:
+
+2012-02-16  Kent Tamura  <tkent@chromium.org>
+
+        Improve usability of coding-style.html
+        https://bugs.webkit.org/show_bug.cgi?id=78470
+
+        Reviewed by Eric Seidel.
+
+        * coding/coding-style.html:
+        - Do not add a title attribute to each of LI elements
+        - Do not add a click handler to each of them
+        - Add a SPAN element in order to show [id-name] and provide smaller clickable area.
+
+2012-01-23  Seo Sanghyeon  <sh4.seo@samsung.com>
+
+        website: Reword WEBKITOUTPUTDIR documentation on Building WebKit page
+        https://bugs.webkit.org/show_bug.cgi?id=76544
+
+        Reviewed by Darin Adler.
+
+        WEBKITOUTPUTDIR is not only for Windows.
+
+        * building/build.html:
+
+2012-01-20  Kent Tamura  <tkent@chromium.org>
+
+        Each style rule should have its own ID.
+        https://bugs.webkit.org/show_bug.cgi?id=76428
+
+        Reviewed by David Levin.
+
+        * coding/coding-style.html: Add an id attribute to each of li elements,
+        and add code to set title="#id-name" and to make li elements clickable.
+
+2012-01-19  Daniel Bates  <dbates@webkit.org>
+
+        Remove "Safari 5.1 shipped" text from debugging instructions; move misplaced </ol>
+
+        Rubber-stamped by Sam Weinig.
+
+        * building/debug.html:
+
+2012-01-19  Daniel Bates  <dbates@webkit.org>
+
+        Update Debugging on Mac OS X instructions for Safari 5.1/WebKit 2
+        https://bugs.webkit.org/show_bug.cgi?id=67102
+
+        Reviewed by Eric Seidel.
+
+        Add instructions for debugging UIProcess and WebProcess using Xcode 4.
+
+        * building/active-scheme-xcode4.png: Added.
+        * building/build-settings-tab-xcode4.png: Added.
+        * building/build-window.png: Removed.
+        * building/custom-executable-xcode4.png: Added.
+        * building/custom-executable.png: Removed.
+        * building/debug-mac-uiprocess.html: Added.
+        * building/debug.html:
+        * building/debug.png: Removed.
+        * building/info-tab.png: Removed.
+        * building/run-xcode4.png: Added.
+
+2012-01-11  Antti Koivisto  <antti@apple.com>
+
+        Remove S60 reference from webkit.org
+        https://bugs.webkit.org/show_bug.cgi?id=76044
+
+        Reviewed by Simon Hausmann.
+        
+        There is no S60.
+
+        * index.html:
+
+2012-01-10  Hajime Morrita  <morrita@chromium.org>
+
+        [Website] i-Bench is no longer available.
+        https://bugs.webkit.org/show_bug.cgi?id=76027
+
+        Reviewed by Ryosuke Niwa.
+
+        Updated the availability information of i-Bench.
+
+        * projects/performance/index.html:
+
+2011-12-07  Daniel Bates  <dbates@webkit.org>
+
+        ASSERT_UNREACHED() should be ASSERT_NOT_REACHED() on assertion-guidelines.html
+        https://bugs.webkit.org/show_bug.cgi?id=74006
+
+        Reviewed by Antonio Gomes.
+
+        As far I can tell, we've never had an ASSERT_UNREACHED(). We do have an
+        ASSERT_NOT_REACHED().
+
+        * coding/assertion-guidelines.html:
+
+2011-11-30  Ryosuke Niwa  <rniwa@webkit.org>
+
+        commit-review-policy.html should make clear committers shouldn't land patches without authors' consent
+        https://bugs.webkit.org/show_bug.cgi?id=73098
+
+        Reviewed by Antti Koivisto.
+
+        Revise the sentence about committers being allowed to land patches by others to explicitly state that
+        they can only land patches by others if asked by authors themselves.
+
+        * coding/commit-review-policy.html:
+
+2011-11-14  Mark Rowe  <mrowe@apple.com>
+
+        Upgrade WordPress's Akismet plug-in to the latest version.
+
+        * blog/wp-content/plugins/akismet:
+
+2011-11-14  Mark Rowe  <mrowe@apple.com>
+
+        Update one file that was missed.
+
+        * blog/wp-settings.php:
+
+2011-11-14  Mark Rowe  <mrowe@apple.com>
+
+        Upgrade WordPress to v3.2.1.
+
+        * blog:
+
+2011-10-28  Dean Jackson  <dino@apple.com>
+
+        Remove this horribly outdated file. It was showing up in
+        Google searches and shouldn't be used as official
+        documentation.
+
+        Rubber-stamped by Simon Fraser.
+
+        * specs/MediaQueriesExtensions.html: Removed.
+
+2011-10-21  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Style guide should mention the preference of index over iterator
+        https://bugs.webkit.org/show_bug.cgi?id=70285
+
+        Reviewed by Darin Adler.
+
+        Per discussion on https://lists.webkit.org/pipermail/webkit-dev/2011-October/018274.html,
+        we prefer index over iterators.
+
+        * coding/coding-style.html:
+
+2011-10-10  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Fix a typo pointed by Sam (Weinig).
+
+        * coding/coding-style.html:
+
+2011-10-10  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Style guide should mandate use of pass-by-reference for out arguments
+        https://bugs.webkit.org/show_bug.cgi?id=69766
+
+        Reviewed by Darin Adler.
+
+        This matches the convention used throughout WebCore.
+
+        * coding/coding-style.html:
+
+2011-10-06  Amruth Raj  <amruthraj@motorola.com>
+
+        Add Motorola Mobility to team.html
+        https://bugs.webkit.org/show_bug.cgi?id=69597
+
+        Reviewed by Ryosuke Niwa.
+
+        * team.html:
+
+2011-09-20  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Generate WebKit team's page out of committers.py
+        https://bugs.webkit.org/show_bug.cgi?id=68045
+
+        Fix per Daniel's review comment since I had misunderstood the code.
+
+        * team.html:
+
+2011-09-20  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Generate WebKit team's page out of committers.py
+        https://bugs.webkit.org/show_bug.cgi?id=68045
+
+        Reviewed by Daniel Bates.
+
+        Add the initial implementation of team.html. This page automatically pulls data from committers.py
+        There are no areas of expertise but that'll be added once the bug 68061 is fixed.
+
+        * team.html: Added.
+
+2011-09-01  Jon Lee  <jonlee@apple.com>
+
+        Adding control rendering at various sizes.
+
+        * projects/forms/survey.html:
+
+2011-08-29  Jon Lee  <jonlee@apple.com>
+
+        Updating forms survey with non-standard wrap for textarea and more data-list driven text fields.
+
+        * projects/forms/survey.html:
+
+2011-08-17  Jon Lee  <jonlee@apple.com>
+
+        Updating the forms survey to include various element sizes.
+
+        * projects/forms/survey.html:
+
+2011-08-16  Daniel Bates  <dbates@webkit.org>
+
+        Add myself to the list of individual members in the WebKit Security Group.
+
+        Rubber-stamped by Eric Seidel.
+
+        * security/security-group-members.html:
+
+2011-08-09  Anders Carlsson  <andersca@apple.com>
+
+        Broken link to LICENSE on contributing code page
+        https://bugs.webkit.org/show_bug.cgi?id=65947
+
+        Reviewed by Ryosuke Niwa.
+
+        * coding/contributing.html:
+
+2011-08-04  Dan Bernstein  <mitz@apple.com>
+
+        Fixed a typo.
+
+        * coding/contributing.html:
+
+2011-08-04  Nico Weber  <thakis@chromium.org>
+
+        Update the contributors page to recommend webkit-patch instead of many manual steps
+        https://bugs.webkit.org/show_bug.cgi?id=65714
+
+        Reviewed by Adam Barth.
+
+        asvitkine followed the contributing instructions for his first patch, and got
+        the ChangeLog entry wrong: https://bugs.webkit.org/show_bug.cgi?id=65707
+        webkit-patch prevents errors like this and more.
+
+        * coding/contributing.html:
+
+2011-07-21  Jon Lee  <jonlee@apple.com>
+
+        Create a new survey page that showcases form and interactive elements for quick reference and comparison.
+        <rdar://problem/9782965>
+
+        Rubber-stamped by Maciej Stachowiak.
+
+        * projects/forms/image-usemap.png: Added.
+        * projects/forms/image1.png: Added.
+        * projects/forms/image10.png: Added.
+        * projects/forms/image16.png: Added.
+        * projects/forms/index.html: Update links
+        * projects/forms/survey.html: Added.
+
+2011-07-20  Leo Yang  <leo.yang@torchmobile.com.cn>
+
+        SVG feature status is not up-to-date
+        https://bugs.webkit.org/show_bug.cgi?id=64856
+
+        Reviewed by Dirk Schulze.
+
+        Update SVG feature status after r91331.
+
+        * projects/svg/status.xml:
+
+2011-06-29  Leandro Pereira  <leandro@profusion.mobi>
+
+        Reviewed by Darin Adler.
+
+        Add note about cases where enums are preferred over bools on function parameters.
+        https://bugs.webkit.org/show_bug.cgi?id=63564
+
+        This matches the outcome of this webkit-dev thread:
+        https://lists.webkit.org/pipermail/webkit-dev/2010-December/015192.html
+
+        * coding/coding-style.html:
+
+2011-05-31  Chris Evans  <cevans@chromium.org>
+
+        Reviewed by Drew Yao.
+
+        Add "Collaboration" to WebKit Security Group Privileges and Responsibilities section.
+
+        * security/index.html: Add "Collaboration" section with text discussed on webkit-security.
+
+2011-05-20  Alexey Proskuryakov  <ap@apple.com>
+
+        Reviewed by Dan Bernstein.
+
+        Building instructions should not talk about Tiger
+        https://bugs.webkit.org/show_bug.cgi?id=61210
+
+        * building/tools.html: Removed steps that are only necessary on Tiger, and changed required
+        Xcode version to the latest Leopard one.
+
 2011-05-16  Huzaifa Sidhpurwala <huzaifas@redhat.com>
 
        Reviewed by Adam Barth.

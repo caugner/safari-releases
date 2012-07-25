@@ -1,12 +1,9 @@
 <html>
 <head>
-<link rel="stylesheet" href="../js/resources/js-test-style.css">
 <script src="../js/resources/js-test-pre.js"></script>
 <script src="resources/char-decoding-utils.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <script>
 
 description("This tests decoding characters in various character sets.");
@@ -107,8 +104,6 @@ testDecode('csUnicode', '%69%D8%D6%DE', 'U+D869/U+DED6');
 // UTF-16BE and variants.
 testDecode('UTF-16BE', '%D8%69%DE%D6', 'U+D869/U+DED6');
 testDecode('unicodeFFFE', '%D8%69%DE%D6', 'U+D869/U+DED6');
-
-successfullyParsed = true;
 
 </script>
 <script src="../js/resources/js-test-post.js"></script>

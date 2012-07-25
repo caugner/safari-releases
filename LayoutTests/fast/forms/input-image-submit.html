@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html>
 <head>
-<link rel="stylesheet" href="../../fast/js/resources/js-test-style.css">
 <script src="../../fast/js/resources/js-test-pre.js"></script>
 </head>
 <body onload="startTests()">
@@ -13,14 +12,6 @@
 
 <div id="console"></div>
 <script>
-function gc() {
-    if (window.GCController)
-        return GCController.collect();
-
-    for (var i = 0; i < 10000; i++)
-        var s = new String("");
-}
-
 function notifyDone() {
     if (window.layoutTestController)
         layoutTestController.notifyDone();

@@ -1,11 +1,8 @@
 <html>
 <head>
-<link rel="stylesheet" href="../../js/resources/js-test-style.css">
 <script src="../../js/resources/js-test-pre.js"></script>
 </head>
 <body style="color:black">
-<p id="description"></p>
-<div id="console"></div>
 <script>
     description("Test that custom properties on CSSValues of inline style declarations survive GC");
 
@@ -14,8 +11,6 @@
     eval(expr).foo = "bar"
     gc();
     shouldBe(expr + ".foo", "'bar'");
-
-    successfullyParsed = true;
 
 </script>
 <script src="../../js/resources/js-test-post.js"></script>

@@ -27,10 +27,12 @@
 
 #include "PluginTest.h"
 #include <cstdlib>
+#include <cstring>
 #include <string>
 
 #ifdef XP_UNIX
 #include <X11/Xlib.h>
+#include <X11/Xutil.h>
 #endif
 
 #if !defined(NP_NO_CARBON) && defined(QD_HEADERS_ARE_PRIVATE) && QD_HEADERS_ARE_PRIVATE
@@ -130,8 +132,6 @@ static void executeScript(const PluginObject* obj, const char* script);
 
 NPError NPP_New(NPMIMEType pluginType, NPP instance, uint16_t mode, int16_t argc, char *argn[], char *argv[], NPSavedData *saved)
 {
-    bool forceCarbon = false;
-
 #ifdef XP_MACOSX
     NPEventModel eventModel;
     
@@ -163,7 +163,7 @@ NPError NPP_New(NPMIMEType pluginType, NPP instance, uint16_t mode, int16_t argc
     if (browser->getvalue(instance, NPNVsupportsCocoaBool, &supportsCocoa) != NPERR_NO_ERROR)
         supportsCocoa = false;
 
-    if (supportsCocoa && !forceCarbon) {
+    if (supportsCocoa) {
         eventModel = NPEventModelCocoa;
 #ifndef NP_NO_CARBON
     } else if (supportsCarbon) {
@@ -212,8 +212,6 @@ NPError NPP_New(NPMIMEType pluginType, NPP instance, uint16_t mode, int16_t argc
             obj->logSetWindow = TRUE;
         else if (strcasecmp(argn[i], "testnpruntime") == 0)
             testNPRuntime(instance);
-        else if (strcasecmp(argn[i], "forcecarbon") == 0)
-            forceCarbon = true;
         else if (strcasecmp(argn[i], "logSrc") == 0) {
             for (int i = 0; i < argc; i++)
                 if (strcasecmp(argn[i], "src") == 0)
@@ -276,19 +274,12 @@ NPError NPP_New(NPMIMEType pluginType, NPP instance, uint16_t mode, int16_t argc
         obj->coreAnimationLayer = createCoreAnimationLayer();
 #endif
 
-    browser->getvalue(instance, NPNVprivateModeBool, (void *)&obj->cachedPrivateBrowsingMode);
-
     obj->pluginTest = PluginTest::create(instance, testIdentifier);
 
     if (!obj->pluginTest) {
         pluginLog(instance, "NPP_New: Could not find a test named \"%s\", maybe its .cpp file wasn't added to the build system?", testIdentifier.c_str());
         return NPERR_GENERIC_ERROR;
     }
-
-#ifdef XP_UNIX
-    // On Unix, plugins only get events if they are windowless.
-    browser->setvalue(instance, NPPVpluginWindowBool, 0);
-#endif
 
     if (onNewScript)
         executeScript(obj, onNewScript);
@@ -331,7 +322,8 @@ NPError NPP_Destroy(NPP instance, NPSavedData **save)
             CFRelease(obj->coreAnimationLayer);
 #endif
 
-        obj->pluginTest->NPP_Destroy(save);
+        if (obj->pluginTest)
+            obj->pluginTest->NPP_Destroy(save);
 
         browser->releaseobject(&obj->header);
     }
@@ -364,7 +356,7 @@ NPError NPP_SetWindow(NPP instance, NPWindow *window)
         }
     }
     
-    return obj->pluginTest->NPP_SetWindow(instance, window);
+    return obj->pluginTest->NPP_SetWindow(window);
 }
 
 static void executeScript(const PluginObject* obj, const char* script)
@@ -465,7 +457,14 @@ static int16_t handleEventCarbon(NPP instance, PluginObject* obj, EventRecord* e
             break;
         case mouseDown:
             if (obj->eventLogging) {
+#if __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
                 GlobalToLocal(&pt);
+#if __clang__
+#pragma clang diagnostic pop
+#endif
                 pluginLog(instance, "mouseDown at (%d, %d)", pt.h, pt.v);
             }
             if (obj->evaluateScriptOnMouseDownOrKeyDown && obj->mouseDownForEvaluateScript)
@@ -473,7 +472,14 @@ static int16_t handleEventCarbon(NPP instance, PluginObject* obj, EventRecord* e
             break;
         case mouseUp:
             if (obj->eventLogging) {
+#if __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
                 GlobalToLocal(&pt);
+#if __clang__
+#pragma clang diagnostic pop
+#endif
                 pluginLog(instance, "mouseUp at (%d, %d)", pt.h, pt.v);
             }
             break;
@@ -622,32 +628,38 @@ static int16_t handleEventCocoa(NPP instance, PluginObject* obj, NPCocoaEvent* e
 #endif // XP_MACOSX
 
 #ifdef XP_UNIX
+
+static char keyEventToChar(XKeyEvent* event)
+{
+    char c = ' ';
+    XLookupString(event, &c, sizeof(c), 0, 0);
+    return c;
+}
+
 static int16_t handleEventX11(NPP instance, PluginObject* obj, XEvent* event)
 {
-    XButtonPressedEvent* buttonPressEvent = reinterpret_cast<XButtonPressedEvent*>(event);
-    XButtonReleasedEvent* buttonReleaseEvent = reinterpret_cast<XButtonReleasedEvent*>(event);
     switch (event->type) {
     case ButtonPress:
         if (obj->eventLogging)
-            pluginLog(instance, "mouseDown at (%d, %d)", buttonPressEvent->x, buttonPressEvent->y);
+            pluginLog(instance, "mouseDown at (%d, %d)", event->xbutton.x, event->xbutton.y);
         if (obj->evaluateScriptOnMouseDownOrKeyDown && obj->mouseDownForEvaluateScript)
             executeScript(obj, obj->evaluateScriptOnMouseDownOrKeyDown);
         break;
     case ButtonRelease:
         if (obj->eventLogging)
-            pluginLog(instance, "mouseUp at (%d, %d)", buttonReleaseEvent->x, buttonReleaseEvent->y);
+            pluginLog(instance, "mouseUp at (%d, %d)", event->xbutton.x, event->xbutton.y);
         break;
     case KeyPress:
         // FIXME: extract key code
         if (obj->eventLogging)
-            pluginLog(instance, "NOTIMPLEMENTED: keyDown '%c'", ' ');
+            pluginLog(instance, "keyDown '%c'", keyEventToChar(&event->xkey));
         if (obj->evaluateScriptOnMouseDownOrKeyDown && !obj->mouseDownForEvaluateScript)
             executeScript(obj, obj->evaluateScriptOnMouseDownOrKeyDown);
         break;
     case KeyRelease:
         // FIXME: extract key code
         if (obj->eventLogging)
-            pluginLog(instance, "NOTIMPLEMENTED: keyUp '%c'", ' ');
+            pluginLog(instance, "keyUp '%c'", keyEventToChar(&event->xkey));
         break;
     case GraphicsExpose:
         if (obj->eventLogging)
@@ -667,8 +679,6 @@ static int16_t handleEventX11(NPP instance, PluginObject* obj, XEvent* event)
     case EnterNotify:
     case LeaveNotify:
     case MotionNotify:
-        if (obj->eventLogging)
-            pluginLog(instance, "adjustCursorEvent");
         break;
     default:
         if (obj->eventLogging)
@@ -687,7 +697,46 @@ static int16_t handleEventWin(NPP instance, PluginObject* obj, NPEvent* event)
     case WM_PAINT:
         if (obj->onPaintEvent)
             executeScript(obj, obj->onPaintEvent);
-        return 1;
+        break;
+    case WM_KEYDOWN:
+        if (obj->eventLogging)
+            pluginLog(instance, "keyDown '%c'", event->wParam);
+        if (obj->evaluateScriptOnMouseDownOrKeyDown && !obj->mouseDownForEvaluateScript)
+            executeScript(obj, obj->evaluateScriptOnMouseDownOrKeyDown);
+        break;
+    case WM_CHAR:
+        break;
+    case WM_KEYUP:
+        if (obj->eventLogging)
+            pluginLog(instance, "keyUp '%c'", event->wParam);
+        if (obj->testKeyboardFocusForPlugins) {
+            obj->eventLogging = false;
+            obj->testKeyboardFocusForPlugins = FALSE;
+            executeScript(obj, "layoutTestController.notifyDone();");
+        }
+        break;
+    case WM_LBUTTONDOWN:
+    case WM_MBUTTONDOWN:
+    case WM_RBUTTONDOWN:
+        if (obj->eventLogging)
+            pluginLog(instance, "mouseDown at (%d, %d)", LOWORD(event->lParam), HIWORD(event->lParam));
+        if (obj->evaluateScriptOnMouseDownOrKeyDown && obj->mouseDownForEvaluateScript)
+            executeScript(obj, obj->evaluateScriptOnMouseDownOrKeyDown);
+        break;
+    case WM_LBUTTONUP:
+    case WM_MBUTTONUP:
+    case WM_RBUTTONUP:
+        if (obj->eventLogging)
+            pluginLog(instance, "mouseUp at (%d, %d)", LOWORD(event->lParam), HIWORD(event->lParam));
+        break;
+    case WM_SETFOCUS:
+        if (obj->eventLogging)
+            pluginLog(instance, "getFocusEvent");
+        break;
+    case WM_KILLFOCUS:
+        if (obj->eventLogging)
+            pluginLog(instance, "loseFocusEvent");
+        break;
     }
     return 0;
 }
@@ -738,11 +787,17 @@ NPError NPP_GetValue(NPP instance, NPPVariable variable, void *value)
         return NPERR_NO_ERROR;
     }
     if (variable == NPPVpluginDescriptionString) {
-        *((char **)value) = const_cast<char*>("Simple Netscape plug-in that handles test content for WebKit");
+        *((char **)value) = const_cast<char*>("Simple Netscape® plug-in that handles test content for WebKit");
+        return NPERR_NO_ERROR;
+    }
+    if (variable == NPPVpluginNeedsXEmbed) {
+        *((NPBool *)value) = TRUE;
         return NPERR_NO_ERROR;
     }
 #endif
 
+    if (!instance)
+        return NPERR_GENERIC_ERROR;
     PluginObject* obj = static_cast<PluginObject*>(instance->pdata);
 
     // First, check if the PluginTest object supports getting this value.
@@ -774,14 +829,7 @@ NPError NPP_GetValue(NPP instance, NPPVariable variable, void *value)
 NPError NPP_SetValue(NPP instance, NPNVariable variable, void *value)
 {
     PluginObject* obj = static_cast<PluginObject*>(instance->pdata);
-
-    switch (variable) {
-        case NPNVprivateModeBool:
-            obj->cachedPrivateBrowsingMode = *(NPBool*)value;
-            return NPERR_NO_ERROR;
-        default:
-            return NPERR_GENERIC_ERROR;
-    }
+    return obj->pluginTest->NPP_SetValue(variable, value);
 }
 
 #ifdef XP_UNIX

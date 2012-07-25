@@ -1,11 +1,11 @@
 <html>
-<link rel="stylesheet" href="../js/resources/js-test-style.css">
 <script src="../js/resources/js-test-pre.js"></script>
 <body style="min-height: 2000px"> 
-<p id="description"></p>
-<div id="console"></div>
 
 <script type="text/javascript">
+if (window.layoutTestController)
+    layoutTestController.setCanOpenWindows();
+
 description('Tests that scroll events are not fired while modal dialogs are displayed.');
 
 var triggeredCaptureListener = false;
@@ -25,8 +25,6 @@ onload = function()
     showModalDialog('resources/scroll-event-modal-dialog.html');
     debug('Returned from modal dialog');
 }
-
-var successfullyParsed = true;
 var jsTestIsAsync = true;
 </script>
 <script src="../js/resources/js-test-post.js"></script>

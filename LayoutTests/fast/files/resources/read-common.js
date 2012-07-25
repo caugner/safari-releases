@@ -1,13 +1,11 @@
 // Builds a blob from a list of items.
 // The 'contentType' argument is optional.
 // If the 'builder' argument is not provided, create a new one.
-function buildBlob(items, contentType, builder)
+function buildBlob(items, contentType)
 {
-    if (builder === undefined)
-        builder = new WebKitBlobBuilder();
-    for (var i = 0; i < items.length; i++)
-        builder.append(items[i]);
-    return builder.getBlob(contentType);
+    if (contentType === undefined)
+        return new Blob(items);
+    return new Blob(items, {type:contentType});
 }
 
 // Reads a blob either asynchronously or synchronously.
@@ -79,6 +77,13 @@ function _readBlobAsArrayBufferSync(testFiles, blob)
         log("Received exception " + error.code + ": " + error.name);
     }
 
+    try {
+        var result = reader.readAsArrayBuffer(12345);
+        logResult(result);
+    } catch (error) {
+        log("Received exception " + error.code + ": " + error.name);
+    }
+
     runNextTest(testFiles);
 }
 
@@ -87,6 +92,13 @@ function _readBlobAsBinaryStringSync(testFiles, blob)
     var reader = createReaderSync();
     try {
         var result = reader.readAsBinaryString(blob);
+        logResult(result);
+    } catch (error) {
+        log("Received exception " + error.code + ": " + error.name);
+    }
+
+    try {
+        var result = reader.readAsBinaryString(12345);
         logResult(result);
     } catch (error) {
         log("Received exception " + error.code + ": " + error.name);
@@ -105,6 +117,13 @@ function _readBlobAsTextSync(testFiles, blob, encoding)
         log("Received exception " + error.code + ": " + error.name);
     }
 
+    try {
+        var result = reader.readAsText(12345, encoding);
+        logResult(result);
+    } catch (error) {
+        log("Received exception " + error.code + ": " + error.name);
+    }
+
     runNextTest(testFiles);
 }
 
@@ -113,6 +132,13 @@ function _readBlobAsDataURLSync(testFiles, blob)
     var reader = createReaderSync();
     try {
         var result = reader.readAsDataURL(blob);
+        logResult(result);
+    } catch (error) {
+        log("Received exception " + error.code + ": " + error.name);
+    }
+
+    try {
+        var result = reader.readAsDataURL(12345);
         logResult(result);
     } catch (error) {
         log("Received exception " + error.code + ": " + error.name);

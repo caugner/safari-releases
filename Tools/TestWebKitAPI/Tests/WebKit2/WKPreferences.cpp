@@ -23,14 +23,10 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "Test.h"
-
+#include "config.h"
 #include "PlatformUtilities.h"
-#include <WebKit2/WKPreferences.h>
 #include <WebKit2/WKPreferencesPrivate.h>
 #include <WebKit2/WKRetainPtr.h>
-#include <WebKit2/WKString.h>
-#include <wtf/Platform.h>
 
 namespace TestWebKitAPI {
 
@@ -52,6 +48,7 @@ TEST(WebKit2, WKPreferencesDefaults)
     static const char* expectedSansSerifFontFamily = "Arial";
     static const char* expectedCursiveFontFamily = "Comic Sans MS";
     static const char* expectedFantasyFontFamily = "Comic Sans MS";
+    static const char* expectedPictographFontFamily = "Times New Roman";
 #elif PLATFORM(MAC)
     static const char* expectedStandardFontFamily = "Times";
     static const char* expectedFixedFontFamily = "Courier";
@@ -59,6 +56,15 @@ TEST(WebKit2, WKPreferencesDefaults)
     static const char* expectedSansSerifFontFamily = "Helvetica";
     static const char* expectedCursiveFontFamily = "Apple Chancery";
     static const char* expectedFantasyFontFamily = "Papyrus";
+    static const char* expectedPictographFontFamily = "Apple Color Emoji";
+#elif PLATFORM(GTK)
+    static const char* expectedStandardFontFamily = "Times";
+    static const char* expectedFixedFontFamily = "Courier New";
+    static const char* expectedSerifFontFamily = "Times";
+    static const char* expectedSansSerifFontFamily = "Helvetica";
+    static const char* expectedCursiveFontFamily = "Comic Sans MS";
+    static const char* expectedFantasyFontFamily = "Impact";
+    static const char* expectedPictographFontFamily = "Times";
 #endif
 
     WKPreferencesRef preference = WKPreferencesCreate();
@@ -79,6 +85,7 @@ TEST(WebKit2, WKPreferencesDefaults)
     EXPECT_WK_STREQ(expectedSansSerifFontFamily, adoptWK(WKPreferencesCopySansSerifFontFamily(preference)));
     EXPECT_WK_STREQ(expectedCursiveFontFamily, adoptWK(WKPreferencesCopyCursiveFontFamily(preference)));
     EXPECT_WK_STREQ(expectedFantasyFontFamily, adoptWK(WKPreferencesCopyFantasyFontFamily(preference)));
+    EXPECT_WK_STREQ(expectedPictographFontFamily, adoptWK(WKPreferencesCopyPictographFontFamily(preference)));
     EXPECT_EQ(0u, WKPreferencesGetMinimumFontSize(preference));
     EXPECT_FALSE(WKPreferencesGetPrivateBrowsingEnabled(preference));
     EXPECT_FALSE(WKPreferencesGetDeveloperExtrasEnabled(preference));
@@ -96,6 +103,20 @@ TEST(WebKit2, WKPreferencesDefaults)
     EXPECT_FALSE(WKPreferencesGetNeedsSiteSpecificQuirks(preference));
 
     WKRelease(preference);
+}
+
+TEST(WebKit2, WKPreferencesCopying)
+{
+    WKRetainPtr<WKStringRef> identifier(AdoptWK, WKStringCreateWithUTF8CString("identifier"));
+
+    WKRetainPtr<WKPreferencesRef> preferences(AdoptWK, WKPreferencesCreateWithIdentifier(identifier.get()));
+    WKPreferencesSetDefaultFontSize(preferences.get(), 36);
+
+    WKRetainPtr<WKPreferencesRef> copy(AdoptWK, WKPreferencesCreateCopy(preferences.get()));
+
+    WKPreferencesSetDefaultFontSize(preferences.get(), 24);
+    EXPECT_EQ(24u, WKPreferencesGetDefaultFontSize(preferences.get()));
+    EXPECT_EQ(36u, WKPreferencesGetDefaultFontSize(copy.get()));
 }
 
 } // namespace TestWebKitAPI

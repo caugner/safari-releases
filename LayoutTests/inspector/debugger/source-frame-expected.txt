@@ -5,10 +5,12 @@ Debugger was enabled.
 
 Running: testSetBreakpoint
 Script source was shown.
-Breakpoint added to source frame at line 17
+Breakpoint added to source frame at line 14
 
 Running: testConsoleMessage
-Message text: source-frame.html:10test error message
+Script source was shown.
+Message added to source frame: test error message
+Messages cleared in source frame.
 
 Running: testShowResource
 Debugger was disabled.

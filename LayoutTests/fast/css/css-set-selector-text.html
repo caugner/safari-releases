@@ -1,11 +1,8 @@
 <html>
 <head id="head">
-<link rel="stylesheet" href="../js/resources/js-test-style.css">
 <script src="../js/resources/js-test-pre.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <script>
 
 description("This tests setting and re-serialization of some CSS selectors.");
@@ -117,12 +114,31 @@ testSelectorRoundTrip(":-webkit-drag");
 
 debug('');
 
-testSelectorRoundTrip("::-webkit-file-upload-button");
-testSelectorRoundTrip("::-webkit-search-cancel-button");
-testSelectorRoundTrip("::-webkit-search-decoration");
-testSelectorRoundTrip("::-webkit-search-results-button");
-testSelectorRoundTrip("::-webkit-search-results-decoration");
-testSelectorRoundTrip("::-webkit-slider-thumb");
+shouldBe("setThenReadSelectorText('::-webkit-file-upload-button')", "'*::-webkit-file-upload-button'");
+shouldBe("setThenReadSelectorText('::-webkit-search-cancel-button')", "'*::-webkit-search-cancel-button'");
+shouldBe("setThenReadSelectorText('::-webkit-search-decoration')", "'*::-webkit-search-decoration'");
+shouldBe("setThenReadSelectorText('::-webkit-search-results-button')", "'*::-webkit-search-results-button'");
+shouldBe("setThenReadSelectorText('::-webkit-search-results-decoration')", "'*::-webkit-search-results-decoration'");
+shouldBe("setThenReadSelectorText('::-webkit-slider-thumb')", "'*::-webkit-slider-thumb'");
+
+debug('');
+
+testSelectorRoundTrip("a::-webkit-slider-thumb");
+shouldBe("setThenReadSelectorText('a ::-webkit-slider-thumb')", "'a *::-webkit-slider-thumb'");
+testSelectorRoundTrip("[a]::-webkit-slider-thumb");
+shouldBe("setThenReadSelectorText('[a] ::-webkit-slider-thumb')", "'[a] *::-webkit-slider-thumb'");
+testSelectorRoundTrip(".a::-webkit-slider-thumb");
+shouldBe("setThenReadSelectorText('.a ::-webkit-slider-thumb')", "'.a *::-webkit-slider-thumb'");
+testSelectorRoundTrip("#a::-webkit-slider-thumb");
+shouldBe("setThenReadSelectorText('#a ::-webkit-slider-thumb')", "'#a *::-webkit-slider-thumb'");
+shouldBe("setThenReadSelectorText('* ::-webkit-slider-thumb')", "'* *::-webkit-slider-thumb'");
+
+debug('');
+
+testSelectorRoundTrip("a[b]::-webkit-slider-thumb");
+testSelectorRoundTrip("a.b::-webkit-slider-thumb");
+testSelectorRoundTrip("a#b::-webkit-slider-thumb");
+testSelectorRoundTrip("a[b].c#d::-webkit-slider-thumb");
 
 debug('');
 
@@ -159,8 +175,6 @@ shouldBe("setThenReadSelectorText(':first-line')", "'::first-line'");
 shouldBe("setThenReadSelectorText(':-webkit-any(    a.class1  ,  	#id,[attr]  )')","':-webkit-any(a.class1,#id,[attr])'");
 
 debug('');
-
-successfullyParsed = true;
 
 </script>
 <script src="../js/resources/js-test-post.js"></script>

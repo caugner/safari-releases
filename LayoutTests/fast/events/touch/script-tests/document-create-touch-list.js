@@ -8,6 +8,7 @@ shouldBeNonNull("touchList");
 shouldBe("touchList.length", "0");
 shouldBeNull("touchList.item(0)");
 shouldBeNull("touchList.item(1)");
+shouldThrow("touchList.item()");
 
 // Test createTouchList with Touch objects as arguments.
 try {
@@ -38,7 +39,5 @@ try {
 } catch(e) {
     testFailed("An exception was thrown: " + e.message);
 }
-
-successfullyParsed = true;
 isSuccessfullyParsed();
 

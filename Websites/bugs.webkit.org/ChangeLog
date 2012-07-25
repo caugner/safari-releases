@@ -1,3 +1,199 @@
+2012-04-01  Adam Barth  <abarth@webkit.org>
+
+        Code review tool no longer needs to work around position:fixed handling on iPad
+        https://bugs.webkit.org/show_bug.cgi?id=82850
+
+        Reviewed by Eric Seidel.
+
+        We no longer need to avoid position:fixed on iPad because Mobile Safari
+        now does something reasonable with position:fixed elements.
+
+        * code-review.js:
+
+2012-03-09  Ashod Nakashian  <ashodnakashian@yahoo.com>
+
+        Bash scripts should support LF endings only
+        https://bugs.webkit.org/show_bug.cgi?id=79509
+
+        Reviewed by David Kilzer.
+
+        * contrib/yp_nomail.sh: Added property svn:executable.
+
+2012-03-05  Alexander Færøy  <alexander.faeroy@nokia.com>
+
+        The Bugzilla autocompleter doesn't support multiple Unicode characters per name
+        https://bugs.webkit.org/show_bug.cgi?id=80319
+
+        Reviewed by Adam Barth.
+
+        The current regular expression for matching Unicode characters uses
+        the global modifier, which means that it will never enter its second
+        iteration of the match-loop. This patch fixes this by removing the
+        global modifier from the regex.
+
+        * committers-autocomplete.js:
+        (WebKitCommitters):
+
+2012-01-03  Ojan Vafai  <ojan@chromium.org>
+
+        Increment the code-review.js version number to bust browser
+        caches.
+
+        * PrettyPatch/PrettyPatch.rb:
+
+2011-12-13  Ojan Vafai  <ojan@chromium.org>
+
+        Give a resize handle for sidebyside diffs.
+        https://bugs.webkit.org/show_bug.cgi?id=74465
+
+        Reviewed by Ryosuke Niwa.
+
+        This gives a drag handle so you can make the side-by-side
+        diff not be 50/50 on a per-file-diff basis. This is useful
+        for cases like new files where there's no value on the
+        left side.
+
+        * PrettyPatch/PrettyPatch.rb:
+        * code-review.js:
+
+2011-12-13  Ojan Vafai  <ojan@chromium.org>
+
+        Expanding context is broken for prepare-ChangeLog in the code review tool.
+        https://bugs.webkit.org/show_bug.cgi?id=74458
+
+        Reviewed by Adam Barth.
+
+        * code-review-test.html:
+        -Moved all the tests into test* functions.
+        -Automated calling all test* functions.
+        -Added testIsChangeLog.
+        * code-review.js:
+        Made the check for whether it's a ChangeLog file more robust.
+
+2011-12-13  Ojan Vafai  <ojan@chromium.org>
+
+        Fix bug in the code review tool when readding a discarded comment
+        https://bugs.webkit.org/show_bug.cgi?id=74450
+
+        Reviewed by Adam Barth.
+
+        If you discard a comment that has a corresponding previousComment,
+        then we would incorrectly remove the comment baseline. So, the next
+        time you added a comment by clicking on the previousComment, we
+        would get undefined as the start line for the new comment.
+
+        All of this works fine until you try to restore the comment from
+        localStorage, at which point we throw an error because the start
+        line is undefined.
+
+        Also added some failsafes to better handle the case of corrupted comments.
+
+        * code-review-test.html:
+        * code-review.js:
+
+2011-11-15  Tony Chang  <tony@chromium.org>
+
+        set a max-width on the codereview overall comments textarea
+        https://bugs.webkit.org/show_bug.cgi?id=72415
+
+        Reviewed by Ojan Vafai.
+
+        Otherwise, when resizing the textarea you can end up making wider, but
+        are no longer able to click the resize gripper to make it smaller
+        (it's under another div).
+
+        * PrettyPatch/PrettyPatch.rb:
+
+2011-10-13  Adam Barth  <abarth@webkit.org>
+
+        Would be nice if the review-tool offered to show the corresponding header
+        https://bugs.webkit.org/show_bug.cgi?id=63963
+
+        Reviewed by Ojan Vafai.
+
+        This is a first cut at adding links to the header file in the review
+        tool.  If folks like this feature, we can cover more cases in the
+        future.
+
+        * code-review.js:
+
+2011-09-14  Ben Wells  <benwells@chromium.org>
+
+        PrettyPatch should handle "delta" patch mechanism in git binary patches
+        https://bugs.webkit.org/show_bug.cgi?id=67628
+
+        Git patches are encoded using two mechanisms - "literal" and "delta".
+        For details of these mechanisms, see the function emit_binary_diff_body
+        in the git source file diff.c (https://github.com/git/git/blob/master/diff.c).
+
+        When determining if a binary file patch is an image or not we should accept
+        both literal and delta patch encodings.
+
+        When reconstructing the images from the patches, if we have a delta patch
+        we may download the previous revision from svn.webkit.org to get the image data.
+
+        Reviewed by Adam Roben.
+
+        * PrettyPatch/PrettyPatch.rb:
+        * PrettyPatch/PrettyPatch_test.rb:
+
+2011-09-06  Sheriff Bot  <webkit.review.bot@gmail.com>
+
+        Unreviewed, rolling out r94554.
+        http://trac.webkit.org/changeset/94554
+        https://bugs.webkit.org/show_bug.cgi?id=67631
+
+        This patch did not quite fix the problem (Requested by
+        benwells on #webkit).
+
+        * PrettyPatch/PrettyPatch.rb:
+        * PrettyPatch/PrettyPatch_test.rb:
+
+2011-09-06  Ben Wells  <benwells@chromium.org>
+
+        PrettyPatch should handle "delta" patch mechanism in git binary patches
+        https://bugs.webkit.org/show_bug.cgi?id=67628
+
+        Git patches are encoded using two mechanisms - "literal" and "delta".
+        See this email from the git mailing list archive for info
+        http://marc.info/?l=git&m=114682417113315&w=2
+
+        When determining if a binary file patch is an image or not we should accept
+        both literal and delta patch encodings.
+
+        Reviewed by Shinichiro Hamaji.
+
+        * PrettyPatch/PrettyPatch.rb:
+        * PrettyPatch/PrettyPatch_test.rb:
+
+2011-06-30  Adam Barth  <abarth@webkit.org>
+
+        Reviewed by Eric Seidel.
+
+        [reviewtool] Expanding lines "below" does not remove purple context line
+        https://bugs.webkit.org/show_bug.cgi?id=63695
+
+        Honestly, this is the last bug in the review tool that bothers me.
+
+        * PrettyPatch/PrettyPatch.rb:
+            - Jump straight to version 42, because, well, you know.
+        * code-review.js:
+            - In addition to removing the context bar when we expand all, we
+              now remove it when we expand below (but not when we expand
+              above).
+
+2011-06-21  Adam Barth  <abarth@webkit.org>
+
+        Reviewed by Darin Adler.
+
+        bugs.webkit.org should use Strict-Transport-Security
+        https://bugs.webkit.org/show_bug.cgi?id=63097
+
+        Strict-Transport-Security forces all connections to bugs.webkit.org to
+        use HTTPS, preventing sslstrip and other attacks.
+
+        * .htaccess:
+
 2011-05-04  Caio Marcelo de Oliveira Filho  <caio.oliveira@openbossa.org>
 
         Reviewed by Adam Roben.

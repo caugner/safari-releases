@@ -26,16 +26,17 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import StringIO
 import errno
+import hashlib
 import os
 import re
 
 from webkitpy.common.system import path
-from webkitpy.common.system import ospath
 
 
 class MockFileSystem(object):
-    def __init__(self, files=None, cwd='/'):
+    def __init__(self, files=None, dirs=None, cwd='/'):
         """Initializes a "mock" filesystem that can be used to completely
         stub out a filesystem.
 
@@ -49,26 +50,55 @@ class MockFileSystem(object):
         self._sep = '/'
         self.current_tmpno = 0
         self.cwd = cwd
-        self.dirs = {}
+        self.dirs = set(dirs or [])
+        self.dirs.add(cwd)
+        for f in self.files:
+            d = self.dirname(f)
+            while not d in self.dirs:
+                self.dirs.add(d)
+                d = self.dirname(d)
 
     def _get_sep(self):
         return self._sep
 
     sep = property(_get_sep, doc="pathname separator")
 
+    def clear_written_files(self):
+        # This function can be used to track what is written between steps in a test.
+        self.written_files = {}
+
     def _raise_not_found(self, path):
         raise IOError(errno.ENOENT, path, os.strerror(errno.ENOENT))
 
     def _split(self, path):
-        return path.rsplit(self.sep, 1)
+        # This is not quite a full implementation of os.path.split
+        # http://docs.python.org/library/os.path.html#os.path.split
+        if self.sep in path:
+            return path.rsplit(self.sep, 1)
+        return ('', path)
 
     def abspath(self, path):
         if os.path.isabs(path):
             return self.normpath(path)
         return self.abspath(self.join(self.cwd, path))
 
+    def realpath(self, path):
+        return self.abspath(path)
+
     def basename(self, path):
         return self._split(path)[1]
+
+    def expanduser(self, path):
+        if path[0] != "~":
+            return path
+        parts = path.split(self.sep, 1)
+        home_directory = self.sep + "Users" + self.sep + "mock"
+        if len(parts) == 1:
+            return home_directory
+        return home_directory + self.sep + parts[1]
+
+    def path_to_module(self, module_name):
+        return "/mock-checkout/Tools/Scripts/" + module_name.replace('.', '/') + ".py"
 
     def chdir(self, path):
         path = self.normpath(path)
@@ -83,6 +113,8 @@ class MockFileSystem(object):
             raise IOError(errno.EISDIR, source, os.strerror(errno.ISDIR))
         if self.isdir(destination):
             raise IOError(errno.EISDIR, destination, os.strerror(errno.ISDIR))
+        if not self.exists(self.dirname(destination)):
+            raise IOError(errno.ENOENT, destination, os.strerror(errno.ENOENT))
 
         self.files[destination] = self.files[source]
         self.written_files[destination] = self.files[source]
@@ -100,7 +132,7 @@ class MockFileSystem(object):
         file_filter = file_filter or filter_all
         files = []
         if self.isfile(path):
-            if file_filter(self, self.dirname(path), self.basename(path)):
+            if file_filter(self, self.dirname(path), self.basename(path)) and self.files[path] is not None:
                 files.append(path)
             return files
 
@@ -120,7 +152,7 @@ class MockFileSystem(object):
                 continue
 
             dirpath, basename = self._split(filename)
-            if file_filter(self, dirpath, basename):
+            if file_filter(self, dirpath, basename) and self.files[filename] is not None:
                 files.append(filename)
 
         return files
@@ -128,13 +160,16 @@ class MockFileSystem(object):
     def getcwd(self):
         return self.cwd
 
-    def glob(self, path):
-        # FIXME: This only handles a wildcard '*' at the end of the path.
-        # Maybe it should handle more?
-        if path[-1] == '*':
-            return [f for f in self.files if f.startswith(path[:-1])]
-        else:
-            return [f for f in self.files if f == path]
+    def glob(self, glob_string):
+        # FIXME: This handles '*', but not '?', '[', or ']'.
+        glob_string = re.escape(glob_string)
+        glob_string = glob_string.replace('\\*', '[^\\/]*') + '$'
+        glob_string = glob_string.replace('\\/', '/')
+        path_filter = lambda path: re.match(glob_string, path)
+
+        # We could use fnmatch.fnmatch, but that might not do the right thing on windows.
+        existing_files = [path for path, contents in self.files.items() if contents is not None]
+        return filter(path_filter, existing_files) + filter(path_filter, self.dirs)
 
     def isabs(self, path):
         return path.startswith(self.sep)
@@ -143,40 +178,45 @@ class MockFileSystem(object):
         return path in self.files and self.files[path] is not None
 
     def isdir(self, path):
-        if path in self.files:
-            return False
-        path = self.normpath(path)
-        if path in self.dirs:
-            return self.dirs[path] is not None
+        return self.normpath(path) in self.dirs
 
-        # We need to use a copy of the keys here in order to avoid switching
-        # to a different thread and potentially modifying the dict in
-        # mid-iteration.
-        files = self.files.keys()[:]
-        result = any(f.startswith(path) for f in files)
-        if result:
-            self.dirs[path] = True
-        return result
-
-    def join(self, *comps):
-        # FIXME: might want tests for this and/or a better comment about how
-        # it works.
+    def _slow_but_correct_join(self, *comps):
         return re.sub(re.escape(os.path.sep), self.sep, os.path.join(*comps))
 
+    def join(self, *comps):
+        # This function is called a lot, so we optimize it; there are
+        # unittests to check that we match _slow_but_correct_join(), above.
+        path = ''
+        sep = self.sep
+        for comp in comps:
+            if not comp:
+                continue
+            if comp[0] == sep:
+                path = comp
+                continue
+            if path:
+                path += sep
+            path += comp
+        if comps[-1] == '' and path:
+            path += '/'
+        path = path.replace(sep + sep, sep)
+        return path
+
     def listdir(self, path):
+        sep = self.sep
         if not self.isdir(path):
             raise OSError("%s is not a directory" % path)
 
-        if not path.endswith(self.sep):
-            path += self.sep
+        if not path.endswith(sep):
+            path += sep
 
         dirs = []
         files = []
         for f in self.files:
             if self.exists(f) and f.startswith(path):
                 remaining = f[len(path):]
-                if self.sep in remaining:
-                    dir = remaining[:remaining.index(self.sep)]
+                if sep in remaining:
+                    dir = remaining[:remaining.index(sep)]
                     if not dir in dirs:
                         dirs.append(dir)
                 else:
@@ -220,8 +260,9 @@ class MockFileSystem(object):
 
     def maybe_make_directory(self, *path):
         norm_path = self.normpath(self.join(*path))
-        if not self.isdir(norm_path):
-            self.dirs[norm_path] = True
+        while norm_path and not self.isdir(norm_path):
+            self.dirs.add(norm_path)
+            norm_path = self.dirname(norm_path)
 
     def move(self, source, destination):
         if self.files[source] is None:
@@ -231,25 +272,35 @@ class MockFileSystem(object):
         self.files[source] = None
         self.written_files[source] = None
 
-    def normpath(self, path):
-        # Like join(), relies on os.path functionality but normalizes the
-        # path separator to the mock one.
+    def _slow_but_correct_normpath(self, path):
         return re.sub(re.escape(os.path.sep), self.sep, os.path.normpath(path))
+
+    def normpath(self, path):
+        # This function is called a lot, so we try to optimize the common cases
+        # instead of always calling _slow_but_correct_normpath(), above.
+        if '..' in path or '/./' in path:
+            # This doesn't happen very often; don't bother trying to optimize it.
+            return self._slow_but_correct_normpath(path)
+        if not path:
+            return '.'
+        if path == '/':
+            return path
+        if path == '/.':
+            return '/'
+        if path.endswith('/.'):
+            return path[:-2]
+        if path.endswith('/'):
+            return path[:-1]
+        return path
 
     def open_binary_tempfile(self, suffix=''):
         path = self._mktemp(suffix)
-        return (WritableFileObject(self, path), path)
-
-    def open_text_file_for_writing(self, path, append=False):
-        return WritableFileObject(self, path, append)
-
-    def read_text_file(self, path):
-        return self.read_binary_file(path).decode('utf-8')
+        return (WritableBinaryFileObject(self, path), path)
 
     def open_binary_file_for_reading(self, path):
         if self.files[path] is None:
             self._raise_not_found(path)
-        return ReadableFileObject(self, path, self.files[path])
+        return ReadableBinaryFileObject(self, path, self.files[path])
 
     def read_binary_file(self, path):
         # Intentionally raises KeyError if we don't recognize the path.
@@ -257,8 +308,58 @@ class MockFileSystem(object):
             self._raise_not_found(path)
         return self.files[path]
 
+    def write_binary_file(self, path, contents):
+        # FIXME: should this assert if dirname(path) doesn't exist?
+        self.maybe_make_directory(self.dirname(path))
+        self.files[path] = contents
+        self.written_files[path] = contents
+
+    def open_text_file_for_reading(self, path):
+        if self.files[path] is None:
+            self._raise_not_found(path)
+        return ReadableTextFileObject(self, path, self.files[path])
+
+    def open_text_file_for_writing(self, path):
+        return WritableTextFileObject(self, path)
+
+    def read_text_file(self, path):
+        return self.read_binary_file(path).decode('utf-8')
+
+    def write_text_file(self, path, contents):
+        return self.write_binary_file(path, contents.encode('utf-8'))
+
+    def sha1(self, path):
+        contents = self.read_binary_file(path)
+        return hashlib.sha1(contents).hexdigest()
+
     def relpath(self, path, start='.'):
-        return ospath.relpath(path, start, self.abspath, self.sep)
+        # Since os.path.relpath() calls os.path.normpath()
+        # (see http://docs.python.org/library/os.path.html#os.path.abspath )
+        # it also removes trailing slashes and converts forward and backward
+        # slashes to the preferred slash os.sep.
+        start = self.abspath(start)
+        path = self.abspath(path)
+
+        if not path.lower().startswith(start.lower()):
+            # Then path is outside the directory given by start.
+            return None  # FIXME: os.relpath still returns a path here.
+
+        rel_path = path[len(start):]
+
+        if not rel_path:
+            # Then the paths are the same.
+            pass
+        elif rel_path[0] == self.sep:
+            # It is probably sufficient to remove just the first character
+            # since os.path.normpath() collapses separators, but we use
+            # lstrip() just to be sure.
+            rel_path = rel_path.lstrip(self.sep)
+        else:
+            # We are in the case typified by the following example:
+            # path = "/tmp/foobar", start = "/tmp/foo" -> rel_path = "bar"
+            return None
+
+        return rel_path
 
     def remove(self, path):
         if self.files[path] is None:
@@ -273,9 +374,13 @@ class MockFileSystem(object):
             if f.startswith(path):
                 self.files[f] = None
 
-        for d in self.dirs:
-            if d.startswith(path):
-                self.dirs[d] = None
+        self.dirs = set(filter(lambda d: not d.startswith(path), self.dirs))
+
+    def split(self, path):
+        idx = path.rfind(self.sep)
+        if idx == -1:
+            return ('', path)
+        return (path[:idx], path[(idx + 1):])
 
     def splitext(self, path):
         idx = path.rfind('.')
@@ -283,21 +388,13 @@ class MockFileSystem(object):
             idx = 0
         return (path[0:idx], path[idx:])
 
-    def write_text_file(self, path, contents):
-        return self.write_binary_file(path, contents.encode('utf-8'))
 
-    def write_binary_file(self, path, contents):
-        self.files[path] = contents
-        self.written_files[path] = contents
-
-
-class WritableFileObject(object):
-    def __init__(self, fs, path, append=False, encoding=None):
+class WritableBinaryFileObject(object):
+    def __init__(self, fs, path):
         self.fs = fs
         self.path = path
         self.closed = False
-        if path not in self.fs.files or not append:
-            self.fs.files[path] = ""
+        self.fs.files[path] = ""
 
     def __enter__(self):
         return self
@@ -313,8 +410,13 @@ class WritableFileObject(object):
         self.fs.written_files[self.path] = self.fs.files[self.path]
 
 
-class ReadableFileObject(object):
-    def __init__(self, fs, path, data=""):
+class WritableTextFileObject(WritableBinaryFileObject):
+    def write(self, str):
+        WritableBinaryFileObject.write(self, str.encode('utf-8'))
+
+
+class ReadableBinaryFileObject(object):
+    def __init__(self, fs, path, data):
         self.fs = fs
         self.path = path
         self.closed = False
@@ -336,3 +438,27 @@ class ReadableFileObject(object):
         start = self.offset
         self.offset += bytes
         return self.data[start:self.offset]
+
+
+class ReadableTextFileObject(ReadableBinaryFileObject):
+    def __init__(self, fs, path, data):
+        super(ReadableTextFileObject, self).__init__(fs, path, StringIO.StringIO(data))
+
+    def close(self):
+        self.data.close()
+        super(ReadableTextFileObject, self).close()
+
+    def read(self, bytes=-1):
+        return self.data.read(bytes)
+
+    def readline(self, length=None):
+        return self.data.readline(length)
+
+    def __iter__(self):
+        return self.data.__iter__()
+
+    def next(self):
+        return self.data.next()
+
+    def seek(self, offset, whence=os.SEEK_SET):
+        self.data.seek(offset, whence)

@@ -21,13 +21,13 @@ layer at (0,0) size 800x600
                         text run at (375,0) width 34: "Home"
             RenderTableRow {TR} at (0,88) size 784x32
               RenderTableCell {TD} at (0,95) size 784x17 [r=2 c=0 rs=1 cs=1]
-                RenderInline {A} at (0,0) size 110x22 [color=#0000EE]
+                RenderInline {A} at (0,0) size 110x21 [color=#0000EE]
                   RenderInline {FONT} at (0,0) size 110x17
                     RenderText {#text} at (337,0) size 110x17
                       text run at (337,0) width 110: "Course Information"
             RenderTableRow {TR} at (0,120) size 784x32
               RenderTableCell {TD} at (0,127) size 784x17 [r=3 c=0 rs=1 cs=1]
-                RenderInline {A} at (0,0) size 44x22 [color=#0000EE]
+                RenderInline {A} at (0,0) size 44x21 [color=#0000EE]
                   RenderInline {FONT} at (0,0) size 44x17
                     RenderText {#text} at (370,0) size 44x17
                       text run at (370,0) width 44: "Lecture"
@@ -35,13 +35,13 @@ layer at (0,0) size 800x600
               RenderTableCell {TD} at (0,159) size 784x17 [r=4 c=0 rs=1 cs=1]
                 RenderInline {A} at (0,0) size 0x0 [color=#0000EE]
                   RenderInline {FONT} at (0,0) size 0x0
-                RenderInline {A} at (0,0) size 62x22 [color=#0000EE]
+                RenderInline {A} at (0,0) size 62x21 [color=#0000EE]
                   RenderInline {FONT} at (0,0) size 62x17
                     RenderText {#text} at (361,0) size 62x17
                       text run at (361,0) width 62: "Homework"
             RenderTableRow {TR} at (0,184) size 784x32
               RenderTableCell {TD} at (0,191) size 784x17 [r=5 c=0 rs=1 cs=1]
-                RenderInline {A} at (0,0) size 48x22 [color=#0000EE]
+                RenderInline {A} at (0,0) size 48x21 [color=#0000EE]
                   RenderInline {FONT} at (0,0) size 48x17
                     RenderText {#text} at (368,0) size 48x17
                       text run at (368,0) width 48: "Quizzes"
@@ -55,7 +55,7 @@ layer at (0,0) size 800x600
               RenderTableCell {TD} at (0,255) size 784x17 [r=7 c=0 rs=1 cs=1]
                 RenderInline {A} at (0,0) size 0x0 [color=#0000EE]
                   RenderInline {FONT} at (0,0) size 0x0
-                RenderInline {A} at (0,0) size 62x22 [color=#0000EE]
+                RenderInline {A} at (0,0) size 62x21 [color=#0000EE]
                   RenderInline {FONT} at (0,0) size 62x17
                     RenderText {#text} at (361,0) size 22x17
                       text run at (361,0) width 22: "Lab"
@@ -64,8 +64,8 @@ layer at (0,0) size 800x600
                         text run at (382,0) width 41: "oratory"
             RenderTableRow {TR} at (0,280) size 784x32
               RenderTableCell {TD} at (0,287) size 784x17 [r=8 c=0 rs=1 cs=1]
-                RenderInline {A} at (0,0) size 42x22 [color=#0000EE]
-                  RenderInline {U} at (0,0) size 42x22
+                RenderInline {A} at (0,0) size 42x21 [color=#0000EE]
+                  RenderInline {U} at (0,0) size 42x21
                     RenderInline {FONT} at (0,0) size 42x17
                       RenderText {#text} at (371,0) size 42x17
                         text run at (371,0) width 42: "Grades"

@@ -26,6 +26,7 @@
 #include "config.h"
 #include "TestInvocation.h"
 
+#include "PixelDumpSupport.h"
 #include "PlatformWebView.h"
 #include "TestController.h"
 #include <ImageIO/CGImageDestination.h>
@@ -44,20 +45,32 @@ static const CFStringRef kUTTypePNG = CFSTR("public.png");
 
 namespace WTR {
 
-static CGContextRef createCGContextFromImage(WKImageRef wkImage)
+enum FlipGraphicsContextOrNot {
+    DontFlipGraphicsContext,
+    FlipGraphicsContext
+};
+
+static CGContextRef createCGContextFromImage(WKImageRef wkImage, FlipGraphicsContextOrNot flip = DontFlipGraphicsContext)
 {
     RetainPtr<CGImageRef> image(AdoptCF, WKImageCreateCGImage(wkImage));
 
     size_t pixelsWide = CGImageGetWidth(image.get());
     size_t pixelsHigh = CGImageGetHeight(image.get());
     size_t rowBytes = (4 * pixelsWide + 63) & ~63;
-    void* buffer = calloc(pixelsHigh, rowBytes);
 
-    CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
-    CGContextRef context = CGBitmapContextCreate(buffer, pixelsWide, pixelsHigh, 8, rowBytes, colorSpace, kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host);
-    CGColorSpaceRelease(colorSpace);
+    // Creating this bitmap in the device color space should prevent any color conversion when the image of the web view is drawn into it.
+    RetainPtr<CGColorSpaceRef> colorSpace(AdoptCF, CGColorSpaceCreateDeviceRGB());
+    CGContextRef context = CGBitmapContextCreate(0, pixelsWide, pixelsHigh, 8, rowBytes, colorSpace.get(), kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host);
+    
+    if (flip == FlipGraphicsContext) {
+        CGContextSaveGState(context);
+        CGContextScaleCTM(context, 1, -1);
+        CGContextTranslateCTM(context, 0, -static_cast<CGFloat>(pixelsHigh));
+    }
     
     CGContextDrawImage(context, CGRectMake(0, 0, pixelsWide, pixelsHigh), image.get());
+    if (flip == FlipGraphicsContext)
+        CGContextRestoreGState(context);
 
     return context;
 }
@@ -81,15 +94,14 @@ void computeMD5HashStringForContext(CGContextRef bitmapContext, char hashString[
             md5.addBytes(buffer);
             bitmapData += bytesPerRow;
         }
-    } else {
+    } else
 #endif
+    {
         for (unsigned row = 0; row < pixelsHigh; row++) {
             md5.addBytes(bitmapData, 4 * pixelsWide);
             bitmapData += bytesPerRow;
         }
-#if PLATFORM(MAC)
     }
-#endif
 
     Vector<uint8_t, 16> hash;
     md5.checksum(hash);
@@ -99,7 +111,7 @@ void computeMD5HashStringForContext(CGContextRef bitmapContext, char hashString[
         snprintf(hashString, 33, "%s%02x", hashString, hash[i]);
 }
 
-static void dumpBitmap(CGContextRef bitmapContext)
+static void dumpBitmap(CGContextRef bitmapContext, const char* checksum)
 {
     RetainPtr<CGImageRef> image(AdoptCF, CGBitmapContextCreateImage(bitmapContext));
     RetainPtr<CFMutableDataRef> imageData(AdoptCF, CFDataCreateMutable(0, 0));
@@ -110,45 +122,61 @@ static void dumpBitmap(CGContextRef bitmapContext)
     const unsigned char* data = CFDataGetBytePtr(imageData.get());
     const size_t dataLength = CFDataGetLength(imageData.get());
 
-
-    fprintf(stdout, "Content-Type: %s\n", "image/png");
-    fprintf(stdout, "Content-Length: %lu\n", static_cast<unsigned long>(dataLength));
-    
-    const size_t bytesToWriteInOneChunk = 1 << 15;
-    size_t dataRemainingToWrite = dataLength;
-    while (dataRemainingToWrite) {
-        size_t bytesToWriteInThisChunk = std::min(dataRemainingToWrite, bytesToWriteInOneChunk);
-        size_t bytesWritten = fwrite(data, 1, bytesToWriteInThisChunk, stdout);
-        if (bytesWritten != bytesToWriteInThisChunk)
-            break;
-        dataRemainingToWrite -= bytesWritten;
-        data += bytesWritten;
-    }
+    printPNG(data, dataLength, checksum);
 }
 
-void TestInvocation::dumpPixelsAndCompareWithExpected(WKImageRef image)
+static void paintRepaintRectOverlay(CGContextRef context, WKImageRef image, WKArrayRef repaintRects)
 {
-    CGContextRef context = createCGContextFromImage(image);
+    WKSize imageSize = WKImageGetSize(image);
 
-    // Compute the hash of the bitmap context pixels
-    char actualHash[33];
-    computeMD5HashStringForContext(context, actualHash);
-    fprintf(stdout, "\nActualHash: %s\n", actualHash);
+    CGContextSaveGState(context);
 
-    // Check the computed hash against the expected one and dump image on mismatch
-    bool hashesMatch = false;
-    if (m_expectedPixelHash.length() > 0) {
-        ASSERT(m_expectedPixelHash.length() == 32);
+    // Using a transparency layer is easier than futzing with clipping.
+    CGContextBeginTransparencyLayer(context, 0);
+    
+    // Flip the context.
+    CGContextScaleCTM(context, 1, -1);
+    CGContextTranslateCTM(context, 0, -imageSize.height);
+    
+    CGContextSetRGBFillColor(context, 0, 0, 0, static_cast<CGFloat>(0.66));
+    CGContextFillRect(context, CGRectMake(0, 0, imageSize.width, imageSize.height));
 
-        fprintf(stdout, "\nExpectedHash: %s\n", m_expectedPixelHash.c_str());
-
-        // FIXME: Do case insensitive compare.
-        if (m_expectedPixelHash == actualHash)
-            hashesMatch = true;
+    // Clear the repaint rects.
+    size_t count = WKArrayGetSize(repaintRects);
+    for (size_t i = 0; i < count; ++i) {
+        WKRect rect = WKRectGetValue(static_cast<WKRectRef>(WKArrayGetItemAtIndex(repaintRects, i)));
+        CGRect cgRect = CGRectMake(rect.origin.x, rect.origin.y, rect.size.width, rect.size.height);
+        CGContextClearRect(context, cgRect);
     }
+    
+    CGContextEndTransparencyLayer(context);
+    CGContextRestoreGState(context);
+}
 
-    if (!hashesMatch)
-        dumpBitmap(context);
+void TestInvocation::dumpPixelsAndCompareWithExpected(WKImageRef image, WKArrayRef repaintRects)
+{
+    PlatformWebView* webView = TestController::shared().mainWebView();
+    WKRetainPtr<WKImageRef> windowSnapshot = webView->windowSnapshotImage();
+
+    // There is no way at this time to fake a window's scale factor, so we need to avoid the window
+    // snapshots for HiDPI tests.
+    if (WKPageGetBackingScaleFactor(webView->page()) != 1)
+        windowSnapshot = 0;
+
+    RetainPtr<CGContextRef> context;
+    if (windowSnapshot)
+        context.adoptCF(createCGContextFromImage(windowSnapshot.get(), FlipGraphicsContext));
+    else
+        context.adoptCF(createCGContextFromImage(image));
+
+    // A non-null repaintRects array means we're doing a repaint test.
+    if (repaintRects)
+        paintRepaintRectOverlay(context.get(), image, repaintRects);
+
+    char actualHash[33];
+    computeMD5HashStringForContext(context.get(), actualHash);
+    if (!compareActualHashToExpectedAndDumpResults(actualHash))
+        dumpBitmap(context.get(), actualHash);
 }
 
 } // namespace WTR

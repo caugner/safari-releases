@@ -1,12 +1,11 @@
 <!DOCTYPE html>
 <html>
 <head>
-<link rel="stylesheet" href="../../js/resources/js-test-style.css">
 <script src="../../js/resources/js-test-pre.js"></script>
 </head>
 <body>
 <p id="description"></p>
-<div id="console"></p>
+<div id="console"></div>
 <div id="result"></div>
 <div id="d" contentEditable="abc"></div>
 <div id="d2" contentEditable="inherit"></div>
@@ -25,8 +24,6 @@ shouldBe('window.getComputedStyle(d2, "").getPropertyValue("-webkit-user-modify"
 
 document.getElementById("d").style.display= 'none';
 document.getElementById("d2").style.display= 'none';
-
-window.successfullyParsed = true;
 </script>
 <script src="../../js/resources/js-test-post.js"></script>
 </body>

@@ -44,6 +44,8 @@ typedef struct CGContext* CGContextRef;
 typedef unsigned short CGFontIndex;
 typedef struct CGFont* CGFontRef;
 typedef CGFontIndex CGGlyph;
+typedef struct CGImage* CGImageRef;
+typedef struct CGPattern* CGPatternRef;
 typedef wchar_t UChar;
 typedef struct _CFURLResponse* CFURLResponseRef;
 typedef struct OpaqueCFHTTPCookieStorage*  CFHTTPCookieStorageRef;
@@ -79,7 +81,7 @@ void wkGetGlyphAdvances(CGFontRef, const CGAffineTransform&, bool isSystemFont, 
 void wkGetGlyphs(CGFontRef, const UChar[], CGGlyph[], size_t count);
 void wkSetUpFontCache(size_t s);
 
-void wkSetPatternBaseCTM(CGContextRef, CGAffineTransform);
+void wkSetBaseCTM(CGContextRef, CGAffineTransform);
 void wkSetPatternPhaseInUserSpace(CGContextRef, CGPoint phasePoint);
 CGAffineTransform wkGetUserToBaseCTM(CGContextRef);
 
@@ -183,6 +185,14 @@ WKCACFUpdateRectEnumerator* wkCACFContextCopyUpdateRectEnumerator(WKCACFContext*
 const CGRect* wkCACFUpdateRectEnumeratorNextRect(WKCACFUpdateRectEnumerator*);
 void wkCACFUpdateRectEnumeratorRelease(WKCACFUpdateRectEnumerator*);
 
+typedef enum {
+    wkPatternTilingNoDistortion,
+    wkPatternTilingConstantSpacingMinimalDistortion,
+    wkPatternTilingConstantSpacing
+} wkPatternTiling;
+
+CGPatternRef wkCGPatternCreateWithImageAndTransform(CGImageRef image, CGAffineTransform transform, int tiling);
+
 CFDictionaryRef wkCFURLRequestCreateSerializableRepresentation(CFURLRequestRef cfRequest, CFTypeRef tokenNull);
 CFURLRequestRef wkCFURLRequestCreateFromSerializableRepresentation(CFDictionaryRef representation, CFTypeRef tokenNull);
 CFDictionaryRef wkCFURLResponseCreateSerializableRepresentation(CFURLResponseRef cfResponse, CFTypeRef tokenNull);
@@ -212,7 +222,13 @@ typedef enum {
     WKMediaUIPartControlsPanel,
     WKMediaUIPartVolumeSliderContainer,
     WKMediaUIPartVolumeSlider,
-    WKMediaUIPartVolumeSliderThumb
+    WKMediaUIPartVolumeSliderThumb,
+    WKMediaUIPartFullScreenVolumeSlider,
+    WKMediaUIPartFullScreenVolumeSliderThumb,
+    WKMediaUIPartVolumeSliderMuteButton,
+    WKMediaUIPartTextTrackDisplayContainer,
+    WKMediaUIPartTextTrackDisplay,
+    WKMediaUIPartExitFullscreenButton,
 } WKMediaUIPart;
 
 typedef enum {

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Google Inc. All rights reserved.
+ * Copyright (C) 2012 Google Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -32,25 +32,46 @@
 #define WebPreferences_h
 
 #include "WebSettings.h"
-#include "WebString.h"
-#include "WebURL.h"
+#include "platform/WebString.h"
+#include "platform/WebURL.h"
+#include <wtf/HashMap.h>
 
 namespace WebKit {
 class WebView;
 }
 
 struct WebPreferences {
-    WebKit::WebString cursiveFontFamily;
-    WebKit::WebString fantasyFontFamily;
-    WebKit::WebString serifFontFamily;
     WebKit::WebString standardFontFamily;
     WebKit::WebString fixedFontFamily;
+    WebKit::WebString serifFontFamily;
     WebKit::WebString sansSerifFontFamily;
+    WebKit::WebString cursiveFontFamily;
+    WebKit::WebString fantasyFontFamily;
+
+    // UScriptCode uses -1 and 0 for UScriptInvalidCode and UScriptCommon.
+    // We need to use -2 and -3 for empty value and deleted value.
+    // (See WebCore::ScriptFontFamilyMap)
+    struct UScriptCodeHashTraits : WTF::GenericHashTraits<int> {
+        static const bool emptyValueIsZero = false;
+        static int emptyValue() { return -2; }
+        static void constructDeletedValue(int& slot) { slot = -3; }
+        static bool isDeletedValue(int value) { return value == -3; }
+    };
+
+    // Map of UScriptCode to font such as USCRIPT_ARABIC to "My Arabic Font".
+    typedef HashMap<int, WebKit::WebString, DefaultHash<int>::Hash, UScriptCodeHashTraits> ScriptFontFamilyMap;
+    ScriptFontFamilyMap standardFontMap;
+    ScriptFontFamilyMap fixedFontMap;
+    ScriptFontFamilyMap serifFontMap;
+    ScriptFontFamilyMap sansSerifFontMap;
+    ScriptFontFamilyMap cursiveFontMap;
+    ScriptFontFamilyMap fantasyFontMap;
 
     int defaultFontSize;
     int defaultFixedFontSize;
     int minimumFontSize;
     int minimumLogicalFontSize;
+    int minimumAccelerated2dCanvasSize;
 
     bool DOMPasteAllowed;
     bool XSSAuditorEnabled;
@@ -61,6 +82,7 @@ struct WebPreferences {
     WebKit::WebString defaultTextEncodingName;
     bool developerExtrasEnabled;
     bool experimentalWebGLEnabled;
+    bool experimentalCSSRegionsEnabled;
     bool javaEnabled;
     bool javaScriptCanAccessClipboard;
     bool javaScriptCanOpenWindowsAutomatically;
@@ -73,18 +95,23 @@ struct WebPreferences {
     bool textAreasAreResizable;
     WebKit::WebURL userStyleSheetLocation;
     bool usesPageCache;
+    bool pageCacheSupportsPlugins;
     bool webSecurityEnabled;
     bool allowUniversalAccessFromFileURLs;
     WebKit::WebSettings::EditingBehavior editingBehavior;
     bool tabsToLinks;
     bool hyperlinkAuditingEnabled;
     bool caretBrowsingEnabled;
+    bool acceleratedCompositingForVideoEnabled;
     bool acceleratedCompositingEnabled;
-    bool compositeToTexture;
     bool forceCompositingMode;
     bool accelerated2dCanvasEnabled;
-    bool legacyAccelerated2dCanvasEnabled;
-    bool acceleratedDrawingEnabled;
+    bool deferred2dCanvasEnabled;
+    bool acceleratedPaintingEnabled;
+    bool hixie76WebSocketProtocolEnabled;
+    bool perTilePaintingEnabled;
+    bool mockScrollbarsEnabled;
+    bool cssCustomFilterEnabled;
 
     WebPreferences() { reset(); }
     void reset();

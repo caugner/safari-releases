@@ -16,27 +16,27 @@ function test()
     InspectorTest.addSniffer(WebInspector.NetworkDispatcher.prototype, "loadingFinished", loadingFinished);
     InspectorTest.evaluateInPage("loadIFrameWithDownload()");
 
-    function responseReceived(identifier, time, resourceType, response)
+    function responseReceived(requestId, time, resourceType, response)
     {
-        var resource = WebInspector.networkResourceById(identifier);
-        if (/x-frame-options-deny\.cgi/.exec(resource.url)) {
+        var request = WebInspector.networkRequestById(requestId);
+        if (/x-frame-options-deny\.cgi/.exec(request.url)) {
             InspectorTest.addResult("Received response for x-frame-options-deny.cgi");
             InspectorTest.addResult("SUCCESS");
             InspectorTest.completeTest();
         }
     }
 
-    function loadingFinished(identifier, finishTime)
+    function loadingFinished(requestId, finishTime)
     {
-        var resource = WebInspector.networkResourceById(identifier);
-        if (/x-frame-options-deny\.cgi/.exec(resource.url))
+        var request = WebInspector.networkRequestById(requestId);
+        if (/x-frame-options-deny\.cgi/.exec(request.url))
             InspectorTest.completeTest();
     }
 
-    function loadingFailed(identifier, time, localizedDescription, canceled)
+    function loadingFailed(requestId, time, localizedDescription, canceled)
     {
-        var resource = WebInspector.networkResourceById(identifier);
-        if (/x-frame-options-deny\.cgi/.exec(resource.url))
+        var request = WebInspector.networkRequestById(requestId);
+        if (/x-frame-options-deny\.cgi/.exec(request.url))
             InspectorTest.completeTest();
     }
 }

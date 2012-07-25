@@ -30,21 +30,28 @@
 #include <JavaScriptCore/Error.h>
 #include <JavaScriptCore/FunctionPrototype.h>
 #include <JavaScriptCore/JSGlobalObject.h>
+#include <JavaScriptCore/JSObject.h>
 #include <WebCore/JSHTMLElement.h>
 #include <WebCore/JSPluginElementFunctions.h>
-#include <WebCore/NotImplemented.h>
 
 using namespace JSC;
 using namespace WebCore;
 
 namespace WebKit {
 
-const ClassInfo JSNPMethod::s_info = { "NPMethod", &InternalFunction::s_info, 0, 0 };
+ASSERT_HAS_TRIVIAL_DESTRUCTOR(JSNPMethod);
 
-JSNPMethod::JSNPMethod(ExecState* exec, JSGlobalObject* globalObject, const Identifier& name, NPIdentifier npIdentifier)
-    : InternalFunction(&exec->globalData(), globalObject, createStructure(exec->globalData(), globalObject->functionPrototype()), name)
+const ClassInfo JSNPMethod::s_info = { "NPMethod", &InternalFunction::s_info, 0, 0, CREATE_METHOD_TABLE(JSNPMethod) };
+
+JSNPMethod::JSNPMethod(JSGlobalObject* globalObject, Structure* structure, NPIdentifier npIdentifier)
+    : InternalFunction(globalObject, structure)
     , m_npIdentifier(npIdentifier)
 {
+}
+
+void JSNPMethod::finishCreation(JSGlobalData& globalData, const Identifier& name)
+{
+    Base::finishCreation(globalData, name);
     ASSERT(inherits(&s_info));
 }
 
@@ -72,7 +79,7 @@ static EncodedJSValue JSC_HOST_CALL callMethod(ExecState* exec)
     return throwVMTypeError(exec);
 }
 
-CallType JSNPMethod::getCallData(CallData& callData)
+CallType JSNPMethod::getCallData(JSCell*, CallData& callData)
 {
     callData.native.function = callMethod;
     return CallTypeHost;

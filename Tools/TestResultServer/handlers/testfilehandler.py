@@ -26,12 +26,15 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import time
 import logging
+import re
 import urllib
 
 from google.appengine.api import users
 from google.appengine.ext import webapp
 from google.appengine.ext.webapp import template
+from google.appengine.ext import db
 
 from model.jsonresults import JsonResults
 from model.testfile import TestFile
@@ -45,6 +48,16 @@ PARAM_KEY = "key"
 PARAM_TEST_TYPE = "testtype"
 PARAM_INCREMENTAL = "incremental"
 PARAM_TEST_LIST_JSON = "testlistjson"
+PARAM_CALLBACK = "callback"
+
+
+def _replace_jsonp_callback(json, callback_name):
+    if callback_name and re.search(r"^[A-Za-z0-9_]+$", callback_name):
+        if re.search(r"^[A-Za-z0-9_]+[(]", json):
+            return re.sub(r"^[A-Za-z0-9_]+[(]", callback_name + "(", json)
+        return callback_name + "(" + json + ")"
+
+    return json
 
 
 class DeleteFile(webapp.RequestHandler):
@@ -71,7 +84,7 @@ class DeleteFile(webapp.RequestHandler):
 class GetFile(webapp.RequestHandler):
     """Get file content or list of files for given builder and name."""
 
-    def _get_file_list(self, master, builder, test_type, name):
+    def _get_file_list(self, master, builder, test_type, name, callback_name=None):
         """Get and display a list of files that matches builder and file name.
 
         Args:
@@ -96,6 +109,10 @@ class GetFile(webapp.RequestHandler):
             "name": name,
             "files": files,
         }
+        if callback_name:
+            json = template.render("templates/showfilelist.jsonp", template_values)
+            self._serve_json(_replace_jsonp_callback(json, callback_name), files[0].date)
+            return
         self.response.out.write(template.render("templates/showfilelist.html",
                                                 template_values))
 
@@ -113,9 +130,19 @@ class GetFile(webapp.RequestHandler):
         if not files:
             logging.info("File not found, master %s, builder: %s, test_type: %s, name: %s.",
                          master, builder, test_type, name)
+            return None, None
+
+        return files[0].data, files[0].date
+
+    def _get_file_content_from_key(self, key):
+        file = db.get(key)
+
+        if not file:
+            logging.info("File not found, key %s.", key)
             return None
 
-        return files[0].data
+        file.load_data()
+        return file.data, file.date
 
     def _get_test_list_json(self, master, builder, test_type):
         """Return json file with test name list only, do not include test
@@ -126,40 +153,58 @@ class GetFile(webapp.RequestHandler):
             test_type: type of test results.
         """
 
-        json = self._get_file_content(master, builder, test_type, "results.json")
+        json, date = self._get_file_content(master, builder, test_type, "results.json")
         if not json:
             return None
 
-        return JsonResults.get_test_list(builder, json)
+        return JsonResults.get_test_list(builder, json), date
+
+    def _serve_json(self, json, modified_date):
+        if json:
+            if "If-Modified-Since" in self.request.headers:
+                old_date = self.request.headers["If-Modified-Since"]
+                if time.strptime(old_date, '%a, %d %b %Y %H:%M:%S %Z') == modified_date.utctimetuple():
+                    self.response.set_status(304)
+                    return
+
+            # The appengine datetime objects are naive, so they lack a timezone.
+            # In practice, appengine seems to use GMT.
+            self.response.headers["Last-Modified"] = modified_date.strftime('%a, %d %b %Y %H:%M:%S') + ' GMT'
+            self.response.headers["Content-Type"] = "application/json"
+            self.response.out.write(json)
+        else:
+            self.error(404)
 
     def get(self):
+        key = self.request.get(PARAM_KEY)
         master = self.request.get(PARAM_MASTER)
         builder = self.request.get(PARAM_BUILDER)
         test_type = self.request.get(PARAM_TEST_TYPE)
         name = self.request.get(PARAM_NAME)
         dir = self.request.get(PARAM_DIR)
         test_list_json = self.request.get(PARAM_TEST_LIST_JSON)
+        callback_name = self.request.get(PARAM_CALLBACK)
 
         logging.debug(
             "Getting files, master %s, builder: %s, test_type: %s, name: %s.",
             master, builder, test_type, name)
 
-        # If parameter "dir" is specified or there is no builder or filename
-        # specified in the request, return list of files, otherwise, return
-        # file content.
-        if dir or not builder or not name:
-            return self._get_file_list(master, builder, test_type, name)
+        if not key:
+            # If parameter "dir" is specified or there is no builder or filename
+            # specified in the request, return list of files, otherwise, return
+            # file content.
+            if dir or not builder or not name:
+                return self._get_file_list(master, builder, test_type, name, callback_name)
 
-        if name == "results.json" and test_list_json:
-            json = self._get_test_list_json(master, builder, test_type)
+        if key:
+            json, date = self._get_file_content_from_key(key)
+        elif name == "results.json" and test_list_json:
+            json, date = self._get_test_list_json(master, builder, test_type)
         else:
-            json = self._get_file_content(master, builder, test_type, name)
+            json, date = self._get_file_content(master, builder, test_type, name)
 
-        if json:
-            self.response.headers["Content-Type"] = "text/plain; charset=utf-8"
-            self.response.out.write(json)
-        else:
-            self.error(404)
+        self._serve_json(_replace_jsonp_callback(json, callback_name), date)
+
 
 class Upload(webapp.RequestHandler):
     """Upload test results file to datastore."""
@@ -201,7 +246,7 @@ class Upload(webapp.RequestHandler):
                 # Merge incremental json results.
                 update_succeeded = JsonResults.update(master, builder, test_type, file.value)
             else:
-                update_succeeded = TestFile.update(
+                update_succeeded = TestFile.add_file(
                     master, builder, test_type, file.filename, file.value)
 
             if not update_succeeded:

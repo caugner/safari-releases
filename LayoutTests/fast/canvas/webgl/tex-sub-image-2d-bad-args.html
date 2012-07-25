@@ -1,6 +1,5 @@
 <html>
 <head>
-<link rel="stylesheet" href="../../js/resources/js-test-style.css"/>
 <script src="../../js/resources/js-test-pre.js"></script>
 <script src="resources/webgl-test.js"></script>
 <script src="resources/webgl-test-utils.js"></script>
@@ -23,6 +22,10 @@ gl.bindTexture(gl.TEXTURE_2D, tex);
 gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);
 glErrorShouldBe(gl, gl.NO_ERROR, "Setup should succeed"); 
 
+// FIXME: this behavior is still being discussed on the public_webgl mailing list and may
+// need to be changed to throw TypeError because the argument is not nullable.
+gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 4, 4, gl.RGBA, gl.UNSIGNED_BYTE, null);
+glErrorShouldBe(gl, gl.INVALID_VALUE, "null argument");
 gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 1, gl.RGBA, gl.UNSIGNED_BYTE, c);
 glErrorShouldBe(gl, gl.INVALID_VALUE, "y + height > texture height");
 gl.texSubImage2D(gl.TEXTURE_2D, 0, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, c);
@@ -57,8 +60,6 @@ gl.texSubImage2D(gl.TEXTURE_2D, 0, 0,0, gl.RGB, gl.UNSIGNED_BYTE, c);
 glErrorShouldBe(gl, gl.INVALID_OPERATION, "format not same as original RGBA 4_4_4_4");
 gl.texSubImage2D(gl.TEXTURE_2D, 0, 0,0, gl.RGBA, gl.UNSIGNED_BYTE, c);
 glErrorShouldBe(gl, gl.INVALID_OPERATION, "type not same as original RGBA 4_4_4_4");
-
-successfullyParsed = true;
 </script>
 <script src="../../js/resources/js-test-post.js"></script>
 </body>

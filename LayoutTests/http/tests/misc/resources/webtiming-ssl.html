@@ -3,7 +3,6 @@
 <head>
 <script>
 </script>
-<link rel="stylesheet" href="../../js-test-resources/js-test-style.css">
 <script src="../../js-test-resources/js-test-pre.js"></script>
 </head>
 <body>
@@ -12,7 +11,7 @@
 <script>
 description("This test checks that Web Timing reports secureConnectionStart correctly and has reasonable values for connectStart and connectEnd. Note that DumpRenderTree doesn't set secureConnectionStart.");
 
-var performance = window.performance || {};
+window.performance = window.performance || {};
 var navigation = performance.navigation || {};
 var timing = performance.timing || {};
 
@@ -20,7 +19,6 @@ shouldBeGreaterThanOrEqual("timing.connectStart", "timing.navigationStart");
 shouldBeGreaterThanOrEqual("timing.secureConnectionStart", "timing.connectStart");
 shouldBeGreaterThanOrEqual("timing.connectEnd", "timing.secureConnectionStart");
 
-var successfullyParsed = true;
 </script>
 <script src="../../js-test-resources/js-test-post.js"></script>
 </body>

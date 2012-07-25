@@ -16,15 +16,15 @@ function extension_testOnSelectionChanged(nextTest)
     webInspector.inspectedWindow.eval("inspect(document.body.children[0])");
 }
 
-function extension_testOnResourceFinished(nextTest)
+function extension_testOnRequestFinished(nextTest)
 {
-    function onFinished()
+    function onRequestFinished()
     {
-        webInspector.resources.onFinished.removeListener(onFinished);
-        output("onFinished fired");
+        webInspector.network.onRequestFinished.removeListener(onRequestFinished);
+        output("onRequestFinished fired");
         nextTest();
     }
-    webInspector.resources.onFinished.addListener(onFinished);
+    webInspector.network.onRequestFinished.addListener(onRequestFinished);
     webInspector.inspectedWindow.eval("var xhr = new XMLHttpRequest(); xhr.open('GET', '" + location.href + "', false); xhr.send(null);");
 }
 
@@ -42,12 +42,10 @@ function extension_testOnNavigated(nextTest)
     {
         if (loadCount !== urls.length)
             return;
-        if (loadCount === 1) {
-            dispatchOnFrontend({ command: "run-when-page-loads" }, onLoad);
-            webInspector.inspectedWindow.eval("location.href = location.origin + location.pathname");
-        }
+        if (loadCount === 1)
+            evaluateOnFrontend("InspectorTest.navigate(WebInspector.inspectedPageURL.substring(0, WebInspector.inspectedPageURL.indexOf('?')), reply)", onLoad);
         else {
-            webInspector.resources.onNavigated.removeListener(onNavigated);
+            webInspector.network.onNavigated.removeListener(onNavigated);
             for (var i = 0; i < urls.length; ++i)
                 output("Navigated to: " + urls[i]);
             nextTest();
@@ -58,31 +56,39 @@ function extension_testOnNavigated(nextTest)
         urls.push(url.replace(/^(.*\/)*/, ""));
         processEvent();
     }
-    webInspector.resources.onNavigated.addListener(onNavigated);
-    dispatchOnFrontend({ command: "run-when-page-loads" }, onLoad);
-    webInspector.inspectedWindow.eval("location.href = location.href + '?navigated'");
+    webInspector.network.onNavigated.addListener(onNavigated);
+    evaluateOnFrontend("InspectorTest.navigate(WebInspector.inspectedPageURL + '?navigated', reply)", onLoad);
 }
 
-function extension_testPanelShowHide(nextTest)
+function extension_testViewShowHide(nextTest)
 {
     var listenersToCleanup = [];
-    function onPanelEvent(type, panelId)
+    var sidebar;
+    var beenToExtensionPanel = false;
+
+    function onViewEvent(type, viewName, viewWindow)
     {
-        output("Got " + type + " event for panel " + panelId);
+        output("Got " + type + " event for " + viewName);
         if (type !== "onShown")
             return;
-        if (panelId === "extension") {
-            addListener(webInspector.panels.elements, "elements", "onShown");
-            showPanel("elements");
-        } else if (panelId === "elements") {
-            cleanupListeners();
-            nextTest();
+        if (viewName === "panel") {
+            output("Panel shown, location: " + trimURL(viewWindow.location.href));
+            extension_showPanel("elements");
+        } else if (viewName === "sidebar") {
+            output("Sidebar shown, location: " + trimURL(viewWindow.location.href));
+            if (!beenToExtensionPanel) {
+                extension_showPanel("extension");
+                beenToExtensionPanel = true;
+            } else {
+                cleanupListeners();
+                nextTest();
+            }
         }
     }
-    function addListener(panel, panelId, type)
+    function addListener(view, viewName, type)
     {
-        var listener = bind(onPanelEvent, null, type, panelId);
-        var event = panel[type];
+        var listener = bind(onViewEvent, null, type, viewName);
+        var event = view[type];
         listenersToCleanup.push({ event: event, listener: listener });
         event.addListener(listener);
     }
@@ -93,13 +99,37 @@ function extension_testPanelShowHide(nextTest)
     }
     function onPanelCreated(panel)
     {
-        addListener(panel, "extension", "onShown");
-        addListener(panel, "extension", "onHidden");
-        addListener(webInspector.panels.elements, "elements", "onHidden");
-        showPanel("extension");
+        addListener(panel, "panel", "onShown");
+        addListener(panel, "panel", "onHidden");
+        addListener(sidebar, "sidebar", "onHidden");
+        addListener(sidebar, "sidebar", "onShown");
+        sidebar.setPage(basePath + "extension-sidebar.html");
     }
-    showPanel("elements");
-    webInspector.panels.create("Test Panel", "extension-panel.png", "extension-panel.html", onPanelCreated);
+    extension_showPanel("elements");
+    var basePath = location.pathname.replace(/\/[^/]*$/, "/");
+    function onSidebarCreated(sidebarPane)
+    {
+        sidebar = sidebarPane;
+        webInspector.panels.create("Test Panel", basePath + "extension-panel.png", basePath + "extension-panel.html", onPanelCreated);
+    }
+    webInspector.panels.elements.createSidebarPane("Test Sidebar", onSidebarCreated);
+}
+
+function extension_testTimelineEvents(nextTest)
+{
+    function onTimelineEvent(record)
+    {
+        if (record.type === "Layout") {
+            output("Got Layout event from timeline");
+            webInspector.timeline.onEventRecorded.removeListener(onTimelineEvent);
+            nextTest();
+        }
+    }
+
+    webInspector.timeline.onEventRecorded.addListener(onTimelineEvent);
+
+    // Trigger a relayout.
+    webInspector.inspectedWindow.eval("document.body.style.float = 'left';");
 }
 
 </script>

@@ -38,15 +38,27 @@
 
 #include "webkit/support/webkit_support_gfx.h"
 #include <algorithm>
+#include <iterator>
+#include <limits.h>
 #include <stdio.h>
 #include <string.h>
 #include <vector>
-#include <wtf/OwnArrayPtr.h>
-#include <wtf/Vector.h>
 
 #if OS(WINDOWS)
 #include <windows.h>
 #define PATH_MAX MAX_PATH
+#endif
+
+// Define macro here to make ImageDiff independent of JavaScriptCore.
+#ifdef NDEBUG
+#define ASSERT(assertion) do { } while (0)
+#else
+#define ASSERT(assertion) do \
+    if (!(assertion)) { \
+        fprintf(stderr, "ASSERT failed at %s:%d: " #assertion ".", __FILE__, __LINE__); \
+        exit(1); \
+    } \
+while (0)
 #endif
 
 using namespace std;
@@ -56,25 +68,33 @@ using namespace std;
 static const char optionPollStdin[] = "--use-stdin";
 static const char optionGenerateDiff[] = "--diff";
 
+// If --diff is passed, causes the app to output the image difference
+// metric (percentageDifferent()) on stdout.
+static const char optionWrite[] = "--write-image-diff-metrics";
+
+// Use weightedPercentageDifferent() instead of the default image
+// comparator proc.
+static const char optionWeightedIntensity[] = "--weighted-intensity";
+
 // Return codes used by this utility.
 static const int statusSame = 0;
 static const int statusDifferent = 1;
 static const int statusError = 2;
 
 // Color codes.
-static const uint32_t rgbaRed = 0x000000ff;
-static const uint32_t rgbaAlpha = 0xff000000;
+static const unsigned int rgbaRed = 0x000000ff;
+static const unsigned int rgbaAlpha = 0xff000000;
 
 class Image {
 public:
     Image()
         : m_width(0)
-        , m_height(0) {}
+        , m_height(0) { }
 
     Image(const Image& image)
         : m_width(image.m_width)
         , m_height(image.m_height)
-        , m_data(image.m_data) {}
+        , m_data(image.m_data) { }
 
     bool hasImage() const { return m_width > 0 && m_height > 0; }
     int width() const { return m_width; }
@@ -83,19 +103,23 @@ public:
 
     // Creates the image from stdin with the given data length. On success, it
     // will return true. On failure, no other methods should be accessed.
-    bool craeteFromStdin(size_t byteLength)
+    bool createFromStdin(size_t byteLength)
     {
         if (!byteLength)
             return false;
 
-        OwnArrayPtr<unsigned char> source = adoptArrayPtr(new unsigned char[byteLength]);
-        if (fread(source.get(), 1, byteLength, stdin) != byteLength)
+        unsigned char* source = new unsigned char[byteLength];
+        if (fread(source, 1, byteLength, stdin) != byteLength) {
+            delete [] source;
             return false;
+        }
 
-        if (!webkit_support::DecodePNG(source.get(), byteLength, &m_data, &m_width, &m_height)) {
+        if (!webkit_support::DecodePNG(source, byteLength, &m_data, &m_width, &m_height)) {
+            delete [] source;
             clear();
             return false;
         }
+        delete [] source;
         return true;
     }
 
@@ -130,19 +154,19 @@ public:
     }
 
     // Returns the RGBA value of the pixel at the given location
-    const uint32_t pixelAt(int x, int y) const
+    const unsigned int pixelAt(int x, int y) const
     {
         ASSERT(x >= 0 && x < m_width);
         ASSERT(y >= 0 && y < m_height);
-        return *reinterpret_cast<const uint32_t*>(&(m_data[(y * m_width + x) * 4]));
+        return *reinterpret_cast<const unsigned int*>(&(m_data[(y * m_width + x) * 4]));
     }
 
-    void setPixelAt(int x, int y, uint32_t color) const
+    void setPixelAt(int x, int y, unsigned int color) const
     {
         ASSERT(x >= 0 && x < m_width);
         ASSERT(y >= 0 && y < m_height);
         void* addr = &const_cast<unsigned char*>(&m_data.front())[(y * m_width + x) * 4];
-        *reinterpret_cast<uint32_t*>(addr) = color;
+        *reinterpret_cast<unsigned int*>(addr) = color;
     }
 
 private:
@@ -152,6 +176,8 @@ private:
     vector<unsigned char> m_data;
 };
 
+typedef float (*ImageComparisonProc) (const Image&, const Image&);
+
 float percentageDifferent(const Image& baseline, const Image& actual)
 {
     int w = min(baseline.width(), actual.width());
@@ -159,8 +185,8 @@ float percentageDifferent(const Image& baseline, const Image& actual)
 
     // Compute pixels different in the overlap
     int pixelsDifferent = 0;
-    for (int y = 0; y < h; y++) {
-        for (int x = 0; x < w; x++) {
+    for (int y = 0; y < h; ++y) {
+        for (int x = 0; x < w; ++x) {
             if (baseline.pixelAt(x, y) != actual.pixelAt(x, y))
                 pixelsDifferent++;
         }
@@ -184,6 +210,74 @@ float percentageDifferent(const Image& baseline, const Image& actual)
     return static_cast<float>(pixelsDifferent) / totalPixels * 100;
 }
 
+inline unsigned int maxOf3(unsigned int a, unsigned int b, unsigned int c)
+{
+    if (a < b)
+        return std::max(b, c);
+    return std::max(a, c);
+}
+
+inline unsigned int getRedComponent(unsigned int color)
+{
+    return (color << 24) >> 24;
+}
+
+inline unsigned int getGreenComponent(unsigned int color)
+{
+    return (color << 16) >> 24;
+}
+
+inline unsigned int getBlueComponent(unsigned int color)
+{
+    return (color << 8) >> 24;
+}
+
+/// Rank small-pixel-count high-intensity changes as more important than
+/// large-pixel-count low-intensity changes.
+float weightedPercentageDifferent(const Image& baseline, const Image& actual)
+{
+    int w = min(baseline.width(), actual.width());
+    int h = min(baseline.height(), actual.height());
+
+    float weightedPixelsDifferent = 0;
+    for (int y = 0; y < h; ++y) {
+        for (int x = 0; x < w; ++x) {
+            unsigned int actualColor = actual.pixelAt(x, y);
+            unsigned int baselineColor = baseline.pixelAt(x, y);
+            if (baselineColor != actualColor) {
+                unsigned int actualR = getRedComponent(actualColor);
+                unsigned int actualG = getGreenComponent(actualColor);
+                unsigned int actualB = getBlueComponent(actualColor);
+                unsigned int baselineR = getRedComponent(baselineColor);
+                unsigned int baselineG = getGreenComponent(baselineColor);
+                unsigned int baselineB = getBlueComponent(baselineColor);
+                unsigned int deltaR = std::max(actualR, baselineR)
+                    - std::min(actualR, baselineR);
+                unsigned int deltaG = std::max(actualG, baselineG)
+                    - std::min(actualG, baselineG);
+                unsigned int deltaB = std::max(actualB, baselineB)
+                    - std::min(actualB, baselineB);
+                weightedPixelsDifferent +=
+                    static_cast<float>(maxOf3(deltaR, deltaG, deltaB)) / 255;
+            }
+        }
+    }
+
+    int maxWidth = max(baseline.width(), actual.width());
+    int maxHeight = max(baseline.height(), actual.height());
+
+    weightedPixelsDifferent += (maxWidth - w) * h;
+
+    weightedPixelsDifferent += (maxHeight - h) * maxWidth;
+
+    float totalPixels = static_cast<float>(actual.width())
+        * static_cast<float>(actual.height());
+    if (!totalPixels)
+        return 100.0f;
+    return weightedPixelsDifferent / totalPixels * 100;
+}
+
+
 void printHelp()
 {
     fprintf(stderr,
@@ -195,7 +289,10 @@ void printHelp()
             "    and sending 0 to stdout when they are the same\n"
             "  ImageDiff --diff <compare file> <reference file> <output file>\n"
             "    Compares two files on disk, outputs an image that visualizes the"
-            "    difference to <output file>\n");
+            "    difference to <output file>\n"
+            "    --write-image-diff-metrics prints a difference metric to stdout\n"
+            "    --weighted-intensity weights the difference metric by intensity\n"
+            "      at each pixel\n");
     /* For unfinished webkit-like-mode (see below)
        "\n"
        "  ImageDiff -s\n"
@@ -206,7 +303,8 @@ void printHelp()
     */
 }
 
-int compareImages(const char* file1, const char* file2)
+int compareImages(const char* file1, const char* file2,
+                  ImageComparisonProc comparator)
 {
     Image actualImage;
     Image baselineImage;
@@ -220,7 +318,7 @@ int compareImages(const char* file1, const char* file2)
         return statusError;
     }
 
-    float percent = percentageDifferent(actualImage, baselineImage);
+    float percent = (*comparator)(actualImage, baselineImage);
     if (percent > 0.0) {
         // failure: The WebKit version also writes the difference image to
         // stdout, which seems excessive for our needs.
@@ -236,7 +334,7 @@ int compareImages(const char* file1, const char* file2)
 
 // Untested mode that acts like WebKit's image comparator. I wrote this but
 // decided it's too complicated. We may use it in the future if it looks useful.
-int untestedCompareImages()
+int untestedCompareImages(ImageComparisonProc comparator)
 {
     Image actualImage;
     Image baselineImage;
@@ -254,12 +352,12 @@ int untestedCompareImages()
 
             bool success = false;
             if (imageSize > 0 && !actualImage.hasImage()) {
-                if (!actualImage.craeteFromStdin(imageSize)) {
+                if (!actualImage.createFromStdin(imageSize)) {
                     fputs("Error, input image can't be decoded.\n", stderr);
                     return 1;
                 }
             } else if (imageSize > 0 && !baselineImage.hasImage()) {
-                if (!baselineImage.craeteFromStdin(imageSize)) {
+                if (!baselineImage.createFromStdin(imageSize)) {
                     fputs("Error, baseline image can't be decoded.\n", stderr);
                     return 1;
                 }
@@ -270,7 +368,7 @@ int untestedCompareImages()
         }
 
         if (actualImage.hasImage() && baselineImage.hasImage()) {
-            float percent = percentageDifferent(actualImage, baselineImage);
+            float percent = (*comparator)(actualImage, baselineImage);
             if (percent > 0.0) {
                 // failure: The WebKit version also writes the difference image to
                 // stdout, which seems excessive for our needs.
@@ -295,17 +393,17 @@ bool createImageDiff(const Image& image1, const Image& image2, Image* out)
     bool same = (image1.width() == image2.width()) && (image1.height() == image2.height());
 
     // FIXME: do something with the extra pixels if the image sizes are different.
-    for (int y = 0; y < h; y++) {
-        for (int x = 0; x < w; x++) {
-            uint32_t basePixel = image1.pixelAt(x, y);
+    for (int y = 0; y < h; ++y) {
+        for (int x = 0; x < w; ++x) {
+            unsigned int basePixel = image1.pixelAt(x, y);
             if (basePixel != image2.pixelAt(x, y)) {
                 // Set differing pixels red.
                 out->setPixelAt(x, y, rgbaRed | rgbaAlpha);
                 same = false;
             } else {
                 // Set same pixels as faded.
-                uint32_t alpha = basePixel & rgbaAlpha;
-                uint32_t newPixel = basePixel - ((alpha / 2) & rgbaAlpha);
+                unsigned int alpha = basePixel & rgbaAlpha;
+                unsigned int newPixel = basePixel - ((alpha / 2) & rgbaAlpha);
                 out->setPixelAt(x, y, newPixel);
             }
         }
@@ -330,7 +428,8 @@ static bool writeFile(const char* outFile, const unsigned char* data, size_t dat
     return true;
 }
 
-int diffImages(const char* file1, const char* file2, const char* outFile)
+int diffImages(const char* file1, const char* file2, const char* outFile,
+               bool shouldWritePercentages, ImageComparisonProc comparator)
 {
     Image actualImage;
     Image baselineImage;
@@ -354,21 +453,33 @@ int diffImages(const char* file1, const char* file2, const char* outFile)
                                   diffImage.width() * 4, &pngData);
     if (!writeFile(outFile, &pngData.front(), pngData.size()))
         return statusError;
+
+    if (shouldWritePercentages) {
+        float percent = (*comparator)(actualImage, baselineImage);
+        fprintf(stdout, "%.3f\n", percent);
+    }
+
     return statusDifferent;
 }
 
 int main(int argc, const char* argv[])
 {
-    Vector<const char*> values;
+    std::vector<const char*> values;
     bool pollStdin = false;
     bool generateDiff = false;
+    bool shouldWritePercentages = false;
+    ImageComparisonProc comparator = percentageDifferent;
     for (int i = 1; i < argc; ++i) {
         if (!strcmp(argv[i], optionPollStdin))
             pollStdin = true;
         else if (!strcmp(argv[i], optionGenerateDiff))
             generateDiff = true;
+        else if (!strcmp(argv[i], optionWrite))
+            shouldWritePercentages = true;
+        else if (!strcmp(argv[i], optionWeightedIntensity))
+            comparator = weightedPercentageDifferent;
         else
-            values.append(argv[i]);
+            values.push_back(argv[i]);
     }
 
     if (pollStdin) {
@@ -383,7 +494,8 @@ int main(int argc, const char* argv[])
 
             if (haveFirstName) {
                 // compareImages writes results to stdout unless an error occurred.
-                if (compareImages(firstName, stdinBuffer) == statusError)
+                if (compareImages(firstName, stdinBuffer,
+                                  comparator) == statusError)
                     printf("error\n");
                 fflush(stdout);
                 haveFirstName = false;
@@ -399,9 +511,10 @@ int main(int argc, const char* argv[])
 
     if (generateDiff) {
         if (values.size() == 3)
-            return diffImages(values[0], values[1], values[2]);
+            return diffImages(values[0], values[1], values[2],
+                              shouldWritePercentages, comparator);
     } else if (values.size() == 2)
-        return compareImages(argv[1], argv[2]);
+        return compareImages(argv[1], argv[2], comparator);
 
     printHelp();
     return statusError;

@@ -402,6 +402,10 @@
 				>
 			</File>
 			<File
+				RelativePath="..\Tests\FormValue.cpp"
+				>
+			</File>
+			<File
 				RelativePath="..\Tests\GetURLNotifyWithURLThatFailsToLoad.cpp"
 				>
 			</File>
@@ -443,6 +447,10 @@
 			</File>
 			<File
 				RelativePath="..\Tests\PluginScriptableNPObjectInvokeDefault.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\Tests\PrivateBrowsing.cpp"
 				>
 			</File>
 			<Filter

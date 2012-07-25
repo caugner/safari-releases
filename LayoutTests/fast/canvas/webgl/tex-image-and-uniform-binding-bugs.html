@@ -1,6 +1,5 @@
 <html>
 <head>
-<link rel="stylesheet" href="../../js/resources/js-test-style.css"/>
 <script src="../../js/resources/js-test-pre.js"></script>
 <script src="resources/webgl-test.js"></script>
 </head>
@@ -25,8 +24,6 @@ tmpcanvas.height = 2;
 var texture = gl.createTexture();
 shouldBeUndefined("gl.bindTexture(gl.TEXTURE_2D, texture)");
 shouldBeUndefined("gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, tmpcanvas)");
-
-successfullyParsed = true;
 
 </script>
 <script src="../../js/resources/js-test-post.js"></script>

@@ -1,10 +1,8 @@
 <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
 <html>
 <head>
-<link rel="stylesheet" href="../../../fast/js/resources/js-test-style.css">
 <script src="../../../fast/js/resources/js-test-pre.js"></script>
 <script>
-var successfullyParsed = false;
 if (window.layoutTestController)
    layoutTestController.dumpAsText();
 </script>
@@ -27,7 +25,7 @@ if (window.layoutTestController)
         document.getElementById("parent").focus();
         var parent = accessibilityController.focusedElement;
         shouldBe("parent.childAtIndex(0).role", "'AXRole: AXButton'");
-        shouldBe("parent.childAtIndex(1).role", "'AXRole: '");
+        shouldBeTrue("parent.childAtIndex(1) == null || parent.childAtIndex(1).isValid == false");
   
         document.getElementById("button1").removeAttribute("role");
         document.getElementById("button2").setAttribute("role", "button");
@@ -36,7 +34,6 @@ if (window.layoutTestController)
         shouldBe("parent.childAtIndex(1).role", "'AXRole: AXButton'");
     }
 
-    successfullyParsed = true;
 </script>
 
 <script src="../../../fast/js/resources/js-test-post.js"></script>

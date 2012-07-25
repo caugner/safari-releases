@@ -33,16 +33,21 @@ namespace WebKit {
 void UpdateInfo::encode(CoreIPC::ArgumentEncoder* encoder) const
 {
     encoder->encode(viewSize);
+    encoder->encode(deviceScaleFactor);
     encoder->encode(scrollRect);
     encoder->encode(scrollOffset);
     encoder->encode(updateRectBounds);
     encoder->encode(updateRects);
+    encoder->encode(updateScaleFactor);
     encoder->encode(bitmapHandle);
+    encoder->encode(bitmapOffset);
 }
 
 bool UpdateInfo::decode(CoreIPC::ArgumentDecoder* decoder, UpdateInfo& result)
 {
     if (!decoder->decode(result.viewSize))
+        return false;
+    if (!decoder->decode(result.deviceScaleFactor))
         return false;
     if (!decoder->decode(result.scrollRect))
         return false;
@@ -52,7 +57,11 @@ bool UpdateInfo::decode(CoreIPC::ArgumentDecoder* decoder, UpdateInfo& result)
         return false;
     if (!decoder->decode(result.updateRects))
         return false;
+    if (!decoder->decode(result.updateScaleFactor))
+        return false;
     if (!decoder->decode(result.bitmapHandle))
+        return false;
+    if (!decoder->decode(result.bitmapOffset))
         return false;
 
     return true;

@@ -10,8 +10,14 @@ function addErrorToConsole()
     console.error("test error message");
 }
 
+function methodForBreakpoint()
+{
+    alert("Hello world");
+}
+
 function test()
 {
+    WebInspector.inspectorView.setCurrentPanel(WebInspector.panels.resources);
     InspectorTest.runDebuggerTestSuite([
         function testSetBreakpoint(next)
         {
@@ -20,27 +26,46 @@ function test()
             function didShowScriptSource(sourceFrame)
             {
                 InspectorTest.addResult("Script source was shown.");
-                InspectorTest.addSniffer(WebInspector.SourceFrame.prototype, "addBreakpoint", didAddBreakpoint);
-                InspectorTest.setBreakpoint(sourceFrame, 17, "", true);
+                InspectorTest.addSniffer(WebInspector.JavaScriptSourceFrame.prototype, "_addBreakpointDecoration", didAddBreakpoint);
+                InspectorTest.setBreakpoint(sourceFrame, 14, "", true);
             }
 
             function didAddBreakpoint(lineNumber)
             {
-              InspectorTest.addResult("Breakpoint added to source frame at line " + lineNumber);
-              next();
+                InspectorTest.addResult("Breakpoint added to source frame at line " + lineNumber);
+                next();
             }
         },
 
         function testConsoleMessage(next)
         {
-              InspectorTest.addSniffer(WebInspector.SourceFrame.prototype, "addMessage", didAddMessage);
-              InspectorTest.evaluateInPage("addErrorToConsole()");
+            InspectorTest.showScriptSource("source-frame.html", didShowScriptSource);
 
-              function didAddMessage(message)
-              {
-                  InspectorTest.addResult("Message text: " + message.message);
-                  next();
-              }
+            var shownSourceFrame;
+            function didShowScriptSource(sourceFrame)
+            {
+                InspectorTest.addResult("Script source was shown.");
+                shownSourceFrame = sourceFrame;
+                InspectorTest.addSniffer(WebInspector.SourceFrame.prototype, "addMessageToSource", didAddMessage);
+                InspectorTest.addSniffer(WebInspector.SourceFrame.prototype, "clearMessages", clearMessages);
+                InspectorTest.evaluateInPage("addErrorToConsole()");
+            }
+
+            function didAddMessage(lineNumber, message)
+            {
+                if (this !== shownSourceFrame)
+                    return;
+                InspectorTest.addResult("Message added to source frame: " + message.message);
+                WebInspector.console.requestClearMessages();
+            }
+
+            function clearMessages()
+            {
+                if (this !== shownSourceFrame)
+                    return;
+                InspectorTest.addResult("Messages cleared in source frame.");
+                next();
+            }
         },
 
         function testShowResource(next)
@@ -48,11 +73,13 @@ function test()
             WebInspector.showPanel("network");
 
             InspectorTest.addSniffer(WebInspector.SourceFrame.prototype, "show", didShowSourceFrame);
-            var resources = WebInspector.resourceTreeModel._resourcesByURL;
-            for (var url in resources) {
-                if (url.indexOf("debugger-test.js") !== -1) {
-                    WebInspector.panels.network._showResource(resources[url], 1);
-                    break;
+
+            WebInspector.resourceTreeModel.forAllResources(visit);
+            function visit(resource)
+            {
+                if (resource.url.indexOf("debugger-test.js") !== -1) {
+                    WebInspector.panels.resources.showResource(resource, 1);
+                    return true;
                 }
             }
 

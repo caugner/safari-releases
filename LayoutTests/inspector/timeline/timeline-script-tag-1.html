@@ -16,7 +16,7 @@ function test()
     InspectorTest.startTimeline(step1);
     function step1()
     {
-        InspectorTest.addSniffer(WebInspector.ConsoleView.prototype, "addMessage", step2);
+        InspectorTest.addConsoleSniffer(step2);
         InspectorTest.evaluateInPage("performActions()");
     }
 
@@ -27,11 +27,19 @@ function test()
 
     function step3()
     {
-        function format(record) {
-            if (record.type === WebInspector.TimelineAgent.RecordType.EvaluateScript)
+        function format(record)
+        {
+            if (record.type === WebInspector.TimelineModel.RecordType.EvaluateScript)
                 InspectorTest.printTimelineRecordProperties(record);
-            else if (record.type === WebInspector.TimelineAgent.RecordType.ParseHTML)
+            else if (record.type === WebInspector.TimelineModel.RecordType.ParseHTML) {
+                var children = [];
+                for (var i = 0; i < record.children.length; ++i) {
+                    if (record.children[i].type !== WebInspector.TimelineModel.RecordType.RecalculateStyles)
+                        children.push(record.children[i]);
+                }
+                record.children = children;
                 InspectorTest.dumpTimelineRecord(record);
+            }
         }
         InspectorTest.printTimelineRecords(null, format);
         InspectorTest.completeTest();

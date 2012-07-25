@@ -27,17 +27,11 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-try:
-    # This API exists only in Python 2.6 and higher.  :(
-    import multiprocessing
-except ImportError:
-    multiprocessing = None
-
+import multiprocessing
 import ctypes
 import errno
 import logging
 import os
-import platform
 import StringIO
 import signal
 import subprocess
@@ -46,10 +40,9 @@ import time
 
 from webkitpy.common.system.deprecated_logging import tee
 from webkitpy.common.system.filesystem import FileSystem
-from webkitpy.python24 import versioning
 
 
-_log = logging.getLogger("webkitpy.common.system")
+_log = logging.getLogger(__name__)
 
 
 class ScriptError(Exception):
@@ -96,13 +89,9 @@ class ScriptError(Exception):
         return os.path.basename(command_path)
 
 
-def run_command(*args, **kwargs):
-    # FIXME: This should not be a global static.
-    # New code should use Executive.run_command directly instead
-    return Executive().run_command(*args, **kwargs)
-
-
 class Executive(object):
+    PIPE = subprocess.PIPE
+    STDOUT = subprocess.STDOUT
 
     def _should_close_fds(self):
         # We need to pass close_fds=True to work around Python bug #2320
@@ -112,14 +101,15 @@ class Executive(object):
         # shows up on Mac and Linux.
         return sys.platform not in ('win32', 'cygwin')
 
-    def _run_command_with_teed_output(self, args, teed_output):
+    def _run_command_with_teed_output(self, args, teed_output, **kwargs):
         args = map(unicode, args)  # Popen will throw an exception if args are non-strings (like int())
         args = map(self._encode_argument_if_needed, args)
 
-        child_process = subprocess.Popen(args,
-                                         stdout=subprocess.PIPE,
-                                         stderr=subprocess.STDOUT,
-                                         close_fds=self._should_close_fds())
+        child_process = self.popen(args,
+                                   stdout=self.PIPE,
+                                   stderr=self.STDOUT,
+                                   close_fds=self._should_close_fds(),
+                                   **kwargs)
 
         # Use our own custom wait loop because Popen ignores a tee'd
         # stderr/stdout.
@@ -139,7 +129,7 @@ class Executive(object):
     # capture their output and print out to stdin.  Useful for things
     # like "build-webkit" where we want to display to the user that we're building
     # but still have the output to stuff into a log file.
-    def run_and_throw_if_fail(self, args, quiet=False, decode_output=True):
+    def run_and_throw_if_fail(self, args, quiet=False, decode_output=True, **kwargs):
         # Cache the child's output locally so it can be used for error reports.
         child_out_file = StringIO.StringIO()
         tee_stdout = sys.stdout
@@ -147,7 +137,7 @@ class Executive(object):
             dev_null = open(os.devnull, "w")  # FIXME: Does this need an encoding?
             tee_stdout = dev_null
         child_stdout = tee(child_out_file, tee_stdout)
-        exit_code = self._run_command_with_teed_output(args, child_stdout)
+        exit_code = self._run_command_with_teed_output(args, child_stdout, **kwargs)
         if quiet:
             dev_null.close()
 
@@ -164,24 +154,11 @@ class Executive(object):
         return child_output
 
     def cpu_count(self):
-        if multiprocessing:
-            return multiprocessing.cpu_count()
-        # Darn.  We don't have the multiprocessing package.
-        system_name = platform.system()
-        if system_name == "Darwin":
-            return int(self.run_command(["sysctl", "-n", "hw.ncpu"]))
-        elif system_name == "Windows":
-            return int(os.environ.get('NUMBER_OF_PROCESSORS', 1))
-        elif system_name == "Linux":
-            num_cores = os.sysconf("SC_NPROCESSORS_ONLN")
-            if isinstance(num_cores, int) and num_cores > 0:
-                return num_cores
-        # This quantity is a lie but probably a reasonable guess for modern
-        # machines.
-        return 2
+        return multiprocessing.cpu_count()
 
     @staticmethod
-    def interpreter_for_script(script_path, fs=FileSystem()):
+    def interpreter_for_script(script_path, fs=None):
+        fs = fs or FileSystem()
         lines = fs.read_text_file(script_path).splitlines()
         if not len(lines):
             return None
@@ -195,6 +172,16 @@ class Executive(object):
         if first_line.find('ruby') > -1:
             return 'ruby'
         return None
+
+    @staticmethod
+    def shell_command_for_script(script_path, fs=None):
+        fs = fs or FileSystem()
+        # Win32 does not support shebang. We need to detect the interpreter ourself.
+        if sys.platform == 'win32':
+            interpreter = Executive.interpreter_for_script(script_path, fs)
+            if interpreter:
+                return [interpreter, script_path]
+        return [script_path]
 
     def kill_process(self, pid):
         """Attempts to kill the given pid.
@@ -216,13 +203,16 @@ class Executive(object):
             try:
                 retries_left -= 1
                 os.kill(pid, signal.SIGKILL)
+                _ = os.waitpid(pid, os.WNOHANG)
             except OSError, e:
                 if e.errno == errno.EAGAIN:
                     if retries_left <= 0:
                         _log.warn("Failed to kill pid %s.  Too many EAGAIN errors." % pid)
                     continue
                 if e.errno == errno.ESRCH:  # The process does not exist.
-                    _log.warn("Called kill_process with a non-existant pid %s" % pid)
+                    return
+                if e.errno == errno.ECHILD:
+                    # Can't wait on a non-child process, but the kill worked.
                     return
                 raise
 
@@ -232,7 +222,7 @@ class Executive(object):
             _fields_ = [("dwSize", ctypes.c_ulong),
                         ("cntUsage", ctypes.c_ulong),
                         ("th32ProcessID", ctypes.c_ulong),
-                        ("th32DefaultHeapID", ctypes.c_ulong),
+                        ("th32DefaultHeapID", ctypes.POINTER(ctypes.c_ulong)),
                         ("th32ModuleID", ctypes.c_ulong),
                         ("cntThreads", ctypes.c_ulong),
                         ("th32ParentProcessID", ctypes.c_ulong),
@@ -264,16 +254,50 @@ class Executive(object):
 
     def check_running_pid(self, pid):
         """Return True if pid is alive, otherwise return False."""
-        if sys.platform in ('darwin', 'linux2', 'cygwin'):
-            try:
-                os.kill(pid, 0)
-                return True
-            except OSError:
-                return False
-        elif sys.platform == 'win32':
+        if sys.platform == 'win32':
             return self._win32_check_running_pid(pid)
 
-        assert(False)
+        try:
+            os.kill(pid, 0)
+            return True
+        except OSError:
+            return False
+
+    def running_pids(self, process_name_filter=None):
+        if not process_name_filter:
+            process_name_filter = lambda process_name: True
+
+        running_pids = []
+
+        if sys.platform in ("win32", "cygwin"):
+            # FIXME: running_pids isn't implemented on Windows yet...
+            return []
+
+        ps_process = self.popen(['ps', '-eo', 'pid,comm'], stdout=self.PIPE, stderr=self.PIPE)
+        stdout, _ = ps_process.communicate()
+        for line in stdout.splitlines():
+            try:
+                # In some cases the line can contain one or more
+                # leading white-spaces, so strip it before split.
+                pid, process_name = line.strip().split(' ', 1)
+                if process_name_filter(process_name):
+                    running_pids.append(int(pid))
+            except ValueError, e:
+                pass
+
+        return sorted(running_pids)
+
+    def wait_newest(self, process_name_filter=None):
+        if not process_name_filter:
+            process_name_filter = lambda process_name: True
+
+        running_pids = self.running_pids(process_name_filter)
+        if not running_pids:
+            return
+        pid = running_pids[-1]
+
+        while self.check_running_pid(pid):
+            time.sleep(0.25)
 
     def _windows_image_name(self, process_name):
         name, extension = os.path.splitext(process_name)
@@ -331,7 +355,7 @@ class Executive(object):
         # FIXME: We may need to encode differently on different platforms.
         if isinstance(input, unicode):
             input = input.encode(self._child_process_encoding())
-        return (subprocess.PIPE, input)
+        return (self.PIPE, input)
 
     def _command_for_printing(self, args):
         """Returns a print-ready string representing command args.
@@ -349,6 +373,7 @@ class Executive(object):
     def run_command(self,
                     args,
                     cwd=None,
+                    env=None,
                     input=None,
                     error_handler=None,
                     return_exit_code=False,
@@ -361,14 +386,15 @@ class Executive(object):
         args = map(self._encode_argument_if_needed, args)
 
         stdin, string_to_communicate = self._compute_stdin(input)
-        stderr = subprocess.STDOUT if return_stderr else None
+        stderr = self.STDOUT if return_stderr else None
 
-        process = subprocess.Popen(args,
-                                   stdin=stdin,
-                                   stdout=subprocess.PIPE,
-                                   stderr=stderr,
-                                   cwd=cwd,
-                                   close_fds=self._should_close_fds())
+        process = self.popen(args,
+                             stdin=stdin,
+                             stdout=self.PIPE,
+                             stderr=stderr,
+                             cwd=cwd,
+                             env=env,
+                             close_fds=self._should_close_fds())
         output = process.communicate(string_to_communicate)[0]
 
         # run_command automatically decodes to unicode() unless explicitly told not to.
@@ -396,7 +422,7 @@ class Executive(object):
         # Win32 Python 2.x uses CreateProcessA rather than CreateProcessW
         # to launch subprocesses, so we have to encode arguments using the
         # current code page.
-        if sys.platform == 'win32' and versioning.compare_version(sys, '3.0')[0] < 0:
+        if sys.platform == 'win32' and sys.version < '3':
             return 'mbcs'
         # All other platforms use UTF-8.
         # FIXME: Using UTF-8 on Cygwin will confuse Windows-native commands
@@ -413,7 +439,7 @@ class Executive(object):
         # Win32 Python 2.x uses CreateProcessA rather than CreateProcessW
         # to launch subprocesses, so we have to encode arguments using the
         # current code page.
-        if sys.platform == 'win32' and versioning.compare_version(sys, '3.0')[0] < 0:
+        if sys.platform == 'win32' and sys.version < '3':
             return True
 
         return False
@@ -422,3 +448,6 @@ class Executive(object):
         if not self._should_encode_child_process_arguments():
             return argument
         return argument.encode(self._child_process_encoding())
+
+    def popen(self, *args, **kwargs):
+        return subprocess.Popen(*args, **kwargs)

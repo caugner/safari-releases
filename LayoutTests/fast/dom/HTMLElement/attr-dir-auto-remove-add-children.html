@@ -2,7 +2,6 @@
 <html>
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-<link rel="stylesheet" href="../../js/resources/js-test-style.css">
 <script src="../../js/resources/js-test-pre.js"></script>
 <style>
 .testDiv {-webkit-border-start: 5px solid green; -webkit-border-end: 5px solid red; }
@@ -10,7 +9,7 @@
 </head>
 <body>
 <p id="description"></p>
-<div id="console"></p>
+<div id="console"></div>
 <div id="result"></div>
 <div id="parentDiv">
 <div id="parent1" dir="auto" class="testDiv">
@@ -53,7 +52,6 @@ parent3.insertBefore(child1, child4);
 shouldBe("document.defaultView.getComputedStyle(parent3, null).getPropertyValue('border-right-color')", "'rgb(255, 0, 0)'");
 
 document.getElementById("parentDiv").style.display = "none";
-window.successfullyParsed = true;
 </script>
 <script src="../../js/resources/js-test-post.js"></script>
 </body>

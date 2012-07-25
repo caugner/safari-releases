@@ -4,7 +4,6 @@
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>WebGL GLSL Conformance Tests</title>
-<link rel="stylesheet" href="../../js/resources/js-test-style.css"/>
 <script src="../../js/resources/js-test-pre.js"></script>
 <script src="resources/webgl-test.js"></script>
 <script src="resources/webgl-test-utils.js"></script>
@@ -29,7 +28,8 @@ void main()
 <script id="fshaderWithPrecision" type="text/something-not-javascript">
 void main()
 {
-    gl_FragColor = mediump vec4(1.0,0.0,0.0,1.0);
+    mediump vec4 color = vec4(1.0,0.0,0.0,1.0);
+    gl_FragColor = color;
 }
 </script>
 <script id="vshaderWithDefaultPrecision" type="text/something-not-javascript">
@@ -525,7 +525,6 @@ if (!gl) {
 }
 
 debug("");
-successfullyParsed = true;
 
 </script>
 <script src="../../js/resources/js-test-post.js"></script>

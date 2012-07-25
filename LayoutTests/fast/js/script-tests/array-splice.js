@@ -32,4 +32,7 @@ shouldBe("arr", "['a','b','c']");
 shouldBe("arr.splice(2, 100)", "['c']")
 shouldBe("arr", "['a','b']");
 
-var successfullyParsed = true;
+// Check this doesn't crash.
+try {
+    String(Array(0xFFFFFFFD).splice(0));
+} catch (e) { }

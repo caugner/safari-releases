@@ -30,12 +30,14 @@
 #include "NPJSObject.h"
 #include "NPRuntimeUtilities.h"
 #include "PluginView.h"
+#include "WebProcess.h"
+#include <JavaScriptCore/Completion.h>
 #include <JavaScriptCore/Error.h>
 #include <JavaScriptCore/JSLock.h>
 #include <JavaScriptCore/SourceCode.h>
 #include <JavaScriptCore/Strong.h>
+#include <JavaScriptCore/StrongInlines.h>
 #include <WebCore/Frame.h>
-#include <WebCore/NotImplemented.h>
 
 using namespace JSC;
 using namespace WebCore;
@@ -45,6 +47,7 @@ namespace WebKit {
 
 NPRuntimeObjectMap::NPRuntimeObjectMap(PluginView* pluginView)
     : m_pluginView(pluginView)
+    , m_finalizationTimer(WebProcess::shared().runLoop(), this, &NPRuntimeObjectMap::invalidateQueuedObjects)
 {
 }
 
@@ -95,11 +98,11 @@ JSObject* NPRuntimeObjectMap::getOrCreateJSObject(JSGlobalObject* globalObject, 
     if (NPJSObject::isNPJSObject(npObject))
         return NPJSObject::toNPJSObject(npObject)->jsObject();
     
-    if (JSC::Weak<JSNPObject> jsNPObject = m_jsNPObjects.get(npObject))
-        return jsNPObject.get();
+    if (JSNPObject* jsNPObject = m_jsNPObjects.get(npObject))
+        return jsNPObject;
 
-    JSNPObject* jsNPObject = new (&globalObject->globalData()) JSNPObject(globalObject, this, npObject);
-    m_jsNPObjects.set(npObject, JSC::Weak<JSNPObject>(globalObject->globalData(), jsNPObject, this, npObject));
+    JSNPObject* jsNPObject = JSNPObject::create(globalObject, this, npObject);
+    m_jsNPObjects.set(npObject, JSC::PassWeak<JSNPObject>(jsNPObject, this, npObject));
 
     return jsNPObject;
 }
@@ -160,7 +163,7 @@ void NPRuntimeObjectMap::convertJSValueToNPVariant(ExecState* exec, JSValue valu
     }
 
     if (value.isString()) {
-        NPString npString = createNPString(value.toString(exec).utf8());
+        NPString npString = createNPString(value.toString(exec)->value(exec).utf8());
         STRINGN_TO_NPVARIANT(npString.UTF8Characters, npString.UTF8Length, variant);
         return;
     }
@@ -186,21 +189,9 @@ bool NPRuntimeObjectMap::evaluate(NPObject* npObject, const String&scriptString,
     JSValue thisValue = getOrCreateJSObject(globalObject.get(), npObject);
 
     globalObject->globalData().timeoutChecker.start();
-    Completion completion = JSC::evaluate(exec, globalObject->globalScopeChain(), makeSource(UString(scriptString.impl())), thisValue);
+    JSValue resultValue = JSC::evaluate(exec, globalObject->globalScopeChain(), makeSource(UString(scriptString.impl())), thisValue);
     globalObject->globalData().timeoutChecker.stop();
 
-    ComplType completionType = completion.complType();
-
-    JSValue resultValue;
-    if (completionType == Normal) {
-        resultValue = completion.value();
-        if (!resultValue)
-            resultValue = jsUndefined();
-    } else
-        resultValue = jsUndefined();
-
-    exec->clearException();
-    
     convertJSValueToNPVariant(exec, resultValue, *result);
     return true;
 }
@@ -217,10 +208,22 @@ void NPRuntimeObjectMap::invalidate()
     // We shouldn't have any NPJSObjects left now.
     ASSERT(m_npJSObjects.isEmpty());
 
-    HashMap<NPObject*, JSC::Weak<JSNPObject> >::iterator end = m_jsNPObjects.end();
-    for (HashMap<NPObject*, JSC::Weak<JSNPObject> >::iterator ptr = m_jsNPObjects.begin(); ptr != end; ++ptr)
-        ptr->second.get()->invalidate();
+    Vector<NPObject*> objects;
+
+    for (HashMap<NPObject*, JSC::Weak<JSNPObject> >::iterator ptr = m_jsNPObjects.begin(), end = m_jsNPObjects.end(); ptr != end; ++ptr)
+        objects.append(ptr->second->leakNPObject());
+
     m_jsNPObjects.clear();
+
+    for (size_t i = 0; i < objects.size(); ++i)
+        releaseNPObject(objects[i]);
+    
+    // Deal with any objects that were scheduled for delayed destruction
+    if (m_npObjectsToFinalize.isEmpty())
+        return;
+    ASSERT(m_finalizationTimer.isActive());
+    m_finalizationTimer.stop();
+    invalidateQueuedObjects();
 }
 
 JSGlobalObject* NPRuntimeObjectMap::globalObject() const
@@ -265,14 +268,36 @@ void NPRuntimeObjectMap::moveGlobalExceptionToExecState(ExecState* exec)
     globalExceptionString() = String();
 }
 
+void NPRuntimeObjectMap::invalidateQueuedObjects()
+{
+    ASSERT(m_npObjectsToFinalize.size());
+    // We deliberately re-request m_npObjectsToFinalize.size() as custom dealloc
+    // functions may execute JS and so get more objects added to the dealloc queue
+    for (size_t i = 0; i < m_npObjectsToFinalize.size(); ++i)
+        deallocateNPObject(m_npObjectsToFinalize[i]);
+    m_npObjectsToFinalize.clear();
+}
+
+void NPRuntimeObjectMap::addToInvalidationQueue(NPObject* npObject)
+{
+    if (trySafeReleaseNPObject(npObject))
+        return;
+    if (m_npObjectsToFinalize.isEmpty())
+        m_finalizationTimer.startOneShot(0);
+    ASSERT(m_finalizationTimer.isActive());
+    m_npObjectsToFinalize.append(npObject);
+}
+
 void NPRuntimeObjectMap::finalize(JSC::Handle<JSC::Unknown> handle, void* context)
 {
+    JSNPObject* object = jsCast<JSNPObject*>(asObject(handle.get()));
+
     HashMap<NPObject*, JSC::Weak<JSNPObject> >::iterator found = m_jsNPObjects.find(static_cast<NPObject*>(context));
     ASSERT(found != m_jsNPObjects.end());
-    ASSERT_UNUSED(handle, asObject(handle.get()) == found->second);
-
-    found->second.get()->invalidate();
+    ASSERT(found->second.was(object));
     m_jsNPObjects.remove(found);
+
+    addToInvalidationQueue(object->leakNPObject());
 }
 
 } // namespace WebKit

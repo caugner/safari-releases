@@ -23,12 +23,12 @@ shouldBeEqualToString("new Option().tagName", "OPTION");
 
 shouldBeEqualToString("new Option().innerText", "");
 shouldBeEqualToString("new Option(null).innerText", "null");
-shouldBeEqualToString("new Option(undefined).innerText", "");
+shouldBeEqualToString("new Option(undefined).innerText", "undefined");
 shouldBeEqualToString("new Option('somedata').innerText", "somedata");
 
 shouldBeEqualToString("new Option().value", "");
 shouldBeEqualToString("new Option('somedata', null).value", "null");
-shouldBeEqualToString("new Option('somedata', undefined).value", "somedata");
+shouldBeEqualToString("new Option('somedata', undefined).value", "undefined");
 shouldBeEqualToString("new Option('somedata', 'somevalue').value", "somevalue");
 
 shouldBeFalse("new Option().defaultSelected");
@@ -53,7 +53,5 @@ shouldBeEqualToString("new Audio().tagName", "AUDIO");
 
 shouldBeEqualToString("new Audio().src", "");
 shouldBeEqualToString("new Audio().preload", "auto");
-shouldBeEqualToString("new Audio('http://localhost/someurl').src", "http://localhost/someurl");
-shouldBeEqualToString("new Audio('http://localhost/someurl').preload", "auto");
-
-var successfullyParsed = true;
+shouldBeEqualToString("new Audio('http://127.0.0.1/someurl').src", "http://127.0.0.1/someurl");
+shouldBeEqualToString("new Audio('http://127.0.0.1/someurl').preload", "auto");

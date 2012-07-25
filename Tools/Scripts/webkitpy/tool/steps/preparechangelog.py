@@ -26,8 +26,6 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import os
-
 from webkitpy.common.checkout.changelog import ChangeLog
 from webkitpy.common.system.executive import ScriptError
 from webkitpy.tool.steps.abstractstep import AbstractStep
@@ -60,11 +58,10 @@ class PrepareChangeLog(AbstractStep):
         if self.cached_lookup(state, "changelogs"):
             self._ensure_bug_url(state)
             return
-        os.chdir(self._tool.scm().checkout_root)
         args = self._tool.port().prepare_changelog_command()
         if state.get("bug_id"):
             args.append("--bug=%s" % state["bug_id"])
-            args.append("--description=%s" % self._tool.bugs.fetch_bug(state["bug_id"]).title())
+            args.append("--description=%s" % self.cached_lookup(state, 'bug_title'))
         if self._options.email:
             args.append("--email=%s" % self._options.email)
 
@@ -74,7 +71,7 @@ class PrepareChangeLog(AbstractStep):
         args.extend(self._changed_files(state))
 
         try:
-            self._tool.executive.run_and_throw_if_fail(args, self._options.quiet)
+            self._tool.executive.run_and_throw_if_fail(args, self._options.quiet, cwd=self._tool.scm().checkout_root)
         except ScriptError, e:
             error("Unable to prepare ChangeLogs.")
         self.did_modify_checkout(state)

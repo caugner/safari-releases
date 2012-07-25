@@ -27,16 +27,26 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import logging
 import os
 import re
 
 from webkitpy.common.memoized import memoized
 from webkitpy.common.system.deprecated_logging import log
-from webkitpy.common.system.executive import Executive, run_command, ScriptError
+from webkitpy.common.system.executive import Executive, ScriptError
 
 from .commitmessage import CommitMessage
 from .scm import AuthenticationError, SCM, commit_error_handler
 from .svn import SVN, SVNRepository
+
+
+_log = logging.getLogger(__name__)
+
+
+def run_command(*args, **kwargs):
+    # FIXME: This should not be a global static.
+    # New code should use Executive.run_command directly instead
+    return Executive().run_command(*args, **kwargs)
 
 
 class AmbiguousCommitError(Exception):
@@ -51,8 +61,8 @@ class Git(SCM, SVNRepository):
     # 1 or 128, mostly.
     ERROR_FILE_IS_MISSING = 128
 
-    def __init__(self, cwd, executive=None):
-        SCM.__init__(self, cwd, executive)
+    def __init__(self, cwd, **kwargs):
+        SCM.__init__(self, cwd, **kwargs)
         self._check_git_architecture()
 
     def _machine_is_64bit(self):
@@ -83,25 +93,30 @@ class Git(SCM, SVNRepository):
         if self._executable_is_64bit(git_path):
             return
 
-        webkit_dev_thead_url = "https://lists.webkit.org/pipermail/webkit-dev/2010-December/015287.html"
-        log("Warning: This machine is 64-bit, but the git binary (%s) does not support 64-bit.\nInstall a 64-bit git for better performance, see:\n%s\n" % (git_path, webkit_dev_thead_url))
+        webkit_dev_thread_url = "https://lists.webkit.org/pipermail/webkit-dev/2010-December/015287.html"
+        log("Warning: This machine is 64-bit, but the git binary (%s) does not support 64-bit.\nInstall a 64-bit git for better performance, see:\n%s\n" % (git_path, webkit_dev_thread_url))
 
     @classmethod
     def in_working_directory(cls, path):
-        return run_command(['git', 'rev-parse', '--is-inside-work-tree'], cwd=path, error_handler=Executive.ignore_error).rstrip() == "true"
+        try:
+            # FIXME: This should use an Executive.
+            return run_command(['git', 'rev-parse', '--is-inside-work-tree'], cwd=path, error_handler=Executive.ignore_error).rstrip() == "true"
+        except OSError, e:
+            # The Windows bots seem to through a WindowsError when git isn't installed.
+            return False
 
-    @classmethod
-    def find_checkout_root(cls, path):
+    def find_checkout_root(self, path):
         # "git rev-parse --show-cdup" would be another way to get to the root
-        (checkout_root, dot_git) = os.path.split(run_command(['git', 'rev-parse', '--git-dir'], cwd=(path or "./")))
-        # If we were using 2.6 # checkout_root = os.path.relpath(checkout_root, path)
-        if not os.path.isabs(checkout_root):  # Sometimes git returns relative paths
-            checkout_root = os.path.join(path, checkout_root)
+        git_output = self._executive.run_command(['git', 'rev-parse', '--git-dir'], cwd=(path or "./"))
+        (checkout_root, dot_git) = self._filesystem.split(git_output)
+        if not self._filesystem.isabs(checkout_root):  # Sometimes git returns relative paths
+            checkout_root = self._filesystem.join(path, checkout_root)
         return checkout_root
 
-    @classmethod
-    def to_object_name(cls, filepath):
-        root_end_with_slash = os.path.join(cls.find_checkout_root(os.path.dirname(filepath)), '')
+    def to_object_name(self, filepath):
+        # FIXME: This can't be the right way to append a slash.
+        root_end_with_slash = self._filesystem.join(self.find_checkout_root(self._filesystem.dirname(filepath)), '')
+        # FIXME: This seems to want some sort of rel_path instead?
         return filepath.replace(root_end_with_slash, '')
 
     @classmethod
@@ -109,6 +124,7 @@ class Git(SCM, SVNRepository):
         # FIXME: This should probably use cwd=self.checkout_root.
         # Pass --get-all for cases where the config has multiple values
         # Pass the cwd if provided so that we can handle the case of running webkit-patch outside of the working directory.
+        # FIXME: This should use an Executive.
         return run_command(["git", "config", "--get-all", key], error_handler=Executive.ignore_error, cwd=cwd).rstrip('\n')
 
     @staticmethod
@@ -123,10 +139,10 @@ class Git(SCM, SVNRepository):
         return self.run(['git', 'log', '--pretty=oneline', 'HEAD...' + self.remote_branch_ref()], cwd=self.checkout_root).splitlines()
 
     def rebase_in_progress(self):
-        return os.path.exists(os.path.join(self.checkout_root, '.git/rebase-apply'))
+        return self._filesystem.exists(self.absolute_path(self._filesystem.join('.git', 'rebase-apply')))
 
     def working_directory_is_clean(self):
-        return self.run(['git', 'diff', 'HEAD', '--name-only'], cwd=self.checkout_root) == ""
+        return self.run(['git', 'diff', 'HEAD', '--no-renames', '--name-only'], cwd=self.checkout_root) == ""
 
     def clean_working_directory(self):
         # FIXME: These should probably use cwd=self.checkout_root.
@@ -139,7 +155,7 @@ class Git(SCM, SVNRepository):
     def status_command(self):
         # git status returns non-zero when there are changes, so we use git diff name --name-status HEAD instead.
         # No file contents printed, thus utf-8 autodecoding in self.run is fine.
-        return ["git", "diff", "--name-status", "HEAD"]
+        return ["git", "diff", "--name-status", "--no-renames", "HEAD"]
 
     def _status_regexp(self, expected_types):
         return '^(?P<status>[%s])\t(?P<filename>.+)$' % expected_types
@@ -154,11 +170,28 @@ class Git(SCM, SVNRepository):
         return_code = self.run(["git", "show", "HEAD:%s" % path], return_exit_code=True, decode_output=False)
         return return_code != self.ERROR_FILE_IS_MISSING
 
+    def _branch_from_ref(self, ref):
+        return ref.replace('refs/heads/', '')
+
+    def _current_branch(self):
+        return self._branch_from_ref(self.run(['git', 'symbolic-ref', '-q', 'HEAD'], cwd=self.checkout_root).strip())
+
+    def _upstream_branch(self):
+        current_branch = self._current_branch()
+        return self._branch_from_ref(self.read_git_config('branch.%s.merge' % current_branch, cwd=self.checkout_root).strip())
+
     def merge_base(self, git_commit):
         if git_commit:
-            # Special-case HEAD.. to mean working-copy changes only.
-            if git_commit.upper() == 'HEAD..':
-                return 'HEAD'
+            # Rewrite UPSTREAM to the upstream branch
+            if 'UPSTREAM' in git_commit:
+                upstream = self._upstream_branch()
+                if not upstream:
+                    raise ScriptError(message='No upstream/tracking branch set.')
+                git_commit = git_commit.replace('UPSTREAM', upstream)
+
+            # Special-case <refname>.. to include working copy changes, e.g., 'HEAD....' shows only the diffs from HEAD.
+            if git_commit.endswith('....'):
+                return git_commit[:-4]
 
             if '..' not in git_commit:
                 git_commit = git_commit + "^.." + git_commit
@@ -168,7 +201,7 @@ class Git(SCM, SVNRepository):
 
     def changed_files(self, git_commit=None):
         # FIXME: --diff-filter could be used to avoid the "extract_filenames" step.
-        status_command = ['git', 'diff', '-r', '--name-status', '-C', '-M', "--no-ext-diff", "--full-index", self.merge_base(git_commit)]
+        status_command = ['git', 'diff', '-r', '--name-status', "--no-renames", "--no-ext-diff", "--full-index", self.merge_base(git_commit)]
         # FIXME: I'm not sure we're returning the same set of files that SVN.changed_files is.
         # Added (A), Copied (C), Deleted (D), Modified (M), Renamed (R)
         return self.run_status_and_extract_filenames(status_command, self._status_regexp("ADM"))
@@ -184,6 +217,10 @@ class Git(SCM, SVNRepository):
         return self._changes_files_for_commit(commit_id)
 
     def revisions_changing_file(self, path, limit=5):
+        # raise a script error if path does not exists to match the behavior of  the svn implementation.
+        if not self._filesystem.exists(path):
+            raise ScriptError(message="Path %s does not exist." % path)
+
         # git rev-list head --remove-empty --limit=5 -- path would be equivalent.
         commit_ids = self.run(["git", "log", "--remove-empty", "--pretty=format:%H", "-%s" % limit, "--", path]).splitlines()
         return filter(lambda revision: revision, map(self.svn_revision_from_git_commit, commit_ids))
@@ -191,7 +228,7 @@ class Git(SCM, SVNRepository):
     def conflicted_files(self):
         # We do not need to pass decode_output for this diff command
         # as we're passing --name-status which does not output any data.
-        status_command = ['git', 'diff', '--name-status', '-C', '-M', '--diff-filter=U']
+        status_command = ['git', 'diff', '--name-status', '--no-renames', '--diff-filter=U']
         return self.run_status_and_extract_filenames(status_command, self._status_regexp("U"))
 
     def added_files(self):
@@ -207,8 +244,9 @@ class Git(SCM, SVNRepository):
     def display_name(self):
         return "git"
 
-    def head_svn_revision(self):
-        git_log = self.run(['git', 'log', '-25'])
+    def svn_revision(self, path):
+        _log.debug('Running git.head_svn_revision... (Temporary logging message)')
+        git_log = self.run(['git', 'log', '-25', path])
         match = re.search("^\s*git-svn-id:.*@(?P<svn_revision>\d+)\ ", git_log, re.MULTILINE)
         if not match:
             return ""
@@ -225,7 +263,16 @@ class Git(SCM, SVNRepository):
         """Returns a byte array (str()) representing the patch file.
         Patch files are effectively binary since they may contain
         files of multiple different encodings."""
-        command = ['git', 'diff', '--binary', "--no-ext-diff", "--full-index", "-M", self.merge_base(git_commit), "--"]
+
+        # Put code changes at the top of the patch and layout tests
+        # at the bottom, this makes for easier reviewing.
+        config_path = self._filesystem.dirname(self._filesystem.path_to_module('webkitpy.common.config'))
+        order_file = self._filesystem.join(config_path, 'orderfile')
+        order = ""
+        if self._filesystem.exists(order_file):
+            order = "-O%s" % order_file
+
+        command = ['git', 'diff', '--binary', "--no-ext-diff", "--full-index", "--no-renames", order, self.merge_base(git_commit), "--"]
         if changed_files:
             command += changed_files
         return self.prepend_svn_revision(self.run(command, decode_output=False, cwd=self.checkout_root))
@@ -263,7 +310,7 @@ class Git(SCM, SVNRepository):
         return self.create_patch(git_commit)
 
     def diff_for_file(self, path, log=None):
-        return self.run(['git', 'diff', 'HEAD', '--', path], cwd=self.checkout_root)
+        return self.run(['git', 'diff', 'HEAD', '--no-renames', '--', path], cwd=self.checkout_root)
 
     def show_head(self, path):
         return self.run(['git', 'show', 'HEAD:' + self.to_object_name(path)], decode_output=False)
@@ -320,8 +367,7 @@ class Git(SCM, SVNRepository):
         return self.push_local_commits_to_server(username=username, password=password)
 
     def _commit_on_branch(self, message, git_commit, username=None, password=None):
-        branch_ref = self.run(['git', 'symbolic-ref', 'HEAD']).strip()
-        branch_name = branch_ref.replace('refs/heads/', '')
+        branch_name = self._current_branch()
         commit_ids = self.commit_ids_from_commitish_arguments([git_commit])
 
         # We want to squash all this branch's commits into one commit with the proper description.
@@ -332,7 +378,8 @@ class Git(SCM, SVNRepository):
         # We might be in a directory that's present in this branch but not in the
         # trunk.  Move up to the top of the tree so that git commands that expect a
         # valid CWD won't fail after we check out the merge branch.
-        os.chdir(self.checkout_root)
+        # FIXME: We should never be using chdir! We can instead pass cwd= to run_command/self.run!
+        self._filesystem.chdir(self.checkout_root)
 
         # Stuff our change into the merge branch.
         # We wrap in a try...finally block so if anything goes wrong, we clean up the branches.
@@ -368,6 +415,9 @@ class Git(SCM, SVNRepository):
     def last_svn_commit_log(self):
         return self.run(['git', 'svn', 'log', '--limit=1'])
 
+    def svn_blame(self, path):
+        return self.run(['git', 'svn', 'blame', path])
+
     # Git-specific methods:
     def _branch_ref_exists(self, branch_ref):
         return self.run(['git', 'show-ref', '--quiet', '--verify', branch_ref], return_exit_code=True) == 0
@@ -398,16 +448,11 @@ class Git(SCM, SVNRepository):
 
     def push_local_commits_to_server(self, username=None, password=None):
         dcommit_command = ['git', 'svn', 'dcommit']
-        if self.dryrun:
-            dcommit_command.append('--dry-run')
-        if not self.has_authorization_for_realm(SVN.svn_server_realm):
+        if (not username or not password) and not self.has_authorization_for_realm(SVN.svn_server_realm):
             raise AuthenticationError(SVN.svn_server_host, prompt_for_password=True)
         if username:
             dcommit_command.extend(["--username", username])
         output = self.run(dcommit_command, error_handler=commit_error_handler, input=password, cwd=self.checkout_root)
-        # Return a string which looks like a commit so that things which parse this output will succeed.
-        if self.dryrun:
-            output += "\nCommitted r0"
         return output
 
     # This function supports the following argument formats:
@@ -442,4 +487,4 @@ class Git(SCM, SVNRepository):
         return CommitMessage(commit_lines[first_line_after_headers:])
 
     def files_changed_summary_for_commit(self, commit_id):
-        return self.run(['git', 'diff-tree', '--shortstat', '--no-commit-id', commit_id])
+        return self.run(['git', 'diff-tree', '--shortstat', '--no-renames', '--no-commit-id', commit_id])

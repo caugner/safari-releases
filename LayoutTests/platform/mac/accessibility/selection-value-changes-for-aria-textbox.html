@@ -1,10 +1,6 @@
 <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
 <html>
 <head>
-<link rel="stylesheet" href="../../../fast/js/resources/js-test-style.css">
-<script>
-var successfullyParsed = false;
-</script>
 <script src="../../../fast/js/resources/js-test-pre.js"></script>
 </head>
 <body id="body">
@@ -15,6 +11,7 @@ content inside
 
 <p id="description"></p>
 <div id="console"></div>
+<div id="notifications"></div>
 
 <script>
 
@@ -23,12 +20,12 @@ content inside
     var axTextbox = 0;
     function notificationCallback(notification) {
         if (notification == "AXValueChanged") {
-           alert("Successfully received " + notification);
+           document.getElementById("notifications").innerHTML += "Successfully received " + notification + "<br>";
            axTextbox.removeNotificationListener();
            window.layoutTestController.notifyDone();
         }
         else if (notification == "AXSelectedTextChanged") {
-           alert("Successfully received " + notification);
+           document.getElementById("notifications").innerHTML += "Successfully received " + notification + "<br>";
         }
     }
 
@@ -54,7 +51,6 @@ content inside
         shouldBe("addedNotification", "true");
     }
 
-    successfullyParsed = true;
 </script>
 
 <script src="../../../fast/js/resources/js-test-post.js"></script>

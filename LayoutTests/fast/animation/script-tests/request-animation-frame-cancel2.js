@@ -2,16 +2,31 @@ description("Tests one requestAnimationFrame callback cancelling a second");
 
 var e = document.getElementById("e");
 var secondCallbackId;
+var callbackFired = false;
+var cancelFired = false;
 
 window.webkitRequestAnimationFrame(function() {
-    window.webkitCancelRequestAnimationFrame(secondCallbackId);
+    cancelFired = true;
+    window.webkitCancelAnimationFrame(secondCallbackId);
 }, e);
 
 secondCallbackId = window.webkitRequestAnimationFrame(function() {
-    testFailed("callback invoked after cancel");
+    callbackFired = true;
 }, e);
 
 if (window.layoutTestController)
     layoutTestController.display();
 
-var successfullyParsed = true;
+setTimeout(function() {
+    shouldBeFalse("callbackFired");
+    shouldBeTrue("cancelFired");
+}, 100);
+
+if (window.layoutTestController)
+    layoutTestController.waitUntilDone();
+
+setTimeout(function() {
+    isSuccessfullyParsed();
+    if (window.layoutTestController)
+        layoutTestController.notifyDone();
+}, 200);

@@ -1,9 +1,8 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
-  "http://www.w3.org/TR/html4/loose.dtd">
+<!DOCTYPE html>
 <html>
 <head>
+<meta charset="utf-8">
 <title>WebGL GLES2 difference test.</title>
-<link rel="stylesheet" href="../../js/resources/js-test-style.css"/>
 <script src="../../js/resources/js-test-pre.js"></script>
 <script src="resources/webgl-test.js"></script>
 <script src="resources/webgl-test-utils.js"></script>
@@ -74,11 +73,27 @@ shouldBeUndefined(gl.IMPLEMENTATION_COLOR_READ_FORMAT);
 shouldBeUndefined(gl.IMPLEMENTATION_COLOR_READ_TYPE);
 
 debug("");
+debug("Verify that *LENGTH are undefined");
+shouldBeUndefined(gl.INFO_LOG_LENGTH);
+shouldBeUndefined(gl.SHADER_SOURCE_LENGTH);
+shouldBeUndefined(gl.ACTIVE_UNIFORM_MAX_LENGTH);
+shouldBeUndefined(gl.ACTIVE_ATTRIB_MAX_LENGTH);
+
+debug("");
 debug("Verify that UNPACK_COLORSPACE_CONVERSION_WEBGL is supported");
 shouldBe("gl.getParameter(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL)", "gl.BROWSER_DEFAULT_WEBGL");
 gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
 shouldBe("gl.getParameter(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL)", "gl.NONE");
 glErrorShouldBe(gl, gl.NO_ERROR, "set/get UNPACK_COLORSPACE_CONVERSION_WEBGL should generate no error");
+
+debug("");
+debug("Verify that drawingBufferWidth and drawingBufferHeights are implemented");
+shouldBeTrue("gl.drawingBufferWidth >= 0 && gl.drawingBufferHeight >= 0");
+
+debug("");
+debug("Verify that bindAttribLocation rejects names start with webgl_ or _webgl_");
+shouldGenerateGLError(gl, gl.INVALID_OPERATION, "gl.bindAttribLocation(program, 0, 'webgl_a')");
+shouldGenerateGLError(gl, gl.INVALID_OPERATION, "gl.bindAttribLocation(program, 0, '_webgl_a')");
 
 successfullyParsed = true;
 </script>

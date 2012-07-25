@@ -1,6 +1,5 @@
 <html>
 <head>
-<link rel="stylesheet" href="../../js/resources/js-test-style.css">
 <script src="../../js/resources/js-test-pre.js"></script>
 <script type="text/javascript" src="resources/window-properties.js"></script>
 </head>
@@ -18,7 +17,7 @@
 <div id="console"></div>
 
 <script>
-description('Tests lookup precedence for properties on DOMWindow objects in the presence of a child frame, and that IDL properties defined in the prototype (window.location, window.focus, etc) have higher lookup precedence than named document elements (such as input elements).');
+description('Tests lookup precedence for properties on Window objects in the presence of a child frame, and that IDL properties defined in the prototype (window.location, window.focus, etc) have higher lookup precedence than named document elements (such as input elements).');
 
 var win = window.window;
 var myInput = document.getElementById("MYINPUT");
@@ -56,11 +55,15 @@ function check(prop) {
     checkValue(name, original);
 }
 
+var originalWindowOnError = window.onerror;
+window.onerror = null;
+
 for (var i = 0; i < propertyInfo.length; ++i) {
     check(propertyInfo[i]);
 }
 
-var successfullyParsed = true;
+window.onerror = originalWindowOnError ;
+
 </script>
 <script src="../../js/resources/js-test-post.js"></script>
 </body>

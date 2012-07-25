@@ -36,10 +36,10 @@
 #include "DRTDesktopNotificationPresenter.h"
 
 #include <WebCore/COMPtr.h>
+#include <wtf/Assertions.h>
 #include <wtf/PassOwnPtr.h>
 #include <wtf/Platform.h>
 #include <wtf/Vector.h>
-#include <JavaScriptCore/Assertions.h>
 #include <JavaScriptCore/JavaScriptCore.h>
 #include <WebKit/WebKit.h>
 #include <stdio.h>
@@ -465,14 +465,15 @@ HRESULT STDMETHODCALLTYPE UIDelegate::runJavaScriptTextInputPanelWithPrompt(
 
 HRESULT STDMETHODCALLTYPE UIDelegate::runBeforeUnloadConfirmPanelWithMessage( 
     /* [in] */ IWebView* /*sender*/,
-    /* [in] */ BSTR /*message*/,
+    /* [in] */ BSTR message,
     /* [in] */ IWebFrame* /*initiatedByFrame*/,
     /* [retval][out] */ BOOL* result)
 {
     if (!result)
         return E_POINTER;
-    *result = TRUE;
-    return E_NOTIMPL;
+    printf("CONFIRM NAVIGATION: %S\n", message ? message : L"");
+    *result = !gLayoutTestController->shouldStayOnPageAfterHandlingBeforeUnload();
+    return S_OK;
 }
 
 HRESULT STDMETHODCALLTYPE UIDelegate::webViewAddMessageToConsole( 
@@ -490,7 +491,10 @@ HRESULT STDMETHODCALLTYPE UIDelegate::webViewAddMessageToConsole(
             newMessage = newMessage.substr(0, fileProtocol) + lastPathComponent(newMessage.substr(fileProtocol));
     }
 
-    printf("CONSOLE MESSAGE: line %d: %s\n", lineNumber, toUTF8(newMessage).c_str());
+    printf("CONSOLE MESSAGE: ");
+    if (lineNumber)
+        printf("line %d: ", lineNumber);
+    printf("%s\n", toUTF8(newMessage).c_str());
     return S_OK;
 }
 

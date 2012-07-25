@@ -31,10 +31,10 @@
 // This file contains the definition for EventSender.
 //
 // Some notes about drag and drop handling:
-// Windows drag and drop goes through a system call to doDragDrop.  At that
+// Windows drag and drop goes through a system call to doDragDrop. At that
 // point, program control is given to Windows which then periodically makes
-// callbacks into the webview.  This won't work for layout tests, so instead,
-// we queue up all the mouse move and mouse up events.  When the test tries to
+// callbacks into the webview. This won't work for layout tests, so instead,
+// we queue up all the mouse move and mouse up events. When the test tries to
 // start a drag (by calling EvenSendingController::doDragDrop), we take the
 // events in the queue and replay them.
 // The behavior of queuing events and replaying them can be disabled by a
@@ -45,10 +45,10 @@
 
 #include "TestShell.h"
 #include "WebContextMenuData.h"
-#include "WebDragData.h"
+#include "platform/WebDragData.h"
 #include "WebDragOperation.h"
-#include "WebPoint.h"
-#include "WebString.h"
+#include "platform/WebPoint.h"
+#include "platform/WebString.h"
 #include "WebTouchPoint.h"
 #include "WebView.h"
 #include "webkit/support/webkit_support.h"
@@ -84,7 +84,7 @@ struct SavedEvent {
     SavedEvent()
         : type(Unspecified)
         , buttonType(WebMouseEvent::ButtonNone)
-        , milliseconds(0) {}
+        , milliseconds(0) { }
 };
 
 static WebDragData currentDragData;
@@ -115,7 +115,7 @@ inline bool outsideMultiClickRadius(const WebPoint& a, const WebPoint& b)
         multipleClickRadiusPixels * multipleClickRadiusPixels;
 }
 
-// Used to offset the time the event hander things an event happened.  This is
+// Used to offset the time the event hander things an event happened. This is
 // done so tests can run without a delay, but bypass checks that are time
 // dependent (e.g., dragging has a timeout vs selection).
 static uint32 timeOffsetMs = 0;
@@ -131,15 +131,15 @@ static void advanceEventTime(int32_t deltaMs)
 }
 
 static void initMouseEvent(WebInputEvent::Type t, WebMouseEvent::Button b,
-                           const gfx::Point& pos, WebMouseEvent* e)
+                           const WebPoint& pos, WebMouseEvent* e)
 {
     e->type = t;
     e->button = b;
     e->modifiers = 0;
-    e->x = pos.x();
-    e->y = pos.y();
-    e->globalX = pos.x();
-    e->globalY = pos.y();
+    e->x = pos.x;
+    e->y = pos.y;
+    e->globalX = pos.x;
+    e->globalY = pos.y;
     e->timeStampSeconds = getCurrentEventTimeSec();
     e->clickCount = clickCount;
 }
@@ -248,7 +248,7 @@ EventSender::EventSender(TestShell* shell)
     : m_shell(shell)
 {
     // Initialize the map that associates methods of this class with the names
-    // they will use when called by JavaScript.  The actual binding of those
+    // they will use when called by JavaScript. The actual binding of those
     // names to their methods will be done by calling bindToJavaScript() (defined
     // by CppBoundClass, the parent to EventSender).
     bindMethod("addTouchPoint", &EventSender::addTouchPoint);
@@ -259,6 +259,7 @@ EventSender::EventSender(TestShell* shell)
     bindMethod("contextClick", &EventSender::contextClick);
     bindMethod("continuousMouseScrollBy", &EventSender::continuousMouseScrollBy);
     bindMethod("dispatchMessage", &EventSender::dispatchMessage);
+    bindMethod("dumpFilenameBeingDragged", &EventSender::dumpFilenameBeingDragged);
     bindMethod("enableDOMUIEventLogging", &EventSender::enableDOMUIEventLogging);
     bindMethod("fireKeyboardEventsToElement", &EventSender::fireKeyboardEventsToElement);
     bindMethod("keyDown", &EventSender::keyDown);
@@ -269,6 +270,7 @@ EventSender::EventSender(TestShell* shell)
     bindMethod("mouseUp", &EventSender::mouseUp);
     bindMethod("releaseTouchPoint", &EventSender::releaseTouchPoint);
     bindMethod("scheduleAsynchronousClick", &EventSender::scheduleAsynchronousClick);
+    bindMethod("scheduleAsynchronousKeyDown", &EventSender::scheduleAsynchronousKeyDown);
     bindMethod("setTouchModifier", &EventSender::setTouchModifier);
     bindMethod("textZoomIn", &EventSender::textZoomIn);
     bindMethod("textZoomOut", &EventSender::textZoomOut);
@@ -277,8 +279,16 @@ EventSender::EventSender(TestShell* shell)
     bindMethod("touchMove", &EventSender::touchMove);
     bindMethod("touchStart", &EventSender::touchStart);
     bindMethod("updateTouchPoint", &EventSender::updateTouchPoint);
+    bindMethod("gestureFlingCancel", &EventSender::gestureFlingCancel);
+    bindMethod("gestureFlingStart", &EventSender::gestureFlingStart);
+    bindMethod("gestureScrollBegin", &EventSender::gestureScrollBegin);
+    bindMethod("gestureScrollEnd", &EventSender::gestureScrollEnd);
+    bindMethod("gestureScrollFirstPoint", &EventSender::gestureScrollFirstPoint);
+    bindMethod("gestureScrollUpdate", &EventSender::gestureScrollUpdate);
+    bindMethod("gestureTap", &EventSender::gestureTap);
     bindMethod("zoomPageIn", &EventSender::zoomPageIn);
     bindMethod("zoomPageOut", &EventSender::zoomPageOut);
+    bindMethod("scalePageBy", &EventSender::scalePageBy);
 
     // When set to true (the default value), we batch mouse move and mouse up
     // events so we can simulate drag & drop.
@@ -323,6 +333,7 @@ void EventSender::reset()
     touchModifiers = 0;
     touchPoints.clear();
     m_taskList.revokeAll();
+    m_currentGestureLocation = WebPoint(0, 0);
 }
 
 WebView* EventSender::webview()
@@ -342,6 +353,19 @@ void EventSender::doDragDrop(const WebDragData& dragData, WebDragOperationsMask 
 
     // Finish processing events.
     replaySavedEvents();
+}
+
+void EventSender::dumpFilenameBeingDragged(const CppArgumentList&, CppVariant*)
+{
+    WebString filename;
+    WebVector<WebDragData::Item> items = currentDragData.items();
+    for (size_t i = 0; i < items.size(); ++i) {
+        if (items[i].storageType == WebDragData::Item::StorageTypeBinaryData) {
+            filename = items[i].title;
+            break;
+        }
+    }
+    printf("Filename being dragged: %s\n", filename.utf8().data());
 }
 
 WebMouseEvent::Button EventSender::getButtonTypeFromButtonNumber(int buttonCode)
@@ -488,7 +512,8 @@ void EventSender::doMouseMove(const WebMouseEvent& e)
 
 void EventSender::keyDown(const CppArgumentList& arguments, CppVariant* result)
 {
-    result->setNull();
+    if (result)
+        result->setNull();
     if (arguments.size() < 1 || !arguments[0].isString())
         return;
     bool generateChar = false;
@@ -498,7 +523,7 @@ void EventSender::keyDown(const CppArgumentList& arguments, CppVariant* result)
     // FIXME: Should we also generate a KEY_UP?
     string codeStr = arguments[0].toString();
 
-    // Convert \n -> VK_RETURN.  Some layout tests use \n to mean "Enter", when
+    // Convert \n -> VK_RETURN. Some layout tests use \n to mean "Enter", when
     // Windows uses \r for "Enter".
     int code = 0;
     int text = 0;
@@ -564,6 +589,10 @@ void EventSender::keyDown(const CppArgumentList& arguments, CppVariant* result)
     eventDown.type = WebInputEvent::RawKeyDown;
     eventDown.modifiers = 0;
     eventDown.windowsKeyCode = code;
+#if OS(LINUX) && USE(GTK)
+    eventDown.nativeKeyCode = webkit_support::NativeKeyCodeForWindowsKeyCode(code, needsShiftKeyModifier);
+#endif
+
     if (generateChar) {
         eventDown.text[0] = text;
         eventDown.unmodifiedText[0] = text;
@@ -692,6 +721,18 @@ void EventSender::zoomPageOut(const CppArgumentList&, CppVariant* result)
     result->setNull();
 }
 
+void EventSender::scalePageBy(const CppArgumentList& arguments, CppVariant* result)
+{
+    if (arguments.size() < 3 || !arguments[0].isNumber() || !arguments[1].isNumber() || !arguments[2].isNumber())
+        return;
+
+    float scaleFactor = static_cast<float>(arguments[0].toDouble());
+    int x = arguments[1].toInt32();
+    int y = arguments[2].toInt32();
+    webview()->setPageScaleFactor(scaleFactor, WebPoint(x, y));
+    result->setNull();
+}
+
 void EventSender::mouseScrollBy(const CppArgumentList& arguments, CppVariant* result)
 {
     handleMouseWheel(arguments, result, false);
@@ -795,8 +836,9 @@ void EventSender::contextClick(const CppArgumentList& arguments, CppVariant* res
 class MouseDownTask: public MethodTask<EventSender> {
 public:
     MouseDownTask(EventSender* obj, const CppArgumentList& arg)
-        : MethodTask<EventSender>(obj), m_arguments(arg) {}
+        : MethodTask<EventSender>(obj), m_arguments(arg) { }
     virtual void runIfValid() { m_object->mouseDown(m_arguments, 0); }
+
 private:
     CppArgumentList m_arguments;
 };
@@ -804,8 +846,9 @@ private:
 class MouseUpTask: public MethodTask<EventSender> {
 public:
     MouseUpTask(EventSender* obj, const CppArgumentList& arg)
-        : MethodTask<EventSender>(obj), m_arguments(arg) {}
+        : MethodTask<EventSender>(obj), m_arguments(arg) { }
     virtual void runIfValid() { m_object->mouseUp(m_arguments, 0); }
+
 private:
     CppArgumentList m_arguments;
 };
@@ -817,12 +860,35 @@ void EventSender::scheduleAsynchronousClick(const CppArgumentList& arguments, Cp
     postTask(new MouseUpTask(this, arguments));
 }
 
+class KeyDownTask : public MethodTask<EventSender> {
+public:
+    KeyDownTask(EventSender* obj, const CppArgumentList& arg)
+        : MethodTask<EventSender>(obj), m_arguments(arg) { }
+    virtual void runIfValid() { m_object->keyDown(m_arguments, 0); }
+
+private:
+    CppArgumentList m_arguments;
+};
+
+void EventSender::scheduleAsynchronousKeyDown(const CppArgumentList& arguments, CppVariant* result)
+{
+    result->setNull();
+    postTask(new KeyDownTask(this, arguments));
+}
+
 void EventSender::beginDragWithFiles(const CppArgumentList& arguments, CppVariant* result)
 {
     currentDragData.initialize();
     Vector<string> files = arguments[0].toStringVector();
-    for (size_t i = 0; i < files.size(); ++i)
-        currentDragData.appendToFilenames(webkit_support::GetAbsoluteWebStringFromUTF8Path(files[i]));
+    Vector<WebString> absoluteFilenames;
+    for (size_t i = 0; i < files.size(); ++i) {
+        WebDragData::Item item;
+        item.storageType = WebDragData::Item::StorageTypeFilename;
+        item.filenameData = webkit_support::GetAbsoluteWebStringFromUTF8Path(files[i]);
+        currentDragData.addItem(item);
+        absoluteFilenames.append(item.filenameData);
+    }
+    currentDragData.setFilesystemId(webkit_support::RegisterIsolatedFileSystem(absoluteFilenames));
     currentDragEffectsAllowed = WebKit::WebDragOperationCopy;
 
     // Provide a drag source.
@@ -845,7 +911,13 @@ void EventSender::addTouchPoint(const CppArgumentList& arguments, CppVariant* re
     touchPoint.state = WebTouchPoint::StatePressed;
     touchPoint.position = WebPoint(arguments[0].toInt32(), arguments[1].toInt32());
     touchPoint.screenPosition = touchPoint.position;
-    touchPoint.id = touchPoints.size();
+
+    int lowestId = 0;
+    for (size_t i = 0; i < touchPoints.size(); i++) {
+        if (touchPoints[i].id == lowestId)
+            lowestId++;
+    }
+    touchPoint.id = lowestId;
     touchPoints.append(touchPoint);
 }
 
@@ -914,16 +986,16 @@ void EventSender::cancelTouchPoint(const CppArgumentList& arguments, CppVariant*
 
 void EventSender::sendCurrentTouchEvent(const WebInputEvent::Type type)
 {
-    ASSERT(static_cast<unsigned>(WebTouchEvent::touchPointsLengthCap) > touchPoints.size());
+    ASSERT(static_cast<unsigned>(WebTouchEvent::touchesLengthCap) > touchPoints.size());
     webview()->layout();
 
     WebTouchEvent touchEvent;
     touchEvent.type = type;
     touchEvent.modifiers = touchModifiers;
     touchEvent.timeStampSeconds = getCurrentEventTimeSec();
-    touchEvent.touchPointsLength = touchPoints.size();
+    touchEvent.touchesLength = touchPoints.size();
     for (unsigned i = 0; i < touchPoints.size(); ++i)
-        touchEvent.touchPoints[i] = touchPoints[i];
+        touchEvent.touches[i] = touchPoints[i];
     webview()->handleInputEvent(touchEvent);
 
     for (unsigned i = 0; i < touchPoints.size(); ++i) {
@@ -950,6 +1022,10 @@ void EventSender::handleMouseWheel(const CppArgumentList& arguments, CppVariant*
 
     int horizontal = arguments[0].toInt32();
     int vertical = arguments[1].toInt32();
+    int paged = false;
+
+    if (arguments.size() > 2 && arguments[2].isBool())
+        paged = arguments[2].toBoolean();
 
     WebMouseWheelEvent event;
     initMouseEvent(WebInputEvent::MouseWheel, pressedButton, lastMousePos, &event);
@@ -957,6 +1033,7 @@ void EventSender::handleMouseWheel(const CppArgumentList& arguments, CppVariant*
     event.wheelTicksY = static_cast<float>(vertical);
     event.deltaX = event.wheelTicksX;
     event.deltaY = event.wheelTicksY;
+    event.scrollByPage = paged;
     if (continuous) {
         event.wheelTicksX /= scrollbarPixelsPerTick;
         event.wheelTicksY /= scrollbarPixelsPerTick;
@@ -989,6 +1066,125 @@ void EventSender::touchCancel(const CppArgumentList&, CppVariant* result)
 {
     result->setNull();
     sendCurrentTouchEvent(WebInputEvent::TouchCancel);
+}
+
+void EventSender::gestureScrollBegin(const CppArgumentList& arguments, CppVariant* result)
+{
+    result->setNull();
+    gestureEvent(WebInputEvent::GestureScrollBegin, arguments);
+}
+
+void EventSender::gestureScrollEnd(const CppArgumentList& arguments, CppVariant* result)
+{
+    result->setNull();
+    gestureEvent(WebInputEvent::GestureScrollEnd, arguments);
+}
+
+void EventSender::gestureScrollUpdate(const CppArgumentList& arguments, CppVariant* result)
+{
+    result->setNull();
+    gestureEvent(WebInputEvent::GestureScrollUpdate, arguments);
+}
+
+void EventSender::gestureTap(const CppArgumentList& arguments, CppVariant* result)
+{
+    result->setNull();
+    gestureEvent(WebInputEvent::GestureTap, arguments);
+}
+
+void EventSender::gestureScrollFirstPoint(const CppArgumentList& arguments, CppVariant* result)
+{
+    result->setNull();
+    if (arguments.size() < 2 || !arguments[0].isNumber() || !arguments[1].isNumber())
+        return;
+
+    WebPoint point(arguments[0].toInt32(), arguments[1].toInt32());
+    m_currentGestureLocation = point;
+}
+
+void EventSender::gestureEvent(WebInputEvent::Type type, const CppArgumentList& arguments)
+{
+    if (arguments.size() < 2 || !arguments[0].isNumber() || !arguments[1].isNumber())
+        return;
+
+    WebPoint point(arguments[0].toInt32(), arguments[1].toInt32());
+
+    WebGestureEvent event;
+    event.type = type;
+
+    switch (type) {
+    case WebInputEvent::GestureScrollUpdate:
+        event.deltaX = static_cast<float>(arguments[0].toDouble());
+        event.deltaY = static_cast<float>(arguments[1].toDouble());
+        event.x = m_currentGestureLocation.x;
+        event.y = m_currentGestureLocation.y;
+        m_currentGestureLocation.x = m_currentGestureLocation.x + event.deltaX;
+        m_currentGestureLocation.y = m_currentGestureLocation.y + event.deltaY;
+        break;
+
+    case WebInputEvent::GestureScrollBegin:
+        m_currentGestureLocation = WebPoint(point.x, point.y);
+        event.x = m_currentGestureLocation.x;
+        event.y = m_currentGestureLocation.y;
+        break;
+    case WebInputEvent::GestureScrollEnd:
+        event.deltaX = static_cast<float>(arguments[0].toDouble());
+        event.deltaY = static_cast<float>(arguments[1].toDouble());
+        event.x = m_currentGestureLocation.x;
+        event.y = m_currentGestureLocation.y;
+        break;
+    case WebInputEvent::GestureTap:
+        if (arguments.size() >= 4) {
+            event.deltaX = static_cast<float>(arguments[2].toDouble());
+            event.deltaY = static_cast<float>(arguments[3].toDouble());
+        }
+        event.x = point.x;
+        event.y = point.y;
+        break;
+    default:
+        ASSERT_NOT_REACHED();
+    }
+
+    event.globalX = event.x;
+    event.globalY = event.y;
+    event.timeStampSeconds = getCurrentEventTimeSec();
+    webview()->handleInputEvent(event);
+}
+
+void EventSender::gestureFlingCancel(const CppArgumentList& arguments, CppVariant* result)
+{
+    result->setNull();
+    if (!arguments.size())
+        return;
+
+    WebGestureEvent event;
+    event.type = WebInputEvent::GestureFlingCancel;
+    event.timeStampSeconds = getCurrentEventTimeSec();
+    webview()->handleInputEvent(event);
+}
+
+void EventSender::gestureFlingStart(const CppArgumentList& arguments, CppVariant* result)
+{
+    result->setNull();
+    if (arguments.size() < 4)
+        return;
+
+    for (int i = 0; i < 4; i++)
+        if (!arguments[i].isNumber())
+            return;
+
+    WebGestureEvent event;
+    event.type = WebInputEvent::GestureFlingStart;
+
+    event.x = static_cast<float>(arguments[0].toDouble());
+    event.y = static_cast<float>(arguments[1].toDouble());
+    event.globalX = event.x;
+    event.globalY = event.y;
+
+    event.deltaX = static_cast<float>(arguments[2].toDouble());
+    event.deltaY = static_cast<float>(arguments[3].toDouble());
+    event.timeStampSeconds = getCurrentEventTimeSec();
+    webview()->handleInputEvent(event);
 }
 
 //

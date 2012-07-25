@@ -34,20 +34,12 @@ import re
 import sys
 
 from common import TabChecker
-from webkitpy.style_references import port
-from webkitpy.style_references import test_expectations
+from webkitpy.common.host import Host
+from webkitpy.layout_tests.models import test_expectations
+from webkitpy.layout_tests.port.base import DummyOptions
 
-_log = logging.getLogger("webkitpy.style.checkers.test_expectations")
 
-
-class ChromiumOptions(object):
-    """A mock object for creating chromium port object.
-
-    port.get() requires an options object which has 'chromium' attribute to create
-    chromium port object for each platform. This class mocks such object.
-    """
-    def __init__(self):
-        self.chromium = True
+_log = logging.getLogger(__name__)
 
 
 class TestExpectationsChecker(object):
@@ -55,31 +47,30 @@ class TestExpectationsChecker(object):
 
     categories = set(['test/expectations'])
 
-    def __init__(self, file_path, handle_style_error):
+    def _determine_port_from_expectations_path(self, host, expectations_path):
+        # Pass a configuration to avoid calling default_configuration() when initializing the port (takes 0.5 seconds on a Mac Pro!).
+        options = DummyOptions(configuration='Release')
+        for port_name in host.port_factory.all_port_names():
+            port = host.port_factory.get(port_name, options=options)
+            if port.path_to_test_expectations_file().replace(port.path_from_webkit_base() + host.filesystem.sep, '') == expectations_path:
+                return port
+        return None
+
+    def __init__(self, file_path, handle_style_error, host=None):
         self._file_path = file_path
         self._handle_style_error = handle_style_error
         self._handle_style_error.turn_off_line_filtering()
         self._tab_checker = TabChecker(file_path, handle_style_error)
-        self._output_regex = re.compile('Line:(?P<line>\d+)\s*(?P<message>.+)')
-        # Determining the port of this expectations.
-        try:
-            port_name = self._file_path.split(os.sep)[-2]
-            if port_name == "chromium":
-                options = ChromiumOptions()
-                self._port_obj = port.get(port_name=None, options=options)
-            else:
-                self._port_obj = port.get(port_name=port_name)
-        except:
-            # Using 'test' port when we couldn't determine the port for this
-            # expectations.
-            _log.warn("Could not determine the port for %s. "
-                      "Using 'test' port, but platform-specific expectations "
-                      "will fail the check." % self._file_path)
-            self._port_obj = port.get('test')
-        # Suppress error messages of test_expectations module since they will be
-        # reported later.
-        log = logging.getLogger("webkitpy.layout_tests.layout_package."
-                                "test_expectations")
+        self._output_regex = re.compile('.*test_expectations.txt:(?P<line>\d+)\s*(?P<message>.+)')
+
+        # FIXME: host should be a required parameter, not an optional one.
+        host = host or Host()
+        host._initialize_scm()
+
+        self._port_obj = self._determine_port_from_expectations_path(host, file_path)
+
+        # Suppress error messages of test_expectations module since they will be reported later.
+        log = logging.getLogger("webkitpy.layout_tests.layout_package.test_expectations")
         log.setLevel(logging.CRITICAL)
 
     def _handle_error_message(self, lineno, message, confidence):
@@ -97,11 +88,9 @@ class TestExpectationsChecker(object):
             err = error
 
         if err:
-            level = 2
-            if err.fatal:
-                level = 5
-            for error in err.errors:
-                matched = self._output_regex.match(error)
+            level = 5
+            for warning in err.warnings:
+                matched = self._output_regex.match(warning)
                 if matched:
                     lineno, message = matched.group('line', 'message')
                     self._handle_style_error(int(lineno), 'test/expectations', level, message)
@@ -113,8 +102,12 @@ class TestExpectationsChecker(object):
     def check(self, lines):
         overrides = self._port_obj.test_expectations_overrides()
         expectations = '\n'.join(lines)
-        self.check_test_expectations(expectations_str=expectations,
-                                     tests=None,
-                                     overrides=overrides)
+        if self._port_obj:
+            self.check_test_expectations(expectations_str=expectations,
+                                         tests=None,
+                                         overrides=overrides)
+        else:
+            self._handle_style_error(1, 'test/expectations', 5,
+                                     'No port uses path %s for test_expectations' % self._file_path)
         # Warn tabs in lines as well
         self.check_tabs(lines)

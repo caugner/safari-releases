@@ -1,5 +1,8 @@
-CONSOLE MESSAGE: line 18: ReferenceError: Can't find variable: FileReader
-FAIL: Timed out waiting for notifyDone to be called
 
 Test that FileReader.abort works.
+Received loadstart event
+Received error event: 3
+Received abort event
+Received loadend event
+DONE
 

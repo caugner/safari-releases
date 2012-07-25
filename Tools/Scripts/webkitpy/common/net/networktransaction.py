@@ -1,9 +1,9 @@
 # Copyright (C) 2010 Google Inc. All rights reserved.
-# 
+#
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are
 # met:
-# 
+#
 #     * Redistributions of source code must retain the above copyright
 # notice, this list of conditions and the following disclaimer.
 #     * Redistributions in binary form must reproduce the above
@@ -13,7 +13,7 @@
 #     * Neither the name of Google Inc. nor the names of its
 # contributors may be used to endorse or promote products derived from
 # this software without specific prior written permission.
-# 
+#
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 # "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 # LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -28,6 +28,7 @@
 
 import logging
 import time
+import urllib2
 
 from webkitpy.common.system.deprecated_logging import log
 
@@ -36,7 +37,8 @@ _log = logging.getLogger(__name__)
 
 
 class NetworkTimeout(Exception):
-    pass
+    def __str__(self):
+        return 'NetworkTimeout'
 
 
 class NetworkTransaction(object):
@@ -49,12 +51,10 @@ class NetworkTransaction(object):
     def run(self, request):
         self._total_sleep = 0
         self._backoff_seconds = self._initial_backoff_seconds
-        from webkitpy.thirdparty.autoinstalled import mechanize
         while True:
             try:
                 return request()
-            # FIXME: We should catch urllib2.HTTPError here too.
-            except mechanize.HTTPError, e:
+            except urllib2.HTTPError, e:
                 if self._convert_404_to_None and e.code == 404:
                     return None
                 self._check_for_timeout()

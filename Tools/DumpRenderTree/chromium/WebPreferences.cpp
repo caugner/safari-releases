@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Google Inc. All rights reserved.
+ * Copyright (C) 2012 Google Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -67,6 +67,9 @@ void WebPreferences::reset()
     defaultFixedFontSize = 13;
     minimumFontSize = 0;
     minimumLogicalFontSize = 9;
+    // Do not disable acceleration for 2d canvas based on size.
+    // This makes having test expectations consistent.
+    minimumAccelerated2dCanvasSize = 0;
 
     DOMPasteAllowed = true;
     XSSAuditorEnabled = false;
@@ -77,6 +80,7 @@ void WebPreferences::reset()
     defaultTextEncodingName = WebString::fromUTF8("ISO-8859-1");
     developerExtrasEnabled = true;
     experimentalWebGLEnabled = false;
+    experimentalCSSRegionsEnabled = true;
     javaEnabled = false;
     javaScriptCanAccessClipboard = true;
     javaScriptCanOpenWindowsAutomatically = true;
@@ -89,6 +93,7 @@ void WebPreferences::reset()
     textAreasAreResizable = false;
     userStyleSheetLocation = WebURL();
     usesPageCache = false;
+    pageCacheSupportsPlugins = false;
     webSecurityEnabled = true;
     caretBrowsingEnabled = false;
 
@@ -104,28 +109,81 @@ void WebPreferences::reset()
 
     tabsToLinks = false;
     hyperlinkAuditingEnabled = false;
+    acceleratedCompositingForVideoEnabled = false;
     acceleratedCompositingEnabled = false;
-    compositeToTexture = false;
     accelerated2dCanvasEnabled = false;
-    legacyAccelerated2dCanvasEnabled = false;
-    acceleratedDrawingEnabled = false;
+    deferred2dCanvasEnabled = false;
+    acceleratedPaintingEnabled = false;
     forceCompositingMode = false;
+    hixie76WebSocketProtocolEnabled = true;
+    perTilePaintingEnabled = false;
+    mockScrollbarsEnabled = false;
+    cssCustomFilterEnabled = false;
+}
+
+static void setStandardFontFamilyWrapper(WebSettings* settings, const WebKit::WebString& font, UScriptCode script)
+{
+    settings->setStandardFontFamily(font, script);
+}
+
+static void setFixedFontFamilyWrapper(WebSettings* settings, const WebKit::WebString& font, UScriptCode script)
+{
+    settings->setFixedFontFamily(font, script);
+}
+
+static void setSerifFontFamilyWrapper(WebSettings* settings, const WebKit::WebString& font, UScriptCode script)
+{
+    settings->setSerifFontFamily(font, script);
+}
+
+static void setSansSerifFontFamilyWrapper(WebSettings* settings, const WebKit::WebString& font, UScriptCode script)
+{
+    settings->setSansSerifFontFamily(font, script);
+}
+
+static void setCursiveFontFamilyWrapper(WebSettings* settings, const WebKit::WebString& font, UScriptCode script)
+{
+    settings->setCursiveFontFamily(font, script);
+}
+
+static void setFantasyFontFamilyWrapper(WebSettings* settings, const WebKit::WebString& font, UScriptCode script)
+{
+    settings->setFantasyFontFamily(font, script);
+}
+
+typedef void (*SetFontFamilyWrapper)(WebSettings*, const WebString&, UScriptCode);
+
+static void applyFontMap(WebSettings* settings, const WebPreferences::ScriptFontFamilyMap& map, SetFontFamilyWrapper setter)
+{
+    for (WebPreferences::ScriptFontFamilyMap::const_iterator iter = map.begin(); iter != map.end(); ++iter) {
+        const WebString& font = iter->second;
+        if (!font.isNull() && !font.isEmpty())
+            (*setter)(settings, font, static_cast<UScriptCode>(iter->first));
+    }
 }
 
 void WebPreferences::applyTo(WebView* webView)
 {
     WebSettings* settings = webView->settings();
-    settings->setCursiveFontFamily(cursiveFontFamily);
-    settings->setFantasyFontFamily(fantasyFontFamily);
-    settings->setSerifFontFamily(serifFontFamily);
     settings->setStandardFontFamily(standardFontFamily);
     settings->setFixedFontFamily(fixedFontFamily);
+    settings->setSerifFontFamily(serifFontFamily);
     settings->setSansSerifFontFamily(sansSerifFontFamily);
+    settings->setCursiveFontFamily(cursiveFontFamily);
+    settings->setFantasyFontFamily(fantasyFontFamily);
+
+    applyFontMap(settings, standardFontMap, setStandardFontFamilyWrapper);
+    applyFontMap(settings, fixedFontMap, setFixedFontFamilyWrapper);
+    applyFontMap(settings, serifFontMap, setSerifFontFamilyWrapper);
+    applyFontMap(settings, sansSerifFontMap, setSansSerifFontFamilyWrapper);
+    applyFontMap(settings, cursiveFontMap, setCursiveFontFamilyWrapper);
+    applyFontMap(settings, fantasyFontMap, setFantasyFontFamilyWrapper);
 
     settings->setDefaultFontSize(defaultFontSize);
     settings->setDefaultFixedFontSize(defaultFixedFontSize);
     settings->setMinimumFontSize(minimumFontSize);
     settings->setMinimumLogicalFontSize(minimumLogicalFontSize);
+    settings->setMinimumAccelerated2dCanvasSize(minimumAccelerated2dCanvasSize);
 
     settings->setDOMPasteAllowed(DOMPasteAllowed);
     settings->setXSSAuditorEnabled(XSSAuditorEnabled);
@@ -136,6 +194,8 @@ void WebPreferences::applyTo(WebView* webView)
     settings->setDefaultTextEncodingName(defaultTextEncodingName);
     settings->setDeveloperExtrasEnabled(developerExtrasEnabled);
     settings->setExperimentalWebGLEnabled(experimentalWebGLEnabled);
+    settings->setExperimentalCSSRegionsEnabled(experimentalCSSRegionsEnabled);
+    settings->setExperimentalCSSCustomFilterEnabled(cssCustomFilterEnabled);
     settings->setJavaEnabled(javaEnabled);
     settings->setJavaScriptCanAccessClipboard(javaScriptCanAccessClipboard);
     settings->setJavaScriptCanOpenWindowsAutomatically(javaScriptCanOpenWindowsAutomatically);
@@ -148,6 +208,7 @@ void WebPreferences::applyTo(WebView* webView)
     settings->setTextAreasAreResizable(textAreasAreResizable);
     settings->setUserStyleSheetLocation(userStyleSheetLocation);
     settings->setUsesPageCache(usesPageCache);
+    settings->setPageCacheSupportsPlugins(pageCacheSupportsPlugins);
     settings->setWebSecurityEnabled(webSecurityEnabled);
     settings->setAllowUniversalAccessFromFileURLs(allowUniversalAccessFromFileURLs);
     settings->setEditingBehavior(editingBehavior);
@@ -157,19 +218,22 @@ void WebPreferences::applyTo(WebView* webView)
     webView->setTabsToLinks(tabsToLinks);
     settings->setCaretBrowsingEnabled(caretBrowsingEnabled);
     settings->setAcceleratedCompositingEnabled(acceleratedCompositingEnabled);
-    settings->setCompositeToTextureEnabled(compositeToTexture);
+    settings->setAcceleratedCompositingForVideoEnabled(acceleratedCompositingForVideoEnabled);
     settings->setForceCompositingMode(forceCompositingMode);
     settings->setAccelerated2dCanvasEnabled(accelerated2dCanvasEnabled);
-    settings->setLegacyAccelerated2dCanvasEnabled(legacyAccelerated2dCanvasEnabled);
-    settings->setAcceleratedDrawingEnabled(acceleratedDrawingEnabled);
+    settings->setDeferred2dCanvasEnabled(deferred2dCanvasEnabled);
+    settings->setAcceleratedPaintingEnabled(acceleratedPaintingEnabled);
+    settings->setHixie76WebSocketProtocolEnabled(hixie76WebSocketProtocolEnabled);
+    settings->setPerTilePaintingEnabled(perTilePaintingEnabled);
+    settings->setMockScrollbarsEnabled(mockScrollbarsEnabled);
 
     // Fixed values.
-    settings->setShouldPaintCustomScrollbars(true);
     settings->setTextDirectionSubmenuInclusionBehaviorNeverIncluded();
     settings->setDownloadableBinaryFontsEnabled(true);
     settings->setAllowScriptsToCloseWindows(false);
     settings->setNeedsSiteSpecificQuirks(true);
     settings->setEditableLinkBehaviorNeverLive();
+    settings->setEnableScrollAnimator(false);
     settings->setFontRenderingModeNormal();
     settings->setTextDirectionSubmenuInclusionBehaviorNeverIncluded();
     settings->setUsesEncodingDetector(false);
@@ -178,5 +242,6 @@ void WebPreferences::applyTo(WebView* webView)
     // Enable fullscreen so the fullscreen layout tests can run.
     settings->setFullScreenEnabled(true);
     settings->setValidationMessageTimerMagnification(-1);
+    settings->setVisualWordMovementEnabled(false);
+    settings->setPasswordEchoEnabled(false);
 }
-

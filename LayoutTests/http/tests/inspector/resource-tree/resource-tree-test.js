@@ -27,9 +27,10 @@ InspectorTest.dumpResources = function(formatter)
 InspectorTest.dumpResourcesURLMap = function()
 {
     var results = [];
-    for (var url in WebInspector.resourceTreeModel._resourcesByURL) {
-        var resource = WebInspector.resourceTreeModel._resourcesByURL[url];
-        results.push({ url: url, resource: resource });
+    WebInspector.resourceTreeModel.forAllResources(collect);
+    function collect(resource)
+    {
+        results.push({ url: resource.url, resource: WebInspector.resourceTreeModel.resourceForURL(resource.url) });
     }
 
     function comparator(result1, result2)
@@ -51,6 +52,10 @@ InspectorTest.dumpResourcesTree = function()
 {
     function dump(treeItem, prefix)
     {
+        // We don't need to print the bubbles content here.
+        if (typeof(treeItem._resetBubble) === "function")
+            treeItem._resetBubble();
+
         InspectorTest.addResult(prefix + treeItem.listItemElement.textContent);
 
         treeItem.expand();
@@ -59,7 +64,7 @@ InspectorTest.dumpResourcesTree = function()
             dump(children[i], prefix + "    ");
     }
 
-    WebInspector.currentPanel = WebInspector.panels.resources;
+    WebInspector.inspectorView.setCurrentPanel(WebInspector.panels.resources);
     dump(WebInspector.panels.resources.resourcesListTreeElement, "");
 }
 
@@ -67,7 +72,7 @@ InspectorTest.dumpResourceTreeEverything = function()
 {
     function format(resource)
     {
-        return WebInspector.Resource.Type.toString(resource.type) + " " + resource.url;
+        return resource.type.name() + " " + resource.url;
     }
 
     InspectorTest.addResult("Resources:");
@@ -80,34 +85,6 @@ InspectorTest.dumpResourceTreeEverything = function()
     InspectorTest.addResult("");
     InspectorTest.addResult("Resources Tree:");
     InspectorTest.dumpResourcesTree();
-}
-
-InspectorTest.runAfterResourcesAreFinished = function(resourceURLs, callback)
-{
-    InspectorTest._runAfterResourcesAreFinished(resourceURLs.keySet(), callback);
-}
-
-InspectorTest._runAfterResourcesAreFinished = function(resourceURLs, callback)
-{
-    function visit(resource)
-    {
-        if (!resource.finished)
-            return true;
-
-        for (var url in resourceURLs) {
-            if (resource.url.indexOf(url) !== -1)
-                delete resourceURLs[url];
-        }
-
-        if (!Object.keys(resourceURLs).length) {
-            callback();
-            return true;
-        }
-    }
-
-    var succeeded = WebInspector.resourceTreeModel.forAllResources(visit);
-    if (!succeeded)
-        setTimeout(InspectorTest._runAfterResourcesAreFinished.bind(InspectorTest, resourceURLs, callback), 0);
 }
 
 };

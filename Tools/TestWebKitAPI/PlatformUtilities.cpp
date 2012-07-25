@@ -23,6 +23,7 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "config.h"
 #include "PlatformUtilities.h"
 
 #include <wtf/OwnArrayPtr.h>
@@ -30,6 +31,14 @@
 
 namespace TestWebKitAPI {
 namespace Util {
+
+WKContextRef createContextWithInjectedBundle()
+{
+    WKRetainPtr<WKStringRef> injectedBundlePath(AdoptWK, createInjectedBundlePath());
+    WKContextRef context = WKContextCreateWithInjectedBundlePath(injectedBundlePath.get());
+
+    return context;
+}
 
 WKContextRef createContextForInjectedBundleTest(const std::string& testName, WKTypeRef userData)
 {

@@ -7,7 +7,7 @@
 function test()
 {
     WebInspector.showPanel("elements");
-    InspectorTest.selectNodeWithId("inspected", step1);
+    InspectorTest.selectNodeAndWaitForStyles("inspected", step1);
 
     var treeElement;
     var section;
@@ -33,12 +33,13 @@ function test()
 
     function step2()
     {
-        InspectorTest.selectNodeWithId("other", step3);
+        InspectorTest.selectNodeWithId("other");
+        InspectorTest.runAfterPendingDispatches(step3);
     }
 
     function step3()
     {
-        InspectorTest.selectNodeWithId("inspected", step4);
+        InspectorTest.selectNodeAndWaitForStyles("inspected", step4);
     }
 
     function step4()

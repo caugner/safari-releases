@@ -29,6 +29,7 @@
 #include "NPRuntimeUtilities.h"
 #include "Plugin.h"
 #include "ShareableBitmap.h"
+#include "WebCoreArgumentCoders.h"
 #include "WebEvent.h"
 #include "WebPage.h"
 #include "WebPageProxyMessages.h"
@@ -57,7 +58,10 @@
 #include <WebCore/ResourceLoadScheduler.h>
 #include <WebCore/ScriptValue.h>
 #include <WebCore/ScrollView.h>
+#include <WebCore/SecurityOrigin.h>
+#include <WebCore/SecurityPolicy.h>
 #include <WebCore/Settings.h>
+#include <WebCore/UserGestureIndicator.h>
 
 using namespace JSC;
 using namespace WebCore;
@@ -198,7 +202,7 @@ void PluginView::Stream::didReceiveResponse(NetscapePlugInStreamLoader*, const R
     if (expectedContentLength > 0)
         streamLength = expectedContentLength;
 
-    m_pluginView->m_plugin->streamDidReceiveResponse(m_streamID, responseURL, streamLength, response.lastModifiedDate(), mimeType, headers);
+    m_pluginView->m_plugin->streamDidReceiveResponse(m_streamID, responseURL, streamLength, response.lastModifiedDate(), mimeType, headers, response.suggestedFilename());
 }
 
 void PluginView::Stream::didReceiveData(NetscapePlugInStreamLoader*, const char* bytes, int length)
@@ -261,16 +265,13 @@ PluginView::PluginView(PassRefPtr<HTMLPlugInElement> pluginElement, PassRefPtr<P
     , m_npRuntimeObjectMap(this)
     , m_manualStreamState(StreamStateInitial)
 {
-#if PLATFORM(MAC)
     m_webPage->addPluginView(this);
-#endif
 }
 
 PluginView::~PluginView()
 {
-#if PLATFORM(MAC)
-    m_webPage->removePluginView(this);
-#endif
+    if (m_webPage)
+        m_webPage->removePluginView(this);
 
     ASSERT(!m_isBeingDestroyed);
 
@@ -283,8 +284,12 @@ PluginView::~PluginView()
 
     if (m_plugin && m_isInitialized) {
         m_isBeingDestroyed = true;
-        m_plugin->destroy();
+        m_plugin->destroyPlugin();
         m_isBeingDestroyed = false;
+#if PLATFORM(MAC)
+        if (m_webPage)
+            pluginFocusOrWindowFocusChanged(false);
+#endif
     }
 
     // Invalidate the object map.
@@ -326,7 +331,7 @@ void PluginView::manualLoadDidReceiveResponse(const ResourceResponse& response)
     if (expectedContentLength > 0)
         streamLength = expectedContentLength;
 
-    m_plugin->manualStreamDidReceiveResponse(responseURL, streamLength, response.lastModifiedDate(), mimeType, headers);
+    m_plugin->manualStreamDidReceiveResponse(responseURL, streamLength, response.lastModifiedDate(), mimeType, headers, response.suggestedFilename());
 }
 
 void PluginView::manualLoadDidReceiveData(const char* bytes, int length)
@@ -378,6 +383,21 @@ void PluginView::manualLoadDidFail(const ResourceError& error)
     m_plugin->manualStreamDidFail(error.isCancellation());
 }
 
+RenderBoxModelObject* PluginView::renderer() const
+{
+    return toRenderBoxModelObject(m_pluginElement->renderer());
+}
+
+void PluginView::pageScaleFactorDidChange()
+{
+    viewGeometryDidChange();
+}
+
+void PluginView::webPageDestroyed()
+{
+    m_webPage = 0;
+}
+
 #if PLATFORM(MAC)    
 void PluginView::setWindowIsVisible(bool windowIsVisible)
 {
@@ -393,6 +413,14 @@ void PluginView::setWindowIsFocused(bool windowIsFocused)
         return;
 
     m_plugin->windowFocusChanged(windowIsFocused);    
+}
+
+void PluginView::setDeviceScaleFactor(float scaleFactor)
+{
+    if (!m_isInitialized || !m_plugin)
+        return;
+
+    m_plugin->contentsScaleFactorChanged(scaleFactor);
 }
 
 void PluginView::windowAndViewFramesChanged(const IntRect& windowFrameInScreenCoordinates, const IntRect& viewFrameInWindowCoordinates)
@@ -413,6 +441,19 @@ bool PluginView::sendComplexTextInput(uint64_t pluginComplexTextInputIdentifier,
 
     m_plugin->sendComplexTextInput(textInput);
     return true;
+}
+
+void PluginView::setLayerHostingMode(LayerHostingMode layerHostingMode)
+{
+    if (!m_plugin)
+        return;
+
+    if (!m_isInitialized) {
+        m_parameters.layerHostingMode = layerHostingMode;
+        return;
+    }
+
+    m_plugin->setLayerHostingMode(layerHostingMode);
 }
 
 #endif
@@ -452,6 +493,10 @@ void PluginView::initializePlugin()
     
     m_isInitialized = true;
 
+#if PLATFORM(MAC)
+    windowAndViewFramesChanged(m_webPage->windowFrameInScreenCoordinates(), m_webPage->viewFrameInWindowCoordinates());
+#endif
+
     viewGeometryDidChange();
 
     redeliverManualStream();
@@ -464,10 +509,16 @@ void PluginView::initializePlugin()
         }
     }
 
-    windowAndViewFramesChanged(m_webPage->windowFrameInScreenCoordinates(), m_webPage->viewFrameInWindowCoordinates());
     setWindowIsVisible(m_webPage->windowIsVisible());
     setWindowIsFocused(m_webPage->windowIsFocused());
 #endif
+
+    if (wantsWheelEvents()) {
+        if (Frame* frame = m_pluginElement->document()->frame()) {
+            if (FrameView* frameView = frame->view())
+                frameView->setNeedsLayout();
+        }
+    }
 }
 
 #if PLATFORM(MAC)
@@ -506,42 +557,85 @@ void PluginView::privateBrowsingStateChanged(bool privateBrowsingEnabled)
     m_plugin->privateBrowsingStateChanged(privateBrowsingEnabled);
 }
 
+bool PluginView::getFormValue(String& formValue)
+{
+    // The plug-in can be null here if it failed to initialize.
+    if (!m_isInitialized || !m_plugin)
+        return false;
+
+    return m_plugin->getFormValue(formValue);
+}
+
+bool PluginView::scroll(ScrollDirection direction, ScrollGranularity granularity)
+{
+    // The plug-in can be null here if it failed to initialize.
+    if (!m_isInitialized || !m_plugin)
+        return false;
+
+    return m_plugin->handleScroll(direction, granularity);
+}
+
+Scrollbar* PluginView::horizontalScrollbar()
+{
+    // The plug-in can be null here if it failed to initialize.
+    if (!m_isInitialized || !m_plugin)
+        return 0;
+
+    return m_plugin->horizontalScrollbar();
+}
+
+Scrollbar* PluginView::verticalScrollbar()
+{
+    // The plug-in can be null here if it failed to initialize.
+    if (!m_isInitialized || !m_plugin)
+        return 0;
+
+    return m_plugin->verticalScrollbar();
+}
+
+bool PluginView::wantsWheelEvents()
+{
+    // The plug-in can be null here if it failed to initialize.
+    if (!m_isInitialized || !m_plugin)
+        return 0;
+    
+    return m_plugin->wantsWheelEvents();
+}
+
 void PluginView::setFrameRect(const WebCore::IntRect& rect)
 {
     Widget::setFrameRect(rect);
     viewGeometryDidChange();
 }
 
-void PluginView::setBoundsSize(const WebCore::IntSize& size)
-{
-    Widget::setBoundsSize(size);
-    m_boundsSize = size;
-    viewGeometryDidChange();
-}
-
 void PluginView::paint(GraphicsContext* context, const IntRect& dirtyRect)
 {
-    if (context->paintingDisabled() || !m_plugin || !m_isInitialized)
+    if (!m_plugin || !m_isInitialized)
         return;
 
-    IntRect dirtyRectInWindowCoordinates = parent()->contentsToWindow(dirtyRect);
-    IntRect paintRectInWindowCoordinates = intersection(dirtyRectInWindowCoordinates, clipRectInWindowCoordinates());
-    if (paintRectInWindowCoordinates.isEmpty())
+    if (context->paintingDisabled()) {
+        if (context->updatingControlTints())
+            m_plugin->updateControlTints(context);
         return;
-
-    if (m_snapshot)
-        m_snapshot->paint(*context, frameRect().location(), m_snapshot->bounds());
-    else {
-        // The plugin is given a frame rect which is parent()->contentsToWindow(frameRect()),
-        // and un-translates by the its origin when painting. The current CTM reflects
-        // this widget's frame is its parent (the document), so we have to offset the CTM by
-        // the document's window coordinates.
-        IntPoint documentOriginInWindowCoordinates = parent()->contentsToWindow(IntPoint());
-        
-        GraphicsContextStateSaver stateSaver(*context);
-        context->translate(-documentOriginInWindowCoordinates.x(), -documentOriginInWindowCoordinates.y());
-        m_plugin->paint(context, paintRectInWindowCoordinates);
     }
+
+    // FIXME: We should try to intersect the dirty rect with the plug-in's clip rect here.
+    IntRect paintRect = IntRect(IntPoint(), frameRect().size());
+
+    if (paintRect.isEmpty())
+        return;
+
+    if (m_snapshot) {
+        m_snapshot->paint(*context, contentsScaleFactor(), frameRect().location(), m_snapshot->bounds());
+        return;
+    }
+    
+    GraphicsContextStateSaver stateSaver(*context);
+
+    // Translate the coordinate system so that the origin is in the top-left corner of the plug-in.
+    context->translate(frameRect().location().x(), frameRect().location().y());
+
+    m_plugin->paint(context, paintRect);
 }
 
 void PluginView::frameRectsChanged()
@@ -573,14 +667,16 @@ void PluginView::handleEvent(Event* event)
         || (event->type() == eventNames().mousedownEvent && currentEvent->type() == WebEvent::MouseDown)
         || (event->type() == eventNames().mouseupEvent && currentEvent->type() == WebEvent::MouseUp)) {
         // We have a mouse event.
-        if (currentEvent->type() == WebEvent::MouseDown)
+
+        // FIXME: Clicking in a scroll bar should not change focus.
+        if (currentEvent->type() == WebEvent::MouseDown) {
             focusPluginElement();
-        
-        // Adjust mouse coordinates to account for pageScaleFactor
-        float scaleFactor = frame()->pageScaleFactor();
-        WebMouseEvent eventWithScaledCoordinates(*(static_cast<const WebMouseEvent*>(currentEvent)), scaleFactor);
-        didHandleEvent = m_plugin->handleMouseEvent(eventWithScaledCoordinates);
-    } else if (event->type() == eventNames().mousewheelEvent && currentEvent->type() == WebEvent::Wheel) {
+            frame()->eventHandler()->setCapturingMouseEventsNode(m_pluginElement.get());
+        } else if (currentEvent->type() == WebEvent::MouseUp)
+            frame()->eventHandler()->setCapturingMouseEventsNode(0);
+
+        didHandleEvent = m_plugin->handleMouseEvent(static_cast<const WebMouseEvent&>(*currentEvent));
+    } else if (event->type() == eventNames().mousewheelEvent && currentEvent->type() == WebEvent::Wheel && m_plugin->wantsWheelEvents()) {
         // We have a wheel event.
         didHandleEvent = m_plugin->handleWheelEvent(static_cast<const WebWheelEvent&>(*currentEvent));
     } else if (event->type() == eventNames().mouseoverEvent && currentEvent->type() == WebEvent::MouseMove) {
@@ -589,6 +685,9 @@ void PluginView::handleEvent(Event* event)
     } else if (event->type() == eventNames().mouseoutEvent && currentEvent->type() == WebEvent::MouseMove) {
         // We have a mouse leave event.
         didHandleEvent = m_plugin->handleMouseLeaveEvent(static_cast<const WebMouseEvent&>(*currentEvent));
+    } else if (event->type() == eventNames().contextmenuEvent && currentEvent->type() == WebEvent::MouseDown) {
+        // We have a context menu event.
+        didHandleEvent = m_plugin->handleContextMenuEvent(static_cast<const WebMouseEvent&>(*currentEvent));
     } else if ((event->type() == eventNames().keydownEvent && currentEvent->type() == WebEvent::KeyDown)
                || (event->type() == eventNames().keyupEvent && currentEvent->type() == WebEvent::KeyUp)) {
         // We have a keyboard event.
@@ -636,17 +735,30 @@ void PluginView::hide()
     Widget::hide();
 }
 
+bool PluginView::transformsAffectFrameRect()
+{
+    return false;
+}
+
 void PluginView::viewGeometryDidChange()
 {
     if (!m_isInitialized || !m_plugin || !parent())
         return;
 
-    // Get the frame rect in window coordinates.
-    IntRect frameRectInWindowCoordinates = parent()->contentsToWindow(frameRect());
-    
-    // Adjust bounds to account for pageScaleFactor
-    frameRectInWindowCoordinates.scale(1 / frame()->pageScaleFactor());
-    m_plugin->geometryDidChange(frameRectInWindowCoordinates, clipRectInWindowCoordinates());
+    ASSERT(frame());
+    float pageScaleFactor = frame()->page() ? frame()->page()->pageScaleFactor() : 1;
+
+    IntPoint scaledFrameRectLocation(frameRect().location().x() * pageScaleFactor, frameRect().location().y() * pageScaleFactor);
+    IntPoint scaledLocationInRootViewCoordinates(parent()->contentsToRootView(scaledFrameRectLocation));
+
+    // FIXME: We still don't get the right coordinates for transformed plugins.
+    AffineTransform transform;
+    transform.translate(scaledLocationInRootViewCoordinates.x(), scaledLocationInRootViewCoordinates.y());
+    transform.scale(pageScaleFactor);
+
+    // FIXME: The clip rect isn't correct.
+    IntRect clipRect = boundsRect();
+    m_plugin->geometryDidChange(size(), clipRect, transform);
 }
 
 void PluginView::viewVisibilityDidChange()
@@ -671,7 +783,6 @@ IntRect PluginView::clipRectInWindowCoordinates() const
     // Intersect the two rects to get the view clip rect in window coordinates.
     frameRectInWindowCoordinates.intersect(windowClipRect);
 
-    frameRectInWindowCoordinates.scale(1 / frame->pageScaleFactor());
     return frameRectInWindowCoordinates;
 }
 
@@ -680,8 +791,9 @@ void PluginView::focusPluginElement()
     ASSERT(frame());
     
     if (Page* page = frame()->page())
-        page->focusController()->setFocusedFrame(frame());
-    frame()->document()->setFocusedNode(m_pluginElement);
+       page->focusController()->setFocusedNode(m_pluginElement.get(), frame());
+    else
+       frame()->document()->setFocusedNode(m_pluginElement);
 }
 
 void PluginView::pendingURLRequestsTimerFired()
@@ -778,13 +890,7 @@ void PluginView::performJavaScriptURLRequest(URLRequest* request)
     // Evaluate the JavaScript code. Note that running JavaScript here could cause the plug-in to be destroyed, so we
     // grab references to the plug-in here.
     RefPtr<Plugin> plugin = m_plugin;
-
-    bool oldAllowPopups = frame->script()->allowPopupsFromPlugin();
-    frame->script()->setAllowPopupsFromPlugin(request->allowPopups());
-    
-    ScriptValue result = frame->script()->executeScript(jsString);
-
-    frame->script()->setAllowPopupsFromPlugin(oldAllowPopups);
+    ScriptValue result = frame->script()->executeScript(jsString, request->allowPopups());
 
     // Check if evaluating the JavaScript destroyed the plug-in.
     if (!plugin->controller())
@@ -925,6 +1031,10 @@ void PluginView::loadURL(uint64_t requestID, const String& method, const String&
     frameLoadRequest.resourceRequest().setHTTPBody(FormData::create(httpBody.data(), httpBody.size()));
     frameLoadRequest.setFrameName(target);
 
+    String referrer = SecurityPolicy::generateReferrerHeader(frame()->document()->referrerPolicy(), frameLoadRequest.resourceRequest().url(), frame()->loader()->outgoingReferrer());
+    if (!referrer.isEmpty())
+        frameLoadRequest.resourceRequest().setHTTPReferrer(referrer);
+
     m_pendingURLRequests.append(URLRequest::create(requestID, frameLoadRequest, allowPopups));
     m_pendingURLRequestsTimer.startOneShot(0);
 }
@@ -979,28 +1089,16 @@ NPObject* PluginView::pluginElementNPObject()
 
 bool PluginView::evaluate(NPObject* npObject, const String& scriptString, NPVariant* result, bool allowPopups)
 {
-    RefPtr<Frame> frame = m_pluginElement->document()->frame();
-    if (!frame)
+    // FIXME: Is this check necessary?
+    if (!m_pluginElement->document()->frame())
         return false;
-
-    bool oldAllowPopups = frame->script()->allowPopupsFromPlugin();
-    frame->script()->setAllowPopupsFromPlugin(allowPopups);
 
     // Calling evaluate will run JavaScript that can potentially remove the plug-in element, so we need to
     // protect the plug-in view from destruction.
     NPRuntimeObjectMap::PluginProtector pluginProtector(&m_npRuntimeObjectMap);
 
-    bool returnValue = m_npRuntimeObjectMap.evaluate(npObject, scriptString, result);
-
-    frame->script()->setAllowPopupsFromPlugin(oldAllowPopups);
-
-    return returnValue;
-}
-
-bool PluginView::tryToShortCircuitInvoke(NPObject*, NPIdentifier methodName, const NPVariant* arguments, uint32_t argumentCount, bool& returnValue, NPVariant& result)
-{
-    // Never try to short-circuit invoke in the web process.
-    return false;
+    UserGestureIndicator gestureIndicator(allowPopups ? DefinitelyProcessingUserGesture : PossiblyProcessingUserGesture);
+    return m_npRuntimeObjectMap.evaluate(npObject, scriptString, result);
 }
 
 void PluginView::setStatusbarText(const String& statusbarText)
@@ -1037,7 +1135,7 @@ void PluginView::pluginProcessCrashed()
         return;
         
     RenderEmbeddedObject* renderer = toRenderEmbeddedObject(m_pluginElement->renderer());
-    renderer->setShowsCrashedPluginIndicator();
+    renderer->setPluginUnavailabilityReason(RenderEmbeddedObject::PluginCrashed);
     
     Widget::invalidate();
 }
@@ -1063,17 +1161,29 @@ void PluginView::scheduleWindowedPluginGeometryUpdate(const WindowGeometry& geom
 #endif
 
 #if PLATFORM(MAC)
-void PluginView::setComplexTextInputEnabled(bool complexTextInputEnabled)
+void PluginView::pluginFocusOrWindowFocusChanged(bool pluginHasFocusAndWindowHasFocus)
 {
-    m_webPage->send(Messages::WebPageProxy::SetComplexTextInputEnabled(m_plugin->pluginComplexTextInputIdentifier(), complexTextInputEnabled));
+    m_webPage->send(Messages::WebPageProxy::PluginFocusOrWindowFocusChanged(m_plugin->pluginComplexTextInputIdentifier(), pluginHasFocusAndWindowHasFocus));
+}
+
+void PluginView::setComplexTextInputState(PluginComplexTextInputState pluginComplexTextInputState)
+{
+    m_webPage->send(Messages::WebPageProxy::SetPluginComplexTextInputState(m_plugin->pluginComplexTextInputIdentifier(), pluginComplexTextInputState));
 }
 
 mach_port_t PluginView::compositingRenderServerPort()
 {
     return WebProcess::shared().compositingRenderServerPort();
 }
-
 #endif
+
+float PluginView::contentsScaleFactor()
+{
+    if (Page* page = frame() ? frame()->page() : 0)
+        return page->deviceScaleFactor();
+        
+    return 1;
+}
     
 String PluginView::proxiesForURL(const String& urlString)
 {
@@ -1127,6 +1237,11 @@ void PluginView::protectPluginFromDestruction()
         ref();
 }
 
+static void derefPluginView(PluginView* pluginView)
+{
+    pluginView->deref();
+}
+
 void PluginView::unprotectPluginFromDestruction()
 {
     if (m_isBeingDestroyed)
@@ -1138,7 +1253,7 @@ void PluginView::unprotectPluginFromDestruction()
     // the destroyed object higher on the stack. To prevent this, if the plug-in has
     // only one remaining reference, call deref() asynchronously.
     if (hasOneRef())
-        RunLoop::main()->scheduleWork(WorkItem::createDeref(this));
+        RunLoop::main()->dispatch(bind(derefPluginView, this));
     else
         deref();
 }
@@ -1160,5 +1275,19 @@ void PluginView::didFailLoad(WebFrame* webFrame, bool wasCancelled)
     
     m_plugin->frameDidFail(request->requestID(), wasCancelled);
 }
+
+#if PLUGIN_ARCHITECTURE(X11)
+uint64_t PluginView::createPluginContainer()
+{
+    uint64_t windowID = 0;
+    m_webPage->sendSync(Messages::WebPageProxy::CreatePluginContainer(), Messages::WebPageProxy::CreatePluginContainer::Reply(windowID));
+    return windowID;
+}
+
+void PluginView::windowedPluginGeometryDidChange(const WebCore::IntRect& frameRect, const WebCore::IntRect& clipRect, uint64_t windowID)
+{
+    m_webPage->send(Messages::WebPageProxy::WindowedPluginGeometryDidChange(frameRect, clipRect, windowID));
+}
+#endif
 
 } // namespace WebKit

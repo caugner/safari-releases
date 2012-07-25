@@ -32,23 +32,30 @@
 
 import logging
 import os.path
+import re
 import sys
 
 from checkers.common import categories as CommonCategories
 from checkers.common import CarriageReturnChecker
 from checkers.changelog import ChangeLogChecker
 from checkers.cpp import CppChecker
+from checkers.jsonchecker import JSONChecker
+from checkers.png import PNGChecker
 from checkers.python import PythonChecker
 from checkers.test_expectations import TestExpectationsChecker
 from checkers.text import TextChecker
+from checkers.watchlist import WatchListChecker
+from checkers.xcodeproj import XcodeProjectFileChecker
 from checkers.xml import XMLChecker
 from error_handlers import DefaultStyleErrorHandler
 from filter import FilterConfiguration
 from optparser import ArgumentParser
 from optparser import DefaultCommandOptionValues
-from webkitpy.style_references import configure_logging as _configure_logging
+from webkitpy.common.system.logutils import configure_logging as _configure_logging
 
-_log = logging.getLogger("webkitpy.style.checker")
+
+_log = logging.getLogger(__name__)
+
 
 # These are default option values for the command-line option parser.
 _DEFAULT_MIN_CONFIDENCE = 1
@@ -141,6 +148,12 @@ _PATH_RULES_SPECIFIER = [
      ([# Qt's MiniBrowser has no config.h
        "Tools/MiniBrowser/qt"],
       ["-build/include"]),
+
+    ([# The Qt APIs use Qt/QML naming style, which includes
+      # naming parameters in h files.
+      "Source/WebKit2/UIProcess/API/qt"],
+     ["-readability/parameter_name"]),
+
     ([# The GTK+ APIs use GTK+ naming style, which includes
       # lower-cased, underscore-separated values, whitespace before
       # parens for function calls, and always having variable names.
@@ -168,9 +181,17 @@ _PATH_RULES_SPECIFIER = [
     ([# The EFL APIs use EFL naming style, which includes
       # both lower-cased and camel-cased, underscore-sparated
       # values.
-      "Source/WebKit/efl/ewk/"],
+      "Source/WebKit/efl/ewk/",
+      "Source/WebKit2/UIProcess/API/efl/"],
      ["-readability/naming",
       "-readability/parameter_name"]),
+    ([# EWebLauncher and MiniBrowser are EFL simple application.
+      # They need to use efl coding style.
+      "Tools/EWebLauncher/",
+      "Tools/MiniBrowser/efl/"],
+     ["-readability/naming",
+      "-readability/parameter_name",
+      "-whitespace/declaration"]),
 
     # WebKit2 rules:
     # WebKit2 and certain directories have idiosyncracies.
@@ -186,6 +207,13 @@ _PATH_RULES_SPECIFIER = [
      ["-readability/naming",
       "-readability/parameter_name",
       "-whitespace/declaration"]),
+    ([# These files define GObjects, which implies some definitions of
+      # variables and functions containing underscores.
+      "Source/WebCore/platform/graphics/gstreamer/VideoSinkGStreamer1.cpp",
+      "Source/WebCore/platform/graphics/gstreamer/VideoSinkGStreamer.cpp",
+      "Source/WebCore/platform/graphics/gstreamer/WebKitWebSourceGStreamer.cpp",
+      "Source/WebCore/platform/audio/gstreamer/WebKitWebAudioSourceGStreamer.cpp"],
+     ["-readability/naming"]),
 
     # For third-party Python code, keep only the following checks--
     #
@@ -199,13 +227,21 @@ _PATH_RULES_SPECIFIER = [
       "+pep8/W291",  # Trailing white space
       "+whitespace/carriage_return"]),
 
-    ([# Qt Symbian platform plugin has no config.h or header guard.
-      # Qt code uses '_' in some places (such as private slots
-      # and on test xxx_data methos on tests).
-      "Source/WebKit/qt/symbian/platformplugin/"],
-     ["-readability/naming",
+    ([# glu's libtess is third-party code, and doesn't follow WebKit style.
+      "Source/ThirdParty/glu"],
+     ["-readability",
+      "-whitespace",
       "-build/header_guard",
       "-build/include_order"]),
+
+    ([# There is no way to avoid the symbols __jit_debug_register_code
+      # and __jit_debug_descriptor when integrating with gdb.
+      "Source/JavaScriptCore/jit/GDBInterface.cpp"],
+     ["-readability/naming"]),
+
+    ([# On some systems the trailing CR is causing parser failure.
+      "Source/JavaScriptCore/parser/Keywords.table"],
+     ["+whitespace/carriage_return"]),
 ]
 
 
@@ -214,6 +250,8 @@ _CPP_FILE_EXTENSIONS = [
     'cpp',
     'h',
     ]
+
+_JSON_FILE_EXTENSION = 'json'
 
 _PYTHON_FILE_EXTENSION = 'py'
 
@@ -238,16 +276,21 @@ _TEXT_FILE_EXTENSIONS = [
     'pro',
     'rb',
     'sh',
+    'table',
     'txt',
     'wm',
     'xhtml',
     'y',
     ]
 
+_XCODEPROJ_FILE_EXTENSION = 'pbxproj'
+
 _XML_FILE_EXTENSIONS = [
     'vcproj',
     'vsprops',
     ]
+
+_PNG_FILE_EXTENSION = 'png'
 
 # Files to skip that are less obvious.
 #
@@ -255,15 +298,12 @@ _XML_FILE_EXTENSIONS = [
 # WebKit maintains some files in Mozilla style on purpose to ease
 # future merges.
 _SKIPPED_FILES_WITH_WARNING = [
-    "gtk2drawing.c", # WebCore/platform/gtk/gtk2drawing.c
-    "gtkdrawing.h", # WebCore/platform/gtk/gtkdrawing.h
     "Source/WebKit/gtk/tests/",
-    # Soup API that is still being cooked, will be removed from WebKit
-    # in a few months when it is merged into soup proper. The style
-    # follows the libsoup style completely.
-    "Source/WebCore/platform/network/soup/cache/",
-    ]
-
+    # All WebKit*.h files in Source/WebKit2/UIProcess/API/gtk,
+    # except those ending in ...Private.h are GTK+ API headers,
+    # which differ greatly from WebKit coding style.
+    re.compile(r'Source/WebKit2/UIProcess/API/gtk/WebKit(?!.*Private\.h).*\.h$'),
+    'Source/WebKit2/UIProcess/API/gtk/webkit2.h']
 
 # Files to skip that are more common or obvious.
 #
@@ -275,6 +315,7 @@ _SKIPPED_FILES_WITHOUT_WARNING = [
 
 # Extensions of files which are allowed to contain carriage returns.
 _CARRIAGE_RETURN_ALLOWED_FILE_EXTENSIONS = [
+    'png',
     'vcproj',
     'vsprops',
     ]
@@ -290,7 +331,10 @@ def _all_categories():
     """Return the set of all categories used by check-webkit-style."""
     # Take the union across all checkers.
     categories = CommonCategories.union(CppChecker.categories)
+    categories = categories.union(JSONChecker.categories)
     categories = categories.union(TestExpectationsChecker.categories)
+    categories = categories.union(ChangeLogChecker.categories)
+    categories = categories.union(PNGChecker.categories)
 
     # FIXME: Consider adding all of the pep8 categories.  Since they
     #        are not too meaningful for documentation purposes, for
@@ -431,9 +475,13 @@ class FileType:
     # Alphabetize remaining types
     CHANGELOG = 1
     CPP = 2
-    PYTHON = 3
-    TEXT = 4
-    XML = 5
+    JSON = 3
+    PNG = 4
+    PYTHON = 5
+    TEXT = 6
+    WATCHLIST = 7
+    XML = 8
+    XCODEPROJ = 9
 
 
 class CheckerDispatcher(object):
@@ -444,10 +492,21 @@ class CheckerDispatcher(object):
         """Return the file extension without the leading dot."""
         return os.path.splitext(file_path)[1].lstrip(".")
 
+    def _should_skip_file_path(self, file_path, skip_array_entry):
+        match = re.search("\s*png$", file_path)
+        if match:
+            return False
+        if isinstance(skip_array_entry, str):
+            if file_path.find(skip_array_entry) >= 0:
+                return True
+        elif skip_array_entry.match(file_path):
+                return True
+        return False
+
     def should_skip_with_warning(self, file_path):
         """Return whether the given file should be skipped with a warning."""
         for skipped_file in _SKIPPED_FILES_WITH_WARNING:
-            if file_path.find(skipped_file) >= 0:
+            if self._should_skip_file_path(file_path, skipped_file):
                 return True
         return False
 
@@ -469,7 +528,7 @@ class CheckerDispatcher(object):
         elif basename == 'test_expectations.txt' or basename == 'drt_expectations.txt':
             return False
         for skipped_file in _SKIPPED_FILES_WITHOUT_WARNING:
-            if file_path.find(skipped_file) >= 0:
+            if self._should_skip_file_path(file_path, skipped_file):
                 return True
         return False
 
@@ -488,12 +547,20 @@ class CheckerDispatcher(object):
             # reading from stdin, cpp_style tests should not rely on
             # the extension.
             return FileType.CPP
+        elif file_extension == _JSON_FILE_EXTENSION:
+            return FileType.JSON
         elif file_extension == _PYTHON_FILE_EXTENSION:
             return FileType.PYTHON
         elif file_extension in _XML_FILE_EXTENSIONS:
             return FileType.XML
         elif os.path.basename(file_path).startswith('ChangeLog'):
             return FileType.CHANGELOG
+        elif os.path.basename(file_path) == 'watchlist':
+            return FileType.WATCHLIST
+        elif file_extension == _XCODEPROJ_FILE_EXTENSION:
+            return FileType.XCODEPROJ
+        elif file_extension == _PNG_FILE_EXTENSION:
+            return FileType.PNG
         elif ((not file_extension and os.path.join("Tools", "Scripts") in file_path) or
               file_extension in _TEXT_FILE_EXTENSIONS):
             return FileType.TEXT
@@ -514,16 +581,24 @@ class CheckerDispatcher(object):
             file_extension = self._file_extension(file_path)
             checker = CppChecker(file_path, file_extension,
                                  handle_style_error, min_confidence)
+        elif file_type == FileType.JSON:
+            checker = JSONChecker(file_path, handle_style_error)
         elif file_type == FileType.PYTHON:
             checker = PythonChecker(file_path, handle_style_error)
         elif file_type == FileType.XML:
             checker = XMLChecker(file_path, handle_style_error)
+        elif file_type == FileType.XCODEPROJ:
+            checker = XcodeProjectFileChecker(file_path, handle_style_error)
+        elif file_type == FileType.PNG:
+            checker = PNGChecker(file_path, handle_style_error)
         elif file_type == FileType.TEXT:
             basename = os.path.basename(file_path)
             if basename == 'test_expectations.txt' or basename == 'drt_expectations.txt':
                 checker = TestExpectationsChecker(file_path, handle_style_error)
             else:
                 checker = TextChecker(file_path, handle_style_error)
+        elif file_type == FileType.WATCHLIST:
+            checker = WatchListChecker(file_path, handle_style_error)
         else:
             raise ValueError('Invalid file type "%(file_type)s": the only valid file types '
                              "are %(NONE)s, %(CPP)s, and %(TEXT)s."

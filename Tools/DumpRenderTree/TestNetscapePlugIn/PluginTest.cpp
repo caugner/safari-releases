@@ -29,6 +29,10 @@
 #include <assert.h>
 #include <string.h>
 
+#if defined(XP_UNIX) || defined(ANDROID)
+#include <unistd.h>
+#endif
+
 using namespace std;
 extern NPNetscapeFuncs *browser;
 
@@ -92,7 +96,7 @@ NPError PluginTest::NPP_Destroy(NPSavedData**)
     return NPERR_NO_ERROR;
 }
 
-NPError PluginTest::NPP_SetWindow(NPP, NPWindow*)
+NPError PluginTest::NPP_SetWindow(NPWindow*)
 {
     return NPERR_NO_ERROR;
 }
@@ -135,6 +139,11 @@ NPError PluginTest::NPP_GetValue(NPPVariable variable, void *value)
     return NPERR_GENERIC_ERROR;
 }
 
+NPError PluginTest::NPP_SetValue(NPNVariable, void *value)
+{
+    return NPERR_GENERIC_ERROR;
+}
+
 // NPN functions.
 
 NPError PluginTest::NPN_GetURL(const char* url, const char* target)
@@ -169,10 +178,35 @@ NPIdentifier PluginTest::NPN_GetIntIdentifier(int32_t intid)
     return browser->getintidentifier(intid);
 }
 
+bool PluginTest::NPN_IdentifierIsString(NPIdentifier npIdentifier)
+{
+    return browser->identifierisstring(npIdentifier);
+}
+
+NPUTF8* PluginTest::NPN_UTF8FromIdentifier(NPIdentifier npIdentifier)
+{
+    return browser->utf8fromidentifier(npIdentifier);
+}
+
+int32_t PluginTest::NPN_IntFromIdentifier(NPIdentifier npIdentifier)
+{
+    return browser->intfromidentifier(npIdentifier);
+}
+
 NPObject* PluginTest::NPN_CreateObject(NPClass* npClass)
 {
     return browser->createobject(m_npp, npClass);
 }                                 
+
+NPObject* PluginTest::NPN_RetainObject(NPObject* npObject)
+{
+    return browser->retainobject(npObject);
+}
+
+void PluginTest::NPN_ReleaseObject(NPObject* npObject)
+{
+    browser->releaseobject(npObject);
+}
 
 bool PluginTest::NPN_RemoveProperty(NPObject* npObject, NPIdentifier propertyName)
 {
@@ -186,17 +220,22 @@ bool PluginTest::NPN_ConvertPoint(double sourceX, double sourceY, NPCoordinateSp
 }
 #endif
 
-void PluginTest::executeScript(const char* script)
+bool PluginTest::executeScript(const NPString* script, NPVariant* result)
 {
     NPObject* windowScriptObject;
     browser->getvalue(m_npp, NPNVWindowNPObject, &windowScriptObject);
 
+    return browser->evaluate(m_npp, windowScriptObject, const_cast<NPString*>(script), result);
+}
+
+void PluginTest::executeScript(const char* script)
+{
     NPString npScript;
     npScript.UTF8Characters = script;
     npScript.UTF8Length = strlen(script);
 
     NPVariant browserResult;
-    browser->evaluate(m_npp, windowScriptObject, &npScript, &browserResult);
+    executeScript(&npScript, &browserResult);
     browser->releasevariantvalue(&browserResult);
 }
 

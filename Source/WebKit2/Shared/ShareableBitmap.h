@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Apple Inc. All rights reserved.
+ * Copyright (C) 2010, 2011 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -41,7 +41,17 @@
 #include <WebCore/RefPtrCairo.h>
 #endif
 
+#if PLATFORM(QT)
+#include <QImage>
+#ifdef Q_WS_X11
+// Avoid ambiguity caused by the Region typedef from qwindowdefs.h.
+namespace WebCore { class Region; }
+namespace WebKit { using WebCore::Region; }
+#endif
+#endif
+
 namespace WebCore {
+    class Image;
     class GraphicsContext;
 }
 
@@ -98,9 +108,14 @@ public:
     PassOwnPtr<WebCore::GraphicsContext> createGraphicsContext();
 
     // Paint the backing store into the given context.
-    void paint(WebCore::GraphicsContext&, const WebCore::IntPoint& dstPoint, const WebCore::IntRect& srcRect);
+    void paint(WebCore::GraphicsContext&, const WebCore::IntPoint& destination, const WebCore::IntRect& source);
+    void paint(WebCore::GraphicsContext&, float scaleFactor, const WebCore::IntPoint& destination, const WebCore::IntRect& source);
 
     bool isBackedBySharedMemory() const { return m_sharedMemory; }
+
+    // This creates a bitmap image that directly references the shared bitmap data.
+    // This is only safe to use when we know that the contents of the shareable bitmap won't change.
+    PassRefPtr<WebCore::Image> createImage();
 
 #if PLATFORM(WIN)
     HDC windowsContext() const;
@@ -116,6 +131,11 @@ public:
     // This creates a BitmapImage that directly references the shared bitmap data.
     // This is only safe to use when we know that the contents of the shareable bitmap won't change.
     PassRefPtr<cairo_surface_t> createCairoSurface();
+#elif PLATFORM(QT)
+    // This creates a QImage that directly references the shared bitmap data.
+    // This is only safe to use when we know that the contents of the shareable bitmap won't change.
+    QImage createQImage();
+    static void releaseSharedMemoryData(void* typelessBitmap);
 #endif
 
 private:
@@ -145,6 +165,7 @@ private:
 
     // If the shareable bitmap is backed by fastMalloced memory, this points to the data.
     void* m_data;
+
 #if PLATFORM(WIN)
     mutable OwnPtr<HDC> m_windowsContext;
     mutable OwnPtr<HBITMAP> m_windowsBitmap;

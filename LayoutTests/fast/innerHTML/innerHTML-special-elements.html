@@ -1,11 +1,8 @@
 <html>
 <head>
-<link rel="stylesheet" href="../js/resources/js-test-style.css">
 <script src="../js/resources/js-test-pre.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <div id="hidden"  style="visibility: hidden">
 <script id="script">/*&quot;&apos;&amp;&lt;&gt;&nbsp;&#34;&#39;&#38;&#60;&#62;&#160;"'&<> */</script>
 <style id="style">/*&quot;&apos;&amp;&lt;&gt;&nbsp;&#34;&#39;&#38;&#60;&#62;&#160;"'&<> */</style>
@@ -36,8 +33,6 @@ function outerHTML(textnode) {
 for (var i in tests) {
     shouldBe(tests[i][0], tests[i][1]);
 }
-
-successfullyParsed = true;
 
 </script>
 <script src="../js/resources/js-test-post.js"></script>

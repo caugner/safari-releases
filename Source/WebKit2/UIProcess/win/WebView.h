@@ -79,7 +79,7 @@ public:
     void setIsInWindow(bool);
     void setIsVisible(bool);
     void setOverrideCursor(HCURSOR);
-    void setInitialFocus(bool forward);
+    void setInitialFocus(bool forward, bool isKeyboardEventValid, const WebKeyboardEvent&);
     void setScrollOffsetOnNextResize(const WebCore::IntSize&);
     void setFindIndicatorCallback(WKViewFindIndicatorCallback, void*);
     WKViewFindIndicatorCallback getFindIndicatorCallback(void**);
@@ -173,7 +173,6 @@ private:
     virtual void displayView();
     virtual void scrollView(const WebCore::IntRect& scrollRect, const WebCore::IntSize& scrollOffset);
     virtual void flashBackingStoreUpdates(const Vector<WebCore::IntRect>& updateRects);
-    virtual float userSpaceScaleFactor() const { return 1; }
     
     virtual WebCore::IntSize viewSize();
     virtual bool isViewWindowActive();
@@ -185,24 +184,27 @@ private:
     virtual void pageClosed();
     virtual void toolTipChanged(const WTF::String&, const WTF::String&);
     virtual void setCursor(const WebCore::Cursor&);
-    virtual void setViewportArguments(const WebCore::ViewportArguments&);
+    virtual void setCursorHiddenUntilMouseMoves(bool);
+    virtual void didChangeViewportProperties(const WebCore::ViewportAttributes&);
     virtual void registerEditCommand(PassRefPtr<WebEditCommandProxy>, WebPageProxy::UndoOrRedo);
     virtual void clearAllEditCommands();
     virtual bool canUndoRedo(WebPageProxy::UndoOrRedo);
     virtual void executeUndoRedo(WebPageProxy::UndoOrRedo);
     virtual WebCore::FloatRect convertToDeviceSpace(const WebCore::FloatRect&);
     virtual WebCore::FloatRect convertToUserSpace(const WebCore::FloatRect&);
+    virtual WebCore::IntPoint screenToWindow(const WebCore::IntPoint&);
     virtual WebCore::IntRect windowToScreen(const WebCore::IntRect&);
     virtual void doneWithKeyEvent(const NativeWebKeyboardEvent&, bool wasEventHandled);
     virtual void compositionSelectionChanged(bool);
     virtual PassRefPtr<WebPopupMenuProxy> createPopupMenuProxy(WebPageProxy*);
     virtual PassRefPtr<WebContextMenuProxy> createContextMenuProxy(WebPageProxy*);
-    virtual void setFindIndicator(PassRefPtr<FindIndicator>, bool fadeOut);
+    virtual void setFindIndicator(PassRefPtr<FindIndicator>, bool fadeOut, bool animate);
     virtual void didInstallOrUninstallPageOverlay(bool);
 
 #if USE(ACCELERATED_COMPOSITING)
     virtual void enterAcceleratedCompositingMode(const LayerTreeContext&);
     virtual void exitAcceleratedCompositingMode();
+    virtual void updateAcceleratedCompositingMode(const LayerTreeContext&);
 #endif
 
     void didCommitLoadForMainFrame(bool useCustomRepresentation);

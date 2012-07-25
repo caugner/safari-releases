@@ -1,5 +1,6 @@
 if (this.importScripts) {
     importScripts('fs-worker-common.js');
+    importScripts('../../js/resources/js-test-pre.js');
     importScripts('fs-test-util.js');
 }
 
@@ -39,4 +40,3 @@ function fileSystemCallback(fs) {
 
 var jsTestIsAsync = true;
 webkitRequestFileSystem(TEMPORARY, 100, fileSystemCallback, errorCallback);
-var successfullyParsed = true;

@@ -51,25 +51,34 @@ my @testsToSkip = (
     "ecma/Date/15.9.2.2-6.js",
     # ecma_3/Date/15.9.5.7.js fails on Mac (but not Windows) https://bugs.webkit.org/show_bug.cgi?id=25161
     "ecma_3/Date/15.9.5.7.js",
+    # These three fail on Linux in certain time zones, at certain times
+    # of the year (!): https://bugs.webkit.org/show_bug.cgi?id=71371
+    "ecma/Date/15.9.5.14.js",
+    "ecma/Date/15.9.5.31-1.js",
+    "ecma/Date/15.9.5.34-1.js",
 );
 
 my $jsDriverArgs = "-L " . join(" ", @testsToSkip);
-my $root; # intentionally left undefined
-my $skipBuild = 0;
-my $showHelp = 0;
+# These variables are intentionally left undefined.
+my $root;
+my $showHelp;
+
+my $buildJSC = 1;
 
 my $programName = basename($0);
+my $buildJSCDefault = $buildJSC ? "will check" : "will not check";
 my $usage = <<EOF;
 Usage: $programName [options] [options to pass to build system]
   --help                        Show this help message
   --jsDriver-args=              A string of arguments to pass to jsDriver.pl
   --root=                       Path to pre-built root containing jsc
+  --[no-]build                  Check (or don't check) to see if the jsc build is up-to-date (default: $buildJSCDefault)
 EOF
 
 GetOptions(
     'j|jsDriver-args=s' => \$jsDriverArgs,
     'root=s' => \$root,
-    'skip-build' => \$skipBuild,
+    'build!' => \$buildJSC,
     'help' => \$showHelp
 );
 
@@ -86,7 +95,7 @@ if ($showHelp) {
 
 setConfigurationProductDir(Cwd::abs_path($root)) if (defined($root));
 
-if (!defined($root) && !$skipBuild) {
+if (!defined($root) && $buildJSC) {
     chdirWebKit();
 
     push(@buildArgs, argumentsForConfiguration());
@@ -115,7 +124,7 @@ sub testapiPath($)
 #run api tests
 if (isAppleMacWebKit() || isAppleWinWebKit()) {
     chdirWebKit();
-    chdir($productDir) or die;
+    chdir($productDir) or die "Failed to switch directory to '$productDir'\n";
     my $path = testapiPath($productDir);
     # Use an "indirect object" so that system() won't get confused if the path
     # contains spaces (see perldoc -f exec).
@@ -126,14 +135,22 @@ if (isAppleMacWebKit() || isAppleWinWebKit()) {
 # Find JavaScriptCore directory
 chdirWebKit();
 chdir("Source/JavaScriptCore");
-chdir "tests/mozilla" or die;
+chdir "tests/mozilla" or die "Failed to switch directory to 'tests/mozilla'\n";
 printf "Running: jsDriver.pl -e squirrelfish -s %s -f actual.html %s\n", jscPath($productDir), join(" ", @jsArgs);
-my $result = system "perl", "jsDriver.pl", "-e", "squirrelfish", "-s", jscPath($productDir), "-f", "actual.html", @jsArgs;
+my @jsDriverCmd = ("perl", "jsDriver.pl", "-e", "squirrelfish", "-s", jscPath($productDir), "-f", "actual.html", @jsArgs);
+if (isGtk() || isEfl()) {
+    my $jhbuildPrefix = sourceDir() . "/Tools/";
+    $jhbuildPrefix .= isEfl() ? "efl" : "";
+    $jhbuildPrefix .= isGtk() ? "gtk" : "";
+    $jhbuildPrefix .= "/run-with-jhbuild";
+    unshift(@jsDriverCmd, $jhbuildPrefix);
+}
+my $result = system(@jsDriverCmd);
 exit exitStatus($result)  if $result;
 
 my %failures;
 
-open EXPECTED, "expected.html" or die;
+open EXPECTED, "expected.html" or die "Failed to open 'expected.html'\n";
 while (<EXPECTED>) {
     last if /failures reported\.$/;
 }
@@ -145,7 +162,7 @@ close EXPECTED;
 
 my %newFailures;
 
-open ACTUAL, "actual.html" or die;
+open ACTUAL, "actual.html" or die "Failed to open 'actual.html'";
 while (<ACTUAL>) {
     last if /failures reported\.$/;
 }

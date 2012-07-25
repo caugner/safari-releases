@@ -1,5 +1,6 @@
 if (this.importScripts) {
     importScripts('fs-worker-common.js');
+    importScripts('../../js/resources/js-test-pre.js');
     importScripts('file-writer-utils.js');
 }
 
@@ -36,4 +37,3 @@ function runTest(fileEntry, fileWriter) {
 
 var jsTestIsAsync = true;
 setupAndRunTest(1024, 'file-writer-truncate-extend', runTest);
-var successfullyParsed = true;

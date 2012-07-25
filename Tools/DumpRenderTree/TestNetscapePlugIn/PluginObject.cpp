@@ -141,8 +141,6 @@ enum {
     ID_PROPERTY_LOG_DESTROY,
     ID_PROPERTY_RETURN_ERROR_FROM_NEWSTREAM,
     ID_PROPERTY_RETURN_NEGATIVE_ONE_FROM_WRITE,
-    ID_PROPERTY_PRIVATE_BROWSING_ENABLED,
-    ID_PROPERTY_CACHED_PRIVATE_BROWSING_ENABLED,
     ID_PROPERTY_THROW_EXCEPTION_PROPERTY,
     ID_LAST_SET_WINDOW_ARGUMENTS,
     ID_PROPERTY_WINDOWED_PLUGIN,
@@ -159,8 +157,6 @@ static const NPUTF8 *pluginPropertyIdentifierNames[NUM_PROPERTY_IDENTIFIERS] = {
     "logDestroy",
     "returnErrorFromNewStream",
     "returnNegativeOneFromWrite",
-    "privateBrowsingEnabled",
-    "cachedPrivateBrowsingEnabled",
     "testThrowExceptionProperty",
     "lastSetWindowArguments",
     "windowedPlugin",
@@ -205,6 +201,7 @@ enum {
     ID_RESIZE_TO,
     ID_NORMALIZE,
     ID_INVALIDATE_RECT,
+    ID_OBJECTS_ARE_SAME,
     NUM_METHOD_IDENTIFIERS
 };
 
@@ -246,7 +243,8 @@ static const NPUTF8 *pluginMethodIdentifierNames[NUM_METHOD_IDENTIFIERS] = {
     "setStatus",
     "resizeTo",
     "normalize",
-    "invalidateRect"
+    "invalidateRect",
+    "objectsAreSame"
 };
 
 static NPUTF8* createCStringFromNPVariant(const NPVariant* variant)
@@ -314,16 +312,6 @@ static bool pluginGetProperty(NPObject* obj, NPIdentifier name, NPVariant* resul
     }
     if (name == pluginPropertyIdentifiers[ID_PROPERTY_RETURN_NEGATIVE_ONE_FROM_WRITE]) {
         BOOLEAN_TO_NPVARIANT(plugin->returnNegativeOneFromWrite, *result);
-        return true;
-    }
-    if (name == pluginPropertyIdentifiers[ID_PROPERTY_PRIVATE_BROWSING_ENABLED]) {
-        NPBool privateBrowsingEnabled = FALSE;
-        browser->getvalue(plugin->npp, NPNVprivateModeBool, &privateBrowsingEnabled);
-        BOOLEAN_TO_NPVARIANT(privateBrowsingEnabled, *result);
-        return true;
-    }
-    if (name == pluginPropertyIdentifiers[ID_PROPERTY_CACHED_PRIVATE_BROWSING_ENABLED]) {
-        BOOLEAN_TO_NPVARIANT(plugin->cachedPrivateBrowsingMode, *result);
         return true;
     }
     if (name == pluginPropertyIdentifiers[ID_PROPERTY_THROW_EXCEPTION_PROPERTY]) {
@@ -1008,6 +996,15 @@ static bool invalidateRect(PluginObject* obj, const NPVariant* args, uint32_t ar
     return true;
 }
 
+static bool objectsAreSame(PluginObject* obj, const NPVariant* args, uint32_t argCount, NPVariant* result)
+{
+    if (argCount != 2 || !NPVARIANT_IS_OBJECT(args[0]) || !NPVARIANT_IS_OBJECT(args[1]))
+        return false;
+
+    BOOLEAN_TO_NPVARIANT(NPVARIANT_TO_OBJECT(args[0]) == NPVARIANT_TO_OBJECT(args[1]), *result);
+    return true;
+}
+
 static bool pluginInvoke(NPObject* header, NPIdentifier name, const NPVariant* args, uint32_t argCount, NPVariant* result)
 {
     PluginObject* plugin = reinterpret_cast<PluginObject*>(header);
@@ -1124,6 +1121,8 @@ static bool pluginInvoke(NPObject* header, NPIdentifier name, const NPVariant* a
         return normalizeOverride(plugin, args, argCount, result);
     if (name == pluginMethodIdentifiers[ID_INVALIDATE_RECT])
         return invalidateRect(plugin, args, argCount, result);
+    if (name == pluginMethodIdentifiers[ID_OBJECTS_ARE_SAME])
+        return objectsAreSame(plugin, args, argCount, result);
 
     return false;
 }

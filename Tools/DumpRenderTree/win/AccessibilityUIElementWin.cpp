@@ -488,6 +488,11 @@ bool AccessibilityUIElement::attributedStringRangeIsMisspelled(unsigned, unsigne
     return false;
 }
 
+AccessibilityUIElement AccessibilityUIElement::uiElementForSearchPredicate(AccessibilityUIElement* startElement, bool isDirectionNext, JSStringRef searchKey, JSStringRef searchText)
+{
+    return 0;
+}
+
 AccessibilityUIElement AccessibilityUIElement::cellForColumnAndRow(unsigned column, unsigned row)
 {
     return 0;
@@ -506,6 +511,12 @@ JSStringRef AccessibilityUIElement::stringAttributeValue(JSStringRef attribute)
 {
     // FIXME: implement
     return JSStringCreateWithCharacters(0, 0);
+}
+
+double AccessibilityUIElement::numberAttributeValue(JSStringRef attribute)
+{
+    // FIXME: implement
+    return 0;
 }
 
 bool AccessibilityUIElement::boolAttributeValue(JSStringRef attribute)
@@ -563,6 +574,11 @@ AccessibilityUIElement AccessibilityUIElement::selectedRowAtIndex(unsigned index
     return 0;
 }
 
+AccessibilityUIElement AccessibilityUIElement::rowAtIndex(unsigned index)
+{
+    return 0;
+}
+
 AccessibilityUIElement AccessibilityUIElement::disclosedByRow()
 {
     return 0;
@@ -602,7 +618,7 @@ bool AccessibilityUIElement::addNotificationListener(JSObjectRef functionCallbac
     if (!functionCallback)
         return false;
 
-    sharedFrameLoadDelegate->accessibilityController()->addNotificationListener(m_element, functionCallback);
+    sharedFrameLoadDelegate->accessibilityController()->winAddNotificationListener(m_element, functionCallback);
     return true;
 }
 
@@ -628,6 +644,12 @@ bool AccessibilityUIElement::isMultiSelectable() const
     DWORD multiSelectable = STATE_SYSTEM_EXTSELECTABLE | STATE_SYSTEM_MULTISELECTABLE;
     DWORD state = accessibilityState(m_element);
     return (state & multiSelectable) == multiSelectable;
+}
+
+bool AccessibilityUIElement::isSelectedOptionActive() const
+{
+    // FIXME: implement
+    return false;
 }
 
 bool AccessibilityUIElement::isVisible() const
@@ -678,4 +700,19 @@ void AccessibilityUIElement::addSelection()
 void AccessibilityUIElement::removeSelection()
 {
     m_element->accSelect(SELFLAG_REMOVESELECTION, self());
+}
+
+void AccessibilityUIElement::scrollToMakeVisible()
+{
+    // FIXME: implement
+}
+
+void AccessibilityUIElement::scrollToMakeVisibleWithSubFocus(int x, int y, int width, int height)
+{
+    // FIXME: implement
+}
+
+void AccessibilityUIElement::scrollToGlobalPoint(int x, int y)
+{
+    // FIXME: implement
 }

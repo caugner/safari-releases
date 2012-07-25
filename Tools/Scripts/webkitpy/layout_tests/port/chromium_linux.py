@@ -27,56 +27,66 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-"""Chromium Linux implementation of the Port interface."""
-
 import logging
-import os
-import signal
 
-import chromium
+from webkitpy.layout_tests.port import chromium
+from webkitpy.layout_tests.port import config
 
-_log = logging.getLogger("webkitpy.layout_tests.port.chromium_linux")
+
+_log = logging.getLogger(__name__)
 
 
 class ChromiumLinuxPort(chromium.ChromiumPort):
-    """Chromium Linux implementation of the Port class."""
+    port_name = 'chromium-linux'
+
     SUPPORTED_ARCHITECTURES = ('x86', 'x86_64')
 
     FALLBACK_PATHS = {
-        'x86_64': ['chromium-linux', 'chromium-win', 'chromium', 'win', 'mac'],
-        'x86': ['chromium-linux-x86', 'chromium-linux', 'chromium-win', 'chromium', 'win', 'mac'],
+        'x86_64': [
+            'chromium-linux',
+            'chromium-win',
+            'chromium',
+            'mac',
+        ],
+        'x86': [
+            'chromium-linux-x86',
+            'chromium-linux',
+            'chromium-win',
+            'chromium',
+            'mac',
+        ],
     }
 
-    def __init__(self, port_name=None, **kwargs):
-        port_name = port_name or 'chromium-linux'
-        chromium.ChromiumPort.__init__(self, port_name=port_name, **kwargs)
-
-        # We re-set the port name once the base object is fully initialized
-        # in order to be able to find the DRT binary properly.
-        if port_name.endswith('-linux'):
-            self._architecture = self._determine_architecture()
-            # FIXME: this is an ugly hack to avoid renaming the GPU port.
-            if port_name == 'chromium-linux':
-                port_name = port_name + '-' + self._architecture
+    @classmethod
+    def _determine_driver_path_statically(cls, host, options):
+        config_object = config.Config(host.executive, host.filesystem)
+        build_directory = getattr(options, 'build_directory', None)
+        webkit_base = config_object.path_from_webkit_base()
+        chromium_base = cls._chromium_base_dir(host.filesystem)
+        if hasattr(options, 'configuration') and options.configuration:
+            configuration = options.configuration
         else:
-            base, arch = port_name.rsplit('-', 1)
-            assert base in ('chromium-linux', 'chromium-gpu-linux')
-            self._architecture = arch
-        assert self._architecture in self.SUPPORTED_ARCHITECTURES
-        assert port_name in ('chromium-linux', 'chromium-gpu-linux',
-                             'chromium-linux-x86', 'chromium-linux-x86_64',
-                             'chromium-gpu-linux-x86_64')
-        self._name = port_name
-        self._operating_system = 'linux'
-        self._version = 'lucid'  # We only support lucid right now.
+            configuration = config_object.default_configuration()
+        return cls._static_build_path(host.filesystem, build_directory, chromium_base, webkit_base, configuration, 'DumpRenderTree')
 
-    def _determine_architecture(self):
-        driver_path = self._path_to_driver()
+    @staticmethod
+    def _static_build_path(filesystem, build_directory, chromium_base, webkit_base, *comps):
+        if build_directory:
+            return filesystem.join(build_directory, *comps)
+        if filesystem.exists(filesystem.join(chromium_base, 'sconsbuild')):
+            return filesystem.join(chromium_base, 'sconsbuild', *comps)
+        if filesystem.exists(filesystem.join(chromium_base, 'out')):
+            return filesystem.join(chromium_base, 'out', *comps)
+        if filesystem.exists(filesystem.join(webkit_base, 'sconsbuild')):
+            return filesystem.join(webkit_base, 'sconsbuild', *comps)
+        return filesystem.join(webkit_base, 'out', *comps)
+
+    @staticmethod
+    def _determine_architecture(filesystem, executive, driver_path):
         file_output = ''
-        if self._filesystem.exists(driver_path):
+        if filesystem.exists(driver_path):
             # The --dereference flag tells file to follow symlinks
-            file_output = self._executive.run_command(['file', '--dereference', driver_path],
-                                                      return_stderr=True)
+            file_output = executive.run_command(['file', '--dereference', driver_path], return_stderr=True)
 
         if 'ELF 32-bit LSB executable' in file_output:
             return 'x86'
@@ -91,74 +101,67 @@ class ChromiumLinuxPort(chromium.ChromiumPort):
         # if we actually try to use the binary, check_build() should fail.
         return 'x86_64'
 
+    @classmethod
+    def determine_full_port_name(cls, host, options, port_name):
+        if port_name.endswith('-linux'):
+            return port_name + '-' + cls._determine_architecture(host.filesystem, host.executive, cls._determine_driver_path_statically(host, options))
+        return port_name
+
+    def __init__(self, host, port_name, **kwargs):
+        chromium.ChromiumPort.__init__(self, host, port_name, **kwargs)
+        (base, arch) = port_name.rsplit('-', 1)
+        assert base == 'chromium-linux'
+        assert arch in self.SUPPORTED_ARCHITECTURES
+        assert port_name in ('chromium-linux', 'chromium-linux-x86', 'chromium-linux-x86_64')
+        self._version = 'lucid'  # We only support lucid right now.
+        self._architecture = arch
+
     def baseline_search_path(self):
         port_names = self.FALLBACK_PATHS[self._architecture]
         return map(self._webkit_baseline_path, port_names)
 
     def check_build(self, needs_http):
         result = chromium.ChromiumPort.check_build(self, needs_http)
-        if needs_http:
-            if self.get_option('use_apache'):
-                result = self._check_apache_install() and result
-            else:
-                result = self._check_lighttpd_install() and result
         result = self.check_wdiff() and result
 
         if not result:
             _log.error('For complete Linux build requirements, please see:')
             _log.error('')
-            _log.error('    http://code.google.com/p/chromium/wiki/'
-                       'LinuxBuildInstructions')
+            _log.error('    http://code.google.com/p/chromium/wiki/LinuxBuildInstructions')
         return result
+
+    def operating_system(self):
+        return 'linux'
 
     #
     # PROTECTED METHODS
     #
 
     def _build_path(self, *comps):
-        if self.get_option('build_directory'):
-            return self._filesystem.join(self.get_option('build_directory'),
-                                         *comps)
-
-        base = self.path_from_chromium_base()
-        if self._filesystem.exists(self._filesystem.join(base, 'sconsbuild')):
-            return self._filesystem.join(base, 'sconsbuild', *comps)
-        if self._filesystem.exists(self._filesystem.join(base, 'out', *comps)):
-            return self._filesystem.join(base, 'out', *comps)
-        base = self.path_from_webkit_base()
-        if self._filesystem.exists(self._filesystem.join(base, 'sconsbuild')):
-            return self._filesystem.join(base, 'sconsbuild', *comps)
-        return self._filesystem.join(base, 'out', *comps)
+        return self._static_build_path(self._filesystem, self.get_option('build_directory'), self.path_from_chromium_base(), self.path_from_webkit_base(), *comps)
 
     def _check_apache_install(self):
-        result = self._check_file_exists(self._path_to_apache(),
-            "apache2")
-        result = self._check_file_exists(self._path_to_apache_config_file(),
-            "apache2 config file") and result
+        result = self._check_file_exists(self._path_to_apache(), "apache2")
+        result = self._check_file_exists(self._path_to_apache_config_file(), "apache2 config file") and result
         if not result:
-            _log.error('    Please install using: "sudo apt-get install '
-                       'apache2 libapache2-mod-php5"')
+            _log.error('    Please install using: "sudo apt-get install apache2 libapache2-mod-php5"')
             _log.error('')
         return result
 
     def _check_lighttpd_install(self):
         result = self._check_file_exists(
             self._path_to_lighttpd(), "LigHTTPd executable")
-        result = self._check_file_exists(self._path_to_lighttpd_php(),
-            "PHP CGI executable") and result
-        result = self._check_file_exists(self._path_to_lighttpd_modules(),
-            "LigHTTPd modules") and result
+        result = self._check_file_exists(self._path_to_lighttpd_php(), "PHP CGI executable") and result
+        result = self._check_file_exists(self._path_to_lighttpd_modules(), "LigHTTPd modules") and result
         if not result:
-            _log.error('    Please install using: "sudo apt-get install '
-                       'lighttpd php5-cgi"')
+            _log.error('    Please install using: "sudo apt-get install lighttpd php5-cgi"')
             _log.error('')
         return result
 
     def check_wdiff(self, logging=True):
         result = self._check_file_exists(self._path_to_wdiff(), 'wdiff')
         if not result and logging:
-            _log.error('    Please install using: "sudo apt-get install '
-                       'wdiff"')
+            _log.error('    Please install using: "sudo apt-get install wdiff"')
             _log.error('')
         # FIXME: The ChromiumMac port always returns True.
         return result
@@ -175,8 +178,7 @@ class ChromiumLinuxPort(chromium.ChromiumPort):
         else:
             config_name = 'apache2-debian-httpd.conf'
 
-        return self._filesystem.join(self.layout_tests_dir(), 'http', 'conf',
-                            config_name)
+        return self._filesystem.join(self.layout_tests_dir(), 'http', 'conf', config_name)
 
     def _path_to_lighttpd(self):
         return "/usr/sbin/lighttpd"
@@ -204,27 +206,3 @@ class ChromiumLinuxPort(chromium.ChromiumPort):
 
     def _is_redhat_based(self):
         return self._filesystem.exists(self._filesystem.join('/etc', 'redhat-release'))
-
-    def _shut_down_http_server(self, server_pid):
-        """Shut down the lighttpd web server. Blocks until it's fully
-        shut down.
-
-        Args:
-            server_pid: The process ID of the running server.
-        """
-        # server_pid is not set when "http_server.py stop" is run manually.
-        if server_pid is None:
-            # TODO(mmoss) This isn't ideal, since it could conflict with
-            # lighttpd processes not started by http_server.py,
-            # but good enough for now.
-            self._executive.kill_all("lighttpd")
-            self._executive.kill_all("apache2")
-        else:
-            try:
-                os.kill(server_pid, signal.SIGTERM)
-                # TODO(mmoss) Maybe throw in a SIGKILL just to be sure?
-            except OSError:
-                # Sometimes we get a bad PID (e.g. from a stale httpd.pid
-                # file), so if kill fails on the given PID, just try to
-                # 'killall' web servers.
-                self._shut_down_http_server(None)

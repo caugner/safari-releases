@@ -18,12 +18,16 @@ testEditable.setAttribute("contentEditable", "true");
 testRoot.appendChild(testEditable);
 
 var testSourcePlain = document.createElement("div");
-testSourcePlain.innerHTML = "foo bar";
+testSourcePlain.innerHTML = "zz apple";
 testRoot.appendChild(testSourcePlain);
 
 var testSourceDecorated = document.createElement("div");
-testSourceDecorated.innerHTML = "fo<b>o ba</b>r";
+testSourceDecorated.innerHTML = "z<b>z appl</b>e";
 testRoot.appendChild(testSourceDecorated);
+
+var testSourceMulti = document.createElement("div");
+testSourceMulti.innerHTML = "zz zz zz";
+testRoot.appendChild(testSourceMulti);
 
 var sel = window.getSelection();
 
@@ -35,6 +39,8 @@ function done()
     if (next)
         return window.setTimeout(next, 0);
     testRoot.style.display = "none";
+
+    layoutTestController.setAsynchronousSpellCheckingEnabled(false);
     layoutTestController.notifyDone();
 }
 
@@ -45,7 +51,11 @@ function verifyMarker(node, expectedMarked)
     } else {
         sel.selectAllChildren(node);
     }
-    return layoutTestController.hasSpellingMarker(expectedMarked[0], expectedMarked[1]);
+
+    var ok = true;
+    for (var i = 0; ok && i < expectedMarked.length; ++i)
+        ok = internals.hasSpellingMarker(document, expectedMarked[i][0], expectedMarked[i][1]);
+    return ok;
 }
 
 function pasteAndVerify(source, dest, expectedMarked)
@@ -73,7 +83,7 @@ function pasteAndVerify(source, dest, expectedMarked)
 
         nretry--;
         if (0 == nretry) {
-            testFailed(dest.tagName + " should have a marker on for '" + source.innerHTML + "'");
+            testFailed(dest.tagName + " should have a marker on '" + source.innerHTML + "'");
             done();
             return;
         }
@@ -87,12 +97,17 @@ function pasteAndVerify(source, dest, expectedMarked)
 if (window.layoutTestController)
     layoutTestController.setAsynchronousSpellCheckingEnabled(true);
 
-tests.push(function() { pasteAndVerify(testSourcePlain, testInput, [0, 3]); });
-tests.push(function() { pasteAndVerify(testSourceDecorated, testInput, [0, 3]); });
-tests.push(function() { pasteAndVerify(testSourcePlain, testTextArea, [0, 3]); });
-tests.push(function() { pasteAndVerify(testSourceDecorated, testTextArea, [0, 3]); });
-tests.push(function() { pasteAndVerify(testSourcePlain, testEditable, [0, 3]); });
-tests.push(function() { pasteAndVerify(testSourceDecorated, testEditable, [0, 2]); }); // To check "fo" part of foo.
+tests.push(function() { pasteAndVerify(testSourcePlain, testInput, [[0, 2]]); });
+tests.push(function() { pasteAndVerify(testSourceDecorated, testInput, [[0, 2]]); });
+tests.push(function() { pasteAndVerify(testSourceMulti, testInput, [[0, 2], [3, 2]]); });
+
+tests.push(function() { pasteAndVerify(testSourcePlain, testTextArea, [[0, 2]]); });
+tests.push(function() { pasteAndVerify(testSourceDecorated, testTextArea, [[0, 2]]); });
+tests.push(function() { pasteAndVerify(testSourceMulti, testTextArea, [[0, 2], [3, 2]]); });
+
+tests.push(function() { pasteAndVerify(testSourcePlain, testEditable, [[0, 2]]); });
+tests.push(function() { pasteAndVerify(testSourceDecorated, testEditable, [[0, 1]]); }); // To check "fo" part of foo.
+tests.push(function() { pasteAndVerify(testSourceMulti, testEditable, [[0, 2], [3, 2]]); });
 done();
 
 var successfullyParsed = true;

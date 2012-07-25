@@ -26,16 +26,20 @@ trefElement.setAttributeNS(xlinkNS, "xlink:href", "#testFail");
 textElement.appendChild(trefElement);    
 
 shouldBeEqualToString("trefElement.getAttributeNS('" + xlinkNS + "', 'href')", "#testFail");
-shouldBeEqualToString("textElement.textContent", "Test failed");
+if (window.internals) {
+    var shadowRoot = internals.shadowRoot(trefElement);
+    shouldBeEqualToString("shadowRoot.textContent", "Test failed");
+}
 
-function executeTest() {
+function repaintTest() {
     trefElement.setAttributeNS(xlinkNS, "xlink:href", "#testPass");
     shouldBeEqualToString("trefElement.getAttributeNS('" + xlinkNS + "', 'href')", "#testPass");
-    shouldBeEqualToString("textElement.textContent", "Test passed");
+    if (window.internals) {
+        var shadowRoot = internals.shadowRoot(trefElement);
+        shouldBeEqualToString("shadowRoot.textContent", "Test passed");
+    }
 
     completeTest();
 }
-
-startTest(textElement, 10, 10);
 
 var successfullyParsed = true;

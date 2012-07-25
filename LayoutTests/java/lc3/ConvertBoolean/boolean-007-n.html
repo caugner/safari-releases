@@ -2,7 +2,6 @@
 <html>
 <head>
 <meta charset="utf-8">
-<link rel="stylesheet" href="../../../fast/js/resources/js-test-style.css">
 <script src="../../../fast/js/resources/js-test-pre.js"></script>
 <script>
 if (window.layoutTestController) {
@@ -101,8 +100,7 @@ function onload()
 
         var scriptElement = document.createElement("script")
         scriptElement.appendChild(document.createTextNode(
-            req.responseText + "\n" + 
-            "successfullyParsed = true;\n"));
+            req.responseText + "\n"));
         document.body.appendChild(scriptElement);
     } catch (ex) {
         testFailed("Could not run test: " + ex);

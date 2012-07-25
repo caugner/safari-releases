@@ -66,7 +66,10 @@ DumpRenderTreeDraggingInfo *draggingInfo = nil;
     if (range.location != NSNotFound)
         message = [[message substringToIndex:range.location] stringByAppendingString:[[message substringFromIndex:NSMaxRange(range)] lastPathComponent]];
 
-    printf ("CONSOLE MESSAGE: line %d: %s\n", [lineNumber intValue], [message UTF8String]);
+    printf ("CONSOLE MESSAGE: ");
+    if ([lineNumber intValue])
+        printf ("line %d: ", [lineNumber intValue]);
+    printf ("%s\n", [message UTF8String]);
 }
 
 - (void)modalWindowWillClose:(NSNotification *)notification
@@ -107,7 +110,8 @@ DumpRenderTreeDraggingInfo *draggingInfo = nil;
 {
     if (!done)
         printf("CONFIRM NAVIGATION: %s\n", [message UTF8String]);
-    return YES;
+    
+    return !gLayoutTestController->shouldStayOnPageAfterHandlingBeforeUnload();
 }
 
 
@@ -166,12 +170,20 @@ DumpRenderTreeDraggingInfo *draggingInfo = nil;
     [[origin databaseQuotaManager] setQuota:defaultQuota];
 }
 
-- (void)webView:(WebView *)sender exceededApplicationCacheOriginQuotaForSecurityOrigin:(WebSecurityOrigin *)origin
+- (void)webView:(WebView *)sender exceededApplicationCacheOriginQuotaForSecurityOrigin:(WebSecurityOrigin *)origin totalSpaceNeeded:(NSUInteger)totalSpaceNeeded
 {
     if (!done && gLayoutTestController->dumpApplicationCacheDelegateCallbacks()) {
-        printf("UI DELEGATE APPLICATION CACHE CALLBACK: exceededApplicationCacheOriginQuotaForSecurityOrigin:{%s, %s, %i}\n",
-            [[origin protocol] UTF8String], [[origin host] UTF8String], [origin port]);
+        // For example, numbers from 30000 - 39999 will output as 30000.
+        // Rounding up or down not really matter for these tests. It's
+        // sufficient to just get a range of 10000 to determine if we were
+        // above or below a threshold.
+        unsigned long truncatedSpaceNeeded = static_cast<unsigned long>((totalSpaceNeeded / 10000) * 10000);
+        printf("UI DELEGATE APPLICATION CACHE CALLBACK: exceededApplicationCacheOriginQuotaForSecurityOrigin:{%s, %s, %i} totalSpaceNeeded:~%lu\n",
+            [[origin protocol] UTF8String], [[origin host] UTF8String], [origin port], truncatedSpaceNeeded);
     }
+
+    if (gLayoutTestController->disallowIncreaseForApplicationCacheQuota())
+        return;
 
     static const unsigned long long defaultOriginQuota = [WebApplicationCache defaultOriginQuota];
     [[origin applicationCacheQuotaManager] setQuota:defaultOriginQuota];
@@ -183,7 +195,7 @@ DumpRenderTreeDraggingInfo *draggingInfo = nil;
         printf("UI DELEGATE STATUS CALLBACK: setStatusText:%s\n", [text UTF8String]);
 }
 
-- (void)webView:(WebView *)webView decidePolicyForGeolocationRequestFromOrigin:(WebSecurityOrigin *)origin frame:(WebFrame *)frame listener:(id<WebGeolocationPolicyListener>)listener
+- (void)webView:(WebView *)webView decidePolicyForGeolocationRequestFromOrigin:(WebSecurityOrigin *)origin frame:(WebFrame *)frame listener:(id<WebAllowDenyPolicyListener>)listener
 {
     if (!gLayoutTestController->isGeolocationPermissionSet()) {
         if (!m_pendingGeolocationPermissionListeners)
@@ -218,7 +230,7 @@ DumpRenderTreeDraggingInfo *draggingInfo = nil;
     ASSERT(gLayoutTestController->isGeolocationPermissionSet());
     m_timer = 0;
     NSEnumerator* enumerator = [m_pendingGeolocationPermissionListeners objectEnumerator];
-    id<WebGeolocationPolicyListener> listener;
+    id<WebAllowDenyPolicyListener> listener;
     while ((listener = [enumerator nextObject])) {
         if (gLayoutTestController->geolocationPermission())
             [listener allow];
@@ -240,13 +252,31 @@ DumpRenderTreeDraggingInfo *draggingInfo = nil;
     return YES;
 }
 
-- (void)webView:(WebView *)webView enterFullScreenForElement:(DOMElement*)element listener:(NSObject<WebKitFullScreenListener>*)listener
+- (void)enterFullScreenWithListener:(NSObject<WebKitFullScreenListener>*)listener
 {
     [listener webkitWillEnterFullScreen];
     [listener webkitDidEnterFullScreen];
 }
 
+- (void)webView:(WebView *)webView enterFullScreenForElement:(DOMElement*)element listener:(NSObject<WebKitFullScreenListener>*)listener
+{
+    if (!gLayoutTestController->hasCustomFullScreenBehavior())
+        [self performSelector:@selector(enterFullScreenWithListener:) withObject:listener afterDelay:0];
+}
+
+- (void)exitFullScreenWithListener:(NSObject<WebKitFullScreenListener>*)listener
+{
+    [listener webkitWillExitFullScreen];
+    [listener webkitDidExitFullScreen];
+}
+
 - (void)webView:(WebView *)webView exitFullScreenForElement:(DOMElement*)element listener:(NSObject<WebKitFullScreenListener>*)listener
+{
+    if (!gLayoutTestController->hasCustomFullScreenBehavior())
+        [self performSelector:@selector(exitFullScreenWithListener:) withObject:listener afterDelay:0];
+}
+
+- (void)webView:(WebView *)sender closeFullScreenWithListener:(NSObject<WebKitFullScreenListener>*)listener
 {
     [listener webkitWillExitFullScreen];
     [listener webkitDidExitFullScreen];

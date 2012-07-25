@@ -47,10 +47,23 @@ Verify that IMPLEMENTATION_COLOR_READ_FORMAT and IMPLEMENTATION_COLOR_READ_TYPE 
 PASS undefined is undefined.
 PASS undefined is undefined.
 
+Verify that *LENGTH are undefined
+PASS undefined is undefined.
+PASS undefined is undefined.
+PASS undefined is undefined.
+PASS undefined is undefined.
+
 Verify that UNPACK_COLORSPACE_CONVERSION_WEBGL is supported
 PASS gl.getParameter(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL) is gl.BROWSER_DEFAULT_WEBGL
 PASS gl.getParameter(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL) is gl.NONE
 PASS getError was expected value: NO_ERROR : set/get UNPACK_COLORSPACE_CONVERSION_WEBGL should generate no error
+
+Verify that drawingBufferWidth and drawingBufferHeights are implemented
+PASS gl.drawingBufferWidth >= 0 && gl.drawingBufferHeight >= 0 is true
+
+Verify that bindAttribLocation rejects names start with webgl_ or _webgl_
+PASS gl.bindAttribLocation(program, 0, 'webgl_a') generated expected GL error: INVALID_OPERATION.
+PASS gl.bindAttribLocation(program, 0, '_webgl_a') generated expected GL error: INVALID_OPERATION.
 PASS successfullyParsed is true
 
 TEST COMPLETE

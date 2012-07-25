@@ -35,6 +35,14 @@
 #include "locationedit.h"
 #include "utils.h"
 
+#include <QAction>
+#ifndef QT_NO_INPUTDIALOG
+#include <QCompleter>
+#endif
+#ifndef QT_NO_FILEDIALOG
+#include <QFileDialog>
+#endif
+
 MainWindow::MainWindow()
     : m_page(new WebPage(this))
     , m_toolBar(0)
@@ -49,15 +57,9 @@ MainWindow::MainWindow()
 
 void MainWindow::buildUI()
 {
-#if defined(Q_OS_SYMBIAN)
-    delete urlEdit;
-#endif
     delete m_toolBar;
 
     m_toolBar = addToolBar("Navigation");
-#if defined(Q_OS_SYMBIAN)
-    m_toolBar->setIconSize(QSize(16, 16));
-#endif
     QAction* reloadAction = page()->action(QWebPage::Reload);
     connect(reloadAction, SIGNAL(triggered()), this, SLOT(changeLocation()));
 
@@ -73,12 +75,7 @@ void MainWindow::buildUI()
     QCompleter* completer = new QCompleter(m_toolBar);
     urlEdit->setCompleter(completer);
     completer->setModel(&urlModel);
-#if defined(Q_OS_SYMBIAN)
-    addToolBarBreak();
-    addToolBar("Location")->addWidget(urlEdit);
-#else
     m_toolBar->addWidget(urlEdit);
-#endif
 
     connect(page()->mainFrame(), SIGNAL(urlChanged(QUrl)), this, SLOT(setAddressUrl(QUrl)));
     connect(page(), SIGNAL(loadProgress(int)), urlEdit, SLOT(setProgress(int)));

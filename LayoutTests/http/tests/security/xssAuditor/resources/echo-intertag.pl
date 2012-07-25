@@ -16,7 +16,10 @@ if ($cgi->param('crazy-header')) {
 if ($cgi->param('custom-header')) {
     print $cgi->param('custom-header') . "\n";
 }
-print "Content-Type: text/html; charset=UTF-8\n\n";
+
+print "Content-Type: text/html; charset=";
+print $cgi->param('charset') ? $cgi->param('charset') : "UTF-8";
+print "\n\n";
 
 print "<!DOCTYPE html>\n";
 print "<html>\n";
@@ -29,6 +32,12 @@ if ($cgi->param('relay-target-ids-for-event')) {
 }
 print "<body>\n";
 print $cgi->param('q');
+if ($cgi->param('clutter')) {
+    print $cgi->param('clutter');
+}
+if ($cgi->param('q2')) {
+    print $cgi->param('q2');
+}
 if ($cgi->param('notifyDone')) {
     print "<script>\n";
     print "if (window.layoutTestController)\n";
@@ -39,7 +48,7 @@ if ($cgi->param('enable-full-block')) {
     print "<p>If you see this message then the test FAILED.</p>\n";
 }
 if ($cgi->param('alert-cookie')) {
-    print "<script>alert('cookie: ' + document.cookie); document.cookie = 'testcookie=remove; max-age=-1';</script>\n";
+    print "<script>if (/xssAuditorTestCookie/.test(document.cookie)) { alert('FAIL: ' + document.cookie); document.cookie = 'xssAuditorTestCookie=remove; max-age=-1'; } else alert('PASS');</script>\n";
 }
 print "</body>\n";
 print "</html>\n";

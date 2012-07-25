@@ -14,19 +14,27 @@ console.info = consoleOutputHook.bind(InspectorTest, "info");
 
 InspectorTest.completeTest = function()
 {
-    RuntimeAgent.evaluate("didEvaluateForTestInFrontend(" + InspectorTest.completeTestCallId + ", \"\")", "test");
+    function testDispatchQueueIsEmpty() {
+        if (!WebInspector.dispatchQueueIsEmpty()) {
+            // Wait for unprocessed messages.
+            setTimeout(testDispatchQueueIsEmpty, 10);
+            return;
+        }
+        RuntimeAgent.evaluate("didEvaluateForTestInFrontend(" + InspectorTest.completeTestCallId + ", \"\")", "test");
+    }
+    testDispatchQueueIsEmpty();
 }
 
 InspectorTest.evaluateInConsole = function(code, callback)
 {
     callback = InspectorTest.safeWrap(callback);
 
-    WebInspector.console.visible = true;
-    WebInspector.console.prompt.text = code;
+    WebInspector.consoleView.visible = true;
+    WebInspector.consoleView.prompt.text = code;
     var event = document.createEvent("KeyboardEvent");
     event.initKeyboardEvent("keydown", true, true, null, "Enter", "");
-    WebInspector.console.promptElement.dispatchEvent(event);
-    InspectorTest.addSniffer(WebInspector.ConsoleView.prototype, "addMessage",
+    WebInspector.consoleView.prompt.proxyElement.dispatchEvent(event);
+    InspectorTest.addConsoleSniffer(
         function(commandResult) {
             callback(commandResult.toMessageElement().textContent);
         });
@@ -101,7 +109,22 @@ function onError(event)
 
 window.addEventListener("error", onError);
 
-InspectorTest.addObject = function(object, nondeterministicProps, prefix, firstLinePrefix)
+InspectorTest.formatters = {};
+
+InspectorTest.formatters.formatAsTypeName = function(value)
+{
+    return "<" + typeof value + ">";
+}
+
+InspectorTest.formatters.formatAsRecentTime = function(value)
+{
+    if (typeof value !== "object" || !(value instanceof Date))
+        return InspectorTest.formatAsTypeName(value);
+    var delta = Date.now() - value;
+    return 0 <= delta && delta < 30 * 60 * 1000 ? "<plausible>" : value;
+}
+
+InspectorTest.addObject = function(object, customFormatters, prefix, firstLinePrefix)
 {
     prefix = prefix || "";
     firstLinePrefix = firstLinePrefix || prefix;
@@ -111,43 +134,49 @@ InspectorTest.addObject = function(object, nondeterministicProps, prefix, firstL
             continue;
         var prefixWithName = "    " + prefix + prop + " : ";
         var propValue = object[prop];
-        if (nondeterministicProps && prop in nondeterministicProps)
-            InspectorTest.addResult(prefixWithName + "<" + typeof propValue + ">");
-        else
-            InspectorTest.dump(propValue, nondeterministicProps, "    " + prefix, prefixWithName);
+        if (customFormatters && customFormatters[prop]) {
+            var formatterName = customFormatters[prop];
+            var formatter = InspectorTest.formatters[formatterName];
+            InspectorTest.addResult(prefixWithName + formatter(propValue));
+        } else
+            InspectorTest.dump(propValue, customFormatters, "    " + prefix, prefixWithName);
     }
     InspectorTest.addResult(prefix + "}");
 }
 
-InspectorTest.addArray = function(array, nondeterministicProps, prefix, firstLinePrefix)
+InspectorTest.addArray = function(array, customFormatters, prefix, firstLinePrefix)
 {
     prefix = prefix || "";
     firstLinePrefix = firstLinePrefix || prefix;
     InspectorTest.addResult(firstLinePrefix + "[");
     for (var i = 0; i < array.length; ++i)
-        InspectorTest.dump(array[i], nondeterministicProps, prefix + "    ");
+        InspectorTest.dump(array[i], customFormatters, prefix + "    ");
     InspectorTest.addResult(prefix + "]");
 }
 
-InspectorTest.dump = function(value, nondeterministicProps, prefix, prefixWithName)
+InspectorTest.dump = function(value, customFormatters, prefix, prefixWithName)
 {
     prefixWithName = prefixWithName || prefix;
+    if (prefixWithName && prefixWithName.length > 80) {
+        InspectorTest.addResult(prefixWithName + "was skipped due to prefix length limit");
+        return;
+    }
     if (value === null)
         InspectorTest.addResult(prefixWithName + "null");
     else if (value instanceof Array)
-        InspectorTest.addArray(value, nondeterministicProps, prefix, prefixWithName);
+        InspectorTest.addArray(value, customFormatters, prefix, prefixWithName);
     else if (typeof value === "object")
-        InspectorTest.addObject(value, nondeterministicProps, prefix, prefixWithName);
+        InspectorTest.addObject(value, customFormatters, prefix, prefixWithName);
     else if (typeof value === "string")
         InspectorTest.addResult(prefixWithName + "\"" + value + "\"");
     else
         InspectorTest.addResult(prefixWithName + value);
 }
 
-InspectorTest.assertGreaterOrEqual = function(expected, actual, message)
+InspectorTest.assertGreaterOrEqual = function(a, b, message)
 {
-    if (actual < expected)
-        InspectorTest.addResult("FAILED: " + (message ? message + ": " : "") + actual + " < " + expected);
+    if (a < b)
+        InspectorTest.addResult("FAILED: " + (message ? message + ": " : "") + a + " < " + b);
 }
 
 InspectorTest.navigate = function(url, callback)
@@ -235,6 +264,11 @@ InspectorTest.assertEquals = function(expected, found, message)
     throw new Error(error + " expected <" + expected + "> found <" + found + ">");
 }
 
+InspectorTest.assertTrue = function(found, message)
+{
+    InspectorTest.assertEquals(true, !!found, message);
+}
+
 InspectorTest.safeWrap = function(func, onexception)
 {
     function result()
@@ -278,6 +312,11 @@ InspectorTest.addSniffer = function(receiver, methodName, override, opt_sticky)
         }
         return result;
     };
+}
+
+InspectorTest.addConsoleSniffer = function(override, opt_sticky)
+{
+    InspectorTest.addSniffer(WebInspector.ConsoleView.prototype, "_appendConsoleMessage", override, opt_sticky);
 }
 
 InspectorTest.override = function(receiver, methodName, override, opt_sticky)
@@ -324,6 +363,29 @@ InspectorTest.textContentWithLineBreaks = function(node)
 
 var runTestCallId = 0;
 var completeTestCallId = 1;
+var frontendReopeningCount = 0;
+
+function reopenFrontend()
+{
+    closeFrontend(openFrontendAndIncrement);
+}
+
+function closeFrontend(callback)
+{
+    // Do this asynchronously to allow InspectorBackendDispatcher to send response
+    // back to the frontend before it's destroyed.
+    setTimeout(function() {
+        layoutTestController.closeWebInspector();
+        callback();
+    }, 0);
+}
+
+function openFrontendAndIncrement()
+{
+    frontendReopeningCount++;
+    layoutTestController.showWebInspector();
+    runTest();
+}
 
 function runAfterIframeIsLoaded()
 {
@@ -366,7 +428,7 @@ function runTest(enableWatchDogWhileDebugging)
             }
         }
 
-        WebInspector.showPanel("console");
+        WebInspector.showPanel("audits");
         try {
             testFunction();
         } catch (e) {
@@ -375,9 +437,9 @@ function runTest(enableWatchDogWhileDebugging)
         }
     }
 
-    var initializationFunctions = [];
+    var initializationFunctions = [ String(initialize_InspectorTest) ];
     for (var name in window) {
-        if (name.indexOf("initialize_") === 0 && typeof window[name] === "function")
+        if (name.indexOf("initialize_") === 0 && typeof window[name] === "function" && name !== "initialize_InspectorTest")
             initializationFunctions.push(window[name].toString());
     }
     var parameters = ["[" + initializationFunctions + "]", test, completeTestCallId];
@@ -387,10 +449,10 @@ function runTest(enableWatchDogWhileDebugging)
     if (enableWatchDogWhileDebugging) {
         function watchDog()
         {
-            console.log("Internal watchdog triggered at 10 seconds. Test timed out.");
+            console.log("Internal watchdog triggered at 20 seconds. Test timed out.");
             closeInspectorAndNotifyDone();
         }
-        window._watchDogTimer = setTimeout(watchDog, 10000);
+        window._watchDogTimer = setTimeout(watchDog, 20000);
     }
 }
 
@@ -428,6 +490,7 @@ function output(text)
 
         outputElement = document.createElement("div");
         outputElement.className = "output";
+        outputElement.id = "output";
         outputElement.style.whiteSpace = "pre";
         intermediate2.appendChild(outputElement);
     }

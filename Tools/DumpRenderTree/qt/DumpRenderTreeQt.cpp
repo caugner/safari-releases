@@ -37,7 +37,7 @@
 #include "GCControllerQt.h"
 #include "LayoutTestControllerQt.h"
 #include "TextInputControllerQt.h"
-#include "PlainTextControllerQt.h"
+#include "QtInitializeTestFonts.h"
 #include "testplugin.h"
 #include "WorkQueue.h"
 
@@ -49,6 +49,7 @@
 #include <QFileInfo>
 #include <QFocusEvent>
 #include <QFontDatabase>
+#include <QLabel>
 #include <QLocale>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
@@ -58,19 +59,12 @@
 #ifndef QT_NO_PRINTER
 #include <QPrinter>
 #endif
+#include <QProgressBar>
 #include <QUndoStack>
 #include <QUrl>
 
 #include <qwebsettings.h>
 #include <qwebsecurityorigin.h>
-
-#ifndef QT_NO_UITOOLS
-#include <QtUiTools/QUiLoader>
-#endif
-
-#ifdef Q_WS_X11
-#include <fontconfig/fontconfig.h>
-#endif
 
 #include <limits.h>
 #include <locale.h>
@@ -197,9 +191,11 @@ void WebPage::resetSettings()
     settings()->resetAttribute(QWebSettings::ZoomTextOnly);
 
     m_drt->layoutTestController()->setCaretBrowsingEnabled(false);
+    m_drt->layoutTestController()->setAuthorAndUserStylesEnabled(true);
     m_drt->layoutTestController()->setFrameFlatteningEnabled(false);
     m_drt->layoutTestController()->setSmartInsertDeleteEnabled(true);
     m_drt->layoutTestController()->setSelectTrailingWhitespaceEnabled(false);
+    m_drt->layoutTestController()->setDefersLoading(false);
 
     // globalSettings must be reset explicitly.
     m_drt->layoutTestController()->setXSSAuditorEnabled(false);
@@ -208,6 +204,9 @@ void WebPage::resetSettings()
     settings()->setUserStyleSheetUrl(QUrl()); // reset to default
 
     DumpRenderTreeSupportQt::setMinimumTimerInterval(this, DumpRenderTreeSupportQt::defaultMinimumTimerInterval());
+    DumpRenderTreeSupportQt::setHixie76WebSocketProtocolEnabled(this, DumpRenderTreeSupportQt::defaultHixie76WebSocketProtocolEnabled());
+
+    DumpRenderTreeSupportQt::resetInternalsObject(mainFrame());
 
     m_pendingGeolocationRequests.clear();
 }
@@ -300,7 +299,10 @@ void WebPage::javaScriptConsoleMessage(const QString& message, int lineNumber, c
         }
     }
 
-    fprintf (stdout, "CONSOLE MESSAGE: line %d: %s\n", lineNumber, newMessage.toUtf8().constData());
+    fprintf(stdout, "CONSOLE MESSAGE: ");
+    if (lineNumber)
+        fprintf(stdout, "line %d: ", lineNumber);
+    fprintf(stdout, "%s\n", newMessage.toUtf8().constData());
 }
 
 bool WebPage::javaScriptConfirm(QWebFrame*, const QString& msg)
@@ -324,39 +326,9 @@ bool WebPage::javaScriptPrompt(QWebFrame*, const QString& msg, const QString& de
 
 bool WebPage::acceptNavigationRequest(QWebFrame* frame, const QNetworkRequest& request, NavigationType type)
 {
-    if (m_drt->layoutTestController()->waitForPolicy()) {
-        QString url = QString::fromUtf8(request.url().toEncoded());
-        QString typeDescription;
-
-        switch (type) {
-        case NavigationTypeLinkClicked:
-            typeDescription = "link clicked";
-            break;
-        case NavigationTypeFormSubmitted:
-            typeDescription = "form submitted";
-            break;
-        case NavigationTypeBackOrForward:
-            typeDescription = "back/forward";
-            break;
-        case NavigationTypeReload:
-            typeDescription = "reload";
-            break;
-        case NavigationTypeFormResubmitted:
-            typeDescription = "form resubmitted";
-            break;
-        case NavigationTypeOther:
-            typeDescription = "other";
-            break;
-        default:
-            typeDescription = "illegal value";
-        }
-
-        if (isTextOutputEnabled())
-            fprintf(stdout, "Policy delegate: attempt to load %s with navigation type '%s'\n",
-                    url.toUtf8().constData(), typeDescription.toUtf8().constData());
-
+    if (m_drt->layoutTestController()->waitForPolicy())
         m_drt->layoutTestController()->notifyDone();
-    }
+
     return QWebPage::acceptNavigationRequest(frame, request, type);
 }
 
@@ -388,13 +360,13 @@ QObject* WebPage::createPlugin(const QString& classId, const QUrl& url, const QS
     Q_UNUSED(url);
     Q_UNUSED(paramNames);
     Q_UNUSED(paramValues);
-#ifndef QT_NO_UITOOLS
-    QUiLoader loader;
-    return loader.createWidget(classId, view());
-#else
-    Q_UNUSED(classId);
+
+    if (classId == QLatin1String("QProgressBar"))
+        return new QProgressBar(view());
+    if (classId == QLatin1String("QLabel"))
+        return new QLabel(view());
+
     return 0;
-#endif
 }
 
 void WebPage::setViewGeometry(const QRect& rect)
@@ -424,10 +396,11 @@ DumpRenderTree::DumpRenderTree()
     if (viewMode == "graphics")
         setGraphicsBased(true);
 
+    DumpRenderTreeSupportQt::initialize();
+
     // Set running in DRT mode for qwebpage to create testable objects.
     DumpRenderTreeSupportQt::setDumpRenderTreeModeEnabled(true);
     DumpRenderTreeSupportQt::overwritePluginDirectories();
-    DumpRenderTreeSupportQt::activeMockDeviceOrientationClient(true);
     QWebSettings::enablePersistentStorage(m_persistentStoragePath);
 
     m_networkAccessManager = new NetworkAccessManager(this);
@@ -466,7 +439,6 @@ DumpRenderTree::DumpRenderTree()
     connect(m_controller, SIGNAL(done()), this, SLOT(dump()));
     m_eventSender = new EventSender(m_page);
     m_textInputController = new TextInputController(m_page);
-    m_plainTextController = new PlainTextController(m_page);
     m_gcController = new GCController(m_page);
 
     // now connect our different signals
@@ -487,14 +459,15 @@ DumpRenderTree::DumpRenderTree()
             SLOT(titleChanged(const QString&)));
     connect(m_page, SIGNAL(databaseQuotaExceeded(QWebFrame*,QString)),
             this, SLOT(dumpDatabaseQuota(QWebFrame*,QString)));
-    connect(m_page, SIGNAL(applicationCacheQuotaExceeded(QWebSecurityOrigin *, quint64)),
-            this, SLOT(dumpApplicationCacheQuota(QWebSecurityOrigin *, quint64)));
+    connect(m_page, SIGNAL(applicationCacheQuotaExceeded(QWebSecurityOrigin *, quint64, quint64)),
+            this, SLOT(dumpApplicationCacheQuota(QWebSecurityOrigin *, quint64, quint64)));
     connect(m_page, SIGNAL(statusBarMessage(const QString&)),
             this, SLOT(statusBarMessage(const QString&)));
 
     QObject::connect(this, SIGNAL(quit()), qApp, SLOT(quit()), Qt::QueuedConnection);
 
     DumpRenderTreeSupportQt::setDumpRenderTreeModeEnabled(true);
+    DumpRenderTreeSupportQt::setInteractiveFormValidationEnabled(webPage(), true);
     QFocusEvent event(QEvent::FocusIn, Qt::ActiveWindowFocusReason);
     QApplication::sendEvent(m_mainView, &event);
 }
@@ -507,7 +480,6 @@ DumpRenderTree::~DumpRenderTree()
         fclose(stderr);
     delete m_mainView;
     delete m_stdin;
-    DumpRenderTreeSupportQt::removeMockDeviceOrientation();
 }
 
 static void clearHistory(QWebPage* page)
@@ -564,6 +536,7 @@ void DumpRenderTree::resetToConsistentStateBeforeTesting(const QUrl& url)
 #endif
     
     clearHistory(m_page);
+    DumpRenderTreeSupportQt::scalePageBy(m_page->mainFrame(), 1, QPoint(0, 0));
     DumpRenderTreeSupportQt::clearFrameName(m_page->mainFrame());
 
     m_page->mainFrame()->setScrollBarPolicy(Qt::Vertical, Qt::ScrollBarAsNeeded);
@@ -648,12 +621,10 @@ void DumpRenderTree::open(const QUrl& url)
     m_page->event(&ev);
 
     QWebSettings::clearMemoryCaches();
-#if !(defined(Q_OS_SYMBIAN) && QT_VERSION <= QT_VERSION_CHECK(4, 6, 2))
+#if !(QT_VERSION <= QT_VERSION_CHECK(4, 6, 2))
     QFontDatabase::removeAllApplicationFonts();
 #endif
-#if defined(Q_WS_X11)
-    initializeFonts();
-#endif
+    WebKit::initializeTestFonts();
 
     DumpRenderTreeSupportQt::dumpFrameLoader(url.toString().contains("loading/"));
     setTextOutputEnabled(true);
@@ -778,7 +749,7 @@ void DumpRenderTree::initJSObjects()
     frame->addToJavaScriptWindowObject(QLatin1String("eventSender"), m_eventSender);
     frame->addToJavaScriptWindowObject(QLatin1String("textInputController"), m_textInputController);
     frame->addToJavaScriptWindowObject(QLatin1String("GCController"), m_gcController);
-    frame->addToJavaScriptWindowObject(QLatin1String("plainText"), m_plainTextController);
+    DumpRenderTreeSupportQt::injectInternalsObject(frame);
 }
 
 void DumpRenderTree::showPage()
@@ -854,7 +825,7 @@ static QString dumpHistoryItem(const QWebHistoryItem& item, int indent, bool cur
     for (int i = start; i < indent; i++)
         result.append(' ');
 
-    QString url = item.url().toEncoded();
+    QString url = item.url().toString();
     if (url.contains("file://")) {
         static QString layoutTestsString("/LayoutTests/");
         static QString fileTestString("(file test):");
@@ -977,13 +948,16 @@ void DumpRenderTree::dump()
     fputs("#EOF\n", stdout);
     fputs("#EOF\n", stderr);
 
-    // FIXME: All other ports don't dump pixels, if generatePixelResults is false.
-    if (m_dumpPixels) {
-        QImage image(m_page->viewportSize(), QImage::Format_ARGB32);
-        image.fill(Qt::white);
-        QPainter painter(&image);
-        mainFrame->render(&painter);
-        painter.end();
+    if (m_dumpPixels && !m_controller->shouldDumpAsText()) {
+        QImage image;
+        if (!m_controller->isPrinting()) {
+            image = QImage(m_page->viewportSize(), QImage::Format_ARGB32);
+            image.fill(Qt::white);
+            QPainter painter(&image);
+            mainFrame->render(&painter);
+            painter.end();
+        } else
+            image = DumpRenderTreeSupportQt::paintPagesWithBoundaries(mainFrame);
 
         QCryptographicHash hash(QCryptographicHash::Md5);
         for (int row = 0; row < image.height(); ++row)
@@ -1064,16 +1038,25 @@ void DumpRenderTree::dumpDatabaseQuota(QWebFrame* frame, const QString& dbName)
     origin.setDatabaseQuota(databaseDefaultQuota);
 }
 
-void DumpRenderTree::dumpApplicationCacheQuota(QWebSecurityOrigin* origin, quint64 defaultOriginQuota)
+void DumpRenderTree::dumpApplicationCacheQuota(QWebSecurityOrigin* origin, quint64 defaultOriginQuota, quint64 totalSpaceNeeded)
 {
-    if (!m_controller->shouldDumpApplicationCacheDelegateCallbacks())
+    if (m_controller->shouldDumpApplicationCacheDelegateCallbacks()) {
+        // For example, numbers from 30000 - 39999 will output as 30000.
+        // Rounding up or down not really matter for these tests. It's
+        // sufficient to just get a range of 10000 to determine if we were
+        // above or below a threshold.
+        quint64 truncatedSpaceNeeded = (totalSpaceNeeded / 10000) * 10000;
+        printf("UI DELEGATE APPLICATION CACHE CALLBACK: exceededApplicationCacheOriginQuotaForSecurityOrigin:{%s, %s, %i} totalSpaceNeeded:~%llu\n",
+               origin->scheme().toUtf8().data(),
+               origin->host().toUtf8().data(),
+               origin->port(),
+               truncatedSpaceNeeded
+               );
+    }
+
+    if (m_controller->shouldDisallowIncreaseForApplicationCacheQuota())
         return;
 
-    printf("UI DELEGATE APPLICATION CACHE CALLBACK: exceededApplicationCacheOriginQuotaForSecurityOrigin:{%s, %s, %i}\n",
-           origin->scheme().toUtf8().data(),
-           origin->host().toUtf8().data(),
-           origin->port()
-           );
     origin->setApplicationCacheQuota(defaultOriginQuota);
 }
 
@@ -1155,44 +1138,14 @@ QList<WebPage*> DumpRenderTree::getAllPages() const
     return pages;
 }
 
-#if defined(Q_WS_X11)
-void DumpRenderTree::initializeFonts()
+void DumpRenderTree::setTimeout(int timeout)
 {
-    static int numFonts = -1;
-
-    // Some test cases may add or remove application fonts (via @font-face).
-    // Make sure to re-initialize the font set if necessary.
-    FcFontSet* appFontSet = FcConfigGetFonts(0, FcSetApplication);
-    if (appFontSet && numFonts >= 0 && appFontSet->nfont == numFonts)
-        return;
-
-    QByteArray fontDir = getenv("WEBKIT_TESTFONTS");
-    if (fontDir.isEmpty() || !QDir(fontDir).exists()) {
-        fprintf(stderr,
-                "\n\n"
-                "----------------------------------------------------------------------\n"
-                "WEBKIT_TESTFONTS environment variable is not set correctly.\n"
-                "This variable has to point to the directory containing the fonts\n"
-                "you can clone from git://gitorious.org/qtwebkit/testfonts.git\n"
-                "----------------------------------------------------------------------\n"
-               );
-        exit(1);
-    }
-    char currentPath[PATH_MAX+1];
-    if (!getcwd(currentPath, PATH_MAX))
-        qFatal("Couldn't get current working directory");
-    QByteArray configFile = currentPath;
-    FcConfig *config = FcConfigCreate();
-    configFile += "/Tools/DumpRenderTree/qt/fonts.conf";
-    if (!FcConfigParseAndLoad (config, (FcChar8*) configFile.data(), true))
-        qFatal("Couldn't load font configuration file");
-    if (!FcConfigAppFontAddDir (config, (FcChar8*) fontDir.data()))
-        qFatal("Couldn't add font dir!");
-    FcConfigSetCurrent(config);
-
-    appFontSet = FcConfigGetFonts(config, FcSetApplication);
-    numFonts = appFontSet->nfont;
+    m_controller->setTimeout(timeout);
 }
-#endif
+
+void DumpRenderTree::setShouldTimeout(bool flag)
+{
+    m_controller->setShouldTimeout(flag);
+}
 
 }

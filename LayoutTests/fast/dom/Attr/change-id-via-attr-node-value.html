@@ -1,12 +1,9 @@
 <!DOCTYPE HTML>
 <html>
 <head>
-<link rel="stylesheet" href="../../js/resources/js-test-style.css">
 <script src="../../js/resources/js-test-pre.js"></script>
 </head>
 <body id="a">
-<p id="description"></p>
-<div id="console"></div>
 <script>
 
 description("Test that different ways of changing an element's id all work properly.");
@@ -215,8 +212,6 @@ shouldBe('document.getElementById("o")', 'null');
 shouldBe('document.getElementById("p")', 'document.body');
 shouldBe('document.body.id', '"p"');
 shouldBe('document.body.getAttribute("id")', '"p"');
-
-var successfullyParsed = true;
 </script>
 <script src="../../js/resources/js-test-post.js"></script>
 </body>

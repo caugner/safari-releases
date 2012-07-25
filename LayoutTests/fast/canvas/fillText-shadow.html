@@ -1,12 +1,9 @@
 <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
 <html>
 <head>
-<link rel="stylesheet" href="../js/resources/js-test-style.css">
 <script src="../js/resources/js-test-pre.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <canvas width="600" height="300" style="border: solid 1px gray"></canvas>
 <script>
 description('Tests that (vertical) shadow offsets are applied correctly when using fillText() regardless of blur amount.');
@@ -52,8 +49,6 @@ ctx.scale(1, 2);
 testWithBlur(0, 299);
 testWithBlur(1, 299);
 testWithBlur(5, 299);
-
-var successfullyParsed = true;
 
 </script>
 <script src="../js/resources/js-test-post.js"></script>

@@ -1,13 +1,9 @@
 <html>
 <head>
-<link rel="stylesheet" href="../js/resources/js-test-style.css">
 <script src="../js/resources/js-test-pre.js"></script>
-<script src="../js/resources/js-test-post-function.js"></script>
 <script src="resources/char-encoding-utils.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <form id="form" method="GET" target="subframe"><input type="text" id="text" name="text"></form>
 <iframe id="subframe" name="subframe"></iframe>
 <script>
@@ -44,8 +40,6 @@ testEncode('GBK', 'U+301C', '%A1%AB');
 if (window.layoutTestController)
     layoutTestController.waitUntilDone();
 runTest();
-
-successfullyParsed = true;
 
 </script>
 </body>

@@ -27,7 +27,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from webkitpy.tool.bot import irc_command
-
+from webkitpy.tool.bot.queueengine import TerminateQueue
 from webkitpy.common.net.irc.ircbot import IRCBotDelegate
 from webkitpy.common.thread.threadedmessagequeue import ThreadedMessageQueue
 
@@ -62,22 +62,30 @@ class SheriffIRCBot(object):
                                  self._message_queue,
                                  self._tool.wakeup_event)
 
-    def process_message(self, message):
-        (nick, request) = message
+    def _parse_command_and_args(self, request):
         tokenized_request = request.strip().split(" ")
-        if not tokenized_request:
-            return
         command = irc_command.commands.get(tokenized_request[0])
         args = tokenized_request[1:]
         if not command:
             # Give the peoples someone to talk with.
             command = irc_command.Eliza
             args = tokenized_request
-        response = command().execute(nick, args, self._tool, self._sheriff)
-        if response:
-            self._tool.irc().post(response)
+        return (command, args)
+
+    def process_message(self, requester_nick, request):
+        command, args = self._parse_command_and_args(request)
+        try:
+            response = command().execute(requester_nick, args, self._tool, self._sheriff)
+            if response:
+                self._tool.irc().post(response)
+        except TerminateQueue:
+            raise
+        # This will catch everything else. SystemExit and KeyboardInterrupt are not subclasses of Exception, so we won't catch those.
+        except Exception, e:
+            self._tool.irc().post("Exception executing command: %s" % e)
 
     def process_pending_messages(self):
         (messages, is_running) = self._message_queue.take_all()
         for message in messages:
-            self.process_message(message)
+            (nick, request) = message
+            self.process_message(nick, request)

@@ -55,7 +55,7 @@ public:
     void resetClickCount() { m_clickCount = 0; }
 
 public slots:
-    void mouseDown(int button = 0);
+    void mouseDown(int button = 0, const QStringList& modifiers = QStringList());
     void mouseUp(int button = 0);
     void mouseMoveTo(int x, int y);
 #ifndef QT_NO_WHEELEVENT
@@ -70,15 +70,21 @@ public slots:
     void addTouchPoint(int x, int y);
     void updateTouchPoint(int index, int x, int y);
     void setTouchModifier(const QString &modifier, bool enable);
+    void setTouchPointRadius(int radiusX, int radiusY);
     void touchStart();
     void touchMove();
     void touchEnd();
+#if QT_VERSION >= 0x050000
+    void touchCancel();
+#endif
     void zoomPageIn();
     void zoomPageOut();
     void textZoomIn();
     void textZoomOut();
+    void scalePageBy(float scaleFactor, float x, float y);
     void clearTouchPoints();
     void releaseTouchPoint(int index);
+    void cancelTouchPoint(int index);
 
 protected:
     void timerEvent(QTimerEvent*);
@@ -96,6 +102,7 @@ private:
     void replaySavedEvents(bool flush);
     QPoint m_mousePos;
     QPoint m_clickPos;
+    QPoint m_touchPointRadius;
     Qt::MouseButtons m_mouseButtons;
     QWebPage* m_page;
     int m_clickCount;

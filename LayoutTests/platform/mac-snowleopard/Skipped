@@ -28,6 +28,9 @@ plugins/npruntime/invoke-failure.html
 # https://bugs.webkit.org/show_bug.cgi?id=43438 - New test added during WebKit2 work; unknown why it fails.
 plugins/npruntime/remove-property.html
 
+# Need to implement getFormValue().
+plugins/form-value.html
+
 # Radar bugs needed for these
 fast/canvas/set-colors.html
 
@@ -60,7 +63,6 @@ media/media-can-play-ogg.html
 # https://bugs.webkit.org/show_bug.cgi?id=32270
 http/tests/media/video-play-stall-seek.html
 http/tests/media/video-play-stall.html
-http/tests/media/video-seekable-stall.html
 media/media-fullscreen-not-in-document.html
 media/unsupported-rtsp.html
 media/video-no-audio.html
@@ -128,6 +130,7 @@ fast/repaint/fixed-move-after-keyboard-scroll.html
 
 # IndexedDB is not yet enabled.
 storage/indexeddb
+http/tests/inspector/indexeddb
 
 # Philip's canvas tests that fail on SnowLeopard only
 canvas/philip/tests/2d.gradient.interpolate.overlap.html
@@ -180,3 +183,21 @@ media/media-fullscreen-inline.html
 # https://bugs.webkit.org/show_bug.cgi?id=51138
 http/tests/media/video-play-progress.html
 http/tests/media/video-load-twice.html
+
+# Regression in performance
+# https://bugs.webkit.org/show_bug.cgi?id=74141
+#fast/regions/region-style-block-background-color.html
+#fast/regions/region-style-block-background-color2.html
+#fast/regions/region-style-image-background-color.html
+#fast/regions/region-style-inline-background-color.html
+
+# HiDPI tests have lower-level platform dependencies on Mac
+fast/hidpi
+
+# Frame::findString does nothing on pages that prevent selection
+# https://bugs.webkit.org/show_bug.cgi?id=40361
+editing/text-iterator/findString-selection-disabled.html
+
+# Dictated text input is not supported on this platform
+platform/mac/editing/input/edit-dictated-text-with-alternative.html
+platform/mac/editing/input/insert-dictated-text.html

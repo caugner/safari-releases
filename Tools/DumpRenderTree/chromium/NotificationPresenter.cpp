@@ -31,13 +31,15 @@
 #include "config.h"
 #include "NotificationPresenter.h"
 
+#if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
+
 #include "WebKit.h"
-#include "WebKitClient.h"
+#include "platform/WebKitPlatformSupport.h"
 #include "WebNotification.h"
 #include "WebNotificationPermissionCallback.h"
 #include "WebSecurityOrigin.h"
-#include "WebString.h"
-#include "WebURL.h"
+#include "platform/WebString.h"
+#include "platform/WebURL.h"
 #include "googleurl/src/gurl.h"
 #include <wtf/text/CString.h>
 #include <wtf/text/WTFString.h>
@@ -58,11 +60,13 @@ static void deferredDisplayDispatch(void* context)
     delete notification;
 }
 
+NotificationPresenter::~NotificationPresenter()
+{
+}
+
 void NotificationPresenter::grantPermission(const WebString& origin)
 {
-    // Make sure it's in the form of an origin.
-    GURL url(origin);
-    m_allowedOrigins.add(WTF::String(url.GetOrigin().spec().c_str()));
+    m_allowedOrigins.add(WTF::String(origin.data(), origin.length()));
 }
 
 bool NotificationPresenter::simulateClick(const WebString& title)
@@ -107,7 +111,7 @@ bool NotificationPresenter::show(const WebNotification& notification)
     WTF::String id(identifier.data(), identifier.length());
     m_activeNotifications.set(id, notification);
 
-    webKitClient()->callOnMainThread(deferredDisplayDispatch, new WebNotification(notification));
+    webKitPlatformSupport()->callOnMainThread(deferredDisplayDispatch, new WebNotification(notification));
     return true;
 }
 
@@ -129,11 +133,11 @@ void NotificationPresenter::objectDestroyed(const WebKit::WebNotification& notif
     m_activeNotifications.remove(id);
 }
 
-WebNotificationPresenter::Permission NotificationPresenter::checkPermission(const WebURL& url)
+WebNotificationPresenter::Permission NotificationPresenter::checkPermission(const WebSecurityOrigin& origin)
 {
     // Check with the layout test controller
-    WTF::String origin = WTF::String(static_cast<GURL>(url).GetOrigin().spec().c_str());
-    bool allowed = m_allowedOrigins.find(origin) != m_allowedOrigins.end();
+    WebString originString = origin.toString();
+    bool allowed = m_allowedOrigins.find(WTF::String(originString.data(), originString.length())) != m_allowedOrigins.end();
     return allowed ? WebNotificationPresenter::PermissionAllowed
         : WebNotificationPresenter::PermissionDenied;
 }
@@ -146,3 +150,5 @@ void NotificationPresenter::requestPermission(
            origin.toString().utf8().data());
     callback->permissionRequestComplete();
 }
+
+#endif // ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)

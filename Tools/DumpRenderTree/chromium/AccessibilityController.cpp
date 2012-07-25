@@ -32,22 +32,21 @@
 #include "AccessibilityController.h"
 
 #include "TestShell.h"
-#include "WebAccessibilityCache.h"
 #include "WebAccessibilityObject.h"
 #include "WebFrame.h"
-#include "WebString.h"
+#include "platform/WebString.h"
 #include "WebView.h"
 
 using namespace WebKit;
 
 AccessibilityController::AccessibilityController(TestShell* shell)
-    : m_dumpAccessibilityNotifications(false)
+    : m_logAccessibilityEvents(false)
     , m_shell(shell)
 {
 
-    bindMethod("dumpAccessibilityNotifications", &AccessibilityController::dumpAccessibilityNotifications);
-    bindMethod("logFocusEvents", &AccessibilityController::logFocusEventsCallback);
-    bindMethod("logScrollingStartEvents", &AccessibilityController::logScrollingStartEventsCallback);
+    bindMethod("logAccessibilityEvents", &AccessibilityController::logAccessibilityEventsCallback);
+    bindMethod("addNotificationListener", &AccessibilityController::addNotificationListenerCallback);
+    bindMethod("removeNotificationListener", &AccessibilityController::removeNotificationListenerCallback);
 
     bindProperty("focusedElement", &AccessibilityController::focusedElementGetterCallback);
     bindProperty("rootElement", &AccessibilityController::rootElementGetterCallback);
@@ -57,7 +56,7 @@ AccessibilityController::AccessibilityController(TestShell* shell)
 
 void AccessibilityController::bindToJavascript(WebFrame* frame, const WebString& classname)
 {
-    WebAccessibilityCache::enableAccessibility();
+    WebAccessibilityObject::enableAccessibility();
     CppBoundClass::bindToJavascript(frame, classname);
 }
 
@@ -66,8 +65,8 @@ void AccessibilityController::reset()
     m_rootElement = WebAccessibilityObject();
     m_focusedElement = WebAccessibilityObject();
     m_elements.clear();
-    
-    m_dumpAccessibilityNotifications = false;
+
+    m_logAccessibilityEvents = false;
 }
 
 void AccessibilityController::setFocusedElement(const WebAccessibilityObject& focusedElement)
@@ -79,7 +78,7 @@ AccessibilityUIElement* AccessibilityController::getFocusedElement()
 {
     if (m_focusedElement.isNull())
         m_focusedElement = m_shell->webView()->accessibilityObject();
-    return m_elements.create(m_focusedElement);
+    return m_elements.getOrCreate(m_focusedElement);
 }
 
 AccessibilityUIElement* AccessibilityController::getRootElement()
@@ -89,21 +88,48 @@ AccessibilityUIElement* AccessibilityController::getRootElement()
     return m_elements.createRoot(m_rootElement);
 }
 
-void AccessibilityController::dumpAccessibilityNotifications(const CppArgumentList&, CppVariant* result)
+bool AccessibilityController::shouldLogAccessibilityEvents()
 {
-    m_dumpAccessibilityNotifications = true;
+    return m_logAccessibilityEvents;
+}
+
+void AccessibilityController::notificationReceived(const WebKit::WebAccessibilityObject& target, const char* notificationName)
+{
+    // Call notification listeners on the element.
+    AccessibilityUIElement* element = m_elements.getOrCreate(target);
+    element->notificationReceived(notificationName);
+
+    // Call global notification listeners.
+    size_t callbackCount = m_notificationCallbacks.size();
+    for (size_t i = 0; i < callbackCount; i++) {
+        CppVariant arguments[2];
+        arguments[0].set(*element->getAsCppVariant());
+        arguments[1].set(notificationName);
+        CppVariant invokeResult;
+        m_notificationCallbacks[i].invokeDefault(arguments, 2, invokeResult);
+    }
+}
+
+void AccessibilityController::logAccessibilityEventsCallback(const CppArgumentList&, CppVariant* result)
+{
+    m_logAccessibilityEvents = true;
     result->setNull();
 }
 
-void AccessibilityController::logFocusEventsCallback(const CppArgumentList&, CppVariant* result)
+void AccessibilityController::addNotificationListenerCallback(const CppArgumentList& arguments, CppVariant* result)
 {
-    // As of r49031, this is not being used upstream.
+    if (arguments.size() < 1 || !arguments[0].isObject()) {
+        result->setNull();
+        return;
+    }
+
+    m_notificationCallbacks.push_back(arguments[0]);
     result->setNull();
 }
 
-void AccessibilityController::logScrollingStartEventsCallback(const CppArgumentList&, CppVariant* result)
+void AccessibilityController::removeNotificationListenerCallback(const CppArgumentList&, CppVariant* result)
 {
-    // As of r49031, this is not being used upstream.
+    // FIXME: Implement this.
     result->setNull();
 }
 

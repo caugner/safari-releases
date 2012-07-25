@@ -28,18 +28,16 @@
 
 """Wrapper object for the file system / source tree."""
 
-from __future__ import with_statement
-
 import codecs
 import errno
 import exceptions
 import glob
+import hashlib
 import os
 import shutil
+import sys
 import tempfile
 import time
-
-from webkitpy.common.system import ospath
 
 class FileSystem(object):
     """FileSystem interface for webkitpy.
@@ -57,25 +55,30 @@ class FileSystem(object):
     def abspath(self, path):
         return os.path.abspath(path)
 
+    def realpath(self, path):
+        return os.path.realpath(path)
+
+    def path_to_module(self, module_name):
+        """A wrapper for all calls to __file__ to allow easy unit testing."""
+        # FIXME: This is the only use of sys in this file. It's possible this function should move elsewhere.
+        return sys.modules[module_name].__file__  # __file__ is always an absolute path.
+
+    def expanduser(self, path):
+        return os.path.expanduser(path)
+
     def basename(self, path):
-        """Wraps os.path.basename()."""
         return os.path.basename(path)
 
     def chdir(self, path):
-        """Wraps os.chdir()."""
         return os.chdir(path)
 
     def copyfile(self, source, destination):
-        """Copies the contents of the file at the given path to the destination
-        path."""
         shutil.copyfile(source, destination)
 
     def dirname(self, path):
-        """Wraps os.path.dirname()."""
         return os.path.dirname(path)
 
     def exists(self, path):
-        """Return whether the path exists in the filesystem."""
         return os.path.exists(path)
 
     def files_under(self, path, dirs_to_skip=[], file_filter=None):
@@ -113,31 +116,24 @@ class FileSystem(object):
         return files
 
     def getcwd(self):
-        """Wraps os.getcwd()."""
         return os.getcwd()
 
     def glob(self, path):
-        """Wraps glob.glob()."""
         return glob.glob(path)
 
     def isabs(self, path):
-        """Return whether the path is an absolute path."""
         return os.path.isabs(path)
 
     def isfile(self, path):
-        """Return whether the path refers to a file."""
         return os.path.isfile(path)
 
     def isdir(self, path):
-        """Return whether the path refers to a directory."""
         return os.path.isdir(path)
 
     def join(self, *comps):
-        """Return the path formed by joining the components."""
         return os.path.join(*comps)
 
     def listdir(self, path):
-        """Return the contents of the directory pointed to by path."""
         return os.listdir(path)
 
     def mkdtemp(self, **kwargs):
@@ -187,7 +183,6 @@ class FileSystem(object):
         return os.stat(path).st_mtime
 
     def normpath(self, path):
-        """Wraps os.path.normpath()."""
         return os.path.normpath(path)
 
     def open_binary_tempfile(self, suffix):
@@ -195,13 +190,6 @@ class FileSystem(object):
         temp_fd, temp_name = tempfile.mkstemp(suffix)
         f = os.fdopen(temp_fd, 'wb')
         return f, temp_name
-
-    def open_text_file_for_writing(self, path, append=False):
-        """Returns a file handle suitable for writing to."""
-        mode = 'w'
-        if append:
-            mode = 'a'
-        return codecs.open(path, mode, 'utf8')
 
     def open_binary_file_for_reading(self, path):
         return codecs.open(path, 'rb')
@@ -211,6 +199,18 @@ class FileSystem(object):
         with file(path, 'rb') as f:
             return f.read()
 
+    def write_binary_file(self, path, contents):
+        with file(path, 'wb') as f:
+            f.write(contents)
+
+    def open_text_file_for_reading(self, path):
+        # Note: There appears to be an issue with the returned file objects
+        # not being seekable. See http://stackoverflow.com/questions/1510188/can-seek-and-tell-work-with-utf-8-encoded-documents-in-python .
+        return codecs.open(path, 'r', 'utf8')
+
+    def open_text_file_for_writing(self, path):
+        return codecs.open(path, 'w', 'utf8')
+
     def read_text_file(self, path):
         """Return the contents of the file at the given path as a Unicode string.
 
@@ -218,8 +218,19 @@ class FileSystem(object):
         with codecs.open(path, 'r', 'utf8') as f:
             return f.read()
 
+    def write_text_file(self, path, contents):
+        """Write the contents to the file at the given location.
+
+        The file is written encoded as UTF-8 with no BOM."""
+        with codecs.open(path, 'w', 'utf8') as f:
+            f.write(contents)
+
+    def sha1(self, path):
+        contents = self.read_binary_file(path)
+        return hashlib.sha1(contents).hexdigest()
+
     def relpath(self, path, start='.'):
-        return ospath.relpath(path, start)
+        return os.path.relpath(path, start)
 
     class _WindowsError(exceptions.OSError):
         """Fake exception for Linux and Mac."""
@@ -248,33 +259,13 @@ class FileSystem(object):
                     raise e
 
     def rmtree(self, path):
-        """Delete the directory rooted at path, empty or no."""
+        """Delete the directory rooted at path, whether empty or not."""
         shutil.rmtree(path, ignore_errors=True)
 
-    def read_binary_file(self, path):
-        """Return the contents of the file at the given path as a byte string."""
-        with file(path, 'rb') as f:
-            return f.read()
-
-    def read_text_file(self, path):
-        """Return the contents of the file at the given path as a Unicode string.
-
-        The file is read assuming it is a UTF-8 encoded file with no BOM."""
-        with codecs.open(path, 'r', 'utf8') as f:
-            return f.read()
+    def split(self, path):
+        """Return (dirname, basename + '.' + ext)"""
+        return os.path.split(path)
 
     def splitext(self, path):
         """Return (dirname + os.sep + basename, '.' + ext)"""
         return os.path.splitext(path)
-
-    def write_binary_file(self, path, contents):
-        """Write the contents to the file at the given location."""
-        with file(path, 'wb') as f:
-            f.write(contents)
-
-    def write_text_file(self, path, contents):
-        """Write the contents to the file at the given location.
-
-        The file is written encoded as UTF-8 with no BOM."""
-        with codecs.open(path, 'w', 'utf8') as f:
-            f.write(contents)

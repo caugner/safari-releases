@@ -26,6 +26,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import logging
 import optparse
 import sys
 import tempfile
@@ -34,25 +35,55 @@ import unittest
 from webkitpy.common.system.executive import Executive, ScriptError
 from webkitpy.common.system import executive_mock
 from webkitpy.common.system.filesystem_mock import MockFileSystem
-from webkitpy.common.system import outputcapture
+from webkitpy.common.system.outputcapture import OutputCapture
 from webkitpy.common.system.path import abspath_to_uri
 from webkitpy.thirdparty.mock import Mock
-from webkitpy.tool import mocktool
+from webkitpy.tool.mocktool import MockOptions
+from webkitpy.common.system.executive_mock import MockExecutive, MockExecutive2
+from webkitpy.common.system.systemhost_mock import MockSystemHost
 
-import base
+from webkitpy.layout_tests.port import Port, Driver, DriverOutput
+from webkitpy.layout_tests.port.test import add_unit_tests_to_mock_filesystem, TestPort
+
 import config
 import config_mock
 
-
 class PortTest(unittest.TestCase):
+    def make_port(self, executive=None, with_tests=False, **kwargs):
+        host = MockSystemHost()
+        if executive:
+            host.executive = executive
+        if with_tests:
+            add_unit_tests_to_mock_filesystem(host.filesystem)
+            return TestPort(host, **kwargs)
+        return Port(host, **kwargs)
+
+    def test_default_child_processes(self):
+        port = self.make_port()
+        # Even though the MockPlatformInfo shows 1GB free memory (enough for 5 DRT instances)
+        # we're still limited by the 2 mock cores we have:
+        self.assertEqual(port.default_child_processes(), 2)
+        bytes_for_drt = 200 * 1024 * 1024
+
+        port.host.platform.free_bytes_memory = lambda: bytes_for_drt
+        expected_stdout = "This machine could support 2 child processes, but only has enough memory for 1.\n"
+        child_processes = OutputCapture().assert_outputs(self, port.default_child_processes, (), expected_stdout=expected_stdout)
+        self.assertEqual(child_processes, 1)
+
+        # Make sure that we always use one process, even if we don't have the memory for it.
+        port.host.platform.free_bytes_memory = lambda: bytes_for_drt - 1
+        expected_stdout = "This machine could support 2 child processes, but only has enough memory for 1.\n"
+        child_processes = OutputCapture().assert_outputs(self, port.default_child_processes, (), expected_stdout=expected_stdout)
+        self.assertEqual(child_processes, 1)
+
     def test_format_wdiff_output_as_html(self):
-        output = "OUTPUT %s %s %s" % (base.Port._WDIFF_DEL, base.Port._WDIFF_ADD, base.Port._WDIFF_END)
-        html = base.Port()._format_wdiff_output_as_html(output)
+        output = "OUTPUT %s %s %s" % (Port._WDIFF_DEL, Port._WDIFF_ADD, Port._WDIFF_END)
+        html = self.make_port()._format_wdiff_output_as_html(output)
         expected_html = "<head><style>.del { background: #faa; } .add { background: #afa; }</style></head><pre>OUTPUT <span class=del> <span class=add> </span></pre>"
         self.assertEqual(html, expected_html)
 
     def test_wdiff_command(self):
-        port = base.Port()
+        port = self.make_port()
         port._path_to_wdiff = lambda: "/path/to/wdiff"
         command = port._wdiff_command("/actual/path", "/expected/path")
         expected_command = [
@@ -73,8 +104,8 @@ class PortTest(unittest.TestCase):
         return new_file
 
     def test_pretty_patch_os_error(self):
-        port = base.Port(executive=executive_mock.MockExecutive2(exception=OSError))
-        oc = outputcapture.OutputCapture()
+        port = self.make_port(executive=executive_mock.MockExecutive2(exception=OSError))
+        oc = OutputCapture()
         oc.capture_output()
         self.assertEqual(port.pretty_patch_text("patch.txt"),
                          port._pretty_patch_error_html)
@@ -86,7 +117,7 @@ class PortTest(unittest.TestCase):
 
     def test_pretty_patch_script_error(self):
         # FIXME: This is some ugly white-box test hacking ...
-        port = base.Port(executive=executive_mock.MockExecutive2(exception=ScriptError))
+        port = self.make_port(executive=executive_mock.MockExecutive2(exception=ScriptError))
         port._pretty_patch_available = True
         self.assertEqual(port.pretty_patch_text("patch.txt"),
                          port._pretty_patch_error_html)
@@ -95,7 +126,7 @@ class PortTest(unittest.TestCase):
         self.assertEqual(port.pretty_patch_text("patch.txt"),
                          port._pretty_patch_error_html)
 
-    def test_run_wdiff(self):
+    def integration_test_run_wdiff(self):
         executive = Executive()
         # This may fail on some systems.  We could ask the port
         # object for the wdiff path, but since we don't know what
@@ -105,7 +136,7 @@ class PortTest(unittest.TestCase):
         except Exception, e:
             wdiff_path = None
 
-        port = base.Port()
+        port = self.make_port(executive=executive)
         port._path_to_wdiff = lambda: wdiff_path
 
         if wdiff_path:
@@ -129,7 +160,6 @@ class PortTest(unittest.TestCase):
             self.assertRaises(ScriptError, port.wdiff_text, "/does/not/exist", "/does/not/exist2")
             # wdiff will still be available after running wdiff_text with invalid paths.
             self.assertTrue(port._wdiff_available)
-            base._wdiff_available = True
 
         # If wdiff does not exist _run_wdiff should throw an OSError.
         port._path_to_wdiff = lambda: "/invalid/path/to/wdiff"
@@ -140,8 +170,14 @@ class PortTest(unittest.TestCase):
         # However wdiff should not be available after running wdiff_text if wdiff is missing.
         self.assertFalse(port._wdiff_available)
 
+    def test_wdiff_text(self):
+        port = self.make_port()
+        port.wdiff_available = lambda: True
+        port._run_wdiff = lambda a, b: 'PASS'
+        self.assertEqual('PASS', port.wdiff_text(None, None))
+
     def test_diff_text(self):
-        port = base.Port()
+        port = self.make_port()
         # Make sure that we don't run into decoding exceptions when the
         # filenames are unicode, with regular or malformed input (expected or
         # actual input is always raw bytes, not unicode).
@@ -169,76 +205,57 @@ class PortTest(unittest.TestCase):
 
     def test_default_configuration_notfound(self):
         # Test that we delegate to the config object properly.
-        port = base.Port(config=config_mock.MockConfig(default_configuration='default'))
+        port = self.make_port(config=config_mock.MockConfig(default_configuration='default'))
         self.assertEqual(port.default_configuration(), 'default')
 
-    def test_layout_tests_skipping(self):
-        port = base.Port()
-        port.skipped_layout_tests = lambda: ['foo/bar.html', 'media']
-        self.assertTrue(port.skips_layout_test('foo/bar.html'))
-        self.assertTrue(port.skips_layout_test('media/video-zoom.html'))
-        self.assertFalse(port.skips_layout_test('foo/foo.html'))
-
     def test_setup_test_run(self):
-        port = base.Port()
+        port = self.make_port()
         # This routine is a no-op. We just test it for coverage.
         port.setup_test_run()
 
     def test_test_dirs(self):
-        port = base.Port()
+        port = self.make_port()
+        port.host.filesystem.write_text_file(port.layout_tests_dir() + '/canvas/test', '')
+        port.host.filesystem.write_text_file(port.layout_tests_dir() + '/css2.1/test', '')
         dirs = port.test_dirs()
         self.assertTrue('canvas' in dirs)
         self.assertTrue('css2.1' in dirs)
 
-    def test_filename_to_uri(self):
-        port = base.Port()
-        layout_test_dir = port.layout_tests_dir()
-        test_file = port._filesystem.join(layout_test_dir, "foo", "bar.html")
+    def test_skipped_perf_tests(self):
+        port = self.make_port()
 
-        # On Windows, absolute paths are of the form "c:\foo.txt". However,
-        # all current browsers (except for Opera) normalize file URLs by
-        # prepending an additional "/" as if the absolute path was
-        # "/c:/foo.txt". This means that all file URLs end up with "file:///"
-        # at the beginning.
-        if sys.platform == 'win32':
-            prefix = "file:///"
-            path = test_file.replace("\\", "/")
-        else:
-            prefix = "file://"
-            path = test_file
+        def add_text_file(dirname, filename, content='some content'):
+            dirname = port.host.filesystem.join(port.perf_tests_dir(), dirname)
+            port.host.filesystem.maybe_make_directory(dirname)
+            port.host.filesystem.write_text_file(port.host.filesystem.join(dirname, filename), content)
 
-        self.assertEqual(port.filename_to_uri(test_file),
-                         abspath_to_uri(test_file))
+        add_text_file('inspector', 'test1.html')
+        add_text_file('inspector', 'unsupported_test1.html')
+        add_text_file('inspector', 'test2.html')
+        add_text_file('inspector/resources', 'resource_file.html')
+        add_text_file('unsupported', 'unsupported_test2.html')
+        add_text_file('', 'Skipped', '\n'.join(['Layout', '', 'SunSpider', 'Supported/some-test.html']))
+        self.assertEqual(port.skipped_perf_tests(), ['Layout', 'SunSpider', 'Supported/some-test.html'])
 
     def test_get_option__set(self):
         options, args = optparse.OptionParser().parse_args([])
         options.foo = 'bar'
-        port = base.Port(options=options)
+        port = self.make_port(options=options)
         self.assertEqual(port.get_option('foo'), 'bar')
 
     def test_get_option__unset(self):
-        port = base.Port()
+        port = self.make_port()
         self.assertEqual(port.get_option('foo'), None)
 
     def test_get_option__default(self):
-        port = base.Port()
+        port = self.make_port()
         self.assertEqual(port.get_option('foo', 'bar'), 'bar')
 
-    def test_name__unset(self):
-        port = base.Port()
-        self.assertEqual(port.name(), None)
-
-    def test_name__set(self):
-        port = base.Port(port_name='foo')
-        self.assertEqual(port.name(), 'foo')
-
     def test_additional_platform_directory(self):
-        filesystem = MockFileSystem()
-        options, args = optparse.OptionParser().parse_args([])
-        port = base.Port(port_name='foo', filesystem=filesystem, options=options)
+        port = self.make_port(port_name='foo')
         port.baseline_search_path = lambda: ['LayoutTests/platform/foo']
         layout_test_dir = port.layout_tests_dir()
-        test_file = filesystem.join(layout_test_dir, 'fast', 'test.html')
+        test_file = 'fast/test.html'
 
         # No additional platform directory
         self.assertEqual(
@@ -247,29 +264,120 @@ class PortTest(unittest.TestCase):
         self.assertEqual(port.baseline_path(), 'LayoutTests/platform/foo')
 
         # Simple additional platform directory
-        options.additional_platform_directory = ['/tmp/local-baselines']
-        filesystem.files = {
-            '/tmp/local-baselines/fast/test-expected.txt': 'foo',
-        }
+        port._options.additional_platform_directory = ['/tmp/local-baselines']
+        port._filesystem.write_text_file('/tmp/local-baselines/fast/test-expected.txt', 'foo')
         self.assertEqual(
             port.expected_baselines(test_file, '.txt'),
             [('/tmp/local-baselines', 'fast/test-expected.txt')])
         self.assertEqual(port.baseline_path(), '/tmp/local-baselines')
 
         # Multiple additional platform directories
-        options.additional_platform_directory = ['/foo', '/tmp/local-baselines']
+        port._options.additional_platform_directory = ['/foo', '/tmp/local-baselines']
         self.assertEqual(
             port.expected_baselines(test_file, '.txt'),
             [('/tmp/local-baselines', 'fast/test-expected.txt')])
         self.assertEqual(port.baseline_path(), '/foo')
 
-class VirtualTest(unittest.TestCase):
-    """Tests that various methods expected to be virtual are."""
+    def test_uses_test_expectations_file(self):
+        port = self.make_port(port_name='foo')
+        port.path_to_test_expectations_file = lambda: '/mock-results/test_expectations.txt'
+        self.assertFalse(port.uses_test_expectations_file())
+        port._filesystem = MockFileSystem({'/mock-results/test_expectations.txt': ''})
+        self.assertTrue(port.uses_test_expectations_file())
+
+    def test_find_no_paths_specified(self):
+        port = self.make_port(with_tests=True)
+        layout_tests_dir = port.layout_tests_dir()
+        tests = port.tests([])
+        self.assertNotEqual(len(tests), 0)
+
+    def test_find_one_test(self):
+        port = self.make_port(with_tests=True)
+        tests = port.tests(['failures/expected/image.html'])
+        self.assertEqual(len(tests), 1)
+
+    def test_find_glob(self):
+        port = self.make_port(with_tests=True)
+        tests = port.tests(['failures/expected/im*'])
+        self.assertEqual(len(tests), 2)
+
+    def test_find_with_skipped_directories(self):
+        port = self.make_port(with_tests=True)
+        tests = port.tests(['userscripts'])
+        self.assertTrue('userscripts/resources/iframe.html' not in tests)
+
+    def test_find_with_skipped_directories_2(self):
+        port = self.make_port(with_tests=True)
+        tests = port.tests(['userscripts/resources'])
+        self.assertEqual(tests, set([]))
+
+    def test_is_test_file(self):
+        filesystem = MockFileSystem()
+        self.assertTrue(Port._is_test_file(filesystem, '', 'foo.html'))
+        self.assertTrue(Port._is_test_file(filesystem, '', 'foo.shtml'))
+        self.assertTrue(Port._is_test_file(filesystem, '', 'foo.svg'))
+        self.assertTrue(Port._is_test_file(filesystem, '', 'test-ref-test.html'))
+        self.assertFalse(Port._is_test_file(filesystem, '', 'foo.png'))
+        self.assertFalse(Port._is_test_file(filesystem, '', 'foo-expected.html'))
+        self.assertFalse(Port._is_test_file(filesystem, '', 'foo-expected.svg'))
+        self.assertFalse(Port._is_test_file(filesystem, '', 'foo-expected.xht'))
+        self.assertFalse(Port._is_test_file(filesystem, '', 'foo-expected-mismatch.html'))
+        self.assertFalse(Port._is_test_file(filesystem, '', 'foo-expected-mismatch.svg'))
+        self.assertFalse(Port._is_test_file(filesystem, '', 'foo-expected-mismatch.xhtml'))
+        self.assertFalse(Port._is_test_file(filesystem, '', 'foo-ref.html'))
+        self.assertFalse(Port._is_test_file(filesystem, '', 'foo-notref.html'))
+        self.assertFalse(Port._is_test_file(filesystem, '', 'foo-notref.xht'))
+        self.assertFalse(Port._is_test_file(filesystem, '', 'foo-ref.xhtml'))
+        self.assertFalse(Port._is_test_file(filesystem, '', 'ref-foo.html'))
+        self.assertFalse(Port._is_test_file(filesystem, '', 'notref-foo.xhr'))
+
+    def test_parse_reftest_list(self):
+        port = self.make_port(with_tests=True)
+        port.host.filesystem.files['bar/reftest.list'] = "\n".join(["== test.html test-ref.html",
+        "",
+        "# some comment",
+        "!= test-2.html test-notref.html # more comments",
+        "== test-3.html test-ref.html",
+        "== test-3.html test-ref2.html",
+        "!= test-3.html test-notref.html"])
+
+        reftest_list = Port._parse_reftest_list(port.host.filesystem, 'bar')
+        self.assertEqual(reftest_list, {'bar/test.html': [('==', 'bar/test-ref.html')],
+            'bar/test-2.html': [('!=', 'bar/test-notref.html')],
+            'bar/test-3.html': [('==', 'bar/test-ref.html'), ('==', 'bar/test-ref2.html'), ('!=', 'bar/test-notref.html')]})
+
+    def test_reference_files(self):
+        port = self.make_port(with_tests=True)
+        self.assertEqual(port.reference_files('passes/svgreftest.svg'), [('==', port.layout_tests_dir() + '/passes/svgreftest-expected.svg')])
+        self.assertEqual(port.reference_files('passes/xhtreftest.svg'), [('==', port.layout_tests_dir() + '/passes/xhtreftest-expected.html')])
+        self.assertEqual(port.reference_files('passes/phpreftest.php'), [('!=', port.layout_tests_dir() + '/passes/phpreftest-expected-mismatch.svg')])
+
+    def test_operating_system(self):
+        self.assertEqual('mac', self.make_port().operating_system())
+
+    def test_check_httpd_success(self):
+        port = self.make_port(executive=MockExecutive2())
+        port._path_to_apache = lambda: '/usr/sbin/httpd'
+        capture = OutputCapture()
+        capture.capture_output()
+        self.assertTrue(port.check_httpd())
+        _, _, logs = capture.restore_output()
+        self.assertEqual('', logs)
+
+    def test_httpd_returns_error_code(self):
+        port = self.make_port(executive=MockExecutive2(exit_code=1))
+        port._path_to_apache = lambda: '/usr/sbin/httpd'
+        capture = OutputCapture()
+        capture.capture_output()
+        self.assertFalse(port.check_httpd())
+        _, _, logs = capture.restore_output()
+        self.assertEqual('httpd seems broken. Cannot run http tests.\n', logs)
+
     def assertVirtual(self, method, *args, **kwargs):
         self.assertRaises(NotImplementedError, method, *args, **kwargs)
 
     def test_virtual_methods(self):
-        port = base.Port()
+        port = Port(MockSystemHost())
         self.assertVirtual(port.baseline_path)
         self.assertVirtual(port.baseline_search_path)
         self.assertVirtual(port.check_build, None)
@@ -288,37 +396,52 @@ class VirtualTest(unittest.TestCase):
         self.assertVirtual(port._path_to_lighttpd_modules)
         self.assertVirtual(port._path_to_lighttpd_php)
         self.assertVirtual(port._path_to_wdiff)
-        self.assertVirtual(port._shut_down_http_server, None)
 
-    def test_virtual_driver_method(self):
-        self.assertRaises(NotImplementedError, base.Driver, base.Port(),
-                          0)
+    def test_test_exists(self):
+        port = self.make_port(with_tests=True)
+        self.assertTrue(port.test_exists('passes'))
+        self.assertTrue(port.test_exists('passes/text.html'))
+        self.assertFalse(port.test_exists('passes/does_not_exist.html'))
 
-    def test_virtual_driver_methods(self):
-        class VirtualDriver(base.Driver):
-            def __init__(self):
-                pass
+        self.assertTrue(port.test_exists('virtual'))
+        self.assertFalse(port.test_exists('virtual/does_not_exist.html'))
+        self.assertTrue(port.test_exists('virtual/passes/text.html'))
 
-        driver = VirtualDriver()
-        self.assertVirtual(driver.run_test, None)
-        self.assertVirtual(driver.poll)
-        self.assertVirtual(driver.stop)
+    def test_test_isfile(self):
+        port = self.make_port(with_tests=True)
+        self.assertFalse(port.test_isfile('passes'))
+        self.assertTrue(port.test_isfile('passes/text.html'))
+        self.assertFalse(port.test_isfile('passes/does_not_exist.html'))
 
+        self.assertFalse(port.test_isfile('virtual'))
+        self.assertTrue(port.test_isfile('virtual/passes/text.html'))
+        self.assertFalse(port.test_isfile('virtual/does_not_exist.html'))
 
-class DriverTest(unittest.TestCase):
+    def test_test_isdir(self):
+        port = self.make_port(with_tests=True)
+        self.assertTrue(port.test_isdir('passes'))
+        self.assertFalse(port.test_isdir('passes/text.html'))
+        self.assertFalse(port.test_isdir('passes/does_not_exist.html'))
+        self.assertFalse(port.test_isdir('passes/does_not_exist/'))
 
-    def _assert_wrapper(self, wrapper_string, expected_wrapper):
-        wrapper = base.Driver._command_wrapper(wrapper_string)
-        self.assertEqual(wrapper, expected_wrapper)
+        self.assertTrue(port.test_isdir('virtual'))
+        self.assertFalse(port.test_isdir('virtual/does_not_exist.html'))
+        self.assertFalse(port.test_isdir('virtual/does_not_exist/'))
+        self.assertFalse(port.test_isdir('virtual/passes/text.html'))
 
-    def test_command_wrapper(self):
-        self._assert_wrapper(None, [])
-        self._assert_wrapper("valgrind", ["valgrind"])
+    def test_tests(self):
+        port = self.make_port(with_tests=True)
+        tests = port.tests([])
+        self.assertTrue('passes/text.html' in tests)
+        self.assertTrue('virtual/passes/text.html' in tests)
 
-        # Validate that shlex works as expected.
-        command_with_spaces = "valgrind --smc-check=\"check with spaces!\" --foo"
-        expected_parse = ["valgrind", "--smc-check=check with spaces!", "--foo"]
-        self._assert_wrapper(command_with_spaces, expected_parse)
+        tests = port.tests(['passes'])
+        self.assertTrue('passes/text.html' in tests)
+        self.assertFalse('virtual/passes/text.html' in tests)
+
+        tests = port.tests(['virtual/passes'])
+        self.assertFalse('passes/text.html' in tests)
+        self.assertTrue('virtual/passes/text.html' in tests)
 
 
 if __name__ == '__main__':

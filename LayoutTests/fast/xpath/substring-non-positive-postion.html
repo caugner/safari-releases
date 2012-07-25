@@ -1,7 +1,6 @@
 <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
 <html>
 <head>
-<link rel="stylesheet" href="../js/resources/js-test-style.css">
 <script src="../js/resources/js-test-pre.js"></script>
 </head>
 <body>
@@ -14,8 +13,6 @@ XPath substring function does not correctly handle non-positive values for the p
     shouldBe("document.evaluate(\"substring('abcde', -2)\", document, null, XPathResult.STRING_TYPE, null).stringValue", "'abcde'");
     shouldBe("document.evaluate(\"substring('abcde', 0, 5)\", document, null, XPathResult.STRING_TYPE, null).stringValue", "'abcd'");
     shouldBe("document.evaluate(\"substring('abcde', -2, 5)\", document, null, XPathResult.STRING_TYPE, null).stringValue", "'ab'");
-
-    var successfullyParsed = true;
 
 </script>
 <script src="../js/resources/js-test-post.js"></script>

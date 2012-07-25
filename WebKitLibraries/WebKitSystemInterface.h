@@ -8,15 +8,20 @@
 #import <Cocoa/Cocoa.h>
 #import <Carbon/Carbon.h>
 
+@class AVAsset;
 @class QTMovie;
 @class QTMovieView;
-@class AVAsset;
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 typedef struct _CFURLResponse* CFURLResponseRef;
+typedef const struct _CFURLRequest* CFURLRequestRef;
+typedef struct _CFURLRequest* CFMutableURLRequestRef;
+
+typedef struct _CFURLCredential* WKCFURLCredentialRef;
+typedef struct _CFURLProtectionSpace* CFURLProtectionSpaceRef;
 
 typedef enum {
     WKCertificateParseResultSucceeded  = 0,
@@ -38,7 +43,7 @@ NSDate *WKGetNSURLResponseLastModifiedDate(NSURLResponse *response);
 NSTimeInterval WKGetNSURLResponseFreshnessLifetime(NSURLResponse *response);
 NSString *WKCopyNSURLResponseStatusLine(NSURLResponse *response);
 
-#ifndef BUILDING_ON_LEOPARD
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
 CFArrayRef WKCopyNSURLResponseCertificateChain(NSURLResponse *response);
 #endif
 
@@ -87,8 +92,9 @@ void WKAccessibilityHandleFocusChanged(void);
 AXUIElementRef WKCreateAXUIElementRef(id element);
 void WKUnregisterUniqueIdForElement(id element);
 
+BOOL WKShouldBlockPlugin(NSString *bundleIdentifier, NSString *bundleVersionString);
 
-#if !defined(BUILDING_ON_LEOPARD)
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
 // Remote Accessibility API.
 void WKAXRegisterRemoteApp(void);
 void WKAXInitializeElementWithPresenterPid(id, pid_t);
@@ -143,19 +149,29 @@ void WKSetCGFontRenderingMode(CGContextRef cgContext, NSFont *font);
 BOOL WKCGContextGetShouldSmoothFonts(CGContextRef cgContext);
 
 
-void WKSetPatternBaseCTM(CGContextRef, CGAffineTransform);
+void WKSetBaseCTM(CGContextRef, CGAffineTransform);
 void WKSetPatternPhaseInUserSpace(CGContextRef, CGPoint);
 CGAffineTransform WKGetUserToBaseCTM(CGContextRef);
 
 void WKGetGlyphsForCharacters(CGFontRef, const UniChar[], CGGlyph[], size_t);
+bool WKGetVerticalGlyphsForCharacters(CTFontRef, const UniChar[], CGGlyph[], size_t);
 
 CTLineRef WKCreateCTLineWithUniCharProvider(const UniChar* (*provide)(CFIndex stringIndex, CFIndex* charCount, CFDictionaryRef* attributes, void*), void (*dispose)(const UniChar* chars, void*), void*);
-#if !defined(BUILDING_ON_LEOPARD) && !defined(BUILDING_ON_SNOW_LEOPARD)
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1070
 CTTypesetterRef WKCreateCTTypesetterWithUniCharProviderAndOptions(const UniChar* (*provide)(CFIndex stringIndex, CFIndex* charCount, CFDictionaryRef* attributes, void*), void (*dispose)(const UniChar* chars, void*), void*, CFDictionaryRef options);
 
 CGContextRef WKIOSurfaceContextCreate(IOSurfaceRef, unsigned width, unsigned height, CGColorSpaceRef);
 CGImageRef WKIOSurfaceContextCreateImage(CGContextRef context);
 #endif
+
+typedef enum {
+    WKPatternTilingNoDistortion,
+    WKPatternTilingConstantSpacingMinimalDistortion,
+    WKPatternTilingConstantSpacing
+} WKPatternTiling;
+
+CGPatternRef WKCGPatternCreateWithImageAndTransform(CGImageRef image, CGAffineTransform transform, int tiling);
+void WKCGContextResetClip(CGContextRef);
 
 #ifndef __LP64__
 NSEvent *WKCreateNSEventWithCarbonEvent(EventRef eventRef);
@@ -211,17 +227,29 @@ NSURL *WKQTMovieResolvedURL(QTMovie* movie);
 
 CFStringRef WKCopyFoundationCacheDirectory(void);
 
+#if MAC_OS_X_VERSION_MIN_REQUIRED <= 1060
+typedef struct __CFURLStorageSession* CFURLStorageSessionRef;
+#else
 typedef const struct __CFURLStorageSession* CFURLStorageSessionRef;
+#endif
 CFURLStorageSessionRef WKCreatePrivateStorageSession(CFStringRef);
 NSURLRequest *WKCopyRequestWithStorageSession(CFURLStorageSessionRef, NSURLRequest*);
 NSCachedURLResponse *WKCachedResponseForRequest(CFURLStorageSessionRef, NSURLRequest*);
+void WKSetRequestStorageSession(CFURLStorageSessionRef, CFMutableURLRequestRef);
 
 typedef struct OpaqueCFHTTPCookieStorage* CFHTTPCookieStorageRef;
 CFHTTPCookieStorageRef WKCopyHTTPCookieStorage(CFURLStorageSessionRef);
 unsigned WKGetHTTPCookieAcceptPolicy(CFHTTPCookieStorageRef);
+void WKSetHTTPCookieAcceptPolicy(CFHTTPCookieStorageRef, unsigned policy);
 NSArray *WKHTTPCookiesForURL(CFHTTPCookieStorageRef, NSURL *);
 void WKSetHTTPCookiesForURL(CFHTTPCookieStorageRef, NSArray *, NSURL *, NSURL *);
 void WKDeleteHTTPCookie(CFHTTPCookieStorageRef, NSHTTPCookie *);
+
+CFHTTPCookieStorageRef WKGetDefaultHTTPCookieStorage(void);
+WKCFURLCredentialRef WKCopyCredentialFromCFPersistentStorage(CFURLProtectionSpaceRef);
+void WKSetCFURLRequestShouldContentSniff(CFMutableURLRequestRef, bool flag);
+CFArrayRef WKCFURLRequestCopyHTTPRequestBodyParts(CFURLRequestRef);
+void WKCFURLRequestSetHTTPRequestBodyParts(CFMutableURLRequestRef, CFArrayRef bodyParts);
 
 void WKSetVisibleApplicationName(CFStringRef);
 
@@ -246,7 +274,13 @@ typedef enum {
     WKMediaUIPartControlsPanel,
     WKMediaUIPartVolumeSliderContainer,
     WKMediaUIPartVolumeSlider,
-    WKMediaUIPartVolumeSliderThumb
+    WKMediaUIPartVolumeSliderThumb,
+    WKMediaUIPartFullScreenVolumeSlider,
+    WKMediaUIPartFullScreenVolumeSliderThumb,
+    WKMediaUIPartVolumeSliderMuteButton,
+    WKMediaUIPartTextTrackDisplayContainer,
+    WKMediaUIPartTextTrackDisplay,
+    WKMediaUIPartExitFullscreenButton,
 } WKMediaUIPart;
 
 typedef enum {
@@ -285,7 +319,7 @@ NSArray *WKQTGetSitesInMediaDownloadCache();
 void WKQTClearMediaDownloadCacheForSite(NSString *site);
 void WKQTClearMediaDownloadCache();
     
-#ifndef BUILDING_ON_LEOPARD
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
 mach_port_t WKInitializeRenderServer(void);
     
 @class CALayer;
@@ -306,6 +340,19 @@ uint32_t WKCARemoteLayerClientGetClientId(WKCARemoteLayerClientRef);
 void WKCARemoteLayerClientSetLayer(WKCARemoteLayerClientRef, CALayer *);
 CALayer *WKCARemoteLayerClientGetLayer(WKCARemoteLayerClientRef);
 
+typedef struct __WKCAContextRef *WKCAContextRef;
+
+WKCAContextRef WKCAContextMakeRemoteWithServerPort(mach_port_t port);
+WKCAContextRef WKCAContextMakeRemoteForWindowServer(void);
+void WKCAContextInvalidate(WKCAContextRef);
+uint32_t WKCAContextGetContextId(WKCAContextRef);
+void WKCAContextSetLayer(WKCAContextRef, CALayer *);
+CALayer *WKCAContextGetLayer(WKCAContextRef);
+
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1070
+void WKCALayerEnumerateRectsBeingDrawnWithBlock(CALayer *layer, CGContextRef context, void (^block)(CGRect rect));
+#endif
+
 @class CARenderer;
 
 void WKCARendererAddChangeNotificationObserver(CARenderer *, void (*callback)(void*), void* context);
@@ -317,6 +364,8 @@ WKWindowBounceAnimationContextRef WKWindowBounceAnimationContextCreate(NSWindow 
 void WKWindowBounceAnimationContextDestroy(WKWindowBounceAnimationContextRef context);
 void WKWindowBounceAnimationSetAnimationProgress(WKWindowBounceAnimationContextRef context, double animationProgress);
 
+void WKWindowSetClipRect(NSWindow*, NSRect);
+
 #if defined(__x86_64__)
 #import <mach/mig.h>
 CFRunLoopSourceRef WKCreateMIGServerSource(mig_subsystem_t subsystem, mach_port_t serverPort);
@@ -324,22 +373,22 @@ CFRunLoopSourceRef WKCreateMIGServerSource(mig_subsystem_t subsystem, mach_port_
 
 NSUInteger WKGetInputPanelWindowStyle(void);
 UInt8 WKGetNSEventKeyChar(NSEvent *);
-#endif // !defined(BUILDING_ON_LEOPARD)
+#endif // MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
 
 @class CAPropertyAnimation;
 void WKSetCAAnimationValueFunction(CAPropertyAnimation*, NSString* function);
 
 unsigned WKInitializeMaximumHTTPConnectionCountPerHost(unsigned preferredConnectionCount);
-int WKGetHTTPPipeliningPriority(NSURLRequest *);
+int WKGetHTTPPipeliningPriority(CFURLRequestRef);
 void WKSetHTTPPipeliningMaximumPriority(int maximumPriority);
-void WKSetHTTPPipeliningPriority(NSMutableURLRequest *, int priority);
+void WKSetHTTPPipeliningPriority(CFURLRequestRef, int priority);
 void WKSetHTTPPipeliningMinimumFastLanePriority(int priority);
 
 void WKSetCONNECTProxyForStream(CFReadStreamRef, CFStringRef proxyHost, CFNumberRef proxyPort);
 void WKSetCONNECTProxyAuthorizationForStream(CFReadStreamRef, CFStringRef proxyAuthorizationString);
 CFHTTPMessageRef WKCopyCONNECTProxyResponse(CFReadStreamRef, CFURLRef responseURL);
 
-#if defined(BUILDING_ON_LEOPARD) || defined(BUILDING_ON_SNOW_LEOPARD)
+#if MAC_OS_X_VERSION_MIN_REQUIRED <= 1060
 typedef enum {
     WKEventPhaseNone = 0,
     WKEventPhaseBegan = 1,
@@ -353,7 +402,7 @@ int WKGetNSEventMomentumPhase(NSEvent *);
 void WKWindowSetAlpha(NSWindow *window, float alphaValue);
 void WKWindowSetScaledFrame(NSWindow *window, NSRect scaleFrame, NSRect nonScaledFrame);
 
-#ifndef BUILDING_ON_LEOPARD
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
 void WKSyncSurfaceToView(NSView *view);
 
 void WKEnableSettingCursorWhenInBackground(void);
@@ -370,7 +419,7 @@ ScriptCode WKGetScriptCodeFromCurrentKeyboardInputSource(void);
 
 #endif
 
-#if defined(BUILDING_ON_LEOPARD) || defined(BUILDING_ON_SNOW_LEOPARD)
+#if MAC_OS_X_VERSION_MIN_REQUIRED <= 1060
 CFIndex WKGetHyphenationLocationBeforeIndex(CFStringRef string, CFIndex index);
 #endif
 
@@ -383,7 +432,10 @@ CFHTTPMessageRef WKGetCFURLResponseHTTPResponse(CFURLResponseRef);
 CFStringRef WKCopyCFURLResponseSuggestedFilename(CFURLResponseRef);
 void WKSetCFURLResponseMIMEType(CFURLResponseRef, CFStringRef mimeType);
 
-#if !defined(BUILDING_ON_LEOPARD) && !defined(BUILDING_ON_SNOW_LEOPARD)
+CIFormat WKCIGetRGBA8Format(void);
+
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1070
+
 typedef enum {
     WKSandboxExtensionTypeReadOnly,
     WKSandboxExtensionTypeWriteOnly,    
@@ -400,55 +452,11 @@ bool WKSandboxExtensionInvalidate(WKSandboxExtensionRef sandboxExtension);
 const char* WKSandboxExtensionGetSerializedFormat(WKSandboxExtensionRef sandboxExtension, size_t* length);
 WKSandboxExtensionRef WKSandboxExtensionCreateFromSerializedFormat(const char* serializationFormat, size_t length);
 
-typedef struct __WKScrollbarPainter *WKScrollbarPainterRef;
-typedef struct __WKScrollbarPainterController *WKScrollbarPainterControllerRef;
+OSStatus WKEnableSandboxStyleFileQuarantine(void);
 
-WKScrollbarPainterRef WKMakeScrollbarPainter(int controlSize, bool isHorizontal);
-WKScrollbarPainterRef WKMakeScrollbarReplacementPainter(WKScrollbarPainterRef oldPainter, int newStyle, int controlSize, bool isHorizontal);
-void WKScrollbarPainterSetDelegate(WKScrollbarPainterRef, id scrollbarPainterDelegate);
-void WKScrollbarPainterPaint(WKScrollbarPainterRef, bool enabled, double value, CGFloat proportion, CGRect frameRect);
-void WKScrollbarPainterForceFlashScrollers(WKScrollbarPainterControllerRef);
-int WKScrollbarThickness(int controlSize);
-int WKScrollbarMinimumThumbLength(WKScrollbarPainterRef);
-int WKScrollbarMinimumTotalLengthNeededForThumb(WKScrollbarPainterRef);
-CGFloat WKScrollbarPainterKnobAlpha(WKScrollbarPainterRef);
-void WKSetScrollbarPainterKnobAlpha(WKScrollbarPainterRef, CGFloat);
-CGFloat WKScrollbarPainterTrackAlpha(WKScrollbarPainterRef);
-void WKSetScrollbarPainterTrackAlpha(WKScrollbarPainterRef, CGFloat);
-bool WKScrollbarPainterIsHorizontal(WKScrollbarPainterRef);
-CGRect WKScrollbarPainterKnobRect(WKScrollbarPainterRef);
-void WKScrollbarPainterSetOverlayState(WKScrollbarPainterRef, int overlayScrollerState);
+bool WKEnterPluginSandbox(const char* profile, const char* parameters[], const char* readOnlyPaths[], const char* readWritePaths[]);
 
-// The wk* to WK* renaming does not apply to enums. The way to
-// circumvent this is to define the enum anonymously twice using
-// the two prefixes. (See WebCoreSystemInterface.h)
-enum {
-    WKScrollerKnobStyleDefault = 0,
-    WKScrollerKnobStyleDark = 1,
-    WKScrollerKnobStyleLight = 2
-};
-typedef uint32 WKScrollerKnobStyle;
-void WKSetScrollbarPainterKnobStyle(WKScrollbarPainterRef, WKScrollerKnobStyle);
-
-WKScrollbarPainterControllerRef WKMakeScrollbarPainterController(id painterControllerDelegate);
-void WKSetPainterForPainterController(WKScrollbarPainterControllerRef, WKScrollbarPainterRef, bool isHorizontal);
-WKScrollbarPainterRef WKVerticalScrollbarPainterForController(WKScrollbarPainterControllerRef);
-WKScrollbarPainterRef WKHorizontalScrollbarPainterForController(WKScrollbarPainterControllerRef);
-void WKSetScrollbarPainterControllerStyle(WKScrollbarPainterControllerRef, int newStyle);
-void WKContentAreaScrolled(WKScrollbarPainterControllerRef);
-void WKContentAreaWillPaint(WKScrollbarPainterControllerRef);
-void WKMouseEnteredContentArea(WKScrollbarPainterControllerRef);
-void WKMouseExitedContentArea(WKScrollbarPainterControllerRef);
-void WKMouseMovedInContentArea(WKScrollbarPainterControllerRef);
-void WKWillStartLiveResize(WKScrollbarPainterControllerRef);
-void WKContentAreaResized(WKScrollbarPainterControllerRef);
-void WKWillEndLiveResize(WKScrollbarPainterControllerRef);
-void WKContentAreaDidShow(WKScrollbarPainterControllerRef);
-void WKContentAreaDidHide(WKScrollbarPainterControllerRef);
-void WKDidBeginScrollGesture(WKScrollbarPainterControllerRef);
-void WKDidEndScrollGesture(WKScrollbarPainterControllerRef);
-
-bool WKScrollbarPainterUsesOverlayScrollers(void);
+int WKRecommendedScrollerStyle(void);
 
 bool WKExecutableWasLinkedOnOrBeforeSnowLeopard(void);
 
@@ -456,7 +464,44 @@ NSRange WKExtractWordDefinitionTokenRangeFromContextualString(NSString *contextS
 void WKShowWordDefinitionWindow(NSAttributedString *term, NSPoint screenPoint, NSDictionary *options);
 void WKHideWordDefinitionWindow(void);
 
+CFStringRef WKCopyDefaultSearchProviderDisplayName(void);
+
 NSURL* WKAVAssetResolvedURL(AVAsset*);
+
+NSCursor *WKCursor(const char *name);
+
+#endif
+
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1070
+
+#import <dispatch/dispatch.h>
+
+dispatch_source_t WKCreateVMPressureDispatchOnMainQueue(void);
+
+#endif
+
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1080
+NSString *WKGetMacOSXVersionString(void);
+bool WKExecutableWasLinkedOnOrBeforeLion(void);
+#endif
+
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1070
+void WKCGPathAddRoundedRect(CGMutablePathRef path, const CGAffineTransform* matrix, CGRect rect, CGFloat cornerWidth, CGFloat cornerHeight);
+#endif
+
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1070
+void WKCFURLRequestAllowAllPostCaching(CFURLRequestRef);
+#endif
+
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1080
+@class WebFilterEvaluator;
+
+BOOL WKFilterIsManagedSession(void);
+WebFilterEvaluator *WKFilterCreateInstance(NSURLResponse *);
+void WKFilterRelease(WebFilterEvaluator *);
+BOOL WKFilterWasBlocked(WebFilterEvaluator *);
+const char* WKFilterAddData(WebFilterEvaluator *, const char* data, int* length);
+const char* WKFilterDataComplete(WebFilterEvaluator *, int* length);
 #endif
 
 #ifdef __cplusplus

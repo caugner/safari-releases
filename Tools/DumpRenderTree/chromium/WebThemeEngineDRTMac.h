@@ -30,7 +30,7 @@
 #ifndef WebThemeEngineDRTMac_h
 #define WebThemeEngineDRTMac_h
 
-#include "third_party/WebKit/Source/WebKit/chromium/public/mac/WebThemeEngine.h"
+#include "third_party/WebKit/Source/WebKit/chromium/public/platform/mac/WebThemeEngine.h"
 
 class WebThemeEngineDRTMac : public WebKit::WebThemeEngine {
 public:
@@ -40,6 +40,7 @@ public:
         WebKit::WebThemeEngine::Size,
         const WebKit::WebRect&,
         const WebKit::WebThemeEngine::ScrollbarInfo&);
+
 private:
     virtual void paintHIThemeScrollbarThumb(
         WebKit::WebCanvas*,

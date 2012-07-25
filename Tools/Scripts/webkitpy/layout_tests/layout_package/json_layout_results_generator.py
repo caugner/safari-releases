@@ -29,10 +29,8 @@
 import logging
 
 from webkitpy.layout_tests.layout_package import json_results_generator
-from webkitpy.layout_tests.layout_package import test_expectations
-from webkitpy.layout_tests.layout_package import test_failures
-import webkitpy.thirdparty.simplejson as simplejson
-
+from webkitpy.layout_tests.models import test_expectations
+from webkitpy.layout_tests.models import test_failures
 
 class JSONLayoutResultsGenerator(json_results_generator.JSONResultsGeneratorBase):
     """A JSON results generator for layout tests."""
@@ -66,21 +64,15 @@ class JSONLayoutResultsGenerator(json_results_generator.JSONResultsGeneratorBase
         """
         super(JSONLayoutResultsGenerator, self).__init__(
             port, builder_name, build_name, build_number, results_file_base_path,
-            builder_base_url, {}, port.test_repository_paths(),
+            builder_base_url, {}, port.repository_paths(),
             test_results_server, test_type, master_name)
 
         self._expectations = expectations
 
-        # We want relative paths to LayoutTest root for JSON output.
-        path_to_name = self._get_path_relative_to_layout_test_root
         self._result_summary = result_summary
-        self._failures = dict(
-            (path_to_name(test), test_failures.determine_result_type(failures))
-            for (test, failures) in result_summary.failures.iteritems())
-        self._all_tests = [path_to_name(test) for test in all_tests]
-        self._test_timings = dict(
-            (path_to_name(test_tuple.filename), test_tuple.test_run_time)
-            for test_tuple in test_timings)
+        self._failures = dict((test_name, result_summary.results[test_name].type) for test_name in result_summary.failures)
+        self._all_tests = all_tests
+        self._test_timings = dict((test_tuple.test_name, test_tuple.test_run_time) for test_tuple in test_timings)
 
         self.generate_json_output()
 
@@ -130,30 +122,6 @@ class JSONLayoutResultsGenerator(json_results_generator.JSONResultsGeneratorBase
         return self._get_modifier_char(test_name)
 
     # override
-    def _convert_json_to_current_version(self, results_json):
-        archive_version = None
-        if self.VERSION_KEY in results_json:
-            archive_version = results_json[self.VERSION_KEY]
-
-        super(JSONLayoutResultsGenerator,
-              self)._convert_json_to_current_version(results_json)
-
-        # version 2->3
-        if archive_version == 2:
-            for results_for_builder in results_json.itervalues():
-                try:
-                    test_results = results_for_builder[self.TESTS]
-                except:
-                    continue
-
-            for test in test_results:
-                # Make sure all paths are relative
-                test_path = self._get_path_relative_to_layout_test_root(test)
-                if test_path != test:
-                    test_results[test_path] = test_results[test]
-                    del test_results[test]
-
-    # override
     def _insert_failure_summaries(self, results_for_builder):
         summary = self._result_summary
 
@@ -178,9 +146,9 @@ class JSONLayoutResultsGenerator(json_results_generator.JSONResultsGeneratorBase
             test, test_name, tests)
 
         # Remove tests that don't exist anymore.
-        full_path = self._fs.join(self._port.layout_tests_dir(), test_name)
-        full_path = self._fs.normpath(full_path)
-        if not self._fs.exists(full_path):
+        full_path = self._filesystem.join(self._port.layout_tests_dir(), test_name)
+        full_path = self._filesystem.normpath(full_path)
+        if not self._filesystem.exists(full_path):
             del tests[test_name]
 
     def _get_failure_summary_entry(self, timeline):

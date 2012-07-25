@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Google Inc. All rights reserved.
+ * Copyright (C) 2012 Google Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -31,6 +31,7 @@
 #include "config.h"
 
 #include "TestShell.h"
+#include "WebCompositor.h"
 #include "webkit/support/webkit_support.h"
 #include <v8/include/v8-testing.h>
 #include <v8/include/v8.h>
@@ -53,18 +54,20 @@ static const char optionStartupDialog[] = "--testshell-startup-dialog";
 static const char optionCheckLayoutTestSystemDeps[] = "--check-layout-test-sys-deps";
 
 static const char optionHardwareAcceleratedGL[] = "--enable-hardware-gpu";
-static const char optionEnableAcceleratedCompositing[] = "--enable-accelerated-compositing";
+static const char optionEnableThreadedCompositing[] = "--enable-threaded-compositing";
 static const char optionForceCompositingMode[] = "--force-compositing-mode";
 static const char optionEnableAccelerated2DCanvas[] = "--enable-accelerated-2d-canvas";
-static const char optionEnableLegacyAccelerated2DCanvas[] = "--enable-legacy-accelerated-2d-canvas";
-static const char optionEnableAcceleratedDrawing[] = "--enable-accelerated-drawing";
-static const char optionEnableCompositeToTexture[] = "--enable-composite-to-texture";
+static const char optionEnableDeferred2DCanvas[] = "--enable-deferred-2d-canvas";
+static const char optionEnableAcceleratedPainting[] = "--enable-accelerated-painting";
+static const char optionEnableAcceleratedCompositingForVideo[] = "--enable-accelerated-video";
 static const char optionUseGraphicsContext3DImplementation[] = "--use-graphics-context-3d-implementation=";
+static const char optionEnablePerTilePainting[] = "--enable-per-tile-painting";
 
 static const char optionStressOpt[] = "--stress-opt";
 static const char optionStressDeopt[] = "--stress-deopt";
 static const char optionJavaScriptFlags[] = "--js-flags=";
 static const char optionNoTimeout[] = "--no-timeout";
+static const char optionWebCoreLogChannels[] = "--webcore-log-channels=";
 
 class WebKitSupportTestEnvironment {
 public:
@@ -136,12 +139,13 @@ int main(int argc, char* argv[])
     bool testShellMode = false;
     bool allowExternalPages = false;
     bool startupDialog = false;
-    bool acceleratedCompositingEnabled = false;
-    bool compositeToTexture = false;
+    bool acceleratedCompositingForVideoEnabled = false;
+    bool threadedCompositingEnabled = false;
     bool forceCompositingMode = false;
     bool accelerated2DCanvasEnabled = false;
-    bool legacyAccelerated2DCanvasEnabled = false;
-    bool acceleratedDrawingEnabled = false;
+    bool deferred2DCanvasEnabled = false;
+    bool acceleratedPaintingEnabled = false;
+    bool perTilePaintingEnabled = false;
     bool stressOpt = false;
     bool stressDeopt = false;
     bool hardwareAcceleratedGL = false;
@@ -173,18 +177,18 @@ int main(int argc, char* argv[])
             return checkLayoutTestSystemDependencies() ? EXIT_SUCCESS : EXIT_FAILURE;
         else if (argument == optionHardwareAcceleratedGL)
             hardwareAcceleratedGL = true;
-        else if (argument == optionEnableAcceleratedCompositing)
-            acceleratedCompositingEnabled = true;
-        else if (argument == optionEnableCompositeToTexture)
-            compositeToTexture = true;
+        else if (argument == optionEnableAcceleratedCompositingForVideo)
+            acceleratedCompositingForVideoEnabled = true;
+        else if (argument == optionEnableThreadedCompositing)
+            threadedCompositingEnabled = true;
         else if (argument == optionForceCompositingMode)
             forceCompositingMode = true;
         else if (argument == optionEnableAccelerated2DCanvas)
             accelerated2DCanvasEnabled = true;
-        else if (argument == optionEnableLegacyAccelerated2DCanvas)
-            legacyAccelerated2DCanvasEnabled = true;
-        else if (argument == optionEnableAcceleratedDrawing)
-            acceleratedDrawingEnabled = true;
+        else if (argument == optionEnableDeferred2DCanvas)
+            deferred2DCanvasEnabled = true;
+        else if (argument == optionEnableAcceleratedPainting)
+            acceleratedPaintingEnabled = true;
         else if (!argument.find(optionUseGraphicsContext3DImplementation)) {
             string implementation = argument.substr(strlen(optionUseGraphicsContext3DImplementation));
             if (!implementation.compare("IN_PROCESS")) 
@@ -193,7 +197,9 @@ int main(int argc, char* argv[])
               webkit_support::SetGraphicsContext3DImplementation(webkit_support::IN_PROCESS_COMMAND_BUFFER);
             else 
               fprintf(stderr, "Unknown GraphicContext3D implementation %s\n", implementation.c_str());
-        } else if (argument == optionStressOpt)
+        } else if (argument == optionEnablePerTilePainting)
+            perTilePaintingEnabled = true;
+        else if (argument == optionStressOpt)
             stressOpt = true;
         else if (argument == optionStressDeopt)
             stressDeopt = true;
@@ -201,7 +207,10 @@ int main(int argc, char* argv[])
             javaScriptFlags = argument.substr(strlen(optionJavaScriptFlags));
         else if (argument == optionNoTimeout)
             noTimeout = true;
-        else if (argument.size() && argument[0] == '-')
+        else if (!argument.find(optionWebCoreLogChannels)) {
+            string channels = argument.substr(strlen(optionWebCoreLogChannels));
+            webkit_support::EnableWebCoreLogChannels(channels);
+        } else if (argument.size() && argument[0] == '-')
             fprintf(stderr, "Unknown option: %s\n", argv[i]);
         else
             tests.append(argument);
@@ -221,14 +230,16 @@ int main(int argc, char* argv[])
         openStartupDialog();
 
     { // Explicit scope for the TestShell instance.
-        TestShell shell(testShellMode);
+        TestShell shell;
+        shell.setTestShellMode(testShellMode);
         shell.setAllowExternalPages(allowExternalPages);
-        shell.setAcceleratedCompositingEnabled(acceleratedCompositingEnabled);
-        shell.setCompositeToTexture(compositeToTexture);
+        shell.setAcceleratedCompositingForVideoEnabled(acceleratedCompositingForVideoEnabled);
+        shell.setThreadedCompositingEnabled(threadedCompositingEnabled);
         shell.setForceCompositingMode(forceCompositingMode);
         shell.setAccelerated2dCanvasEnabled(accelerated2DCanvasEnabled);
-        shell.setLegacyAccelerated2dCanvasEnabled(legacyAccelerated2DCanvasEnabled);
-        shell.setAcceleratedDrawingEnabled(acceleratedDrawingEnabled);
+        shell.setDeferred2dCanvasEnabled(deferred2DCanvasEnabled);
+        shell.setAcceleratedPaintingEnabled(acceleratedPaintingEnabled);
+        shell.setPerTilePaintingEnabled(perTilePaintingEnabled);
         shell.setJavaScriptFlags(javaScriptFlags);
         shell.setStressOpt(stressOpt);
         shell.setStressDeopt(stressDeopt);
@@ -236,7 +247,13 @@ int main(int argc, char* argv[])
             // 0x20000000ms is big enough for the purpose to avoid timeout in debugging.
             shell.setLayoutTestTimeout(0x20000000);
         }
+        shell.initialize();
         if (serverMode && !tests.size()) {
+#if OS(ANDROID)
+            // Send a signal to host to indicate DRT is ready to process commands.
+            puts("#READY");
+            fflush(stdout);
+#endif
             params.printSeparators = true;
             char testString[2048]; // 2048 is the same as the sizes of other platforms.
             while (fgets(testString, sizeof(testString), stdin)) {
@@ -245,10 +262,13 @@ int main(int argc, char* argv[])
                     *newLinePosition = '\0';
                 if (testString[0] == '\0')
                     continue;
+                // Explicitly quit on platforms where EOF is not reliable.
+                if (!strcmp(testString, "QUIT"))
+                    break;
                 runTest(shell, params, testString, testShellMode);
             }
         } else if (!tests.size())
-            printf("#EOF\n");
+            puts("#EOF");
         else {
             params.printSeparators = tests.size() > 1;
             for (unsigned i = 0; i < tests.size(); i++)
@@ -259,10 +279,13 @@ int main(int argc, char* argv[])
         shell.callJSGC();
 
         // When we finish the last test, cleanup the LayoutTestController.
-        // It may have references to not-yet-cleaned up windows.  By
-        // cleaning up here we help purify reports.
+        // It may have references to not-yet-cleaned up windows. By cleaning up
+        // here we help purify reports.
         shell.resetTestController();
     }
+
+    // Shutdown WebCompositor after TestShell is destructed properly.
+    WebKit::WebCompositor::shutdown();
 
     return EXIT_SUCCESS;
 }

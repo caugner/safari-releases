@@ -135,16 +135,6 @@ static const Ecore_Getopt options = {
     }
 };
 
-typedef struct _Viewport {
-    int w;
-    int h;
-    float initScale;
-    float minScale;
-    float maxScale;
-    float devicePixelRatio;
-    Eina_Bool userScalable;
-} Viewport;
-
 typedef struct _ELauncher {
     Ecore_Evas *ee;
     Evas *evas;
@@ -154,7 +144,6 @@ typedef struct _ELauncher {
     const char *userAgent;
     const char *backingStore;
     unsigned char isFlattening;
-    Viewport viewport;
 } ELauncher;
 
 static void browserDestroy(Ecore_Evas *ee);
@@ -260,23 +249,6 @@ title_set(Ecore_Evas *ee, const char *title, int progress)
     ecore_evas_title_set(ee, label);
 }
 
-/**
- * This is en example function to adjust viewport via viewport tag's arguments.
- * Application can invoke this function in order to adjust viewport tag when it is required.
- */
-static void
-viewport_set()
-{
-    ELauncher *app;
-    app = (ELauncher*) eina_list_data_get(windows);
-
-    ewk_view_fixed_layout_size_set(app->browser, app->viewport.w, app->viewport.h);
-    ewk_view_zoom_set(app->browser, app->viewport.initScale, 0, 0);
-    if (!ewk_view_zoom_range_set(app->browser, app->viewport.minScale, app->viewport.maxScale))
-        info(" Fail to set zoom range. minScale = %f, maxScale = %f\n", app->viewport.minScale, app->viewport.maxScale);
-    ewk_view_user_scalable_set(app->browser, app->viewport.userScalable);
-}
-
 static void
 on_title_changed(void *user_data, Evas_Object *webview, void *event_info)
 {
@@ -311,6 +283,16 @@ on_load_finished(void *user_data, Evas_Object *webview, void *event_info)
     currentZoom = ewk_view_zoom_get(webview);
     currentZoomLevel = nearest_zoom_level_get(currentZoom);
     info("WebCore Zoom=%f, currentZoomLevel=%d\n", currentZoom, currentZoomLevel);
+}
+
+static void
+on_load_error(void *user_data, Evas_Object *webview, void *event_info)
+{
+    const Ewk_Frame_Load_Error *err = (const Ewk_Frame_Load_Error *)event_info;
+    char message[1024];
+    snprintf(message, 1024, "<html><body><div style=\"color:#ff0000\">ERROR!</div><br><div>Code: %d<br>Domain: %s<br>Description: %s<br>URL: %s</div></body</html>",
+             err->code, err->domain, err->description, err->failing_url);
+    ewk_frame_contents_set(err->frame, message, 0, "text/html", "UTF-8", err->failing_url);
 }
 
 static void
@@ -416,53 +398,6 @@ on_inputmethod_changed(void* user_data, Evas_Object* webview, void* event_info)
 
 }
 
-/**
- * "viewport,changed" signal will be always emitted regardless of the viewport existence.
- *
- * If you don't want to process the viewport tag, you can either do nothing in this callback
- * or simply ignore the signal in your application.
- * 
- * More information about this can be found at http://developer.apple.com/safari/library/docum
- * entation/appleapplications/reference/safariwebcontent/usingtheviewport/usingtheviewport.html
- */
-static void
-on_viewport_changed(void* user_data, Evas_Object* webview, void* event_info)
-{
-    ELauncher *app = (ELauncher *)user_data;
-
-    float w, h, initScale, minScale, maxScale, devicePixelRatio;
-    Eina_Bool userScalable;
-
-    ewk_view_viewport_attributes_get(webview, &w, &h, &initScale, &maxScale, &minScale, &devicePixelRatio, &userScalable);
-
-    /**
-     * If there is no argument in viewport tag, argument's value is -1.
-     */
-    if ((int)w == -1)
-        w = DEFAULT_WIDTH;
-    if ((int)h == -1)
-        h = DEFAULT_HEIGHT;
-    if ((int)initScale == -1)
-        initScale = DEFAULT_ZOOM_INIT; // There's no scale separated from zooming in webkit-efl.
-    if ((int)minScale == -1)
-        minScale = ewk_view_zoom_range_min_get(webview);
-    if ((int)maxScale == -1)
-        maxScale = ewk_view_zoom_range_max_get(webview);
-    if ((int)devicePixelRatio == -1)
-        devicePixelRatio = ewk_view_device_pixel_ratio_get(webview);
-    if ((int)userScalable == -1)
-        userScalable = EINA_TRUE;
-
-    app->viewport.w = (int)w;
-    app->viewport.h = (int)h;
-    app->viewport.initScale = initScale;
-    app->viewport.minScale = minScale;
-    app->viewport.maxScale = maxScale;
-    app->viewport.devicePixelRatio = devicePixelRatio;
-    app->viewport.userScalable = userScalable;
-    viewport_set();
-}
-
 static void
 on_mouse_down(void* data, Evas* e, Evas_Object* webview, void* event_info)
 {
@@ -494,6 +429,7 @@ on_key_down(void *data, Evas *e, Evas_Object *obj, void *event_info)
         NULL
     };
     static int currentEncoding = -1;
+    Eina_Bool ctrlPressed = evas_key_modifier_is_set(evas_key_modifier_get(e), "Control");
 
     if (!strcmp(ev->key, "Escape")) {
         closeWindow(app->ee);
@@ -544,10 +480,12 @@ on_key_down(void *data, Evas *e, Evas_Object *obj, void *event_info)
                    "    title='%s'\n"
                    "    target frame=%p (%s)\n"
                    "  }\n"
-                   "  flags {\n"
-                   "    editable=%hhu\n"
-                   "    selected=%hhu\n"
-                   "  }\n",
+                   "context:\n"
+                   "%s"
+                   "%s"
+                   "%s"
+                   "%s"
+                   "%s\n",
                    x, y,
                    ht->x, ht->y,
                    ht->bounding_box.x, ht->bounding_box.y, ht->bounding_box.w, ht->bounding_box.h,
@@ -558,8 +496,11 @@ on_key_down(void *data, Evas *e, Evas_Object *obj, void *event_info)
                    ht->link.url,
                    ht->link.title,
                    ht->link.target_frame, evas_object_name_get(ht->link.target_frame),
-                   ht->flags.editable,
-                   ht->flags.selected);
+                   ht->context & EWK_HIT_TEST_RESULT_CONTEXT_LINK ? "  LINK\n" : "",
+                   ht->context & EWK_HIT_TEST_RESULT_CONTEXT_IMAGE ? "  IMAGE\n" : "",
+                   ht->context & EWK_HIT_TEST_RESULT_CONTEXT_MEDIA ? "   MEDIA\n" : "",
+                   ht->context & EWK_HIT_TEST_RESULT_CONTEXT_SELECTION ? "  SELECTION\n" : "",
+                   ht->context & EWK_HIT_TEST_RESULT_CONTEXT_EDITABLE ? "  EDITABLE" : "");
             ewk_frame_hit_test_free(ht);
         }
 
@@ -585,9 +526,9 @@ on_key_down(void *data, Evas *e, Evas_Object *obj, void *event_info)
         info("Create new window (F9) was pressed.\n");
         Eina_Rectangle geometry = {0, 0, 0, 0};
         browserCreate("http://www.google.com",
-                       app->theme, app->userAgent, geometry, app-> backingStore,
-                       NULL, app->isFlattening, 0, NULL);
-    } else if (!strcmp(ev->key, "F10")) {
+                       app->theme, app->userAgent, geometry, NULL,
+                       app->backingStore, app->isFlattening, 0, NULL);
+    } else if (!strcmp(ev->key, "g") && ctrlPressed ) {
         Evas_Coord x, y, w, h;
         Evas_Object *frame = ewk_view_frame_main_get(obj);
         float zoom = zoomLevels[currentZoomLevel] / 100.0;
@@ -599,13 +540,16 @@ on_key_down(void *data, Evas *e, Evas_Object *obj, void *event_info)
         h *= 4;
         info("Pre-render %d,%d + %dx%d\n", x, y, w, h);
         ewk_view_pre_render_region(obj, x, y, w, h, zoom);
-    } else if (!strcmp(ev->key, "F11")) {
+    } else if (!strcmp(ev->key, "r") && ctrlPressed) {
         info("Pre-render 1 extra column/row with current zoom");
         ewk_view_pre_render_relative_radius(obj, 1);
-    } else if (!strcmp(ev->key, "d")) {
+    } else if (!strcmp(ev->key, "p") && ctrlPressed) {
+        info("Pre-rendering start");
+        ewk_view_pre_render_start(obj);
+    } else if (!strcmp(ev->key, "d") && ctrlPressed) {
         info("Render suspended");
         ewk_view_disable_render(obj);
-    } else if (!strcmp(ev->key, "e")) {
+    } else if (!strcmp(ev->key, "e") && ctrlPressed) {
         info("Render resumed");
         ewk_view_enable_render(obj);
     }
@@ -621,12 +565,6 @@ on_browser_del(void *data, Evas *evas, Evas_Object *browser, void *event)
     evas_object_event_callback_del(app->browser, EVAS_CALLBACK_FOCUS_IN, on_focus_in);
     evas_object_event_callback_del(app->browser, EVAS_CALLBACK_FOCUS_OUT, on_focus_out);
     evas_object_event_callback_del(app->browser, EVAS_CALLBACK_DEL, on_browser_del);
-}
-
-static void
-on_closeWindow(Ecore_Evas *ee)
-{
-    browserDestroy(ee);
 }
 
 static int
@@ -711,7 +649,7 @@ browserCreate(const char *url, const char *theme, const char *userAgent, Eina_Re
     evas_object_smart_callback_add(app->browser, "title,changed", on_title_changed, app);
     evas_object_smart_callback_add(app->browser, "load,progress", on_progress, app);
     evas_object_smart_callback_add(app->browser, "load,finished", on_load_finished, app);
-    evas_object_smart_callback_add(app->browser, "viewport,changed", on_viewport_changed, app);
+    evas_object_smart_callback_add(app->browser, "load,error", on_load_error, app);
 
     evas_object_smart_callback_add(app->browser, "toolbars,visible,set", on_toolbars_visible_set, app);
     evas_object_smart_callback_add(app->browser, "toolbars,visible,get", on_toolbars_visible_get, app);
@@ -887,7 +825,7 @@ main(int argc, char *argv[])
 
     proxyUri = getenv("http_proxy");
     if (proxyUri)
-        ewk_settings_proxy_uri_set(proxyUri);
+        ewk_network_proxy_uri_set(proxyUri);
 
     browserCreate(url, themePath, userAgent, geometry, engine, backingStore, isFlattening, isFullscreen, path);
     ecore_event_handler_add(ECORE_EVENT_SIGNAL_EXIT, main_signal_exit, &windows);

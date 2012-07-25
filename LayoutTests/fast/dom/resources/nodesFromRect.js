@@ -5,13 +5,13 @@
 
 function check(x, y, topPadding, rightPadding, bottomPadding, leftPadding, list, doc)
 {
-  if (!window.layoutTestController)
+  if (!window.internals)
     return;
 
   if (!doc)
     doc = document;
 
-  var nodes = layoutTestController.nodesFromRect(doc, x, y, topPadding, rightPadding, bottomPadding, leftPadding, true /* ignoreClipping */);
+  var nodes = internals.nodesFromRect(doc, x, y, topPadding, rightPadding, bottomPadding, leftPadding, true /* ignoreClipping */, false /* allow shadow content */);
   if (!nodes)
     return;
 
@@ -37,6 +37,36 @@ function check(x, y, topPadding, rightPadding, bottomPadding, leftPadding, list,
   testPassed("All correct nodes found for rect");
 }
 
+function checkShadowContent(x, y, topPadding, rightPadding, bottomPadding, leftPadding, shadowContent, doc)
+{
+  if (!window.internals)
+    return;
+
+  if (!doc)
+    doc = document;
+
+  var nodes = internals.nodesFromRect(doc, x, y, topPadding, rightPadding, bottomPadding, leftPadding, true /* ignoreClipping */, true /* allowShadowContent */);
+  if (!nodes)
+    return;
+
+  for (var j = 0; j < shadowContent.length; j++) {
+    var found = false;
+    for (var i = 0; i < nodes.length; i++) {
+      if (internals.shadowPseudoId(nodes[i]) == shadowContent[j]) {
+          found = true;
+          break;
+      }
+    }
+
+    if (!found) {
+      testFailed("Pseudo Id not found: " + shadowContent[j]);
+      return;
+    }
+  }
+
+  testPassed("All correct nodes found for rect");
+}
+
 function getCenterFor(element)
 {
   var rect = element.getBoundingClientRect();
@@ -54,5 +84,3 @@ function getBottomFor(element)
   var rect = element.getBoundingClientRect();
   return { x : parseInt((rect.left + rect.right) / 2) , y : parseInt(rect.bottom)};
 }
-
-var successfullyParsed = true;

@@ -68,6 +68,21 @@ my $mergeDriver = 0;
 my $printWarnings = 1;
 my $showHelp;
 
+sub usageAndExit()
+{
+    print STDERR <<__END__;
+Usage: @{[ basename($0) ]} [options] [path/to/ChangeLog] [path/to/another/ChangeLog ...]
+  -c|--[no-]continue               run "git rebase --continue" after fixing ChangeLog
+                                   entries (default: --no-continue)
+  -f|--fix-merged [revision-range] fix git-merged ChangeLog entries; if a revision-range
+                                   is specified, run git filter-branch on the range
+  -m|--merge-driver %O %A %B       act as a git merge-driver on files %O %A %B
+  -h|--help                        show this help message
+  -w|--[no-]warnings               show or suppress warnings (default: show warnings)
+__END__
+    exit 1;
+}
+
 my $getOptionsResult = GetOptions(
     'c|continue!'     => \$gitRebaseContinue,
     'f|fix-merged:s'  => \&parseFixMerged,
@@ -75,6 +90,10 @@ my $getOptionsResult = GetOptions(
     'h|help'          => \$showHelp,
     'w|warnings!'     => \$printWarnings,
 );
+
+if (!$getOptionsResult || $showHelp) {
+    usageAndExit();
+}
 
 my $relativePath = isInGitFilterBranch() ? '.' : chdirReturningRelativePath(determineVCSRoot());
 
@@ -104,22 +123,7 @@ if (!$mergeDriver && scalar(@ARGV) > 0) {
     undef $getOptionsResult;
 }
 
-sub usageAndExit()
-{
-    print STDERR <<__END__;
-Usage: @{[ basename($0) ]} [options] [path/to/ChangeLog] [path/to/another/ChangeLog ...]
-  -c|--[no-]continue               run "git rebase --continue" after fixing ChangeLog
-                                   entries (default: --no-continue)
-  -f|--fix-merged [revision-range] fix git-merged ChangeLog entries; if a revision-range
-                                   is specified, run git filter-branch on the range
-  -m|--merge-driver %O %A %B       act as a git merge-driver on files %O %A %B
-  -h|--help                        show this help message
-  -w|--[no-]warnings               show or suppress warnings (default: show warnings)
-__END__
-    exit 1;
-}
-
-if (!$getOptionsResult || $showHelp) {
+if (!$getOptionsResult) {
     usageAndExit();
 }
 
@@ -178,7 +182,8 @@ sub conflictFiles($)
     }
 
     if ($isSVN) {
-        open STAT, "-|", $SVN, "status", $file or die $!;
+        my $escapedFile = escapeSubversionPath($file);
+        open STAT, "-|", $SVN, "status", $escapedFile or die $!;
         my $status = <STAT>;
         close STAT;
         if (!$status || $status !~ m/^C\s+/) {
@@ -189,7 +194,7 @@ sub conflictFiles($)
         $fileMine = "${file}.mine" if -e "${file}.mine";
 
         my $currentRevision;
-        open INFO, "-|", $SVN, "info", $file or die $!;
+        open INFO, "-|", $SVN, "info", $escapedFile or die $!;
         while (my $line = <INFO>) {
             if ($line =~ m/^Revision: ([0-9]+)/) {
                 $currentRevision = $1;
@@ -243,9 +248,10 @@ sub conflictFiles($)
 
 sub findChangeLog($)
 {
-    return $_[0] if basename($_[0]) eq "ChangeLog";
+    my $changeLogFileName = changeLogFileName();
+    return $_[0] if basename($_[0]) eq $changeLogFileName;
 
-    my $file = File::Spec->catfile($_[0], "ChangeLog");
+    my $file = File::Spec->catfile($_[0], $changeLogFileName);
     return $file if -d $_[0] and -e $file;
 
     return undef;
@@ -461,7 +467,8 @@ sub resolveConflict($)
     my ($file) = @_;
 
     if ($isSVN) {
-        system($SVN, "resolved", $file);
+        my $escapedFile = escapeSubversionPath($file);
+        system($SVN, "resolved", $escapedFile);
         die $! if WEXITSTATUS($?);
     } elsif ($isGit) {
         system($GIT, "add", $file);
@@ -476,7 +483,8 @@ sub showStatus($;$)
     my ($file, $isConflictResolved) = @_;
 
     if ($isSVN) {
-        system($SVN, "status", $file);
+        my $escapedFile = escapeSubversionPath($file);
+        system($SVN, "status", $escapedFile);
     } elsif ($isGit) {
         my @args = qw(--name-status);
         unshift @args, qw(--cached) if $isConflictResolved;

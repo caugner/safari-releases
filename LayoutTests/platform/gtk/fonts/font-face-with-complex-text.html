@@ -4,10 +4,19 @@
     @font-face {
         font-family: webkit-ahem;
         font-style: normal;
-        src: url(resources/Ahem.ttf) format(truetype);
+        src: url(../../../resources/Ahem.ttf) format(truetype);
     }
     body { text-rendering: geometricPrecision; }
 </style>
+<script>
+if (window.layoutTestController) {
+    layoutTestController.waitUntilDone();
+    document.onreadystatechange = function() {
+        if (document.readyState === 'complete')
+            setTimeout(function() {layoutTestController.notifyDone();}, 100);
+    };
+}
+</script>
 </head>
 <body>
 <p>This text should be rendered with the default font:</p>

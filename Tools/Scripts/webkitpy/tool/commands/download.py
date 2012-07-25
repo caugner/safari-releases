@@ -1,4 +1,4 @@
-# Copyright (c) 2009 Google Inc. All rights reserved.
+# Copyright (c) 2009, 2011 Google Inc. All rights reserved.
 # Copyright (c) 2009 Apple Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -26,8 +26,6 @@
 # THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-import os
 
 from webkitpy.tool import steps
 
@@ -92,7 +90,6 @@ class Land(AbstractSequencedCommand):
     argument_names = "[BUGID]"
     show_in_main_help = True
     steps = [
-        steps.EnsureBuildersAreGreen,
         steps.UpdateChangeLogsWithReviewer,
         steps.ValidateReviewer,
         steps.ValidateChangeLogs, # We do this after UpdateChangeLogsWithReviewer to avoid not having to cache the diff twice.
@@ -119,10 +116,23 @@ class LandCowboy(AbstractSequencedCommand):
     steps = [
         steps.PrepareChangeLog,
         steps.EditChangeLog,
+        steps.CheckStyle,
         steps.ConfirmDiff,
         steps.Build,
         steps.RunTests,
         steps.Commit,
+        steps.CloseBugForLandDiff,
+    ]
+
+    def _prepare_state(self, options, args, tool):
+        options.check_style_filter = "-changelog"
+
+
+class CheckStyleLocal(AbstractSequencedCommand):
+    name = "check-style-local"
+    help_text = "Run check-webkit-style on the current working directory diff"
+    steps = [
+        steps.CheckStyle,
     ]
 
 
@@ -183,6 +193,29 @@ class ProcessBugsMixin(object):
             patches = tool.bugs.fetch_bug(bug_id).reviewed_patches()
             log("%s found on bug %s." % (pluralize("reviewed patch", len(patches)), bug_id))
             all_patches += patches
+        if not all_patches:
+            log("No reviewed patches found, looking for unreviewed patches.")
+            for bug_id in args:
+                patches = tool.bugs.fetch_bug(bug_id).patches()
+                log("%s found on bug %s." % (pluralize("patch", len(patches)), bug_id))
+                all_patches += patches
+        return all_patches
+
+
+class ProcessURLsMixin(object):
+    def _fetch_list_of_patches_to_process(self, options, args, tool):
+        all_patches = []
+        for url in args:
+            bug_id = urls.parse_bug_id(url)
+            if bug_id:
+                patches = tool.bugs.fetch_bug(bug_id).patches()
+                log("%s found on bug %s." % (pluralize("patch", len(patches)), bug_id))
+                all_patches += patches
+
+            attachment_id = urls.parse_attachment_id(url)
+            if attachment_id:
+                all_patches += tool.bugs.fetch_attachment(attachment_id)
+
         return all_patches
 
 
@@ -250,10 +283,21 @@ class ApplyFromBug(AbstractPatchApplyingCommand, ProcessBugsMixin):
     show_in_main_help = True
 
 
-class AbstractPatchLandingCommand(AbstractPatchSequencingCommand):
-    prepare_steps = [
-        steps.EnsureBuildersAreGreen,
+class ApplyWatchList(AbstractPatchSequencingCommand, ProcessAttachmentsMixin):
+    name = "apply-watchlist"
+    help_text = "Applies the watchlist to the specified attachments"
+    argument_names = "ATTACHMENT_ID [ATTACHMENT_IDS]"
+    main_steps = [
+        steps.CleanWorkingDirectory,
+        steps.Update,
+        steps.ApplyPatch,
+        steps.ApplyWatchList,
     ]
+    long_help = """"Applies the watchlist to the specified attachments.
+Downloads the attachment, applies it locally, runs the watchlist against it, and updates the bug with the result."""
+
+
+class AbstractPatchLandingCommand(AbstractPatchSequencingCommand):
     main_steps = [
         steps.CleanWorkingDirectory,
         steps.Update,
@@ -290,6 +334,24 @@ class LandFromBug(AbstractPatchLandingCommand, ProcessBugsMixin):
     show_in_main_help = True
 
 
+class LandFromURL(AbstractPatchLandingCommand, ProcessURLsMixin):
+    name = "land-from-url"
+    help_text = "Land all patches on the given URLs, optionally building and testing them first"
+    argument_names = "URL [URLS]"
+
+
+class ValidateChangelog(AbstractSequencedCommand):
+    name = "validate-changelog"
+    help_text = "Validate that the ChangeLogs and reviewers look reasonable"
+    long_help = """Examines the current diff to see whether the ChangeLogs
+and the reviewers listed in the ChangeLogs look reasonable.
+"""
+    steps = [
+        steps.ValidateChangeLogs,
+        steps.ValidateReviewer,
+    ]
+
+
 class AbstractRolloutPrepCommand(AbstractSequencedCommand):
     argument_names = "REVISION [REVISIONS] REASON"
 
@@ -316,18 +378,20 @@ class AbstractRolloutPrepCommand(AbstractSequencedCommand):
 
         # We use the earliest revision for the bug info
         earliest_revision = revision_list[0]
-        commit_info = self._commit_info(earliest_revision)
-        cc_list = sorted([party.bugzilla_email()
-                          for party in commit_info.responsible_parties()
-                          if party.bugzilla_email()])
-        return {
+        state = {
             "revision": earliest_revision,
             "revision_list": revision_list,
-            "bug_id": commit_info.bug_id(),
-            # FIXME: We should used the list as the canonical representation.
-            "bug_cc": ",".join(cc_list),
             "reason": args[1],
         }
+        commit_info = self._commit_info(earliest_revision)
+        if commit_info:
+            state["bug_id"] = commit_info.bug_id()
+            cc_list = sorted([party.bugzilla_email()
+                            for party in commit_info.responsible_parties()
+                            if party.bugzilla_email()])
+            # FIXME: We should used the list as the canonical representation.
+            state["bug_cc"] = ",".join(cc_list)
+        return state
 
 
 class PrepareRollout(AbstractRolloutPrepCommand):

@@ -26,9 +26,8 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import os
-
 from webkitpy.common.net.layouttestresults import LayoutTestResults
+from webkitpy.common.net.unittestresults import UnitTestResults
 from webkitpy.common.system.deprecated_logging import error, log
 from webkitpy.tool.steps.runtests import RunTests
 
@@ -54,15 +53,27 @@ class LayoutTestResultsReader(object):
             return None
         return LayoutTestResults.results_from_string(results_html)
 
+    def _create_unit_test_results(self):
+        results_path = self._tool.port().unit_tests_results_path()
+        if not results_path:
+            return None
+        results_xml = self._read_file_contents(results_path)
+        if not results_xml:
+            return None
+        return UnitTestResults.results_from_string(results_xml)
+
     def results(self):
-        results = self._create_layout_test_results()
-        # FIXME: We should not have to set failure_limit_count, but we
-        # do until run-webkit-tests can be updated save off the value
-        # of --exit-after-N-failures in results.html/results.json.
-        # https://bugs.webkit.org/show_bug.cgi?id=58481
-        if results:
-            results.set_failure_limit_count(RunTests.NON_INTERACTIVE_FAILURE_LIMIT_COUNT)
-        return results
+        layout_test_results = self._create_layout_test_results()
+        unit_test_results = self._create_unit_test_results()
+        if layout_test_results:
+            # FIXME: We should not have to set failure_limit_count, but we
+            # do until run-webkit-tests can be updated save off the value
+            # of --exit-after-N-failures in results.html/results.json.
+            # https://bugs.webkit.org/show_bug.cgi?id=58481
+            layout_test_results.set_failure_limit_count(RunTests.NON_INTERACTIVE_FAILURE_LIMIT_COUNT)
+            if unit_test_results:
+                layout_test_results.add_unit_test_failures(unit_test_results)
+        return layout_test_results
 
     def _results_directory(self):
         results_path = self._tool.port().layout_tests_results_path()
@@ -71,11 +82,11 @@ class LayoutTestResultsReader(object):
         # 2. This uses the "old" ports.py infrastructure instead of the new layout_tests/port
         # which will not support Chromium.  However the new arch doesn't work with old-run-webkit-tests
         # so we have to use this for now.
-        return os.path.dirname(results_path)
+        return self._tool.filesystem.dirname(results_path)
 
     def archive(self, patch):
         results_directory = self._results_directory()
-        results_name, _ = os.path.splitext(os.path.basename(results_directory))
+        results_name, _ = self._tool.filesystem.splitext(self._tool.filesystem.basename(results_directory))
         # Note: We name the zip with the bug_id instead of patch_id to match work_item_log_path().
         zip_path = self._tool.workspace.find_unused_filename(self._archive_directory, "%s-%s" % (patch.bug_id(), results_name), "zip")
         if not zip_path:

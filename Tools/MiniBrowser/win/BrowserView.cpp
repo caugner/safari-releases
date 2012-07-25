@@ -39,7 +39,7 @@ BrowserView::BrowserView()
 
 // UI Client Callbacks
 
-static WKPageRef createNewPage(WKPageRef page, WKDictionaryRef features, WKEventModifiers modifiers, WKEventMouseButton mouseButton, const void* clientInfo)
+static WKPageRef createNewPage(WKPageRef page, WKURLRequestRef request, WKDictionaryRef features, WKEventModifiers modifiers, WKEventMouseButton mouseButton, const void* clientInfo)
 {
     BrowserWindow* browserWindow = BrowserWindow::create();
     browserWindow->createWindow(0, 0, 800, 600);
@@ -74,7 +74,7 @@ static void setStatusText(WKPageRef page, WKStringRef text, const void* clientIn
 {
 }
 
-static void mouseDidMoveOverElement(WKPageRef page, WKEventModifiers modifiers, WKTypeRef userData, const void *clientInfo)
+static void mouseDidMoveOverElement(WKPageRef page, WKHitTestResultRef hitTestResult, WKEventModifiers modifiers, WKTypeRef userData, const void *clientInfo)
 {
 }
 
@@ -93,9 +93,9 @@ void BrowserView::create(RECT webViewRect, BrowserWindow* parentWindow)
     m_webView = WKViewCreate(webViewRect, context, 0, parentWindow->window());
 
     WKPageUIClient uiClient = {
-        0,              /* version */
+        kWKPageUIClientCurrentVersion,
         parentWindow,   /* clientInfo */
-        createNewPage,
+        0,          /* createNewPage_deprecatedForUseWithV0 */
         showPage,
         closePage,
         0,          /* takeFocus */
@@ -105,7 +105,8 @@ void BrowserView::create(RECT webViewRect, BrowserWindow* parentWindow)
         runJavaScriptConfirm,
         runJavaScriptPrompt,
         setStatusText,
-        mouseDidMoveOverElement,
+        0,          /* mouseDidMoveOverElement_deprecatedForUseWithV0 */
+        0,          /* missingPluginButtonClicked */
         0,          /* didNotHandleKeyEvent */
         0,          /* didNotHandleWheelEvent */
         0,          /* toolbarsAreVisible */
@@ -124,7 +125,17 @@ void BrowserView::create(RECT webViewRect, BrowserWindow* parentWindow)
         0,          /* exceededDatabaseQuota */
         0,          /* runOpenPanel */
         0,          /* decidePolicyForGeolocationPermissionRequest */
+        0,          /* headerHeight */
+        0,          /* footerHeight */
+        0,          /* drawHeader */
+        0,          /* drawFooter */
+        0,          /* printFrame */
+        0,          /* runModal */
+        0,          /* didCompleteRubberBandForMainFrame */
+        0,          /* saveDataToFileInDownloadsFolder */
         0,          /* shouldInterruptJavaScript */
+        createNewPage,
+        mouseDidMoveOverElement,
     };
 
     WKPageSetPageUIClient(WKViewGetPage(m_webView), &uiClient);
@@ -141,8 +152,10 @@ void BrowserView::setFrame(RECT rect)
 void BrowserView::goToURL(const std::wstring& urlString)
 {
     CFStringRef string = CFStringCreateWithCharacters(0, (const UniChar*)urlString.data(), urlString.size());
-    CFURLRef cfURL = CFURLCreateWithString(0, string, 0);
+    CFStringRef escapedString = CFURLCreateStringByAddingPercentEscapes(0, string, 0, 0, kCFStringEncodingUTF8);
     CFRelease(string);
+    CFURLRef cfURL = CFURLCreateWithString(0, escapedString, 0);
+    CFRelease(escapedString);
 
     WKURLRef url = WKURLCreateWithCFURL(cfURL);
     CFRelease(cfURL); 

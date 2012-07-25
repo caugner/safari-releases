@@ -1,4 +1,4 @@
-var performance = window.performance || {};
+window.performance = window.performance || {};
 var navigation = performance.navigation || {};
 var timing = performance.timing || {};
 var originalTiming = {};
@@ -14,12 +14,9 @@ function testTimingWithDocumentOpen()
     document.open();
     document.write("<html>");
     document.write("<head>");
-    document.write("<link rel=\"stylesheet\" href=\"../js/resources/js-test-style.css\">");
     document.write("<script src=\"../js/resources/js-test-pre.js\"></script>");
     document.write("</head>");
     document.write("<body>");
-    document.write("<p id=\"description\"></p>");
-    document.write("<div id=\"console\"></div>");
     document.write("<script src=\"../js/resources/js-test-post.js\"></script>");
     document.write("</body>");
     document.write("</html>");
@@ -40,5 +37,3 @@ function finishTest() {
 }
 
 jsTestIsAsync = true;
-
-var successfullyParsed = true;

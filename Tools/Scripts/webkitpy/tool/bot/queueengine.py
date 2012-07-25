@@ -27,8 +27,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import os
-import time
+import sys
 import traceback
 
 from datetime import datetime, timedelta
@@ -37,6 +36,8 @@ from webkitpy.common.system.executive import ScriptError
 from webkitpy.common.system.deprecated_logging import log, OutputTee
 
 
+# FIXME: This will be caught by "except Exception:" blocks, we should consider
+# making this inherit from SystemExit instead (or BaseException, except that's not recommended).
 class TerminateQueue(Exception):
     pass
 
@@ -55,10 +56,6 @@ class QueueEngineDelegate:
         raise NotImplementedError, "subclasses must implement"
 
     def next_work_item(self):
-        raise NotImplementedError, "subclasses must implement"
-
-    def should_proceed_with_work_item(self, work_item):
-        # returns (safe_to_proceed, waiting_message, patch)
         raise NotImplementedError, "subclasses must implement"
 
     def process_work_item(self, work_item):
@@ -84,7 +81,7 @@ class QueueEngine:
     @classmethod
     def exit_after_handled_error(cls, error):
         log(error)
-        exit(cls.handled_error_code)
+        sys.exit(cls.handled_error_code)
 
     def run(self):
         self._begin_logging()
@@ -96,9 +93,6 @@ class QueueEngine:
                 work_item = self._delegate.next_work_item()
                 if not work_item:
                     self._sleep("No work item.")
-                    continue
-                if not self._delegate.should_proceed_with_work_item(work_item):
-                    self._sleep("Not proceeding with work item.")
                     continue
 
                 # FIXME: Work logs should not depend on bug_id specificaly.

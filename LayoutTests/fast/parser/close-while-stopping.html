@@ -1,12 +1,9 @@
 <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
 <html>
 <head>
-<link rel="stylesheet" href="../js/resources/js-test-style.css">
 <script src="../js/resources/js-test-pre.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <iframe id="aframe"></iframe>
 <script>
 description("Test that explicitly closing the document while it is already closing doesn't result in running the end twice.");
@@ -19,8 +16,6 @@ frameDocument.onreadystatechange = function()
     frameDocument.close();
 };
 frameDocument.write("<script>document.close()</scr"+"ipt>");
-
-var successfullyParsed = true;
 </script>
 <script src="../js/resources/js-test-post.js"></script>
 </body>

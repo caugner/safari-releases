@@ -37,14 +37,14 @@ import sys
 import tempfile
 
 script_dir = os.path.abspath(os.path.dirname(__file__))
-sys.path.append(os.path.abspath(os.path.join(script_dir, "..", "build")))
+sys.path.append(os.path.abspath(os.path.join(script_dir, "..", "..", "waf", "build")))
 
 from build_utils import *
 
 import wx
 
 wxwk_root = os.path.abspath(os.path.join(script_dir, "..", "..", ".."))
-wxwebkit_dir = os.path.abspath(os.path.join(wxwk_root, "WebKitBuild", get_config(wxwk_root) + git_branch_name()))
+wxwebkit_dir = os.path.abspath(os.path.join(wxwk_root, "WebKitBuild", get_config(wxwk_root)))
 
 wx_version = wx.__version__[:5]
 py_version = sys.version[:3]
@@ -88,27 +88,34 @@ def mac_update_dependencies(dylib, prefix, should_copy=True):
     global wx_root
     system_prefixes = ["/usr/lib", "/System/Library", wx_root]
 
+    
     output = commands.getoutput("otool -L %s" % dylib).strip()
     for line in output.split("\n"):
         copy = should_copy
+        change = True
         filename = line.split("(")[0].strip()
+        filedir, basename = os.path.split(filename)
+        dest_filename = os.path.join(prefix, basename)
         if os.path.exists(filename):
             for sys_prefix in system_prefixes:
                 if filename.startswith(sys_prefix):
                     copy = False
+                    change = False
             
             if copy:
                 copydir = os.path.dirname(dylib)
-                
-                filedir, basename = os.path.split(filename)
-                dest_filename = os.path.join(prefix, basename)
                 copyname = os.path.join(copydir, basename)
                 if not os.path.exists(copyname):
                     shutil.copy(filename, copydir)
-                    os.system("install_name_tool -id %s %s" % (dest_filename, copyname))
-                
+                    result = os.system("install_name_tool -id %s %s" % (dest_filename, copyname))
+                    if result != 0:
+                        print "Changing ID failed. Stopping release."
+                        sys.exit(result)
+            if change:
                 print "changing %s to %s" % (filename, dest_filename)
-                os.system("install_name_tool -change %s %s %s" % (filename, dest_filename, dylib))
+                result = os.system("install_name_tool -change %s %s %s" % (filename, dest_filename, dylib))
+                if result != 0:
+                    sys.exit(result)
 
 def exitIfError(cmd):
     print cmd
@@ -143,6 +150,7 @@ try:
         dylib_path = os.path.join(wxroot, "libwxwebkit.dylib")
         os.system("install_name_tool -id %s %s" % (os.path.join(prefix, "libwxwebkit.dylib"), dylib_path))
         mac_update_dependencies(dylib_path, prefix)
+        os.system("install_name_tool -id %s %s" % (os.path.join(wxpythonroot, "_webview.so"), prefix))
         mac_update_dependencies(os.path.join(wxpythonroot, "_webview.so"), prefix, should_copy=False)
 
         demodir = installroot + "/Applications/wxWebKit/Demos"

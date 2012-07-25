@@ -1,5 +1,6 @@
 // FIXME: move this under workers/resources
 importScripts('fs-worker-common.js');
+importScripts('../../js/resources/js-test-pre.js');
 
 description("Obtaining File from FileEntrySync.");
 
@@ -17,4 +18,3 @@ shouldBe("testFile.size", "0");
 
 removeAllInDirectorySync(fileSystem.root);
 finishJSTest();
-var successfullyParsed = true;

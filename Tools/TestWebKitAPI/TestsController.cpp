@@ -23,9 +23,10 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "config.h"
 #include "TestsController.h"
 
-#include <gtest/gtest.h>
+#include <wtf/Threading.h>
 
 namespace TestWebKitAPI {
 
@@ -37,6 +38,11 @@ TestsController& TestsController::shared()
 
 TestsController::TestsController()
 {
+    // FIXME: We currently initialize threading here to avoid assertion failures from
+    // the ThreadRestrictionVerifier - https://bugs.webkit.org/show_bug.cgi?id=66112
+    // We should make sure that all objects tested either initialize threading or inherit from
+    // ThreadSafeRefCounted so that we don't have to initialize threading at all here.
+    WTF::initializeThreading();
 }
 
 bool TestsController::run(int argc, char** argv)

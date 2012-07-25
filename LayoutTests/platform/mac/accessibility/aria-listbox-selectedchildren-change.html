@@ -1,10 +1,6 @@
 <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
 <html>
 <head>
-<link rel="stylesheet" href="../../../fast/js/resources/js-test-style.css">
-<script>
-var successfullyParsed = false;
-</script>
 <script src="../../../fast/js/resources/js-test-pre.js"></script>
 </head>
 <body id="body">
@@ -24,13 +20,13 @@ var successfullyParsed = false;
 
     var listbox = 0;
     var notificationCount = 0;
-    function ariaCallback(notification) {
+    function ariaCallback(element, notification) {
         if (notification == "AXSelectedChildrenChanged") {
             notificationCount++;
 
             // We should get a total of 4 live region changes.
             if (notificationCount == 2) {
-               listbox.removeNotificationListener();
+               window.accessibilityController.removeNotificationListener();
                window.layoutTestController.notifyDone();
             }
         }
@@ -42,7 +38,7 @@ var successfullyParsed = false;
         document.getElementById("listbox").focus();
         listbox = window.accessibilityController.focusedElement;
 
-        var addedNotification = listbox.addNotificationListener(ariaCallback);
+        var addedNotification = window.accessibilityController.addNotificationListener(ariaCallback);
         shouldBe("addedNotification", "true");
 
         // These should each trigger a notification that the selected children changed.
@@ -50,7 +46,6 @@ var successfullyParsed = false;
         document.getElementById("option2").setAttribute("aria-selected", "false");
     }
 
-    successfullyParsed = true;
 </script>
 
 <script src="../../../fast/js/resources/js-test-post.js"></script>

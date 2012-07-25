@@ -1,6 +1,5 @@
 description("Test calcMode spline with to animation. You should see a green 100x100 path and only PASS messages");
 createSVGTestCase();
-// FIXME: We should move to animatePathSegList, once it is implemented.
 
 // Setup test document
 var path = createSVGElement("path");
@@ -19,52 +18,88 @@ path.appendChild(animate);
 rootSVGElement.appendChild(path);
 
 // Setup animation test
-function sample1() {
-    // Check initial/end conditions
+function checkBaseVal() {
+    shouldBe("path.pathSegList.numberOfItems", "5");
+    shouldBeEqualToString("path.pathSegList.getItem(0).pathSegTypeAsLetter", "M");
     shouldBe("path.pathSegList.getItem(0).x", "40");
     shouldBe("path.pathSegList.getItem(0).y", "40");
+    shouldBeEqualToString("path.pathSegList.getItem(1).pathSegTypeAsLetter", "L");
+    shouldBe("path.pathSegList.getItem(1).x", "60");
+    shouldBe("path.pathSegList.getItem(1).y", "40");
+    shouldBeEqualToString("path.pathSegList.getItem(2).pathSegTypeAsLetter", "L");
+    shouldBe("path.pathSegList.getItem(2).x", "60");
+    shouldBe("path.pathSegList.getItem(2).y", "60");
+    shouldBeEqualToString("path.pathSegList.getItem(3).pathSegTypeAsLetter", "L");
+    shouldBe("path.pathSegList.getItem(3).x", "40");
+    shouldBe("path.pathSegList.getItem(3).y", "60");
+    shouldBeEqualToString("path.pathSegList.getItem(4).pathSegTypeAsLetter", "Z");
+}
+
+function sample1() {
+    // Check initial/end conditions
+    shouldBe("path.animatedPathSegList.numberOfItems", "5");
+    shouldBeEqualToString("path.animatedPathSegList.getItem(0).pathSegTypeAsLetter", "M");
+    shouldBeCloseEnough("path.animatedPathSegList.getItem(0).x", "40");
+    shouldBeCloseEnough("path.animatedPathSegList.getItem(0).y", "40");
+    shouldBeEqualToString("path.animatedPathSegList.getItem(1).pathSegTypeAsLetter", "L");
+    shouldBeCloseEnough("path.animatedPathSegList.getItem(1).x", "60");
+    shouldBeCloseEnough("path.animatedPathSegList.getItem(1).y", "40");
+    shouldBeEqualToString("path.animatedPathSegList.getItem(2).pathSegTypeAsLetter", "L");
+    shouldBeCloseEnough("path.animatedPathSegList.getItem(2).x", "60");
+    shouldBeCloseEnough("path.animatedPathSegList.getItem(2).y", "60");
+    shouldBeEqualToString("path.animatedPathSegList.getItem(3).pathSegTypeAsLetter", "L");
+    shouldBeCloseEnough("path.animatedPathSegList.getItem(3).x", "40");
+    shouldBeCloseEnough("path.animatedPathSegList.getItem(3).y", "60");
+    shouldBeEqualToString("path.animatedPathSegList.getItem(4).pathSegTypeAsLetter", "Z");
+    checkBaseVal();
 }
 
 function sample2() {
-    var ok = isCloseEnough(path.pathSegList.getItem(0).x, 20, 0.01);
-    if (ok)
-        testPassed("path.pathSegList.getItem(0).x is almost 20, after first half");
-    else
-        testFailed("path.pathSegList.getItem(0).x was NOT almost 20, as expected");
-
-    ok = isCloseEnough(path.pathSegList.getItem(0).y, 20, 0.01);
-    if (ok)
-        testPassed("path.pathSegList.getItem(0).y is almost 20, after first half");
-    else
-        testFailed("path.pathSegList.getItem(0).y was NOT almost 20, as expected");
+    shouldBe("path.animatedPathSegList.numberOfItems", "5");
+    shouldBeEqualToString("path.animatedPathSegList.getItem(0).pathSegTypeAsLetter", "M");
+    shouldBeCloseEnough("path.animatedPathSegList.getItem(0).x", "20");
+    shouldBeCloseEnough("path.animatedPathSegList.getItem(0).y", "20");
+    shouldBeEqualToString("path.animatedPathSegList.getItem(1).pathSegTypeAsLetter", "L");
+    shouldBeCloseEnough("path.animatedPathSegList.getItem(1).x", "80");
+    shouldBeCloseEnough("path.animatedPathSegList.getItem(1).y", "20");
+    shouldBeEqualToString("path.animatedPathSegList.getItem(2).pathSegTypeAsLetter", "L");
+    shouldBeCloseEnough("path.animatedPathSegList.getItem(2).x", "80");
+    shouldBeCloseEnough("path.animatedPathSegList.getItem(2).y", "80");
+    shouldBeEqualToString("path.animatedPathSegList.getItem(3).pathSegTypeAsLetter", "L");
+    shouldBeCloseEnough("path.animatedPathSegList.getItem(3).x", "20");
+    shouldBeCloseEnough("path.animatedPathSegList.getItem(3).y", "80");
+    shouldBeEqualToString("path.animatedPathSegList.getItem(4).pathSegTypeAsLetter", "Z");
+    checkBaseVal();
 }
 
 function sample3() {
-    var ok = isCloseEnough(path.pathSegList.getItem(0).x, 0, 0.01);
-    if (ok)
-        testPassed("path.pathSegList.getItem(0).x is almost 0, after first half");
-    else
-        testFailed("path.pathSegList.getItem(0).x was NOT almost 0, as expected");
-
-    ok = isCloseEnough(path.pathSegList.getItem(0).y, 0, 0.01);
-    if (ok)
-        testPassed("path.pathSegList.getItem(0).y is almost 0, after first half");
-    else
-        testFailed("path.pathSegList.getItem(0).y was NOT almost 0, as expected");
+    shouldBe("path.animatedPathSegList.numberOfItems", "5");
+    shouldBeEqualToString("path.animatedPathSegList.getItem(0).pathSegTypeAsLetter", "M");
+    shouldBeCloseEnough("path.animatedPathSegList.getItem(0).x", "0");
+    shouldBeCloseEnough("path.animatedPathSegList.getItem(0).y", "0");
+    shouldBeEqualToString("path.animatedPathSegList.getItem(1).pathSegTypeAsLetter", "L");
+    shouldBeCloseEnough("path.animatedPathSegList.getItem(1).x", "100");
+    shouldBeCloseEnough("path.animatedPathSegList.getItem(1).y", "0");
+    shouldBeEqualToString("path.animatedPathSegList.getItem(2).pathSegTypeAsLetter", "L");
+    shouldBeCloseEnough("path.animatedPathSegList.getItem(2).x", "100");
+    shouldBeCloseEnough("path.animatedPathSegList.getItem(2).y", "100");
+    shouldBeEqualToString("path.animatedPathSegList.getItem(3).pathSegTypeAsLetter", "L");
+    shouldBeCloseEnough("path.animatedPathSegList.getItem(3).x", "0");
+    shouldBeCloseEnough("path.animatedPathSegList.getItem(3).y", "100");
+    shouldBeEqualToString("path.animatedPathSegList.getItem(4).pathSegTypeAsLetter", "Z");
+    checkBaseVal();
 }
 
 function executeTest() {
     const expectedValues = [
-        // [animationId, time, elementId, sampleCallback]
-        ["animation", 0.0,    "path", sample1],
-        ["animation", 2.0,    "path", sample2],
-        ["animation", 3.9999, "path", sample3],
-        ["animation", 4.0 ,   "path", sample1]
+        // [animationId, time, sampleCallback]
+        ["animation", 0.0,   sample1],
+        ["animation", 2.0,   sample2],
+        ["animation", 3.999, sample3],
+        ["animation", 4.001, sample1]
     ];
 
     runAnimationTest(expectedValues);
 }
 
-// Begin test async
-window.setTimeout("triggerUpdate(50, 50)", 0);
 var successfullyParsed = true;

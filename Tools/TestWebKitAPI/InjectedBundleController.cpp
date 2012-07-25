@@ -23,11 +23,11 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "config.h"
 #include "InjectedBundleController.h"
 
 #include "InjectedBundleTest.h"
 #include "PlatformUtilities.h"
-#include <WebKit2/WebKit2.h>
 #include <algorithm>
 #include <assert.h>
 
@@ -47,7 +47,12 @@ InjectedBundleController::InjectedBundleController()
 
 void InjectedBundleController::initialize(WKBundleRef bundle, WKTypeRef initializationUserData)
 {
+    platformInitialize();
+
     m_bundle = bundle;
+
+    if (!initializationUserData)
+        return;
 
     WKBundleClient client = {
         0,
@@ -65,8 +70,8 @@ void InjectedBundleController::initialize(WKBundleRef bundle, WKTypeRef initiali
     WKDictionaryRef initializationDictionary = static_cast<WKDictionaryRef>(initializationUserData);
 
     WKStringRef testName = static_cast<WKStringRef>(WKDictionaryGetItemForKey(initializationDictionary, WKStringCreateWithUTF8CString("TestName")));
+
     WKTypeRef userData = WKDictionaryGetItemForKey(initializationDictionary, WKStringCreateWithUTF8CString("UserData"));
-    
     initializeTestNamed(bundle, Util::toSTD(testName), userData);
 }
 

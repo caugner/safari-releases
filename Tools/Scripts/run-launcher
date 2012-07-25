@@ -39,7 +39,6 @@ use webkitdirs;
 setConfiguration();
 my $productDir = productDir();
 my $launcherPath = productDir();
-my @args = @ARGV;
 
 # Check to see that all the frameworks are built.
 checkFrameworks();
@@ -65,11 +64,17 @@ if (isQt()) {
 } else {
 
     if (isGtk()) {
-        $launcherPath = catdir($launcherPath, "Programs", "GtkLauncher");
+        if (isWK2()) {
+            unshift(@ARGV, catdir($launcherPath, "Programs", "MiniBrowser"));
+        } else {
+            unshift(@ARGV, catdir($launcherPath, "Programs", "GtkLauncher"));
+        }
+        $launcherPath = catdir(sourceDir(), "Tools", "gtk", "run-with-jhbuild");
     }
     
     if (isEfl()) {
-        $launcherPath = catdir($launcherPath, "Programs", "EWebLauncher");
+        unshift(@ARGV, catdir($launcherPath, "bin", "EWebLauncher"));
+        $launcherPath = catdir(sourceDir(), "Tools", "efl", "run-with-jhbuild");
     }
     
     if (isWx()) {
@@ -84,5 +89,5 @@ if (isQt()) {
     print "Starting webkit launcher.\n";
 }
 
-exec $launcherPath, @args or die;
+exec $launcherPath, @ARGV or die;
 

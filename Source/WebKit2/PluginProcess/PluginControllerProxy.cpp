@@ -45,6 +45,10 @@
 #include <WebCore/NotImplemented.h>
 #include <wtf/text/WTFString.h>
 
+#if PLATFORM(MAC)
+#include "LayerHostingContext.h"
+#endif
+
 using namespace WebCore;
 
 namespace WebKit {
@@ -65,12 +69,12 @@ PluginControllerProxy::PluginControllerProxy(WebProcessConnection* connection, c
     , m_paintTimer(RunLoop::main(), this, &PluginControllerProxy::paint)
     , m_pluginDestructionProtectCount(0)
     , m_pluginDestroyTimer(RunLoop::main(), this, &PluginControllerProxy::destroy)
-    , m_pluginCreationParameters(0)
     , m_waitingForDidUpdate(false)
     , m_pluginCanceledManualStreamLoad(false)
 #if PLATFORM(MAC)
     , m_isComplexTextInputEnabled(false)
 #endif
+    , m_contentsScaleFactor(creationParameters.contentsScaleFactor)
     , m_windowNPObject(0)
     , m_pluginElementNPObject(0)
 {
@@ -101,9 +105,7 @@ bool PluginControllerProxy::initialize(const PluginCreationParameters& creationP
     m_windowNPObject = m_connection->npRemoteObjectMap()->createNPObjectProxy(creationParameters.windowNPObjectID, m_plugin.get());
     ASSERT(m_windowNPObject);
 
-    m_pluginCreationParameters = &creationParameters;
     bool returnValue = m_plugin->initialize(this, creationParameters.parameters);
-    m_pluginCreationParameters = 0;
 
     if (!returnValue) {
         // Get the plug-in so we can pass it to removePluginControllerProxy. The pointer is only
@@ -117,7 +119,7 @@ bool PluginControllerProxy::initialize(const PluginCreationParameters& creationP
         return false;
     }
 
-    platformInitialize();
+    platformInitialize(creationParameters);
 
     return true;
 }
@@ -137,13 +139,18 @@ void PluginControllerProxy::destroy()
     // used as an identifier so it's OK to just get a weak reference.
     Plugin* plugin = m_plugin.get();
 
-    m_plugin->destroy();
+    m_plugin->destroyPlugin();
     m_plugin = 0;
 
     platformDestroy();
 
     // This will delete the plug-in controller proxy object.
     m_connection->removePluginControllerProxy(this, plugin);
+}
+
+bool PluginControllerProxy::wantsWheelEvents() const
+{
+    return m_plugin->wantsWheelEvents();
 }
 
 void PluginControllerProxy::paint()
@@ -162,7 +169,11 @@ void PluginControllerProxy::paint()
     // Create a graphics context.
     OwnPtr<GraphicsContext> graphicsContext = m_backingStore->createGraphicsContext();
 
-    graphicsContext->translate(-m_frameRect.x(), -m_frameRect.y());
+#if PLATFORM(MAC)
+    // FIXME: We should really call applyDeviceScaleFactor instead of scale, but that ends up calling into WKSI
+    // which we currently don't have initiated in the plug-in process.
+    graphicsContext->scale(FloatSize(m_contentsScaleFactor, m_contentsScaleFactor));
+#endif
 
     if (m_plugin->isTransparent())
         graphicsContext->clearRect(dirtyRect);
@@ -202,13 +213,10 @@ bool PluginControllerProxy::isPluginVisible()
 
 void PluginControllerProxy::invalidate(const IntRect& rect)
 {
-    // Convert the dirty rect to window coordinates.
     IntRect dirtyRect = rect;
-    dirtyRect.move(m_frameRect.x(), m_frameRect.y());
 
     // Make sure that the dirty rect is not greater than the plug-in itself.
-    dirtyRect.intersect(m_frameRect);
-
+    dirtyRect.intersect(IntRect(IntPoint(), m_pluginSize));
     m_dirtyRect.unite(dirtyRect);
 
     startPaintTimer();
@@ -263,9 +271,6 @@ NPObject* PluginControllerProxy::pluginElementNPObject()
 
 bool PluginControllerProxy::evaluate(NPObject* npObject, const String& scriptString, NPVariant* result, bool allowPopups)
 {
-    if (tryToShortCircuitEvaluate(npObject, scriptString, result))
-        return true;
-
     PluginDestructionProtector protector(this);
 
     NPVariant npObjectAsNPVariant;
@@ -285,54 +290,6 @@ bool PluginControllerProxy::evaluate(NPObject* npObject, const String& scriptStr
 
     *result = m_connection->npRemoteObjectMap()->npVariantDataToNPVariant(resultData, m_plugin.get());
     return true;
-}
-
-bool PluginControllerProxy::tryToShortCircuitInvoke(NPObject* npObject, NPIdentifier methodName, const NPVariant* arguments, uint32_t argumentCount, bool& returnValue, NPVariant& result)
-{
-    // Only try to short circuit evaluate for plug-ins that have the quirk specified.
-    if (!PluginProcess::shared().netscapePluginModule()->pluginQuirks().contains(PluginQuirks::CanShortCircuitSomeNPRuntimeCallsDuringInitialization))
-        return false;
-    
-    // And only when we're in initialize.
-    if (!inInitialize())
-        return false;
-    
-    // And only when the NPObject is the window NPObject.
-    if (npObject != m_windowNPObject)
-        return false;
-
-    // And only when we don't have any arguments.
-    if (argumentCount)
-        return false;
-
-    IdentifierRep* methodNameRep = static_cast<IdentifierRep*>(methodName);
-    if (!methodNameRep->isString())
-        return false;
-
-    if (!strcmp(methodNameRep->string(), "__flash_getWindowLocation")) {
-        result.type = NPVariantType_String;
-        result.value.stringValue = createNPString(m_pluginCreationParameters->parameters.documentURL.utf8()); 
-        returnValue = true;
-        return true;
-    }
-    
-    if (!strcmp(methodNameRep->string(), "__flash_getTopLocation")) {
-        if (m_pluginCreationParameters->parameters.toplevelDocumentURL.isNull()) {
-            // If the toplevel document is URL it means that the frame that the plug-in is in doesn't have access to the toplevel document.
-            // In this case, just pass the string "[object]" to Flash.
-            result.type = NPVariantType_String;
-            result.value.stringValue = createNPString("[object]");
-            returnValue = true;
-            return true;
-        }
-
-        result.type = NPVariantType_String;
-        result.value.stringValue = createNPString(m_pluginCreationParameters->parameters.toplevelDocumentURL.utf8()); 
-        returnValue = true;
-        return true;
-    }
-
-    return false;
 }
 
 void PluginControllerProxy::setStatusbarText(const String& statusbarText)
@@ -357,30 +314,18 @@ void PluginControllerProxy::willSendEventToPlugin()
     ASSERT_NOT_REACHED();
 }
 
-#if PLATFORM(MAC)
-void PluginControllerProxy::setComplexTextInputEnabled(bool complexTextInputEnabled)
+float PluginControllerProxy::contentsScaleFactor()
 {
-    if (m_isComplexTextInputEnabled == complexTextInputEnabled)
-        return;
-
-    m_isComplexTextInputEnabled = complexTextInputEnabled;
-
-    m_connection->connection()->send(Messages::PluginProxy::SetComplexTextInputEnabled(complexTextInputEnabled), m_pluginInstanceID);
+    return m_contentsScaleFactor;
 }
-
-mach_port_t PluginControllerProxy::compositingRenderServerPort()
-{
-    return PluginProcess::shared().compositingRenderServerPort();
-}
-#endif
 
 String PluginControllerProxy::proxiesForURL(const String& urlString)
 {
     String proxyString;
-    
-    if (!m_connection->connection()->sendSync(Messages::PluginProxy::CookiesForURL(urlString), Messages::PluginProxy::CookiesForURL::Reply(proxyString), m_pluginInstanceID))
+
+    if (!m_connection->connection()->sendSync(Messages::PluginProxy::ProxiesForURL(urlString), Messages::PluginProxy::ProxiesForURL::Reply(proxyString), m_pluginInstanceID))
         return String();
-    
+
     return proxyString;
 }
 
@@ -435,12 +380,16 @@ void PluginControllerProxy::frameDidFail(uint64_t requestID, bool wasCancelled)
     m_plugin->frameDidFail(requestID, wasCancelled);
 }
 
-void PluginControllerProxy::geometryDidChange(const IntRect& frameRect, const IntRect& clipRect, const ShareableBitmap::Handle& backingStoreHandle)
+void PluginControllerProxy::geometryDidChange(const IntSize& pluginSize, const IntRect& clipRect, const AffineTransform& pluginToRootViewTransform, float contentsScaleFactor, const ShareableBitmap::Handle& backingStoreHandle)
 {
-    m_frameRect = frameRect;
-    m_clipRect = clipRect;
-
     ASSERT(m_plugin);
+
+    m_pluginSize = pluginSize;
+
+    if (contentsScaleFactor != m_contentsScaleFactor) {
+        m_contentsScaleFactor = contentsScaleFactor;
+        m_plugin->contentsScaleFactorChanged(m_contentsScaleFactor);
+    }
 
     platformGeometryDidChange();
 
@@ -449,7 +398,7 @@ void PluginControllerProxy::geometryDidChange(const IntRect& frameRect, const In
         m_backingStore = ShareableBitmap::create(backingStoreHandle);
     }
 
-    m_plugin->geometryDidChange(frameRect, clipRect);
+    m_plugin->geometryDidChange(pluginSize, clipRect, pluginToRootViewTransform);
 }
 
 void PluginControllerProxy::didEvaluateJavaScript(uint64_t requestID, const String& result)
@@ -459,7 +408,7 @@ void PluginControllerProxy::didEvaluateJavaScript(uint64_t requestID, const Stri
 
 void PluginControllerProxy::streamDidReceiveResponse(uint64_t streamID, const String& responseURLString, uint32_t streamLength, uint32_t lastModifiedTime, const String& mimeType, const String& headers)
 {
-    m_plugin->streamDidReceiveResponse(streamID, KURL(ParsedURLString, responseURLString), streamLength, lastModifiedTime, mimeType, headers);
+    m_plugin->streamDidReceiveResponse(streamID, KURL(ParsedURLString, responseURLString), streamLength, lastModifiedTime, mimeType, headers, String());
 }
 
 void PluginControllerProxy::streamDidReceiveData(uint64_t streamID, const CoreIPC::DataReference& data)
@@ -482,7 +431,7 @@ void PluginControllerProxy::manualStreamDidReceiveResponse(const String& respons
     if (m_pluginCanceledManualStreamLoad)
         return;
 
-    m_plugin->manualStreamDidReceiveResponse(KURL(ParsedURLString, responseURLString), streamLength, lastModifiedTime, mimeType, headers);
+    m_plugin->manualStreamDidReceiveResponse(KURL(ParsedURLString, responseURLString), streamLength, lastModifiedTime, mimeType, headers, String());
 }
 
 void PluginControllerProxy::manualStreamDidReceiveData(const CoreIPC::DataReference& data)
@@ -544,10 +493,10 @@ void PluginControllerProxy::handleKeyboardEvent(const WebKeyboardEvent& keyboard
 
 void PluginControllerProxy::paintEntirePlugin()
 {
-    if (m_frameRect.isEmpty())
+    if (m_pluginSize.isEmpty())
         return;
 
-    m_dirtyRect = m_frameRect;
+    m_dirtyRect = IntRect(IntPoint(), m_pluginSize);
     paint();
 }
 
@@ -586,31 +535,29 @@ void PluginControllerProxy::getPluginScriptableNPObject(uint64_t& pluginScriptab
 
 void PluginControllerProxy::privateBrowsingStateChanged(bool isPrivateBrowsingEnabled)
 {
+    m_isPrivateBrowsingEnabled = isPrivateBrowsingEnabled;
+
     m_plugin->privateBrowsingStateChanged(isPrivateBrowsingEnabled);
 }
 
-bool PluginControllerProxy::tryToShortCircuitEvaluate(NPObject* npObject, const String& scriptString, NPVariant* result)
+void PluginControllerProxy::getFormValue(bool& returnValue, String& formValue)
 {
-    // Only try to short circuit evaluate for plug-ins that have the quirk specified.
-    if (!PluginProcess::shared().netscapePluginModule()->pluginQuirks().contains(PluginQuirks::CanShortCircuitSomeNPRuntimeCallsDuringInitialization))
-        return false;
-
-    // And only when we're in initialize.
-    if (!inInitialize())
-        return false;
-
-    // And only when the NPObject is the window NPObject.
-    if (npObject != m_windowNPObject)
-        return false;
-
-    // Now, check for the right strings.
-    if (scriptString != "function __flash_getWindowLocation() { return window.location; }"
-        && scriptString != "function __flash_getTopLocation() { return top.location; }")
-        return false;
-
-    VOID_TO_NPVARIANT(*result);
-    return true;
+    returnValue = m_plugin->getFormValue(formValue);
 }
+
+#if PLUGIN_ARCHITECTURE(X11)
+uint64_t PluginControllerProxy::createPluginContainer()
+{
+    uint64_t windowID = 0;
+    m_connection->connection()->sendSync(Messages::PluginProxy::CreatePluginContainer(), Messages::PluginProxy::CreatePluginContainer::Reply(windowID), m_pluginInstanceID);
+    return windowID;
+}
+
+void PluginControllerProxy::windowedPluginGeometryDidChange(const IntRect& frameRect, const IntRect& clipRect, uint64_t windowID)
+{
+    m_connection->connection()->send(Messages::PluginProxy::WindowedPluginGeometryDidChange(frameRect, clipRect, windowID), m_pluginInstanceID);
+}
+#endif
 
 } // namespace WebKit
 

@@ -4,12 +4,9 @@
 <link rel="help" href="http://dev.w3.org/csswg/cssom/" />
 <style type="text/css" media="NOT braille, tv and (orientation: 'landscape') AND (min-WIDTH:100px) and (max-width: 200px ), all and (color) and (color)">
 </style>
-<link rel="stylesheet" href="../js/resources/js-test-style.css">
 <script src="../js/resources/js-test-pre.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 
 
 <script>
@@ -21,8 +18,6 @@ description(
 
 var expected = "not braille, tv and (max-width: 200px) and (min-width: 100px) and (orientation: landscape), (color)";
 shouldBe("document.styleSheets[0].media.mediaText", "expected");
-
-var successfullyParsed = true;
 
 </script>
 

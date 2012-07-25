@@ -29,6 +29,8 @@
 
 #include "DumpRenderTreeQt.h"
 
+#include "QtInitializeTestFonts.h"
+
 #include <wtf/AlwaysInline.h>
 
 #include <qstringlist.h>
@@ -43,7 +45,6 @@
 
 #ifdef Q_WS_X11
 #include <qx11info_x11.h>
-#include <fontconfig/fontconfig.h>
 #endif
 
 #ifdef Q_OS_WIN
@@ -54,9 +55,8 @@
 #include <limits.h>
 #include <signal.h>
 
-#if defined(__GLIBC__) && !defined(__UCLIBC__)
-#include <execinfo.h>
-#endif
+#include <wtf/ExportMacros.h>
+#include <wtf/Assertions.h>
 
 void messageHandler(QtMsgType type, const char *message)
 {
@@ -73,6 +73,7 @@ bool isOption(const QString& str)
 {
     return str == QString("-v") || str == QString("--pixel-tests")
            || str == QString("--stdout") || str == QString("--stderr")
+           || str == QString("--timeout") || str == QString("--no-timeout")
            || str == QString("-");
 }
 
@@ -89,43 +90,36 @@ QString takeOptionValue(QStringList& arguments, int index)
 
 void printUsage()
 {
-    fprintf(stderr, "Usage: DumpRenderTree [-v|--pixel-tests] [--stdout output_filename] [-stderr error_filename] filename [filename2..n]\n");
+    fprintf(stderr, "Usage: DumpRenderTree [-v|--pixel-tests] [--stdout output_filename] [-stderr error_filename] [--no-timeout] [--timeout timeout_MS] filename [filename2..n]\n");
     fprintf(stderr, "Or folder containing test files: DumpRenderTree [-v|--pixel-tests] dirpath\n");
     fflush(stderr);
 }
 
-QString get_backtrace() {
-    QString s;
-
-#if defined(__GLIBC__) && !defined(__UCLIBC__)
-    void* array[256];
-    size_t size; /* number of stack frames */
-
-    size = backtrace(array, 256);
-
-    if (!size)
-        return s;
-
-    char** strings = backtrace_symbols(array, size);
-    for (int i = 0; i < int(size); ++i) {
-        s += QString::number(i) +
-             QLatin1String(": ") +
-             QLatin1String(strings[i]) + QLatin1String("\n");
-    }
-
-    if (strings)
-        free (strings);
-#endif
-
-    return s;
-}
-
 #if HAVE(SIGNAL_H)
+typedef void (*SignalHandler)(int);
+
 static NO_RETURN void crashHandler(int sig)
 {
-    fprintf(stderr, "%s\n", strsignal(sig));
-    fprintf(stderr, "%s\n", get_backtrace().toLatin1().constData());
+    WTFReportBacktrace();
     exit(128 + sig);
+}
+
+static void setupSignalHandlers(SignalHandler handler)
+{
+    signal(SIGILL, handler);    /* 4:   illegal instruction (not reset when caught) */
+    signal(SIGTRAP, handler);   /* 5:   trace trap (not reset when caught) */
+    signal(SIGFPE, handler);    /* 8:   floating point exception */
+    signal(SIGBUS, handler);    /* 10:  bus error */
+    signal(SIGSEGV, handler);   /* 11:  segmentation violation */
+    signal(SIGSYS, handler);    /* 12:  bad argument to system call */
+    signal(SIGPIPE, handler);   /* 13:  write on a pipe with no reader */
+    signal(SIGXCPU, handler);   /* 24:  exceeded CPU time limit */
+    signal(SIGXFSZ, handler);   /* 25:  exceeded file size limit */
+}
+
+static void WTFCrashHook()
+{
+    setupSignalHandlers(SIG_DFL);
 }
 #endif
 
@@ -136,40 +130,57 @@ int main(int argc, char* argv[])
     _setmode(2, _O_BINARY);
 #endif
 
-#ifdef Q_WS_X11
-    FcInit();
-    WebCore::DumpRenderTree::initializeFonts();
-#endif
+    // Suppress debug output from Qt if not started with -v
+    bool suppressQtDebugOutput = true;
+    for (int i = 1; i < argc; ++i) {
+        if (!qstrcmp(argv[i], "-v")) {
+            suppressQtDebugOutput = false;
+            break;
+        }
+    }
+
+    // Has to be done before QApplication is constructed in case
+    // QApplication itself produces debug output.
+    if (suppressQtDebugOutput)
+        qInstallMsgHandler(messageHandler);
+
+    WebKit::initializeTestFonts();
 
     QApplication::setGraphicsSystem("raster");
     QApplication::setStyle(new QWindowsStyle);
 
-    QFont f("Sans Serif");
-    f.setPointSize(9);
-    f.setWeight(QFont::Normal);
-    f.setStyle(QFont::StyleNormal);
-    QApplication::setFont(f);
-
     QApplication app(argc, argv);
+    app.setQuitOnLastWindowClosed(false);
+
+#if QT_VERSION <= QT_VERSION_CHECK(5, 0, 0)
 #ifdef Q_WS_X11
     QX11Info::setAppDpiY(0, 96);
     QX11Info::setAppDpiX(0, 96);
 #endif
 
+   /*
+    * QApplication will initialize the default application font based
+    * on the application DPI at construction time, which might be
+    * different from the DPI we explicitly set using QX11Info above.
+    * See: https://bugreports.qt.nokia.com/browse/QTBUG-21603
+    *
+    * To ensure that the application font DPI matches the application
+    * DPI, we override the application font using the font we get from
+    * a QWidget, which has already been resolved against the existing
+    * default font, but with the correct paint-device DPI.
+   */
+    QApplication::setFont(QWidget().font());
+#else
+    QCoreApplication::setAttribute(Qt::AA_Use96Dpi, true);
+#endif
+
 #if HAVE(SIGNAL_H)
-    signal(SIGILL, crashHandler);    /* 4:   illegal instruction (not reset when caught) */
-    signal(SIGTRAP, crashHandler);   /* 5:   trace trap (not reset when caught) */
-    signal(SIGFPE, crashHandler);    /* 8:   floating point exception */
-    signal(SIGBUS, crashHandler);    /* 10:  bus error */
-    signal(SIGSEGV, crashHandler);   /* 11:  segmentation violation */
-    signal(SIGSYS, crashHandler);    /* 12:  bad argument to system call */
-    signal(SIGPIPE, crashHandler);   /* 13:  write on a pipe with no reader */
-    signal(SIGXCPU, crashHandler);   /* 24:  exceeded CPU time limit */
-    signal(SIGXFSZ, crashHandler);   /* 25:  exceeded file size limit */
+    setupSignalHandlers(&crashHandler);
+    WTFSetCrashHook(&WTFCrashHook);
 #endif
 
     QStringList args = app.arguments();
-    if (args.count() < 2) {
+    if (args.count() < (!suppressQtDebugOutput ? 3 : 2)) {
         printUsage();
         exit(1);
     }
@@ -177,16 +188,9 @@ int main(int argc, char* argv[])
     // Remove the first arguments, it is application name itself
     args.removeAt(0);
 
-    // Suppress debug output from Qt if not started with -v
-    int index = args.indexOf(QLatin1String("-v"));
-    if (index == -1) 
-        qInstallMsgHandler(messageHandler);
-    else
-        args.removeAt(index);
-
     WebCore::DumpRenderTree dumper;
 
-    index = args.indexOf(QLatin1String("--pixel-tests"));
+    int index = args.indexOf(QLatin1String("--pixel-tests"));
     if (index != -1) {
         dumper.setDumpPixels(true);
         args.removeAt(index);
@@ -212,6 +216,19 @@ int main(int argc, char* argv[])
     }
     QWebDatabase::removeAllDatabases();
 
+    index = args.indexOf(QLatin1String("--timeout"));
+    if (index != -1) {
+        int timeout = takeOptionValue(args, index).toInt();
+        dumper.setTimeout(timeout);
+        args.removeAt(index);
+    }
+
+    index = args.indexOf(QLatin1String("--no-timeout"));
+    if (index != -1) {
+        dumper.setShouldTimeout(false);
+        args.removeAt(index);
+    }
+
     index = args.indexOf(QLatin1String("-"));
     if (index != -1) {
         args.removeAt(index);
@@ -235,8 +252,4 @@ int main(int argc, char* argv[])
         dumper.processArgsLine(args);
     }
     return app.exec();
-
-#ifdef Q_WS_X11
-    FcConfigSetCurrent(0);
-#endif
 }

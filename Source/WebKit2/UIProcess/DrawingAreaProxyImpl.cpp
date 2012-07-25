@@ -29,10 +29,16 @@
 #include "DrawingAreaMessages.h"
 #include "DrawingAreaProxyMessages.h"
 #include "LayerTreeContext.h"
-#include "Region.h"
 #include "UpdateInfo.h"
+#include "WebPageGroup.h"
 #include "WebPageProxy.h"
+#include "WebPreferences.h"
 #include "WebProcessProxy.h"
+#include <WebCore/Region.h>
+
+#if USE(UI_SIDE_COMPOSITING)
+#include "LayerTreeHostProxy.h"
+#endif
 
 using namespace WebCore;
 
@@ -52,6 +58,11 @@ DrawingAreaProxyImpl::DrawingAreaProxyImpl(WebPageProxy* webPageProxy)
     , m_isBackingStoreDiscardable(true)
     , m_discardBackingStoreTimer(RunLoop::current(), this, &DrawingAreaProxyImpl::discardBackingStore)
 {
+#if USE(UI_SIDE_COMPOSITING)
+    // Construct the proxy early to allow messages to be sent to the web process while AC is entered there.
+    if (webPageProxy->pageGroup()->preferences()->forceCompositingMode())
+        m_layerTreeHostProxy = adoptPtr(new LayerTreeHostProxy(this));
+#endif
 }
 
 DrawingAreaProxyImpl::~DrawingAreaProxyImpl()
@@ -106,37 +117,33 @@ void DrawingAreaProxyImpl::paint(BackingStore::PlatformGraphicsContext context, 
     discardBackingStoreSoon();
 }
 
-void DrawingAreaProxyImpl::didReceiveMessage(CoreIPC::Connection*, CoreIPC::MessageID, CoreIPC::ArgumentDecoder*)
-{
-    ASSERT_NOT_REACHED();
-}
-
-void DrawingAreaProxyImpl::didReceiveSyncMessage(CoreIPC::Connection*, CoreIPC::MessageID, CoreIPC::ArgumentDecoder*, CoreIPC::ArgumentEncoder*)
-{
-    ASSERT_NOT_REACHED();
-}
-
-bool DrawingAreaProxyImpl::paint(const WebCore::IntRect&, PlatformDrawingContext)
-{
-    ASSERT_NOT_REACHED();
-    return false;
-}
-
 void DrawingAreaProxyImpl::sizeDidChange()
 {
     backingStoreStateDidChange(RespondImmediately);
 }
 
+void DrawingAreaProxyImpl::deviceScaleFactorDidChange()
+{
+    backingStoreStateDidChange(RespondImmediately);
+}
+
+void DrawingAreaProxyImpl::layerHostingModeDidChange()
+{
+    m_webPageProxy->process()->send(Messages::DrawingArea::SetLayerHostingMode(m_webPageProxy->layerHostingMode()), m_webPageProxy->pageID());
+}
+
 void DrawingAreaProxyImpl::visibilityDidChange()
 {
-    if (!m_webPageProxy->isViewVisible()) {
-        // Suspend painting.
-        m_webPageProxy->process()->send(Messages::DrawingArea::SuspendPainting(), m_webPageProxy->pageID());
-        return;
-    }
+    if (!m_webPageProxy->suppressVisibilityUpdates()) {
+        if (!m_webPageProxy->isViewVisible()) {
+            // Suspend painting.
+            m_webPageProxy->process()->send(Messages::DrawingArea::SuspendPainting(), m_webPageProxy->pageID());
+            return;
+        }
 
-    // Resume painting.
-    m_webPageProxy->process()->send(Messages::DrawingArea::ResumePainting(), m_webPageProxy->pageID());
+        // Resume painting.
+        m_webPageProxy->process()->send(Messages::DrawingArea::ResumePainting(), m_webPageProxy->pageID());
+    }
 
 #if USE(ACCELERATED_COMPOSITING)
     // If we don't have a backing store, go ahead and mark the backing store as being changed so
@@ -144,10 +151,6 @@ void DrawingAreaProxyImpl::visibilityDidChange()
     if (!m_backingStore && m_layerTreeContext.isEmpty())
         backingStoreStateDidChange(DoNotRespondImmediately);
 #endif
-}
-
-void DrawingAreaProxyImpl::setPageIsVisible(bool)
-{
 }
 
 void DrawingAreaProxyImpl::setBackingStoreIsDiscardable(bool isBackingStoreDiscardable)
@@ -215,7 +218,7 @@ void DrawingAreaProxyImpl::didUpdateBackingStoreState(uint64_t backingStoreState
 #endif
 
     // If we have a backing store the right size, reuse it.
-    if (m_backingStore && m_backingStore->size() != updateInfo.viewSize)
+    if (m_backingStore && (m_backingStore->size() != updateInfo.viewSize || m_backingStore->deviceScaleFactor() != updateInfo.deviceScaleFactor))
         m_backingStore = nullptr;
     incorporateUpdate(updateInfo);
 }
@@ -244,6 +247,17 @@ void DrawingAreaProxyImpl::exitAcceleratedCompositingMode(uint64_t backingStoreS
     incorporateUpdate(updateInfo);
 }
 
+void DrawingAreaProxyImpl::updateAcceleratedCompositingMode(uint64_t backingStoreStateID, const LayerTreeContext& layerTreeContext)
+{
+    ASSERT_ARG(backingStoreStateID, backingStoreStateID <= m_currentBackingStoreStateID);
+    if (backingStoreStateID < m_currentBackingStoreStateID)
+        return;
+
+#if USE(ACCELERATED_COMPOSITING)
+    updateAcceleratedCompositingMode(layerTreeContext);
+#endif
+}
+
 void DrawingAreaProxyImpl::incorporateUpdate(const UpdateInfo& updateInfo)
 {
     ASSERT(!isInAcceleratedCompositingMode());
@@ -252,7 +266,7 @@ void DrawingAreaProxyImpl::incorporateUpdate(const UpdateInfo& updateInfo)
         return;
 
     if (!m_backingStore)
-        m_backingStore = BackingStore::create(updateInfo.viewSize, m_webPageProxy);
+        m_backingStore = BackingStore::create(updateInfo.viewSize, updateInfo.deviceScaleFactor, m_webPageProxy);
 
     m_backingStore->incorporateUpdate(updateInfo);
 
@@ -292,7 +306,7 @@ void DrawingAreaProxyImpl::sendUpdateBackingStoreState(RespondImmediatelyOrNot r
 
     m_isWaitingForDidUpdateBackingStoreState = respondImmediatelyOrNot == RespondImmediately;
 
-    m_webPageProxy->process()->send(Messages::DrawingArea::UpdateBackingStoreState(m_nextBackingStoreStateID, respondImmediatelyOrNot == RespondImmediately, m_size, m_scrollOffset), m_webPageProxy->pageID());
+    m_webPageProxy->process()->send(Messages::DrawingArea::UpdateBackingStoreState(m_nextBackingStoreStateID, respondImmediatelyOrNot == RespondImmediately, m_webPageProxy->deviceScaleFactor(), m_size, m_scrollOffset), m_webPageProxy->pageID());
     m_scrollOffset = IntSize();
 
     if (m_isWaitingForDidUpdateBackingStoreState) {
@@ -339,7 +353,26 @@ void DrawingAreaProxyImpl::enterAcceleratedCompositingMode(const LayerTreeContex
     m_backingStore = nullptr;
     m_layerTreeContext = layerTreeContext;
     m_webPageProxy->enterAcceleratedCompositingMode(layerTreeContext);
+#if USE(UI_SIDE_COMPOSITING)
+    if (!m_layerTreeHostProxy)
+        m_layerTreeHostProxy = adoptPtr(new LayerTreeHostProxy(this));
+#endif
 }
+
+#if USE(UI_SIDE_COMPOSITING)
+void DrawingAreaProxyImpl::didReceiveLayerTreeHostProxyMessage(CoreIPC::Connection* connection, CoreIPC::MessageID messageID, CoreIPC::ArgumentDecoder* arguments)
+{
+    if (m_layerTreeHostProxy)
+        m_layerTreeHostProxy->didReceiveLayerTreeHostProxyMessage(connection, messageID, arguments);
+}
+
+void DrawingAreaProxyImpl::setVisibleContentsRect(const WebCore::IntRect& visibleContentsRect, float scale, const WebCore::FloatPoint& trajectoryVector, const WebCore::FloatPoint& accurateVisibleContentsPosition)
+{
+    if (m_layerTreeHostProxy)
+        m_layerTreeHostProxy->setVisibleContentsRect(visibleContentsRect, scale, trajectoryVector, accurateVisibleContentsPosition);
+}
+
+#endif
 
 void DrawingAreaProxyImpl::exitAcceleratedCompositingMode()
 {
@@ -348,7 +381,20 @@ void DrawingAreaProxyImpl::exitAcceleratedCompositingMode()
     m_layerTreeContext = LayerTreeContext();    
     m_webPageProxy->exitAcceleratedCompositingMode();
 }
+
+void DrawingAreaProxyImpl::updateAcceleratedCompositingMode(const LayerTreeContext& layerTreeContext)
+{
+    ASSERT(isInAcceleratedCompositingMode());
+
+    m_layerTreeContext = layerTreeContext;
+    m_webPageProxy->updateAcceleratedCompositingMode(layerTreeContext);
+}
 #endif
+
+void DrawingAreaProxyImpl::pageCustomRepresentationChanged()
+{
+    m_webPageProxy->process()->send(Messages::DrawingArea::PageCustomRepresentationChanged(), m_webPageProxy->pageID());
+}
 
 void DrawingAreaProxyImpl::discardBackingStoreSoon()
 {

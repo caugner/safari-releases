@@ -1,5 +1,6 @@
 if (this.importScripts) {
     importScripts('../resources/fs-worker-common.js');
+    importScripts('../../js/resources/js-test-pre.js');
     importScripts('../resources/fs-test-util.js');
 }
 
@@ -40,5 +41,3 @@ shouldBe('"' + paths.join(',') + '"', '"/a,/b,/c,/d2,/e,/f"');
 shouldBe("dirsCount", "3");
 removeAllInDirectorySync(fileSystem.root);
 finishJSTest();
-
-var successfullyParsed = true;

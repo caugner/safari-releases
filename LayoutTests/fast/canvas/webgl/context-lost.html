@@ -1,6 +1,7 @@
+<!DOCTYPE html>
 <html>
 <head>
-<link rel="stylesheet" href="../../js/resources/js-test-style.css"/>
+<link rel="stylesheet" href="../../resources/js-test-style.css"/>
 <script src="../../js/resources/js-test-pre.js"></script>
 <script src="resources/webgl-test.js"></script>
 <script src="resources/webgl-test-utils.js"></script>
@@ -9,7 +10,11 @@ var wtu;
 var canvas;
 var gl;
 var shouldGenerateGLError;
-var extension_name = "WEBKIT_lose_context";
+var extensionNames = [
+    "WEBKIT_WEBGL_lose_context",
+    "MOZ_WEBGL_lose_context",
+];
+var extensionName;
 var extension;
 
 var buffer;
@@ -42,16 +47,25 @@ function init()
         window.initNonKhronosFramework(true);
     }
 
-    extension = gl.getExtension(extension_name);
+    // call testValidContext() before checking for the extension, because this is where we check
+    // for the isContextLost() method, which we want to do regardless of the extension's presence.
+    testValidContext();
+
+    for (var ii = 0; ii < extensionNames.length; ++ii) {
+        extension = gl.getExtension(extensionNames[ii]);
+        if (extension) {
+            extensionName = extensionNames[ii];
+            break;
+        }
+    }
     if (!extension) {
-        debug(extension_name + " extension not found.");
-        finish();
-        return;
+        debug("Could not find lose_context extension under the following names: " + extensionNames.join(" "));
+        finishTest();
+        return false;
     }
 
-    canvas.addEventListener("webglcontextlost", testLostContext);
+    canvas.addEventListener("webglcontextlost", testLostContext, false);
 
-    testValidContext();
     loseContext();
 }
 
@@ -59,7 +73,10 @@ function loseContext()
 {
     debug("");
     debug("Lose context");
-    shouldGenerateGLError(gl, gl.NO_ERROR, "extension.loseContext()");
+
+    // Note: this will cause the context to be lost, but the
+    // webglcontextlost event listener to be queued.
+    extension.loseContext();
     debug("");
 }
 
@@ -132,8 +149,8 @@ function testLostContext()
         "gl.blendColor(1.0, 1.0, 1.0, 1.0)",
         "gl.blendEquation(gl.FUNC_ADD)",
         "gl.blendEquationSeparate(gl.FUNC_ADD, gl.FUNC_ADD)",
-        "gl.blendFunc(gl.ONE)",
-        "gl.blendFuncSeparate(gl.ONE, gl.ONE)",
+        "gl.blendFunc(gl.ONE, gl.ONE)",
+        "gl.blendFuncSeparate(gl.ONE, gl.ONE, gl.ONE, gl.ONE)",
         "gl.bufferData(gl.ARRAY_BUFFER, 0, gl.STATIC_DRAW)",
         "gl.bufferData(gl.ARRAY_BUFFER, arrayBufferView, gl.STATIC_DRAW)",
         "gl.bufferData(gl.ARRAY_BUFFER, arrayBuffer, gl.STATIC_DRAW)",
@@ -275,7 +292,7 @@ function testLostContext()
         "gl.getUniformLocation(program, 'vPosition')",
         "gl.getVertexAttrib(0, gl.VERTEX_ATTRIB_ARRAY_BUFFER_BINDING)",
         "gl.getSupportedExtensions()",
-        "gl.getExtension('" + extension_name + "')",
+        "gl.getExtension('" + extensionName + "')",
     ];
     for (var i = 0; i < nullTests.length; ++i) {
         shouldBeNull(nullTests[i]);
@@ -292,19 +309,11 @@ function testLostContext()
 
     shouldBe("gl.getError()", "gl.NO_ERROR");
 
-    finish();
+    debug("");
+
+    finishTest();
 }
 
-function finish() {
-    successfullyParsed = true;
-    var epilogue = document.createElement("script");
-    epilogue.onload = function() {
-        if (window.nonKhronosFrameworkNotifyDone)
-            window.nonKhronosFrameworkNotifyDone();
-    };
-    epilogue.src = "../../js/resources/js-test-post.js";
-    document.body.appendChild(epilogue);
-}
 </script>
 </head>
 <body onload="init()">

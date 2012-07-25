@@ -23,11 +23,9 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "Test.h"
-
+#include "config.h"
 #include "PlatformUtilities.h"
 #include "PlatformWebView.h"
-#include <WebKit2/WebKit2.h>
 #include <WebKit2/WKRetainPtr.h>
 
 namespace TestWebKitAPI {
@@ -36,7 +34,7 @@ static bool done;
 static bool loadDone;
 static bool messageReceived;
 
-void didReceiveMessageFromInjectedBundle(WKContextRef context, WKStringRef messageName, WKTypeRef messageBody, const void* clientInfo)
+static void didReceiveMessageFromInjectedBundle(WKContextRef context, WKStringRef messageName, WKTypeRef messageBody, const void* clientInfo)
 {
     messageReceived = true;
     if (loadDone)

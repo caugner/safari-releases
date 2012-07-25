@@ -25,27 +25,21 @@
 # THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-#
-# WebKit's Python module for interacting with WebKit's buildbot
 
-try:
-    import json
-except ImportError:
-    # python 2.5 compatibility
-    import webkitpy.thirdparty.simplejson as json
-
+import json
 import operator
 import re
 import urllib
 import urllib2
 
+import webkitpy.common.config.urls as config_urls
 from webkitpy.common.net.failuremap import FailureMap
 from webkitpy.common.net.layouttestresults import LayoutTestResults
+from webkitpy.common.net.networktransaction import NetworkTransaction
 from webkitpy.common.net.regressionwindow import RegressionWindow
-from webkitpy.common.net.testoutputset import TestOutputSet
 from webkitpy.common.system.logutils import get_logger
-from webkitpy.common.system.zipfileset import ZipFileSet
 from webkitpy.thirdparty.BeautifulSoup import BeautifulSoup
+
 
 _log = get_logger(__file__)
 
@@ -64,13 +58,18 @@ class Builder(object):
         return self._name
 
     def results_url(self):
-        return "http://%s/results/%s" % (self._buildbot.buildbot_host, self.url_encoded_name())
+        return "%s/results/%s" % (self._buildbot.buildbot_url, self.url_encoded_name())
+
+    # In addition to per-build results, the build.chromium.org builders also
+    # keep a directory that accumulates test results over many runs.
+    def accumulated_results_url(self):
+        return None
 
     def url_encoded_name(self):
         return urllib.quote(self._name)
 
     def url(self):
-        return "http://%s/builders/%s" % (self._buildbot.buildbot_host, self.url_encoded_name())
+        return "%s/builders/%s" % (self._buildbot.buildbot_url, self.url_encoded_name())
 
     # This provides a single place to mock
     def _fetch_build(self, build_number):
@@ -236,29 +235,26 @@ class Build(object):
     def results_zip_url(self):
         return "%s.zip" % self.results_url()
 
-    def results(self):
-        return TestOutputSet(self._builder.name(), None, ZipFileSet(self.results_zip_url()), include_expected=False)
-
-    def _fetch_results_html(self):
-        results_html = "%s/results.html" % (self.results_url())
-        # FIXME: This should use NetworkTransaction's 404 handling or at least move
-        # to mechanize's to be more consistent with the rest of our code.
-        try:
-            # It seems this can return None if the url redirects and then returns 404.
-            result = urllib2.urlopen(results_html)
-            if not result:
-                return None
-            # urlopen returns a file-like object which sometimes works fine with str()
-            # but sometimes is a addinfourl object.  In either case calling read() is correct.
-            return result.read()
-        except urllib2.HTTPError, error:
-            if error.code != 404:
-                raise
+    def _fetch_file_from_results(self, file_name):
+        # It seems this can return None if the url redirects and then returns 404.
+        result = urllib2.urlopen("%s/%s" % (self.results_url(), file_name))
+        if not result:
+            return None
+        # urlopen returns a file-like object which sometimes works fine with str()
+        # but sometimes is a addinfourl object.  In either case calling read() is correct.
+        return result.read()
 
     def layout_test_results(self):
-        if not self._layout_test_results:
-            # FIXME: This should cache that the result was a 404 and stop hitting the network.
-            self._layout_test_results = LayoutTestResults.results_from_string(self._fetch_results_html())
+        if self._layout_test_results:
+            return self._layout_test_results
+
+        # FIXME: This should cache that the result was a 404 and stop hitting the network.
+        results_file = NetworkTransaction(convert_404_to_None=True).run(lambda: self._fetch_file_from_results("full_results.json"))
+        if not results_file:
+            results_file = NetworkTransaction(convert_404_to_None=True).run(lambda: self._fetch_file_from_results("results.html"))
+
+        # results_from_string accepts either ORWT html or NRWT json.
+        self._layout_test_results = LayoutTestResults.results_from_string(results_file)
         return self._layout_test_results
 
     def builder(self):
@@ -277,32 +273,12 @@ class Build(object):
 
 
 class BuildBot(object):
-    # FIXME: This should move into common.config.urls.
-    default_host = "build.webkit.org"
+    _builder_factory = Builder
+    _default_url = config_urls.buildbot_url
 
-    def __init__(self, host=default_host):
-        self.buildbot_host = host
+    def __init__(self, url=None):
+        self.buildbot_url = url if url else self._default_url
         self._builder_by_name = {}
-
-        # If any core builder is red we should not be landing patches.  Other
-        # builders should be added to this list once they are known to be
-        # reliable.
-        # See https://bugs.webkit.org/show_bug.cgi?id=33296 and related bugs.
-        self.core_builder_names_regexps = [
-            "SnowLeopard.*Build",
-            "SnowLeopard.*\(Test",
-            "SnowLeopard.*\(WebKit2 Test",
-            "Leopard.*\((?:Build|Test)",
-            "Windows.*Build",
-            "Windows.*\(Test",
-            "WinCairo",
-            "WinCE",
-            "EFL",
-            "GTK.*32",
-            "GTK.*64.*Debug",  # Disallow the 64-bit Release bot which is broken.
-            "Qt",
-            "Chromium.*Release$",
-        ]
 
     def _parse_last_build_cell(self, builder, cell):
         status_link = cell.find('a')
@@ -357,25 +333,9 @@ class BuildBot(object):
                 return True
         return False
 
-    # FIXME: Should move onto Builder
-    def _is_core_builder(self, builder_name):
-        return self._matches_regexps(builder_name, self.core_builder_names_regexps)
-
     # FIXME: This method needs to die, but is used by a unit test at the moment.
     def _builder_statuses_with_names_matching_regexps(self, builder_statuses, name_regexps):
         return [builder for builder in builder_statuses if self._matches_regexps(builder["name"], name_regexps)]
-
-    def red_core_builders(self):
-        return [builder for builder in self.core_builder_statuses() if not builder["is_green"]]
-
-    def red_core_builders_names(self):
-        return [builder["name"] for builder in self.red_core_builders()]
-
-    def idle_red_core_builders(self):
-        return [builder for builder in self.red_core_builders() if builder["activity"] == "idle"]
-
-    def core_builders_are_green(self):
-        return not self.red_core_builders()
 
     # FIXME: These _fetch methods should move to a networking class.
     def _fetch_build_dictionary(self, builder, build_number):
@@ -383,7 +343,7 @@ class BuildBot(object):
         # cause keys to be missing which you might otherwise expect.
         # FIXME: The bot sends a *huge* amount of data for each request, we should
         # find a way to reduce the response size further.
-        json_url = "http://%s/json/builders/%s/builds/%s?filter=1" % (self.buildbot_host, urllib.quote(builder.name()), build_number)
+        json_url = "%s/json/builders/%s/builds/%s?filter=1" % (self.buildbot_url, urllib.quote(builder.name()), build_number)
         try:
             return json.load(urllib2.urlopen(json_url))
         except urllib2.URLError, err:
@@ -396,7 +356,7 @@ class BuildBot(object):
             return None
 
     def _fetch_one_box_per_builder(self):
-        build_status_url = "http://%s/one_box_per_builder" % self.buildbot_host
+        build_status_url = "%s/one_box_per_builder" % self.buildbot_url
         return urllib2.urlopen(build_status_url)
 
     def _file_cell_text(self, file_cell):
@@ -434,21 +394,17 @@ class BuildBot(object):
         soup = BeautifulSoup(self._fetch_one_box_per_builder())
         return [self._parse_builder_status_from_row(status_row) for status_row in soup.find('table').findAll('tr')]
 
-    def core_builder_statuses(self):
-        return [builder for builder in self.builder_statuses() if self._is_core_builder(builder["name"])]
-
     def builder_with_name(self, name):
         builder = self._builder_by_name.get(name)
         if not builder:
-            builder = Builder(name, self)
+            builder = self._builder_factory(name, self)
             self._builder_by_name[name] = builder
         return builder
 
-    def failure_map(self, only_core_builders=True):
-        builder_statuses = self.core_builder_statuses() if only_core_builders else self.builder_statuses()
+    def failure_map(self):
         failure_map = FailureMap()
         revision_to_failing_bots = {}
-        for builder_status in builder_statuses:
+        for builder_status in self.builder_statuses():
             if builder_status["is_green"]:
                 continue
             builder = self.builder_with_name(builder_status["name"])
@@ -459,8 +415,8 @@ class BuildBot(object):
 
     # This makes fewer requests than calling Builder.latest_build would.  It grabs all builder
     # statuses in one request using self.builder_statuses (fetching /one_box_per_builder instead of builder pages).
-    def _latest_builds_from_builders(self, only_core_builders=True):
-        builder_statuses = self.core_builder_statuses() if only_core_builders else self.builder_statuses()
+    def _latest_builds_from_builders(self):
+        builder_statuses = self.builder_statuses()
         return [self.builder_with_name(status["name"]).build(status["build_number"]) for status in builder_statuses]
 
     def _build_at_or_before_revision(self, build, revision):
@@ -469,23 +425,51 @@ class BuildBot(object):
                 return build
             build = build.previous_build()
 
-    def last_green_revision(self, only_core_builders=True):
-        builds = self._latest_builds_from_builders(only_core_builders)
-        target_revision = builds[0].revision()
-        # An alternate way to do this would be to start at one revision and walk backwards
-        # checking builder.build_for_revision, however build_for_revision is very slow on first load.
-        while True:
-            # Make builds agree on revision
-            builds = [self._build_at_or_before_revision(build, target_revision) for build in builds]
-            if None in builds: # One of the builds failed to load from the server.
-                return None
-            min_revision = min(map(lambda build: build.revision(), builds))
-            if min_revision != target_revision:
-                target_revision = min_revision
-                continue # Builds don't all agree on revision, keep searching
-            # Check to make sure they're all green
-            all_are_green = reduce(operator.and_, map(lambda build: build.is_green(), builds))
-            if not all_are_green:
-                target_revision -= 1
+    def _fetch_builder_page(self, builder):
+        builder_page_url = "%s/builders/%s?numbuilds=100" % (self.buildbot_url, urllib2.quote(builder.name()))
+        return urllib2.urlopen(builder_page_url)
+
+    def _revisions_for_builder(self, builder):
+        soup = BeautifulSoup(self._fetch_builder_page(builder))
+        revisions = []
+        for status_row in soup.find('table').findAll('tr'):
+            revision_anchor = status_row.find('a')
+            table_cells = status_row.findAll('td')
+            if not table_cells or len(table_cells) < 3 or not table_cells[2].string:
                 continue
-            return min_revision
+            if revision_anchor and revision_anchor.string and re.match(r'^\d+$', revision_anchor.string):
+                revisions.append((int(revision_anchor.string), 'success' in table_cells[2].string))
+        return revisions
+
+    def _find_green_revision(self, builder_revisions):
+        revision_statuses = {}
+        for builder in builder_revisions:
+            for revision, succeeded in builder_revisions[builder]:
+                revision_statuses.setdefault(revision, set())
+                if succeeded and revision_statuses[revision] != None:
+                    revision_statuses[revision].add(builder)
+                else:
+                    revision_statuses[revision] = None
+
+        # In descending order, look for a revision X with successful builds
+        # Once we found X, check if remaining builders succeeded in the neighborhood of X.
+        revisions_in_order = sorted(revision_statuses.keys(), reverse=True)
+        for i, revision in enumerate(revisions_in_order):
+            if not revision_statuses[revision]:
+                continue
+
+            builders_succeeded_in_future = set()
+            for future_revision in sorted(revisions_in_order[:i + 1]):
+                if not revision_statuses[future_revision]:
+                    break
+                builders_succeeded_in_future = builders_succeeded_in_future.union(revision_statuses[future_revision])
+
+            builders_succeeded_in_past = set()
+            for past_revision in revisions_in_order[i:]:
+                if not revision_statuses[past_revision]:
+                    break
+                builders_succeeded_in_past = builders_succeeded_in_past.union(revision_statuses[past_revision])
+
+            if len(builders_succeeded_in_future) == len(builder_revisions) and len(builders_succeeded_in_past) == len(builder_revisions):
+                return revision
+        return None

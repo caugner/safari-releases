@@ -1,12 +1,9 @@
 <!DOCTYPE html>
 <html>
 <head>
-<link rel="stylesheet" href="../js/resources/js-test-style.css">
 <script src="../js/resources/js-test-pre.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <canvas id="canvas">
 <script>
 description("Test case for bug 39168. This tests the CSS color parsing code using &lt;canvas&gt;.");
@@ -245,8 +242,6 @@ shouldNotSuccessfullyParse("inherited");
 shouldNotSuccessfullyParse("#100%");
 shouldNotSuccessfullyParse("#100px");
 shouldNotSuccessfullyParse('-webkit-var("test")');
-
-successfullyParsed = true;
 </script>
 <script src="../js/resources/js-test-post.js"></script>
 </html>

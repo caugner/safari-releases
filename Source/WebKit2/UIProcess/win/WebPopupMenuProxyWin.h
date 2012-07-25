@@ -48,7 +48,7 @@ public:
     }
     ~WebPopupMenuProxyWin();
 
-    virtual void showPopupMenu(const WebCore::IntRect&, WebCore::TextDirection, double scaleFactor, const Vector<WebPopupItem>&, const PlatformPopupMenuData&, int32_t selectedIndex);
+    virtual void showPopupMenu(const WebCore::IntRect&, WebCore::TextDirection, double pageScaleFactor, const Vector<WebPopupItem>&, const PlatformPopupMenuData&, int32_t selectedIndex);
     virtual void hidePopupMenu();
 
     bool setFocusedIndex(int index, bool hotTracking = false);
@@ -70,6 +70,7 @@ private:
     virtual bool isScrollCornerVisible() const { return false; }
     virtual WebCore::IntRect scrollCornerRect() const { return WebCore::IntRect(); }
     virtual WebCore::Scrollbar* verticalScrollbar() const { return m_scrollbar.get(); }
+    virtual WebCore::ScrollableArea* enclosingScrollableArea() const { return 0; }
 
     // NOTE: This should only be called by the overriden setScrollOffset from ScrollableArea.
     void scrollTo(int offset);

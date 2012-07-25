@@ -53,10 +53,12 @@
 
                 var audio = document.getElementById('audio');
 
+                var seekCoords;
                 try {
-                    var seekCoords = mediaControlsButtonCoordinates(audio, "seek-forward-button");
+                    seekCoords = mediaControlsButtonCoordinates(audio, "seek-forward-button");
                 } catch (exception) {
                     failTest(exception.description);
+                    return;
                 }
                 var x = seekCoords[0];
                 var y = seekCoords[1];

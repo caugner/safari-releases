@@ -39,8 +39,7 @@ import os
 import unittest
 
 import checker as style
-from webkitpy.style_references import LogTesting
-from webkitpy.style_references import TestLogStream
+from webkitpy.common.system.logtesting import LogTesting, TestLogStream
 from checker import _BASE_FILTER_RULES
 from checker import _MAX_REPORTS_PER_CATEGORY
 from checker import _PATH_RULES_SPECIFIER as PATH_RULES_SPECIFIER
@@ -54,6 +53,7 @@ from checker import StyleProcessor
 from checker import StyleProcessorConfiguration
 from checkers.changelog import ChangeLogChecker
 from checkers.cpp import CppChecker
+from checkers.jsonchecker import JSONChecker
 from checkers.python import PythonChecker
 from checkers.text import TextChecker
 from checkers.xml import XMLChecker
@@ -227,8 +227,6 @@ class GlobalVariablesTest(unittest.TestCase):
                       "readability/naming")
 
         # Test if Qt exceptions are indeed working
-        assertCheck("Source/JavaScriptCore/qt/api/qscriptengine.cpp",
-                    "readability/braces")
         assertCheck("Source/WebKit/qt/Api/qwebpage.cpp",
                     "readability/braces")
         assertCheck("Source/WebKit/qt/tests/qwebelement/tst_qwebelement.cpp",
@@ -237,13 +235,6 @@ class GlobalVariablesTest(unittest.TestCase):
                     "readability/braces")
         assertCheck("Source/WebKit/qt/examples/platformplugin/WebPlugin.cpp",
                     "readability/braces")
-        assertCheck("Source/WebKit/qt/symbian/platformplugin/WebPlugin.cpp",
-                    "readability/braces")
-        assertNoCheck("Source/JavaScriptCore/qt/api/qscriptengine.cpp",
-                      "readability/naming")
-        assertNoCheck("Source/JavaScriptCore/qt/benchmarks"
-                      "/qscriptengine/tst_qscriptengine.cpp",
-                      "readability/naming")
         assertNoCheck("Source/WebKit/qt/Api/qwebpage.cpp",
                       "readability/naming")
         assertNoCheck("Source/WebKit/qt/tests/qwebelement/tst_qwebelement.cpp",
@@ -252,14 +243,18 @@ class GlobalVariablesTest(unittest.TestCase):
                       "readability/naming")
         assertNoCheck("Source/WebKit/qt/examples/platformplugin/WebPlugin.cpp",
                       "readability/naming")
-        assertNoCheck("Source/WebKit/qt/symbian/platformplugin/WebPlugin.cpp",
-                      "build/header_guard")
 
         assertNoCheck("Tools/MiniBrowser/qt/UrlLoader.cpp",
                     "build/include")
 
+        assertNoCheck("Source/WebKit2/UIProcess/API/qt",
+                    "readability/parameter_name")
+
         assertNoCheck("Source/WebCore/ForwardingHeaders/debugger/Debugger.h",
                       "build/header_guard")
+
+        assertNoCheck("Source/WebCore/platform/graphics/gstreamer/VideoSinkGStreamer.cpp",
+                      "readability/naming")
 
         # Third-party Python code: webkitpy/thirdparty
         path = "Tools/Scripts/webkitpy/thirdparty/mock.py"
@@ -268,6 +263,13 @@ class GlobalVariablesTest(unittest.TestCase):
         assertCheck(path, "pep8/W191")
         assertCheck(path, "pep8/W291")
         assertCheck(path, "whitespace/carriage_return")
+
+        # Test if the exception for GDBInterface.cpp is in place.
+        assertNoCheck("Source/JavaScriptCore/jit/GDBInterface.cpp",
+                      "readability/naming")
+
+        # Javascript keywords.
+        assertCheck("Source/JavaScriptCore/parser/Keywords.table", "whitespace/carriage_return")
 
     def test_max_reports_per_category(self):
         """Check that _MAX_REPORTS_PER_CATEGORY is valid."""
@@ -300,21 +302,31 @@ class CheckerDispatcherSkipTest(unittest.TestCase):
 
     def test_should_skip_with_warning(self):
         """Test should_skip_with_warning()."""
-        # Check a non-skipped file.
-        self.assertFalse(self._dispatcher.should_skip_with_warning("foo.txt"))
-
         # Check skipped files.
         paths_to_skip = [
-           "gtk2drawing.c",
-           "gtkdrawing.h",
-           "Source/WebCore/platform/gtk/gtk2drawing.c",
-           "Source/WebCore/platform/gtk/gtkdrawing.h",
            "Source/WebKit/gtk/tests/testatk.c",
+           "Source/WebKit2/UIProcess/API/gtk/webkit2.h",
+           "Source/WebKit2/UIProcess/API/gtk/WebKitWebView.h",
+           "Source/WebKit2/UIProcess/API/gtk/WebKitLoader.h",
             ]
 
         for path in paths_to_skip:
             self.assertTrue(self._dispatcher.should_skip_with_warning(path),
                             "Checking: " + path)
+
+        # Verify that some files are not skipped.
+        paths_not_to_skip = [
+           "foo.txt",
+           "Source/WebKit2/UIProcess/API/gtk/HelperClass.cpp",
+           "Source/WebKit2/UIProcess/API/gtk/HelperClass.h",
+           "Source/WebKit2/UIProcess/API/gtk/WebKitWebView.cpp",
+           "Source/WebKit2/UIProcess/API/gtk/WebKitWebViewPrivate.h",
+           "Source/WebKit2/UIProcess/API/gtk/tests/WebViewTest.cpp",
+           "Source/WebKit2/UIProcess/API/gtk/tests/WebViewTest.h",
+            ]
+
+        for path in paths_not_to_skip:
+            self.assertFalse(self._dispatcher.should_skip_with_warning(path))
 
     def _assert_should_skip_without_warning(self, path, is_checker_none,
                                             expected):
@@ -406,6 +418,10 @@ class CheckerDispatcherDispatchTest(unittest.TestCase):
         """Assert that the dispatched checker is a CppChecker."""
         self.assert_checker(file_path, CppChecker)
 
+    def assert_checker_json(self, file_path):
+        """Assert that the dispatched checker is a JSONChecker."""
+        self.assert_checker(file_path, JSONChecker)
+
     def assert_checker_python(self, file_path):
         """Assert that the dispatched checker is a PythonChecker."""
         self.assert_checker(file_path, PythonChecker)
@@ -467,6 +483,25 @@ class CheckerDispatcherDispatchTest(unittest.TestCase):
         checker = self.dispatch(file_path)
         self.assertEquals(checker.file_extension, file_extension)
         self.assertEquals(checker.file_path, file_path)
+
+    def test_json_paths(self):
+        """Test paths that should be checked as JSON."""
+        paths = [
+           "Source/WebCore/inspector/Inspector.json",
+           "Tools/BuildSlaveSupport/build.webkit.org-config/config.json",
+        ]
+
+        for path in paths:
+            self.assert_checker_json(path)
+
+        # Check checker attributes on a typical input.
+        file_base = "foo"
+        file_extension = "json"
+        file_path = file_base + "." + file_extension
+        self.assert_checker_json(file_path)
+        checker = self.dispatch(file_path)
+        self.assertEquals(checker._handle_style_error,
+                          self.mock_handle_style_error)
 
     def test_python_paths(self):
         """Test paths that should be checked as Python."""
@@ -555,7 +590,6 @@ class CheckerDispatcherDispatchTest(unittest.TestCase):
         paths = [
            "Makefile",
            "foo.asdf",  # Non-sensical file extension.
-           "foo.png",
            "foo.exe",
             ]
 

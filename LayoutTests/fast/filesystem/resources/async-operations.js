@@ -1,5 +1,6 @@
 if (this.importScripts) {
     importScripts('../resources/fs-worker-common.js');
+    importScripts('../../js/resources/js-test-pre.js');
     importScripts('../resources/fs-test-util.js');
 }
 
@@ -103,5 +104,3 @@ if (this.webkitRequestFileSystem) {
     helper.join(asyncTest1);
 } else
     debug("This test requires FileSystem API support.");
-
-var successfullyParsed = true;

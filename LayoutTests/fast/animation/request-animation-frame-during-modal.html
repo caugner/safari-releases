@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html>
-<link rel="stylesheet" href="../js/resources/js-test-style.css">
 <script src="../js/resources/js-test-pre.js"></script>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 
 <script type="text/javascript">
+if (window.layoutTestController)
+    layoutTestController.setCanOpenWindows();
+
 description('Tests that requestAnimationFrame callbacks are not invoked while modal dialogs are displayed.');
 
 onload = function()
@@ -27,9 +27,16 @@ onload = function()
     }
 }
 
-var successfullyParsed = true;
+if (window.layoutTestController)
+    layoutTestController.waitUntilDone();
+
+setTimeout(function() {
+    isSuccessfullyParsed();
+    if (window.layoutTestController)
+        layoutTestController.notifyDone();
+}, 200);
+
 </script>
-<script src="../js/resources/js-test-post.js"></script>
 </body>
 </html>
 

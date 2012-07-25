@@ -26,25 +26,8 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import os
-
 from webkitpy.tool.commands.queuestest import QueuesTest
-from webkitpy.tool.commands.sheriffbot import SheriffBot
-from webkitpy.tool.mocktool import *
 
 
 class SheriffBotTest(QueuesTest):
-    builder1 = MockBuilder("Builder1")
-    builder2 = MockBuilder("Builder2")
-
-    def test_sheriff_bot(self):
-        tool = MockTool()
-        mock_work_item = MockFailureMap(tool.buildbot)
-        expected_stderr = {
-            "begin_work_queue": self._default_begin_work_queue_stderr("sheriff-bot", tool.scm().checkout_root),
-            "next_work_item": "",
-            "process_work_item": """MOCK: irc.post: abarth, darin, eseidel: http://trac.webkit.org/changeset/29837 might have broken Builder1
-""",
-            "handle_unexpected_error": "Mock error message\n"
-        }
-        self.assert_queue_outputs(SheriffBot(), work_item=mock_work_item, expected_stderr=expected_stderr)
+    pass  # No unittests as the moment.

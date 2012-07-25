@@ -21,4 +21,11 @@ if (window.layoutTestController)
 if (window.layoutTestController)
     layoutTestController.display();
 
-var successfullyParsed = true;
+if (window.layoutTestController)
+    layoutTestController.waitUntilDone();
+
+setTimeout(function() {
+    isSuccessfullyParsed();
+    if (window.layoutTestController)
+        layoutTestController.notifyDone();
+}, 200);

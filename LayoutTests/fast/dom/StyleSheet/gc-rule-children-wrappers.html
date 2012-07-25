@@ -22,13 +22,9 @@
 
 @page { margin: 3cm; }
 </style>
-
-<link rel="stylesheet" href="../../js/resources/js-test-style.css">
 <script src="../../js/resources/js-test-pre.js"></script>
 </head>
 <body style="color:black">
-<p id="description"></p>
-<div id="console"></div>
 <script>
     description("Test that custom properties on rule style declarations are not lost after GC");
 
@@ -49,8 +45,6 @@
     test("document.styleSheets[0].cssRules[4]", "CSSRule.WEBKIT_KEYFRAMES_RULE", "cssRules");
     test("document.styleSheets[0].cssRules[4].cssRules[0]", "CSSRule.WEBKIT_KEYFRAME_RULE", "style");
     test("document.styleSheets[0].cssRules[5]", "CSSRule.PAGE_RULE", "style");
-
-    successfullyParsed = true;
 
 </script>
 <script src="../../js/resources/js-test-post.js"></script>

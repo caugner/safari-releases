@@ -42,12 +42,11 @@ import os
 import sys
 import tempfile
 
-scripts_directory = os.path.dirname(os.path.abspath(sys.argv[0]))
-webkitpy_directory = os.path.join(scripts_directory, "webkitpy")
-sys.path.append(os.path.join(webkitpy_directory, "layout_tests"))
+import webkitpy.common.version_check
 
-import port
-from port import http_server
+from webkitpy.common.host import Host
+from webkitpy.layout_tests.servers import http_server
+
 
 def run(options):
     if not options.server:
@@ -60,7 +59,9 @@ def run(options):
             # source of tests. Specifying port but no root does not seem
             # meaningful.
             raise 'Specifying port requires also a root.'
-        port_obj = port.get(None, options)
+        host = Host()
+        # FIXME: Make this work with other ports as well.
+        port_obj = host.port_factory.get(port_name='chromium', options=options)
         httpd = http_server.Lighttpd(port_obj,
                                      tempfile.gettempdir(),
                                      port=options.port,
@@ -70,7 +71,7 @@ def run(options):
         if options.server == 'start':
             httpd.start()
         else:
-            httpd.stop(force=True)
+            httpd.stop()
 
 
 def main():
@@ -90,9 +91,6 @@ def main():
         dest="layout_tests_dir",
         help='Absolute path to LayoutTests root')
     options, args = option_parser.parse_args()
-
-    # FIXME: Make this work with other ports as well.
-    options.chromium = True
 
     run(options)
 

@@ -1,7 +1,6 @@
 <html>
 <head>
 <title>required/optional CSS pseudoclasses part 5</title>
-<link rel="stylesheet" href="../../fast/js/resources/js-test-style.css">
 <script src="../../fast/js/resources/js-test-pre.js"></script>
 <style>
  input:optional { background: lime; }
@@ -10,8 +9,6 @@
 </style>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <input id="range" type="range" required/>
 <input id="submit" type="submit" required/>
 <input id="image" type="image" required/>
@@ -27,7 +24,6 @@ shouldBeTrue('isOptional("submit")');
 shouldBeTrue('isOptional("image")');
 shouldBeTrue('isOptional("reset")');
 shouldBeTrue('isOptional("button")');
-var successfullyParsed = true;
 </script>
 <script src="../../fast/js/resources/js-test-post.js"></script>
 </body>

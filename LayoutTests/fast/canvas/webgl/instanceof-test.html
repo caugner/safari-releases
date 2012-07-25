@@ -1,7 +1,8 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
-  "http://www.w3.org/TR/html4/loose.dtd">
+
+<!DOCTYPE html>
 <html>
 <head>
+<meta charset="utf-8">
 <title>WebGL instanceof test.</title>
 <link rel="stylesheet" href="../../js/resources/js-test-style.css"/>
 <script src="../../js/resources/js-test-pre.js"></script>
@@ -22,9 +23,7 @@ void main()
 </script>
 
 <script id="fshader" type="x-shader/x-fragment">
-#ifdef GL_ES
 precision mediump float;
-#endif
 uniform vec4 color;
 void main()
 {
@@ -33,6 +32,7 @@ void main()
 </script>
 <script>
 var wtu = WebGLTestUtils;
+description(document.title);
 debug("Tests that instanceof works on WebGL objects.");
 debug("");
 var gl = create3DContext(document.getElementById("canvas"));
@@ -68,23 +68,20 @@ function shouldThrowWithNew(objectType, objectName)
     }
 }
 
-shouldThrowWithNew(WebGLRenderingContext, 'WebGLRenderingContext');
-shouldThrowWithNew(WebGLActiveInfo, 'WebGLActiveInfo');
-shouldThrowWithNew(WebGLBuffer, 'WebGLBuffer');
-shouldThrowWithNew(WebGLFramebuffer, 'WebGLFramebuffer');
-shouldThrowWithNew(WebGLProgram, 'WebGLProgram');
-shouldThrowWithNew(WebGLRenderbuffer, 'WebGLRenderbuffer');
-shouldThrowWithNew(WebGLShader, 'WebGLShader');
-shouldThrowWithNew(WebGLTexture, 'WebGLTexture');
-shouldThrowWithNew(WebGLUniformLocation, 'WebGLUniformLocation');
+shouldThrowWithNew(window.WebGLRenderingContext, 'WebGLRenderingContext');
+shouldThrowWithNew(window.WebGLActiveInfo, 'WebGLActiveInfo');
+shouldThrowWithNew(window.WebGLBuffer, 'WebGLBuffer');
+shouldThrowWithNew(window.WebGLFramebuffer, 'WebGLFramebuffer');
+shouldThrowWithNew(window.WebGLProgram, 'WebGLProgram');
+shouldThrowWithNew(window.WebGLRenderbuffer, 'WebGLRenderbuffer');
+shouldThrowWithNew(window.WebGLShader, 'WebGLShader');
+shouldThrowWithNew(window.WebGLTexture, 'WebGLTexture');
+shouldThrowWithNew(window.WebGLUniformLocation, 'WebGLUniformLocation');
+shouldThrowWithNew(window.WebGLShaderPrecisionFormat, 'WebGLShaderPrecisionFormat');
 
 successfullyParsed = true;
 </script>
-</body>
 <script src="../../js/resources/js-test-post.js"></script>
-
-<script>
-</script>
 
 </body>
 </html>

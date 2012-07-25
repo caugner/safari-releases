@@ -12,8 +12,8 @@ var expectedPropertyNamesSet = {
     "Object.create({}, { 'a': { 'value': 1, 'enumerable': false } })": "['a']",
     "Object.create([1,2,3], { 'a': { 'value': 1, 'enumerable': false } })": "['a']",
 // Function objects
-    "new Function()": "['arguments', 'callee', 'caller', 'length', 'name', 'prototype']",
-    "(function(){var x=new Function();x.__proto__=[1,2,3];return x;})()": "['arguments', 'callee', 'caller', 'length', 'name', 'prototype']",
+    "new Function()": "['arguments', 'caller', 'length', 'name', 'prototype']",
+    "(function(){var x=new Function();x.__proto__=[1,2,3];return x;})()": "['arguments', 'caller', 'length', 'name', 'prototype']",
 // String objects
     "new String('')": "['length']",
     "new String('a')": "['0', 'length']",
@@ -49,9 +49,9 @@ var expectedPropertyNamesSet = {
     "encodeURIComponent": "['length', 'name']",
 // Built-in ECMA objects
     "Object": "['create', 'defineProperties', 'defineProperty', 'freeze', 'getOwnPropertyDescriptor', 'getOwnPropertyNames', 'getPrototypeOf', 'isExtensible', 'isFrozen', 'isSealed', 'keys', 'length', 'name', 'preventExtensions', 'prototype', 'seal']",
-    "Object.prototype": "['__defineGetter__', '__defineSetter__', '__lookupGetter__', '__lookupSetter__', 'constructor', 'hasOwnProperty', 'isPrototypeOf', 'propertyIsEnumerable', 'toLocaleString', 'toString', 'valueOf']",
+    "Object.prototype": "['__defineGetter__', '__defineSetter__', '__lookupGetter__', '__lookupSetter__', '__proto__', 'constructor', 'hasOwnProperty', 'isPrototypeOf', 'propertyIsEnumerable', 'toLocaleString', 'toString', 'valueOf']",
     "Function": "['length', 'name', 'prototype']",
-    "Function.prototype": "['apply', 'call', 'constructor', 'length', 'name', 'toString']",
+    "Function.prototype": "['apply', 'bind', 'call', 'constructor', 'length', 'name', 'toString']",
     "Array": "['isArray', 'length', 'name', 'prototype']",
     "Array.prototype": "['concat', 'constructor', 'every', 'filter', 'forEach', 'indexOf', 'join', 'lastIndexOf', 'length', 'map', 'pop', 'push', 'reduce', 'reduceRight', 'reverse', 'shift', 'slice', 'some', 'sort', 'splice', 'toLocaleString', 'toString', 'unshift']",
     "String": "['fromCharCode', 'length', 'name', 'prototype']",
@@ -110,5 +110,3 @@ var expectedGlobalPropertyNames = [
 
 for (var i = 0; i < expectedGlobalPropertyNames.length; ++i)
     shouldBeTrue("globalPropertyNames.indexOf('" + expectedGlobalPropertyNames[i] + "') != -1");
-
-var successfullyParsed = true;

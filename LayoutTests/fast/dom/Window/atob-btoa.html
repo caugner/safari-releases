@@ -1,12 +1,9 @@
 ﻿<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
 <html>
 <head>
-<link rel="stylesheet" href="../../js/resources/js-test-style.css">
 <script src="../../js/resources/js-test-pre.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <script>
 shouldBe('window.atob("YQ==")', '"a"');
 shouldBe('window.atob("YWI=")', '"ab"');
@@ -26,7 +23,7 @@ shouldBe('window.btoa()', '"dW5kZWZpbmVk"');
 shouldBe('window.btoa("")', '""');
 shouldBe('window.btoa(null)', '""');
 shouldBe('window.btoa(undefined)', '"dW5kZWZpbmVk"');
-shouldBe('window.btoa(window)', '"W29iamVjdCBET01XaW5kb3dd"'); // "[object DOMWindow]"
+shouldBe('window.btoa(window)', '"W29iamVjdCBXaW5kb3dd"'); // "[object Window]"
 shouldBe('window.btoa("éé")', '"6ek="');
 shouldBe('window.btoa("\\u0080\\u0081")', '"gIE="');
 shouldThrow('window.btoa("тест")');
@@ -64,7 +61,6 @@ window.atob = 0;
 shouldBe('window.atob', '0');
 shouldBe('typeof window.atob', '"number"');
 
-successfullyParsed = true;
 </script>
 <script src="../../js/resources/js-test-post.js"></script>
 </body>

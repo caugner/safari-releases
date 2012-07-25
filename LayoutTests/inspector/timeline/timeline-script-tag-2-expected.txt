@@ -6,12 +6,13 @@ EvaluateScript Properties:
     startTime : <number>
     data : {
         url : <string>
-        lineNumber : 1
+        lineNumber : <number>
     }
     children : <object>
     endTime : <number>
     type : "EvaluateScript"
     usedHeapSize : <number>
     totalHeapSize : <number>
+    counters : <object>
 }
 

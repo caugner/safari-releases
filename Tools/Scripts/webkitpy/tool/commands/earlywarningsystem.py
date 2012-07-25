@@ -3,7 +3,7 @@
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are
 # met:
-# 
+#
 #     * Redistributions of source code must retain the above copyright
 # notice, this list of conditions and the following disclaimer.
 #     * Redistributions in binary form must reproduce the above
@@ -13,7 +13,7 @@
 #     * Neither the name of Google Inc. nor the names of its
 # contributors may be used to endorse or promote products derived from
 # this software without specific prior written permission.
-# 
+#
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 # "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 # LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -26,105 +26,34 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+from optparse import make_option
+
 from webkitpy.common.config.committers import CommitterList
-from webkitpy.common.config.ports import WebKitPort
+from webkitpy.common.config.ports import DeprecatedPort
 from webkitpy.common.system.deprecated_logging import error, log
 from webkitpy.common.system.executive import ScriptError
+from webkitpy.tool.bot.earlywarningsystemtask import EarlyWarningSystemTask, EarlyWarningSystemTaskDelegate
 from webkitpy.tool.bot.expectedfailures import ExpectedFailures
 from webkitpy.tool.bot.layouttestresultsreader import LayoutTestResultsReader
+from webkitpy.tool.bot.patchanalysistask import UnableToApplyPatch
 from webkitpy.tool.bot.queueengine import QueueEngine
-from webkitpy.tool.bot.earlywarningsystemtask import EarlyWarningSystemTask, EarlyWarningSystemTaskDelegate, UnableToApplyPatch
 from webkitpy.tool.commands.queues import AbstractReviewQueue
 
 
-class AbstractEarlyWarningSystem(AbstractReviewQueue):
+class AbstractEarlyWarningSystem(AbstractReviewQueue, EarlyWarningSystemTaskDelegate):
     _build_style = "release"
+    # FIXME: Switch _default_run_tests from opt-in to opt-out once more bots are ready to run tests.
+    _default_run_tests = False
 
     def __init__(self):
-        AbstractReviewQueue.__init__(self)
-        self.port = WebKitPort.port(self.port_name)
+        options = [make_option("--run-tests", action="store_true", dest="run_tests", default=self._default_run_tests, help="Run the Layout tests for each patch")]
+        AbstractReviewQueue.__init__(self, options=options)
+        self.port = DeprecatedPort.port(self.port_name)
 
-    def should_proceed_with_work_item(self, patch):
-        return True
-
-    def _can_build(self):
-        try:
-            self.run_webkit_patch([
-                "build",
-                self.port.flag(),
-                "--build-style=%s" % self._build_style,
-                "--force-clean",
-                "--no-update"])
-            return True
-        except ScriptError, e:
-            failure_log = self._log_from_script_error_for_upload(e)
-            self._update_status("Unable to perform a build", results_file=failure_log)
-            return False
-
-    def _build(self, patch, first_run=False):
-        try:
-            args = [
-                "build-attachment",
-                self.port.flag(),
-                "--build",
-                "--build-style=%s" % self._build_style,
-                "--force-clean",
-                "--quiet",
-                "--non-interactive",
-                patch.id()]
-            if not first_run:
-                # See commit-queue for an explanation of what we're doing here.
-                args.append("--no-update")
-                args.append("--parent-command=%s" % self.name)
-            self.run_webkit_patch(args)
-            return True
-        except ScriptError, e:
-            if first_run:
-                return False
-            raise
-
-    def review_patch(self, patch):
-        if patch.is_obsolete():
-            self._did_error(patch, "%s does not process obsolete patches." % self.name)
-            return False
-
-        if patch.bug().is_closed():
-            self._did_error(patch, "%s does not process patches on closed bugs." % self.name)
-            return False
-
-        if not self._build(patch, first_run=True):
-            if not self._can_build():
-                return False
-            self._build(patch)
-        return True
-
-    @classmethod
-    def _post_reject_message_on_bug(cls, tool, patch, status_id, extra_message_text=None):
-        results_link = tool.status_server.results_url_for_status(status_id)
-        message = "Attachment %s did not pass %s (%s):\nOutput: %s" % (patch.id(), cls.name, cls.port_name, results_link)
-        # FIXME: We might want to add some text about rejecting from the commit-queue in
-        # the case where patch.commit_queue() isn't already set to '-'.
-        if cls.watchers:
-            tool.bugs.add_cc_to_bug(patch.bug_id(), cls.watchers)
-        tool.bugs.set_flag_on_attachment(patch.id(), "commit-queue", "-", message, extra_message_text)
-
-    @classmethod
-    def handle_script_error(cls, tool, state, script_error):
-        is_svn_apply = script_error.command_name() == "svn-apply"
-        status_id = cls._update_status_for_script_error(tool, state, script_error, is_error=is_svn_apply)
-        if is_svn_apply:
-            QueueEngine.exit_after_handled_error(script_error)
-        cls._post_reject_message_on_bug(tool, state['patch'], status_id)
-        exit(1)
-
-
-# FIXME: This should merge with AbstractEarlyWarningSystem once all the EWS
-# bots run tests.
-class AbstractTestingEWS(AbstractEarlyWarningSystem, EarlyWarningSystemTaskDelegate):
     def begin_work_queue(self):
         # FIXME: This violates abstraction
-        self._tool._port = self.port
-        AbstractEarlyWarningSystem.begin_work_queue(self)
+        self._tool._deprecated_port = self.port
+        AbstractReviewQueue.begin_work_queue(self)
         self._expected_failures = ExpectedFailures()
         self._layout_test_results_reader = LayoutTestResultsReader(self._tool, self._log_directory())
 
@@ -135,8 +64,17 @@ class AbstractTestingEWS(AbstractEarlyWarningSystem, EarlyWarningSystemTaskDeleg
             return None
         return "New failing tests:\n%s" % "\n".join(unexpected_failures)
 
+    def _post_reject_message_on_bug(self, tool, patch, status_id, extra_message_text=None):
+        results_link = tool.status_server.results_url_for_status(status_id)
+        message = "Attachment %s did not pass %s (%s):\nOutput: %s" % (patch.id(), self.name, self.port_name, results_link)
+        # FIXME: We might want to add some text about rejecting from the commit-queue in
+        # the case where patch.commit_queue() isn't already set to '-'.
+        if self.watchers:
+            tool.bugs.add_cc_to_bug(patch.bug_id(), self.watchers)
+        tool.bugs.set_flag_on_attachment(patch.id(), "commit-queue", "-", message, extra_message_text)
+
     def review_patch(self, patch):
-        task = EarlyWarningSystemTask(self, patch)
+        task = EarlyWarningSystemTask(self, patch, self._options.run_tests)
         if not task.validate():
             self._did_error(patch, "%s did not process patch." % self.name)
             return False
@@ -174,11 +112,14 @@ class AbstractTestingEWS(AbstractEarlyWarningSystem, EarlyWarningSystemTaskDeleg
     def expected_failures(self):
         return self._expected_failures
 
-    def layout_test_results(self):
+    def test_results(self):
         return self._layout_test_results_reader.results()
 
-    def archive_last_layout_test_results(self, patch):
+    def archive_last_test_results(self, patch):
         return self._layout_test_results_reader.archive(patch)
+
+    def build_style(self):
+        return self._build_style
 
     def refetch_patch(self, patch):
         return self._tool.bugs.fetch_attachment(patch.id())
@@ -219,6 +160,11 @@ class QtEWS(AbstractEarlyWarningSystem):
     port_name = "qt"
 
 
+class QtWK2EWS(AbstractEarlyWarningSystem):
+    name = "qt-wk2-ews"
+    port_name = "qt"
+
+
 class WinEWS(AbstractEarlyWarningSystem):
     name = "win-ews"
     port_name = "win"
@@ -234,39 +180,18 @@ class AbstractChromiumEWS(AbstractEarlyWarningSystem):
     ]
 
 
-class ChromiumLinuxEWS(AbstractTestingEWS):
+class ChromiumLinuxEWS(AbstractChromiumEWS):
     # FIXME: We should rename this command to cr-linux-ews, but that requires
     #        a database migration. :(
     name = "chromium-ews"
     port_name = "chromium-xvfb"
-
-    # FIXME: ChromiumLinuxEWS should inherit from AbstractChromiumEWS once
-    # all the Chromium EWS bots run tests
-    watchers = AbstractChromiumEWS.watchers
+    _default_run_tests = True
 
 
 class ChromiumWindowsEWS(AbstractChromiumEWS):
     name = "cr-win-ews"
 
 
-# For platforms that we can't run inside a VM (like Mac OS X), we require
-# patches to be uploaded by committers, who are generally trustworthy folk. :)
-class AbstractCommitterOnlyEWS(AbstractEarlyWarningSystem):
-    def process_work_item(self, patch):
-        if not patch.attacher() or not patch.attacher().can_commit:
-            self._did_error(patch, "%s cannot process patches from non-committers :(" % self.name)
-            return False
-        return AbstractEarlyWarningSystem.process_work_item(self, patch)
-
-
-# FIXME: Inheriting from AbstractCommitterOnlyEWS is kinda a hack, but it
-# happens to work because AbstractChromiumEWS and AbstractCommitterOnlyEWS
-# provide disjoint sets of functionality, and Python is otherwise smart
-# enough to handle the diamond inheritance.
-class ChromiumMacEWS(AbstractChromiumEWS, AbstractCommitterOnlyEWS):
-    name = "cr-mac-ews"
-
-
-class MacEWS(AbstractCommitterOnlyEWS):
+class MacEWS(AbstractEarlyWarningSystem):
     name = "mac-ews"
     port_name = "mac"

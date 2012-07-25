@@ -6,19 +6,6 @@
 
 <script>
 
-function f1()
-{
-    var a=0;var b=1;var c=3;var d=4;var e=5;
-    var f=0;
-    return 0;
-}
-
-function f2()
-{
-    var x = 0;
-    return 0;
-}
-
 var test = function()
 {
     var panel = WebInspector.panels.scripts;
@@ -39,7 +26,7 @@ var test = function()
                 next();
             };
 
-            worker.postMessage({ mimeType: "text/javascript", content: "var x=0" });
+            worker.postMessage({ method: "format", params: { mimeType: "text/javascript", content: "var x=0" } });
         },
 
         function testSourceMapping(next)
@@ -49,26 +36,30 @@ var test = function()
             InspectorTest.showScriptSource("obfuscated.js", didShowScriptSource);
             function didShowScriptSource(sourceFrame)
             {
-                formatter.formatContent("text/javascript", sourceFrame._content, didFormatContent);
+                formatter.formatContent("text/javascript", sourceFrame._textModel.text, didFormatContent);
             }
 
             function didFormatContent(content, mapping)
             {
-                var source = WebInspector.panels.scripts.visibleView._content;
+                var source = WebInspector.panels.scripts.visibleView._textModel.text;
                 var formattedSource = content;
 
                 function testMapping(string)
                 {
-                    var originalLocation = WebInspector.ScriptFormatter.positionToLocation(source.lineEndings(), source.indexOf(string));
-                    var formattedLocation = mapping.originalToFormatted(originalLocation);
-                    var formattedPosition = WebInspector.ScriptFormatter.locationToPosition(formattedSource.lineEndings(), formattedLocation);
+                    var originalPosition = source.indexOf(string);
+                    InspectorTest.assertTrue(originalPosition !== -1);
+                    var originalLocation = WebInspector.ScriptFormatter.positionToLocation(source.lineEndings(), originalPosition);
+                    var formattedLocation = mapping.originalToFormatted(originalLocation[0], originalLocation[1]);
+                    var formattedPosition = WebInspector.ScriptFormatter.locationToPosition(formattedSource.lineEndings(), formattedLocation[0], formattedLocation[1]);
                     var expectedFormattedPosition = formattedSource.indexOf(string);
-                    InspectorTest.assertEquals(expectedFormattedPosition, formattedPosition);
+                    InspectorTest.assertEquals(expectedFormattedPosition, formattedPosition, "wrong mapping for <" + string + ">");
                 }
 
                 testMapping("function");
                 testMapping("formatted1");
                 testMapping("variable1");
+
+                testMapping("    return \"functionWithComments\"");
 
                 testMapping("onmessage");
                 testMapping("indent_start");
@@ -97,67 +88,8 @@ var test = function()
                 next();
             };
 
-            var content = "<html><body><script>function f(){}<" + "/script><script>function g(){}<" + "/script></body></html>";
-            worker.postMessage({ mimeType: "text/html", content: content });
-        },
-
-        function testBreakpointsInOriginalAndFormattedSource(next)
-        {
-            var root;
-            InspectorTest.showScriptSource("script-formatter.html", didShowScriptSource);
-
-            function didShowScriptSource(sourceFrame)
-            {
-                root = sourceFrame._url.substr(0, sourceFrame._url.lastIndexOf("/") + 1);
-                InspectorTest.setBreakpoint(sourceFrame, 11, "", true);
-                InspectorTest.waitUntilPaused(pausedInF1);
-                InspectorTest.evaluateInPageWithTimeout("f1()");
-            }
-
-            function pausedInF1(callFrames)
-            {
-                InspectorTest.captureStackTrace(callFrames);
-                InspectorTest.resumeExecution(resumed);
-            }
-
-            function resumed()
-            {
-                InspectorTest.navigate(root + "resources/test-navigation.html", didNavigateAnotherPage);
-            }
-
-            function didNavigateAnotherPage()
-            {
-                InspectorTest.addResult("Navigated to test-navigation.html");
-                panel._toggleFormatSourceFiles();
-                InspectorTest.showScriptSource("test-navigation.html", didShowAnotherPage);
-            }
-
-            function didShowAnotherPage(sourceFrame)
-            {
-                InspectorTest.navigate(root + "script-formatter.html", didNavigateBack);
-            }
-
-            function didNavigateBack()
-            {
-                InspectorTest.addResult("Navigated back to test page.");
-                InspectorTest.showScriptSource("script-formatter.html", didShowFormattedScriptSource);
-            }
-
-            function didShowFormattedScriptSource(sourceFrame)
-            {
-                // There should be no breakpoint in f1 since script is pretty-printed now.
-                InspectorTest.evaluateInPageWithTimeout("f1()");
-
-                InspectorTest.setBreakpoint(panel.visibleView, 24, "", true);
-                InspectorTest.waitUntilPaused(pausedInF2);
-                InspectorTest.evaluateInPageWithTimeout("f2()");
-            }
-
-            function pausedInF2(callFrames)
-            {
-                InspectorTest.captureStackTrace(callFrames);
-                next();
-            }
+            var content = "<html><body><script>function f(){}<" + "/script><script>function g(){var a;if (a) return;}<" + "/script></body></html>";
+            worker.postMessage({ method: "format", params: { mimeType: "text/html", content: content, indentString: "**" } });
         }
     ]);
 }

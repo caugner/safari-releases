@@ -15,7 +15,6 @@ PASS gl.isShader(shader) is true
 PASS gl.isTexture(texture) is true
 
 Lose context
-PASS extension.loseContext() was expected value: NO_ERROR.
 
 Test lost context
 PASS gl.isContextLost() is true
@@ -34,8 +33,8 @@ PASS gl.bindTexture(gl.TEXTURE_2D, texture) was expected value: NO_ERROR.
 PASS gl.blendColor(1.0, 1.0, 1.0, 1.0) was expected value: NO_ERROR.
 PASS gl.blendEquation(gl.FUNC_ADD) was expected value: NO_ERROR.
 PASS gl.blendEquationSeparate(gl.FUNC_ADD, gl.FUNC_ADD) was expected value: NO_ERROR.
-PASS gl.blendFunc(gl.ONE) was expected value: NO_ERROR.
-PASS gl.blendFuncSeparate(gl.ONE, gl.ONE) was expected value: NO_ERROR.
+PASS gl.blendFunc(gl.ONE, gl.ONE) was expected value: NO_ERROR.
+PASS gl.blendFuncSeparate(gl.ONE, gl.ONE, gl.ONE, gl.ONE) was expected value: NO_ERROR.
 PASS gl.bufferData(gl.ARRAY_BUFFER, 0, gl.STATIC_DRAW) was expected value: NO_ERROR.
 PASS gl.bufferData(gl.ARRAY_BUFFER, arrayBufferView, gl.STATIC_DRAW) was expected value: NO_ERROR.
 PASS gl.bufferData(gl.ARRAY_BUFFER, arrayBuffer, gl.STATIC_DRAW) was expected value: NO_ERROR.
@@ -170,7 +169,7 @@ PASS gl.getUniform(program, uniformLocation) is null
 PASS gl.getUniformLocation(program, 'vPosition') is null
 PASS gl.getVertexAttrib(0, gl.VERTEX_ATTRIB_ARRAY_BUFFER_BINDING) is null
 PASS gl.getSupportedExtensions() is null
-PASS gl.getExtension('WEBKIT_lose_context') is null
+PASS gl.getExtension('WEBKIT_WEBGL_lose_context') is null
 PASS gl.isBuffer(buffer) is false
 PASS gl.isEnabled(gl.BLEND) is false
 PASS gl.isFramebuffer(framebuffer) is false
@@ -179,6 +178,7 @@ PASS gl.isRenderbuffer(renderbuffer) is false
 PASS gl.isShader(shader) is false
 PASS gl.isTexture(texture) is false
 PASS gl.getError() is gl.NO_ERROR
+
 PASS successfullyParsed is true
 
 TEST COMPLETE

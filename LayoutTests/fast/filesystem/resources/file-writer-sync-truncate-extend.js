@@ -1,5 +1,6 @@
 if (this.importScripts) {
     importScripts('../resources/fs-worker-common.js');
+    importScripts('../../js/resources/js-test-pre.js');
     importScripts('../resources/fs-test-util.js');
     importScripts('../resources/file-writer-utils.js');
 }
@@ -14,10 +15,8 @@ removeAllInDirectorySync(fileSystem.root);
 var entry = fileSystem.root.getFile('a', {create:true, exclusive:true});
 var writer = entry.createWriter();
 assert(!writer.position);
-var builder = new WebKitBlobBuilder();
 var testData = "test data";
-builder.append(testData);
-writer.write(builder.getBlob());
+writer.write(new Blob([testData]));
 assert(writer.length == testData.length);
 assert(writer.position == writer.length);
 
@@ -38,5 +37,4 @@ for (; i < writer.length; ++i)
     assert(!contents.charCodeAt(i));
 
 testPassed("Truncate extension verified.");
-var successfullyParsed = true;
 finishJSTest();

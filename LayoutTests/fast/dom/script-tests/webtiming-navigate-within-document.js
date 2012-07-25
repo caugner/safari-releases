@@ -1,6 +1,6 @@
 description("This test checks that navigating within the document does not reset Web Timing numbers.");
 
-var performance = window.performance || {};
+window.performance = window.performance || {};
 var timing = performance.timing || {};
 
 function checkTimingNotChanged()
@@ -34,5 +34,3 @@ function loadHandler()
 window.addEventListener("load", loadHandler, false);
 
 jsTestIsAsync = true;
-
-var successfullyParsed = true;

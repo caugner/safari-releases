@@ -722,27 +722,13 @@ void dump()
     BSTR resultString = 0;
 
     if (dumpTree) {
+        ::InvalidateRect(webViewWindow, 0, TRUE);
+        ::SendMessage(webViewWindow, WM_PAINT, 0, 0);
+
         if (::gLayoutTestController->dumpAsText()) {
-            ::InvalidateRect(webViewWindow, 0, TRUE);
-            ::SendMessage(webViewWindow, WM_PAINT, 0, 0);
             wstring result = dumpFramesAsText(frame);
             resultString = SysAllocStringLen(result.data(), result.size());
         } else {
-            bool isSVGW3CTest = (gLayoutTestController->testPathOrURL().find("svg\\W3C-SVG-1.1") != string::npos);
-            unsigned width;
-            unsigned height;
-            if (isSVGW3CTest) {
-                width = 480;
-                height = 360;
-            } else {
-                width = LayoutTestController::maxViewWidth;
-                height = LayoutTestController::maxViewHeight;
-            }
-
-            ::SetWindowPos(webViewWindow, 0, 0, 0, width, height, SWP_NOMOVE);
-            ::InvalidateRect(webViewWindow, 0, TRUE);
-            ::SendMessage(webViewWindow, WM_PAINT, 0, 0);
-
             COMPtr<IWebFramePrivate> framePrivate;
             if (FAILED(frame->QueryInterface(&framePrivate)))
                 goto fail;
@@ -821,12 +807,14 @@ static void resetDefaultsToConsistentValues(IWebPreferences* preferences)
     static BSTR sansSerifFamily = SysAllocString(TEXT("Helvetica"));
     static BSTR cursiveFamily = SysAllocString(TEXT("Apple Chancery"));
     static BSTR fantasyFamily = SysAllocString(TEXT("Papyrus"));
+    static BSTR pictographFamily = SysAllocString(TEXT("Apple Color Emoji"));
 #else
     static BSTR standardFamily = SysAllocString(TEXT("Times New Roman"));
     static BSTR fixedFamily = SysAllocString(TEXT("Courier New"));
     static BSTR sansSerifFamily = SysAllocString(TEXT("Arial"));
     static BSTR cursiveFamily = SysAllocString(TEXT("Comic Sans MS")); // Not actually cursive, but it's what IE and Firefox use.
     static BSTR fantasyFamily = SysAllocString(TEXT("Times New Roman"));
+    static BSTR pictographFamily = SysAllocString(TEXT("Times New Roman"));
 #endif
 
     preferences->setStandardFontFamily(standardFamily);
@@ -835,6 +823,7 @@ static void resetDefaultsToConsistentValues(IWebPreferences* preferences)
     preferences->setSansSerifFontFamily(sansSerifFamily);
     preferences->setCursiveFontFamily(cursiveFamily);
     preferences->setFantasyFontFamily(fantasyFamily);
+    preferences->setPictographFontFamily(pictographFamily);
 
     preferences->setAutosaves(FALSE);
     preferences->setDefaultFontSize(16);
@@ -877,6 +866,7 @@ static void resetDefaultsToConsistentValues(IWebPreferences* preferences)
         prefsPrivate->setFrameFlatteningEnabled(FALSE);
         prefsPrivate->setOfflineWebApplicationCacheEnabled(TRUE);
         prefsPrivate->setLoadsSiteIconsIgnoringImageLoadingPreference(FALSE);
+        prefsPrivate->setHixie76WebSocketProtocolEnabled(FALSE);
     }
     setAlwaysAcceptCookies(false);
 
@@ -942,6 +932,22 @@ static void resetWebViewToConsistentStateBeforeTesting()
         framePrivate->clearOpener();
 }
 
+static void sizeWebViewForCurrentTest()
+{
+    bool isSVGW3CTest = (gLayoutTestController->testPathOrURL().find("svg\\W3C-SVG-1.1") != string::npos);
+    unsigned width;
+    unsigned height;
+    if (isSVGW3CTest) {
+        width = 480;
+        height = 360;
+    } else {
+        width = LayoutTestController::maxViewWidth;
+        height = LayoutTestController::maxViewHeight;
+    }
+
+    ::SetWindowPos(webViewWindow, 0, 0, 0, width, height, SWP_NOMOVE);
+}
+
 static void runTest(const string& testPathOrURL)
 {
     static BSTR methodBStr = SysAllocString(TEXT("GET"));
@@ -981,6 +987,7 @@ static void runTest(const string& testPathOrURL)
     done = false;
     topLoadingFrame = 0;
 
+    sizeWebViewForCurrentTest();
     gLayoutTestController->setIconDatabaseEnabled(false);
 
     if (shouldLogFrameLoadDelegates(pathOrURL.c_str()))
@@ -1301,7 +1308,7 @@ static LONG WINAPI exceptionFilter(EXCEPTION_POINTERS*)
     return EXCEPTION_CONTINUE_SEARCH;
 }
 
-int main(int argc, char* argv[])
+extern "C" __declspec(dllexport) int WINAPI dllLauncherEntryPoint(int argc, const char* argv[])
 {
     // Cygwin calls ::SetErrorMode(SEM_FAILCRITICALERRORS), which we will inherit. This is bad for
     // testing/debugging, as it causes the post-mortem debugger not to be invoked. We reset the

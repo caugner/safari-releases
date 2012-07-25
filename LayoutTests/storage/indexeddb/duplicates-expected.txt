@@ -3,7 +3,9 @@ Verify that you can put the same data in 2 different databases without uniquenes
 On success, you will see a series of "PASS" messages, followed by "TEST COMPLETE".
 
 
-webkitIndexedDB.open('duplicates-1')
+indexedDB = self.indexedDB || self.webkitIndexedDB || self.mozIndexedDB || self.msIndexedDB || self.OIndexedDB;
+
+indexedDB.open('duplicates-1')
 db = event.target.result
 db.setVersion('new version')
 setVersionSuccess():
@@ -20,11 +22,9 @@ indexObject.get('value')
 PASS event.target.result.x is "value"
 PASS event.target.result.y is "zzz"
 indexObject.getKey('does not exist')
-PASS event.target.errorCode is webkitIDBDatabaseException.NOT_FOUND_ERR
-event.preventDefault()
+PASS event.target.result is undefined
 indexObject.get('does not exist')
-PASS event.target.errorCode is webkitIDBDatabaseException.NOT_FOUND_ERR
-event.preventDefault()
+PASS event.target.result is undefined
 indexObject.openKeyCursor()
 PASS event.target.result === null is false
 PASS event.target.result.key is "value"
@@ -47,7 +47,7 @@ PASS event.target.result.value.x is "value2"
 PASS event.target.result.value.y is "zzz2"
 event.target.result.continue()
 PASS event.target.result === null is true
-webkitIndexedDB.open('duplicates-2')
+indexedDB.open('duplicates-2')
 db = event.target.result
 db.setVersion('new version')
 setVersionSuccess():
@@ -64,11 +64,9 @@ indexObject.get('value')
 PASS event.target.result.x is "value"
 PASS event.target.result.y is "zzz"
 indexObject.getKey('does not exist')
-PASS event.target.errorCode is webkitIDBDatabaseException.NOT_FOUND_ERR
-event.preventDefault()
+PASS event.target.result is undefined
 indexObject.get('does not exist')
-PASS event.target.errorCode is webkitIDBDatabaseException.NOT_FOUND_ERR
-event.preventDefault()
+PASS event.target.result is undefined
 indexObject.openKeyCursor()
 PASS event.target.result === null is false
 PASS event.target.result.key is "value"

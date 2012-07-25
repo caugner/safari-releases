@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Apple Inc. All rights reserved.
+ * Copyright (C) 2010, 2011 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -34,6 +34,7 @@
 #include "WebPageProxy.h"
 #include <WebCore/DOMImplementation.h>
 #include <WebCore/Image.h>
+#include <stdio.h>
 #include <wtf/text/WTFString.h>
 
 using namespace WebCore;
@@ -108,9 +109,9 @@ bool WebFrameProxy::canShowMIMEType(const String& mimeType) const
         return true;
 
 #if PLATFORM(MAC)
-    // On Mac, we can show PDFs in the main frame.
-    if (isMainFrame() && !mimeType.isEmpty())
-        return WebContext::pdfAndPostScriptMIMETypes().contains(mimeType);
+    // On Mac, we can show PDFs.
+    if (!mimeType.isEmpty())
+        return WebContext::pdfAndPostScriptMIMETypes().contains(mimeType) && !WebContext::omitPDFSupport();
 #endif
 
     return false;
@@ -126,6 +127,14 @@ bool WebFrameProxy::isDisplayingMarkupDocument() const
     // FIXME: This check should be moved to somewhere in WebCore.
     // FIXME: This returns false when displaying a web archive.
     return m_MIMEType == "text/html" || m_MIMEType == "image/svg+xml" || DOMImplementation::isXMLMIMEType(m_MIMEType);
+}
+
+bool WebFrameProxy::isDisplayingPDFDocument() const
+{
+    if (m_MIMEType.isEmpty())
+        return false;
+
+    return WebContext::pdfAndPostScriptMIMETypes().contains(m_MIMEType);
 }
 
 void WebFrameProxy::didStartProvisionalLoad(const String& url)

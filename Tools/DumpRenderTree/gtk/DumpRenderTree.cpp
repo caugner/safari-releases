@@ -36,12 +36,12 @@
 #include "EditingCallbacks.h"
 #include "EventSender.h"
 #include "GCController.h"
-#include "GOwnPtr.h"
 #include "LayoutTestController.h"
 #include "PixelDumpSupport.h"
-#include "PlainTextController.h"
+#include "SelfScrollingWebKitWebView.h"
 #include "TextInputController.h"
 #include "WebCoreSupport/DumpRenderTreeSupportGtk.h"
+#include "WebCoreTestSupport.h"
 #include "WorkQueue.h"
 #include "WorkQueueItem.h"
 #include <JavaScriptCore/JavaScript.h>
@@ -52,6 +52,8 @@
 #include <gtk/gtk.h>
 #include <webkit/webkit.h>
 #include <wtf/Assertions.h>
+#include <wtf/gobject/GOwnPtr.h>
+#include <wtf/gobject/GlibUtilities.h>
 
 #if PLATFORM(X11)
 #include <fontconfig/fontconfig.h>
@@ -62,7 +64,7 @@ using namespace std;
 
 extern "C" {
 // This API is not yet public.
-extern G_CONST_RETURN gchar* webkit_web_history_item_get_target(WebKitWebHistoryItem*);
+extern gchar* webkit_web_history_item_get_target(WebKitWebHistoryItem*);
 extern gboolean webkit_web_history_item_is_target_item(WebKitWebHistoryItem*);
 extern GList* webkit_web_history_item_get_children(WebKitWebHistoryItem*);
 extern void webkit_web_settings_add_extra_plugin_directory(WebKitWebView* view, const gchar* directory);
@@ -73,6 +75,7 @@ volatile bool done;
 static bool printSeparators;
 static int dumpPixels;
 static int dumpTree = 1;
+static int useTimeoutWatchdog = 1;
 
 AccessibilityController* axController = 0;
 RefPtr<LayoutTestController> gLayoutTestController;
@@ -95,6 +98,8 @@ static WebKitWebHistoryItem* prevTestBFItem = NULL;
 const unsigned historyItemIndent = 8;
 
 static void runTest(const string& testPathOrURL);
+
+static void didRunInsecureContent(WebKitWebFrame*, WebKitSecurityOrigin*, const char* url);
 
 static bool shouldLogFrameLoadDelegates(const string& pathOrURL)
 {
@@ -154,6 +159,14 @@ static void initializeGtkFontSettings(const char* testURL)
         g_object_set(settings, "gtk-xft-rgba", "none", NULL);
 }
 
+CString getTopLevelPath()
+{
+    if (!g_getenv("WEBKIT_TOP_LEVEL"))
+        g_setenv("WEBKIT_TOP_LEVEL", TOP_LEVEL_DIR, FALSE);
+
+    return TOP_LEVEL_DIR;
+}
+
 static void initializeFonts(const char* testURL = 0)
 {
 #if PLATFORM(X11)
@@ -175,66 +188,21 @@ static void initializeFonts(const char* testURL = 0)
     if (!FcConfigParseAndLoad(config, reinterpret_cast<FcChar8*>(fontConfigFilename.get()), true))
         g_error("Couldn't load font configuration file from: %s", fontConfigFilename.get());
 
-    static const char *const fontPaths[][2] = {
-        { "/usr/share/fonts/truetype/ttf-liberation/LiberationMono-BoldItalic.ttf",
-          "/usr/share/fonts/liberation/LiberationMono-BoldItalic.ttf", },
-        { "/usr/share/fonts/truetype/ttf-liberation/LiberationMono-Bold.ttf",
-          "/usr/share/fonts/liberation/LiberationMono-Bold.ttf", },
-        { "/usr/share/fonts/truetype/ttf-liberation/LiberationMono-Italic.ttf",
-          "/usr/share/fonts/liberation/LiberationMono-Italic.ttf", },
-        { "/usr/share/fonts/truetype/ttf-liberation/LiberationMono-Regular.ttf",
-          "/usr/share/fonts/liberation/LiberationMono-Regular.ttf", },
-        { "/usr/share/fonts/truetype/ttf-liberation/LiberationSans-BoldItalic.ttf",
-          "/usr/share/fonts/liberation/LiberationSans-BoldItalic.ttf", },
-        { "/usr/share/fonts/truetype/ttf-liberation/LiberationSans-Bold.ttf",
-          "/usr/share/fonts/liberation/LiberationSans-Bold.ttf", },
-        { "/usr/share/fonts/truetype/ttf-liberation/LiberationSans-Italic.ttf",
-          "/usr/share/fonts/liberation/LiberationSans-Italic.ttf", },
-        { "/usr/share/fonts/truetype/ttf-liberation/LiberationSans-Regular.ttf",
-          "/usr/share/fonts/liberation/LiberationSans-Regular.ttf", },
-        { "/usr/share/fonts/truetype/ttf-liberation/LiberationSerif-BoldItalic.ttf",
-          "/usr/share/fonts/liberation/LiberationSerif-BoldItalic.ttf", },
-        { "/usr/share/fonts/truetype/ttf-liberation/LiberationSerif-Bold.ttf",
-          "/usr/share/fonts/liberation/LiberationSerif-Bold.ttf", },
-        { "/usr/share/fonts/truetype/ttf-liberation/LiberationSerif-Italic.ttf",
-          "/usr/share/fonts/liberation/LiberationSerif-Italic.ttf", },
-        { "/usr/share/fonts/truetype/ttf-liberation/LiberationSerif-Regular.ttf",
-          "/usr/share/fonts/liberation/LiberationSerif-Regular.ttf", },
-        { "/usr/share/fonts/truetype/ttf-dejavu/DejaVuSans.ttf",
-          "/usr/share/fonts/dejavu/DejaVuSans.ttf", },
-        { "/usr/share/fonts/truetype/ttf-dejavu/DejaVuSerif.ttf",
-          "/usr/share/fonts/dejavu/DejaVuSerif.ttf", },
+    CString topLevelPath = getTopLevelPath();
+    GOwnPtr<char> fontsPath(g_build_filename(topLevelPath.data(), "WebKitBuild", "Dependencies",
+                                             "Root", "webkitgtk-test-fonts", NULL));
+    if (!g_file_test(fontsPath.get(), static_cast<GFileTest>(G_FILE_TEST_EXISTS | G_FILE_TEST_IS_DIR)))
+        g_error("Could not locate test fonts at %s. Is WEBKIT_TOP_LEVEL set?", fontsPath.get());
 
-        // MathML tests require the STIX fonts.
-        { "/usr/share/fonts/opentype/stix/STIXGeneral.otf",
-          "/usr/share/fonts/stix/STIXGeneral.otf" },
-        { "/usr/share/fonts/opentype/stix/STIXGeneralBolIta.otf",
-          "/usr/share/fonts/stix/STIXGeneralBolIta.otf" },
-        { "/usr/share/fonts/opentype/stix/STIXGeneralBol.otf",
-          "/usr/share/fonts/stix/STIXGeneralBol.otf" },
-        { "/usr/share/fonts/opentype/stix/STIXGeneralItalic.otf",
-          "/usr/share/fonts/stix/STIXGeneralItalic.otf" }
-    };
+    GOwnPtr<GError> error;
+    GOwnPtr<GDir> fontsDirectory(g_dir_open(fontsPath.get(), 0, &error.outPtr()));
+    while (const char* directoryEntry = g_dir_read_name(fontsDirectory.get())) {
+        if (!g_str_has_suffix(directoryEntry, ".ttf") && !g_str_has_suffix(directoryEntry, ".otf"))
+            continue;
+        GOwnPtr<gchar> fontPath(g_build_filename(fontsPath.get(), directoryEntry, NULL));
+        if (!FcConfigAppFontAddFile(config, reinterpret_cast<const FcChar8*>(fontPath.get())))
+            g_error("Could not load font at %s!", fontPath.get());
 
-    // TODO: Some tests use Lucida. We should load these as well, once it becomes
-    // clear how to install these fonts easily on Fedora.
-    for (size_t font = 0; font < G_N_ELEMENTS(fontPaths); font++) {
-        bool found = false;
-        for (size_t path = 0; path < 2; path++) {
-
-            if (g_file_test(fontPaths[font][path], G_FILE_TEST_EXISTS)) {
-                found = true;
-                if (!FcConfigAppFontAddFile(config, reinterpret_cast<const FcChar8*>(fontPaths[font][path])))
-                    g_error("Could not load font at %s!", fontPaths[font][path]);
-                else
-                    break;
-            }
-        }
-
-        if (!found)
-            g_error("Could not find font at %s. Either install this font or file a bug "
-                    "at http://bugs.webkit.org if it is installed in another location.",
-                    fontPaths[font][0]);
     }
 
     // Ahem is used by many layout tests.
@@ -288,8 +256,9 @@ static gchar* dumpFramesAsText(WebKitWebFrame* frame)
 
 static gint compareHistoryItems(gpointer* item1, gpointer* item2)
 {
-    return g_ascii_strcasecmp(webkit_web_history_item_get_target(WEBKIT_WEB_HISTORY_ITEM(item1)),
-                              webkit_web_history_item_get_target(WEBKIT_WEB_HISTORY_ITEM(item2)));
+    GOwnPtr<gchar> firstItemTarget(webkit_web_history_item_get_target(WEBKIT_WEB_HISTORY_ITEM(item1)));
+    GOwnPtr<gchar> secondItemTarget(webkit_web_history_item_get_target(WEBKIT_WEB_HISTORY_ITEM(item2)));
+    return g_ascii_strcasecmp(firstItemTarget.get(), secondItemTarget.get());
 }
 
 static void dumpHistoryItem(WebKitWebHistoryItem* item, int indent, bool current)
@@ -328,12 +297,15 @@ static void dumpHistoryItem(WebKitWebHistoryItem* item, int indent, bool current
     if (webkit_web_history_item_is_target_item(item))
         printf("  **nav target**");
     putchar('\n');
-    GList* kids = webkit_web_history_item_get_children(item);
-    if (kids) {
+
+    if (GList* kids = webkit_web_history_item_get_children(item)) {
         // must sort to eliminate arbitrary result ordering which defeats reproducible testing
-        kids = g_list_sort(kids, (GCompareFunc) compareHistoryItems);
-        for (unsigned i = 0; i < g_list_length(kids); i++)
-            dumpHistoryItem(WEBKIT_WEB_HISTORY_ITEM(g_list_nth_data(kids, i)), indent+4, FALSE);
+        for (GList* kid = g_list_sort(kids, (GCompareFunc) compareHistoryItems); kid; kid = g_list_next(kid)) {
+            WebKitWebHistoryItem* item = WEBKIT_WEB_HISTORY_ITEM(kid->data);
+            dumpHistoryItem(item, indent + 4, FALSE);
+            g_object_unref(item);
+        }
+        g_list_free(kids);
     }
     g_object_unref(item);
 }
@@ -352,29 +324,28 @@ static void dumpBackForwardListForWebView(WebKitWebView* view)
         // something is wrong if the item from the last test is in the forward part of the b/f list
         ASSERT(item != prevTestBFItem);
         g_object_ref(item);
-        itemsToPrint = g_list_append(itemsToPrint, item);
+        itemsToPrint = g_list_prepend(itemsToPrint, item);
     }
 
     WebKitWebHistoryItem* currentItem = webkit_web_back_forward_list_get_current_item(bfList);
-
     g_object_ref(currentItem);
-    itemsToPrint = g_list_append(itemsToPrint, currentItem);
+    itemsToPrint = g_list_prepend(itemsToPrint, currentItem);
 
-    gint currentItemIndex = g_list_length(itemsToPrint) - 1;
     gint backListCount = webkit_web_back_forward_list_get_back_length(bfList);
     for (int i = -1; i >= -(backListCount); i--) {
         WebKitWebHistoryItem* item = webkit_web_back_forward_list_get_nth_item(bfList, i);
         if (item == prevTestBFItem)
             break;
         g_object_ref(item);
-        itemsToPrint = g_list_append(itemsToPrint, item);
+        itemsToPrint = g_list_prepend(itemsToPrint, item);
     }
 
-    for (int i = g_list_length(itemsToPrint) - 1; i >= 0; i--) {
-        WebKitWebHistoryItem* item = WEBKIT_WEB_HISTORY_ITEM(g_list_nth_data(itemsToPrint, i));
-        dumpHistoryItem(item, historyItemIndent, i == currentItemIndex);
+    for (GList* itemToPrint = itemsToPrint; itemToPrint; itemToPrint = g_list_next(itemToPrint)) {
+        WebKitWebHistoryItem* item = WEBKIT_WEB_HISTORY_ITEM(itemToPrint->data);
+        dumpHistoryItem(item, historyItemIndent, item == currentItem);
         g_object_unref(item);
     }
+
     g_list_free(itemsToPrint);
     printf("===============================================\n");
 }
@@ -385,9 +356,18 @@ static void dumpBackForwardListForAllWebViews()
     dumpBackForwardListForWebView(webView);
 
     // The view list is prepended. Reverse the list so we get the order right.
-    GSList* viewList = g_slist_reverse(webViewList);
-    for (unsigned i = 0; i < g_slist_length(viewList); ++i)
-        dumpBackForwardListForWebView(WEBKIT_WEB_VIEW(g_slist_nth_data(viewList, i)));
+    for (GSList* currentView = g_slist_reverse(webViewList); currentView; currentView = g_slist_next(currentView))
+        dumpBackForwardListForWebView(WEBKIT_WEB_VIEW(currentView->data));
+}
+
+void setWaitToDumpWatchdog(guint timer)
+{
+    waitToDumpWatchdog = timer;
+}
+
+bool shouldSetWaitToDumpWatchdog()
+{
+    return !waitToDumpWatchdog && useTimeoutWatchdog;
 }
 
 static void invalidateAnyPreviousWaitToDumpWatchdog()
@@ -403,12 +383,14 @@ static void invalidateAnyPreviousWaitToDumpWatchdog()
 static void resetDefaultsToConsistentValues()
 {
     WebKitWebSettings* settings = webkit_web_view_get_settings(webView);
+    GOwnPtr<gchar> localStoragePath(g_build_filename(g_get_user_data_dir(), "DumpRenderTreeGtk", "databases", NULL));
     g_object_set(G_OBJECT(settings),
                  "enable-private-browsing", FALSE,
                  "enable-developer-extras", FALSE,
                  "enable-spell-checking", TRUE,
                  "enable-html5-database", TRUE,
                  "enable-html5-local-storage", TRUE,
+                 "html5-local-storage-database-path", localStoragePath.get(),
                  "enable-xss-auditor", FALSE,
                  "enable-spatial-navigation", FALSE,
                  "enable-frame-flattening", FALSE,
@@ -466,11 +448,17 @@ static void resetDefaultsToConsistentValues()
     DumpRenderTreeSupportGtk::setLinksIncludedInFocusChain(true);
     webkit_icon_database_set_path(webkit_get_icon_database(), 0);
     DumpRenderTreeSupportGtk::setSelectTrailingWhitespaceEnabled(false);
+    DumpRenderTreeSupportGtk::setSmartInsertDeleteEnabled(webView, true);
+    DumpRenderTreeSupportGtk::setDefersLoading(webView, false);
 
     if (axController)
         axController->resetToConsistentState();
 
     DumpRenderTreeSupportGtk::clearOpener(mainFrame);
+
+    DumpRenderTreeSupportGtk::resetGeolocationClientMock(webView);
+
+    DumpRenderTreeSupportGtk::setHixie76WebSocketProtocolEnabled(webView, true);
 }
 
 static bool useLongRunningServerMode(int argc, char *argv[])
@@ -502,6 +490,7 @@ static void initializeGlobalsFromCommandLineOptions(int argc, char *argv[])
         {"notree", no_argument, &dumpTree, false},
         {"pixel-tests", no_argument, &dumpPixels, true},
         {"tree", no_argument, &dumpTree, true},
+        {"no-timeout", no_argument, &useTimeoutWatchdog, false},
         {NULL, 0, NULL, 0}
     };
     
@@ -520,6 +509,10 @@ static void initializeGlobalsFromCommandLineOptions(int argc, char *argv[])
 void dump()
 {
     invalidateAnyPreviousWaitToDumpWatchdog();
+
+    // Grab widget focus before dumping the contents of a widget, in
+    // case it was lost in the course of the test.
+    gtk_widget_grab_focus(GTK_WIDGET(webView));
 
     if (dumpTree) {
         char* result = 0;
@@ -718,6 +711,8 @@ static void runTest(const string& testPathOrURL)
         webViewList = 0;
     }
 
+    WebCoreTestSupport::resetInternalsObject(webkit_web_frame_get_global_context(mainFrame));
+
     // A blank load seems to be necessary to reset state after certain tests.
     webkit_web_view_open(webView, "about:blank");
 
@@ -772,18 +767,12 @@ static char* getFrameNameSuitableForTestResult(WebKitWebView* view, WebKitWebFra
 
 static void webViewLoadFinished(WebKitWebView* view, WebKitWebFrame* frame, void*)
 {
+    // The deprecated "load-finished" signal is triggered by postProgressFinishedNotification(),
+    // so we can use it here in the DRT to provide the correct dump.
     if (frame != topLoadingFrame)
         return;
-
-    topLoadingFrame = 0;
-    WorkQueue::shared()->setFrozen(true); // first complete load freezes the queue for the rest of this test
-    if (gLayoutTestController->waitToDump())
-        return;
-
-    if (WorkQueue::shared()->count())
-        g_timeout_add(0, processWork, 0);
-    else
-        dump();
+    if (gLayoutTestController->dumpProgressFinishedCallback())
+        printf("postProgressFinishedNotification\n");
 }
 
 static gboolean webViewLoadError(WebKitWebView*, WebKitWebFrame*, gchar*, gpointer, gpointer)
@@ -838,8 +827,8 @@ static void webViewWindowObjectCleared(WebKitWebView* view, WebKitWebFrame* fram
     ASSERT(!exception);
 
     addControllerToWindow(context, windowObject, "eventSender", makeEventSender(context, !webkit_web_frame_get_parent(frame)));
-    addControllerToWindow(context, windowObject, "plainText", makePlainTextController(context));
     addControllerToWindow(context, windowObject, "textInputController", makeTextInputController(context));
+    WebCoreTestSupport::injectInternalsObject(context);
 }
 
 static gboolean webViewConsoleMessage(WebKitWebView* view, const gchar* message, unsigned int line, const gchar* sourceId, gpointer data)
@@ -854,14 +843,19 @@ static gboolean webViewConsoleMessage(WebKitWebView* view, const gchar* message,
         gchar* filename = g_strrstr(uriScheme, G_DIR_SEPARATOR_S);
 
         if (filename) {
-            filename += strlen(G_DIR_SEPARATOR_S);
+            // If the path is a lone slash, keep it to avoid empty output.
+            if (strlen(filename) > 1)
+                filename += strlen(G_DIR_SEPARATOR_S);
             tempString = g_string_append_len(tempString, message, (uriScheme - message));
             tempString = g_string_append_len(tempString, filename, strlen(filename));
             testMessage = g_string_free(tempString, FALSE);
         }
     }
 
-    fprintf(stdout, "CONSOLE MESSAGE: line %d: %s\n", line, testMessage ? testMessage : message);
+    fprintf(stdout, "CONSOLE MESSAGE: ");
+    if (line)
+        fprintf(stdout, "line %d: ", line);
+    fprintf(stdout, "%s\n", testMessage ? testMessage : message);
     g_free(testMessage);
 
     return TRUE;
@@ -1009,11 +1003,24 @@ static WebKitWebView* webInspectorInspectWebView(WebKitWebInspector*, gpointer d
 {
     webInspectorWindow = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 
-    GtkWidget* webView = webkit_web_view_new();
+    GtkWidget* webView = self_scrolling_webkit_web_view_new();
     gtk_container_add(GTK_CONTAINER(webInspectorWindow),
                       webView);
 
     return WEBKIT_WEB_VIEW(webView);
+}
+
+static void topLoadingFrameLoadFinished()
+{
+    topLoadingFrame = 0;
+    WorkQueue::shared()->setFrozen(true); // first complete load freezes the queue for the rest of this test
+    if (gLayoutTestController->waitToDump())
+        return;
+
+    if (WorkQueue::shared()->count())
+        g_timeout_add(0, processWork, 0);
+    else
+        dump();
 }
 
 static void webFrameLoadStatusNotified(WebKitWebFrame* frame, gpointer user_data)
@@ -1033,24 +1040,170 @@ static void webFrameLoadStatusNotified(WebKitWebFrame* frame, gpointer user_data
                 printf("%s - didCommitLoadForFrame\n", frameName.get());
             break;
         case WEBKIT_LOAD_FINISHED:
-            if (frame != topLoadingFrame || !done)
+            if (!done)
                 printf("%s - didFinishLoadForFrame\n", frameName.get());
             break;
         default:
             break;
         }
     }
+
+    if ((loadStatus == WEBKIT_LOAD_FINISHED || loadStatus == WEBKIT_LOAD_FAILED)
+        && frame == topLoadingFrame)
+        topLoadingFrameLoadFinished();
 }
 
 static void frameCreatedCallback(WebKitWebView* webView, WebKitWebFrame* webFrame, gpointer user_data)
 {
     g_signal_connect(webFrame, "notify::load-status", G_CALLBACK(webFrameLoadStatusNotified), NULL);
+    g_signal_connect(webFrame, "insecure-content-run", G_CALLBACK(didRunInsecureContent), NULL);
 }
 
-static void willSendRequestCallback(WebKitWebView* webView, WebKitWebFrame*, WebKitWebResource*, WebKitNetworkRequest* request, WebKitNetworkResponse*)
+
+static CString pathFromSoupURI(SoupURI* uri)
 {
-    if (!done && gLayoutTestController->willSendRequestReturnsNull())
+    if (!uri)
+        return CString();
+
+    if (g_str_equal(uri->scheme, "http") || g_str_equal(uri->scheme, "ftp")) {
+        GOwnPtr<char> uriString(soup_uri_to_string(uri, FALSE));
+        return CString(uriString.get());
+    }
+
+    GOwnPtr<gchar> pathDirname(g_path_get_basename(g_path_get_dirname(uri->path)));
+    GOwnPtr<gchar> pathBasename(g_path_get_basename(uri->path));
+    GOwnPtr<gchar> urlPath(g_strdup_printf("%s/%s", pathDirname.get(), pathBasename.get()));
+    return CString(urlPath.get());
+}
+
+static CString convertSoupMessageToURLPath(SoupMessage* soupMessage)
+{
+    if (!soupMessage)
+        return CString();
+    if (SoupURI* requestURI = soup_message_get_uri(soupMessage))
+        return pathFromSoupURI(requestURI);
+    return CString();
+}
+
+static CString convertNetworkRequestToURLPath(WebKitNetworkRequest* request)
+{
+    return convertSoupMessageToURLPath(webkit_network_request_get_message(request));
+}
+
+static CString convertWebResourceToURLPath(WebKitWebResource* webResource)
+{
+    SoupURI* uri = soup_uri_new(webkit_web_resource_get_uri(webResource));
+    CString urlPath(pathFromSoupURI(uri));
+    soup_uri_free(uri);
+    return urlPath;
+}
+
+static CString urlSuitableForTestResult(const char* uriString)
+{
+    if (!g_str_has_prefix(uriString, "file://"))
+        return CString(uriString);
+
+    GOwnPtr<gchar> basename(g_path_get_basename(uriString));
+    return CString(basename.get());
+}
+
+static CString descriptionSuitableForTestResult(SoupURI* uri)
+{
+    if (!uri)
+        return CString("");
+
+    GOwnPtr<char> uriString(soup_uri_to_string(uri, false));
+    return urlSuitableForTestResult(uriString.get());
+}
+
+static CString descriptionSuitableForTestResult(WebKitWebView* webView, WebKitWebFrame* webFrame, WebKitWebResource* webResource)
+{
+    SoupURI* uri = soup_uri_new(webkit_web_resource_get_uri(webResource));
+    CString description;
+    WebKitWebDataSource* dataSource = webkit_web_frame_get_data_source(webFrame);
+
+    if (webResource == webkit_web_data_source_get_main_resource(dataSource)
+        && (!webkit_web_view_get_progress(webView) || g_str_equal(uri->scheme, "file")))
+        description = CString("<unknown>");
+    else
+        description = convertWebResourceToURLPath(webResource);
+
+    if (uri)
+        soup_uri_free(uri);
+
+    return description;
+}
+
+static CString descriptionSuitableForTestResult(GError* error, WebKitWebResource* webResource)
+{
+    const gchar* errorDomain = g_quark_to_string(error->domain);
+    CString resourceURIString(urlSuitableForTestResult(webkit_web_resource_get_uri(webResource)));
+
+    if (g_str_equal(errorDomain, "webkit-network-error-quark") || g_str_equal(errorDomain, "soup_http_error_quark"))
+        errorDomain = "NSURLErrorDomain";
+
+    if (g_str_equal(errorDomain, "WebKitPolicyError"))
+        errorDomain = "WebKitErrorDomain";
+
+    // TODO: the other ports get the failingURL from the ResourceError
+    GOwnPtr<char> errorString(g_strdup_printf("<NSError domain %s, code %d, failing URL \"%s\">",
+                                              errorDomain, error->code, resourceURIString.data()));
+    return CString(errorString.get());
+}
+
+static CString descriptionSuitableForTestResult(WebKitNetworkRequest* request)
+{
+    SoupMessage* soupMessage = webkit_network_request_get_message(request);
+
+    if (!soupMessage)
+        return CString("");
+
+    SoupURI* requestURI = soup_message_get_uri(soupMessage);
+    SoupURI* mainDocumentURI = soup_message_get_first_party(soupMessage);
+    CString requestURIString(descriptionSuitableForTestResult(requestURI));
+    CString mainDocumentURIString(descriptionSuitableForTestResult(mainDocumentURI));
+    CString path(convertNetworkRequestToURLPath(request));
+    GOwnPtr<char> description(g_strdup_printf("<NSURLRequest URL %s, main document URL %s, http method %s>",
+                                              path.data(), mainDocumentURIString.data(),
+                                              soupMessage ? soupMessage->method : "(none)"));
+    return CString(description.get());
+}
+
+static CString descriptionSuitableForTestResult(WebKitNetworkResponse* response)
+{
+    if (!response)
+        return CString("(null)");
+
+    int statusCode = 0;
+    CString responseURIString(urlSuitableForTestResult(webkit_network_response_get_uri(response)));
+    SoupMessage* soupMessage = webkit_network_response_get_message(response);
+    CString path;
+
+    if (soupMessage) {
+        statusCode = soupMessage->status_code;
+        path = convertSoupMessageToURLPath(soupMessage);
+    } else
+        path = CString("");
+
+    GOwnPtr<char> description(g_strdup_printf("<NSURLResponse %s, http status code %d>", path.data(), statusCode));
+    return CString(description.get());
+}
+
+static void willSendRequestCallback(WebKitWebView* webView, WebKitWebFrame* webFrame, WebKitWebResource* resource, WebKitNetworkRequest* request, WebKitNetworkResponse* response)
+{
+
+
+    if (!done && gLayoutTestController->willSendRequestReturnsNull()) {
+        // As requested by the LayoutTestController, don't perform the request.
+        webkit_network_request_set_uri(request, "about:blank");
         return;
+    }
+
+    if (!done && gLayoutTestController->dumpResourceLoadCallbacks())
+        printf("%s - willSendRequest %s redirectResponse %s\n",
+               convertNetworkRequestToURLPath(request).data(),
+               descriptionSuitableForTestResult(request).data(),
+               descriptionSuitableForTestResult(response).data());
 
     SoupMessage* soupMessage = webkit_network_request_get_message(request);
     SoupURI* uri = soup_uri_new(webkit_network_request_get_uri(request));
@@ -1059,9 +1212,13 @@ static void willSendRequestCallback(WebKitWebView* webView, WebKitWebFrame*, Web
         && g_strcmp0(uri->host, "255.255.255.255")
         && g_ascii_strncasecmp(uri->host, "localhost", 9)) {
         printf("Blocked access to external URL %s\n", soup_uri_to_string(uri, FALSE));
+        // Cancel load of blocked resource to avoid potential
+        // network-related timeouts in tests.
+        webkit_network_request_set_uri(request, "about:blank");
         soup_uri_free(uri);
         return;
     }
+
     if (uri)
         soup_uri_free(uri);
 
@@ -1072,11 +1229,47 @@ static void willSendRequestCallback(WebKitWebView* webView, WebKitWebFrame*, Web
     }
 }
 
+
+static void didReceiveResponse(WebKitWebView* webView, WebKitWebFrame*, WebKitWebResource* webResource, WebKitNetworkResponse* response)
+{
+    if (!done && gLayoutTestController->dumpResourceLoadCallbacks()) {
+        CString responseDescription(descriptionSuitableForTestResult(response));
+        CString path(convertWebResourceToURLPath(webResource));
+        printf("%s - didReceiveResponse %s\n", path.data(), responseDescription.data());
+    }
+
+    // TODO: add "has MIME type" whenever dumpResourceResponseMIMETypes() is supported.
+    // See https://bugs.webkit.org/show_bug.cgi?id=58222.
+}
+
+static void didFinishLoading(WebKitWebView* webView, WebKitWebFrame* webFrame, WebKitWebResource* webResource)
+{
+    if (!done && gLayoutTestController->dumpResourceLoadCallbacks())
+        printf("%s - didFinishLoading\n", descriptionSuitableForTestResult(webView, webFrame, webResource).data());
+}
+
+static void didFailLoadingWithError(WebKitWebView* webView, WebKitWebFrame* webFrame, WebKitWebResource* webResource, GError* webError)
+{
+    if (!done && gLayoutTestController->dumpResourceLoadCallbacks()) {
+        CString webErrorString(descriptionSuitableForTestResult(webError, webResource));
+        printf("%s - didFailLoadingWithError: %s\n", descriptionSuitableForTestResult(webView, webFrame, webResource).data(),
+               webErrorString.data());
+    }
+}
+
+static void didRunInsecureContent(WebKitWebFrame*, WebKitSecurityOrigin*, const char* url)
+{
+    if (!done && gLayoutTestController->dumpFrameLoadCallbacks())
+        printf("didRunInsecureContent\n");
+}
+
 static WebKitWebView* createWebView()
 {
-    WebKitWebView* view = WEBKIT_WEB_VIEW(webkit_web_view_new());
-
+    // It is important to declare DRT is running early so when creating
+    // web view mock clients are used instead of proper ones.
     DumpRenderTreeSupportGtk::setDumpRenderTreeModeEnabled(true);
+
+    WebKitWebView* view = WEBKIT_WEB_VIEW(self_scrolling_webkit_web_view_new());
 
     g_object_connect(G_OBJECT(view),
                      "signal::load-started", webViewLoadStarted, 0,
@@ -1101,7 +1294,9 @@ static WebKitWebView* createWebView()
                      "signal::drag-failed", dragFailedCallback, 0,
                      "signal::frame-created", frameCreatedCallback, 0,
                      "signal::resource-request-starting", willSendRequestCallback, 0,
-
+                     "signal::resource-response-received", didReceiveResponse, 0,
+                     "signal::resource-load-finished", didFinishLoading, 0,
+                     "signal::resource-load-failed", didFailLoadingWithError, 0,
                      NULL);
     connectEditingCallbacks(view);
 
@@ -1120,6 +1315,7 @@ static WebKitWebView* createWebView()
     // frame-created is not issued for main frame. That's why we must do this here
     WebKitWebFrame* frame = webkit_web_view_get_main_frame(view);
     g_signal_connect(frame, "notify::load-status", G_CALLBACK(webFrameLoadStatusNotified), NULL);
+    g_signal_connect(frame, "insecure-content-run", G_CALLBACK(didRunInsecureContent), NULL);
 
     return view;
 }
@@ -1146,7 +1342,6 @@ static void logHandler(const gchar* domain, GLogLevelFlags level, const gchar* m
 
 int main(int argc, char* argv[])
 {
-    g_thread_init(NULL);
     gtk_init(&argc, &argv);
 
     // Some plugins might try to use the GLib logger for printing debug
@@ -1158,16 +1353,19 @@ int main(int argc, char* argv[])
     initializeFonts();
 
     window = gtk_window_new(GTK_WINDOW_POPUP);
-    container = GTK_WIDGET(gtk_scrolled_window_new(NULL, NULL));
-    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(container), GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
+#ifdef GTK_API_VERSION_2
+    container = gtk_hbox_new(TRUE, 0);
+#else
+    container = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+    gtk_box_set_homogeneous(GTK_BOX(container), TRUE);
+#endif
     gtk_container_add(GTK_CONTAINER(window), container);
     gtk_widget_show_all(window);
 
     webView = createWebView();
-    gtk_container_add(GTK_CONTAINER(container), GTK_WIDGET(webView));
+    gtk_box_pack_start(GTK_BOX(container), GTK_WIDGET(webView), TRUE, TRUE, 0);
     gtk_widget_realize(GTK_WIDGET(webView));
     gtk_widget_show_all(container);
-    gtk_widget_grab_focus(GTK_WIDGET(webView));
     mainFrame = webkit_web_view_get_main_frame(webView);
 
     setDefaultsToConsistentStateValuesForTesting();

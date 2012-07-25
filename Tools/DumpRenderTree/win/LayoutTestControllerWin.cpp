@@ -35,7 +35,6 @@
 #include "WorkQueue.h"
 #include "WorkQueueItem.h"
 #include <CoreFoundation/CoreFoundation.h>
-#include <JavaScriptCore/Assertions.h>
 #include <JavaScriptCore/JSRetainPtr.h>
 #include <JavaScriptCore/JSStringRefBSTR.h>
 #include <JavaScriptCore/JavaScriptCore.h>
@@ -47,6 +46,7 @@
 #include <shlguid.h>
 #include <shobjidl.h>
 #include <string>
+#include <wtf/Assertions.h>
 #include <wtf/Platform.h>
 #include <wtf/RetainPtr.h>
 #include <wtf/Vector.h>
@@ -179,12 +179,6 @@ JSValueRef LayoutTestController::computedStyleIncludingVisitedInfo(JSContextRef 
     return JSValueMakeUndefined(context);
 }
 
-JSValueRef LayoutTestController::nodesFromRect(JSContextRef context, JSValueRef value, int x, int y, unsigned top, unsigned right, unsigned bottom, unsigned left, bool ignoreClipping)
-{
-    // FIXME: Implement this.
-    return JSValueMakeUndefined(context);
-}
-
 JSRetainPtr<JSStringRef> LayoutTestController::layerTreeAsText() const
 {
     COMPtr<IWebFramePrivate> framePrivate(Query, frame);
@@ -225,33 +219,6 @@ JSRetainPtr<JSStringRef> LayoutTestController::markerTextForListItem(JSContextRe
     JSRetainPtr<JSStringRef> markerText(Adopt, JSStringCreateWithBSTR(textBSTR));
     SysFreeString(textBSTR);
     return markerText;
-}
-
-JSRetainPtr<JSStringRef> LayoutTestController::shadowPseudoId(JSContextRef context, JSValueRef nodeObject) const
-{
-    COMPtr<IWebView> webView;
-    if (FAILED(frame->webView(&webView)))
-        return 0;
-
-    COMPtr<IWebViewPrivate> webViewPrivate(Query, webView);
-    if (!webViewPrivate)
-        return 0;
-
-    COMPtr<IDOMElement> element;
-    if (FAILED(webViewPrivate->elementFromJS(context, nodeObject, &element)))
-        return 0;
-
-    COMPtr<IDOMElementPrivate> elementPrivate(Query, element);
-    if (!elementPrivate)
-        return 0;
-
-    BSTR idBSTR = 0;
-    if (FAILED(elementPrivate->shadowPseudoId(&idBSTR)))
-        return 0;
-
-    JSRetainPtr<JSStringRef> id(Adopt, JSStringCreateWithBSTR(idBSTR));
-    SysFreeString(idBSTR);
-    return id;
 }
 
 void LayoutTestController::waitForPolicyDelegate()
@@ -295,6 +262,12 @@ unsigned LayoutTestController::workerThreadCount() const
     if (FAILED(workers->workerThreadCount(&count)))
         return 0;
     return count;
+}
+
+JSRetainPtr<JSStringRef> LayoutTestController::platformName() const
+{
+    JSRetainPtr<JSStringRef> platformName(Adopt, JSStringCreateWithUTF8CString("win"));
+    return platformName;
 }
 
 void LayoutTestController::notifyDone()
@@ -471,6 +444,18 @@ void LayoutTestController::addMockSpeechInputResult(JSStringRef result, double c
     // See https://bugs.webkit.org/show_bug.cgi?id=39485.
 }
 
+void LayoutTestController::setMockSpeechInputDumpRect(bool flag)
+{
+    // FIXME: Implement for speech input layout tests.
+    // See https://bugs.webkit.org/show_bug.cgi?id=39485.
+}
+
+void LayoutTestController::startSpeechInput(JSContextRef inputElement)
+{
+    // FIXME: Implement for speech input layout tests.
+    // See https://bugs.webkit.org/show_bug.cgi?id=39485.
+}
+
 void LayoutTestController::setIconDatabaseEnabled(bool iconDatabaseEnabled)
 {
     // See also <rdar://problem/6480108>
@@ -621,23 +606,6 @@ void LayoutTestController::setTabKeyCyclesThroughElements(bool shouldCycle)
         return;
 
     viewPrivate->setTabKeyCyclesThroughElements(shouldCycle ? TRUE : FALSE);
-}
-
-void LayoutTestController::setTimelineProfilingEnabled(bool flag)
-{
-    COMPtr<IWebView> webView;
-    if (FAILED(frame->webView(&webView)))
-        return;
-
-    COMPtr<IWebViewPrivate> viewPrivate;
-    if (FAILED(webView->QueryInterface(&viewPrivate)))
-        return;
-
-    COMPtr<IWebInspector> inspector;
-    if (FAILED(viewPrivate->inspector(&inspector)))
-        return;
-
-    inspector->setTimelineProfilingEnabled(flag);
 }
 
 void LayoutTestController::setUseDashboardCompatibilityMode(bool flag)
@@ -811,7 +779,25 @@ void LayoutTestController::setUserStyleSheetLocation(JSStringRef jsURL)
 
 void LayoutTestController::setValueForUser(JSContextRef context, JSValueRef element, JSStringRef value)
 {
-    // FIXME: implement
+    COMPtr<IWebView> webView;
+    if (FAILED(frame->webView(&webView)))
+        return;
+
+    COMPtr<IWebViewPrivate> webViewPrivate(Query, webView);
+    if (!webViewPrivate)
+        return;
+
+    COMPtr<IDOMElement> domElement;
+    if (FAILED(webViewPrivate->elementFromJS(context, element, &domElement)))
+        return;
+
+    COMPtr<IDOMHTMLInputElement> domInputElement;
+    if (FAILED(domElement->QueryInterface(IID_IDOMHTMLInputElement, reinterpret_cast<void**>(&domInputElement))))
+        return;
+
+    _bstr_t valueBSTR(JSStringCopyBSTR(value), false);
+
+    domInputElement->setValueForUser(valueBSTR);
 }
 
 void LayoutTestController::setViewModeMediaFeature(JSStringRef mode)
@@ -1123,31 +1109,6 @@ bool LayoutTestController::pauseTransitionAtTimeOnElementWithId(JSStringRef prop
     return SUCCEEDED(hr) && wasRunning;
 }
 
-bool LayoutTestController::sampleSVGAnimationForElementAtTime(JSStringRef animationId, double time, JSStringRef elementId)
-{
-    COMPtr<IDOMDocument> document;
-    if (FAILED(frame->DOMDocument(&document)))
-        return false;
-
-    BSTR idBSTR = JSStringCopyBSTR(animationId);
-    COMPtr<IDOMElement> element;
-    HRESULT hr = document->getElementById(idBSTR, &element);
-    SysFreeString(idBSTR);
-    if (FAILED(hr))
-        return false;
-
-    COMPtr<IWebFramePrivate> framePrivate(Query, frame);
-    if (!framePrivate)
-        return false;
-
-    BSTR elementIdBSTR = JSStringCopyBSTR(elementId);
-    BOOL wasRunning = FALSE;
-    hr = framePrivate->pauseSVGAnimation(elementIdBSTR, element.get(), time, &wasRunning);
-    SysFreeString(elementIdBSTR);
-
-    return SUCCEEDED(hr) && wasRunning;
-}
-
 unsigned LayoutTestController::numberOfActiveAnimations() const
 {
     COMPtr<IWebFramePrivate> framePrivate(Query, frame);
@@ -1328,6 +1289,11 @@ unsigned worldIDForWorld(IWebScriptWorld* world)
     return 0;
 }
 
+void LayoutTestController::evaluateScriptInIsolatedWorldAndReturnValue(unsigned worldID, JSObjectRef globalObject, JSStringRef script)
+{
+    // FIXME: Implement this.
+}
+
 void LayoutTestController::evaluateScriptInIsolatedWorld(unsigned worldID, JSObjectRef globalObject, JSStringRef script)
 {
     COMPtr<IWebFramePrivate> framePrivate(Query, frame);
@@ -1341,7 +1307,7 @@ void LayoutTestController::evaluateScriptInIsolatedWorld(unsigned worldID, JSObj
         if (FAILED(WebKitCreateInstance(__uuidof(WebScriptWorld), 0, __uuidof(world), reinterpret_cast<void**>(&world))))
             return;
     } else {
-        COMPtr<IWebScriptWorld>& worldSlot = worldMap().add(worldID, 0).first->second;
+        COMPtr<IWebScriptWorld>& worldSlot = worldMap().add(worldID, 0).iterator->second;
         if (!worldSlot && FAILED(WebKitCreateInstance(__uuidof(WebScriptWorld), 0, __uuidof(worldSlot), reinterpret_cast<void**>(&worldSlot))))
             return;
         world = worldSlot;
@@ -1484,42 +1450,8 @@ void LayoutTestController::setEditingBehavior(const char* editingBehavior)
         preferences->setEditingBehavior(WebKitEditingUnixBehavior);
 }
 
-JSValueRef LayoutTestController::shadowRoot(JSContextRef context, JSValueRef jsElement)
-{
-    // FIXME: Implement this.
-    return JSValueMakeUndefined(context);
-}
-
-JSValueRef LayoutTestController::ensureShadowRoot(JSContextRef context, JSValueRef jsElement)
-{
-    // FIXME: Implement this.
-    return JSValueMakeUndefined(context);
-}
-
-void LayoutTestController::removeShadowRoot(JSContextRef context, JSValueRef jsElement)
-{
-    // FIXME: Implement this.
-}
-
 void LayoutTestController::abortModal()
 {
-}
-
-bool LayoutTestController::hasSpellingMarker(int from, int length)
-{
-    COMPtr<IWebFramePrivate> framePrivate(Query, frame);
-    if (!framePrivate)
-        return false;
-    BOOL ret = FALSE;
-    if (FAILED(framePrivate->hasSpellingMarker(from, length, &ret)))
-        return false;
-    return ret;
-}
-
-bool LayoutTestController::hasGrammarMarker(int from, int length)
-{
-    // FIXME: Implement this.
-    return false;
 }
 
 void LayoutTestController::dumpConfigurationForViewport(int /*deviceDPI*/, int /*deviceWidth*/, int /*deviceHeight*/, int /*availableWidth*/, int /*availableHeight*/)
@@ -1577,4 +1509,46 @@ void LayoutTestController::setMinimumTimerInterval(double minimumTimerInterval)
     viewPrivate->setMinimumTimerInterval(minimumTimerInterval);
 }
 
+void LayoutTestController::setTextDirection(JSStringRef direction)
+{
+    COMPtr<IWebFramePrivate> framePrivate(Query, frame);
+    if (!framePrivate)
+        return;
 
+    framePrivate->setTextDirection(bstrT(direction).GetBSTR());
+}
+
+void LayoutTestController::allowRoundingHacks()
+{
+}
+
+void LayoutTestController::addChromeInputField()
+{
+}
+
+void LayoutTestController::removeChromeInputField()
+{
+}
+
+void LayoutTestController::focusWebView()
+{
+}
+
+void LayoutTestController::setBackingScaleFactor(double)
+{
+}
+
+void LayoutTestController::simulateDesktopNotificationClick(JSStringRef title)
+{
+    // FIXME: Implement.
+}
+
+void LayoutTestController::resetPageVisibility()
+{
+    // FIXME: Implement this.
+}
+
+void LayoutTestController::setPageVisibility(const char*)
+{
+    // FIXME: Implement this.
+}

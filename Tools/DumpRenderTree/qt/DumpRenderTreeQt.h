@@ -60,7 +60,6 @@ class DumpRenderTreeSupportQt;
 class EventSender;
 class TextInputController;
 class GCController;
-class PlainTextController;
 
 namespace WebCore {
 
@@ -102,12 +101,12 @@ public:
     WebPage *webPage() const { return m_page; }
     QList<WebPage*> getAllPages() const;
 
-#if defined(Q_WS_X11)
-    static void initializeFonts();
-#endif
     void processArgsLine(const QStringList&);
     void setRedirectOutputFileName(const QString& fileName) { m_redirectOutputFileName = fileName; }
     void setRedirectErrorFileName(const QString& fileName) { m_redirectErrorFileName = fileName; }
+
+    void setTimeout(int);
+    void setShouldTimeout(bool flag);
 
 public Q_SLOTS:
     void initJSObjects();
@@ -119,7 +118,7 @@ public Q_SLOTS:
     void titleChanged(const QString &s);
     void connectFrame(QWebFrame *frame);
     void dumpDatabaseQuota(QWebFrame* frame, const QString& dbName);
-    void dumpApplicationCacheQuota(QWebSecurityOrigin* origin, quint64 defaultOriginQuota);
+    void dumpApplicationCacheQuota(QWebSecurityOrigin* origin, quint64 defaultOriginQuota, quint64 totalSpaceNeeded);
     void statusBarMessage(const QString& message);
     void windowCloseRequested();
 
@@ -153,7 +152,6 @@ private:
     EventSender *m_eventSender;
     TextInputController *m_textInputController;
     GCController* m_gcController;
-    PlainTextController* m_plainTextController;
     NetworkAccessManager* m_networkAccessManager;
 
     QFile *m_stdin;

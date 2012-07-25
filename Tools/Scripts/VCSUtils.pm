@@ -37,6 +37,7 @@ use English; # for $POSTMATCH, etc.
 use File::Basename;
 use File::Spec;
 use POSIX;
+use Term::ANSIColor qw(colored);
 
 BEGIN {
     use Exporter   ();
@@ -48,12 +49,14 @@ BEGIN {
         &callSilently
         &canonicalizePath
         &changeLogEmailAddress
+        &changeLogFileName
         &changeLogName
         &chdirReturningRelativePath
         &decodeGitBinaryChunk
         &decodeGitBinaryPatch
         &determineSVNRoot
         &determineVCSRoot
+        &escapeSubversionPath
         &exitStatus
         &fixChangeLogPatch
         &gitBranch
@@ -68,9 +71,11 @@ BEGIN {
         &makeFilePathRelative
         &mergeChangeLogs
         &normalizePath
+        &parseChunkRange
         &parseFirstEOL
         &parsePatch
         &pathRelativeToSVNRepositoryRootForPath
+        &possiblyColored
         &prepareParsedPatch
         &removeEOL
         &runPatchCommand
@@ -98,7 +103,6 @@ my $svnVersion;
 # Project time zone for Cupertino, CA, US
 my $changeLogTimeZone = "PST8PDT";
 
-my $chunkRangeRegEx = qr#^\@\@ -(\d+),(\d+) \+\d+,(\d+) \@\@#; # e.g. "@@ -2,6 +2,18 @@" or "@@ -2,6 +2,18 @@ foo()"
 my $gitDiffStartRegEx = qr#^diff --git (\w/)?(.+) (\w/)?([^\r\n]+)#;
 my $svnDiffStartRegEx = qr#^Index: ([^\r\n]+)#;
 my $svnPropertiesStartRegEx = qr#^Property changes on: ([^\r\n]+)#; # $1 is normally the same as the index path.
@@ -115,6 +119,9 @@ sub exitStatus($)
     my ($returnvalue) = @_;
     if ($^O eq "MSWin32") {
         return $returnvalue >> 8;
+    }
+    if (!WIFEXITED($returnvalue)) {
+        return 254;
     }
     return WEXITSTATUS($returnvalue);
 }
@@ -151,7 +158,9 @@ sub scmMoveOrRenameFile
     my ($source, $destination) = @_;
     return if ! -e $source;
     if (isSVN()) {
-        system("svn", "move", $source, $destination);
+        my $escapedDestination = escapeSubversionPath($destination);
+        my $escapedSource = escapeSubversionPath($source);
+        system("svn", "move", $escapedSource, $escapedDestination);
     } elsif (isGit()) {
         system("git", "mv", $source, $destination);
     }
@@ -174,7 +183,8 @@ sub scmAddExecutableBit($)
     my ($path) = @_;
 
     if (isSVN()) {
-        system("svn", "propset", "svn:executable", "on", $path) == 0 or die "Failed to run 'svn propset svn:executable on $path'.";
+        my $escapedPath = escapeSubversionPath($path);
+        system("svn", "propset", "svn:executable", "on", $escapedPath) == 0 or die "Failed to run 'svn propset svn:executable on $escapedPath'.";
     } elsif (isGit()) {
         chmod(0755, $path);
     }
@@ -185,7 +195,8 @@ sub scmRemoveExecutableBit($)
     my ($path) = @_;
 
     if (isSVN()) {
-        system("svn", "propdel", "svn:executable", $path) == 0 or die "Failed to run 'svn propdel svn:executable $path'.";
+        my $escapedPath = escapeSubversionPath($path);
+        system("svn", "propdel", "svn:executable", $escapedPath) == 0 or die "Failed to run 'svn propdel svn:executable $escapedPath'.";
     } elsif (isGit()) {
         chmod(0664, $path);
     }
@@ -247,8 +258,7 @@ sub isGitBranchBuild()
 sub isSVNDirectory($)
 {
     my ($dir) = @_;
-
-    return -d File::Spec->catdir($dir, ".svn");
+    return system("cd $dir && svn info > " . File::Spec->devnull() . " 2>&1") == 0;
 }
 
 sub isSVN()
@@ -303,8 +313,9 @@ sub determineSVNRoot()
     while (1) {
         my $thisRoot;
         my $thisUUID;
+        my $escapedPath = escapeSubversionPath($path);
         # Ignore error messages in case we've run past the root of the checkout.
-        open INFO, "svn info '$path' 2> " . File::Spec->devnull() . " |" or die;
+        open INFO, "svn info '$escapedPath' 2> " . File::Spec->devnull() . " |" or die;
         while (<INFO>) {
             if (/^Repository Root: (.+)/) {
                 $thisRoot = $1;
@@ -347,7 +358,7 @@ sub determineVCSRoot()
         # Some users have a workflow where svn-create-patch, svn-apply and
         # svn-unapply are used outside of multiple svn working directores,
         # so warn the user and assume Subversion is being used in this case.
-        warn "Unable to determine VCS root; assuming Subversion";
+        warn "Unable to determine VCS root for '" . Cwd::getcwd() . "'; assuming Subversion";
         $isSVN = 1;
     }
 
@@ -360,13 +371,17 @@ sub svnRevisionForDirectory($)
     my $revision;
 
     if (isSVNDirectory($dir)) {
-        my $svnInfo = `LC_ALL=C svn info $dir | grep Revision:`;
+        my $escapedDir = escapeSubversionPath($dir);
+        my $svnInfo = `LC_ALL=C svn info $escapedDir | grep Revision:`;
         ($revision) = ($svnInfo =~ m/Revision: (\d+).*/g);
     } elsif (isGitDirectory($dir)) {
         my $gitLog = `cd $dir && LC_ALL=C git log --grep='git-svn-id: ' -n 1 | grep git-svn-id:`;
         ($revision) = ($gitLog =~ m/ +git-svn-id: .+@(\d+) /g);
     }
-    die "Unable to determine current SVN revision in $dir" unless (defined $revision);
+    if (!defined($revision)) {
+        $revision = "unknown";
+        warn "Unable to determine current SVN revision in $dir";
+    }
     return $revision;
 }
 
@@ -377,7 +392,8 @@ sub pathRelativeToSVNRepositoryRootForPath($)
 
     my $svnInfo;
     if (isSVN()) {
-        $svnInfo = `LC_ALL=C svn info $relativePath`;
+        my $escapedRelativePath = escapeSubversionPath($relativePath);
+        $svnInfo = `LC_ALL=C svn info $escapedRelativePath`;
     } elsif (isGit()) {
         $svnInfo = `LC_ALL=C git svn info $relativePath`;
     }
@@ -410,18 +426,26 @@ sub normalizePath($)
     return $path;
 }
 
-sub adjustPathForRecentRenamings($)
+sub possiblyColored($$)
 {
-    my ($fullPath) = @_;
+    my ($colors, $string) = @_;
 
-    if ($fullPath =~ m|^WebCore/|
-        || $fullPath =~ m|^JavaScriptCore/|
-        || $fullPath =~ m|^WebKit/|
-        || $fullPath =~ m|^WebKit2/|) {
-        return "Source/$fullPath";
+    if (-t STDOUT) {
+        return colored([$colors], $string);
+    } else {
+        return $string;
     }
-    return $fullPath;
 }
+
+sub adjustPathForRecentRenamings($) 
+{ 
+    my ($fullPath) = @_; 
+ 
+    $fullPath =~ s|WebCore/webaudio|WebCore/Modules/webaudio|g;
+    $fullPath =~ s|JavaScriptCore/wtf|WTF/wtf|g;
+
+    return $fullPath; 
+} 
 
 sub canonicalizePath($)
 {
@@ -485,11 +509,48 @@ sub firstEOLInFile($)
     return $eol;
 }
 
+# Parses a chunk range line into its components.
+#
+# A chunk range line has the form: @@ -L_1,N_1 +L_2,N_2 @@, where the pairs (L_1, N_1),
+# (L_2, N_2) are ranges that represent the starting line number and line count in the
+# original file and new file, respectively.
+#
+# Note, some versions of GNU diff may omit the comma and trailing line count (e.g. N_1),
+# in which case the omitted line count defaults to 1. For example, GNU diff may output
+# @@ -1 +1 @@, which is equivalent to @@ -1,1 +1,1 @@.
+#
+# This subroutine returns undef if given an invalid or malformed chunk range.
+#
+# Args:
+#   $line: the line to parse.
+#
+# Returns $chunkRangeHashRef
+#   $chunkRangeHashRef: a hash reference representing the parts of a chunk range, as follows--
+#     startingLine: the starting line in the original file.
+#     lineCount: the line count in the original file.
+#     newStartingLine: the new starting line in the new file.
+#     newLineCount: the new line count in the new file.
+sub parseChunkRange($)
+{
+    my ($line) = @_;
+    my $chunkRangeRegEx = qr#^\@\@ -(\d+)(,(\d+))? \+(\d+)(,(\d+))? \@\@#;
+    if ($line !~ /$chunkRangeRegEx/) {
+        return;
+    }
+    my %chunkRange;
+    $chunkRange{startingLine} = $1;
+    $chunkRange{lineCount} = defined($2) ? $3 : 1;
+    $chunkRange{newStartingLine} = $4;
+    $chunkRange{newLineCount} = defined($5) ? $6 : 1;
+    return \%chunkRange;
+}
+
 sub svnStatus($)
 {
     my ($fullPath) = @_;
+    my $escapedFullPath = escapeSubversionPath($fullPath);
     my $svnStatus;
-    open SVN, "svn status --non-interactive --non-recursive '$fullPath' |" or die;
+    open SVN, "svn status --non-interactive --non-recursive '$escapedFullPath' |" or die;
     if (-d $fullPath) {
         # When running "svn stat" on a directory, we can't assume that only one
         # status will be returned (since any files with a status below the
@@ -905,8 +966,9 @@ sub parseDiff($$;$)
         }
         if ($line !~ $headerStartRegEx) {
             # Then we are in the body of the diff.
-            $numTextChunks += $line =~ /$chunkRangeRegEx/;
-            if ($indexPathEOL && $line !~ /$chunkRangeRegEx/) {
+            my $isChunkRange = defined(parseChunkRange($line));
+            $numTextChunks += 1 if $isChunkRange;
+            if ($indexPathEOL && !$isChunkRange) {
                 # The chunk range is part of the body of the diff, but its line endings should't be
                 # modified or patch(1) will complain. So, we only modify non-chunk range lines.
                 $line =~ s/\r\n|\r|\n/$indexPathEOL/g;
@@ -1500,15 +1562,16 @@ sub fixChangeLogPatch($)
     $deletedLineCount += $dateStartIndex - $chunkStartIndex;
 
     # Update the initial chunk range.
-    if ($lines[$chunkStartIndex - 1] !~ /$chunkRangeRegEx/) {
+    my $chunkRangeHashRef = parseChunkRange($lines[$chunkStartIndex - 1]);
+    if (!$chunkRangeHashRef) {
         # FIXME: Handle errors differently from ChangeLog files that
         # are okay but should not be altered. That way we can find out
         # if improvements to the script ever become necessary.
         $changeLogHashRef{patch} = $patch; # Error: unexpected patch string format.
         return \%changeLogHashRef;
     }
-    my $oldSourceLineCount = $2;
-    my $oldTargetLineCount = $3;
+    my $oldSourceLineCount = $chunkRangeHashRef->{lineCount};
+    my $oldTargetLineCount = $chunkRangeHashRef->{newLineCount};
 
     my $sourceLineCount = $oldSourceLineCount + @overlappingLines - $deletedLineCount;
     my $targetLineCount = $oldTargetLineCount + @overlappingLines - $deletedLineCount;
@@ -1658,7 +1721,7 @@ sub mergeChangeLogs($$$)
         rename($fileMine, "$fileMine.save");
         rename($fileOlder, "$fileOlder.save");
     } else {
-        open(DIFF, "-|", qw(diff -u -a --binary), $fileOlder, $fileMine) or die $!;
+        open(DIFF, "diff -u -a --binary \"$fileOlder\" \"$fileMine\" |") or die $!;
         $patch = <DIFF>;
         close(DIFF);
     }
@@ -1666,7 +1729,7 @@ sub mergeChangeLogs($$$)
     unlink("${fileNewer}.orig");
     unlink("${fileNewer}.rej");
 
-    open(PATCH, "| patch --force --fuzz=3 --binary $fileNewer > " . File::Spec->devnull()) or die $!;
+    open(PATCH, "| patch --force --fuzz=3 --binary \"$fileNewer\" > " . File::Spec->devnull()) or die $!;
     if ($traditionalReject) {
         print PATCH $patch;
     } else {
@@ -1710,6 +1773,23 @@ sub gitConfig($)
     return $result;
 }
 
+sub changeLogSuffix()
+{
+    my $rootPath = determineVCSRoot();
+    my $changeLogSuffixFile = File::Spec->catfile($rootPath, ".changeLogSuffix");
+    return "" if ! -e $changeLogSuffixFile;
+    open FILE, $changeLogSuffixFile or die "Could not open $changeLogSuffixFile: $!";
+    my $changeLogSuffix = <FILE>;
+    chomp $changeLogSuffix;
+    close FILE;
+    return $changeLogSuffix;
+}
+
+sub changeLogFileName()
+{
+    return "ChangeLog" . changeLogSuffix()
+}
+
 sub changeLogNameError($)
 {
     my ($message) = @_;
@@ -1727,7 +1807,7 @@ sub changeLogName()
 
     changeLogNameError("Failed to determine ChangeLog name.") unless $name;
     # getpwuid seems to always succeed on windows, returning the username instead of the full name.  This check will catch that case.
-    changeLogNameError("'$name' does not contain a space!  ChangeLogs should contain your full name.") unless ($name =~ /\w \w/);
+    changeLogNameError("'$name' does not contain a space!  ChangeLogs should contain your full name.") unless ($name =~ /\S\s\S/);
 
     return $name;
 }
@@ -1928,6 +2008,13 @@ sub applyGitBinaryPatchDelta($$)
     }
 
     return $out;
+}
+
+sub escapeSubversionPath($)
+{
+    my ($path) = @_;
+    $path .= "@" if $path =~ /@/;
+    return $path;
 }
 
 1;

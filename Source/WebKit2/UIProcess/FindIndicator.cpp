@@ -77,21 +77,52 @@ static const int gradientLightAlpha = 255;
 
 namespace WebKit {
 
-PassRefPtr<FindIndicator> FindIndicator::create(const FloatRect& selectionRectInWindowCoordinates, const Vector<FloatRect>& textRectsInSelectionRectCoordinates, const ShareableBitmap::Handle& contentImageHandle)
+PassRefPtr<FindIndicator> FindIndicator::create(const FloatRect& selectionRectInWindowCoordinates, const Vector<FloatRect>& textRectsInSelectionRectCoordinates, float contentImageScaleFactor, const ShareableBitmap::Handle& contentImageHandle)
 {
     RefPtr<ShareableBitmap> contentImage = ShareableBitmap::create(contentImageHandle);
     if (!contentImage)
         return 0;
-    ASSERT(contentImage->size() == enclosingIntRect(selectionRectInWindowCoordinates).size());
+    ASSERT(contentImageScaleFactor != 1 || contentImage->size() == enclosingIntRect(selectionRectInWindowCoordinates).size());
 
-    return adoptRef(new FindIndicator(selectionRectInWindowCoordinates, textRectsInSelectionRectCoordinates, contentImage.release()));
+    return adoptRef(new FindIndicator(selectionRectInWindowCoordinates, textRectsInSelectionRectCoordinates, contentImageScaleFactor, contentImage.release()));
 }
 
-FindIndicator::FindIndicator(const WebCore::FloatRect& selectionRectInWindowCoordinates, const Vector<WebCore::FloatRect>& textRectsInSelectionRectCoordinates, PassRefPtr<ShareableBitmap> contentImage)
+static bool findIndicatorsForTextRectsOverlap(const Vector<FloatRect>& textRects)
+{
+    size_t count = textRects.size();
+    if (count <= 1)
+        return false;
+
+    Vector<FloatRect> indicatorRects;
+    indicatorRects.reserveInitialCapacity(count);
+
+    for (size_t i = 0; i < count; ++i) {
+        FloatRect indicatorRect = textRects[i];
+        indicatorRect.move(-leftBorderThickness, -topBorderThickness);
+        indicatorRect.expand(leftBorderThickness + rightBorderThickness, topBorderThickness + bottomBorderThickness);
+
+        for (size_t j = indicatorRects.size(); j; ) {
+            --j;
+            if (indicatorRect.intersects(indicatorRects[j]))
+                return true;
+        }
+
+        indicatorRects.uncheckedAppend(indicatorRect);
+    }
+
+    return false;
+}
+
+FindIndicator::FindIndicator(const WebCore::FloatRect& selectionRectInWindowCoordinates, const Vector<WebCore::FloatRect>& textRectsInSelectionRectCoordinates, float contentImageScaleFactor, PassRefPtr<ShareableBitmap> contentImage)
     : m_selectionRectInWindowCoordinates(selectionRectInWindowCoordinates)
     , m_textRectsInSelectionRectCoordinates(textRectsInSelectionRectCoordinates)
+    , m_contentImageScaleFactor(contentImageScaleFactor)
     , m_contentImage(contentImage)
 {
+    if (findIndicatorsForTextRectsOverlap(m_textRectsInSelectionRectCoordinates)) {
+        m_textRectsInSelectionRectCoordinates[0] = unionRect(m_textRectsInSelectionRectCoordinates);
+        m_textRectsInSelectionRectCoordinates.shrink(1);
+    }
 }
 
 FindIndicator::~FindIndicator()
@@ -171,7 +202,9 @@ void FindIndicator::draw(GraphicsContext& graphicsContext, const IntRect& dirtyR
         {
             GraphicsContextStateSaver stateSaver(graphicsContext);
             graphicsContext.translate(FloatSize(roundf(leftBorderThickness), roundf(topBorderThickness)));
-            m_contentImage->paint(graphicsContext, IntPoint(0, 0), m_contentImage->bounds());
+
+            IntRect contentImageRect = enclosingIntRect(m_textRectsInSelectionRectCoordinates[i]);
+            m_contentImage->paint(graphicsContext, m_contentImageScaleFactor, contentImageRect.location(), contentImageRect);
         }
     }
 }

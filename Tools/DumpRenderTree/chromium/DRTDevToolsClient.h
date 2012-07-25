@@ -33,7 +33,7 @@
 
 #include "Task.h"
 #include "WebDevToolsFrontendClient.h"
-#include "WebString.h"
+#include "platform/WebString.h"
 #include <wtf/Noncopyable.h>
 #include <wtf/OwnPtr.h>
 namespace WebKit {
@@ -54,9 +54,7 @@ public:
     void reset();
 
     // WebDevToolsFrontendClient implementation
-    virtual void sendFrontendLoaded();
     virtual void sendMessageToBackend(const WebKit::WebString&);
-    virtual void sendDebuggerCommandToAgent(const WebKit::WebString& command);
 
     virtual void activateWindow();
     virtual void closeWindow();
@@ -73,8 +71,9 @@ public:
     class AsyncCallTask: public MethodTask<DRTDevToolsClient> {
     public:
         AsyncCallTask(DRTDevToolsClient* object, const WebKit::WebString& args)
-            : MethodTask<DRTDevToolsClient>(object), m_args(args) {}
+            : MethodTask<DRTDevToolsClient>(object), m_args(args) { }
         virtual void runIfValid() { m_object->call(m_args); }
+
     private:
         WebKit::WebString m_args;
     };

@@ -28,8 +28,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from __future__ import with_statement
-
+import atexit
 import base64
 import codecs
 import getpass
@@ -40,26 +39,50 @@ import stat
 import sys
 import subprocess
 import tempfile
+import time
 import unittest
 import urllib
 import shutil
 
 from datetime import date
-from .checkout import Checkout
+from webkitpy.common.checkout.checkout import Checkout
 from webkitpy.common.config.committers import Committer  # FIXME: This should not be needed
 from webkitpy.common.net.bugzilla import Attachment # FIXME: This should not be needed
-from webkitpy.common.system.executive import Executive, run_command, ScriptError
+from webkitpy.common.system.executive import Executive, ScriptError
 from webkitpy.common.system.outputcapture import OutputCapture
-from webkitpy.tool.mocktool import MockExecutive
+from webkitpy.common.system.executive_mock import MockExecutive
 
-from .detection import find_checkout_root, default_scm, detect_scm_system
 from .git import Git, AmbiguousCommitError
+from .detection import detect_scm_system
 from .scm import SCM, CheckoutNeedsUpdate, commit_error_handler, AuthenticationError
 from .svn import SVN
 
+# We cache the mock SVN repo so that we don't create it again for each call to an SVNTest or GitTest test_ method.
+# We store it in a global variable so that we can delete this cached repo on exit(3).
+# FIXME: Remove this once we migrate to Python 2.7. Unittest in Python 2.7 supports module-specific setup and teardown functions.
+cached_svn_repo_path = None
+
+
+def remove_dir(path):
+    # Change directory to / to ensure that we aren't in the directory we want to delete.
+    os.chdir('/')
+    shutil.rmtree(path)
+
+
+# FIXME: Remove this once we migrate to Python 2.7. Unittest in Python 2.7 supports module-specific setup and teardown functions.
+@atexit.register
+def delete_cached_mock_repo_at_exit():
+    if cached_svn_repo_path:
+        remove_dir(cached_svn_repo_path)
 
 # Eventually we will want to write tests which work for both scms. (like update_webkit, changed_files, etc.)
 # Perhaps through some SCMTest base-class which both SVNTest and GitTest inherit from.
+
+def run_command(*args, **kwargs):
+    # FIXME: This should not be a global static.
+    # New code should use Executive.run_command directly instead
+    return Executive().run_command(*args, **kwargs)
+
 
 # FIXME: This should be unified into one of the executive.py commands!
 # Callers could use run_and_throw_if_fail(args, cwd=cwd, quiet=True)
@@ -89,6 +112,7 @@ def read_from_path(file_path, encoding="utf-8"):
 def _make_diff(command, *args):
     # We use this wrapper to disable output decoding. diffs should be treated as
     # binary files since they may include text files of multiple differnet encodings.
+    # FIXME: This should use an Executive.
     return run_command([command, "diff"] + list(args), decode_output=False)
 
 
@@ -111,9 +135,13 @@ class SVNTestRepository:
         run_command(["svn", "commit", "--quiet", "--message", message])
 
     @classmethod
-    def _setup_test_commits(cls, test_object):
+    def _setup_test_commits(cls, svn_repo_url):
+
+        svn_checkout_path = tempfile.mkdtemp(suffix="svn_test_checkout")
+        run_command(['svn', 'checkout', '--quiet', svn_repo_url, svn_checkout_path])
+
         # Add some test commits
-        os.chdir(test_object.svn_checkout_path)
+        os.chdir(svn_checkout_path)
 
         write_into_file_at_path("test_file", "test1")
         cls._svn_add("test_file")
@@ -145,39 +173,53 @@ class SVNTestRepository:
 
         # svn does not seem to update after commit as I would expect.
         run_command(['svn', 'update'])
+        remove_dir(svn_checkout_path)
 
+    # This is a hot function since it's invoked by unittest before calling each test_ method in SVNTest and
+    # GitTest. We create a mock SVN repo once and then perform an SVN checkout from a filesystem copy of
+    # it since it's expensive to create the mock repo.
     @classmethod
     def setup(cls, test_object):
+        global cached_svn_repo_path
+        if not cached_svn_repo_path:
+            cached_svn_repo_path = cls._setup_mock_repo()
+
+        test_object.temp_directory = tempfile.mkdtemp(suffix="svn_test")
+        test_object.svn_repo_path = os.path.join(test_object.temp_directory, "repo")
+        test_object.svn_repo_url = "file://%s" % test_object.svn_repo_path
+        test_object.svn_checkout_path = os.path.join(test_object.temp_directory, "checkout")
+        shutil.copytree(cached_svn_repo_path, test_object.svn_repo_path)
+        run_command(['svn', 'checkout', '--quiet', test_object.svn_repo_url + "/trunk", test_object.svn_checkout_path])
+
+    @classmethod
+    def _setup_mock_repo(cls):
         # Create an test SVN repository
-        test_object.svn_repo_path = tempfile.mkdtemp(suffix="svn_test_repo")
-        test_object.svn_repo_url = "file://%s" % test_object.svn_repo_path # Not sure this will work on windows
+        svn_repo_path = tempfile.mkdtemp(suffix="svn_test_repo")
+        svn_repo_url = "file://%s" % svn_repo_path  # Not sure this will work on windows
         # git svn complains if we don't pass --pre-1.5-compatible, not sure why:
         # Expected FS format '2'; found format '3' at /usr/local/libexec/git-core//git-svn line 1477
-        run_command(['svnadmin', 'create', '--pre-1.5-compatible', test_object.svn_repo_path])
+        run_command(['svnadmin', 'create', '--pre-1.5-compatible', svn_repo_path])
 
         # Create a test svn checkout
-        test_object.svn_checkout_path = tempfile.mkdtemp(suffix="svn_test_checkout")
-        run_command(['svn', 'checkout', '--quiet', test_object.svn_repo_url, test_object.svn_checkout_path])
+        svn_checkout_path = tempfile.mkdtemp(suffix="svn_test_checkout")
+        run_command(['svn', 'checkout', '--quiet', svn_repo_url, svn_checkout_path])
 
         # Create and checkout a trunk dir to match the standard svn configuration to match git-svn's expectations
-        os.chdir(test_object.svn_checkout_path)
+        os.chdir(svn_checkout_path)
         os.mkdir('trunk')
         cls._svn_add('trunk')
         # We can add tags and branches as well if we ever need to test those.
         cls._svn_commit('add trunk')
 
         # Change directory out of the svn checkout so we can delete the checkout directory.
-        # _setup_test_commits will CD back to the svn checkout directory.
-        os.chdir('/')
-        run_command(['rm', '-rf', test_object.svn_checkout_path])
-        run_command(['svn', 'checkout', '--quiet', test_object.svn_repo_url + '/trunk', test_object.svn_checkout_path])
+        remove_dir(svn_checkout_path)
 
-        cls._setup_test_commits(test_object)
+        cls._setup_test_commits(svn_repo_url + "/trunk")
+        return svn_repo_path
 
     @classmethod
     def tear_down(cls, test_object):
-        run_command(['rm', '-rf', test_object.svn_repo_path])
-        run_command(['rm', '-rf', test_object.svn_checkout_path])
+        remove_dir(test_object.temp_directory)
 
         # Now that we've deleted the checkout paths, cwddir may be invalid
         # Change back to a valid directory so that later calls to os.getcwd() do not fail.
@@ -187,56 +229,6 @@ class SVNTestRepository:
             path = sys.path[0]
         os.chdir(detect_scm_system(path).checkout_root)
 
-
-class StandaloneFunctionsTest(unittest.TestCase):
-    """This class tests any standalone/top-level functions in the package."""
-    def setUp(self):
-        self.orig_cwd = os.path.abspath(os.getcwd())
-        self.orig_abspath = os.path.abspath
-
-        # We capture but ignore the output from stderr to reduce unwanted
-        # logging.
-        self.output = OutputCapture()
-        self.output.capture_output()
-
-    def tearDown(self):
-        os.chdir(self.orig_cwd)
-        os.path.abspath = self.orig_abspath
-        self.output.restore_output()
-
-    def test_find_checkout_root(self):
-        # Test from inside the tree.
-        os.chdir(sys.path[0])
-        dir = find_checkout_root()
-        self.assertNotEqual(dir, None)
-        self.assertTrue(os.path.exists(dir))
-
-        # Test from outside the tree.
-        os.chdir(os.path.expanduser("~"))
-        dir = find_checkout_root()
-        self.assertNotEqual(dir, None)
-        self.assertTrue(os.path.exists(dir))
-
-        # Mock out abspath() to test being not in a checkout at all.
-        os.path.abspath = lambda x: "/"
-        self.assertRaises(SystemExit, find_checkout_root)
-        os.path.abspath = self.orig_abspath
-
-    def test_default_scm(self):
-        # Test from inside the tree.
-        os.chdir(sys.path[0])
-        scm = default_scm()
-        self.assertNotEqual(scm, None)
-
-        # Test from outside the tree.
-        os.chdir(os.path.expanduser("~"))
-        dir = find_checkout_root()
-        self.assertNotEqual(dir, None)
-
-        # Mock out abspath() to test being not in a checkout at all.
-        os.path.abspath = lambda x: "/"
-        self.assertRaises(SystemExit, default_scm)
-        os.path.abspath = self.orig_abspath
 
 # For testing the SCM baseclass directly.
 class SCMClassTests(unittest.TestCase):
@@ -467,6 +459,25 @@ OcmYex&reD$;sO8*F9L)B
         self.scm.add("added_dir/added_file")
         self.assertTrue("added_dir/added_file" in self.scm.added_files())
 
+    def _shared_test_delete_recursively(self):
+        os.mkdir("added_dir")
+        write_into_file_at_path("added_dir/added_file", "new stuff")
+        self.scm.add("added_dir/added_file")
+        self.assertTrue("added_dir/added_file" in self.scm.added_files())
+        self.scm.delete("added_dir/added_file")
+        self.assertFalse("added_dir" in self.scm.added_files())
+
+    def _shared_test_delete_recursively_or_not(self):
+        os.mkdir("added_dir")
+        write_into_file_at_path("added_dir/added_file", "new stuff")
+        write_into_file_at_path("added_dir/another_added_file", "more new stuff")
+        self.scm.add("added_dir/added_file")
+        self.scm.add("added_dir/another_added_file")
+        self.assertTrue("added_dir/added_file" in self.scm.added_files())
+        self.assertTrue("added_dir/another_added_file" in self.scm.added_files())
+        self.scm.delete("added_dir/added_file")
+        self.assertTrue("added_dir/another_added_file" in self.scm.added_files())
+
     def _shared_test_exists(self, scm, commit_function):
         os.chdir(scm.checkout_root)
         self.assertFalse(scm.exists('foo.txt'))
@@ -482,14 +493,36 @@ OcmYex&reD$;sO8*F9L)B
     def _shared_test_head_svn_revision(self):
         self.assertEqual(self.scm.head_svn_revision(), '5')
 
+
+# Context manager that overrides the current timezone.
+class TimezoneOverride(object):
+    def __init__(self, timezone_string):
+        self._timezone_string = timezone_string
+
+    def __enter__(self):
+        if hasattr(time, 'tzset'):
+            self._saved_timezone = os.environ.get('TZ', None)
+            os.environ['TZ'] = self._timezone_string
+            time.tzset()
+
+    def __exit__(self, type, value, traceback):
+        if hasattr(time, 'tzset'):
+            if self._saved_timezone:
+                os.environ['TZ'] = self._saved_timezone
+            else:
+                del os.environ['TZ']
+            time.tzset()
+
+
 class SVNTest(SCMTest):
 
     @staticmethod
     def _set_date_and_reviewer(changelog_entry):
         # Joe Cool matches the reviewer set in SCMTest._create_patch
         changelog_entry = changelog_entry.replace('REVIEWER_HERE', 'Joe Cool')
-        # svn-apply will update ChangeLog entries with today's date.
-        return changelog_entry.replace('DATE_HERE', date.today().isoformat())
+        # svn-apply will update ChangeLog entries with today's date (as in Cupertino, CA, US)
+        with TimezoneOverride('PST8PDT'):
+            return changelog_entry.replace('DATE_HERE', date.today().isoformat())
 
     def test_svn_apply(self):
         first_entry = """2009-10-26  Eric Seidel  <eric@webkit.org>
@@ -514,7 +547,7 @@ class SVNTest(SCMTest):
 +++ ChangeLog	(working copy)
 @@ -1,5 +1,13 @@
  2009-10-26  Eric Seidel  <eric@webkit.org>
-
+%(whitespace)s
 +        Reviewed by NOBODY (OOPS!).
 +
 +        Second most awesome change ever.
@@ -524,9 +557,9 @@ class SVNTest(SCMTest):
 +2009-10-26  Eric Seidel  <eric@webkit.org>
 +
          Reviewed by Foo Bar.
-
+%(whitespace)s
          Most awesome change ever.
-"""
+""" % {'whitespace': ' '}
         one_line_overlap_entry = """DATE_HERE  Eric Seidel  <eric@webkit.org>
 
         Reviewed by REVIEWER_HERE.
@@ -540,9 +573,9 @@ class SVNTest(SCMTest):
 --- ChangeLog	(revision 5)
 +++ ChangeLog	(working copy)
 @@ -2,6 +2,14 @@
-
+%(whitespace)s
          Reviewed by Foo Bar.
-
+%(whitespace)s
 +        Second most awesome change ever.
 +
 +        * scm_unittest.py:
@@ -552,9 +585,9 @@ class SVNTest(SCMTest):
 +        Reviewed by Foo Bar.
 +
          Most awesome change ever.
-
+%(whitespace)s
          * scm_unittest.py:
-"""
+""" % {'whitespace': ' '}
         two_line_overlap_entry = """DATE_HERE  Eric Seidel  <eric@webkit.org>
 
         Reviewed by Foo Bar.
@@ -653,12 +686,6 @@ Q1dTBx0AAAB42itg4GlgYJjGwMDDyODMxMDw34GBgQEAJPQDJA==
         self._setup_webkittools_scripts_symlink(scm)
         Checkout(scm).apply_patch(patch)
 
-    def test_apply_svn_patch_force(self):
-        scm = detect_scm_system(self.svn_checkout_path)
-        patch = self._create_patch(_svn_diff("-r3:5"))
-        self._setup_webkittools_scripts_symlink(scm)
-        self.assertRaises(ScriptError, Checkout(scm).apply_patch, patch, force=True)
-
     def test_commit_logs(self):
         # Commits have dates and usernames in them, so we can't just direct compare.
         self.assertTrue(re.search('fourth commit', self.scm.last_svn_commit_log()))
@@ -668,11 +695,6 @@ Q1dTBx0AAAB42itg4GlgYJjGwMDDyODMxMDw34GBgQEAJPQDJA==
         write_into_file_at_path('test_file', 'more test content')
         commit_text = self.scm.commit_with_message("another test commit", username)
         self.assertEqual(self.scm.svn_revision_from_commit_text(commit_text), '6')
-
-        self.scm.dryrun = True
-        write_into_file_at_path('test_file', 'still more test content')
-        commit_text = self.scm.commit_with_message("yet another test commit", username)
-        self.assertEqual(self.scm.svn_revision_from_commit_text(commit_text), '0')
 
     def test_commit_in_subdir(self, username=None):
         write_into_file_at_path('test_dir/test_file3', 'more test content')
@@ -798,6 +820,12 @@ END
         self.scm.delete("test_file")
         self.assertTrue("test_file" in self.scm.deleted_files())
 
+    def test_delete_recursively(self):
+        self._shared_test_delete_recursively()
+
+    def test_delete_recursively_or_not(self):
+        self._shared_test_delete_recursively_or_not()
+
     def test_head_svn_revision(self):
         self._shared_test_head_svn_revision()
 
@@ -902,11 +930,65 @@ class GitTest(SCMTest):
     def test_create_patch(self):
         write_into_file_at_path('test_file_commit1', 'contents')
         run_command(['git', 'add', 'test_file_commit1'])
-        scm = detect_scm_system(self.untracking_checkout_path)
+        scm = self.tracking_scm
         scm.commit_locally_with_message('message')
 
         patch = scm.create_patch()
         self.assertFalse(re.search(r'Subversion Revision:', patch))
+
+    def test_orderfile(self):
+        os.mkdir("Tools")
+        os.mkdir("Source")
+        os.mkdir("LayoutTests")
+        os.mkdir("Websites")
+
+        # Slash should always be the right path separator since we use cygwin on Windows.
+        Tools_ChangeLog = "Tools/ChangeLog"
+        write_into_file_at_path(Tools_ChangeLog, "contents")
+        Source_ChangeLog = "Source/ChangeLog"
+        write_into_file_at_path(Source_ChangeLog, "contents")
+        LayoutTests_ChangeLog = "LayoutTests/ChangeLog"
+        write_into_file_at_path(LayoutTests_ChangeLog, "contents")
+        Websites_ChangeLog = "Websites/ChangeLog"
+        write_into_file_at_path(Websites_ChangeLog, "contents")
+
+        Tools_ChangeFile = "Tools/ChangeFile"
+        write_into_file_at_path(Tools_ChangeFile, "contents")
+        Source_ChangeFile = "Source/ChangeFile"
+        write_into_file_at_path(Source_ChangeFile, "contents")
+        LayoutTests_ChangeFile = "LayoutTests/ChangeFile"
+        write_into_file_at_path(LayoutTests_ChangeFile, "contents")
+        Websites_ChangeFile = "Websites/ChangeFile"
+        write_into_file_at_path(Websites_ChangeFile, "contents")
+
+        run_command(['git', 'add', 'Tools/ChangeLog'])
+        run_command(['git', 'add', 'LayoutTests/ChangeLog'])
+        run_command(['git', 'add', 'Source/ChangeLog'])
+        run_command(['git', 'add', 'Websites/ChangeLog'])
+        run_command(['git', 'add', 'Tools/ChangeFile'])
+        run_command(['git', 'add', 'LayoutTests/ChangeFile'])
+        run_command(['git', 'add', 'Source/ChangeFile'])
+        run_command(['git', 'add', 'Websites/ChangeFile'])
+        scm = self.tracking_scm
+        scm.commit_locally_with_message('message')
+
+        patch = scm.create_patch()
+        self.assertTrue(re.search(r'Tools/ChangeLog', patch).start() < re.search(r'Tools/ChangeFile', patch).start())
+        self.assertTrue(re.search(r'Websites/ChangeLog', patch).start() < re.search(r'Websites/ChangeFile', patch).start())
+        self.assertTrue(re.search(r'Source/ChangeLog', patch).start() < re.search(r'Source/ChangeFile', patch).start())
+        self.assertTrue(re.search(r'LayoutTests/ChangeLog', patch).start() < re.search(r'LayoutTests/ChangeFile', patch).start())
+
+        self.assertTrue(re.search(r'Source/ChangeLog', patch).start() < re.search(r'LayoutTests/ChangeLog', patch).start())
+        self.assertTrue(re.search(r'Tools/ChangeLog', patch).start() < re.search(r'LayoutTests/ChangeLog', patch).start())
+        self.assertTrue(re.search(r'Websites/ChangeLog', patch).start() < re.search(r'LayoutTests/ChangeLog', patch).start())
+
+        self.assertTrue(re.search(r'Source/ChangeFile', patch).start() < re.search(r'LayoutTests/ChangeLog', patch).start())
+        self.assertTrue(re.search(r'Tools/ChangeFile', patch).start() < re.search(r'LayoutTests/ChangeLog', patch).start())
+        self.assertTrue(re.search(r'Websites/ChangeFile', patch).start() < re.search(r'LayoutTests/ChangeLog', patch).start())
+
+        self.assertTrue(re.search(r'Source/ChangeFile', patch).start() < re.search(r'LayoutTests/ChangeFile', patch).start())
+        self.assertTrue(re.search(r'Tools/ChangeFile', patch).start() < re.search(r'LayoutTests/ChangeFile', patch).start())
+        self.assertTrue(re.search(r'Websites/ChangeFile', patch).start() < re.search(r'LayoutTests/ChangeFile', patch).start())
 
     def test_exists(self):
         scm = self.untracking_scm
@@ -917,6 +999,17 @@ class GitTest(SCMTest):
         # If we cloned a git repo tracking an SVG repo, this would give the same result as
         # self._shared_test_head_svn_revision().
         self.assertEqual(scm.head_svn_revision(), '')
+
+    def test_rename_files(self):
+        scm = self.tracking_scm
+
+        run_command(['git', 'mv', 'foo_file', 'bar_file'])
+        scm.commit_locally_with_message('message')
+
+        patch = scm.create_patch()
+        self.assertFalse(re.search(r'rename from ', patch))
+        self.assertFalse(re.search(r'rename to ', patch))
+
 
 class GitSVNTest(SCMTest):
 
@@ -1046,21 +1139,10 @@ class GitSVNTest(SCMTest):
         self._setup_webkittools_scripts_symlink(scm)
         Checkout(scm).apply_patch(patch)
 
-    def test_apply_git_patch_force(self):
-        scm = detect_scm_system(self.git_checkout_path)
-        patch = self._create_patch(_git_diff('HEAD~2..HEAD'))
-        self._setup_webkittools_scripts_symlink(scm)
-        self.assertRaises(ScriptError, Checkout(scm).apply_patch, patch, force=True)
-
     def test_commit_text_parsing(self):
         write_into_file_at_path('test_file', 'more test content')
         commit_text = self.scm.commit_with_message("another test commit")
         self.assertEqual(self.scm.svn_revision_from_commit_text(commit_text), '6')
-
-        self.scm.dryrun = True
-        write_into_file_at_path('test_file', 'still more test content')
-        commit_text = self.scm.commit_with_message("yet another test commit")
-        self.assertEqual(self.scm.svn_revision_from_commit_text(commit_text), '0')
 
     def test_commit_with_message_working_copy_only(self):
         write_into_file_at_path('test_file_commit1', 'more test content')
@@ -1085,9 +1167,12 @@ class GitSVNTest(SCMTest):
         write_into_file_at_path('test_file_commit2', 'still more test content')
         run_command(['git', 'add', 'test_file_commit2'])
 
+    def _second_local_commit(self):
+        self._local_commit('test_file_commit2', 'still more test content', 'yet another test commit')
+
     def _two_local_commits(self):
         self._one_local_commit()
-        self._local_commit('test_file_commit2', 'still more test content', 'yet another test commit')
+        self._second_local_commt()
 
     def _three_local_commits(self):
         self._local_commit('test_file_commit0', 'more test content', 'another test commit')
@@ -1129,13 +1214,6 @@ class GitSVNTest(SCMTest):
         svn_log = run_command(['git', 'svn', 'log', '--limit=1', '--verbose'])
         self.assertFalse(re.search(r'test_file_commit0', svn_log))
         self.assertTrue(re.search(r'test_file_commit1', svn_log))
-        self.assertTrue(re.search(r'test_file_commit2', svn_log))
-
-    def test_changed_files_working_copy_only(self):
-        self._one_local_commit_plus_working_copy_changes()
-        scm = detect_scm_system(self.git_checkout_path)
-        commit_text = scm.commit_with_message("another test commit", git_commit="HEAD..")
-        self.assertFalse(re.search(r'test_file_commit1', svn_log))
         self.assertTrue(re.search(r'test_file_commit2', svn_log))
 
     def test_commit_with_message_only_local_commit(self):
@@ -1209,6 +1287,11 @@ class GitSVNTest(SCMTest):
         # There's a conflict between trunk and the test_file2 modification.
         self.assertRaises(ScriptError, scm.commit_with_message, "another test commit", force_squash=True)
 
+    def test_upstream_branch(self):
+        run_command(['git', 'checkout', '-t', '-b', 'my-branch'])
+        run_command(['git', 'checkout', '-t', '-b', 'my-second-branch'])
+        self.assertEquals(self.scm._upstream_branch(), 'my-branch')
+
     def test_remote_branch_ref(self):
         self.assertEqual(self.scm.remote_branch_ref(), 'refs/remotes/trunk')
 
@@ -1278,7 +1361,7 @@ class GitSVNTest(SCMTest):
     def test_create_patch_working_copy_only(self):
         self._one_local_commit_plus_working_copy_changes()
         scm = detect_scm_system(self.git_checkout_path)
-        patch = scm.create_patch(git_commit="HEAD..")
+        patch = scm.create_patch(git_commit="HEAD....")
         self.assertFalse(re.search(r'test_file_commit1', patch))
         self.assertTrue(re.search(r'test_file_commit2', patch))
 
@@ -1331,6 +1414,16 @@ class GitSVNTest(SCMTest):
         self.assertTrue('test_file_commit1' in files)
         self.assertTrue('test_file_commit2' in files)
 
+        # working copy should *not* be in the list.
+        files = scm.changed_files('trunk..')
+        self.assertTrue('test_file_commit1' in files)
+        self.assertFalse('test_file_commit2' in files)
+
+        # working copy *should* be in the list.
+        files = scm.changed_files('trunk....')
+        self.assertTrue('test_file_commit1' in files)
+        self.assertTrue('test_file_commit2' in files)
+
     def test_changed_files_git_commit(self):
         self._two_local_commits()
         scm = detect_scm_system(self.git_checkout_path)
@@ -1349,7 +1442,7 @@ class GitSVNTest(SCMTest):
     def test_changed_files_working_copy_only(self):
         self._one_local_commit_plus_working_copy_changes()
         scm = detect_scm_system(self.git_checkout_path)
-        files = scm.changed_files(git_commit="HEAD..")
+        files = scm.changed_files(git_commit="HEAD....")
         self.assertFalse('test_file_commit1' in files)
         self.assertTrue('test_file_commit2' in files)
 
@@ -1384,6 +1477,26 @@ class GitSVNTest(SCMTest):
     def test_changed_files_for_revision(self):
         self._shared_test_changed_files_for_revision()
 
+    def test_changed_files_upstream(self):
+        run_command(['git', 'checkout', '-t', '-b', 'my-branch'])
+        self._one_local_commit()
+        run_command(['git', 'checkout', '-t', '-b', 'my-second-branch'])
+        self._second_local_commit()
+        write_into_file_at_path('test_file_commit0', 'more test content')
+        run_command(['git', 'add', 'test_file_commit0'])
+
+        # equivalent to 'git diff my-branch..HEAD, should not include working changes
+        files = self.scm.changed_files(git_commit='UPSTREAM..')
+        self.assertFalse('test_file_commit1' in files)
+        self.assertTrue('test_file_commit2' in files)
+        self.assertFalse('test_file_commit0' in files)
+
+        # equivalent to 'git diff my-branch', *should* include working changes
+        files = self.scm.changed_files(git_commit='UPSTREAM....')
+        self.assertFalse('test_file_commit1' in files)
+        self.assertTrue('test_file_commit2' in files)
+        self.assertTrue('test_file_commit0' in files)
+
     def test_contents_at_revision(self):
         self._shared_test_contents_at_revision()
 
@@ -1403,6 +1516,12 @@ class GitSVNTest(SCMTest):
         self._two_local_commits()
         self.scm.delete('test_file_commit1')
         self.assertTrue("test_file_commit1" in self.scm.deleted_files())
+
+    def test_delete_recursively(self):
+        self._shared_test_delete_recursively()
+
+    def test_delete_recursively_or_not(self):
+        self._shared_test_delete_recursively_or_not()
 
     def test_head_svn_revision(self):
         self._shared_test_head_svn_revision()
@@ -1448,16 +1567,28 @@ class GitSVNTest(SCMTest):
 # We need to split off more of these SCM tests to use mocks instead of the filesystem.
 # This class is the first part of that.
 class GitTestWithMock(unittest.TestCase):
-    def setUp(self):
-        executive = MockExecutive(should_log=False)
+    def make_scm(self, logging_executive=False):
         # We do this should_log dance to avoid logging when Git.__init__ runs sysctl on mac to check for 64-bit support.
-        self.scm = Git(None, executive=executive)
-        executive.should_log = True
+        scm = Git(cwd=None, executive=MockExecutive())
+        scm._executive._should_log = logging_executive
+        return scm
 
     def test_create_patch(self):
-        expected_stderr = "MOCK run_command: ['git', 'merge-base', u'refs/remotes/origin/master', 'HEAD']\nMOCK run_command: ['git', 'diff', '--binary', '--no-ext-diff', '--full-index', '-M', 'MOCK output of child process', '--']\nMOCK run_command: ['git', 'log', '-25']\n"
-        OutputCapture().assert_outputs(self, self.scm.create_patch, kwargs={'changed_files': None}, expected_stderr=expected_stderr)
+        scm = self.make_scm(logging_executive=True)
+        expected_stderr = "MOCK run_command: ['git', 'merge-base', u'refs/remotes/origin/master', 'HEAD'], cwd=%(checkout)s\nMOCK run_command: ['git', 'diff', '--binary', '--no-ext-diff', '--full-index', '-M', 'MOCK output of child process', '--'], cwd=%(checkout)s\nMOCK run_command: ['git', 'log', '-25'], cwd=None\n" % {'checkout': scm.checkout_root}
+        OutputCapture().assert_outputs(self, scm.create_patch, expected_stderr=expected_stderr)
 
+    def test_push_local_commits_to_server_with_username_and_password(self):
+        self.assertEquals(self.make_scm().push_local_commits_to_server(username='dbates@webkit.org', password='blah'), "MOCK output of child process")
+
+    def test_push_local_commits_to_server_without_username_and_password(self):
+        self.assertRaises(AuthenticationError, self.make_scm().push_local_commits_to_server)
+
+    def test_push_local_commits_to_server_with_username_and_without_password(self):
+        self.assertRaises(AuthenticationError, self.make_scm().push_local_commits_to_server, {'username': 'dbates@webkit.org'})
+
+    def test_push_local_commits_to_server_without_username_and_with_password(self):
+        self.assertRaises(AuthenticationError, self.make_scm().push_local_commits_to_server, {'password': 'blah'})
 
 if __name__ == '__main__':
     unittest.main()

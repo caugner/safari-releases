@@ -26,6 +26,9 @@
 #import "config.h"
 #import "PageClientImpl.h"
 
+#if USE(DICTATION_ALTERNATIVES)
+#import <AppKit/NSTextAlternatives.h>
+#endif
 #import "DataReference.h"
 #import "DictionaryPopupInfo.h"
 #import "FindIndicator.h"
@@ -33,15 +36,20 @@
 #import "WKAPICast.h"
 #import "WKStringCF.h"
 #import "WKViewInternal.h"
+#import "StringUtilities.h"
 #import "WebContextMenuProxyMac.h"
 #import "WebEditCommandProxy.h"
 #import "WebPopupMenuProxyMac.h"
+#import <WebCore/AlternativeTextUIController.h>
+#import <WebCore/BitmapImage.h>
 #import <WebCore/Cursor.h>
 #import <WebCore/FloatRect.h>
 #import <WebCore/FoundationExtras.h>
 #import <WebCore/GraphicsContext.h>
+#import <WebCore/Image.h>
 #import <WebCore/KeyboardEvent.h>
 #import <WebCore/NotImplemented.h>
+#import <WebCore/SharedBuffer.h>
 #import <wtf/PassOwnPtr.h>
 #import <wtf/text/CString.h>
 #import <wtf/text/WTFString.h>
@@ -50,6 +58,12 @@
 @interface NSApplication (WebNSApplicationDetails)
 - (NSCursor *)_cursorRectCursor;
 @end
+
+#if HAVE(LAYER_HOSTING_IN_WINDOW_SERVER)
+@interface NSWindow (WebNSWindowDetails)
+- (BOOL)_hostsLayersInWindowServer;
+@end
+#endif
 
 using namespace WebCore;
 using namespace WebKit;
@@ -104,11 +118,6 @@ using namespace WebKit;
 
 namespace WebKit {
 
-NSString* nsStringFromWebCoreString(const String& string)
-{
-    return string.impl() ? HardAutorelease(WKStringCopyCFString(0, toAPI(string.impl()))) : @"";
-}
-
 PassOwnPtr<PageClientImpl> PageClientImpl::create(WKView* wkView)
 {
     return adoptPtr(new PageClientImpl(wkView));
@@ -117,6 +126,9 @@ PassOwnPtr<PageClientImpl> PageClientImpl::create(WKView* wkView)
 PageClientImpl::PageClientImpl(WKView* wkView)
     : m_wkView(wkView)
     , m_undoTarget(AdoptNS, [[WKEditorUndoTargetObjC alloc] init])
+#if USE(DICTATION_ALTERNATIVES)
+    , m_alternativeTextUIController(adoptPtr(new AlternativeTextUIController))
+#endif
 {
 }
 
@@ -188,14 +200,29 @@ bool PageClientImpl::isViewInWindow()
     return [m_wkView window];
 }
 
+LayerHostingMode PageClientImpl::viewLayerHostingMode()
+{
+#if HAVE(LAYER_HOSTING_IN_WINDOW_SERVER)
+    if (![m_wkView window])
+        return LayerHostingModeDefault;
+
+    return [[m_wkView window] _hostsLayersInWindowServer] ? LayerHostingModeInWindowServer : LayerHostingModeDefault;
+#else
+    return LayerHostingModeDefault;
+#endif
+}
+
 void PageClientImpl::processDidCrash()
 {
     [m_wkView _processDidCrash];
 }
-    
+
 void PageClientImpl::pageClosed()
 {
     [m_wkView _pageClosed];
+#if USE(DICTATION_ALTERNATIVES)
+    m_alternativeTextUIController->clear();
+#endif
 }
 
 void PageClientImpl::didRelaunchProcess()
@@ -214,7 +241,12 @@ void PageClientImpl::setCursor(const WebCore::Cursor& cursor)
         [m_wkView _setCursor:cursor.platformCursor()];
 }
 
-void PageClientImpl::setViewportArguments(const WebCore::ViewportArguments&)
+void PageClientImpl::setCursorHiddenUntilMouseMoves(bool hiddenUntilMouseMoves)
+{
+    [NSCursor setHiddenUntilMouseMoves:hiddenUntilMouseMoves];
+}
+
+void PageClientImpl::didChangeViewportProperties(const WebCore::ViewportAttributes&)
 {
 }
 
@@ -259,6 +291,13 @@ void PageClientImpl::setDragImage(const IntPoint& clientPosition, PassRefPtr<Sha
     [m_wkView _setDragImage:dragNSImage.get() at:clientPosition linkDrag:isLinkDrag];
 }
 
+void PageClientImpl::setPromisedData(const String& pasteboardName, PassRefPtr<SharedBuffer> imageBuffer, const String& filename, const String& extension, const String& title, const String& url, const String& visibleUrl, PassRefPtr<SharedBuffer> archiveBuffer)
+{
+    RefPtr<Image> image = BitmapImage::create();
+    image->setData(imageBuffer.get(), true);
+    [m_wkView _setPromisedData:image.get() withFileName:filename withExtension:extension withTitle:title withURL:url withVisibleURL:visibleUrl withArchive:archiveBuffer.get() forPasteboard:pasteboardName];
+}
+
 void PageClientImpl::updateTextInputState(bool updateSecureInputState)
 {
     [m_wkView _updateTextInputStateIncludingSecureInputState:updateSecureInputState];
@@ -278,6 +317,12 @@ FloatRect PageClientImpl::convertToUserSpace(const FloatRect& rect)
 {
     return [m_wkView _convertToUserSpace:rect];
 }
+   
+IntPoint PageClientImpl::screenToWindow(const IntPoint& point)
+{
+    NSPoint windowCoord = [[m_wkView window] convertScreenToBase:point];
+    return IntPoint([m_wkView convertPoint:windowCoord fromView:nil]);
+}
     
 IntRect PageClientImpl::windowToScreen(const IntRect& rect)
 {
@@ -287,15 +332,16 @@ IntRect PageClientImpl::windowToScreen(const IntRect& rect)
     return enclosingIntRect(tempRect);
 }
 
-void PageClientImpl::doneWithKeyEvent(const NativeWebKeyboardEvent& event, bool wasEventHandled)
+#if ENABLE(GESTURE_EVENTS)
+void PageClientImpl::doneWithGestureEvent(const WebGestureEvent&, bool wasEventHandled)
 {
-    NSEvent* nativeEvent = event.nativeEvent();
-    if ([nativeEvent type] != NSKeyDown)
-        return;
-    if (wasEventHandled)
-        [NSCursor setHiddenUntilMouseMoves:YES];
-    else
-        [m_wkView _resendKeyDownEvent:nativeEvent];
+    notImplemented();
+}
+#endif
+
+void PageClientImpl::doneWithKeyEvent(const NativeWebKeyboardEvent& event, bool eventWasHandled)
+{
+    [m_wkView _doneWithKeyEvent:event.nativeEvent() eventWasHandled:eventWasHandled];
 }
 
 PassRefPtr<WebPopupMenuProxy> PageClientImpl::createPopupMenuProxy(WebPageProxy* page)
@@ -308,9 +354,9 @@ PassRefPtr<WebContextMenuProxy> PageClientImpl::createContextMenuProxy(WebPagePr
     return WebContextMenuProxyMac::create(m_wkView, page);
 }
 
-void PageClientImpl::setFindIndicator(PassRefPtr<FindIndicator> findIndicator, bool fadeOut)
+void PageClientImpl::setFindIndicator(PassRefPtr<FindIndicator> findIndicator, bool fadeOut, bool animate)
 {
-    [m_wkView _setFindIndicator:findIndicator fadeOut:fadeOut];
+    [m_wkView _setFindIndicator:findIndicator fadeOut:fadeOut animate:animate];
 }
 
 void PageClientImpl::accessibilityWebProcessTokenReceived(const CoreIPC::DataReference& data)
@@ -329,11 +375,21 @@ void PageClientImpl::exitAcceleratedCompositingMode()
 {
     [m_wkView _exitAcceleratedCompositingMode];
 }
+
+void PageClientImpl::updateAcceleratedCompositingMode(const LayerTreeContext& layerTreeContext)
+{
+    [m_wkView _updateAcceleratedCompositingMode:layerTreeContext];
+}
 #endif // USE(ACCELERATED_COMPOSITING)
 
-void PageClientImpl::setComplexTextInputEnabled(uint64_t pluginComplexTextInputIdentifier, bool complexTextInputEnabled)
+void PageClientImpl::pluginFocusOrWindowFocusChanged(uint64_t pluginComplexTextInputIdentifier, bool pluginHasFocusAndWindowHasFocus)
 {
-    [m_wkView _setComplexTextInputEnabled:complexTextInputEnabled pluginComplexTextInputIdentifier:pluginComplexTextInputIdentifier];
+    [m_wkView _pluginFocusOrWindowFocusChanged:pluginHasFocusAndWindowHasFocus pluginComplexTextInputIdentifier:pluginComplexTextInputIdentifier];
+}
+
+void PageClientImpl::setPluginComplexTextInputState(uint64_t pluginComplexTextInputIdentifier, PluginComplexTextInputState pluginComplexTextInputState)
+{
+    [m_wkView _setPluginComplexTextInputState:pluginComplexTextInputState pluginComplexTextInputIdentifier:pluginComplexTextInputIdentifier];
 }
 
 CGContextRef PageClientImpl::containingWindowGraphicsContext()
@@ -396,8 +452,7 @@ void PageClientImpl::didPerformDictionaryLookup(const String& text, double scale
     [attributedString.get() addAttribute:NSFontAttributeName value:font range:NSMakeRange(0, [attributedString.get() length])];
 
     NSPoint textBaselineOrigin = dictionaryPopupInfo.origin;
-    textBaselineOrigin.y += [font ascender];
-    
+
 #if !defined(BUILDING_ON_SNOW_LEOPARD)
     // Convert to screen coordinates.
     textBaselineOrigin = [m_wkView convertPoint:textBaselineOrigin toView:nil];
@@ -418,7 +473,7 @@ void PageClientImpl::dismissDictionaryLookupPanel()
 #endif
 }
 
-void PageClientImpl::showCorrectionPanel(CorrectionPanelInfo::PanelType type, const FloatRect& boundingBoxOfReplacedString, const String& replacedString, const String& replacementString, const Vector<String>& alternativeReplacementStrings)
+void PageClientImpl::showCorrectionPanel(AlternativeTextType type, const FloatRect& boundingBoxOfReplacedString, const String& replacedString, const String& replacementString, const Vector<String>& alternativeReplacementStrings)
 {
 #if !defined(BUILDING_ON_SNOW_LEOPARD)
     if (!isViewVisible() || !isViewInWindow())
@@ -427,14 +482,14 @@ void PageClientImpl::showCorrectionPanel(CorrectionPanelInfo::PanelType type, co
 #endif
 }
 
-void PageClientImpl::dismissCorrectionPanel(ReasonForDismissingCorrectionPanel reason)
+void PageClientImpl::dismissCorrectionPanel(ReasonForDismissingAlternativeText reason)
 {
 #if !defined(BUILDING_ON_SNOW_LEOPARD)
     m_correctionPanel.dismiss(reason);
 #endif
 }
 
-String PageClientImpl::dismissCorrectionPanelSoon(WebCore::ReasonForDismissingCorrectionPanel reason)
+String PageClientImpl::dismissCorrectionPanelSoon(WebCore::ReasonForDismissingAlternativeText reason)
 {
 #if !defined(BUILDING_ON_SNOW_LEOPARD)
     return m_correctionPanel.dismiss(reason);
@@ -443,25 +498,39 @@ String PageClientImpl::dismissCorrectionPanelSoon(WebCore::ReasonForDismissingCo
 #endif
 }
 
-void PageClientImpl::recordAutocorrectionResponse(EditorClient::AutocorrectionResponseType responseType, const String& replacedString, const String& replacementString)
+void PageClientImpl::recordAutocorrectionResponse(AutocorrectionResponseType responseType, const String& replacedString, const String& replacementString)
 {
 #if !defined(BUILDING_ON_SNOW_LEOPARD)
-    NSCorrectionResponse response = responseType == EditorClient::AutocorrectionReverted ? NSCorrectionResponseReverted : NSCorrectionResponseEdited;
+    NSCorrectionResponse response = responseType == AutocorrectionReverted ? NSCorrectionResponseReverted : NSCorrectionResponseEdited;
     CorrectionPanel::recordAutocorrectionResponse(m_wkView, response, replacedString, replacementString);
 #endif
 }
 
-float PageClientImpl::userSpaceScaleFactor() const
+void PageClientImpl::recommendedScrollbarStyleDidChange(int32_t newStyle)
 {
-    NSWindow *window = [m_wkView window];
 #if !defined(BUILDING_ON_SNOW_LEOPARD)
-    if (window)
-        return [window backingScaleFactor];
-    return [[NSScreen mainScreen] backingScaleFactor];
+    NSArray *trackingAreas = [m_wkView trackingAreas];
+    NSUInteger count = [trackingAreas count];
+    ASSERT(count == 1);
+    
+    for (NSUInteger i = 0; i < count; ++i)
+        [m_wkView removeTrackingArea:[trackingAreas objectAtIndex:i]];
+
+    // Now re-create a tracking area with the appropriate options given the new scrollbar style
+    NSTrackingAreaOptions options = NSTrackingMouseMoved | NSTrackingMouseEnteredAndExited | NSTrackingInVisibleRect;
+    if (newStyle == NSScrollerStyleLegacy)
+        options |= NSTrackingActiveAlways;
+    else
+        options |= NSTrackingActiveInKeyWindow;
+
+    NSTrackingArea *trackingArea = [[NSTrackingArea alloc] initWithRect:[m_wkView frame]
+                                                                options:options
+                                                                  owner:m_wkView
+                                                               userInfo:nil];
+    [m_wkView addTrackingArea:trackingArea];
+    [trackingArea release];
 #else
-    if (window)
-        return [window userSpaceScaleFactor];
-    return [[NSScreen mainScreen] userSpaceScaleFactor];
+    UNUSED_PARAM(newStyle);
 #endif
 }
 
@@ -469,5 +538,36 @@ bool PageClientImpl::executeSavedCommandBySelector(const String& selectorString)
 {
     return [m_wkView _executeSavedCommandBySelector:NSSelectorFromString(selectorString)];
 }
+
+#if USE(DICTATION_ALTERNATIVES)
+uint64_t PageClientImpl::addDictationAlternatives(const RetainPtr<NSTextAlternatives>& alternatives)
+{
+    return m_alternativeTextUIController->addAlternatives(alternatives);
+}
+
+void PageClientImpl::removeDictationAlternatives(uint64_t dictationContext)
+{
+    m_alternativeTextUIController->removeAlternatives(dictationContext);
+}
+
+void PageClientImpl::showDictationAlternativeUI(const WebCore::FloatRect& boundingBoxOfDictatedText, uint64_t dictationContext)
+{
+    if (!isViewVisible() || !isViewInWindow())
+        return;
+    m_alternativeTextUIController->showAlternatives(m_wkView, boundingBoxOfDictatedText, dictationContext, ^(NSString* acceptedAlternative){
+        [m_wkView handleAcceptedAlternativeText:acceptedAlternative];
+    });
+}
+
+Vector<String> PageClientImpl::dictationAlternatives(uint64_t dictationContext)
+{
+    return m_alternativeTextUIController->alternativesForContext(dictationContext);
+}
+
+void PageClientImpl::dismissDictationAlternativeUI()
+{
+    m_alternativeTextUIController->dismissAlternatives();
+}
+#endif
 
 } // namespace WebKit

@@ -1,13 +1,9 @@
 <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
 <html>
 <head>
-<link rel="stylesheet" href="../../fast/js/resources/js-test-style.css">
 <script src="../../fast/js/resources/js-test-pre.js"></script>
-<script src="../../fast/js/resources/js-test-post-function.js"></script>
 </head>
 <body onload="runTest()">
-<p id="description"></p>
-<div id="console"></div>
 <form action="resources/success.txt" method="GET" target="failFrame">
 <input type="submit" id="button" formtarget="passFrame">
 </form>
@@ -45,8 +41,6 @@ function failFrameLoaded()
     if (window.layoutTestController)
         layoutTestController.notifyDone();
 }
-
-var successfullyParsed = true;
 </script>
 <iframe src="about:blank" id="pass" name="passFrame" onload="passFrameLoaded()"></iframe>
 <iframe src="about:blank" id="fail" name="failFrame" onload="failFrameLoaded()"></iframe>

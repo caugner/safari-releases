@@ -59,6 +59,7 @@ class LayoutTestController : public QObject {
 public:
     LayoutTestController(WebCore::DumpRenderTree* drt);
 
+    bool shouldDisallowIncreaseForApplicationCacheQuota() const { return m_disallowIncreaseForApplicationCacheQuota; }
     bool shouldDumpAsText() const { return m_textDump; }
     bool shouldDumpBackForwardList() const { return m_dumpBackForwardList; }
     bool shouldDumpChildrenAsText() const { return m_dumpChildrenAsText; }
@@ -79,6 +80,9 @@ public:
     static const unsigned int maxViewWidth;
     static const unsigned int maxViewHeight;
 
+    void setTimeout(int timeout) { m_timeout = timeout; }
+    void setShouldTimeout(bool flag) { m_shouldTimeout = flag; }
+
 protected:
     void timerEvent(QTimerEvent*);
 
@@ -91,11 +95,12 @@ signals:
 
 public slots:
     void maybeDump(bool ok);
+    void disallowIncreaseForApplicationCacheQuota() { m_disallowIncreaseForApplicationCacheQuota = true; }
     void dumpAsText() { m_textDump = true; }
     void dumpChildFramesAsText() { m_dumpChildrenAsText = true; }
     void dumpChildFrameScrollPositions() { m_dumpChildFrameScrollPositions = true; }
     void dumpDatabaseCallbacks() { m_dumpDatabaseCallbacks = true; }
-    void dumpApplicationCacheDelegateCallbacks() { m_dumpApplicationCacheDelegateCallbacks = true;}
+    void dumpApplicationCacheDelegateCallbacks() { m_dumpApplicationCacheDelegateCallbacks = true; }
     void dumpStatusCallbacks() { m_dumpStatusCallbacks = true; }
     void setCanOpenWindows() { m_canOpenWindows = true; }
     void setPrinting() { m_isPrinting = true; }
@@ -110,9 +115,11 @@ public slots:
     void handleErrorPages() { m_handleErrorPages = true; }
     void dumpEditingCallbacks();
     void dumpFrameLoadCallbacks();
+    void dumpProgressFinishedCallback();
     void dumpUserGestureInFrameLoadCallbacks();
     void dumpResourceLoadCallbacks();
     void dumpResourceResponseMIMETypes();
+    void dumpWillCacheResponse();
     void dumpHistoryCallbacks();
     void dumpConfigurationForViewport(int deviceDPI, int deviceWidth, int deviceHeight, int availableWidth, int availableHeight);
     void setWillSendRequestReturnsNullOnRedirect(bool enabled);
@@ -146,7 +153,6 @@ public slots:
     void closeWebInspector();
     void evaluateInWebInspector(long callId, const QString& script);
     void removeAllVisitedLinks();
-
     void setMediaType(const QString& type);
     void setFrameFlatteningEnabled(bool enable);
     void setAllowUniversalAccessFromFileURLs(bool enable);
@@ -154,7 +160,7 @@ public slots:
     void setAppCacheMaximumSize(unsigned long long quota);
     void setAutofilled(const QWebElement&, bool enable);
     void setJavaScriptProfilingEnabled(bool enable);
-    void setTimelineProfilingEnabled(bool enable);
+    void setValueForUser(const QWebElement&, const QString& value);
     void setFixedContentsSize(int width, int height);
     void setPrivateBrowsingEnabled(bool enable);
     void setSpatialNavigationEnabled(bool enabled);
@@ -168,6 +174,7 @@ public slots:
     void setJavaScriptCanAccessClipboard(bool enable);
     void setXSSAuditorEnabled(bool enable);
     void setCaretBrowsingEnabled(bool enable);
+    void setAuthorAndUserStylesEnabled(bool);
     void setViewModeMediaFeature(const QString& mode);
     void setSmartInsertDeleteEnabled(bool enable);
     void setSelectTrailingWhitespaceEnabled(bool enable);
@@ -177,7 +184,6 @@ public slots:
 
     bool pauseAnimationAtTimeOnElementWithId(const QString& animationName, double time, const QString& elementId);
     bool pauseTransitionAtTimeOnElementWithId(const QString& propertyName, double time, const QString& elementId);
-    bool sampleSVGAnimationForElementAtTime(const QString& animationId, double time, const QString& elementId);
     bool elementDoesAutoCompleteForElementWithId(const QString& elementId);
 
     unsigned numberOfActiveAnimations() const;
@@ -195,6 +201,7 @@ public slots:
     void setApplicationCacheOriginQuota(unsigned long long quota);
     QStringList originsWithApplicationCache();
     long long applicationCacheDiskUsageForOrigin(const QString&); 
+    void setCacheModel(int);
 
     void setDatabaseQuota(int size);
     void clearAllDatabases();
@@ -229,12 +236,14 @@ public slots:
     bool geolocationPermission() const { return m_geolocationPermission; }
 
     void addMockSpeechInputResult(const QString& result, double confidence, const QString& language);
+    void setMockSpeechInputDumpRect(bool flag);
+    void startSpeechInput(const QString& inputElement);
+
+    void setPageVisibility(const char*);
+    void resetPageVisibility();
 
     // Empty stub method to keep parity with object model exposed by global LayoutTestController.
     void abortModal() {}
-    bool hasSpellingMarker(int from, int length);
-
-    QVariantList nodesFromRect(const QWebElement& document, int x, int y, unsigned top, unsigned right, unsigned bottom, unsigned left, bool ignoreClipping);
 
     void addURLToRedirect(const QString& origin, const QString& destination);
 
@@ -252,11 +261,7 @@ public slots:
 
     void setEditingBehavior(const QString& editingBehavior);
 
-    QVariant shadowRoot(const QWebElement&);
-    QVariant ensureShadowRoot(const QWebElement&);
-    void removeShadowRoot(const QWebElement&);
-    QString shadowPseudoId(const QWebElement&);
-
+    void evaluateScriptInIsolatedWorldAndReturnValue(int worldID, const QString& script);
     void evaluateScriptInIsolatedWorld(int worldID, const QString& script);
     bool isPageBoxVisible(int pageIndex);
     QString pageSizeAndMarginsInPixels(int pageIndex, int width, int height, int marginTop, int marginRight, int marginBottom, int marginLeft);
@@ -272,6 +277,13 @@ public slots:
     void observeStorageTrackerNotifications(unsigned number);
     void syncLocalStorage();
     QString layerTreeAsText();
+    void setTextDirection(const QString& directionName);
+    void goBack();
+    void setDefersLoading(bool);
+#if QT_VERSION >= 0x040800
+    void setAlwaysAcceptCookies(bool);
+    void setAlwaysBlockCookies(bool);
+#endif
 
 private slots:
     void processWork();
@@ -282,6 +294,7 @@ private:
 private:
     bool m_hasDumped;
     bool m_textDump;
+    bool m_disallowIncreaseForApplicationCacheQuota;
     bool m_dumpBackForwardList;
     bool m_dumpChildrenAsText;
     bool m_dumpChildFrameScrollPositions;
@@ -307,6 +320,9 @@ private:
     QWebHistory* m_webHistory;
     QStringList m_desktopNotificationAllowedOrigins;
     bool m_ignoreDesktopNotification;
+
+    bool m_shouldTimeout;
+    int m_timeout;
 };
 
 #endif // LayoutTestControllerQt_h

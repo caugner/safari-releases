@@ -33,25 +33,98 @@ function test()
             InspectorTest.selectNodeWithId("node", callback);
         },
 
-        function testSetAttribute(next)
+        function testAttributeUpdated(next)
         {
             function callback()
             {
-                InspectorTest.addResult("===== Set attribute =====");
+                WebInspector.domAgent.removeEventListener(WebInspector.DOMAgent.Events.AttrModified, callback);
+                InspectorTest.addResult("===== On attribute set =====");
                 InspectorTest.dumpElementsTree(targetNode);
                 next();
             }
-            InspectorTest.evaluateInPage("setAttribute('name', 'value')", callback);
+            WebInspector.domAgent.addEventListener(WebInspector.DOMAgent.Events.AttrModified, callback);
+            InspectorTest.evaluateInPage("setAttribute('name', 'value')");
         },
 
-        function testRemoveAttribute(next) {
+        function testAttributeSameValueNotUpdated(next)
+        {
             function callback()
             {
-                InspectorTest.addResult("=== Removed attribute ===");
+                InspectorTest.addResult("===== On attribute modified (should be 'newValue') =====");
+                InspectorTest.dumpElementsTree(targetNode);
+                WebInspector.domAgent.removeEventListener(WebInspector.DOMAgent.Events.AttrModified, callback);
+                next();
+            }
+            WebInspector.domAgent.addEventListener(WebInspector.DOMAgent.Events.AttrModified, callback);
+            // Setting the same property value should not result in the AttrModified event.
+            InspectorTest.evaluateInPage("setAttribute('name', 'value')");
+            InspectorTest.evaluateInPage("setAttribute('name', 'value')");
+            InspectorTest.evaluateInPage("setAttribute('name', 'newValue')");
+        },
+
+        function testAttributeRemoved(next)
+        {
+            function callback()
+            {
+                WebInspector.domAgent.removeEventListener(WebInspector.DOMAgent.Events.AttrRemoved, callback);
+                InspectorTest.addResult("=== On attribute removed ===");
                 InspectorTest.dumpElementsTree(targetNode);
                 next();
             }
-            InspectorTest.evaluateInPage("removeAttribute('name')", callback);
+            WebInspector.domAgent.addEventListener(WebInspector.DOMAgent.Events.AttrRemoved, callback);
+            InspectorTest.evaluateInPage("removeAttribute('name')");
+        },
+
+        function testSetAttributeValue(next)
+        {
+            function callback()
+            {
+                WebInspector.domAgent.removeEventListener(WebInspector.DOMAgent.Events.AttrModified, callback);
+                InspectorTest.addResult("=== Set attribute value ===");
+                InspectorTest.dumpElementsTree(targetNode);
+                next();
+            }
+            WebInspector.domAgent.addEventListener(WebInspector.DOMAgent.Events.AttrModified, callback);
+            targetNode.setAttributeValue("foo", "bar");
+        },
+
+        function testSetAttributeText(next)
+        {
+            function callback()
+            {
+                WebInspector.domAgent.removeEventListener(WebInspector.DOMAgent.Events.AttrRemoved, callback);
+                InspectorTest.addResult("=== Set attribute as text ===");
+                InspectorTest.dumpElementsTree(targetNode);
+                next();
+            }
+            WebInspector.domAgent.addEventListener(WebInspector.DOMAgent.Events.AttrRemoved, callback);
+            targetNode.setAttribute("foo", "foo2='baz2' foo3='baz3'");
+        },
+
+        function testRemoveAttributeAsText(next)
+        {
+            function callback()
+            {
+                WebInspector.domAgent.removeEventListener(WebInspector.DOMAgent.Events.AttrRemoved, callback);
+                InspectorTest.addResult("=== Remove attribute as text ===");
+                InspectorTest.dumpElementsTree(targetNode);
+                next();
+            }
+            WebInspector.domAgent.addEventListener(WebInspector.DOMAgent.Events.AttrRemoved, callback);
+            targetNode.setAttribute("foo3", "");
+        },
+
+        function testSetMalformedAttributeText(next)
+        {
+            function callback(error)
+            {
+                InspectorTest.addResult("Error: " + error);
+                WebInspector.domAgent.removeEventListener(WebInspector.DOMAgent.Events.AttrModified, callback);
+                InspectorTest.addResult("=== Set malformed attribute as text ===");
+                InspectorTest.dumpElementsTree(targetNode);
+                next();
+            }
+            targetNode.setAttribute("foo2", "foo2='missingquote", callback);
         }
     ]);
 }

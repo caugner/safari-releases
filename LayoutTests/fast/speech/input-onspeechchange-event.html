@@ -1,12 +1,9 @@
 <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
 <html>
 <head>
-<link rel="stylesheet" href="../js/resources/js-test-style.css">
 <script src="../js/resources/js-test-pre.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <script type="text/javascript">
 description('Tests for the onspeechchange event with &lt;input type="text" speech>.');
 
@@ -40,7 +37,6 @@ function run() {
 
 window.onload = run;
 window.jsTestIsAsync = true;
-window.successfullyParsed = true;
 </script>
 <script src="../js/resources/js-test-post.js"></script>
 <input id='speechInput' x-webkit-speech onwebkitspeechchange="onSpeechChange()">

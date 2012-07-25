@@ -1,5 +1,7 @@
 /*
  * Copyright (C) 2010 Nokia Corporation and/or its subsidiary(-ies)
+ * Copyright (C) 2011 University of Szeged
+ * Copyright (C) 2011 Kristof Kosztyo <Kosztyo.Kristof@stud.u-szeged.hu>
  * Copyright (C) 2009 Girish Ramakrishnan <girish@forwardbias.in>
  * Copyright (C) 2006 George Staikos <staikos@kde.org>
  * Copyright (C) 2006 Dirk Mueller <mueller@kde.org>
@@ -31,10 +33,53 @@
  */
 
 #include "launcherwindow.h"
+#include "cookiejar.h"
 #include "urlloader.h"
+
+#include <QApplication>
+#include <QCheckBox>
+#include <QComboBox>
+#include <QCoreApplication>
+#include <QDialogButtonBox>
+#include <QInputDialog>
+#include <QLabel>
+#ifndef QT_NO_LINEEDIT
+#include <QLineEdit>
+#endif
+#ifndef QT_NO_SHORTCUT
+#include <QMenuBar>
+#endif
+#include <QSlider>
+#include <QSplitter>
+#include <QStatusBar>
+#include <QToolButton>
+#include <QToolTip>
+#include <QVBoxLayout>
+
+#if !defined(QT_NO_FILEDIALOG) && !defined(QT_NO_MESSAGEBOX)
+#include <QFileDialog>
+#include <QFileInfo>
+#include <QMessageBox>
+#include <QNetworkReply>
+#endif
+
+#if !defined(QT_NO_NETWORKDISKCACHE) && !defined(QT_NO_DESKTOPSERVICES)
+#if QT_VERSION >= QT_VERSION_CHECK(5, 0, 0)
+#include <QStandardPaths>
+#else
+#include <QDesktopServices>
+#endif
+#include <QtNetwork/QNetworkDiskCache>
+#endif
 
 const int gExitClickArea = 80;
 QVector<int> LauncherWindow::m_zoomLevels;
+
+static TestBrowserCookieJar* testBrowserCookieJarInstance()
+{
+    static TestBrowserCookieJar* cookieJar = new TestBrowserCookieJar(qApp);
+    return cookieJar;
+}
 
 LauncherWindow::LauncherWindow(WindowOptions* data, QGraphicsScene* sharedScene)
     : MainWindow()
@@ -44,6 +89,12 @@ LauncherWindow::LauncherWindow(WindowOptions* data, QGraphicsScene* sharedScene)
     , m_inspector(0)
     , m_formatMenuAction(0)
     , m_zoomAnimation(0)
+#if !defined(QT_NO_FILEDIALOG) && !defined(QT_NO_MESSAGEBOX)
+    , m_reply(0)
+#endif
+#ifndef QT_NO_LINEEDIT
+    , m_findFlag(0)
+#endif
 {
     if (data)
         m_windowOptions = *data;
@@ -53,11 +104,13 @@ LauncherWindow::LauncherWindow(WindowOptions* data, QGraphicsScene* sharedScene)
         static_cast<QGraphicsView*>(m_view)->setScene(sharedScene);
 
     createChrome();
+#if !defined(QT_NO_FILEDIALOG) && !defined(QT_NO_MESSAGEBOX)
+    connect(page(), SIGNAL(downloadRequested(const QNetworkRequest&)), this, SLOT(downloadRequest(const QNetworkRequest&)));
+#endif
 }
 
 LauncherWindow::~LauncherWindow()
 {
-    grabZoomKeys(false);
     delete m_urlLoader;
 }
 
@@ -85,8 +138,6 @@ void LauncherWindow::init()
         m_zoomLevels << 110 << 120 << 133 << 150 << 170 << 200 << 240 << 300;
     }
 
-    grabZoomKeys(true);
-
     initializeView();
 }
 
@@ -97,6 +148,13 @@ void LauncherWindow::initializeView()
     m_inputUrl = addressUrl();
     QUrl url = page()->mainFrame()->url();
     setPage(new WebPage(this));
+    setDiskCache(m_windowOptions.useDiskCache);
+    setUseDiskCookies(m_windowOptions.useDiskCookies);
+
+    // We reuse the same cookieJar on multiple QNAMs, which is OK.
+    QObject* cookieJarParent = testBrowserCookieJarInstance()->parent();
+    page()->networkAccessManager()->setCookieJar(testBrowserCookieJarInstance());
+    testBrowserCookieJarInstance()->setParent(cookieJarParent);
 
     QSplitter* splitter = static_cast<QSplitter*>(centralWidget());
 
@@ -110,7 +168,7 @@ void LauncherWindow::initializeView()
     } else {
         WebViewGraphicsBased* view = new WebViewGraphicsBased(splitter);
         m_view = view;
-#if defined(QT_CONFIGURED_WITH_OPENGL)
+#ifndef QT_NO_OPENGL
         toggleQGLWidgetViewport(m_windowOptions.useQGLWidgetViewport);
 #endif
         view->setPage(page());
@@ -195,8 +253,14 @@ void LauncherWindow::createChrome()
     editMenu->addAction(page()->action(QWebPage::Copy));
     editMenu->addAction(page()->action(QWebPage::Paste));
     editMenu->addSeparator();
+#ifndef QT_NO_LINEEDIT
+    editMenu->addAction("&Find", this, SLOT(showFindBar()), QKeySequence(Qt::CTRL | Qt::Key_F));
+    editMenu->addSeparator();
+#endif
     QAction* setEditable = editMenu->addAction("Set Editable", this, SLOT(setEditable(bool)));
     setEditable->setCheckable(true);
+
+    editMenu->addAction("Clear Cookies", this, SLOT(clearCookies()));
 
     QMenu* viewMenu = menuBar()->addMenu("&View");
     viewMenu->addAction(page()->action(QWebPage::Stop));
@@ -310,7 +374,7 @@ void LauncherWindow::createChrome()
     toggleTiledBackingStore->setEnabled(isGraphicsBased());
     toggleTiledBackingStore->connect(toggleGraphicsView, SIGNAL(toggled(bool)), SLOT(setEnabled(bool)));
 
-#if defined(QT_CONFIGURED_WITH_OPENGL)
+#ifndef QT_NO_OPENGL
     QAction* toggleQGLWidgetViewport = graphicsViewMenu->addAction("Toggle use of QGLWidget Viewport", this, SLOT(toggleQGLWidgetViewport(bool)));
     toggleQGLWidgetViewport->setCheckable(true);
     toggleQGLWidgetViewport->setChecked(m_windowOptions.useQGLWidgetViewport);
@@ -390,6 +454,12 @@ void LauncherWindow::createChrome()
 
     QMenu* settingsMenu = menuBar()->addMenu("&Settings");
 
+#if !defined(QT_NO_NETWORKDISKCACHE) && !defined(QT_NO_DESKTOPSERVICES)
+    QAction* toggleDiskCache = settingsMenu->addAction("Use Disk Cache", this, SLOT(setDiskCache(bool)));
+    toggleDiskCache->setCheckable(true);
+    toggleDiskCache->setChecked(m_windowOptions.useDiskCache);
+#endif
+
     QAction* toggleAutoLoadImages = settingsMenu->addAction("Disable Auto Load Images", this, SLOT(toggleAutoLoadImages(bool)));
     toggleAutoLoadImages->setCheckable(true);
     toggleAutoLoadImages->setChecked(false);
@@ -406,48 +476,60 @@ void LauncherWindow::createChrome()
     toggleJavascriptCanOpenWindows->setCheckable(true);
     toggleJavascriptCanOpenWindows->setChecked(false);
 
+    QAction* toggleUseDiskCookies = settingsMenu->addAction("Save Cookies on Disk", this, SLOT(setUseDiskCookies(bool)));
+    toggleUseDiskCookies->setCheckable(true);
+    toggleUseDiskCookies->setChecked(m_windowOptions.useDiskCookies);
+
+#ifndef QT_NO_LINEEDIT
+    m_findBar = new QToolBar("Find", this);
+    addToolBar(Qt::BottomToolBarArea, m_findBar);
+
+    QToolButton* findClose = new QToolButton(m_findBar);
+    findClose->setText("X");
+    m_lineEdit = new QLineEdit(m_findBar);
+    m_lineEdit->setMaximumWidth(200);
+    QToolButton* findPrevious = new QToolButton(m_findBar);
+    findPrevious->setArrowType(Qt::LeftArrow);
+    QToolButton* findNext = new QToolButton(m_findBar);
+    findNext->setArrowType(Qt::RightArrow);
+    QCheckBox* findCaseSensitive = new QCheckBox("Case Sensitive", m_findBar);
+    QCheckBox* findWrapAround = new QCheckBox("Wrap Around", m_findBar);
+    QCheckBox* findHighLightAll = new QCheckBox("HighLight All", m_findBar);
+
+    QSignalMapper* findSignalMapper = new QSignalMapper(m_findBar);
+    findSignalMapper->setMapping(m_lineEdit, s_findNormalFlag);
+    findSignalMapper->setMapping(findPrevious, QWebPage::FindBackward);
+    findSignalMapper->setMapping(findNext, s_findNormalFlag);
+    findSignalMapper->setMapping(findCaseSensitive, QWebPage::FindCaseSensitively);
+    findSignalMapper->setMapping(findWrapAround, QWebPage::FindWrapsAroundDocument);
+    findSignalMapper->setMapping(findHighLightAll, QWebPage::HighlightAllOccurrences);
+
+    connect(findClose, SIGNAL(clicked()), this, SLOT(showFindBar()));
+    connect(m_lineEdit, SIGNAL(textChanged(const QString &)), findSignalMapper, SLOT(map()));
+    connect(findPrevious, SIGNAL(pressed()), findSignalMapper, SLOT(map()));
+    connect(findNext, SIGNAL(pressed()), findSignalMapper, SLOT(map()));
+    connect(findCaseSensitive, SIGNAL(stateChanged(int)), findSignalMapper, SLOT(map()));
+    connect(findWrapAround, SIGNAL(stateChanged(int)), findSignalMapper, SLOT(map()));
+    connect(findHighLightAll, SIGNAL(stateChanged(int)), findSignalMapper, SLOT(map()));
+
+    connect(findSignalMapper, SIGNAL(mapped(int)), this, SLOT(find(int)));
+
+    m_findBar->addWidget(findClose);
+    m_findBar->addWidget(m_lineEdit);
+    m_findBar->addWidget(findPrevious);
+    m_findBar->addWidget(findNext);
+    m_findBar->addWidget(findCaseSensitive);
+    m_findBar->addWidget(findWrapAround);
+    m_findBar->addWidget(findHighLightAll);
+    m_findBar->setMovable(false);
+    m_findBar->setVisible(false);
+#endif
 #endif
 }
 
 bool LauncherWindow::isGraphicsBased() const
 {
     return bool(qobject_cast<QGraphicsView*>(m_view));
-}
-
-void LauncherWindow::keyPressEvent(QKeyEvent* event)
-{
-#ifdef Q_WS_MAEMO_5
-    switch (event->key()) {
-    case Qt::Key_F7:
-        zoomIn();
-        event->accept();
-        break;
-    case Qt::Key_F8:
-        zoomOut();
-        event->accept();
-        break;
-    }
-#endif
-    MainWindow::keyPressEvent(event);
-}
-
-void LauncherWindow::grabZoomKeys(bool grab)
-{
-#ifdef Q_WS_MAEMO_5
-    if (!winId()) {
-        qWarning("Can't grab keys unless we have a window id");
-        return;
-    }
-
-    Atom atom = XInternAtom(QX11Info::display(), "_HILDON_ZOOM_KEY_ATOM", False);
-    if (!atom) {
-        qWarning("Unable to obtain _HILDON_ZOOM_KEY_ATOM");
-        return;
-    }
-
-    unsigned long val = (grab) ? 1 : 0;
-    XChangeProperty(QX11Info::display(), winId(), atom, XA_INTEGER, 32, PropModeReplace, reinterpret_cast<unsigned char*>(&val), 1);
-#endif
 }
 
 void LauncherWindow::sendTouchEvent()
@@ -572,9 +654,7 @@ void LauncherWindow::loadFinished()
 
 void LauncherWindow::showLinkHover(const QString &link, const QString &toolTip)
 {
-#ifndef Q_WS_MAEMO_5
     statusBar()->showMessage(link);
-#endif
 #ifndef QT_NO_TOOLTIP
     if (!toolTip.isEmpty())
         QToolTip::showText(QCursor::pos(), toolTip);
@@ -658,13 +738,11 @@ void LauncherWindow::screenshot()
 {
     QPixmap pixmap = QPixmap::grabWidget(m_view);
     QLabel* label = 0;
-#if !defined(Q_OS_SYMBIAN)
     label = new QLabel;
     label->setAttribute(Qt::WA_DeleteOnClose);
     label->setWindowTitle("Screenshot - Preview");
     label->setPixmap(pixmap);
     label->show();
-#endif
 
 #ifndef QT_NO_FILEDIALOG
     QString fileName = QFileDialog::getSaveFileName(label, "Screenshot");
@@ -675,7 +753,7 @@ void LauncherWindow::screenshot()
     }
 #endif
 
-#if defined(QT_CONFIGURED_WITH_OPENGL)
+#ifndef QT_NO_OPENGL
     toggleQGLWidgetViewport(m_windowOptions.useQGLWidgetViewport);
 #endif
 }
@@ -683,7 +761,9 @@ void LauncherWindow::screenshot()
 void LauncherWindow::setEditable(bool on)
 {
     page()->setContentEditable(on);
+#ifndef QT_NO_SHORTCUT
     m_formatMenuAction->setVisible(on);
+#endif
 }
 
 /*
@@ -714,10 +794,26 @@ void LauncherWindow::selectElements()
         QWebElementCollection result =  page()->mainFrame()->findAllElements(str);
         foreach (QWebElement e, result)
             e.setStyleProperty("background-color", "yellow");
-#ifndef Q_WS_MAEMO_5
         statusBar()->showMessage(QString("%1 element(s) selected").arg(result.count()), 5000);
-#endif
     }
+#endif
+}
+
+void LauncherWindow::setDiskCache(bool enable)
+{
+#if !defined(QT_NO_NETWORKDISKCACHE) && !defined(QT_NO_DESKTOPSERVICES)
+    m_windowOptions.useDiskCache = enable;
+    QNetworkDiskCache* cache = 0;
+    if (enable) {
+        cache = new QNetworkDiskCache();
+#if QT_VERSION >= QT_VERSION_CHECK(5, 0, 0)
+        QString cacheLocation = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+#else
+        QString cacheLocation = QDesktopServices::storageLocation(QDesktopServices::CacheLocation);
+#endif
+        cache->setCacheDirectory(cacheLocation);
+    }
+    page()->networkAccessManager()->setCache(cache);
 #endif
 }
 
@@ -730,7 +826,9 @@ void LauncherWindow::toggleWebView(bool graphicsBased)
 {
     m_windowOptions.useGraphicsView = graphicsBased;
     initializeView();
+#ifndef QT_NO_SHORTCUT
     menuBar()->clear();
+#endif
     createChrome();
 }
 
@@ -794,6 +892,16 @@ void LauncherWindow::toggleJavascriptCanOpenWindows(bool enable)
     page()->settings()->setAttribute(QWebSettings::JavascriptCanOpenWindows, enable);
 }
 
+void LauncherWindow::setUseDiskCookies(bool enable)
+{
+    testBrowserCookieJarInstance()->setDiskStorageEnabled(enable);
+}
+
+void LauncherWindow::clearCookies()
+{
+    testBrowserCookieJarInstance()->reset();
+}
+
 void LauncherWindow::toggleAutoLoadImages(bool enable)
 {
     page()->settings()->setAttribute(QWebSettings::AutoLoadImages, !enable);
@@ -804,7 +912,7 @@ void LauncherWindow::togglePlugins(bool enable)
     page()->settings()->setAttribute(QWebSettings::PluginsEnabled, !enable);
 }
 
-#if defined(QT_CONFIGURED_WITH_OPENGL)
+#ifndef QT_NO_OPENGL
 void LauncherWindow::toggleQGLWidgetViewport(bool enable)
 {
     if (!isGraphicsBased())
@@ -837,13 +945,8 @@ void LauncherWindow::showFPS(bool enable)
     WebViewGraphicsBased* view = static_cast<WebViewGraphicsBased*>(m_view);
     view->setFrameRateMeasurementEnabled(enable);
 
-    if (!enable) {
-#if defined(Q_WS_MAEMO_5) && defined(Q_OS_SYMBIAN)
-        setWindowTitle("");
-#else
+    if (!enable)
         statusBar()->clearMessage();
-#endif
-    }
 }
 
 void LauncherWindow::showUserAgentDialog()
@@ -863,7 +966,6 @@ void LauncherWindow::showUserAgentDialog()
 
     QDialog* dialog = new QDialog(this);
     dialog->resize(size().width() * 0.7, dialog->size().height());
-    dialog->setMaximumHeight(dialog->size().height());
     dialog->setWindowTitle("Change User Agent");
 
     QVBoxLayout* layout = new QVBoxLayout(dialog);
@@ -917,15 +1019,39 @@ void LauncherWindow::printURL(const QUrl& url)
     output << "Loaded: " << url.toString() << endl;
 }
 
+#if !defined(QT_NO_FILEDIALOG) && !defined(QT_NO_MESSAGEBOX)
+void LauncherWindow::downloadRequest(const QNetworkRequest &request)
+{
+    QNetworkAccessManager* manager = new QNetworkAccessManager(this);
+    m_reply = manager->get(request);
+    connect(m_reply, SIGNAL(finished()), this, SLOT(fileDownloadFinished()));
+}
+
+void LauncherWindow::fileDownloadFinished()
+{
+    QFileInfo fileInf(m_reply->request().url().toString());
+    QString requestFileName = QDir::homePath() + "/" + fileInf.fileName();
+    QString fileName = QFileDialog::getSaveFileName(this, "Save as...", requestFileName, "All Files (*)");
+
+    if (fileName.isEmpty())
+        return;
+    if (m_reply->error() != QNetworkReply::NoError)
+        QMessageBox::critical(this, QString("Download"), QString("Download failed."));
+    else {
+        QFile file(fileName);
+        file.open(QIODevice::WriteOnly);
+        file.write(m_reply->readAll());
+        file.close();
+        QMessageBox::information(this, QString("Download"), fileName + QString(" downloaded successfully."));
+    }
+}
+#endif
+
 void LauncherWindow::updateFPS(int fps)
 {
     QString fpsStatusText = QString("Current FPS: %1").arg(fps);
 
-#if defined(Q_WS_MAEMO_5) && defined(Q_OS_SYMBIAN)
-    setWindowTitle(fpsStatusText);
-#else
     statusBar()->showMessage(fpsStatusText);
-#endif
 }
 
 void LauncherWindow::toggleLocalStorage(bool toggle)
@@ -976,3 +1102,40 @@ LauncherWindow* LauncherWindow::cloneWindow()
     return mw;
 }
 
+#ifndef QT_NO_LINEEDIT
+void LauncherWindow::showFindBar()
+{
+    if (!m_findBar->isVisible()) {
+        m_findBar->setVisible(true);
+        m_lineEdit->setText(page()->selectedText());
+        m_lineEdit->setFocus(Qt::PopupFocusReason);
+    } else {
+        m_findBar->setVisible(false);
+        page()->findText("", QWebPage::HighlightAllOccurrences);
+    }
+}
+
+void LauncherWindow::find(int mode = s_findNormalFlag)
+{
+    QPalette palette;
+    bool found;
+    palette.setColor(m_lineEdit->backgroundRole(), Qt::white);
+    page()->findText("", QFlag(QWebPage::HighlightAllOccurrences));
+
+    m_findFlag = m_findFlag ^ mode;
+    if (mode == s_findNormalFlag || mode == QWebPage::FindBackward) {
+        found = page()->findText(m_lineEdit->text(), QFlag(m_findFlag & ~QWebPage::HighlightAllOccurrences));
+        m_findFlag = m_findFlag ^ mode;
+
+        if (found || m_lineEdit->text().isEmpty())
+            m_lineEdit->setPalette(palette);
+        else {
+            palette.setColor(m_lineEdit->backgroundRole(), QColor(255, 0, 0, 127));
+            m_lineEdit->setPalette(palette);
+        }
+    }
+
+    if (m_findFlag & QWebPage::HighlightAllOccurrences)
+        page()->findText(m_lineEdit->text(), QFlag(m_findFlag));
+}
+#endif

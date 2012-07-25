@@ -1,7 +1,6 @@
 <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
 <html>
 <head>
-<link rel="stylesheet" href="../../fast/js/resources/js-test-style.css">
 <script src="../../fast/js/resources/js-test-pre.js"></script>
 </head>
 <body>
@@ -97,7 +96,13 @@ debug('Set some value, and set with no arguments.');
 v = document.getElementsByName("many-changes");
 for (i = 0; i < v.length; i++) {
     v[i].setCustomValidity("Custom string");
-    v[i].setCustomValidity();
+    try {
+        v[i].setCustomValidity();
+        testFailed("setCustomValidity() did not throw");
+    } catch(err) {
+        testPassed("setCustomValidity() threw " + err.message);
+    }
+    v[i].setCustomValidity(undefined);
 }
 shouldBeFalse('customErrorFor("fieldset-many-changes")');
 shouldBeFalse('customErrorFor("button-many-changes")');
@@ -147,8 +152,6 @@ shouldBeFalse('customErrorFor("input-many-changes")');
 shouldBeFalse('customErrorFor("input-submit-many-changes")');
 
 debug('');
-
-var successfullyParsed = true;
 </script>
 <script src="../../fast/js/resources/js-test-post.js"></script>
 </body>

@@ -27,12 +27,11 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
-import sys
 import unittest
 
 from webkitpy.common.system import outputcapture
-from webkitpy.tool import mocktool
-
+from webkitpy.common.system.executive_mock import MockExecutive
+from webkitpy.common.system.filesystem_mock import MockFileSystem
 from webkitpy.layout_tests.port import chromium_win
 from webkitpy.layout_tests.port import port_testcase
 
@@ -43,94 +42,85 @@ class ChromiumWinTest(port_testcase.PortTestCase):
             self.register_cygwin = True
             self.results_directory = '/'
 
-    def setUp(self):
-        self.orig_platform = sys.platform
+    port_name = 'chromium-win'
+    port_maker = chromium_win.ChromiumWinPort
+    os_name = 'win'
+    os_version = 'xp'
 
-    def tearDown(self):
-        sys.platform = self.orig_platform
-        self._port = None
-
-    def port_maker(self, platform):
-        if platform not in ('cygwin', 'win32'):
-            return None
-        return chromium_win.ChromiumWinPort
-
-    def _mock_path_from_chromium_base(self, *comps):
-        return self._port._filesystem.join("/chromium/src", *comps)
+    def test_uses_apache(self):
+        self.assertFalse(self.make_port()._uses_apache())
 
     def test_setup_environ_for_server(self):
         port = self.make_port()
-        if not port:
-            return
-
-        port._executive = mocktool.MockExecutive(should_log=True)
-        self._port = port
-        port.path_from_chromium_base = self._mock_path_from_chromium_base
+        port._executive = MockExecutive(should_log=True)
         output = outputcapture.OutputCapture()
+        # FIXME: This test should not use the real os.environ
         orig_environ = os.environ.copy()
         env = output.assert_outputs(self, port.setup_environ_for_server)
         self.assertEqual(orig_environ["PATH"], os.environ["PATH"])
         self.assertNotEqual(env["PATH"], os.environ["PATH"])
 
+    def test_setup_environ_for_server_cygpath(self):
+        port = self.make_port()
+        env = port.setup_environ_for_server(port.driver_name())
+        self.assertEquals(env['CYGWIN_PATH'], '/mock-checkout/Source/WebKit/chromium/third_party/cygwin/bin')
+
     def test_setup_environ_for_server_register_cygwin(self):
         port = self.make_port(options=ChromiumWinTest.RegisterCygwinOption())
-        if not port:
-            return
-
-        port._executive = mocktool.MockExecutive(should_log=True)
-        port.path_from_chromium_base = self._mock_path_from_chromium_base
-        self._port = port
-        setup_mount = self._mock_path_from_chromium_base("third_party",
-                                                        "cygwin",
-                                                        "setup_mount.bat")
-        expected_stderr = "MOCK run_command: %s\n" % [setup_mount]
+        port._executive = MockExecutive(should_log=True)
+        expected_stderr = "MOCK run_command: ['/mock-checkout/Source/WebKit/chromium/third_party/cygwin/setup_mount.bat'], cwd=None\n"
         output = outputcapture.OutputCapture()
-        output.assert_outputs(self, port.setup_environ_for_server,
-                              expected_stderr=expected_stderr)
+        output.assert_outputs(self, port.setup_environ_for_server, expected_stderr=expected_stderr)
 
-    def assert_name(self, port_name, windows_version, expected):
-        port = chromium_win.ChromiumWinPort(port_name=port_name,
-                                            windows_version=windows_version)
+    def assert_name(self, port_name, os_version_string, expected):
+        port = self.make_port(port_name=port_name, os_version=os_version_string)
         self.assertEquals(expected, port.name())
 
     def test_versions(self):
-        port = chromium_win.ChromiumWinPort()
+        port = self.make_port()
         self.assertTrue(port.name() in ('chromium-win-xp', 'chromium-win-vista', 'chromium-win-win7'))
 
-        self.assert_name(None, (5, 1), 'chromium-win-xp')
-        self.assert_name('chromium-win', (5, 1), 'chromium-win-xp')
-        self.assert_name('chromium-win-xp', (5, 1), 'chromium-win-xp')
-        self.assert_name('chromium-win-xp', (6, 0), 'chromium-win-xp')
-        self.assert_name('chromium-win-xp', (6, 1), 'chromium-win-xp')
+        self.assert_name(None, 'xp', 'chromium-win-xp')
+        self.assert_name('chromium-win', 'xp', 'chromium-win-xp')
+        self.assert_name('chromium-win-xp', 'xp', 'chromium-win-xp')
+        self.assert_name('chromium-win-xp', 'vista', 'chromium-win-xp')
+        self.assert_name('chromium-win-xp', '7sp0', 'chromium-win-xp')
 
-        self.assert_name(None, (6, 0), 'chromium-win-vista')
-        self.assert_name('chromium-win', (6, 0), 'chromium-win-vista')
-        self.assert_name('chromium-win-vista', (5, 1), 'chromium-win-vista')
-        self.assert_name('chromium-win-vista', (6, 0), 'chromium-win-vista')
-        self.assert_name('chromium-win-vista', (6, 1), 'chromium-win-vista')
+        self.assert_name(None, 'vista', 'chromium-win-vista')
+        self.assert_name('chromium-win', 'vista', 'chromium-win-vista')
+        self.assert_name('chromium-win-vista', 'xp', 'chromium-win-vista')
+        self.assert_name('chromium-win-vista', 'vista', 'chromium-win-vista')
+        self.assert_name('chromium-win-vista', '7sp0', 'chromium-win-vista')
 
-        self.assert_name(None, (6, 1), 'chromium-win-win7')
-        self.assert_name('chromium-win', (6, 1), 'chromium-win-win7')
-        self.assert_name('chromium-win-win7', (5, 1), 'chromium-win-win7')
-        self.assert_name('chromium-win-win7', (6, 0), 'chromium-win-win7')
-        self.assert_name('chromium-win-win7', (6, 1), 'chromium-win-win7')
+        self.assert_name(None, '7sp0', 'chromium-win-win7')
+        self.assert_name('chromium-win', '7sp0', 'chromium-win-win7')
+        self.assert_name('chromium-win-win7', 'xp', 'chromium-win-win7')
+        self.assert_name('chromium-win-win7', 'vista', 'chromium-win-win7')
+        self.assert_name('chromium-win-win7', '7sp0', 'chromium-win-win7')
 
-        self.assertRaises(KeyError, self.assert_name, None, (4, 0), 'chromium-win-xp')
-        self.assertRaises(KeyError, self.assert_name, None, (5, 0), 'chromium-win-xp')
-        self.assertRaises(KeyError, self.assert_name, None, (5, 2), 'chromium-win-xp')
-        self.assertRaises(KeyError, self.assert_name, None, (7, 1), 'chromium-win-xp')
+        self.assertRaises(AssertionError, self.assert_name, None, 'w2k', 'chromium-win-xp')
 
     def test_baseline_path(self):
-        port = chromium_win.ChromiumWinPort(port_name='chromium-win-xp')
+        port = self.make_port(port_name='chromium-win-xp')
         self.assertEquals(port.baseline_path(), port._webkit_baseline_path('chromium-win-xp'))
 
-        port = chromium_win.ChromiumWinPort(port_name='chromium-win-vista')
+        port = self.make_port(port_name='chromium-win-vista')
         self.assertEquals(port.baseline_path(), port._webkit_baseline_path('chromium-win-vista'))
 
-        port = chromium_win.ChromiumWinPort(port_name='chromium-win-win7')
+        port = self.make_port(port_name='chromium-win-win7')
         self.assertEquals(port.baseline_path(), port._webkit_baseline_path('chromium-win'))
 
+    def test_build_path(self):
+        port = self.make_port()
+        port._filesystem.files = {
+            '/mock-checkout/Source/WebKit/chromium/build/Release/DumpRenderTree.exe': 'exe',
+        }
+        self.assertEquals(
+            '/mock-checkout/Source/WebKit/chromium/build/Release/DumpRenderTree.exe',
+            port._path_to_driver('Release'))
+        self.assertEquals(
+            '/mock-checkout/Source/WebKit/chromium/build/Debug/DumpRenderTree.exe',
+            port._path_to_driver('Debug'))
 
-
-if __name__ == '__main__':
-    port_testcase.main()
+    def test_operating_system(self):
+        self.assertEqual('win', self.make_port().operating_system())

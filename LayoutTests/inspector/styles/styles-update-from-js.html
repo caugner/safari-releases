@@ -23,53 +23,39 @@ function modifyParsedAttributes()
 function test()
 {
     InspectorTest.runTestSuite([
-
         function testInit(next)
         {
-            InspectorTest.selectNodeWithId("container", next);
+            InspectorTest.selectNodeAndWaitForStyles("container", next);
         },
 
         function testSetStyleAttribute(next)
         {
-            var updateCount = 0;
-            function callback()
-            {
-                // Expect two updates while setting attribute.
-                if (++updateCount === 2) {
-                    dumpAttributeAndStyles();
-                    next();
-                }
-            }
-            InspectorTest.addSniffer(WebInspector.StylesSidebarPane.prototype, "_rebuildUpdate", callback, true);
+            waitAndDumpAttributeAndStyles(next);
             InspectorTest.evaluateInPage("modifyStyleAttribute()");
         },
 
         function testSetStyleCSSText(next)
         {
-            var updateCount = 0;
-            function callback()
-            {
-                // Expect two updates while setting css text.
-                if (++updateCount === 2) {
-                    dumpAttributeAndStyles();
-                    next();
-                }
-            }
-            InspectorTest.addSniffer(WebInspector.StylesSidebarPane.prototype, "_rebuildUpdate", callback, true);
-            InspectorTest.evaluateInPage("modifyCSSText()", callback);
+            waitAndDumpAttributeAndStyles(next);
+            InspectorTest.evaluateInPage("modifyCSSText()");
         },
 
         function testSetViaParsedAttributes(next)
         {
-            function callback()
-            {
-                dumpAttributeAndStyles();
-                next();
-            }
-            InspectorTest.addSniffer(WebInspector.StylesSidebarPane.prototype, "_rebuildUpdate", callback);
+            waitAndDumpAttributeAndStyles(next);
             InspectorTest.evaluateInPage("modifyParsedAttributes()");
         }
     ]);
+
+    function waitAndDumpAttributeAndStyles(next)
+    {
+        function callback()
+        {
+            dumpAttributeAndStyles();
+            next();
+        }
+        InspectorTest.waitForStyles("container", callback);
+    }
 
     function dumpAttributeAndStyles()
     {
@@ -84,7 +70,7 @@ function test()
 
     function findNodeTreeElement()
     {
-        WebInspector.panels.elements.updateModifiedNodes();
+        WebInspector.panels.elements.treeOutline._updateModifiedNodes();
         var expandedNode = InspectorTest.expandedNodeWithId("container");
         if (!expandedNode) {
             InspectorTest.addResult("'container' node not found");

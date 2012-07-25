@@ -232,7 +232,7 @@
                         {name: 'action', expectedNull: ''},
                         {name: 'encoding', expectedNull: 'application/x-www-form-urlencoded'},
                         {name: 'enctype', expectedNull: 'application/x-www-form-urlencoded'},
-                        {name: 'method', expectedNull: ''},
+                        {name: 'method', expectedNull: 'get'},
                         {name: 'target', expectedNull: ''}
                     ]
                 },
@@ -333,13 +333,6 @@
                         {name: 'type', expectedNull: 'text'},
                         {name: 'useMap', expectedNull: ''},
                         {name: 'value', expectedNull: ''},
-                    ]
-                },
-                {
-                    type: 'HTMLIsIndexElement',
-                    elementToUse: document.createElement('isindex'),
-                    attributes: [
-                        {name: 'prompt', expectedNull: ''}
                     ]
                 },
                 {
@@ -445,9 +438,9 @@
                     type: 'HTMLOptionElement',
                     elementToUse: document.createElement('option'),
                     attributes: [
-                        {name: 'text', expectedNull: ''},
-                        {name: 'label', expectedNull: ''},
-                        {name: 'value', expectedNull: ''}
+                        {name: 'text', expectedNull: 'null'},
+                        {name: 'label', expectedNull: 'null'},
+                        {name: 'value', expectedNull: 'null'}
                     ]
                 },
                 {

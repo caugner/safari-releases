@@ -28,8 +28,16 @@
 
 #include <WebCore/GraphicsLayer.h>
 #include <WebCore/KURL.h>
+#include <WebCore/ScrollTypes.h>
 #include <wtf/RefCounted.h>
+#include <wtf/RetainPtr.h>
 #include <wtf/Vector.h>
+
+#if PLATFORM(MAC)
+#include "LayerHostingContext.h"
+
+OBJC_CLASS PDFDocument;
+#endif
 
 struct NPObject;
 
@@ -39,8 +47,11 @@ namespace CoreIPC {
 }
 
 namespace WebCore {
+    class AffineTransform;
     class GraphicsContext;
     class IntRect;
+    class IntSize;
+    class Scrollbar;
 }
 
 namespace WebKit {
@@ -52,37 +63,52 @@ class WebWheelEvent;
     
 class PluginController;
 
-class Plugin : public RefCounted<Plugin> {
+class Plugin : public ThreadSafeRefCounted<Plugin> {
 public:
     struct Parameters {
         WebCore::KURL url;
         Vector<String> names;
         Vector<String> values;
         String mimeType;
-        bool loadManually;
-
-        // The URL of the document that the plug-in is in.
-        String documentURL;
-
-        // The URL of the document in the main frame. Will be null if the document the plug-in
-        // doesn't have access to the main frame document.
-        String toplevelDocumentURL;
+        bool isFullFramePlugin;
+        bool shouldUseManualLoader;
+#if PLATFORM(MAC)
+        LayerHostingMode layerHostingMode;
+#endif
 
         void encode(CoreIPC::ArgumentEncoder*) const;
         static bool decode(CoreIPC::ArgumentDecoder*, Parameters&);
     };
 
+    // Sets the active plug-in controller and initializes the plug-in.
+    bool initialize(PluginController*, const Parameters&);
+
+    // Destroys the plug-in.
+    void destroyPlugin();
+
+    // Returns the plug-in controller for this plug-in.
+    PluginController* controller() { return m_pluginController; }
+    const PluginController* controller() const { return m_pluginController; }
+
     virtual ~Plugin();
-    
+
+private:
+
     // Initializes the plug-in. If the plug-in fails to initialize this should return false.
-    virtual bool initialize(PluginController*, const Parameters&) = 0;
+    // This is only called by the other initialize overload so it can be made private.
+    virtual bool initialize(const Parameters&) = 0;
 
     // Destroys the plug-in.
     virtual void destroy() = 0;
 
+public:
+
     // Tells the plug-in to paint itself into the given graphics context. The passed-in context and
     // dirty rect are in window coordinates. The context is saved/restored by the caller.
     virtual void paint(WebCore::GraphicsContext*, const WebCore::IntRect& dirtyRect) = 0;
+
+    // Invalidate native tintable controls. The passed-in context is in window coordinates.
+    virtual void updateControlTints(WebCore::GraphicsContext*);
 
     // Tells the plug-in to draw itself into a bitmap, and return that.
     virtual PassRefPtr<ShareableBitmap> snapshot() = 0;
@@ -95,8 +121,12 @@ public:
     // Returns whether the plug-in is transparent or not.
     virtual bool isTransparent() = 0;
 
-    // Tells the plug-in that either the plug-ins frame rect or its clip rect has changed. Both rects are in window coordinates.
-    virtual void geometryDidChange(const WebCore::IntRect& frameRect, const WebCore::IntRect& clipRect) = 0;
+    // Returns whether we should send wheel events to this plug-in.
+    virtual bool wantsWheelEvents() = 0;
+
+    // Tells the plug-in that its geometry has changed. The clip rect is in plug-in coordinates, and the affine transform can be used
+    // to convert from root view coordinates to plug-in coordinates.
+    virtual void geometryDidChange(const WebCore::IntSize& pluginSize, const WebCore::IntRect& clipRect, const WebCore::AffineTransform& pluginToRootViewTransform) = 0;
 
     // Tells the plug-in that it has been explicitly hidden or shown. (Note that this is not called when the plug-in becomes obscured from view on screen.)
     virtual void visibilityDidChange() = 0;
@@ -113,7 +143,7 @@ public:
 
     // Tells the plug-in that a stream has received its HTTP response.
     virtual void streamDidReceiveResponse(uint64_t streamID, const WebCore::KURL& responseURL, uint32_t streamLength, 
-                                          uint32_t lastModifiedTime, const String& mimeType, const String& headers) = 0;
+                                          uint32_t lastModifiedTime, const String& mimeType, const String& headers, const String& suggestedFileName) = 0;
 
     // Tells the plug-in that a stream did receive data.
     virtual void streamDidReceiveData(uint64_t streamID, const char* bytes, int length) = 0;
@@ -126,7 +156,7 @@ public:
 
     // Tells the plug-in that the manual stream has received its HTTP response.
     virtual void manualStreamDidReceiveResponse(const WebCore::KURL& responseURL, uint32_t streamLength, 
-                                                uint32_t lastModifiedTime, const String& mimeType, const String& headers) = 0;
+                                                uint32_t lastModifiedTime, const String& mimeType, const String& headers, const String& suggestedFileName) = 0;
 
     // Tells the plug-in that the manual stream did receive data.
     virtual void manualStreamDidReceiveData(const char* bytes, int length) = 0;
@@ -148,6 +178,9 @@ public:
     
     // Tells the plug-in to handle the passed in mouse leave event. The plug-in should return true if it processed the event.
     virtual bool handleMouseLeaveEvent(const WebMouseEvent&) = 0;
+
+    // Tells the plug-in to handle the passed in context menu event. The plug-in should return true if it processed the event.
+    virtual bool handleContextMenuEvent(const WebMouseEvent&) = 0;
 
     // Tells the plug-in to handle the passed in keyboard event. The plug-in should return true if it processed the event.
     virtual bool handleKeyboardEvent(const WebKeyboardEvent&) = 0;
@@ -173,17 +206,37 @@ public:
 
     // Send the complex text input to the plug-in.
     virtual void sendComplexTextInput(const String& textInput) = 0;
+
+    // Tells the plug-in about changes to the layer hosting mode.
+    virtual void setLayerHostingMode(LayerHostingMode) = 0;
 #endif
+
+    // Tells the plug-in about scale factor changes.
+    virtual void contentsScaleFactorChanged(float) = 0;
 
     // Called when the private browsing state for this plug-in changes.
     virtual void privateBrowsingStateChanged(bool) = 0;
 
-    // Returns the plug-in controller for this plug-in.
-    // FIXME: We could just have the controller be a member variable of Plugin.
-    virtual PluginController* controller() = 0;
+    // Gets the form value representation for the plug-in, letting plug-ins participate in form submission.
+    virtual bool getFormValue(String& formValue) = 0;
+
+    // Tells the plug-in that it should scroll. The plug-in should return true if it did scroll.
+    virtual bool handleScroll(WebCore::ScrollDirection, WebCore::ScrollGranularity) = 0;
+
+    // A plug-in can use WebCore scroll bars. Make them known, so that hit testing can find them.
+    // FIXME: This code should be in PluginView or its base class, not in individual plug-ins.
+    virtual WebCore::Scrollbar* horizontalScrollbar() = 0;
+    virtual WebCore::Scrollbar* verticalScrollbar() = 0;
+
+#if PLATFORM(MAC)
+    virtual RetainPtr<PDFDocument> pdfDocumentForPrinting() const { return 0; }
+#endif
 
 protected:
     Plugin();
+
+private:
+    PluginController* m_pluginController;
 };
     
 } // namespace WebKit

@@ -52,6 +52,23 @@ function getShadowXY(cssValue)
     return [parseInt(result[1]), parseInt(result[2])];
 }
 
+function compareRGB(rgb, expected, tolerance)
+{
+    return (isCloseEnough(parseInt(rgb[0]), expected[0], tolerance) &&
+            isCloseEnough(parseInt(rgb[1]), expected[1], tolerance) &&
+            isCloseEnough(parseInt(rgb[2]), expected[2], tolerance));
+}
+
+function parseCrossFade(s)
+{
+    var matches = s.match("-webkit-cross-fade\\((.*)\\s*,\\s*(.*)\\s*,\\s*(.*)\\)");
+
+    if (!matches)
+        return null;
+
+    return {"from": matches[1], "to": matches[2], "percent": parseFloat(matches[3])}
+}
+
 function checkExpectedValue(expected, index)
 {
     var time = expected[index][0];
@@ -81,9 +98,44 @@ function checkExpectedValue(expected, index)
                     break;
             }
         }
+    } else if (property == "fill" || property == "stroke") {
+        computedValue = window.getComputedStyle(document.getElementById(elementId)).getPropertyCSSValue(property).rgbColor;
+        if (compareRGB([computedValue.red.cssText, computedValue.green.cssText, computedValue.blue.cssText], expectedValue, tolerance))
+            pass = true;
+        else {
+            // We failed. Make sure computed value is something we can read in the error message
+            computedValue = window.getComputedStyle(document.getElementById(elementId)).getPropertyCSSValue(property).cssText;
+        }
+    } else if (property == "stop-color" || property == "flood-color" || property == "lighting-color") {
+        computedValue = window.getComputedStyle(document.getElementById(elementId)).getPropertyCSSValue(property);
+        // The computedValue cssText is rgb(num, num, num)
+        var components = computedValue.cssText.split("(")[1].split(")")[0].split(",");
+        if (compareRGB(components, expectedValue, tolerance))
+            pass = true;
+        else {
+            // We failed. Make sure computed value is something we can read in the error message
+            computedValue = computedValue.cssText;
+        }
     } else if (property == "lineHeight") {
         computedValue = parseInt(window.getComputedStyle(document.getElementById(elementId)).lineHeight);
         pass = isCloseEnough(computedValue, expectedValue, tolerance);
+    } else if (property == "background-image"
+               || property == "border-image-source"
+               || property == "border-image"
+               || property == "list-style-image"
+               || property == "-webkit-mask-image"
+               || property == "-webkit-mask-box-image") {
+        if (property == "border-image" || property == "-webkit-mask-image" || property == "-webkit-mask-box-image")
+            property += "-source";
+        
+        computedValue = window.getComputedStyle(document.getElementById(elementId)).getPropertyCSSValue(property).cssText;
+        computedCrossFade = parseCrossFade(computedValue);
+
+        if (!computedCrossFade) {
+            pass = false;
+        } else {
+            pass = isCloseEnough(computedCrossFade.percent, expectedValue, tolerance);
+        }
     } else {
         var computedStyle = window.getComputedStyle(document.getElementById(elementId)).getPropertyCSSValue(property);
         if (computedStyle.cssValueType == CSSValue.CSS_VALUE_LIST) {
@@ -132,6 +184,10 @@ function checkExpectedValue(expected, index)
                      pass = true;
                      for (var i = 0; i < 4; ++i)
                          pass &= isCloseEnough(computedValue[i], expectedValue[i], tolerance);
+                    break;
+                case CSSPrimitiveValue.CSS_PERCENTAGE:
+                    computedValue = parseFloat(computedStyle.cssText);
+                    pass = isCloseEnough(computedValue, expectedValue, tolerance);
                     break;
                 default:
                     computedValue = computedStyle.getFloatValue(CSSPrimitiveValue.CSS_NUMBER);

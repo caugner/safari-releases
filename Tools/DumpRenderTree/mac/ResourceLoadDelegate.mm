@@ -57,7 +57,7 @@ using namespace std;
 @implementation NSError (DRTExtras)
 - (NSString *)_drt_descriptionSuitableForTestResult 
 {
-    NSString *str = [NSString stringWithFormat:@"<NSError domain %@, code %d", [self domain], [self code]];
+    NSString *str = [NSString stringWithFormat:@"<NSError domain %@, code %ld", [self domain], static_cast<long>([self code])];
     NSURL *failingURL;
 
     if ((failingURL = [[self userInfo] objectForKey:@"NSErrorFailingURLKey"]))
@@ -82,8 +82,11 @@ using namespace std;
         dataSource = [mainFrame provisionalDataSource];
 
     NSString *basePath = [[[[dataSource request] URL] path] stringByDeletingLastPathComponent];
+    basePath = [basePath stringByAppendingString:@"/"];
 
-    return [[self path] substringFromIndex:[basePath length] + 1];
+    if ([[self path] hasPrefix:basePath])
+        return [[self path] substringFromIndex:[basePath length]];
+    return [self absoluteString];
 }
 
 @end
@@ -114,7 +117,7 @@ using namespace std;
 
 @implementation ResourceLoadDelegate
 
-- webView: (WebView *)wv identifierForInitialRequest: (NSURLRequest *)request fromDataSource: (WebDataSource *)dataSource
+- (id)webView: (WebView *)wv identifierForInitialRequest: (NSURLRequest *)request fromDataSource: (WebDataSource *)dataSource
 {
     ASSERT([[dataSource webFrame] dataSource] || [[dataSource webFrame] provisionalDataSource]);
 

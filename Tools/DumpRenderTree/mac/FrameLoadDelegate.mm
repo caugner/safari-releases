@@ -33,14 +33,15 @@
 #import "AccessibilityController.h"
 #import "AppleScriptController.h"
 #import "EventSendingController.h"
+#import "Foundation/NSNotification.h"
 #import "GCController.h"
 #import "LayoutTestController.h"
 #import "NavigationController.h"
 #import "ObjCController.h"
 #import "ObjCPlugin.h"
 #import "ObjCPluginFunction.h"
-#import "PlainTextController.h"
 #import "TextInputController.h"
+#import "WebCoreTestSupport.h"
 #import "WorkQueue.h"
 #import "WorkQueueItem.h"
 #import <JavaScriptCore/JavaScriptCore.h>
@@ -105,12 +106,14 @@
     if ((self = [super init])) {
         gcController = new GCController;
         accessibilityController = new AccessibilityController;
+        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(webViewProgressFinishedNotification:) name:WebViewProgressFinishedNotification object:nil];
     }
     return self;
 }
 
 - (void)dealloc
 {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
     delete gcController;
     delete accessibilityController;
     [super dealloc];
@@ -266,6 +269,8 @@
     accessibilityController->makeWindowObject(context, globalObject, &exception);
     ASSERT(!exception);
 
+    WebCoreTestSupport::injectInternalsObject(context);
+
     // Make Old-Style controllers
 
     WebView *webView = [frame webView];
@@ -291,8 +296,6 @@
     ObjCPluginFunction *pluginFunction = [[ObjCPluginFunction alloc] init];
     [obj setValue:pluginFunction forKey:@"objCPluginFunction"];
     [pluginFunction release];
-
-    [obj setValue:[PlainTextController sharedPlainTextController] forKey:@"plainText"];
 
     TextInputController *tic = [[TextInputController alloc] initWithWebView:webView];
     [obj setValue:tic forKey:@"textInputController"];
@@ -400,6 +403,18 @@
 {
     if (!done && gLayoutTestController->dumpFrameLoadCallbacks())
         printf ("didRunInsecureContent\n");
+}
+
+- (void)webView:(WebView *)sender didDetectXSS:(NSURL *)insecureURL
+{
+    if (!done && gLayoutTestController->dumpFrameLoadCallbacks())
+        printf ("didDetectXSS\n");
+}
+
+- (void)webViewProgressFinishedNotification:(NSNotification *)notification
+{
+    if (!done && gLayoutTestController->dumpProgressFinishedCallback())
+        printf ("postProgressFinishedNotification\n");
 }
 
 @end

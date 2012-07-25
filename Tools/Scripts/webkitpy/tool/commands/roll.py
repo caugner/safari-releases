@@ -46,3 +46,29 @@ class RollChromiumDEPS(AbstractSequencedCommand):
         return {
             "chromium_revision": (args and args[0]),
         }
+
+
+class PostChromiumDEPSRoll(AbstractSequencedCommand):
+    name = "post-chromium-deps-roll"
+    help_text = "Posts a patch to update Chromium DEPS (revision defaults to the last-known good revision of Chromium)"
+    argument_names = "CHROMIUM_REVISION CHROMIUM_REVISION_NAME"
+    steps = [
+        steps.CleanWorkingDirectory,
+        steps.Update,
+        steps.UpdateChromiumDEPS,
+        steps.PrepareChangeLogForDEPSRoll,
+        steps.CreateBug,
+        steps.PostDiff,
+    ]
+
+    def _prepare_state(self, options, args, tool):
+        options.review = False
+        options.request_commit = True
+
+        chromium_revision = args[0]
+        chromium_revision_name = args[1]
+        return {
+            "chromium_revision": chromium_revision,
+            "bug_title": "Roll Chromium DEPS to %s" % chromium_revision_name,
+            "bug_description": "A DEPS roll a day keeps the build break away.",
+        }

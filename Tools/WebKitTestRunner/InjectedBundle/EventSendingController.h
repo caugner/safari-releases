@@ -31,6 +31,10 @@
 #include <WebKit2/WKGeometry.h>
 #include <wtf/PassRefPtr.h>
 
+#if !PLATFORM(MAC) && !PLATFORM(QT) && !PLATFORM(GTK)
+#define USE_WEBPROCESS_EVENT_SIMULATION
+#endif
+
 namespace WTR {
 
 class EventSendingController : public JSWrappable {
@@ -46,7 +50,10 @@ public:
     void mouseDown(int button, JSValueRef modifierArray);
     void mouseUp(int button, JSValueRef modifierArray);
     void mouseMoveTo(int x, int y);
+    void mouseScrollBy(int x, int y);
     void leapForward(int milliseconds);
+
+    void keyDown(JSStringRef key, JSValueRef modifierArray, int location);
 
     // Zoom functions.
     void textZoomIn();
@@ -55,9 +62,25 @@ public:
     void zoomPageOut();
     void scalePageBy(double scale, double x, double y);
 
+#if ENABLE(TOUCH_EVENTS)
+    // Touch events.
+    void addTouchPoint(int x, int y);
+    void updateTouchPoint(int index, int x, int y);
+    void setTouchModifier(const JSStringRef &modifier, bool enable);
+    void setTouchPointRadius(int radiusX, int radiusY);
+    void touchStart();
+    void touchMove();
+    void touchEnd();
+    void touchCancel();
+    void clearTouchPoints();
+    void releaseTouchPoint(int index);
+    void cancelTouchPoint(int index);
+#endif
+
 private:
     EventSendingController();
 
+#ifdef USE_WEBPROCESS_EVENT_SIMULATION
     void updateClickCount(WKEventMouseButton);
 
     double m_time;
@@ -67,6 +90,7 @@ private:
     double m_clickTime;
     WKPoint m_clickPosition;
     WKEventMouseButton m_clickButton;
+#endif
 };
 
 } // namespace WTR

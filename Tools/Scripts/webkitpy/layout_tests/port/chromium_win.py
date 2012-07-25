@@ -29,71 +29,81 @@
 
 """Chromium Win implementation of the Port interface."""
 
+import os
 import logging
-import sys
 
 import chromium
 
-_log = logging.getLogger("webkitpy.layout_tests.port.chromium_win")
 
-
-def os_version(windows_version=None):
-    if not windows_version:
-        if hasattr(sys, 'getwindowsversion'):
-            windows_version = tuple(sys.getwindowsversion()[:2])
-        else:
-            # Make up something for testing.
-            windows_version = (5, 1)
-
-    version_strings = {
-        (6, 1): 'win7',
-        (6, 0): 'vista',
-        (5, 1): 'xp',
-    }
-    return version_strings[windows_version]
+_log = logging.getLogger(__name__)
 
 
 class ChromiumWinPort(chromium.ChromiumPort):
-    """Chromium Win implementation of the Port class."""
+    port_name = 'chromium-win'
+
     # FIXME: Figure out how to unify this with base.TestConfiguration.all_systems()?
     SUPPORTED_VERSIONS = ('xp', 'vista', 'win7')
 
     # FIXME: Do we need mac-snowleopard here, like the base win port?
     FALLBACK_PATHS = {
-        'xp': ['chromium-win-xp', 'chromium-win-vista', 'chromium-win', 'chromium', 'win', 'mac'],
-        'vista': ['chromium-win-vista', 'chromium-win', 'chromium', 'win', 'mac'],
-        'win7': ['chromium-win', 'chromium', 'win', 'mac'],
+        'xp': [
+            'chromium-win-xp',
+            'chromium-win-vista',
+            'chromium-win',
+            'chromium',
+            'mac',
+        ],
+        'vista': [
+            'chromium-win-vista',
+            'chromium-win',
+            'chromium',
+            'mac',
+        ],
+        'win7': [
+            'chromium-win',
+            'chromium',
+            'mac',
+        ],
     }
 
-    def __init__(self, port_name=None, windows_version=None, **kwargs):
+    @classmethod
+    def determine_full_port_name(cls, host, options, port_name):
+        if port_name.endswith('-win'):
+            assert host.platform.is_win()
+            if host.platform.os_version in ('7sp0', '7sp1', 'future'):
+                version = 'win7'
+            else:
+                version = host.platform.os_version
+            port_name = port_name + '-' + version
+        return port_name
+
+    def __init__(self, host, port_name, **kwargs):
+        chromium.ChromiumPort.__init__(self, host, port_name, **kwargs)
+
         # We're a little generic here because this code is reused by the
         # 'google-chrome' port as well as the 'mock-' and 'dryrun-' ports.
-        port_name = port_name or 'chromium-win'
-        chromium.ChromiumPort.__init__(self, port_name=port_name, **kwargs)
-        if port_name.endswith('-win'):
-            self._version = os_version(windows_version)
-            self._name = port_name + '-' + self._version
-        else:
-            self._version = port_name[port_name.index('-win-') + 5:]
-            assert self._version in self.SUPPORTED_VERSIONS
+        self._version = port_name[port_name.index('-win-') + len('-win-'):]
+        assert self._version in self.SUPPORTED_VERSIONS, "%s is not in %s" % (self._version, self.SUPPORTED_VERSIONS)
 
-        self._operating_system = 'win'
+    def setup_environ_for_server(self, server_name=None):
+        env = chromium.ChromiumPort.setup_environ_for_server(self, server_name)
 
-    def setup_environ_for_server(self):
-        env = chromium.ChromiumPort.setup_environ_for_server(self)
+        # FIXME: lighttpd depends on some environment variable we're not whitelisting.
+        # We should add the variable to an explicit whitelist in base.Port.
+        # FIXME: This is a temporary hack to get the cr-win bot online until
+        # someone from the cr-win port can take a look.
+        for key, value in os.environ.items():
+            if key not in env:
+                env[key] = value
+
         # Put the cygwin directory first in the path to find cygwin1.dll.
-        env["PATH"] = "%s;%s" % (
-            self.path_from_chromium_base("third_party", "cygwin", "bin"),
-            env["PATH"])
+        env["PATH"] = "%s;%s" % (self.path_from_chromium_base("third_party", "cygwin", "bin"), env["PATH"])
         # Configure the cygwin directory so that pywebsocket finds proper
         # python executable to run cgi program.
-        env["CYGWIN_PATH"] = self.path_from_chromium_base(
-            "third_party", "cygwin", "bin")
-        if (sys.platform in ("cygwin", "win32") and self.get_option('register_cygwin')):
-            setup_mount = self.path_from_chromium_base("third_party",
-                                                       "cygwin",
-                                                       "setup_mount.bat")
-            self._executive.run_command([setup_mount])
+        env["CYGWIN_PATH"] = self.path_from_chromium_base("third_party", "cygwin", "bin")
+        if self.get_option('register_cygwin'):
+            setup_mount = self.path_from_chromium_base("third_party", "cygwin", "setup_mount.bat")
+            self._executive.run_command([setup_mount])  # Paths are all absolute, so this does not require a cwd.
         return env
 
     def baseline_search_path(self):
@@ -103,12 +113,13 @@ class ChromiumWinPort(chromium.ChromiumPort):
     def check_build(self, needs_http):
         result = chromium.ChromiumPort.check_build(self, needs_http)
         if not result:
-            _log.error('For complete Windows build requirements, please '
-                       'see:')
+            _log.error('For complete Windows build requirements, please see:')
             _log.error('')
-            _log.error('    http://dev.chromium.org/developers/how-tos/'
-                       'build-instructions-windows')
+            _log.error('    http://dev.chromium.org/developers/how-tos/build-instructions-windows')
         return result
+
+    def operating_system(self):
+        return 'win'
 
     def relative_test_filename(self, filename):
         path = filename[len(self.layout_tests_dir()) + 1:]
@@ -119,27 +130,21 @@ class ChromiumWinPort(chromium.ChromiumPort):
     #
     def _build_path(self, *comps):
         if self.get_option('build_directory'):
-            return self._filesystem.join(self.get_option('build_directory'),
-                                         *comps)
+            return self._filesystem.join(self.get_option('build_directory'), *comps)
 
-        p = self.path_from_chromium_base('webkit', *comps)
+        p = self.path_from_chromium_base('build', *comps)
         if self._filesystem.exists(p):
             return p
-        p = self.path_from_chromium_base('chrome', *comps)
-        if self._filesystem.exists(p):
-            return p
-        return self._filesystem.join(self.path_from_webkit_base(), 'Source', 'WebKit', 'chromium', *comps)
+        return self._filesystem.join(self.path_from_webkit_base(), 'Source', 'WebKit', 'chromium', 'build', *comps)
 
-    def _default_to_apache(self):
+    def _uses_apache(self):
         return False
 
     def _lighttpd_path(self, *comps):
-        return self.path_from_chromium_base('third_party', 'lighttpd', 'win',
-                                            *comps)
+        return self.path_from_chromium_base('third_party', 'lighttpd', 'win', *comps)
 
     def _path_to_apache(self):
-        return self.path_from_chromium_base('third_party', 'cygwin', 'usr',
-                                            'sbin', 'httpd')
+        return self.path_from_chromium_base('third_party', 'cygwin', 'usr', 'sbin', 'httpd')
 
     def _path_to_apache_config_file(self):
         return self._filesystem.join(self.layout_tests_dir(), 'http', 'conf', 'cygwin-httpd.conf')
@@ -168,17 +173,4 @@ class ChromiumWinPort(chromium.ChromiumPort):
         return self._build_path(self.get_option('configuration'), binary_name)
 
     def _path_to_wdiff(self):
-        return self.path_from_chromium_base('third_party', 'cygwin', 'bin',
-                                            'wdiff.exe')
-
-    def _shut_down_http_server(self, server_pid):
-        """Shut down the lighttpd web server. Blocks until it's fully
-        shut down.
-
-        Args:
-            server_pid: The process ID of the running server.
-        """
-        # FIXME: Why are we ignoring server_pid and calling
-        # _kill_all instead of Executive.kill_process(pid)?
-        self._executive.kill_all("LightTPD.exe")
-        self._executive.kill_all("httpd.exe")
+        return self.path_from_chromium_base('third_party', 'cygwin', 'bin', 'wdiff.exe')

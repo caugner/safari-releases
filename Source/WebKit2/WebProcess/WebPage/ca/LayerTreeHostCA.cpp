@@ -75,8 +75,9 @@ void LayerTreeHostCA::initialize()
     if (m_webPage->hasPageOverlay())
         createPageOverlayLayer();
 
-    platformInitialize(m_layerTreeContext);
+    platformInitialize();
 
+    setLayerFlushSchedulingEnabled(!m_webPage->drawingArea() || !m_webPage->drawingArea()->layerTreeStateIsFrozen());
     scheduleLayerFlush();
 }
 
@@ -150,6 +151,12 @@ void LayerTreeHostCA::sizeDidChange(const IntSize& newSize)
     flushPendingLayerChanges();
 }
 
+void LayerTreeHostCA::deviceScaleFactorDidChange()
+{
+    // Other layers learn of the scale factor change via WebPage::setDeviceScaleFactor.
+    m_nonCompositedContentLayer->deviceOrPageScaleFactorChanged();
+}
+
 void LayerTreeHostCA::forceRepaint()
 {
     scheduleLayerFlush();
@@ -196,14 +203,19 @@ void LayerTreeHostCA::paintContents(const GraphicsLayer* graphicsLayer, Graphics
     }
 }
 
-bool LayerTreeHostCA::showDebugBorders() const
+bool LayerTreeHostCA::showDebugBorders(const GraphicsLayer*) const
 {
     return m_webPage->corePage()->settings()->showDebugBorders();
 }
 
-bool LayerTreeHostCA::showRepaintCounter() const
+bool LayerTreeHostCA::showRepaintCounter(const GraphicsLayer*) const
 {
     return m_webPage->corePage()->settings()->showRepaintCounter();
+}
+
+float LayerTreeHostCA::deviceScaleFactor() const
+{
+    return m_webPage->corePage()->deviceScaleFactor();
 }
 
 void LayerTreeHostCA::performScheduledLayerFlush()

@@ -24,7 +24,6 @@
 
 """Autoinstalls third-party code required by WebKit."""
 
-from __future__ import with_statement
 
 import codecs
 import os
@@ -75,34 +74,43 @@ class AutoinstallImportHook(object):
             self._install_mechanize()
         elif '.pep8' in fullname:
             self._install_pep8()
+        elif '.coverage' in fullname:
+            self._install_coverage()
         elif '.eliza' in fullname:
             self._install_eliza()
         elif '.irc' in fullname:
             self._install_irc()
         elif '.pywebsocket' in fullname:
             self._install_pywebsocket()
+        elif '.buildbot' in fullname:
+            self._install_buildbot()
 
     def _install_mechanize(self):
-        # The mechanize package uses ClientForm, for example, in _html.py.
-        # Since mechanize imports ClientForm in the following way,
-        #
-        # > import sgmllib, ClientForm
-        #
-        # the search path needs to include ClientForm.  We put ClientForm in
-        # its own directory so that we can include it in the search path
-        # without including other modules as a side effect.
-        clientform_dir = self._fs.join(_AUTOINSTALLED_DIR, "clientform")
-        installer = AutoInstaller(append_to_search_path=True,
-                                  target_dir=clientform_dir)
-        installer.install(url="http://pypi.python.org/packages/source/C/ClientForm/ClientForm-0.2.10.zip",
-                          url_subpath="ClientForm.py")
-
-        self._install("http://pypi.python.org/packages/source/m/mechanize/mechanize-0.2.4.zip",
-                      "mechanize")
+        self._install("http://pypi.python.org/packages/source/m/mechanize/mechanize-0.2.5.tar.gz",
+                      "mechanize-0.2.5/mechanize")
 
     def _install_pep8(self):
         self._install("http://pypi.python.org/packages/source/p/pep8/pep8-0.5.0.tar.gz#md5=512a818af9979290cd619cce8e9c2e2b",
                       "pep8-0.5.0/pep8.py")
+
+    # autoinstalled.buildbot is used by BuildSlaveSupport/build.webkit.org-config/mastercfg_unittest.py
+    # and should ideally match the version of BuildBot used at build.webkit.org.
+    def _install_buildbot(self):
+        # The buildbot package uses jinja2, for example, in buildbot/status/web/base.py.
+        # buildbot imports jinja2 directly (as though it were installed on the system),
+        # so the search path needs to include jinja2.  We put jinja2 in
+        # its own directory so that we can include it in the search path
+        # without including other modules as a side effect.
+        jinja_dir = self._fs.join(_AUTOINSTALLED_DIR, "jinja2")
+        installer = AutoInstaller(append_to_search_path=True, target_dir=jinja_dir)
+        installer.install(url="http://pypi.python.org/packages/source/J/Jinja2/Jinja2-2.6.tar.gz#md5=1c49a8825c993bfdcf55bb36897d28a2",
+                          url_subpath="Jinja2-2.6/jinja2")
+
+        self._install("http://pypi.python.org/packages/source/b/buildbot/buildbot-0.8.4p2.tar.gz#md5=7597d945724c80c0ab476e833a1026cb", "buildbot-0.8.4p2/buildbot")
+
+    def _install_coverage(self):
+        installer = AutoInstaller(target_dir=_AUTOINSTALLED_DIR)
+        installer.install(url="http://pypi.python.org/packages/source/c/coverage/coverage-3.5.1.tar.gz#md5=410d4c8155a4dab222f2bc51212d4a24", url_subpath="coverage-3.5.1/coverage")
 
     def _install_eliza(self):
         installer = AutoInstaller(target_dir=_AUTOINSTALLED_DIR)
@@ -123,8 +131,8 @@ class AutoinstallImportHook(object):
     def _install_pywebsocket(self):
         pywebsocket_dir = self._fs.join(_AUTOINSTALLED_DIR, "pywebsocket")
         installer = AutoInstaller(target_dir=pywebsocket_dir)
-        installer.install(url="http://pywebsocket.googlecode.com/files/mod_pywebsocket-0.5.2.tar.gz",
-                          url_subpath="pywebsocket-0.5.2/src/mod_pywebsocket")
+        installer.install(url="http://pywebsocket.googlecode.com/files/mod_pywebsocket-0.7.4.tar.gz",
+                          url_subpath="pywebsocket-0.7.4/src/mod_pywebsocket")
 
     def _install(self, url, url_subpath):
         installer = AutoInstaller(target_dir=_AUTOINSTALLED_DIR)

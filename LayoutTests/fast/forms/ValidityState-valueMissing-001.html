@@ -2,7 +2,6 @@
 <html>
 <head>
 <title>required and basic valueMissing</title>
-<link rel="stylesheet" href="../../fast/js/resources/js-test-style.css">
 <script src="../../fast/js/resources/js-test-pre.js"></script>
 </head>
 <body>
@@ -85,9 +84,7 @@
     shouldBeFalse('valueMissingFor("select-fake-placeholder-selected-size2-multiple")');
     shouldBeFalse('valueMissingFor("select-without-fake-placeholder-size2-multiple")');
     shouldBeFalse('valueMissingFor("select-optgroup")');
-    shouldBeFalse('valueMissingFor("select-disabled-option")');
-
-    var successfullyParsed = true;
+    shouldBeTrue('valueMissingFor("select-disabled-option")');
 </script>
 <script src="../../fast/js/resources/js-test-post.js"></script>
 </body>

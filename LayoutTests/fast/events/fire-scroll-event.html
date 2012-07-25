@@ -1,9 +1,6 @@
 <html>
-<link rel="stylesheet" href="../js/resources/js-test-style.css">
 <script src="../js/resources/js-test-pre.js"></script>
 <body style="min-width: 5000px; min-height: 5000px">
-<p id="description"></p>
-<div id="console"></div>
 <script>
 description('Checks that the scroll event fires on the document asychronously and only once.');
 
@@ -36,8 +33,6 @@ onload = function()
     }
     window.scrollTo(200, 200);
 }
-
-var successfullyParsed = true;
 var jsTestIsAsync = true;
 </script>
 <script src="../js/resources/js-test-post.js"></script>

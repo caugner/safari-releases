@@ -26,6 +26,7 @@
 #include "config.h"
 #include "ShareableBitmap.h"
 
+#include <WebCore/BitmapImage.h>
 #include <WebCore/GraphicsContext.h>
 #include <wtf/RetainPtr.h>
 #include "CGUtilities.h"
@@ -49,7 +50,6 @@ PassOwnPtr<GraphicsContext> ShareableBitmap::createGraphicsContext()
 {
     RetainPtr<CGColorSpaceRef> colorSpace(AdoptCF, CGColorSpaceCreateDeviceRGB());
 
-
     ref(); // Balanced by deref in releaseBitmapContextData.
     RetainPtr<CGContextRef> bitmapContext(AdoptCF, CGBitmapContextCreateWithData(data(),
         m_size.width(), m_size.height(), 8, m_size.width() * 4, colorSpace.get(),
@@ -62,9 +62,14 @@ PassOwnPtr<GraphicsContext> ShareableBitmap::createGraphicsContext()
     return adoptPtr(new GraphicsContext(bitmapContext.get()));
 }
 
-void ShareableBitmap::paint(WebCore::GraphicsContext& context, const IntPoint& dstPoint, const IntRect& srcRect)
+void ShareableBitmap::paint(WebCore::GraphicsContext& context, const IntPoint& destination, const IntRect& source)
 {
-    paintImage(context.platformContext(), makeCGImageCopy().get(), dstPoint, srcRect);
+    paintImage(context.platformContext(), makeCGImageCopy().get(), 1, destination, source);
+}
+
+void ShareableBitmap::paint(WebCore::GraphicsContext& context, float scaleFactor, const IntPoint& destination, const IntRect& source)
+{
+    paintImage(context.platformContext(), makeCGImageCopy().get(), scaleFactor, destination, source);
 }
 
 #if !PLATFORM(WIN)
@@ -104,6 +109,16 @@ void ShareableBitmap::releaseDataProviderData(void* typelessBitmap, const void* 
     ShareableBitmap* bitmap = static_cast<ShareableBitmap*>(typelessBitmap);
     ASSERT_UNUSED(typelessData, bitmap->data() == typelessData);
     bitmap->deref(); // Balanced by ref in createCGImage.
+}
+
+PassRefPtr<Image> ShareableBitmap::createImage()
+{
+    RetainPtr<CGImageRef> platformImage = makeCGImage();
+    if (!platformImage)
+        return 0;
+
+    // BitmapImage::create adopts the CGImageRef that's passed in, which is why we need to leakRef here.
+    return BitmapImage::create(platformImage.leakRef());
 }
 
 } // namespace WebKit

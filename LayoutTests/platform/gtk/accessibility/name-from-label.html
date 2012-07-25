@@ -1,11 +1,7 @@
 <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
 <html>
 <head>
-<link rel="stylesheet" href="../fast/js/resources/js-test-style.css">
 <script src="../../../fast/js/resources/js-test-pre.js"></script>
-<script>
-  successfullyParsed = false;
-</script>
 </head>
 <body id="body" onload="startTest();">
 <form>
@@ -16,12 +12,13 @@
 <div id="console"></div>
 <script>
   var webArea;
-  var child;
+  var form;
 
   function checkResults() {
     // Actually check the results
-    shouldBe("child.role", "'AXRole: entry'");
-    shouldBe("child.title", "'AXTitle: Full Name:'");
+    entry = form.childAtIndex(1);
+    shouldBe("entry.role", "'AXRole: entry'");
+    shouldBe("entry.title", "'AXTitle: Full Name:'");
     finishJSTest();
   }
 
@@ -34,14 +31,13 @@
 
     document.getElementById("body").focus();
     webArea = accessibilityController.focusedElement;
-    child = webArea.childAtIndex(1);
+    form = webArea.childAtIndex(0);
 
     // Check results on idle to ensure layout() is done
     window.setTimeout("checkResults()", 0);
   }
 
   window.jsTestIsAsync = true;
-  successfullyParsed = true;
 </script>
 <script src="../../../fast/js/resources/js-test-post.js"></script>
 </body>

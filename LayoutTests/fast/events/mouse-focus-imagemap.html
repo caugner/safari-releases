@@ -1,10 +1,6 @@
 <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
 <html>
 <head>
-<link rel="stylesheet" href="../js/resources/js-test-style.css">
-<script>
-var successfullyParsed = false;
-</script>
 <script src="../js/resources/js-test-pre.js"></script>
 <body id="body">
 
@@ -36,8 +32,6 @@ var successfullyParsed = false;
 
     // Some platforms (QT) set focus to the body if clicking on a non-focusable area.
     shouldBe("document.activeElement.id == 'focusable-area' || document.activeElement.id == 'body'", "true");
-
-    successfullyParsed = true;
 </script>
 
 <script src="../js/resources/js-test-post.js"></script>

@@ -23,14 +23,14 @@ function onIframeLoad()
 
 function test()
 {
-    InspectorTest.runAfterResourcesAreFinished(["resource-tree-frame-add.html"], step1);
+    InspectorTest.runAfterResourcesAreFinished(["resource-tree-frame-add.html", "resource-tree-test.js", "styles-initial.css"], step1);
 
     function step1()
     {
         InspectorTest.addResult("Before addition");
         InspectorTest.addResult("====================================");
         InspectorTest.dumpResourceTreeEverything();
-        InspectorTest.addSniffer(WebInspector.ConsoleView.prototype, "addMessage", step2);
+        InspectorTest.addConsoleSniffer(step2);
         InspectorTest.evaluateInPage("createIframe()");
     }
 

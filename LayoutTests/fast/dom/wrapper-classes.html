@@ -1,6 +1,5 @@
 <html>
 <head>
-<link rel="stylesheet" href="../js/resources/js-test-style.css">
 <script src="../js/resources/js-test-pre.js"></script>
 <style id="style" media="screen">
 .non-existent-class {
@@ -134,7 +133,7 @@ function runTest()
     debug('Other');
     debug('');
 
-    test("window", "DOMWindow");
+    test("window", "Window");
 
     debug('');
     debug('HTML DOM');
@@ -161,7 +160,7 @@ function runTest()
     testTag("basefont", "HTMLBaseFontElement");
     testTag("bdo", "HTMLElement");
     testTag("big", "HTMLElement");
-    testTag("blockquote", "HTMLBlockquoteElement");
+    testTag("blockquote", "HTMLQuoteElement");
     testTag("body", "HTMLBodyElement");
     testTag("br", "HTMLBRElement");
     testTag("button", "HTMLButtonElement");
@@ -205,7 +204,6 @@ function runTest()
     testTag("img", "HTMLImageElement");
     testTag("input", "HTMLInputElement");
     testTag("ins", "HTMLModElement");
-    testTag("isindex", "HTMLIsIndexElement");
     testTag("kbd", "HTMLElement");
     testTag("keygen", "HTMLKeygenElement");
     testTag("label", "HTMLLabelElement");
@@ -242,7 +240,7 @@ function runTest()
     testTag("section", "HTMLElement");
     testTag("select", "HTMLSelectElement");
     testTag("small", "HTMLElement");
-    testTag("span", "HTMLElement");
+    testTag("span", "HTMLSpanElement");
     testTag("strike", "HTMLElement");
     testTag("strong", "HTMLElement");
     testTag("style", "HTMLStyleElement");
@@ -263,7 +261,7 @@ function runTest()
     testTag("var", "HTMLElement");
     testTag("wbr", "HTMLElement");
     testTag("xmp", "HTMLPreElement");
-    
+
     // Not yet tested:
 
     // CSSCharsetRule
@@ -296,8 +294,6 @@ function frameLoaded()
 }
 
 </script>
-<p id="description"></p>
-<div id="console"></div>
 <iframe id="xmlframe" onload="frameLoaded()" style="height:0px" src="data:application/xhtml+xml,<?xml version='1.0' encoding='UTF-8'?><body/>"></iframe>
 </body>
 </html>

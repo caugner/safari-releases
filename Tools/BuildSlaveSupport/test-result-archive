@@ -43,16 +43,10 @@ def main():
         parser.error("Action is required")
 
     layoutTestResultsDir = os.path.abspath(os.path.join(sourceRootDirectory, "layout-test-results"))
-    if options.platform == 'chromium':
-        # See results_directory() in webkitpy/layout_tests/port/chromium.py.
-        layoutTestResultsDir = os.path.abspath(os.path.join(sourceRootDirectory,
-            "Source", "WebKit", "chromium", "webkit", options.configuration.capitalize(),
-            "layout-test-results"))
-
     return archiveTestResults(options.configuration, options.platform, layoutTestResultsDir)
 
 def archiveTestResults(configuration, platform, layoutTestResultsDir):
-    assert platform in ('mac', 'win', 'gtk', 'qt', 'chromium')
+    assert platform in ('mac', 'win', 'wincairo', 'gtk', 'qt', 'chromium', 'efl')
 
     try:
         os.unlink(archiveFile)
@@ -72,7 +66,7 @@ def archiveTestResults(configuration, platform, layoutTestResultsDir):
     if platform == 'mac':
         if subprocess.call(["ditto", "-c", "-k", "--sequesterRsrc", layoutTestResultsDir, archiveFile]):
             return 1
-    elif platform in ('win', 'gtk', 'qt'):
+    elif platform in ('win', 'wincairo', 'gtk', 'qt', 'efl'):
         if subprocess.call(["zip", "-r", archiveFile, "."], cwd=layoutTestResultsDir):
             return 1
     elif platform == 'chromium':

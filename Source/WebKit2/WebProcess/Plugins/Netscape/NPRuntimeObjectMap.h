@@ -26,6 +26,7 @@
 #ifndef NPJSObjectWrapperMap_h
 #define NPJSObjectWrapperMap_h
 
+#include <WebCore/RunLoop.h>
 #include <heap/Weak.h>
 #include <wtf/Forward.h>
 #include <wtf/HashMap.h>
@@ -87,11 +88,15 @@ public:
 private:
     // WeakHandleOwner
     virtual void finalize(JSC::Handle<JSC::Unknown>, void* context);
+    void addToInvalidationQueue(NPObject*);
+    void invalidateQueuedObjects();
 
     PluginView* m_pluginView;
 
     HashMap<JSC::JSObject*, NPJSObject*> m_npJSObjects;
     HashMap<NPObject*, JSC::Weak<JSNPObject> > m_jsNPObjects;
+    Vector<NPObject*> m_npObjectsToFinalize;
+    WebCore::RunLoop::Timer<NPRuntimeObjectMap> m_finalizationTimer;
 };
 
 } // namespace WebKit

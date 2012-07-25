@@ -29,188 +29,284 @@
 
 """Package that implements the ServerProcess wrapper class"""
 
+import errno
 import logging
-import os
-import select
 import signal
 import subprocess
 import sys
 import time
-if sys.platform != 'win32':
+
+# Note that although win32 python does provide an implementation of
+# the win32 select API, it only works on sockets, and not on the named pipes
+# used by subprocess, so we have to use the native APIs directly.
+if sys.platform == 'win32':
+    import msvcrt
+    import win32pipe
+    import win32file
+else:
     import fcntl
+    import os
+    import select
 
-from webkitpy.common.system.executive import Executive
-
-_log = logging.getLogger("webkitpy.layout_tests.port.server_process")
+from webkitpy.common.system.executive import ScriptError
 
 
-class ServerProcess:
+_log = logging.getLogger(__name__)
+
+
+class ServerProcess(object):
     """This class provides a wrapper around a subprocess that
     implements a simple request/response usage model. The primary benefit
-    is that reading responses takes a timeout, so that we don't ever block
+    is that reading responses takes a deadline, so that we don't ever block
     indefinitely. The class also handles transparently restarting processes
     as necessary to keep issuing commands."""
 
-    def __init__(self, port_obj, name, cmd, env=None, executive=Executive()):
+    def __init__(self, port_obj, name, cmd, env=None):
         self._port = port_obj
-        self._name = name
+        self._name = name  # Should be the command name (e.g. DumpRenderTree, ImageDiff)
         self._cmd = cmd
         self._env = env
+        self._host = self._port.host
         self._reset()
-        self._executive = executive
+
+        # See comment in imports for why we need the win32 APIs and can't just use select.
+        # FIXME: there should be a way to get win32 vs. cygwin from platforminfo.
+        self._use_win32_apis = sys.platform == 'win32'
+
+    def name(self):
+        return self._name
+
+    def pid(self):
+        return self._proc.pid
 
     def _reset(self):
         self._proc = None
-        self._output = ''
-        self.crashed = False
+        self._output = str()  # bytesarray() once we require Python 2.6
+        self._error = str()  # bytesarray() once we require Python 2.6
+        self._crashed = False
         self.timed_out = False
-        self.error = ''
+
+    def process_name(self):
+        return self._name
 
     def _start(self):
         if self._proc:
             raise ValueError("%s already running" % self._name)
         self._reset()
         # close_fds is a workaround for http://bugs.python.org/issue2320
-        close_fds = sys.platform not in ('win32', 'cygwin')
+        close_fds = not self._host.platform.is_win()
         self._proc = subprocess.Popen(self._cmd, stdin=subprocess.PIPE,
                                       stdout=subprocess.PIPE,
                                       stderr=subprocess.PIPE,
                                       close_fds=close_fds,
                                       env=self._env)
         fd = self._proc.stdout.fileno()
-        fl = fcntl.fcntl(fd, fcntl.F_GETFL)
-        fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
-        fd = self._proc.stderr.fileno()
-        fl = fcntl.fcntl(fd, fcntl.F_GETFL)
-        fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+        if not self._use_win32_apis:
+            fl = fcntl.fcntl(fd, fcntl.F_GETFL)
+            fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+            fd = self._proc.stderr.fileno()
+            fl = fcntl.fcntl(fd, fcntl.F_GETFL)
+            fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
 
-    def handle_interrupt(self):
+    def _handle_possible_interrupt(self):
         """This routine checks to see if the process crashed or exited
         because of a keyboard interrupt and raises KeyboardInterrupt
         accordingly."""
-        if self.crashed:
-            # This is hex code 0xc000001d, which is used for abrupt
-            # termination. This happens if we hit ctrl+c from the prompt
-            # and we happen to be waiting on the DumpRenderTree.
-            # sdoyon: Not sure for which OS and in what circumstances the
-            # above code is valid. What works for me under Linux to detect
-            # ctrl+c is for the subprocess returncode to be negative
-            # SIGINT. And that agrees with the subprocess documentation.
-            if (-1073741510 == self._proc.returncode or
-                - signal.SIGINT == self._proc.returncode):
-                raise KeyboardInterrupt
-            return
+        # FIXME: Linux and Mac set the returncode to -signal.SIGINT if a
+        # subprocess is killed with a ctrl^C.  Previous comments in this
+        # routine said that supposedly Windows returns 0xc000001d, but that's not what
+        # -1073741510 evaluates to. Figure out what the right value is
+        # for win32 and cygwin here ...
+        if self._proc.returncode in (-1073741510, -signal.SIGINT):
+            raise KeyboardInterrupt
 
     def poll(self):
         """Check to see if the underlying process is running; returns None
         if it still is (wrapper around subprocess.poll)."""
         if self._proc:
-            # poll() is not threadsafe and can throw OSError due to:
-            # http://bugs.python.org/issue1731717
             return self._proc.poll()
         return None
 
-    def write(self, input):
+    def write(self, bytes):
         """Write a request to the subprocess. The subprocess is (re-)start()'ed
         if is not already running."""
         if not self._proc:
             self._start()
         try:
-            self._proc.stdin.write(input)
+            self._proc.stdin.write(bytes)
         except IOError, e:
             self.stop()
-            self.crashed = True
+            # stop() calls _reset(), so we have to set crashed to True after calling stop().
+            self._crashed = True
 
-    def read_line(self, timeout):
-        """Read a single line from the subprocess, waiting until the deadline.
-        If the deadline passes, the call times out. Note that even if the
-        subprocess has crashed or the deadline has passed, if there is output
-        pending, it will be returned.
+    def _pop_stdout_line_if_ready(self):
+        index_after_newline = self._output.find('\n') + 1
+        if index_after_newline > 0:
+            return self._pop_output_bytes(index_after_newline)
+        return None
 
-        Args:
-            timeout: floating-point number of seconds the call is allowed
-                to block for. A zero or negative number will attempt to read
-                any existing data, but will not block. There is no way to
-                block indefinitely.
-        Returns:
-            output: data returned, if any. If no data is available and the
-                call times out or crashes, an empty string is returned. Note
-                that the returned string includes the newline ('\n')."""
-        return self._read(timeout, size=0)
+    def _pop_stderr_line_if_ready(self):
+        index_after_newline = self._error.find('\n') + 1
+        if index_after_newline > 0:
+            return self._pop_error_bytes(index_after_newline)
+        return None
 
-    def read(self, timeout, size):
-        """Attempts to read size characters from the subprocess, waiting until
-        the deadline passes. If the deadline passes, any available data will be
-        returned. Note that even if the deadline has passed or if the
-        subprocess has crashed, any available data will still be returned.
+    def pop_all_buffered_stderr(self):
+        return self._pop_error_bytes(len(self._error))
 
-        Args:
-            timeout: floating-point number of seconds the call is allowed
-                to block for. A zero or negative number will attempt to read
-                any existing data, but will not block. There is no way to
-                block indefinitely.
-            size: amount of data to read. Must be a postive integer.
-        Returns:
-            output: data returned, if any. If no data is available, an empty
-                string is returned.
-        """
+    def read_stdout_line(self, deadline):
+        return self._read(deadline, self._pop_stdout_line_if_ready)
+
+    def read_stderr_line(self, deadline):
+        return self._read(deadline, self._pop_stderr_line_if_ready)
+
+    def read_either_stdout_or_stderr_line(self, deadline):
+        def retrieve_bytes_from_buffers():
+            stdout_line = self._pop_stdout_line_if_ready()
+            if stdout_line:
+                return stdout_line, None
+            stderr_line = self._pop_stderr_line_if_ready()
+            if stderr_line:
+                return None, stderr_line
+            return None  # Instructs the caller to keep waiting.
+
+        return_value = self._read(deadline, retrieve_bytes_from_buffers)
+        # FIXME: This is a bit of a hack around the fact that _read normally only returns one value, but this caller wants it to return two.
+        if return_value is None:
+            return None, None
+        return return_value
+
+    def read_stdout(self, deadline, size):
         if size <= 0:
-            raise ValueError('ServerProcess.read() called with a '
-                             'non-positive size: %d ' % size)
-        return self._read(timeout, size)
+            raise ValueError('ServerProcess.read() called with a non-positive size: %d ' % size)
 
-    def _read(self, timeout, size):
-        """Internal routine that actually does the read."""
-        index = -1
+        def retrieve_bytes_from_stdout_buffer():
+            if len(self._output) >= size:
+                return self._pop_output_bytes(size)
+            return None
+
+        return self._read(deadline, retrieve_bytes_from_stdout_buffer)
+
+    def _log(self, message):
+        # This is a bit of a hack, but we first log a blank line to avoid
+        # messing up the master process's output.
+        _log.info('')
+        _log.info(message)
+
+    def _handle_timeout(self):
+        self.timed_out = True
+        self._port.sample_process(self._name, self._proc.pid)
+
+    def _split_string_after_index(self, string, index):
+        return string[:index], string[index:]
+
+    def _pop_output_bytes(self, bytes_count):
+        output, self._output = self._split_string_after_index(self._output, bytes_count)
+        return output
+
+    def _pop_error_bytes(self, bytes_count):
+        output, self._error = self._split_string_after_index(self._error, bytes_count)
+        return output
+
+    def _wait_for_data_and_update_buffers_using_select(self, deadline):
         out_fd = self._proc.stdout.fileno()
         err_fd = self._proc.stderr.fileno()
         select_fds = (out_fd, err_fd)
-        deadline = time.time() + timeout
-        while not self.timed_out and not self.crashed:
-            # poll() is not threadsafe and can throw OSError due to:
-            # http://bugs.python.org/issue1731717
-            if self._proc.poll() != None:
-                self.crashed = True
-                self.handle_interrupt()
+        try:
+            read_fds, _, _ = select.select(select_fds, [], select_fds, deadline - time.time())
+        except select.error, e:
+            # We can ignore EINVAL since it's likely the process just crashed and we'll
+            # figure that out the next time through the loop in _read().
+            if e.args[0] == errno.EINVAL:
+                return
+            raise
 
+        try:
+            if out_fd in read_fds:
+                self._output += self._proc.stdout.read()
+            if err_fd in read_fds:
+                self._error += self._proc.stderr.read()
+        except IOError, e:
+            # We can ignore the IOErrors because we will detect if the subporcess crashed
+            # the next time through the loop in _read()
+            pass
+
+    def _wait_for_data_and_update_buffers_using_win32_apis(self, deadline):
+        # See http://code.activestate.com/recipes/440554-module-to-allow-asynchronous-subprocess-use-on-win/
+        # and http://docs.activestate.com/activepython/2.6/pywin32/modules.html
+        # for documentation on all of these win32-specific modules.
+        now = time.time()
+        out_fh = msvcrt.get_osfhandle(self._proc.stdout.fileno())
+        err_fh = msvcrt.get_osfhandle(self._proc.stderr.fileno())
+        while (self._proc.poll() is None) and (now < deadline):
+            output = self._non_blocking_read_win32(out_fh)
+            error = self._non_blocking_read_win32(err_fh)
+            if output or error:
+                if output:
+                    self._output += output
+                if error:
+                    self._error += error
+                return
+            time.sleep(0.01)
             now = time.time()
-            if now > deadline:
-                self.timed_out = True
+        return
 
-            # Check to see if we have any output we can return.
-            if size and len(self._output) >= size:
-                index = size
-            elif size == 0:
-                index = self._output.find('\n') + 1
+    def _non_blocking_read_win32(self, handle):
+        try:
+            _, avail, _ = win32pipe.PeekNamedPipe(handle, 0)
+            if avail > 0:
+                _, buf = win32file.ReadFile(handle, avail, None)
+                return buf
+        except Exception, e:
+            if e[0] not in (109, errno.ESHUTDOWN):  # 109 == win32 ERROR_BROKEN_PIPE
+                raise
+        return None
 
-            if index > 0 or self.crashed or self.timed_out:
-                output = self._output[0:index]
-                self._output = self._output[index:]
-                return output
+    def has_crashed(self):
+        if not self._crashed and self.poll():
+            self._crashed = True
+            self._handle_possible_interrupt()
+        return self._crashed
 
-            # Nope - wait for more data.
-            (read_fds, write_fds, err_fds) = select.select(select_fds, [],
-                                                           select_fds,
-                                                           deadline - now)
-            try:
-                if out_fd in read_fds:
-                    self._output += self._proc.stdout.read()
-                if err_fd in read_fds:
-                    self.error += self._proc.stderr.read()
-            except IOError, e:
-                pass
+    # This read function is a bit oddly-designed, as it polls both stdout and stderr, yet
+    # only reads/returns from one of them (buffering both in local self._output/self._error).
+    # It might be cleaner to pass in the file descriptor to poll instead.
+    def _read(self, deadline, fetch_bytes_from_buffers_callback):
+        while True:
+            if self.has_crashed():
+                return None
+
+            if time.time() > deadline:
+                self._handle_timeout()
+                return None
+
+            bytes = fetch_bytes_from_buffers_callback()
+            if bytes is not None:
+                return bytes
+
+            if self._use_win32_apis:
+                self._wait_for_data_and_update_buffers_using_win32_apis(deadline)
+            else:
+                self._wait_for_data_and_update_buffers_using_select(deadline)
+
+    def start(self):
+        if not self._proc:
+            self._start()
 
     def stop(self):
-        """Stop (shut down) the subprocess), if it is running."""
         if not self._proc:
             return
+
+        # Only bother to check for leaks if the process is still running.
+        if self.poll() is None:
+            self._port.check_for_leaks(self.name(), self.pid())
 
         pid = self._proc.pid
         self._proc.stdin.close()
         self._proc.stdout.close()
         if self._proc.stderr:
             self._proc.stderr.close()
-        if sys.platform not in ('win32', 'cygwin'):
+        if not self._host.platform.is_win():
             # Closing stdin/stdout/stderr hangs sometimes on OS X,
             # (see restart(), above), and anyway we don't want to hang
             # the harness if DumpRenderTree is buggy, so we wait a couple
@@ -218,15 +314,17 @@ class ServerProcess:
             # force-kill the process if necessary.
             KILL_TIMEOUT = 3.0
             timeout = time.time() + KILL_TIMEOUT
-            # poll() is not threadsafe and can throw OSError due to:
-            # http://bugs.python.org/issue1731717
             while self._proc.poll() is None and time.time() < timeout:
-                time.sleep(0.1)
-            # poll() is not threadsafe and can throw OSError due to:
-            # http://bugs.python.org/issue1731717
+                time.sleep(0.01)
             if self._proc.poll() is None:
-                _log.warning('stopping %s timed out, killing it' %
-                             self._name)
-                self._executive.kill_process(self._proc.pid)
+                _log.warning('stopping %s timed out, killing it' % self._name)
+                self.kill()
                 _log.warning('killed')
         self._reset()
+
+    def kill(self):
+        if self._proc:
+            self._host.executive.kill_process(self._proc.pid)
+            if self._proc.poll() is not None:
+                self._proc.wait()
+            self._reset()

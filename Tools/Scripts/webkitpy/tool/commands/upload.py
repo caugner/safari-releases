@@ -95,7 +95,7 @@ class CleanPendingCommit(AbstractDeclarativeCommand):
 # FIXME: This should be share more logic with AssignToCommitter and CleanPendingCommit
 class CleanReviewQueue(AbstractDeclarativeCommand):
     name = "clean-review-queue"
-    help_text = "Clear r? on obsolete patches so they do not appear in the pending-commit list."
+    help_text = "Clear r? on obsolete patches so they do not appear in the pending-review list."
 
     def execute(self, options, args, tool):
         queue_url = "http://webkit.org/pending-review"
@@ -216,6 +216,7 @@ class Post(AbstractPatchUploadingCommand):
         steps.ConfirmDiff,
         steps.ObsoletePatches,
         steps.SuggestReviewers,
+        steps.EnsureBugIsOpenAndAssigned,
         steps.PostDiff,
     ]
 
@@ -233,6 +234,7 @@ class LandSafely(AbstractPatchUploadingCommand):
         steps.UpdateChangeLogsWithReviewer,
         steps.ValidateChangeLogs,
         steps.ObsoletePatches,
+        steps.EnsureBugIsOpenAndAssigned,
         steps.PostDiffForCommit,
     ]
 
@@ -267,6 +269,7 @@ class Upload(AbstractPatchUploadingCommand):
         steps.ConfirmDiff,
         steps.ObsoletePatches,
         steps.SuggestReviewers,
+        steps.EnsureBugIsOpenAndAssigned,
         steps.PostDiff,
     ]
     long_help = """upload uploads the current diff to bugs.webkit.org.
@@ -407,7 +410,7 @@ class MarkBugFixed(AbstractDeclarativeCommand):
 
         if needs_prompt:
             if not tool.user.confirm("Is this correct?"):
-                exit(1)
+                self._exit(1)
 
         bug_comment = bug_comment_from_svn_revision(svn_revision)
         if options.comment:
@@ -479,6 +482,7 @@ class CreateBug(AbstractDeclarativeCommand):
 
     def prompt_for_bug_title_and_comment(self):
         bug_title = User.prompt("Bug title: ")
+        # FIXME: User should provide a function for doing this multi-line prompt.
         print "Bug comment (hit ^D on blank line to end):"
         lines = sys.stdin.readlines()
         try:

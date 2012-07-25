@@ -53,6 +53,7 @@ def generate_webcore_derived_sources(conf):
     os.system('make -f %s/DerivedSources.make WebCore=%s SOURCE_ROOT=%s all FEATURE_DEFINES="%s"' % (wc_dir, wc_dir, wc_dir, conf.env["FEATURE_DEFINES"]))
     if building_on_win32:
         os.environ["PATH"] = oldpath
+    os.system('perl %s/Source/WebKit/scripts/generate-webkitversion.pl --outputDir=%s --config %s/Source/WebKit/mac/Configurations/Version.xcconfig' % (wk_root, derived_sources_dir, wk_root))
     os.chdir(olddir)
 
 def generate_jscore_derived_sources(conf):
@@ -115,8 +116,9 @@ def build(bld):
         webcore_dirs.extend(['Source/WebKit/wx', 'Source/WebKit/wx/WebKitSupport'])
     
     wk_includes = ['.',
+                    os.path.join(wk_root, 'Source', 'WTF'),
+                    os.path.join(wk_root, 'Source', 'WTF', 'wtf'),
                     os.path.join(wk_root, 'Source', 'JavaScriptCore'),
-                    os.path.join(wk_root, 'Source', 'JavaScriptCore', 'wtf', 'text'),
                     os.path.join(wk_root, 'Source', 'WebCore'),
                     os.path.join(wk_root, 'Source', 'WebCore', 'DerivedSources'),
                     os.path.join(wk_root, 'Source', 'WebCore', 'platform', 'image-decoders'),
@@ -147,7 +149,8 @@ def build(bld):
             'Source/WebCore/bindings/cpp/WebDOMEventTarget.cpp',
             'Source/WebCore/platform/KillRingNone.cpp',
             'Source/WebCore/platform/text/LocalizedDateNone.cpp',
-            'Source/WebCore/platform/text/LocalizedNumberNone.cpp'
+            'Source/WebCore/platform/text/LocalizedNumberNone.cpp',
+            'Source/WebCore/page/scrolling/ScrollingCoordinatorNone.cpp',
         ]  
     
         if building_on_win32:
@@ -157,11 +160,12 @@ def build(bld):
             webcore_sources['wx-win'] = [
                    'Source/WebCore/platform/graphics/win/GlyphPageTreeNodeCairoWin.cpp',
                    'Source/WebCore/platform/graphics/win/TransformationMatrixWin.cpp',
-                   'Source/WebCore/platform/ScrollAnimatorWin.cpp',
+                   'Source/WebCore/platform/ScrollAnimatorNone.cpp',
                    # wxTimer on Windows has a bug that causes it to eat crashes in callbacks
                    # so we need to use the Win port's implementation until the wx bug fix is
                    # widely available (it was fixed in 2.8.10).
                    'Source/WebCore/platform/win/SharedTimerWin.cpp',
+                   'Source/WebCore/platform/win/SystemInfo.cpp',
                    'Source/WebCore/platform/win/WebCoreInstanceHandle.cpp',
                    # Use the Windows plugin architecture
                    #'Source/WebCore/plugins/win/PluginDataWin.cpp',
@@ -170,10 +174,13 @@ def build(bld):
                    'Source/WebCore/plugins/win/PluginPackageWin.cpp',
                    'Source/WebCore/plugins/win/PluginViewWin.cpp',
             ]
+            if Options.options.cairo:
+                webcore_dirs.append('Source/WebCore/platform/wx/wxcode/cairo')
+            else:
+                webcore_dirs.append('Source/WebCore/platform/wx/wxcode/gdiplus')
         elif sys.platform.startswith('darwin'):
             webcore_dirs.append('Source/WebCore/plugins/mac')
             webcore_dirs.append('Source/WebCore/platform/wx/wxcode/mac/carbon')
-            webcore_dirs.append('Source/WebCore/platform/mac')
             webcore_dirs.append('Source/WebCore/platform/text/mac')
             webcore_sources['wx-mac'] = [
                    'Source/WebCore/platform/mac/PurgeableBufferMac.cpp',
@@ -181,13 +188,12 @@ def build(bld):
                    'Source/WebCore/platform/mac/WebCoreSystemInterface.mm',
                    'Source/WebCore/platform/graphics/cg/FloatSizeCG.cpp',
                    'Source/WebCore/platform/graphics/mac/ComplexTextController.cpp',
-                   'Source/WebCore/platform/graphics/mac/ComplexTextControllerCoreText.cpp',
+                   'Source/WebCore/platform/graphics/mac/ComplexTextControllerCoreText.mm',
                    'Source/WebCore/platform/graphics/mac/ComplexTextControllerATSUI.cpp',
                    'Source/WebCore/platform/graphics/mac/GlyphPageTreeNodeMac.cpp',
                    'Source/WebCore/platform/graphics/mac/SimpleFontDataATSUI.mm',
                    'Source/WebCore/platform/graphics/mac/SimpleFontDataCoreText.cpp',
                    'Source/WebCore/platform/graphics/wx/FontPlatformDataWxMac.mm',
-                   'Source/WebCore/platform/text/mac/ShapeArabic.c',
                    'Source/WebCore/platform/wx/wxcode/mac/carbon/fontprops.mm',
                    'Source/WebCore/plugins/mac/PluginPackageMac.cpp',
                    'Source/WebCore/plugins/mac/PluginViewMac.mm'
@@ -198,11 +204,11 @@ def build(bld):
                    'Source/WebCore/plugins/PluginPackageNone.cpp'
             ]
             webcore_dirs.append('Source/WebCore/platform/wx/wxcode/gtk')
+            webcore_dirs.append('Source/WebCore/platform/wx/wxcode/cairo')
         
 
     import TaskGen
 
-    # FIXME: Does this need to be Source/JavaScriptCore?
     bld.add_subdirs('Source/JavaScriptCore')
 
     if sys.platform.startswith('darwin'):
@@ -210,21 +216,26 @@ def build(bld):
         TaskGen.task_gen.mappings['.m'] = TaskGen.task_gen.mappings['.cxx']
 
     features = [Options.options.port.lower()]
-    exclude_patterns = ['*AllInOne.cpp', '*Brew.cpp', '*CFNet.cpp', '*Chromium*.cpp', 
-            '*Efl.cpp', '*Gtk.cpp', '*Haiku.cpp', '*Mac.cpp', '*None.cpp', '*Qt.cpp', '*Safari.cpp',
-            'test*bindings.*', '*WinCE.cpp', "WebDOMCanvas*.cpp", "WebDOMSVG*.cpp"]
-    if Options.options.port == 'wx':
-        features.append('curl')
-        exclude_patterns.append('*Win.cpp')
-        
+    thisport = Options.options.port
+    
+    exclude_patterns = ['*AllInOne.cpp', '*None.cpp',]
+
     if sys.platform.startswith('darwin'):
         features.append('cf')
-        
-    else:
-        exclude_patterns.append('*CF.cpp')
 
+    # exclude the filename patterns for all other ports.
+    exclude_patterns.extend(get_port_excludes(Options.options.port))
+            
+    if Options.options.port == 'wx':
+        features.append('curl')
+        exclude_patterns.extend(['*CFNet.cpp', 'test*bindings.*', "WebDOMCanvas*.cpp", "WebDOMSVG*.cpp"])
+        
     full_dirs = get_dirs_for_features(wk_root, features=features, dirs=webcore_dirs)
 
+    # make sure we don't use the CF networking engine
+    if Options.options.port == 'wx' and sys.platform.startswith('darwin'):
+        full_dirs.remove('Source/WebCore/platform/network/cf')
+        
     jscore_dir = os.path.join(wk_root, 'Source', 'JavaScriptCore')
     for item in os.listdir(jscore_dir):
         fullpath = os.path.join(jscore_dir, item)
@@ -233,8 +244,6 @@ def build(bld):
 
     wk_includes.append('Source')
     wk_includes.append(os.path.join(jscore_dir, 'collector', 'handles'))
-    wk_includes.append(os.path.join(jscore_dir, 'wtf', 'unicode'))
-    wk_includes.append(os.path.join(jscore_dir, 'wtf', 'unicode', 'icu'))
     wk_includes += common_includes + full_dirs
     if sys.platform.startswith('darwin'):
         wk_includes.append(os.path.join(webcore_dir, 'icu'))
@@ -273,7 +282,6 @@ def build(bld):
         # intermediate sources
         excludes.append('DocTypeStrings.cpp')
         excludes.append('HTMLEntityNames.cpp')
-        excludes.append('tokenizer.cpp')
 
         # Qt specific file in common sources
         excludes.append('ContextShadow.cpp')
@@ -314,8 +322,31 @@ def build(bld):
         excludes.append('WebDOMScriptProfileNode.cpp')
         excludes.append('WebNativeEventListener.cpp')
         
-        # This file appears not to build with older versions of ICU
+        # FIXME: It appears these are no longer needed by any port, once this is confirmed,
+        # we should remove these sources from the tree.
+        excludes.append('WebDOMDOMWindowCustom.cpp')
+        excludes.append('WebDOMHTMLOptionsCollectionCustom.cpp')
+        excludes.append('WebDOMNodeCustom.cpp')
+        excludes.append('WebDOMHTMLDocumentCustom.cpp')
+        excludes.append('WebDOMHTMLCollectionCustom.cpp')
+        excludes.append('WebNativeNodeFilterCondition.cpp')
+        excludes.append('WebDOMNodeFilterCustom.cpp')
+        
+        # this file is unused by any port, not sure why it was
+        # left in the tree
+        excludes.append('GeneratedImage.cpp')
+        
+        # features we don't build / use
+        excludes.append('JSNavigatorCustom.cpp')
+        excludes.append('WebGLContextEvent.cpp')
+        excludes.append('FileSystemPOSIX.cpp')
+        excludes.append('SharedBufferPOSIX.cpp')
+        excludes.append('TouchAdjustment.cpp')
+        excludes.append('DNSResolveQueue.cpp')
+        
+        # These files appear not to build with older versions of ICU
         excludes.append('LocalizedNumberICU.cpp')
+        excludes.append('LocaleToScriptMappingICU.cpp')
         
         if building_on_win32:
             excludes.append('SharedTimerWx.cpp')
@@ -331,8 +362,14 @@ def build(bld):
         # once we move over to the new FPD implementation, remove this.
         excludes.append('FontPlatformData.cpp')
         
+        # we don't use gestures currently
+        excludes.append('PlatformGestureRecognizer.cpp')
+        
+        # we need a better system to exclude CF stuff
+        excludes.append('HyphenationCF.cpp')
+        
         if sys.platform.startswith('darwin'):
-            webcore.includes += ' Source/WebKit/mac/WebCoreSupport WebCore/platform/mac'
+            webcore.includes += ' Source/WebKit/mac/WebCoreSupport Source/WebCore/platform/mac'
             webcore.source += ' Source/WebKit/mac/WebCoreSupport/WebSystemInterface.mm'
             
         if building_on_win32:
@@ -347,7 +384,12 @@ def build(bld):
         
             for dep in windows_deps:
                 bld.install_files(webcore.install_path, [os.path.join(msvclibs_dir, dep)])
-
+            
+            if "CAIRO_ROOT" in os.environ and Options.options.cairo:
+                cairo_bin_dir = os.path.join(os.environ["CAIRO_ROOT"], "bin") 
+                for dep in glob.glob(os.path.join(cairo_bin_dir, "*.dll")):
+                    bld.install_files(webcore.install_path, [os.path.join(cairo_bin_dir, dep)])
+                    
     webcore.find_sources_in_dirs(full_dirs, excludes = excludes, exts=['.c', '.cpp'])
 
     bld.add_group()

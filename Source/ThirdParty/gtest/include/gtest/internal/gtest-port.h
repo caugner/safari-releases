@@ -177,6 +177,14 @@
 #include <sys/stat.h>
 #endif  // !_WIN32_WCE
 
+#include <wtf/Platform.h>
+#include <wtf/ExportMacros.h>
+#if USE(JSC)
+#include <runtime/JSExportMacros.h>
+#endif
+#include <wtf/Assertions.h>
+#include <wtf/FastMalloc.h>
+
 #include <iostream>  // NOLINT
 #include <sstream>  // NOLINT
 #include <string>  // NOLINT
@@ -609,7 +617,29 @@ namespace internal {
 
 class String;
 
-typedef ::std::stringstream StrStream;
+class StrStream : public ::std::stringstream {
+ public:
+  void* operator new(size_t, void* p) { return p; }
+  void* operator new[](size_t, void* p) { return p; }
+
+  void* operator new(size_t size) {
+    return malloc(size);
+  }
+
+  void operator delete(void* p) {
+    free(p);
+  }
+
+  void* operator new[](size_t size) {
+    return malloc(size);
+  }
+
+  void operator delete[](void* p) {
+    free(p);
+  }
+};
+
+
 
 // A helper for suppressing warnings on constant condition.  It just
 // returns 'condition'.

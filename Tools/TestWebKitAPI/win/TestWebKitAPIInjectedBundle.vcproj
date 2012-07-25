@@ -389,6 +389,10 @@
 			Name="win"
 			>
 			<File
+				RelativePath=".\InjectedBundleControllerWin.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\PlatformUtilitiesWin.cpp"
 				>
 			</File>
@@ -416,11 +420,23 @@
 					>
 				</File>
 				<File
+					RelativePath="..\Tests\WebKit2\LoadCanceledNoServerRedirectCallback_Bundle.cpp"
+					>
+				</File>
+				<File
 					RelativePath="..\Tests\WebKit2\MouseMoveAfterCrash_Bundle.cpp"
 					>
 				</File>
 				<File
 					RelativePath="..\Tests\WebKit2\ResponsivenessTimerDoesntFireEarly_Bundle.cpp"
+					>
+				</File>
+				<File
+					RelativePath="..\Tests\WebKit2\UserMessage_Bundle.cpp"
+					>
+				</File>
+				<File
+					RelativePath="..\Tests\WebKit2\WebArchive_Bundle.cpp"
 					>
 				</File>
 			</Filter>

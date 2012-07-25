@@ -17,19 +17,26 @@
         var video = document.getElementById('video');
 
         var videoEnteredFullScreen = function() {
-            if (layoutTestController) {
-                testExpected("shadowRoot = layoutTestController.shadowRoot(video)", null, "!=");
+            if (window.internals) {
+                testExpected("shadowRoot = internals.shadowRoot(video)", null, "!=");
                 testExpected("panel = shadowRoot.firstChild.firstChild", null, "!=");
-                testExpected("layoutTestController.shadowPseudoId(panel)", "-webkit-media-controls-panel");
+                testExpected("internals.shadowPseudoId(panel)", "-webkit-media-controls-panel");
                 testExpected("document.defaultView.getComputedStyle(panel)['display']", 'none', "!=");
+                testExpected("document.defaultView.getComputedStyle(panel)['height']", '20px', ">=");
             }
+            else
+                logResult(false, "window.internals == undefined");
+            
             callback = cancelledFullScreen;
             document.webkitCancelFullScreen();
         };
 
         var cancelledFullScreen = function() {
-            if (layoutTestController)
+            if (window.layoutTestController)
                 testExpected("document.defaultView.getComputedStyle(panel)['display']", 'none');
+            else
+                logResult(false, "window.layoutTestController == undefined");
+
             endTest();
         };
 

@@ -26,9 +26,14 @@ VPATH = \
 #
 
 INTERFACES = \
+    AccessibilityController \
+    AccessibilityTextMarker \
+    AccessibilityTextMarkerRange \
+    AccessibilityUIElement \
     EventSendingController \
     GCController \
     LayoutTestController \
+    TextInputController \
 #
 
 SCRIPTS = \

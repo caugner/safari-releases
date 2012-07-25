@@ -13,7 +13,7 @@ function onload()
     console.log('Message %s for %s', 'format', 'string');
     console.log('Object %o', {'foo' : 'bar' });
 
-    var array = ["test", "test2"];
+    var array = ["test", "test2"]; array.length = 10;
     array.foo = "bar"; 
     array[4] = "test4";
 
@@ -42,7 +42,8 @@ function onload()
 
     globals = [
         regex1, regex2, str, str2, error, node, func, multilinefunc, num, linkify,
-        null, undefined, valuelessAttribute, valuedAttribute, existingAttribute, throwingLengthGetter
+        null, undefined, valuelessAttribute, valuedAttribute, existingAttribute, throwingLengthGetter,
+        NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY
     ];
 
     runTest();

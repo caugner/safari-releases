@@ -24,7 +24,6 @@ EDITING DELEGATE: shouldInsertNode:#document-fragment replacingDOMRange:range fr
 EDITING DELEGATE: shouldChangeSelectedDOMRange:range from 22 of #text > SPAN > DIV > DIV > BODY > HTML > #document to 22 of #text > SPAN > DIV > DIV > BODY > HTML > #document toDOMRange:range from 22 of #text > DIV > DIV > BODY > HTML > #document to 22 of #text > DIV > DIV > BODY > HTML > #document affinity:NSSelectionAffinityDownstream stillSelecting:FALSE
 EDITING DELEGATE: webViewDidChangeSelection:WebViewDidChangeSelectionNotification
 EDITING DELEGATE: webViewDidChange:WebViewDidChangeNotification
-EDITING DELEGATE: webViewDidChangeSelection:WebViewDidChangeSelectionNotification
 EDITING DELEGATE: webViewDidEndEditing:WebViewDidEndEditingNotification
 
 Markup before:
@@ -65,7 +64,7 @@ Markup after:
 |     style="background-color: green;"
 |     "Green background"
 |   <span>
-|     style="background-color: green; "
+|     style="background-color: rgb(0, 128, 0); "
 |     "Green background"
 | "
 "

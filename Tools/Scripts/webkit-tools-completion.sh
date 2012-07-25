@@ -37,6 +37,20 @@ __webkit-patch_generate_reply()
     COMPREPLY=( $(compgen -W "$1" -- "${COMP_WORDS[COMP_CWORD]}") )
 }
 
+__webkit-patch_upload_cc_generate_reply()
+{
+    # Completion is done on tokens and our comma-separated list is one single token, so we have to do completion on the whole list each time.
+    # Return a \n separated list for each possible bugzilla email completion of the substring following the last comma.
+    # Redirect strerr to /dev/null to prevent noise in the shell if this ever breaks somehow.
+    COMPREPLY=( $(PYTHONPATH=$(dirname "${BASH_SOURCE[0]}") python -c "
+import sys,re
+from webkitpy.common.config.committers import CommitterList
+m = re.match('((.*,)*)(.*)', sys.argv[1])
+untilLastComma = m.group(1)
+afterLastComma = m.group(3)
+print('\n'.join([untilLastComma + c.bugzilla_email() + ',' for c in CommitterList().contributors() if c.bugzilla_email().startswith(afterLastComma)]))" "${COMP_WORDS[COMP_CWORD]}" 2>/dev/null ) )
+}
+
 _webkit-patch_complete()
 {
     local command current_command="${COMP_WORDS[1]}"
@@ -78,6 +92,10 @@ _webkit-patch_complete()
             return
             ;;
         upload)
+            if [[ ${COMP_WORDS[COMP_CWORD-1]} == "--cc" || ${COMP_WORDS[COMP_CWORD-1]} == "=" && ${COMP_WORDS[COMP_CWORD-2]} == "--cc" ]]; then
+                __webkit-patch_upload_cc_generate_reply
+                return
+            fi
             __webkit-patch_generate_reply "--description --no-obsolete --no-review --request-commit --cc -m --open-bug"
             return
             ;;
@@ -89,7 +107,7 @@ _webkit-patch_complete()
 }
 
 complete -F _webkit-patch_complete webkit-patch
-complete -W "--continue --fix-merged --help --no-continue --no-warnings --warnings -c -f -h -w" resolve-ChangeLogs
-complete -W "--bug --diff --git-commit --git-index --git-reviewer --help --no-update --no-write --open --update --write -d -h -o" prepare-ChangeLog
+complete -o default -W "--continue --fix-merged --help --no-continue --no-warnings --warnings -c -f -h -w" resolve-ChangeLogs
+complete -o default -W "--bug --diff --git-commit --git-index --git-reviewer --help --no-update --no-write --open --update --write -d -h -o" prepare-ChangeLog
 complete -W "--clean --debug --help -h" build-webkit
 complete -o default -W "--add-platform-exceptions --complex-text --configuration --guard-malloc --help --http --ignore-tests --launch-safari --leaks --merge-leak-depth --new-test-results --no-http --no-launch-safari --no-new-test-results --no-sample-on-timeout --no-strip-editing-callbacks --pixel-tests --platform --port --quiet --random --reset-results --results-directory --reverse --root --sample-on-timeout --singly --skipped --slowest --strict --strip-editing-callbacks --threaded --timeout --tolerance --use-remote-links-to-tests --valgrind --verbose -1 -c -g -h -i -l -m -o -p -q -t -v" run-webkit-tests
