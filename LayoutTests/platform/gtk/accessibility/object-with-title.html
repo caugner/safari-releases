@@ -15,18 +15,18 @@
 <script>
     description("This tests the inclusion of objects with a title attribute.");
     if (window.accessibilityController) {
-        layoutTestController.dumpAsText();
+        testRunner.dumpAsText();
         document.getElementById("body").focus();
         var webArea = accessibilityController.focusedElement;
 
         var child = webArea.childAtIndex(0);
-        shouldBe("child.role", "'AXRole: list'");
+        shouldBe("child.role", "'AXRole: AXList'");
 
         child = webArea.childAtIndex(1);
-        shouldBe("child.role", "'AXRole: section'");
+        shouldBe("child.role", "'AXRole: AXDiv'");
 
         child = child.childAtIndex(0);
-        shouldBe("child.role", "'AXRole: list'");
+        shouldBe("child.role", "'AXRole: AXList'");
     }
 </script>
 <script src="../../../fast/js/resources/js-test-post.js"></script>

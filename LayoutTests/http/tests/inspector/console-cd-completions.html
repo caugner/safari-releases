@@ -7,10 +7,10 @@
 function test()
 {
     InspectorTest.showConsolePanel();
-    var selector = WebInspector.consoleView._contextSelectElement;
+    var selector = WebInspector.consoleView._frameSelector._selectElement;
     var option = selector.firstChild;
     while (option) {
-        if (option.textContent && option.textContent.indexOf("myIFrame") === 0)
+        if (option.textContent && option.textContent.startsWith("myIFrame"))
             break;
         option = option.nextSibling;
     }
@@ -20,9 +20,9 @@ function test()
         return;
     }
     option.selected = true;
+    WebInspector.consoleView._frameChanged();
 
-
-    WebInspector.consoleView.completionsForExpression("", "myGlob", false, checkCompletions.bind(this));
+    WebInspector.runtimeModel._completionsForExpression("", "myGlob", false, checkCompletions.bind(this));
     function checkCompletions(completions)
     {
         var expected = ["myGlobalVar", "myGlobalFunction"];

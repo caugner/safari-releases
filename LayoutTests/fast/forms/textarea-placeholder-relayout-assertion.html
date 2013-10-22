@@ -1,18 +1,18 @@
 <script>
-if (window.layoutTestController) {
-    layoutTestController.waitUntilDone();
-    layoutTestController.dumpAsText();
+if (window.testRunner) {
+    testRunner.waitUntilDone();
+    testRunner.dumpAsText();
 }
 
 function removeTextArea() {
     var child = document.getElementById('test');
     child.parentNode.removeChild(child);
-    if (window.layoutTestController) {
-        setTimeout("layoutTestController.notifyDone();", 0);
+    if (window.testRunner) {
+        setTimeout("testRunner.notifyDone();", 0);
     }
 }
 
-setTimeout(removeTextArea, 0);
+window.onload = removeTextArea;
 </script>
 <p>PASS if not crashed.</p>
 ><fieldset><fieldset><button><fieldset><fieldset><select>A00000AA0A000<textarea></textarea>

@@ -5,31 +5,13 @@ On success, you will see a series of "PASS" messages, followed by "TEST COMPLETE
 
 indexedDB = self.indexedDB || self.webkitIndexedDB || self.mozIndexedDB || self.msIndexedDB || self.OIndexedDB;
 
-indexedDB.open(name)
-trying to set readonly property request.result
-request.result = Infinity
-PASS request.result is still [object IDBDatabase]
-trying to set readonly property request.errorCode
-request.errorCode = 666
-PASS request.errorCode is still 0
-trying to set readonly property request.source
-request.source = this
-PASS request.source is still [object IDBFactory]
-trying to set readonly property request.transaction
-request.transaction = this
-PASS request.transaction is still null
-trying to set readonly property request.readyState
-request.readyState = 666
-PASS request.readyState is still 2
-db = event.target.result
-trying to set readonly property db.name
-db.name = 'bar'
-PASS db.name is still foo
-request = db.setVersion('1')
-transaction = event.target.result;
+dbname = "readonly.html"
+indexedDB.deleteDatabase(dbname)
+indexedDB.open(dbname)
+transaction = event.target.transaction;
 trying to set readonly property transaction.mode
 transaction.mode = 666
-PASS transaction.mode is still 2
+PASS transaction.mode is still versionchange
 trying to set readonly property transaction.db
 transaction.db = this
 PASS transaction.db is still [object IDBDatabase]
@@ -49,7 +31,7 @@ cursor.source = this
 PASS cursor.source is still [object IDBObjectStore]
 trying to set readonly property cursor.direction
 cursor.direction = 666
-PASS cursor.direction is still 0
+PASS cursor.direction is still next
 trying to set readonly property cursor.key
 cursor.key = Infinity
 PASS cursor.key is still first
@@ -81,6 +63,25 @@ PASS keyRange.lowerOpen is still false
 trying to set readonly property keyRange.upperOpen
 keyRange.upperOpen = true
 PASS keyRange.upperOpen is still false
+trying to set readonly property request.result
+request.result = Infinity
+PASS request.result is still [object IDBDatabase]
+trying to set readonly property request.error
+request.error = {}
+PASS request.error is still null
+trying to set readonly property request.source
+request.source = this
+PASS request.source is still null
+trying to set readonly property request.transaction
+request.transaction = this
+PASS request.transaction is still null
+trying to set readonly property request.readyState
+request.readyState = 666
+PASS request.readyState is still done
+db = event.target.result
+trying to set readonly property db.name
+db.name = 'bar'
+PASS db.name is still readonly.html
 PASS successfullyParsed is true
 
 TEST COMPLETE

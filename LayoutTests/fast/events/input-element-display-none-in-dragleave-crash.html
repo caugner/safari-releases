@@ -2,9 +2,9 @@
 <html>
 <head>
     <script>
-        if (window.layoutTestController) {
-            layoutTestController.dumpAsText();
-            layoutTestController.waitUntilDone();
+        if (window.testRunner) {
+            testRunner.dumpAsText();
+            testRunner.waitUntilDone();
         }
 
         function test()
@@ -24,14 +24,17 @@
                 // The test harness wants us to call eventSender.mouseUp() before finishing,
                 // but we need to not navigate when that happens, so add a drop handler that
                 // prevents navigation.
+                window.addEventListener("dragover", function() {
+                    event.preventDefault();
+                }, false);
                 window.addEventListener("drop", function() {
-                  event.preventDefault();
+                    event.preventDefault();
                 }, false);
                 eventSender.mouseUp();
             }
-            
-            if (window.layoutTestController)
-                layoutTestController.notifyDone();
+
+            if (window.testRunner)
+                testRunner.notifyDone();
         }
     </script>
 </head>

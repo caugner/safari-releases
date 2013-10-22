@@ -20,11 +20,11 @@ var context = 0;
 var bufferLoader = 0;
 
 function init() {
-    if (!window.layoutTestController)
+    if (!window.testRunner)
         return;
         
     // Create offline audio context.
-    context = new webkitAudioContext(2, sampleRate * lengthInSeconds, sampleRate);
+    context = new webkitOfflineAudioContext(2, sampleRate * lengthInSeconds, sampleRate);
     
     bufferLoader = new BufferLoader(
         context,
@@ -35,7 +35,7 @@ function init() {
     );
     
     bufferLoader.load();
-    layoutTestController.waitUntilDone();
+    testRunner.waitUntilDone();
 }
 
 function finishedLoading(bufferList) {
@@ -43,7 +43,7 @@ function finishedLoading(bufferList) {
     bufferSource.buffer = bufferList[0];
     
     bufferSource.connect(context.destination);
-    bufferSource.noteOn(0);
+    bufferSource.start(0);
     
     context.oncomplete = finishAudioTest;
     context.startRendering();    

@@ -5,31 +5,11 @@ if (this.importScripts) {
 
 description("Test event propogation on IDBTransaction.");
 
-function test()
+indexedDBTest(prepareDatabase, startTest);
+function prepareDatabase()
 {
-    removeVendorPrefixes();
-    request = evalAndLog("indexedDB.open('transaction-event-propagation')");
-    request.onsuccess = setVersion;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function setVersion()
-{
-    db = evalAndLog("db = event.target.result");
-
-    request = evalAndLog("db.setVersion('new version')");
-    request.onsuccess = deleteExisting;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function deleteExisting()
-{
-    self.trans = evalAndLog("trans = event.target.result");
-    shouldBeTrue("trans !== null");
-    trans.onabort = unexpectedAbortCallback;
-    evalAndLog("trans.oncomplete = startTest");
-
-    deleteAllObjectStores(db);
+    db = event.target.result;
+    event.target.transaction.onabort = unexpectedAbortCallback;
 
     store = evalAndLog("store = db.createObjectStore('storeName', null)");
     request = evalAndLog("store.add({x: 'value', y: 'zzz'}, 'key')");
@@ -39,7 +19,7 @@ function deleteExisting()
 function startTest()
 {
     debug("Verifing abort");
-    trans = evalAndLog("trans = db.transaction(['storeName'], IDBTransaction.READ_WRITE)");
+    trans = evalAndLog("trans = db.transaction(['storeName'], 'readwrite')");
     evalAndLog("trans.onabort = abortFiredCallback");
     evalAndLog("trans.oncomplete = unexpectedAbortCallback");
     evalAndLog("db.addEventListener('abort', dbAbortCaptureCallback, true)");
@@ -89,7 +69,7 @@ function dbAbortBubbleCallback()
     dbBubbleFired1 = true;
     debug("");
     debug("Verifing success.");
-    trans = evalAndLog("trans = db.transaction(['storeName'], IDBTransaction.READ_WRITE)");
+    trans = evalAndLog("trans = db.transaction(['storeName'], 'readwrite')");
     evalAndLog("trans.oncomplete = completeFiredCallback");
     evalAndLog("trans.onabort = unexpectedAbortCallback");
     evalAndLog("db.removeEventListener('abort', dbAbortCaptureCallback, true)");
@@ -140,5 +120,3 @@ function dbCompleteBubbleCallback()
     testFailed("Complete bubble callback should NOT fire");
     dbBubbleFired2 = true;
 }
-
-test();

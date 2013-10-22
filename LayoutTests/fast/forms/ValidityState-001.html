@@ -16,13 +16,13 @@
     }
 
     function test() {
-        if (window.layoutTestController)
-            layoutTestController.dumpAsText();
+        if (window.testRunner)
+            testRunner.dumpAsText();
 
         v = document.getElementsByName("victim");
 
         for (i = 0; i < v.length; i++)
-            log('Test for ' + v[i].tagName + ': ' + ((v[i].validity && countAttr(v[i].validity) == 9) ? "SUCCESS" : "FAILURE"));
+            log('Test for ' + v[i].tagName + ': ' + ((v[i].validity && countAttr(v[i].validity) == 10) ? "SUCCESS" : "FAILURE"));
     }
 </script>
 </head>

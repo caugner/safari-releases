@@ -57,6 +57,13 @@ enum MouseButton {
     NoMouseButton = -1
 };
 
+struct KeyMappingEntry {
+    int macKeyCode;
+    int macNumpadKeyCode;
+    unichar character;
+    NSString* characterName;
+};
+
 NSPoint lastMousePosition;
 NSPoint lastClickPosition;
 int lastClickButton = NoMouseButton;
@@ -299,21 +306,31 @@ static NSEventType eventTypeForMouseButtonAndAction(int button, MouseAction acti
         clickCount++;
 }
 
+static int modifierFlags(const NSString* modifierName)
+{
+    int flags = 0;
+    if ([modifierName isEqual:@"ctrlKey"])
+        flags |= NSControlKeyMask;
+    else if ([modifierName isEqual:@"shiftKey"] || [modifierName isEqual:@"rangeSelectionKey"])
+        flags |= NSShiftKeyMask;
+    else if ([modifierName isEqual:@"altKey"])
+        flags |= NSAlternateKeyMask;
+    else if ([modifierName isEqual:@"metaKey"] || [modifierName isEqual:@"addSelectionKey"])
+        flags |= NSCommandKeyMask;
+
+    return flags;
+}
+
 static int buildModifierFlags(const WebScriptObject* modifiers)
 {
     int flags = 0;
-    if (![modifiers isKindOfClass:[WebScriptObject class]])
+    if ([modifiers isKindOfClass:[NSString class]])
+        return modifierFlags((NSString*)modifiers);
+    else if (![modifiers isKindOfClass:[WebScriptObject class]])
         return flags;
     for (unsigned i = 0; [[modifiers webScriptValueAtIndex:i] isKindOfClass:[NSString class]]; i++) {
         NSString* modifierName = (NSString*)[modifiers webScriptValueAtIndex:i];
-        if ([modifierName isEqual:@"ctrlKey"])
-            flags |= NSControlKeyMask;
-        else if ([modifierName isEqual:@"shiftKey"] || [modifierName isEqual:@"rangeSelectionKey"])
-            flags |= NSShiftKeyMask;
-        else if ([modifierName isEqual:@"altKey"])
-            flags |= NSAlternateKeyMask;
-        else if ([modifierName isEqual:@"metaKey"] || [modifierName isEqual:@"addSelectionKey"])
-            flags |= NSCommandKeyMask;
+        flags |= modifierFlags(modifierName);
     }
     return flags;
 }
@@ -621,6 +638,30 @@ static int buildModifierFlags(const WebScriptObject* modifiers)
         const unichar ch = 0x0430;
         eventCharacter = [NSString stringWithCharacters:&ch length:1];
         keyCode = 0x3; // Shares key with "F" on Russian layout.
+    } else if ([character isEqualToString:@"leftControl"]) {
+        const unichar ch = 0xFFE3;
+        eventCharacter = [NSString stringWithCharacters:&ch length:1];
+        keyCode = 0x3B;
+    } else if ([character isEqualToString:@"leftShift"]) {
+        const unichar ch = 0xFFE1;
+        eventCharacter = [NSString stringWithCharacters:&ch length:1];
+        keyCode = 0x38;
+    } else if ([character isEqualToString:@"leftAlt"]) {
+        const unichar ch = 0xFFE7;
+        eventCharacter = [NSString stringWithCharacters:&ch length:1];
+        keyCode = 0x3A;
+    } else if ([character isEqualToString:@"rightControl"]) {
+        const unichar ch = 0xFFE4;
+        eventCharacter = [NSString stringWithCharacters:&ch length:1];
+        keyCode = 0x3E;
+    } else if ([character isEqualToString:@"rightShift"]) {
+        const unichar ch = 0xFFE2;
+        eventCharacter = [NSString stringWithCharacters:&ch length:1];
+        keyCode = 0x3C;
+    } else if ([character isEqualToString:@"rightAlt"]) {
+        const unichar ch = 0xFFE8;
+        eventCharacter = [NSString stringWithCharacters:&ch length:1];
+        keyCode = 0x3D;
     }
 
     // Compare the input string with the function-key names defined by the DOM spec (i.e. "F1",...,"F24").
@@ -665,14 +706,6 @@ static int buildModifierFlags(const WebScriptObject* modifiers)
         keyCode = 0x4C;
     else if ([character isEqualToString:@"\x8"])
         keyCode = 0x33;
-    else if ([character isEqualToString:@"7"])
-        keyCode = 0x1A;
-    else if ([character isEqualToString:@"5"])
-        keyCode = 0x17;
-    else if ([character isEqualToString:@"9"])
-        keyCode = 0x19;
-    else if ([character isEqualToString:@"0"])
-        keyCode = 0x1D;
     else if ([character isEqualToString:@"a"])
         keyCode = 0x00;
     else if ([character isEqualToString:@"b"])
@@ -681,6 +714,38 @@ static int buildModifierFlags(const WebScriptObject* modifiers)
         keyCode = 0x02;
     else if ([character isEqualToString:@"e"])
         keyCode = 0x0E;
+
+    KeyMappingEntry table[] = {
+        {0x2F, 0x41, '.', nil},
+        {0,    0x43, '*', nil},
+        {0,    0x45, '+', nil},
+        {0,    0x47, NSClearLineFunctionKey, @"clear"},
+        {0x2C, 0x4B, '/', nil},
+        {0,    0x4C, 3, @"enter" },
+        {0x1B, 0x4E, '-', nil},
+        {0x18, 0x51, '=', nil},
+        {0x1D, 0x52, '0', nil},
+        {0x12, 0x53, '1', nil},
+        {0x13, 0x54, '2', nil},
+        {0x14, 0x55, '3', nil},
+        {0x15, 0x56, '4', nil},
+        {0x17, 0x57, '5', nil},
+        {0x16, 0x58, '6', nil},
+        {0x1A, 0x59, '7', nil},
+        {0x1C, 0x5B, '8', nil},
+        {0x19, 0x5C, '9', nil},
+    };
+    for (unsigned i = 0; i < WTF_ARRAY_LENGTH(table); ++i) {
+        NSString* currentCharacterString = [NSString stringWithCharacters:&table[i].character length:1];
+        if ([character isEqualToString:currentCharacterString] || [character isEqualToString:table[i].characterName]) {
+            if (keyLocation == DOM_KEY_LOCATION_NUMPAD)
+                keyCode = table[i].macNumpadKeyCode;
+            else
+                keyCode = table[i].macKeyCode;
+            eventCharacter = currentCharacterString;
+            break;
+        }
+    }
 
     NSString *charactersIgnoringModifiers = eventCharacter;
 

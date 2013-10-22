@@ -35,7 +35,6 @@ var test = function()
         InspectorTest.addResult("Paused: " + !!WebInspector.debuggerModel.debuggerPausedDetails());
         InspectorTest.reloadPage(didReload.bind(this));
         WebInspector.debuggerModel.addEventListener(WebInspector.DebuggerModel.Events.DebuggerPaused, didPauseAfterReload, this); 
-
     }
 
     function didReload()
@@ -47,27 +46,41 @@ var test = function()
     function didPauseAfterReload(details)
     {
         InspectorTest.addResult("didPauseAfterReload");
-        InspectorTest.showScriptSource(testName, didShowScript.bind(this));
+        InspectorTest.addResult("Source strings corresponding to the call stack:");
+        dumpNextCallFrame(didDump);
     }
 
-    function didShowScript(sourceFrame)
+    var callFrameIndex = 0;
+    function dumpNextCallFrame(next)
     {
-        InspectorTest.addResult("didShowScript");
-        var resourceText = sourceFrame._textModel.text;
-        var lines = resourceText.split("\n");
         var callFrames = WebInspector.debuggerModel.callFrames;
-        InspectorTest.addResult("Source strings corresponding to the call stack:");
-        for (var i = 0; i < callFrames.length; i++) {
-            var frame = callFrames[i];
-            var lineNumber = frame.location.lineNumber;
-            InspectorTest.addResult("Frame " + i + ") line " + lineNumber + ", content: " + lines[lineNumber] + " (must be part of function '" + frame.functionName + "')");
+        if (callFrameIndex === callFrames.length) {
+            next();
+            return;
         }
-        InspectorTest.resumeExecution(didResume);
+        var frame = callFrames[callFrameIndex];
+        var uiLocation = WebInspector.debuggerModel.rawLocationToUILocation(frame.location);
+        InspectorTest.showUISourceCode(uiLocation.uiSourceCode, dumpCallFrameLine);
+
+        function dumpCallFrameLine(sourceFrame)
+        {
+            var resourceText = sourceFrame._textEditor.text();
+            var lines = resourceText.split("\n");
+            var lineNumber = uiLocation.lineNumber;
+            InspectorTest.addResult("Frame " + callFrameIndex + ") line " + lineNumber + ", content: " + lines[lineNumber] + " (must be part of function '" + frame.functionName + "')");
+            callFrameIndex++
+            dumpNextCallFrame(next);
+        }
     }
 
     function uiSourceCodeAdded(uiSourceCode)
     {
         InspectorTest.addResult("uiSourceCodeAdded");
+    }
+
+    function didDump()
+    {
+        InspectorTest.resumeExecution(didResume);
     }
 
     function didResume()

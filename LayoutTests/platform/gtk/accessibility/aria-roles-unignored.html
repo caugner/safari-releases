@@ -14,7 +14,7 @@
 <form>A form with a button <button name="button" value="Button">Click me!</button></form>
 <form role="button">Just a button <button name="button" value="Button">Click me!</button></form>
 
-<div>Just some text inside a div</form>
+<div>Just some text inside a div</div>
 <div role="textbox">This div is contains a textbox (an entry)</div>
 
 <p id="description"></p>
@@ -23,7 +23,7 @@
 description("This tests that ARIA roles are not ignored for 'p','label', 'form' and 'div' elements");
 
 if (window.layoutController) {
-    layoutTestController.dumpAsText();
+    testRunner.dumpAsText();
 }
 
 if (window.accessibilityController) {
@@ -32,28 +32,28 @@ if (window.accessibilityController) {
 
     // Paragraphs
     var element = webArea.childAtIndex(0);
-    shouldBe("element.role", "'AXRole: paragraph'");
+    shouldBe("element.role", "'AXRole: AXParagraph'");
     element = webArea.childAtIndex(1);
-    shouldBe("element.role", "'AXRole: table'");
+    shouldBe("element.role", "'AXRole: AXTable'");
 
     // Labels are exposed as inside a panel
     var labelsPanel = webArea.childAtIndex(2);
     element = labelsPanel.childAtIndex(0);
-    shouldBe("element.role", "'AXRole: label'");
+    shouldBe("element.role", "'AXRole: AXLabel'");
     element = labelsPanel.childAtIndex(1);
-    shouldBe("element.role", "'AXRole: heading'");
+    shouldBe("element.role", "'AXRole: AXHeading'");
 
     // Forms
     element = webArea.childAtIndex(3);
-    shouldBe("element.role", "'AXRole: form'");
+    shouldBe("element.role", "'AXRole: AXForm'");
     element = webArea.childAtIndex(4);
-    shouldBe("element.role", "'AXRole: push button'");
+    shouldBe("element.role", "'AXRole: AXButton'");
 
     // Divs
     element = webArea.childAtIndex(5);
-    shouldBe("element.role", "'AXRole: panel'");
+    shouldBe("element.role", "'AXRole: AXDiv'");
     element = webArea.childAtIndex(6);
-    shouldBe("element.role", "'AXRole: entry'");
+    shouldBe("element.role", "'AXRole: AXTextField'");
 }
 
 </script>

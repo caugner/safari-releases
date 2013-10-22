@@ -5,30 +5,10 @@ if (this.importScripts) {
 
 description("Test closing a database connection in IndexedDB.");
 
-function test()
+indexedDBTest(prepareDatabase, runFirstRegularTransaction);
+function prepareDatabase()
 {
-    removeVendorPrefixes();
-
-    request = evalAndLog("indexedDB.open('transaction-after-close')");
-    request.onsuccess = openSuccess;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function openSuccess()
-{
-    debug("openSuccess():");
-    self.db = evalAndLog("db = event.target.result");
-    request = evalAndLog("request = db.setVersion('version 1')");
-    request.onsuccess = inSetVersion;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function inSetVersion()
-{
-    deleteAllObjectStores(db);
-
-    event.target.result.oncomplete = runFirstRegularTransaction;
-    event.target.result.onabort = unexpectedAbortCallback;
+    db = event.target.result;
     store = evalAndLog("store = db.createObjectStore('store')");
     request = evalAndLog("request = store.put('x', 'y')");
     request.onsuccess = onPutSuccess;
@@ -43,7 +23,7 @@ function onPutSuccess()
 function runFirstRegularTransaction()
 {
     debug("running first transaction")
-    currentTransaction = evalAndLog("currentTransaction = db.transaction(['store'], IDBTransaction.READ_WRITE)");
+    currentTransaction = evalAndLog("currentTransaction = db.transaction(['store'], 'readwrite')");
     currentTransaction.onabort = unexpectedAbortCallback;
     currentTransaction.oncomplete = firstTransactionComplete;
     objectStore = currentTransaction.objectStore('store');
@@ -54,18 +34,18 @@ function runFirstRegularTransaction()
 function firstTransactionComplete()
 {
     evalAndLog("db.close()");
-    evalAndExpectException("db.transaction(['store'], IDBTransaction.READ_WRITE)", "IDBDatabaseException.NOT_ALLOWED_ERR");
+    evalAndExpectException("db.transaction(['store'], 'readwrite')", "DOMException.INVALID_STATE_ERR", "'InvalidStateError'");
 
     debug("")
     debug("verify that we can reopen the db after calling close")
-    request = evalAndLog("indexedDB.open('transaction-after-close')");
+    request = evalAndLog("indexedDB.open(dbname)");
     request.onsuccess = onSecondOpen
     request.onerror = unexpectedErrorCallback;
 }
 
 function onSecondOpen() {
     second_db = evalAndLog("second_db = event.target.result");
-    currentTransaction = evalAndLog("currentTransaction = second_db.transaction(['store'], IDBTransaction.READ_WRITE)");
+    currentTransaction = evalAndLog("currentTransaction = second_db.transaction(['store'], 'readwrite')");
     store = currentTransaction.objectStore('store');
     request = evalAndLog("request = store.put('1', '2')");
     request.onsuccess = onFinalPutSuccess;
@@ -77,5 +57,3 @@ function onSecondOpen() {
 function onFinalPutSuccess() {
     testPassed("final put success");
 }
-
-test();

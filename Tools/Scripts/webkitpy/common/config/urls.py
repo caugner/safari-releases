@@ -37,25 +37,19 @@ def view_revision_url(revision_number):
     return "http://trac.webkit.org/changeset/%s" % revision_number
 
 
-def chromium_results_zip_url(builder_name):
-    return 'http://build.chromium.org/f/chromium/layout_test_results/%s/layout-test-results.zip' % builder_name
-
-chromium_lkgr_url = "http://chromium-status.appspot.com/lkgr"
 contribution_guidelines = "http://webkit.org/coding/contributing.html"
 
 bug_server_domain = "webkit.org"
 bug_server_host = "bugs." + bug_server_domain
 _bug_server_regex = "https?://%s/" % re.sub('\.', '\\.', bug_server_host)
 bug_server_url = "https://%s/" % bug_server_host
-bug_url_long = _bug_server_regex + r"show_bug\.cgi\?id=(?P<bug_id>\d+)(&ctype=xml)?"
+bug_url_long = _bug_server_regex + r"show_bug\.cgi\?id=(?P<bug_id>\d+)(&ctype=xml|&excludefield=attachmentdata)*"
 bug_url_short = r"https?\://%s/b/(?P<bug_id>\d+)" % bug_server_domain
 
 attachment_url = _bug_server_regex + r"attachment\.cgi\?id=(?P<attachment_id>\d+)(&action=(?P<action>\w+))?"
 direct_attachment_url = r"https?://bug-(?P<bug_id>\d+)-attachments.%s/attachment\.cgi\?id=(?P<attachment_id>\d+)" % bug_server_domain
 
 buildbot_url = "http://build.webkit.org"
-chromium_buildbot_url = "http://build.chromium.org/p/chromium.webkit"
-
 
 def parse_bug_id(string):
     if not string:

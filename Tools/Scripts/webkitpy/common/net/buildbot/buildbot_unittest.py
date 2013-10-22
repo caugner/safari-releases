@@ -26,7 +26,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import unittest
+import unittest2 as unittest
 
 from webkitpy.common.net.layouttestresults import LayoutTestResults
 from webkitpy.common.net.buildbot import BuildBot, Builder, Build
@@ -48,7 +48,10 @@ class BuilderTest(unittest.TestCase):
                 is_green=build_number < 4
             )
             results = [self._mock_test_result(testname) for testname in failure(build_number)]
-            build._layout_test_results = LayoutTestResults(results)
+            layout_test_results = LayoutTestResults(results)
+            def mock_layout_test_results():
+                return layout_test_results
+            build.layout_test_results = mock_layout_test_results
             return build
         self.builder._fetch_build = _mock_fetch_build
 
@@ -57,20 +60,25 @@ class BuilderTest(unittest.TestCase):
         self.builder = Builder(u"Test Builder \u2661", self.buildbot)
         self._install_fetch_build(lambda build_number: ["test1", "test2"])
 
+    def test_latest_layout_test_results(self):
+        self.builder.fetch_layout_test_results = lambda results_url: LayoutTestResults([self._mock_test_result(testname) for testname in ["test1", "test2"]])
+        self.builder.accumulated_results_url = lambda: "http://dummy_url.org"
+        self.assertTrue(self.builder.latest_layout_test_results())
+
     def test_find_regression_window(self):
         regression_window = self.builder.find_regression_window(self.builder.build(10))
         self.assertEqual(regression_window.build_before_failure().revision(), 1003)
         self.assertEqual(regression_window.failing_build().revision(), 1004)
 
         regression_window = self.builder.find_regression_window(self.builder.build(10), look_back_limit=2)
-        self.assertEqual(regression_window.build_before_failure(), None)
+        self.assertIsNone(regression_window.build_before_failure())
         self.assertEqual(regression_window.failing_build().revision(), 1008)
 
     def test_none_build(self):
         self.builder._fetch_build = lambda build_number: None
         regression_window = self.builder.find_regression_window(self.builder.build(10))
-        self.assertEqual(regression_window.build_before_failure(), None)
-        self.assertEqual(regression_window.failing_build(), None)
+        self.assertIsNone(regression_window.build_before_failure())
+        self.assertIsNone(regression_window.failing_build())
 
     def test_flaky_tests(self):
         self._install_fetch_build(lambda build_number: ["test1"] if build_number % 2 else ["test2"])
@@ -98,12 +106,12 @@ class BuilderTest(unittest.TestCase):
 
     def test_find_blameworthy_regression_window(self):
         self.assertEqual(self.builder.find_blameworthy_regression_window(10).revisions(), [1004])
-        self.assertEqual(self.builder.find_blameworthy_regression_window(10, look_back_limit=2), None)
+        self.assertIsNone(self.builder.find_blameworthy_regression_window(10, look_back_limit=2))
         # Flakey test avoidance requires at least 2 red builds:
-        self.assertEqual(self.builder.find_blameworthy_regression_window(4), None)
+        self.assertIsNone(self.builder.find_blameworthy_regression_window(4))
         self.assertEqual(self.builder.find_blameworthy_regression_window(4, avoid_flakey_tests=False).revisions(), [1004])
         # Green builder:
-        self.assertEqual(self.builder.find_blameworthy_regression_window(3), None)
+        self.assertIsNone(self.builder.find_blameworthy_regression_window(3))
 
     def test_build_caching(self):
         self.assertEqual(self.builder.build(10), self.builder.build(10))
@@ -112,9 +120,19 @@ class BuilderTest(unittest.TestCase):
         expectations = {
             "r47483 (1)/" : (47483, 1),
             "r47483 (1).zip" : (47483, 1),
+            "random junk": None,
         }
         for filename, revision_and_build in expectations.items():
             self.assertEqual(self.builder._revision_and_build_for_filename(filename), revision_and_build)
+
+    def test_file_info_list_to_revision_to_build_list(self):
+        file_info_list = [
+            {"filename": "r47483 (1)/"},
+            {"filename": "r47483 (1).zip"},
+            {"filename": "random junk"},
+        ]
+        builds_and_revisions_list = [(47483, 1), (47483, 1)]
+        self.assertEqual(self.builder._file_info_list_to_revision_to_build_list(file_info_list), builds_and_revisions_list)
 
     def test_fetch_build(self):
         buildbot = BuildBot()
@@ -130,17 +148,17 @@ class BuilderTest(unittest.TestCase):
             }
             return build_dictionary
         buildbot._fetch_build_dictionary = mock_fetch_build_dictionary
-        self.assertNotEqual(builder._fetch_build(1), None)
+        self.assertIsNotNone(builder._fetch_build(1))
 
 
 class BuildTest(unittest.TestCase):
     def test_layout_test_results(self):
         buildbot = BuildBot()
         builder = Builder(u"Foo Builder (test)", buildbot)
+        builder._fetch_file_from_results = lambda results_url, file_name: None
         build = Build(builder, None, None, None)
-        build._fetch_file_from_results = lambda file_name: None
         # Test that layout_test_results() returns None if the fetch fails.
-        self.assertEqual(build.layout_test_results(), None)
+        self.assertIsNone(build.layout_test_results())
 
 
 class BuildBotTest(unittest.TestCase):
@@ -214,10 +232,10 @@ class BuildBotTest(unittest.TestCase):
             builder = buildbot._parse_builder_status_from_row(status_row)
 
             # Make sure we aren't parsing more or less than we expect
-            self.assertEquals(builder.keys(), expected_parsing.keys())
+            self.assertEqual(builder.keys(), expected_parsing.keys())
 
             for key, expected_value in expected_parsing.items():
-                self.assertEquals(builder[key], expected_value, ("Builder %d parse failure for key: %s: Actual='%s' Expected='%s'" % (x, key, builder[key], expected_value)))
+                self.assertEqual(builder[key], expected_value, ("Builder %d parse failure for key: %s: Actual='%s' Expected='%s'" % (x, key, builder[key], expected_value)))
 
     def test_builder_with_name(self):
         buildbot = BuildBot()
@@ -245,16 +263,16 @@ class BuildBotTest(unittest.TestCase):
         self.assertEqual(build.url(), "http://build.webkit.org/builders/Test%20Builder/builds/10")
         self.assertEqual(build.results_url(), "http://build.webkit.org/results/Test%20Builder/r20%20%2810%29")
         self.assertEqual(build.revision(), 20)
-        self.assertEqual(build.is_green(), True)
+        self.assertTrue(build.is_green())
 
         build = build.previous_build()
         self.assertEqual(build.builder(), builder)
         self.assertEqual(build.url(), "http://build.webkit.org/builders/Test%20Builder/builds/9")
         self.assertEqual(build.results_url(), "http://build.webkit.org/results/Test%20Builder/r18%20%289%29")
         self.assertEqual(build.revision(), 18)
-        self.assertEqual(build.is_green(), False)
+        self.assertFalse(build.is_green())
 
-        self.assertEqual(builder.build(None), None)
+        self.assertIsNone(builder.build(None))
 
     _example_directory_listing = '''
 <h1>Directory listing for /results/SnowLeopard Intel Leaks/</h1>
@@ -446,7 +464,7 @@ class BuildBotTest(unittest.TestCase):
         b = Builder('builder', BuildBot())
         b._fetch_build = self._fetch_build
         b._fetch_revision_to_build_map = self._fetch_revision_to_build_map
-        self.assertEquals("correct build", b.latest_cached_build())
+        self.assertEqual("correct build", b.latest_cached_build())
 
     def results_url(self):
         return "some-url"
@@ -454,8 +472,4 @@ class BuildBotTest(unittest.TestCase):
     def test_results_zip_url(self):
         b = Build(None, 123, 123, False)
         b.results_url = self.results_url
-        self.assertEquals("some-url.zip", b.results_zip_url())
-
-
-if __name__ == '__main__':
-    unittest.main()
+        self.assertEqual("some-url.zip", b.results_zip_url())

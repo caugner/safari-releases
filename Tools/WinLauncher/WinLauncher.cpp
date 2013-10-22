@@ -31,7 +31,14 @@
 #include "DOMDefaultImpl.h"
 #include "PrintWebUIDelegate.h"
 #include <WebKit/WebKitCOMAPI.h>
+#include <wtf/Platform.h>
 
+#if USE(CF)
+#include <CoreFoundation/CFPriv.h>
+#include <CoreFoundation/CFRunLoop.h>
+#endif
+
+#include <assert.h>
 #include <commctrl.h>
 #include <commdlg.h>
 #include <objbase.h>
@@ -142,6 +149,20 @@ exit:
     return 0;
 }
 
+HRESULT STDMETHODCALLTYPE WinLauncherWebHost::didFailProvisionalLoadWithError(IWebView*, IWebError *error, IWebFrame*)
+{
+    BSTR errorDescription = 0;
+    HRESULT hr = error->localizedDescription(&errorDescription);
+    if (FAILED(hr))
+        errorDescription = L"Failed to load page and to localize error description.";
+
+    ::MessageBoxW(0, static_cast<LPCWSTR>(errorDescription), L"Error", MB_APPLMODAL | MB_OK);
+    if (SUCCEEDED(hr))
+        SysFreeString(errorDescription);
+
+    return S_OK;
+}
+
 HRESULT STDMETHODCALLTYPE WinLauncherWebHost::QueryInterface(REFIID riid, void** ppvObject)
 {
     *ppvObject = 0;
@@ -214,8 +235,13 @@ static void resizeSubViews()
 static void subclassForLayeredWindow()
 {
     hMainWnd = gViewWindow;
-    DefWebKitProc = reinterpret_cast<WNDPROC>(::GetWindowLongPtr(hMainWnd, GWL_WNDPROC));
-    ::SetWindowLongPtr(hMainWnd, GWL_WNDPROC, reinterpret_cast<LONG_PTR>(WndProc));
+#if defined _M_AMD64 || defined _WIN64
+    DefWebKitProc = reinterpret_cast<WNDPROC>(::GetWindowLongPtr(hMainWnd, GWLP_WNDPROC));
+    ::SetWindowLongPtr(hMainWnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(WndProc));
+#else
+    DefWebKitProc = reinterpret_cast<WNDPROC>(::GetWindowLong(hMainWnd, GWL_WNDPROC));
+    ::SetWindowLong(hMainWnd, GWL_WNDPROC, reinterpret_cast<LONG_PTR>(WndProc));
+#endif
 }
 
 static void computeFullDesktopFrame()
@@ -255,6 +281,7 @@ extern "C" __declspec(dllexport) int WINAPI dllLauncherEntryPoint(HINSTANCE, HIN
     InitCtrlEx.dwICC  = 0x00004000; //ICC_STANDARD_CLASSES;
     InitCommonControlsEx(&InitCtrlEx);
 
+    BSTR requestedURL = 0;
     int argc = 0;
     WCHAR** argv = CommandLineToArgvW(GetCommandLineW(), &argc);
     for (int i = 1; i < argc; ++i) {
@@ -262,6 +289,8 @@ extern "C" __declspec(dllexport) int WINAPI dllLauncherEntryPoint(HINSTANCE, HIN
             s_usesLayeredWebView = true;
         else if (!wcsicmp(argv[i], L"--desktop"))
             s_fullDesktop = true;
+        else if (!requestedURL)
+            requestedURL = ::SysAllocString(argv[i]);
     }
 
     // Initialize global strings
@@ -300,8 +329,14 @@ extern "C" __declspec(dllexport) int WINAPI dllLauncherEntryPoint(HINSTANCE, HIN
         UpdateWindow(hMainWnd);
     }
 
-    DefEditProc = reinterpret_cast<WNDPROC>(GetWindowLongPtr(hURLBarWnd, GWL_WNDPROC));
-    SetWindowLongPtr(hURLBarWnd, GWL_WNDPROC, reinterpret_cast<LONG_PTR>(MyEditProc));
+#if defined _M_AMD64 || defined _WIN64
+    DefEditProc = reinterpret_cast<WNDPROC>(GetWindowLongPtr(hURLBarWnd, GWLP_WNDPROC));
+    SetWindowLongPtr(hURLBarWnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(MyEditProc));
+#else
+    DefEditProc = reinterpret_cast<WNDPROC>(GetWindowLong(hURLBarWnd, GWL_WNDPROC));
+    SetWindowLong(hURLBarWnd, GWL_WNDPROC, reinterpret_cast<LONG_PTR>(MyEditProc));
+#endif
+
     SetFocus(hURLBarWnd);
 
     RECT clientRect = { s_windowPosition.x, s_windowPosition.y, s_windowPosition.x + s_windowSize.cx, s_windowPosition.y + s_windowSize.cy };
@@ -316,7 +351,12 @@ extern "C" __declspec(dllexport) int WINAPI dllLauncherEntryPoint(HINSTANCE, HIN
 
     standardPreferences->setAcceleratedCompositingEnabled(TRUE);
 
-    HRESULT hr = WebKitCreateInstance(CLSID_WebView, 0, IID_IWebView, reinterpret_cast<void**>(&gWebView));
+    IWebPreferencesPrivate* prefsPrivate = 0;
+    HRESULT hr = standardPreferences->QueryInterface(IID_IWebPreferencesPrivate, reinterpret_cast<void**>(&prefsPrivate));
+    if (SUCCEEDED(hr))
+        prefsPrivate->setFullScreenEnabled(TRUE);
+
+    hr = WebKitCreateInstance(CLSID_WebView, 0, IID_IWebView, reinterpret_cast<void**>(&gWebView));
     if (FAILED(hr))
         goto exit;
 
@@ -344,14 +384,16 @@ extern "C" __declspec(dllexport) int WINAPI dllLauncherEntryPoint(HINSTANCE, HIN
     if (FAILED(hr))
         goto exit;
 
-    IWebFrame* frame;
-    hr = gWebView->mainFrame(&frame);
-    if (FAILED(hr))
-        goto exit;
+    if (!requestedURL) {
+        IWebFrame* frame;
+        hr = gWebView->mainFrame(&frame);
+        if (FAILED(hr))
+            goto exit;
 
-    static BSTR defaultHTML = SysAllocString(TEXT("<p style=\"background-color: #00FF00\">Testing</p><img id=\"webkit logo\" src=\"http://webkit.org/images/icon-gold.png\" alt=\"Face\"><div style=\"border: solid blue; background: white;\" contenteditable=\"true\">div with blue border</div><ul><li>foo<li>bar<li>baz</ul>"));
-    frame->loadHTMLString(defaultHTML, 0);
-    frame->Release();
+        static BSTR defaultHTML = SysAllocString(TEXT("<p style=\"background-color: #00FF00\">Testing</p><img id=\"webkit logo\" src=\"http://webkit.org/images/icon-gold.png\" alt=\"Face\"><div style=\"border: solid blue; background: white;\" contenteditable=\"true\">div with blue border</div><ul><li>foo<li>bar<li>baz</ul>"));
+        frame->loadHTMLString(defaultHTML, 0);
+        frame->Release();
+    }
 
     hr = gWebViewPrivate->setTransparent(usesLayeredWebView());
     if (FAILED(hr))
@@ -375,13 +417,24 @@ extern "C" __declspec(dllexport) int WINAPI dllLauncherEntryPoint(HINSTANCE, HIN
 
     hAccelTable = LoadAccelerators(hInst, MAKEINTRESOURCE(IDC_WINLAUNCHER));
 
+    if (requestedURL) {
+        loadURL(requestedURL);
+        ::SysFreeString(requestedURL);
+        requestedURL = 0;
+    }
+
     // Main message loop:
+#if USE(CF)
+    _CFRunLoopSetWindowsMessageQueueMask(CFRunLoopGetMain(), QS_ALLINPUT | QS_ALLPOSTMESSAGE, kCFRunLoopDefaultMode);
+    CFRunLoopRun();
+#else
     while (GetMessage(&msg, NULL, 0, 0)) {
         if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg)) {
             TranslateMessage(&msg);
             DispatchMessage(&msg);
         }
     }
+#endif
 
 exit:
     gPrintDelegate->Release();

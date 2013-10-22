@@ -1,5 +1,5 @@
-if (window.layoutTestController)
-    layoutTestController.overridePreference("WebKitWebAudioEnabled", "1");
+if (window.testRunner)
+    testRunner.overridePreference("WebKitWebAudioEnabled", "1");
 
 function writeString(s, a, offset) {
     for (var i = 0; i < s.length; ++i) {
@@ -97,8 +97,8 @@ function createAudioData(audioBuffer) {
 
 function finishAudioTest(event) {
     var audioData = createAudioData(event.renderedBuffer);
-    layoutTestController.setAudioData(audioData);
-    layoutTestController.notifyDone();
+    testRunner.setAudioResult(audioData);
+    testRunner.notifyDone();
 }
 
 // Create an impulse in a buffer of length sampleFrameLength
@@ -173,4 +173,20 @@ function grainLengthInSampleFrames(grainOffset, duration, sampleRate) {
 // True if the number is not an infinity or NaN
 function isValidNumber(x) {
     return !isNaN(x) && (x != Infinity) && (x != -Infinity);
+}
+
+function shouldThrowTypeError(func, text) {
+    var ok = false;
+    try {
+        func();
+    } catch (e) {
+        if (e instanceof TypeError) {
+            ok = true;
+        }
+    }
+    if (ok) {
+        testPassed(text + " threw TypeError.");
+    } else {
+        testFailed(text + " should throw TypeError.");
+    }
 }

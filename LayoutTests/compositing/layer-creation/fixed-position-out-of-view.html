@@ -7,18 +7,19 @@
       position: fixed;
       width: 10px;
       height: 10px;
+      background-color: silver;
     }
   </style>
 
   <script type="text/javascript">
     if (window.internals)
-      window.internals.settings.setEnableCompositingForFixedPosition(true);
+      window.internals.settings.setAcceleratedCompositingForFixedPositionEnabled(true);
 
-    if (window.layoutTestController) {
-      layoutTestController.dumpAsText();
+    if (window.testRunner) {
+      testRunner.dumpAsText();
 
       window.addEventListener("load", function() {
-        document.getElementById("layertree").innerText = layoutTestController.layerTreeAsText();
+        document.getElementById("layertree").innerText = window.internals.layerTreeAsText(document);
       }, false);
     }
   </script>

@@ -108,6 +108,27 @@ var simpleTextureFragmentShader = [
   '}'].join('\n');
 
 /**
+ * A vertex shader for a single texture.
+ * @type {string}
+ */
+var simpleColorVertexShader = [
+  'attribute vec4 vPosition;',
+  'void main() {',
+  '    gl_Position = vPosition;',
+  '}'].join('\n');
+
+/**
+ * A fragment shader for a color.
+ * @type {string}
+ */
+var simpleColorFragmentShader = [
+  'precision mediump float;',
+  'uniform vec4 u_color;',
+  'void main() {',
+  '    gl_FragData[0] = u_color;',
+  '}'].join('\n');
+
+/**
  * Creates a simple texture vertex shader.
  * @param {!WebGLContext} gl The WebGLContext to use.
  * @return {!WebGLShader}
@@ -134,9 +155,19 @@ var setupSimpleTextureFragmentShader = function(gl) {
  * @param {!Array.<number>} opt_locations The locations for the attribs.
  */
 var setupProgram = function(gl, shaders, opt_attribs, opt_locations) {
+  var realShaders = [];
   var program = gl.createProgram();
   for (var ii = 0; ii < shaders.length; ++ii) {
-    gl.attachShader(program, shaders[ii]);
+    var shader = shaders[ii];
+    if (typeof shader == 'string') {
+      var element = document.getElementById(shader);
+      if (element) {
+        shader = loadShaderFromScript(gl, shader);
+      } else {
+        shader = loadShader(gl, shader, ii ? gl.FRAGMENT_SHADER : gl.VERTEX_SHADER);
+      }
+    }
+    gl.attachShader(program, shader);
   }
   if (opt_attribs) {
     for (var ii = 0; ii < opt_attribs.length; ++ii) {
@@ -249,6 +280,23 @@ var setupTexturedQuad = function(
 };
 
 /**
+ * Creates a program and buffers for rendering a color quad.
+ * @param {!WebGLContext} gl The WebGLContext to use.
+ * @param {number} opt_positionLocation The attrib location for position.
+ * @return {!WebGLProgram}
+ */
+var setupColorQuad = function(gl, opt_positionLocation) {
+  opt_positionLocation = opt_positionLocation || 0;
+  var program = wtu.setupProgram(
+      gl,
+      [simpleColorVertexShader, simpleColorFragmentShader],
+      ['vPosition'],
+      [opt_positionLocation]);
+  setupUnitQuad(gl, opt_positionLocation);
+  return program;
+};
+
+/**
  * Creates a unit quad with only positions of a given rez
  * @param {!WebGLContext} gl The WebGLContext to use.
  * @param {number} gridRez The resolution of the mesh grid.
@@ -355,6 +403,40 @@ var createColoredTexture = function(gl, width, height, color) {
   return tex;
 };
 
+var ubyteToFloat = function(c) {
+  return c / 255;
+};
+
+/**
+ * Draws a previously setup quad in the given color.
+ * @param {!WebGLContext} gl The WebGLContext to use.
+ * @param {!Array.<number>} color The color to draw with. A 4
+ *        element array where each element is in the range 0 to
+ *        1.
+ */
+var drawFloatColorQuad = function(gl, color) {
+  var program = gl.getParameter(gl.CURRENT_PROGRAM);
+  var colorLocation = gl.getUniformLocation(program, "u_color");
+  gl.uniform4fv(colorLocation, color);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+};
+
+
+/**
+ * Draws a previously setup quad in the given color.
+ * @param {!WebGLContext} gl The WebGLContext to use.
+ * @param {!Array.<number>} color The color to draw with. A 4
+ *        element array where each element is in the range 0 to
+ *        255.
+ */
+var drawUByteColorQuad = function(gl, color) {
+  var floatColor = [];
+  for (var ii = 0; ii < color.length; ++ii) {
+    floatColor[ii] = ubyteToFloat(color[ii]);
+  }
+  drawFloatColorQuad(gl, floatColor);
+};
+
 /**
  * Draws a previously setup quad.
  * @param {!WebGLContext} gl The WebGLContext to use.
@@ -371,6 +453,25 @@ var drawQuad = function(gl, opt_color) {
       opt_color[3] / 255);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   gl.drawArrays(gl.TRIANGLES, 0, 6);
+};
+
+/**
+ * Draws a previously setup quad.
+ * @param {!WebGLContext} gl The WebGLContext to use.
+ * @param {number} gridRes Resolution of grid.
+ * @param {!Array.<number>} opt_color The color to fill clear with before
+ *        drawing. A 4 element array where each element is in the range 0 to
+ *        255. Default [255, 255, 255, 255]
+ */
+var drawIndexedQuad = function(gl, gridRes, opt_color) {
+  opt_color = opt_color || [255, 255, 255, 255];
+  gl.clearColor(
+      opt_color[0] / 255,
+      opt_color[1] / 255,
+      opt_color[2] / 255,
+      opt_color[3] / 255);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.drawElements(gl.TRIANGLES, gridRes * 6, gl.UNSIGNED_SHORT, 0);
 };
 
 /**
@@ -453,14 +554,19 @@ var loadTexture = function(gl, url, callback) {
  */
 var create3DContext = function(opt_canvas, opt_attributes) {
   opt_canvas = opt_canvas || document.createElement("canvas");
+  if (typeof opt_canvas == 'string') {
+    opt_canvas = document.getElementById(opt_canvas);
+  }
   var context = null;
-  try {
-    context = opt_canvas.getContext("webgl", opt_attributes);
-  } catch(e) {}
-  if (!context) {
+  var names = ["webgl", "experimental-webgl"];
+  for (var i = 0; i < names.length; ++i) {
     try {
-      context = opt_canvas.getContext("experimental-webgl", opt_attributes);
-    } catch(e) {}
+      context = opt_canvas.getContext(names[i], opt_attributes);
+    } catch (e) {
+    }
+    if (context) {
+      break;
+    }
   }
   if (!context) {
     testFailed("Unable to fetch WebGL rendering context for Canvas");
@@ -1104,6 +1210,50 @@ var getUrlArguments = function() {
   return args;
 };
 
+// Add your prefix here.
+var browserPrefixes = [
+  "",
+  "MOZ_",
+  "OP_",
+  "WEBKIT_"
+];
+
+/**
+ * Given an extension name like WEBGL_compressed_texture_s3tc
+ * returns the name of the supported version extension, like
+ * WEBKIT_WEBGL_compressed_teture_s3tc
+ * @param {string} name Name of extension to look for
+ * @return {string} name of extension found or undefined if not
+ *     found.
+ */
+var getSupportedExtensionWithKnownPrefixes = function(gl, name) {
+  var supported = gl.getSupportedExtensions();
+  for (var ii = 0; ii < browserPrefixes.length; ++ii) {
+    var prefixedName = browserPrefixes[ii] + name;
+    if (supported.indexOf(prefixedName) >= 0) {
+      return prefixedName;
+    }
+  }
+};
+
+/**
+ * Given an extension name like WEBGL_compressed_texture_s3tc
+ * returns the supported version extension, like
+ * WEBKIT_WEBGL_compressed_teture_s3tc
+ * @param {string} name Name of extension to look for
+ * @return {WebGLExtension} The extension or undefined if not
+ *     found.
+ */
+var getExtensionWithKnownPrefixes = function(gl, name) {
+  for (var ii = 0; ii < browserPrefixes.length; ++ii) {
+    var prefixedName = browserPrefixes[ii] + name;
+    var ext = gl.getExtension(prefixedName);
+    if (ext) {
+      return ext;
+    }
+  }
+};
+
 /**
  * Provides requestAnimationFrame in a cross browser way.
  */
@@ -1171,9 +1321,14 @@ return {
   checkCanvasRect: checkCanvasRect,
   createColoredTexture: createColoredTexture,
   drawQuad: drawQuad,
+  drawIndexedQuad: drawIndexedQuad,
+  drawUByteColorQuad: drawUByteColorQuad,
+  drawFloatColorQuad: drawFloatColorQuad,
   endsWith: endsWith,
+  getExtensionWithKnownPrefixes: getExtensionWithKnownPrefixes,
   getFileListAsync: getFileListAsync,
   getLastError: getLastError,
+  getSupportedExtensionWithKnownPrefixes: getSupportedExtensionWithKnownPrefixes,
   getUrlArguments: getUrlArguments,
   glEnumToString: glEnumToString,
   glErrorShouldBe: glErrorShouldBe,
@@ -1194,6 +1349,7 @@ return {
   log: log,
   loggingOff: loggingOff,
   error: error,
+  setupColorQuad: setupColorQuad,
   setupProgram: setupProgram,
   setupQuad: setupQuad,
   setupSimpleTextureFragmentShader: setupSimpleTextureFragmentShader,

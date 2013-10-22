@@ -3,6 +3,7 @@
 <html>
 <head>
 <script src="../fast/js/resources/js-test-pre.js"></script>
+<script src="resources/audio-testing.js"></script>
 </head>
 
 <body>
@@ -12,14 +13,13 @@
 <script>
 description("Test that re-sizing the FFT arrays does not fail.");
 
-if (window.layoutTestController) {
-    layoutTestController.overridePreference("WebKitWebAudioEnabled", "1");
-    layoutTestController.dumpAsText();
-    layoutTestController.waitUntilDone();
+if (window.testRunner) {
+    testRunner.dumpAsText();
+    testRunner.waitUntilDone();
 }
 
 var doTest = function(fftSize, illegal) {
-    var c = new webkitAudioContext(1, 1000, 44100);
+    var c = new webkitOfflineAudioContext(1, 1000, 44100);
     var a = c.createAnalyser();
     try {
         a.fftSize = fftSize;
@@ -46,8 +46,8 @@ for (var i = 2; i <= 0x20000; i *= 2) {
     doTest(i + 1, true);
 }
 
-if (window.layoutTestController)
-    layoutTestController.notifyDone();
+if (window.testRunner)
+    testRunner.notifyDone();
 testPassed("webkitAudioContext survived multiple invalid FFT array resizings.");
 </script>
 

@@ -28,7 +28,7 @@
 
 #import <AppKit/AppKit.h>
 #import <CoreFoundation/CoreFoundation.h>
-#import <objc/objc-runtime.h>
+#import <wtf/ObjcRuntimeExtras.h>
 #import <wtf/RetainPtr.h>
 
 @interface WKTRFontActivatorDummyClass : NSObject
@@ -42,7 +42,7 @@ namespace WTR {
 
 static NSSet *allowedFontFamilySet()
 {
-    static NSSet *fontFamiliySet = [[NSSet setWithObjects:
+    static NSSet *fontFamilySet = [[NSSet setWithObjects:
         @"Ahem",
         @"Al Bayan",
         @"American Typewriter",
@@ -137,8 +137,12 @@ static NSSet *allowedFontFamilySet()
         @"Sathu",
         @"Silom",
         @"Skia",
+        @"Songti SC",
+        @"Songti TC",
         @"STFangsong",
         @"STHeiti",
+        @"STIXGeneral",
+        @"STIXSizeOneSym",
         @"STKaiti",
         @"STSong",
         @"Symbol",
@@ -157,7 +161,16 @@ static NSSet *allowedFontFamilySet()
         @"Zapfino",
         nil] retain];
     
-    return fontFamiliySet;
+    return fontFamilySet;
+}
+
+static NSSet *systemHiddenFontFamilySet()
+{
+    static NSSet *fontFamilySet = [[NSSet setWithObjects:
+        @".LucidaGrandeUI",
+        nil] retain];
+
+    return fontFamilySet;
 }
 
 static IMP appKitAvailableFontFamiliesIMP;
@@ -169,7 +182,7 @@ static NSArray *wtr_NSFontManager_availableFontFamilies(id self, SEL _cmd)
     if (availableFontFamilies)
         return availableFontFamilies;
     
-    NSArray *availableFamilies = appKitAvailableFontFamiliesIMP(self, _cmd);
+    NSArray *availableFamilies = wtfCallIMP<id>(appKitAvailableFontFamiliesIMP, self, _cmd);
 
     NSMutableSet *prunedFamiliesSet = [NSMutableSet setWithArray:availableFamilies];
     [prunedFamiliesSet intersectSet:allowedFontFamilySet()];
@@ -193,7 +206,11 @@ static NSArray *wtr_NSFontManager_availableFonts(id self, SEL _cmd)
             [availableFontList addObject:[fontInfo objectAtIndex:0]];
         }
     }
-    
+
+    for (NSString *hiddenFontFamily in systemHiddenFontFamilySet()) {
+        [availableFontList addObject:hiddenFontFamily];
+    }
+
     availableFonts = availableFontList;
     return availableFonts;
 }
@@ -221,8 +238,6 @@ static void swizzleNSFontManagerMethods()
 
 void activateFonts()
 {
-    // Work around <rdar://problem/6698023> by activating fonts from disk
-
     static const char* fontFileNames[] = {
         "AHEM____.TTF",
         "WebKitWeightWatcher100.ttf",
@@ -234,7 +249,7 @@ void activateFonts()
         "WebKitWeightWatcher700.ttf",
         "WebKitWeightWatcher800.ttf",
         "WebKitWeightWatcher900.ttf",
-#if !defined(BUILDING_ON_SNOW_LEOPARD) && !defined(BUILDING_ON_LION)
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= 1080
         "SampleFont.sfont",
 #endif
         0

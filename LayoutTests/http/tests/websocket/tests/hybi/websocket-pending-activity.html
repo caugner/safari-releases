@@ -1,20 +1,10 @@
 <body onload="test()">
 <p>Should alert "PASS".</p>
+<script src="/js-test-resources/js-test-pre.js"></script>
 <script>
-if (window.layoutTestController) {
-    layoutTestController.dumpAsText();
-    layoutTestController.waitUntilDone();
-    layoutTestController.overridePreference("WebKitHixie76WebSocketProtocolEnabled", 0);
-}
-
-function gc()
-{
-    if (window.GCController)
-        return GCController.collect();
-
-    for (var i = 0; i < 10000; i++) { // > force garbage collection (FF requires about 9K allocations before a collect)
-        var s = new String("abc");
-    }
+if (window.testRunner) {
+    testRunner.dumpAsText();
+    testRunner.waitUntilDone();
 }
 
 function test()
@@ -25,8 +15,8 @@ function test()
     }
     ws.onmessage = function(msg) {
         alert(msg.data);
-        if (window.layoutTestController)
-            layoutTestController.notifyDone();
+        if (window.testRunner)
+            testRunner.notifyDone();
     }
     ws = null;
     gc();

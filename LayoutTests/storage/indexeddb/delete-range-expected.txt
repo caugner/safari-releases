@@ -5,14 +5,12 @@ On success, you will see a series of "PASS" messages, followed by "TEST COMPLETE
 
 indexedDB = self.indexedDB || self.webkitIndexedDB || self.mozIndexedDB || self.msIndexedDB || self.OIndexedDB;
 
-request = indexedDB.deleteDatabase('delete-range')
-request = indexedDB.open('delete-range')
-db = request.result
-request = db.setVersion('1')
-trans = request.result
+dbname = "delete-range.html"
+indexedDB.deleteDatabase(dbname)
+indexedDB.open(dbname)
 db.createObjectStore('store')
 
-trans = db.transaction('store', IDBTransaction.READ_WRITE)
+trans = db.transaction('store', 'readwrite')
 store = trans.objectStore('store')
 store.put(1,1)
 store.put(2,2)
@@ -30,7 +28,7 @@ expect: [1,2,9,10]
 actual: [1,2,9,10]
 PASS Match!
 
-trans = db.transaction('store', IDBTransaction.READ_WRITE)
+trans = db.transaction('store', 'readwrite')
 store = trans.objectStore('store')
 store.put(1,1)
 store.put(2,2)
@@ -48,7 +46,7 @@ expect: [1,2,3,9,10]
 actual: [1,2,3,9,10]
 PASS Match!
 
-trans = db.transaction('store', IDBTransaction.READ_WRITE)
+trans = db.transaction('store', 'readwrite')
 store = trans.objectStore('store')
 store.put(1,1)
 store.put(2,2)
@@ -66,7 +64,7 @@ expect: [1,2,8,9,10]
 actual: [1,2,8,9,10]
 PASS Match!
 
-trans = db.transaction('store', IDBTransaction.READ_WRITE)
+trans = db.transaction('store', 'readwrite')
 store = trans.objectStore('store')
 store.put(1,1)
 store.put(2,2)

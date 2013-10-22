@@ -4,13 +4,13 @@ var mockLatitude = 51.478;
 var mockLongitude = -0.166;
 var mockAccuracy = 100.0;
 
-if (window.layoutTestController) {
-    layoutTestController.setGeolocationPermission(true);
-    layoutTestController.setMockGeolocationPosition(mockLatitude,
+if (window.testRunner) {
+    testRunner.setGeolocationPermission(true);
+    testRunner.setMockGeolocationPosition(mockLatitude,
                                                     mockLongitude,
                                                     mockAccuracy);
 } else
-    debug('This test can not be run without the LayoutTestController');
+    debug('This test can not be run without the testRunner');
 
 var position;
 var successCallbackInvoked = false;
@@ -33,8 +33,8 @@ navigator.geolocation.getCurrentPosition(function(p) {
 });
 
 function continueTest() {
-    if (window.layoutTestController)
-        layoutTestController.setMockGeolocationPosition(++mockLatitude,
+    if (window.testRunner)
+        testRunner.setMockGeolocationPosition(++mockLatitude,
                                                         ++mockLongitude,
                                                         ++mockAccuracy);
 

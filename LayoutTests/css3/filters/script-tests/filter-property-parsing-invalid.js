@@ -70,8 +70,6 @@ testInvalidFilterRule("Length instead of number", "brightness(10px)");
 testInvalidFilterRule("Too many parameters", "brightness(0.5 0.5)");
 testInvalidFilterRule("Too many parameters and commas", "brightness(0.5, 0.5)");
 testInvalidFilterRule("Trailing comma", "brightness(0.5,)");
-testInvalidFilterRule("Parameter out of bounds (negative)", "brightness(-1.1)");
-testInvalidFilterRule("Parameter out of bounds (positive)", "brightness(101%)");
 
 testInvalidFilterRule("Length instead of number", "contrast(10px)");
 testInvalidFilterRule("Too many parameters", "contrast(0.5 0.5)");
@@ -95,5 +93,6 @@ testInvalidFilterRule("Missing units", "drop-shadow(red 1 2 3)");
 testInvalidFilterRule("Inset", "drop-shadow(red 1px 2px 3px inset)");
 testInvalidFilterRule("Too many parameters", "drop-shadow(red 1px 2px 3px 4px)");
 testInvalidFilterRule("Commas", "drop-shadow(red, 1px, 2px, 3px)");
+testInvalidFilterRule("Negative radius", "drop-shadow(10px 10px -1px red)");
 
 successfullyParsed = true;

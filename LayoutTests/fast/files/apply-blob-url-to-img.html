@@ -17,7 +17,7 @@ function onInputFileChange()
     var img = document.getElementById('imgToReplace');
     log("Old image: " + img.width + " x " + img.height);
     img.onload = onImgLoad;
-    img.src = window.webkitURL.createObjectURL(file);
+    img.src = window.URL.createObjectURL(file);
 }
 
 function onImgLoad()
@@ -25,8 +25,8 @@ function onImgLoad()
     var img = document.getElementById('imgToReplace');
     log("New image: " + img.width + " x " + img.height);
     log("DONE");
-    if (layoutTestController.notifyDone)
-        layoutTestController.notifyDone();
+    if (testRunner.notifyDone)
+        testRunner.notifyDone();
 }
 
 function moveMouseToCenterOfElement(element)
@@ -44,8 +44,8 @@ function runTests()
 }
 
 if (window.eventSender) {
-    layoutTestController.dumpAsText();
-    layoutTestController.waitUntilDone();
+    testRunner.dumpAsText();
+    testRunner.waitUntilDone();
     window.onload = runTests;
 }
 </script>

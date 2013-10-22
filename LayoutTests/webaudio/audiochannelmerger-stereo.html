@@ -70,15 +70,15 @@ function checkResult(event) {
 }
 
 function runTest() {
-    if (window.layoutTestController) {
-        layoutTestController.dumpAsText();
-        layoutTestController.waitUntilDone();
+    if (window.testRunner) {
+        testRunner.dumpAsText();
+        testRunner.waitUntilDone();
     }
     
     window.jsTestIsAsync = true;
         
     // Create stereo offline audio context.
-    context = new webkitAudioContext(2, lengthInSampleFrames, sampleRate);
+    context = new webkitOfflineAudioContext(2, lengthInSampleFrames, sampleRate);
 
     // Create two mono buffers, one having all -1 values, the other all +1.
     buffer1 = createBufferWithDCOffset(lengthInSampleFrames, sampleRate, -1);

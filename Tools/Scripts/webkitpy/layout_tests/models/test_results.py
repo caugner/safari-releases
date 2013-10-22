@@ -35,16 +35,26 @@ class TestResult(object):
     """Data object containing the results of a single test."""
 
     @staticmethod
-    def loads(str):
-        return cPickle.loads(str)
+    def loads(string):
+        return cPickle.loads(string)
 
-    def __init__(self, test_name, failures=None, test_run_time=None, has_stderr=False):
+    def __init__(self, test_name, failures=None, test_run_time=None, has_stderr=False, reftest_type=None, pid=None, references=None):
         self.test_name = test_name
         self.failures = failures or []
-        self.test_run_time = test_run_time or 0
+        self.test_run_time = test_run_time or 0  # The time taken to execute the test itself.
         self.has_stderr = has_stderr
+        self.reftest_type = reftest_type or []
+        self.pid = pid
+        self.references = references or []
+
         # FIXME: Setting this in the constructor makes this class hard to mutate.
         self.type = test_failures.determine_result_type(failures)
+
+        # These are set by the worker, not by the driver, so they are not passed to the constructor.
+        self.worker_name = ''
+        self.shard_name = ''
+        self.total_run_time = 0  # The time taken to run the test plus any references, compute diffs, etc.
+        self.test_number = None
 
     def __eq__(self, other):
         return (self.test_name == other.test_name and
@@ -54,9 +64,9 @@ class TestResult(object):
     def __ne__(self, other):
         return not (self == other)
 
-    def has_failure_matching_types(self, *args, **kargs):
+    def has_failure_matching_types(self, *failure_classes):
         for failure in self.failures:
-            if type(failure) in args:
+            if type(failure) in failure_classes:
                 return True
         return False
 

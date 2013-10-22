@@ -4,7 +4,6 @@ var mockLatitude = 51.478;
 var mockLongitude = -0.166;
 var mockAccuracy = 100.0;
 
-var mockCode = 2;
 var mockMessage = 'test';
 
 var position;
@@ -21,15 +20,15 @@ function checkPosition(p) {
 function checkError(e) {
     debug('');
     error = e;
-    shouldBe('error.code', 'mockCode');
+    shouldBe('error.code', 'error.POSITION_UNAVAILABLE');
     shouldBe('error.message', 'mockMessage');
 }
 
-if (window.layoutTestController) {
-    layoutTestController.setGeolocationPermission(true);
-    layoutTestController.setMockGeolocationPosition(mockLatitude, mockLongitude, mockAccuracy);
+if (window.testRunner) {
+    testRunner.setGeolocationPermission(true);
+    testRunner.setMockGeolocationPosition(mockLatitude, mockLongitude, mockAccuracy);
 } else
-    debug('This test can not be run without the LayoutTestController');
+    debug('This test can not be run without the testRunner');
 
 // Initialize the cached Position
 navigator.geolocation.getCurrentPosition(function(p) {
@@ -42,8 +41,8 @@ navigator.geolocation.getCurrentPosition(function(p) {
 
 function testZeroMaximumAge() {
     // Update the position provided by the mock service.
-    if (window.layoutTestController)
-        layoutTestController.setMockGeolocationPosition(++mockLatitude, ++mockLongitude, ++mockAccuracy);
+    if (window.testRunner)
+        testRunner.setMockGeolocationPosition(++mockLatitude, ++mockLongitude, ++mockAccuracy);
     // The default maximumAge is zero, so we expect the updated position from the service.
     navigator.geolocation.getCurrentPosition(function(p) {
         checkPosition(p);
@@ -56,8 +55,8 @@ function testZeroMaximumAge() {
 
 function testNonZeroMaximumAge() {
     // Update the mock service to report an error.
-    if (window.layoutTestController)
-        layoutTestController.setMockGeolocationError(mockCode, mockMessage);
+    if (window.testRunner)
+        testRunner.setMockGeolocationPositionUnavailableError(mockMessage);
     // The maximumAge is non-zero, so we expect the cached position, not the error from the service.
     navigator.geolocation.getCurrentPosition(function(p) {
         checkPosition(p);

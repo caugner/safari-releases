@@ -3,7 +3,7 @@
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are
 # met:
-# 
+#
 #     * Redistributions of source code must retain the above copyright
 # notice, this list of conditions and the following disclaimer.
 #     * Redistributions in binary form must reproduce the above
@@ -13,7 +13,7 @@
 #     * Neither the name of Google Inc. nor the names of its
 # contributors may be used to endorse or promote products derived from
 # this software without specific prior written permission.
-# 
+#
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 # "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 # LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -29,12 +29,19 @@
 # Class for unittest support.  Used for capturing stderr/stdout.
 
 import logging
+import unittest  # Don't use unittest2 here as the autoinstaller may not have it yet.
 import sys
-import unittest
 from StringIO import StringIO
 
 
 class OutputCapture(object):
+    # By default we capture the output to a stream. Other modules may override
+    # this function in order to do things like pass through the output. See
+    # webkitpy.test.main for an example.
+    @staticmethod
+    def stream_wrapper(stream):
+        return StringIO()
+
     def __init__(self):
         self.saved_outputs = dict()
         self._log_level = logging.INFO
@@ -45,8 +52,9 @@ class OutputCapture(object):
             self._logs_handler.setLevel(self._log_level)
 
     def _capture_output_with_name(self, output_name):
-        self.saved_outputs[output_name] = getattr(sys, output_name)
-        captured_output = StringIO()
+        stream = getattr(sys, output_name)
+        captured_output = self.stream_wrapper(stream)
+        self.saved_outputs[output_name] = stream
         setattr(sys, output_name, captured_output)
         return captured_output
 
@@ -60,11 +68,15 @@ class OutputCapture(object):
         self._logs = StringIO()
         self._logs_handler = logging.StreamHandler(self._logs)
         self._logs_handler.setLevel(self._log_level)
-        logging.getLogger().addHandler(self._logs_handler)
+        self._logger = logging.getLogger()
+        self._orig_log_level = self._logger.level
+        self._logger.addHandler(self._logs_handler)
+        self._logger.setLevel(min(self._log_level, self._orig_log_level))
         return (self._capture_output_with_name("stdout"), self._capture_output_with_name("stderr"))
 
     def restore_output(self):
-        logging.getLogger().removeHandler(self._logs_handler)
+        self._logger.removeHandler(self._logs_handler)
+        self._logger.setLevel(self._orig_log_level)
         self._logs_handler.flush()
         self._logs.flush()
         logs_string = self._logs.getvalue()
@@ -82,15 +94,22 @@ class OutputCapture(object):
         finally:
             (stdout_string, stderr_string, logs_string) = self.restore_output()
 
-        testcase.assertEqual(stdout_string, expected_stdout)
-        testcase.assertEqual(stderr_string, expected_stderr)
+        if hasattr(testcase, 'assertMultiLineEqual'):
+            testassert = testcase.assertMultiLineEqual
+        else:
+            testassert = testcase.assertEqual
+
+        testassert(stdout_string, expected_stdout)
+        testassert(stderr_string, expected_stderr)
         if expected_logs is not None:
-            testcase.assertEqual(logs_string, expected_logs)
+            testassert(logs_string, expected_logs)
         # This is a little strange, but I don't know where else to return this information.
         return return_value
 
 
 class OutputCaptureTestCaseBase(unittest.TestCase):
+    maxDiff = None
+
     def setUp(self):
         unittest.TestCase.setUp(self)
         self.output_capture = OutputCapture()
@@ -103,7 +122,7 @@ class OutputCaptureTestCaseBase(unittest.TestCase):
         unittest.TestCase.tearDown(self)
 
     def assertStdout(self, expected_stdout):
-        self.assertEquals(expected_stdout, self.__captured_stdout.getvalue())
+        self.assertEqual(expected_stdout, self.__captured_stdout.getvalue())
 
     def assertStderr(self, expected_stderr):
-        self.assertEquals(expected_stderr, self.__captured_stderr.getvalue())
+        self.assertEqual(expected_stderr, self.__captured_stderr.getvalue())

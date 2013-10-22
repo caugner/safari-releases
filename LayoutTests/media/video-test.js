@@ -13,9 +13,12 @@ var numberOfTracksLoaded = 0;
 findMediaElement();
 logConsole();
 
-if (window.layoutTestController) {
-    layoutTestController.dumpAsText();
-    layoutTestController.waitUntilDone();
+if (window.testRunner) {
+    // Some track element rendering tests require text pixel dump.
+    if (typeof requirePixelDump == "undefined")
+        testRunner.dumpAsText();
+
+    testRunner.waitUntilDone();
 }
 
 function disableFullTestDetailsPrinting()
@@ -94,7 +97,7 @@ function testArraysEqual(testFuncString, expected)
         consoleWrite(ex);
         return;
     }
-  
+
     testExpected(testFuncString + ".length", expected.length);
 
     for (var i = 0; i < observed.length; i++) {
@@ -199,13 +202,25 @@ function waitForEventAndTest(eventName, testFuncString, endit)
     mediaElement.addEventListener(eventName, _eventCallback, true);
 }
 
-function testException(testString, exceptionString)
+function testDOMException(testString, exceptionString)
 {
     try {
         eval(testString);
     } catch (ex) {
-        logResult(ex.code == eval(exceptionString), "TEST(" + testString + ") THROWS("+exceptionString+")");
+        var exception = ex;
     }
+    logResult(exception instanceof DOMException && exception.code === eval(exceptionString),
+        "TEST(" + testString + ") THROWS(" + exceptionString + ")");
+}
+
+function testException(testString, exceptionString) {
+    try {
+        eval(testString);
+    } catch (ex) {
+        var exception = ex;
+    }
+    logResult(exception !== undefined && exception == eval(exceptionString),
+        "TEST(" + testString + ") THROWS(" + exceptionString + ")");
 }
 
 var testEnded = false;
@@ -214,8 +229,8 @@ function endTest()
 {
     consoleWrite("END OF TEST");
     testEnded = true;
-    if (window.layoutTestController)
-        layoutTestController.notifyDone();
+    if (window.testRunner)
+        testRunner.notifyDone();
 }
 
 function endTestLater()
@@ -255,7 +270,7 @@ function consoleWrite(text)
 
 function relativeURL(url)
 {
-    return url.substr(url.indexOf('/media/')+7);
+    return url.substr(url.lastIndexOf('/media/')+7);
 }
 
 
@@ -311,8 +326,8 @@ function enableAllTextTracks()
 {
     findMediaElement();
     for (var i = 0; i < video.textTracks.length; i++) {
-        if (video.textTracks[i].mode == TextTrack.DISABLED)
-            video.textTracks[i].mode = TextTrack.HIDDEN;
+        if (video.textTracks[i].mode == "disabled")
+            video.textTracks[i].mode = "hidden";
     }
 }
 

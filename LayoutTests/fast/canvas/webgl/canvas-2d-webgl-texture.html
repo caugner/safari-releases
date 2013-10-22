@@ -9,9 +9,9 @@ description("Checks that copying canvas results to a WebGL texture functions wit
 
 var wtu = WebGLTestUtils;
 
-if (window.layoutTestController) {
-    layoutTestController.dumpAsText();
-    layoutTestController.waitUntilDone();
+if (window.testRunner) {
+    testRunner.dumpAsText();
+    testRunner.waitUntilDone();
 }
 
 var canvas;
@@ -30,12 +30,14 @@ function draw()
   ctx.fillStyle = "rgb(0, 0, 200)";
   ctx.fillRect(0, 0, 256, 256);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas2d);
+  ctx.fillStyle = "rgb(200, 0, 0)";
+  ctx.fillRect(0, 0, 256, 256);
 
   wtu.drawQuad(gl);
   wtu.checkCanvasRect(gl, 0, 0, 1, 1, [0, 0, 200, 255], "Should have rendered blue.", 1);
 
-  if (window.layoutTestController)
-      layoutTestController.notifyDone();
+  if (window.testRunner)
+      testRunner.notifyDone();
 }
 
 window.onload = function()

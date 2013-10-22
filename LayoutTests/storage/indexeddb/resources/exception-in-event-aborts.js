@@ -5,33 +5,11 @@ if (this.importScripts) {
 
 description("Test exceptions in IDBRequest handlers cause aborts.");
 
-function test()
+indexedDBTest(prepareDatabase, startTest);
+function prepareDatabase()
 {
-    removeVendorPrefixes();
-    request = evalAndLog("indexedDB.open('exception-in-event-aborts')");
-    request.onsuccess = setVersion;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function setVersion()
-{
-    db = evalAndLog("db = event.target.result");
-
-    request = evalAndLog("db.setVersion('new version')");
-    request.onsuccess = deleteExisting;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function deleteExisting()
-{
-    debug("setVersionSuccess():");
-    self.trans = evalAndLog("trans = event.target.result");
-    shouldBeTrue("trans !== null");
-    trans.onabort = unexpectedAbortCallback;
-    evalAndLog("trans.oncomplete = startTest");
-
-    deleteAllObjectStores(db);
-
+    db = event.target.result;
+    event.target.transaction.onabort = unexpectedAbortCallback;
     store = evalAndLog("store = db.createObjectStore('storeName', null)");
     request = evalAndLog("store.add({x: 'value', y: 'zzz'}, 'key')");
     request.onerror = unexpectedErrorCallback;
@@ -40,7 +18,7 @@ function deleteExisting()
 function startTest()
 {
     debug("");
-    trans = evalAndLog("trans = db.transaction(['storeName'], IDBTransaction.READ_WRITE)");
+    trans = evalAndLog("trans = db.transaction(['storeName'], 'readwrite')");
     evalAndLog("trans.onabort = transactionAborted1");
     evalAndLog("trans.oncomplete = unexpectedCompleteCallback");
     store = evalAndLog("store = trans.objectStore('storeName')");
@@ -62,7 +40,7 @@ function transactionAborted1()
     debug("");
     shouldHaveHadError("this exception is expected");
     testPassed("The transaction was aborted.");
-    trans = evalAndLog("trans = db.transaction(['storeName'], IDBTransaction.READ_WRITE)");
+    trans = evalAndLog("trans = db.transaction(['storeName'], 'readwrite')");
     evalAndLog("trans.onabort = transactionAborted2");
     evalAndLog("trans.oncomplete = unexpectedCompleteCallback");
     store = evalAndLog("store = trans.objectStore('storeName')");
@@ -76,7 +54,7 @@ function transactionAborted2()
     debug("");
     shouldHaveHadError("this exception is expected");
     testPassed("The transaction was aborted.");
-    trans = evalAndLog("trans = db.transaction(['storeName'], IDBTransaction.READ_WRITE)");
+    trans = evalAndLog("trans = db.transaction(['storeName'], 'readwrite')");
     evalAndLog("trans.onabort = unexpectedAbortCallback");
     evalAndLog("trans.oncomplete = transactionCompleted1");
     store = evalAndLog("store = trans.objectStore('storeName')");
@@ -101,7 +79,7 @@ function transactionCompleted1()
 {
     debug("");
     testPassed("The transaction completed.");
-    trans = evalAndLog("trans = db.transaction(['storeName'], IDBTransaction.READ_WRITE)");
+    trans = evalAndLog("trans = db.transaction(['storeName'], 'readwrite')");
     evalAndLog("trans.onabort = unexpectedAbortCallback");
     evalAndLog("trans.oncomplete = transactionCompleted2");
     store = evalAndLog("store = trans.objectStore('storeName')");
@@ -117,5 +95,3 @@ function transactionCompleted2()
     debug("");
     finishJSTest();
 }
-
-test();

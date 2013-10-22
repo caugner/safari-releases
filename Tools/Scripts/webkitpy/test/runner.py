@@ -22,111 +22,61 @@
 
 """code to actually run a list of python tests."""
 
-import logging
 import re
 import time
 import unittest
 
+from webkitpy.common import message_pool
 
-_log = logging.getLogger(__name__)
+_test_description = re.compile("(\w+) \(([\w.]+)\)")
 
 
-class TestRunner(object):
-    def __init__(self, stream, options, loader):
-        self.options = options
-        self.stream = stream
+def unit_test_name(test):
+    m = _test_description.match(str(test))
+    return "%s.%s" % (m.group(2), m.group(1))
+
+
+class Runner(object):
+    def __init__(self, printer, loader):
+        self.printer = printer
         self.loader = loader
-        self.test_description = re.compile("(\w+) \(([\w.]+)\)")
+        self.tests_run = 0
+        self.errors = []
+        self.failures = []
+        self.worker_factory = lambda caller: _Worker(caller, self.loader)
 
-    def test_name(self, test):
-        m = self.test_description.match(str(test))
-        return "%s.%s" % (m.group(2), m.group(1))
+    def run(self, test_names, num_workers):
+        if not test_names:
+            return
+        num_workers = min(num_workers, len(test_names))
+        with message_pool.get(self, self.worker_factory, num_workers) as pool:
+            pool.run(('test', test_name) for test_name in test_names)
 
-    def all_test_names(self, suite):
-        names = []
-        if hasattr(suite, '_tests'):
-            for t in suite._tests:
-                names.extend(self.all_test_names(t))
-        else:
-            names.append(self.test_name(suite))
-        return names
+    def handle(self, message_name, source, test_name, delay=None, failures=None, errors=None):
+        if message_name == 'started_test':
+            self.printer.print_started_test(source, test_name)
+            return
 
-    def run(self, suite):
-        run_start_time = time.time()
-        all_test_names = self.all_test_names(suite)
+        self.tests_run += 1
+        if failures:
+            self.failures.append((test_name, failures))
+        if errors:
+            self.errors.append((test_name, errors))
+        self.printer.print_finished_test(source, test_name, delay, failures, errors)
+
+
+class _Worker(object):
+    def __init__(self, caller, loader):
+        self._caller = caller
+        self._loader = loader
+
+    def handle(self, message_name, source, test_name):
+        assert message_name == 'test'
         result = unittest.TestResult()
-        stop = run_start_time
-        for test_name in all_test_names:
-            if self.options.verbose:
-                self.stream.write(test_name)
-            num_failures = len(result.failures)
-            num_errors = len(result.errors)
+        start = time.time()
+        self._caller.post('started_test', test_name)
 
-            start = time.time()
-            # FIXME: it's kinda lame that we re-load the test suites for each
-            # test, and this may slow things down, but this makes implementing
-            # the logging easy and will also allow us to parallelize nicely.
-            self.loader.loadTestsFromName(test_name, None).run(result)
-            stop = time.time()
-
-            err = None
-            failure = None
-            if len(result.failures) > num_failures:
-                failure = result.failures[num_failures][1]
-            elif len(result.errors) > num_errors:
-                err = result.errors[num_errors][1]
-            self.write_result(result, test_name, stop - start, failure, err)
-
-        self.write_summary(result, stop - run_start_time)
-
-        return result
-
-    def write_result(self, result, test_name, test_time, failure=None, err=None):
-        timing = ''
-        if self.options.timing:
-            timing = ' %.4fs' % test_time
-        if self.options.verbose:
-            if failure:
-                msg = ' failed'
-            elif err:
-                msg = ' erred'
-            else:
-                msg = ' passed'
-            self.stream.write(msg + timing + '\n')
-        else:
-            if failure:
-                msg = 'F'
-            elif err:
-                msg = 'E'
-            else:
-                msg = '.'
-            self.stream.write(msg)
-
-    def write_summary(self, result, run_time):
-        self.stream.write('\n')
-
-        for (test, err) in result.errors:
-            self.stream.write("=" * 80 + '\n')
-            self.stream.write("ERROR: " + self.test_name(test) + '\n')
-            self.stream.write("-" * 80 + '\n')
-            for line in err.splitlines():
-                self.stream.write(line + '\n')
-            self.stream.write('\n')
-
-        for (test, failure) in result.failures:
-            self.stream.write("=" * 80 + '\n')
-            self.stream.write("FAILURE: " + self.test_name(test) + '\n')
-            self.stream.write("-" * 80 + '\n')
-            for line in failure.splitlines():
-                self.stream.write(line + '\n')
-            self.stream.write('\n')
-
-        self.stream.write('-' * 80 + '\n')
-        self.stream.write('Ran %d test%s in %.3fs\n' %
-            (result.testsRun, result.testsRun != 1 and "s" or "", run_time))
-
-        if result.wasSuccessful():
-            self.stream.write('\nOK\n')
-        else:
-            self.stream.write('FAILED (failures=%d, errors=%d)\n' %
-                (len(result.failures), len(result.errors)))
+        # We will need to rework this if a test_name results in multiple tests.
+        self._loader.loadTestsFromName(test_name, None).run(result)
+        self._caller.post('finished_test', test_name, time.time() - start,
+            [failure[1] for failure in result.failures], [error[1] for error in result.errors])

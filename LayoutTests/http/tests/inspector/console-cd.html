@@ -8,10 +8,10 @@
 function test()
 {
     InspectorTest.showConsolePanel();
-    var selector = WebInspector.consoleView._contextSelectElement;
+    var selector = WebInspector.consoleView._frameSelector._selectElement;
     var option = selector.firstChild;
     while (option) {
-        if (option.textContent && option.textContent.indexOf("myIFrame") === 0)
+        if (option.textContent && option.textContent.startsWith("myIFrame"))
             break;
         option = option.nextSibling;
     }
@@ -21,6 +21,8 @@ function test()
         return;
     }
     option.selected = true;
+    WebInspector.consoleView._frameChanged();
+
     InspectorTest.evaluateInConsoleAndDump("foo", finish);
     function finish()
     {

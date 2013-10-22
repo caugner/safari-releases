@@ -59,9 +59,9 @@ function checkResult(event) {
 }
 
 function runTest() {
-    if (window.layoutTestController) {
-        layoutTestController.dumpAsText();
-        layoutTestController.waitUntilDone();
+    if (window.testRunner) {
+        testRunner.dumpAsText();
+        testRunner.waitUntilDone();
     }
 
     window.jsTestIsAsync = true;
@@ -69,7 +69,7 @@ function runTest() {
     var sampleFrameLength = sampleRate * lengthInSeconds;
 
     // Create offline audio context.
-    context = new webkitAudioContext(1, sampleFrameLength, sampleRate);
+    context = new webkitOfflineAudioContext(1, sampleFrameLength, sampleRate);
 
     // Create buffer used by the source which will have its gain controlled.
     constantOneBuffer = createConstantBuffer(context, sampleFrameLength, 1);
@@ -87,6 +87,10 @@ function runTest() {
 
     // Create a gain node controlling the gain of constantSource and make the connections.
     var gainNode = context.createGainNode();
+
+    // Intrinsic baseline gain of zero.
+    gainNode.gain.value = 0;
+
     constantSource.connect(gainNode);
     gainNode.connect(context.destination);
 

@@ -24,11 +24,11 @@ var context = 0;
 var bufferLoader = 0;
 
 function init() {
-    if (!window.layoutTestController)
+    if (!window.testRunner)
         return;
         
     // Create offline audio context.
-    context = new webkitAudioContext(2, sampleRate * lengthInSeconds, sampleRate);
+    context = new webkitOfflineAudioContext(2, sampleRate * lengthInSeconds, sampleRate);
         
     bufferLoader = new BufferLoader(
         context,
@@ -40,7 +40,7 @@ function init() {
     );
 
     bufferLoader.load();
-    layoutTestController.waitUntilDone();
+    testRunner.waitUntilDone();
 }
 
 function finishedLoading(bufferList) {

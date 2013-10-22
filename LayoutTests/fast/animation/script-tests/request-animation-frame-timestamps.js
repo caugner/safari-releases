@@ -7,24 +7,24 @@ function busyWait(millis) {
 
 var firstTimestamp = undefined;
 
-window.webkitRequestAnimationFrame(function(timestamp) {
+window.requestAnimationFrame(function(timestamp) {
     firstTimestamp = timestamp;
     shouldBeDefined("firstTimestamp");
     busyWait(10);
 });
 
 var secondTimestamp = undefined;
-window.webkitRequestAnimationFrame(function(timestamp) {
+window.requestAnimationFrame(function(timestamp) {
     secondTimestamp = timestamp;
     shouldBeDefined("secondTimestamp");
     shouldBe("firstTimestamp", "secondTimestamp");
 });
 
-if (window.layoutTestController)
-    layoutTestController.display();
+if (window.testRunner)
+    testRunner.display();
 
-if (window.layoutTestController)
-    layoutTestController.waitUntilDone();
+if (window.testRunner)
+    testRunner.waitUntilDone();
 
 setTimeout(function() {
     shouldBeDefined("firstTimestamp");
@@ -32,6 +32,6 @@ setTimeout(function() {
 
 setTimeout(function() {
     isSuccessfullyParsed();
-    if (window.layoutTestController)
-        layoutTestController.notifyDone();
+    if (window.testRunner)
+        testRunner.notifyDone();
 }, 200);

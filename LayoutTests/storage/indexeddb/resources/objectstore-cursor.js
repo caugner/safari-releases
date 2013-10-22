@@ -17,31 +17,19 @@ self.testData = [
     "a low string"
 ];
 
-function openDatabase()
+indexedDBTest(prepareDatabase);
+function prepareDatabase()
 {
-    request = evalAndLog("indexedDB.open('objectstore-cursor')");
-    request.onsuccess = setVersion;
-    request.onerror = unexpectedErrorCallback;
-}
+    db = event.target.result;
+    event.target.transaction.onabort = unexpectedAbortCallback;
 
-function setVersion()
-{
-    self.db = evalAndLog("db = event.target.result");
+    evalAndLog("objectStore = db.createObjectStore('someObjectStore')");
 
-    request = evalAndLog("db.setVersion('new version')");
-    request.onsuccess = deleteExisting;
-    request.onerror = unexpectedErrorCallback;
-}
+    debug("");
+    debug("Verify that specifying an invalid direction raises an exception:");
+    evalAndExpectExceptionClass("objectStore.openCursor(0, 'invalid-direction')", "TypeError");
+    debug("");
 
-function deleteExisting()
-{
-    self.trans = evalAndLog("trans = event.target.result");
-    shouldBeTrue("trans !== null");
-    trans.onabort = unexpectedAbortCallback;
-
-    deleteAllObjectStores(db);
-
-    self.objectStore = evalAndLog("db.createObjectStore('someObjectStore')");
     self.nextToAdd = 0;
     addData();
 }
@@ -151,7 +139,7 @@ function runNextTest()
     else
         keyRange = IDBKeyRange.upperBound(testData[upper], upperIsOpen);
 
-    var request = objectStore.openCursor(keyRange, ascending ? IDBCursor.NEXT : IDBCursor.PREV);
+    var request = objectStore.openCursor(keyRange, ascending ? 'next' : 'prev');
     request.onsuccess = cursorIteration;
     request.onerror = unexpectedErrorCallback;
 }
@@ -217,10 +205,7 @@ function testNullKeyRange()
     debug("");
     debug(str);
 
-    var request = objectStore.openCursor(null, ascending ? IDBCursor.NEXT : IDBCursor.PREV);
+    var request = objectStore.openCursor(null, ascending ? 'next' : 'prev');
     request.onsuccess = cursorIteration;
     request.onerror = unexpectedErrorCallback;
 }
-
-removeVendorPrefixes();
-openDatabase(); // The first step.

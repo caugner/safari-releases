@@ -53,7 +53,7 @@ InspectorTest._installIndexedDBSniffer = function()
     function consoleMessageOverride(msg)
     {
         var text = msg._messageText;
-        if (text.indexOf(callbackIdPrefix) !== 0) {
+        if (!text.startsWith(callbackIdPrefix)) {
             InspectorTest.addConsoleSniffer(consoleMessageOverride, false);
             return;
         }
@@ -110,7 +110,12 @@ function dispatchCallback(callbackId)
 
 function onIndexedDBError(e)
 {
-    console.log(e);
+    console.error("IndexedDB error: " + e);
+}
+
+function onIndexedDBBlocked(e)
+{
+    console.error("IndexedDB blocked: " + e);
 }
 
 function doWithDatabase(databaseName, callback)
@@ -122,7 +127,7 @@ function doWithDatabase(databaseName, callback)
     }
 
     var request = indexedDB.open(databaseName);
-    request.onblocked = onIndexedDBError;
+    request.onblocked = onIndexedDBBlocked;
     request.onerror = onIndexedDBError;
     request.onsuccess = innerCallback;
 }
@@ -133,14 +138,23 @@ function doWithVersionTransaction(databaseName, callback, commitCallback)
 
     function step2(db)
     {
-        var request = db.setVersion(Number(db.version) + 1);
-        request.onblocked = onIndexedDBError;
+        var version = db.version;
+        db.close();
+        request = indexedDB.open(databaseName, version + 1);
         request.onerror = onIndexedDBError;
-        request.onsuccess = step3;
+        request.onupgradeneeded = onUpgradeNeeded;
+        request.onsuccess = onOpened;
 
-        function step3()
+        function onUpgradeNeeded(e)
         {
-            callback(db, request.result);
+            var db = e.target.result;
+            var trans = e.target.transaction;
+            callback(db, trans);
+        }
+
+        function onOpened(e)
+        {
+            var db = e.target.result;
             db.close();
             commitCallback();
         }
@@ -153,7 +167,7 @@ function doWithReadWriteTransaction(databaseName, objectStoreName, callback, com
 
     function step2(db)
     {
-        var transaction = db.transaction([objectStoreName], IDBTransaction.READ_WRITE);
+        var transaction = db.transaction([objectStoreName], 'readwrite');
         var objectStore = transaction.objectStore(objectStoreName);
         callback(objectStore, innerCommitCallback);
 
@@ -167,7 +181,7 @@ function doWithReadWriteTransaction(databaseName, objectStoreName, callback, com
 
 function createDatabase(callback, databaseName)
 {
-    var request = indexedDB.open(databaseName, 0);
+    var request = indexedDB.open(databaseName);
     request.onerror = onIndexedDBError;
     request.onsuccess = closeDatabase;
 

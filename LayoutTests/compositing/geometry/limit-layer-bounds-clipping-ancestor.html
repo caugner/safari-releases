@@ -23,12 +23,13 @@
       background-color: green;
     }
     
-    video {
+    .compositing {
       position: absolute;
       top: 21px;
       left: 21px;
       width: 100px;
       height: 100px;
+      -webkit-transform: translateZ(0);
     }
 
     p {
@@ -46,9 +47,9 @@
     }
   </style>
   <script type="text/javascript" charset="utf-8">
-    if (window.layoutTestController) {
-      layoutTestController.dumpAsText();
-      layoutTestController.waitUntilDone();
+    if (window.testRunner) {
+      testRunner.dumpAsText();
+      testRunner.waitUntilDone();
     }
 
     function doTest()
@@ -57,9 +58,9 @@
       for (var i = 0; i < scrollables.length; ++i)
         scrollables[i].scrollTop = 100;
 
-      if (window.layoutTestController) {
-        document.getElementById('layers').innerText = layoutTestController.layerTreeAsText();
-        layoutTestController.notifyDone();
+      if (window.testRunner) {
+        document.getElementById('layers').innerText = window.internals.layerTreeAsText(document);
+        testRunner.notifyDone();
       }
     }
 
@@ -69,8 +70,8 @@
 
 <body>
   
-  <!-- Go into compositing without transforms. -->
-  <video src="../resources/video.mp4"></video>
+  <!-- Go into compositing. -->
+  <div class="compositing"></div>
 
   <!-- "middle" text should be visible -->
   <div class="container" style="position: relative; overflow: hidden;">

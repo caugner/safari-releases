@@ -1,10 +1,10 @@
 <html>
 <head>
     <script type="text/javascript">
-        if (window.layoutTestController) {
-            layoutTestController.waitUntilDone();
-            layoutTestController.dumpAsText();
-            layoutTestController.setFrameFlatteningEnabled(true);
+        if (window.testRunner && window.internals) {
+            testRunner.waitUntilDone();
+            testRunner.dumpAsText();
+            internals.settings.setFrameFlatteningEnabled(true);
         }
     </script>
     <style>body { background-color: green; }</style>

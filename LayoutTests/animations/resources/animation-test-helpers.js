@@ -18,7 +18,7 @@ Function parameters:
     - the tolerance to use when comparing the effective CSS property value with its expected value
 
     [1] If null is passed, a regular setTimeout() will be used instead to snapshot the animated property in the future,
-    instead of fast forwarding using the pauseAnimationAtTimeOnElementWithId() JS API from DRT
+    instead of fast forwarding using the pauseAnimationAtTimeOnElement() JS API from Internals.
     
     [2] If a single string is passed, it is the id of the element to test. If an array with 2 elements is passed they
     are the ids of 2 elements, whose values are compared for equality. In this case the expected value is ignored
@@ -59,6 +59,61 @@ function parseCrossFade(s)
     return {"from": matches[1], "to": matches[2], "percent": parseFloat(matches[3])}
 }
 
+function parseBasicShape(s)
+{
+    var shapeFunction = s.match(/(\w+)\((.+)\)/);
+    if (!shapeFunction)
+        return null;
+
+    var matches;
+    switch (shapeFunction[1]) {
+    case "rectangle":
+        matches = s.match("rectangle\\((.*)\\s*,\\s*(.*)\\s*,\\s*(.*)\\,\\s*(.*)\\)");
+        break;
+    case "circle":
+        matches = s.match("circle\\((.*)\\s*,\\s*(.*)\\s*,\\s*(.*)\\)");
+        break;
+    case "ellipse":
+        matches = s.match("ellipse\\((.*)\\s*,\\s*(.*)\\s*,\\s*(.*)\\,\\s*(.*)\\)");
+        break;
+    case "polygon":
+        matches = s.match("polygon\\(nonzero, (.*)\\s+(.*)\\s*,\\s*(.*)\\s+(.*)\\s*,\\s*(.*)\\s+(.*)\\s*,\\s*(.*)\\s+(.*)\\)");
+        break;
+    default:
+        return null;
+    }
+
+    if (!matches)
+        return null;
+
+    matches.shift();
+
+    // Normalize percentage values.
+    for (var i = 0; i < matches.length; ++i) {
+        var param = matches[i];
+        matches[i] = parseFloat(matches[i]);
+        if (param.indexOf('%') != -1)
+            matches[i] = matches[i] / 100;
+    }
+
+    return {"shape": shapeFunction[1], "params": matches};
+}
+
+function basicShapeParametersMatch(paramList1, paramList2, tolerance)
+{
+    if (paramList1.shape != paramList2.shape
+        || paramList1.params.length != paramList2.params.length)
+        return false;
+    for (var i = 0; i < paramList1.params.length; ++i) {
+        var param1 = paramList1.params[i], 
+            param2 = paramList2.params[i];
+        var match = isCloseEnough(param1, param2, tolerance);
+        if (!match)
+            return false;
+    }
+    return true;
+}
+
 // Return an array of numeric filter params in 0-1.
 function getFilterParameters(s)
 {
@@ -84,6 +139,49 @@ function getFilterParameters(s)
     return paramList;
 }
 
+function customFilterParameterMatch(param1, param2, tolerance)
+{
+    if (param1.type != "parameter") {
+        // Checking for shader uris and other keywords. They need to be exactly the same.
+        return (param1.type == param2.type && param1.value == param2.value);
+    }
+
+    if (param1.name != param2.name || param1.value.length != param2.value.length)
+        return false;
+
+    for (var j = 0; j < param1.value.length; ++j) {
+        var val1 = param1.value[j],
+            val2 = param2.value[j];
+        if (val1.type != val2.type)
+            return false;
+        switch (val1.type) {
+        case "function":
+            if (val1.name != val2.name)
+                return false;
+            if (val1.arguments.length != val2.arguments.length) {
+                console.error("Arguments length mismatch: ", val1.arguments.length, "/", val2.arguments.length);
+                return false;
+            }
+            for (var t = 0; t < val1.arguments.length; ++t) {
+                if (val1.arguments[t].type != "number" || val2.arguments[t].type != "number")
+                    return false;
+                if (!isCloseEnough(val1.arguments[t].value, val2.arguments[t].value, tolerance))
+                    return false;
+            }
+            break;
+        case "number":
+            if (!isCloseEnough(val1.value, val2.value, tolerance))
+                return false;
+            break;
+        default:
+            console.error("Unsupported parameter type ", val1.type);
+            return false;
+        }
+    }
+
+    return true;
+}
+
 function filterParametersMatch(paramList1, paramList2, tolerance)
 {
     if (paramList1.length != paramList2.length)
@@ -93,21 +191,8 @@ function filterParametersMatch(paramList1, paramList2, tolerance)
             param2 = paramList2[i];
         if (typeof param1 == "object") {
             // This is a custom filter parameter.
-            if (param1.type != "parameter") {
-                // Checking for shader uris and other keywords. They need to be exactly the same.
-                if (param1.type != param2.type
-                    || param1.value != param2.value)
-                    return false;
-                continue;
-            }
-            if (param1.name != param2.name
-                || param1.value.length != param2.value.length)
+            if (!customFilterParameterMatch(param1, param2, tolerance))
                 return false;
-            // For now we only support floats.
-            for (var j = 0; j < param1.value.length; ++j) {
-                if (!isCloseEnough(param1.value[j].value, param2.value[j].value, tolerance))
-                    return false;
-            }
             continue;
         }
         var match = isCloseEnough(param1, param2, tolerance);
@@ -155,12 +240,12 @@ function checkExpectedValue(expected, index)
         }
     }
 
-    if (animationName && hasPauseAnimationAPI && !layoutTestController.pauseAnimationAtTimeOnElementWithId(animationName, time, elementId)) {
+    if (animationName && hasPauseAnimationAPI && !internals.pauseAnimationAtTimeOnElement(animationName, time, document.getElementById(elementId))) {
         result += "FAIL - animation \"" + animationName + "\" is not running" + "<br>";
         return;
     }
     
-    if (compareElements && !element2Static && animationName && hasPauseAnimationAPI && !layoutTestController.pauseAnimationAtTimeOnElementWithId(animationName, time, elementId2)) {
+    if (compareElements && !element2Static && animationName && hasPauseAnimationAPI && !internals.pauseAnimationAtTimeOnElement(animationName, time, document.getElementById(elementId2))) {
         result += "FAIL - animation \"" + animationName + "\" is not running" + "<br>";
         return;
     }
@@ -213,6 +298,8 @@ function getPropertyValue(property, elementId, iframeId)
                || property == "webkitMaskImage"
                || property == "webkitMaskBoxImage"
                || property == "webkitFilter"
+               || property == "webkitClipPath"
+               || property == "webkitShapeInside"
                || !property.indexOf("webkitTransform")) {
         computedValue = window.getComputedStyle(element)[property.split(".")[0]];
     } else {
@@ -245,6 +332,12 @@ function comparePropertyValue(property, computedValue, expectedValue, tolerance)
         var filterParameters = getFilterParameters(computedValue);
         var filter2Parameters = getFilterParameters(expectedValue);
         result = filterParametersMatch(filterParameters, filter2Parameters, tolerance);
+    } else if (property == "webkitClipPath" || property == "webkitShapeInside") {
+        var clipPathParameters = parseBasicShape(computedValue);
+        var clipPathParameters2 = parseBasicShape(expectedValue);
+        if (!clipPathParameters || !clipPathParameters2)
+            result = false;
+        result = basicShapeParametersMatch(clipPathParameters, clipPathParameters2, tolerance);
     } else if (property == "backgroundImage"
                || property == "borderImageSource"
                || property == "listStyleImage"
@@ -272,8 +365,8 @@ function endTest()
 {
     document.getElementById('result').innerHTML = result;
 
-    if (window.layoutTestController)
-        layoutTestController.notifyDone();
+    if (window.testRunner)
+        testRunner.notifyDone();
 }
 
 function checkExpectedValueCallback(expected, index)
@@ -297,7 +390,7 @@ function startTest(expected, callback)
         var time = expected[i][1];
 
         // We can only use the animation fast-forward mechanism if there's an animation name
-        // and DRT implements pauseAnimationAtTimeOnElementWithId()
+        // and Internals implements pauseAnimationAtTimeOnElement()
         if (animationName && hasPauseAnimationAPI)
             checkExpectedValue(expected, i);
         else {
@@ -319,14 +412,14 @@ var hasPauseAnimationAPI;
 
 function runAnimationTest(expected, callback, event, disablePauseAnimationAPI, doPixelTest)
 {
-    hasPauseAnimationAPI = ('layoutTestController' in window) && ('pauseAnimationAtTimeOnElementWithId' in layoutTestController);
+    hasPauseAnimationAPI = 'internals' in window;
     if (disablePauseAnimationAPI)
         hasPauseAnimationAPI = false;
 
-    if (window.layoutTestController) {
+    if (window.testRunner) {
         if (!doPixelTest)
-            layoutTestController.dumpAsText();
-        layoutTestController.waitUntilDone();
+            testRunner.dumpAsText();
+        testRunner.waitUntilDone();
     }
     
     if (!expected)

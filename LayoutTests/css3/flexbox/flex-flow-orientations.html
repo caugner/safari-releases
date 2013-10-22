@@ -8,10 +8,13 @@
     display: inline-block;
 }
 .flexbox {
-    display: -webkit-flexbox;
+    display: -webkit-flex;
     background-color: grey;
     width: 100px;
     height: 100px;
+}
+.flexbox > * {
+    -webkit-flex: none;
 }
 .title {
     margin-top: 1em;
@@ -56,12 +59,8 @@
     background-color: red;
 }
 </style>
-<script>
-if (window.layoutTestController)
-    layoutTestController.dumpAsText();
-</script>
-<script src="resources/flexbox.js"></script>
-<body onload="checkFlexBoxen()">
+<script src="../../resources/check-layout.js"></script>
+<body onload="checkLayout('.flexbox')">
 
 <script>
 function asString(position)

@@ -6,15 +6,40 @@
 <div id="console"></div>
 <script type="text/javascript">
 
-var eventCount = 0;
-var EXPECTED_EVENT_COUNT = 2;
+var touchstartCount = 0;
+var touchmoveCount = 0;
+var EXPECTED_TOUCHSTART_COUNT = 1;
+var EXPECTED_TOUCHMOVE_COUNT = 1;
+var shouldBail;
 
 function testComplete()
 {
-    if (++eventCount === EXPECTED_EVENT_COUNT) {
-        debug("Final touchend (test will time out if broken)");
-        window.layoutTestController.notifyDone();
+    if (shouldBail)
+        return;
+
+    if (touchstartCount > EXPECTED_TOUCHSTART_COUNT) {
+        debug("touchstart fired for the top frame, too, but should only fire for the iframe!");
+        shouldBail = true;
     }
+
+    if (!touchmoveCount)
+        debug("touchmove not fired for the iframe!");
+    else if (touchmoveCount > EXPECTED_TOUCHMOVE_COUNT)
+        debug("touchmove fired too many times!");
+
+    debug("touchend (test will time out if broken)");
+    window.internals.settings.setTouchEventEmulationEnabled(false);
+    window.testRunner.notifyDone();
+}
+
+function handleTouchmove()
+{
+    ++touchmoveCount;
+}
+
+function handleTouchstart()
+{
+    ++touchstartCount;
 }
 
 function runTest() {
@@ -30,8 +55,8 @@ function runTest() {
        debug('This test requires DRT.');
 }
 
-if (window.layoutTestController)
-    window.layoutTestController.waitUntilDone();
+if (window.testRunner)
+    window.testRunner.waitUntilDone();
 
 </script>
 </body>

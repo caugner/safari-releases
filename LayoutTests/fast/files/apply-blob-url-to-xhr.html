@@ -26,7 +26,7 @@ function sendXMLHttpRequest(method, url)
 function onInputFileChange()
 {
     var file = document.getElementById("file").files[0];
-    var fileURL = window.webkitURL.createObjectURL(file);
+    var fileURL = window.URL.createObjectURL(file);
 
     log("Test that XMLHttpRequest GET succeeds.");
     sendXMLHttpRequest("GET", fileURL);
@@ -35,12 +35,12 @@ function onInputFileChange()
     sendXMLHttpRequest("POST", fileURL);
 
     log("Test that XMLHttpRequest GET fails after the blob URL is revoked.");
-    window.webkitURL.revokeObjectURL(fileURL);
+    window.URL.revokeObjectURL(fileURL);
     sendXMLHttpRequest("GET", fileURL);
 
     log("DONE");
-    if (layoutTestController.notifyDone)
-        layoutTestController.notifyDone();
+    if (testRunner.notifyDone)
+        testRunner.notifyDone();
 }
 
 function runTests()
@@ -51,8 +51,8 @@ function runTests()
 }
 
 if (window.eventSender) {
-    layoutTestController.dumpAsText();
-    layoutTestController.waitUntilDone();
+    testRunner.dumpAsText();
+    testRunner.waitUntilDone();
     window.onload = runTests;
 }
 </script>

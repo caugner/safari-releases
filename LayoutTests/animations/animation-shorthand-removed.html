@@ -11,9 +11,9 @@
 @-webkit-keyframes anim1 { }
 </style>
   <script type="text/javascript" charset="utf-8">
-    if (window.layoutTestController) {
-        layoutTestController.dumpAsText();
-        layoutTestController.waitUntilDone();
+    if (window.testRunner) {
+        testRunner.dumpAsText();
+        testRunner.waitUntilDone();
     }
 
     const kProperties = [
@@ -51,7 +51,7 @@
         values: [ "anim1", "10s", "linear", "5s", "infinite", "alternate", "forwards" ]
       }
     ];
-    const kExpectedResults = [ "none", "0s", "cubic-bezier(0.25, 0.1, 0.25, 1)", "0s", "1", "normal", "none" ];
+    const kExpectedResults = [ "none", "0s", "ease", "0s", "1", "normal", "none" ];
 
     function start() {
       kElements.forEach(function(curEl) {
@@ -90,8 +90,8 @@
 
       var results = document.getElementById('result');
       results.innerHTML = resultsString;
-      if (window.layoutTestController)
-          layoutTestController.notifyDone();
+      if (window.testRunner)
+          testRunner.notifyDone();
     }
 
     window.addEventListener('load', start, false);

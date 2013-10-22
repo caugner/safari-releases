@@ -2,21 +2,13 @@
 <p></p>
 <div id=result>Testing...</div>
 <iframe src="does-not-exist.html" sandbox=""></iframe>
+<script src="/js-test-resources/js-test-pre.js"></script>
 <script>
-if (window.layoutTestController) {
-    layoutTestController.dumpAsText();
-    layoutTestController.waitUntilDone();
+if (window.testRunner) {
+    testRunner.dumpAsText();
+    testRunner.waitUntilDone();
 }
 
-function gc()
-{
-    if (window.GCController)
-        return GCController.collect();
-
-    for (var i = 0; i < 10000; i++) { // > force garbage collection (FF requires about 9K allocations before a collect)
-        var s = new String("abc");
-    }
-}
 
 var w;
 function test()
@@ -29,8 +21,8 @@ function test()
         try { w.XMLHttpRequest; } catch (ex) { }
         try { w.top; } catch (ex) { }
         document.getElementById("result").innerHTML = "PASS";
-        if (window.layoutTestController)
-            layoutTestController.notifyDone();
+        if (window.testRunner)
+            testRunner.notifyDone();
     }, 0);
 }
 

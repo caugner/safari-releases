@@ -3,15 +3,15 @@
 <script>
 function testRects()
 {
-    if (!window.layoutTestController || !window.internals)
+    if (!window.testRunner || !window.internals)
         return;
-    layoutTestController.dumpAsText();
+    testRunner.dumpAsText();
 
     var range = document.createRange();
     range.selectNodeContents(document.getElementById('div'));
     var rect = range.getBoundingClientRect();
    
-    window.internals.settings.setPageScaleFactor(2, 0, 0);
+    window.internals.setPageScaleFactor(2, 0, 0);
     var scaledRange = document.createRange();
     scaledRange.selectNodeContents(document.getElementById('div'));
     var scaledRect = scaledRange.getBoundingClientRect();

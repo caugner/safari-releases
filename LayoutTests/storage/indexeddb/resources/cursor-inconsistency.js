@@ -5,47 +5,26 @@ if (this.importScripts) {
 
 description("Test consistency of IndexedDB's cursor objects.");
 
-test();
-
-function test()
+indexedDBTest(prepareDatabase, openBasicCursor);
+function prepareDatabase()
 {
-    removeVendorPrefixes();
-    request = evalAndLog("indexedDB.open('cursor-inconsistency')");
-    request.onsuccess = openSuccess;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function openSuccess()
-{
-    var db = evalAndLog("db = event.target.result");
-
-    request = evalAndLog("db.setVersion('new version')");
-    request.onsuccess = setVersionSuccess;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function setVersionSuccess()
-{
+    db = event.target.result;
     debug("setVersionSuccess():");
-    self.trans = evalAndLog("trans = event.target.result");
-    shouldBeTrue("trans !== null");
+    self.trans = evalAndLog("trans = event.target.transaction");
+    shouldBeNonNull("trans");
     trans.onabort = unexpectedAbortCallback;
-    trans.oncomplete = openBasicCursor;
-
-    deleteAllObjectStores(db);
 
     var objectStore = evalAndLog("objectStore = db.createObjectStore('basicStore')");
     evalAndLog("objectStore.add('someValue1', 'someKey1').onerror = unexpectedErrorCallback");
     evalAndLog("objectStore.add('someValue2', 'someKey2').onerror = unexpectedErrorCallback");
     evalAndLog("objectStore.add('someValue3', 'someKey3').onerror = unexpectedErrorCallback");
     evalAndLog("objectStore.add('someValue4', 'someKey4').onerror = unexpectedErrorCallback");
-
 }
 
 function openBasicCursor()
 {
     debug("openBasicCursor()");
-    evalAndLog("trans = db.transaction(['basicStore'], IDBTransaction.READ_WRITE)");
+    evalAndLog("trans = db.transaction(['basicStore'], 'readwrite')");
     trans.onabort = unexpectedAbortCallback;
     trans.oncomplete = transactionComplete;
 
@@ -69,7 +48,7 @@ function checkCursor()
     if (storedCursor == null)
       storedCursor = evalAndLog("storedCursor = event.target.result");
 
-    shouldBeTrue("storedCursor === event.target.result");
+    shouldBe("storedCursor", "event.target.result");
     shouldBeEqualToString("storedCursor.key", "someKey" + counter);
     shouldBeEqualToString("event.target.result.key", "someKey" + counter);
     shouldBeEqualToString("storedCursor.value", "someValue" + counter);

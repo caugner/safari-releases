@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # Copyright (C) 2010, 2012 Google Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -32,7 +31,6 @@ import os
 import sys
 import time
 
-
 LOG_HANDLER_NAME = 'MeteredStreamLogHandler'
 
 
@@ -53,17 +51,19 @@ class MeteredStream(object):
     def _ensure_newline(txt):
         return txt if txt.endswith('\n') else txt + '\n'
 
-    def __init__(self, stream=None, verbose=False, logger=None, time_fn=None, pid=None):
+    def __init__(self, stream=None, verbose=False, logger=None, time_fn=None, pid=None, number_of_columns=None):
         self._stream = stream or sys.stderr
         self._verbose = verbose
         self._time_fn = time_fn or time.time
         self._pid = pid or os.getpid()
-
         self._isatty = self._stream.isatty()
         self._erasing = self._isatty and not verbose
         self._last_partial_line = ''
         self._last_write_time = 0.0
         self._throttle_delay_in_secs = 0.066 if self._erasing else 10.0
+        self._number_of_columns = sys.maxint
+        if self._isatty and number_of_columns:
+            self._number_of_columns = number_of_columns
 
         self._logger = logger
         self._log_handler = None
@@ -91,14 +91,15 @@ class MeteredStream(object):
         if self._erasing:
             self._last_partial_line = txt[txt.rfind('\n') + 1:]
 
-    def write(self, txt, now=None):
+    def write(self, txt, now=None, pid=None):
         now = now or self._time_fn()
+        pid = pid or self._pid
         self._last_write_time = now
         if self._last_partial_line:
             self._erase_last_partial_line()
         if self._verbose:
             now_tuple = time.localtime(now)
-            msg = '%02d:%02d:%02d.%03d %d %s' % (now_tuple.tm_hour, now_tuple.tm_min, now_tuple.tm_sec, int((now * 1000) % 1000), self._pid, self._ensure_newline(txt))
+            msg = '%02d:%02d:%02d.%03d %d %s' % (now_tuple.tm_hour, now_tuple.tm_min, now_tuple.tm_sec, int((now * 1000) % 1000), pid, self._ensure_newline(txt))
         elif self._isatty:
             msg = txt
         else:
@@ -106,13 +107,22 @@ class MeteredStream(object):
 
         self._stream.write(msg)
 
-    def writeln(self, txt, now=None):
-        self.write(self._ensure_newline(txt), now)
+    def writeln(self, txt, now=None, pid=None):
+        self.write(self._ensure_newline(txt), now, pid)
 
     def _erase_last_partial_line(self):
         num_chars = len(self._last_partial_line)
         self._stream.write(self._erasure(self._last_partial_line))
         self._last_partial_line = ''
+
+    def flush(self):
+        if self._last_partial_line:
+            self._stream.write('\n')
+            self._last_partial_line = ''
+            self._stream.flush()
+
+    def number_of_columns(self):
+        return self._number_of_columns
 
 
 class _LogHandler(logging.Handler):
@@ -122,4 +132,4 @@ class _LogHandler(logging.Handler):
         self.name = LOG_HANDLER_NAME
 
     def emit(self, record):
-        self._meter.writeln(record.getMessage(), record.created)
+        self._meter.writeln(record.getMessage(), record.created, record.process)

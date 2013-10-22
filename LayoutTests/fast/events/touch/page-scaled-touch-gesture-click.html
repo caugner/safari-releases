@@ -60,12 +60,12 @@ function endTest()
     }
     // Bail.
     isSuccessfullyParsed();
-    layoutTestController.notifyDone();
+    testRunner.notifyDone();
 }
 
 function runTest() {
     if (window.internals) {
-        window.internals.settings.setPageScaleFactor(0.5, 0, 0);
+        window.internals.setPageScaleFactor(0.5, 0, 0);
     }
 
     var div = document.getElementById('touchtarget');
@@ -75,8 +75,8 @@ function runTest() {
     div.addEventListener("mousemove", gestureEventCallback, false);
     document.addEventListener("keydown", quitKeyToEndTest, false);
 
-    if (window.layoutTestController)
-        layoutTestController.waitUntilDone();
+    if (window.testRunner)
+        testRunner.waitUntilDone();
 
     if (window.eventSender) {
         description("This tests basic single touch gesture generation.");

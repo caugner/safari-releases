@@ -11,32 +11,13 @@ if (this.importScripts) {
 
 description("Test IndexedDB indexes against autoincrementing keys");
 
-function test()
+indexedDBTest(prepareDatabase, setVersionComplete);
+function prepareDatabase()
 {
-    removeVendorPrefixes();
+    db = event.target.result;
+    event.target.transaction.onabort = unexpectedAbortCallback;
 
-    name = self.location.pathname;
-    description = "My Test Database";
-    request = evalAndLog("indexedDB.open(name, description)");
-    request.onsuccess = openSuccess;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function openSuccess()
-{
-    db = evalAndLog("db = event.target.result");
-
-    request = evalAndLog("request = db.setVersion('1')");
-    request.onsuccess = setupObjectStore;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function setupObjectStore()
-{
-    trans = event.target.result;
-    deleteAllObjectStores(db);
-
-    objectStore = evalAndLog("objectStore = db.createObjectStore('foo', { keyPath: 'id', autoIncrement: true });");
+    objectStore = evalAndLog("objectStore = db.createObjectStore('autoincrement-id', { keyPath: 'id', autoIncrement: true });");
     evalAndLog("objectStore.createIndex('first', 'first');");
     evalAndLog("objectStore.createIndex('second', 'second');");
     evalAndLog("objectStore.createIndex('third', 'third');");
@@ -50,12 +31,12 @@ function setupIndexes()
 {
     key = evalAndLog("key = event.target.result;");
     shouldBeFalse("key == null");
-    trans.oncomplete = setVersionComplete;
+    debug("expected key is " + key);
 }
 
 function setVersionComplete()
 {
-    objectStore = evalAndLog("objectStore = db.transaction('foo').objectStore('foo');");
+    objectStore = evalAndLog("objectStore = db.transaction('autoincrement-id').objectStore('autoincrement-id');");
     first = evalAndLog("first = objectStore.index('first');");
     request = evalAndLog("request = first.get('foo');");
     request.onsuccess = checkFirstIndexAndPrepareSecond;
@@ -85,5 +66,3 @@ function checkThirdIndex()
     shouldBe("event.target.result.id", "key");
     finishJSTest();
 }
-
-test();

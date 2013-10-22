@@ -97,15 +97,15 @@ function createTest(sourceLength, noteFunction, expectedState, message)
 
 function runTest()
 {
-    if (window.layoutTestController) {
-        layoutTestController.dumpAsText();
-        layoutTestController.waitUntilDone();
+    if (window.testRunner) {
+        testRunner.dumpAsText();
+        testRunner.waitUntilDone();
     }
 
     window.jsTestIsAsync = true;
 
     // Create offline audio context, rendering for renderTime seconds.
-    context = new webkitAudioContext(2, timeToSampleFrame(renderTime, sampleRate), sampleRate);
+    context = new webkitOfflineAudioContext(2, timeToSampleFrame(renderTime, sampleRate), sampleRate);
 
     // This is only used so we can access the playback state constants.
     var bufferSource = context.createBufferSource();

@@ -24,13 +24,15 @@
         function testDiv(div)
         {
             var childStyle = div.firstElementChild.style;
-            log(childStyle.cssText + "-> scrollWidth: " + div.scrollWidth);
+            var cssText = childStyle.cssText;
+            if (cssText) cssText += " ";
+            log(cssText + "-> scrollWidth: " + div.scrollWidth);
         }
 
         function test()
         {
-            if (window.layoutTestController)
-                layoutTestController.dumpAsText();
+            if (window.testRunner)
+                testRunner.dumpAsText();
 
             var container = document.getElementById("container");
 

@@ -11,29 +11,11 @@ if (this.importScripts) {
 
 description("Test IndexedDB adding an autoincremented key and retrieving it successfully");
 
-function test()
+indexedDBTest(prepareDatabase);
+function prepareDatabase()
 {
-    removeVendorPrefixes();
-
-    name = self.location.pathname;
-    description = "My Test Database";
-    request = evalAndLog("indexedDB.open(name, description)");
-    request.onsuccess = openSuccess;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function openSuccess()
-{
-    db = evalAndLog("db = event.target.result");
-
-    request = evalAndLog("request = db.setVersion('1')");
-    request.onsuccess = setupObjectStore;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function setupObjectStore()
-{
-    deleteAllObjectStores(db);
+    db = event.target.result;
+    event.target.transaction.onabort = unexpectedAbortCallback;
     test = evalAndLog("test = {\n" +
 "        name: 'inline key; key generator',\n" +
 "        autoIncrement: true,\n" +
@@ -60,5 +42,3 @@ function getSuccess()
     shouldBe("event.target.result.id", "id");
     finishJSTest();
 }
-
-test();

@@ -6,13 +6,13 @@
 
 function onload()
 {
-    if (window.layoutTestController)
-        layoutTestController.waitUntilDone();
+    if (window.testRunner)
+        testRunner.waitUntilDone();
 
     var db = openDatabase("InspectorDatabaseTest", "1.0", "Test of database instrumentation", 1);
 
-    if (window.layoutTestController)
-        layoutTestController.showWebInspector();
+    if (window.testRunner)
+        testRunner.showWebInspector();
     runTest();
 }
 
@@ -20,7 +20,7 @@ function test()
 {
     function run()
     {
-        var databases = WebInspector.panels.resources._databases;
+        var databases = WebInspector.databaseModel.databases();
         for (var i = 0; i < databases.length; ++i) {
             InspectorTest.addResult("Name: " + databases[i].name);
             InspectorTest.addResult("Version: " + databases[i].version);

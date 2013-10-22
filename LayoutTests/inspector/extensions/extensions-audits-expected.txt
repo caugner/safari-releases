@@ -1,9 +1,11 @@
 Tests audits support in WebInspector Extensions API
 
-Started extension.
+ Started extension.
 Running tests...
 RUNNING TEST: extension_testAudits
-  Extension audits
+Progress: 50%
+Progress: 75%
+ Extension audits
     Failed rule (42)
      this rule always fails
     Rule with details subtree (1)
@@ -19,10 +21,29 @@ RUNNING TEST: extension_testAudits
     return 4;
 }
          /path/to/error.html:10
+            object details
+             a
+             : 
+             42
+             b
+             : 
+             "foo"
+             __proto__
+             : 
+             Object
+             <
+              span
+              
+               id
+              ="
+               test-element
+              "
+             >
+            
          extensions-audits.html:20
     Passed rule
      this rule always passes ok
-  Extension audits that fail
+ Extension audits that fail
 category.onAuditStarted fired
 failedCategory.onAuditStarted fired, throwing exception
 All tests done.

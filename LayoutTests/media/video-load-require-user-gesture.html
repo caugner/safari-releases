@@ -11,9 +11,6 @@
 
             function finishTest(success)
             {
-                if (window.internals) 
-                    window.internals.settings.setMediaPlaybackRequiresUserGesture(false);
-
                 if (success)
                     endTest();
                 else
@@ -31,8 +28,8 @@
                 }
                 
                 state = "load";
-                consoleWrite("* Calling video.load(). It should throw an exception, and no data should load.");
-                testException("video.load()", "DOMException.INVALID_STATE_ERR");
+                consoleWrite("* Calling video.load() should not load any data.");
+                video.load();
                 setTimeout(checkLoad, 250);
             }
 

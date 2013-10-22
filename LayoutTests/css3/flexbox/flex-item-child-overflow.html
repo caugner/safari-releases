@@ -5,7 +5,7 @@ body {
     margin: 0;
 }
 .flexbox {
-    display: -webkit-flexbox;
+    display: -webkit-flex;
     position: relative;
     -webkit-flex-flow: column;
 }
@@ -19,12 +19,12 @@ body {
     background-color: blue;
 }
 </style>
-<script src="resources/flexbox.js"></script>
-<body onload="checkFlexBoxen()">
+<script src="../../resources/check-layout.js"></script>
+<body onload="checkLayout('.flexbox')">
 
-<div data-expected-height=0 class="flexbox">
-    <div data-expected-height=0>
-        <div data-offset-y=0 data-expected-height=20></div>
+<div data-expected-height=0 data-offset-x=0 data-offset-y=0 class="flexbox">
+    <div data-expected-height=0 data-offset-x=0 data-offset-y=0>
+        <div data-expected-height=20 data-offset-x=0 data-offset-y=0></div>
     </div>
 </div>
 

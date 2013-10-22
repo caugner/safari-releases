@@ -2,13 +2,15 @@
 <html>
 <style>
 .flexbox {
-    display: -webkit-flexbox;
+    display: -webkit-flex;
     background-color: grey;
     float: left;
 }
 .flexbox > div {
     padding: 2px 13px 8px 17px;
     margin: 2px 13px 8px 17px;
+    -webkit-flex: none;
+    flex: none;
 }
 .title {
     margin-top: 1em;
@@ -49,12 +51,8 @@
     -webkit-flex-flow: column-reverse;
 }
 </style>
-<script>
-if (window.layoutTestController)
-    layoutTestController.dumpAsText();
-</script>
-<script src="resources/flexbox.js"></script>
-<body onload="checkFlexBoxen()">
+<script src="../../resources/check-layout.js"></script>
+<body onload="checkLayout('.flexbox')">
 
 <script>
 var writingModes = ['horizontal-tb', 'horizontal-bt', 'vertical-lr', 'vertical-rl'];

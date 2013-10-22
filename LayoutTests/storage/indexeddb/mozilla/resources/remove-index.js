@@ -11,29 +11,11 @@ if (this.importScripts) {
 
 description("Test IndexedDB's creating and deleting indexes");
 
-function test()
+indexedDBTest(prepareDatabase);
+function prepareDatabase()
 {
-    removeVendorPrefixes();
-
-    name = self.location.pathname;
-    description = "My Test Database";
-    request = evalAndLog("indexedDB.open(name, description)");
-    request.onsuccess = openSuccess;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function openSuccess()
-{
-    db = evalAndLog("db = event.target.result");
-
-    request = evalAndLog("request = db.setVersion('1')");
-    request.onsuccess = createAndDeleteIndex;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function createAndDeleteIndex()
-{
-    deleteAllObjectStores(db);
+    db = event.target.result;
+    event.target.transaction.onabort = unexpectedAbortCallback;
 
     objectStoreName = "test store";
     objectStore = evalAndLog("objectStore = db.createObjectStore(objectStoreName, { keyPath: 'foo' });");
@@ -51,5 +33,3 @@ function createAndDeleteIndex()
 
     finishJSTest();
 }
-
-test();

@@ -6,13 +6,11 @@ On success, you will see a series of "PASS" messages, followed by "TEST COMPLETE
 Starting worker: resources/index-basics.js
 [Worker] indexedDB = self.indexedDB || self.webkitIndexedDB || self.mozIndexedDB || self.msIndexedDB || self.OIndexedDB;
 [Worker] 
-[Worker] indexedDB.open('index-basics')
-[Worker] db = event.target.result
-[Worker] db.setVersion('new version')
-[Worker] setVersionSuccess():
-[Worker] trans = event.target.result
-PASS [Worker] trans !== null is true
-[Worker] Deleted all object stores.
+[Worker] dbname = "index-basics.js"
+[Worker] indexedDB.deleteDatabase(dbname)
+[Worker] indexedDB.open(dbname)
+[Worker] 
+[Worker] prepareDatabase():
 [Worker] db.createObjectStore('storeName', null)
 [Worker] store.createIndex('indexName', 'x')
 [Worker] store.createIndex('indexName2', 'y', {unique: false})
@@ -49,7 +47,10 @@ PASS [Worker] typeof indexObject.count is "function"
 [Worker] event.target.source.add({x: 'value2', y: 'zzz2', z: 2.71, foobar: 12}, 'key2')
 [Worker] store.createIndex('indexWhileAddIsInFlight', 'x')
 [Worker] store.createIndex('indexWithWeirdKeyPath', 'foobar')
+[Worker] Add data which doesn't have a key in the z index.
 [Worker] event.target.source.add({x: 'value3', y: '456'}, 'key3')
+[Worker] Add data which has invalid key for y index, no key for the z index.
+[Worker] event.target.source.add({x: 'value4', y: null}, 'key4')
 [Worker] indexObject.getKey('value')
 PASS [Worker] event.target.result is "key"
 [Worker] indexObject2.getKey('zzz')
@@ -65,43 +66,76 @@ PASS [Worker] event.target.result is undefined
 PASS [Worker] event.target.result is undefined
 [Worker] indexObject4.getKey('value2')
 PASS [Worker] event.target.result is "key2"
+[Worker] 
+[Worker] Verify that specifying an invalid direction raises an exception:
+[Worker] Expecting TypeError exception from indexObject.openKeyCursor(0, 'invalid-direction')
+PASS [Worker] Exception was thrown.
+PASS [Worker] indexObject.openKeyCursor(0, 'invalid-direction') threw TypeError: Type error
+[Worker] 
 [Worker] indexObject.openKeyCursor()
 PASS [Worker] event.target.source is indexObject
-PASS [Worker] event.target.result === null is false
+PASS [Worker] event.target.result is non-null.
 PASS [Worker] event.target.result.key is "value"
 PASS [Worker] event.target.result.primaryKey is "key"
 [Worker] event.target.result.continue()
-PASS [Worker] event.target.result === null is false
+PASS [Worker] event.target.result is non-null.
 PASS [Worker] event.target.result.key is "value2"
 PASS [Worker] event.target.result.primaryKey is "key2"
 [Worker] event.target.result.continue()
-PASS [Worker] event.target.result === null is false
+PASS [Worker] event.target.result is non-null.
 PASS [Worker] event.target.result.key is "value3"
 PASS [Worker] event.target.result.primaryKey is "key3"
 [Worker] event.target.result.continue()
-PASS [Worker] event.target.result === null is true
+PASS [Worker] event.target.result is non-null.
+PASS [Worker] event.target.result.key is "value4"
+PASS [Worker] event.target.result.primaryKey is "key4"
+[Worker] event.target.result.continue()
+PASS [Worker] event.target.result is null
+[Worker] 
+[Worker] Verify that specifying an invalid direction raises an exception:
+[Worker] Expecting TypeError exception from indexObject.openCursor(0, 'invalid-direction')
+PASS [Worker] Exception was thrown.
+PASS [Worker] indexObject.openCursor(0, 'invalid-direction') threw TypeError: Type error
+[Worker] 
 [Worker] indexObject.openCursor()
 PASS [Worker] event.target.source is indexObject
-PASS [Worker] event.target.result === null is false
+PASS [Worker] event.target.result is non-null.
 PASS [Worker] event.target.result.key is "value"
 PASS [Worker] event.target.result.value.x is "value"
 PASS [Worker] event.target.result.value.y is "zzz"
 [Worker] event.target.result.continue()
-PASS [Worker] event.target.result === null is false
+PASS [Worker] event.target.result is non-null.
 PASS [Worker] event.target.result.key is "value2"
 PASS [Worker] event.target.result.value.x is "value2"
 PASS [Worker] event.target.result.value.y is "zzz2"
 [Worker] event.target.result.continue()
-PASS [Worker] event.target.result === null is false
+PASS [Worker] event.target.result is non-null.
 PASS [Worker] event.target.result.key is "value3"
 PASS [Worker] event.target.result.value.x is "value3"
 PASS [Worker] event.target.result.value.y is "456"
 [Worker] event.target.result.continue()
-PASS [Worker] event.target.result === null is true
+PASS [Worker] event.target.result is non-null.
+PASS [Worker] event.target.result.key is "value4"
+PASS [Worker] event.target.result.value.x is "value4"
+PASS [Worker] event.target.result.value.y is null
+[Worker] event.target.result.continue()
+PASS [Worker] event.target.result is null
+[Worker] request = indexObject.count()
+PASS [Worker] event.target.result is 4
+[Worker] request = indexObject2.count()
+PASS [Worker] event.target.result is 3
+[Worker] request = indexObject3.count()
+PASS [Worker] event.target.result is 2
 [Worker] Passing an invalid key into indexObject.get({}).
-PASS [Worker] Caught exception: Error: DATA_ERR: DOM IDBDatabase Exception 5
+[Worker] Expecting exception from indexObject.get({})
+PASS [Worker] Exception was thrown.
+PASS [Worker] code is 0
+PASS [Worker] ename is 'DataError'
 [Worker] Passing an invalid key into indexObject.getKey({}).
-PASS [Worker] Caught exception: Error: DATA_ERR: DOM IDBDatabase Exception 5
+[Worker] Expecting exception from indexObject.getKey({})
+PASS [Worker] Exception was thrown.
+PASS [Worker] code is 0
+PASS [Worker] ename is 'DataError'
 PASS successfullyParsed is true
 
 TEST COMPLETE

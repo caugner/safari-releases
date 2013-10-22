@@ -5,12 +5,11 @@ On success, you will see a series of "PASS" messages, followed by "TEST COMPLETE
 
 indexedDB = self.indexedDB || self.webkitIndexedDB || self.mozIndexedDB || self.msIndexedDB || self.OIndexedDB;
 
-indexedDB.open('cursor-continue')
-db = event.target.result
-db.setVersion('new version')
-trans = event.target.result
-PASS trans !== null is true
-Deleted all object stores.
+dbname = "cursor-continue-validity.html"
+indexedDB.deleteDatabase(dbname)
+indexedDB.open(dbname)
+trans = event.target.transaction
+PASS trans is non-null.
 db.createObjectStore('someObjectStore')
 objectStore.createIndex('someIndex', 'x')
 objectStore.add({'x': 0 }, 0)
@@ -42,7 +41,7 @@ continueTest()
 
 Checking objectStore
 ====================
-indexObject.openCursor(null, IDBCursor.NEXT)
+indexObject.openCursor(null, 'next')
 self.continueValue = 0
 doubleContinueCallback()
 cursor = event.target.result
@@ -400,7 +399,7 @@ continueIndexTest()
 
 Checking index
 ==============
-indexObject.openCursor(null, IDBCursor.NEXT)
+indexObject.openCursor(null, 'next')
 self.continueValue = 0
 cursor = event.target.result
 Checking value at 0
@@ -732,7 +731,7 @@ testModifyContinueOrder()
 
 Checking modification
 =====================
-indexObject.openCursor(null, IDBCursor.NEXT)
+indexObject.openCursor(null, 'next')
 self.continueValue = 0
 cursor = event.target.result
 cursor.continue()

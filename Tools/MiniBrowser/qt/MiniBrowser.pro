@@ -6,6 +6,12 @@
 
 TEMPLATE = app
 
+WEBKIT += wtf
+
+INCLUDEPATH += \
+    $${ROOT_WEBKIT_DIR}/Source/WebCore/platform/qt \
+    $${ROOT_WEBKIT_DIR}/Tools/DumpRenderTree/qt/
+
 SOURCES += \
     BrowserWindow.cpp \
     main.cpp \
@@ -22,7 +28,9 @@ HEADERS += \
 TARGET = MiniBrowser
 DESTDIR = $${ROOT_BUILD_DIR}/bin
 
-QT += network declarative quick quick-private webkit webkit-private
+have?(FONTCONFIG): PKGCONFIG += fontconfig
+
+QT += network gui-private quick quick-private webkit webkit-private
 macx: QT += xml
 
 RESOURCES += MiniBrowser.qrc

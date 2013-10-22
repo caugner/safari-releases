@@ -20,15 +20,16 @@
   </style>
   <script src="../../2d/resources/transform-test-utils.js" type="text/javascript" charset="utf-8"></script>
   <script type="text/javascript">
-    if (window.layoutTestController) {
-      layoutTestController.dumpAsText();
-      layoutTestController.waitUntilDone();
+    if (window.testRunner) {
+      testRunner.dumpAsText();
+      testRunner.waitUntilDone();
     }
 
     var gTests = [
       { 'transform' : 'translate3d(0, 0, 10px)', 'result' : 'matrix3d(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 10, 1)' },
       { 'transform' : 'translateZ(10px)', 'result' : 'matrix3d(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 10, 1)' },
       { 'transform' : 'rotate3d(0, 1, 0, 180deg)', 'result' : 'matrix3d(-1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1)' },
+      { 'transform' : 'rotate3d(0, 0, 0, 180deg)', 'result' : 'matrix3d(1, 0, 0, 1, 0, 0)' },
       { 'transform' : 'translate3d(0, 0, 10px)', 'result' : 'matrix3d(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 10, 1)' },
       { 'transform' : 'translate3d(0, 0, 10%)', 'result' : 'none' }, // percentage values not allowed in the z param
       { 'transform' : 'translate3d(0, 0, 10)', 'result' : 'none' }, // must have units for the z param
@@ -51,8 +52,8 @@
     {
       testTransforms();
 
-      if (window.layoutTestController)
-        layoutTestController.notifyDone();
+      if (window.testRunner)
+        testRunner.notifyDone();
     }
   </script>
 </head>

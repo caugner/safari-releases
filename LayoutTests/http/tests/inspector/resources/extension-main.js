@@ -12,7 +12,11 @@ function dumpObject(object, nondeterministicProps, prefix, firstLinePrefix)
     prefix = prefix || "";
     firstLinePrefix = firstLinePrefix || prefix;
     output(firstLinePrefix + "{");
-    for (var prop in object) {
+    var propertyNames = Object.keys(object);
+    propertyNames.sort();
+    
+    for (var i = 0; i < propertyNames.length; ++i) {
+        var prop = propertyNames[i];
         var prefixWithName = prefix + "    " + prop + " : ";
         var propValue = object[prop];
         if (nondeterministicProps && prop in nondeterministicProps) {
@@ -41,18 +45,7 @@ function dumpArray(result)
 
 function evaluateOnFrontend(expression, callback)
 {
-    function callbackWrapper(event)
-    {
-        channel.port1.removeEventListener("message", callbackWrapper, false);
-        callback(event.data.response);
-    }
-    var channel = new MessageChannel();
-    channel.port1.start();
-    if (callback)
-        channel.port1.addEventListener("message", callbackWrapper, false);
-    webInspector.inspectedWindow.eval("", function() {
-        top.postMessage({ expression: expression }, [ channel.port2 ], "*");
-    });
+    window._extensionServerForTests.sendRequest({ command: "evaluateForTestInFrontEnd", expression: expression }, callback);
 }
 
 function output(message)

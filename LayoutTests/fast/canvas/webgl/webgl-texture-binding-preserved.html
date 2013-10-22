@@ -12,10 +12,13 @@ description("Checks that painting WebGL contents doesn't pollute the context sta
 
 var wtu = WebGLTestUtils;
 
-if (window.layoutTestController) {
-    layoutTestController.dumpAsText();
-    layoutTestController.waitUntilDone();
+if (window.testRunner) {
+    testRunner.dumpAsText();
+    testRunner.waitUntilDone();
 }
+
+if (window.internals)
+    window.internals.settings.setWebGLErrorsToConsoleEnabled(false);
 
 var canvas;
 var context;
@@ -27,8 +30,8 @@ function draw() {
   wtu.drawQuad(context);
 
   wtu.checkCanvasRect(context, 0, 0, 1, 1, [0, 0, 255, 255], "Should have rendered blue.", 1);
-  if (window.layoutTestController)
-    layoutTestController.notifyDone();
+  if (window.testRunner)
+    testRunner.notifyDone();
 }
 
 window.onload = function()
@@ -39,8 +42,6 @@ window.onload = function()
 
   canvas = document.getElementById("webgl-canvas");
   context = create3DContext(canvas);
-
-  requestAnimationFrame = window.webkitRequestAnimationFrame
 
   var program = wtu.setupTexturedQuad(context);
   var bufferObjects = wtu.setupUnitQuad(context);

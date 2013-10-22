@@ -4,34 +4,43 @@
 # See 'Tools/qmake/README' for an overview of the build system
 # -------------------------------------------------------------------
 
-load(features)
-
 TEMPLATE = subdirs
 CONFIG += ordered
 
 api.file = api.pri
 SUBDIRS += api
 
-!no_webkit2 {
+build?(webkit1) {
+    webkitwidgets.file = widgetsapi.pri
+    SUBDIRS += webkitwidgets
+}
+
+build?(webkit2) {
     webprocess.file = WebKit2/WebProcess.pro
     SUBDIRS += webprocess
-    contains(DEFINES, ENABLE_PLUGIN_PROCESS=1) {
+    enable?(PLUGIN_PROCESS) {
         pluginprocess.file = WebKit2/PluginProcess.pro
         SUBDIRS += pluginprocess
     }
-}
 
-include(WebKit/qt/docs/docs.pri)
+    enable?(SUID_SANDBOX_LINUX) {
+        sandboxprocess.file = WebKit2/SandboxProcess.pro
+        SUBDIRS += sandboxprocess
+    }
+}
 
 declarative.file = WebKit/qt/declarative/declarative.pro
 declarative.makefile = Makefile.declarative
-SUBDIRS += declarative
+have?(QTQUICK): SUBDIRS += declarative
 
-tests.file = tests.pri
-SUBDIRS += tests
+build?(webkit1) {
+    build?(tests) {
+        tests.file = tests.pri
+        SUBDIRS += tests
+    }
 
-examples.file = WebKit/qt/examples/examples.pro
-examples.CONFIG += no_default_target
-examples.makefile = Makefile
-SUBDIRS += examples
-
+    examples.file = WebKit/qt/examples/examples.pro
+    examples.CONFIG += no_default_target
+    examples.makefile = Makefile
+    SUBDIRS += examples
+}

@@ -1,13 +1,20 @@
 <!DOCTYPE html>
 <style>
+html {
+    height: 100%;
+}
 body {
-    margin: 4px;
+    margin: 0;
     font-family: Helvetica, sans-serif;
     font-size: 11pt;
+    display: -webkit-flex;
+    -webkit-flex-direction: column;
+    height: 100%;
 }
 
-body > p:first-of-type {
-    margin-top: 0;
+body > * {
+    margin-left: 4px;
+    margin-top: 4px;
 }
 
 h1 {
@@ -42,6 +49,12 @@ th:empty, td:empty {
 th {
     -webkit-user-select: none;
     -moz-user-select: none;
+}
+
+.content-container {
+    -webkit-flex: 1;
+    min-height: 0;
+    overflow: auto;
 }
 
 .note {
@@ -98,8 +111,12 @@ th {
     left: 1px;
 }
 
-.test-link.flagged:after {
-    content: ' \2691';
+tbody .flag {
+    display: none;
+}
+
+tbody.flagged .flag {
+    display: inline;
 }
 
 .stopped-running-early-message {
@@ -193,6 +210,7 @@ th {
 
 #flagged-tests {
     padding: 5px;
+    height: 100px;
 }
 </style>
 <style id="unexpected-style"></style>
@@ -204,14 +222,14 @@ function globalState()
     if (!g_state) {
         g_state = {
             crashTests: [],
-            flakyTests: [],
+            flakyPassTests: [],
             hasHttpTests: false,
             hasImageFailures: false,
             hasTextFailures: false,
             missingResults: [],
             results: {},
             shouldToggleImages: true,
-            nonFlakyFailingTests: [],
+            failingTests: [],
             testsWithStderr: [],
             timeoutTests: [],
             unexpectedPassTests: []
@@ -252,8 +270,6 @@ function parentOfType(node, selector)
     }
     return null;
 }
-
-
 
 function remove(node)
 {
@@ -388,6 +404,15 @@ function async(func, args)
     setTimeout(function() { func.apply(null, args); }, 100);
 }
 
+function visibleTests(opt_container)
+{
+    var container = opt_container || document;
+    if (onlyShowUnexpectedFailures())
+        return container.querySelectorAll('tbody:not(.expected)');
+    else
+        return container.querySelectorAll('tbody');
+}
+
 function visibleExpandLinks()
 {
     if (onlyShowUnexpectedFailures())
@@ -425,7 +450,13 @@ function testLink(test)
         basePath += '/trunk/LayoutTests/';
     } else
         basePath = globalState().results.layout_tests_dir + '/';
-    return '<a class=test-link href="' + basePath + test + '">' + test + '</a>';
+    return '<a class=test-link href="' + basePath + test + '">' + test + '</a><span class=flag onclick="unflag(this)"> \u2691</span>';
+}
+
+function unflag(flag)
+{
+    var shouldFlag = false;
+    TestNavigator.flagTest(parentOfType(flag, 'tbody'), shouldFlag);
 }
 
 function testLinkWithExpandButton(test)
@@ -435,12 +466,7 @@ function testLinkWithExpandButton(test)
 
 function resultLink(testPrefix, suffix, contents)
 {
-    return referenceLink(testPrefix, testPrefix + suffix, contents);
-}
-
-function referenceLink(testPrefix, reference_filename, contents)
-{
-    return '<a class=result-link href="' + reference_filename + '" data-prefix="' + testPrefix + '">' + contents + '</a> ';
+    return '<a class=result-link href="' + testPrefix + suffix + '" data-prefix="' + testPrefix + '">' + contents + '</a> ';
 }
 
 function isFailureExpected(expected, actual)
@@ -453,7 +479,7 @@ function isFailureExpected(expected, actual)
             var actualValue = actualArray[i];
             if (expectedArray.indexOf(actualValue) == -1 &&
                 (expectedArray.indexOf('FAIL') == -1 ||
-                 (actualValue != 'IMAGE' && actualValue != 'TEXT' && actualValue != 'IMAGE+TEXT')))
+                 (actualValue != 'TEXT' && actualValue != 'IMAGE+TEXT' && actualValue != 'AUDIO')))
                 isExpected = false;
         }
     }
@@ -480,27 +506,31 @@ function processGlobalStateFor(testObject)
         return;
     }
 
-    if (actual.indexOf(' ') != -1) {
-        globalState().flakyTests.push(testObject);
+    var actualTokens = actual.split(' ');
+    var passedWithImageOnlyFailureInRetry = actualTokens[0] == 'TEXT' && actualTokens[1] == 'IMAGE';
+    if (actualTokens[1] && actual.indexOf('PASS') != -1 || (!globalState().results.pixel_tests_enabled && passedWithImageOnlyFailureInRetry)) {
+        globalState().flakyPassTests.push(testObject);
         return;
     }
 
     if (actual == 'PASS' && expected != 'PASS') {
-        globalState().unexpectedPassTests.push(testObject);
+        if (expected != 'IMAGE' || (globalState().results.pixel_tests_enabled || testObject.reftest_type)) {
+            globalState().unexpectedPassTests.push(testObject);
+        }
         return;
     }
 
-    if (actual == 'CRASH' && expected != 'CRASH') {
+    if (actual == 'CRASH') {
         globalState().crashTests.push(testObject);
         return;
     }
 
-    if (actual == 'TIMEOUT' && expected != 'TIMEOUT') {
+    if (actual == 'TIMEOUT') {
         globalState().timeoutTests.push(testObject);
         return;
     }
     
-    globalState().nonFlakyFailingTests.push(testObject);
+    globalState().failingTests.push(testObject);
 }
 
 function toggleImages()
@@ -535,83 +565,81 @@ function textResultLinks(prefix)
     return html;
 }
 
+function imageResultsCell(testObject, testPrefix, actual) {
+    var row = '';
+
+    if (actual.indexOf('IMAGE') != -1) {
+        globalState().hasImageFailures = true;
+
+        if (testObject.reftest_type && testObject.reftest_type.indexOf('!=') != -1) {
+            row += resultLink(testPrefix, '-expected-mismatch.html', 'ref mismatch html');
+            row += resultLink(testPrefix, '-actual.png', 'actual');
+        } else {
+            if (testObject.reftest_type && testObject.reftest_type.indexOf('==') != -1) {
+                row += resultLink(testPrefix, '-expected.html', 'ref html');
+            }
+            if (globalState().shouldToggleImages) {
+                row += resultLink(testPrefix, '-diffs.html', 'images');
+            } else {
+                row += resultLink(testPrefix, '-expected.png', 'expected');
+                row += resultLink(testPrefix, '-actual.png', 'actual');
+            }
+
+            var diff = testObject.image_diff_percent;
+            row += resultLink(testPrefix, '-diff.png', 'diff (' + diff + '%)');
+        }
+    }
+
+    if (actual.indexOf('MISSING') != -1 && testObject.is_missing_image)
+        row += resultLink(testPrefix, '-actual.png', 'png result');
+
+    return row;
+}
+
 function tableRow(testObject)
 {    
     var row = '<tbody'
     if (globalState().results.uses_expectations_file)
         row += ' class="' + (testObject.isExpected ? 'expected' : '') + '"';
-    if (testObject.is_mismatch_reftest)
+    if (testObject.reftest_type && testObject.reftest_type.indexOf('!=') != -1)
         row += ' mismatchreftest=true';
     row += '><tr>';
 
     row += '<td>' + testLinkWithExpandButton(testObject.name) + '</td>';
 
-    var test_prefix = stripExtension(testObject.name);
+    var testPrefix = stripExtension(testObject.name);
     row += '<td>';
     
     var actual = testObject.actual;
-    var expected = testObject.expected;
     if (actual.indexOf('TEXT') != -1) {
         globalState().hasTextFailures = true;
-        row += textResultLinks(test_prefix);
+        row += textResultLinks(testPrefix);
     }
     
     if (actual.indexOf('AUDIO') != -1) {
-        row += resultLink(test_prefix, '-expected.wav', 'expected audio');
-        row += resultLink(test_prefix, '-actual.wav', 'actual audio');
+        row += resultLink(testPrefix, '-expected.wav', 'expected audio');
+        row += resultLink(testPrefix, '-actual.wav', 'actual audio');
     }
 
     if (actual.indexOf('MISSING') != -1) {
-        expected = '';
         if (testObject.is_missing_audio)
-            row += resultLink(test_prefix, '-actual.wav', 'audio result');
+            row += resultLink(testPrefix, '-actual.wav', 'audio result');
         if (testObject.is_missing_text)
-            row += resultLink(test_prefix, '-actual.txt', 'result');
+            row += resultLink(testPrefix, '-actual.txt', 'result');
     }
 
-    row += '</td><td>';
+    var actualTokens = actual.split(/\s+/);
+    var cell = imageResultsCell(testObject, testPrefix, actualTokens[0]);
+    if (!cell && actualTokens.length > 1)
+        cell = imageResultsCell(testObject, 'retries/' + testPrefix, actualTokens[1]);
 
-    if (actual.indexOf('IMAGE') != -1) {
-        globalState().hasImageFailures = true;
-
-        if (testObject.is_mismatch_reftest) {
-            if (testObject.ref_file)
-                row += referenceLink(test_prefix, testObject.ref_file, 'ref mismatch html');
-            else
-                row += resultLink(test_prefix, '-expected-mismatch.html', 'ref mismatch html');
-            row += resultLink(test_prefix, '-actual.png', 'actual');
-        } else {
-            if (testObject.is_reftest) {
-                if (testObject.ref_file)
-                    row += referenceLink(test_prefix, testObject.ref_file, 'ref html');
-                else
-                    row += resultLink(test_prefix, '-expected.html', 'ref html');
-            }
-            if (globalState().shouldToggleImages) {
-                row += resultLink(test_prefix, '-diffs.html', 'images');
-            } else {
-                row += resultLink(test_prefix, '-expected.png', 'expected');
-                row += resultLink(test_prefix, '-actual.png', 'actual');
-            }
-
-            var diff = testObject.image_diff_percent;
-            row += resultLink(test_prefix, '-diff.png', 'diff (' + diff + '%)');
-        }
-    }
-
-    if (actual.indexOf('MISSING') != -1) {
-        expected = '';
-        if (testObject.is_missing_image)
-            row += resultLink(test_prefix, '-actual.png', 'png result');
-    }
-
-    row += '</td>';
+    row += '</td><td>' + cell + '</td>';
 
     if (globalState().results.uses_expectations_file || actual.indexOf(' ') != -1)
         row += '<td>' + actual + '</td>';
 
     if (globalState().results.uses_expectations_file)
-        row += '<td>' + expected + '</td>';
+        row += '<td>' + (actual.indexOf('MISSING') == -1 ? testObject.expected : '') + '</td>';
 
     row += '</tr></tbody>';
     return row;
@@ -638,14 +666,40 @@ function hasUnexpected(tests)
     return tests.some(function (test) { return !test.isExpected; });
 }
 
+function updateTestlistCounts()
+{
+    forEach(document.querySelectorAll('.test-list-count'), function(count) {
+        var container = parentOfType(count, 'div');
+        var testContainers;
+        if (onlyShowUnexpectedFailures())
+            testContainers = container.querySelectorAll('tbody:not(.expected)');
+        else
+            testContainers = container.querySelectorAll('tbody');
+
+        count.textContent = testContainers.length;
+    })
+}
+
+function flagAll(headerLink)
+{
+    var tests = visibleTests(parentOfType(headerLink, 'div'));
+    forEach(tests, function(tests) {
+        var shouldFlag = true;
+        TestNavigator.flagTest(tests, shouldFlag);
+    })
+}
+
+function testListHeaderHtml(header)
+{
+    return '<h1>' + header + ' (<span class=test-list-count></span>): <a href="#" class=flag-all onclick="flagAll(this)">flag all</a></h1>';
+}
+
 function testList(tests, header, tableId)
 {
     tests.sort();
 
-    var html = '<h1>' + header + ':</h1><table id="' + tableId + '"';
-    if (!hasUnexpected(tests))
-        html += ' class=expected';
-    html += '>';
+    var html = '<div' + ((!hasUnexpected(tests) && tableId != 'stderr-table') ? ' class=expected' : '') + ' id=' + tableId + '>' +
+        testListHeaderHtml(header) + '<table>';
 
     // FIXME: add the expected failure column for all the test lists if globalState().results.uses_expectations_file
     if (tableId == 'passes-table')
@@ -656,7 +710,7 @@ function testList(tests, header, tableId)
         var test = testObject.name;
         html += '<tbody';
         if (globalState().results.uses_expectations_file)
-            html += ' class="' + (testObject.isExpected ? 'expected' : '') + '"';
+            html += ' class="' + ((testObject.isExpected && tableId != 'stderr-table') ? 'expected' : '') + '"';
         html += '><tr><td>';
         html += (tableId == 'passes-table') ? testLink(test) : testLinkWithExpandButton(test);
         html += '</td><td>';
@@ -665,16 +719,17 @@ function testList(tests, header, tableId)
             html += resultLink(stripExtension(test), '-stderr.txt', 'stderr');
         else if (tableId == 'passes-table')
             html += testObject.expected;
-        else if (tableId == 'crash-tests-table')
+        else if (tableId == 'crash-tests-table') {
             html += resultLink(stripExtension(test), '-crash-log.txt', 'crash log');
-        else if (tableId == 'timeout-tests-table') {
+            html += resultLink(stripExtension(test), '-sample.txt', 'sample');
+        } else if (tableId == 'timeout-tests-table') {
             // FIXME: only include timeout actual/diff results here if we actually spit out results for timeout tests.
             html += textResultLinks(stripExtension(test));
         }
         
         html += '</td></tr></tbody>';
     }
-    html += '</table>';
+    html += '</table></div>';
     return html;
 }
 
@@ -955,7 +1010,7 @@ TestNavigator._scrollToFirstTest = function()
 
 TestNavigator._scrollToLastTest = function()
 {
-    var links = visibleExpandLinks();
+    var links = visibleTests();
     if (TestNavigator._setCurrentTest(links.length - 1))
         TestNavigator._scrollToCurrentTest();
 }
@@ -978,36 +1033,47 @@ TestNavigator._scrollToPreviousTest = function()
 
 TestNavigator._currentTestLink = function()
 {
-    var links = visibleExpandLinks();
+    var links = visibleTests();
     return links[TestNavigator.currentTestIndex];
+}
+
+TestNavigator._currentTestExpandLink = function()
+{
+    return TestNavigator._currentTestLink().querySelector('.expand-button-text');
 }
 
 TestNavigator._expandCurrentTest = function()
 {
-    expandExpectations(TestNavigator._currentTestLink());
+    expandExpectations(TestNavigator._currentTestExpandLink());
 }
 
 TestNavigator._collapseCurrentTest = function()
 {
-    collapseExpectations(TestNavigator._currentTestLink());
+    collapseExpectations(TestNavigator._currentTestExpandLink());
 }
 
 TestNavigator._toggleCurrentTest = function()
 {
-    toggleExpectations(TestNavigator._currentTestLink());
+    toggleExpectations(TestNavigator._currentTestExpandLink());
 }
 
 TestNavigator._toggleCurrentTestFlagged = function()
 {
-    var testLink = parentOfType(TestNavigator._currentTestLink(), 'tbody').querySelector('.test-link');
-    var testName = testLink.innerText;
+    var testLink = TestNavigator._currentTestLink();
+    TestNavigator.flagTest(testLink, !testLink.classList.contains('flagged'));
+}
+
+// FIXME: Test navigator shouldn't know anything about flagging. It should probably call out to TestFlagger or something.
+TestNavigator.flagTest = function(testTbody, shouldFlag)
+{
+    var testName = testTbody.querySelector('.test-link').innerText;
     
-    if (testLink.classList.contains('flagged')) {
-        testLink.classList.remove('flagged');
-        delete TestNavigator.flaggedTests[testName];
-    } else {
-        testLink.classList.add('flagged');
+    if (shouldFlag) {
+        testTbody.classList.add('flagged');
         TestNavigator.flaggedTests[testName] = 1;
+    } else {
+        testTbody.classList.remove('flagged');
+        delete TestNavigator.flaggedTests[testName];
     }
 
     TestNavigator.updateFlaggedTests();
@@ -1034,18 +1100,18 @@ TestNavigator.updateFlaggedTests = function()
 
 TestNavigator._setCurrentTest = function(testIndex)
 {
-    var links = visibleExpandLinks();
+    var links = visibleTests();
     if (testIndex < 0 || testIndex >= links.length)
         return false;
 
-    var currExpandLink = links[TestNavigator.currentTestIndex];
-    if (currExpandLink)
-        parentOfType(currExpandLink, 'tr').classList.remove('current');
+    var currentTest = links[TestNavigator.currentTestIndex];
+    if (currentTest)
+        currentTest.classList.remove('current');
 
     TestNavigator.currentTestIndex = testIndex;
 
-    currExpandLink = links[TestNavigator.currentTestIndex];
-    parentOfType(currExpandLink, 'tr').classList.add('current');
+    currentTest = links[TestNavigator.currentTestIndex];
+    currentTest.classList.add('current');
 
     return true;
 }
@@ -1057,23 +1123,24 @@ TestNavigator._scrollToCurrentTest = function()
         return;
 
     var rowRect = targetLink.getBoundingClientRect();
+    var container = document.querySelector('.content-container');
     // rowRect is in client coords (i.e. relative to viewport), so we just want to add its top to the current scroll position.
-    window.scrollTo(window.scrollX, window.scrollY + rowRect.top - 20);
+    container.scrollTop += rowRect.top - 20;
 }
 
 TestNavigator.onlyShowUnexpectedFailuresChanged = function()
 {
-    var currentTestLink = document.querySelector('.current .expand-button-text');
-    if (!currentTestLink)
+    var currentTest = document.querySelector('.current');
+    if (!currentTest)
         return;
 
     // If our currentTest became hidden, reset the currentTestIndex.
-    if (onlyShowUnexpectedFailures() && parentOfType(currentTestLink, 'tbody').classList.contains('expected'))
+    if (onlyShowUnexpectedFailures() && currentTest.classList.contains('expected'))
         TestNavigator._scrollToFirstTest();
     else {
         // Recompute TestNavigator.currentTestIndex
-        var links = visibleExpandLinks();
-        TestNavigator.currentTestIndex = links.indexOf(currentTestLink);
+        var links = visibleTests();
+        TestNavigator.currentTestIndex = links.indexOf(currentTest);
         window.console.log('TestNavigator.currentTestIndex is ', TestNavigator.currentTestIndex)
     }
 }
@@ -1097,6 +1164,7 @@ function updateExpectedFailures()
     document.getElementById('unexpected-style').textContent = onlyShowUnexpectedFailures() ?
         '.expected { display: none; }' : '';
 
+    updateTestlistCounts();
     TestNavigator.onlyShowUnexpectedFailuresChanged();
 }
 
@@ -1214,15 +1282,19 @@ function failingTestsTable(tests, title, id)
     if (!tests.length)
         return '';
 
+    var numberofUnexpectedFailures = 0;
     var tableRowHtml = '';
-    for (var i = 0; i < tests.length; i++)
+    for (var i = 0; i < tests.length; i++){
         tableRowHtml += tableRow(tests[i]);
+        if (!tests[i].isExpected)
+            numberofUnexpectedFailures++;
+    }
 
     var header = '<div';
     if (!hasUnexpected(tests))
         header += ' class=expected';
 
-    header += '><h1>' + title + ':</h1>' +
+    header += '>' + testListHeaderHtml(title) +
         '<table id="' + id + '"><thead><tr>' +
         '<th>test</th>' +
         '<th id="text-results-header">results</th>' +
@@ -1245,7 +1317,7 @@ function generatePage()
 {
     forEachTest(processGlobalStateFor);
 
-    var html = '<div id=toolbar>' +
+    var html = '<div class=content-container><div id=toolbar>' +
         '<div class="note">Use the i, j, k and l keys to navigate, e, c to expand and collapse, and f to flag</div>' +
         '<a href="javascript:void()" onclick="expandAllExpectations()">expand all</a> ' +
         '<a href="javascript:void()" onclick="collapseAllExpectations()">collapse all</a> ' +
@@ -1262,20 +1334,20 @@ function generatePage()
     if (globalState().crashTests.length)
         html += testList(globalState().crashTests, 'Tests that crashed', 'crash-tests-table');
 
-    html += failingTestsTable(globalState().nonFlakyFailingTests,
-        'Tests where results did not match expected results', 'results-table');
+    html += failingTestsTable(globalState().failingTests,
+        'Tests that failed text/pixel/audio diff', 'results-table');
 
     html += failingTestsTable(globalState().missingResults,
         'Tests that had no expected results (probably new)', 'missing-table');
-
-    html += failingTestsTable(globalState().flakyTests,
-        'Flaky tests (failed the first run and got a different result on retry)', 'flaky-tests-table');
 
     if (globalState().timeoutTests.length)
         html += testList(globalState().timeoutTests, 'Tests that timed out', 'timeout-tests-table');
 
     if (globalState().testsWithStderr.length)
         html += testList(globalState().testsWithStderr, 'Tests that had stderr output', 'stderr-table');
+
+    html += failingTestsTable(globalState().flakyPassTests,
+        'Flaky tests (failed the first run and passed on retry)', 'flaky-tests-table');
 
     if (globalState().results.uses_expectations_file && globalState().unexpectedPassTests.length)
         html += testList(globalState().unexpectedPassTests, 'Tests expected to fail but passed', 'passes-table');
@@ -1285,7 +1357,7 @@ function generatePage()
             '<p>httpd error log: <a href="error_log.txt">error_log.txt</a></p>';
     }
 
-    document.body.innerHTML = html;
+    document.body.innerHTML = html + '</div>';
 
     if (document.getElementById('results-table')) {
         document.getElementById('results-table').addEventListener('click', TableSorter.handleClick, false);
@@ -1299,6 +1371,8 @@ function generatePage()
             parentOfType(document.getElementById('toggle-images'), 'label').style.display = 'none';
         }
     }
+
+    updateTestlistCounts();
 
     TestNavigator.reset();
     OptionWriter.apply();

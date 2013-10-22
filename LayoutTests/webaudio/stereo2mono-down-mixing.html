@@ -3,6 +3,7 @@
 <html>
 <head>
 <script src="../fast/js/resources/js-test-pre.js"></script>
+<script src="resources/audio-testing.js"></script>
 </head>
 
 <body>
@@ -41,16 +42,15 @@ function testFinished() {
 }
 
 function runTest() {
-    if (window.layoutTestController) {
-        layoutTestController.overridePreference("WebKitWebAudioEnabled", "1");
-        layoutTestController.dumpAsText();
-        layoutTestController.waitUntilDone();
+    if (window.testRunner) {
+        testRunner.dumpAsText();
+        testRunner.waitUntilDone();
     }
 
     window.jsTestIsAsync = true;
 
     // Create offline audio context, the destination is mono.
-    context = new webkitAudioContext(1, sampleRate * renderLengthSeconds, sampleRate);
+    context = new webkitOfflineAudioContext(1, sampleRate * renderLengthSeconds, sampleRate);
     // Create a stereo AudioBuffer.
     toneBuffer = createDataBuffer(context, renderLengthSeconds);
 

@@ -5,6 +5,13 @@ include("header.inc");
 
 <h2>WebKit Team</h2>
 
+<p>Here is the key for each item:</p>
+<ul>
+    <li><strong class="name">Name</strong> <span class="nick">(IRC nickname)</span> <em class="affiliation">Affiliation</em>
+        <ul><li class="expertise">Areas of knowledge</li></ul>
+    </li>
+</ul>
+
 <div id="container">
 <h2>Reviewers</h2>
 <ul id="reviewers"></ul>
@@ -21,9 +28,12 @@ include("header.inc");
 var svnTrunkUrl = 'http://svn.webkit.org/repository/webkit/trunk/';
 var domainAffiliations = {
     'apple.com': 'Apple',
+    'adobe.com': 'Adobe',
+    'basyskom.com': 'basysKom GmbH',
     'collabora.co.uk': 'Collabora',
     'google.com': 'Google',
     'igalia.com': 'Igalia',
+    'intel.com' : 'Intel',
     'motorola.com': 'Motorola Mobility',
     'nokia.com': 'Nokia',
     'openbossa.org': 'INdT / Nokia',
@@ -31,7 +41,9 @@ var domainAffiliations = {
     'rim.com': 'Research In Motion',
     'samsung.com': 'Samsung Electronics',
     'sencha.com': 'Sencha',
+    'sisa.samsung.com': 'Samsung Electronics',
     'torchmobile.com.cn': 'Torch Mobile (Beijing) Co. Ltd.',
+    'digia.com': 'Digia',
 
     // Universities
     'inf.u-szeged.hu': 'University of Szeged',
@@ -43,27 +55,20 @@ var domainAffiliations = {
     'kde.org': 'KDE'
 };
 
-function parseCommittersPy(text) {
-    var lines = text.split('\n');
+function parseContributorsJSON(text) {
+    var contributorsJSON = JSON.parse(text);
     var contributors = [];
-    for (var i = 0; i < lines.length; i++) {
-        var contributorLine = /^\s+(Reviewer|Committer|Contributor)\((.+)\),?$/;
-        var match = contributorLine.exec(lines[i]);
-        if (!match)
-            continue;
 
-        try {
-            var nameEmailsNicks = JSON.parse('[' + match[2].replace(/^u"/,'"') + ']');
-        } catch (e) {
-            continue;
+    for (var contributorType in contributorsJSON) {
+        for (var contributor in contributorsJSON[contributorType]) {
+            contributors.push({
+                name: contributor,
+                kind: contributorType.replace(/s$/, "").toLowerCase(),
+                emails: contributorsJSON[contributorType][contributor].emails,
+                nicks: contributorsJSON[contributorType][contributor].nicks,
+                expertise: contributorsJSON[contributorType][contributor].expertise
+            });
         }
-        contributors.push({
-            name: nameEmailsNicks[0],
-            kind: match[1].toLowerCase(),
-            emails: typeof nameEmailsNicks[1] == 'string' ? [nameEmailsNicks[1]] : nameEmailsNicks[1],
-            nicks: typeof nameEmailsNicks[2] == 'string' ? [nameEmailsNicks[2]] : nameEmailsNicks[2],
-            area: nameEmailsNicks[3]
-        });
     }
     return contributors;
 }
@@ -107,6 +112,12 @@ function populateContributorListItem(listItem, contributor) {
     if (affiliation) {
         addText(listItem, ' ');
         addWrappedText(listItem, 'em', {'class': 'affiliation'}, affiliation);        
+    }
+
+    if (contributor.expertise) {
+        var expertiseList = document.createElement('ul');
+        addWrappedText(expertiseList, 'li', {'class': 'expertise'}, contributor.expertise);
+        listItem.appendChild(expertiseList);
     }
 }
 
@@ -200,7 +211,7 @@ var xhr = new XMLHttpRequest();
 xhr.onload = function () {
     if (this.status !== 200)
         return this.onerror();
-    var contributors = parseCommittersPy(this.responseText);
+    var contributors = parseContributorsJSON(this.responseText);
 
     populateContributorList(contributors, 'reviewer');
     populateContributorList(contributors, 'committer');
@@ -209,8 +220,8 @@ xhr.onload = function () {
     if (location.search.indexOf('annotate') >= 0)
         annotateWithWikiData();
 };
-xhr.onerror = function () { document.getElementById('container').textContent = 'Could not obtain committers.py'; };
-xhr.open('GET', svnTrunkUrl + 'Tools/Scripts/webkitpy/common/config/committers.py');
+xhr.onerror = function () { document.getElementById('container').textContent = 'Could not obtain contributors.json'; };
+xhr.open('GET', svnTrunkUrl + 'Tools/Scripts/webkitpy/common/config/contributors.json');
 xhr.send();
 
 </script>

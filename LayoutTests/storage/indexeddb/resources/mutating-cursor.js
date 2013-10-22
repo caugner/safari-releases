@@ -5,34 +5,11 @@ if (this.importScripts) {
 
 description("Test mutating an IndexedDB's objectstore from a cursor.");
 
-test();
-
-function test()
+indexedDBTest(prepareDatabase, openForwardCursor);
+function prepareDatabase()
 {
-    removeVendorPrefixes();
-    request = evalAndLog("indexedDB.open('mutating-cursor')");
-    request.onsuccess = openSuccess;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function openSuccess()
-{
-    var db = evalAndLog("db = event.target.result");
-
-    request = evalAndLog("db.setVersion('1')");
-    request.onsuccess = setVersionSuccess;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function setVersionSuccess()
-{
-    debug("setVersionSuccess():");
-    self.trans = evalAndLog("trans = event.target.result");
-    shouldBeTrue("trans !== null");
-    trans.onabort = unexpectedAbortCallback;
-    trans.oncomplete = openForwardCursor;
-
-    deleteAllObjectStores(db);
+    db = event.target.result;
+    event.target.transaction.onabort = unexpectedAbortCallback;
 
     var objectStore = evalAndLog("objectStore = db.createObjectStore('store')");
     evalAndLog("objectStore.add(1, 1).onerror = unexpectedErrorCallback");
@@ -44,7 +21,7 @@ function setVersionSuccess()
 function openForwardCursor()
 {
     debug("openForwardCursor()");
-    evalAndLog("trans = db.transaction(['store'], IDBTransaction.READ_WRITE)");
+    evalAndLog("trans = db.transaction(['store'], 'readwrite')");
     trans.onabort = unexpectedAbortCallback;
     trans.oncomplete = forwardCursorComplete;
 
@@ -89,12 +66,12 @@ function forwardCursorComplete()
 function openReverseCursor()
 {
     debug("openReverseCursor()");
-    evalAndLog("trans = db.transaction(['store'], IDBTransaction.READ_WRITE)");
+    evalAndLog("trans = db.transaction(['store'], 'readwrite')");
     trans.onabort = unexpectedAbortCallback;
     trans.oncomplete = reverseCursorComplete;
 
     self.objectStore = evalAndLog("trans.objectStore('store')");
-    request = evalAndLog("objectStore.openCursor(null, IDBCursor.PREV)");
+    request = evalAndLog("objectStore.openCursor(null, 'prev')");
     request.onsuccess = reverseCursor;
     request.onerror = unexpectedErrorCallback;
     self.cursorSteps = 6;

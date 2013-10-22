@@ -55,8 +55,8 @@ function playNote(time, duration, playbackRate) {
 
     // Loop and play for the given duration.
     source.loop = true;
-    source.noteOn(time);
-    source.noteOff(time + duration);
+    source.start(time);
+    source.stop(time + duration);
     
     // Apply quick fade-in and fade-out to avoid clicks.
     gainNode.gain.value = 0;
@@ -67,11 +67,11 @@ function playNote(time, duration, playbackRate) {
 }
 
 function init() {
-    if (!window.layoutTestController)
+    if (!window.testRunner)
         return;
 
     // Create offline audio context.
-    context = new webkitAudioContext(2, sampleRate * lengthInSeconds, sampleRate);
+    context = new webkitOfflineAudioContext(2, sampleRate * lengthInSeconds, sampleRate);
 
     // Create a single cycle of a sine wave.
     // We'll loop this to play notes of a given duration, at a given playback rate.
@@ -92,7 +92,7 @@ function init() {
     context.oncomplete = finishAudioTest;
     context.startRendering();
 
-    layoutTestController.waitUntilDone();
+    testRunner.waitUntilDone();
 }
 
 </script>

@@ -6,21 +6,22 @@ RUNNING TEST: extension_testSidebarPageReplacedWithObject
 Got onShown(), frame defined
 Got onShown(), frame not defined
 RUNNING TEST: extension_testSidebarSetExpression
+log: Extension server error: Inspector protocol error: Object has too long reference chain(must not be longer than 1000)
 Sidebar content: titlef0: "expression"f1: undefinedf2: nullf3: Objectf4: Array[0]f5: Array[3]f6: Objectf7: 42f8: Locationf9: HTMLCollection[2]f10: function () {}f11: "foo"__proto__: Object
 RUNNING TEST: extension_testSidebarSetObject
 Watch sidebar created, callback arguments dump follows:
 {
     0 : {
-        onShown : {
-            addListener : <function>
-            removeListener : <function>
-        }
         onHidden : {
             addListener : <function>
             removeListener : <function>
         }
-        setHeight : <function>
+        onShown : {
+            addListener : <function>
+            removeListener : <function>
+        }
         setExpression : <function>
+        setHeight : <function>
         setObject : <function>
         setPage : <function>
     }
@@ -29,16 +30,16 @@ Sidebar content: f0: "object"f1: undefinedf2: nullf3: {}f4: []f5: [aa, bb, cc]f6
 RUNNING TEST: extension_testSidebarSetPage
 Sidebar created
 {
-    onShown : {
-        addListener : <function>
-        removeListener : <function>
-    }
     onHidden : {
         addListener : <function>
         removeListener : <function>
     }
-    setHeight : <function>
+    onShown : {
+        addListener : <function>
+        removeListener : <function>
+    }
     setExpression : <function>
+    setHeight : <function>
     setObject : <function>
     setPage : <function>
 }

@@ -4,21 +4,21 @@ body { -webkit-column-width: 0; }
 .hardware:last-of-type { -webkit-column-span: all; }
 </style>
 
+<body>
 <script>
     function clear() {
         document.documentElement.removeChild(document.body);
         document.documentElement.innerHTML='PASS, if no exception or crash';
-        if (window.layoutTestController) {
-            layoutTestController.notifyDone();
+        if (window.testRunner) {
+            testRunner.notifyDone();
         }
     }
     setTimeout("clear();", 0);
-    if (window.layoutTestController) {
-        layoutTestController.waitUntilDone();
-        layoutTestController.dumpAsText();
+    if (window.testRunner) {
+        testRunner.waitUntilDone();
+        testRunner.dumpAsText();
     }
 </script>
-<body>
 <div id="container">
     <div class="hardware box">
 </body>

@@ -22,10 +22,10 @@ for (var i = 0; i < platforms.length; i++) {
     platform = platforms[i];
     debug('Platform: ' + platform);
 
-    if (window.layoutTestController)
-        layoutTestController.setEditingBehavior(platform);
+    if (window.internals)
+        internals.settings.setEditingBehavior(platform);
 
-    if (platform == 'win' || platform == 'unix')
+    if (platform != 'mac')
         platform = 'nonmac';
 
     testSingleToggle("bold", "<u><b>hello</b> world</u>", {mac: '<u>hello world</u>', nonmac: '<u><b>hello world</b></u>'}[platform]);

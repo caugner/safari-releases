@@ -29,7 +29,7 @@ function setupTargetTree()
     var child0 = document.createElement("span");
     child0.innerHTML = "Hello,";
     root.appendChild(child0);
-    root.appendChild(window.internals.createContentElement(document));
+    root.appendChild(window.internals.createContentElement());
     var child1 = document.createElement("span");
     child1.innerHTML = "World.";
     root.appendChild(child1);
@@ -39,7 +39,7 @@ function setupTargetTree()
 
 function test()
 {
-    layoutTestController.dumpAsText();
+    testRunner.dumpAsText();
     log("This test compares a shadow-based render tree with one for a refrence DOM tree.");
     setupTargetTree();
     var targetContainerRenderTree = window.internals.elementRenderTreeAsText(document.getElementById("targetContainer"));

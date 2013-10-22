@@ -84,8 +84,8 @@ byId = function(id, doc) {
 function Interval() {
   var start_ = 0;
   var stop_ = 0;
-  this.start = function() { start_ = new Date(); };
-  this.stop = function() { stop_ = new Date(); };
+  this.start = function() { start_ = PerfTestRunner.now(); };
+  this.stop = function() { stop_ = PerfTestRunner.now(); };
   this.microseconds = function() { return (stop_ - start_) * 1000; };
 }
 
@@ -139,7 +139,7 @@ function BenchmarkSuite(name, benchmarks) {
 
 // This computes the amount of overhead is associated with the call to the test
 // function and getting the date. 
-BenchmarkSuite.start = new Date();
+BenchmarkSuite.start = PerfTestRunner.now();
 
 BenchmarkSuite.Math = new (function() {
     // Computes the geometric mean of a set of numbers.
@@ -215,7 +215,7 @@ function BenchmarkResult(benchmark, times, error, benchmarkContent) {
 // single iteration.
 BenchmarkSuite.prototype.RunSingle = function(benchmark, times) {
     var elapsed = 0;
-    var start = new Date();
+    var start = PerfTestRunner.now();
     var runInterval = new Interval();
     var setupReturn = null;
     var runReturn = null;
@@ -254,7 +254,7 @@ BenchmarkSuite.prototype.RunSingle = function(benchmark, times) {
         } catch (e) {
             error = e;
         }
-        totalTime = new Date() - start;
+        totalTime = PerfTestRunner.now() - start;
   }
 
     var result = new BenchmarkResult(benchmark, times, error, null);
@@ -330,8 +330,8 @@ BenchmarkSuite.prototype.generateLargeTree = function() {
     return this.generateDOMTree(26, 26, 4);
 };
 
-function runBenchmarkSuite(suite, runCount) {
-    PerfTestRunner.run(function () {
+function runBenchmarkSuite(suite) {
+    PerfTestRunner.measureTime({run: function () {
         var container = document.getElementById('container');
         var content = document.getElementById('benchmark_content');
         suite.benchmarkContentHolder = container;
@@ -345,9 +345,10 @@ function runBenchmarkSuite(suite, runCount) {
                 totalMeanTime += result.mean;
         }
         return totalMeanTime;
-    }, 1, runCount || 20, function () {
+    },
+    done: function () {
         var container = document.getElementById('container');
         if (container.firstChild)
             container.removeChild(container.firstChild);
-    });
+    }});
 }

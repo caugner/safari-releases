@@ -2,15 +2,16 @@
 <html>
 <style>
 .flexbox {
-    display: -webkit-flexbox;
+    display: -webkit-flex;
     background-color: #aaa;
     position: relative;
     -webkit-flex-flow: column wrap;
     margin-top: 20px;
-    -webkit-flex-line-pack: start;
+    -webkit-align-content: flex-start;
 }
 .flexbox > div {
     border: 0;
+    -webkit-flex: none;
 }
 
 .flexbox :nth-child(1) {
@@ -26,12 +27,8 @@
     background-color: yellow;
 }
 </style>
-<script>
-if (window.layoutTestController)
-    layoutTestController.dumpAsText();
-</script>
-<script src="resources/flexbox.js"></script>
-<body onload="checkFlexBoxen()">
+<script src="../../resources/check-layout.js"></script>
+<body onload="checkLayout('.flexbox')">
 <p>Test to make sure that multiline columns break at the right places when auto sized.</p>
 
 <div data-expected-width="200" data-expected-height="80" class="flexbox" style="width: 200px">

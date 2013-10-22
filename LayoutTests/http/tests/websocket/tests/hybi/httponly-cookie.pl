@@ -25,8 +25,6 @@ print <<HTML
 <div id="console"></div>
 <script>
 window.jsTestIsAsync = true;
-if (window.layoutTestController)
-    layoutTestController.overridePreference("WebKitHixie76WebSocketProtocolEnabled", 0);
 
 var cookie;
 

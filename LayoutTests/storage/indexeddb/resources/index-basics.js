@@ -5,34 +5,12 @@ if (this.importScripts) {
 
 description("Test the basics of IndexedDB's webkitIDBIndex.");
 
-function test()
+indexedDBTest(prepareDatabase);
+function prepareDatabase(evt)
 {
-    removeVendorPrefixes();
-    request = evalAndLog("indexedDB.open('index-basics')");
-    request.onsuccess = setVersion;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function setVersion(evt)
-{
-    event = evt;
-    db = evalAndLog("db = event.target.result");
-
-    request = evalAndLog("db.setVersion('new version')");
-    request.onsuccess = deleteExisting;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function deleteExisting(evt)
-{
-    event = evt;
-    debug("setVersionSuccess():");
-    self.trans = evalAndLog("trans = event.target.result");
-    shouldBeTrue("trans !== null");
-    trans.onabort = unexpectedAbortCallback;
-
-    deleteAllObjectStores(db);
-
+    preamble(evt);
+    db = event.target.result;
+    event.target.transaction.onabort = unexpectedAbortCallback;
     self.store = evalAndLog("db.createObjectStore('storeName', null)");
     self.indexObject = evalAndLog("store.createIndex('indexName', 'x')");
     self.indexObject2 = evalAndLog("store.createIndex('indexName2', 'y', {unique: false})");
@@ -85,8 +63,17 @@ function addData2(evt)
 function addData3(evt)
 {
     event = evt;
-    // Add data which doesn't have a key in the zIndex.
+    debug("Add data which doesn't have a key in the z index.");
     request = evalAndLog("event.target.source.add({x: 'value3', y: '456'}, 'key3')");
+    request.onsuccess = addData4;
+    request.onerror = unexpectedErrorCallback;
+}
+
+function addData4(evt)
+{
+    event = evt;
+    debug("Add data which has invalid key for y index, no key for the z index.");
+    request = evalAndLog("event.target.source.add({x: 'value4', y: null}, 'key4')");
     request.onsuccess = getData;
     request.onerror = unexpectedErrorCallback;
 }
@@ -165,6 +152,11 @@ function openKeyCursor(evt)
     event = evt;
     shouldBeEqualToString("event.target.result", "key2");
 
+    debug("");
+    debug("Verify that specifying an invalid direction raises an exception:");
+    evalAndExpectExceptionClass("indexObject.openKeyCursor(0, 'invalid-direction')", "TypeError");
+    debug("");
+
     self.request = evalAndLog("indexObject.openKeyCursor()");
     request.onsuccess = cursor1Continue;
     request.onerror = unexpectedErrorCallback;
@@ -174,7 +166,7 @@ function cursor1Continue(evt)
 {
     event = evt;
     shouldBe("event.target.source", "indexObject");
-    shouldBeFalse("event.target.result === null");
+    shouldBeNonNull("event.target.result");
     shouldBeEqualToString("event.target.result.key", "value");
     shouldBeEqualToString("event.target.result.primaryKey", "key");
 
@@ -186,7 +178,7 @@ function cursor1Continue(evt)
 function cursor1Continue2(evt)
 {
     event = evt;
-    shouldBeFalse("event.target.result === null");
+    shouldBeNonNull("event.target.result");
     shouldBeEqualToString("event.target.result.key", "value2");
     shouldBeEqualToString("event.target.result.primaryKey", "key2");
 
@@ -198,9 +190,21 @@ function cursor1Continue2(evt)
 function cursor1Continue3(evt)
 {
     event = evt;
-    shouldBeFalse("event.target.result === null");
+    shouldBeNonNull("event.target.result");
     shouldBeEqualToString("event.target.result.key", "value3");
     shouldBeEqualToString("event.target.result.primaryKey", "key3");
+
+    // We re-use the last request object.
+    evalAndLog("event.target.result.continue()");
+    self.request.onsuccess = cursor1Continue4;
+}
+
+function cursor1Continue4(evt)
+{
+    event = evt;
+    shouldBeNonNull("event.target.result");
+    shouldBeEqualToString("event.target.result.key", "value4");
+    shouldBeEqualToString("event.target.result.primaryKey", "key4");
 
     // We re-use the last request object.
     evalAndLog("event.target.result.continue()");
@@ -210,7 +214,12 @@ function cursor1Continue3(evt)
 function openObjectCursor(evt)
 {
     event = evt;
-    shouldBeTrue("event.target.result === null");
+    shouldBeNull("event.target.result");
+
+    debug("");
+    debug("Verify that specifying an invalid direction raises an exception:");
+    evalAndExpectExceptionClass("indexObject.openCursor(0, 'invalid-direction')", "TypeError");
+    debug("");
 
     self.request = evalAndLog("indexObject.openCursor()");
     request.onsuccess = cursor2Continue;
@@ -221,7 +230,7 @@ function cursor2Continue(evt)
 {
     event = evt;
     shouldBe("event.target.source", "indexObject");
-    shouldBeFalse("event.target.result === null");
+    shouldBeNonNull("event.target.result");
     shouldBeEqualToString("event.target.result.key", "value");
     shouldBeEqualToString("event.target.result.value.x", "value");
     shouldBeEqualToString("event.target.result.value.y", "zzz");
@@ -234,7 +243,7 @@ function cursor2Continue(evt)
 function cursor2Continue2(evt)
 {
     event = evt;
-    shouldBeFalse("event.target.result === null");
+    shouldBeNonNull("event.target.result");
     shouldBeEqualToString("event.target.result.key", "value2");
     shouldBeEqualToString("event.target.result.value.x", "value2");
     shouldBeEqualToString("event.target.result.value.y", "zzz2");
@@ -247,10 +256,23 @@ function cursor2Continue2(evt)
 function cursor2Continue3(evt)
 {
     event = evt;
-    shouldBeFalse("event.target.result === null");
+    shouldBeNonNull("event.target.result");
     shouldBeEqualToString("event.target.result.key", "value3");
     shouldBeEqualToString("event.target.result.value.x", "value3");
     shouldBeEqualToString("event.target.result.value.y", "456");
+
+    // We re-use the last request object.
+    evalAndLog("event.target.result.continue()");
+    self.request.onsuccess = cursor2Continue4;
+}
+
+function cursor2Continue4(evt)
+{
+    event = evt;
+    shouldBeNonNull("event.target.result");
+    shouldBeEqualToString("event.target.result.key", "value4");
+    shouldBeEqualToString("event.target.result.value.x", "value4");
+    shouldBe("event.target.result.value.y", "null");
 
     // We re-use the last request object.
     evalAndLog("event.target.result.continue()");
@@ -260,25 +282,43 @@ function cursor2Continue3(evt)
 function last(evt)
 {
     event = evt;
-    shouldBeTrue("event.target.result === null");
+    shouldBeNull("event.target.result");
 
-    try {
-        debug("Passing an invalid key into indexObject.get({}).");
-        indexObject.get({});
-        testFailed("No exception thrown");
-    } catch (e) {
-        testPassed("Caught exception: " + e.toString());
-    }
-
-    try {
-        debug("Passing an invalid key into indexObject.getKey({}).");
-        indexObject.getKey({});
-        testFailed("No exception thrown");
-    } catch (e) {
-        testPassed("Caught exception: " + e.toString());
-    }
-    finishJSTest();
+    evalAndLog("request = indexObject.count()");
+    request.onerror = unexpectedErrorCallback;
+    request.onsuccess = index1Count;
 }
 
-var jsTestIsAsync = true;
-test();
+function index1Count(evt)
+{
+    event = evt;
+    shouldBe("event.target.result", "4");
+
+    evalAndLog("request = indexObject2.count()");
+    request.onerror = unexpectedErrorCallback;
+    request.onsuccess = index2Count;
+}
+
+function index2Count(evt)
+{
+    event = evt;
+    shouldBe("event.target.result", "3");
+
+    evalAndLog("request = indexObject3.count()");
+    request.onerror = unexpectedErrorCallback;
+    request.onsuccess = index3Count;
+}
+
+function index3Count(evt)
+{
+    event = evt;
+    shouldBe("event.target.result", "2");
+
+    debug("Passing an invalid key into indexObject.get({}).");
+    evalAndExpectException("indexObject.get({})", "0", "'DataError'");
+
+    debug("Passing an invalid key into indexObject.getKey({}).");
+    evalAndExpectException("indexObject.getKey({})", "0", "'DataError'");
+
+    finishJSTest();
+}

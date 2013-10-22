@@ -142,7 +142,7 @@ PASS jsWrapperClass(document.__proto__) is 'HTMLDocumentPrototype'
 PASS jsWrapperClass(document.constructor) is 'HTMLDocumentConstructor'
 PASS jsWrapperClass(document.createElement('select').options) is 'HTMLOptionsCollection'
 PASS jsWrapperClass(document.createElement('select').options.__proto__) is 'HTMLOptionsCollectionPrototype'
-PASS jsWrapperClass(document.createElement('select').options.constructor) is 'HTMLOptionsCollectionConstructor'
+FAIL jsWrapperClass(document.createElement('select').options.constructor) should be HTMLOptionsCollectionConstructor. Was Function.
 
 HTML Elements
 
@@ -341,6 +341,9 @@ PASS tagJSWrapperConstructorClass('link') is 'HTMLLinkElementConstructor'
 PASS tagJSWrapperClass('listing') is 'HTMLPreElement'
 PASS tagJSWrapperPrototypeClass('listing') is 'HTMLPreElementPrototype'
 PASS tagJSWrapperConstructorClass('listing') is 'HTMLPreElementConstructor'
+PASS tagJSWrapperClass('main') is 'HTMLElement'
+PASS tagJSWrapperPrototypeClass('main') is 'HTMLElementPrototype'
+PASS tagJSWrapperConstructorClass('main') is 'HTMLElementConstructor'
 PASS tagJSWrapperClass('map') is 'HTMLMapElement'
 PASS tagJSWrapperPrototypeClass('map') is 'HTMLMapElementPrototype'
 PASS tagJSWrapperConstructorClass('map') is 'HTMLMapElementConstructor'

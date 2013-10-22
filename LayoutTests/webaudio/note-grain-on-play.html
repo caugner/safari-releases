@@ -99,15 +99,15 @@
       }
 
       function runTest() {
-          if (window.layoutTestController) {
-              layoutTestController.dumpAsText();
-              layoutTestController.waitUntilDone();
+          if (window.testRunner) {
+              testRunner.dumpAsText();
+              testRunner.waitUntilDone();
           }
 
           window.jsTestIsAsync = true;
 
           // Create offline audio context.
-          context = new webkitAudioContext(2, sampleRate * renderTime, sampleRate);
+          context = new webkitOfflineAudioContext(2, sampleRate * renderTime, sampleRate);
 
           // Create a linear ramp for testing noteGrainOn.
           linearRampBuffer = createSignalBuffer(context,

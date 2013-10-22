@@ -14,25 +14,36 @@ function testToAddShadowRoot(element, success) {
     debug(element.nodeName);
 
     if (success)
-        shouldNotBe("new WebKitShadowRoot(element)", "null");
+        shouldNotBe("element.webkitCreateShadowRoot()", "null");
     else
-        shouldThrow("new WebKitShadowRoot(element)");
+        shouldThrow("element.webkitCreateShadowRoot()");
 }
 
 var elementsToSuccess = [
     document.createElement('div'),
     document.createElement('span'),
     document.createElement('a'),
-    document.createElement('section')
+    document.createElement('section'),
 ];
 
 var elementsToFail = [
     document.createElement('input'),
-    document.createElement('textarea'),
-    document.createElement('select'),
+    document.getElementById('tref'),
     document.createElement('audio'),
     document.createElement('video'),
-    document.getElementById('tref')
+    document.createElement('select'),
+    document.createElement('img'),
+    document.createElement('textarea'),
+    document.createElement('iframe'),
+    document.createElement('canvas'),
+    document.createElement('meter'),
+    document.createElement('progress'),
+    document.createElement('object'),
+    document.createElement('embed'),
+    document.createElement('keygen'),
+    document.createElement('video'),
+    document.createElement('audio'),
+    document.createElement('fieldset'),
 ];
 
 for (var i = 0; i < elementsToSuccess.length; ++i) {

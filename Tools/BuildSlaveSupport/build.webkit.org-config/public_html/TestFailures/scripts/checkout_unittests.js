@@ -31,59 +31,19 @@ test("subversionURLForTest", 1, function() {
     equals(checkout.subversionURLForTest("path/to/test.html"), "http://svn.webkit.org/repository/webkit/trunk/LayoutTests/path/to/test.html");
 });
 
-test("updateExpectations", 4, function() {
+test("rebaseline", 3, function() {
     var simulator = new NetworkSimulator();
 
-    // FIXME: This leaks state into g_haveSeenCheckoutAvailable, which is global.
-    simulator.ajax = function(options) { options.success.call(); },
-
-    simulator.post = function(url, data, callback)
+    var requests = [];
+    simulator.post = function(url, body, callback)
     {
-        equals(url, 'http://127.0.0.1:8127/updateexpectations');
-        equals(data, '[{"builderName":"WebKit Linux","testName":"another/test.svg"}]');
-        simulator.scheduleCallback(callback);
-    };
-
-    simulator.runTest(function() {
-        checkout.updateExpectations([{
-            'builderName': 'WebKit Linux',
-            'testName': 'another/test.svg',
-        }], function() {
-            ok(true);
-        }, function() {
-            ok(false);
-        });
-    });
-});
-
-test("optimizeBaselines", 3, function() {
-    var simulator = new NetworkSimulator();
-    simulator.post = function(url, callback)
-    {
-        equals(url, 'http://127.0.0.1:8127/optimizebaselines?test=another%2Ftest.svg');
-        simulator.scheduleCallback(callback);
-    };
-
-    simulator.runTest(function() {
-        checkout.optimizeBaselines('another/test.svg', function() {
-            ok(true);
-        });
-    });
-});
-
-test("rebaseline", 6, function() {
-    var simulator = new NetworkSimulator();
-
-    var requestedURLs = [];
-    simulator.post = function(url, callback)
-    {
-        requestedURLs.push(url);
+        requests.push([url, body]);
         simulator.scheduleCallback(callback);
     };
     simulator.ajax = function(options)
     {
-        if (options.url.indexOf('/ping') != -1)
-            ok(false, 'Recieved non-ping ajax request.');
+        if (options.url.indexOf('/ping') == -1)
+            ok(false, 'Received non-ping ajax request: ' + options.url);
         simulator.scheduleCallback(options.success);
     };
 
@@ -97,12 +57,15 @@ test("rebaseline", 6, function() {
         checkout.rebaseline([{
             'builderName': 'WebKit Linux',
             'testName': 'another/test.svg',
+            'failureTypeList': ['IMAGE'],
         }, {
             'builderName': 'WebKit Mac10.6',
             'testName': 'another/test.svg',
+            'failureTypeList': ['IMAGE', 'TEXT', 'IMAGE+TEXT'],
         }, {
-            'builderName': 'Webkit Vista',
+            'builderName': 'Webkit Win7',
             'testName': 'fast/test.html',
+            'failureTypeList': ['IMAGE+TEXT'],
         }], function() {
             ok(true);
         }, function(failureInfo) {
@@ -112,12 +75,15 @@ test("rebaseline", 6, function() {
         });
     });
 
-    deepEqual(requestedURLs, [
-        "http://127.0.0.1:8127/rebaseline?builder=WebKit+Linux&test=another%2Ftest.svg",
-        "http://127.0.0.1:8127/rebaseline?builder=WebKit+Mac10.6&test=another%2Ftest.svg",
-        "http://127.0.0.1:8127/rebaseline?builder=Webkit+Vista&test=fast%2Ftest.html",
-        "http://127.0.0.1:8127/optimizebaselines?test=another%2Ftest.svg",
-        "http://127.0.0.1:8127/optimizebaselines?test=fast%2Ftest.html"
+    deepEqual(requests, [
+        ["/rebaselineall",
+         JSON.stringify({
+             "another/test.svg": {
+                 "WebKit Linux": ["png"], 
+                 "WebKit Mac10.6": ["png","txt"]},
+             "fast/test.html": {
+                 "Webkit Win7": ["txt","png"]
+             }})]
     ]);
 });
 

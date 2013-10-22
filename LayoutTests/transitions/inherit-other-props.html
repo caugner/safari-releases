@@ -21,9 +21,9 @@
     }
   </style>
   <script>
-    if (window.layoutTestController) {
-        layoutTestController.dumpAsText();
-        layoutTestController.waitUntilDone();
+    if (window.testRunner) {
+        testRunner.dumpAsText();
+        testRunner.waitUntilDone();
     }
 
     var kExpectedProp = [
@@ -45,12 +45,12 @@
     ];
 
     var kExpectedTimingFunction = [
-      'cubic-bezier(0.25, 0.1, 0.25, 1)', /* box1 */
+      'ease', /* box1 */
       'linear', /* box2 */
       'linear', /* box3 */
       'linear', /* box4 */ /* inherits from box3 */
       'linear', /* box5 */
-      'cubic-bezier(0.25, 0.1, 0.25, 1)', /* box6 */ /* does NOT inherit */
+      'ease', /* box6 */ /* does NOT inherit */
     ];
 
     var result = '';
@@ -75,8 +75,8 @@
 
       document.body.removeChild(document.getElementById('container'));
       document.getElementById('result').innerHTML = result;
-      if (window.layoutTestController)
-          layoutTestController.notifyDone();
+      if (window.testRunner)
+          testRunner.notifyDone();
     }
 
     window.addEventListener('load', testProperties, false);

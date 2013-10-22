@@ -14,10 +14,10 @@ function createElement(tokenList)
 
 debug('- Tests from http://simon.html5.org/test/html/dom/reflecting/DOMTokenList/');
 
-// Setting a value to a DOMSettableTokenList should be forwared to the 'value' attribute.
+// HTMLOutputElement::htmlFor is readonly attribute.
 createElement('x');
 element.htmlFor = 'y';
-shouldBeEqualToString('String(element.htmlFor)', 'y');
+shouldBeEqualToString('String(element.htmlFor)', 'x');
 
 // http://simon.html5.org/test/html/dom/reflecting/DOMTokenList/getting/001.htm
 createElement('');
@@ -87,11 +87,11 @@ shouldBeEqualToString('list.value', '');
 
 element = document.createElement('output');
 shouldBeFalse('element.htmlFor.contains(\'x\')');
-shouldBeNull('element.htmlFor[1]');
+shouldBeUndefined('element.htmlFor[1]');
 element.htmlFor.remove('x');
 element.htmlFor.add('x')
 shouldBeTrue('element.htmlFor.contains(\'x\')');
-shouldBeNull('element.htmlFor[1]');
+shouldBeUndefined('element.htmlFor[1]');
 
 debug('- Testing add in presence of trailing white spaces.');
 
@@ -101,7 +101,7 @@ shouldBeEqualToString('element.htmlFor.toString()', 'x y');
 
 createElement('x\t');
 element.htmlFor.add('y');
-shouldBeEqualToString('element.htmlFor.toString()', 'x\t y');
+shouldBeEqualToString('element.htmlFor.toString()', 'x\ty');
 
 createElement(' ');
 element.htmlFor.add('y');
@@ -190,11 +190,11 @@ shouldBeEqualToString('element.htmlFor[1]', 'y');
 shouldBeEqualToString('element.htmlFor.item(1)', 'y');
 
 createElement('');
-shouldBeNull('element.htmlFor[0]');
+shouldBeUndefined('element.htmlFor[0]');
 shouldBeNull('element.htmlFor.item(0)');
 
 createElement('x y z');
-shouldBeNull('element.htmlFor[4]');
+shouldBeUndefined('element.htmlFor[4]');
 shouldBeNull('element.htmlFor.item(4)');
 shouldBeUndefined('element.htmlFor[-1]');  // Not a valid index so should not trigger item().
 shouldBeNull('element.htmlFor.item(-1)');

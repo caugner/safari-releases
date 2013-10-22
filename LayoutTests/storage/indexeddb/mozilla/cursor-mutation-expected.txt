@@ -5,14 +5,11 @@ On success, you will see a series of "PASS" messages, followed by "TEST COMPLETE
 
 indexedDB = self.indexedDB || self.webkitIndexedDB || self.mozIndexedDB || self.msIndexedDB || self.OIndexedDB;
 
-
-indexedDB.deleteDatabase(name)
-indexedDB.open(name)
-db = event.target.result
-db.setVersion('1')
+dbname = "cursor-mutation.html"
+indexedDB.deleteDatabase(dbname)
+indexedDB.open(dbname)
 
 setupObjectStoreAndCreateIndex():
-trans = request.result
 objectStore = db.createObjectStore('foo', { keyPath: 'ss' })
 index = objectStore.createIndex('name', 'name', { unique: true })
 objectStoreData = [
@@ -28,7 +25,6 @@ objectStore.add(objectStoreData[1])
 objectStore.add(objectStoreData[2])
 objectStore.add(objectStoreData[3])
 objectStore.add(objectStoreData[4])
-trans.oncomplete = checkCursorResults
 
 setupCursor():
 count = 0
@@ -82,7 +78,7 @@ sawRemoved = false
 [objectStoreDataNameSort is an array of indexes into objectStoreData in alphabetical order by name]
 objectStoreDataNameSort = [ 1, 4, 5, 2, 3 ]
 
-trans = db.transaction('foo', IDBTransaction.READ_WRITE)
+trans = db.transaction('foo', 'readwrite')
 objectStore = trans.objectStore('foo')
 request = objectStore.index('name').openCursor()
 trans.oncomplete = checkMutatingCursorResults

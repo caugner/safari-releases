@@ -5,40 +5,22 @@ if (this.importScripts) {
 
 description("Test IndexedDB's createObjectStore's various options");
 
-function test()
+indexedDBTest(prepareDatabase, setVersionComplete);
+function prepareDatabase()
 {
-    removeVendorPrefixes();
-
-    request = evalAndLog("indexedDB.open('create-object-store-options')");
-    request.onsuccess = openSuccess;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function openSuccess()
-{
-    db = evalAndLog("db = event.target.result");
-
-    request = evalAndLog("request = db.setVersion('version 1')");
-    request.onsuccess = cleanDatabase;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function cleanDatabase()
-{
-    deleteAllObjectStores(db);
+    db = event.target.result;
 
     evalAndLog("db.createObjectStore('a', {keyPath: 'a'})");
     evalAndLog("db.createObjectStore('b')");
 
     debug("db.createObjectStore('c', {autoIncrement: true});");
     db.createObjectStore('c', {autoIncrement: true});
-    event.target.result.oncomplete = setVersionComplete;
 }
 
 function setVersionComplete()
 {
-    trans = evalAndLog("trans = db.transaction(['a', 'b'], IDBTransaction.READ_WRITE)");
-    shouldBe("trans.mode", "IDBTransaction.READ_WRITE");
+    trans = evalAndLog("trans = db.transaction(['a', 'b'], 'readwrite')");
+    shouldBeEqualToString("trans.mode", "readwrite");
 
     req = evalAndLog("trans.objectStore('a').put({'a': 0})");
     req.onsuccess = putB;
@@ -77,5 +59,3 @@ function checkB()
 
     finishJSTest();
 }
-
-test();

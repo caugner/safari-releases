@@ -36,6 +36,8 @@ GENSOURCES_JAVASCRIPTCORE := $(top_builddir)/DerivedSources/JavaScriptCore
 GENSOURCES_WEBCORE := $(top_builddir)/DerivedSources/WebCore
 GENSOURCES_WEBKIT := $(top_builddir)/DerivedSources/webkit
 GENSOURCES_WEBKIT2 := $(top_builddir)/DerivedSources/WebKit2
+GENSOURCES_WEBKITDOM := $(top_builddir)/DerivedSources/webkitdom
+GENSOURCES_PLATFORM := $(top_builddir)/DerivedSources/Platform
 GENPROGRAMS := $(top_builddir)/Programs
 GENSOURCES_INSPECTOR := $(GENPROGRAMS)/resources/inspector
 WebCore := $(srcdir)/Source/WebCore
@@ -48,6 +50,7 @@ libwebkitgtkincludedir := $(prefix)/include/webkitgtk-@WEBKITGTK_API_VERSION@
 bin_PROGRAMS :=
 noinst_PROGRAMS :=
 libexec_PROGRAMS :=
+noinst_DATA :=
 noinst_HEADERS :=
 noinst_LTLIBRARIES :=
 lib_LTLIBRARIES :=
@@ -67,8 +70,19 @@ javascriptcore_cflags :=
 javascriptcore_sources :=
 javascriptcore_built_sources :=
 javascriptcore_built_nosources :=
-webcore_cppflags :=
+llint_nosources :=
+offlineasm_nosources :=
+platform_webcore_cppflags :=
+platform_cppflags :=
+platform_built_sources :=
+platform_sources :=
+platformgtk_cppflags :=
+platformgtk_sources :=
+webcore_platform_sources :=
 webcore_modules_sources :=
+webcore_svg_built_sources :=
+webcore_svg_sources :=
+webcore_cppflags :=
 webcore_sources :=
 webcore_libadd :=
 webcore_built_sources :=
@@ -80,11 +94,17 @@ webkitgtk_static_h_api :=
 webkitgtk_h_api :=
 webkitgtk_sources :=
 webkitgtk_cppflags :=
+webkitgtk_gdom_built_h_api :=
 webkitgtk_gdom_built_sources :=
 webkitgtk_built_sources :=
 webkitgtk_built_nosources :=
+webkit2_h_api :=
 webkit2_sources :=
 webkit2_built_sources :=
+webkit2platform_sources :=
+webkit2gtk_h_api :=
+webkit2gtk_built_sources :=
+webkit2_web_extension_h_api :=
 webkit2_plugin_process_sources :=
 webkit2_plugin_process_built_sources :=
 webkittestrunner_built_sources :=
@@ -93,11 +113,6 @@ minibrowser_built_sources :=
 global_cppflags :=
 global_cflags :=
 global_cxxflags :=
-JSCORE_GIRSOURCES :=
-WEBKIT_GIRSOURCES :=
-FEATURE_DEFINES :=
-typelibsdir :=
-typelibs_DATA :=
 EXTRA_DIST :=
 BUILT_SOURCES :=
 CLEANFILES :=
@@ -105,6 +120,13 @@ DOMAIN :=
 DISTCLEANFILES :=
 MAINTAINERCLEANFILES :=
 pkgconfig_DATA :=
+
+if ENABLE_INTROSPECTION
+gir_DATA :=
+typelibs_DATA :=
+girdir := $(datadir)/gir-1.0
+typelibsdir := $(libdir)/girepository-1.0
+endif
 
 # We do not care at all about this implicit built-in make rules,
 # disable them to save some build time
@@ -125,12 +147,22 @@ global_cppflags += \
 	-Wall -W -Wcast-align -Wchar-subscripts -Wreturn-type \
 	-Wformat -Wformat-security -Wno-format-y2k -Wundef \
 	-Wmissing-format-attribute -Wpointer-arith -Wwrite-strings \
-	-Wno-unused-parameter -Wno-parentheses \
-	-fno-exceptions -DENABLE_GLIB_SUPPORT=1
+	-Wno-unused-parameter -Wno-parentheses -fno-exceptions \
+	-DBUILDING_CAIRO__ \
+	-DBUILDING_GTK__
 
+if ENABLE_WEBKIT2
+global_cppflags += \
+	-DBUILDING_WEBKIT2__
+
+endif
 
 global_cxxflags += \
 	-fno-rtti
+
+# Read the feature defines file, that's created by generate-feature-defines-files
+# during configuration (SetupWebKitFeatures.m4).
+feature_defines := $(shell cat WebKitFeatures.txt)
 
 # -no-undefined required for building DLLs on Windows
 # It breaks the build on other platforms, so we use it conditionally
@@ -143,116 +175,16 @@ if OS_GNU
 version_script = -Wl,--version-script,$(srcdir)/Source/autotools/symbols.filter
 endif
 
-# Extra checks and flags
-global_cppflags += \
-	-DBUILDING_CAIRO__=1 \
-	-DBUILDING_GTK__=1 \
-	-DBUILDING_SOUP__=1 \
-	-DWTF_CHANGES
-
-if ENABLE_WEBKIT2
-global_cppflags += \
-	-DBUILDING_WEBKIT2__=1
-endif
-
-# For the Gtk port we want to use XP_UNIX both in X11 and Mac
-if !TARGET_WIN32
-global_cppflags += \
-	-DXP_UNIX
-endif
-
-# Add MOZ_X11 for X11 targets only
-if TARGET_X11
-global_cppflags += \
-	-DMOZ_X11
-endif
-
-# Use the wide character version of win32 API by default
-if TARGET_WIN32
-global_cppflags += \
-	-DUNICODE \
-	-D_UNICODE
-endif
-
-if USE_ICU_UNICODE
-global_cppflags += \
-	-DWTF_USE_ICU_UNICODE=1
-endif
-
-if USE_GLIB_UNICODE
-global_cppflags += \
-	-DWTF_USE_GLIB_UNICODE=1
-endif
-
-if !ENABLE_FAST_MALLOC
-global_cppflags += \
-	-DUSE_SYSTEM_MALLOC
-endif
-
-if USE_GSTREAMER
-global_cppflags += \
-	-DWTF_USE_GSTREAMER=1
-endif
-
-if USE_ACCELERATED_COMPOSITING
-global_cppflags += \
-	-DWTF_USE_ACCELERATED_COMPOSITING=1 \
-	-DENABLE_3D_RENDERING=1
-endif
-
-if USE_TEXTURE_MAPPER_CAIRO
-global_cppflags += \
-	-DWTF_USE_TEXTURE_MAPPER=1 \
-	-DWTF_USE_TEXTURE_MAPPER_CAIRO=1
-endif
-
-if USE_TEXTURE_MAPPER_GL
-global_cppflags += \
-	-DWTF_USE_TEXTURE_MAPPER=1 \
-	-DWTF_USE_TEXTURE_MAPPER_GL=1
-endif
-
-if USE_CLUTTER
-global_cppflags += \
-	-DWTF_USE_CLUTTER=1
-endif
-
-if USE_GLX
-global_cppflags += \
-	-DWTF_USE_GLX=1
-endif
-
-if USE_OPENGL
-global_cppflags += \
-	-DWTF_USE_OPENGL=1
-endif
-
-# ----
-# GTK+ 2.x/3.x support
-# ----
-if GTK_API_VERSION_2
-global_cppflags += \
-	-DGTK_API_VERSION_2=1
-endif
-
-if !ENABLE_DEBUG
-global_cppflags += -DNDEBUG
-else
-global_cppflags += \
-	-DGDK_PIXBUF_DISABLE_DEPRECATED \
-	-DGDK_DISABLE_DEPRECATED \
-	-DGTK_DISABLE_DEPRECATED \
-	-DPANGO_DISABLE_DEPRECATED
-# Might be useful in the future
-#	-DGDK_MULTIHEAD_SAFE \
-#	-DGTK_MULTIHEAD_SAFE
-endif
-
 if ENABLE_COVERAGE
 global_cppflags += \
 	-DGCC_GENERATE_TEST_COVERAGE_FILES \
 	-DGCC_INSTRUMENT_PROGRAM_FLOW_ARCS
 endif
+
+# Default to outputting demangled symbols in case of reporting unresolved references or similar.
+# Using AM_LDFLAGS would be more appropriate here, but these are not used at all when linking installable libraries
+# like libwebkitgtk and libwebkit2gtk, so appending the linker flag to the LDFLAGS variable is done instead.
+LDFLAGS += -Wl,--no-demangle
 
 EXTRA_DIST += \
 	$(srcdir)/Source/autotools/symbols.filter \
@@ -261,18 +193,20 @@ EXTRA_DIST += \
 # Include module makefiles
 include Source/WTF/GNUmakefile.am
 include Source/JavaScriptCore/GNUmakefile.am
+include Source/Platform/GNUmakefile.am 
 include Source/WebCore/GNUmakefile.am
-include Source/WebKit/gtk/GNUmakefile.am
 include Source/WebCore/bindings/gobject/GNUmakefile.am
+include Source/WebCore/platform/gtk/po/GNUmakefile.am
+include Source/WebKit/gtk/GNUmakefile.am
 include Tools/GNUmakefile.am
-include Source/WebKit/gtk/po/GNUmakefile.am
-include Tools/DumpRenderTree/gtk/GNUmakefile.ImageDiff.am
 
 include Source/WebKit2/GNUmakefile.am
 include Source/WebKit2/UIProcess/API/gtk/tests/GNUmakefile.am
 include Tools/MiniBrowser/gtk/GNUmakefile.am
 include Tools/WebKitTestRunner/GNUmakefile.am
+include Source/ThirdParty/ANGLE/GNUmakefile.am
 include Source/ThirdParty/gtest/GNUmakefile.am
+include Source/ThirdParty/leveldb/GNUmakefile.am
 include Tools/TestWebKitAPI/GNUmakefile.am
 # [GTK] Refactor the translations now that we have webkit2
 # https://bugs.webkit.org/show_bug.cgi?id=55153
@@ -281,15 +215,22 @@ include Tools/TestWebKitAPI/GNUmakefile.am
 BUILT_SOURCES += \
 	$(javascriptcore_built_sources) \
 	$(javascriptcore_built_nosources) \
+	$(platform_built_sources) \
 	$(webcore_built_sources) \
 	$(webcore_built_nosources) \
+	$(webcore_svg_built_sources) \
 	$(webkitgtk_built_sources) \
-	$(webkitgtk_built_nosources)
+	$(webkitgtk_built_nosources) \
+	$(webkit2_built_sources) \
+	$(webkit2gtk_built_sources) \
+	$(webkit2_plugin_process_built_sources)
 
 DISTCLEANFILES += \
 	$(CLEANFILES) \
 	$(builddir)/doltcompile \
-	$(builddir)/doltlibtool
+	$(builddir)/doltlibtool \
+	$(builddir)/WebKitFeatures.h \
+	$(builddir)/WebKitFeatures.txt
 
 MAINTAINERCLEANFILES += \
 	$(CLEANFILES) \
@@ -310,7 +251,7 @@ MAINTAINERCLEANFILES += \
 # Older automake versions (1.7) place Plo files in a different place so we need
 # to create the output directory manually.
 all-local: stamp-po
-	$(mkdir_p) $(top_builddir)/$(DEPDIR)/DerivedSources
+	$(MKDIR_P) $(top_builddir)/$(DEPDIR)/DerivedSources
 
 # remove built sources and program directories
 clean-local:
@@ -323,10 +264,12 @@ distclean-local:
 dist-hook: doc-dist-hook
 doc-dist-hook: docs-build.stamp
 	cp $(WebKit)/NEWS $(distdir)
+if ENABLE_WEBKIT1
 	@mkdir -p $(distdir)/Documentation/webkitgtk/html
 	@mkdir -p $(distdir)/Documentation/webkitgtk/tmpl
 	@-cp ./Documentation/webkitgtk/tmpl/*.sgml $(distdir)/Documentation/webkitgtk/tmpl
 	@cp ./Documentation/webkitgtk/html/* $(distdir)/Documentation/webkitgtk/html
+endif
 if ENABLE_WEBKIT2
 	@mkdir -p $(distdir)/Documentation/webkit2gtk/html
 	@mkdir -p $(distdir)/Documentation/webkit2gtk/tmpl

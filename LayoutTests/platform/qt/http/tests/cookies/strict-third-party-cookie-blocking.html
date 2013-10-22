@@ -1,12 +1,30 @@
 <html>
 <head>
-<script src="resources/resetCookies.js"></script>
 <script>
+function resetCookies()
+{
+    if (window.testRunner)
+        testRunner.setAlwaysAcceptCookies(true);
+
+    // Due to cross-origin restrictions, we can only (simply) reset cookies for our current origin.
+    var url = "http://localhost:8000/cookies/resources/cookie-utility.php?queryfunction=deleteCookies";
+    var req = new XMLHttpRequest();
+    try {
+        req.open('GET', url, false);
+        req.send();
+    } catch (e) {
+        alert("Attempt to clear " + url + " cookies might have failed.  Test results might be off from here on out. (" + e + ")");
+    }
+
+    if (window.testRunner)
+        testRunner.setAlwaysAcceptCookies(false);
+}
+
 resetCookies();
 
-if (window.layoutTestController) {
-    layoutTestController.dumpAsText();
-    layoutTestController.waitUntilDone();
+if (window.testRunner) {
+    testRunner.dumpAsText();
+    testRunner.waitUntilDone();
 }
 
 window.onmessage = function(evt)
@@ -22,16 +40,16 @@ window.onmessage = function(evt)
 function allowAllCookies()
 {
     alert("Allowing all cookies");
-    if (window.layoutTestController)
-        layoutTestController.setAlwaysAcceptCookies(true);
+    if (window.testRunner)
+        testRunner.setAlwaysAcceptCookies(true);
     runNextTestOrFinish();
 }
 
 function restrictCookies()
 {
     alert("Restricting to first party only cookies");
-    if (window.layoutTestController)
-        layoutTestController.setAlwaysBlockCookies(true);
+    if (window.testRunner)
+        testRunner.setAlwaysBlockCookies(true);
     runNextTestOrFinish();
 }
 
@@ -77,7 +95,7 @@ var functions = new Array(
 function runNextTestOrFinish()
 {
     if (currentFunction >= functions.length) {
-        if (window.layoutTestController) {
+        if (window.testRunner) {
             resetCookies();
             window.frames[0].postMessage("resetCookiesAndNotifyDone", "*");
         }

@@ -83,6 +83,8 @@ sub generateNewChangeLogs($$$$$$$$$$$);
 sub getLatestChangeLogs($);
 sub get_function_line_ranges($$);
 sub get_function_line_ranges_for_cpp($$);
+sub delete_namespaces_from_ranges_for_cpp(\@\@);
+sub is_function_in_namespace($$);
 sub get_function_line_ranges_for_java($$);
 sub get_function_line_ranges_for_javascript($$);
 sub get_function_line_ranges_for_perl($$);
@@ -345,7 +347,7 @@ sub fetchBugDescriptionFromURL($$)
 {
     my ($bugURL, $bugNumber) = @_;
 
-    my $bugXMLURL = "$bugURL&ctype=xml";
+    my $bugXMLURL = "$bugURL&ctype=xml&excludefield=attachmentdata";
     # Perl has no built in XML processing, so we'll fetch and parse with curl and grep
     # Pass --insecure because some cygwin installs have no certs we don't
     # care about validating that bugs.webkit.org is who it says it is here.
@@ -493,7 +495,7 @@ sub generateNewChangeLogs($$$$$$$$$$$)
 
         print CHANGE_LOG normalizeLineEndings($description . "\n", $endl) if $description;
 
-        $bugDescription = "Need a short description and bug URL (OOPS!)" unless $bugDescription;
+        $bugDescription = "Need a short description (OOPS!).\n        Need the bug URL (OOPS!)." unless $bugDescription;
         print CHANGE_LOG normalizeLineEndings("        $bugDescription\n", $endl) if $bugDescription;
         print CHANGE_LOG normalizeLineEndings("        $bugURL\n", $endl) if $bugURL;
         print CHANGE_LOG normalizeLineEndings("\n", $endl);
@@ -504,7 +506,7 @@ sub generateNewChangeLogs($$$$$$$$$$$)
             if (@$addedRegressionTests) {
                 print CHANGE_LOG normalizeLineEndings(testListForChangeLog(sort @$addedRegressionTests), $endl);
             } else {
-                print CHANGE_LOG normalizeLineEndings("        No new tests. (OOPS!)\n\n", $endl);
+                print CHANGE_LOG normalizeLineEndings("        No new tests (OOPS!).\n\n", $endl);
             }
         }
 
@@ -648,6 +650,7 @@ sub get_function_line_ranges_for_cpp($$)
     my $next_word_could_be_namespace = 0;
     my $potential_namespace = "";
     my @namespaces;
+    my @all_namespaces;
 
     while (<$file_handle>) {
         # Handle continued multi-line comment.
@@ -811,6 +814,7 @@ sub get_function_line_ranges_for_cpp($$)
 
                     if ($potential_namespace) {
                         push @namespaces, $potential_namespace;
+                        push @all_namespaces, $potential_namespace;
                         $potential_namespace = "";
                         $name = $namespaces[-1];
                         $namespace_start = $. + 1;
@@ -926,9 +930,26 @@ sub get_function_line_ranges_for_cpp($$)
 
     warn "mismatched parentheses in $file_name\n" if $in_parentheses;
 
-    return @ranges;
+    return delete_namespaces_from_ranges_for_cpp(@ranges, @all_namespaces);
 }
 
+
+# Take in references to an array of line ranges for C functions in a given file 
+# and an array of namespaces declared in that file and return an updated
+# list of line ranges with the namespaces removed.
+
+sub delete_namespaces_from_ranges_for_cpp(\@\@)
+{
+    my ($ranges, $namespaces) = @_;
+    return grep {!is_function_in_namespace($namespaces, $$_[2])} @$ranges;
+}
+
+
+sub is_function_in_namespace($$)
+{
+    my ($namespaces, $function_name) = @_;
+    return grep {$_ eq $function_name} @$namespaces;
+}
 
 
 # Read a file and get all the line ranges of the things that look like Java
@@ -1217,7 +1238,7 @@ sub get_function_line_ranges_for_javascript($$)
         }
 
         # Find function names.
-        while (m-(\w+|[(){}=:;])-g) {
+        while (m-(\w+|[(){}=:;,])-g) {
             # Open parenthesis.
             if ($1 eq '(') {
                 $parenthesesDepth++;
@@ -1258,8 +1279,8 @@ sub get_function_line_ranges_for_javascript($$)
                 next;
             }
 
-            # Semicolon.
-            if ($1 eq ';') {
+            # Semicolon or comma.
+            if ($1 eq ';' or $1 eq ',') {
                 @currentIdentifiers = ();
                 next;
             }
@@ -1759,6 +1780,7 @@ sub generateFileList(\%$$$)
                     if isAddedStatus($status)
                        && $file =~ /\.([a-zA-Z]+)$/
                        && SupportedTestExtensions->{lc($1)}
+                       && $file !~ /-expected(-mismatch)?\.html$/
                        && !scalar(grep(/^resources$/i, @components))
                        && !scalar(grep(/^script-tests$/i, @components));
             }

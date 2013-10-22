@@ -1,48 +1,61 @@
-SET(DumpRenderTree_SOURCES
+set(DumpRenderTree_SOURCES
+    ${TOOLS_DIR}/DumpRenderTree/AccessibilityController.cpp
+    ${TOOLS_DIR}/DumpRenderTree/AccessibilityTextMarker.cpp
+    ${TOOLS_DIR}/DumpRenderTree/AccessibilityUIElement.cpp
+    ${TOOLS_DIR}/DumpRenderTree/DumpRenderTreeCommon.cpp
     ${TOOLS_DIR}/DumpRenderTree/CyclicRedundancyCheck.cpp
     ${TOOLS_DIR}/DumpRenderTree/GCController.cpp
-    ${TOOLS_DIR}/DumpRenderTree/LayoutTestController.cpp
+    ${TOOLS_DIR}/DumpRenderTree/TestRunner.cpp
     ${TOOLS_DIR}/DumpRenderTree/PixelDumpSupport.cpp
     ${TOOLS_DIR}/DumpRenderTree/WorkQueue.cpp
+    ${TOOLS_DIR}/DumpRenderTree/atk/AccessibilityCallbacksAtk.cpp
+    ${TOOLS_DIR}/DumpRenderTree/atk/AccessibilityControllerAtk.cpp
+    ${TOOLS_DIR}/DumpRenderTree/atk/AccessibilityUIElementAtk.cpp
     ${TOOLS_DIR}/DumpRenderTree/cairo/PixelDumpSupportCairo.cpp
+    ${TOOLS_DIR}/DumpRenderTree/efl/AccessibilityControllerEfl.cpp
+    ${TOOLS_DIR}/DumpRenderTree/efl/AccessibilityUIElementEfl.cpp
     ${TOOLS_DIR}/DumpRenderTree/efl/DumpHistoryItem.cpp
     ${TOOLS_DIR}/DumpRenderTree/efl/DumpRenderTree.cpp
     ${TOOLS_DIR}/DumpRenderTree/efl/DumpRenderTreeChrome.cpp
     ${TOOLS_DIR}/DumpRenderTree/efl/DumpRenderTreeView.cpp
+    ${TOOLS_DIR}/DumpRenderTree/efl/EditingCallbacks.cpp
     ${TOOLS_DIR}/DumpRenderTree/efl/EventSender.cpp
     ${TOOLS_DIR}/DumpRenderTree/efl/FontManagement.cpp
     ${TOOLS_DIR}/DumpRenderTree/efl/GCControllerEfl.cpp
     ${TOOLS_DIR}/DumpRenderTree/efl/JSStringUtils.cpp
-    ${TOOLS_DIR}/DumpRenderTree/efl/LayoutTestControllerEfl.cpp
+    ${TOOLS_DIR}/DumpRenderTree/efl/TestRunnerEfl.cpp
     ${TOOLS_DIR}/DumpRenderTree/efl/PixelDumpSupportEfl.cpp
+    ${TOOLS_DIR}/DumpRenderTree/efl/TextInputController.cpp
     ${TOOLS_DIR}/DumpRenderTree/efl/WorkQueueItemEfl.cpp
 )
 
-SET(ImageDiff_SOURCES
-    ${TOOLS_DIR}/DumpRenderTree/efl/ImageDiff.cpp
-)
-
-SET(DumpRenderTree_LIBRARIES
-    ${JavaScriptCore_LIBRARY_NAME}
-    ${WebCoreTestSupport_LIBRARY_NAME}
-    ${WebCore_LIBRARY_NAME}
-    ${WebKit_LIBRARY_NAME}
+set(DumpRenderTree_LIBRARIES
+    JavaScriptCore
+    WebCoreTestSupport
+    WebCore
+    WebKit
+    WTF
     ${CAIRO_LIBRARIES}
-    ${ECORE_X_LIBRARIES}
+    ${ECORE_LIBRARIES}
+    ${ECORE_EVAS_LIBRARIES}
+    ${ECORE_FILE_LIBRARIES}
+    ${ECORE_INPUT_LIBRARIES}
     ${EDJE_LIBRARIES}
-    ${EFLDEPS_LIBRARIES}
+    ${EINA_LIBRARIES}
+    ${EO_LIBRARIES}
     ${EVAS_LIBRARIES}
     ${FONTCONFIG_LIBRARIES}
     ${LIBXML2_LIBRARIES}
-    ${LIBXSLT_LIBRARIES}
+    ${LIBXSLT_LIBRARIES} -lm
     ${SQLITE_LIBRARIES}
-    ${Glib_LIBRARIES}
-    ${LIBSOUP24_LIBRARIES}
+    ${GLIB_LIBRARIES}
+    ${LIBSOUP_LIBRARIES}
 )
 
-SET(DumpRenderTree_INCLUDE_DIRECTORIES
+set(DumpRenderTree_INCLUDE_DIRECTORIES
     "${WEBKIT_DIR}/efl/ewk"
     ${WEBKIT_DIR}/efl
+    ${WEBKIT_DIR}/efl/WebCoreSupport
     ${WEBCORE_DIR}
     ${WEBCORE_DIR}/bridge
     ${WEBCORE_DIR}/bridge/jsc
@@ -59,10 +72,12 @@ SET(DumpRenderTree_INCLUDE_DIRECTORIES
     ${WEBCORE_DIR}/platform/text
     ${WEBCORE_DIR}/platform/graphics
     ${WEBCORE_DIR}/platform/graphics/cairo
+    ${WEBCORE_DIR}/platform/graphics/transforms
     ${WEBCORE_DIR}/platform/network
     ${WEBCORE_DIR}/platform/network/soup
     ${WEBCORE_DIR}/plugins
     ${WEBCORE_DIR}/rendering
+    ${WEBCORE_DIR}/rendering/shapes
     ${WEBCORE_DIR}/rendering/style
     ${WEBCORE_DIR}/history
     ${WEBCORE_DIR}/loader
@@ -73,13 +88,16 @@ SET(DumpRenderTree_INCLUDE_DIRECTORIES
     ${JAVASCRIPTCORE_DIR}/assembler
     ${JAVASCRIPTCORE_DIR}/bytecode
     ${JAVASCRIPTCORE_DIR}/dfg
+    ${JAVASCRIPTCORE_DIR}/disassembler
     ${JAVASCRIPTCORE_DIR}/heap
     ${JAVASCRIPTCORE_DIR}/interpreter
     ${JAVASCRIPTCORE_DIR}/jit
     ${JAVASCRIPTCORE_DIR}/llint
+    ${JAVASCRIPTCORE_DIR}/profiler
     ${JAVASCRIPTCORE_DIR}/runtime
     ${JAVASCRIPTCORE_DIR}/ForwardingHeaders
     ${TOOLS_DIR}/DumpRenderTree
+    ${TOOLS_DIR}/DumpRenderTree/atk
     ${TOOLS_DIR}/DumpRenderTree/cairo
     ${TOOLS_DIR}/DumpRenderTree/efl
     ${WTF_DIR}
@@ -89,38 +107,37 @@ SET(DumpRenderTree_INCLUDE_DIRECTORIES
     ${WEBCORE_DIR}/bindings/js
     ${WEBCORE_DIR}/testing/js
     ${CAIRO_INCLUDE_DIRS}
+    ${ECORE_INCLUDE_DIRS}
+    ${ECORE_INCLUDE_DIRS}
+    ${ECORE_EVAS_INCLUDE_DIRS}
+    ${ECORE_FILE_INCLUDE_DIRS}
+    ${ECORE_INPUT_INCLUDE_DIRS}
     ${EDJE_INCLUDE_DIRS}
-    ${EFLDEPS_INCLUDE_DIRS}
+    ${EINA_INCLUDE_DIRS}
+    ${EO_INCLUDE_DIRS}
     ${EVAS_INCLUDE_DIRS}
     ${FONTCONFIG_INCLUDE_DIR}
-    ${Glib_INCLUDE_DIRS}
-    ${LIBSOUP24_INCLUDE_DIRS}
+    ${GLIB_INCLUDE_DIRS}
+    ${LIBSOUP_INCLUDE_DIRS}
 )
 
-SET(DumpRenderTree_LINK_FLAGS
-    ${ECORE_X_LDFLAGS}
-    ${EDJE_LDFLAGS}
-    ${EFLDEPS_LDFLAGS}
-    ${EVAS_LDFLAGS}
-    ${LIBSOUP24_LDFLAGS}
-)
+if (ENABLE_ACCESSIBILITY)
+    list(APPEND DumpRenderTree_INCLUDE_DIRECTORIES
+        ${TOOLS_DIR}/DumpRenderTree/atk
+        ${ATK_INCLUDE_DIRS}
+    )
+    list(APPEND DumpRenderTree_LIBRARIES
+        ${ATK_LIBRARIES}
+    )
+endif ()
 
 # FIXME: DOWNLOADED_FONTS_DIR should not hardcode the directory
 # structure. See <https://bugs.webkit.org/show_bug.cgi?id=81475>.
-ADD_DEFINITIONS(-DFONTS_CONF_DIR="${TOOLS_DIR}/DumpRenderTree/gtk/fonts"
-                -DDOWNLOADED_FONTS_DIR="${CMAKE_SOURCE_DIR}/WebKitBuild/Dependencies/Source/webkitgtk-test-fonts-0.0.1"
-                -DDATA_DIR="${THEME_BINARY_DIR}")
+add_definitions(-DFONTS_CONF_DIR="${TOOLS_DIR}/DumpRenderTree/gtk/fonts"
+                -DDOWNLOADED_FONTS_DIR="${CMAKE_SOURCE_DIR}/WebKitBuild/Dependencies/Source/webkitgtk-test-fonts-0.0.3")
 
-INCLUDE_DIRECTORIES(${DumpRenderTree_INCLUDE_DIRECTORIES})
+include_directories(${DumpRenderTree_INCLUDE_DIRECTORIES})
 
-ADD_EXECUTABLE(bin/DumpRenderTree ${DumpRenderTree_SOURCES})
-TARGET_LINK_LIBRARIES(bin/DumpRenderTree ${DumpRenderTree_LIBRARIES})
-ADD_TARGET_PROPERTIES(bin/DumpRenderTree LINK_FLAGS "${DumpRenderTree_LINK_FLAGS}")
-SET_TARGET_PROPERTIES(bin/DumpRenderTree PROPERTIES FOLDER "Tools")
-SET_TARGET_PROPERTIES(bin/DumpRenderTree PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-
-ADD_EXECUTABLE(bin/ImageDiff ${ImageDiff_SOURCES})
-TARGET_LINK_LIBRARIES(bin/ImageDiff ${DumpRenderTree_LIBRARIES})
-ADD_TARGET_PROPERTIES(bin/ImageDiff LINK_FLAGS "${DumpRenderTree_LINK_FLAGS}")
-SET_TARGET_PROPERTIES(bin/ImageDiff PROPERTIES FOLDER "Tools")
-SET_TARGET_PROPERTIES(bin/ImageDiff PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+add_executable(DumpRenderTree ${DumpRenderTree_SOURCES})
+target_link_libraries(DumpRenderTree ${DumpRenderTree_LIBRARIES})
+set_target_properties(DumpRenderTree PROPERTIES FOLDER "Tools")

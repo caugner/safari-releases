@@ -5,59 +5,24 @@ if (this.importScripts) {
 
 description("Test the basics of IndexedDB's IDBDatabase.");
 
-function test()
+indexedDBTest(prepareDatabase, testSetVersionAbort);
+function prepareDatabase()
 {
-    removeVendorPrefixes();
+    db = event.target.result;
+    debug("Test that you can't open a transaction while in a versionchange transaction");
+    evalAndExpectException('db.transaction("doesntExist")',
+                           "DOMException.INVALID_STATE_ERR", "'InvalidStateError'");
 
-    request = evalAndLog("indexedDB.open('database-basics')");
-    request.onsuccess = openSuccess;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function openSuccess()
-{
-    self.db = evalAndLog("db = event.target.result");
-
-    request = evalAndLog("db.setVersion('new version')");
-    request.onsuccess = setVersionSuccess;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function setVersionSuccess()
-{
-    debug("setVersionSuccess():");
-    self.trans = evalAndLog("trans = event.target.result");
-    shouldBeTrue("trans !== null");
-    trans.onabort = unexpectedAbortCallback;
-
-    deleteAllObjectStores(db);
-
-    debug("Testing setVersion.");
-    request = evalAndLog('db.setVersion("version a")');
-    request.onsuccess = setVersionAgain;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function setVersionAgain()
-{
-    request = evalAndLog('db.setVersion("version b")');
-    request.onsuccess = createObjectStore;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function createObjectStore()
-{
-    shouldBeEqualToString("db.version", "version b");
-    shouldBeEqualToString("db.name", "database-basics");
+    shouldBe("db.version", "1");
+    shouldBeEqualToString("db.name", dbname);
     shouldBe("db.objectStoreNames", "[]");
     shouldBe("db.objectStoreNames.length", "0");
     shouldBe("db.objectStoreNames.contains('')", "false");
-    shouldBeNull("db.objectStoreNames[0]");
+    shouldBeUndefined("db.objectStoreNames[0]");
     shouldBeNull("db.objectStoreNames.item(0)");
 
     objectStore = evalAndLog('db.createObjectStore("test123")');
     checkObjectStore();
-    commitAndContinue();
 }
 
 function checkObjectStore()
@@ -69,35 +34,34 @@ function checkObjectStore()
     shouldBe("db.objectStoreNames.contains('test123')", "true");
 }
 
-function commitAndContinue()
-{
-    self.setTimeout(testSetVersionAbort, 0);
-}
 
 function testSetVersionAbort()
 {
-    request = evalAndLog('db.setVersion("version c")');
-    request.onsuccess = createAnotherObjectStore;
-    request.onerror = unexpectedErrorCallback;
+    evalAndLog("db.close()");
+    evalAndLog("request = indexedDB.open(dbname, 2)");
+    request.onupgradeneeded = createAnotherObjectStore;
+    request.onblocked = unexpectedBlockedCallback;
+    request.onsuccess = unexpectedSuccessCallback;
 }
 
 function createAnotherObjectStore()
 {
-    shouldBeEqualToString("db.version", "version c");
-    shouldBeEqualToString("db.name", "database-basics");
+    evalAndLog("db = event.target.result");
+    shouldBe("db.version", "2");
+    shouldBeEqualToString("db.name", dbname);
     checkObjectStore();
 
     objectStore = evalAndLog('db.createObjectStore("test456")');
-    var setVersionTrans = evalAndLog("setVersionTrans = event.target.result");
-    shouldBeTrue("setVersionTrans !== null");
+    var setVersionTrans = evalAndLog("setVersionTrans = event.target.transaction");
+    shouldBeNonNull("setVersionTrans");
     setVersionTrans.oncomplete = unexpectedCompleteCallback;
     setVersionTrans.onabort = checkMetadata;
-    setVersionTrans.abort();
+    evalAndLog("setVersionTrans.abort()");
 }
 
 function checkMetadata()
 {
-    shouldBeEqualToString("db.version", "version b");
+    shouldBe("db.version", "1");
     checkObjectStore();
     testClose();
 }
@@ -106,10 +70,8 @@ function testClose()
 {
     evalAndLog("db.close()");
     debug("Now that the connection is closed, transaction creation should fail");
-    evalAndExpectException("db.transaction('test123')", "IDBDatabaseException.NOT_ALLOWED_ERR");
+    evalAndExpectException("db.transaction('test123')", "DOMException.INVALID_STATE_ERR", "'InvalidStateError'");
     debug("Call twice, make sure it's harmless");
     evalAndLog("db.close()");
     finishJSTest();
 }
-
-test();

@@ -28,23 +28,33 @@ function waitUntilWorkerThreadsExit(callback)
     waitUntilThreadCountMatches(callback, 0);
 }
 
-function waitUntilThreadCountMatches(callback, count)
+function waitUntilThreadCountMatchesCondition(callback, condition)
 {
     // When running in a browser, just wait for one second then call the callback.
-    if (!window.layoutTestController) {
+    if (!window.testRunner) {
         setTimeout(function() { gc(true); callback(); }, 1000);
         return;
     }
 
-    if (layoutTestController.workerThreadCount == count) {
+    if (condition()) {
         // Worker threads have exited.
         callback();
     } else {
         // Poll until worker threads have been GC'd/exited.
         // Force a GC with a bunch of allocations to try to scramble the stack and force worker objects to be collected.
         gc(true);
-        setTimeout(function() { waitUntilThreadCountMatches(callback, count); }, 10);
+        setTimeout(function() { waitUntilThreadCountMatchesCondition(callback, condition); }, 10);
     }
+}
+
+function waitUntilThreadCountMatches(callback, count)
+{
+    waitUntilThreadCountMatchesCondition(callback, function() { return internals.workerThreadCount == count; });
+}
+
+function waitUntilThreadCountDoesNotExceed(callback, count)
+{
+    waitUntilThreadCountMatchesCondition(callback, function() { return internals.workerThreadCount <= count; });
 }
 
 function ensureThreadCountMatches(callback, count)
@@ -64,7 +74,7 @@ function done()
 
     // Call notifyDone via the queue so any pending console messages/exceptions are written out first.
     setTimeout(function() {
-        if (window.layoutTestController)
-            layoutTestController.notifyDone();
+        if (window.testRunner)
+            testRunner.notifyDone();
     }, 0);
 }

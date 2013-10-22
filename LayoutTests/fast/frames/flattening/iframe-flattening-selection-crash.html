@@ -2,9 +2,9 @@
 <head>
     <script type="text/javascript">
         function test() {
-            if (window.layoutTestController) {
-                layoutTestController.dumpAsText();
-                layoutTestController.setFrameFlatteningEnabled(true);
+            if (window.testRunner && window.internals) {
+                testRunner.dumpAsText();
+                internals.settings.setFrameFlatteningEnabled(true);
             }
 
             // Force synchronous layout.

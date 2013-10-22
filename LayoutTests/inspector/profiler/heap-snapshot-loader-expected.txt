@@ -3,5 +3,9 @@ This test checks HeapSnapshots loader.
 
 Running: heapSnapshotLoaderTest
 
-Running: heapSnapshotSeparateEdgesLoaderTest
+Running: heapSnapshotSaveToFileTest
+
+Running: heapSnapshotLoadFromFileTest
+
+Running: heapSnapshotRejectToSaveToFileTest
 

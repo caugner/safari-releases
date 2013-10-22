@@ -6,7 +6,7 @@ body {
 }
 .flexbox {
     width: 600px;
-    display: -webkit-flexbox;
+    display: -webkit-flex;
     background-color: grey;
 }
 .flexbox > div {
@@ -62,12 +62,8 @@ body {
     height: 10px;
 }
 </style>
-<script>
-if (window.layoutTestController)
-    layoutTestController.dumpAsText();
-</script>
-<script src="resources/flexbox.js"></script>
-<body onload="checkFlexBoxen()">
+<script src="../../resources/check-layout.js"></script>
+<body onload="checkLayout('.flexbox')">
 
 <div class="flexbox">
   <div data-expected-width="75" data-offset-x="0" style="-webkit-flex: 1 0 0; margin: 0 auto;"></div>

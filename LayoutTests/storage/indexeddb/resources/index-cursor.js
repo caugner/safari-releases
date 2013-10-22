@@ -18,29 +18,11 @@ self.testData = [
     "the BIGEST string"
 ];
 
-function openDatabase()
+indexedDBTest(prepareDatabase);
+function prepareDatabase()
 {
-    result = evalAndLog("indexedDB.open('index-cursor')");
-    result.onsuccess = setVersion;
-    result.onerror = unexpectedErrorCallback;
-}
-
-function setVersion()
-{
-    self.db = evalAndLog("db = event.target.result");
-
-    result = evalAndLog("db.setVersion('new version')");
-    result.onsuccess = deleteExisting;
-    result.onerror = unexpectedErrorCallback;
-}
-
-function deleteExisting()
-{
-    self.trans = evalAndLog("trans = event.target.result");
-    shouldBeTrue("trans !== null");
-    trans.onabort = unexpectedAbortCallback;
-
-    deleteAllObjectStores(db);
+    db = event.target.result;
+    event.target.transaction.onabort = unexpectedAbortCallback;
 
     self.objectStore = evalAndLog("db.createObjectStore('someObjectStore')");
     self.indexObject = evalAndLog("objectStore.createIndex('someIndex', 'x')");
@@ -173,7 +155,7 @@ function runNextTest()
     else
         keyRange = IDBKeyRange.upperBound(testData[upper], upperIsOpen);
 
-    var request = indexObject.openKeyCursor(keyRange, ascending ? IDBCursor.NEXT : IDBCursor.PREV);
+    var request = indexObject.openKeyCursor(keyRange, ascending ? 'next' : 'prev');
     request.onsuccess = cursorIteration;
     request.onerror = unexpectedErrorCallback;
 }
@@ -205,8 +187,9 @@ function cursorIteration()
         return;
     }
 
-    shouldBe("event.target.result.primaryKey", "expectedIndex");
-    shouldBe("event.target.result.key", "testData[" + expectedIndex + "]");
+    var quiet = true;
+    shouldBe("event.target.result.primaryKey", "expectedIndex", quiet);
+    shouldBe("event.target.result.key", "testData[" + expectedIndex + "]", quiet);
     self.expectedIndex = ascending ? expectedIndex + 1 : expectedIndex - 1;
     testWithinBounds();
 
@@ -240,10 +223,7 @@ function testNullKeyRange()
     debug("");
     debug(str);
 
-    var request = indexObject.openKeyCursor(null, ascending ? IDBCursor.NEXT : IDBCursor.PREV);
+    var request = indexObject.openKeyCursor(null, ascending ? 'next' : 'prev');
     request.onsuccess = cursorIteration;
     request.onerror = unexpectedErrorCallback;
 }
-
-removeVendorPrefixes();
-openDatabase(); // The first step.

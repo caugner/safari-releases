@@ -27,19 +27,15 @@
 
 module('ui.failures');
 
-test('Builder', 7, function() {
-    raises(function() {
-        new ui.failures.Builder();
-    });
-
+test('Builder', 6, function() {
     var configuration;
-    configuration = new ui.failures.Builder("Webkit Linux");
+    configuration = new ui.failures.Builder("Webkit Linux", ["update", "webkit_tests"]);
     deepEqual(Object.getOwnPropertyNames(configuration.__proto__).sort(), [
         '_addSpan',
         'equals',
         'init',
     ]);
-    equal(configuration.outerHTML, '<a class="failing-builder" target="_blank" href="http://build.chromium.org/p/chromium.webkit/waterfall?builder=Webkit+Linux"><span class="version">lucid</span><span class="architecture">64-bit</span></a>');
+    equal(configuration.outerHTML, '<a class="failing-builder" target="_blank" href="http://build.chromium.org/p/chromium.webkit/waterfall?builder=Webkit+Linux"><span class="version">lucid</span><span class="architecture">64-bit</span><span class="failures"> update, webkit_tests</span></a>');
     configuration = new ui.failures.Builder("Webkit Win");
     equal(configuration.outerHTML, '<a class="failing-builder" target="_blank" href="http://build.chromium.org/p/chromium.webkit/waterfall?builder=Webkit+Win"><span class="version">xp</span></a>');
     configuration._addSpan('foo', 'bar');
@@ -97,13 +93,13 @@ test('FailureGrid', 10, function() {
             '<tr class="BUILDING" style="display: none; "><td><span>BUILDING</span></td><td></td><td></td></tr>' +
         '</tbody>' +
     '</table>');
-    grid.update({'Webkit Mac10.5': { actual: 'IMAGE+TEXT'}});
+    grid.update({'Webkit Mac10.6': { actual: 'IMAGE+TEXT'}});
     equal(grid.outerHTML, '<table class="failures">' +
         '<thead><tr><td>type</td><td>release</td><td>debug</td></tr></thead>' +
         '<tbody>' +
             '<tr class="IMAGE+TEXT">' +
                 '<td><span>IMAGE+TEXT</span></td>' +
-                '<td><a class="failing-builder" target="_blank" href="http://build.chromium.org/p/chromium.webkit/waterfall?builder=Webkit+Mac10.5"><span class="version">leopard</span></a></td>' +
+                '<td><a class="failing-builder" target="_blank" href="http://build.chromium.org/p/chromium.webkit/waterfall?builder=Webkit+Mac10.6"><span class="version">snowleopard</span></a></td>' +
                 '<td></td>' +
             '</tr>' +
             '<tr class="TEXT" style="">' +
@@ -114,13 +110,13 @@ test('FailureGrid', 10, function() {
             '<tr class="BUILDING" style="display: none; "><td><span>BUILDING</span></td><td></td><td></td></tr>' +
         '</tbody>' +
     '</table>');
-    grid.update({'Webkit Mac10.5': { actual: 'IMAGE+TEXT'}});
+    grid.update({'Webkit Mac10.6': { actual: 'IMAGE+TEXT'}});
     equal(grid.outerHTML, '<table class="failures">' +
         '<thead><tr><td>type</td><td>release</td><td>debug</td></tr></thead>' +
         '<tbody>' +
             '<tr class="IMAGE+TEXT" style="">' +
                 '<td><span>IMAGE+TEXT</span></td>' +
-                '<td><a class="failing-builder" target="_blank" href="http://build.chromium.org/p/chromium.webkit/waterfall?builder=Webkit+Mac10.5"><span class="version">leopard</span></a></td>' +
+                '<td><a class="failing-builder" target="_blank" href="http://build.chromium.org/p/chromium.webkit/waterfall?builder=Webkit+Mac10.6"><span class="version">snowleopard</span></a></td>' +
                 '<td></td>' +
             '</tr>' +
             '<tr class="TEXT" style="">' +

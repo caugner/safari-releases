@@ -5,13 +5,9 @@ On success, you will see a series of "PASS" messages, followed by "TEST COMPLETE
 
 indexedDB = self.indexedDB || self.webkitIndexedDB || self.mozIndexedDB || self.msIndexedDB || self.OIndexedDB;
 
-indexedDB.deleteDatabase(DBNAME)
-indexedDB.open(DBNAME)
-db = event.target.result
-db.setVersion('new version')
-setVersionSuccess():
-trans = event.target.result
-PASS trans !== null is true
+dbname = "prefetch-bugfix-108071.html"
+indexedDB.deleteDatabase(dbname)
+indexedDB.open(dbname)
 objectStore = db.createObjectStore('store', {keyPath: 'id'})
 
 resetObjectStore():
@@ -23,7 +19,7 @@ objectStore.add({id: 3, name: "Delta"})
 objectStore.add({id: 4, name: "Echo"})
 
 iterateAndDeleteFirstElement():
-trans = db.transaction(['store'], IDBTransaction.READ_WRITE)
+trans = db.transaction(['store'], 'readwrite')
 trans.objectStore('store').openCursor()
 0: Alpha
 trans.objectStore('store').delete(0)

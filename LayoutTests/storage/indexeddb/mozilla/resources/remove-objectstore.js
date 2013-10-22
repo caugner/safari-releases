@@ -11,43 +11,18 @@ if (this.importScripts) {
 
 description("Test IndexedDB deleting an object store");
 
-function test()
+indexedDBTest(prepareDatabase, checkObjectStore);
+function prepareDatabase()
 {
-    removeVendorPrefixes();
-
-    name = self.location.pathname;
-    description = "My Test Database";
-    request = evalAndLog("indexedDB.open(name, description)");
-    request.onsuccess = openSuccess;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function openSuccess()
-{
-    db = evalAndLog("db = event.target.result");
+    db = event.target.result;
     shouldBe("db.objectStoreNames.length", "0");
-
-    request = evalAndLog("request = db.setVersion('1')");
-    request.onsuccess = createAndPopulateObjectStore;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function createAndPopulateObjectStore()
-{
-    deleteAllObjectStores(db);
 
     objectStoreName = evalAndLog("objectStoreName = 'Objects';");
     objectStore = evalAndLog("objectStore = db.createObjectStore(objectStoreName, { keyPath: 'foo' });");
 
-    addedCount = evalAndLog("addedCount = 0;");
     for (i = 0; i < 100; i++) {
         request = evalAndLog("request = objectStore.add({foo: i});");
         request.onerror = unexpectedErrorCallback;
-        request.onsuccess = function(event) {
-            if (++addedCount == 100) {
-                checkObjectStore();
-            }
-        }
     }
 }
 
@@ -55,14 +30,18 @@ function checkObjectStore()
 {
     shouldBe("db.objectStoreNames.length", "1");
     shouldBe("db.objectStoreNames.item(0)", "objectStoreName");
+    evalAndLog("db.close()");
 
-    request = db.setVersion('2');
+    evalAndLog("request = indexedDB.open(dbname, 2)");
     request.onerror = unexpectedErrorCallback;
-    request.onsuccess = postSetVersion2;
+    request.onblocked = unexpectedBlockedCallback;
+    request.onupgradeneeded = inSetVersion2;
+    request.onsuccess = setVersion3;
 }
 
-function postSetVersion2()
+function inSetVersion2()
 {
+    db = event.target.result;
     evalAndLog("db.deleteObjectStore(objectStore.name);");
     shouldBe("db.objectStoreNames.length", "0");
 
@@ -75,25 +54,29 @@ function postSetVersion2()
     request.onsuccess = function(event) {
         shouldBe("event.target.result", "null");
         deleteSecondObjectStore();
-    }
+    };
 }
 
 function deleteSecondObjectStore()
 {
     evalAndLog("db.deleteObjectStore(objectStore.name);");
     shouldBe("db.objectStoreNames.length", "0");
-    setVersion3();
 }
 
 function setVersion3()
 {
-    request = evalAndLog("request = db.setVersion('3');");
+    evalAndLog("db.close()");
+
+    evalAndLog("request = indexedDB.open(dbname, 3)");
     request.onerror = unexpectedErrorCallback;
-    request.onsuccess = postSetVersion3;
+    request.onblocked = unexpectedBlockedCallback;
+    request.onupgradeneeded = inSetVersion3;
+    request.onsuccess = finishJSTest;
 }
 
-function postSetVersion3()
+function inSetVersion3()
 {
+    db = event.target.result;
     objectStore = evalAndLog("objectStore = db.createObjectStore(objectStoreName, { keyPath: 'foo' });");
     request = evalAndLog("request = objectStore.add({foo:'bar'});");
     request.onerror = unexpectedErrorCallback;
@@ -103,7 +86,4 @@ function postSetVersion3()
 function deleteThirdObjectStore()
 {
     evalAndLog("db.deleteObjectStore(objectStoreName);");
-    finishJSTest();
 }
-
-test();

@@ -5,8 +5,10 @@
 <script src="../../resources/dump-as-markup.js"></script>
 <script>
 
-if (window.layoutTestController)
-    layoutTestController.dumpEditingCallbacks();
+if (window.testRunner)
+    testRunner.dumpEditingCallbacks();
+if (window.internals)
+    internals.settings.setEditingBehavior('mac');
 
 Markup.description('This tests inserting a text wrapped in a div inside a text node.');
 

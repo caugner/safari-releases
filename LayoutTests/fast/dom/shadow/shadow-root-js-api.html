@@ -12,18 +12,18 @@
 <script>
 description("Tests for ShadowRoot JS APIs. Can only run within DRT");
 
-if (window.layoutTestController)
-    layoutTestController.dumpAsText();
-shouldThrow("new WebKitShadowRoot()");
-shouldThrow("new WebKitShadowRoot(undefined)");
-shouldThrow("new WebKitShadowRoot(null)");
-shouldThrow("new WebKitShadowRoot(1)");
+if (window.testRunner)
+    testRunner.dumpAsText();
+
+shouldBeUndefined("window.ShadowRoot");
+shouldBeDefined("window.WebKitShadowRoot");
+shouldThrow("new window.WebKitShadowRoot(document.createElement('div'))");
+
 var shadowHost = document.createElement('div');
 document.body.appendChild(shadowHost);
-var shadowRoot = new WebKitShadowRoot(shadowHost);
-shouldBe("shadowHost", "shadowRoot.host");
-debug('The previous test should not have side effects.');
-shouldBe("shadowHost", "shadowRoot.host");
+var shadowRoot = shadowHost.webkitCreateShadowRoot();
+
+shouldBeTrue("shadowRoot instanceof window.WebKitShadowRoot");
 
 var div1 = document.createElement("div");
 div1.setAttribute("id", "div1");
@@ -57,7 +57,7 @@ shouldBeNull("shadowRoot.querySelector('.foo')");
 shouldBe("shadowRoot.querySelectorAll('div')", "[div1, div2]");
 shouldBe("shadowRoot.querySelectorAll('foo')", "[]");
 
-var youngerShadowRoot = new WebKitShadowRoot(shadowHost);
+var youngerShadowRoot = shadowHost.webkitCreateShadowRoot();
 shouldNotBe("youngerShadowRoot", "shadowRoot");
 
 

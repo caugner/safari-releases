@@ -1,7 +1,7 @@
 <html>
 <script>
-    if (window.layoutTestController)
-        layoutTestController.dumpAsText();
+    if (window.testRunner)
+        testRunner.dumpAsText();
 </script>
 <body>
 <div id="link" role="link" tabindex="0">Click</div>
@@ -16,7 +16,7 @@
         var result = document.getElementById("result");
         
         link.focus();
-        var supportsAction = accessibilityController.focusedElement.isActionSupported("AXPress");
+        var supportsAction = accessibilityController.focusedElement.isPressActionSupported();
         if (supportsAction)
             result.innerHTML = "SUCCESS! This test passes because the ARIA link above supports the press action.";
         else

@@ -29,6 +29,7 @@
 import threading
 
 from webkitpy.common.host_mock import MockHost
+from webkitpy.common.net.buildbot.buildbot_mock import MockBuildBot
 from webkitpy.common.net.statusserver_mock import MockStatusServer
 from webkitpy.common.net.irc.irc_mock import MockIRC
 
@@ -36,8 +37,7 @@ from webkitpy.common.net.irc.irc_mock import MockIRC
 from webkitpy.common.config.ports_mock import MockPort
 
 
-# FIXME: This should be moved somewhere in common and renamed
-# something without Mock in the name.
+# FIXME: We should just replace this with optparse.Values(default=kwargs)
 class MockOptions(object):
     """Mock implementation of optparse.Values."""
 
@@ -53,6 +53,11 @@ class MockOptions(object):
         self.__dict__.update(**kwargs)
         return self
 
+    def ensure_value(self, key, value):
+        if getattr(self, key, None) == None:
+            self.__dict__[key] = value
+        return self.__dict__[key]
+
 
 # FIXME: This should be renamed MockWebKitPatch.
 class MockTool(MockHost):
@@ -66,7 +71,7 @@ class MockTool(MockHost):
         self.irc_password = "MOCK irc password"
         self.wakeup_event = threading.Event()
 
-    def port(self):
+    def deprecated_port(self):
         return self._deprecated_port
 
     def path(self):

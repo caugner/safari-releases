@@ -36,6 +36,7 @@ AXSelectedChildren: (null)
 AXVisibleChildren: <array of size 2>
 AXOrientation: AXVerticalOrientation
 AXTitleUIElement: (null)
+AXARIABusy: 0
 
 ------------
 AXRole: AXList
@@ -63,11 +64,12 @@ AXSelectedChildren: (null)
 AXVisibleChildren: <array of size 2>
 AXOrientation: AXVerticalOrientation
 AXTitleUIElement: (null)
+AXARIABusy: 0
 
 ------------
 AXRole: AXList
 AXSubrole: AXDefinitionList
-AXRoleDescription: definition list
+AXRoleDescription: description list
 AXChildren: <array of size 5>
 AXHelp: 
 AXParent: <AXList>
@@ -90,6 +92,7 @@ AXSelectedChildren: (null)
 AXVisibleChildren: <array of size 5>
 AXOrientation: AXVerticalOrientation
 AXTitleUIElement: (null)
+AXARIABusy: 0
 
 ------------
 AXRole: AXGroup
@@ -114,6 +117,7 @@ AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXGroup>
 AXTitleUIElement: (null)
+AXARIABusy: 0
 
 ------------
 AXRole: AXGroup
@@ -138,6 +142,7 @@ AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXGroup>
 AXTitleUIElement: (null)
+AXARIABusy: 0
 
 ------------
 
@@ -147,23 +152,24 @@ AXSubrole: (null)
 AXRoleDescription: group
 AXChildren: <array of size 2>
 AXHelp: 
-AXParent: <AXGroup>
+AXParent: <AXGroup: 'test 1'>
 AXSize: NSSize: {729, 18}
-AXTitle: 
+AXTitle: test 1
 AXDescription: 
 AXValue: 
 AXFocused: 0
 AXEnabled: 1
-AXWindow: <AXGroup>
+AXWindow: <AXGroup: 'test 1'>
 AXSelectedTextMarkerRange: (null)
-AXStartTextMarker: <AXGroup>
-AXEndTextMarker: <AXGroup>
+AXStartTextMarker: <AXGroup: 'test 1'>
+AXEndTextMarker: <AXGroup: 'test 1'>
 AXVisited: 0
 AXLinkedUIElements: (null)
 AXSelected: 0
 AXBlockQuoteLevel: 0
-AXTopLevelUIElement: <AXGroup>
+AXTopLevelUIElement: <AXGroup: 'test 1'>
 AXTitleUIElement: (null)
+AXARIABusy: 0
 
 ------------
 AXRole: AXGroup
@@ -171,23 +177,24 @@ AXSubrole: (null)
 AXRoleDescription: group
 AXChildren: <array of size 2>
 AXHelp: 
-AXParent: <AXGroup>
+AXParent: <AXGroup: 'test 2'>
 AXSize: NSSize: {729, 18}
-AXTitle: 
+AXTitle: test 2
 AXDescription: 
 AXValue: 
 AXFocused: 0
 AXEnabled: 1
-AXWindow: <AXGroup>
+AXWindow: <AXGroup: 'test 2'>
 AXSelectedTextMarkerRange: (null)
-AXStartTextMarker: <AXGroup>
-AXEndTextMarker: <AXGroup>
+AXStartTextMarker: <AXGroup: 'test 2'>
+AXEndTextMarker: <AXGroup: 'test 2'>
 AXVisited: 0
 AXLinkedUIElements: (null)
 AXSelected: 0
 AXBlockQuoteLevel: 0
-AXTopLevelUIElement: <AXGroup>
+AXTopLevelUIElement: <AXGroup: 'test 2'>
 AXTitleUIElement: (null)
+AXARIABusy: 0
 
 ------------
 
@@ -197,23 +204,24 @@ AXSubrole: (null)
 AXRoleDescription: group
 AXChildren: <array of size 2>
 AXHelp: 
-AXParent: <AXGroup>
+AXParent: <AXGroup: 'test 1'>
 AXSize: NSSize: {729, 18}
-AXTitle: 
+AXTitle: test 1
 AXDescription: 
 AXValue: 
 AXFocused: 0
 AXEnabled: 1
-AXWindow: <AXGroup>
+AXWindow: <AXGroup: 'test 1'>
 AXSelectedTextMarkerRange: (null)
-AXStartTextMarker: <AXGroup>
-AXEndTextMarker: <AXGroup>
+AXStartTextMarker: <AXGroup: 'test 1'>
+AXEndTextMarker: <AXGroup: 'test 1'>
 AXVisited: 0
 AXLinkedUIElements: (null)
 AXSelected: 0
 AXBlockQuoteLevel: 0
-AXTopLevelUIElement: <AXGroup>
+AXTopLevelUIElement: <AXGroup: 'test 1'>
 AXTitleUIElement: (null)
+AXARIABusy: 0
 
 ------------
 AXRole: AXGroup
@@ -221,23 +229,24 @@ AXSubrole: (null)
 AXRoleDescription: group
 AXChildren: <array of size 2>
 AXHelp: 
-AXParent: <AXGroup>
+AXParent: <AXGroup: 'test 2'>
 AXSize: NSSize: {729, 18}
-AXTitle: 
+AXTitle: test 2
 AXDescription: 
 AXValue: 
 AXFocused: 0
 AXEnabled: 1
-AXWindow: <AXGroup>
+AXWindow: <AXGroup: 'test 2'>
 AXSelectedTextMarkerRange: (null)
-AXStartTextMarker: <AXGroup>
-AXEndTextMarker: <AXGroup>
+AXStartTextMarker: <AXGroup: 'test 2'>
+AXEndTextMarker: <AXGroup: 'test 2'>
 AXVisited: 0
 AXLinkedUIElements: (null)
 AXSelected: 0
 AXBlockQuoteLevel: 0
-AXTopLevelUIElement: <AXGroup>
+AXTopLevelUIElement: <AXGroup: 'test 2'>
 AXTitleUIElement: (null)
+AXARIABusy: 0
 
 ------------
 
@@ -263,11 +272,12 @@ AXLinkedUIElements: (null)
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXGroup>
+AXARIABusy: 0
 
 ------------
 AXRole: AXGroup
-AXSubrole: AXDefinition
-AXRoleDescription: definition
+AXSubrole: AXDescription
+AXRoleDescription: description
 AXChildren: <array of size 1>
 AXHelp: 
 AXParent: <AXGroup>
@@ -286,6 +296,7 @@ AXLinkedUIElements: (null)
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXGroup>
+AXARIABusy: 0
 
 ------------
 AXRole: AXGroup
@@ -309,11 +320,12 @@ AXLinkedUIElements: (null)
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXGroup>
+AXARIABusy: 0
 
 ------------
 AXRole: AXGroup
-AXSubrole: AXDefinition
-AXRoleDescription: definition
+AXSubrole: AXDescription
+AXRoleDescription: description
 AXChildren: <array of size 1>
 AXHelp: 
 AXParent: <AXGroup>
@@ -332,11 +344,12 @@ AXLinkedUIElements: (null)
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXGroup>
+AXARIABusy: 0
 
 ------------
 AXRole: AXGroup
-AXSubrole: AXDefinition
-AXRoleDescription: definition
+AXSubrole: AXDescription
+AXRoleDescription: description
 AXChildren: <array of size 1>
 AXHelp: 
 AXParent: <AXGroup>
@@ -355,6 +368,7 @@ AXLinkedUIElements: (null)
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXGroup>
+AXARIABusy: 0
 
 ------------
 

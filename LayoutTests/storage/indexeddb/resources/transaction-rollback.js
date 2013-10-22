@@ -5,32 +5,11 @@ if (this.importScripts) {
 
 description("Test IndexedDB transaction rollback.");
 
-function test()
+indexedDBTest(prepareDatabase, setVersionComplete);
+function prepareDatabase()
 {
-    removeVendorPrefixes();
-
-    request = evalAndLog("indexedDB.open('transaction-rollback')");
-    request.onsuccess = openSuccess;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function openSuccess()
-{
-    debug("openSuccess():");
-    self.db = evalAndLog("db = event.target.result");
-    request = evalAndLog("request = db.setVersion('version 1')");
-    request.onsuccess = cleanDatabase;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function cleanDatabase()
-{
-    debug("cleanDatabase():");
-    self.transaction = evalAndLog("transaction = event.target.result");
-    transaction.onabort = unexpectedErrorCallback;
-    transaction.oncomplete = setVersionComplete;
-
-    deleteAllObjectStores(db);
+    db = event.target.result;
+    event.target.transaction.onabort = unexpectedAbortCallback;
     evalAndLog("db.createObjectStore('myObjectStore')");
     shouldBe("db.objectStoreNames.length", "1");
 }
@@ -39,7 +18,7 @@ function setVersionComplete()
 {
     debug("setVersionComplete():");
 
-    self.transaction = evalAndLog("transaction = db.transaction(['myObjectStore'], IDBTransaction.READ_WRITE)");
+    self.transaction = evalAndLog("transaction = db.transaction(['myObjectStore'], 'readwrite')");
     transaction.onabort = abortCallback;
     transaction.oncomplete = unexpectedCompleteCallback;
 
@@ -52,7 +31,7 @@ function setVersionComplete()
 function addSuccess()
 {
     debug("addSuccess():");
-    shouldBe("event.target.result", "'rollbackKey123'");
+    shouldBeEqualToString("event.target.result", "rollbackKey123");
 
     request = evalAndLog("store.openCursor()");
     request.onsuccess = openCursorSuccess;
@@ -72,7 +51,7 @@ function abortCallback()
     debug("abortCallback():");
     debug('Transaction was aborted.');
 
-    self.transaction = evalAndLog("transaction = db.transaction(['myObjectStore'], IDBTransaction.READ)");
+    self.transaction = evalAndLog("transaction = db.transaction(['myObjectStore'], 'readonly')");
     self.store = evalAndLog("store = transaction.objectStore('myObjectStore')");
     request = evalAndLog("store.get('rollbackKey123')");
     request.onerror = unexpectedErrorCallback;
@@ -84,8 +63,6 @@ function getSuccess()
     debug("getSuccess():");
     shouldBe("event.target.result", "undefined");
 
-    shouldBe("cursor.value", "'rollbackValue'");
+    shouldBeEqualToString("cursor.value", "rollbackValue");
     finishJSTest();
 }
-
-test();

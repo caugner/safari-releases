@@ -1,6 +1,6 @@
-if (window.layoutTestController) {
-    layoutTestController.dumpAsText();
-    layoutTestController.waitUntilDone();
+if (window.testRunner) {
+    testRunner.dumpAsText();
+    testRunner.waitUntilDone();
 }
 
 description("Checks the various use cases around the SharedWorker constructor's optional name parameter");
@@ -143,6 +143,17 @@ function test10()
     worker.port.postMessage("eval self.foo");
     worker.port.onmessage = function(event) {
         shouldBeEqual("creating worker with an undefined name", event.data, "self.foo: 1111");
+        nextTest();
+    }
+}
+
+function test11()
+{
+    // Creating a worker with a specific name, the name attribute should be set to worker correctly.
+    var worker = new SharedWorker('resources/shared-worker-common.js', "testingNameAttribute");
+    worker.port.postMessage("testingNameAttribute");
+    worker.port.onmessage = function(event) {
+        shouldBeEqual("the name attribute of worker can be set correctly", event.data, "testingNameAttribute");
         nextTest();
     }
 }

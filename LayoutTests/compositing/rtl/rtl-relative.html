@@ -33,10 +33,10 @@
 </style>
 <script>
     function doTest() {
-        if (window.layoutTestController) {
+        if (window.testRunner) {
             if (top == self)
-                document.getElementById('layertree').innerText = layoutTestController.layerTreeAsText();
-            layoutTestController.dumpAsText(true);
+                document.getElementById('layertree').innerText = window.internals.layerTreeAsText(document);
+            testRunner.dumpAsText(true);
         }
     }
     window.addEventListener('load', doTest, false);

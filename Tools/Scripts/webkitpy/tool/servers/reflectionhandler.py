@@ -44,8 +44,8 @@ import BaseHTTPServer
 
 
 class ReflectionHandler(BaseHTTPServer.BaseHTTPRequestHandler):
+    STATIC_FILE_EXTENSIONS = ['.js', '.css', '.html']
     # Subclasses should override.
-    STATIC_FILE_NAMES = None
     STATIC_FILE_DIRECTORY = None
 
     # Setting this flag to True causes the server to send
@@ -59,12 +59,15 @@ class ReflectionHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     def do_POST(self):
         self._handle_request()
 
-    def _read_entity_body(self):
+    def do_HEAD(self):
+        self._handle_request()
+
+    def read_entity_body(self):
         length = int(self.headers.getheader('content-length'))
         return self.rfile.read(length)
 
     def _read_entity_body_as_json(self):
-        return json.loads(self._read_entity_body())
+        return json.loads(self.read_entity_body())
 
     def _handle_request(self):
         if "?" in self.path:
@@ -75,7 +78,8 @@ class ReflectionHandler(BaseHTTPServer.BaseHTTPRequestHandler):
             self.query = {}
         function_or_file_name = path[1:] or "index.html"
 
-        if function_or_file_name in self.STATIC_FILE_NAMES:
+        _, extension = os.path.splitext(function_or_file_name)
+        if extension in self.STATIC_FILE_EXTENSIONS:
             self._serve_static_file(function_or_file_name)
             return
 
@@ -116,7 +120,7 @@ class ReflectionHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         self.end_headers()
         json.dump(json_object, self.wfile)
 
-    def _serve_file(self, file_path, cacheable_seconds=0):
+    def _serve_file(self, file_path, cacheable_seconds=0, headers_only=False):
         if not os.path.exists(file_path):
             self.send_error(404, "File not found")
             return
@@ -136,4 +140,5 @@ class ReflectionHandler(BaseHTTPServer.BaseHTTPRequestHandler):
                 self.send_header("Expires", expires_formatted)
             self.end_headers()
 
-            shutil.copyfileobj(static_file, self.wfile)
+            if not headers_only:
+                shutil.copyfileobj(static_file, self.wfile)

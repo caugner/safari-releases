@@ -3,8 +3,8 @@
 <style> 
     span { font-size: 16px; }
     #control { line-height: 200%; }
-    #calc-percent { line-height: -webkit-calc(100% * 2); }
-    #calc-percent-pixels { line-height: -webkit-calc(100% + 16px); }
+    #calc-percent { line-height: calc(100% * 2); }
+    #calc-percent-pixels { line-height: calc(100% + 16px); }
 </style>
 <div id="test-container">
     <span id="control">The line height of these lines should be identical</span><hr/>
@@ -17,7 +17,7 @@
     shouldEvaluateTo('getComputedStyle(document.getElementById("calc-percent"), null).lineHeight', 'getComputedStyle(document.getElementById("control"), null).lineHeight');
     shouldEvaluateTo('getComputedStyle(document.getElementById("calc-percent-pixels"), null).lineHeight', 'getComputedStyle(document.getElementById("control"), null).lineHeight');
 
-    if (window.layoutTestController) {
+    if (window.testRunner) {
         var testContainer = document.getElementById("test-container");
         if (testContainer)
             document.body.removeChild(testContainer);   

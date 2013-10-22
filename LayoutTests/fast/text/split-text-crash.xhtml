@@ -1,9 +1,9 @@
 <html xmlns="http://www.w3.org/1999/xhtml">
 <body></body>
 <script>
-if (window.layoutTestController) {
-    layoutTestController.waitUntilDone();
-    layoutTestController.dumpAsText();
+if (window.testRunner) {
+    testRunner.waitUntilDone();
+    testRunner.dumpAsText();
 }
 
 function crash() {
@@ -12,12 +12,13 @@ function crash() {
     var range = document.createRange();
     range.setStart(textNode, 0);
     document.addEventListener("DOMNodeInserted", function () {
-        document.body.removeChild(textNode);
+        if (textNode)
+            document.body.removeChild(textNode);
         textNode = null;
 
-        if (window.layoutTestController) {
+        if (window.testRunner) {
             GCController.collect();
-            setTimeout("layoutTestController.notifyDone()", 0);
+            setTimeout("testRunner.notifyDone()", 0);
         }
     }, true);
     try {

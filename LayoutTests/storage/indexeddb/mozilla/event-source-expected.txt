@@ -5,14 +5,11 @@ On success, you will see a series of "PASS" messages, followed by "TEST COMPLETE
 
 indexedDB = self.indexedDB || self.webkitIndexedDB || self.mozIndexedDB || self.msIndexedDB || self.OIndexedDB;
 
-indexedDB.open(name, description)
+dbname = "event-source.html"
+indexedDB.deleteDatabase(dbname)
+indexedDB.open(dbname)
 source = event.target.source;
-PASS source is indexedDB
-db = event.target.result
-request = db.setVersion('1')
-source = event.target.source;
-PASS source is db
-Deleted all object stores.
+PASS source is null
 objectStore = db.createObjectStore(objectStoreName, { autoIncrement: true });
 request = objectStore.add({});
 source = event.target.source;

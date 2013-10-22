@@ -178,6 +178,8 @@ base.parseJSONP = function(jsonp)
 {
     var startIndex = jsonp.indexOf('(') + 1;
     var endIndex = jsonp.lastIndexOf(')');
+    if (startIndex == 0 || endIndex == -1)
+        return {};
     return JSON.parse(jsonp.substr(startIndex, endIndex - startIndex));
 };
 
@@ -300,6 +302,12 @@ base.AsynchronousCache.prototype.get = function(key, callback)
         });
     });
 };
+
+base.AsynchronousCache.prototype.clear = function()
+{
+    this._dataCache = {};
+    this._callbackCache = {};
+}
 
 /*
     Maintains a dictionary of items, tracking their updates and removing items that haven't been updated.
@@ -428,6 +436,29 @@ base.relativizeTime = function(time)
         return true;
     });
     return result;
+}
+
+base.getURLParameter = function(name)
+{
+    var match = RegExp(name + '=' + '(.+?)(&|$)').exec(location.search);
+    if (!match)
+        return null;
+    return decodeURI(match[1])
+}
+
+base.underscoredBuilderName = function(builderName)
+{
+    return builderName.replace(/[ .()]/g, '_');
+}
+
+base.createLinkNode = function(url, textContent, opt_target)
+{
+    var link = document.createElement('a');
+    link.href = url;
+    if (opt_target)
+        link.target = opt_target;
+    link.appendChild(document.createTextNode(textContent));
+    return link;
 }
 
 })();

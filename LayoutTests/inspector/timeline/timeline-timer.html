@@ -1,7 +1,7 @@
 <html>
 <head>
 <script src="../../http/tests/inspector/inspector-test.js"></script>
-<script src="timeline-test.js"></script>
+<script src="../../http/tests/inspector/timeline-test.js"></script>
 <script>
 
 function performActions()
@@ -37,7 +37,7 @@ function test()
     }
 }
 
-if (!window.layoutTestController)
+if (!window.testRunner)
     setTimeout(performActions, 2000);
 
 </script>

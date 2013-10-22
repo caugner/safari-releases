@@ -1,7 +1,7 @@
 <style> 
 body     {font-size: 12px;}
 #control {font: italic small-caps 900 150%/2em monospace;}
-#calc    {font: italic small-caps 900 -webkit-calc(150%)/2em monospace;}
+#calc    {font: italic small-caps 900 calc(150%)/2em monospace;}
 </style>
 
 <div>
@@ -13,8 +13,8 @@ body     {font-size: 12px;}
 <div id="results"></div>
 
 <script>
-if (window.layoutTestController)
-    layoutTestController.dumpAsText();
+if (window.testRunner)
+    testRunner.dumpAsText();
 var controlHeight = getComputedStyle(document.getElementById("control"), null).lineHeight;
 var controlSize = getComputedStyle(document.getElementById("control"), null).fontSize;
 

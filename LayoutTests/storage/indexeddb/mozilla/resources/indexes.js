@@ -11,22 +11,11 @@ if (this.importScripts) {
 
 description("Test IndexedDB: iterating through index cursors with keys and key ranges");
 
-function test()
+indexedDBTest(prepareDatabase, setVersionComplete);
+function prepareDatabase()
 {
-    removeVendorPrefixes();
-
-    name = self.location.pathname;
-    description = "My Test Database";
-    request = evalAndLog("indexedDB.open(name, description)");
-    request.onsuccess = openSuccess;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function openSuccess()
-{
-    debug("openSuccess():");
-    db = evalAndLog("db = event.target.result");
-
+    db = event.target.result;
+    event.target.transaction.onabort = unexpectedAbortCallback;
     objectStoreName = "People";
 
     objectStoreData = [
@@ -71,16 +60,6 @@ function openSuccess()
         { key: "237-23-7734", value: { name: "Ron", height: 73, weight: 180 } }
     ];
 
-    request = evalAndLog("request = db.setVersion('1')");
-    request.onsuccess = createAndPopulateObjectStore;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function createAndPopulateObjectStore()
-{
-    deleteAllObjectStores(db);
-    trans = event.target.result;
-
     objectStore = evalAndLog("objectStore = db.createObjectStore(objectStoreName);");
 
     debug("First, add all our data to the object store.");
@@ -103,7 +82,6 @@ function createIndexes()
       evalAndLog("objectStore.createIndex(indexData[i].name, indexData[i].keyPath, indexData[i].options);");
     }
     shouldBe("objectStore.indexNames.length", "indexData.length");
-    trans.oncomplete = setVersionComplete;
 }
 
 function setVersionComplete()
@@ -177,7 +155,7 @@ function testGroup3()
 {
     keyIndex = 0;
 
-    request = evalAndLog("request = objectStore.index('weight').openKeyCursor(null, IDBCursor.NEXT);");
+    request = evalAndLog("request = objectStore.index('weight').openKeyCursor(null, 'next');");
     request.onerror = unexpectedErrorCallback;
     request.onsuccess = function (event) {
         cursor = evalAndLog("cursor = event.target.result;");
@@ -201,15 +179,9 @@ function testGroup3()
 
 function testGroup4()
 {
-/* this was split out into a separate test
-    debug("Check that the name index enforces its unique constraint.");
-    objectStore = evalAndLog("objectStore = db.transaction(objectStoreName, IDBTransaction.READ_WRITE).objectStore(objectStoreName);");
-    evalAndExpectException("objectStore.add({ name: 'Bob', height: 62, weight: 170 }, '237-23-7738');", "IDBDatabaseException.CONSTRAINT_ERR");
-*/
-
     objectStore = evalAndLog("objectStore = db.transaction(objectStoreName).objectStore(objectStoreName);");
     keyIndex = evalAndLog("keyIndex = objectStoreDataNameSort.length - 1;");
-    request = evalAndLog("request = objectStore.index('name').openKeyCursor(null, IDBCursor.PREV);");
+    request = evalAndLog("request = objectStore.index('name').openKeyCursor(null, 'prev');");
     request.onerror = unexpectedErrorCallback;
     request.onsuccess = function (event) {
         cursor = evalAndLog("cursor = event.target.result;");
@@ -476,7 +448,7 @@ function testGroup15()
 {
     keyIndex = evalAndLog("keyIndex = objectStoreDataNameSort.length - 1;");
 
-    request = evalAndLog("request = objectStore.index('name').openCursor(null, IDBCursor.PREV);");
+    request = evalAndLog("request = objectStore.index('name').openCursor(null, 'prev');");
     request.onerror = unexpectedErrorCallback;
     request.onsuccess = function (event) {
         cursor = evalAndLog("cursor = event.target.result;");
@@ -661,7 +633,7 @@ function testGroup20()
     keyIndex = evalAndLog("keyIndex = 4;");
     keyRange = evalAndLog("keyRange = IDBKeyRange.bound('Bob', 'Ron');");
 
-    request = evalAndLog("request = objectStore.index('name').openCursor(keyRange, IDBCursor.PREV);");
+    request = evalAndLog("request = objectStore.index('name').openCursor(keyRange, 'prev');");
     request.onerror = unexpectedErrorCallback;
     request.onsuccess = function (event) {
         cursor = evalAndLog("cursor = event.target.result;");
@@ -698,7 +670,7 @@ function testGroup21()
     keyIndex = evalAndLog("keyIndex = 3;");
     keyRange = evalAndLog("keyRange = IDBKeyRange.only(65);");
 
-    request = evalAndLog("request = objectStore.index('height').openKeyCursor(keyRange, IDBCursor.NEXT);");
+    request = evalAndLog("request = objectStore.index('height').openKeyCursor(keyRange, 'next');");
     request.onerror = unexpectedErrorCallback;
     request.onsuccess = function (event) {
         cursor = evalAndLog("cursor = event.target.result;");
@@ -721,7 +693,7 @@ function testGroup22()
     keyIndex = evalAndLog("keyIndex = 3;");
     keyRange = evalAndLog("keyRange = IDBKeyRange.only(65);");
 
-    request = evalAndLog("request = objectStore.index('height').openKeyCursor(keyRange, IDBCursor.NEXT_NO_DUPLICATE);");
+    request = evalAndLog("request = objectStore.index('height').openKeyCursor(keyRange, 'nextunique');");
     request.onerror = unexpectedErrorCallback;
     request.onsuccess = function (event) {
         cursor = evalAndLog("cursor = event.target.result;");
@@ -744,7 +716,7 @@ function testGroup23()
 {
     keyIndex = evalAndLog("keyIndex = 5;");
 
-    request = evalAndLog("request = objectStore.index('height').openKeyCursor(null, IDBCursor.PREV_NO_DUPLICATE);");
+    request = evalAndLog("request = objectStore.index('height').openKeyCursor(null, 'prevunique');");
     request.onerror = unexpectedErrorCallback;
     request.onsuccess = function (event) {
         cursor = evalAndLog("cursor = event.target.result;");
@@ -771,7 +743,7 @@ function testGroup24()
     keyIndex = evalAndLog("keyIndex = 3;");
     keyRange = evalAndLog("keyRange = IDBKeyRange.only(65);");
 
-    request = evalAndLog("request = objectStore.index('height').openCursor(keyRange, IDBCursor.NEXT);");
+    request = evalAndLog("request = objectStore.index('height').openCursor(keyRange, 'next');");
     request.onerror = unexpectedErrorCallback;
     request.onsuccess = function (event) {
         cursor = evalAndLog("cursor = event.target.result;");
@@ -799,7 +771,7 @@ function testGroup25()
     keyIndex = evalAndLog("keyIndex = 3;");
     keyRange = evalAndLog("keyRange = IDBKeyRange.only(65);");
 
-    request = evalAndLog("request = objectStore.index('height').openCursor(keyRange, IDBCursor.NEXT_NO_DUPLICATE);");
+    request = evalAndLog("request = objectStore.index('height').openCursor(keyRange, 'nextunique');");
     request.onerror = unexpectedErrorCallback;
     request.onsuccess = function (event) {
         cursor = evalAndLog("cursor = event.target.result;");
@@ -827,7 +799,7 @@ function testGroup26()
 {
     keyIndex = evalAndLog("keyIndex = 5;");
 
-    request = evalAndLog("request = objectStore.index('height').openCursor(null, IDBCursor.PREV_NO_DUPLICATE);");
+    request = evalAndLog("request = objectStore.index('height').openCursor(null, 'prevunique');");
     request.onerror = unexpectedErrorCallback;
     request.onsuccess = function (event) {
         cursor = evalAndLog("cursor = event.target.result;");
@@ -1007,5 +979,3 @@ function testGroup30()
         }
     }
 }
-
-test();

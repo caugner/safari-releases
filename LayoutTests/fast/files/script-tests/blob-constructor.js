@@ -15,7 +15,6 @@ shouldThrow("new Blob(0)", "'TypeError: First argument of the constructor is not
 
 // Test valid blob parts.
 shouldBeTrue("(new Blob([])) instanceof window.Blob");
-shouldBeTrue("(new Blob([new ArrayBuffer(8)])) instanceof window.Blob");
 shouldBeTrue("(new Blob(['stringPrimitive'])) instanceof window.Blob");
 shouldBeTrue("(new Blob([String('stringObject')])) instanceof window.Blob");
 shouldBeTrue("(new Blob([new Blob])) instanceof window.Blob");
@@ -25,7 +24,7 @@ shouldBeTrue("(new Blob([new Blob([new Blob])])) instanceof window.Blob");
 shouldBe("(new Blob([12])).size", "2");
 shouldBe("(new Blob([[]])).size", "0");         // [].toString() is the empty string
 shouldBe("(new Blob([{}])).size", "15");;       // {}.toString() is the string "[object Object]"
-shouldBe("(new Blob([document])).size", "21");  // document.toString() is the string "[object HTMLDocument]" 
+shouldBe("(new Blob([document])).size", "21");  // document.toString() is the string "[object HTMLDocument]"
 
 var toStringingObj = { toString: function() { return "A string"; } };
 shouldBe("(new Blob([toStringingObj])).size", "8");
@@ -60,6 +59,42 @@ shouldBeTrue("(new Blob([], function () {})) instanceof window.Blob");
 // Test that the type/size is correctly added to the Blob
 shouldBe("(new Blob([], {type:'text/html'})).type", "'text/html'");
 shouldBe("(new Blob([], {type:'text/html'})).size", "0");
+shouldBe("(new Blob([], {type:'text/plain;charset=UTF-8'})).type", "'text/plain;charset=utf-8'");
+
+// Test that Blob types are correctly normalized.
+shouldBe("(new Blob([], {type:'TeXt/pLaIn'})).type", "'text/plain'");
+shouldBe("(new Blob([], {type:'text\\rplain'})).type", "''");
+shouldBe("(new Blob([], {type:'text\\nplain'})).type", "''");
+shouldBe("(new Blob([], {type:'hello\u00EE'})).type", "''");
+shouldBe("(new Blob([], {type:'\\0'})).type", "''");
 
 // Odds and ends
-shouldBe("window.Blob.length", "2");
+shouldBe("window.Blob.length", "0");
+
+// Test ArrayBufferView Parameters
+shouldBe("new Blob([new DataView(new ArrayBuffer(100))]).size", "100");
+shouldBe("new Blob([new Uint8Array(100)]).size", "100");
+shouldBe("new Blob([new Uint8ClampedArray(100)]).size", "100");
+shouldBe("new Blob([new Uint16Array(100)]).size", "200");
+shouldBe("new Blob([new Uint32Array(100)]).size", "400");
+shouldBe("new Blob([new Int8Array(100)]).size", "100");
+shouldBe("new Blob([new Int16Array(100)]).size", "200");
+shouldBe("new Blob([new Int32Array(100)]).size", "400");
+shouldBe("new Blob([new Float32Array(100)]).size", "400");
+shouldBe("new Blob([new Float64Array(100)]).size", "800");
+shouldBe("new Blob([new Float64Array(100), new Int32Array(100), new Uint8Array(100), new DataView(new ArrayBuffer(100))]).size", "1400");
+shouldBe("new Blob([new Blob([new Int32Array(100)]), new Uint8Array(100), new Float32Array(100), new DataView(new ArrayBuffer(100))]).size", "1000");
+
+// Test ArrayBuffer Parameters
+shouldBe("new Blob([(new DataView(new ArrayBuffer(100))).buffer]).size", "100");
+shouldBe("new Blob([(new Uint8Array(100)).buffer]).size", "100");
+shouldBe("new Blob([(new Uint8ClampedArray(100)).buffer]).size", "100");
+shouldBe("new Blob([(new Uint16Array(100)).buffer]).size", "200");
+shouldBe("new Blob([(new Uint32Array(100)).buffer]).size", "400");
+shouldBe("new Blob([(new Int8Array(100)).buffer]).size", "100");
+shouldBe("new Blob([(new Int16Array(100)).buffer]).size", "200");
+shouldBe("new Blob([(new Int32Array(100)).buffer]).size", "400");
+shouldBe("new Blob([(new Float32Array(100)).buffer]).size", "400");
+shouldBe("new Blob([(new Float64Array(100)).buffer]).size", "800");
+shouldBe("new Blob([(new Float64Array(100)).buffer, (new Int32Array(100)).buffer, (new Uint8Array(100)).buffer, (new DataView(new ArrayBuffer(100))).buffer]).size", "1400");
+shouldBe("new Blob([new Blob([(new Int32Array(100)).buffer]), (new Uint8Array(100)).buffer, (new Float32Array(100)).buffer, (new DataView(new ArrayBuffer(100))).buffer]).size", "1000");

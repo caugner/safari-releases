@@ -20,7 +20,7 @@ var discontinuityThreshold;
 var timeInterval = .03;
 
 // Some suitable time constant so that we can see a significant change over a timeInterval.  This is
-// only needed by setTargetValueAtTime() which needs a time constant.
+// only needed by setTargetAtTime() which needs a time constant.
 var timeConstant = timeInterval / 3;
 
 var gainNode;
@@ -397,15 +397,15 @@ function doAutomation(numberOfTests, initialValue, setValueFunction, automationF
 //
 function createAudioGraphAndTest(numberOfTests, initialValue, setValueFunction, automationFunction, testName, maxError, referenceFunction, jumpThreshold)
 {
-    if (window.layoutTestController) {
-        layoutTestController.dumpAsText();
-        layoutTestController.waitUntilDone();
+    if (window.testRunner) {
+        testRunner.dumpAsText();
+        testRunner.waitUntilDone();
     }
 
     window.jsTestIsAsync = true;
 
     // Create offline audio context.
-    context = new webkitAudioContext(2, renderLength(numberOfTests), sampleRate);
+    context = new webkitOfflineAudioContext(2, renderLength(numberOfTests), sampleRate);
     var constantBuffer = createConstantBuffer(context, 1, renderLength(numberOfTests));
 
     // We use an AudioGainNode here simply as a convenient way to test the AudioParam

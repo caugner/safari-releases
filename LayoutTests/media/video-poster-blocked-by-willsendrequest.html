@@ -25,9 +25,9 @@
 
             function start()
             {
-                if (window.layoutTestController) {
-                    layoutTestController.dumpAsText();
-                    layoutTestController.setWillSendRequestReturnsNull(true);
+                if (window.testRunner) {
+                    testRunner.dumpAsText();
+                    testRunner.setWillSendRequestReturnsNull(true);
                 } else
                     consoleWrite("<b>This test can only be run in DumpRenderTree!</b>");
 
@@ -37,7 +37,8 @@
                 testExpected("video.clientWidth", 300);
                 testExpected("video.clientHeight", 150);
 
-                video.poster = "content/abe.png";
+                // FIXME: the getTime() below works around a bug (82976) in mac DRT where caches aren't cleared between tests.
+                video.poster = "content/abe.png?" + (new Date().getTime());
 
                 setTimeout(testAfterLoadingPoster, 100);
             }

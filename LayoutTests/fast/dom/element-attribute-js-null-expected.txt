@@ -11,7 +11,7 @@ TEST SUCCEEDED: The value was the empty string. [tested HTMLElement.dir]
 TEST SUCCEEDED: The value was the empty string. [tested HTMLElement.className]
 TEST SUCCEEDED: The value was the empty string. [tested HTMLElement.innerHTML]
 TEST SUCCEEDED: The value was the empty string. [tested HTMLElement.innerText]
-TEST SUCCEEDED: Exception (Error: SYNTAX_ERR: DOM Exception 12) was thrown as expected. [tested HTMLElement.contentEditable]
+TEST SUCCEEDED: Exception (Error: SyntaxError: DOM Exception 12) was thrown as expected. [tested HTMLElement.contentEditable]
 
 TEST SUCCEEDED: The value was the empty string. [tested HTMLAnchorElement.accessKey]
 TEST SUCCEEDED: The value was the empty string. [tested HTMLAnchorElement.charset]
@@ -44,7 +44,6 @@ TEST SUCCEEDED: The value was the empty string. [tested HTMLAreaElement.href]
 TEST SUCCEEDED: The value was the empty string. [tested HTMLAreaElement.shape]
 TEST SUCCEEDED: The value was the empty string. [tested HTMLAreaElement.target]
 
-TEST SUCCEEDED: The value was the empty string. [tested HTMLBaseElement.href]
 TEST SUCCEEDED: The value was the empty string. [tested HTMLBaseElement.target]
 
 TEST SUCCEEDED: The value was the empty string. [tested HTMLBaseFontElement.color]

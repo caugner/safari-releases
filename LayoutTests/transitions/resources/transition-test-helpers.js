@@ -163,6 +163,7 @@ function checkExpectedValue(expected, index)
         } else if (computedStyle.cssValueType == CSSValue.CSS_PRIMITIVE_VALUE) {
             switch (computedStyle.primitiveType) {
                 case CSSPrimitiveValue.CSS_STRING:
+                case CSSPrimitiveValue.CSS_IDENT:
                     computedValue = computedStyle.getStringValue();
                     pass = computedValue == expectedValue;
                     break;
@@ -209,8 +210,8 @@ function endTest()
 {
     document.getElementById('result').innerHTML = result;
 
-    if (window.layoutTestController)
-        layoutTestController.notifyDone();
+    if (window.testRunner)
+        testRunner.notifyDone();
 }
 
 function checkExpectedValueCallback(expected, index)
@@ -232,10 +233,10 @@ function runTest(expected, usePauseAPI)
         if (tryToPauseTransition === undefined)
           tryToPauseTransition = shouldBeTransitioning;
 
-        // We can only use the transition fast-forward mechanism if DRT implements pauseTransitionAtTimeOnElementWithId()
         if (hasPauseTransitionAPI && usePauseAPI) {
             if (tryToPauseTransition) {
-              if (!layoutTestController.pauseTransitionAtTimeOnElementWithId(property, time, elementId))
+              var element = document.getElementById(elementId);
+              if (!internals.pauseTransitionAtTimeOnElement(property, time, element))
                 window.console.log("Failed to pause '" + property + "' transition on element '" + elementId + "'");
             }
             checkExpectedValue(expected, i);
@@ -280,12 +281,12 @@ var hasPauseTransitionAPI;
 
 function runTransitionTest(expected, callback, usePauseAPI, doPixelTest)
 {
-    hasPauseTransitionAPI = ('layoutTestController' in window) && ('pauseTransitionAtTimeOnElementWithId' in layoutTestController);
+    hasPauseTransitionAPI = 'internals' in window;
     
-    if (window.layoutTestController) {
+    if (window.testRunner) {
         if (!doPixelTest)
-            layoutTestController.dumpAsText();
-        layoutTestController.waitUntilDone();
+            testRunner.dumpAsText();
+        testRunner.waitUntilDone();
     }
     
     if (!expected)

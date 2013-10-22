@@ -10,7 +10,7 @@ div {
 }
 
 .flexbox {
-  display: -webkit-flexbox; 
+  display: -webkit-flex; 
 }
 
 .row {
@@ -18,7 +18,7 @@ div {
 }
 
 .column {
-  display: -webkit-flexbox; 
+  display: -webkit-flex; 
   -webkit-flex-direction: column;
 }
 
@@ -26,13 +26,9 @@ div {
   -webkit-flex: 1 0 auto;
 }
 </style>
-<script>
-if (window.layoutTestController)
-    layoutTestController.dumpAsText();
-</script>
-<script src="resources/flexbox.js"></script>
+<script src="../../resources/check-layout.js"></script>
 </head>
-<body onload="checkFlexBoxen()">
+<body onload="checkLayout('.flexbox')">
 There should be two boxes of equal height on the left and 3 boxes of equal
 height on the right.
 <div class="flexbox row" style="width: 600px">
@@ -49,11 +45,11 @@ height on the right.
 
 None of the boxes should overflow and the inner most boxes should be end aligned.
 <div class="flexbox column" style="width: 600px; height: 300px; position: relative;">
-  <div data-expected-width=590 data-expected-height=250 class="column flex" style="-webkit-flex-pack: end">
-    <div data-offset-y="180" data-expected-width=570 data-expected-height=30 style="height: 20px"></div>
-    <div data-offset-y="220" data-expected-width=570 data-expected-height=30 style="height: 20px"></div>
+  <div data-expected-width=590 data-expected-height=250 class="column flex" style="-webkit-justify-content: flex-end">
+    <div data-offset-y="180" data-expected-width=570 data-expected-height=30 style="height: 20px; -webkit-flex: none;"></div>
+    <div data-offset-y="220" data-expected-width=570 data-expected-height=30 style="height: 20px; -webkit-flex: none;"></div>
   </div>
-  <div data-expected-width=590 data-expected-height=30 style="height: 20px"></div>
+  <div data-expected-width=590 data-expected-height=30 style="height: 20px; -webkit-flex: none;"></div>
 </div>
 
 

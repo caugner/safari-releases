@@ -10,12 +10,12 @@ var _processedEvents = false;
 /* Call this function to record manually transition end events:
 
 Function parameters:
-    event [required]: the event passed with "webkitTransitionEnd"
+    event [required]: the event passed with "webkitTransitionEnd" or "transitionend"
 
 */
 function recordTransitionEndEvent(event)
 {
-  if (event.type != "webkitTransitionEnd")
+  if (event.type != "webkitTransitionEnd" && event.type != "transitionend" )
     throw("Invalid transition end event!");
 
   _recordedEvents.push([
@@ -49,9 +49,9 @@ function runTransitionTest(expected, callback)
 {
   _expectedEventCount = expected.length;
 
-  if (window.layoutTestController) {
-    layoutTestController.dumpAsText();
-    layoutTestController.waitUntilDone();
+  if (window.testRunner) {
+    testRunner.dumpAsText();
+    testRunner.waitUntilDone();
   }
   
   function processEndEvents(expected)
@@ -130,8 +130,8 @@ function runTransitionTest(expected, callback)
     document.body.removeChild(document.getElementById('container'));
     document.getElementById('result').innerHTML = examineResults(_recordedEvents, expected);
 
-    if (window.layoutTestController)
-        layoutTestController.notifyDone();
+    if (window.testRunner)
+        testRunner.notifyDone();
   }
 
   function startTest(expected, callback, maxTime)

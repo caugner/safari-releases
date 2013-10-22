@@ -14,16 +14,16 @@ Test up mixing from mono to stereo.
 <script>
 
 function runTest() {
-    if (!window.layoutTestController)
+    if (!window.testRunner)
         return;
 
-    layoutTestController.waitUntilDone();
+    testRunner.waitUntilDone();
 
     window.jsTestAsync = true;
 
     // Create offline audio context
     var sampleRate = 44100.0;
-    var context = new webkitAudioContext(2, sampleRate * toneLengthSeconds, sampleRate);
+    var context = new webkitOfflineAudioContext(2, sampleRate * toneLengthSeconds, sampleRate);
     var toneBuffer = createToneBuffer(context, 440, toneLengthSeconds, 1); 
 
     var source = context.createBufferSource();

@@ -8,6 +8,11 @@ function postResult(result, actual, expected)
     postMessage(message);
 }
 
+function testPassed(message)
+{
+    postMessage("PASS: " + message);
+}
+
 function testFailed(message)
 {
     postMessage("FAIL: " + message);
@@ -40,8 +45,8 @@ var closeEvent;
 var code;
 var reason;
 var result;
-var invalidAccessErr = "INVALID_ACCESS_ERR";
-var syntaxErr = "SYNTAX_ERR";
+var invalidAccessErr = "InvalidAccessError";
+var syntaxErr = "SyntaxError";
 var normalClosure = 1000;
 var abnormalClosure = 1006;
 var url = "ws://127.0.0.1:8880/websocket/tests/hybi/close";
@@ -110,6 +115,10 @@ function runCodeTest()
                 if (closeEvent.code == abnormalClosure)
                     runInvalidStringTest();
             };
+            ws.onerror = function ()
+            {
+                testPassed("onerror() was called.");
+            };
         }
         try {
             ws.close(codeTestCodes[id]);
@@ -124,7 +133,7 @@ function runCodeTest()
 
 function runInvalidStringTest()
 {
-    // FIXME: unpaired surrogates throw SYNTAX_ERR
+    // FIXME: unpaired surrogates throw SyntaxError
     debug("Skip invalid string test.");
     runReasonTest();
 }
@@ -146,6 +155,10 @@ function runReasonTest()
                 shouldBe("closeEvent.code", "abnormalClosure");
                 if (closeEvent.code == abnormalClosure)
                     runCodeAndReasonTest();
+            };
+            ws.onerror = function ()
+            {
+                testPassed("onerror() was called.");
             };
         }
         try {

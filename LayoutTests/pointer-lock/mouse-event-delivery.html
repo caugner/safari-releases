@@ -1,7 +1,8 @@
 <!DOCTYPE HTML>
 <html>
 <head>
-<script src="../fast/js/resources/js-test-pre.js"></script>
+<script src="../http/tests/resources/js-test-pre.js"></script>
+<script src="../http/tests/resources/pointer-lock/pointer-lock-test-harness.js"></script>
 </head>
 <body id="body">
 <div>
@@ -11,10 +12,20 @@
 <script>
     description("Test mouse events are routed to lock target.")
     window.jsTestIsAsync = true;
-    shouldBeDefined("window.eventSender");
 
     targetdiv1 = document.getElementById("target1");
     targetdiv2 = document.getElementById("target2");
+
+    // Expect change event only for all transitions below.
+    expectedTargetToBeLockedString = "";
+    document.onwebkitpointerlockchange = function ()
+        {
+            testPassed("document.onwebkitpointerlockchange event received.");
+            shouldBe("document.webkitPointerLockElement", expectedTargetToBeLockedString);
+            doNextStep();
+        };
+    document.onwebkitpointerlockerror =
+        function () { testFailed("document.onwebkitpointerlockerror event received."); finishJSTest(); };
 
     function eventNotExpected(e) {
         testFailed("Unexpected event " + e.type + " on " + e.currentTarget.id);
@@ -24,86 +35,69 @@
       testPassed("event type: " + e.type + ", target: " + e.target.id + ", received on: " + e.currentTarget.id);
     }
 
-    currentStep = 0;
-    function doNextStep() {
-      todo[currentStep++]();
-    }
     todo = [
         function () {
-            navigator.webkitPointer.lock(targetdiv1,
-                function () {
-                    testPassed("Lock target1 succeeded.");
-                    doNextStep();
-                },
-                function () {
-                    testFailed("Lock failed.");
-                    finishJSTest();
-                });
+            targetdiv1.webkitRequestPointerLock();
+            expectedTargetToBeLockedString = "targetdiv1";
+            // doNextStep() called by onwebkitpointerlockchange handler.
         },
         function () {
-            debug("With a lock in place send a click.")
+            debug("     With a lock in place send a click.")
             targetdiv1.onmousedown = eventExpected;
             targetdiv2.onmousedown = eventNotExpected;
             document.body.onmousedown = eventExpected;
-            window.eventSender.leapForward(1000);
-            window.eventSender.mouseDown();
-            window.eventSender.mouseUp();
-            targetdiv1.onmousedown = undefined;
-            targetdiv2.onmousedown = undefined;
-            document.body.onmousedown = undefined;
-            doNextStep();
+            if (window.eventSender) {
+                window.eventSender.leapForward(1000);
+                window.eventSender.mouseDown();
+                window.eventSender.mouseUp();
+            }
+            doNextStepWithUserGesture();
         },
         function () {
-            navigator.webkitPointer.lock(targetdiv2,
-                function () {
-                    testPassed("Lock target2 succeeded.");
-                    doNextStep();
-                },
-                function () {
-                    testFailed("Lock failed.");
-                    finishJSTest();
-                });
+            targetdiv2.webkitRequestPointerLock();
+            expectedTargetToBeLockedString = "targetdiv2";
+            // doNextStep() called by onwebkitpointerlockchange handler.
         },
         function () {
-            debug("With a lock in place send a click.")
+            debug("     With a lock in place send a click.")
             targetdiv1.onmousedown = eventNotExpected;
             targetdiv2.onmousedown = eventExpected;
             document.body.onmousedown = eventExpected;
-            window.eventSender.leapForward(1000);
-            window.eventSender.mouseDown();
-            window.eventSender.mouseUp();
-            targetdiv1.onmousedown = undefined;
-            targetdiv2.onmousedown = undefined;
-            document.body.onmousedown = undefined;
-            doNextStep();
+            if (window.eventSender) {
+                window.eventSender.leapForward(1000);
+                window.eventSender.mouseDown();
+                window.eventSender.mouseUp();
+            }
+            doNextStepWithUserGesture();
         },
         function () {
-            debug("Ensure double clicks work as expected, sending 4 clicks.")
+            debug("     Ensure double clicks work as expected, sending 4 clicks.")
+            targetdiv1.onmousedown = undefined;
+            document.body.onmousedown = undefined;
             targetdiv2.onmousedown = eventExpected;
             targetdiv2.onmouseup = eventExpected;
             targetdiv2.onclick = eventExpected;
             targetdiv2.ondblclick = eventExpected;
-            debug("Creating a click and dblclick.");
-            window.eventSender.leapForward(1000);
-            window.eventSender.mouseDown();
-            window.eventSender.mouseUp();
-            window.eventSender.mouseDown();
-            window.eventSender.mouseUp();
-            debug("Ensuring no false dblclicks if we continue.");
-            window.eventSender.mouseDown();
-            window.eventSender.mouseUp();
-            window.eventSender.mouseDown();
-            window.eventSender.mouseUp();
-            targetdiv2.onmousedown = undefined;
-            targetdiv2.onmouseup = undefined;
-            targetdiv2.onclick = undefined;
-            targetdiv2.ondblclick = undefined;
-            doNextStep();
+            debug("     Creating a click and dblclick.");
+            if (window.eventSender) {
+                window.eventSender.leapForward(1000);
+                window.eventSender.mouseDown();
+                window.eventSender.mouseUp();
+                window.eventSender.mouseDown();
+                window.eventSender.mouseUp();
+            }
+            debug("     Ensuring no false dblclicks if we continue.");
+            if (window.eventSender) {
+                window.eventSender.mouseDown();
+                window.eventSender.mouseUp();
+                window.eventSender.mouseDown();
+                window.eventSender.mouseUp();
+            }
+            doNextStepWithUserGesture();
         },
-        finishJSTest
     ];
-    doNextStep();
+    doNextStepWithUserGesture();
 </script>
-<script src="../fast/js/resources/js-test-post.js"></script>
+<script src="../http/tests/resources/js-test-post.js"></script>
 </body>
 </html>

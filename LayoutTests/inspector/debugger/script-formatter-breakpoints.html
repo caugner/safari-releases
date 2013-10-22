@@ -12,25 +12,20 @@ function f1()
     return 0;
 }
 
-function f2()
-{
-    var x = 0;
-    return 0;
-}
-
 var test = function()
 {
+    WebInspector.breakpointManager._storage._breakpoints = {};
     var panel = WebInspector.panels.scripts;
+    var sourceFrame;
 
     InspectorTest.runDebuggerTestSuite([
         function testBreakpointsInOriginalAndFormattedSource(next)
         {
-            var root;
             InspectorTest.showScriptSource("script-formatter-breakpoints.html", didShowScriptSource);
 
-            function didShowScriptSource(sourceFrame)
+            function didShowScriptSource(frame)
             {
-                root = sourceFrame._url.substr(0, sourceFrame._url.lastIndexOf("/") + 1);
+                sourceFrame = frame;
                 InspectorTest.setBreakpoint(sourceFrame, 10, "", true);
                 InspectorTest.waitUntilPaused(pausedInF1);
                 InspectorTest.evaluateInPageWithTimeout("f1()");
@@ -38,65 +33,70 @@ var test = function()
 
             function pausedInF1(callFrames)
             {
-                InspectorTest.assertEquals("f1", callFrames[0].functionName);
-                dumpBreakpointSidebarPane();
+                dumpBreakpointSidebarPane("while paused in raw");
                 InspectorTest.resumeExecution(resumed);
             }
 
             function resumed()
             {
-                InspectorTest.navigate(root + "resources/test-navigation.html", didNavigateAnotherPage);
+                sourceFrame._uiSourceCode.addEventListener(WebInspector.UISourceCode.Events.FormattedChanged, didFormatPage, this);
+                sourceFrame._uiSourceCode.setFormatted(true);
             }
 
-            function didNavigateAnotherPage()
+            function didFormatPage()
             {
-                InspectorTest.addResult("Navigated to test-navigation.html");
-                panel._toggleFormatSource();
-                InspectorTest.showScriptSource("test-navigation.html", didShowAnotherPage);
-            }
-
-            function didShowAnotherPage(sourceFrame)
-            {
-                InspectorTest.navigate(root + "script-formatter-breakpoints.html", didNavigateBack);
-            }
-
-            function didNavigateBack()
-            {
-                InspectorTest.addResult("Navigated back to test page.");
-                dumpBreakpointSidebarPane();
-                InspectorTest.showScriptSource("script-formatter-breakpoints.html", didShowFormattedScriptSource);
-            }
-
-            function didShowFormattedScriptSource(sourceFrame)
-            {
-                // There should be no breakpoint in f1 since script is pretty-printed now.
+                sourceFrame._uiSourceCode.removeEventListener(WebInspector.UISourceCode.Events.FormattedChanged, didFormatPage, this);
+                // There should be a breakpoint in f1 although script is pretty-printed.
+                InspectorTest.waitUntilPaused(pausedInF1Again);
                 InspectorTest.evaluateInPageWithTimeout("f1()");
-                InspectorTest.setBreakpoint(panel.visibleView, 24, "", true);
-                InspectorTest.waitUntilPaused(pausedInF2);
-                InspectorTest.evaluateInPageWithTimeout("f2()");
             }
 
-            function pausedInF2(callFrames)
+            function pausedInF1Again(callFrames)
             {
-                InspectorTest.assertEquals("f2", callFrames[0].functionName);
-                dumpBreakpointSidebarPane();
-                panel._toggleFormatSource();
-                InspectorTest.resumeExecution(resumedF2);
+                dumpBreakpointSidebarPane("while paused in pretty printed");
+                sourceFrame._uiSourceCode.setFormatted(false);
+                dumpBreakpointSidebarPane("while paused in raw");
+                InspectorTest.removeBreakpoint(sourceFrame, 10);
+                InspectorTest.resumeExecution(next);
+            }
+        },
+
+        function testBreakpointSetInOriginalAndRemovedInFormatted(next)
+        {
+            InspectorTest.showScriptSource("script-formatter-breakpoints.html", didShowScriptSource);
+
+            function didShowScriptSource(frame)
+            {
+                sourceFrame = frame;
+                InspectorTest.addResult("Adding breakpoint.");
+                InspectorTest.addSniffer(WebInspector.BreakpointManager.Breakpoint.prototype, "_addResolvedLocation", breakpointResolved);
+                InspectorTest.setBreakpoint(sourceFrame, 10, "", true);
             }
 
-            function resumedF2()
+            function breakpointResolved()
             {
-                dumpBreakpointSidebarPane();
+                InspectorTest.addSniffer(WebInspector.UISourceCode.prototype, "updateLiveLocations", didFormatPage);
+                InspectorTest.addResult("Formatting.");
+                sourceFrame._uiSourceCode.setFormatted(true);
+            }
+
+            function didFormatPage()
+            {
+                InspectorTest.addResult("Removing breakpoint.");
+                InspectorTest.removeBreakpoint(sourceFrame, 17);
+                InspectorTest.addResult("Unformatting.");
+                sourceFrame._uiSourceCode.setFormatted(false);
+                var breakpoints = WebInspector.breakpointManager._storage._setting.get();
+                InspectorTest.assertEquals(breakpoints.length, 0, "There should not be any breakpoints in the storage.");
                 next();
             }
         }
     ]);
 
-    function dumpBreakpointSidebarPane()
+    function dumpBreakpointSidebarPane(title)
     {
         var paneElement = WebInspector.panels.scripts.sidebarPanes.jsBreakpoints.listElement
-        InspectorTest.addResult("");
-        InspectorTest.addResult("Dump breakpoint sidebar pane:");
+        InspectorTest.addResult("Breakpoint sidebar pane " + title);
         InspectorTest.addResult(InspectorTest.textContentWithLineBreaks(paneElement));
     }
 }

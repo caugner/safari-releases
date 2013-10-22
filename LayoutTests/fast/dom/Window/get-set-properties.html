@@ -198,8 +198,7 @@ var windowReadWriteProperties = [
     "scrollbars",
     "self",
     "statusbar",
-    "toolbar",
-    "top"
+    "toolbar"
 ];
 
 var windowReadOnlyProperties = [
@@ -207,7 +206,8 @@ var windowReadOnlyProperties = [
     "document",
     "pageXOffset",
     "pageYOffset",
-    "window"
+    "window",
+    "top"
 ];
 
 var windowReadWriteStringProperties = [
@@ -270,8 +270,8 @@ var windowFunctions = [
 
 window.onload = function()
 {
-    if (window.layoutTestController)
-        layoutTestController.dumpAsText();
+    if (window.testRunner)
+        testRunner.dumpAsText();
 
     log("\n----- tests for getting/setting read-write properties -----\n");
 

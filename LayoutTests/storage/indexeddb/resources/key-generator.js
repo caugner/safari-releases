@@ -27,7 +27,7 @@ function runTests() {
 
     function nextTest() {
         if (!tests.length) {
-            finishJSTest();
+            testAcrossConnections();
             return;
         }
 
@@ -35,34 +35,27 @@ function runTests() {
         debug("");
         debug(test.description);
 
-        evalAndLog("request = indexedDB.deleteDatabase('key-generator')");
-        request.onerror = unexpectedErrorCallback;
-        request.onsuccess = function () {
-            evalAndLog("request = indexedDB.open('key-generator')");
-            request.onerror = unexpectedErrorCallback;
-            request.onsuccess = function () {
-                evalAndLog("db = request.result");
-                evalAndLog("request = db.setVersion('1')");
-                request.onerror = unexpectedErrorCallback;
-                request.onsuccess = function () {
-                    evalAndLog("trans = request.result");
-                    trans.onabort = unexpectedAbortCallback;
-                    test.verchange(db, trans);
-                    trans.oncomplete = function () {
+        indexedDBTest(prepareDatabase, onSuccess);
+        function prepareDatabase()
+        {
+            db = event.target.result;
+            trans = event.target.transaction;
+            trans.onabort = unexpectedAbortCallback;
+            test.verchange(db, trans);
+        }
+        function onSuccess() {
+            db = event.target.result;
 
-                        function finishTest() {
-                            evalAndLog("db.close()");
-                            nextTest();
-                        }
+            function finishTest() {
+                evalAndLog("db.close()");
+                nextTest();
+            }
 
-                        if (test.optional) {
-                            test.optional(db, finishTest);
-                        } else {
-                            finishTest();
-                        }
-                    };
-                };
-            };
+            if (test.optional) {
+                test.optional(db, finishTest);
+            } else {
+                finishTest();
+            }
         };
     }
 
@@ -126,9 +119,7 @@ defineTest(
         evalAndLog("store.clear()");
         evalAndLog("store.put('c')");
         check(store, 3, 'c');
-        // FIXME: IDBObjectStore.delete(IDBKeyRange) is not yet implemented in Chromium.
-        // http://crbug.com/101384
-        //evalAndLog("store.delete(IDBKeyRange.lowerBound(0))");
+        evalAndLog("store.delete(IDBKeyRange.lowerBound(0))");
         evalAndLog("store.put('d')");
         check(store, 4, 'd');
     }
@@ -176,7 +167,7 @@ defineTest(
     },
 
     function (db, callback) {
-        evalAndLog("trans1 = db.transaction(['store'], IDBTransaction.READ_WRITE)");
+        evalAndLog("trans1 = db.transaction(['store'], 'readwrite')");
         evalAndLog("store_t1 = trans1.objectStore('store')");
         evalAndLog("store_t1.put('a')");
         check(store_t1, 1, 'a');
@@ -190,7 +181,7 @@ defineTest(
             trans1.onabort = function () {
                 debug('aborted!');
 
-                evalAndLog("trans2 = db.transaction(['store'], IDBTransaction.READ_WRITE)");
+                evalAndLog("trans2 = db.transaction(['store'], 'readwrite')");
                 evalAndLog("store_t2 = trans2.objectStore('store')");
                 evalAndLog("store_t2.put('c')");
                 check(store_t2, 1, 'c');
@@ -210,7 +201,7 @@ defineTest(
     },
 
     function (db, callback) {
-        evalAndLog("trans1 = db.transaction(['store'], IDBTransaction.READ_WRITE)");
+        evalAndLog("trans1 = db.transaction(['store'], 'readwrite')");
         evalAndLog("store_t1 = trans1.objectStore('store')");
         evalAndLog("store_t1.put('a')");
         check(store_t1, 1, 'a');
@@ -220,7 +211,7 @@ defineTest(
         request.onsuccess = unexpectedSuccessCallback;
         request.onerror = function () {
             debug("Error event fired auto-incrementing past 2^53 (as expected)");
-            shouldBe("event.target.errorCode", "IDBDatabaseException.DATA_ERR");
+            shouldBe("event.target.error.name", "'ConstraintError'");
             evalAndLog("event.preventDefault()");
         };
         evalAndLog("store_t1.put('d', 2)");
@@ -229,5 +220,54 @@ defineTest(
         trans1.oncomplete = callback;
     }
 );
+
+function testAcrossConnections()
+{
+    debug("");
+    debug("Ensure key generator state is maintained across connections:");
+    indexedDBTest(prepareDatabase, doFirstWrite);
+    function prepareDatabase()
+    {
+        db = event.target.result;
+        evalAndLog("db.createObjectStore('store', {autoIncrement: true})");
+    };
+
+    function doFirstWrite() {
+        debug("");
+        evalAndLog("trans = db.transaction('store', 'readwrite')");
+        trans.onabort = unexpectedAbortCallback;
+        evalAndLog("request = trans.objectStore('store').put('value1')");
+        request.onerror = unexpectedErrorCallback;
+        request.onsuccess = function() {
+            shouldBe("request.result", "1");
+            evalAndLog("trans.objectStore('store').clear()");
+        };
+        trans.oncomplete = closeAndReopen;
+    }
+
+    function closeAndReopen() {
+        evalAndLog("db.close()");
+        debug("");
+        evalAndLog("request = indexedDB.open(dbname)");
+        request.onsuccess = function () {
+            evalAndLog("db = request.result");
+            doSecondWrite();
+        };
+    }
+
+    function doSecondWrite() {
+        evalAndLog("trans = db.transaction('store', 'readwrite')");
+        trans.onabort = unexpectedAbortCallback;
+        evalAndLog("request = trans.objectStore('store').put('value2')");
+        request.onerror = unexpectedErrorCallback;
+        request.onsuccess = function() {
+            shouldBe("request.result", "2");
+        };
+        trans.oncomplete = function() {
+            debug("");
+            finishJSTest();
+        };
+    };
+}
 
 test();

@@ -1,10 +1,10 @@
 <body>
 <head>
 <script>
-if (window.layoutTestController) {
-    layoutTestController.dumpAsText();
-    layoutTestController.setJavaScriptProfilingEnabled(true);
-}
+if (window.testRunner)
+    testRunner.dumpAsText();
+if (window.internals)
+    internals.setJavaScriptProfilingEnabled(true);
 
 function log(s)
 {

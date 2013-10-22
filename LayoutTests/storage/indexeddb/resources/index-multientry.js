@@ -5,31 +5,10 @@ if (this.importScripts) {
 
 description("Test features of IndexedDB's multiEntry indices.");
 
-function test()
-{
-    removeVendorPrefixes();
-
-    request = evalAndLog("indexedDB.open('index-multiEntry')");
-    request.onerror = unexpectedErrorCallback;
-    request.onsuccess = function() {
-        db = evalAndLog("db = event.target.result");
-
-        request = evalAndLog("db.setVersion('1')");
-        request.onerror = unexpectedErrorCallback;
-        request.onsuccess = prepareDatabase;
-    };
-}
-
+indexedDBTest(prepareDatabase, addData);
 function prepareDatabase()
 {
-    debug("");
-    debug("Creating empty stores and indexes");
-    var trans = evalAndLog("trans = event.target.result");
-    shouldBeTrue("trans !== null");
-    trans.onabort = unexpectedAbortCallback;
-    trans.oncomplete = addData;
-
-    deleteAllObjectStores(db);
+    db = event.target.result;
 
     store = evalAndLog("store = db.createObjectStore('store')");
     evalAndLog("store.createIndex('index', 'x', {multiEntry: true})");
@@ -42,7 +21,7 @@ function addData()
 {
     debug("");
     debug("Populating stores (and indexes)");
-    transaction = evalAndLog("transaction = db.transaction(['store'], IDBTransaction.READ_WRITE)");
+    transaction = evalAndLog("transaction = db.transaction(['store'], 'readwrite')");
     transaction.onabort = unexpectedAbortCallback;
     transaction.oncomplete = function() { verifyIndexes('index', verifyUniqueConstraint); };
 
@@ -54,15 +33,19 @@ function addData()
     request.onerror = unexpectedErrorCallback;
     request = evalAndLog("transaction.objectStore('store').put({x: [4, 5, 6], y: 'b'}, 'bar')");
     request.onerror = unexpectedErrorCallback;
+    request = evalAndLog("transaction.objectStore('store').put({x: [7, 7, 8, 7], y: 'c'}, 'baz')");
+    request.onerror = unexpectedErrorCallback;
+    request = evalAndLog("transaction.objectStore('store').put({x: [null, 9, 9], y: 'd'}, 'bloop')");
+    request.onerror = unexpectedErrorCallback;
 }
 
 function verifyIndexes(indexName, callback)
 {
     debug("");
     debug("Verifying index: " + indexName);
-    transaction = evalAndLog("transaction = db.transaction(['store'], IDBTransaction.READ_ONLY)");
+    transaction = evalAndLog("transaction = db.transaction(['store'], 'readonly')");
     transaction.onabort = unexpectedAbortCallback;
-    transaction.oncomplete = callback;
+    transaction.oncomplete = function() { verifyCount(callback); };
 
     expected = [
         { key: 1, primaryKey: 'foo', y: 'a' },
@@ -71,6 +54,9 @@ function verifyIndexes(indexName, callback)
         { key: 4, primaryKey: 'bar', y: 'b' },
         { key: 5, primaryKey: 'bar', y: 'b' },
         { key: 6, primaryKey: 'bar', y: 'b' },
+        { key: 7, primaryKey: 'baz', y: 'c' },
+        { key: 8, primaryKey: 'baz', y: 'c' },
+        { key: 9, primaryKey: 'bloop', y: 'd' },
     ];
 
     var request = evalAndLog("transaction.objectStore('store').index('" + indexName + "').openCursor()");
@@ -79,13 +65,13 @@ function verifyIndexes(indexName, callback)
         cursor = evalAndLog("cursor = event.target.result");
         if (cursor) {
             ex = expected.shift();
-            shouldBeTrue("ex != null");
+            shouldBeNonNull("ex");
             shouldBe("cursor.key", String(ex.key));
             shouldBeEqualToString("cursor.primaryKey", ex.primaryKey);
             shouldBeEqualToString("cursor.value.y", ex.y);
-            cursor.continue();
+            evalAndLog("cursor.continue()");
         } else {
-            shouldBeTrue("expected.length === 0");
+            shouldBe("expected.length", "0");
         }
     };
 }
@@ -94,7 +80,7 @@ function verifyUniqueConstraint()
 {
     debug("");
     debug("Verifying unique constraint on multiEntry index");
-    transaction = evalAndLog("transaction = db.transaction(['store-unique'], IDBTransaction.READ_WRITE)");
+    transaction = evalAndLog("transaction = db.transaction(['store-unique'], 'readwrite')");
     transaction.onabort = function () {
         debug("Transaction aborted as expected");
         createIndexOnStoreWithData();
@@ -113,28 +99,46 @@ function verifyUniqueConstraint()
             debug("This should fail the uniqueness constraint on the index, and fail:");
             request = evalAndLog("transaction.objectStore('store-unique').put({x: [5, 2], y: 'c'}, 'should fail')");
             request.onsuccess = unexpectedSuccessCallback;
-            request.onerror = function() { debug("Request failed, as expected"); };
+            request.onerror = function() { debug("Request failed, as expected (" + request.error.name + ")"); };
         };
     };
+}
+
+function verifyCount(callback) {
+    evalAndLog("transaction = db.transaction(['store'])");
+
+    transaction.onabort = unexpectedAbortCallback;
+    transaction.oncomplete = callback;
+
+    index = evalAndLog("transaction.objectStore('store').index('index')");
+    request = evalAndLog("index.count()");
+    request.onsuccess = function(event) {
+
+        shouldBe("event.target.result", "9");
+
+        request = evalAndLog("index.count(7)");
+        request.onsuccess = function(event) {
+            shouldBe("event.target.result", "1");
+        };
+    };
+
 }
 
 function createIndexOnStoreWithData()
 {
     debug("");
     debug("Create an index on a populated store");
+    evalAndLog("db.close()");
 
-    request = evalAndLog("db.setVersion('2')");
+    request = evalAndLog("indexedDB.open(dbname, 2)");
     request.onerror = unexpectedErrorCallback;
-    request.onsuccess = function() {
-
-        var trans = evalAndLog("trans = event.target.result");
-        shouldBeTrue("trans !== null");
+    request.onupgradeneeded = function() {
+        evalAndLog("db = event.target.result");
+        evalAndLog("trans = event.target.transaction");
         trans.onabort = unexpectedAbortCallback;
-        trans.oncomplete = function() { verifyIndexes('index-new', finishJSTest); };
 
         store = evalAndLog("store = trans.objectStore('store')");
         evalAndLog("store.createIndex('index-new', 'x', {multiEntry: true})");
     };
+    request.onsuccess = function() { verifyIndexes('index-new', finishJSTest); };
 }
-
-test();

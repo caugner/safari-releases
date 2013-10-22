@@ -21,9 +21,9 @@ window.targetWindow = window.frames[0];
 
 window.onload = function()
 {
-    if (window.layoutTestController) {
-        layoutTestController.dumpAsText();
-        layoutTestController.waitUntilDone();
+    if (window.testRunner) {
+        testRunner.dumpAsText();
+        testRunner.waitUntilDone();
     }
 
     // FIXME: This test should use fast/window/resources/window-properties.js instead of a custom list.
@@ -194,7 +194,6 @@ window.onload = function()
     setForbiddenProperty(targetWindow, "toolbar");
     setForbiddenProperty(targetWindow, "window");
     setForbiddenProperty(targetWindow, "parent");
-    setForbiddenProperty(targetWindow, "top");
 
     // Functions
     setForbiddenProperty(targetWindow, "addEventListener");
@@ -237,8 +236,8 @@ window.onload = function()
 
         window.stop();
 
-        if (window.layoutTestController)
-            layoutTestController.notifyDone();
+        if (window.testRunner)
+            testRunner.notifyDone();
     }, 1);
 }
 </script>

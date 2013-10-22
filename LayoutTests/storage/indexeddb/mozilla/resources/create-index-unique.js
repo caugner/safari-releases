@@ -11,35 +11,16 @@ if (this.importScripts) {
 
 description("Test IndexedDB's creating unique index and updating indexNames");
 
-function test()
+indexedDBTest(prepareDatabase);
+function prepareDatabase()
 {
-    removeVendorPrefixes();
-
-    name = self.location.pathname;
-    description = "My Test Database";
-    request = evalAndLog("indexedDB.open(name, description)");
-    request.onsuccess = openSuccess;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function openSuccess()
-{
-    db = evalAndLog("db = event.target.result");
-
-    request = evalAndLog("request = db.setVersion('1')");
-    request.onsuccess = createAndVerifyIndex;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function createAndVerifyIndex()
-{
-    deleteAllObjectStores(db);
-
+    db = event.target.result;
+    event.target.transaction.onabort = unexpectedAbortCallback;
     objectStore = evalAndLog("objectStore = db.createObjectStore('a', { keyPath: 'id', autoIncrement: true });");
 
     indexName = "1";
     indexKeyPath = "unique_value";
-    index = evalAndLog("index = objectStore.createIndex(indexName, indexKeyPath, { unique: true });", "IDBDatabaseException.CONSTRAINT_ERR");
+    index = evalAndLog("index = objectStore.createIndex(indexName, indexKeyPath, { unique: true });");
     shouldBe("index.name", "indexName");
     shouldBe("index.keyPath", "indexKeyPath");
     shouldBe("index.unique", "true");
@@ -53,9 +34,6 @@ function createAndVerifyIndex()
     }
     shouldBeTrue("foundNewlyCreatedIndex");
     shouldBe("event.target.transaction.db", "db");
-    shouldBe("event.target.transaction.readyState", "IDBTransaction.LOADING");
-    shouldBe("event.target.transaction.mode", "IDBTransaction.VERSION_CHANGE");
+    shouldBe("event.target.transaction.mode", "'versionchange'");
     finishJSTest();
 }
-
-test();

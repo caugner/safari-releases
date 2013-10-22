@@ -5,18 +5,15 @@ On success, you will see a series of "PASS" messages, followed by "TEST COMPLETE
 
 indexedDB = self.indexedDB || self.webkitIndexedDB || self.mozIndexedDB || self.msIndexedDB || self.OIndexedDB;
 
-indexedDB.deleteDatabase('keypath-intrinsic-properties')
-indexedDB.open('keypath-intrinsic-properties')
-
-openSuccess():
-db = event.target.result
-request = db.setVersion('1')
+dbname = "keypath-intrinsic-properties.html"
+indexedDB.deleteDatabase(dbname)
+indexedDB.open(dbname)
 store = db.createObjectStore('store', {keyPath: 'id'})
 store.createIndex('string length', 'string.length')
 store.createIndex('array length', 'array.length')
 
 testKeyPaths():
-transaction = db.transaction('store', IDBTransaction.READ_WRITE)
+transaction = db.transaction('store', 'readwrite')
 store = transaction.objectStore('store')
 store.put({"id":"id#0","string":"","array":[]})
 store.put({"id":"id#1","string":"xx","array":["x","x","x"]})

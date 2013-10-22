@@ -11,30 +11,11 @@ if (this.importScripts) {
 
 description("Test IndexedDB cursor behavior");
 
-function test()
+indexedDBTest(prepareDatabase);
+function prepareDatabase()
 {
-    removeVendorPrefixes();
-
-    name = self.location.pathname;
-    description = "My Test Database";
-    request = evalAndLog("indexedDB.open(name, description)");
-    request.onsuccess = openSuccess;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function openSuccess()
-{
-    db = evalAndLog("db = event.target.result");
-
-    request = evalAndLog("request = db.setVersion('1')");
-    request.onsuccess = testGroup1;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function testGroup1()
-{
-    deleteAllObjectStores(db);
-
+    db = event.target.result;
+    event.target.transaction.onabort = unexpectedAbortCallback;
     objectStore = evalAndLog("db.createObjectStore('autoIncrement', { autoIncrement: true });");
 
     request = evalAndLog("request = objectStore.openCursor();");
@@ -312,7 +293,7 @@ function testGroup13()
     gotRemoveEvent = false;
     retval = false;
 
-    request = evalAndLog("request = objectStore.openCursor(null, IDBCursor.NEXT);");
+    request = evalAndLog("request = objectStore.openCursor(null, 'next');");
     request.onerror = unexpectedErrorCallback;
     request.onsuccess = function (event) {
       cursor = evalAndLog("cursor = event.target.result;");
@@ -361,7 +342,7 @@ function testGroup15()
 {
     keyIndex = sortedKeys.length - 1;
 
-    request = evalAndLog("request = objectStore.openCursor(null, IDBCursor.PREV);");
+    request = evalAndLog("request = objectStore.openCursor(null, 'prev');");
     request.onerror = unexpectedErrorCallback;
     request.onsuccess = function (event) {
       cursor = evalAndLog("cursor = event.target.result;");
@@ -384,5 +365,3 @@ function testGroup15()
       }
     }
 }
-
-test();

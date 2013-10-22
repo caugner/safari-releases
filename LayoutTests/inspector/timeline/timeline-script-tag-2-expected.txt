@@ -3,16 +3,16 @@ Tests the Timeline API instrumentation of a script tag with an external script.
 
 EvaluateScript Properties:
 {
-    startTime : <number>
-    data : {
-        url : <string>
-        lineNumber : <number>
-    }
     children : <object>
+    counters : <object>
+    data : {
+        lineNumber : <number>
+        url : <string>
+    }
     endTime : <number>
+    frameId : <string>
+    startTime : <number>
     type : "EvaluateScript"
     usedHeapSize : <number>
-    totalHeapSize : <number>
-    counters : <object>
 }
 

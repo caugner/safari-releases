@@ -13,99 +13,111 @@ Tests that database names are correctly loaded and saved in IndexedDBModel.
 Dumping database:
 Dumping database:
 testDatabase1
-    version: 
+    intVersion: 1
     objectStores:
 
 Dumping database:
 testDatabase1
-    version: 1
+    intVersion: 2
     objectStores:
     testObjectStore1
-        keyPath: test.key.path
+        keyPath: "test.key.path"
+        autoIncrement: true
         indexes: 
 
 Dumping database:
 testDatabase1
-    version: 2
+    intVersion: 3
     objectStores:
     testObjectStore1
-        keyPath: test.key.path
+        keyPath: "test.key.path"
+        autoIncrement: true
         indexes: 
     testObjectStore2
-        keyPath: 
+        keyPath: null
+        autoIncrement: false
         indexes: 
 
 Dumping database:
 testDatabase1
-    version: 3
+    intVersion: 4
     objectStores:
     testObjectStore1
-        keyPath: test.key.path
+        keyPath: "test.key.path"
+        autoIncrement: true
         indexes: 
     testObjectStore2
-        keyPath: 
+        keyPath: null
+        autoIncrement: false
         indexes: 
         testIndexName1
-            keyPath: key.path1
+            keyPath: ""
             unique: false
             multiEntry: true
 
 Dumping database:
 testDatabase1
-    version: 4
+    intVersion: 5
     objectStores:
     testObjectStore1
-        keyPath: test.key.path
+        keyPath: "test.key.path"
+        autoIncrement: true
         indexes: 
     testObjectStore2
-        keyPath: 
+        keyPath: null
+        autoIncrement: false
         indexes: 
         testIndexName1
-            keyPath: key.path1
+            keyPath: ""
             unique: false
             multiEntry: true
         testIndexName2
-            keyPath: key.path2
+            keyPath: ["key.path1","key.path2"]
             unique: true
             multiEntry: false
 
 Dumping database:
 testDatabase1
-    version: 5
+    intVersion: 6
     objectStores:
     testObjectStore1
-        keyPath: test.key.path
+        keyPath: "test.key.path"
+        autoIncrement: true
         indexes: 
     testObjectStore2
-        keyPath: 
+        keyPath: null
+        autoIncrement: false
         indexes: 
         testIndexName1
-            keyPath: key.path1
+            keyPath: ""
             unique: false
             multiEntry: true
 
 Dumping database:
 testDatabase1
-    version: 6
+    intVersion: 7
     objectStores:
     testObjectStore1
-        keyPath: test.key.path
+        keyPath: "test.key.path"
+        autoIncrement: true
         indexes: 
     testObjectStore2
-        keyPath: 
+        keyPath: null
+        autoIncrement: false
         indexes: 
 
 Dumping database:
 testDatabase1
-    version: 7
+    intVersion: 8
     objectStores:
     testObjectStore1
-        keyPath: test.key.path
+        keyPath: "test.key.path"
+        autoIncrement: true
         indexes: 
 
 Dumping database:
 testDatabase1
-    version: 8
+    intVersion: 9
     objectStores:
 
 

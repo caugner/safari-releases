@@ -25,11 +25,11 @@
           var listBox = accessibilityController.focusedElement.childAtIndex(0);
           var firstChild = listBox.childAtIndex(0);
           var secondChild = listBox.childAtIndex(1);
-          shouldBe("firstChild.role", "'AXRole: AXStaticText'");
-          shouldBe("firstChild.title", "'AXTitle: option 1'");
+          debug("firstChild.role is " + firstChild.role);
+          debug("firstChild.title is " + firstChild.title);
 
-          shouldBe("secondChild.role", "'AXRole: AXStaticText'");
-          shouldBe("secondChild.description", "'AXDescription: label 2'");
+          debug("secondChild.role is " + secondChild.role);
+          debug("secondChild.description is " + secondChild.description);
 
           shouldBe("firstChild.childrenCount", "0");
           shouldBe("secondChild.childrenCount", "0");

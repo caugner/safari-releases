@@ -30,8 +30,8 @@ document.writeln("</style>");
 document.writeln("<p>Script did not run</p>");
 document.writeln("<iframe></iframe>");
 
-if (window.layoutTestController)
-    layoutTestController.waitUntilDone();
+if (window.testRunner)
+    testRunner.waitUntilDone();
 
 Markup.noAutoDump();
 Markup.useHTML5libOutputFormat();
@@ -49,6 +49,12 @@ iframe.contentWindow.document.write("Test");
 iframe.contentWindow.document.close();
 var write = iframe.contentWindow.document.lastChild.lastChild.lastChild !== null;
 var ignoreTitle = iframe.contentWindow.document.getElementsByTagName("title")[0] !== undefined;
+
+if (window.forceDataURLs)
+    write = false;
+
+if (!write && window.internals && internals.settings.setUseThreadedHTMLParserForDataURLs)
+    internals.settings.setUseThreadedHTMLParserForDataURLs(true);
 
 window.onload = function()
 {
@@ -77,8 +83,8 @@ function run()
         }
         xhr.send(null);
     } else {
-        if (window.layoutTestController)
-            layoutTestController.notifyDone();
+        if (window.testRunner)
+            testRunner.notifyDone();
     }
 }
 

@@ -73,15 +73,15 @@ function checkResult(event) {
 }
 
 function runTest() {
-    if (window.layoutTestController) {
-        layoutTestController.dumpAsText();
-        layoutTestController.waitUntilDone();
+    if (window.testRunner) {
+        testRunner.dumpAsText();
+        testRunner.waitUntilDone();
     }
 
     window.jsTestIsAsync = true;
 
     // Create stereo offline audio context.
-    context = new webkitAudioContext(2, lengthInSampleFrames, sampleRate);
+    context = new webkitOfflineAudioContext(2, lengthInSampleFrames, sampleRate);
 
     try {
         var splitternode = context.createChannelSplitter(0);
@@ -95,6 +95,38 @@ function runTest() {
         testFailed("Exception should be thrown for numerOfOutputs >= 32.");
     } catch(e) {
         testPassed("Exception been thrown for numberOfOutputs >= 32.");
+    }
+
+    try {
+        var splitternode = context.createChannelSplitter(32);
+        testPassed("AudioChannelSplitter created successfully with numberOfOutputs = 32.");
+        if (splitternode.numberOfOutputs === 32)
+            testPassed("AudioChannelSplitter has 32 outputs when it is created with numberOfOutputs = 32.");
+        else
+            testFailed("AudioChannelSplitter should have 32 outputs when it is created with numberOfOutputs = 32.");
+
+        if (splitternode.numberOfInputs === 1)
+            testPassed("AudioChannelSplitter has one input.");
+        else
+            testFailed("AudioChannelSplitter should have one input.");
+    } catch(e) {
+        testFailed("Failed to create AudioChannelSplitter with numberOfInputs = 32.");
+    }
+
+    try {
+        var splitternode = context.createChannelSplitter();
+        testPassed("AudioChannelSplitter created successfully with empty parameter.");
+        if (splitternode.numberOfOutputs === 6)
+            testPassed("AudioChannelSplitter has 6 outputs when it is created with empty parameter.");
+        else
+            testFailed("AudioChannelSplitter should have 6 outputs when it is created with empty parameter.");
+
+        if (splitternode.toString().indexOf("ChannelSplitterNode") > -1)
+            testPassed("ChannelSplitterNode Object is available.");
+        else
+            testFailed("ChannelSplitterNode Object is not available.");
+    } catch(e) {
+        testFailed("Failed to create AudioChannelSplitter with empty parameter.");
     }
 
     // Create a stereo buffer, with all +1 values in left channel, all -1 in right channel.

@@ -5,50 +5,34 @@ if (this.importScripts) {
 
 description("Test IndexedDB transaction basics.");
 
-function test()
+indexedDBTest(prepareDatabase, testSetVersionAbort1);
+function prepareDatabase()
 {
-    removeVendorPrefixes();
-
-    request = evalAndLog("indexedDB.open('transaction-basics')");
-    request.onsuccess = openSuccess;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function openSuccess()
-{
-    debug("openSuccess():");
-    self.db = evalAndLog("db = event.target.result");
-    request = evalAndLog("request = db.setVersion('version 1')");
-    request.onsuccess = cleanDatabase;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function cleanDatabase()
-{
-    deleteAllObjectStores(db, checkMetadataEmpty);
-    event.target.result.oncomplete = testSetVersionAbort1;
+    db = event.target.result;
 }
 
 function testSetVersionAbort1()
 {
     checkMetadataEmpty();
-    request = evalAndLog("request = startSetVersion('version fail')");
-    request.onsuccess = addRemoveIDBObjects;
+    evalAndLog("request = newConnection()");
+    request.onupgradeneeded = addRemoveIDBObjects;
+    request.onsuccess = unexpectedSuccessCallback;
+    request.onerror = testSetVersionAbort2;
 }
 
 function addRemoveIDBObjects()
 {
     debug("addRemoveIDBObjects():");
-    var trans = evalAndLog("trans = event.target.result");
-    shouldBeTrue("trans !== null");
-    trans.addEventListener('abort', testSetVersionAbort2, true);
+    db = event.target.result;
+    evalAndLog("trans = event.target.transaction");
+    shouldBeNonNull("trans");
     trans.oncomplete = unexpectedCompleteCallback;
 
     var store = evalAndLog("store = db.createObjectStore('storeFail', null)");
     var index = evalAndLog("index = store.createIndex('indexFail', 'x')");
 
     evalAndLog("db.deleteObjectStore('storeFail')");
-    evalAndLog("store.deleteIndex('indexFail')");
+    evalAndExpectException("store.deleteIndex('indexFail')", "DOMException.INVALID_STATE_ERR", "'InvalidStateError'");
 
     trans.abort();
 }
@@ -58,15 +42,17 @@ function testSetVersionAbort2()
     debug("");
     debug("testSetVersionAbort2():");
     checkMetadataEmpty();
-    request = evalAndLog("request = startSetVersion('version fail')");
-    request.onsuccess = addRemoveAddIDBObjects;
+    evalAndLog("request = newConnection()");
+    request.onupgradeneeded = addRemoveAddIDBObjects;
+    request.onerror = null;
 }
 
 function addRemoveAddIDBObjects()
 {
     debug("addRemoveAddIDBObjects():");
-    var trans = evalAndLog("trans = event.target.result");
-    shouldBeTrue("trans !== null");
+    db = event.target.result;
+    var trans = evalAndLog("trans = event.target.transaction");
+    shouldBeNonNull("trans");
     trans.addEventListener('abort', testSetVersionAbort3, false);
     trans.oncomplete = unexpectedCompleteCallback;
 
@@ -74,7 +60,7 @@ function addRemoveAddIDBObjects()
     var index = evalAndLog("index = store.createIndex('indexFail', 'x')");
 
     evalAndLog("db.deleteObjectStore('storeFail')");
-    evalAndLog("store.deleteIndex('indexFail')");
+    evalAndExpectException("store.deleteIndex('indexFail')", "DOMException.INVALID_STATE_ERR", "'InvalidStateError'");
 
     var store = evalAndLog("store = db.createObjectStore('storeFail', null)");
     var index = evalAndLog("index = store.createIndex('indexFail', 'x')");
@@ -88,16 +74,19 @@ function testSetVersionAbort3()
     debug("testSetVersionAbort3():");
     shouldBeFalse("event.cancelable");
     checkMetadataEmpty();
-    request = evalAndLog("request = startSetVersion('version fail')");
-    request.onsuccess = addIDBObjects;
+    evalAndLog("request = newConnection()");
+    request.onupgradeneeded = addIDBObjects;
+    request.onsuccess = unexpectedSuccessCallback;
+    request.onerror = testSetVersionAbort4;
 }
 
 function addIDBObjects()
 {
     debug("addIDBObjects():");
+    db = event.target.result;
     shouldBeFalse("event.cancelable");
-    var trans = evalAndLog("trans = event.target.result");
-    shouldBeTrue("trans !== null");
+    var trans = evalAndLog("trans = event.target.transaction");
+    shouldBeNonNull("trans");
     trans.onabort = testInactiveAbortedTransaction;
     trans.oncomplete = unexpectedCompleteCallback;
 
@@ -111,20 +100,18 @@ function testInactiveAbortedTransaction()
 {
     debug("");
     debug("testInactiveAbortedTransaction():");
-    evalAndExpectException("index.openCursor()", "IDBDatabaseException.TRANSACTION_INACTIVE_ERR");
-    evalAndExpectException("index.openKeyCursor()", "IDBDatabaseException.TRANSACTION_INACTIVE_ERR");
-    evalAndExpectException("index.get(0)", "IDBDatabaseException.TRANSACTION_INACTIVE_ERR");
-    evalAndExpectException("index.getKey(0)", "IDBDatabaseException.TRANSACTION_INACTIVE_ERR");
-    evalAndExpectException("index.count()", "IDBDatabaseException.TRANSACTION_INACTIVE_ERR");
+    evalAndExpectException("index.openCursor()", "0", "'TransactionInactiveError'");
+    evalAndExpectException("index.openKeyCursor()", "0", "'TransactionInactiveError'");
+    evalAndExpectException("index.get(0)", "0", "'TransactionInactiveError'");
+    evalAndExpectException("index.getKey(0)", "0", "'TransactionInactiveError'");
+    evalAndExpectException("index.count()", "0", "'TransactionInactiveError'");
 
-    evalAndExpectException("store.put(0, 0)", "IDBDatabaseException.TRANSACTION_INACTIVE_ERR");
-    evalAndExpectException("store.add(0, 0)", "IDBDatabaseException.TRANSACTION_INACTIVE_ERR");
-    evalAndExpectException("store.delete(0)", "IDBDatabaseException.TRANSACTION_INACTIVE_ERR");
-    evalAndExpectException("store.clear()", "IDBDatabaseException.TRANSACTION_INACTIVE_ERR");
-    evalAndExpectException("store.get(0)", "IDBDatabaseException.TRANSACTION_INACTIVE_ERR");
-    evalAndExpectException("store.openCursor()", "IDBDatabaseException.TRANSACTION_INACTIVE_ERR");
-
-    testSetVersionAbort4();
+    evalAndExpectException("store.put(0, 0)", "0", "'TransactionInactiveError'");
+    evalAndExpectException("store.add(0, 0)", "0", "'TransactionInactiveError'");
+    evalAndExpectException("store.delete(0)", "0", "'TransactionInactiveError'");
+    evalAndExpectException("store.clear()", "0", "'TransactionInactiveError'");
+    evalAndExpectException("store.get(0)", "0", "'TransactionInactiveError'");
+    evalAndExpectException("store.openCursor()", "0", "'TransactionInactiveError'");
 }
 
 function testSetVersionAbort4()
@@ -132,15 +119,18 @@ function testSetVersionAbort4()
     debug("");
     debug("testSetVersionAbort4():");
     checkMetadataEmpty();
-    request = evalAndLog("request = startSetVersion('version fail')");
-    request.onsuccess = addIDBObjectsAndCommit;
+    evalAndLog("request = newConnection()");
+    request.onupgradeneeded = addIDBObjectsAndCommit;
+    request.onerror = unexpectedErrorCallback;
+    request.onsuccess = testSetVersionAbort5;
 }
 
 function addIDBObjectsAndCommit()
 {
+    db = event.target.result;
     debug("addIDBObjectsAndCommit():");
-    var trans = evalAndLog("trans = event.target.result");
-    shouldBeTrue("trans !== null");
+    var trans = evalAndLog("trans = event.target.transaction");
+    shouldBeNonNull("trans");
     trans.onabort = unexpectedAbortCallback;
 
     store = evalAndLog("store = db.createObjectStore('storeFail', null)");
@@ -153,20 +143,18 @@ function testInactiveCompletedTransaction()
 {
     debug("");
     debug("testInactiveCompletedTransaction():");
-    evalAndExpectException("index.openCursor()", "IDBDatabaseException.TRANSACTION_INACTIVE_ERR");
-    evalAndExpectException("index.openKeyCursor()", "IDBDatabaseException.TRANSACTION_INACTIVE_ERR");
-    evalAndExpectException("index.get(0)", "IDBDatabaseException.TRANSACTION_INACTIVE_ERR");
-    evalAndExpectException("index.getKey(0)", "IDBDatabaseException.TRANSACTION_INACTIVE_ERR");
-    evalAndExpectException("index.count()", "IDBDatabaseException.TRANSACTION_INACTIVE_ERR");
+    evalAndExpectException("index.openCursor()", "0", "'TransactionInactiveError'");
+    evalAndExpectException("index.openKeyCursor()", "0", "'TransactionInactiveError'");
+    evalAndExpectException("index.get(0)", "0", "'TransactionInactiveError'");
+    evalAndExpectException("index.getKey(0)", "0", "'TransactionInactiveError'");
+    evalAndExpectException("index.count()", "0", "'TransactionInactiveError'");
 
-    evalAndExpectException("store.put(0, 0)", "IDBDatabaseException.TRANSACTION_INACTIVE_ERR");
-    evalAndExpectException("store.add(0, 0)", "IDBDatabaseException.TRANSACTION_INACTIVE_ERR");
-    evalAndExpectException("store.delete(0)", "IDBDatabaseException.TRANSACTION_INACTIVE_ERR");
-    evalAndExpectException("store.clear()", "IDBDatabaseException.TRANSACTION_INACTIVE_ERR");
-    evalAndExpectException("store.get(0)", "IDBDatabaseException.TRANSACTION_INACTIVE_ERR");
-    evalAndExpectException("store.openCursor()", "IDBDatabaseException.TRANSACTION_INACTIVE_ERR");
-
-    testSetVersionAbort5();
+    evalAndExpectException("store.put(0, 0)", "0", "'TransactionInactiveError'");
+    evalAndExpectException("store.add(0, 0)", "0", "'TransactionInactiveError'");
+    evalAndExpectException("store.delete(0)", "0", "'TransactionInactiveError'");
+    evalAndExpectException("store.clear()", "0", "'TransactionInactiveError'");
+    evalAndExpectException("store.get(0)", "0", "'TransactionInactiveError'");
+    evalAndExpectException("store.openCursor()", "0", "'TransactionInactiveError'");
 }
 
 function testSetVersionAbort5()
@@ -174,16 +162,18 @@ function testSetVersionAbort5()
     debug("");
     debug("testSetVersionAbort5():");
     checkMetadataExistingObjectStore();
-    request = evalAndLog("request = startSetVersion('version fail')");
-    request.onsuccess = removeIDBObjects;
+    evalAndLog("request = newConnection()");
+    request.onupgradeneeded = removeIDBObjects;
+    request.onsuccess = unexpectedSuccessCallback;
+    request.onerror = testSetVersionAbort6;
 }
 
 function removeIDBObjects()
 {
+    db = event.target.result;
     debug("removeIDBObjects():");
-    var trans = evalAndLog("trans = event.target.result");
-    shouldBeTrue("trans !== null");
-    trans.onabort = testSetVersionAbort6;
+    var trans = evalAndLog("trans = event.target.transaction");
+    shouldBeNonNull("trans");
     trans.oncomplete = unexpectedCompleteCallback;
 
     var store = evalAndLog("store = trans.objectStore('storeFail')");
@@ -198,14 +188,9 @@ function testSetVersionAbort6()
     debug("");
     debug("testSetVersionAbort6():");
     checkMetadataExistingObjectStore();
-    setNewVersion();
-}
-
-function startSetVersion(versionName)
-{
-    request = db.setVersion(versionName);
-    request.onerror = unexpectedErrorCallback;
-    return request;
+    evalAndLog("request = newConnection()");
+    request.onupgradeneeded = setVersionSuccess;
+    request.onsuccess = completeCallback;
 }
 
 function checkMetadataEmpty()
@@ -222,22 +207,24 @@ function checkMetadataExistingObjectStore()
     shouldBe("db.objectStoreNames.contains('storeFail')", "true");
 }
 
-function setNewVersion()
+var version = 1;
+function newConnection()
 {
-    request = evalAndLog("db.setVersion('new version')");
-    request.onsuccess = setVersionSuccess;
+    db.close();
+    var request = evalAndLog("indexedDB.open(dbname, " + (++version) + ")");
     request.onerror = unexpectedErrorCallback;
+    request.onblocked = unexpectedBlockedCallback;
+    return request;
 }
 
 function setVersionSuccess()
 {
+    db = event.target.result;
     debug("");
     debug("setVersionSuccess():");
-    self.trans = evalAndLog("trans = event.target.result");
-    shouldBeTrue("trans !== null");
+    evalAndLog("trans = event.target.transaction");
+    shouldBeNonNull("trans");
     trans.onabort = unexpectedAbortCallback;
-    trans.addEventListener('complete', completeCallback, false);
-    self.completeEventFired = false;
 
     deleteAllObjectStores(db);
 
@@ -246,17 +233,18 @@ function setVersionSuccess()
 
 function completeCallback()
 {
+    preamble();
     shouldBeFalse("event.cancelable");
     testPassed("complete event fired");
     transaction = evalAndLog("db.transaction(['storeName'])");
-    transaction.onabort = abortCallback;
+    transaction.oncomplete = emptyCompleteCallback;
     var store = evalAndLog("store = transaction.objectStore('storeName')");
     shouldBeEqualToString("store.name", "storeName");
 }
 
-function abortCallback()
+function emptyCompleteCallback()
 {
-    testPassed("abort event fired");
+    testPassed("complete event fired");
     testDOMStringList();
 }
 
@@ -269,18 +257,42 @@ function testDOMStringList()
     evalAndLog("transaction = db.transaction(db.objectStoreNames)");
     testPassed("no exception thrown");
     for (var i = 0; i < db.objectStoreNames.length; ++i) {
-      shouldBeTrue("transaction.objectStore(" + JSON.stringify(db.objectStoreNames[i]) + ") != null");
+      shouldBeNonNull("transaction.objectStore(" + JSON.stringify(db.objectStoreNames[i]) + ")");
     }
     testPassed("all stores present in transaction");
-    testInvalidMode();
+    transaction.oncomplete = testInvalidMode;
 }
 
 function testInvalidMode()
 {
     debug("");
     debug("Verify that specifying an invalid mode raises an exception");
-    evalAndExpectException("db.transaction(['storeName'], 3)", "IDBDatabaseException.NON_TRANSIENT_ERR");
-    finishJSTest();
+    evalAndExpectExceptionClass("db.transaction(['storeName'], 'lsakjdf')", "TypeError");
+    testDegenerateNames();
 }
 
-test();
+function testDegenerateNames()
+{
+    debug("");
+    debug("Test that null and undefined are treated as strings");
+
+    evalAndExpectException("db.transaction(null)", "DOMException.NOT_FOUND_ERR", "'NotFoundError'");
+    evalAndExpectException("db.transaction(undefined)", "DOMException.NOT_FOUND_ERR", "'NotFoundError'");
+
+    evalAndLog("request = newConnection()");
+    request.onerror = unexpectedErrorCallback;
+    request.onupgradeneeded = function () {
+        var trans = request.transaction;
+        db = event.target.result;
+        evalAndLog("db.createObjectStore('null')");
+        evalAndLog("db.createObjectStore('undefined')");
+        trans.oncomplete = verifyDegenerateNames;
+    };
+    function verifyDegenerateNames() {
+        shouldNotThrow("transaction = db.transaction(null)");
+        shouldBeNonNull("transaction.objectStore('null')");
+        shouldNotThrow("transaction = db.transaction(undefined)");
+        shouldBeNonNull("transaction.objectStore('undefined')");
+        finishJSTest();
+    }
+}

@@ -48,6 +48,9 @@ using namespace std;
 #endif
 
 #pragma comment(linker, "/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='" PROCESSORARCHITECTURE "' publicKeyToken='6595b64144ccf1df' language='*'\"")
+#if defined(_MSC_VER) && (_MSC_VER >= 1600)
+#pragma comment(linker, "/manifestdependency:\"type='win32' name='Microsoft.VC80.CRT' version='8.0.50727.6195' processorArchitecture='" PROCESSORARCHITECTURE "' publicKeyToken='1fc8b3b9a1e18e3b' language='*'\"")
+#endif
 
 static void enableTerminationOnHeapCorruption()
 {
@@ -184,10 +187,18 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpstrCm
 
 #if USE_CONSOLE_ENTRY_POINT
     typedef int (WINAPI*EntryPoint)(int, const char*[]);
+#if defined _M_AMD64 || defined _WIN64
+    const char* entryPointName = "_dllLauncherEntryPoint";
+#else
     const char* entryPointName = "_dllLauncherEntryPoint@8";
+#endif
 #else
     typedef int (WINAPI*EntryPoint)(HINSTANCE, HINSTANCE, LPWSTR, int);
+#if defined _M_AMD64 || defined _WIN64
+    const char* entryPointName = "_dllLauncherEntryPoint";
+#else
     const char* entryPointName = "_dllLauncherEntryPoint@16";
+#endif
 #endif
 
     EntryPoint entryPoint = reinterpret_cast<EntryPoint>(::GetProcAddress(module, entryPointName));

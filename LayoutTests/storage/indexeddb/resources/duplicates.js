@@ -6,33 +6,17 @@ if (this.importScripts) {
 description("Verify that you can put the same data in 2 different databases without uniqueness constraints firing.");
 
 testCount = 0;
+test();
 function test()
 {
     if (testCount++ == 0)
-        request = evalAndLog("indexedDB.open('duplicates-1')");
+        indexedDBTest(prepareDatabase, test, {'suffix': '-1'});
     else
-        request = evalAndLog("indexedDB.open('duplicates-2')");
-    request.onsuccess = setVersion;
-    request.onerror = unexpectedErrorCallback;
+        indexedDBTest(prepareDatabase, finishJSTest, {'suffix': '-2'});
 }
-
-function setVersion()
+function prepareDatabase()
 {
-    db = evalAndLog("db = event.target.result");
-
-    request = evalAndLog("db.setVersion('new version')");
-    request.onsuccess = deleteExisting;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function deleteExisting()
-{
-    debug("setVersionSuccess():");
-    self.trans = evalAndLog("trans = event.target.result");
-    shouldBeTrue("trans !== null");
-    trans.onabort = unexpectedAbortCallback;
-
-    deleteAllObjectStores(db);
+    db = event.target.result;
 
     self.store = evalAndLog("db.createObjectStore('storeName', null)");
     self.indexObject = evalAndLog("store.createIndex('indexName', 'x')");
@@ -99,7 +83,7 @@ function openKeyCursor()
 
 function cursor1Continue()
 {
-    shouldBeFalse("event.target.result === null");
+    shouldBeNonNull("event.target.result");
     shouldBeEqualToString("event.target.result.key", "value");
     shouldBeEqualToString("event.target.result.primaryKey", "key");
 
@@ -110,7 +94,7 @@ function cursor1Continue()
 
 function cursor1Continue2()
 {
-    shouldBeFalse("event.target.result === null");
+    shouldBeNonNull("event.target.result");
     shouldBeEqualToString("event.target.result.key", "value2");
     shouldBeEqualToString("event.target.result.primaryKey", "key2");
 
@@ -121,7 +105,7 @@ function cursor1Continue2()
 
 function openObjectCursor()
 {
-    shouldBeTrue("event.target.result === null");
+    shouldBeNull("event.target.result");
 
     self.request = evalAndLog("indexObject.openCursor()");
     request.onsuccess = cursor2Continue;
@@ -130,7 +114,7 @@ function openObjectCursor()
 
 function cursor2Continue()
 {
-    shouldBeFalse("event.target.result === null");
+    shouldBeNonNull("event.target.result");
     shouldBeEqualToString("event.target.result.key", "value");
     shouldBeEqualToString("event.target.result.value.x", "value");
     shouldBeEqualToString("event.target.result.value.y", "zzz");
@@ -142,9 +126,9 @@ function cursor2Continue()
 
 function cursor2Continue2()
 {
-    shouldBeFalse("event.target.result === null");
+    shouldBeNonNull("event.target.result");
     shouldBeEqualToString("event.target.result.key", "value2");
-    shouldBeEqualToString("event.target.result.value.x", "value2");    
+    shouldBeEqualToString("event.target.result.value.x", "value2");
     shouldBeEqualToString("event.target.result.value.y", "zzz2");
 
     // We re-use the last request object.
@@ -154,13 +138,6 @@ function cursor2Continue2()
 
 function last()
 {
-    shouldBeTrue("event.target.result === null");
+    shouldBeNull("event.target.result");
 
-    if (testCount == 1)
-        test();
-    else
-        finishJSTest();
 }
-
-removeVendorPrefixes();
-test();

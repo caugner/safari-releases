@@ -21,9 +21,10 @@
 
 #include "DumpRenderTreeBlackBerry.h"
 #include "Frame.h"
+#include "FrameLoadRequest.h"
 #include "KURL.h"
-#include "OwnArrayPtr.h"
 #include "WebPage.h"
+#include <wtf/OwnArrayPtr.h>
 
 using namespace WebCore;
 
@@ -46,7 +47,7 @@ bool LoadItem::invoke() const
         return false;
 
     KURL kurl = KURL(KURL(), url.get());
-    frame->loader()->load(kurl, false);
+    frame->loader()->load(FrameLoadRequest(frame, ResourceRequest(kurl)));
     return true;
 }
 
@@ -61,7 +62,8 @@ bool LoadHTMLStringItem::invoke() const
     JSStringGetUTF8CString(m_content.get(), content.get(), contentSize);
     JSStringGetUTF8CString(m_baseURL.get(), baseURL.get(), baseURLSize);
     JSStringGetUTF8CString(m_unreachableURL.get(), unreachableURL.get(), unreachableURLSize);
-    BlackBerry::WebKit::DumpRenderTree::currentInstance()->page()->loadString(content.get(), baseURL.get(), "text/html", unreachableURLSize ? unreachableURL.get() : 0);
+    STATIC_LOCAL_STRING(s_textHtml, "text/html");
+    BlackBerry::WebKit::DumpRenderTree::currentInstance()->page()->loadString(BlackBerry::Platform::String::fromUtf8(content.get()), BlackBerry::Platform::String::fromUtf8(baseURL.get()), s_textHtml, unreachableURLSize ? BlackBerry::Platform::String::fromUtf8(unreachableURL.get()) : BlackBerry::Platform::String::emptyString());
     return true;
 }
 
@@ -74,11 +76,11 @@ bool ReloadItem::invoke() const
 bool ScriptItem::invoke() const
 {
     BlackBerry::WebKit::JavaScriptDataType type;
-    BlackBerry::WebKit::WebString result;
+    BlackBerry::Platform::String result;
     size_t scriptArrSize = JSStringGetMaximumUTF8CStringSize(m_script.get());
     OwnArrayPtr<char> script = adoptArrayPtr(new char[scriptArrSize]);
     JSStringGetUTF8CString(m_script.get(), script.get(), scriptArrSize);
-    BlackBerry::WebKit::DumpRenderTree::currentInstance()->page()->executeJavaScript(script.get(), type, result);
+    BlackBerry::WebKit::DumpRenderTree::currentInstance()->page()->executeJavaScript(BlackBerry::Platform::String::fromRawData(script.get(), scriptArrSize), type, result);
     return true;
 }
 

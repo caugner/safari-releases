@@ -5,27 +5,10 @@ if (this.importScripts) {
 
 description("Test IndexedDB's webkitIndexedDB.deleteDatabase().");
 
-function test()
+indexedDBTest(prepareDatabase, getValue);
+function prepareDatabase()
 {
-    removeVendorPrefixes();
-    request = evalAndLog("indexedDB.open('database-to-delete')");
-    request.onsuccess = startSetVersion;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function startSetVersion()
-{
-    db = evalAndLog("db = event.target.result");
-
-    request = evalAndLog("db.setVersion('new version')");
-    request.onsuccess = deleteExisting;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function deleteExisting()
-{
-    self.trans = evalAndLog("trans = event.target.result");
-    shouldBeTrue("trans !== null");
+    db = event.target.result;
 
     store = evalAndLog("store = db.createObjectStore('storeName', null)");
 
@@ -34,12 +17,11 @@ function deleteExisting()
 
     request = evalAndLog("store.add('value', 'key')");
     request.onerror = unexpectedErrorCallback;
-    trans.oncomplete = getValue;
 }
 
 function getValue()
 {
-    transaction = evalAndLog("db.transaction('storeName', IDBTransaction.READ_WRITE)");
+    transaction = evalAndLog("db.transaction('storeName', 'readwrite')");
     transaction.onabort = unexpectedErrorCallback;
     var store = evalAndLog("store = transaction.objectStore('storeName')");
 
@@ -51,41 +33,35 @@ function getValue()
 function addIndex()
 {
     shouldBeEqualToString("event.target.result", "value");
+    evalAndLog("db.close()");
 
-    request = evalAndLog("db.setVersion('new version')");
+    request = evalAndLog("indexedDB.open(dbname, 2)");
     request.onsuccess = deleteDatabase;
     request.onerror = unexpectedErrorCallback;
 }
 
 function deleteDatabase()
 {
-    db.onversionchange = function() { db.close(); }
-    request = evalAndLog("request = indexedDB.deleteDatabase('database-to-delete')");
+    evalAndLog("db = event.target.result");
+    db.onversionchange = function() { evalAndLog("db.close()"); }
+    request = evalAndLog("request = indexedDB.deleteDatabase(dbname)");
     request.onsuccess = reopenDatabase;
     request.onerror = unexpectedErrorCallback;
 }
 
 function reopenDatabase()
 {
-    request = evalAndLog("indexedDB.open('database-to-delete')");
-    request.onsuccess = startSetVersionAgain;
+    shouldBeUndefined("request.result");
+    request = evalAndLog("indexedDB.open(dbname, 3)");
+    request.onupgradeneeded = verifyNotFound;
     request.onerror = unexpectedErrorCallback;
-}
-
-function startSetVersionAgain()
-{
-    rdb = evalAndLog("db = event.target.result");
-
-    request = evalAndLog("db.setVersion('new version')");
-    request.onsuccess = verifyNotFound;
-    request.onerror = unexpectedErrorCallback;
+    request.onblocked = unexpectedBlockedCallback;
 }
 
 function verifyNotFound()
 {
+    db = evalAndLog("db = event.target.result");
     shouldBe("db.objectStoreNames.length", "0");
 
     finishJSTest();
 }
-
-test();

@@ -5,27 +5,11 @@ if (this.importScripts) {
 
 description("Test IndexedDB keys ordering and readback from cursors.");
 
-function test()
-{
-    removeVendorPrefixes();
-
-    prepareDatabase();
-}
-
+indexedDBTest(prepareDatabase, populateStore);
 function prepareDatabase()
 {
-    debug("");
-    evalAndLog("openreq = indexedDB.open('cursor-key-order')");
-    openreq.onerror = unexpectedErrorCallback;
-    openreq.onsuccess = function() {
-        evalAndLog("db = openreq.result");
-        evalAndLog("verreq = db.setVersion('1')");
-        verreq.onerror = unexpectedErrorCallback;
-        verreq.onsuccess = function() {
-            evalAndLog("db.createObjectStore('store')");
-            verreq.result.oncomplete = populateStore;
-        };
-    };
+    db = event.target.result;
+    evalAndLog("db.createObjectStore('store')");
 }
 
 self.keys = [
@@ -134,7 +118,7 @@ function populateStore()
 {
     debug("");
     debug("populating store...");
-    evalAndLog("trans = db.transaction('store', IDBTransaction.READ_WRITE)");
+    evalAndLog("trans = db.transaction('store', 'readwrite')");
     evalAndLog("store = trans.objectStore('store');");
     trans.onerror = unexpectedErrorCallback;
     trans.onabort = unexpectedAbortCallback;
@@ -149,7 +133,7 @@ function checkStore()
 {
     debug("");
     debug("iterating cursor...");
-    evalAndLog("trans = db.transaction('store', IDBTransaction.READ_ONLY)");
+    evalAndLog("trans = db.transaction('store', 'readonly')");
     evalAndLog("store = trans.objectStore('store');");
     trans.onerror = unexpectedErrorCallback;
     trans.onabort = unexpectedAbortCallback;
@@ -163,11 +147,11 @@ function checkStore()
             evalAndLog("getreq = store.get(cursor.key)");
             getreq.onerror = unexpectedErrorCallback;
             getreq.onsuccess = function() {
-                shouldBeTrue("getreq.result === count++");
+                shouldBe("getreq.result", "count++");
                 cursor.continue();
             };
         } else {
-            shouldBeTrue("count === keys.length");
+            shouldBe("count", "keys.length");
             finishUp();
         }
     };
@@ -221,5 +205,3 @@ function testKeyCompare()
         }
     }
 }
-
-test();

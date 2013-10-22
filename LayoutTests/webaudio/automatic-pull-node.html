@@ -30,7 +30,7 @@ var analyser;
 
 function constructCommonGraph() {
     // Create offline audio context.
-    context = new webkitAudioContext(1, renderLengthInFrames, sampleRate);
+    context = new webkitOfflineAudioContext(1, renderLengthInFrames, sampleRate);
     constantBuffer = createConstantBuffer(context, renderLengthInFrames, 1);
 
     bufferSource = context.createBufferSource();
@@ -118,9 +118,9 @@ function test3() {
 }
 
 function runTest() {
-    if (window.layoutTestController) {
-        layoutTestController.dumpAsText();
-        layoutTestController.waitUntilDone();
+    if (window.testRunner) {
+        testRunner.dumpAsText();
+        testRunner.waitUntilDone();
     }
 
     window.jsTestIsAsync = true;

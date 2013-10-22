@@ -4,9 +4,9 @@
 
         function test()
         {
-            if (window.layoutTestController) {
-                layoutTestController.dumpAsText();
-                layoutTestController.setFrameFlatteningEnabled(true);
+            if (window.testRunner && window.internals) {
+                testRunner.dumpAsText();
+                internals.settings.setFrameFlatteningEnabled(true);
             }
         }
     </script>

@@ -5,9 +5,9 @@
             var vidAXObject;
             var indentLevel = 0;
 
-            if (window.layoutTestController) {
-                layoutTestController.dumpAsText();
-                layoutTestController.waitUntilDone();
+            if (window.testRunner) {
+                testRunner.dumpAsText();
+                testRunner.waitUntilDone();
             }
 
             function indent(count)
@@ -20,6 +20,7 @@
             {
                 debug(indent(indentLevel) + "description: " + axObject.description); 
                 debug(indent(indentLevel) + "role: " + axObject.role); 
+                if (axObject.subrole != 'AXSubrole: ') debug(indent(indentLevel) + "subrole: " + axObject.subrole); 
                 debug("<br>");
             }
 
@@ -57,8 +58,8 @@
                 
                 dumpChildren(vidAXObject);
 
-                if (window.layoutTestController && event.type == 'canplaythrough')
-                    layoutTestController.notifyDone();     
+                if (window.testRunner && event.type == 'canplaythrough')
+                    testRunner.notifyDone();     
             }
         </script>
     </head>

@@ -24,14 +24,14 @@ function enabled(command, element, selectionStart, selectionEnd)
         range.setEnd(element.firstChild, selectionEnd);
         selection.addRange(range);
     }
-    var result = layoutTestController.isCommandEnabled(command);
+    var result = testRunner.isCommandEnabled(command);
     selection.removeAllRanges();
     return result;
 }
 
 function whenEnabled(command)
 {
-    if (!window.layoutTestController)
+    if (!window.testRunner)
         return "no layout test controller";
 
     var enabledWithNoSelection = enabled(command);
@@ -163,6 +163,8 @@ shouldBe("whenEnabled('SelectParagraph')", "'visible'");
 shouldBe("whenEnabled('SelectSentence')", "'visible'");
 shouldBe("whenEnabled('SelectWord')", "'visible'");
 shouldBe("whenEnabled('SetMark')", "'visible'");
+
+shouldBe("whenEnabled('OverWrite')", "'richly editable'");
 
 document.body.removeChild(nonEditableParagraph);
 document.body.removeChild(editableParagraph);

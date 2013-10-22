@@ -1,9 +1,18 @@
-function checkIfFrameLocationMatchesURLAndCallDone(frameId, expectedURL)
+function checkIfFrameLocationMatchesSrcAndCallDone(frameId)
 {
-    if (!window.layoutTestController)
+    if (!window.testRunner)
         return;
-    if (document.getElementById(frameId).contentWindow.location == expectedURL)
-        layoutTestController.notifyDone();
+
+    var actualURL = 'unavailable', frame = document.getElementById(frameId); 
+    try {
+        actualURL = frame.contentWindow.location.href;
+    } 
+    catch (e) {}
+    
+    if (actualURL != frame.src)
+        alert('URL mismatch: ' + actualURL + ' vs. ' + frame.src);
+
+    testRunner.notifyDone();
 }
 
 function sendRequestFromIFrame(url, params, HTTPMethod, callbackWhenDone)
@@ -47,7 +56,7 @@ function notifyDoneAfterReceivingBeforeloadFromIds(ids)
 
         loadAttempted = loadAttempted | (1 << index);
         if (loadAttempted == (1 << ids.length) - 1)
-            layoutTestController.notifyDone();
+            testRunner.notifyDone();
     }, false);
 }
 

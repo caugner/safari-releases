@@ -3,26 +3,24 @@
 <script src="../fast/js/resources/js-test-pre.js"></script>
 <script>
     function runTest() {
-        if (window.layoutTestController)
-            layoutTestController.waitUntilDone();
+        if (window.testRunner)
+            testRunner.waitUntilDone();
 
         description("This tests that checking of an aria checkbox sends a notification.");
-        window.root = accessibilityController.rootElement;
-        window.body = root.childAtIndex(0);
 
-        var accessibleCheckbox = body.childAtIndex(0);
+        var accessibleCheckbox = accessibilityController.accessibleElementById("checkbox1");
         var notificationCount = 0;
 
         function listener(notification) {
-        if (notification == "CheckedStateChanged")
-            notificationCount++;
+            if (notification == "CheckedStateChanged")
+                notificationCount++;
 
             document.getElementById("console").innerText += "Got notification: " + notification + "\n";
 
             if (notificationCount == 2) {
                 accessibleCheckbox.removeNotificationListener(listener);
-                if (window.layoutTestController)
-                    layoutTestController.notifyDone();
+                if (window.testRunner)
+                    testRunner.notifyDone();
             }
         }
         accessibleCheckbox.addNotificationListener(listener);

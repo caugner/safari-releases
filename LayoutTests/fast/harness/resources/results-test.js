@@ -1,14 +1,14 @@
 // To run these tests, load json_results.html in a browser.
 // You should see a series of PASS lines.
-if (window.layoutTestController)
-    layoutTestController.dumpAsText();
+if (window.testRunner)
+    testRunner.dumpAsText();
 
 var testStyles = document.createElement('style');
 testStyles.innerText = ".test-pass { color: green; } .test-fail { color: red; }";
 document.querySelector('head').appendChild(testStyles);
 
 var g_testIndex = 0;
-var g_log = ["You should see a serios of PASS lines."];
+var g_log = ["You should see a series of PASS lines."];
 
 // Make async actually be sync for the sake of simpler testing.
 function async(func, args)
@@ -30,7 +30,8 @@ function mockResults()
         "uses_expectations_file": true,
         "has_pretty_patch": false,
         "has_wdiff": false,
-        "revision": 12345
+        "revision": 12345,
+        "pixel_tests_enabled": true
     };
 }
 
@@ -104,7 +105,7 @@ function runSingleRowTest(results, isExpected, textResults, imageResults)
         else
             assertTrue(document.querySelector('tbody').className.indexOf('expected') == -1);
 
-        assertTrue(document.querySelector('tbody td:nth-child(1)').textContent == '+' + test);
+        assertTrue(document.querySelector('tbody td:nth-child(1)').textContent == '+' + test + ' \u2691');
         assertTrue(document.querySelector('tbody td:nth-child(2)').textContent == textResults);
         assertTrue(document.querySelector('tbody td:nth-child(3)').textContent == imageResults);
         assertTrue(document.querySelector('tbody td:nth-child(4)').textContent == actual);
@@ -263,32 +264,36 @@ function runTests()
     runDefaultSingleRowTest('bar-image.html', 'TEXT', 'IMAGE', 1, false, '', 'images diff (1%) ');
     runDefaultSingleRowTest('bar-image-plus-text.html', 'TEXT', 'IMAGE+TEXT', 1, false, 'expected actual diff ', 'images diff (1%) ');
 
+    // test the mapping for FAIL onto only ['TEXT', 'IMAGE+TEXT', 'AUDIO']
+    runDefaultSingleRowTest('bar-image.html', 'FAIL', 'IMAGE+TEXT', 1, true, 'expected actual diff ', 'images diff (1%) ');
+    runDefaultSingleRowTest('bar-image.html', 'FAIL', 'AUDIO', 1, true, 'expected audio actual audio ', '');
+    runDefaultSingleRowTest('bar-image.html', 'FAIL', 'TEXT', 0, true, 'expected actual diff ', '');
+    runDefaultSingleRowTest('bar-image.html', 'FAIL', 'IMAGE', 1, false, '', 'images diff (1%) ');
+
     results = mockResults();
     results.tests['bar-reftest.html'] = mockExpectation('PASS', 'IMAGE', 1);
-    results.tests['bar-reftest.html'].is_reftest = true;
+    results.tests['bar-reftest.html'].reftest_type = ['=='];
     runSingleRowTest(results, false, '', 'ref html images diff (1%) ');
 
     results = mockResults();
     results.tests['bar-reftest-mismatch.html'] = mockExpectation('PASS', 'IMAGE');
-    results.tests['bar-reftest-mismatch.html'].is_mismatch_reftest = true;
+    results.tests['bar-reftest-mismatch.html'].reftest_type = ['!='];
     runSingleRowTest(results, false, '', 'ref mismatch html actual ');
 
     results = mockResults();
-    results.tests['bar-reftest.html'] = mockExpectation('PASS', 'IMAGE', 1);
-    results.tests['bar-reftest.html'].is_reftest = true;
-    results.tests['bar-reftest.html'].ref_file = 'common.html';
-    runSingleRowTest(results, false, '', 'ref html images diff (1%) ');
+    results.tests['bar-reftest.html'] = mockExpectation('IMAGE', 'PASS');
+    results.tests['bar-reftest.html'].reftest_type = ['=='];
+    results.pixel_tests_enabled = false;
     runTest(results, function() {
-        assertTrue(document.getElementsByClassName('result-link')[0].getAttribute('href') == 'common.html');
+        assertTrue(document.querySelector('tbody td:nth-child(1)').textContent == 'bar-reftest.html \u2691');
     });
 
     results = mockResults();
-    results.tests['bar-reftest.html'] = mockExpectation('PASS', 'IMAGE');
-    results.tests['bar-reftest.html'].is_mismatch_reftest = true;
-    results.tests['bar-reftest.html'].ref_file = 'common.html';
-    runSingleRowTest(results, false, '', 'ref mismatch html actual ');
+    results.tests['bar-reftest-mismatch.html'] = mockExpectation('IMAGE', 'PASS');
+    results.tests['bar-reftest-mismatch.html'].reftest_type = ['!='];
+    results.pixel_tests_enabled = false;
     runTest(results, function() {
-        assertTrue(document.getElementsByClassName('result-link')[0].getAttribute('href') == 'common.html');
+        assertTrue(document.querySelector('tbody td:nth-child(1)').textContent == 'bar-reftest-mismatch.html \u2691');
     });
 
     results = mockResults();
@@ -511,15 +516,15 @@ function runTests()
         var testLinks = document.querySelectorAll('.test-link');
         assertTrue(testLinks[0].innerText == 'foo/expected-to-pass-or-crash-and-crashed.html');
         assertTrue(enclosingNodeWithTagNameHasClassName(testLinks[0], 'tbody', 'expected'));
-        assertTrue(enclosingNodeWithTagNameHasClassName(testLinks[0], 'table', 'expected'));
+        assertTrue(enclosingNodeWithTagNameHasClassName(testLinks[0], 'div', 'expected'));
 
         assertTrue(testLinks[1].innerText == 'foo/expected-to-pass-or-timeout-and-timeouted.html');
         assertTrue(enclosingNodeWithTagNameHasClassName(testLinks[1], 'tbody', 'expected'));
-        assertTrue(enclosingNodeWithTagNameHasClassName(testLinks[1], 'table', 'expected'));
+        assertTrue(enclosingNodeWithTagNameHasClassName(testLinks[1], 'div', 'expected'));
 
         assertTrue(testLinks[2].innerText == 'foo/expected-pass-or-fail-and-passed.html');
         assertTrue(enclosingNodeWithTagNameHasClassName(testLinks[2], 'tbody', 'expected'));
-        assertTrue(enclosingNodeWithTagNameHasClassName(testLinks[2], 'table', 'expected'));
+        assertTrue(enclosingNodeWithTagNameHasClassName(testLinks[2], 'div', 'expected'));
     });
 
     results = mockResults();
@@ -568,7 +573,7 @@ function runTests()
     runTest(results, function() {
         if (window.eventSender) {
             eventSender.keyDown('k'); // previous
-            var testRows = document.querySelectorAll('#results-table tbody tr');
+            var testRows = document.querySelectorAll('#results-table tbody');
             assertTrue(!testRows[0].classList.contains('current'));
             assertTrue(!testRows[1].classList.contains('current'));
             assertTrue(testRows[2].classList.contains('current'));
@@ -578,12 +583,20 @@ function runTests()
     runTest(results, function() {
         if (window.eventSender) {
             eventSender.keyDown('j'); // next
-            var testRows = document.querySelectorAll('#results-table tbody tr');
+            var testRows = document.querySelectorAll('#results-table tbody');
             assertTrue(testRows[0].classList.contains('current'));
             assertTrue(!testRows[1].classList.contains('current'));
             assertTrue(!testRows[2].classList.contains('current'));
         }
     });
+
+    results = mockResults();
+    var subtree = results.tests['foo'] = {}
+    subtree['bar.html'] = mockExpectation('TEXT', 'FAIL');
+    subtree['bar1.html'] = mockExpectation('TEXT', 'FAIL');
+    subtree['bar2.html'] = mockExpectation('TEXT', 'FAIL');
+    subtree['bar3.html'] = mockExpectation('TEXT', 'PASS');
+    subtree['bar4.html'] = mockExpectation('IMAGE', 'PASS');
 
     runTest(results, function() {
         assertTrue(document.getElementById('results-table'));
@@ -593,7 +606,7 @@ function runTests()
             eventSender.keyDown('i', ["metaKey"]);
             eventSender.keyDown('i', ["shiftKey"]);
             eventSender.keyDown('i', ["ctrlKey"]);
-            var testRows = document.querySelectorAll('#results-table tbody tr');
+            var testRows = document.querySelectorAll('tbody');
             assertTrue(!testRows[0].classList.contains('current'));
             assertTrue(!testRows[1].classList.contains('current'));
             assertTrue(!testRows[2].classList.contains('current'));
@@ -637,7 +650,13 @@ function runTests()
             eventSender.keyDown('l'); // last
             assertTrue(!testRows[0].classList.contains('current'));
             assertTrue(!testRows[1].classList.contains('current'));
-            assertTrue(testRows[2].classList.contains('current'));
+            assertTrue(testRows[4].classList.contains('current'));
+
+            var flaggedTestsTextbox = document.getElementById('flagged-tests');
+
+            eventSender.keyDown('f'); // flag
+            assertTrue(flaggedTestsTextbox.innerText == 'foo/bar4.html');
+            eventSender.keyDown('f'); // unflag
 
             eventSender.keyDown('i'); // first
 
@@ -661,7 +680,6 @@ function runTests()
             eventSender.keyDown('f', ["metaKey"]);
             eventSender.keyDown('f', ["shiftKey"]);
             eventSender.keyDown('f', ["ctrlKey"]);
-            var flaggedTestsTextbox = document.getElementById('flagged-tests');
             assertTrue(flaggedTestsTextbox.innerText == '');
 
             eventSender.keyDown('f'); // flag
@@ -682,6 +700,91 @@ function runTests()
             eventSender.keyDown('f'); // flag
             assertTrue(flaggedTestsTextbox.innerText == '');
         }
+    });
+
+    results = mockResults();
+    var subtree = results.tests['foo'] = {}
+    subtree['bar.html'] = mockExpectation('TEXT', 'PASS');
+    subtree['bar-1.html'] = mockExpectation('TEXT', 'CRASH');
+    subtree['bar-2.html'] = mockExpectation('PASS', 'IMAGE');
+    subtree['bar-3.html'] = mockExpectation('PASS', 'TEXT');
+    subtree['bar-4.html'] = mockExpectation('TEXT', 'TEXT');
+    subtree['bar-5.html'] = mockExpectation('TEXT', 'IMAGE+TEXT');
+    subtree['bar-stderr-expected.html'] = mockExpectation('IMAGE', 'IMAGE');
+    subtree['bar-stderr-expected.html'].has_stderr = true;
+    subtree['bar-expected-timeout.html'] = mockExpectation('TIMEOUT', 'TIMEOUT');
+    subtree['bar-expected-crash.html'] = mockExpectation('CRASH', 'CRASH');
+    subtree['bar-missing.html'] = mockExpectation('TEXT', 'MISSING');
+    subtree['bar-missing.html'].is_missing_text = true;
+    runTest(results, function() {
+        var titles = document.getElementsByTagName('h1');
+        assertTrue(titles[0].textContent == 'Tests that crashed (1): flag all');
+        assertTrue(titles[1].textContent == 'Tests that failed text/pixel/audio diff (3): flag all');
+        assertTrue(titles[2].textContent == 'Tests that had no expected results (probably new) (1): flag all');
+        assertTrue(titles[3].textContent == 'Tests that timed out (0): flag all');
+        assertTrue(titles[4].textContent == 'Tests that had stderr output (1): flag all');
+        assertTrue(titles[5].textContent == 'Tests expected to fail but passed (1): flag all');
+
+        document.getElementById('unexpected-results').checked = false;
+        document.getElementById('unexpected-results').onchange();
+
+        assertTrue(titles[0].textContent == 'Tests that crashed (2): flag all');
+        assertTrue(titles[1].textContent == 'Tests that failed text/pixel/audio diff (5): flag all');
+        assertTrue(titles[2].textContent == 'Tests that had no expected results (probably new) (1): flag all');
+        assertTrue(titles[3].textContent == 'Tests that timed out (1): flag all');
+        assertTrue(titles[4].textContent == 'Tests that had stderr output (1): flag all');
+        assertTrue(titles[5].textContent == 'Tests expected to fail but passed (1): flag all');
+    });
+
+    results = mockResults();
+    var subtree = results.tests['foo'] = {}
+    subtree['bar.html'] = mockExpectation('', 'PASS TEXT');
+    subtree['bar-1.html'] = mockExpectation('', 'TEXT IMAGE');
+    subtree['bar-2.html'] = mockExpectation('IMAGE TEXT', 'TEXT IMAGE');
+    subtree['bar-3.html'] = mockExpectation('PASS TEXT', 'TEXT PASS');
+    runTest(results, function() {
+        var titles = document.getElementsByTagName('h1');
+        assertTrue(titles[0].textContent == 'Tests that failed text/pixel/audio diff (1): flag all');
+        assertTrue(titles[1].textContent =='Flaky tests (failed the first run and passed on retry) (1): flag all');
+
+        assertTrue(document.querySelectorAll('#results-table tbody').length == 2);
+        assertTrue(document.querySelectorAll('#flaky-tests-table tbody').length == 2);
+    });
+
+    results = mockResults();
+    var subtree = results.tests['foo'] = {}
+    subtree['bar.html'] = mockExpectation('TEXT', 'IMAGE');
+    subtree['bar1.html'] = mockExpectation('TEXT', 'TEXT');
+    subtree['bar2.html'] = mockExpectation('TEXT', 'TEXT');
+    runTest(results, function() {
+        var flaggedTestsTextbox = document.getElementById('flagged-tests');
+
+        flagAll(document.querySelector('.flag-all'));
+        assertTrue(flaggedTestsTextbox.innerText == 'foo/bar.html');
+
+        document.getElementById('unexpected-results').checked = false;
+        document.getElementById('unexpected-results').onchange();
+
+        flagAll(document.querySelector('.flag-all'));
+        assertTrue(flaggedTestsTextbox.innerText == 'foo/bar.html\nfoo/bar1.html\nfoo/bar2.html');
+
+        unflag(document.querySelector('.flag'));
+        assertTrue(flaggedTestsTextbox.innerText == 'foo/bar1.html\nfoo/bar2.html');
+    });
+
+    results = mockResults();
+    results.tests['foo/bar-image.html'] = mockExpectation('PASS', 'TEXT IMAGE+TEXT');
+    results.pixel_tests_enabled = false;
+    runTest(results, function() {
+        assertTrue(document.querySelector('tbody td:nth-child(3) a').getAttribute('href') == 'retries/foo/bar-image-diffs.html');
+    });
+
+    results = mockResults();
+    results.tests['foo/bar-image.html'] = mockExpectation('PASS', 'TEXT IMAGE');
+    results.pixel_tests_enabled = false;
+    runTest(results, function() {
+        assertTrue(!document.getElementById('results-table'));
+        assertTrue(document.querySelector('#flaky-tests-table td:nth-child(3) a').getAttribute('href') == 'retries/foo/bar-image-diffs.html');
     });
 
     document.body.innerHTML = '<pre>' + g_log.join('\n') + '</pre>';

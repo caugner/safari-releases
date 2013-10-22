@@ -1,0 +1,19 @@
+# This file contains generic test expectations that apply to all ports of WebKit.
+#
+# See http://trac.webkit.org/wiki/TestExpectations for more information on this file.
+
+# pending functional patch and per-port verification
+webkit.org/b/109954 css3/line-break [ Skip ]
+
+# pending implementation completion and feature enabling
+webkit.org/b/109570 media/track/regions-webvtt [ Skip ]
+
+# media/video-seek-after-end.html is flaky
+webkit.org/b/116293 media/video-seek-after-end.html [ Pass Failure ]
+
+webkit.org/b/116473 editing/selection/user-drag-element-and-user-select-none.html [ Failure ]
+
+# media/W3C/video/networkState/networkState_during_progress.html is flaky
+webkit.org/b/76280 media/W3C/video/networkState/networkState_during_progress.html [ Pass Failure ]
+
+webkit.org/b/118301 fast/dom/timer-throttling-hidden-page.html [ Skip ]

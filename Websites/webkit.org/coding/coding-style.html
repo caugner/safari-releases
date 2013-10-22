@@ -646,7 +646,7 @@ setResizable(NotResizable);
 they should read like a phrase and each piece of the selector should 
 start with a lowercase letter and use intercaps.</li>
 
-<li id="names-enum-members">Enum members should user InterCaps with an initial capital letter.</li>
+<li id="names-enum-members">Enum members should use InterCaps with an initial capital letter.</li>
 
 <li id="names-const-to-define">Prefer const to #define. Prefer inline functions to macros.</li>
 
@@ -729,7 +729,7 @@ MyOtherClass::MyOtherClass() : MySuperClass() {}
 <h4 class="right">Right:</h4>
 <pre class="code">
 size_t frameViewsCount = frameViews.size();
-for (size_t i = i; i &lt; frameViewsCount; ++i)
+for (size_t i = 0; i &lt; frameViewsCount; ++i)
     frameViews[i]->updateLayoutAndStyleIfNeededRecursive();
 </pre>
 
@@ -941,7 +941,7 @@ using namespace WTF;
 </pre>
 <h4 class="wrong">Wrong:</h4>
 <pre class="code">
-// runtime/UString.h
+// runtime/JSObject.h
 
 namespace WTF {
 
@@ -951,21 +951,21 @@ using WTF::PlacementNewAdopt;
 </pre>
 </li>
 
-<li id="using-in-cpp">In C++ implementation files, do not use statements of the form
-"using std::foo" to import names in the standard template library.
-Use "using namespace std" instead.
+<li id="using-in-cpp">In C++ implementation files, do not use "using" declarations
+of any kind to import names in the standard template library.  Directly qualify
+the names at the point they're used instead.
 
 <h4 class="right">Right:</h4>
 <pre class="code">
 // HTMLBaseElement.cpp
 
-using namespace std;
-
 namespace WebCore {
+
+  std::swap(a, b);
+  c = std::numeric_limits&lt;int&gt;::max()
 
 } // namespace WebCore
 </pre>
-
 <h4 class="wrong">Wrong:</h4>
 <pre class="code">
 // HTMLBaseElement.cpp
@@ -973,6 +973,20 @@ namespace WebCore {
 using std::swap;
 
 namespace WebCore {
+
+  swap(a, b);
+
+} // namespace WebCore
+</pre>
+<h4 class="wrong">Wrong:</h4>
+<pre class="code">
+// HTMLBaseElement.cpp
+
+using namespace std;
+
+namespace WebCore {
+
+  swap(a, b);
 
 } // namespace WebCore
 </pre>
@@ -1013,7 +1027,7 @@ after any "include" statements.
 <pre class="code">
 // HTMLSelectElement.cpp
 
-using namespace std;
+using namespace other;
 
 namespace WebCore {
 
@@ -1026,12 +1040,32 @@ namespace WebCore {
 
 namespace WebCore {
 
-using namespace std;
+using namespace other;
 
 } // namespace WebCore
 </pre>
 </li>
 
+</ol>
+
+<h3 id="types">Types</h3>
+
+<ol>
+<li id="types-unsigned">
+Omit "int" when using "unsigned" modifier. Do not use "signed" modifier. Use "int" by itself instead.
+<h4 class="right">Right:</h4>
+<pre class="code">
+unsigned a;
+int b;
+</pre>
+
+<h4 class="wrong">Wrong:</h4>
+<pre class="code">
+unsigned int a; // Doesn't omit "int".
+signed b; // Uses "signed" instead of "int".
+signed int c; // Doesn't omit "signed".
+</pre>
+</li>
 </ol>
 
 <h3 id="classes">Classes</h3>

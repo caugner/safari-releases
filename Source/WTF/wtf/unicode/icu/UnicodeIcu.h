@@ -23,6 +23,8 @@
 #ifndef WTF_UNICODE_ICU_H
 #define WTF_UNICODE_ICU_H
 
+#if USE(ICU_UNICODE)
+
 #include <stdlib.h>
 #include <unicode/uchar.h>
 #include <unicode/uscript.h>
@@ -30,6 +32,7 @@
 #include <unicode/utf16.h>
 
 namespace WTF {
+
 namespace Unicode {
 
 enum Direction {
@@ -185,15 +188,12 @@ inline bool isPunct(UChar32 c)
     return !!u_ispunct(c);
 }
 
-inline bool hasLineBreakingPropertyComplexContext(UChar32 c)
-{
-    return u_getIntPropertyValue(c, UCHAR_LINE_BREAK) == U_LB_COMPLEX_CONTEXT;
-}
+#define WK_LB_CONDITIONAL_JAPANESE_STARTER 37
 
-inline bool hasLineBreakingPropertyComplexContextOrIdeographic(UChar32 c)
+inline bool requiresComplexContextForWordBreaking(UChar32 c)
 {
     int32_t prop = u_getIntPropertyValue(c, UCHAR_LINE_BREAK);
-    return prop == U_LB_COMPLEX_CONTEXT || prop == U_LB_IDEOGRAPHIC;
+    return prop == U_LB_COMPLEX_CONTEXT || prop == WK_LB_CONDITIONAL_JAPANESE_STARTER || prop == U_LB_IDEOGRAPHIC;
 }
 
 inline UChar32 mirroredChar(UChar32 c)
@@ -231,6 +231,10 @@ inline int umemcasecmp(const UChar* a, const UChar* b, int len)
     return u_memcasecmp(a, b, len, U_FOLD_CASE_DEFAULT);
 }
 
-} }
+} // namespace Unicode
+
+} // namespace WTF
+
+#endif // USE(ICU_UNICODE)
 
 #endif // WTF_UNICODE_ICU_H

@@ -4,18 +4,18 @@
     <head>
         <title>Testing that cached shader resources are shared correctly between elements</title>
         <script>
-            if (window.layoutTestController) {
-                window.layoutTestController.overridePreference("WebKitCSSCustomFilterEnabled", "1");
-                window.layoutTestController.overridePreference("WebKitWebGLEnabled", "1");
-                window.layoutTestController.dumpAsText(true);
-                window.layoutTestController.waitUntilDone();
+            if (window.testRunner) {
+                window.testRunner.overridePreference("WebKitCSSCustomFilterEnabled", "1");
+                window.testRunner.overridePreference("WebKitWebGLEnabled", "1");
+                window.testRunner.dumpAsText(true);
+                window.testRunner.waitUntilDone();
             }
             
             function runTest()
             {
                 // We need to run the tests after the downloading succeeded.
-                if (window.layoutTestController)
-                    window.layoutTestController.notifyDone();
+                if (window.testRunner)
+                    window.testRunner.notifyDone();
             }
         </script>
         <style>
@@ -25,11 +25,11 @@
             }
             .fragment_shader
             {
-                -webkit-filter: custom(none url('../resources/color-offset.fs'));
+                -webkit-filter: custom(url('../resources/pass-tex-coord.vs') mix(url('../resources/color-offset.fs') normal source-atop));
             }
             .both_shaders
             {
-                -webkit-filter: custom(url('../resources/vertex-offset.vs') url('../resources/color-offset.fs'));
+                -webkit-filter: custom(url('../resources/vertex-offset.vs') mix(url('../resources/color-offset.fs') normal source-atop));
             }
         </style>
     </head>

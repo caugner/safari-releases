@@ -1,6 +1,7 @@
-# Copyright (C) 2007, 2008, 2009 Apple Inc.  All rights reserved.
+# Copyright (C) 2007, 2008, 2009, 2010, 2011, 2012, 2013 Apple Inc.  All rights reserved.
 # Copyright (C) 2009, 2010 Chris Jerdonek (chris.jerdonek@gmail.com)
 # Copyright (C) 2010, 2011 Research In Motion Limited. All rights reserved.
+# Copyright (C) 2012 Daniel Bates (dbates@intudata.com)
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -78,6 +79,7 @@ BEGIN {
         &possiblyColored
         &prepareParsedPatch
         &removeEOL
+        &runCommand
         &runPatchCommand
         &scmMoveOrRenameFile
         &scmToggleExecutableBit
@@ -85,6 +87,8 @@ BEGIN {
         &svnRevisionForDirectory
         &svnStatus
         &toWindowsLineEndings
+        &gitCommitForSVNRevision
+        &listOfChangedFilesBetweenRevisions
     );
     %EXPORT_TAGS = ( );
     @EXPORT_OK   = ();
@@ -103,11 +107,15 @@ my $svnVersion;
 # Project time zone for Cupertino, CA, US
 my $changeLogTimeZone = "PST8PDT";
 
-my $gitDiffStartRegEx = qr#^diff --git (\w/)?(.+) (\w/)?([^\r\n]+)#;
+my $gitDiffStartRegEx = qr#^diff --git [^\r\n]+#;
+my $gitDiffStartWithPrefixRegEx = qr#^diff --git \w/(.+) \w/([^\r\n]+)#; # We suppose that --src-prefix and --dst-prefix don't contain a non-word character (\W) and end with '/'.
+my $gitDiffStartWithoutPrefixNoSpaceRegEx = qr#^diff --git (\S+) (\S+)$#;
 my $svnDiffStartRegEx = qr#^Index: ([^\r\n]+)#;
+my $gitDiffStartWithoutPrefixSourceDirectoryPrefixRegExp = qr#^diff --git ([^/]+/)#;
 my $svnPropertiesStartRegEx = qr#^Property changes on: ([^\r\n]+)#; # $1 is normally the same as the index path.
 my $svnPropertyStartRegEx = qr#^(Modified|Name|Added|Deleted): ([^\r\n]+)#; # $2 is the name of the property.
-my $svnPropertyValueStartRegEx = qr#^   (\+|-|Merged|Reverse-merged) ([^\r\n]+)#; # $2 is the start of the property's value (which may span multiple lines).
+my $svnPropertyValueStartRegEx = qr#^\s*(\+|-|Merged|Reverse-merged)\s*([^\r\n]+)#; # $2 is the start of the property's value (which may span multiple lines).
+my $svnPropertyValueNoNewlineRegEx = qr#\ No newline at end of property#;
 
 # This method is for portability. Return the system-appropriate exit
 # status of a child process.
@@ -365,6 +373,11 @@ sub determineVCSRoot()
     return determineSVNRoot();
 }
 
+sub isWindows()
+{
+    return ($^O eq "MSWin32") || 0;
+}
+
 sub svnRevisionForDirectory($)
 {
     my ($dir) = @_;
@@ -372,10 +385,15 @@ sub svnRevisionForDirectory($)
 
     if (isSVNDirectory($dir)) {
         my $escapedDir = escapeSubversionPath($dir);
-        my $svnInfo = `LC_ALL=C svn info $escapedDir | grep Revision:`;
+        my $command = "svn info $escapedDir | grep Revision:";
+        $command = "LC_ALL=C $command" if !isWindows();
+        my $svnInfo = `$command`;
         ($revision) = ($svnInfo =~ m/Revision: (\d+).*/g);
     } elsif (isGitDirectory($dir)) {
-        my $gitLog = `cd $dir && LC_ALL=C git log --grep='git-svn-id: ' -n 1 | grep git-svn-id:`;
+        my $command = "git log --grep=\"git-svn-id: \" -n 1 | grep git-svn-id:";
+        $command = "LC_ALL=C $command" if !isWindows();
+        $command = "cd $dir && $command";
+        my $gitLog = `$command`;
         ($revision) = ($gitLog =~ m/ +git-svn-id: .+@(\d+) /g);
     }
     if (!defined($revision)) {
@@ -393,9 +411,13 @@ sub pathRelativeToSVNRepositoryRootForPath($)
     my $svnInfo;
     if (isSVN()) {
         my $escapedRelativePath = escapeSubversionPath($relativePath);
-        $svnInfo = `LC_ALL=C svn info $escapedRelativePath`;
+        my $command = "svn info $escapedRelativePath";
+        $command = "LC_ALL=C $command" if !isWindows();
+        $svnInfo = `$command`;
     } elsif (isGit()) {
-        $svnInfo = `LC_ALL=C git svn info $relativePath`;
+        my $command = "git svn info $relativePath";
+        $command = "LC_ALL=C $command" if !isWindows();
+        $svnInfo = `$command`;
     }
 
     $svnInfo =~ /.*^URL: (.*?)$/m;
@@ -443,6 +465,7 @@ sub adjustPathForRecentRenamings($)
  
     $fullPath =~ s|WebCore/webaudio|WebCore/Modules/webaudio|g;
     $fullPath =~ s|JavaScriptCore/wtf|WTF/wtf|g;
+    $fullPath =~ s|test_expectations.txt|TestExpectations|g;
 
     return $fullPath; 
 } 
@@ -523,6 +546,7 @@ sub firstEOLInFile($)
 #
 # Args:
 #   $line: the line to parse.
+#   $chunkSentinel: the sentinel that surrounds the chunk range information (defaults to "@@").
 #
 # Returns $chunkRangeHashRef
 #   $chunkRangeHashRef: a hash reference representing the parts of a chunk range, as follows--
@@ -530,10 +554,11 @@ sub firstEOLInFile($)
 #     lineCount: the line count in the original file.
 #     newStartingLine: the new starting line in the new file.
 #     newLineCount: the new line count in the new file.
-sub parseChunkRange($)
+sub parseChunkRange($;$)
 {
-    my ($line) = @_;
-    my $chunkRangeRegEx = qr#^\@\@ -(\d+)(,(\d+))? \+(\d+)(,(\d+))? \@\@#;
+    my ($line, $chunkSentinel) = @_;
+    $chunkSentinel = "@@" if !$chunkSentinel;
+    my $chunkRangeRegEx = qr#^\Q$chunkSentinel\E -(\d+)(,(\d+))? \+(\d+)(,(\d+))? \Q$chunkSentinel\E#;
     if ($line !~ /$chunkRangeRegEx/) {
         return;
     }
@@ -593,6 +618,32 @@ sub isExecutable($)
     return $fileMode % 2;
 }
 
+# Parse the Git diff header start line.
+#
+# Args:
+#   $line: "diff --git" line.
+#
+# Returns the path of the target file.
+sub parseGitDiffStartLine($)
+{
+    my $line = shift;
+    $_ = $line;
+    if (/$gitDiffStartWithPrefixRegEx/ || /$gitDiffStartWithoutPrefixNoSpaceRegEx/) {
+        return $2;
+    }
+    # Assume the diff was generated with --no-prefix (e.g. git diff --no-prefix).
+    if (!/$gitDiffStartWithoutPrefixSourceDirectoryPrefixRegExp/) {
+        # FIXME: Moving top directory file is not supported (e.g diff --git A.txt B.txt).
+        die("Could not find '/' in \"diff --git\" line: \"$line\"; only non-prefixed git diffs (i.e. not generated with --no-prefix) that move a top-level directory file are supported.");
+    }
+    my $pathPrefix = $1;
+    if (!/^diff --git \Q$pathPrefix\E.+ (\Q$pathPrefix\E.+)$/) {
+        # FIXME: Moving a file through sub directories of top directory is not supported (e.g diff --git A/B.txt C/B.txt).
+        die("Could not find '/' in \"diff --git\" line: \"$line\"; only non-prefixed git diffs (i.e. not generated with --no-prefix) that move a file between top-level directories are supported.");
+    }
+    return $1;
+}
+
 # Parse the next Git diff header from the given file handle, and advance
 # the handle so the last line read is the first line after the header.
 #
@@ -634,12 +685,15 @@ sub parseGitDiffHeader($$)
 
     my $indexPath;
     if (/$gitDiffStartRegEx/) {
+        # Use $POSTMATCH to preserve the end-of-line character.
+        my $eol = $POSTMATCH;
+
         # The first and second paths can differ in the case of copies
         # and renames.  We use the second file path because it is the
         # destination path.
-        $indexPath = adjustPathForRecentRenamings($4);
-        # Use $POSTMATCH to preserve the end-of-line character.
-        $_ = "Index: $indexPath$POSTMATCH"; # Convert to SVN format.
+        $indexPath = adjustPathForRecentRenamings(parseGitDiffStartLine($_));
+
+        $_ = "Index: $indexPath$eol"; # Convert to SVN format.
     } else {
         die("Could not parse leading \"diff --git\" line: \"$line\".");
     }
@@ -668,9 +722,9 @@ sub parseGitDiffHeader($$)
             $isNew = 1 if $1;
         } elsif (/^similarity index (\d+)%/) {
             $similarityIndex = $1;
-        } elsif (/^copy from (\S+)/) {
+        } elsif (/^copy from ([^\t\r\n]+)/) {
             $copiedFromPath = $1;
-        } elsif (/^rename from (\S+)/) {
+        } elsif (/^rename from ([^\t\r\n]+)/) {
             # FIXME: Record this as a move rather than as a copy-and-delete.
             #        This will simplify adding rename support to svn-unapply.
             #        Otherwise, the hash for a deletion would have to know
@@ -680,9 +734,17 @@ sub parseGitDiffHeader($$)
             $copiedFromPath = $1;
             $shouldDeleteSource = 1;
         } elsif (/^--- \S+/) {
-            $_ = "--- $indexPath"; # Convert to SVN format.
+            # Convert to SVN format.
+            # We emit the suffix "\t(revision 0)" to handle $indexPath which contains a space character.
+            # The patch(1) command thinks a file path is characters before a tab.
+            # This suffix make our diff more closely match the SVN diff format.
+            $_ = "--- $indexPath\t(revision 0)";
         } elsif (/^\+\+\+ \S+/) {
-            $_ = "+++ $indexPath"; # Convert to SVN format.
+            # Convert to SVN format.
+            # We emit the suffix "\t(working copy)" to handle $indexPath which contains a space character.
+            # The patch(1) command thinks a file path is characters before a tab.
+            # This suffix make our diff more closely match the SVN diff format.
+            $_ = "+++ $indexPath\t(working copy)";
             $foundHeaderEnding = 1;
         } elsif (/^GIT binary patch$/ ) {
             $isBinary = 1;
@@ -770,9 +832,9 @@ sub parseSvnDiffHeader($$)
         s/([\n\r]+)$//;
         my $eol = $1;
 
-        # Fix paths on ""---" and "+++" lines to match the leading
+        # Fix paths on "---" and "+++" lines to match the leading
         # index line.
-        if (s/^--- \S+/--- $indexPath/) {
+        if (s/^--- [^\t\n\r]+/--- $indexPath/) {
             # ---
             if (/^--- .+\(revision (\d+)\)/) {
                 $sourceRevision = $1;
@@ -785,18 +847,33 @@ sub parseSvnDiffHeader($$)
                         "source revision number \"$sourceRevision\".") if ($2 != $sourceRevision);
                 }
             }
-        } elsif (s/^\+\+\+ \S+/+++ $indexPath/) {
+        } elsif (s/^\+\+\+ [^\t\n\r]+/+++ $indexPath/ || $isBinary && /^$/) {
             $foundHeaderEnding = 1;
         } elsif (/^Cannot display: file marked as a binary type.$/) {
             $isBinary = 1;
-            $foundHeaderEnding = 1;
+            # SVN 1.7 has an unusual display format for a binary diff. It repeats the first
+            # two lines of the diff header. For example:
+            #     Index: test_file.swf
+            #     ===================================================================
+            #     Cannot display: file marked as a binary type.
+            #     svn:mime-type = application/octet-stream
+            #     Index: test_file.swf
+            #     ===================================================================
+            #     --- test_file.swf
+            #     +++ test_file.swf
+            #
+            #     ...
+            #     Q1dTBx0AAAB42itg4GlgYJjGwMDDyODMxMDw34GBgQEAJPQDJA==
+            # Therefore, we continue reading the diff header until we either encounter a line
+            # that begins with "+++" (SVN 1.7 or greater) or an empty line (SVN version less
+            # than 1.7).
         }
 
         $svnConvertedText .= "$_$eol"; # Also restore end-of-line characters.
 
         $_ = <$fileHandle>; # Not defined if end-of-file reached.
 
-        last if (!defined($_) || /$svnDiffStartRegEx/ || $foundHeaderEnding);
+        last if (!defined($_) || !$isBinary && /$svnDiffStartRegEx/ || $foundHeaderEnding);
     }
 
     if (!$foundHeaderEnding) {
@@ -968,13 +1045,23 @@ sub parseDiff($$;$)
             # Then we are in the body of the diff.
             my $isChunkRange = defined(parseChunkRange($line));
             $numTextChunks += 1 if $isChunkRange;
+            my $nextLine = <$fileHandle>;
+            my $willAddNewLineAtEndOfFile = defined($nextLine) && $nextLine =~ /^\\ No newline at end of file$/;
+            if ($willAddNewLineAtEndOfFile) {
+                # Diff(1) always emits a LF character preceeding the line "\ No newline at end of file".
+                # We must preserve both the added LF character and the line ending of this sentinel line
+                # or patch(1) will complain.
+                $svnText .= $line . $nextLine;
+                $line = <$fileHandle>;
+                next;
+            }
             if ($indexPathEOL && !$isChunkRange) {
                 # The chunk range is part of the body of the diff, but its line endings should't be
                 # modified or patch(1) will complain. So, we only modify non-chunk range lines.
                 $line =~ s/\r\n|\r|\n/$indexPathEOL/g;
             }
             $svnText .= $line;
-            $line = <$fileHandle>;
+            $line = $nextLine;
             next;
         } # Otherwise, we found a diff header.
 
@@ -986,6 +1073,10 @@ sub parseDiff($$;$)
 
         ($headerHashRef, $line) = parseDiffHeader($fileHandle, $line);
         if (!$optionsHashRef || !$optionsHashRef->{shouldNotUseIndexPathEOL}) {
+            # FIXME: We shouldn't query the file system (via firstEOLInFile()) to determine the
+            #        line endings of the file indexPath. Instead, either the caller to parseDiff()
+            #        should provide this information or parseDiff() should take a delegate that it
+            #        can use to query for this information.
             $indexPathEOL = firstEOLInFile($headerHashRef->{indexPath}) if !$headerHashRef->{isNew} && !$headerHashRef->{isBinary};
         }
 
@@ -1173,8 +1264,17 @@ sub parseSvnProperty($$)
 
     $_ = <$fileHandle>; # Not defined if end-of-file reached.
 
+    if (defined($_) && defined(parseChunkRange($_, "##"))) {
+        # FIXME: We should validate the chunk range line that is part of an SVN 1.7
+        #        property diff. For now, we ignore this line.
+        $_ = <$fileHandle>;
+    }
+
     # The "svn diff" command neither inserts newline characters between property values
     # nor between successive properties.
+    #
+    # As of SVN 1.7, "svn diff" may insert "\ No newline at end of property" after a
+    # property value that doesn't end in a newline.
     #
     # FIXME: We do not support property values that contain tailing newline characters
     #        as it is difficult to disambiguate these trailing newlines from the empty
@@ -1191,6 +1291,7 @@ sub parseSvnProperty($$)
         #        add error checking to prevent '+', '+', ..., '+' and other invalid combinations.
         $propertyValueType = $1;
         ($propertyValue, $_) = parseSvnPropertyValue($fileHandle, $_);
+        $_ = <$fileHandle> if defined($_) && /$svnPropertyValueNoNewlineRegEx/;
     }
 
     if (!$propertyValue) {
@@ -1258,7 +1359,7 @@ sub parseSvnPropertyValue($$)
     }
 
     while (<$fileHandle>) {
-        if (/^[\r\n]+$/ || /$svnPropertyValueStartRegEx/ || /$svnPropertyStartRegEx/) {
+        if (/^[\r\n]+$/ || /$svnPropertyValueStartRegEx/ || /$svnPropertyStartRegEx/ || /$svnPropertyValueNoNewlineRegEx/) {
             # Note, we may encounter an empty line before the contents of a binary patch.
             # Also, we check for $svnPropertyValueStartRegEx because a '-' property may be
             # followed by a '+' property in the case of a "Modified" or "Name" property.
@@ -1459,6 +1560,8 @@ sub setChangeLogDateAndReviewer($$$)
 sub fixChangeLogPatch($)
 {
     my $patch = shift; # $patch will only contain patch fragments for ChangeLog.
+
+    $patch =~ s|test_expectations.txt:|TestExpectations:|g;
 
     $patch =~ /(\r?\n)/;
     my $lineEnding = $1;
@@ -1766,9 +1869,6 @@ sub gitConfig($)
     my ($config) = @_;
 
     my $result = `git config $config`;
-    if (($? >> 8)) {
-        $result = `git repo-config $config`;
-    }
     chomp $result;
     return $result;
 }
@@ -2016,5 +2116,80 @@ sub escapeSubversionPath($)
     $path .= "@" if $path =~ /@/;
     return $path;
 }
+
+sub runCommand(@)
+{
+    my @args = @_;
+    my $pid = open(CHILD, "-|");
+    if (!defined($pid)) {
+        die "Failed to fork(): $!";
+    }
+    if ($pid) {
+        # Parent process
+        my $childStdout;
+        while (<CHILD>) {
+            $childStdout .= $_;
+        }
+        close(CHILD);
+        my %childOutput;
+        $childOutput{exitStatus} = exitStatus($?);
+        $childOutput{stdout} = $childStdout if $childStdout;
+        return \%childOutput;
+    }
+    # Child process
+    # FIXME: Consider further hardening of this function, including sanitizing the environment.
+    exec { $args[0] } @args or die "Failed to exec(): $!";
+}
+
+sub gitCommitForSVNRevision
+{
+    my ($svnRevision) = @_;
+    my $command = "git svn find-rev r" . $svnRevision;
+    $command = "LC_ALL=C $command" if !isWindows();
+    my $gitHash = `$command`;
+    if (!defined($gitHash)) {
+        $gitHash = "unknown";
+        warn "Unable to determine GIT commit from SVN revision";
+    } else {
+        chop($gitHash);
+    }
+    return $gitHash;
+}
+
+sub listOfChangedFilesBetweenRevisions
+{
+    my ($sourceDir, $firstRevision, $lastRevision) = @_;
+    my $command;
+
+    if ($firstRevision eq "unknown" or $lastRevision eq "unknown") {
+        return ();
+    }
+
+    # Some VCS functions don't work from within the build dir, so always
+    # go to the source dir first.
+    my $cwd = Cwd::getcwd();
+    chdir $sourceDir;
+
+    if (isGit()) {
+        my $firstCommit = gitCommitForSVNRevision($firstRevision);
+        my $lastCommit = gitCommitForSVNRevision($lastRevision);
+        $command = "git diff --name-status $firstCommit..$lastCommit";
+    } elsif (isSVN()) {
+        $command = "svn diff --summarize -r $firstRevision:$lastRevision";
+    }
+
+    my @result = ();
+
+    if ($command) {
+        my $diffOutput = `$command`;
+        $diffOutput =~ s/^[A-Z]\s+//gm;
+        @result = split(/[\r\n]+/, $diffOutput);
+    }
+
+    chdir $cwd;
+
+    return @result;
+}
+
 
 1;

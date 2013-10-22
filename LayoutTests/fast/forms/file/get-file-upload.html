@@ -12,7 +12,7 @@ function log(message)
 {
     document.getElementById('console').appendChild(document.createTextNode(message + "\n"));
 }
-            
+
 function startOrVerify()
 {
     var query = window.location.search;
@@ -22,8 +22,7 @@ function startOrVerify()
             log('PASS: ' + query);
         else
             log('FAIL: ' + query);
-        layoutTestController.dumpAsText();
-        layoutTestController.notifyDone();
+        testRunner.notifyDone();
     } else {
         // Start the test
         eventSender.beginDragWithFiles(['get-file-upload.html']);
@@ -34,7 +33,8 @@ function startOrVerify()
 }
 
 if (window.eventSender) {
-    layoutTestController.waitUntilDone();
+    testRunner.dumpAsText();
+    testRunner.waitUntilDone();
     window.onload = startOrVerify;
 }
 </script>

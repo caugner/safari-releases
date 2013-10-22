@@ -1,4 +1,4 @@
-description("Test for layoutTestController.numberOfPages()");
+description("Test for internals.numberOfPages()");
 
 function test()
 {

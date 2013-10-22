@@ -9,21 +9,21 @@ function paste(event)
     for (var i = 0; i < items.length; ++i) {
         if (items[i].kind == 'file' && items[i].type == 'image/png') {
             var blob = items[i].getAsFile();
-            var url = window.webkitURL.createObjectURL(blob);
+            var url = window.URL.createObjectURL(blob);
             document.getElementById('dest').src = url;
         }
     }
     window.setTimeout(function () {
-        if (window.layoutTestController)
-            layoutTestController.notifyDone();
+        if (window.testRunner)
+            testRunner.notifyDone();
     }, 0);
 }
 
 function runTest()
 {
-    if (!window.layoutTestController)
+    if (!window.testRunner)
         return;
-    layoutTestController.waitUntilDone();
+    testRunner.waitUntilDone();
     var srcElement = document.getElementById('src');
     srcElement.contentWindow.document.execCommand('copy');
     eventSender.mouseMoveTo(1, 1);

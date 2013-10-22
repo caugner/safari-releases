@@ -4,7 +4,7 @@ On success, you will see a series of "PASS" messages, followed by "TEST COMPLETE
 
 
 - Tests from http://simon.html5.org/test/html/dom/reflecting/DOMTokenList/
-PASS String(element.htmlFor) is "y"
+PASS String(element.htmlFor) is "x"
 PASS element.htmlFor.length is 0
 PASS element.htmlFor.length is 1
 PASS element.htmlFor.length is 2
@@ -21,12 +21,12 @@ PASS element.htmlFor.toString() is "y"
 PASS list.value is "x"
 PASS list.value is ""
 PASS element.htmlFor.contains('x') is false
-PASS element.htmlFor[1] is null
+PASS element.htmlFor[1] is undefined.
 PASS element.htmlFor.contains('x') is true
-PASS element.htmlFor[1] is null
+PASS element.htmlFor[1] is undefined.
 - Testing add in presence of trailing white spaces.
 PASS element.htmlFor.toString() is "x y"
-PASS element.htmlFor.toString() is "x	 y"
+PASS element.htmlFor.toString() is "x\ty"
 PASS element.htmlFor.toString() is " y"
 - Test invalid tokens
 PASS element.htmlFor.contains('') threw expected DOMException with code 12
@@ -44,9 +44,9 @@ PASS element.htmlFor[1] is "x"
 PASS element.htmlFor.item(1) is "x"
 PASS element.htmlFor[1] is "y"
 PASS element.htmlFor.item(1) is "y"
-PASS element.htmlFor[0] is null
+PASS element.htmlFor[0] is undefined.
 PASS element.htmlFor.item(0) is null
-PASS element.htmlFor[4] is null
+PASS element.htmlFor[4] is undefined.
 PASS element.htmlFor.item(4) is null
 PASS element.htmlFor[-1] is undefined.
 PASS element.htmlFor.item(-1) is null

@@ -27,35 +27,110 @@ var config = config || {};
 
 (function() {
 
-config.kBuilders = {
-    'Webkit Win': {version: 'xp'},
-    'Webkit Vista': {version: 'vista'},
-    'Webkit Win7': {version: 'win7'},
-    'Webkit Win (dbg)(1)': {version: 'xp', debug: true},
-    'Webkit Win (dbg)(2)': {version: 'xp', debug: true},
-    'Webkit Linux': {version: 'lucid', is64bit: true},
-    'Webkit Linux 32': {version: 'lucid'},
-    'Webkit Linux (dbg)': {version: 'lucid', is64bit: true, debug: true},
-    'Webkit Mac10.5': {version: 'leopard'},
-    'Webkit Mac10.5 (dbg)(1)': {version: 'leopard', debug: true},
-    'Webkit Mac10.5 (dbg)(2)': {version: 'leopard', debug: true},
-    'Webkit Mac10.6': {version: 'snowleopard'},
-    'Webkit Mac10.6 (dbg)': {version: 'snowleopard', debug: true},
-    'Webkit Mac10.7': {version: 'lion'},
-};
+config.kBuildNumberLimit = 20;
 
-config.kBuildersThatOnlyCompile = [
-    'Webkit Win Builder',
-    'Webkit Win Builder (dbg)',
-    // FIXME: Where is the Linux Builder?
-    'Webkit Mac Builder',
-    'Webkit Mac Builder (dbg)',
-    'Win Builder',
-];
+config.kPlatforms = {
+    'apple' : {
+        label : 'Apple',
+        buildConsoleURL: 'http://build.webkit.org',
+        layoutTestResultsURL: 'http://build.webkit.org/results',
+        waterfallURL: 'http://build.webkit.org/waterfall',
+        builders: {
+            'Apple Lion Release WK1 (Tests)' : {version: 'lion' },
+            'Apple Lion Debug WK1 (Tests)' : {version: 'lion', debug: true},
+            'Apple Lion Release WK2 (Tests)' : {version: 'lion' },
+            'Apple Lion Debug WK2 (Tests)' : {version: 'lion', debug: true},
+            'Apple MountainLion Release WK1 (Tests)' : {version: 'mountainlion' },
+            'Apple MountainLion Debug WK1 (Tests)' : {version: 'mountainlion', debug: true},
+            'Apple MountainLion Release WK2 (Tests)' : {version: 'mountainlion' },
+            'Apple MountainLion Debug WK2 (Tests)' : {version: 'mountainlion', debug: true},
+            // 'Apple Win XP Debug (Tests)' : {version: 'xp',debug: true},
+            // 'Apple Win 7 Release (Tests)' : {version: 'win7'},
+        },
+        haveBuilderAccumulatedResults : false,
+        useDirectoryListingForOldBuilds: false,
+        useFlakinessDashboard: false,
+        resultsDirectoryNameFromBuilderName: function(builderName) {
+            return encodeURIComponent(builderName);
+        },
+        resultsDirectoryForBuildNumber: function(buildNumber, revision) {
+            return encodeURIComponent('r' + revision + ' (' + buildNumber + ')');
+        },
+        _builderApplies: function(builderName) {
+            return builderName.indexOf('Apple') != -1;
+        },
+    },
+    'gtk' : {
+        label : 'GTK',
+        buildConsoleURL: 'http://build.webkit.org',
+        layoutTestResultsURL: 'http://build.webkit.org/results',
+        waterfallURL: 'http://build.webkit.org/waterfall',
+        builders: {
+            'GTK Linux 32-bit Release' : {version: '32-bit release'},
+            'GTK Linux 64-bit Release' : {version: '64-bit release'},
+            'GTK Linux 64-bit Debug' : {version: '64-bit debug', debug: true},
+        },
+        haveBuilderAccumulatedResults : false,
+        useDirectoryListingForOldBuilds: false,
+        useFlakinessDashboard: false,
+        resultsDirectoryNameFromBuilderName: function(builderName) {
+            return encodeURIComponent(builderName);
+        },
+        resultsDirectoryForBuildNumber: function(buildNumber, revision) {
+            return encodeURIComponent('r' + revision + ' (' + buildNumber + ')');
+        },
+        _builderApplies: function(builderName) {
+            return builderName.indexOf('GTK') != -1;
+        },
+    },
+    'qt' : {
+        label : 'Qt',
+        buildConsoleURL: 'http://build.webkit.org',
+        layoutTestResultsURL: 'http://build.webkit.org/results',
+        waterfallURL: 'http://build.webkit.org/waterfall',
+        builders: {
+            'Qt Linux Release' : {version : '32-bit release'},
+        },
+        haveBuilderAccumulatedResults : false,
+        useDirectoryListingForOldBuilds: false,
+        useFlakinessDashboard: false,
+        resultsDirectoryNameFromBuilderName: function(builderName) {
+            return encodeURIComponent(builderName);
+        },
+        resultsDirectoryForBuildNumber: function(buildNumber, revision) {
+            return encodeURIComponent('r' + revision + ' (' + buildNumber + ')');
+        },
+        _builderApplies: function(builderName) {
+            return builderName.indexOf('Qt') != -1;
+        },
+    },
+    'efl' : {
+        label : 'EFL',
+        buildConsoleURL: 'http://build.webkit.org',
+        layoutTestResultsURL: 'http://build.webkit.org/results',
+        waterfallURL: 'http://build.webkit.org/waterfall',
+        builders: {
+            'EFL Linux 64-bit Debug WK2' : {version : '64-bit WK2', debug: true},
+            'EFL Linux 64-bit Release WK2' : {version: '64-bit WK2'},
+            'EFL Linux 64-bit Release' : {version: '64-bit'},
+        },
+        haveBuilderAccumulatedResults : false,
+        useDirectoryListingForOldBuilds: false,
+        useFlakinessDashboard: false,
+        resultsDirectoryNameFromBuilderName: function(builderName) {
+            return encodeURIComponent(builderName);
+        },
+        resultsDirectoryForBuildNumber: function(buildNumber, revision) {
+            return encodeURIComponent('r' + revision + ' (' + buildNumber + ')');
+        },
+        _builderApplies: function(builderName) {
+            return builderName.indexOf('EFL') != -1;
+        },
+    },
+};
 
 config.kTracURL = 'http://trac.webkit.org';
 config.kBugzillaURL = 'https://bugs.webkit.org';
-config.kLocalServerURL = 'http://127.0.0.1:8127';
 
 config.kRevisionAttr = 'data-revision';
 config.kTestNameAttr = 'data-test-name';
@@ -69,5 +144,37 @@ config.kUpdateFrequency = kTenMinutesInMilliseconds;
 config.kRelativeTimeUpdateFrequency = 1000 * 60;
 
 config.kExperimentalFeatures = window.location.search.search('enableExperiments=1') != -1;
+
+config.currentPlatform = base.getURLParameter('platform') || 'apple';
+
+// FIXME: We should add a way to restrict the results to a subset of the builders
+// (or maybe just a single builder) in the UI as well as via an URL parameter.
+config.currentBuilder = base.getURLParameter('builder');
+
+config.currentBuilders = function() {
+    var current_builders = {};
+    if (config.currentBuilder) {
+        current_builders[config.currentBuilder] = config.kPlatforms[config.currentPlatform].builders[config.currentBuilder];
+        return current_builders;
+    } else {
+        return config.kPlatforms[config.currentPlatform].builders;
+    }
+};
+
+config.builderApplies = function(builderName) {
+    if (config.currentBuilder)
+        return builderName == config.currentBuilder;
+    return config.kPlatforms[config.currentPlatform]._builderApplies(builderName);
+};
+
+config.setPlatform = function(platform) {
+    if (!this.kPlatforms[platform]) {
+        window.console.log(platform + ' is not a recognized platform');
+        return;
+    }
+    config.currentPlatform = platform;
+};
+
+config.useLocalResults = Boolean(base.getURLParameter('useLocalResults')) || false;
 
 })();

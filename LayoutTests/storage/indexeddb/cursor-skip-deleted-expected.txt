@@ -5,20 +5,19 @@ On success, you will see a series of "PASS" messages, followed by "TEST COMPLETE
 
 indexedDB = self.indexedDB || self.webkitIndexedDB || self.mozIndexedDB || self.msIndexedDB || self.OIndexedDB;
 
-indexedDB.open('cursor-skip-deleted')
-db = event.target.result
-db.setVersion('new version')
+dbname = "cursor-skip-deleted.html"
+indexedDB.deleteDatabase(dbname)
+indexedDB.open(dbname)
 setVersionSuccess():
-trans = event.target.result
-PASS trans !== null is true
-Deleted all object stores.
+trans = event.target.transaction
+PASS trans is non-null.
 objectStore = db.createObjectStore('store', {keyPath: 'id'})
 objectStore.createIndex('nameIndex', 'name')
 
 resetObjectStore():
 
 basicCursorTest()
-trans = db.transaction(['store'], IDBTransaction.READ_WRITE)
+trans = db.transaction(['store'], 'readwrite')
 
 testCursor():
 trans.objectStore('store').openCursor(IDBKeyRange.lowerBound(0))
@@ -60,7 +59,7 @@ resetObjectStore():
 reverseCursorTest():
 
 testCursor():
-trans.objectStore('store').openCursor(IDBKeyRange.lowerBound(0), IDBCursor.PREV)
+trans.objectStore('store').openCursor(IDBKeyRange.lowerBound(0), 'prev')
 25: Zulu
 24: Yankee
 request = trans.objectStore('store').delete(25)

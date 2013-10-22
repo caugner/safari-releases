@@ -27,41 +27,32 @@ var indexData = [
     { name: "weight", keyPath: "weight", options: { unique: false } }
 ];
 
-function test()
+indexedDBTest(prepareDatabase, onOpen);
+function prepareDatabase(evt)
 {
-    removeVendorPrefixes();
-    name = window.location.pathname;
-    request = evalAndLog("indexedDB.open(name)");
-    request.onsuccess = openSuccess;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function openSuccess()
-{
-    debug("openSuccess():");
-    db = evalAndLog("db = event.target.result");
-
+    preamble(evt);
+    db = event.target.result;
     objectStoreName = "People";
-
-    request = evalAndLog("request = db.setVersion('1')");
-    request.onsuccess = createAndPopulateObjectStore;
-    request.onerror = unexpectedErrorCallback;
+    objectStore = evalAndLog("objectStore = db.createObjectStore(objectStoreName);");
+    createIndexes();
 }
 
-function createAndPopulateObjectStore()
+function onOpen()
 {
-    deleteAllObjectStores(db);
+    evalAndLog("trans = db.transaction(objectStoreName, 'readwrite')");
+    evalAndLog("objectStore = trans.objectStore(objectStoreName)");
+    populateObjectStore();
+}
 
-    objectStore = evalAndLog("objectStore = db.createObjectStore(objectStoreName);");
-
+function populateObjectStore()
+{
     debug("First, add all our data to the object store.");
     addedData = 0;
     for (i in objectStoreData) {
         request = evalAndLog("request = objectStore.add(objectStoreData[i].value, objectStoreData[i].key);");
         request.onerror = unexpectedErrorCallback;
     }
-    createIndexes();
-    request.onsuccess = testAll;
+    trans.oncomplete = testSimple;
 }
 
 function createIndexes()
@@ -82,7 +73,10 @@ function makeAdvanceTest(startPos, direction, count, expectedValue, indexName)
     if (indexName)
         store = store.index(indexName);
 
-    evalAndLog("request = store.openCursor(null, " + direction + ")");
+    if (direction)
+        evalAndLog("request = store.openCursor(null, " + direction + ")");
+    else
+        evalAndLog("request = store.openCursor()");
     var currentPos = 0;
     function continueToTest(event)
     {
@@ -133,15 +127,10 @@ function simplifyCursor(cursor)
 
 function runTest(cursor, expectedValue)
 {
-    shouldBe("'" + JSON.stringify(simplifyCursor(cursor)) + "'",
-             "'" + JSON.stringify(expectedValue) + "'");
+    expected = JSON.stringify(expectedValue);
+    shouldBeEqualToString("expected", JSON.stringify(simplifyCursor(cursor)));
 }
 
-function testAll()
-{
-    debug("testAll()");
-    testSimple();
-}
 
 function testSimple()
 {
@@ -188,7 +177,7 @@ function testAdvanceIndex()
 function testAdvanceIndexNoDupe()
 {
     debug("testAdvanceIndexNoDupe()");
-    makeAdvanceTest(0, IDBCursor.NEXT_NO_DUPLICATE, 3,
+    makeAdvanceTest(0, "'nextunique'", 3,
                     // Sue (weight 130 - skipping weight 100, 110, 120)
                     {key: objectStoreData[3].value.weight,
                      value: objectStoreData[3].value,
@@ -199,8 +188,8 @@ function testAdvanceIndexNoDupe()
 function testAdvanceIndexPrev()
 {
     debug("testAdvanceIndexPrev()");
-    makeAdvanceTest(0, IDBCursor.PREV, 3,
-                    // Bob (weight 120 - skipping weights 180, 150, 130)
+    makeAdvanceTest(0, "'prev'", 3,
+                    // Joe (weight 150 - skipping 180, 180, 180)
                     {key: objectStoreData[4].value.weight,
                      value: objectStoreData[4].value,
                      primaryKey: objectStoreData[4].key},
@@ -210,7 +199,7 @@ function testAdvanceIndexPrev()
 function testAdvanceIndexPrevNoDupe()
 {
     debug("testAdvanceIndexPrevNoDupe()");
-    makeAdvanceTest(0, IDBCursor.PREV_NO_DUPLICATE, 3,
+    makeAdvanceTest(0, "'prevunique'", 3,
                     // Bob (weight 120 - skipping weights 180, 150, 130)
                     {key: objectStoreData[0].value.weight,
                      value: objectStoreData[0].value,
@@ -237,8 +226,9 @@ function testPrefetchInRange()
     evalAndLog("request = objectStore.openCursor()");
 
     var currentPos = 0;
-    function prefetch()
+    function prefetch(evt)
     {
+        preamble(evt);
         cursor = event.target.result;
 
         if (!cursor) {
@@ -280,8 +270,9 @@ function testPrefetchOutOfRange()
     evalAndLog("request = objectStore.openCursor()");
 
     var currentPos = 0;
-    function prefetch()
+    function prefetch(evt)
     {
+        preamble(evt);
         cursor = event.target.result;
 
         if (!cursor) {
@@ -314,35 +305,64 @@ function testPrefetchOutOfRange()
 function testBadAdvance()
 {
     debug("testBadAdvance()");
-    evalAndLog("trans = db.transaction(objectStoreName, IDBTransaction.READ_WRITE)");
+    evalAndLog("trans = db.transaction(objectStoreName, 'readwrite')");
     objectStore = evalAndLog("objectStore = trans.objectStore(objectStoreName)");
 
     evalAndLog("request = objectStore.openCursor()");
 
-    function advanceBadly()
+    function advanceBadly(evt)
     {
+        preamble(evt);
         cursor = event.target.result;
 
-        // FIXME: this should throw a TypeError. (See IDBCursor.cpp)
-        evalAndExpectException("cursor.advance(0)", "DOMException.TYPE_MISMATCH_ERR");
-        testDelete();
+        evalAndExpectExceptionClass("cursor.advance(0)", "TypeError");
+        evalAndExpectExceptionClass("cursor.advance(-1)", "TypeError");
+        evalAndExpectExceptionClass("cursor.advance(0x100000000)", "TypeError");
+        evalAndExpectExceptionClass("cursor.advance(0x20000000000000)", "TypeError");
+        testEdges();
     }
     request.onsuccess = advanceBadly;
     request.onerror = unexpectedErrorCallback;
+}
 
+function testEdges()
+{
+    preamble();
+    evalAndLog("trans = db.transaction(objectStoreName, 'readonly')");
+    trans.onabort = unexpectedAbortCallback;
+
+    objectStore = evalAndLog("objectStore = trans.objectStore(objectStoreName)");
+    evalAndLog("request = objectStore.openCursor()");
+    request.onerror = unexpectedErrorCallback;
+
+    firstSuccess = true;
+    request.onsuccess = function onSuccess(evt) {
+        preamble(evt);
+        evalAndLog("cursor = event.target.result");
+        if (firstSuccess) {
+            shouldBeNonNull("cursor");
+            firstSuccess = false;
+            evalAndLog("cursor.advance(0xffffffff)");
+        } else {
+            shouldBeNull("cursor");
+        }
+    };
+
+    trans.oncomplete = testDelete;
 }
 
 function testDelete()
 {
     debug("testDelete()");
-    evalAndLog("trans = db.transaction(objectStoreName, IDBTransaction.READ_WRITE)");
+    evalAndLog("trans = db.transaction(objectStoreName, 'readwrite')");
     objectStore = evalAndLog("objectStore = trans.objectStore(objectStoreName)");
 
     evalAndLog("request = objectStore.openCursor()");
 
     var currentPos = 0;
-    function deleteSecond()
+    function deleteSecond(evt)
     {
+        preamble(evt);
         cursor = event.target.result;
 
         if (!cursor) {
@@ -369,5 +389,3 @@ function testDelete()
     request.onsuccess = deleteSecond;
     request.onerror = unexpectedErrorCallback;
 }
-
-test();

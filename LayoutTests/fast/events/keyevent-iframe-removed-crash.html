@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
+<script src="../../resources/gc.js"></script>
 <script>
     function go() {
         var fr = document.createElement('iframe');
@@ -14,17 +15,18 @@
 
         fr.focus();
 
-        if (window.layoutTestController)
+        if (window.testRunner)
         {
-            layoutTestController.dumpAsText();
-            layoutTestController.waitUntilDone();
+            testRunner.dumpAsText();
+            testRunner.waitUntilDone();
             setTimeout(nuke, 0);
         }
     }
 
     function nuke() {
+        gc();
         eventSender.keyDown("x")
-        layoutTestController.notifyDone();
+        testRunner.notifyDone();
     }
 </script>
 </head>

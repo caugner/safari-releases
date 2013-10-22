@@ -1,7 +1,7 @@
 
 description('For Bug 40092: Spell checking for pasted text.');
 
-layoutTestController.waitUntilDone();
+testRunner.waitUntilDone();
 
 var testRoot = document.createElement("div");
 document.body.insertBefore(testRoot, document.body.firstChild);
@@ -39,9 +39,7 @@ function done()
     if (next)
         return window.setTimeout(next, 0);
     testRoot.style.display = "none";
-
-    layoutTestController.setAsynchronousSpellCheckingEnabled(false);
-    layoutTestController.notifyDone();
+    testRunner.notifyDone();
 }
 
 function verifyMarker(node, expectedMarked)
@@ -94,8 +92,8 @@ function pasteAndVerify(source, dest, expectedMarked)
     trial();
 };
 
-if (window.layoutTestController)
-    layoutTestController.setAsynchronousSpellCheckingEnabled(true);
+if (window.internals)
+    internals.settings.setAsynchronousSpellCheckingEnabled(true);
 
 tests.push(function() { pasteAndVerify(testSourcePlain, testInput, [[0, 2]]); });
 tests.push(function() { pasteAndVerify(testSourceDecorated, testInput, [[0, 2]]); });

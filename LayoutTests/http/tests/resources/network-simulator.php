@@ -73,7 +73,8 @@ function generateResponse($path)
         if ($path[0] == '/')
             $path = '..' . $path;
 
-        generateNoCacheHTTPHeader();
+        if (!$_GET['allow-caching'])
+            generateNoCacheHTTPHeader();
 
         if (file_exists($path)) {
             header("Last-Modified: " . gmdate("D, d M Y H:i:s T", filemtime($path)));
@@ -152,7 +153,6 @@ function handleLogResourceRequest($path)
     $newData = "\n".$path;
     // Documentation says that appends are atomic.
     file_put_contents($resourceLogFile, $newData, FILE_APPEND);
-    generateResponse($path);
 }
 
 $stateFile = sys_get_temp_dir() . "/network-simulator-state";

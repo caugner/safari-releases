@@ -51,13 +51,17 @@ struct _BrowserWindow {
     GtkWidget *settingsDialog;
     WebKitWebView *webView;
     GtkWidget *downloadsBar;
+    GdkPixbuf *favicon;
+    GtkWidget *fullScreenMessageLabel;
+    guint fullScreenMessageLabelId;
 };
 
 struct _BrowserWindowClass {
     GtkWindowClass parent;
 };
 
-static const char *defaultWindowTitle = "WebKitGTK+ MiniBrwoser";
+static const char *defaultWindowTitle = "WebKitGTK+ MiniBrowser";
+static const char *miniBrowserAboutScheme = "minibrowser-about";
 static const gdouble minimumZoomLevel = 0.5;
 static const gdouble maximumZoomLevel = 3;
 static const gdouble zoomStep = 1.2;
@@ -65,12 +69,28 @@ static gint windowCount = 0;
 
 G_DEFINE_TYPE(BrowserWindow, browser_window, GTK_TYPE_WINDOW)
 
+static char *getInternalURI(const char *uri)
+{
+    // Internally we use minibrowser-about: as about: prefix is ignored by WebKit.
+    if (g_str_has_prefix(uri, "about:") && !g_str_equal(uri, "about:blank"))
+        return g_strconcat(miniBrowserAboutScheme, uri + strlen ("about"), NULL);
+
+    return g_strdup(uri);
+}
+
+static char *getExternalURI(const char *uri)
+{
+    // From the user point of view we support about: prefix.
+    if (g_str_has_prefix(uri, miniBrowserAboutScheme))
+        return g_strconcat("about", uri + strlen(miniBrowserAboutScheme), NULL);
+
+    return g_strdup(uri);
+}
+
 static void browserWindowSetStatusText(BrowserWindow *window, const char *text)
 {
-#if GTK_CHECK_VERSION(3, 2, 0)
     gtk_label_set_text(GTK_LABEL(window->statusLabel), text);
     gtk_widget_set_visible(window->statusLabel, !!text);
-#endif
 }
 
 static void resetStatusText(GtkWidget *widget, BrowserWindow *window)
@@ -113,7 +133,9 @@ static void settingsCallback(BrowserWindow *window)
 
 static void webViewURIChanged(WebKitWebView *webView, GParamSpec *pspec, BrowserWindow *window)
 {
-    gtk_entry_set_text(GTK_ENTRY(window->uriEntry), webkit_web_view_get_uri(webView));
+    char *externalURI = getExternalURI(webkit_web_view_get_uri(webView));
+    gtk_entry_set_text(GTK_ENTRY(window->uriEntry), externalURI);
+    g_free(externalURI);
 }
 
 static void webViewTitleChanged(WebKitWebView *webView, GParamSpec *pspec, BrowserWindow *window)
@@ -213,9 +235,29 @@ static void backForwadlistChanged(WebKitBackForwardList *backForwadlist, WebKitB
     browserWindowUpdateNavigationActions(window, backForwadlist);
 }
 
+static void geolocationRequestDialogCallback(GtkDialog *dialog, gint response, WebKitPermissionRequest *request)
+{
+    switch (response) {
+    case GTK_RESPONSE_YES:
+        webkit_permission_request_allow(request);
+        break;
+    default:
+        webkit_permission_request_deny(request);
+        break;
+    }
+
+    gtk_widget_destroy(GTK_WIDGET(dialog));
+    g_object_unref(request);
+}
+
 static void webViewClose(WebKitWebView *webView, BrowserWindow *window)
 {
     gtk_widget_destroy(GTK_WIDGET(window));
+}
+
+static void webViewRunAsModal(WebKitWebView *webView, BrowserWindow *window)
+{
+    gtk_window_set_modal(GTK_WINDOW(window), TRUE);
 }
 
 static void webViewReadyToShow(WebKitWebView *webView, BrowserWindow *window)
@@ -240,13 +282,51 @@ static void webViewReadyToShow(WebKitWebView *webView, BrowserWindow *window)
     gtk_widget_show(GTK_WIDGET(window));
 }
 
+static gboolean fullScreenMessageTimeoutCallback(BrowserWindow *window)
+{
+    gtk_widget_hide(window->fullScreenMessageLabel);
+    window->fullScreenMessageLabelId = 0;
+    return FALSE;
+}
+
+static gboolean webViewEnterFullScreen(WebKitWebView *webView, BrowserWindow *window)
+{
+    gchar *titleOrURI = g_strdup(webkit_web_view_get_title(window->webView));
+    if (!titleOrURI)
+        titleOrURI = getExternalURI(webkit_web_view_get_uri(window->webView));
+    gchar *message = g_strdup_printf("%s is now full screen. Press ESC or f to exit.", titleOrURI);
+    gtk_label_set_text(GTK_LABEL(window->fullScreenMessageLabel), message);
+    g_free(titleOrURI);
+    g_free(message);
+
+    gtk_widget_show(window->fullScreenMessageLabel);
+
+    window->fullScreenMessageLabelId = g_timeout_add_seconds(2, (GSourceFunc)fullScreenMessageTimeoutCallback, window);
+    gtk_widget_hide(window->toolbar);
+
+    return FALSE;
+}
+
+static gboolean webViewLeaveFullScreen(WebKitWebView *webView, BrowserWindow *window)
+{
+    if (window->fullScreenMessageLabelId) {
+        g_source_remove(window->fullScreenMessageLabelId);
+        window->fullScreenMessageLabelId = 0;
+    }
+    gtk_widget_hide(window->fullScreenMessageLabel);
+    gtk_widget_show(window->toolbar);
+
+    return FALSE;
+}
+
 static GtkWidget *webViewCreate(WebKitWebView *webView, BrowserWindow *window)
 {
     WebKitWebView *newWebView = WEBKIT_WEB_VIEW(webkit_web_view_new_with_context(webkit_web_view_get_context(webView)));
     webkit_web_view_set_settings(newWebView, webkit_web_view_get_settings(webView));
 
-    GtkWidget *newWindow = browser_window_new(newWebView);
+    GtkWidget *newWindow = browser_window_new(newWebView, GTK_WINDOW(window));
     g_signal_connect(newWebView, "ready-to-show", G_CALLBACK(webViewReadyToShow), newWindow);
+    g_signal_connect(newWebView, "run-as-modal", G_CALLBACK(webViewRunAsModal), newWindow);
     g_signal_connect(newWebView, "close", G_CALLBACK(webViewClose), newWindow);
     return GTK_WIDGET(newWebView);
 }
@@ -259,21 +339,60 @@ static gboolean webViewLoadFailed(WebKitWebView *webView, WebKitLoadEvent loadEv
 
 static gboolean webViewDecidePolicy(WebKitWebView *webView, WebKitPolicyDecision *decision, WebKitPolicyDecisionType decisionType, BrowserWindow *window)
 {
-    if (decisionType != WEBKIT_POLICY_DECISION_TYPE_NAVIGATION_ACTION)
+    switch (decisionType) {
+    case WEBKIT_POLICY_DECISION_TYPE_NAVIGATION_ACTION: {
+        WebKitNavigationPolicyDecision *navigationDecision = WEBKIT_NAVIGATION_POLICY_DECISION(decision);
+        if (webkit_navigation_policy_decision_get_navigation_type(navigationDecision) != WEBKIT_NAVIGATION_TYPE_LINK_CLICKED
+            || webkit_navigation_policy_decision_get_mouse_button(navigationDecision) != GDK_BUTTON_MIDDLE)
+            return FALSE;
+
+        // Opening a new window if link clicked with the middle button.
+        WebKitWebView *newWebView = WEBKIT_WEB_VIEW(webkit_web_view_new_with_context(webkit_web_view_get_context(webView)));
+        GtkWidget *newWindow = browser_window_new(newWebView, GTK_WINDOW(window));
+        webkit_web_view_load_request(newWebView, webkit_navigation_policy_decision_get_request(navigationDecision));
+        gtk_widget_show(newWindow);
+
+        webkit_policy_decision_ignore(decision);
+        return TRUE;
+    }
+    case WEBKIT_POLICY_DECISION_TYPE_RESPONSE: {
+        WebKitResponsePolicyDecision *responseDecision = WEBKIT_RESPONSE_POLICY_DECISION(decision);
+        WebKitURIResponse *response = webkit_response_policy_decision_get_response(responseDecision);
+        const char *mimeType = webkit_uri_response_get_mime_type(response);
+
+        if (webkit_web_view_can_show_mime_type(webView, mimeType))
+            return FALSE;
+
+        WebKitWebResource *mainResource = webkit_web_view_get_main_resource(webView);
+        WebKitURIRequest *request = webkit_response_policy_decision_get_request(responseDecision);
+        const char *requestURI = webkit_uri_request_get_uri(request);
+        if (g_strcmp0(webkit_web_resource_get_uri(mainResource), requestURI))
+            return FALSE;
+
+        webkit_policy_decision_download(decision);
+        return TRUE;
+    }
+    case WEBKIT_POLICY_DECISION_TYPE_NEW_WINDOW_ACTION:
+    default:
+        return FALSE;
+    }
+}
+
+static gboolean webViewDecidePermissionRequest(WebKitWebView *webView, WebKitPermissionRequest *request, BrowserWindow *window)
+{
+    if (!WEBKIT_IS_GEOLOCATION_PERMISSION_REQUEST(request))
         return FALSE;
 
-    WebKitNavigationPolicyDecision *navigationDecision = WEBKIT_NAVIGATION_POLICY_DECISION(decision);
-    if (webkit_navigation_policy_decision_get_navigation_type(navigationDecision) != WEBKIT_NAVIGATION_TYPE_LINK_CLICKED
-        || webkit_navigation_policy_decision_get_mouse_button(navigationDecision) != 2)
-        return FALSE;
+    GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(window),
+                                               GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+                                               GTK_MESSAGE_QUESTION,
+                                               GTK_BUTTONS_YES_NO,
+                                               "Geolocation request");
 
-    WebKitWebView *newWebView = WEBKIT_WEB_VIEW(webkit_web_view_new_with_context(webkit_web_view_get_context(webView)));
-    webkit_web_view_set_settings(newWebView, webkit_web_view_get_settings(webView));
-    GtkWidget *newWindow = browser_window_new(newWebView);
-    webkit_web_view_load_request(newWebView, webkit_navigation_policy_decision_get_request(navigationDecision));
-    gtk_widget_show(newWindow);
+    gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(dialog), "Allow geolocation request?");
+    g_signal_connect(dialog, "response", G_CALLBACK(geolocationRequestDialogCallback), g_object_ref(request));
+    gtk_widget_show(dialog);
 
-    webkit_policy_decision_ignore(decision);
     return TRUE;
 }
 
@@ -309,6 +428,33 @@ static void webViewZoomLevelChanged(GObject *object, GParamSpec *paramSpec, Brow
     browserWindowUpdateZoomActions(window);
 }
 
+static void updateUriEntryIcon(BrowserWindow *window)
+{
+    GtkEntry *entry = GTK_ENTRY(window->uriEntry);
+    if (window->favicon)
+        gtk_entry_set_icon_from_pixbuf(entry, GTK_ENTRY_ICON_PRIMARY, window->favicon);
+    else
+        gtk_entry_set_icon_from_stock(entry, GTK_ENTRY_ICON_PRIMARY, GTK_STOCK_NEW);
+}
+
+static void faviconChanged(GObject *object, GParamSpec *paramSpec, BrowserWindow *window)
+{
+    GdkPixbuf *favicon = NULL;
+    cairo_surface_t *surface = webkit_web_view_get_favicon(window->webView);
+
+    if (surface) {
+        int width = cairo_image_surface_get_width(surface);
+        int height = cairo_image_surface_get_height(surface);
+        favicon = gdk_pixbuf_get_from_surface(surface, 0, 0, width, height);
+    }
+
+    if (window->favicon)
+        g_object_unref(window->favicon);
+    window->favicon = favicon;
+
+    updateUriEntryIcon(window);
+}
+
 static void zoomInCallback(BrowserWindow *window)
 {
     gdouble zoomLevel = webkit_web_view_get_zoom_level(window->webView) * zoomStep;
@@ -323,6 +469,15 @@ static void zoomOutCallback(BrowserWindow *window)
 
 static void browserWindowFinalize(GObject *gObject)
 {
+    BrowserWindow *window = BROWSER_WINDOW(gObject);
+    if (window->favicon) {
+        g_object_unref(window->favicon);
+        window->favicon = NULL;
+    }
+
+    if (window->fullScreenMessageLabelId)
+        g_source_remove(window->fullScreenMessageLabelId);
+
     G_OBJECT_CLASS(browser_window_parent_class)->finalize(gObject);
 
     if (g_atomic_int_dec_and_test(&windowCount))
@@ -364,6 +519,8 @@ static void browser_window_init(BrowserWindow *window)
 
     window->uriEntry = gtk_entry_new();
     g_signal_connect_swapped(window->uriEntry, "activate", G_CALLBACK(activateUriEntryCallback), (gpointer)window);
+    gtk_entry_set_icon_activatable(GTK_ENTRY(window->uriEntry), GTK_ENTRY_ICON_PRIMARY, FALSE);
+    updateUriEntryIcon(window);
 
     GtkWidget *toolbar = gtk_toolbar_new();
     window->toolbar = toolbar;
@@ -434,15 +591,18 @@ static void browserWindowConstructed(GObject *gObject)
     g_signal_connect(window->webView, "create", G_CALLBACK(webViewCreate), window);
     g_signal_connect(window->webView, "load-failed", G_CALLBACK(webViewLoadFailed), window);
     g_signal_connect(window->webView, "decide-policy", G_CALLBACK(webViewDecidePolicy), window);
+    g_signal_connect(window->webView, "permission-request", G_CALLBACK(webViewDecidePermissionRequest), window);
     g_signal_connect(window->webView, "mouse-target-changed", G_CALLBACK(webViewMouseTargetChanged), window);
     g_signal_connect(window->webView, "notify::zoom-level", G_CALLBACK(webViewZoomLevelChanged), window);
+    g_signal_connect(window->webView, "notify::favicon", G_CALLBACK(faviconChanged), window);
+    g_signal_connect(window->webView, "enter-fullscreen", G_CALLBACK(webViewEnterFullScreen), window);
+    g_signal_connect(window->webView, "leave-fullscreen", G_CALLBACK(webViewLeaveFullScreen), window);
 
     g_signal_connect(webkit_web_view_get_context(window->webView), "download-started", G_CALLBACK(downloadStarted), window);
 
     WebKitBackForwardList *backForwadlist = webkit_web_view_get_back_forward_list(window->webView);
     g_signal_connect(backForwadlist, "changed", G_CALLBACK(backForwadlistChanged), window);
 
-#if GTK_CHECK_VERSION(3, 2, 0)
     GtkWidget *overlay = gtk_overlay_new();
     gtk_box_pack_start(GTK_BOX(window->mainBox), overlay, TRUE, TRUE, 0);
     gtk_widget_show(overlay);
@@ -457,9 +617,12 @@ static void browserWindowConstructed(GObject *gObject)
     gtk_overlay_add_overlay(GTK_OVERLAY(overlay), window->statusLabel);
 
     gtk_container_add(GTK_CONTAINER(overlay), GTK_WIDGET(window->webView));
-#else
-    gtk_box_pack_start(GTK_BOX(window->mainBox), GTK_WIDGET(window->webView), TRUE, TRUE, 0);
-#endif
+
+    window->fullScreenMessageLabel = gtk_label_new(NULL);
+    gtk_widget_set_halign(window->fullScreenMessageLabel, GTK_ALIGN_CENTER);
+    gtk_widget_set_valign(window->fullScreenMessageLabel, GTK_ALIGN_CENTER);
+    gtk_widget_set_no_show_all(window->fullScreenMessageLabel, TRUE);
+    gtk_overlay_add_overlay(GTK_OVERLAY(overlay), window->fullScreenMessageLabel);
     gtk_widget_show(GTK_WIDGET(window->webView));
 }
 
@@ -482,11 +645,12 @@ static void browser_window_class_init(BrowserWindowClass *klass)
 }
 
 // Public API.
-GtkWidget *browser_window_new(WebKitWebView *view)
+GtkWidget *browser_window_new(WebKitWebView *view, GtkWindow *parent)
 {
     g_return_val_if_fail(WEBKIT_IS_WEB_VIEW(view), 0);
 
     return GTK_WIDGET(g_object_new(BROWSER_TYPE_WINDOW,
+                                   "transient-for", parent,
                                    "type", GTK_WINDOW_TOPLEVEL,
                                    "view", view, NULL));
 }
@@ -504,9 +668,11 @@ void browser_window_load_uri(BrowserWindow *window, const char *uri)
     g_return_if_fail(uri);
 
     if (!g_str_has_prefix(uri, "javascript:")) {
-        webkit_web_view_load_uri(window->webView, uri);
+        char *internalURI = getInternalURI(uri);
+        webkit_web_view_load_uri(window->webView, internalURI);
+        g_free(internalURI);
         return;
     }
 
-    webkit_web_view_run_javascript(window->webView, strstr(uri, "javascript:"), NULL, NULL);
+    webkit_web_view_run_javascript(window->webView, strstr(uri, "javascript:"), NULL, NULL, NULL);
 }

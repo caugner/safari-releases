@@ -11,29 +11,11 @@ if (this.importScripts) {
 
 description("Test IndexedDB adding property with invalid keypath");
 
-function test()
+indexedDBTest(prepareDatabase);
+function prepareDatabase()
 {
-    removeVendorPrefixes();
-
-    name = self.location.pathname;
-    description = "My Test Database";
-    request = evalAndLog("indexedDB.open(name, description)");
-    request.onsuccess = openSuccess;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function openSuccess()
-{
-    db = evalAndLog("db = event.target.result");
-
-    request = evalAndLog("request = db.setVersion('1')");
-    request.onsuccess = cleanDatabase;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function cleanDatabase()
-{
-    deleteAllObjectStores(db);
+    db = event.target.result;
+    event.target.transaction.onabort = unexpectedAbortCallback;
 
     objectStore = evalAndLog("objectStore = db.createObjectStore('foo', { keyPath: 'keyPath' });");
     request = evalAndLog("request = objectStore.add({ keyPath: 'foo' });");
@@ -43,8 +25,6 @@ function cleanDatabase()
 
 function addFirstSuccess()
 {
-    evalAndExpectException("request = objectStore.add({});", "IDBDatabaseException.DATA_ERR");
+    evalAndExpectException("request = objectStore.add({});", "0", "'DataError'");
     finishJSTest();
 }
-
-test();

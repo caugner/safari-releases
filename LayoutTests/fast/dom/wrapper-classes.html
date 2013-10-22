@@ -12,8 +12,8 @@
 <body>
 <script>
 
-if (window.layoutTestController)
-    layoutTestController.waitUntilDone();
+if (window.testRunner)
+    testRunner.waitUntilDone();
 
 function jsWrapperClass(node)
 {
@@ -212,6 +212,7 @@ function runTest()
     testTag("li", "HTMLLIElement");
     testTag("link", "HTMLLinkElement");
     testTag("listing", "HTMLPreElement");
+    testTag("main", "HTMLElement");
     testTag("map", "HTMLMapElement");
     testTag("marquee", "HTMLMarqueeElement");
     testTag("menu", "HTMLMenuElement");
@@ -278,14 +279,14 @@ function runTest()
     // SVGPaint
     // SVGZoomEvent
 
-    // Conditional elements, VIDEO, PROGRESS_TAG, RUBY, DATAGRID, DATALIST, METER_TAG.
+    // Conditional elements, VIDEO, PROGRESS_ELEMENT, RUBY, DATALIST_ELEMENT, METER_ELEMENT.
 
     // the various window sub-objects
 
     // what else is missing?
 
-    if (window.layoutTestController)
-        layoutTestController.notifyDone();
+    if (window.testRunner)
+        testRunner.notifyDone();
 }
 
 function frameLoaded()

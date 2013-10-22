@@ -1,3 +1,429 @@
+2013-06-18  Denis Nomiyama  <d.nomiyama@samsung.com>
+
+        The page title of technical-articles.html is incorrect.
+        https://bugs.webkit.org/show_bug.cgi?id=117727
+
+        Reviewed by Ryosuke Niwa.
+
+        Changed the page title of technical-articles.html to "WebKit Technical Articles".
+
+        * coding/technical-articles.html:
+
+2013-06-14  Timothy Hatcher  <timothy@apple.com>
+
+        Shrink larger images to fit the width of the blog.
+
+        * blog-files/new-inspector/hero-labeled.png:
+        * blog-files/new-inspector/hero.png:
+
+2013-06-12  Roger Fong  <roger_fong@apple.com>
+
+        Update webkit.org build instructions for Apple Windows port.
+        https://bugs.webkit.org/show_bug.cgi?id=117563.
+
+        Reviewed by Brent Fulgham.
+
+        * building/build.html:
+        * building/debug.html:
+        * building/launch-debugger-vs2005.png: Removed.
+        * building/launch-debugger-vs2010.png: Copied from webkit.org/building/launch-debugger-vs2005.png.
+        * building/set-as-startup-project-vs2005.png: Removed.
+        * building/set-as-startup-project-vs2010.png: Copied from webkit.org/building/set-as-startup-project-vs2005.png.
+        * building/set-debugging-properties-vs2005.png: Removed.
+        * building/set-debugging-properties-vs2010.png: Copied from webkit.org/building/set-debugging-properties-vs2005.png.
+        * building/tools.html:
+
+2013-06-12  Timothy Hatcher  <timothy@apple.com>
+
+        Add new Web Inspector images for a blog post.
+
+        * blog-files/new-inspector/activity-viewer.png: Added.
+        * blog-files/new-inspector/codemirror.png: Added.
+        * blog-files/new-inspector/console.png: Added.
+        * blog-files/new-inspector/hero-labeled.png: Added.
+        * blog-files/new-inspector/hero.png: Added.
+        * blog-files/new-inspector/layer-borders.png: Added.
+        * blog-files/new-inspector/layers.png: Added.
+        * blog-files/new-inspector/navigation-bar.png: Added.
+        * blog-files/new-inspector/open-sign.png: Added.
+        * blog-files/new-inspector/reasons.png: Added.
+        * blog-files/new-inspector/save.png: Added.
+        * blog-files/new-inspector/source-map.png: Added.
+        * blog-files/new-inspector/styles.png: Added.
+        * blog-files/new-inspector/toolbar-context-menu.png: Added.
+        * blog-files/new-inspector/toolbar-docked.png: Added.
+        * blog-files/new-inspector/toolbar.png: Added.
+
+2013-05-25  Bem Jones-Bey  <bjonesbe@adobe.com>
+
+        Broken link to committers list on contributing web page
+        https://bugs.webkit.org/show_bug.cgi?id=116722
+
+        Reviewed by Andreas Kling.
+
+        * coding/contributing.html:
+        Changed broken link to point to the team page instead.
+
+2013-05-24  Bem Jones-Bey  <bjonesbe@adobe.com>
+
+        Make team.html have each contributor's area of expertise
+        https://bugs.webkit.org/show_bug.cgi?id=116737
+
+        Reviewed by Benjamin Poulain.
+
+        * team.html:
+        Update to use the new expertise field in contributors.json.
+
+2013-04-30  Filip Pizlo  <fpizlo@apple.com>
+
+        Release SunSpider 1.0
+
+        Rubber stamped by Maciej Stachowiak.
+
+        * perf/sunspider-1.0: Added.
+        * perf/sunspider-1.0/json2.js: Added.
+        (.):
+        * perf/sunspider-1.0/sunspider-1.0: Added.
+        * perf/sunspider-1.0/sunspider-1.0/driver.html: Added.
+        * perf/sunspider-1.0/sunspider-1.0/results.html: Added.
+        * perf/sunspider-1.0/sunspider-1.0/sunspider-test-contents.js: Added.
+        * perf/sunspider-1.0/sunspider-1.0/sunspider-test-prefix.js: Added.
+        * perf/sunspider-1.0/sunspider-analyze-results.js: Added.
+        (computeItemTotals):
+        (computeTotals):
+        (computeMeans):
+        (standardDeviation):
+        (computeStdDevs):
+        (computeStdErrors):
+        (tDist):
+        (formatResult):
+        (computeLabelWidth):
+        (computeMeanWidth):
+        (resultLine):
+        (printOutput):
+        * perf/sunspider-1.0/sunspider-compare-results.js: Added.
+        (.computeItemTotals):
+        (.computeTotals):
+        (.computeMeans):
+        (.standardDeviation):
+        (.computeStdDevs):
+        (.computeStdErrors):
+        (.tDist):
+        (.formatMean):
+        (.computeLabelWidth):
+        (.computeMeanWidth):
+        (.pad):
+        (.resultLine):
+        (.printOutput):
+        (sunspiderCompareResults):
+        * perf/sunspider-1.0/sunspider.css: Added.
+        (body):
+        (h2):
+        (dt):
+        (dd):
+        (:link):
+        (:visited):
+        (#testframe):
+        (#logo):
+        * perf/sunspider-1.0/sunspider.html: Added.
+        * perf/sunspider/sunspider.html:
+        * perf/sunspider/versions.html: Added.
+
+2013-04-16  Vivek Galatage  <vivek.vg@samsung.com>
+
+        Update team.html to use contributors.json instead of committers.py
+        https://bugs.webkit.org/show_bug.cgi?id=114720
+
+        Reviewed by Ryosuke Niwa.
+
+        Updating the team.html to use contributors.json. Also removing the unused field 'area'
+        from the contributors information.
+
+        * team.html:
+
+2013-04-16  Ryosuke Niwa  <rniwa@webkit.org>
+
+        The list of contributors in committers.py should be a separate JSON
+        https://bugs.webkit.org/show_bug.cgi?id=114673
+
+        Reviewed by Anders Carlsson.
+
+        Updated the website to refer to contributors.json instead of committers.py.
+
+        * coding/commit-review-policy.html:
+
+2013-04-07  Benjamin Poulain  <bpoulain@apple.com>
+
+        Simplify the page "Getting the Code" on WebKit.org
+        https://bugs.webkit.org/show_bug.cgi?id=113980
+
+        Reviewed by Sam Weinig.
+
+        * building/checkout.html:
+        Instead of interleaving instructions for Mac and Windows, just
+        copy the things that make sense and have two clear sections.
+
+        Also mention Linux, it is the exact same instructions as Mac OS X.
+
+        Make svn checkout the alternative to a download of the tarball. It is
+        almost impossible to do a svn checkout on slow networks nowadays.
+
+2013-04-04  Benjamin Poulain  <bpoulain@apple.com>
+
+        Update WebKit.org's contact page
+        https://bugs.webkit.org/show_bug.cgi?id=113968
+
+        Reviewed by Geoffrey Garen.
+
+        * contact.html:
+        -Add a direct link to our archives on Gmane.
+        -References the ports mailing-lists. This may reduces the emails
+         erroneously sent to webkit-dev.
+        -Add a link to our "reporting bug page".
+        -Get rid of the link to CIA. The website is dead.
+
+2013-02-18  Simon Hausmann  <simon.hausmann@digia.com>
+
+        Add Digia to the domain affiliations
+        https://bugs.webkit.org/show_bug.cgi?id=110116
+
+        Reviewed by Kenneth Rohde Christiansen.
+
+        * team.html:
+
+2013-02-11  Bruno de Oliveira Abinader  <bruno.abinader@basyskom.com>
+
+        Add basysKom to domainAffiliations in team.html
+        https://bugs.webkit.org/show_bug.cgi?id=109306
+
+        Reviewed by Laszlo Gombos.
+
+        Register basysKom as contributing company in
+        http://www.webkit.org/team.html.
+
+        * team.html:
+
+2013-02-11  Mikhail Pozdnyakov  <mikhail.pozdnyakov@intel.com>
+
+        Add intel.com to team.html
+        https://bugs.webkit.org/show_bug.cgi?id=109424
+
+        Reviewed by Kenneth Rohde Christiansen.
+
+        * team.html:
+
+2013-02-10  Dirk Schulze  <dschulze@adobe.com>
+
+        Add adobe.com to team.html
+        https://bugs.webkit.org/show_bug.cgi?id=109396
+
+        Reviewed by Laszlo Gombos.
+
+        * team.html:
+
+2013-02-10  Laszlo Gombos  <l.gombos@samsung.com>
+
+        Add sisa.samsung.com to team.html
+        https://bugs.webkit.org/show_bug.cgi?id=109394
+
+        Reviewed by Dirk Schulze.
+
+        * team.html:
+
+2012-12-20  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Add a sample change log entry to contributing.html
+        https://bugs.webkit.org/show_bug.cgi?id=105506
+
+        Reviewed by Alexey Proskuryakov.
+
+        Added a sample change log to the page directly people skimming through the page will still
+        see it. Also mention that prepare-ChangeLogs is automatically ran by webkit-patch upload.
+
+        * coding/contributing.html:
+
+2012-12-18  Nico Weber  <thakis@chromium.org>
+
+        Fix broken loop in style guide
+        https://bugs.webkit.org/show_bug.cgi?id=105346
+
+        Reviewed by Ryosuke Niwa.
+
+        Found by Sean Silva <silvas@purdue.edu>
+
+        * coding/coding-style.html:
+
+2012-12-11  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Add instructions on how to build WebKit on Xcode 4 to build.html
+        https://bugs.webkit.org/show_bug.cgi?id=104739
+
+        Reviewed by Daniel Bates.
+
+        Set the build directories to WebKitBuild.
+
+        * building/build.html:
+
+2012-11-24  Daniel Bates  <dbates@webkit.org>
+
+        Substitute "use" for "user" in sentence about naming convention for
+        enum members so that it reads well.
+
+        * coding/coding-style.html:
+
+2012-11-20  Gyuyoung Kim  <gyuyoung.kim@samsung.com>
+
+        Add Samsung to security vendor member list
+        https://bugs.webkit.org/show_bug.cgi?id=102863
+
+        Reviewed by Sam Weinig.
+
+        * security/security-group-members.html: Add Samsung members.
+
+2012-10-31  Adam Barth  <abarth@webkit.org>
+
+        technical-articles.html should link to my talk on how WebKit works
+        https://bugs.webkit.org/show_bug.cgi?id=100867
+
+        Reviewed by Tony Chang.
+
+        * coding/technical-articles.html:
+
+2012-10-29  Eric Seidel  <eric@webkit.org>
+
+        Technical Articles should link to an old talk I gave
+        https://bugs.webkit.org/show_bug.cgi?id=100624
+
+        Reviewed by Adam Barth.
+
+        * coding/technical-articles.html:
+
+2012-09-13  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Another typo fix. Apparently, I "fixed" the wrong line in the previous commit.
+
+        * coding/coding-style.html:
+
+2012-09-13  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Fix a typo per Darin's comment.
+
+        * coding/coding-style.html:
+
+2012-09-13  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Add a style guide rule for signed and unsigned int
+        https://bugs.webkit.org/show_bug.cgi?id=96682
+
+        Reviewed by Geoffrey Garen.
+
+        Add a rule per http://lists.webkit.org/pipermail/webkit-dev/2012-September/022199.html.
+
+        * coding/coding-style.html:
+
+2012-08-30  Benjamin Poulain  <bpoulain@apple.com>
+
+        Replace JSC::UString by WTF::String
+        https://bugs.webkit.org/show_bug.cgi?id=95271
+
+        Reviewed by Geoffrey Garen.
+
+        Update the coding style to avoid mentioning a class that no longer exist.
+
+        * coding/coding-style.html:
+
+2012-08-09  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Address one more review comment.
+
+        * building/checkout.html:
+
+2012-08-09  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Recommend the use of https and mention git on building/checkout.html
+        https://bugs.webkit.org/show_bug.cgi?id=93657
+
+        Reviewed by Mark Rowe.
+
+        This page was quite out-dated. Stop mentioning about how to install subversion on OS X 10.4
+        because the paragraph right above it refers to buliding/tools.html for that.
+
+        Recommend the use of HTTPS connection for the Subversion checkout and also mention how to
+        checkout using a Git client.
+
+        * building/checkout.html:
+
+2012-07-27  Adam Barth  <abarth@webkit.org>
+
+        Writing a blog post for new reviewers doesn't add value to the blog
+        https://bugs.webkit.org/show_bug.cgi?id=92305
+
+        Reviewed by Eric Seidel.
+
+        Now that we have Peter posting weekly updates to the blog, having an
+        announcement on the blog for each reviewer is more noise than signal.
+
+        * coding/commit-review-policy.html:
+
+2012-06-19  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Update webkit.org to refer to layoutTestController instead of testRunner
+        https://bugs.webkit.org/show_bug.cgi?id=89445
+
+        Reviewed by Kent Tamura.
+
+        * quality/testwriting.html:
+
+2012-05-21  Peter Kasting  <pkasting@google.com>
+
+        Style guide change: Uses of "std::" should be explicitly qualified.
+        https://bugs.webkit.org/show_bug.cgi?id=87043
+
+        Reviewed by Ryosuke Niwa.
+
+        * coding/coding-style.html:
+
+2012-05-11  Darin Adler  <darin@apple.com>
+
+       Try to make spacing of fine print items in lower left nicer looking.
+
+        * css/main.css:
+        (#notice, #trademark, #terms): Changed top margin to 10px.
+        (#notice): Put 30px margin here.
+
+2012-05-11  Darin Adler  <darin@apple.com>
+
+        CSS tweak needed for the trademark terms of use.
+
+        * css/main.css:
+        (#notice, #trademark, #terms): Added #trademark.
+
+2012-05-11  Darin Adler  <darin@apple.com>
+
+        Add a link to WebKit trademark terms of use, other small website changes
+        https://bugs.webkit.org/show_bug.cgi?id=86112
+
+        Reviewed by Dan Bernstein.
+
+        * contact.html: Use RIGHT SINGLE QUOTATION MARK instead of APOSTROPHE as appropriate.
+        Fixed awkward use of the phrase "per itself" and the use of "intent" where "intend"
+        was intended.
+
+        * nav.inc: Added mention of the WebKit trademark and a link to the trademark terms
+        of use on the macosforge.org terms of use page.
+
+2012-05-07  Dan Bernstein  <mitz@apple.com>
+
+        webkit.org instructions for debugging WebProcess are unnecessarily complex
+        https://bugs.webkit.org/show_bug.cgi?id=85756
+
+        Reviewed by Darin Adler.
+
+        * building/debug.html: Added instructions for setting up and using the WebKit workspace for
+        debugging the Web process, as well as instructions for debugging the Web process from the
+        command line using debug-safari and debug-minibrowser.
+        * building/tools.html: Updated links and tweaked the language.
+
 2012-04-23  Daniel Bates  <dbates@webkit.org>
 
         Add notice about running xcode-select before using Xcode 4.3.2 command line tools

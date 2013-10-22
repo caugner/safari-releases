@@ -5,13 +5,16 @@ On success, you will see a series of "PASS" messages, followed by "TEST COMPLETE
 
 indexedDB = self.indexedDB || self.webkitIndexedDB || self.mozIndexedDB || self.msIndexedDB || self.OIndexedDB;
 
-indexedDB.open('objectstore-cursor')
-db = event.target.result
-db.setVersion('new version')
-trans = event.target.result
-PASS trans !== null is true
-Deleted all object stores.
-db.createObjectStore('someObjectStore')
+dbname = "objectstore-cursor.html"
+indexedDB.deleteDatabase(dbname)
+indexedDB.open(dbname)
+objectStore = db.createObjectStore('someObjectStore')
+
+Verify that specifying an invalid direction raises an exception:
+Expecting TypeError exception from objectStore.openCursor(0, 'invalid-direction')
+PASS Exception was thrown.
+PASS objectStore.openCursor(0, 'invalid-direction') threw TypeError: Type error
+
 objectStore.add('', testData[nextToAdd])
 objectStore.add('', testData[nextToAdd])
 objectStore.add('', testData[nextToAdd])

@@ -1,12 +1,12 @@
 <html>
 <head>
 <script>
-if (window.layoutTestController)
-    layoutTestController.dumpAsText();
+if (window.testRunner)
+    testRunner.dumpAsText();
 
 function checkForPreload() {
     var result;
-    if (internals.isPreloaded(document, "resources/image1.png") && internals.isPreloaded(document, "resources/script1.js"))
+    if (internals.isPreloaded("resources/image1.png") && internals.isPreloaded("resources/script1.js"))
         result = "PASS";
     else
         result = "FAIL";

@@ -5,8 +5,10 @@
 
 <script src="../../resources/dump-as-markup.js"></script>
 <script>
-if (window.layoutTestController)
-    layoutTestController.dumpEditingCallbacks();
+if (window.testRunner)
+    testRunner.dumpEditingCallbacks();
+if (window.internals)
+    internals.settings.setEditingBehavior("mac");
 
 Markup.description("The last paragraph of the incoming fragment should be in the same paragraph as 'three'.");
 

@@ -5,34 +5,10 @@ if (this.importScripts) {
 
 description("Test transaction aborts send the proper onabort messages..");
 
-function test()
+indexedDBTest(prepareDatabase, startTest);
+function prepareDatabase()
 {
-    removeVendorPrefixes();
-
-    request = evalAndLog("indexedDB.open('name')");
-    request.onsuccess = setVersion;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function setVersion()
-{
-    db = evalAndLog("db = event.target.result");
-
-    request = evalAndLog("db.setVersion('new version')");
-    request.onsuccess = deleteExisting;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function deleteExisting()
-{
-    debug("setVersionSuccess():");
-    self.trans = evalAndLog("trans = event.target.result");
-    shouldBeTrue("trans !== null");
-    trans.onabort = unexpectedAbortCallback;
-    evalAndLog("trans.oncomplete = startTest");
-
-    deleteAllObjectStores(db);
-
+    db = event.target.result;
     store = evalAndLog("store = db.createObjectStore('storeName', null)");
     request = evalAndLog("store.add({x: 'value', y: 'zzz'}, 'key')");
     request.onerror = unexpectedErrorCallback;
@@ -40,7 +16,7 @@ function deleteExisting()
 
 function startTest()
 {
-    trans = evalAndLog("trans = db.transaction(['storeName'], IDBTransaction.READ_WRITE)");
+    trans = evalAndLog("trans = db.transaction(['storeName'], 'readwrite')");
     evalAndLog("trans.onabort = transactionAborted");
     evalAndLog("trans.oncomplete = unexpectedCompleteCallback");
     store = evalAndLog("store = trans.objectStore('storeName')");
@@ -49,6 +25,7 @@ function startTest()
     request.onsuccess = unexpectedSuccessCallback;
     request = evalAndLog("store.add({x: 'value3', y: 'zzz3'}, 'key3')");
     request.onerror = secondAdd;
+    request.onsuccess = unexpectedSuccessCallback;
     trans.abort();
 
     firstError = false;
@@ -58,18 +35,20 @@ function startTest()
 
 function firstAdd()
 {
-    shouldBe("event.target.errorCode", "IDBDatabaseException.ABORT_ERR");
+    shouldBe("event.target.error.name", "'AbortError'");
+    shouldBeNull("trans.error");
     shouldBeFalse("firstError");
     shouldBeFalse("secondError");
     shouldBeFalse("abortFired");
     firstError = true;
 
-    evalAndExpectException("store.add({x: 'value4', y: 'zzz4'}, 'key4')", "IDBDatabaseException.TRANSACTION_INACTIVE_ERR");
+    evalAndExpectException("store.add({x: 'value4', y: 'zzz4'}, 'key4')", "0", "'TransactionInactiveError'");
 }
 
 function secondAdd()
 {
-    shouldBe("event.target.errorCode", "IDBDatabaseException.ABORT_ERR");
+    shouldBe("event.target.error.name", "'AbortError'");
+    shouldBeNull("trans.error");
     shouldBeTrue("firstError");
     shouldBeFalse("secondError");
     shouldBeFalse("abortFired");
@@ -81,10 +60,12 @@ function transactionAborted()
     shouldBeTrue("firstError");
     shouldBeTrue("secondError");
     shouldBeFalse("abortFired");
+    shouldBeNull("trans.error");
     abortFired = true;
 
-    evalAndExpectException("store.add({x: 'value5', y: 'zzz5'}, 'key5')", "IDBDatabaseException.TRANSACTION_INACTIVE_ERR");
+    evalAndExpectException("store.add({x: 'value5', y: 'zzz5'}, 'key5')", "0", "'TransactionInactiveError'");
+
+    evalAndExpectException("trans.abort()", "DOMException.INVALID_STATE_ERR", "'InvalidStateError'");
+
     finishJSTest();
 }
-
-test();

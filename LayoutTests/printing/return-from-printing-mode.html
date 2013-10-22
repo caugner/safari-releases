@@ -7,8 +7,8 @@
 <script type="text/javascript">
 function test()
 {
-    if (window.layoutTestController)
-        layoutTestController.pageNumberForElementById('test1');
+    if (window.testRunner)
+        internals.pageNumber(document.getElementById('test1'));
 }
 </script>
 <head>

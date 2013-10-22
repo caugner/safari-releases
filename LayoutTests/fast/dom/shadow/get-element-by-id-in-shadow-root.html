@@ -6,7 +6,7 @@
 </head>
 <body>
 <script>
-description("Tests to ensure that internals.getElementByIdInShadowRoot can get an element in ShadowRoot by its id. Can only run within DRT");
+description("Tests to ensure that ShadowRoot.getElementById can get an element in ShadowRoot by its id. Can only run within DRT");
 
 function prepareDomTree(parent)
 {
@@ -25,8 +25,8 @@ function prepareDomTree(parent)
 
 function test()
 {
-    if (window.layoutTestController)
-        layoutTestController.dumpAsText();
+    if (window.testRunner)
+        testRunner.dumpAsText();
 
     prepareDomTree(document.body);
     shouldBeEqualToString("getNodeInShadowTreeStack('divA/inputB').id", 'inputB');

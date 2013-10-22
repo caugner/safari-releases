@@ -5,10 +5,9 @@ On success, you will see a series of "PASS" messages, followed by "TEST COMPLETE
 
 indexedDB = self.indexedDB || self.webkitIndexedDB || self.mozIndexedDB || self.msIndexedDB || self.OIndexedDB;
 
-indexedDB.open(name, description)
-db = event.target.result
-request = db.setVersion('1')
-Deleted all object stores.
+dbname = "key-requirements.html"
+indexedDB.deleteDatabase(dbname)
+indexedDB.open(dbname)
 objectStore = db.createObjectStore('foo', { autoIncrement: true });
 request = objectStore.add({});
 key1 = event.target.result;

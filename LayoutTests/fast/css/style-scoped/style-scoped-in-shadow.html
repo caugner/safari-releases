@@ -7,17 +7,12 @@
 
     function test()
     {
-        if (window.layoutTestController)
-            layoutTestController.dumpAsText();
-
-        shouldBeDefined("window.internals");
-        shouldBeDefined("window.internals.ensureShadowRoot");
-        shouldBeDefined("WebKitShadowRoot");
+        if (window.testRunner)
+            testRunner.dumpAsText();
 
         var a = document.getElementById("A");
         var b = document.getElementById("B");
-        shadow = new WebKitShadowRoot(b);
-        shouldBeDefined("shadow.host");
+        shadow = b.webkitCreateShadowRoot();
         shouldBeDefined("shadow.innerHTML");
         shouldBeDefined("shadow.getElementById");
         shadow.innerHTML = "<style scoped>div { color: red; }</style><content></content><div id='C'>CCC</div>";

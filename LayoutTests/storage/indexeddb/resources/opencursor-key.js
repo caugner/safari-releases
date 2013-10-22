@@ -27,34 +27,15 @@ var indexData = [
     { name: "weight", keyPath: "weight", options: { unique: false } }
 ];
 
-function test()
+indexedDBTest(prepareDatabase, testAll);
+function prepareDatabase()
 {
-    removeVendorPrefixes();
-    name = window.location.pathname;
-    request = evalAndLog("indexedDB.open(name)");
-    request.onsuccess = openSuccess;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function openSuccess()
-{
-    debug("openSuccess():");
-    db = evalAndLog("db = event.target.result");
+    db = event.target.result;
+    event.target.transaction.onabort = unexpectedAbortCallback;
 
     objectStoreName = "People";
-
-    request = evalAndLog("request = db.setVersion('1')");
-    request.onsuccess = createAndPopulateObjectStore;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function createAndPopulateObjectStore()
-{
-    deleteAllObjectStores(db);
-
     objectStore = evalAndLog("objectStore = db.createObjectStore(objectStoreName);");
     trans = event.target.result;
-    trans.onabort = unexpectedAbortCallback;
 
     debug("First, add all our data to the object store.");
     addedData = 0;
@@ -63,7 +44,6 @@ function createAndPopulateObjectStore()
         request.onerror = unexpectedErrorCallback;
     }
     createIndexes();
-    trans.oncomplete = testAll;
 }
 
 function createIndexes()
@@ -82,7 +62,7 @@ function testAll()
 function testObjectStore()
 {
     debug("testObjectStore()");
-    evalAndLog("trans = db.transaction(objectStoreName, IDBTransaction.READ_WRITE)");
+    evalAndLog("trans = db.transaction(objectStoreName, 'readwrite')");
     trans.onabort = unexpectedAbortCallback;
     objectStore = evalAndLog("objectStore = trans.objectStore(objectStoreName)");
 
@@ -92,7 +72,7 @@ function testObjectStore()
         cursor = event.target.result;
 
         if (count == 0) {
-            shouldBe("cursor.key", "'237-23-7739'");
+            shouldBeEqualToString("cursor.key", "237-23-7739");
             shouldBe("JSON.stringify(cursor.value)", "JSON.stringify(objectStoreData[7].value)");
             shouldBe("cursor.primaryKey", "cursor.key");
             evalAndLog("cursor.continue()");
@@ -109,7 +89,7 @@ function testObjectStore()
 
 function testIndex()
 {
-    evalAndLog("trans = db.transaction(objectStoreName, IDBTransaction.READ_WRITE)");
+    evalAndLog("trans = db.transaction(objectStoreName, 'readwrite')");
     objectStore = evalAndLog("objectStore = trans.objectStore(objectStoreName)");
     index = evalAndLog("index = objectStore.index('weight')");
 
@@ -122,19 +102,19 @@ function testIndex()
             shouldBe("cursor.key", '180');
             shouldBe("JSON.stringify(cursor.value)",
                      "JSON.stringify(objectStoreData[2].value)");
-            shouldBe("cursor.primaryKey", "'237-23-7734'");
+            shouldBeEqualToString("cursor.primaryKey", "237-23-7734");
             evalAndLog("cursor.continue()");
         } else if (count == 1) {
             shouldBe("cursor.key", '180');
             shouldBe("JSON.stringify(cursor.value)",
                      "JSON.stringify(objectStoreData[6].value)");
-            shouldBe("cursor.primaryKey", "'237-23-7738'");
+            shouldBeEqualToString("cursor.primaryKey", "237-23-7738");
             evalAndLog("cursor.continue()");
         } else if (count == 2) {
             shouldBe("cursor.key", '180');
             shouldBe("JSON.stringify(cursor.value)",
                      "JSON.stringify(objectStoreData[10].value)");
-            shouldBe("cursor.primaryKey", "'237-23-7742'");
+            shouldBeEqualToString("cursor.primaryKey", "237-23-7742");
             evalAndLog("cursor.continue()");
         } else if (count == 3) {
             shouldBeNull("cursor");
@@ -149,7 +129,7 @@ function testIndex()
 
 function testIndexWithKey()
 {
-    evalAndLog("trans = db.transaction(objectStoreName, IDBTransaction.READ_WRITE)");
+    evalAndLog("trans = db.transaction(objectStoreName, 'readwrite')");
     objectStore = evalAndLog("objectStore = trans.objectStore(objectStoreName)");
     index = evalAndLog("index = objectStore.index('weight')");
 
@@ -160,15 +140,15 @@ function testIndexWithKey()
 
         if (count == 0) {
             shouldBe("cursor.key", '180');
-            shouldBe("cursor.primaryKey", "'237-23-7734'");
+            shouldBeEqualToString("cursor.primaryKey", "237-23-7734");
             evalAndLog("cursor.continue()");
         } else if (count == 1) {
             shouldBe("cursor.key", '180');
-            shouldBe("cursor.primaryKey", "'237-23-7738'");
+            shouldBeEqualToString("cursor.primaryKey", "237-23-7738");
             evalAndLog("cursor.continue()");
         } else if (count == 2) {
             shouldBe("cursor.key", '180');
-            shouldBe("cursor.primaryKey", "'237-23-7742'");
+            shouldBeEqualToString("cursor.primaryKey", "237-23-7742");
             evalAndLog("cursor.continue()");
         } else if (count == 3) {
             shouldBeNull("cursor");
@@ -180,6 +160,3 @@ function testIndexWithKey()
     request.onerror = unexpectedErrorCallback;
     trans.oncomplete = finishJSTest;
 }
-
-
-test();

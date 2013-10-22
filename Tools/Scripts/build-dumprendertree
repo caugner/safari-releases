@@ -44,8 +44,7 @@ Usage: $programName [options] [options to pass to build system]
   --clean       Clean up the build directory
   --gtk         Build the GTK+ port
   --qt          Build the Qt port
-  --wx          Build the wxWindows port
-  --chromium    Build the Chromium port
+  --efl         Build the EFL port
 EOF
 
 GetOptions(
@@ -69,9 +68,10 @@ my $result;
 if (isAppleMacWebKit()) {
     $result = buildXCodeProject("DumpRenderTree", $clean, XcodeOptions(), @ARGV);
 } elsif (isAppleWinWebKit()) {
-    $result = buildVisualStudioProject("DumpRenderTree.sln", $clean);
-} elsif (isQt() || isGtk() || isWx() || isChromium()) {
-    # Qt, Gtk wxWindows, and Chromium build everything in one shot. No need to build anything here.
+    my $drtSolutionPath = "DumpRenderTree.vcxproj/DumpRenderTree.sln";
+    $result = buildVisualStudioProject($drtSolutionPath, $clean);
+} elsif (isQt() || isGtk() || isEfl()) {
+    # Qt, Gtk and EFL build everything in one shot. No need to build anything here.
     $result = 0;
 } else {
     die "Building not defined for this platform!\n";

@@ -32,15 +32,19 @@
     }
   </style>
   <script type="text/javascript" charset="utf-8">
-    if (window.layoutTestController) {
-      layoutTestController.dumpAsText();
-      layoutTestController.waitUntilDone();
+    if (window.testRunner) {
+      testRunner.dumpAsText();
+      testRunner.waitUntilDone();
     }
       
     function doTest() {
-      if (window.layoutTestController) {
-        document.getElementById('layers').innerText = layoutTestController.layerTreeAsText();
-        layoutTestController.notifyDone();
+      if (window.testRunner) {
+        var layersElement = document.getElementById('layers');
+        // Do not include any text in the layers output, otherwise we need expected results for each platform.
+        layersElement.style.display = "none";
+        layersElement.innerText = window.internals.layerTreeAsText(document);
+        layersElement.style.display = "block";
+        testRunner.notifyDone();
       }
     }
     window.addEventListener('load', doTest, false);
@@ -48,7 +52,7 @@
 </head>
 <body>
 
-<p>Test overflow clipping of composited elements in various configurations.</p>
+<!-- Test overflow clipping of composited elements in various configurations. -->
 <div class="container">
   <div class="intermediate">
     <div class="box">

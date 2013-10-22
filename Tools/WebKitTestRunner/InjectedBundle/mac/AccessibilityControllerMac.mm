@@ -29,8 +29,18 @@
  */
 
 #import "config.h"
+#import "AccessibilityCommonMac.h"
 #import "AccessibilityController.h"
 #import "AccessibilityNotificationHandler.h"
+#import "InjectedBundle.h"
+#import "InjectedBundlePage.h"
+
+#import <JavaScriptCore/JSRetainPtr.h>
+#import <JavaScriptCore/JSStringRef.h>
+#import <JavaScriptCore/JSStringRefCF.h>
+#import <WebKit2/WKBundle.h>
+#import <WebKit2/WKBundlePage.h>
+#import <WebKit2/WKBundlePagePrivate.h>
 
 namespace WTR {
 
@@ -39,8 +49,6 @@ bool AccessibilityController::addNotificationListener(JSValueRef functionCallbac
     if (!functionCallback)
         return false;
 
-    // Mac programmers should not be adding more than one global notification listener.
-    // Other platforms may be different.
     if (m_globalNotificationHandler)
         return false;
     m_globalNotificationHandler = [[AccessibilityNotificationHandler alloc] init];
@@ -52,11 +60,53 @@ bool AccessibilityController::addNotificationListener(JSValueRef functionCallbac
 
 bool AccessibilityController::removeNotificationListener()
 {
-    // Mac programmers should not be trying to remove a listener that's already removed.
     ASSERT(m_globalNotificationHandler);
+    
+    [m_globalNotificationHandler.get() stopObserving];
     m_globalNotificationHandler.clear();
 
     return true;
+}
+
+void AccessibilityController::logAccessibilityEvents()
+{
+}
+
+void AccessibilityController::resetToConsistentState()
+{
+    if (m_globalNotificationHandler)
+        removeNotificationListener();
+}
+
+static id findAccessibleObjectById(id obj, NSString *idAttribute)
+{
+    BEGIN_AX_OBJC_EXCEPTIONS
+    id objIdAttribute = [obj accessibilityAttributeValue:@"AXDRTElementIdAttribute"];
+    if ([objIdAttribute isKindOfClass:[NSString class]] && [objIdAttribute isEqualToString:idAttribute])
+        return obj;
+    END_AX_OBJC_EXCEPTIONS
+
+    NSArray *children = [obj accessibilityAttributeValue:NSAccessibilityChildrenAttribute];
+    NSUInteger childrenCount = [children count];
+    for (NSUInteger i = 0; i < childrenCount; ++i) {
+        id result = findAccessibleObjectById([children objectAtIndex:i], idAttribute);
+        if (result)
+            return result;
+    }
+
+    return 0;
+}
+
+PassRefPtr<AccessibilityUIElement> AccessibilityController::accessibleElementById(JSStringRef idAttribute)
+{
+    WKBundlePageRef page = InjectedBundle::shared().page()->page();
+    id root = static_cast<PlatformUIElement>(WKAccessibilityRootObject(page));
+
+    id result = findAccessibleObjectById(root, [NSString stringWithJSStringRef:idAttribute]);
+    if (result)
+        return AccessibilityUIElement::create(result);
+
+    return 0;
 }
 
 } // namespace WTR

@@ -5,16 +5,14 @@ On success, you will see a series of "PASS" messages, followed by "TEST COMPLETE
 
 indexedDB = self.indexedDB || self.webkitIndexedDB || self.mozIndexedDB || self.msIndexedDB || self.OIndexedDB;
 
-indexedDB.open('error-causes-abort-by-default')
-db = event.target.result
-db.setVersion('new version')
+dbname = "error-causes-abort-by-default.html"
+indexedDB.deleteDatabase(dbname)
+indexedDB.open(dbname)
 setVersionSuccess():
-trans = event.target.result
-PASS trans !== null is true
-trans.oncomplete = addData
-Deleted all object stores.
+trans = event.target.transaction
+PASS trans is non-null.
 db.createObjectStore('storeName', null)
-trans = db.transaction(['storeName'], IDBTransaction.READ_WRITE)
+trans = db.transaction(['storeName'], 'readwrite')
 trans.onabort = unexpectedAbortCallback
 trans.oncomplete = transactionCompleted
 store = trans.objectStore('storeName')
@@ -24,7 +22,7 @@ event.preventDefault()
 PASS Transaction completed
 
 
-trans = db.transaction(['storeName'], IDBTransaction.READ_WRITE)
+trans = db.transaction(['storeName'], 'readwrite')
 trans.onabort = transactionAborted1
 trans.oncomplete = unexpectedCompleteCallback
 store = trans.objectStore('storeName')
@@ -33,7 +31,7 @@ Doing nothing to prevent the default action...
 PASS Transaction aborted
 
 
-trans = db.transaction(['storeName'], IDBTransaction.READ_WRITE)
+trans = db.transaction(['storeName'], 'readwrite')
 trans.onabort = transactionAborted2
 trans.oncomplete = unexpectedCompleteCallback
 store = trans.objectStore('storeName')

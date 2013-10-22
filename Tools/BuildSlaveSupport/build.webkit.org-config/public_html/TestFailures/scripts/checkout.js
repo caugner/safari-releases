@@ -56,7 +56,7 @@ checkout.subversionURLForTest = function(testName)
 checkout.isAvailable = function(callback)
 {
     net.ajax({
-        url: config.kLocalServerURL + '/ping',
+        url: '/ping',
         success: function() {
             callback(true);
         },
@@ -66,30 +66,10 @@ checkout.isAvailable = function(callback)
     });
 };
 
-checkout.updateExpectations = function(failureInfoList, callback, checkoutUnavailable)
-{
-    callIfCheckoutAvailable(function() {
-        net.post(config.kLocalServerURL + '/updateexpectations', JSON.stringify(failureInfoList), function() {
-            callback();
-        });
-    }, checkoutUnavailable);
-};
-
-checkout.optimizeBaselines = function(testName, callback, checkoutUnavailable)
-{
-    callIfCheckoutAvailable(function() {
-        net.post(config.kLocalServerURL + '/optimizebaselines?' + $.param({
-            'test': testName,
-        }), function() {
-            callback();
-        });
-    }, checkoutUnavailable);
-};
-
 checkout.rollout = function(revision, reason, callback, checkoutUnavailable)
 {
     callIfCheckoutAvailable(function() {
-        net.post(config.kLocalServerURL + '/rollout?' + $.param({
+        net.post('/rollout?' + $.param({
             'revision': revision,
             'reason': reason
         }), function() {
@@ -101,19 +81,14 @@ checkout.rollout = function(revision, reason, callback, checkoutUnavailable)
 checkout.rebaseline = function(failureInfoList, callback, progressCallback, checkoutUnavailable)
 {
     callIfCheckoutAvailable(function() {
-        base.callInSequence(function(failureInfo, callback) {
-            net.post(config.kLocalServerURL + '/rebaseline?' + $.param({
-                'builder': failureInfo.builderName,
-                'test': failureInfo.testName,
-            }), function() {
-                if (progressCallback)
-                    progressCallback(failureInfo);
-                callback();
-            });
-        }, failureInfoList, function() {
-            var testNameList = base.uniquifyArray(failureInfoList.map(function(failureInfo) { return failureInfo.testName; }));
-            base.callInSequence(checkout.optimizeBaselines, testNameList, callback);
-        });
+        var tests = {};
+        for (var i = 0; i < failureInfoList.length; i++) {
+            var failureInfo = failureInfoList[i];
+            tests[failureInfo.testName] = tests[failureInfo.testName] || {};
+            tests[failureInfo.testName][failureInfo.builderName] = 
+                base.uniquifyArray(base.flattenArray(failureInfo.failureTypeList.map(results.failureTypeToExtensionList)));
+        }
+        net.post('/rebaselineall', JSON.stringify(tests), function() { callback() });
     }, checkoutUnavailable);
 };
 

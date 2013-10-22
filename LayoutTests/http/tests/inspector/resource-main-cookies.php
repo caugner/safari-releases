@@ -11,8 +11,9 @@ function test()
 {
     var cookieName = "cookieName";
     var cookieDomain = "127.0.0.1";
+    var cookieURL = "http://" + cookieDomain + "/";
     // Ensure cookie is deleted before testing.
-    PageAgent.deleteCookie(cookieName, cookieDomain, step1);
+    PageAgent.deleteCookie(cookieName, cookieURL, step1);
 
     function step1()
     {
@@ -24,16 +25,16 @@ function test()
         WebInspector.Cookies.getCookiesAsync(step3);
     }
 
-    function step3(allCookies, isAdvanced)
+    function step3(allCookies)
     {
         for (var i = 0; i < allCookies.length; i++) {
           var cookie = allCookies[i];
-            if (cookie.name === cookieName && cookie.domain == cookieDomain) {
-                InspectorTest.addResult("Cookie: " + cookie.name + "=" + cookie.value + ".");
+            if (cookie.name() === cookieName && cookie.domain() == cookieDomain) {
+                InspectorTest.addResult("Cookie: " + cookie.name() + "=" + cookie.value() + ".");
             }
         }
         // Ensure cookie is deleted after testing.
-        PageAgent.deleteCookie(cookieName, cookieDomain, step4);
+        PageAgent.deleteCookie(cookieName, cookieURL, step4);
     }
 
     function step4()

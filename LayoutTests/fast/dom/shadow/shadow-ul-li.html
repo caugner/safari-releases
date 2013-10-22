@@ -4,12 +4,12 @@
 <script>
 function test()
 {
-    if (window.layoutTestController)
-        layoutTestController.dumpAsText();
+    if (window.testRunner)
+        testRunner.dumpAsText();
 
     var host = document.createElement('div');
     document.body.appendChild(host);
-    var shadow = new WebKitShadowRoot(host);
+    var shadow = host.webkitCreateShadowRoot();
 
     var ul = document.createElement('ul');
     var li = document.createElement('li');

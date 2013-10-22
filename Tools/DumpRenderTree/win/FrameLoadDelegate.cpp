@@ -34,7 +34,8 @@
 #include "DumpRenderTree.h"
 #include "EventSender.h"
 #include "GCController.h"
-#include "LayoutTestController.h"
+#include "TestRunner.h"
+#include "TextInputController.h"
 #include "WebCoreTestSupport.h"
 #include "WorkQueueItem.h"
 #include "WorkQueue.h"
@@ -76,6 +77,7 @@ FrameLoadDelegate::FrameLoadDelegate()
     : m_refCount(1)
     , m_gcController(adoptPtr(new GCController))
     , m_accessibilityController(adoptPtr(new AccessibilityController))
+    , m_textInputController(adoptPtr(new TextInputController))
 {
 }
 
@@ -120,7 +122,7 @@ HRESULT STDMETHODCALLTYPE FrameLoadDelegate::didStartProvisionalLoadForFrame(
     /* [in] */ IWebView* webView,
     /* [in] */ IWebFrame* frame) 
 {
-    if (!done && gLayoutTestController->dumpFrameLoadCallbacks())
+    if (!done && gTestRunner->dumpFrameLoadCallbacks())
         printf("%s - didStartProvisionalLoadForFrame\n", descriptionSuitableForTestResult(frame).c_str());
 
     // Make sure we only set this once per test.  If it gets cleared, and then set again, we might
@@ -135,7 +137,7 @@ HRESULT STDMETHODCALLTYPE FrameLoadDelegate::didReceiveServerRedirectForProvisio
     /* [in] */ IWebView *webView,
     /* [in] */ IWebFrame *frame)
 { 
-    if (!done && gLayoutTestController->dumpFrameLoadCallbacks())
+    if (!done && gTestRunner->dumpFrameLoadCallbacks())
         printf("%s - didReceiveServerRedirectForProvisionalLoadForFrame\n", descriptionSuitableForTestResult(frame).c_str());
 
     return S_OK;
@@ -146,7 +148,7 @@ HRESULT STDMETHODCALLTYPE FrameLoadDelegate::didFailProvisionalLoadWithError(
     /* [in] */ IWebError *error,
     /* [in] */ IWebFrame *frame)
 {
-    if (!done && gLayoutTestController->dumpFrameLoadCallbacks())
+    if (!done && gTestRunner->dumpFrameLoadCallbacks())
         printf("%s - didFailProvisionalLoadWithError\n", descriptionSuitableForTestResult(frame).c_str());
 
     locationChangeDone(error, frame);
@@ -157,7 +159,7 @@ HRESULT STDMETHODCALLTYPE FrameLoadDelegate::didCommitLoadForFrame(
     /* [in] */ IWebView *webView,
     /* [in] */ IWebFrame *frame)
 {
-    if (!done && gLayoutTestController->dumpFrameLoadCallbacks())
+    if (!done && gTestRunner->dumpFrameLoadCallbacks())
         printf("%s - didCommitLoadForFrame\n", descriptionSuitableForTestResult(frame).c_str());
 
     COMPtr<IWebViewPrivate> webViewPrivate;
@@ -174,11 +176,11 @@ HRESULT STDMETHODCALLTYPE FrameLoadDelegate::didReceiveTitle(
     /* [in] */ BSTR title,
     /* [in] */ IWebFrame *frame)
 {
-    if (!done && gLayoutTestController->dumpFrameLoadCallbacks())
+    if (!done && gTestRunner->dumpFrameLoadCallbacks())
         printf("%s - didReceiveTitle: %S\n", descriptionSuitableForTestResult(frame).c_str(), title);
 
-    if (::gLayoutTestController->dumpTitleChanges() && !done)
-        printf("TITLE CHANGED: %S\n", title ? title : L"");
+    if (::gTestRunner->dumpTitleChanges() && !done)
+        printf("TITLE CHANGED: '%S'\n", title ? title : L"");
     return S_OK;
 }
 
@@ -186,7 +188,7 @@ HRESULT STDMETHODCALLTYPE FrameLoadDelegate::didChangeIcons(
     /* [in] */ IWebView* webView,
     /* [in] */ IWebFrame* frame)
 {
-    if (!done && gLayoutTestController->dumpIconChanges())
+    if (!done && gTestRunner->dumpIconChanges())
         printf("%s - didChangeIcons\n", descriptionSuitableForTestResult(frame).c_str());
 
     return S_OK;
@@ -199,7 +201,7 @@ void FrameLoadDelegate::processWork()
         return;
 
     // if we finish all the commands, we're ready to dump state
-    if (WorkQueue::shared()->processWork() && !::gLayoutTestController->waitToDump())
+    if (WorkQueue::shared()->processWork() && !::gTestRunner->waitToDump())
         dump();
 }
 
@@ -238,7 +240,7 @@ void FrameLoadDelegate::locationChangeDone(IWebError*, IWebFrame* frame)
     topLoadingFrame = 0;
     WorkQueue::shared()->setFrozen(true);
 
-    if (::gLayoutTestController->waitToDump())
+    if (::gTestRunner->waitToDump())
         return;
 
     if (WorkQueue::shared()->count()) {
@@ -255,7 +257,7 @@ HRESULT STDMETHODCALLTYPE FrameLoadDelegate::didFinishLoadForFrame(
     /* [in] */ IWebView* webView,
     /* [in] */ IWebFrame* frame)
 {
-    if (!done && gLayoutTestController->dumpFrameLoadCallbacks())
+    if (!done && gTestRunner->dumpFrameLoadCallbacks())
         printf("%s - didFinishLoadForFrame\n", descriptionSuitableForTestResult(frame).c_str());
 
     locationChangeDone(0, frame);
@@ -267,7 +269,7 @@ HRESULT STDMETHODCALLTYPE FrameLoadDelegate::didFailLoadWithError(
     /* [in] */ IWebError* error,
     /* [in] */ IWebFrame* frame)
 {
-    if (!done && gLayoutTestController->dumpFrameLoadCallbacks())
+    if (!done && gTestRunner->dumpFrameLoadCallbacks())
         printf("%s - didFailLoadWithError\n", descriptionSuitableForTestResult(frame).c_str());
 
     locationChangeDone(error, frame);
@@ -281,7 +283,7 @@ HRESULT STDMETHODCALLTYPE FrameLoadDelegate::willPerformClientRedirectToURL(
     /* [in] */ DATE fireDate,
     /* [in] */ IWebFrame *frame)
 {
-    if (!done && gLayoutTestController->dumpFrameLoadCallbacks())
+    if (!done && gTestRunner->dumpFrameLoadCallbacks())
         printf("%s - willPerformClientRedirectToURL: %S \n", descriptionSuitableForTestResult(frame).c_str(),
                 urlSuitableForTestResult(std::wstring(url, ::SysStringLen(url))).c_str());
 
@@ -292,7 +294,7 @@ HRESULT STDMETHODCALLTYPE FrameLoadDelegate::didCancelClientRedirectForFrame(
     /* [in] */ IWebView *webView,
     /* [in] */ IWebFrame *frame)
 {
-    if (!done && gLayoutTestController->dumpFrameLoadCallbacks())
+    if (!done && gTestRunner->dumpFrameLoadCallbacks())
         printf("%s - didCancelClientRedirectForFrame\n", descriptionSuitableForTestResult(frame).c_str());
 
     return S_OK;
@@ -358,13 +360,16 @@ void FrameLoadDelegate::didClearWindowObjectForFrameInStandardWorld(IWebFrame* f
 
     JSValueRef exception = 0;
 
-    ::gLayoutTestController->makeWindowObject(context, windowObject, &exception);
+    ::gTestRunner->makeWindowObject(context, windowObject, &exception);
     ASSERT(!exception);
 
     m_gcController->makeWindowObject(context, windowObject, &exception);
     ASSERT(!exception);
 
     m_accessibilityController->makeWindowObject(context, windowObject, &exception);
+    ASSERT(!exception);
+
+    m_textInputController->makeWindowObject(context, windowObject, &exception);
     ASSERT(!exception);
 
     JSStringRef eventSenderStr = JSStringCreateWithUTF8CString("eventSender");
@@ -379,7 +384,7 @@ HRESULT STDMETHODCALLTYPE FrameLoadDelegate::didFinishDocumentLoadForFrame(
     /* [in] */ IWebView *sender,
     /* [in] */ IWebFrame *frame)
 {
-    if (!done && gLayoutTestController->dumpFrameLoadCallbacks())
+    if (!done && gTestRunner->dumpFrameLoadCallbacks())
         printf("%s - didFinishDocumentLoadForFrame\n",
                 descriptionSuitableForTestResult(frame).c_str());
     if (!done) {
@@ -403,7 +408,7 @@ HRESULT STDMETHODCALLTYPE FrameLoadDelegate::didHandleOnloadEventsForFrame(
     /* [in] */ IWebView *sender,
     /* [in] */ IWebFrame *frame)
 {
-    if (!done && gLayoutTestController->dumpFrameLoadCallbacks())
+    if (!done && gTestRunner->dumpFrameLoadCallbacks())
         printf("%s - didHandleOnloadEventsForFrame\n",
                 descriptionSuitableForTestResult(frame).c_str());
 
@@ -420,7 +425,7 @@ HRESULT STDMETHODCALLTYPE FrameLoadDelegate::didFirstVisuallyNonEmptyLayoutInFra
 HRESULT STDMETHODCALLTYPE FrameLoadDelegate::didDisplayInsecureContent( 
     /* [in] */ IWebView *sender)
 {
-    if (!done && gLayoutTestController->dumpFrameLoadCallbacks())
+    if (!done && gTestRunner->dumpFrameLoadCallbacks())
         printf("didDisplayInsecureContent\n");
 
     return S_OK;
@@ -430,7 +435,7 @@ HRESULT STDMETHODCALLTYPE FrameLoadDelegate::didRunInsecureContent(
     /* [in] */ IWebView *sender,
     /* [in] */ IWebSecurityOrigin *origin)
 {
-    if (!done && gLayoutTestController->dumpFrameLoadCallbacks())
+    if (!done && gTestRunner->dumpFrameLoadCallbacks())
         printf("didRunInsecureContent\n");
 
     return S_OK;

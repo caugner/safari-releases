@@ -9,9 +9,9 @@ Page reloaded.
     }
     pages : [
         {
-            startedDateTime : <plausible>
+            startedDateTime : <object>
             id : <string>
-            title : ""
+            title : "http://127.0.0.1:8000/inspector/resource-har-conversion.html"
             pageTimings : {
                 onContentLoad : <number>
                 onLoad : <number>
@@ -20,8 +20,8 @@ Page reloaded.
     ]
     entries : [
         {
-            pageref : "http://127.0.0.1:8000/inspector/resource-har-conversion.html"
-            startedDateTime : <plausible>
+            pageref : "page_1"
+            startedDateTime : <object>
             time : <number>
             request : {
                 method : "GET"
@@ -98,7 +98,8 @@ Page reloaded.
                 ]
                 content : {
                     size : <number>
-                    mimeType : "application/x-javascript"
+                    compression : <number>
+                    mimeType : "text/plain"
                 }
                 redirectURL : ""
                 headersSize : <number>
@@ -109,8 +110,8 @@ Page reloaded.
             timings : <object>
         }
         {
-            pageref : "http://127.0.0.1:8000/inspector/resource-har-conversion.html"
-            startedDateTime : <plausible>
+            pageref : "page_1"
+            startedDateTime : <object>
             time : <number>
             request : {
                 method : "GET"
@@ -133,8 +134,8 @@ Page reloaded.
                 ]
                 content : {
                     size : <number>
-                    mimeType : "text/html"
                     compression : <number>
+                    mimeType : "text/html"
                 }
                 redirectURL : ""
                 headersSize : <number>
@@ -145,8 +146,8 @@ Page reloaded.
             timings : <object>
         }
         {
-            pageref : "http://127.0.0.1:8000/inspector/resource-har-conversion.html"
-            startedDateTime : <plausible>
+            pageref : "page_1"
+            startedDateTime : <object>
             time : <number>
             request : {
                 method : "GET"
@@ -169,7 +170,8 @@ Page reloaded.
                 ]
                 content : {
                     size : <number>
-                    mimeType : "application/x-javascript"
+                    compression : <number>
+                    mimeType : "text/plain"
                 }
                 redirectURL : ""
                 headersSize : <number>
@@ -180,8 +182,8 @@ Page reloaded.
             timings : <object>
         }
         {
-            pageref : "http://127.0.0.1:8000/inspector/resource-har-conversion.html"
-            startedDateTime : <plausible>
+            pageref : "page_1"
+            startedDateTime : <object>
             time : <number>
             request : {
                 method : "POST"
@@ -208,8 +210,8 @@ Page reloaded.
                 ]
                 content : {
                     size : <number>
-                    mimeType : "application/xml"
                     compression : <number>
+                    mimeType : "application/xml"
                 }
                 redirectURL : ""
                 headersSize : <number>

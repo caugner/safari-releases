@@ -1,5 +1,5 @@
-if (window.layoutTestController)
-    layoutTestController.dumpAsText();
+if (window.testRunner)
+    testRunner.dumpAsText();
 
 function description(msg)
 {
@@ -159,7 +159,7 @@ function setCookies(cookie)
     try {
         var xhr = new XMLHttpRequest();
         xhr.open("GET", "resources/setCookies.cgi", false);
-        xhr.setRequestHeader("SET_COOKIE", cookie);
+        xhr.setRequestHeader("SET-COOKIE", cookie);
         xhr.send(null);
         if (xhr.status == 200) {
             // This is to clear them later.
@@ -204,6 +204,10 @@ function clearAllCookies()
         var cookieName = cookieString.substr(0, cookieString.indexOf("=") || cookieString.length());
         cookies.push(cookieName);
         clearCookies();
+
+        // In case clearCookies.cgi failed, for example,
+        // the domain/path do not match exactly:
+        document.cookie = cookieName + "=;Max-Age=0";
     }
 }
 
@@ -220,7 +224,7 @@ function clearCookies()
         // and "Expires" fields.
         while (cookie = cookies.pop()) {
             xhr.open("GET", "resources/clearCookies.cgi", false);
-            xhr.setRequestHeader("CLEAR_COOKIE", cookie);
+            xhr.setRequestHeader("CLEAR-COOKIE", cookie);
             xhr.send(null);
         }
     } catch (e) {

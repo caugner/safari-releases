@@ -63,7 +63,7 @@ InspectorTest.selectNodeWithId = function(idValue, callback)
     function onNodeFound(node)
     {
         if (node)
-            WebInspector.updateFocusedNode(node.id);
+            WebInspector._updateFocusedNode(node.id);
         callback(node);
     }
     InspectorTest.nodeWithId(idValue, onNodeFound);
@@ -111,14 +111,14 @@ InspectorTest.selectNodeAndWaitForStylesWithComputed = function(idValue, callbac
 
     function stylesCallback(targetNode)
     {
-        InspectorTest.addSniffer(WebInspector.SidebarPane.prototype, "expand", callback);
+        InspectorTest.addSniffer(WebInspector.SidebarPane.prototype, "onContentReady", callback);
         WebInspector.panels.elements.sidebarPanes.computedStyle.expand();
     }
 
     InspectorTest.selectNodeAndWaitForStyles(idValue, stylesCallback);
 }
 
-InspectorTest.dumpSelectedElementStyles = function(excludeComputed, excludeMatched, omitLonghands)
+InspectorTest.dumpSelectedElementStyles = function(excludeComputed, excludeMatched, omitLonghands, includeSelectorGroupMarks)
 {
     function extractText(element)
     {
@@ -127,6 +127,18 @@ InspectorTest.dumpSelectedElementStyles = function(excludeComputed, excludeMatch
             return text;
         element = element.querySelector("[data-uncopyable]");
         return element ? element.getAttribute("data-uncopyable") : "";
+    }
+
+    function buildMarkedSelectors(element)
+    {
+        var result = "";
+        for (var node = element.firstChild; node; node = node.nextSibling) {
+            if (node.nodeType === Node.ELEMENT_NODE && node.className === "selector-matches")
+                result += "[$" + node.textContent + "$]";
+            else
+                result += node.textContent;
+        }
+        return result;
     }
 
     var styleSections = WebInspector.panels.elements.sidebarPanes.styles.sections;
@@ -141,11 +153,11 @@ InspectorTest.dumpSelectedElementStyles = function(excludeComputed, excludeMatch
                 continue;
             if (section.element.previousSibling && section.element.previousSibling.className === "sidebar-separator")
                 InspectorTest.addResult("======== " + section.element.previousSibling.textContent + " ========");
-            InspectorTest.addResult(section.expanded ? "[expanded] " : "[collapsed] ");
+            InspectorTest.addResult((section.expanded ? "[expanded] " : "[collapsed] ") + (section.noAffect ? "[no-affect] " : ""));
             var chainEntries = section.titleElement.children;
             for (var j = 0; j < chainEntries.length; ++j) {
                 var chainEntry = chainEntries[j];
-                var entryLine = chainEntry.children[1].textContent;
+                var entryLine = includeSelectorGroupMarks ? buildMarkedSelectors(chainEntry.children[1]) : chainEntry.children[1].textContent;
                 if (chainEntry.children[2])
                     entryLine += " " + chainEntry.children[2].textContent;
                 entryLine += " (" + extractText(chainEntry.children[0]) + ")";
@@ -157,7 +169,19 @@ InspectorTest.dumpSelectedElementStyles = function(excludeComputed, excludeMatch
         }
         InspectorTest.addResult("");
     }
-};
+}
+
+InspectorTest.toggleStyleProperty = function(propertyName, checked)
+{
+    var treeItem = InspectorTest.getElementStylePropertyTreeItem(propertyName);
+    treeItem.toggleEnabled({ target: { checked: checked }, consume: function() { } });
+}
+
+InspectorTest.toggleMatchedStyleProperty = function(propertyName, checked)
+{
+    var treeItem = InspectorTest.getMatchedStylePropertyTreeItem(propertyName);
+    treeItem.toggleEnabled({ target: { checked: checked }, consume: function() { } });
+}
 
 InspectorTest.expandAndDumpSelectedElementEventListeners = function(callback)
 {
@@ -243,6 +267,29 @@ InspectorTest.dumpObjectPropertySection = function(section, formatters)
     }
 }
 
+InspectorTest.dumpObjectPropertySectionDeep = function(section)
+{
+    function domNodeToString(node) {
+        if (node)
+            return "'" + node.textContent + "'";
+        else
+            return "null";
+    }
+    function dumpTreeElementRecursively(treeElement, prefix) {
+        if ("nameElement" in treeElement)
+            InspectorTest.addResult(prefix + domNodeToString(treeElement.nameElement) + " => " + domNodeToString(treeElement.valueElement));
+        else
+            InspectorTest.addResult(prefix + treeElement.title);
+        for (var i = 0; i < treeElement.children.length; i++)
+            dumpTreeElementRecursively(treeElement.children[i], prefix + "    ");
+    }
+
+    var childNodes = section.propertiesTreeOutline.children;
+    for (var i = 0; i < childNodes.length; i++) {
+        dumpTreeElementRecursively(childNodes[i], "");
+    }
+}
+
 // FIXME: this returns the first tree item found (may fail for same-named properties in a style).
 InspectorTest.getElementStylePropertyTreeItem = function(propertyName)
 {
@@ -292,7 +339,7 @@ InspectorTest.dumpStyleTreeItem = function(treeItem, prefix, depth)
     if (treeItem.listItemElement.hasStyleClass("inherited"))
         return;
     var typePrefix = "";
-    if (treeItem.listItemElement.hasStyleClass("overloaded"))
+    if (treeItem.listItemElement.hasStyleClass("overloaded") || treeItem.listItemElement.hasStyleClass("inactive") || treeItem.listItemElement.hasStyleClass("not-parsed-ok"))
         typePrefix += "/-- overloaded --/ ";
     if (treeItem.listItemElement.hasStyleClass("disabled"))
         typePrefix += "/-- disabled --/ ";
@@ -315,7 +362,38 @@ InspectorTest.dumpElementsTree = function(rootNode, depth)
 {
     function beautify(element)
     {
-        return element.textContent.replace(/\u200b/g, "").replace(/\n/g, "").trim();
+        return element.innerText.replace(/\u200b/g, "").replace(/\n/g, "\\n").trim();
+    }
+
+    function dumpMap(name, map)
+    {
+        var result = [];
+        for (var id in map)
+            result.push(id + "=" + map[id]);
+        if (!result.length)
+            return "";
+        return name + ":[" + result.join(",") + "]";
+    }
+
+    function userPropertyDataDump(treeItem)
+    {
+        if (treeItem._elementCloseTag)
+            return "";
+
+        var userProperties = "";
+        var node = treeItem.representedObject;
+        if (node) {
+            userProperties += dumpMap("userProperties", node._userProperties);
+            var dump = dumpMap("descendantUserAttributeCounters", node._descendantUserPropertyCounters);
+            if (dump) {
+                if (userProperties)
+                    userProperties += ", ";
+                userProperties += dump;
+            }
+            if (userProperties)
+                userProperties = " [" + userProperties + "]";
+        }
+        return userProperties;
     }
 
     function print(treeItem, prefix, depth)
@@ -330,7 +408,8 @@ InspectorTest.dumpElementsTree = function(rootNode, depth)
             } else
                 expander = "  ";
 
-            InspectorTest.addResult(prefix + expander + beautify(treeItem.listItemElement));
+            var userProperties = userPropertyDataDump(treeItem);
+            InspectorTest.addResult(prefix + expander + beautify(treeItem.listItemElement) + userProperties);
         }
 
         if (!treeItem.expanded)
@@ -369,7 +448,7 @@ InspectorTest.expandElementsTree = function(callback)
         expand(WebInspector.panels.elements.treeOutline);
         callback();
     }
-    WebInspector.inspectorView.setCurrentPanel(WebInspector.panels.elements);
+    WebInspector.showPanel("elements");
     InspectorTest.findNode(function() { return false; }, onAllNodesAvailable);
 };
 
@@ -392,7 +471,7 @@ InspectorTest.rangeText = function(range)
 {
     if (!range)
         return "[undefined-undefined]";
-    return "[" + range.start + "-" + range.end + "]";
+    return "[" + range.startLine + ":" + range.startColumn + "-" + range.endLine + ":" + range.endColumn + "]";
 }
 
 InspectorTest.generateUndoTest = function(testBody)
@@ -431,6 +510,91 @@ InspectorTest.generateUndoTest = function(testBody)
         return testBody.toString();
     }
     return result;
+}
+
+const indent = "    ";
+
+InspectorTest.dumpRulesArray = function(rules, currentIndent)
+{
+    if (!rules)
+        return;
+    currentIndent = currentIndent || "";
+    for (var i = 0; i < rules.length; ++i)
+        InspectorTest.dumpRule(rules[i], currentIndent);
+}
+
+InspectorTest.dumpRuleMatchesArray = function(matches, currentIndent)
+{
+    if (!matches)
+        return;
+    currentIndent = currentIndent || "";
+    for (var i = 0; i < matches.length; ++i)
+        InspectorTest.dumpRule(matches[i].rule, currentIndent);
+}
+
+InspectorTest.dumpRule = function(rule, currentIndent)
+{
+    function selectorRange()
+    {
+        if (!rule.selectorList || !rule.selectorList.range)
+            return "";
+        var range = rule.selectorList.range;
+        return ", " + range.startLine + ":" + range.startColumn + "-" + range.endLine + ":" + range.endColumn;
+    }
+
+    currentIndent = currentIndent || "";
+
+    if (!rule.type || rule.type === "style") {
+        InspectorTest.addResult(currentIndent + rule.selectorList.text + ": [" + rule.origin + selectorRange() + "] {");
+        InspectorTest.dumpStyle(rule.style, currentIndent + indent);
+        InspectorTest.addResult(currentIndent + "}");
+        return;
+    }
+
+    if (rule.type === "media") {
+        InspectorTest.addResult(currentIndent + "@media " + rule.mediaText + " {");
+        InspectorTest.dumpRulesArray(rule.childRules, currentIndent + indent);
+        InspectorTest.addResult(currentIndent + "}");
+        return;
+    }
+
+    if (rule.type === "import") {
+        InspectorTest.addResult(currentIndent + "@import: header=" + InspectorTest.rangeText(rule.headerRange) + ", body=" + InspectorTest.rangeText(rule.bodyRange));
+        return;
+    }
+
+    if (rule.type === "page" || rule.type === "font-face") {
+        if (rule.type === "page")
+            InspectorTest.addResult(currentIndent + rule.selectorList.text + " {");
+        else
+            InspectorTest.addResult(currentIndent + "@" + rule.type + " " + (rule.selectorList.text ? rule.selectorList.text + " " : "")  + "{");
+        InspectorTest.dumpStyle(rule.style, currentIndent + indent);
+        InspectorTest.addResult(currentIndent + "}");
+        return;
+    }
+
+    if (rule.type === "charset") {
+        InspectorTest.addResult("@charset");
+        return;
+    }
+
+    InspectorTest.addResult(currentIndent + "[UNKNOWN RULE]: header=" + InspectorTest.rangeText(rule.headerRange) + ", body=" + InspectorTest.rangeText(rule.bodyRange));
+}
+
+InspectorTest.dumpStyle = function(style, currentIndent)
+{
+    currentIndent = currentIndent || "";
+    if (!style) {
+        InspectorTest.addResult(currentIndent + "[NO STYLE]");
+        return;
+    }
+    for (var i = 0; i < style.cssProperties.length; ++i) {
+        var property = style.cssProperties[i];
+        if (property.status !== "disabled")
+            InspectorTest.addResult(currentIndent + "['" + property.name + "':'" + property.value + "'" + (property.priority === "important" ? " is-important" : "") + (("parsedOk" in property) ? " non-parsed" : "") +"] @" + InspectorTest.rangeText(property.range) + " " + (property.status || "style"));
+        else
+            InspectorTest.addResult(currentIndent + "[text='" + property.text + "'] " + property.status);
+    }
 }
 
 };

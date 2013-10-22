@@ -5,43 +5,20 @@ if (this.importScripts) {
 
 description("Test features of IndexedDB's unique indices.");
 
-function test()
+indexedDBTest(prepareDatabase, setVersionCompleted);
+function prepareDatabase()
 {
-    removeVendorPrefixes();
-    request = evalAndLog("indexedDB.open('index-unique')");
-    request.onsuccess = setVersion;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function setVersion()
-{
-    db = evalAndLog("db = event.target.result");
-
-    request = evalAndLog("db.setVersion('new version')");
-    request.onsuccess = deleteExisting;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function deleteExisting()
-{
-    debug("deleteExisting():");
-    var trans = evalAndLog("trans = event.target.result");
-    shouldBeTrue("trans !== null");
-    trans.onabort = unexpectedAbortCallback;
-    trans.oncomplete = setVersionCompleted;
-
-    deleteAllObjectStores(db);
+    db = event.target.result;
+    event.target.transaction.onabort = unexpectedAbortCallback;
 
     self.store = evalAndLog("db.createObjectStore('store')");
     self.indexObject = evalAndLog("store.createIndex('index', 'x', {unique: true})");
-
-    // Let setVersion transaction complete.
 }
 
 function setVersionCompleted()
 {
     debug("setVersionCompleted():");
-    self.transaction = evalAndLog("transaction = db.transaction(['store'], IDBTransaction.READ_WRITE)");
+    self.transaction = evalAndLog("transaction = db.transaction(['store'], 'readwrite')");
 
     request = evalAndLog("transaction.objectStore('store').put({x: 1}, 'foo')");
     request.onerror = unexpectedErrorCallback;
@@ -65,7 +42,7 @@ function addMoreDataFailed()
     // Don't abort the transaction.
     evalAndLog("event.preventDefault()");
 
-    shouldBe("event.target.errorCode", "IDBDatabaseException.CONSTRAINT_ERR");
+    shouldBe("event.target.error.name", "'ConstraintError'");
 
     // Update the 'foo' entry in object store, changing the value of x.
     request = evalAndLog("transaction.objectStore('store').put({x: 0}, 'foo')");
@@ -86,7 +63,7 @@ function changeDataSuccess()
 function cursorSuccess()
 {
     debug("cursorSuccess():");
-    shouldBe("event.target.result", "null");
+    shouldBeNull("event.target.result");
 
     // A key cursor starting at 1 should not find anything.
     var request = evalAndLog("transaction.objectStore('store').index('index').openKeyCursor(IDBKeyRange.lowerBound(1))");
@@ -97,7 +74,7 @@ function cursorSuccess()
 function keyCursorSuccess()
 {
     debug("keyCursorSuccess():");
-    shouldBe("event.target.result", "null");
+    shouldBeNull("event.target.result");
 
     // Now we should be able to add a value with x: 1.
     request = evalAndLog("transaction.objectStore('store').put({x: 1}, 'bar')");
@@ -132,5 +109,3 @@ function finalAddSuccess() {
     request.onerror = unexpectedErrorCallback;
     request.onsuccess = finishJSTest;
 }
-
-test();

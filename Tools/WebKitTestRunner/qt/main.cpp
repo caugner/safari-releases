@@ -26,10 +26,15 @@
 
 #include "config.h"
 
+#include "QtTestSupport.h"
 #include "TestController.h"
 #include "qquickwebview_p.h"
 
 #include <stdio.h>
+#if !defined(NDEBUG) && defined(Q_OS_UNIX)
+#include <signal.h>
+#include <unistd.h>
+#endif
 
 #include <QApplication>
 #include <QObject>
@@ -50,7 +55,7 @@ public:
         delete m_controller;
     }
 
-public slots:
+public Q_SLOTS:
     void launch()
     {
         m_controller = new WTR::TestController(m_argc, const_cast<const char**>(m_argv));
@@ -63,10 +68,16 @@ private:
     char** m_argv;
 };
 
-void messageHandler(QtMsgType type, const char* message)
+#if !defined(NDEBUG) && defined(Q_OS_UNIX)
+static void sigcontHandler(int)
+{
+}
+#endif
+
+void messageHandler(QtMsgType type, const QMessageLogContext&, const QString& message)
 {
     if (type == QtCriticalMsg) {
-        fprintf(stderr, "%s\n", message);
+        fprintf(stderr, "%s\n", qPrintable(message));
         return;
     }
 
@@ -77,8 +88,14 @@ int main(int argc, char** argv)
 {
 #if !defined(NDEBUG) && defined(Q_OS_UNIX)
     if (qgetenv("QT_WEBKIT_PAUSE_UI_PROCESS") == "1") {
-        fprintf(stderr, "Pausing UI process, please attach to PID %d and continue... ", getpid());
+        struct sigaction newAction, oldAction;
+        newAction.sa_handler = sigcontHandler;
+        sigemptyset(&newAction.sa_mask);
+        newAction.sa_flags = 0;
+        sigaction(SIGCONT, &newAction, &oldAction);
+        fprintf(stderr, "Pausing UI process, please attach to PID %d and send signal SIGCONT... ", getpid());
         pause();
+        sigaction(SIGCONT, &oldAction, 0);
         fprintf(stderr, " OK\n");
     }
 #endif
@@ -95,14 +112,16 @@ int main(int argc, char** argv)
     // Has to be done before QApplication is constructed in case
     // QApplication itself produces debug output.
     if (suppressQtDebugOutput) {
-        qInstallMsgHandler(messageHandler);
+        qInstallMessageHandler(messageHandler);
         if (qgetenv("QT_WEBKIT_SUPPRESS_WEB_PROCESS_OUTPUT").isEmpty())
             qputenv("QT_WEBKIT_SUPPRESS_WEB_PROCESS_OUTPUT", "1");
     }
 
     qputenv("QT_WEBKIT_THEME_NAME", "qstyle");
 
-    QQuickWebViewExperimental::setFlickableViewportEnabled(false);
+    WebKit::QtTestSupport::initializeTestFonts();
+    QCoreApplication::setAttribute(Qt::AA_Use96Dpi, true);
+
     QApplication app(argc, argv);
     Launcher launcher(argc, argv);
     QTimer::singleShot(0, &launcher, SLOT(launch()));

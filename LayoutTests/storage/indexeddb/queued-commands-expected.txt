@@ -5,13 +5,9 @@ On success, you will see a series of "PASS" messages, followed by "TEST COMPLETE
 
 indexedDB = self.indexedDB || self.webkitIndexedDB || self.mozIndexedDB || self.msIndexedDB || self.OIndexedDB;
 
-indexedDB.open('queued-commands')
-db = event.target.result
-db.setVersion('new version')
-setVersionSuccess():
-trans = event.target.result
-PASS trans !== null is true
-Deleted all object stores.
+dbname = "queued-commands.html"
+indexedDB.deleteDatabase(dbname)
+indexedDB.open(dbname)
 db.createObjectStore('storeName')
 store.createIndex('indexName', 'x')
 store.add({x: 'value', y: 'zzz'}, 'key')

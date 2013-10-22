@@ -5,11 +5,9 @@ On success, you will see a series of "PASS" messages, followed by "TEST COMPLETE
 
 indexedDB = self.indexedDB || self.webkitIndexedDB || self.mozIndexedDB || self.msIndexedDB || self.OIndexedDB;
 
-indexedDB.open(name, description)
-openSuccess():
-db = event.target.result
-request = db.setVersion('1')
-Deleted all object stores.
+dbname = "indexes.html"
+indexedDB.deleteDatabase(dbname)
+indexedDB.open(dbname)
 objectStore = db.createObjectStore(objectStoreName);
 First, add all our data to the object store.
 request = objectStore.add(objectStoreData[i].value, objectStoreData[i].key);
@@ -103,7 +101,7 @@ PASS 'value' in cursor is false
 keyIndex++;
 cursor = event.target.result;
 PASS keyIndex is objectStoreData.length
-request = objectStore.index('weight').openKeyCursor(null, IDBCursor.NEXT);
+request = objectStore.index('weight').openKeyCursor(null, 'next');
 cursor = event.target.result;
 PASS cursor.key is objectStoreDataWeightSort[keyIndex].value.weight
 PASS cursor.primaryKey is objectStoreDataWeightSort[keyIndex].key
@@ -150,7 +148,7 @@ cursor = event.target.result;
 PASS keyIndex is objectStoreData.length
 objectStore = db.transaction(objectStoreName).objectStore(objectStoreName);
 keyIndex = objectStoreDataNameSort.length - 1;
-request = objectStore.index('name').openKeyCursor(null, IDBCursor.PREV);
+request = objectStore.index('name').openKeyCursor(null, 'prev');
 cursor = event.target.result;
 PASS cursor.key is objectStoreDataNameSort[keyIndex].value.name
 PASS cursor.primaryKey is objectStoreDataNameSort[keyIndex].key
@@ -457,7 +455,7 @@ keyIndex++;
 cursor = event.target.result;
 PASS keyIndex is objectStoreDataNameSort.length
 keyIndex = objectStoreDataNameSort.length - 1;
-request = objectStore.index('name').openCursor(null, IDBCursor.PREV);
+request = objectStore.index('name').openCursor(null, 'prev');
 cursor = event.target.result;
 PASS cursor.key is objectStoreDataNameSort[keyIndex].value.name
 PASS cursor.primaryKey is objectStoreDataNameSort[keyIndex].key
@@ -710,7 +708,7 @@ cursor = event.target.result;
 PASS keyIndex is 4
 keyIndex = 4;
 keyRange = IDBKeyRange.bound('Bob', 'Ron');
-request = objectStore.index('name').openCursor(keyRange, IDBCursor.PREV);
+request = objectStore.index('name').openCursor(keyRange, 'prev');
 cursor = event.target.result;
 PASS cursor.key is objectStoreDataNameSort[keyIndex].value.name
 PASS cursor.primaryKey is objectStoreDataNameSort[keyIndex].key
@@ -767,7 +765,7 @@ cursor = event.target.result;
 PASS keyIndex is 0
 keyIndex = 3;
 keyRange = IDBKeyRange.only(65);
-request = objectStore.index('height').openKeyCursor(keyRange, IDBCursor.NEXT);
+request = objectStore.index('height').openKeyCursor(keyRange, 'next');
 cursor = event.target.result;
 PASS cursor.key is objectStoreDataHeightSort[keyIndex].value.height
 PASS cursor.primaryKey is objectStoreDataHeightSort[keyIndex].key
@@ -782,7 +780,7 @@ cursor = event.target.result;
 PASS keyIndex is 5
 keyIndex = 3;
 keyRange = IDBKeyRange.only(65);
-request = objectStore.index('height').openKeyCursor(keyRange, IDBCursor.NEXT_NO_DUPLICATE);
+request = objectStore.index('height').openKeyCursor(keyRange, 'nextunique');
 cursor = event.target.result;
 PASS cursor.key is objectStoreDataHeightSort[keyIndex].value.height
 PASS cursor.primaryKey is objectStoreDataHeightSort[keyIndex].key
@@ -792,7 +790,7 @@ cursor = event.target.result;
 PASS keyIndex is 4
 keyIndex = 3;
 keyRange = IDBKeyRange.only(65);
-request = objectStore.index('height').openCursor(keyRange, IDBCursor.NEXT);
+request = objectStore.index('height').openCursor(keyRange, 'next');
 cursor = event.target.result;
 PASS cursor.key is objectStoreDataHeightSort[keyIndex].value.height
 PASS cursor.primaryKey is objectStoreDataHeightSort[keyIndex].key
@@ -813,7 +811,7 @@ cursor = event.target.result;
 PASS keyIndex is 5
 keyIndex = 3;
 keyRange = IDBKeyRange.only(65);
-request = objectStore.index('height').openCursor(keyRange, IDBCursor.NEXT_NO_DUPLICATE);
+request = objectStore.index('height').openCursor(keyRange, 'nextunique');
 cursor = event.target.result;
 PASS cursor.key is objectStoreDataHeightSort[keyIndex].value.height
 PASS cursor.primaryKey is objectStoreDataHeightSort[keyIndex].key

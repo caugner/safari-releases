@@ -5,11 +5,10 @@ On success, you will see a series of "PASS" messages, followed by "TEST COMPLETE
 
 indexedDB = self.indexedDB || self.webkitIndexedDB || self.mozIndexedDB || self.msIndexedDB || self.OIndexedDB;
 
-indexedDB.open(name, description)
-db = event.target.result
-request = db.setVersion('1')
-Deleted all object stores.
-objectStore = db.createObjectStore('foo', { keyPath: 'id', autoIncrement: true });
+dbname = "autoincrement-indexes.html"
+indexedDB.deleteDatabase(dbname)
+indexedDB.open(dbname)
+objectStore = db.createObjectStore('autoincrement-id', { keyPath: 'id', autoIncrement: true });
 objectStore.createIndex('first', 'first');
 objectStore.createIndex('second', 'second');
 objectStore.createIndex('third', 'third');
@@ -17,7 +16,8 @@ data = { first: 'foo', second: 'foo', third: 'foo' };
 request = objectStore.add(data);
 key = event.target.result;
 PASS key == null is false
-objectStore = db.transaction('foo').objectStore('foo');
+expected key is 1
+objectStore = db.transaction('autoincrement-id').objectStore('autoincrement-id');
 first = objectStore.index('first');
 request = first.get('foo');
 PASS event.target.result.id is key

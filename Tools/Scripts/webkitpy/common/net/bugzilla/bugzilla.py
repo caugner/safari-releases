@@ -30,9 +30,11 @@
 #
 # WebKit's Python module for interacting with Bugzilla
 
+import logging
 import mimetypes
 import re
 import StringIO
+import socket
 import urllib
 
 from datetime import datetime # used in timestamp()
@@ -40,12 +42,13 @@ from datetime import datetime # used in timestamp()
 from .attachment import Attachment
 from .bug import Bug
 
-from webkitpy.common.system.deprecated_logging import log
 from webkitpy.common.config import committers
 import webkitpy.common.config.urls as config_urls
 from webkitpy.common.net.credentials import Credentials
 from webkitpy.common.system.user import User
 from webkitpy.thirdparty.BeautifulSoup import BeautifulSoup, BeautifulStoneSoup, SoupStrainer
+
+_log = logging.getLogger(__name__)
 
 
 class EditUsersParser(object):
@@ -152,6 +155,11 @@ class BugzillaQueries(object):
 
     def _fetch_bugs_from_advanced_query(self, query):
         results_page = self._load_query(query)
+        # Some simple searches can return a single result.
+        results_url = results_page.geturl()
+        if results_url.find("/show_bug.cgi?id=") != -1:
+            bug_id = int(results_url.split("=")[-1])
+            return [self._fetch_bug(bug_id)]
         if not self._parse_result_count(results_page):
             return []
         # Bugzilla results pages have an "XML" submit button at the bottom
@@ -204,17 +212,23 @@ class BugzillaQueries(object):
 
     # Currently this returns all bugs across all components.
     # In the future we may wish to extend this API to construct more restricted searches.
-    def fetch_bugs_matching_search(self, search_string, author_email=None):
+    def fetch_bugs_matching_search(self, search_string):
         query = "buglist.cgi?query_format=advanced"
         if search_string:
             query += "&short_desc_type=allwordssubstr&short_desc=%s" % urllib.quote(search_string)
-        if author_email:
-            query += "&emailreporter1=1&emailtype1=substring&email1=%s" % urllib.quote(search_string)
         return self._fetch_bugs_from_advanced_query(query)
 
     def fetch_patches_from_pending_commit_list(self):
         return sum([self._fetch_bug(bug_id).reviewed_patches()
             for bug_id in self.fetch_bug_ids_from_pending_commit_list()], [])
+
+    def fetch_bugs_from_review_queue(self, cc_email=None):
+        query = "buglist.cgi?query_format=advanced&bug_status=UNCONFIRMED&bug_status=NEW&bug_status=ASSIGNED&bug_status=REOPENED&field0-0-0=flagtypes.name&type0-0-0=equals&value0-0-0=review?"
+
+        if cc_email:
+            query += "&emailcc1=1&emailtype1=substring&email1=%s" % urllib.quote(cc_email)
+
+        return self._fetch_bugs_from_advanced_query(query)
 
     def fetch_bug_ids_from_commit_queue(self):
         commit_queue_url = "buglist.cgi?query_format=advanced&bug_status=UNCONFIRMED&bug_status=NEW&bug_status=ASSIGNED&bug_status=REOPENED&field0-0-0=flagtypes.name&type0-0-0=equals&value0-0-0=commit-queue%2B&order=Last+Changed"
@@ -268,6 +282,7 @@ class Bugzilla(object):
 
     def _get_browser(self):
         if not self._browser:
+            self.setdefaulttimeout(600)
             from webkitpy.thirdparty.autoinstalled.mechanize import Browser
             self._browser = Browser()
             # Ignore bugs.webkit.org/robots.txt until we fix it to allow this script.
@@ -278,6 +293,9 @@ class Bugzilla(object):
         self._browser = value
 
     browser = property(_get_browser, _set_browser)
+
+    def setdefaulttimeout(self, value):
+        socket.setdefaulttimeout(value)
 
     def fetch_user(self, user_id):
         self.authenticate()
@@ -303,7 +321,7 @@ class Bugzilla(object):
     def bug_url_for_bug_id(self, bug_id, xml=False):
         if not bug_id:
             return None
-        content_type = "&ctype=xml" if xml else ""
+        content_type = "&ctype=xml&excludefield=attachmentdata" if xml else ""
         return "%sshow_bug.cgi?id=%s%s" % (config_urls.bug_server_url, bug_id, content_type)
 
     def short_bug_url_for_bug_id(self, bug_id):
@@ -419,7 +437,7 @@ class Bugzilla(object):
 
     def _fetch_bug_page(self, bug_id):
         bug_url = self.bug_url_for_bug_id(bug_id, xml=True)
-        log("Fetching: %s" % bug_url)
+        _log.info("Fetching: %s" % bug_url)
         return self.browser.open(bug_url)
 
     def fetch_bug_dictionary(self, bug_id):
@@ -456,7 +474,7 @@ class Bugzilla(object):
         self.authenticate()
 
         attachment_url = self.attachment_url_for_id(attachment_id, 'edit')
-        log("Fetching: %s" % attachment_url)
+        _log.info("Fetching: %s" % attachment_url)
         page = self.browser.open(attachment_url)
         return self._parse_bug_id_from_attachment_page(page)
 
@@ -487,12 +505,13 @@ class Bugzilla(object):
             attempts += 1
             username, password = credentials.read_credentials()
 
-            log("Logging in as %s..." % username)
+            _log.info("Logging in as %s..." % username)
             self.browser.open(config_urls.bug_server_url +
                               "index.cgi?GoAheadAndLogIn=1")
             self.browser.select_form(name="login")
             self.browser['Bugzilla_login'] = username
             self.browser['Bugzilla_password'] = password
+            self.browser.find_control("Bugzilla_restrictlogin").items[0].selected = False
             response = self.browser.submit()
 
             match = re.search("<title>(.+?)</title>", response.read())
@@ -502,17 +521,28 @@ class Bugzilla(object):
                 errorMessage = "Bugzilla login failed: %s" % match.group(1)
                 # raise an exception only if this was the last attempt
                 if attempts < 5:
-                    log(errorMessage)
+                    _log.error(errorMessage)
                 else:
                     raise Exception(errorMessage)
             else:
                 self.authenticated = True
                 self.username = username
 
+    # FIXME: Use enum instead of two booleans
     def _commit_queue_flag(self, mark_for_landing, mark_for_commit_queue):
         if mark_for_landing:
+            user = self.committers.contributor_by_email(self.username)
+            mark_for_commit_queue = True
+            if not user:
+                _log.warning("Your Bugzilla login is not listed in committers.py. Uploading with cq? instead of cq+")
+                mark_for_landing = False
+            elif not user.can_commit:
+                _log.warning("You're not a committer yet or haven't updated committers.py yet. Uploading with cq? instead of cq+")
+                mark_for_landing = False
+
+        if mark_for_landing:
             return '+'
-        elif mark_for_commit_queue:
+        if mark_for_commit_queue:
             return '?'
         return 'X'
 
@@ -555,21 +585,16 @@ class Bugzilla(object):
             return file_object.name
         return "bug-%s-%s.%s" % (bug_id, timestamp(), extension)
 
-    def add_attachment_to_bug(self,
-                              bug_id,
-                              file_or_string,
-                              description,
-                              filename=None,
-                              comment_text=None):
+    def add_attachment_to_bug(self, bug_id, file_or_string, description, filename=None, comment_text=None, mimetype=None):
         self.authenticate()
-        log('Adding attachment "%s" to %s' % (description, self.bug_url_for_bug_id(bug_id)))
+        _log.info('Adding attachment "%s" to %s' % (description, self.bug_url_for_bug_id(bug_id)))
         self.browser.open(self.add_attachment_url(bug_id))
         self.browser.select_form(name="entryform")
         file_object = self._file_object_for_upload(file_or_string)
         filename = filename or self._filename_for_upload(file_object, bug_id)
-        self._fill_attachment_form(description, file_object, filename=filename)
+        self._fill_attachment_form(description, file_object, filename=filename, mimetype=mimetype)
         if comment_text:
-            log(comment_text)
+            _log.info(comment_text)
             self.browser['comment'] = comment_text
         self.browser.submit()
 
@@ -584,7 +609,7 @@ class Bugzilla(object):
                          mark_for_commit_queue=False,
                          mark_for_landing=False):
         self.authenticate()
-        log('Adding patch "%s" to %s' % (description, self.bug_url_for_bug_id(bug_id)))
+        _log.info('Adding patch "%s" to %s' % (description, self.bug_url_for_bug_id(bug_id)))
 
         self.browser.open(self.add_attachment_url(bug_id))
         self.browser.select_form(name="entryform")
@@ -598,13 +623,13 @@ class Bugzilla(object):
                                    is_patch=True,
                                    filename=filename)
         if comment_text:
-            log(comment_text)
+            _log.info(comment_text)
             self.browser['comment'] = comment_text
         self.browser.submit()
 
     # FIXME: There has to be a more concise way to write this method.
     def _check_create_bug_response(self, response_html):
-        match = re.search("<title>Bug (?P<bug_id>\d+) Submitted</title>",
+        match = re.search("<title>Bug (?P<bug_id>\d+) Submitted[^<]*</title>",
                           response_html)
         if match:
             return match.group('bug_id')
@@ -635,7 +660,7 @@ class Bugzilla(object):
                    mark_for_commit_queue=False):
         self.authenticate()
 
-        log('Creating bug with title "%s"' % bug_title)
+        _log.info('Creating bug with title "%s"' % bug_title)
         self.browser.open(config_urls.bug_server_url + "enter_bug.cgi?product=WebKit")
         self.browser.select_form(name="Create")
         component_items = self.browser.find_control('component').items
@@ -671,8 +696,8 @@ class Bugzilla(object):
         response = self.browser.submit()
 
         bug_id = self._check_create_bug_response(response.read())
-        log("Bug %s created." % bug_id)
-        log("%sshow_bug.cgi?id=%s" % (config_urls.bug_server_url, bug_id))
+        _log.info("Bug %s created." % bug_id)
+        _log.info("%sshow_bug.cgi?id=%s" % (config_urls.bug_server_url, bug_id))
         return bug_id
 
     def _find_select_element_for_flag(self, flag_name):
@@ -691,7 +716,7 @@ class Bugzilla(object):
         comment_text = "Clearing flags on attachment: %s" % attachment_id
         if additional_comment_text:
             comment_text += "\n\n%s" % additional_comment_text
-        log(comment_text)
+        _log.info(comment_text)
 
         self.browser.open(self.attachment_url_for_id(attachment_id, 'edit'))
         self.browser.select_form(nr=1)
@@ -704,18 +729,12 @@ class Bugzilla(object):
                                attachment_id,
                                flag_name,
                                flag_value,
-                               comment_text=None,
-                               additional_comment_text=None):
+                               comment_text=None):
         # FIXME: We need a way to test this function on a live bugzilla
         # instance.
 
         self.authenticate()
-
-        # FIXME: additional_comment_text seems useless and should be merged into comment-text.
-        if additional_comment_text:
-            comment_text += "\n\n%s" % additional_comment_text
-        log(comment_text)
-
+        _log.info(comment_text)
         self.browser.open(self.attachment_url_for_id(attachment_id, 'edit'))
         self.browser.select_form(nr=1)
 
@@ -731,7 +750,7 @@ class Bugzilla(object):
     def obsolete_attachment(self, attachment_id, comment_text=None):
         self.authenticate()
 
-        log("Obsoleting attachment: %s" % attachment_id)
+        _log.info("Obsoleting attachment: %s" % attachment_id)
         self.browser.open(self.attachment_url_for_id(attachment_id, 'edit'))
         self.browser.select_form(nr=1)
         self.browser.find_control('isobsolete').items[0].selected = True
@@ -739,7 +758,7 @@ class Bugzilla(object):
         self._find_select_element_for_flag('review').value = ("X",)
         self._find_select_element_for_flag('commit-queue').value = ("X",)
         if comment_text:
-            log(comment_text)
+            _log.info(comment_text)
             # Bugzilla has two textareas named 'comment', one is somehow
             # hidden.  We want the first.
             self.browser.set_value(comment_text, name='comment', nr=0)
@@ -748,7 +767,7 @@ class Bugzilla(object):
     def add_cc_to_bug(self, bug_id, email_address_list):
         self.authenticate()
 
-        log("Adding %s to the CC list for bug %s" % (email_address_list, bug_id))
+        _log.info("Adding %s to the CC list for bug %s" % (email_address_list, bug_id))
         self.browser.open(self.bug_url_for_bug_id(bug_id))
         self.browser.select_form(name="changeform")
         self.browser["newcc"] = ", ".join(email_address_list)
@@ -757,7 +776,7 @@ class Bugzilla(object):
     def post_comment_to_bug(self, bug_id, comment_text, cc=None):
         self.authenticate()
 
-        log("Adding comment to bug %s" % bug_id)
+        _log.info("Adding comment to bug %s" % bug_id)
         self.browser.open(self.bug_url_for_bug_id(bug_id))
         self.browser.select_form(name="changeform")
         self.browser["comment"] = comment_text
@@ -768,7 +787,7 @@ class Bugzilla(object):
     def close_bug_as_fixed(self, bug_id, comment_text=None):
         self.authenticate()
 
-        log("Closing bug %s as fixed" % bug_id)
+        _log.info("Closing bug %s as fixed" % bug_id)
         self.browser.open(self.bug_url_for_bug_id(bug_id))
         self.browser.select_form(name="changeform")
         if comment_text:
@@ -786,21 +805,17 @@ class Bugzilla(object):
         if not assignee:
             assignee = self.username
 
-        log("Assigning bug %s to %s" % (bug_id, assignee))
+        _log.info("Assigning bug %s to %s" % (bug_id, assignee))
         self.browser.open(self.bug_url_for_bug_id(bug_id))
         self.browser.select_form(name="changeform")
 
         if not self._has_control(self.browser, "assigned_to"):
-            log("""Failed to assign bug to you (can't find assigned_to) control.
-Do you have EditBugs privileges at bugs.webkit.org?
-https://bugs.webkit.org/userprefs.cgi?tab=permissions
-
-If not, you should email webkit-committers@lists.webkit.org or ask in #webkit
-for someone to add EditBugs to your bugs.webkit.org account.""")
+            _log.warning("""Failed to assign bug to you (can't find assigned_to) control.
+Ignore this message if you don't have EditBugs privileges (https://bugs.webkit.org/userprefs.cgi?tab=permissions)""")
             return
 
         if comment_text:
-            log(comment_text)
+            _log.info(comment_text)
             self.browser["comment"] = comment_text
         self.browser["assigned_to"] = assignee
         self.browser.submit()
@@ -808,10 +823,10 @@ for someone to add EditBugs to your bugs.webkit.org account.""")
     def reopen_bug(self, bug_id, comment_text):
         self.authenticate()
 
-        log("Re-opening bug %s" % bug_id)
+        _log.info("Re-opening bug %s" % bug_id)
         # Bugzilla requires a comment when re-opening a bug, so we know it will
         # never be None.
-        log(comment_text)
+        _log.info(comment_text)
         self.browser.open(self.bug_url_for_bug_id(bug_id))
         self.browser.select_form(name="changeform")
         bug_status = self.browser.find_control("bug_status", type="select")
@@ -828,6 +843,6 @@ for someone to add EditBugs to your bugs.webkit.org account.""")
         else:
             # FIXME: This logic is slightly backwards.  We won't print this
             # message if the bug is already open with state "UNCONFIRMED".
-            log("Did not reopen bug %s, it appears to already be open with status %s." % (bug_id, bug_status.value))
+            _log.info("Did not reopen bug %s, it appears to already be open with status %s." % (bug_id, bug_status.value))
         self.browser['comment'] = comment_text
         self.browser.submit()

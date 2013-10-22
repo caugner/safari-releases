@@ -5,39 +5,20 @@ if (this.importScripts) {
 
 description("Verify that a transaction with an error aborts unless preventDefault() is called.");
 
-function test()
+indexedDBTest(prepareDatabase, addData);
+function prepareDatabase()
 {
-    removeVendorPrefixes();
-    request = evalAndLog("indexedDB.open('error-causes-abort-by-default')");
-    request.onsuccess = setVersion;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function setVersion()
-{
-    db = evalAndLog("db = event.target.result");
-
-    request = evalAndLog("db.setVersion('new version')");
-    request.onsuccess = deleteExisting;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function deleteExisting()
-{
+    db = event.target.result;
     debug("setVersionSuccess():");
-    self.trans = evalAndLog("trans = event.target.result");
-    shouldBeTrue("trans !== null");
+    self.trans = evalAndLog("trans = event.target.transaction");
+    shouldBeNonNull("trans");
     trans.onabort = unexpectedAbortCallback;
-    evalAndLog("trans.oncomplete = addData");
-
-    deleteAllObjectStores(db);
-
     evalAndLog("db.createObjectStore('storeName', null)");
 }
 
 function addData()
 {
-    trans = evalAndLog("trans = db.transaction(['storeName'], IDBTransaction.READ_WRITE)");
+    trans = evalAndLog("trans = db.transaction(['storeName'], 'readwrite')");
     evalAndLog("trans.onabort = unexpectedAbortCallback");
     evalAndLog("trans.oncomplete = transactionCompleted");
     store = evalAndLog("store = trans.objectStore('storeName')");
@@ -64,7 +45,7 @@ function transactionCompleted()
     testPassed("Transaction completed");
     debug("");
     debug("");
-    trans = evalAndLog("trans = db.transaction(['storeName'], IDBTransaction.READ_WRITE)");
+    trans = evalAndLog("trans = db.transaction(['storeName'], 'readwrite')");
     evalAndLog("trans.onabort = transactionAborted1");
     evalAndLog("trans.oncomplete = unexpectedCompleteCallback");
     store = evalAndLog("store = trans.objectStore('storeName')");
@@ -83,7 +64,7 @@ function transactionAborted1()
     testPassed("Transaction aborted");
     debug("");
     debug("");
-    trans = evalAndLog("trans = db.transaction(['storeName'], IDBTransaction.READ_WRITE)");
+    trans = evalAndLog("trans = db.transaction(['storeName'], 'readwrite')");
     evalAndLog("trans.onabort = transactionAborted2");
     evalAndLog("trans.oncomplete = unexpectedCompleteCallback");
     store = evalAndLog("store = trans.objectStore('storeName')");
@@ -97,5 +78,3 @@ function transactionAborted2()
     testPassed("Transaction aborted");
     finishJSTest();
 }
-
-test();

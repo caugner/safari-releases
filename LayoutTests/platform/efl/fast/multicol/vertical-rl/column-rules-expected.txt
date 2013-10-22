@@ -5,7 +5,7 @@ layer at (0,0) size 800x600
     RenderBody {BODY} at (8,8) size 784x584
 layer at (38,8) size 754x584
   RenderBlock {DIV} at (0,0) size 754x584 [border: (5px solid #000000)]
-    RenderText {#text} at (5,15) size 2209x174
+    RenderText {#text} at (5,15) size 2207x174
       text run at (5,15) width 139: "Lorem ipsum dolor sit"
       text run at (23,15) width 116: "amet, consectetuer"
       text run at (41,15) width 172: "adipiscing elit. Nulla varius"

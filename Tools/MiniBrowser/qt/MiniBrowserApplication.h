@@ -32,11 +32,11 @@
 #include <QHash>
 #include <QObject>
 #include <QStringList>
-#include <QtDeclarative>
+#include <QtQml>
 #include <QGuiApplication>
 #include <QTouchEvent>
 #include <QUrl>
-#include "qwindowsysteminterface_qpa.h"
+#include <qpa/qwindowsysteminterface.h>
 
 class BrowserWindow;
 
@@ -75,7 +75,7 @@ public:
         }
     }
 
-signals:
+Q_SIGNALS:
     void touchMockingEnabledChanged();
 
 private:
@@ -101,6 +101,7 @@ public:
     virtual bool notify(QObject*, QEvent*);
 
 private:
+    void updateTouchPoint(const QMouseEvent*, QTouchEvent::TouchPoint, Qt::MouseButton);
     bool sendTouchEvent(BrowserWindow*, QEvent::Type, ulong timestamp);
     void handleUserOptions();
 
@@ -111,10 +112,6 @@ private:
     int m_robotTimeoutSeconds;
     int m_robotExtraTimeSeconds;
     QStringList m_urls;
-
-    QPointF m_lastPos;
-    QPointF m_lastScreenPos;
-    QPointF m_startScreenPos;
 
     QHash<int, QTouchEvent::TouchPoint> m_touchPoints;
     QSet<int> m_heldTouchPoints;

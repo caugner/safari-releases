@@ -5,29 +5,12 @@ if (this.importScripts) {
 
 description("Test IndexedDB primary key ordering and readback from cursors.");
 
-function test()
-{
-    removeVendorPrefixes();
-
-    prepareDatabase();
-}
-
+indexedDBTest(prepareDatabase, populateStore);
 function prepareDatabase()
 {
-    debug("");
-    evalAndLog("openRequest = indexedDB.open('cursor-primary-key-order')");
-    openRequest.onerror = unexpectedErrorCallback;
-    openRequest.onsuccess = function() {
-        evalAndLog("db = openRequest.result");
-        evalAndLog("versionChangeRequest = db.setVersion('1')");
-        versionChangeRequest.onerror = unexpectedErrorCallback;
-        versionChangeRequest.onsuccess = function() {
-            evalAndLog("store = db.createObjectStore('store')");
-            evalAndLog("index = store.createIndex('index', 'indexKey')");
-
-            versionChangeRequest.result.oncomplete = populateStore;
-        };
-    };
+    db = event.target.result;
+    evalAndLog("store = db.createObjectStore('store')");
+    evalAndLog("index = store.createIndex('index', 'indexKey')");
 }
 
 self.keys = [
@@ -54,7 +37,7 @@ function populateStore()
 {
     debug("");
     debug("populating store...");
-    evalAndLog("trans = db.transaction('store', IDBTransaction.READ_WRITE)");
+    evalAndLog("trans = db.transaction('store', 'readwrite')");
     evalAndLog("store = trans.objectStore('store');");
     trans.onerror = unexpectedErrorCallback;
     trans.onabort = unexpectedAbortCallback;
@@ -73,7 +56,7 @@ function checkStore()
 {
     debug("");
     debug("iterating cursor...");
-    evalAndLog("trans = db.transaction('store', IDBTransaction.READ_ONLY)");
+    evalAndLog("trans = db.transaction('store', 'readonly')");
     evalAndLog("store = trans.objectStore('store');");
     evalAndLog("index = store.index('index');");
     trans.onerror = unexpectedErrorCallback;
@@ -89,10 +72,8 @@ function checkStore()
             shouldBe("cursor.primaryKey", self.keys[count++]);
             cursor.continue();
         } else {
-            shouldBeTrue("count === keys.length");
+            shouldBe("count", "keys.length");
             finishJSTest();
         }
     };
 }
-
-test();

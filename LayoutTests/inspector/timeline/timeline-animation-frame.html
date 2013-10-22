@@ -1,20 +1,20 @@
 <html>
 <head>
 <script src="../../http/tests/inspector/inspector-test.js"></script>
-<script src="timeline-test.js"></script>
+<script src="../../http/tests/inspector/timeline-test.js"></script>
 <script>
 
 function performActions()
 {
     var element = document.getElementById("animation");
-    var requestId = window.webkitRequestAnimationFrame(animationFrameCallback, element);
+    var requestId = window.requestAnimationFrame(animationFrameCallback, element);
     function animationFrameCallback()
     {
-        window.webkitCancelRequestAnimationFrame(requestId);
+        window.cancelAnimationFrame(requestId);
     }
 
-    if (window.layoutTestController)
-        layoutTestController.display();
+    if (window.testRunner)
+        testRunner.display();
 }
 
 function test()
@@ -34,7 +34,7 @@ function test()
     }
 }
 
-if (!window.layoutTestController)
+if (!window.testRunner)
     setTimeout(performActions, 2000);
 
 </script>

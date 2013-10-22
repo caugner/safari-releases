@@ -4,9 +4,9 @@
 </head>
 <body>
 <script>
-if (window.layoutTestController) {
-    layoutTestController.dumpAsText();
-    layoutTestController.waitUntilDone();
+if (window.testRunner) {
+    testRunner.dumpAsText();
+    testRunner.waitUntilDone();
 }
 
 function gc()
@@ -22,7 +22,7 @@ window.onload = function()
 {
     canvas = document.createElement("canvas");
     context = create3DContext(canvas);
-    extension = context.getExtension("WEBKIT_WEBGL_lose_context");
+    extension = context.getExtension("WEBGL_lose_context");
     
     canvas = null;
     context = null;
@@ -36,8 +36,8 @@ function finishTest()
     extension.loseContext();
     
     document.body.innerHTML = "PASS";
-    if (window.layoutTestController)
-        layoutTestController.notifyDone();
+    if (window.testRunner)
+        testRunner.notifyDone();
 }
 </script>
 </body>

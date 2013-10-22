@@ -75,8 +75,8 @@
                 }
 
                 consoleWrite("<i>**Set track preferences and user preferred languages<" + "/i>");
-                run("internals.setShouldDisplayTrackKind(document, 'Captions', true)");
-                run("internals.userPreferredLanguages = ['jp', 'es-ES', 'en', 'fr']");
+                run("internals.settings.setShouldDisplayTrackKind('Captions', true)");
+                run("internals.setUserPreferredLanguages(['jp', 'es-ES', 'en', 'fr'])");
             }
             
             function createTrackElement(language, src)

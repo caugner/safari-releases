@@ -27,6 +27,14 @@
 
 #import <Foundation/Foundation.h>
 
+@interface NSURLRequest (PrivateThingsWeShouldntReallyUse)
++(void)setAllowsAnyHTTPSCertificate:(BOOL)allow forHost:(NSString *)host;
+@end
+
+@interface NSSound (Details)
++ (void)_setAlertType:(NSUInteger)alertType;
+@end
+
 namespace WTR {
 
 void InjectedBundle::platformInitialize(WKTypeRef)
@@ -34,7 +42,7 @@ void InjectedBundle::platformInitialize(WKTypeRef)
     NSDictionary *dict = [NSDictionary dictionaryWithObjectsAndKeys:
         [NSNumber numberWithInteger:4],   @"AppleAntiAliasingThreshold",
         [NSNumber numberWithInteger:0],   @"AppleFontSmoothing",
-#if !defined(BUILDING_ON_SNOW_LEOPARD) && !defined(BUILDING_ON_LION)
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= 1080
         [NSNumber numberWithBool:NO],     @"NSScrollAnimationEnabled",
 #else
         [NSNumber numberWithBool:NO],     @"AppleScrollAnimationEnabled",
@@ -42,9 +50,17 @@ void InjectedBundle::platformInitialize(WKTypeRef)
         [NSNumber numberWithBool:NO],     @"NSOverlayScrollersEnabled",
         @"Always",                        @"AppleShowScrollBars",
         [NSArray arrayWithObject:@"en"],  @"AppleLanguages",
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= 1070
+        [NSDictionary dictionaryWithObjectsAndKeys:@"notational", @"notationl", nil], @"NSTestCorrectionDictionary",
+#endif
         nil];
 
-    [[NSUserDefaults standardUserDefaults] setVolatileDomain:dict forName:NSArgumentDomain];    
+    [[NSUserDefaults standardUserDefaults] setVolatileDomain:dict forName:NSArgumentDomain];
+
+    [NSURLRequest setAllowsAnyHTTPSCertificate:YES forHost:@"localhost"];
+    [NSURLRequest setAllowsAnyHTTPSCertificate:YES forHost:@"127.0.0.1"];
+
+    [NSSound _setAlertType:0];
 }
 
 } // namespace WTR

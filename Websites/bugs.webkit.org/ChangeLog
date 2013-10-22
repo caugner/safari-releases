@@ -1,3 +1,392 @@
+2013-07-22  Lucas Forschler  <lforschler@apple.com>
+
+        Merge r152751
+
+    2013-07-16  James Craig  <james@cookiecrook.com>
+
+            AX: Add a 'choose product' link for the new-ax-bug alias.
+            https://bugs.webkit.org/show_bug.cgi?id=118697
+
+            Reviewed by Chris Fleizach.
+
+            * template/en/custom/global/choose-product.html.tmpl: Added new link for accessibility bugs.
+
+2013-05-23  Patrick Gansterer  <paroga@webkit.org>
+
+        EWS bubbles need more space
+        https://bugs.webkit.org/show_bug.cgi?id=116675
+
+        Reviewed by Andreas Kling.
+
+        * template/en/custom/attachment/list.html.tmpl:
+
+2013-04-16  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Build fix after r148527.
+
+        * committers-autocomplete.js:
+        (WebKitCommitters):
+
+2013-04-16  Ryosuke Niwa  <rniwa@webkit.org>
+
+        The list of contributors in committers.py should be a separate JSON
+        https://bugs.webkit.org/show_bug.cgi?id=114673
+
+        Reviewed by Anders Carlsson.
+
+        Updated the Bugzilla autocompletion code to use contributors.json.
+        Basically, this removes a large chunk of this JavaScript file.
+
+        * committers-autocomplete.js:
+        (WebKitCommitters):
+
+2013-04-13  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Delete bubbles from webkit-commit-queue.appspot.com now that we've completed the transition
+        https://bugs.webkit.org/show_bug.cgi?id=114476
+
+        Reviewed by Gyuyoung Kim.
+
+        * code-review.js:
+        * template/en/custom/attachment/edit.html.tmpl:
+        * template/en/custom/attachment/list.html.tmpl:
+        * template/en/custom/attachment/reviewform.html.tmpl:
+
+2013-04-10  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Make old EWS bubbles less opaque to disambiguate two set of bubbles.
+
+        Rubber-stamped by Benjamin Poulain.
+
+        * code-review.js:
+        * template/en/custom/attachment/edit.html.tmpl:
+        * template/en/custom/attachment/list.html.tmpl:
+        * template/en/custom/attachment/reviewform.html.tmpl:
+
+2013-04-10  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Bugzilla should show bubbles from webkit-queues.appspot.com
+        https://bugs.webkit.org/show_bug.cgi?id=114391
+
+        Reviewed by Benjamin Poulain.
+
+        Include iframe from webkit-queues.appspot.com as well as one for webkit-commit-queue.appspot.com.
+
+        * code-review.js:
+        * template/en/custom/attachment/edit.html.tmpl:
+        * template/en/custom/attachment/list.html.tmpl:
+        * template/en/custom/attachment/reviewform.html.tmpl:
+
+2013-03-21  Ryosuke Niwa  <rniwa@webkit.org>
+
+        EWS bubbles need more space
+        https://bugs.webkit.org/show_bug.cgi?id=112964
+
+        Reviewed by Philip Rogers.
+
+        Increased the width from 500px to 600px so that all bubbles fit.
+
+        * template/en/custom/attachment/list.html.tmpl:
+
+2013-03-08  David Kilzer  <ddkilzer@apple.com>
+
+        (CVE-2013-0786) [SECURITY] build_subselect() leaks the existence of products and components you cannot access
+        <https://bugzilla.mozilla.org/show_bug.cgi?id=824399>
+        <exp2://Ticket/14465628>
+
+        Applied "v5 patch, 3.6" to bugs.webkit.org.
+
+        * Bugzilla/Config/GroupSecurity.pm:
+        (get_param_list):
+        * buglist.cgi:
+        * report.cgi:
+        * template/en/default/admin/params/groupsecurity.html.tmpl:
+
+2013-03-08  David Kilzer  <ddkilzer@apple.com>
+
+        (CVE-2013-0785) [SECURITY] XSS in show_bug.cgi when using an invalid page format
+        <https://bugzilla.mozilla.org/show_bug.cgi?id=842038>
+        <exp2://Ticket/14465628>
+
+        Applied "patch for 3.6 and 4.0, v1" to bugs.webkit.org.
+
+        * Bugzilla/Template.pm:
+        (get_format):
+        * show_bug.cgi:
+
+2013-02-01  Nathan de Vries  <ndevries@apple.com>
+
+        Allow prettify.rb to be run from any directory, and don't hard-code the system ruby path
+        https://bugs.webkit.org/show_bug.cgi?id=108569
+
+        Reviewed by Joseph Pecoraro.
+
+        * PrettyPatch/prettify.rb:
+
+2013-01-03  James Robinson  <jamesr@chromium.org>
+
+        Avoid mixed content when expanding context in code review tool
+        https://bugs.webkit.org/show_bug.cgi?id=106060
+
+        Reviewed by Tony Chang.
+
+        Example failure: "The page at https://bugs.webkit.org/attachment.cgi?id=181222&action=review displayed insecure
+        content from http://svn.webkit.org/repository/webkit/trunk/Source/WebCore/page/EventHandler.cpp?p=138617." This
+        loads from "//svn.webkit.org/..." so the protocol matches.
+
+        * code-review.js:
+
+2013-01-02  Ojan Vafai  <ojan@chromium.org>
+
+        REGRESSION: Review tool sometimes doesn't include some comments in preview & posts
+        https://bugs.webkit.org/show_bug.cgi?id=105252
+
+        Reviewed by Tony Chang.
+
+        When adding context, the LineContainer for the context line can get removed.
+        In that case, forEachLine needs to know to keep looping past that line number.
+
+        Also, make it so that you can't leave comments on context lines.
+
+        * code-review-test.html:
+        * code-review.js:
+
+2012-12-30  Martin Robinson  <mrobinson@igalia.com>
+
+        PrettyDiff.rb fails to render image diffs with Ruby 1.9.3p194
+        https://bugs.webkit.org/show_bug.cgi?id=104932
+
+        Reviewed by Eric Seidel.
+
+        Ruby 1.9 added the concept of string encodings, so the use of `match' with binary data
+        treats it as UTF-8. Forcing the png_bytes string to have the "binary" encoding avoids
+        this error.
+
+        * PrettyPatch/PrettyPatch.rb: Use force_encoding.
+
+2012-12-06  Ojan Vafai  <ojan@chromium.org>
+
+        Review page is super flakey now
+        https://bugs.webkit.org/show_bug.cgi?id=104331
+
+        Committing without review since this is breaking the code review tool.
+
+        remove is only shipping in Chromium. Use jQuery's remove instead.
+
+        * PrettyPatch/PrettyPatch.rb:
+        * code-review.js:
+
+2012-12-05  Ojan Vafai  <ojan@chromium.org>
+
+        Make the strip line numbers link into a checkbox
+        https://bugs.webkit.org/show_bug.cgi?id=104187
+
+        Reviewed by Tony Chang.
+
+        The link text was confusing.
+
+        * PrettyPatch/PrettyPatch.rb:
+        * code-review.js:
+
+2012-12-05  Ojan Vafai  <ojan@chromium.org>
+
+        Sanitize content on copy in the code review tool
+        https://bugs.webkit.org/show_bug.cgi?id=104155
+
+        Reviewed by Tony Chang.
+
+        Always remove expand/header/annotate links. Provide an option
+        to remove line numbers as well. Store the option in localStorage so
+        people can always get whichever behavior they want.
+
+        A better solution would be to restructure the DOM, but that would require gutting
+        the whole code review tool and would make it difficult to include line numbers if
+        you wanted them.
+
+        * PrettyPatch/PrettyPatch.rb:
+        * code-review-test.html:
+        * code-review.js:
+
+2012-12-04  Ojan Vafai  <ojan@chromium.org>
+
+        Use sticky positioning for the code review toolbar
+        https://bugs.webkit.org/show_bug.cgi?id=104056
+
+        Reviewed by Adam Barth.
+
+        This simplifies the code and gives a nicer user-experience.
+        Also, while here, I fixed up the CSS to not have toolbar items
+        overlap when you make the window too small.
+
+        * PrettyPatch/PrettyPatch.rb:
+        * code-review-test.html:
+        * code-review.js:
+
+2012-12-04  Ojan Vafai  <ojan@chromium.org>
+
+        Properly create the header links in the code review tool
+        https://bugs.webkit.org/show_bug.cgi?id=104037
+
+        Reviewed by Adam Barth.
+
+        Right now, we just prepend "header" to the two existing links and change
+        the first link to point to the header. The problem is that jQuery's prepend
+        method just prepends to each item in the jQuery object instead of adding
+        the item to the beginning of the list as this code assumed.
+
+        * code-review-test.html:
+        * code-review.js:
+
+2012-12-04  Ojan Vafai  <ojan@chromium.org>
+
+        Can't add followup comment to a previous comment
+        https://bugs.webkit.org/show_bug.cgi?id=104025
+
+        Reviewed by Adam Barth.
+
+        If we side-by-sidify a shared diff line, and then apply
+        a previous comment, we would incorrectly put the comment
+        on the Line instead of the LineContainer.
+
+        Also, get rid of global next_line_id to simplify testing.
+
+        * code-review-test.html:
+        * code-review.js:
+
+2012-11-06  Ryosuke Niwa  <rniwa@webkit.org>
+
+        committers-autocomplete.js works only with WebKit based browsers
+        https://bugs.webkit.org/show_bug.cgi?id=66752
+
+        Reviewed by Csaba Osztrogonác.
+
+        Based on the patch posted by Peter Gal. Attach event listeners
+        to all input elements we want to enable auto-completions on.
+
+        * committers-autocomplete.js:
+
+2012-10-03  Simon Fraser  <simon.fraser@apple.com>
+
+        Make the status bubble iframe big enough to show all the bubbles
+        https://bugs.webkit.org/show_bug.cgi?id=98329
+
+        Reviewed by Eric Seidel.
+
+        Make the status bubble iframe big enough.
+
+        * template/en/custom/attachment/edit.html.tmpl:
+        * template/en/custom/attachment/list.html.tmpl:
+
+2012-10-03  Simon Pena  <spena@igalia.com>
+
+        ruby1.9 fails in PrettyPatch.rb with invalid byte sequence in UTF-8
+        https://bugs.webkit.org/show_bug.cgi?id=91212
+
+        Reviewed by Hajime Morita.
+
+        ruby1.9 changed the way it handles encoding, so the gsub method used
+        when normalizing line ending complains of invalid byte sequence in UTF-8.
+        This patch uses the "encode" string method for versions of Ruby >= 1.9
+        to provide the encoding conversion (keeping the current implementation in
+        Ruby 1.8).
+
+        * PrettyPatch/PrettyPatch.rb: Use the "encode" string method for encoding
+        conversion when the Ruby version is >= 1.9.
+
+2012-09-26  Sheriff Bot  <webkit.review.bot@gmail.com>
+
+        Unreviewed, rolling out r129521.
+        http://trac.webkit.org/changeset/129521
+        https://bugs.webkit.org/show_bug.cgi?id=97710
+
+        Broke autocomplete on enter_bug.cgi (Requested by abarth on
+        #webkit).
+
+        * committers-autocomplete.js:
+
+2012-09-25  Peter Gal  <galpeter@inf.u-szeged.hu>
+
+        committers-autocomplete.js works only with WebKit based browsers
+        https://bugs.webkit.org/show_bug.cgi?id=66752
+
+        Reviewed by Darin Adler.
+
+        Modified the code do only add event listeners to the given inputs,
+        and not to the full document.
+
+        * committers-autocomplete.js:
+
+2012-09-24  Peter Beverloo  <peter@chromium.org>
+
+        Allow robots to index bugs on Bugzilla
+        https://bugs.webkit.org/show_bug.cgi?id=95688
+
+        Reviewed by Eric Seidel.
+
+        This allows robots to access show_bug.cgi, thus granting them access to
+        index contents and discussion on WebKit bugs. All other pages, except
+        for the site index itself, still have indexing disabled.
+
+        * robots.txt:
+
+2012-07-13  Ojan Vafai  <ojan@chromium.org>
+
+        PrettyPatch.rb complains about missing checksum for new pixel results
+        https://bugs.webkit.org/show_bug.cgi?id=88368
+
+        Reviewed by Tony Chang.
+
+        When adding or removing a file, we incorrectly iterpreted not having an image
+        as not having a checksum.
+
+        * PrettyPatch/PrettyPatch.rb:
+        * PrettyPatch/PrettyPatch_test.rb:
+        I tried to fix the TempFile issue in these tests, but after a couple hours
+        of banging my head against this, I have no idea what's breaking.
+
+2012-07-11  Alice Cheng  <alice_cheng@apple.com>
+
+        Deleting content at the top of prettypatch emails destroys HTML formatting
+        https://bugs.webkit.org/show_bug.cgi?id=90700
+        <rdar://problem/7488232>
+
+        Reviewed by David Kilzer.
+
+        * PrettyPatch/PrettyPatch.rb:
+
+2012-07-10  Adam Barth  <abarth@webkit.org>
+
+        bugs.webkit.org has mixed content
+        https://bugs.webkit.org/show_bug.cgi?id=90907
+
+        Reviewed by Eric Seidel.
+
+        Now that we detect http XMLHttpRequests as mixed content, I've noticed
+        that we're loading committers.py over http instead of https.  For
+        better security, we should use https.
+
+        * committers-autocomplete.js:
+
+2012-05-30  Ojan Vafai  <ojan@chromium.org>
+
+        Only include the image checksum error in pretty-diffs for -expected.png files.
+        https://bugs.webkit.org/show_bug.cgi?id=87881
+
+        Reviewed by Tony Chang.
+
+        * PrettyPatch/PrettyPatch.rb:
+        * PrettyPatch/PrettyPatch_test.rb:
+
+2012-05-29  Ojan Vafai  <ojan@chromium.org>
+
+        Show an error in the pretty diff when an image lacks a checksum
+        https://bugs.webkit.org/show_bug.cgi?id=87791
+
+        Reviewed by Dirk Pranke.
+
+        * PrettyPatch/PrettyPatch.rb:
+        * PrettyPatch/PrettyPatch_test.rb:
+
 2012-04-01  Adam Barth  <abarth@webkit.org>
 
         Code review tool no longer needs to work around position:fixed handling on iPad

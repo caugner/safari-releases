@@ -5,34 +5,14 @@ if (this.importScripts) {
 
 description("Test IndexedDB's openCursor.");
 
-test();
-
-function test()
+indexedDBTest(prepareDatabase);
+function prepareDatabase()
 {
-    removeVendorPrefixes();
-    request = evalAndLog("indexedDB.open('cursor-index-delete')");
-    request.onsuccess = openSuccess;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function openSuccess()
-{
-    var db = evalAndLog("db = event.target.result");
-
-    request = evalAndLog("db.setVersion('new version')");
-    request.onsuccess = setVersionSuccess;
-    request.onerror = unexpectedErrorCallback;
-}
-
-function setVersionSuccess()
-{
-    debug("setVersionSuccess():");
-    self.trans = evalAndLog("trans = event.target.result");
-    shouldBeTrue("trans !== null");
+    db = event.target.result;
+    self.trans = evalAndLog("trans = event.target.transaction");
+    shouldBeNonNull("trans");
     trans.onabort = unexpectedAbortCallback;
     trans.oncomplete = openCursor;
-
-    deleteAllObjectStores(db);
 
     objectStore = evalAndLog("objectStore = db.createObjectStore('test')");
     evalAndLog("objectStore.createIndex('testIndex', 'x')");
@@ -46,7 +26,7 @@ function setVersionSuccess()
 function openCursor()
 {
     debug("openCursor1");
-    evalAndLog("trans = db.transaction(['test'], IDBTransaction.READ_WRITE)");
+    evalAndLog("trans = db.transaction(['test'], 'readwrite')");
     keyRange = IDBKeyRange.lowerBound(1);
     request = evalAndLog("trans.objectStore('test').index('testIndex').openCursor(keyRange)");
     request.onsuccess = cursorSuccess;
@@ -77,7 +57,7 @@ function cursorEmpty()
 
 function addObject()
 {
-    evalAndLog("trans = db.transaction(['test'], IDBTransaction.READ_WRITE)");
+    evalAndLog("trans = db.transaction(['test'], 'readwrite')");
     objectStore = evalAndLog("objectStore = trans.objectStore('test')");
     request = evalAndLog("objectStore.add({x: 1}, 'myKey1')");
     request.onsuccess = openCursor2;

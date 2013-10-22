@@ -7,10 +7,10 @@
 <html>
 <head>
     <script>
-        if (window.layoutTestController) {
-            window.layoutTestController.overridePreference("WebKitCSSCustomFilterEnabled", "1");
-            window.layoutTestController.overridePreference("WebKitWebGLEnabled", "1");
-            window.layoutTestController.dumpAsText(true);
+        if (window.testRunner) {
+            window.testRunner.overridePreference("WebKitCSSCustomFilterEnabled", "1");
+            window.testRunner.overridePreference("WebKitWebGLEnabled", "1");
+            window.testRunner.dumpAsText(true);
         }
         function repaintTest()
         {
@@ -41,7 +41,7 @@
         }
 
         .shader {
-            -webkit-filter: custom(url(../resources/vertex-horizontal-offset.vs) url(../resources/color-add.fs), offset -0.5, add 0.1);
+            -webkit-filter: custom(url(../resources/vertex-horizontal-offset.vs) mix(url(../resources/mix-color.fs) normal source-atop), offset -0.5, mix_color 1.0 1.0 1.0 0.1);
         }
     </style>
 

@@ -27,7 +27,7 @@ var OSC = {
 
 function generateExponentialOscillatorSweep(oscillatorType) {
     // Create offline audio context.
-    context = new webkitAudioContext(1, sampleRate * lengthInSeconds, sampleRate);
+    context = new webkitOfflineAudioContext(1, sampleRate * lengthInSeconds, sampleRate);
 
     var osc = context.createOscillator();
     if (oscillatorType == OSC.CUSTOM) {
@@ -47,7 +47,7 @@ function generateExponentialOscillatorSweep(oscillatorType) {
     osc.connect(gainNode);
     gainNode.connect(context.destination);
 
-    osc.noteOn(0);
+    osc.start(0);
 
     var nyquist = 0.5 * sampleRate;
     osc.frequency.setValueAtTime(10, 0);
@@ -56,5 +56,5 @@ function generateExponentialOscillatorSweep(oscillatorType) {
     context.oncomplete = finishAudioTest;
     context.startRendering();    
 
-    layoutTestController.waitUntilDone();
+    testRunner.waitUntilDone();
 }

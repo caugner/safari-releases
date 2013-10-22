@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # Copyright (C) 2011 Google Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -43,12 +42,12 @@ class Lighttpd(http_server_base.HttpServerBase):
 
     def __init__(self, port_obj, output_dir, background=False, port=None,
                  root=None, run_background=None, additional_dirs=None,
-                 layout_tests_dir=None):
+                 layout_tests_dir=None, number_of_servers=None):
         """Args:
           output_dir: the absolute path to the layout test result directory
         """
         # Webkit tests
-        http_server_base.HttpServerBase.__init__(self, port_obj)
+        http_server_base.HttpServerBase.__init__(self, port_obj, number_of_servers)
         self._name = 'lighttpd'
         self._output_dir = output_dir
         self._port = port
@@ -215,6 +214,15 @@ class Lighttpd(http_server_base.HttpServerBase):
 
     def _check_and_kill(self):
         if self._executive.check_running_pid(self._pid):
-            self._executive.kill_process(self._pid)
+            host = self._port_obj.host
+            if host.platform.is_win() and not host.platform.is_cygwin():
+                # FIXME: https://bugs.webkit.org/show_bug.cgi?id=106838
+                # We need to kill all of the child processes as well as the
+                # parent, so we can't use executive.kill_process().
+                #
+                # If this is actually working, we should figure out a clean API.
+                self._executive.run_command(["taskkill.exe", "/f", "/t", "/pid", self._pid], error_handler=self._executive.ignore_error)
+            else:
+                self._executive.kill_process(self._pid)
             return False
         return True

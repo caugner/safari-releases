@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html>
 <body>
-<div id="test" contenteditable><b style="font-style: italic; ">world</b></div>
+<div id="test" contenteditable><b style="font-style: italic;">world</b></div>
 <pre id="console">
 </pre>
 <script>
 
-if (window.layoutTestController)
-    layoutTestController.dumpAsText();
+if (window.testRunner)
+    testRunner.dumpAsText();
 
 var test = document.getElementById('test');
 window.getSelection().selectAllChildren(test);

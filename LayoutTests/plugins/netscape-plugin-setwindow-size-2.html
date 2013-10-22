@@ -1,9 +1,10 @@
 <html>
 <head>
 <script>
-    if (window.layoutTestController) {
-        layoutTestController.dumpAsText();
-        layoutTestController.setWindowIsKey(false);
+    if (window.testRunner) {
+        testRunner.dumpAsText();
+        testRunner.waitUntilDone();
+        testRunner.setWindowIsKey(false);
     }
     
 </script>

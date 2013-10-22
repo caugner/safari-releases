@@ -4,6 +4,13 @@ function createShadowRoot()
             'children': Array.prototype.slice.call(arguments)};
 }
 
+function createShadowRootWithAttributes(attributes, children)
+{
+    return {'isShadowRoot': true,
+            'attributes': attributes,
+            'children': children};
+}
+
 // This function can take optional child elements, which might be a result of createShadowRoot(), as arguments[2:].
 // You must enable SHADOW_DOM flag if you use this fucntion to host multiple ShadowRoots
 // since window.internals does not have a function which can be used to host multiple shadow roots.
@@ -20,12 +27,16 @@ function createDOM(tagName, attributes)
         if (child.isShadowRoot) {
             ++shadowRootCount;
             var shadowRoot;
-            if (window.WebKitShadowRoot)
-                shadowRoot = new WebKitShadowRoot(element);
-            else if (shadowRootcount == 1)
-                shadowRoot = internals.ensureShadowRoot(element);
+            if (element.webkitCreateShadowRoot)
+                shadowRoot = element.webkitCreateShadowRoot(element);
             else
-                throw "CreateDOM cannot be used to host multiple ShadowRoots without new WebKitShadowRoot()";
+                shadowRoot = internals.createShadowRoot(element);
+            if (child.attributes) {
+                for (var attribute in child.attributes) {
+                    // Shadow Root does not have setAttribute.
+                    shadowRoot[attribute] = child.attributes[attribute];
+                }
+            }
             for (var j = 0; j < child.children.length; ++j)
                 shadowRoot.appendChild(child.children[j]);
         } else
@@ -41,8 +52,7 @@ function isShadowHost(node)
 
 function isShadowRoot(node)
 {
-    // FIXME: window.internals should have internals.isShadowRoot(node).
-    return node.nodeName == "#shadow-root" || node.host;
+    return node instanceof window.WebKitShadowRoot;
 }
 
 function isIframeElement(element)
@@ -68,7 +78,7 @@ function getNodeInShadowTreeStack(path)
         else
             return null;
         if (ids[i] != '')
-            node = internals.getElementByIdInShadowRoot(node, ids[i]);
+            node = node.getElementById(ids[i]);
     }
     return node;
 }
@@ -124,6 +134,10 @@ function shouldNavigateFocus(from, to, direction)
       return;
     }
     fromElement.focus();
+    if (!isInnermostActiveElement(from)) {
+        debug('FAIL: Can not be focused: '+ from);
+        return;
+    }
     if (direction == 'forward')
         navigateFocusForward();
     else

@@ -18,7 +18,7 @@ function test()
         if (!database)
             return;
         InspectorTest.addResult(database.databaseId.name);
-        InspectorTest.addResult("    version: " + database.version);
+        InspectorTest.addResult("    intVersion: " + database.intVersion);
         InspectorTest.addResult("    objectStores:");
         var objectStoreNames = [];
         for (var objectStoreName in database.objectStores)
@@ -27,7 +27,8 @@ function test()
         for (var i = 0; i < objectStoreNames.length; ++i) {
             var objectStore = database.objectStores[objectStoreNames[i]];
             InspectorTest.addResult("    " + objectStore.name);
-            InspectorTest.addResult("        keyPath: " + objectStore.keyPath);
+            InspectorTest.addResult("        keyPath: " + JSON.stringify(objectStore.keyPath));
+            InspectorTest.addResult("        autoIncrement: " + objectStore.autoIncrement);
             InspectorTest.addResult("        indexes: ");
             var indexNames = [];
             for (var indexName in objectStore.indexes)
@@ -36,7 +37,7 @@ function test()
             for (var j = 0; j < indexNames.length; ++j) {
                 var index = objectStore.indexes[indexNames[j]];
                 InspectorTest.addResult("        " + index.name);
-                InspectorTest.addResult("            keyPath: " + index.keyPath);
+                InspectorTest.addResult("            keyPath: " + JSON.stringify(index.keyPath));
                 InspectorTest.addResult("            unique: " + index.unique);
                 InspectorTest.addResult("            multiEntry: " + index.multiEntry);
             }
@@ -44,7 +45,7 @@ function test()
         InspectorTest.addResult("");
     }
 
-    InspectorTest.addSniffer(WebInspector.IndexedDBDispatcher.prototype, "databaseNamesLoaded", step2, false);
+    InspectorTest.addSniffer(WebInspector.IndexedDBModel.prototype, "_updateOriginDatabaseNames", step2, false);
 
     function step2()
     {
@@ -53,7 +54,7 @@ function test()
 
     function step3()
     {
-        InspectorTest.addSniffer(WebInspector.IndexedDBDispatcher.prototype, "databaseNamesLoaded", step4, false);
+        InspectorTest.addSniffer(WebInspector.IndexedDBModel.prototype, "_updateOriginDatabaseNames", step4, false);
         indexedDBModel.refreshDatabaseNames();
     }
 
@@ -61,12 +62,13 @@ function test()
     {
         dumpDatabase();
 
-        InspectorTest.addSniffer(WebInspector.IndexedDBDispatcher.prototype, "databaseLoaded", step5, false);
+        indexedDBModel.addEventListener(WebInspector.IndexedDBModel.EventTypes.DatabaseLoaded, step5);
         indexedDBModel.refreshDatabase(databaseId);
     }
 
     function step5()
     {
+        indexedDBModel.removeEventListener(WebInspector.IndexedDBModel.EventTypes.DatabaseLoaded, step5);
         dumpDatabase();
 
         InspectorTest.createObjectStore(mainFrameId, databaseName, "testObjectStore1", "test.key.path", true, step6);
@@ -74,51 +76,55 @@ function test()
 
     function step6()
     {
-        InspectorTest.addSniffer(WebInspector.IndexedDBDispatcher.prototype, "databaseLoaded", step7, false);
+        indexedDBModel.addEventListener(WebInspector.IndexedDBModel.EventTypes.DatabaseLoaded, step7);
         indexedDBModel.refreshDatabase(databaseId);
     }
 
     function step7()
     {
+        indexedDBModel.removeEventListener(WebInspector.IndexedDBModel.EventTypes.DatabaseLoaded, step7);
         dumpDatabase();
 
-        InspectorTest.createObjectStore(mainFrameId, databaseName, "testObjectStore2", "", false, step8);
+        InspectorTest.createObjectStore(mainFrameId, databaseName, "testObjectStore2", null, false, step8);
     }
 
     function step8()
     {
-        InspectorTest.addSniffer(WebInspector.IndexedDBDispatcher.prototype, "databaseLoaded", step9, false);
+        indexedDBModel.addEventListener(WebInspector.IndexedDBModel.EventTypes.DatabaseLoaded, step9);
         indexedDBModel.refreshDatabase(databaseId);
     }
 
     function step9()
     {
+        indexedDBModel.removeEventListener(WebInspector.IndexedDBModel.EventTypes.DatabaseLoaded, step9);
         dumpDatabase();
 
-        InspectorTest.createObjectStoreIndex(mainFrameId, databaseName, "testObjectStore2", "testIndexName1", "key.path1", false, true, step10);
+        InspectorTest.createObjectStoreIndex(mainFrameId, databaseName, "testObjectStore2", "testIndexName1", "", false, true, step10);
     }
 
     function step10()
     {
-        InspectorTest.addSniffer(WebInspector.IndexedDBDispatcher.prototype, "databaseLoaded", step11, false);
+        indexedDBModel.addEventListener(WebInspector.IndexedDBModel.EventTypes.DatabaseLoaded, step11);
         indexedDBModel.refreshDatabase(databaseId);
     }
 
     function step11()
     {
+        indexedDBModel.removeEventListener(WebInspector.IndexedDBModel.EventTypes.DatabaseLoaded, step11);
         dumpDatabase();
 
-        InspectorTest.createObjectStoreIndex(mainFrameId, databaseName, "testObjectStore2", "testIndexName2", "key.path2", true, false, step12);
+        InspectorTest.createObjectStoreIndex(mainFrameId, databaseName, "testObjectStore2", "testIndexName2", ["key.path1", "key.path2"], true, false, step12);
     }
 
     function step12()
     {
-        InspectorTest.addSniffer(WebInspector.IndexedDBDispatcher.prototype, "databaseLoaded", step13, false);
+        indexedDBModel.addEventListener(WebInspector.IndexedDBModel.EventTypes.DatabaseLoaded, step13);
         indexedDBModel.refreshDatabase(databaseId);
     }
 
     function step13()
     {
+        indexedDBModel.removeEventListener(WebInspector.IndexedDBModel.EventTypes.DatabaseLoaded, step13);
         dumpDatabase();
 
         InspectorTest.deleteObjectStoreIndex(mainFrameId, databaseName, "testObjectStore2", "testIndexName2", step14);
@@ -126,12 +132,13 @@ function test()
 
     function step14()
     {
-        InspectorTest.addSniffer(WebInspector.IndexedDBDispatcher.prototype, "databaseLoaded", step15, false);
+        indexedDBModel.addEventListener(WebInspector.IndexedDBModel.EventTypes.DatabaseLoaded, step15);
         indexedDBModel.refreshDatabase(databaseId);
     }
 
     function step15()
     {
+        indexedDBModel.removeEventListener(WebInspector.IndexedDBModel.EventTypes.DatabaseLoaded, step15);
         dumpDatabase();
 
         InspectorTest.deleteObjectStoreIndex(mainFrameId, databaseName, "testObjectStore2", "testIndexName1", step16);
@@ -139,12 +146,13 @@ function test()
 
     function step16()
     {
-        InspectorTest.addSniffer(WebInspector.IndexedDBDispatcher.prototype, "databaseLoaded", step17, false);
+        indexedDBModel.addEventListener(WebInspector.IndexedDBModel.EventTypes.DatabaseLoaded, step17);
         indexedDBModel.refreshDatabase(databaseId);
     }
 
     function step17()
     {
+        indexedDBModel.removeEventListener(WebInspector.IndexedDBModel.EventTypes.DatabaseLoaded, step17);
         dumpDatabase();
 
         InspectorTest.deleteObjectStore(mainFrameId, databaseName, "testObjectStore2", step18);
@@ -152,12 +160,13 @@ function test()
 
     function step18()
     {
-        InspectorTest.addSniffer(WebInspector.IndexedDBDispatcher.prototype, "databaseLoaded", step19, false);
+        indexedDBModel.addEventListener(WebInspector.IndexedDBModel.EventTypes.DatabaseLoaded, step19);
         indexedDBModel.refreshDatabase(databaseId);
     }
 
     function step19()
     {
+        indexedDBModel.removeEventListener(WebInspector.IndexedDBModel.EventTypes.DatabaseLoaded, step19);
         dumpDatabase();
 
         InspectorTest.deleteObjectStore(mainFrameId, databaseName, "testObjectStore1", step20);
@@ -165,12 +174,13 @@ function test()
 
     function step20()
     {
-        InspectorTest.addSniffer(WebInspector.IndexedDBDispatcher.prototype, "databaseLoaded", step21, false);
+        indexedDBModel.addEventListener(WebInspector.IndexedDBModel.EventTypes.DatabaseLoaded, step21);
         indexedDBModel.refreshDatabase(databaseId);
     }
 
     function step21()
     {
+        indexedDBModel.removeEventListener(WebInspector.IndexedDBModel.EventTypes.DatabaseLoaded, step21);
         dumpDatabase();
         InspectorTest.deleteDatabase(mainFrameId, databaseName, step22);
     }

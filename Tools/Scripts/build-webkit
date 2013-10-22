@@ -43,7 +43,6 @@ use webkitperl::FeatureList qw(getFeatureOptionList);
 use POSIX;
 
 sub cMakeArgsFromFeatures();
-sub checkForJavaSDK();
 sub formatBuildTime($);
 sub writeCongrats();
 
@@ -52,15 +51,14 @@ chdirWebKit();
 
 my $showHelp = 0;
 my $clean = 0;
-my $useGYP = 0;
 my $minimal = 0;
-my $v8 = 0;
 my $installHeaders;
 my $installLibs;
 my $prefixPath;
 my $makeArgs = "";
-my $cmakeArgs;
+my $cmakeArgs = "";
 my $onlyWebKitProject = 0;
+my $noWebKit1 = 0;
 my $noWebKit2 = 0;
 my $coverageSupport = 0;
 my $startTime = time();
@@ -96,8 +94,6 @@ push @ARGV, split(/ /, $ENV{'BUILD_WEBKIT_ARGS'}) if ($ENV{'BUILD_WEBKIT_ARGS'})
 foreach (@ARGV) {
     if ($_ eq '--minimal') {
         $minimal = 1;
-    } elsif ($_ eq '--v8') {
-        $v8 = 1;
     }
 }
 
@@ -111,13 +107,14 @@ my $usage = <<EOF;
 Usage: $programName [options] [options to pass to build system]
   --help                            Show this help message
   --clean                           Cleanup the build directory
-  --debug                           Compile in debug mode
-  --gyp                             Use GYP-generated project files
+  --debug                           Compile with Debug configuration
+  --release                         Compile with Release configuration
+  --sdk=<sdk>                       Use a specific Xcode SDK (iOS and Mac only)
+  --device                          Use the current iphoneos.internal SDK (iOS only)
+  --simulator                       Use the current iphonesimulator SDK (iOS only)
   --coverage                        Enable Code Coverage support (Mac only)
 
   --blackberry                      Build the BlackBerry port on Mac/Linux
-  --chromium                        Build the Chromium port on Mac/Win/Linux
-  --chromium-android                Build the Chromium port on Android
   --efl                             Build the EFL port
   --gtk                             Build the GTK+ port
   --qt                              Build the Qt port
@@ -128,16 +125,16 @@ Usage: $programName [options] [options to pass to build system]
 
   --install-headers=<path>          Set installation path for the headers (Qt only)
   --install-libs=<path>             Set installation path for the libraries (Qt only)
-  --v8                              Use V8 as JavaScript engine (Qt only)
 
   --prefix=<path>                   Set installation prefix to the given path (Gtk/Efl/BlackBerry only)
   --makeargs=<arguments>            Optional Makefile flags
   --qmakearg=<arguments>            Optional qmake flags (Qt only, e.g. --qmakearg="CONFIG+=webkit2" to build WebKit2)
-  --cmakearg=<arguments>            Optional CMake flags (e.g. --cmakearg="-DFOO=bar -DCMAKE_PREFIX_PATH=/usr/local")
+  --cmakeargs=<arguments>           Optional CMake flags (e.g. --cmakeargs="-DFOO=bar -DCMAKE_PREFIX_PATH=/usr/local")
 
   --minimal                         No optional features, unless explicitly enabled
 
   --only-webkit                     Build only the WebKit project
+  --no-webkit1                      Omit WebKit1 code from the build (Qt/EFL/GTK only)
   --no-webkit2                      Omit WebKit2 code from the build
 
 EOF
@@ -145,15 +142,14 @@ EOF
 my %options = (
     'help' => \$showHelp,
     'clean' => \$clean,
-    'gyp' => \$useGYP,
     'install-headers=s' => \$installHeaders,
     'install-libs=s' => \$installLibs,
     'prefix=s' => \$prefixPath,
     'makeargs=s' => \$makeArgs,
     'cmakeargs=s' => \$cmakeArgs,
     'minimal' => \$minimal,
-    'v8' => \$v8,
     'only-webkit' => \$onlyWebKitProject,
+    'no-webkit1' => \$noWebKit1,
     'no-webkit2' => \$noWebKit2,
     'coverage' => \$coverageSupport,
 );
@@ -183,8 +179,10 @@ File::Find::find(\&unlinkZeroFiles, $productDir) if (isQt() && -e $productDir);
 sub unlinkZeroFiles()
 {
     my $file = $File::Find::name;
-    # Remove 0 size files, except .d files used for dependency tracking
-    if (! -s $file && $file !~ m/\.d$/) {
+    # Remove 0 byte sized files, except
+    # - directories (Because they are always 0 byte sized on Windows)
+    # - .d files used for dependency tracking
+    if (! -d $file && ! -s $file && $file !~ m/\.d$/) {
         unlink $file;
         print "0 byte sized file removed from build directory: $file\n";
     }
@@ -206,24 +204,9 @@ if (!isQt() && !-d "WebKitLibraries") {
     die "Error: No WebKitLibraries directory found. Please do a fresh checkout.\n";
 }
 
-# Generate the generate project files from .gyp files
-if ($useGYP) {
-    system("perl", "Tools/Scripts/generate-project-files") == 0 or die "Failed to run generate-project-files";
-}
-
 my @options = ();
 
-# enable autotool options accordingly
-if (isGtk()) {
-    @options = @ARGV;
-    foreach (@features) {
-        push @options, autotoolsFlag(${$_->{value}}, $_->{option});
-    }
-
-    push @options, "--prefix=" . $prefixPath if defined($prefixPath);
-    push @options, "--makeargs=" . $makeArgs if $makeArgs;
-} elsif (isAppleMacWebKit()) {
-    checkForJavaSDK();
+if (isAppleMacWebKit()) {
     push @options, XcodeOptions();
 
     sub option($$$)
@@ -244,41 +227,14 @@ if (isGtk()) {
     # WebKit2 is only supported in SnowLeopard and later at present.
     push @projects, ("Source/WebKit2", "Tools/MiniBrowser") if osXVersion()->{"minor"} >= 6 and !$noWebKit2;
 
+    # WebInspectorUI must come before WebKit and WebKit2
+    unshift @projects, ("Source/WebInspectorUI");
+
+    # Build Tools needed for Apple ports
+    push @projects, ("Tools/DumpRenderTree", "Tools/WebKitTestRunner", "Source/ThirdParty/gtest", "Tools/TestWebKitAPI");
+    
     # Copy library and header from WebKitLibraries to a findable place in the product directory.
-    my @librariesToCopy = (
-        "libWebKitSystemInterfaceLeopard.a",
-        "libWebKitSystemInterfaceSnowLeopard.a",
-        "libWebKitSystemInterfaceLion.a",
-        "libWebCoreSQLite3.a",
-    );
-
-    my $ranlib = `xcrun -find ranlib`;
-    chomp $ranlib;
-    foreach my $libName (@librariesToCopy) {
-        my $srcLib = "WebKitLibraries/" . $libName;
-        my $lib = "$productDir/" . $libName;
-        if (!-e $lib || -M $lib > -M $srcLib) {
-            print "Updating $lib\n";
-            system "ditto", $srcLib, $lib;
-            system $ranlib, $lib;
-        }
-    }
-
-    # FIXME: This code should be abstracted to not be copy/paste.
-    my $srcHeader = "WebKitLibraries/WebKitSystemInterface.h";
-    my $header = "$productDir/usr/local/include/WebKitSystemInterface.h";
-    if (!-e $header || -M $header > -M $srcHeader) {
-        print "Updating $header\n";
-        system "mkdir", "-p", "$productDir/usr/local/include";
-        system "ditto", $srcHeader, $header;
-    }
-
-    my $srcHeaderDir = "WebKitLibraries/WebCoreSQLite3";
-    my $headerDir = "$productDir/WebCoreSQLite3";
-    if (!-e $headerDir || -M $headerDir > -M $srcHeaderDir) {
-        print "Updating $headerDir\n";
-        system "ditto", $srcHeaderDir, $headerDir;
-    }
+    (system("perl", "Tools/Scripts/copy-webkitlibraries-to-product-directory", $productDir) == 0) or die;
 } elsif (isWinCairo()) {
     (system("perl Tools/Scripts/update-webkit-wincairo-libs") == 0) or die;
 } elsif (isAppleWinWebKit()) {
@@ -289,7 +245,8 @@ if (isGtk()) {
     push @options, "--install-headers=" . $installHeaders if defined($installHeaders);
     push @options, "--install-libs=" . $installLibs if defined($installLibs);
     push @options, "--makeargs=" . $makeArgs if $makeArgs;
-    push @options, "--qmakearg=CONFIG+=no_webkit2" if $noWebKit2;
+    push @options, "WEBKIT_CONFIG-=build_webkit1" if $noWebKit1;
+    push @options, "WEBKIT_CONFIG-=build_webkit2" if $noWebKit2;
 
     if (checkForArgumentAndRemoveFromARGV("-2")) {
         print "Note: WebKit2 is now built by default, you don't need to pass -2. Disable using --no-webkit2\n";
@@ -298,14 +255,11 @@ if (isGtk()) {
     @options = (@ARGV, @options);
 
     foreach (@features) {
-        push @options, "DEFINES+=$_->{define}=${$_->{value}}" if $_->{define} && ${$_->{value}} != $_->{default};
-    }
-
-    if ($v8) {
-        print "Building WebKit2 with v8 is not supported currently. Disabling WebKit2.\n";
-        # FIXME: Deal with this in defaults_pre, once Qt has support for getting at the
-        # command line arguments at that stage.
-        push @options, "CONFIG+=v8 CONFIG+=no_webkit2";
+        if ($_->{define} && ${$_->{value}} != $_->{default}) {
+            my $define = lc($_->{define});
+            $define =~ s/^enable_//;
+            push @options, "WEBKIT_CONFIG" . (${$_->{value}} == 1 ? "+" : "-") . "=" . $define;
+        }
     }
 }
 
@@ -320,43 +274,16 @@ if (isInspectorFrontend()) {
 
 my $result = 0;
 
-if (isWx()) {
-    $makeArgs .= " --port=wx";
-
-    downloadWafIfNeeded();
-    @options = split(/ /, $makeArgs);
-    @projects = ();
-    $result = buildWafProject('.', $clean, @options);
-    exit exitStatus($result) if exitStatus($result);
-}
-
-if (isChromium()) {
-    # Currently chromium does not honour the features passed to build-webkit.
-    # Until this is solved, we issue a warning about that.
-    foreach (@features) {
-        if (${$_->{value}} ne $_->{default}) {
-            print "\n";
-            print "===========================================================\n";
-            print " Chromium does not honor the features passed to build-webkit.\n";
-            print " The preferred way is to set up your overrides in ~/.gyp/include.gypi.\n";
-            print " See https://trac.webkit.org/wiki/Chromium#Buildingwithfeaturedefines\n";
-            print " on how to do that.\n";
-            print "===========================================================\n";
-            last;
-        }
-    }
-
-    @options = @ARGV;
-    # Chromium doesn't build by project directories.
-    @projects = ();
-    push @options, "--makeargs=" . $makeArgs if $makeArgs;
-    $result = buildChromium($clean, @options);
-    exit exitStatus($result) if exitStatus($result);
-}
-
 if (isEfl()) {
     # By default we build using all of the available CPUs.
     $makeArgs .= ($makeArgs ? " " : "") . "-j" . numberOfCPUs() if $makeArgs !~ /-j\s*\d+/;
+    $cmakeArgs = "-DENABLE_WEBKIT=OFF "  . $cmakeArgs if $noWebKit1;
+    $cmakeArgs = "-DENABLE_WEBKIT2=OFF " . $cmakeArgs if $noWebKit2;
+
+    # We remove CMakeCache to avoid the bots to reuse cached flags when
+    # we enable new features. This forces a reconfiguration.
+    removeCMakeCache();
+
     buildCMakeProjectOrExit($clean, "Efl", $prefixPath, $makeArgs, (cmakeBasedPortArguments(), cMakeArgsFromFeatures()), $cmakeArgs);
 }
 
@@ -394,20 +321,25 @@ for my $dir (@projects) {
     }
 
     my $project = basename($dir);
+    my $baseProductDir = baseProductDir();
     if (isGtk()) {
-        if ($noWebKit2) {
-            unshift(@options, "--disable-webkit2");
-        }
-        $result = buildGtkProject($project, $clean, @options);
+        $result = buildGtkProject($project, $clean, $prefixPath, $makeArgs, $noWebKit1, $noWebKit2, @features);
     } elsif (isAppleMacWebKit()) {
         my @local_options = @options;
         push @local_options, XcodeCoverageSupportOptions() if $coverageSupport && $project ne "ANGLE";
-        my $useGYPProject = $useGYP && ($project =~ "WebCore|JavaScriptCore");
-        my $projectPath = $useGYPProject ? "gyp/$project" : $project;
+        my $projectPath = $project =~ /gtest/ ? "xcode/gtest" : $project;
         $result = buildXCodeProject($projectPath, $clean, @local_options, @ARGV);
     } elsif (isAppleWinWebKit()) {
         if ($project eq "WebKit") {
-            $result = buildVisualStudioProject("win/WebKit.vcproj/WebKit.sln", $clean);
+            my $webkitSolutionPath = "WebKit.vcxproj/WebKit.sln";
+            $result = buildVisualStudioProject($webkitSolutionPath, $clean);
+            my $vsConfiguration = configurationForVisualStudio();
+            if (usingVisualStudioExpress()) {
+                # Visual Studio Express is so lame it can't stdout build failures.
+                # So we find its logs and dump them to the console ourselves.
+                open(my $OUTPUT_HANDLE, '<', "$baseProductDir/$vsConfiguration/BuildOutput.htm") or die "Could not open build log file at $baseProductDir/$vsConfiguration/BuildOutput.htm";
+                print while (<$OUTPUT_HANDLE>);
+            }
         }
     }
     # Various build* calls above may change the CWD.
@@ -415,15 +347,9 @@ for my $dir (@projects) {
 
     if (exitStatus($result)) {
         my $scriptDir = relativeScriptsDir();
-        if (usingVisualStudioExpress()) {
-            # Visual Studio Express is so lame it can't stdout build failures.
-            # So we find its logs and dump them to the console ourselves.
-            system(File::Spec->catfile($scriptDir, "print-vse-failure-logs"));
-        }
         if (isAppleWinWebKit()) {
             print "\n\n===== BUILD FAILED ======\n\n";
             print "Please ensure you have run $scriptDir/update-webkit to install dependencies.\n\n";
-            my $baseProductDir = baseProductDir();
             print "You can view build errors by checking the BuildLog.htm files located at:\n$baseProductDir/obj/<project>/<config>.\n";
         }
         exit exitStatus($result);
@@ -458,21 +384,6 @@ sub cMakeArgsFromFeatures()
     return @args;
 }
 
-sub checkForJavaSDK()
-{
-    my $jniHeader = "/System/Library/Frameworks/JavaVM.framework/Headers/jni.h";
-    if (-e $jniHeader) {
-        return;
-    }
-    print "\nCan't find required $jniHeader, build will fail.\n\n";
-    print "After installing \"Java for Mac OS X 10.6 Update 3\", the Java Developer Package is required to build WebKit.\n";
-    print "Please install the package from http://connect.apple.com (found under Downloads > Java).\n\n";
-    print "For more information, see:\n";
-    print "https://lists.webkit.org/pipermail/webkit-dev/2010-October/014867.html\n";
-    print "https://webkit.org/building/tools.html\n\n";
-    exit 1;
-}
-
 sub formatBuildTime($)
 {
     my ($buildTime) = @_;
@@ -495,11 +406,9 @@ sub writeCongrats()
     my $buildTime = formatBuildTime($endTime - $startTime);
 
     print "\n";
-    print "===========================================================\n";
+    print "====================================================================\n";
     print " WebKit is now built ($buildTime). \n";
-    if (!isChromium()) {
-        print " To run $launcherName with this newly-built code, use the\n";
-        print " \"$launcherPath\" script.\n";
-    }
-    print "===========================================================\n";
+    print " To run $launcherName with this newly-built code, use the\n";
+    print " \"$launcherPath\" script.\n";
+    print "====================================================================\n";
 }

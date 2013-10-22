@@ -4,12 +4,12 @@ description("Tests the assertion that the GeolocationClient should not be updati
 
 var otherWindow;
 
-if (window.layoutTestController) {
-    layoutTestController.waitUntilDone();
-    layoutTestController.setCanOpenWindows();
-    layoutTestController.setCloseRemainingWindowsWhenComplete(true);
+if (window.testRunner) {
+    testRunner.waitUntilDone();
+    testRunner.setCanOpenWindows();
+    testRunner.setCloseRemainingWindowsWhenComplete(true);
 } else
-    testFailed('This test can not be run without the LayoutTestController');
+    testFailed('This test can not be run without the testRunner');
 
 function gotPosition(p)
 {

@@ -26,9 +26,14 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "config.h"
+
 #include "MiniBrowserApplication.h"
 
 #include "BrowserWindow.h"
+#if HAVE(QTTESTSUPPORT)
+#include "QtTestSupport.h"
+#endif
 #include "private/qquickwebview_p.h"
 #include "utils.h"
 #include <QRegExp>
@@ -93,7 +98,7 @@ bool MiniBrowserApplication::notify(QObject* target, QEvent* event)
     if (!event->spontaneous() || m_realTouchEventReceived || !m_windowOptions.touchMockingEnabled())
         return QGuiApplication::notify(target, event);
 
-    if (isTouchEvent(event) && static_cast<QTouchEvent*>(event)->deviceType() == QTouchEvent::TouchScreen) {
+    if (isTouchEvent(event)) {
         if (m_pendingFakeTouchEventCount)
             --m_pendingFakeTouchEventCount;
         else
@@ -104,6 +109,8 @@ bool MiniBrowserApplication::notify(QObject* target, QEvent* event)
     BrowserWindow* browserWindow = qobject_cast<BrowserWindow*>(target);
     if (!browserWindow)
         return QGuiApplication::notify(target, event);
+
+    m_holdingControl = QGuiApplication::keyboardModifiers().testFlag(Qt::ControlModifier);
 
     // In QML events are propagated through parents. But since the WebView
     // may consume key events, a shortcut might never reach the top QQuickItem.
@@ -118,52 +125,48 @@ bool MiniBrowserApplication::notify(QObject* target, QEvent* event)
             browserWindow->focusAddressBar();
             return true;
         }
+        if ((keyEvent->key() == Qt::Key_F && keyEvent->modifiers() == Qt::ControlModifier) || keyEvent->key() == Qt::Key_F3) {
+            browserWindow->toggleFind();
+            return true;
+        }
     }
 
     if (event->type() == QEvent::KeyRelease && static_cast<QKeyEvent*>(event)->key() == Qt::Key_Control) {
         foreach (int id, m_heldTouchPoints)
-            if (m_touchPoints.contains(id))
+            if (m_touchPoints.contains(id) && !QGuiApplication::mouseButtons().testFlag(Qt::MouseButton(id))) {
                 m_touchPoints[id].setState(Qt::TouchPointReleased);
-        m_heldTouchPoints.clear();
-        sendTouchEvent(browserWindow, QEvent::TouchEnd, static_cast<QKeyEvent*>(event)->timestamp());
+                m_heldTouchPoints.remove(id);
+            } else
+                m_touchPoints[id].setState(Qt::TouchPointStationary);
+
+        sendTouchEvent(browserWindow, m_heldTouchPoints.isEmpty() ? QEvent::TouchEnd : QEvent::TouchUpdate, static_cast<QKeyEvent*>(event)->timestamp());
     }
 
     if (isMouseEvent(event)) {
         const QMouseEvent* const mouseEvent = static_cast<QMouseEvent*>(event);
-        m_holdingControl = mouseEvent->modifiers().testFlag(Qt::ControlModifier);
 
         QTouchEvent::TouchPoint touchPoint;
-
-        touchPoint.setRect(touchRectForPosition(mouseEvent->localPos()));
-        touchPoint.setLastPos(m_lastPos);
-        m_lastPos = mouseEvent->localPos();
-
-        // Gesture recognition uses the screen position for the initial threshold
-        // but since the canvas translates touch events we actually need to pass
-        // the screen position as the scene position to deliver the appropriate
-        // coordinates to the target.
-        touchPoint.setSceneRect(touchRectForPosition(mouseEvent->screenPos()));
-        touchPoint.setLastScenePos(m_lastScreenPos);
-        m_lastScreenPos = mouseEvent->screenPos();
         touchPoint.setPressure(1);
 
         QEvent::Type touchType = QEvent::None;
 
         switch (mouseEvent->type()) {
         case QEvent::MouseButtonPress:
-        case QEvent::MouseButtonDblClick:
             touchPoint.setId(mouseEvent->button());
             if (m_touchPoints.contains(touchPoint.id())) {
                 touchPoint.setState(Qt::TouchPointMoved);
                 touchType = QEvent::TouchUpdate;
             } else {
                 touchPoint.setState(Qt::TouchPointPressed);
-                touchType = QEvent::TouchBegin;
-                m_startScreenPos = mouseEvent->screenPos();
+                // Check if more buttons are held down than just the event triggering one.
+                if (mouseEvent->buttons() > mouseEvent->button())
+                    touchType = QEvent::TouchUpdate;
+                else
+                    touchType = QEvent::TouchBegin;
             }
             break;
         case QEvent::MouseMove:
-            if (!mouseEvent->buttons() || !m_touchPoints.contains(mouseEvent->buttons())) {
+            if (!mouseEvent->buttons()) {
                 // We have to swallow the event instead of propagating it,
                 // since we avoid sending the mouse release events and if the
                 // Flickable is the mouse grabber it would receive the event
@@ -176,32 +179,41 @@ bool MiniBrowserApplication::notify(QObject* target, QEvent* event)
             touchPoint.setState(Qt::TouchPointMoved);
             break;
         case QEvent::MouseButtonRelease:
-            touchType = QEvent::TouchEnd;
-            touchPoint.setState(Qt::TouchPointReleased);
+            // Check if any buttons are still held down after this event.
+            if (mouseEvent->buttons())
+                touchType = QEvent::TouchUpdate;
+            else
+                touchType = QEvent::TouchEnd;
             touchPoint.setId(mouseEvent->button());
-            if (m_holdingControl) {
-                m_heldTouchPoints.insert(touchPoint.id());
-
-                // We avoid sending the release event because the Flickable is
-                // listening to mouse events and would start a bounce-back
-                // animation if it received a mouse release.
-                event->accept();
-                return true;
-            }
+            touchPoint.setState(Qt::TouchPointReleased);
             break;
+        case QEvent::MouseButtonDblClick:
+            // Eat double-clicks, their accompanying press event is all we need.
+            event->accept();
+            return true;
         default:
             Q_ASSERT_X(false, "multi-touch mocking", "unhandled event type");
         }
 
-        // Set the screen pos as the scene pos as canvas translates the touch events.
-        touchPoint.setStartScenePos(m_startScreenPos);
+        // A move can have resulted in multiple buttons, so we need check them individually.
+        if (touchPoint.id() & Qt::LeftButton)
+            updateTouchPoint(mouseEvent, touchPoint, Qt::LeftButton);
+        if (touchPoint.id() & Qt::MidButton)
+            updateTouchPoint(mouseEvent, touchPoint, Qt::MidButton);
+        if (touchPoint.id() & Qt::RightButton)
+            updateTouchPoint(mouseEvent, touchPoint, Qt::RightButton);
 
-        // Update current touch-point
-        m_touchPoints.insert(touchPoint.id(), touchPoint);
+        if (m_holdingControl && touchPoint.state() == Qt::TouchPointReleased) {
+            // We avoid sending the release event because the Flickable is
+            // listening to mouse events and would start a bounce-back
+            // animation if it received a mouse release.
+            event->accept();
+            return true;
+        }
 
         // Update states for all other touch-points
         for (QHash<int, QTouchEvent::TouchPoint>::iterator it = m_touchPoints.begin(), end = m_touchPoints.end(); it != end; ++it) {
-            if (it.value().id() != touchPoint.id())
+            if (!(it.value().id() & touchPoint.id()))
                 it.value().setState(Qt::TouchPointStationary);
         }
 
@@ -216,6 +228,40 @@ bool MiniBrowserApplication::notify(QObject* target, QEvent* event)
 
     return QGuiApplication::notify(target, event);
 }
+
+void MiniBrowserApplication::updateTouchPoint(const QMouseEvent* mouseEvent, QTouchEvent::TouchPoint touchPoint, Qt::MouseButton mouseButton)
+{
+    // Ignore inserting additional touch points if Ctrl isn't held because it produces
+    // inconsistent touch events and results in assers in the gesture recognizers.
+    if (!m_holdingControl && m_touchPoints.size() && !m_touchPoints.contains(mouseButton))
+        return;
+
+    if (m_holdingControl && touchPoint.state() == Qt::TouchPointReleased) {
+        m_heldTouchPoints.insert(mouseButton);
+        return;
+    }
+
+    // Gesture recognition uses the screen position for the initial threshold
+    // but since the canvas translates touch events we actually need to pass
+    // the screen position as the scene position to deliver the appropriate
+    // coordinates to the target.
+    touchPoint.setRect(touchRectForPosition(mouseEvent->localPos()));
+    touchPoint.setSceneRect(touchRectForPosition(mouseEvent->screenPos()));
+
+    if (touchPoint.state() == Qt::TouchPointPressed)
+        touchPoint.setStartScenePos(mouseEvent->screenPos());
+    else {
+        const QTouchEvent::TouchPoint& oldTouchPoint = m_touchPoints[mouseButton];
+        touchPoint.setStartScenePos(oldTouchPoint.startScenePos());
+        touchPoint.setLastPos(oldTouchPoint.pos());
+        touchPoint.setLastScenePos(oldTouchPoint.scenePos());
+    }
+
+    // Update current touch-point.
+    touchPoint.setId(mouseButton);
+    m_touchPoints.insert(mouseButton, touchPoint);
+}
+
 
 bool MiniBrowserApplication::sendTouchEvent(BrowserWindow* browserWindow, QEvent::Type type, ulong timestamp)
 {
@@ -299,6 +345,11 @@ void MiniBrowserApplication::handleUserOptions()
         if (list.length() == 2)
             m_windowOptions.setRequestedWindowSize(QSize(list.at(0).toInt(), list.at(1).toInt()));
     }
+
+#if HAVE(QTTESTSUPPORT)
+    if (takeOptionFlag(&args, QStringLiteral("--use-test-fonts")))
+        WebKit::QtTestSupport::initializeTestFonts();
+#endif
 
     if (args.contains("-r")) {
         QString listFile = takeOptionValue(&args, "-r");

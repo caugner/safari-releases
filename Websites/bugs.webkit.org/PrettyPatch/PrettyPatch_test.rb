@@ -60,9 +60,40 @@ class PrettyPatch_test < Test::Unit::TestCase
         assert_equal(info[Info::SHARED], $last_prettify_part_count["shared"], "Wrong number of 'shared' parts in " + description)
         assert_equal(0, $last_prettify_part_count["binary"], "Wrong number of 'binary' parts in " + description)
         assert_equal(0, $last_prettify_part_count["extract-error"], "Wrong number of 'extract-error' parts in " + description)
+        return pretty
     end
 
     def test_patches
         PATCHES.each { |id, info| check_one_patch(id, info) }
     end
+
+    def test_images_without_checksum
+        pretty = check_one_patch(144064, ["Images without checksums", 10, 5, 4, 8])
+        matches = pretty.match("INVALID: Image lacks a checksum.")
+        # FIXME: This should match, but there's a bug when running the tests where the image data
+        # doesn't get properly written out to the temp files, so there is no image and we don't print
+        # the warning that the image is missing its checksum.
+        assert(!matches, "Should have invalid checksums")
+        # FIXME: This should only have 4 invalid images, but due to the above tempfile issue, there are 0.
+        assert_equal(0, pretty.scan(/INVALID\: Image lacks a checksum\./).size)
+    end
+
+    def test_new_image
+        pretty = check_one_patch(145881, ["New image", 19, 36, 19, 56])
+        matches = pretty.match("INVALID: Image lacks a checksum.")
+        assert(!matches, "Should not have invalid checksums")
+    end
+
+    def test_images_correctly_without_checksum_git
+        pretty = check_one_patch(101620, ["Images correctly without checksums git", 7, 15, 10, 26])
+        matches = pretty.match("INVALID: Image lacks a checksum.")
+        assert(!matches, "Png should lack a checksum without an error.")
+    end
+
+    def test_images_correctly_without_checksum_svn
+        pretty = check_one_patch(31202, ["Images correctly without checksums svn", 4, 4, 1, 4])
+        matches = pretty.match("INVALID: Image lacks a checksum.")
+        assert(!matches, "Png should lack a checksum without an error.")
+    end
+
 end

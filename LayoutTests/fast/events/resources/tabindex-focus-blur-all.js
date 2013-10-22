@@ -1,6 +1,7 @@
-if (window.layoutTestController) {
-    layoutTestController.waitUntilDone();
-    layoutTestController.dumpAsText();
+if (window.testRunner) {
+    testRunner.overridePreference("WebKitJavaEnabled", "0");
+    testRunner.waitUntilDone();
+    testRunner.dumpAsText();
 }
 
 var consoleOutput = null;
@@ -65,8 +66,8 @@ function test()
     document.write(resultSummary);
     document.close();
 
-    if (window.layoutTestController)
-        layoutTestController.notifyDone();
+    if (window.testRunner)
+        testRunner.notifyDone();
 }
 
 function focusEachChild(elem) {

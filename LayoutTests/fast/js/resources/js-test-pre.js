@@ -1,6 +1,6 @@
 // svg/dynamic-updates tests set enablePixelTesting=true, as we want to dump text + pixel results
-if (self.layoutTestController)
-    layoutTestController.dumpAsText(self.enablePixelTesting);
+if (self.testRunner)
+    testRunner.dumpAsText(self.enablePixelTesting);
 
 var description, debug, successfullyParsed, errorMessage;
 
@@ -68,7 +68,7 @@ var description, debug, successfullyParsed, errorMessage;
         styleElement.textContent = css;
         (document.head || document.documentElement).appendChild(styleElement);
     }
-    
+
     if (!isWorker())
         insertStyleSheet();
 
@@ -145,13 +145,14 @@ function stringify(v)
     else return "" + v;
 }
 
-function evalAndLog(_a)
+function evalAndLog(_a, _quiet)
 {
   if (typeof _a != "string")
     debug("WARN: tryAndLog() expects a string argument");
 
   // Log first in case things go horribly wrong or this causes a sync event.
-  debug(_a);
+  if (!_quiet)
+    debug(_a);
 
   var _av;
   try {
@@ -185,6 +186,77 @@ function shouldBe(_a, _b, quiet)
     testFailed(_a + " should be " + _bv + ". Was " + stringify(_av) + ".");
   else
     testFailed(_a + " should be " + _bv + " (of type " + typeof _bv + "). Was " + _av + " (of type " + typeof _av + ").");
+}
+
+// Execute condition every 5 milliseconds until it succeed or failureTime is reached.
+// completionHandler is executed on success, failureHandler is executed on timeout.
+function _waitForCondition(condition, failureTime, completionHandler, failureHandler)
+{
+  if (condition()) {
+    completionHandler();
+  } else if (Date.now() > failureTime) {
+    failureHandler();
+  } else {
+    setTimeout(_waitForCondition, 5, condition, failureTime, completionHandler, failureHandler);
+  }
+}
+
+function shouldBecomeEqual(_a, _b, completionHandler, timeout)
+{
+  if (typeof _a != "string" || typeof _b != "string")
+    debug("WARN: shouldBecomeEqual() expects string arguments");
+
+  if (timeout === undefined)
+    timeout = 500;
+
+  var condition = function() {
+    var exception;
+    var _av;
+    try {
+      _av = eval(_a);
+    } catch (e) {
+      exception = e;
+    }
+    var _bv = eval(_b);
+    if (exception)
+      testFailed(_a + " should become " + _bv + ". Threw exception " + exception);
+    if (isResultCorrect(_av, _bv)) {
+      testPassed(_a + " became " + _b);
+      return true;
+    }
+    return false;
+  };
+  var failureTime = Date.now() + timeout;
+  var failureHandler = function () {
+    testFailed(_a + " failed to change to " + _b + " in " + (timeout / 1000) + " seconds.");
+    completionHandler();
+  };
+  _waitForCondition(condition, failureTime, completionHandler, failureHandler);
+}
+
+function shouldBecomeEqualToString(value, reference, completionHandler, timeout)
+{
+  if (typeof value !== "string" || typeof reference !== "string")
+    debug("WARN: shouldBecomeEqualToString() expects string arguments");
+  var unevaledString = JSON.stringify(reference);
+  shouldBecomeEqual(value, unevaledString, completionHandler, timeout);
+}
+
+function shouldBeType(_a, _type) {
+  var exception;
+  var _av;
+  try {
+    _av = eval(_a);
+  } catch (e) {
+    exception = e;
+  }
+
+  var _typev = eval(_type);
+  if (_av instanceof _typev) {
+    testPassed(_a + " is an instance of " + _type);
+  } else {
+    testFailed(_a + " is not an instance of " + _type);
+  }
 }
 
 // Variant of shouldBe()--confirms that result of eval(_to_eval) is within
@@ -249,6 +321,38 @@ function shouldNotBe(_a, _b, quiet)
     testFailed(_a + " should not be " + _bv + ".");
 }
 
+function shouldBecomeDifferent(_a, _b, completionHandler, timeout)
+{
+  if (typeof _a != "string" || typeof _b != "string")
+    debug("WARN: shouldBecomeDifferent() expects string arguments");
+  if (timeout === undefined)
+    timeout = 500;
+
+  var condition = function() {
+    var exception;
+    var _av;
+    try {
+      _av = eval(_a);
+    } catch (e) {
+      exception = e;
+    }
+    var _bv = eval(_b);
+    if (exception)
+      testFailed(_a + " should became not equal to " + _bv + ". Threw exception " + exception);
+    if (!isResultCorrect(_av, _bv)) {
+      testPassed(_a + " became different from " + _b);
+      return true;
+    }
+    return false;
+  };
+  var failureTime = Date.now() + timeout;
+  var failureHandler = function () {
+    testFailed(_a + " did not become different from " + _b + " in " + (timeout / 1000) + " seconds.");
+    completionHandler();
+  };
+  _waitForCondition(condition, failureTime, completionHandler, failureHandler);
+}
+
 function shouldBeTrue(_a) { shouldBe(_a, "true"); }
 function shouldBeTrueQuiet(_a) { shouldBe(_a, "true", true); }
 function shouldBeFalse(_a) { shouldBe(_a, "false"); }
@@ -258,7 +362,9 @@ function shouldBeZero(_a) { shouldBe(_a, "0"); }
 
 function shouldBeEqualToString(a, b)
 {
-  var unevaledString = '"' + b.replace(/\\/g, "\\\\").replace(/"/g, "\"").replace(/\n/g, "\\n").replace(/\r/g, "\\r") + '"';
+  if (typeof a !== "string" || typeof b !== "string")
+    debug("WARN: shouldBeEqualToString() expects string arguments");
+  var unevaledString = JSON.stringify(b);
   shouldBe(a, unevaledString);
 }
 
@@ -394,6 +500,15 @@ function shouldBeGreaterThanOrEqual(_a, _b) {
         testPassed(_a + " is >= " + _b);
 }
 
+function shouldNotThrow(_a) {
+    try {
+        eval(_a);
+        testPassed(_a + " did not throw exception.");
+    } catch (e) {
+        testFailed(_a + " should not throw exception. Threw exception " + e + ".");
+    }
+}
+
 function shouldThrow(_a, _e)
 {
   var exception;
@@ -466,17 +581,15 @@ function finishJSTest()
     if (!self.wasPostTestScriptParsed)
         return;
     isSuccessfullyParsed();
-    if (self.jsTestIsAsync && self.layoutTestController)
-        layoutTestController.notifyDone();
+    if (self.jsTestIsAsync && self.testRunner)
+        testRunner.notifyDone();
 }
 
 function startWorker(testScriptURL, shared)
 {
     self.jsTestIsAsync = true;
     debug('Starting worker: ' + testScriptURL);
-    var worker = shared ? new SharedWorker(testScriptURL) : new Worker(testScriptURL);
-    if (shared)
-        worker.port.onmessage = function(event) { worker.onmessage(event); };
+    var worker = shared ? new SharedWorker(testScriptURL, "Shared Worker") : new Worker(testScriptURL);
     worker.onmessage = function(event)
     {
         var workerPrefix = "[Worker] ";
@@ -504,23 +617,51 @@ function startWorker(testScriptURL, shared)
         finishJSTest();
     }
 
+    if (shared) {
+        worker.port.onmessage = function(event) { worker.onmessage(event); };
+        worker.port.start();
+    }
     return worker;
 }
 
 if (isWorker()) {
+    var workerPort = self;
+    if (self.name == "Shared Worker") {
+        self.onconnect = function(e) {
+            workerPort = e.ports[0];
+            workerPort.onmessage = function(event)
+            {
+                var colon = event.data.indexOf(":");
+                if (colon == -1) {
+                    testFailed("Unrecognized message to shared worker: " + event.data);
+                    return;
+                }
+                var code = event.data.substring(0, colon);
+                var payload = event.data.substring(colon + 1);
+                try {
+                    if (code == "IMPORT")
+                        importScripts(payload);
+                    else
+                        testFailed("Unrecognized message to shared worker: " + event.data);
+                } catch (ex) {
+                    testFailed("Caught exception in shared worker onmessage: " + ex);
+                }
+            };
+        };
+    }
     description = function(msg, quiet) {
-        postMessage('DESC:' + msg);
+        workerPort.postMessage('DESC:' + msg);
     }
     testFailed = function(msg) {
-        postMessage('FAIL:' + msg);
+        workerPort.postMessage('FAIL:' + msg);
     }
     testPassed = function(msg) {
-        postMessage('PASS:' + msg);
+        workerPort.postMessage('PASS:' + msg);
     }
     finishJSTest = function() {
-        postMessage('DONE:');
+        workerPort.postMessage('DONE:');
     }
     debug = function(msg) {
-        postMessage(msg);
+        workerPort.postMessage(msg);
     }
 }

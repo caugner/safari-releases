@@ -15,12 +15,13 @@
       border: 1px solid black;
     }
     
-    video {
+    .compositing {
       position: absolute;
       top: 21px;
       left: 21px;
       width: 100px;
       height: 100px;
+      -webkit-transform: translateZ(0);
     }
     
     .far-left {
@@ -41,16 +42,16 @@
     }
   </style>
   <script type="text/javascript" charset="utf-8">
-    if (window.layoutTestController) {
-      layoutTestController.dumpAsText();
-      layoutTestController.waitUntilDone();
+    if (window.testRunner) {
+      testRunner.dumpAsText();
+      testRunner.waitUntilDone();
     }
 
     function doTest()
     {
-      if (window.layoutTestController) {
-        document.getElementById('layers').innerText = layoutTestController.layerTreeAsText();
-        layoutTestController.notifyDone();
+      if (window.testRunner) {
+        document.getElementById('layers').innerText = window.internals.layerTreeAsText(document);
+        testRunner.notifyDone();
       }
     }
 
@@ -60,8 +61,8 @@
 
 <body>
   
-  <!-- Go into compositing without transforms. -->
-  <video src="../resources/video.mp4"></video>
+  <!-- Go into compositing. -->
+  <div class="compositing"></div>
 
   <div class="indicator"></div>
 

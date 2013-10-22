@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # Copyright (C) 2010, 2012 Google Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -29,151 +28,43 @@
 
 """Package that handles non-debug, non-file output for run-webkit-tests."""
 
+import math
 import optparse
 
-from webkitpy.common.net import resultsjsonparser
-from webkitpy.layout_tests.models.test_expectations import TestExpectations
+from webkitpy.tool import grammar
+from webkitpy.layout_tests.models import test_expectations
+from webkitpy.layout_tests.models.test_expectations import TestExpectations, TestExpectationParser
 from webkitpy.layout_tests.views.metered_stream import MeteredStream
 
+
 NUM_SLOW_TESTS_TO_LOG = 10
-
-PRINT_DEFAULT = "misc,one-line-progress,one-line-summary,unexpected,unexpected-results,updates"
-PRINT_EVERYTHING = "actual,config,expected,misc,one-line-progress,one-line-summary,slowest,timing,unexpected,unexpected-results,updates"
-
-HELP_PRINTING = """
-Output for run-webkit-tests is controlled by a comma-separated list of
-values passed to --print.  Values either influence the overall output, or
-the output at the beginning of the run, during the run, or at the end:
-
-Overall options:
-    nothing             don't print anything. This overrides every other option
-    default             include the default options. This is useful for logging
-                        the default options plus additional settings.
-    everything          print (almost) everything (except the trace-* options,
-                        see below for the full list )
-    misc                print miscellaneous things like blank lines
-
-At the beginning of the run:
-    config              print the test run configuration
-    expected            print a summary of what is expected to happen
-                        (# passes, # failures, etc.)
-
-During the run:
-    one-line-progress   print a one-line progress message or bar
-    unexpected          print any unexpected results as they occur
-    updates             print updates on which stage is executing
-    trace-everything    print detailed info on every test's results
-                        (baselines, expectation, time it took to run). If
-                        this is specified it will override the '*-progress'
-                        options, the 'trace-unexpected' option, and the
-                        'unexpected' option.
-    trace-unexpected    like 'trace-everything', but only for tests with
-                        unexpected results. If this option is specified,
-                        it will override the 'unexpected' option.
-
-At the end of the run:
-    actual              print a summary of the actual results
-    slowest             print %(slowest)d slowest tests and the time they took
-    timing              print timing statistics
-    unexpected-results  print a list of the tests with unexpected results
-    one-line-summary    print a one-line summary of the run
-
-Notes:
-    - If 'nothing' is specified, it overrides all of the other options.
-    - Specifying --verbose is equivalent to --print everything plus it
-      changes the format of the log messages to add timestamps and other
-      information. If you specify --verbose and --print X, then X overrides
-      the --print everything implied by --verbose.
-
---print 'everything' is equivalent to --print '%(everything)s'.
-
-The default (--print default) is equivalent to --print '%(default)s'.
-""" % {'slowest': NUM_SLOW_TESTS_TO_LOG, 'everything': PRINT_EVERYTHING,
-       'default': PRINT_DEFAULT}
 
 
 def print_options():
     return [
-        # Note: We use print_options rather than just 'print' because print
-        # is a reserved word.
-        # Note: Also, we don't specify a default value so we can detect when
-        # no flag is specified on the command line and use different defaults
-        # based on whether or not --verbose is specified (since --print
-        # overrides --verbose).
-        optparse.make_option("--print", dest="print_options",
-            help=("controls print output of test run. "
-                  "Use --help-printing for more.")),
-        optparse.make_option("--help-printing", action="store_true",
-            help="show detailed help on controlling print output"),
-        optparse.make_option("-v", "--verbose", action="store_true",
-            default=False, help="include debug-level logging"),
-   ]
-
-
-def parse_print_options(print_options, verbose):
-    """Parse the options provided to --print and dedup and rank them.
-
-    Returns
-        a set() of switches that govern how logging is done
-
-    """
-    if print_options:
-        switches = set(print_options.split(','))
-    elif verbose:
-        switches = set(PRINT_EVERYTHING.split(','))
-    else:
-        switches = set(PRINT_DEFAULT.split(','))
-
-    if 'nothing' in switches:
-        return set()
-
-    if 'everything' in switches:
-        switches.discard('everything')
-        switches.update(set(PRINT_EVERYTHING.split(',')))
-
-    if 'default' in switches:
-        switches.discard('default')
-        switches.update(set(PRINT_DEFAULT.split(',')))
-
-    if 'trace-everything' in switches:
-        switches.discard('one-line-progress')
-        switches.discard('trace-unexpected')
-        switches.discard('unexpected')
-
-    if 'trace-unexpected' in switches:
-        switches.discard('unexpected')
-
-    return switches
+        optparse.make_option('-q', '--quiet', action='store_true', default=False,
+                             help='run quietly (errors, warnings, and progress only)'),
+        optparse.make_option('-v', '--verbose', action='store_true', default=False,
+                             help='print a summarized result for every test (one line per test)'),
+        optparse.make_option('--details', action='store_true', default=False,
+                             help='print detailed results for every test'),
+        optparse.make_option('--debug-rwt-logging', action='store_true', default=False,
+                             help='print timestamps and debug information for run-webkit-tests itself'),
+    ]
 
 
 class Printer(object):
-    """Class handling all non-debug-logging printing done by run-webkit-tests.
+    """Class handling all non-debug-logging printing done by run-webkit-tests."""
 
-    Printing from run-webkit-tests falls into two buckets: general or
-    regular output that is read only by humans and can be changed at any
-    time, and output that is parsed by buildbots (and humans) and hence
-    must be changed more carefully and in coordination with the buildbot
-    parsing code (in chromium.org's buildbot/master.chromium/scripts/master/
-    log_parser/webkit_test_command.py script).
-
-    By default the buildbot-parsed code gets logged to stdout, and regular
-    output gets logged to stderr."""
-    def __init__(self, port, options, regular_output, buildbot_output, logger=None):
-        """
-        Args
-          port               interface to port-specific routines
-          options            OptionParser object with command line settings
-          regular_output     stream to which output intended only for humans
-                             should be written
-          buildbot_output    stream to which output intended to be read by
-                             the buildbots (and humans) should be written
-          logger             optional logger to integrate into the stream.
-        """
+    def __init__(self, port, options, regular_output, logger=None):
+        self.num_started = 0
+        self.num_tests = 0
         self._port = port
         self._options = options
-        self._buildbot_stream = buildbot_output
-        self._meter = MeteredStream(regular_output, options.verbose, logger=logger)
-        self.switches = parse_print_options(options.print_options, options.verbose)
+        self._meter = MeteredStream(regular_output, options.debug_rwt_logging, logger=logger,
+                                    number_of_columns=self._port.host.platform.terminal_width())
+        self._running_tests = []
+        self._completed_tests = []
 
     def cleanup(self):
         self._meter.cleanup()
@@ -181,106 +72,297 @@ class Printer(object):
     def __del__(self):
         self.cleanup()
 
-    # These two routines just hide the implementation of the switches.
-    def disabled(self, option):
-        return not option in self.switches
+    def print_config(self, results_directory):
+        self._print_default("Using port '%s'" % self._port.name())
+        self._print_default("Test configuration: %s" % self._port.test_configuration())
+        self._print_default("Placing test results in %s" % results_directory)
 
-    def enabled(self, option):
-        return option in self.switches
+        # FIXME: should these options be in printing_options?
+        if self._options.new_baseline:
+            self._print_default("Placing new baselines in %s" % self._port.baseline_path())
 
-    def help_printing(self):
-        self._write(HELP_PRINTING)
+        fs = self._port.host.filesystem
+        fallback_path = [fs.split(x)[1] for x in self._port.baseline_search_path()]
+        self._print_default("Baseline search path: %s -> generic" % " -> ".join(fallback_path))
 
-    def print_actual(self, msg):
-        if self.disabled('actual'):
+        self._print_default("Using %s build" % self._options.configuration)
+        if self._options.pixel_tests:
+            self._print_default("Pixel tests enabled")
+        else:
+            self._print_default("Pixel tests disabled")
+
+        self._print_default("Regular timeout: %s, slow test timeout: %s" %
+                  (self._options.time_out_ms, self._options.slow_time_out_ms))
+
+        self._print_default('Command line: ' + ' '.join(self._port.driver_cmd_line()))
+        self._print_default('')
+
+    def print_found(self, num_all_test_files, num_to_run, repeat_each, iterations):
+        found_str = 'Found %s; running %d' % (grammar.pluralize('test', num_all_test_files), num_to_run)
+        if repeat_each * iterations > 1:
+            found_str += ' (%d times each: --repeat-each=%d --iterations=%d)' % (repeat_each * iterations, repeat_each, iterations)
+        found_str += ', skipping %d' % (num_all_test_files - num_to_run)
+        self._print_default(found_str + '.')
+
+    def print_expected(self, run_results, tests_with_result_type_callback):
+        self._print_expected_results_of_type(run_results, test_expectations.PASS, "passes", tests_with_result_type_callback)
+        self._print_expected_results_of_type(run_results, test_expectations.FAIL, "failures", tests_with_result_type_callback)
+        self._print_expected_results_of_type(run_results, test_expectations.FLAKY, "flaky", tests_with_result_type_callback)
+        self._print_debug('')
+
+    def print_workers_and_shards(self, num_workers, num_shards, num_locked_shards):
+        driver_name = self._port.driver_name()
+        if num_workers == 1:
+            self._print_default("Running 1 %s." % driver_name)
+            self._print_debug("(%s)." % grammar.pluralize('shard', num_shards))
+        else:
+            self._print_default("Running %d %ss in parallel." % (num_workers, driver_name))
+            self._print_debug("(%d shards; %d locked)." % (num_shards, num_locked_shards))
+        self._print_default('')
+
+    def _print_expected_results_of_type(self, run_results, result_type, result_type_str, tests_with_result_type_callback):
+        tests = tests_with_result_type_callback(result_type)
+        now = run_results.tests_by_timeline[test_expectations.NOW]
+        wontfix = run_results.tests_by_timeline[test_expectations.WONTFIX]
+
+        # We use a fancy format string in order to print the data out in a
+        # nicely-aligned table.
+        fmtstr = ("Expect: %%5d %%-8s (%%%dd now, %%%dd wontfix)"
+                  % (self._num_digits(now), self._num_digits(wontfix)))
+        self._print_debug(fmtstr % (len(tests), result_type_str, len(tests & now), len(tests & wontfix)))
+
+    def _num_digits(self, num):
+        ndigits = 1
+        if len(num):
+            ndigits = int(math.log10(len(num))) + 1
+        return ndigits
+
+    def print_results(self, run_time, run_results, summarized_results):
+        self._print_timing_statistics(run_time, run_results)
+        self._print_one_line_summary(run_results.total - run_results.expected_skips,
+                                     run_results.expected - run_results.expected_skips,
+                                     run_results.unexpected)
+
+    def _print_timing_statistics(self, total_time, run_results):
+        self._print_debug("Test timing:")
+        self._print_debug("  %6.2f total testing time" % total_time)
+        self._print_debug("")
+
+        self._print_worker_statistics(run_results, int(self._options.child_processes))
+        self._print_aggregate_test_statistics(run_results)
+        self._print_individual_test_times(run_results)
+        self._print_directory_timings(run_results)
+
+    def _print_worker_statistics(self, run_results, num_workers):
+        self._print_debug("Thread timing:")
+        stats = {}
+        cuml_time = 0
+        for result in run_results.results_by_name.values():
+            stats.setdefault(result.worker_name, {'num_tests': 0, 'total_time': 0})
+            stats[result.worker_name]['num_tests'] += 1
+            stats[result.worker_name]['total_time'] += result.total_run_time
+            cuml_time += result.total_run_time
+
+        for worker_name in stats:
+            self._print_debug("    %10s: %5d tests, %6.2f secs" % (worker_name, stats[worker_name]['num_tests'], stats[worker_name]['total_time']))
+        self._print_debug("   %6.2f cumulative, %6.2f optimal" % (cuml_time, cuml_time / num_workers))
+        self._print_debug("")
+
+    def _print_aggregate_test_statistics(self, run_results):
+        times_for_dump_render_tree = [result.test_run_time for result in run_results.results_by_name.values()]
+        self._print_statistics_for_test_timings("PER TEST TIME IN TESTSHELL (seconds):", times_for_dump_render_tree)
+
+    def _print_individual_test_times(self, run_results):
+        # Reverse-sort by the time spent in DumpRenderTree.
+
+        individual_test_timings = sorted(run_results.results_by_name.values(), key=lambda result: result.test_run_time, reverse=True)
+        num_printed = 0
+        slow_tests = []
+        timeout_or_crash_tests = []
+        unexpected_slow_tests = []
+        for test_tuple in individual_test_timings:
+            test_name = test_tuple.test_name
+            is_timeout_crash_or_slow = False
+            if test_name in run_results.slow_tests:
+                is_timeout_crash_or_slow = True
+                slow_tests.append(test_tuple)
+
+            if test_name in run_results.failures_by_name:
+                result = run_results.results_by_name[test_name].type
+                if (result == test_expectations.TIMEOUT or
+                    result == test_expectations.CRASH):
+                    is_timeout_crash_or_slow = True
+                    timeout_or_crash_tests.append(test_tuple)
+
+            if (not is_timeout_crash_or_slow and num_printed < NUM_SLOW_TESTS_TO_LOG):
+                num_printed = num_printed + 1
+                unexpected_slow_tests.append(test_tuple)
+
+        self._print_debug("")
+        self._print_test_list_timing("%s slowest tests that are not marked as SLOW and did not timeout/crash:" %
+            NUM_SLOW_TESTS_TO_LOG, unexpected_slow_tests)
+        self._print_debug("")
+        self._print_test_list_timing("Tests marked as SLOW:", slow_tests)
+        self._print_debug("")
+        self._print_test_list_timing("Tests that timed out or crashed:", timeout_or_crash_tests)
+        self._print_debug("")
+
+    def _print_test_list_timing(self, title, test_list):
+        self._print_debug(title)
+        for test_tuple in test_list:
+            test_run_time = round(test_tuple.test_run_time, 1)
+            self._print_debug("  %s took %s seconds" % (test_tuple.test_name, test_run_time))
+
+    def _print_directory_timings(self, run_results):
+        stats = {}
+        for result in run_results.results_by_name.values():
+            stats.setdefault(result.shard_name, {'num_tests': 0, 'total_time': 0})
+            stats[result.shard_name]['num_tests'] += 1
+            stats[result.shard_name]['total_time'] += result.total_run_time
+
+        timings = []
+        for directory in stats:
+            timings.append((directory, round(stats[directory]['total_time'], 1), stats[directory]['num_tests']))
+        timings.sort()
+
+        self._print_debug("Time to process slowest subdirectories:")
+        min_seconds_to_print = 10
+        for timing in timings:
+            if timing[0] > min_seconds_to_print:
+                self._print_debug("  %s took %s seconds to run %s tests." % timing)
+        self._print_debug("")
+
+    def _print_statistics_for_test_timings(self, title, timings):
+        self._print_debug(title)
+        timings.sort()
+
+        num_tests = len(timings)
+        if not num_tests:
             return
-        self._buildbot_stream.write("%s\n" % msg)
+        percentile90 = timings[int(.9 * num_tests)]
+        percentile99 = timings[int(.99 * num_tests)]
 
-    def print_config(self, msg):
-        self.write(msg, 'config')
+        if num_tests % 2 == 1:
+            median = timings[((num_tests - 1) / 2) - 1]
+        else:
+            lower = timings[num_tests / 2 - 1]
+            upper = timings[num_tests / 2]
+            median = (float(lower + upper)) / 2
 
-    def print_expected(self, msg):
-        self.write(msg, 'expected')
+        mean = sum(timings) / num_tests
 
-    def print_timing(self, msg):
-        self.write(msg, 'timing')
+        for timing in timings:
+            sum_of_deviations = math.pow(timing - mean, 2)
 
-    def print_one_line_summary(self, total, expected, unexpected):
-        """Print a one-line summary of the test run to stdout.
+        std_deviation = math.sqrt(sum_of_deviations / num_tests)
+        self._print_debug("  Median:          %6.3f" % median)
+        self._print_debug("  Mean:            %6.3f" % mean)
+        self._print_debug("  90th percentile: %6.3f" % percentile90)
+        self._print_debug("  99th percentile: %6.3f" % percentile99)
+        self._print_debug("  Standard dev:    %6.3f" % std_deviation)
+        self._print_debug("")
 
-        Args:
-          total: total number of tests run
-          expected: number of expected results
-          unexpected: number of unexpected results
-        """
-        if self.disabled('one-line-summary'):
-            return
-
+    def _print_one_line_summary(self, total, expected, unexpected):
         incomplete = total - expected - unexpected
+        incomplete_str = ''
         if incomplete:
-            self._write("")
+            self._print_default("")
             incomplete_str = " (%d didn't run)" % incomplete
-            expected_str = str(expected)
-        else:
-            incomplete_str = ""
-            expected_str = "All %d" % expected
 
+        if self._options.verbose or self._options.debug_rwt_logging or unexpected:
+            self.writeln("")
+
+        summary = ''
         if unexpected == 0:
-            self._write("%s tests ran as expected%s." %
-                        (expected_str, incomplete_str))
-        elif expected == 1:
-            self._write("1 test ran as expected, %d didn't%s:" %
-                        (unexpected, incomplete_str))
+            if expected == total:
+                if expected > 1:
+                    summary = "All %d tests ran as expected." % expected
+                else:
+                    summary = "The test ran as expected."
+            else:
+                summary = "%s ran as expected%s." % (grammar.pluralize('test', expected), incomplete_str)
         else:
-            self._write("%d tests ran as expected, %d didn't%s:" %
-                        (expected, unexpected, incomplete_str))
-        self._write("")
+            summary = "%s ran as expected, %d didn't%s:" % (grammar.pluralize('test', expected), unexpected, incomplete_str)
 
-    def print_test_result(self, result, expected, exp_str, got_str):
-        """Print the result of the test as determined by --print.
+        self._print_quiet(summary)
+        self._print_quiet("")
 
-        This routine is used to print the details of each test as it completes.
+    def _test_status_line(self, test_name, suffix):
+        format_string = '[%d/%d] %s%s'
+        status_line = format_string % (self.num_started, self.num_tests, test_name, suffix)
+        if len(status_line) > self._meter.number_of_columns():
+            overflow_columns = len(status_line) - self._meter.number_of_columns()
+            ellipsis = '...'
+            if len(test_name) < overflow_columns + len(ellipsis) + 2:
+                # We don't have enough space even if we elide, just show the test filename.
+                fs = self._port.host.filesystem
+                test_name = fs.split(test_name)[1]
+            else:
+                new_length = len(test_name) - overflow_columns - len(ellipsis)
+                prefix = int(new_length / 2)
+                test_name = test_name[:prefix] + ellipsis + test_name[-(new_length - prefix):]
+        return format_string % (self.num_started, self.num_tests, test_name, suffix)
 
-        Args:
-            result   - The actual TestResult object
-            expected - Whether the result we got was an expected result
-            exp_str  - What we expected to get (used for tracing)
-            got_str  - What we actually got (used for tracing)
+    def print_started_test(self, test_name):
+        self.num_started += 1
+        self._running_tests.append(test_name)
+        if len(self._running_tests) > 1:
+            suffix = ' (+%d)' % (len(self._running_tests) - 1)
+        else:
+            suffix = ''
+        if self._options.verbose:
+            write = self._meter.write_update
+        else:
+            write = self._meter.write_throttled_update
+        write(self._test_status_line(test_name, suffix))
 
-        Note that we need all of these arguments even though they seem
-        somewhat redundant, in order to keep this routine from having to
-        known anything about the set of expectations.
-        """
-        if (self.enabled('trace-everything') or
-            self.enabled('trace-unexpected') and not expected):
+    def print_finished_test(self, result, expected, exp_str, got_str):
+        test_name = result.test_name
+
+        result_message = self._result_message(result.type, result.failures, expected, self._options.verbose)
+
+        if self._options.details:
             self._print_test_trace(result, exp_str, got_str)
-        elif not expected and self.enabled('unexpected'):
-            self._print_unexpected_test_result(result)
+        elif (self._options.verbose and not self._options.debug_rwt_logging) or not expected:
+            self.writeln(self._test_status_line(test_name, result_message))
+        elif self.num_started == self.num_tests:
+            self._meter.write_update('')
+        else:
+            if test_name == self._running_tests[0]:
+                self._completed_tests.insert(0, [test_name, result_message])
+            else:
+                self._completed_tests.append([test_name, result_message])
+
+            for test_name, result_message in self._completed_tests:
+                self._meter.write_throttled_update(self._test_status_line(test_name, result_message))
+            self._completed_tests = []
+        self._running_tests.remove(test_name)
+
+    def _result_message(self, result_type, failures, expected, verbose):
+        exp_string = ' unexpectedly' if not expected else ''
+        if result_type == test_expectations.PASS:
+            return ' passed%s' % exp_string
+        else:
+            return ' failed%s (%s)' % (exp_string, ', '.join(failure.message() for failure in failures))
+
 
     def _print_test_trace(self, result, exp_str, got_str):
-        """Print detailed results of a test (triggered by --print trace-*).
-        For each test, print:
-           - location of the expected baselines
-           - expected results
-           - actual result
-           - timing info
-        """
         test_name = result.test_name
-        self._write('trace: %s' % test_name)
+        self._print_default(self._test_status_line(test_name, ''))
 
         base = self._port.lookup_virtual_test_base(test_name)
         if base:
             args = ' '.join(self._port.lookup_virtual_test_args(test_name))
-            self._write(' base: %s' % base)
-            self._write(' args: %s' % args)
+            self._print_default(' base: %s' % base)
+            self._print_default(' args: %s' % args)
 
         for extension in ('.txt', '.png', '.wav', '.webarchive'):
             self._print_baseline(test_name, extension)
 
-        self._write('  exp: %s' % exp_str)
-        self._write('  got: %s' % got_str)
-        self._write(' took: %-.3f' % result.test_run_time)
-        self._write('')
+        self._print_default('  exp: %s' % exp_str)
+        self._print_default('  got: %s' % got_str)
+        self._print_default(' took: %-.3f' % result.test_run_time)
+        self._print_default('')
 
     def _print_baseline(self, test_name, extension):
         baseline = self._port.expected_filename(test_name, extension)
@@ -288,124 +370,24 @@ class Printer(object):
             relpath = self._port.relative_test_filename(baseline)
         else:
             relpath = '<none>'
-        self._write('  %s: %s' % (extension[1:], relpath))
+        self._print_default('  %s: %s' % (extension[1:], relpath))
 
-    def _print_unexpected_test_result(self, result):
-        """Prints one unexpected test result line."""
-        desc = TestExpectations.EXPECTATION_DESCRIPTIONS[result.type][0]
-        self.write("  %s -> unexpected %s" % (result.test_name, desc), "unexpected")
+    def _print_quiet(self, msg):
+        self.writeln(msg)
 
-    def print_progress(self, result_summary, retrying, test_list):
-        """Print progress through the tests as determined by --print."""
-        if self.disabled('one-line-progress'):
-            return
+    def _print_default(self, msg):
+        if not self._options.quiet:
+            self.writeln(msg)
 
-        if result_summary.remaining == 0:
-            self._meter.write_update('')
-            return
+    def _print_debug(self, msg):
+        if self._options.debug_rwt_logging:
+            self.writeln(msg)
 
-        percent_complete = 100 * (result_summary.expected +
-            result_summary.unexpected) / result_summary.total
-        action = "Testing"
-        if retrying:
-            action = "Retrying"
-
-        self._meter.write_throttled_update("%s (%d%%): %d ran as expected, %d didn't, %d left" %
-            (action, percent_complete, result_summary.expected,
-             result_summary.unexpected, result_summary.remaining))
-
-    def print_unexpected_results(self, unexpected_results):
-        """Prints a list of the unexpected results to the buildbot stream."""
-        if self.disabled('unexpected-results'):
-            return
-
-        passes = {}
-        flaky = {}
-        regressions = {}
-
-        def add_to_dict_of_lists(dict, key, value):
-            dict.setdefault(key, []).append(value)
-
-        def add_result(test, results, passes=passes, flaky=flaky, regressions=regressions):
-            actual = results['actual'].split(" ")
-            expected = results['expected'].split(" ")
-            if actual == ['PASS']:
-                if 'CRASH' in expected:
-                    add_to_dict_of_lists(passes,
-                                         'Expected to crash, but passed',
-                                         test)
-                elif 'TIMEOUT' in expected:
-                    add_to_dict_of_lists(passes,
-                                         'Expected to timeout, but passed',
-                                          test)
-                else:
-                    add_to_dict_of_lists(passes,
-                                         'Expected to fail, but passed',
-                                         test)
-            elif len(actual) > 1:
-                # We group flaky tests by the first actual result we got.
-                add_to_dict_of_lists(flaky, actual[0], test)
-            else:
-                add_to_dict_of_lists(regressions, results['actual'], test)
-
-        resultsjsonparser.for_each_test(unexpected_results['tests'], add_result)
-
-        if len(passes) or len(flaky) or len(regressions):
-            self._buildbot_stream.write("\n")
-
-        if len(passes):
-            for key, tests in passes.iteritems():
-                self._buildbot_stream.write("%s: (%d)\n" % (key, len(tests)))
-                tests.sort()
-                for test in tests:
-                    self._buildbot_stream.write("  %s\n" % test)
-                self._buildbot_stream.write("\n")
-            self._buildbot_stream.write("\n")
-
-        if len(flaky):
-            descriptions = TestExpectations.EXPECTATION_DESCRIPTIONS
-            for key, tests in flaky.iteritems():
-                result = TestExpectations.EXPECTATIONS[key.lower()]
-                self._buildbot_stream.write("Unexpected flakiness: %s (%d)\n"
-                    % (descriptions[result][1], len(tests)))
-                tests.sort()
-
-                for test in tests:
-                    result = resultsjsonparser.result_for_test(unexpected_results['tests'], test)
-                    actual = result['actual'].split(" ")
-                    expected = result['expected'].split(" ")
-                    result = TestExpectations.EXPECTATIONS[key.lower()]
-                    new_expectations_list = list(set(actual) | set(expected))
-                    self._buildbot_stream.write("  %s = %s\n" %
-                        (test, " ".join(new_expectations_list)))
-                self._buildbot_stream.write("\n")
-            self._buildbot_stream.write("\n")
-
-        if len(regressions):
-            descriptions = TestExpectations.EXPECTATION_DESCRIPTIONS
-            for key, tests in regressions.iteritems():
-                result = TestExpectations.EXPECTATIONS[key.lower()]
-                self._buildbot_stream.write(
-                    "Regressions: Unexpected %s : (%d)\n" % (
-                    descriptions[result][1], len(tests)))
-                tests.sort()
-                for test in tests:
-                    self._buildbot_stream.write("  %s = %s\n" % (test, key))
-                self._buildbot_stream.write("\n")
-            self._buildbot_stream.write("\n")
-
-        if len(unexpected_results['tests']) and self._options.verbose:
-            self._buildbot_stream.write("%s\n" % ("-" * 78))
-
-    def print_update(self, msg):
-        if self.disabled('updates'):
-            return
+    def write_update(self, msg):
         self._meter.write_update(msg)
 
-    def write(self, msg, option="misc"):
-        if self.disabled(option):
-            return
-        self._write(msg)
-
-    def _write(self, msg):
+    def writeln(self, msg):
         self._meter.writeln(msg)
+
+    def flush(self):
+        self._meter.flush()
