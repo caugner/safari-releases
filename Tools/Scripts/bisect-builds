@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 
-# Copyright (C) 2007, 2008, 2011 Apple Inc.  All rights reserved.
+# Copyright (C) 2007-2009, 2011-2014 Apple Inc.  All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -11,7 +11,7 @@
 # 2.  Redistributions in binary form must reproduce the above copyright
 #     notice, this list of conditions and the following disclaimer in the
 #     documentation and/or other materials provided with the distribution. 
-# 3.  Neither the name of Apple Computer, Inc. ("Apple") nor the names of
+# 3.  Neither the name of Apple Inc. ("Apple") nor the names of
 #     its contributors may be used to endorse or promote products derived
 #     from this software without specific prior written permission. 
 #
@@ -84,6 +84,7 @@ my $testURL;
 @ARGV = map { /^(-r)(.+)$/ ? ($1, $2) : $_ } @ARGV;
 
 my $result = GetOptions(
+    sharedCommandLineOptions(),
     "b|branch=s"             => \$branch,
     "d|download-directory=s" => \$nightlyDownloadDirectory,
     "h|help"                 => \$showHelp,
@@ -114,6 +115,7 @@ if (!$result || $showHelp || scalar(@ARGV) > 0) {
   [--safari-path path]           path to Safari application bundle (default: /Applications/Safari.app)
   [-s|--sanity-check]            verify both starting and ending revisions before bisecting
 END
+    print STDERR sharedCommandLineOptionsUsage(brackets => 1, indent => 2, switchWidth => 30);
     exit 1;
 }
 
@@ -187,7 +189,13 @@ while (abs($endIndex - $startIndex) > 1) {
             $brokenRevisions{$nightlies[$index]->{rev}} = $nightlies[$index]->{file};
             delete $nightlies[$index];
             $endIndex--;
-            $index = $startIndex + int(($endIndex - $startIndex) / 2);
+            if (scalar(keys %brokenRevisions) % 2 == 0) {
+                # Even tries to bisect to the left
+                $index = int(($startIndex + $index) / 2);
+            } else {
+                # Odd tries to bisect to the right
+                $index = int(($index + $endIndex) / 2);
+            }
         }
     } while ($didReproduceBug < 0);
 
@@ -399,7 +407,13 @@ sub mountAndRunNightly($$$$)
     }
 
     $tempFile ||= "";
-    `DYLD_FRAMEWORK_PATH=$frameworkPath WEBKIT_UNSET_DYLD_FRAMEWORK_PATH=YES $safari $tempFile`;
+
+    {
+        local %ENV = %ENV;
+        setupMacWebKitEnvironment($frameworkPath);
+
+        `$safari $tempFile`;
+    }
 
     `hdiutil detach '$mountPath' 2> $devNull`;
 }
@@ -430,7 +444,11 @@ sub printStatus($$$)
 sub printTracLink($$)
 {
     my ($startRevision, $endRevision) = @_;
-    printf("http://trac.webkit.org/log/trunk/?rev=%s&stop_rev=%s\n", $endRevision, $startRevision + 1);
+    if ($startRevision + 1 == $endRevision) {
+        printf("http://trac.webkit.org/changeset/%s\n", $endRevision);
+    } else {
+        printf("http://trac.webkit.org/log/trunk/?rev=%s&stop_rev=%s\n", $endRevision, $startRevision + 1);
+    }
 }
 
 sub promptForTest($)

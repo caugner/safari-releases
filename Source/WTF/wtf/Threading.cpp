@@ -25,8 +25,6 @@
 
 #include "config.h"
 #include "Threading.h"
-#include <wtf/OwnPtr.h>
-#include <wtf/PassOwnPtr.h>
 
 #include <string.h>
 
@@ -86,6 +84,20 @@ ThreadIdentifier createThread(ThreadFunction entryPoint, void* data, const char*
     return createThreadInternal(threadEntryPoint, context, name);
 }
 
+void setCurrentThreadIsUserInteractive()
+{
+#if HAVE(QOS_CLASSES)
+    pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
+#endif
+}
+
+void setCurrentThreadIsUserInitiated()
+{
+#if HAVE(QOS_CLASSES)
+    pthread_set_qos_class_self_np(QOS_CLASS_USER_INITIATED, 0);
+#endif
+}
+
 #if PLATFORM(MAC) || PLATFORM(WIN)
 
 // For ABI compatibility with Safari on Mac / Windows: Safari uses the private
@@ -109,17 +121,17 @@ struct ThreadFunctionWithReturnValueInvocation {
 
 static void compatEntryPoint(void* param)
 {
-    // Balanced by .leakPtr() in createThread.
-    OwnPtr<ThreadFunctionWithReturnValueInvocation> invocation = adoptPtr(static_cast<ThreadFunctionWithReturnValueInvocation*>(param));
+    // Balanced by .release() in createThread.
+    auto invocation = std::unique_ptr<ThreadFunctionWithReturnValueInvocation>(static_cast<ThreadFunctionWithReturnValueInvocation*>(param));
     invocation->function(invocation->data);
 }
 
 ThreadIdentifier createThread(ThreadFunctionWithReturnValue entryPoint, void* data, const char* name)
 {
-    OwnPtr<ThreadFunctionWithReturnValueInvocation> invocation = adoptPtr(new ThreadFunctionWithReturnValueInvocation(entryPoint, data));
+    auto invocation = std::make_unique<ThreadFunctionWithReturnValueInvocation>(entryPoint, data);
 
-    // Balanced by adoptPtr() in compatEntryPoint.
-    return createThread(compatEntryPoint, invocation.leakPtr(), name);
+    // Balanced by std::unique_ptr constructor in compatEntryPoint.
+    return createThread(compatEntryPoint, invocation.release(), name);
 }
 
 WTF_EXPORT_PRIVATE int waitForThreadCompletion(ThreadIdentifier, void**);
@@ -136,10 +148,10 @@ WTF_EXPORT_PRIVATE ThreadIdentifier createThread(ThreadFunctionWithReturnValue e
 
 ThreadIdentifier createThread(ThreadFunctionWithReturnValue entryPoint, void* data)
 {
-    OwnPtr<ThreadFunctionWithReturnValueInvocation> invocation = adoptPtr(new ThreadFunctionWithReturnValueInvocation(entryPoint, data));
+    auto invocation = std::make_unique<ThreadFunctionWithReturnValueInvocation>(entryPoint, data);
 
     // Balanced by adoptPtr() in compatEntryPoint.
-    return createThread(compatEntryPoint, invocation.leakPtr(), 0);
+    return createThread(compatEntryPoint, invocation.release(), 0);
 }
 #endif
 

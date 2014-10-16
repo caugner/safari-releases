@@ -1,16 +1,12 @@
 <!DOCTYPE html>
 <html>
-<script>
-if (window.testRunner)
-    testRunner.overridePreference("WebKitCSSGridLayoutEnabled", 1);
-</script>
 <script src="../../resources/check-layout.js"></script>
 <link href="resources/grid.css" rel="stylesheet">
 <style>
 .grid {
     padding: 20px 30px 40px 50px;
-    -webkit-grid-rows: 100px 100px;
-    -webkit-grid-columns: 100px 100px;
+    -webkit-grid-template-rows: 100px 100px;
+    -webkit-grid-template-columns: 100px 100px;
     width: 200px;
 }
 </style>

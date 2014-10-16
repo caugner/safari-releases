@@ -45,12 +45,16 @@
 
 - (IBAction)toggleZoomMode:(id)sender;
 - (IBAction)togglePaginationMode:(id)sender;
-
 - (IBAction)toggleTransparentWindow:(id)sender;
+- (IBAction)toggleLayerBordersVisibility:(id)sender;
 
 - (IBAction)dumpSourceToConsole:(id)sender;
-
 - (IBAction)find:(id)sender;
+
+@optional
+- (IBAction)toggleSubpixelCSSOMElementMetricsEnabled:(id)sender;
+- (IBAction)toggleUISideCompositing:(id)sender;
+- (IBAction)toggleTiledScrollingIndicatorVisibility:(id)sender;
 
 @end
 
@@ -64,7 +68,7 @@
     IBOutlet NSView *containerView;
     
     IBOutlet NSWindow *findPanelWindow;
-    
+
     BOOL _zoomTextOnly;
 }
 

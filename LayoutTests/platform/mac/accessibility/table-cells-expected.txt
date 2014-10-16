@@ -16,7 +16,7 @@ AXRoleDescription: cell
 AXChildren: <array of size 3>
 AXHelp: 
 AXParent: <AXCell>
-AXSize: NSSize: {143, 66}
+AXSize: NSSize: {144, 66}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -31,9 +31,14 @@ AXLinkedUIElements: (null)
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXCell>
+AXLanguage: 
+AXDOMIdentifier: 
+AXDOMClassList: <array of size 1>
 AXRowIndexRange: NSRange: {0, 2}
 AXColumnIndexRange: NSRange: {0, 2}
-AXARIABusy: 0
+AXColumnHeaderUIElements: <array of size 0>
+AXRowHeaderUIElements: <array of size 0>
+AXElementBusy: 0
 AXRequired: 0
 
 ------------------------
@@ -59,9 +64,14 @@ AXLinkedUIElements: (null)
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXCell>
+AXLanguage: 
+AXDOMIdentifier: 
+AXDOMClassList: <array of size 1>
 AXRowIndexRange: NSRange: {1, 1}
 AXColumnIndexRange: NSRange: {3, 1}
-AXARIABusy: 0
+AXColumnHeaderUIElements: <array of size 1>
+AXRowHeaderUIElements: <array of size 0>
+AXElementBusy: 0
 AXRequired: 0
 
 ------------------------
@@ -87,9 +97,14 @@ AXLinkedUIElements: (null)
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXCell>
+AXLanguage: 
+AXDOMIdentifier: 
+AXDOMClassList: <array of size 1>
 AXRowIndexRange: NSRange: {0, 2}
 AXColumnIndexRange: NSRange: {0, 2}
-AXARIABusy: 0
+AXColumnHeaderUIElements: <array of size 0>
+AXRowHeaderUIElements: <array of size 0>
+AXElementBusy: 0
 AXRequired: 0
 
 ------------------------
@@ -115,9 +130,14 @@ AXLinkedUIElements: (null)
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXCell>
+AXLanguage: 
+AXDOMIdentifier: 
+AXDOMClassList: <array of size 0>
 AXRowIndexRange: NSRange: {2, 1}
 AXColumnIndexRange: NSRange: {2, 1}
-AXARIABusy: 0
+AXColumnHeaderUIElements: <array of size 1>
+AXRowHeaderUIElements: <array of size 0>
+AXElementBusy: 0
 AXRequired: 0
 
 ------------------------
@@ -143,9 +163,14 @@ AXLinkedUIElements: (null)
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXCell>
+AXLanguage: 
+AXDOMIdentifier: 
+AXDOMClassList: <array of size 0>
 AXRowIndexRange: NSRange: {5, 1}
 AXColumnIndexRange: NSRange: {3, 1}
-AXARIABusy: 0
+AXColumnHeaderUIElements: <array of size 2>
+AXRowHeaderUIElements: <array of size 0>
+AXElementBusy: 0
 AXRequired: 0
 
 ------------------------

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010, 2012 Apple Inc. All Rights Reserved.
+ * Copyright (C) 2010, 2012, 2014 Apple Inc. All Rights Reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -25,6 +25,10 @@
 
 #import "config.h"
 #import "MockGeolocationProvider.h"
+
+#if PLATFORM(IOS)
+#import <WebCore/WebCoreThreadRun.h>
+#endif
 
 @implementation MockGeolocationProvider
 
@@ -88,6 +92,23 @@
     return _lastPosition.get();
 }
 
+#if PLATFORM(IOS)
+- (void)setEnableHighAccuracy:(BOOL)enableHighAccuracy
+{
+    UNUSED_PARAM(enableHighAccuracy);
+}
+
+- (void)initializeGeolocationForWebView:(WebView *)webView listener:(id<WebGeolocationProviderInitializationListener>)listener
+{
+    [listener initializationAllowedWebView:webView];
+}
+
+- (void)stopTrackingWebView:(WebView *)webView
+{
+    UNUSED_PARAM(webView);
+}
+#endif
+
 - (void)stopTimer
 {
     [_timer invalidate];
@@ -101,10 +122,25 @@
     // Expect that views won't be (un)registered while iterating.
     HashSet<WebView*> views = _registeredViews;
     for (HashSet<WebView*>::iterator iter = views.begin(); iter != views.end(); ++iter) {
+#if !PLATFORM(IOS)
         if (_hasError)
             [*iter _geolocationDidFailWithMessage:_errorMessage.get()];
         else
             [*iter _geolocationDidChangePosition:_lastPosition.get()];
+#else
+        WebView* webView = *iter;
+        WebGeolocationPosition *lastPosition = _lastPosition.get();
+        NSString *errorMessage = _errorMessage.get();
+        if (_hasError) {
+            WebThreadRun(^{
+                [webView _geolocationDidFailWithMessage:errorMessage];
+            });
+        } else {
+            WebThreadRun(^{
+                [webView _geolocationDidChangePosition:lastPosition];
+            });
+        }
+#endif
     }
 }
 

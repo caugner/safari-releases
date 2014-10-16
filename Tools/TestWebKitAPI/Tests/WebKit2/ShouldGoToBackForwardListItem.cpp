@@ -28,7 +28,7 @@
 #include "PlatformWebView.h"
 #include "Test.h"
 
-#include <WebKit2/WKString.h>
+#include <WebKit/WKString.h>
 
 namespace TestWebKitAPI {
 
@@ -56,14 +56,14 @@ static void willGoToBackForwardListItem(WKPageRef, WKBackForwardListItemRef, WKT
 
 static void setPageLoaderClient(WKPageRef page)
 {
-    WKPageLoaderClient loaderClient;
+    WKPageLoaderClientV1 loaderClient;
     memset(&loaderClient, 0, sizeof(loaderClient));
-    loaderClient.version = 1;
-    loaderClient.clientInfo = 0;
+
+    loaderClient.base.version = 1;
     loaderClient.didFinishLoadForFrame = didFinishLoadForFrame;
     loaderClient.willGoToBackForwardListItem = willGoToBackForwardListItem;
 
-    WKPageSetPageLoaderClient(page, &loaderClient);
+    WKPageSetPageLoaderClient(page, &loaderClient.base);
 }
 
 TEST(WebKit2, ShouldGoToBackForwardListItem)

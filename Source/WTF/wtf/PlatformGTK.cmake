@@ -1,16 +1,18 @@
 list(APPEND WTF_SOURCES
-    gobject/GlibUtilities.cpp
-    gobject/GOwnPtr.cpp
+    gobject/GMainLoopSource.cpp
     gobject/GRefPtr.cpp
+    gobject/GlibUtilities.cpp
 
     gtk/MainThreadGtk.cpp
+    gtk/RunLoopGtk.cpp
 )
 
 list(APPEND WTF_LIBRARIES
-    pthread
-    ${GLIB_LIBRARIES}
     ${GLIB_GIO_LIBRARIES}
     ${GLIB_GOBJECT_LIBRARIES}
+    ${GLIB_LIBRARIES}
+    pthread
+    ${ZLIB_LIBRARIES}
 )
 
 list(APPEND WTF_INCLUDE_DIRECTORIES

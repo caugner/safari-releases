@@ -1,19 +1,15 @@
 <!DOCTYPE html>
 <html>
-<script>
-if (window.testRunner)
-    testRunner.overridePreference("WebKitCSSGridLayoutEnabled", 1);
-</script>
 <link href="resources/grid.css" rel="stylesheet">
 <style>
 .gridMinMaxContent {
-    -webkit-grid-columns: minmax(-webkit-max-content, 50px);
-    -webkit-grid-rows: 60px;
+    -webkit-grid-template-columns: minmax(-webkit-max-content, 50px);
+    -webkit-grid-template-rows: 60px;
 }
 
 .gridMaxMaxContent {
-    -webkit-grid-columns: minmax(30px, -webkit-max-content);
-    -webkit-grid-rows: 20px;
+    -webkit-grid-template-columns: minmax(30px, -webkit-max-content);
+    -webkit-grid-template-rows: 20px;
 }
 
 .firstRowFirstColumn {

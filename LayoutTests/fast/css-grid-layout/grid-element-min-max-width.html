@@ -1,21 +1,17 @@
 <!DOCTYPE html>
 <html>
-<script>
-if (window.testRunner)
-    testRunner.overridePreference("WebKitCSSGridLayoutEnabled", 1);
-</script>
 <link href="resources/grid.css" rel="stylesheet">
 <link href="../css-intrinsic-dimensions/resources/width-keyword-classes.css" rel=stylesheet>
 <style>
 .minWidthGrid {
     min-width: 100px;
-    -webkit-grid-columns: 50px;
-    -webkit-grid-rows: 40px;
+    -webkit-grid-template-columns: 50px;
+    -webkit-grid-template-rows: 40px;
 }
 .maxWidthGrid {
     max-width: 100px;
-    -webkit-grid-columns: 150px 50px;
-    -webkit-grid-rows: 40px;
+    -webkit-grid-template-columns: 150px 50px;
+    -webkit-grid-template-rows: 40px;
 }
 
 .minWidthAutoGrid {

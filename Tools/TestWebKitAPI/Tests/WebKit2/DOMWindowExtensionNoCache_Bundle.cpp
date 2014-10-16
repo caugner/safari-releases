@@ -25,13 +25,13 @@
 
 #include "config.h"
 #include "InjectedBundleTest.h"
-#include <WebKit2/WKBundleDOMWindowExtension.h>
-#include <WebKit2/WKBundleFrame.h>
-#include <WebKit2/WKBundlePage.h>
-#include <WebKit2/WKBundlePageGroup.h>
-#include <WebKit2/WKBundlePrivate.h>
-#include <WebKit2/WKBundleScriptWorld.h>
-#include <WebKit2/WKRetainPtr.h>
+#include <WebKit/WKBundleDOMWindowExtension.h>
+#include <WebKit/WKBundleFrame.h>
+#include <WebKit/WKBundlePage.h>
+#include <WebKit/WKBundlePageGroup.h>
+#include <WebKit/WKBundlePrivate.h>
+#include <WebKit/WKBundleScriptWorld.h>
+#include <WebKit/WKRetainPtr.h>
 #include <wtf/HashMap.h>
 #include <assert.h>
 
@@ -159,18 +159,18 @@ void DOMWindowExtensionNoCache::didCreatePage(WKBundleRef bundle, WKBundlePageRe
 {
     m_bundle = bundle;
 
-    WKBundlePageLoaderClient pageLoaderClient;
+    WKBundlePageLoaderClientV7 pageLoaderClient;
     memset(&pageLoaderClient, 0, sizeof(pageLoaderClient));
 
-    pageLoaderClient.version = kWKBundlePageLoaderClientCurrentVersion;
-    pageLoaderClient.clientInfo = this;
+    pageLoaderClient.base.version = 7;
+    pageLoaderClient.base.clientInfo = this;
     pageLoaderClient.didFinishLoadForFrame = didFinishLoadForFrameCallback;
     pageLoaderClient.globalObjectIsAvailableForFrame = globalObjectIsAvailableForFrameCallback;
     pageLoaderClient.willDisconnectDOMWindowExtensionFromGlobalObject = willDisconnectDOMWindowExtensionFromGlobalObjectCallback;
     pageLoaderClient.didReconnectDOMWindowExtensionToGlobalObject = didReconnectDOMWindowExtensionToGlobalObjectCallback;
     pageLoaderClient.willDestroyGlobalObjectForDOMWindowExtension = willDestroyGlobalObjectForDOMWindowExtensionCallback;
 
-    WKBundlePageSetPageLoaderClient(page, &pageLoaderClient);
+    WKBundlePageSetPageLoaderClient(page, &pageLoaderClient.base);
 }
 
 void DOMWindowExtensionNoCache::willDestroyPage(WKBundleRef, WKBundlePageRef)
@@ -204,7 +204,7 @@ void DOMWindowExtensionNoCache::globalObjectIsAvailableForFrame(WKBundleFrameRef
 {
     WKBundleDOMWindowExtensionRef extension = WKBundleDOMWindowExtensionCreate(frame, world);
 
-    int index;
+    int index = 0;
     bool standard;
     standard = world == WKBundleScriptWorldNormalWorld();
 

@@ -12,7 +12,7 @@
  * 2.  Redistributions in binary form must reproduce the above copyright
  *     notice, this list of conditions and the following disclaimer in the
  *     documentation and/or other materials provided with the distribution. 
- * 3.  Neither the name of Apple Computer, Inc. ("Apple") nor the names of
+ * 3.  Neither the name of Apple Inc. ("Apple") nor the names of
  *     its contributors may be used to endorse or promote products derived
  *     from this software without specific prior written permission. 
  *
@@ -67,6 +67,10 @@ public:
     T* operator->();
     operator T*();
     T& operator*();
+
+#if USE(WEB_THREAD)
+    void replace(T*);
+#endif
 
 private:
 #if OS(WINDOWS)
@@ -272,6 +276,19 @@ inline T& ThreadSpecific<T>::operator*()
 {
     return *operator T*();
 }
+
+#if USE(WEB_THREAD)
+template<typename T>
+inline void ThreadSpecific<T>::replace(T* newPtr)
+{
+    ASSERT(newPtr);
+    Data* data = static_cast<Data*>(pthread_getspecific(m_key));
+    ASSERT(data);
+    data->value->~T();
+    fastFree(data->value);
+    data->value = newPtr;
+}
+#endif
 
 } // namespace WTF
 

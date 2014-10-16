@@ -95,40 +95,12 @@ void Preprocessor::lex(Token* token)
           case Token::PP_HASH:
             assert(false);
             break;
-          case Token::CONST_INT:
-          {
-            int val = 0;
-            if (!token->iValue(&val))
-            {
-                // Do not mark the token as invalid.
-                // Just emit the diagnostic and reset value to 0.
-                mImpl->diagnostics->report(Diagnostics::INTEGER_OVERFLOW,
-                                           token->location, token->text);
-                token->text.assign("0");
-            }
-            validToken = true;
-            break;
-          }
-          case Token::CONST_FLOAT:
-          {
-            float val = 0;
-            if (!token->fValue(&val))
-            {
-                // Do not mark the token as invalid.
-                // Just emit the diagnostic and reset value to 0.0.
-                mImpl->diagnostics->report(Diagnostics::FLOAT_OVERFLOW,
-                                           token->location, token->text);
-                token->text.assign("0.0");
-            }
-            validToken = true;
-            break;
-          }
           case Token::PP_NUMBER:
-            mImpl->diagnostics->report(Diagnostics::INVALID_NUMBER,
+            mImpl->diagnostics->report(Diagnostics::PP_INVALID_NUMBER,
                                        token->location, token->text);
             break;
           case Token::PP_OTHER:
-            mImpl->diagnostics->report(Diagnostics::INVALID_CHARACTER,
+            mImpl->diagnostics->report(Diagnostics::PP_INVALID_CHARACTER,
                                        token->location, token->text);
             break;
           default:
@@ -138,5 +110,9 @@ void Preprocessor::lex(Token* token)
     }
 }
 
-}  // namespace pp
+void Preprocessor::setMaxTokenSize(size_t maxTokenSize)
+{
+    mImpl->tokenizer.setMaxTokenSize(maxTokenSize);
+}
 
+}  // namespace pp

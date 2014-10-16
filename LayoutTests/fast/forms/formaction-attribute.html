@@ -1,7 +1,8 @@
 <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
 <html>
 <head>
-<script src="../../fast/js/resources/js-test-pre.js"></script>
+<script src="../../resources/js-test-pre.js"></script>
+<script src="resources/common.js"></script>
 </head>
 <body>
 <p id="description"></p>
@@ -50,6 +51,11 @@ if (!doneAction)
     testFailed('Both of the action and the formaction attributes were ignored.');
 
 doneAction = false;
+clickElement(input);
+if (!doneAction)
+    testFailed('Both of the action and the formaction attributes were ignored.');
+
+doneAction = false;
 var button = document.getElementById('button2');
 button.click();
 if (!doneAction)
@@ -61,6 +67,6 @@ span.click();
 if (!doneAction)
     testFailed('Both of the action and the formaction attributes were ignored.');
 </script>
-<script src="../../fast/js/resources/js-test-post.js"></script>
+<script src="../../resources/js-test-post.js"></script>
 </body>
 </html>

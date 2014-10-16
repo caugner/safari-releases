@@ -10,7 +10,7 @@
 
             function startTest()
             {
-                if (!window.TextTrackRegion) {
+                if (!window.VTTRegion) {
                     failTest();
                     return;
                 }
@@ -37,6 +37,8 @@
                 consoleWrite("");
                 endTest();
             }
+
+            setCaptionDisplayMode('Automatic');
         </script>
     </head>
     <body>

@@ -7,16 +7,10 @@
        certain distributions. Feel free to add more here, within reason,
        as long as they are not built by default. -->
 
-  <metamodule id="webkitgtk-clutter-dependencies">
-    <dependencies>
-      <dep package="clutter"/>
-      <dep package="clutter-gtk"/>
-      <dep package="cogl"/>
-    </dependencies>
-  </metamodule>
-
   <repository type="tarball" name="ftp.gnome.org"
       href="http://ftp.gnome.org"/>
+  <repository type="svn" name="llvm.org"
+      href="http://llvm.org/svn/llvm-project/llvm/"/>
 
   <autotools id="libsecret" autogen-sh="configure">
     <branch repo="ftp.gnome.org"
@@ -24,35 +18,35 @@
             hash="sha256:e5399dfb61376a7500d20cb22715152780aa3a2c8a64281ec6bc8f0ebeb8b689"/>
   </autotools>
 
-  <autotools id="cogl"
-            autogen-sh="configure"
-            autogenargs="--disable-introspection">
-    <branch module="/pub/GNOME/sources/cogl/1.14/cogl-1.14.0.tar.xz" version="1.14.0"
-            repo="ftp.gnome.org" 
-            hash="sha256:276e8c9f5ff0fcd57c1eaf74cc245f41ad469a95a18ac831fac2d5960baa5ae8"/>
+  <!-- dconf is interesting in case you need to make sure that you can
+       access your global settings from inside the jhbuild environment
+       (e.g running MiniBrowser behind a proxy needs to read settings
+       from the org.gnome.system.proxy GSettings scheme -->
+  <autotools id="dconf" autogen-sh="configure">
+    <branch repo="ftp.gnome.org"
+            module="/pub/GNOME/sources/dconf/0.14/dconf-0.14.1.tar.xz" version="0.14"
+            hash="sha256:59c58c5eafa0ebd616287d078f4441d5342870a44634445d324e88fc0287f0b8"/>
+    <dependencies>
+      <dep package="glib"/>
+      <dep package="gtk+"/>
+      <dep package="libxml2"/>
+      <dep package="vala"/>
+    </dependencies>
   </autotools>
 
-  <autotools id="clutter"
-           autogen-sh="configure"
-           autogenargs="--disable-introspection">
+  <autotools id="vala" autogenargs="--enable-vapigen" supports-non-srcdir-builds="no">
+    <pkg-config>libvala-0.20.pc</pkg-config>
+    <branch repo="ftp.gnome.org"
+            module="/pub/GNOME/sources/vala/0.17/vala-0.17.7.tar.xz" version="0.17"
+            hash="sha256:dfdb9b3cb1c455462a57fd71a7e832c3b7b4131e85d2d0a2030111dae9fae24f"/>
     <dependencies>
-      <dep package="cogl"/>
-      <dep package="atk"/>
+      <dep package="glib"/>
     </dependencies>
-    <branch module="/pub/GNOME/sources/clutter/1.14/clutter-1.14.0.tar.xz" version="1.14.0"
-            repo="ftp.gnome.org" 
-            hash="sha256:3b7a07373c27fad4f0cf59fd66a6855d66f9a42b7b570a00ca51a8b488af64d5"/>
   </autotools>
 
-  <autotools id="clutter-gtk"
-           autogen-sh="configure"
-           autogenargs="--disable-introspection">
-    <dependencies>
-      <dep package="clutter"/>
-    </dependencies>
-    <branch module="/pub/GNOME/sources/clutter-gtk/1.4/clutter-gtk-1.4.4.tar.xz" version="1.4.4"
-            repo="ftp.gnome.org"             
-            hash="sha256:bc3108594a01a08bb6d9b538afe995e4fd78634a8356064ee8137d87aad51b2e"/>
+  <autotools id="llvm" autogenargs="--enable-optimized --disable-terminfo --disable-zlib">
+    <branch repo="llvm.org" module="trunk" checkoutdir="llvm" version="r206311"
+            revision="206311"/>
   </autotools>
 
 </moduleset>

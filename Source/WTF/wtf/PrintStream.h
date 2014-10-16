@@ -27,9 +27,8 @@
 #define PrintStream_h
 
 #include <stdarg.h>
-#include <wtf/FastAllocBase.h>
+#include <wtf/FastMalloc.h>
 #include <wtf/Noncopyable.h>
-#include <wtf/Platform.h>
 #include <wtf/RawPointer.h>
 #include <wtf/StdLibExtras.h>
 
@@ -37,6 +36,7 @@ namespace WTF {
 
 class CString;
 class String;
+class StringImpl;
 
 class PrintStream {
     WTF_MAKE_FAST_ALLOCATED; WTF_MAKE_NONCOPYABLE(PrintStream);
@@ -50,171 +50,34 @@ public:
     // Typically a no-op for many subclasses of PrintStream, this is a hint that
     // the implementation should flush its buffers if it had not done so already.
     virtual void flush();
-    
+
     template<typename T>
     void print(const T& value)
     {
         printInternal(*this, value);
     }
-    
-    template<typename T1, typename T2>
-    void print(const T1& value1, const T2& value2)
+
+    template<typename T, typename... Types>
+    void print(const T& value, const Types&... remainingValues)
     {
-        print(value1);
-        print(value2);
-    }
-    
-    template<typename T1, typename T2, typename T3>
-    void print(const T1& value1, const T2& value2, const T3& value3)
-    {
-        print(value1);
-        print(value2);
-        print(value3);
-    }
-    
-    template<typename T1, typename T2, typename T3, typename T4>
-    void print(const T1& value1, const T2& value2, const T3& value3, const T4& value4)
-    {
-        print(value1);
-        print(value2);
-        print(value3);
-        print(value4);
-    }
-    
-    template<typename T1, typename T2, typename T3, typename T4, typename T5>
-    void print(const T1& value1, const T2& value2, const T3& value3, const T4& value4, const T5& value5)
-    {
-        print(value1);
-        print(value2);
-        print(value3);
-        print(value4);
-        print(value5);
-    }
-    
-    template<typename T1, typename T2, typename T3, typename T4, typename T5, typename T6>
-    void print(const T1& value1, const T2& value2, const T3& value3, const T4& value4, const T5& value5, const T6& value6)
-    {
-        print(value1);
-        print(value2);
-        print(value3);
-        print(value4);
-        print(value5);
-        print(value6);
-    }
-    
-    template<typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7>
-    void print(const T1& value1, const T2& value2, const T3& value3, const T4& value4, const T5& value5, const T6& value6, const T7& value7)
-    {
-        print(value1);
-        print(value2);
-        print(value3);
-        print(value4);
-        print(value5);
-        print(value6);
-        print(value7);
-    }
-    
-    template<typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8>
-    void print(const T1& value1, const T2& value2, const T3& value3, const T4& value4, const T5& value5, const T6& value6, const T7& value7, const T8& value8)
-    {
-        print(value1);
-        print(value2);
-        print(value3);
-        print(value4);
-        print(value5);
-        print(value6);
-        print(value7);
-        print(value8);
-    }
-    
-    template<typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9>
-    void print(const T1& value1, const T2& value2, const T3& value3, const T4& value4, const T5& value5, const T6& value6, const T7& value7, const T8& value8, const T9& value9)
-    {
-        print(value1);
-        print(value2);
-        print(value3);
-        print(value4);
-        print(value5);
-        print(value6);
-        print(value7);
-        print(value8);
-        print(value9);
-    }
-    
-    template<typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename T10>
-    void print(const T1& value1, const T2& value2, const T3& value3, const T4& value4, const T5& value5, const T6& value6, const T7& value7, const T8& value8, const T9& value9, const T10& value10)
-    {
-        print(value1);
-        print(value2);
-        print(value3);
-        print(value4);
-        print(value5);
-        print(value6);
-        print(value7);
-        print(value8);
-        print(value9);
-        print(value10);
-    }
-    
-    template<typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename T10, typename T11>
-    void print(const T1& value1, const T2& value2, const T3& value3, const T4& value4, const T5& value5, const T6& value6, const T7& value7, const T8& value8, const T9& value9, const T10& value10, const T11& value11)
-    {
-        print(value1);
-        print(value2);
-        print(value3);
-        print(value4);
-        print(value5);
-        print(value6);
-        print(value7);
-        print(value8);
-        print(value9);
-        print(value10);
-        print(value11);
-    }
-    
-    template<typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename T10, typename T11, typename T12>
-    void print(const T1& value1, const T2& value2, const T3& value3, const T4& value4, const T5& value5, const T6& value6, const T7& value7, const T8& value8, const T9& value9, const T10& value10, const T11& value11, const T12& value12)
-    {
-        print(value1);
-        print(value2);
-        print(value3);
-        print(value4);
-        print(value5);
-        print(value6);
-        print(value7);
-        print(value8);
-        print(value9);
-        print(value10);
-        print(value11);
-        print(value12);
-    }
-    
-    template<typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename T10, typename T11, typename T12, typename T13>
-    void print(const T1& value1, const T2& value2, const T3& value3, const T4& value4, const T5& value5, const T6& value6, const T7& value7, const T8& value8, const T9& value9, const T10& value10, const T11& value11, const T12& value12, const T13& value13)
-    {
-        print(value1);
-        print(value2);
-        print(value3);
-        print(value4);
-        print(value5);
-        print(value6);
-        print(value7);
-        print(value8);
-        print(value9);
-        print(value10);
-        print(value11);
-        print(value12);
-        print(value13);
+        printInternal(*this, value);
+        print(remainingValues...);
     }
 };
 
 WTF_EXPORT_PRIVATE void printInternal(PrintStream&, const char*);
 WTF_EXPORT_PRIVATE void printInternal(PrintStream&, const CString&);
 WTF_EXPORT_PRIVATE void printInternal(PrintStream&, const String&);
+WTF_EXPORT_PRIVATE void printInternal(PrintStream&, const StringImpl*);
 inline void printInternal(PrintStream& out, char* value) { printInternal(out, static_cast<const char*>(value)); }
 inline void printInternal(PrintStream& out, CString& value) { printInternal(out, static_cast<const CString&>(value)); }
 inline void printInternal(PrintStream& out, String& value) { printInternal(out, static_cast<const String&>(value)); }
+inline void printInternal(PrintStream& out, StringImpl* value) { printInternal(out, static_cast<const StringImpl*>(value)); }
 WTF_EXPORT_PRIVATE void printInternal(PrintStream&, bool);
+WTF_EXPORT_PRIVATE void printInternal(PrintStream&, signed char); // NOTE: this prints as a number, not as a character; use CharacterDump if you want the character
+WTF_EXPORT_PRIVATE void printInternal(PrintStream&, unsigned char); // NOTE: see above.
+WTF_EXPORT_PRIVATE void printInternal(PrintStream&, short);
+WTF_EXPORT_PRIVATE void printInternal(PrintStream&, unsigned short);
 WTF_EXPORT_PRIVATE void printInternal(PrintStream&, int);
 WTF_EXPORT_PRIVATE void printInternal(PrintStream&, unsigned);
 WTF_EXPORT_PRIVATE void printInternal(PrintStream&, long);
@@ -268,7 +131,7 @@ void printInternal(PrintStream& out, const T& value)
 // Use an adaptor-based dumper for characters to avoid situations where
 // you've "compressed" an integer to a character and it ends up printing
 // as ASCII when you wanted it to print as a number.
-void dumpCharacter(PrintStream&, char);
+WTF_EXPORT_PRIVATE void dumpCharacter(PrintStream&, char);
 MAKE_PRINT_ADAPTOR(CharacterDump, char, dumpCharacter);
 
 template<typename T>
@@ -293,12 +156,92 @@ private:
 template<typename T>
 PointerDump<T> pointerDump(const T* ptr) { return PointerDump<T>(ptr); }
 
+template<typename T, typename U>
+class ValueInContext {
+public:
+    ValueInContext(const T& value, U* context)
+        : m_value(&value)
+        , m_context(context)
+    {
+    }
+    
+    void dump(PrintStream& out) const
+    {
+        m_value->dumpInContext(out, m_context);
+    }
+
+private:
+    const T* m_value;
+    U* m_context;
+};
+
+template<typename T, typename U>
+ValueInContext<T, U> inContext(const T& value, U* context)
+{
+    return ValueInContext<T, U>(value, context);
+}
+
+template<typename T, typename U>
+class PointerDumpInContext {
+public:
+    PointerDumpInContext(const T* ptr, U* context)
+        : m_ptr(ptr)
+        , m_context(context)
+    {
+    }
+    
+    void dump(PrintStream& out) const
+    {
+        if (m_ptr)
+            m_ptr->dumpInContext(out, m_context);
+        else
+            out.print("(null)");
+    }
+
+private:
+    const T* m_ptr;
+    U* m_context;
+};
+
+template<typename T, typename U>
+PointerDumpInContext<T, U> pointerDumpInContext(const T* ptr, U* context)
+{
+    return PointerDumpInContext<T, U>(ptr, context);
+}
+
+template<typename T, typename U>
+class ValueIgnoringContext {
+public:
+    ValueIgnoringContext(const U& value)
+        : m_value(&value)
+    {
+    }
+    
+    void dump(PrintStream& out) const
+    {
+        T context;
+        m_value->dumpInContext(out, &context);
+    }
+
+private:
+    const U* m_value;
+};
+
+template<typename T, typename U>
+ValueIgnoringContext<T, U> ignoringContext(const U& value)
+{
+    return ValueIgnoringContext<T, U>(value);
+}
+
 } // namespace WTF
 
 using WTF::CharacterDump;
 using WTF::PointerDump;
 using WTF::PrintStream;
+using WTF::ignoringContext;
+using WTF::inContext;
 using WTF::pointerDump;
+using WTF::pointerDumpInContext;
 
 #endif // PrintStream_h
 

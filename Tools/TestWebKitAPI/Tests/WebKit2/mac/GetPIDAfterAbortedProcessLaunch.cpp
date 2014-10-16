@@ -27,8 +27,8 @@
 #include "PlatformUtilities.h"
 #include "PlatformWebView.h"
 
-#include <WebKit2/WKPagePrivateMac.h>
-#include <WebKit2/WKContextPrivate.h>
+#include <WebKit/WKPagePrivateMac.h>
+#include <WebKit/WKContextPrivate.h>
 
 namespace TestWebKitAPI {
 
@@ -46,12 +46,13 @@ TEST(WebKit2, GetPIDAfterAbortedProcessLaunch)
 
     PlatformWebView webView(context.get());
 
-    WKPageLoaderClient loaderClient;
+    WKPageLoaderClientV0 loaderClient;
     memset(&loaderClient, 0, sizeof(loaderClient));
 
-    loaderClient.version = 0;
+    loaderClient.base.version = 0;
     loaderClient.didFinishLoadForFrame = didFinishLoadForFrame;
-    WKPageSetPageLoaderClient(webView.page(), &loaderClient);
+
+    WKPageSetPageLoaderClient(webView.page(), &loaderClient.base);
 
     WKRetainPtr<WKURLRef> url(AdoptWK, Util::createURLForResource("simple", "html"));
     WKPageLoadURL(webView.page(), url.get());

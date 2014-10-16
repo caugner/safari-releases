@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2006 Apple Computer, Inc.  All rights reserved.
+ * Copyright (C) 2006 Apple Inc.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -10,10 +10,10 @@
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
  *
- * THIS SOFTWARE IS PROVIDED BY APPLE COMPUTER, INC. ``AS IS'' AND ANY
+ * THIS SOFTWARE IS PROVIDED BY APPLE INC. ``AS IS'' AND ANY
  * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
- * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL APPLE COMPUTER, INC. OR
+ * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL APPLE INC. OR
  * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
  * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
  * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
@@ -49,14 +49,27 @@
 #endif
 
 #define WIN32_LEAN_AND_MEAN        // Exclude rarely-used stuff from Windows headers
-// Windows Header Files:
-#include <windows.h>
 
-// C RunTime Header Files
-#include <stdlib.h>
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+
+#include <assert.h>
+#include <comip.h>
+#include <commctrl.h>
+#include <commdlg.h>
+#include <comutil.h>
 #include <malloc.h>
 #include <memory.h>
+#include <objbase.h>
+#include <shellapi.h>
+#include <shlwapi.h>
+#include <stdlib.h>
+#include <string>
 #include <tchar.h>
+#include <windows.h>
+#include <wininet.h>
+#include <wtf/ExportMacros.h>
 
 #if 0
 // Visual Studio Leak Detection

@@ -2,9 +2,6 @@
 <html>
 <script src="../repaint/resources/text-based-repaint.js"></script>
 <script>
-if (window.testRunner)
-    testRunner.overridePreference("WebKitCSSGridLayoutEnabled", 1);
-
 function repaintTest()
 {
     var gridItem = document.getElementsByClassName("sizedToGridArea")[0];
@@ -19,8 +16,8 @@ body {
 }
 
 .grid {
-    -webkit-grid-rows: 50px 100px;
-    -webkit-grid-columns: 100px 50px;
+    -webkit-grid-template-rows: 50px 100px;
+    -webkit-grid-template-columns: 100px 50px;
     /* Make the grid shrink to fit. */
     position: absolute;
 }

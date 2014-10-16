@@ -10,7 +10,7 @@
  * 2.  Redistributions in binary form must reproduce the above copyright
  *     notice, this list of conditions and the following disclaimer in the
  *     documentation and/or other materials provided with the distribution. 
- * 3.  Neither the name of Apple Computer, Inc. ("Apple") nor the names of
+ * 3.  Neither the name of Apple Inc. ("Apple") nor the names of
  *     its contributors may be used to endorse or promote products derived
  *     from this software without specific prior written permission. 
  *
@@ -32,7 +32,6 @@
 #import "DumpRenderTree.h"
 #import "TestRunner.h"
 #import <WebKit/WebKit.h>
-#import <WebKit/WebTypesInternal.h>
 #import <WebKit/WebDataSourcePrivate.h>
 #import <wtf/Assertions.h>
 
@@ -84,9 +83,9 @@ using namespace std;
     NSString *basePath = [[[[dataSource request] URL] path] stringByDeletingLastPathComponent];
     basePath = [basePath stringByAppendingString:@"/"];
 
-    if ([[self path] hasPrefix:basePath])
+    if (basePath && [[self path] hasPrefix:basePath])
         return [[self path] substringFromIndex:[basePath length]];
-    return [self absoluteString];
+    return [self lastPathComponent]; // We lose some information here, but it's better than exposing a full path, which is always machine specific.
 }
 
 @end
@@ -121,7 +120,7 @@ using namespace std;
 {
     ASSERT([[dataSource webFrame] dataSource] || [[dataSource webFrame] provisionalDataSource]);
 
-    if (!done && gTestRunner->dumpResourceLoadCallbacks())
+    if (!done)
         return [[request URL] _drt_descriptionSuitableForTestResult];
 
     return @"<unknown>";
@@ -248,9 +247,11 @@ BOOL hostIsUsedBySomeTestsToGenerateError(NSString *host)
 
 - (void)webView: (WebView *)wv plugInFailedWithError:(NSError *)error dataSource:(WebDataSource *)dataSource
 {
+#if !PLATFORM(IOS)
     // The call to -display here simulates the "Plug-in not found" sheet that Safari shows.
     // It is used for platform/mac/plugins/update-widget-from-style-recalc.html
     [wv display];
+#endif
 }
 
 -(NSCachedURLResponse *) webView: (WebView *)wv resource:(id)identifier willCacheResponse:(NSCachedURLResponse *)response fromDataSource:(WebDataSource *)dataSource

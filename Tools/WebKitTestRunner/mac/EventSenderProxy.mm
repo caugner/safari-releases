@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Apple Inc. All rights reserved.
+ * Copyright (C) 2011, 2014 Apple Inc. All rights reserved.
  * Copyright (C) 2011 Nokia Corporation and/or its subsidiary(-ies).
  *
  * Redistribution and use in source and binary forms, with or without
@@ -30,8 +30,14 @@
 #import "PlatformWebView.h"
 #import "StringFunctions.h"
 #import "TestController.h"
+#import <Carbon/Carbon.h>
+#import <WebKit/WKString.h>
+#import <WebKit/WKPagePrivate.h>
 #import <wtf/RetainPtr.h>
-#import <WebKit2/WKString.h>
+
+@interface NSApplication (Details)
+- (void)_setCurrentEvent:(NSEvent *)event;
+@end
 
 namespace WTR {
 
@@ -105,6 +111,11 @@ static int buildModifierFlags(WKEventModifiers modifiers)
     return flags;
 }
 
+static NSTimeInterval absoluteTimeForEventTime(double currentEventTime)
+{
+    return GetCurrentEventTime() + currentEventTime;
+}
+
 EventSenderProxy::EventSenderProxy(TestController* testController)
     : m_testController(testController)
     , m_time(0)
@@ -144,7 +155,7 @@ void EventSenderProxy::mouseDown(unsigned buttonNumber, WKEventModifiers modifie
     NSEvent *event = [NSEvent mouseEventWithType:eventType
                                         location:NSMakePoint(m_position.x, m_position.y)
                                    modifierFlags:buildModifierFlags(modifiers)
-                                       timestamp:currentEventTime()
+                                       timestamp:absoluteTimeForEventTime(currentEventTime())
                                     windowNumber:[m_testController->mainWebView()->platformWindow() windowNumber]
                                          context:[NSGraphicsContext currentContext] 
                                      eventNumber:++eventNumber 
@@ -153,7 +164,9 @@ void EventSenderProxy::mouseDown(unsigned buttonNumber, WKEventModifiers modifie
 
     NSView *targetView = [m_testController->mainWebView()->platformView() hitTest:[event locationInWindow]];
     if (targetView) {
+        [NSApp _setCurrentEvent:event];
         [targetView mouseDown:event];
+        [NSApp _setCurrentEvent:nil];
         if (buttonNumber == LeftMouseButton)
             m_leftMouseButtonDown = true;
     }
@@ -165,7 +178,7 @@ void EventSenderProxy::mouseUp(unsigned buttonNumber, WKEventModifiers modifiers
     NSEvent *event = [NSEvent mouseEventWithType:eventType
                                         location:NSMakePoint(m_position.x, m_position.y)
                                    modifierFlags:buildModifierFlags(modifiers)
-                                       timestamp:currentEventTime()
+                                       timestamp:absoluteTimeForEventTime(currentEventTime())
                                     windowNumber:[m_testController->mainWebView()->platformWindow() windowNumber]
                                          context:[NSGraphicsContext currentContext] 
                                      eventNumber:++eventNumber 
@@ -173,12 +186,17 @@ void EventSenderProxy::mouseUp(unsigned buttonNumber, WKEventModifiers modifiers
                                         pressure:0.0];
 
     NSView *targetView = [m_testController->mainWebView()->platformView() hitTest:[event locationInWindow]];
+    // FIXME: Silly hack to teach WKTR to respect capturing mouse events outside the WKView.
+    // The right solution is just to use NSApplication's built-in event sending methods, 
+    // instead of rolling our own algorithm for selecting an event target.
     targetView = targetView ? targetView : m_testController->mainWebView()->platformView();
-    assert(targetView);
+    ASSERT(targetView);
+    [NSApp _setCurrentEvent:event];
     [targetView mouseUp:event];
+    [NSApp _setCurrentEvent:nil];
     if (buttonNumber == LeftMouseButton)
         m_leftMouseButtonDown = false;
-    m_clickTime = [event timestamp];
+    m_clickTime = currentEventTime();
     m_clickPosition = m_position;
 }
 
@@ -191,7 +209,7 @@ void EventSenderProxy::mouseMoveTo(double x, double y)
     NSEvent *event = [NSEvent mouseEventWithType:(m_leftMouseButtonDown ? NSLeftMouseDragged : NSMouseMoved)
                                         location:position
                                    modifierFlags:0 
-                                       timestamp:currentEventTime()
+                                       timestamp:absoluteTimeForEventTime(currentEventTime())
                                     windowNumber:[[view window] windowNumber] 
                                          context:[NSGraphicsContext currentContext] 
                                      eventNumber:++eventNumber 
@@ -199,8 +217,16 @@ void EventSenderProxy::mouseMoveTo(double x, double y)
                                         pressure:0.0];
 
     NSView *targetView = [m_testController->mainWebView()->platformView() hitTest:[event locationInWindow]];
-    if (targetView)
+    if (targetView) {
+        [NSApp _setCurrentEvent:event];
+        WKPageSetShouldSendEventsSynchronously(m_testController->mainWebView()->page(), true);
         [targetView mouseMoved:event];
+        WKPageSetShouldSendEventsSynchronously(m_testController->mainWebView()->page(), false);
+        [NSApp _setCurrentEvent:nil];
+    } else {
+        NSPoint windowLocation = [event locationInWindow];
+        WTFLogAlways("mouseMoveTo failed to find a target view at %f,%f\n", windowLocation.x, windowLocation.y);
+    }
 }
 
 void EventSenderProxy::leapForward(int milliseconds)
@@ -391,7 +417,7 @@ void EventSenderProxy::keyDown(WKStringRef key, WKEventModifiers modifiers, unsi
     NSEvent *event = [NSEvent keyEventWithType:NSKeyDown
                         location:NSMakePoint(5, 5)
                         modifierFlags:modifierFlags
-                        timestamp:currentEventTime()
+                        timestamp:absoluteTimeForEventTime(currentEventTime())
                         windowNumber:[m_testController->mainWebView()->platformWindow() windowNumber]
                         context:[NSGraphicsContext currentContext]
                         characters:eventCharacter
@@ -399,12 +425,14 @@ void EventSenderProxy::keyDown(WKStringRef key, WKEventModifiers modifiers, unsi
                         isARepeat:NO
                         keyCode:keyCode];
 
+    [NSApp _setCurrentEvent:event];
     [[m_testController->mainWebView()->platformWindow() firstResponder] keyDown:event];
+    [NSApp _setCurrentEvent:nil];
 
     event = [NSEvent keyEventWithType:NSKeyUp
                         location:NSMakePoint(5, 5)
                         modifierFlags:modifierFlags
-                        timestamp:currentEventTime()
+                        timestamp:absoluteTimeForEventTime(currentEventTime())
                         windowNumber:[m_testController->mainWebView()->platformWindow() windowNumber]
                         context:[NSGraphicsContext currentContext]
                         characters:eventCharacter
@@ -412,26 +440,71 @@ void EventSenderProxy::keyDown(WKStringRef key, WKEventModifiers modifiers, unsi
                         isARepeat:NO
                         keyCode:keyCode];
 
+    [NSApp _setCurrentEvent:event];
     [[m_testController->mainWebView()->platformWindow() firstResponder] keyUp:event];
+    [NSApp _setCurrentEvent:nil];
 }
 
 void EventSenderProxy::mouseScrollBy(int x, int y)
 {
     RetainPtr<CGEventRef> cgScrollEvent = adoptCF(CGEventCreateScrollWheelEvent(0, kCGScrollEventUnitLine, 2, y, x));
 
-    // CGEvent locations are in global display coordinates.
-    CGPoint lastGlobalMousePosition = CGPointMake(m_position.x, [[NSScreen mainScreen] frame].size.height - m_position.y);
+    // Set the CGEvent location in flipped coords relative to the first screen, which
+    // compensates for the behavior of +[NSEvent eventWithCGEvent:] when the event has
+    // no associated window. See <rdar://problem/17180591>.
+    CGPoint lastGlobalMousePosition = CGPointMake(m_position.x, [[[NSScreen screens] objectAtIndex:0] frame].size.height - m_position.y);
     CGEventSetLocation(cgScrollEvent.get(), lastGlobalMousePosition);
 
     NSEvent *event = [NSEvent eventWithCGEvent:cgScrollEvent.get()];
-    if (NSView *targetView = [m_testController->mainWebView()->platformView() hitTest:[event locationInWindow]])
+    if (NSView *targetView = [m_testController->mainWebView()->platformView() hitTest:[event locationInWindow]]) {
+        [NSApp _setCurrentEvent:event];
+        WKPageSetShouldSendEventsSynchronously(m_testController->mainWebView()->page(), true);
         [targetView scrollWheel:event];
+        WKPageSetShouldSendEventsSynchronously(m_testController->mainWebView()->page(), false);
+        [NSApp _setCurrentEvent:nil];
+    } else {
+        NSPoint location = [event locationInWindow];
+        WTFLogAlways("mouseScrollBy failed to find the target view at %f,%f\n", location.x, location.y);
+    }
 }
 
 void EventSenderProxy::continuousMouseScrollBy(int x, int y, bool paged)
 {
-    // FIXME: Implement this.
+    WTFLogAlways("EventSenderProxy::continuousMouseScrollBy is not implemented\n");
     return;
+}
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1090
+const uint32_t kCGScrollWheelEventMomentumPhase = 123;
+#endif
+
+void EventSenderProxy::mouseScrollByWithWheelAndMomentumPhases(int x, int y, int phase, int momentum)
+{
+    RetainPtr<CGEventRef> cgScrollEvent = adoptCF(CGEventCreateScrollWheelEvent(0, kCGScrollEventUnitLine, 2, y, x));
+
+    // Set the CGEvent location in flipped coords relative to the first screen, which
+    // compensates for the behavior of +[NSEvent eventWithCGEvent:] when the event has
+    // no associated window. See <rdar://problem/17180591>.
+    CGPoint lastGlobalMousePosition = CGPointMake(m_position.x, [[[NSScreen screens] objectAtIndex:0] frame].size.height - m_position.y);
+    CGEventSetLocation(cgScrollEvent.get(), lastGlobalMousePosition);
+
+    CGEventSetIntegerValueField(cgScrollEvent.get(), kCGScrollWheelEventIsContinuous, 1);
+    CGEventSetIntegerValueField(cgScrollEvent.get(), kCGScrollWheelEventScrollPhase, phase);
+    CGEventSetIntegerValueField(cgScrollEvent.get(), kCGScrollWheelEventMomentumPhase, momentum);
+
+    NSEvent* event = [NSEvent eventWithCGEvent:cgScrollEvent.get()];
+
+    // Our event should have the correct settings:
+    if (NSView *targetView = [m_testController->mainWebView()->platformView() hitTest:[event locationInWindow]]) {
+        [NSApp _setCurrentEvent:event];
+        WKPageSetShouldSendEventsSynchronously(m_testController->mainWebView()->page(), true);
+        [targetView scrollWheel:event];
+        WKPageSetShouldSendEventsSynchronously(m_testController->mainWebView()->page(), false);
+        [NSApp _setCurrentEvent:nil];
+    } else {
+        NSPoint windowLocation = [event locationInWindow];
+        WTFLogAlways("mouseScrollByWithWheelAndMomentumPhases failed to find the target view at %f,%f\n", windowLocation.x, windowLocation.y);
+    }
 }
 
 } // namespace WTR

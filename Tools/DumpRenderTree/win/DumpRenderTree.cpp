@@ -10,7 +10,7 @@
  * 2.  Redistributions in binary form must reproduce the above copyright
  *     notice, this list of conditions and the following disclaimer in the
  *     documentation and/or other materials provided with the distribution. 
- * 3.  Neither the name of Apple Computer, Inc. ("Apple") nor the names of
+ * 3.  Neither the name of Apple Inc. ("Apple") nor the names of
  *     its contributors may be used to endorse or promote products derived
  *     from this software without specific prior written permission. 
  *
@@ -141,6 +141,12 @@ static RetainPtr<CFStringRef> substringFromIndex(CFStringRef string, CFIndex ind
     return adoptCF(CFStringCreateWithSubstring(kCFAllocatorDefault, string, CFRangeMake(index, CFStringGetLength(string) - index)));
 }
 
+static wstring lastPathComponentAsWString(CFURLRef url)
+{
+    RetainPtr<CFStringRef> lastPathComponent = adoptCF(CFURLCopyLastPathComponent(url));
+    return cfStringRefToWString(lastPathComponent.get());
+}
+
 wstring urlSuitableForTestResult(const wstring& urlString)
 {
     RetainPtr<CFURLRef> url = adoptCF(CFURLCreateWithBytes(kCFAllocatorDefault, reinterpret_cast<const UInt8*>(urlString.c_str()), urlString.length() * sizeof(wstring::value_type), kCFStringEncodingUTF16, 0));
@@ -152,16 +158,16 @@ wstring urlSuitableForTestResult(const wstring& urlString)
     COMPtr<IWebDataSource> dataSource;
     if (FAILED(frame->dataSource(&dataSource))) {
         if (FAILED(frame->provisionalDataSource(&dataSource)))
-            return urlString;
+            return lastPathComponentAsWString(url.get());
     }
 
     COMPtr<IWebMutableURLRequest> request;
     if (FAILED(dataSource->request(&request)))
-        return urlString;
+        return lastPathComponentAsWString(url.get());
 
     _bstr_t requestURLString;
     if (FAILED(request->URL(requestURLString.GetAddress())))
-        return urlString;
+        return lastPathComponentAsWString(url.get());
 
     RetainPtr<CFURLRef> requestURL = adoptCF(CFURLCreateWithBytes(kCFAllocatorDefault, reinterpret_cast<const UInt8*>(requestURLString.GetBSTR()), requestURLString.length() * sizeof(OLECHAR), kCFStringEncodingUTF16, 0));
     RetainPtr<CFURLRef> baseURL = adoptCF(CFURLCreateCopyDeletingLastPathComponent(kCFAllocatorDefault, requestURL.get()));
@@ -169,7 +175,10 @@ wstring urlSuitableForTestResult(const wstring& urlString)
     RetainPtr<CFStringRef> basePath = adoptCF(CFURLCopyPath(baseURL.get()));
     RetainPtr<CFStringRef> path = adoptCF(CFURLCopyPath(url.get()));
 
-    return cfStringRefToWString(substringFromIndex(path.get(), CFStringGetLength(basePath.get())).get());
+    if (basePath.get() && CFStringHasPrefix(path.get(), basePath.get()))
+        return cfStringRefToWString(substringFromIndex(path.get(), CFStringGetLength(basePath.get())).get());
+
+    return lastPathComponentAsWString(url.get());
 }
 
 wstring lastPathComponent(const wstring& urlString)
@@ -287,43 +296,6 @@ static const wstring& fontsPath()
     return path;
 }
 
-static void addQTDirToPATH()
-{
-    static LPCWSTR pathEnvironmentVariable = L"PATH";
-    static LPCWSTR quickTimeKeyName = L"Software\\Apple Computer, Inc.\\QuickTime";
-    static LPCWSTR quickTimeSysDir = L"QTSysDir";
-    static bool initialized;
-
-    if (initialized)
-        return;
-    initialized = true;
-
-    // Get the QuickTime dll directory from the registry. The key can be in either HKLM or HKCU.
-    WCHAR qtPath[MAX_PATH];
-    DWORD qtPathBufferLen = sizeof(qtPath);
-    DWORD keyType;
-    HRESULT result = SHGetValue(HKEY_LOCAL_MACHINE, quickTimeKeyName, quickTimeSysDir, &keyType, (LPVOID)qtPath, &qtPathBufferLen);
-    if (result != ERROR_SUCCESS || !qtPathBufferLen || keyType != REG_SZ) {
-        qtPathBufferLen = sizeof(qtPath);
-        result = SHGetValue(HKEY_CURRENT_USER, quickTimeKeyName, quickTimeSysDir, &keyType, (LPVOID)qtPath, &qtPathBufferLen);
-        if (result != ERROR_SUCCESS || !qtPathBufferLen || keyType != REG_SZ)
-            return;
-    }
-
-    // Read the current PATH.
-    DWORD pathSize = GetEnvironmentVariableW(pathEnvironmentVariable, 0, 0);
-    Vector<WCHAR> oldPath(pathSize);
-    if (!GetEnvironmentVariableW(pathEnvironmentVariable, oldPath.data(), oldPath.size()))
-        return;
-
-    // And add the QuickTime dll.
-    wstring newPath;
-    newPath.append(qtPath);
-    newPath.append(L";");
-    newPath.append(oldPath.data(), oldPath.size());
-    SetEnvironmentVariableW(pathEnvironmentVariable, newPath.data());
-}
-
 #ifdef DEBUG_ALL
 #define WEBKITDLL TEXT("WebKit_debug.dll")
 #else
@@ -386,10 +358,6 @@ static void initialize()
         for (int i = 0; i < ARRAYSIZE(fontsToInstall); ++i)
             textRenderer->registerPrivateFont(wstring(resourcesPath + fontsToInstall[i]).c_str());
 
-    // Add the QuickTime dll directory to PATH or QT 7.6 will fail to initialize on systems
-    // linked with older versions of qtmlclientlib.dll.
-    addQTDirToPATH();
-
     // Register a host window
     WNDCLASSEX wcex;
 
@@ -434,11 +402,10 @@ void dumpFrameScrollPosition(IWebFrame* frame)
         if (FAILED(frame->parentFrame(&parent)))
             return;
         if (parent) {
-            BSTR name;
-            if (FAILED(frame->name(&name)))
+            _bstr_t name;
+            if (FAILED(frame->name(&name.GetBSTR())))
                 return;
-            printf("frame '%S' ", name ? name : L"");
-            SysFreeString(name);
+            printf("frame '%S' ", static_cast<wchar_t*>(name));
         }
         printf("scrolled to %.f,%.f\n", (double)scrollPosition.cx, (double)scrollPosition.cy);
     }
@@ -479,26 +446,22 @@ static wstring dumpFramesAsText(IWebFrame* frame)
     if (FAILED(frame->parentFrame(&parent)))
         return L"";
     if (parent) {
-        BSTR name = L"";
-        if (FAILED(frame->name(&name)))
+        _bstr_t name;
+        if (FAILED(frame->name(&name.GetBSTR())))
             return L"";
 
         result.append(L"\n--------\nFrame: '");
-        result.append(name ? name : L"", SysStringLen(name));
+        result.append(static_cast<wchar_t*>(name), name.length());
         result.append(L"'\n--------\n");
-
-        SysFreeString(name);
     }
 
-    BSTR innerText = 0;
+    _bstr_t innerText;
     COMPtr<IDOMElementPrivate> docPrivate;
     if (SUCCEEDED(documentElement->QueryInterface(&docPrivate)))
-        docPrivate->innerText(&innerText);
+        docPrivate->innerText(&innerText.GetBSTR());
 
-    result.append(innerText ? innerText : L"", SysStringLen(innerText));
+    result.append(static_cast<wchar_t*>(innerText), innerText.length());
     result.append(L"\n");
-
-    SysFreeString(innerText);
 
     if (::gTestRunner->dumpChildFramesAsText()) {
         COMPtr<IEnumVARIANT> enumKids;
@@ -528,20 +491,15 @@ static int compareHistoryItems(const void* item1, const void* item2)
     if (FAILED((*(COMPtr<IUnknown>*)item2)->QueryInterface(&itemB)))
         return 0;
 
-    BSTR targetA;
-    if (FAILED(itemA->target(&targetA)))
+    _bstr_t targetA;
+    if (FAILED(itemA->target(&targetA.GetBSTR())))
         return 0;
 
-    BSTR targetB;
-    if (FAILED(itemB->target(&targetB))) {
-        SysFreeString(targetA);
+    _bstr_t targetB;
+    if (FAILED(itemB->target(&targetB.GetBSTR())))
         return 0;
-    }
 
-    int result = wcsicmp(wstring(targetA, SysStringLen(targetA)).c_str(), wstring(targetB, SysStringLen(targetB)).c_str());
-    SysFreeString(targetA);
-    SysFreeString(targetB);
-    return result;
+    return wcsicmp(static_cast<wchar_t*>(targetA), static_cast<wchar_t*>(targetB));
 }
 
 static void dumpHistoryItem(IWebHistoryItem* item, int indent, bool current)
@@ -556,40 +514,37 @@ static void dumpHistoryItem(IWebHistoryItem* item, int indent, bool current)
     for (int i = start; i < indent; i++)
         putchar(' ');
 
-    BSTR url;
-    if (FAILED(item->URLString(&url)))
+    _bstr_t url;
+    if (FAILED(item->URLString(&url.GetBSTR())))
         return;
 
-    if (wcsstr(url, L"file:/") == url) {
+    if (wcsstr(static_cast<wchar_t*>(url), L"file:/") == static_cast<wchar_t*>(url)) {
         static wchar_t* layoutTestsString = L"/LayoutTests/";
         static wchar_t* fileTestString = L"(file test):";
         
-        wchar_t* result = wcsstr(url, layoutTestsString);
+        wchar_t* result = wcsstr(static_cast<wchar_t*>(url), layoutTestsString);
         if (result == NULL)
             return;
         wchar_t* start = result + wcslen(layoutTestsString);
 
-        BSTR newURL = SysAllocStringLen(NULL, SysStringLen(url));
-        wcscpy(newURL, fileTestString);
-        wcscpy(newURL + wcslen(fileTestString), start);
+        _bstr_t newURL(SysAllocStringLen(0, SysStringLen(url)), false);
+        wcscpy(static_cast<wchar_t*>(newURL), fileTestString);
+        wcscpy(static_cast<wchar_t*>(newURL) + wcslen(fileTestString), start);
 
-        SysFreeString(url);
         url = newURL;
     }
 
-    printf("%S", url ? url : L"");
-    SysFreeString(url);
+    printf("%S", static_cast<wchar_t*>(url));
 
     COMPtr<IWebHistoryItemPrivate> itemPrivate;
     if (FAILED(item->QueryInterface(&itemPrivate)))
         return;
 
-    BSTR target;
-    if (FAILED(itemPrivate->target(&target)))
+    _bstr_t target;
+    if (FAILED(itemPrivate->target(&target.GetBSTR())))
         return;
-    if (SysStringLen(target))
-        printf(" (in frame \"%S\")", target);
-    SysFreeString(target);
+    if (target.length())
+        printf(" (in frame \"%S\")", static_cast<wchar_t*>(target));
     BOOL isTargetItem = FALSE;
     if (FAILED(itemPrivate->isTargetItem(&isTargetItem)))
         return;
@@ -730,52 +685,49 @@ void dump()
     if (SUCCEEDED(frame->dataSource(&dataSource))) {
         COMPtr<IWebURLResponse> response;
         if (SUCCEEDED(dataSource->response(&response)) && response) {
-            BSTR mimeType;
-            if (SUCCEEDED(response->MIMEType(&mimeType)) && !_tcscmp(mimeType, TEXT("text/plain"))) {
+            _bstr_t mimeType;
+            if (SUCCEEDED(response->MIMEType(&mimeType.GetBSTR())) && !_tcscmp(static_cast<TCHAR*>(mimeType), TEXT("text/plain"))) {
                 ::gTestRunner->setDumpAsText(true);
                 ::gTestRunner->setGeneratePixelResults(false);
             }
-            SysFreeString(mimeType);
         }
     }
 
-    BSTR resultString = 0;
+    _bstr_t resultString;
 
     if (dumpTree) {
         ::InvalidateRect(webViewWindow, 0, TRUE);
         ::SendMessage(webViewWindow, WM_PAINT, 0, 0);
 
         if (::gTestRunner->dumpAsText()) {
-            wstring result = dumpFramesAsText(frame);
-            resultString = SysAllocStringLen(result.data(), result.size());
+            resultString = dumpFramesAsText(frame).data();
         } else {
             COMPtr<IWebFramePrivate> framePrivate;
             if (FAILED(frame->QueryInterface(&framePrivate)))
                 goto fail;
-            framePrivate->renderTreeAsExternalRepresentation(gTestRunner->isPrinting(), &resultString);
+            framePrivate->renderTreeAsExternalRepresentation(gTestRunner->isPrinting(), &resultString.GetBSTR());
         }
-        
-        if (!resultString)
-            printf("ERROR: nil result from %s", ::gTestRunner->dumpAsText() ? "IDOMElement::innerText" : "IFrameViewPrivate::renderTreeAsExternalRepresentation");
-        else {
-            unsigned stringLength = SysStringLen(resultString);
+
+        if (resultString.length()) {
+            unsigned stringLength = resultString.length();
             int bufferSize = ::WideCharToMultiByte(CP_UTF8, 0, resultString, stringLength, 0, 0, 0, 0);
             char* buffer = (char*)malloc(bufferSize + 1);
             ::WideCharToMultiByte(CP_UTF8, 0, resultString, stringLength, buffer, bufferSize + 1, 0, 0);
             fwrite(buffer, 1, bufferSize, stdout);
             free(buffer);
-            if (!::gTestRunner->dumpAsText())
-                dumpFrameScrollPosition(frame);
-        }
-        if (::gTestRunner->dumpBackForwardList())
-            dumpBackForwardListForAllWindows();
-    }
 
-    if (printSeparators) {
-        puts("#EOF");   // terminate the content block
-        fputs("#EOF\n", stderr);
-        fflush(stdout);
-        fflush(stderr);
+            if (!::gTestRunner->dumpAsText() && !::gTestRunner->dumpDOMAsWebArchive() && !::gTestRunner->dumpSourceAsWebArchive() && !::gTestRunner->dumpAsAudio())
+                dumpFrameScrollPosition(frame);
+
+            if (::gTestRunner->dumpBackForwardList())
+                dumpBackForwardListForAllWindows();
+        } else
+            printf("ERROR: nil result from %s", ::gTestRunner->dumpAsText() ? "IDOMElement::innerText" : "IFrameViewPrivate::renderTreeAsExternalRepresentation");
+
+        if (printSeparators) {
+            puts("#EOF"); // terminate the content block
+            fputs("#EOF\n", stderr);
+        }
     }
 
     if (dumpPixelsForCurrentTest
@@ -786,9 +738,9 @@ void dump()
 
     printf("#EOF\n");   // terminate the (possibly empty) pixels block
     fflush(stdout);
+    fflush(stderr);
 
 fail:
-    SysFreeString(resultString);
     // This will exit from our message loop.
     PostQuitMessage(0);
     done = true;
@@ -804,11 +756,6 @@ static bool shouldLogHistoryDelegates(const char* pathOrURL)
     return strstr(pathOrURL, "/globalhistory/") || strstr(pathOrURL, "\\globalhistory\\");
 }
 
-static bool shouldOpenWebInspector(const char* pathOrURL)
-{
-    return strstr(pathOrURL, "/inspector/") || strstr(pathOrURL, "\\inspector\\");
-}
-
 static bool shouldDumpAsText(const char* pathOrURL)
 {
     return strstr(pathOrURL, "/dumpAsText/") || strstr(pathOrURL, "\\dumpAsText\\");
@@ -822,19 +769,19 @@ static bool shouldEnableDeveloperExtras(const char* pathOrURL)
 static void resetDefaultsToConsistentValues(IWebPreferences* preferences)
 {
 #ifdef USE_MAC_FONTS
-    static BSTR standardFamily = SysAllocString(TEXT("Times"));
-    static BSTR fixedFamily = SysAllocString(TEXT("Courier"));
-    static BSTR sansSerifFamily = SysAllocString(TEXT("Helvetica"));
-    static BSTR cursiveFamily = SysAllocString(TEXT("Apple Chancery"));
-    static BSTR fantasyFamily = SysAllocString(TEXT("Papyrus"));
-    static BSTR pictographFamily = SysAllocString(TEXT("Apple Color Emoji"));
+    static _bstr_t standardFamily(TEXT("Times"));
+    static _bstr_t fixedFamily(TEXT("Courier"));
+    static _bstr_t sansSerifFamily(TEXT("Helvetica"));
+    static _bstr_t cursiveFamily(TEXT("Apple Chancery"));
+    static _bstr_t fantasyFamily(TEXT("Papyrus"));
+    static _bstr_t pictographFamily(TEXT("Apple Color Emoji"));
 #else
-    static BSTR standardFamily = SysAllocString(TEXT("Times New Roman"));
-    static BSTR fixedFamily = SysAllocString(TEXT("Courier New"));
-    static BSTR sansSerifFamily = SysAllocString(TEXT("Arial"));
-    static BSTR cursiveFamily = SysAllocString(TEXT("Comic Sans MS")); // Not actually cursive, but it's what IE and Firefox use.
-    static BSTR fantasyFamily = SysAllocString(TEXT("Times New Roman"));
-    static BSTR pictographFamily = SysAllocString(TEXT("Times New Roman"));
+    static _bstr_t standardFamily(TEXT("Times New Roman"));
+    static _bstr_t fixedFamily(TEXT("Courier New"));
+    static _bstr_t sansSerifFamily(TEXT("Arial"));
+    static _bstr_t cursiveFamily(TEXT("Comic Sans MS")); // Not actually cursive, but it's what IE and Firefox use.
+    static _bstr_t fantasyFamily(TEXT("Times New Roman"));
+    static _bstr_t pictographFamily(TEXT("Times New Roman"));
 #endif
 
     preferences->setStandardFontFamily(standardFamily);
@@ -849,6 +796,7 @@ static void resetDefaultsToConsistentValues(IWebPreferences* preferences)
     preferences->setDefaultFontSize(16);
     preferences->setDefaultFixedFontSize(13);
     preferences->setMinimumFontSize(0);
+    preferences->setDefaultTextEncodingName(L"ISO-8859-1");
     preferences->setJavaEnabled(FALSE);
     preferences->setPlugInsEnabled(TRUE);
     preferences->setDOMPasteAllowed(TRUE);
@@ -860,15 +808,16 @@ static void resetDefaultsToConsistentValues(IWebPreferences* preferences)
     preferences->setJavaScriptEnabled(TRUE);
     preferences->setTabsToLinks(FALSE);
     preferences->setShouldPrintBackgrounds(TRUE);
+    preferences->setCacheModel(WebCacheModelDocumentBrowser);
     preferences->setLoadsImagesAutomatically(TRUE);
-    preferences->setSeamlessIFramesEnabled(TRUE);
+    preferences->setTextAreasAreResizable(TRUE);
+    preferences->setCSSRegionsEnabled(TRUE);
 
     if (persistentUserStyleSheetLocation) {
         Vector<wchar_t> urlCharacters(CFStringGetLength(persistentUserStyleSheetLocation.get()));
         CFStringGetCharacters(persistentUserStyleSheetLocation.get(), CFRangeMake(0, CFStringGetLength(persistentUserStyleSheetLocation.get())), (UniChar *)urlCharacters.data());
-        BSTR url = SysAllocStringLen(urlCharacters.data(), urlCharacters.size());
+        _bstr_t url(urlCharacters.data());
         preferences->setUserStyleSheetLocation(url);
-        SysFreeString(url);
         preferences->setUserStyleSheetEnabled(TRUE);
     } else
         preferences->setUserStyleSheetEnabled(FALSE);
@@ -885,6 +834,13 @@ static void resetDefaultsToConsistentValues(IWebPreferences* preferences)
         prefsPrivate->setXSSAuditorEnabled(FALSE);
         prefsPrivate->setOfflineWebApplicationCacheEnabled(TRUE);
         prefsPrivate->setLoadsSiteIconsIgnoringImageLoadingPreference(FALSE);
+        prefsPrivate->setFrameFlatteningEnabled(FALSE);
+        prefsPrivate->setFullScreenEnabled(TRUE);
+#if USE(CG)
+        prefsPrivate->setAcceleratedCompositingEnabled(TRUE);
+#endif
+        prefsPrivate->setMockScrollbarsEnabled(TRUE);
+        prefsPrivate->setScreenFontSubstitutionEnabled(TRUE);
     }
     setAlwaysAcceptCookies(false);
 
@@ -922,17 +878,15 @@ static void resetWebViewToConsistentStateBeforeTesting()
         return;
 
     HWND viewWindow;
-    if (SUCCEEDED(webViewPrivate->viewWindow(reinterpret_cast<OLE_HANDLE*>(&viewWindow))) && viewWindow)
+    if (SUCCEEDED(webViewPrivate->viewWindow(&viewWindow)) && viewWindow)
         SetFocus(viewWindow);
 
     webViewPrivate->clearMainFrameName();
     webViewPrivate->resetOriginAccessWhitelists();
 
-    BSTR groupName;
-    if (SUCCEEDED(webView->groupName(&groupName))) {
+    _bstr_t groupName;
+    if (SUCCEEDED(webView->groupName(&groupName.GetBSTR())))
         webViewPrivate->removeAllUserContentFromGroup(groupName);
-        SysFreeString(groupName);
-    }
 
     sharedUIDelegate->resetUndoManager();
 
@@ -964,7 +918,7 @@ static String findFontFallback(const char* pathOrUrl)
     String pathToFontFallback = WebCore::directoryName(pathOrUrl);
 
     wchar_t fullPath[_MAX_PATH];
-    if (!_wfullpath(fullPath, pathToFontFallback.charactersWithNullTermination(), _MAX_PATH))
+    if (!_wfullpath(fullPath, pathToFontFallback.charactersWithNullTermination().data(), _MAX_PATH))
         return emptyString();
 
     if (!::PathIsDirectoryW(fullPath))
@@ -995,7 +949,7 @@ static String findFontFallback(const char* pathOrUrl)
     for (Vector<String>::iterator pos = possiblePaths.begin(); pos != possiblePaths.end(); ++pos) {
         pathToFontFallback = WebCore::pathByAppendingComponent(*pos, "resources\\"); 
 
-        if (::PathIsDirectoryW(pathToFontFallback.charactersWithNullTermination()))
+        if (::PathIsDirectoryW(pathToFontFallback.charactersWithNullTermination().data()))
             return pathToFontFallback;
     }
 
@@ -1009,7 +963,7 @@ static void addFontFallbackIfPresent(const String& fontFallbackPath)
 
     String fontFallback = WebCore::pathByAppendingComponent(fontFallbackPath, "Mac-compatible-font-fallback.css");
 
-    if (!::PathFileExistsW(fontFallback.charactersWithNullTermination()))
+    if (!::PathFileExistsW(fontFallback.charactersWithNullTermination().data()))
         return;
 
     ::setPersistentUserStyleSheetLocation(fontFallback.createCFString().get());
@@ -1022,22 +976,23 @@ static void removeFontFallbackIfPresent(const String& fontFallbackPath)
 
     String fontFallback = WebCore::pathByAppendingComponent(fontFallbackPath, "Mac-compatible-font-fallback.css");
 
-    if (!::PathFileExistsW(fontFallback.charactersWithNullTermination()))
+    if (!::PathFileExistsW(fontFallback.charactersWithNullTermination().data()))
         return;
 
     ::setPersistentUserStyleSheetLocation(0);
 }
 
+
 static void runTest(const string& inputLine)
 {
+    ASSERT(!inputLine.empty());
+
     TestCommand command = parseInputLine(inputLine);
     const string& pathOrURL = command.pathOrURL;
     dumpPixelsForCurrentTest = command.shouldDumpPixels || dumpPixelsForAllTests;
 
-    static BSTR methodBStr = SysAllocString(TEXT("GET"));
+    static _bstr_t methodBStr(TEXT("GET"));
 
-    BSTR urlBStr;
- 
     CFStringRef str = CFStringCreateWithCString(0, pathOrURL.c_str(), kCFStringEncodingWindowsLatin1);
     CFURLRef url = CFURLCreateWithString(0, str, 0);
 
@@ -1051,17 +1006,20 @@ static void runTest(const string& inputLine)
     str = CFURLGetString(url);
 
     CFIndex length = CFStringGetLength(str);
-    UniChar* buffer = new UniChar[length];
+    UniChar* buffer = new UniChar[length + 1];
 
     CFStringGetCharacters(str, CFRangeMake(0, length), buffer);
-    urlBStr = SysAllocStringLen((OLECHAR*)buffer, length);
+    buffer[length] = 0;
+
+    _bstr_t urlBStr((OLECHAR*)buffer);
+    ASSERT(urlBStr.length() == length);
     delete[] buffer;
 
     CFRelease(url);
 
     ::gTestRunner = TestRunner::create(pathOrURL, command.expectedPixelHash);
-    done = false;
     topLoadingFrame = 0;
+    done = false;
 
     addFontFallbackIfPresent(fallbackPath);
 
@@ -1090,12 +1048,10 @@ static void runTest(const string& inputLine)
 
     if (shouldEnableDeveloperExtras(pathOrURL.c_str())) {
         gTestRunner->setDeveloperExtrasEnabled(true);
-        if (shouldOpenWebInspector(pathOrURL.c_str()))
-            gTestRunner->showWebInspector();
-    }
-    if (shouldDumpAsText(pathOrURL.c_str())) {
-        gTestRunner->setDumpAsText(true);
-        gTestRunner->setGeneratePixelResults(false);
+        if (shouldDumpAsText(pathOrURL.c_str())) {
+            gTestRunner->setDumpAsText(true);
+            gTestRunner->setGeneratePixelResults(false);
+        }
     }
 
     prevTestBFItem = 0;
@@ -1109,7 +1065,7 @@ static void runTest(const string& inputLine)
     WorkQueue::shared()->setFrozen(false);
 
     HWND hostWindow;
-    webView->hostWindow(reinterpret_cast<OLE_HANDLE*>(&hostWindow));
+    webView->hostWindow(&hostWindow);
 
     COMPtr<IWebMutableURLRequest> request;
     HRESULT hr = WebKitCreateInstance(CLSID_WebMutableURLRequest, 0, IID_IWebMutableURLRequest, (void**)&request);
@@ -1122,7 +1078,13 @@ static void runTest(const string& inputLine)
     frame->loadRequest(request.get());
 
     MSG msg;
-    while (GetMessage(&msg, 0, 0, 0)) {
+    while (true) {
+#if USE(CF)
+        CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0, true);
+#endif
+        if (!GetMessage(&msg, 0, 0, 0))
+            break;
+
         // We get spurious WM_MOUSELEAVE events which make event handling machinery think that mouse button
         // is released during dragging (see e.g. fast\dynamic\layer-hit-test-crash.html).
         // Mouse can never leave WebView during normal DumpRenderTree operation, so we just ignore all such events.
@@ -1157,7 +1119,6 @@ static void runTest(const string& inputLine)
 
 exit:
     removeFontFallbackIfPresent(fallbackPath);
-    SysFreeString(urlBStr);
     ::gTestRunner.clear();
 
     return;
@@ -1177,8 +1138,8 @@ WindowToWebViewMap& windowToWebViewMap()
 
 IWebView* createWebViewAndOffscreenWindow(HWND* webViewWindow)
 {
-    unsigned maxViewWidth = TestRunner::viewWidth;
-    unsigned maxViewHeight = TestRunner::viewHeight;
+    int maxViewWidth = TestRunner::viewWidth;
+    int maxViewHeight = TestRunner::viewHeight;
     HWND hostWindow = CreateWindowEx(WS_EX_TOOLWINDOW, kDumpRenderTreeClassName, TEXT("DumpRenderTree"), WS_POPUP,
       -maxViewWidth, -maxViewHeight, maxViewWidth, maxViewHeight, 0, 0, GetModuleHandle(0), 0);
 
@@ -1190,15 +1151,13 @@ IWebView* createWebViewAndOffscreenWindow(HWND* webViewWindow)
         return 0;
     }
 
-    if (FAILED(webView->setHostWindow((OLE_HANDLE)(ULONG64)hostWindow)))
+    if (FAILED(webView->setHostWindow(hostWindow)))
         return 0;
 
     RECT clientRect;
     clientRect.bottom = clientRect.left = clientRect.top = clientRect.right = 0;
-    BSTR groupName = SysAllocString(L"org.webkit.DumpRenderTree");
-    bool failed = FAILED(webView->initWithFrame(clientRect, 0, groupName));
-    SysFreeString(groupName);
-    if (failed)
+    _bstr_t groupName(L"org.webkit.DumpRenderTree");
+    if (FAILED(webView->initWithFrame(clientRect, 0, groupName)))
         return 0;
 
     COMPtr<IWebViewPrivate> viewPrivate;
@@ -1208,16 +1167,14 @@ IWebView* createWebViewAndOffscreenWindow(HWND* webViewWindow)
     viewPrivate->setShouldApplyMacFontAscentHack(TRUE);
     viewPrivate->setAlwaysUsesComplexTextCodePath(forceComplexText);
 
-    BSTR pluginPath = SysAllocStringLen(0, exePath().length() + _tcslen(TestPluginDir));
-    _tcscpy(pluginPath, exePath().c_str());
-    _tcscat(pluginPath, TestPluginDir);
-    failed = FAILED(viewPrivate->addAdditionalPluginDirectory(pluginPath));
-    SysFreeString(pluginPath);
-    if (failed)
+    _bstr_t pluginPath(SysAllocStringLen(0, exePath().length() + _tcslen(TestPluginDir)), false);
+    _tcscpy(static_cast<TCHAR*>(pluginPath), exePath().c_str());
+    _tcscat(static_cast<TCHAR*>(pluginPath), TestPluginDir);
+    if (FAILED(viewPrivate->addAdditionalPluginDirectory(pluginPath)))
         return 0;
 
     HWND viewWindow;
-    if (FAILED(viewPrivate->viewWindow(reinterpret_cast<OLE_HANDLE*>(&viewWindow))))
+    if (FAILED(viewPrivate->viewWindow(&viewWindow)))
         return 0;
     if (webViewWindow)
         *webViewWindow = viewWindow;
@@ -1282,7 +1239,7 @@ static LONG WINAPI exceptionFilter(EXCEPTION_POINTERS*)
     return EXCEPTION_CONTINUE_SEARCH;
 }
 
-extern "C" __declspec(dllexport) int WINAPI dllLauncherEntryPoint(int argc, const char* argv[])
+int main(int argc, const char* argv[])
 {
     // Cygwin calls ::SetErrorMode(SEM_FAILCRITICALERRORS), which we will inherit. This is bad for
     // testing/debugging, as it causes the post-mortem debugger not to be invoked. We reset the
@@ -1348,7 +1305,10 @@ extern "C" __declspec(dllexport) int WINAPI dllLauncherEntryPoint(int argc, cons
     standardPreferencesPrivate->setShouldPaintNativeControls(FALSE);
     standardPreferences->setJavaScriptEnabled(TRUE);
     standardPreferences->setDefaultFontSize(16);
-    standardPreferences->setAcceleratedCompositingEnabled(true);
+#if USE(CG)
+    standardPreferences->setAcceleratedCompositingEnabled(TRUE);
+    standardPreferences->setAVFoundationEnabled(TRUE);
+#endif
     standardPreferences->setContinuousSpellCheckingEnabled(TRUE);
 
     if (printSupportedFeatures) {
@@ -1441,4 +1401,9 @@ extern "C" __declspec(dllexport) int WINAPI dllLauncherEntryPoint(int argc, cons
     shutDownWebKit();
 
     return 0;
+}
+
+extern "C" __declspec(dllexport) int WINAPI dllLauncherEntryPoint(int argc, const char* argv[])
+{
+    return main(argc, argv);
 }

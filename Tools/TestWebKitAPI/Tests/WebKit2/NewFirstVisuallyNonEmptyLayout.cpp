@@ -26,7 +26,7 @@
 #include "config.h"
 #include "PlatformUtilities.h"
 #include "PlatformWebView.h"
-#include <WebKit2/WKContextPrivate.h>
+#include <WebKit/WKContextPrivate.h>
 
 namespace TestWebKitAPI {
 
@@ -57,12 +57,13 @@ static void didLayout(WKPageRef, WKLayoutMilestones type, WKTypeRef, const void 
 
 static void setPageLoaderClient(WKPageRef page)
 {
-    WKPageLoaderClient loaderClient;
+    WKPageLoaderClientV3 loaderClient;
     memset(&loaderClient, 0, sizeof(loaderClient));
-    loaderClient.version = kWKPageLoaderClientCurrentVersion;
+
+    loaderClient.base.version = 3;
     loaderClient.didLayout = didLayout;
 
-    WKPageSetPageLoaderClient(page, &loaderClient);
+    WKPageSetPageLoaderClient(page, &loaderClient.base);
 }
 
 // FIXME: This test has been broken since http://trac.webkit.org/changeset/115752 It's failing because

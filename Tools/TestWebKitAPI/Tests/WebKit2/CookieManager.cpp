@@ -26,8 +26,8 @@
 #include "config.h"
 #include "PlatformUtilities.h"
 #include "PlatformWebView.h"
-#include <WebKit2/WKCookieManager.h>
-#include <WebKit2/WKRetainPtr.h>
+#include <WebKit/WKCookieManager.h>
+#include <WebKit/WKRetainPtr.h>
 
 namespace TestWebKitAPI {
 
@@ -72,12 +72,13 @@ TEST(WebKit2, CookieManager)
     wkContext.adopt(WKContextCreate());
     PlatformWebView webView(wkContext.get());
 
-    WKPageLoaderClient loaderClient;
+    WKPageLoaderClientV0 loaderClient;
     memset(&loaderClient, 0, sizeof(loaderClient));
 
-    loaderClient.version = 0;
+    loaderClient.base.version = 0;
     loaderClient.didFinishLoadForFrame = didFinishLoadForFrame;
-    WKPageSetPageLoaderClient(webView.page(), &loaderClient);
+
+    WKPageSetPageLoaderClient(webView.page(), &loaderClient.base);
 
     WKPageLoadURL(webView.page(), adoptWK(WKURLCreateWithUTF8CString("about:blank")).get());
 

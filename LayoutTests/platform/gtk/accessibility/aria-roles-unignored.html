@@ -1,7 +1,7 @@
 <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
 <html>
 <head>
-<script src="../../../fast/js/resources/js-test-pre.js"></script>
+<script src="../../../resources/js-test-pre.js"></script>
 </head>
 <body id="body">
 
@@ -51,12 +51,12 @@ if (window.accessibilityController) {
 
     // Divs
     element = webArea.childAtIndex(5);
-    shouldBe("element.role", "'AXRole: AXDiv'");
+    shouldBe("element.role", "'AXRole: AXSection'");
     element = webArea.childAtIndex(6);
     shouldBe("element.role", "'AXRole: AXTextField'");
 }
 
 </script>
-<script src="../../../fast/js/resources/js-test-post.js"></script>
+<script src="../../../resources/js-test-post.js"></script>
 </body>
 </html>

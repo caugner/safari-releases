@@ -29,9 +29,9 @@
 #include "PlatformWebView.h"
 
 #include "EWebKit2.h"
-#include <WebKit2/WKAPICast.h>
-#include <WebKit2/WKRetainPtr.h>
-#include <WebKit2/WKViewEfl.h>
+#include <WebKit/WKAPICast.h>
+#include <WebKit/WKRetainPtr.h>
+#include <WebKit/WKViewEfl.h>
 #include <Ecore_Evas.h>
 
 extern bool useX11Window;
@@ -45,11 +45,13 @@ static Ecore_Evas* initEcoreEvas()
     if (!ecore_evas_init())
         return 0;
 
-    const char* engine = 0;
-#if defined(WTF_USE_ACCELERATED_COMPOSITING) && defined(HAVE_ECORE_X)
-    engine = "opengl_x11";
+    Ecore_Evas* ecoreEvas;
+#if defined(HAVE_ECORE_X)
+    ecoreEvas = ecore_evas_new("opengl_x11", 0, 0, 800, 600, 0);
+    // Graceful fallback to software rendering if evas_gl engine is not available.
+    if (!ecoreEvas)
 #endif
-    Ecore_Evas* ecoreEvas = ecore_evas_new(engine, 0, 0, 800, 600, 0);
+    ecoreEvas = ecore_evas_new(0, 0, 0, 800, 600, 0);
 
     ASSERT(ecoreEvas);
 

@@ -280,7 +280,7 @@ class Git(SCM, SVNRepository):
 
         return "Subversion Revision: " + revision + '\n' + diff
 
-    def create_patch(self, git_commit=None, changed_files=None):
+    def create_patch(self, git_commit=None, changed_files=None, git_index=False):
         """Returns a byte array (str()) representing the patch file.
         Patch files are effectively binary since they may contain
         files of multiple different encodings."""
@@ -293,7 +293,10 @@ class Git(SCM, SVNRepository):
         if self._filesystem.exists(order_file):
             order = "-O%s" % order_file
 
-        command = [self.executable_name, 'diff', '--binary', '--no-color', "--no-ext-diff", "--full-index", "--no-renames", order, self.merge_base(git_commit), "--"]
+        command = [self.executable_name, 'diff', '--binary', '--no-color', "--no-ext-diff", "--full-index", "--no-renames", order, self.merge_base(git_commit)]
+        if git_index:
+            command += ['--cached']
+        command += ["--"]
         if changed_files:
             command += changed_files
         return self.prepend_svn_revision(self.run(command, decode_output=False, cwd=self.checkout_root))
@@ -310,14 +313,12 @@ class Git(SCM, SVNRepository):
 
     @memoized
     def git_commit_from_svn_revision(self, svn_revision):
-        # FIXME: https://bugs.webkit.org/show_bug.cgi?id=111668
-        # We should change this to run git log --grep 'git-svn-id' instead
-        # so that we don't require git+svn to be set up.
-        git_commit = self._run_git_svn_find_rev('r%s' % svn_revision)
+        git_log = self._run_git(['log', '-1', '--grep=^\s*git-svn-id:.*@%s ' % svn_revision])
+        git_commit = re.search("^commit (?P<commit>[a-f0-9]{40})", git_log)
         if not git_commit:
             # FIXME: Alternatively we could offer to update the checkout? Or return None?
             raise ScriptError(message='Failed to find git commit for revision %s, your checkout likely needs an update.' % svn_revision)
-        return git_commit
+        return str(git_commit.group('commit'))
 
     @memoized
     def svn_revision_from_git_commit(self, git_commit):
@@ -471,7 +472,7 @@ class Git(SCM, SVNRepository):
         self._run_git(['commit', '--all', '-F', '-'], input=message)
 
     def push_local_commits_to_server(self, username=None, password=None):
-        dcommit_command = ['svn', 'dcommit']
+        dcommit_command = ['svn', 'dcommit', '--rmdir']
         if (not username or not password) and not self.has_authorization_for_realm(self.svn_server_realm):
             raise AuthenticationError(self.svn_server_host, prompt_for_password=True)
         if username:

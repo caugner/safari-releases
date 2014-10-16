@@ -32,24 +32,24 @@
 #include "PlatformWebView.h"
 #include "StringFunctions.h"
 #include "TestController.h"
-#include <WebKit2/WKBundle.h>
-#include <WebKit2/WKBundleBackForwardList.h>
-#include <WebKit2/WKBundleFrame.h>
-#include <WebKit2/WKBundleFramePrivate.h>
-#include <WebKit2/WKBundleInspector.h>
-#include <WebKit2/WKBundleNodeHandlePrivate.h>
-#include <WebKit2/WKBundlePage.h>
-#include <WebKit2/WKBundlePagePrivate.h>
-#include <WebKit2/WKBundlePrivate.h>
-#include <WebKit2/WKBundleScriptWorld.h>
-#include <WebKit2/WKData.h>
-#include <WebKit2/WKRetainPtr.h>
-#include <WebKit2/WKSerializedScriptValue.h>
-#include <WebKit2/WebKit2_C.h>
+#include <JavaScriptCore/JSCTestRunnerUtils.h>
+#include <WebKit/WKBundle.h>
+#include <WebKit/WKBundleBackForwardList.h>
+#include <WebKit/WKBundleFrame.h>
+#include <WebKit/WKBundleFramePrivate.h>
+#include <WebKit/WKBundleInspector.h>
+#include <WebKit/WKBundleNodeHandlePrivate.h>
+#include <WebKit/WKBundlePage.h>
+#include <WebKit/WKBundlePagePrivate.h>
+#include <WebKit/WKBundlePrivate.h>
+#include <WebKit/WKBundleScriptWorld.h>
+#include <WebKit/WKData.h>
+#include <WebKit/WKRetainPtr.h>
+#include <WebKit/WKSerializedScriptValue.h>
+#include <WebKit/WebKit2_C.h>
 #include <wtf/CurrentTime.h>
 #include <wtf/HashMap.h>
-#include <wtf/OwnArrayPtr.h>
-#include <wtf/PassOwnArrayPtr.h>
+#include <wtf/StdLibExtras.h>
 #include <wtf/text/CString.h>
 #include <wtf/text/StringBuilder.h>
 
@@ -93,6 +93,8 @@ TestRunner::TestRunner()
     , m_policyDelegatePermissive(false)
     , m_globalFlag(false)
     , m_customFullScreenBehavior(false)
+    , m_databaseDefaultQuota(-1)
+    , m_databaseMaxQuota(-1)
     , m_userStyleSheetEnabled(false)
     , m_userStyleSheetLocation(adoptWK(WKStringCreateWithUTF8CString("")))
 {
@@ -188,7 +190,7 @@ void TestRunner::addUserStyleSheet(JSStringRef source, bool allFrames)
 
 void TestRunner::keepWebHistory()
 {
-    WKBundleSetShouldTrackVisitedLinks(InjectedBundle::shared().bundle(), true);
+    InjectedBundle::shared().postSetAddsVisitedLinks(true);
 }
 
 void TestRunner::execCommand(JSStringRef name, JSStringRef argument)
@@ -264,12 +266,6 @@ long long TestRunner::applicationCacheDiskUsageForOrigin(JSStringRef origin)
     return WKBundleGetAppCacheUsageForOrigin(InjectedBundle::shared().bundle(), toWK(origin).get());
 }
 
-void TestRunner::setApplicationCacheOriginQuota(unsigned long long bytes)
-{
-    WKRetainPtr<WKStringRef> origin(AdoptWK, WKStringCreateWithUTF8CString("http://127.0.0.1:8000"));
-    WKBundleSetApplicationCacheOriginQuota(InjectedBundle::shared().bundle(), origin.get(), bytes);
-}
-
 void TestRunner::disallowIncreaseForApplicationCacheQuota()
 {
     m_disallowIncreaseForApplicationCacheQuota = true;
@@ -279,14 +275,15 @@ static inline JSValueRef stringArrayToJS(JSContextRef context, WKArrayRef string
 {
     const size_t count = WKArrayGetSize(strings);
 
-    OwnArrayPtr<JSValueRef> jsStringsArray = adoptArrayPtr(new JSValueRef[count]);
+    JSValueRef arrayResult = JSObjectMakeArray(context, 0, 0, 0);
+    JSObjectRef arrayObj = JSValueToObject(context, arrayResult, 0);
     for (size_t i = 0; i < count; ++i) {
         WKStringRef stringRef = static_cast<WKStringRef>(WKArrayGetItemAtIndex(strings, i));
         JSRetainPtr<JSStringRef> stringJS = toJS(stringRef);
-        jsStringsArray[i] = JSValueMakeString(context, stringJS.get());
+        JSObjectSetPropertyAtIndex(context, arrayObj, i, JSValueMakeString(context, stringJS.get()), 0);
     }
 
-    return JSObjectMakeArray(context, count, jsStringsArray.get(), 0);
+    return arrayResult;
 }
 
 JSValueRef TestRunner::originsWithApplicationCache()
@@ -378,6 +375,7 @@ void TestRunner::setValueForUser(JSContextRef context, JSValueRef element, JSStr
 
 void TestRunner::setAudioResult(JSContextRef context, JSValueRef data)
 {
+    // FIXME (123058): Use a JSC API to get buffer contents once such is exposed.
     WKRetainPtr<WKDataRef> audioData(AdoptWK, WKBundleCreateWKDataFromUInt8Array(InjectedBundle::shared().bundle(), context, data));
     InjectedBundle::shared().setAudioResult(audioData.get());
     m_whatToDump = Audio;
@@ -415,11 +413,11 @@ void TestRunner::closeWebInspector()
 #endif // ENABLE(INSPECTOR)
 }
 
-void TestRunner::evaluateInWebInspector(long callID, JSStringRef script)
+void TestRunner::evaluateInWebInspector(JSStringRef script)
 {
 #if ENABLE(INSPECTOR)
     WKRetainPtr<WKStringRef> scriptWK = toWK(script);
-    WKBundleInspectorEvaluateScriptForTest(WKBundlePageGetInspector(InjectedBundle::shared().page()->page()), callID, scriptWK.get());
+    WKBundleInspectorEvaluateScriptForTest(WKBundlePageGetInspector(InjectedBundle::shared().page()->page()), scriptWK.get());
 #endif // ENABLE(INSPECTOR)
 }
 
@@ -449,7 +447,7 @@ void TestRunner::evaluateScriptInIsolatedWorld(JSContextRef context, unsigned wo
     if (!worldID)
         world.adopt(WKBundleScriptWorldCreateWorld());
     else {
-        WKRetainPtr<WKBundleScriptWorldRef>& worldSlot = worldMap().add(worldID, 0).iterator->value;
+        WKRetainPtr<WKBundleScriptWorldRef>& worldSlot = worldMap().add(worldID, nullptr).iterator->value;
         if (!worldSlot)
             worldSlot.adopt(WKBundleScriptWorldCreateWorld());
         world = worldSlot;
@@ -488,21 +486,12 @@ void TestRunner::setDefersLoading(bool shouldDeferLoading)
 
 void TestRunner::setPageVisibility(JSStringRef state)
 {
-    WKPageVisibilityState visibilityState = kWKPageVisibilityStateVisible;
-
-    if (JSStringIsEqualToUTF8CString(state, "hidden"))
-        visibilityState = kWKPageVisibilityStateHidden;
-    else if (JSStringIsEqualToUTF8CString(state, "prerender"))
-        visibilityState = kWKPageVisibilityStatePrerender;
-    else if (JSStringIsEqualToUTF8CString(state, "unloaded"))
-        visibilityState = kWKPageVisibilityStateUnloaded;
-
-    InjectedBundle::shared().setVisibilityState(visibilityState, false);
+    InjectedBundle::shared().setHidden(JSStringIsEqualToUTF8CString(state, "hidden") || JSStringIsEqualToUTF8CString(state, "prerender"));
 }
 
 void TestRunner::resetPageVisibility()
 {
-    InjectedBundle::shared().setVisibilityState(kWKPageVisibilityStateVisible, true);
+    InjectedBundle::shared().setHidden(false);
 }
 
 typedef WTF::HashMap<unsigned, JSValueRef> CallbackMap;
@@ -810,6 +799,27 @@ bool TestRunner::secureEventInputIsEnabled() const
 
     WKBundlePostSynchronousMessage(InjectedBundle::shared().bundle(), messageName.get(), 0, &returnData);
     return WKBooleanGetValue(static_cast<WKBooleanRef>(returnData));
+}
+
+void TestRunner::setBlockAllPlugins(bool shouldBlock)
+{
+    WKRetainPtr<WKStringRef> messageName(AdoptWK, WKStringCreateWithUTF8CString("SetBlockAllPlugins"));
+    WKRetainPtr<WKBooleanRef> messageBody(AdoptWK, WKBooleanCreate(shouldBlock));
+    WKBundlePostMessage(InjectedBundle::shared().bundle(), messageName.get(), messageBody.get());
+}
+
+JSValueRef TestRunner::numberOfDFGCompiles(JSValueRef theFunction)
+{
+    WKBundleFrameRef mainFrame = WKBundlePageGetMainFrame(InjectedBundle::shared().page()->page());
+    JSContextRef context = WKBundleFrameGetJavaScriptContext(mainFrame);
+    return JSC::numberOfDFGCompiles(context, theFunction);
+}
+
+JSValueRef TestRunner::neverInlineFunction(JSValueRef theFunction)
+{
+    WKBundleFrameRef mainFrame = WKBundlePageGetMainFrame(InjectedBundle::shared().page()->page());
+    JSContextRef context = WKBundleFrameGetJavaScriptContext(mainFrame);
+    return JSC::setNeverInline(context, theFunction);
 }
 
 } // namespace WTR

@@ -2,6 +2,9 @@
 <Workspace
    version = "1.0">
    <FileRef
+      location = "group:Source/bmalloc/bmalloc.xcodeproj">
+   </FileRef>
+   <FileRef
       location = "group:Source/WTF/WTF.xcodeproj">
    </FileRef>
    <FileRef
@@ -12,6 +15,9 @@
    </FileRef>
    <FileRef
       location = "group:Source/WebCore/WebCore.xcodeproj">
+   </FileRef>
+   <FileRef
+      location = "group:Source/WebInspectorUI/WebInspectorUI.xcodeproj">
    </FileRef>
    <FileRef
       location = "group:Source/WebKit/WebKit.xcodeproj">

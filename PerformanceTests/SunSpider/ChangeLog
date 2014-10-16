@@ -1,3 +1,234 @@
+2014-07-08  Gergo Balogh  <gbalogh.u-szeged@partner.samsung.com>
+
+        Add option to specify output file location in sunspider.
+        https://bugs.webkit.org/show_bug.cgi?id=134339
+
+        Reviewed by Darin Adler.
+
+        * sunspider:
+
+2014-06-03  Eva Balazsfalvi  <evab.u-szeged@partner.samsung.com>
+
+        REGRESSION(r169092 and r169102): Skip failing JSC tests poperly on non-x86 Darwin platforms
+        https://bugs.webkit.org/show_bug.cgi?id=133149
+
+        Reviewed by Csaba Osztrogonác.
+
+        * profiler-test.yaml: Skip profiler tests only if the architecture isn't x86 and the host is Darwin.
+
+2014-05-21  Filip Pizlo  <fpizlo@apple.com>
+
+        Unreviewed, roll out http://trac.webkit.org/changeset/169159.
+        
+        This was a unilateral change and wasn't properly reviewed.
+
+        * profiler-test.yaml:
+
+2014-05-19  Filip Pizlo  <fpizlo@apple.com>
+
+        Take care of some ARM64 test failures
+        https://bugs.webkit.org/show_bug.cgi?id=133090
+
+        Reviewed by Geoffrey Garen.
+
+        * profiler-test.yaml: Skip these on not-x86.
+
+2014-03-14  Maciej Stachowiak  <mjs@apple.com>
+
+        Replace "Apple Computer, Inc." with "Apple Inc." in copyright headers
+        https://bugs.webkit.org/show_bug.cgi?id=130276
+        <rdar://problem/16266927>
+
+        Reviewed by Simon Fraser.
+
+        * hosted/sunspider.html:
+        * hosted/versions.html:
+        * make-hosted:
+        * resources/TEMPLATE.html:
+        * resources/driver-TEMPLATE.html:
+        * resources/results-TEMPLATE.html:
+        * resources/sunspider-analyze-results.js:
+        * resources/sunspider-compare-results.js:
+        * resources/sunspider-standalone-compare.js:
+        * resources/sunspider-standalone-driver.js:
+        * sunspider:
+        * sunspider-compare-results:
+        * tests/sunspider-0.9.1/3d-morph.js:
+        * tests/sunspider-0.9.1/3d-raytrace.js:
+        * tests/sunspider-0.9.1/bitops-bitwise-and.js:
+        * tests/sunspider-0.9.1/math-cordic.js:
+        * tests/sunspider-0.9.1/string-tagcloud.js:
+        * tests/sunspider-0.9/3d-morph.js:
+        * tests/sunspider-0.9/3d-raytrace.js:
+        * tests/sunspider-0.9/bitops-bitwise-and.js:
+        * tests/sunspider-0.9/math-cordic.js:
+        * tests/sunspider-0.9/string-tagcloud.js:
+        * tests/sunspider-1.0.1/3d-morph.js:
+        * tests/sunspider-1.0.1/3d-raytrace.js:
+        * tests/sunspider-1.0.1/bitops-bitwise-and.js:
+        * tests/sunspider-1.0.1/math-cordic.js:
+        * tests/sunspider-1.0.1/string-tagcloud.js:
+        * tests/sunspider-1.0.2/3d-morph.js:
+        * tests/sunspider-1.0.2/3d-raytrace.js:
+        * tests/sunspider-1.0.2/bitops-bitwise-and.js:
+        * tests/sunspider-1.0.2/math-cordic.js:
+        * tests/sunspider-1.0.2/string-tagcloud.js:
+        * tests/sunspider-1.0/3d-morph.js:
+        * tests/sunspider-1.0/3d-raytrace.js:
+        * tests/sunspider-1.0/bitops-bitwise-and.js:
+        * tests/sunspider-1.0/math-cordic.js:
+        * tests/sunspider-1.0/string-tagcloud.js:
+
+2014-02-10  Filip Pizlo  <fpizlo@apple.com>
+
+        Unreviewed, revert the accidental change from r163789.
+
+        * tests/v8-v6/v8-deltablue.js:
+
+2013-12-10  Filip Pizlo  <fpizlo@apple.com>
+
+        Get rid of forward exit on DoubleAsInt32
+        https://bugs.webkit.org/show_bug.cgi?id=125552
+
+        Reviewed by Oliver Hunt.
+        
+        Use SunSpider as a kind of spot-check for the
+        no-architecture-specific-optimization paths in the compiler.
+
+        * no-architecture-specific-optimizations.yaml: Added.
+
+2013-10-08  Geoffrey Garen  <ggaren@apple.com>
+
+        Refined power management in SunSpider 1.0.2
+        https://bugs.webkit.org/show_bug.cgi?id=122525
+
+        Reviewed by Gavin Barraclough.
+
+        * hosted/sunspider.css:
+        (#frameparent):
+        (#countdown):
+        * resources/TEMPLATE.html: Provide an explicit countdown element in the
+        parent, instead of hacking it into each child frame.
+
+        * resources/driver-TEMPLATE.html: Be more explicit about how we respond
+        to power management. Just moving setTimeout(0) inside the loop is a
+        little too subtle, and may not work across browsers.
+
+        Also, leave a little extra time after changing the countdown graphic,
+        to give the browser some time to paint.
+
+2013-10-02  Geoffrey Garen  <ggaren@apple.com>
+
+        Improved painting behavior in SunSpider 1.0.2
+        https://bugs.webkit.org/show_bug.cgi?id=122257
+
+        Reviewed by Oliver Hunt.
+
+        Individual test names with times was a good painting strategy years
+        back, when each benchmark took hundreds of milliseconds to run. Now,
+        the whole suite can finish in a a few hundres milliseconds, and things
+        look pretty flashy.
+
+        Instead, display a countdown that indicates which iteration of the
+        test we're on.
+
+        * resources/TEMPLATE.html: Work around a bug in Firefox by specifying
+        our style inside the .html file instead of in an external stylesheet.
+        Under heavy JavaScript load, Firefox neglects to apply external
+        stylesheets -- probably due to a starved timer.
+        
+        * resources/driver-TEMPLATE.html: Delay a little between runs to ensure
+        that our countdown has enough time to paint.
+
+2013-09-26  Geoffrey Garen  <ggaren@apple.com>
+
+        Fixed a version number string in SunSpider 1.0.2
+        https://bugs.webkit.org/show_bug.cgi?id=122004
+
+        Reviewed by Gavin Barraclough.
+
+        * resources/driver-TEMPLATE.html:
+        * resources/results-TEMPLATE.html: 1.0.2!
+
+2013-09-26  Geoffrey Garen  <ggaren@apple.com>
+
+        Tentative SunSpider 1.0.2
+        https://bugs.webkit.org/show_bug.cgi?id=122002
+
+        Reviewed by Gavin Barraclough.
+
+        Be even more aggressive about asking for zero delay between tests by
+        setting a timeout at the beginning of a test instead of the end. This is
+        another step toward reducing noise -- particularly noise caused by
+        power management -- just like the step down from 10ms to 0ms.
+
+        Browsers typically put a 4ms floor on timers. The sooner we set
+        our timer, the sooner it will fire.
+
+        * make-hosted:
+        * resources/driver-TEMPLATE.html: Changed the driver to set the timeout
+        earlier.
+        * tests/sunspider-1.0.2: Added. These tests are unchanged from 1.0.1.
+
+2013-09-09  Filip Pizlo  <fpizlo@apple.com>
+
+        Stress tests should test the jsc profiler (-p)
+        https://bugs.webkit.org/show_bug.cgi?id=121043
+
+        Reviewed by Mark Hahnenberg.
+        
+        Add a jsc-stress-test that tries to profile SunSpider.
+
+        * profiler-test.yaml: Added.
+
+2013-08-08  Cosmin Truta  <ctruta@blackberry.com>
+
+        SunSpider: Move the 3d-morph fix from version 1.0 to version 1.0.1
+        https://bugs.webkit.org/show_bug.cgi?id=117993
+
+        Reviewed by George Staikos.
+
+        Bump the SunSpider version to 1.0.1.
+
+        Unroll r149548 in order to restore version 1.0 to its original,
+        and add the 3d-morph fix to version 1.0.1 instead.
+
+        * hosted/sunspider.html: Updated to version 1.0.1.
+        * hosted/versions.html: Updated to version 1.0.1.
+        * make-hosted: Added support for version 1.0.1.
+        * resources/driver-TEMPLATE.html: Updated to version 1.0.1.
+        * resources/results-TEMPLATE.html: Updated to version 1.0.1.
+        * sunspider: Updated to version 1.0.1.
+        * sunspider-compare-results: Updated to version 1.0.1.
+        * tests/sunspider-1.0/3d-morph.js: Rolled back to the original version.
+        * tests/sunspider-1.0.1/LIST: Added.
+        * tests/sunspider-1.0.1/3d-cube.js: Added.
+        * tests/sunspider-1.0.1/3d-morph.js: Added.
+        * tests/sunspider-1.0.1/3d-raytrace.js: Added.
+        * tests/sunspider-1.0.1/access-binary-trees.js: Added.
+        * tests/sunspider-1.0.1/access-fannkuch.js: Added.
+        * tests/sunspider-1.0.1/access-nbody.js: Added.
+        * tests/sunspider-1.0.1/access-nsieve.js: Added.
+        * tests/sunspider-1.0.1/bitops-3bit-bits-in-byte.js: Added.
+        * tests/sunspider-1.0.1/bitops-bits-in-byte.js: Added.
+        * tests/sunspider-1.0.1/bitops-bitwise-and.js: Added.
+        * tests/sunspider-1.0.1/bitops-nsieve-bits.js: Added.
+        * tests/sunspider-1.0.1/controlflow-recursive.js: Added.
+        * tests/sunspider-1.0.1/crypto-aes.js: Added.
+        * tests/sunspider-1.0.1/crypto-md5.js: Added.
+        * tests/sunspider-1.0.1/crypto-sha1.js: Added.
+        * tests/sunspider-1.0.1/date-format-tofte.js: Added.
+        * tests/sunspider-1.0.1/date-format-xparb.js: Added.
+        * tests/sunspider-1.0.1/math-cordic.js: Added.
+        * tests/sunspider-1.0.1/math-partial-sums.js: Added.
+        * tests/sunspider-1.0.1/math-spectral-norm.js: Added.
+        * tests/sunspider-1.0.1/regexp-dna.js: Added.
+        * tests/sunspider-1.0.1/string-base64.js: Added.
+        * tests/sunspider-1.0.1/string-fasta.js: Added.
+        * tests/sunspider-1.0.1/string-tagcloud.js: Added.
+        * tests/sunspider-1.0.1/string-unpack-code.js: Added.
+        * tests/sunspider-1.0.1/string-validate-input.js: Added.
+
 2013-05-03  Cosmin Truta  <ctruta@blackberry.com>
 
         SunSpider 1.0: 3d-morph: use epsilon to check result

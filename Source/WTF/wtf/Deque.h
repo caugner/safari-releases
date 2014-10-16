@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007, 2008 Apple Inc. All rights reserved.
+ * Copyright (C) 2007, 2008, 2014 Apple Inc. All rights reserved.
  * Copyright (C) 2009 Google Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -11,7 +11,7 @@
  * 2.  Redistributions in binary form must reproduce the above copyright
  *     notice, this list of conditions and the following disclaimer in the
  *     documentation and/or other materials provided with the distribution.
- * 3.  Neither the name of Apple Computer, Inc. ("Apple") nor the names of
+ * 3.  Neither the name of Apple Inc. ("Apple") nor the names of
  *     its contributors may be used to endorse or promote products derived
  *     from this software without specific prior written permission.
  *
@@ -34,7 +34,6 @@
 // Deque doesn't actually use Vector.
 
 #include <iterator>
-#include <wtf/PassTraits.h>
 #include <wtf/Vector.h>
 
 namespace WTF {
@@ -51,8 +50,6 @@ namespace WTF {
         typedef DequeConstIterator<T, inlineCapacity> const_iterator;
         typedef std::reverse_iterator<iterator> reverse_iterator;
         typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
-        typedef PassTraits<T> Pass;
-        typedef typename PassTraits<T>::PassType PassType;
 
         Deque();
         Deque(const Deque<T, inlineCapacity>&);
@@ -75,21 +72,23 @@ namespace WTF {
 
         T& first() { ASSERT(m_start != m_end); return m_buffer.buffer()[m_start]; }
         const T& first() const { ASSERT(m_start != m_end); return m_buffer.buffer()[m_start]; }
-        PassType takeFirst();
+        T takeFirst();
 
         T& last() { ASSERT(m_start != m_end); return *(--end()); }
         const T& last() const { ASSERT(m_start != m_end); return *(--end()); }
+        T takeLast();
 
-        template<typename U> void append(const U&);
-        template<typename U> void prepend(const U&);
+        template<typename U> void append(U&&);
+        template<typename U> void prepend(U&&);
         void removeFirst();
+        void removeLast();
         void remove(iterator&);
         void remove(const_iterator&);
 
         void clear();
 
         template<typename Predicate>
-        iterator findIf(Predicate&);
+        iterator findIf(Predicate&&);
 
     private:
         friend class DequeIteratorBase<T, inlineCapacity>;
@@ -163,7 +162,8 @@ namespace WTF {
         typedef T& reference;
         typedef std::bidirectional_iterator_tag iterator_category;
 
-        DequeIterator(Deque<T, inlineCapacity>* deque, size_t index) : Base(deque, index) { }
+        DequeIterator(Deque<T, inlineCapacity>* deque, size_t index)
+            : Base(deque, index) { }
 
         DequeIterator(const Iterator& other) : Base(other) { }
         DequeIterator& operator=(const Iterator& other) { Base::assign(other); return *this; }
@@ -194,7 +194,8 @@ namespace WTF {
         typedef const T& reference;
         typedef std::bidirectional_iterator_tag iterator_category;
 
-        DequeConstIterator(const Deque<T, inlineCapacity>* deque, size_t index) : Base(deque, index) { }
+        DequeConstIterator(const Deque<T, inlineCapacity>* deque, size_t index)
+            : Base(deque, index) { }
 
         DequeConstIterator(const Iterator& other) : Base(other) { }
         DequeConstIterator(const NonConstIterator& other) : Base(other) { }
@@ -290,20 +291,11 @@ namespace WTF {
     }
 
     template<typename T, size_t inlineCapacity>
-    void deleteAllValues(const Deque<T, inlineCapacity>& collection)
-    {
-        typedef typename Deque<T, inlineCapacity>::const_iterator iterator;
-        iterator end = collection.end();
-        for (iterator it = collection.begin(); it != end; ++it)
-            delete *it;
-    }
-
-    template<typename T, size_t inlineCapacity>
     inline Deque<T, inlineCapacity>& Deque<T, inlineCapacity>::operator=(const Deque<T, inlineCapacity>& other)
     {
         // FIXME: This is inefficient if we're using an inline buffer and T is
         // expensive to copy since it will copy the buffer twice instead of once.
-        Deque<T> copy(other);
+        Deque<T, inlineCapacity> copy(other);
         swap(copy);
         return *this;
     }
@@ -335,7 +327,7 @@ namespace WTF {
         invalidateIterators();
         std::swap(m_start, other.m_start);
         std::swap(m_end, other.m_end);
-        m_buffer.swap(other.m_buffer);
+        m_buffer.swap(other.m_buffer, 0, 0);
         checkValidity();
         other.checkValidity();
     }
@@ -354,7 +346,7 @@ namespace WTF {
 
     template<typename T, size_t inlineCapacity>
     template<typename Predicate>
-    inline DequeIterator<T, inlineCapacity> Deque<T, inlineCapacity>::findIf(Predicate& predicate)
+    inline auto Deque<T, inlineCapacity>::findIf(Predicate&& predicate) -> iterator
     {
         iterator end_iterator = end();
         for (iterator it = begin(); it != end_iterator; ++it) {
@@ -399,19 +391,27 @@ namespace WTF {
     }
 
     template<typename T, size_t inlineCapacity>
-    inline typename Deque<T, inlineCapacity>::PassType Deque<T, inlineCapacity>::takeFirst()
+    inline auto Deque<T, inlineCapacity>::takeFirst() -> T
     {
-        T oldFirst = Pass::transfer(first());
+        T oldFirst = WTF::move(first());
         removeFirst();
-        return Pass::transfer(oldFirst);
+        return oldFirst;
+    }
+
+    template<typename T, size_t inlineCapacity>
+    inline auto Deque<T, inlineCapacity>::takeLast() -> T
+    {
+        T oldLast = WTF::move(last());
+        removeLast();
+        return oldLast;
     }
 
     template<typename T, size_t inlineCapacity> template<typename U>
-    inline void Deque<T, inlineCapacity>::append(const U& value)
+    inline void Deque<T, inlineCapacity>::append(U&& value)
     {
         checkValidity();
         expandCapacityIfNeeded();
-        new (NotNull, &m_buffer.buffer()[m_end]) T(value);
+        new (NotNull, &m_buffer.buffer()[m_end]) T(std::forward<U>(value));
         if (m_end == m_buffer.capacity() - 1)
             m_end = 0;
         else
@@ -420,7 +420,7 @@ namespace WTF {
     }
 
     template<typename T, size_t inlineCapacity> template<typename U>
-    inline void Deque<T, inlineCapacity>::prepend(const U& value)
+    inline void Deque<T, inlineCapacity>::prepend(U&& value)
     {
         checkValidity();
         expandCapacityIfNeeded();
@@ -428,7 +428,7 @@ namespace WTF {
             m_start = m_buffer.capacity() - 1;
         else
             --m_start;
-        new (NotNull, &m_buffer.buffer()[m_start]) T(value);
+        new (NotNull, &m_buffer.buffer()[m_start]) T(std::forward<U>(value));
         checkValidity();
     }
 
@@ -443,6 +443,20 @@ namespace WTF {
             m_start = 0;
         else
             ++m_start;
+        checkValidity();
+    }
+
+    template<typename T, size_t inlineCapacity>
+    inline void Deque<T, inlineCapacity>::removeLast()
+    {
+        checkValidity();
+        invalidateIterators();
+        ASSERT(!isEmpty());
+        if (!m_end)
+            m_end = m_buffer.capacity() - 1;
+        else
+            --m_end;
+        TypeOperations::destruct(&m_buffer.buffer()[m_end], &m_buffer.buffer()[m_end + 1]);
         checkValidity();
     }
 

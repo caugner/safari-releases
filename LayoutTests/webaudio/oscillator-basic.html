@@ -5,9 +5,8 @@ Create an oscillator of each type and verify that the type is set correctly.
 -->
 <html>
 <head>
-<link rel="stylesheet" href="../fast/js/resources/js-test-style.css"/>
 <script type="text/javascript" src="resources/audio-testing.js"></script>
-<script type="text/javascript" src="../fast/js/resources/js-test-pre.js"></script>
+<script type="text/javascript" src="../resources/js-test-pre.js"></script>
 </head>
 
 <body>
@@ -62,10 +61,10 @@ function runTest()
     // Now set a custom oscillator
     var coeffA = new Float32Array([0, 1, 0.5]);
     var coeffB = new Float32Array([0, 0, 0]);        
-    var wavetable = context.createWaveTable(coeffA, coeffB);
-    osc.setWaveTable(wavetable);
+    var wave = context.createPeriodicWave(coeffA, coeffB);
+    osc.setPeriodicWave(wave);
     if (osc.type == "custom")
-        testPassed("Oscillator correctly set to CUSTOM type using setWaveTable.");
+        testPassed("Oscillator correctly set to CUSTOM type using setPeriodicWave.");
     else
         testFailed("Oscillator set to CUSTOM type, but returns " + oscTypes[osc.type].name + " type.");
 
@@ -97,7 +96,7 @@ successfullyParsed = true;
 
 </script>
 
-<script src="../fast/js/resources/js-test-post.js"></script>
+<script src="../resources/js-test-post.js"></script>
 
 </body>
 </html>

@@ -37,6 +37,7 @@ from webkitpy.common.net.web import Web
 from webkitpy.common.system.executive import ScriptError
 from webkitpy.tool.bot.queueengine import TerminateQueue
 from webkitpy.tool.grammar import join_with_separators
+from webkitpy.tool.grammar import pluralize
 
 
 def _post_error_and_check_for_bug_url(tool, nicks_string, exception):
@@ -116,6 +117,8 @@ class Hi(IRCCommand):
     def execute(self, nick, args, tool, sheriff):
         if len(args) and re.match(sheriff.name() + r'_*\s*!\s*', ' '.join(args)):
             return "%s: hi %s!" % (nick, nick)
+        if sheriff.name() == 'WKR':  # For some unknown reason, WKR can't use tool.bugs.quips().
+            return "You're doing it wrong"
         quips = tool.bugs.quips()
         quips.append('"Only you can prevent forest fires." -- Smokey the Bear')
         return random.choice(quips)
@@ -144,20 +147,6 @@ class Restart(IRCCommand):
     def execute(self, nick, args, tool, sheriff):
         tool.irc().post("Restarting...")
         raise TerminateQueue()
-
-
-class RollChromiumDEPS(IRCCommand):
-    usage_string = "roll-chromium-deps REVISION"
-    help_string = "Rolls WebKit's Chromium DEPS to the given revision???"
-
-    def execute(self, nick, args, tool, sheriff):
-        if not len(args):
-            return self.usage(nick)
-        tool.irc().post("%s: Will roll Chromium DEPS to %s" % (nick, ' '.join(args)))
-        tool.irc().post("%s: Rolling Chromium DEPS to %s" % (nick, ' '.join(args)))
-        tool.irc().post("%s: Rolled Chromium DEPS to %s" % (nick, ' '.join(args)))
-        tool.irc().post("%s: Thank You" % nick)
-
 
 class Rollout(IRCCommand):
     usage_string = "rollout SVN_REVISION [SVN_REVISIONS] REASON"
@@ -225,9 +214,9 @@ class Rollout(IRCCommand):
             return None
 
         lines = error_log[revert_failure_message_start:].split('\n')[1:]
-        files = itertools.takewhile(lambda line: tool.filesystem.exists(tool.scm().absolute_path(line)), lines)
+        files = list(itertools.takewhile(lambda line: tool.filesystem.exists(tool.scm().absolute_path(line)), lines))
         if files:
-            return "Failed to apply reverse diff for file(s): %s" % ", ".join(files)
+            return "Failed to apply reverse diff for %s: %s" % (pluralize(len(files), "file", showCount=False), ", ".join(files))
         return None
 
     def execute(self, nick, args, tool, sheriff):
@@ -303,7 +292,6 @@ visible_commands = {
     "hi": Hi,
     "ping": PingPong,
     "restart": Restart,
-    "roll-chromium-deps": RollChromiumDEPS,
     "rollout": Rollout,
     "whois": Whois,
     "yt?": YouThere,

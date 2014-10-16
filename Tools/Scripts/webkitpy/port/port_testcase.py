@@ -291,10 +291,6 @@ class PortTestCase(unittest.TestCase):
         self.assertEqual(port.diff_image('foo', 'bar'), ('', 0, 'ImageDiff crashed\n'))
         port.clean_up_test_run()
 
-    def test_check_wdiff(self):
-        port = self.make_port()
-        port.check_wdiff()
-
     def integration_test_websocket_server__normal(self):
         port = self.make_port()
         self.assert_servers_are_down('localhost', self.WEBSOCKET_PORTS)
@@ -422,7 +418,7 @@ class PortTestCase(unittest.TestCase):
             port._filesystem.write_text_file(path, '')
         ordered_dict = port.expectations_dict()
         self.assertEqual(port.path_to_generic_test_expectations_file(), ordered_dict.keys()[0])
-        self.assertEqual(port.path_to_test_expectations_file(), ordered_dict.keys()[1])
+        self.assertEqual(port.path_to_test_expectations_file(), ordered_dict.keys()[port.test_expectations_file_position()])
 
         options = MockOptions(additional_expectations=['/tmp/foo', '/tmp/bar'])
         port = self.make_port(options=options)
@@ -558,10 +554,11 @@ MOCK output of child process
 
     def test_apache_config_file_name_for_platform(self):
         port = TestWebKitPort()
+        port._apache_version = lambda: '2.2'
         self._assert_config_file_for_platform(port, 'cygwin', 'cygwin-httpd.conf')
 
-        self._assert_config_file_for_platform(port, 'linux2', 'apache2-httpd.conf')
-        self._assert_config_file_for_platform(port, 'linux3', 'apache2-httpd.conf')
+        self._assert_config_file_for_platform(port, 'linux2', 'apache2.2-httpd.conf')
+        self._assert_config_file_for_platform(port, 'linux3', 'apache2.2-httpd.conf')
 
         port._is_redhat_based = lambda: True
         port._apache_version = lambda: '2.2'
@@ -569,11 +566,12 @@ MOCK output of child process
 
         port = TestWebKitPort()
         port._is_debian_based = lambda: True
-        self._assert_config_file_for_platform(port, 'linux2', 'apache2-debian-httpd.conf')
+        port._apache_version = lambda: '2.2'
+        self._assert_config_file_for_platform(port, 'linux2', 'debian-httpd-2.2.conf')
 
-        self._assert_config_file_for_platform(port, 'mac', 'apache2-httpd.conf')
-        self._assert_config_file_for_platform(port, 'win32', 'apache2-httpd.conf')  # win32 isn't a supported sys.platform.  AppleWin/WinCairo/WinCE ports all use cygwin.
-        self._assert_config_file_for_platform(port, 'barf', 'apache2-httpd.conf')
+        self._assert_config_file_for_platform(port, 'mac', 'apache2.2-httpd.conf')
+        self._assert_config_file_for_platform(port, 'win32', 'apache2.2-httpd.conf')  # win32 isn't a supported sys.platform.  AppleWin/WinCairo/WinCE ports all use cygwin.
+        self._assert_config_file_for_platform(port, 'barf', 'apache2.2-httpd.conf')
 
     def test_path_to_apache_config_file(self):
         port = TestWebKitPort()

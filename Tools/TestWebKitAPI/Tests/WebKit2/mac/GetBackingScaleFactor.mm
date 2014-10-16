@@ -28,7 +28,7 @@
 #import "PlatformUtilities.h"
 #import "SyntheticBackingScaleFactorWindow.h"
 #import "Test.h"
-#import <WebKit2/WKViewPrivate.h>
+#import <WebKit/WKViewPrivate.h>
 #import <wtf/RetainPtr.h>
 
 namespace TestWebKitAPI {
@@ -47,10 +47,13 @@ static void didReceiveMessageFromInjectedBundle(WKContextRef context, WKStringRe
 
 static void setInjectedBundleClient(WKContextRef context)
 {
-    WKContextInjectedBundleClient injectedBundleClient;
+    WKContextInjectedBundleClientV0 injectedBundleClient;
     memset(&injectedBundleClient, 0, sizeof(injectedBundleClient));
+
+    injectedBundleClient.base.version = 0;
     injectedBundleClient.didReceiveMessageFromInjectedBundle = didReceiveMessageFromInjectedBundle;
-    WKContextSetInjectedBundleClient(context, &injectedBundleClient);
+
+    WKContextSetInjectedBundleClient(context, &injectedBundleClient.base);
 }
 
 static RetainPtr<SyntheticBackingScaleFactorWindow> createWindow()

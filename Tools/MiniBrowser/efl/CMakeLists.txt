@@ -1,10 +1,12 @@
 set(MiniBrowser_DIR "${TOOLS_DIR}/MiniBrowser/efl")
 
 # Elementary is needed to build MiniBrowser
-find_package(Elementary 1.6)
+find_package(Eldbus ${EFL_REQUIRED_VERSION} ${EFL_CONFIG_MODE})
+find_package(Elementary ${EFL_REQUIRED_VERSION} ${EFL_CONFIG_MODE})
+find_package(Ethumb ${EFL_REQUIRED_VERSION} ${EFL_CONFIG_MODE})
+find_package(EthumbClient ${EFL_REQUIRED_VERSION} ${EFL_CONFIG_MODE})
 
 set(MiniBrowser_SOURCES
-    ${TOOLS_DIR}/EWebLauncher/url_utils.c
     ${MiniBrowser_DIR}/main.c
 )
 
@@ -23,9 +25,11 @@ set(MiniBrowser_INCLUDE_DIRECTORIES
     ${E_DBUS_INCLUDE_DIRS}
     ${EFREET_INCLUDE_DIRS}
     ${EINA_INCLUDE_DIRS}
+    ${ELDBUS_INCLUDE_DIRS}
     ${ELEMENTARY_INCLUDE_DIRS}
+    ${ETHUMB_INCLUDE_DIRS}
+    ${ETHUMB_CLIENT_INCLUDE_DIRS}
     ${EVAS_INCLUDE_DIRS}
-    ${TOOLS_DIR}/EWebLauncher
     ${WEBKIT2_DIR}/UIProcess/API/efl
     ${WEBKIT2_DIR}
     ${CMAKE_SOURCE_DIR}/Source
@@ -40,6 +44,7 @@ set(MiniBrowser_LIBRARIES
     ${ECORE_EVAS_LIBRARIES}
     ${ECORE_FILE_LIBRARIES}
     ${EDJE_LIBRARIES}
+    ${EET_LIBRARIES}
     ${EINA_LIBRARIES}
     ${ELEMENTARY_LIBRARIES}
     ${EO_LIBRARIES}

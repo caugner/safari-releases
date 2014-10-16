@@ -30,9 +30,9 @@
 #include "Test.h"
 #include <JavaScriptCore/JSContextRef.h>
 #include <JavaScriptCore/JSRetainPtr.h>
-#include <WebKit2/WKRetainPtr.h>
-#include <WebKit2/WKSerializedScriptValue.h>
-#include <wtf/OwnArrayPtr.h>
+#include <WebKit/WKRetainPtr.h>
+#include <WebKit/WKSerializedScriptValue.h>
+#include <wtf/StdLibExtras.h>
 
 namespace TestWebKitAPI {
 
@@ -72,7 +72,7 @@ static void javaScriptCallback(WKSerializedScriptValueRef resultSerializedScript
     Util::run(&context.didFinish);
 
     size_t bufferSize = JSStringGetMaximumUTF8CStringSize(context.actualString.get());
-    OwnArrayPtr<char> buffer = adoptArrayPtr(new char[bufferSize]);
+    auto buffer = std::make_unique<char[]>(bufferSize);
     JSStringGetUTF8CString(context.actualString.get(), buffer.get(), bufferSize);
     
     return compareJSResult(script, buffer.get(), expectedResult);

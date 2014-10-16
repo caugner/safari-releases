@@ -31,6 +31,9 @@
 #import "config.h"
 #import "AccessibilityCommonMac.h"
 #import "AccessibilityController.h"
+
+#if HAVE(ACCESSIBILITY)
+
 #import "AccessibilityNotificationHandler.h"
 #import "InjectedBundle.h"
 #import "InjectedBundlePage.h"
@@ -38,9 +41,9 @@
 #import <JavaScriptCore/JSRetainPtr.h>
 #import <JavaScriptCore/JSStringRef.h>
 #import <JavaScriptCore/JSStringRefCF.h>
-#import <WebKit2/WKBundle.h>
-#import <WebKit2/WKBundlePage.h>
-#import <WebKit2/WKBundlePagePrivate.h>
+#import <WebKit/WKBundle.h>
+#import <WebKit/WKBundlePage.h>
+#import <WebKit/WKBundlePagePrivate.h>
 
 namespace WTR {
 
@@ -94,7 +97,7 @@ static id findAccessibleObjectById(id obj, NSString *idAttribute)
             return result;
     }
 
-    return 0;
+    return nullptr;
 }
 
 PassRefPtr<AccessibilityUIElement> AccessibilityController::accessibleElementById(JSStringRef idAttribute)
@@ -106,7 +109,15 @@ PassRefPtr<AccessibilityUIElement> AccessibilityController::accessibleElementByI
     if (result)
         return AccessibilityUIElement::create(result);
 
-    return 0;
+    return nullptr;
+}
+
+JSRetainPtr<JSStringRef> AccessibilityController::platformName()
+{
+    JSRetainPtr<JSStringRef> platformName(Adopt, JSStringCreateWithUTF8CString("mac"));
+    return platformName;
 }
 
 } // namespace WTR
+
+#endif // HAVE(ACCESSIBILITY)

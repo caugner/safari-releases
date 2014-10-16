@@ -12,7 +12,7 @@
 # 2.  Redistributions in binary form must reproduce the above copyright
 #     notice, this list of conditions and the following disclaimer in the
 #     documentation and/or other materials provided with the distribution.
-# 3.  Neither the name of Apple Computer, Inc. ("Apple") nor the names of
+# 3.  Neither the name of Apple Inc. ("Apple") nor the names of
 #     its contributors may be used to endorse or promote products derived
 #     from this software without specific prior written permission.
 #
@@ -105,7 +105,7 @@ sub getDefaultConfigForTestDirectory
 
     my $httpdConfig = getHTTPDConfigPathForTestDirectory($testDirectory);
     my $documentRoot = "$testDirectory/http/tests";
-    my $jsTestResourcesDirectory = $testDirectory . "/fast/js/resources";
+    my $jsTestResourcesDirectory = $testDirectory . "/resources";
     my $mediaResourcesDirectory = $testDirectory . "/media";
     my $typesConfig = "$testDirectory/http/conf/mime.types";
     my $httpdLockFile = File::Spec->catfile($httpdPidDir, "httpd.lock");
@@ -156,12 +156,12 @@ sub getHTTPDConfigPathForTestDirectory
         }
         $httpdConfig = "cygwin-httpd.conf";  # This is an apache 1.3 config.
     } elsif (isDebianBased()) {
-        $httpdConfig = "apache2-debian-httpd.conf";
+        $httpdConfig = "debian-httpd-$apacheVersion.conf";
     } elsif (isFedoraBased()) {
         $httpdConfig = "fedora-httpd-$apacheVersion.conf";
     } else {
         # All other ports use apache2, so just use our default apache2 config.
-        $httpdConfig = "apache2-httpd.conf";
+        $httpdConfig = "apache$apacheVersion-httpd.conf";
     }
     return "$httpdConfDirectory/$httpdConfig";
 }

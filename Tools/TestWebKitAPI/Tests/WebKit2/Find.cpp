@@ -26,7 +26,7 @@
 #include "config.h"
 #include "PlatformUtilities.h"
 #include "PlatformWebView.h"
-#include <WebKit2/WKRetainPtr.h>
+#include <WebKit/WKRetainPtr.h>
 
 namespace TestWebKitAPI {
 
@@ -51,19 +51,21 @@ TEST(WebKit2, Find)
     WKRetainPtr<WKContextRef> context(AdoptWK, WKContextCreate());
     PlatformWebView webView(context.get());
     
-    WKPageLoaderClient loaderClient;
+    WKPageLoaderClientV0 loaderClient;
     memset(&loaderClient, 0, sizeof(loaderClient));
     
-    loaderClient.version = 0;
+    loaderClient.base.version = 0;
     loaderClient.didFinishLoadForFrame = didFinishLoadForFrame;
-    WKPageSetPageLoaderClient(webView.page(), &loaderClient);
 
-    WKPageFindClient findClient;
+    WKPageSetPageLoaderClient(webView.page(), &loaderClient.base);
+
+    WKPageFindClientV0 findClient;
     memset(&findClient, 0, sizeof(findClient));
 
-    findClient.version = 0;
+    findClient.base.version = 0;
     findClient.didCountStringMatches = didCountStringMatches;
-    WKPageSetPageFindClient(webView.page(), &findClient);
+
+    WKPageSetPageFindClient(webView.page(), &findClient.base);
 
     WKRetainPtr<WKURLRef> url(AdoptWK, Util::createURLForResource("find", "html"));
     WKPageLoadURL(webView.page(), url.get());

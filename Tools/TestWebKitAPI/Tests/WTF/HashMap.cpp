@@ -25,13 +25,16 @@
 
 #include "config.h"
 
+#include "MoveOnly.h"
+#include <string>
 #include <wtf/HashMap.h>
+#include <wtf/text/StringHash.h>
 
 namespace TestWebKitAPI {
 
 typedef WTF::HashMap<int, int> IntHashMap;
 
-TEST(WTF, HashTableIteratorComparison)
+TEST(WTF_HashMap, HashTableIteratorComparison)
 {
     IntHashMap map;
     map.add(1, 2);
@@ -60,7 +63,7 @@ static int bucketForKey(double key)
     return DefaultHash<double>::Hash::hash(key) & (TestDoubleHashTraits::minimumTableSize - 1);
 }
 
-TEST(WTF, DoubleHashCollisions)
+TEST(WTF_HashMap, DoubleHashCollisions)
 {
     // The "clobber" key here is one that ends up stealing the bucket that the -0 key
     // originally wants to be in. This makes the 0 and -0 keys collide and the test then
@@ -79,6 +82,70 @@ TEST(WTF, DoubleHashCollisions)
     ASSERT_EQ(map.get(clobberKey), 1);
     ASSERT_EQ(map.get(zeroKey), 2);
     ASSERT_EQ(map.get(negativeZeroKey), 3);
+}
+
+TEST(WTF_HashMap, MoveOnlyValues)
+{
+    HashMap<unsigned, MoveOnly> moveOnlyValues;
+
+    for (size_t i = 0; i < 100; ++i) {
+        MoveOnly moveOnly(i + 1);
+        moveOnlyValues.set(i + 1, WTF::move(moveOnly));
+    }
+
+    for (size_t i = 0; i < 100; ++i) {
+        auto it = moveOnlyValues.find(i + 1);
+        ASSERT_FALSE(it == moveOnlyValues.end());
+    }
+
+    for (size_t i = 0; i < 50; ++i)
+        ASSERT_EQ(moveOnlyValues.take(i + 1).value(), i + 1);
+
+    for (size_t i = 50; i < 100; ++i)
+        ASSERT_TRUE(moveOnlyValues.remove(i + 1));
+
+    ASSERT_TRUE(moveOnlyValues.isEmpty());
+}
+
+TEST(WTF_HashMap, MoveOnlyKeys)
+{
+    HashMap<MoveOnly, unsigned> moveOnlyKeys;
+
+    for (size_t i = 0; i < 100; ++i) {
+        MoveOnly moveOnly(i + 1);
+        moveOnlyKeys.set(WTF::move(moveOnly), i + 1);
+    }
+
+    for (size_t i = 0; i < 100; ++i) {
+        auto it = moveOnlyKeys.find(MoveOnly(i + 1));
+        ASSERT_FALSE(it == moveOnlyKeys.end());
+    }
+
+    for (size_t i = 0; i < 100; ++i)
+        ASSERT_FALSE(moveOnlyKeys.add(MoveOnly(i + 1), i + 1).isNewEntry);
+
+    for (size_t i = 0; i < 100; ++i)
+        ASSERT_TRUE(moveOnlyKeys.remove(MoveOnly(i + 1)));
+
+    ASSERT_TRUE(moveOnlyKeys.isEmpty());
+}
+
+TEST(WTF_HashMap, InitializerList)
+{
+    HashMap<unsigned, std::string> map = {
+        { 1, "one" },
+        { 2, "two" },
+        { 3, "three" },
+        { 4, "four" },
+    };
+
+    EXPECT_EQ(4, map.size());
+
+    EXPECT_EQ("one", map.get(1));
+    EXPECT_EQ("two", map.get(2));
+    EXPECT_EQ("three", map.get(3));
+    EXPECT_EQ("four", map.get(4));
+    EXPECT_EQ(std::string(), map.get(5));
 }
 
 } // namespace TestWebKitAPI

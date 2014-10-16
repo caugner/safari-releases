@@ -299,7 +299,7 @@ shouldBeEqualToString('element.className', 'a b c null d undefined 0 false');
 
 createElement('');
 element.classList.add('a', 'b', 'a');
-shouldBeEqualToString('element.className', 'a b a');
+shouldBeEqualToString('element.className', 'a b');
 
 createElement('');
 shouldThrowDOMException(function() {
@@ -310,6 +310,9 @@ shouldBeEqualToString('element.className', '');
 shouldThrowDOMException(function() {
     element.classList.add('a', 'b', 'c d');
 }, DOMException.INVALID_CHARACTER_ERR);
+shouldBeEqualToString('element.className', '');
+
+shouldThrow('element.classList.add("a", {toString: function() { throw new Error("user error"); }}, "b")', '"Error: user error"');
 shouldBeEqualToString('element.className', '');
 
 createElement('');
@@ -337,6 +340,9 @@ createElement('a b');
 shouldThrowDOMException(function() {
     element.classList.remove('a', 'b', '');
 }, DOMException.SYNTAX_ERR);
+shouldBeEqualToString('element.className', 'a b');
+
+shouldThrow('element.classList.remove("a", {toString: function() { throw new Error("user error"); }}, "b")', '"Error: user error"');
 shouldBeEqualToString('element.className', 'a b');
 
 shouldThrowDOMException(function() {

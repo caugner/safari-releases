@@ -12,10 +12,10 @@
 #    notice, this list of conditions and the following disclaimer in the
 #    documentation and/or other materials provided with the distribution.
 #
-# THIS SOFTWARE IS PROVIDED BY APPLE COMPUTER, INC. ``AS IS'' AND ANY
+# THIS SOFTWARE IS PROVIDED BY APPLE INC. ``AS IS'' AND ANY
 # EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 # IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-# PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL APPLE COMPUTER, INC. OR
+# PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL APPLE INC. OR
 # CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
 # EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
 # PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
@@ -43,6 +43,7 @@ my $jsShellArgs = "";
 my $setBaseline = 0;
 my $testsPattern;
 my $testRuns = 10;
+my $resultsFile = "";
 
 my $programName = basename($0);
 my $usage = <<EOF;
@@ -54,9 +55,10 @@ Usage: $programName --shell=[path] [options]
   --runs            Number of times to run tests (default: $testRuns)
   --tests           Only run tests matching provided pattern
   --instruments     Sample execution time with the Mac OS X "Instruments" tool (Time Profile) (implies --runs=1)
-  --suite           Select a specific benchmark suite. The default is sunspider-1.0
+  --suite           Select a specific benchmark suite. The default is sunspider-1.0.1
   --ubench          Use microbenchmark suite instead of regular tests. Same as --suite=ubench
   --v8-suite        Use the V8 benchmark suite. Same as --suite=v8-v4
+  --output          Override the default output path and filename
   --parse-only      Use the parse-only benchmark suite. Same as --suite=parse-only
 EOF
 
@@ -70,13 +72,14 @@ GetOptions('runs=i' => \$testRuns,
            'v8-suite' => \$v8suite,
            'parse-only' => \$parseOnly,
            'tests=s' => \$testsPattern,
+           'output=s' => \$resultsFile,
            'help' => \$showHelp);
 
 
 $suite = "ubench" if ($ubench);
 $suite = "v8-v4" if ($v8suite);
 $suite = "parse-only" if ($parseOnly);
-$suite = "sunspider-1.0" if (!$suite);
+$suite = "sunspider-1.0.1" if (!$suite);
 
 my $resultDirectory = "${suite}-results";
 
@@ -122,7 +125,7 @@ sub loadTestsList()
 
 my $timeString = strftime "%Y-%m-%d-%H.%M.%S", localtime $^T;
 my $prefixFile = "$resultDirectory/sunspider-test-prefix.js";
-my $resultsFile = "$resultDirectory/sunspider-results-$timeString.js";
+$resultsFile = "$resultDirectory/sunspider-results-$timeString.js" unless $resultsFile;
 
 sub writePrefixFile()
 {

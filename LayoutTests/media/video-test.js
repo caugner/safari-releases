@@ -1,7 +1,7 @@
 
 var video = null;
 var mediaElement = document; // If not set, an event from any element will trigger a waitForEvent() callback.
-var console = null;
+var consoleElement = null;
 var printFullTestDetails = true; // This is optionaly switched of by test whose tested values can differ. (see disableFullTestDetailsPrinting())
 var Failed = false;
 
@@ -33,11 +33,11 @@ function enableFullTestDetailsPrinting()
 
 function logConsole()
 {
-    if (!console && document.body) {
-        console = document.createElement('div');
-        document.body.appendChild(console);
+    if (!consoleElement && document.body) {
+        consoleElement = document.createElement('div');
+        document.body.appendChild(consoleElement);
     }
-    return console;
+    return consoleElement;
 }
 
 function findMediaElement()
@@ -83,6 +83,7 @@ function testExpected(testFuncString, expected, comparison)
         case '!=':  success = observed != expected; break;
         case '==': success = observed == expected; break;
         case '===': success = observed === expected; break;
+        case 'instanceof': success = observed instanceof expected; break;
     }
 
     reportExpected(success, testFuncString, comparison, expected, observed)
@@ -202,6 +203,11 @@ function waitForEventAndTest(eventName, testFuncString, endit)
     mediaElement.addEventListener(eventName, _eventCallback, true);
 }
 
+function waitForEventOn(element, eventName, func, endit, oneTimeOnly)
+{
+    waitForEvent(eventName, func, endit, oneTimeOnly, element);
+}
+
 function testDOMException(testString, exceptionString)
 {
     try {
@@ -229,8 +235,11 @@ function endTest()
 {
     consoleWrite("END OF TEST");
     testEnded = true;
-    if (window.testRunner)
-        testRunner.notifyDone();
+    if (window.testRunner) {
+        // FIXME (121170): We shouldn't need the zero-delay timer. But text track layout
+        // happens asynchronously, so we need it to run first to have stable test results.
+        setTimeout("testRunner.notifyDone()", 0);
+    }
 }
 
 function endTestLater()
@@ -310,7 +319,11 @@ function testCues(index, expected)
     for (var i = 0; i < cues.length; i++) {
         for (j = 0; j < expected.tests.length; j++) {
             var test = expected.tests[j];
-            testExpected("cues[" + i + "]." + test.property, test.values[i]);
+            var propertyString = "cues[" + i + "]." + test.property;
+            var propertyValue = eval(propertyString);
+            if (test["precision"])
+                propertyValue = propertyValue.toFixed(test["precision"]);
+            reportExpected(test.values[i] == propertyValue, propertyString, "==", test.values[i], propertyValue)
         }
     }
 }
@@ -356,4 +369,13 @@ function waitForEventsAndCall(eventList, func)
         requiredEvents[i] = eventList[i][1];
         eventList[i][0].addEventListener(requiredEvents[i], _eventCallback, true);
     }
+}
+
+function setCaptionDisplayMode(mode)
+{
+    if (window.internals)
+        internals.setCaptionDisplayMode(mode);
+    else
+        consoleWrite("<br><b>** This test only works in DRT! **<" + "/b><br>");
+
 }

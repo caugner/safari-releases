@@ -28,6 +28,9 @@
 #import <WebKit/WebKit.h>
 #import <WebKit/WebViewPrivate.h>
 #import "AppDelegate.h"
+#import <WebKit/WebPreferences.h>
+#import <WebKit/WebPreferencesPrivate.h>
+#import <WebKit/WebPreferenceKeysPrivate.h>
 
 @interface WK1BrowserWindowController ()
 @end
@@ -36,13 +39,14 @@
 
 - (void)awakeFromNib
 {
-    _webView = [[WebView alloc] initWithFrame:[containerView bounds]];
+    _webView = [[WebView alloc] initWithFrame:[containerView bounds] frameName:nil groupName:@"MiniBrowser"];
     [_webView setAutoresizingMask:(NSViewWidthSizable | NSViewHeightSizable)];
 
     // Set the WebView delegates
     [_webView setFrameLoadDelegate:self];
     [_webView setUIDelegate:self];
     [_webView setResourceLoadDelegate:self];
+    [_webView setPolicyDelegate:self];
 
     [containerView addSubview:_webView];
 }
@@ -109,11 +113,6 @@
     [_webView goForward:sender];
 }
 
-- (BOOL)isPaginated
-{
-    return NO;
-}
-
 - (BOOL)validateMenuItem:(NSMenuItem *)menuItem
 {
     SEL action = [menuItem action];
@@ -131,10 +130,14 @@
         [menuItem setTitle:[_webView window] ? @"Remove Web View" : @"Insert Web View"];
     else if (action == @selector(toggleZoomMode:))
         [menuItem setState:_zoomTextOnly ? NSOnState : NSOffState];
-    else if ([menuItem action] == @selector(togglePaginationMode:))
+    else if (action == @selector(togglePaginationMode:))
         [menuItem setState:[self isPaginated] ? NSOnState : NSOffState];
-    else if ([menuItem action] == @selector(toggleTransparentWindow:))
+    else if (action == @selector(toggleTransparentWindow:))
         [menuItem setState:[[self window] isOpaque] ? NSOffState : NSOnState];
+    else if (action == @selector(toggleSubpixelCSSOMElementMetricsEnabled:))
+        [menuItem setState:[self isSubpixelCSSOMElementMetricsEnabled] ? NSOnState : NSOffState];
+    else if (action == @selector(toggleLayerBordersVisibility:))
+        [menuItem setState:[self layerBordersVisible] ? NSOnState : NSOffState];
 
     return YES;
 }
@@ -222,8 +225,20 @@
     _zoomTextOnly = !_zoomTextOnly;
 }
 
+- (BOOL)isPaginated
+{
+    return [_webView _paginationMode] != WebPaginationModeUnpaginated;
+}
+
 - (IBAction)togglePaginationMode:(id)sender
 {
+    if ([self isPaginated]) {
+        [_webView _setPaginationMode:WebPaginationModeUnpaginated];
+    } else {
+        [_webView _setPaginationMode:WebPaginationModeRightToLeft];
+        [_webView _setPageLength:_webView.bounds.size.width / 2];
+        [_webView _setGapBetweenPages:10];
+    }
 }
 
 - (IBAction)toggleTransparentWindow:(id)sender
@@ -242,12 +257,39 @@
     [[self window] display];
 }
 
+- (BOOL)isSubpixelCSSOMElementMetricsEnabled
+{
+    return [[WebPreferences standardPreferences] subpixelCSSOMElementMetricsEnabled];
+}
+
+- (IBAction)toggleSubpixelCSSOMElementMetricsEnabled:(id)sender
+{
+    [[WebPreferences standardPreferences] setSubpixelCSSOMElementMetricsEnabled:![self isSubpixelCSSOMElementMetricsEnabled]];
+}
+
+- (BOOL)layerBordersVisible
+{
+    return [[WebPreferences standardPreferences] showDebugBorders];
+}
+
+- (IBAction)toggleLayerBordersVisibility:(id)sender
+{
+    BOOL newValue = ![self layerBordersVisible];
+    [[WebPreferences standardPreferences] setShowDebugBorders:newValue];
+    [[WebPreferences standardPreferences] setShowRepaintCounter:newValue];
+}
+
 - (IBAction)find:(id)sender
 {
 }
 
 - (IBAction)dumpSourceToConsole:(id)sender
 {
+}
+
+- (void)webView:(WebView *)webView decidePolicyForNavigationAction:(NSDictionary *)actionInformation request:(NSURLRequest *)request frame:(WebFrame *)frame decisionListener:(id<WebPolicyDecisionListener>)listener
+{
+    [listener use];
 }
 
 // WebFrameLoadDelegate Methods

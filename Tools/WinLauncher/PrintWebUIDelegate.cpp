@@ -1,6 +1,7 @@
 /*
- * Copyright (C) 2009 Apple Inc. All Rights Reserved.
+ * Copyright (C) 2009, 2013-2014 Apple Inc. All Rights Reserved.
  * Copyright (C) 2009 Brent Fulgham. All Rights Reserved.
+ * Copyright (C) 2013 Alex Christensen. All Rights Reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -11,7 +12,6 @@
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
  *
- * THIS SOFTWARE IS PROVIDED BY APPLE INC. ``AS IS'' AND ANY
  * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
  * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL APPLE INC. OR
@@ -28,6 +28,7 @@
 #include "PrintWebUIDelegate.h"
 
 #include <WebKit/WebKitCOMAPI.h>
+#include <comip.h>
 #include <commctrl.h>
 #include <commdlg.h>
 #include <objbase.h>
@@ -35,6 +36,44 @@
 #include <wininet.h>
 
 static const int MARGIN = 20;
+
+HRESULT STDMETHODCALLTYPE PrintWebUIDelegate::runJavaScriptAlertPanelWithMessage(IWebView*, BSTR message)
+{
+    ::MessageBoxW(0, message, L"JavaScript Alert", MB_OK);
+    return S_OK;
+}
+
+HRESULT STDMETHODCALLTYPE PrintWebUIDelegate::runJavaScriptConfirmPanelWithMessage(IWebView*, BSTR message, BOOL* result)
+{
+    *result = ::MessageBoxW(0, message, L"JavaScript Confirm", MB_OKCANCEL) == IDOK;
+    return S_OK;
+}
+
+HRESULT STDMETHODCALLTYPE PrintWebUIDelegate::createWebViewWithRequest(IWebView*, IWebURLRequest* request, IWebView**)
+{
+    if (!request)
+        return E_POINTER;
+
+    TCHAR executablePath[MAX_PATH];
+    DWORD length = ::GetModuleFileName(GetModuleHandle(0), executablePath, ARRAYSIZE(executablePath));
+    if (!length)
+        return E_FAIL;
+
+    _bstr_t url;
+    HRESULT hr = request->URL(&url.GetBSTR());
+    if (FAILED(hr))
+        return E_FAIL;
+
+    std::wstring command = std::wstring(L"\"") + executablePath + L"\" " + (const wchar_t*)url;
+
+    PROCESS_INFORMATION processInformation;
+    STARTUPINFOW startupInfo;
+    memset(&startupInfo, 0, sizeof(startupInfo));
+    if (!::CreateProcessW(0, (LPWSTR)command.c_str(), 0, 0, 0, 0, 0, 0, &startupInfo, &processInformation))
+        return E_FAIL;
+
+    return S_OK;
+}
 
 HRESULT PrintWebUIDelegate::QueryInterface(REFIID riid, void** ppvObject)
 {
@@ -64,20 +103,21 @@ ULONG PrintWebUIDelegate::Release(void)
     return newRef;
 }
 
+typedef _com_ptr_t<_com_IIID<IWebFrame, &__uuidof(IWebFrame)>> IWebFramePtr;
+typedef _com_ptr_t<_com_IIID<IWebFramePrivate, &__uuidof(IWebFramePrivate)>> IWebFramePrivatePtr;
+
 HRESULT PrintWebUIDelegate::webViewPrintingMarginRect(IWebView* view, RECT* rect)
 {
     if (!view || !rect)
         return E_POINTER;
 
-    IWebFrame* mainFrame = 0;
-    if (FAILED(view->mainFrame(&mainFrame)))
+    IWebFramePtr mainFrame;
+    if (FAILED(view->mainFrame(&mainFrame.GetInterfacePtr())))
         return E_FAIL;
 
-    IWebFramePrivate* privateFrame = 0;
-    if (FAILED(mainFrame->QueryInterface(&privateFrame))) {
-        mainFrame->Release();
+    IWebFramePrivatePtr privateFrame;
+    if (FAILED(mainFrame->QueryInterface(&privateFrame.GetInterfacePtr())))
         return E_FAIL;
-    }
 
     privateFrame->frameBounds(rect);
 
@@ -87,9 +127,6 @@ HRESULT PrintWebUIDelegate::webViewPrintingMarginRect(IWebView* view, RECT* rect
     rect->right = (::GetDeviceCaps(dc, LOGPIXELSX) * 6.5) - MARGIN;
     rect->bottom = (::GetDeviceCaps(dc, LOGPIXELSY) * 11) - MARGIN;
     ::ReleaseDC(0, dc);
-
-    privateFrame->Release();
-    mainFrame->Release();
 
     return S_OK;
 }
@@ -126,10 +163,7 @@ HRESULT PrintWebUIDelegate::webViewFooterHeight(IWebView* webView, float* height
     return S_OK;
 }
 
-HRESULT PrintWebUIDelegate::drawHeaderInRect(
-            /* [in] */ IWebView* webView,
-            /* [in] */ RECT* rect,
-            /* [in] */ OLE_HANDLE drawingContext)
+HRESULT PrintWebUIDelegate::drawHeaderInRect(IWebView* webView, RECT* rect, ULONG_PTR drawingContext)
 {
     if (!webView || !rect)
         return E_POINTER;
@@ -158,12 +192,7 @@ HRESULT PrintWebUIDelegate::drawHeaderInRect(
     return S_OK;
 }
 
-HRESULT PrintWebUIDelegate::drawFooterInRect(
-            /* [in] */ IWebView* webView,
-            /* [in] */ RECT* rect,
-            /* [in] */ OLE_HANDLE drawingContext,
-            /* [in] */ UINT pageIndex,
-            /* [in] */ UINT pageCount)
+HRESULT PrintWebUIDelegate::drawFooterInRect(IWebView* webView, RECT* rect, ULONG_PTR drawingContext, UINT pageIndex, UINT pageCount)
 {
     if (!webView || !rect)
         return E_POINTER;

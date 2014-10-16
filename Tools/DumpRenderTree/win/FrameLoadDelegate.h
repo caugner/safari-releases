@@ -10,7 +10,7 @@
  * 2.  Redistributions in binary form must reproduce the above copyright
  *     notice, this list of conditions and the following disclaimer in the
  *     documentation and/or other materials provided with the distribution. 
- * 3.  Neither the name of Apple Computer, Inc. ("Apple") nor the names of
+ * 3.  Neither the name of Apple Inc. ("Apple") nor the names of
  *     its contributors may be used to endorse or promote products derived
  *     from this software without specific prior written permission. 
  *
@@ -30,7 +30,6 @@
 #define FrameLoadDelegate_h
 
 #include <WebKit/WebKit.h>
-#include <wtf/OwnPtr.h>
 
 class AccessibilityController;
 class TextInputController;
@@ -79,10 +78,7 @@ public:
         /* [in] */ IWebView *webView,
         /* [in] */ IWebFrame *frame);
 
-    virtual HRESULT STDMETHODCALLTYPE didReceiveIcon( 
-        /* [in] */ IWebView *webView,
-        /* [in] */ OLE_HANDLE image,
-        /* [in] */ IWebFrame *frame) { return E_NOTIMPL; } 
+    virtual HRESULT STDMETHODCALLTYPE didReceiveIcon(/* [in] */ IWebView*, /* [in] */ HBITMAP, /* [in] */ IWebFrame*) { return E_NOTIMPL; } 
 
     virtual HRESULT STDMETHODCALLTYPE didFinishLoadForFrame( 
         /* [in] */ IWebView *webView,
@@ -169,9 +165,9 @@ private:
     void locationChangeDone(IWebError*, IWebFrame*);
 
     ULONG m_refCount;
-    OwnPtr<GCController> m_gcController;
-    OwnPtr<AccessibilityController> m_accessibilityController;
-    OwnPtr<TextInputController> m_textInputController;
+    std::unique_ptr<GCController> m_gcController;
+    std::unique_ptr<AccessibilityController> m_accessibilityController;
+    std::unique_ptr<TextInputController> m_textInputController;
 };
 
 #endif // FrameLoadDelegate_h

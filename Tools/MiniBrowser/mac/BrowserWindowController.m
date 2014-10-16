@@ -34,14 +34,16 @@
 - (id)initWithWindow:(NSWindow *)window
 {
     self = [super initWithWindow:window];
-    if (self) {
-    }
-    
     return self;
 }
 
 - (void)windowDidLoad
 {
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
+    self.window.styleMask |= NSFullSizeContentViewWindowMask;
+#endif
+    [self.window.contentView setWantsLayer:YES];
+
     [super windowDidLoad];
 }
 

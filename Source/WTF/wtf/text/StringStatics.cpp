@@ -30,26 +30,34 @@
 #endif
 
 #include "AtomicString.h"
-#include "DynamicAnnotations.h"
 #include "MainThread.h"
+#include "NeverDestroyed.h"
 #include "StaticConstructors.h"
 #include "StringImpl.h"
+
+#if USE(WEB_THREAD)
+#include <pthread.h>
+#endif
 
 namespace WTF {
 
 StringImpl* StringImpl::empty()
 {
-    // FIXME: This works around a bug in our port of PCRE, that a regular expression
-    // run on the empty string may still perform a read from the first element, and
-    // as such we need this to be a valid pointer. No code should ever be reading
-    // from a zero length string, so this should be able to be a non-null pointer
-    // into the zero-page.
-    // Replace this with 'reinterpret_cast<UChar*>(static_cast<intptr_t>(1))' once
-    // PCRE goes away.
-    static LChar emptyLCharData = 0;
-    DEFINE_STATIC_LOCAL(StringImpl, emptyString, (&emptyLCharData, 0, ConstructStaticString));
-    WTF_ANNOTATE_BENIGN_RACE(&emptyString, "Benign race on StringImpl::emptyString reference counter");
-    return &emptyString;
+    static NeverDestroyed<StringImpl> emptyString(ConstructEmptyString);
+    return &emptyString.get();
+}
+
+// Set the hash early, so that all empty unique StringImpls have a hash,
+// and don't use the normal hashing algorithm - the unique nature of these
+// keys means that we don't need them to match any other string (in fact,
+// that's exactly the oposite of what we want!), and the normal hash would
+// lead to lots of conflicts.
+unsigned StringImpl::hashAndFlagsForEmptyUnique()
+{
+    static unsigned s_nextHashAndFlagsForEmptyUnique = BufferInternal | s_hashFlag8BitBuffer | s_hashFlagIsAtomic;
+    s_nextHashAndFlagsForEmptyUnique += 1 << s_flagCount;
+    s_nextHashAndFlagsForEmptyUnique |= 1 << 31;
+    return s_nextHashAndFlagsForEmptyUnique;
 }
 
 WTF_EXPORTDATA DEFINE_GLOBAL(AtomicString, nullAtom)
@@ -75,7 +83,7 @@ void AtomicString::init()
     static bool initialized;
     if (!initialized) {
         // Initialization is not thread safe, so this function must be called from the main thread first.
-        ASSERT(isMainThread());
+        ASSERT(isUIThread());
 
         // Use placement new to initialize the globals.
         new (NotNull, (void*)&nullAtom) AtomicString;

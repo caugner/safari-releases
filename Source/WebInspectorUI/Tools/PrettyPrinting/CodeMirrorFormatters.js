@@ -1,3 +1,28 @@
+/*
+ * Copyright (C) 2013 Apple Inc. All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY APPLE INC. AND ITS CONTRIBUTORS ``AS IS''
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
+ * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ * PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL APPLE INC. OR ITS CONTRIBUTORS
+ * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
+ * THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
 // In the inspector token types have been modified to include extra mode information
 // after the actual token type. So we can't do token === "foo". So instead we do
 // /\bfoo\b/.test(token).
@@ -10,13 +35,17 @@ CodeMirror.extendMode("javascript", {
                 return lastToken && /\bkeyword\b/.test(lastToken) && (lastContent !== "function" && lastContent !== "typeof" && lastContent !== "instanceof");
             if (content === ":") // Ternary.
                 return (state.lexical.type === "stat" || state.lexical.type === ")");
-            if (content === "!") // Unary ! should not be confused with "!=".
-                return false;
-            return "+-/*&&||!===+=-=>=<=?".indexOf(content) >= 0; // Operators.
+            return false;
         }
 
         if (isComment)
             return true;
+
+        if (/\boperator\b/.test(token)) {
+            if (content === "!") // Unary ! should not be confused with "!=".
+                return false;
+            return "+-/*&&||!===+=-=>=<=?".indexOf(content) >= 0; // Operators.
+        }
 
         if (/\bkeyword\b/.test(token)) { // Most keywords require spaces before them, unless a '}' can come before it.
             if (content === "else" || content === "catch" || content === "finally")
@@ -41,6 +70,8 @@ CodeMirror.extendMode("javascript", {
             if (lastContent === "try")
                 return true;
             if (lastContent === "finally")
+                return true;
+            if (lastContent === "do")
                 return true;
             return false;
         }
@@ -263,7 +294,7 @@ CodeMirror.extendMode("javascript", {
     }
 });
 
-CodeMirror.extendMode("css-base", {
+CodeMirror.extendMode("css", {
     shouldHaveSpaceBeforeToken: function(lastToken, lastContent, token, state, content, isComment)
     {
         if (!token) {
@@ -289,12 +320,8 @@ CodeMirror.extendMode("css-base", {
         if (!lastToken) {
             if (lastContent === ",")
                 return true;
-            return false;
-        }
-
-        if (/\boperator\b/.test(lastToken)) {
             if (lastContent === ":") // Space in "prop: value" but not in a selectors "a:link" or "div::after" or media queries "(max-device-width:480px)".
-                return state.stack.lastValue === "propertyValue";
+                return state.state === "prop";
             return false;
         }
 
@@ -310,7 +337,7 @@ CodeMirror.extendMode("css-base", {
             if (content === ";")
                 return 1;
             if (content === ",") { // "a,b,c,...,z{}" rule list at top level or in @media top level and only if the line length will be large.
-                if ((!state.stack.length || state.stack.lastValue === "@media{") && state._cssPrettyPrint.lineLength > 60) {
+                if ((state.state === "top" || state.state === "media") && state._cssPrettyPrint.lineLength > 60) {
                     state._cssPrettyPrint.lineLength = 0;
                     return 1;
                 }
@@ -368,7 +395,7 @@ CodeMirror.extendMode("css-base", {
         // In order insert newlines in selector lists we need keep track of the length of the current line.
         // This isn't exact line length, only the builder knows that, but it is good enough to get an idea.
         // If we are at a top level, keep track of the current line length, otherwise we reset to 0.
-        if (!state.stack.length || state.stack.lastValue === "@media{")
+        if (state.state === "top" || state.state === "media")
             state._cssPrettyPrint.lineLength += content.length;
         else
             state._cssPrettyPrint.lineLength = 0;

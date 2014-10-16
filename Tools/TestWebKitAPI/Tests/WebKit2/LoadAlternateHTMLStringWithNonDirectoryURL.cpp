@@ -28,9 +28,9 @@
 #include "PlatformUtilities.h"
 #include "PlatformWebView.h"
 
-#include <WebKit2/WKContext.h>
-#include <WebKit2/WKPage.h>
-#include <WebKit2/WKRetainPtr.h>
+#include <WebKit/WKContext.h>
+#include <WebKit/WKPage.h>
+#include <WebKit/WKRetainPtr.h>
 
 namespace TestWebKitAPI {
     
@@ -46,12 +46,12 @@ TEST(WebKit2, LoadAlternateHTMLStringWithNonDirectoryURL)
     WKRetainPtr<WKContextRef> context(AdoptWK, WKContextCreate());
     PlatformWebView webView(context.get());
 
-    WKPageLoaderClient loaderClient;
+    WKPageLoaderClientV0 loaderClient;
     memset(&loaderClient, 0, sizeof(loaderClient));
     
-    loaderClient.version = 0;
+    loaderClient.base.version = 0;
     loaderClient.didFinishLoadForFrame = didFinishLoadForFrame;
-    WKPageSetPageLoaderClient(webView.page(), &loaderClient);
+    WKPageSetPageLoaderClient(webView.page(), &loaderClient.base);
 
     WKRetainPtr<WKURLRef> fileURL(AdoptWK, Util::createURLForResource("simple", "html"));
     WKRetainPtr<WKStringRef> alternateHTMLString(AdoptWK, WKStringCreateWithUTF8CString("<html><body><img src='icon.png'></body></html>"));

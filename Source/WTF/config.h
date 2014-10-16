@@ -19,12 +19,8 @@
  *
  */
 
-#if defined(HAVE_CONFIG_H) && HAVE_CONFIG_H
-#ifdef BUILDING_WITH_CMAKE
+#if defined(HAVE_CONFIG_H) && HAVE_CONFIG_H && defined(BUILDING_WITH_CMAKE)
 #include "cmakeconfig.h"
-#else
-#include "autotoolsconfig.h"
-#endif
 #endif
 
 #include <wtf/Platform.h>
@@ -33,17 +29,20 @@
 #if OS(WINDOWS)
 
 #ifndef _WIN32_WINNT
+#if defined(_M_X64) || defined(__x86_64__) 
+#define _WIN32_WINNT 0x600
+#else
 #define _WIN32_WINNT 0x0502
+#endif
 #endif
 
 #ifndef WINVER
+#if defined(_M_X64) || defined(__x86_64__) 
+#define WINVER 0x0600
+#else
 #define WINVER 0x0502
 #endif
-
-// If we don't define these, they get defined in windef.h. 
-// We want to use std::min and std::max
-#define max max
-#define min min
+#endif
 
 #if !COMPILER(MSVC7_OR_LOWER) && !OS(WINCE)
 // We need to define this before the first #include of stdlib.h or it won't contain rand_s.

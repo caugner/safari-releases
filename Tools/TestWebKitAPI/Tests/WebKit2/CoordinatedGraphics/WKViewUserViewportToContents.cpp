@@ -25,12 +25,12 @@
 
 #include "config.h"
 
-#include "WebKit2/WKView.h"
-#include "WebKit2/WKRetainPtr.h"
+#include "WebKit/WKView.h"
+#include "WebKit/WKRetainPtr.h"
 
 namespace TestWebKitAPI {
 
-TEST(WebKit2, WKViewUserViewportToContents)
+TEST(WebKit2, DISABLED_WKViewUserViewportToContents)
 {
     // This test creates a WKView and uses the WKViewUserViewportToContents
     // function to convert viewport coordinates to contents (page) coordinates.

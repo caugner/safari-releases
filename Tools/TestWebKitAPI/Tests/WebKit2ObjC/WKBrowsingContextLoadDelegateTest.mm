@@ -26,14 +26,16 @@
 #import "config.h"
 #import "Test.h"
 
-#import <WebKit2/WKBrowsingContextController.h>
-#import <WebKit2/WKBrowsingContextGroup.h>
-#import <WebKit2/WKBrowsingContextLoadDelegate.h>
-#import <WebKit2/WKProcessGroup.h>
-#import <WebKit2/WKRetainPtr.h>
-#import <WebKit2/WKView.h>
+#import <WebKit/WKBrowsingContextController.h>
+#import <WebKit/WKBrowsingContextGroup.h>
+#import <WebKit/WKBrowsingContextLoadDelegate.h>
+#import <WebKit/WKProcessGroup.h>
+#import <WebKit/WKRetainPtr.h>
+#import <WebKit/WKView.h>
 
 #import "PlatformUtilities.h"
+
+#if WK_API_ENABLED
 
 namespace {
 
@@ -198,7 +200,7 @@ TEST_F(WKBrowsingContextLoadDelegateTest, SimpleLoadOfHTMLString_NilHTMLStringAn
     return self;
 }
 
-- (void)browsingContextControllerDidFailProvisionalLoad:(WKBrowsingContextController *)sender withError:(NSError *)error
+- (void)browsingContextController:(WKBrowsingContextController *)sender didFailProvisionalLoadWithError:(NSError *)error
 {
     EXPECT_EQ(-1100, error.code);
     EXPECT_WK_STREQ(NSURLErrorDomain, error.domain);
@@ -227,3 +229,5 @@ TEST_F(WKBrowsingContextLoadDelegateTest, SimpleLoadFail)
     view.browsingContextController.loadDelegate = nil;
     [loadDelegate release];
 }
+
+#endif // WK_API_ENABLED

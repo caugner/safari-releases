@@ -9,10 +9,10 @@
 #    notice, this list of conditions and the following disclaimer in the
 #    documentation and/or other materials provided with the distribution.
 #
-# THIS SOFTWARE IS PROVIDED BY APPLE COMPUTER, INC. ``AS IS'' AND ANY
+# THIS SOFTWARE IS PROVIDED BY APPLE INC. ``AS IS'' AND ANY
 # EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 # IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-# PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL APPLE COMPUTER, INC. OR
+# PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL APPLE INC. OR
 # CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
 # EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
 # PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
@@ -43,9 +43,8 @@ def translate_includes(text):
     # Mapping of single filename to relative path under WebKit root.
     # Assumption: these filenames are globally unique.
     include_mapping = {
-        "js-test-style.css": "../../js/resources",
-        "js-test-pre.js": "../../js/resources",
-        "js-test-post.js": "../../js/resources",
+        "js-test-pre.js": "../../../resources",
+        "js-test-post.js": "../../../resources",
         "desktop-gl-constants.js": "resources",
     }
 

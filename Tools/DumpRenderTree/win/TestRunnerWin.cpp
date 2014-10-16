@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2006, 2007, 2008, 2009, 2010, 2012 Apple Inc. All rights reserved.
+ * Copyright (C) 2006, 2007, 2008, 2009, 2010, 2012, 2013 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -10,7 +10,7 @@
  * 2.  Redistributions in binary form must reproduce the above copyright
  *     notice, this list of conditions and the following disclaimer in the
  *     documentation and/or other materials provided with the distribution.
- * 3.  Neither the name of Apple Computer, Inc. ("Apple") nor the names of
+ * 3.  Neither the name of Apple Inc. ("Apple") nor the names of
  *     its contributors may be used to endorse or promote products derived
  *     from this software without specific prior written permission.
  *
@@ -192,12 +192,6 @@ size_t TestRunner::webHistoryItemCount()
     return count;
 }
 
-JSRetainPtr<JSStringRef> TestRunner::platformName() const
-{
-    JSRetainPtr<JSStringRef> platformName(Adopt, JSStringCreateWithUTF8CString("win"));
-    return platformName;
-}
-
 void TestRunner::notifyDone()
 {
     // Same as on mac.  This can be shared.
@@ -239,11 +233,10 @@ void TestRunner::queueLoad(JSStringRef url, JSStringRef target)
     if (FAILED(dataSource->response(&response)) || !response)
         return;
 
-    BSTR responseURLBSTR;
-    if (FAILED(response->URL(&responseURLBSTR)))
+    _bstr_t responseURLBSTR;
+    if (FAILED(response->URL(&responseURLBSTR.GetBSTR())))
         return;
-    wstring responseURL(responseURLBSTR, SysStringLen(responseURLBSTR));
-    SysFreeString(responseURLBSTR);
+    wstring responseURL(responseURLBSTR, responseURLBSTR.length());
 
     // FIXME: We should do real relative URL resolution here.
     int lastSlash = responseURL.rfind('/');
@@ -662,9 +655,8 @@ void TestRunner::setUserStyleSheetLocation(JSStringRef jsURL)
 
     resultPath = cfStringRefToWString(CFURLGetString(url.get()));
 
-    BSTR resultPathBSTR = SysAllocStringLen(resultPath.data(), resultPath.size());
+    _bstr_t resultPathBSTR(resultPath.data());
     preferences->setUserStyleSheetLocation(resultPathBSTR);
-    SysFreeString(resultPathBSTR);
 }
 
 void TestRunner::setValueForUser(JSContextRef context, JSValueRef element, JSStringRef value)
@@ -717,7 +709,7 @@ void TestRunner::setWindowIsKey(bool flag)
         return;
 
     HWND webViewWindow;
-    if (FAILED(viewPrivate->viewWindow((OLE_HANDLE*)&webViewWindow)))
+    if (FAILED(viewPrivate->viewWindow(&webViewWindow)))
         return;
 
     ::SendMessage(webViewWindow, flag ? WM_SETFOCUS : WM_KILLFOCUS, (WPARAM)::GetDesktopWindow(), 0);
@@ -744,9 +736,6 @@ int TestRunner::windowCount()
 
 void TestRunner::execCommand(JSStringRef name, JSStringRef value)
 {
-    wstring wName = jsStringRefToWString(name);
-    wstring wValue = jsStringRefToWString(value);
-
     COMPtr<IWebView> webView;
     if (FAILED(frame->webView(&webView)))
         return;
@@ -755,12 +744,9 @@ void TestRunner::execCommand(JSStringRef name, JSStringRef value)
     if (FAILED(webView->QueryInterface(&viewPrivate)))
         return;
 
-    BSTR nameBSTR = SysAllocStringLen((OLECHAR*)wName.c_str(), wName.length());
-    BSTR valueBSTR = SysAllocStringLen((OLECHAR*)wValue.c_str(), wValue.length());
+    _bstr_t nameBSTR(JSStringCopyBSTR(name), false);
+    _bstr_t valueBSTR(JSStringCopyBSTR(value), false);
     viewPrivate->executeCoreCommandByName(nameBSTR, valueBSTR);
-
-    SysFreeString(nameBSTR);
-    SysFreeString(valueBSTR);
 }
 
 bool TestRunner::findString(JSContextRef /* context */, JSStringRef /* target */, JSObjectRef /* optionsArray */)
@@ -788,11 +774,6 @@ void TestRunner::clearAllApplicationCaches()
 void TestRunner::clearApplicationCacheForOrigin(JSStringRef origin)
 {
     // FIXME: Implement to support deleting all application cache for an origin.
-}
-
-void TestRunner::setApplicationCacheOriginQuota(unsigned long long quota)
-{
-    // FIXME: Implement to support application cache quotas.
 }
 
 JSValueRef TestRunner::originsWithApplicationCache(JSContextRef context)
@@ -833,11 +814,9 @@ void TestRunner::overridePreference(JSStringRef key, JSStringRef value)
     if (!prefsPrivate)
         return;
 
-    BSTR keyBSTR = JSStringCopyBSTR(key);
-    BSTR valueBSTR = JSStringCopyBSTR(value);
+    _bstr_t keyBSTR(JSStringCopyBSTR(key), false);
+    _bstr_t valueBSTR(JSStringCopyBSTR(value), false);
     prefsPrivate->setPreferenceForTest(keyBSTR, valueBSTR);
-    SysFreeString(keyBSTR);
-    SysFreeString(valueBSTR);
 }
 
 void TestRunner::setDatabaseQuota(unsigned long long quota)
@@ -984,7 +963,7 @@ void TestRunner::closeWebInspector()
     inspector->close();
 }
 
-void TestRunner::evaluateInWebInspector(long callId, JSStringRef script)
+void TestRunner::evaluateInWebInspector(JSStringRef script)
 {
     COMPtr<IWebView> webView;
     if (FAILED(frame->webView(&webView)))
@@ -1002,7 +981,7 @@ void TestRunner::evaluateInWebInspector(long callId, JSStringRef script)
     if (!inspectorPrivate)
         return;
 
-    inspectorPrivate->evaluateInFrontend(callId, bstrT(script).GetBSTR());
+    inspectorPrivate->evaluateInFrontend(bstrT(script).GetBSTR());
 }
 
 typedef HashMap<unsigned, COMPtr<IWebScriptWorld> > WorldMap;
@@ -1041,16 +1020,15 @@ void TestRunner::evaluateScriptInIsolatedWorld(unsigned worldID, JSObjectRef glo
         if (FAILED(WebKitCreateInstance(__uuidof(WebScriptWorld), 0, __uuidof(world), reinterpret_cast<void**>(&world))))
             return;
     } else {
-        COMPtr<IWebScriptWorld>& worldSlot = worldMap().add(worldID, 0).iterator->value;
+        COMPtr<IWebScriptWorld>& worldSlot = worldMap().add(worldID, nullptr).iterator->value;
         if (!worldSlot && FAILED(WebKitCreateInstance(__uuidof(WebScriptWorld), 0, __uuidof(worldSlot), reinterpret_cast<void**>(&worldSlot))))
             return;
         world = worldSlot;
     }
 
-    BSTR result;
-    if (FAILED(framePrivate->stringByEvaluatingJavaScriptInScriptWorld(world.get(), globalObject, bstrT(script).GetBSTR(), &result)))
+    _bstr_t result;
+    if (FAILED(framePrivate->stringByEvaluatingJavaScriptInScriptWorld(world.get(), globalObject, bstrT(script).GetBSTR(), &result.GetBSTR())))
         return;
-    SysFreeString(result);
 }
 
 void TestRunner::removeAllVisitedLinks()

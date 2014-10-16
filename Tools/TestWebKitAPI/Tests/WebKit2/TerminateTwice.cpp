@@ -29,6 +29,9 @@
 
 namespace TestWebKitAPI {
 
+// Disabled in debug mode while investigating <https://bugs.webkit.org/show_bug.cgi?id=136012>.
+#ifdef NDEBUG
+
 static bool loaded;
 
 static void didFinishLoadForFrame(WKPageRef page, WKFrameRef frame, WKTypeRef userData, const void* clientInfo)
@@ -41,12 +44,13 @@ TEST(WebKit2, TerminateTwice)
     WKRetainPtr<WKContextRef> context(AdoptWK, WKContextCreate());
     PlatformWebView webView(context.get());
 
-    WKPageLoaderClient loaderClient;
+    WKPageLoaderClientV0 loaderClient;
     memset(&loaderClient, 0, sizeof(loaderClient));
 
-    loaderClient.version = 0;
+    loaderClient.base.version = 0;
     loaderClient.didFinishLoadForFrame = didFinishLoadForFrame;
-    WKPageSetPageLoaderClient(webView.page(), &loaderClient);
+
+    WKPageSetPageLoaderClient(webView.page(), &loaderClient.base);
 
     WKRetainPtr<WKURLRef> url(AdoptWK, Util::createURLForResource("simple", "html"));
     WKPageLoadURL(webView.page(), url.get());
@@ -60,6 +64,8 @@ TEST(WebKit2, TerminateTwice)
     // And now we terminate the page before the process launch is complete.
     WKPageTerminate(webView.page());
 }
+
+#endif
 
 } // namespace TestWebKitAPI
 

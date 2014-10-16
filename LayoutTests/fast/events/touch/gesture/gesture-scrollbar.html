@@ -1,7 +1,7 @@
 <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
 <html>
 <head>
-<script src="../../../js/resources/js-test-pre.js"></script>
+<script src="../../../../resources/js-test-pre.js"></script>
 <style type="text/css">
 ::-webkit-scrollbar {
   background-color: #ccc;
@@ -64,7 +64,6 @@ function exitIfNecessary()
 
 function runTest()
 {
-    internals.settings.setMockScrollbarsEnabled(true);
     if (window.eventSender) {
         description('This tests scroll gesture events on a scroll bar. ' +
             'The scrollable div below should be slightly scrolled down ' +

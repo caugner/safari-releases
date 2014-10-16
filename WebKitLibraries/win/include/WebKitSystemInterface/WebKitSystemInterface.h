@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007, 2008, 2009 Apple Inc.  All rights reserved.
+ * Copyright (C) 2007, 2008, 2009, 2013 Apple Inc.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -10,10 +10,10 @@
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
  *
- * THIS SOFTWARE IS PROVIDED BY APPLE COMPUTER, INC. ``AS IS'' AND ANY
+ * THIS SOFTWARE IS PROVIDED BY APPLE INC. ``AS IS'' AND ANY
  * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
- * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL APPLE COMPUTER, INC. OR
+ * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL APPLE INC. OR
  * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
  * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
  * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
@@ -84,6 +84,7 @@ void wkSetUpFontCache(size_t s);
 void wkSetBaseCTM(CGContextRef, CGAffineTransform);
 void wkSetPatternPhaseInUserSpace(CGContextRef, CGPoint phasePoint);
 CGAffineTransform wkGetUserToBaseCTM(CGContextRef);
+bool wkCGContextIsPDFContext(CGContextRef);
 
 void wkDrawFocusRing(CGContextRef, CGColorRef, float radius);
 
@@ -112,9 +113,10 @@ CFArrayRef wkCFURLCacheCopyAllHostNamesInPersistentStore();
 void wkCFURLCacheDeleteHostNamesInPersistentStore(CFArrayRef hostNames);
 
 unsigned wkInitializeMaximumHTTPConnectionCountPerHost(unsigned preferredConnectionCount);
-int wkGetHTTPPipeliningPriority(CFURLRequestRef);
-void wkSetHTTPPipeliningMaximumPriority(int maximumPriority);
-void wkSetHTTPPipeliningPriority(CFURLRequestRef, int priority);
+int wkGetHTTPRequestPriority(CFURLRequestRef);
+void wkSetHTTPRequestMaximumPriority(int maximumPriority);
+void wkSetHTTPRequestPriority(CFURLRequestRef, int priority);
+void wkHTTPRequestEnablePipelining(CFURLRequestRef);
 
 void wkSetCONNECTProxyForStream(CFReadStreamRef, CFStringRef proxyHost, CFNumberRef proxyPort);
 void wkSetCONNECTProxyAuthorizationForStream(CFReadStreamRef, CFStringRef proxyAuthorizationString);
@@ -193,6 +195,8 @@ typedef enum {
 
 CGPatternRef wkCGPatternCreateWithImageAndTransform(CGImageRef image, CGAffineTransform transform, int tiling);
 
+bool wkCGContextDrawsWithCorrectShadowOffsets(CGContextRef);
+
 CFDictionaryRef wkCFURLRequestCreateSerializableRepresentation(CFURLRequestRef cfRequest, CFTypeRef tokenNull);
 CFURLRequestRef wkCFURLRequestCreateFromSerializableRepresentation(CFDictionaryRef representation, CFTypeRef tokenNull);
 CFDictionaryRef wkCFURLResponseCreateSerializableRepresentation(CFURLResponseRef cfResponse, CFTypeRef tokenNull);
@@ -232,11 +236,6 @@ typedef enum {
 } WKMediaUIPart;
 
 typedef enum {
-    WKMediaControllerThemeClassic   = 1,
-    WKMediaControllerThemeQuickTime = 2
-} WKMediaControllerThemeStyle;
-
-typedef enum {
     WKMediaControllerFlagDisabled = 1 << 0,
     WKMediaControllerFlagPressed = 1 << 1,
     WKMediaControllerFlagDrawEndCaps = 1 << 3,
@@ -247,11 +246,10 @@ typedef enum {
 extern "C" {
 #endif
 
-bool WKMediaControllerThemeAvailable(int themeStyle);
-bool WKHitTestMediaUIPart(int part, int themeStyle, CGRect bounds, CGPoint point);
-void WKMeasureMediaUIPart(int part, int themeStyle, CGRect *bounds, CGSize *naturalSize);
-void WKDrawMediaUIPart(int part, int themeStyle, CGContextRef context, CGRect rect, unsigned state);
-void WKDrawMediaSliderTrack(int themeStyle, CGContextRef context, CGRect rect, float timeLoaded, float currentTime, float duration, unsigned state);
+bool WKHitTestMediaUIPart(int part, CGRect bounds, CGPoint point);
+void WKMeasureMediaUIPart(int part, CGRect *bounds, CGSize *naturalSize);
+void WKDrawMediaUIPart(int part, CGContextRef context, CGRect rect, unsigned state);
+void WKDrawMediaSliderTrack(CGContextRef context, CGRect rect, float timeLoaded, float currentTime, float duration, unsigned state);
 
 #ifdef __cplusplus
 }

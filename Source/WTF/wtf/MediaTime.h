@@ -10,7 +10,7 @@
  * 2.  Redistributions in binary form must reproduce the above copyright
  *     notice, this list of conditions and the following disclaimer in the
  *     documentation and/or other materials provided with the distribution. 
- * 3.  Neither the name of Apple Computer, Inc. ("Apple") nor the names of
+ * 3.  Neither the name of Apple Inc. ("Apple") nor the names of
  *     its contributors may be used to endorse or promote products derived
  *     from this software without specific prior written permission. 
  *
@@ -26,7 +26,10 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "FastAllocBase.h"
+#ifndef WTF_MediaTime_h
+#define WTF_MediaTime_h
+
+#include <wtf/FastMalloc.h>
 
 #include <cmath>
 #include <limits>
@@ -34,6 +37,8 @@
 #include <stdint.h>
 
 namespace WTF {
+
+class PrintStream;
 
 class WTF_EXPORT_PRIVATE MediaTime {
     WTF_MAKE_FAST_ALLOCATED;
@@ -47,7 +52,7 @@ public:
     };
 
     MediaTime();
-    MediaTime(int64_t value, int32_t scale = DefaultTimeScale, uint32_t flags = Valid);
+    MediaTime(int64_t value, int32_t scale, uint32_t flags = Valid);
     MediaTime(const MediaTime& rhs);
     ~MediaTime();
 
@@ -58,10 +63,14 @@ public:
     double toDouble() const;
 
     MediaTime& operator=(const MediaTime& rhs);
+    MediaTime& operator+=(const MediaTime& rhs) { return *this = *this + rhs; }
+    MediaTime& operator-=(const MediaTime& rhs) { return *this = *this - rhs; }
     MediaTime operator+(const MediaTime& rhs) const;
     MediaTime operator-(const MediaTime& rhs) const;
+    MediaTime operator*(int32_t) const;
     bool operator<(const MediaTime& rhs) const;
     bool operator>(const MediaTime& rhs) const;
+    bool operator!=(const MediaTime& rhs) const;
     bool operator==(const MediaTime& rhs) const;
     bool operator>=(const MediaTime& rhs) const;
     bool operator<=(const MediaTime& rhs) const;
@@ -90,9 +99,11 @@ public:
     const int64_t& timeValue() const { return m_timeValue; }
     const int32_t& timeScale() const { return m_timeScale; }
 
+    void dump(PrintStream& out) const;
+
     friend WTF_EXPORT_PRIVATE MediaTime abs(const MediaTime& rhs);
 private:
-    static const int32_t DefaultTimeScale = 6000;
+    static const int32_t DefaultTimeScale = 10000000;
     static const int32_t MaximumTimeScale;
 
     void setTimeScale(int32_t);
@@ -102,8 +113,12 @@ private:
     uint32_t m_timeFlags;
 };
 
+inline MediaTime operator*(int32_t lhs, const MediaTime& rhs) { return rhs.operator*(lhs); }
+
 WTF_EXPORT_PRIVATE extern MediaTime abs(const MediaTime& rhs);
 }
 
 using WTF::MediaTime;
 using WTF::abs;
+
+#endif

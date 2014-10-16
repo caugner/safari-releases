@@ -10,7 +10,7 @@ function completeTest() {
             testRunner.notifyDone();
     };
 
-    script.src = "../../fast/js/resources/js-test-post.js";
+    script.src = "../../resources/js-test-post.js";
     document.body.appendChild(script);
 }
 
@@ -71,7 +71,7 @@ function continueTesting() {
 
     debug("");
     debug("Check zoomAndPan value");
-    shouldBe("currentView.zoomAndPan", "SVGZoomAndPan.SVG_ZOOMANDPAN_DISABLE");
+    shouldBe("currentView.zoomAndPan", "SVGViewElement.SVG_ZOOMANDPAN_DISABLE");
 
     debug("");
     debug("Check viewBox value");

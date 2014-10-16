@@ -7,6 +7,7 @@ PASS typeof navigator.geolocation == 'object' is true
 PASS hasGeolocationProperty() is true
 PASS 'geolocation' in navigator is true
 PASS navigator.hasOwnProperty('geolocation') is true
+PASS navigator.__proto__.hasOwnProperty('geolocation') is false
 PASS successfullyParsed is true
 
 TEST COMPLETE

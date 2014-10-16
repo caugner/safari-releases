@@ -26,10 +26,9 @@
 #ifndef TestInvocation_h
 #define TestInvocation_h
 
+#include <WebKit/WKRetainPtr.h>
 #include <string>
-#include <WebKit2/WKRetainPtr.h>
 #include <wtf/Noncopyable.h>
-#include <wtf/OwnPtr.h>
 #include <wtf/text/StringBuilder.h>
 
 namespace WTR {
@@ -40,6 +39,9 @@ public:
     explicit TestInvocation(const std::string& pathOrURL);
     ~TestInvocation();
 
+    WKURLRef url() const;
+    const char* pathOrURL() const { return m_pathOrURL.c_str(); }
+
     void setIsPixelTest(const std::string& expectedPixelHash);
 
     void setCustomTimeout(int duration);
@@ -49,6 +51,7 @@ public:
     WKRetainPtr<WKTypeRef> didReceiveSynchronousMessageFromInjectedBundle(WKStringRef messageName, WKTypeRef messageBody);
 
     void dumpWebProcessUnresponsiveness();
+    static void dumpWebProcessUnresponsiveness(const char* errorMessage);
     void outputText(const WTF::String&);
 private:
     void dumpResults();
@@ -57,10 +60,8 @@ private:
     void dumpAudio(WKDataRef);
     bool compareActualHashToExpectedAndDumpResults(const char[33]);
 
-#if PLATFORM(QT) || PLATFORM(EFL)
     static void forceRepaintDoneCallback(WKErrorRef, void* context);
-#endif
-    
+
     WKRetainPtr<WKURLRef> m_url;
     std::string m_pathOrURL;
     

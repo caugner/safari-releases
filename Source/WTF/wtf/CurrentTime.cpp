@@ -37,6 +37,7 @@
 #if OS(DARWIN)
 #include <mach/mach.h>
 #include <mach/mach_time.h>
+#include <mutex>
 #include <sys/time.h>
 #elif OS(WINDOWS)
 
@@ -57,10 +58,6 @@
 
 #if USE(GLIB) && !PLATFORM(EFL)
 #include <glib.h>
-#endif
-
-#if PLATFORM(QT)
-#include <QElapsedTimer>
 #endif
 
 namespace WTF {
@@ -110,7 +107,11 @@ static double highResUpTime()
 
     LARGE_INTEGER qpc;
     QueryPerformanceCounter(&qpc);
+#if defined(_M_IX86) || defined(__i386__)
     DWORD tickCount = GetTickCount();
+#else
+    ULONGLONG tickCount = GetTickCount64();
+#endif
 
     if (inited) {
         __int64 qpcElapsed = ((qpc.QuadPart - qpcLast.QuadPart) * 1000) / qpcFrequency.QuadPart;
@@ -242,16 +243,6 @@ double currentTime()
     return ecore_time_unix_get();
 }
 
-#elif OS(QNX)
-
-double currentTime()
-{
-    struct timespec time;
-    if (clock_gettime(CLOCK_REALTIME, &time))
-        CRASH();
-    return time.tv_sec + time.tv_nsec / 1.0e9;
-}
-
 #else
 
 double currentTime()
@@ -263,50 +254,34 @@ double currentTime()
 
 #endif
 
-#if PLATFORM(MAC)
-
-double monotonicallyIncreasingTime()
-{
-    // Based on listing #2 from Apple QA 1398.
-    static mach_timebase_info_data_t timebaseInfo;
-    if (!timebaseInfo.denom) {
-        kern_return_t kr = mach_timebase_info(&timebaseInfo);
-        ASSERT_UNUSED(kr, kr == KERN_SUCCESS);
-    }
-    return (mach_absolute_time() * timebaseInfo.numer) / (1.0e9 * timebaseInfo.denom);
-}
-
-#elif PLATFORM(EFL)
+#if PLATFORM(EFL)
 
 double monotonicallyIncreasingTime()
 {
     return ecore_time_get();
 }
 
-#elif USE(GLIB) && !PLATFORM(EFL) && !PLATFORM(QT)
+#elif USE(GLIB)
 
 double monotonicallyIncreasingTime()
 {
     return static_cast<double>(g_get_monotonic_time() / 1000000.0);
 }
 
-#elif PLATFORM(QT)
+#elif OS(DARWIN)
 
 double monotonicallyIncreasingTime()
 {
-    ASSERT(QElapsedTimer::isMonotonic());
-    static QElapsedTimer timer;
-    return timer.nsecsElapsed() / 1.0e9;
-}
+    // Based on listing #2 from Apple QA 1398, but modified to be thread-safe.
+    static mach_timebase_info_data_t timebaseInfo;
+    static std::once_flag initializeTimerOnceFlag;
+    std::call_once(initializeTimerOnceFlag, [] {
+        kern_return_t kr = mach_timebase_info(&timebaseInfo);
+        ASSERT_UNUSED(kr, kr == KERN_SUCCESS);
+        ASSERT(timebaseInfo.denom);
+    });
 
-#elif OS(QNX)
-
-double monotonicallyIncreasingTime()
-{
-    struct timespec time;
-    if (clock_gettime(CLOCK_MONOTONIC, &time))
-        CRASH();
-    return time.tv_sec + time.tv_nsec / 1.0e9;
+    return (mach_absolute_time() * timebaseInfo.numer) / (1.0e9 * timebaseInfo.denom);
 }
 
 #else
@@ -351,11 +326,6 @@ double currentCPUTime()
     GetThreadTimes(GetCurrentThread(), &creationTime, &exitTime, &kernelTime.fileTime, &userTime.fileTime);
     
     return userTime.fileTimeAsLong / 10000000. + kernelTime.fileTimeAsLong / 10000000.;
-#elif OS(QNX)
-    struct timespec time;
-    if (clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time))
-        CRASH();
-    return time.tv_sec + time.tv_nsec / 1.0e9;
 #else
     // FIXME: We should return the time the current thread has spent executing.
 

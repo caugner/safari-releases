@@ -33,6 +33,7 @@ from webkitpy.layout_tests.models.test_configuration import TestConfiguration
 from webkitpy.port.base import Port
 from webkitpy.port.pulseaudio_sanitizer import PulseAudioSanitizer
 from webkitpy.port.xvfbdriver import XvfbDriver
+from webkitpy.port.linux_get_crash_log import GDBCrashLogGenerator
 
 
 class EflPort(Port):
@@ -89,6 +90,8 @@ class EflPort(Port):
         return [TestConfiguration(version=self._version, architecture='x86', build_type=build_type) for build_type in self.ALL_BUILD_TYPES]
 
     def _driver_class(self):
+        if os.environ.get("DISABLE_XVFB_DRIVER"):
+            return Port._driver_class(self)
         return XvfbDriver
 
     def _path_to_driver(self):
@@ -107,12 +110,8 @@ class EflPort(Port):
 
     def _search_paths(self):
         search_paths = []
-        if self.get_option('webkit_test_runner'):
-            search_paths.append(self.port_name + '-wk2')
-            search_paths.append('wk2')
-        else:
-            search_paths.append(self.port_name + '-wk1')
         search_paths.append(self.port_name)
+        search_paths.append('wk2')
         return search_paths
 
     def default_baseline_search_path(self):
@@ -126,11 +125,26 @@ class EflPort(Port):
         # FIXME: We should find a way to share this implmentation with Gtk,
         # or teach run-launcher how to call run-safari and move this down to WebKitPort.
         run_launcher_args = ["file://%s" % results_filename]
-        if self.get_option('webkit_test_runner'):
-            run_launcher_args.append('-2')
         # FIXME: old-run-webkit-tests also added ["-graphicssystem", "raster", "-style", "windows"]
         # FIXME: old-run-webkit-tests converted results_filename path for cygwin.
         self._run_script("run-launcher", run_launcher_args)
 
     def check_sys_deps(self, needs_http):
-        return super(EflPort, self).check_sys_deps(needs_http) and XvfbDriver.check_xvfb(self)
+        return super(EflPort, self).check_sys_deps(needs_http) and self._driver_class().check_driver(self)
+
+    def build_webkit_command(self, build_style=None):
+        command = super(EflPort, self).build_webkit_command(build_style)
+        command.extend(["--efl", "--update-efl"])
+        if self.get_option('webkit_test_runner'):
+            command.append("--no-webkit1")
+        else:
+            command.append("--no-webkit2")
+        command.append(super(EflPort, self).make_args())
+        return command
+
+    def _get_crash_log(self, name, pid, stdout, stderr, newer_than):
+        return GDBCrashLogGenerator(name, pid, newer_than, self._filesystem, self._path_to_driver).generate_crash_log(stdout, stderr)
+
+    def test_expectations_file_position(self):
+        # EFL port baseline search path is efl -> wk2 -> generic (as efl-wk2 and efl baselines are merged), so port test expectations file is at third to last position.
+        return 2

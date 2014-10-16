@@ -26,8 +26,8 @@
 #include "config.h"
 #include "WebKitAgnosticTest.h"
 
-#include <WebKit2/WKURLCF.h>
-#include <WebKit2/WKViewPrivate.h>
+#include <WebKit/WKURLCF.h>
+#include <WebKit/WKViewPrivate.h>
 #include <wtf/RetainPtr.h>
 
 @interface FrameLoadDelegate : NSObject {
@@ -66,13 +66,14 @@ static void didFinishLoadForFrame(WKPageRef, WKFrameRef, WKTypeRef, const void* 
 
 static void setPageLoaderClient(WKPageRef page, bool* didFinishLoad)
 {
-    WKPageLoaderClient loaderClient;
+    WKPageLoaderClientV0 loaderClient;
     memset(&loaderClient, 0, sizeof(loaderClient));
-    loaderClient.version = 0;
-    loaderClient.clientInfo = didFinishLoad;
+
+    loaderClient.base.version = 0;
+    loaderClient.base.clientInfo = didFinishLoad;
     loaderClient.didFinishLoadForFrame = didFinishLoadForFrame;
 
-    WKPageSetPageLoaderClient(page, &loaderClient);
+    WKPageSetPageLoaderClient(page, &loaderClient.base);
 }
 
 WebKitAgnosticTest::WebKitAgnosticTest()

@@ -12,7 +12,7 @@
 # 2.  Redistributions in binary form must reproduce the above copyright
 #     notice, this list of conditions and the following disclaimer in the
 #     documentation and/or other materials provided with the distribution. 
-# 3.  Neither the name of Apple Computer, Inc. ("Apple") nor the names of
+# 3.  Neither the name of Apple Inc. ("Apple") nor the names of
 #     its contributors may be used to endorse or promote products derived
 #     from this software without specific prior written permission. 
 #
@@ -236,11 +236,39 @@ sub isGitSVN()
     return $isGitSVN;
 }
 
+sub gitDirectory()
+{
+    chomp(my $result = `git rev-parse --git-dir`);
+    return $result;
+}
+
+sub gitTreeDirectory()
+{
+    chomp(my $result = `git rev-parse --show-toplevel`);
+    return $result;
+}
+
+sub gitBisectStartBranch()
+{
+    my $bisectStartFile = File::Spec->catfile(gitDirectory(), "BISECT_START");
+    if (!-f $bisectStartFile) {
+        return "";
+    }
+    open(BISECT_START, $bisectStartFile) or die "Failed to open $bisectStartFile: $!";
+    chomp(my $result = <BISECT_START>);
+    close(BISECT_START);
+    return $result;
+}
+
 sub gitBranch()
 {
     unless (defined $gitBranch) {
         chomp($gitBranch = `git symbolic-ref -q HEAD`);
-        $gitBranch = "" if exitStatus($?);
+        my $hasDetachedHead = exitStatus($?);
+        if ($hasDetachedHead) {
+            # We may be in a git bisect session.
+            $gitBranch = gitBisectStartBranch();
+        }
         $gitBranch =~ s#^refs/heads/##;
         $gitBranch = "" if $gitBranch eq "master";
     }
@@ -305,12 +333,6 @@ sub chdirReturningRelativePath($)
     return File::Spec->abs2rel($previousDirectory, $newDirectory);
 }
 
-sub determineGitRoot()
-{
-    chomp(my $gitDir = `git rev-parse --git-dir`);
-    return dirname($gitDir);
-}
-
 sub determineSVNRoot()
 {
     my $last = '';
@@ -359,7 +381,9 @@ sub determineSVNRoot()
 sub determineVCSRoot()
 {
     if (isGit()) {
-        return determineGitRoot();
+        # This is the working tree root. If WebKit is a submodule,
+        # then the relevant metadata directory is somewhere else.
+        return gitTreeDirectory();
     }
 
     if (!isSVN()) {
@@ -1864,7 +1888,7 @@ sub mergeChangeLogs($$$)
 
 sub gitConfig($)
 {
-    return unless $isGit;
+    return unless isGit();
 
     my ($config) = @_;
 

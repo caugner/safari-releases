@@ -30,8 +30,10 @@
 #import "PlatformWebView.h"
 #import "TestBrowsingContextLoadDelegate.h"
 #import "TestProtocol.h"
-#import <WebKit2/WebKit2.h>
-#import <WebKit2/WKViewPrivate.h>
+#import <WebKit/WebKit2.h>
+#import <WebKit/WKViewPrivate.h>
+
+#if WK_API_ENABLED
 
 static bool testFinished = false;
 
@@ -55,3 +57,5 @@ TEST(WebKit2, PreventImageLoadWithAutoResizingTest)
 }
 
 } // namespace TestWebKitAPI
+
+#endif // WK_API_ENABLED

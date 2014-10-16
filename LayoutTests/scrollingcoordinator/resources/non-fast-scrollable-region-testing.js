@@ -1,6 +1,5 @@
 function runNonFastScrollableRegionTest(scale) {
     var invScale;
-    window.internals.settings.setMockScrollbarsEnabled(true);
     if (scale != undefined) {
         window.internals.setPageScaleFactor(scale, 0, 0);
         // FIXME: This is a hack for applyPageScaleFactorInCompositor() == false.
@@ -15,7 +14,7 @@ function runNonFastScrollableRegionTest(scale) {
     overlay.style.top = 0;
     overlay.style.opacity = 0.5;
 
-    var rects = window.internals.nonFastScrollableRects(document);
+    var rects = window.internals.nonFastScrollableRects();
     for (var i = 0; i < rects.length; i++) {
         var rect = rects[i];
         var patch = document.createElement("div");

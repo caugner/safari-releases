@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 
-# Copyright (C) 2005, 2006, 2013 Apple Computer, Inc.  All rights reserved.
+# Copyright (C) 2005, 2006, 2013 Apple Inc.  All rights reserved.
 # Copyright (C) 2007 Holger Hans Peter Freyther.  All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -12,7 +12,7 @@
 # 2.  Redistributions in binary form must reproduce the above copyright
 #     notice, this list of conditions and the following disclaimer in the
 #     documentation and/or other materials provided with the distribution. 
-# 3.  Neither the name of Apple Computer, Inc. ("Apple") nor the names of
+# 3.  Neither the name of Apple Inc. ("Apple") nor the names of
 #     its contributors may be used to endorse or promote products derived
 #     from this software without specific prior written permission. 
 #
@@ -34,7 +34,7 @@ use File::Basename;
 use File::Spec;
 use FindBin;
 use Getopt::Long qw(:config pass_through);
-use JSON;
+use JSON::PP;
 use lib $FindBin::Bin;
 use List::Util qw(sum);
 use List::Util qw(max);
@@ -46,35 +46,49 @@ sub parseGcovrOutput($);
 sub getFileHitsAndBranches($);
 sub addLineCounts($$$$$$);
 sub createResultName();
+sub generateReport($);
 
-my $resultName = createResultName();
-
-# Move to the source directory
 chdirWebKit();
+system("mkdir WebKitBuild/Coverage") if ! -d "WebKitBuild/Coverage";
 
 # Delete old gcov files
 print "Cleaning up\n";
 system("if [ -d WebKitBuild ]; then find WebKitBuild -name '*.gcda' -delete; fi;") == 0 or die "Cannot delete old gcda files (code coverage";
 
-# Compile WebKit and run the tests
 print "Building and testing\n";
-system("Tools/Scripts/build-webkit", "--coverage", @ARGV) == 0 or die "Cannot compile webkit with code coverage";
+system("Tools/Scripts/build-webkit", "--clean", @ARGV) == 0 or die "Cannot clean WebKit build";
+system("Tools/Scripts/build-webkit", "--coverage", "--release", @ARGV) == 0 or die "Cannot compile WebKit with code coverage";
+system("Tools/Scripts/run-javascriptcore-tests --no-build");
+system("Tools/Scripts/run-api-tests");
 system("Tools/Scripts/run-webkit-tests");
 system("Tools/Scripts/run-webkit-tests -2");
-system("Tools/Scripts/run-javascriptcore-tests");
-system("Tools/Scripts/run-api-tests");
-
-# Generate the coverage data and report
-print "Collecting coverage data\n";
-system("mkdir WebKitBuild/Coverage") if ! -d "WebKitBuild/Coverage";
-system("python Tools/Scripts/webkitpy/tool/gcovr --xml --output=WebKitBuild/Coverage/" . $resultName . ".xml") == 0 or die "Cannot run gcovr";
-
-# Collect useful data from xml to json format
-open my $jsonFile, ">", "WebKitBuild/Coverage/$resultName.json" or die "Cannot open $resultName.json";
-print $jsonFile encode_json(parseGcovrOutput("WebKitBuild/Coverage/$resultName.xml"));
-close $jsonFile;
-
+generateReport(createResultName());
 print "Done\n";
+
+sub generateReport()
+{
+    my ($reportName) = @_;
+
+    # Generate the coverage data and report
+    print "Collecting coverage data\n";
+    system("python Tools/Scripts/webkitpy/tool/gcovr --xml --output=WebKitBuild/Coverage/" . $reportName . ".xml") == 0 or die "Cannot run gcovr";
+
+    # Collect useful data from xml to json format
+    my $jsonData = encode_json(parseGcovrOutput("WebKitBuild/Coverage/$reportName.xml"));
+    open my $templateFile, "<", "Tools/CodeCoverage/results-template.html" or die "Cannot open Tools/CodeCoverage/results-template.html";
+    my $templateHtml = join("", <$templateFile>);
+    close $templateFile;
+    $templateHtml =~ s/%CoverageDataJSON%/$jsonData/;
+
+    my $reportFilename = "WebKitBuild/Coverage/$reportName.html";
+    open my $reportFile, ">", $reportFilename or die "Cannot open $reportFilename";
+    print $reportFile $templateHtml;
+    close $reportFile;
+
+    # Open the report
+    my $url = "file://" . sourceDir() . "/WebKitBuild/Coverage/$reportName.html";
+    system "open \"$url\"";
+}
 
 sub parseGcovrOutput($)
 {

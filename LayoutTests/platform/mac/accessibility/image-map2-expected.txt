@@ -21,7 +21,10 @@ AXLinkedUIElements: (null)
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXGroup>
-AXARIABusy: 0
+AXLanguage: 
+AXDOMIdentifier: result
+AXDOMClassList: <array of size 0>
+AXElementBusy: 0
 
 ------------
 AXRole: AXLink
@@ -45,9 +48,12 @@ AXLinkedUIElements: (null)
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXLink>
+AXLanguage: 
+AXDOMIdentifier: 
+AXDOMClassList: <array of size 0>
 AXURL: http://www.apple.com/
 AXAccessKey: (null)
-AXARIABusy: 0
+AXElementBusy: 0
 AXPath: <AXLink>
 
 ------------
@@ -72,9 +78,12 @@ AXLinkedUIElements: (null)
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXLink>
+AXLanguage: 
+AXDOMIdentifier: 
+AXDOMClassList: <array of size 0>
 AXURL: http://www.apple.com/
 AXAccessKey: (null)
-AXARIABusy: 0
+AXElementBusy: 0
 AXPath: <AXLink>
 
 ------------

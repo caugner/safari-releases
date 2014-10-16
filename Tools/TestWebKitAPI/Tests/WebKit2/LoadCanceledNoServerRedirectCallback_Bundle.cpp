@@ -28,9 +28,9 @@
 #include "PlatformUtilities.h"
 #include "Test.h"
 
-#include <WebKit2/WKBundlePage.h>
-#include <WebKit2/WKBundleFrame.h>
-#include <WebKit2/WKRetainPtr.h>
+#include <WebKit/WKBundlePage.h>
+#include <WebKit/WKBundleFrame.h>
+#include <WebKit/WKRetainPtr.h>
 
 #include <wtf/Assertions.h>
 
@@ -56,13 +56,13 @@ public:
 
     virtual void didCreatePage(WKBundleRef bundle, WKBundlePageRef page)
     {
-        WKBundlePageResourceLoadClient resourceLoadClient;
+        WKBundlePageResourceLoadClientV0 resourceLoadClient;
         memset(&resourceLoadClient, 0, sizeof(resourceLoadClient));
         
-        resourceLoadClient.version = 0;
+        resourceLoadClient.base.version = 0;
         resourceLoadClient.willSendRequestForFrame = willSendRequestForFrame;
 
-        WKBundlePageSetResourceLoadClient(page, &resourceLoadClient);
+        WKBundlePageSetResourceLoadClient(page, &resourceLoadClient.base);
 
     }
 };

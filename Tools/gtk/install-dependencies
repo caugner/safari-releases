@@ -40,26 +40,28 @@ function installDependenciesWithApt {
         autopoint \
         autotools-dev \
         bison \
+        cmake \
         flex \
-        gail-3.0 \
         gawk \
         gnome-common \
         gperf \
         gtk-doc-tools \
         intltool \
+        itstool \
         libatk1.0-dev \
         libenchant-dev \
         libfaad-dev \
-        libgail-3-dev \
-        libgail-dev \
         libgeoclue-dev \
         libgirepository1.0-dev \
         libgl1-mesa-dev \
         libgl1-mesa-glx \
         libgnutls-dev \
+        libgtk2.0-dev \
+        libgtk-3-dev \
         libgudev-1.0-dev \
+        libharfbuzz-dev \
         libicu-dev \
-        libjpeg62-dev \
+        libjpeg8-dev \
         libmpg123-dev \
         libopus-dev \
         libpango1.0-dev \
@@ -67,15 +69,18 @@ function installDependenciesWithApt {
         libpulse-dev \
         librsvg2-dev \
         libsecret-1-dev \
+        libsoup2.4-dev \
         libsqlite3-dev \
         libtheora-dev \
         libtool \
         libvorbis-dev \
         libwebp-dev \
+        libxcomposite-dev \
         libxslt1-dev \
         libxt-dev \
         libxtst-dev \
-        ruby
+        ruby \
+        xfonts-utils
 
     # These are dependencies necessary for running tests.
     apt-get install \
@@ -86,42 +91,61 @@ function installDependenciesWithApt {
         libgpg-error-dev \
         pulseaudio-utils \
         python-gi \
-        ruby
+        ruby \
+        ruby-json \
+        ruby-highline
 
     # These are dependencies necessary for building the jhbuild.
     apt-get install \
+        git \
         gobject-introspection \
         icon-naming-utils \
+        libcroco3-dev \
         libegl1-mesa-dev \
         libgcrypt11-dev \
         libgpg-error-dev \
         libp11-kit-dev \
-        libtiff4-dev \
-        libcroco3-dev \
-        ragel \
-        xutils-dev \
-        xtrans-dev \
-        libxfont-dev \
         libpciaccess-dev \
+        libtiff5-dev \
+        libxcb-xfixes0-dev \
+        libxfont-dev \
+        libxkbfile-dev \
+        llvm \
+        python-dev \
+        ragel \
         x11proto-bigreqs-dev \
+        x11proto-composite-dev \
         x11proto-gl-dev \
         x11proto-input-dev \
-        x11proto-video-dev \
-        x11proto-scrnsaver-dev \
+        x11proto-randr-dev \
         x11proto-resource-dev \
+        x11proto-scrnsaver-dev \
+        x11proto-video-dev \
         x11proto-xcmisc-dev \
         x11proto-xf86dri-dev \
-        libxkbfile-dev
+        xfonts-utils \
+        xtrans-dev \
+        xutils-dev
+
+    # These are dependencies necessary for using webkit-patch
+    apt-get install \
+        git-svn \
+        subversion
+
+    # ninja is a faster build system than GNU make, but it doesn't
+    # exist on Ubuntu 12.04
+    apt-get install ninja-build || true
 }
 
 function installDependenciesWithYum {
     # These are dependencies necessary for building WebKitGTK+.
     yum install \
+        atk-devel \
         autoconf \
         automake \
         bison \
-        atk-devel \
         cairo-devel \
+        cmake \
         enchant-devel \
         flex \
         fontconfig-devel \
@@ -133,55 +157,69 @@ function installDependenciesWithYum {
         gperf \
         gstreamer1-devel \
         gstreamer1-plugins-base-devel \
+        gtk-doc \
         gtk2-devel \
         gtk3-devel \
-        gtk-doc \
         harfbuzz-devel \
-        libsoup-devel \
+        libXt-devel \
+        libXtst-devel \
+        libgudev1-devel \
         libicu-devel \
         libjpeg-turbo-devel \
         libpng-devel \
         libsecret-devel \
+        libsoup-devel \
         libwebp-devel \
         libxslt-devel \
-        libXt-devel \
-        libXtst-devel \
-        libgudev1-devel \
         mesa-libGL-devel \
+        ninja-build \
         pcre-devel \
-        ruby \
-        sqlite-devel \
         perl-Switch \
         perl-version \
-        python-devel
+        python-devel \
+        ruby \
+        sqlite-devel
 
     # These are dependencies necessary for running tests.
     yum install \
-        httpd \
         curl \
-        mod_bw \
+        httpd \
         libgpg-error-devel \
+        mod_bw \
+        mod_ssl \
+        php \
         pulseaudio-utils \
         pygobject3-base \
-        ruby
+        ruby \
+        rubygem-json \
+        rubygem-highline
 
     # These are dependencies necessary for building the jhbuild.
     yum install \
+        git \
         gobject-introspection \
         icon-naming-utils \
+        itstool \
+        libXfont-devel \
+        libcroco-devel \
         libgcrypt-devel \
         libgpg-error-devel \
         libp11-devel \
+        libpciaccess-devel \
         libtiff-devel \
-        libcroco-devel \
+        libxkbfile-devel \
+        llvm \
         mesa-libEGL-devel \
         ragel \
-        xorg-x11-util-macros \
-        xorg-x11-xtrans-devel \
+        xorg-x11-font-utils \
         xorg-x11-proto-devel \
-        libXfont-devel \
-        libxkbfile-devel \
-        libpciaccess-devel
+        xorg-x11-util-macros \
+        xorg-x11-xtrans-devel
+
+    # These are dependencies necessary for using webkit-patch
+    yum install \
+        git-svn \
+        subversion
 }
 
 checkInstaller

@@ -10,7 +10,7 @@
  * 2.  Redistributions in binary form must reproduce the above copyright
  *     notice, this list of conditions and the following disclaimer in the
  *     documentation and/or other materials provided with the distribution. 
- * 3.  Neither the name of Apple Computer, Inc. ("Apple") nor the names of
+ * 3.  Neither the name of Apple Inc. ("Apple") nor the names of
  *     its contributors may be used to endorse or promote products derived
  *     from this software without specific prior written permission. 
  *
@@ -29,12 +29,24 @@
 #import "config.h"
 #import "TextInputController.h"
 
+#if !PLATFORM(IOS)
+// FIXME: <rdar://problem/5106287> DumpRenderTree: fix TextInputController to work with iOS and re-enable tests
+
 #import "DumpRenderTreeMac.h"
 #import <AppKit/NSInputManager.h>
 #if __MAC_OS_X_VERSION_MIN_REQUIRED >= 1080
 #define SUPPORT_DICTATION_ALTERNATIVES
 #import <AppKit/NSTextAlternatives.h>
 #endif
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= 10100
+#define SUPPORT_INSERTION_UNDO_GROUPING
+#if __has_include(<AppKit/NSTextInputContext_Private.h>)
+#import <AppKit/NSTextInputContext_Private.h>
+#else
+extern "C" NSString *NSTextInsertionUndoableAttributeName;
+#endif
+#endif
+
 #import <WebKit/WebDocument.h>
 #import <WebKit/WebFrame.h>
 #import <WebKit/WebFramePrivate.h>
@@ -54,6 +66,7 @@
 
 @interface WebHTMLView (WebKitSecretsTextInputControllerIsAwareOf)
 - (WebFrame *)_frame;
+- (NSAttributedString *)_attributeStringFromDOMRange:(DOMRange *)range;
 @end
 
 @implementation WebHTMLView (DumpRenderTreeInputMethodHandler)
@@ -66,12 +79,51 @@
 }
 @end
 
+@interface WebNSRange : NSObject {
+@private
+    NSRange _range;
+}
+- (id)initWithNSRange:(NSRange)range;
+- (unsigned)location;
+- (unsigned)length;
+@end
+
+@implementation WebNSRange
+
+- (id)initWithNSRange:(NSRange)range
+{
+    self = [super init];
+    if (!self)
+        return self;
+
+    _range = range;
+    return self;
+}
+
+- (unsigned)location
+{
+    return _range.location;
+}
+
+- (unsigned)length
+{
+    return _range.length;
+}
+
++ (BOOL)isSelectorExcludedFromWebScript:(SEL)selector
+{
+    return !(selector == @selector(location) || selector == @selector(length));
+}
+
+@end
+
 @implementation NSMutableAttributedString (TextInputController)
 
 + (BOOL)isSelectorExcludedFromWebScript:(SEL)aSelector
 {
     if (aSelector == @selector(string)
             || aSelector == @selector(getLength)
+            || aSelector == @selector(ranges)
             || aSelector == @selector(attributeNamesAtIndex:)
             || aSelector == @selector(valueOfAttribute:atIndex:)
             || aSelector == @selector(addAttribute:value:)
@@ -88,6 +140,8 @@
 {
     if (aSelector == @selector(getLength))
         return @"length";
+    if (aSelector == @selector(ranges))
+        return @"ranges";
     if (aSelector == @selector(attributeNamesAtIndex:))
         return @"getAttributeNamesAtIndex";
     if (aSelector == @selector(valueOfAttribute:atIndex:))
@@ -111,6 +165,17 @@
 - (int)getLength
 {
     return (int)[self length];
+}
+
+- (NSArray *)ranges
+{
+    NSMutableArray *array = [NSMutableArray array];
+    [self enumerateAttributesInRange:NSMakeRange(0, [self length]) options:0 usingBlock:^(NSDictionary *attributes, NSRange range, BOOL *stop) {
+        WebNSRange *webRange = [[WebNSRange alloc] initWithNSRange:range];
+        [array addObject:webRange];
+        [webRange release];
+    }];
+    return array;
 }
 
 - (NSArray *)attributeNamesAtIndex:(int)index
@@ -168,6 +233,7 @@
             || aSelector == @selector(conversationIdentifier)
             || aSelector == @selector(substringFrom:length:)
             || aSelector == @selector(attributedSubstringFrom:length:)
+            || aSelector == @selector(legacyAttributedString:)
             || aSelector == @selector(markedRange)
             || aSelector == @selector(selectedRange)
             || aSelector == @selector(firstRectForCharactersFrom:length:)
@@ -175,7 +241,8 @@
             || aSelector == @selector(validAttributesForMarkedText)
             || aSelector == @selector(attributedStringWithString:)
             || aSelector == @selector(setInputMethodHandler:)
-            || aSelector == @selector(dictatedStringWithPrimaryString:alternative:alternativeOffset:alternativeLength:))
+            || aSelector == @selector(dictatedStringWithPrimaryString:alternative:alternativeOffset:alternativeLength:)
+            || aSelector == @selector(stringWithUndoGroupingInsertion:))
         return NO;
     return YES;
 }
@@ -192,6 +259,8 @@
         return @"substringFromRange";
     else if (aSelector == @selector(attributedSubstringFrom:length:))
         return @"attributedSubstringFromRange";
+    else if (aSelector == @selector(legacyAttributedString:))
+        return @"legacyAttributedString";
     else if (aSelector == @selector(firstRectForCharactersFrom:length:))
         return @"firstRectForCharacterRange";
     else if (aSelector == @selector(characterIndexForPointX:Y:))
@@ -202,6 +271,8 @@
         return @"setInputMethodHandler";
     else if (aSelector == @selector(dictatedStringWithPrimaryString:alternative:alternativeOffset:alternativeLength:))
         return @"makeDictatedString";
+    else if (aSelector == @selector(stringWithUndoGroupingInsertion:))
+        return @"makeUndoGroupingInsertionString";
 
     return nil;
 }
@@ -303,6 +374,17 @@
     return ret;
 }
 
+- (NSMutableAttributedString *)legacyAttributedString:(DOMRange*)range
+{
+    NSMutableAttributedString *string = [[[NSMutableAttributedString alloc] init] autorelease];
+    id documentView = [[[webView mainFrame] frameView] documentView];
+    if (![documentView isKindOfClass:[WebHTMLView class]])
+        return string;
+
+    [string setAttributedString:[(WebHTMLView *)documentView _attributeStringFromDOMRange:range]];
+    return string;
+}
+
 - (NSArray *)markedRange
 {
     NSObject <NSTextInput> *textInput = [self textInput];
@@ -382,6 +464,17 @@
     return [[[NSMutableAttributedString alloc] initWithString:aString] autorelease];
 }
 
+- (NSMutableAttributedString*)stringWithUndoGroupingInsertion:(NSString*)aString
+{
+#if defined(SUPPORT_INSERTION_UNDO_GROUPING) && defined(SUPPORT_DICTATION_ALTERNATIVES)
+    NSMutableAttributedString* attributedString = [self dictatedStringWithPrimaryString:aString alternative:@"test" alternativeOffset:0 alternativeLength:1];
+    [attributedString addAttribute:NSTextInsertionUndoableAttributeName value:@YES range:NSMakeRange(0, [attributedString length])];
+    return attributedString;
+#else
+    return nil;
+#endif
+}
+
 - (NSMutableAttributedString*)dictatedStringWithPrimaryString:(NSString*)aString alternative:(NSString*)alternative alternativeOffset:(int)offset alternativeLength:(int)length
 {
 #if defined(SUPPORT_DICTATION_ALTERNATIVES)
@@ -457,3 +550,5 @@
 }
 
 @end
+
+#endif // !PLATFORM(IOS)

@@ -7,11 +7,8 @@ include("../header.inc");
 <h4>Mac OS X</h4>
 <ol>
 <li><p>Install Xcode</p>
-<p>Get Xcode from <a target="installtools" href="https://developer.apple.com/downloads">https://developer.apple.com/downloads</a>.  Xcode 3.1.4 or later is required to build.</p>
-<li><p>Install the Xcode Command Line Tools (located under Xcode Preferences > Downloads)</p>
-  <p><b>Note:</b> Before you can use the Xcode 4.3.2 tools, you must either run <code>sudo xcode-select -switch /Applications/Xcode.app</code> or
-set the environment variable DEVELOPER_DIR to <code>/Applications/Xcode.app/Contents/Developer</code>. See <a href="x-man-page://xcode-select">the <code>xcode-select</code> man page</a> for more details.</p>
-  <p><b>Note:</b> This step is not required for versions of Xcode earlier than 4.3.</p>
+<p>Get Xcode from <a target="installtools" href="https://developer.apple.com/downloads">https://developer.apple.com/downloads</a>. Xcode 5.0 or later is required to build.</p>
+<li><p>Install the Xcode Command Line Tools by running <code>xcode-select --install</code> in the Terminal.</p>
 <li><p>Install Java for Mac OS X Developer Package</p>
 <p>Download and install the latest OS-appropriate &ldquo;Java for Mac OS X Developer Package&rdquo; from <a target="installtools" href="https://developer.apple.com/downloads">https://developer.apple.com/downloads</a>.</p>
 </ol>
@@ -20,10 +17,8 @@ set the environment variable DEVELOPER_DIR to <code>/Applications/Xcode.app/Cont
 <div class="windows-instructions">
 <h4>Windows</h4>
 <ol>
-<li><p>You can build with either Visual Studio 2010 or Visual Studio 2010 express. (Newer versions currently unsupported)</p>
-<p>Install <a target="installtools" href="http://www.microsoft.com/en-us/download/details.aspx?id=23691">Microsoft Visual Studio 2010 Service Pack 1</a>.</p>
-<p>If you are building from Vista, install <a target="installtools" href="http://www.microsoft.com/downloads/details.aspx?FamilyID=90e2942d-3ad1-4873-a2ee-4acc0aace5b6&amp;displaylang=en">Service Pack 1 Update for Windows Vista</a>.</p>
-<p>Use the default options for these installations.</p>
+<li><p>You can build with either Visual Studio 2013 or Visual Studio 2013 express. (Newer versions currently unsupported)</p>
+<p>Use the default options for the installation.</p>
 
 <li><p>Install Cygwin</p>
 <p>Cygwin is a collection of utilities for Windows that includes not only a Subversion
@@ -64,13 +59,16 @@ Those lines would prevent picking up the Windows TMP and TEMP environment variab
 <p>If you are behind a proxy you need to do the following to allow cygwin svn to get through the proxy (similar steps are available for your Windows svn):
 <ul><li>In bash (Cygwin) run: <code>svn help</code>. This will create in your cygwin home directory the file .subversion/servers.</li>
 <li>Edit the file mentioned above and follow the instructions in the file to set up your proxy settings.</li></ul></p>
-<li><p>Install QuickTime SDK</p>
-<p>Download QuickTime SDK for Windows from <a href="http://developer.apple.com/quicktime/download/">http://developer.apple.com/quicktime/download/</a> and install it to the default location (\Program Files\QuickTime SDK). This is needed for media support.
-
 <li><p>Install DirectX SDK</p>
-<p>Download the <a href="http://www.microsoft.com/en-us/download/details.aspx?id=6812">June 2010 DirectX SDK</a>  This is needed for accelerated compositing.</p>
-</p>
-
+<p>Download the <a href="http://www.microsoft.com/en-us/download/details.aspx?id=6812">June 2010 DirectX SDK</a>  This is needed for accelerated compositing.</p></li>
+<li><p>Install php, we use the following steps (you need this to run http layout tests):</p>
+<ol>
+<li>cd /usr/local/bin</li>
+<li>wget http://apt-cyg.googlecode.com/svn/trunk/apt-cyg</li>
+<li>chmod a+x apt-cyg</li>
+<li>Change line 341 of the apt-cyg script to "wget -nc $mirror/../$install"</li>
+<li>apt-cyg -m ftp://sourceware.org/pub/cygwinports/x86 install php</li>
+</ol>
 <li><p>Optional: Install the 32-bit version of Debugging Tools for Windows</p>
 <p>Debugging Tools for Windows includes many useful debugging tools such as WinDbg and NTSD. Some of WebKit&rsquo;s tests and scripts use these tools. Follow the <a target="installtools" href="http://www.microsoft.com/whdc/devtools/debugging/installx86.mspx#b">instructions for installing the 32-bit version of Debugging Tools for Windows</a>.</p>
 <li><p>Optional: Hotfix for 64-bit Windows to disable the user-mode callback filter for exceptions</p>
@@ -81,11 +79,6 @@ Those lines would prevent picking up the Windows TMP and TEMP environment variab
 <div class="gtk-instructions">
 <h4>GTK</h4>
 Follow the instructions on the <a href="http://trac.webkit.org/wiki/BuildingGtk">BuildingGTK</a> wiki page.
-</div>
-
-<div class="qt-instructions">
-<h4>QT</h4>
-Follow the instructions on the <a href="http://trac.webkit.org/wiki/QtWebKit">QtWebKit</a> wiki page.
 </div>
 
 <div class="efl-instructions">

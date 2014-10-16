@@ -26,11 +26,11 @@
 #include "config.h"
 #include "InjectedBundleTest.h"
 #include "PlatformUtilities.h"
-#include <WebKit2/WKBundle.h>
-#include <WebKit2/WKBundleFramePrivate.h>
-#include <WebKit2/WKBundleHitTestResult.h>
-#include <WebKit2/WKBundlePage.h>
-#include <WebKit2/WKRetainPtr.h>
+#include <WebKit/WKBundle.h>
+#include <WebKit/WKBundleFramePrivate.h>
+#include <WebKit/WKBundleHitTestResult.h>
+#include <WebKit/WKBundlePage.h>
+#include <WebKit/WKRetainPtr.h>
 
 namespace TestWebKitAPI {
 
@@ -41,7 +41,7 @@ public:
     {
     }
 
-    virtual void didCreatePage(WKBundleRef, WKBundlePageRef) OVERRIDE;
+    virtual void didCreatePage(WKBundleRef, WKBundlePageRef) override;
     void frameLoadFinished(WKBundleFrameRef);
 
     WKBundleRef m_bundle;
@@ -58,14 +58,14 @@ void InjectedBundleFrameHitTestTest::didCreatePage(WKBundleRef bundle, WKBundleP
 {
     m_bundle = bundle;
 
-    WKBundlePageLoaderClient pageLoaderClient;
+    WKBundlePageLoaderClientV1 pageLoaderClient;
     memset(&pageLoaderClient, 0, sizeof(pageLoaderClient));
     
-    pageLoaderClient.version = 1;
-    pageLoaderClient.clientInfo = this;
+    pageLoaderClient.base.version = 1;
+    pageLoaderClient.base.clientInfo = this;
     pageLoaderClient.didFinishLoadForFrame = didFinishLoadForFrameCallback;
 
-    WKBundlePageSetPageLoaderClient(page, &pageLoaderClient);
+    WKBundlePageSetPageLoaderClient(page, &pageLoaderClient.base);
 }
 
 void InjectedBundleFrameHitTestTest::frameLoadFinished(WKBundleFrameRef frame)

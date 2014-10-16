@@ -21,6 +21,7 @@
 
 #if USE(GLIB)
 
+#include <glib-object.h>
 #include <glib.h>
 
 namespace WTF {
@@ -63,7 +64,6 @@ template <> void derefGPtr(GMainLoop* ptr)
         g_main_loop_unref(ptr);
 }
 
-#if GLIB_CHECK_VERSION(2, 32, 0)
 template <> GBytes* refGPtr(GBytes* ptr)
 {
     if (ptr)
@@ -77,27 +77,10 @@ template <> void derefGPtr(GBytes* ptr)
         g_bytes_unref(ptr);
 }
 
-# else
-
-typedef struct _GBytes {
-    bool fake;
-} GBytes;
-
-template <> GBytes* refGPtr(GBytes* ptr)
-{
-    return ptr;
-}
-
-template <> void derefGPtr(GBytes* ptr)
-{
-}
-
-#endif
-
 template <> GVariant* refGPtr(GVariant* ptr)
 {
     if (ptr)
-        g_variant_ref(ptr);
+        g_variant_ref_sink(ptr);
     return ptr;
 }
 
@@ -143,6 +126,19 @@ template <> void derefGPtr(GByteArray* ptr)
 {
     if (ptr)
         g_byte_array_unref(ptr);
+}
+
+template <> GClosure* refGPtr(GClosure* ptr)
+{
+    if (ptr)
+        g_closure_ref(ptr);
+    return ptr;
+}
+
+template <> void derefGPtr(GClosure* ptr)
+{
+    if (ptr)
+        g_closure_unref(ptr);
 }
 
 } // namespace WTF

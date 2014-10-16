@@ -25,6 +25,9 @@
 
 #import "config.h"
 #import "AccessibilityCommonMac.h"
+
+#if HAVE(ACCESSIBILITY)
+
 #import "AccessibilityNotificationHandler.h"
 #import "AccessibilityUIElement.h"
 #import "InjectedBundle.h"
@@ -36,7 +39,7 @@
 #import <JavaScriptCore/JSStringRef.h>
 #import <JavaScriptCore/JSStringRefCF.h>
 #import <JavaScriptCore/JSObjectRef.h>
-#import <WebKit2/WKBundleFrame.h>
+#import <WebKit/WKBundleFrame.h>
 #import <wtf/RetainPtr.h>
 #import <wtf/Vector.h>
 
@@ -55,6 +58,15 @@
 
 #ifndef NSAccessibilityPathAttribute
 #define NSAccessibilityPathAttribute @"AXPath"
+#endif
+
+// Text
+#ifndef NSAccessibilityEndTextMarkerForBoundsParameterizedAttribute
+#define NSAccessibilityEndTextMarkerForBoundsParameterizedAttribute @"AXEndTextMarkerForBounds"
+#endif
+
+#ifndef NSAccessibilityStartTextMarkerForBoundsParameterizedAttribute
+#define NSAccessibilityStartTextMarkerForBoundsParameterizedAttribute @"AXStartTextMarkerForBounds"
 #endif
 
 typedef void (*AXPostedNotificationCallback)(id element, NSString* notification, void* context);
@@ -164,6 +176,17 @@ static NSString* attributesOfElement(id accessibilityObject)
     return attributesString;
 }
 
+static JSValueRef convertElementsToObjectArray(JSContextRef context, Vector<RefPtr<AccessibilityUIElement>>& elements)
+{
+    JSValueRef arrayResult = JSObjectMakeArray(context, 0, 0, 0);
+    JSObjectRef arrayObj = JSValueToObject(context, arrayResult, 0);
+    size_t elementCount = elements.size();
+    for (size_t i = 0; i < elementCount; ++i)
+        JSObjectSetPropertyAtIndex(context, arrayObj, i, JSObjectMake(context, elements[i]->wrapperClass(), elements[i].get()), 0);
+    
+    return arrayResult;
+}
+
 static JSStringRef concatenateAttributeAndValue(NSString* attribute, NSString* value)
 {
     Vector<UniChar> buffer([attribute length]);
@@ -198,6 +221,102 @@ static JSStringRef descriptionOfElements(Vector<RefPtr<AccessibilityUIElement> >
     return [allElementString createJSStringRef];
 }
 
+static NSDictionary *searchPredicateParameterizedAttributeForSearchCriteria(JSContextRef context, AccessibilityUIElement *startElement, bool isDirectionNext, unsigned resultsLimit, JSValueRef searchKey, JSStringRef searchText, bool visibleOnly, bool immediateDescendantsOnly)
+{
+    NSMutableDictionary *parameterizedAttribute = [NSMutableDictionary dictionary];
+    
+    if (startElement && startElement->platformUIElement())
+        [parameterizedAttribute setObject:(id)startElement->platformUIElement() forKey:@"AXStartElement"];
+    
+    [parameterizedAttribute setObject:(isDirectionNext) ? @"AXDirectionNext" : @"AXDirectionPrevious" forKey:@"AXDirection"];
+    
+    [parameterizedAttribute setObject:@(resultsLimit) forKey:@"AXResultsLimit"];
+    
+    if (searchKey) {
+        id searchKeyParameter = nil;
+        if (JSValueIsString(context, searchKey)) {
+            JSRetainPtr<JSStringRef> searchKeyString(Adopt, JSValueToStringCopy(context, searchKey, nullptr));
+            if (searchKeyString)
+                searchKeyParameter = [NSString stringWithJSStringRef:searchKeyString.get()];
+        }
+        else if (JSValueIsObject(context, searchKey)) {
+            JSObjectRef searchKeyArray = JSValueToObject(context, searchKey, nullptr);
+            unsigned searchKeyArrayLength = 0;
+            
+            JSRetainPtr<JSStringRef> lengthPropertyString(Adopt, JSStringCreateWithUTF8CString("length"));
+            JSValueRef searchKeyArrayLengthValue = JSObjectGetProperty(context, searchKeyArray, lengthPropertyString.get(), nullptr);
+            if (searchKeyArrayLengthValue && JSValueIsNumber(context, searchKeyArrayLengthValue))
+                searchKeyArrayLength = static_cast<unsigned>(JSValueToNumber(context, searchKeyArrayLengthValue, nullptr));
+            
+            for (unsigned i = 0; i < searchKeyArrayLength; ++i) {
+                JSValueRef searchKeyValue = JSObjectGetPropertyAtIndex(context, searchKeyArray, i, nullptr);
+                JSStringRef searchKeyString = JSValueToStringCopy(context, searchKeyValue, nullptr);
+                if (searchKeyString) {
+                    if (!searchKeyParameter)
+                        searchKeyParameter = [NSMutableArray array];
+                    [searchKeyParameter addObject:[NSString stringWithJSStringRef:searchKeyString]];
+                    JSStringRelease(searchKeyString);
+                }
+            }
+        }
+        if (searchKeyParameter)
+            [parameterizedAttribute setObject:searchKeyParameter forKey:@"AXSearchKey"];
+    }
+    
+    if (searchText && JSStringGetLength(searchText))
+        [parameterizedAttribute setObject:[NSString stringWithJSStringRef:searchText] forKey:@"AXSearchText"];
+    
+    [parameterizedAttribute setObject:@(visibleOnly) forKey:@"AXVisibleOnly"];
+    
+    [parameterizedAttribute setObject:@(immediateDescendantsOnly) forKey:@"AXImmediateDescendantsOnly"];
+    
+    return parameterizedAttribute;
+}
+
+static NSDictionary *selectTextParameterizedAttributeForCriteria(JSContextRef context, JSStringRef ambiguityResolution, JSValueRef searchStrings, JSStringRef replacementString, JSStringRef activity)
+{
+    NSMutableDictionary *parameterizedAttribute = [NSMutableDictionary dictionary];
+    
+    if (ambiguityResolution)
+        [parameterizedAttribute setObject:[NSString stringWithJSStringRef:ambiguityResolution] forKey:@"AXSelectTextAmbiguityResolution"];
+    
+    if (searchStrings) {
+        NSMutableArray *searchStringsParameter = [NSMutableArray array];
+        if (JSValueIsString(context, searchStrings)) {
+            JSRetainPtr<JSStringRef> searchStringsString(Adopt, JSValueToStringCopy(context, searchStrings, nullptr));
+            if (searchStringsString)
+                [searchStringsParameter addObject:[NSString stringWithJSStringRef:searchStringsString.get()]];
+        }
+        else if (JSValueIsObject(context, searchStrings)) {
+            JSObjectRef searchStringsArray = JSValueToObject(context, searchStrings, nullptr);
+            unsigned searchStringsArrayLength = 0;
+            
+            JSRetainPtr<JSStringRef> lengthPropertyString(Adopt, JSStringCreateWithUTF8CString("length"));
+            JSValueRef searchStringsArrayLengthValue = JSObjectGetProperty(context, searchStringsArray, lengthPropertyString.get(), nullptr);
+            if (searchStringsArrayLengthValue && JSValueIsNumber(context, searchStringsArrayLengthValue))
+                searchStringsArrayLength = static_cast<unsigned>(JSValueToNumber(context, searchStringsArrayLengthValue, nullptr));
+            
+            for (unsigned i = 0; i < searchStringsArrayLength; ++i) {
+                JSRetainPtr<JSStringRef> searchStringsString(Adopt, JSValueToStringCopy(context, JSObjectGetPropertyAtIndex(context, searchStringsArray, i, nullptr), nullptr));
+                if (searchStringsString)
+                    [searchStringsParameter addObject:[NSString stringWithJSStringRef:searchStringsString.get()]];
+            }
+        }
+        [parameterizedAttribute setObject:searchStringsParameter forKey:@"AXSelectTextSearchStrings"];
+    }
+    
+    if (replacementString) {
+        [parameterizedAttribute setObject:@"AXSelectTextActivityFindAndReplace" forKey:@"AXSelectTextActivity"];
+        [parameterizedAttribute setObject:[NSString stringWithJSStringRef:replacementString] forKey:@"AXSelectTextReplacementString"];
+    } else
+        [parameterizedAttribute setObject:@"AXSelectTextActivityFindAndSelect" forKey:@"AXSelectTextActivity"];
+    
+    if (activity)
+        [parameterizedAttribute setObject:[NSString stringWithJSStringRef:activity] forKey:@"AXSelectTextActivity"];
+    
+    return parameterizedAttribute;
+}
+
 void AccessibilityUIElement::getLinkedUIElements(Vector<RefPtr<AccessibilityUIElement> >& elementVector)
 {
     BEGIN_AX_OBJC_EXCEPTIONS
@@ -211,6 +330,15 @@ void AccessibilityUIElement::getDocumentLinks(Vector<RefPtr<AccessibilityUIEleme
     BEGIN_AX_OBJC_EXCEPTIONS
     NSArray* linkElements = [m_element accessibilityAttributeValue:@"AXLinkUIElements"];
     convertNSArrayToVector(linkElements, elementVector);
+    END_AX_OBJC_EXCEPTIONS
+}
+
+void AccessibilityUIElement::getUIElementsWithAttribute(JSStringRef attribute, Vector<RefPtr<AccessibilityUIElement> >& elements) const
+{
+    BEGIN_AX_OBJC_EXCEPTIONS
+    id value = [m_element accessibilityAttributeValue:[NSString stringWithJSStringRef:attribute]];
+    if ([value isKindOfClass:[NSArray class]])
+        convertNSArrayToVector(value, elements);
     END_AX_OBJC_EXCEPTIONS
 }
 
@@ -230,6 +358,34 @@ void AccessibilityUIElement::getChildrenWithRange(Vector<RefPtr<AccessibilityUIE
     END_AX_OBJC_EXCEPTIONS
 }
 
+JSValueRef AccessibilityUIElement::rowHeaders() const
+{
+    WKBundleFrameRef mainFrame = WKBundlePageGetMainFrame(InjectedBundle::shared().page()->page());
+    JSContextRef context = WKBundleFrameGetJavaScriptContext(mainFrame);
+    
+    BEGIN_AX_OBJC_EXCEPTIONS
+    Vector<RefPtr<AccessibilityUIElement>> elements;
+    id value = [m_element accessibilityAttributeValue:NSAccessibilityRowHeaderUIElementsAttribute];
+    if ([value isKindOfClass:[NSArray class]])
+        convertNSArrayToVector(value, elements);
+    return convertElementsToObjectArray(context, elements);
+    END_AX_OBJC_EXCEPTIONS
+}
+
+JSValueRef AccessibilityUIElement::columnHeaders() const
+{
+    WKBundleFrameRef mainFrame = WKBundlePageGetMainFrame(InjectedBundle::shared().page()->page());
+    JSContextRef context = WKBundleFrameGetJavaScriptContext(mainFrame);
+
+    BEGIN_AX_OBJC_EXCEPTIONS
+    Vector<RefPtr<AccessibilityUIElement>> elements;
+    id value = [m_element accessibilityAttributeValue:NSAccessibilityColumnHeaderUIElementsAttribute];
+    if ([value isKindOfClass:[NSArray class]])
+        convertNSArrayToVector(value, elements);
+    return convertElementsToObjectArray(context, elements);
+    END_AX_OBJC_EXCEPTIONS
+}
+    
 int AccessibilityUIElement::childrenCount()
 {
     Vector<RefPtr<AccessibilityUIElement> > children;
@@ -259,7 +415,7 @@ PassRefPtr<AccessibilityUIElement> AccessibilityUIElement::childAtIndex(unsigned
 
     if (children.size() == 1)
         return children[0];
-    return 0;
+    return nullptr;
 }
 
 PassRefPtr<AccessibilityUIElement> AccessibilityUIElement::linkedUIElementAtIndex(unsigned index)
@@ -270,7 +426,7 @@ PassRefPtr<AccessibilityUIElement> AccessibilityUIElement::linkedUIElementAtInde
         return AccessibilityUIElement::create([objects objectAtIndex:index]);
     END_AX_OBJC_EXCEPTIONS
     
-    return 0;
+    return nullptr;
 }
 
 PassRefPtr<AccessibilityUIElement> AccessibilityUIElement::ariaOwnsElementAtIndex(unsigned index)
@@ -281,7 +437,7 @@ PassRefPtr<AccessibilityUIElement> AccessibilityUIElement::ariaOwnsElementAtInde
         return AccessibilityUIElement::create([objects objectAtIndex:index]);
     END_AX_OBJC_EXCEPTIONS
     
-    return 0;
+    return nullptr;
 }
 
 PassRefPtr<AccessibilityUIElement> AccessibilityUIElement::ariaFlowToElementAtIndex(unsigned index)
@@ -292,7 +448,13 @@ PassRefPtr<AccessibilityUIElement> AccessibilityUIElement::ariaFlowToElementAtIn
         return AccessibilityUIElement::create([objects objectAtIndex:index]);
     END_AX_OBJC_EXCEPTIONS
     
-    return 0;
+    return nullptr;
+}
+
+PassRefPtr<AccessibilityUIElement> AccessibilityUIElement::ariaControlsElementAtIndex(unsigned index)
+{
+    // FIXME: implement
+    return nullptr;
 }
 
 PassRefPtr<AccessibilityUIElement> AccessibilityUIElement::disclosedRowAtIndex(unsigned index)
@@ -303,7 +465,7 @@ PassRefPtr<AccessibilityUIElement> AccessibilityUIElement::disclosedRowAtIndex(u
         return AccessibilityUIElement::create([rows objectAtIndex:index]);
     END_AX_OBJC_EXCEPTIONS
 
-    return 0;
+    return nullptr;
 }
     
 PassRefPtr<AccessibilityUIElement> AccessibilityUIElement::rowAtIndex(unsigned index)
@@ -314,7 +476,7 @@ PassRefPtr<AccessibilityUIElement> AccessibilityUIElement::rowAtIndex(unsigned i
         return AccessibilityUIElement::create([rows objectAtIndex:index]);
     END_AX_OBJC_EXCEPTIONS
     
-    return 0;
+    return nullptr;
 }
 
 PassRefPtr<AccessibilityUIElement> AccessibilityUIElement::selectedChildAtIndex(unsigned index) const
@@ -325,7 +487,7 @@ PassRefPtr<AccessibilityUIElement> AccessibilityUIElement::selectedChildAtIndex(
         return AccessibilityUIElement::create([array objectAtIndex:index]);
     END_AX_OBJC_EXCEPTIONS
     
-    return 0;
+    return nullptr;
 }
 
 unsigned AccessibilityUIElement::selectedChildrenCount() const
@@ -345,7 +507,7 @@ PassRefPtr<AccessibilityUIElement> AccessibilityUIElement::selectedRowAtIndex(un
         return AccessibilityUIElement::create([rows objectAtIndex:index]);
     END_AX_OBJC_EXCEPTIONS
     
-    return 0;
+    return nullptr;
 }
 
 PassRefPtr<AccessibilityUIElement> AccessibilityUIElement::titleUIElement()
@@ -356,7 +518,7 @@ PassRefPtr<AccessibilityUIElement> AccessibilityUIElement::titleUIElement()
         return AccessibilityUIElement::create(accessibilityObject);
     END_AX_OBJC_EXCEPTIONS
     
-    return 0;
+    return nullptr;
 }
 
 PassRefPtr<AccessibilityUIElement> AccessibilityUIElement::parentElement()
@@ -367,7 +529,7 @@ PassRefPtr<AccessibilityUIElement> AccessibilityUIElement::parentElement()
         return AccessibilityUIElement::create(accessibilityObject);
     END_AX_OBJC_EXCEPTIONS
     
-    return 0;
+    return nullptr;
 }
 
 PassRefPtr<AccessibilityUIElement> AccessibilityUIElement::disclosedByRow()
@@ -378,7 +540,7 @@ PassRefPtr<AccessibilityUIElement> AccessibilityUIElement::disclosedByRow()
         return AccessibilityUIElement::create(accessibilityObject);
     END_AX_OBJC_EXCEPTIONS
     
-    return 0;
+    return nullptr;
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::attributesOfLinkedUIElements()
@@ -416,7 +578,7 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::stringAttributeValue(JSStringRe
         return [value createJSStringRef];
     END_AX_OBJC_EXCEPTIONS
 
-    return 0;
+    return nullptr;
 }
 
 double AccessibilityUIElement::numberAttributeValue(JSStringRef attribute)
@@ -430,6 +592,16 @@ double AccessibilityUIElement::numberAttributeValue(JSStringRef attribute)
     return 0;
 }
 
+JSValueRef AccessibilityUIElement::uiElementArrayAttributeValue(JSStringRef attribute) const
+{
+    WKBundleFrameRef mainFrame = WKBundlePageGetMainFrame(InjectedBundle::shared().page()->page());
+    JSContextRef context = WKBundleFrameGetJavaScriptContext(mainFrame);
+    
+    Vector<RefPtr<AccessibilityUIElement>> elements;
+    getUIElementsWithAttribute(attribute, elements);
+    return convertElementsToObjectArray(context, elements);
+}
+
 PassRefPtr<AccessibilityUIElement> AccessibilityUIElement::uiElementAttributeValue(JSStringRef attribute) const
 {
     BEGIN_AX_OBJC_EXCEPTIONS
@@ -437,7 +609,7 @@ PassRefPtr<AccessibilityUIElement> AccessibilityUIElement::uiElementAttributeVal
     return AccessibilityUIElement::create(uiElement);
     END_AX_OBJC_EXCEPTIONS
     
-    return 0;
+    return nullptr;
 }
     
 bool AccessibilityUIElement::boolAttributeValue(JSStringRef attribute)
@@ -488,7 +660,7 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::role()
     return concatenateAttributeAndValue(@"AXRole", role);
     END_AX_OBJC_EXCEPTIONS
     
-    return 0;
+    return nullptr;
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::subrole()
@@ -498,7 +670,7 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::subrole()
     return concatenateAttributeAndValue(@"AXSubrole", role);
     END_AX_OBJC_EXCEPTIONS
 
-    return 0;
+    return nullptr;
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::roleDescription()
@@ -508,7 +680,17 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::roleDescription()
     return concatenateAttributeAndValue(@"AXRoleDescription", role);
     END_AX_OBJC_EXCEPTIONS
     
-    return 0;
+    return nullptr;
+}
+
+JSRetainPtr<JSStringRef> AccessibilityUIElement::computedRoleString()
+{
+    BEGIN_AX_OBJC_EXCEPTIONS
+    NSString *computedRoleString = descriptionOfValue([m_element accessibilityAttributeValue:@"AXARIARole"], m_element);
+    return [computedRoleString createJSStringRef];
+    END_AX_OBJC_EXCEPTIONS
+    
+    return nullptr;
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::title()
@@ -518,7 +700,7 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::title()
     return concatenateAttributeAndValue(@"AXTitle", title);
     END_AX_OBJC_EXCEPTIONS
 
-    return 0;
+    return nullptr;
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::description()
@@ -528,7 +710,7 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::description()
     return concatenateAttributeAndValue(@"AXDescription", description);
     END_AX_OBJC_EXCEPTIONS
 
-    return 0;
+    return nullptr;
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::orientation() const
@@ -538,7 +720,7 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::orientation() const
     return concatenateAttributeAndValue(@"AXOrientation", description);    
     END_AX_OBJC_EXCEPTIONS
 
-    return 0;
+    return nullptr;
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::stringValue()
@@ -548,7 +730,7 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::stringValue()
     return concatenateAttributeAndValue(@"AXValue", description);
     END_AX_OBJC_EXCEPTIONS
 
-    return 0;
+    return nullptr;
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::language()
@@ -558,7 +740,7 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::language()
     return concatenateAttributeAndValue(@"AXLanguage", description);
     END_AX_OBJC_EXCEPTIONS
 
-    return 0;
+    return nullptr;
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::helpText() const
@@ -568,7 +750,7 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::helpText() const
     return concatenateAttributeAndValue(@"AXHelp", description);
     END_AX_OBJC_EXCEPTIONS
     
-    return 0;
+    return nullptr;
 }
 
 double AccessibilityUIElement::x()
@@ -669,10 +851,10 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::valueDescription()
     BEGIN_AX_OBJC_EXCEPTIONS
     NSString* valueDescription = [m_element accessibilityAttributeValue:NSAccessibilityValueDescriptionAttribute];
     if ([valueDescription isKindOfClass:[NSString class]])
-         return [valueDescription createJSStringRef];
-
+        return concatenateAttributeAndValue(@"AXValueDescription", valueDescription);
     END_AX_OBJC_EXCEPTIONS
-    return 0;
+    
+    return nullptr;
 }
 
 int AccessibilityUIElement::insertionPointLineNumber()
@@ -740,7 +922,12 @@ bool AccessibilityUIElement::isRequired() const
 
 bool AccessibilityUIElement::isFocused() const
 {
-    // FIXME: implement
+    BEGIN_AX_OBJC_EXCEPTIONS
+    id value = [m_element accessibilityAttributeValue:NSAccessibilityFocusedAttribute];
+    if ([value isKindOfClass:[NSNumber class]])
+        return [value boolValue];
+    END_AX_OBJC_EXCEPTIONS
+    
     return false;
 }
 
@@ -753,6 +940,23 @@ bool AccessibilityUIElement::isSelected() const
     END_AX_OBJC_EXCEPTIONS
     
     return false;
+}
+
+bool AccessibilityUIElement::isSelectedOptionActive() const
+{
+    // FIXME: implement
+    return false;
+}
+
+bool AccessibilityUIElement::isIndeterminate() const
+{
+    BOOL result = NO;
+    BEGIN_AX_OBJC_EXCEPTIONS
+    id value = [m_element accessibilityAttributeValue:NSAccessibilityValueAttribute];
+    if ([value isKindOfClass:[NSNumber class]])
+        result = [value intValue] == 2;
+    END_AX_OBJC_EXCEPTIONS
+    return result;
 }
 
 bool AccessibilityUIElement::isExpanded() const
@@ -782,6 +986,27 @@ int AccessibilityUIElement::hierarchicalLevel() const
 
     return 0;
 }
+    
+JSRetainPtr<JSStringRef> AccessibilityUIElement::classList() const
+{
+    BEGIN_AX_OBJC_EXCEPTIONS
+    id value = [m_element accessibilityAttributeValue:@"AXDOMClassList"];
+    if (![value isKindOfClass:[NSArray class]])
+        return nullptr;
+    
+    NSMutableString* classList = [NSMutableString string];
+    NSInteger length = [value count];
+    for (NSInteger k = 0; k < length; ++k) {
+        [classList appendString:[value objectAtIndex:k]];
+        if (k < length - 1)
+            [classList appendString:@", "];
+    }
+    
+    return [classList createJSStringRef];
+    END_AX_OBJC_EXCEPTIONS
+    
+    return nullptr;
+}
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::speak()
 {
@@ -791,7 +1016,7 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::speak()
         return [value createJSStringRef];
     END_AX_OBJC_EXCEPTIONS
         
-    return 0;
+    return nullptr;
 }
 
 bool AccessibilityUIElement::ariaIsGrabbed() const
@@ -810,7 +1035,7 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::ariaDropEffects() const
     BEGIN_AX_OBJC_EXCEPTIONS
     id value = [m_element accessibilityAttributeValue:NSAccessibilityDropEffectsAttribute];
     if (![value isKindOfClass:[NSArray class]])
-        return 0;
+        return nullptr;
 
     NSMutableString* dropEffects = [NSMutableString string];
     NSInteger length = [value count];
@@ -823,7 +1048,7 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::ariaDropEffects() const
     return [dropEffects createJSStringRef];
     END_AX_OBJC_EXCEPTIONS
     
-    return 0;
+    return nullptr;
 }
 
 // parameterized attributes
@@ -846,7 +1071,7 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::rangeForLine(int line)
         return [NSStringFromRange([value rangeValue]) createJSStringRef];
     END_AX_OBJC_EXCEPTIONS
     
-    return 0;
+    return nullptr;
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::rangeForPosition(int x, int y)
@@ -857,7 +1082,7 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::rangeForPosition(int x, int y)
         return [NSStringFromRange([value rangeValue]) createJSStringRef];
     END_AX_OBJC_EXCEPTIONS
 
-    return 0;
+    return nullptr;
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::boundsForRange(unsigned location, unsigned length)
@@ -874,7 +1099,7 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::boundsForRange(unsigned locatio
     return [boundsDescription createJSStringRef];
     END_AX_OBJC_EXCEPTIONS
     
-    return 0;
+    return nullptr;
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::stringForRange(unsigned location, unsigned length)
@@ -883,12 +1108,12 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::stringForRange(unsigned locatio
     BEGIN_AX_OBJC_EXCEPTIONS
     id string = [m_element accessibilityAttributeValue:NSAccessibilityStringForRangeParameterizedAttribute forParameter:[NSValue valueWithRange:range]];
     if (![string isKindOfClass:[NSString class]])
-        return 0;
+        return nullptr;
     
     return [string createJSStringRef];
     END_AX_OBJC_EXCEPTIONS
     
-    return 0;
+    return nullptr;
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::attributedStringForRange(unsigned location, unsigned length)
@@ -897,13 +1122,13 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::attributedStringForRange(unsign
     BEGIN_AX_OBJC_EXCEPTIONS
     NSAttributedString* string = [m_element accessibilityAttributeValue:NSAccessibilityAttributedStringForRangeParameterizedAttribute forParameter:[NSValue valueWithRange:range]];
     if (![string isKindOfClass:[NSAttributedString class]])
-        return 0;
+        return nullptr;
     
     NSString* stringWithAttrs = [string description];
     return [stringWithAttrs createJSStringRef];
     END_AX_OBJC_EXCEPTIONS
     
-    return 0;
+    return nullptr;
 }
 
 bool AccessibilityUIElement::attributedStringRangeIsMisspelled(unsigned location, unsigned length)
@@ -926,63 +1151,40 @@ bool AccessibilityUIElement::attributedStringRangeIsMisspelled(unsigned location
     return false;
 }
 
-PassRefPtr<AccessibilityUIElement> AccessibilityUIElement::uiElementForSearchPredicate(JSContextRef context, AccessibilityUIElement* startElement, bool isDirectionNext, JSValueRef searchKey, JSStringRef searchText, bool visibleOnly)
+unsigned AccessibilityUIElement::uiElementCountForSearchPredicate(JSContextRef context, AccessibilityUIElement *startElement, bool isDirectionNext, JSValueRef searchKey, JSStringRef searchText, bool visibleOnly, bool immediateDescendantsOnly)
 {
     BEGIN_AX_OBJC_EXCEPTIONS
-    NSMutableDictionary* parameter = [NSMutableDictionary dictionary];
-    [parameter setObject:(isDirectionNext) ? @"AXDirectionNext" : @"AXDirectionPrevious" forKey:@"AXDirection"];
-    if (visibleOnly)
-        [parameter setObject:[NSNumber numberWithBool:YES] forKey:@"AXVisibleOnly"];
-    [parameter setObject:[NSNumber numberWithInt:1] forKey:@"AXResultsLimit"];
-    if (startElement && startElement->platformUIElement())
-        [parameter setObject:(id)startElement->platformUIElement() forKey:@"AXStartElement"];
-    if (searchKey) {
-        if (JSValueIsString(context, searchKey)) {
-            NSString *searchKeyParameter = nil;
-            JSStringRef singleSearchKey = JSValueToStringCopy(context, searchKey, 0);
-            if (singleSearchKey) {
-                searchKeyParameter = [NSString stringWithJSStringRef:singleSearchKey];
-                JSStringRelease(singleSearchKey);
-                if (searchKeyParameter)
-                    [parameter setObject:searchKeyParameter forKey:@"AXSearchKey"];
-            }
-        }
-        else if (JSValueIsObject(context, searchKey)) {
-            NSMutableArray *searchKeyParameter = nil;
-            JSObjectRef array = const_cast<JSObjectRef>(searchKey);
-            unsigned arrayLength = 0;
-            JSRetainPtr<JSStringRef> arrayLengthString(Adopt, JSStringCreateWithUTF8CString("length"));
-            JSValueRef arrayLengthValue = JSObjectGetProperty(context, array, arrayLengthString.get(), 0);
-            if (arrayLengthValue && JSValueIsNumber(context, arrayLengthValue))
-                arrayLength = static_cast<unsigned>(JSValueToNumber(context, arrayLengthValue, 0));
-            
-            for (unsigned i = 0; i < arrayLength; ++i) {
-                JSValueRef exception = 0;
-                JSValueRef value = JSObjectGetPropertyAtIndex(context, array, i, &exception);
-                if (exception)
-                    break;
-                JSStringRef singleSearchKey = JSValueToStringCopy(context, value, &exception);
-                if (exception)
-                    break;
-                if (singleSearchKey) {
-                    if (!searchKeyParameter)
-                        searchKeyParameter = [NSMutableArray array];
-                    [searchKeyParameter addObject:[NSString stringWithJSStringRef:singleSearchKey]];
-                    JSStringRelease(singleSearchKey);
-                }
-            }
-            if (searchKeyParameter)
-                [parameter setObject:searchKeyParameter forKey:@"AXSearchKey"];
-        }
-    }
-    if (searchText && JSStringGetLength(searchText))
-        [parameter setObject:[NSString stringWithJSStringRef:searchText] forKey:@"AXSearchText"];
-    
-    id uiElement = [[m_element accessibilityAttributeValue:@"AXUIElementsForSearchPredicate" forParameter:parameter] lastObject];
-    return AccessibilityUIElement::create(uiElement);
+    NSDictionary *parameterizedAttribute = searchPredicateParameterizedAttributeForSearchCriteria(context, startElement, isDirectionNext, UINT_MAX, searchKey, searchText, visibleOnly, immediateDescendantsOnly);
+    id value = [m_element accessibilityAttributeValue:@"AXUIElementCountForSearchPredicate" forParameter:parameterizedAttribute];
+    if ([value isKindOfClass:[NSNumber class]])
+        return [value unsignedIntValue];
     END_AX_OBJC_EXCEPTIONS
     
     return 0;
+}
+
+PassRefPtr<AccessibilityUIElement> AccessibilityUIElement::uiElementForSearchPredicate(JSContextRef context, AccessibilityUIElement *startElement, bool isDirectionNext, JSValueRef searchKey, JSStringRef searchText, bool visibleOnly, bool immediateDescendantsOnly)
+{
+    BEGIN_AX_OBJC_EXCEPTIONS
+    NSDictionary *parameterizedAttribute = searchPredicateParameterizedAttributeForSearchCriteria(context, startElement, isDirectionNext, 1, searchKey, searchText, visibleOnly, immediateDescendantsOnly);
+    id value = [m_element accessibilityAttributeValue:@"AXUIElementsForSearchPredicate" forParameter:parameterizedAttribute];
+    if ([value isKindOfClass:[NSArray class]])
+        return AccessibilityUIElement::create([value lastObject]);
+    END_AX_OBJC_EXCEPTIONS
+    
+    return nullptr;
+}
+
+JSRetainPtr<JSStringRef> AccessibilityUIElement::selectTextWithCriteria(JSContextRef context, JSStringRef ambiguityResolution, JSValueRef searchStrings, JSStringRef replacementString, JSStringRef activity)
+{
+    BEGIN_AX_OBJC_EXCEPTIONS
+    NSDictionary *parameterizedAttribute = selectTextParameterizedAttributeForCriteria(context, ambiguityResolution, searchStrings, replacementString, activity);
+    id result = [m_element accessibilityAttributeValue:@"AXSelectTextWithCriteria" forParameter:parameterizedAttribute];
+    if ([result isKindOfClass:[NSString class]])
+        return [result createJSStringRef];
+    END_AX_OBJC_EXCEPTIONS
+    
+    return nullptr;
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::attributesOfColumnHeaders()
@@ -995,7 +1197,7 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::attributesOfColumnHeaders()
     return descriptionOfElements(columnHeadersVector);
     END_AX_OBJC_EXCEPTIONS
     
-    return 0;
+    return nullptr;
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::attributesOfRowHeaders()
@@ -1007,7 +1209,7 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::attributesOfRowHeaders()
     return descriptionOfElements(rowHeadersVector);
     END_AX_OBJC_EXCEPTIONS
     
-    return 0;
+    return nullptr;
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::attributesOfColumns()
@@ -1019,7 +1221,7 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::attributesOfColumns()
     return descriptionOfElements(columnsVector);
     END_AX_OBJC_EXCEPTIONS
     
-    return 0;
+    return nullptr;
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::attributesOfRows()
@@ -1031,7 +1233,7 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::attributesOfRows()
     return descriptionOfElements(rowsVector);
     END_AX_OBJC_EXCEPTIONS
     
-    return 0;
+    return nullptr;
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::attributesOfVisibleCells()
@@ -1043,7 +1245,7 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::attributesOfVisibleCells()
     return descriptionOfElements(cellsVector);
     END_AX_OBJC_EXCEPTIONS
     
-    return 0;
+    return nullptr;
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::attributesOfHeader()
@@ -1058,7 +1260,7 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::attributesOfHeader()
     return descriptionOfElements(headerVector);
     END_AX_OBJC_EXCEPTIONS
     
-    return 0;
+    return nullptr;
 }
 
 int AccessibilityUIElement::rowCount()
@@ -1101,7 +1303,7 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::rowIndexRange()
     return [rangeDescription createJSStringRef];
     END_AX_OBJC_EXCEPTIONS
     
-    return 0;
+    return nullptr;
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::columnIndexRange()
@@ -1115,7 +1317,7 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::columnIndexRange()
     return [rangeDescription createJSStringRef];
     END_AX_OBJC_EXCEPTIONS
     
-    return 0;
+    return nullptr;
 }
 
 PassRefPtr<AccessibilityUIElement> AccessibilityUIElement::cellForColumnAndRow(unsigned col, unsigned row)
@@ -1125,7 +1327,7 @@ PassRefPtr<AccessibilityUIElement> AccessibilityUIElement::cellForColumnAndRow(u
     return AccessibilityUIElement::create([m_element accessibilityAttributeValue:@"AXCellForColumnAndRow" forParameter:colRowArray]);
     END_AX_OBJC_EXCEPTIONS    
 
-    return 0;
+    return nullptr;
 }
 
 PassRefPtr<AccessibilityUIElement> AccessibilityUIElement::horizontalScrollbar() const
@@ -1134,7 +1336,7 @@ PassRefPtr<AccessibilityUIElement> AccessibilityUIElement::horizontalScrollbar()
     return AccessibilityUIElement::create([m_element accessibilityAttributeValue:NSAccessibilityHorizontalScrollBarAttribute]);
     END_AX_OBJC_EXCEPTIONS    
     
-    return 0;
+    return nullptr;
 }
 
 PassRefPtr<AccessibilityUIElement> AccessibilityUIElement::verticalScrollbar() const
@@ -1143,7 +1345,7 @@ PassRefPtr<AccessibilityUIElement> AccessibilityUIElement::verticalScrollbar() c
     return AccessibilityUIElement::create([m_element accessibilityAttributeValue:NSAccessibilityVerticalScrollBarAttribute]);
     END_AX_OBJC_EXCEPTIONS        
 
-    return 0;
+    return nullptr;
 }
 
 void AccessibilityUIElement::scrollToMakeVisible()
@@ -1164,16 +1366,18 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::selectedTextRange()
     return [rangeDescription createJSStringRef];
     END_AX_OBJC_EXCEPTIONS
     
-    return 0;
+    return nullptr;
 }
 
-void AccessibilityUIElement::setSelectedTextRange(unsigned location, unsigned length)
+bool AccessibilityUIElement::setSelectedTextRange(unsigned location, unsigned length)
 {
     NSRange textRange = NSMakeRange(location, length);
     NSValue *textRangeValue = [NSValue valueWithRange:textRange];
     BEGIN_AX_OBJC_EXCEPTIONS
     [m_element accessibilitySetValue:textRangeValue forAttribute:NSAccessibilitySelectedTextRangeAttribute];
     END_AX_OBJC_EXCEPTIONS
+
+    return true;
 }
 
 void AccessibilityUIElement::increment()
@@ -1235,7 +1439,7 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::url()
     return [[url absoluteString] createJSStringRef];    
     END_AX_OBJC_EXCEPTIONS
     
-    return nil;
+    return nullptr;
 }
 
 bool AccessibilityUIElement::addNotificationListener(JSValueRef functionCallback)
@@ -1347,6 +1551,16 @@ void AccessibilityUIElement::removeSelection()
 }
 
 // Text markers
+PassRefPtr<AccessibilityTextMarkerRange> AccessibilityUIElement::lineTextMarkerRangeForTextMarker(AccessibilityTextMarker* textMarker)
+{
+    BEGIN_AX_OBJC_EXCEPTIONS
+    id textMarkerRange = [m_element accessibilityAttributeValue:@"AXLineTextMarkerRangeForTextMarker" forParameter:(id)textMarker->platformTextMarker()];
+    return AccessibilityTextMarkerRange::create(textMarkerRange);
+    END_AX_OBJC_EXCEPTIONS
+    
+    return nullptr;
+}
+
 PassRefPtr<AccessibilityTextMarkerRange> AccessibilityUIElement::textMarkerRangeForElement(AccessibilityUIElement* element)
 {
     BEGIN_AX_OBJC_EXCEPTIONS
@@ -1354,7 +1568,7 @@ PassRefPtr<AccessibilityTextMarkerRange> AccessibilityUIElement::textMarkerRange
     return AccessibilityTextMarkerRange::create(textMarkerRange);
     END_AX_OBJC_EXCEPTIONS
     
-    return 0;
+    return nullptr;
 }
 
 int AccessibilityUIElement::textMarkerRangeLength(AccessibilityTextMarkerRange* range)
@@ -1374,7 +1588,7 @@ PassRefPtr<AccessibilityTextMarker> AccessibilityUIElement::previousTextMarker(A
     return AccessibilityTextMarker::create(previousMarker);
     END_AX_OBJC_EXCEPTIONS
     
-    return 0;
+    return nullptr;
 }
 
 PassRefPtr<AccessibilityTextMarker> AccessibilityUIElement::nextTextMarker(AccessibilityTextMarker* textMarker)
@@ -1384,7 +1598,7 @@ PassRefPtr<AccessibilityTextMarker> AccessibilityUIElement::nextTextMarker(Acces
     return AccessibilityTextMarker::create(nextMarker);
     END_AX_OBJC_EXCEPTIONS
     
-    return 0;
+    return nullptr;
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::stringForTextMarkerRange(AccessibilityTextMarkerRange* markerRange)
@@ -1394,7 +1608,7 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::stringForTextMarkerRange(Access
     return [textString createJSStringRef];
     END_AX_OBJC_EXCEPTIONS
     
-    return 0;
+    return nullptr;
 }
 
 PassRefPtr<AccessibilityTextMarkerRange> AccessibilityUIElement::textMarkerRangeForMarkers(AccessibilityTextMarker* startMarker, AccessibilityTextMarker* endMarker)
@@ -1405,7 +1619,7 @@ PassRefPtr<AccessibilityTextMarkerRange> AccessibilityUIElement::textMarkerRange
     return AccessibilityTextMarkerRange::create(textMarkerRange);
     END_AX_OBJC_EXCEPTIONS
     
-    return 0;
+    return nullptr;
 }
 
 PassRefPtr<AccessibilityTextMarker> AccessibilityUIElement::startTextMarkerForTextMarkerRange(AccessibilityTextMarkerRange* range)
@@ -1415,7 +1629,7 @@ PassRefPtr<AccessibilityTextMarker> AccessibilityUIElement::startTextMarkerForTe
     return AccessibilityTextMarker::create(textMarker);
     END_AX_OBJC_EXCEPTIONS
     
-    return 0;    
+    return nullptr;
 }
 
 PassRefPtr<AccessibilityTextMarker> AccessibilityUIElement::endTextMarkerForTextMarkerRange(AccessibilityTextMarkerRange* range)
@@ -1425,7 +1639,27 @@ PassRefPtr<AccessibilityTextMarker> AccessibilityUIElement::endTextMarkerForText
     return AccessibilityTextMarker::create(textMarker);
     END_AX_OBJC_EXCEPTIONS
     
-    return 0;    
+    return nullptr;
+}
+
+PassRefPtr<AccessibilityTextMarker> AccessibilityUIElement::endTextMarkerForBounds(int x, int y, int width, int height)
+{
+    BEGIN_AX_OBJC_EXCEPTIONS
+    id textMarker = [m_element accessibilityAttributeValue:NSAccessibilityEndTextMarkerForBoundsParameterizedAttribute forParameter:[NSValue valueWithRect:NSMakeRect(x, y, width, height)]];
+    return AccessibilityTextMarker::create(textMarker);
+    END_AX_OBJC_EXCEPTIONS
+    
+    return nullptr;
+}
+
+PassRefPtr<AccessibilityTextMarker> AccessibilityUIElement::startTextMarkerForBounds(int x, int y, int width, int height)
+{
+    BEGIN_AX_OBJC_EXCEPTIONS
+    id textMarker = [m_element accessibilityAttributeValue:NSAccessibilityStartTextMarkerForBoundsParameterizedAttribute forParameter:[NSValue valueWithRect:NSMakeRect(x, y, width, height)]];
+    return AccessibilityTextMarker::create(textMarker);
+    END_AX_OBJC_EXCEPTIONS
+    
+    return nullptr;
 }
 
 PassRefPtr<AccessibilityTextMarker> AccessibilityUIElement::textMarkerForPoint(int x, int y)
@@ -1435,7 +1669,7 @@ PassRefPtr<AccessibilityTextMarker> AccessibilityUIElement::textMarkerForPoint(i
     return AccessibilityTextMarker::create(textMarker);
     END_AX_OBJC_EXCEPTIONS
     
-    return 0;    
+    return nullptr;
 }
 
 PassRefPtr<AccessibilityUIElement> AccessibilityUIElement::accessibilityElementForTextMarker(AccessibilityTextMarker* marker)
@@ -1445,7 +1679,7 @@ PassRefPtr<AccessibilityUIElement> AccessibilityUIElement::accessibilityElementF
     return AccessibilityUIElement::create(uiElement);
     END_AX_OBJC_EXCEPTIONS
     
-    return 0;  
+    return nullptr;
 }
     
 bool AccessibilityUIElement::attributedStringForTextMarkerRangeContainsAttribute(JSStringRef attribute, AccessibilityTextMarkerRange* range)
@@ -1490,7 +1724,27 @@ PassRefPtr<AccessibilityTextMarker> AccessibilityUIElement::textMarkerForIndex(i
     return AccessibilityTextMarker::create(textMarker);
     END_AX_OBJC_EXCEPTIONS
     
-    return 0;                                                                          
+    return nullptr;
+}
+    
+PassRefPtr<AccessibilityTextMarker> AccessibilityUIElement::startTextMarker()
+{
+    BEGIN_AX_OBJC_EXCEPTIONS
+    id textMarker = [m_element accessibilityAttributeValue:@"AXStartTextMarker"];
+    return AccessibilityTextMarker::create(textMarker);
+    END_AX_OBJC_EXCEPTIONS
+    
+    return nullptr;
+}
+
+PassRefPtr<AccessibilityTextMarker> AccessibilityUIElement::endTextMarker()
+{
+    BEGIN_AX_OBJC_EXCEPTIONS
+    id textMarker = [m_element accessibilityAttributeValue:@"AXEndTextMarker"];
+    return AccessibilityTextMarker::create(textMarker);
+    END_AX_OBJC_EXCEPTIONS
+    
+    return nullptr;
 }
 
 static NSString *_convertMathMultiscriptPairsToString(NSArray *pairs)
@@ -1511,7 +1765,7 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::mathPostscriptsDescription() co
     return [_convertMathMultiscriptPairsToString(pairs) createJSStringRef];
     END_AX_OBJC_EXCEPTIONS
     
-    return 0;
+    return nullptr;
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::mathPrescriptsDescription() const
@@ -1521,7 +1775,7 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::mathPrescriptsDescription() con
     return [_convertMathMultiscriptPairsToString(pairs) createJSStringRef];
     END_AX_OBJC_EXCEPTIONS
     
-    return 0;
+    return nullptr;
 }
     
 JSRetainPtr<JSStringRef> AccessibilityUIElement::pathDescription() const
@@ -1555,7 +1809,7 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::pathDescription() const
     return [result createJSStringRef];
     END_AX_OBJC_EXCEPTIONS
     
-    return 0;
+    return nullptr;
 }
     
 JSRetainPtr<JSStringRef> AccessibilityUIElement::supportedActions() const
@@ -1565,8 +1819,9 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::supportedActions() const
     return [[names componentsJoinedByString:@","] createJSStringRef];
     END_AX_OBJC_EXCEPTIONS
     
-    return 0;
+    return nullptr;
 }
 
 } // namespace WTR
 
+#endif // HAVE(ACCESSIBILITY)

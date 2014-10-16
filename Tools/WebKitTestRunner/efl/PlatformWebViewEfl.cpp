@@ -23,11 +23,11 @@
 #include "PlatformWebView.h"
 
 #include "EWebKit2.h"
-#include "WebKit2/WKAPICast.h"
+#include "WebKit/WKAPICast.h"
 #include <Ecore_Evas.h>
 #include <WebCore/RefPtrCairo.h>
-#include <WebKit2/WKImageCairo.h>
-#include <WebKit2/WKViewEfl.h>
+#include <WebKit/WKImageCairo.h>
+#include <WebKit/WKViewEfl.h>
 #include <cairo.h>
 
 using namespace WebKit;
@@ -37,7 +37,7 @@ namespace WTR {
 static Ecore_Evas* initEcoreEvas()
 {
     Ecore_Evas* ecoreEvas = 0;
-#if defined(WTF_USE_ACCELERATED_COMPOSITING) && defined(HAVE_ECORE_X)
+#if defined(HAVE_ECORE_X)
     const char* engine = "opengl_x11";
     ecoreEvas = ecore_evas_new(engine, 0, 0, 800, 600, 0);
     // Graceful fallback to software rendering if evas_gl engine is not available.
@@ -83,6 +83,7 @@ PlatformWebView::~PlatformWebView()
 
 void PlatformWebView::resizeTo(unsigned width, unsigned height)
 {
+    // FIXME: Don't we need to resize the window too?
     evas_object_resize(m_view, width, height);
 }
 
@@ -113,6 +114,7 @@ WKRect PlatformWebView::windowFrame()
 void PlatformWebView::setWindowFrame(WKRect frame)
 {
     ecore_evas_move_resize(m_window, frame.origin.x, frame.origin.y, frame.size.width, frame.size.height);
+    evas_object_resize(m_view, frame.size.width, frame.size.height);
 }
 
 void PlatformWebView::addChromeInputField()
@@ -124,6 +126,10 @@ void PlatformWebView::removeChromeInputField()
 }
 
 void PlatformWebView::makeWebViewFirstResponder()
+{
+}
+
+void PlatformWebView::changeWindowScaleIfNeeded(float)
 {
 }
 

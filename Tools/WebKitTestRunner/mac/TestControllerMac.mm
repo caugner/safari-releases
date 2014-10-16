@@ -26,9 +26,17 @@
 #import "config.h"
 #import "TestController.h"
 
+#import "CrashReporterInfo.h"
 #import "PlatformWebView.h"
-#import <WebKit2/WKStringCF.h>
+#import "PoseAsClass.h"
+#import "TestInvocation.h"
+#import "WebKitTestRunnerPasteboard.h"
+#import <WebKit/WKStringCF.h>
 #import <mach-o/dyld.h> 
+
+@interface NSSound (Details)
++ (void)_setAlertType:(NSUInteger)alertType;
+@end
 
 namespace WTR {
 
@@ -38,10 +46,15 @@ void TestController::notifyDone()
 
 void TestController::platformInitialize()
 {
+    poseAsClass("WebKitTestRunnerPasteboard", "NSPasteboard");
+    poseAsClass("WebKitTestRunnerEvent", "NSEvent");
+
+    [NSSound _setAlertType:0];
 }
 
 void TestController::platformDestroy()
 {
+    [WebKitTestRunnerPasteboard releaseLocalPasteboards];
 }
 
 void TestController::initializeInjectedBundlePath()
@@ -55,6 +68,30 @@ void TestController::initializeTestPluginDirectory()
     m_testPluginDirectory.adopt(WKStringCreateWithCFString((CFStringRef)[[NSBundle mainBundle] bundlePath]));
 }
 
+void TestController::platformWillRunTest(const TestInvocation& testInvocation)
+{
+    setCrashReportApplicationSpecificInformationToURL(testInvocation.url());
+}
+
+static bool shouldUseThreadedScrolling(const char* pathOrURL)
+{
+    return strstr(pathOrURL, "tiled-drawing/");
+}
+
+void TestController::platformConfigureViewForTest(const TestInvocation& test)
+{
+    auto viewOptions = adoptWK(WKMutableDictionaryCreate());
+    auto useThreadedScrollingKey = adoptWK(WKStringCreateWithUTF8CString("ThreadedScrolling"));
+    auto useThreadedScrollingValue = adoptWK(WKBooleanCreate(shouldUseThreadedScrolling(test.pathOrURL())));
+    WKDictionarySetItem(viewOptions.get(), useThreadedScrollingKey.get(), useThreadedScrollingValue.get());
+
+    auto useRemoteLayerTreeKey = adoptWK(WKStringCreateWithUTF8CString("RemoteLayerTree"));
+    auto useRemoteLayerTreeValue = adoptWK(WKBooleanCreate(shouldUseRemoteLayerTree()));
+    WKDictionarySetItem(viewOptions.get(), useRemoteLayerTreeKey.get(), useRemoteLayerTreeValue.get());
+
+    ensureViewSupportsOptions(viewOptions.get());
+}
+
 void TestController::platformRunUntil(bool& done, double timeout)
 {
     NSDate *endDate = (timeout > 0) ? [NSDate dateWithTimeIntervalSinceNow:timeout] : [NSDate distantFuture];
@@ -65,6 +102,18 @@ void TestController::platformRunUntil(bool& done, double timeout)
 
 void TestController::platformInitializeContext()
 {
+}
+
+void TestController::setHidden(bool hidden)
+{
+    NSWindow *window = [mainWebView()->platformView() window];
+    if (!window)
+        return;
+
+    if (hidden)
+        [window orderOut:nil];
+    else
+        [window makeKeyAndOrderFront:nil];
 }
 
 void TestController::runModal(PlatformWebView* view)

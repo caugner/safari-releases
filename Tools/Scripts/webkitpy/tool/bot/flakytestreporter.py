@@ -79,7 +79,7 @@ class FlakyTestReporter(object):
         if len(bugs) > 1:
             # FIXME: There are probably heuristics we could use for finding
             # the right bug instead of the first, like open vs. closed.
-            _log.warn("Found %s %s matching '%s' filed by a bot, using the first." % (pluralize('bug', len(bugs)), [bug.id() for bug in bugs], flaky_test))
+            _log.warn("Found %s %s matching '%s' filed by a bot, using the first." % (pluralize(len(bugs), "bug"), [bug.id() for bug in bugs], flaky_test))
         return bugs[0]
 
     def _view_source_url_for_test(self, test_path):
@@ -140,12 +140,8 @@ If you would like to track this test fix with another bug, please close this bug
             bug = self._tool.bugs.fetch_bug(bug.duplicate_of())
         return bug
 
-    # Maybe this logic should move into Bugzilla? a reopen=True arg to post_comment?
     def _update_bug_for_flaky_test(self, bug, latest_flake_message):
-        if bug.is_closed():
-            self._tool.bugs.reopen_bug(bug.id(), latest_flake_message)
-        else:
-            self._tool.bugs.post_comment_to_bug(bug.id(), latest_flake_message)
+        self._tool.bugs.post_comment_to_bug(bug.id(), latest_flake_message)
 
     # This method is needed because our archive paths include a leading tmp/layout-test-results
     def _find_in_archive(self, path, archive):

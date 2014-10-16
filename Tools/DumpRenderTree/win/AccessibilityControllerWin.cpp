@@ -165,7 +165,7 @@ AccessibilityUIElement AccessibilityController::rootElement()
         return 0;
 
     HWND webViewWindow;
-    if (FAILED(viewPrivate->viewWindow((OLE_HANDLE*)&webViewWindow)))
+    if (FAILED(viewPrivate->viewWindow(&webViewWindow)))
         return 0;
 
     // Get the root accessible object by querying for the accessible object for the
@@ -245,6 +245,10 @@ void AccessibilityController::setLogFocusEvents(bool logFocusEvents)
     m_focusEventHook = SetWinEventHook(EVENT_OBJECT_FOCUS, EVENT_OBJECT_FOCUS, GetModuleHandle(0), logEventProc, GetCurrentProcessId(), 0, WINEVENT_INCONTEXT);
 
     ASSERT(m_focusEventHook);
+}
+
+void AccessibilityController::platformResetToConsistentState()
+{
 }
 
 void AccessibilityController::setLogValueChangeEvents(bool logValueChangeEvents)
@@ -388,4 +392,21 @@ void AccessibilityController::winAddNotificationListener(PlatformUIElement eleme
 
     JSValueProtect(frame->globalContext(), functionCallback);
     m_notificationListeners.add(element, functionCallback);
+}
+
+void AccessibilityController::enableEnhancedAccessibility(bool)
+{
+    // FIXME: implement
+}
+
+bool AccessibilityController::enhancedAccessibilityEnabled()
+{
+    // FIXME: implement
+    return false;
+}
+
+JSRetainPtr<JSStringRef> AccessibilityController::platformName() const
+{
+    JSRetainPtr<JSStringRef> platformName(Adopt, JSStringCreateWithUTF8CString("win"));
+    return platformName;
 }

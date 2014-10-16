@@ -40,7 +40,7 @@ _log = logging.getLogger(__name__)
 
 class XvfbDriver(Driver):
     @staticmethod
-    def check_xvfb(port):
+    def check_driver(port):
         xvfb_found = port.host.executive.run_command(['which', 'Xvfb'], return_exit_code=True) is 0
         if not xvfb_found:
             _log.error("No Xvfb found. Cannot run layout tests.")
@@ -65,6 +65,9 @@ class XvfbDriver(Driver):
                 if self._guard_lock.acquire_lock():
                     return i
 
+    def _xvfb_screen_depth(self):
+        return os.environ.get('XVFB_SCREEN_DEPTH', '24')
+
     def _start(self, pixel_tests, per_test_args):
         self.stop()
 
@@ -74,7 +77,14 @@ class XvfbDriver(Driver):
         display_id = self._next_free_display()
         self._lock_file = "/tmp/.X%d-lock" % display_id
 
-        run_xvfb = ["Xvfb", ":%d" % display_id, "-screen",  "0", "800x600x24", "-nolisten", "tcp"]
+        server_name = self._port.driver_name()
+        environment = self._port.setup_environ_for_server(server_name)
+
+        llvmpipe_libgl_path = os.environ.get('LLVMPIPE_LIBGL_PATH')
+        if llvmpipe_libgl_path:
+            environment['LD_LIBRARY_PATH'] = '%s:%s' % (llvmpipe_libgl_path, os.environ.get('LD_LIBRARY_PATH', ''))
+
+        run_xvfb = ["Xvfb", ":%d" % display_id, "-screen",  "0", "1024x768x%s" % self._xvfb_screen_depth(), "-nolisten", "tcp"]
         with open(os.devnull, 'w') as devnull:
             self._xvfb_process = self._port.host.executive.popen(run_xvfb, stderr=devnull)
 
@@ -82,11 +92,9 @@ class XvfbDriver(Driver):
         # worker because the Xvfb display isn't ready yet. Halting execution a bit should avoid that.
         time.sleep(self._startup_delay_secs)
 
-        server_name = self._port.driver_name()
-        environment = self._port.setup_environ_for_server(server_name)
         # We must do this here because the DISPLAY number depends on _worker_number
         environment['DISPLAY'] = ":%d" % display_id
-        self._driver_tempdir = self._port._filesystem.mkdtemp(prefix='%s-' % self._port.driver_name())
+        self._driver_tempdir = self._port.host.filesystem.mkdtemp(prefix='%s-' % self._port.driver_name())
         environment['DUMPRENDERTREE_TEMP'] = str(self._driver_tempdir)
         environment['LOCAL_RESOURCE_ROOT'] = self._port.layout_tests_dir()
 

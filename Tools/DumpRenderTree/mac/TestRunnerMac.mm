@@ -10,7 +10,7 @@
  * 2.  Redistributions in binary form must reproduce the above copyright
  *     notice, this list of conditions and the following disclaimer in the
  *     documentation and/or other materials provided with the distribution. 
- * 3.  Neither the name of Apple Computer, Inc. ("Apple") nor the names of
+ * 3.  Neither the name of Apple Inc. ("Apple") nor the names of
  *     its contributors may be used to endorse or promote products derived
  *     from this software without specific prior written permission. 
  *
@@ -62,7 +62,6 @@
 #import <WebKit/WebHTMLViewPrivate.h>
 #import <WebKit/WebHistory.h>
 #import <WebKit/WebHistoryPrivate.h>
-#import <WebKit/WebIconDatabasePrivate.h>
 #import <WebKit/WebInspectorPrivate.h>
 #import <WebKit/WebNSURLExtras.h>
 #import <WebKit/WebKitErrors.h>
@@ -72,13 +71,24 @@
 #import <WebKit/WebScriptWorld.h>
 #import <WebKit/WebSecurityOriginPrivate.h>
 #import <WebKit/WebStorageManagerPrivate.h>
-#import <WebKit/WebTypesInternal.h>
 #import <WebKit/WebView.h>
 #import <WebKit/WebViewPrivate.h>
 #import <wtf/CurrentTime.h>
 #import <wtf/HashMap.h>
 #import <wtf/RetainPtr.h>
 
+#if !PLATFORM(IOS)
+#import <WebKit/WebIconDatabasePrivate.h>
+#endif
+
+#if PLATFORM(IOS)
+#import <UIKit/UIWebBrowserView.h>
+#import <WebKit/WebCoreThread.h>
+#import <WebKit/WebCoreThreadMessage.h>
+#import <WebKit/WebDOMOperationsPrivate.h>
+#endif
+
+#if !PLATFORM(IOS)
 @interface CommandValidationTarget : NSObject <NSValidatedUserInterfaceItem>
 {
     SEL _action;
@@ -109,6 +119,7 @@
 }
 
 @end
+#endif
 
 @interface WebGeolocationPosition (Internal)
 - (id)initWithGeolocationPosition:(PassRefPtr<WebCore::GeolocationPosition>)coreGeolocationPosition;
@@ -183,14 +194,15 @@ JSValueRef originsArrayToJS(JSContextRef context, NSArray *origins)
 {
     NSUInteger count = [origins count];
 
-    JSValueRef jsOriginsArray[count];
+    JSValueRef arrayResult = JSObjectMakeArray(context, 0, 0, 0);
+    JSObjectRef arrayObj = JSValueToObject(context, arrayResult, 0);
     for (NSUInteger i = 0; i < count; i++) {
         NSString *origin = [[origins objectAtIndex:i] databaseIdentifier];
         JSRetainPtr<JSStringRef> originJS(Adopt, JSStringCreateWithCFString((CFStringRef)origin));
-        jsOriginsArray[i] = JSValueMakeString(context, originJS.get());
+        JSObjectSetPropertyAtIndex(context, arrayObj, i, JSValueMakeString(context, originJS.get()), 0);
     }
 
-    return JSObjectMakeArray(context, count, jsOriginsArray, NULL);
+    return arrayResult;
 }
 
 JSValueRef TestRunner::originsWithApplicationCache(JSContextRef context)
@@ -283,12 +295,6 @@ int TestRunner::numberOfPendingGeolocationPermissionRequests()
 size_t TestRunner::webHistoryItemCount()
 {
     return [[[WebHistory optionalSharedHistory] allItems] count];
-}
-
-JSRetainPtr<JSStringRef> TestRunner::platformName() const
-{
-    JSRetainPtr<JSStringRef> platformName(Adopt, JSStringCreateWithUTF8CString("mac"));
-    return platformName;
 }
 
 void TestRunner::notifyDone()
@@ -394,13 +400,6 @@ void TestRunner::setAppCacheMaximumSize(unsigned long long size)
     [WebApplicationCache setMaximumSize:size];
 }
 
-void TestRunner::setApplicationCacheOriginQuota(unsigned long long quota)
-{
-    WebSecurityOrigin *origin = [[WebSecurityOrigin alloc] initWithURL:[NSURL URLWithString:@"http://127.0.0.1:8000"]];
-    [[origin applicationCacheQuotaManager] setQuota:quota];
-    [origin release];
-}
-
 void TestRunner::setAuthorAndUserStylesEnabled(bool flag)
 {
     [[[mainFrame webView] preferences] setAuthorAndUserStylesEnabled:flag];
@@ -497,6 +496,7 @@ void TestRunner::startSpeechInput(JSContextRef inputElement)
 
 void TestRunner::setIconDatabaseEnabled(bool iconDatabaseEnabled)
 {
+#if ENABLE(ICONDATABASE)
     // FIXME: Workaround <rdar://problem/6480108>
     static WebIconDatabase *sharedWebIconDatabase = NULL;
     if (!sharedWebIconDatabase) {
@@ -507,14 +507,17 @@ void TestRunner::setIconDatabaseEnabled(bool iconDatabaseEnabled)
             return;
     }
     [sharedWebIconDatabase setEnabled:iconDatabaseEnabled];
+#endif
 }
 
 void TestRunner::setMainFrameIsFirstResponder(bool flag)
 {
+#if !PLATFORM(IOS)
     NSView *documentView = [[mainFrame frameView] documentView];
     
     NSResponder *firstResponder = flag ? documentView : nil;
     [[[mainFrame webView] window] makeFirstResponder:firstResponder];
+#endif
 }
 
 void TestRunner::setPrivateBrowsingEnabled(bool privateBrowsingEnabled)
@@ -559,7 +562,9 @@ void TestRunner::setJavaScriptCanAccessClipboard(bool enabled)
 
 void TestRunner::setAutomaticLinkDetectionEnabled(bool enabled)
 {
+#if !PLATFORM(IOS)
     [[mainFrame webView] setAutomaticLinkDetectionEnabled:enabled];
+#endif
 }
 
 void TestRunner::setTabKeyCyclesThroughElements(bool cycles)
@@ -567,9 +572,31 @@ void TestRunner::setTabKeyCyclesThroughElements(bool cycles)
     [[mainFrame webView] setTabKeyCyclesThroughElements:cycles];
 }
 
+#if PLATFORM(IOS)
+void TestRunner::setTelephoneNumberParsingEnabled(bool enabled)
+{
+    [[[mainFrame webView] preferences] _setTelephoneNumberParsingEnabled:enabled];
+}
+
+void TestRunner::setPagePaused(bool paused)
+{
+    [gWebBrowserView setPaused:paused];
+}
+#endif
+
+#if ENABLE(IOS_TEXT_AUTOSIZING)
+void TestRunner::setTextAutosizingEnabled(bool enabled)
+{
+    const float phoneMinimumZoomFontSize = 15;
+    [[[mainFrame webView] preferences] _setMinimumZoomFontSize:(enabled ? phoneMinimumZoomFontSize : 0)];
+}
+#endif
+
 void TestRunner::setUseDashboardCompatibilityMode(bool flag)
 {
+#if !PLATFORM(IOS)
     [[mainFrame webView] _setDashboardBehavior:WebDashboardBehaviorUseBackwardCompatibilityMode to:flag];
+#endif
 }
 
 void TestRunner::setUserStyleSheetEnabled(bool flag)
@@ -705,11 +732,12 @@ bool TestRunner::findString(JSContextRef context, JSStringRef target, JSObjectRe
 
 void TestRunner::setCacheModel(int cacheModel)
 {
-    [[WebPreferences standardPreferences] setCacheModel:cacheModel];
+    [[WebPreferences standardPreferences] setCacheModel:(WebCacheModel)cacheModel];
 }
 
 bool TestRunner::isCommandEnabled(JSStringRef name)
 {
+#if !PLATFORM(IOS)
     RetainPtr<CFStringRef> nameCF = adoptCF(JSStringCopyCFString(kCFAllocatorDefault, name));
     NSString *nameNS = (NSString *)nameCF.get();
 
@@ -730,6 +758,9 @@ bool TestRunner::isCommandEnabled(JSStringRef name)
     if (![validator respondsToSelector:@selector(validateUserInterfaceItem:)])
         return true;
     return [validator validateUserInterfaceItem:target.get()];
+#else
+    return false;
+#endif
 }
 
 void TestRunner::waitForPolicyDelegate()
@@ -787,19 +818,25 @@ void TestRunner::setDeveloperExtrasEnabled(bool enabled)
 
 void TestRunner::showWebInspector()
 {
+#if ENABLE(INSPECTOR)
     [[[mainFrame webView] inspector] show:nil];
+#endif
 }
 
 void TestRunner::closeWebInspector()
 {
+#if ENABLE(INSPECTOR)
     [[[mainFrame webView] inspector] close:nil];
+#endif
 }
 
-void TestRunner::evaluateInWebInspector(long callId, JSStringRef script)
+void TestRunner::evaluateInWebInspector(JSStringRef script)
 {
+#if ENABLE(INSPECTOR)
     RetainPtr<CFStringRef> scriptCF = adoptCF(JSStringCopyCFString(kCFAllocatorDefault, script));
     NSString *scriptNS = (NSString *)scriptCF.get();
-    [[[mainFrame webView] inspector] evaluateInFrontend:nil callId:callId script:scriptNS];
+    [[[mainFrame webView] inspector] evaluateInFrontend:nil script:scriptNS];
+#endif
 }
 
 typedef HashMap<unsigned, RetainPtr<WebScriptWorld> > WorldMap;
@@ -836,7 +873,7 @@ void TestRunner::evaluateScriptInIsolatedWorld(unsigned worldID, JSObjectRef glo
     if (!worldID)
         world = [WebScriptWorld world];
     else {
-        RetainPtr<WebScriptWorld>& worldSlot = worldMap().add(worldID, 0).iterator->value;
+        RetainPtr<WebScriptWorld>& worldSlot = worldMap().add(worldID, nullptr).iterator->value;
         if (!worldSlot)
             worldSlot = adoptNS([[WebScriptWorld alloc] init]);
         world = worldSlot.get();
@@ -855,7 +892,9 @@ void TestRunner::evaluateScriptInIsolatedWorld(unsigned worldID, JSObjectRef glo
 
 - (id)initWithCompletionCondition:(bool*)condition
 {
-    [super init];
+    self = [super init];
+    if (!self)
+        return nil;
     ASSERT(condition);
     m_condition = condition;
     *m_condition = false;
@@ -882,8 +921,105 @@ void TestRunner::evaluateScriptInIsolatedWorld(unsigned worldID, JSObjectRef glo
 
 @end
 
+#if PLATFORM(IOS)
+
+@interface APITestDelegateIPhone : NSObject
+{
+    TestRunner* testRunner;
+    NSData *data;
+    NSURL *baseURL;
+    WebView *webView;
+}
+- (id)initWithTestRunner:(TestRunner*)testRunner utf8Data:(JSStringRef)data baseURL:(JSStringRef)baseURL;
+- (void)run;
+@end
+
+@implementation APITestDelegateIPhone
+
+- (id)initWithTestRunner:(TestRunner*)runner utf8Data:(JSStringRef)dataString baseURL:(JSStringRef)baseURLString
+{
+    self = [super init];
+    if (!self)
+        return nil;
+
+    testRunner = runner;
+    data = [[(NSString *)adoptCF(JSStringCopyCFString(kCFAllocatorDefault, dataString)).get() dataUsingEncoding:NSUTF8StringEncoding] retain];
+    baseURL = [[NSURL URLWithString:(NSString *)adoptCF(JSStringCopyCFString(kCFAllocatorDefault, baseURLString)).get()] retain];
+    return self;
+}
+
+- (void)dealloc
+{
+    [data release];
+    [baseURL release];
+    [super dealloc];
+}
+
+- (void)run
+{
+    if (webView)
+        return;
+
+    testRunner->setWaitToDump(true);
+
+    WebThreadLock();
+
+    webView = [[WebView alloc] initWithFrame:NSZeroRect frameName:@"" groupName:@""];
+    [webView setFrameLoadDelegate:self];
+    [[webView mainFrame] loadData:data MIMEType:@"text/html" textEncodingName:@"utf-8" baseURL:baseURL];
+}
+
+- (void)_cleanUp
+{
+    if (!webView)
+        return;
+
+    WebThreadLock();
+
+    [webView _clearDelegates];
+    [webView close];
+    [webView release];
+    webView = nil;
+
+    testRunner->notifyDone();
+}
+
+- (void)webView:(WebView *)sender didFailLoadWithError:(NSError *)error forFrame:(WebFrame *)frame
+{
+    printf("API Test load failed\n");
+    [self _cleanUp];
+}
+
+- (void)webView:(WebView *)sender didFailProvisionalLoadWithError:(NSError *)error forFrame:(WebFrame *)frame
+{
+    printf("API Test load failed provisional\n");
+    [self _cleanUp];
+}
+
+- (void)webView:(WebView *)sender didFinishLoadForFrame:(WebFrame *)frame
+{
+    printf("API Test load succeeded\n");
+    [self _cleanUp];
+}
+
+@end
+
+#endif
+
 void TestRunner::apiTestNewWindowDataLoadBaseURL(JSStringRef utf8Data, JSStringRef baseURL)
 {
+#if PLATFORM(IOS)
+    // On iOS this gets called via JavaScript on the WebThread. But since it creates
+    // and closes a WebView, it should be run on the main thread. Make the switch
+    // from the web thread to the main thread and make the test asynchronous.
+    if (WebThreadIsCurrent()) {
+        APITestDelegateIPhone *dispatcher = [[APITestDelegateIPhone alloc] initWithTestRunner:this utf8Data:utf8Data baseURL:baseURL];
+        NSInvocation *invocation = WebThreadMakeNSInvocation(dispatcher, @selector(run));
+        WebThreadCallDelegate(invocation);
+        return;
+    }
+#endif
+
     NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
 
     RetainPtr<CFStringRef> utf8DataCF = adoptCF(JSStringCopyCFString(kCFAllocatorDefault, utf8Data));
@@ -902,7 +1038,11 @@ void TestRunner::apiTestNewWindowDataLoadBaseURL(JSStringRef utf8Data, JSStringR
         [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate distantPast]];
         [pool release];
     }
-        
+
+#if PLATFORM(IOS)
+    [(DumpRenderTree *)[UIApplication sharedApplication] _waitForWebThread];
+#endif
+
     [webView close];
     [webView release];
     [delegate release];
@@ -922,11 +1062,6 @@ void TestRunner::setWebViewEditable(bool editable)
 }
 
 static NSString *SynchronousLoaderRunLoopMode = @"DumpRenderTreeSynchronousLoaderRunLoopMode";
-
-#if __MAC_OS_X_VERSION_MIN_REQUIRED == 1060
-@protocol NSURLConnectionDelegate <NSObject>
-@end
-#endif
 
 @interface SynchronousLoader : NSObject <NSURLConnectionDelegate>
 {
@@ -1010,7 +1145,9 @@ void TestRunner::authenticateSession(JSStringRef url, JSStringRef username, JSSt
 
 void TestRunner::abortModal()
 {
+#if !PLATFORM(IOS)
     [NSApp abortModal];
+#endif
 }
 
 void TestRunner::setSerializeHTTPLoads(bool serialize)
@@ -1020,16 +1157,19 @@ void TestRunner::setSerializeHTTPLoads(bool serialize)
 
 void TestRunner::setTextDirection(JSStringRef directionName)
 {
+#if !PLATFORM(IOS)
     if (JSStringIsEqualToUTF8CString(directionName, "ltr"))
         [[mainFrame webView] makeBaseWritingDirectionLeftToRight:0];
     else if (JSStringIsEqualToUTF8CString(directionName, "rtl"))
         [[mainFrame webView] makeBaseWritingDirectionRightToLeft:0];
     else
         ASSERT_NOT_REACHED();
+#endif
 }
 
 void TestRunner::addChromeInputField()
 {
+#if !PLATFORM(IOS)
     NSTextField *textField = [[NSTextField alloc] initWithFrame:NSMakeRect(0, 0, 100, 20)];
     textField.tag = 1;
     [[[[mainFrame webView] window] contentView] addSubview:textField];
@@ -1037,25 +1177,32 @@ void TestRunner::addChromeInputField()
     
     [textField setNextKeyView:[mainFrame webView]];
     [[mainFrame webView] setNextKeyView:textField];
+#endif
 }
 
 void TestRunner::removeChromeInputField()
 {
+#if !PLATFORM(IOS)
     NSView* textField = [[[[mainFrame webView] window] contentView] viewWithTag:1];
     if (textField) {
         [textField removeFromSuperview];
         focusWebView();
     }
+#endif
 }
 
 void TestRunner::focusWebView()
 {
+#if !PLATFORM(IOS)
     [[[mainFrame webView] window] makeFirstResponder:[mainFrame webView]];
+#endif
 }
 
 void TestRunner::setBackingScaleFactor(double backingScaleFactor)
 {
+#if !PLATFORM(IOS)
     [[mainFrame webView] _setCustomBackingScaleFactor:backingScaleFactor];
+#endif
 }
 
 void TestRunner::resetPageVisibility()
@@ -1077,8 +1224,6 @@ void TestRunner::setPageVisibility(const char* newVisibility)
         [webView _setVisibilityState:WebPageVisibilityStateHidden isInitialState:NO];
     else if (!strcmp(newVisibility, "prerender"))
         [webView _setVisibilityState:WebPageVisibilityStatePrerender isInitialState:NO];
-    else if (!strcmp(newVisibility, "unloaded"))
-        [webView _setVisibilityState:WebPageVisibilityStateUnloaded isInitialState:NO];
 }
 
 void TestRunner::grantWebNotificationPermission(JSStringRef jsOrigin)

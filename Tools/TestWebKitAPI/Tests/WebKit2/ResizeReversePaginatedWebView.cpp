@@ -29,9 +29,9 @@
 #include "PlatformWebView.h"
 #include "Test.h"
 #include <JavaScriptCore/JSContextRef.h>
-#include <WebKit2/WKContextPrivate.h>
-#include <WebKit2/WKPagePrivate.h>
-#include <WebKit2/WKSerializedScriptValue.h>
+#include <WebKit/WKContextPrivate.h>
+#include <WebKit/WKPagePrivate.h>
+#include <WebKit/WKSerializedScriptValue.h>
 
 namespace TestWebKitAPI {
 
@@ -50,7 +50,7 @@ static void didLayout(WKPageRef page, WKLayoutMilestones milestones, WKTypeRef, 
         EXPECT_EQ(expectedPageCount, pageCount);
 
         webView->resizeTo((pageLength * pageCount) + (pageGap * (pageCount - 1)), 500);
-        EXPECT_JS_EQ(page, "window.scrollX", "-3800");
+        EXPECT_JS_EQ(page, "window.scrollX", "0");
 
         testDone = true;
     }
@@ -61,13 +61,14 @@ TEST(WebKit2, ResizeReversePaginatedWebView)
     WKRetainPtr<WKContextRef> context(AdoptWK, WKContextCreate());
     PlatformWebView webView(context.get());
 
-    WKPageLoaderClient loaderClient;
+    WKPageLoaderClientV3 loaderClient;
     memset(&loaderClient, 0, sizeof(loaderClient));
-    loaderClient.version = kWKPageLoaderClientCurrentVersion;
-    loaderClient.didLayout = didLayout;
-    loaderClient.clientInfo = &webView;
 
-    WKPageSetPageLoaderClient(webView.page(), &loaderClient);
+    loaderClient.base.version = 3;
+    loaderClient.base.clientInfo = &webView;
+    loaderClient.didLayout = didLayout;
+
+    WKPageSetPageLoaderClient(webView.page(), &loaderClient.base);
 
     WKPageListenForLayoutMilestones(webView.page(), kWKDidFirstLayoutAfterSuppressedIncrementalRendering);
 

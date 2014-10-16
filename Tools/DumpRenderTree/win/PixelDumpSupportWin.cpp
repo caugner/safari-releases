@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007 Apple, Inc. All rights reserved.
+ * Copyright (C) 2007, 2013 Apple, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -10,7 +10,7 @@
  * 2.  Redistributions in binary form must reproduce the above copyright
  *     notice, this list of conditions and the following disclaimer in the
  *     documentation and/or other materials provided with the distribution.
- * 3.  Neither the name of Apple Computer, Inc. ("Apple") nor the names of
+ * 3.  Neither the name of Apple Inc. ("Apple") nor the names of
  *     its contributors may be used to endorse or promote products derived
  *     from this software without specific prior written permission.
  *
@@ -43,6 +43,7 @@
 
 #include <wtf/Assertions.h>
 #include <wtf/RetainPtr.h>
+#include <wtf/win/GDIObject.h>
 
 static void makeAlphaChannelOpaque(void* argbBits, LONG width, LONG height)
 {
@@ -70,10 +71,9 @@ PassRefPtr<BitmapContext> createBitmapContextFromWebView(bool onscreen, bool inc
     void* bits = 0;
     HBITMAP bitmap = CreateDIBSection(0, &bmp, DIB_RGB_COLORS, &bits, 0, 0);
 
-    HDC memoryDC = CreateCompatibleDC(0);
-    SelectObject(memoryDC, bitmap);
-    SendMessage(webViewWindow, WM_PRINT, reinterpret_cast<WPARAM>(memoryDC), PRF_CLIENT | PRF_CHILDREN | PRF_OWNED);
-    DeleteDC(memoryDC);
+    auto memoryDC = adoptGDIObject(::CreateCompatibleDC(0));
+    ::SelectObject(memoryDC.get(), bitmap);
+    SendMessage(webViewWindow, WM_PRINT, reinterpret_cast<WPARAM>(memoryDC.get()), PRF_CLIENT | PRF_CHILDREN | PRF_OWNED);
 
     BITMAP info = {0};
     GetObject(bitmap, sizeof(info), &info);

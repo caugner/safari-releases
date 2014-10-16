@@ -29,8 +29,11 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#if !PLATFORM(IOS)
+
 #import <AppKit/AppKit.h>
 #import <ApplicationServices/ApplicationServices.h>
+#import <getopt.h>
 #import <signal.h>
 #import <stdio.h>
 #import <stdlib.h>
@@ -40,12 +43,15 @@
 // test script, so it can do the job for multiple DumpRenderTree while they are
 // running layout tests.
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1070
+static int installColorProfile = false;
 
 static CFURLRef sUserColorProfileURL;
 
 static void installLayoutTestColorProfile()
 {
+    if (!installColorProfile)
+        return;
+
     // To make sure we get consistent colors (not dependent on the chosen color
     // space of the main display), we force the generic RGB color profile.
     // This causes a change the user can see.
@@ -75,9 +81,9 @@ static void installLayoutTestColorProfile()
         CFRelease(deviceInfo);
     }
 
-    ColorSyncProfileRef genericRGBProfile = ColorSyncProfileCreateWithName(kColorSyncGenericRGBProfile);
+    ColorSyncProfileRef sRGBProfile = ColorSyncProfileCreateWithName(kColorSyncSRGBProfile);
     CFErrorRef error;
-    CFURLRef profileURL = ColorSyncProfileGetURL(genericRGBProfile, &error);
+    CFURLRef profileURL = ColorSyncProfileGetURL(sRGBProfile, &error);
     if (!profileURL) {
         NSLog(@"Failed to get URL of Generic RGB color profile! Many pixel tests may fail as a result. Error: %@", error);
         
@@ -86,7 +92,7 @@ static void installLayoutTestColorProfile()
             sUserColorProfileURL = 0;
         }
         
-        CFRelease(genericRGBProfile);
+        CFRelease(sRGBProfile);
         CFRelease(mainDisplayID);
         return;
     }
@@ -104,12 +110,15 @@ static void installLayoutTestColorProfile()
     }
     
     CFRelease(profileInfo);
-    CFRelease(genericRGBProfile);
+    CFRelease(sRGBProfile);
     CFRelease(mainDisplayID);
 }
 
 static void restoreUserColorProfile(void)
 {
+    if (!installColorProfile)
+        return;
+
     // This is used as a signal handler, and thus the calls into ColorSync are unsafe.
     // But we might as well try to restore the user's color profile, we're going down anyway...
     
@@ -124,59 +133,6 @@ static void restoreUserColorProfile(void)
     CFRelease(profileInfo);
 }
 
-#else // For Snow Leopard and before, use older CM* API.
-
-const char colorProfilePath[] = "/System/Library/ColorSync/Profiles/Generic RGB Profile.icc";
-
-CMProfileLocation initialColorProfileLocation; // The locType field is initialized to 0 which is the same as cmNoProfileBase.
-
-static void installLayoutTestColorProfile()
-{
-    // To make sure we get consistent colors (not dependent on the chosen color
-    // space of the main display), we force the generic RGB color profile.
-    // This causes a change the user can see.
-    
-    const CMDeviceScope scope = { kCFPreferencesCurrentUser, kCFPreferencesCurrentHost };
-
-    CMProfileRef profile = 0;
-    int error = CMGetProfileByAVID((CMDisplayIDType)kCGDirectMainDisplay, &profile);
-    if (!error) {
-        UInt32 size = sizeof(initialColorProfileLocation);
-        error = NCMGetProfileLocation(profile, &initialColorProfileLocation, &size);
-        CMCloseProfile(profile);
-    }
-    if (error) {
-        NSLog(@"Failed to get the current color profile. Many pixel tests may fail as a result. Error: %d", (int)error);
-        initialColorProfileLocation.locType = cmNoProfileBase;
-        return;
-    }
-
-    CMProfileLocation location;
-    location.locType = cmPathBasedProfile;
-    strncpy(location.u.pathLoc.path, colorProfilePath, sizeof(location.u.pathLoc.path));
-    error = CMSetDeviceProfile(cmDisplayDeviceClass, (CMDeviceID)kCGDirectMainDisplay, &scope, cmDefaultProfileID, &location);
-    if (error) {
-        NSLog(@"Failed install the GenericRGB color profile. Many pixel tests may fail as a result. Error: %d", (int)error);
-        initialColorProfileLocation.locType = cmNoProfileBase;
-    }
-}
-
-static void restoreUserColorProfile(void)
-{
-    // This is used as a signal handler, and thus the calls into ColorSync are unsafe.
-    // But we might as well try to restore the user's color profile, we're going down anyway...
-    if (initialColorProfileLocation.locType != cmNoProfileBase) {
-        const CMDeviceScope scope = { kCFPreferencesCurrentUser, kCFPreferencesCurrentHost };
-        int error = CMSetDeviceProfile(cmDisplayDeviceClass, (CMDeviceID)kCGDirectMainDisplay, &scope, cmDefaultProfileID, &initialColorProfileLocation);
-        if (error) {
-            NSLog(@"Failed to restore color profile, use System Preferences -> Displays -> Color to reset. Error: %d", (int)error);
-        }
-        initialColorProfileLocation.locType = cmNoProfileBase;
-    }
-}
-
-#endif
-
 static void simpleSignalHandler(int sig)
 {
     // Try to restore the color profile and try to go down cleanly
@@ -184,14 +140,55 @@ static void simpleSignalHandler(int sig)
     exit(128 + sig);
 }
 
+void lockDownDiscreteGraphics()
+{
+    mach_port_t masterPort;
+    kern_return_t kernResult = IOMasterPort(bootstrap_port, &masterPort);
+    if (kernResult != KERN_SUCCESS)
+        return;
+    CFDictionaryRef classToMatch = IOServiceMatching("AppleGraphicsControl");
+    if (!classToMatch)
+        return;
+
+    io_service_t serviceObject = IOServiceGetMatchingService(masterPort, classToMatch);
+    if (!serviceObject) {
+        // The machine does not allow control over the choice of graphics device.
+        return;
+    }
+
+    // We're intentionally leaking this io_connect in order for the process to stay locked to discrete graphics
+    // for the lifetime of the service connection.
+    static io_connect_t permanentLockDownService = 0;
+
+    // This call stalls until the graphics device lock is granted.
+    kernResult = IOServiceOpen(serviceObject, mach_task_self(), 1, &permanentLockDownService);
+    IOObjectRelease(serviceObject);
+}
+
 int main(int argc, char* argv[])
 {
+    struct option options[] = {
+        { "install-color-profile", no_argument, &installColorProfile, true },
+    };
+
+    int option;
+    while ((option = getopt_long(argc, (char* const*)argv, "", options, NULL)) != -1) {
+        switch (option) {
+        case '?':   // unknown or ambiguous option
+        case ':':   // missing argument
+            exit(1);
+            break;
+        }
+    }
+
     NSAutoreleasePool* pool = [[NSAutoreleasePool alloc] init];
 
     // Hooks the ways we might get told to clean up...
     signal(SIGINT, simpleSignalHandler);
     signal(SIGHUP, simpleSignalHandler);
     signal(SIGTERM, simpleSignalHandler);
+
+    lockDownDiscreteGraphics();
 
     // Save off the current profile, and then install the layout test profile.
     installLayoutTestColorProfile();
@@ -209,3 +206,12 @@ int main(int argc, char* argv[])
     [pool release];
     return 0;
 }
+
+#endif // !PLATFORM(IOS)
+
+#if PLATFORM(IOS)
+int main(int argc, char* argv[])
+{
+    return 0;
+}
+#endif

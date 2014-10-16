@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Apple Inc. All rights reserved.
+ * Copyright (C) 2010, 2013 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -23,43 +23,52 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "config.h"
-#include "PlatformWebView.h"
-#include "TestController.h"
+#import "config.h"
+#import "PlatformWebView.h"
 
-#import <WebKit2/WKImageCG.h>
-#import <WebKit2/WKViewPrivate.h>
+#import "TestController.h"
+#import "WebKitTestRunnerDraggingInfo.h"
+#import <WebKit/WKImageCG.h>
+#import <WebKit/WKPreferencesPrivate.h>
+#import <WebKit/WKViewPrivate.h>
 #import <wtf/RetainPtr.h>
 
+using namespace WTR;
+
+enum {
+    _NSBackingStoreUnbuffered = 3
+};
+
 @interface WebKitTestRunnerWindow : NSWindow {
-    WTR::PlatformWebView* _platformWebView;
+    PlatformWebView* _platformWebView;
     NSPoint _fakeOrigin;
 }
-@property (nonatomic, assign) WTR::PlatformWebView* platformWebView;
+@property (nonatomic, assign) PlatformWebView* platformWebView;
 @end
 
 @interface TestRunnerWKView : WKView {
-    BOOL _useTiledDrawing;
+    BOOL _useThreadedScrolling;
 }
 
-- (id)initWithFrame:(NSRect)frame contextRef:(WKContextRef)context pageGroupRef:(WKPageGroupRef)pageGroup relatedToPage:(WKPageRef)relatedPage useTiledDrawing:(BOOL)useTiledDrawing;
+- (id)initWithFrame:(NSRect)frame contextRef:(WKContextRef)context pageGroupRef:(WKPageGroupRef)pageGroup relatedToPage:(WKPageRef)relatedPage useThreadedScrolling:(BOOL)useThreadedScrolling;
 
-@property (nonatomic, assign) BOOL useTiledDrawing;
+@property (nonatomic, assign) BOOL useThreadedScrolling;
 @end
 
 @implementation TestRunnerWKView
 
-@synthesize useTiledDrawing = _useTiledDrawing;
+@synthesize useThreadedScrolling = _useThreadedScrolling;
 
-- (id)initWithFrame:(NSRect)frame contextRef:(WKContextRef)context pageGroupRef:(WKPageGroupRef)pageGroup relatedToPage:(WKPageRef)relatedPage useTiledDrawing:(BOOL)useTiledDrawing
+- (id)initWithFrame:(NSRect)frame contextRef:(WKContextRef)context pageGroupRef:(WKPageGroupRef)pageGroup relatedToPage:(WKPageRef)relatedPage useThreadedScrolling:(BOOL)useThreadedScrolling
 {
-    _useTiledDrawing = useTiledDrawing;
+    _useThreadedScrolling = useThreadedScrolling;
     return [super initWithFrame:frame contextRef:context pageGroupRef:pageGroup relatedToPage:relatedPage];
 }
 
-- (BOOL)_shouldUseTiledDrawingArea
+- (void)dragImage:(NSImage *)anImage at:(NSPoint)viewLocation offset:(NSSize)initialOffset event:(NSEvent *)event pasteboard:(NSPasteboard *)pboard source:(id)sourceObj slideBack:(BOOL)slideFlag
 {
-    return _useTiledDrawing;
+    RetainPtr<WebKitTestRunnerDraggingInfo> draggingInfo = adoptNS([[WebKitTestRunnerDraggingInfo alloc] initWithImage:anImage offset:initialOffset pasteboard:pboard source:sourceObj]);
+    [self draggingUpdated:draggingInfo.get()];
 }
 
 @end
@@ -100,12 +109,6 @@
     NSRect currentFrame = [self frame];
     return NSMakeRect(_fakeOrigin.x, _fakeOrigin.y, currentFrame.size.width, currentFrame.size.height);
 }
-
-- (CGFloat)backingScaleFactor
-{
-    return 1;
-}
-
 @end
 
 @interface NSWindow (Details)
@@ -120,37 +123,45 @@ PlatformWebView::PlatformWebView(WKContextRef contextRef, WKPageGroupRef pageGro
     : m_windowIsKey(true)
     , m_options(options)
 {
-    WKRetainPtr<WKStringRef> useTiledDrawingKey(AdoptWK, WKStringCreateWithUTF8CString("TiledDrawing"));
-    WKTypeRef useTiledDrawingValue = options ? WKDictionaryGetItemForKey(options, useTiledDrawingKey.get()) : NULL;
-    bool useTiledDrawing = useTiledDrawingValue && WKBooleanGetValue(static_cast<WKBooleanRef>(useTiledDrawingValue));
+    WKRetainPtr<WKStringRef> useThreadedScrollingKey(AdoptWK, WKStringCreateWithUTF8CString("ThreadedScrolling"));
+    WKRetainPtr<WKStringRef> useRemoteLayerTreeKey(AdoptWK, WKStringCreateWithUTF8CString("RemoteLayerTree"));
+    WKTypeRef useThreadedScrollingValue = options ? WKDictionaryGetItemForKey(options, useThreadedScrollingKey.get()) : NULL;
+    bool useThreadedScrolling = useThreadedScrollingValue && WKBooleanGetValue(static_cast<WKBooleanRef>(useThreadedScrollingValue));
+
+    // The tiled drawing specific tests also depend on threaded scrolling.
+    WKPreferencesRef preferences = WKPageGroupGetPreferences(pageGroupRef);
+    WKPreferencesSetThreadedScrollingEnabled(preferences, useThreadedScrolling);
+
+    // FIXME: Not sure this is the best place for this; maybe we should have API to set this so we can do it from TestController?
+    WKTypeRef useRemoteLayerTreeValue = options ? WKDictionaryGetItemForKey(options, useRemoteLayerTreeKey.get()) : NULL;
+    if (useRemoteLayerTreeValue && WKBooleanGetValue(static_cast<WKBooleanRef>(useRemoteLayerTreeValue)))
+        [[NSUserDefaults standardUserDefaults] setValue:@YES forKey:@"WebKit2UseRemoteLayerTreeDrawingArea"];
 
     NSRect rect = NSMakeRect(0, 0, TestController::viewWidth, TestController::viewHeight);
-    m_view = [[TestRunnerWKView alloc] initWithFrame:rect contextRef:contextRef pageGroupRef:pageGroupRef relatedToPage:relatedPage useTiledDrawing:useTiledDrawing];
+    m_view = [[TestRunnerWKView alloc] initWithFrame:rect contextRef:contextRef pageGroupRef:pageGroupRef relatedToPage:relatedPage useThreadedScrolling:useThreadedScrolling];
     [m_view setWindowOcclusionDetectionEnabled:NO];
 
     NSRect windowRect = NSOffsetRect(rect, -10000, [(NSScreen *)[[NSScreen screens] objectAtIndex:0] frame].size.height - rect.size.height + 10000);
-    m_window = [[WebKitTestRunnerWindow alloc] initWithContentRect:windowRect styleMask:NSBorderlessWindowMask backing:NSBackingStoreBuffered defer:YES];
+    m_window = [[WebKitTestRunnerWindow alloc] initWithContentRect:windowRect styleMask:NSBorderlessWindowMask backing:(NSBackingStoreType)_NSBackingStoreUnbuffered defer:YES];
     m_window.platformWebView = this;
     [m_window setColorSpace:[[NSScreen mainScreen] colorSpace]];
     [m_window setCollectionBehavior:NSWindowCollectionBehaviorStationary];
     [[m_window contentView] addSubview:m_view];
     [m_window orderBack:nil];
     [m_window setReleasedWhenClosed:NO];
-    [m_window _setWindowResolution:1 displayIfChanged:YES];
 }
 
 void PlatformWebView::resizeTo(unsigned width, unsigned height)
 {
-    NSRect windowFrame = [m_window frame];
-    windowFrame.size.width = width;
-    windowFrame.size.height = height;
-    [m_window setFrame:windowFrame display:YES];
-    [m_view setFrame:NSMakeRect(0, 0, width, height)];
+    WKRect frame = windowFrame();
+    frame.size.width = width;
+    frame.size.height = height;
+    setWindowFrame(frame);
 }
 
 PlatformWebView::~PlatformWebView()
 {
-    m_window.platformWebView = 0;
+    m_window.platformWebView = nullptr;
     [m_window close];
     [m_window release];
     [m_view release];
@@ -182,14 +193,13 @@ WKRect PlatformWebView::windowFrame()
 void PlatformWebView::setWindowFrame(WKRect frame)
 {
     [m_window setFrame:NSMakeRect(frame.origin.x, frame.origin.y, frame.size.width, frame.size.height) display:YES];
+    [m_view setFrame:NSMakeRect(0, 0, frame.size.width, frame.size.height)];
 }
 
 void PlatformWebView::didInitializeClients()
 {
     // Set a temporary 1x1 window frame to force a WindowAndViewFramesChanged notification. <rdar://problem/13380145>
-    WKRect wkFrame = windowFrame();
-    [m_window setFrame:NSMakeRect(0, 0, 1, 1) display:YES];
-    setWindowFrame(wkFrame);
+    forceWindowFramesChanged();
 }
 
 void PlatformWebView::addChromeInputField()
@@ -228,11 +238,32 @@ WKRetainPtr<WKImageRef> PlatformWebView::windowSnapshotImage()
 
 bool PlatformWebView::viewSupportsOptions(WKDictionaryRef options) const
 {
-    WKRetainPtr<WKStringRef> useTiledDrawingKey(AdoptWK, WKStringCreateWithUTF8CString("TiledDrawing"));
-    WKTypeRef useTiledDrawingValue = WKDictionaryGetItemForKey(options, useTiledDrawingKey.get());
-    bool useTiledDrawing = useTiledDrawingValue && WKBooleanGetValue(static_cast<WKBooleanRef>(useTiledDrawingValue));
+    WKRetainPtr<WKStringRef> useThreadedScrollingKey(AdoptWK, WKStringCreateWithUTF8CString("ThreadedScrolling"));
+    WKTypeRef useThreadedScrollingValue = WKDictionaryGetItemForKey(options, useThreadedScrollingKey.get());
+    bool useThreadedScrolling = useThreadedScrollingValue && WKBooleanGetValue(static_cast<WKBooleanRef>(useThreadedScrollingValue));
 
-    return useTiledDrawing == [(TestRunnerWKView *)m_view useTiledDrawing];
+    return useThreadedScrolling == [(TestRunnerWKView *)m_view useThreadedScrolling];
+}
+
+void PlatformWebView::changeWindowScaleIfNeeded(float newScale)
+{
+    CGFloat currentScale = [m_window backingScaleFactor];
+    if (currentScale == newScale)
+        return;
+    [m_window _setWindowResolution:newScale displayIfChanged:YES];
+    // Instead of re-constructing the current window, let's fake resize it to ensure that the scale change gets picked up.
+    forceWindowFramesChanged();
+    // Changing the scaling factor on the window does not trigger NSWindowDidChangeBackingPropertiesNotification. We need to send the notification manually.
+    RetainPtr<NSMutableDictionary> notificationUserInfo = adoptNS([[NSMutableDictionary alloc] initWithCapacity:1]);
+    [notificationUserInfo setObject:[NSNumber numberWithDouble:currentScale] forKey:NSBackingPropertyOldScaleFactorKey];
+    [[NSNotificationCenter defaultCenter] postNotificationName:NSWindowDidChangeBackingPropertiesNotification object:m_window userInfo:notificationUserInfo.get()];
+}
+
+void PlatformWebView::forceWindowFramesChanged()
+{
+    WKRect wkFrame = windowFrame();
+    [m_window setFrame:NSMakeRect(0, 0, 1, 1) display:YES];
+    setWindowFrame(wkFrame);
 }
 
 } // namespace WTR

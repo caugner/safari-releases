@@ -26,12 +26,12 @@
 #include "config.h"
 #include "PlatformUtilities.h"
 
-#include <WebKit2/WKRetainPtr.h>
-#include <WebKit2/WKStringCF.h>
-#include <WebKit2/WKURLCF.h>
-#include <WebKit2/WKURLResponseNS.h>
-#include <wtf/OwnArrayPtr.h>
+#include <WebKit/WKRetainPtr.h>
+#include <WebKit/WKStringCF.h>
+#include <WebKit/WKURLCF.h>
+#include <WebKit/WKURLResponseNS.h>
 #include <wtf/RetainPtr.h>
+#include <wtf/StdLibExtras.h>
 
 namespace TestWebKitAPI {
 namespace Util {
@@ -82,7 +82,7 @@ std::string toSTD(NSString *string)
         return std::string();
 
     size_t bufferSize = [string lengthOfBytesUsingEncoding:NSUTF8StringEncoding];
-    OwnArrayPtr<char> buffer = adoptArrayPtr(new char[bufferSize]);
+    auto buffer = std::make_unique<char[]>(bufferSize);
     NSUInteger stringLength;
     [string getBytes:buffer.get() maxLength:bufferSize usedLength:&stringLength encoding:NSUTF8StringEncoding options:0 range:NSMakeRange(0, [string length]) remainingRange:0];
     return std::string(buffer.get(), stringLength);

@@ -1,7 +1,7 @@
 <!DOCTYPE HTML>
 <html>
 <body>
-<script src="../fast/js/resources/js-test-pre.js"></script>
+<script src="../resources/js-test-pre.js"></script>
 
 <style>
 myelement {
@@ -52,7 +52,7 @@ if (window.testRunner && window.accessibilityController) {
         debug("");
     }
 
-    var comboBoxRole = (testRunner.platformName == "gtk" || testRunner.platformName == "efl") ? "AXRole: AXComboBox" : "AXRole: AXPopUpButton";
+    var comboBoxRole = accessibilityController.platformName == "atk" ? "AXRole: AXComboBox" : "AXRole: AXPopUpButton";
 
     // Check rendered controls.
     check("link1", "AXRole: AXLink");
@@ -87,6 +87,6 @@ if (window.testRunner && window.accessibilityController) {
 
 </script>
 
-<script src="../fast/js/resources/js-test-post.js"></script>
+<script src="../resources/js-test-post.js"></script>
 </body>
 </html>

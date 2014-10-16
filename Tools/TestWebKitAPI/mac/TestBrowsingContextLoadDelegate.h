@@ -23,7 +23,9 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#import <WebKit2/WebKit2.h>
+#import <WebKit/WebKit2.h>
+
+#if WK_API_ENABLED
 
 typedef void (^OnLoadBlock)(WKBrowsingContextController *);
 
@@ -37,3 +39,5 @@ typedef void (^OnLoadBlock)(WKBrowsingContextController *);
 - (id)initWithBlockToRunOnLoad:(OnLoadBlock)block;
 
 @end
+
+#endif // WK_API_ENABLED

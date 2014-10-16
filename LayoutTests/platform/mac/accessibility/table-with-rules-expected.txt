@@ -26,6 +26,9 @@ AXLinkedUIElements: (null)
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXTable>
+AXLanguage: 
+AXDOMIdentifier: testTable2
+AXDOMClassList: <array of size 0>
 AXRows: <array of size 1>
 AXVisibleRows: <array of size 1>
 AXColumns: <array of size 2>
@@ -34,7 +37,9 @@ AXVisibleCells: <array of size 2>
 AXColumnHeaderUIElements: <array of size 0>
 AXRowHeaderUIElements: <array of size 0>
 AXHeader: <AXTable>
-AXARIABusy: 0
+AXColumnCount: 2
+AXRowCount: 1
+AXElementBusy: 0
 
 
 AXRole: AXTable
@@ -58,6 +63,9 @@ AXLinkedUIElements: (null)
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXTable>
+AXLanguage: 
+AXDOMIdentifier: testTable3
+AXDOMClassList: <array of size 0>
 AXRows: <array of size 1>
 AXVisibleRows: <array of size 1>
 AXColumns: <array of size 2>
@@ -66,7 +74,9 @@ AXVisibleCells: <array of size 2>
 AXColumnHeaderUIElements: <array of size 0>
 AXRowHeaderUIElements: <array of size 0>
 AXHeader: <AXTable>
-AXARIABusy: 0
+AXColumnCount: 2
+AXRowCount: 1
+AXElementBusy: 0
 
 
 AXRole: AXTable
@@ -90,6 +100,9 @@ AXLinkedUIElements: (null)
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXTable>
+AXLanguage: 
+AXDOMIdentifier: testTable4
+AXDOMClassList: <array of size 0>
 AXRows: <array of size 1>
 AXVisibleRows: <array of size 1>
 AXColumns: <array of size 2>
@@ -98,7 +111,9 @@ AXVisibleCells: <array of size 2>
 AXColumnHeaderUIElements: <array of size 0>
 AXRowHeaderUIElements: <array of size 0>
 AXHeader: <AXTable>
-AXARIABusy: 0
+AXColumnCount: 2
+AXRowCount: 1
+AXElementBusy: 0
 
 
 AXRole: AXGroup
@@ -122,8 +137,11 @@ AXLinkedUIElements: (null)
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXGroup>
+AXLanguage: 
+AXDOMIdentifier: 
+AXDOMClassList: <array of size 0>
 AXTitleUIElement: (null)
-AXARIABusy: 0
+AXElementBusy: 0
 
 
 AXRole: AXGroup
@@ -147,8 +165,11 @@ AXLinkedUIElements: (null)
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXGroup>
+AXLanguage: 
+AXDOMIdentifier: 
+AXDOMClassList: <array of size 0>
 AXTitleUIElement: (null)
-AXARIABusy: 0
+AXElementBusy: 0
 
 
 

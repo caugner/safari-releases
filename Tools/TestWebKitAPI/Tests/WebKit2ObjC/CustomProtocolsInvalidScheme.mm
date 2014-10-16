@@ -28,8 +28,10 @@
 #import "PlatformUtilities.h"
 #import "PlatformWebView.h"
 #import "TestBrowsingContextLoadDelegate.h"
-#import <WebKit2/WebKit2.h>
+#import <WebKit/WebKit2.h>
 #import <wtf/RetainPtr.h>
+
+#if WK_API_ENABLED
 
 static bool testFinished = false;
 
@@ -56,3 +58,5 @@ TEST(WebKit2CustomProtocolsTest, LoadInvalidScheme)
 }
 
 } // namespace TestWebKitAPI
+
+#endif // WK_API_ENABLED

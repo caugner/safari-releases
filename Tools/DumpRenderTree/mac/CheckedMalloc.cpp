@@ -12,7 +12,7 @@
  * 2.  Redistributions in binary form must reproduce the above copyright
  *     notice, this list of conditions and the following disclaimer in the
  *     documentation and/or other materials provided with the distribution. 
- * 3.  Neither the name of Apple Computer, Inc. ("Apple") nor the names of
+ * 3.  Neither the name of Apple Inc. ("Apple") nor the names of
  *     its contributors may be used to endorse or promote products derived
  *     from this software without specific prior written permission. 
  *
@@ -54,7 +54,6 @@ static void* checkedRealloc(malloc_zone_t* zone, void* ptr, size_t size)
     return savedRealloc(zone, ptr, size);
 }
 
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= 1070
 static vm_prot_t protectionOfRegion(mach_vm_address_t address)
 {
     mach_vm_size_t regionSize = 0;
@@ -65,28 +64,23 @@ static vm_prot_t protectionOfRegion(mach_vm_address_t address)
         CRASH();
     return regionInfo.protection;
 }
-#endif
 
 void makeLargeMallocFailSilently()
 {
     malloc_zone_t* zone = malloc_default_zone();
 
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= 1070
     mach_vm_address_t pageStart = reinterpret_cast<vm_address_t>(zone) & static_cast<vm_size_t>(~(getpagesize() - 1));
     vm_prot_t initialProtection = protectionOfRegion(pageStart);
 
     vm_size_t len = reinterpret_cast<vm_address_t>(zone) - pageStart + sizeof(malloc_zone_t);
     if (mach_vm_protect(mach_task_self(), pageStart, len, 0, initialProtection | VM_PROT_WRITE))
         CRASH();
-#endif
 
     savedMalloc = zone->malloc;
     savedRealloc = zone->realloc;
     zone->malloc = checkedMalloc;
     zone->realloc = checkedRealloc;
 
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= 1070
     if (mach_vm_protect(mach_task_self(), pageStart, len, 0, initialProtection))
         CRASH();
-#endif
 }

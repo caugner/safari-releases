@@ -12,7 +12,7 @@
  * 2.  Redistributions in binary form must reproduce the above copyright
  *     notice, this list of conditions and the following disclaimer in the
  *     documentation and/or other materials provided with the distribution. 
- * 3.  Neither the name of Apple Computer, Inc. ("Apple") nor the names of
+ * 3.  Neither the name of Apple Inc. ("Apple") nor the names of
  *     its contributors may be used to endorse or promote products derived
  *     from this software without specific prior written permission. 
  *
@@ -28,21 +28,26 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "config.h"
-#include "PixelDumpSupport.h"
-#include "PixelDumpSupportCG.h"
+#import "config.h"
+#import "PixelDumpSupport.h"
+#import "PixelDumpSupportCG.h"
 
-#include "DumpRenderTree.h" 
-#include "TestRunner.h"
-#include <CoreGraphics/CGBitmapContext.h>
-#include <wtf/Assertions.h>
-#include <wtf/RefPtr.h>
+#import "DumpRenderTree.h" 
+#import "TestRunner.h"
+#import <CoreGraphics/CGBitmapContext.h>
+#import <QuartzCore/QuartzCore.h>
+#import <wtf/Assertions.h>
+#import <wtf/RefPtr.h>
 
 #import <WebKit/WebCoreStatistics.h>
 #import <WebKit/WebDocumentPrivate.h>
 #import <WebKit/WebHTMLViewPrivate.h>
 #import <WebKit/WebKit.h>
 #import <WebKit/WebViewPrivate.h>
+
+@interface CATransaction (Details)
++ (void)synchronize;
+@end
 
 static PassRefPtr<BitmapContext> createBitmapContext(size_t pixelsWide, size_t pixelsHigh, size_t& rowBytes, void*& buffer)
 {
@@ -101,6 +106,10 @@ PassRefPtr<BitmapContext> createBitmapContextFromWebView(bool onscreen, bool inc
     if ([view _isUsingAcceleratedCompositing])
         onscreen = YES;
 
+    // If the window is layer-backed, its backing store will be empty, so we have to use a window server snapshot.
+    if ([view.window.contentView layer])
+        onscreen = YES;
+
     float deviceScaleFactor = [view _backingScaleFactor];
     NSSize webViewSize = [view frame].size;
     size_t pixelsWide = static_cast<size_t>(webViewSize.width * deviceScaleFactor);
@@ -111,7 +120,10 @@ PassRefPtr<BitmapContext> createBitmapContextFromWebView(bool onscreen, bool inc
     if (!bitmapContext)
         return 0;
     CGContextRef context = bitmapContext->cgContext();
-    CGContextScaleCTM(context, deviceScaleFactor, deviceScaleFactor);
+    // The final scaling gets doubled on the screen capture surface when we use the hidpi backingScaleFactor value for CTM.
+    // This is a workaround to push the scaling back.
+    float scaleForCTM = onscreen ? 1 : [view _backingScaleFactor];
+    CGContextScaleCTM(context, scaleForCTM, scaleForCTM);
 
     NSGraphicsContext *nsContext = [NSGraphicsContext graphicsContextWithGraphicsPort:context flipped:NO];
     ASSERT(nsContext);
@@ -125,19 +137,12 @@ PassRefPtr<BitmapContext> createBitmapContextFromWebView(bool onscreen, bool inc
                 [view displayRectIgnoringOpacity:line inContext:nsContext];
         }
     } else {
-        if (deviceScaleFactor != 1) {
-            // Call displayRectIgnoringOpacity for HiDPI tests since it ensures we paint directly into the context 
-            // that we have appropriately sized and scaled.
-            [view displayRectIgnoringOpacity:[view bounds] inContext:nsContext];
-            if ([view isTrackingRepaints])
-                paintRepaintRectOverlay(view, context);
-        } else if (onscreen) {
-            // displayIfNeeded does not update the CA layers if the layer-hosting view was not marked as needing display, so
-            // we're at the mercy of CA's display-link callback to update layers in time. So we need to force a display of the view
-            // to get AppKit to update the CA layers synchronously.
-            // FIXME: this will break repaint testing if we have compositing in repaint tests
+      if (onscreen) {
+            // FIXME: This will break repaint testing if we have compositing in repaint tests.
             // (displayWebView() painted gray over the webview, but we'll be making everything repaint again).
             [view display];
+            [CATransaction flush];
+            [CATransaction synchronize];
 
             // Ask the window server to provide us a composited version of the *real* window content including surfaces (i.e. OpenGL content)
             // Note that the returned image might differ very slightly from the window backing because of dithering artifacts in the window server compositor.
@@ -145,6 +150,12 @@ PassRefPtr<BitmapContext> createBitmapContextFromWebView(bool onscreen, bool inc
             CGContextDrawImage(context, CGRectMake(0, 0, CGImageGetWidth(image), CGImageGetHeight(image)), image);
             CGImageRelease(image);
 
+            if ([view isTrackingRepaints])
+                paintRepaintRectOverlay(view, context);
+        } else if (deviceScaleFactor != 1) {
+            // Call displayRectIgnoringOpacity for HiDPI tests since it ensures we paint directly into the context
+            // that we have appropriately sized and scaled.
+            [view displayRectIgnoringOpacity:[view bounds] inContext:nsContext];
             if ([view isTrackingRepaints])
                 paintRepaintRectOverlay(view, context);
         } else {

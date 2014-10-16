@@ -26,10 +26,10 @@
 #include "config.h"
 #include "WebNotificationProvider.h"
 
-#include <WebKit2/WKMutableArray.h>
-#include <WebKit2/WKNotification.h>
-#include <WebKit2/WKNumber.h>
-#include <WebKit2/WKSecurityOrigin.h>
+#include <WebKit/WKMutableArray.h>
+#include <WebKit/WKNotification.h>
+#include <WebKit/WKNumber.h>
+#include <WebKit/WKSecurityOrigin.h>
 #include <wtf/Assertions.h>
 
 namespace WTR {
@@ -68,11 +68,10 @@ WebNotificationProvider::~WebNotificationProvider()
     WKNotificationManagerSetProvider(m_notificationManager.get(), 0);
 }
 
-WKNotificationProvider WebNotificationProvider::provider()
+WKNotificationProviderV0 WebNotificationProvider::provider()
 {
-    WKNotificationProvider notificationProvider = {
-        kWKNotificationProviderCurrentVersion,
-        this,
+    WKNotificationProviderV0 notificationProvider = {
+        { kWKNotificationProviderCurrentVersion, this },
         WTR::showWebNotification,
         WTR::closeWebNotification,
         0, // didDestroyNotification

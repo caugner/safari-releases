@@ -27,9 +27,9 @@
 #include "InjectedBundleTest.h"
 
 #include "PlatformUtilities.h"
-#include <WebKit2/WKBundlePage.h>
-#include <WebKit2/WKBundleFrame.h>
-#include <WebKit2/WKRetainPtr.h>
+#include <WebKit/WKBundlePage.h>
+#include <WebKit/WKBundleFrame.h>
+#include <WebKit/WKRetainPtr.h>
 
 namespace TestWebKitAPI {
 
@@ -67,13 +67,13 @@ void ParentFrameTest::didCreatePage(WKBundleRef bundle, WKBundlePageRef page)
 {
     testBundle = bundle;
     
-    WKBundlePageLoaderClient pageLoaderClient;
+    WKBundlePageLoaderClientV1 pageLoaderClient;
     memset(&pageLoaderClient, 0, sizeof(pageLoaderClient));
     
-    pageLoaderClient.version = 1;
+    pageLoaderClient.base.version = 1;
     pageLoaderClient.didFinishLoadForFrame = didFinishLoadForFrame;
     
-    WKBundlePageSetPageLoaderClient(page, &pageLoaderClient);
+    WKBundlePageSetPageLoaderClient(page, &pageLoaderClient.base);
 }
 
 } // namespace TestWebKitAPI
