@@ -62,7 +62,6 @@ extern WebFrame* topLoadingFrame;
 extern DumpRenderTreeDraggingInfo *draggingInfo;
 extern NavigationController* gNavigationController;
 extern PolicyDelegate* policyDelegate;
-extern StorageTrackerDelegate* storageDelegate;
 extern DefaultPolicyDelegate *defaultPolicyDelegate;
 
 void setWaitToDumpWatchdog(CFRunLoopTimerRef);
@@ -77,6 +76,7 @@ unsigned worldIDForWorld(WebScriptWorld *);
 #if PLATFORM(IOS) && defined(__OBJC__)
 @interface DumpRenderTree : UIApplication {
     BOOL _hasFlushedWebThreadRunQueue;
+    UIBackgroundTaskIdentifier backgroundTaskIdentifier;
 }
 
 - (void)_waitForWebThread;

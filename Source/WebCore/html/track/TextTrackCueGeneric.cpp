@@ -49,9 +49,9 @@ const static int DEFAULTCAPTIONFONTSIZE = 10;
 
 class TextTrackCueGenericBoxElement final : public VTTCueBox {
 public:
-    static PassRefPtr<TextTrackCueGenericBoxElement> create(Document& document, TextTrackCueGeneric& cue)
+    static Ref<TextTrackCueGenericBoxElement> create(Document& document, TextTrackCueGeneric& cue)
     {
-        return adoptRef(new TextTrackCueGenericBoxElement(document, cue));
+        return adoptRef(*new TextTrackCueGenericBoxElement(document, cue));
     }
     
     virtual void applyCSSProperties(const IntSize&) override;
@@ -144,7 +144,7 @@ void TextTrackCueGenericBoxElement::applyCSSProperties(const IntSize& videoSize)
     setInlineStyleProperty(CSSPropertyWhiteSpace, CSSValuePreWrap);
 }
 
-TextTrackCueGeneric::TextTrackCueGeneric(ScriptExecutionContext& context, double start, double end, const String& content)
+TextTrackCueGeneric::TextTrackCueGeneric(ScriptExecutionContext& context, const MediaTime& start, const MediaTime& end, const String& content)
     : VTTCue(context, start, end, content)
     , m_baseFontSizeRelativeToVideoHeight(0)
     , m_fontSizeMultiplier(0)

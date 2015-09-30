@@ -1,165 +1,636 @@
-2014-08-26  Dana Burkart  <dburkart@apple.com>
+2015-07-20  Matthew Hanson  <matthew_hanson@apple.com>
 
-        Merge r172982. <rdar://problem/18141695>
+        Merge r187038. rdar://problem/20860410
 
-    2014-08-26  Brent Fulgham  <bfulgham@apple.com>
-    
-            [Win] Version stamp should include package-level version
-            https://bugs.webkit.org/show_bug.cgi?id=136266
-            <rdar://problem/18134138>
-    
-            Reviewed by David Kilzer.
-    
-            * win/tools/scripts/auto-version.pl: Retain the full major build
-            version in addition to the three-digit value we use internally.
-            * win/tools/scripts/version-stamp.pl: Find and use the full 3+ digit
-            major build version when stamping the final output file.
-    
-    
-2014-08-25  Lucas Forschler  <lforschler@apple.com>
+    2015-07-20  Gordon Sheridan  <gordon_sheridan@apple.com>
 
-        Merge r172929
+            WKSI support for blocking a plug-in for non-security reasons.
+            https://bugs.webkit.org/show_bug.cgi?id=145009
 
-    2014-08-25  Brent Fulgham  <bfulgham@apple.com>
+            Reviewed by Anders Carlsson.
 
-            [Win] Pass OFFICIAL_BUILD flag to WebInspectorUI build process
-            https://bugs.webkit.org/show_bug.cgi?id=136229
+            * WebKitSystemInterface.h:
+            * libWebKitSystemInterfaceMavericks.a:
+            * libWebKitSystemInterfaceYosemite.a:
 
-            Reviewed by Dean Jackson.
+2015-07-02  Daniel Bates  <dabates@apple.com>
 
-            * win/tools/vsprops/common.props: Pass OFFICIAL_BUILD argument
-            from VS to child Make processes.
+        [iOS] Add WebKitSystemInterface for iOS 8.4
+        https://bugs.webkit.org/show_bug.cgi?id=146548
 
-2014-08-15  Matthew Hanson  <matthew_hanson@apple.com>
+        Rubber-stamped by Zalan Bujtas.
 
-        Merge r172661. <rdar://problem/18037766>
+        * WebKitSystemInterfaceIOS.h:
+        * libWebKitSystemInterfaceIOSDevice8.4.a: Added.
+        * libWebKitSystemInterfaceIOSSimulator8.4.a: Added.
 
-    2014-08-15  Brent Fulgham  <bfulgham@apple.com>
-    
-            [Win] Link to static VS2013 runtime library.
-            https://bugs.webkit.org/show_bug.cgi?id=136007
-            <rdar://problem/18037766>
-    
-            Reviewed by Dean Jackson.
-    
-            * win/tools/vsprops/common.props: Update link command.
-            * win/tools/vsprops/debugsuffix.props: Ditto.
-    
-2014-08-15  Matthew Hanson  <matthew_hanson@apple.com>
+2015-06-30  Andy VanWagoner  <thetalecrafter@gmail.com>
 
-        Merge r172019. <rdar://problem/18029617>
+        Implement ECMAScript Internationalization API
+        https://bugs.webkit.org/show_bug.cgi?id=90906
 
-    2014-08-04  Matthew Hanson  <matthew_hanson@apple.com>
-    
-            [Win] Temporarily turn off WebGL feature.
-            https://bugs.webkit.org/show_bug.cgi?id=135543
-    
-            Unreviewed build fix.
-    
-            Landed on behalf of Brent Fulgham.
-    
-            * win/tools/vsprops/FeatureDefines.props: Deactivate feature.
-    
-2014-08-14  Lucas Forschler  <lforschler@apple.com>
+        Reviewed by Benjamin Poulain.
 
-        Merge r172604
+        * win/tools/vsprops/FeatureDefines.props: add ENABLE_INTL flag
+        * win/tools/vsprops/FeatureDefinesCairo.props: add ENABLE_INTL flag
 
-    2014-08-14  Brent Fulgham  <bfulgham@apple.com>
+2015-06-29  Hyungwook Lee  <hyungwook.lee@navercorp.com>
 
-            [Win] Extend auto-version and version-stamp for RC_ProjectBuildVersion
-            https://bugs.webkit.org/show_bug.cgi?id=135948
-            <rdar://problem/18022221>
+        [Win] Activate SSE support for 32-bit builds.
+        https://bugs.webkit.org/show_bug.cgi?id=144923
 
-            Reviewed by David Kilzer.
+        Reviewed by Brent Fulgham.
 
-            * win/tools/scripts/auto-version.pl:
-            (splitVersion): Use RC_ProjectBuildVersion (or RC_PROJECTBUILDVERSION) if set
-            in the environment as the 'Build Version', unless the multi-tuple version
-            supplied by RC_ProjectSourceVersion already has a fourth component.
-            * win/tools/scripts/version-stamp.pl: Check for RC_ProjectBuildVersion and
-            use it in preference to RC_PROJECTBUILDVERSION.
+        * win/tools/vsprops/common.props:
 
-2014-08-12  Matthew Hanson  <matthew_hanson@apple.com>
+2015-06-26  Per Arne Vollan  <peavo@outlook.com>
 
-        Merge r171903. <rdar://problem/17885078>
+        [WinCairo] Enable WEB_TIMING.
+        https://bugs.webkit.org/show_bug.cgi?id=146357
 
-    2014-07-31  Brent Fulgham  <bfulgham@apple.com>
-    
-            [Win] Use RC_PROJECTBUILDVERSION as build portion of version
-            https://bugs.webkit.org/show_bug.cgi?id=135478
-    
-            Reviewed by David Kilzer.
-    
-            * win/tools/scripts/version-stamp.pl: Check environment for
-            RC_PROJECTBUILDVERSION, and use it for the build portion of
-            the file version resource. Otherwise, use the __VERSION_BUILD__
-            value we calculated from the version string.
-    
-2014-08-05  Brent Fulgham  <bfulgham@apple.com>
+        Reviewed by Brent Fulgham.
 
-        [Win] Turn off features we don't want to ship this cycle.
-        <rdar://problem/17922754>
+        * win/tools/vsprops/FeatureDefinesCairo.props:
 
-        * win/tools/vsprops/FeatureDefines.props: Match with
-        changes in <http://trac.webkit.org/changeset/171178>
+2015-06-26  Csaba Osztrogonác  <ossy@webkit.org>
 
-2014-07-31  Lucas Forschler  <lforschler@apple.com>
+        Unreviewed buildfix after r185971, disable WEB_TIMING.
 
-        Merge r171870
+        * win/tools/vsprops/FeatureDefinesCairo.props:
 
-    2014-07-31  Brent Fulgham  <bfulgham@apple.com>
+2015-06-25  Brent Fulgham  <bfulgham@apple.com>
 
-            [Win] Fix build failure when using 5-tuple build versions.
-            https://bugs.webkit.org/show_bug.cgi?id=135464
-            <rdar://problem/17872507>
+        [WIN] Enable WEB_TIMING API
+        https://bugs.webkit.org/show_bug.cgi?id=146330
+        <rdar://problem/21530765>
 
-            Reviewed by David Kilzer.
+        Reviewed by Dean Jackson.
 
-            * win/tools/scripts/version-stamp.pl: Modify the environment for
-            the VersionStamper sub-process to work around bug in that tool.
+        Enable WEB_TIMING features on Windows by activating the feature flag,
+        and correcting some build errors.
 
-2014-07-30  Lucas Forschler  <lforschler@apple.com>
+        * win/tools/vsprops/FeatureDefines.props: Enable feature flag.
+        * win/tools/vsprops/FeatureDefinesCairo.props: Ditto.
 
-        Merge r171825
+2015-05-27  Dean Jackson  <dino@apple.com>
 
-    2014-07-29  Brent Fulgham  <bfulgham@apple.com>
-    
-            [Win] Modify version numbering scheme to support 5-tuple versions
-            https://bugs.webkit.org/show_bug.cgi?id=135400
-            <rdar://problem/17849033>
-    
-            Reviewed by David Kilzer.
-    
-            Revise the auto-version.pl script so that it generates a set of packed
-            version tuples that allow us to map 5-tuple versions into something
-            that will work with Windows' 3-tuple version structure.
-    
-            * win/tools/scripts/auto-version.pl:
-            (packTwoValues): Added,
-            (splitVersion): Revised to return packed combination of minor-tiny and
-            micro-nano to be used as "MINOR" and "TINY" portion of version.
-            (splitBuildMajorVersion): Deleted.
-            * win/tools/scripts/version-stamp.pl: Added.
+        img.currentSrc problem in strict mode with old picturefill
+        https://bugs.webkit.org/show_bug.cgi?id=144095
+        <rdar://problem/21087013>
 
-2014-07-22 Dana Burkart <dburkart@apple.com>
-    
-        Merge r171305.
+        Reviewed by Simon Fraser.
 
-    2014-07-21  Brent Fulgham  <bfulgham@apple.com>
+        Add a PICTURE_SIZES flag.
 
-            [Win] Correct auto-version.pl script for two-digit version numbers
-            https://bugs.webkit.org/show_bug.cgi?id=135119
-            <rdar://problem/17743959>
+        * win/tools/vsprops/FeatureDefines.props:
+        * win/tools/vsprops/FeatureDefinesCairo.props:
 
-            Reviewed by David Kilzer.
+2015-05-09  Yoav Weiss  <yoav@yoav.ws>
 
-            The $MAJOR_VERSION must be the first digit of $BUILD_MAJOR_VERSION,
-            and $MINOR_VERSION must be the remaining digits.
+        Remove the PICTURE_SIZES build flag
+        https://bugs.webkit.org/show_bug.cgi?id=144679
 
-            Also correct regexp (line 90) that was allowing version numbers
-            larger than three digits to be processed.
+        Reviewed by Benjamin Poulain.
 
-            * win/tools/scripts/auto-version.pl: Correct regular expression.
+        Removed the PICTURE_SIZES build time flag.
+
+        * win/tools/vsprops/FeatureDefines.props:
+        * win/tools/vsprops/FeatureDefinesCairo.props:
+
+2015-05-05  daegyu lee  <daegyu.lee@navercorp.com>
+
+        Remove the remaining vestiges of SVG feature define
+        https://bugs.webkit.org/show_bug.cgi?id=144655
+
+        Reviewed by Alexey Proskuryakov.
+
+        * win/tools/vsprops/FeatureDefines.props:
+        * win/tools/vsprops/FeatureDefinesCairo.props:
+
+2015-04-29  Per Arne Vollan  <peavo@outlook.com>
+
+        [WinCairo] Turn on WebGL.
+        https://bugs.webkit.org/show_bug.cgi?id=144389
+
+        Reviewed by Brent Fulgham.
+
+        * win/tools/vsprops/FeatureDefinesCairo.props:
+
+2015-04-27  Brent Fulgham  <bfulgham@apple.com>
+
+        [Win] Deactivate WebGL until Windows tests work properly
+        https://bugs.webkit.org/show_bug.cgi?id=144291
+        <rdar://problem/20707307>
+
+        Reviewed by Zalan Bujtas.
+
+        * win/tools/vsprops/FeatureDefines.props: Turn off the WEB_GL
+        feature for the Apple Windows port.
+
+2015-04-28  Per Arne Vollan  <peavo@outlook.com>
+
+        [Win] Enable ES6 template literals
+        https://bugs.webkit.org/show_bug.cgi?id=144316
+
+        Reviewed by Csaba Osztrogonác.
+
+        * win/tools/vsprops/FeatureDefines.props:
+        * win/tools/vsprops/FeatureDefinesCairo.props:
+
+2015-04-25  Martin Robinson  <mrobinson@igalia.com>
+
+        Rename ENABLE_3D_RENDERING to ENABLE_3D_TRANSFORMS
+        https://bugs.webkit.org/show_bug.cgi?id=144182
+
+        Reviewed by Simon Fraser.
+
+        * win/tools/vsprops/FeatureDefines.props: Replace all instances of 3D_RENDERING with 3D_TRANSFORMS.
+        * win/tools/vsprops/FeatureDefinesCairo.props: Replace all instances of 3D_RENDERING with 3D_TRANSFORMS.
+
+2015-04-17  Daniel Bates  <dabates@apple.com>
+
+        Not able to build WebKit against iOS Simulator 8.3 SDK
+        https://bugs.webkit.org/show_bug.cgi?id=143883
+
+        Reviewed by David Kilzer.
+
+        Add WebKitSystemInterface for iOS 8.3.
+
+        * libWebKitSystemInterfaceIOSDevice8.3.a: Added.
+        * libWebKitSystemInterfaceIOSSimulator8.3.a: Added.
+
+2015-04-06  Myles C. Maxfield  <mmaxfield@apple.com>
+
+        [Win] [SVG -> OTF Converter] Turn off on Windows until I can get the tests under control
+
+        Unreviewed.
+
+        * win/tools/vsprops/FeatureDefines.props:
+
+2015-04-06  Myles C. Maxfield  <mmaxfield@apple.com>
+
+        [Win] [SVG -> OTF Converter] Support the SVG -> OTF Font Converter
+        https://bugs.webkit.org/show_bug.cgi?id=143402
+
+        Reviewed by Darin Adler.
+
+        * win/tools/vsprops/FeatureDefines.props: Enable the define.
+
+2015-03-09  Daniel Bates  <dabates@apple.com>
+
+        [iOS] Add WebKitSystemInterface for iOS 8.2
+        https://bugs.webkit.org/show_bug.cgi?id=142505
+
+        Reviewed by Andy Estes.
+
+        * libWebKitSystemInterfaceIOSDevice8.2.a: Added.
+        * libWebKitSystemInterfaceIOSSimulator8.2.a: Added.
+
+2015-03-06  Csaba Osztrogonác  <ossy@webkit.org>
+
+        Remove Mountain Lion libraries since ML isn't supported
+        https://bugs.webkit.org/show_bug.cgi?id=142332
+
+        Reviewed by Darin Adler.
+
+        * LLVMIncludesMountainLion.tar.bz2: Removed.
+        * LLVMLibrariesMountainLion.tar.bz2: Removed.
+
+2015-03-03  Brent Fulgham  <bfulgham@apple.com>
+
+        [Win] [Attachment] New Tests fail on Windows
+        https://bugs.webkit.org/show_bug.cgi?id=142017
+
+        Unreviewed test fix. Just activate the feature.
+
+        * win/tools/vsprops/FeatureDefines.props:
+        * win/tools/vsprops/FeatureDefinesCairo.props:
+
+2015-02-26  Brent Fulgham  <bfulgham@apple.com>
+
+        [Win] Unreviewed build fix after r180676.
+
+        I forgot to checkin one of the more important changes!
+
+        * win/tools/vsprops/common.props:
+
+2015-02-26  Brent Fulgham  <bfulgham@apple.com>
+
+        [Win] Make build logs more legible by reducing noise
+        https://bugs.webkit.org/show_bug.cgi?id=142034
+
+        Reviewed by Alexey Proskuryakov.
+
+        Modify batch files, makefiles, and DOS commands to remove
+        uninteresting/unhelpful output.
+
+        * win/tools/vsprops/common.props:
+
+2015-02-25  peavo@outlook.com  <peavo@outlook.com>
+
+        [WinCairo] WinLauncher is not starting on Vista.
+        https://bugs.webkit.org/show_bug.cgi?id=141905
+
+        Reviewed by Alex Christensen.
+
+        We have to soft link with Media Foundation functions to be able
+        to start on Vista and WinXP.
+
+        * win/tools/vsprops/WinCairo.props: Remove Media Foundation input libraries.
+
+2015-02-03  Brent Fulgham  <bfulgham@apple.com>
+
+        [Win] Unreviewed build fix. Turn on feature flags for items
+        we currently ship/test on Mac.
+
+        * win/tools/vsprops/FeatureDefines.props: Activate ENABLE_DOM4_EVENTS_CONSTRUCTOR
+        and CURSOR_VISIBILITY.
+
+2015-01-28  Sam Weinig  <sam@webkit.org>
+
+        Remove libWebKitSystemInterfaceMountainLion.a
+
+        Reviewed by Mark Rowe.
+
+        * libWebKitSystemInterfaceMountainLion.a: Removed.
+
+2015-01-28  peavo@outlook.com  <peavo@outlook.com>
+
+        [WinCairo] Enable CSS_SELECTORS_LEVEL4.
+        https://bugs.webkit.org/show_bug.cgi?id=141003
+
+        Reviewed by Brent Fulgham.
+
+        * win/tools/vsprops/FeatureDefinesCairo.props:
+
+2015-01-22  David Kilzer  <ddkilzer@apple.com>
+
+        [iOS] Fix build for external iphoneos SDK
+
+        Reviewed by Daniel Bates.
+
+        * WebKitSystemInterface.h: Remove import of the
+        <IOSurface/IOSurface.h> header, and add a typedef for
+        IOSurfaceRef in its place.
+
+2015-01-22  Brent Fulgham  <bfulgham@apple.com>
+
+        [Win] Unreviewed gardening.
+
+        Activate ENABLE(MOUSE_CURSOR_SCALE). This works on Windows and causes more tests to pass.
+
+        * win/tools/vsprops/FeatureDefines.props:
+        * win/tools/vsprops/FeatureDefinesCairo.props:
+
+2015-01-20  Brent Fulgham  <bfulgham@apple.com>
+
+        [Win] Unreviewed gardening.
+
+        * win/tools/vsprops/FeatureDefines.props: Add feature definition for SVG converter,
+        but do NOT turn it on.
+        * win/tools/vsprops/FeatureDefinesCairo.props: Ditto.
+
+2015-01-19  peavo@outlook.com  <peavo@outlook.com>
+
+        [WinCairo][Video] Windows Media Foundation implementation is not completed.
+        https://bugs.webkit.org/show_bug.cgi?id=140337
+
+        Reviewed by Alex Christensen.
+
+        Link with Media Foundation libraries.
+
+        * win/tools/vsprops/WinCairo.props:
+
+2015-01-01  Jeff Miller  <jeffm@apple.com>
+
+        Update user-visible copyright strings to include 2015
+        https://bugs.webkit.org/show_bug.cgi?id=139880
+
+        Reviewed by Darin Adler.
+
+        * win/tools/scripts/COPYRIGHT-END-YEAR:
+
+2014-12-19  Daniel Bates  <dabates@apple.com>
+
+        [iOS] Add WebKitSystemInterface for iOS 8.1
+        https://bugs.webkit.org/show_bug.cgi?id=139831
+
+        Reviewed by Alexey Proskuryakov.
+
+        Towards building the iOS WebKit port using the public SDK, add the
+        WebKitSystemInterface for iOS version 8.1.
+
+        * WebKitSystemInterfaceIOS.h: Added.
+        * libWebKitSystemInterfaceIOSDevice8.1.a: Added.
+        * libWebKitSystemInterfaceIOSSimulator8.1.a: Added.
+
+2014-12-17  Brent Fulgham  <bfulgham@apple.com>
+
+        [Win] Unreviewed build fix (for full build)
+
+        * win/tools/vsprops/FeatureDefines.props: Add missing export so the
+        derived sources are generated properly.
+        * win/tools/vsprops/FeatureDefinesCairo.props: Ditto.
+
+2014-10-29  Tim Horton  <timothy_horton@apple.com>
+
+        Implement action menus for data detected items
+        https://bugs.webkit.org/show_bug.cgi?id=138178
+        <rdar://problem/18709436>
+
+        Reviewed by Anders Carlsson.
+
+        * WebKitSystemInterface.h:
+        * libWebKitSystemInterfaceMavericks.a:
+        * libWebKitSystemInterfaceMountainLion.a:
+        * libWebKitSystemInterfaceYosemite.a:
+        Update WebKitSystemInterface.
+
+2014-10-14  Brent Fulgham  <bfulgham@apple.com>
+
+        [Win] Enable Encrypted Media Support
+        https://bugs.webkit.org/show_bug.cgi?id=137710
+        <rdar://problem/18652699>
+
+        Reviewed by Jer Noble.
+
+        * win/tools/vsprops/FeatureDefines.props: Activate the
+        ENCRYPTED_MEDIA_V2 flag on Windows.
+
+2014-10-01  Mark Rowe  <mrowe@apple.com>
+
+        <https://webkit.org/b/137308> WebKit should build on OS X Yosemite for external users
+
+        Add versions of WebKitSystemInterface and LLVM for Yosemite. The LLVM build is from
+        LLVM SVN r206312, matching the Mavericks and Mountain Lion builds.
+
+        Reviewed by Dan Bernstein.
+
+        * LLVMIncludesYosemite.tar.bz2: Added.
+        * LLVMLibrariesYosemite.tar.bz2: Added.
+        * WebKitSystemInterface.h:
+        * libWebKitSystemInterfaceMavericks.a:
+        * libWebKitSystemInterfaceMountainLion.a:
+        * libWebKitSystemInterfaceYosemite.a: Added.
+
+2014-09-23  Roger Fong  <roger_fong@apple.com>
+
+        [Windows] Enable CSS Supports Rule on Windows.
+
+        * win/tools/vsprops/FeatureDefines.props:
+
+2014-09-19  Brent Fulgham  <bfulgham@apple.com>
+
+        [Win] Turn off SSE Instructions for 32-bit Builds
+        https://bugs.webkit.org/show_bug.cgi?id=136959
+        <rdar://problem/18375370>
+
+        Reviewed by Dean Jackson.
+
+        * win/tools/vsprops/common.props: Conditionally exclude the enhanced (SSE) instruction
+        set when building for 32-bit Windows. Otherwise, continue using SSE.
+
+2014-09-15  peavo@outlook.com  <peavo@outlook.com>
+
+        [WinCairo] Make it easier to enable/disable GStreamer.
+        https://bugs.webkit.org/show_bug.cgi?id=135766
+
+        Reviewed by Brent Fulgham.
+
+        Make it possible to enable/disable GStreamer by editing the new user macro ENABLE_GSTREAMER_WINCAIRO.
+
+        * win/tools/vsprops/GStreamerCommon.props: Add user macro ENABLE_GSTREAMER_WINCAIRO.
+
+2014-09-08  Eva Balazsfalvi  <evab.u-szeged@partner.samsung.com>
+
+        Remove FILTERS flag
+        https://bugs.webkit.org/show_bug.cgi?id=136571
+
+        Reviewed by Darin Adler.
+
+        * win/tools/vsprops/FeatureDefines.props:
+        * win/tools/vsprops/FeatureDefinesCairo.props:
+
+2014-09-04  Eva Balazsfalvi  <evab.u-szeged@partner.samsung.com>
+
+        Remove CSS_FILTERS flag
+        https://bugs.webkit.org/show_bug.cgi?id=136529
+
+        Reviewed by Dirk Schulze.
+
+        * win/tools/vsprops/FeatureDefines.props:
+        * win/tools/vsprops/FeatureDefinesCairo.props:
+
+2014-08-27  peavo@outlook.com  <peavo@outlook.com>
+
+        [WinCairo] Link error.
+        https://bugs.webkit.org/show_bug.cgi?id=136286
+
+        Reviewed by Darin Adler.
+
+        Link with the dynamic runtime libraries, since the WinCairo libraries link with these.
+
+        * win/tools/vsprops/common.props:
+
+2014-08-26  Brent Fulgham  <bfulgham@apple.com>
+
+        [Win] Version stamp should include package-level version
+        https://bugs.webkit.org/show_bug.cgi?id=136266
+        <rdar://problem/18134138>
+
+        Reviewed by David Kilzer.
+
+        * win/tools/scripts/auto-version.pl: Retain the full major build
+        version in addition to the three-digit value we use internally.
+        * win/tools/scripts/version-stamp.pl: Find and use the full 3+ digit
+        major build version when stamping the final output file.
+
+
+2014-08-25  Brent Fulgham  <bfulgham@apple.com>
+
+        [Win] Pass OFFICIAL_BUILD flag to WebInspectorUI build process
+        https://bugs.webkit.org/show_bug.cgi?id=136229
+
+        Reviewed by Dean Jackson.
+
+        * win/tools/vsprops/common.props: Pass OFFICIAL_BUILD argument
+        from VS to child Make processes.
+
+2014-08-17  Brent Fulgham  <bfulgham@apple.com>
+
+        [Win] Unreviewed build fix.
+
+        Upload static VS2013 version of WebKitSystemInterface.
+
+        * win/lib32/WebKitSystemInterface.lib:
+
+2014-08-15  Brent Fulgham  <bfulgham@apple.com>
+
+        [Win] Link to static VS2013 runtime library.
+        https://bugs.webkit.org/show_bug.cgi?id=136007
+        <rdar://problem/18037766>
+
+        Reviewed by Dean Jackson.
+
+        * win/tools/vsprops/common.props: Update link command.
+        * win/tools/vsprops/debugsuffix.props: Ditto.
+
+2014-08-14  Brent Fulgham  <bfulgham@apple.com>
+
+        [Win] Extend auto-version and version-stamp for RC_ProjectBuildVersion
+        https://bugs.webkit.org/show_bug.cgi?id=135948
+        <rdar://problem/18022221>
+
+        Reviewed by David Kilzer.
+
+        * win/tools/scripts/auto-version.pl:
+        (splitVersion): Use RC_ProjectBuildVersion (or RC_PROJECTBUILDVERSION) if set
+        in the environment as the 'Build Version', unless the multi-tuple version
+        supplied by RC_ProjectSourceVersion already has a fourth component.
+        * win/tools/scripts/version-stamp.pl: Check for RC_ProjectBuildVersion and
+        use it in preference to RC_PROJECTBUILDVERSION.
+
+2014-08-08  Joseph Pecoraro  <pecoraro@apple.com>
+
+        make clean does not work in OpenSource, fails in WebKitLibraries
+        https://bugs.webkit.org/show_bug.cgi?id=135734
+
+        Reviewed by David Kilzer.
+
+        * Makefile:
+        Add a "clean" target that runs copy-webkitlibraries-to-product-dir
+        with the new --clean switch.
+
+2014-08-04  Benjamin Poulain  <benjamin@webkit.org>
+
+        Add a flag for the CSS Selectors level 4 implementation
+        https://bugs.webkit.org/show_bug.cgi?id=135535
+
+        Reviewed by Andreas Kling.
+
+        * win/tools/vsprops/FeatureDefines.props:
+
+2014-07-31  Brent Fulgham  <bfulgham@apple.com>
+
+        [Win] Use RC_PROJECTBUILDVERSION as build portion of version
+        https://bugs.webkit.org/show_bug.cgi?id=135478
+
+        Reviewed by David Kilzer.
+
+        * win/tools/scripts/version-stamp.pl: Check environment for
+        RC_PROJECTBUILDVERSION, and use it for the build portion of
+        the file version resource. Otherwise, use the __VERSION_BUILD__
+        value we calculated from the version string.
+
+2014-07-31  Brent Fulgham  <bfulgham@apple.com>
+
+        [Win] Fix build failure when using 5-tuple build versions.
+        https://bugs.webkit.org/show_bug.cgi?id=135464
+        <rdar://problem/17872507>
+
+        Reviewed by David Kilzer.
+
+        * win/tools/scripts/version-stamp.pl: Modify the environment for
+        the VersionStamper sub-process to work around bug in that tool.
+
+2014-07-29  Brent Fulgham  <bfulgham@apple.com>
+
+        [Win] Modify version numbering scheme to support 5-tuple versions
+        https://bugs.webkit.org/show_bug.cgi?id=135400
+        <rdar://problem/17849033>
+
+        Reviewed by David Kilzer.
+
+        Revise the auto-version.pl script so that it generates a set of packed
+        version tuples that allow us to map 5-tuple versions into something
+        that will work with Windows' 3-tuple version structure.
+
+        * win/tools/scripts/auto-version.pl:
+        (packTwoValues): Added,
+        (splitVersion): Revised to return packed combination of minor-tiny and
+        micro-nano to be used as "MINOR" and "TINY" portion of version.
+        (splitBuildMajorVersion): Deleted.
+        * win/tools/scripts/version-stamp.pl: Added.
+
+2014-07-23  Bem Jones-Bey  <bjonesbe@adobe.com>
+
+        Remove CSS_EXCLUSIONS compile flag and leftover code
+        https://bugs.webkit.org/show_bug.cgi?id=135175
+
+        Reviewed by Zoltan Horvath.
+
+        At this point, the CSS_EXCLUSIONS flag guards nothing but some useless
+        stubs. This removes the flag and the useless code.
+
+        * win/tools/vsprops/FeatureDefines.props:
+        * win/tools/vsprops/FeatureDefinesCairo.props:
+
+2014-07-22  Brent Fulgham  <bfulgham@apple.com>
+
+        Correct handling of __VERSION_TEXT__ for 4+-tuple versions
+        https://bugs.webkit.org/show_bug.cgi?id=135161
+        <rdar://problem/17763546>
+
+        Reviewed by David Kilzer.
+
+        Revise the auto-version.pl script to properly handle version
+        strings with 4 (or more) version tuples. Previously these were
+        being truncated from the version.
+
+        * win/tools/scripts/auto-version.pl:
+        (splitVersion): Return truncated version of
+        overall version string.
+
+2014-07-21  Brent Fulgham  <bfulgham@apple.com>
+
+        [Win] Extend auto-version.pl to handle 5-tuple versions
+        https://bugs.webkit.org/show_bug.cgi?id=135124
+        <rdar://problem/17750334>
+
+        Reviewed by David Kilzer.
+
+        Extend tuple parsing to handle up to five tuples, and as
+        few as a single tuple. On Windows, the two additional
+        tuples are unused.
+
+        Also corrected regular expression capture logic to use local
+        blocks, preventing later capture expressions from reusing
+        previous capture results when the current expression failed
+        to find a match (GRRR, Perl!).
+
+        Clean up code by putting logic into a couple of subroutines.
+
+        * win/tools/scripts/auto-version.pl:
+
+2014-07-21  Brent Fulgham  <bfulgham@apple.com>
+
+        [Win] Correct auto-version.pl script for two-digit version numbers
+        https://bugs.webkit.org/show_bug.cgi?id=135119
+        <rdar://problem/17743959>
+
+        Reviewed by David Kilzer.
+
+        The $MAJOR_VERSION must be the first digit of $BUILD_MAJOR_VERSION,
+        and $MINOR_VERSION must be the remaining digits.
+
+        Also correct regexp (line 90) that was allowing version numbers
+        larger than three digits to be processed.
+
+        * win/tools/scripts/auto-version.pl: Correct regular expression.
+
+2014-07-18  Dana Burkart  <dburkart@apple.com>
+
+        Add a new 'analyze' target to the makefile. This will make use of a new
+        'PATH_TO_SCAN_BUILD' which, if set will wrap xcodebuild in the clang
+        static analyzer.
+        https://bugs.webkit.org/show_bug.cgi?id=135057
+        <rdar://problem/10193187>
+
+        Reviewed by David Kilzer.
+
+        * Makefile:
+        * Makefile.shared:
+        * Source/Makefile:
 
 2014-07-10  Alex Christensen  <achristensen@webkit.org>
 

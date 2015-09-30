@@ -63,6 +63,7 @@ private:
     virtual PlatformSample platformSample() override;
     virtual FloatSize presentationSize() const override { return FloatSize(); }
     virtual void dump(PrintStream&) const override;
+    virtual void offsetTimestampsBy(const MediaTime& offset) override { m_box.offsetTimestampsBy(offset); }
 
     unsigned generation() const { return m_box.generation(); }
 
@@ -238,7 +239,7 @@ void MockSourceBufferPrivate::enqueueSample(PassRefPtr<MediaSample> sample, Atom
     if (box->isDropped())
         m_mediaSource->incrementDroppedFrames();
     if (box->isDelayed())
-        m_mediaSource->incrementTotalFrameDelayBy(1);
+        m_mediaSource->incrementTotalFrameDelayBy(MediaTime(1, 1));
 }
 
 bool MockSourceBufferPrivate::hasVideo() const

@@ -22,11 +22,18 @@
 
 #include <glib/gstdio.h>
 #include <gtk/gtk.h>
-#include <webkit2/webkit2.h>
-#include <wtf/gobject/GUniquePtr.h>
+
+uint32_t Test::s_webExtensionID = 0;
 
 void beforeAll();
 void afterAll();
+
+static GUniquePtr<char> testDataDirectory(g_dir_make_tmp("WebKit2GtkTests-XXXXXX", nullptr));
+
+const char* Test::dataDirectory()
+{
+    return testDataDirectory.get();
+}
 
 static void registerGResource(void)
 {
@@ -45,7 +52,10 @@ static void removeNonEmptyDirectory(const char* directoryPath)
     const char* fileName;
     while ((fileName = g_dir_read_name(directory))) {
         GUniquePtr<char> filePath(g_build_filename(directoryPath, fileName, nullptr));
-        g_unlink(filePath.get());
+        if (g_file_test(filePath.get(), G_FILE_TEST_IS_DIR))
+            removeNonEmptyDirectory(filePath.get());
+        else
+            g_unlink(filePath.get());
     }
     g_dir_close(directory);
     g_rmdir(directoryPath);
@@ -60,19 +70,18 @@ int main(int argc, char** argv)
     g_setenv("LC_ALL", "C", TRUE);
     g_setenv("GIO_USE_VFS", "local", TRUE);
     g_setenv("GSETTINGS_BACKEND", "memory", TRUE);
+    // Get rid of runtime warnings about deprecated properties and signals, since they break the tests.
+    g_setenv("G_ENABLE_DIAGNOSTIC", "0", TRUE);
     g_test_bug_base("https://bugs.webkit.org/");
 
     registerGResource();
-
-    GUniquePtr<char> diskCacheTempDirectory(g_dir_make_tmp("WebKit2TestsDiskCache-XXXXXX", 0));
-    g_assert(diskCacheTempDirectory.get());
-    webkit_web_context_set_disk_cache_directory(webkit_web_context_get_default(), diskCacheTempDirectory.get());
 
     beforeAll();
     int returnValue = g_test_run();
     afterAll();
 
-    removeNonEmptyDirectory(diskCacheTempDirectory.get());
+    removeNonEmptyDirectory(testDataDirectory.get());
 
     return returnValue;
 }
+

@@ -34,6 +34,7 @@ public:
     virtual void provisionalLoadStarted();
     virtual void provisionalLoadReceivedServerRedirect();
     virtual void provisionalLoadFailed(const gchar* failingURI, GError*);
+    virtual bool loadFailedWithTLSErrors(const gchar* failingURI, GTlsCertificate*, GTlsCertificateFlags);
     virtual void loadCommitted();
     virtual void loadFinished();
     virtual void loadFailed(const char* failingURI, GError*);
@@ -43,6 +44,7 @@ public:
     void loadHtml(const char* html, const char* baseURI);
     void loadPlainText(const char* plainText);
     void loadRequest(WebKitURIRequest*);
+    void loadBytes(GBytes*, const char* mimeType, const char* encoding, const char* baseURI);
     void reload();
     void goBack();
     void goForward();
@@ -55,7 +57,8 @@ public:
         ProvisionalLoadFailed,
         LoadCommitted,
         LoadFinished,
-        LoadFailed
+        LoadFailed,
+        LoadFailedWithTLSErrors
     };
     bool m_runLoadUntilCompletion;
     bool m_loadFailed;

@@ -51,56 +51,78 @@ function TestBuild(repositories, builders, platform, rawRun) {
     const revisions = rawRun.revisions;
     var maxTime = 0;
     var revisionCount = 0;
-    for (var repositoryName in revisions) {
-        maxTime = Math.max(maxTime, revisions[repositoryName][1]); // Revision is an pair (revision, time)
+    for (var repositoryId in revisions) {
+        maxTime = Math.max(maxTime, revisions[repositoryId][1]); // Revision is an pair (revision, time)
         revisionCount++;
     }
     if (!maxTime)
         maxTime = rawRun.buildTime;
     maxTime = TestBuild.UTCtoPST(maxTime);
-    var maxTimeString = new Date(maxTime).toISOString().replace('T', ' ').replace(/\.\d+Z$/, '');
+    var maxTimeString;
     var buildTime = TestBuild.UTCtoPST(rawRun.buildTime);
-    var buildTimeString = new Date(buildTime).toISOString().replace('T', ' ').replace(/\.\d+Z$/, '');
+    var buildTimeString;
 
     this.time = function () { return maxTime; }
-    this.formattedTime = function () { return maxTimeString; }
+    this.formattedTime = function () {
+        if (!maxTimeString)
+            maxTimeString = new Date(maxTime).toISOString().replace('T', ' ').replace(/\.\d+Z$/, '');
+        return maxTimeString;
+    }
     this.buildTime = function () { return buildTime; }
-    this.formattedBuildTime = function () { return buildTimeString; }
+    this.formattedBuildTime = function () {
+        if (!buildTimeString)
+            buildTimeString = new Date(buildTime).toISOString().replace('T', ' ').replace(/\.\d+Z$/, '');
+        return buildTimeString;
+    }
     this.builder = function () { return builders[rawRun.builder].name; }
     this.buildNumber = function () { return rawRun.buildNumber; }
     this.buildUrl = function () {
-        var template = builders[rawRun.builder].buildUrl;
-        return template ? template.replace(/\$buildNumber/g, this.buildNumber()) : null;
+        var builder = builders[rawRun.builder];
+        var template = builder.buildUrl;
+        if (!template)
+            return null;
+        return template.replace(/\$buildNumber/g, this.buildNumber()).replace(/\$builderName/g, builder.name);
     }
     this.platform = function () { return platform; }
-    this.revision = function(repositoryName) { return revisions[repositoryName][0]; }
+    this.revision = function(repositoryId) { return revisions[repositoryId][0]; }
     this.formattedRevisions = function (previousBuild) {
         var result = {};
-        for (var repositoryName in repositories) {
-            if (!revisions[repositoryName])
+        for (var repositoryId in repositories) {
+            if (!revisions[repositoryId])
                 continue;
-            var previousRevision = previousBuild ? previousBuild.revision(repositoryName) : undefined;
-            var currentRevision = this.revision(repositoryName);
+            var previousRevision = previousBuild ? previousBuild.revision(repositoryId) : undefined;
+            var currentRevision = this.revision(repositoryId);
             if (previousRevision === currentRevision)
                 previousRevision = undefined;
 
             var revisionPrefix = '';
-            var revisionDelimitor = '-';
+            var revisionDelimiter = '-';
+            var isHash = false;
             if (parseInt(currentRevision) == currentRevision) { // e.g. r12345.
                 revisionPrefix = 'r';
                 if (previousRevision)
                     previousRevision = (parseInt(previousRevision) + 1);
             } else if (currentRevision.indexOf(' ') >= 0) // e.g. 10.9 13C64.
-                revisionDelimitor = ' - ';
+                revisionDelimiter = ' - ';
+            else if (currentRevision.length == 40) // e.g. git hash
+                isHash = true;
 
             var labelForThisRepository;
-            if (previousRevision)
-                labelForThisRepository = revisionPrefix + previousRevision + revisionDelimitor + revisionPrefix + currentRevision;
-            else
-                labelForThisRepository = '@ ' + revisionPrefix + currentRevision;
+            if (isHash) {
+                formattedCurrentHash = currentRevision.substring(0, 8);
+                if (previousRevision)
+                    labelForThisRepository = previousRevision.substring(0, 8) + '..' + formattedCurrentHash;
+                else
+                    labelForThisRepository = '@ ' + formattedCurrentHash;
+            } else {
+                if (previousRevision)
+                    labelForThisRepository = revisionPrefix + previousRevision + revisionDelimiter + revisionPrefix + currentRevision;
+                else
+                    labelForThisRepository = '@ ' + revisionPrefix + currentRevision;
+            }
 
             var url;
-            var repository = repositories[repositoryName];
+            var repository = repositories[repositoryId];
             if (repository) {
                 if (previousRevision)
                     url = (repository['blameUrl'] || '').replace(/\$1/g, previousRevision).replace(/\$2/g, currentRevision);
@@ -108,7 +130,7 @@ function TestBuild(repositories, builders, platform, rawRun) {
                     url = (repository['url'] || '').replace(/\$1/g, currentRevision);
             }
 
-            result[repositoryName] = {
+            result[repository.name] = {
                 'label': labelForThisRepository,
                 'currentRevision': currentRevision,
                 'previousRevision': previousRevision,
@@ -132,16 +154,16 @@ function PerfTestRuns(metric, platform) {
     var cachedUnit = null;
     var cachedScalingFactor = null;
     var baselines = {};
+    var suffix = metric.name.match('([A-z][a-z]+|FrameRate)$')[0];
     var unit = {'Combined': '', // Assume smaller is better for now.
         'FrameRate': 'fps',
         'Runs': '/s',
         'Time': 'ms',
+        'Duration', 'ms',
         'Malloc': 'B',
-        'JSHeap': 'B',
+        'Heap': 'B',
         'Allocations': 'B',
-        'EndAllocations': 'B',
-        'MaxAllocations': 'B',
-        'MeanAllocations': 'B'}[metric.name];
+        'Score': 'pt'}[suffix];
 
     // We can't do this in PerfTestResult because all results for each metric need to share the same unit and the same scaling factor.
     function computeScalingFactorIfNeeded() {
@@ -167,10 +189,8 @@ function PerfTestRuns(metric, platform) {
 
     this.metric = function () { return metric; }
     this.platform = function () { return platform; }
-    this.addResult = function (newResult) {
-        if (results.indexOf(newResult) >= 0)
-            return;
-        results.push(newResult);
+    this.setResults = function (newResults) {
+        results = newResults;
         cachedUnit = null;
         cachedScalingFactor = null;
     }

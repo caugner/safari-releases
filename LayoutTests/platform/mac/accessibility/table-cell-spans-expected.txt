@@ -14,7 +14,7 @@ AXRoleDescription: cell
 AXChildren: <array of size 3>
 AXHelp: 
 AXParent: <AXCell>
-AXSize: NSSize: {246, 78}
+AXSize: NSSize: {238, 78}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -25,7 +25,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: <AXCell>
 AXEndTextMarker: <AXCell>
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXCell>
@@ -49,7 +49,7 @@ AXRoleDescription: cell
 AXChildren: <array of size 3>
 AXHelp: 
 AXParent: <AXCell>
-AXSize: NSSize: {247, 78}
+AXSize: NSSize: {239, 78}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -60,7 +60,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: <AXCell>
 AXEndTextMarker: <AXCell>
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXCell>
@@ -84,7 +84,7 @@ AXRoleDescription: cell
 AXChildren: <array of size 2>
 AXHelp: 
 AXParent: <AXCell>
-AXSize: NSSize: {124, 60}
+AXSize: NSSize: {120, 60}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -95,7 +95,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: <AXCell>
 AXEndTextMarker: <AXCell>
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXCell>
@@ -119,7 +119,7 @@ AXRoleDescription: cell
 AXChildren: <array of size 2>
 AXHelp: 
 AXParent: <AXCell>
-AXSize: NSSize: {124, 60}
+AXSize: NSSize: {120, 60}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -130,7 +130,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: <AXCell>
 AXEndTextMarker: <AXCell>
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXCell>
@@ -154,7 +154,7 @@ AXRoleDescription: cell
 AXChildren: <array of size 1>
 AXHelp: 
 AXParent: <AXCell>
-AXSize: NSSize: {124, 30}
+AXSize: NSSize: {120, 30}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -165,7 +165,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: <AXCell>
 AXEndTextMarker: <AXCell>
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXCell>

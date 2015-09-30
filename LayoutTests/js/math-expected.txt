@@ -53,8 +53,6 @@ PASS Math.ceil(1) is 1
 PASS Math.ceil(-1) is -1
 PASS Math.ceil(1.1) is 2
 PASS Math.ceil(-1.1) is -1
-PASS Math.ceil(Number.MIN_VALUE) is 1
-PASS Math.ceil(-Number.MIN_VALUE) is -0
 PASS Math.ceil(Number.MAX_VALUE) is Number.MAX_VALUE
 PASS Math.ceil(-Number.MAX_VALUE) is -Number.MAX_VALUE
 PASS Math.ceil(Infinity) is Infinity
@@ -77,8 +75,6 @@ PASS Math.floor(1) is 1
 PASS Math.floor(-1) is -1
 PASS Math.floor(1.1) is 1
 PASS Math.floor(-1.1) is -2
-PASS Math.floor(Number.MIN_VALUE) is 0
-PASS Math.floor(-Number.MIN_VALUE) is -1
 PASS Math.floor(Number.MAX_VALUE) is Number.MAX_VALUE
 PASS Math.floor(-Number.MAX_VALUE) is -Number.MAX_VALUE
 PASS Math.floor(Infinity) is Infinity
@@ -106,6 +102,7 @@ PASS Math.hypot(NaN, NaN, {valueOf:function(){throw "err"}}) threw exception err
 PASS Math.hypot({valueOf:function(){throw "error1"}}, {valueOf:function(){sideEffect = 1}}) threw exception error1.
 PASS sideEffect is 0
 PASS Math.hypot(3, 4, 'foo') is NaN
+PASS Math.imul.length is 2
 PASS Math.log(NaN) is NaN
 PASS Math.log(0) is -Infinity
 PASS Math.log(-0) is -Infinity
@@ -181,6 +178,24 @@ PASS Math.round(-9007199254740991) is -9007199254740991
 PASS Math.round(-1.7976931348623157e+308) is -1.7976931348623157e+308
 PASS Math.round(Infinity) is Infinity
 PASS Math.round(-Infinity) is -Infinity
+PASS Math.sign(NaN) is NaN
+PASS Math.sign('string') is NaN
+PASS Math.sign([1, 2, 3]) is NaN
+PASS Math.sign({}) is NaN
+PASS Math.sign(0) is 0
+PASS Math.sign(-0) is -0
+PASS Math.sign(-1) is -1
+PASS Math.sign(1) is 1
+PASS Math.sign(0.1) is 1
+PASS Math.sign(-0.1) is -1
+PASS Math.sign(10000) is 1
+PASS Math.sign(-10000) is -1
+PASS Math.sign(Number.MIN_VALUE) is 1
+PASS Math.sign(-Number.MIN_VALUE) is -1
+PASS Math.sign(Number.MAX_VALUE) is 1
+PASS Math.sign(-Number.MAX_VALUE) is -1
+PASS Math.sign(Infinity) is 1
+PASS Math.sign(-Infinity) is -1
 PASS Math.sin(NaN) is NaN
 PASS Math.sin(0) is 0
 PASS Math.sin(-0) is -0

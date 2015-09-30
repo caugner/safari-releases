@@ -35,7 +35,7 @@ class AccessibilityController;
 class TextInputController;
 class GCController;
 
-class FrameLoadDelegate : public IWebFrameLoadDelegate, public IWebFrameLoadDelegatePrivate2 {
+class FrameLoadDelegate : public IWebFrameLoadDelegate, public IWebFrameLoadDelegatePrivate2, public IWebNotificationObserver {
 public:
     FrameLoadDelegate();
     virtual ~FrameLoadDelegate();
@@ -89,9 +89,7 @@ public:
         /* [in] */ IWebError *error,
         /* [in] */ IWebFrame *forFrame);
 
-    virtual HRESULT STDMETHODCALLTYPE didChangeLocationWithinPageForFrame( 
-        /* [in] */ IWebView *webView,
-        /* [in] */ IWebFrame *frame) { return E_NOTIMPL; } 
+    virtual HRESULT STDMETHODCALLTYPE didChangeLocationWithinPageForFrame(IWebView*, IWebFrame*);
 
     virtual HRESULT STDMETHODCALLTYPE willPerformClientRedirectToURL( 
         /* [in] */ IWebView *webView,
@@ -108,16 +106,10 @@ public:
         /* [in] */ IWebView *webView,
         /* [in] */ IWebFrame *frame);
 
-    virtual HRESULT STDMETHODCALLTYPE windowScriptObjectAvailable( 
-        /* [in] */ IWebView *sender,
-        /* [in] */ JSContextRef context,
-        /* [in] */ JSObjectRef windowObject) { return E_NOTIMPL; }
+    virtual HRESULT STDMETHODCALLTYPE windowScriptObjectAvailable(IWebView*,
+JSContextRef, JSObjectRef windowObject);
 
-    virtual /* [local] */ HRESULT STDMETHODCALLTYPE didClearWindowObject( 
-        /* [in] */ IWebView* webView,
-        /* [in] */ JSContextRef context,
-        /* [in] */ JSObjectRef windowObject,
-        /* [in] */ IWebFrame* frame);
+    virtual /* [local] */ HRESULT STDMETHODCALLTYPE didClearWindowObject(IWebView*, JSContextRef, JSObjectRef windowObject, IWebFrame*);
 
     // IWebFrameLoadDelegatePrivate
     virtual HRESULT STDMETHODCALLTYPE didFinishDocumentLoadForFrame( 
@@ -158,11 +150,15 @@ public:
         /* [in] */ IWebView *sender,
         /* [in] */ IWebFrame *frame) { return E_NOTIMPL; } 
 
+    // IWebNotificationObserver
+    virtual HRESULT STDMETHODCALLTYPE onNotify(IWebNotification*);
+
 private:
     void didClearWindowObjectForFrameInIsolatedWorld(IWebFrame*, IWebScriptWorld*);
     void didClearWindowObjectForFrameInStandardWorld(IWebFrame*);
 
     void locationChangeDone(IWebError*, IWebFrame*);
+    void webViewProgressFinishedNotification();
 
     ULONG m_refCount;
     std::unique_ptr<GCController> m_gcController;

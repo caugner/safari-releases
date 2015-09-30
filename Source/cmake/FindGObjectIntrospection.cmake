@@ -11,6 +11,7 @@
 #  INTROSPECTION_LIBS
 #
 # Copyright (C) 2010, Pino Toscano, <pino@kde.org>
+# Copyright (C) 2014 Igalia S.L.
 #
 # Redistribution and use is allowed according to the terms of the BSD license.
 
@@ -43,8 +44,6 @@ if (PKG_CONFIG_FOUND)
         _gir_get_pkgconfig_var(INTROSPECTION_GENERATE "g_ir_generate" "")
         _gir_get_pkgconfig_var(INTROSPECTION_GIRDIR "girdir" "")
         _gir_get_pkgconfig_var(INTROSPECTION_TYPELIBDIR "typelibdir" "")
-        _gir_get_pkgconfig_var(INTROSPECTION_INSTALL_GIRDIR "girdir" "--define-variable=prefix=${CMAKE_INSTALL_PREFIX}")
-        _gir_get_pkgconfig_var(INTROSPECTION_INSTALL_TYPELIBDIR "typelibdir" "--define-variable=prefix=${CMAKE_INSTALL_PREFIX}")
         set(INTROSPECTION_CFLAGS "${_pc_gir_CFLAGS}")
         set(INTROSPECTION_LIBS "${_pc_gir_LIBS}")
     endif ()
@@ -58,6 +57,4 @@ mark_as_advanced(
     INTROSPECTION_TYPELIBDIR
     INTROSPECTION_CFLAGS
     INTROSPECTION_LIBS
-    INTROSPECTION_INSTALL_GIRDIR
-    INTROSPECTION_INSTALL_TYPELIBDIR
 )

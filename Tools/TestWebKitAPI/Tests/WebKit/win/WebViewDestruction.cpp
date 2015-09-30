@@ -29,7 +29,6 @@
 #include <WebCore/COMPtr.h>
 #include <WebKit/WebKit.h>
 #include <WebKit/WebKitCOMAPI.h>
-#include <wtf/PassOwnPtr.h>
 
 namespace TestWebKitAPI {
 
@@ -83,20 +82,34 @@ void WebViewDestructionWithHostWindow::SetUp()
     EXPECT_HRESULT_SUCCEEDED(m_webView->setHostWindow(m_window.window()));
     EXPECT_HRESULT_SUCCEEDED(m_webView->initWithFrame(m_window.clientRect(), 0, 0));
 
-    COMPtr<IWebViewPrivate> viewPrivate(Query, m_webView);
+    COMPtr<IWebViewPrivate2> viewPrivate(Query, m_webView);
     ASSERT_NOT_NULL(viewPrivate);
     EXPECT_HRESULT_SUCCEEDED(viewPrivate->viewWindow(&m_viewWindow));
     EXPECT_TRUE(::IsWindow(m_viewWindow));
 }
 
+#if defined(_M_X64) || defined(__x86_64__)
+typedef ULONGLONG __tick_count;
+static ULONGLONG currentTickCount()
+{
+    return ::GetTickCount64();
+}
+#else
+typedef DWORD __tick_count;
+static DWORD currentTickCount()
+{
+    return ::GetTickCount();
+}
+#endif
+
 void WebViewDestruction::runMessagePump(DWORD timeoutMilliseconds)
 {
     // FIXME: We should move this functionality to PlatformUtilities at some point.
 
-    DWORD startTickCount = ::GetTickCount();
+    __tick_count startTickCount = currentTickCount();
     MSG msg;
     BOOL result;
-    while ((result = ::PeekMessageW(&msg, 0, 0, 0, PM_REMOVE)) && ::GetTickCount() - startTickCount <= timeoutMilliseconds) {
+    while ((result = ::PeekMessageW(&msg, 0, 0, 0, PM_REMOVE)) && currentTickCount() - startTickCount <= static_cast<__tick_count>(timeoutMilliseconds)) {
         if (result == -1)
             break;
         ::TranslateMessage(&msg);

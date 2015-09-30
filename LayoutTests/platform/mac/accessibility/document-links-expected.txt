@@ -17,7 +17,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: (null)
 AXEndTextMarker: (null)
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXLink>
@@ -47,7 +47,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: (null)
 AXEndTextMarker: (null)
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXLink>
@@ -66,7 +66,7 @@ AXRoleDescription: link
 AXChildren: <array of size 1>
 AXHelp: 
 AXParent: <AXLink: 'link 3'>
-AXSize: NSSize: {36, 18}
+AXSize: NSSize: {37, 18}
 AXTitle: link 3
 AXDescription: 
 AXValue: 
@@ -77,7 +77,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: <AXLink: 'link 3'>
 AXEndTextMarker: <AXLink: 'link 3'>
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXLink: 'link 3'>
@@ -95,7 +95,7 @@ AXRoleDescription: link
 AXChildren: <array of size 1>
 AXHelp: 
 AXParent: <AXLink: 'link 4'>
-AXSize: NSSize: {36, 18}
+AXSize: NSSize: {38, 18}
 AXTitle: link 4
 AXDescription: 
 AXValue: 
@@ -106,7 +106,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: <AXLink: 'link 4'>
 AXEndTextMarker: <AXLink: 'link 4'>
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXLink: 'link 4'>

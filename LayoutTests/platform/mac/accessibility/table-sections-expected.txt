@@ -23,7 +23,7 @@ AXRoleDescription: cell
 AXChildren: <array of size 1>
 AXHelp: 
 AXParent: <AXCell>
-AXSize: NSSize: {21, 30}
+AXSize: NSSize: {20, 30}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -34,7 +34,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: <AXCell>
 AXEndTextMarker: <AXCell>
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXCell>
@@ -66,7 +66,420 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: <AXCell>
 AXEndTextMarker: <AXCell>
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
+AXSelected: 0
+AXBlockQuoteLevel: 0
+AXTopLevelUIElement: <AXCell>
+AXLanguage: 
+AXDOMIdentifier: 
+AXDOMClassList: <array of size 0>
+AXRowIndexRange: NSRange: {0, 1}
+AXColumnIndexRange: NSRange: {1, 1}
+AXColumnHeaderUIElements: <array of size 0>
+AXRowHeaderUIElements: <array of size 0>
+AXElementBusy: 0
+AXRequired: 0
+
+------------
+AXRole: AXCell
+AXSubrole: (null)
+AXRoleDescription: cell
+AXChildren: <array of size 1>
+AXHelp: 
+AXParent: <AXCell>
+AXSize: NSSize: {28, 30}
+AXTitle: 
+AXDescription: 
+AXValue: 
+AXFocused: 0
+AXEnabled: 1
+AXWindow: <AXCell>
+AXSelectedTextMarkerRange: (null)
+AXStartTextMarker: <AXCell>
+AXEndTextMarker: <AXCell>
+AXVisited: 0
+AXLinkedUIElements: <array of size 0>
+AXSelected: 0
+AXBlockQuoteLevel: 0
+AXTopLevelUIElement: <AXCell>
+AXLanguage: 
+AXDOMIdentifier: 
+AXDOMClassList: <array of size 0>
+AXRowIndexRange: NSRange: {0, 1}
+AXColumnIndexRange: NSRange: {2, 1}
+AXColumnHeaderUIElements: <array of size 0>
+AXRowHeaderUIElements: <array of size 0>
+AXElementBusy: 0
+AXRequired: 0
+
+------------
+
+
+--------------------------
+
+AXRole: AXCell
+AXSubrole: (null)
+AXRoleDescription: cell
+AXChildren: <array of size 1>
+AXHelp: 
+AXParent: <AXCell>
+AXSize: NSSize: {21, 30}
+AXTitle: 
+AXDescription: 
+AXValue: 
+AXFocused: 0
+AXEnabled: 1
+AXWindow: <AXCell>
+AXSelectedTextMarkerRange: (null)
+AXStartTextMarker: <AXCell>
+AXEndTextMarker: <AXCell>
+AXVisited: 0
+AXLinkedUIElements: <array of size 0>
+AXSelected: 0
+AXBlockQuoteLevel: 0
+AXTopLevelUIElement: <AXCell>
+AXLanguage: 
+AXDOMIdentifier: 
+AXDOMClassList: <array of size 0>
+AXRowIndexRange: NSRange: {0, 1}
+AXColumnIndexRange: NSRange: {0, 1}
+AXColumnHeaderUIElements: <array of size 0>
+AXRowHeaderUIElements: <array of size 0>
+AXElementBusy: 0
+AXRequired: 0
+
+------------
+AXRole: AXCell
+AXSubrole: (null)
+AXRoleDescription: cell
+AXChildren: <array of size 1>
+AXHelp: 
+AXParent: <AXCell>
+AXSize: NSSize: {21, 30}
+AXTitle: 
+AXDescription: 
+AXValue: 
+AXFocused: 0
+AXEnabled: 1
+AXWindow: <AXCell>
+AXSelectedTextMarkerRange: (null)
+AXStartTextMarker: <AXCell>
+AXEndTextMarker: <AXCell>
+AXVisited: 0
+AXLinkedUIElements: <array of size 0>
+AXSelected: 0
+AXBlockQuoteLevel: 0
+AXTopLevelUIElement: <AXCell>
+AXLanguage: 
+AXDOMIdentifier: 
+AXDOMClassList: <array of size 0>
+AXRowIndexRange: NSRange: {1, 1}
+AXColumnIndexRange: NSRange: {0, 1}
+AXColumnHeaderUIElements: <array of size 1>
+AXRowHeaderUIElements: <array of size 0>
+AXElementBusy: 0
+AXRequired: 0
+
+------------
+AXRole: AXCell
+AXSubrole: (null)
+AXRoleDescription: cell
+AXChildren: <array of size 1>
+AXHelp: 
+AXParent: <AXCell>
+AXSize: NSSize: {21, 30}
+AXTitle: 
+AXDescription: 
+AXValue: 
+AXFocused: 0
+AXEnabled: 1
+AXWindow: <AXCell>
+AXSelectedTextMarkerRange: (null)
+AXStartTextMarker: <AXCell>
+AXEndTextMarker: <AXCell>
+AXVisited: 0
+AXLinkedUIElements: <array of size 0>
+AXSelected: 0
+AXBlockQuoteLevel: 0
+AXTopLevelUIElement: <AXCell>
+AXLanguage: 
+AXDOMIdentifier: 
+AXDOMClassList: <array of size 0>
+AXRowIndexRange: NSRange: {2, 1}
+AXColumnIndexRange: NSRange: {0, 1}
+AXColumnHeaderUIElements: <array of size 1>
+AXRowHeaderUIElements: <array of size 0>
+AXElementBusy: 0
+AXRequired: 0
+
+------------
+
+
+--------------------------
+
+AXRole: AXColumn
+AXSubrole: (null)
+AXRoleDescription: column
+AXChildren: <array of size 4>
+AXHelp: 
+AXParent: <AXColumn>
+AXSize: NSSize: {21, 120}
+AXTitle: 
+AXDescription: 
+AXValue: 
+AXFocused: 0
+AXEnabled: 1
+AXWindow: <AXColumn>
+AXSelectedTextMarkerRange: (null)
+AXStartTextMarker: (null)
+AXEndTextMarker: (null)
+AXVisited: 0
+AXLinkedUIElements: <array of size 0>
+AXSelected: 0
+AXBlockQuoteLevel: 0
+AXTopLevelUIElement: <AXColumn>
+AXLanguage: 
+AXDOMIdentifier: 
+AXDOMClassList: <array of size 0>
+AXIndex: 0
+AXHeader: <AXColumn>
+AXRows: <array of size 4>
+AXVisibleRows: <array of size 4>
+AXElementBusy: 0
+
+------------
+AXRole: AXColumn
+AXSubrole: (null)
+AXRoleDescription: column
+AXChildren: <array of size 4>
+AXHelp: 
+AXParent: <AXColumn>
+AXSize: NSSize: {29, 120}
+AXTitle: 
+AXDescription: 
+AXValue: 
+AXFocused: 0
+AXEnabled: 1
+AXWindow: <AXColumn>
+AXSelectedTextMarkerRange: (null)
+AXStartTextMarker: (null)
+AXEndTextMarker: (null)
+AXVisited: 0
+AXLinkedUIElements: <array of size 0>
+AXSelected: 0
+AXBlockQuoteLevel: 0
+AXTopLevelUIElement: <AXColumn>
+AXLanguage: 
+AXDOMIdentifier: 
+AXDOMClassList: <array of size 0>
+AXIndex: 1
+AXHeader: <AXColumn>
+AXRows: <array of size 4>
+AXVisibleRows: <array of size 4>
+AXElementBusy: 0
+
+------------
+AXRole: AXColumn
+AXSubrole: (null)
+AXRoleDescription: column
+AXChildren: <array of size 4>
+AXHelp: 
+AXParent: <AXColumn>
+AXSize: NSSize: {29, 120}
+AXTitle: 
+AXDescription: 
+AXValue: 
+AXFocused: 0
+AXEnabled: 1
+AXWindow: <AXColumn>
+AXSelectedTextMarkerRange: (null)
+AXStartTextMarker: (null)
+AXEndTextMarker: (null)
+AXVisited: 0
+AXLinkedUIElements: <array of size 0>
+AXSelected: 0
+AXBlockQuoteLevel: 0
+AXTopLevelUIElement: <AXColumn>
+AXLanguage: 
+AXDOMIdentifier: 
+AXDOMClassList: <array of size 0>
+AXIndex: 2
+AXHeader: <AXColumn>
+AXRows: <array of size 4>
+AXVisibleRows: <array of size 4>
+AXElementBusy: 0
+
+------------
+
+
+--------------------------
+
+AXRole: AXRow
+AXSubrole: (null)
+AXRoleDescription: row
+AXChildren: <array of size 3>
+AXHelp: 
+AXParent: <AXRow>
+AXSize: NSSize: {77, 30}
+AXTitle: 
+AXDescription: 
+AXValue: 
+AXFocused: 0
+AXEnabled: 1
+AXWindow: <AXRow>
+AXSelectedTextMarkerRange: (null)
+AXStartTextMarker: <AXRow>
+AXEndTextMarker: <AXRow>
+AXVisited: 0
+AXLinkedUIElements: <array of size 0>
+AXSelected: 0
+AXBlockQuoteLevel: 0
+AXTopLevelUIElement: <AXRow>
+AXLanguage: 
+AXDOMIdentifier: 
+AXDOMClassList: <array of size 0>
+AXIndex: 0
+AXElementBusy: 0
+
+------------
+AXRole: AXRow
+AXSubrole: (null)
+AXRoleDescription: row
+AXChildren: <array of size 3>
+AXHelp: 
+AXParent: <AXRow>
+AXSize: NSSize: {77, 30}
+AXTitle: 
+AXDescription: 
+AXValue: 
+AXFocused: 0
+AXEnabled: 1
+AXWindow: <AXRow>
+AXSelectedTextMarkerRange: (null)
+AXStartTextMarker: <AXRow>
+AXEndTextMarker: <AXRow>
+AXVisited: 0
+AXLinkedUIElements: <array of size 0>
+AXSelected: 0
+AXBlockQuoteLevel: 0
+AXTopLevelUIElement: <AXRow>
+AXLanguage: 
+AXDOMIdentifier: 
+AXDOMClassList: <array of size 0>
+AXIndex: 1
+AXElementBusy: 0
+
+------------
+AXRole: AXRow
+AXSubrole: (null)
+AXRoleDescription: row
+AXChildren: <array of size 3>
+AXHelp: 
+AXParent: <AXRow>
+AXSize: NSSize: {77, 30}
+AXTitle: 
+AXDescription: 
+AXValue: 
+AXFocused: 0
+AXEnabled: 1
+AXWindow: <AXRow>
+AXSelectedTextMarkerRange: (null)
+AXStartTextMarker: <AXRow>
+AXEndTextMarker: <AXRow>
+AXVisited: 0
+AXLinkedUIElements: <array of size 0>
+AXSelected: 0
+AXBlockQuoteLevel: 0
+AXTopLevelUIElement: <AXRow>
+AXLanguage: 
+AXDOMIdentifier: 
+AXDOMClassList: <array of size 0>
+AXIndex: 2
+AXElementBusy: 0
+
+------------
+AXRole: AXRow
+AXSubrole: (null)
+AXRoleDescription: row
+AXChildren: <array of size 3>
+AXHelp: 
+AXParent: <AXRow>
+AXSize: NSSize: {77, 30}
+AXTitle: 
+AXDescription: 
+AXValue: 
+AXFocused: 0
+AXEnabled: 1
+AXWindow: <AXRow>
+AXSelectedTextMarkerRange: (null)
+AXStartTextMarker: <AXRow>
+AXEndTextMarker: <AXRow>
+AXVisited: 0
+AXLinkedUIElements: <array of size 0>
+AXSelected: 0
+AXBlockQuoteLevel: 0
+AXTopLevelUIElement: <AXRow>
+AXLanguage: 
+AXDOMIdentifier: 
+AXDOMClassList: <array of size 0>
+AXIndex: 3
+AXElementBusy: 0
+
+------------
+
+
+--------------------------
+
+AXRole: AXCell
+AXSubrole: (null)
+AXRoleDescription: cell
+AXChildren: <array of size 1>
+AXHelp: 
+AXParent: <AXCell>
+AXSize: NSSize: {21, 30}
+AXTitle: 
+AXDescription: 
+AXValue: 
+AXFocused: 0
+AXEnabled: 1
+AXWindow: <AXCell>
+AXSelectedTextMarkerRange: (null)
+AXStartTextMarker: <AXCell>
+AXEndTextMarker: <AXCell>
+AXVisited: 0
+AXLinkedUIElements: <array of size 0>
+AXSelected: 0
+AXBlockQuoteLevel: 0
+AXTopLevelUIElement: <AXCell>
+AXLanguage: 
+AXDOMIdentifier: 
+AXDOMClassList: <array of size 0>
+AXRowIndexRange: NSRange: {0, 1}
+AXColumnIndexRange: NSRange: {0, 1}
+AXColumnHeaderUIElements: <array of size 0>
+AXRowHeaderUIElements: <array of size 0>
+AXElementBusy: 0
+AXRequired: 0
+
+------------
+AXRole: AXCell
+AXSubrole: (null)
+AXRoleDescription: cell
+AXChildren: <array of size 1>
+AXHelp: 
+AXParent: <AXCell>
+AXSize: NSSize: {29, 30}
+AXTitle: 
+AXDescription: 
+AXValue: 
+AXFocused: 0
+AXEnabled: 1
+AXWindow: <AXCell>
+AXSelectedTextMarkerRange: (null)
+AXStartTextMarker: <AXCell>
+AXEndTextMarker: <AXCell>
+AXVisited: 0
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXCell>
@@ -98,420 +511,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: <AXCell>
 AXEndTextMarker: <AXCell>
 AXVisited: 0
-AXLinkedUIElements: (null)
-AXSelected: 0
-AXBlockQuoteLevel: 0
-AXTopLevelUIElement: <AXCell>
-AXLanguage: 
-AXDOMIdentifier: 
-AXDOMClassList: <array of size 0>
-AXRowIndexRange: NSRange: {0, 1}
-AXColumnIndexRange: NSRange: {2, 1}
-AXColumnHeaderUIElements: <array of size 0>
-AXRowHeaderUIElements: <array of size 0>
-AXElementBusy: 0
-AXRequired: 0
-
-------------
-
-
---------------------------
-
-AXRole: AXCell
-AXSubrole: (null)
-AXRoleDescription: cell
-AXChildren: <array of size 1>
-AXHelp: 
-AXParent: <AXCell>
-AXSize: NSSize: {20, 30}
-AXTitle: 
-AXDescription: 
-AXValue: 
-AXFocused: 0
-AXEnabled: 1
-AXWindow: <AXCell>
-AXSelectedTextMarkerRange: (null)
-AXStartTextMarker: <AXCell>
-AXEndTextMarker: <AXCell>
-AXVisited: 0
-AXLinkedUIElements: (null)
-AXSelected: 0
-AXBlockQuoteLevel: 0
-AXTopLevelUIElement: <AXCell>
-AXLanguage: 
-AXDOMIdentifier: 
-AXDOMClassList: <array of size 0>
-AXRowIndexRange: NSRange: {0, 1}
-AXColumnIndexRange: NSRange: {0, 1}
-AXColumnHeaderUIElements: <array of size 0>
-AXRowHeaderUIElements: <array of size 0>
-AXElementBusy: 0
-AXRequired: 0
-
-------------
-AXRole: AXCell
-AXSubrole: (null)
-AXRoleDescription: cell
-AXChildren: <array of size 1>
-AXHelp: 
-AXParent: <AXCell>
-AXSize: NSSize: {20, 30}
-AXTitle: 
-AXDescription: 
-AXValue: 
-AXFocused: 0
-AXEnabled: 1
-AXWindow: <AXCell>
-AXSelectedTextMarkerRange: (null)
-AXStartTextMarker: <AXCell>
-AXEndTextMarker: <AXCell>
-AXVisited: 0
-AXLinkedUIElements: (null)
-AXSelected: 0
-AXBlockQuoteLevel: 0
-AXTopLevelUIElement: <AXCell>
-AXLanguage: 
-AXDOMIdentifier: 
-AXDOMClassList: <array of size 0>
-AXRowIndexRange: NSRange: {1, 1}
-AXColumnIndexRange: NSRange: {0, 1}
-AXColumnHeaderUIElements: <array of size 1>
-AXRowHeaderUIElements: <array of size 0>
-AXElementBusy: 0
-AXRequired: 0
-
-------------
-AXRole: AXCell
-AXSubrole: (null)
-AXRoleDescription: cell
-AXChildren: <array of size 1>
-AXHelp: 
-AXParent: <AXCell>
-AXSize: NSSize: {20, 30}
-AXTitle: 
-AXDescription: 
-AXValue: 
-AXFocused: 0
-AXEnabled: 1
-AXWindow: <AXCell>
-AXSelectedTextMarkerRange: (null)
-AXStartTextMarker: <AXCell>
-AXEndTextMarker: <AXCell>
-AXVisited: 0
-AXLinkedUIElements: (null)
-AXSelected: 0
-AXBlockQuoteLevel: 0
-AXTopLevelUIElement: <AXCell>
-AXLanguage: 
-AXDOMIdentifier: 
-AXDOMClassList: <array of size 0>
-AXRowIndexRange: NSRange: {2, 1}
-AXColumnIndexRange: NSRange: {0, 1}
-AXColumnHeaderUIElements: <array of size 2>
-AXRowHeaderUIElements: <array of size 0>
-AXElementBusy: 0
-AXRequired: 0
-
-------------
-
-
---------------------------
-
-AXRole: AXColumn
-AXSubrole: (null)
-AXRoleDescription: column
-AXChildren: <array of size 4>
-AXHelp: 
-AXParent: <AXColumn>
-AXSize: NSSize: {20, 120}
-AXTitle: 
-AXDescription: 
-AXValue: 
-AXFocused: 0
-AXEnabled: 1
-AXWindow: <AXColumn>
-AXSelectedTextMarkerRange: (null)
-AXStartTextMarker: (null)
-AXEndTextMarker: (null)
-AXVisited: 0
-AXLinkedUIElements: (null)
-AXSelected: 0
-AXBlockQuoteLevel: 0
-AXTopLevelUIElement: <AXColumn>
-AXLanguage: 
-AXDOMIdentifier: 
-AXDOMClassList: <array of size 0>
-AXIndex: 0
-AXHeader: <AXColumn>
-AXRows: <array of size 4>
-AXVisibleRows: <array of size 4>
-AXElementBusy: 0
-
-------------
-AXRole: AXColumn
-AXSubrole: (null)
-AXRoleDescription: column
-AXChildren: <array of size 4>
-AXHelp: 
-AXParent: <AXColumn>
-AXSize: NSSize: {27, 120}
-AXTitle: 
-AXDescription: 
-AXValue: 
-AXFocused: 0
-AXEnabled: 1
-AXWindow: <AXColumn>
-AXSelectedTextMarkerRange: (null)
-AXStartTextMarker: (null)
-AXEndTextMarker: (null)
-AXVisited: 0
-AXLinkedUIElements: (null)
-AXSelected: 0
-AXBlockQuoteLevel: 0
-AXTopLevelUIElement: <AXColumn>
-AXLanguage: 
-AXDOMIdentifier: 
-AXDOMClassList: <array of size 0>
-AXIndex: 1
-AXHeader: <AXColumn>
-AXRows: <array of size 4>
-AXVisibleRows: <array of size 4>
-AXElementBusy: 0
-
-------------
-AXRole: AXColumn
-AXSubrole: (null)
-AXRoleDescription: column
-AXChildren: <array of size 4>
-AXHelp: 
-AXParent: <AXColumn>
-AXSize: NSSize: {28, 120}
-AXTitle: 
-AXDescription: 
-AXValue: 
-AXFocused: 0
-AXEnabled: 1
-AXWindow: <AXColumn>
-AXSelectedTextMarkerRange: (null)
-AXStartTextMarker: (null)
-AXEndTextMarker: (null)
-AXVisited: 0
-AXLinkedUIElements: (null)
-AXSelected: 0
-AXBlockQuoteLevel: 0
-AXTopLevelUIElement: <AXColumn>
-AXLanguage: 
-AXDOMIdentifier: 
-AXDOMClassList: <array of size 0>
-AXIndex: 2
-AXHeader: <AXColumn>
-AXRows: <array of size 4>
-AXVisibleRows: <array of size 4>
-AXElementBusy: 0
-
-------------
-
-
---------------------------
-
-AXRole: AXRow
-AXSubrole: (null)
-AXRoleDescription: row
-AXChildren: <array of size 3>
-AXHelp: 
-AXParent: <AXRow>
-AXSize: NSSize: {75, 30}
-AXTitle: 
-AXDescription: 
-AXValue: 
-AXFocused: 0
-AXEnabled: 1
-AXWindow: <AXRow>
-AXSelectedTextMarkerRange: (null)
-AXStartTextMarker: <AXRow>
-AXEndTextMarker: <AXRow>
-AXVisited: 0
-AXLinkedUIElements: (null)
-AXSelected: 0
-AXBlockQuoteLevel: 0
-AXTopLevelUIElement: <AXRow>
-AXLanguage: 
-AXDOMIdentifier: 
-AXDOMClassList: <array of size 0>
-AXIndex: 0
-AXElementBusy: 0
-
-------------
-AXRole: AXRow
-AXSubrole: (null)
-AXRoleDescription: row
-AXChildren: <array of size 3>
-AXHelp: 
-AXParent: <AXRow>
-AXSize: NSSize: {75, 30}
-AXTitle: 
-AXDescription: 
-AXValue: 
-AXFocused: 0
-AXEnabled: 1
-AXWindow: <AXRow>
-AXSelectedTextMarkerRange: (null)
-AXStartTextMarker: <AXRow>
-AXEndTextMarker: <AXRow>
-AXVisited: 0
-AXLinkedUIElements: (null)
-AXSelected: 0
-AXBlockQuoteLevel: 0
-AXTopLevelUIElement: <AXRow>
-AXLanguage: 
-AXDOMIdentifier: 
-AXDOMClassList: <array of size 0>
-AXIndex: 1
-AXElementBusy: 0
-
-------------
-AXRole: AXRow
-AXSubrole: (null)
-AXRoleDescription: row
-AXChildren: <array of size 3>
-AXHelp: 
-AXParent: <AXRow>
-AXSize: NSSize: {75, 30}
-AXTitle: 
-AXDescription: 
-AXValue: 
-AXFocused: 0
-AXEnabled: 1
-AXWindow: <AXRow>
-AXSelectedTextMarkerRange: (null)
-AXStartTextMarker: <AXRow>
-AXEndTextMarker: <AXRow>
-AXVisited: 0
-AXLinkedUIElements: (null)
-AXSelected: 0
-AXBlockQuoteLevel: 0
-AXTopLevelUIElement: <AXRow>
-AXLanguage: 
-AXDOMIdentifier: 
-AXDOMClassList: <array of size 0>
-AXIndex: 2
-AXElementBusy: 0
-
-------------
-AXRole: AXRow
-AXSubrole: (null)
-AXRoleDescription: row
-AXChildren: <array of size 3>
-AXHelp: 
-AXParent: <AXRow>
-AXSize: NSSize: {75, 30}
-AXTitle: 
-AXDescription: 
-AXValue: 
-AXFocused: 0
-AXEnabled: 1
-AXWindow: <AXRow>
-AXSelectedTextMarkerRange: (null)
-AXStartTextMarker: <AXRow>
-AXEndTextMarker: <AXRow>
-AXVisited: 0
-AXLinkedUIElements: (null)
-AXSelected: 0
-AXBlockQuoteLevel: 0
-AXTopLevelUIElement: <AXRow>
-AXLanguage: 
-AXDOMIdentifier: 
-AXDOMClassList: <array of size 0>
-AXIndex: 3
-AXElementBusy: 0
-
-------------
-
-
---------------------------
-
-AXRole: AXCell
-AXSubrole: (null)
-AXRoleDescription: cell
-AXChildren: <array of size 1>
-AXHelp: 
-AXParent: <AXCell>
-AXSize: NSSize: {20, 30}
-AXTitle: 
-AXDescription: 
-AXValue: 
-AXFocused: 0
-AXEnabled: 1
-AXWindow: <AXCell>
-AXSelectedTextMarkerRange: (null)
-AXStartTextMarker: <AXCell>
-AXEndTextMarker: <AXCell>
-AXVisited: 0
-AXLinkedUIElements: (null)
-AXSelected: 0
-AXBlockQuoteLevel: 0
-AXTopLevelUIElement: <AXCell>
-AXLanguage: 
-AXDOMIdentifier: 
-AXDOMClassList: <array of size 0>
-AXRowIndexRange: NSRange: {0, 1}
-AXColumnIndexRange: NSRange: {0, 1}
-AXColumnHeaderUIElements: <array of size 0>
-AXRowHeaderUIElements: <array of size 0>
-AXElementBusy: 0
-AXRequired: 0
-
-------------
-AXRole: AXCell
-AXSubrole: (null)
-AXRoleDescription: cell
-AXChildren: <array of size 1>
-AXHelp: 
-AXParent: <AXCell>
-AXSize: NSSize: {27, 30}
-AXTitle: 
-AXDescription: 
-AXValue: 
-AXFocused: 0
-AXEnabled: 1
-AXWindow: <AXCell>
-AXSelectedTextMarkerRange: (null)
-AXStartTextMarker: <AXCell>
-AXEndTextMarker: <AXCell>
-AXVisited: 0
-AXLinkedUIElements: (null)
-AXSelected: 0
-AXBlockQuoteLevel: 0
-AXTopLevelUIElement: <AXCell>
-AXLanguage: 
-AXDOMIdentifier: 
-AXDOMClassList: <array of size 0>
-AXRowIndexRange: NSRange: {0, 1}
-AXColumnIndexRange: NSRange: {1, 1}
-AXColumnHeaderUIElements: <array of size 0>
-AXRowHeaderUIElements: <array of size 0>
-AXElementBusy: 0
-AXRequired: 0
-
-------------
-AXRole: AXCell
-AXSubrole: (null)
-AXRoleDescription: cell
-AXChildren: <array of size 1>
-AXHelp: 
-AXParent: <AXCell>
-AXSize: NSSize: {28, 30}
-AXTitle: 
-AXDescription: 
-AXValue: 
-AXFocused: 0
-AXEnabled: 1
-AXWindow: <AXCell>
-AXSelectedTextMarkerRange: (null)
-AXStartTextMarker: <AXCell>
-AXEndTextMarker: <AXCell>
-AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXCell>
@@ -532,7 +532,7 @@ AXRoleDescription: cell
 AXChildren: <array of size 1>
 AXHelp: 
 AXParent: <AXCell>
-AXSize: NSSize: {20, 30}
+AXSize: NSSize: {21, 30}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -543,7 +543,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: <AXCell>
 AXEndTextMarker: <AXCell>
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXCell>
@@ -564,7 +564,7 @@ AXRoleDescription: cell
 AXChildren: <array of size 1>
 AXHelp: 
 AXParent: <AXCell>
-AXSize: NSSize: {27, 30}
+AXSize: NSSize: {29, 30}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -575,7 +575,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: <AXCell>
 AXEndTextMarker: <AXCell>
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXCell>
@@ -585,7 +585,7 @@ AXDOMClassList: <array of size 0>
 AXRowIndexRange: NSRange: {1, 1}
 AXColumnIndexRange: NSRange: {1, 1}
 AXColumnHeaderUIElements: <array of size 1>
-AXRowHeaderUIElements: <array of size 0>
+AXRowHeaderUIElements: <array of size 1>
 AXElementBusy: 0
 AXRequired: 0
 
@@ -596,7 +596,7 @@ AXRoleDescription: cell
 AXChildren: <array of size 1>
 AXHelp: 
 AXParent: <AXCell>
-AXSize: NSSize: {28, 30}
+AXSize: NSSize: {29, 30}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -607,7 +607,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: <AXCell>
 AXEndTextMarker: <AXCell>
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXCell>
@@ -617,7 +617,7 @@ AXDOMClassList: <array of size 0>
 AXRowIndexRange: NSRange: {1, 1}
 AXColumnIndexRange: NSRange: {2, 1}
 AXColumnHeaderUIElements: <array of size 0>
-AXRowHeaderUIElements: <array of size 0>
+AXRowHeaderUIElements: <array of size 1>
 AXElementBusy: 0
 AXRequired: 0
 
@@ -628,7 +628,7 @@ AXRoleDescription: cell
 AXChildren: <array of size 1>
 AXHelp: 
 AXParent: <AXCell>
-AXSize: NSSize: {20, 30}
+AXSize: NSSize: {21, 30}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -639,7 +639,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: <AXCell>
 AXEndTextMarker: <AXCell>
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXCell>
@@ -648,38 +648,6 @@ AXDOMIdentifier:
 AXDOMClassList: <array of size 0>
 AXRowIndexRange: NSRange: {2, 1}
 AXColumnIndexRange: NSRange: {0, 1}
-AXColumnHeaderUIElements: <array of size 2>
-AXRowHeaderUIElements: <array of size 0>
-AXElementBusy: 0
-AXRequired: 0
-
-------------
-AXRole: AXCell
-AXSubrole: (null)
-AXRoleDescription: cell
-AXChildren: <array of size 1>
-AXHelp: 
-AXParent: <AXCell>
-AXSize: NSSize: {27, 30}
-AXTitle: 
-AXDescription: 
-AXValue: 
-AXFocused: 0
-AXEnabled: 1
-AXWindow: <AXCell>
-AXSelectedTextMarkerRange: (null)
-AXStartTextMarker: <AXCell>
-AXEndTextMarker: <AXCell>
-AXVisited: 0
-AXLinkedUIElements: (null)
-AXSelected: 0
-AXBlockQuoteLevel: 0
-AXTopLevelUIElement: <AXCell>
-AXLanguage: 
-AXDOMIdentifier: 
-AXDOMClassList: <array of size 0>
-AXRowIndexRange: NSRange: {2, 1}
-AXColumnIndexRange: NSRange: {1, 1}
 AXColumnHeaderUIElements: <array of size 1>
 AXRowHeaderUIElements: <array of size 0>
 AXElementBusy: 0
@@ -692,7 +660,7 @@ AXRoleDescription: cell
 AXChildren: <array of size 1>
 AXHelp: 
 AXParent: <AXCell>
-AXSize: NSSize: {28, 30}
+AXSize: NSSize: {29, 30}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -703,7 +671,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: <AXCell>
 AXEndTextMarker: <AXCell>
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXCell>
@@ -711,9 +679,9 @@ AXLanguage:
 AXDOMIdentifier: 
 AXDOMClassList: <array of size 0>
 AXRowIndexRange: NSRange: {2, 1}
-AXColumnIndexRange: NSRange: {2, 1}
-AXColumnHeaderUIElements: <array of size 0>
-AXRowHeaderUIElements: <array of size 0>
+AXColumnIndexRange: NSRange: {1, 1}
+AXColumnHeaderUIElements: <array of size 1>
+AXRowHeaderUIElements: <array of size 1>
 AXElementBusy: 0
 AXRequired: 0
 
@@ -724,7 +692,7 @@ AXRoleDescription: cell
 AXChildren: <array of size 1>
 AXHelp: 
 AXParent: <AXCell>
-AXSize: NSSize: {20, 30}
+AXSize: NSSize: {29, 30}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -735,7 +703,39 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: <AXCell>
 AXEndTextMarker: <AXCell>
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
+AXSelected: 0
+AXBlockQuoteLevel: 0
+AXTopLevelUIElement: <AXCell>
+AXLanguage: 
+AXDOMIdentifier: 
+AXDOMClassList: <array of size 0>
+AXRowIndexRange: NSRange: {2, 1}
+AXColumnIndexRange: NSRange: {2, 1}
+AXColumnHeaderUIElements: <array of size 0>
+AXRowHeaderUIElements: <array of size 1>
+AXElementBusy: 0
+AXRequired: 0
+
+------------
+AXRole: AXCell
+AXSubrole: (null)
+AXRoleDescription: cell
+AXChildren: <array of size 1>
+AXHelp: 
+AXParent: <AXCell>
+AXSize: NSSize: {21, 30}
+AXTitle: 
+AXDescription: 
+AXValue: 
+AXFocused: 0
+AXEnabled: 1
+AXWindow: <AXCell>
+AXSelectedTextMarkerRange: (null)
+AXStartTextMarker: <AXCell>
+AXEndTextMarker: <AXCell>
+AXVisited: 0
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXCell>
@@ -744,7 +744,7 @@ AXDOMIdentifier:
 AXDOMClassList: <array of size 0>
 AXRowIndexRange: NSRange: {3, 1}
 AXColumnIndexRange: NSRange: {0, 1}
-AXColumnHeaderUIElements: <array of size 3>
+AXColumnHeaderUIElements: <array of size 1>
 AXRowHeaderUIElements: <array of size 0>
 AXElementBusy: 0
 AXRequired: 0
@@ -756,7 +756,7 @@ AXRoleDescription: cell
 AXChildren: <array of size 1>
 AXHelp: 
 AXParent: <AXCell>
-AXSize: NSSize: {27, 30}
+AXSize: NSSize: {29, 30}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -767,7 +767,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: <AXCell>
 AXEndTextMarker: <AXCell>
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXCell>
@@ -788,7 +788,7 @@ AXRoleDescription: cell
 AXChildren: <array of size 1>
 AXHelp: 
 AXParent: <AXCell>
-AXSize: NSSize: {28, 30}
+AXSize: NSSize: {29, 30}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -799,7 +799,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: <AXCell>
 AXEndTextMarker: <AXCell>
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXCell>
@@ -824,7 +824,7 @@ AXRoleDescription: group
 AXChildren: <array of size 3>
 AXHelp: 
 AXParent: <AXGroup>
-AXSize: NSSize: {75, 30}
+AXSize: NSSize: {77, 30}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -835,7 +835,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: (null)
 AXEndTextMarker: (null)
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXGroup>
@@ -859,7 +859,7 @@ AXRoleDescription: cell
 AXChildren: <array of size 1>
 AXHelp: 
 AXParent: <AXCell>
-AXSize: NSSize: {20, 30}
+AXSize: NSSize: {21, 30}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -870,7 +870,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: <AXCell>
 AXEndTextMarker: <AXCell>
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXCell>
@@ -891,7 +891,7 @@ AXRoleDescription: cell
 AXChildren: <array of size 1>
 AXHelp: 
 AXParent: <AXCell>
-AXSize: NSSize: {27, 30}
+AXSize: NSSize: {29, 30}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -902,7 +902,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: <AXCell>
 AXEndTextMarker: <AXCell>
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXCell>
@@ -923,7 +923,7 @@ AXRoleDescription: cell
 AXChildren: <array of size 1>
 AXHelp: 
 AXParent: <AXCell>
-AXSize: NSSize: {28, 30}
+AXSize: NSSize: {29, 30}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -934,7 +934,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: <AXCell>
 AXEndTextMarker: <AXCell>
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXCell>
@@ -959,7 +959,7 @@ AXRoleDescription: cell
 AXChildren: <array of size 1>
 AXHelp: 
 AXParent: <AXCell>
-AXSize: NSSize: {20, 30}
+AXSize: NSSize: {21, 30}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -970,7 +970,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: <AXCell>
 AXEndTextMarker: <AXCell>
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXCell>
@@ -991,7 +991,7 @@ AXRoleDescription: cell
 AXChildren: <array of size 1>
 AXHelp: 
 AXParent: <AXCell>
-AXSize: NSSize: {20, 30}
+AXSize: NSSize: {21, 30}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -1002,7 +1002,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: <AXCell>
 AXEndTextMarker: <AXCell>
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXCell>
@@ -1023,7 +1023,7 @@ AXRoleDescription: cell
 AXChildren: <array of size 1>
 AXHelp: 
 AXParent: <AXCell>
-AXSize: NSSize: {20, 30}
+AXSize: NSSize: {21, 30}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -1034,7 +1034,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: <AXCell>
 AXEndTextMarker: <AXCell>
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXCell>
@@ -1043,7 +1043,7 @@ AXDOMIdentifier:
 AXDOMClassList: <array of size 0>
 AXRowIndexRange: NSRange: {2, 1}
 AXColumnIndexRange: NSRange: {0, 1}
-AXColumnHeaderUIElements: <array of size 2>
+AXColumnHeaderUIElements: <array of size 1>
 AXRowHeaderUIElements: <array of size 0>
 AXElementBusy: 0
 AXRequired: 0
@@ -1059,7 +1059,7 @@ AXRoleDescription: column
 AXChildren: <array of size 4>
 AXHelp: 
 AXParent: <AXColumn>
-AXSize: NSSize: {20, 120}
+AXSize: NSSize: {21, 120}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -1070,7 +1070,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: (null)
 AXEndTextMarker: (null)
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXColumn>
@@ -1090,7 +1090,7 @@ AXRoleDescription: column
 AXChildren: <array of size 4>
 AXHelp: 
 AXParent: <AXColumn>
-AXSize: NSSize: {27, 120}
+AXSize: NSSize: {29, 120}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -1101,7 +1101,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: (null)
 AXEndTextMarker: (null)
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXColumn>
@@ -1121,7 +1121,7 @@ AXRoleDescription: column
 AXChildren: <array of size 4>
 AXHelp: 
 AXParent: <AXColumn>
-AXSize: NSSize: {28, 120}
+AXSize: NSSize: {29, 120}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -1132,7 +1132,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: (null)
 AXEndTextMarker: (null)
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXColumn>
@@ -1156,7 +1156,7 @@ AXRoleDescription: row
 AXChildren: <array of size 3>
 AXHelp: 
 AXParent: <AXRow>
-AXSize: NSSize: {75, 30}
+AXSize: NSSize: {77, 30}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -1167,7 +1167,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: <AXRow>
 AXEndTextMarker: <AXRow>
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXRow>
@@ -1184,7 +1184,7 @@ AXRoleDescription: row
 AXChildren: <array of size 3>
 AXHelp: 
 AXParent: <AXRow>
-AXSize: NSSize: {75, 30}
+AXSize: NSSize: {77, 30}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -1195,7 +1195,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: <AXRow>
 AXEndTextMarker: <AXRow>
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXRow>
@@ -1212,7 +1212,7 @@ AXRoleDescription: row
 AXChildren: <array of size 3>
 AXHelp: 
 AXParent: <AXRow>
-AXSize: NSSize: {75, 30}
+AXSize: NSSize: {77, 30}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -1223,7 +1223,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: <AXRow>
 AXEndTextMarker: <AXRow>
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXRow>
@@ -1240,7 +1240,7 @@ AXRoleDescription: row
 AXChildren: <array of size 3>
 AXHelp: 
 AXParent: <AXRow>
-AXSize: NSSize: {75, 30}
+AXSize: NSSize: {77, 30}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -1251,7 +1251,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: <AXRow>
 AXEndTextMarker: <AXRow>
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXRow>
@@ -1272,7 +1272,7 @@ AXRoleDescription: cell
 AXChildren: <array of size 1>
 AXHelp: 
 AXParent: <AXCell>
-AXSize: NSSize: {20, 30}
+AXSize: NSSize: {21, 30}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -1283,7 +1283,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: <AXCell>
 AXEndTextMarker: <AXCell>
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXCell>
@@ -1304,7 +1304,7 @@ AXRoleDescription: cell
 AXChildren: <array of size 1>
 AXHelp: 
 AXParent: <AXCell>
-AXSize: NSSize: {27, 30}
+AXSize: NSSize: {29, 30}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -1315,7 +1315,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: <AXCell>
 AXEndTextMarker: <AXCell>
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXCell>
@@ -1336,7 +1336,7 @@ AXRoleDescription: cell
 AXChildren: <array of size 1>
 AXHelp: 
 AXParent: <AXCell>
-AXSize: NSSize: {28, 30}
+AXSize: NSSize: {29, 30}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -1347,7 +1347,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: <AXCell>
 AXEndTextMarker: <AXCell>
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXCell>
@@ -1368,7 +1368,7 @@ AXRoleDescription: cell
 AXChildren: <array of size 1>
 AXHelp: 
 AXParent: <AXCell>
-AXSize: NSSize: {20, 30}
+AXSize: NSSize: {21, 30}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -1379,7 +1379,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: <AXCell>
 AXEndTextMarker: <AXCell>
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXCell>
@@ -1400,7 +1400,7 @@ AXRoleDescription: cell
 AXChildren: <array of size 1>
 AXHelp: 
 AXParent: <AXCell>
-AXSize: NSSize: {27, 30}
+AXSize: NSSize: {29, 30}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -1411,7 +1411,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: <AXCell>
 AXEndTextMarker: <AXCell>
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXCell>
@@ -1421,7 +1421,7 @@ AXDOMClassList: <array of size 0>
 AXRowIndexRange: NSRange: {1, 1}
 AXColumnIndexRange: NSRange: {1, 1}
 AXColumnHeaderUIElements: <array of size 1>
-AXRowHeaderUIElements: <array of size 0>
+AXRowHeaderUIElements: <array of size 1>
 AXElementBusy: 0
 AXRequired: 0
 
@@ -1432,7 +1432,7 @@ AXRoleDescription: cell
 AXChildren: <array of size 1>
 AXHelp: 
 AXParent: <AXCell>
-AXSize: NSSize: {28, 30}
+AXSize: NSSize: {29, 30}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -1443,7 +1443,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: <AXCell>
 AXEndTextMarker: <AXCell>
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXCell>
@@ -1453,7 +1453,7 @@ AXDOMClassList: <array of size 0>
 AXRowIndexRange: NSRange: {1, 1}
 AXColumnIndexRange: NSRange: {2, 1}
 AXColumnHeaderUIElements: <array of size 0>
-AXRowHeaderUIElements: <array of size 0>
+AXRowHeaderUIElements: <array of size 1>
 AXElementBusy: 0
 AXRequired: 0
 
@@ -1464,7 +1464,7 @@ AXRoleDescription: cell
 AXChildren: <array of size 1>
 AXHelp: 
 AXParent: <AXCell>
-AXSize: NSSize: {20, 30}
+AXSize: NSSize: {21, 30}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -1475,7 +1475,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: <AXCell>
 AXEndTextMarker: <AXCell>
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXCell>
@@ -1484,38 +1484,6 @@ AXDOMIdentifier:
 AXDOMClassList: <array of size 0>
 AXRowIndexRange: NSRange: {2, 1}
 AXColumnIndexRange: NSRange: {0, 1}
-AXColumnHeaderUIElements: <array of size 2>
-AXRowHeaderUIElements: <array of size 0>
-AXElementBusy: 0
-AXRequired: 0
-
-------------
-AXRole: AXCell
-AXSubrole: (null)
-AXRoleDescription: cell
-AXChildren: <array of size 1>
-AXHelp: 
-AXParent: <AXCell>
-AXSize: NSSize: {27, 30}
-AXTitle: 
-AXDescription: 
-AXValue: 
-AXFocused: 0
-AXEnabled: 1
-AXWindow: <AXCell>
-AXSelectedTextMarkerRange: (null)
-AXStartTextMarker: <AXCell>
-AXEndTextMarker: <AXCell>
-AXVisited: 0
-AXLinkedUIElements: (null)
-AXSelected: 0
-AXBlockQuoteLevel: 0
-AXTopLevelUIElement: <AXCell>
-AXLanguage: 
-AXDOMIdentifier: 
-AXDOMClassList: <array of size 0>
-AXRowIndexRange: NSRange: {2, 1}
-AXColumnIndexRange: NSRange: {1, 1}
 AXColumnHeaderUIElements: <array of size 1>
 AXRowHeaderUIElements: <array of size 0>
 AXElementBusy: 0
@@ -1528,7 +1496,7 @@ AXRoleDescription: cell
 AXChildren: <array of size 1>
 AXHelp: 
 AXParent: <AXCell>
-AXSize: NSSize: {28, 30}
+AXSize: NSSize: {29, 30}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -1539,7 +1507,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: <AXCell>
 AXEndTextMarker: <AXCell>
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXCell>
@@ -1547,9 +1515,9 @@ AXLanguage:
 AXDOMIdentifier: 
 AXDOMClassList: <array of size 0>
 AXRowIndexRange: NSRange: {2, 1}
-AXColumnIndexRange: NSRange: {2, 1}
-AXColumnHeaderUIElements: <array of size 0>
-AXRowHeaderUIElements: <array of size 0>
+AXColumnIndexRange: NSRange: {1, 1}
+AXColumnHeaderUIElements: <array of size 1>
+AXRowHeaderUIElements: <array of size 1>
 AXElementBusy: 0
 AXRequired: 0
 
@@ -1560,7 +1528,7 @@ AXRoleDescription: cell
 AXChildren: <array of size 1>
 AXHelp: 
 AXParent: <AXCell>
-AXSize: NSSize: {20, 30}
+AXSize: NSSize: {29, 30}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -1571,7 +1539,39 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: <AXCell>
 AXEndTextMarker: <AXCell>
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
+AXSelected: 0
+AXBlockQuoteLevel: 0
+AXTopLevelUIElement: <AXCell>
+AXLanguage: 
+AXDOMIdentifier: 
+AXDOMClassList: <array of size 0>
+AXRowIndexRange: NSRange: {2, 1}
+AXColumnIndexRange: NSRange: {2, 1}
+AXColumnHeaderUIElements: <array of size 0>
+AXRowHeaderUIElements: <array of size 1>
+AXElementBusy: 0
+AXRequired: 0
+
+------------
+AXRole: AXCell
+AXSubrole: (null)
+AXRoleDescription: cell
+AXChildren: <array of size 1>
+AXHelp: 
+AXParent: <AXCell>
+AXSize: NSSize: {21, 30}
+AXTitle: 
+AXDescription: 
+AXValue: 
+AXFocused: 0
+AXEnabled: 1
+AXWindow: <AXCell>
+AXSelectedTextMarkerRange: (null)
+AXStartTextMarker: <AXCell>
+AXEndTextMarker: <AXCell>
+AXVisited: 0
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXCell>
@@ -1580,7 +1580,7 @@ AXDOMIdentifier:
 AXDOMClassList: <array of size 0>
 AXRowIndexRange: NSRange: {3, 1}
 AXColumnIndexRange: NSRange: {0, 1}
-AXColumnHeaderUIElements: <array of size 3>
+AXColumnHeaderUIElements: <array of size 1>
 AXRowHeaderUIElements: <array of size 0>
 AXElementBusy: 0
 AXRequired: 0
@@ -1592,7 +1592,7 @@ AXRoleDescription: cell
 AXChildren: <array of size 1>
 AXHelp: 
 AXParent: <AXCell>
-AXSize: NSSize: {27, 30}
+AXSize: NSSize: {29, 30}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -1603,7 +1603,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: <AXCell>
 AXEndTextMarker: <AXCell>
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXCell>
@@ -1624,7 +1624,7 @@ AXRoleDescription: cell
 AXChildren: <array of size 1>
 AXHelp: 
 AXParent: <AXCell>
-AXSize: NSSize: {28, 30}
+AXSize: NSSize: {29, 30}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -1635,7 +1635,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: <AXCell>
 AXEndTextMarker: <AXCell>
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXCell>
@@ -1660,7 +1660,7 @@ AXRoleDescription: group
 AXChildren: <array of size 3>
 AXHelp: 
 AXParent: <AXGroup>
-AXSize: NSSize: {75, 30}
+AXSize: NSSize: {77, 30}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -1671,7 +1671,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: (null)
 AXEndTextMarker: (null)
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXGroup>

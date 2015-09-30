@@ -7,7 +7,7 @@ AXRoleDescription: group
 AXChildren: <array of size 3>
 AXHelp: 
 AXParent: <AXGroup>
-AXSize: NSSize: {132, 90}
+AXSize: NSSize: {136, 90}
 AXTitle: 
 AXDescription: 
 AXValue: 
@@ -18,7 +18,7 @@ AXSelectedTextMarkerRange: (null)
 AXStartTextMarker: <AXGroup>
 AXEndTextMarker: <AXGroup>
 AXVisited: 0
-AXLinkedUIElements: (null)
+AXLinkedUIElements: <array of size 0>
 AXSelected: 0
 AXBlockQuoteLevel: 0
 AXTopLevelUIElement: <AXGroup>
