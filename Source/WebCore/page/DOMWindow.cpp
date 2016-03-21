@@ -724,7 +724,7 @@ DOMApplicationCache* DOMWindow::applicationCache() const
 Navigator* DOMWindow::navigator() const
 {
     if (!isCurrentlyDisplayedInFrame())
-        return 0;
+        return nullptr;
     if (!m_navigator)
         m_navigator = Navigator::create(m_frame);
     return m_navigator.get();
@@ -734,9 +734,9 @@ Navigator* DOMWindow::navigator() const
 Performance* DOMWindow::performance() const
 {
     if (!isCurrentlyDisplayedInFrame())
-        return 0;
+        return nullptr;
     if (!m_performance)
-        m_performance = Performance::create(m_frame);
+        m_performance = Performance::create(*m_frame);
     return m_performance.get();
 }
 #endif
@@ -1048,13 +1048,12 @@ void DOMWindow::print()
     if (!m_frame)
         return;
 
-    Page* page = m_frame->page();
+    auto* page = m_frame->page();
     if (!page)
         return;
 
-    // Pages are not allowed to bring up a modal print dialog during BeforeUnload dispatch.
-    if (page->isAnyFrameHandlingBeforeUnloadEvent()) {
-        printErrorMessage("Use of window.print is not allowed during beforeunload event dispatch.");
+    if (!page->arePromptsAllowed()) {
+        printErrorMessage("Use of window.print is not allowed while unloading a page.");
         return;
     }
 
@@ -1081,17 +1080,16 @@ void DOMWindow::alert(const String& message)
     if (!m_frame)
         return;
 
-    // Pages are not allowed to cause modal alerts during BeforeUnload dispatch.
-    if (page() && page()->isAnyFrameHandlingBeforeUnloadEvent()) {
-        printErrorMessage("Use of window.alert is not allowed during beforeunload event dispatch.");
+    auto* page = m_frame->page();
+    if (!page)
+        return;
+
+    if (!page->arePromptsAllowed()) {
+        printErrorMessage("Use of window.alert is not allowed while unloading a page.");
         return;
     }
 
     m_frame->document()->updateStyleIfNeeded();
-
-    Page* page = m_frame->page();
-    if (!page)
-        return;
 
     page->chrome().runJavaScriptAlert(m_frame, message);
 }
@@ -1101,17 +1099,16 @@ bool DOMWindow::confirm(const String& message)
     if (!m_frame)
         return false;
     
-    // Pages are not allowed to cause modal alerts during BeforeUnload dispatch.
-    if (page() && page()->isAnyFrameHandlingBeforeUnloadEvent()) {
-        printErrorMessage("Use of window.confirm is not allowed during beforeunload event dispatch.");
+    auto* page = m_frame->page();
+    if (!page)
+        return false;
+
+    if (!page->arePromptsAllowed()) {
+        printErrorMessage("Use of window.confirm is not allowed while unloading a page.");
         return false;
     }
 
     m_frame->document()->updateStyleIfNeeded();
-
-    Page* page = m_frame->page();
-    if (!page)
-        return false;
 
     return page->chrome().runJavaScriptConfirm(m_frame, message);
 }
@@ -1121,17 +1118,16 @@ String DOMWindow::prompt(const String& message, const String& defaultValue)
     if (!m_frame)
         return String();
 
-    // Pages are not allowed to cause modal alerts during BeforeUnload dispatch.
-    if (page() && page()->isAnyFrameHandlingBeforeUnloadEvent()) {
-        printErrorMessage("Use of window.prompt is not allowed during beforeunload event dispatch.");
+    auto* page = m_frame->page();
+    if (!page)
+        return String();
+
+    if (!page->arePromptsAllowed()) {
+        printErrorMessage("Use of window.prompt is not allowed while unloading a page.");
         return String();
     }
 
     m_frame->document()->updateStyleIfNeeded();
-
-    Page* page = m_frame->page();
-    if (!page)
-        return String();
 
     String returnValue;
     if (page->chrome().runJavaScriptPrompt(m_frame, message, defaultValue, returnValue))
@@ -1692,6 +1688,22 @@ static void didAddStorageEventListener(DOMWindow* window)
     window->sessionStorage(IGNORE_EXCEPTION);
 }
 
+bool DOMWindow::isSameSecurityOriginAsMainFrame() const
+{
+    if (!m_frame || !m_frame->page() || !document())
+        return false;
+
+    if (m_frame->isMainFrame())
+        return true;
+
+    Document* mainFrameDocument = m_frame->mainFrame().document();
+
+    if (mainFrameDocument && document()->securityOrigin()->canAccess(mainFrameDocument->securityOrigin()))
+        return true;
+
+    return false;
+}
+
 bool DOMWindow::addEventListener(const AtomicString& eventType, PassRefPtr<EventListener> listener, bool useCapture)
 {
     if (!EventTarget::addEventListener(eventType, listener, useCapture))
@@ -1713,17 +1725,28 @@ bool DOMWindow::addEventListener(const AtomicString& eventType, PassRefPtr<Event
         addBeforeUnloadEventListener(this);
 #if ENABLE(DEVICE_ORIENTATION)
 #if PLATFORM(IOS)
-    else if (eventType == eventNames().devicemotionEvent && document())
-        document()->deviceMotionController()->addDeviceEventListener(this);
-    else if (eventType == eventNames().deviceorientationEvent && document())
-        document()->deviceOrientationController()->addDeviceEventListener(this);
+    else if ((eventType == eventNames().devicemotionEvent || eventType == eventNames().deviceorientationEvent) && document()) {
+        if (isSameSecurityOriginAsMainFrame()) {
+            if (eventType == eventNames().deviceorientationEvent)
+                document()->deviceOrientationController()->addDeviceEventListener(this);
+            else
+                document()->deviceMotionController()->addDeviceEventListener(this);
+        } else if (document())
+            document()->addConsoleMessage(MessageSource::JS, MessageLevel::Warning, ASCIILiteral("Blocked attempt add device motion or orientation listener from child frame that wasn't the same security origin as the main page."));
+    }
 #else
     else if (eventType == eventNames().devicemotionEvent && RuntimeEnabledFeatures::sharedFeatures().deviceMotionEnabled()) {
-        if (DeviceMotionController* controller = DeviceMotionController::from(page()))
-            controller->addDeviceEventListener(this);
+        if (isSameSecurityOriginAsMainFrame()) {
+            if (DeviceMotionController* controller = DeviceMotionController::from(page()))
+                controller->addDeviceEventListener(this);
+        } else if (document())
+            document()->addConsoleMessage(MessageSource::JS, MessageLevel::Warning, ASCIILiteral("Blocked attempt add device motion listener from child frame that wasn't the same security origin as the main page."));
     } else if (eventType == eventNames().deviceorientationEvent && RuntimeEnabledFeatures::sharedFeatures().deviceOrientationEnabled()) {
-        if (DeviceOrientationController* controller = DeviceOrientationController::from(page()))
-            controller->addDeviceEventListener(this);
+        if (isSameSecurityOriginAsMainFrame()) {
+            if (DeviceOrientationController* controller = DeviceOrientationController::from(page()))
+                controller->addDeviceEventListener(this);
+        } else if (document())
+            document()->addConsoleMessage(MessageSource::JS, MessageLevel::Warning, ASCIILiteral("Blocked attempt add device orientation listener from child frame that wasn't the same security origin as the main page."));
     }
 #endif // PLATFORM(IOS)
 #endif // ENABLE(DEVICE_ORIENTATION)
@@ -2209,9 +2232,12 @@ void DOMWindow::showModalDialog(const String& urlString, const String& dialogFea
     if (!firstFrame)
         return;
 
-    // Pages are not allowed to cause modal alerts during BeforeUnload dispatch.
-    if (page() && page()->isAnyFrameHandlingBeforeUnloadEvent()) {
-        printErrorMessage("Use of window.showModalDialog is not allowed during beforeunload event dispatch.");
+    auto* page = m_frame->page();
+    if (!page)
+        return;
+
+    if (!page->arePromptsAllowed()) {
+        printErrorMessage("Use of window.showModalDialog is not allowed while unloading a page.");
         return;
     }
 

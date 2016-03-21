@@ -1,3 +1,651 @@
+2016-02-08  Babak Shafiei  <bshafiei@apple.com>
+
+        Merge r187245.
+
+    2015-07-23  Brent Fulgham  <bfulgham@apple.com>
+
+            [Win] Implement proper High DPI support features
+            https://bugs.webkit.org/show_bug.cgi?id=146335
+            <rdar://problem/21558269>
+
+            Reviewed by Alex Christensen.
+
+            Update WinLauncher to take device scaling factor into account.
+
+            * WinLauncher/Common.cpp:
+            (resizeSubViews): Make sure toolbars and URL bar are properly sized and using
+            a valid font.
+            (computeFullDesktopFrame): Handle high DPI desktops.
+            (WndProc): Make comments more precise.
+            * WinLauncher/WinLauncher.cpp:
+            (WinLauncher::init): Determine device scale factor at launch.
+            (WinLauncher::updateDeviceScaleFactor): Added.
+            * WinLauncher/WinLauncher.h:
+            * WinLauncher/WinLauncherWebHost.h: Use C++11 initialization.
+            * WinLauncher/WinMain.cpp: Size interface based on scaling factor.
+            (wWinMain): Ditto.
+            * win/DLLLauncher/DLLLauncherMain.cpp:
+            (wWinMain): Tell Windows we understand high DPI.
+
+2015-12-08  Harris Papadopoulos  <cpapadopoulos@apple.com>
+
+        Merge r192911. rdar://problem/23816165
+
+    2015-12-01  Sam Weinig  <sam@webkit.org>
+
+            Need completionHandler-based WebKit C SPI for alert, confirm, and prompt
+            <rdar://problem/23320863>
+            https://bugs.webkit.org/show_bug.cgi?id=151708
+
+            Reviewed by Anders Carlsson.
+
+            * WebKitTestRunner/TestController.cpp:
+            (WTR::TestController::createOtherPage):
+            (WTR::TestController::createWebViewWithOptions):
+            Update for new WKPageUIClient.
+
+2015-12-06  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r191032. rdar://problem/23769770
+
+    2015-10-13  Myles C. Maxfield  <mmaxfield@apple.com>
+
+            [iOS] Build fix
+
+            Unreviewed.
+
+            Mach-O section names are limited to 16 characters.
+
+            * DumpRenderTree/mac/Configurations/DumpRenderTreeApp.xcconfig:
+            * DumpRenderTree/mac/DumpRenderTree.mm:
+            (activateFontsIOS):
+
+2015-12-06  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r190848. rdar://problem/23769770
+
+    2015-10-11  Myles C. Maxfield  <mmaxfield@apple.com>
+
+            Test font-variant-* and font-feature-settings with mocked preinstalled fonts
+            https://bugs.webkit.org/show_bug.cgi?id=149777
+
+            Reviewed by Simon Fraser.
+
+            Include FontWithFeatures in DumpRenderTree and WebKitTestRunner. Add it
+            to the list of tests to preinstall at startup time.
+
+            Also, update the generation of the 'name' table in the FontWithFeatures font.
+
+            * DumpRenderTree/mac/DumpRenderTree.mm:
+            (allowedFontFamilySet):
+            (activateTestingFonts):
+            (activateFontsIOS):
+            * FontWithFeatures/FontWithFeatures/FontCreator.cpp:
+            (Generator::generate):
+            (Generator::appendCFFTable):
+            (Generator::appendNameSubtable):
+            (Generator::appendNAMETable):
+            * FontWithFeatures/FontWithFeatures/main.cpp:
+            (main):
+            * WebKitTestRunner/InjectedBundle/cocoa/ActivateFontsCocoa.mm:
+            (WTR::allowedFontFamilySet):
+            (WTR::activateFonts):
+            * WebKitTestRunner/mac/TestControllerMac.mm:
+            (WTR::allowedFontFamilySet):
+
+2015-12-06  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r190697. rdar://problem/23769789
+
+    2015-10-07  Myles C. Maxfield  <mmaxfield@apple.com>
+
+            Test font-variant-* and font-feature-settings with TrueType fonts
+            https://bugs.webkit.org/show_bug.cgi?id=149776
+
+            Reviewed by Simon Fraser.
+
+            This test extends our existing FontWithFeatures project to be able to generate a
+            TrueType font. This font is conceptually similar as the existing OpenType font,
+            except the feature -> character mapping is different.
+
+            The font itself only supports the following characters:
+            ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz
+            However, the shape of these letters are either an X or a check mark.
+            The letter "A" always is a check mark.
+            The letter "B" always is an X.
+            Each font feature has an letter associated with it. When the font feature is enabled,
+            that letter is shown as a check mark. For example, when
+            "kLowerCaseType / kLowerCaseSmallCapsSelector" is enabled, "S" is shown as a check
+            mark.
+
+            Here are the mappings of font features to letters:
+            kLigaturesType / kCommonLigaturesOnSelector: C
+            kLigaturesType / kContextualLigaturesOnSelector: D
+            kLigaturesType / kRareLigaturesOnSelector: G
+            kLigaturesType / kHistoricalLigaturesOnSelector: I
+            kContextualAlternatesType / kContextualAlternatesOnSelector: L
+            kVerticalPositionType / kInferiorsSelector: O
+            kVerticalPositionType / kSuperiorsSelector: P
+            kLowerCaseType / kLowerCaseSmallCapsSelector: S
+            kUpperCaseType / kUpperCaseSmallCapsSelector: V
+            kLowerCaseType / kLowerCasePetiteCapsSelector: T
+            kUpperCaseType / kUpperCasePetiteCapsSelector: W
+            kLetterCaseType / 14: Y
+            kStyleOptionsType / kTitlingCapsSelector: a
+            kNumberCaseType / kUpperCaseNumbersSelector: c
+            kNumberCaseType / kLowerCaseNumbersSelector: d
+            kNumberSpacingType / kProportionalNumbersSelector: f
+            kNumberSpacingType / kMonospacedNumbersSelector: g
+            kFractionsType / kDiagonalFractionsSelector: i
+            kFractionsType / kVerticalFractionsSelector: j
+            kVerticalPositionType / kOrdinalsSelector: Q
+            kTypographicExtrasType / kSlashedZeroOnSelector: k
+            kLigaturesType / kHistoricalLigaturesOnSelector: K
+            kCharacterShapeType / kJIS1978CharactersSelector: m
+            kCharacterShapeType / kJIS1983CharactersSelector: n
+            kCharacterShapeType / kJIS1990CharactersSelector: o
+            kCharacterShapeType / kJIS2004CharactersSelector: p
+            kCharacterShapeType / kSimplifiedCharactersSelector: q
+            kCharacterShapeType / kTraditionalCharactersSelector: r
+            kTextSpacingType / kMonospacedTextSelector: t
+            kTextSpacingType / kProportionalTextSelector: u
+            kRubyKanaType / kRubyKanaOnSelector: v
+
+            * FontWithFeatures/FontWithFeatures.xcodeproj/project.pbxproj:
+            * FontWithFeatures/FontWithFeatures/FontCreator.cpp:
+            (CFFBuilder::moveTo):
+            (CFFBuilder::lineTo):
+            (GLYFBuilder::GLYFBuilder):
+            (GLYFBuilder::takeResult):
+            (GLYFBuilder::moveTo):
+            (GLYFBuilder::lineTo):
+            (GLYFBuilder::closePath):
+            (GLYFBuilder::writePoint):
+            (GLYFBuilder::append16):
+            (generateBoxCharString):
+            (generateCheckCharString):
+            (generateXCharString):
+            (itemForGlyph):
+            (Generator::generate):
+            (Generator::insertSelector):
+            (Generator::insertFeature):
+            (Generator::generateFeatureDescription):
+            (Generator::appendCFFTable):
+            (Generator::appendGLYFTable):
+            (Generator::appendLOCATable):
+            (Generator::appendFEATTable):
+            (Generator::appendMetamorphosisChain):
+            (Generator::appendMORXTable):
+            (Generator::appendHEADTable):
+            (Generator::appendHMTXTable):
+            (Generator::appendNameSubtable):
+            (Generator::append2ByteASCIIString):
+            (Generator::appendNAMETable):
+            (generateFont):
+            (CFFBuilder::curveToCubic): Deleted.
+            (charStringForGlyph): Deleted.
+            * FontWithFeatures/FontWithFeatures/FontCreator.h:
+            * FontWithFeatures/FontWithFeatures/main.cpp:
+            (constructFontWithTrueTypeFeature):
+            (constructFontWithOpenTypeFeature):
+            (drawText):
+            (main):
+            (drawTextWithFeature): Deleted.
+
+2015-09-23  Myles C. Maxfield  <mmaxfield@apple.com>
+
+        [Cocoa] [Font Features] Implement font-variant-*
+        https://bugs.webkit.org/show_bug.cgi?id=148413
+
+        Reviewed by Darin Adler.
+
+        Update test font to use "lnum" feature.
+
+        * FontWithFeatures/FontWithFeatures/FontCreator.cpp:
+        (Generator::appendGSUBTable):
+
+2015-12-05  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r189943. rdar://problem/23769735
+
+    2015-09-17  Myles C. Maxfield  <mmaxfield@apple.com>
+
+            Update licence in r189890
+            https://bugs.webkit.org/show_bug.cgi?id=149306
+
+            Reviewed by Dean Jackson.
+
+            * FontWithFeatures/FontWithFeatures/FontCreator.cpp:
+            * FontWithFeatures/FontWithFeatures/FontCreator.h:
+            * FontWithFeatures/FontWithFeatures/main.cpp:
+
+2015-12-05  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r189890. rdar://problem/23769735
+
+    2015-09-16  Myles C. Maxfield  <mmaxfield@apple.com>
+
+            Create a font which can be used for testing font features
+            https://bugs.webkit.org/show_bug.cgi?id=149237
+
+            Reviewed by Simon Fraser.
+
+            This patch adds a new project in the Tools/ directory which generates a font which can
+            be used for testing font features. This is a standalone project consisting of two files:
+            1. A file which actually generates the byte vector representing the font. This file has
+            a single public function: std::vector<uint8_t> generateFont(). This file is not platform
+            specific, and only relies on the C++ STL.
+            2. A file with a main() which calls generateFont() and writes out the font, as well as
+            uses the font to render some demonstration text into a .png file. This file is platform
+            specific.
+
+            The font itself only supports the following characters:
+            ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz
+            However, the shape of these letters are either an X or a check mark.
+
+            The letter "A" always is a check mark.
+            The letter "B" always is an X.
+            Without any font features turned on, the rest of the letters are shown as X.
+
+            Each font feature has an letter associated with it. When the font feature is enabled,
+            that letter is shown as a check mark. For example, when "smcp" is enabled, "J" is shown
+            as a check mark.
+
+            Here are the mappings of font features to letters:
+            liga: C
+            clig: D
+            dlig: E
+            hlig: F
+            calt: G
+            subs: H
+            sups: I
+            smcp: J
+            c2sc: K
+            pcap: L
+            c2pc: M
+            unic: N
+            titl: O
+            onum: P
+            pnum: Q
+            tnum: R
+            frac: S
+            afrc: T
+            ordn: U
+            zero: V
+            hist: W
+            jp78: X
+            jp83: Y
+            jp90: Z
+            jp04: a
+            smpl: b
+            trad: c
+            fwid: d
+            pwid: e
+            ruby: f
+
+            * FontWithFeatures/FontWithFeatures.xcodeproj/project.pbxproj: Added.
+            * FontWithFeatures/FontWithFeatures/FontCreator.cpp: Added.
+            (integralLog2):
+            (roundDownToPowerOfTwo):
+            (isFourByteAligned):
+            (clampTo):
+            (append32):
+            (writeCFFEncodedNumber):
+            (CFFBuilder::CFFBuilder):
+            (CFFBuilder::takeResult):
+            (CFFBuilder::moveTo):
+            (CFFBuilder::lineTo):
+            (CFFBuilder::curveToCubic):
+            (CFFBuilder::closePath):
+            (CFFBuilder::writePoint):
+            (generateBoxCharString):
+            (generateCheckCharString):
+            (generateXCharString):
+            (charStringForGlyph):
+            (Generator::generate):
+            (Generator::Placeholder::Placeholder):
+            (Generator::Placeholder::populate):
+            (Generator::Placeholder::~Placeholder):
+            (Generator::placeholder):
+            (Generator::append16):
+            (Generator::append32):
+            (Generator::append32BitCode):
+            (Generator::overwrite16):
+            (Generator::overwrite32):
+            (Generator::appendCFFTable):
+            (Generator::appendSubstitutionSubtable):
+            (Generator::appendScriptSubtable):
+            (Generator::appendGSUBTable):
+            (Generator::appendOS2Table):
+            (Generator::appendFormat12CMAPTable):
+            (Generator::appendFormat4CMAPTable):
+            (Generator::appendCMAPTable):
+            (Generator::appendHEADTable):
+            (Generator::appendHHEATable):
+            (Generator::appendHMTXTable):
+            (Generator::appendMAXPTable):
+            (Generator::appendNAMETable):
+            (Generator::appendPOSTTable):
+            (Generator::calculateChecksum):
+            (Generator::appendTable):
+            (generateFont):
+            * FontWithFeatures/FontWithFeatures/FontCreator.h: Added.
+            * FontWithFeatures/FontWithFeatures/main.cpp: Added.
+            (drawTextWithFeature):
+            (main):
+
+2015-10-27  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r191395. rdar://problem/22847057
+
+    2015-10-21  Filip Pizlo  <fpizlo@apple.com>
+
+            Failures in PutStackSinkingPhase should be less severe
+            https://bugs.webkit.org/show_bug.cgi?id=150400
+
+            Reviewed by Geoffrey Garen.
+
+            Add a test mode for no PutStackSinkingPhase.
+
+            * Scripts/run-jsc-stress-tests:
+
+2015-10-26  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r191530. rdar://problem/23206864
+
+    2015-10-23  Michael Saboff  <msaboff@apple.com>
+
+            REGRESSION (r179357-r179359): WebContent Crash using AOL Mail @ com.apple.JavascriptCore JSC::linkPolymorphicCall(JSC::ExecState*, JSC::CallLinkInfo&, JSC::CallVariant, JSC::RegisterPreservationMode) + 1584
+            https://bugs.webkit.org/show_bug.cgi?id=150513
+
+            Reviewed by Saam Barati.
+
+            Added a new test function, failNextNewCodeBlock() to simplify the writing of a regression test.
+
+            * DumpRenderTree/TestRunner.cpp:
+            (simulateWebNotificationClickCallback):
+            (failNextCodeBlock):
+            (numberOfDFGCompiles):
+            (TestRunner::staticFunctions):
+            * WebKitTestRunner/InjectedBundle/Bindings/TestRunner.idl:
+            * WebKitTestRunner/InjectedBundle/TestRunner.cpp:
+            (WTR::TestRunner::setBlockAllPlugins):
+            (WTR::TestRunner::failNextCodeBlock):
+            (WTR::TestRunner::numberOfDFGCompiles):
+            * WebKitTestRunner/InjectedBundle/TestRunner.h:
+
+2015-10-22  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Rollout r191395. rdar://problem/22847057
+
+    2015-10-21  Filip Pizlo  <fpizlo@apple.com>
+
+            Failures in PutStackSinkingPhase should be less severe
+            https://bugs.webkit.org/show_bug.cgi?id=150400
+
+            Reviewed by Geoffrey Garen.
+
+            Add a test mode for no PutStackSinkingPhase.
+
+            * Scripts/run-jsc-stress-tests:
+
+2015-10-22  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r191395. rdar://problem/22847057
+
+    2015-10-21  Filip Pizlo  <fpizlo@apple.com>
+
+            Failures in PutStackSinkingPhase should be less severe
+            https://bugs.webkit.org/show_bug.cgi?id=150400
+
+            Reviewed by Geoffrey Garen.
+
+            Add a test mode for no PutStackSinkingPhase.
+
+            * Scripts/run-jsc-stress-tests:
+
+2015-10-08  Lucas Forschler  <lforschler@apple.com>
+
+        Merge r190358. rdar://problem/23016109
+
+    2015-09-30  Timothy Hatcher  <timothy@apple.com>
+
+            Give WebKitLauncher the get-task-allow entitlement to allow it to work on El Capitan
+            https://bugs.webkit.org/show_bug.cgi?id=149674
+
+            Reviewed by Lucas Forschler.
+
+            * WebKitLauncher/WebKitLauncher.entitlements: Added.
+            * WebKitLauncher/WebKitLauncher.xcodeproj/project.pbxproj:
+
+2015-10-08  Andy Estes  <aestes@apple.com>
+
+        Merge r188150, r188517, r188844, r188845, r188851, r188852, r188880, r188881, r188988, r189193, r189289, and r190133.
+        rdar://problem/22847063
+
+    2015-09-22  Andy Estes  <aestes@apple.com>
+
+            ContentFiltering.AllowDownloadAfterAddData is very flaky
+            https://bugs.webkit.org/show_bug.cgi?id=148885
+            <rdar://problem/22729563>
+
+            Reviewed by Alexey Proskuryakov.
+
+            The AllowDownload* tests were relying on -_downloadDidStart: being called before -webView:didFinishNavigation:,
+            but there is no guarantee of this. For tests that should allow a download, spin the runloop until
+            -_downloadDidStart: is called. The test will now timeout on failure, but will no longer produce false failures.
+
+            * TestWebKitAPI/Tests/WebKit2Cocoa/ContentFiltering.mm:
+            (downloadTest):
+
+    2015-08-26  Andy Estes  <aestes@apple.com>
+
+            [Content Filtering] Determine navigation and content policy before continuing to filter a load
+            https://bugs.webkit.org/show_bug.cgi?id=148506
+
+            Reviewed by Brady Eidson.
+
+            Added download API tests covering every decision and decision point.
+            Removed _WKDownload.AsynchronousDownloadPolicy in favor of these new tests.
+
+            * TestWebKitAPI/Configurations/Base.xcconfig: Added $(BUILT_PRODUCTS_DIR)/WebCoreTestSupport to the header search path.
+            * TestWebKitAPI/Configurations/WebProcessPlugIn.xcconfig: Removed it from here.
+            * TestWebKitAPI/Tests/WebKit2Cocoa/BundleParametersPlugIn.mm:
+            (-[BundleParametersPlugIn observeValueForKeyPath:ofObject:change:context:]): Called -valueForKeyPath:, which
+            returns an id, instead of -valueForKey:, which always returns an NSString even if the object is of another type.
+            * TestWebKitAPI/Tests/WebKit2Cocoa/ContentFiltering.mm: Added a class that can send a MockContentFilter
+            decision and decision point as a bundle parameter.
+            (+[MockContentFilterEnabler supportsSecureCoding]):
+            (-[MockContentFilterEnabler copyWithZone:]):
+            (-[MockContentFilterEnabler initWithCoder:]):
+            (-[MockContentFilterEnabler initWithDecision:decisionPoint:]):
+            (-[MockContentFilterEnabler encodeWithCoder:]):
+            (configurationWithContentFilterSettings): Added a helper function to create a WKWebViewConfiguration with MockConentFilter settings.
+            (TEST): Renamed ContentFiltering.ServerRedirect to ContentFiltering.URLAfterServerRedirect.
+            (-[BecomeDownloadDelegate webView:decidePolicyForNavigationResponse:decisionHandler:]): Decided _WKNavigationResponsePolicyBecomeDownload.
+            (-[BecomeDownloadDelegate webView:didFailProvisionalNavigation:withError:]): Set isDone to true.
+            (-[BecomeDownloadDelegate webView:didFinishNavigation:]): Ditto.
+            (-[ContentFilteringDownloadDelegate _downloadDidStart:]): Set downloadDidStart to true.
+            (downloadTest): Added a helper function to test downloads with a given decision and decision point.
+            * TestWebKitAPI/Tests/WebKit2Cocoa/ContentFilteringPlugIn.mm: Added a corresponding bundle class that decodes
+            the MockContentFilter decision and decision point, and sets these values in the MockContentFilterSettings
+            singleton. This class is duplicated in the bundle to prevent TestWebKitAPI from having to link to WebCoreTestSupport.
+            (+[MockContentFilterEnabler supportsSecureCoding]):
+            (-[MockContentFilterEnabler copyWithZone:]):
+            (-[MockContentFilterEnabler initWithCoder:]):
+            (-[MockContentFilterEnabler dealloc]):
+            (-[MockContentFilterEnabler encodeWithCoder:]):
+            (-[ContentFilteringPlugIn webProcessPlugIn:initializeWithObject:]): Start observing changes to the MockContentFilterEnabler key path.
+            (-[ContentFilteringPlugIn dealloc]): Stop observing.
+            (-[ContentFilteringPlugIn observeValueForKeyPath:ofObject:change:context:]): Store a MockContentFilterEnabler in _contentFilterEnabler.
+            (+[ServerRedirectPlugIn initialize]): Deleted.
+            * TestWebKitAPI/Tests/WebKit2Cocoa/Download.mm:
+            (-[AsynchronousDownloadNavigationDelegate webView:decidePolicyForNavigationResponse:decisionHandler:]): Deleted.
+            (-[AsynchronousDownloadDelegate _downloadDidStart:]): Deleted.
+            (TEST): Deleted.
+
+    2015-08-26  Andy Estes  <aestes@apple.com>
+
+            Crash when following a Google search link to Twitter with Limit Adult Content enabled
+            https://bugs.webkit.org/show_bug.cgi?id=147651
+
+            Rubber-stamped by Brady Eidson.
+
+            Taught TestRunner how to decide the navigation policy after a delay.
+
+            * WebKitTestRunner/InjectedBundle/Bindings/TestRunner.idl:
+            * WebKitTestRunner/InjectedBundle/InjectedBundlePage.cpp:
+            (WTR::InjectedBundlePage::decidePolicyForNavigationAction):
+            * WebKitTestRunner/InjectedBundle/TestRunner.cpp:
+            (WTR::TestRunner::setShouldDecideNavigationPolicyAfterDelay):
+            * WebKitTestRunner/InjectedBundle/TestRunner.h:
+            (WTR::TestRunner::shouldDecideNavigationPolicyAfterDelay):
+            * WebKitTestRunner/TestController.cpp:
+            (WTR::TestController::initialize):
+            (WTR::TestController::resetStateToConsistentValues):
+            (WTR::TestController::decidePolicyForNavigationAction):
+            * WebKitTestRunner/TestController.h:
+            (WTR::TestController::setShouldDecideNavigationPolicyAfterDelay):
+            * WebKitTestRunner/TestInvocation.cpp:
+            (WTR::TestInvocation::didReceiveMessageFromInjectedBundle):
+
+    2015-08-24  Andy Estes  <aestes@apple.com>
+
+            REGRESSION (r188851): WebKit2.BundleParameters fails on iOS
+
+            * TestWebKitAPI/Configurations/WebProcessPlugIn.xcconfig: Specify LD_RUNPATH_SEARCH_PATHS correctly for iOS.
+
+    2015-08-23  Andy Estes  <aestes@apple.com>
+
+            Addressed a missed piece of review feedback from r188851.
+
+            * TestWebKitAPI/Tests/WebKit2Cocoa/ContentFiltering.mm:
+
+    2015-08-23  Andy Estes  <aestes@apple.com>
+
+            [Content Filtering] REGRESSION (r182356): Provisional URL is incorrect in didReceiveServerRedirectForProvisionalLoadForFrame when Content Filtering is enabled
+            https://bugs.webkit.org/show_bug.cgi?id=147872
+            rdar://problem/22044000
+
+            Reviewed by Dan Bernstein.
+
+            Added an API test.
+
+            * TestWebKitAPI/Configurations/WebProcessPlugIn.xcconfig: Linked libWebCoreTestSupport in order to use MockContentFilter.
+            * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj:
+            * TestWebKitAPI/Tests/WebKit2Cocoa/ContentFiltering.mm: Added.
+            (-[ServerRedirectNavigationDelegate webView:didStartProvisionalNavigation:]): Expect the initial request URL.
+            (-[ServerRedirectNavigationDelegate webView:didReceiveServerRedirectForProvisionalNavigation:]): Expect the redirect URL.
+            (-[ServerRedirectNavigationDelegate webView:didCommitNavigation:]):
+            (TEST): Tested that -[WKWebView URL] is updated after a redirect when content filtering is enabled.
+            * TestWebKitAPI/Tests/WebKit2Cocoa/ContentFilteringPlugIn.mm: Added.
+            (+[ServerRedirectPlugIn initialize]): Enable MockContentFilter.
+            * TestWebKitAPI/cocoa/TestProtocol.h: Renamed from Tools/TestWebKitAPI/mac/TestProtocol.h.
+            * TestWebKitAPI/cocoa/TestProtocol.mm: Renamed from Tools/TestWebKitAPI/mac/TestProtocol.mm.
+
+    2015-08-23  Andy Estes  <aestes@apple.com>
+
+            Fixed the 32-bit Mac build after r188844.
+
+            * TestWebKitAPI/WKWebViewConfigurationExtras.h:
+            * TestWebKitAPI/WKWebViewConfigurationExtras.mm:
+
+    2015-08-22  Andy Estes  <aestes@apple.com>
+
+            [Cocoa] API tests using the Modern WebKit API should be able to create web process plug-ins
+            https://bugs.webkit.org/show_bug.cgi?id=148317
+
+            Reviewed by Dan Bernstein.
+
+            Added the ability for Modern WebKit API tests to create WKWebProcessPlugIns. A test can create a plug-in by
+            creating a class that conforms to WKWebProcessPlugIn, adding it to the WebProcessPlugIn target, and using the
+            WKWebViewConfiguration returned by +[WKWebViewConfiguration testwebkitapi_configurationWithTestPlugInClassName:]
+            when creating WKWebViews.
+
+            Since TestWebKitAPI relies on a bundle parameter to know which test class to instantiate in the plug-in, I also
+            added a new API test for bundle parameters.
+
+            * TestWebKitAPI/Configurations/WebProcessPlugIn.xcconfig: Added. Named the bundle TestWebKitAPI.wkbundle and
+            named its executable TestWebKitAPI.bundle.
+            * TestWebKitAPI/PlatformUtilities.h: Declared TestPlugInClassNameParameter.
+            * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj: Added the WebProcessPlugIn target.
+            * TestWebKitAPI/Tests/WebKit2Cocoa/BundleParameters.mm: Added.
+            (TEST): Tested bundle parameters by verifying that parameter changes in the UI process are observed in the bundle.
+            * TestWebKitAPI/Tests/WebKit2Cocoa/BundleParametersPlugIn.mm: Added.
+            (-[BundleParametersPlugIn webProcessPlugIn:didCreateBrowserContextController:]): Started observing changes to a
+            bundle parameter and asked for an initial notification.
+            (-[BundleParametersPlugIn dealloc]): Stopped observing changes to a bundle parameter.
+            (-[BundleParametersPlugIn observeValueForKeyPath:ofObject:change:context:]): When a bundle parameter changes,
+            mirror its value in the main frame's JSContext.
+            * TestWebKitAPI/WKWebViewConfigurationExtras.h: Added.
+            * TestWebKitAPI/WKWebViewConfigurationExtras.mm: Added.
+            (+[WKWebViewConfiguration testwebkitapi_configurationWithTestPlugInClassName:]): Created a configuration with
+            TestWebKitAPI's bundle URL and set a bundle parameter indicating the test plug-in's class name.
+            * TestWebKitAPI/cocoa/PlatformUtilitiesCocoa.mm: Defined TestPlugInClassNameParameter.
+            * TestWebKitAPI/cocoa/WebProcessPlugIn/Info.plist: Added. Set the principal class to WebProcessPlugIn.
+            * TestWebKitAPI/cocoa/WebProcessPlugIn/WebProcessPlugIn.mm: Added.
+            (-[WebProcessPlugIn webProcessPlugIn:initializeWithObject:]): Forwarded to a newly-created test class instance.
+            (-[WebProcessPlugIn respondsToSelector:]): Returned YES if the test class instance response.
+            (-[WebProcessPlugIn forwardingTargetForSelector:]): Forwarded unimplemented methods to the test class instance.
+
+    2015-08-11  Andy Estes  <aestes@apple.com>
+
+            [Cocoa] Add redirect support to CustomProtocolManager
+            https://bugs.webkit.org/show_bug.cgi?id=147871
+
+            Reviewed by Dan Bernstein.
+
+            Updated WebKit2CustomProtocolsTest.MainResource to generate a redirect response.
+
+            * TestWebKitAPI/Tests/CustomProtocolsSyncXHRTest.mm:
+            (TestWebKitAPI::TEST): Unregesitered TestProtocol.
+            * TestWebKitAPI/Tests/WebKit2/custom-protocol-sync-xhr.html: Changed scheme to http.
+            * TestWebKitAPI/Tests/WebKit2ObjC/CustomProtocolsTest.mm:
+            (-[CustomProtocolsLoadDelegate browsingContextControllerDidStartProvisionalLoad:]): Expected a certain provisional URL.
+            (-[CustomProtocolsLoadDelegate browsingContextControllerDidReceiveServerRedirectForProvisionalLoad:]): Ditto.
+            (-[CustomProtocolsLoadDelegate browsingContextControllerDidCommitLoad:]): Expected a certain committed URL.
+            (-[CustomProtocolsLoadDelegate browsingContextControllerDidFinishLoad:]): Expected isLoading to be false.
+            (TestWebKitAPI::TEST): Used the new load delegate and unregistered TestProtocol.
+            * TestWebKitAPI/Tests/WebKit2ObjC/PreventImageLoadWithAutoResizing.mm:
+            (TestWebKitAPI::TEST): Unregistered TestProtocol.
+            * TestWebKitAPI/mac/TestProtocol.mm: Changed scheme to http.
+            (+[TestProtocol canInitWithRequest:]): Changed to use property syntax.
+            (-[TestProtocol startLoading]): Taught to handle redirect responses.
+
+    2015-08-13  Andy Estes  <aestes@apple.com>
+
+            [Cocoa] Downloads do not start if policy decision is made asynchronously
+            https://bugs.webkit.org/show_bug.cgi?id=147985
+
+            Reviewed by Brady Eidson.
+
+            Added a new API test.
+
+            * TestWebKitAPI/Tests/WebKit2Cocoa/Download.mm:
+            (-[AsynchronousDownloadNavigationDelegate webView:decidePolicyForNavigationResponse:decisionHandler:]):
+            (-[AsynchronousDownloadDelegate _downloadDidStart:]):
+            (TEST):
+
+2015-09-08  Andy Estes  <aestes@apple.com>
+
+        Reverted r189001.
+
+2015-09-03  Babak Shafiei  <bshafiei@apple.com>
+
+        Merge r188311.
+
+    2015-08-11  Alexey Proskuryakov  <ap@apple.com>
+
+            Make ASan build not depend on asan.xcconfig
+            https://bugs.webkit.org/show_bug.cgi?id=147840
+            rdar://problem/21093702
+
+            Reviewed by Daniel Bates.
+
+            * asan/asan.xcconfig:
+            * asan/webkit-asan-ignore.txt: Removed. It's no longer needed, as unsafe functions
+            are now marked in source code.
+
 2015-08-26  Andy Estes  <aestes@apple.com>
 
         Merge r188988.

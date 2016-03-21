@@ -1,3 +1,3020 @@
+2016-02-12  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r196401. rdar://problem/24611749
+
+    2016-02-10  Eric Carlson  <eric.carlson@apple.com>
+
+            Update "manual" caption track logic
+            https://bugs.webkit.org/show_bug.cgi?id=154084
+            <rdar://problem/24530516>
+
+            Reviewed by Dean Jackson.
+
+            * media/track/track-manual-mode-expected.txt:
+            * media/track/track-manual-mode.html:
+
+2016-02-03  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r196010. rdar://problem/24417428
+
+    2016-02-02  Eric Carlson  <eric.carlson@apple.com>
+
+            Allow ports to disable automatic text track selection
+            https://bugs.webkit.org/show_bug.cgi?id=153761
+            <rdar://problem/24416768>
+
+            Reviewed by Darin Adler.
+
+            * media/track/track-manual-mode-expected.txt: Added.
+            * media/track/track-manual-mode.html: Added.
+
+2016-02-03  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r195912. rdar://problem/24417428
+
+    2016-01-30  Eric Carlson  <eric.carlson@apple.com>
+
+            More than one audio and/or text track sometimes selected in media controls menu
+            https://bugs.webkit.org/show_bug.cgi?id=153664
+
+            Reviewed by Jer Noble.
+
+            * media/controls/controls-test-helpers.js:
+            (ControlsTest.prototype.get currentState):
+            (ControlsTest.prototype.get video):
+            (ControlsTest.prototype.stateForControlsElement):
+            (ControlsTest.prototype.handleEvent):
+            (ControlsTest.prototype.setup):
+            (ControlsTest.prototype.start):
+            (ControlsTest.prototype.isEqualTo):
+            (ControlsTest.prototype.isNotEqualTo):
+            (ControlsTest.prototype.contains):
+            * media/controls/track-menu-expected.txt: Added.
+            * media/controls/track-menu.html: Added.
+
+2016-02-03  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r192570. rdar://problem/24417428
+
+    2015-11-18  Aaron Chu  <arona.chu@gmail.com>
+
+            AX: Shadow DOM video player controls menus need aria-owns on the trigger buttons
+            https://bugs.webkit.org/show_bug.cgi?id=127065
+
+            Reviewed by Darin Adler.
+
+            * media/accessibility-closed-captions-has-aria-owns-expected.txt: Added.
+            * media/accessibility-closed-captions-has-aria-owns.html: Added.
+
+2016-02-01  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge Layout Tests for r191331. rdar://problem/24448992
+
+    2015-10-19  Myles C. Maxfield  <mmaxfield@apple.com>
+
+            FontCascade::typesettingFeatures() is not privy to font-variant-* nor font-feature-settings
+            https://bugs.webkit.org/show_bug.cgi?id=149775
+
+            Reviewed by Darin Adler.
+
+            * fast/text/multiple-feature-properties-expected.html: Added.
+            * fast/text/multiple-feature-properties.html: Added.
+
+2016-02-01  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r195837. rdar://problem/24002220
+
+    2016-01-29  Brent Fulgham  <bfulgham@apple.com>
+
+            [WebGL] Check vertex array bounds before permitting a glDrawArrays to execute
+            https://bugs.webkit.org/show_bug.cgi?id=153643
+            <rdar://problem/23424456>
+
+            Reviewed by Dean Jackson.
+
+            * fast/canvas/webgl/webgl-drawarrays-crash-expected.txt: Added.
+            * fast/canvas/webgl/webgl-drawarrays-crash.html: Added.
+
+2016-01-29  Babak Shafiei  <bshafiei@apple.com>
+
+        Merge r195615.
+
+    2016-01-20  Andy Estes  <aestes@apple.com>
+
+            Re-enable synchronous popstate event for safari-601-branch
+            https://bugs.webkit.org/show_bug.cgi?id=153297
+            rdar://problem/24154417
+
+            Reviewed by Brent Fulgham.
+
+            * fast/loader/stateobjects/popstate-is-asynchronous-expected.txt: Updated to expect popstate to be dispatched synchronously.
+
+2016-01-29  Babak Shafiei  <bshafiei@apple.com>
+
+        Merge r191251.
+
+    2015-10-17  Myles C. Maxfield  <mmaxfield@apple.com>
+
+            Delete FontPlatformData::allowsLigatures()
+            https://bugs.webkit.org/show_bug.cgi?id=150286
+
+            Reviewed by Dan Bernstein.
+
+            Make sure it's impossible to turn off required ligatures with CSS.
+
+            * fast/text/required-ligatures-expected.html: Added.
+            * fast/text/required-ligatures.html: Added.
+
+2016-01-28  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r191322. rdar://problem/24190923
+
+    2015-10-19  Tim Horton  <timothy_horton@apple.com>
+
+            Don't dump GestureEvent constructor attributes for now
+
+            Rubber-stamped by Alexey Proskuryakov.
+
+            * js/dom/script-tests/global-constructors-attributes.js:
+
+2016-01-28  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r193931. rdar://problem/24190799
+
+    2015-12-10  Ryan Haddad  <ryanhaddad@apple.com>
+
+            Rebaselining fast/text/emoji.html for Yosemite.
+            https://bugs.webkit.org/show_bug.cgi?id=152147
+
+            Unreviewed test gardening.
+
+            * platform/mac-yosemite/fast/text/emoji-expected.txt: Added.
+
+2016-01-28  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r194237. rdar://problem/24268438
+
+    2015-12-17  Zalan Bujtas  <zalan@apple.com>
+
+            Unreviewed gardening.
+            rdar://problem/23910755
+
+            * fast/css/pseudo-visited-background-color-on-input-expected.html:
+            * fast/css/pseudo-visited-background-color-on-input.html:
+
+2016-01-28  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r195710. rdar://problem/24337780
+
+    2016-01-27  Babak Shafiei  <bshafiei@apple.com>
+
+            Merge r195625.
+
+        2016-01-26  Brady Eidson  <beidson@apple.com>
+
+                History.pushState causes intense memory pressure.
+                https://bugs.webkit.org/show_bug.cgi?id=153435
+
+                Reviewed by Sam Weinig, Oliver Hunt, and Geoff Garen.
+
+                * TestExpectations: Mark some of the new tests as slow.
+
+                * fast/loader/stateobjects/pushstate-frequency-expected.txt: Added.
+                * fast/loader/stateobjects/pushstate-frequency-iframe-expected.txt: Added.
+                * fast/loader/stateobjects/pushstate-frequency-iframe.html: Added.
+                * fast/loader/stateobjects/pushstate-frequency-with-user-gesture-expected.txt: Added.
+                * fast/loader/stateobjects/pushstate-frequency-with-user-gesture.html: Added.
+                * fast/loader/stateobjects/pushstate-frequency.html: Added.
+                * fast/loader/stateobjects/replacestate-frequency-expected.txt: Added.
+                * fast/loader/stateobjects/replacestate-frequency-iframe-expected.txt: Added.
+                * fast/loader/stateobjects/replacestate-frequency-iframe.html: Added.
+                * fast/loader/stateobjects/replacestate-frequency-with-user-gesture-expected.txt: Added.
+                * fast/loader/stateobjects/replacestate-frequency-with-user-gesture.html: Added.
+                * fast/loader/stateobjects/replacestate-frequency.html: Added.
+                * fast/loader/stateobjects/resources/pushstate-iframe.html: Added.
+                * fast/loader/stateobjects/resources/replacestate-iframe.html: Added.
+                * loader/stateobjects/pushstate-size-expected.txt: Added.
+                * loader/stateobjects/pushstate-size-iframe-expected.txt: Added.
+                * loader/stateobjects/pushstate-size-iframe.html: Added.
+>>>>>>> .r195836
+                * loader/stateobjects/pushstate-size.html: Added.
+                * loader/stateobjects/replacestate-size-expected.txt: Added.
+                * loader/stateobjects/replacestate-size-iframe-expected.txt: Added.
+                * loader/stateobjects/replacestate-size-iframe.html: Added.
+                * loader/stateobjects/replacestate-size.html: Added.
+                * loader/stateobjects/resources/pushstate-iframe.html: Added.
+                * loader/stateobjects/resources/replacestate-iframe.html: Added.
+
+2016-01-27  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r195492. rdar://problem/24002217
+
+    2016-01-22  Ryan Haddad  <ryanhaddad@apple.com>
+
+            Rebaselining http/tests/security/originHeader/origin-header-for-https.html after r195477
+
+            Unreviewed test gardening.
+
+            * http/tests/security/originHeader/origin-header-for-https-expected.txt:
+
+2016-01-27  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r195477. rdar://problem/24002217
+
+    2016-01-21  Sam Weinig  <sam@webkit.org>
+
+            Treat non-https actions on secure pages as mixed content
+            <rdar://problem/23144492>
+            https://bugs.webkit.org/show_bug.cgi?id=153322
+
+            Reviewed by Alexey Proskuryakov.
+
+            * http/tests/security/mixedContent/insecure-form-in-iframe-expected.txt: Added.
+            * http/tests/security/mixedContent/insecure-form-in-iframe.html: Added.
+            * http/tests/security/mixedContent/insecure-form-in-main-frame-expected.txt: Added.
+            * http/tests/security/mixedContent/insecure-form-in-main-frame.html: Added.
+            * http/tests/security/mixedContent/javascript-url-form-in-main-frame-expected.txt: Added.
+            * http/tests/security/mixedContent/javascript-url-form-in-main-frame.html: Added.
+            * http/tests/security/mixedContent/resources/frame-with-insecure-form.html: Added.
+            * http/tests/security/mixedContent/resources/frame-with-javascript-url-form.html: Added.
+
+2016-01-27  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r195162. rdar://problem/24302736
+
+    2016-01-15  Jiewen Tan  <jiewen_tan@apple.com>
+
+            FrameLoaderClient::didReceiveServerRedirectForProvisionalLoadForFrame() is never called when loading a main resource from the memory cache
+            https://bugs.webkit.org/show_bug.cgi?id=152520
+            <rdar://problem/23305737>
+
+            Reviewed by Andy Estes.
+
+            * http/tests/loading/resources/server-redirect-result.html: Added.
+            * http/tests/loading/resources/server-redirect.php: Added.
+            * http/tests/loading/server-redirect-for-provisional-load-caching-expected.txt: Added.
+            * http/tests/loading/server-redirect-for-provisional-load-caching.html: Added.
+
+2016-01-27  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r195075. rdar://problem/24302727
+
+    2016-01-14  Daniel Bates  <dabates@apple.com>
+
+            Disallow use of Geolocation service from unique origins
+            https://bugs.webkit.org/show_bug.cgi?id=153102
+            <rdar://problem/23055645>
+
+            Reviewed by Alexey Proskuryakov.
+
+            * fast/dom/Geolocation/dataURL-getCurrentPosition-expected.txt: Added.
+            * fast/dom/Geolocation/dataURL-getCurrentPosition.html: Added.
+            * fast/dom/Geolocation/dataURL-watchPosition-expected.txt: Added.
+            * fast/dom/Geolocation/dataURL-watchPosition.html: Added.
+            * fast/dom/Geolocation/srcdoc-getCurrentPosition-expected.txt: Added.
+            * fast/dom/Geolocation/srcdoc-getCurrentPosition.html: Added.
+            * fast/dom/Geolocation/srcdoc-watchPosition-expected.txt: Added.
+            * fast/dom/Geolocation/srcdoc-watchPosition.html: Added.
+            * http/tests/security/resources/checkThatPositionErrorCallbackIsCalledWithPositionUnavailableForGeolocationMethod.js: Added.
+            (done):
+            (logMessage):
+            (didReceivePosition):
+            (didReceiveError):
+            (checkThatPositionErrorCallbackIsCalledWithPositionUnavailableForGeolocationMethod):
+            (markupToCheckThatPositionErrorCallbackIsCalledWithPositionUnavailableForGeolocationMethod):
+            (dataURLToCheckThatPositionErrorCallbackIsCalledWithPositionUnavailableForGeolocationMethod):
+            * http/tests/security/resources/sandboxed-iframe-geolocation-getCurrentPosition.html: Added.
+            * http/tests/security/resources/sandboxed-iframe-geolocation-watchPosition.html: Added.
+            * http/tests/security/sandboxed-iframe-geolocation-getCurrentPosition-expected.txt: Added.
+            * http/tests/security/sandboxed-iframe-geolocation-getCurrentPosition.html: Added.
+            * http/tests/security/sandboxed-iframe-geolocation-watchPosition-expected.txt: Added.
+            * http/tests/security/sandboxed-iframe-geolocation-watchPosition.html: Added.
+
+2016-01-20  Babak Shafiei  <bshafiei@apple.com>
+
+        Merge r188383.
+
+    2015-08-13  Alexey Proskuryakov  <ap@apple.com>
+
+            [Cocoa] [CJK-configured device] System font has vertical punctuation
+            https://bugs.webkit.org/show_bug.cgi?id=147964
+            <rdar://problem/22256660>
+
+            * platform/mac/fast/text/system-font-punctuation-expected.txt: Actually landing
+            results for Mac.
+
+2016-01-20  Babak Shafiei  <bshafiei@apple.com>
+
+        Merge r188377.
+
+    2015-08-12  Myles C. Maxfield  <mmaxfield@apple.com>
+
+            [Cocoa] [CJK-configured device] System font has vertical punctuation
+            https://bugs.webkit.org/show_bug.cgi?id=147964
+            <rdar://problem/22256660>
+
+            Reviewed by Dean Jackson.
+
+            Make sure punctuation isn't vertical.
+
+            * fast/text/system-font-punctuation.html: Added.
+            * platform/ios-simulator/fast/text/system-font-punctuation-expected.txt: Added
+            * platform/mac/fast/text/system-font-punctuation-expected.txt: Added
+
+2016-01-20  Babak Shafiei  <bshafiei@apple.com>
+
+        Merge r188263.
+
+    2015-08-11  Myles C. Maxfield  <mmaxfield@apple.com>
+
+            [iOS] Arabic letter Yeh is drawn in LastResort
+            https://bugs.webkit.org/show_bug.cgi?id=147862
+            <rdar://problem/22202935>
+
+            Reviewed by Darin Adler.
+
+            * fast/text/arabic-glyph-cache-fill-combine-expected.html: Added.
+            * fast/text/arabic-glyph-cache-fill-combine.html: Added.
+            * platform/mac/TestExpectations: Mark test as iOS-specific
+            * platform/gtk/TestExpectations: Mark test as iOS-specific
+            * platform/efl/TestExpectations: Mark test as iOS-specific
+            * platform/efl/TestExpectations: Mark test as iOS-specific
+
+2016-01-20  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Rollout r192200 via r195067. rdar://problem/24154288
+
+2016-01-20  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Rollout r195068. rdar://problem/24154288
+
+2016-01-15  Babak Shafiei  <bshafiei@apple.com>
+
+        Merge r195130.
+
+    2016-01-15  Antti Koivisto  <antti@apple.com>
+
+            Switch out from ES6 arrow function syntax to allow the test to work with an older WebKit.
+
+            * fast/loader/cache-encoding.html:
+
+2016-01-14  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r194672. rdar://problem/24154288
+
+    2016-01-06  Eric Carlson  <eric.carlson@apple.com>
+
+            AirPlay route availability event not always sent
+            https://bugs.webkit.org/show_bug.cgi?id=152802
+
+            Reviewed by Jer Noble.
+
+            * media/airplay-target-availability-expected.txt: Added.
+            * media/airplay-target-availability.html: Added.
+            * platform/mac/TestExpectations: Skip new test on Yosemite.
+            * platform/efl/TestExpectations: Skip new test.
+            * platform/gtk/TestExpectations: Ditto.
+            * platform/win/TestExpectations: Ditto.
+
+2016-01-13  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r194927. rdar://problem/24101254
+
+    2016-01-12  Daniel Bates  <dabates@apple.com>
+
+            XSS Auditor should navigate to empty substitute data on full page block
+            https://bugs.webkit.org/show_bug.cgi?id=152868
+            <rdar://problem/18658448>
+
+            Reviewed by David Kilzer and Andy Estes.
+
+            Derived from Blink patch (by Tom Sepez <tsepez@chromium.org>):
+            <https://src.chromium.org/viewvc/blink?view=rev&revision=179240>
+
+            Added additional test block-does-not-leak-that-page-was-blocked-using-empty-data-url.html to explicitly
+            tests that we do redirect to an empty data URL when a full page block is triggered.
+
+            * http/tests/security/contentSecurityPolicy/1.1/reflected-xss-and-xss-protection-allow-block-expected.txt:
+            * http/tests/security/contentSecurityPolicy/1.1/reflected-xss-and-xss-protection-block-allow-expected.txt:
+            * http/tests/security/contentSecurityPolicy/1.1/reflected-xss-and-xss-protection-block-block-expected.txt:
+            * http/tests/security/contentSecurityPolicy/1.1/reflected-xss-and-xss-protection-block-filter-expected.txt:
+            * http/tests/security/contentSecurityPolicy/1.1/reflected-xss-and-xss-protection-block-invalid-expected.txt:
+            * http/tests/security/contentSecurityPolicy/1.1/reflected-xss-and-xss-protection-block-unset-expected.txt:
+            * http/tests/security/contentSecurityPolicy/1.1/reflected-xss-and-xss-protection-filter-block-expected.txt:
+            * http/tests/security/contentSecurityPolicy/1.1/reflected-xss-and-xss-protection-invalid-block-expected.txt:
+            * http/tests/security/contentSecurityPolicy/1.1/reflected-xss-and-xss-protection-unset-block-expected.txt:
+            * http/tests/security/xssAuditor/block-does-not-leak-location-expected.txt:
+            * http/tests/security/xssAuditor/block-does-not-leak-referrer-expected.txt:
+            * http/tests/security/xssAuditor/block-does-not-leak-that-page-was-blocked-using-empty-data-url-expected.txt: Added.
+            * http/tests/security/xssAuditor/block-does-not-leak-that-page-was-blocked-using-empty-data-url.html: Added.
+            * http/tests/security/xssAuditor/full-block-base-href-expected.txt:
+            * http/tests/security/xssAuditor/full-block-iframe-javascript-url-expected.txt:
+            * http/tests/security/xssAuditor/full-block-javascript-link-expected.txt:
+            * http/tests/security/xssAuditor/full-block-link-onclick-expected.txt:
+            * http/tests/security/xssAuditor/full-block-object-tag-expected.txt:
+            * http/tests/security/xssAuditor/full-block-script-tag-cross-domain-expected.txt:
+            * http/tests/security/xssAuditor/full-block-script-tag-expected.txt:
+            * http/tests/security/xssAuditor/full-block-script-tag-with-source-expected.txt:
+            * http/tests/security/xssAuditor/full-block-script-tag.html:
+            * http/tests/security/xssAuditor/xss-protection-parsing-03-expected.txt:
+            * http/tests/security/xssAuditor/xss-protection-parsing-04-expected.txt:
+
+2016-01-13  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r194898. rdar://problem/24154290
+
+    2016-01-12  Antti Koivisto  <antti@apple.com>
+
+            Don't reuse memory cache entries with different charset
+            https://bugs.webkit.org/show_bug.cgi?id=110031
+
+            Reviewed by Andreas Kling.
+
+            * fast/loader/cache-encoding-expected.txt: Added.
+            * fast/loader/cache-encoding.html: Added.
+            * fast/loader/resources/success.js: Added.
+
+2016-01-13  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r194865. rdar://problem/24154291
+
+    2016-01-11  Dave Hyatt  <hyatt@apple.com>
+
+            Picture element needs to work with the preload scanner and select the correct
+            source element instead of loading the image.
+            https://bugs.webkit.org/show_bug.cgi?id=152983
+
+            Reviewed by Dean Jackson.
+
+            These tests are imported from Blink, although they have been modified slightly to
+            reflect the fact that we pass the nested <picture> cases that Blink fails.
+
+            * http/tests/loading/hidpi-preload-picture-sizes-expected.txt: Added.
+            * http/tests/loading/hidpi-preload-picture-sizes.html: Added.
+            * http/tests/loading/preload-picture-invalid-expected.txt: Added.
+            * http/tests/loading/preload-picture-invalid.html: Added.
+            * http/tests/loading/preload-picture-nested-expected.txt: Added.
+            * http/tests/loading/preload-picture-nested.html: Added.
+            * http/tests/loading/preload-picture-sizes-expected.txt: Added.
+            * http/tests/loading/preload-picture-sizes.html: Added.
+            * http/tests/loading/resources/base-image1.png: Added.
+            * http/tests/loading/resources/base-image2.png: Added.
+            * http/tests/loading/resources/base-image3.png: Added.
+            * http/tests/loading/resources/dup-image1.png: Added.
+            * http/tests/loading/resources/dup-image2.png: Added.
+            * http/tests/loading/resources/dup-image3.png: Added.
+            * http/tests/loading/resources/image1.png: Added.
+            * http/tests/loading/resources/image2.png: Added.
+            * http/tests/loading/resources/picture-preload-helper.js: Added.
+
+2016-01-13  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r191180. rdar://problem/24154291
+
+    2015-10-16  Chris Dumez  <cdumez@apple.com>
+
+            HTMLPreloadScanner should preload iframes
+            https://bugs.webkit.org/show_bug.cgi?id=150097
+            <rdar://problem/23094475>
+
+            Reviewed by Antti Koivisto.
+
+            Add layout test to check that iframes are indeed preloaded.
+
+            * fast/preloader/frame-src-expected.txt: Added.
+            * fast/preloader/frame-src.html: Added.
+            * fast/preloader/resources/testFrame.html: Added.
+            * http/tests/loading/preload-no-store-frame-src-expected.txt: Added.
+            * http/tests/loading/preload-no-store-frame-src.html: Added.
+
+2016-01-13  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r193939. rdar://problem/24154418
+
+    2015-12-10  Daniel Bates  <dabates@apple.com>
+
+            [CSP] eval() is not blocked for stringified literals
+            https://bugs.webkit.org/show_bug.cgi?id=152158
+            <rdar://problem/15775625>
+
+            Reviewed by Saam Barati.
+
+            Update test LayoutTests/http/tests/security/contentSecurityPolicy/eval-blocked.html to be
+            more comprehensive.
+
+            Add tests to ensure that we block eval() from within an external JavaScript script when the
+            policy of the page disallows eval() and that we block eval() inside a subframe that disallows
+            eval() when the page in the main frame allows eval().
+
+            * http/tests/security/contentSecurityPolicy/eval-blocked-expected.txt:
+            * http/tests/security/contentSecurityPolicy/eval-blocked-in-external-script-expected.txt: Added.
+            * http/tests/security/contentSecurityPolicy/eval-blocked-in-external-script.html: Added.
+            * http/tests/security/contentSecurityPolicy/eval-blocked-in-subframe-expected.txt: Copied from LayoutTests/http/tests/security/contentSecurityPolicy/eval-blocked-expected.txt.
+            * http/tests/security/contentSecurityPolicy/eval-blocked-in-subframe.html: Added.
+            * http/tests/security/contentSecurityPolicy/eval-blocked.html:
+            * http/tests/security/contentSecurityPolicy/resources/eval-blocked-in-external-script.js: Added.
+
+2016-01-12  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r194704. rdar://problem/24043057
+
+    2016-01-06  Joseph Pecoraro  <pecoraro@apple.com>
+
+            Web Inspector: CRASH Attempting to pause on CSP violation not inside of script
+            https://bugs.webkit.org/show_bug.cgi?id=152825
+            <rdar://problem/24021276>
+
+            Reviewed by Timothy Hatcher.
+
+            * http/tests/inspector/resources/inspector-test.js:
+            (TestPage.reportUncaughtException):
+            Allow a test to continue after uncaught exceptions.
+
+            * inspector/debugger/csp-exceptions-expected.txt: Added.
+            * inspector/debugger/csp-exceptions.html: Added.
+            * inspector/debugger/resources/csp-exception-iframe.html: Added.
+            Test a CSP exception that causes a pause and one outside of
+            script that does not pause (and does not crash).
+
+2016-01-12  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r194910. rdar://problem/24101255
+
+    2016-01-11  Matthew Hanson  <matthew_hanson@apple.com>
+
+            Merge r194666. rdar://problem/24101185
+
+        2016-01-06  Brent Fulgham  <bfulgham@apple.com>
+
+                Port blocking bypass issue using 307 redirect
+                https://bugs.webkit.org/show_bug.cgi?id=152801
+                <rdar://problem/24048554>
+
+                Reviewed by Anders Carlsson.
+
+                * http/tests/security/blocked-on-redirect-expected.txt: Added.
+                * http/tests/security/blocked-on-redirect.html: Added.
+
+2016-01-12  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r194083. rdar://problem/24101257
+
+    2015-12-14  Joseph Pecoraro  <pecoraro@apple.com>
+
+            Web Inspector: Stack traces in console incorrectly show "(anonymous function)" for global code
+            https://bugs.webkit.org/show_bug.cgi?id=152280
+
+            Reviewed by Brian Burg.
+
+            * inspector/debugger/js-stacktrace-expected.txt:
+            * inspector/debugger/js-stacktrace.html:
+
+2016-01-12  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r194908. rdar://problem/24101253
+
+    2016-01-11  Matthew Hanson  <matthew_hanson@apple.com>
+
+            Merge r192186. rdar://problem/24101174
+
+        2015-11-09  Joseph Pecoraro  <pecoraro@apple.com>
+
+                Web Inspector: $0 stops working after navigating to a different domain
+                https://bugs.webkit.org/show_bug.cgi?id=147962
+
+                Reviewed by Brian Burg.
+
+                * TestExpectations:
+                * http/tests/inspector/console/access-inspected-object-expected.txt: Removed.
+                * http/tests/inspector/console/access-inspected-object.html: Removed.
+                * http/tests/inspector/console/cross-domain-inspected-node-access-expected.txt: Added.
+                * http/tests/inspector/console/cross-domain-inspected-node-access.html: Added.
+                Rewrite the old test with the new testing infrastructure.
+                Test this particular case of cross origin CommandLineAPI usage ($0).
+
+2016-01-06  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r194405. rdar://problem/23982006
+
+    2015-12-23  Simon Fraser  <simon.fraser@apple.com>
+
+            REGRESSION (r187593): Scroll position jumps when selecting text in an iframe
+            https://bugs.webkit.org/show_bug.cgi?id=152541
+            rdar://problem/23886181
+
+            Reviewed by Tim Horton.
+
+            New test for autoscrolling iframe contents (an existing test scrolled an overflow:scroll
+            inside an iframe, and didn't catch the bug).
+
+            * fast/events/autoscroll-in-iframe-body-expected.txt: Added.
+            * fast/events/autoscroll-in-iframe-body.html: Added.
+            * fast/forms/input-readonly-autoscroll.html: Fix a missing double quote.
+
+2016-01-06  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r194404. rdar://problem/23982006
+
+    2015-12-22  Simon Fraser  <simon.fraser@apple.com>
+
+            Minor cleanup in RenderBox::canBeProgramaticallyScrolled()
+            https://bugs.webkit.org/show_bug.cgi?id=152515
+
+            Reviewed by Tim Horton.
+
+            Test that programmatic scrolling works inside overflow:hidden.
+
+            * fast/overflow/overflow-hidden-scroll-into-view-expected.html: Added.
+            * fast/overflow/overflow-hidden-scroll-into-view.html: Added.
+
+2016-01-06  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r194114. rdar://problem/23982010
+
+    2015-12-15  Myles C. Maxfield  <mmaxfield@apple.com>
+
+            [Font Features] TrueType fonts trigger real features even when synthesis is applied
+            https://bugs.webkit.org/show_bug.cgi?id=152287
+
+            Reviewed by Darin Adler.
+
+            Adding tests.
+
+            * css3/font-variant-petite-caps-synthesis-expected.html:
+            * css3/font-variant-petite-caps-synthesis.html:
+            * css3/font-variant-small-caps-synthesis-expected.html:
+            * css3/font-variant-small-caps-synthesis.html:
+            * css3/font-variant-petite-caps-synthesis-coverage-expected.html:
+            * css3/font-variant-petite-caps-synthesis-coverage.html:
+            * css3/font-variant-small-caps-synthesis-coverage-expected.html:
+            * css3/font-variant-small-caps-synthesis-coverage.html:
+
+2015-12-17  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r193914. rdar://problem/23769758
+
+    2015-12-10  Ryan Haddad  <ryanhaddad@apple.com>
+
+            Skip unsupported css3/font-variant-* tests on Win
+            https://bugs.webkit.org/show_bug.cgi?id=149774
+
+            Unreviewed test gardening.
+
+            * platform/win/TestExpectations:
+
+2015-12-14  Harris Papadopoulos  <cpapadopoulos@apple.com>
+
+        Merge r192270. rdar://problem/23435543
+
+    2015-11-10  Geoffrey Garen  <ggaren@apple.com>
+
+            alert, confirm, prompt, showModalDialog should be forbidden during page close and navigation
+            https://bugs.webkit.org/show_bug.cgi?id=150980
+
+            Reviewed by Chris Dumez.
+
+            Added tests to cover the matrix of [ alert, confirm, prompt, showModalDialog ] x [ beforeunload, unload, pagehide ].
+
+            * fast/events/beforeunload-alert-expected.txt: Added.
+            * fast/events/beforeunload-alert.html: Added.
+            * fast/events/beforeunload-confirm-expected.txt: Added.
+            * fast/events/beforeunload-confirm.html: Added.
+            * fast/events/beforeunload-prompt-expected.txt: Added.
+            * fast/events/beforeunload-prompt.html: Added.
+            * fast/events/beforeunload-showModalDialog-expected.txt: Added.
+            * fast/events/beforeunload-showModalDialog.html: Added.
+            * fast/events/onunload-expected.txt:
+            * fast/events/onunload-not-on-body-expected.txt:
+            * fast/events/onunload-window-property-expected.txt:
+            * fast/events/pagehide-alert-expected.txt: Added.
+            * fast/events/pagehide-alert.html: Added.
+            * fast/events/pagehide-confirm-expected.txt: Added.
+            * fast/events/pagehide-confirm.html: Added.
+            * fast/events/pagehide-prompt-expected.txt: Added.
+            * fast/events/pagehide-prompt.html: Added.
+            * fast/events/pagehide-showModalDialog-expected.txt: Added.
+            * fast/events/pagehide-showModalDialog.html: Added.
+            * fast/events/pageshow-pagehide-on-back-cached-expected.txt:
+            * fast/events/pageshow-pagehide-on-back-uncached-expected.txt:
+            * fast/events/resources/prompt-landing-page.html: Added.
+            * fast/events/unload-alert-expected.txt: Added.
+            * fast/events/unload-alert.html: Added.
+            * fast/events/unload-confirm-expected.txt: Added.
+            * fast/events/unload-confirm.html: Added.
+            * fast/events/unload-prompt-expected.txt: Added.
+            * fast/events/unload-prompt.html: Added.
+            * fast/events/unload-showModalDialog-expected.txt: Added.
+            * fast/events/unload-showModalDialog.html: Added.
+
+            * platform/wk2/TestExpectations: WebKit2 can't handle showModalDialog tests.
+
+            * compositing/iframes/page-cache-layer-tree-expected.txt:
+            * fast/dom/Geolocation/notimer-after-unload-expected.txt:
+            * fast/history/timed-refresh-in-cached-frame-expected.txt:
+            * fast/loader/frames-with-unload-handlers-in-page-cache-expected.txt:
+            * fast/loader/page-dismissal-modal-dialogs-expected.txt: These were
+            pre-existing tests that tried to alert during unload.
+
+2015-12-14  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r194001. rdar://problem/23581577
+
+    2015-12-11  Jiewen Tan  <jiewen_tan@apple.com>
+
+            Strip out Referer header when requesting subresources or following links for documents with "Content-Disposition: attachment"
+            https://bugs.webkit.org/show_bug.cgi?id=152102
+            <rdar://problem/22124230>
+
+            Reviewed by Andy Estes.
+
+            * http/tests/contentdispositionattachmentsandbox/resources/echo-http-referer.php: Added.
+            * http/tests/contentdispositionattachmentsandbox/resources/subresource-request-not-include-referer-header-frame.php: Added.
+            * http/tests/contentdispositionattachmentsandbox/subresource-request-not-include-referer-header-expected.txt: Added.
+            * http/tests/contentdispositionattachmentsandbox/subresource-request-not-include-referer-header.html: Added.
+
+2015-12-11  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r193888. rdar://problem/23732405
+
+    2015-12-09  Simon Fraser  <simon.fraser@apple.com>
+
+            Merge r191590. rdar://problem/23432368
+
+        2015-10-26  Simon Fraser  <simon.fraser@apple.com>
+
+                Implement 'round' and 'space' values for border-image
+                https://bugs.webkit.org/show_bug.cgi?id=14185
+
+                Reviewed by Tim Horton.
+
+                Ref tests that clip, leaving relevant parts of the images.
+
+                * fast/borders/border-image-round-expected.html: Added.
+                * fast/borders/border-image-round.html: Added.
+                * fast/borders/border-image-space-expected.html: Added.
+                * fast/borders/border-image-space.html: Added.
+                * fast/borders/resources/big-border-image-lines.png: Added.
+                * fast/borders/resources/big-border-image.png: Added.
+
+2015-12-11  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r193922. rdar://problem/23727472
+
+    2015-12-10  Enrica Casucci  <enrica@apple.com>
+
+            Change skin tone support for two emoji.
+            https://bugs.webkit.org/show_bug.cgi?id=152147
+            rdar://problem/23716993
+            rdar://problem/23716344
+
+            Reviewed by Darin Adler.
+
+            * fast/text/emoji.html:
+            * platform/mac/fast/text/emoji-expected.txt:
+
+2015-12-11  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r193859. rdar://problem/23814477
+
+    2015-12-09  David Hyatt  <hyatt@apple.com>
+
+            Picture element needs to respond to dynamic viewport changes.
+            https://bugs.webkit.org/show_bug.cgi?id=152013
+            <rdar://problem/23766375>
+
+            Reviewed by Dean Jackson.
+
+            * fast/picture/resources/resize-test.js: Added.
+            * fast/picture/viewport-resize-expected.txt: Added.
+            * fast/picture/viewport-resize.html: Added.
+
+2015-12-11  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r192772. rdar://problem/23797220
+
+    2015-11-18  Andy Estes  <aestes@apple.com>
+
+            [Content Filtering] Crash in DocumentLoader::notifyFinished() when allowing a media document to load
+            https://bugs.webkit.org/show_bug.cgi?id=151433
+            rdar://problem/23506594
+
+            Reviewed by Alexey Proskuryakov.
+
+            * contentfiltering/allow-media-document-expected.txt: Added.
+            * contentfiltering/allow-media-document.html: Added.
+            * contentfiltering/resources/test.mp4: Added.
+
+2015-12-09  Babak Shafiei  <bshafiei@apple.com>
+
+        Merge r190505.
+
+    2015-10-02  Antoine Quint  <graouts@apple.com>
+
+            popstate is fired at the wrong time on load
+            https://bugs.webkit.org/show_bug.cgi?id=94265
+
+            Reviewed by Darin Adler.
+
+            Updating tests that relied on a "popstate" event being fired at page load.
+
+            * fast/history/same-document-iframes-changing-fragment-expected.txt:
+            * fast/history/same-document-iframes-changing-pushstate-expected.txt:
+            * fast/loader/javascript-url-iframe-remove-on-navigate.html:
+            * fast/loader/stateobjects/document-destroyed-navigate-back-with-fragment-scroll.html:
+            * fast/loader/stateobjects/document-destroyed-navigate-back.html:
+            * fast/loader/stateobjects/popstate-after-load-complete-addeventlistener.html:
+            * fast/loader/stateobjects/popstate-after-load-complete-body-attribute.html:
+            * fast/loader/stateobjects/popstate-after-load-complete-body-inline-attribute.html:
+            * fast/loader/stateobjects/popstate-after-load-complete-window-attribute.html:
+            * fast/loader/stateobjects/popstate-fires-on-history-traversal-expected.txt:
+            * fast/loader/stateobjects/popstate-fires-on-history-traversal.html:
+            * fast/loader/stateobjects/popstate-fires-with-page-cache-expected.txt:
+            * fast/loader/stateobjects/popstate-fires-with-page-cache.html:
+            * fast/loader/stateobjects/pushstate-object-types.html:
+            * fast/loader/stateobjects/pushstate-then-replacestate.html:
+            * fast/loader/stateobjects/pushstate-with-fragment-urls-and-hashchange.html:
+            * fast/loader/stateobjects/replacestate-then-pushstate.html:
+            * fast/loader/stateobjects/resources/popstate-fires-with-page-cache-1.html:
+            * fast/loader/stateobjects/resources/popstate-fires-with-page-cache-2.html:
+            * fast/loader/stateobjects/resources/replacestate-in-iframe-window-child.html:
+            * http/tests/history/popstate-fires-with-pending-requests.html:
+            * http/tests/navigation/redirect-on-back-updates-history-item-expected.txt:
+            * http/tests/navigation/redirect-on-reload-updates-history-item-expected.txt:
+
+2015-12-08  Babak Shafiei  <bshafiei@apple.com>
+
+        Merge r191731.
+
+    2015-10-29  Said Abou-Hallawa  <sabouhallawa@apple.com>
+
+            Exploitable crash happens when an SVG contains an indirect resource inheritance cycle
+            https://bugs.webkit.org/show_bug.cgi?id=150203
+
+            Reviewed by Brent Fulgham.
+
+            Ensure that we do not crash when an SVG has an indirect cyclic resource
+            inheritance. Make sure the cyclic resource was just ignored as if it did
+            not exist.
+
+            * svg/custom/pattern-content-inheritance-cycle-expected.svg: Added.
+            * svg/custom/pattern-content-inheritance-cycle.svg: Added.
+
+2015-12-08  Babak Shafiei  <bshafiei@apple.com>
+
+        Merge r192604.
+
+    2015-11-18  Jiewen Tan  <jiewen_tan@apple.com>
+
+            [WK1] Crash loading Blink layout test fast/dom/Window/property-access-on-cached-window-after-frame-removed.html
+            https://bugs.webkit.org/show_bug.cgi?id=150198
+            <rdar://problem/23136026>
+
+            Reviewed by Brent Fulgham.
+
+            * fast/dom/Window/666869-expected.txt: Added.
+            * fast/dom/Window/666869.html: Added.
+            Test case is from Mozilla.
+            * fast/dom/Window/property-access-on-cached-window-after-frame-removed-expected.txt: Added.
+            * fast/dom/Window/property-access-on-cached-window-after-frame-removed.html: Added.
+            * fast/dom/Window/resources/window-property-collector.js: Added.
+            (collectProperties):
+            (emitExpectedResult):
+            (collectPropertiesHelper):
+            Test case is from Blink r168256:
+            https://codereview.chromium.org/131113003
+            * platform/mac-wk2/TestExpectations:
+
+2015-12-08  Babak Shafiei  <bshafiei@apple.com>
+
+        Merge r192433.
+
+    2015-11-13  Jiewen Tan  <jiewen_tan@apple.com>
+
+            Element::focus() should acquire the ownership of Frame.
+            https://bugs.webkit.org/show_bug.cgi?id=150204
+            <rdar://problem/23136794>
+
+            Reviewed by Brent Fulgham.
+
+            * editing/selection/focus-iframe-removal-crash-expected.txt: Added.
+            * editing/selection/focus-iframe-removal-crash.html: Added.
+
+2015-12-08  Babak Shafiei  <bshafiei@apple.com>
+
+        Merge r192389.
+
+    2015-11-12  Zalan Bujtas  <zalan@apple.com>
+
+            Ignore visited background color when deciding if the input renderer needs to be painted natively.
+            https://bugs.webkit.org/show_bug.cgi?id=151211
+            rdar://problem/21449823
+
+            Reviewed by Antti Koivisto.
+
+            * fast/css/pseudo-visited-background-color-on-input-expected.html: Added.
+            * fast/css/pseudo-visited-background-color-on-input.html: Added.
+
+2015-12-08  Babak Shafiei  <bshafiei@apple.com>
+
+        Merge r192369.
+
+    2015-11-11  Jon Honeycutt  <jhoneycutt@apple.com>
+
+            popstate event should be dispatched asynchronously
+            https://bugs.webkit.org/show_bug.cgi?id=36202
+            <rdar://problem/7761279>
+
+            Based on an original patch by Mihai Parparita <mihaip@chromium.org>.
+
+            Reviewed by Brent Fulgham.
+
+            * fast/loader/remove-iframe-during-history-navigation-different-expected.txt: Added.
+            * fast/loader/remove-iframe-during-history-navigation-different.html: Added.
+            Imported from Blink.
+            * fast/loader/remove-iframe-during-history-navigation-same-expected.txt: Added.
+            * fast/loader/remove-iframe-during-history-navigation-same.html: Added.
+            Ditto.
+            * fast/loader/stateobjects/popstate-fires-on-history-traversal.html:
+            Modified to account for popstate firing asynchronously.
+            * fast/loader/stateobjects/popstate-is-asynchronous-expected.txt: Added.
+            * fast/loader/stateobjects/popstate-is-asynchronous.html: Added.
+            Based on Mihai's original test. Modified to pass in current WebKit.
+
+2015-12-08  Babak Shafiei  <bshafiei@apple.com>
+
+        Merge r192316.
+
+    2015-11-10  Jon Honeycutt  <jhoneycutt@apple.com>
+
+            Crash loading Blink layout test fast/parser/strip-script-attrs-on-input.html
+            https://bugs.webkit.org/show_bug.cgi?id=150201
+            <rdar://problem/23136478>
+
+            Reviewed by Brent Fulgham.
+
+            * fast/parser/strip-script-attrs-on-input-expected.txt: Added.
+            * fast/parser/strip-script-attrs-on-input.html: Added.
+
+2015-12-08  Babak Shafiei  <bshafiei@apple.com>
+
+        Merge r192281.
+
+    2015-11-10  Brent Fulgham  <bfulgham@apple.com>
+
+            Crash running webaudio/panner-loop.html
+            https://bugs.webkit.org/show_bug.cgi?id=150200
+            <rdar://problem/23136282>
+
+            Reviewed by Jer Noble.
+
+            This is based on the changes in Blink r164822:
+            https://codereview.chromium.org/130003002
+
+            * webaudio/panner-loop-expected.txt: Added.
+            * webaudio/panner-loop.html: Added.
+
+2015-12-02  Myles C. Maxfield  <mmaxfield@apple.com>
+
+        Unify font-variant-* with font-variant shorthand
+        https://bugs.webkit.org/show_bug.cgi?id=149773
+
+        Reviewed by Darin Adler.
+
+        Update tests. Also temporarily skip existing font-features tests until
+        https://bugs.webkit.org/show_bug.cgi?id=149774 is fixed.
+
+        * css3/font-variant-parsing-expected.txt:
+        * css3/font-variant-parsing.html:
+        * fast/css/font-property-priority-expected.txt:
+        * fast/css/font-shorthand-expected.txt:
+        * fast/css/parsing-font-variant-ligatures-expected.txt:
+        * fast/css/parsing-font-variant-ligatures.html:
+        * fast/inspector-support/style-expected.txt:
+        * fast/text/font-variant-shorthand-expected.txt: Added.
+        * fast/text/font-variant-shorthand.html: Added.
+        * platform/mac/TestExpectations:
+        * platform/mac/fast/writing-mode/broken-ideograph-small-caps-expected.txt:
+
+2015-11-22  Myles C. Maxfield  <mmaxfield@apple.com>
+
+        Font selection should not consult font-variant property
+        https://bugs.webkit.org/show_bug.cgi?id=151537
+
+        Reviewed by Simon Fraser.
+
+        * fast/text/font-selection-font-variant-expected.html: Added.
+        * fast/text/font-selection-font-variant.html: Added.
+
+2015-10-17  Myles C. Maxfield  <mmaxfield@apple.com>
+
+        Delete FontPlatformData::allowsLigatures()
+        https://bugs.webkit.org/show_bug.cgi?id=150286
+
+        Reviewed by Dan Bernstein.
+
+        Make sure it's impossible to turn off required ligatures with CSS.
+
+        * fast/text/required-ligatures-expected.html: Added.
+        * fast/text/required-ligatures.html: Added.
+
+2015-10-12  Myles C. Maxfield  <mmaxfield@apple.com>
+
+        Test font-variant-* and font-feature-settings on Yosemite and Mavericks
+        https://bugs.webkit.org/show_bug.cgi?id=149778
+
+        Reviewed by Simon Fraser.
+
+        * platform/mac-wk1/TestExpectations:
+        * platform/mac/TestExpectations:
+
+2015-11-03  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Skipping tests added with r191968 on win.
+        https://bugs.webkit.org/show_bug.cgi?id=149771
+
+        Unreviewed test gardening.
+
+        * platform/win/TestExpectations:
+
+2015-11-03  Myles C. Maxfield  <mmaxfield@apple.com>
+
+        font-variant-* properties in @font-face declarations should be honored
+        https://bugs.webkit.org/show_bug.cgi?id=149771
+
+        Reviewed by Simon Fraser.
+
+        * css3/font-variant-font-face-override-expected.html: Added
+        * css3/font-variant-font-face-override.html: Added
+        * css3/font-feature-settings-font-face-rendering-expected.html: Added.
+        * css3/font-feature-settings-font-face-rendering.html: Added.
+        * css3/font-variant-font-face-all-expected.html: Added.
+        * css3/font-variant-font-face-all.html: Added.
+
+2015-10-19  Myles C. Maxfield  <mmaxfield@apple.com>
+
+        FontCascade::typesettingFeatures() is not privy to font-variant-* nor font-feature-settings
+        https://bugs.webkit.org/show_bug.cgi?id=149775
+
+        Reviewed by Darin Adler.
+
+        * fast/text/multiple-feature-properties-expected.html: Added.
+        * fast/text/multiple-feature-properties.html: Added.
+
+2015-12-06  David Kilzer  <ddkilzer@apple.com>
+
+        REGRESSION (r193575): Conflict markers left in test files
+        <rdar://problem/23769741>
+
+        When trunk r190192 was merged to safari-601-branch, there were
+        some conflict markers left in test files.  This commit resolves
+        those conflicts the same way I did when I merged r193575 to
+        safari-601.1.46-branch.
+
+        * fast/css/getComputedStyle/computed-style-expected.txt:
+        * fast/css/getComputedStyle/computed-style-without-renderer-expected.txt:
+        * svg/css/getComputedStyle-basic-expected.txt:
+        - Resolve conflicts to take updated font properties, but to
+          ignore -webkit-grid changes.
+
+        * platform/mac/TestExpectations: Remove duplicate entries and
+        take expectations for css3/font-* tests from trunk.
+
+2015-12-06  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r190999. rdar://problem/23769821
+
+    2015-10-13  Myles C. Maxfield  <mmaxfield@apple.com>
+
+            Unprefix font-kerning
+            https://bugs.webkit.org/show_bug.cgi?id=150080
+
+            Reviewed by Sam Weinig.
+
+            This is the last property in CSS3 Fonts which is prefixed.
+
+            * fast/text/font-kerning-expected.html:
+            * fast/text/font-kerning.html:
+
+2015-12-06  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r190848. rdar://problem/23769770
+
+    2015-10-11  Myles C. Maxfield  <mmaxfield@apple.com>
+
+            Test font-variant-* and font-feature-settings with mocked preinstalled fonts
+            https://bugs.webkit.org/show_bug.cgi?id=149777
+
+            Reviewed by Simon Fraser.
+
+            See per-file comments.
+
+            * css3/font-feature-settings-preinstalled-fonts.html: Removed. Superseded by
+            css3/font-feature-settings-rendering.html.
+            * css3/font-feature-settings-rendering-2-expected.html: Removed.
+            * css3/font-feature-settings-rendering-2.html: Removed. Renamed to
+            css3/font-feature-settings-rendering.html
+            * css3/font-feature-settings-rendering-expected.html: Added.
+            * css3/font-feature-settings-rendering.html:
+            * css3/font-variant-all-expected.html:
+            * css3/font-variant-all.html:
+            * css3/resources/FontWithFeatures.otf: Update for new 'name' table.
+            * css3/resources/FontWithFeatures.ttf: Ditto.
+
+2015-12-06  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r190697. rdar://problem/23769789
+
+    2015-10-07  Myles C. Maxfield  <mmaxfield@apple.com>
+
+            Test font-variant-* and font-feature-settings with TrueType fonts
+            https://bugs.webkit.org/show_bug.cgi?id=149776
+
+            Reviewed by Simon Fraser.
+
+            * css3/font-feature-settings-rendering-2-expected.html:
+            * css3/font-feature-settings-rendering-2.html:
+            * css3/resources/FontWithFeatures.ttf: Added.
+
+2015-09-23  Myles C. Maxfield  <mmaxfield@apple.com>
+
+        [Cocoa] [Font Features] Implement font-variant-*
+        https://bugs.webkit.org/show_bug.cgi?id=148413
+
+        Reviewed by Darin Adler.
+
+        Updating tests because font-variant-ligatures is being unprefixed.
+
+        Also, update css3/resources/FontWithFeatures.otf to support "lnum" feature.
+
+        * css3/font-feature-settings-rendering-2-expected.html:
+        * css3/font-feature-settings-rendering-2.html:
+        * css3/font-variant-all-webfont-expected.html: Added.
+        * css3/font-variant-all-webfont.html: Added.
+        * css3/font-variant-parsing-expected.txt: Added.
+        * css3/font-variant-parsing.html: Added.
+        * css3/resources/FontWithFeatures.otf:
+        * fast/css/getComputedStyle/computed-style-expected.txt:
+        * fast/css/getComputedStyle/computed-style-font-family-expected.txt:
+        * fast/css/getComputedStyle/computed-style-without-renderer-expected.txt:
+        * fast/css/getComputedStyle/resources/property-names.js:
+        * fast/css/parsing-font-variant-ligatures.html:
+        * fast/text/font-variant-ligatures.html:
+        * platform/mac/TestExpectations:
+        * svg/css/getComputedStyle-basic-expected.txt:
+
+2015-08-06  Myles C. Maxfield  <mmaxfield@apple.com>
+
+        Font feature settings comparisons are order-dependent and case-dependent
+        https://bugs.webkit.org/show_bug.cgi?id=147719
+
+        Reviewed by Benjamin Poulain.
+
+        Make the test insensitive to order and case.
+
+        * css3/font-feature-settings-parsing-expected.txt:
+        * css3/font-feature-settings-parsing.html:
+
+2015-08-11  Myles C. Maxfield  <mmaxfield@apple.com>
+
+        [font-features] Map OpenType feature tags to TrueType feature selectors
+        https://bugs.webkit.org/show_bug.cgi?id=147819
+
+        Reviewed by Dean Jackson.
+
+        Updated test results.
+
+        * platform/mac/css3/font-feature-settings-preinstalled-fonts-expected.png: Added.
+        * platform/mac/css3/font-feature-settings-preinstalled-fonts-expected.txt:
+
+2015-12-05  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Rollout r193474. rdar://problem/23732400
+
+2015-12-05  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Rollout r193478. rdar://problem/23732400
+
+2015-12-05  David Kilzer  <ddkilzer@apple.com>
+
+        Merge r191981. rdar://problem/23732379
+
+    2015-10-30  Jon Honeycutt  <jhoneycutt@apple.com>
+
+        Implement support for the autocomplete attribute
+        https://bugs.webkit.org/show_bug.cgi?id=150731
+        rdar://problem/21078968
+
+        Reviewed by Brent Fulgham.
+
+        * fast/forms/autocomplete-tokens-expected.txt: Added.
+        * fast/forms/autocomplete-tokens.html: Added.
+
+2015-12-05  Dana Burkart  <dburkart@apple.com>
+
+        Merge r190564. rdar://problem/23769747
+
+    2015-10-05  Myles C. Maxfield  <mmaxfield@apple.com>
+
+            Unprefix -webkit-font-feature-settings
+            https://bugs.webkit.org/show_bug.cgi?id=149722
+
+            Reviewed by Sam Weinig.
+
+            * css3/font-feature-settings-parsing.html:
+            * css3/font-feature-settings-preinstalled-fonts.html:
+            * css3/font-feature-settings-rendering-2.html:
+            * css3/font-feature-settings-rendering.html:
+            * fast/css/inherited-properties-rare-text-expected.txt:
+            * fast/css/inherited-properties-rare-text.html:
+            * fast/text/shaping/shaping-script-order.html:
+            * fast/text/shaping/shaping-selection-rect.html:
+            * fonts/unicode-character-font-crash.html:
+            * scrollbars/scrollbar-scrollbarparts-repaint-crash.html:
+
+2015-12-05  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r192953. rdar://problem/23581540
+
+    2015-12-01  David Hyatt  <hyatt@apple.com>
+
+            Implement the picture element.
+            https://bugs.webkit.org/show_bug.cgi?id=116963
+
+            Reviewed by Dean Jackson.
+
+            * fast/picture: Added.
+            * fast/picture/image-picture-1x-expected.txt: Added.
+            * fast/picture/image-picture-1x.html: Added.
+            * fast/picture/resources: Added.
+            * fast/picture/resources/blue_rect.jpg: Added.
+            * fast/picture/resources/currentSrcHelper.js: Added.
+            (fileName):
+            (currentSrcFileName):
+            (currentSrcFileNameNoParams):
+            * fast/picture/resources/image-set-4x.png: Added.
+
+2015-12-05  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r191252. rdar://problem/23772905
+
+    2015-10-17  David Hyatt  <hyatt@apple.com>
+
+            Implement the CSS4 'revert' keyword.
+            https://bugs.webkit.org/show_bug.cgi?id=149702
+
+            Reviewed by Simon Fraser.
+
+            * fast/css/all-keyword-revert-expected.html: Added.
+            * fast/css/all-keyword-revert.html: Added.
+            * fast/css/revert-color-expected.html: Added.
+            * fast/css/revert-color.html: Added.
+            * fast/css/revert-margins-expected.html: Added.
+            * fast/css/revert-margins.html: Added.
+            * fast/css/variables/all-keyword-revert-expected.html: Added.
+            * fast/css/variables/all-keyword-revert.html: Added.
+            * fast/css/variables/revert-inheritance-expected.html: Added.
+            * fast/css/variables/revert-inheritance.html: Added.
+            * fast/css/variables/revert-no-inheritance-expected.html: Added.
+            * fast/css/variables/revert-no-inheritance.html: Added.
+            * fast/css/variables/revert-variable-reference-expected.html: Added.
+            * fast/css/variables/revert-variable-reference.html: Added.
+
+2015-12-05  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r191178. rdar://problem/23772788
+
+    2015-10-16  David Hyatt  <hyatt@apple.com>
+
+            Implement the "all" CSS property.
+            https://bugs.webkit.org/show_bug.cgi?id=116966
+
+            Reviewed by Zalan Bujtas.
+
+            Added tests for the "all property, including a variables test!
+
+            * fast/css/all-keyword-direction-expected.html: Added.
+            * fast/css/all-keyword-direction.html: Added.
+            * fast/css/all-keyword-inherit-expected.html: Added.
+            * fast/css/all-keyword-inherit.html: Added.
+            * fast/css/all-keyword-initial-expected.html: Added.
+            * fast/css/all-keyword-initial.html: Added.
+            * fast/css/all-keyword-unset-expected.html: Added.
+            * fast/css/all-keyword-unset.html: Added.
+            * fast/css/variables/all-keyword-unset-expected.html: Added.
+            * fast/css/variables/all-keyword-unset.html: Added.
+
+2015-12-05  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r191151. rdar://problem/23772904
+
+    2015-10-15  David Hyatt  <hyatt@apple.com>
+
+            Add support for the CSS 'unset' keyword.
+            https://bugs.webkit.org/show_bug.cgi?id=148614
+
+            Reviewed by Dean Jackson.
+
+            * TestExpectations:
+            Remove the 3 failing variables tests that used the unset keyword now that they pass.
+
+            * fast/css/unset-keyword-expected.html: Added.
+            * fast/css/unset-keyword.html: Added.
+            New test for both inherited and initial properties.
+
+            * fast/css/variables/test-suite/129-expected.html: Added.
+            * fast/css/variables/test-suite/129.html: Added.
+            * fast/css/variables/test-suite/130-expected.html: Added.
+            * fast/css/variables/test-suite/130.html: Added.
+            * fast/css/variables/test-suite/134-expected.html: Added.
+            * fast/css/variables/test-suite/134.html: Added.
+            * fast/css/variables/test-suite/failures/129-expected.html: Removed.
+            * fast/css/variables/test-suite/failures/129.html: Removed.
+            * fast/css/variables/test-suite/failures/130-expected.html: Removed.
+            * fast/css/variables/test-suite/failures/130.html: Removed.
+            * fast/css/variables/test-suite/failures/134-expected.html: Removed.
+            * fast/css/variables/test-suite/failures/134.html: Removed.
+            Move these tests into the passing directory.
+
+2015-12-05  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r190868. rdar://problem/23769584
+
+    2015-10-12  Brent Fulgham  <bfulgham@apple.com>
+
+            [Win] Unreviewed test gardening after r190667.
+
+            Mark fast/css/will-change/will-change-create-stacking-context-inline.html as failing, because
+            Windows does not support backdrop-filter.
+
+            * platform/win/TestExpectations:
+
+2015-12-05  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r190667. rdar://problem/23769584
+
+    2015-10-06  Simon Fraser  <simon.fraser@apple.com>
+
+            will-change should trigger stacking context based purely on properties
+            https://bugs.webkit.org/show_bug.cgi?id=148068
+
+            Reviewed by Zalan Bujtas.
+
+            Previously, our will-change implementation didn't trigger stacking context
+            on an inline if the will-change property didn't apply to inlines (like 'transform').
+            However, this doesn't agree with the CSS-WG consensus (https://lists.w3.org/Archives/Public/www-style/2015Sep/0112.html).
+
+            Change behavior to have stacking context creation behavior for will-change be
+            identical for inlines and blocks.
+
+            * platform/mac/TestExpectations: Fails on Mavericks because no backdrop-filter there.
+            * fast/css/will-change/resources/will-change-stacking-helper.js:
+            (makeStackingInline):
+            * fast/css/will-change/will-change-creates-stacking-context-inline-expected.html: Added.
+            * fast/css/will-change/will-change-creates-stacking-context-inline.html: Added.
+
+2015-12-05  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r188604. rdar://problem/23769584
+
+    2015-08-18  Simon Fraser  <simon.fraser@apple.com>
+
+            will-change: backface-visibility should not cause stacking context
+            https://bugs.webkit.org/show_bug.cgi?id=148091
+
+            Reviewed by Zalan Bujtas.
+
+            Test that will-change: -webkit-backface-visibility does not create
+            stacking context.
+
+            * fast/css/will-change/resources/will-change-stacking-helper.js:
+
+2015-12-05  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r189890. rdar://problem/23769735
+
+    2015-09-16  Myles C. Maxfield  <mmaxfield@apple.com>
+
+            Create a font which can be used for testing font features
+            https://bugs.webkit.org/show_bug.cgi?id=149237
+
+            Reviewed by Simon Fraser.
+
+            * css3/font-feature-settings-rendering-2-expected.html: Added.
+            * css3/font-feature-settings-rendering-2.html: Added.
+            * css3/resources/FontWithFeatures.otf: Added.
+            * platform/efl/TestExpectations:
+            * platform/win/TestExpectations:
+
+2015-12-05  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r188146. rdar://problem/23769732
+
+    2015-08-07  Myles C. Maxfield  <mmaxfield@apple.com>
+
+            Implement font-feature-settings
+            https://bugs.webkit.org/show_bug.cgi?id=147722
+
+            Reviewed by Simon Fraser.
+
+            Until I can make a custom font for reference tests, use a simple dump-render-tree test.
+
+            * css3/font-feature-settings-preinstalled-fonts.html: Added.
+            * platform/mac-yosemite/css3/font-feature-settings-preinstalled-fonts-expected.txt: Added.
+
+2015-12-04  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r191128. rdar://problem/23732363
+
+    2015-10-14  David Hyatt  <hyatt@apple.com>
+
+            Implement CSS Variables.
+            https://bugs.webkit.org/show_bug.cgi?id=19660
+
+            Reviewed by Dean Jackson.
+
+            * fast/css/custom-properties/inheritance-expected.html: Added.
+            * fast/css/custom-properties/inheritance.html: Added.
+            * fast/css/variables: Added.
+            * fast/css/variables/custom-property-computed-style-access-expected.html: Added.
+            * fast/css/variables/custom-property-computed-style-access.html: Added.
+            * fast/css/variables/custom-property-dynamic-update-expected.html: Added.
+            * fast/css/variables/custom-property-dynamic-update.html: Added.
+            * fast/css/variables/custom-property-simple-cycle-expected.html: Added.
+            * fast/css/variables/custom-property-simple-cycle.html: Added.
+            * fast/css/variables/inherited-fallback-expected.html: Added.
+            * fast/css/variables/inherited-fallback.html: Added.
+            * fast/css/variables/invalid-reference-expected.html: Added.
+            * fast/css/variables/invalid-reference.html: Added.
+            * fast/css/variables/rule-property-get-css-value-expected.html: Added.
+            * fast/css/variables/rule-property-get-css-value.html: Added.
+            * fast/css/variables/rule-property-get-expected.html: Added.
+            * fast/css/variables/rule-property-get.html: Added.
+            * fast/css/variables/rule-serialization-expected.html: Added.
+            * fast/css/variables/rule-serialization.html: Added.
+
+2015-12-04  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r190209. rdar://problem/23732363
+
+    2015-09-24  David Hyatt  <hyatt@apple.com>
+
+            Add support for CSS Custom Properties (in preparation for implementing CSS Variables).
+            https://bugs.webkit.org/show_bug.cgi?id=130397
+
+            Reviewed by Antti Koivisto.
+
+            * fast/css/custom-properties: Added.
+            * fast/css/custom-properties/computed-style-access-expected.html: Added.
+            * fast/css/custom-properties/computed-style-access-inherited-expected.html: Added.
+            * fast/css/custom-properties/computed-style-access-inherited.html: Added.
+            * fast/css/custom-properties/computed-style-access.html: Added.
+            * fast/css/custom-properties/inline-style-property-get-expected.html: Added.
+            * fast/css/custom-properties/inline-style-property-get.html: Added.
+            * fast/css/custom-properties/rule-property-get-css-value-expected.html: Added.
+            * fast/css/custom-properties/rule-property-get-css-value.html: Added.
+            * fast/css/custom-properties/rule-property-get-expected.html: Added.
+            * fast/css/custom-properties/rule-property-get.html: Added.
+            * fast/css/custom-properties/rule-property-priority-expected.html: Added.
+            * fast/css/custom-properties/rule-property-priority.html: Added.
+            * fast/css/custom-properties/rule-property-set-expected.html: Added.
+            * fast/css/custom-properties/rule-property-set.html: Added.
+            * fast/css/custom-properties/rule-serialization-expected.html: Added.
+            * fast/css/custom-properties/rule-serialization.html: Added.
+
+2015-12-04  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r191452. rdar://problem/23732400
+
+    2015-10-22  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+            Implement touch-action: manipulation; for iOS
+            https://bugs.webkit.org/show_bug.cgi?id=149854
+            <rdar://problem/23017145>
+
+            Reviewed by Benjamin Poulain.
+
+            Add tests to check that the manipulation and auto values of the touch-action property can be
+            properly parsed and can be obtained through computed style. Also tests that putting touch-action:
+            manipulation on an element and tapping repeatedly on it will fire clicks instead of recognizing
+            double taps and causing the viewport to zoom.
+
+            * TestExpectations:
+            * css3/touch-action/touch-action-computed-style-expected.txt: Added.
+            * css3/touch-action/touch-action-computed-style.html: Added.
+            * css3/touch-action/touch-action-manipulation-fast-clicks-expected.txt: Added.
+            * css3/touch-action/touch-action-manipulation-fast-clicks.html: Added.
+            * css3/touch-action/touch-action-parsing-expected.txt: Added.
+            * css3/touch-action/touch-action-parsing.html: Added.
+            * platform/ios-simulator-wk2/TestExpectations:
+
+2015-12-04  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r191072. rdar://problem/23732400
+
+    2015-10-14  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+            Web pages with unscalable viewports shouldn't have a single tap delay
+            https://bugs.webkit.org/show_bug.cgi?id=149968
+            <rdar://problem/23054453>
+
+            Reviewed by Simon Fraser.
+
+            Add a layout test to check that when a viewport is unscalable (specified through
+            the meta viewport tag) we do not add a delay to our single tap gesture recognizer.
+
+            * fast/events/ios/unscalable-viewport-clicks-on-doubletap-expected.txt: Added.
+            * fast/events/ios/unscalable-viewport-clicks-on-doubletap.html: Added.
+
+2015-12-04  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r190595. rdar://problem/23732402
+
+    2015-10-05  Dean Jackson  <dino@apple.com>
+
+            EXT_texture_filter_anisotropic extension exposed with WEBKIT_ prefix
+            https://bugs.webkit.org/show_bug.cgi?id=149765
+            <rdar://problem/22983722>
+
+            Reviewed by Beth Dakin.
+
+            Simple test that the unprefixed form exists. The actual functionality
+            is exercised in the WebGL conformance tests.
+
+            * fast/canvas/webgl/unprefixed-anisotropic-extension-expected.txt: Added.
+            * fast/canvas/webgl/unprefixed-anisotropic-extension.html: Added.
+
+2015-12-04  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r190446. rdar://problem/23732367
+
+    2015-10-01  Dean Jackson  <dino@apple.com>
+
+            Expose WEBGL_debug_renderer_info
+            https://bugs.webkit.org/show_bug.cgi?id=149735
+            <rdar://problem/18343500>
+
+            Reviewed by Simon Fraser.
+
+            Modify a test from the 1.0.2 conformance suite to make sure
+            we're actually enabling and passing the info.
+
+            * fast/canvas/webgl/webgl-debug-renderer-info-expected.txt: Added.
+            * fast/canvas/webgl/webgl-debug-renderer-info.html: Added.
+
+2015-12-04  Timothy Hatcher  <timothy@apple.com>
+
+        Merge r187897. rdar://problem/23221163
+
+    2015-08-04  Joseph Pecoraro  <pecoraro@apple.com>
+
+            Web Inspector: Object previews for SVG elements shows SVGAnimatedString instead of text
+            https://bugs.webkit.org/show_bug.cgi?id=147328
+
+            Reviewed by Timothy Hatcher.
+
+            * inspector/model/remote-object-expected.txt:
+            * inspector/model/remote-object.html:
+
+2015-12-03  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r188647. rdar://problem/23732386
+
+    2015-08-18  Dean Jackson  <dino@apple.com>
+
+            Support CSS filters without webkit prefix
+            https://bugs.webkit.org/show_bug.cgi?id=148138
+            <rdar://problem/22331434>
+
+            Reviewed by Sam Weinig.
+
+            Globally change -webkit-filter to filter in as many places as
+            possible. Then add a new test that makes sure the prefixed
+            and unprefixed value resolve to the same computed style.
+
+            * animations/resources/animation-test-helpers.js:
+            (parseCSSImage):
+            * css3/filters/backdrop/effect-hw-expected.html:
+            * css3/filters/effect-blur-hw.html:
+            * css3/filters/effect-blur.html:
+            * css3/filters/effect-brightness-clamping-hw.html:
+            * css3/filters/effect-brightness-clamping.html:
+            * css3/filters/effect-brightness-hw.html:
+            * css3/filters/effect-brightness.html:
+            * css3/filters/effect-combined-hw.html:
+            * css3/filters/effect-combined.html:
+            * css3/filters/effect-contrast-hw.html:
+            * css3/filters/effect-contrast.html:
+            * css3/filters/effect-drop-shadow-hw.html:
+            * css3/filters/effect-drop-shadow.html:
+            * css3/filters/effect-grayscale-hw.html:
+            * css3/filters/effect-grayscale.html:
+            * css3/filters/effect-hue-rotate-hw.html:
+            * css3/filters/effect-hue-rotate.html:
+            * css3/filters/effect-invert-hw.html:
+            * css3/filters/effect-invert.html:
+            * css3/filters/effect-opacity-hw.html:
+            * css3/filters/effect-opacity.html:
+            * css3/filters/effect-reference-composite-hw.html:
+            * css3/filters/effect-reference-composite.html:
+            * css3/filters/effect-reference-hw.html:
+            * css3/filters/effect-reference-ordering-hw.html:
+            * css3/filters/effect-reference-ordering.html:
+            * css3/filters/effect-reference.html:
+            * css3/filters/effect-saturate-hw.html:
+            * css3/filters/effect-saturate.html:
+            * css3/filters/effect-sepia-hw.html:
+            * css3/filters/effect-sepia.html:
+            * css3/filters/filter-property-computed-style-expected.txt:
+            * css3/filters/filter-property-parsing-expected.txt:
+            * css3/filters/script-tests/filter-property-computed-style.js:
+            (testComputedFilterRule):
+            * css3/filters/script-tests/filter-property-parsing.js:
+            (testFilterRule):
+            * css3/filters/script-tests/unprefixed.js: Copied from LayoutTests/css3/filters/script-tests/filter-property-computed-style.js.
+            (testComputedFilterRule):
+            * css3/filters/unprefixed-expected.txt: Copied from LayoutTests/css3/filters/filter-property-computed-style-expected.txt.
+            * css3/filters/unprefixed.html: Added.
+            * fast/css/getComputedStyle/computed-style-expected.txt:
+            * fast/css/getComputedStyle/computed-style-without-renderer-expected.txt:
+            * fast/filter-image/clipped-filter-expected.html:
+            * fast/filter-image/clipped-filter.html:
+            * fast/filter-image/filter-image-animation-expected.txt:
+            * fast/filter-image/filter-image-animation.html:
+            * fast/filter-image/filter-image-blur.html:
+            * fast/filter-image/filter-image-expected.html:
+            * fast/filter-image/filter-image-svg.html:
+            * fast/filter-image/filter-image.html:
+            * fast/filter-image/parse-filter-image-expected.txt:
+            * fast/filter-image/parse-filter-image.html:
+            * svg/css/getComputedStyle-basic-expected.txt:
+
+2015-12-03  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r188530. rdar://problem/23732374
+
+    2015-08-17  Simon Fraser  <simon.fraser@apple.com>
+
+            will-change should sometimes trigger compositing
+            https://bugs.webkit.org/show_bug.cgi?id=148072
+
+            Reviewed by Tim Horton.
+
+            * compositing/layer-creation/will-change-change-expected.txt: Added.
+            * compositing/layer-creation/will-change-change.html: Added.
+            * compositing/layer-creation/will-change-layer-creation-expected.txt: Added.
+            * compositing/layer-creation/will-change-layer-creation.html: Added.
+
+2015-12-03  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r188514. rdar://problem/23732374
+
+    2015-08-15  Simon Fraser  <simon.fraser@apple.com>
+
+            Have will-change create stacking context when necessary
+            https://bugs.webkit.org/show_bug.cgi?id=148060
+
+            Reviewed by Zalan Bujtas.
+
+            Ref test for will-change creating stacking context.
+
+            * fast/css/will-change/resources/will-change-stacking-helper.js: Added.
+            (makeStackingBlock):
+            * fast/css/will-change/will-change-creates-stacking-context-expected.html: Added.
+            * fast/css/will-change/will-change-creates-stacking-context.html: Added.
+            * platform/efl/TestExpectations: Mark image failure on EFL, since some CSS
+            properties in the test are disabled there.
+
+2015-12-03  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r188512. rdar://problem/23732374
+
+    2015-08-14  Simon Fraser  <simon.fraser@apple.com>
+
+            Implement parsing for CSS will-change
+            https://bugs.webkit.org/show_bug.cgi?id=148052
+
+            Reviewed by Dean Jackson.
+
+            will-change parsing test.
+
+            * fast/css/will-change-parsing-expected.txt: Added.
+            * fast/css/will-change-parsing.html: Added.
+
+2015-12-03  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r190383. rdar://problem/23732393
+
+    2015-09-30  Katlyn Graff  <kgraff@apple.com>
+
+            Tests support for imageSmoothingQuality attribute of Canvas element.
+            https://bugs.webkit.org/show_bug.cgi?id=149541
+
+            Reviewed by Ryosuke Niwa.
+
+            Tests low, medium, high, and default values, value persistence when
+            imageSmoothingEnabled is changed, and invalid input.
+
+            * fast/canvas/canvas-imageSmoothingQuality-expected.txt: Added.
+            * fast/canvas/canvas-imageSmoothingQuality.html: Added.
+
+2015-12-03  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r188194. rdar://problem/23732393
+
+    2015-08-08  Dean Jackson  <dino@apple.com>
+
+            Remove the webkit prefix from CanvasRenderingContext2D imageSmoothingEnabled
+            https://bugs.webkit.org/show_bug.cgi?id=147803
+            <rdar://problem/22200553>
+
+            Reviewed by Sam Weinig.
+
+            Use the standard version of imageSmoothingEnabled rather than
+            the prefixed version.
+
+            * fast/canvas/canvas-imageSmoothingEnabled-expected.txt:
+            * fast/canvas/canvas-imageSmoothingEnabled-patterns.html:
+            * fast/canvas/canvas-imageSmoothingEnabled-zero-size.html:
+            * fast/canvas/script-tests/canvas-imageSmoothingEnabled-repaint.js:
+            (draw):
+            * fast/canvas/script-tests/canvas-imageSmoothingEnabled.js: Add some tests
+            to make sure the prefixed version correctly maps to the standard version.
+
+2015-12-03  Timothy Hatcher  <timothy@apple.com>
+
+        Skip Inspector tests because the new test harness does not work on the branch currently.
+
+        * platform/mac/TestExpectations:
+
+2015-12-03  Timothy Hatcher  <timothy@apple.com>
+
+        Merge r192592. rdar://problem/23221163
+
+    2015-11-18  Joseph Pecoraro  <pecoraro@apple.com>
+
+            Web Inspector: Client Blocked Resource Requests causes Crash under InspectorPageAgent::cachedResource
+            https://bugs.webkit.org/show_bug.cgi?id=151398
+
+            Reviewed by Brian Burg.
+
+            * inspector/network/client-blocked-load-expected.txt: Added.
+            * inspector/network/client-blocked-load.html: Added.
+
+2015-12-03  Timothy Hatcher  <timothy@apple.com>
+
+        Merge r186891. rdar://problem/23221163
+
+    2015-07-16  Joseph Pecoraro  <pecoraro@apple.com>
+
+            Web Inspector: update $$() to return an Array
+            https://bugs.webkit.org/show_bug.cgi?id=146964
+
+            Reviewed by Brian Burg.
+
+            * inspector/console/command-line-api-expected.txt: Added.
+            * inspector/console/command-line-api.html: Added.
+            Add back a command line api test.
+
+            * platform/efl/inspector/console/command-line-api-expected.txt: Removed.
+            * platform/mac/inspector/console/command-line-api-expected.txt: Removed.
+            Remove old platform expected results for the old version of this test.
+
+            * platform/win/TestExpectations:
+            Speculatively skipping on Windows since other inspector/console tests are skipped.
+
+2015-12-03  Timothy Hatcher  <timothy@apple.com>
+
+        Merge r192641. rdar://problem/23221163
+
+    2015-11-19  Brian Burg  <bburg@apple.com>
+
+            REGRESSION(r8780): Backwards delete by word incorrectly appends deleted text to kill ring, should be prepend
+            https://bugs.webkit.org/show_bug.cgi?id=151300
+
+            Reviewed by Darin Adler.
+
+            * editing/pasteboard/emacs-killring-alternating-append-prepend-expected.txt: Added.
+            * editing/pasteboard/emacs-killring-alternating-append-prepend.html: Added.
+            * editing/pasteboard/emacs-killring-backward-delete-prepend-expected.txt: Added.
+            * editing/pasteboard/emacs-killring-backward-delete-prepend.html: Added.
+
+2015-12-03  Timothy Hatcher  <timothy@apple.com>
+
+        Merge r192615. rdar://problem/23221163
+
+    2015-11-18  Brian Burg  <bburg@apple.com>
+
+            Web Inspector: Storage tab shouldn't hide cookies for .example.com when inspected page is foo.bar.example.com
+            https://bugs.webkit.org/show_bug.cgi?id=151408
+
+            Reviewed by Timothy Hatcher.
+
+            * inspector/page/filter-cookies-for-domain-expected.txt: Added.
+            * inspector/page/filter-cookies-for-domain.html: Added.
+
+2015-12-02  Timothy Hatcher  <timothy@apple.com>
+
+        Merge r192040. rdar://problem/23221163
+
+    2015-11-04  Joseph Pecoraro  <pecoraro@apple.com>
+
+            Web Inspector: Support #rgba and #rrggbbaa syntax
+            https://bugs.webkit.org/show_bug.cgi?id=150894
+
+            Reviewed by Timothy Hatcher.
+
+            * inspector/model/color-expected.txt: Added.
+            * inspector/model/color.html: Added.
+
+2015-12-02  Timothy Hatcher  <timothy@apple.com>
+
+        Merge r191355. rdar://problem/23221163
+
+    2015-10-20  Joseph Pecoraro  <pecoraro@apple.com>
+
+            Web Inspector: JavaScriptCore should parse sourceURL and sourceMappingURL directives
+            https://bugs.webkit.org/show_bug.cgi?id=150096
+
+            Reviewed by Geoffrey Garen.
+
+            * inspector/debugger/sourceURLs-expected.txt: Added.
+            * inspector/debugger/sourceURLs.html: Added.
+            sourceURL and sourceMappingURL detection.
+
+2015-12-02  Timothy Hatcher  <timothy@apple.com>
+
+        Merge r190780. rdar://problem/23221163
+
+    2015-10-08  Nikita Vasilyev  <nvasilyev@apple.com>
+
+            Web Inspector: Stack trace view doesn't properly display lines without function names
+            https://bugs.webkit.org/show_bug.cgi?id=149922
+
+            Test an anomymous function.
+
+            Reviewed by Timothy Hatcher.
+
+            * inspector/debugger/js-stacktrace-expected.txt: Also, rebaseline one old test.
+            * inspector/debugger/js-stacktrace.html:
+
+2015-12-02  Timothy Hatcher  <timothy@apple.com>
+
+        Merge r190551. rdar://problem/23221163
+
+    2015-10-04  Nikita Vasilyev  <nvasilyev@apple.com>
+
+            Web Inspector: Wrong column numbers in error object views
+            https://bugs.webkit.org/show_bug.cgi?id=149795
+
+            Reviewed by Timothy Hatcher.
+
+            * inspector/debugger/js-stacktrace-expected.txt:
+
+2015-12-02  Timothy Hatcher  <timothy@apple.com>
+
+        Merge r190528. rdar://problem/23221163
+
+    2015-10-02  Devin Rousso  <dcrousso+webkit@gmail.com>
+
+            Web Inspector: Copying inline style text puts "undefined" in the pasteboard
+            https://bugs.webkit.org/show_bug.cgi?id=149155
+
+            Reviewed by Brian Burg.
+
+            Added test for generating CSS rule strings with default formatting.
+
+            * inspector/css/generate-css-rule-string.html:
+
+2015-12-02  Timothy Hatcher  <timothy@apple.com>
+
+        Merge r190184. rdar://problem/23221163
+
+    2015-09-23  Saam barati  <sbarati@apple.com>
+
+            Web Inspector: Type bubbles missing for computed methods and methods on object literals
+            https://bugs.webkit.org/show_bug.cgi?id=148562
+
+            Reviewed by Joseph Pecoraro.
+
+            * inspector/model/parse-script-syntax-tree-expected.txt:
+            * inspector/model/parse-script-syntax-tree.html:
+
+2015-12-02  Timothy Hatcher  <timothy@apple.com>
+
+        Merge r190146. rdar://problem/23221163
+
+    2015-09-22  Saam barati  <sbarati@apple.com>
+
+            Web Inspector: [ES6] Improve Type Profiler Support for Arrow Functions
+            https://bugs.webkit.org/show_bug.cgi?id=143171
+
+            Reviewed by Joseph Pecoraro.
+
+            * inspector/model/parse-script-syntax-tree-expected.txt:
+            * inspector/model/parse-script-syntax-tree.html:
+
+2015-12-02  Timothy Hatcher  <timothy@apple.com>
+
+        Merge r190110. rdar://problem/23221163
+
+    2015-09-22  Saam barati  <sbarati@apple.com>
+
+            Web Inspector: update Esprima to latest version
+            https://bugs.webkit.org/show_bug.cgi?id=148960
+
+            Reviewed by Joseph Pecoraro.
+
+            * inspector/model/parse-script-syntax-tree-expected.txt:
+            * inspector/model/parse-script-syntax-tree.html:
+
+2015-12-02  Timothy Hatcher  <timothy@apple.com>
+
+        Merge r189761. rdar://problem/23221163
+
+    2015-09-14  Brian Burg  <bburg@apple.com>
+
+            Web Inspector: backend command promises are not rejected when a protocol error occurs
+            https://bugs.webkit.org/show_bug.cgi?id=141403
+
+            Reviewed by Joseph Pecoraro.
+
+            Expand coverage of an existing protocol layer test to cover success and failure modes.
+
+            * inspector/protocol/inspector-backend-invocation-return-value-expected.txt:
+            * inspector/protocol/inspector-backend-invocation-return-value.html:
+
+2015-12-02  Timothy Hatcher  <timothy@apple.com>
+
+        Merge r189415. rdar://problem/23221163
+
+    2015-09-04  Joseph Pecoraro  <pecoraro@apple.com>
+
+            Web Inspector: Test Runtime.saveResult and $n values
+            https://bugs.webkit.org/show_bug.cgi?id=148837
+
+            Reviewed by Timothy Hatcher.
+
+            * inspector/runtime/parse.html: Remove unncessary debug flag.
+            * inspector/runtime/saveResult-expected.txt: Added.
+            * inspector/runtime/saveResult.html: Added.
+
+2015-12-02  Timothy Hatcher  <timothy@apple.com>
+
+        Merge r189373. rdar://problem/23221163
+
+    2015-09-04  Joseph Pecoraro  <pecoraro@apple.com>
+
+            Web Inspector: Expand Console domain test coverage
+            https://bugs.webkit.org/show_bug.cgi?id=148740
+
+            Reviewed by Brian Burg.
+
+            Test more Console domain commands and events.
+
+            * inspector/console/addInspectedNode-expected.txt: Added.
+            * inspector/console/addInspectedNode.html: Added.
+            * inspector/console/clearMessages-expected.txt: Added.
+            * inspector/console/clearMessages.html: Added.
+            * inspector/console/messageRepeatCountUpdated-expected.txt: Added.
+            * inspector/console/messageRepeatCountUpdated.html: Added.
+            * inspector/console/messagesCleared-expected.txt: Added.
+            * inspector/console/messagesCleared.html: Added.
+
+2015-12-02  Timothy Hatcher  <timothy@apple.com>
+
+        Merge r189104. rdar://problem/23221163
+
+    2015-08-28  Joseph Pecoraro  <pecoraro@apple.com>
+
+            Web Inspector: Separate creating a style sheet from adding a new rule in the protocol
+            https://bugs.webkit.org/show_bug.cgi?id=148502
+
+            Reviewed by Timothy Hatcher.
+
+            * inspector/css/createStyleSheet-expected.txt: Added.
+            * inspector/css/createStyleSheet.html: Added.
+            * inspector/css/manager-preferredInspectorStyleSheetForFrame-expected.txt: Added.
+            * inspector/css/manager-preferredInspectorStyleSheetForFrame.html: Added.
+            * inspector/css/stylesheet-events-inspector-stylesheet-expected.txt:
+            * inspector/css/stylesheet-events-inspector-stylesheet.html:
+
+2015-12-02  Timothy Hatcher  <timothy@apple.com>
+
+        Merge r189032. rdar://problem/23221163
+
+    2015-08-27  Joseph Pecoraro  <pecoraro@apple.com>
+
+            Web Inspector: Standardize on CSSStyleSheet.Type enum and move more protocol enum conversion to the manager
+            https://bugs.webkit.org/show_bug.cgi?id=148515
+
+            Reviewed by Brian Burg.
+
+            * inspector/css/matched-style-properties.html:
+            * inspector/css/pseudo-element-matches.html:
+            * inspector/css/selector-dynamic-specificity.html:
+            * inspector/css/selector-specificity.html:
+            * inspector/css/stylesheet-with-mutations.html:
+
+2015-12-02  Timothy Hatcher  <timothy@apple.com>
+
+        Merge r189002. rdar://problem/23221163
+
+    2015-08-26  Joseph Pecoraro  <pecoraro@apple.com>
+
+            Web Inspector: Implement tracking of active stylesheets in the frontend
+            https://bugs.webkit.org/show_bug.cgi?id=105828
+
+            Reviewed by Timothy Hatcher.
+
+            * inspector/css/resources/import-level-1.css: Added.
+            * inspector/css/resources/import-level-2.css: Added.
+            * inspector/css/resources/stylesheet-events-subframe.html: Added.
+            * inspector/css/stylesheet-events-basic-expected.txt: Added.
+            * inspector/css/stylesheet-events-basic.html: Added.
+            * inspector/css/stylesheet-events-imports-expected.txt: Added.
+            * inspector/css/stylesheet-events-imports.html: Added.
+            * inspector/css/stylesheet-events-inspector-stylesheet-expected.txt: Added.
+            * inspector/css/stylesheet-events-inspector-stylesheet.html: Added.
+            * inspector/css/stylesheet-events-multiple-documents-expected.txt: Added.
+            * inspector/css/stylesheet-events-multiple-documents.html: Added.
+            Tests for different ways that StyleSheets can be added / removed.
+
+2015-12-02  Timothy Hatcher  <timothy@apple.com>
+
+        Merge r188965. rdar://problem/23221163
+
+    2015-08-25  Brian Burg  <bburg@apple.com>
+
+            Web Inspector: no need to allocate protocolErrors array for every dispatched backend command
+            https://bugs.webkit.org/show_bug.cgi?id=146466
+
+            Reviewed by Joseph Pecoraro.
+
+            * inspector/protocol/backend-dispatcher-argument-errors-expected.txt:
+            * inspector/protocol/backend-dispatcher-argument-errors.html:
+            Stringify the 'data' member before dumping, since it now contains JSON. Rebaseline it.
+
+2015-12-02  Timothy Hatcher  <timothy@apple.com>
+
+        Merge r188897. rdar://problem/23221163
+
+    2015-08-24  Brian Burg  <bburg@apple.com>
+
+            Web Inspector: add protocol test for existing error handling performed by the backend
+            https://bugs.webkit.org/show_bug.cgi?id=147097
+
+            Reviewed by Joseph Pecoraro.
+
+            Add a bunch of test cases to cover existing error handling by the backend dispatcher.
+
+            * inspector/protocol/backend-dispatcher-argument-errors-expected.txt: Added.
+            * inspector/protocol/backend-dispatcher-argument-errors.html: Added.
+            * inspector/protocol/backend-dispatcher-malformed-message-errors-expected.txt: Added.
+            * inspector/protocol/backend-dispatcher-malformed-message-errors.html: Added.
+
+2015-12-02  Timothy Hatcher  <timothy@apple.com>
+
+        Merge r188756. rdar://problem/23221163
+
+    2015-08-20  Brian Burg  <bburg@apple.com>
+
+            Web Inspector: add a regression test for the fix introduced in r188679
+            https://bugs.webkit.org/show_bug.cgi?id=148223
+
+            Reviewed by Joseph Pecoraro.
+
+            Add a regression test to check the number of DOMTree instances that
+            listen to DOMTreeManager.
+
+            * TestExpectations: Don't skip the inspector/dom/ directory.
+            * http/tests/inspector/dom/disconnect-dom-tree-after-main-frame-navigation-expected.txt: Added.
+            * http/tests/inspector/dom/disconnect-dom-tree-after-main-frame-navigation.html: Added.
+            * http/tests/inspector/dom/resources/nested-frame-1-deep.html: Added.
+            * http/tests/inspector/dom/resources/nested-frame-2-deep.html: Added.
+            * http/tests/inspector/dom/resources/nested-frame-base.html: Added.
+
+2015-12-02  Timothy Hatcher  <timothy@apple.com>
+
+        Merge r188631. rdar://problem/23221163
+
+    2015-08-18  Joseph Pecoraro  <pecoraro@apple.com>
+
+            Web Inspector: Links for rules in <style> are incorrect, do not account for <style> offset in the document
+            https://bugs.webkit.org/show_bug.cgi?id=148141
+
+            Reviewed by Brian Burg.
+
+            * inspector/css/getAllStyleSheets-expected.txt: Added.
+            * inspector/css/getAllStyleSheets.html: Added.
+            * inspector/css/resources/external.css: Added.
+            (body):
+            Test for style sheet header information for external and inline stylesheets.
+
+2015-12-02  Timothy Hatcher  <timothy@apple.com>
+
+        Merge r188407. rdar://problem/23221163
+
+    2015-08-13  Joseph Pecoraro  <pecoraro@apple.com>
+
+            Web Inspector: Watch Expressions
+            https://bugs.webkit.org/show_bug.cgi?id=147904
+
+            Reviewed by Brian Burg.
+
+            * inspector/model/remote-object-fake-object-expected.txt: Added.
+            * inspector/model/remote-object-fake-object.html: Added.
+
+2015-12-02  Timothy Hatcher  <timothy@apple.com>
+
+        Merge r188403. rdar://problem/23221163
+
+    2015-08-13  Joseph Pecoraro  <pecoraro@apple.com>
+
+            Web Inspector: A {Map, WeakMap, Set, WeakSet} object contains itself will hang the console
+            https://bugs.webkit.org/show_bug.cgi?id=147966
+
+            Reviewed by Timothy Hatcher.
+
+            * inspector/model/remote-object.html:
+            * inspector/model/remote-object-expected.txt:
+            Add tests for a cylic array, set, and map.
+
+2015-12-02  Timothy Hatcher  <timothy@apple.com>
+
+        Merge r188353. rdar://problem/23221163
+
+    2015-08-12  Joseph Pecoraro  <pecoraro@apple.com>
+
+            Web Inspector: Not receiving responses for async request IndexedDB.requestDatabaseNames
+            https://bugs.webkit.org/show_bug.cgi?id=147844
+
+            Reviewed by Brian Burg.
+
+            * inspector/indexeddb/requestDatabaseNames-expected.txt: Added.
+            * inspector/indexeddb/requestDatabaseNames.html: Added.
+
+2015-12-02  Timothy Hatcher  <timothy@apple.com>
+
+        Merge r188283. rdar://problem/23221163
+
+    2015-08-11  Brian Burg  <bburg@apple.com>
+
+            Web Inspector: Agent commands do not actually return a promise when expected
+            https://bugs.webkit.org/show_bug.cgi?id=138665
+
+            Reviewed by Timothy Hatcher.
+
+            Add a new test that only checks for proper invocation return values.
+            Once the async test suite infrastructure is available for frontend tests,
+            more thorough tests of promises and callbacks will be added.
+
+            * inspector/protocol/inspector-backend-invocation-return-value-expected.txt: Added.
+            * inspector/protocol/inspector-backend-invocation-return-value.html: Added.
+            * inspector/protocol/protocol-promise-result-expected.txt: Removed.
+            * inspector/protocol/protocol-promise-result.html: Removed.
+            * platform/win/TestExpectations: Remove deleted test.
+
+2015-12-02  Timothy Hatcher  <timothy@apple.com>
+
+        Merge r188017. rdar://problem/23221163
+
+    2015-08-05  Nikita Vasilyev  <nvasilyev@apple.com>
+
+            Web Inspector: Logging error objects should have a better UI
+            https://bugs.webkit.org/show_bug.cgi?id=143853
+
+            Add tests for stack trace format in case it changes.
+
+            Reviewed by Brian Burg.
+
+            * inspector/debugger/js-stacktrace-expected.txt: Added.
+            * inspector/debugger/js-stacktrace.html: Added.
+
+2015-12-01  Timothy Hatcher  <timothy@apple.com>
+
+        Merge r187903. rdar://problem/23221163
+
+    2015-08-04  Joseph Pecoraro  <pecoraro@apple.com>
+
+            Improve some LayoutTests/inspector flakey output for tests with InspectorTest.reloadPage
+            https://bugs.webkit.org/show_bug.cgi?id=147655
+
+            Reviewed by Timothy Hatcher.
+
+            * TestExpectations:
+
+2015-12-01  Timothy Hatcher  <timothy@apple.com>
+
+        Merge r187507. rdar://problem/23221163
+
+    2015-07-28  Joseph Pecoraro  <pecoraro@apple.com>
+
+            Web Inspector: Include <template> node content in DOM Tree
+            https://bugs.webkit.org/show_bug.cgi?id=147335
+
+            Reviewed by Timothy Hatcher.
+
+            * inspector/dom/template-content-expected.txt: Added.
+            * inspector/dom/template-content.html: Added.
+
+2015-12-01  Timothy Hatcher  <timothy@apple.com>
+
+        Merge r187496. rdar://problem/23221163
+
+    2015-07-28  Joseph Pecoraro  <pecoraro@apple.com>
+
+            Web Inspector: Show Pseudo Elements in DOM Tree
+            https://bugs.webkit.org/show_bug.cgi?id=139612
+
+            Reviewed by Timothy Hatcher.
+
+            * inspector/css/pseudo-element-matches-for-pseudo-element-node-expected.txt: Added.
+            * inspector/css/pseudo-element-matches-for-pseudo-element-node.html: Added.
+            * inspector/dom/pseudo-element-dynamic-expected.txt: Added.
+            * inspector/dom/pseudo-element-dynamic.html: Added.
+            * inspector/dom/pseudo-element-static-expected.txt: Added.
+            * inspector/dom/pseudo-element-static.html: Added.
+
+2015-12-01  Timothy Hatcher  <timothy@apple.com>
+
+        Merge r187249. rdar://problem/23221163
+
+    2015-07-23  Devin Rousso  <drousso@apple.com>
+
+            Web Inspector: Add a function to CSSCompletions to get a list of supported system fonts
+            https://bugs.webkit.org/show_bug.cgi?id=147009
+
+            Reviewed by Joseph Pecoraro.
+
+            Skip the get-system-fonts test until it is implemented.
+            * platform/efl/TestExpectations:
+            * platform/gtk/TestExpectations:
+            * platform/win/TestExpectations:
+
+            Added the get-system-fonts test that returns the list of system fonts.
+            * inspector/css/get-system-fonts-expected.html:
+            * inspector/css/get-system-fonts.html:
+
+2015-12-01  Timothy Hatcher  <timothy@apple.com>
+
+        Merge r187211. rdar://problem/23221163
+
+    2015-07-22  Joseph Pecoraro  <pecoraro@apple.com>
+
+            Web Inspector: Timeline should immediately start moving play head when starting a new recording
+            https://bugs.webkit.org/show_bug.cgi?id=147210
+
+            Reviewed by Timothy Hatcher.
+
+            * inspector/timeline/recording-start-stop-timestamps-expected.txt: Added.
+            * inspector/timeline/recording-start-stop-timestamps.html: Added.
+            Add a test for Timeline.recordingStarted and Timeline.recordingStopped events.
+
+2015-10-30  Lucas Forschler  <lforschler@apple.com>
+
+        Merge r188366
+
+    2015-08-12  Alexey Proskuryakov  <ap@apple.com>
+
+            http/tests/security/cors-post-redirect-308.html doesn't work properly
+            https://bugs.webkit.org/show_bug.cgi?id=147914
+
+            Reviewed by Brady Eidson.
+
+            * http/tests/resources/redirect.php: Trying to return
+            code 308 without a reason phrase results in an internal server error with Apache/2.2.
+            While at it, also corrected the script to always set Cache-Control: no-store.
+
+2015-10-29  Lucas Forschler  <lforschler@apple.com>
+
+        Merge r191706. rdar://problem/23319292
+
+    2015-10-28  Andy Estes  <aestes@apple.com>
+
+            [Content Filtering] Crash when allowing a 0-byte resource to load
+            https://bugs.webkit.org/show_bug.cgi?id=150644
+            <rdar://problem/23288538>
+
+            Reviewed by Darin Adler.
+
+            * contentfiltering/allow-empty-document-expected.html: Added.
+            * contentfiltering/allow-empty-document.html: Added.
+            * contentfiltering/resources/empty.html: Added.
+
+2015-10-26  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r191530. rdar://problem/23206864
+
+    2015-10-23  Michael Saboff  <msaboff@apple.com>
+
+            REGRESSION (r179357-r179359): WebContent Crash using AOL Mail @ com.apple.JavascriptCore JSC::linkPolymorphicCall(JSC::ExecState*, JSC::CallLinkInfo&, JSC::CallVariant, JSC::RegisterPreservationMode) + 1584
+            https://bugs.webkit.org/show_bug.cgi?id=150513
+
+            Reviewed by Saam Barati.
+
+            New regression test.
+
+            * js/regress-150513-expected.txt: Added.
+            * js/regress-150513.html: Added.
+            * js/script-tests/regress-150513.js: Added.
+            (test):
+            * resources/standalone-pre.js: Added failNextNewCodeBlock to testRunner object.
+
+2015-10-22  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r191364. rdar://problem/22862879
+
+    2015-10-20  Mark Lam  <mark.lam@apple.com>
+
+            YarrPatternConstructor::containsCapturingTerms() should not assume that its terms.size() is greater than 0.
+            https://bugs.webkit.org/show_bug.cgi?id=150372
+
+            Reviewed by Geoffrey Garen.
+
+            * js/regress-150372-expected.txt: Added.
+            * js/regress-150372.html: Added.
+            * js/script-tests/regress-150372.js: Added.
+
+2015-10-16  Alexey Proskuryakov  <ap@apple.com>
+
+        Land accurate Yosemite/Mavericks results for http/tests/multipart/multipart-replace-non-html-content.html
+
+        * platform/mac-yosemite/http/tests/multipart/multipart-replace-non-html-content-expected.txt:
+
+2015-10-15  Alexey Proskuryakov  <ap@apple.com>
+
+        Update test results on the branch.
+
+        * platform/mac-yosemite/http: Added.
+        * platform/mac-yosemite/http/tests: Added.
+        * platform/mac-yosemite/http/tests/multipart: Added.
+        * platform/mac-yosemite/http/tests/multipart/multipart-replace-non-html-content-expected.txt: Copied from LayoutTests/http/tests/multipart/multipart-replace-non-html-content-expected.txt.
+        * platform/mac/http/tests/multipart/multipart-replace-non-html-content-expected.txt:
+
+2015-10-14  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r191077. rdar://problem/22993325
+
+    2015-10-14  Alex Christensen  <achristensen@webkit.org>
+
+            [Content Extensions] Make blocked async XHR call onerror
+            https://bugs.webkit.org/show_bug.cgi?id=146706
+
+            Reviewed by Brady Eidson.
+
+            * http/tests/contentextensions/async-xhr-onerror-expected.txt: Added.
+            * http/tests/contentextensions/async-xhr-onerror.html: Added.
+            * http/tests/contentextensions/async-xhr-onerror.html.json: Added.
+
+2015-10-13  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r190570. rdar://problem/23075530
+
+    2015-10-05  Zalan Bujtas  <zalan@apple.com>
+
+            Mark the line dirty when RenderQuote's text changes.
+            https://bugs.webkit.org/show_bug.cgi?id=149784
+            rdar://problem/22558169
+
+            Reviewed by Antti Koivisto.
+
+            When quotation mark changes ( " -> ' or empty string), we
+            need to mark the line dirty to ensure its content gets laid out properly.
+
+            * fast/inline/quotation-text-changes-dynamically-expected.txt: Added.
+            * fast/inline/quotation-text-changes-dynamically.html: Added.
+
+2015-10-13  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r190339. rdar://problem/23075538
+
+    2015-09-29  Jon Honeycutt  <jhoneycutt@apple.com>
+
+            Avoid reparsing an XSLT stylesheet after the first failure.
+            https://bugs.webkit.org/show_bug.cgi?id=149188
+            <rdar://problem/22709912>
+
+            Reviewed by Dave Hyatt.
+
+            Patch by Jiewen Tan, jiewen_tan@apple.com.
+
+            * svg/custom/invalid-xslt-crash-expected.txt: Added.
+            * svg/custom/invalid-xslt-crash.svg: Added.
+
+2015-10-13  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r189421. rdar://problem/22802049
+
+    2015-09-04  Myles C. Maxfield  <mmaxfield@apple.com>
+
+            Crash when font completes downloading after calling 2D canvas setText() multiple times
+            https://bugs.webkit.org/show_bug.cgi?id=148789
+
+            Reviewed by Darin Adler.
+
+            * fast/canvas/font-selector-crash-expected.txt: Added.
+            * fast/canvas/font-selector-crash.html: Added.
+            * fast/canvas/resources/font-selector-crash.ttf: Added.
+
+2015-10-08  Lucas Forschler  <lforschler@apple.com>
+
+        Merge r190602. rdar://problem/22995830
+
+    2015-10-05  Alex Christensen  <achristensen@webkit.org>
+
+            Invalid CSS Selector for Content Blockers invalidates others
+            https://bugs.webkit.org/show_bug.cgi?id=148446
+            rdar://problem/22918235
+
+            Reviewed by Benjamin Poulain.
+
+            * http/tests/contentextensions/invalid-selector-expected.txt: Added.
+            * http/tests/contentextensions/invalid-selector.html: Added.
+            * http/tests/contentextensions/invalid-selector.html.json: Added.
+
+2015-10-08  Lucas Forschler  <lforschler@apple.com>
+
+        Merge r190375. rdar://problem/22881748
+
+    2015-09-30  Myles C. Maxfield  <mmaxfield@apple.com>
+
+            Crash when using an SVG font with > 390 glyphs
+            https://bugs.webkit.org/show_bug.cgi?id=149677
+            <rdar://problem/21676402>
+
+            Reviewed by Simon Fraser.
+
+            * svg/custom/many-glyphs-expected.svg: Added.
+            * svg/custom/many-glyphs.svg: Added.
+
+2015-10-08  Lucas Forschler  <lforschler@apple.com>
+
+        Merge r189976. rdar://problem/22824652
+
+    2015-09-18  Chris Dumez  <cdumez@apple.com>
+
+            REGRESSION (r182449, Mavericks ONLY): Pages re-open empty after swiping back and scrolling on them
+            https://bugs.webkit.org/show_bug.cgi?id=149317
+            <rdar://problem/22521514>
+
+            Reviewed by Tim Horton.
+
+            Skip a couple of PageCache layout tests on Mavericks now that a PageCache
+            optimization has been disabled.
+
+            * platform/mac/TestExpectations:
+
+2015-10-08  Lucas Forschler  <lforschler@apple.com>
+
+        Merge r189976. rdar://problem/22824652
+
+    2015-09-18  Chris Dumez  <cdumez@apple.com>
+
+            REGRESSION (r182449, Mavericks ONLY): Pages re-open empty after swiping back and scrolling on them
+            https://bugs.webkit.org/show_bug.cgi?id=149317
+            <rdar://problem/22521514>
+
+            Reviewed by Tim Horton.
+
+            Skip a couple of PageCache layout tests on Mavericks now that a PageCache
+            optimization has been disabled.
+
+            * platform/mac/TestExpectations:
+
+2015-10-08  Andy Estes  <aestes@apple.com>
+
+        Merge r188150, r188517, r188844, r188845, r188851, r188852, r188880, r188881, r188988, r189193, r189289, and r190133.
+        rdar://problem/22847063
+
+    2015-09-03  Andy Estes  <aestes@apple.com>
+
+            REGRESSION: http/tests/contentfiltering/block-after-redirect.html is flaky
+            https://bugs.webkit.org/show_bug.cgi?id=148684
+
+            Reviewed by Alexey Proskuryakov.
+
+            Wait for the iframe to load the blocked page before finishing the test.
+
+            * http/tests/contentfiltering/block-after-redirect.html:
+            * platform/mac-wk2/TestExpectations:
+
+    2015-08-26  Andy Estes  <aestes@apple.com>
+
+            [Content Filtering] Determine navigation and content policy before continuing to filter a load
+            https://bugs.webkit.org/show_bug.cgi?id=148506
+
+            Reviewed by Brady Eidson.
+
+            Added tests for what happens if the content filter does not make a decision when the load finishes.
+
+            * contentfiltering/allow-never-expected.html: Added.
+            * contentfiltering/allow-never.html: Added.
+            * contentfiltering/block-never-expected.html: Added.
+            * contentfiltering/block-never.html: Added.
+            * contentfiltering/resources/contentfiltering.js:
+
+    2015-08-26  Andy Estes  <aestes@apple.com>
+
+            Crash when following a Google search link to Twitter with Limit Adult Content enabled
+            https://bugs.webkit.org/show_bug.cgi?id=147651
+
+            Rubber-stamped by Brady Eidson.
+
+            Added a layout test.
+
+            * http/tests/contentfiltering/load-substitute-data-from-appcache-expected.txt: Added.
+            * http/tests/contentfiltering/load-substitute-data-from-appcache.html: Added.
+            * http/tests/contentfiltering/resources/appcache.html: Added.
+            * http/tests/contentfiltering/resources/appcache.manifest: Added.
+            * platform/mac-wk1/TestExpectations:
+
+2015-10-08  Lucas Forschler  <lforschler@apple.com>
+
+        Merge r188148. rdar://problem/22802036
+
+    2015-08-06  Dean Jackson  <dino@apple.com>
+
+            Shadows don't draw on fillText when using a gradient fill
+            https://bugs.webkit.org/show_bug.cgi?id=147758
+            <rdar://problem/20860912>
+
+            Reviewed by Myles Maxfield.
+
+            New test that exercises shadows on gradient fills. This really
+            should be a ref test, but there is a very small rendering difference
+            caused by masking, so instead it uses JS to look for pixels of
+            the correct color.
+
+            * fast/canvas/gradient-text-with-shadow-expected.txt: Added.
+            * fast/canvas/gradient-text-with-shadow.html: Added.
+
+2015-10-06  Benjamin Poulain  <bpoulain@apple.com>
+
+        We can't use let in JS on the safari-601 branch
+
+        * fast/css/indirect-adjacent-style-invalidation-1.html:
+        * fast/css/indirect-adjacent-style-invalidation-2.html:
+        * fast/css/indirect-adjacent-style-invalidation-3.html:
+
+2015-10-02  Babak Shafiei  <bshafiei@apple.com>
+
+        Merge r190418.
+
+    2015-10-01  Antti Koivisto  <antti@apple.com>
+
+            Network cache: Subresource referer header wrong after cached redirect
+            https://bugs.webkit.org/show_bug.cgi?id=149709
+            rdar://problem/22917174
+
+            Reviewed by Chris Dumez.
+
+            * http/tests/cache/redirect-referer-expected.html: Added.
+            * http/tests/cache/redirect-referer.html: Added.
+            * http/tests/cache/resources/load-and-check-referer.php: Added.
+            * http/tests/cache/resources/permanent-redirect.php: Added.
+            * http/tests/cache/resources/redirect-referer-iframe.html: Added.
+            * http/tests/cache/resources/redirect-referer-iframe-expected.html: Added.
+
+2015-10-02  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r189560. rdar://problem/22824659
+
+    2015-09-09  Benjamin Poulain  <bpoulain@apple.com>
+
+            CSS general sibling selectors does not work without CSS JIT
+            https://bugs.webkit.org/show_bug.cgi?id=148987
+            rdar://problem/22559860
+
+            Reviewed by Andreas Kling.
+
+            There are multiple variations of the same tests to test
+            cases where we JIT and cases without JIT.
+
+            * fast/css/indirect-adjacent-style-invalidation-1-expected.txt: Added.
+            * fast/css/indirect-adjacent-style-invalidation-1.html: Added.
+            * fast/css/indirect-adjacent-style-invalidation-2-expected.txt: Added.
+            * fast/css/indirect-adjacent-style-invalidation-2.html: Added.
+            * fast/css/indirect-adjacent-style-invalidation-3-expected.txt: Added.
+            * fast/css/indirect-adjacent-style-invalidation-3.html: Added.
+
+2015-10-02  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r188768. rdar://problem/22802019
+
+    2015-08-21  Joseph Pecoraro  <pecoraro@apple.com>
+
+            Web Inspector: REGRESSION(173684): Edit as HTML not working
+            https://bugs.webkit.org/show_bug.cgi?id=148268
+
+            Reviewed by Chris Dumez.
+
+            * inspector/dom/getOuterHTML-expected.txt: Added.
+            * inspector/dom/getOuterHTML.html: Added.
+            * inspector/dom/setOuterHTML-expected.txt: Added.
+            * inspector/dom/setOuterHTML.html: Added.
+
+2015-10-02  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r188755. rdar://problem/22802005
+
+    2015-08-21  Chris Dumez  <cdumez@apple.com>
+
+            Regression(r188698): http/tests/cache/disk-cache/disk-cache-revalidation-new-expire-header.html is very flaky
+            https://bugs.webkit.org/show_bug.cgi?id=148205
+
+            Reviewed by Antti Koivisto.
+
+            * http/tests/cache/disk-cache/disk-cache-revalidation-new-expire-header.html:
+            Drop temporary fix landed in r188698 to make the test less flaky.
+
+2015-10-02  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r188690. rdar://problem/22802006
+
+    2015-08-20  Chris Dumez  <cdumez@apple.com>
+
+            [Cocoa] Treat Epoch as invalid value for "Last-Modified" header
+            https://bugs.webkit.org/show_bug.cgi?id=148162
+            rdar://problem/22330837
+
+            Reviewed by Antti Koivisto.
+
+            Add better layout test coverage for using the "Last-Modified" header to
+            compute heuristic freshness. In particular, it adds coverage for the
+            following values: Epoch, malformed date.
+
+            * http/tests/cache/disk-cache/disk-cache-last-modified-expected.txt: Added.
+            * http/tests/cache/disk-cache/disk-cache-last-modified.html: Added.
+            New test.
+
+            * http/tests/cache/disk-cache/resources/cache-test.js:
+            (makeHeaderValue):
+            makeHeaderValue() was not resolving 'now(-1000)' into a date. This means that the
+            tests using it would end up sending an invalid "Last-Modified" header which our
+            networking code was translating to Epoch. We now ignore Epoch as Last-Modified
+            value for computing heuristic freshness to not cache due to malformed headers.
+
+2015-10-02  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r188640. rdar://problem/22802005
+
+    2015-08-19  Chris Dumez  <cdumez@apple.com>
+
+            WebKit may keep outdated entry in the disk cache after a reload
+            https://bugs.webkit.org/show_bug.cgi?id=148137
+            <rdar://problem/22299547>
+
+            Reviewed by Antti Koivisto.
+
+            Add layout test to make sure that stale disk cached entries are removed
+            when it becomes uncacheable.
+
+            * http/tests/cache/disk-cache/resource-becomes-uncacheable-expected.txt: Added.
+            * http/tests/cache/disk-cache/resource-becomes-uncacheable.html: Added.
+            * http/tests/cache/disk-cache/resources/generate-response-optionally-cacheable.cgi: Added.
+
+2015-10-02  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r188634. rdar://problem/22802013
+
+    2015-08-18  Myles C. Maxfield  <mmaxfield@apple.com>
+
+            [Cocoa] Punctuation near Hindi text is garbled when styled with the system font
+            https://bugs.webkit.org/show_bug.cgi?id=148164
+
+            Reviewed by Brian Burg.
+
+            This test is only relevant when the system font is set to Japanese or Simplified Chinese. In these
+            languages, the system font doesn't support punctuation, but CG will erroneously say that it does.
+
+            I intend to implement testing infrastructure which will allow us to mock the system language,
+            thereby allowing this test to be valid on all machines. The tracking bug for this effort is
+            https://bugs.webkit.org/show_bug.cgi?id=148168
+
+            * fast/text/hindi-system-font-punctuation-expected.html: Added.
+            * fast/text/hindi-system-font-punctuation.html: Added.
+
+2015-10-02  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r187921. rdar://problem/22801988
+
+    2015-08-04  Chris Dumez  <cdumez@apple.com>
+
+            Subframes with no current HistoryItem should not prevent page-caching
+            https://bugs.webkit.org/show_bug.cgi?id=147649
+            <rdar://problem/21614832>
+
+            Reviewed by Andreas Kling.
+
+            Add a layout test that covers page-caching of a page that contains an
+            iframe with no current HistoryItem. The sub-frame has no current
+            HistoryItem because its URL is invalid: "http://".
+
+            * http/tests/navigation/page-cache-iframe-no-current-historyItem-expected.txt: Added.
+            * http/tests/navigation/page-cache-iframe-no-current-historyItem.html: Added.
+            New test.
+
+            * platform/mac-wk1/TestExpectations:
+            Skip the new test on Mac WK1. The page is still not cacheable on Mac WK1
+            because WebFrameLoaderClient::canCachePage() returns false if the frame
+            does not contain HTML at the moment.
+
+2015-10-02  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r187593. rdar://problem/22801973
+
+    2015-07-30  Simon Fraser  <simon.fraser@apple.com>
+
+            Selecting in an iframe can cause main page scrolling
+            https://bugs.webkit.org/show_bug.cgi?id=147431
+            rdar://problem/19244589
+
+            Reviewed by Zalan Bujtas.
+
+            Test that uses eventSender to select in an iframe after scrolling the
+            main page.
+
+            * fast/events/autoscroll-in-iframe-expected.txt: Added.
+            * fast/events/autoscroll-in-iframe.html: Added.
+
+2015-10-02  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Merge r187210. rdar://problem/22801995
+
+    2015-07-22  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+            Coordinates-based snap offsets don't update correctly when container is scrolled
+            https://bugs.webkit.org/show_bug.cgi?id=147215
+
+            Reviewed by Brent Fulgham.
+
+            Tests that snap offsets update properly on scrolled containers.
+
+            * css3/scroll-snap/scroll-snap-coordinate-overflow-resize-expected.txt: Added.
+            * css3/scroll-snap/scroll-snap-coordinate-overflow-resize.html: Added.
+
+2015-09-12  Alexey Proskuryakov  <ap@apple.com>
+
+        Re-add Mavericks result with the correct path.
+
+        * platform/mac-mavericks/platform/mac/accessibility: Added.
+        * platform/mac-mavericks/platform/mac/accessibility/selection-sync-expected.txt: Added.
+        * platform/mac-mavericks/platform/mac/accessibilityselection-sync-expected.txt: Removed.
+
+2015-09-12  Alexey Proskuryakov  <ap@apple.com>
+
+        Roll out r189649, and just have custom results for Mavericks instead.
+
+        * platform/mac-mavericks/platform/mac/accessibilityselection-sync-expected.txt: Copied from LayoutTests/platform/mac/accessibility/selection-sync-expected.txt.
+        * platform/mac/accessibility/removing-textarea-after-edit-crash-expected.txt:
+        * platform/mac/accessibility/removing-textarea-after-edit-crash.html:
+        * platform/mac/accessibility/select-element-selection-with-optgroups.html:
+        * platform/mac/accessibility/selected-rows-table.html:
+        * platform/mac/accessibility/selection-notification-focus-change.html:
+        * platform/mac/accessibility/selection-sync-expected.txt:
+        * platform/mac/accessibility/selection-sync.html:
+        * platform/mac/accessibility/setting-attributes-is-asynchronous.html:
+
+2015-09-11  Alexey Proskuryakov  <ap@apple.com>
+
+        Merge r189221.
+
+    2015-09-01  Alexey Proskuryakov  <ap@apple.com>
+
+            Clean up asynchronous behavior in some accessibility tests
+            https://bugs.webkit.org/show_bug.cgi?id=148682
+
+            Reviewed by Darin Adler.
+
+            * platform/mac/accessibility/removing-textarea-after-edit-crash-expected.txt:
+            * platform/mac/accessibility/removing-textarea-after-edit-crash.html:
+            * platform/mac/accessibility/select-element-selection-with-optgroups.html:
+            * platform/mac/accessibility/selected-rows-table.html:
+            * platform/mac/accessibility/selection-notification-focus-change.html:
+            * platform/mac/accessibility/selection-sync-expected.txt:
+            * platform/mac/accessibility/selection-sync.html:
+            * platform/mac/accessibility/setting-attributes-is-asynchronous.html:
+
+2015-09-11  Alexey Proskuryakov  <ap@apple.com>
+
+        Update Mavericks test results after r189611.
+
+        This change wasn't needed on trunk because the behavior changed was masked by r189221.
+
+        * platform/mac/accessibility/selection-sync-expected.txt:
+
+2015-09-11  Alexey Proskuryakov  <ap@apple.com>
+
+        Test result gardening - correct the paths for the branch.
+
+        * platform/mac/TestExpectations:
+
+2015-09-11  Babak Shafiei  <bshafiei@apple.com>
+
+        Merge r189598.
+
+    2015-09-10  Chris Fleizach  <cfleizach@apple.com>
+
+            AX: Mavericks: Text cursor does not move along with VoiceOver cursor for text fields
+            https://bugs.webkit.org/show_bug.cgi?id=148891
+
+            Reviewed by Alexey Proskuryakov.
+
+            Mark accessibility focus tests as passing on Yosemite.
+
+            * platform/mac/TestExpectations:
+
+2015-09-11  Babak Shafiei  <bshafiei@apple.com>
+
+        Merge r189483.
+
+    2015-09-07  Chris Fleizach  <cfleizach@apple.com>
+
+            AX: Mavericks: Text cursor does not move along with VoiceOver cursor for text fields
+            https://bugs.webkit.org/show_bug.cgi?id=148891
+
+            Reviewed by Mario Sanchez Prada.
+
+            * accessibility/mac/focus-moves-cursor-expected.txt: Added.
+            * accessibility/mac/focus-moves-cursor.html: Added.
+
+2015-09-10  Babak Shafiei  <bshafiei@apple.com>
+
+        Merge r189469.
+
+    2015-09-07  Daniel Bates  <dabates@apple.com>
+
+            ASSERT_WITH_SECURITY_IMPLICATION in WebCore::DocumentOrderedMap::get(); update form
+            association after subtree insertion
+            https://bugs.webkit.org/show_bug.cgi?id=148919
+            <rdar://problem/21868036>
+
+            Reviewed by Andy Estes.
+
+            Add tests to ensure that updating the form association of a form control in a subtree
+            does not cause an assertion failure.
+
+            * fast/forms/update-form-owner-in-moved-subtree-assertion-failure-2-expected.txt: Added.
+            * fast/forms/update-form-owner-in-moved-subtree-assertion-failure-2.html: Added.
+            * fast/forms/update-form-owner-in-moved-subtree-assertion-failure-3-expected.txt: Added.
+            * fast/forms/update-form-owner-in-moved-subtree-assertion-failure-3.html: Added.
+            * fast/forms/update-form-owner-in-moved-subtree-assertion-failure-4-expected.txt: Added.
+            * fast/forms/update-form-owner-in-moved-subtree-assertion-failure-4.html: Added.
+            * fast/forms/update-form-owner-in-moved-subtree-assertion-failure-expected.txt: Added.
+            * fast/forms/update-form-owner-in-moved-subtree-assertion-failure.html: Added.
+
+2015-09-10  Alexey Proskuryakov  <ap@apple.com>
+
+        Test result gardening.
+
+        * platform/mac/TestExpectations:
+
+2015-09-08  Andy Estes  <aestes@apple.com>
+
+        Reverted r189001.
+
+2015-09-03  Babak Shafiei  <bshafiei@apple.com>
+
+        Merge r189167.
+
+    2015-08-31  Enrica Casucci  <enrica@apple.com>
+
+            Incorrect cursor movement for U+26F9, U+1F3CB with variations.
+            https://bugs.webkit.org/show_bug.cgi?id=148629
+            rdar://problem/22492366
+
+            Reviewed by Ryosuke Niwa.
+
+            The test has been updated to test these two emoji and to
+            cover the cursor movement as well.
+
+            * editing/deleting/delete-emoji-expected.txt:
+            * editing/deleting/delete-emoji.html:
+
+2015-09-03  Babak Shafiei  <bshafiei@apple.com>
+
+        Merge r189046.
+
+    2015-08-27  Basile Clement  <basile_clement@apple.com>
+
+            REGRESSION(r184779): Possible read-after-free in JavaScriptCore/dfg/DFGClobberize.h
+            https://bugs.webkit.org/show_bug.cgi?id=148411
+
+            Reviewed by Geoffrey Garen and Filip Pizlo.
+
+            * js/regress-148411-expected.txt: Added.
+            * js/regress-148411.html: Added.
+            * js/script-tests/regress-148411.js: Added.
+            (foo):
+
+2015-09-03  Babak Shafiei  <bshafiei@apple.com>
+
+        Merge r188340.
+
+    2015-08-12  Brent Fulgham  <bfulgham@apple.com>
+
+            REGRESSION(r185606): ASSERT in WebCore::RenderElement::styleWillChange
+            https://bugs.webkit.org/show_bug.cgi?id=147596
+            <rdar://problem/21963355>
+
+            Reviewed by Jon Honeycutt.
+
+            * css3/scroll-snap/improper-snap-points-crash-expected.txt: Added.
+            * css3/scroll-snap/improper-snap-points-crash.html: Added.
+
+2015-09-03  Babak Shafiei  <bshafiei@apple.com>
+
+        Merge r188271.
+
+    2015-08-11  Said Abou-Hallawa  <sabouhallawa@apple.com>
+
+            feMorphology is not rendered correctly on Retina display
+            https://bugs.webkit.org/show_bug.cgi?id=147589
+
+            Reviewed by Dean Jackson.
+
+            Ensure we take the filter scale factor into consideration when applying
+            the FEMorphology.
+
+            * fast/hidpi/filters-morphology-expected.html: Added.
+            * fast/hidpi/filters-morphology.html: Added.
+
+2015-09-03  Babak Shafiei  <bshafiei@apple.com>
+
+        Merge r188014.
+
+    2015-08-05  Chris Dumez  <cdumez@apple.com>
+
+            Crash when removing children of a MathMLSelectElement
+            https://bugs.webkit.org/show_bug.cgi?id=147704
+            <rdar://problem/21940321>
+
+            Reviewed by Ryosuke Niwa.
+
+            Add layout test that reproduces the crash under guardmalloc.
+
+            * mathml/maction-removeChild-expected.txt: Added.
+            * mathml/maction-removeChild.html: Added.
+
+2015-09-03  Babak Shafiei  <bshafiei@apple.com>
+
+        Merge r187564.
+
+    2015-07-29  Zalan Bujtas  <zalan@apple.com>
+
+            Remove the spanner placeholder from m_spannerMap when the placeholder object
+            gets transferred to a descendant flow.
+            https://bugs.webkit.org/show_bug.cgi?id=147380
+            rdar://problem/21981078
+
+            Reviewed by David Hyatt.
+
+            Before r180328, the spanner placeholder was removed from m_spannerMap through
+            RenderMultiColumnFlowThread::removeFlowChildInfo() by calling flowThreadRelativeWillBeRemoved()
+            when the placeholder renderer got transferred to the descendant flow.
+            Now we just remove it from the map when the renderer is being detached.
+
+            * fast/multicol/newmulticol/spanner-crash-with-embedded-columns-expected.txt: Added.
+            * fast/multicol/newmulticol/spanner-crash-with-embedded-columns.html: Added.
+
+2015-09-03  Babak Shafiei  <bshafiei@apple.com>
+
+        Merge r186984.
+
+    2015-07-17  Zalan Bujtas  <zalan@apple.com>
+
+            REGRESSION (r169105): Do not assign a renderer to multiple selection subtrees.
+            https://bugs.webkit.org/show_bug.cgi?id=147038
+            rdar://problem/21819351
+
+            Reviewed by David Kilzer.
+
+            A renderer should never be assigned to multiple selection subtrees. (Currently RenderObject maintains the last selection state.)
+            RenderView::applySubtreeSelection() loops from the start to the end of the selection to find renderers that are inside the selection.
+            However, in case of regions (when multiple selection roots are present) traversing the renderer tree by calling RenderObject::nextInPreOrder() could
+            end up going across selection roots.
+            This patch ensures that we assign renderers to a specific selection only when the current selection root and the renderer's selection root match.
+
+            * fast/regions/crash-when-renderer-is-in-multiple-selection-subtrees2-expected.txt: Added.
+            * fast/regions/crash-when-renderer-is-in-multiple-selection-subtrees2.html: Added.
+
+2015-08-28  Babak Shafiei  <bshafiei@apple.com>
+
+        Merge r189024.
+
+    2015-08-27  Enrica Casucci  <enrica@apple.com>
+
+            Add some new emoji with modifiers and new sequence.
+            https://bugs.webkit.org/show_bug.cgi?id=148202
+            rdar://problem/21849857
+
+            Reviewed by Sam Weinig.
+
+            Updated test to reflect the changes.
+
+            * editing/deleting/delete-emoji-expected.txt:
+            * editing/deleting/delete-emoji.html:
+
 2015-08-26  Andy Estes  <aestes@apple.com>
 
         Merge r188988.

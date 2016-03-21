@@ -896,6 +896,8 @@ private:
     IntSize scrollbarOffset(const Scrollbar*) const;
     
     void updateScrollableAreaSet(bool hasOverflow);
+    
+    bool allowsCurrentScroll() const;
 
     void dirtyAncestorChainVisibleDescendantStatus();
     void setAncestorChainHasVisibleDescendant();

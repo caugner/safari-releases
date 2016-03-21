@@ -81,6 +81,11 @@ fast/text/emoji.html [ Skip ]
 # This test has been added for ios port since r185842.
 fast/text/arabic-times-new-roman.html [ Skip ]
 
+css3/font-feature-settings-rendering-2.html [ Skip ]
+
+# Need to implement font feature seeting for EFL port since r188146.
+css3/font-feature-settings-rendering.html [ Skip ]
+
 # ----------------------------------------
 # Tests which also fail in other platforms
 # ----------------------------------------
@@ -313,6 +318,9 @@ webkit.org/b/85465 compositing/filters [ Skip ]
 
 # CSS image-resolution is not yet enabled.
 webkit.org/b/85262 fast/css/image-resolution
+
+# Some CSS properties not supported on EFL
+fast/css/will-change/will-change-creates-stacking-context.html [ ImageOnlyFailure ]
 
 # Perf tests are really slow in debug builds and there are few benefits in running them.
 [ Debug ] perf [ WontFix ]
@@ -659,6 +667,8 @@ webkit.org/b/136099 fast/harness/show-modal-dialog.html [ Crash Timeout ]
 webkit.org/b/136227 mathml/very-large-stretchy-operators.html [ Crash Timeout Pass ]
 
 #webkit.org/b/142158 inspector-protocol/dom/remove-multiple-nodes.html [ Crash Pass ]
+
+webkit.org/b/147018 inspector/css/get-system-fonts.html [ Skip ]
 
 #////////////////////////////////////////////////////////////////////////////////////////
 # FLAKY TESTS
@@ -2291,3 +2301,6 @@ accessibility/content-editable-as-textarea.html [ Missing ]
 
 # This test uses an MPEG-4 video
 media/video-seek-to-current-time.html [ Skip ]
+
+# This test relies on iOS-specific font fallback.
+fast/text/arabic-glyph-cache-fill-combine.html [ ImageOnlyFailure ]

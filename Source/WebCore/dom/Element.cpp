@@ -973,7 +973,7 @@ LayoutRect Element::absoluteEventBounds(bool& boundsIncludeAllDescendantElements
         // Get the bounding rectangle from the SVG model.
         SVGElement& svgElement = downcast<SVGElement>(*this);
         FloatRect localRect;
-        if (svgElement.getBoundingBox(localRect))
+        if (svgElement.getBoundingBox(localRect, SVGLocatable::DisallowStyleUpdate))
             result = LayoutRect(renderer()->localToAbsoluteQuad(localRect, UseTransforms, &includesFixedPositionElements).boundingBox());
     } else {
         if (is<RenderBox>(renderer())) {
@@ -1562,7 +1562,7 @@ void Element::removedFrom(ContainerNode& insertionPoint)
     if (insertionPoint.isInTreeScope()) {
         TreeScope* oldScope = &insertionPoint.treeScope();
         HTMLDocument* oldDocument = inDocument() && is<HTMLDocument>(oldScope->documentScope()) ? &downcast<HTMLDocument>(oldScope->documentScope()) : nullptr;
-        if (oldScope != &treeScope() || !isInTreeScope())
+        if (!isInTreeScope() || &treeScope() != &document())
             oldScope = nullptr;
 
         const AtomicString& idValue = getIdAttribute();
@@ -2182,7 +2182,8 @@ void Element::updateFocusAppearanceAfterAttachIfNeeded()
 void Element::updateFocusAppearance(bool /*restorePreviousSelection*/)
 {
     if (isRootEditableElement()) {
-        Frame* frame = document().frame();
+        // Keep frame alive in this method, since setSelection() may release the last reference to |frame|.
+        RefPtr<Frame> frame = document().frame();
         if (!frame)
             return;
         

@@ -995,6 +995,8 @@ void WebPage::close()
     // The WebPage can be destroyed by this call.
     WebProcess::singleton().removeWebPage(m_pageID);
 
+    WebProcess::singleton().updateActivePages();
+
     if (isRunningModal)
         RunLoop::main().stop();
 }
@@ -2226,6 +2228,27 @@ void WebPage::touchEventSyncForTesting(const WebTouchEvent& touchEvent, bool& ha
     CurrentEvent currentEvent(touchEvent);
     handled = handleTouchEvent(touchEvent, m_page.get());
 }
+#endif
+
+#if ENABLE(MAC_GESTURE_EVENTS)
+static bool handleGestureEvent(const WebGestureEvent& event, Page* page)
+{
+    if (!page->mainFrame().view())
+        return false;
+
+    return page->mainFrame().eventHandler().handleGestureEvent(platform(event));
+}
+
+void WebPage::gestureEvent(const WebGestureEvent& gestureEvent)
+{
+    bool handled = false;
+    if (canHandleUserEvents()) {
+        CurrentEvent currentEvent(gestureEvent);
+        handled = handleGestureEvent(gestureEvent, m_page.get());
+    }
+    send(Messages::WebPageProxy::DidReceiveEvent(static_cast<uint32_t>(gestureEvent.type()), handled));
+}
+
 #endif
 
 bool WebPage::scroll(Page* page, ScrollDirection direction, ScrollGranularity granularity)

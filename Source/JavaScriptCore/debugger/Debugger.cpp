@@ -160,6 +160,7 @@ Debugger::Debugger(bool isInWorkerThread)
     , m_breakpointsActivated(true)
     , m_hasHandlerForExceptionCallback(false)
     , m_isInWorkerThread(isInWorkerThread)
+    , m_suppressAllPauses(false)
     , m_steppingMode(SteppingModeDisabled)
     , m_reasonForPause(NotPaused)
     , m_pauseOnCallFrame(0)
@@ -479,6 +480,10 @@ bool Debugger::hasBreakpoint(SourceID sourceID, const TextPosition& position, Br
     if (hitBreakpoint)
         *hitBreakpoint = *breakpoint;
 
+    breakpoint->hitCount++;
+    if (breakpoint->ignoreCount >= breakpoint->hitCount)
+        return false;
+
     if (breakpoint->condition.isEmpty())
         return true;
 
@@ -580,10 +585,12 @@ void Debugger::breakProgram()
     if (m_isPaused)
         return;
 
+    if (!m_vm->topCallFrame)
+        return;
+
     m_pauseOnNextStatement = true;
     setSteppingMode(SteppingModeEnabled);
     m_currentCallFrame = m_vm->topCallFrame;
-    ASSERT(m_currentCallFrame);
     pauseIfNeeded(m_currentCallFrame);
 }
 
@@ -646,6 +653,9 @@ void Debugger::updateCallFrameAndPauseIfNeeded(CallFrame* callFrame)
 void Debugger::pauseIfNeeded(CallFrame* callFrame)
 {
     if (m_isPaused)
+        return;
+
+    if (m_suppressAllPauses)
         return;
 
     JSGlobalObject* vmEntryGlobalObject = callFrame->vmEntryGlobalObject();

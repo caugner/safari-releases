@@ -432,7 +432,12 @@ void URL::invalidate()
 URL::URL(ParsedURLStringTag, const String& url)
 {
     parse(url);
+#if OS(WINDOWS)
+    // FIXME(148598): Work around Windows local file handling bug in CFNetwork
+    ASSERT(isLocalFile() || url == m_string);
+#else
     ASSERT(url == m_string);
+#endif
 }
 
 URL::URL(const URL& base, const String& relative)
@@ -1589,6 +1594,23 @@ bool protocolHostAndPortAreEqual(const URL& a, const URL& b)
     if (a.port() != b.port())
         return false;
 
+    return true;
+}
+
+bool hostsAreEqual(const URL& a, const URL& b)
+{
+    int hostStartA = a.hostStart();
+    int hostLengthA = a.hostEnd() - hostStartA;
+    int hostStartB = b.hostStart();
+    int hostLengthB = b.hostEnd() - hostStartB;
+    if (hostLengthA != hostLengthB)
+        return false;
+
+    for (int i = 0; i < hostLengthA; ++i) {
+        if (a.string()[hostStartA + i] != b.string()[hostStartB + i])
+            return false;
+    }
+    
     return true;
 }
 

@@ -312,6 +312,15 @@ void RenderBox::styleWillChange(StyleDifference diff, const RenderStyle& newStyl
     } else if (isBody())
         view().repaintRootContents();
 
+#if ENABLE(CSS_SCROLL_SNAP)
+    if (!newStyle.scrollSnapCoordinates().isEmpty() || (oldStyle && !oldStyle->scrollSnapCoordinates().isEmpty())) {
+        if (newStyle.scrollSnapCoordinates().isEmpty())
+            view().unregisterBoxWithScrollSnapCoordinates(*this);
+        else
+            view().registerBoxWithScrollSnapCoordinates(*this);
+    }
+#endif
+
     RenderBoxModelObject::styleWillChange(diff, newStyle);
 }
 
@@ -424,6 +433,17 @@ void RenderBox::styleDidChange(StyleDifference diff, const RenderStyle* oldStyle
         updateShapeOutsideInfoAfterStyleChange(style(), oldStyle);
 #endif
 }
+
+void RenderBox::willBeRemovedFromTree()
+{
+#if ENABLE(CSS_SCROLL_SNAP)
+    if (hasInitializedStyle() && !style().scrollSnapCoordinates().isEmpty())
+        view().unregisterBoxWithScrollSnapCoordinates(*this);
+#endif
+    
+    RenderBoxModelObject::willBeRemovedFromTree();
+}
+    
 
 #if ENABLE(CSS_SHAPES)
 void RenderBox::updateShapeOutsideInfoAfterStyleChange(const RenderStyle& style, const RenderStyle* oldStyle)
@@ -865,7 +885,7 @@ bool RenderBox::logicalScroll(ScrollLogicalDirection direction, ScrollGranularit
 
 bool RenderBox::canBeScrolledAndHasScrollableArea() const
 {
-    return canBeProgramaticallyScrolled() && (scrollHeight() != roundToInt(clientHeight()) || scrollWidth() != roundToInt(clientWidth()));
+    return canBeProgramaticallyScrolled() && (hasHorizontalOverflow() || hasVerticalOverflow());
 }
 
 bool RenderBox::isScrollableOrRubberbandableBox() const
@@ -873,6 +893,7 @@ bool RenderBox::isScrollableOrRubberbandableBox() const
     return canBeScrolledAndHasScrollableArea();
 }
 
+// FIXME: This is badly named. overflow:hidden can be programmatically scrolled, yet this returns false in that case.
 bool RenderBox::canBeProgramaticallyScrolled() const
 {
     if (isRenderView())
@@ -881,8 +902,7 @@ bool RenderBox::canBeProgramaticallyScrolled() const
     if (!hasOverflowClip())
         return false;
 
-    bool hasScrollableOverflow = hasScrollableOverflowX() || hasScrollableOverflowY();
-    if (scrollsOverflow() && hasScrollableOverflow)
+    if (hasScrollableOverflowX() || hasScrollableOverflowY())
         return true;
 
     return element() && element()->hasEditableStyle();
