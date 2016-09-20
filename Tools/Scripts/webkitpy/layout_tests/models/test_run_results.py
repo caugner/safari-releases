@@ -27,6 +27,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import datetime
 import logging
 import signal
 
@@ -37,6 +38,7 @@ from webkitpy.layout_tests.models import test_failures
 _log = logging.getLogger(__name__)
 
 INTERRUPTED_EXIT_STATUS = signal.SIGINT + 128
+
 
 class TestRunResults(object):
     def __init__(self, expectations, num_tests):
@@ -67,6 +69,8 @@ class TestRunResults(object):
     def add(self, test_result, expected, test_is_slow):
         self.tests_by_expectation[test_result.type].add(test_result.test_name)
         self.results_by_name[test_result.test_name] = test_result
+        if test_result.is_other_crash:
+            return
         if test_result.type != test_expectations.SKIP:
             self.all_results.append(test_result)
         self.remaining -= 1
@@ -120,6 +124,7 @@ def _interpret_test_failures(failures):
 
     return test_dict
 
+
 # These results must match ones in print_unexpected_results() in views/buildbot_results.py.
 def summarize_results(port_obj, expectations, initial_results, retry_results, enabled_pixel_tests_in_retry, include_passes=False, include_time_and_modifiers=False):
     """Returns a dictionary containing a summary of the test runs, with the following fields:
@@ -131,9 +136,10 @@ def summarize_results(port_obj, expectations, initial_results, retry_results, en
         'num_missing': The number of tests with missing results
         'num_passes': The number of unexpected passes
         'tests': a dict of tests -> {'expected': '...', 'actual': '...'}
+        'date': the current date and time
     """
     results = {}
-    results['version'] = 3
+    results['version'] = 4
 
     tbe = initial_results.tests_by_expectation
     tbt = initial_results.tests_by_timeline
@@ -152,6 +158,7 @@ def summarize_results(port_obj, expectations, initial_results, retry_results, en
         keywords[modifier_enum] = modifier_string.upper()
 
     tests = {}
+    other_crashes_dict = {}
 
     for test_name, result in initial_results.results_by_name.iteritems():
         # Note that if a test crashed in the original run, we ignore
@@ -162,6 +169,10 @@ def summarize_results(port_obj, expectations, initial_results, retry_results, en
         actual = [keywords[result_type]]
 
         if result_type == test_expectations.SKIP:
+            continue
+
+        if result.is_other_crash:
+            other_crashes_dict[test_name] = {}
             continue
 
         test_dict = {}
@@ -256,6 +267,8 @@ def summarize_results(port_obj, expectations, initial_results, retry_results, en
     results['layout_tests_dir'] = port_obj.layout_tests_dir()
     results['has_pretty_patch'] = port_obj.pretty_patch.pretty_patch_available()
     results['pixel_tests_enabled'] = port_obj.get_option('pixel_tests')
+    results['other_crashes'] = other_crashes_dict
+    results['date'] = datetime.datetime.now().strftime("%I:%M%p on %B %d, %Y")
 
     try:
         # We only use the svn revision for using trac links in the results.html file,

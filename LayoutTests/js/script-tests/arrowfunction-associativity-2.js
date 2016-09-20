@@ -1,5 +1,3 @@
-//@ skip
-
 description('Tests for ES6 arrow function nested declaration');
 
 debug("af = a => b => a")

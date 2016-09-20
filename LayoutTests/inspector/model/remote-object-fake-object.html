@@ -5,7 +5,7 @@
 <script>
 function test()
 {
-    var fakeObject = WebInspector.RemoteObject.createFakeRemoteObject();
+    let fakeObject = WebInspector.RemoteObject.createFakeRemoteObject();
 
     InspectorTest.assert(fakeObject instanceof WebInspector.RemoteObject);
     InspectorTest.assert(fakeObject.objectId === WebInspector.RemoteObject.FakeRemoteObjectId);

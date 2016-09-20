@@ -1,11 +1,11 @@
 layer at (0,0) size 785x11396
   RenderView at (0,0) size 785x600
 layer at (0,0) size 785x11396
-  RenderBlock {HTML} at (0,0) size 785x11396
-    RenderBody {BODY} at (8,8) size 769x11380
-      RenderTable {TABLE} at (0,0) size 739x11380 [border: (1px outset #808080)]
-        RenderTableSection {TBODY} at (1,1) size 737x11378
-          RenderTableRow {TR} at (0,2) size 737x11374
+  RenderBlock {HTML} at (0,0) size 785x11397
+    RenderBody {BODY} at (8,8) size 769x11381
+      RenderTable {TABLE} at (0,0) size 739x11381 [border: (1px outset #808080)]
+        RenderTableSection {TBODY} at (1,1) size 737x11379
+          RenderTableRow {TR} at (0,2) size 737x11375
             RenderTableCell {TD} at (2,2) size 12x21 [border: (1px inset #808080)] [r=0 c=0 rs=1 cs=1]
               RenderText {#text} at (2,2) size 8x17
                 text run at (2,2) width 8: "x"

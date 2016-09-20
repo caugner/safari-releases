@@ -31,7 +31,7 @@ PASS parseThenSerializeRule('[n|a] { }') is '[n|a] { }'
 
 PASS parseThenSerializeRule('a:active { }') is 'a:active { }'
 PASS parseThenSerializeRule('a b { }') is 'a b { }'
-FAIL parseThenSerializeRule('a >> b { }') should be a >> b { }. Threw exception TypeError: undefined is not an object (evaluating 'styleElement.sheet.cssRules[0].cssText')
+PASS parseThenSerializeRule('a >> b { }') is 'a >> b { }'
 PASS parseThenSerializeRule('a + b { }') is 'a + b { }'
 PASS parseThenSerializeRule('a ~ b { }') is 'a ~ b { }'
 PASS parseThenSerializeRule('a > b { }') is 'a > b { }'
@@ -207,6 +207,35 @@ PASS parseThenSerializeRule('a.b::-webkit-slider-thumb { }') is 'a.b::-webkit-sl
 PASS parseThenSerializeRule('a#b::-webkit-slider-thumb { }') is 'a#b::-webkit-slider-thumb { }'
 PASS parseThenSerializeRule('a[b].c#d::-webkit-slider-thumb { }') is 'a[b].c#d::-webkit-slider-thumb { }'
 
+PASS parseThenSerializeRule('a[b]::placeholder { }') is 'a[b]::placeholder { }'
+PASS parseThenSerializeRule('a.b::placeholder { }') is 'a.b::placeholder { }'
+PASS parseThenSerializeRule('a#b::placeholder { }') is 'a#b::placeholder { }'
+PASS parseThenSerializeRule('a[b].c#d::placeholder { }') is 'a[b].c#d::placeholder { }'
+PASS parseThenSerializeRule('a[b]::-webkit-input-placeholder { }') is 'a[b]::-webkit-input-placeholder { }'
+PASS parseThenSerializeRule('a.b::-webkit-input-placeholder { }') is 'a.b::-webkit-input-placeholder { }'
+PASS parseThenSerializeRule('a#b::-webkit-input-placeholder { }') is 'a#b::-webkit-input-placeholder { }'
+PASS parseThenSerializeRule('a[b].c#d::-webkit-input-placeholder { }') is 'a[b].c#d::-webkit-input-placeholder { }'
+
+PASS parseThenSerializeRule('a[b]:default { }') is 'a[b]:default { }'
+PASS parseThenSerializeRule('a.b:default { }') is 'a.b:default { }'
+PASS parseThenSerializeRule('a#b:default { }') is 'a#b:default { }'
+PASS parseThenSerializeRule('a[b].c#d:default { }') is 'a[b].c#d:default { }'
+
+PASS parseThenSerializeRule('a[b]:in-range { }') is 'a[b]:in-range { }'
+PASS parseThenSerializeRule('a.b:in-range { }') is 'a.b:in-range { }'
+PASS parseThenSerializeRule('a#b:in-range { }') is 'a#b:in-range { }'
+PASS parseThenSerializeRule('a[b].c#d:in-range { }') is 'a[b].c#d:in-range { }'
+
+PASS parseThenSerializeRule('a[b]:out-of-range { }') is 'a[b]:out-of-range { }'
+PASS parseThenSerializeRule('a.b:out-of-range { }') is 'a.b:out-of-range { }'
+PASS parseThenSerializeRule('a#b:out-of-range { }') is 'a#b:out-of-range { }'
+PASS parseThenSerializeRule('a[b].c#d:out-of-range { }') is 'a[b].c#d:out-of-range { }'
+
+PASS parseThenSerializeRule('a[b]:focus-within { }') is 'a[b]:focus-within { }'
+PASS parseThenSerializeRule('a.b:focus-within { }') is 'a.b:focus-within { }'
+PASS parseThenSerializeRule('a#b:focus-within { }') is 'a#b:focus-within { }'
+PASS parseThenSerializeRule('a[b].c#d:focus-within { }') is 'a[b].c#d:focus-within { }'
+
 PASS parseThenSerializeRule('input:not([type="file"]):focus { }') is 'input:not([type="file"]):focus { }'
 PASS parseThenSerializeRule(':-webkit-any([type="file"]) { }') is ':-webkit-any([type="file"]) { }'
 PASS parseThenSerializeRule(':-webkit-any(:hover) { }') is ':-webkit-any(:hover) { }'
@@ -228,12 +257,12 @@ PASS parseThenSerializeRule('|a { }') is 'a { }'
 
 PASS parseThenSerializeRule('input[type=file]:focus { }') is 'input[type="file"]:focus { }'
 
-FAIL parseThenSerializeRule('a>>b { }') should be a >> b { }. Threw exception TypeError: undefined is not an object (evaluating 'styleElement.sheet.cssRules[0].cssText')
-FAIL parseThenSerializeRule('a >>b { }') should be a >> b { }. Threw exception TypeError: undefined is not an object (evaluating 'styleElement.sheet.cssRules[0].cssText')
-FAIL parseThenSerializeRule('a        >>b { }') should be a >> b { }. Threw exception TypeError: undefined is not an object (evaluating 'styleElement.sheet.cssRules[0].cssText')
-FAIL parseThenSerializeRule('a>> b { }') should be a >> b { }. Threw exception TypeError: undefined is not an object (evaluating 'styleElement.sheet.cssRules[0].cssText')
-FAIL parseThenSerializeRule('a>>       b { }') should be a >> b { }. Threw exception TypeError: undefined is not an object (evaluating 'styleElement.sheet.cssRules[0].cssText')
-FAIL parseThenSerializeRule('a        >>       b { }') should be a >> b { }. Threw exception TypeError: undefined is not an object (evaluating 'styleElement.sheet.cssRules[0].cssText')
+PASS parseThenSerializeRule('a>>b { }') is 'a >> b { }'
+PASS parseThenSerializeRule('a >>b { }') is 'a >> b { }'
+PASS parseThenSerializeRule('a        >>b { }') is 'a >> b { }'
+PASS parseThenSerializeRule('a>> b { }') is 'a >> b { }'
+PASS parseThenSerializeRule('a>>       b { }') is 'a >> b { }'
+PASS parseThenSerializeRule('a        >>       b { }') is 'a >> b { }'
 PASS parseThenSerializeRule('a+b { }') is 'a + b { }'
 PASS parseThenSerializeRule('a~b { }') is 'a ~ b { }'
 PASS parseThenSerializeRule('a>b { }') is 'a > b { }'
@@ -400,7 +429,7 @@ PASS parseThenSerializeRule(':lang(*-    ) { }') threw exception TypeError: unde
 PASS parseThenSerializeRule(':lang(*--) { }') threw exception TypeError: undefined is not an object (evaluating 'styleElement.sheet.cssRules[0].cssText').
 PASS parseThenSerializeRule(':lang(*---) { }') threw exception TypeError: undefined is not an object (evaluating 'styleElement.sheet.cssRules[0].cssText').
 PASS parseThenSerializeRule(':lang(*----) { }') threw exception TypeError: undefined is not an object (evaluating 'styleElement.sheet.cssRules[0].cssText').
-PASS parseThenSerializeRule(':lang(*)' { }) threw exception SyntaxError: Unexpected token '{'. Expected ')' to end a argument list..
+PASS parseThenSerializeRule(':lang(*)' { }) threw exception SyntaxError: Unexpected token '{'. Expected ')' to end an argument list..
 PASS parseThenSerializeRule(':lang(**) { }') threw exception TypeError: undefined is not an object (evaluating 'styleElement.sheet.cssRules[0].cssText').
 PASS parseThenSerializeRule(':lang(-*-) { }') threw exception TypeError: undefined is not an object (evaluating 'styleElement.sheet.cssRules[0].cssText').
 PASS parseThenSerializeRule(':lang(*-*) { }') threw exception TypeError: undefined is not an object (evaluating 'styleElement.sheet.cssRules[0].cssText').
@@ -427,10 +456,10 @@ PASS parseThenSerializeRule(':lang(   *-1996   ,  *-1997   ) { }') threw excepti
 PASS parseThenSerializeRule(':lang(   *-1996   ,*-1997   ) { }') threw exception TypeError: undefined is not an object (evaluating 'styleElement.sheet.cssRules[0].cssText').
 PASS parseThenSerializeRule(':lang(   *-1996,*-1997   ) { }') threw exception TypeError: undefined is not an object (evaluating 'styleElement.sheet.cssRules[0].cssText').
 
-FAIL parseThenSerializeRule(':role(a) { }') should be :role(a) { }. Threw exception TypeError: undefined is not an object (evaluating 'styleElement.sheet.cssRules[0].cssText')
-FAIL parseThenSerializeRule(':role(button) { }') should be :role(button) { }. Threw exception TypeError: undefined is not an object (evaluating 'styleElement.sheet.cssRules[0].cssText')
-FAIL parseThenSerializeRule(':role(LiNk) { }') should be :role(LiNk) { }. Threw exception TypeError: undefined is not an object (evaluating 'styleElement.sheet.cssRules[0].cssText')
-FAIL parseThenSerializeRule(':role( a    ) { }') should be :role(a) { }. Threw exception TypeError: undefined is not an object (evaluating 'styleElement.sheet.cssRules[0].cssText')
+PASS parseThenSerializeRule(':role(a) { }') is ':role(a) { }'
+PASS parseThenSerializeRule(':role(button) { }') is ':role(button) { }'
+PASS parseThenSerializeRule(':role(LiNk) { }') is ':role(LiNk) { }'
+PASS parseThenSerializeRule(':role( a    ) { }') is ':role(a) { }'
 
 PASS parseThenSerializeRule(':role() { }') threw exception TypeError: undefined is not an object (evaluating 'styleElement.sheet.cssRules[0].cssText').
 PASS parseThenSerializeRule(':role(42) { }') threw exception TypeError: undefined is not an object (evaluating 'styleElement.sheet.cssRules[0].cssText').
@@ -441,11 +470,11 @@ PASS parseThenSerializeRule(':role(role()) { }') threw exception TypeError: unde
 PASS parseThenSerializeRule(':role(:role()) { }') threw exception TypeError: undefined is not an object (evaluating 'styleElement.sheet.cssRules[0].cssText').
 PASS parseThenSerializeRule(':role(:role(a)) { }') threw exception TypeError: undefined is not an object (evaluating 'styleElement.sheet.cssRules[0].cssText').
 
-FAIL parseThenSerializeRule(':dir(ltr) { }') should be :dir(ltr) { }. Threw exception TypeError: undefined is not an object (evaluating 'styleElement.sheet.cssRules[0].cssText')
-FAIL parseThenSerializeRule(':dir(rtl) { }') should be :dir(rtl) { }. Threw exception TypeError: undefined is not an object (evaluating 'styleElement.sheet.cssRules[0].cssText')
-FAIL parseThenSerializeRule(':dir(LTR) { }') should be :dir(LTR) { }. Threw exception TypeError: undefined is not an object (evaluating 'styleElement.sheet.cssRules[0].cssText')
-FAIL parseThenSerializeRule(':dir(aBcD) { }') should be :dir(aBcD) { }. Threw exception TypeError: undefined is not an object (evaluating 'styleElement.sheet.cssRules[0].cssText')
-FAIL parseThenSerializeRule(':dir( a    ) { }') should be :dir(a) { }. Threw exception TypeError: undefined is not an object (evaluating 'styleElement.sheet.cssRules[0].cssText')
+PASS parseThenSerializeRule(':dir(ltr) { }') is ':dir(ltr) { }'
+PASS parseThenSerializeRule(':dir(rtl) { }') is ':dir(rtl) { }'
+PASS parseThenSerializeRule(':dir(LTR) { }') is ':dir(LTR) { }'
+PASS parseThenSerializeRule(':dir(aBcD) { }') is ':dir(aBcD) { }'
+PASS parseThenSerializeRule(':dir( a    ) { }') is ':dir(a) { }'
 
 PASS parseThenSerializeRule(':dir() { }') threw exception TypeError: undefined is not an object (evaluating 'styleElement.sheet.cssRules[0].cssText').
 PASS parseThenSerializeRule(':dir(42) { }') threw exception TypeError: undefined is not an object (evaluating 'styleElement.sheet.cssRules[0].cssText').

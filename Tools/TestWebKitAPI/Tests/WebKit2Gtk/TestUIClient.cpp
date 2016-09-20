@@ -27,6 +27,7 @@ static const char* kAlertDialogMessage = "WebKitGTK+ alert dialog message";
 static const char* kConfirmDialogMessage = "WebKitGTK+ confirm dialog message";
 static const char* kPromptDialogMessage = "WebKitGTK+ prompt dialog message";
 static const char* kPromptDialogReturnedText = "WebKitGTK+ prompt dialog returned text";
+static const char* kBeforeUnloadConfirmDialogMessage = "WebKitGTK+ beforeunload dialog message";
 
 class UIClientTest: public WebViewTest {
 public:
@@ -146,6 +147,9 @@ public:
         case WEBKIT_SCRIPT_DIALOG_PROMPT:
             g_assert_cmpstr(webkit_script_dialog_get_message(dialog), ==, kPromptDialogReturnedText);
             break;
+        case WEBKIT_SCRIPT_DIALOG_BEFORE_UNLOAD_CONFIRM:
+            g_assert_not_reached();
+            break;
         }
 
         g_main_loop_quit(m_mainLoop);
@@ -165,6 +169,13 @@ public:
         webkit_script_dialog_prompt_set_text(dialog, kPromptDialogReturnedText);
     }
 
+    void scriptBeforeUnloadConfirm(WebKitScriptDialog* dialog)
+    {
+        g_assert_cmpstr(webkit_script_dialog_get_message(dialog), ==, kBeforeUnloadConfirmDialogMessage);
+        m_scriptDialogConfirmed = true;
+        webkit_script_dialog_confirm_set_confirmed(dialog, m_scriptDialogConfirmed);
+    }
+
     static gboolean scriptDialog(WebKitWebView*, WebKitScriptDialog* dialog, UIClientTest* test)
     {
         switch (webkit_script_dialog_get_dialog_type(dialog)) {
@@ -176,6 +187,9 @@ public:
             break;
         case WEBKIT_SCRIPT_DIALOG_PROMPT:
             test->scriptPrompt(dialog);
+            break;
+        case WEBKIT_SCRIPT_DIALOG_BEFORE_UNLOAD_CONFIRM:
+            test->scriptBeforeUnloadConfirm(dialog);
             break;
         }
 
@@ -211,8 +225,15 @@ public:
         return TRUE;
     }
 
+    static void permissionResultMessageReceivedCallback(WebKitUserContentManager* userContentManager, WebKitJavascriptResult* javascriptResult, UIClientTest* test)
+    {
+        test->m_permissionResult.reset(WebViewTest::javascriptResultToCString(javascriptResult));
+        g_main_loop_quit(test->m_mainLoop);
+    }
+
     UIClientTest()
-        : m_scriptDialogType(WEBKIT_SCRIPT_DIALOG_ALERT)
+        : WebViewTest(webkit_user_content_manager_new())
+        , m_scriptDialogType(WEBKIT_SCRIPT_DIALOG_ALERT)
         , m_scriptDialogConfirmed(true)
         , m_allowPermissionRequests(false)
         , m_verifyMediaTypes(false)
@@ -225,16 +246,47 @@ public:
         g_signal_connect(m_webView, "script-dialog", G_CALLBACK(scriptDialog), this);
         g_signal_connect(m_webView, "mouse-target-changed", G_CALLBACK(mouseTargetChanged), this);
         g_signal_connect(m_webView, "permission-request", G_CALLBACK(permissionRequested), this);
+        WebKitUserContentManager* manager = webkit_web_view_get_user_content_manager(m_webView);
+        webkit_user_content_manager_register_script_message_handler(manager, "permission");
+        g_signal_connect(manager, "script-message-received::permission", G_CALLBACK(permissionResultMessageReceivedCallback), this);
     }
 
     ~UIClientTest()
     {
         g_signal_handlers_disconnect_matched(m_webView, G_SIGNAL_MATCH_DATA, 0, 0, 0, 0, this);
+        WebKitUserContentManager* manager = webkit_web_view_get_user_content_manager(m_webView);
+        g_signal_handlers_disconnect_matched(manager, G_SIGNAL_MATCH_DATA, 0, 0, 0, 0, this);
+        webkit_user_content_manager_unregister_script_message_handler(manager, "permission");
+    }
+
+    static void tryWebViewCloseCallback(UIClientTest* test)
+    {
+        g_main_loop_quit(test->m_mainLoop);
+    }
+
+    void tryCloseAndWaitUntilClosed()
+    {
+        gulong handler = g_signal_connect_swapped(m_webView, "close", G_CALLBACK(tryWebViewCloseCallback), this);
+        // Use an idle because webkit_web_view_try_close can emit the close signal in the
+        // current run loop iteration.
+        g_idle_add([](gpointer data) -> gboolean {
+            webkit_web_view_try_close(WEBKIT_WEB_VIEW(data));
+            return G_SOURCE_REMOVE;
+        }, m_webView);
+        g_main_loop_run(m_mainLoop);
+        g_signal_handler_disconnect(m_webView, handler);
     }
 
     void waitUntilMainLoopFinishes()
     {
         g_main_loop_run(m_mainLoop);
+    }
+
+    const char* waitUntilPermissionResultMessageReceived()
+    {
+        m_permissionResult = nullptr;
+        g_main_loop_run(m_mainLoop);
+        return m_permissionResult.get();
     }
 
     void setExpectedWindowProperties(const WindowProperties& windowProperties)
@@ -304,6 +356,7 @@ public:
     HashSet<WTF::String> m_windowPropertiesChanged;
     GRefPtr<WebKitHitTestResult> m_mouseTargetHitTestResult;
     unsigned m_mouseTargetModifiers;
+    GUniquePtr<char> m_permissionResult;
 };
 
 static void testWebViewCreateReadyClose(UIClientTest* test, gconstpointer)
@@ -473,24 +526,71 @@ static void testWebViewJavaScriptDialogs(UIClientTest* test, gconstpointer)
     static const char* jsAlertFormat = "alert('%s')";
     static const char* jsConfirmFormat = "do { confirmed = confirm('%s'); } while (!confirmed); alert('confirmed');";
     static const char* jsPromptFormat = "alert(prompt('%s', 'default'));";
+    static const char* htmlOnBeforeUnloadFormat =
+        "<html><body onbeforeunload=\"return beforeUnloadHandler();\"><script>function beforeUnloadHandler() { return \"%s\"; }</script></body></html>";
 
     test->m_scriptDialogType = WEBKIT_SCRIPT_DIALOG_ALERT;
     GUniquePtr<char> alertDialogMessage(g_strdup_printf(jsAlertFormat, kAlertDialogMessage));
     GUniquePtr<char> alertHTML(g_strdup_printf(htmlOnLoadFormat, alertDialogMessage.get()));
     test->loadHtml(alertHTML.get(), 0);
     test->waitUntilMainLoopFinishes();
+    webkit_web_view_stop_loading(test->m_webView);
+    test->waitUntilLoadFinished();
 
     test->m_scriptDialogType = WEBKIT_SCRIPT_DIALOG_CONFIRM;
     GUniquePtr<char> confirmDialogMessage(g_strdup_printf(jsConfirmFormat, kConfirmDialogMessage));
     GUniquePtr<char> confirmHTML(g_strdup_printf(htmlOnLoadFormat, confirmDialogMessage.get()));
     test->loadHtml(confirmHTML.get(), 0);
     test->waitUntilMainLoopFinishes();
+    webkit_web_view_stop_loading(test->m_webView);
+    test->waitUntilLoadFinished();
 
     test->m_scriptDialogType = WEBKIT_SCRIPT_DIALOG_PROMPT;
     GUniquePtr<char> promptDialogMessage(g_strdup_printf(jsPromptFormat, kPromptDialogMessage));
     GUniquePtr<char> promptHTML(g_strdup_printf(htmlOnLoadFormat, promptDialogMessage.get()));
     test->loadHtml(promptHTML.get(), 0);
     test->waitUntilMainLoopFinishes();
+    webkit_web_view_stop_loading(test->m_webView);
+    test->waitUntilLoadFinished();
+
+    test->m_scriptDialogType = WEBKIT_SCRIPT_DIALOG_BEFORE_UNLOAD_CONFIRM;
+    GUniquePtr<char> beforeUnloadDialogHTML(g_strdup_printf(htmlOnBeforeUnloadFormat, kBeforeUnloadConfirmDialogMessage));
+    test->loadHtml(beforeUnloadDialogHTML.get(), nullptr);
+    test->waitUntilLoadFinished();
+
+    // Reload should trigger onbeforeunload.
+#if 0
+    // FIXME: reloading HTML data doesn't emit finished load event.
+    // See https://bugs.webkit.org/show_bug.cgi?id=139089.
+    test->m_scriptDialogConfirmed = false;
+    webkit_web_view_reload(test->m_webView);
+    test->waitUntilLoadFinished();
+    g_assert(test->m_scriptDialogConfirmed);
+#endif
+
+    // Navigation should trigger onbeforeunload.
+    test->m_scriptDialogConfirmed = false;
+    test->loadHtml("<html></html>", nullptr);
+    test->waitUntilLoadFinished();
+    g_assert(test->m_scriptDialogConfirmed);
+
+    // Try close should trigger onbeforeunload.
+    test->m_scriptDialogConfirmed = false;
+    test->loadHtml(beforeUnloadDialogHTML.get(), nullptr);
+    test->waitUntilLoadFinished();
+    test->tryCloseAndWaitUntilClosed();
+    g_assert(test->m_scriptDialogConfirmed);
+
+    // Try close on a page with no unload handlers should not trigger onbeforeunload,
+    // but should actually close the page.
+    test->m_scriptDialogConfirmed = false;
+    test->loadHtml("<html><body></body></html>", nullptr);
+    test->waitUntilLoadFinished();
+    // We got a onbeforeunload of the previous page.
+    g_assert(test->m_scriptDialogConfirmed);
+    test->m_scriptDialogConfirmed = false;
+    test->tryCloseAndWaitUntilClosed();
+    g_assert(!test->m_scriptDialogConfirmed);
 }
 
 static void testWebViewWindowProperties(UIClientTest* test, gconstpointer)
@@ -535,7 +635,6 @@ static void testWebViewMouseTarget(UIClientTest* test, gconstpointer)
         " <img style='position:absolute; left:1; top:10' src='0xdeadbeef' width=5 height=5></img>"
         " <a style='position:absolute; left:1; top:20' href='http://www.webkitgtk.org/logo' title='WebKitGTK+ Logo'><img src='0xdeadbeef' width=5 height=5></img></a>"
         " <input style='position:absolute; left:1; top:30' size='10'></input>"
-        " <div style='position:absolute; left:1; top:50; width:30; height:30; overflow:scroll'>&nbsp;</div>"
         " <video style='position:absolute; left:1; top:100' width='300' height='300' controls='controls' preload='none'><source src='movie.ogg' type='video/ogg' /></video>"
         " <p style='position:absolute; left:1; top:120' id='text_to_select'>Lorem ipsum.</p>"
         "</body></html>";
@@ -611,7 +710,7 @@ static void testWebViewMouseTarget(UIClientTest* test, gconstpointer)
     g_assert(!test->m_mouseTargetModifiers);
 
     // Move over scrollbar.
-    hitTestResult = test->moveMouseAndWaitUntilMouseTargetChanged(5, 75);
+    hitTestResult = test->moveMouseAndWaitUntilMouseTargetChanged(gtk_widget_get_allocated_width(GTK_WIDGET(test->m_webView)) - 4, 5);
     g_assert(!webkit_hit_test_result_context_is_link(hitTestResult));
     g_assert(!webkit_hit_test_result_context_is_image(hitTestResult));
     g_assert(!webkit_hit_test_result_context_is_media(hitTestResult));
@@ -644,31 +743,33 @@ static void testWebViewGeolocationPermissionRequests(UIClientTest* test, gconstp
         "  <script>"
         "  function runTest()"
         "  {"
-        "    navigator.geolocation.getCurrentPosition(function(p) { document.title = \"OK\" },"
-        "                                             function(e) { document.title = e.code });"
+        "    navigator.geolocation.getCurrentPosition(function(p) { window.webkit.messageHandlers.permission.postMessage('OK'); },"
+        "                                             function(e) { window.webkit.messageHandlers.permission.postMessage(e.code.toString()); });"
         "  }"
         "  </script>"
         "  <body onload='runTest();'></body>"
         "</html>";
 
-    // Test denying a permission request.
+    // Geolocation is not allowed from insecure connections like HTTP,
+    // POSITION_UNAVAILABLE ('2') is returned in that case without even
+    // asking the API layer.
     test->m_allowPermissionRequests = false;
-    test->loadHtml(geolocationRequestHTML, 0);
-    test->waitUntilTitleChanged();
+    test->loadHtml(geolocationRequestHTML, "http://foo.com/bar");
+    const gchar* result = test->waitUntilPermissionResultMessageReceived();
+    g_assert_cmpstr(result, ==, "2");
 
-    // According to the Geolocation API specification, '1' is the
-    // error code returned for the PERMISSION_DENIED error.
-    // http://dev.w3.org/geo/api/spec-source.html#position_error_interface
-    const gchar* result = webkit_web_view_get_title(test->m_webView);
+    // Test denying a permission request. PERMISSION_DENIED ('1') is
+    // returned in this case.
+    test->m_allowPermissionRequests = false;
+    test->loadHtml(geolocationRequestHTML, "https://foo.com/bar");
+    result = test->waitUntilPermissionResultMessageReceived();
     g_assert_cmpstr(result, ==, "1");
 
-    // Test allowing a permission request.
+    // Test allowing a permission request. Result should be different
+    // to PERMISSION_DENIED ('1').
     test->m_allowPermissionRequests = true;
-    test->loadHtml(geolocationRequestHTML, 0);
-    test->waitUntilTitleChanged();
-
-    // Check that we did not get the PERMISSION_DENIED error now.
-    result = webkit_web_view_get_title(test->m_webView);
+    test->loadHtml(geolocationRequestHTML, "https://foo.com/bar");
+    result = test->waitUntilPermissionResultMessageReceived();
     g_assert_cmpstr(result, !=, "1");
     test->addLogFatalFlag(G_LOG_LEVEL_WARNING);
 }

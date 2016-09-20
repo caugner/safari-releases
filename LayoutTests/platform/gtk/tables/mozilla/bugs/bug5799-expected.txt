@@ -60,9 +60,9 @@ layer at (0,0) size 800x600
               RenderText {#text} at (2,2) size 33x34
                 text run at (2,2) width 33: "some"
                 text run at (2,19) width 23: "text"
-            RenderTableCell {TD} at (41,10) size 364x21 [border: (1px inset #808080)] [r=0 c=1 rs=1 cs=1]
-              RenderText {#text} at (2,2) size 8x17
-                text run at (2,2) width 8: "x"
-            RenderTableCell {TD} at (407,10) size 365x21 [border: (1px inset #808080)] [r=0 c=2 rs=1 cs=1]
-              RenderText {#text} at (2,2) size 8x17
-                text run at (2,2) width 8: "x"
+            RenderTableCell {TD} at (41,10) size 365x22 [border: (1px inset #808080)] [r=0 c=1 rs=1 cs=1]
+              RenderText {#text} at (2,2) size 8x18
+                text run at (2,3) width 8: "x"
+            RenderTableCell {TD} at (407,10) size 365x22 [border: (1px inset #808080)] [r=0 c=2 rs=1 cs=1]
+              RenderText {#text} at (2,2) size 8x18
+                text run at (2,3) width 8: "x"

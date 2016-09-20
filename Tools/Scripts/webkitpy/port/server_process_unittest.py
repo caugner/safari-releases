@@ -37,7 +37,6 @@ from webkitpy.common.system.systemhost_mock import MockSystemHost
 from webkitpy.common.system.outputcapture import OutputCapture
 
 
-
 class TrivialMockPort(object):
     def __init__(self):
         self.host = MockSystemHost()
@@ -108,7 +107,10 @@ class TestServerProcess(unittest.TestCase):
         proc = server_process.ServerProcess(port, 'python', cmd)
         proc.write('')
 
-        self.assertEqual(proc.poll(), None)
+        if sys.platform.startswith('win'):
+            self.assertEqual(proc.poll(), 0)
+        else:
+            self.assertEqual(proc.poll(), None)
         self.assertFalse(proc.has_crashed())
 
         # check that doing a read after an expired deadline returns

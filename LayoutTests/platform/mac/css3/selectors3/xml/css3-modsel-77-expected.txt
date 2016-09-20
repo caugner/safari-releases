@@ -12,7 +12,7 @@ layer at (0,0) size 800x126
             RenderTableCell {td} at (28,2) size 67x22 [bgcolor=#00FF00] [border: (1px solid #000000)] [r=0 c=1 rs=1 cs=1]
               RenderText {#text} at (2,2) size 63x18
                 text run at (2,2) width 63: "green cell"
-            RenderTableCell {td} at (97,2) size 67x22 [bgcolor=#00FF00] [border: (1px solid #000000)] [r=0 c=2 rs=1 cs=1]
+            RenderTableCell {td} at (96,2) size 68x22 [bgcolor=#00FF00] [border: (1px solid #000000)] [r=0 c=2 rs=1 cs=1]
               RenderText {#text} at (2,2) size 63x18
                 text run at (2,2) width 63: "green cell"
           RenderTableRow {tr} at (0,26) size 166x22
@@ -22,7 +22,7 @@ layer at (0,0) size 800x126
             RenderTableCell {td} at (28,26) size 67x22 [bgcolor=#00FF00] [border: (1px solid #000000)] [r=1 c=1 rs=1 cs=1]
               RenderText {#text} at (2,2) size 63x18
                 text run at (2,2) width 63: "green cell"
-            RenderTableCell {td} at (97,26) size 67x22 [bgcolor=#00FF00] [border: (1px solid #000000)] [r=1 c=2 rs=1 cs=1]
+            RenderTableCell {td} at (96,26) size 68x22 [bgcolor=#00FF00] [border: (1px solid #000000)] [r=1 c=2 rs=1 cs=1]
               RenderText {#text} at (2,2) size 63x18
                 text run at (2,2) width 63: "green cell"
           RenderTableRow {tr} at (0,50) size 166x22
@@ -32,7 +32,7 @@ layer at (0,0) size 800x126
             RenderTableCell {td} at (28,50) size 67x22 [bgcolor=#00FF00] [border: (1px solid #000000)] [r=2 c=1 rs=1 cs=1]
               RenderText {#text} at (2,2) size 63x18
                 text run at (2,2) width 63: "green cell"
-            RenderTableCell {td} at (97,50) size 67x22 [bgcolor=#00FF00] [border: (1px solid #000000)] [r=2 c=2 rs=1 cs=1]
+            RenderTableCell {td} at (96,50) size 68x22 [bgcolor=#00FF00] [border: (1px solid #000000)] [r=2 c=2 rs=1 cs=1]
               RenderText {#text} at (2,2) size 63x18
                 text run at (2,2) width 63: "green cell"
     RenderBlock {p} at (0,92) size 800x18

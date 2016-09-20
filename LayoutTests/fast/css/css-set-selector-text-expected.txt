@@ -41,7 +41,7 @@ PASS setThenReadSelectorText('[n|a]') is '[n|a]'
 
 PASS setThenReadSelectorText('a:active') is 'a:active'
 PASS setThenReadSelectorText('a b') is 'a b'
-FAIL setThenReadSelectorText('a >> b') should be a >> b. Was _foo.
+PASS setThenReadSelectorText('a >> b') is 'a >> b'
 PASS setThenReadSelectorText('a + b') is 'a + b'
 PASS setThenReadSelectorText('a ~ b') is 'a ~ b'
 PASS setThenReadSelectorText('a > b') is 'a > b'
@@ -64,11 +64,11 @@ PASS setThenReadSelectorText(':root') is ':root'
 PASS setThenReadSelectorText(':target') is ':target'
 PASS setThenReadSelectorText(':visited') is ':visited'
 
-FAIL setThenReadSelectorText(':dir(a)') should be :dir(a). Was _foo.
+PASS setThenReadSelectorText(':dir(a)') is ':dir(a)'
 PASS setThenReadSelectorText(':lang("a")') is ':lang("a")'
 PASS setThenReadSelectorText(':lang(a)') is ':lang("a")'
 PASS setThenReadSelectorText(':not(a)') is ':not(a)'
-FAIL setThenReadSelectorText(':role(a)') should be :role(a). Was _foo.
+PASS setThenReadSelectorText(':role(a)') is ':role(a)'
 PASS setThenReadSelectorText(':-webkit-any(a, b, p)') is ':-webkit-any(a, b, p)'
 
 PASS setThenReadSelectorText('::after') is '::after'
@@ -209,6 +209,35 @@ PASS setThenReadSelectorText('a.b::-webkit-slider-thumb') is 'a.b::-webkit-slide
 PASS setThenReadSelectorText('a#b::-webkit-slider-thumb') is 'a#b::-webkit-slider-thumb'
 PASS setThenReadSelectorText('a[b].c#d::-webkit-slider-thumb') is 'a[b].c#d::-webkit-slider-thumb'
 
+PASS setThenReadSelectorText('a[b]::placeholder') is 'a[b]::placeholder'
+PASS setThenReadSelectorText('a.b::placeholder') is 'a.b::placeholder'
+PASS setThenReadSelectorText('a#b::placeholder') is 'a#b::placeholder'
+PASS setThenReadSelectorText('a[b].c#d::placeholder') is 'a[b].c#d::placeholder'
+PASS setThenReadSelectorText('a[b]::-webkit-input-placeholder') is 'a[b]::-webkit-input-placeholder'
+PASS setThenReadSelectorText('a.b::-webkit-input-placeholder') is 'a.b::-webkit-input-placeholder'
+PASS setThenReadSelectorText('a#b::-webkit-input-placeholder') is 'a#b::-webkit-input-placeholder'
+PASS setThenReadSelectorText('a[b].c#d::-webkit-input-placeholder') is 'a[b].c#d::-webkit-input-placeholder'
+
+PASS setThenReadSelectorText('a[b]:default') is 'a[b]:default'
+PASS setThenReadSelectorText('a.b:default') is 'a.b:default'
+PASS setThenReadSelectorText('a#b:default') is 'a#b:default'
+PASS setThenReadSelectorText('a[b].c#d:default') is 'a[b].c#d:default'
+
+PASS setThenReadSelectorText('a[b]:in-range') is 'a[b]:in-range'
+PASS setThenReadSelectorText('a.b:in-range') is 'a.b:in-range'
+PASS setThenReadSelectorText('a#b:in-range') is 'a#b:in-range'
+PASS setThenReadSelectorText('a[b].c#d:in-range') is 'a[b].c#d:in-range'
+
+PASS setThenReadSelectorText('a[b]:out-of-range') is 'a[b]:out-of-range'
+PASS setThenReadSelectorText('a.b:out-of-range') is 'a.b:out-of-range'
+PASS setThenReadSelectorText('a#b:out-of-range') is 'a#b:out-of-range'
+PASS setThenReadSelectorText('a[b].c#d:out-of-range') is 'a[b].c#d:out-of-range'
+
+PASS setThenReadSelectorText('a[b]:focus-within') is 'a[b]:focus-within'
+PASS setThenReadSelectorText('a.b:focus-within') is 'a.b:focus-within'
+PASS setThenReadSelectorText('a#b:focus-within') is 'a#b:focus-within'
+PASS setThenReadSelectorText('a[b].c#d:focus-within') is 'a[b].c#d:focus-within'
+
 PASS setThenReadSelectorText('input:not([type="file"]):focus') is 'input:not([type="file"]):focus'
 PASS setThenReadSelectorText(':-webkit-any([type="file"])') is ':-webkit-any([type="file"])'
 PASS setThenReadSelectorText(':-webkit-any(:hover)') is ':-webkit-any(:hover)'
@@ -223,12 +252,12 @@ PASS setThenReadSelectorText('|a') is 'a'
 
 PASS setThenReadSelectorText('input[type=file]:focus') is 'input[type="file"]:focus'
 
-FAIL setThenReadSelectorText('a>>b') should be a >> b. Was _foo.
-FAIL setThenReadSelectorText('a >>b') should be a >> b. Was _foo.
-FAIL setThenReadSelectorText('a        >>b') should be a >> b. Was _foo.
-FAIL setThenReadSelectorText('a>> b') should be a >> b. Was _foo.
-FAIL setThenReadSelectorText('a>>       b') should be a >> b. Was _foo.
-FAIL setThenReadSelectorText('a        >>       b') should be a >> b. Was _foo.
+PASS setThenReadSelectorText('a>>b') is 'a >> b'
+PASS setThenReadSelectorText('a >>b') is 'a >> b'
+PASS setThenReadSelectorText('a        >>b') is 'a >> b'
+PASS setThenReadSelectorText('a>> b') is 'a >> b'
+PASS setThenReadSelectorText('a>>       b') is 'a >> b'
+PASS setThenReadSelectorText('a        >>       b') is 'a >> b'
 PASS setThenReadSelectorText('a+b') is 'a + b'
 PASS setThenReadSelectorText('a~b') is 'a ~ b'
 PASS setThenReadSelectorText('a>b') is 'a > b'

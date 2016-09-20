@@ -3,7 +3,6 @@ Ensure IDBDatabase wrapper isn't prematurely collected.
 On success, you will see a series of "PASS" messages, followed by "TEST COMPLETE".
 
 
-dbname = "database-wrapper.html"
 indexedDB.deleteDatabase(dbname)
 
 openDB():
@@ -26,9 +25,6 @@ indexedDB.open(dbname, 2)
 onVersionChange():
 event.target.close()
 sawVersionChangeEvent = true
-
-onBlocked():
-FIXME: Blocked event shouldn't fire. http://crbug.com/100123
 
 openAgainSuccess():
 PASS sawVersionChangeEvent is true

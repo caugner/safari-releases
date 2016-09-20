@@ -1,9 +1,9 @@
 # Copyright (c) 2009, Google Inc. All rights reserved.
-# 
+#
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are
 # met:
-# 
+#
 #     * Redistributions of source code must retain the above copyright
 # notice, this list of conditions and the following disclaimer.
 #     * Redistributions in binary form must reproduce the above
@@ -13,7 +13,7 @@
 #     * Neither the name of Google Inc. nor the names of its
 # contributors may be used to endorse or promote products derived from
 # this software without specific prior written permission.
-# 
+#
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 # "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 # LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -46,7 +46,7 @@ _log = logging.getLogger(__name__)
 try:
     import readline
 except ImportError:
-    if sys.platform != "win32":
+    if not sys.platform.startswith('win32'):
         # There is no readline module for win32, not much to do except cry.
         _log.warn("Unable to import readline.")
 
@@ -126,7 +126,10 @@ class User(object):
         editor = os.environ.get("EDITOR") or "vi"
         args = shlex.split(editor)
         # Note: Not thread safe: http://bugs.python.org/issue2320
-        subprocess.call(args + files)
+        try:
+            subprocess.call(args + files)
+        except OSError, e:
+            _log.warn("There was a problem editing the ChangeLog using editor '%s': %s." % (editor, e))
 
     def _warn_if_application_is_xcode(self, edit_application):
         if "Xcode" in edit_application:

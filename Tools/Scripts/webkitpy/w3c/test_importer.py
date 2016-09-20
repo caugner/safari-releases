@@ -147,6 +147,9 @@ def parse_args(args):
     parser.add_argument('--import-all', action='store_true', default=False,
          help='Ignore the ImportExpectations file. All tests will be imported. This option only applies when tests are downloaded from W3C repository')
 
+    parser.add_argument('--clean-dest-dir', action='store_true', dest='clean_destination_directory', default=False,
+         help='Clean destination directory. All files in the destination directory will be deleted except for WebKit specific files (test expectations, .gitignore...) before new tests import. Dangling test expectations (expectation file that is no longer related to a test) are removed after tests import.')
+
     options, args = parser.parse_known_args(args)
     if len(args) > 1:
         parser.error('Incorrect number of arguments')
@@ -166,10 +169,13 @@ class TestImporter(object):
         self._webkit_root = webkit_finder.webkit_base()
 
         self.destination_directory = webkit_finder.path_from_webkit_base("LayoutTests", options.destination)
-        self.layout_tests_w3c_path = webkit_finder.path_from_webkit_base('LayoutTests', 'imported', 'w3c')
+        self.tests_w3c_relative_path = self.filesystem.join('imported', 'w3c')
+        self.layout_tests_w3c_path = webkit_finder.path_from_webkit_base('LayoutTests', self.tests_w3c_relative_path)
         self.tests_download_path = webkit_finder.path_from_webkit_base('WebKitBuild', 'w3c-tests')
 
         self._test_downloader = None
+
+        self._potential_test_resource_files = []
 
         self.import_list = []
         self._importing_downloaded_tests = source_directory is None
@@ -182,13 +188,19 @@ class TestImporter(object):
             self.filesystem.maybe_make_directory(self.source_directory)
             self.test_downloader().download_tests(self.source_directory, self.options.test_paths)
 
-        if not self.options.test_paths or self._importing_downloaded_tests:
-            self.find_importable_tests(self.source_directory)
-        else:
-            for test_path in self.options.test_paths:
-                self.find_importable_tests(self.filesystem.join(self.source_directory, test_path))
+        test_paths = self.options.test_paths if self.options.test_paths else [test_repository['name'] for test_repository in self.test_downloader().test_repositories]
+        for test_path in test_paths:
+            self.find_importable_tests(self.filesystem.join(self.source_directory, test_path))
+
+        if self.options.clean_destination_directory:
+            for test_path in test_paths:
+                self.clean_destination_directory(test_path)
 
         self.import_tests()
+
+        if self.options.clean_destination_directory:
+            for test_path in test_paths:
+                self.remove_dangling_expectations(test_path)
 
         if self._importing_downloaded_tests:
             self.generate_git_submodules_description_for_all_repositories()
@@ -198,7 +210,13 @@ class TestImporter(object):
             if 'generate_git_submodules_description' in test_repository['import_options']:
                 self.filesystem.maybe_make_directory(self.filesystem.join(self.destination_directory, 'resources'))
                 self._test_downloader.generate_git_submodules_description(test_repository, self.filesystem.join(self.destination_directory, 'resources', test_repository['name'] + '-modules.json'))
-            # FIXME: Generate WPT .gitignore and  main __init__.py
+            if 'generate_gitignore' in test_repository['import_options']:
+                self._test_downloader.generate_gitignore(test_repository, self.destination_directory)
+            if 'generate_init_py' in test_repository['import_options']:
+                self.write_init_py(self.filesystem.join(self.destination_directory, test_repository['name'], '__init__.py'))
+
+    def write_init_py(self, filepath):
+        self.filesystem.write_text_file(filepath, '# This file is required for Python to search this directory for modules.')
 
     def test_downloader(self):
         if not self._test_downloader:
@@ -216,6 +234,29 @@ class TestImporter(object):
         if filename.startswith('.'):
             return not filename == '.htaccess'
         return False
+
+    def _is_baseline(self, filesystem, dirname, filename):
+        return filename.endswith('-expected.txt')
+
+    def _should_remove_before_importing(self, filesystem, dirname, filename):
+        if self._is_baseline(filesystem, dirname, filename):
+            return False
+        if filename.startswith("."):
+            return False
+        return True
+
+    def clean_destination_directory(self, filename):
+        directory = self.filesystem.join(self.destination_directory, filename)
+        for relative_path in self.filesystem.files_under(directory, file_filter=self._should_remove_before_importing):
+            self.filesystem.remove(self.filesystem.join(directory, relative_path))
+
+    def remove_dangling_expectations(self, filename):
+        #FIXME: Clean also the expected files stored in all platform specific folders.
+        directory = self.filesystem.join(self.destination_directory, filename)
+        for relative_path in self.filesystem.files_under(directory, file_filter=self._is_baseline):
+            path = self.filesystem.join(directory, relative_path)
+            if self.filesystem.glob(path.replace('-expected.txt', '*')) == [path]:
+                self.filesystem.remove(path)
 
     def find_importable_tests(self, directory):
         def should_keep_subdir(filesystem, path):
@@ -253,9 +294,17 @@ class TestImporter(object):
                 test_parser = TestParser(vars(self.options), filename=fullpath, host=self.host)
                 test_info = test_parser.analyze_test()
                 if test_info is None:
-                    # If html file is in a "resources" folder, it should be copied anyway
-                    if self.filesystem.basename(self.filesystem.dirname(fullpath)) == "resources":
-                        copy_list.append({'src': fullpath, 'dest': filename})
+                    # This is probably a resource file.
+                    if self.filesystem.basename(self.filesystem.dirname(fullpath)) != "resources":
+                        self._potential_test_resource_files.append({'src': fullpath, 'dest': filename})
+                    copy_list.append({'src': fullpath, 'dest': filename})
+                    continue
+
+                if 'manualtest' in test_info.keys():
+                    continue
+
+                if 'referencefile' in test_info.keys():
+                    # Skip it since, the corresponding reference test should have a link to this file
                     continue
 
                 if 'reference' in test_info.keys():
@@ -269,7 +318,7 @@ class TestImporter(object):
                     # Using a naming convention creates duplicate copies of the
                     # reference files.
                     ref_file = self.filesystem.splitext(test_basename)[0] + '-expected'
-                    ref_file += self.filesystem.splitext(test_basename)[1]
+                    ref_file += self.filesystem.splitext(test_info['reference'])[1]
 
                     copy_list.append({'src': test_info['reference'], 'dest': ref_file, 'reference_support_info': test_info['reference_support_info']})
                     copy_list.append({'src': test_info['test'], 'dest': filename})
@@ -385,7 +434,7 @@ class TestImporter(object):
                         self.filesystem.write_binary_file(new_filepath, converted_file[2])
                 elif orig_filepath.endswith('__init__.py') and not self.filesystem.getsize(orig_filepath):
                     # Some bots dislike empty __init__.py.
-                    self.filesystem.write_text_file(new_filepath, '# This file is required for Python to search this directory for modules.')
+                    self.write_init_py(new_filepath)
                 else:
                     self.filesystem.copyfile(orig_filepath, new_filepath)
 
@@ -413,6 +462,11 @@ class TestImporter(object):
         for prefixed_value in sorted(total_prefixed_property_values, key=lambda p: total_prefixed_property_values[p]):
             _log.info('  %s: %s', prefixed_value, total_prefixed_property_values[prefixed_value])
 
+        if self._potential_test_resource_files:
+            _log.info('The following files may be resource files and should be marked as skipped in the TestExpectations:')
+            for filename in sorted([test['src'] for test in self._potential_test_resource_files]):
+                _log.info(filename.replace(self.source_directory, self.tests_w3c_relative_path) + ' [ Skip ]')
+
     def remove_deleted_files(self, import_directory, new_file_list):
         """ Reads an import log in |import_directory|, compares it to the |new_file_list|, and removes files not in the new list."""
 
@@ -439,12 +493,12 @@ class TestImporter(object):
 
         import_log = []
         import_log.append('The tests in this directory were imported from the W3C repository.\n')
-        import_log.append('Do NOT modify these tests directly in Webkit.\n')
+        import_log.append('Do NOT modify these tests directly in WebKit.\n')
         import_log.append('Instead, create a pull request on the W3C CSS or WPT github:\n')
         import_log.append('\thttps://github.com/w3c/csswg-test\n')
         import_log.append('\thttps://github.com/w3c/web-platform-tests\n\n')
-        import_log.append('Then run the Tools/Scripts/import-w3c-tests in Webkit to reimport\n\n')
-        import_log.append('Do NOT modify or remove this file\n\n')
+        import_log.append('Then run the Tools/Scripts/import-w3c-tests in WebKit to reimport\n\n')
+        import_log.append('Do NOT modify or remove this file.\n\n')
         import_log.append('------------------------------------------------------------------------\n')
         import_log.append('Properties requiring vendor prefixes:\n')
         if prop_list:

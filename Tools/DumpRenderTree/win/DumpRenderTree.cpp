@@ -847,6 +847,14 @@ static void resetWebPreferencesToConsistentValues(IWebPreferences* preferences)
 
     preferences->setFontSmoothing(FontSmoothingTypeStandard);
 
+    COMPtr<IWebPreferencesPrivate3> prefsPrivate3(Query, preferences);
+    ASSERT(prefsPrivate3);
+    prefsPrivate3->setFetchAPIEnabled(TRUE);
+    prefsPrivate3->setShadowDOMEnabled(TRUE);
+    prefsPrivate3->setCustomElementsEnabled(TRUE);
+
+    prefsPrivate3->setDOMIteratorEnabled(TRUE);
+
     setAlwaysAcceptCookies(false);
 }
 
@@ -889,8 +897,12 @@ static void resetWebViewToConsistentStateBeforeTesting()
     }
 
     COMPtr<IWebViewPrivate2> webViewPrivate(Query, webView);
-    if (webViewPrivate)
+    if (webViewPrivate) {
+        POINT origin = { 0, 0 };
+        webViewPrivate->scaleWebView(1.0, origin);
+        webViewPrivate->setCustomBackingScaleFactor(0);
         webViewPrivate->setTabKeyCyclesThroughElements(TRUE);
+    }
 
     webView->setPolicyDelegate(nullptr);
     policyDelegate->setPermissive(false);
@@ -1147,6 +1159,13 @@ static void runTest(const string& inputLine)
     // EventSendingController clearSavedEvents
     workQueue.clear();
 
+    // If the test page could have possibly opened the Web Inspector frontend,
+    // then try to close it in case it was accidentally left open.
+    if (shouldEnableDeveloperExtras(pathOrURL.c_str())) {
+        ::gTestRunner->closeWebInspector();
+        ::gTestRunner->setDeveloperExtrasEnabled(false);
+    }
+
     if (::gTestRunner->closeRemainingWindowsWhenComplete()) {
         Vector<HWND> windows = openWindows();
         unsigned size = windows.size();
@@ -1161,11 +1180,6 @@ static void runTest(const string& inputLine)
         }
     }
 
-    if (shouldEnableDeveloperExtras(pathOrURL.c_str())) {
-        ::gTestRunner->closeWebInspector();
-        ::gTestRunner->setDeveloperExtrasEnabled(false);
-    }
-
     resetWebViewToConsistentStateBeforeTesting();
 
     // Loading an empty request synchronously replaces the document with a blank one, which is necessary
@@ -1174,10 +1188,8 @@ static void runTest(const string& inputLine)
         _bstr_t emptyURL(L"");
         emptyRequest->initWithURL(emptyURL.GetBSTR(), WebURLRequestUseProtocolCachePolicy, 60);
         emptyRequest->setHTTPMethod(methodBStr);
-        frame->loadRequest(request.get());
+        frame->loadRequest(emptyRequest.get());
     }
-
-    frame->stopLoading();
 
     // We should only have our main window left open when we're done
     ASSERT(openWindows().size() == 1);
@@ -1232,6 +1244,7 @@ IWebView* createWebViewAndOffscreenWindow(HWND* webViewWindow)
 
     viewPrivate->setShouldApplyMacFontAscentHack(TRUE);
     viewPrivate->setAlwaysUsesComplexTextCodePath(forceComplexText);
+    viewPrivate->setCustomBackingScaleFactor(1.0);
 
     _bstr_t pluginPath = _bstr_t(exePath().data()) + TestPluginDir;
     if (FAILED(viewPrivate->addAdditionalPluginDirectory(pluginPath.GetBSTR())))
@@ -1294,13 +1307,6 @@ RetainPtr<CFURLCacheRef> sharedCFURLCache()
     return nullptr;
 }
 #endif
-
-static LONG WINAPI exceptionFilter(EXCEPTION_POINTERS*)
-{
-    fputs("#CRASHED\n", stderr);
-    fflush(stderr);
-    return EXCEPTION_CONTINUE_SEARCH;
-}
 
 static Vector<const char*> initializeGlobalsFromCommandLineOptions(int argc, const char* argv[])
 {
@@ -1398,21 +1404,10 @@ static void prepareConsistentTestingEnvironment(IWebPreferences* standardPrefere
 
 int main(int argc, const char* argv[])
 {
-#if defined(_M_X64) || defined(__x86_64__)
-    // The VS2013 runtime has a bug where it mis-detects AVX-capable processors
-    // if the feature has been disabled in firmware. This causes us to crash
-    // in some of the math functions. For now, we disable those optimizations
-    // because Microsoft is not going to fix the problem in VS2013.
-    // FIXME: http://webkit.org/b/141449: Remove this workaround when we switch to VS2015+.
-    _set_FMA3_enable(0);
-#endif
-
     // Cygwin calls ::SetErrorMode(SEM_FAILCRITICALERRORS), which we will inherit. This is bad for
     // testing/debugging, as it causes the post-mortem debugger not to be invoked. We reset the
     // error mode here to work around Cygwin's behavior. See <http://webkit.org/b/55222>.
     ::SetErrorMode(0);
-
-    ::SetUnhandledExceptionFilter(exceptionFilter);
 
     leakChecking = false;
 
@@ -1439,7 +1434,7 @@ int main(int argc, const char* argv[])
     prepareConsistentTestingEnvironment(standardPreferences.get(), standardPreferencesPrivate.get());
 
     if (printSupportedFeatures) {
-        BOOL acceleratedCompositingAvailable;
+        BOOL acceleratedCompositingAvailable = FALSE;
         standardPreferences->acceleratedCompositingEnabled(&acceleratedCompositingAvailable);
 
 #if ENABLE(3D_TRANSFORMS)

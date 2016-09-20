@@ -45,31 +45,9 @@
 #import <WebKit/WebKit.h>
 #import <WebKit/WebViewPrivate.h>
 
-@interface CATransaction (Details)
+@interface CATransaction ()
 + (void)synchronize;
 @end
-
-static PassRefPtr<BitmapContext> createBitmapContext(size_t pixelsWide, size_t pixelsHigh, size_t& rowBytes, void*& buffer)
-{
-    rowBytes = (4 * pixelsWide + 63) & ~63; // Use a multiple of 64 bytes to improve CG performance
-
-    buffer = calloc(pixelsHigh, rowBytes);
-    if (!buffer) {
-        WTFLogAlways("DumpRenderTree: calloc(%llu, %llu) failed\n", pixelsHigh, rowBytes);
-        return nullptr;
-    }
-    
-    // Creating this bitmap in the device color space prevents any color conversion when the image of the web view is drawn into it.
-    RetainPtr<CGColorSpaceRef> colorSpace = adoptCF(CGColorSpaceCreateDeviceRGB());
-    CGContextRef context = CGBitmapContextCreate(buffer, pixelsWide, pixelsHigh, 8, rowBytes, colorSpace.get(), kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host); // Use ARGB8 on PPC or BGRA8 on X86 to improve CG performance
-    if (!context) {
-        free(buffer);
-        WTFLogAlways("DumpRenderTree: CGBitmapContextCreate(%p, %llu, %llu, 8, %llu, %p, 0x%x) failed\n", buffer, pixelsHigh, pixelsWide, rowBytes, colorSpace.get(), kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host);
-        return nullptr;
-    }
-
-    return BitmapContext::createByAdoptingBitmapAndContext(buffer, context);
-}
 
 static void paintRepaintRectOverlay(WebView* webView, CGContextRef context)
 {
@@ -119,7 +97,7 @@ PassRefPtr<BitmapContext> createBitmapContextFromWebView(bool onscreen, bool inc
     size_t pixelsHigh = static_cast<size_t>(webViewSize.height * deviceScaleFactor);
     size_t rowBytes = 0;
     void* buffer = nullptr;
-    RefPtr<BitmapContext> bitmapContext = createBitmapContext(pixelsWide, pixelsHigh, rowBytes, buffer);
+    auto bitmapContext = createBitmapContext(pixelsWide, pixelsHigh, rowBytes, buffer);
     if (!bitmapContext)
         return nullptr;
     CGContextRef context = bitmapContext->cgContext();
@@ -193,7 +171,7 @@ PassRefPtr<BitmapContext> createBitmapContextFromWebView(bool onscreen, bool inc
         CGContextRestoreGState(context);
     }
     
-    return bitmapContext.release();
+    return bitmapContext;
 }
 
 PassRefPtr<BitmapContext> createPagedBitmapContext()
@@ -202,9 +180,14 @@ PassRefPtr<BitmapContext> createPagedBitmapContext()
     int pageHeightInPixels = TestRunner::viewHeight;
     int numberOfPages = [mainFrame numberOfPagesWithPageWidth:pageWidthInPixels pageHeight:pageHeightInPixels];
     size_t rowBytes = 0;
-    void* buffer = 0;
+    void* buffer = nullptr;
 
-    RefPtr<BitmapContext> bitmapContext = createBitmapContext(pageWidthInPixels, numberOfPages * (pageHeightInPixels + 1) - 1, rowBytes, buffer);
-    [mainFrame printToCGContext:bitmapContext->cgContext() pageWidth:pageWidthInPixels pageHeight:pageHeightInPixels];
-    return bitmapContext.release();
+    int totalHeight = numberOfPages * (pageHeightInPixels + 1) - 1;
+
+    auto bitmapContext = createBitmapContext(pageWidthInPixels, totalHeight, rowBytes, buffer);
+    CGContextRef context = bitmapContext->cgContext();
+    CGContextTranslateCTM(context, 0, totalHeight);
+    CGContextScaleCTM(context, 1, -1);
+    [mainFrame printToCGContext:context pageWidth:pageWidthInPixels pageHeight:pageHeightInPixels];
+    return bitmapContext;
 }

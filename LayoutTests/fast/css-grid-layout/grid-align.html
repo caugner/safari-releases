@@ -1,7 +1,9 @@
 <!DOCTYPE html>
 <html>
 <head>
+<link href="../css-intrinsic-dimensions/resources/width-keyword-classes.css" rel="stylesheet">
 <link href="resources/grid.css" rel="stylesheet">
+<link href="resources/grid-alignment.css" rel="stylesheet">
 <script src="../../resources/check-layout.js"></script>
 <style>
 body {
@@ -9,9 +11,8 @@ body {
 }
 
 .grid {
-    -webkit-grid-template-columns: 100px 100px;
-    -webkit-grid-template-rows: 200px 200px;
-    width: -webkit-fit-content;
+    grid-template-columns: 100px 100px;
+    grid-template-rows: 200px 200px;
     margin-bottom: 20px;
 }
 
@@ -26,54 +27,6 @@ body {
     background: black;
 }
 
-.alignSelfAuto {
-    align-self: auto;
-}
-
-.alignSelfStretch {
-    align-self: stretch;
-}
-
-.alignSelfStart {
-    align-self: start;
-}
-
-.alignSelfEnd {
-    align-self: end;
-}
-
-.alignSelfCenter {
-    align-self: center;
-}
-
-.alignSelfRight {
-    align-self: right;
-}
-
-.alignSelfLeft {
-    align-self: left;
-}
-
-.alignSelfFlexStart {
-    align-self: flex-start;
-}
-
-.alignSelfFlexEnd {
-    align-self: flex-end;
-}
-
-.alignSelfSelfStart {
-    align-self: self-start;
-}
-
-.alignSelfSelfEnd {
-    align-self: self-end;
-}
-
-.alignItemsCenter {
-    align-items: center;
-}
-
 </style>
 </head>
 <body onload="checkLayout('.grid')">
@@ -81,7 +34,7 @@ body {
 <p>This test checks that the align-self property is applied correctly.</p>
 
 <div style="position: relative">
-    <div class="grid" data-expected-width="200" data-expected-height="400">
+    <div class="grid fit-content" data-expected-width="200" data-expected-height="400">
         <div class="alignSelfStretch firstRowFirstColumn" data-offset-x="0" data-offset-y="0" data-expected-width="100" data-expected-height="200"></div>
         <div class="cell alignSelfStart firstRowSecondColumn" data-offset-x="100" data-offset-y="0" data-expected-width="20" data-expected-height="40"></div>
         <div class="cell alignSelfEnd firstRowSecondColumn" data-offset-x="100" data-offset-y="160" data-expected-width="20" data-expected-height="40"></div>
@@ -92,7 +45,7 @@ body {
 </div>
 
 <div style="position: relative">
-    <div class="grid" data-expected-width="200" data-expected-height="400">
+    <div class="grid fit-content" data-expected-width="200" data-expected-height="400">
         <div class="cell alignSelfFlexEnd firstRowFirstColumn" data-offset-x="0" data-offset-y="160" data-expected-width="20" data-expected-height="40"></div>
         <div class="cell alignSelfFlexStart firstRowSecondColumn" data-offset-x="100" data-offset-y="0" data-expected-width="20" data-expected-height="40"></div>
         <div class="cell alignSelfSelfStart secondRowFirstColumn" data-offset-x="0" data-offset-y="200" data-expected-width="20" data-expected-height="40"></div>
@@ -102,7 +55,7 @@ body {
 
 <!-- Default alignment and initial values. -->
 <div style="position: relative">
-    <div class="grid alignItemsCenter" data-expected-width="200" data-expected-height="400">
+    <div class="grid fit-content alignItemsCenter" data-expected-width="200" data-expected-height="400">
         <div class="cell alignSelfAuto firstRowFirstColumn" data-offset-x="0" data-offset-y="80" data-expected-width="20" data-expected-height="40"></div>
         <div class="cell firstRowSecondColumn" data-offset-x="100" data-offset-y="80" data-expected-width="20" data-expected-height="40"></div>
         <div class="cell alignSelfSelfStart secondRowFirstColumn" data-offset-x="0" data-offset-y="200" data-expected-width="20" data-expected-height="40"></div>
@@ -111,7 +64,7 @@ body {
 </div>
 
 <div style="position: relative">
-    <div class="grid" data-expected-width="200" data-expected-height="400">
+    <div class="grid fit-content" data-expected-width="200" data-expected-height="400">
         <div class="alignSelfAuto firstRowFirstColumn" data-offset-x="0" data-offset-y="0" data-expected-width="100" data-expected-height="200"></div>
         <div class="cell firstRowSecondColumn" data-offset-x="100" data-offset-y="0" data-expected-width="20" data-expected-height="40"></div>
         <div class="cell alignSelfStart secondRowFirstColumn" data-offset-x="0" data-offset-y="200" data-expected-width="20" data-expected-height="40"></div>
@@ -121,7 +74,7 @@ body {
 
 <!-- RTL direction (it should not affect the block-flow direction). -->
 <div style="position: relative">
-     <div class="grid directionRTL" data-expected-width="200" data-expected-height="400">
+     <div class="grid fit-content directionRTL" data-expected-width="200" data-expected-height="400">
          <div class="alignSelfStretch firstRowFirstColumn" data-offset-x="100" data-offset-y="0" data-expected-width="100" data-expected-height="200"></div>
          <div class="cell alignSelfStart firstRowSecondColumn" data-offset-x="80" data-offset-y="0" data-expected-width="20" data-expected-height="40"></div>
          <div class="cell alignSelfEnd firstRowSecondColumn" data-offset-x="80" data-offset-y="160" data-expected-width="20" data-expected-height="40"></div>
@@ -132,7 +85,7 @@ body {
 </div>
 
 <div style="position: relative">
-     <div class="grid directionRTL" data-expected-width="200" data-expected-height="400">
+     <div class="grid fit-content directionRTL" data-expected-width="200" data-expected-height="400">
          <div class="cell alignSelfFlexEnd firstRowFirstColumn" data-offset-x="180" data-offset-y="160" data-expected-width="20" data-expected-height="40"></div>
          <div class="cell alignSelfFlexStart firstRowSecondColumn" data-offset-x="80" data-offset-y="0" data-expected-width="20" data-expected-height="40"></div>
          <div class="cell alignSelfSelfStart secondRowFirstColumn" data-offset-x="180" data-offset-y="200" data-expected-width="20" data-expected-height="40"></div>
@@ -142,7 +95,7 @@ body {
 
 <!-- RTL direction (it should not affect the block-flow) with opposite directions grid container vs grid item. -->
 <div style="position: relative">
-     <div class="grid" data-expected-width="200" data-expected-height="400">
+     <div class="grid fit-content" data-expected-width="200" data-expected-height="400">
          <div class="alignSelfStretch firstRowFirstColumn directionRTL" data-offset-x="0" data-offset-y="0" data-expected-width="100" data-expected-height="200"></div>
          <div class="cell alignSelfStart firstRowSecondColumn directionRTL" data-offset-x="100" data-offset-y="0" data-expected-width="20" data-expected-height="40"></div>
          <div class="cell alignSelfEnd firstRowSecondColumn directionRTL" data-offset-x="100" data-offset-y="160" data-expected-width="20" data-expected-height="40"></div>
@@ -153,7 +106,7 @@ body {
 </div>
 
 <div style="position: relative">
-     <div class="grid" data-expected-width="200" data-expected-height="400">
+     <div class="grid fit-content" data-expected-width="200" data-expected-height="400">
          <div class="cell alignSelfFlexEnd firstRowFirstColumn directionRTL" data-offset-x="0" data-offset-y="160" data-expected-width="20" data-expected-height="40"></div>
          <div class="cell alignSelfFlexStart firstRowSecondColumn directionRTL" data-offset-x="100" data-offset-y="0" data-expected-width="20" data-expected-height="40"></div>
          <div class="cell alignSelfSelfStart secondRowFirstColumn directionRTL" data-offset-x="0" data-offset-y="200" data-expected-width="20" data-expected-height="40"></div>
@@ -163,7 +116,7 @@ body {
 
 <!-- Vertical RL writing mode. -->
 <div style="position: relative">
-    <div class="grid verticalRL" data-expected-width="400" data-expected-height="200">
+    <div class="grid fit-content verticalRL" data-expected-width="400" data-expected-height="200">
         <div class="alignSelfStretch firstRowFirstColumn" data-offset-x="200" data-offset-y="0" data-expected-width="200" data-expected-height="100"></div>
         <div class="cell alignSelfStart firstRowSecondColumn" data-offset-x="380" data-offset-y="100" data-expected-width="20" data-expected-height="40"></div>
         <div class="cell alignSelfEnd firstRowSecondColumn" data-offset-x="200" data-offset-y="100" data-expected-width="20" data-expected-height="40"></div>
@@ -174,7 +127,7 @@ body {
 </div>
 
 <div style="position: relative">
-    <div class="grid verticalRL" data-expected-width="400" data-expected-height="200">
+    <div class="grid fit-content verticalRL" data-expected-width="400" data-expected-height="200">
         <div class="cell alignSelfFlexEnd firstRowFirstColumn" data-offset-x="200" data-offset-y="0" data-expected-width="20" data-expected-height="40"></div>
         <div class="cell alignSelfFlexStart firstRowSecondColumn" data-offset-x="380" data-offset-y="100" data-expected-width="20" data-expected-height="40"></div>
         <div class="cell alignSelfSelfStart secondRowFirstColumn" data-offset-x="180" data-offset-y="0" data-expected-width="20" data-expected-height="40"></div>
@@ -184,7 +137,7 @@ body {
 
 <!-- Vertical LR writing mode. -->
 <div style="position: relative">
-    <div class="grid verticalLR" data-expected-width="400" data-expected-height="200">
+    <div class="grid fit-content verticalLR" data-expected-width="400" data-expected-height="200">
         <div class="alignSelfStretch firstRowFirstColumn" data-offset-x="0" data-offset-y="0" data-expected-width="200" data-expected-height="100"></div>
         <div class="cell alignSelfStart firstRowSecondColumn" data-offset-x="0" data-offset-y="100" data-expected-width="20" data-expected-height="40"></div>
         <div class="cell alignSelfEnd firstRowSecondColumn" data-offset-x="180" data-offset-y="100" data-expected-width="20" data-expected-height="40"></div>
@@ -195,7 +148,7 @@ body {
 </div>
 
 <div style="position: relative">
-    <div class="grid verticalLR" data-expected-width="400" data-expected-height="200">
+    <div class="grid fit-content verticalLR" data-expected-width="400" data-expected-height="200">
         <div class="cell alignSelfFlexEnd firstRowFirstColumn" data-offset-x="180" data-offset-y="0" data-expected-width="20" data-expected-height="40"></div>
         <div class="cell alignSelfFlexStart firstRowSecondColumn" data-offset-x="0" data-offset-y="100" data-expected-width="20" data-expected-height="40"></div>
         <div class="cell alignSelfSelfStart secondRowFirstColumn" data-offset-x="200" data-offset-y="0" data-expected-width="20" data-expected-height="40"></div>
@@ -205,7 +158,7 @@ body {
 
 <!-- Vertical RL writing mode with opposite block-flow directions grid container vs grid item. -->
 <div style="position: relative">
-    <div class="grid verticalRL" data-expected-width="400" data-expected-height="200">
+    <div class="grid fit-content verticalRL" data-expected-width="400" data-expected-height="200">
         <div class="alignSelfStretch firstRowFirstColumn verticalLR" data-offset-x="200" data-offset-y="0" data-expected-width="200" data-expected-height="100">
         </div>
         <div class="cell alignSelfStart firstRowSecondColumn verticalLR" data-offset-x="380" data-offset-y="100" data-expected-width="20" data-expected-height="40">
@@ -227,7 +180,7 @@ body {
 </div>
 
 <div style="position: relative">
-    <div class="grid verticalRL" data-expected-width="400" data-expected-height="200">
+    <div class="grid fit-content verticalRL" data-expected-width="400" data-expected-height="200">
         <div class="cell alignSelfFlexEnd firstRowFirstColumn verticalLR" data-offset-x="200" data-offset-y="0" data-expected-width="20" data-expected-height="40">
             <div class="item"></div>
         </div>
@@ -245,7 +198,7 @@ body {
 
 <!-- Vertical LR writing mode with opposite block-flow directions grid container vs grid item. -->
 <div style="position: relative">
-    <div class="grid verticalLR" data-expected-width="400" data-expected-height="200">
+    <div class="grid fit-content verticalLR" data-expected-width="400" data-expected-height="200">
         <div class="alignSelfStretch firstRowFirstColumn verticalRL" data-offset-x="0" data-offset-y="0" data-expected-width="200" data-expected-height="100">
         </div>
         <div class="cell alignSelfStart firstRowSecondColumn verticalRL" data-offset-x="0" data-offset-y="100" data-expected-width="20" data-expected-height="40">
@@ -267,7 +220,7 @@ body {
 </div>
 
 <div style="position: relative">
-    <div class="grid verticalLR" data-expected-width="400" data-expected-height="200">
+    <div class="grid fit-content verticalLR" data-expected-width="400" data-expected-height="200">
         <div class="cell alignSelfFlexEnd firstRowFirstColumn verticalRL" data-offset-x="180" data-offset-y="0" data-expected-width="20" data-expected-height="40">
             <div class="item"></div>
         </div>

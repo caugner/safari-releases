@@ -51,21 +51,8 @@ using namespace std;
 
 static void enableTerminationOnHeapCorruption()
 {
-    // Enable termination on heap corruption on OSes that support it (Vista and XPSP3).
-    // http://msdn.microsoft.com/en-us/library/aa366705(VS.85).aspx
-
     HEAP_INFORMATION_CLASS heapEnableTerminationOnCorruption = static_cast<HEAP_INFORMATION_CLASS>(1);
-
-    HMODULE module = ::GetModuleHandleW(L"kernel32.dll");
-    if (!module)
-        return;
-
-    typedef BOOL (WINAPI*HSI)(HANDLE, HEAP_INFORMATION_CLASS, PVOID, SIZE_T);
-    HSI heapSetInformation = reinterpret_cast<HSI>(::GetProcAddress(module, "HeapSetInformation"));
-    if (!heapSetInformation)
-        return;
-
-    heapSetInformation(0, heapEnableTerminationOnCorruption, 0, 0);
+    HeapSetInformation(0, heapEnableTerminationOnCorruption, 0, 0);
 }
 
 static wstring getStringValue(HKEY key, const wstring& valueName)
@@ -178,23 +165,32 @@ static wstring getLastErrorString(HRESULT hr)
     return errorMessage;
 }
 
+static bool shouldUseHighDPI()
+{
+#ifdef WIN_CAIRO
+    return true;
+#else
+    int argc = 0;
+    WCHAR** argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+    for (int i = 1; i < argc; ++i) {
+        if (!wcsicmp(argv[i], L"--highDPI"))
+            return true;
+    }
+
+    return false;
+#endif
+}
+
 #if USE_CONSOLE_ENTRY_POINT
 int main(int argc, const char* argv[])
 #else
-int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpstrCmdLine, int nCmdShow)
+int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpstrCmdLine, _In_ int nCmdShow)
 #endif
 {
-#if defined(_M_X64) || defined(__x86_64__)
-    // The VS2013 runtime has a bug where it mis-detects AVX-capable processors
-    // if the feature has been disabled in firmware. This causes us to crash
-    // in some of the math functions. For now, we disable those optimizations
-    // because Microsoft is not going to fix the problem in VS2013.
-    // FIXME: http://webkit.org/b/141449: Remove this workaround when we switch to VS2015+.
-    _set_FMA3_enable(0);
-#endif
-
-    BOOL didIt = SetProcessDPIAware();
-    _ASSERT(didIt);
+    if (shouldUseHighDPI()) {
+        BOOL didIt = SetProcessDPIAware();
+        _ASSERT(didIt);
+    }
 
 #ifdef _CRTDBG_MAP_ALLOC
     _CrtSetReportFile(_CRT_WARN, _CRTDBG_FILE_STDERR);
@@ -218,7 +214,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpstrCm
         return 1;
 
     // Load our corresponding DLL.
-    wstring dllName = programName + L".dll";
+    wstring dllName = programName + L"Lib.dll";
     if (!::PathRemoveFileSpecW(exePath))
         return fatalError(programName, L"::PathRemoveFileSpecW failed: " + getLastErrorString(::GetLastError()));
     if (!::PathAppendW(exePath, dllName.c_str()))

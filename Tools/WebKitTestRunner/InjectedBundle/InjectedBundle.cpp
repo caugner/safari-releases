@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010, 2011, 2012 Apple Inc. All rights reserved.
+ * Copyright (C) 2010-2016 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -29,6 +29,7 @@
 #include "ActivateFonts.h"
 #include "InjectedBundlePage.h"
 #include "StringFunctions.h"
+#include "WebCoreTestSupport.h"
 #include <WebKit/WKBundle.h>
 #include <WebKit/WKBundlePage.h>
 #include <WebKit/WKBundlePagePrivate.h>
@@ -109,7 +110,7 @@ void InjectedBundle::didCreatePage(WKBundlePageRef page)
 
 void InjectedBundle::willDestroyPage(WKBundlePageRef page)
 {
-    m_pages.removeFirstMatching([page] (const std::unique_ptr<InjectedBundlePage>& current) {
+    m_pages.removeFirstMatching([page](auto& current) {
         return current->page() == page;
     });
 }
@@ -186,6 +187,7 @@ void InjectedBundle::didReceiveMessageToPage(WKBundlePageRef page, WKStringRef m
 
         m_state = Idle;
         m_dumpPixels = false;
+        m_pixelResultIsPending = false;
 
         resetLocalSettings();
         m_testRunner->removeAllWebNotificationPermissions();
@@ -212,6 +214,46 @@ void InjectedBundle::didReceiveMessageToPage(WKBundlePageRef page, WKStringRef m
 
     if (WKStringIsEqualToUTF8CString(messageName, "CallSetBackingScaleFactorCallback")) {
         m_testRunner->callSetBackingScaleFactorCallback();
+        return;
+    }
+
+    if (WKStringIsEqualToUTF8CString(messageName, "CallDidBeginSwipeCallback")) {
+        m_testRunner->callDidBeginSwipeCallback();
+        return;
+    }
+
+    if (WKStringIsEqualToUTF8CString(messageName, "CallWillEndSwipeCallback")) {
+        m_testRunner->callWillEndSwipeCallback();
+        return;
+    }
+
+    if (WKStringIsEqualToUTF8CString(messageName, "CallDidEndSwipeCallback")) {
+        m_testRunner->callDidEndSwipeCallback();
+        return;
+    }
+
+    if (WKStringIsEqualToUTF8CString(messageName, "CallDidRemoveSwipeSnapshotCallback")) {
+        m_testRunner->callDidRemoveSwipeSnapshotCallback();
+        return;
+    }
+
+    if (WKStringIsEqualToUTF8CString(messageName, "NotifyDownloadDone")) {
+        m_testRunner->notifyDone();
+        return;
+    }
+
+    if (WKStringIsEqualToUTF8CString(messageName, "CallUISideScriptCallback")) {
+        WKDictionaryRef messageBodyDictionary = static_cast<WKDictionaryRef>(messageBody);
+
+        WKRetainPtr<WKStringRef> resultKey(AdoptWK, WKStringCreateWithUTF8CString("Result"));
+        WKRetainPtr<WKStringRef> callbackIDKey(AdoptWK, WKStringCreateWithUTF8CString("CallbackID"));
+
+        unsigned callbackID = (unsigned)WKUInt64GetValue(static_cast<WKUInt64Ref>(WKDictionaryGetItemForKey(messageBodyDictionary, callbackIDKey.get())));
+
+        WKStringRef resultString = static_cast<WKStringRef>(WKDictionaryGetItemForKey(messageBodyDictionary, resultKey.get()));
+        auto resultJSString = toJS(resultString);
+
+        m_testRunner->runUIScriptCallback(callbackID, resultJSString.get());
         return;
     }
 
@@ -261,14 +303,29 @@ void InjectedBundle::beginTesting(WKDictionaryRef settings)
     WKBundleSetPluginsEnabled(m_bundle, m_pageGroup, true);
     WKBundleSetPopupBlockingEnabled(m_bundle, m_pageGroup, false);
 
-    WKBundleRemoveAllUserContent(m_bundle, m_pageGroup);
+#if PLATFORM(IOS)
+    WKBundlePageSetUseTestingViewportConfiguration(page()->page(), !booleanForKey(settings, "UseFlexibleViewport"));
+#endif
 
     m_testRunner->setShouldDumpFrameLoadCallbacks(booleanForKey(settings, "DumpFrameLoadDelegates"));
     m_testRunner->setUserStyleSheetEnabled(false);
     m_testRunner->setXSSAuditorEnabled(false);
+
+    m_testRunner->setShadowDOMEnabled(true);
+    m_testRunner->setCustomElementsEnabled(true);
+
+    m_testRunner->setDOMIteratorEnabled(true);
+
+    m_testRunner->setWebGL2Enabled(true);
+
+    m_testRunner->setFetchAPIEnabled(true);
+
+    m_testRunner->setDownloadAttributeEnabled(true);
+
     m_testRunner->setCloseRemainingWindowsWhenComplete(false);
     m_testRunner->setAcceptsEditing(true);
     m_testRunner->setTabKeyCyclesThroughElements(true);
+    m_testRunner->clearTestRunnerCallbacks();
 
     if (m_timeout > 0)
         m_testRunner->setCustomTimeout(m_timeout);
@@ -276,7 +333,7 @@ void InjectedBundle::beginTesting(WKDictionaryRef settings)
     page()->prepare();
 
     WKBundleClearAllDatabases(m_bundle);
-    WKBundleClearApplicationCache(m_bundle);
+    WKBundlePageClearApplicationCache(page()->page());
     WKBundleResetOriginAccessWhitelists(m_bundle);
 
     // [WK2] REGRESSION(r128623): It made layout tests extremely slow
@@ -300,8 +357,14 @@ void InjectedBundle::done()
     WKRetainPtr<WKStringRef> doneMessageName(AdoptWK, WKStringCreateWithUTF8CString("Done"));
     WKRetainPtr<WKMutableDictionaryRef> doneMessageBody(AdoptWK, WKMutableDictionaryCreate());
 
-    WKRetainPtr<WKStringRef> pixelResultKey = adoptWK(WKStringCreateWithUTF8CString("PixelResult"));
-    WKDictionarySetItem(doneMessageBody.get(), pixelResultKey.get(), m_pixelResult.get());
+    WKRetainPtr<WKStringRef> pixelResultIsPendingKey = adoptWK(WKStringCreateWithUTF8CString("PixelResultIsPending"));
+    WKRetainPtr<WKBooleanRef> pixelResultIsPending(AdoptWK, WKBooleanCreate(m_pixelResultIsPending));
+    WKDictionarySetItem(doneMessageBody.get(), pixelResultIsPendingKey.get(), pixelResultIsPending.get());
+
+    if (!m_pixelResultIsPending) {
+        WKRetainPtr<WKStringRef> pixelResultKey = adoptWK(WKStringCreateWithUTF8CString("PixelResult"));
+        WKDictionarySetItem(doneMessageBody.get(), pixelResultKey.get(), m_pixelResult.get());
+    }
 
     WKRetainPtr<WKStringRef> repaintRectsKey = adoptWK(WKStringCreateWithUTF8CString("RepaintRects"));
     WKDictionarySetItem(doneMessageBody.get(), repaintRectsKey.get(), m_repaintRects.get());
@@ -381,7 +444,25 @@ void InjectedBundle::postSetWindowIsKey(bool isKey)
 {
     WKRetainPtr<WKStringRef> messageName(AdoptWK, WKStringCreateWithUTF8CString("SetWindowIsKey"));
     WKRetainPtr<WKBooleanRef> messageBody(AdoptWK, WKBooleanCreate(isKey));
-    WKBundlePagePostSynchronousMessage(page()->page(), messageName.get(), messageBody.get(), 0);
+    WKBundlePagePostSynchronousMessageForTesting(page()->page(), messageName.get(), messageBody.get(), 0);
+}
+
+void InjectedBundle::postSetViewSize(double width, double height)
+{
+    WKRetainPtr<WKStringRef> messageName(AdoptWK, WKStringCreateWithUTF8CString("SetViewSize"));
+
+    WKRetainPtr<WKStringRef> widthKey(AdoptWK, WKStringCreateWithUTF8CString("width"));
+    WKRetainPtr<WKStringRef> heightKey(AdoptWK, WKStringCreateWithUTF8CString("height"));
+
+    WKRetainPtr<WKMutableDictionaryRef> messageBody(AdoptWK, WKMutableDictionaryCreate());
+
+    WKRetainPtr<WKDoubleRef> widthWK(AdoptWK, WKDoubleCreate(width));
+    WKDictionarySetItem(messageBody.get(), widthKey.get(), widthWK.get());
+
+    WKRetainPtr<WKDoubleRef> heightWK(AdoptWK, WKDoubleCreate(height));
+    WKDictionarySetItem(messageBody.get(), heightKey.get(), heightWK.get());
+
+    WKBundlePagePostSynchronousMessageForTesting(page()->page(), messageName.get(), messageBody.get(), 0);
 }
 
 void InjectedBundle::postSimulateWebNotificationClick(uint64_t notificationID)
@@ -464,10 +545,48 @@ void InjectedBundle::setMockGeolocationPositionUnavailableError(WKStringRef erro
     WKBundlePagePostMessage(page()->page(), messageName.get(), errorMessage);
 }
 
+bool InjectedBundle::isGeolocationProviderActive() const
+{
+    WKRetainPtr<WKStringRef> messageName(AdoptWK, WKStringCreateWithUTF8CString("IsGeolocationClientActive"));
+    WKTypeRef resultToPass = 0;
+    WKBundlePagePostSynchronousMessageForTesting(page()->page(), messageName.get(), 0, &resultToPass);
+    WKRetainPtr<WKBooleanRef> isActive(AdoptWK, static_cast<WKBooleanRef>(resultToPass));
+
+    return WKBooleanGetValue(isActive.get());
+}
+
+unsigned InjectedBundle::imageCountInGeneralPasteboard() const
+{
+    WKRetainPtr<WKStringRef> messageName(AdoptWK, WKStringCreateWithUTF8CString("ImageCountInGeneralPasteboard"));
+    WKTypeRef resultToPass = 0;
+    WKBundlePagePostSynchronousMessageForTesting(page()->page(), messageName.get(), 0, &resultToPass);
+    WKRetainPtr<WKUInt64Ref> imageCount(AdoptWK, static_cast<WKUInt64Ref>(resultToPass));
+    
+    return static_cast<unsigned>(WKUInt64GetValue(imageCount.get()));
+}
+
 void InjectedBundle::setUserMediaPermission(bool enabled)
 {
     auto messageName = adoptWK(WKStringCreateWithUTF8CString("SetUserMediaPermission"));
     auto messageBody = adoptWK(WKBooleanCreate(enabled));
+    WKBundlePagePostMessage(page()->page(), messageName.get(), messageBody.get());
+}
+
+void InjectedBundle::setUserMediaPermissionForOrigin(bool permission, WKStringRef origin, WKStringRef parentOrigin)
+{
+    auto messageName = adoptWK(WKStringCreateWithUTF8CString("SetUserMediaPermissionForOrigin"));
+    WKRetainPtr<WKMutableDictionaryRef> messageBody(AdoptWK, WKMutableDictionaryCreate());
+
+    WKRetainPtr<WKStringRef> permissionKeyWK(AdoptWK, WKStringCreateWithUTF8CString("permission"));
+    WKRetainPtr<WKBooleanRef> permissionWK(AdoptWK, WKBooleanCreate(permission));
+    WKDictionarySetItem(messageBody.get(), permissionKeyWK.get(), permissionWK.get());
+
+    WKRetainPtr<WKStringRef> originKeyWK(AdoptWK, WKStringCreateWithUTF8CString("origin"));
+    WKDictionarySetItem(messageBody.get(), originKeyWK.get(), origin);
+
+    WKRetainPtr<WKStringRef> parentOriginKeyWK(AdoptWK, WKStringCreateWithUTF8CString("parentOrigin"));
+    WKDictionarySetItem(messageBody.get(), parentOriginKeyWK.get(), parentOrigin);
+
     WKBundlePagePostMessage(page()->page(), messageName.get(), messageBody.get());
 }
 
@@ -514,7 +633,7 @@ bool InjectedBundle::shouldProcessWorkQueue() const
 
     WKRetainPtr<WKStringRef> messageName(AdoptWK, WKStringCreateWithUTF8CString("IsWorkQueueEmpty"));
     WKTypeRef resultToPass = 0;
-    WKBundlePagePostSynchronousMessage(page()->page(), messageName.get(), 0, &resultToPass);
+    WKBundlePagePostSynchronousMessageForTesting(page()->page(), messageName.get(), 0, &resultToPass);
     WKRetainPtr<WKBooleanRef> isEmpty(AdoptWK, static_cast<WKBooleanRef>(resultToPass));
 
     return !WKBooleanGetValue(isEmpty.get());
@@ -618,6 +737,11 @@ bool InjectedBundle::isAllowedHost(WKStringRef host)
     if (m_allowedHosts.isEmpty())
         return false;
     return m_allowedHosts.contains(toWTFString(host));
+}
+
+void InjectedBundle::setAllowsAnySSLCertificate(bool allowsAnySSLCertificate)
+{
+    WebCoreTestSupport::setAllowsAnySSLCertificate(allowsAnySSLCertificate);
 }
 
 } // namespace WTR

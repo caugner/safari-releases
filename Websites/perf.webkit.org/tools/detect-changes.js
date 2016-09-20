@@ -5,32 +5,55 @@ var http = require('http');
 var https = require('https');
 var data = require('../public/v2/data.js');
 var RunsData = data.RunsData;
-var Statistics = require('../public/v2/js/statistics.js');
+var Statistics = require('../public/shared/statistics.js');
+var StatisticsStrategies = require('../public/v2/statistics-strategies.js');
+var parseArguments = require('./js/parse-arguments.js').parseArguments;
 
+// FIXME: We shouldn't use a global variable like this.
 var settings;
 function main(argv)
 {
-    if (argv.length < 3) {
-        console.error('Please specify the settings JSON path');
-        return 1;
-    }
+    var options = parseArguments(argv, [
+        {name: '--server-config-json', required: true},
+        {name: '--change-detection-config-json', required: true},
+        {name: '--seconds-to-sleep', type: parseFloat, default: 1200},
+    ]);
+    if (!options)
+        return;
 
-    settings = JSON.parse(fs.readFileSync(argv[2], 'utf8'));
+    settings = JSON.parse(fs.readFileSync(options['--change-detection-config-json'], 'utf8'));
+    settings.secondsToSleep = options['--seconds-to-sleep'];
 
-    fetchManifestAndAnalyzeData();
+    fetchManifestAndAnalyzeData(options['--server-config-json']);
 }
 
-function fetchManifestAndAnalyzeData()
+function fetchManifestAndAnalyzeData(serverConfigJSON)
 {
+    loadServerConfig(serverConfigJSON);
+
     getJSON(settings.perfserver, '/data/manifest.json').then(function (manifest) {
         return mapInOrder(configurationsForTesting(manifest), analyzeConfiguration);
     }).catch(function (reason) {
-        console.error('Failed to obtain the manifest file');
+        console.error('Failed to obtain the manifest file', reason);
     }).then(function () {
         console.log('');
         console.log('Sleeing for', settings.secondsToSleep, 'seconds');
-        setTimeout(fetchManifestAndAnalyzeData, settings.secondsToSleep * 1000);
+        setTimeout(function () {
+            fetchManifestAndAnalyzeData(serverConfigJSON);
+        }, settings.secondsToSleep * 1000);
     });
+}
+
+function loadServerConfig(serverConfigJSON)
+{
+    var serverConfig = JSON.parse(fs.readFileSync(serverConfigJSON, 'utf8'));
+
+    var server = serverConfig['server'];
+    if ('auth' in server)
+        server['auth'] = server['auth']['username'] + ':' + server['auth']['password'];
+
+    settings.perfserver = server;
+    settings.slave = serverConfig['slave'];
 }
 
 function mapInOrder(array, callback, startIndex)
@@ -54,8 +77,12 @@ function configurationsForTesting(manifest)
         var dashboard = manifest.dashboards[name];
         for (var row of dashboard) {
             for (var cell of row) {
-                if (cell instanceof Array)
-                    configurations.push({platformId: parseInt(cell[0]), metricId: parseInt(cell[1])});
+                if (cell instanceof Array) {
+                    var platformId = parseInt(cell[0]);
+                    var metricId = parseInt(cell[1]);
+                    if (!isNaN(platformId) && !isNaN(metricId))
+                        configurations.push({platformId: platformId, metricId: metricId});
+                }
             }
         }
     }
@@ -116,13 +143,13 @@ function computeRangesForTesting(server, strategies, platformId, metricId)
 {
     // FIXME: Store the segmentation strategy on the server side.
     // FIXME: Configure each strategy.
-    var segmentationStrategy = findStrategyByLabel(Statistics.MovingAverageStrategies, strategies.segmentation.label);
+    var segmentationStrategy = findStrategyByLabel(StatisticsStrategies.MovingAverageStrategies, strategies.segmentation.label);
     if (!segmentationStrategy) {
         console.error('Failed to find the segmentation strategy: ' + strategies.segmentation.label);
         return;
     }
 
-    var testRangeStrategy = findStrategyByLabel(Statistics.TestRangeSelectionStrategies, strategies.testRange.label);
+    var testRangeStrategy = findStrategyByLabel(StatisticsStrategies.TestRangeSelectionStrategies, strategies.testRange.label);
     if (!testRangeStrategy) {
         console.error('Failed to find the test range selection strategy: ' + strategies.testRange.label);
         return;
@@ -148,9 +175,9 @@ function computeRangesForTesting(server, strategies, platformId, metricId)
         var currentTimeSeries = results[0].timeSeriesByCommitTime();
         var analysisTasks = results[1];
         var rawValues = currentTimeSeries.rawValues();
-        var segmentedValues = Statistics.executeStrategy(segmentationStrategy, rawValues);
+        var segmentedValues = StatisticsStrategies.executeStrategy(segmentationStrategy, rawValues);
 
-        var ranges = Statistics.executeStrategy(testRangeStrategy, rawValues, [segmentedValues]).map(function (range) {
+        var ranges = StatisticsStrategies.executeStrategy(testRangeStrategy, rawValues, [segmentedValues]).map(function (range) {
             var startPoint = currentTimeSeries.findPointByIndex(range[0]);
             var endPoint = currentTimeSeries.findPointByIndex(range[1]);
             return {

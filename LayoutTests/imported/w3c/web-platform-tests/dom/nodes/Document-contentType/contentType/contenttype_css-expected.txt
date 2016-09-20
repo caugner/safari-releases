@@ -1,0 +1,4 @@
+
+
+PASS CSS document.contentType === 'text/css' 
+

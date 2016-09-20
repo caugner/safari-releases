@@ -31,6 +31,7 @@
 #include "PlatformWebView.h"
 #include "EWebKit2.h"
 #include <WebKit/WKAPICast.h>
+#include <WebKit/WKPageConfigurationRef.h>
 #include <WebKit/WKRetainPtr.h>
 #include <WebKit/WKViewEfl.h>
 #include <Ecore_Evas.h>
@@ -68,7 +69,11 @@ PlatformWebView::PlatformWebView(WKContextRef contextRef, WKPageGroupRef pageGro
 {
     m_window = createEcoreEvas();
 
-    m_view = EWKViewCreate(contextRef, pageGroupRef, ecore_evas_get(m_window), /* smart */ 0);
+    WKRetainPtr<WKPageConfigurationRef> pageConfiguration = adoptWK(WKPageConfigurationCreate());
+    WKPageConfigurationSetContext(pageConfiguration.get(), contextRef);
+    WKPageConfigurationSetPageGroup(pageConfiguration.get(), pageGroupRef);
+
+    m_view = EWKViewCreate(pageConfiguration.get(), ecore_evas_get(m_window), /* smart */ 0);
 
     WKRetainPtr<WKStringRef> wkTheme = adoptWK(WKStringCreateWithUTF8CString(DEFAULT_THEME_DIR "/default.edj"));
     WKViewSetThemePath(EWKViewGetWKView(m_view), wkTheme.get());

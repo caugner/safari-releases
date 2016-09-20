@@ -6,11 +6,11 @@ layer at (0,0) size 800x600
       RenderTable {TABLE} at (0,0) size 784x107 [bgcolor=#00FFFF] [border: (1px outset #808080)]
         RenderTableSection {TBODY} at (1,1) size 782x105
           RenderTableRow {TR} at (0,2) size 782x101
-            RenderTableCell {TD} at (2,2) size 454x101 [border: (1px inset #808080)] [r=0 c=0 rs=1 cs=1]
-              RenderTable {TABLE} at (2,2) size 450x97 [bgcolor=#FF00FF] [border: (1px outset #808080)]
-                RenderTableSection {TBODY} at (1,1) size 448x95
-                  RenderTableRow {TR} at (0,2) size 448x91
-                    RenderTableCell {TD} at (2,2) size 444x91 [border: (1px inset #808080)] [r=0 c=0 rs=1 cs=1]
+            RenderTableCell {TD} at (2,2) size 455x101 [border: (1px inset #808080)] [r=0 c=0 rs=1 cs=1]
+              RenderTable {TABLE} at (2,2) size 451x97 [bgcolor=#FF00FF] [border: (1px outset #808080)]
+                RenderTableSection {TBODY} at (1,1) size 449x95
+                  RenderTableRow {TR} at (0,2) size 449x91
+                    RenderTableCell {TD} at (2,2) size 445x91 [border: (1px inset #808080)] [r=0 c=0 rs=1 cs=1]
                       RenderText {#text} at (2,2) size 201x17
                         text run at (2,2) width 201: "Mozilla To Be Dually-Licensed"
                       RenderBR {BR} at (203,16) size 0x0
@@ -26,7 +26,7 @@ layer at (0,0) size 800x600
                         text run at (167,55) width 241: "See the for more info. We're gathering"
                         text run at (2,72) width 258: "contributor input now, in the newsgroup."
                       RenderBR {BR} at (260,86) size 0x0
-            RenderTableCell {TD} at (458,25) size 322x55 [border: (1px inset #808080)] [r=0 c=1 rs=1 cs=1]
+            RenderTableCell {TD} at (458,25) size 323x55 [border: (1px inset #808080)] [r=0 c=1 rs=1 cs=1]
               RenderText {#text} at (2,2) size 317x51
                 text run at (2,2) width 266: "This status update contains information on"
                 text run at (2,19) width 317: "MailNews, XML/DOM, XPToolkit, Architecture,"

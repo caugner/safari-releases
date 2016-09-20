@@ -21,19 +21,23 @@
             var modeTokens = [ "billing", "shipping" ];
 
             debug('Valid keywords:');
-            keywords.forEach(function(keyword) {
+            keywords.forEach(keyword => {
                 input.autocomplete = keyword;
                 shouldBeEqualToString('input.autocomplete', keyword);
+                if (window.internals)
+                    shouldBeEqualToString('window.internals.autofillFieldName(input)', keyword);
             });
 
             debug('');
             debug('Contact scope:');
             var contactTokens = [ "tel", "tel-country-code", "tel-national", "tel-area-code", "tel-local", "tel-local-prefix", "tel-local-suffix", "tel-extension", "email", "impp" ];
             var contactScopeTokens = [ "home", "work", "mobile", "fax", "pager" ];
-            contactScopeTokens.forEach(function(scopeToken) {
-                contactTokens.forEach(function(contactToken) {
+            contactScopeTokens.forEach(scopeToken => {
+                contactTokens.forEach(contactToken => {
                     input.autocomplete = scopeToken + " " + contactToken;
                     shouldBeEqualToString('input.autocomplete', scopeToken + " " + contactToken);
+                    if (window.internals)
+                        shouldBeEqualToString('window.internals.autofillFieldName(input)', contactToken);
                 })
             });
 
@@ -41,56 +45,95 @@
             debug('Mode:');
             var addressTokens = [ "street-address", "address-line1", "address-line2", "address-line3", "address-level4", "address-level3", "address-level2", "address-level1", "country", "country-name", "postal-code" ];
             var modeTokens = [ "shipping", "billing" ];
-            modeTokens.forEach(function(modeToken) {
-                addressTokens.forEach(function(addressToken) {
+            modeTokens.forEach(modeToken => {
+                addressTokens.forEach(addressToken => {
                     input.autocomplete = modeToken + " " + addressToken;
                     shouldBeEqualToString('input.autocomplete', modeToken + " " + addressToken);
+                    if (window.internals)
+                        shouldBeEqualToString('window.internals.autofillFieldName(input)', addressToken);
                 })
             });
 
             debug('');
             debug('Section:');
-            keywords.forEach(function(keyword) {
+            keywords.forEach(keyword => {
                 var value = "section-parent " + keyword;
                 input.autocomplete = value;
                 shouldBeEqualToString('input.autocomplete', value);
+                if (window.internals)
+                    shouldBeEqualToString('window.internals.autofillFieldName(input)', keyword);
             });
 
             debug('');
             debug('Invalid combinations:');
-            autocompleteableControls.forEach(function(control) {
+            autocompleteableControls.forEach(control => {
                  control.autocomplete = 'invalid';
                  shouldBeEmptyString('input.autocomplete');
+                 if (window.internals)
+                     shouldBeEqualToString('window.internals.autofillFieldName(input)', "on");
             });
             // Two normal tokens
             input.autocomplete = "name name";
             shouldBeEmptyString('input.autocomplete');
+            if (window.internals)
+                shouldBeEqualToString('window.internals.autofillFieldName(input)', "on");
 
             input.autocomplete = "name bday";
             shouldBeEmptyString('input.autocomplete');
+            if (window.internals)
+                shouldBeEqualToString('window.internals.autofillFieldName(input)', "on");
 
             // Contact scope token + non-contact token.
             input.autocomplete = "pager bday";
             shouldBeEmptyString('input.autocomplete');
+            if (window.internals)
+                shouldBeEqualToString('window.internals.autofillFieldName(input)', "on");
 
             // Two contact scope tokens.
             input.autocomplete = "home work tel";
             shouldBeEmptyString('input.autocomplete');
+            if (window.internals)
+                shouldBeEqualToString('window.internals.autofillFieldName(input)', "on");
 
             // Two mode tokens.
             input.autocomplete = "shipping billing tel";
             shouldBeEmptyString('input.autocomplete');
+            if (window.internals)
+                shouldBeEqualToString('window.internals.autofillFieldName(input)', "on");
 
             // Two section tokens.
             input.autocomplete = "section-a section-b tel";
             shouldBeEmptyString('input.autocomplete');
+            if (window.internals)
+                shouldBeEqualToString('window.internals.autofillFieldName(input)', "on");
 
             // Anything + on/off.
             input.autocomplete = "tel on";
             shouldBeEmptyString('input.autocomplete');
+            if (window.internals)
+                shouldBeEqualToString('window.internals.autofillFieldName(input)', "on");
 
             input.autocomplete = "tel off";
             shouldBeEmptyString('input.autocomplete');
+            if (window.internals)
+                shouldBeEqualToString('window.internals.autofillFieldName(input)', "on");
+
+            // Test dynamically changing the form owner's autocomplete attribute
+            // to ensure the field name correctly reflects it.
+            var form = document.createElement("form");
+            var inputInAutocompleteOffForm = document.createElement("input");
+            form.appendChild(inputInAutocompleteOffForm);
+            document.body.appendChild(form);
+            form.autocomplete = "off";
+            inputInAutocompleteOffForm.autocomplete = "";
+            shouldBeEmptyString('inputInAutocompleteOffForm.autocomplete');
+            if (window.internals)
+                shouldBeEqualToString('window.internals.autofillFieldName(inputInAutocompleteOffForm)', "off");
+
+            form.autocomplete = "on";
+            shouldBeEmptyString('inputInAutocompleteOffForm.autocomplete');
+            if (window.internals)
+                shouldBeEqualToString('window.internals.autofillFieldName(inputInAutocompleteOffForm)', "on");
 
             debug('');
             debug('Non-autocompleteable controls:');

@@ -33,10 +33,6 @@ PASS: canGet('DocumentType') should be 'true' and is.
 PASS: canSet('DocumentType') should be 'true' and is.
 PASS: canGet('Element') should be 'true' and is.
 PASS: canSet('Element') should be 'true' and is.
-PASS: canGet('Entity') should be 'true' and is.
-PASS: canSet('Entity') should be 'true' and is.
-PASS: canGet('EntityReference') should be 'true' and is.
-PASS: canSet('EntityReference') should be 'true' and is.
 PASS: canGet('EvalError') should be 'true' and is.
 PASS: canSet('EvalError') should be 'true' and is.
 PASS: canGet('Event') should be 'true' and is.
@@ -51,8 +47,6 @@ PASS: canGet('HTMLBRElement') should be 'true' and is.
 PASS: canSet('HTMLBRElement') should be 'true' and is.
 PASS: canGet('HTMLBaseElement') should be 'true' and is.
 PASS: canSet('HTMLBaseElement') should be 'true' and is.
-PASS: canGet('HTMLBaseFontElement') should be 'true' and is.
-PASS: canSet('HTMLBaseFontElement') should be 'true' and is.
 PASS: canGet('HTMLBodyElement') should be 'true' and is.
 PASS: canSet('HTMLBodyElement') should be 'true' and is.
 PASS: canGet('HTMLButtonElement') should be 'true' and is.
@@ -167,8 +161,6 @@ PASS: canGet('Range') should be 'true' and is.
 PASS: canSet('Range') should be 'true' and is.
 PASS: canGet('RangeError') should be 'true' and is.
 PASS: canSet('RangeError') should be 'true' and is.
-PASS: canGet('RangeException') should be 'true' and is.
-PASS: canSet('RangeException') should be 'true' and is.
 PASS: canGet('ReferenceError') should be 'true' and is.
 PASS: canSet('ReferenceError') should be 'true' and is.
 PASS: canGet('SyntaxError') should be 'true' and is.
@@ -215,8 +207,6 @@ PASS: canGet('event') should be 'true' and is.
 PASS: canSet('event') should be 'true' and is.
 PASS: canGet('frames') should be 'true' and is.
 PASS: canSet('frames') should be 'true' and is.
-PASS: canGet('history') should be 'true' and is.
-PASS: canSet('history') should be 'true' and is.
 PASS: canGet('innerHeight') should be 'true' and is.
 PASS: canSet('innerHeight') should be 'true' and is.
 PASS: canGet('innerWidth') should be 'true' and is.
@@ -227,8 +217,6 @@ PASS: canGet('locationbar') should be 'true' and is.
 PASS: canSet('locationbar') should be 'true' and is.
 PASS: canGet('menubar') should be 'true' and is.
 PASS: canSet('menubar') should be 'true' and is.
-PASS: canGet('navigator') should be 'true' and is.
-PASS: canSet('navigator') should be 'true' and is.
 PASS: canGet('offscreenBuffering') should be 'true' and is.
 PASS: canSet('offscreenBuffering') should be 'true' and is.
 PASS: canGet('opener') should be 'true' and is.
@@ -268,6 +256,10 @@ PASS: canGet('closed') should be 'true' and is.
 PASS: canSet('closed') should be 'false' and is.
 PASS: canGet('document') should be 'true' and is.
 PASS: canSet('document') should be 'false' and is.
+PASS: canGet('history') should be 'true' and is.
+PASS: canSet('history') should be 'false' and is.
+PASS: canGet('navigator') should be 'true' and is.
+PASS: canSet('navigator') should be 'false' and is.
 PASS: canGet('pageXOffset') should be 'true' and is.
 PASS: canSet('pageXOffset') should be 'false' and is.
 PASS: canGet('pageYOffset') should be 'true' and is.

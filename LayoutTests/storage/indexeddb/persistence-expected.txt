@@ -5,7 +5,6 @@ On success, you will see a series of "PASS" messages, followed by "TEST COMPLETE
 
 indexedDB = self.indexedDB || self.webkitIndexedDB || self.mozIndexedDB || self.msIndexedDB || self.OIndexedDB;
 
-dbname = "persistence.html"
 indexedDB.deleteDatabase(dbname)
 indexedDB.open(dbname)
 
@@ -13,7 +12,6 @@ request = indexedDB.open(dbname, 1)
 db = request.result
 PASS db is non-null.
 PASS db.version is 1
-PASS db.name is "persistence.html"
 PASS db.objectStoreNames.length is 0
 db.createObjectStore('store1')
 PASS db.objectStoreNames.length is 1
@@ -23,7 +21,6 @@ request = indexedDB.open(dbname, 2)
 db = request.result
 PASS db is non-null.
 PASS db.version is 2
-PASS db.name is "persistence.html"
 PASS db.objectStoreNames.length is 1
 PASS db.objectStoreNames.contains('store1') is true
 db.createObjectStore('store2')
@@ -36,7 +33,6 @@ request = indexedDB.open(dbname, 3)
 db = request.result
 PASS db is non-null.
 PASS db.version is 3
-PASS db.name is "persistence.html"
 PASS db.objectStoreNames.length is 2
 PASS db.objectStoreNames.contains('store1') is true
 PASS db.objectStoreNames.contains('store2') is true
@@ -50,7 +46,6 @@ request = indexedDB.open(dbname, 4)
 db = request.result
 PASS db is non-null.
 PASS db.version is 4
-PASS db.name is "persistence.html"
 PASS db.objectStoreNames.length is 1
 PASS db.objectStoreNames.contains('store1') is false
 PASS db.objectStoreNames.contains('store2') is true
@@ -64,7 +59,6 @@ request = indexedDB.open(dbname, 5)
 db = request.result
 PASS db is non-null.
 PASS db.version is 5
-PASS db.name is "persistence.html"
 PASS db.objectStoreNames.length is 0
 PASS db.objectStoreNames.contains('store1') is false
 PASS db.objectStoreNames.contains('store2') is false

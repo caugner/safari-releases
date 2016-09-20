@@ -21,5 +21,5 @@ layer at (0,0) size 785x2057
         RenderTable {TABLE} at (0,0) size 260x521 [border: (1px solid #FF0000)]
           RenderTableSection {TBODY} at (1,1) size 258x519
             RenderTableRow {TR} at (0,2) size 258x515
-              RenderTableCell {TD} at (2,172) size 254x174 [border: (1px solid #FF0000)] [r=0 c=0 rs=1 cs=1]
+              RenderTableCell {TD} at (2,172) size 254x175 [border: (1px solid #FF0000)] [r=0 c=0 rs=1 cs=1]
                 RenderImage {IMG} at (2,2) size 250x170

@@ -2,8 +2,8 @@ description('Test that setting and getting grid-template-columns and grid-templa
 
 debug("Test getting |grid-template-columns| and |grid-template-rows| set through CSS");
 testGridTemplatesValues(document.getElementById("gridWithFixedElement"), "7px 11px", "17px 2px");
-testGridTemplatesValues(document.getElementById("gridWithPercentElement"), "53% 99%", "27% 52%", "424px 792px", "162px 312px");
-testGridTemplatesValues(document.getElementById("gridWithPercentWithoutSize"), "53% 99%", "27% 52%", "7px 0px", "11px 0px");
+testGridTemplatesValues(document.getElementById("gridWithPercentElement"), "50% 100%", "27% 52%", "400px 800px", "162px 312px");
+testGridTemplatesValues(document.getElementById("gridWithPercentWithoutSize"), "50% 100%", "27% 52%", "3.5px 7px", "11px 0px");
 testGridTemplatesValues(document.getElementById("gridWithAutoElement"), "auto auto", "auto auto", "0px 17px", "0px 3px");
 testGridTemplatesValues(document.getElementById("gridWithEMElement"), "100px 120px", "150px 170px");
 testGridTemplatesValues(document.getElementById("gridWithThreeItems"), "15px auto 100px", "120px 18px auto", "15px 0px 100px", "120px 18px 0px");
@@ -19,13 +19,14 @@ testGridTemplatesValues(document.getElementById("gridWithCalcCalc"), "200px 100p
 testGridTemplatesValues(document.getElementById("gridWithCalcAndFixed"), "50% 80px", "88px 25%", "400px 80px", "88px 150px");
 testGridTemplatesValues(document.getElementById("gridWithCalcAndMinMax"), "190px minmax(-webkit-min-content, 80px)", "minmax(25%, -webkit-max-content) 53px", "190px 80px", "150px 53px");
 testGridTemplatesValues(document.getElementById("gridWithCalcInsideMinMax"), "minmax(103px, 400px) 120px", "150px minmax(5%, 175px)", "400px 120px", "150px 175px");
+testGridTemplatesValues(document.getElementById("gridWithAutoInsideMinMax"), "0px 30px", "132px 60px");
 
 debug("");
 debug("Test the initial value");
 var element = document.createElement("div");
 document.body.appendChild(element);
-shouldBe("getComputedStyle(element, '').getPropertyValue('-webkit-grid-template-columns')", "'none'");
-shouldBe("getComputedStyle(element, '').getPropertyValue('-webkit-grid-template-rows')", "'none'");
+shouldBe("getComputedStyle(element, '').getPropertyValue('grid-template-columns')", "'none'");
+shouldBe("getComputedStyle(element, '').getPropertyValue('grid-template-rows')", "'none'");
 
 debug("");
 debug("Test getting and setting grid-template-rows and grid-template-columns through JS");
@@ -37,6 +38,7 @@ testGridTemplatesSetJSValues("16em minmax(16px, 20px)", "minmax(10%, 15%) auto",
 testGridTemplatesSetJSValues("16em 2fr", "14fr auto", "160px 640px", "600px 0px");
 testGridTemplatesSetJSValues("calc(25px) calc(2em)", "auto calc(10%)", "25px 20px", "0px 60px", "calc(25px) calc(2em)", "auto calc(10%)");
 testGridTemplatesSetJSValues("calc(25px + 40%) minmax(-webkit-min-content, calc(10% + 12px))", "minmax(calc(75% - 350px), -webkit-max-content) auto", "345px 92px", "100px 0px", "calc(25px + 40%) minmax(-webkit-min-content, calc(10% + 12px))", "minmax(calc(75% - 350px), -webkit-max-content) auto");
+testGridTemplatesSetJSValues("auto minmax(16px, auto)", "minmax(auto, 15%) 10vw", "0px 16px", "90px 80px");
 
 debug("");
 debug("Test getting wrong values set from CSS");
@@ -51,7 +53,6 @@ testGridTemplatesSetBadJSValues("none none", "none none");
 testGridTemplatesSetBadJSValues("auto none", "auto none");
 testGridTemplatesSetBadJSValues("auto none 16em", "auto 18em none");
 testGridTemplatesSetBadJSValues("-webkit-fit-content -webkit-fit-content", "-webkit-fit-available -webkit-fit-available");
-testGridTemplatesSetBadJSValues("auto minmax(16px, auto)", "minmax(auto, 15%) 10vw");
 
 // Negative values are not allowed.
 testGridTemplatesSetBadJSValues("-10px minmax(16px, 32px)", "minmax(10%, 15%) -10vw");
@@ -66,14 +67,14 @@ function testInherit()
     document.body.appendChild(parentElement);
     parentElement.style.width = "800px";
     parentElement.style.font = "10px Ahem"; // Used to resolve em font consistently.
-    parentElement.style.webkitGridTemplateColumns = "50px 1fr [last]";
-    parentElement.style.webkitGridTemplateRows = "2em [middle] 45px";
+    parentElement.style.gridTemplateColumns = "50px 1fr [last]";
+    parentElement.style.gridTemplateRows = "2em [middle] 45px";
 
     element = document.createElement("div");
     parentElement.appendChild(element);
-    element.style.display = "-webkit-grid";
-    element.style.webkitGridTemplateColumns = "inherit";
-    element.style.webkitGridTemplateRows = "inherit";
+    element.style.display = "grid";
+    element.style.gridTemplateColumns = "inherit";
+    element.style.gridTemplateRows = "inherit";
     testGridTemplatesValues(element, "50px 750px [last]", "20px [middle] 45px");
 
     document.body.removeChild(parentElement);
@@ -86,15 +87,15 @@ function testInitial()
 {
     element = document.createElement("div");
     document.body.appendChild(element);
-    element.style.display = "-webkit-grid";
+    element.style.display = "grid";
     element.style.width = "800px";
     element.style.height = "600px";
-    element.style.webkitGridTemplateColumns = "150% [middle] 55px";
-    element.style.webkitGridTemplateRows = "1fr [line] 2fr [line]";
+    element.style.gridTemplateColumns = "150% [middle] 55px";
+    element.style.gridTemplateRows = "1fr [line] 2fr [line]";
     testGridTemplatesValues(element, "1200px [middle] 55px", "200px [line] 400px [line]");
 
-    element.style.webkitGridTemplateColumns = "initial";
-    element.style.webkitGridTemplateRows = "initial";
+    element.style.gridTemplateColumns = "initial";
+    element.style.gridTemplateRows = "initial";
     testGridTemplatesValues(element, "none", "none");
 
     document.body.removeChild(element);

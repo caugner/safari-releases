@@ -46,7 +46,7 @@
         var name = 1;
         log(name == 1 ? "PASS: name successfully shadowed" : "FAIL: name was not shadowed");
         var navigator = 1;
-        log(navigator == 1 ? "PASS: navigator successfully shadowed" : "FAIL: navigator was not shadowed");
+        log(navigator == 1 ? "FAIL: navigator successfully shadowed" : "PASS: navigator was not shadowed");
         var clientInformation = 1;
         log(clientInformation == 1 ? "PASS: clientInformation successfully shadowed" : "FAIL: clientInformation was not shadowed");
         var screen = 1;
@@ -76,7 +76,7 @@
         var self = 1;
         log(self == 1 ? "PASS: self successfully shadowed" : "FAIL: self was not shadowed");
         var history = 1;
-        log(history == 1 ? "PASS: history successfully shadowed" : "FAIL: history was not shadowed");
+        log(history == 1 ? "FAIL: history successfully shadowed" : "PASS: history was not shadowed");
 
         // Window functions
         var getSelection = 1;
@@ -215,10 +215,6 @@
         log(DocumentType == 1 ? "PASS: DocumentType successfully shadowed" : "FAIL: DocumentType was not shadowed");
         var Notation = 1;
         log(Notation == 1 ? "PASS: Notation successfully shadowed" : "FAIL: Notation was not shadowed");
-        var Entity = 1;
-        log(Entity == 1 ? "PASS: Entity successfully shadowed" : "FAIL: Entity was not shadowed");
-        var EntityReference = 1;
-        log(EntityReference == 1 ? "PASS: EntityReference successfully shadowed" : "FAIL: EntityReference was not shadowed");
         var ProcessingInstruction = 1;
         log(ProcessingInstruction == 1 ? "PASS: ProcessingInstruction successfully shadowed" : "FAIL: ProcessingInstruction was not shadowed");
         var HTMLDocument = 1;

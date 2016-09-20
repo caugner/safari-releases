@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-<script type="text/javascript" src="../../http/tests/inspector/inspector-test.js"></script>
+<script type="text/javascript" src="../../http/tests/inspector/resources/inspector-test.js"></script>
 <script>
 function test()
 {
@@ -158,6 +158,8 @@ function test()
         {expression: "set = new Set; for (var i = 0; i <= 100; i++) set.add(i); set.values()"},
         {expression: "map.entries()"},
         {expression: "x = undefined; (function() { x = arguments; })(1, 'two'); x[Symbol.iterator]()"},
+        {expression: "Reflect.enumerate({a:1, b:2, c:3})"},
+        {expression: "Reflect.enumerate([1, 2, 3, 4, 5, 6, 7])"},
 
         // Promise
         {expression: "new Promise(function(){})"},
@@ -166,10 +168,14 @@ function test()
         {expression: "Promise.resolve()"},
         {expression: "Promise.resolve({result:1})"},
 
+        // Proxy
+        {expression: "new Proxy({x:1, y:1}, {handler: true})"},
+
     // Classes
 
         {expression: "Person = class Person { constructor(name){} get fullName(){} methodName(p1, p2){} }; Person"}, // Constructor => class type
         {expression: "Person.prototype.methodName"}, // Method => just a function type
+        {expression: "new Person"}, // Instance, not lossless, it's prototype may have interesting methods to show
         {expression: "Alpha = class A { methodA(){} }; Beta = class B extends Alpha { methodB(){} }; Beta"},
         {expression: "[Beta]"},
 
@@ -209,7 +215,7 @@ function test()
                 return;
             }
 
-            WebInspector.runtimeManager.evaluateInInspectedWindow(step.expression, "test", false, true, false, true, false, function(remoteObject, wasThrown) {
+            WebInspector.runtimeManager.evaluateInInspectedWindow(step.expression, {objectGroup: "test", doNotPauseOnExceptionsAndMuteConsole: true, generatePreview: true}, function(remoteObject, wasThrown) {
                 InspectorTest.log("");
                 InspectorTest.log("-----------------------------------------------------");
                 InspectorTest.log("EXPRESSION: " + step.expression);

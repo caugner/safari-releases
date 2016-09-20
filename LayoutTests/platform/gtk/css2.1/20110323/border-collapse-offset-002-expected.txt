@@ -9,6 +9,6 @@ layer at (0,0) size 800x81
             text run at (32,4) width 46: "caption"
         RenderTableSection {TBODY} at (2,27) size 106x36
           RenderTableRow {TR} at (0,0) size 106x36
-            RenderTableCell {TD} at (0,6) size 106x23 [border: (2px solid #FFA500)] [r=0 c=0 rs=1 cs=1]
-              RenderText {#text} at (36,3) size 34x17
-                text run at (36,3) width 34: "cell 1"
+            RenderTableCell {TD} at (0,6) size 106x24 [border: (2px solid #FFA500)] [r=0 c=0 rs=1 cs=1]
+              RenderText {#text} at (36,3) size 34x18
+                text run at (36,4) width 34: "cell 1"

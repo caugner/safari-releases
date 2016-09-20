@@ -1,5 +1,5 @@
 # Copyright (C) 2011 Google Inc. All rights reserved.
-# Copyright (C) 2012, 2013 Apple Inc. All rights reserved.
+# Copyright (C) 2012, 2013, 2016 Apple Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are
@@ -44,7 +44,7 @@ _log = logging.getLogger(__name__)
 class MacPort(ApplePort):
     port_name = "mac"
 
-    VERSION_FALLBACK_ORDER = ['mac-snowleopard', 'mac-lion', 'mac-mountainlion', 'mac-mavericks', 'mac-yosemite', 'mac-elcapitan']
+    VERSION_FALLBACK_ORDER = ['mac-snowleopard', 'mac-lion', 'mac-mountainlion', 'mac-mavericks', 'mac-yosemite', 'mac-elcapitan', 'mac-sierra']
 
     ARCHITECTURES = ['x86_64', 'x86']
 
@@ -91,9 +91,10 @@ class MacPort(ApplePort):
 
     def configuration_specifier_macros(self):
         return {
-            "elcapitan+": ["elcapitan", "future"],
-            "mavericks+": ["mavericks", "yosemite", "elcapitan", "future"],
-            "yosemite+": ["yosemite", "elcapitan", "future"],
+            "sierra+": ["sierra", "future"],
+            "elcapitan+": ["elcapitan", "sierra", "future"],
+            "mavericks+": ["mavericks", "yosemite", "elcapitan", "sierra", "future"],
+            "yosemite+": ["yosemite", "elcapitan", "sierra", "future"],
         }
 
     def setup_environ_for_server(self, server_name=None):
@@ -101,12 +102,39 @@ class MacPort(ApplePort):
         if server_name == self.driver_name():
             if self.get_option('leaks'):
                 env['MallocStackLogging'] = '1'
+                env['__XPC_MallocStackLogging'] = '1'
+                env['MallocScribble'] = '1'
+                env['__XPC_MallocScribble'] = '1'
             if self.get_option('guard_malloc'):
-                env['DYLD_INSERT_LIBRARIES'] = '/usr/lib/libgmalloc.dylib:' + self._build_path("libWebCoreTestShim.dylib")
-            else:
-                env['DYLD_INSERT_LIBRARIES'] = self._build_path("libWebCoreTestShim.dylib")
+                self._append_value_colon_separated(env, 'DYLD_INSERT_LIBRARIES', '/usr/lib/libgmalloc.dylib')
+                self._append_value_colon_separated(env, '__XPC_DYLD_INSERT_LIBRARIES', '/usr/lib/libgmalloc.dylib')
+            self._append_value_colon_separated(env, 'DYLD_INSERT_LIBRARIES', self._build_path("libWebCoreTestShim.dylib"))
         env['XML_CATALOG_FILES'] = ''  # work around missing /etc/catalog <rdar://problem/4292995>
         return env
+
+    def _clear_global_caches_and_temporary_files(self):
+        self._filesystem.rmtree(os.path.expanduser('~/Library/' + self.driver_name()))
+        self._filesystem.rmtree(os.path.expanduser('~/Library/Application Support/' + self.driver_name()))
+        self._filesystem.rmtree(os.path.expanduser('~/Library/Caches/' + self.driver_name()))
+        self._filesystem.rmtree(os.path.expanduser('~/Library/WebKit/' + self.driver_name()))
+
+    def _path_to_user_cache_directory(self, suffix=None):
+        DIRHELPER_USER_DIR_SUFFIX = 'DIRHELPER_USER_DIR_SUFFIX'
+        CS_DARWIN_USER_CACHE_DIR = 65538
+
+        # The environment variable DIRHELPER_USER_DIR_SUFFIX is only honored on systems with
+        # System Integrity Protection disabled or with an Apple-Internal OS. To make this code
+        # work for all system configurations we compute the path with respect to the suffix
+        # by hand and temporarily unset the environment variable DIRHELPER_USER_DIR_SUFFIX (if set)
+        # to avoid it influencing confstr() on systems that honor DIRHELPER_USER_DIR_SUFFIX.
+        saved_suffix = None
+        if DIRHELPER_USER_DIR_SUFFIX in os.environ:
+            saved_suffix = os.environ[DIRHELPER_USER_DIR_SUFFIX]
+            del os.environ[DIRHELPER_USER_DIR_SUFFIX]
+        result = os.path.join(os.confstr(CS_DARWIN_USER_CACHE_DIR), suffix or '')
+        if saved_suffix is not None:
+            os.environ[DIRHELPER_USER_DIR_SUFFIX] = saved_suffix
+        return result
 
     def operating_system(self):
         return 'mac'
@@ -129,6 +157,11 @@ class MacPort(ApplePort):
         # We also want to throttle for leaks bots.
         if should_throttle_for_wk2 or self.get_option('leaks'):
             default_count = int(.75 * default_count)
+
+        if should_throttle_for_wk2 and self.get_option('guard_malloc'):
+            # Some 12 core Macs get a lot of tests time out when running 18 WebKitTestRunner processes (it's not clear what this depends on).
+            # <rdar://problem/25750302>
+            default_count = min(default_count, 12)
 
         # Make sure we have enough ram to support that many instances:
         total_memory = self.host.platform.total_bytes_memory()
@@ -212,6 +245,22 @@ class MacPort(ApplePort):
             return (stderr, None)
         return (stderr, crash_log)
 
+    def _merge_crash_logs(self, logs, new_logs, crashed_processes):
+        for test, crash_log in new_logs.iteritems():
+            try:
+                process_name = test.split("-")[0]
+                pid = int(test.split("-")[1])
+            except IndexError:
+                continue
+            if not any(entry[1] == process_name and entry[2] == pid for entry in crashed_processes):
+                # if this is a new crash, then append the logs
+                logs[test] = crash_log
+        return logs
+
+    def _look_for_all_crash_logs_in_log_dir(self, newer_than):
+        crash_log = CrashLogs(self.host)
+        return crash_log.find_all_logs(include_errors=True, newer_than=newer_than)
+
     def look_for_new_crash_logs(self, crashed_processes, start_time):
         """Since crash logs can take a long time to be written out if the system is
            under stress do a second pass at the end of the test run.
@@ -228,7 +277,8 @@ class MacPort(ApplePort):
             if not crash_log:
                 continue
             crash_logs[test_name] = crash_log
-        return crash_logs
+        all_crash_log = self._look_for_all_crash_logs_in_log_dir(start_time)
+        return self._merge_crash_logs(crash_logs, all_crash_log, crashed_processes)
 
     def look_for_new_samples(self, unresponsive_processes, start_time):
         sample_files = {}

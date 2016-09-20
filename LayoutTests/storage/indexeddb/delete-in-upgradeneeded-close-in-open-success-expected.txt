@@ -5,7 +5,6 @@ On success, you will see a series of "PASS" messages, followed by "TEST COMPLETE
 
 indexedDB = self.indexedDB || self.webkitIndexedDB || self.mozIndexedDB || self.msIndexedDB || self.OIndexedDB;
 
-dbname = "delete-in-upgradeneeded-close-in-open-success.html"
 indexedDB.deleteDatabase(dbname)
 
 initiallyDeleted():
@@ -24,10 +23,6 @@ versionChangeCallback():
 PASS event.oldVersion is 1
 PASS event.newVersion is null
 sawVersionChange = true
-
-deleteBlockedCallback():
-PASS sawVersionChange is true
-sawDeleteBlocked = true
 
 openSuccess():
 PASS sawUpgradeNeeded is true

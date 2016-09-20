@@ -223,7 +223,7 @@ layer at (0,0) size 800x2460
           RenderTableRow {TR} at (0,28) size 400x124
             RenderTableCell {TD} at (2,38) size 290x104 [border: (1px inset #808080)] [r=1 c=0 rs=1 cs=1]
               RenderImage {IMG} at (2,2) size 100x100
-            RenderTableCell {TD} at (294,28) size 104x124 [border: (1px inset #808080)] [r=1 c=1 rs=1 cs=1]
+            RenderTableCell {TD} at (293,28) size 105x124 [border: (1px inset #808080)] [r=1 c=1 rs=1 cs=1]
               RenderText {#text} at (2,2) size 68x119
                 text run at (2,2) width 68: "there there"
                 text run at (2,22) width 68: "there there"

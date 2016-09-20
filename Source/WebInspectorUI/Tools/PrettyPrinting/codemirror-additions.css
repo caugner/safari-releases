@@ -32,8 +32,6 @@ h3 {
 
 pre {
   background-color: #eee;
-  -moz-border-radius: 6px;
-  -webkit-border-radius: 6px;
   border-radius: 6px;
   padding: 1em;
 }
@@ -95,8 +93,6 @@ a.download {
   font-size: 1.23em;
   font-weight: bold;
   text-decoration: none;
-  -moz-border-radius: 6px;
-  -webkit-border-radius: 6px;
   border-radius: 6px;
   padding: .5em 0;
   margin-bottom: 1em;

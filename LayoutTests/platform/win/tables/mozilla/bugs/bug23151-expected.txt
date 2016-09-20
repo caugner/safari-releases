@@ -13,7 +13,7 @@ layer at (0,0) size 800x585
                     text run at (0,0) width 624: "/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-  "
                     text run at (624,0) width 0: " "
                     text run at (0,17) width 16: "  "
-            RenderTableCell {TD} at (624,8) size 632x17 [r=0 c=1 rs=1 cs=1]
+            RenderTableCell {TD} at (624,8) size 632x18 [r=0 c=1 rs=1 cs=1]
               RenderBlock {PRE} at (0,0) size 632x17
                 RenderInline {FONT} at (0,0) size 632x16
                   RenderText {#text} at (0,0) size 632x16

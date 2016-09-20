@@ -36,9 +36,10 @@ import string
 import sys
 import tempfile
 
+from webkitpy.common.config.urls import svn_server_host, svn_server_realm
 from webkitpy.common.memoized import memoized
 from webkitpy.common.system.executive import Executive, ScriptError
-from webkitpy.common.config.urls import svn_server_host, svn_server_realm
+from webkitpy.common.webkit_finder import WebKitFinder
 
 from .scm import AuthenticationError, SCM, commit_error_handler
 
@@ -143,6 +144,13 @@ class SVN(SCM, SVNRepository):
     def has_working_directory_changes(self):
         # FIXME: What about files which are not committed yet?
         return self._run_svn(["diff"], cwd=self.checkout_root, decode_output=False) != ""
+
+    def untracked_files(self, include_ignored_files=False):
+        status_command = [self.executable_name, "status"]
+        if include_ignored_files:
+            status_command.append("--no-ignore")
+        status_command.extend(self._patch_directories)
+        return self.run_status_and_extract_filenames(status_command, self._status_regexp("I?"))
 
     def discard_working_directory_changes(self):
         # Make sure there are no locks lying around from a previously aborted svn invocation.
@@ -272,7 +280,7 @@ class SVN(SCM, SVNRepository):
             return ""
         elif changed_files == None:
             changed_files = []
-        script_path = self._filesystem.join(self.checkout_root, "Tools", "Scripts", "svn-create-patch")
+        script_path = WebKitFinder(self._filesystem).path_from_webkit_base("Tools", "Scripts", "svn-create-patch")
         return self.run([script_path, "--no-style"] + changed_files,
             cwd=self.checkout_root, return_stderr=False,
             decode_output=False)

@@ -55,7 +55,7 @@ layer at (0,0) size 800x270
             RenderTableCell {TD} at (302,25) size 12x33 [color=#FFFFFF] [bgcolor=#009900] [border: (12px solid #FFFFF5) none] [r=1 c=6 rs=1 cs=1]
               RenderText {#text} at (0,13) size 12x19
                 text run at (0,13) width 12: "U"
-            RenderTableCell {TD} at (316,35) size 43x12 [border: (12px solid #FFFFF5) none] [r=1 c=7 rs=1 cs=1]
+            RenderTableCell {TD} at (316,35) size 43x13 [border: (12px solid #FFFFF5) none] [r=1 c=7 rs=1 cs=1]
           RenderTableRow {TR} at (0,60) size 361x21
             RenderTableCell {TH} at (2,60) size 196x21 [color=#CC0000] [r=2 c=0 rs=1 cs=1]
               RenderText {#text} at (108,1) size 88x19

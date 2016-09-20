@@ -34,9 +34,9 @@ layer at (0,0) size 800x600
                 text run at (2,87) width 14: "ee"
                 text run at (2,104) width 10: "ff"
                 text run at (2,121) width 16: "gg"
-            RenderTableCell {TD} at (28,61) size 752x21 [border: (1px inset #808080)] [r=0 c=1 rs=1 cs=1]
-              RenderText {#text} at (2,2) size 12x17
-                text run at (2,2) width 12: "X"
+            RenderTableCell {TD} at (28,61) size 752x22 [border: (1px inset #808080)] [r=0 c=1 rs=1 cs=1]
+              RenderText {#text} at (2,2) size 12x18
+                text run at (2,3) width 12: "X"
       RenderBlock {HR} at (0,287) size 77x2 [border: (1px inset #000000)]
       RenderTable {TABLE} at (0,297) size 784x47 [border: (1px outset #808080)]
         RenderTableSection {TBODY} at (1,1) size 782x45
@@ -60,6 +60,6 @@ layer at (0,0) size 800x600
               RenderImage {IMG} at (211,2) size 20x17
               RenderText {#text} at (231,5) size 101x17
                 text run at (231,5) width 101: "aroundtheimage"
-            RenderTableCell {TD} at (338,3) size 442x21 [border: (1px inset #808080)] [r=0 c=1 rs=1 cs=1]
-              RenderText {#text} at (2,2) size 12x17
-                text run at (2,2) width 12: "X"
+            RenderTableCell {TD} at (338,3) size 442x22 [border: (1px inset #808080)] [r=0 c=1 rs=1 cs=1]
+              RenderText {#text} at (2,2) size 12x18
+                text run at (2,3) width 12: "X"

@@ -57,7 +57,6 @@ class AuthenticationError(Exception):
         self.prompt_for_password = prompt_for_password
 
 
-
 # SCM methods are expected to return paths relative to self.checkout_root.
 class SCM:
     def __init__(self, cwd, executive=None, filesystem=None):
@@ -203,6 +202,16 @@ class SCM:
 
     def has_working_directory_changes(self):
         self._subclass_must_implement()
+
+    def untracked_files(self, include_ignored_files=False):
+        self._subclass_must_implement()
+
+    def discard_untracked_files(self, discard_ignored_files=False):
+        for filename in self.untracked_files(discard_ignored_files):
+            if self._filesystem.isdir(filename):
+                self._filesystem.rmtree(filename)
+            else:
+                self._filesystem.remove(filename)
 
     def discard_working_directory_changes(self):
         self._subclass_must_implement()

@@ -16,10 +16,8 @@ function isReserved(word)
 
 var reservedWords = [
     "implements",
-    "let",
     "private",
     "public",
-    "yield",
     "interface",
     "package",
     "protected",

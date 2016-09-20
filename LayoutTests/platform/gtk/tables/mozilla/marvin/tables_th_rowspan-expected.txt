@@ -11,9 +11,9 @@ layer at (0,0) size 800x600
       RenderTable {TABLE} at (0,34) size 286x50 [border: (1px outset #808080)]
         RenderTableSection {TBODY} at (1,1) size 284x48
           RenderTableRow {TR} at (0,2) size 284x21
-            RenderTableCell {TH} at (2,13) size 70x21 [border: (1px inset #808080)] [r=0 c=0 rs=2 cs=1]
-              RenderText {#text} at (2,2) size 66x17
-                text run at (2,2) width 66: "Platforms"
+            RenderTableCell {TH} at (2,13) size 70x22 [border: (1px inset #808080)] [r=0 c=0 rs=2 cs=1]
+              RenderText {#text} at (2,2) size 66x18
+                text run at (2,3) width 66: "Platforms"
             RenderTableCell {TH} at (74,2) size 208x21 [border: (1px inset #808080)] [r=0 c=1 rs=1 cs=1]
               RenderText {#text} at (2,2) size 204x17
                 text run at (2,2) width 204: "Netscape Communicator 4.0.6"

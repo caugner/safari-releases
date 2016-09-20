@@ -65,7 +65,7 @@ layer at (0,0) size 800x264
                   text run at (41,1) width 30: "here"
               RenderText {#text} at (71,1) size 9x17
                 text run at (71,1) width 9: ")."
-            RenderTableCell {td} at (174,61) size 99x2 [r=2 c=2 rs=1 cs=1]
+            RenderTableCell {td} at (174,61) size 99x3 [r=2 c=2 rs=1 cs=1]
           RenderTableRow {tr} at (0,77) size 278x19
             RenderTableCell {td} at (5,77) size 78x19 [r=3 c=0 rs=1 cs=1]
               RenderText {#text} at (1,1) size 76x17
@@ -98,7 +98,7 @@ layer at (0,0) size 800x264
                   text run at (33,1) width 35: "there"
               RenderText {#text} at (68,1) size 4x17
                 text run at (68,1) width 4: ":"
-            RenderTableCell {td} at (174,133) size 99x2 [r=5 c=2 rs=1 cs=1]
+            RenderTableCell {td} at (174,133) size 99x3 [r=5 c=2 rs=1 cs=1]
           RenderTableRow {tr} at (0,149) size 278x19
             RenderTableCell {td} at (5,149) size 78x19 [r=6 c=0 rs=1 cs=1]
               RenderText {#text} at (1,1) size 32x17
@@ -108,7 +108,7 @@ layer at (0,0) size 800x264
                   text run at (33,1) width 30: "here"
               RenderText {#text} at (63,1) size 4x17
                 text run at (63,1) width 4: ":"
-            RenderTableCell {td} at (88,157) size 81x2 [r=6 c=1 rs=1 cs=1]
+            RenderTableCell {td} at (88,157) size 81x3 [r=6 c=1 rs=1 cs=1]
             RenderTableCell {td} at (174,149) size 99x19 [r=6 c=2 rs=1 cs=1]
               RenderText {#text} at (1,1) size 81x17
                 text run at (1,1) width 81: "(blank cells)."

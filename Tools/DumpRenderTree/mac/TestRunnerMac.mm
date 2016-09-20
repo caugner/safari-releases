@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007, 2008, 2009, 2012 Apple Inc. All rights reserved.
+ * Copyright (C) 2007-2016 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -78,6 +78,7 @@
 #import <wtf/RetainPtr.h>
 
 #if !PLATFORM(IOS)
+#import <WebCore/SoftLinking.h>
 #import <WebKit/WebIconDatabasePrivate.h>
 #endif
 
@@ -89,6 +90,8 @@
 #endif
 
 #if !PLATFORM(IOS)
+SOFT_LINK_STAGED_FRAMEWORK(WebInspectorUI, PrivateFrameworks, A)
+
 @interface CommandValidationTarget : NSObject <NSValidatedUserInterfaceItem>
 {
     SEL _action;
@@ -194,6 +197,7 @@ JSValueRef TestRunner::originsWithApplicationCache(JSContextRef context)
 void TestRunner::clearAllDatabases()
 {
     [[WebDatabaseManager sharedWebDatabaseManager] deleteAllDatabases];
+    [[WebDatabaseManager sharedWebDatabaseManager] deleteAllIndexedDatabases];
 }
 
 void TestRunner::setStorageDatabaseIdleInterval(double interval)
@@ -252,6 +256,11 @@ void TestRunner::keepWebHistory()
 int TestRunner::numberOfPendingGeolocationPermissionRequests()
 {
     return [(UIDelegate *)[[mainFrame webView] UIDelegate] numberOfPendingGeolocationPermissionRequests];
+}
+
+bool TestRunner::isGeolocationProviderActive()
+{
+    return MockGeolocationProvider.shared.isActive;
 }
 
 size_t TestRunner::webHistoryItemCount()
@@ -418,8 +427,8 @@ void TestRunner::setMockGeolocationPosition(double latitude, double longitude, d
         // Test the exposed API.
         position = [[WebGeolocationPosition alloc] initWithTimestamp:currentTime() latitude:latitude longitude:longitude accuracy:accuracy];
     } else {
-        RefPtr<WebCore::GeolocationPosition> coreGeolocationPosition = WebCore::GeolocationPosition::create(currentTime(), latitude, longitude, accuracy, providesAltitude, altitude, providesAltitudeAccuracy, altitudeAccuracy, providesHeading, heading, providesSpeed, speed);
-        position = [[WebGeolocationPosition alloc] initWithGeolocationPosition:(coreGeolocationPosition.release())];
+        auto coreGeolocationPosition = WebCore::GeolocationPosition::create(currentTime(), latitude, longitude, accuracy, providesAltitude, altitude, providesAltitudeAccuracy, altitudeAccuracy, providesHeading, heading, providesSpeed, speed);
+        position = [[WebGeolocationPosition alloc] initWithGeolocationPosition:(WTFMove(coreGeolocationPosition))];
     }
     [[MockGeolocationProvider shared] setPosition:position];
     [position release];
@@ -528,14 +537,6 @@ void TestRunner::setPagePaused(bool paused)
 }
 #endif
 
-#if ENABLE(IOS_TEXT_AUTOSIZING)
-void TestRunner::setTextAutosizingEnabled(bool enabled)
-{
-    const float phoneMinimumZoomFontSize = 15;
-    [[[mainFrame webView] preferences] _setMinimumZoomFontSize:(enabled ? phoneMinimumZoomFontSize : 0)];
-}
-#endif
-
 void TestRunner::setUseDashboardCompatibilityMode(bool flag)
 {
 #if !PLATFORM(IOS)
@@ -606,6 +607,11 @@ void TestRunner::setWindowIsKey(bool windowIsKey)
 {
     m_windowIsKey = windowIsKey;
     [[mainFrame webView] _updateActiveState];
+}
+
+void TestRunner::setViewSize(double width, double height)
+{
+    [[mainFrame webView] setFrameSize:NSMakeSize(width, height)];
 }
 
 static void waitUntilDoneWatchdogFired(CFRunLoopTimerRef timer, void* info)
@@ -773,6 +779,27 @@ void TestRunner::evaluateInWebInspector(JSStringRef script)
     RetainPtr<CFStringRef> scriptCF = adoptCF(JSStringCopyCFString(kCFAllocatorDefault, script));
     NSString *scriptNS = (NSString *)scriptCF.get();
     [[[mainFrame webView] inspector] evaluateInFrontend:nil script:scriptNS];
+}
+
+JSStringRef TestRunner::inspectorTestStubURL()
+{
+#if PLATFORM(IOS)
+    return nullptr;
+#else
+    // Call the soft link framework function to dlopen it, then CFBundleGetBundleWithIdentifier will work.
+    WebInspectorUILibrary();
+
+    CFBundleRef inspectorBundle = CFBundleGetBundleWithIdentifier(CFSTR("com.apple.WebInspectorUI"));
+    if (!inspectorBundle)
+        return nullptr;
+
+    RetainPtr<CFURLRef> url = adoptCF(CFBundleCopyResourceURL(inspectorBundle, CFSTR("TestStub"), CFSTR("html"), NULL));
+    if (!url)
+        return nullptr;
+
+    CFStringRef urlString = CFURLGetString(url.get());
+    return JSStringCreateWithCFString(urlString);
+#endif
 }
 
 typedef HashMap<unsigned, RetainPtr<WebScriptWorld> > WorldMap;
@@ -1198,3 +1225,33 @@ void TestRunner::simulateLegacyWebNotificationClick(JSStringRef jsTitle)
 {
 }
 
+static NSString * const WebArchivePboardType = @"Apple Web Archive pasteboard type";
+static NSString * const WebSubresourcesKey = @"WebSubresources";
+static NSString * const WebSubframeArchivesKey = @"WebResourceMIMEType like 'image*'";
+
+unsigned TestRunner::imageCountInGeneralPasteboard() const
+{
+#if PLATFORM(MAC)
+    NSData *data = [[NSPasteboard generalPasteboard] dataForType:WebArchivePboardType];
+#elif PLATFORM(IOS)
+    NSData *data = [[UIPasteboard generalPasteboard] valueForPasteboardType:WebArchivePboardType];
+#endif
+    if (!data)
+        return 0;
+    
+    NSError *error = nil;
+    id webArchive = [NSPropertyListSerialization propertyListWithData:data options:NSPropertyListImmutable format:NULL error:&error];
+    if (error) {
+        NSLog(@"Encountered error while serializing Web Archive pasteboard data: %@", error);
+        return 0;
+    }
+    
+    NSArray *subItems = [NSArray arrayWithArray:[webArchive objectForKey:WebSubresourcesKey]];
+    NSPredicate *predicate = [NSPredicate predicateWithFormat:WebSubframeArchivesKey];
+    NSArray *imagesArray = [subItems filteredArrayUsingPredicate:predicate];
+    
+    if (!imagesArray)
+        return 0;
+    
+    return imagesArray.count;
+}

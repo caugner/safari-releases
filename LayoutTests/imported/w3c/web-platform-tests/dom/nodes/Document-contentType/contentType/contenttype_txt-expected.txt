@@ -1,0 +1,4 @@
+
+
+PASS TXT document.contentType === 'text/plain' 
+

@@ -137,7 +137,6 @@ class MockFileSystem(object):
                 dirs.append(dirpath)
         return sorted(dirs)
 
-
     def files_under(self, path, dirs_to_skip=[], file_filter=None):
         def filter_all(fs, dirpath, basename):
             return True
@@ -417,6 +416,9 @@ class MockFileSystem(object):
         if idx == -1:
             idx = len(path)
         return (path[0:idx], path[idx:])
+
+    def compare(self, path1, path2):
+        return self.read_binary_file(path1) == self.read_binary_file(path2)
 
 
 class WritableBinaryFileObject(object):

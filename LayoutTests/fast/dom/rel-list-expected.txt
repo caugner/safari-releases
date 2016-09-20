@@ -23,18 +23,18 @@ PASS element.relList.length is 2
 PASS element.relList.contains("marshmallow") is true
 PASS element.relList.contains("chips") is true
 PASS element.relList.contains("orange") is false
-PASS String(element.relList) is "x"
+PASS String(element.relList) is "y"
 PASS element.relList.length is 0
 PASS element.relList.length is 1
-PASS element.relList.length is 2
+PASS element.relList.length is 1
 PASS element.relList.length is 2
 PASS element.rel is "x"
 PASS element.rel is "x"
-PASS element.rel is "x  x"
+PASS element.rel is "x"
 PASS element.rel is "y x"
 PASS element.rel is ""
 PASS element.rel is ""
-PASS element.rel is " y y "
+PASS element.rel is "y"
 PASS element.rel is "y"
 Ensure that we can handle empty rel correctly
 PASS element.relList.toggle('x') is true
@@ -54,25 +54,25 @@ PASS element.relList.toggle('x', false) is false
 PASS element.rel is ""
 PASS element.relList.toggle('x', false) is false
 PASS element.rel is ""
-PASS element.relList.toggle("", true) threw exception Error: SyntaxError: DOM Exception 12.
-PASS element.relList.toggle("x y", false) threw exception Error: InvalidCharacterError: DOM Exception 5.
+PASS element.relList.toggle("", true) threw exception SyntaxError (DOM Exception 12): The string did not match the expected pattern..
+PASS element.relList.toggle("x y", false) threw exception InvalidCharacterError (DOM Exception 5): The string contains invalid characters..
 Testing add in presence of trailing white spaces.
 PASS element.rel is "x y"
-PASS element.rel is "x\ty"
-PASS element.rel is " y"
+PASS element.rel is "x y"
+PASS element.rel is "y"
 Test invalid tokens
-PASS element.relList.contains("") threw exception Error: SyntaxError: DOM Exception 12.
-PASS element.relList.contains("x y") threw exception Error: InvalidCharacterError: DOM Exception 5.
-PASS element.relList.add("") threw exception Error: SyntaxError: DOM Exception 12.
-PASS element.relList.add("x y") threw exception Error: InvalidCharacterError: DOM Exception 5.
-PASS element.relList.remove("") threw exception Error: SyntaxError: DOM Exception 12.
-PASS element.relList.remove("x y") threw exception Error: InvalidCharacterError: DOM Exception 5.
-PASS element.relList.toggle("") threw exception Error: SyntaxError: DOM Exception 12.
+PASS element.relList.contains("") is false
+PASS element.relList.contains("x y") is false
+PASS element.relList.add("") threw exception SyntaxError (DOM Exception 12): The string did not match the expected pattern..
+PASS element.relList.add("x y") threw exception InvalidCharacterError (DOM Exception 5): The string contains invalid characters..
+PASS element.relList.remove("") threw exception SyntaxError (DOM Exception 12): The string did not match the expected pattern..
+PASS element.relList.remove("x y") threw exception InvalidCharacterError (DOM Exception 5): The string contains invalid characters..
+PASS element.relList.toggle("") threw exception SyntaxError (DOM Exception 12): The string did not match the expected pattern..
 Indexing
 PASS element.relList[0] is "x"
 PASS element.relList.item(0) is "x"
-PASS element.relList[1] is "x"
-PASS element.relList.item(1) is "x"
+PASS element.relList[1] is undefined.
+PASS element.relList.item(1) is null
 PASS element.relList[1] is "y"
 PASS element.relList.item(1) is "y"
 PASS element.relList[0] is undefined.
@@ -107,22 +107,22 @@ PASS element.rel is "a b"
 PASS element.rel is "a b c"
 PASS element.rel is "a b c null d undefined 0 false"
 PASS element.rel is "a b"
-PASS element.relList.add("a", "b", "") threw exception Error: SyntaxError: DOM Exception 12.
+PASS element.relList.add("a", "b", "") threw exception SyntaxError (DOM Exception 12): The string did not match the expected pattern..
 PASS element.rel is ""
-PASS element.relList.add("a", "b", "c d") threw exception Error: InvalidCharacterError: DOM Exception 5.
+PASS element.relList.add("a", "b", "c d") threw exception InvalidCharacterError (DOM Exception 5): The string contains invalid characters..
 PASS element.rel is ""
 PASS element.relList.add("a", {toString: function() { throw new Error("user error"); }}, "b") threw exception Error: user error.
 PASS element.rel is ""
 PASS element.relList.add() did not throw exception.
 PASS observer.takeRecords().length is 1
-PASS element.rel is "b d  "
-PASS element.rel is "d  "
+PASS element.rel is "b d"
+PASS element.rel is "d"
 PASS element.rel is "a b c"
-PASS element.relList.remove("a", "b", "") threw exception Error: SyntaxError: DOM Exception 12.
+PASS element.relList.remove("a", "b", "") threw exception SyntaxError (DOM Exception 12): The string did not match the expected pattern..
 PASS element.rel is "a b"
 PASS element.relList.remove("a", {toString: function() { throw new Error("user error"); }}, "b") threw exception Error: user error.
 PASS element.rel is "a b"
-PASS element.relList.remove("a", "b", "c d") threw exception Error: InvalidCharacterError: DOM Exception 5.
+PASS element.relList.remove("a", "b", "c d") threw exception InvalidCharacterError (DOM Exception 5): The string contains invalid characters..
 PASS element.rel is "a b"
 PASS element.relList.remove() did not throw exception.
 PASS observer.takeRecords().length is 1
@@ -146,18 +146,18 @@ PASS element.relList.length is 2
 PASS element.relList.contains("marshmallow") is true
 PASS element.relList.contains("chips") is true
 PASS element.relList.contains("orange") is false
-PASS String(element.relList) is "x"
+PASS String(element.relList) is "y"
 PASS element.relList.length is 0
 PASS element.relList.length is 1
-PASS element.relList.length is 2
+PASS element.relList.length is 1
 PASS element.relList.length is 2
 PASS element.rel is "x"
 PASS element.rel is "x"
-PASS element.rel is "x  x"
+PASS element.rel is "x"
 PASS element.rel is "y x"
 PASS element.rel is ""
 PASS element.rel is ""
-PASS element.rel is " y y "
+PASS element.rel is "y"
 PASS element.rel is "y"
 Ensure that we can handle empty rel correctly
 PASS element.relList.toggle('x') is true
@@ -177,25 +177,25 @@ PASS element.relList.toggle('x', false) is false
 PASS element.rel is ""
 PASS element.relList.toggle('x', false) is false
 PASS element.rel is ""
-PASS element.relList.toggle("", true) threw exception Error: SyntaxError: DOM Exception 12.
-PASS element.relList.toggle("x y", false) threw exception Error: InvalidCharacterError: DOM Exception 5.
+PASS element.relList.toggle("", true) threw exception SyntaxError (DOM Exception 12): The string did not match the expected pattern..
+PASS element.relList.toggle("x y", false) threw exception InvalidCharacterError (DOM Exception 5): The string contains invalid characters..
 Testing add in presence of trailing white spaces.
 PASS element.rel is "x y"
-PASS element.rel is "x\ty"
-PASS element.rel is " y"
+PASS element.rel is "x y"
+PASS element.rel is "y"
 Test invalid tokens
-PASS element.relList.contains("") threw exception Error: SyntaxError: DOM Exception 12.
-PASS element.relList.contains("x y") threw exception Error: InvalidCharacterError: DOM Exception 5.
-PASS element.relList.add("") threw exception Error: SyntaxError: DOM Exception 12.
-PASS element.relList.add("x y") threw exception Error: InvalidCharacterError: DOM Exception 5.
-PASS element.relList.remove("") threw exception Error: SyntaxError: DOM Exception 12.
-PASS element.relList.remove("x y") threw exception Error: InvalidCharacterError: DOM Exception 5.
-PASS element.relList.toggle("") threw exception Error: SyntaxError: DOM Exception 12.
+PASS element.relList.contains("") is false
+PASS element.relList.contains("x y") is false
+PASS element.relList.add("") threw exception SyntaxError (DOM Exception 12): The string did not match the expected pattern..
+PASS element.relList.add("x y") threw exception InvalidCharacterError (DOM Exception 5): The string contains invalid characters..
+PASS element.relList.remove("") threw exception SyntaxError (DOM Exception 12): The string did not match the expected pattern..
+PASS element.relList.remove("x y") threw exception InvalidCharacterError (DOM Exception 5): The string contains invalid characters..
+PASS element.relList.toggle("") threw exception SyntaxError (DOM Exception 12): The string did not match the expected pattern..
 Indexing
 PASS element.relList[0] is "x"
 PASS element.relList.item(0) is "x"
-PASS element.relList[1] is "x"
-PASS element.relList.item(1) is "x"
+PASS element.relList[1] is undefined.
+PASS element.relList.item(1) is null
 PASS element.relList[1] is "y"
 PASS element.relList.item(1) is "y"
 PASS element.relList[0] is undefined.
@@ -230,22 +230,22 @@ PASS element.rel is "a b"
 PASS element.rel is "a b c"
 PASS element.rel is "a b c null d undefined 0 false"
 PASS element.rel is "a b"
-PASS element.relList.add("a", "b", "") threw exception Error: SyntaxError: DOM Exception 12.
+PASS element.relList.add("a", "b", "") threw exception SyntaxError (DOM Exception 12): The string did not match the expected pattern..
 PASS element.rel is ""
-PASS element.relList.add("a", "b", "c d") threw exception Error: InvalidCharacterError: DOM Exception 5.
+PASS element.relList.add("a", "b", "c d") threw exception InvalidCharacterError (DOM Exception 5): The string contains invalid characters..
 PASS element.rel is ""
 PASS element.relList.add("a", {toString: function() { throw new Error("user error"); }}, "b") threw exception Error: user error.
 PASS element.rel is ""
 PASS element.relList.add() did not throw exception.
 PASS observer.takeRecords().length is 1
-PASS element.rel is "b d  "
-PASS element.rel is "d  "
+PASS element.rel is "b d"
+PASS element.rel is "d"
 PASS element.rel is "a b c"
-PASS element.relList.remove("a", "b", "") threw exception Error: SyntaxError: DOM Exception 12.
+PASS element.relList.remove("a", "b", "") threw exception SyntaxError (DOM Exception 12): The string did not match the expected pattern..
 PASS element.rel is "a b"
 PASS element.relList.remove("a", {toString: function() { throw new Error("user error"); }}, "b") threw exception Error: user error.
 PASS element.rel is "a b"
-PASS element.relList.remove("a", "b", "c d") threw exception Error: InvalidCharacterError: DOM Exception 5.
+PASS element.relList.remove("a", "b", "c d") threw exception InvalidCharacterError (DOM Exception 5): The string contains invalid characters..
 PASS element.rel is "a b"
 PASS element.relList.remove() did not throw exception.
 PASS observer.takeRecords().length is 1
@@ -269,18 +269,18 @@ PASS element.relList.length is 2
 PASS element.relList.contains("marshmallow") is true
 PASS element.relList.contains("chips") is true
 PASS element.relList.contains("orange") is false
-PASS String(element.relList) is "x"
+PASS String(element.relList) is "y"
 PASS element.relList.length is 0
 PASS element.relList.length is 1
-PASS element.relList.length is 2
+PASS element.relList.length is 1
 PASS element.relList.length is 2
 PASS element.rel is "x"
 PASS element.rel is "x"
-PASS element.rel is "x  x"
+PASS element.rel is "x"
 PASS element.rel is "y x"
 PASS element.rel is ""
 PASS element.rel is ""
-PASS element.rel is " y y "
+PASS element.rel is "y"
 PASS element.rel is "y"
 Ensure that we can handle empty rel correctly
 PASS element.relList.toggle('x') is true
@@ -300,25 +300,25 @@ PASS element.relList.toggle('x', false) is false
 PASS element.rel is ""
 PASS element.relList.toggle('x', false) is false
 PASS element.rel is ""
-PASS element.relList.toggle("", true) threw exception Error: SyntaxError: DOM Exception 12.
-PASS element.relList.toggle("x y", false) threw exception Error: InvalidCharacterError: DOM Exception 5.
+PASS element.relList.toggle("", true) threw exception SyntaxError (DOM Exception 12): The string did not match the expected pattern..
+PASS element.relList.toggle("x y", false) threw exception InvalidCharacterError (DOM Exception 5): The string contains invalid characters..
 Testing add in presence of trailing white spaces.
 PASS element.rel is "x y"
-PASS element.rel is "x\ty"
-PASS element.rel is " y"
+PASS element.rel is "x y"
+PASS element.rel is "y"
 Test invalid tokens
-PASS element.relList.contains("") threw exception Error: SyntaxError: DOM Exception 12.
-PASS element.relList.contains("x y") threw exception Error: InvalidCharacterError: DOM Exception 5.
-PASS element.relList.add("") threw exception Error: SyntaxError: DOM Exception 12.
-PASS element.relList.add("x y") threw exception Error: InvalidCharacterError: DOM Exception 5.
-PASS element.relList.remove("") threw exception Error: SyntaxError: DOM Exception 12.
-PASS element.relList.remove("x y") threw exception Error: InvalidCharacterError: DOM Exception 5.
-PASS element.relList.toggle("") threw exception Error: SyntaxError: DOM Exception 12.
+PASS element.relList.contains("") is false
+PASS element.relList.contains("x y") is false
+PASS element.relList.add("") threw exception SyntaxError (DOM Exception 12): The string did not match the expected pattern..
+PASS element.relList.add("x y") threw exception InvalidCharacterError (DOM Exception 5): The string contains invalid characters..
+PASS element.relList.remove("") threw exception SyntaxError (DOM Exception 12): The string did not match the expected pattern..
+PASS element.relList.remove("x y") threw exception InvalidCharacterError (DOM Exception 5): The string contains invalid characters..
+PASS element.relList.toggle("") threw exception SyntaxError (DOM Exception 12): The string did not match the expected pattern..
 Indexing
 PASS element.relList[0] is "x"
 PASS element.relList.item(0) is "x"
-PASS element.relList[1] is "x"
-PASS element.relList.item(1) is "x"
+PASS element.relList[1] is undefined.
+PASS element.relList.item(1) is null
 PASS element.relList[1] is "y"
 PASS element.relList.item(1) is "y"
 PASS element.relList[0] is undefined.
@@ -353,22 +353,22 @@ PASS element.rel is "a b"
 PASS element.rel is "a b c"
 PASS element.rel is "a b c null d undefined 0 false"
 PASS element.rel is "a b"
-PASS element.relList.add("a", "b", "") threw exception Error: SyntaxError: DOM Exception 12.
+PASS element.relList.add("a", "b", "") threw exception SyntaxError (DOM Exception 12): The string did not match the expected pattern..
 PASS element.rel is ""
-PASS element.relList.add("a", "b", "c d") threw exception Error: InvalidCharacterError: DOM Exception 5.
+PASS element.relList.add("a", "b", "c d") threw exception InvalidCharacterError (DOM Exception 5): The string contains invalid characters..
 PASS element.rel is ""
 PASS element.relList.add("a", {toString: function() { throw new Error("user error"); }}, "b") threw exception Error: user error.
 PASS element.rel is ""
 PASS element.relList.add() did not throw exception.
 PASS observer.takeRecords().length is 1
-PASS element.rel is "b d  "
-PASS element.rel is "d  "
+PASS element.rel is "b d"
+PASS element.rel is "d"
 PASS element.rel is "a b c"
-PASS element.relList.remove("a", "b", "") threw exception Error: SyntaxError: DOM Exception 12.
+PASS element.relList.remove("a", "b", "") threw exception SyntaxError (DOM Exception 12): The string did not match the expected pattern..
 PASS element.rel is "a b"
 PASS element.relList.remove("a", {toString: function() { throw new Error("user error"); }}, "b") threw exception Error: user error.
 PASS element.rel is "a b"
-PASS element.relList.remove("a", "b", "c d") threw exception Error: InvalidCharacterError: DOM Exception 5.
+PASS element.relList.remove("a", "b", "c d") threw exception InvalidCharacterError (DOM Exception 5): The string contains invalid characters..
 PASS element.rel is "a b"
 PASS element.relList.remove() did not throw exception.
 PASS observer.takeRecords().length is 1

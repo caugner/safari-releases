@@ -88,7 +88,7 @@
 - (IBAction)showHideWebView:(id)sender
 {
     BOOL hidden = ![_webView isHidden];
-
+    
     [_webView setHidden:hidden];
 }
 
@@ -96,7 +96,7 @@
 {
     if ([_webView window]) {
         [_webView retain];
-        [_webView removeFromSuperview];
+        [_webView removeFromSuperview]; 
     } else {
         [containerView addSubview:_webView];
         [_webView release];
@@ -105,7 +105,7 @@
 
 - (IBAction)setScale:(id)sender
 {
-
+    
 }
 
 - (IBAction)reload:(id)sender
@@ -155,10 +155,10 @@
 
     if (action == @selector(goBack:))
         return [_webView canGoBack];
-
+    
     if (action == @selector(goForward:))
         return [_webView canGoForward];
-
+    
     return YES;
 }
 
@@ -250,6 +250,11 @@
     return _webView.mainFrame.dataSource.request.URL;
 }
 
+- (NSView *)mainContentView
+{
+    return _webView;
+}
+
 - (void)didChangeSettings
 {
     SettingsController *settings = [SettingsController shared];
@@ -259,10 +264,13 @@
     [[WebPreferences standardPreferences] setSimpleLineLayoutDebugBordersEnabled:settings.simpleLineLayoutDebugBordersEnabled];
     [[WebPreferences standardPreferences] setShowRepaintCounter:settings.layerBordersVisible];
     [[WebPreferences standardPreferences] setSuppressesIncrementalRendering:settings.incrementalRenderingSuppressed];
+    [[WebPreferences standardPreferences] setAcceleratedDrawingEnabled:settings.acceleratedDrawingEnabled];
+    [[WebPreferences standardPreferences] setResourceLoadStatisticsEnabled:settings.resourceLoadStatisticsEnabled];
 
     BOOL useTransparentWindows = settings.useTransparentWindows;
     if (useTransparentWindows != !self.window.isOpaque) {
         [self.window setOpaque:!useTransparentWindows];
+        [self.window setBackgroundColor:[NSColor clearColor]];
         [self.window setHasShadow:!useTransparentWindows];
 
         [_webView setBackgroundColor:useTransparentWindows ? [NSColor clearColor] : [NSColor whiteColor]];
@@ -279,6 +287,11 @@
         } else
             [_webView _setPaginationMode:WebPaginationModeUnpaginated];
     }
+}
+
+- (IBAction)printWebView:(id)sender
+{
+    [[[[_webView mainFrame] frameView] printOperationWithPrintInfo:[NSPrintInfo sharedPrintInfo]] runOperationModalForWindow:self.window delegate:nil didRunSelector:nil contextInfo:nil];
 }
 
 - (void)webView:(WebView *)sender didLayout:(WebLayoutMilestones)milestones
@@ -303,6 +316,16 @@
 {
 }
 
+- (void)updateTitle:(NSString *)title
+{
+    if (!title) {
+        NSURL *url = _webView.mainFrame.dataSource.request.URL;
+        title = url.lastPathComponent;
+    }
+    
+    [self.window setTitle:[title stringByAppendingString:@" [WK1]"]];
+}
+
 - (WebView *)webView:(WebView *)sender createWebViewWithRequest:(NSURLRequest *)request
 {
     WK1BrowserWindowController *newBrowserWindowController = [[WK1BrowserWindowController alloc] initWithWindowNibName:@"BrowserWindow"];
@@ -318,6 +341,8 @@
 
     NSURL *committedURL = [[[frame dataSource] request] URL];
     [urlText setStringValue:[committedURL absoluteString]];
+
+    [self updateTitle:nil];
 }
 
 - (void)webView:(WebView *)sender didReceiveTitle:(NSString *)title forFrame:(WebFrame *)frame
@@ -325,7 +350,12 @@
     if (frame != [sender mainFrame])
         return;
 
-    [self.window setTitle:[title stringByAppendingString:@" [WK1]"]];
+    [self updateTitle:title];
+}
+
+- (NSArray *)webView:(WebView *)sender contextMenuItemsForElement:(NSDictionary *)element defaultMenuItems:(NSArray *)defaultMenuItems
+{
+    return defaultMenuItems;
 }
 
 - (void)webView:(WebView *)sender runJavaScriptAlertPanelWithMessage:(NSString *)message initiatedByFrame:(WebFrame *)frame

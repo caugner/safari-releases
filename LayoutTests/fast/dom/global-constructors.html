@@ -85,7 +85,7 @@ function test()
     try {
       nodeFilter = document.createNodeIterator(document, NodeFilter.SHOW_ELEMENT, function () {}, false).filter;
     } catch(e) {}
-    shouldBe("window.NodeFilter.prototype.isPrototypeOf(nodeFilter)", true);
+    shouldBe("Function.prototype.isPrototypeOf(nodeFilter)", true);
 
     originalNodePrototype = window.Node.prototype;
     
@@ -95,15 +95,17 @@ function test()
     
     originalNodeConstructor = window.Node;    
 
-    // Shadow window.Node
+    // Set window.Node
     window.Node = 1;
     print("[Set window.Node = 1]");
     shouldBe("window.Node", 1);
     
-    // Unshadow window.Node
+    // Delete window.Node
     delete window.Node;
     print("[Deleted window.Node]");
-    shouldBe("window.Node", originalNodeConstructor);
+    shouldBe("window.Node", undefined);
+
+    window.Node = originalNodeConstructor;
 
     // Attempt to shadow window.Node with a frame named 'Node'
     var iframe = document.createElement('iframe');

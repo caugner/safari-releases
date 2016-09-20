@@ -14,7 +14,7 @@ layer at (0,0) size 800x600
                 text run at (1,1) width 183: "This is the footer information"
         RenderTableSection {TBODY} at (0,17) size 483x86
           RenderTableRow {TR} at (0,2) size 483x19
-            RenderTableCell {TH} at (2,10) size 185x2 [r=0 c=0 rs=1 cs=1]
+            RenderTableCell {TH} at (2,10) size 185x3 [r=0 c=0 rs=1 cs=1]
             RenderTableCell {TH} at (189,2) size 109x19 [r=0 c=1 rs=1 cs=1]
               RenderText {#text} at (1,1) size 107x17
                 text run at (1,1) width 107: "Macintosh PPC"

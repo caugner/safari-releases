@@ -349,19 +349,24 @@ function enableAllTextTracks()
     }
 }
 
-var requiredEvents = [];
-
 function waitForEventsAndCall(eventList, func)
 {
+    var requiredEvents = []
+
     function _eventCallback(event)
     {
         if (!requiredEvents.length)
             return;
 
-        var index = requiredEvents.indexOf(event.type);
-        if (index < 0)
+        for (var index = 0; index < requiredEvents.length; index++) {
+            if (requiredEvents[index][1] === event.type) {
+                break;
+            }
+        }
+        if (index >= requiredEvents.length)
             return;
 
+        requiredEvents[index][0].removeEventListener(event, _eventCallback);
         requiredEvents.splice(index, 1);
         if (requiredEvents.length)
             return;
@@ -369,10 +374,9 @@ function waitForEventsAndCall(eventList, func)
         func();
     }
 
-    requiredEvents = [];
     for (var i = 0; i < eventList.length; i++) {
-        requiredEvents[i] = eventList[i][1];
-        eventList[i][0].addEventListener(requiredEvents[i], _eventCallback, true);
+        requiredEvents[i] = eventList[i].slice(0);
+        requiredEvents[i][0].addEventListener(requiredEvents[i][1], _eventCallback, true);
     }
 }
 
@@ -392,7 +396,10 @@ function runWithKeyDown(fn)
 
     function thunk() {
         document.removeEventListener(eventName, thunk, false);
-        fn();
+        if (typeof fn === 'function')
+            fn();
+        else
+            run(fn);
     }
     document.addEventListener(eventName, thunk, false);
 

@@ -11,15 +11,9 @@ function createElement(className)
 debug('Tests from http://simon.html5.org/test/html/dom/reflecting/DOMTokenList/');
 
 // http://simon.html5.org/test/html/dom/reflecting/DOMTokenList/setting/001.htm
-// Firefox throws here but WebKit does not throw on setting readonly idl
-// attributes.
 createElement('x');
-try {
-    element.classList = 'y';
-    shouldBeEqualToString('String(element.classList)', 'x');
-} catch (ex) {
-    testPassed('Throwing on set is acceptable');
-}
+element.classList = 'y';
+shouldBeEqualToString('String(element.classList)', 'y');
 
 // http://simon.html5.org/test/html/dom/reflecting/DOMTokenList/getting/001.htm
 createElement('');
@@ -31,7 +25,7 @@ shouldEvaluateTo('element.classList.length', 1);
 
 // http://simon.html5.org/test/html/dom/reflecting/DOMTokenList/getting/003.htm
 createElement('x x');
-shouldEvaluateTo('element.classList.length', 2);
+shouldEvaluateTo('element.classList.length', 1);
 
 // http://simon.html5.org/test/html/dom/reflecting/DOMTokenList/getting/004.htm
 createElement('x y');
@@ -50,7 +44,7 @@ shouldBeEqualToString('element.className', 'x');
 // http://simon.html5.org/test/html/dom/reflecting/DOMTokenList/getting/007.htm
 createElement('x  x');
 element.classList.add('x');
-shouldBeEqualToString('element.className', 'x  x');
+shouldBeEqualToString('element.className', 'x');
 
 // http://simon.html5.org/test/html/dom/reflecting/DOMTokenList/getting/008.htm
 createElement('y');
@@ -70,7 +64,7 @@ shouldBeEqualToString('element.className', '');
 // http://simon.html5.org/test/html/dom/reflecting/DOMTokenList/getting/011.htm
 createElement(' y x  y ');
 element.classList.remove('x');
-shouldBeEqualToString('element.className', ' y y ');
+shouldBeEqualToString('element.className', 'y');
 
 // http://simon.html5.org/test/html/dom/reflecting/DOMTokenList/getting/012.htm
 createElement(' x y  x ');
@@ -121,11 +115,11 @@ shouldBeEqualToString('element.className', 'x y');
 
 createElement('x\t');
 element.classList.add('y');
-shouldBeEqualToString('element.className', 'x\ty');
+shouldBeEqualToString('element.className', 'x y');
 
 createElement(' ');
 element.classList.add('y');
-shouldBeEqualToString('element.className', ' y');
+shouldBeEqualToString('element.className', 'y');
 
 
 debug('Test invalid tokens');
@@ -155,14 +149,10 @@ function shouldThrowDOMException(f, ec)
 }
 
 createElement('x');
-shouldThrowDOMException(function() {
-    element.classList.contains('');
-}, DOMException.SYNTAX_ERR);
+shouldBeFalse("element.classList.contains('')");
 
 createElement('x y');
-shouldThrowDOMException(function() {
-    element.classList.contains('x y');
-}, DOMException.INVALID_CHARACTER_ERR);
+shouldBeFalse("element.classList.contains('x y')");
 
 createElement('');
 shouldThrowDOMException(function() {
@@ -206,8 +196,8 @@ shouldBeEqualToString('element.classList[0]', 'x');
 shouldBeEqualToString('element.classList.item(0)', 'x');
 
 createElement('x x');
-shouldBeEqualToString('element.classList[1]', 'x');
-shouldBeEqualToString('element.classList.item(1)', 'x');
+shouldBeUndefined('element.classList[1]');
+shouldBeNull('element.classList.item(1)');
 
 createElement('x y');
 shouldBeEqualToString('element.classList[1]', 'y');
@@ -327,10 +317,10 @@ shouldBe('observer.takeRecords().length', '1');
 
 createElement('a b c d  ');
 element.classList.remove('a', 'c');
-shouldBeEqualToString('element.className', 'b d  ');
+shouldBeEqualToString('element.className', 'b d');
 
 element.classList.remove('b', 'b');
-shouldBeEqualToString('element.className', 'd  ');
+shouldBeEqualToString('element.className', 'd');
 
 createElement('a b c null d undefined 0 false');
 element.classList.remove(null, {toString: function() { return 'd' }}, undefined, 0, false);

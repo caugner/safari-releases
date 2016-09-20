@@ -20,7 +20,7 @@ layer at (0,0) size 800x600
                   text run at (2,138) width 75: "department-"
                   text run at (2,155) width 68: "some-info-"
                   text run at (2,172) width 54: "from-the"
-            RenderTableCell {TD} at (85,97) size 697x2 [r=0 c=1 rs=1 cs=1]
+            RenderTableCell {TD} at (85,97) size 697x3 [r=0 c=1 rs=1 cs=1]
       RenderTable {TABLE} at (0,197) size 784x197
         RenderTableSection {TBODY} at (0,0) size 784x197
           RenderTableRow {TR} at (0,2) size 784x193
@@ -38,7 +38,7 @@ layer at (0,0) size 800x600
                   text run at (2,138) width 70: "department"
                   text run at (2,155) width 62: "some info"
                   text run at (2,172) width 53: "from the"
-            RenderTableCell {TD} at (80,97) size 702x2 [r=0 c=1 rs=1 cs=1]
+            RenderTableCell {TD} at (80,97) size 702x3 [r=0 c=1 rs=1 cs=1]
       RenderTable {TABLE} at (0,394) size 784x63 [border: (2px outset #808080)]
         RenderTableSection {TBODY} at (2,2) size 780x59
           RenderTableRow {TR} at (0,2) size 780x55
@@ -53,4 +53,4 @@ layer at (0,0) size 800x600
                   text run at (571,19) width 0: " "
                   text run at (2,36) width 30: "Is it?"
               RenderText {#text} at (0,0) size 0x0
-            RenderTableCell {TD} at (577,27) size 201x4 [border: (1px inset #808080)] [r=0 c=1 rs=1 cs=1]
+            RenderTableCell {TD} at (577,27) size 201x5 [border: (1px inset #808080)] [r=0 c=1 rs=1 cs=1]

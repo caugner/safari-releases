@@ -11,6 +11,7 @@ PASS a["hock"] is 5
 PASS a["snood"] is 6
 PASS a["charset"] is 
 PASS a["coords"] is 
+PASS a["download"] is 
 PASS a["hreflang"] is 
 PASS a["name"] is 
 PASS a["ping"] is 
@@ -19,15 +20,17 @@ PASS a["rev"] is
 PASS a["shape"] is 
 PASS a["target"] is 
 PASS a["type"] is 
-PASS a["hash"] is 
+PASS a["text"] is nerget
+PASS a["relList"] is 
+PASS a["origin"] is file://
+PASS a["protocol"] is file:
+PASS a["username"] is 
+PASS a["password"] is 
 PASS a["host"] is 
 PASS a["hostname"] is 
 PASS a["port"] is 
-PASS a["protocol"] is file:
 PASS a["search"] is 
-PASS a["origin"] is file://
-PASS a["text"] is nerget
-PASS a["relList"] is 
+PASS a["hash"] is 
 PASS a["title"] is 
 PASS a["lang"] is 
 PASS a["translate"] is true
@@ -42,12 +45,66 @@ PASS a["outerText"] is nerget
 PASS a["contentEditable"] is inherit
 PASS a["isContentEditable"] is false
 PASS a["spellcheck"] is true
+PASS a["onabort"] is null
+PASS a["onblur"] is null
+PASS a["oncanplay"] is null
+PASS a["oncanplaythrough"] is null
+PASS a["onchange"] is null
+PASS a["onclick"] is null
+PASS a["oncontextmenu"] is null
+PASS a["ondblclick"] is null
+PASS a["ondrag"] is null
+PASS a["ondragend"] is null
+PASS a["ondragenter"] is null
+PASS a["ondragleave"] is null
+PASS a["ondragover"] is null
+PASS a["ondragstart"] is null
+PASS a["ondrop"] is null
+PASS a["ondurationchange"] is null
+PASS a["onemptied"] is null
+PASS a["onended"] is null
+PASS a["onerror"] is null
+PASS a["onfocus"] is null
+PASS a["oninput"] is null
+PASS a["oninvalid"] is null
+PASS a["onkeydown"] is null
+PASS a["onkeypress"] is null
+PASS a["onkeyup"] is null
+PASS a["onload"] is null
+PASS a["onloadeddata"] is null
+PASS a["onloadedmetadata"] is null
+PASS a["onloadstart"] is null
+PASS a["onmousedown"] is null
+PASS a["onmouseenter"] is null
+PASS a["onmouseleave"] is null
+PASS a["onmousemove"] is null
+PASS a["onmouseout"] is null
+PASS a["onmouseover"] is null
+PASS a["onmouseup"] is null
+PASS a["onmousewheel"] is null
+PASS a["onpause"] is null
+PASS a["onplay"] is null
+PASS a["onplaying"] is null
+PASS a["onprogress"] is null
+PASS a["onratechange"] is null
+PASS a["onreset"] is null
+PASS a["onresize"] is null
+PASS a["onscroll"] is null
+PASS a["onseeked"] is null
+PASS a["onseeking"] is null
+PASS a["onselect"] is null
+PASS a["onstalled"] is null
+PASS a["onsubmit"] is null
+PASS a["onsuspend"] is null
+PASS a["ontimeupdate"] is null
+PASS a["onvolumechange"] is null
+PASS a["onwaiting"] is null
 PASS a["tagName"] is A
 PASS a["attributes"] is [object NamedNodeMap]
 PASS a["style"] is [object CSSStyleDeclaration]
 PASS a["id"] is foo
 PASS a["offsetLeft"] is 8
-PASS a["offsetTop"] is 744
+PASS a["offsetTop"] is 1599
 PASS a["offsetWidth"] is 40
 PASS a["offsetHeight"] is 18
 PASS a["clientLeft"] is 0
@@ -64,13 +121,17 @@ PASS a["outerHTML"] is <a id="foo" href="bar">nerget</a>
 PASS a["className"] is 
 PASS a["classList"] is 
 PASS a["dataset"] is [object DOMStringMap]
+PASS a["uiactions"] is 
 PASS a["webkitRegionOverset"] is undefined
+PASS a["shadowRoot"] is null
+PASS a["slot"] is 
 PASS a["previousElementSibling"] is [object HTMLDivElement]
 PASS a["nextElementSibling"] is [object HTMLScriptElement]
 PASS a["children"] is [object HTMLCollection]
 PASS a["firstElementChild"] is null
 PASS a["lastElementChild"] is null
 PASS a["childElementCount"] is 0
+PASS a["assignedSlot"] is null
 PASS a["ALLOW_KEYBOARD_INPUT"] is 1
 PASS a["nodeName"] is A
 PASS a["nodeValue"] is null
@@ -86,6 +147,7 @@ PASS a["namespaceURI"] is http://www.w3.org/1999/xhtml
 PASS a["prefix"] is null
 PASS a["localName"] is a
 PASS a["textContent"] is nerget
+PASS a["isConnected"] is true
 PASS a["parentElement"] is [object HTMLBodyElement]
 PASS a["ELEMENT_NODE"] is 1
 PASS a["ATTRIBUTE_NODE"] is 2

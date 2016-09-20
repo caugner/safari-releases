@@ -38,7 +38,7 @@ import StringIO
 import socket
 import urllib
 
-from datetime import datetime # used in timestamp()
+from datetime import datetime  # used in timestamp()
 
 from .attachment import Attachment
 from .bug import Bug
@@ -286,10 +286,10 @@ class BugzillaQueries(object):
         # We could pull the EditUsersParser off Bugzilla if needed.
         return EditUsersParser().login_userid_pairs_from_edit_user_results(results_page)
 
-    # FIXME: We should consider adding a BugzillaUser class.
-    def fetch_logins_matching_substring(self, search_string):
-        pairs = self.fetch_login_userid_pairs_matching_substring(search_string)
-        return map(lambda pair: pair[0], pairs)
+    def is_invalid_bugzilla_email(self, search_string):
+        review_queue_url = "request.cgi?action=queue&requester=%s&product=&type=review&requestee=&component=&group=requestee" % urllib.quote(search_string)
+        results_page = self._load_query(review_queue_url)
+        return bool(re.search("did not match anything", results_page.read()))
 
 
 class CommitQueueFlag(object):
@@ -516,7 +516,7 @@ class Bugzilla(object):
         for attachment in attachments:
             if attachment.id() == int(attachment_id):
                 return attachment
-        return None # This should never be hit.
+        return None  # This should never be hit.
 
     def authenticate(self):
         if self.authenticated:
@@ -527,7 +527,7 @@ class Bugzilla(object):
         attempts = 0
         while not self.authenticated:
             attempts += 1
-            username, password = credentials.read_credentials()
+            username, password = credentials.read_credentials(use_stored_credentials=attempts == 1)
 
             _log.info("Logging in as %s..." % username)
             self.browser.open(config_urls.bug_server_url +

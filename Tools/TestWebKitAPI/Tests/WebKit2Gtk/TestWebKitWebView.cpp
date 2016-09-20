@@ -96,11 +96,17 @@ static void testWebViewWebContextLifetime(WebViewTest* test, gconstpointer)
 
 static void testWebViewCustomCharset(WebViewTest* test, gconstpointer)
 {
+    test->loadURI(gServer->getURIForPath("/").data());
+    test->waitUntilLoadFinished();
     g_assert(!webkit_web_view_get_custom_charset(test->m_webView));
     webkit_web_view_set_custom_charset(test->m_webView, "utf8");
+    // Changing the charset reloads the page, so wait until reloaded.
+    test->waitUntilLoadFinished();
     g_assert_cmpstr(webkit_web_view_get_custom_charset(test->m_webView), ==, "utf8");
-    // Go back to the default charset.
-    webkit_web_view_set_custom_charset(test->m_webView, 0);
+
+    // Go back to the default charset and wait until reloaded.
+    webkit_web_view_set_custom_charset(test->m_webView, nullptr);
+    test->waitUntilLoadFinished();
     g_assert(!webkit_web_view_get_custom_charset(test->m_webView));
 }
 
@@ -632,6 +638,8 @@ public:
         None,
         Permission,
         Shown,
+        Clicked,
+        OnClicked,
         Closed,
         OnClosed,
     };
@@ -660,19 +668,33 @@ public:
         return TRUE;
     }
 
+    static gboolean notificationClickedCallback(WebKitNotification* notification, NotificationWebViewTest* test)
+    {
+        g_assert(test->m_notification == notification);
+        test->m_event = Clicked;
+        return TRUE;
+    }
+
     static gboolean showNotificationCallback(WebKitWebView*, WebKitNotification* notification, NotificationWebViewTest* test)
     {
         test->assertObjectIsDeletedWhenTestFinishes(G_OBJECT(notification));
         test->m_notification = notification;
         g_signal_connect(notification, "closed", G_CALLBACK(notificationClosedCallback), test);
+        g_signal_connect(notification, "clicked", G_CALLBACK(notificationClickedCallback), test);
         test->m_event = Shown;
         g_main_loop_quit(test->m_mainLoop);
         return TRUE;
     }
 
-    static void notificationsMessageReceivedCallback(WebKitUserContentManager* userContentManager, WebKitJavascriptResult*, NotificationWebViewTest* test)
+    static void notificationsMessageReceivedCallback(WebKitUserContentManager* userContentManager, WebKitJavascriptResult* javascriptResult, NotificationWebViewTest* test)
     {
-        test->m_event = OnClosed;
+        GUniquePtr<char> valueString(WebViewTest::javascriptResultToCString(javascriptResult));
+
+        if (g_str_equal(valueString.get(), "clicked"))
+            test->m_event = OnClicked;
+        else if (g_str_equal(valueString.get(), "closed"))
+            test->m_event = OnClosed;
+
         g_main_loop_quit(test->m_mainLoop);
     }
 
@@ -710,6 +732,15 @@ public:
         GUniquePtr<char> jscode(g_strdup_printf("n = new Notification('%s', { body: '%s'});", title, body));
         webkit_web_view_run_javascript(m_webView, jscode.get(), nullptr, nullptr, nullptr);
 
+        g_main_loop_run(m_mainLoop);
+    }
+
+    void clickNotificationAndWaitUntilClicked()
+    {
+        m_event = None;
+        runJavaScriptAndWaitUntilFinished("n.onclick = function() { window.webkit.messageHandlers.notifications.postMessage('clicked'); }", nullptr);
+        webkit_notification_clicked(m_notification);
+        g_assert(m_event == Clicked);
         g_main_loop_run(m_mainLoop);
     }
 
@@ -751,6 +782,9 @@ static void testWebViewNotification(NotificationWebViewTest* test, gconstpointer
     g_assert(test->m_notification);
     g_assert_cmpstr(webkit_notification_get_title(test->m_notification), ==, title);
     g_assert_cmpstr(webkit_notification_get_body(test->m_notification), ==, body);
+
+    test->clickNotificationAndWaitUntilClicked();
+    g_assert(test->m_event == NotificationWebViewTest::OnClicked);
 
     test->closeNotificationAndWaitUntilClosed();
     g_assert(test->m_event == NotificationWebViewTest::Closed);
@@ -819,6 +853,19 @@ static void testWebViewBackgroundColor(WebViewTest* test, gconstpointer)
     // MiniBrowser --bg-color="<color-value>" for manually testing this API.
 }
 
+static void testWebViewPreferredSize(WebViewTest* test, gconstpointer)
+{
+    test->loadHtml("<html style='width: 325px; height: 615px'></html>", nullptr);
+    test->waitUntilLoadFinished();
+    test->showInWindowAndWaitUntilMapped();
+    GtkRequisition minimunSize, naturalSize;
+    gtk_widget_get_preferred_size(GTK_WIDGET(test->m_webView), &minimunSize, &naturalSize);
+    g_assert_cmpint(minimunSize.width, ==, 0);
+    g_assert_cmpint(minimunSize.height, ==, 0);
+    g_assert_cmpint(naturalSize.width, ==, 325);
+    g_assert_cmpint(naturalSize.height, ==, 615);
+}
+
 static void serverCallback(SoupServer* server, SoupMessage* message, const char* path, GHashTable*, SoupClientContext*, gpointer)
 {
     if (message->method != SOUP_METHOD_GET) {
@@ -853,6 +900,7 @@ void beforeAll()
     NotificationWebViewTest::add("WebKitWebView", "notification", testWebViewNotification);
     IsPlayingAudioWebViewTest::add("WebKitWebView", "is-playing-audio", testWebViewIsPlayingAudio);
     WebViewTest::add("WebKitWebView", "background-color", testWebViewBackgroundColor);
+    WebViewTest::add("WebKitWebView", "preferred-size", testWebViewPreferredSize);
 }
 
 void afterAll()

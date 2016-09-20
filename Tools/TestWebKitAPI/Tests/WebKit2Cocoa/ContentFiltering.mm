@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Apple Inc. All rights reserved.
+ * Copyright (C) 2015-2016 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -27,15 +27,19 @@
 
 #if WK_API_ENABLED
 
+#import "ContentFiltering.h"
 #import "MockContentFilterSettings.h"
 #import "PlatformUtilities.h"
 #import "TestProtocol.h"
 #import "WKWebViewConfigurationExtras.h"
-#import <WebKit/WKBrowsingContextController.h>
+#import <WebKit/WKErrorRef.h>
 #import <WebKit/WKNavigationDelegatePrivate.h>
 #import <WebKit/WKProcessPoolPrivate.h>
 #import <WebKit/WKWebView.h>
+#import <WebKit/WKWebViewPrivate.h>
 #import <WebKit/_WKDownloadDelegate.h>
+#import <WebKit/_WKRemoteObjectInterface.h>
+#import <WebKit/_WKRemoteObjectRegistry.h>
 #import <wtf/RetainPtr.h>
 
 using Decision = WebCore::MockContentFilterSettings::Decision;
@@ -118,8 +122,7 @@ static RetainPtr<WKWebViewConfiguration> configurationWithContentFilterSettings(
 TEST(ContentFiltering, URLAfterServerRedirect)
 {
     @autoreleasepool {
-        [NSURLProtocol registerClass:[TestProtocol class]];
-        [WKBrowsingContextController registerSchemeForCustomProtocol:[TestProtocol scheme]];
+        [TestProtocol registerWithScheme:@"http"];
 
         auto configuration = configurationWithContentFilterSettings(Decision::Allow, DecisionPoint::AfterAddData);
         auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
@@ -128,8 +131,7 @@ TEST(ContentFiltering, URLAfterServerRedirect)
         [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"http://redirect?pass"]]];
         TestWebKitAPI::Util::run(&isDone);
 
-        [WKBrowsingContextController unregisterSchemeForCustomProtocol:[TestProtocol scheme]];
-        [NSURLProtocol unregisterClass:[TestProtocol class]];
+        [TestProtocol unregister];
     }
 }
 
@@ -172,8 +174,7 @@ static bool downloadDidStart;
 static void downloadTest(Decision decision, DecisionPoint decisionPoint)
 {
     @autoreleasepool {
-        [NSURLProtocol registerClass:[TestProtocol class]];
-        [WKBrowsingContextController registerSchemeForCustomProtocol:[TestProtocol scheme]];
+        [TestProtocol registerWithScheme:@"http"];
 
         auto configuration = configurationWithContentFilterSettings(decision, decisionPoint);
         auto downloadDelegate = adoptNS([[ContentFilteringDownloadDelegate alloc] init]);
@@ -193,8 +194,7 @@ static void downloadTest(Decision decision, DecisionPoint decisionPoint)
 
         EXPECT_EQ(downloadShouldStart, downloadDidStart);
 
-        [WKBrowsingContextController unregisterSchemeForCustomProtocol:[TestProtocol scheme]];
-        [NSURLProtocol unregisterClass:[TestProtocol class]];
+        [TestProtocol unregister];
     }
 }
 
@@ -256,6 +256,176 @@ TEST(ContentFiltering, AllowDownloadNever)
 TEST(ContentFiltering, BlockDownloadNever)
 {
     downloadTest(Decision::Block, DecisionPoint::Never);
+}
+
+@interface LoadAlternateNavigationDelegate : NSObject <WKNavigationDelegate>
+@end
+
+@implementation LoadAlternateNavigationDelegate
+
+- (void)webView:(WKWebView *)webView didFailProvisionalNavigation:(WKNavigation *)navigation withError:(NSError *)error
+{
+    EXPECT_WK_STREQ(WebKitErrorDomain, error.domain);
+    EXPECT_EQ(kWKErrorCodeFrameLoadBlockedByContentFilter, error.code);
+    [webView _loadAlternateHTMLString:@"FAIL" baseURL:nil forUnreachableURL:[error.userInfo objectForKey:NSURLErrorFailingURLErrorKey]];
+}
+
+- (void)webView:(WKWebView *)webView didFinishNavigation:(WKNavigation *)navigation
+{
+    [webView evaluateJavaScript:@"document.body.innerText" completionHandler:^ (id result, NSError *error) {
+        EXPECT_TRUE([result isKindOfClass:[NSString class]]);
+        EXPECT_WK_STREQ(@"blocked", result);
+        isDone = true;
+    }];
+}
+
+@end
+
+static void loadAlternateTest(Decision decision, DecisionPoint decisionPoint)
+{
+    @autoreleasepool {
+        [TestProtocol registerWithScheme:@"http"];
+
+        auto configuration = configurationWithContentFilterSettings(decision, decisionPoint);
+        auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+        auto navigationDelegate = adoptNS([[LoadAlternateNavigationDelegate alloc] init]);
+        [webView setNavigationDelegate:navigationDelegate.get()];
+        [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"http://redirect/?result"]]];
+
+        isDone = false;
+        TestWebKitAPI::Util::run(&isDone);
+
+        [TestProtocol unregister];
+    }
+}
+
+TEST(ContentFiltering, LoadAlternateAfterWillSendRequestWK2)
+{
+    loadAlternateTest(Decision::Block, DecisionPoint::AfterWillSendRequest);
+}
+
+TEST(ContentFiltering, LoadAlternateAfterRedirectWK2)
+{
+    loadAlternateTest(Decision::Block, DecisionPoint::AfterRedirect);
+}
+
+TEST(ContentFiltering, LoadAlternateAfterResponseWK2)
+{
+    loadAlternateTest(Decision::Block, DecisionPoint::AfterResponse);
+}
+
+TEST(ContentFiltering, LoadAlternateAfterAddDataWK2)
+{
+    loadAlternateTest(Decision::Block, DecisionPoint::AfterAddData);
+}
+
+TEST(ContentFiltering, LoadAlternateAfterFinishedAddingDataWK2)
+{
+    loadAlternateTest(Decision::Block, DecisionPoint::AfterFinishedAddingData);
+}
+
+
+@interface LazilyLoadPlatformFrameworksController : NSObject <WKNavigationDelegate>
+@property (nonatomic, readonly) WKWebView *webView;
+- (void)expectParentalControlsLoaded:(BOOL)parentalControlsShouldBeLoaded networkExtensionLoaded:(BOOL)networkExtensionShouldBeLoaded;
+@end
+
+@implementation LazilyLoadPlatformFrameworksController {
+    RetainPtr<WKWebView> _webView;
+    RetainPtr<id <ContentFilteringProtocol>> _remoteObjectProxy;
+}
+
+- (instancetype)init
+{
+    if (!(self = [super init]))
+        return nil;
+
+    WKWebViewConfiguration *configuration = [WKWebViewConfiguration testwebkitapi_configurationWithTestPlugInClassName:@"ContentFilteringPlugIn"];
+    _webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
+    [_webView setNavigationDelegate:self];
+
+    _WKRemoteObjectInterface *interface = [_WKRemoteObjectInterface remoteObjectInterfaceWithProtocol:@protocol(ContentFilteringProtocol)];
+    _remoteObjectProxy = [[_webView _remoteObjectRegistry] remoteObjectProxyWithInterface:interface];
+
+    return self;
+}
+
+- (WKWebView *)webView
+{
+    return _webView.get();
+}
+
+- (void)expectParentalControlsLoaded:(BOOL)parentalControlsShouldBeLoaded networkExtensionLoaded:(BOOL)networkExtensionShouldBeLoaded
+{
+    isDone = false;
+    [_remoteObjectProxy checkIfPlatformFrameworksAreLoaded:^(BOOL parentalControlsLoaded, BOOL networkExtensionLoaded) {
+#if HAVE(PARENTAL_CONTROLS)
+        EXPECT_EQ(static_cast<bool>(parentalControlsShouldBeLoaded), static_cast<bool>(parentalControlsLoaded));
+#endif
+#if HAVE(NETWORK_EXTENSION)
+        EXPECT_EQ(static_cast<bool>(networkExtensionShouldBeLoaded), static_cast<bool>(networkExtensionLoaded));
+#endif
+        isDone = true;
+    }];
+    TestWebKitAPI::Util::run(&isDone);
+}
+
+- (void)webView:(WKWebView *)webView didFinishNavigation:(WKNavigation *)navigation
+{
+    isDone = true;
+}
+
+@end
+
+TEST(ContentFiltering, LazilyLoadPlatformFrameworks)
+{
+    @autoreleasepool {
+        auto controller = adoptNS([[LazilyLoadPlatformFrameworksController alloc] init]);
+        [controller expectParentalControlsLoaded:NO networkExtensionLoaded:NO];
+
+        isDone = false;
+        [[controller webView] loadHTMLString:@"PASS" baseURL:[NSURL URLWithString:@"about:blank"]];
+        TestWebKitAPI::Util::run(&isDone);
+        [controller expectParentalControlsLoaded:NO networkExtensionLoaded:NO];
+
+        isDone = false;
+        [[controller webView] loadData:[NSData dataWithBytes:"PASS" length:4] MIMEType:@"text/html" characterEncodingName:@"UTF-8" baseURL:[NSURL URLWithString:@"about:blank"]];
+        TestWebKitAPI::Util::run(&isDone);
+        [controller expectParentalControlsLoaded:NO networkExtensionLoaded:NO];
+
+        isDone = false;
+        NSURL *fileURL = [[NSBundle mainBundle] URLForResource:@"ContentFiltering" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"];
+        [[controller webView] loadFileURL:fileURL allowingReadAccessToURL:fileURL];
+        TestWebKitAPI::Util::run(&isDone);
+        [controller expectParentalControlsLoaded:NO networkExtensionLoaded:NO];
+
+        isDone = false;
+        [TestProtocol registerWithScheme:@"custom"];
+        [[controller webView] loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"custom://test"]]];
+        TestWebKitAPI::Util::run(&isDone);
+        [controller expectParentalControlsLoaded:NO networkExtensionLoaded:NO];
+        [TestProtocol unregister];
+
+        isDone = false;
+        [TestProtocol registerWithScheme:@"http"];
+        [[controller webView] loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"http://test"]]];
+        TestWebKitAPI::Util::run(&isDone);
+#if PLATFORM(MAC)
+        [controller expectParentalControlsLoaded:NO networkExtensionLoaded:YES];
+#else
+        [controller expectParentalControlsLoaded:YES networkExtensionLoaded:YES];
+#endif
+        [TestProtocol unregister];
+
+#if PLATFORM(MAC)
+        isDone = false;
+        [TestProtocol registerWithScheme:@"https"];
+        [[controller webView] loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://test"]]];
+        TestWebKitAPI::Util::run(&isDone);
+        [controller expectParentalControlsLoaded:YES networkExtensionLoaded:YES];
+        [TestProtocol unregister];
+#endif
+    }
 }
 
 #endif // WK_API_ENABLED

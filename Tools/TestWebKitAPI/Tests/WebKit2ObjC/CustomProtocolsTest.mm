@@ -32,10 +32,9 @@
 #import "PlatformUtilities.h"
 #import "TestBrowsingContextLoadDelegate.h"
 #import "TestProtocol.h"
-#import <WebKit/WebKit2.h>
 #import <wtf/RetainPtr.h>
 
-#if WK_API_ENABLED
+#if WK_API_ENABLED && PLATFORM(MAC)
 
 static bool testFinished = false;
 
@@ -71,8 +70,7 @@ namespace TestWebKitAPI {
 
 TEST(WebKit2CustomProtocolsTest, MainResource)
 {
-    [NSURLProtocol registerClass:[TestProtocol class]];
-    [WKBrowsingContextController registerSchemeForCustomProtocol:[TestProtocol scheme]];
+    [TestProtocol registerWithScheme:@"http"];
 
     RetainPtr<WKProcessGroup> processGroup = adoptNS([[WKProcessGroup alloc] init]);
     RetainPtr<WKBrowsingContextGroup> browsingContextGroup = adoptNS([[WKBrowsingContextGroup alloc] initWithIdentifier:@"TestIdentifier"]);
@@ -82,8 +80,7 @@ TEST(WebKit2CustomProtocolsTest, MainResource)
     [[wkView browsingContextController] loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:[NSString stringWithFormat:@"%@://redirect?test", [TestProtocol scheme]]]]];
 
     Util::run(&testFinished);
-    [NSURLProtocol unregisterClass:[TestProtocol class]];
-    [WKBrowsingContextController unregisterSchemeForCustomProtocol:[TestProtocol scheme]];
+    [TestProtocol unregister];
 }
 
 } // namespace TestWebKitAPI

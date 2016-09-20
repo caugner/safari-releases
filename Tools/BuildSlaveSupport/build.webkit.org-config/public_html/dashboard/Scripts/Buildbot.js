@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2015 Apple Inc. All rights reserved.
+ * Copyright (C) 2013-2016 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -102,7 +102,8 @@ Buildbot.prototype = {
 
     _normalizeQueueInfo: function(queueInfo)
     {
-        queueInfo.branch = queueInfo.branch || { openSource: "trunk", internal: "trunk" };
+        if (!queueInfo.combinedQueues)
+            queueInfo.branches = queueInfo.branches || this.defaultBranches;
         queueInfo.debug = queueInfo.debug || false;
         queueInfo.builder = queueInfo.builder || false;
         queueInfo.tester = queueInfo.tester || false;
@@ -148,6 +149,29 @@ Buildbot.prototype = {
     buildPageURLForIteration: function(iteration)
     {
         return this.baseURL + "builders/" + encodeURIComponent(iteration.queue.id) + "/builds/" + iteration.id;
+    },
+
+    javaScriptCoreTestFailuresURLForIteration: function(iteration, name)
+    {
+        return this.baseURL + "builders/" + encodeURIComponent(iteration.queue.id) + "/builds/" + iteration.id + "/steps/" + name + "/logs/json/text";
+    },
+
+    javaScriptCoreTestStdioUrlForIteration: function(iteration, name)
+    {
+        return this.baseURL + "builders/" + encodeURIComponent(iteration.queue.id) + "/builds/" + iteration.id + "/steps/" + name + "/logs/stdio";
+    },
+
+    layoutTestResultsDirectoryURLForIteration: function(iteration)
+    {
+        var underscoreSeparatedRevisions = "r";
+        sortDictionariesByOrder(Dashboard.Repository).forEach(function(repository) {
+            if (iteration.revision[repository.name]) {
+                if (underscoreSeparatedRevisions.length > 1)
+                    underscoreSeparatedRevisions += "_";
+                underscoreSeparatedRevisions += iteration.revision[repository.name];
+            }
+        });
+        return this.baseURL + "results/" + encodeURIComponent(iteration.queue.id) + "/" + encodeURIComponent(underscoreSeparatedRevisions + " (" + iteration.id + ")");
     },
 
     layoutTestResultsURLForIteration: function(iteration)

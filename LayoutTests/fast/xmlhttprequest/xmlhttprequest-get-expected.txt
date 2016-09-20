@@ -47,12 +47,17 @@ bubbles : 'false'
 cancelBubble : 'false'
 cancelable : 'false'
 clipboardData : 'undefined'
+composed : 'false'
+composedPath : 'function composedPath() {
+    [native code]
+}'
 currentTarget : '[object XMLHttpRequest]'
 defaultPrevented : 'false'
 eventPhase : '2'
 initEvent : 'function initEvent() {
     [native code]
 }'
+isTrusted : 'true'
 lengthComputable : 'true'
 loaded : '174'
 position : '174'

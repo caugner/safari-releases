@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Apple Inc. All rights reserved.
+ * Copyright (C) 2015-2016 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -27,8 +27,13 @@
 
 #if WK_API_ENABLED
 
+#import "ContentFiltering.h"
 #import "MockContentFilterSettings.h"
 #import <WebKit/WKWebProcessPlugIn.h>
+#import <WebKit/WKWebProcessPlugInBrowserContextControllerPrivate.h>
+#import <WebKit/_WKRemoteObjectInterface.h>
+#import <WebKit/_WKRemoteObjectRegistry.h>
+#import <mach-o/dyld.h>
 
 using MockContentFilterSettings = WebCore::MockContentFilterSettings;
 using Decision = MockContentFilterSettings::Decision;
@@ -58,6 +63,7 @@ using DecisionPoint = MockContentFilterSettings::DecisionPoint;
     settings.setEnabled(true);
     settings.setDecision(static_cast<Decision>([decoder decodeIntForKey:@"Decision"]));
     settings.setDecisionPoint(static_cast<DecisionPoint>([decoder decodeIntForKey:@"DecisionPoint"]));
+    settings.setBlockedString(ASCIILiteral("blocked"));
     return self;
 }
 
@@ -73,7 +79,7 @@ using DecisionPoint = MockContentFilterSettings::DecisionPoint;
 
 @end
 
-@interface ContentFilteringPlugIn : NSObject <WKWebProcessPlugIn>
+@interface ContentFilteringPlugIn : NSObject <ContentFilteringProtocol, WKWebProcessPlugIn>
 @end
 
 @implementation ContentFilteringPlugIn {
@@ -88,6 +94,12 @@ using DecisionPoint = MockContentFilterSettings::DecisionPoint;
     [plugInController.parameters addObserver:self forKeyPath:NSStringFromClass([MockContentFilterEnabler class]) options:NSKeyValueObservingOptionInitial context:NULL];
 }
 
+- (void)webProcessPlugIn:(WKWebProcessPlugInController *)plugInController didCreateBrowserContextController:(WKWebProcessPlugInBrowserContextController *)browserContextController
+{
+    _WKRemoteObjectInterface *interface = [_WKRemoteObjectInterface remoteObjectInterfaceWithProtocol:@protocol(ContentFilteringProtocol)];
+    [[browserContextController _remoteObjectRegistry] registerExportedObject:self interface:interface];
+}
+
 - (void)dealloc
 {
     [[_plugInController parameters] removeObserver:self forKeyPath:NSStringFromClass([MockContentFilterEnabler class])];
@@ -97,8 +109,22 @@ using DecisionPoint = MockContentFilterSettings::DecisionPoint;
 - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context
 {
     id contentFilterEnabler = [object valueForKeyPath:keyPath];
-    ASSERT([contentFilterEnabler isKindOfClass:[MockContentFilterEnabler class]]);
+    ASSERT(!contentFilterEnabler || [contentFilterEnabler isKindOfClass:[MockContentFilterEnabler class]]);
     _contentFilterEnabler = contentFilterEnabler;
+}
+
+- (void)checkIfPlatformFrameworksAreLoaded:(void (^)(BOOL parentalControlsLoaded, BOOL networkExtensionLoaded))completionHandler
+{
+    bool parentalControlsLoaded = false;
+#if HAVE(PARENTAL_CONTROLS)
+    parentalControlsLoaded = NSVersionOfRunTimeLibrary("WebContentAnalysis") != -1;
+#endif
+    
+    bool networkExtensionLoaded = false;
+#if HAVE(NETWORK_EXTENSION)
+    networkExtensionLoaded = NSVersionOfRunTimeLibrary("NetworkExtension") != -1;
+#endif
+    completionHandler(parentalControlsLoaded, networkExtensionLoaded);
 }
 
 @end

@@ -1,28 +1,291 @@
-2016-01-12  Matthew Hanson  <matthew_hanson@apple.com>
+2016-07-13  Enrica Casucci  <enrica@apple.com>
 
-        Merge r194780. rdar://problem/24043054
+        Update supported platforms in xcconfig files to match the sdk names.
+        https://bugs.webkit.org/show_bug.cgi?id=159728
 
-    2016-01-08  Brent Fulgham  <bfulgham@apple.com>
+        Reviewed by Tim Horton.
 
-            [ANGLE] Correct UNREACHABLE runtime assertion for void constructors
-            https://bugs.webkit.org/show_bug.cgi?id=152900
-            <rdar://problem/24107501>
+        * Configurations/Base.xcconfig:
 
-            Reviewed by Alex Christensen.
+2016-05-24  Alex Christensen  <achristensen@webkit.org>
 
-            Tested by Khronos WebGL 1.0.4 suite.
+        Fix iOS WebGL after r199738
+        https://bugs.webkit.org/show_bug.cgi?id=158024
+        rdar://problem/26446679
 
-            Merge a small part of ANGLE upstream commit r284735:
+        Reviewed by Myles Maxfield.
 
-                commit    01971113492d9aca386f2bca021b1f4b134fc277
-                author    Dmitry Skiba <dskiba@google.com>  Fri Jul 10 18:54:00 2015
-                committer Jamie Madill <jmadill@chromium.org>  Fri Jul 10 19:03:34 2015
-                tree      47e42eac00f7d64cddb14b3cc21a4e605c189d20
+        * ANGLE.xcodeproj/project.pbxproj:
+        iOS needs the ESSL translator.
 
-            This issue was found by <https://www.khronos.org/registry/webgl/sdk/tests/conformance/glsl/bugs/angle-constructor-invalid-parameters.html?webglVersion=1&quiet=0>
+2016-05-22  Brady Eidson  <beidson@apple.com>
 
-            * src/compiler/translator/Types.cpp:
-            (TType::buildMangledName): Don't assert with UNREACHABLE here.
+        Move to C++14.
+        https://bugs.webkit.org/show_bug.cgi?id=157948
+
+        Reviewed by Michael Catanzaro.
+
+        * Configurations/Base.xcconfig:
+
+2016-04-26  Per Arne Vollan  <peavo@outlook.com>
+
+        [WinCairo][ANGLE] Display object is not created.
+        https://bugs.webkit.org/show_bug.cgi?id=157042
+
+        Reviewed by Alex Christensen.
+
+        The CreateDisplayFromAttribs function will not create a DisplayD3D object when the requested
+        type is EGL_PLATFORM_ANGLE_TYPE_DEFAULT_ANGLE, because ANGLE_ENABLE_OPENGL is not defined.
+        We should be able to create a DisplayD3D object without defining ANGLE_ENABLE_OPENGL.
+
+        * src/libANGLE/Display.cpp:
+
+2016-04-26  Per Arne Vollan  <peavo@outlook.com>
+
+        [WinCairo][WebGL] Enable ESSL and GLSL translators.
+        https://bugs.webkit.org/show_bug.cgi?id=157002
+
+        Reviewed by Darin Adler.
+
+        Enable support for ESSL and GLSL translators, and add missing files.
+
+        * CMakeLists.txt:
+
+2016-04-22  Joonghun Park  <jh718.park@samsung.com>
+
+        [ANGLE] Remove deprecated auto_ptr warning. Unreviewed.
+        https://bugs.webkit.org/show_bug.cgi?id=156894
+
+        * src/compiler/preprocessor/MacroExpander.h: Use std::unique_ptr instead of std::auto_ptr.
+
+2016-04-19  Alex Christensen  <achristensen@webkit.org>
+
+        Build fix after r199738
+
+        * CMakeLists.txt:
+
+2016-04-19  Alex Christensen  <achristensen@webkit.org>
+
+        Build fix after r199738
+
+        * CMakeLists.txt:
+
+2016-04-19  Alex Christensen  <achristensen@webkit.org>
+
+        Build fix.
+
+        * src/compiler/translator/Intermediate.h: Added.
+        (TIntermediate::TIntermediate):
+        * src/compiler/translator/intermediate.h: Removed.
+        Changed case of Intermediate.h file name for case sensitive file systems.
+
+2016-04-19  Alex Christensen  <achristensen@webkit.org>
+
+        Update ANGLE
+        https://bugs.webkit.org/show_bug.cgi?id=156755
+
+        Reviewed by Dean Jackson.
+
+        Huge list of changed files omitted.
+
+2016-04-12  Alex Christensen  <achristensen@webkit.org>
+
+        Remove failing assertion in ANGLE
+        https://bugs.webkit.org/show_bug.cgi?id=156485
+
+        Reviewed by Dean Jackson.
+
+        * src/compiler/translator/glslang.l:
+        * src/compiler/translator/glslang_lex.cpp:
+
+2016-04-11  Fujii Hironori  <Hironori.Fujii@jp.sony.com>
+
+        [CMake] Make FOLDER property INHERITED
+        https://bugs.webkit.org/show_bug.cgi?id=156460
+
+        Reviewed by Brent Fulgham.
+
+        * CMakeLists.txt:
+        Set FOLDER property as a directory property not a target property
+
+2016-03-22  Alberto Garcia  <berto@igalia.com>
+
+        Unreviewed typo fix.
+
+        * src/compiler/translator/InfoSink.cpp:
+        (TInfoSinkBase::prefix): "UNKOWN" => "UNKOWN".
+
+2016-03-20  Dan Bernstein  <mitz@apple.com>
+
+        [Mac] Determine TARGET_MAC_OS_X_VERSION_MAJOR from MACOSX_DEPLOYMENT_TARGET rather than from MAC_OS_X_VERSION_MAJOR
+        https://bugs.webkit.org/show_bug.cgi?id=155707
+        <rdar://problem/24980691>
+
+        Reviewed by Darin Adler.
+
+        * Configurations/Base.xcconfig: Set TARGET_MAC_OS_X_VERSION_MAJOR based on the last
+          component of MACOSX_DEPLOYMENT_TARGET.
+        * Configurations/DebugRelease.xcconfig: For engineering builds, preserve the behavior of
+          TARGET_MAC_OS_X_VERSION_MAJOR being the host’s OS version.
+
+2016-03-20  Dan Bernstein  <mitz@apple.com>
+
+        Update build settings
+
+        Rubber-stamped by Andy Estes.
+
+        * Configurations/DebugRelease.xcconfig:
+
+2016-02-23  Dan Bernstein  <mitz@apple.com>
+
+        [Xcode] Linker errors display mangled names, but no longer should
+        https://bugs.webkit.org/show_bug.cgi?id=154632
+
+        Reviewed by Sam Weinig.
+
+        * Configurations/Base.xcconfig: Stop setting LINKER_DISPLAYS_MANGLED_NAMES to YES.
+
+2016-01-08  Brent Fulgham  <bfulgham@apple.com>
+
+        [ANGLE] Correct UNREACHABLE runtime assertion for void constructors
+        https://bugs.webkit.org/show_bug.cgi?id=152900
+        <rdar://problem/24107501>
+
+        Reviewed by Alex Christensen.
+
+        Tested by Khronos WebGL 1.0.4 suite.
+
+        Merge a small part of ANGLE upstream commit r284735:
+        
+            commit    01971113492d9aca386f2bca021b1f4b134fc277
+            author    Dmitry Skiba <dskiba@google.com>  Fri Jul 10 18:54:00 2015
+            committer Jamie Madill <jmadill@chromium.org>  Fri Jul 10 19:03:34 2015
+            tree      47e42eac00f7d64cddb14b3cc21a4e605c189d20
+
+        This issue was found by <https://www.khronos.org/registry/webgl/sdk/tests/conformance/glsl/bugs/angle-constructor-invalid-parameters.html?webglVersion=1&quiet=0>
+
+        * src/compiler/translator/Types.cpp:
+        (TType::buildMangledName): Don't assert with UNREACHABLE here.
+
+2015-12-28  Joonghun Park  <jh718.park@samsung.com>
+
+        [ANGLE][EFL][GTK] Remove 'template<class> class std::auto_ptr is deprecated' compile warning
+        https://bugs.webkit.org/show_bug.cgi?id=152567
+
+        Reviewed by Alex Christensen.
+
+        Because auto_ptr is deprecated as of C++11, we should use unique_ptr instead.
+
+        * src/compiler/preprocessor/MacroExpander.h:
+
+2015-12-19  Dan Bernstein  <mitz@apple.com>
+
+        [Mac] WebKit contains dead source code for OS X Mavericks and earlier
+        https://bugs.webkit.org/show_bug.cgi?id=152462
+
+        Reviewed by Alexey Proskuryakov.
+
+        * Configurations/DebugRelease.xcconfig: Removed definitions of MACOSX_DEPLOYMENT_TARGET for
+          OS X 10.8 and 10.9.
+
+2015-12-03  Anders Carlsson  <andersca@apple.com>
+
+        Remove Objective-C GC support
+        https://bugs.webkit.org/show_bug.cgi?id=151819
+        rdar://problem/23746991
+
+        Reviewed by Dan Bernstein.
+
+        * Configurations/Base.xcconfig:
+
+2015-11-30  Dana Burkart  <dburkart@apple.com>
+
+        Remove Mountain Lion support from ANGLE
+        https://bugs.webkit.org/show_bug.cgi?id=151679
+
+        Reviewed by Darin Adler.
+
+        * Configurations/Base.xcconfig:
+
+2015-11-02  Andy Estes  <aestes@apple.com>
+
+        [Cocoa] Add tvOS and watchOS to SUPPORTED_PLATFORMS
+        https://bugs.webkit.org/show_bug.cgi?id=150819
+
+        Reviewed by Dan Bernstein.
+
+        This tells Xcode to include these platforms in its Devices dropdown, making it possible to build in the IDE.
+
+        * Configurations/Base.xcconfig:
+
+2015-10-10  Dan Bernstein  <mitz@apple.com>
+
+        [iOS] Remove project support for iOS 8
+        https://bugs.webkit.org/show_bug.cgi?id=149993
+
+        Reviewed by Alexey Proskuryakov.
+
+        * Configurations/ANGLE.xcconfig:
+        * Configurations/Base.xcconfig:
+
+2015-08-20  Alex Christensen  <achristensen@webkit.org>
+
+        Clean up CMake build after r188673
+        https://bugs.webkit.org/show_bug.cgi?id=148234
+
+        Reviewed by Tim Horton.
+
+        * CMakeLists.txt:
+        Copy headers to forwarding headers.
+
+2015-08-11  Brent Fulgham  <bfulgham@apple.com>
+
+        [Win] Switch Windows build to Visual Studio 2015
+        https://bugs.webkit.org/show_bug.cgi?id=147887
+        <rdar://problem/22235098>
+
+        Reviewed by Alex Christensen.
+
+        Update Visual Studio project file settings to use the current Visual
+        Studio and compiler. Continue targeting binaries to run on our minimum
+        supported configuration of Windows 7.
+
+        * ANGLE.vcxproj/libEGL.vcxproj:
+        * ANGLE.vcxproj/libGLESv2.vcxproj:
+        * ANGLE.vcxproj/preprocessor.vcxproj:
+        * ANGLE.vcxproj/translator_common.vcxproj:
+        * ANGLE.vcxproj/translator_glsl.vcxproj:
+        * ANGLE.vcxproj/translator_hlsl.vcxproj:
+
+2015-08-04  Alex Christensen  <achristensen@webkit.org>
+
+        Build fix after r187928.
+
+        * CMakeLists.txt:
+        Typo. Set libGLESv2 compile definitions instead of libEGL, which are set separately.
+
+2015-08-04  Alex Christensen  <achristensen@webkit.org>
+
+        Soft link libGLESv2 and libEGL on Windows again
+        https://bugs.webkit.org/show_bug.cgi?id=147671
+
+        Reviewed by Dean Jackson.
+
+        * CMakeLists.txt:
+        Clean up some warnings when compiling with CMake.
+        * include/EGL/egl.h:
+        * include/EGL/eglsoftlinking.h:
+        * include/GLES2/gl2.h:
+        Soft link egl optionally.
+
+2015-08-04  Alex Christensen  <achristensen@webkit.org>
+
+        Enable WebGL on Windows CMake build.
+        https://bugs.webkit.org/show_bug.cgi?id=143311
+
+        Reviewed by Csaba Osztrogonác.
+
+        * CMakeLists.txt: Added.
 
 2015-07-03  Dan Bernstein  <mitz@apple.com>
 

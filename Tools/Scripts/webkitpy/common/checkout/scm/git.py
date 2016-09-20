@@ -214,9 +214,18 @@ class Git(SCM, SVNRepository):
         updated_in_index_regexp = '^M[ M] (?P<filename>.+)$'
         return self.run_status_and_extract_filenames(status_command, updated_in_index_regexp)
 
+    def untracked_files(self, include_ignored_files=False):
+        status_command = [self.executable_name, 'status', '--short']
+        if include_ignored_files:
+            status_command.append('--ignored')
+        status_command.extend(self._patch_directories)
+        # Remove the last / for folders to match SVN behavior.
+        extractor = "^[?!][?!] (?P<filename>.+)$"
+        return [value if not value.endswith('/') else value[:-1] for value in self.run_status_and_extract_filenames(status_command, extractor)]
+
     def changed_files(self, git_commit=None):
         # FIXME: --diff-filter could be used to avoid the "extract_filenames" step.
-        status_command = [self.executable_name, 'diff', '-r', '--name-status', "--no-renames", "--no-ext-diff", "--full-index", self.merge_base(git_commit)]
+        status_command = [self.executable_name, 'diff', '-r', '--name-status', "--no-renames", "--no-ext-diff", "--full-index", self.merge_base(git_commit), '--']
         status_command.extend(self._patch_directories)
         # FIXME: I'm not sure we're returning the same set of files that SVN.changed_files is.
         # Added (A), Copied (C), Deleted (D), Modified (M), Renamed (R)
@@ -471,6 +480,18 @@ class Git(SCM, SVNRepository):
         return self._run_git(['svn', 'blame', path])
 
     # Git-specific methods:
+    def origin_url(self):
+        return self._run_git(['config', '--get', 'remote.origin.url']).strip()
+
+    def init_submodules(self):
+        return self._run_git(['submodule', 'update', '--init', '--recursive'])
+
+    def submodules_status(self):
+        return self._run_git(['submodule', 'status', '--recursive'])
+
+    def deinit_submodules(self):
+        return self._run_git(['submodule', 'deinit', '-f', '.'])
+
     def _branch_ref_exists(self, branch_ref):
         return self._run_git(['show-ref', '--quiet', '--verify', branch_ref], return_exit_code=True) == 0
 

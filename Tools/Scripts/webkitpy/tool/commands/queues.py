@@ -66,7 +66,7 @@ class AbstractQueue(Command, QueueEngineDelegate):
     _fail_status = "Fail"
     _error_status = "Error"
 
-    def __init__(self, options=None): # Default values should never be collections (like []) as default values are shared between invocations
+    def __init__(self, options=None):  # Default values should never be collections (like []) as default values are shared between invocations
         options_list = (options or []) + [
             make_option("--no-confirm", action="store_false", dest="confirm", default=True, help="Do not ask the user for confirmation before running the queue.  Dangerous!"),
             make_option("--exit-after-iteration", action="store", type="int", dest="iterations", default=None, help="Stop running the queue after iterating this number of times."),
@@ -148,7 +148,7 @@ class AbstractQueue(Command, QueueEngineDelegate):
     # Command methods
 
     def execute(self, options, args, tool, engine=QueueEngine):
-        self._options = options # FIXME: This code is wrong.  Command.options is a list, this assumes an Options element!
+        self._options = options  # FIXME: This code is wrong.  Command.options is a list, this assumes an Options element!
         self._tool = tool  # FIXME: This code is wrong too!  Command.bind_to_tool handles this!
         return engine(self.name, self, self._tool.wakeup_event, self._options.seconds_to_sleep).run()
 
@@ -250,6 +250,9 @@ class AbstractPatchQueue(AbstractQueue):
     def work_item_log_path(self, patch):
         return os.path.join(self._log_directory(), "%s.log" % patch.bug_id())
 
+    def build_style(self):
+        return "release"
+
 
 # Used to share code between the EWS and commit-queue.
 class PatchProcessingQueue(AbstractPatchQueue):
@@ -269,6 +272,15 @@ class PatchProcessingQueue(AbstractPatchQueue):
             return 'win-future'
         return port_name
 
+    def _create_port(self):
+        self._port = self._tool.port_factory.get(self._new_port_name_from_old(self.port_name, self._tool.platform))
+        if self.architecture:
+            self._port.set_architecture(self.architecture)
+        if self.build_style() == "debug":
+            self._port.set_option("configuration", "Debug")
+        else:
+            self._port.set_option("configuration", "Release")
+
     def begin_work_queue(self):
         AbstractPatchQueue.begin_work_queue(self)
         if not self.port_name:
@@ -278,13 +290,11 @@ class PatchProcessingQueue(AbstractPatchQueue):
         # FIXME: This violates abstraction
         self._tool._deprecated_port = self._deprecated_port
 
-        self._port = self._tool.port_factory.get(self._new_port_name_from_old(self.port_name, self._tool.platform))
-        if self.architecture:
-            self._port.set_architecture(self.architecture)
+        self._create_port()
 
     def _upload_results_archive_for_patch(self, patch, results_archive_zip):
         if not self._port:
-            self._port = self._tool.port_factory.get(self._new_port_name_from_old(self.port_name, self._tool.platform))
+            self._create_port()
 
         bot_id = self._tool.status_server.bot_id or "bot"
         description = "Archive of layout-test-results from %s for %s" % (bot_id, self._port.name())
@@ -381,9 +391,6 @@ class CommitQueue(PatchProcessingQueue, StepSequenceErrorHandler, CommitQueueTas
 
     def archive_last_test_results(self, patch):
         return self._layout_test_results_reader.archive(patch)
-
-    def build_style(self):
-        return "release"
 
     def refetch_patch(self, patch):
         return self._tool.bugs.fetch_attachment(patch.id())

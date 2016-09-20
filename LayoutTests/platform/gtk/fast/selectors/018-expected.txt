@@ -65,7 +65,7 @@ layer at (0,0) size 800x288
                   text run at (41,1) width 30: "here"
               RenderText {#text} at (71,1) size 9x17
                 text run at (71,1) width 9: ")."
-            RenderTableCell {TD} at (204,61) size 99x2 [r=2 c=2 rs=1 cs=1]
+            RenderTableCell {TD} at (204,61) size 99x3 [r=2 c=2 rs=1 cs=1]
           RenderTableRow {TR} at (0,77) size 308x19
             RenderTableCell {TD} at (5,77) size 100x19 [r=3 c=0 rs=1 cs=1]
               RenderText {#text} at (1,1) size 76x17
@@ -103,7 +103,7 @@ layer at (0,0) size 800x288
             RenderTableCell {TD} at (110,149) size 89x19 [r=6 c=1 rs=1 cs=1]
               RenderText {#text} at (1,1) size 87x17
                 text run at (1,1) width 87: "over the cells."
-            RenderTableCell {TD} at (204,157) size 99x2 [r=6 c=2 rs=1 cs=1]
+            RenderTableCell {TD} at (204,157) size 99x3 [r=6 c=2 rs=1 cs=1]
           RenderTableRow {TR} at (0,173) size 308x19
             RenderTableCell {TD} at (5,173) size 100x19 [r=7 c=0 rs=1 cs=1]
               RenderText {#text} at (1,1) size 64x17
@@ -113,7 +113,7 @@ layer at (0,0) size 800x288
                   text run at (65,1) width 30: "here"
               RenderText {#text} at (95,1) size 4x17
                 text run at (95,1) width 4: ","
-            RenderTableCell {TD} at (110,181) size 89x2 [r=7 c=1 rs=1 cs=1]
+            RenderTableCell {TD} at (110,181) size 89x3 [r=7 c=1 rs=1 cs=1]
             RenderTableCell {TD} at (204,173) size 99x19 [r=7 c=2 rs=1 cs=1]
               RenderText {#text} at (1,1) size 71x17
                 text run at (1,1) width 71: "blank cells."

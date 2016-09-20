@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 Apple Inc. All rights reserved.
+ * Copyright (C) 2013, 2016 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -38,9 +38,12 @@ BuildbotQueueView = function(queues)
         queue.addEventListener(BuildbotQueue.Event.UnauthorizedAccess, this._unauthorizedAccess, this);
     }.bind(this));
 
-    webkitTrac.addEventListener(Trac.Event.CommitsUpdated, this._newCommitsRecorded, this);
-    if (typeof internalTrac != "undefined")
-        internalTrac.addEventListener(Trac.Event.CommitsUpdated, this._newCommitsRecorded, this);
+    var sortedRepositories = Dashboard.sortedRepositories;
+    for (var i = 0; i < sortedRepositories.length; i++) {
+        var trac = sortedRepositories[i].trac;
+        if (trac)
+            trac.addEventListener(Trac.Event.CommitsUpdated, this._newCommitsRecorded, this);
+    }
 };
 
 BaseObject.addConstructorFunctions(BuildbotQueueView);
@@ -70,107 +73,92 @@ BuildbotQueueView.prototype = {
         this.element.appendChild(status.element);
     },
 
-    _appendPendingRevisionCount: function(queue)
-    {
-        var latestProductiveIteration = this._latestProductiveIteration(queue);
-        if (!latestProductiveIteration)
-            return;
-
-        var latestRecordedOpenSourceRevisionNumber = webkitTrac.latestRecordedRevisionNumber;
-        if (!latestRecordedOpenSourceRevisionNumber || webkitTrac.oldestRecordedRevisionNumber > latestProductiveIteration.openSourceRevision) {
-            webkitTrac.loadMoreHistoricalData();
-            return;
-        }
-
-        // FIXME: To be 100% correct, we should also filter out changes that are ignored by
-        // the queue, see _should_file_trigger_build in wkbuild.py.
-        var totalRevisionsBehind = webkitTrac.commitsOnBranch(queue.branch.openSource, function(commit) { return commit.revisionNumber > latestProductiveIteration.openSourceRevision; }).length;
-
-        if (latestProductiveIteration.internalRevision) {
-            var latestRecordedInternalRevisionNumber = internalTrac.latestRecordedRevisionNumber;
-            if (!latestRecordedInternalRevisionNumber || internalTrac.oldestRecordedRevisionNumber > latestProductiveIteration.internalRevision) {
-                internalTrac.loadMoreHistoricalData();
-                return;
-            }
-
-            totalRevisionsBehind += internalTrac.commitsOnBranch(queue.branch.internal, function(commit) { return commit.revisionNumber > latestProductiveIteration.internalRevision; }).length;
-        }
-
-        if (!totalRevisionsBehind)
-            return;
-
-        var messageElement = document.createElement("span"); // We can't just pass text to StatusLineView here, because we need an element that perfectly fits the text for popover positioning.
-        messageElement.textContent = totalRevisionsBehind + " " + (totalRevisionsBehind === 1 ? "revision behind" : "revisions behind");
-        var status = new StatusLineView(messageElement, StatusLineView.Status.NoBubble);
-        this.element.appendChild(status.element);
-
-        new PopoverTracker(messageElement, this._presentPopoverForPendingCommits.bind(this), queue);
-    },
-
-    _popoverLinesForCommitRange: function(trac, branch, firstRevisionNumber, lastRevisionNumber)
-    {
-        function lineForCommit(trac, commit)
-        {
-            var result = document.createElement("div");
-            result.className = "pending-commit";
-
-            var linkElement = document.createElement("a");
-            linkElement.className = "revision";
-            linkElement.href = trac.revisionURL(commit.revisionNumber);
-            linkElement.target = "_blank";
-            linkElement.textContent = "r" + commit.revisionNumber;
-            result.appendChild(linkElement);
-
-            var authorElement = document.createElement("span");
-            authorElement.className = "author";
-            authorElement.textContent = commit.author;
-            result.appendChild(authorElement);
-
-            var titleElement = document.createElement("span");
-            titleElement.className = "title";
-            titleElement.innerHTML = commit.title.innerHTML;
-            result.appendChild(titleElement);
-
-            return result;
-        }
-
-        console.assert(trac.oldestRecordedRevisionNumber <= firstRevisionNumber);
-
-        // FIXME: To be 100% correct, we should also filter out changes that are ignored by
-        // the queue, see _should_file_trigger_build in wkbuild.py.
-        var commits = trac.commitsOnBranch(branch, function(commit) { return commit.revisionNumber >= firstRevisionNumber && commit.revisionNumber <= lastRevisionNumber; });
-        return commits.map(function(commit) {
-            return lineForCommit(trac, commit);
-        }, this).reverse();
-    },
-
-    _presentPopoverForPendingCommits: function(element, popover, queue)
-    {
-        var latestProductiveIteration = this._latestProductiveIteration(queue);
-        if (!latestProductiveIteration)
-            return false;
-
+    _createLoadingIndicator: function(iteration, heading) {
         var content = document.createElement("div");
-        content.className = "commit-history-popover";
+        content.className = "test-results-popover";
 
-        var linesForOpenSource = this._popoverLinesForCommitRange(webkitTrac, queue.branch.openSource, latestProductiveIteration.openSourceRevision + 1, webkitTrac.latestRecordedRevisionNumber);
-        for (var i = 0; i != linesForOpenSource.length; ++i)
-            content.appendChild(linesForOpenSource[i]);
+        this._addIterationHeadingToPopover(iteration, content, heading);
+        this._addDividerToPopover(content);
 
-        var linesForInternal = [];
-        if (latestProductiveIteration.internalRevision && internalTrac.latestRecordedRevisionNumber)
-            var linesForInternal = this._popoverLinesForCommitRange(internalTrac, queue.branch.internal, latestProductiveIteration.internalRevision + 1, internalTrac.latestRecordedRevisionNumber);
+        var loadingIndicator = document.createElement("div");
+        loadingIndicator.className = "loading-indicator";
+        loadingIndicator.textContent = "Loading\u2026";
+        content.appendChild(loadingIndicator);
 
-        if (linesForOpenSource.length && linesForInternal.length)
-            this._addDividerToPopover(content);
+        return content;
+    },
 
-        for (var i = 0; i != linesForInternal.length; ++i)
-            content.appendChild(linesForInternal[i]);
+    // Work around bug 80159: -webkit-user-select:none not respected when copying content.
+    // We set clipboard data manually, temporarily making non-selectable content hidden
+    // to easily get accurate selection text.
+    _onPopoverCopy: function(event) {
+        var iterator = document.createNodeIterator(
+            event.currentTarget,
+            NodeFilter.SHOW_ELEMENT,
+            {
+                acceptNode: function(element) {
+                    if (window.getComputedStyle(element).webkitUserSelect !== "none")
+                        return NodeFilter.FILTER_ACCEPT;
+                    return NodeFilter.FILTER_SKIP;
+                }
+            }
+        );
+
+        while ((node = iterator.nextNode()))
+            node.style.visibility = "visible";
+
+        event.currentTarget.style.visibility = "hidden";
+        event.clipboardData.setData('text', window.getSelection());
+        event.currentTarget.style.visibility = "";
+        return false;
+    },
+
+    _popoverContentForJavaScriptCoreTestRegressions: function(iteration, testName)
+    {
+        var content = document.createElement("div");
+        content.className = "test-results-popover";
+
+        this._addIterationHeadingToPopover(iteration, content, "javascriptcore test failures", iteration.queue.buildbot.javaScriptCoreTestStdioUrlForIteration(iteration, testName));
+        this._addDividerToPopover(content);
+
+        if (!iteration.javaScriptCoreTestResults.regressions) {
+            var message = document.createElement("div");
+            message.className = "loading-failure";
+            message.textContent = "Test results couldn\u2019t be loaded";
+            content.appendChild(message);
+            return content;
+        }
+
+        var regressions = iteration.javaScriptCoreTestResults.regressions;
+
+        for (var i = 0, end = regressions.length; i != end; ++i) {
+            var test = regressions[i];
+            var rowElement = document.createElement("div");
+            var testPathElement = document.createElement("span");
+            testPathElement.className = "test-path";
+            testPathElement.textContent = test;
+            rowElement.appendChild(testPathElement);
+            content.appendChild(rowElement);
+        }
+
+        content.oncopy = this._onPopoverCopy;
+        return content;
+    },
+
+    _presentPopoverForJavaScriptCoreTestRegressions: function(testName, element, popover, iteration)
+    {
+        if (iteration.javaScriptCoreTestResults.regressions)
+            var content = this._popoverContentForJavaScriptCoreTestRegressions(iteration, testName);
+        else {
+            var content = this._createLoadingIndicator(iteration, "javascriptcore test failures");
+            iteration.loadJavaScriptCoreTestResults(testName, function() {
+                popover.content = this._popoverContentForJavaScriptCoreTestRegressions(iteration, testName);
+            }.bind(this));
+        }
 
         var rect = Dashboard.Rect.rectFromClientRect(element.getBoundingClientRect());
         popover.content = content;
         popover.present(rect, [Dashboard.RectEdge.MIN_Y, Dashboard.RectEdge.MAX_Y, Dashboard.RectEdge.MAX_X, Dashboard.RectEdge.MIN_X]);
-
         return true;
     },
 
@@ -190,7 +178,7 @@ BuildbotQueueView.prototype = {
             content.appendChild(line);
             this._addDividerToPopover(content);
         } else {
-            line.textContent = "no commits to " + context.branch + " since previous result";
+            line.textContent = "no commits to " + context.branch.name + " since previous result";
             content.appendChild(line);
         }
 
@@ -204,27 +192,51 @@ BuildbotQueueView.prototype = {
         return true;
     },
 
-    _revisionContentWithPopoverForIteration: function(iteration, previousIteration, internal)
+    _revisionContentWithPopoverForIteration: function(iteration, previousIteration, branch)
     {
+        var repository = branch.repository;
+        var repositoryName = repository.name;
+        console.assert(iteration.revision[repositoryName]);
+        var trac = repository.trac;
         var content = document.createElement("span");
-        content.textContent = "r" + (internal ? iteration.internalRevision : iteration.openSourceRevision);
+        content.textContent = this._formatRevisionForDisplay(iteration.revision[repositoryName], repository);
         content.classList.add("revision-number");
 
-        if (previousIteration) {
-            var context = {
-                trac: internal ? internalTrac : webkitTrac,
-                branch: internal ? iteration.queue.branch.internal : iteration.queue.branch.openSource,
-                firstRevision: (internal ? previousIteration.internalRevision : previousIteration.openSourceRevision) + 1,
-                lastRevision: internal ? iteration.internalRevision : iteration.openSourceRevision
-            };
-            if (context.firstRevision <= context.lastRevision)
-                new PopoverTracker(content, this._presentPopoverForRevisionRange.bind(this), context);
-        }
+        if (!previousIteration)
+            return content;
+
+        var previousIterationRevision = previousIteration.revision[repositoryName];
+        console.assert(previousIterationRevision);
+        var previousIterationRevisionIndex = trac.indexOfRevision(previousIterationRevision);
+        if (previousIterationRevisionIndex === -1)
+            return content;
+
+        var firstRevision = trac.nextRevision(branch.name, previousIterationRevision);
+        if (firstRevision === Trac.NO_MORE_REVISIONS)
+            return content;
+        var firstRevisionIndex = trac.indexOfRevision(firstRevision);
+        console.assert(firstRevisionIndex !== -1);
+
+        var lastRevision = iteration.revision[repositoryName];
+        var lastRevisionIndex = trac.indexOfRevision(lastRevision);
+        if (lastRevisionIndex === -1)
+            return content;
+
+        if (firstRevisionIndex > lastRevisionIndex)
+            return content;
+
+        var context = {
+            trac: trac,
+            branch: branch,
+            firstRevision: firstRevision,
+            lastRevision: lastRevision,
+        };
+        new PopoverTracker(content, this._presentPopoverForRevisionRange.bind(this), context);
 
         return content;
     },
 
-    _addIterationHeadingToPopover: function(iteration, content, additionalText)
+    _addIterationHeadingToPopover: function(iteration, content, additionalText, additionalTextTarget)
     {
         var title = document.createElement("div");
         title.className = "popover-iteration-heading";
@@ -242,38 +254,57 @@ BuildbotQueueView.prototype = {
         title.appendChild(buildbotLink);
 
         if (additionalText) {
-            var additionalTextElement = document.createElement("span");
+            var elementType = additionalTextTarget ? "a" : "span";
+            var additionalTextElement = document.createElement(elementType);
             additionalTextElement.className = "additional-text";
             additionalTextElement.textContent = additionalText;
+            if (additionalTextTarget) {
+                additionalTextElement.href = additionalTextTarget;
+                additionalTextElement.target = "_blank";
+            }
             title.appendChild(additionalTextElement);
         }
 
         content.appendChild(title);
     },
 
-    _addDividerToPopover: function(content)
-    {
-        var divider = document.createElement("div");
-        divider.className = "divider";
-        content.appendChild(divider);
-    },
-
     revisionContentForIteration: function(iteration, previousDisplayedIteration)
     {
-        console.assert(iteration.openSourceRevision);
-
-        var openSourceContent = this._revisionContentWithPopoverForIteration(iteration, previousDisplayedIteration);
-
-        if (!iteration.internalRevision)
-            return openSourceContent;
-
-        var internalContent = this._revisionContentWithPopoverForIteration(iteration, previousDisplayedIteration, true);
-
         var fragment = document.createDocumentFragment();
-        fragment.appendChild(openSourceContent);
-        fragment.appendChild(document.createTextNode(" \uff0b "));
-        fragment.appendChild(internalContent);
+        var shouldAddPlusSign = false;
+        var branches = iteration.queue.branches;
+        for (var i = 0; i < branches.length; ++i) {
+            var branch = branches[i];
+            if (!iteration.revision[branch.repository.name])
+                continue;
+            var content = this._revisionContentWithPopoverForIteration(iteration, previousDisplayedIteration, branch);
+            if (shouldAddPlusSign)
+                fragment.appendChild(document.createTextNode(" \uff0b "));
+            fragment.appendChild(content);
+            shouldAddPlusSign = true;
+        }
         return fragment;
+    },
+
+    _testStepFailureDescription: function(failedStep)
+    {
+        if (!failedStep.failureCount)
+            return BuildbotIteration.TestSteps[failedStep.name] + " failed";
+        if (failedStep.failureCount === 1)
+            return BuildbotIteration.TestSteps[failedStep.name] + " failure";
+        return BuildbotIteration.TestSteps[failedStep.name] + " failures";
+    },
+
+    _testStepFailureDescriptionWithCount: function(failedStep)
+    {
+        if (!failedStep.failureCount)
+            return this._testStepFailureDescription(failedStep);
+        if (failedStep.tooManyFailures) {
+            // E.g. "50+ layout test failures", preventing line breaks around the "+".
+            return failedStep.failureCount + "\ufeff\uff0b\u00a0" + this._testStepFailureDescription(failedStep);
+        }
+        // E.g. "1 layout test failure", preventing line break after the number.
+        return failedStep.failureCount + "\u00a0" + this._testStepFailureDescription(failedStep);
     },
 
     appendBuildStyle: function(queues, defaultLabel, appendFunction)
@@ -319,5 +350,4 @@ BuildbotQueueView.prototype = {
     {
         this.updateSoon();
     }
-
 };

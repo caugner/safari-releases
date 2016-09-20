@@ -37,26 +37,28 @@ type: object
 description: Event
 
 OWN PROPERTIES:
-    clipboardData
+    isTrusted
     __proto__
 
 DISPLAYABLE PROPERTIES:
-    clipboardData
+    isTrusted
     type
     target
     currentTarget
     eventPhase
     bubbles
     cancelable
+    composed
     timeStamp
     defaultPrevented
     srcElement
     returnValue
     cancelBubble
+    clipboardData
     __proto__
 
 ALL PROPERTIES:
-    clipboardData
+    isTrusted
     constructor
     type
     target
@@ -64,11 +66,18 @@ ALL PROPERTIES:
     eventPhase
     bubbles
     cancelable
+    composed
     timeStamp
     defaultPrevented
     srcElement
     returnValue
     cancelBubble
+    clipboardData
+    composedPath
+    stopPropagation
+    preventDefault
+    initEvent
+    stopImmediatePropagation
     NONE
     CAPTURING_PHASE
     AT_TARGET
@@ -89,10 +98,6 @@ ALL PROPERTIES:
     BLUR
     SELECT
     CHANGE
-    stopPropagation
-    preventDefault
-    initEvent
-    stopImmediatePropagation
     toString
     toLocaleString
     valueOf
@@ -202,6 +207,7 @@ ALL PROPERTIES:
     call
     bind
     constructor
+    Symbol(Symbol.hasInstance)
     toLocaleString
     valueOf
     hasOwnProperty
@@ -217,7 +223,7 @@ ALL PROPERTIES:
 -----------------------------------------------------
 EXPRESSION: window.boundFunction
 type: function
-description: function () {
+description: function unboundFunction() {
     [native code]
 }
 
@@ -251,6 +257,7 @@ ALL PROPERTIES:
     call
     bind
     constructor
+    Symbol(Symbol.hasInstance)
     toLocaleString
     valueOf
     hasOwnProperty
@@ -307,6 +314,44 @@ ALL PROPERTIES:
     __lookupGetter__
     __lookupSetter__
     constructor
+    __proto__
+-----------------------------------------------------
+
+-----------------------------------------------------
+EXPRESSION: document.getElementById('my-select').options
+type: object
+subtype: array
+description: HTMLOptionsCollection
+
+OWN PROPERTIES:
+    0
+    __proto__
+
+DISPLAYABLE PROPERTIES:
+    0
+    selectedIndex
+    length
+    __proto__
+
+ALL PROPERTIES:
+    0
+    constructor
+    selectedIndex
+    length
+    item
+    namedItem
+    add
+    remove
+    toString
+    toLocaleString
+    valueOf
+    hasOwnProperty
+    propertyIsEnumerable
+    isPrototypeOf
+    __defineGetter__
+    __defineSetter__
+    __lookupGetter__
+    __lookupSetter__
     __proto__
 -----------------------------------------------------
 DONE

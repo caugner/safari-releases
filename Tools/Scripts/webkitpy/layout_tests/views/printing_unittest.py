@@ -111,7 +111,7 @@ class  Testprinter(unittest.TestCase):
         self.assertIn("Using port 'test-mac-leopard'", err.getvalue())
         self.assertIn('Test configuration: <leopard, x86, release>', err.getvalue())
         self.assertIn('Placing test results in /tmp', err.getvalue())
-        self.assertIn('Baseline search path: test-mac-leopard -> test-mac-snowleopard -> generic', err.getvalue())
+        self.assertIn('Baseline search path: platform/test-mac-leopard -> platform/test-mac-snowleopard -> generic', err.getvalue())
         self.assertIn('Using Release build', err.getvalue())
         self.assertIn('Pixel tests enabled', err.getvalue())
         self.assertIn('Command line:', err.getvalue())
@@ -120,7 +120,7 @@ class  Testprinter(unittest.TestCase):
         self.reset(err)
         printer._options.quiet = True
         printer.print_config('/tmp')
-        self.assertNotIn('Baseline search path: test-mac-leopard -> test-mac-snowleopard -> generic', err.getvalue())
+        self.assertNotIn('Baseline search path: platform/test-mac-leopard -> platform/test-mac-snowleopard -> generic', err.getvalue())
 
     def test_print_one_line_summary(self):
         printer, err = self.get_printer()
@@ -149,6 +149,11 @@ class  Testprinter(unittest.TestCase):
         actual = printer._test_status_line('fast/dom/HTMLFormElement/associated-elements-after-index-assertion-fail1.html', ' passed')
         self.assertEqual(80, len(actual))
         self.assertEqual(actual, '[0/0] fast/dom/HTMLFormElement/associa...after-index-assertion-fail1.html passed')
+
+        printer._meter.number_of_columns = lambda: 80
+        actual = printer._test_status_line('fast/dom/HTMLFormElement/associated-elements-after-index-assertion-fail1.html', ' passed', truncate=False)
+        self.assertEqual(90, len(actual))
+        self.assertEqual(actual, '[0/0] fast/dom/HTMLFormElement/associated-elements-after-index-assertion-fail1.html passed')
 
         printer._meter.number_of_columns = lambda: 89
         actual = printer._test_status_line('fast/dom/HTMLFormElement/associated-elements-after-index-assertion-fail1.html', ' passed')

@@ -15,7 +15,7 @@ layer at (0,0) size 785x788
             RenderTableCell {TD} at (0,0) size 486x20 [border: (1px solid #008000)] [r=0 c=0 rs=1 cs=1]
               RenderText {#text} at (1,1) size 484x18
                 text run at (1,1) width 484: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-            RenderTableCell {TD} at (486,10) size 283x0 [r=0 c=1 rs=1 cs=1]
+            RenderTableCell {TD} at (485,10) size 284x0 [r=0 c=1 rs=1 cs=1]
       RenderBlock {P} at (0,100) size 769x18
         RenderText {#text} at (0,0) size 189x18
           text run at (0,0) width 189: "Using <wbr> to break words."

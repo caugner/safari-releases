@@ -35,8 +35,11 @@ all_queue_names = [
     "style-queue",
     "gtk-wk2-ews",
     "ios-ews",
+    "ios-sim-ews",
     "mac-ews",
     "mac-wk2-ews",
+    "mac-debug-ews",
+    "mac-32bit-ews",
     "win-ews",
     "efl-wk2-ews",
 ]

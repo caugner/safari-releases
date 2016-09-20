@@ -527,6 +527,19 @@ class Port(object):
 
         return reftest_list.get(self._filesystem.join(self.layout_tests_dir(), test_name), [])  # pylint: disable=E1103
 
+    def potential_test_names_from_expected_file(self, path):
+        """Return potential test names if any from a potential expected file path, relative to LayoutTests directory."""
+
+        if not '-expected.' in path:
+            return None
+
+        subpath = self.host.filesystem.relpath(path, self.layout_tests_dir())
+        if path.startswith('platform' + self._filesystem.sep):
+            steps = path.split(self._filesystem.sep)
+            path = self._filesystem.join(self._filesystem.sep.join(steps[2:]))
+
+        return [self.host.filesystem.relpath(test, self.layout_tests_dir()) for test in self._filesystem.glob(re.sub('-expected.*', '.*', self._filesystem.join(self.layout_tests_dir(), path))) if self._filesystem.isfile(test)]
+
     def tests(self, paths):
         """Return the list of tests found. Both generic and platform-specific tests matching paths should be returned."""
         expanded_paths = self._expanded_paths(paths)
@@ -825,8 +838,11 @@ class Port(object):
             'XDG_RUNTIME_DIR',
 
             # Darwin:
+            'DYLD_FRAMEWORK_PATH',
             'DYLD_LIBRARY_PATH',
             'HOME',
+            '__XPC_DYLD_FRAMEWORK_PATH',
+            '__XPC_DYLD_LIBRARY_PATH',
 
             # CYGWIN:
             'HOMEDRIVE',
@@ -834,7 +850,11 @@ class Port(object):
             '_NT_SYMBOL_PATH',
 
             # Windows:
+            'COMSPEC',
             'PATH',
+            'SYSTEMDRIVE',
+            'SYSTEMROOT',
+            'WEBKIT_LIBRARIES',
 
             # Most ports (?):
             'WEBKIT_TESTFONTS',
@@ -852,6 +872,17 @@ class Port(object):
             clean_env[name] = value
 
         return clean_env
+
+    def _clear_global_caches_and_temporary_files(self):
+        pass
+
+    @staticmethod
+    def _append_value_colon_separated(env, name, value):
+        assert ":" not in value
+        if name in env and env[name]:
+            env[name] = env[name] + ":" + value
+        else:
+            env[name] = value
 
     def show_results_html_file(self, results_filename):
         """This routine should display the HTML file pointed at by
@@ -878,14 +909,20 @@ class Port(object):
 
         Ports can stub this out if they don't need a web server to be running."""
         assert not self._http_server, 'Already running an http server.'
-
+        http_port = self.get_option('http_port')
         if self._uses_apache():
-            server = apache_http_server.LayoutTestApacheHttpd(self, self.results_directory(), additional_dirs=additional_dirs)
+            server = apache_http_server.LayoutTestApacheHttpd(self, self.results_directory(), additional_dirs=additional_dirs, port=http_port)
         else:
-            server = http_server.Lighttpd(self, self.results_directory(), additional_dirs=additional_dirs)
+            server = http_server.Lighttpd(self, self.results_directory(), additional_dirs=additional_dirs, port=http_port)
 
         server.start()
         self._http_server = server
+
+    def _extract_certificate_from_pem(self, pem_file, destination_certificate_file):
+        return self._executive.run_command(['openssl', 'x509', '-outform', 'pem', '-in', pem_file, '-out', destination_certificate_file], return_exit_code=True) == 0
+
+    def _extract_private_key_from_pem(self, pem_file, destination_private_key_file):
+        return self._executive.run_command(['openssl', 'rsa', '-in', pem_file, '-out', destination_private_key_file], return_exit_code=True) == 0
 
     def start_websocket_server(self):
         """Start a web server. Raise an error if it can't start or is already running.
@@ -897,10 +934,21 @@ class Port(object):
         server.start()
         self._websocket_server = server
 
+        pem_file = self._filesystem.join(self.layout_tests_dir(), "http", "conf", "webkit-httpd.pem")
+        websocket_server_temporary_directory = self._filesystem.mkdtemp(prefix='webkitpy-websocket-server')
+        certificate_file = self._filesystem.join(str(websocket_server_temporary_directory), 'webkit-httpd.crt')
+        private_key_file = self._filesystem.join(str(websocket_server_temporary_directory), 'webkit-httpd.key')
+        self._websocket_server_temporary_directory = websocket_server_temporary_directory
+        if self._extract_certificate_from_pem(pem_file, certificate_file) and self._extract_private_key_from_pem(pem_file, private_key_file):
+            secure_server = self._websocket_secure_server = websocket_server.PyWebSocket(self, self.results_directory(),
+                                use_tls=True, port=9323, private_key=private_key_file, certificate=certificate_file)
+            secure_server.start()
+            self._websocket_secure_server = secure_server
+
     def start_web_platform_test_server(self, additional_dirs=None, number_of_servers=None):
         assert not self._web_platform_test_server, 'Already running a Web Platform Test server.'
 
-        self._web_platform_test_server = web_platform_test_server.WebPlatformTestServer(self, "wptwk", self.results_directory())
+        self._web_platform_test_server = web_platform_test_server.WebPlatformTestServer(self, "wptwk")
         self._web_platform_test_server.start()
 
     def web_platform_test_server_doc_root(self):
@@ -933,6 +981,11 @@ class Port(object):
         if self._websocket_server:
             self._websocket_server.stop()
             self._websocket_server = None
+        if self._websocket_secure_server:
+            self._websocket_secure_server.stop()
+            self._websocket_secure_server = None
+        if self._websocket_server_temporary_directory:
+            self._filesystem.rmtree(str(self._websocket_server_temporary_directory))
 
     def stop_web_platform_test_server(self):
         if self._web_platform_test_server:
@@ -1077,6 +1130,11 @@ class Port(object):
         _log.error("Could not find apache. Not installed or unknown path.")
         return None
 
+    def _is_debian_php_version_7(self):
+        if self._filesystem.exists("/usr/lib/apache2/modules/libphp7.0.so"):
+            return True
+        return False
+
     # FIXME: This belongs on some platform abstraction instead of Port.
     def _is_redhat_based(self):
         return self._filesystem.exists('/etc/redhat-release')
@@ -1091,15 +1149,20 @@ class Port(object):
         config = self._executive.run_command([self._path_to_apache(), '-v'])
         return re.sub(r'(?:.|\n)*Server version: Apache/(\d+\.\d+)(?:.|\n)*', r'\1', config)
 
+    def _debian_php_version(self):
+        if self._is_debian_php_version_7():
+            return "-php7"
+        return ""
+
     # We pass sys_platform into this method to make it easy to unit test.
     def _apache_config_file_name_for_platform(self, sys_platform):
-        if sys_platform == 'cygwin' or sys_platform == 'win32':
+        if sys_platform == 'cygwin' or sys_platform.startswith('win'):
             return 'apache' + self._apache_version() + '-httpd-win.conf'
         if sys_platform.startswith('linux'):
             if self._is_redhat_based():
                 return 'fedora-httpd-' + self._apache_version() + '.conf'
             if self._is_debian_based():
-                return 'debian-httpd-' + self._apache_version() + '.conf'
+                return 'debian-httpd-' + self._apache_version() + self._debian_php_version() + '.conf'
             if self._is_arch_based():
                 return 'archlinux-httpd.conf'
         # All platforms use apache2 except for CYGWIN (and Mac OS X Tiger and prior, which we no longer support).
@@ -1122,29 +1185,41 @@ class Port(object):
         return self._filesystem.join(self.layout_tests_dir(), 'http', 'conf', config_file_name)
 
     def _build_path(self, *comps):
-        root_directory = self.get_option('root')
+        root_directory = self.get_option('_cached_root') or self.get_option('root')
         if not root_directory:
             build_directory = self.get_option('build_directory')
             if build_directory:
                 root_directory = self._filesystem.join(build_directory, self.get_option('configuration'))
             else:
                 root_directory = self._config.build_directory(self.get_option('configuration'))
-            # Set --root so that we can pass this to subprocesses and avoid making the
-            # slow call to config.build_directory() N times in each worker.
-            # FIXME: This is like @memoized, but more annoying and fragile; there should be another
-            # way to propagate values without mutating the options list.
-            self.set_option_default('root', root_directory)
+            # We take advantage of the behavior that self._options is passed by reference to worker
+            # subprocesses to use it as data store to cache the computed root directory path. This
+            # avoids making each worker subprocess compute this path again which is slow because of
+            # the call to config.build_directory().
+            #
+            # FIXME: This is like decorating this function with @memoized, but more annoying and fragile;
+            # there should be another way to propagate precomputed values to workers without modifying
+            # the options list.
+            self.set_option('_cached_root', root_directory)
+
+        if sys.platform.startswith('win') or sys.platform == 'cygwin':
+            return self._filesystem.join(root_directory, *comps)
+
         return self._filesystem.join(self._filesystem.abspath(root_directory), *comps)
 
     def _path_to_driver(self, configuration=None):
         """Returns the full path to the test driver (DumpRenderTree)."""
-        return self._build_path(self.driver_name())
+        local_driver_path = self._build_path(self.driver_name())
+        if sys.platform.startswith('win'):
+            base = os.path.splitext(local_driver_path)[0]
+            local_driver_path = base + ".exe"
+        return local_driver_path
 
     def _driver_tempdir(self):
         return self._filesystem.mkdtemp(prefix='%s-' % self.driver_name())
 
-    def _driver_tempdir_for_environment(self):
-        return self._driver_tempdir()
+    def _path_to_user_cache_directory(self, suffix=None):
+        return None
 
     def _path_to_webcore_library(self):
         """Returns the full path to a built copy of WebCore."""

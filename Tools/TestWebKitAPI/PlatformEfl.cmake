@@ -1,3 +1,6 @@
+set(TESTWEBKITAPI_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/TestWebKitAPI")
+set(TESTWEBKITAPI_RUNTIME_OUTPUT_DIRECTORY_WTF "${TESTWEBKITAPI_RUNTIME_OUTPUT_DIRECTORY}/WTF")
+
 add_custom_target(forwarding-headersEflForTestWebKitAPI
     COMMAND ${PERL_EXECUTABLE} ${WEBKIT2_DIR}/Scripts/generate-forwarding-headers.pl --include-path ${TESTWEBKITAPI_DIR} --output ${DERIVED_SOURCES_WEBKIT2_DIR}/include --platform efl --platform CoordinatedGraphics --platform soup
     DEPENDS forwarding-headersEflForWebKit2
@@ -55,6 +58,7 @@ list(APPEND TestJavaScriptCore_LIBRARIES
 
 set(test_webcore_BINARIES
     CSSParser
+    HTMLParserIdioms
     LayoutUnit
     URL
 )
@@ -90,6 +94,7 @@ set(test_webkit2_api_BINARIES
     PageLoadBasic
     PageLoadDidChangeLocationWithinPageForFrame
     ParentFrame
+    PendingAPIRequestURL
     PreventEmptyUserAgent
     PrivateBrowsingPushStateNoHistoryCallback
     ResponsivenessTimerDoesntFireEarly
@@ -126,12 +131,6 @@ set(test_webkit2_api_fail_BINARIES
     WKPageGetScaleFactorNotZero
     WillLoad
 )
-
-if (ENABLE_SECCOMP_FILTERS)
-    list(APPEND test_webkit2_api_fail_BINARIES
-        SeccompFilters
-    )
-endif ()
 
 # Tests disabled because of missing features on the test harness:
 #

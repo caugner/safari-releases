@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010, 2014-2015 Apple Inc. All rights reserved.
+ * Copyright (C) 2010, 2014-2016 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -31,18 +31,23 @@
 #include "PlatformWebView.h"
 #include "StringFunctions.h"
 #include "TestInvocation.h"
+#include <WebCore/UUID.h>
+#include <WebKit/WKArray.h>
 #include <WebKit/WKAuthenticationChallenge.h>
 #include <WebKit/WKAuthenticationDecisionListener.h>
 #include <WebKit/WKContextConfigurationRef.h>
 #include <WebKit/WKContextPrivate.h>
 #include <WebKit/WKCookieManager.h>
 #include <WebKit/WKCredential.h>
+#include <WebKit/WKFrameHandleRef.h>
+#include <WebKit/WKFrameInfoRef.h>
 #include <WebKit/WKIconDatabase.h>
 #include <WebKit/WKNavigationResponseRef.h>
 #include <WebKit/WKNotification.h>
 #include <WebKit/WKNotificationManager.h>
 #include <WebKit/WKNotificationPermissionRequest.h>
 #include <WebKit/WKNumber.h>
+#include <WebKit/WKOpenPanelResultListener.h>
 #include <WebKit/WKPageGroup.h>
 #include <WebKit/WKPageInjectedBundleClient.h>
 #include <WebKit/WKPagePrivate.h>
@@ -50,13 +55,24 @@
 #include <WebKit/WKPreferencesRefPrivate.h>
 #include <WebKit/WKProtectionSpace.h>
 #include <WebKit/WKRetainPtr.h>
+#include <WebKit/WKSecurityOriginRef.h>
+#include <WebKit/WKUserMediaPermissionCheck.h>
 #include <algorithm>
 #include <cstdio>
 #include <ctype.h>
+#include <fstream>
+#include <runtime/InitializeThreading.h>
 #include <stdlib.h>
 #include <string>
+#include <unistd.h>
+#include <wtf/CryptographicallyRandomNumber.h>
+#include <wtf/HexNumber.h>
+#include <wtf/MainThread.h>
+#include <wtf/RefCounted.h>
 #include <wtf/RunLoop.h>
+#include <wtf/TemporaryChange.h>
 #include <wtf/text/CString.h>
+#include <wtf/text/WTFString.h>
 
 #if PLATFORM(COCOA)
 #include <WebKit/WKContextPrivateMac.h>
@@ -104,29 +120,6 @@ TestController& TestController::singleton()
 }
 
 TestController::TestController(int argc, const char* argv[])
-    : m_verbose(false)
-    , m_printSeparators(false)
-    , m_usingServerMode(false)
-    , m_gcBetweenTests(false)
-    , m_shouldDumpPixelsForAllTests(false)
-    , m_state(Initial)
-    , m_doneResetting(false)
-    , m_useWaitToDumpWatchdogTimer(true)
-    , m_forceNoTimeout(false)
-    , m_didPrintWebProcessCrashedMessage(false)
-    , m_shouldExitWhenWebProcessCrashes(true)
-    , m_beforeUnloadReturnValue(true)
-    , m_isGeolocationPermissionSet(false)
-    , m_isGeolocationPermissionAllowed(false)
-    , m_policyDelegateEnabled(false)
-    , m_policyDelegatePermissive(false)
-    , m_handlesAuthenticationChallenges(false)
-    , m_shouldBlockAllPlugins(false)
-    , m_forceComplexText(false)
-    , m_shouldUseAcceleratedDrawing(false)
-    , m_shouldUseRemoteLayerTree(false)
-    , m_shouldLogHistoryClientCallbacks(false)
-    , m_shouldShowWebView(false)
 {
     initialize(argc, argv);
     controller = this;
@@ -136,7 +129,9 @@ TestController::TestController(int argc, const char* argv[])
 
 TestController::~TestController()
 {
-    WKIconDatabaseClose(WKContextGetIconDatabase(m_context.get()));
+    // The context will be null if WebKitTestRunner was in server mode, but ran no tests.
+    if (m_context)
+        WKIconDatabaseClose(WKContextGetIconDatabase(m_context.get()));
 
     platformDestroy();
 }
@@ -157,6 +152,12 @@ static bool runBeforeUnloadConfirmPanel(WKPageRef page, WKStringRef message, WKF
 {
     printf("CONFIRM NAVIGATION: %s\n", toSTD(message).c_str());
     return TestController::singleton().beforeUnloadReturnValue();
+}
+
+static void runOpenPanel(WKPageRef page, WKFrameRef frame, WKOpenPanelParametersRef parameters, WKOpenPanelResultListenerRef resultListenerRef, const void*)
+{
+    printf("OPEN FILE PANEL\n");
+    WKOpenPanelResultListenerCancel(resultListenerRef);
 }
 
 void TestController::runModal(WKPageRef page, const void* clientInfo)
@@ -192,22 +193,27 @@ static void decidePolicyForGeolocationPermissionRequest(WKPageRef, WKFrameRef, W
     TestController::singleton().handleGeolocationPermissionRequest(permissionRequest);
 }
 
-static void decidePolicyForUserMediaPermissionRequest(WKPageRef, WKFrameRef, WKSecurityOriginRef, WKUserMediaPermissionRequestRef permissionRequest, const void* clientInfo)
+static void decidePolicyForUserMediaPermissionRequest(WKPageRef, WKFrameRef frame, WKSecurityOriginRef userMediaDocumentOrigin, WKSecurityOriginRef topLevelDocumentOrigin, WKUserMediaPermissionRequestRef permissionRequest, const void* clientInfo)
 {
-    TestController::singleton().handleUserMediaPermissionRequest(permissionRequest);
+    TestController::singleton().handleUserMediaPermissionRequest(frame, userMediaDocumentOrigin, topLevelDocumentOrigin, permissionRequest);
 }
 
-WKPageRef TestController::createOtherPage(WKPageRef oldPage, WKURLRequestRef, WKDictionaryRef, WKEventModifiers, WKEventMouseButton, const void* clientInfo)
+static void checkUserMediaPermissionForOrigin(WKPageRef, WKFrameRef frame, WKSecurityOriginRef userMediaDocumentOrigin, WKSecurityOriginRef topLevelDocumentOrigin, WKUserMediaPermissionCheckRef checkRequest, const void*)
+{
+    TestController::singleton().handleCheckOfUserMediaPermissionForOrigin(frame, userMediaDocumentOrigin, topLevelDocumentOrigin, checkRequest);
+}
+
+WKPageRef TestController::createOtherPage(WKPageRef oldPage, WKPageConfigurationRef configuration, WKNavigationActionRef navigationAction, WKWindowFeaturesRef windowFeatures, const void *clientInfo)
 {
     PlatformWebView* parentView = static_cast<PlatformWebView*>(const_cast<void*>(clientInfo));
 
-    PlatformWebView* view = new PlatformWebView(WKPageGetContext(oldPage), WKPageGetPageGroup(oldPage), oldPage, parentView->options());
+    PlatformWebView* view = platformCreateOtherPage(parentView, configuration, parentView->options());
     WKPageRef newPage = view->page();
 
     view->resizeTo(800, 600);
 
-    WKPageUIClientV5 otherPageUIClient = {
-        { 5, view },
+    WKPageUIClientV6 otherPageUIClient = {
+        { 6, view },
         0, // createNewPage_deprecatedForUseWithV0
         0, // showPage
         closeOtherPage,
@@ -236,7 +242,7 @@ WKPageRef TestController::createOtherPage(WKPageRef oldPage, WKURLRequestRef, WK
         0, // didDraw
         0, // pageDidScroll
         0, // exceededDatabaseQuota
-        0, // runOpenPanel
+        runOpenPanel,
         decidePolicyForGeolocationPermissionRequest,
         0, // headerHeight
         0, // footerHeight
@@ -247,7 +253,7 @@ WKPageRef TestController::createOtherPage(WKPageRef oldPage, WKURLRequestRef, WK
         0, // didCompleteRubberBandForMainFrame
         0, // saveDataToFileInDownloadsFolder
         0, // shouldInterruptJavaScript
-        createOtherPage,
+        0, // createNewPage_deprecatedForUseWithV1
         0, // mouseDidMoveOverElement
         0, // decidePolicyForNotificationPermissionRequest
         0, // unavailablePluginButtonClicked_deprecatedForUseWithV1
@@ -265,6 +271,11 @@ WKPageRef TestController::createOtherPage(WKPageRef oldPage, WKURLRequestRef, WK
         0, // runJavaScriptConfirm
         0, // runJavaScriptPrompt
         0, // mediaSessionMetadataDidChange
+        createOtherPage,
+        0, // runJavaScriptAlert
+        0, // runJavaScriptConfirm
+        0, // runJavaScriptPrompt
+        checkUserMediaPermissionForOrigin,
     };
     WKPageSetPageUIClient(newPage, &otherPageUIClient.base);
     
@@ -287,6 +298,10 @@ WKPageRef TestController::createOtherPage(WKPageRef oldPage, WKURLRequestRef, WK
         didReceiveAuthenticationChallenge,
         processDidCrash,
         copyWebCryptoMasterKey,
+        didBeginNavigationGesture,
+        willEndNavigationGesture,
+        didEndNavigationGesture,
+        didRemoveNavigationGestureSnapshot
     };
     WKPageSetPageNavigationClient(newPage, &pageNavigationClient.base);
 
@@ -309,9 +324,10 @@ const char* TestController::libraryPathForTesting()
     return platformLibraryPathForTesting();
 }
 
-
 void TestController::initialize(int argc, const char* argv[])
 {
+    JSC::initializeThreading();
+    WTF::initializeMainThread();
     RunLoop::initializeMainRunLoop();
 
     platformInitialize();
@@ -356,9 +372,13 @@ void TestController::initialize(int argc, const char* argv[])
 
     WKRetainPtr<WKStringRef> pageGroupIdentifier(AdoptWK, WKStringCreateWithUTF8CString("WebKitTestRunnerPageGroup"));
     m_pageGroup.adopt(WKPageGroupCreateWithIdentifier(pageGroupIdentifier.get()));
+}
 
+WKRetainPtr<WKContextConfigurationRef> TestController::generateContextConfiguration() const
+{
     auto configuration = adoptWK(WKContextConfigurationCreate());
     WKContextConfigurationSetInjectedBundlePath(configuration.get(), injectedBundlePath());
+    WKContextConfigurationSetFullySynchronousModeIsAllowedForTesting(configuration.get(), true);
 
     if (const char* dumpRenderTreeTemp = libraryPathForTesting()) {
         String temporaryFolder = String::fromUTF8(dumpRenderTreeTemp);
@@ -372,14 +392,14 @@ void TestController::initialize(int argc, const char* argv[])
         WKContextConfigurationSetWebSQLDatabaseDirectory(configuration.get(), toWK(temporaryFolder + separator + "Databases" + separator + "WebSQL").get());
         WKContextConfigurationSetMediaKeysStorageDirectory(configuration.get(), toWK(temporaryFolder + separator + "MediaKeys").get());
     }
+    return configuration;
+}
 
-    m_context = adoptWK(WKContextCreateWithConfiguration(configuration.get()));
+WKRetainPtr<WKPageConfigurationRef> TestController::generatePageConfiguration(WKContextConfigurationRef configuration)
+{
+    m_context = platformAdjustContext(adoptWK(WKContextCreateWithConfiguration(configuration)).get(), configuration);
+
     m_geolocationProvider = std::make_unique<GeolocationProviderMock>(m_context.get());
-
-#if PLATFORM(EFL)
-    WKContextSetUsesNetworkProcess(m_context.get(), false);
-    WKContextSetProcessModel(m_context.get(), kWKProcessModelSharedSecondaryProcess);
-#endif
 
     if (const char* dumpRenderTreeTemp = libraryPathForTesting()) {
         String temporaryFolder = String::fromUTF8(dumpRenderTreeTemp);
@@ -390,6 +410,7 @@ void TestController::initialize(int argc, const char* argv[])
         WKContextSetIconDatabasePath(m_context.get(), toWK(emptyString()).get());
     }
 
+    WKContextSetDiskCacheSpeculativeValidationEnabled(m_context.get(), true);
     WKContextUseTestingNetworkSession(m_context.get());
     WKContextSetCacheModel(m_context.get(), kWKCacheModelDocumentBrowser);
 
@@ -399,16 +420,17 @@ void TestController::initialize(int argc, const char* argv[])
         { 1, this },
         didReceiveMessageFromInjectedBundle,
         didReceiveSynchronousMessageFromInjectedBundle,
-        0 // getInjectedBundleInitializationUserData
+        getInjectedBundleInitializationUserData,
     };
     WKContextSetInjectedBundleClient(m_context.get(), &injectedBundleClient.base);
 
-    WKContextClientV1 contextClient = {
-        { 1, this },
+    WKContextClientV2 contextClient = {
+        { 2, this },
         0, // plugInAutoStartOriginHashesChanged
         networkProcessDidCrash,
         0, // plugInInformationBecameAvailable
         0, // copyWebCryptoMasterKey
+        databaseProcessDidCrash,
     };
     WKContextSetClient(m_context.get(), &contextClient.base);
 
@@ -432,33 +454,31 @@ void TestController::initialize(int argc, const char* argv[])
     if (m_forceComplexText)
         WKContextSetAlwaysUsesComplexTextCodePath(m_context.get(), true);
 
-    // Some preferences (notably mock scroll bars setting) currently cannot be re-applied to an existing view, so we need to set them now.
-    resetPreferencesToConsistentValues();
-
-    WKRetainPtr<WKMutableDictionaryRef> viewOptions;
-    if (m_shouldUseRemoteLayerTree) {
-        viewOptions = adoptWK(WKMutableDictionaryCreate());
-        WKRetainPtr<WKStringRef> useRemoteLayerTreeKey = adoptWK(WKStringCreateWithUTF8CString("RemoteLayerTree"));
-        WKRetainPtr<WKBooleanRef> useRemoteLayerTreeValue = adoptWK(WKBooleanCreate(m_shouldUseRemoteLayerTree));
-        WKDictionarySetItem(viewOptions.get(), useRemoteLayerTreeKey.get(), useRemoteLayerTreeValue.get());
-    }
-
-    if (m_shouldShowWebView) {
-        if (!viewOptions)
-            viewOptions = adoptWK(WKMutableDictionaryCreate());
-        WKRetainPtr<WKStringRef> shouldShowWebViewKey = adoptWK(WKStringCreateWithUTF8CString("ShouldShowWebView"));
-        WKRetainPtr<WKBooleanRef> shouldShowWebViewValue = adoptWK(WKBooleanCreate(m_shouldShowWebView));
-        WKDictionarySetItem(viewOptions.get(), shouldShowWebViewKey.get(), shouldShowWebViewValue.get());
-    }
-
-    createWebViewWithOptions(viewOptions.get());
+    auto pageConfiguration = adoptWK(WKPageConfigurationCreate());
+    WKPageConfigurationSetContext(pageConfiguration.get(), m_context.get());
+    WKPageConfigurationSetPageGroup(pageConfiguration.get(), m_pageGroup.get());
+    WKPageConfigurationSetUserContentController(pageConfiguration.get(), adoptWK(WKUserContentControllerCreate()).get());
+    return pageConfiguration;
 }
 
-void TestController::createWebViewWithOptions(WKDictionaryRef options)
+void TestController::createWebViewWithOptions(const TestOptions& options)
 {
-    m_mainWebView = std::make_unique<PlatformWebView>(m_context.get(), m_pageGroup.get(), nullptr, options);
-    WKPageUIClientV5 pageUIClient = {
-        { 5, m_mainWebView.get() },
+    auto contextConfiguration = generateContextConfiguration();
+
+    WKRetainPtr<WKMutableArrayRef> overrideLanguages = adoptWK(WKMutableArrayCreate());
+    for (auto& language : options.overrideLanguages)
+        WKArrayAppendItem(overrideLanguages.get(), adoptWK(WKStringCreateWithUTF8CString(language.utf8().data())).get());
+    WKContextConfigurationSetOverrideLanguages(contextConfiguration.get(), overrideLanguages.get());
+
+    auto configuration = generatePageConfiguration(contextConfiguration.get());
+
+    // Some preferences (notably mock scroll bars setting) currently cannot be re-applied to an existing view, so we need to set them now.
+    // FIXME: Migrate these preferences to WKContextConfigurationRef.
+    resetPreferencesToConsistentValues(options);
+
+    platformCreateWebView(configuration.get(), options);
+    WKPageUIClientV6 pageUIClient = {
+        { 6, m_mainWebView.get() },
         0, // createNewPage_deprecatedForUseWithV0
         0, // showPage
         0, // close
@@ -487,7 +507,7 @@ void TestController::createWebViewWithOptions(WKDictionaryRef options)
         0, // didDraw
         0, // pageDidScroll
         0, // exceededDatabaseQuota,
-        0, // runOpenPanel
+        runOpenPanel,
         decidePolicyForGeolocationPermissionRequest,
         0, // headerHeight
         0, // footerHeight
@@ -498,7 +518,7 @@ void TestController::createWebViewWithOptions(WKDictionaryRef options)
         0, // didCompleteRubberBandForMainFrame
         0, // saveDataToFileInDownloadsFolder
         0, // shouldInterruptJavaScript
-        createOtherPage,
+        0, // createNewPage_deprecatedForUseWithV1
         0, // mouseDidMoveOverElement
         decidePolicyForNotificationPermissionRequest, // decidePolicyForNotificationPermissionRequest
         0, // unavailablePluginButtonClicked_deprecatedForUseWithV1
@@ -516,6 +536,11 @@ void TestController::createWebViewWithOptions(WKDictionaryRef options)
         0, // runJavaScriptConfirm
         0, // runJavaScriptPrompt
         0, // mediaSessionMetadataDidChange
+        createOtherPage,
+        0, // runJavaScriptAlert
+        0, // runJavaScriptConfirm
+        0, // runJavaScriptPrompt
+        checkUserMediaPermissionForOrigin,
     };
     WKPageSetPageUIClient(m_mainWebView->page(), &pageUIClient.base);
 
@@ -538,10 +563,29 @@ void TestController::createWebViewWithOptions(WKDictionaryRef options)
         didReceiveAuthenticationChallenge,
         processDidCrash,
         copyWebCryptoMasterKey,
+        didBeginNavigationGesture,
+        willEndNavigationGesture,
+        didEndNavigationGesture,
+        didRemoveNavigationGestureSnapshot
     };
     WKPageSetPageNavigationClient(m_mainWebView->page(), &pageNavigationClient.base);
 
-
+    WKContextDownloadClientV0 downloadClient = {
+        { 0, this },
+        downloadDidStart,
+        0, // didReceiveAuthenticationChallenge
+        0, // didReceiveResponse
+        0, // didReceiveData
+        0, // shouldDecodeSourceDataOfMIMEType
+        decideDestinationWithSuggestedFilename,
+        0, // didCreateDestination
+        downloadDidFinish,
+        downloadDidFail,
+        downloadDidCancel,
+        0 // processDidCrash;
+    };
+    WKContextSetDownloadClient(context(), &downloadClient.base);
+    
     // this should just be done on the page?
     WKPageInjectedBundleClientV0 injectedBundleClient = {
         { 0, this },
@@ -557,29 +601,36 @@ void TestController::createWebViewWithOptions(WKDictionaryRef options)
     m_mainWebView->changeWindowScaleIfNeeded(1);
 }
 
-void TestController::ensureViewSupportsOptions(WKDictionaryRef options)
+void TestController::ensureViewSupportsOptionsForTest(const TestInvocation& test)
 {
-    if (m_mainWebView && !m_mainWebView->viewSupportsOptions(options)) {
-        WKPageSetPageUIClient(m_mainWebView->page(), 0);
-        WKPageSetPageNavigationClient(m_mainWebView->page(), 0);
-        WKPageClose(m_mainWebView->page());
-        
-        m_mainWebView = nullptr;
+    auto options = test.options();
 
-        createWebViewWithOptions(options);
-        resetStateToConsistentValues();
+    if (m_mainWebView) {
+        if (m_mainWebView->viewSupportsOptions(options))
+            return;
+
+        WKPageSetPageUIClient(m_mainWebView->page(), nullptr);
+        WKPageSetPageNavigationClient(m_mainWebView->page(), nullptr);
+        WKPageClose(m_mainWebView->page());
+
+        m_mainWebView = nullptr;
     }
+
+    createWebViewWithOptions(options);
+
+    if (!resetStateToConsistentValues(options))
+        TestInvocation::dumpWebProcessUnresponsiveness("<unknown> - TestController::run - Failed to reset state to consistent values\n");
 }
 
-void TestController::resetPreferencesToConsistentValues()
+void TestController::resetPreferencesToConsistentValues(const TestOptions& options)
 {
     // Reset preferences
-    WKPreferencesRef preferences = WKPageGroupGetPreferences(m_pageGroup.get());
+    WKPreferencesRef preferences = platformPreferences();
     WKPreferencesResetTestRunnerOverrides(preferences);
+    WKPreferencesEnableAllExperimentalFeatures(preferences);
     WKPreferencesSetPageVisibilityBasedProcessSuppressionEnabled(preferences, false);
     WKPreferencesSetOfflineWebApplicationCacheEnabled(preferences, true);
     WKPreferencesSetFontSmoothingLevel(preferences, kWKFontSmoothingLevelNoSubpixelAntiAliasing);
-    WKPreferencesSetAntialiasedFontDilationEnabled(preferences, false);
     WKPreferencesSetXSSAuditorEnabled(preferences, false);
     WKPreferencesSetWebAudioEnabled(preferences, true);
     WKPreferencesSetMediaStreamEnabled(preferences, true);
@@ -599,7 +650,8 @@ void TestController::resetPreferencesToConsistentValues()
     WKPreferencesSetArtificialPluginInitializationDelayEnabled(preferences, false);
     WKPreferencesSetTabToLinksEnabled(preferences, false);
     WKPreferencesSetInteractiveFormValidationEnabled(preferences, true);
-    WKPreferencesSetMockScrollbarsEnabled(preferences, true);
+    WKPreferencesSetMockScrollbarsEnabled(preferences, options.useMockScrollbars);
+    WKPreferencesSetNeedsSiteSpecificQuirks(preferences, options.needsSiteSpecificQuirks);
 
     static WKStringRef defaultTextEncoding = WKStringCreateWithUTF8CString("ISO-8859-1");
     WKPreferencesSetDefaultTextEncodingName(preferences, defaultTextEncoding);
@@ -624,18 +676,30 @@ void TestController::resetPreferencesToConsistentValues()
     WKPreferencesSetMediaSourceEnabled(preferences, true);
 #endif
 
+    WKPreferencesSetHiddenPageDOMTimerThrottlingEnabled(preferences, false);
+    WKPreferencesSetHiddenPageCSSAnimationSuspensionEnabled(preferences, false);
+
     WKPreferencesSetAcceleratedDrawingEnabled(preferences, m_shouldUseAcceleratedDrawing);
+    // FIXME: We should be testing the default.
+    WKPreferencesSetStorageBlockingPolicy(preferences, kWKAllowAllStorage);
+
+    WKPreferencesSetMediaPlaybackAllowsInline(preferences, true);
+    WKPreferencesSetInlineMediaPlaybackRequiresPlaysInlineAttribute(preferences, false);
 
     WKCookieManagerDeleteAllCookies(WKContextGetCookieManager(m_context.get()));
 
     platformResetPreferencesToConsistentValues();
 }
 
-bool TestController::resetStateToConsistentValues()
+bool TestController::resetStateToConsistentValues(const TestOptions& options)
 {
-    m_state = Resetting;
-
+    TemporaryChange<State> changeState(m_state, Resetting);
     m_beforeUnloadReturnValue = true;
+
+    // This setting differs between the antique and modern Mac WebKit2 API.
+    // For now, maintain the antique behavior, because some tests depend on it!
+    // FIXME: We should be testing the default.
+    WKPageSetBackgroundExtendsBeyondPage(m_mainWebView->page(), false);
 
     WKRetainPtr<WKStringRef> messageName = adoptWK(WKStringCreateWithUTF8CString("Reset"));
     WKRetainPtr<WKMutableDictionaryRef> resetMessageBody = adoptWK(WKMutableDictionaryCreate());
@@ -658,6 +722,8 @@ bool TestController::resetStateToConsistentValues()
 
     WKContextSetCacheModel(TestController::singleton().context(), kWKCacheModelDocumentBrowser);
 
+    WKContextClearCachedCredentials(TestController::singleton().context());
+
     // FIXME: This function should also ensure that there is only one page open.
 
     // Reset the EventSender for each test.
@@ -665,13 +731,13 @@ bool TestController::resetStateToConsistentValues()
 
     // FIXME: Is this needed? Nothing in TestController changes preferences during tests, and if there is
     // some other code doing this, it should probably be responsible for cleanup too.
-    resetPreferencesToConsistentValues();
+    resetPreferencesToConsistentValues(options);
 
 #if !PLATFORM(COCOA)
     WKTextCheckerContinuousSpellCheckingEnabledStateChanged(true);
 #endif
 
-    // in the case that a test using the chrome input field failed, be sure to clean up for the next test
+    // In the case that a test using the chrome input field failed, be sure to clean up for the next test.
     m_mainWebView->removeChromeInputField();
     m_mainWebView->focus();
 
@@ -697,6 +763,7 @@ bool TestController::resetStateToConsistentValues()
 
     // Reset UserMedia permissions.
     m_userMediaPermissionRequests.clear();
+    m_cahcedUserMediaPermissions.clear();
     m_isUserMediaPermissionSet = false;
     m_isUserMediaPermissionAllowed = false;
 
@@ -705,6 +772,7 @@ bool TestController::resetStateToConsistentValues()
 
     m_workQueueManager.clearWorkQueue();
 
+    m_rejectsProtectionSpaceAndContinueForAuthenticationChallenges = false;
     m_handlesAuthenticationChallenges = false;
     m_authenticationUsername = String();
     m_authenticationPassword = String();
@@ -712,15 +780,20 @@ bool TestController::resetStateToConsistentValues()
     m_shouldBlockAllPlugins = false;
 
     m_shouldLogHistoryClientCallbacks = false;
-
-    WKPageGroupRemoveAllUserContentFilters(WKPageGetPageGroup(m_mainWebView->page()));
+    m_shouldLogCanAuthenticateAgainstProtectionSpace = false;
 
     setHidden(false);
+
+    platformResetStateToConsistentValues();
 
     // Reset main page back to about:blank
     m_doneResetting = false;
 
     m_shouldDecideNavigationPolicyAfterDelay = false;
+
+    setNavigationGesturesEnabled(false);
+    
+    setIgnoresViewportScaleLimits(options.ignoresViewportScaleLimits);
 
     WKPageLoadURL(m_mainWebView->page(), blankURL());
     runUntil(m_doneResetting, shortTimeout);
@@ -760,13 +833,144 @@ const char* TestController::networkProcessName()
 #endif
 }
 
+const char* TestController::databaseProcessName()
+{
+    // FIXME: Find a way to not hardcode the process name.
+#if PLATFORM(COCOA)
+    return "com.apple.WebKit.Databases.Development";
+#else
+    return "DatabaseProcess";
+#endif
+}
+
+static std::string testPath(WKURLRef url)
+{
+    auto scheme = adoptWK(WKURLCopyScheme(url));
+    if (WKStringIsEqualToUTF8CStringIgnoringCase(scheme.get(), "file")) {
+        auto path = adoptWK(WKURLCopyPath(url));
+        auto buffer = std::vector<char>(WKStringGetMaximumUTF8CStringSize(path.get()));
+        auto length = WKStringGetUTF8CString(path.get(), buffer.data(), buffer.size());
+        return std::string(buffer.data(), length);
+    }
+    return std::string();
+}
+
+static WKURLRef createTestURL(const char* pathOrURL)
+{
+    if (strstr(pathOrURL, "http://") || strstr(pathOrURL, "https://") || strstr(pathOrURL, "file://"))
+        return WKURLCreateWithUTF8CString(pathOrURL);
+
+    // Creating from filesytem path.
+    size_t length = strlen(pathOrURL);
+    if (!length)
+        return 0;
+
+    const char separator = '/';
+    bool isAbsolutePath = pathOrURL[0] == separator;
+    const char* filePrefix = "file://";
+    static const size_t prefixLength = strlen(filePrefix);
+
+    std::unique_ptr<char[]> buffer;
+    if (isAbsolutePath) {
+        buffer = std::make_unique<char[]>(prefixLength + length + 1);
+        strcpy(buffer.get(), filePrefix);
+        strcpy(buffer.get() + prefixLength, pathOrURL);
+    } else {
+        buffer = std::make_unique<char[]>(prefixLength + PATH_MAX + length + 2); // 1 for the separator
+        strcpy(buffer.get(), filePrefix);
+        if (!getcwd(buffer.get() + prefixLength, PATH_MAX))
+            return 0;
+        size_t numCharacters = strlen(buffer.get());
+        buffer[numCharacters] = separator;
+        strcpy(buffer.get() + numCharacters + 1, pathOrURL);
+    }
+
+    return WKURLCreateWithUTF8CString(buffer.get());
+}
+
+static bool parseBooleanTestHeaderValue(const std::string& value)
+{
+    if (value == "true")
+        return true;
+    if (value == "false")
+        return false;
+
+    LOG_ERROR("Found unexpected value '%s' for boolean option. Expected 'true' or 'false'.", value.c_str());
+    return false;
+}
+
+static void updateTestOptionsFromTestHeader(TestOptions& testOptions, const std::string& pathOrURL)
+{
+    // Gross. Need to reduce conversions between all the string types and URLs.
+    WKRetainPtr<WKURLRef> wkURL(AdoptWK, createTestURL(pathOrURL.c_str()));
+    std::string filename = testPath(wkURL.get());
+    if (filename.empty())
+        return;
+
+    std::string options;
+    std::ifstream testFile(filename.data());
+    if (!testFile.good())
+        return;
+    getline(testFile, options);
+    std::string beginString("webkit-test-runner [ ");
+    std::string endString(" ]");
+    size_t beginLocation = options.find(beginString);
+    if (beginLocation == std::string::npos)
+        return;
+    size_t endLocation = options.find(endString, beginLocation);
+    if (endLocation == std::string::npos) {
+        LOG_ERROR("Could not find end of test header in %s", filename.c_str());
+        return;
+    }
+    std::string pairString = options.substr(beginLocation + beginString.size(), endLocation - (beginLocation + beginString.size()));
+    size_t pairStart = 0;
+    while (pairStart < pairString.size()) {
+        size_t pairEnd = pairString.find(" ", pairStart);
+        if (pairEnd == std::string::npos)
+            pairEnd = pairString.size();
+        size_t equalsLocation = pairString.find("=", pairStart);
+        if (equalsLocation == std::string::npos) {
+            LOG_ERROR("Malformed option in test header (could not find '=' character) in %s", filename.c_str());
+            break;
+        }
+        auto key = pairString.substr(pairStart, equalsLocation - pairStart);
+        auto value = pairString.substr(equalsLocation + 1, pairEnd - (equalsLocation + 1));
+        if (key == "language")
+            String(value.c_str()).split(",", false, testOptions.overrideLanguages);
+        if (key == "useThreadedScrolling")
+            testOptions.useThreadedScrolling = parseBooleanTestHeaderValue(value);
+        if (key == "useFlexibleViewport")
+            testOptions.useFlexibleViewport = parseBooleanTestHeaderValue(value);
+        if (key == "useDataDetection")
+            testOptions.useDataDetection = parseBooleanTestHeaderValue(value);
+        if (key == "useMockScrollbars")
+            testOptions.useMockScrollbars = parseBooleanTestHeaderValue(value);
+        if (key == "needsSiteSpecificQuirks")
+            testOptions.needsSiteSpecificQuirks = parseBooleanTestHeaderValue(value);
+        if (key == "ignoresViewportScaleLimits")
+            testOptions.ignoresViewportScaleLimits = parseBooleanTestHeaderValue(value);
+        pairStart = pairEnd + 1;
+    }
+}
+
+TestOptions TestController::testOptionsForTest(const std::string& pathOrURL) const
+{
+    TestOptions options(pathOrURL);
+
+    options.useRemoteLayerTree = m_shouldUseRemoteLayerTree;
+    options.shouldShowWebView = m_shouldShowWebView;
+
+    updatePlatformSpecificTestOptionsForTest(options, pathOrURL);
+    updateTestOptionsFromTestHeader(options, pathOrURL);
+
+    return options;
+}
+
 void TestController::updateWebViewSizeForTest(const TestInvocation& test)
 {
-    bool isSVGW3CTest = test.urlContains("svg/W3C-SVG-1.1") || test.urlContains("svg\\W3C-SVG-1.1");
-
     unsigned width = viewWidth;
     unsigned height = viewHeight;
-    if (isSVGW3CTest) {
+    if (test.options().isSVGTest) {
         width = w3cSVGViewWidth;
         height = w3cSVGViewHeight;
     }
@@ -776,52 +980,14 @@ void TestController::updateWebViewSizeForTest(const TestInvocation& test)
 
 void TestController::updateWindowScaleForTest(PlatformWebView* view, const TestInvocation& test)
 {
-    bool needsHighDPIWindow = test.urlContains("/hidpi-");
-    view->changeWindowScaleIfNeeded(needsHighDPIWindow ? 2 : 1);
+    view->changeWindowScaleIfNeeded(test.options().deviceScaleFactor);
 }
-
-// FIXME: move into relevant platformConfigureViewForTest()?
-static bool shouldUseFixedLayout(const TestInvocation& test)
-{
-#if ENABLE(CSS_DEVICE_ADAPTATION)
-    if (test.urlContains("device-adapt/") || test.urlContains("device-adapt\\"))
-        return true;
-#endif
-
-#if USE(COORDINATED_GRAPHICS) && PLATFORM(EFL)
-    if (test.urlContains("sticky/") || test.urlContains("sticky\\"))
-        return true;
-#endif
-    return false;
-
-    UNUSED_PARAM(test);
-}
-
-void TestController::updateLayoutTypeForTest(const TestInvocation& test)
-{
-    auto viewOptions = adoptWK(WKMutableDictionaryCreate());
-    auto useFixedLayoutKey = adoptWK(WKStringCreateWithUTF8CString("UseFixedLayout"));
-    auto useFixedLayoutValue = adoptWK(WKBooleanCreate(shouldUseFixedLayout(test)));
-    WKDictionarySetItem(viewOptions.get(), useFixedLayoutKey.get(), useFixedLayoutValue.get());
-
-    ensureViewSupportsOptions(viewOptions.get());
-}
-
-#if !PLATFORM(COCOA) && !PLATFORM(GTK)
-void TestController::platformConfigureViewForTest(const TestInvocation&)
-{
-}
-
-void TestController::platformResetPreferencesToConsistentValues()
-{
-}
-#endif
 
 void TestController::configureViewForTest(const TestInvocation& test)
 {
+    ensureViewSupportsOptionsForTest(test);
     updateWebViewSizeForTest(test);
     updateWindowScaleForTest(mainWebView(), test);
-    updateLayoutTypeForTest(test);
 
     platformConfigureViewForTest(test);
 }
@@ -916,8 +1082,12 @@ bool TestController::runTest(const char* inputLine)
     TestCommand command = parseInputLine(std::string(inputLine));
 
     m_state = RunningTest;
+    
+    TestOptions options = testOptionsForTest(command.pathOrURL);
 
-    m_currentInvocation = std::make_unique<TestInvocation>(command.pathOrURL);
+    WKRetainPtr<WKURLRef> wkURL(AdoptWK, createTestURL(command.pathOrURL.c_str()));
+    m_currentInvocation = std::make_unique<TestInvocation>(wkURL.get(), options);
+
     if (command.shouldDumpPixels || m_shouldDumpPixelsForAllTests)
         m_currentInvocation->setIsPixelTest(command.expectedPixelHash);
     if (command.timeout > 0)
@@ -949,11 +1119,6 @@ void TestController::runTestingServerLoop()
 
 void TestController::run()
 {
-    if (!resetStateToConsistentValues()) {
-        TestInvocation::dumpWebProcessUnresponsiveness("<unknown> - TestController::run - Failed to reset state to consistent values\n");
-        return;
-    }
-
     if (m_usingServerMode)
         runTestingServerLoop();
     else {
@@ -984,6 +1149,11 @@ void TestController::didReceiveSynchronousMessageFromInjectedBundle(WKContextRef
     *returnData = static_cast<TestController*>(const_cast<void*>(clientInfo))->didReceiveSynchronousMessageFromInjectedBundle(messageName, messageBody).leakRef();
 }
 
+WKTypeRef TestController::getInjectedBundleInitializationUserData(WKContextRef, const void* clientInfo)
+{
+    return static_cast<TestController*>(const_cast<void*>(clientInfo))->getInjectedBundleInitializationUserData().leakRef();
+}
+
 // WKPageInjectedBundleClient
 
 void TestController::didReceivePageMessageFromInjectedBundle(WKPageRef page, WKStringRef messageName, WKTypeRef messageBody, const void* clientInfo)
@@ -1001,6 +1171,11 @@ void TestController::networkProcessDidCrash(WKContextRef context, const void *cl
     static_cast<TestController*>(const_cast<void*>(clientInfo))->networkProcessDidCrash();
 }
 
+void TestController::databaseProcessDidCrash(WKContextRef context, const void *clientInfo)
+{
+    static_cast<TestController*>(const_cast<void*>(clientInfo))->databaseProcessDidCrash();
+}
+
 void TestController::didReceiveKeyDownMessageFromInjectedBundle(WKDictionaryRef messageBodyDictionary, bool synchronous)
 {
     WKRetainPtr<WKStringRef> keyKey = adoptWK(WKStringCreateWithUTF8CString("Key"));
@@ -1012,18 +1187,15 @@ void TestController::didReceiveKeyDownMessageFromInjectedBundle(WKDictionaryRef 
     WKRetainPtr<WKStringRef> locationKey = adoptWK(WKStringCreateWithUTF8CString("Location"));
     unsigned location = static_cast<unsigned>(WKUInt64GetValue(static_cast<WKUInt64Ref>(WKDictionaryGetItemForKey(messageBodyDictionary, locationKey.get()))));
 
-    if (synchronous)
-        WKPageSetShouldSendEventsSynchronously(mainWebView()->page(), true);
-
     m_eventSenderProxy->keyDown(key, modifiers, location);
-
-    if (synchronous)
-        WKPageSetShouldSendEventsSynchronously(mainWebView()->page(), false);
 }
 
 void TestController::didReceiveMessageFromInjectedBundle(WKStringRef messageName, WKTypeRef messageBody)
 {
     if (WKStringIsEqualToUTF8CString(messageName, "EventSender")) {
+        if (m_state != RunningTest)
+            return;
+
         ASSERT(WKGetTypeID(messageBody) == WKDictionaryGetTypeID());
         WKDictionaryRef messageBodyDictionary = static_cast<WKDictionaryRef>(messageBody);
 
@@ -1038,7 +1210,6 @@ void TestController::didReceiveMessageFromInjectedBundle(WKStringRef messageName
             WKEventModifiers modifiers = static_cast<WKEventModifiers>(WKUInt64GetValue(static_cast<WKUInt64Ref>(WKDictionaryGetItemForKey(messageBodyDictionary, modifiersKey.get()))));
 
             // Forward to WebProcess
-            WKPageSetShouldSendEventsSynchronously(mainWebView()->page(), false);
             if (WKStringIsEqualToUTF8CString(subMessageName, "MouseDown"))
                 m_eventSenderProxy->mouseDown(button, modifiers);
             else
@@ -1050,6 +1221,18 @@ void TestController::didReceiveMessageFromInjectedBundle(WKStringRef messageName
         if (WKStringIsEqualToUTF8CString(subMessageName, "KeyDown")) {
             didReceiveKeyDownMessageFromInjectedBundle(messageBodyDictionary, false);
 
+            return;
+        }
+
+        if (WKStringIsEqualToUTF8CString(subMessageName, "MouseScrollBy")) {
+            WKRetainPtr<WKStringRef> xKey = adoptWK(WKStringCreateWithUTF8CString("X"));
+            double x = WKDoubleGetValue(static_cast<WKDoubleRef>(WKDictionaryGetItemForKey(messageBodyDictionary, xKey.get())));
+
+            WKRetainPtr<WKStringRef> yKey = adoptWK(WKStringCreateWithUTF8CString("Y"));
+            double y = WKDoubleGetValue(static_cast<WKDoubleRef>(WKDictionaryGetItemForKey(messageBodyDictionary, yKey.get())));
+
+            // Forward to WebProcess
+            m_eventSenderProxy->mouseScrollBy(x, y);
             return;
         }
 
@@ -1066,8 +1249,24 @@ void TestController::didReceiveMessageFromInjectedBundle(WKStringRef messageName
             int momentum = static_cast<int>(WKUInt64GetValue(static_cast<WKUInt64Ref>(WKDictionaryGetItemForKey(messageBodyDictionary, momentumKey.get()))));
             
             // Forward to WebProcess
-            WKPageSetShouldSendEventsSynchronously(mainWebView()->page(), false);
             m_eventSenderProxy->mouseScrollByWithWheelAndMomentumPhases(x, y, phase, momentum);
+
+            return;
+        }
+
+        if (WKStringIsEqualToUTF8CString(subMessageName, "SwipeGestureWithWheelAndMomentumPhases")) {
+            WKRetainPtr<WKStringRef> xKey = adoptWK(WKStringCreateWithUTF8CString("X"));
+            double x = WKDoubleGetValue(static_cast<WKDoubleRef>(WKDictionaryGetItemForKey(messageBodyDictionary, xKey.get())));
+
+            WKRetainPtr<WKStringRef> yKey = adoptWK(WKStringCreateWithUTF8CString("Y"));
+            double y = WKDoubleGetValue(static_cast<WKDoubleRef>(WKDictionaryGetItemForKey(messageBodyDictionary, yKey.get())));
+
+            WKRetainPtr<WKStringRef> phaseKey = adoptWK(WKStringCreateWithUTF8CString("Phase"));
+            int phase = static_cast<int>(WKUInt64GetValue(static_cast<WKUInt64Ref>(WKDictionaryGetItemForKey(messageBodyDictionary, phaseKey.get()))));
+            WKRetainPtr<WKStringRef> momentumKey = adoptWK(WKStringCreateWithUTF8CString("Momentum"));
+            int momentum = static_cast<int>(WKUInt64GetValue(static_cast<WKUInt64Ref>(WKDictionaryGetItemForKey(messageBodyDictionary, momentumKey.get()))));
+
+            m_eventSenderProxy->swipeGestureWithWheelAndMomentumPhases(x, y, phase, momentum);
 
             return;
         }
@@ -1084,6 +1283,9 @@ void TestController::didReceiveMessageFromInjectedBundle(WKStringRef messageName
 WKRetainPtr<WKTypeRef> TestController::didReceiveSynchronousMessageFromInjectedBundle(WKStringRef messageName, WKTypeRef messageBody)
 {
     if (WKStringIsEqualToUTF8CString(messageName, "EventSender")) {
+        if (m_state != RunningTest)
+            return nullptr;
+
         ASSERT(WKGetTypeID(messageBody) == WKDictionaryGetTypeID());
         WKDictionaryRef messageBodyDictionary = static_cast<WKDictionaryRef>(messageBody);
 
@@ -1104,12 +1306,10 @@ WKRetainPtr<WKTypeRef> TestController::didReceiveSynchronousMessageFromInjectedB
             WKEventModifiers modifiers = static_cast<WKEventModifiers>(WKUInt64GetValue(static_cast<WKUInt64Ref>(WKDictionaryGetItemForKey(messageBodyDictionary, modifiersKey.get()))));
 
             // Forward to WebProcess
-            WKPageSetShouldSendEventsSynchronously(mainWebView()->page(), true);
             if (WKStringIsEqualToUTF8CString(subMessageName, "MouseDown"))
                 m_eventSenderProxy->mouseDown(button, modifiers);
             else
                 m_eventSenderProxy->mouseUp(button, modifiers);
-            WKPageSetShouldSendEventsSynchronously(mainWebView()->page(), false);
             return 0;
         }
 
@@ -1121,24 +1321,28 @@ WKRetainPtr<WKTypeRef> TestController::didReceiveSynchronousMessageFromInjectedB
             double y = WKDoubleGetValue(static_cast<WKDoubleRef>(WKDictionaryGetItemForKey(messageBodyDictionary, yKey.get())));
 
             // Forward to WebProcess
-            WKPageSetShouldSendEventsSynchronously(mainWebView()->page(), true);
             m_eventSenderProxy->mouseMoveTo(x, y);
-            WKPageSetShouldSendEventsSynchronously(mainWebView()->page(), false);
             return 0;
         }
 
 #if PLATFORM(MAC)
+        if (WKStringIsEqualToUTF8CString(subMessageName, "MouseForceClick")) {
+            m_eventSenderProxy->mouseForceClick();
+            return 0;
+        }
+
+        if (WKStringIsEqualToUTF8CString(subMessageName, "StartAndCancelMouseForceClick")) {
+            m_eventSenderProxy->startAndCancelMouseForceClick();
+            return 0;
+        }
+
         if (WKStringIsEqualToUTF8CString(subMessageName, "MouseForceDown")) {
-            WKPageSetShouldSendEventsSynchronously(mainWebView()->page(), true);
             m_eventSenderProxy->mouseForceDown();
-            WKPageSetShouldSendEventsSynchronously(mainWebView()->page(), false);
             return 0;
         }
 
         if (WKStringIsEqualToUTF8CString(subMessageName, "MouseForceUp")) {
-            WKPageSetShouldSendEventsSynchronously(mainWebView()->page(), true);
             m_eventSenderProxy->mouseForceUp();
-            WKPageSetShouldSendEventsSynchronously(mainWebView()->page(), false);
             return 0;
         }
 
@@ -1146,46 +1350,11 @@ WKRetainPtr<WKTypeRef> TestController::didReceiveSynchronousMessageFromInjectedB
             WKRetainPtr<WKStringRef> forceKey = adoptWK(WKStringCreateWithUTF8CString("Force"));
             double force = WKDoubleGetValue(static_cast<WKDoubleRef>(WKDictionaryGetItemForKey(messageBodyDictionary, forceKey.get())));
 
-            WKPageSetShouldSendEventsSynchronously(mainWebView()->page(), true);
             m_eventSenderProxy->mouseForceChanged(force);
-            WKPageSetShouldSendEventsSynchronously(mainWebView()->page(), false);
             return 0;
         }
 #endif // PLATFORM(MAC)
 
-        if (WKStringIsEqualToUTF8CString(subMessageName, "MouseScrollBy")) {
-            WKRetainPtr<WKStringRef> xKey = adoptWK(WKStringCreateWithUTF8CString("X"));
-            double x = WKDoubleGetValue(static_cast<WKDoubleRef>(WKDictionaryGetItemForKey(messageBodyDictionary, xKey.get())));
-
-            WKRetainPtr<WKStringRef> yKey = adoptWK(WKStringCreateWithUTF8CString("Y"));
-            double y = WKDoubleGetValue(static_cast<WKDoubleRef>(WKDictionaryGetItemForKey(messageBodyDictionary, yKey.get())));
-
-            // Forward to WebProcess
-            WKPageSetShouldSendEventsSynchronously(mainWebView()->page(), true);
-            m_eventSenderProxy->mouseScrollBy(x, y);
-            WKPageSetShouldSendEventsSynchronously(mainWebView()->page(), false);
-            return 0;
-        }
-
-        if (WKStringIsEqualToUTF8CString(subMessageName, "MouseScrollByWithWheelAndMomentumPhases")) {
-            WKRetainPtr<WKStringRef> xKey = adoptWK(WKStringCreateWithUTF8CString("X"));
-            double x = WKDoubleGetValue(static_cast<WKDoubleRef>(WKDictionaryGetItemForKey(messageBodyDictionary, xKey.get())));
-            
-            WKRetainPtr<WKStringRef> yKey = adoptWK(WKStringCreateWithUTF8CString("Y"));
-            double y = WKDoubleGetValue(static_cast<WKDoubleRef>(WKDictionaryGetItemForKey(messageBodyDictionary, yKey.get())));
-            
-            WKRetainPtr<WKStringRef> phaseKey = adoptWK(WKStringCreateWithUTF8CString("Phase"));
-            int phase = static_cast<int>(WKUInt64GetValue(static_cast<WKUInt64Ref>(WKDictionaryGetItemForKey(messageBodyDictionary, phaseKey.get()))));
-            WKRetainPtr<WKStringRef> momentumKey = adoptWK(WKStringCreateWithUTF8CString("Momentum"));
-            int momentum = static_cast<int>(WKUInt64GetValue(static_cast<WKUInt64Ref>(WKDictionaryGetItemForKey(messageBodyDictionary, momentumKey.get()))));
-
-            // Forward to WebProcess
-            WKPageSetShouldSendEventsSynchronously(mainWebView()->page(), true);
-            m_eventSenderProxy->mouseScrollByWithWheelAndMomentumPhases(x, y, phase, momentum);
-            WKPageSetShouldSendEventsSynchronously(mainWebView()->page(), false);
-            return 0;
-        }
-        
         if (WKStringIsEqualToUTF8CString(subMessageName, "ContinuousMouseScrollBy")) {
             WKRetainPtr<WKStringRef> xKey = adoptWK(WKStringCreateWithUTF8CString("X"));
             double x = WKDoubleGetValue(static_cast<WKDoubleRef>(WKDictionaryGetItemForKey(messageBodyDictionary, xKey.get())));
@@ -1197,9 +1366,7 @@ WKRetainPtr<WKTypeRef> TestController::didReceiveSynchronousMessageFromInjectedB
             bool paged = static_cast<bool>(WKUInt64GetValue(static_cast<WKUInt64Ref>(WKDictionaryGetItemForKey(messageBodyDictionary, pagedKey.get()))));
 
             // Forward to WebProcess
-            WKPageSetShouldSendEventsSynchronously(mainWebView()->page(), true);
             m_eventSenderProxy->continuousMouseScrollBy(x, y, paged);
-            WKPageSetShouldSendEventsSynchronously(mainWebView()->page(), false);
             return 0;
         }
 
@@ -1260,30 +1427,22 @@ WKRetainPtr<WKTypeRef> TestController::didReceiveSynchronousMessageFromInjectedB
         }
 
         if (WKStringIsEqualToUTF8CString(subMessageName, "TouchStart")) {
-            WKPageSetShouldSendEventsSynchronously(mainWebView()->page(), true);
             m_eventSenderProxy->touchStart();
-            WKPageSetShouldSendEventsSynchronously(mainWebView()->page(), false);
             return 0;
         }
 
         if (WKStringIsEqualToUTF8CString(subMessageName, "TouchMove")) {
-            WKPageSetShouldSendEventsSynchronously(mainWebView()->page(), true);
             m_eventSenderProxy->touchMove();
-            WKPageSetShouldSendEventsSynchronously(mainWebView()->page(), false);
             return 0;
         }
 
         if (WKStringIsEqualToUTF8CString(subMessageName, "TouchEnd")) {
-            WKPageSetShouldSendEventsSynchronously(mainWebView()->page(), true);
             m_eventSenderProxy->touchEnd();
-            WKPageSetShouldSendEventsSynchronously(mainWebView()->page(), false);
             return 0;
         }
 
         if (WKStringIsEqualToUTF8CString(subMessageName, "TouchCancel")) {
-            WKPageSetShouldSendEventsSynchronously(mainWebView()->page(), true);
             m_eventSenderProxy->touchCancel();
-            WKPageSetShouldSendEventsSynchronously(mainWebView()->page(), false);
             return 0;
         }
 
@@ -1311,6 +1470,11 @@ WKRetainPtr<WKTypeRef> TestController::didReceiveSynchronousMessageFromInjectedB
     return m_currentInvocation->didReceiveSynchronousMessageFromInjectedBundle(messageName, messageBody);
 }
 
+WKRetainPtr<WKTypeRef> TestController::getInjectedBundleInitializationUserData()
+{
+    return nullptr;
+}
+
 // WKContextClient
 
 void TestController::networkProcessDidCrash()
@@ -1320,6 +1484,17 @@ void TestController::networkProcessDidCrash()
     fprintf(stderr, "#CRASHED - %s (pid %ld)\n", networkProcessName(), static_cast<long>(pid));
 #else
     fprintf(stderr, "#CRASHED - %s\n", networkProcessName());
+#endif
+    exit(1);
+}
+
+void TestController::databaseProcessDidCrash()
+{
+#if PLATFORM(COCOA)
+    pid_t pid = WKContextGetDatabaseProcessIdentifier(m_context.get());
+    fprintf(stderr, "#CRASHED - %s (pid %ld)\n", databaseProcessName(), static_cast<long>(pid));
+#else
+    fprintf(stderr, "#CRASHED - %s\n", databaseProcessName());
 #endif
     exit(1);
 }
@@ -1336,16 +1511,9 @@ void TestController::didFinishNavigation(WKPageRef page, WKNavigationRef navigat
     static_cast<TestController*>(const_cast<void*>(clientInfo))->didFinishNavigation(page, navigation);
 }
 
-bool TestController::canAuthenticateAgainstProtectionSpace(WKPageRef, WKProtectionSpaceRef protectionSpace, const void*)
+bool TestController::canAuthenticateAgainstProtectionSpace(WKPageRef page, WKProtectionSpaceRef protectionSpace, const void* clientInfo)
 {
-    WKProtectionSpaceAuthenticationScheme authenticationScheme = WKProtectionSpaceGetAuthenticationScheme(protectionSpace);
-
-    if (authenticationScheme == kWKProtectionSpaceAuthenticationSchemeServerTrustEvaluationRequested) {
-        std::string host = toSTD(adoptWK(WKProtectionSpaceCopyHost(protectionSpace)).get());
-        return host == "localhost" || host == "127.0.0.1";
-    }
-
-    return authenticationScheme <= kWKProtectionSpaceAuthenticationSchemeHTTPDigest;
+    return static_cast<TestController*>(const_cast<void*>(clientInfo))->canAuthenticateAgainstProtectionSpace(page, protectionSpace);
 }
 
 void TestController::didReceiveAuthenticationChallenge(WKPageRef page, WKAuthenticationChallengeRef authenticationChallenge, const void *clientInfo)
@@ -1356,6 +1524,26 @@ void TestController::didReceiveAuthenticationChallenge(WKPageRef page, WKAuthent
 void TestController::processDidCrash(WKPageRef page, const void* clientInfo)
 {
     static_cast<TestController*>(const_cast<void*>(clientInfo))->processDidCrash();
+}
+
+void TestController::didBeginNavigationGesture(WKPageRef page, const void *clientInfo)
+{
+    static_cast<TestController*>(const_cast<void*>(clientInfo))->didBeginNavigationGesture(page);
+}
+
+void TestController::willEndNavigationGesture(WKPageRef page, WKBackForwardListItemRef backForwardListItem, const void *clientInfo)
+{
+    static_cast<TestController*>(const_cast<void*>(clientInfo))->willEndNavigationGesture(page, backForwardListItem);
+}
+
+void TestController::didEndNavigationGesture(WKPageRef page, WKBackForwardListItemRef backForwardListItem, const void *clientInfo)
+{
+    static_cast<TestController*>(const_cast<void*>(clientInfo))->didEndNavigationGesture(page, backForwardListItem);
+}
+
+void TestController::didRemoveNavigationGestureSnapshot(WKPageRef page, const void *clientInfo)
+{
+    static_cast<TestController*>(const_cast<void*>(clientInfo))->didRemoveNavigationGestureSnapshot(page);
 }
 
 WKPluginLoadPolicy TestController::decidePolicyForPluginLoad(WKPageRef page, WKPluginLoadPolicy currentPluginLoadPolicy, WKDictionaryRef pluginInformation, WKStringRef* unavailabilityDescription, const void* clientInfo)
@@ -1390,6 +1578,20 @@ void TestController::didCommitNavigation(WKPageRef page, WKNavigationRef navigat
     mainWebView()->focus();
 }
 
+bool TestController::canAuthenticateAgainstProtectionSpace(WKPageRef page, WKProtectionSpaceRef protectionSpace)
+{
+    if (m_shouldLogCanAuthenticateAgainstProtectionSpace)
+        m_currentInvocation->outputText("canAuthenticateAgainstProtectionSpace\n");
+    WKProtectionSpaceAuthenticationScheme authenticationScheme = WKProtectionSpaceGetAuthenticationScheme(protectionSpace);
+    
+    if (authenticationScheme == kWKProtectionSpaceAuthenticationSchemeServerTrustEvaluationRequested) {
+        std::string host = toSTD(adoptWK(WKProtectionSpaceCopyHost(protectionSpace)).get());
+        return host == "localhost" || host == "127.0.0.1";
+    }
+    
+    return authenticationScheme <= kWKProtectionSpaceAuthenticationSchemeHTTPDigest;
+}
+
 void TestController::didFinishNavigation(WKPageRef page, WKNavigationRef navigation)
 {
     if (m_state != Resetting)
@@ -1417,6 +1619,12 @@ void TestController::didReceiveAuthenticationChallenge(WKPageRef page, WKAuthent
         return;
     }
 
+    if (m_rejectsProtectionSpaceAndContinueForAuthenticationChallenges) {
+        m_currentInvocation->outputText("Simulating reject protection space and continue for authentication challenge\n");
+        WKAuthenticationDecisionListenerRejectProtectionSpaceAndContinue(decisionListener);
+        return;
+    }
+
     std::string host = toSTD(adoptWK(WKProtectionSpaceCopyHost(protectionSpace)).get());
     int port = WKProtectionSpaceGetPort(protectionSpace);
     String message = String::format("%s:%d - didReceiveAuthenticationChallenge - ", host.c_str(), port);
@@ -1434,6 +1642,85 @@ void TestController::didReceiveAuthenticationChallenge(WKPageRef page, WKAuthent
     WKRetainPtr<WKStringRef> password(AdoptWK, WKStringCreateWithUTF8CString(m_authenticationPassword.utf8().data()));
     WKRetainPtr<WKCredentialRef> credential(AdoptWK, WKCredentialCreate(username.get(), password.get(), kWKCredentialPersistenceForSession));
     WKAuthenticationDecisionListenerUseCredential(decisionListener, credential.get());
+}
+
+    
+// WKContextDownloadClient
+
+void TestController::downloadDidStart(WKContextRef context, WKDownloadRef download, const void* clientInfo)
+{
+    static_cast<TestController*>(const_cast<void*>(clientInfo))->downloadDidStart(context, download);
+}
+    
+WKStringRef TestController::decideDestinationWithSuggestedFilename(WKContextRef context, WKDownloadRef download, WKStringRef filename, bool* allowOverwrite, const void* clientInfo)
+{
+    return static_cast<TestController*>(const_cast<void*>(clientInfo))->decideDestinationWithSuggestedFilename(context, download, filename, allowOverwrite);
+}
+
+void TestController::downloadDidFinish(WKContextRef context, WKDownloadRef download, const void* clientInfo)
+{
+    static_cast<TestController*>(const_cast<void*>(clientInfo))->downloadDidFinish(context, download);
+}
+
+void TestController::downloadDidFail(WKContextRef context, WKDownloadRef download, WKErrorRef error, const void* clientInfo)
+{
+    static_cast<TestController*>(const_cast<void*>(clientInfo))->downloadDidFail(context, download, error);
+}
+
+void TestController::downloadDidCancel(WKContextRef context, WKDownloadRef download, const void* clientInfo)
+{
+    static_cast<TestController*>(const_cast<void*>(clientInfo))->downloadDidCancel(context, download);
+}
+
+void TestController::downloadDidStart(WKContextRef context, WKDownloadRef download)
+{
+    m_currentInvocation->outputText("Download started.\n");
+}
+
+WKStringRef TestController::decideDestinationWithSuggestedFilename(WKContextRef, WKDownloadRef, WKStringRef filename, bool*& allowOverwrite)
+{
+    StringBuilder builder;
+    builder.append("Downloading URL with suggested filename \"");
+    builder.append(toWTFString(filename));
+    builder.append("\"\n");
+
+    m_currentInvocation->outputText(builder.toString());
+
+    return nullptr;
+}
+
+void TestController::downloadDidFinish(WKContextRef, WKDownloadRef)
+{
+    m_currentInvocation->outputText("Download completed.\n");
+    m_currentInvocation->notifyDownloadDone();
+}
+
+void TestController::downloadDidFail(WKContextRef, WKDownloadRef, WKErrorRef error)
+{
+    String message = String::format("Download failed.\n");
+    m_currentInvocation->outputText(message);
+    
+    WKRetainPtr<WKStringRef> errorDomain = adoptWK(WKErrorCopyDomain(error));
+    WKRetainPtr<WKStringRef> errorDescription = adoptWK(WKErrorCopyLocalizedDescription(error));
+    int errorCode = WKErrorGetErrorCode(error);
+
+    StringBuilder errorBuilder;
+    errorBuilder.append("Failed: ");
+    errorBuilder.append(toWTFString(errorDomain));
+    errorBuilder.append(", code=");
+    errorBuilder.appendNumber(errorCode);
+    errorBuilder.append(", description=");
+    errorBuilder.append(toWTFString(errorDescription));
+    errorBuilder.append("\n");
+
+    m_currentInvocation->outputText(errorBuilder.toString());
+    m_currentInvocation->notifyDownloadDone();
+}
+
+void TestController::downloadDidCancel(WKContextRef, WKDownloadRef)
+{
+    m_currentInvocation->outputText("Download cancelled.\n");
+    m_currentInvocation->notifyDownloadDone();
 }
 
 void TestController::processDidCrash()
@@ -1455,9 +1742,29 @@ void TestController::processDidCrash()
         exit(1);
 }
 
+void TestController::didBeginNavigationGesture(WKPageRef)
+{
+    m_currentInvocation->didBeginSwipe();
+}
+
+void TestController::willEndNavigationGesture(WKPageRef, WKBackForwardListItemRef)
+{
+    m_currentInvocation->willEndSwipe();
+}
+
+void TestController::didEndNavigationGesture(WKPageRef, WKBackForwardListItemRef)
+{
+    m_currentInvocation->didEndSwipe();
+}
+
+void TestController::didRemoveNavigationGestureSnapshot(WKPageRef)
+{
+    m_currentInvocation->didRemoveSwipeSnapshot();
+}
+
 void TestController::simulateWebNotificationClick(uint64_t notificationID)
 {
-    m_webNotificationProvider.simulateWebNotificationClick(notificationID);
+    m_webNotificationProvider.simulateWebNotificationClick(mainWebView()->page(), notificationID);
 }
 
 void TestController::setGeolocationPermission(bool enabled)
@@ -1483,6 +1790,50 @@ void TestController::handleGeolocationPermissionRequest(WKGeolocationPermissionR
     decidePolicyForGeolocationPermissionRequestIfPossible();
 }
 
+bool TestController::isGeolocationProviderActive() const
+{
+    return m_geolocationProvider->isActive();
+}
+
+static String originUserVisibleName(WKSecurityOriginRef origin)
+{
+    if (!origin)
+        return emptyString();
+
+    std::string host = toSTD(adoptWK(WKSecurityOriginCopyHost(origin))).c_str();
+    std::string protocol = toSTD(adoptWK(WKSecurityOriginCopyProtocol(origin))).c_str();
+
+    if (!host.length() || !protocol.length())
+        return emptyString();
+
+    unsigned short port = WKSecurityOriginGetPort(origin);
+    if (port)
+        return String::format("%s://%s:%d", protocol.c_str(), host.c_str(), port);
+
+    return String::format("%s://%s", protocol.c_str(), host.c_str());
+}
+
+static String userMediaOriginHash(WKSecurityOriginRef userMediaDocumentOrigin, WKSecurityOriginRef topLevelDocumentOrigin)
+{
+    String userMediaDocumentOriginString = originUserVisibleName(userMediaDocumentOrigin);
+    String topLevelDocumentOriginString = originUserVisibleName(topLevelDocumentOrigin);
+
+    if (topLevelDocumentOriginString.isEmpty())
+        return userMediaDocumentOriginString;
+
+    return String::format("%s-%s", userMediaDocumentOriginString.utf8().data(), topLevelDocumentOriginString.utf8().data());
+}
+
+static String userMediaOriginHash(WKStringRef userMediaDocumentOriginString, WKStringRef topLevelDocumentOriginString)
+{
+    auto userMediaDocumentOrigin = adoptWK(WKSecurityOriginCreateFromString(userMediaDocumentOriginString));
+    if (!WKStringGetLength(topLevelDocumentOriginString))
+        return userMediaOriginHash(userMediaDocumentOrigin.get(), nullptr);
+
+    auto topLevelDocumentOrigin = adoptWK(WKSecurityOriginCreateFromString(topLevelDocumentOriginString));
+    return userMediaOriginHash(userMediaDocumentOrigin.get(), topLevelDocumentOrigin.get());
+}
+
 void TestController::setUserMediaPermission(bool enabled)
 {
     m_isUserMediaPermissionSet = true;
@@ -1490,9 +1841,104 @@ void TestController::setUserMediaPermission(bool enabled)
     decidePolicyForUserMediaPermissionRequestIfPossible();
 }
 
-void TestController::handleUserMediaPermissionRequest(WKUserMediaPermissionRequestRef userMediaPermissionRequest)
+static String createCanonicalUUIDString()
 {
-    m_userMediaPermissionRequests.append(userMediaPermissionRequest);
+    unsigned randomData[4];
+    cryptographicallyRandomValues(reinterpret_cast<unsigned char*>(randomData), sizeof(randomData));
+
+    // Format as Version 4 UUID.
+    StringBuilder builder;
+    builder.reserveCapacity(36);
+    appendUnsignedAsHexFixedSize(randomData[0], builder, 8, Lowercase);
+    builder.append('-');
+    appendUnsignedAsHexFixedSize(randomData[1] >> 16, builder, 4, Lowercase);
+    builder.appendLiteral("-4");
+    appendUnsignedAsHexFixedSize(randomData[1] & 0x00000fff, builder, 3, Lowercase);
+    builder.append('-');
+    appendUnsignedAsHexFixedSize((randomData[2] >> 30) | 0x8, builder, 1, Lowercase);
+    appendUnsignedAsHexFixedSize((randomData[2] >> 16) & 0x00000fff, builder, 3, Lowercase);
+    builder.append('-');
+    appendUnsignedAsHexFixedSize(randomData[2] & 0x0000ffff, builder, 4, Lowercase);
+    appendUnsignedAsHexFixedSize(randomData[3], builder, 8, Lowercase);
+    return builder.toString();
+}
+
+class OriginSettings : public RefCounted<OriginSettings> {
+public:
+    explicit OriginSettings()
+    {
+    }
+
+    bool persistentPermission() const { return m_persistentPermission; }
+    void setPersistentPermission(bool permission) { m_persistentPermission = permission; }
+
+    String persistentSalt() const { return m_persistentSalt; }
+    void setPersistentSalt(const String& salt) { m_persistentSalt = salt; }
+
+    HashMap<uint64_t, String>& ephemeralSalts() { return m_ephemeralSalts; }
+
+private:
+    HashMap<uint64_t, String> m_ephemeralSalts;
+    String m_persistentSalt;
+    bool m_persistentPermission { false };
+};
+
+String TestController::saltForOrigin(WKFrameRef frame, String originHash)
+{
+    RefPtr<OriginSettings> settings = m_cahcedUserMediaPermissions.get(originHash);
+    if (!settings) {
+        settings = adoptRef(*new OriginSettings());
+        m_cahcedUserMediaPermissions.add(originHash, settings);
+    }
+
+    auto& ephemeralSalts = settings->ephemeralSalts();
+    auto frameInfo = adoptWK(WKFrameCreateFrameInfo(frame));
+    auto frameHandle = WKFrameInfoGetFrameHandleRef(frameInfo.get());
+    uint64_t frameIdentifier = WKFrameHandleGetFrameID(frameHandle);
+    String frameSalt = ephemeralSalts.get(frameIdentifier);
+
+    if (settings->persistentPermission()) {
+        if (frameSalt.length())
+            return frameSalt;
+
+        if (!settings->persistentSalt().length())
+            settings->setPersistentSalt(createCanonicalUUIDString());
+
+        return settings->persistentSalt();
+    }
+
+    if (!frameSalt.length()) {
+        frameSalt = createCanonicalUUIDString();
+        ephemeralSalts.add(frameIdentifier, frameSalt);
+    }
+
+    return frameSalt;
+}
+
+void TestController::setUserMediaPermissionForOrigin(bool permission, WKStringRef userMediaDocumentOriginString, WKStringRef topLevelDocumentOriginString)
+{
+    auto originHash = userMediaOriginHash(userMediaDocumentOriginString, topLevelDocumentOriginString);
+    RefPtr<OriginSettings> settings = m_cahcedUserMediaPermissions.get(originHash);
+    if (!settings) {
+        settings = adoptRef(*new OriginSettings());
+        m_cahcedUserMediaPermissions.add(originHash, settings);
+    }
+
+    settings->setPersistentPermission(permission);
+}
+
+void TestController::handleCheckOfUserMediaPermissionForOrigin(WKFrameRef frame, WKSecurityOriginRef userMediaDocumentOrigin, WKSecurityOriginRef topLevelDocumentOrigin, const WKUserMediaPermissionCheckRef& checkRequest)
+{
+    auto originHash = userMediaOriginHash(userMediaDocumentOrigin, topLevelDocumentOrigin);
+    auto salt = saltForOrigin(frame, originHash);
+
+    WKUserMediaPermissionCheckSetUserMediaAccessInfo(checkRequest, WKStringCreateWithUTF8CString(salt.utf8().data()), m_cahcedUserMediaPermissions.get(originHash)->persistentPermission());
+}
+
+void TestController::handleUserMediaPermissionRequest(WKFrameRef frame, WKSecurityOriginRef userMediaDocumentOrigin, WKSecurityOriginRef topLevelDocumentOrigin, WKUserMediaPermissionRequestRef request)
+{
+    auto originHash = userMediaOriginHash(userMediaDocumentOrigin, topLevelDocumentOrigin);
+    m_userMediaPermissionRequests.append(std::make_pair(originHash, request));
     decidePolicyForUserMediaPermissionRequestIfPossible();
 }
 
@@ -1501,11 +1947,35 @@ void TestController::decidePolicyForUserMediaPermissionRequestIfPossible()
     if (!m_isUserMediaPermissionSet)
         return;
 
-    for (auto& request : m_userMediaPermissionRequests) {
-        if (m_isUserMediaPermissionAllowed)
-            WKUserMediaPermissionRequestAllow(request.get());
-        else
-            WKUserMediaPermissionRequestDeny(request.get());
+    for (auto& pair : m_userMediaPermissionRequests) {
+        auto originHash = pair.first;
+        auto request = pair.second.get();
+
+        bool persistentPermission = false;
+        RefPtr<OriginSettings> settings = m_cahcedUserMediaPermissions.get(originHash);
+        if (settings)
+            persistentPermission = settings->persistentPermission();
+
+        WKRetainPtr<WKArrayRef> audioDeviceUIDs = WKUserMediaPermissionRequestAudioDeviceUIDs(request);
+        WKRetainPtr<WKArrayRef> videoDeviceUIDs = WKUserMediaPermissionRequestVideoDeviceUIDs(request);
+
+        if ((m_isUserMediaPermissionAllowed || persistentPermission) && (WKArrayGetSize(videoDeviceUIDs.get()) || WKArrayGetSize(audioDeviceUIDs.get()))) {
+            WKRetainPtr<WKStringRef> videoDeviceUID;
+            if (WKArrayGetSize(videoDeviceUIDs.get()))
+                videoDeviceUID = reinterpret_cast<WKStringRef>(WKArrayGetItemAtIndex(videoDeviceUIDs.get(), 0));
+            else
+                videoDeviceUID = WKStringCreateWithUTF8CString("");
+
+            WKRetainPtr<WKStringRef> audioDeviceUID;
+            if (WKArrayGetSize(audioDeviceUIDs.get()))
+                audioDeviceUID = reinterpret_cast<WKStringRef>(WKArrayGetItemAtIndex(audioDeviceUIDs.get(), 0));
+            else
+                audioDeviceUID = WKStringCreateWithUTF8CString("");
+
+            WKUserMediaPermissionRequestAllow(request, audioDeviceUID.get(), videoDeviceUID.get());
+
+        } else
+            WKUserMediaPermissionRequestDeny(request);
     }
     m_userMediaPermissionRequests.clear();
 }
@@ -1555,7 +2025,7 @@ void TestController::decidePolicyForNavigationAction(WKFramePolicyListenerRef li
 {
     WKRetainPtr<WKFramePolicyListenerRef> retainedListener { listener };
     const bool shouldIgnore { m_policyDelegateEnabled && !m_policyDelegatePermissive };
-    std::function<void()> decisionFunction = [shouldIgnore, retainedListener]() {
+    auto decisionFunction = [shouldIgnore, retainedListener]() {
         if (shouldIgnore)
             WKFramePolicyListenerIgnore(retainedListener.get());
         else
@@ -1563,7 +2033,7 @@ void TestController::decidePolicyForNavigationAction(WKFramePolicyListenerRef li
     };
 
     if (m_shouldDecideNavigationPolicyAfterDelay)
-        RunLoop::main().dispatch(decisionFunction);
+        RunLoop::main().dispatch(WTFMove(decisionFunction));
     else
         decisionFunction();
 }
@@ -1666,5 +2136,47 @@ void TestController::didUpdateHistoryTitle(WKStringRef title, WKURLRef URL, WKFr
     WKRetainPtr<WKStringRef> urlStringWK(AdoptWK, WKURLCopyString(URL));
     m_currentInvocation->outputText(String::format("WebView updated the title for history URL \"%s\" to \"%s\".\n", toSTD(urlStringWK).c_str(), toSTD(title).c_str()));
 }
+
+void TestController::setNavigationGesturesEnabled(bool value)
+{
+    m_mainWebView->setNavigationGesturesEnabled(value);
+}
+
+void TestController::setIgnoresViewportScaleLimits(bool ignoresViewportScaleLimits)
+{
+    WKPageSetIgnoresViewportScaleLimits(m_mainWebView->page(), ignoresViewportScaleLimits);
+}
+
+#if !PLATFORM(COCOA)
+void TestController::platformWillRunTest(const TestInvocation&)
+{
+}
+
+void TestController::platformCreateWebView(WKPageConfigurationRef configuration, const TestOptions& options)
+{
+    m_mainWebView = std::make_unique<PlatformWebView>(configuration, options);
+}
+
+PlatformWebView* TestController::platformCreateOtherPage(PlatformWebView* parentView, WKPageConfigurationRef configuration, const TestOptions& options)
+{
+    return new PlatformWebView(configuration, options);
+}
+
+WKContextRef TestController::platformAdjustContext(WKContextRef context, WKContextConfigurationRef contextConfiguration)
+{
+    return context;
+}
+
+void TestController::platformResetStateToConsistentValues()
+{
+
+}
+
+unsigned TestController::imageCountInGeneralPasteboard() const
+{
+    return 0;
+}
+
+#endif
 
 } // namespace WTR

@@ -47,7 +47,7 @@ import unittest
 from datetime import date
 from webkitpy.common.checkout.checkout import Checkout
 from webkitpy.common.config.committers import Committer  # FIXME: This should not be needed
-from webkitpy.common.net.bugzilla import Attachment # FIXME: This should not be needed
+from webkitpy.common.net.bugzilla import Attachment  # FIXME: This should not be needed
 from webkitpy.common.system.executive import Executive, ScriptError
 from webkitpy.common.system.filesystem_mock import MockFileSystem
 from webkitpy.common.system.outputcapture import OutputCapture
@@ -79,6 +79,7 @@ def delete_cached_mock_repo_at_exit():
 # Eventually we will want to write tests which work for both scms. (like update_webkit, changed_files, etc.)
 # Perhaps through some SCMTest base-class which both SVNTest and GitTest inherit from.
 
+
 def run_command(*args, **kwargs):
     # FIXME: This should not be a global static.
     # New code should use Executive.run_command directly instead
@@ -90,7 +91,7 @@ def run_command(*args, **kwargs):
 def run_silent(args, cwd=None):
     # Note: Not thread safe: http://bugs.python.org/issue2320
     process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd)
-    process.communicate() # ignore output
+    process.communicate()  # ignore output
     exit_code = process.wait()
     if exit_code:
         raise ScriptError('Failed to run "%s"  exit_code: %d  cwd: %s' % (args, exit_code, cwd))
@@ -185,7 +186,7 @@ class SVNTestRepository(object):
         if not cached_svn_repo_path:
             cached_svn_repo_path = cls._setup_mock_repo()
 
-        test_object.temp_directory = tempfile.mkdtemp(suffix="svn_test")
+        test_object.temp_directory = os.path.realpath(tempfile.mkdtemp(suffix="svn_test"))
         test_object.svn_repo_path = os.path.join(test_object.temp_directory, "repo")
         test_object.svn_repo_url = "file://%s" % test_object.svn_repo_path
         test_object.svn_checkout_path = os.path.join(test_object.temp_directory, "checkout")
@@ -234,7 +235,7 @@ class SVNTestRepository(object):
 # For testing the SCM baseclass directly.
 class SCMClassTests(unittest.TestCase):
     def setUp(self):
-        self.dev_null = open(os.devnull, "w") # Used to make our Popen calls quiet.
+        self.dev_null = open(os.devnull, "w")  # Used to make our Popen calls quiet.
 
     def tearDown(self):
         self.dev_null.close()
@@ -253,12 +254,12 @@ class SCMClassTests(unittest.TestCase):
         self.assertRaises(ScriptError, run_command, ['grep', 'bar'], input=input_process.stdout)
 
         # Test when the run_command process fails.
-        input_process = subprocess.Popen(['echo', 'foo\nbar'], stdout=subprocess.PIPE, stderr=self.dev_null) # grep shows usage and calls exit(2) when called w/o arguments.
+        input_process = subprocess.Popen(['echo', 'foo\nbar'], stdout=subprocess.PIPE, stderr=self.dev_null)  # grep shows usage and calls exit(2) when called w/o arguments.
         self.assertRaises(ScriptError, run_command, command_returns_non_zero, input=input_process.stdout)
 
     def test_error_handlers(self):
-        git_failure_message="Merge conflict during commit: Your file or directory 'WebCore/ChangeLog' is probably out-of-date: resource out of date; try updating at /usr/local/libexec/git-core//git-svn line 469"
-        svn_failure_message="""svn: Commit failed (details follow):
+        git_failure_message = "Merge conflict during commit: Your file or directory 'WebCore/ChangeLog' is probably out-of-date: resource out of date; try updating at /usr/local/libexec/git-core//git-svn line 469"
+        svn_failure_message = """svn: Commit failed (details follow):
 svn: File or directory 'ChangeLog' is out of date; try updating
 svn: resource out of date; try updating
 """
@@ -308,6 +309,51 @@ class SCMTest(unittest.TestCase):
         # Validate that changed_files does not change with our cwd, see bug 37015.
         self.assertItemsEqual(self.scm.changed_files(), ["test_dir/test_file3", "test_file"])
         os.chdir(old_cwd)
+
+    def _shared_test_untracked_files(self, scm):
+        write_into_file_at_path("test_file_new", "new content")
+        self.assertItemsEqual(scm.untracked_files(), ["test_file_new"])
+
+        os.mkdir("test_dir_new")
+        write_into_file_at_path(os.path.join("test_dir_new", "test_file_new"), "new stuff")
+        self.assertItemsEqual(scm.untracked_files(), ["test_dir_new", "test_file_new"])
+
+        old_cwd = os.getcwd()
+        os.chdir("test_dir_new")
+        # Validate that untracked_files do not change with our cwd.
+        self.assertItemsEqual(scm.untracked_files(), ["test_dir_new", "test_file_new"])
+
+        os.chdir(old_cwd)
+
+        write_into_file_at_path("test_file_new.pyc", "new ignored file")
+        self.assertItemsEqual(scm.untracked_files(), ["test_dir_new", "test_file_new"])
+        self.assertItemsEqual(scm.untracked_files(include_ignored_files=True), ["test_file_new.pyc", "test_dir_new", "test_file_new"])
+
+        shutil.rmtree("test_dir_new")
+        os.remove("test_file_new")
+        os.remove("test_file_new.pyc")
+
+    def _shared_test_discard_untracked_files(self, scm):
+        write_into_file_at_path("test_file_new", "new content")
+        os.mkdir("test_dir_new")
+        write_into_file_at_path("test_dir_new/test_file_new", "new stuff")
+        self.assertItemsEqual(scm.untracked_files(), ["test_dir_new", "test_file_new"])
+        scm.discard_untracked_files()
+        self.assertItemsEqual(scm.untracked_files(), [])
+
+        write_into_file_at_path("test_file_new.pyc", "new content")
+        self.assertItemsEqual(scm.untracked_files(True), ["test_file_new.pyc"])
+        scm.discard_untracked_files(discard_ignored_files=False)
+        self.assertItemsEqual(scm.untracked_files(True), ["test_file_new.pyc"])
+        scm.discard_untracked_files(discard_ignored_files=True)
+        self.assertItemsEqual(scm.untracked_files(True), [])
+
+        if os.path.isdir("test_dir_new"):
+            shutil.rmtree("test_dir_new")
+        if os.path.isfile("test_file_new"):
+            os.remove("test_file_new")
+        if os.path.isfile("test_file_new.pyc"):
+            os.remove("test_file_new.pyc")
 
     def _shared_test_added_files(self):
         write_into_file_at_path("test_file", "changed content")
@@ -651,7 +697,7 @@ class SVNTest(SCMTest):
         scripts_path = os.path.join(self.svn_checkout_path, 'Tools', 'Scripts')
         os.makedirs(scripts_path)
         create_patch_path = os.path.join(scripts_path, 'svn-create-patch')
-        write_into_file_at_path(create_patch_path, '#!/bin/sh\necho $PWD') # We could pass -n to prevent the \n, but not all echo accept -n.
+        write_into_file_at_path(create_patch_path, '#!/bin/sh\necho $PWD')  # We could pass -n to prevent the \n, but not all echo accept -n.
         os.chmod(create_patch_path, stat.S_IXUSR | stat.S_IRUSR)
 
         # Change into our test directory and run the create_patch command.
@@ -660,7 +706,7 @@ class SVNTest(SCMTest):
         self.assertEqual(scm.checkout_root, self.svn_checkout_path) # Sanity check that detection worked right.
         patch_contents = scm.create_patch()
         # Our fake 'svn-create-patch' returns $PWD instead of a patch, check that it was executed from the root of the repo.
-        self.assertEqual("%s\n" % os.path.realpath(scm.checkout_root), patch_contents) # Add a \n because echo adds a \n.
+        self.assertEqual("%s\n" % os.path.realpath(scm.checkout_root), patch_contents)  # Add a \n because echo adds a \n.
 
     def test_detection(self):
         self.assertEqual(self.scm.display_name(), "svn")
@@ -806,6 +852,12 @@ END
     def test_changed_files(self):
         self._shared_test_changed_files()
 
+    def test_untracked_files(self):
+        self._shared_test_untracked_files(self.scm)
+
+    def test_discard_untracked_files(self):
+        self._shared_test_discard_untracked_files(self.scm)
+
     def test_changed_files_for_revision(self):
         self._shared_test_changed_files_for_revision()
 
@@ -906,6 +958,7 @@ END
     def test_exists(self):
         self._shared_test_exists(self.scm, self.scm.commit_with_message)
 
+
 class GitTest(SCMTest):
 
     def setUp(self):
@@ -921,6 +974,8 @@ class GitTest(SCMTest):
         os.chdir(self.untracking_checkout_path)
         write_into_file_at_path('foo_file', 'foo')
         run_command(['git', 'add', 'foo_file'])
+        write_into_file_at_path('.gitignore', '*.pyc')
+        run_command(['git', 'add', '.gitignore'])
         run_command(['git', 'commit', '-am', 'dummy commit'])
         self.untracking_scm = detect_scm_system(self.untracking_checkout_path)
 
@@ -1029,14 +1084,18 @@ class GitTest(SCMTest):
         self.assertNotRegexpMatches(patch, r'rename from ')
         self.assertNotRegexpMatches(patch, r'rename to ')
 
+    def test_untracked_files(self):
+        self._shared_test_untracked_files(self.tracking_scm)
+
 
 class GitSVNTest(SCMTest):
 
     def _setup_git_checkout(self):
         self.git_checkout_path = tempfile.mkdtemp(suffix="git_test_checkout")
         # --quiet doesn't make git svn silent, so we use run_silent to redirect output
-        run_silent(['git', 'svn', 'clone', '-T', 'trunk', self.svn_repo_url, self.git_checkout_path])
+        run_silent(['git', 'svn', 'clone', '-T', 'trunk', '--prefix', '', self.svn_repo_url, self.git_checkout_path])
         os.chdir(self.git_checkout_path)
+        run_silent(['git', 'branch', '-m', 'trunk'])
 
     def _tear_down_git_checkout(self):
         # Change back to a valid directory so that later calls to os.getcwd() do not fail.
@@ -1116,7 +1175,7 @@ class GitSVNTest(SCMTest):
         run_command(['git', 'commit', '-a', '-m', 'commit to be thrown away by rebase abort'])
 
         # --quiet doesn't make git svn silent, so use run_silent to redirect output
-        self.assertRaises(ScriptError, run_silent, ['git', 'svn', '--quiet', 'rebase']) # Will fail due to a conflict leaving us mid-rebase.
+        self.assertRaises(ScriptError, run_silent, ['git', 'svn', '--quiet', 'rebase'])  # Will fail due to a conflict leaving us mid-rebase.
 
         self.assertTrue(self.scm.rebase_in_progress())
 
@@ -1406,12 +1465,21 @@ class GitSVNTest(SCMTest):
         self.assertIn('test_file_commit2', files)
 
         # working copy should *not* be in the list.
-        files = self.scm.changed_files('trunk..')
+        files = self.scm.changed_files('trunk..')  # git diff trunk..HEAD
+        self.assertNotIn('test_file_commit1', files)
+        self.assertNotIn('test_file_commit2', files)
+
+        files = self.scm.changed_files('trunk^..')  # git diff trunk^..HEAD
         self.assertIn('test_file_commit1', files)
         self.assertNotIn('test_file_commit2', files)
 
         # working copy *should* be in the list.
-        files = self.scm.changed_files('trunk....')
+        # .... is a hack for working copy changes to be included
+        files = self.scm.changed_files('trunk....')  # git diff trunk
+        self.assertNotIn('test_file_commit1', files)
+        self.assertIn('test_file_commit2', files)
+
+        files = self.scm.changed_files('trunk^....')  # git diff trunk^
         self.assertIn('test_file_commit1', files)
         self.assertIn('test_file_commit2', files)
 

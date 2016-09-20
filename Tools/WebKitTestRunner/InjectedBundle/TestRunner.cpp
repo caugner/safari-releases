@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010, 2011, 2012, 2013 Apple Inc. All rights reserved.
+ * Copyright (C) 2010-2016 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -96,6 +96,9 @@ TestRunner::TestRunner()
     , m_databaseMaxQuota(-1)
     , m_userStyleSheetEnabled(false)
     , m_userStyleSheetLocation(adoptWK(WKStringCreateWithUTF8CString("")))
+#if PLATFORM(GTK)
+    , m_waitToDumpWatchdogTimer(RunLoop::main(), this, &TestRunner::waitToDumpWatchdogTimerFired)
+#endif
 {
     platformInitialize();
 }
@@ -138,6 +141,12 @@ void TestRunner::waitForPolicyDelegate()
     waitUntilDone();
 }
 
+void TestRunner::waitUntilDownloadFinished()
+{
+    m_shouldFinishAfterDownload = true;
+    waitUntilDone();
+}
+
 void TestRunner::waitUntilDone()
 {
     m_waitToDump = true;
@@ -169,13 +178,16 @@ void TestRunner::notifyDone()
     m_waitToDump = false;
 }
 
+unsigned TestRunner::imageCountInGeneralPasteboard() const
+{
+    return InjectedBundle::singleton().imageCountInGeneralPasteboard();
+}
+
 void TestRunner::addUserScript(JSStringRef source, bool runAtStart, bool allFrames)
 {
     WKRetainPtr<WKStringRef> sourceWK = toWK(source);
-    WKRetainPtr<WKBundleScriptWorldRef> scriptWorld(AdoptWK, WKBundleScriptWorldCreateWorld());
 
-    auto& injectedBundle = InjectedBundle::singleton();
-    WKBundleAddUserScript(injectedBundle.bundle(), injectedBundle.pageGroup(), scriptWorld.get(), sourceWK.get(), 0, 0, 0,
+    WKBundlePageAddUserScript(InjectedBundle::singleton().page()->page(), sourceWK.get(),
         (runAtStart ? kWKInjectAtDocumentStart : kWKInjectAtDocumentEnd),
         (allFrames ? kWKInjectInAllFrames : kWKInjectInTopFrameOnly));
 }
@@ -183,10 +195,8 @@ void TestRunner::addUserScript(JSStringRef source, bool runAtStart, bool allFram
 void TestRunner::addUserStyleSheet(JSStringRef source, bool allFrames)
 {
     WKRetainPtr<WKStringRef> sourceWK = toWK(source);
-    WKRetainPtr<WKBundleScriptWorldRef> scriptWorld(AdoptWK, WKBundleScriptWorldCreateWorld());
 
-    auto& injectedBundle = InjectedBundle::singleton();
-    WKBundleAddUserStyleSheet(injectedBundle.bundle(), injectedBundle.pageGroup(), scriptWorld.get(), sourceWK.get(), 0, 0, 0,
+    WKBundlePageAddUserStyleSheet(InjectedBundle::singleton().page()->page(), sourceWK.get(),
         (allFrames ? kWKInjectInAllFrames : kWKInjectInTopFrameOnly));
 }
 
@@ -242,6 +252,11 @@ bool TestRunner::findString(JSStringRef target, JSValueRef optionsArrayAsValue)
 void TestRunner::clearAllDatabases()
 {
     WKBundleClearAllDatabases(InjectedBundle::singleton().bundle());
+
+    WKRetainPtr<WKStringRef> messageName(AdoptWK, WKStringCreateWithUTF8CString("DeleteAllIndexedDatabases"));
+    WKRetainPtr<WKBooleanRef> messageBody(AdoptWK, WKBooleanCreate(true));
+
+    WKBundlePostSynchronousMessage(InjectedBundle::singleton().bundle(), messageName.get(), messageBody.get(), nullptr);
 }
 
 void TestRunner::setDatabaseQuota(uint64_t quota)
@@ -251,22 +266,22 @@ void TestRunner::setDatabaseQuota(uint64_t quota)
 
 void TestRunner::clearAllApplicationCaches()
 {
-    WKBundleClearApplicationCache(InjectedBundle::singleton().bundle());
+    WKBundlePageClearApplicationCache(InjectedBundle::singleton().page()->page());
 }
 
 void TestRunner::clearApplicationCacheForOrigin(JSStringRef origin)
 {
-    WKBundleClearApplicationCacheForOrigin(InjectedBundle::singleton().bundle(), toWK(origin).get());
+    WKBundlePageClearApplicationCacheForOrigin(InjectedBundle::singleton().page()->page(), toWK(origin).get());
 }
 
 void TestRunner::setAppCacheMaximumSize(uint64_t size)
 {
-    WKBundleSetAppCacheMaximumSize(InjectedBundle::singleton().bundle(), size);
+    WKBundlePageSetAppCacheMaximumSize(InjectedBundle::singleton().page()->page(), size);
 }
 
 long long TestRunner::applicationCacheDiskUsageForOrigin(JSStringRef origin)
 {
-    return WKBundleGetAppCacheUsageForOrigin(InjectedBundle::singleton().bundle(), toWK(origin).get());
+    return WKBundlePageGetAppCacheUsageForOrigin(InjectedBundle::singleton().page()->page(), toWK(origin).get());
 }
 
 void TestRunner::disallowIncreaseForApplicationCacheQuota()
@@ -291,10 +306,11 @@ static inline JSValueRef stringArrayToJS(JSContextRef context, WKArrayRef string
 
 JSValueRef TestRunner::originsWithApplicationCache()
 {
-    auto& injectedBundle = InjectedBundle::singleton();
-    WKRetainPtr<WKArrayRef> origins(AdoptWK, WKBundleCopyOriginsWithApplicationCache(injectedBundle.bundle()));
+    WKBundlePageRef page = InjectedBundle::singleton().page()->page();
 
-    WKBundleFrameRef mainFrame = WKBundlePageGetMainFrame(injectedBundle.page()->page());
+    WKRetainPtr<WKArrayRef> origins(AdoptWK, WKBundlePageCopyOriginsWithApplicationCache(page));
+
+    WKBundleFrameRef mainFrame = WKBundlePageGetMainFrame(page);
     JSContextRef context = WKBundleFrameGetJavaScriptContext(mainFrame);
 
     return stringArrayToJS(context, origins.get());
@@ -316,6 +332,53 @@ void TestRunner::setXSSAuditorEnabled(bool enabled)
     WKRetainPtr<WKStringRef> key(AdoptWK, WKStringCreateWithUTF8CString("WebKitXSSAuditorEnabled"));
     auto& injectedBundle = InjectedBundle::singleton();
     WKBundleOverrideBoolPreferenceForTestRunner(injectedBundle.bundle(), injectedBundle.pageGroup(), key.get(), enabled);
+}
+
+void TestRunner::setShadowDOMEnabled(bool enabled)
+{
+    WKRetainPtr<WKStringRef> key(AdoptWK, WKStringCreateWithUTF8CString("WebKitShadowDOMEnabled"));
+    auto& injectedBundle = InjectedBundle::singleton();
+    WKBundleOverrideBoolPreferenceForTestRunner(injectedBundle.bundle(), injectedBundle.pageGroup(), key.get(), enabled);
+}
+
+void TestRunner::setCustomElementsEnabled(bool enabled)
+{
+    WKRetainPtr<WKStringRef> key(AdoptWK, WKStringCreateWithUTF8CString("WebKitCustomElementsEnabled"));
+    auto& injectedBundle = InjectedBundle::singleton();
+    WKBundleOverrideBoolPreferenceForTestRunner(injectedBundle.bundle(), injectedBundle.pageGroup(), key.get(), enabled);
+}
+
+void TestRunner::setDOMIteratorEnabled(bool enabled)
+{
+    WKRetainPtr<WKStringRef> key(AdoptWK, WKStringCreateWithUTF8CString("WebKitDOMIteratorEnabled"));
+    auto& injectedBundle = InjectedBundle::singleton();
+    WKBundleOverrideBoolPreferenceForTestRunner(injectedBundle.bundle(), injectedBundle.pageGroup(), key.get(), enabled);
+}
+
+void TestRunner::setWebGL2Enabled(bool enabled)
+{
+    WKRetainPtr<WKStringRef> key(AdoptWK, WKStringCreateWithUTF8CString("WebKitWebGL2Enabled"));
+    auto& injectedBundle = InjectedBundle::singleton();
+    WKBundleOverrideBoolPreferenceForTestRunner(injectedBundle.bundle(), injectedBundle.pageGroup(), key.get(), enabled);
+}
+
+void TestRunner::setFetchAPIEnabled(bool enabled)
+{
+    WKRetainPtr<WKStringRef> key(AdoptWK, WKStringCreateWithUTF8CString("WebKitFetchAPIEnabled"));
+    auto& injectedBundle = InjectedBundle::singleton();
+    WKBundleOverrideBoolPreferenceForTestRunner(injectedBundle.bundle(), injectedBundle.pageGroup(), key.get(), enabled);
+}
+
+void TestRunner::setDownloadAttributeEnabled(bool enabled)
+{
+    WKRetainPtr<WKStringRef> key(AdoptWK, WKStringCreateWithUTF8CString("WebKitDownloadAttributeEnabled"));
+    auto& injectedBundle = InjectedBundle::singleton();
+    WKBundleOverrideBoolPreferenceForTestRunner(injectedBundle.bundle(), injectedBundle.pageGroup(), key.get(), enabled);
+}
+
+void TestRunner::setAllowsAnySSLCertificate(bool enabled)
+{
+    InjectedBundle::singleton().setAllowsAnySSLCertificate(enabled);
 }
 
 void TestRunner::setAllowUniversalAccessFromFileURLs(bool enabled)
@@ -513,7 +576,12 @@ enum {
     AddChromeInputFieldCallbackID = 1,
     RemoveChromeInputFieldCallbackID,
     FocusWebViewCallbackID,
-    SetBackingScaleFactorCallbackID
+    SetBackingScaleFactorCallbackID,
+    DidBeginSwipeCallbackID,
+    WillEndSwipeCallbackID,
+    DidEndSwipeCallbackID,
+    DidRemoveSwipeSnapshotCallbackID,
+    FirstUIScriptCallbackID = 100
 };
 
 static void cacheTestRunnerCallback(unsigned index, JSValueRef callback)
@@ -521,21 +589,43 @@ static void cacheTestRunnerCallback(unsigned index, JSValueRef callback)
     if (!callback)
         return;
 
+    if (callbackMap().contains(index)) {
+        InjectedBundle::singleton().outputText(String::format("FAIL: Tried to install a second TestRunner callback for the same event (id %d)\n\n", index));
+        return;
+    }
+
     WKBundleFrameRef mainFrame = WKBundlePageGetMainFrame(InjectedBundle::singleton().page()->page());
     JSContextRef context = WKBundleFrameGetJavaScriptContext(mainFrame);
     JSValueProtect(context, callback);
     callbackMap().add(index, callback);
 }
 
-static void callTestRunnerCallback(unsigned index)
+static void callTestRunnerCallback(unsigned index, size_t argumentCount = 0, const JSValueRef arguments[] = nullptr)
 {
     if (!callbackMap().contains(index))
         return;
     WKBundleFrameRef mainFrame = WKBundlePageGetMainFrame(InjectedBundle::singleton().page()->page());
     JSContextRef context = WKBundleFrameGetJavaScriptContext(mainFrame);
     JSObjectRef callback = JSValueToObject(context, callbackMap().take(index), 0);
-    JSObjectCallAsFunction(context, callback, JSContextGetGlobalObject(context), 0, 0, 0);
+    JSObjectCallAsFunction(context, callback, JSContextGetGlobalObject(context), argumentCount, arguments, 0);
     JSValueUnprotect(context, callback);
+}
+
+void TestRunner::clearTestRunnerCallbacks()
+{
+    for (auto& iter : callbackMap()) {
+        WKBundleFrameRef mainFrame = WKBundlePageGetMainFrame(InjectedBundle::singleton().page()->page());
+        JSContextRef context = WKBundleFrameGetJavaScriptContext(mainFrame);
+        JSObjectRef callback = JSValueToObject(context, iter.value, 0);
+        JSValueUnprotect(context, callback);
+    }
+
+    callbackMap().clear();
+}
+
+void TestRunner::accummulateLogsForChannel(JSStringRef)
+{
+    // FIXME: Implement getting the call to all processes.
 }
 
 void TestRunner::addChromeInputField(JSValueRef callback)
@@ -565,6 +655,11 @@ void TestRunner::setBackingScaleFactor(double backingScaleFactor, JSValueRef cal
 void TestRunner::setWindowIsKey(bool isKey)
 {
     InjectedBundle::singleton().postSetWindowIsKey(isKey);
+}
+
+void TestRunner::setViewSize(double width, double height)
+{
+    InjectedBundle::singleton().postSetViewSize(width, height);
 }
 
 void TestRunner::callAddChromeInputFieldCallback()
@@ -605,7 +700,7 @@ void TestRunner::setAlwaysAcceptCookies(bool accept)
 
     WKRetainPtr<WKBooleanRef> messageBody(AdoptWK, WKBooleanCreate(accept));
 
-    WKBundlePostSynchronousMessage(InjectedBundle::singleton().bundle(), messageName.get(), messageBody.get(), 0);
+    WKBundlePostSynchronousMessage(InjectedBundle::singleton().bundle(), messageName.get(), messageBody.get(), nullptr);
 }
 
 double TestRunner::preciseTime()
@@ -699,6 +794,11 @@ void TestRunner::setGeolocationPermission(bool enabled)
     InjectedBundle::singleton().setGeolocationPermission(enabled);
 }
 
+bool TestRunner::isGeolocationProviderActive()
+{
+    return InjectedBundle::singleton().isGeolocationProviderActive();
+}
+
 void TestRunner::setMockGeolocationPosition(double latitude, double longitude, double accuracy, JSValueRef jsAltitude, JSValueRef jsAltitudeAccuracy, JSValueRef jsHeading, JSValueRef jsSpeed)
 {
     auto& injectedBundle = InjectedBundle::singleton();
@@ -746,6 +846,13 @@ void TestRunner::setUserMediaPermission(bool enabled)
 {
     // FIXME: this should be done by frame.
     InjectedBundle::singleton().setUserMediaPermission(enabled);
+}
+
+void TestRunner::setUserMediaPermissionForOrigin(bool permission, JSStringRef origin, JSStringRef parentOrigin)
+{
+    WKRetainPtr<WKStringRef> originWK = toWK(origin);
+    WKRetainPtr<WKStringRef> parentOriginWK = toWK(parentOrigin);
+    InjectedBundle::singleton().setUserMediaPermissionForOrigin(permission, originWK.get(), parentOriginWK.get());
 }
 
 bool TestRunner::callShouldCloseOnWebView()
@@ -800,10 +907,24 @@ void TestRunner::queueNonLoadingScript(JSStringRef script)
     InjectedBundle::singleton().queueNonLoadingScript(scriptWK.get());
 }
 
+void TestRunner::setRejectsProtectionSpaceAndContinueForAuthenticationChallenges(bool value)
+{
+    WKRetainPtr<WKStringRef> messageName(AdoptWK, WKStringCreateWithUTF8CString("SetRejectsProtectionSpaceAndContinueForAuthenticationChallenges"));
+    WKRetainPtr<WKBooleanRef> messageBody(AdoptWK, WKBooleanCreate(value));
+    WKBundlePagePostMessage(InjectedBundle::singleton().page()->page(), messageName.get(), messageBody.get());
+}
+    
 void TestRunner::setHandlesAuthenticationChallenges(bool handlesAuthenticationChallenges)
 {
-    WKRetainPtr<WKStringRef> messageName(AdoptWK, WKStringCreateWithUTF8CString("SetHandlesAuthenticationChallenge"));
+    WKRetainPtr<WKStringRef> messageName(AdoptWK, WKStringCreateWithUTF8CString("SetHandlesAuthenticationChallenges"));
     WKRetainPtr<WKBooleanRef> messageBody(AdoptWK, WKBooleanCreate(handlesAuthenticationChallenges));
+    WKBundlePagePostMessage(InjectedBundle::singleton().page()->page(), messageName.get(), messageBody.get());
+}
+
+void TestRunner::setShouldLogCanAuthenticateAgainstProtectionSpace(bool value)
+{
+    WKRetainPtr<WKStringRef> messageName(AdoptWK, WKStringCreateWithUTF8CString("SetShouldLogCanAuthenticateAgainstProtectionSpace"));
+    WKRetainPtr<WKBooleanRef> messageBody(AdoptWK, WKBooleanCreate(value));
     WKBundlePagePostMessage(InjectedBundle::singleton().page()->page(), messageName.get(), messageBody.get());
 }
 
@@ -826,7 +947,7 @@ bool TestRunner::secureEventInputIsEnabled() const
     WKRetainPtr<WKStringRef> messageName(AdoptWK, WKStringCreateWithUTF8CString("SecureEventInputIsEnabled"));
     WKTypeRef returnData = 0;
 
-    WKBundlePagePostSynchronousMessage(InjectedBundle::singleton().page()->page(), messageName.get(), 0, &returnData);
+    WKBundlePagePostSynchronousMessageForTesting(InjectedBundle::singleton().page()->page(), messageName.get(), 0, &returnData);
     return WKBooleanGetValue(static_cast<WKBooleanRef>(returnData));
 }
 
@@ -864,6 +985,96 @@ void TestRunner::setShouldDecideNavigationPolicyAfterDelay(bool value)
     WKRetainPtr<WKStringRef> messageName(AdoptWK, WKStringCreateWithUTF8CString("SetShouldDecideNavigationPolicyAfterDelay"));
     WKRetainPtr<WKBooleanRef> messageBody(AdoptWK, WKBooleanCreate(value));
     WKBundlePagePostMessage(InjectedBundle::singleton().page()->page(), messageName.get(), messageBody.get());
+}
+
+void TestRunner::setNavigationGesturesEnabled(bool value)
+{
+    WKRetainPtr<WKStringRef> messageName(AdoptWK, WKStringCreateWithUTF8CString("SetNavigationGesturesEnabled"));
+    WKRetainPtr<WKBooleanRef> messageBody(AdoptWK, WKBooleanCreate(value));
+    WKBundlePagePostMessage(InjectedBundle::singleton().page()->page(), messageName.get(), messageBody.get());
+}
+
+void TestRunner::setIgnoresViewportScaleLimits(bool value)
+{
+    WKRetainPtr<WKStringRef> messageName(AdoptWK, WKStringCreateWithUTF8CString("SetIgnoresViewportScaleLimits"));
+    WKRetainPtr<WKBooleanRef> messageBody(AdoptWK, WKBooleanCreate(value));
+    WKBundlePagePostMessage(InjectedBundle::singleton().page()->page(), messageName.get(), messageBody.get());
+}
+
+static unsigned nextUIScriptCallbackID()
+{
+    static unsigned callbackID = FirstUIScriptCallbackID;
+    return callbackID++;
+}
+
+void TestRunner::runUIScript(JSStringRef script, JSValueRef callback)
+{
+    unsigned callbackID = nextUIScriptCallbackID();
+    cacheTestRunnerCallback(callbackID, callback);
+
+    WKRetainPtr<WKStringRef> messageName(AdoptWK, WKStringCreateWithUTF8CString("RunUIProcessScript"));
+
+    WKRetainPtr<WKMutableDictionaryRef> testDictionary(AdoptWK, WKMutableDictionaryCreate());
+
+    WKRetainPtr<WKStringRef> scriptKey(AdoptWK, WKStringCreateWithUTF8CString("Script"));
+    WKRetainPtr<WKStringRef> scriptValue(AdoptWK, WKStringCreateWithJSString(script));
+
+    WKRetainPtr<WKStringRef> callbackIDKey(AdoptWK, WKStringCreateWithUTF8CString("CallbackID"));
+    WKRetainPtr<WKUInt64Ref> callbackIDValue = adoptWK(WKUInt64Create(callbackID));
+
+    WKDictionarySetItem(testDictionary.get(), scriptKey.get(), scriptValue.get());
+    WKDictionarySetItem(testDictionary.get(), callbackIDKey.get(), callbackIDValue.get());
+
+    WKBundlePagePostMessage(InjectedBundle::singleton().page()->page(), messageName.get(), testDictionary.get());
+}
+
+void TestRunner::runUIScriptCallback(unsigned callbackID, JSStringRef result)
+{
+    WKBundleFrameRef mainFrame = WKBundlePageGetMainFrame(InjectedBundle::singleton().page()->page());
+    JSContextRef context = WKBundleFrameGetJavaScriptContext(mainFrame);
+
+    JSValueRef resultValue = JSValueMakeString(context, result);
+    callTestRunnerCallback(callbackID, 1, &resultValue);
+}
+
+void TestRunner::installDidBeginSwipeCallback(JSValueRef callback)
+{
+    cacheTestRunnerCallback(DidBeginSwipeCallbackID, callback);
+}
+
+void TestRunner::installWillEndSwipeCallback(JSValueRef callback)
+{
+    cacheTestRunnerCallback(WillEndSwipeCallbackID, callback);
+}
+
+void TestRunner::installDidEndSwipeCallback(JSValueRef callback)
+{
+    cacheTestRunnerCallback(DidEndSwipeCallbackID, callback);
+}
+
+void TestRunner::installDidRemoveSwipeSnapshotCallback(JSValueRef callback)
+{
+    cacheTestRunnerCallback(DidRemoveSwipeSnapshotCallbackID, callback);
+}
+
+void TestRunner::callDidBeginSwipeCallback()
+{
+    callTestRunnerCallback(DidBeginSwipeCallbackID);
+}
+
+void TestRunner::callWillEndSwipeCallback()
+{
+    callTestRunnerCallback(WillEndSwipeCallbackID);
+}
+
+void TestRunner::callDidEndSwipeCallback()
+{
+    callTestRunnerCallback(DidEndSwipeCallbackID);
+}
+
+void TestRunner::callDidRemoveSwipeSnapshotCallback()
+{
+    callTestRunnerCallback(DidRemoveSwipeSnapshotCallbackID);
 }
 
 } // namespace WTR

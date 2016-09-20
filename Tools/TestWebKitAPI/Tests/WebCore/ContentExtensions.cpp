@@ -50,17 +50,19 @@ inline std::ostream& operator<<(std::ostream& os, const ActionType& action)
 {
     switch (action) {
     case ActionType::BlockLoad:
-        return os << "ContentFilterAction::BlockLoad";
+        return os << "ActionType::BlockLoad";
     case ActionType::BlockCookies:
-        return os << "ContentFilterAction::BlockCookies";
+        return os << "ActionType::BlockCookies";
     case ActionType::CSSDisplayNoneSelector:
-        return os << "ContentFilterAction::CSSDisplayNone";
+        return os << "ActionType::CSSDisplayNone";
     case ActionType::CSSDisplayNoneStyleSheet:
-        return os << "ContentFilterAction::CSSDisplayNoneStyleSheet";
+        return os << "ActionType::CSSDisplayNoneStyleSheet";
     case ActionType::IgnorePreviousRules:
-        return os << "ContentFilterAction::IgnorePreviousRules";
+        return os << "ActionType::IgnorePreviousRules";
+    case ActionType::MakeHTTPS:
+        return os << "ActionType::MakeHTTPS";
     case ActionType::InvalidAction:
-        return os << "ContentFilterAction::InvalidAction";
+        return os << "ActionType::InvalidAction";
     }
 }
 }
@@ -98,7 +100,7 @@ public:
         EXPECT_EQ(data.domainFilters.size(), 0ull);
     }
 
-    virtual void writeActions(Vector<ContentExtensions::SerializedActionByte>&& actions) override
+    void writeActions(Vector<ContentExtensions::SerializedActionByte>&& actions) override
     {
         EXPECT_FALSE(finalized);
         EXPECT_EQ(m_data.actions.size(), 0ull);
@@ -108,7 +110,7 @@ public:
         m_data.actions.appendVector(actions);
     }
     
-    virtual void writeFiltersWithoutDomainsBytecode(Vector<ContentExtensions::DFABytecode>&& bytecode) override
+    void writeFiltersWithoutDomainsBytecode(Vector<ContentExtensions::DFABytecode>&& bytecode) override
     {
         EXPECT_FALSE(finalized);
         EXPECT_EQ(m_data.filtersWithDomains.size(), 0ull);
@@ -116,20 +118,20 @@ public:
         m_data.filtersWithoutDomains.appendVector(bytecode);
     }
     
-    virtual void writeFiltersWithDomainsBytecode(Vector<ContentExtensions::DFABytecode>&& bytecode) override
+    void writeFiltersWithDomainsBytecode(Vector<ContentExtensions::DFABytecode>&& bytecode) override
     {
         EXPECT_FALSE(finalized);
         EXPECT_EQ(m_data.domainFilters.size(), 0ull);
         m_data.filtersWithDomains.appendVector(bytecode);
     }
     
-    virtual void writeDomainFiltersBytecode(Vector<ContentExtensions::DFABytecode>&& bytecode) override
+    void writeDomainFiltersBytecode(Vector<ContentExtensions::DFABytecode>&& bytecode) override
     {
         EXPECT_FALSE(finalized);
         m_data.domainFilters.appendVector(bytecode);
     }
     
-    virtual void finalize() override
+    void finalize() override
     {
         finalized = true;
     }
@@ -145,37 +147,37 @@ public:
     {
         CompiledContentExtensionData extensionData;
         InMemoryContentExtensionCompilationClient client(extensionData);
-        auto compilerError = ContentExtensions::compileRuleList(client, WTF::move(filter));
+        auto compilerError = ContentExtensions::compileRuleList(client, WTFMove(filter));
         if (compilerError) {
             // Compiling should always succeed here. We have other tests for compile failures.
             EXPECT_TRUE(false);
             return nullptr;
         }
 
-        return InMemoryCompiledContentExtension::create(WTF::move(extensionData));
+        return InMemoryCompiledContentExtension::create(WTFMove(extensionData));
     }
 
     static RefPtr<InMemoryCompiledContentExtension> create(CompiledContentExtensionData&& data)
     {
-        return adoptRef(new InMemoryCompiledContentExtension(WTF::move(data)));
+        return adoptRef(new InMemoryCompiledContentExtension(WTFMove(data)));
     }
 
     virtual ~InMemoryCompiledContentExtension()
     {
     }
 
-    virtual const ContentExtensions::SerializedActionByte* actions() const override { return m_data.actions.data(); }
-    virtual unsigned actionsLength() const override { return m_data.actions.size(); }
-    virtual const ContentExtensions::DFABytecode* filtersWithoutDomainsBytecode() const override { return m_data.filtersWithoutDomains.data(); }
-    virtual unsigned filtersWithoutDomainsBytecodeLength() const override { return m_data.filtersWithoutDomains.size(); }
-    virtual const ContentExtensions::DFABytecode* filtersWithDomainsBytecode() const override { return m_data.filtersWithDomains.data(); }
-    virtual unsigned filtersWithDomainsBytecodeLength() const override { return m_data.filtersWithDomains.size(); }
-    virtual const ContentExtensions::DFABytecode* domainFiltersBytecode() const override { return m_data.domainFilters.data(); }
-    virtual unsigned domainFiltersBytecodeLength() const override { return m_data.domainFilters.size(); }
+    const ContentExtensions::SerializedActionByte* actions() const override { return m_data.actions.data(); }
+    unsigned actionsLength() const override { return m_data.actions.size(); }
+    const ContentExtensions::DFABytecode* filtersWithoutDomainsBytecode() const override { return m_data.filtersWithoutDomains.data(); }
+    unsigned filtersWithoutDomainsBytecodeLength() const override { return m_data.filtersWithoutDomains.size(); }
+    const ContentExtensions::DFABytecode* filtersWithDomainsBytecode() const override { return m_data.filtersWithDomains.data(); }
+    unsigned filtersWithDomainsBytecodeLength() const override { return m_data.filtersWithDomains.size(); }
+    const ContentExtensions::DFABytecode* domainFiltersBytecode() const override { return m_data.domainFilters.data(); }
+    unsigned domainFiltersBytecodeLength() const override { return m_data.domainFilters.size(); }
 
 private:
     InMemoryCompiledContentExtension(CompiledContentExtensionData&& data)
-        : m_data(WTF::move(data))
+        : m_data(WTFMove(data))
     {
     }
 
@@ -222,7 +224,7 @@ static Vector<ContentExtensions::NFA> createNFAs(ContentExtensions::CombinedURLF
     Vector<ContentExtensions::NFA> nfas;
 
     combinedURLFilters.processNFAs(std::numeric_limits<size_t>::max(), [&](ContentExtensions::NFA&& nfa) {
-        nfas.append(WTF::move(nfa));
+        nfas.append(WTFMove(nfa));
     });
 
     return nfas;
@@ -922,6 +924,36 @@ TEST_F(ContentExtensionTest, TrailingTermsCarryingNoData)
     testRequest(backend, mainDocumentRequest("https://webkit.org/catso"), { });
 }
 
+TEST_F(ContentExtensionTest, UselessTermsMatchingEverythingAreEliminated)
+{
+    ContentExtensions::CombinedURLFilters combinedURLFilters;
+    ContentExtensions::URLFilterParser parser(combinedURLFilters);
+    EXPECT_EQ(ContentExtensions::URLFilterParser::ParseStatus::Ok, parser.addPattern(".*web", false, 0));
+    EXPECT_EQ(ContentExtensions::URLFilterParser::ParseStatus::Ok, parser.addPattern("(.*)web", false, 0));
+    EXPECT_EQ(ContentExtensions::URLFilterParser::ParseStatus::Ok, parser.addPattern("(.)*web", false, 0));
+    EXPECT_EQ(ContentExtensions::URLFilterParser::ParseStatus::Ok, parser.addPattern("(.+)*web", false, 0));
+    EXPECT_EQ(ContentExtensions::URLFilterParser::ParseStatus::Ok, parser.addPattern("(.?)*web", false, 0));
+    EXPECT_EQ(ContentExtensions::URLFilterParser::ParseStatus::Ok, parser.addPattern("(.+)?web", false, 0));
+    EXPECT_EQ(ContentExtensions::URLFilterParser::ParseStatus::Ok, parser.addPattern("(.?)+web", false, 0));
+
+    Vector<ContentExtensions::NFA> nfas = createNFAs(combinedURLFilters);
+    EXPECT_EQ(1ul, nfas.size());
+    EXPECT_EQ(7ul, nfas.first().nodes.size());
+
+    ContentExtensions::DFA dfa = ContentExtensions::NFAToDFA::convert(nfas.first());
+    Vector<ContentExtensions::DFABytecode> bytecode;
+    ContentExtensions::DFABytecodeCompiler compiler(dfa, bytecode);
+    compiler.compile();
+    ContentExtensions::DFABytecodeInterpreter interpreter(bytecode.data(), bytecode.size());
+    compareContents(interpreter.interpret("eb", 0), { });
+    compareContents(interpreter.interpret("we", 0), { });
+    compareContents(interpreter.interpret("weeb", 0), { });
+    compareContents(interpreter.interpret("web", 0), { 0 });
+    compareContents(interpreter.interpret("wweb", 0), { 0 });
+    compareContents(interpreter.interpret("wwebb", 0), { 0 });
+    compareContents(interpreter.interpret("http://theweb.com/", 0), { 0 });
+}
+
 TEST_F(ContentExtensionTest, LoadType)
 {
     auto backend = makeBackend("[{\"action\":{\"type\":\"block\"},\"trigger\":{\"url-filter\":\"webkit.org\",\"load-type\":[\"third-party\"]}},"
@@ -978,7 +1010,7 @@ TEST_F(ContentExtensionTest, ResourceOrLoadTypeMatchingEverything)
     
 TEST_F(ContentExtensionTest, WideNFA)
 {
-    // Make an NFA with about 1400 nodes.
+    // Make an NFA with about 1400 nodes that won't be combined.
     StringBuilder ruleList;
     ruleList.append('[');
     for (char c1 = 'A'; c1 <= 'Z'; ++c1) {
@@ -988,12 +1020,16 @@ TEST_F(ContentExtensionTest, WideNFA)
                     ruleList.append(',');
                 ruleList.append("{\"action\":{\"type\":\"");
                 
-                // Put an ignore-previous-rules near the middle.
-                if (c1 == 'L' && c2 == 'A' && c3 == 'A')
+                // Make every other rule ignore-previous-rules to not combine actions.
+                if (!((c1 + c2 + c3) % 2))
                     ruleList.append("ignore-previous-rules");
-                else
-                    ruleList.append("block");
-                
+                else {
+                    ruleList.append("css-display-none");
+                    ruleList.append("\",\"selector\":\"");
+                    ruleList.append(c1);
+                    ruleList.append(c2);
+                    ruleList.append(c3);
+                }
                 ruleList.append("\"},\"trigger\":{\"url-filter\":\".*");
                 ruleList.append(c1);
                 ruleList.append(c2);
@@ -1006,11 +1042,128 @@ TEST_F(ContentExtensionTest, WideNFA)
     
     auto backend = makeBackend(ruleList.toString().utf8().data());
 
-    testRequest(backend, mainDocumentRequest("http://webkit.org/AAA"), { ContentExtensions::ActionType::BlockLoad });
-    testRequest(backend, mainDocumentRequest("http://webkit.org/ZAA"), { ContentExtensions::ActionType::BlockLoad });
+    testRequest(backend, mainDocumentRequest("http://webkit.org/AAA"), { ContentExtensions::ActionType::CSSDisplayNoneSelector });
+    testRequest(backend, mainDocumentRequest("http://webkit.org/YAA"), { ContentExtensions::ActionType::CSSDisplayNoneSelector });
+    testRequest(backend, mainDocumentRequest("http://webkit.org/ZAA"), { }, true);
     testRequest(backend, mainDocumentRequest("http://webkit.org/LAA/AAA"), { }, true);
-    testRequest(backend, mainDocumentRequest("http://webkit.org/LAA/MAA"), { ContentExtensions::ActionType::BlockLoad }, true);
+    testRequest(backend, mainDocumentRequest("http://webkit.org/LAA/MAA"), { ContentExtensions::ActionType::CSSDisplayNoneSelector }, true);
     testRequest(backend, mainDocumentRequest("http://webkit.org/"), { });
+}
+    
+#ifdef NDEBUG
+static uint64_t expectedIndex(char c, unsigned position)
+{
+    uint64_t index = c - 'A';
+    for (unsigned i = 1; i < position; ++i)
+        index *= (i == 1) ? ('C' - 'A' + 1) : ('Z' - 'A' + 1);
+    return index;
+}
+#endif
+
+TEST_F(ContentExtensionTest, LargeJumps)
+{
+// A large test like this is necessary to test 24 and 32 bit jumps, but it's so large it times out in debug builds.
+#ifdef NDEBUG
+    ContentExtensions::CombinedURLFilters combinedURLFilters;
+    ContentExtensions::URLFilterParser parser(combinedURLFilters);
+    
+    uint64_t patternId = 0;
+    for (char c1 = 'A'; c1 <= 'Z'; ++c1) {
+        for (char c2 = 'A'; c2 <= 'Z'; ++c2) {
+            for (char c3 = 'A'; c3 <= 'Z'; ++c3) {
+                for (char c4 = 'A'; c4 <= 'C'; ++c4) {
+                    StringBuilder pattern;
+                    pattern.append(c1);
+                    pattern.append(c2);
+                    pattern.append(c3);
+                    pattern.append(c4);
+                    EXPECT_EQ(ContentExtensions::URLFilterParser::ParseStatus::Ok, parser.addPattern(pattern.toString(), true, patternId++));
+                }
+            }
+        }
+    }
+    
+    Vector<ContentExtensions::NFA> nfas;
+    combinedURLFilters.processNFAs(std::numeric_limits<size_t>::max(), [&](ContentExtensions::NFA&& nfa) {
+        nfas.append(WTFMove(nfa));
+    });
+    EXPECT_EQ(nfas.size(), 1ull);
+    
+    Vector<ContentExtensions::DFA> dfas;
+    for (auto& nfa : nfas)
+        dfas.append(ContentExtensions::NFAToDFA::convert(nfa));
+    EXPECT_EQ(dfas.size(), 1ull);
+    
+    Vector<ContentExtensions::DFABytecode> combinedBytecode;
+    for (const auto& dfa : dfas) {
+        Vector<ContentExtensions::DFABytecode> bytecode;
+        ContentExtensions::DFABytecodeCompiler compiler(dfa, bytecode);
+        compiler.compile();
+        combinedBytecode.appendVector(bytecode);
+    }
+    
+    ContentExtensions::DFABytecodeInterpreter interpreter(&combinedBytecode[0], combinedBytecode.size());
+    
+    patternId = 0;
+    for (char c1 = 'A'; c1 <= 'Z'; ++c1) {
+        for (char c2 = 'A'; c2 <= 'Z'; ++c2) {
+            for (char c3 = 'A'; c3 <= 'Z'; ++c3) {
+                for (char c4 = 'A'; c4 <= 'C'; ++c4) {
+                    StringBuilder pattern;
+                    pattern.append(c1);
+                    pattern.append(c2);
+                    pattern.append(c3);
+                    // Test different jumping patterns distributed throughout the DFA:
+                    switch ((c1 + c2 + c3 + c4) % 4) {
+                    case 0:
+                        // This should not match.
+                        pattern.append('x');
+                        pattern.append(c4);
+                        break;
+                    case 1:
+                        // This should jump back to the root, then match.
+                        pattern.append('x');
+                        pattern.append(c1);
+                        pattern.append(c2);
+                        pattern.append(c3);
+                        pattern.append(c4);
+                        break;
+                    case 2:
+                        // This should match at the end of the string.
+                        pattern.append(c4);
+                        break;
+                    case 3:
+                        // This should match then jump back to the root.
+                        pattern.append(c4);
+                        pattern.append('x');
+                        break;
+                    }
+                    auto matches = interpreter.interpret(pattern.toString().utf8(), 0);
+                    switch ((c1 + c2 + c3 + c4) % 4) {
+                    case 0:
+                        compareContents(matches, { });
+                        break;
+                    case 1:
+                    case 2:
+                    case 3:
+                        compareContents(matches, {patternId});
+                        break;
+                    }
+                    patternId++;
+                }
+            }
+        }
+    }
+
+    compareContents(interpreter.interpret("CAAAAx", 0), {expectedIndex('C', 4), expectedIndex('A', 1)});
+    compareContents(interpreter.interpret("KAAAAx", 0), {expectedIndex('K', 4), expectedIndex('A', 1)});
+    compareContents(interpreter.interpret("AKAAAx", 0), {expectedIndex('K', 3), expectedIndex('K', 4)});
+    compareContents(interpreter.interpret("AKxAAAAx", 0), {expectedIndex('A', 1)});
+    compareContents(interpreter.interpret("AKAxAAAAx", 0), {expectedIndex('A', 1)});
+    compareContents(interpreter.interpret("AKAxZKAxZKZxAAAAx", 0), {expectedIndex('A', 1)});
+    compareContents(interpreter.interpret("ZAAAA", 0), {expectedIndex('Z', 4), expectedIndex('A', 1)});
+    compareContents(interpreter.interpret("ZZxZAAAB", 0), {expectedIndex('Z', 4), expectedIndex('B', 1)});
+#endif
 }
 
 TEST_F(ContentExtensionTest, DeepNFA)
@@ -1287,18 +1440,18 @@ TEST_F(ContentExtensionTest, StrictPrefixSeparatedMachines3)
 {
     auto backend = makeBackend("[{\"action\":{\"type\":\"block\"},\"trigger\":{\"url-filter\":\"A*D\"}},"
         "{\"action\":{\"type\":\"ignore-previous-rules\"},\"trigger\":{\"url-filter\":\"A*BA+\"}},"
-        "{\"action\":{\"type\":\"block-cookies\"},\"trigger\":{\"url-filter\":\"A*BC\"}}]");
+        "{\"action\":{\"type\":\"make-https\"},\"trigger\":{\"url-filter\":\"A*BC\"}}]");
     
     testRequest(backend, mainDocumentRequest("http://webkit.org/D"), { ContentExtensions::ActionType::BlockLoad });
     testRequest(backend, mainDocumentRequest("http://webkit.org/AAD"), { ContentExtensions::ActionType::BlockLoad });
     testRequest(backend, mainDocumentRequest("http://webkit.org/AB"), { });
     testRequest(backend, mainDocumentRequest("http://webkit.org/ABA"), { }, true);
     testRequest(backend, mainDocumentRequest("http://webkit.org/ABAD"), { }, true);
-    testRequest(backend, mainDocumentRequest("http://webkit.org/BC"), { ContentExtensions::ActionType::BlockCookies });
-    testRequest(backend, mainDocumentRequest("http://webkit.org/ABC"), { ContentExtensions::ActionType::BlockCookies });
-    testRequest(backend, mainDocumentRequest("http://webkit.org/ABABC"), { ContentExtensions::ActionType::BlockCookies }, true);
-    testRequest(backend, mainDocumentRequest("http://webkit.org/ABABCAD"), { ContentExtensions::ActionType::BlockCookies }, true);
-    testRequest(backend, mainDocumentRequest("http://webkit.org/ABCAD"), { ContentExtensions::ActionType::BlockCookies, ContentExtensions::ActionType::BlockLoad });
+    testRequest(backend, mainDocumentRequest("http://webkit.org/BC"), { ContentExtensions::ActionType::MakeHTTPS });
+    testRequest(backend, mainDocumentRequest("http://webkit.org/ABC"), { ContentExtensions::ActionType::MakeHTTPS });
+    testRequest(backend, mainDocumentRequest("http://webkit.org/ABABC"), { ContentExtensions::ActionType::MakeHTTPS }, true);
+    testRequest(backend, mainDocumentRequest("http://webkit.org/ABABCAD"), { ContentExtensions::ActionType::MakeHTTPS }, true);
+    testRequest(backend, mainDocumentRequest("http://webkit.org/ABCAD"), { ContentExtensions::ActionType::MakeHTTPS, ContentExtensions::ActionType::BlockLoad });
 }
     
 TEST_F(ContentExtensionTest, StrictPrefixSeparatedMachines3Partitioning)
@@ -1328,7 +1481,7 @@ TEST_F(ContentExtensionTest, SplittingLargeNFAs)
         
         Vector<ContentExtensions::NFA> nfas;
         combinedURLFilters.processNFAs(i, [&](ContentExtensions::NFA&& nfa) {
-            nfas.append(WTF::move(nfa));
+            nfas.append(WTFMove(nfa));
         });
         EXPECT_EQ(nfas.size(), expectedNFACounts[i]);
         

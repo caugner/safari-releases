@@ -14,7 +14,6 @@
 #else
 #import <CoreImage/CoreImage.h>
 #import <CoreText/CoreText.h>
-#import <WebKitSystemInterfaceIOS.h>
 #endif
 
 @class AVAsset;
@@ -45,16 +44,9 @@ typedef enum {
 CFStringRef WKSignedPublicKeyAndChallengeString(unsigned keySize, CFStringRef challenge, CFStringRef keyDescription);
 WKCertificateParseResult WKAddCertificatesToKeychainFromData(const void *bytes, unsigned length);
 
-NSDate *WKGetNSURLResponseLastModifiedDate(NSURLResponse *response);
-NSString *WKCopyNSURLResponseStatusLine(NSURLResponse *response);
-
-CFArrayRef WKCopyNSURLResponseCertificateChain(NSURLResponse *response);
-
 CFStringEncoding WKGetWebDefaultCFStringEncoding(void);
 
 void WKSetMetadataURL(NSString *URLString, NSString *referrer, NSString *path);
-void WKSetNSURLConnectionDefersCallbacks(NSURLConnection *connection, BOOL defers);
-void WKSetNSURLRequestShouldContentSniff(NSMutableURLRequest *, BOOL shouldContentSniff);
     
 typedef enum {
     WKPlugInModuleLoadPolicyLoadNormally = 0,
@@ -70,30 +62,11 @@ BOOL WKIsPluginUpdateAvailable(NSString *bundleIdentifier);
 BOOL WKShouldBlockWebGL();
 BOOL WKShouldSuggestBlockingWebGL();
 
-BOOL WKCGContextGetShouldSmoothFonts(CGContextRef);
-
-void WKSetUpFontCache(void);
-
-void WKSetBaseCTM(CGContextRef, CGAffineTransform);
-void WKSetPatternPhaseInUserSpace(CGContextRef, CGPoint);
-CGAffineTransform WKGetUserToBaseCTM(CGContextRef);
-
-void WKGetGlyphsForCharacters(CGFontRef, const UniChar[], CGGlyph[], size_t);
-bool WKGetVerticalGlyphsForCharacters(CTFontRef, const UniChar[], CGGlyph[], size_t);
-
-CTLineRef WKCreateCTLineWithUniCharProvider(const UniChar* (*provide)(CFIndex stringIndex, CFIndex* charCount, CFDictionaryRef* attributes, void*), void (*dispose)(const UniChar* chars, void*), void*);
-
-CTTypesetterRef WKCreateCTTypesetterWithUniCharProviderAndOptions(const UniChar* (*provide)(CFIndex stringIndex, CFIndex* charCount, CFDictionaryRef* attributes, void*), void (*dispose)(const UniChar* chars, void*), void*, CFDictionaryRef options);
-
-CGSize WKCTRunGetInitialAdvance(CTRunRef);
-
 enum {
     WKCTFontTransformApplyShaping = (1 << 0),
     WKCTFontTransformApplyPositioning = (1 << 1)
 };
 typedef int WKCTFontTransformOptions;
-
-bool WKCTFontTransformGlyphs(CTFontRef, CGGlyph glyphs[], CGSize advances[], CFIndex count, WKCTFontTransformOptions);
 
 typedef enum {
     WKPatternTilingNoDistortion,
@@ -101,11 +74,10 @@ typedef enum {
     WKPatternTilingConstantSpacing
 } WKPatternTiling;
 
-CGPatternRef WKCGPatternCreateWithImageAndTransform(CGImageRef, CGAffineTransform, int tiling);
-void WKCGContextResetClip(CGContextRef);
+CGPatternRef WKCGPatternCreateWithImageAndTransform(CGImageRef image, CGAffineTransform transform, int tiling);
 
-BOOL WKCGContextIsBitmapContext(CGContextRef);
-bool WKCGContextIsPDFContext(CGContextRef);
+BOOL WKCGContextIsBitmapContext(CGContextRef context);
+bool WKCGContextIsPDFContext(CGContextRef context);
 
 CFStringRef WKCopyFoundationCacheDirectory(void);
 
@@ -113,21 +85,14 @@ typedef const struct __CFURLStorageSession* CFURLStorageSessionRef;
 CFURLStorageSessionRef WKCreatePrivateStorageSession(CFStringRef);
 NSURLRequest *WKCopyRequestWithStorageSession(CFURLStorageSessionRef, NSURLRequest *);
 NSCachedURLResponse *WKCachedResponseForRequest(CFURLStorageSessionRef, NSURLRequest *);
-void WKSetRequestStorageSession(CFURLStorageSessionRef, CFMutableURLRequestRef);
 
 typedef struct OpaqueCFHTTPCookieStorage* CFHTTPCookieStorageRef;
-CFHTTPCookieStorageRef WKCopyHTTPCookieStorage(CFURLStorageSessionRef);
 unsigned WKGetHTTPCookieAcceptPolicy(CFHTTPCookieStorageRef);
-void WKSetHTTPCookieAcceptPolicy(CFHTTPCookieStorageRef, unsigned policy);
 NSArray *WKHTTPCookies(CFHTTPCookieStorageRef);
 NSArray *WKHTTPCookiesForURL(CFHTTPCookieStorageRef, NSURL *, NSURL *);
 void WKSetHTTPCookiesForURL(CFHTTPCookieStorageRef, NSArray *, NSURL *, NSURL *);
 void WKDeleteAllHTTPCookies(CFHTTPCookieStorageRef);
 void WKDeleteHTTPCookie(CFHTTPCookieStorageRef, NSHTTPCookie *);
-
-CFHTTPCookieStorageRef WKGetDefaultHTTPCookieStorage(void);
-WKCFURLCredentialRef WKCopyCredentialFromCFPersistentStorage(CFURLProtectionSpaceRef);
-void WKSetCFURLRequestShouldContentSniff(CFMutableURLRequestRef, bool flag);
 
 CFURLRef WKCopyBundleURLForExecutableURL(CFURLRef);
 
@@ -135,66 +100,40 @@ CFURLRef WKCopyBundleURLForExecutableURL(CFURLRef);
 CALayer *WKMakeRenderLayer(uint32_t contextID);
 
 typedef struct __WKCAContextRef *WKCAContextRef;
-WKCAContextRef WKCAContextMakeRemoteWithServerPort(mach_port_t);
-void WKCAContextInvalidate(WKCAContextRef);
-uint32_t WKCAContextGetContextId(WKCAContextRef);
-void WKCAContextSetLayer(WKCAContextRef, CALayer *);
-CALayer *WKCAContextGetLayer(WKCAContextRef);
-void WKCAContextSetColorSpace(WKCAContextRef, CGColorSpaceRef);
-CGColorSpaceRef WKCAContextGetColorSpace(WKCAContextRef);
+WKCAContextRef WKCAContextMakeRemoteWithServerPort(mach_port_t port);
 void WKDestroyRenderingResources(void);
 
-void WKCALayerEnumerateRectsBeingDrawnWithBlock(CALayer *, CGContextRef, void (^block)(CGRect rect));
-
-unsigned WKInitializeMaximumHTTPConnectionCountPerHost(unsigned preferredConnectionCount);
-int WKGetHTTPRequestPriority(CFURLRequestRef);
-void WKSetHTTPRequestMaximumPriority(int maximumPriority);
-void WKSetHTTPRequestPriority(CFURLRequestRef, int priority);
-void WKSetHTTPRequestMinimumFastLanePriority(int priority);
-void WKHTTPRequestEnablePipelining(CFURLRequestRef);
+void WKCALayerEnumerateRectsBeingDrawnWithBlock(CALayer *layer, CGContextRef context, void (^block)(CGRect rect));
 
 void WKSetCONNECTProxyForStream(CFReadStreamRef, CFStringRef proxyHost, CFNumberRef proxyPort);
 void WKSetCONNECTProxyAuthorizationForStream(CFReadStreamRef, CFStringRef proxyAuthorizationString);
 CFHTTPMessageRef WKCopyCONNECTProxyResponse(CFReadStreamRef, CFURLRef responseURL, CFStringRef proxyHost, CFNumberRef proxyPort);
 
-CFDictionaryRef WKNSURLRequestCreateSerializableRepresentation(NSURLRequest *, CFTypeRef tokenNull);
+CFDictionaryRef WKNSURLRequestCreateSerializableRepresentation(NSURLRequest *request, CFTypeRef tokenNull);
 NSURLRequest *WKNSURLRequestFromSerializableRepresentation(CFDictionaryRef representation, CFTypeRef tokenNull);
 CFDictionaryRef WKCFURLRequestCreateSerializableRepresentation(CFURLRequestRef cfRequest, CFTypeRef tokenNull);
 CFURLRequestRef WKCreateCFURLRequestFromSerializableRepresentation(CFDictionaryRef representation, CFTypeRef tokenNull);
 
-CFDictionaryRef WKNSURLResponseCreateSerializableRepresentation(NSURLResponse *, CFTypeRef tokenNull);
-NSURLResponse *WKNSURLResponseFromSerializableRepresentation(CFDictionaryRef representation, CFTypeRef tokenNull);
-
 CFArrayRef WKCFURLCacheCopyAllHostNamesInPersistentStore(void);
 void WKCFURLCacheDeleteHostNamesInPersistentStore(CFArrayRef hostArray);    
-
-CFStringRef WKGetCFURLResponseMIMEType(CFURLResponseRef);
-CFURLRef WKGetCFURLResponseURL(CFURLResponseRef);
-CFHTTPMessageRef WKGetCFURLResponseHTTPResponse(CFURLResponseRef);
-CFStringRef WKCopyCFURLResponseSuggestedFilename(CFURLResponseRef);
-void WKSetCFURLResponseMIMEType(CFURLResponseRef, CFStringRef mimeType);
 
 typedef enum {
     WKSandboxExtensionTypeReadOnly,
     WKSandboxExtensionTypeReadWrite,
+    WKSandboxExtensionTypeGeneric,
 } WKSandboxExtensionType;
 typedef struct __WKSandboxExtension *WKSandboxExtensionRef;
 
-WKSandboxExtensionRef WKSandboxExtensionCreate(const char* path, WKSandboxExtensionType);
-void WKSandboxExtensionDestroy(WKSandboxExtensionRef);
+WKSandboxExtensionRef WKSandboxExtensionCreate(const char* path, WKSandboxExtensionType type);
+void WKSandboxExtensionDestroy(WKSandboxExtensionRef sandboxExtension);
 
-bool WKSandboxExtensionConsume(WKSandboxExtensionRef);
-bool WKSandboxExtensionInvalidate(WKSandboxExtensionRef);
+bool WKSandboxExtensionConsume(WKSandboxExtensionRef sandboxExtension);
+bool WKSandboxExtensionInvalidate(WKSandboxExtensionRef sandboxExtension);
 
-const char* WKSandboxExtensionGetSerializedFormat(WKSandboxExtensionRef, size_t* length);
+const char* WKSandboxExtensionGetSerializedFormat(WKSandboxExtensionRef sandboxExtension, size_t* length);
 WKSandboxExtensionRef WKSandboxExtensionCreateFromSerializedFormat(const char* serializationFormat, size_t length);
 
 void WKSetCrashReportApplicationSpecificInformation(CFStringRef);
-
-void WKCGPathAddRoundedRect(CGMutablePathRef, const CGAffineTransform* matrix, CGRect, CGFloat cornerWidth, CGFloat cornerHeight);
-
-void WKCFURLRequestAllowAllPostCaching(CFURLRequestRef);
-void WKCFNetworkSetOverrideSystemProxySettings(CFDictionaryRef);
 
 bool WKIsPublicSuffix(NSString *domain);
 
@@ -243,15 +182,12 @@ NSArray *WKSpeechSynthesisGetVoiceIdentifiers(void);
 NSString *WKSpeechSynthesisGetDefaultVoiceIdentifierForLocale(NSLocale*);
 
 // Remote Accessibility API.
-void WKAXRegisterRemoteApp(void);
 void WKAXInitializeElementWithPresenterPid(id, pid_t);
 NSData *WKAXRemoteTokenForElement(id);
 id WKAXRemoteElementForToken(NSData *);
 void WKAXSetWindowForRemoteElement(id remoteWindow, id remoteElement);
 void WKAXRegisterRemoteProcess(bool registerProcess, pid_t);
 pid_t WKAXRemoteProcessIdentifier(id remoteElement);
-
-void WKDrawCapsLockIndicator(CGContextRef, CGRect);
 
 // The CG context's current path is the focus ring's path.
 // Color and radius are ignored. Older versions of WebKit expected to
@@ -267,10 +203,6 @@ void WKDrawBezeledTextArea(NSRect, BOOL enabled);
 void WKPopupMenu(NSMenu*, NSPoint location, float width, NSView*, int selectedItem, NSFont*, NSControlSize controlSize, bool usesCustomAppearance);
 void WKPopupContextMenu(NSMenu *menu, NSPoint screenLocation);
 void WKSendUserChangeNotifications(void);
-
-NSFont *WKGetFontInLanguageForRange(NSFont *font, NSString *string, NSRange range);
-NSFont *WKGetFontInLanguageForCharacter(NSFont *font, UniChar ch);
-void WKSetCGFontRenderingMode(CGContextRef cgContext, NSFont *font, BOOL shouldSubpixelQuantize);
 
 bool WKCGContextDrawsWithCorrectShadowOffsets(CGContextRef);
 
@@ -296,9 +228,7 @@ void WKQTMovieSelectPreferredAlternates(QTMovie* movie);
 
 unsigned WKQTIncludeOnlyModernMediaFileTypes(void);
 float WKQTMovieMaxTimeLoaded(QTMovie* movie);
-float WKQTMovieMaxTimeSeekable(QTMovie* movie);
 NSString *WKQTMovieMaxTimeLoadedChangeNotification(void);
-void WKQTMovieViewSetDrawSynchronously(QTMovieView* view, BOOL sync);
 void WKQTMovieDisableComponent(uint32_t[5]);
 NSURL *WKQTMovieResolvedURL(QTMovie* movie);
 
@@ -395,7 +325,6 @@ CFStringRef WKCopyDefaultSearchProviderDisplayName(void);
 NSCursor *WKCursor(const char *name);
 
 bool WKExecutableWasLinkedOnOrBeforeLion(void);
-bool WKExecutableWasLinkedOnOrBeforeMountainLion(void);
 
 CGFloat WKNSElasticDeltaForTimeDelta(CGFloat initialPosition, CGFloat initialVelocity, CGFloat elapsedTime);
 CGFloat WKNSElasticDeltaForReboundDelta(CGFloat delta);
@@ -415,12 +344,11 @@ typedef uint32_t WKWindowID;
 typedef void (*WKOcclusionNotificationHandler)(uint32_t, void* data, uint32_t dataLength, void*, uint32_t);
 
 bool WKRegisterOcclusionNotificationHandler(WKOcclusionNotificationType, WKOcclusionNotificationHandler);
-bool WKUnregisterOcclusionNotificationHandler(WKOcclusionNotificationType, WKOcclusionNotificationHandler);
 bool WKEnableWindowOcclusionNotifications(NSInteger windowID, bool *outCurrentOcclusionState);
 
 #if defined(__x86_64__)
 #import <mach/mig.h>
-CFRunLoopSourceRef WKCreateMIGServerSource(mig_subsystem_t, mach_port_t serverPort);
+CFRunLoopSourceRef WKCreateMIGServerSource(mig_subsystem_t subsystem, mach_port_t serverPort);
 #endif
 
 
@@ -438,9 +366,9 @@ BOOL WKConvertNSEventToCarbonEvent(EventRecord *carbonEvent, NSEvent *cocoaEvent
 void WKSendKeyEventToTSM(NSEvent *theEvent);
 void WKCallDrawingNotification(CGrafPtr port, Rect *bounds);
 
-NSEvent *WKCreateNSEventWithCarbonEvent(EventRef);
-NSEvent *WKCreateNSEventWithCarbonMouseMoveEvent(EventRef inEvent, NSWindow *);
-NSEvent *WKCreateNSEventWithCarbonClickEvent(EventRef inEvent, WindowRef);
+NSEvent *WKCreateNSEventWithCarbonEvent(EventRef eventRef);
+NSEvent *WKCreateNSEventWithCarbonMouseMoveEvent(EventRef inEvent, NSWindow *window);
+NSEvent *WKCreateNSEventWithCarbonClickEvent(EventRef inEvent, WindowRef windowRef);
 
 ScriptCode WKGetScriptCodeFromCurrentKeyboardInputSource(void);
 

@@ -96,7 +96,7 @@ layer at (0,0) size 785x1089
         RenderTable {TABLE} at (0,0) size 585x57
           RenderTableSection {TBODY} at (0,0) size 585x57
             RenderTableRow {TR} at (0,2) size 585x53
-              RenderTableCell {TD} at (2,27) size 2x2 [r=0 c=0 rs=1 cs=1]
+              RenderTableCell {TD} at (2,27) size 2x3 [r=0 c=0 rs=1 cs=1]
               RenderTableCell {TD} at (6,2) size 2x2 [r=0 c=1 rs=1 cs=1]
               RenderTableCell {TD} at (10,17) size 153x23 [r=0 c=2 rs=1 cs=1]
                 RenderImage {IMG} at (1,1) size 151x21
@@ -130,7 +130,7 @@ layer at (0,0) size 785x1089
             RenderTableRow {TR} at (0,2) size 714x182
               RenderTableCell {TD} at (2,92) size 2x2 [r=0 c=0 rs=1 cs=1]
               RenderTableCell {TD} at (6,2) size 2x2 [r=0 c=1 rs=1 cs=1]
-              RenderTableCell {TD} at (10,81) size 94x23 [r=0 c=2 rs=1 cs=1]
+              RenderTableCell {TD} at (10,81) size 94x24 [r=0 c=2 rs=1 cs=1]
                 RenderImage {IMG} at (1,1) size 92x21
                 RenderText {#text} at (0,0) size 0x0
               RenderTableCell {TD} at (106,2) size 606x182 [r=0 c=3 rs=1 cs=1]
@@ -226,7 +226,7 @@ layer at (0,0) size 785x1089
             RenderTableRow {TR} at (0,2) size 603x182
               RenderTableCell {TD} at (2,92) size 2x2 [r=0 c=0 rs=1 cs=1]
               RenderTableCell {TD} at (6,2) size 2x2 [r=0 c=1 rs=1 cs=1]
-              RenderTableCell {TD} at (10,81) size 94x23 [r=0 c=2 rs=1 cs=1]
+              RenderTableCell {TD} at (10,81) size 94x24 [r=0 c=2 rs=1 cs=1]
                 RenderImage {IMG} at (1,1) size 92x21
                 RenderText {#text} at (0,0) size 0x0
               RenderTableCell {TD} at (106,2) size 495x182 [r=0 c=3 rs=1 cs=1]
@@ -322,7 +322,7 @@ layer at (0,0) size 785x1089
             RenderTableRow {TR} at (0,2) size 618x104
               RenderTableCell {TD} at (2,53) size 2x2 [r=0 c=0 rs=1 cs=1]
               RenderTableCell {TD} at (6,2) size 2x2 [r=0 c=1 rs=1 cs=1]
-              RenderTableCell {TD} at (10,42) size 94x23 [r=0 c=2 rs=1 cs=1]
+              RenderTableCell {TD} at (10,42) size 94x24 [r=0 c=2 rs=1 cs=1]
                 RenderImage {IMG} at (1,1) size 92x21
                 RenderText {#text} at (0,0) size 0x0
               RenderTableCell {TD} at (106,2) size 510x104 [r=0 c=3 rs=1 cs=1]

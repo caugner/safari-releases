@@ -27,8 +27,10 @@
 #include "cmakeconfig.h"
 #endif
 
-#include <WebCore/PlatformExportMacros.h>
 #include <runtime/JSExportMacros.h>
+#ifndef BUILDING_JSCONLY__
+#include <WebCore/PlatformExportMacros.h>
+#endif
 
 #if defined(__APPLE__) && __APPLE__
 
@@ -63,7 +65,7 @@
 
 #include <stdint.h>
 
-#if !PLATFORM(IOS) && !PLATFORM(WIN) && !(PLATFORM(GTK) && !defined(BUILDING_WEBKIT2__))
+#if !PLATFORM(IOS) && !PLATFORM(WIN) && !defined(BUILDING_JSCONLY__)
 #include <WebKit/WebKit2_C.h>
 #endif
 
@@ -83,9 +85,12 @@
 #endif
 
 #if PLATFORM(COCOA) && defined(__OBJC__)
+// FIXME: Get Cocoa tests working with CMake on Mac.
+#if !defined(BUILDING_WITH_CMAKE)
 #import <WebKit/WebKit.h>
 #endif
+#endif
 
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS) && !defined(BUILDING_JSCONLY__)
 #define WK_HAVE_C_SPI 1
 #endif

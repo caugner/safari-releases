@@ -9,7 +9,7 @@ layer at (0,0) size 800x600
             text run at (13,0) width 388: "Communicator 4.5 Installers for Mac and Windows Platforms"
         RenderTableSection {TBODY} at (2,19) size 409x81
           RenderTableRow {TR} at (0,0) size 409x22
-            RenderTableCell {TH} at (0,8) size 119x5 [border: (3px none #000000)] [r=0 c=0 rs=1 cs=1]
+            RenderTableCell {TH} at (0,8) size 119x6 [border: (3px none #000000)] [r=0 c=0 rs=1 cs=1]
             RenderTableCell {TH} at (119,0) size 109x22 [border: (3px none #000000)] [r=0 c=1 rs=1 cs=1]
               RenderText {#text} at (1,4) size 107x17
                 text run at (1,4) width 107: "Macintosh PPC"

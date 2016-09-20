@@ -27,16 +27,16 @@ layer at (0,0) size 800x1055
       RenderTable {TABLE} at (0,262) size 784x118 [border: (1px outset #808080)]
         RenderTableSection {TBODY} at (1,1) size 782x116
           RenderTableRow {TR} at (0,5) size 782x45
-            RenderTableCell {TD} at (5,5) size 772x45 [border: (1px inset #808080) (2px solid #008000) (1px inset #808080)] [r=0 c=0 rs=1 cs=2]
+            RenderTableCell {TD} at (5,5) size 773x45 [border: (1px inset #808080) (2px solid #008000) (1px inset #808080)] [r=0 c=0 rs=1 cs=2]
               RenderText {#text} at (2,2) size 754x39
                 text run at (2,2) width 463: "Every cell in this table should have a 2-pixel solid green bottom border. "
                 text run at (464,2) width 292: "This is also true of the table-testing section in"
                 text run at (2,22) width 203: "the second half of the test page."
           RenderTableRow {TR} at (0,55) size 782x56
-            RenderTableCell {TD} at (5,70) size 194x25 [border: (1px inset #808080) (2px solid #008000) (1px inset #808080)] [r=1 c=0 rs=1 cs=1]
-              RenderText {#text} at (2,2) size 54x19
-                text run at (2,2) width 54: "Cell one"
-            RenderTableCell {TD} at (204,55) size 573x56 [border: (1px inset #808080) (2px solid #008000) (1px inset #808080)] [r=1 c=1 rs=1 cs=1]
+            RenderTableCell {TD} at (5,70) size 195x26 [border: (1px inset #808080) (2px solid #008000) (1px inset #808080)] [r=1 c=0 rs=1 cs=1]
+              RenderText {#text} at (2,2) size 54x20
+                text run at (2,3) width 54: "Cell one"
+            RenderTableCell {TD} at (204,55) size 574x56 [border: (1px inset #808080) (2px solid #008000) (1px inset #808080)] [r=1 c=1 rs=1 cs=1]
               RenderBlock (anonymous) at (2,2) size 569x20
                 RenderText {#text} at (0,0) size 55x19
                   text run at (0,0) width 55: "Cell two"
@@ -105,17 +105,17 @@ layer at (0,0) size 800x1055
               RenderTable {TABLE} at (4,143) size 762x118 [border: (1px outset #808080)]
                 RenderTableSection {TBODY} at (1,1) size 760x116
                   RenderTableRow {TR} at (0,5) size 760x45
-                    RenderTableCell {TD} at (5,5) size 750x45 [border: (1px inset #808080) (2px solid #008000) (1px inset #808080)] [r=0 c=0 rs=1 cs=2]
+                    RenderTableCell {TD} at (5,5) size 751x45 [border: (1px inset #808080) (2px solid #008000) (1px inset #808080)] [r=0 c=0 rs=1 cs=2]
                       RenderText {#text} at (2,2) size 738x39
                         text run at (2,2) width 463: "Every cell in this table should have a 2-pixel solid green bottom border. "
                         text run at (464,2) width 276: "This is also true of the table-testing section"
                         text run at (2,22) width 219: "in the second half of the test page."
                   RenderTableRow {TR} at (0,55) size 760x56
-                    RenderTableCell {TD} at (5,70) size 188x25 [border: (1px inset #808080) (2px solid #008000) (1px inset #808080)] [r=1 c=0 rs=1 cs=1]
-                      RenderText {#text} at (2,2) size 54x19
-                        text run at (2,2) width 54: "Cell one"
-                    RenderTableCell {TD} at (198,55) size 557x56 [border: (1px inset #808080) (2px solid #008000) (1px inset #808080)] [r=1 c=1 rs=1 cs=1]
-                      RenderBlock (anonymous) at (2,2) size 553x20
+                    RenderTableCell {TD} at (5,70) size 190x26 [border: (1px inset #808080) (2px solid #008000) (1px inset #808080)] [r=1 c=0 rs=1 cs=1]
+                      RenderText {#text} at (2,2) size 54x20
+                        text run at (2,3) width 54: "Cell one"
+                    RenderTableCell {TD} at (199,55) size 557x56 [border: (1px inset #808080) (2px solid #008000) (1px inset #808080)] [r=1 c=1 rs=1 cs=1]
+                      RenderBlock (anonymous) at (2,2) size 552x20
                         RenderText {#text} at (0,0) size 55x19
                           text run at (0,0) width 55: "Cell two"
                       RenderTable {TABLE} at (2,22) size 166x31 [border: (1px outset #808080)]

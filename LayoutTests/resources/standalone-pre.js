@@ -176,6 +176,46 @@ function dfgShouldBe(theFunction, _a, _b)
   return values.length;
 }
 
+function shouldBeType(_a, _type) {
+  var exception;
+  var _av;
+  try {
+    _av = eval(_a);
+  } catch (e) {
+    exception = e;
+  }
+
+  var _typev = eval(_type);
+  if (_av instanceof _typev) {
+    testPassed(_a + " is an instance of " + _type);
+  } else {
+    testFailed(_a + " is not an instance of " + _type);
+  }
+}
+
+function shouldNotBe(_a, _b, quiet)
+{
+  if (typeof _a != "string" || typeof _b != "string")
+    debug("WARN: shouldNotBe() expects string arguments");
+  var exception;
+  var _av;
+  try {
+     _av = eval(_a);
+  } catch (e) {
+     exception = e;
+  }
+  var _bv = eval(_b);
+
+  if (exception)
+    testFailed(_a + " should not be " + _bv + ". Threw exception " + exception);
+  else if (!isResultCorrect(_av, _bv)) {
+    if (!quiet) {
+        testPassed(_a + " is not " + _b);
+    }
+  } else
+    testFailed(_a + " should not be " + _bv + ".");
+}
+
 function shouldBeTrue(_a) { shouldBe(_a, "true"); }
 function shouldBeFalse(_a) { shouldBe(_a, "false"); }
 function shouldBeNaN(_a) { shouldBe(_a, "NaN"); }
@@ -205,6 +245,24 @@ function shouldBeUndefined(_a)
     testPassed(_a + " is undefined.");
   else
     testFailed(_a + " should be undefined. Was " + _av);
+}
+
+function shouldBeDefined(_a)
+{
+  var exception;
+  var _av;
+  try {
+     _av = eval(_a);
+  } catch (e) {
+     exception = e;
+  }
+
+  if (exception)
+    testFailed(_a + " should be defined. Threw exception " + exception);
+  else if (_av !== undefined)
+    testPassed(_a + " is defined.");
+  else
+    testFailed(_a + " should be defined. Was " + _av);
 }
 
 function shouldNotThrow(_a) {

@@ -5,7 +5,6 @@ On success, you will see a series of "PASS" messages, followed by "TEST COMPLETE
 
 indexedDB = self.indexedDB || self.webkitIndexedDB || self.mozIndexedDB || self.msIndexedDB || self.OIndexedDB;
 
-dbname = "cursor-basics.html"
 indexedDB.deleteDatabase(dbname)
 indexedDB.open(dbname)
 
@@ -14,7 +13,6 @@ store = db.createObjectStore('storeName')
 index = store.createIndex('indexName', 'indexOn')
 store.put({indexOn: 'a'}, 0)
 store.openCursor()
-store.openKeyCursor()
 index.openCursor()
 index.openKeyCursor()
 
@@ -26,8 +24,8 @@ PASS 'key' in cursor is true
 PASS 'primaryKey' in cursor is true
 PASS 'continue' in cursor is true
 PASS typeof cursor.continue is "function"
-PASS 'continuePrimaryKey' in cursor is true
-PASS typeof cursor.continuePrimaryKey is "function"
+FAIL 'continuePrimaryKey' in cursor should be true. Was false.
+FAIL typeof cursor.continuePrimaryKey should be function. Was undefined.
 PASS 'advance' in cursor is true
 PASS typeof cursor.advance is "function"
 PASS 'update' in cursor is true
@@ -40,28 +38,6 @@ PASS cursor instanceof IDBCursorWithValue is true
 PASS 'value' in cursor is true
 PASS JSON.stringify(cursor.value) is "{\"indexOn\":\"a\"}"
 
-onStoreOpenKeyCursor():
-cursor = event.target.result
-PASS cursor is non-null.
-PASS cursor instanceof IDBCursor is true
-PASS 'key' in cursor is true
-PASS 'primaryKey' in cursor is true
-PASS 'continue' in cursor is true
-PASS typeof cursor.continue is "function"
-PASS 'continuePrimaryKey' in cursor is true
-PASS typeof cursor.continuePrimaryKey is "function"
-PASS 'advance' in cursor is true
-PASS typeof cursor.advance is "function"
-PASS 'update' in cursor is true
-PASS typeof cursor.update is "function"
-PASS 'delete' in cursor is true
-PASS typeof cursor.delete is "function"
-PASS cursor.key is 0
-PASS 'primaryKey' in cursor is true
-PASS cursor.primaryKey is 0
-PASS cursor instanceof IDBCursorWithValue is false
-PASS 'value' in cursor is false
-
 onIndexOpenCursor():
 cursor = event.target.result
 PASS cursor is non-null.
@@ -70,8 +46,8 @@ PASS 'key' in cursor is true
 PASS 'primaryKey' in cursor is true
 PASS 'continue' in cursor is true
 PASS typeof cursor.continue is "function"
-PASS 'continuePrimaryKey' in cursor is true
-PASS typeof cursor.continuePrimaryKey is "function"
+FAIL 'continuePrimaryKey' in cursor should be true. Was false.
+FAIL typeof cursor.continuePrimaryKey should be function. Was undefined.
 PASS 'advance' in cursor is true
 PASS typeof cursor.advance is "function"
 PASS 'update' in cursor is true
@@ -92,8 +68,8 @@ PASS 'key' in cursor is true
 PASS 'primaryKey' in cursor is true
 PASS 'continue' in cursor is true
 PASS typeof cursor.continue is "function"
-PASS 'continuePrimaryKey' in cursor is true
-PASS typeof cursor.continuePrimaryKey is "function"
+FAIL 'continuePrimaryKey' in cursor should be true. Was false.
+FAIL typeof cursor.continuePrimaryKey should be function. Was undefined.
 PASS 'advance' in cursor is true
 PASS typeof cursor.advance is "function"
 PASS 'update' in cursor is true
@@ -106,6 +82,7 @@ PASS cursor instanceof IDBCursorWithValue is false
 PASS cursor.primaryKey is 0
 PASS 'value' in cursor is false
 PASS successfullyParsed is true
+Some tests failed.
 
 TEST COMPLETE
 

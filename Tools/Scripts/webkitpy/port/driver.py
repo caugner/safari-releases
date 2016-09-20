@@ -1,4 +1,5 @@
 # Copyright (C) 2011 Google Inc. All rights reserved.
+# Copyright (c) 2015, 2016 Apple Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are
@@ -114,6 +115,7 @@ class DriverOutput(object):
         for pattern in patterns:
             self.error = re.sub(pattern[0], pattern[1], self.error)
 
+
 class Driver(object):
     """object for running test(s) using DumpRenderTree/WebKitTestRunner."""
 
@@ -131,6 +133,9 @@ class Driver(object):
         self._no_timeout = no_timeout
 
         self._driver_tempdir = None
+        self._driver_user_directory_suffix = None
+        self._driver_user_cache_directory = None
+
         # WebKitTestRunner/LayoutTestRelay can report back subprocess crashes by printing
         # "#CRASHED - PROCESSNAME".  Since those can happen at any time and ServerProcess
         # won't be aware of them (since the actual tool didn't crash, just a subprocess)
@@ -310,16 +315,28 @@ class Driver(object):
             self._start(pixel_tests, per_test_args)
             self._run_post_start_tasks()
 
+    def _append_environment_variable_path(self, environment, variable, path):
+        if variable in environment:
+            environment[variable] = environment[variable] + os.pathsep + path
+        else:
+            environment[variable] = path
+
     def _setup_environ_for_driver(self, environment):
-        environment['DYLD_LIBRARY_PATH'] = self._port._build_path()
-        environment['DYLD_FRAMEWORK_PATH'] = self._port._build_path()
-        # FIXME: We're assuming that WebKitTestRunner checks this DumpRenderTree-named environment variable.
-        # FIXME: Commented out for now to avoid tests breaking. Re-enable after
-        # we cut over to NRWT
-        #environment['DUMPRENDERTREE_TEMP'] = str(self._port._driver_tempdir_for_environment())
+        build_root_path = str(self._port._build_path())
+        # FIXME: DYLD_* variables should be Mac-only. Even iOS Simulator doesn't need them, as LayoutTestRelay is a host binary.
+        self._append_environment_variable_path(environment, 'DYLD_LIBRARY_PATH', build_root_path)
+        self._append_environment_variable_path(environment, '__XPC_DYLD_LIBRARY_PATH', build_root_path)
+        self._append_environment_variable_path(environment, 'DYLD_FRAMEWORK_PATH', build_root_path)
+        self._append_environment_variable_path(environment, '__XPC_DYLD_FRAMEWORK_PATH', build_root_path)
+        # Use an isolated temp directory that can be deleted after testing (especially important on Mac, as
+        # CoreMedia disk cache is in the temp directory).
+        environment['TMPDIR'] = str(self._driver_tempdir)
+        environment['DIRHELPER_USER_DIR_SUFFIX'] = self._driver_user_directory_suffix
+        # Put certain normally persistent files into the temp directory (e.g. IndexedDB storage).
         environment['DUMPRENDERTREE_TEMP'] = str(self._driver_tempdir)
-        environment['LOCAL_RESOURCE_ROOT'] = self._port.layout_tests_dir()
+        environment['LOCAL_RESOURCE_ROOT'] = str(self._port.layout_tests_dir())
         environment['ASAN_OPTIONS'] = "allocator_may_return_null=1"
+        environment['__XPC_ASAN_OPTIONS'] = environment['ASAN_OPTIONS']
         if 'WEBKIT_OUTPUTDIR' in os.environ:
             environment['WEBKIT_OUTPUTDIR'] = os.environ['WEBKIT_OUTPUTDIR']
         if self._profiler:
@@ -328,7 +345,15 @@ class Driver(object):
 
     def _start(self, pixel_tests, per_test_args):
         self.stop()
+        # Each driver process should be using individual directories under _driver_tempdir (which is deleted when stopping),
+        # however some subsystems on some platforms could end up using process default ones.
+        self._port._clear_global_caches_and_temporary_files()
         self._driver_tempdir = self._port._driver_tempdir()
+        self._driver_user_directory_suffix = os.path.basename(str(self._driver_tempdir))
+        user_cache_directory = self._port._path_to_user_cache_directory(self._driver_user_directory_suffix)
+        if user_cache_directory:
+            self._port._filesystem.maybe_make_directory(user_cache_directory)
+            self._driver_user_cache_directory = user_cache_directory
         server_name = self._port.driver_name()
         environment = self._port.setup_environ_for_server(server_name)
         environment = self._setup_environ_for_driver(environment)
@@ -356,6 +381,9 @@ class Driver(object):
         if self._driver_tempdir:
             self._port._filesystem.rmtree(str(self._driver_tempdir))
             self._driver_tempdir = None
+        if self._driver_user_cache_directory:
+            self._port._filesystem.rmtree(self._driver_user_cache_directory)
+            self._driver_user_cache_directory = None
 
     def cmd_line(self, pixel_tests, per_test_args):
         cmd = self._command_wrapper()
@@ -394,7 +422,8 @@ class Driver(object):
             return True
 
     def _check_for_driver_crash_or_unresponsiveness(self, error_line):
-        if error_line == "#CRASHED\n":
+        crashed_check = error_line.rstrip('\r\n')
+        if crashed_check == "#CRASHED":
             self._crashed_process_name = self._server_process.name()
             self._crashed_pid = self._server_process.pid()
             return True
@@ -422,7 +451,7 @@ class Driver(object):
         # FIXME: performance tests pass in full URLs instead of test names.
         if driver_input.test_name.startswith('http://') or driver_input.test_name.startswith('https://')  or driver_input.test_name == ('about:blank'):
             command = driver_input.test_name
-        elif self.is_http_test(driver_input.test_name) or self.is_web_platform_test(driver_input.test_name):
+        elif self.is_web_platform_test(driver_input.test_name) or (self.is_http_test(driver_input.test_name) and (self._port.get_option('webkit_test_runner') or sys.platform == "cygwin")):
             command = self.test_to_uri(driver_input.test_name)
         else:
             command = self._port.abspath_for_test(driver_input.test_name)
@@ -565,9 +594,7 @@ class IOSSimulatorDriver(Driver):
         dump_tool_args = cmd[1:]
         product_dir = self._port._build_path()
         relay_args = [
-            '-runtime', self._port.simulator_runtime.identifier,
-            '-deviceType', self._port.simulator_device_type.identifier,
-            '-suffix', str(self._worker_number),
+            '-udid', self._port.testing_device(self._worker_number).udid,
             '-productDir', product_dir,
             '-app', dump_tool,
         ]
@@ -595,6 +622,7 @@ class ContentBlock(object):
             self.decoded_content = base64.b64decode(self.content)
         else:
             self.decoded_content = self.content
+
 
 class DriverProxy(object):
     """A wrapper for managing two Driver instances, one with pixel tests and

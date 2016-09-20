@@ -38,6 +38,9 @@ from webkitpy.port.port_testcase import TestWebKitPort
 
 from webkitpy.tool.mocktool import MockOptions
 
+import os
+import sys
+
 
 class DriverOutputTest(unittest.TestCase):
     def test_strip_metrics(self):
@@ -178,7 +181,10 @@ class DriverTest(unittest.TestCase):
         port = TestWebKitPort()
         port._config.build_directory = lambda configuration: '/mock-build'
         driver = Driver(port, 0, pixel_tests=True, no_timeout=True)
-        self.assertEqual(driver.cmd_line(True, []), ['/mock-build/DumpRenderTree', '--no-timeout', '-'])
+        if sys.platform.startswith('win'):
+            self.assertEqual(driver.cmd_line(True, []), ['/mock-build/DumpRenderTree.exe', '--no-timeout', '-'])
+        else:
+            self.assertEqual(driver.cmd_line(True, []), ['/mock-build/DumpRenderTree', '--no-timeout', '-'])
 
     def test_check_for_driver_crash(self):
         port = TestWebKitPort()
@@ -277,3 +283,28 @@ class DriverTest(unittest.TestCase):
         driver = Driver(port, 0, pixel_tests=True)
         driver.start(True, [])
         self.assertTrue(driver._server_process.started)
+
+    def test__append_environment_variable_path(self):
+        port = self.make_port()
+        driver = Driver(port, None, pixel_tests=False)
+
+        environment = {}
+        variable = 'DYLD_FAKE_PATH'
+        path = '/tmp/fake-dyld-path'
+        driver._append_environment_variable_path(environment, variable, path)
+        self.assertEqual(environment[variable], path)
+
+        base_value = ''
+        environment[variable] = base_value
+        driver._append_environment_variable_path(environment, variable, path)
+        self.assertEqual(environment[variable], base_value + os.pathsep + path)
+
+        base_value = '/usr/lib'
+        environment[variable] = base_value
+        driver._append_environment_variable_path(environment, variable, path)
+        self.assertEqual(environment[variable], base_value + os.pathsep + path)
+
+        base_value = os.pathsep.join(['/usr/lib', '/usr/local/lib'])
+        environment[variable] = base_value
+        driver._append_environment_variable_path(environment, variable, path)
+        self.assertEqual(environment[variable], base_value + os.pathsep + path)

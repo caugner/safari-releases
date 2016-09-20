@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010, 2011, 2012 Apple Inc. All rights reserved.
+ * Copyright (C) 2010-2016 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -27,19 +27,24 @@
 #define TestRunner_h
 
 #include "JSWrappable.h"
+#include "StringFunctions.h"
 #include <JavaScriptCore/JSRetainPtr.h>
 #include <WebKit/WKBundleScriptWorld.h>
 #include <WebKit/WKRetainPtr.h>
 #include <string>
 #include <wtf/PassRefPtr.h>
+#include <wtf/text/WTFString.h>
 
 #if PLATFORM(COCOA)
 #include <wtf/RetainPtr.h>
 #include <CoreFoundation/CFRunLoop.h>
 typedef RetainPtr<CFRunLoopTimerRef> PlatformTimerRef;
 #elif PLATFORM(GTK)
-#include <wtf/glib/GMainLoopSource.h>
-typedef GMainLoopSource PlatformTimerRef;
+#include <wtf/RunLoop.h>
+namespace WTR {
+class TestRunner;
+typedef RunLoop::Timer<TestRunner> PlatformTimerRef;
+}
 #elif PLATFORM(EFL)
 typedef Ecore_Timer* PlatformTimerRef;
 #endif
@@ -62,9 +67,11 @@ public:
     void dumpAsText(bool dumpPixels);
     void waitForPolicyDelegate();
     void dumpChildFramesAsText() { m_whatToDump = AllFramesText; }
+    void waitUntilDownloadFinished();
     void waitUntilDone();
     void notifyDone();
     double preciseTime();
+    double timeout() { return m_timeout; }
 
     // Other dumping.
     void dumpBackForwardList() { m_shouldDumpBackForwardListsForAllWindows = true; }
@@ -93,6 +100,11 @@ public:
     void setCanOpenWindows(bool);
     void setCloseRemainingWindowsWhenComplete(bool value) { m_shouldCloseExtraWindows = value; }
     void setXSSAuditorEnabled(bool);
+    void setShadowDOMEnabled(bool);
+    void setCustomElementsEnabled(bool);
+    void setDOMIteratorEnabled(bool);
+    void setWebGL2Enabled(bool);
+    void setFetchAPIEnabled(bool);
     void setAllowUniversalAccessFromFileURLs(bool);
     void setAllowFileAccessFromFileURLs(bool);
     void setPluginsEnabled(bool);
@@ -111,6 +123,8 @@ public:
     void dispatchPendingLoadRequests();
     void setCacheModel(int);
     void setAsynchronousSpellCheckingEnabled(bool);
+    void setDownloadAttributeEnabled(bool);
+    void setAllowsAnySSLCertificate(bool);
 
     // Special DOM functions.
     void clearBackForwardList();
@@ -150,7 +164,9 @@ public:
     void setPrinting() { m_isPrinting = true; }
 
     // Authentication
+    void setRejectsProtectionSpaceAndContinueForAuthenticationChallenges(bool);
     void setHandlesAuthenticationChallenges(bool);
+    void setShouldLogCanAuthenticateAgainstProtectionSpace(bool);
     void setAuthenticationUsername(JSStringRef);
     void setAuthenticationPassword(JSStringRef);
 
@@ -188,6 +204,7 @@ public:
     bool waitToDump() const { return m_waitToDump; }
     void waitToDumpWatchdogTimerFired();
     void invalidateWaitToDumpWatchdogTimer();
+    bool shouldFinishAfterDownload() const { return m_shouldFinishAfterDownload; }
 
     bool shouldAllowEditing() const { return m_shouldAllowEditing; }
 
@@ -199,6 +216,7 @@ public:
     void showWebInspector();
     void closeWebInspector();
     void evaluateInWebInspector(JSStringRef script);
+    JSRetainPtr<JSStringRef> inspectorTestStubURL();
 
     void setPOSIXLocale(JSStringRef);
 
@@ -206,6 +224,8 @@ public:
     void setWillSendRequestReturnsNull(bool f) { m_willSendRequestReturnsNull = f; }
     bool willSendRequestReturnsNullOnRedirect() const { return m_willSendRequestReturnsNullOnRedirect; }
     void setWillSendRequestReturnsNullOnRedirect(bool f) { m_willSendRequestReturnsNullOnRedirect = f; }
+    void setWillSendRequestAddsHTTPBody(JSStringRef body) { m_willSendRequestHTTPBody = toWTFString(toWK(body)); }
+    String willSendRequestHTTPBody() const { return m_willSendRequestHTTPBody; }
 
     void setTextDirection(JSStringRef);
 
@@ -232,6 +252,8 @@ public:
 
     void setWindowIsKey(bool);
 
+    void setViewSize(double width, double height);
+
     void callAddChromeInputFieldCallback();
     void callRemoveChromeInputFieldCallback();
     void callFocusWebViewCallback();
@@ -256,9 +278,11 @@ public:
     void setGeolocationPermission(bool);
     void setMockGeolocationPosition(double latitude, double longitude, double accuracy, JSValueRef altitude, JSValueRef altitudeAccuracy, JSValueRef heading, JSValueRef speed);
     void setMockGeolocationPositionUnavailableError(JSStringRef message);
+    bool isGeolocationProviderActive();
 
     // MediaStream
     void setUserMediaPermission(bool);
+    void setUserMediaPermissionForOrigin(bool permission, JSStringRef origin, JSStringRef parentOrigin);
 
     void setPageVisibility(JSStringRef state);
     void resetPageVisibility();
@@ -277,13 +301,33 @@ public:
     void queueNonLoadingScript(JSStringRef script);
 
     bool secureEventInputIsEnabled() const;
-    
+
     JSValueRef failNextNewCodeBlock();
     JSValueRef numberOfDFGCompiles(JSValueRef theFunction);
     JSValueRef neverInlineFunction(JSValueRef theFunction);
 
     bool shouldDecideNavigationPolicyAfterDelay() const { return m_shouldDecideNavigationPolicyAfterDelay; }
     void setShouldDecideNavigationPolicyAfterDelay(bool);
+    void setNavigationGesturesEnabled(bool);
+    void setIgnoresViewportScaleLimits(bool);
+
+    void runUIScript(JSStringRef script, JSValueRef callback);
+    void runUIScriptCallback(unsigned callbackID, JSStringRef result);
+
+    void installDidBeginSwipeCallback(JSValueRef);
+    void installWillEndSwipeCallback(JSValueRef);
+    void installDidEndSwipeCallback(JSValueRef);
+    void installDidRemoveSwipeSnapshotCallback(JSValueRef);
+    void callDidBeginSwipeCallback();
+    void callWillEndSwipeCallback();
+    void callDidEndSwipeCallback();
+    void callDidRemoveSwipeSnapshotCallback();
+
+    void clearTestRunnerCallbacks();
+
+    void accummulateLogsForChannel(JSStringRef channel);
+
+    unsigned imageCountInGeneralPasteboard() const;
 
 private:
     TestRunner();
@@ -323,6 +367,7 @@ private:
     bool m_willSendRequestReturnsNull;
     bool m_willSendRequestReturnsNullOnRedirect;
     bool m_shouldStopProvisionalFrameLoads;
+    String m_willSendRequestHTTPBody;
 
     bool m_policyDelegateEnabled;
     bool m_policyDelegatePermissive;
@@ -336,6 +381,7 @@ private:
     double m_databaseMaxQuota;
 
     bool m_shouldDecideNavigationPolicyAfterDelay { false };
+    bool m_shouldFinishAfterDownload { false };
 
     bool m_userStyleSheetEnabled;
     WKRetainPtr<WKStringRef> m_userStyleSheetLocation;

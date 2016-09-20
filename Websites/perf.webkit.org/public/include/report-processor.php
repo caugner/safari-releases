@@ -4,19 +4,13 @@ require_once('../include/json-header.php');
 
 class ReportProcessor {
     private $db;
-    private $name_to_aggregator;
+    private $name_to_aggregator_id;
     private $report_id;
     private $runs;
 
     function __construct($db) {
         $this->db = $db;
-        $this->name_to_aggregator = array();
-        $aggregator_table = $db->fetch_table('aggregators');
-        if ($aggregator_table) {
-            foreach ($aggregator_table as $aggregator_row) {
-                $this->name_to_aggregator[$aggregator_row['aggregator_name']] = $aggregator_row;
-            }
-        }
+        $this->name_to_aggregator_id = array();
     }
 
     private function exit_with_error($message, $details = NULL) {
@@ -38,20 +32,49 @@ class ReportProcessor {
         array_key_exists('builderName', $report) or $this->exit_with_error('MissingBuilderName');
         array_key_exists('buildTime', $report) or $this->exit_with_error('MissingBuildTime');
 
+        $build_data = $this->authenticate_and_construct_build_data($report, $existing_report_id);
+        if (!$existing_report_id)
+            $this->store_report($report, $build_data);
+
+        $this->ensure_aggregators();
+
+        $this->runs = new TestRunsGenerator($this->db, $this->name_to_aggregator_id, $this->report_id);
+        $this->recursively_ensure_tests($report['tests']);
+
+        $this->runs->aggregate();
+        $this->runs->compute_caches();
+
+        $platform_id = $this->db->select_or_insert_row('platforms', 'platform', array('name' => $report['platform']));
+        if (!$platform_id)
+            $this->exit_with_error('FailedToInsertPlatform', array('name' => $report['platform']));
+
+        // FIXME: Deprecate and unsupport "jobId".
+        $build_id = $this->resolve_build_id($build_data, array_get($report, 'revisions', array()),
+            array_get($report, 'jobId', array_get($report, 'buildRequest')));
+
+        $this->runs->commit($platform_id, $build_id);
+    }
+
+    private function authenticate_and_construct_build_data(&$report, $existing_report_id) {
         $builder_info = array('name' => $report['builderName']);
         $slave_name = array_get($report, 'slaveName', NULL);
         $slave_id = NULL;
         if (!$existing_report_id) {
             $hash = NULL;
             if ($slave_name && array_key_exists('slavePassword', $report)) {
-                $hash = hash('sha256', $report['slavePassword']);
-                $slave = $this->db->select_first_row('build_slaves', 'slave', array('name' => $slave_name, 'password_hash' => $hash));
-                if ($slave)
-                    $slave_id = $slave['slave_id'];
+                $universal_password = config('universalSlavePassword');
+                if ($slave_name && $universal_password && $universal_password == $report['slavePassword'])
+                    $slave_id = $this->db->select_or_insert_row('build_slaves', 'slave', array('name' => $slave_name));
+                else {
+                    $hash = hash('sha256', $report['slavePassword']);
+                    $slave = $this->db->select_first_row('build_slaves', 'slave', array('name' => $slave_name, 'password_hash' => $hash));
+                    if ($slave)
+                        $slave_id = $slave['slave_id'];
+                }
             } else if (array_key_exists('builderPassword', $report))
                 $hash = hash('sha256', $report['builderPassword']);
 
-            if (!$hash)
+            if (!$hash && !$slave_id)
                 $this->exit_with_error('BuilderNotFound');
             if (!$slave_id)
                 $builder_info['password_hash'] = $hash;
@@ -74,35 +97,17 @@ class ReportProcessor {
                 $slave_id = $this->db->select_or_insert_row('build_slaves', 'slave', array('name' => $slave_name));
         }
 
-        $build_data = $this->construct_build_data($report, $builder_id, $slave_id);
-        if (!$existing_report_id)
-            $this->store_report($report, $build_data);
-
-        $this->runs = new TestRunsGenerator($this->db, $this->name_to_aggregator, $this->report_id);
-        $this->recursively_ensure_tests($report['tests']);
-
-        $this->runs->aggregate();
-        $this->runs->compute_caches();
-
-        $platform_id = $this->db->select_or_insert_row('platforms', 'platform', array('name' => $report['platform']));
-        if (!$platform_id)
-            $this->exit_with_error('FailedToInsertPlatform', array('name' => $report['platform']));
-
-        // FIXME: Deprecate and unsupport "jobId".
-        $build_id = $this->resolve_build_id($build_data, array_get($report, 'revisions', array()),
-            array_get($report, 'jobId', array_get($report, 'buildRequest')));
-
-        $this->runs->commit($platform_id, $build_id);
+        return $this->construct_build_data($report, $builder_id, $slave_id);
     }
 
-    private function construct_build_data($report, $builder_id, $slave_id) {
+    private function construct_build_data(&$report, $builder_id, $slave_id) {
         array_key_exists('buildNumber', $report) or $this->exit_with_error('MissingBuildNumber');
         array_key_exists('buildTime', $report) or $this->exit_with_error('MissingBuildTime');
 
         return array('builder' => $builder_id, 'slave' => $slave_id, 'number' => $report['buildNumber'], 'time' => $report['buildTime']);
     }
 
-    private function store_report($report, $build_data) {
+    private function store_report(&$report, $build_data) {
         assert(!$this->report_id);
         $this->report_id = $this->db->insert_row('reports', 'report', array(
             'builder' => $build_data['builder'],
@@ -113,7 +118,16 @@ class ReportProcessor {
             $this->exit_with_error('FailedToStoreRunReport');
     }
 
-    private function resolve_build_id($build_data, $revisions, $build_request_id) {
+    private function ensure_aggregators() {
+        foreach (TestRunsGenerator::$aggregators as $name) {
+            $id = $this->db->select_or_insert_row('aggregators', 'aggregator', array('name' => $name));
+            if (!$id)
+                $this->exit_with_error('FailedToInsertAggregator', array('aggregator' => $name));
+            $this->name_to_aggregator_id[$name] = $id;
+        }
+    }
+
+    private function resolve_build_id(&$build_data, $revisions, $build_request_id) {
         // FIXME: This code has a race condition. See <rdar://problem/15876303>.
         $results = $this->db->query_and_fetch_all("SELECT build_id, build_slave FROM builds
             WHERE build_builder = $1 AND build_number = $2 AND build_time <= $3 AND build_time + interval '1 day' > $3",
@@ -152,7 +166,7 @@ class ReportProcessor {
                 array('repository' => $repository_id, 'revision' => $revision_data['revision']), $commit_data, '*');
             if (!$commit_row)
                 $this->exit_with_error('FailedToRecordCommit', $commit_data);
-            if (abs($commit_row['commit_time'] - $commit_data['time']) > 1.0)
+            if ($commit_data['time'] && abs($commit_row['commit_time'] - $commit_data['time']) > 1.0)
                 $this->exit_with_error('MismatchingCommitTime', array('existing' => $commit_row, 'new' => $commit_data));
 
             if (!$this->db->select_or_insert_row('build_commits', null,
@@ -163,7 +177,7 @@ class ReportProcessor {
         return $build_id;
     }
 
-    private function recursively_ensure_tests($tests, $parent_id = NULL, $level = 0) {
+    private function recursively_ensure_tests(&$tests, $parent_id = NULL, $level = 0) {
         foreach ($tests as $test_name => $test) {
             $test_id = $this->db->select_or_insert_row('tests', 'test', $parent_id ? array('name' => $test_name, 'parent' => $parent_id) : array('name' => $test_name),
                 array('name' => $test_name, 'parent' => $parent_id, 'url' => array_get($test, 'url')));
@@ -209,15 +223,15 @@ class ReportProcessor {
 
 class TestRunsGenerator {
     private $db;
-    private $name_to_aggregator;
+    private $name_to_aggregator_id;
     private $report_id;
     private $metrics_to_aggregate;
     private $parent_to_values;
     private $values_to_commit;
 
-    function __construct($db, $name_to_aggregator, $report_id) {
+    function __construct($db, $name_to_aggregator_id, $report_id) {
         $this->db = $db;
-        $this->name_to_aggregator = $name_to_aggregator or array();
+        $this->name_to_aggregator_id = $name_to_aggregator_id;
         $this->report_id = $report_id;
         $this->metrics_to_aggregate = array();
         $this->parent_to_values = array();
@@ -232,10 +246,11 @@ class TestRunsGenerator {
     }
 
     function add_aggregated_metric($parent_id, $test_id, $test_name, $metric_name, $aggregator_name, $level) {
-        array_key_exists($aggregator_name, $this->name_to_aggregator) or $this->exit_with_error('AggregatorNotFound', array('name' => $aggregator_name));
+        array_key_exists($aggregator_name, $this->name_to_aggregator_id)
+            or $this->exit_with_error('AggregatorNotFound', array('name' => $aggregator_name));
 
         $metric_id = $this->db->select_or_insert_row('test_metrics', 'metric', array('name' => $metric_name,
-            'test' => $test_id, 'aggregator' => $this->name_to_aggregator[$aggregator_name]['aggregator_id']));
+            'test' => $test_id, 'aggregator' => $this->name_to_aggregator_id[$aggregator_name]));
         if (!$metric_id)
             $this->exit_with_error('FailedToAddAggregatedMetric', array('name' => $metric_name, 'test' => $test_id, 'aggregator' => $aggregator_name));
 
@@ -246,7 +261,6 @@ class TestRunsGenerator {
             'test_name' => $test_name,
             'metric_name' => $metric_name,
             'aggregator' => $aggregator_name,
-            'aggregator_definition' => $this->name_to_aggregator[$aggregator_name]['aggregator_definition'],
             'level' => $level));
     }
 
@@ -330,7 +344,7 @@ class TestRunsGenerator {
             if (count($values) != count($group_sizes)) {
                 // FIXME: We should support bootstrapping or just computing the mean in this case.
                 $this->exit_with_error('IterationGroupCountIsInconsistent', array('parent' => $test_metric['test_id'],
-                    'metric' => $test_metric['metric_name'], 'childTest' => $name_and_values['name'],
+                    'metric' => $test_metric['metric_name'], 'childTest' => $test_name,
                     'valuesByIterations' => $values_by_iterations, 'values' => $values));
             }
 
@@ -340,7 +354,7 @@ class TestRunsGenerator {
                     $run_iteration_value = $values[$group][$i];
                     if (!is_numeric($run_iteration_value)) {
                         $this->exit_with_error('NonNumeralIterationValueForAggregation', array('parent' => $test_metric['test_id'],
-                            'metric' => $test_metric['metric_name'], 'childTest' => $name_and_values['name'],
+                            'metric' => $test_metric['metric_name'], 'childTest' => $test_name,
                             'valuesByIterations' => $values_by_iterations, 'values' => $values, 'index' => $i));
                     }
                     array_push($values_by_iterations[$flattened_iteration_index], $run_iteration_value);
@@ -355,17 +369,19 @@ class TestRunsGenerator {
         return array('values' => $values_by_iterations, 'group_sizes' => $group_sizes);
     }
 
+    static public $aggregators = array('Arithmetic', 'Geometric', 'Harmonic', 'Total');
+
     private function aggregate_values($aggregator, $values) {
         switch ($aggregator) {
         case 'Arithmetic':
             return array_sum($values) / count($values);
         case 'Geometric':
-            return pow(array_product($values), 1 / count($values));
+            return exp(array_sum(array_map(function ($x) { return log($x); }, $values)) / count($values));
         case 'Harmonic':
             return count($values) / array_sum(array_map(function ($x) { return 1 / $x; }, $values));
         case 'Total':
             return array_sum($values);
-        case 'SquareSum':
+        case 'SquareSum': # This aggregator is only used internally to compute run_square_sum_cache in test_runs table.
             return array_sum(array_map(function ($x) { return $x * $x; }, $values));
         default:
             $this->exit_with_error('UnknownAggregator', array('aggregator' => $aggregator));

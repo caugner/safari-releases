@@ -134,7 +134,7 @@ layer at (0,0) size 785x2394
 layer at (12,12) size 304x104 clip at (13,13) size 302x102
   RenderTableCell {TD} at (2,52) size 304x4 [bgcolor=#808080] [border: (1px inset #808080)] [r=0 c=0 rs=1 cs=1]
 layer at (12,158) size 604x104 clip at (13,159) size 602x102
-  RenderTableCell {TD} at (2,43) size 604x21 [bgcolor=#808080] [border: (1px inset #808080)] [r=0 c=0 rs=1 cs=1]
+  RenderTableCell {TD} at (2,43) size 604x22 [bgcolor=#808080] [border: (1px inset #808080)] [r=0 c=0 rs=1 cs=1]
 layer at (12,450) size 304x104 clip at (13,451) size 302x102 scrollWidth 601
   RenderTableCell {TD} at (2,52) size 304x4 [bgcolor=#808080] [border: (1px inset #808080)] [r=0 c=0 rs=1 cs=1]
     RenderBlock {DIV} at (2,-18) size 300x17 [bgcolor=#00FF00]
@@ -160,31 +160,31 @@ layer at (318,848) size 304x104 clip at (319,849) size 302x102 scrollWidth 601
         RenderText {#text} at (0,0) size 51x17
           text run at (0,0) width 51: "Reverse"
 layer at (12,994) size 604x104 clip at (13,995) size 602x102
-  RenderTableCell {TD} at (2,43) size 604x21 [bgcolor=#808080] [border: (1px inset #808080)] [r=0 c=0 rs=1 cs=1]
+  RenderTableCell {TD} at (2,43) size 604x22 [bgcolor=#808080] [border: (1px inset #808080)] [r=0 c=0 rs=1 cs=1]
 layer at (8,1428) size 300x100 scrollWidth 600
-  RenderTableCell {DIV} at (0,41) size 300x17 [r=0 c=0 rs=1 cs=1]
+  RenderTableCell {DIV} at (0,41) size 300x18 [r=0 c=0 rs=1 cs=1]
     RenderBlock {DIV} at (0,0) size 300x17
       RenderBlock {DIV} at (0,0) size 600x17 [bgcolor=#FFA500]
         RenderText {#text} at (0,0) size 141x17
           text run at (0,0) width 141: "With display:table-cell"
 layer at (10,1698) size 605x107 clip at (13,1701) size 602x102
-  RenderTableCell {TD} at (0,41) size 605x24 [bgcolor=#808080] [border: (3px inset #808080)] [r=0 c=0 rs=1 cs=1]
+  RenderTableCell {TD} at (0,41) size 605x25 [bgcolor=#808080] [border: (3px inset #808080)] [r=0 c=0 rs=1 cs=1]
     RenderBlock {DIV} at (4,4) size 600x17 [bgcolor=#FFFF00]
       RenderText {#text} at (0,0) size 215x17
         text run at (0,0) width 215: "Test with border-collapse:collapse"
 layer at (10,1844) size 605x107 clip at (13,1847) size 602x102
-  RenderTableCell {TD} at (0,41) size 605x24 [border: (3px inset #808080)] [r=0 c=0 rs=1 cs=1]
+  RenderTableCell {TD} at (0,41) size 605x25 [border: (3px inset #808080)] [r=0 c=0 rs=1 cs=1]
     RenderBlock {DIV} at (4,4) size 600x17 [bgcolor=#FFFF00]
       RenderText {#text} at (0,0) size 271x17
         text run at (0,0) width 271: "Test with border-collapse:collapse no color"
-layer at (12,1992) size 304x103 clip at (13,1993) size 302x86 scrollWidth 601
-  RenderTableCell {TD} at (2,44) size 304x19 [bgcolor=#808080] [border: (1px inset #808080)] [r=0 c=0 rs=1 cs=1]
+layer at (12,1992) size 304x104 clip at (13,1993) size 302x87 scrollWidth 601
+  RenderTableCell {TD} at (2,44) size 304x20 [bgcolor=#808080] [border: (1px inset #808080)] [r=0 c=0 rs=1 cs=1]
     RenderBlock {DIV} at (2,-18) size 300x17 [bgcolor=#00FF00]
       RenderBlock {DIV} at (0,0) size 600x17 [bgcolor=#008000]
         RenderText {#text} at (0,0) size 151x17
           text run at (0,0) width 151: "Test with overflow:auto"
 layer at (12,2138) size 319x104 clip at (13,2139) size 302x87 scrollWidth 601
-  RenderTableCell {TD} at (2,44) size 319x19 [bgcolor=#808080] [border: (1px inset #808080)] [r=0 c=0 rs=1 cs=1]
+  RenderTableCell {TD} at (2,44) size 319x20 [bgcolor=#808080] [border: (1px inset #808080)] [r=0 c=0 rs=1 cs=1]
     RenderBlock {DIV} at (2,-18) size 300x17 [bgcolor=#00FF00]
       RenderBlock {DIV} at (0,0) size 600x17 [bgcolor=#008000]
         RenderText {#text} at (0,0) size 158x17
@@ -199,31 +199,31 @@ layer at (14,90) size 600x17
   RenderBlock (positioned) {DIV} at (14,90) size 600x17 [bgcolor=#00FFFF]
     RenderText {#text} at (0,0) size 209x17
       text run at (0,0) width 209: "With absolute positioning on div."
-layer at (14,201) size 600x17
+layer at (14,202) size 600x17
   RenderBlock {DIV} at (2,2) size 600x17 [bgcolor=#00FFFF]
     RenderText {#text} at (0,0) size 129x17
       text run at (0,0) width 129: "With opacity on div."
 layer at (12,304) size 604x104 clip at (13,305) size 602x102
-  RenderTableCell {TD} at (2,43) size 604x21 [bgcolor=#808080] [border: (1px inset #808080)] [r=0 c=0 rs=1 cs=1]
+  RenderTableCell {TD} at (2,43) size 604x22 [bgcolor=#808080] [border: (1px inset #808080)] [r=0 c=0 rs=1 cs=1]
     RenderBlock {DIV} at (2,2) size 600x17 [bgcolor=#00FFFF]
       RenderText {#text} at (0,0) size 131x17
         text run at (0,0) width 131: "With opacity on cell."
-layer at (14,1037) size 600x17
+layer at (14,1038) size 600x17
   RenderBlock (relative positioned) {DIV} at (2,2) size 600x17 [bgcolor=#FFA500]
     RenderText {#text} at (0,0) size 203x17
       text run at (0,0) width 203: "With relative positioning on div."
 layer at (12,1140) size 604x104 clip at (13,1141) size 602x102
-  RenderTableCell {TD} at (2,43) size 604x21 [bgcolor=#808080] [border: (1px inset #808080)] [r=0 c=0 rs=1 cs=1]
+  RenderTableCell {TD} at (2,43) size 604x22 [bgcolor=#808080] [border: (1px inset #808080)] [r=0 c=0 rs=1 cs=1]
     RenderBlock {DIV} at (2,2) size 600x17 [bgcolor=#FFC0CB]
       RenderText {#text} at (0,0) size 205x17
         text run at (0,0) width 205: "With relative positioning on cell."
 layer at (112,1286) size 604x104 clip at (113,1287) size 602x102
-  RenderTableCell {TD} at (2,43) size 604x21 [bgcolor=#808080] [border: (1px inset #808080)] [r=0 c=0 rs=1 cs=1]
+  RenderTableCell {TD} at (2,43) size 604x22 [bgcolor=#808080] [border: (1px inset #808080)] [r=0 c=0 rs=1 cs=1]
     RenderBlock {DIV} at (2,2) size 600x17 [bgcolor=#FFC0CB]
       RenderText {#text} at (0,0) size 290x17
         text run at (0,0) width 290: "With relative positioning and an offset on cell."
 layer at (108,1562) size 300x100 scrollWidth 600
-  RenderTableCell {DIV} at (0,41) size 300x17 [r=0 c=0 rs=1 cs=1]
+  RenderTableCell {DIV} at (0,41) size 300x18 [r=0 c=0 rs=1 cs=1]
     RenderBlock {DIV} at (0,0) size 300x17
       RenderBlock {DIV} at (0,0) size 600x17 [bgcolor=#FFA500]
         RenderText {#text} at (0,0) size 278x17

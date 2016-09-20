@@ -13,7 +13,7 @@ layer at (0,0) size 800x600
               RenderTable {TABLE} at (1,1) size 460x230
                 RenderTableSection {TBODY} at (0,0) size 460x230
                   RenderTableRow {TR} at (0,2) size 460x226
-                    RenderTableCell {TD} at (2,68) size 252x93 [r=0 c=0 rs=1 cs=1]
+                    RenderTableCell {TD} at (2,68) size 252x94 [r=0 c=0 rs=1 cs=1]
                       RenderTable {TABLE} at (1,1) size 250x91
                         RenderTableSection {TBODY} at (0,0) size 250x91
                           RenderTableRow {TR} at (0,2) size 250x87

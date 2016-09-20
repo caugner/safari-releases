@@ -19,10 +19,10 @@ layer at (0,0) size 800x495
               RenderText {#text} at (68,1) size 66x17
                 text run at (68,1) width 66: "<object>"
           RenderTableRow {TR} at (0,23) size 670x55
-            RenderTableCell {TH} at (2,126) size 93x19 [bgcolor=#DDDD99] [r=1 c=0 rs=4 cs=1]
-              RenderText {#text} at (1,1) size 91x17
-                text run at (1,1) width 91: "No viewBox"
-            RenderTableCell {TH} at (97,49) size 163x2 [bgcolor=#DDDD99] [r=1 c=1 rs=1 cs=1]
+            RenderTableCell {TH} at (2,126) size 93x20 [bgcolor=#DDDD99] [r=1 c=0 rs=4 cs=1]
+              RenderText {#text} at (1,1) size 91x18
+                text run at (1,2) width 91: "No viewBox"
+            RenderTableCell {TH} at (97,49) size 163x3 [bgcolor=#DDDD99] [r=1 c=1 rs=1 cs=1]
             RenderTableCell {TD} at (262,23) size 202x55 [r=1 c=2 rs=1 cs=1]
               RenderImage {IMG} at (1,1) size 200x50 [border: (2px dashed #800000)]
               RenderText {#text} at (0,0) size 0x0
@@ -86,10 +86,10 @@ layer at (0,0) size 800x495
                       RenderSVGPath {path} at (0,0) size 192x42 [stroke={[type=SOLID] [color=#000000]}] [fill={[type=SOLID] [color=#D9BB7A] [fill rule=EVEN-ODD]}] [data="M 525.714 585.219 C 525.714 685.419 444.486 766.648 344.286 766.648 C 244.085 766.648 162.857 685.419 162.857 585.219 C 162.857 485.019 244.085 403.791 344.286 403.791 C 444.486 403.791 525.714 485.019 525.714 585.219 Z"]
               RenderText {#text} at (0,0) size 0x0
           RenderTableRow {TR} at (0,251) size 670x55
-            RenderTableCell {TH} at (2,354) size 93x19 [bgcolor=#DDDD99] [r=5 c=0 rs=4 cs=1]
-              RenderText {#text} at (14,1) size 65x17
-                text run at (14,1) width 65: "viewBox"
-            RenderTableCell {TH} at (97,277) size 163x2 [bgcolor=#DDDD99] [r=5 c=1 rs=1 cs=1]
+            RenderTableCell {TH} at (2,354) size 93x20 [bgcolor=#DDDD99] [r=5 c=0 rs=4 cs=1]
+              RenderText {#text} at (14,1) size 65x18
+                text run at (14,2) width 65: "viewBox"
+            RenderTableCell {TH} at (97,277) size 163x3 [bgcolor=#DDDD99] [r=5 c=1 rs=1 cs=1]
             RenderTableCell {TD} at (262,251) size 202x55 [r=5 c=2 rs=1 cs=1]
               RenderImage {IMG} at (1,1) size 200x50 [border: (2px dashed #800000)]
               RenderText {#text} at (0,0) size 0x0

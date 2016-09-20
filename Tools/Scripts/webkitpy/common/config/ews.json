@@ -19,7 +19,12 @@
     },
     "iOS EWS": {
         "port": "ios",
-        "architecture": "armv7"
+        "architecture": "armv7s"
+    },
+    "iOS Simulator EWS": {
+        "port": "ios-simulator-wk2",
+        "name": "ios-sim-ews",
+        "runTests": true
     },
     "Mac EWS": {
         "port": "mac",
@@ -34,5 +39,16 @@
             "rniwa@webkit.org"
         ],
         "runTests": true
+    },
+    "Mac Debug EWS": {
+        "port": "mac",
+        "name": "mac-debug-ews",
+        "style": "debug",
+        "runTests": true
+    },
+    "Mac 32-bit EWS": {
+        "port": "mac",
+        "name": "mac-32bit-ews",
+        "architecture": "i386"
     }
 }

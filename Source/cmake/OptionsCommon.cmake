@@ -15,7 +15,8 @@ else ()
     set(CODE_GENERATOR_PREPROCESSOR_WITH_LINEMARKERS "${CMAKE_CXX_COMPILER} -E -x c++")
 endif ()
 
-if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+execute_process(COMMAND ${CMAKE_AR} -V OUTPUT_VARIABLE AR_VERSION)
+if ("${AR_VERSION}" MATCHES "^GNU ar")
     set(CMAKE_CXX_ARCHIVE_CREATE "<CMAKE_AR> crT <TARGET> <LINK_FLAGS> <OBJECTS>")
     set(CMAKE_C_ARCHIVE_CREATE "<CMAKE_AR> crT <TARGET> <LINK_FLAGS> <OBJECTS>")
     set(CMAKE_CXX_ARCHIVE_APPEND "<CMAKE_AR> rT <TARGET> <LINK_FLAGS> <OBJECTS>")
@@ -23,11 +24,12 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
 endif ()
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+define_property(TARGET PROPERTY FOLDER INHERITED BRIEF_DOCS "folder" FULL_DOCS "IDE folder name")
 
 if (CMAKE_COMPILER_IS_GNUCXX OR "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
     set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -fno-exceptions -fno-strict-aliasing")
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -fno-exceptions -fno-strict-aliasing -fno-rtti")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++1y")
 endif ()
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" AND CMAKE_GENERATOR STREQUAL "Ninja")
@@ -78,10 +80,21 @@ if (USE_LD_GOLD)
         set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=gold -Wl,--disable-new-dtags")
     else ()
         message(WARNING "GNU gold linker isn't available, using the default system linker.")
+        set(USE_LD_GOLD OFF)
     endif ()
 endif ()
 
-option(DEBUG_FISSION "Use Debug Fission support")
+set(ENABLE_DEBUG_FISSION_DEFAULT OFF)
+if (USE_LD_GOLD AND CMAKE_BUILD_TYPE STREQUAL "Debug")
+    include(TestCXXAcceptsFlag)
+    CHECK_CXX_ACCEPTS_FLAG(-gsplit-dwarf CXX_ACCEPTS_GSPLIT_DWARF)
+    if (CXX_ACCEPTS_GSPLIT_DWARF)
+        set(ENABLE_DEBUG_FISSION_DEFAULT ON)
+    endif ()
+endif ()
+
+option(DEBUG_FISSION "Use Debug Fission support" ${ENABLE_DEBUG_FISSION_DEFAULT})
+
 if (DEBUG_FISSION)
     if (NOT USE_LD_GOLD)
         message(FATAL_ERROR "Need GNU gold linker for Debug Fission support")
@@ -98,16 +111,27 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
 endif ()
 
 string(TOLOWER ${CMAKE_HOST_SYSTEM_PROCESSOR} LOWERCASE_CMAKE_HOST_SYSTEM_PROCESSOR)
-if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" AND "${LOWERCASE_CMAKE_HOST_SYSTEM_PROCESSOR}" MATCHES "(i[3-6]86|x86)")
+if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" AND "${LOWERCASE_CMAKE_HOST_SYSTEM_PROCESSOR}" MATCHES "(i[3-6]86|x86|armhf)")
     # To avoid out of memory when building with debug option in 32bit system.
     # See https://bugs.webkit.org/show_bug.cgi?id=77327
     set(CMAKE_SHARED_LINKER_FLAGS_DEBUG "-Wl,--no-keep-memory ${CMAKE_SHARED_LINKER_FLAGS_DEBUG}")
 endif ()
 
-string(REGEX MATCHALL "-fsanitize=[^ ]*" ENABLED_COMPILER_SANITIZERS ${CMAKE_CXX_FLAGS})
+if (NOT MSVC)
+    string(REGEX MATCHALL "-fsanitize=[^ ]*" ENABLED_COMPILER_SANITIZERS ${CMAKE_CXX_FLAGS})
+endif ()
 
 if (UNIX AND NOT APPLE AND NOT ENABLED_COMPILER_SANITIZERS)
     set(CMAKE_SHARED_LINKER_FLAGS "-Wl,--no-undefined ${CMAKE_SHARED_LINKER_FLAGS}")
+endif ()
+
+# Enable the usage of OpenMP.
+#  - At this moment, OpenMP is only used as an alternative implementation
+#    to native threads for the parallelization of the SVG filters.
+if (USE_OPENMP)
+    find_package(OpenMP REQUIRED)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 endif ()
 
 # GTK uses the GNU installation directories as defaults.
@@ -120,4 +144,13 @@ endif ()
 # The Ninja generator does not yet know how to build archives in pieces, and so response
 # files must be used to deal with very long linker command lines.
 # See https://bugs.webkit.org/show_bug.cgi?id=129771
-set(CMAKE_NINJA_FORCE_RESPONSE_FILE 1)
+# The Apple Toolchain doesn't support response files.
+if (NOT APPLE)
+    set(CMAKE_NINJA_FORCE_RESPONSE_FILE 1)
+endif ()
+
+# Check whether features.h header exists.
+# Including glibc's one defines __GLIBC__, that is used in Platform.h
+include(CheckIncludeFiles)
+check_include_files(features.h HAVE_FEATURES_H)
+SET_AND_EXPOSE_TO_BUILD(HAVE_FEATURES_H ${HAVE_FEATURES_H})

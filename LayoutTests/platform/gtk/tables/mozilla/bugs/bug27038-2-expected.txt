@@ -39,6 +39,6 @@ layer at (0,0) size 785x763
                 text run at (1,1) width 53: "TFOOT"
         RenderTableSection {TBODY} at (3,26) size 63x534
           RenderTableRow {TR} at (0,0) size 63x532
-            RenderTableCell {TD} at (2,256) size 59x19 [r=0 c=0 rs=1 cs=1]
-              RenderText {#text} at (1,1) size 57x17
-                text run at (1,1) width 57: "TBODY"
+            RenderTableCell {TD} at (2,256) size 59x20 [r=0 c=0 rs=1 cs=1]
+              RenderText {#text} at (1,1) size 57x18
+                text run at (1,2) width 57: "TBODY"

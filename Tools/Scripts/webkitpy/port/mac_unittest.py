@@ -85,6 +85,9 @@ class MacTest(port_testcase.PortTestCase):
         self.assert_name('mac', 'elcapitan', 'mac-elcapitan')
         self.assert_name('mac-elcapitan', 'mavericks', 'mac-elcapitan')
         self.assert_name('mac-elcapitan', 'yosemite', 'mac-elcapitan')
+        self.assert_name('mac', 'sierra', 'mac-sierra')
+        self.assert_name('mac-sierra', 'yosemite', 'mac-sierra')
+        self.assert_name('mac-sierra', 'elcapitan', 'mac-sierra')
         self.assert_name('mac', 'future', 'mac-future')
         self.assert_name('mac-future', 'future', 'mac-future')
         self.assertRaises(AssertionError, self.assert_name, 'mac-tiger', 'leopard', 'mac-leopard')
@@ -93,6 +96,7 @@ class MacTest(port_testcase.PortTestCase):
         port = self.make_port(options=MockOptions(leaks=True, guard_malloc=True))
         env = port.setup_environ_for_server(port.driver_name())
         self.assertEqual(env['MallocStackLogging'], '1')
+        self.assertEqual(env['MallocScribble'], '1')
         self.assertEqual(env['DYLD_INSERT_LIBRARIES'], '/usr/lib/libgmalloc.dylib:/mock-build/libWebCoreTestShim.dylib')
 
     def _assert_search_path(self, port_name, baseline_path, search_paths, use_webkit2=False):
@@ -103,19 +107,21 @@ class MacTest(port_testcase.PortTestCase):
 
     def test_baseline_search_path(self):
         # Note that we don't need total coverage here, just path coverage, since this is all data driven.
-        self._assert_search_path('mac-snowleopard', 'mac-snowleopard', ['mac-snowleopard', 'mac-lion', 'mac-mountainlion', 'mac-mavericks', 'mac-yosemite', 'mac-wk1', 'mac'])
-        self._assert_search_path('mac-lion', 'mac-lion', ['mac-lion', 'mac-mountainlion', 'mac-mavericks', 'mac-yosemite', 'mac-wk1', 'mac'])
-        self._assert_search_path('mac-mountainlion', 'mac-mountainlion', ['mac-mountainlion', 'mac-mavericks', 'mac-yosemite', 'mac-wk1', 'mac'])
-        self._assert_search_path('mac-mavericks', 'mac-mavericks', ['mac-mavericks', 'mac-yosemite', 'mac-wk1', 'mac'])
-        self._assert_search_path('mac-yosemite', 'mac-yosemite', ['mac-yosemite', 'mac-wk1', 'mac'])
-        self._assert_search_path('mac-elcapitan', 'mac-wk1', ['mac-wk1', 'mac'])
+        self._assert_search_path('mac-snowleopard', 'mac-snowleopard', ['mac-snowleopard', 'mac-lion', 'mac-mountainlion', 'mac-mavericks', 'mac-yosemite', 'mac-elcapitan', 'mac-wk1', 'mac'])
+        self._assert_search_path('mac-lion', 'mac-lion', ['mac-lion', 'mac-mountainlion', 'mac-mavericks', 'mac-yosemite', 'mac-elcapitan', 'mac-wk1', 'mac'])
+        self._assert_search_path('mac-mountainlion', 'mac-mountainlion', ['mac-mountainlion', 'mac-mavericks', 'mac-yosemite', 'mac-elcapitan', 'mac-wk1', 'mac'])
+        self._assert_search_path('mac-mavericks', 'mac-mavericks', ['mac-mavericks', 'mac-yosemite', 'mac-elcapitan', 'mac-wk1', 'mac'])
+        self._assert_search_path('mac-yosemite', 'mac-yosemite', ['mac-yosemite', 'mac-elcapitan', 'mac-wk1', 'mac'])
+        self._assert_search_path('mac-elcapitan', 'mac-elcapitan', ['mac-elcapitan', 'mac-wk1', 'mac'])
+        self._assert_search_path('mac-sierra', 'mac-wk1', ['mac-wk1', 'mac'])
         self._assert_search_path('mac-future', 'mac-wk1', ['mac-wk1', 'mac'])
-        self._assert_search_path('mac-snowleopard', 'mac-wk2', ['mac-wk2', 'wk2', 'mac-snowleopard', 'mac-lion', 'mac-mountainlion', 'mac-mavericks', 'mac-yosemite', 'mac'], use_webkit2=True)
-        self._assert_search_path('mac-lion', 'mac-wk2', ['mac-wk2', 'wk2', 'mac-lion', 'mac-mountainlion', 'mac-mavericks', 'mac-yosemite', 'mac'], use_webkit2=True)
-        self._assert_search_path('mac-mountainlion', 'mac-wk2', ['mac-wk2', 'wk2', 'mac-mountainlion', 'mac-mavericks', 'mac-yosemite', 'mac'], use_webkit2=True)
-        self._assert_search_path('mac-mavericks', 'mac-wk2', ['mac-wk2', 'wk2', 'mac-mavericks', 'mac-yosemite', 'mac'], use_webkit2=True)
-        self._assert_search_path('mac-yosemite', 'mac-wk2', ['mac-wk2', 'wk2', 'mac-yosemite', 'mac'], use_webkit2=True)
-        self._assert_search_path('mac-elcapitan', 'mac-wk2', ['mac-wk2', 'wk2', 'mac'], use_webkit2=True)
+        self._assert_search_path('mac-snowleopard', 'mac-wk2', ['mac-wk2', 'wk2', 'mac-snowleopard', 'mac-lion', 'mac-mountainlion', 'mac-mavericks', 'mac-yosemite', 'mac-elcapitan', 'mac'], use_webkit2=True)
+        self._assert_search_path('mac-lion', 'mac-wk2', ['mac-wk2', 'wk2', 'mac-lion', 'mac-mountainlion', 'mac-mavericks', 'mac-yosemite', 'mac-elcapitan', 'mac'], use_webkit2=True)
+        self._assert_search_path('mac-mountainlion', 'mac-wk2', ['mac-wk2', 'wk2', 'mac-mountainlion', 'mac-mavericks', 'mac-yosemite', 'mac-elcapitan', 'mac'], use_webkit2=True)
+        self._assert_search_path('mac-mavericks', 'mac-wk2', ['mac-wk2', 'wk2', 'mac-mavericks', 'mac-yosemite', 'mac-elcapitan', 'mac'], use_webkit2=True)
+        self._assert_search_path('mac-yosemite', 'mac-wk2', ['mac-wk2', 'wk2', 'mac-yosemite', 'mac-elcapitan', 'mac'], use_webkit2=True)
+        self._assert_search_path('mac-elcapitan', 'mac-wk2', ['mac-wk2', 'wk2', 'mac-elcapitan', 'mac'], use_webkit2=True)
+        self._assert_search_path('mac-sierra', 'mac-wk2', ['mac-wk2', 'wk2', 'mac'], use_webkit2=True)
         self._assert_search_path('mac-future', 'mac-wk2', ['mac-wk2', 'wk2', 'mac'], use_webkit2=True)
 
     def test_show_results_html_file(self):

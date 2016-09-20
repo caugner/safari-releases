@@ -1,20 +1,30 @@
 #!/usr/bin/env python
 
-import abc
+from abc import ABCMeta, abstractmethod
 
 
 class BrowserDriver(object):
     platform = None
     browser_name = None
 
-    @abc.abstractmethod
+    ___metaclass___ = ABCMeta
+
+    @abstractmethod
     def prepare_env(self, device_id):
         pass
 
-    @abc.abstractmethod
-    def launch_url(self, url, browser_build_path=None):
+    @abstractmethod
+    def launch_url(self, url, options, browser_build_path=None):
         pass
 
-    @abc.abstractmethod
+    @abstractmethod
+    def add_additional_results(self, test_url, results):
+        return results
+
+    @abstractmethod
     def close_browsers(self):
+        pass
+
+    @abstractmethod
+    def restore_env(self):
         pass

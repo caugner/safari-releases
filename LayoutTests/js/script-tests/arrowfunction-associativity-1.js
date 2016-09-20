@@ -1,5 +1,3 @@
-//@ skip
-
 description('Tests for ES6 arrow function nested declaration');
 
 var af1, af2, af3;
