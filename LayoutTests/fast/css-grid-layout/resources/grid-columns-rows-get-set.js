@@ -21,6 +21,7 @@ testGridTemplatesValues(document.getElementById("gridWithCalcComplexElement"), "
 testGridTemplatesValues(document.getElementById("gridWithCalcInsideMinMaxElement"), "minmax(10%, 15px)", "minmax(20px, 50%)", "80px", "300px");
 testGridTemplatesValues(document.getElementById("gridWithCalcComplexInsideMinMaxElement"), "minmax(10%, 415px)", "minmax(80px, 50%)", "415px", "300px");
 testGridTemplatesValues(document.getElementById("gridWithAutoInsideMinMaxElement"), "20px", "11px");
+testGridTemplatesValues(document.getElementById("gridWithFitContentFunctionElement"), "7px", "11px");
 
 debug("");
 debug("Test getting wrong values for grid-template-columns and grid-template-rows through CSS (they should resolve to the default: 'none')");
@@ -44,6 +45,7 @@ testGridTemplatesSetJSValues("auto", "auto", "0px", "0px");
 testGridTemplatesSetJSValues("10vw", "25vh", "80px", "150px");
 testGridTemplatesSetJSValues("-webkit-min-content", "-webkit-min-content", "0px", "0px");
 testGridTemplatesSetJSValues("-webkit-max-content", "-webkit-max-content", "0px", "0px");
+testGridTemplatesSetJSValues("fit-content(100px)", "fit-content(25%)", "0px", "0px");
 
 debug("");
 debug("Test getting and setting grid-template-columns and grid-template-rows to minmax() values through JS");
@@ -61,6 +63,9 @@ testGridTemplatesSetJSValues("3600Fr", "154fR", "800px", "600px", "3600fr", "154
 
 // A leading '+' is allowed.
 testGridTemplatesSetJSValues("+3fr", "+4fr", "800px", "600px", "3fr", "4fr");
+
+// 0fr is allowed.
+testGridTemplatesSetJSValues(".0000fr", "0fr", "0px", "0px", "0fr", "0fr");
 
 debug("");
 debug("Test getting and setting grid-template-columns and grid-template-rows to calc() values through JS");
@@ -80,12 +85,20 @@ testGridTemplatesSetBadJSValues("minmax()", "minmax(30px 30% 30em)");
 // Flexible lengths are invalid on the min slot of minmax().
 testGridTemplatesSetBadJSValues("minmax(0fr, 100px)", "minmax(.0fr, 200px)");
 testGridTemplatesSetBadJSValues("minmax(1fr, 100px)", "minmax(2.5fr, 200px)");
+testGridTemplatesSetBadJSValues("fit-content()", "fit-content( )");
+testGridTemplatesSetBadJSValues("fit-content(-10em)", "fit-content(-2px)");
+testGridTemplatesSetBadJSValues("fit-content(10px 2%)", "fit-content(5% 10em)");
+testGridTemplatesSetBadJSValues("fit-content(-webkit-max-content)", "fit-content(-webkit-min-content)");
+testGridTemplatesSetBadJSValues("fit-content(auto)", "fit-content(3fr)");
+testGridTemplatesSetBadJSValues("fit-content(repeat(2, 100px))", "fit-content(repeat(auto-fit), 1%)");
+testGridTemplatesSetBadJSValues("fit-content(fit-content(10px))", "fit-content(fit-content(30%))");
+testGridTemplatesSetBadJSValues("fit-content([a] 100px)", "fit-content(30px [b c])");
 
 testGridTemplatesSetBadJSValues("-2fr", "3ffr");
 testGridTemplatesSetBadJSValues("-2.05fr", "+-3fr");
-testGridTemplatesSetBadJSValues("0fr", "1r");
 // A dimension doesn't allow spaces between the number and the unit.
-testGridTemplatesSetBadJSValues(".0000fr", "13 fr");
+testGridTemplatesSetBadJSValues("1r", "13 fr");
+
 testGridTemplatesSetBadJSValues("7.-fr", "-8,0fr");
 
 // Negative values are not allowed.

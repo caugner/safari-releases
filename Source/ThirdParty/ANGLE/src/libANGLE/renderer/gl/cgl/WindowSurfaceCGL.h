@@ -17,7 +17,7 @@ typedef _CGLContextObject *CGLContextObj;
 struct __IOSurface;
 typedef __IOSurface *IOSurfaceRef;
 
-@class SwapLayer;
+@class WebSwapLayer;
 
 namespace rx
 {
@@ -54,7 +54,8 @@ struct SharedSwapState
 class WindowSurfaceCGL : public SurfaceGL
 {
   public:
-    WindowSurfaceCGL(RendererGL *renderer,
+    WindowSurfaceCGL(const egl::SurfaceState &state,
+                     RendererGL *renderer,
                      CALayer *layer,
                      const FunctionsGL *functions,
                      CGLContextObj context);
@@ -76,10 +77,10 @@ class WindowSurfaceCGL : public SurfaceGL
     EGLint isPostSubBufferSupported() const override;
     EGLint getSwapBehavior() const override;
 
-    FramebufferImpl *createDefaultFramebuffer(const gl::Framebuffer::Data &data) override;
+    FramebufferImpl *createDefaultFramebuffer(const gl::FramebufferState &state) override;
 
   private:
-    SwapLayer *mSwapLayer;
+    WebSwapLayer *mSwapLayer;
     SharedSwapState mSwapState;
     uint64_t mCurrentSwapId;
 
@@ -87,6 +88,7 @@ class WindowSurfaceCGL : public SurfaceGL
     CGLContextObj mContext;
     const FunctionsGL *mFunctions;
     StateManagerGL *mStateManager;
+    RendererGL *mRenderer;
     const WorkaroundsGL &mWorkarounds;
 
     GLuint mFramebuffer;

@@ -41,7 +41,7 @@ class ManifestGenerator {
             'builders' => (object)$this->builders(),
             'bugTrackers' => (object)$this->bug_trackers($repositories_table),
             'dashboards' => (object)config('dashboards'),
-            'summary' => (object)config('summary'),
+            'summaryPages' => config('summaryPages'),
         );
 
         $this->manifest['elapsedTime'] = (microtime(true) - $start_time) * 1000;
@@ -106,7 +106,7 @@ class ManifestGenerator {
                 }
 
                 array_push($current_platform_entry['metrics'], $metric_row['metric_id']);
-                array_push($current_platform_entry['last_modified'], $metric_row['last_modified']);
+                array_push($current_platform_entry['last_modified'], intval($metric_row['last_modified']));
             }
         }
         $configurations = array();

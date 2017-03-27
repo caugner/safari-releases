@@ -43,7 +43,7 @@ _log = logging.getLogger(__name__)
 # FIXME: range() starts with 0 which makes if expectation checks harder
 # as PASS is 0.
 (PASS, FAIL, TEXT, IMAGE, IMAGE_PLUS_TEXT, AUDIO, TIMEOUT, CRASH, SKIP, WONTFIX,
- SLOW, REBASELINE, MISSING, FLAKY, NOW, NONE) = range(16)
+ SLOW, DUMPJSCONSOLELOGINSTDERR, REBASELINE, MISSING, FLAKY, NOW, NONE) = range(17)
 
 # FIXME: Perhas these two routines should be part of the Port instead?
 BASELINE_SUFFIX_LIST = ('png', 'wav', 'txt')
@@ -71,6 +71,7 @@ class TestExpectationParser(object):
     PASS_EXPECTATION = 'pass'
     SKIP_MODIFIER = 'skip'
     SLOW_MODIFIER = 'slow'
+    DUMPJSCONSOLELOGINSTDERR_MODIFIER = 'dumpjsconsoleloginstderr'
     WONTFIX_MODIFIER = 'wontfix'
 
     TIMEOUT_EXPECTATION = 'timeout'
@@ -108,6 +109,7 @@ class TestExpectationParser(object):
         expectation_line.filename = '<Skipped file>'
         expectation_line.line_number = 0
         expectation_line.expectations = [TestExpectationParser.PASS_EXPECTATION]
+        expectation_line.not_applicable_to_current_platform = True
         self._parse_line(expectation_line)
         return expectation_line
 
@@ -318,7 +320,7 @@ class TestExpectationParser(object):
             elif state == 'configuration':
                 modifiers.append(cls._configuration_tokens.get(token, token))
             elif state == 'expectations':
-                if token in ('Rebaseline', 'Skip', 'Slow', 'WontFix'):
+                if token in ('Rebaseline', 'Skip', 'Slow', 'WontFix', 'DumpJSConsoleLogInStdErr'):
                     modifiers.append(token.upper())
                 elif token not in cls._expectation_tokens:
                     warnings.append('Unrecognized expectation "%s"' % token)
@@ -344,7 +346,8 @@ class TestExpectationParser(object):
             # FIXME: This is really a semantic warning and shouldn't be here. Remove when we drop the old syntax.
             warnings.append('A test marked Skip must not have other expectations.')
         elif not expectations:
-            if 'SKIP' not in modifiers and 'REBASELINE' not in modifiers and 'SLOW' not in modifiers:
+            # FIXME: We can probably simplify this adding 'SKIP' if modifiers is empty
+            if 'SKIP' not in modifiers and 'REBASELINE' not in modifiers and 'SLOW' not in modifiers and 'DUMPJSCONSOLELOGINSTDERR' not in modifiers:
                 modifiers.append('SKIP')
             expectations = ['PASS']
 
@@ -380,6 +383,7 @@ class TestExpectationLine(object):
         self.comment = None
         self.matching_tests = []
         self.warnings = []
+        self.not_applicable_to_current_platform = False
 
     def is_invalid(self):
         return self.warnings and self.warnings != [TestExpectationParser.MISSING_BUG_WARNING]
@@ -387,13 +391,28 @@ class TestExpectationLine(object):
     def is_flaky(self):
         return len(self.parsed_expectations) > 1
 
+    @property
+    def expected_behavior(self):
+        expectations = self.expectations
+        if "SLOW" in self.modifiers:
+            expectations += ["SLOW"]
+
+        if "SKIP" in self.modifiers:
+            expectations = ["SKIP"]
+        elif "WONTFIX" in self.modifiers:
+            expectations = ["WONTFIX"]
+        elif "CRASH" in self.modifiers:
+            expectations += ["CRASH"]
+
+        return expectations
+
     @staticmethod
     def create_passing_expectation(test):
         expectation_line = TestExpectationLine()
         expectation_line.name = test
         expectation_line.path = test
         expectation_line.parsed_expectations = set([PASS])
-        expectation_line.expectations = set(['PASS'])
+        expectation_line.expectations = ['PASS']
         expectation_line.matching_tests = [test]
         return expectation_line
 
@@ -450,7 +469,7 @@ class TestExpectationLine(object):
             elif modifier.startswith('BUG'):
                 # FIXME: we should preserve case once we can drop the old syntax.
                 bugs.append('Bug(' + modifier[3:].lower() + ')')
-            elif modifier in ('SLOW', 'SKIP', 'REBASELINE', 'WONTFIX'):
+            elif modifier in ('SLOW', 'SKIP', 'REBASELINE', 'WONTFIX', 'DUMPJSCONSOLELOGINSTDERR'):
                 new_expectations.append(TestExpectationParser._inverted_expectation_tokens.get(modifier))
             else:
                 new_modifiers.append(TestExpectationParser._inverted_configuration_tokens.get(modifier, modifier))
@@ -769,6 +788,7 @@ class TestExpectations(object):
     MODIFIERS = {TestExpectationParser.SKIP_MODIFIER: SKIP,
                  TestExpectationParser.WONTFIX_MODIFIER: WONTFIX,
                  TestExpectationParser.SLOW_MODIFIER: SLOW,
+                 TestExpectationParser.DUMPJSCONSOLELOGINSTDERR_MODIFIER: DUMPJSCONSOLELOGINSTDERR,
                  TestExpectationParser.REBASELINE_MODIFIER: REBASELINE,
                  'none': NONE}
 
@@ -843,6 +863,15 @@ class TestExpectations(object):
         self._include_generic = include_generic
         self._include_overrides = include_overrides
         self._expectations_to_lint = expectations_to_lint
+
+    def readable_filename_and_line_number(self, line):
+        if line.not_applicable_to_current_platform:
+            return "(skipped for this platform)"
+        if not line.filename:
+            return ''
+        if line.filename.startswith(self._port.path_from_webkit_base()):
+            return '{}:{}'.format(self._port.host.filesystem.relpath(line.filename, self._port.path_from_webkit_base()), line.line_number)
+        return '{}:{}'.format(line.filename, line.line_number)
 
     def parse_generic_expectations(self):
         if self._port.path_to_generic_test_expectations_file() in self._expectations_dict:

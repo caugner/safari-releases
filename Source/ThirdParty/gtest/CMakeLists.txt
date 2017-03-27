@@ -9,9 +9,7 @@ set(GTEST_INCLUDE_DIRECTORIES
     "${GTEST_DIR}"
     "${GTEST_DIR}/include"
     "${JAVASCRIPTCORE_DIR}"
-    "${DERIVED_SOURCES_DIR}"
     "${DERIVED_SOURCES_JAVASCRIPTCORE_DIR}"
-    "${WTF_DIR}"
 )
 
 set(GTEST_SOURCES
@@ -39,7 +37,7 @@ add_definitions(-DGTEST_HAS_RTTI=0)
 
 # FIXME: This works around compatibility problems in the old version of the third-pary
 # googletest source code checkout. It should be removed once we upgrade to a newer version.
-if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+if (COMPILER_IS_CLANG)
     add_definitions(-DGTEST_HAS_TR1_TUPLE=0)
 endif ()
 

@@ -25,6 +25,7 @@ import json
 import logging
 import sys
 import time
+import urllib
 
 from webkitpy.common.system.autoinstall import AutoInstaller
 from webkitpy.layout_tests.servers import http_server_base
@@ -104,7 +105,10 @@ class WebPlatformTestServer(http_server_base.HttpServerBase):
         for module in modules:
             path = module["path"]
             name = path.pop()
-            AutoInstaller(target_dir=self._filesystem.join(self._doc_root, self._filesystem.sep.join(path))).install(url=module["url"], url_subpath=module["url_subpath"], target_name=name)
+            resolved_url = module["url"]
+            if not resolved_url.startswith("http"):
+                resolved_url = "file://" + urllib.pathname2url(self._filesystem.join(self._doc_root_path, "..", "resources", resolved_url))
+            AutoInstaller(target_dir=self._filesystem.join(self._doc_root, self._filesystem.sep.join(path))).install(url=resolved_url, url_subpath=module["url_subpath"], target_name=name)
 
     def _copy_webkit_test_files(self):
         _log.debug('Copying WebKit resources files')
@@ -115,7 +119,7 @@ class WebPlatformTestServer(http_server_base.HttpServerBase):
         _log.debug('Copying WebKit web platform server config.json')
         config_wk_filename = self._filesystem.join(self._layout_root, "imported", "w3c", "resources", "config.json")
         if self._filesystem.isfile(config_wk_filename):
-            config_json = self._filesystem.read_text_file(config_wk_filename).replace("%CERTS_DIR%", self._filesystem.join(self._layout_root, "imported", "w3c", "resources", "_wpt_certs"))
+            config_json = self._filesystem.read_text_file(config_wk_filename).replace("%CERTS_DIR%", self._filesystem.join(self._output_dir, "_wpt_certs"))
             self._filesystem.write_text_file(self._filesystem.join(self._doc_root, "config.json"), config_json)
 
         wpt_testharnessjs_file = self._filesystem.join(self._doc_root, "resources", "testharness.js")

@@ -31,10 +31,10 @@
 #import "DumpRenderTree.h"
 
 #import "AccessibilityController.h"
-#import "CheckedMalloc.h"
 #import "DefaultPolicyDelegate.h"
 #import "DumpRenderTreeDraggingInfo.h"
 #import "DumpRenderTreePasteboard.h"
+#import "DumpRenderTreeSpellChecker.h"
 #import "DumpRenderTreeWindow.h"
 #import "EditingDelegate.h"
 #import "EventSendingController.h"
@@ -49,6 +49,7 @@
 #import "PixelDumpSupport.h"
 #import "PolicyDelegate.h"
 #import "ResourceLoadDelegate.h"
+#import "TestOptions.h"
 #import "TestRunner.h"
 #import "UIDelegate.h"
 #import "WebArchiveDumpSupport.h"
@@ -56,10 +57,8 @@
 #import "WorkQueue.h"
 #import "WorkQueueItem.h"
 #import <CoreFoundation/CoreFoundation.h>
-#import <JavaScriptCore/HeapStatistics.h>
-#import <JavaScriptCore/LLIntData.h>
-#import <JavaScriptCore/Options.h>
-#import <WebCore/Logging.h>
+#import <JavaScriptCore/TestRunnerUtils.h>
+#import <WebCore/LogInitialization.h>
 #import <WebKit/DOMElement.h>
 #import <WebKit/DOMExtensions.h>
 #import <WebKit/DOMRange.h>
@@ -177,19 +176,22 @@ static void runTest(const string& testURL);
 
 volatile bool done;
 
-NavigationController* gNavigationController = 0;
+NavigationController* gNavigationController = nullptr;
 RefPtr<TestRunner> gTestRunner;
 
-WebFrame *mainFrame = 0;
+WebFrame *mainFrame = nil;
 // This is the topmost frame that is loading, during a given load, or nil when no load is 
 // in progress.  Usually this is the same as the main frame, but not always.  In the case
 // where a frameset is loaded, and then new content is loaded into one of the child frames,
 // that child frame is the "topmost frame that is loading".
-WebFrame *topLoadingFrame = nil;     // !nil iff a load is in progress
+WebFrame *topLoadingFrame = nil; // !nil iff a load is in progress
 
+#if PLATFORM(MAC)
+NSWindow *mainWindow = nil;
+#endif
 
-CFMutableSetRef disallowedURLs = 0;
-static CFRunLoopTimerRef waitToDumpWatchdog = 0;
+CFMutableSetRef disallowedURLs= nullptr;
+static CFRunLoopTimerRef waitToDumpWatchdog;
 
 // Delegates
 static FrameLoadDelegate *frameLoadDelegate;
@@ -197,36 +199,32 @@ static UIDelegate *uiDelegate;
 static EditingDelegate *editingDelegate;
 static ResourceLoadDelegate *resourceLoadDelegate;
 static HistoryDelegate *historyDelegate;
-PolicyDelegate *policyDelegate;
-DefaultPolicyDelegate *defaultPolicyDelegate;
+PolicyDelegate *policyDelegate = nullptr;
+DefaultPolicyDelegate *defaultPolicyDelegate = nullptr;
 #if PLATFORM(IOS)
 static ScrollViewResizerDelegate *scrollViewResizerDelegate;
 #endif
 
-static int dumpPixelsForAllTests = NO;
-static bool dumpPixelsForCurrentTest = false;
+static int dumpPixelsForAllTests;
+static bool dumpPixelsForCurrentTest;
 static int threaded;
 static int dumpTree = YES;
 static int useTimeoutWatchdog = YES;
 static int forceComplexText;
 static int useAcceleratedDrawing;
 static int gcBetweenTests;
-static int showWebView = NO;
-static int printTestCount = NO;
+static int showWebView;
+static int printTestCount;
 static BOOL printSeparators;
 static RetainPtr<CFStringRef> persistentUserStyleSheetLocation;
 static std::set<std::string> allowedHosts;
 
-static WebHistoryItem *prevTestBFItem = nil;  // current b/f item at the end of the previous test
+static WebHistoryItem *prevTestBFItem; // current b/f item at the end of the previous test
 
 #if PLATFORM(IOS)
-const unsigned phoneViewHeight = 480;
-const unsigned phoneViewWidth = 320;
-const unsigned phoneBrowserScrollViewHeight = 416;
-const unsigned phoneBrowserAddressBarOffset = 60;
 const CGRect layoutTestViewportRect = { {0, 0}, {static_cast<CGFloat>(TestRunner::viewWidth), static_cast<CGFloat>(TestRunner::viewHeight)} };
-UIWebBrowserView *gWebBrowserView = nil;
-UIWebScrollView *gWebScrollView = nil;
+DumpRenderTreeBrowserView *gWebBrowserView = nil;
+DumpRenderTreeWebScrollView *gWebScrollView = nil;
 DumpRenderTreeWindow *gDrtWindow = nil;
 #endif
 
@@ -380,6 +378,7 @@ static NSSet *allowedFontFamilySet()
         @"Kokonor",
         @"Krungthep",
         @"KufiStandardGK",
+        @"LastResort",
         @"LiHei Pro",
         @"LiSong Pro",
         @"Lucida Grande",
@@ -646,7 +645,7 @@ static void activateFontsIOS()
 
 
 #if PLATFORM(IOS)
-void adjustWebDocumentForFlexibleViewport(UIWebBrowserView *webBrowserView, UIWebScrollView *scrollView)
+static void adjustWebDocumentForFlexibleViewport(UIWebBrowserView *webBrowserView, UIWebScrollView *scrollView)
 {
     // These values match MobileSafari's, see -[TabDocument _createDocumentView].
     [webBrowserView setMinimumScale:0.25f forDocumentTypes:UIEveryDocumentMask];
@@ -659,18 +658,21 @@ void adjustWebDocumentForFlexibleViewport(UIWebBrowserView *webBrowserView, UIWe
     [(DumpRenderTreeBrowserView *)webBrowserView setScrollingUsesUIWebScrollView:YES];
     [webBrowserView setDelegate:scrollViewResizerDelegate];
 
-    CGRect viewportRect = CGRectMake(0, 0, phoneViewWidth, phoneBrowserScrollViewHeight);
+    CGRect screenBounds = [UIScreen mainScreen].bounds;
+    CGRect viewportRect = CGRectMake(0, 0, screenBounds.size.width, screenBounds.size.height);
+
     [scrollView setBounds:viewportRect];
     [scrollView setFrame:viewportRect];
 
     [webBrowserView setMinimumSize:viewportRect.size];
     [webBrowserView setAutoresizes:YES];
-    CGRect browserViewFrame = [webBrowserView frame];
-    browserViewFrame.origin = CGPointMake(0, phoneBrowserAddressBarOffset);
-    [webBrowserView setFrame:browserViewFrame];
+    [webBrowserView setFrame:screenBounds];
+
+    // This just affects text autosizing.
+    [mainFrame _setVisibleSize:CGSizeMake(screenBounds.size.width, screenBounds.size.height)];
 }
 
-void adjustWebDocumentForStandardViewport(UIWebBrowserView *webBrowserView, UIWebScrollView *scrollView)
+static void adjustWebDocumentForStandardViewport(UIWebBrowserView *webBrowserView, UIWebScrollView *scrollView)
 {
     [webBrowserView setMinimumScale:1.0f forDocumentTypes:UIEveryDocumentMask];
     [webBrowserView setMaximumScale:5.0f forDocumentTypes:UIEveryDocumentMask];
@@ -684,9 +686,11 @@ void adjustWebDocumentForStandardViewport(UIWebBrowserView *webBrowserView, UIWe
 
     [webBrowserView setMinimumSize:layoutTestViewportRect.size];
     [webBrowserView setAutoresizes:NO];
-    CGRect browserViewFrame = [webBrowserView frame];
-    browserViewFrame.origin = CGPointZero;
-    [webBrowserView setFrame:browserViewFrame];
+    [webBrowserView setFrame:layoutTestViewportRect];
+
+    // This just affects text autosizing.
+    [mainFrame _setVisibleSize:CGSizeMake(layoutTestViewportRect.size.width, layoutTestViewportRect.size.height)];
+
 }
 #endif
 
@@ -757,7 +761,7 @@ WebView *createWebViewAndOffscreenWindow()
     NSRect rect = NSMakeRect(0, 0, TestRunner::viewWidth, TestRunner::viewHeight);
     WebView *webView = [[WebView alloc] initWithFrame:rect frameName:nil groupName:@"org.webkit.DumpRenderTree"];
 #else
-    UIWebBrowserView *webBrowserView = [[[DumpRenderTreeBrowserView alloc] initWithFrame:layoutTestViewportRect] autorelease];
+    DumpRenderTreeBrowserView *webBrowserView = [[[DumpRenderTreeBrowserView alloc] initWithFrame:layoutTestViewportRect] autorelease];
     [webBrowserView setInputViewObeysDOMFocus:YES];
     WebView *webView = [[webBrowserView webView] retain];
     [webView setGroupName:@"org.webkit.DumpRenderTree"];
@@ -798,6 +802,7 @@ WebView *createWebViewAndOffscreenWindow()
     NSScreen *firstScreen = [[NSScreen screens] firstObject];
     NSRect windowRect = (showWebView) ? NSOffsetRect(rect, 100, 100) : NSOffsetRect(rect, -10000, [firstScreen frame].size.height - rect.size.height + 10000);
     DumpRenderTreeWindow *window = [[DumpRenderTreeWindow alloc] initWithContentRect:windowRect styleMask:NSBorderlessWindowMask backing:NSBackingStoreBuffered defer:YES];
+    mainWindow = window;
 
     [window setColorSpace:[firstScreen colorSpace]];
     [window setCollectionBehavior:NSWindowCollectionBehaviorStationary];
@@ -820,14 +825,18 @@ WebView *createWebViewAndOffscreenWindow()
     uiWindowRect.origin.y += [UIApp statusBarHeight];
     UIWindow *uiWindow = [[[UIWindow alloc] initWithFrame:uiWindowRect] autorelease];
 
+    UIViewController *viewController = [[UIViewController alloc] init];
+    [uiWindow setRootViewController:viewController];
+    [viewController release];
+
     // The UIWindow and UIWebBrowserView are released when the DumpRenderTreeWindow is closed.
     drtWindow.uiWindow = uiWindow;
     drtWindow.browserView = webBrowserView;
 
-    UIWebScrollView *scrollView = [[UIWebScrollView alloc] initWithFrame:layoutTestViewportRect];
+    DumpRenderTreeWebScrollView *scrollView = [[DumpRenderTreeWebScrollView alloc] initWithFrame:layoutTestViewportRect];
     [scrollView addSubview:webBrowserView];
 
-    [uiWindow addSubview:scrollView];
+    [viewController.view addSubview:scrollView];
     [scrollView release];
 
     adjustWebDocumentForStandardViewport(webBrowserView, scrollView);
@@ -839,7 +848,6 @@ WebView *createWebViewAndOffscreenWindow()
     NSBitmapImageRep *imageRep = [webView bitmapImageRepForCachingDisplayInRect:[webView bounds]];
     [webView cacheDisplayInRect:[webView bounds] toBitmapImageRep:imageRep];
 #else
-    [[webView mainFrame] _setVisibleSize:CGSizeMake(phoneViewWidth, phoneViewHeight)];
     [[webView preferences] _setTelephoneNumberParsingEnabled:NO];
 
     // Initialize the global UIViews, and set the key UIWindow to be painted.
@@ -851,6 +859,8 @@ WebView *createWebViewAndOffscreenWindow()
         [uiWindow retain];
     }
 #endif
+
+    [webView setMediaVolume:0];
 
     return webView;
 }
@@ -891,10 +901,11 @@ static NSString *libraryPathForDumpRenderTree()
 }
 
 // Called before each test.
-static void resetWebPreferencesToConsistentValues()
+static void resetWebPreferencesToConsistentValues(const TestOptions& options)
 {
     WebPreferences *preferences = [WebPreferences standardPreferences];
 
+    [preferences setNeedsStorageAccessFromFileURLsQuirk: NO];
     [preferences setAllowUniversalAccessFromFileURLs:YES];
     [preferences setAllowFileAccessFromFileURLs:YES];
     [preferences setStandardFontFamily:@"Times"];
@@ -962,6 +973,7 @@ static void resetWebPreferencesToConsistentValues()
     // The back/forward cache is causing problems due to layouts during transition from one page to another.
     // So, turn it off for now, but we might want to turn it back on some day.
     [preferences setUsesPageCache:NO];
+    [preferences setAllowsPageCacheWithWindowOpener:NO];
     [preferences setAcceleratedCompositingEnabled:YES];
 #if USE(CA)
     [preferences setCanvasUsesAcceleratedDrawing:YES];
@@ -979,16 +991,24 @@ static void resetWebPreferencesToConsistentValues()
     [preferences setShadowDOMEnabled:YES];
     [preferences setCustomElementsEnabled:YES];
 
-    [preferences setDOMIteratorEnabled:YES];
-
     [preferences setWebGL2Enabled:YES];
 
     [preferences setFetchAPIEnabled:YES];
 
     [preferences setDownloadAttributeEnabled:YES];
 
+    [preferences setES6ModulesEnabled:YES];
+
     [preferences setHiddenPageDOMTimerThrottlingEnabled:NO];
     [preferences setHiddenPageCSSAnimationSuspensionEnabled:NO];
+
+    preferences.intersectionObserverEnabled = options.enableIntersectionObserver;
+    preferences.modernMediaControlsEnabled = options.enableModernMediaControls;
+
+    [preferences setSubtleCryptoEnabled:YES];
+
+    [preferences setMediaStreamEnabled:YES];
+    [preferences setPeerConnectionEnabled:YES];
 
     [WebPreferences _clearNetworkLoaderSession];
     [WebPreferences _setCurrentNetworkLoaderSessionCookieAcceptPolicy:NSHTTPCookieAcceptPolicyOnlyFromMainDocumentDomain];
@@ -1234,8 +1254,6 @@ static void prepareConsistentTestingEnvironment()
     
     allocateGlobalControllers();
     
-    makeLargeMallocFailSilently();
-
 #if PLATFORM(MAC)
     NSActivityOptions options = (NSActivityUserInitiatedAllowingIdleSystemSleep | NSActivityLatencyCritical) & ~(NSActivitySuddenTerminationDisabled | NSActivityAutomaticTerminationDisabled);
     static id assertion = [[[NSProcessInfo processInfo] beginActivityWithOptions:options reason:@"DumpRenderTree should not be subject to process suppression"] retain];
@@ -1425,10 +1443,7 @@ int DumpRenderTreeMain(int argc, const char *argv[])
 #endif
     [WebCoreStatistics garbageCollectJavaScriptObjects];
     [WebCoreStatistics emptyCache]; // Otherwise SVGImages trigger false positives for Frame/Node counts
-    if (JSC::Options::logHeapStatisticsAtExit())
-        JSC::HeapStatistics::reportSuccess();
-    if (JSC::Options::reportLLIntStats())
-        JSC::LLInt::Data::finalizeStats();
+    JSC::finalizeStatsAtEndOfTesting();
     [pool release];
     returningFromMain = true;
     return 0;
@@ -1808,13 +1823,14 @@ static bool shouldEnableDeveloperExtras(const char* pathOrURL)
 #if PLATFORM(IOS)
 static bool shouldMakeViewportFlexible(const char* pathOrURL)
 {
-    return strstr(pathOrURL, "viewport/");
+    return strstr(pathOrURL, "viewport/") && !strstr(pathOrURL, "visual-viewport/");
 }
 #endif
 
-static void resetWebViewToConsistentStateBeforeTesting()
+static void resetWebViewToConsistentStateBeforeTesting(const TestOptions& options)
 {
     WebView *webView = [mainFrame webView];
+
 #if PLATFORM(IOS)
     adjustWebDocumentForStandardViewport(gWebBrowserView, gWebScrollView);
     [webView _setAllowsMessaging:YES];
@@ -1845,7 +1861,7 @@ static void resetWebViewToConsistentStateBeforeTesting()
 
     [WebCache clearCachedCredentials];
     
-    resetWebPreferencesToConsistentValues();
+    resetWebPreferencesToConsistentValues(options);
 
     TestRunner::setSerializeHTTPLoads(false);
     TestRunner::setAllowsAnySSLCertificate(false);
@@ -1886,8 +1902,10 @@ static void resetWebViewToConsistentStateBeforeTesting()
 
     [mainFrame _clearOpener];
 
+    setSpellCheckerLoggingEnabled(false);
+
     resetAccumulatedLogs();
-    WebCoreTestSupport::initializeLoggingChannelsIfNecessary();
+    WebCoreTestSupport::initializeLogChannelsIfNecessary();
 }
 
 #if PLATFORM(IOS)
@@ -1979,9 +1997,11 @@ static void runTest(const string& inputLine)
     NSString *informationString = [@"CRASHING TEST: " stringByAppendingString:testPath];
     WKSetCrashReportApplicationSpecificInformation((CFStringRef)informationString);
 
+    TestOptions options(url);
+    resetWebViewToConsistentStateBeforeTesting(options);
+
     const char* testURL([[url absoluteString] UTF8String]);
-    
-    resetWebViewToConsistentStateBeforeTesting();
+
 #if !PLATFORM(IOS)
     changeWindowScaleIfNeeded(testURL);
 #endif
@@ -1989,6 +2009,7 @@ static void runTest(const string& inputLine)
     gTestRunner = TestRunner::create(testURL, command.expectedPixelHash);
     gTestRunner->setAllowedHosts(allowedHosts);
     gTestRunner->setCustomTimeout(command.timeout);
+    gTestRunner->setDumpJSConsoleLogInStdErr(command.dumpJSConsoleLogInStdErr);
     topLoadingFrame = nil;
 #if !PLATFORM(IOS)
     ASSERT(!draggingInfo); // the previous test should have called eventSender.mouseUp to drop!
@@ -2067,6 +2088,13 @@ static void runTest(const string& inputLine)
         gTestRunner->setDeveloperExtrasEnabled(false);
     }
 
+#if PLATFORM(MAC)
+    // Make sure the WebView is parented, since the test may have unparented it.
+    WebView *webView = [mainFrame webView];
+    if (![webView superview])
+        [[mainWindow contentView] addSubview:webView];
+#endif
+
     if (gTestRunner->closeRemainingWindowsWhenComplete()) {
         NSArray* array = [DumpRenderTreeWindow openWindows];
 
@@ -2090,7 +2118,7 @@ static void runTest(const string& inputLine)
         }
     }
 
-    resetWebViewToConsistentStateBeforeTesting();
+    resetWebViewToConsistentStateBeforeTesting(options);
 
     // Loading an empty request synchronously replaces the document with a blank one, which is necessary
     // to stop timers, WebSockets and other activity that could otherwise spill output into next test's results.
@@ -2102,6 +2130,7 @@ static void runTest(const string& inputLine)
     ASSERT(CFArrayGetCount(openWindowsRef) == 1);
     ASSERT(CFArrayGetValueAtIndex(openWindowsRef, 0) == [[mainFrame webView] window]);
 
+    gTestRunner->cleanup();
     gTestRunner = nullptr;
 
     if (ignoreWebCoreNodeLeaks)

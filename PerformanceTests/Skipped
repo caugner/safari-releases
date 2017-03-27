@@ -100,6 +100,11 @@ ES6SampleBench
 
 # Used for iOS testing
 Animation/css-animation.html
+Animation/css-accelerated-animation.html
 Animation/raf-animation.html
 Animation/svg-animation.html
 
+# Media tests take too long to run; require MSE, HLS which are not supported on all ports;
+# and require a webserver (run-webkit-httpd) which is not part of normal performance testing.
+Media/
+MediaTime/

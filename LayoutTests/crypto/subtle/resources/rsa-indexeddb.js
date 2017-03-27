@@ -15,7 +15,7 @@ var privateKeyJSON = {
     qi: "YCX_pLwbMBA1ThVH0WcwmnytqNcrMCEwTm7ByA2eU6nWbQrULvf7m9_kzfLUcjsnpAVlBQG5JMXMy0Sq4ptwbywsa5-G8KAOOOR2L3v4hC-Eys9ftgFM_3i0o40eeQH4b3haPbntrIeMg8IzlOuVYKf9-2QuKDoWeRdd7NsdxTk"
 };
 
-crypto.subtle.importKey("jwk", asciiToUint8Array(JSON.stringify(privateKeyJSON)), null, true, ["sign", "verify"]).then(function(key) {
+crypto.subtle.importKey("jwk", privateKeyJSON, { name: 'RSASSA-PKCS1-v1_5', hash: "sha-256" }, true, ["sign"]).then(function(key) {
     var openRequest = indexedDB.open("crypto_subtle");
     openRequest.onupgradeneeded = function(event) {
         var objectStore = event.target.result.createObjectStore("rsa-indexeddb");
@@ -53,9 +53,10 @@ crypto.subtle.importKey("jwk", asciiToUint8Array(JSON.stringify(privateKeyJSON))
             shouldBe("retrievedKey.algorithm.name", "'RSASSA-PKCS1-v1_5'");
             shouldBe("retrievedKey.algorithm.modulusLength", "2048");
             shouldBe("bytesToHexString(retrievedKey.algorithm.publicExponent)", "'010001'");
-            shouldBe("retrievedKey.usages", '["sign", "verify"]');
+            shouldBe("retrievedKey.algorithm.hash.name", "'SHA-256'");
+            shouldBe("retrievedKey.usages", '["sign"]');
 
             finishJSTest();
         }
     }
-});
+}, failAndFinishJSTest);

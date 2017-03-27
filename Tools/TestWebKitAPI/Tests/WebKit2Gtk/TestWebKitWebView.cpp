@@ -677,6 +677,7 @@ public:
 
     static gboolean showNotificationCallback(WebKitWebView*, WebKitNotification* notification, NotificationWebViewTest* test)
     {
+        g_assert(!test->m_notification);
         test->assertObjectIsDeletedWhenTestFinishes(G_OBJECT(notification));
         test->m_notification = notification;
         g_signal_connect(notification, "closed", G_CALLBACK(notificationClosedCallback), test);
@@ -699,23 +700,20 @@ public:
     }
 
     NotificationWebViewTest()
-        : WebViewTest(webkit_user_content_manager_new())
-        , m_notification(nullptr)
+        : m_notification(nullptr)
         , m_event(None)
     {
         g_signal_connect(m_webView, "permission-request", G_CALLBACK(permissionRequestCallback), this);
         g_signal_connect(m_webView, "show-notification", G_CALLBACK(showNotificationCallback), this);
-        WebKitUserContentManager* manager = webkit_web_view_get_user_content_manager(m_webView);
-        webkit_user_content_manager_register_script_message_handler(manager, "notifications");
-        g_signal_connect(manager, "script-message-received::notifications", G_CALLBACK(notificationsMessageReceivedCallback), this);
+        webkit_user_content_manager_register_script_message_handler(m_userContentManager.get(), "notifications");
+        g_signal_connect(m_userContentManager.get(), "script-message-received::notifications", G_CALLBACK(notificationsMessageReceivedCallback), this);
     }
 
     ~NotificationWebViewTest()
     {
         g_signal_handlers_disconnect_matched(m_webView, G_SIGNAL_MATCH_DATA, 0, 0, 0, 0, this);
-        WebKitUserContentManager* manager = webkit_web_view_get_user_content_manager(m_webView);
-        g_signal_handlers_disconnect_matched(manager, G_SIGNAL_MATCH_DATA, 0, 0, 0, 0, this);
-        webkit_user_content_manager_unregister_script_message_handler(manager, "notifications");
+        g_signal_handlers_disconnect_matched(m_userContentManager.get(), G_SIGNAL_MATCH_DATA, 0, 0, 0, 0, this);
+        webkit_user_content_manager_unregister_script_message_handler(m_userContentManager.get(), "notifications");
     }
 
    void requestPermissionAndWaitUntilGiven()
@@ -730,6 +728,16 @@ public:
         m_event = None;
 
         GUniquePtr<char> jscode(g_strdup_printf("n = new Notification('%s', { body: '%s'});", title, body));
+        webkit_web_view_run_javascript(m_webView, jscode.get(), nullptr, nullptr, nullptr);
+
+        g_main_loop_run(m_mainLoop);
+    }
+
+    void requestNotificationAndWaitUntilShown(const char* title, const char* body, const char* tag)
+    {
+        m_event = None;
+
+        GUniquePtr<char> jscode(g_strdup_printf("n = new Notification('%s', { body: '%s', tag: '%s'});", title, body, tag));
         webkit_web_view_run_javascript(m_webView, jscode.get(), nullptr, nullptr, nullptr);
 
         g_main_loop_run(m_mainLoop);
@@ -776,12 +784,14 @@ static void testWebViewNotification(NotificationWebViewTest* test, gconstpointer
 
     static const char* title = "This is a notification";
     static const char* body = "This is the body.";
-    test->requestNotificationAndWaitUntilShown(title, body);
+    static const char* tag = "This is the tag.";
+    test->requestNotificationAndWaitUntilShown(title, body, tag);
 
     g_assert(test->m_event == NotificationWebViewTest::Shown);
     g_assert(test->m_notification);
     g_assert_cmpstr(webkit_notification_get_title(test->m_notification), ==, title);
     g_assert_cmpstr(webkit_notification_get_body(test->m_notification), ==, body);
+    g_assert_cmpstr(webkit_notification_get_tag(test->m_notification), ==, tag);
 
     test->clickNotificationAndWaitUntilClicked();
     g_assert(test->m_event == NotificationWebViewTest::OnClicked);
@@ -791,13 +801,18 @@ static void testWebViewNotification(NotificationWebViewTest* test, gconstpointer
 
     test->requestNotificationAndWaitUntilShown(title, body);
     g_assert(test->m_event == NotificationWebViewTest::Shown);
+    g_assert_cmpstr(webkit_notification_get_tag(test->m_notification), ==, nullptr);
 
     test->closeNotificationAndWaitUntilOnClosed();
     g_assert(test->m_event == NotificationWebViewTest::OnClosed);
 
-    test->requestNotificationAndWaitUntilShown(title, body);
+    // The first notification should be closed automatically because the tag is
+    // the same. It will crash in showNotificationCallback on failure.
+    test->requestNotificationAndWaitUntilShown(title, body, tag);
+    test->requestNotificationAndWaitUntilShown(title, body, tag);
     g_assert(test->m_event == NotificationWebViewTest::Shown);
 
+    // Notification should be closed when navigating to a different webpage.
     test->loadURI(gServer->getURIForPath("/").data());
     test->waitUntilLoadFinished();
     g_assert(test->m_event == NotificationWebViewTest::Closed);
@@ -818,13 +833,15 @@ static void testWebViewIsPlayingAudio(IsPlayingAudioWebViewTest* test, gconstpoi
     test->waitUntilLoadFinished();
     g_assert(!webkit_web_view_is_playing_audio(test->m_webView));
 
-    webkit_web_view_run_javascript(test->m_webView, "playVideo();", nullptr, nullptr, nullptr);
-    test->waitUntilIsPlayingAudioChanged();
+    test->runJavaScriptAndWaitUntilFinished("playVideo();", nullptr);
+    if (!webkit_web_view_is_playing_audio(test->m_webView))
+        test->waitUntilIsPlayingAudioChanged();
     g_assert(webkit_web_view_is_playing_audio(test->m_webView));
 
     // Pause the video, and check again.
-    webkit_web_view_run_javascript(test->m_webView, "document.getElementById('test-video').pause();", nullptr, nullptr, nullptr);
-    test->waitUntilIsPlayingAudioChanged();
+    test->runJavaScriptAndWaitUntilFinished("document.getElementById('test-video').pause();", nullptr);
+    if (webkit_web_view_is_playing_audio(test->m_webView))
+        test->waitUntilIsPlayingAudioChanged();
     g_assert(!webkit_web_view_is_playing_audio(test->m_webView));
 }
 

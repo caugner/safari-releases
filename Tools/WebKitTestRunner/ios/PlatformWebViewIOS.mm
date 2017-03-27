@@ -48,15 +48,26 @@
 @property (nonatomic, assign) WTR::PlatformWebView* platformWebView;
 @end
 
+static Vector<WebKitTestRunnerWindow*> allWindows;
+
 @implementation WebKitTestRunnerWindow
 @synthesize platformWebView = _platformWebView;
 
 - (id)initWithFrame:(CGRect)frame
 {
+    allWindows.append(self);
+
     if ((self = [super initWithFrame:frame]))
         _initialized = YES;
 
     return self;
+}
+
+- (void)dealloc
+{
+    allWindows.removeFirst(self);
+    ASSERT(!allWindows.contains(self));
+    [super dealloc];
 }
 
 - (BOOL)isKeyWindow
@@ -98,17 +109,34 @@
 
 namespace WTR {
 
+enum class WebViewSizingMode {
+    Default,
+    HeightRespectsStatusBar
+};
+
+static CGRect viewRectForWindowRect(CGRect windowRect, PlatformWebView::WebViewSizingMode mode)
+{
+    CGFloat statusBarBottom = CGRectGetMaxY([[UIApplication sharedApplication] statusBarFrame]);
+    return CGRectMake(windowRect.origin.x, windowRect.origin.y + statusBarBottom, windowRect.size.width, windowRect.size.height - (mode == PlatformWebView::WebViewSizingMode::HeightRespectsStatusBar ? statusBarBottom : 0));
+}
+
 PlatformWebView::PlatformWebView(WKWebViewConfiguration* configuration, const TestOptions& options)
     : m_windowIsKey(true)
     , m_options(options)
 {
     CGRect rect = CGRectMake(0, 0, TestController::viewWidth, TestController::viewHeight);
-    m_view = [[TestRunnerWKWebView alloc] initWithFrame:rect configuration:configuration];
 
     m_window = [[WebKitTestRunnerWindow alloc] initWithFrame:rect];
+    m_window.backgroundColor = [UIColor lightGrayColor];
     m_window.platformWebView = this;
 
-    [m_window addSubview:m_view];
+    UIViewController *viewController = [[UIViewController alloc] init];
+    [m_window setRootViewController:viewController];
+    [viewController release];
+
+    m_view = [[TestRunnerWKWebView alloc] initWithFrame:viewRectForWindowRect(rect, WebViewSizingMode::Default) configuration:configuration];
+
+    [m_window.rootViewController.view addSubview:m_view];
     [m_window makeKeyAndVisible];
 }
 
@@ -119,6 +147,18 @@ PlatformWebView::~PlatformWebView()
     [m_window release];
 }
 
+PlatformWindow PlatformWebView::keyWindow()
+{
+    size_t i = allWindows.size();
+    while (i) {
+        if ([allWindows[i] isKeyWindow])
+            return allWindows[i];
+        --i;
+    }
+
+    return nil;
+}
+
 void PlatformWebView::setWindowIsKey(bool isKey)
 {
     m_windowIsKey = isKey;
@@ -126,12 +166,22 @@ void PlatformWebView::setWindowIsKey(bool isKey)
         [m_window makeKeyWindow];
 }
 
-void PlatformWebView::resizeTo(unsigned width, unsigned height)
+void PlatformWebView::addToWindow()
+{
+    [m_window.rootViewController.view addSubview:m_view];
+}
+
+void PlatformWebView::removeFromWindow()
+{
+    [m_view removeFromSuperview];
+}
+
+void PlatformWebView::resizeTo(unsigned width, unsigned height, WebViewSizingMode viewSizingMode)
 {
     WKRect frame = windowFrame();
     frame.size.width = width;
     frame.size.height = height;
-    setWindowFrame(frame);
+    setWindowFrame(frame, viewSizingMode);
 }
 
 WKPageRef PlatformWebView::page()
@@ -157,10 +207,10 @@ WKRect PlatformWebView::windowFrame()
     return wkFrame;
 }
 
-void PlatformWebView::setWindowFrame(WKRect frame)
+void PlatformWebView::setWindowFrame(WKRect frame, WebViewSizingMode viewSizingMode)
 {
     [m_window setFrame:CGRectMake(frame.origin.x, frame.origin.y, frame.size.width, frame.size.height)];
-    [platformView() setFrame:CGRectMake(0, 0, frame.size.width, frame.size.height)];
+    [platformView() setFrame:viewRectForWindowRect(CGRectMake(0, 0, frame.size.width, frame.size.height), viewSizingMode)];
 }
 
 void PlatformWebView::didInitializeClients()
@@ -243,7 +293,12 @@ WKRetainPtr<WKImageRef> PlatformWebView::windowSnapshotImage()
 
 bool PlatformWebView::viewSupportsOptions(const TestOptions& options) const
 {
-    if (m_options.overrideLanguages != options.overrideLanguages || m_options.needsSiteSpecificQuirks != options.needsSiteSpecificQuirks)
+    if (m_options.overrideLanguages != options.overrideLanguages
+        || m_options.needsSiteSpecificQuirks != options.needsSiteSpecificQuirks
+        || m_options.useCharacterSelectionGranularity != options.useCharacterSelectionGranularity
+        || m_options.enableIntersectionObserver != options.enableIntersectionObserver
+        || m_options.enableModernMediaControls != options.enableModernMediaControls
+        || m_options.enablePointerLock != options.enablePointerLock)
         return false;
 
     return true;

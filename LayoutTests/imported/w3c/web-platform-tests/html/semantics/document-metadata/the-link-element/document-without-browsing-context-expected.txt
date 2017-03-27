@@ -1,2 +1,4 @@
-FAIL: Timed out waiting for notifyDone to be called
+
+FAIL Create a document, adopt the node assert_equals: expected "1" but got "0"
+FAIL Create a stylesheet in innerHTML document assert_equals: expected "1" but got "0"
 

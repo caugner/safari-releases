@@ -29,7 +29,7 @@
 #import <WebKit/WebViewPrivate.h>
 #import <wtf/RetainPtr.h>
 
-#if PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 101200
+#if PLATFORM(MAC) && __MAC_OS_X_VERSION_MAX_ALLOWED >= 101201
 
 static bool webViewWasDeallocated = false;
 static bool didFinishLoad = false;
@@ -84,7 +84,7 @@ static bool candidatesWereRequested = false;
 
 namespace TestWebKitAPI {
 
-TEST(CandidateTests, DoNotLeakViewThatLoadsEditableArea)
+TEST(CandidateTests, DISABLED_DoNotLeakViewThatLoadsEditableArea)
 {
     DoNotLeakWebView *webView = [[DoNotLeakWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100)];
     DoNotLeakFrameLoadDelegate *delegate = [[DoNotLeakFrameLoadDelegate alloc] init];
@@ -100,7 +100,7 @@ TEST(CandidateTests, DoNotLeakViewThatLoadsEditableArea)
     EXPECT_TRUE(webViewWasDeallocated);
 }
 
-TEST(CandidateTests, RequestCandidatesForTextInput)
+TEST(CandidateTests, DISABLED_RequestCandidatesForTextInput)
 {
     WebView *webView = [[WebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100)];
     [webView forceRequestCandidatesForTesting];
@@ -145,4 +145,4 @@ TEST(CandidateTests, DoNotRequestCandidatesForPasswordInput)
 
 }
 
-#endif // PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 101200
+#endif // PLATFORM(MAC) && __MAC_OS_X_VERSION_MAX_ALLOWED >= 101201

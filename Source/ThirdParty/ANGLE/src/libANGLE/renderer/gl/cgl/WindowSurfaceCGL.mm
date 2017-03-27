@@ -18,7 +18,7 @@
 #include "libANGLE/renderer/gl/RendererGL.h"
 #include "libANGLE/renderer/gl/StateManagerGL.h"
 
-@interface SwapLayer : CAOpenGLLayer
+@interface WebSwapLayer : CAOpenGLLayer
 {
     CGLContextObj mDisplayContext;
 
@@ -33,7 +33,7 @@
             withFunctions:(const rx::FunctionsGL *)functions;
 @end
 
-@implementation SwapLayer
+@implementation WebSwapLayer
 - (id)initWithSharedState:(rx::SharedSwapState *)swapState
               withContext:(CGLContextObj)displayContext
             withFunctions:(const rx::FunctionsGL *)functions
@@ -142,22 +142,24 @@
     namespace rx
     {
 
-    WindowSurfaceCGL::WindowSurfaceCGL(RendererGL *renderer,
+    WindowSurfaceCGL::WindowSurfaceCGL(const egl::SurfaceState &state,
+                                       RendererGL *renderer,
                                        CALayer *layer,
                                        const FunctionsGL *functions,
                                        CGLContextObj context)
-        : SurfaceGL(renderer),
+        : SurfaceGL(state, renderer),
           mSwapLayer(nil),
           mCurrentSwapId(0),
           mLayer(layer),
           mContext(context),
           mFunctions(functions),
           mStateManager(renderer->getStateManager()),
+          mRenderer(renderer),
           mWorkarounds(renderer->getWorkarounds()),
           mFramebuffer(0),
           mDSRenderbuffer(0)
-{
-    pthread_mutex_init(&mSwapState.mutex, nullptr);
+    {
+        pthread_mutex_init(&mSwapState.mutex, nullptr);
 }
 
 WindowSurfaceCGL::~WindowSurfaceCGL()
@@ -211,7 +213,7 @@ egl::Error WindowSurfaceCGL::initialize()
     mSwapState.lastRendered   = &mSwapState.textures[1];
     mSwapState.beingPresented = &mSwapState.textures[2];
 
-    mSwapLayer = [[SwapLayer alloc] initWithSharedState:&mSwapState
+    mSwapLayer = [[WebSwapLayer alloc] initWithSharedState:&mSwapState
                                             withContext:mContext
                                           withFunctions:mFunctions];
     [mLayer addSublayer:mSwapLayer];
@@ -320,10 +322,11 @@ EGLint WindowSurfaceCGL::getSwapBehavior() const
     return EGL_BUFFER_DESTROYED;
 }
 
-FramebufferImpl *WindowSurfaceCGL::createDefaultFramebuffer(const gl::Framebuffer::Data &data)
+FramebufferImpl *WindowSurfaceCGL::createDefaultFramebuffer(const gl::FramebufferState &state)
 {
     // TODO(cwallez) assert it happens only once?
-    return new FramebufferGL(mFramebuffer, data, mFunctions, mWorkarounds, mStateManager);
+    return new FramebufferGL(mFramebuffer, state, mFunctions, mWorkarounds, mRenderer->getBlitter(),
+                             mStateManager);
 }
 
 }

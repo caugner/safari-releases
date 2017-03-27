@@ -37,15 +37,21 @@
 - (void)scrollViewWillBeginZooming:(UIScrollView *)scrollView withView:(UIView *)view;
 - (void)scrollViewDidEndZooming:(UIScrollView *)scrollView withView:(UIView *)view atScale:(CGFloat)scale;
 - (void)_didFinishScrolling;
+- (void)_updateVisibleContentRects;
 
 @end
 #endif
 
 #if WK_API_ENABLED
 
-@interface TestRunnerWKWebView ()
+@interface TestRunnerWKWebView () {
+    RetainPtr<NSNumber *> m_stableStateOverride;
+}
+
 @property (nonatomic, copy) void (^zoomToScaleCompletionHandler)(void);
 @property (nonatomic, copy) void (^showKeyboardCompletionHandler)(void);
+@property (nonatomic) BOOL isShowingKeyboard;
+
 @end
 
 @implementation TestRunnerWKWebView
@@ -73,6 +79,10 @@
 {
     [[NSNotificationCenter defaultCenter] removeObserver:self];
 
+    self.didStartFormControlInteractionCallback = nil;
+    self.didEndFormControlInteractionCallback = nil;
+    self.didShowForcePressPreviewCallback = nil;
+    self.didDismissForcePressPreviewCallback = nil;
     self.willBeginZoomingCallback = nil;
     self.didEndZoomingCallback = nil;
     self.didShowKeyboardCallback = nil;
@@ -85,6 +95,30 @@
     [super dealloc];
 }
 
+- (void)didStartFormControlInteraction
+{
+    if (self.didStartFormControlInteractionCallback)
+        self.didStartFormControlInteractionCallback();
+}
+
+- (void)didEndFormControlInteraction
+{
+    if (self.didEndFormControlInteractionCallback)
+        self.didEndFormControlInteractionCallback();
+}
+
+- (void)_didShowForcePressPreview
+{
+    if (self.didShowForcePressPreviewCallback)
+        self.didShowForcePressPreviewCallback();
+}
+
+- (void)_didDismissForcePressPreview
+{
+    if (self.didDismissForcePressPreviewCallback)
+        self.didDismissForcePressPreviewCallback();
+}
+
 - (void)zoomToScale:(double)scale animated:(BOOL)animated completionHandler:(void (^)(void))completionHandler
 {
     ASSERT(!self.zoomToScaleCompletionHandler);
@@ -95,12 +129,20 @@
 
 - (void)_keyboardDidShow:(NSNotification *)notification
 {
+    if (self.isShowingKeyboard)
+        return;
+
+    self.isShowingKeyboard = YES;
     if (self.didShowKeyboardCallback)
         self.didShowKeyboardCallback();
 }
 
 - (void)_keyboardDidHide:(NSNotification *)notification
 {
+    if (!self.isShowingKeyboard)
+        return;
+
+    self.isShowingKeyboard = NO;
     if (self.didHideKeyboardCallback)
         self.didHideKeyboardCallback();
 }
@@ -133,6 +175,18 @@
     if (self.didEndScrollingCallback)
         self.didEndScrollingCallback();
 }
+
+- (NSNumber *)_stableStateOverride
+{
+    return m_stableStateOverride.get();
+}
+
+- (void)_setStableStateOverride:(NSNumber *)overrideBoolean
+{
+    m_stableStateOverride = overrideBoolean;
+    [self _updateVisibleContentRects];
+}
+
 #endif
 
 @end

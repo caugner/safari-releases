@@ -38,10 +38,18 @@
 #import <WebKit/_WKProcessPoolConfiguration.h>
 #import <WebKit/_WKUserContentExtensionStore.h>
 
+#if WK_API_ENABLED
+#import <WebKit/_WKExperimentalFeature.h>
+#endif
+
 enum {
     WebKit1NewWindowTag = 1,
     WebKit2NewWindowTag = 2
 };
+
+@interface NSApplication (TouchBar)
+@property (getter=isAutomaticCustomizeTouchBarMenuItemEnabled) BOOL automaticCustomizeTouchBarMenuItemEnabled;
+@end
 
 @implementation BrowserAppDelegate
 
@@ -62,7 +70,16 @@ enum {
 {
     NSMenuItem *item = [[NSMenuItem alloc] init];
     [item setSubmenu:[[SettingsController shared] menu]];
+
+#if WK_API_ENABLED
+    if ([[SettingsController shared] usesGameControllerFramework])
+        [WKProcessPool _forceGameControllerFramework];
+#endif
+
     [[NSApp mainMenu] insertItem:[item autorelease] atIndex:[[NSApp mainMenu] indexOfItemWithTitle:@"Debug"]];
+
+    if ([NSApp respondsToSelector:@selector(setAutomaticCustomizeTouchBarMenuItemEnabled:)])
+        [NSApp setAutomaticCustomizeTouchBarMenuItemEnabled:YES];
 }
 
 #if WK_API_ENABLED
@@ -75,18 +92,32 @@ static WKWebViewConfiguration *defaultConfiguration()
         configuration.preferences._fullScreenEnabled = YES;
         configuration.preferences._developerExtrasEnabled = YES;
 
-        if ([SettingsController shared].perWindowWebProcessesDisabled) {
-            _WKProcessPoolConfiguration *singleProcessConfiguration = [[_WKProcessPoolConfiguration alloc] init];
-            singleProcessConfiguration.maximumProcessCount = 1;
-            configuration.processPool = [[[WKProcessPool alloc] _initWithConfiguration:singleProcessConfiguration] autorelease];
-            [singleProcessConfiguration release];
+        _WKProcessPoolConfiguration *processConfiguration = [[[_WKProcessPoolConfiguration alloc] init] autorelease];
+        processConfiguration.diskCacheSpeculativeValidationEnabled = ![SettingsController shared].networkCacheSpeculativeRevalidationDisabled;
+        if ([SettingsController shared].perWindowWebProcessesDisabled)
+            processConfiguration.maximumProcessCount = 1;
+        
+        configuration.processPool = [[[WKProcessPool alloc] _initWithConfiguration:processConfiguration] autorelease];
+
+#if WK_API_ENABLED
+        NSArray<_WKExperimentalFeature *> *features = [WKPreferences _experimentalFeatures];
+        for (_WKExperimentalFeature *feature in features) {
+            BOOL enabled = [[NSUserDefaults standardUserDefaults] boolForKey:feature.key];
+            [configuration.preferences _setEnabled:enabled forFeature:feature];
         }
+#endif
     }
 
     configuration.suppressesIncrementalRendering = [SettingsController shared].incrementalRenderingSuppressed;
     configuration.websiteDataStore._resourceLoadStatisticsEnabled = [SettingsController shared].resourceLoadStatisticsEnabled;
     return configuration;
 }
+
+WKPreferences *defaultPreferences()
+{
+    return defaultConfiguration().preferences;
+}
+
 #endif
 
 
