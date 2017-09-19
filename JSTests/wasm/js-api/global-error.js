@@ -23,7 +23,7 @@ import Builder from '../Builder.js';
     const bin = builder.WebAssembly();
     bin.trim();
 
-    assert.throws(() => new WebAssembly.Module(bin.get()), WebAssembly.CompileError, "WebAssembly.Module doesn't parse at byte 26 / 59: get_global's index 0 exceeds the number of imports 0 (evaluating 'new WebAssembly.Module(bin.get())')");
+    assert.throws(() => new WebAssembly.Module(bin.get()), WebAssembly.CompileError, "WebAssembly.Module doesn't parse at byte 26 / 59: get_global's index 0 exceeds the number of globals 0 (evaluating 'new WebAssembly.Module(bin.get())')");
 }
 
 
@@ -103,7 +103,7 @@ import Builder from '../Builder.js';
     const bin = builder.WebAssembly();
     bin.trim();
 
-    assert.throws(() => new WebAssembly.Module(bin.get()), WebAssembly.CompileError, "WebAssembly.Module doesn't validate: set_global 0 is immutable (evaluating 'new WebAssembly.Module(bin.get())')");
+    assert.throws(() => new WebAssembly.Module(bin.get()), WebAssembly.CompileError, "WebAssembly.Module doesn't validate: set_global 0 is immutable, in function at index 0 (evaluating 'new WebAssembly.Module(bin.get())')");
 }
 
 
@@ -130,7 +130,7 @@ import Builder from '../Builder.js';
     const bin = builder.WebAssembly();
     bin.trim();
 
-    assert.throws(() => new WebAssembly.Module(bin.get()), WebAssembly.CompileError, "WebAssembly.Module doesn't validate: set_global 1 of unknown global, limit is 1 (evaluating 'new WebAssembly.Module(bin.get())')");
+    assert.throws(() => new WebAssembly.Module(bin.get()), WebAssembly.CompileError, "WebAssembly.Module doesn't validate: set_global 1 of unknown global, limit is 1, in function at index 0 (evaluating 'new WebAssembly.Module(bin.get())')");
 }
 
 
@@ -156,7 +156,7 @@ import Builder from '../Builder.js';
     const bin = builder.WebAssembly();
     bin.trim();
 
-    assert.throws(() => new WebAssembly.Module(bin.get()), WebAssembly.CompileError, "WebAssembly.Module doesn't validate: set_global 0 with type F32 with a variable of type I32 (evaluating 'new WebAssembly.Module(bin.get())')");
+    assert.throws(() => new WebAssembly.Module(bin.get()), WebAssembly.CompileError, "WebAssembly.Module doesn't validate: set_global 0 with type F32 with a variable of type I32, in function at index 0 (evaluating 'new WebAssembly.Module(bin.get())')");
 }
 
 for ( let imp of [undefined, null, {}, () => {}, "number", new Number(4)]) {
@@ -185,5 +185,28 @@ for ( let imp of [undefined, null, {}, () => {}, "number", new Number(4)]) {
     bin.trim();
 
     const module = new WebAssembly.Module(bin.get());
-    assert.throws(() => new WebAssembly.Instance(module, { imp: { global: imp } }), TypeError, "imported global must be a number (evaluating 'new WebAssembly.Instance(module, { imp: { global: imp } })')");
+    assert.throws(() => new WebAssembly.Instance(module, { imp: { global: imp } }), WebAssembly.LinkError, "imported global imp:global must be a number (evaluating 'new WebAssembly.Instance(module, { imp: { global: imp } })')");
+}
+
+{
+    const builder = new Builder()
+        .Type().End()
+        .Global().I64(0, "immutable").End()
+        .Export()
+            .Global("bigInt", 0)
+        .End();
+    const module = new WebAssembly.Module(builder.WebAssembly().get());
+    assert.throws(() => new WebAssembly.Instance(module), WebAssembly.LinkError, "exported global cannot be an i64 (evaluating 'new WebAssembly.Instance(module)')");
+}
+
+{
+    const builder = new Builder()
+        .Type().End()
+        .Import()
+            .Global().I64("imp", "global", "immutable").End()
+        .End()
+        .Function().End()
+        .Global().GetGlobal("i64", 0, "immutable").End();
+    const module = new WebAssembly.Module(builder.WebAssembly().get());
+    assert.throws(() => new WebAssembly.Instance(module, { imp: { global: undefined } }), WebAssembly.LinkError, "imported global imp:global cannot be an i64 (evaluating 'new WebAssembly.Instance(module, { imp: { global: undefined } })')");
 }

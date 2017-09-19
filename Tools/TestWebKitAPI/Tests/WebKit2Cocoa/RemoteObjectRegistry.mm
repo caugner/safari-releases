@@ -44,7 +44,7 @@ TEST(WebKit2, RemoteObjectRegistry)
 {
     @autoreleasepool {
         NSString * const testPlugInClassName = @"RemoteObjectRegistryPlugIn";
-        auto configuration = retainPtr([WKWebViewConfiguration testwebkitapi_configurationWithTestPlugInClassName:testPlugInClassName]);
+        auto configuration = retainPtr([WKWebViewConfiguration _test_configurationWithTestPlugInClassName:testPlugInClassName]);
         auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
 
         isDone = false;
@@ -80,6 +80,14 @@ TEST(WebKit2, RemoteObjectRegistry)
         [object takeRange:NSMakeRange(345, 123) completionHandler:^(NSUInteger location, NSUInteger length) {
             EXPECT_EQ(345U, location);
             EXPECT_EQ(123U, length);
+            isDone = true;
+        }];
+        TestWebKitAPI::Util::run(&isDone);
+
+        isDone = false;
+        [object takeSize:CGSizeMake(123.45, 678.91) completionHandler:^(CGFloat width, CGFloat height) {
+            EXPECT_EQ(123.45, width);
+            EXPECT_EQ(678.91, height);
             isDone = true;
         }];
         TestWebKitAPI::Util::run(&isDone);

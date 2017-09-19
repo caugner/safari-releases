@@ -25,6 +25,7 @@
 
 #include "config.h"
 
+#include "WTFStringUtilities.h"
 #include <limits>
 #include <wtf/MathExtras.h>
 #include <wtf/text/CString.h>
@@ -311,6 +312,54 @@ TEST(WTF, StringUnicodeEqualUCharArray)
     ASSERT_TRUE(equal(string2, abc));
     ASSERT_FALSE(equal(string2, abcd));
     ASSERT_FALSE(equal(string2, aBc));
+}
+
+TEST(WTF, StringRightBasic)
+{
+    auto reference = String::fromUTF8("Cappuccino");
+    EXPECT_EQ(String::fromUTF8(""), reference.right(0));
+    EXPECT_EQ(String::fromUTF8("o"), reference.right(1));
+    EXPECT_EQ(String::fromUTF8("no"), reference.right(2));
+    EXPECT_EQ(String::fromUTF8("ino"), reference.right(3));
+    EXPECT_EQ(String::fromUTF8("cino"), reference.right(4));
+    EXPECT_EQ(String::fromUTF8("ccino"), reference.right(5));
+    EXPECT_EQ(String::fromUTF8("uccino"), reference.right(6));
+    EXPECT_EQ(String::fromUTF8("puccino"), reference.right(7));
+    EXPECT_EQ(String::fromUTF8("ppuccino"), reference.right(8));
+    EXPECT_EQ(String::fromUTF8("appuccino"), reference.right(9));
+    EXPECT_EQ(String::fromUTF8("Cappuccino"), reference.right(10));
+}
+
+TEST(WTF, StringLeftBasic)
+{
+    auto reference = String::fromUTF8("Cappuccino");
+    EXPECT_EQ(String::fromUTF8(""), reference.left(0));
+    EXPECT_EQ(String::fromUTF8("C"), reference.left(1));
+    EXPECT_EQ(String::fromUTF8("Ca"), reference.left(2));
+    EXPECT_EQ(String::fromUTF8("Cap"), reference.left(3));
+    EXPECT_EQ(String::fromUTF8("Capp"), reference.left(4));
+    EXPECT_EQ(String::fromUTF8("Cappu"), reference.left(5));
+    EXPECT_EQ(String::fromUTF8("Cappuc"), reference.left(6));
+    EXPECT_EQ(String::fromUTF8("Cappucc"), reference.left(7));
+    EXPECT_EQ(String::fromUTF8("Cappucci"), reference.left(8));
+    EXPECT_EQ(String::fromUTF8("Cappuccin"), reference.left(9));
+    EXPECT_EQ(String::fromUTF8("Cappuccino"), reference.left(10));
+}
+
+TEST(WTF, StringReverseFindBasic)
+{
+    auto reference = String::fromUTF8("Cappuccino");
+    EXPECT_EQ(reference.reverseFind('o'), 9U);
+    EXPECT_EQ(reference.reverseFind('n'), 8U);
+    EXPECT_EQ(reference.reverseFind('c'), 6U);
+    EXPECT_EQ(reference.reverseFind('p'), 3U);
+    EXPECT_EQ(reference.reverseFind('k'), notFound);
+
+    EXPECT_EQ(reference.reverseFind('o', 8), notFound);
+    EXPECT_EQ(reference.reverseFind('c', 8), 6U);
+    EXPECT_EQ(reference.reverseFind('c', 6), 6U);
+    EXPECT_EQ(reference.reverseFind('c', 5), 5U);
+    EXPECT_EQ(reference.reverseFind('c', 4), notFound);
 }
 
 } // namespace TestWebKitAPI

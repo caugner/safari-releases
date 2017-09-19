@@ -17,8 +17,8 @@ set(test_main_SOURCES
 
 include_directories(
     ${DERIVED_SOURCES_DIR}
-    ${DERIVED_SOURCES_DIR}/ForwardingHeaders
-    ${DERIVED_SOURCES_DIR}/ForwardingHeaders/JavaScriptCore
+    ${FORWARDING_HEADERS_DIR}
+    ${FORWARDING_HEADERS_DIR}/JavaScriptCore
     ${TESTWEBKITAPI_DIR}/win
     ${DERIVED_SOURCES_DIR}/WebKit/Interfaces
 )
@@ -36,27 +36,31 @@ set(test_webcore_LIBRARIES
     Usp10
     WebCore${DEBUG_SUFFIX}
     WebCoreDerivedSources${DEBUG_SUFFIX}
-    WebKit${DEBUG_SUFFIX}
     WindowsCodecs
     gtest
 )
 
 set(TestWebCoreLib_SOURCES
     ${test_main_SOURCES}
+    win/TestWebCoreStubs.cpp
     ${TESTWEBKITAPI_DIR}/TestsController.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WebCore/AffineTransform.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WebCore/CalculationValue.cpp
+    ${TESTWEBKITAPI_DIR}/Tests/WebCore/ComplexTextController.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WebCore/CSSParser.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WebCore/FloatRect.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WebCore/FloatPoint.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WebCore/FloatSize.cpp
+    ${TESTWEBKITAPI_DIR}/Tests/WebCore/GridPosition.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WebCore/HTMLParserIdioms.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WebCore/IntRect.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WebCore/IntPoint.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WebCore/IntSize.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WebCore/LayoutUnit.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WebCore/ParsedContentRange.cpp
+    ${TESTWEBKITAPI_DIR}/Tests/WebCore/SecurityOrigin.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WebCore/SharedBuffer.cpp
+    ${TESTWEBKITAPI_DIR}/Tests/WebCore/SharedBufferTest.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WebCore/TimeRanges.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WebCore/TransformationMatrix.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WebCore/URL.cpp
@@ -136,6 +140,11 @@ if (${WTF_PLATFORM_WIN_CAIRO})
     )
 endif ()
 
+set(test_webkit_LIBRARIES
+    WebCoreTestSupport
+    WebKit${DEBUG_SUFFIX}
+    gtest
+)
 add_library(TestWebKitLib SHARED
     ${test_main_SOURCES}
     ${TESTWEBKITAPI_DIR}/TestsController.cpp
@@ -144,7 +153,7 @@ add_library(TestWebKitLib SHARED
     ${TESTWEBKITAPI_DIR}/win/HostWindow.cpp
 )
 
-target_link_libraries(TestWebKitLib ${test_webcore_LIBRARIES})
+target_link_libraries(TestWebKitLib ${test_webkit_LIBRARIES})
 
 add_executable(TestWebKit
     ${TOOLS_DIR}/win/DLLLauncher/DLLLauncherMain.cpp

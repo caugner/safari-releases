@@ -67,7 +67,8 @@ void UIScriptContext::runUIScript(const String& script, unsigned scriptCallbackI
     
     if (!hasOutstandingAsyncTasks()) {
         JSValueRef stringifyException = nullptr;
-        requestUIScriptCompletion(JSValueToStringCopy(m_context.get(), result, &stringifyException));
+        JSRetainPtr<JSStringRef> stringified(Adopt, JSValueToStringCopy(m_context.get(), result, &stringifyException));
+        requestUIScriptCompletion(stringified.get());
         tryToCompleteUIScriptForCurrentParentCallback();
     }
 }
@@ -170,7 +171,7 @@ void UIScriptContext::tryToCompleteUIScriptForCurrentParentCallback()
         return;
 
     JSStringRef result = m_uiScriptResultsPendingCompletion.take(m_currentScriptCallbackID);
-    String scriptResult(JSStringGetCharactersPtr(result), JSStringGetLength(result));
+    String scriptResult(reinterpret_cast<const UChar*>(JSStringGetCharactersPtr(result)), JSStringGetLength(result));
 
     m_delegate.uiScriptDidComplete(scriptResult, m_currentScriptCallbackID);
     

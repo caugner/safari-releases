@@ -1,4 +1,3 @@
-// FIXME: use the assert library: https://bugs.webkit.org/show_bug.cgi?id=165684
 import Builder from '../Builder.js';
 import * as assert from '../assert.js';
 
@@ -136,7 +135,7 @@ function test(f) {
 }
 
 test(function() {
-    const memoryDescription = {initial: 20, maximum: 20};
+    const memoryDescription = {initial: 2, maximum: 2};
     const builder = (new Builder())
         .Type().End()
         .Import().Memory("imp", "memory", memoryDescription).End()
@@ -175,7 +174,7 @@ test(function() {
 });
 
 test(function() {
-    const memoryDescription = {initial: 20, maximum: 20};
+    const memoryDescription = {initial: 2, maximum: 2};
     const builder = (new Builder())
         .Type().End()
         .Import().Memory("imp", "memory", memoryDescription).End()
@@ -215,7 +214,7 @@ test(function() {
 });
 
 test(function() {
-    const memoryDescription = {initial: 20, maximum: 20};
+    const memoryDescription = {initial: 2, maximum: 2};
     const builder = (new Builder())
         .Type().End()
         .Import().Memory("imp", "memory", memoryDescription).End()
@@ -256,7 +255,7 @@ test(function() {
 });
 
 test(function() {
-    const memoryDescription = {initial: 20, maximum: 20};
+    const memoryDescription = {initial: 2, maximum: 2};
     const builder = (new Builder())
         .Type().End()
         .Import().Memory("imp", "memory", memoryDescription).End()
@@ -318,28 +317,14 @@ test(function() {
     const bin = builder.WebAssembly().get();
     const module = new WebAssembly.Module(bin);
 
-    function testMemImportError(instanceObj, expectedError) {
-        let threw = false;
-        try {
-            new WebAssembly.Instance(module, instanceObj);
-        } catch(e) {
-            assert.truthy(e instanceof TypeError);
-            threw = true;
-            if (expectedError) {
-                assert.truthy(e.message === expectedError);
-            }
-        }
-        assert.truthy(threw);
-    }
-
-    testMemImportError(20);
-    testMemImportError({ });
-    testMemImportError({imp: { } });
-    testMemImportError({imp: { memory: 20 } });
-    testMemImportError({imp: { memory: [] } });
-    testMemImportError({imp: { memory: new WebAssembly.Memory({initial: 19, maximum: 25}) } }, "Memory import provided an 'initial' that is too small");
-    testMemImportError({imp: { memory: new WebAssembly.Memory({initial: 20}) } }, "Memory import did not have a 'maximum' but the module requires that it does");
-    testMemImportError({imp: { memory: new WebAssembly.Memory({initial: 20, maximum: 26}) } }, "Memory imports 'maximum' is larger than the module's expected 'maximum");
+    assert.throws(() => new WebAssembly.Instance(module, 20), TypeError, `second argument to WebAssembly.Instance must be undefined or an Object`);
+    assert.throws(() => new WebAssembly.Instance(module, {}), TypeError, `import imp:memory must be an object`);
+    assert.throws(() => new WebAssembly.Instance(module, {imp: { } }), WebAssembly.LinkError, `Memory import imp:memory is not an instance of WebAssembly.Memory`);
+    assert.throws(() => new WebAssembly.Instance(module, {imp: { memory: 20 } }), WebAssembly.LinkError, `Memory import imp:memory is not an instance of WebAssembly.Memory`);
+    assert.throws(() => new WebAssembly.Instance(module, {imp: { memory: [] } }), WebAssembly.LinkError, `Memory import imp:memory is not an instance of WebAssembly.Memory`);
+    assert.throws(() => new WebAssembly.Instance(module, {imp: { memory: new WebAssembly.Memory({initial: 19, maximum: 25}) } }), WebAssembly.LinkError, `Memory import imp:memory provided an 'initial' that is smaller than the module's declared 'initial' import memory size`);
+    assert.throws(() => new WebAssembly.Instance(module, {imp: { memory: new WebAssembly.Memory({initial: 20}) } }), WebAssembly.LinkError, `Memory import imp:memory did not have a 'maximum' but the module requires that it does`);
+    assert.throws(() => new WebAssembly.Instance(module, {imp: { memory: new WebAssembly.Memory({initial: 20, maximum: 26}) } }), WebAssembly.LinkError, `Memory import imp:memory provided a 'maximum' that is larger than the module's declared 'maximum' import memory size`);
 });
 
 test(function() {
@@ -366,11 +351,11 @@ test(function() {
     const module = new WebAssembly.Module(bin);
 
     function testMemImportError(instanceObj, expectedError) {
-        assert.throws(() => new WebAssembly.Instance(module, instanceObj), TypeError, expectedError);
+        assert.throws(() => new WebAssembly.Instance(module, instanceObj), WebAssembly.LinkError, expectedError);
     }
 
-    testMemImportError({imp: { memory: new WebAssembly.Memory({initial: 19, maximum: 25}) } }, "Memory import provided an 'initial' that is too small");
-    testMemImportError({imp: { memory: new WebAssembly.Memory({initial: 19}) } }, "Memory import provided an 'initial' that is too small");
+    testMemImportError({imp: { memory: new WebAssembly.Memory({initial: 19, maximum: 25}) } }, `Memory import imp:memory provided an 'initial' that is smaller than the module's declared 'initial' import memory size`);
+    testMemImportError({imp: { memory: new WebAssembly.Memory({initial: 19}) } }, `Memory import imp:memory provided an 'initial' that is smaller than the module's declared 'initial' import memory size`);
 
     // This should not throw.
     new WebAssembly.Instance(module, {imp: {memory: new WebAssembly.Memory({initial:20})}});

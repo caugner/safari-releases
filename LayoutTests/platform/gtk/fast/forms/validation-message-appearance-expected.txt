@@ -9,7 +9,7 @@ layer at (0,0) size 800x46
             RenderBlock {DIV} at (0,0) size 185x17
         RenderText {#text} at (195,6) size 4x17
           text run at (195,6) width 4: " "
-        RenderButton {INPUT} at (201,2) size 66x26 [bgcolor=#C0C0C0] [border: (2px outset #C0C0C0)]
+        RenderButton {INPUT} at (201,2) size 66x26 [color=#2E3436] [bgcolor=#C0C0C0] [border: (2px outset #C0C0C0)]
           RenderBlock (anonymous) at (8,4) size 50x17
             RenderText at (0,0) size 50x17
               text run at (0,0) width 50: "Submit"
@@ -25,8 +25,8 @@ layer at (10,46) size 220x88
     RenderBlock {DIV} at (10,10) size 0x68
     RenderBlock {DIV} at (10,10) size 200x68
       RenderBlock {DIV} at (0,0) size 200x17
-        RenderText {#text} at (0,0) size 105x17
-          text run at (0,0) width 105: "value missing"
+        RenderText {#text} at (0,0) size 119x17
+          text run at (0,0) width 119: "Fill out this field"
       RenderBlock {DIV} at (0,17) size 200x51
         RenderText {#text} at (0,0) size 166x17
           text run at (0,0) width 166: "Needs at least 8 letters."

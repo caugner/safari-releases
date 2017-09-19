@@ -31,13 +31,15 @@
 #import <wtf/RetainPtr.h>
 
 #if PLATFORM(IOS)
+#import "UIKitTestSPI.h"
+#import <WebKit/WKWebViewPrivate.h>
 @interface WKWebView ()
 
 // FIXME: move these to WKWebView_Private.h
 - (void)scrollViewWillBeginZooming:(UIScrollView *)scrollView withView:(UIView *)view;
 - (void)scrollViewDidEndZooming:(UIScrollView *)scrollView withView:(UIView *)view atScale:(CGFloat)scale;
 - (void)_didFinishScrolling;
-- (void)_updateVisibleContentRects;
+- (void)_scheduleVisibleContentRectUpdate;
 
 @end
 #endif
@@ -50,6 +52,7 @@
 
 @property (nonatomic, copy) void (^zoomToScaleCompletionHandler)(void);
 @property (nonatomic, copy) void (^showKeyboardCompletionHandler)(void);
+@property (nonatomic, copy) void (^retrieveSpeakSelectionContentCompletionHandler)(void);
 @property (nonatomic) BOOL isShowingKeyboard;
 
 @end
@@ -88,9 +91,11 @@
     self.didShowKeyboardCallback = nil;
     self.didHideKeyboardCallback = nil;
     self.didEndScrollingCallback = nil;
+    self.rotationDidEndCallback = nil;
 
     self.zoomToScaleCompletionHandler = nil;
     self.showKeyboardCompletionHandler = nil;
+    self.retrieveSpeakSelectionContentCompletionHandler = nil;
 
     [super dealloc];
 }
@@ -184,7 +189,39 @@
 - (void)_setStableStateOverride:(NSNumber *)overrideBoolean
 {
     m_stableStateOverride = overrideBoolean;
-    [self _updateVisibleContentRects];
+    [self _scheduleVisibleContentRectUpdate];
+}
+
+- (void)_didEndRotation
+{
+    if (self.rotationDidEndCallback)
+        self.rotationDidEndCallback();
+}
+
+- (void)_accessibilityDidGetSpeakSelectionContent:(NSString *)content
+{
+    self.accessibilitySpeakSelectionContent = content;
+    if (self.retrieveSpeakSelectionContentCompletionHandler)
+        self.retrieveSpeakSelectionContentCompletionHandler();
+}
+
+- (void)accessibilityRetrieveSpeakSelectionContentWithCompletionHandler:(void (^)(void))completionHandler
+{
+    self.retrieveSpeakSelectionContentCompletionHandler = completionHandler;
+    [self _accessibilityRetrieveSpeakSelectionContent];
+}
+
+- (void)setOverrideSafeAreaInsets:(UIEdgeInsets)insets
+{
+    _overrideSafeAreaInsets = insets;
+#if __IPHONE_OS_VERSION_MIN_REQUIRED >= 110000
+    [self _updateSafeAreaInsets];
+#endif
+}
+
+- (UIEdgeInsets)_safeAreaInsetsForFrame:(CGRect)frame inSuperview:(UIView *)view
+{
+    return _overrideSafeAreaInsets;
 }
 
 #endif

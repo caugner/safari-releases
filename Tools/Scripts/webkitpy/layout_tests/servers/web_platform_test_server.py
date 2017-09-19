@@ -23,11 +23,8 @@
 
 import json
 import logging
-import sys
 import time
-import urllib
 
-from webkitpy.common.system.autoinstall import AutoInstaller
 from webkitpy.layout_tests.servers import http_server_base
 
 _log = logging.getLogger(__name__)
@@ -58,6 +55,13 @@ def base_url(port_obj):
     return "http://" + config["host"] + ":" + str(ports["http"][0]) + "/"
 
 
+def is_wpt_server_running(port_obj):
+    config = wpt_config_json(port_obj)
+    if not config:
+        return False
+    return http_server_base.HttpServerBase._is_running_on_port(config["ports"]["http"][0])
+
+
 class WebPlatformTestServer(http_server_base.HttpServerBase):
     def __init__(self, port_obj, name, pidfile=None):
         http_server_base.HttpServerBase.__init__(self, port_obj)
@@ -66,6 +70,7 @@ class WebPlatformTestServer(http_server_base.HttpServerBase):
         self._name = name
         self._log_file_name = '%s_process_log.out.txt' % (self._name)
 
+        self._output_log_path = None
         self._wsout = None
         self._process = None
         self._pid_file = pidfile
@@ -96,19 +101,8 @@ class WebPlatformTestServer(http_server_base.HttpServerBase):
                         port["sslcert"] = True
                     self._mappings.append(port)
 
-    def _install_modules(self):
-        modules_file_path = self._filesystem.join(self._doc_root_path, "..", "resources", "web-platform-tests-modules.json")
-        if not self._filesystem.isfile(modules_file_path):
-            _log.warning("Cannot read " + modules_file_path)
-            return
-        modules = json.loads(self._filesystem.read_text_file(modules_file_path))
-        for module in modules:
-            path = module["path"]
-            name = path.pop()
-            resolved_url = module["url"]
-            if not resolved_url.startswith("http"):
-                resolved_url = "file://" + urllib.pathname2url(self._filesystem.join(self._doc_root_path, "..", "resources", resolved_url))
-            AutoInstaller(target_dir=self._filesystem.join(self._doc_root, self._filesystem.sep.join(path))).install(url=resolved_url, url_subpath=module["url_subpath"], target_name=name)
+    def ports_to_forward(self):
+        return [mapping['port'] for mapping in self._mappings]
 
     def _copy_webkit_test_files(self):
         _log.debug('Copying WebKit resources files')
@@ -124,8 +118,6 @@ class WebPlatformTestServer(http_server_base.HttpServerBase):
 
         wpt_testharnessjs_file = self._filesystem.join(self._doc_root, "resources", "testharness.js")
         layout_tests_testharnessjs_file = self._filesystem.join(self._layout_root, "resources", "testharness.js")
-        # FIXME: Next line to be removed once all bots have wpt_testharnessjs_file updated correctly. See https://bugs.webkit.org/show_bug.cgi?id=152257.
-        self._filesystem.copyfile(layout_tests_testharnessjs_file, wpt_testharnessjs_file)
         if (not self._filesystem.compare(wpt_testharnessjs_file, layout_tests_testharnessjs_file)):
             _log.warning("\n//////////\nWPT tests are not using the same testharness.js file as other WebKit Layout tests.\nWebKit testharness.js might need to be updated according WPT testharness.js.\n//////////\n")
 
@@ -142,9 +134,8 @@ class WebPlatformTestServer(http_server_base.HttpServerBase):
 
     def _prepare_config(self):
         if self._filesystem.exists(self._output_dir):
-            output_log = self._filesystem.join(self._output_dir, self._log_file_name)
-            self._wsout = self._filesystem.open_text_file_for_writing(output_log)
-        self._install_modules()
+            self._output_log_path = self._filesystem.join(self._output_dir, self._log_file_name)
+            self._wsout = self._filesystem.open_text_file_for_writing(self._output_log_path)
         self._copy_webkit_test_files()
 
     def _spawn_process(self):
@@ -158,6 +149,16 @@ class WebPlatformTestServer(http_server_base.HttpServerBase):
 
         # Wait a second for the server to actually start so that tests do not start until server is running.
         time.sleep(1)
+
+        # The server is not running after 1 second, something went wrong.
+        if self._process.poll() is not None:
+            self._stop_running_server()
+            error_log = ('WPT Server process exited prematurely with status code %s\n' % self._process.returncode
+                         + 'The cmdline for running the WPT server was: %s\n' % self._start_cmd
+                         + 'The working dir was: %s\n' % self._doc_root_path)
+            if self._output_log_path is not None and self._filesystem.exists(self._output_log_path):
+                error_log += 'Check the logfile for the command at: %s\n' % self._output_log_path
+            raise http_server_base.ServerError(error_log)
 
         return self._process.pid
 

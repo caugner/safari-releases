@@ -31,7 +31,9 @@
 #import "TestNavigationDelegate.h"
 #import "Utilities.h"
 
+#import <WebKit/WKWebViewConfigurationPrivate.h>
 #import <WebKit/WebKitPrivate.h>
+#import <WebKit/_WKProcessPoolConfiguration.h>
 #import <objc/runtime.h>
 #import <wtf/RetainPtr.h>
 
@@ -42,7 +44,7 @@
 #endif
 
 #if PLATFORM(IOS)
-#import <WebCore/SoftLinking.h>
+#import <wtf/SoftLinking.h>
 SOFT_LINK_FRAMEWORK(UIKit)
 SOFT_LINK_CLASS(UIKit, UIWindow)
 #endif
@@ -57,6 +59,11 @@ SOFT_LINK_CLASS(UIKit, UIWindow)
         _messageHandlers = [NSMutableDictionary dictionary];
 
     _messageHandlers[message] = [handler copy];
+}
+
+- (void)removeMessage:(NSString *)message
+{
+    [_messageHandlers removeObjectForKey:message];
 }
 
 - (void)userContentController:(WKUserContentController *)userContentController didReceiveScriptMessage:(WKScriptMessage *)message
@@ -89,7 +96,7 @@ NSEventMask __simulated_forceClickAssociatedEventsMask(id self, SEL _cmd)
 }
 #endif
 
-- (void)_mouseDownAtPoint:(NSPoint)point simulatePressure:(BOOL)simulatePressure
+- (void)_mouseDownAtPoint:(NSPoint)point simulatePressure:(BOOL)simulatePressure clickCount:(NSUInteger)clickCount
 {
     NSEventType mouseEventType = NSEventTypeLeftMouseDown;
 
@@ -101,7 +108,7 @@ NSEventMask __simulated_forceClickAssociatedEventsMask(id self, SEL _cmd)
     simulatePressure = NO;
 #endif
 
-    NSEvent *event = [NSEvent mouseEventWithType:mouseEventType location:point modifierFlags:modifierFlags timestamp:GetCurrentEventTime() windowNumber:self.windowNumber context:[NSGraphicsContext currentContext] eventNumber:++gEventNumber clickCount:1 pressure:simulatePressure];
+    NSEvent *event = [NSEvent mouseEventWithType:mouseEventType location:point modifierFlags:modifierFlags timestamp:GetCurrentEventTime() windowNumber:self.windowNumber context:[NSGraphicsContext currentContext] eventNumber:++gEventNumber clickCount:clickCount pressure:simulatePressure];
     if (!simulatePressure) {
         [self sendEvent:event];
         return;
@@ -119,6 +126,11 @@ NSEventMask __simulated_forceClickAssociatedEventsMask(id self, SEL _cmd)
         method_setImplementation(associatedEventsMaskMethod, originalAssociatedEventsMaskImpl);
     }
 #endif
+}
+
+- (void)_mouseUpAtPoint:(NSPoint)point clickCount:(NSUInteger)clickCount
+{
+    [self sendEvent:[NSEvent mouseEventWithType:NSEventTypeLeftMouseUp location:point modifierFlags:0 timestamp:GetCurrentEventTime() windowNumber:self.windowNumber context:[NSGraphicsContext currentContext] eventNumber:++gEventNumber clickCount:clickCount pressure:0]];
 }
 #endif // PLATFORM(MAC)
 
@@ -149,13 +161,13 @@ NSEventMask __simulated_forceClickAssociatedEventsMask(id self, SEL _cmd)
 @end
 
 @implementation TestWKWebView {
-    TestWKWebViewHostWindow *_hostWindow;
+    RetainPtr<TestWKWebViewHostWindow> _hostWindow;
     RetainPtr<TestMessageHandler> _testHandler;
 }
 
 - (instancetype)initWithFrame:(CGRect)frame
 {
-    WKWebViewConfiguration *defaultConfiguration = [[WKWebViewConfiguration alloc] init];
+    WKWebViewConfiguration *defaultConfiguration = [[[WKWebViewConfiguration alloc] init] autorelease];
     return [self initWithFrame:frame configuration:defaultConfiguration];
 }
 
@@ -167,19 +179,32 @@ NSEventMask __simulated_forceClickAssociatedEventsMask(id self, SEL _cmd)
     return self;
 }
 
+- (instancetype)initWithFrame:(CGRect)frame configuration:(WKWebViewConfiguration *)configuration processPoolConfiguration:(_WKProcessPoolConfiguration *)processPoolConfiguration
+{
+    [configuration setProcessPool:[[[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration] autorelease]];
+    return [self initWithFrame:frame configuration:configuration];
+}
+
 - (void)_setUpTestWindow:(NSRect)frame
 {
 #if PLATFORM(MAC)
-    _hostWindow = [[TestWKWebViewHostWindow alloc] initWithContentRect:frame styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:NO];
+    _hostWindow = adoptNS([[TestWKWebViewHostWindow alloc] initWithContentRect:frame styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:NO]);
     [_hostWindow setFrameOrigin:NSMakePoint(0, 0)];
     [_hostWindow setIsVisible:YES];
+    [_hostWindow contentView].wantsLayer = YES;
     [[_hostWindow contentView] addSubview:self];
     [_hostWindow makeKeyAndOrderFront:self];
 #else
-    _hostWindow = [[TestWKWebViewHostWindow alloc] initWithFrame:frame];
-    _hostWindow.hidden = NO;
+    _hostWindow = adoptNS([[TestWKWebViewHostWindow alloc] initWithFrame:frame]);
+    [_hostWindow setHidden:NO];
     [_hostWindow addSubview:self];
 #endif
+}
+
+- (void)clearMessageHandlers:(NSArray *)messageNames
+{
+    for (NSString *messageName in messageNames)
+        [_testHandler removeMessage:messageName];
 }
 
 - (void)performAfterReceivingMessage:(NSString *)message action:(dispatch_block_t)action
@@ -198,6 +223,13 @@ NSEventMask __simulated_forceClickAssociatedEventsMask(id self, SEL _cmd)
     [self loadRequest:request];
 }
 
+- (void)synchronouslyLoadHTMLString:(NSString *)html
+{
+    NSURL *testResourceURL = [[[NSBundle mainBundle] bundleURL] URLByAppendingPathComponent:@"TestWebKitAPI.resources"];
+    [self loadHTMLString:html baseURL:testResourceURL];
+    [self _test_waitForDidFinishNavigation];
+}
+
 - (void)synchronouslyLoadTestPageNamed:(NSString *)pageName
 {
     [self loadTestPageNamed:pageName];
@@ -208,15 +240,15 @@ NSEventMask __simulated_forceClickAssociatedEventsMask(id self, SEL _cmd)
 {
     __block bool isWaitingForJavaScript = false;
     __block NSString *evalResult = nil;
-    [self evaluateJavaScript:script completionHandler:^(id result, NSError *error)
+    [self _evaluateJavaScriptWithoutUserGesture:script completionHandler:^(id result, NSError *error)
     {
-        evalResult = [NSString stringWithFormat:@"%@", result];
+        evalResult = [[NSString alloc] initWithFormat:@"%@", result];
         isWaitingForJavaScript = true;
         EXPECT_TRUE(!error);
     }];
 
     TestWebKitAPI::Util::run(&isWaitingForJavaScript);
-    return evalResult;
+    return [evalResult autorelease];
 }
 
 - (void)waitForMessage:(NSString *)message
@@ -243,19 +275,55 @@ NSEventMask __simulated_forceClickAssociatedEventsMask(id self, SEL _cmd)
 
 @end
 
+#if PLATFORM(IOS)
+
+@implementation TestWKWebView (IOSOnly)
+
+- (RetainPtr<NSArray>)selectionRectsAfterPresentationUpdate
+{
+    RetainPtr<TestWKWebView> retainedSelf = self;
+
+    __block bool isDone = false;
+    __block RetainPtr<NSArray> selectionRects;
+    [self _doAfterNextPresentationUpdate:^() {
+        selectionRects = adoptNS([[retainedSelf _uiTextSelectionRects] retain]);
+        isDone = true;
+    }];
+
+    TestWebKitAPI::Util::run(&isDone);
+    return selectionRects;
+}
+
+@end
+
+#endif
+
 #if PLATFORM(MAC)
 @implementation TestWKWebView (MacOnly)
 - (void)mouseDownAtPoint:(NSPoint)point simulatePressure:(BOOL)simulatePressure
 {
-    [_hostWindow _mouseDownAtPoint:point simulatePressure:simulatePressure];
+    [_hostWindow _mouseDownAtPoint:point simulatePressure:simulatePressure clickCount:1];
+}
+
+- (void)mouseUpAtPoint:(NSPoint)point
+{
+    [_hostWindow _mouseUpAtPoint:point clickCount:1];
+}
+
+- (void)sendClicksAtPoint:(NSPoint)point numberOfClicks:(NSUInteger)numberOfClicks
+{
+    for (NSUInteger clickCount = 1; clickCount <= numberOfClicks; ++clickCount) {
+        [_hostWindow _mouseDownAtPoint:point simulatePressure:NO clickCount:clickCount];
+        [_hostWindow _mouseUpAtPoint:point clickCount:clickCount];
+    }
 }
 
 - (void)typeCharacter:(char)character {
     NSString *characterAsString = [NSString stringWithFormat:@"%c" , character];
     NSEventType keyDownEventType = NSEventTypeKeyDown;
     NSEventType keyUpEventType = NSEventTypeKeyUp;
-    [self keyDown:[NSEvent keyEventWithType:keyDownEventType location:NSZeroPoint modifierFlags:0 timestamp:GetCurrentEventTime() windowNumber:_hostWindow.windowNumber context:nil characters:characterAsString charactersIgnoringModifiers:characterAsString isARepeat:NO keyCode:character]];
-    [self keyUp:[NSEvent keyEventWithType:keyUpEventType location:NSZeroPoint modifierFlags:0 timestamp:GetCurrentEventTime() windowNumber:_hostWindow.windowNumber context:nil characters:characterAsString charactersIgnoringModifiers:characterAsString isARepeat:NO keyCode:character]];
+    [self keyDown:[NSEvent keyEventWithType:keyDownEventType location:NSZeroPoint modifierFlags:0 timestamp:GetCurrentEventTime() windowNumber:[_hostWindow windowNumber] context:nil characters:characterAsString charactersIgnoringModifiers:characterAsString isARepeat:NO keyCode:character]];
+    [self keyUp:[NSEvent keyEventWithType:keyUpEventType location:NSZeroPoint modifierFlags:0 timestamp:GetCurrentEventTime() windowNumber:[_hostWindow windowNumber] context:nil characters:characterAsString charactersIgnoringModifiers:characterAsString isARepeat:NO keyCode:character]];
 }
 @end
 #endif

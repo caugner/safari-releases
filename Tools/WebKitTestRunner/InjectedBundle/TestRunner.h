@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2016 Apple Inc. All rights reserved.
+ * Copyright (C) 2010-2017 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -38,14 +38,12 @@
 #include <wtf/RetainPtr.h>
 #include <CoreFoundation/CFRunLoop.h>
 typedef RetainPtr<CFRunLoopTimerRef> PlatformTimerRef;
-#elif PLATFORM(GTK)
+#elif PLATFORM(GTK) || PLATFORM(WPE)
 #include <wtf/RunLoop.h>
 namespace WTR {
 class TestRunner;
 typedef RunLoop::Timer<TestRunner> PlatformTimerRef;
 }
-#elif PLATFORM(EFL)
-typedef Ecore_Timer* PlatformTimerRef;
 #endif
 
 namespace WTR {
@@ -101,11 +99,12 @@ public:
     void setCanOpenWindows(bool);
     void setCloseRemainingWindowsWhenComplete(bool value) { m_shouldCloseExtraWindows = value; }
     void setXSSAuditorEnabled(bool);
-    void setShadowDOMEnabled(bool);
-    void setCustomElementsEnabled(bool);
     void setModernMediaControlsEnabled(bool);
     void setWebGL2Enabled(bool);
-    void setFetchAPIEnabled(bool);
+    void setWebGPUEnabled(bool);
+    void setWritableStreamAPIEnabled(bool);
+    void setReadableByteStreamAPIEnabled(bool);
+
     void setAllowUniversalAccessFromFileURLs(bool);
     void setAllowFileAccessFromFileURLs(bool);
     void setNeedsStorageAccessFromFileURLsQuirk(bool);
@@ -126,13 +125,10 @@ public:
     void dispatchPendingLoadRequests();
     void setCacheModel(int);
     void setAsynchronousSpellCheckingEnabled(bool);
-    void setDownloadAttributeEnabled(bool);
     void setAllowsAnySSLCertificate(bool);
-    void setES6ModulesEnabled(bool);
     void setEncryptedMediaAPIEnabled(bool);
-    void setSubtleCryptoEnabled(bool);
-    void setMediaStreamEnabled(bool);
-    void setPeerConnectionEnabled(bool);
+    void setMediaDevicesEnabled(bool);
+    void setWebRTCLegacyAPIEnabled(bool);
 
     // Special DOM functions.
     void clearBackForwardList();
@@ -144,7 +140,8 @@ public:
     void testRepaint() { m_testRepaint = true; }
     void repaintSweepHorizontally() { m_testRepaintSweepHorizontally = true; }
     void display();
-    
+    void displayAndTrackRepaints();
+
     // UserContent testing.
     void addUserScript(JSStringRef source, bool runAtStart, bool allFrames);
     void addUserStyleSheet(JSStringRef source, bool allFrames);
@@ -271,6 +268,7 @@ public:
 
     // Cookies testing
     void setAlwaysAcceptCookies(bool);
+    void setCookieStoragePartitioningEnabled(bool);
 
     // Custom full screen behavior.
     void setHasCustomFullScreenBehavior(bool value) { m_customFullScreenBehavior = value; }
@@ -290,6 +288,7 @@ public:
 
     // MediaStream
     void setUserMediaPermission(bool);
+    void resetUserMediaPermission();
     void setUserMediaPersistentPermissionForOrigin(bool permission, JSStringRef origin, JSStringRef parentOrigin);
     unsigned userMediaPermissionRequestCountForOrigin(JSStringRef origin, JSStringRef parentOrigin) const;
     void resetUserMediaPermissionRequestCountForOrigin(JSStringRef origin, JSStringRef parentOrigin);
@@ -346,6 +345,48 @@ public:
     void setMockGamepadDetails(unsigned index, JSStringRef gamepadID, unsigned axisCount, unsigned buttonCount);
     void setMockGamepadAxisValue(unsigned index, unsigned axisIndex, double value);
     void setMockGamepadButtonValue(unsigned index, unsigned buttonIndex, double value);
+    
+    // Resource Load Statistics
+    void installStatisticsDidModifyDataRecordsCallback(JSValueRef callback);
+    void installStatisticsDidScanDataRecordsCallback(JSValueRef callback);
+    void installStatisticsDidRunTelemetryCallback(JSValueRef callback);
+    void statisticsDidModifyDataRecordsCallback();
+    void statisticsDidScanDataRecordsCallback();
+    void statisticsDidRunTelemetryCallback(unsigned totalPrevalentResources, unsigned totalPrevalentResourcesWithUserInteraction, unsigned top3SubframeUnderTopFrameOrigins);
+    void statisticsProcessStatisticsAndDataRecords();
+    void statisticsUpdateCookiePartitioning();
+    void statisticsSetShouldPartitionCookiesForHost(JSStringRef hostName, bool value);
+    void statisticsSubmitTelemetry();
+    void setStatisticsLastSeen(JSStringRef hostName, double seconds);
+    void setStatisticsPrevalentResource(JSStringRef hostName, bool value);
+    bool isStatisticsPrevalentResource(JSStringRef hostName);
+    void setStatisticsHasHadUserInteraction(JSStringRef hostName, bool value);
+    bool isStatisticsHasHadUserInteraction(JSStringRef hostName);
+    void setStatisticsGrandfathered(JSStringRef hostName, bool value);
+    bool isStatisticsGrandfathered(JSStringRef hostName);
+    void setStatisticsSubframeUnderTopFrameOrigin(JSStringRef hostName, JSStringRef topFrameHostName);
+    void setStatisticsSubresourceUnderTopFrameOrigin(JSStringRef hostName, JSStringRef topFrameHostName);
+    void setStatisticsSubresourceUniqueRedirectTo(JSStringRef hostName, JSStringRef hostNameRedirectedTo);
+    void setStatisticsTimeToLiveUserInteraction(double seconds);
+    void setStatisticsTimeToLiveCookiePartitionFree(double seconds);
+    void setStatisticsNotifyPagesWhenDataRecordsWereScanned(bool);
+    void setStatisticsShouldClassifyResourcesBeforeDataRecordsRemoval(bool);
+    void setStatisticsNotifyPagesWhenTelemetryWasCaptured(bool value);
+    void setStatisticsMinimumTimeBetweenDataRecordsRemoval(double);
+    void setStatisticsGrandfatheringTime(double seconds);
+    void setStatisticsMaxStatisticsEntries(unsigned);
+    void setStatisticsPruneEntriesDownTo(unsigned);
+    void statisticsClearInMemoryAndPersistentStore();
+    void statisticsClearInMemoryAndPersistentStoreModifiedSinceHours(unsigned hours);
+    void statisticsResetToConsistentState();
+
+    // Open panel
+    void setOpenPanelFiles(JSValueRef);
+
+    void terminateNetworkProcess();
+
+    void removeAllSessionCredentials(JSValueRef);
+    void callDidRemoveAllSessionCredentialsCallback();
 
 private:
     TestRunner();

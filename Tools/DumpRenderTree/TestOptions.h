@@ -24,13 +24,19 @@
  */
 
 #pragma once
+#include "DumpRenderTree.h"
 
 @class NSURL;
 
 struct TestOptions {
     bool enableIntersectionObserver { false };
-    bool enableModernMediaControls { false };
+    bool enableModernMediaControls { true };
     bool enablePointerLock { false };
+    bool enableCredentialManagement { false };
+    bool enableDragDestinationActionLoad { false };
+    bool layerBackedWebView { false };
+    bool enableIsSecureContextAttribute { true };
 
-    TestOptions(NSURL *testURL);
+    TestOptions(NSURL*, const TestCommand&);
+    bool webViewIsCompatibleWithOptions(const TestOptions&) const;
 };
