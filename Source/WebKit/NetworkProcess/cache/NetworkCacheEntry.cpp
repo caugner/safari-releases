@@ -146,7 +146,7 @@ std::unique_ptr<Entry> Entry::decodeStorageRecord(const Storage::Record& storage
 void Entry::initializeShareableResourceHandleFromStorageRecord() const
 {
     auto* cache = NetworkProcess::singleton().cache();
-    if (!cache || !cache->canUseSharedMemoryForBodyData())
+    if (!cache)
         return;
 
     auto sharedMemory = m_sourceStorageRecord.body.tryCreateSharedMemory();
