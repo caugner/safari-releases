@@ -79,7 +79,7 @@ private:
 
 struct SignalContext {
 private:
-    SignalContext(PlatformRegisters& registers, MacroAssemblerCodePtr<CFunctionPtrTag> machinePC)
+    SignalContext(PlatformRegisters& registers, MacroAssemblerCodePtr<PlatformRegistersPCPtrTag> machinePC)
         : registers(registers)
         , machinePC(machinePC)
         , stackPointer(MachineContext::stackPointer(registers))
@@ -87,11 +87,11 @@ private:
     { }
 
 public:
-    static std::optional<SignalContext> tryCreate(PlatformRegisters& registers)
+    static Optional<SignalContext> tryCreate(PlatformRegisters& registers)
     {
         auto instructionPointer = MachineContext::instructionPointer(registers);
         if (!instructionPointer)
-            return std::nullopt;
+            return WTF::nullopt;
         return SignalContext(registers, *instructionPointer);
     }
 
@@ -148,7 +148,7 @@ public:
     }
 
     PlatformRegisters& registers;
-    MacroAssemblerCodePtr<CFunctionPtrTag> machinePC;
+    MacroAssemblerCodePtr<PlatformRegistersPCPtrTag> machinePC;
     void* stackPointer;
     void* framePointer;
 };
@@ -181,7 +181,7 @@ struct SignalContext {
 
     void dump() { }
 
-    MacroAssemblerCodePtr<CFunctionPtrTag> machinePC;
+    MacroAssemblerCodePtr<PlatformRegistersPCPtrTag> machinePC;
     void* stackPointer;
     void* framePointer;
 };
@@ -321,10 +321,10 @@ void SigillCrashAnalyzer::dumpCodeBlock(CodeBlock* codeBlock, void* machinePC)
     while (byteCount) {
         char pcString[24];
         if (currentPC == machinePC) {
-            snprintf(pcString, sizeof(pcString), "* 0x%lx", reinterpret_cast<unsigned long>(currentPC));
+            snprintf(pcString, sizeof(pcString), "* 0x%lx", reinterpret_cast<uintptr_t>(currentPC));
             log("%20s: %s    <=========================", pcString, m_arm64Opcode.disassemble(currentPC));
         } else {
-            snprintf(pcString, sizeof(pcString), "0x%lx", reinterpret_cast<unsigned long>(currentPC));
+            snprintf(pcString, sizeof(pcString), "0x%lx", reinterpret_cast<uintptr_t>(currentPC));
             log("%20s: %s", pcString, m_arm64Opcode.disassemble(currentPC));
         }
         currentPC++;

@@ -24270,9 +24270,9 @@
 - path: test262/test/built-ins/Number/S9.3.1_A29.js
   cmd: runTest262 :normal, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
 - path: test262/test/built-ins/Number/S9.3.1_A2_U180E.js
-  cmd: runTest262 :fail, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], []
+  cmd: runTest262 :normal, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], []
 - path: test262/test/built-ins/Number/S9.3.1_A2_U180E.js
-  cmd: runTest262 :fail, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
 - path: test262/test/built-ins/Number/S9.3.1_A30.js
   cmd: runTest262 :normal, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], []
 - path: test262/test/built-ins/Number/S9.3.1_A30.js
@@ -24290,17 +24290,17 @@
 - path: test262/test/built-ins/Number/S9.3.1_A3_T1.js
   cmd: runTest262 :normal, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
 - path: test262/test/built-ins/Number/S9.3.1_A3_T1_U180E.js
-  cmd: runTest262 :fail, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], []
+  cmd: runTest262 :normal, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], []
 - path: test262/test/built-ins/Number/S9.3.1_A3_T1_U180E.js
-  cmd: runTest262 :fail, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
 - path: test262/test/built-ins/Number/S9.3.1_A3_T2.js
   cmd: runTest262 :normal, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], []
 - path: test262/test/built-ins/Number/S9.3.1_A3_T2.js
   cmd: runTest262 :normal, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
 - path: test262/test/built-ins/Number/S9.3.1_A3_T2_U180E.js
-  cmd: runTest262 :fail, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], []
+  cmd: runTest262 :normal, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], []
 - path: test262/test/built-ins/Number/S9.3.1_A3_T2_U180E.js
-  cmd: runTest262 :fail, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
 - path: test262/test/built-ins/Number/S9.3.1_A4_T1.js
   cmd: runTest262 :normal, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], []
 - path: test262/test/built-ins/Number/S9.3.1_A4_T1.js
@@ -40576,9 +40576,9 @@
 - path: test262/test/built-ins/RegExp/S15.10.2.12_A1_T5.js
   cmd: runTest262 :normal, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
 - path: test262/test/built-ins/RegExp/S15.10.2.12_A2_T1.js
-  cmd: runTest262 :fail, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], []
+  cmd: runTest262 :normal, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], []
 - path: test262/test/built-ins/RegExp/S15.10.2.12_A2_T1.js
-  cmd: runTest262 :fail, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
 - path: test262/test/built-ins/RegExp/S15.10.2.12_A2_T2.js
   cmd: runTest262 :normal, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], []
 - path: test262/test/built-ins/RegExp/S15.10.2.12_A2_T2.js
@@ -42180,9 +42180,9 @@
 - path: test262/test/built-ins/RegExp/named-groups/non-unicode-property-names.js
   cmd: runTest262 :normal, "NoException", ["../../../../harness/assert.js", "../../../../harness/sta.js", "../../../../harness/compareArray.js"], [:strict]
 - path: test262/test/built-ins/RegExp/named-groups/non-unicode-references.js
-  cmd: runTest262 :fail, "NoException", ["../../../../harness/assert.js", "../../../../harness/sta.js", "../../../../harness/compareArray.js"], []
+  cmd: runTest262 :normal, "NoException", ["../../../../harness/assert.js", "../../../../harness/sta.js", "../../../../harness/compareArray.js"], []
 - path: test262/test/built-ins/RegExp/named-groups/non-unicode-references.js
-  cmd: runTest262 :fail, "NoException", ["../../../../harness/assert.js", "../../../../harness/sta.js", "../../../../harness/compareArray.js"], [:strict]
+  cmd: runTest262 :normal, "NoException", ["../../../../harness/assert.js", "../../../../harness/sta.js", "../../../../harness/compareArray.js"], [:strict]
 - path: test262/test/built-ins/RegExp/named-groups/string-replace-escaped.js
   cmd: runTest262 :normal, "NoException", ["../../../../harness/assert.js", "../../../../harness/sta.js"], []
 - path: test262/test/built-ins/RegExp/named-groups/string-replace-escaped.js
@@ -42224,9 +42224,9 @@
 - path: test262/test/built-ins/RegExp/named-groups/unicode-property-names.js
   cmd: runTest262 :fail, "NoException", ["../../../../harness/assert.js", "../../../../harness/sta.js"], [:strict]
 - path: test262/test/built-ins/RegExp/named-groups/unicode-references.js
-  cmd: runTest262 :fail, "NoException", ["../../../../harness/assert.js", "../../../../harness/sta.js", "../../../../harness/compareArray.js"], []
+  cmd: runTest262 :normal, "NoException", ["../../../../harness/assert.js", "../../../../harness/sta.js", "../../../../harness/compareArray.js"], []
 - path: test262/test/built-ins/RegExp/named-groups/unicode-references.js
-  cmd: runTest262 :fail, "NoException", ["../../../../harness/assert.js", "../../../../harness/sta.js", "../../../../harness/compareArray.js"], [:strict]
+  cmd: runTest262 :normal, "NoException", ["../../../../harness/assert.js", "../../../../harness/sta.js", "../../../../harness/compareArray.js"], [:strict]
 - path: test262/test/built-ins/RegExp/property-escapes/binary-properties-with-value.js
   cmd: runTest262 :normal, "NoException", ["../../../../harness/assert.js", "../../../../harness/sta.js"], []
 - path: test262/test/built-ins/RegExp/property-escapes/binary-properties-with-value.js
@@ -45252,9 +45252,9 @@
 - path: test262/test/built-ins/RegExp/prototype/unicode/this-val-regexp.js
   cmd: runTest262 :normal, "NoException", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], [:strict]
 - path: test262/test/built-ins/RegExp/u180e.js
-  cmd: runTest262 :fail, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], []
+  cmd: runTest262 :normal, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], []
 - path: test262/test/built-ins/RegExp/u180e.js
-  cmd: runTest262 :fail, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
 - path: test262/test/built-ins/RegExp/unicode_identity_escape.js
   cmd: runTest262 :normal, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], []
 - path: test262/test/built-ins/RegExp/unicode_identity_escape.js
@@ -50194,9 +50194,9 @@
 - path: test262/test/built-ins/String/prototype/trim/name.js
   cmd: runTest262 :normal, "NoException", ["../../../../../harness/assert.js", "../../../../../harness/sta.js", "../../../../../harness/propertyHelper.js"], [:strict]
 - path: test262/test/built-ins/String/prototype/trim/u180e.js
-  cmd: runTest262 :fail, "NoException", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], []
+  cmd: runTest262 :normal, "NoException", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], []
 - path: test262/test/built-ins/String/prototype/trim/u180e.js
-  cmd: runTest262 :fail, "NoException", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "NoException", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], [:strict]
 - path: test262/test/built-ins/String/prototype/trimEnd/length.js
   cmd: runTest262 :normal, "NoException", ["../../../../../harness/assert.js", "../../../../../harness/sta.js", "../../../../../harness/propertyHelper.js"], []
 - path: test262/test/built-ins/String/prototype/trimEnd/length.js
@@ -59342,9 +59342,9 @@
 - path: test262/test/built-ins/parseFloat/S15.1.2.3_A2_T10.js
   cmd: runTest262 :normal, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
 - path: test262/test/built-ins/parseFloat/S15.1.2.3_A2_T10_U180E.js
-  cmd: runTest262 :fail, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], []
+  cmd: runTest262 :normal, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], []
 - path: test262/test/built-ins/parseFloat/S15.1.2.3_A2_T10_U180E.js
-  cmd: runTest262 :fail, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
 - path: test262/test/built-ins/parseFloat/S15.1.2.3_A2_T2.js
   cmd: runTest262 :normal, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], []
 - path: test262/test/built-ins/parseFloat/S15.1.2.3_A2_T2.js
@@ -59570,9 +59570,9 @@
 - path: test262/test/built-ins/parseInt/S15.1.2.2_A2_T10.js
   cmd: runTest262 :normal, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
 - path: test262/test/built-ins/parseInt/S15.1.2.2_A2_T10_U180E.js
-  cmd: runTest262 :fail, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], []
+  cmd: runTest262 :normal, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], []
 - path: test262/test/built-ins/parseInt/S15.1.2.2_A2_T10_U180E.js
-  cmd: runTest262 :fail, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
 - path: test262/test/built-ins/parseInt/S15.1.2.2_A2_T2.js
   cmd: runTest262 :normal, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], []
 - path: test262/test/built-ins/parseInt/S15.1.2.2_A2_T2.js
@@ -62362,7 +62362,7 @@
 - path: test262/test/language/block-scope/syntax/redeclaration/async-function-declaration-attempt-to-redeclare-with-var-declaration.js
   cmd: runTest262 :fail, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], []
 - path: test262/test/language/block-scope/syntax/redeclaration/async-function-declaration-attempt-to-redeclare-with-var-declaration.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/block-scope/syntax/redeclaration/async-generator-declaration-attempt-to-redeclare-with-async-function-declaration.js
   cmd: runTest262 :fail, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], []
 - path: test262/test/language/block-scope/syntax/redeclaration/async-generator-declaration-attempt-to-redeclare-with-async-function-declaration.js
@@ -62424,9 +62424,9 @@
 - path: test262/test/language/block-scope/syntax/redeclaration/class-declaration-attempt-to-redeclare-with-let-declaration.js
   cmd: runTest262 :normal, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/block-scope/syntax/redeclaration/class-declaration-attempt-to-redeclare-with-var-declaration.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], []
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], []
 - path: test262/test/language/block-scope/syntax/redeclaration/class-declaration-attempt-to-redeclare-with-var-declaration.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/block-scope/syntax/redeclaration/const-declaration-attempt-to-redeclare-with-async-function-declaration.js
   cmd: runTest262 :fail, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], []
 - path: test262/test/language/block-scope/syntax/redeclaration/const-declaration-attempt-to-redeclare-with-async-function-declaration.js
@@ -62456,9 +62456,9 @@
 - path: test262/test/language/block-scope/syntax/redeclaration/const-declaration-attempt-to-redeclare-with-let-declaration.js
   cmd: runTest262 :normal, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/block-scope/syntax/redeclaration/const-declaration-attempt-to-redeclare-with-var-declaration.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], []
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], []
 - path: test262/test/language/block-scope/syntax/redeclaration/const-declaration-attempt-to-redeclare-with-var-declaration.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/block-scope/syntax/redeclaration/function-declaration-attempt-to-redeclare-with-async-function-declaration.js
   cmd: runTest262 :fail, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], []
 - path: test262/test/language/block-scope/syntax/redeclaration/function-declaration-attempt-to-redeclare-with-async-function-declaration.js
@@ -62488,7 +62488,7 @@
 - path: test262/test/language/block-scope/syntax/redeclaration/function-declaration-attempt-to-redeclare-with-var-declaration.js
   cmd: runTest262 :fail, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], []
 - path: test262/test/language/block-scope/syntax/redeclaration/function-declaration-attempt-to-redeclare-with-var-declaration.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/block-scope/syntax/redeclaration/generator-declaration-attempt-to-redeclare-with-async-function-declaration.js
   cmd: runTest262 :fail, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], []
 - path: test262/test/language/block-scope/syntax/redeclaration/generator-declaration-attempt-to-redeclare-with-async-function-declaration.js
@@ -62520,7 +62520,7 @@
 - path: test262/test/language/block-scope/syntax/redeclaration/generator-declaration-attempt-to-redeclare-with-var-declaration.js
   cmd: runTest262 :fail, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], []
 - path: test262/test/language/block-scope/syntax/redeclaration/generator-declaration-attempt-to-redeclare-with-var-declaration.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/block-scope/syntax/redeclaration/let-declaration-attempt-to-redeclare-with-async-function-declaration.js
   cmd: runTest262 :fail, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], []
 - path: test262/test/language/block-scope/syntax/redeclaration/let-declaration-attempt-to-redeclare-with-async-function-declaration.js
@@ -62550,9 +62550,9 @@
 - path: test262/test/language/block-scope/syntax/redeclaration/let-declaration-attempt-to-redeclare-with-let-declaration.js
   cmd: runTest262 :normal, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/block-scope/syntax/redeclaration/let-declaration-attempt-to-redeclare-with-var-declaration.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], []
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], []
 - path: test262/test/language/block-scope/syntax/redeclaration/let-declaration-attempt-to-redeclare-with-var-declaration.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/block-scope/syntax/redeclaration/var-declaration-attempt-to-redeclare-with-async-function-declaration.js
   cmd: runTest262 :fail, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], []
 - path: test262/test/language/block-scope/syntax/redeclaration/var-declaration-attempt-to-redeclare-with-async-function-declaration.js
@@ -62562,13 +62562,13 @@
 - path: test262/test/language/block-scope/syntax/redeclaration/var-declaration-attempt-to-redeclare-with-async-generator-declaration.js
   cmd: runTest262 :fail, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/block-scope/syntax/redeclaration/var-declaration-attempt-to-redeclare-with-class-declaration.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], []
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], []
 - path: test262/test/language/block-scope/syntax/redeclaration/var-declaration-attempt-to-redeclare-with-class-declaration.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/block-scope/syntax/redeclaration/var-declaration-attempt-to-redeclare-with-const-declaration.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], []
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], []
 - path: test262/test/language/block-scope/syntax/redeclaration/var-declaration-attempt-to-redeclare-with-const-declaration.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/block-scope/syntax/redeclaration/var-declaration-attempt-to-redeclare-with-function-declaration.js
   cmd: runTest262 :fail, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], []
 - path: test262/test/language/block-scope/syntax/redeclaration/var-declaration-attempt-to-redeclare-with-function-declaration.js
@@ -62578,9 +62578,9 @@
 - path: test262/test/language/block-scope/syntax/redeclaration/var-declaration-attempt-to-redeclare-with-generator-declaration.js
   cmd: runTest262 :fail, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/block-scope/syntax/redeclaration/var-declaration-attempt-to-redeclare-with-let-declaration.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], []
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], []
 - path: test262/test/language/block-scope/syntax/redeclaration/var-declaration-attempt-to-redeclare-with-let-declaration.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/block-scope/syntax/redeclaration/var-declaration-attempt-to-redeclare-with-var-declaration.js
   cmd: runTest262 :normal, "NoException", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], []
 - path: test262/test/language/block-scope/syntax/redeclaration/var-declaration-attempt-to-redeclare-with-var-declaration.js
@@ -89044,21 +89044,21 @@
 - path: test262/test/language/identifier-resolution/unscopables.js
   cmd: runTest262 :normal, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
 - path: test262/test/language/identifiers/other_id_continue-escaped.js
-  cmd: runTest262 :fail, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], []
+  cmd: runTest262 :normal, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], []
 - path: test262/test/language/identifiers/other_id_continue-escaped.js
-  cmd: runTest262 :fail, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
 - path: test262/test/language/identifiers/other_id_continue.js
-  cmd: runTest262 :fail, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], []
+  cmd: runTest262 :normal, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], []
 - path: test262/test/language/identifiers/other_id_continue.js
-  cmd: runTest262 :fail, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
 - path: test262/test/language/identifiers/other_id_start-escaped.js
-  cmd: runTest262 :fail, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], []
+  cmd: runTest262 :normal, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], []
 - path: test262/test/language/identifiers/other_id_start-escaped.js
-  cmd: runTest262 :fail, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
 - path: test262/test/language/identifiers/other_id_start.js
-  cmd: runTest262 :fail, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], []
+  cmd: runTest262 :normal, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], []
 - path: test262/test/language/identifiers/other_id_start.js
-  cmd: runTest262 :fail, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
 - path: test262/test/language/identifiers/part-digits-via-escape-hex.js
   cmd: runTest262 :normal, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], []
 - path: test262/test/language/identifiers/part-digits-via-escape-hex.js
@@ -89598,21 +89598,21 @@
 - path: test262/test/language/identifiers/vals-rus-alpha-upper.js
   cmd: runTest262 :normal, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
 - path: test262/test/language/identifiers/vertical-tilde-continue-escaped.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../harness/assert.js", "../../../harness/sta.js"], []
+  cmd: runTest262 :normal, "SyntaxError", ["../../../harness/assert.js", "../../../harness/sta.js"], []
 - path: test262/test/language/identifiers/vertical-tilde-continue-escaped.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "SyntaxError", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
 - path: test262/test/language/identifiers/vertical-tilde-continue.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../harness/assert.js", "../../../harness/sta.js"], []
+  cmd: runTest262 :normal, "SyntaxError", ["../../../harness/assert.js", "../../../harness/sta.js"], []
 - path: test262/test/language/identifiers/vertical-tilde-continue.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "SyntaxError", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
 - path: test262/test/language/identifiers/vertical-tilde-start-escaped.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../harness/assert.js", "../../../harness/sta.js"], []
+  cmd: runTest262 :normal, "SyntaxError", ["../../../harness/assert.js", "../../../harness/sta.js"], []
 - path: test262/test/language/identifiers/vertical-tilde-start-escaped.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "SyntaxError", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
 - path: test262/test/language/identifiers/vertical-tilde-start.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../harness/assert.js", "../../../harness/sta.js"], []
+  cmd: runTest262 :normal, "SyntaxError", ["../../../harness/assert.js", "../../../harness/sta.js"], []
 - path: test262/test/language/identifiers/vertical-tilde-start.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "SyntaxError", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
 - path: test262/test/language/import/dup-bound-names.js
   cmd: runTest262 :normal, "SyntaxError", ["../../../harness/assert.js", "../../../harness/sta.js"], [:module]
 - path: test262/test/language/import/escaped-as-import-specifier.js
@@ -101346,7 +101346,7 @@
 - path: test262/test/language/statements/const/global-use-before-initialization-in-prior-statement.js
   cmd: runTest262 :normal, "ReferenceError", ["../../../../harness/assert.js", "../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/statements/const/redeclaration-error-from-within-strict-mode-function-const.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../harness/assert.js", "../../../../harness/sta.js"], []
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../harness/assert.js", "../../../../harness/sta.js"], []
 - path: test262/test/language/statements/const/syntax/block-scope-syntax-const-declarations-mixed-with-without-initialiser.js
   cmd: runTest262 :normal, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], []
 - path: test262/test/language/statements/const/syntax/block-scope-syntax-const-declarations-mixed-with-without-initialiser.js
@@ -103104,9 +103104,9 @@
 - path: test262/test/language/statements/for/head-const-fresh-binding-per-iteration.js
   cmd: runTest262 :normal, "NoException", ["../../../../harness/assert.js", "../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/statements/for/head-let-bound-names-in-stmt.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../harness/assert.js", "../../../../harness/sta.js"], []
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../harness/assert.js", "../../../../harness/sta.js"], []
 - path: test262/test/language/statements/for/head-let-bound-names-in-stmt.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../harness/assert.js", "../../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../harness/assert.js", "../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/statements/for/head-let-destructuring.js
   cmd: runTest262 :normal, "NoException", ["../../../../harness/assert.js", "../../../../harness/sta.js"], []
 - path: test262/test/language/statements/for/head-let-destructuring.js
@@ -108164,9 +108164,9 @@
 - path: test262/test/language/statements/for-in/head-const-bound-names-fordecl-tdz.js
   cmd: runTest262 :normal, "NoException", ["../../../../harness/assert.js", "../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/statements/for-in/head-const-bound-names-in-stmt.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../harness/assert.js", "../../../../harness/sta.js"], []
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../harness/assert.js", "../../../../harness/sta.js"], []
 - path: test262/test/language/statements/for-in/head-const-bound-names-in-stmt.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../harness/assert.js", "../../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../harness/assert.js", "../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/statements/for-in/head-const-bound-names-let.js
   cmd: runTest262 :normal, "SyntaxError", ["../../../../harness/assert.js", "../../../../harness/sta.js"], []
 - path: test262/test/language/statements/for-in/head-const-fresh-binding-per-iteration.js
@@ -108190,9 +108190,9 @@
 - path: test262/test/language/statements/for-in/head-let-bound-names-fordecl-tdz.js
   cmd: runTest262 :normal, "NoException", ["../../../../harness/assert.js", "../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/statements/for-in/head-let-bound-names-in-stmt.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../harness/assert.js", "../../../../harness/sta.js"], []
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../harness/assert.js", "../../../../harness/sta.js"], []
 - path: test262/test/language/statements/for-in/head-let-bound-names-in-stmt.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../harness/assert.js", "../../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../harness/assert.js", "../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/statements/for-in/head-let-bound-names-let.js
   cmd: runTest262 :normal, "SyntaxError", ["../../../../harness/assert.js", "../../../../harness/sta.js"], []
 - path: test262/test/language/statements/for-in/head-let-destructuring.js
@@ -110588,9 +110588,9 @@
 - path: test262/test/language/statements/for-of/head-const-bound-names-fordecl-tdz.js
   cmd: runTest262 :normal, "NoException", ["../../../../harness/assert.js", "../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/statements/for-of/head-const-bound-names-in-stmt.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../harness/assert.js", "../../../../harness/sta.js"], []
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../harness/assert.js", "../../../../harness/sta.js"], []
 - path: test262/test/language/statements/for-of/head-const-bound-names-in-stmt.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../harness/assert.js", "../../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../harness/assert.js", "../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/statements/for-of/head-const-bound-names-let.js
   cmd: runTest262 :normal, "SyntaxError", ["../../../../harness/assert.js", "../../../../harness/sta.js"], []
 - path: test262/test/language/statements/for-of/head-const-fresh-binding-per-iteration.js
@@ -110626,9 +110626,9 @@
 - path: test262/test/language/statements/for-of/head-let-bound-names-fordecl-tdz.js
   cmd: runTest262 :normal, "NoException", ["../../../../harness/assert.js", "../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/statements/for-of/head-let-bound-names-in-stmt.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../harness/assert.js", "../../../../harness/sta.js"], []
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../harness/assert.js", "../../../../harness/sta.js"], []
 - path: test262/test/language/statements/for-of/head-let-bound-names-in-stmt.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../harness/assert.js", "../../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../harness/assert.js", "../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/statements/for-of/head-let-bound-names-let.js
   cmd: runTest262 :normal, "SyntaxError", ["../../../../harness/assert.js", "../../../../harness/sta.js"], []
 - path: test262/test/language/statements/for-of/head-let-destructuring.js
@@ -114156,15 +114156,15 @@
 - path: test262/test/language/statements/let/global-use-before-initialization-in-prior-statement.js
   cmd: runTest262 :normal, "ReferenceError", ["../../../../harness/assert.js", "../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/statements/let/redeclaration-error-from-within-strict-mode-function.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../harness/assert.js", "../../../../harness/sta.js"], []
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../harness/assert.js", "../../../../harness/sta.js"], []
 - path: test262/test/language/statements/let/syntax/attempt-to-redeclare-let-binding-with-function-declaration.js
   cmd: runTest262 :fail, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], []
 - path: test262/test/language/statements/let/syntax/attempt-to-redeclare-let-binding-with-function-declaration.js
   cmd: runTest262 :normal, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/statements/let/syntax/attempt-to-redeclare-let-binding-with-var.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], []
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], []
 - path: test262/test/language/statements/let/syntax/attempt-to-redeclare-let-binding-with-var.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/statements/let/syntax/escaped-let.js
   cmd: runTest262 :fail, "NoException", ["../../../../../harness/assert.js", "../../../../../harness/sta.js"], []
 - path: test262/test/language/statements/let/syntax/identifier-let-allowed-as-lefthandside-expression-strict.js
@@ -114526,7 +114526,7 @@
 - path: test262/test/language/statements/switch/syntax/redeclaration/async-function-declaration-attempt-to-redeclare-with-var-declaration.js
   cmd: runTest262 :fail, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], []
 - path: test262/test/language/statements/switch/syntax/redeclaration/async-function-declaration-attempt-to-redeclare-with-var-declaration.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/statements/switch/syntax/redeclaration/async-generator-declaration-attempt-to-redeclare-with-async-function-declaration.js
   cmd: runTest262 :fail, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], []
 - path: test262/test/language/statements/switch/syntax/redeclaration/async-generator-declaration-attempt-to-redeclare-with-async-function-declaration.js
@@ -114588,9 +114588,9 @@
 - path: test262/test/language/statements/switch/syntax/redeclaration/class-declaration-attempt-to-redeclare-with-let-declaration.js
   cmd: runTest262 :normal, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/statements/switch/syntax/redeclaration/class-declaration-attempt-to-redeclare-with-var-declaration.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], []
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], []
 - path: test262/test/language/statements/switch/syntax/redeclaration/class-declaration-attempt-to-redeclare-with-var-declaration.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/statements/switch/syntax/redeclaration/const-declaration-attempt-to-redeclare-with-async-function-declaration.js
   cmd: runTest262 :fail, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], []
 - path: test262/test/language/statements/switch/syntax/redeclaration/const-declaration-attempt-to-redeclare-with-async-function-declaration.js
@@ -114620,9 +114620,9 @@
 - path: test262/test/language/statements/switch/syntax/redeclaration/const-declaration-attempt-to-redeclare-with-let-declaration.js
   cmd: runTest262 :normal, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/statements/switch/syntax/redeclaration/const-declaration-attempt-to-redeclare-with-var-declaration.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], []
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], []
 - path: test262/test/language/statements/switch/syntax/redeclaration/const-declaration-attempt-to-redeclare-with-var-declaration.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/statements/switch/syntax/redeclaration/function-declaration-attempt-to-redeclare-with-async-function-declaration.js
   cmd: runTest262 :fail, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], []
 - path: test262/test/language/statements/switch/syntax/redeclaration/function-declaration-attempt-to-redeclare-with-async-function-declaration.js
@@ -114649,10 +114649,14 @@
   cmd: runTest262 :fail, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], []
 - path: test262/test/language/statements/switch/syntax/redeclaration/function-declaration-attempt-to-redeclare-with-let-declaration.js
   cmd: runTest262 :normal, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], [:strict]
+- path: test262/test/language/statements/switch/syntax/redeclaration/function-declaration-attempt-to-redeclare-with-var-declaration-nested-in-function.js
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], []
+- path: test262/test/language/statements/switch/syntax/redeclaration/function-declaration-attempt-to-redeclare-with-var-declaration-nested-in-function.js
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/statements/switch/syntax/redeclaration/function-declaration-attempt-to-redeclare-with-var-declaration.js
   cmd: runTest262 :fail, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], []
 - path: test262/test/language/statements/switch/syntax/redeclaration/function-declaration-attempt-to-redeclare-with-var-declaration.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/statements/switch/syntax/redeclaration/generator-declaration-attempt-to-redeclare-with-async-function-declaration.js
   cmd: runTest262 :fail, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], []
 - path: test262/test/language/statements/switch/syntax/redeclaration/generator-declaration-attempt-to-redeclare-with-async-function-declaration.js
@@ -114684,7 +114688,7 @@
 - path: test262/test/language/statements/switch/syntax/redeclaration/generator-declaration-attempt-to-redeclare-with-var-declaration.js
   cmd: runTest262 :fail, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], []
 - path: test262/test/language/statements/switch/syntax/redeclaration/generator-declaration-attempt-to-redeclare-with-var-declaration.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/statements/switch/syntax/redeclaration/let-declaration-attempt-to-redeclare-with-async-function-declaration.js
   cmd: runTest262 :fail, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], []
 - path: test262/test/language/statements/switch/syntax/redeclaration/let-declaration-attempt-to-redeclare-with-async-function-declaration.js
@@ -114714,9 +114718,9 @@
 - path: test262/test/language/statements/switch/syntax/redeclaration/let-declaration-attempt-to-redeclare-with-let-declaration.js
   cmd: runTest262 :normal, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/statements/switch/syntax/redeclaration/let-declaration-attempt-to-redeclare-with-var-declaration.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], []
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], []
 - path: test262/test/language/statements/switch/syntax/redeclaration/let-declaration-attempt-to-redeclare-with-var-declaration.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/statements/switch/syntax/redeclaration/var-declaration-attempt-to-redeclare-with-async-function-declaration.js
   cmd: runTest262 :fail, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], []
 - path: test262/test/language/statements/switch/syntax/redeclaration/var-declaration-attempt-to-redeclare-with-async-function-declaration.js
@@ -114726,13 +114730,13 @@
 - path: test262/test/language/statements/switch/syntax/redeclaration/var-declaration-attempt-to-redeclare-with-async-generator-declaration.js
   cmd: runTest262 :fail, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/statements/switch/syntax/redeclaration/var-declaration-attempt-to-redeclare-with-class-declaration.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], []
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], []
 - path: test262/test/language/statements/switch/syntax/redeclaration/var-declaration-attempt-to-redeclare-with-class-declaration.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/statements/switch/syntax/redeclaration/var-declaration-attempt-to-redeclare-with-const-declaration.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], []
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], []
 - path: test262/test/language/statements/switch/syntax/redeclaration/var-declaration-attempt-to-redeclare-with-const-declaration.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/statements/switch/syntax/redeclaration/var-declaration-attempt-to-redeclare-with-function-declaration.js
   cmd: runTest262 :fail, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], []
 - path: test262/test/language/statements/switch/syntax/redeclaration/var-declaration-attempt-to-redeclare-with-function-declaration.js
@@ -114742,9 +114746,9 @@
 - path: test262/test/language/statements/switch/syntax/redeclaration/var-declaration-attempt-to-redeclare-with-generator-declaration.js
   cmd: runTest262 :fail, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/statements/switch/syntax/redeclaration/var-declaration-attempt-to-redeclare-with-let-declaration.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], []
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], []
 - path: test262/test/language/statements/switch/syntax/redeclaration/var-declaration-attempt-to-redeclare-with-let-declaration.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "SyntaxError", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], [:strict]
 - path: test262/test/language/statements/switch/syntax/redeclaration/var-declaration-attempt-to-redeclare-with-var-declaration.js
   cmd: runTest262 :normal, "NoException", ["../../../../../../harness/assert.js", "../../../../../../harness/sta.js"], []
 - path: test262/test/language/statements/switch/syntax/redeclaration/var-declaration-attempt-to-redeclare-with-var-declaration.js
@@ -117208,10 +117212,10 @@
 - path: test262/test/language/white-space/S7.2_A5_T5.js
   cmd: runTest262 :normal, "SyntaxError", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
 - path: test262/test/language/white-space/mongolian-vowel-separator-eval.js
-  cmd: runTest262 :fail, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], []
+  cmd: runTest262 :normal, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], []
 - path: test262/test/language/white-space/mongolian-vowel-separator-eval.js
-  cmd: runTest262 :fail, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "NoException", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
 - path: test262/test/language/white-space/mongolian-vowel-separator.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../harness/assert.js", "../../../harness/sta.js"], []
+  cmd: runTest262 :normal, "SyntaxError", ["../../../harness/assert.js", "../../../harness/sta.js"], []
 - path: test262/test/language/white-space/mongolian-vowel-separator.js
-  cmd: runTest262 :fail, "SyntaxError", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
+  cmd: runTest262 :normal, "SyntaxError", ["../../../harness/assert.js", "../../../harness/sta.js"], [:strict]
