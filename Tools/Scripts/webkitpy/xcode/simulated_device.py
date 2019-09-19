@@ -1,4 +1,4 @@
-# Copyright (C) 2017 Apple Inc. All rights reserved.
+# Copyright (C) 2017-2019 Apple Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -77,7 +77,7 @@ class SimulatedDeviceManager(object):
     def _create_runtimes(runtimes):
         result = []
         for runtime in runtimes:
-            if runtime.get('availability') != '(available)' and runtime.get('isAvailable') != 'YES':
+            if runtime.get('availability') != '(available)' and runtime.get('isAvailable') != 'YES' and runtime.get('isAvailable') != True:
                 continue
             try:
                 result.append(SimulatedDeviceManager.Runtime(runtime))
@@ -87,7 +87,7 @@ class SimulatedDeviceManager(object):
 
     @staticmethod
     def _create_device_with_runtime(host, runtime, device_info):
-        if device_info.get('availability') != '(available)' and device_info.get('isAvailable') != 'YES':
+        if device_info.get('availability') != '(available)' and device_info.get('isAvailable') != 'YES' and device_info.get('isAvailable') != True:
             return None
 
         # Check existing devices.
@@ -113,6 +113,7 @@ class SimulatedDeviceManager(object):
             udid=device_info['udid'],
             host=host,
             device_type=device_type,
+            build_version=runtime.build_version,
         ))
         SimulatedDeviceManager.AVAILABLE_DEVICES.append(result)
         return result
@@ -175,7 +176,7 @@ class SimulatedDeviceManager(object):
                 if isinstance(initialized_device, Device) and device == initialized_device:
                     device = None
                     break
-            if device and request.device_type == device.platform_device.device_type:
+            if device and request.device_type == device.device_type:
                 return device
         return None
 
@@ -221,8 +222,8 @@ class SimulatedDeviceManager(object):
         if full_device_type.hardware_family is None:
             # We use the existing devices to determine a legal family if no family is specified
             for device in SimulatedDeviceManager.AVAILABLE_DEVICES:
-                if device.platform_device.device_type == full_device_type:
-                    full_device_type.hardware_family = device.platform_device.device_type.hardware_family
+                if device.device_type == full_device_type:
+                    full_device_type.hardware_family = device.device_type.hardware_family
                     break
 
         if full_device_type.hardware_type is None:
@@ -284,7 +285,7 @@ class SimulatedDeviceManager(object):
         for request in requests:
             if not request.use_booted_simulator:
                 continue
-            if request.device_type == device.platform_device.device_type:
+            if request.device_type == device.device_type:
                 _log.debug("The request for '{}' matched {} exactly".format(request.device_type, device))
                 return request
 
@@ -292,7 +293,7 @@ class SimulatedDeviceManager(object):
         for request in requests:
             if not request.use_booted_simulator:
                 continue
-            if device.platform_device.device_type in request.device_type:
+            if device.device_type in request.device_type:
                 _log.debug("The request for '{}' fuzzy-matched {}".format(request.device_type, device))
                 return request
 
@@ -305,7 +306,7 @@ class SimulatedDeviceManager(object):
         for request in requests_copy:
             if not request.use_booted_simulator or not request.allow_incomplete_match:
                 continue
-            if request.device_type.software_variant == device.platform_device.device_type.software_variant:
+            if request.device_type.software_variant == device.device_type.software_variant:
                 _log.warn("The request for '{}' incomplete-matched {}".format(request.device_type, device))
                 _log.warn("This may cause unexpected behavior in code that expected the device type {}".format(request.device_type))
                 return request
@@ -340,7 +341,7 @@ class SimulatedDeviceManager(object):
             return 0
 
         if SimulatedDeviceManager.device_by_filter(lambda device: device.platform_device.is_booted_or_booting(), host=host) and use_booted_simulator:
-            filter = lambda device: device.platform_device.is_booted_or_booting() and device.platform_device.device_type in device_type
+            filter = lambda device: device.platform_device.is_booted_or_booting() and device.device_type in device_type
             return len(SimulatedDeviceManager.device_by_filter(filter, host=host))
 
         for name in SimulatedDeviceManager._device_identifier_to_name.itervalues():
@@ -382,9 +383,9 @@ class SimulatedDeviceManager(object):
                     continue
                 if not request.use_booted_simulator:
                     continue
-                if request.device_type != device.platform_device.device_type and not request.allow_incomplete_match:
+                if request.device_type != device.device_type and not request.allow_incomplete_match:
                     continue
-                if request.device_type.software_variant != device.platform_device.device_type.software_variant:
+                if request.device_type.software_variant != device.device_type.software_variant:
                     continue
                 requests.remove(request)
 
@@ -488,12 +489,13 @@ class SimulatedDevice(object):
         'SHUTTING DOWN',
     ]
 
-    def __init__(self, name, udid, host, device_type):
+    def __init__(self, name, udid, host, device_type, build_version):
         assert device_type.software_version
 
         self.name = name
         self.udid = udid
         self.device_type = device_type
+        self.build_version = build_version
         self._state = SimulatedDevice.DeviceState.SHUTTING_DOWN
         self._last_updated_state = time.time()
 
@@ -532,7 +534,7 @@ class SimulatedDevice(object):
             _log.debug('{} has no service to check if the device is usable'.format(self.device_type.software_variant))
             return True
 
-        for line in self.executive.run_command([SimulatedDeviceManager.xcrun, 'simctl', 'spawn', self.udid, 'launchctl', 'print', 'system']).splitlines():
+        for line in self.executive.run_command([SimulatedDeviceManager.xcrun, 'simctl', 'spawn', self.udid, 'launchctl', 'print', 'system'], decode_output=False).splitlines():
             if home_screen_service in line:
                 return True
         return False
@@ -542,7 +544,7 @@ class SimulatedDevice(object):
 
         # Either shutdown is successful, or the device was already shutdown when we attempted to shut it down.
         exit_code = self.executive.run_command([SimulatedDeviceManager.xcrun, 'simctl', 'shutdown', self.udid], return_exit_code=True)
-        if exit_code != 0 and exit_code != 164:
+        if exit_code != 0 and self.state() != SimulatedDevice.DeviceState.SHUT_DOWN:
             raise RuntimeError('Failed to shutdown {} with exit code {}'.format(self.udid, exit_code))
 
         while self.state(force_update=True) != SimulatedDevice.DeviceState.SHUT_DOWN:

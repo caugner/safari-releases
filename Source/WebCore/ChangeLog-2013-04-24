@@ -42510,7 +42510,7 @@
 
         * platform/graphics/chromium/GraphicsLayerChromium.cpp:
         (WebCore::transformToSkMatrix44):
-          Utility for convering a WebCore::TransformationMatrix to an SkMatrix44.
+          Utility for converting a WebCore::TransformationMatrix to an SkMatrix44.
           Will move to a more common location once it gets more callers.
         (WebCore::GraphicsLayerChromium::updateTransform):
         (WebCore::GraphicsLayerChromium::updateChildrenTransform):

@@ -1,5 +1,5 @@
 # Copyright (C) 2010 Google Inc. All rights reserved.
-# Copyright (C) 2013 Apple Inc. All rights reserved.
+# Copyright (C) 2013-2019 Apple Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are
@@ -31,11 +31,9 @@
 test infrastructure (the Port and Driver classes)."""
 
 import difflib
-import itertools
 import json
 import logging
 import os
-import operator
 import optparse
 import re
 import sys
@@ -45,6 +43,7 @@ from functools import partial
 
 from webkitpy.common import find_files
 from webkitpy.common import read_checksum_from_png
+from webkitpy.common.checkout.scm.detection import SCMDetector
 from webkitpy.common.memoized import memoized
 from webkitpy.common.prettypatch import PrettyPatch
 from webkitpy.common.system import path, pemfile
@@ -80,9 +79,8 @@ class Port(object):
     ALL_BUILD_TYPES = ('debug', 'release')
 
     DEFAULT_ARCHITECTURE = 'x86'
-
-    DEFAULT_DEVICE_TYPE = None
-    CUSTOM_DEVICE_TYPES = []
+    DEVICE_TYPE = None
+    DEFAULT_DEVICE_TYPES = []
 
     @classmethod
     def determine_full_port_name(cls, host, options, port_name):
@@ -187,6 +185,10 @@ class Port(object):
             return 0
         return float('inf')
 
+    def supported_device_types(self):
+        # An empty list would indicate a port was incapable of running tests.
+        return [None]
+
     def worker_startup_delay_secs(self):
         # FIXME: If we start workers up too quickly, DumpRenderTree appears
         # to thrash on something and time out its first few tests. Until
@@ -208,10 +210,10 @@ class Port(object):
         baseline_search_paths = self.baseline_search_path()
         return baseline_search_paths[0]
 
-    def baseline_search_path(self):
-        return self.get_option('additional_platform_directory', []) + self._compare_baseline() + self.default_baseline_search_path()
+    def baseline_search_path(self, device_type=None):
+        return self.get_option('additional_platform_directory', []) + self._compare_baseline() + self.default_baseline_search_path(device_type=device_type)
 
-    def default_baseline_search_path(self):
+    def default_baseline_search_path(self, device_type=None):
         """Return a list of absolute paths to directories to search under for
         baselines. The directories are searched in order."""
         search_paths = []
@@ -368,7 +370,7 @@ class Port(object):
                 result += '\n\ No newline at end of file\n'
         return result
 
-    def check_for_leaks(self, process_name, process_pid):
+    def check_for_leaks(self, process_name, process_id):
         # Subclasses should check for leaks in the running process
         # and print any necessary warnings if leaks are found.
         # FIXME: We should consider moving much of this logic into
@@ -408,8 +410,8 @@ class Port(object):
         """Returns a tuple of all of the non-reftest baseline extensions we use. The extensions include the leading '.'."""
         return ('.wav', '.webarchive', '.txt', '.png')
 
-    def _expected_baselines_for_suffixes(self, test_name, suffixes, all_baselines=False):
-        baseline_search_path = self.baseline_search_path() + [self.layout_tests_dir()]
+    def _expected_baselines_for_suffixes(self, test_name, suffixes, all_baselines=False, device_type=None):
+        baseline_search_path = self.baseline_search_path(device_type=device_type) + [self.layout_tests_dir()]
 
         baselines = []
         for platform_dir in baseline_search_path:
@@ -428,7 +430,7 @@ class Port(object):
             baselines.append((None, self._filesystem.splitext(test_name)[0] + '-expected' + suffix))
         return baselines
 
-    def expected_baselines(self, test_name, suffix, all_baselines=False):
+    def expected_baselines(self, test_name, suffix, all_baselines=False, device_type=None):
         """Given a test name, finds where the baseline results are located.
 
         Args:
@@ -455,9 +457,9 @@ class Port(object):
         conjunction with the other baseline and filename routines that are
         platform specific.
         """
-        return self._expected_baselines_for_suffixes(test_name, [suffix], all_baselines=all_baselines)
+        return self._expected_baselines_for_suffixes(test_name, [suffix], all_baselines=all_baselines, device_type=device_type)
 
-    def expected_filename(self, test_name, suffix, return_default=True):
+    def expected_filename(self, test_name, suffix, return_default=True, device_type=None):
         """Given a test name, returns an absolute path to its expected results.
 
         If no expected results are found in any of the searched directories,
@@ -477,14 +479,14 @@ class Port(object):
         This routine is generic but is implemented here to live alongside
         the other baseline and filename manipulation routines.
         """
-        platform_dir, baseline_filename = self.expected_baselines(test_name, suffix)[0]
+        platform_dir, baseline_filename = self.expected_baselines(test_name, suffix, device_type=device_type)[0]
         if platform_dir or return_default:
             return self._filesystem.join(platform_dir or self.layout_tests_dir(), baseline_filename)
         return None
 
-    def expected_checksum(self, test_name):
+    def expected_checksum(self, test_name, device_type=None):
         """Returns the checksum of the image we expect the test to produce, or None if it is a text-only test."""
-        png_path = self.expected_filename(test_name, '.png')
+        png_path = self.expected_filename(test_name, '.png', device_type=device_type)
 
         if self._filesystem.exists(png_path):
             with self._filesystem.open_binary_file_for_reading(png_path) as filehandle:
@@ -492,29 +494,29 @@ class Port(object):
 
         return None
 
-    def expected_image(self, test_name):
+    def expected_image(self, test_name, device_type=None):
         """Returns the image we expect the test to produce."""
-        baseline_path = self.expected_filename(test_name, '.png')
+        baseline_path = self.expected_filename(test_name, '.png', device_type=device_type)
         if not self._filesystem.exists(baseline_path):
             return None
         return self._filesystem.read_binary_file(baseline_path)
 
-    def expected_audio(self, test_name):
-        baseline_path = self.expected_filename(test_name, '.wav')
+    def expected_audio(self, test_name, device_type=None):
+        baseline_path = self.expected_filename(test_name, '.wav', device_type=device_type)
         if not self._filesystem.exists(baseline_path):
             return None
         return self._filesystem.read_binary_file(baseline_path)
 
-    def expected_text(self, test_name):
+    def expected_text(self, test_name, device_type=None):
         """Returns the text output we expect the test to produce, or None
         if we don't expect there to be any text output.
         End-of-line characters are normalized to '\n'."""
         # FIXME: DRT output is actually utf-8, but since we don't decode the
         # output from DRT (instead treating it as a binary string), we read the
         # baselines as a binary string, too.
-        baseline_path = self.expected_filename(test_name, '.txt')
+        baseline_path = self.expected_filename(test_name, '.txt', device_type=device_type)
         if not self._filesystem.exists(baseline_path):
-            baseline_path = self.expected_filename(test_name, '.webarchive')
+            baseline_path = self.expected_filename(test_name, '.webarchive', device_type=device_type)
             if not self._filesystem.exists(baseline_path):
                 return None
         text = self._filesystem.read_binary_file(baseline_path)
@@ -543,7 +545,7 @@ class Port(object):
             parsed_list.setdefault(filesystem.join(test_dirpath, test_file), []).append((expectation_type, filesystem.join(test_dirpath, ref_file)))
         return parsed_list
 
-    def reference_files(self, test_name):
+    def reference_files(self, test_name, device_type=None):
         """Return a list of expectation (== or !=) and filename pairs"""
 
         if self.get_option('treat_ref_tests_as_pixel_tests'):
@@ -558,7 +560,7 @@ class Port(object):
         for part1 in ['', '-mismatch']:
             for part2 in self._supported_reference_extensions:
                 suffixes.append(part1 + part2)
-        for platform_dir, baseline_filename in self._expected_baselines_for_suffixes(test_name, suffixes):
+        for platform_dir, baseline_filename in self._expected_baselines_for_suffixes(test_name, suffixes, device_type=device_type):
             if not platform_dir:
                 continue
             result.append((
@@ -579,12 +581,12 @@ class Port(object):
 
         return [self.host.filesystem.relpath(test, self.layout_tests_dir()) for test in self._filesystem.glob(re.sub('-expected.*', '.*', self._filesystem.join(self.layout_tests_dir(), path))) if self._filesystem.isfile(test)]
 
-    def tests(self, paths):
+    def tests(self, paths, device_type=None):
         """Return the list of tests found. Both generic and platform-specific tests matching paths should be returned."""
-        expanded_paths = self._expanded_paths(paths)
+        expanded_paths = self._expanded_paths(paths, device_type=device_type)
         return self._real_tests(expanded_paths)
 
-    def _expanded_paths(self, paths):
+    def _expanded_paths(self, paths, device_type=None):
         expanded_paths = []
         fs = self._filesystem
         all_platform_dirs = [path for path in fs.glob(fs.join(self.layout_tests_dir(), 'platform', '*')) if fs.isdir(path)]
@@ -592,7 +594,7 @@ class Port(object):
             expanded_paths.append(path)
             if self.test_isdir(path) and not path.startswith('platform') and not fs.isabs(path):
                 for platform_dir in all_platform_dirs:
-                    if fs.isdir(fs.join(platform_dir, path)) and platform_dir in self.baseline_search_path():
+                    if fs.isdir(fs.join(platform_dir, path)) and platform_dir in self.baseline_search_path(device_type=device_type):
                         expanded_paths.append(self.relative_test_filename(fs.join(platform_dir, path)))
 
         return expanded_paths
@@ -753,9 +755,9 @@ class Port(object):
     def perf_tests_dir(self):
         return self._webkit_finder.perf_tests_dir()
 
-    def skipped_layout_tests(self, test_list):
+    def skipped_layout_tests(self, test_list, device_type=None):
         """Returns tests skipped outside of the TestExpectations files."""
-        return set(self._tests_for_other_platforms()).union(self._skipped_tests_for_unsupported_features(test_list))
+        return set(self._tests_for_other_platforms(device_type=device_type)).union(self._skipped_tests_for_unsupported_features(test_list))
 
     @memoized
     def skipped_perf_tests(self):
@@ -1154,12 +1156,15 @@ class Port(object):
     def uses_test_expectations_file(self):
         # This is different from checking test_expectations() is None, because
         # some ports have Skipped files which are returned as part of test_expectations().
-        return self._filesystem.exists(self.path_to_test_expectations_file())
+        for path in self.default_baseline_search_path():
+            if self._filesystem.exists(self._filesystem.join(path, 'TestExpectations')):
+                return True
+        return False
 
     def warn_if_bug_missing_in_test_expectations(self):
         return False
 
-    def expectations_dict(self):
+    def expectations_dict(self, device_type=None):
         """Returns an OrderedDict of name -> expectations strings.
         The names are expected to be (but not required to be) paths in the filesystem.
         If the name is a path, the file can be considered updatable for things like rebaselining,
@@ -1170,7 +1175,7 @@ class Port(object):
         # FIXME: rename this to test_expectations() once all the callers are updated to know about the ordered dict.
         expectations = OrderedDict()
 
-        for path in self.expectations_files():
+        for path in self.expectations_files(device_type=device_type):
             if self._filesystem.exists(path):
                 expectations[path] = self._filesystem.read_text_file(path)
 
@@ -1183,7 +1188,7 @@ class Port(object):
                 _log.warning("additional_expectations path '%s' does not exist" % path)
         return expectations
 
-    def _port_specific_expectations_files(self):
+    def _port_specific_expectations_files(self, **kwargs):
         # Unlike baseline_search_path, we only want to search [WK2-PORT, PORT-VERSION, PORT] and any directories
         # included via --additional-platform-directory, not the full casade.
         search_paths = [self.port_name]
@@ -1201,8 +1206,8 @@ class Port(object):
 
         return [self._filesystem.join(self._webkit_baseline_path(d), 'TestExpectations') for d in search_paths]
 
-    def expectations_files(self):
-        return [self.path_to_generic_test_expectations_file()] + self._port_specific_expectations_files()
+    def expectations_files(self, device_type=None):
+        return [self.path_to_generic_test_expectations_file()] + self._port_specific_expectations_files(device_type=device_type)
 
     def repository_paths(self):
         """Returns a list of (repository_name, repository_path) tuples of its depending code base.
@@ -1266,7 +1271,7 @@ class Port(object):
         return self._filesystem.exists('/etc/arch-release')
 
     def _is_flatpak(self):
-        return self._filesystem.exists('/usr/manifest.json')
+        return self._filesystem.exists('/.flatpak-info')
 
     def _apache_version(self):
         config = self._executive.run_command([self._path_to_apache(), '-v'])
@@ -1460,7 +1465,7 @@ class Port(object):
         return self._filesystem.exists(self.path_from_webkit_base('WebKitBuild', suffix, "FlatpakTree"))
 
     def _in_flatpak_sandbox(self):
-        return os.path.exists("/usr/manifest.json")
+        return os.path.exists("/.flatpak-info")
 
     def _should_use_jhbuild(self):
         if self._in_flatpak_sandbox():
@@ -1534,10 +1539,10 @@ class Port(object):
     def _build_driver_flags(self):
         return []
 
-    def test_search_path(self):
-        return self.baseline_search_path()
+    def test_search_path(self, device_type=None):
+        return self.baseline_search_path(device_type=device_type)
 
-    def _tests_for_other_platforms(self):
+    def _tests_for_other_platforms(self, device_type=None):
         # By default we will skip any directory under LayoutTests/platform
         # that isn't in our baseline search path (this mirrors what
         # old-run-webkit-tests does in findTestsToRun()).
@@ -1545,69 +1550,12 @@ class Port(object):
         entries = self._filesystem.glob(self._webkit_baseline_path('*'))
         dirs_to_skip = []
         for entry in entries:
-            if self._filesystem.isdir(entry) and entry not in self.test_search_path():
+            if self._filesystem.isdir(entry) and entry not in self.test_search_path(device_type=device_type):
                 basename = self._filesystem.basename(entry)
                 dirs_to_skip.append('platform/%s' % basename)
         return dirs_to_skip
 
-    def _runtime_feature_list(self):
-        """If a port makes certain features available only through runtime flags, it can override this routine to indicate which ones are available."""
-        return None
-
-    def nm_command(self):
-        return 'nm'
-
-    def _modules_to_search_for_symbols(self):
-        path = self._path_to_webcore_library()
-        if path:
-            return [path]
-        return []
-
-    def _symbols_string(self):
-        symbols = ''
-        for path_to_module in self._modules_to_search_for_symbols():
-            try:
-                symbols += self._executive.run_command([self.nm_command(), path_to_module], ignore_errors=True)
-            except OSError as e:
-                _log.warn("Failed to run nm: %s.  Can't determine supported features correctly." % e)
-        return symbols
-
-    # Ports which use run-time feature detection should define this method and return
-    # a dictionary mapping from Feature Names to skipped directoires.  NRWT will
-    # run DumpRenderTree --print-supported-features and parse the output.
-    # If the Feature Names are not found in the output, the corresponding directories
-    # will be skipped.
-    def _missing_feature_to_skipped_tests(self):
-        """Return the supported feature dictionary. Keys are feature names and values
-        are the lists of directories to skip if the feature name is not matched."""
-        # FIXME: This list matches WebKitWin and should be moved onto the Win port.
-        return {
-            "Accelerated Compositing": ["compositing"],
-            "3D Rendering": ["animations/3d", "transforms/3d"],
-        }
-
-    def _has_test_in_directories(self, directory_lists, test_list):
-        if not test_list:
-            return False
-
-        directories = itertools.chain.from_iterable(directory_lists)
-        for directory, test in itertools.product(directories, test_list):
-            if test.startswith(directory):
-                return True
-        return False
-
     def _skipped_tests_for_unsupported_features(self, test_list):
-        # Only check the runtime feature list of there are tests in the test_list that might get skipped.
-        # This is a performance optimization to avoid the subprocess call to DRT.
-        # If the port supports runtime feature detection, disable any tests
-        # for features missing from the runtime feature list.
-        # If _runtime_feature_list returns a non-None value, then prefer
-        # runtime feature detection over static feature detection.
-        if self._has_test_in_directories(self._missing_feature_to_skipped_tests().values(), test_list):
-            supported_feature_list = self._runtime_feature_list()
-            if supported_feature_list is not None:
-                return reduce(operator.add, [directories for feature, directories in self._missing_feature_to_skipped_tests().items() if feature not in supported_feature_list])
-
         return []
 
     def _wk2_port_name(self):
@@ -1628,3 +1576,49 @@ class Port(object):
         # This is overridden by ports that need to do work in the parent process after a worker subprocess is spawned,
         # such as closing file descriptors that were implicitly cloned to the worker.
         pass
+
+    def configuration_for_upload(self, host=None):
+        from webkitpy.results.upload import Upload
+
+        configuration = self.test_configuration()
+        host = self.host or host
+
+        if self.get_option('guard_malloc'):
+            style = 'guard-malloc'
+        elif self._config.asan:
+            style = 'asan'
+        else:
+            style = configuration.build_type
+
+        return Upload.create_configuration(
+            platform=host.platform.os_name,
+            version=str(host.platform.os_version),
+            version_name=host.platform.os_version_name(INTERNAL_TABLE) or host.platform.os_version_name(),
+            architecture=configuration.architecture,
+            style=style,
+            sdk=host.platform.build_version(),
+            flavor=self.get_option('result_report_flavor'),
+        )
+
+    @memoized
+    def commits_for_upload(self):
+        from webkitpy.results.upload import Upload
+
+        self.host.initialize_scm()
+
+        repos = {}
+        if port_config.apple_additions() and getattr(port_config.apple_additions(), 'repos', False):
+            repos = port_config.apple_additions().repos()
+
+        up = os.path.dirname
+        repos['webkit'] = up(up(up(up(up(os.path.abspath(__file__))))))
+
+        commits = []
+        for repo_id, path in repos.iteritems():
+            scm = SCMDetector(self._filesystem, self._executive).detect_scm_system(path)
+            commits.append(Upload.create_commit(
+                repository_id=repo_id,
+                id=scm.native_revision(path),
+                branch=scm.native_branch(path),
+            ))
+        return commits

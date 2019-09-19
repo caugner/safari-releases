@@ -1,4 +1,5 @@
 # Copyright (c) 2011 Google Inc. All rights reserved.
+# Copyright (C) 2019 Apple Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are
@@ -53,4 +54,10 @@ class SystemHost(object):
     def path_to_lldb_python_directory(self):
         if not self.platform.is_mac():
             return ''
-        return self.executive.run_command(['xcrun', 'lldb', '--python-path'], return_stderr=False).rstrip()
+        # Explicitly use Python 2.7
+        path = self.executive.run_command(['xcrun', 'lldb', '--python-path'], return_stderr=False).rstrip()
+        return self.filesystem.join(self.filesystem.dirname(path), 'Python')
+
+    @property
+    def device_type(self):
+        return None

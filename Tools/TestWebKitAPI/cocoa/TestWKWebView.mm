@@ -26,8 +26,6 @@
 #import "config.h"
 #import "TestWKWebView.h"
 
-#if WK_API_ENABLED
-
 #import "ClassMethodSwizzler.h"
 #import "TestNavigationDelegate.h"
 #import "Utilities.h"
@@ -47,6 +45,7 @@
 
 #if PLATFORM(IOS_FAMILY)
 #import "UIKitSPI.h"
+#import <MobileCoreServices/MobileCoreServices.h>
 #import <wtf/SoftLinking.h>
 SOFT_LINK_FRAMEWORK(UIKit)
 SOFT_LINK_CLASS(UIKit, UIWindow)
@@ -65,6 +64,29 @@ SOFT_LINK_CLASS(UIKit, UIWindow)
 #endif
 
 @implementation WKWebView (TestWebKitAPI)
+
+- (void)loadTestPageNamed:(NSString *)pageName
+{
+    NSURLRequest *request = [NSURLRequest requestWithURL:[[NSBundle mainBundle] URLForResource:pageName withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"]];
+    [self loadRequest:request];
+}
+
+- (void)synchronouslyLoadHTMLString:(NSString *)html baseURL:(NSURL *)url
+{
+    [self loadHTMLString:html baseURL:url];
+    [self _test_waitForDidFinishNavigation];
+}
+
+- (void)synchronouslyLoadHTMLString:(NSString *)html
+{
+    [self synchronouslyLoadHTMLString:html baseURL:[[[NSBundle mainBundle] bundleURL] URLByAppendingPathComponent:@"TestWebKitAPI.resources"]];
+}
+
+- (void)synchronouslyLoadTestPageNamed:(NSString *)pageName
+{
+    [self loadTestPageNamed:pageName];
+    [self _test_waitForDidFinishNavigation];
+}
 
 - (BOOL)_synchronouslyExecuteEditCommand:(NSString *)command argument:(NSString *)argument
 {
@@ -249,11 +271,42 @@ NSEventMask __simulated_forceClickAssociatedEventsMask(id self, SEL _cmd)
 
 @end
 
+#if PLATFORM(IOS_FAMILY)
+
+static NSArray<NSString *> *writableTypeIdentifiersForItemProviderWithoutPublicRTFD()
+{
+    return @[
+        @"com.apple.uikit.attributedstring",
+        (__bridge NSString *)kUTTypeFlatRTFD,
+        (__bridge NSString *)kUTTypeUTF8PlainText,
+    ];
+}
+
+static void applyWorkaroundToAllowWritingAttributedStringsToItemProviders()
+{
+    // FIXME: Remove this once <rdar://problem/51510554> is fixed.
+    static std::unique_ptr<ClassMethodSwizzler> swizzler;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        swizzler = std::make_unique<ClassMethodSwizzler>(NSAttributedString.class, @selector(writableTypeIdentifiersForItemProvider), reinterpret_cast<IMP>(writableTypeIdentifiersForItemProviderWithoutPublicRTFD));
+    });
+}
+
+using InputSessionChangeCount = NSUInteger;
+static InputSessionChangeCount nextInputSessionChangeCount()
+{
+    static InputSessionChangeCount gInputSessionChangeCount = 0;
+    return ++gInputSessionChangeCount;
+}
+
+#endif
+
 @implementation TestWKWebView {
     RetainPtr<TestWKWebViewHostWindow> _hostWindow;
     RetainPtr<TestMessageHandler> _testHandler;
 #if PLATFORM(IOS_FAMILY)
     std::unique_ptr<ClassMethodSwizzler> _sharedCalloutBarSwizzler;
+    InputSessionChangeCount _inputSessionChangeCount;
 #endif
 }
 
@@ -289,6 +342,8 @@ static UICalloutBar *suppressUICalloutBar()
 #if PLATFORM(IOS_FAMILY)
     // FIXME: Remove this workaround once <https://webkit.org/b/175204> is fixed.
     _sharedCalloutBarSwizzler = std::make_unique<ClassMethodSwizzler>([UICalloutBar class], @selector(sharedCalloutBar), reinterpret_cast<IMP>(suppressUICalloutBar));
+    _inputSessionChangeCount = 0;
+    applyWorkaroundToAllowWritingAttributedStringsToItemProviders();
 #endif
 
     return self;
@@ -316,6 +371,15 @@ static UICalloutBar *suppressUICalloutBar()
 #endif
 }
 
+- (void)addToTestWindow
+{
+#if PLATFORM(MAC)
+    [[_hostWindow contentView] addSubview:self];
+#else
+    [_hostWindow addSubview:self];
+#endif
+}
+
 - (void)clearMessageHandlers:(NSArray *)messageNames
 {
     for (NSString *messageName in messageNames)
@@ -330,29 +394,6 @@ static UICalloutBar *suppressUICalloutBar()
     }
 
     [_testHandler addMessage:message withHandler:action];
-}
-
-- (void)loadTestPageNamed:(NSString *)pageName
-{
-    NSURLRequest *request = [NSURLRequest requestWithURL:[[NSBundle mainBundle] URLForResource:pageName withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"]];
-    [self loadRequest:request];
-}
-
-- (void)synchronouslyLoadHTMLString:(NSString *)html baseURL:(NSURL *)url
-{
-    [self loadHTMLString:html baseURL:url];
-    [self _test_waitForDidFinishNavigation];
-}
-
-- (void)synchronouslyLoadHTMLString:(NSString *)html
-{
-    [self synchronouslyLoadHTMLString:html baseURL:[[[NSBundle mainBundle] bundleURL] URLByAppendingPathComponent:@"TestWebKitAPI.resources"]];
-}
-
-- (void)synchronouslyLoadTestPageNamed:(NSString *)pageName
-{
-    [self loadTestPageNamed:pageName];
-    [self _test_waitForDidFinishNavigation];
 }
 
 - (void)waitForMessage:(NSString *)message
@@ -409,11 +450,45 @@ static UICalloutBar *suppressUICalloutBar()
     [self evaluateJavaScript:@"getSelection().collapseToEnd()" completionHandler:nil];
 }
 
+#if PLATFORM(IOS_FAMILY)
+
+- (void)didStartFormControlInteraction
+{
+    _inputSessionChangeCount = nextInputSessionChangeCount();
+}
+
+- (void)didEndFormControlInteraction
+{
+    _inputSessionChangeCount = 0;
+}
+
+#endif // PLATFORM(IOS_FAMILY)
+
 @end
 
 #if PLATFORM(IOS_FAMILY)
 
 @implementation TestWKWebView (IOSOnly)
+
+- (void)evaluateJavaScriptAndWaitForInputSessionToChange:(NSString *)script
+{
+    auto initialChangeCount = _inputSessionChangeCount;
+    BOOL hasEmittedWarning = NO;
+    NSTimeInterval secondsToWaitUntilWarning = 2;
+    NSTimeInterval startTime = [NSDate timeIntervalSinceReferenceDate];
+
+    [self objectByEvaluatingJavaScript:script];
+    while ([[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate distantPast]]) {
+        if (_inputSessionChangeCount != initialChangeCount)
+            break;
+
+        if (hasEmittedWarning || startTime + secondsToWaitUntilWarning >= [NSDate timeIntervalSinceReferenceDate])
+            continue;
+
+        NSLog(@"Warning: expecting input session change count to differ from %lu", static_cast<unsigned long>(initialChangeCount));
+        hasEmittedWarning = YES;
+    }
+}
 
 - (UIView <UITextInputPrivate, UITextInputMultiDocument> *)textInputContentView
 {
@@ -462,6 +537,25 @@ static UICalloutBar *suppressUICalloutBar()
 
     TestWebKitAPI::Util::run(&finished);
     return info.autorelease();
+}
+
+static WKContentView *recursiveFindWKContentView(UIView *view)
+{
+    if ([view isKindOfClass:NSClassFromString(@"WKContentView")])
+        return (WKContentView *)view;
+
+    for (UIView *subview in view.subviews) {
+        WKContentView *contentView = recursiveFindWKContentView(subview);
+        if (contentView)
+            return contentView;
+    }
+
+    return nil;
+}
+
+- (WKContentView *)wkContentView
+{
+    return recursiveFindWKContentView(self);
 }
 
 @end
@@ -535,5 +629,3 @@ static UICalloutBar *suppressUICalloutBar()
 
 @end
 #endif
-
-#endif // WK_API_ENABLED
