@@ -1,3 +1,322 @@
+2019-12-15  Zhifei Fang  <zhifei_fang@apple.com>
+
+        Add power metric to perf dashboard
+        https://bugs.webkit.org/show_bug.cgi?id=205227
+
+        Reviewed by Ryosuke Niwa.
+
+        * public/v3/models/metric.js:
+        (Metric):
+
+2019-12-05  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Custom analysis task page should allow schedule any triggerable accepted tests.
+        https://bugs.webkit.org/show_bug.cgi?id=204925
+
+        Reviewed by Ryosuke Niwa.
+
+        Fix a bug that subtest will not show on custom analysis task page if both itself and parent test are
+        accepted by triggerable.
+        Order test list in alphabetical order.
+
+        * public/v3/components/custom-analysis-task-configurator.js:
+        (CustomAnalysisTaskConfigurator.prototype._renderTriggerableTests):
+
+2019-10-28  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Fix a bug that cannot unhide a platform.
+        https://bugs.webkit.org/show_bug.cgi?id=203521
+
+        Reviewed by Ryosuke Niwa.
+
+        Before this change, the there is no value in POST when 'hidden' checkbox is unchecked.
+        Then the update will fail because platform_hidden cannot be NULL.
+
+        * public/admin/platforms.php: Adapted 'update_boolean_field'.
+        * public/admin/triggerables.php: Adapted 'update_boolean_field'.
+        * public/include/admin-header.php: Added 'update_boolean_field' helper function to set explict
+        boolean value for update.
+
+2019-10-25  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Add SSL support for peformance dashboard database connection.
+        https://bugs.webkit.org/show_bug.cgi?id=203426
+
+        Reviewed by Ryosuke Niwa.
+
+        Performance dashboard should allow connecting Postgres database with SSL.
+
+        * public/include/db.php: Add SSL configuration to connection string if specified.
+        * tools/js/database.js: Add SSL configuration to connection string if specified.
+        (Database.prototype._prepareSSLConfig):
+        (Database.prototype.connect):
+        * unit-tests/checkconfig.js: Added unit tests for optional ssl fields.
+
+2019-10-22  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Refactor "builds" table "build_number" row to "build_tag" to fit more generic use cases.
+        https://bugs.webkit.org/show_bug.cgi?id=203270
+
+        Reviewed by Ryosuke Niwa.
+
+        Rename "build_number" to "build_tag" to fit more generic use cases.
+        Add support to be backward compatible to accept reports contain either
+        "buildNumber" or "buildTag".
+
+        * browser-tests/index.html:
+        * init-database.sql:
+        * migrate-database.sql: Updated migration sql for this change.
+        * public/admin/test-configurations.php:
+        * public/api/measurement-set.php:
+        * public/api/runs.php:
+        * public/api/upload-root.php: Added support for both "buildNumber" and "buildTag".
+        * public/include/report-processor.php: Added support for both "buildNumber" and "buildTag".
+        * public/v3/models/builder.js:
+        (Builder.prototype.urlForBuild):
+        (Builder):
+        (Build):
+        (Build.prototype.buildTag):
+        (Build.prototype.label):
+        (Build.prototype.url):
+        (Build.prototype.buildNumber): Deleted.
+        * public/v3/models/measurement-adaptor.js:
+        (MeasurementAdaptor):
+        (MeasurementAdaptor.prototype.applyTo.return.build):
+        * public/v3/pages/chart-pane-status-view.js:
+        * public/v3/pages/test-freshness-page.js:
+        (TestFreshnessPage.prototype._renderTooltip):
+        * server-tests/admin-platforms-tests.js:
+        (reportsForDifferentPlatforms):
+        * server-tests/admin-reprocess-report-tests.js:
+        * server-tests/api-commits-tests.js:
+        * server-tests/api-manifest-tests.js:
+        * server-tests/api-measurement-set-tests.js:
+        * server-tests/api-report-tests.js: Added unit tests for testing "buildNumber" and "buildTag".
+        (emptyReport):
+        (reportWitMismatchingCommitTime):
+        (reportWithOneSecondCommitTimeDifference):
+        (emptySlaveReport):
+        (makeReport):
+        (reportWithSameSubtestName):
+        * server-tests/api-upload-root-tests.js: Added unit tests for testing "buildNumber" and "buildTag".
+        * server-tests/privileged-api-add-build-requests-tests.js:
+        * server-tests/privileged-api-create-analysis-task-tests.js:
+        * server-tests/privileged-api-create-test-group-tests.js:
+        (createAnalysisTask):
+        * server-tests/privileged-api-upate-run-status.js:
+        * server-tests/privileged-api-update-test-group-tests.js:
+        (async.createAnalysisTask):
+        * server-tests/resources/mock-data.js:
+        (MockData.addMockConfiguration):
+        (MockData.sampleBuildData):
+        (MockData.finishedBuildData):
+        * server-tests/tools-sync-buildbot-integration-tests.js:
+        * tools/js/buildbot-syncer.js:
+        (BuildbotBuildEntry.prototype.initialize):
+        (BuildbotBuildEntry.prototype.buildTag):
+        (BuildbotBuildEntry.prototype.url):
+        (BuildbotSyncer.prototype.urlForBuildTag):
+        (BuildbotBuildEntry.prototype.buildNumber): Deleted.
+        (BuildbotSyncer.prototype.urlForBuildNumber): Deleted.
+        * unit-tests/analysis-task-tests.js:
+        (measurementCluster):
+        * unit-tests/buildbot-syncer-tests.js:
+        * unit-tests/measurement-adaptor-tests.js:
+        * unit-tests/measurement-set-analyzer-tests.js:
+        * unit-tests/measurement-set-tests.js:
+        * unit-tests/resources/mock-v3-models.js:
+
+2019-10-11  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Improve test freshness page interaction experience.
+        https://bugs.webkit.org/show_bug.cgi?id=202684
+
+        Reviewed by Ryosuke Niwa.
+
+        Change test freshness page show tooltip on click instead of popuping on mouse hover.
+        And clicking anywhere in 'page-with-heading' section except the tooltip can dismiss tooltip.
+        Add keyboard support to move focus around including 'Tab' key support.
+        Add support to use 'Enter' key to show or dismiss tooltip.
+        Add support to use 'Escape' key to dismiss tooltip.
+
+        * public/shared/common-component-base.js: Added support for link to specify 'tabindex'.
+        (CommonComponentBase.prototype.createLink):
+        (CommonComponentBase.createLink):
+        (CommonComponentBase):
+        * public/v3/components/base.js: Added support for customizing whether or not prevent default and stop propagation
+        while creating event handler.
+        (ComponentBase.prototype.createEventHandler):
+        (ComponentBase.createEventHandler):
+        (ComponentBase):
+        * public/v3/components/freshness-indicator.js:
+        (FreshnessIndicator): Removed 'url' property and removed customization for mouse event.
+        (FreshnessIndicator.prototype.update):
+        (FreshnessIndicator.prototype.didConstructShadowTree): Deleted.
+        * public/v3/pages/test-freshness-page.js:
+        (TestFreshnessPage): Changed to show tooltip on click and added key board event.
+        (TestFreshnessPage.prototype.didConstructShadowTree): Added key event support.
+        (TestFreshnessPage.prototype._findClosestIndicatorAnchorForCoordinate):
+        (TestFreshnessPage.prototype.render):
+        (TestFreshnessPage.prototype._renderTooltip):
+        (TestFreshnessPage.prototype._constructTableCell): Added tabIndex for each cell that contains freshness indicator.
+        (TestFreshnessPage.prototype._configureAnchorForIndicator):
+        (TestFreshnessPage.prototype._clearIndicatorState): Changed the color of links in tooltip to a more readable color.
+        Added styles when anchor for status cell and links on tooltip are focused.
+        (TestFreshnessPage.cssTemplate):
+
+2019-10-04  Zhifei Fang  <zhifei_fang@apple.com>
+
+        [perf dashboard] Test fressness popover sometimes point to wrong place
+        https://bugs.webkit.org/show_bug.cgi?id=202606
+
+        Reviewed by Ryosuke Niwa.
+
+        * public/v3/pages/test-freshness-page.js: Use a invisable tooltip anchor to cacluate tooltip position. It also helps to get rid of caculation for determine the tooltip table position. 
+        (TestFreshnessPage.prototype._renderTooltip):
+        (TestFreshnessPage.cssTemplate):
+
+2019-10-04  Zhifei Fang  <zhifei_fang@apple.com>
+
+        [perf dashboard] Make test fressness head and indicator perfect centered
+        https://bugs.webkit.org/show_bug.cgi?id=202602
+
+        Reviewed by Ryosuke Niwa.
+
+        * public/v3/components/freshness-indicator.js: make indicator margin auto, it will then horizontally centered in the container
+        (FreshnessIndicator.cssTemplate):
+        (FreshnessIndicator):
+        * public/v3/pages/test-freshness-page.js: make the table head transform based on the center left
+        (TestFreshnessPage.cssTemplate):
+
+2019-10-02  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Fix a bug that warning icon causes infinite rendering when it has warning message.
+        https://bugs.webkit.org/show_bug.cgi?id=202502
+
+        Reviewed by Ryosuke Niwa.
+
+        Fix the problem that a warning icon with a warning message will result in infinite rendering.
+
+        * public/v3/components/button-base.js:
+        (ButtonBase):
+        (ButtonBase.prototype.setButtonTitle): Fixed a typo in function name and moved the title update to
+        render function.
+        (ButtonBase.prototype.render): Added the logic to render title.
+        * public/v3/components/test-group-revision-table.js: Set warning message by invoking setButtonTitle.
+        * public/v3/components/warning-icon.js: Removed the warning messge related code and leave the responsibility
+        to ButtonBase.
+        (WarningIcon):
+        (WarningIcon.prototype.render):
+
+2019-07-30  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Provide build request status description information on dashboard.
+        https://bugs.webkit.org/show_bug.cgi?id=199810
+
+        Reviewed by Ryosuke Niwa.
+
+        Add build request status description to show detailed information for a build and show it in dashboard.
+        Update SQL for existing instance:
+            ALTER TABLE build_requests ADD COLUMN IF NOT EXISTS request_status_description varchar(1024) DEFAULT NULL;
+
+        * ReadMe.md: Updated instructions for initializing a database to include running 'migrate-database.sql'.
+        * init-database.sql: Added request_status_description column.
+        * migrate-database.sql: A file stores migration SQL for existing instance.
+        * public/api/build-requests.php: Added support for updating request_status_description.
+        * public/include/build-requests-fetcher.php: Exposed `statusDescription` to API.
+        * public/v3/components/test-group-revision-table.js: Added UI for showing build request status detail.
+        (TestGroupRevisionTable.prototype._renderTable):
+        (TestGroupRevisionTable.prototype._buildDescriptionCell):
+        (TestGroupRevisionTable.cssTemplate):
+        * public/v3/components/warning-icon.js: Extended warning icon to be able to customize information on hover.
+        (WarningIcon):
+        (WarningIcon.prototype.render):
+        * public/v3/components/button-base.js: Added a instance method to set button title.
+        (ButtonBase.prototype.setButtonTitle):
+        * public/v3/models/build-request.js: Added 'statusDescription' field.
+        (BuildRequest):
+        (BuildRequest.prototype.updateSingleton):
+        (BuildRequest.prototype.statusDescription):
+        * server-tests/api-build-requests-tests.js: Fixed unit tests.
+        * server-tests/resources/mock-data.js:
+        (MockData.set mockTestSyncConfigWithSingleBuilder): Added 'status_description' in buildbot mock data.
+        (MockData.sampleBuildData):
+        * server-tests/resources/test-server.js:
+        (TestServer.prototype.initDatabase): Added code to execute 'migrate-database.sql' on initialization.
+        * server-tests/tools-sync-buildbot-integration-tests.js: Added unit tests.
+        * tools/js/buildbot-syncer.js: Added 'statusDescription' field to 'BuildbotBuildEntry'.
+        (BuildbotBuildEntry.prototype.initialize):
+        (BuildbotBuildEntry.prototype.statusDescription):
+        * tools/js/buildbot-triggerable.js:
+        (BuildbotTriggerable.prototype._pullBuildbotOnAllSyncers):
+        * unit-tests/buildbot-syncer-tests.js: Added test code for BuildbotBuildEntry.statusDescription.
+
+2019-07-26  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Dashboard should defaults to first dashboard page when summary page is not available.
+        https://bugs.webkit.org/show_bug.cgi?id=200180
+
+        Reviewed by Ryosuke Niwa.
+
+        Fix a bug that charts page will become the default when there is no summary page but there
+        is at least one dashboard page.
+
+        * public/v3/main.js: Charts page and analysis category page should not be considered as summay pages.
+        (main):
+
+2019-07-30  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Analysis task page should show build request author and creation time.
+        https://bugs.webkit.org/show_bug.cgi?id=200274
+
+        Reviewed by Ryosuke Niwa.
+
+        Author and creation time of a build request should be visible in analysis task page.
+
+        * public/v3/pages/analysis-task-page.js: Added UI to show build request creation time and author.
+        (AnalysisTaskTestGroupPane.prototype._renderCurrentTestGroup):
+
+2019-07-29  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Should not render latest build information if there is no data points for a config.
+        https://bugs.webkit.org/show_bug.cgi?id=200250
+
+        Reviewed by Ryosuke Niwa.
+
+        Fix a bug test freshness page that tooltip cannot be rendered when a cell does not have
+        a data point.
+
+        * public/v3/pages/test-freshness-page.js: Added a null check on commit set before rendering
+        latest build informaiton.
+        (TestFreshnessPage.prototype._renderTooltip):
+
+2019-07-25  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Fix a bug that cannot update builder password on builders administrative page.
+        https://bugs.webkit.org/show_bug.cgi?id=200154
+
+        Reviewed by Ryosuke Niwa.
+
+        'builders' administrative page should be able to update password for a builder.
+
+        * public/admin/builders.php: Should be able to update builder password.
+
+2019-07-23  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Use 12 digits to show a git commit.
+        https://bugs.webkit.org/show_bug.cgi?id=200067
+
+        Reviewed by Ryosuke Niwa.
+
+        Use 12 digits to show a git commit to reasonably descrease commit prefix collision probability
+        for repository with large amount of commits.
+
+        * public/v3/models/commit-log.js: Increase digits from 8 to 12 for git SHA.
+        (CommitLog.prototype.label):
+        (CommitLog.prototype.diff):
+        * unit-tests/commit-log-tests.js: Updated unit tests.
+        * unit-tests/commit-set-tests.js: Updated unit tests.
+
 2019-07-03  Dewei Zhu  <dewei_zhu@apple.com>
 
         Test freshness page should expose revision information for latest build on tooltip.

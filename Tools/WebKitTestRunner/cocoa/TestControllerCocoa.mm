@@ -35,7 +35,7 @@
 #import <Foundation/Foundation.h>
 #import <Security/SecItem.h>
 #import <WebKit/WKContextConfigurationRef.h>
-#import <WebKit/WKCookieManager.h>
+#import <WebKit/WKContextPrivate.h>
 #import <WebKit/WKPreferencesRefPrivate.h>
 #import <WebKit/WKProcessPoolPrivate.h>
 #import <WebKit/WKStringCF.h>
@@ -44,6 +44,7 @@
 #import <WebKit/WKWebViewConfiguration.h>
 #import <WebKit/WKWebViewConfigurationPrivate.h>
 #import <WebKit/WKWebViewPrivate.h>
+#import <WebKit/WKWebViewPrivateForTesting.h>
 #import <WebKit/WKWebsiteDataRecordPrivate.h>
 #import <WebKit/WKWebsiteDataStorePrivate.h>
 #import <WebKit/WKWebsiteDataStoreRef.h>
@@ -51,6 +52,7 @@
 #import <WebKit/_WKUserContentExtensionStore.h>
 #import <WebKit/_WKUserContentExtensionStorePrivate.h>
 #import <wtf/MainThread.h>
+#import <wtf/spi/cocoa/SecuritySPI.h>
 
 namespace WTR {
 
@@ -63,13 +65,13 @@ void initializeWebViewConfiguration(const char* libraryPath, WKStringRef injecte
     globalWebViewConfiguration = [[WKWebViewConfiguration alloc] init];
 
     globalWebViewConfiguration.processPool = (__bridge WKProcessPool *)context;
-    globalWebViewConfiguration.websiteDataStore = (__bridge WKWebsiteDataStore *)WKContextGetWebsiteDataStore(context);
+    globalWebViewConfiguration.websiteDataStore = (__bridge WKWebsiteDataStore *)TestController::websiteDataStore();
     globalWebViewConfiguration._allowUniversalAccessFromFileURLs = YES;
     globalWebViewConfiguration._applePayEnabled = YES;
 
-    WKCookieManagerSetStorageAccessAPIEnabled(WKContextGetCookieManager(context), true);
+    WKContextSetStorageAccessAPIEnabled(context, true);
 
-    WKWebsiteDataStore* poolWebsiteDataStore = (__bridge WKWebsiteDataStore *)WKContextGetWebsiteDataStore((__bridge WKContextRef)globalWebViewConfiguration.processPool);
+    WKWebsiteDataStore* poolWebsiteDataStore = (__bridge WKWebsiteDataStore *)TestController::websiteDataStore();
     if (libraryPath) {
         String cacheStorageDirectory = String(libraryPath) + '/' + "CacheStorage";
         [poolWebsiteDataStore _setCacheStorageDirectory: cacheStorageDirectory];
@@ -79,7 +81,6 @@ void initializeWebViewConfiguration(const char* libraryPath, WKStringRef injecte
     }
 
     [globalWebViewConfiguration.websiteDataStore _setResourceLoadStatisticsEnabled:YES];
-    [globalWebViewConfiguration.websiteDataStore _resourceLoadStatisticsSetShouldSubmitTelemetry:NO];
 
     [globalWebsiteDataStoreDelegateClient release];
     globalWebsiteDataStoreDelegateClient = [[TestWebsiteDataStoreDelegate alloc] init];
@@ -158,6 +159,9 @@ void TestController::platformCreateWebView(WKPageConfigurationRef, const TestOpt
 
     if (options.enableUndoManagerAPI)
         [copiedConfiguration _setUndoManagerAPIEnabled:YES];
+        
+    if (options.useEphemeralSession)
+        [copiedConfiguration setWebsiteDataStore:[WKWebsiteDataStore nonPersistentDataStore]];
 
     configureContentMode(copiedConfiguration.get(), options);
 
@@ -167,7 +171,7 @@ void TestController::platformCreateWebView(WKPageConfigurationRef, const TestOpt
         [copiedConfiguration _setApplicationManifest:[_WKApplicationManifest applicationManifestFromJSON:text manifestURL:nil documentURL:nil]];
     }
 
-    m_mainWebView = std::make_unique<PlatformWebView>(copiedConfiguration.get(), options);
+    m_mainWebView = makeUnique<PlatformWebView>(copiedConfiguration.get(), options);
     finishCreatingPlatformWebView(m_mainWebView.get(), options);
 
     if (options.punchOutWhiteBackgroundsInDarkMode)
@@ -175,6 +179,8 @@ void TestController::platformCreateWebView(WKPageConfigurationRef, const TestOpt
 
     if (options.editable)
         m_mainWebView->setEditable(true);
+
+    m_mainWebView->platformView().allowsLinkPreview = options.allowsLinkPreview;
 }
 
 PlatformWebView* TestController::platformCreateOtherPage(PlatformWebView* parentView, WKPageConfigurationRef, const TestOptions& options)
@@ -225,7 +231,7 @@ void TestController::setDefaultCalendarType(NSString *identifier)
 {
     m_overriddenCalendarIdentifier = identifier;
     if (!m_calendarSwizzler)
-        m_calendarSwizzler = std::make_unique<ClassMethodSwizzler>([NSCalendar class], @selector(currentCalendar), reinterpret_cast<IMP>(swizzledCalendar));
+        m_calendarSwizzler = makeUnique<ClassMethodSwizzler>([NSCalendar class], @selector(currentCalendar), reinterpret_cast<IMP>(swizzledCalendar));
 }
 
 void TestController::resetContentExtensions()
@@ -252,10 +258,8 @@ void TestController::cocoaResetStateToConsistentValues(const TestOptions& option
         TestRunnerWKWebView *platformView = webView->platformView();
         platformView._viewScale = 1;
         platformView._minimumEffectiveDeviceWidth = 0;
-
-        // Toggle on before the test, and toggle off after the test.
-        if (options.shouldShowSpellCheckingDots)
-            [platformView toggleContinuousSpellChecking:nil];
+        [platformView _setContinuousSpellCheckingEnabledForTesting:options.shouldShowSpellCheckingDots];
+        [platformView resetInteractionCallbacks];
     }
 
     [globalWebsiteDataStoreDelegateClient setAllowRaisingQuota: true];
@@ -329,8 +333,6 @@ void TestController::injectUserScript(WKStringRef script)
 
 void TestController::addTestKeyToKeychain(const String& privateKeyBase64, const String& attrLabel, const String& applicationTagBase64)
 {
-    // FIXME(182772)
-#if PLATFORM(IOS_FAMILY)
     NSDictionary* options = @{
         (id)kSecAttrKeyType: (id)kSecAttrKeyTypeECSECPrimeRandom,
         (id)kSecAttrKeyClass: (id)kSecAttrKeyClassPrivate,
@@ -348,40 +350,51 @@ void TestController::addTestKeyToKeychain(const String& privateKeyBase64, const 
         (id)kSecValueRef: (id)key.get(),
         (id)kSecClass: (id)kSecClassKey,
         (id)kSecAttrLabel: attrLabel,
-        (id)kSecAttrApplicationTag: adoptNS([[NSData alloc] initWithBase64EncodedString:applicationTagBase64 options:NSDataBase64DecodingIgnoreUnknownCharacters]).get()
+        (id)kSecAttrApplicationTag: adoptNS([[NSData alloc] initWithBase64EncodedString:applicationTagBase64 options:NSDataBase64DecodingIgnoreUnknownCharacters]).get(),
+        (id)kSecAttrAccessible: (id)kSecAttrAccessibleAfterFirstUnlock,
+#if HAVE(DATA_PROTECTION_KEYCHAIN)
+        (id)kSecUseDataProtectionKeychain: @YES
+#else
+        (id)kSecAttrNoLegacy: @YES
+#endif
     };
     OSStatus status = SecItemAdd((__bridge CFDictionaryRef)addQuery, NULL);
     ASSERT_UNUSED(status, !status);
-#endif
 }
 
-void TestController::cleanUpKeychain(const String& attrLabel)
+void TestController::cleanUpKeychain(const String& attrLabel, const String& applicationTagBase64)
 {
-    // FIXME(182772)
-#if PLATFORM(IOS_FAMILY)
-    NSDictionary* deleteQuery = @{
-        (id)kSecClass: (id)kSecClassKey,
-        (id)kSecAttrLabel: attrLabel
-    };
-    SecItemDelete((__bridge CFDictionaryRef)deleteQuery);
+    auto deleteQuery = adoptNS([[NSMutableDictionary alloc] init]);
+    [deleteQuery setObject:(id)kSecClassKey forKey:(id)kSecClass];
+    [deleteQuery setObject:attrLabel forKey:(id)kSecAttrLabel];
+#if HAVE(DATA_PROTECTION_KEYCHAIN)
+    [deleteQuery setObject:@YES forKey:(id)kSecUseDataProtectionKeychain];
+#else
+    [deleteQuery setObject:@YES forKey:(id)kSecAttrNoLegacy];
 #endif
+    if (!!applicationTagBase64)
+        [deleteQuery setObject:adoptNS([[NSData alloc] initWithBase64EncodedString:applicationTagBase64 options:NSDataBase64DecodingIgnoreUnknownCharacters]).get() forKey:(id)kSecAttrApplicationTag];
+
+    SecItemDelete((__bridge CFDictionaryRef)deleteQuery.get());
 }
 
 bool TestController::keyExistsInKeychain(const String& attrLabel, const String& applicationTagBase64)
 {
-    // FIXME(182772)
-#if PLATFORM(IOS_FAMILY)
     NSDictionary *query = @{
         (id)kSecClass: (id)kSecClassKey,
         (id)kSecAttrKeyClass: (id)kSecAttrKeyClassPrivate,
         (id)kSecAttrLabel: attrLabel,
         (id)kSecAttrApplicationTag: adoptNS([[NSData alloc] initWithBase64EncodedString:applicationTagBase64 options:NSDataBase64DecodingIgnoreUnknownCharacters]).get(),
+#if HAVE(DATA_PROTECTION_KEYCHAIN)
+        (id)kSecUseDataProtectionKeychain: @YES
+#else
+        (id)kSecAttrNoLegacy: @YES
+#endif
     };
     OSStatus status = SecItemCopyMatching((__bridge CFDictionaryRef)query, NULL);
     if (!status)
         return true;
     ASSERT(status == errSecItemNotFound);
-#endif
     return false;
 }
 
@@ -390,13 +403,11 @@ void TestController::setAllowStorageQuotaIncrease(bool value)
     [globalWebsiteDataStoreDelegateClient setAllowRaisingQuota: value];
 }
 
-bool TestController::canDoServerTrustEvaluationInNetworkProcess() const
+void TestController::setAllowsAnySSLCertificate(bool allows)
 {
-#if HAVE(CFNETWORK_NSURLSESSION_STRICTRUSTEVALUATE)
-    return true;
-#else
-    return false;
-#endif
+    m_allowsAnySSLCertificate = allows;
+    WKContextSetAllowsAnySSLCertificateForWebSocketTesting(platformContext(), allows);
+    [globalWebsiteDataStoreDelegateClient setAllowAnySSLCertificate: allows];
 }
 
 void TestController::installCustomMenuAction(const String& name, bool dismissesAutomatically)
@@ -417,7 +428,7 @@ void TestController::setAllowedMenuActions(const Vector<String>& actions)
 {
 #if PLATFORM(IOS_FAMILY)
     auto actionNames = adoptNS([[NSMutableArray<NSString *> alloc] initWithCapacity:actions.size()]);
-    for (auto action : actions)
+    for (auto& action : actions)
         [actionNames addObject:action];
     [m_mainWebView->platformView() setAllowedMenuActions:actionNames.get()];
 #else

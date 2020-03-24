@@ -221,6 +221,8 @@ class Driver(object):
         pid = self._server_process.pid()
 
         if stop_when_done or crashed or timed_out:
+            if stop_when_done and not (crashed or timed_out):
+                self.do_post_tests_work()
             # We call stop() even if we crashed or timed out in order to get any remaining stdout/stderr output.
             # In the timeout case, we kill the hung process as well.
             out, err = self._server_process.stop(self._port.driver_stop_timeout() if stop_when_done else 0.0)
@@ -410,6 +412,8 @@ class Driver(object):
             environment[variable] = path
 
     def _setup_environ_for_driver(self, environment):
+        self._port._clear_global_caches_and_temporary_files()
+        self._create_temporal_directories()
         build_root_path = str(self._port._build_path())
         self._append_environment_variable_path(environment, 'DYLD_LIBRARY_PATH', build_root_path)
         self._append_environment_variable_path(environment, '__XPC_DYLD_LIBRARY_PATH', build_root_path)
@@ -432,6 +436,16 @@ class Driver(object):
         environment['SQLITE_EXEMPT_PATH_FROM_VNODE_GUARDS'] = os.path.realpath(environment['DUMPRENDERTREE_TEMP'])
         environment['__XPC_SQLITE_EXEMPT_PATH_FROM_VNODE_GUARDS'] = environment['SQLITE_EXEMPT_PATH_FROM_VNODE_GUARDS']
 
+        if sys.platform.startswith('linux'):
+            # Currently on WebKit2, there is no API for setting the application cache directory.
+            # Each worker should have it's own and it should be cleaned afterwards.
+            # Set it to inside the temporary folder by prepending XDG_CACHE_HOME with DRIVER_TEMPDIR.
+            environment['XDG_CACHE_HOME'] = self._port.host.filesystem.join(str(self._driver_tempdir), 'appcache')
+            # Use an empty/volatile home inside DRIVER_TEMPDIR to ensure that the test results
+            # are not affected by the user settings of any library.
+            environment['HOME'] = self._port.host.filesystem.join(str(self._driver_tempdir), 'home')
+            self._target_host.filesystem.maybe_make_directory(environment['HOME'])
+
         if self._profiler:
             environment = self._profiler.adjusted_environment(environment)
         return environment
@@ -441,17 +455,19 @@ class Driver(object):
         environment = self._setup_environ_for_driver(environment)
         return environment
 
-    def _start(self, pixel_tests, per_test_args):
-        self.stop()
+    def _create_temporal_directories(self):
         # Each driver process should be using individual directories under _driver_tempdir (which is deleted when stopping),
         # however some subsystems on some platforms could end up using process default ones.
-        self._port._clear_global_caches_and_temporary_files()
-        self._driver_tempdir = self._port._driver_tempdir(self._target_host)
-        self._driver_user_directory_suffix = os.path.basename(str(self._driver_tempdir))
-        user_cache_directory = self._port._path_to_user_cache_directory(self._driver_user_directory_suffix)
-        if user_cache_directory:
-            self._target_host.filesystem.maybe_make_directory(user_cache_directory)
-            self._driver_user_cache_directory = user_cache_directory
+        if self._driver_tempdir is None:
+            self._driver_tempdir = self._port._driver_tempdir(self._target_host)
+            self._driver_user_directory_suffix = os.path.basename(str(self._driver_tempdir))
+            user_cache_directory = self._port._path_to_user_cache_directory(self._driver_user_directory_suffix)
+            if user_cache_directory:
+                self._target_host.filesystem.maybe_make_directory(user_cache_directory)
+                self._driver_user_cache_directory = user_cache_directory
+
+    def _start(self, pixel_tests, per_test_args):
+        self.stop()
         environment = self._setup_environ_for_test()
         self._crashed_process_name = None
         self._crashed_pid = None
@@ -467,19 +483,21 @@ class Driver(object):
         # Remote drivers will override this method to return the pid on the device.
         return self._server_process.pid()
 
-    def stop(self):
-        if self._server_process:
-            self._server_process.stop(self._port.driver_stop_timeout())
-            self._server_process = None
-            if self._profiler:
-                self._profiler.profile_after_exit()
-
+    def _delete_temporal_directories(self):
         if self._driver_tempdir:
             self._target_host.filesystem.rmtree(str(self._driver_tempdir))
             self._driver_tempdir = None
         if self._driver_user_cache_directory:
             self._target_host.filesystem.rmtree(self._driver_user_cache_directory)
             self._driver_user_cache_directory = None
+
+    def stop(self):
+        if self._server_process:
+            self._server_process.stop(self._port.driver_stop_timeout())
+            self._server_process = None
+            if self._profiler:
+                self._profiler.profile_after_exit()
+        self._delete_temporal_directories()
 
     def cmd_line(self, pixel_tests, per_test_args):
         cmd = self._command_wrapper()
@@ -504,6 +522,14 @@ class Driver(object):
         for allowed_host in self._port.allowed_hosts():
             cmd.append('--allowed-host')
             cmd.append(allowed_host)
+
+        for feature in self._port.internal_feature():
+            cmd.append('--internal-feature')
+            cmd.append(feature)
+
+        for feature in self._port.experimental_feature():
+            cmd.append('--experimental-feature')
+            cmd.append(feature)
 
         cmd.extend(self._port.get_option('additional_drt_flag', []))
         cmd.extend(self._port.additional_drt_flag())

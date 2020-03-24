@@ -371,10 +371,8 @@ TEST_P(EGLStreamTest, StreamConsumerGLTextureYUVDeletionTest)
 class D3D11TextureStreamSamplingTest : public ANGLETest
 {
   protected:
-    void SetUp() override
+    void testSetUp() override
     {
-        ANGLETest::SetUp();
-
         EGLWindow *window = getEGLWindow();
         mDisplay          = window->getDisplay();
         if (!IsEGLDisplayExtensionEnabled(mDisplay, "EGL_ANGLE_stream_producer_d3d_texture"))
@@ -410,7 +408,7 @@ class D3D11TextureStreamSamplingTest : public ANGLETest
         eglQueryDeviceAttribEXT(eglDevice, EGL_D3D11_DEVICE_ANGLE, (EGLAttrib *)&mD3D);
     }
 
-    void TearDown() override
+    void testTearDown() override
     {
         EGLBoolean result = eglDestroyStreamKHR(mDisplay, mStream);
         ASSERT_EGL_TRUE(result);
@@ -418,8 +416,6 @@ class D3D11TextureStreamSamplingTest : public ANGLETest
 
         glDeleteRenderbuffers(1, &mRB);
         glDeleteFramebuffers(1, &mFB);
-
-        ANGLETest::TearDown();
     }
 
     EGLDisplay mDisplay  = 0;
@@ -840,5 +836,5 @@ ANGLE_INSTANTIATE_TEST(EGLStreamTest,
                        ES2_OPENGL(),
                        ES3_OPENGL(),
                        ES2_VULKAN());
-ANGLE_INSTANTIATE_TEST(D3D11TextureStreamSamplingTest, ES2_D3D11(), ES3_D3D11());
+ANGLE_INSTANTIATE_TEST(D3D11TextureStreamSamplingTest, ES2_D3D11(), ES3_D3D11(), ES31_D3D11());
 }  // anonymous namespace

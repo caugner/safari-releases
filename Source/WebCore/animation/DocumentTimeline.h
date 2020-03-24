@@ -31,13 +31,14 @@
 #include "Timer.h"
 #include <wtf/Markable.h>
 #include <wtf/Ref.h>
+#include <wtf/WeakPtr.h>
 
 namespace WebCore {
 
 class AnimationPlaybackEvent;
 class RenderElement;
 
-class DocumentTimeline final : public AnimationTimeline
+class DocumentTimeline final : public AnimationTimeline, public CanMakeWeakPtr<DocumentTimeline>
 {
 public:
     static Ref<DocumentTimeline> create(Document&);
@@ -67,14 +68,14 @@ public:
     void animationAcceleratedRunningStateDidChange(WebAnimation&);
     void applyPendingAcceleratedAnimations();
     bool runningAnimationsForElementAreAllAccelerated(Element&) const;
-    bool resolveAnimationsForElement(Element&, RenderStyle&);
     void detachFromDocument();
 
     void enqueueAnimationPlaybackEvent(AnimationPlaybackEvent&);
     
-    void updateAnimationsAndSendEvents(DOMHighResTimeStamp timestamp);
+    bool scheduledUpdate() const { return m_animationResolutionScheduled; }
+    void updateCurrentTime(DOMHighResTimeStamp timestamp);
+    void updateAnimationsAndSendEvents();
 
-    void updateThrottlingState();
     WEBCORE_EXPORT Seconds animationInterval() const;
     WEBCORE_EXPORT void suspendAnimations();
     WEBCORE_EXPORT void resumeAnimations();
@@ -98,6 +99,9 @@ private:
     void updateListOfElementsWithRunningAcceleratedAnimationsForElement(Element&);
     void transitionDidComplete(RefPtr<CSSTransition>);
     void scheduleNextTick();
+    void removeReplacedAnimations();
+    bool animationCanBeRemoved(WebAnimation&);
+    bool shouldRunUpdateAnimationsAndSendEventsIgnoringSuspensionState() const;
 
     Timer m_tickScheduleTimer;
     GenericTaskQueue<Timer> m_currentTimeClearingTaskQueue;

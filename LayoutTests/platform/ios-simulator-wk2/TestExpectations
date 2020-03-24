@@ -18,8 +18,6 @@ webkit.org/b/152439 compositing/overflow/dynamic-composited-scrolling-status.htm
 
 webkit.org/b/173178 [ Release ] svg/animations/svglength-element-removed-crash.svg [ Skip ]
 
-webkit.org/b/174100 webgl/1.0.2/conformance/glsl/misc/shader-with-non-reserved-words.html [ Skip ]
-
 webkit.org/b/173010 js/slow-stress/Int32Array-alloc-huge.html [ Pass Timeout ]
 
 webkit.org/b/174183 animations/resume-after-page-cache.html [ Pass Failure ]
@@ -44,13 +42,6 @@ webkit.org/b/196228 http/tests/cache-storage/cache-records-persistency.https.htm
 
 webkit.org/b/196233 fast/viewport/ios/initial-scale-after-changing-view-scale.html [ Pass Timeout ]
 
-webkit.org/b/196269 http/tests/resourceLoadStatistics/capped-lifetime-for-cookie-set-in-js-with-link-fragment-from-prevalent-resource.html [ Pass Timeout ]
-webkit.org/b/196269 http/tests/resourceLoadStatistics/capped-lifetime-for-cookie-set-in-js-with-link-query-and-fragment-from-prevalent-resource.html [ Pass Timeout ]
-webkit.org/b/196269 http/tests/resourceLoadStatistics/capped-lifetime-for-cookie-set-in-js-with-link-query-from-prevalent-resource.html [ Pass Timeout ]
-webkit.org/b/196269 http/tests/resourceLoadStatistics/capped-lifetime-for-cookie-set-in-js-without-link-decoration-from-prevalent-resource.html [ Pass Timeout ]
-
-webkit.org/b/196298 fast/viewport/ios/use-minimum-device-width-for-page-without-viewport-meta.html [ Pass Failure ]
-
 webkit.org/b/162975 http/tests/cache/disk-cache/memory-cache-revalidation-updates-disk-cache.html [ Pass Failure ]
 
 webkit.org/b/196112 imported/w3c/web-platform-tests/mathml/relations/css-styling/mathvariant-bold.html [ Pass ImageOnlyFailure ]
@@ -66,15 +57,9 @@ http/wpt/cache-storage/cache-put-keys.https.any.worker.html [ Slow ]
 http/wpt/cache-storage/a-cache-open.https.html [ Slow ]
 http/wpt/cache-storage/cache-quota-add.any.html [ Slow ]
 
-webkit.org/b/196376 [ Debug ] storage/domstorage/localstorage/private-browsing-affects-storage.html [ Pass Failure ]
-
 webkit.org/b/196403 imported/w3c/web-platform-tests/mediacapture-record/MediaRecorder-stop.html [ Pass Failure ]
 
 webkit.org/b/195341 fast/viewport/ios/constant-width-viewport-after-changing-view-scale.html [ Pass Failure ]
-
-webkit.org/b/196612 scrollingcoordinator/ios/ui-scroll-fixed.html [ Pass ImageOnlyFailure ]
-
-webkit.org/b/196654 [ Debug ] editing/execCommand/print.html [ Skip ]
 
 webkit.org/b/186581 [ Debug ] fast/parser/xml-error-adopted.xml [ Pass Timeout ]
 
@@ -82,10 +67,18 @@ webkit.org/b/196944 imported/w3c/web-platform-tests/hr-time/test_cross_frame_sta
 
 webkit.org/b/197207 http/wpt/resource-timing/rt-resources-per-frame.html [ Pass Failure ]
 
-webkit.org/b/192501 animations/play-state-in-shorthand.html [ Pass Failure ]
-
 webkit.org/b/182849 imported/w3c/web-platform-tests/xhr/event-upload-progress-crossorigin.htm [ Pass Failure ]
 
 imported/w3c/web-platform-tests/IndexedDB/keypath-special-identifiers.htm [ Slow ]
 
 webkit.org/b/172001 scrollingcoordinator/ios/sync-layer-positions-after-scroll.html [ Pass Failure ]
+
+# NearField.framework doesn't present in the simulator, and therefore skip all WebAuthn NFC tests
+http/wpt/webauthn/ctap-nfc-failure.https.html [ Skip ]
+http/wpt/webauthn/public-key-credential-create-failure-nfc.https.html [ Skip ]
+http/wpt/webauthn/public-key-credential-create-success-nfc.https.html [ Skip ]
+http/wpt/webauthn/public-key-credential-get-failure-nfc.https.html [ Skip ]
+http/wpt/webauthn/public-key-credential-get-success-nfc.https.html [ Skip ]
+
+webkit.org/b/203157 scrollingcoordinator/ios/non-stable-viewport-scroll.html [ Pass Failure ]
+

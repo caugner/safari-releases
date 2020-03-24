@@ -529,6 +529,34 @@ TEST(KeyboardInputTests, SelectionClipRectsWhenPresentingInputView)
     EXPECT_EQ(20, selectionClipRect.size.height);
 }
 
+TEST(KeyboardInputTests, TestWebViewAdditionalContextForStrongPasswordAssistance)
+{
+    NSDictionary *expected = @{ @"strongPasswordAdditionalContext" : @"testUUID" };
+
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+
+    [inputDelegate setFocusStartsInputSessionPolicyHandler:[&] (WKWebView *, id <_WKFocusedElementInfo>) -> _WKFocusStartsInputSessionPolicy {
+        return _WKFocusStartsInputSessionPolicyAllow;
+    }];
+
+    [inputDelegate setWebViewAdditionalContextForStrongPasswordAssistanceHandler:[&] (WKWebView *) {
+        return expected;
+    }];
+
+    [inputDelegate setFocusRequiresStrongPasswordAssistanceHandler:[&] (WKWebView *, id <_WKFocusedElementInfo>) {
+        return YES;
+    }];
+
+    [webView _setInputDelegate:inputDelegate.get()];
+
+    [webView synchronouslyLoadHTMLString:@"<input type='password' id='input'>"];
+    [webView evaluateJavaScriptAndWaitForInputSessionToChange:@"document.getElementById('input').focus()"];
+
+    NSDictionary *actual = [[webView textInputContentView] _autofillContext];
+    EXPECT_TRUE([[actual allValues] containsObject:expected]);
+}
+
 TEST(KeyboardInputTests, SupportsImagePaste)
 {
     auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
@@ -537,7 +565,7 @@ TEST(KeyboardInputTests, SupportsImagePaste)
     }];
 
     auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 568)]);
-    auto contentView = (id <UITextInputPrivate_Staging_54140418>)[webView textInputContentView];
+    auto contentView = (id <UITextInputPrivate>)[webView textInputContentView];
     [webView synchronouslyLoadHTMLString:@"<input id='input'></input><div contenteditable id='editor'></div><textarea id='textarea'></textarea>"];
     [webView _setInputDelegate:inputDelegate.get()];
 

@@ -88,6 +88,7 @@ BEGIN {
        &sdkPlatformDirectory
        &setConfiguration
        &setupMacWebKitEnvironment
+       &setupUnixWebKitEnvironment
        &sharedCommandLineOptions
        &sharedCommandLineOptionsUsage
        &shutDownIOSSimulatorDevice
@@ -104,6 +105,7 @@ BEGIN {
 # Ports
 use constant {
     AppleWin    => "AppleWin",
+    FTW         => "FTW",
     GTK         => "GTK",
     iOS         => "iOS",
     tvOS        => "tvOS",
@@ -474,7 +476,7 @@ sub jscPath($)
         $jscName .= ".exe";
     }
     return "$productDir/$jscName" if -e "$productDir/$jscName";
-    return "$productDir/JavaScriptCore.framework/Resources/$jscName";
+    return "$productDir/JavaScriptCore.framework/Helpers/$jscName";
 }
 
 sub argumentsForConfiguration()
@@ -493,6 +495,7 @@ sub argumentsForConfiguration()
     push(@args, '--maccatalyst') if (defined $xcodeSDK && $xcodeSDK =~ /^maccatalyst/);
     push(@args, '--32-bit') if ($architecture eq "x86" and !isWin64());
     push(@args, '--64-bit') if (isWin64());
+    push(@args, '--ftw') if isFTW();
     push(@args, '--gtk') if isGtk();
     push(@args, '--wpe') if isWPE();
     push(@args, '--jsc-only') if isJSCOnly();
@@ -504,7 +507,7 @@ sub argumentsForConfiguration()
 sub extractNonMacOSHostConfiguration
 {
     my @args = ();
-    my @extract = ('--device', '--gtk', '--ios', '--platform', '--sdk', '--simulator', '--wincairo', 'SDKROOT', 'ARCHS');
+    my @extract = ('--device', '--gtk', '--ios', '--platform', '--sdk', '--simulator', '--wincairo', '--ftw', 'SDKROOT', 'ARCHS');
     foreach (@{$_[0]}) {
         my $line = $_;
         my $flag = 0;
@@ -711,7 +714,7 @@ sub usesPerConfigurationBuildDirectory
     # autotool builds (non build-webkit). In this case and if
     # WEBKIT_OUTPUTDIR exist, use that as our configuration dir. This will
     # allows us to run run-webkit-tests without using build-webkit.
-    return ($ENV{"WEBKIT_OUTPUTDIR"} && isGtk()) || isAppleWinWebKit();
+    return ($ENV{"WEBKIT_OUTPUTDIR"} && isGtk()) || isAppleWinWebKit() || isFTW();
 }
 
 sub determineConfigurationProductDir
@@ -719,7 +722,7 @@ sub determineConfigurationProductDir
     return if defined $configurationProductDir;
     determineBaseProductDir();
     determineConfiguration();
-    if (isAppleWinWebKit() || isWinCairo() || isPlayStation()) {
+    if (isAppleWinWebKit() || isWinCairo() || isPlayStation() || isFTW()) {
         $configurationProductDir = File::Spec->catdir($baseProductDir, $configuration);
     } else {
         if (usesPerConfigurationBuildDirectory()) {
@@ -903,6 +906,10 @@ sub XcodeStaticAnalyzerOption()
 
 sub canUseXCBuild()
 {
+    # if (`xcodebuild -version | grep "Build version"` =~ /Build version (\d+)([a-zA-Z])(\d+)([a-zA-Z]?)/) {
+    #     return $1 >= 11;
+    # }
+
     return 0;
 }
 
@@ -1041,7 +1048,7 @@ sub builtDylibPathForName
     if (isAppleCocoaWebKit()) {
         return "$configurationProductDir/$libraryName.framework/Versions/A/$libraryName";
     }
-    if (isAppleWinWebKit()) {
+    if (isAppleWinWebKit() || isFTW()) {
         if ($libraryName eq "JavaScriptCore") {
             return "$baseProductDir/lib/$libraryName.lib";
         } else {
@@ -1163,6 +1170,7 @@ sub determinePortName()
     return if defined $portName;
 
     my %argToPortName = (
+        ftw => FTW,
         gtk => GTK,
         'jsc-only' => JSCOnly,
         playstation => PlayStation,
@@ -1252,6 +1260,11 @@ sub isFedoraBased()
     return -e "/etc/fedora-release";
 }
 
+sub isFTW()
+{
+    return portName() eq FTW;
+}
+
 sub isWinCairo()
 {
     return portName() eq WinCairo;
@@ -1278,7 +1291,7 @@ sub isWin64()
 sub determineIsWin64()
 {
     return if defined($isWin64);
-    $isWin64 = checkForArgumentAndRemoveFromARGV("--64-bit") || ((isWinCairo() || isJSCOnly()) && !shouldBuild32Bit());
+    $isWin64 = checkForArgumentAndRemoveFromARGV("--64-bit") || ((isAnyWindows() || isJSCOnly()) && !shouldBuild32Bit());
 }
 
 sub determineIsWin64FromArchitecture($)
@@ -1376,7 +1389,12 @@ sub isCrossCompilation()
         my $compilerOptions = `$compiler -v 2>&1`;
         my @host = $compilerOptions =~ m/--host=(.*?)\s/;
         my @target = $compilerOptions =~ m/--target=(.*?)\s/;
-        if ($target[0] ne "" && $host[0] ne "") {
+        if (!@target || !@host) {
+            # Sometimes a compiler does not report the host of target it was compiled for,
+            # in which case, lacking better information we assume we are not cross-compiling.
+            return 0;
+        }
+        elsif ($target[0] ne "" && $host[0] ne "") {
                 return ($host[0] ne $target[0]);
         } else {
                 # $tempDir gets automatically deleted when goes out of scope
@@ -1544,10 +1562,10 @@ sub splitVersionString
     my $versionString = shift;
     my @splitVersion = split(/\./, $versionString);
     @splitVersion >= 2 or die "Invalid version $versionString";
-    $osXVersion = {
-            "major" => $splitVersion[0],
-            "minor" => $splitVersion[1],
-            "subminor" => (defined($splitVersion[2]) ? $splitVersion[2] : 0),
+    return {
+        "major" => $splitVersion[0],
+        "minor" => $splitVersion[1],
+        "subminor" => (defined($splitVersion[2]) ? $splitVersion[2] : 0),
     };
 }
 
@@ -1560,7 +1578,7 @@ sub determineOSXVersion()
         return;
     }
 
-    my $versionString = `sw_vers -productVersion`;
+    chomp(my $versionString = `sw_vers -productVersion`);
     $osXVersion = splitVersionString($versionString);
 }
 
@@ -1688,7 +1706,7 @@ sub launcherName()
         return "MiniBrowser";
     } elsif (isAppleMacWebKit()) {
         return "Safari";
-    } elsif (isAppleWinWebKit()) {
+    } elsif (isAppleWinWebKit() || isFTW()) {
         return "MiniBrowser";
     }
 }
@@ -1791,7 +1809,7 @@ sub checkInstalledTools()
 
 sub setupAppleWinEnv()
 {
-    return unless isAppleWinWebKit();
+    return unless isAppleWinWebKit() || isFTW();
 
     checkInstalledTools();
 
@@ -1888,6 +1906,18 @@ sub buildXCodeProject($$@)
     }
 
     chomp($ENV{DSYMUTIL_NUM_THREADS} = `sysctl -n hw.activecpu`);
+
+    # lldbWebKitTester won't work with the wrong CLANG_DEBUG_INFORMATION_LEVEL, so always use the default for that project
+    if ($project eq "lldbWebKitTester") {
+        my $index = 0;
+        while ($index < scalar(@extraOptions)) {
+            if ($extraOptions[$index] =~ /CLANG_DEBUG_INFORMATION_LEVEL=/) {
+                splice @extraOptions, $index, 1;
+            } else {
+                $index += 1;
+            }
+        }
+    }
     return system "xcodebuild", "-project", "$project.xcodeproj", @extraOptions;
 }
 
@@ -2050,7 +2080,7 @@ sub wrapperPrefixIfNeeded()
     if (isAppleCocoaWebKit()) {
         return ("xcrun");
     }
-    if (-e getJhbuildPath()) {
+    if (shouldUseJhbuild() and ! shouldUseFlatpak()) {
         my @prefix = (File::Spec->catfile(sourceDir(), "Tools", "jhbuild", "jhbuild-wrapper"));
         if (isGtk()) {
             push(@prefix, "--gtk");
@@ -2255,7 +2285,7 @@ sub generateBuildSystemFromCMakeProject
     push @args, '-DSHOW_BINDINGS_GENERATION_PROGRESS=1' unless ($willUseNinja && -t STDOUT);
 
     # Some ports have production mode, but build-webkit should always use developer mode.
-    push @args, "-DDEVELOPER_MODE=ON" if isGtk() || isJSCOnly() || isWPE() || isWinCairo();
+    push @args, "-DDEVELOPER_MODE=ON" if isGtk() || isJSCOnly() || isWPE() || isWin64();
 
     if (architecture() eq "x86_64" && shouldBuild32Bit()) {
         # CMAKE_LIBRARY_ARCHITECTURE is needed to get the right .pc
@@ -2265,6 +2295,7 @@ sub generateBuildSystemFromCMakeProject
         push @cmakeArgs, '-DFORCE_32BIT=ON -DCMAKE_PREFIX_PATH="/usr" -DCMAKE_LIBRARY_ARCHITECTURE=x86';
         $ENV{"CFLAGS"} =  "-m32" . ($ENV{"CFLAGS"} || "");
         $ENV{"CXXFLAGS"} = "-m32" . ($ENV{"CXXFLAGS"} || "");
+        $ENV{"LDFLAGS"} = "-m32" . ($ENV{"LDFLAGS"} || "");
     }
     push @args, @cmakeArgs if @cmakeArgs;
 
@@ -2421,7 +2452,7 @@ sub setPathForRunningWebKitApp
 
     if (isAnyWindows()) {
         my $productBinaryDir = executableProductDir();
-        if (isAppleWinWebKit()) {
+        if (isAppleWinWebKit() || isFTW()) {
             $env->{PATH} = join(':', $productBinaryDir, appleApplicationSupportPath(), $env->{PATH} || "");
         } elsif (isWinCairo()) {
             my $winCairoBin = sourceDir() . "/WebKitLibraries/win/" . (isWin64() ? "bin64/" : "bin32/");
@@ -2455,8 +2486,6 @@ sub argumentsForRunAndDebugMacWebKitApp()
     my @args = ();
     if (checkForArgumentAndRemoveFromARGV("--no-saved-state")) {
         push @args, ("-ApplePersistenceIgnoreStateQuietly", "YES");
-        # FIXME: Don't set ApplePersistenceIgnoreState once all supported OS versions respect ApplePersistenceIgnoreStateQuietly (rdar://15032886).
-        push @args, ("-ApplePersistenceIgnoreState", "YES");
     }
 
     my $lang;
@@ -2489,6 +2518,14 @@ sub setupMacWebKitEnvironment($)
     setUpGuardMallocIfNeeded();
 }
 
+sub setupUnixWebKitEnvironment($)
+{
+    my ($productDir) = @_;
+
+    $ENV{TEST_RUNNER_INJECTED_BUNDLE_FILENAME} = File::Spec->catfile($productDir, "lib", "libTestRunnerInjectedBundle.so");
+    $ENV{TEST_RUNNER_TEST_PLUGIN_PATH} = File::Spec->catdir($productDir, "lib", "plugins");
+}
+
 sub setupIOSWebKitEnvironment($)
 {
     my ($dyldFrameworkPath) = @_;
@@ -2503,7 +2540,7 @@ sub setupIOSWebKitEnvironment($)
 sub iosSimulatorApplicationsPath()
 {
     # FIXME: We should ask simctl for this information, instead of guessing from available runtimes.
-    my $runtimePath = File::Spec->catdir(sdkPlatformDirectory("iphoneos"), "Developer", "Library", "CoreSimulator", "Profiles", "Runtimes");
+    my $runtimePath = File::Spec->catdir(sdkPlatformDirectory("iphoneos"), "Library", "Developer", "CoreSimulator", "Profiles", "Runtimes");
     opendir(RUNTIMES, $runtimePath);
     my @runtimes = grep {/.*\.simruntime/} readdir(RUNTIMES);
     close(RUNTIMES);
@@ -2832,6 +2869,24 @@ sub execMacWebKitAppForDebugging($)
     exec { $debuggerPath } $debuggerPath, @architectureFlags, $argumentsSeparator, $appPath, argumentsForRunAndDebugMacWebKitApp() or die;
 }
 
+sub execUnixAppForDebugging($)
+{
+    my ($appPath) = @_;
+
+    my $debuggerPath = `which gdb | head -1`;
+    chomp $debuggerPath;
+    die "Can't find the gdb executable.\n" unless -x $debuggerPath;
+
+    my $productDir = productDir();
+    setupUnixWebKitEnvironment($productDir);
+
+    my @cmdline = wrapperPrefixIfNeeded();
+    push @cmdline, $debuggerPath, "--args", $appPath;
+
+    print "Starting @{[basename($appPath)]} under gdb with build WebKit in $productDir.\n";
+    exec @cmdline, @ARGV or die;
+}
+
 sub debugSafari
 {
     if (isAppleMacWebKit()) {
@@ -2852,7 +2907,7 @@ sub runSafari
         return runMacWebKitApp(safariPath());
     }
 
-    if (isAppleWinWebKit()) {
+    if (isAppleWinWebKit() || isFTW()) {
         my $result;
         my $webKitLauncherPath = File::Spec->catfile(executableProductDir(), "MiniBrowser.exe");
         return system { $webKitLauncherPath } $webKitLauncherPath, @ARGV;
@@ -2866,7 +2921,7 @@ sub runMiniBrowser
     if (isAppleMacWebKit()) {
         return runMacWebKitApp(File::Spec->catfile(productDir(), "MiniBrowser.app", "Contents", "MacOS", "MiniBrowser"));
     }
-    if (isAppleWinWebKit()) {
+    if (isAppleWinWebKit() || isFTW()) {
         my $webKitLauncherPath = File::Spec->catfile(executableProductDir(), "MiniBrowser.exe");
         return system { $webKitLauncherPath } $webKitLauncherPath, @ARGV;
     }
@@ -2895,6 +2950,8 @@ sub debugWebKitTestRunner
 {
     if (isAppleMacWebKit()) {
         execMacWebKitAppForDebugging(File::Spec->catfile(productDir(), "WebKitTestRunner"));
+    } elsif (isGtk() or isWPE()) {
+        execUnixAppForDebugging(File::Spec->catfile(productDir(), "bin", "WebKitTestRunner"));
     }
 
     return 1;

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2004, 2005, 2006, 2007, 2008, 2014 Apple Inc. All rights reserved.
+ *  Copyright (C) 2004-2019 Apple Inc. All rights reserved.
  *
  *  This library is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU Library General Public
@@ -36,6 +36,8 @@
 #define PROPERTY_MAP_DELETED_ENTRY_KEY ((UniquedStringImpl*)1)
 
 namespace JSC {
+
+DECLARE_ALLOCATOR_WITH_HEAP_IDENTIFIER(PropertyTable);
 
 #if DUMP_PROPERTYMAP_STATS
 
@@ -121,7 +123,7 @@ class PropertyTable final : public JSCell {
 
 public:
     typedef JSCell Base;
-    static const unsigned StructureFlags = Base::StructureFlags | StructureIsImmortal;
+    static constexpr unsigned StructureFlags = Base::StructureFlags | StructureIsImmortal;
 
     template<typename CellType, SubspaceAccess>
     static IsoSubspace* subspaceFor(VM& vm)
@@ -129,7 +131,7 @@ public:
         return &vm.propertyTableSpace;
     }
 
-    static const bool needsDestruction = true;
+    static constexpr bool needsDestruction = true;
     static void destroy(JSCell*);
 
     DECLARE_EXPORT_INFO;
@@ -202,7 +204,7 @@ public:
     static ptrdiff_t offsetOfIndexMask() { return OBJECT_OFFSETOF(PropertyTable, m_indexMask); }
     static ptrdiff_t offsetOfIndex() { return OBJECT_OFFSETOF(PropertyTable, m_index); }
 
-    static const unsigned EmptyEntryIndex = 0;
+    static constexpr unsigned EmptyEntryIndex = 0;
 
 private:
     PropertyTable(VM&, unsigned initialCapacity);
@@ -258,7 +260,7 @@ private:
     unsigned m_deletedCount;
     std::unique_ptr<Vector<PropertyOffset>> m_deletedOffsets;
 
-    static const unsigned MinimumTableSize = 16;
+    static constexpr unsigned MinimumTableSize = 16;
 };
 
 inline PropertyTable::iterator PropertyTable::begin()
@@ -448,7 +450,7 @@ inline PropertyOffset PropertyTable::getDeletedOffset()
 inline void PropertyTable::addDeletedOffset(PropertyOffset offset)
 {
     if (!m_deletedOffsets)
-        m_deletedOffsets = std::make_unique<Vector<PropertyOffset>>();
+        m_deletedOffsets = makeUnique<Vector<PropertyOffset>>();
     m_deletedOffsets->append(offset);
 }
 
@@ -514,14 +516,15 @@ inline void PropertyTable::rehash(unsigned newCapacity)
     m_indexMask = m_indexSize - 1;
     m_keyCount = 0;
     m_deletedCount = 0;
-    m_index = static_cast<unsigned*>(fastZeroedMalloc(dataSize()));
+
+    m_index = static_cast<unsigned*>(PropertyTableMalloc::zeroedMalloc(dataSize()));
 
     for (; iter != end; ++iter) {
         ASSERT(canInsert());
         reinsert(*iter);
     }
 
-    fastFree(oldEntryIndices);
+    PropertyTableMalloc::free(oldEntryIndices);
 }
 
 inline unsigned PropertyTable::tableCapacity() const { return m_indexSize >> 1; }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2018 Apple Inc. All rights reserved.
+ * Copyright (C) 2013-2019 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -32,6 +32,7 @@
 #include "Structure.h"
 #include "StructureChain.h"
 #include "StructureRareDataInlines.h"
+#include <wtf/Threading.h>
 
 namespace JSC {
 
@@ -108,7 +109,7 @@ inline Structure* Structure::storedPrototypeStructure() const
 
 ALWAYS_INLINE JSValue Structure::storedPrototype(const JSObject* object) const
 {
-    ASSERT(object->structure() == this);
+    ASSERT(isCompilationThread() || Thread::mayBeGCThread() || object->structure() == this);
     if (hasMonoProto())
         return storedPrototype();
     return object->getDirect(knownPolyProtoOffset);
@@ -116,7 +117,7 @@ ALWAYS_INLINE JSValue Structure::storedPrototype(const JSObject* object) const
 
 ALWAYS_INLINE JSObject* Structure::storedPrototypeObject(const JSObject* object) const
 {
-    ASSERT(object->structure() == this);
+    ASSERT(isCompilationThread() || Thread::mayBeGCThread() || object->structure() == this);
     if (hasMonoProto())
         return storedPrototypeObject();
     JSValue proto = object->getDirect(knownPolyProtoOffset);
@@ -142,6 +143,9 @@ ALWAYS_INLINE PropertyOffset Structure::get(VM& vm, PropertyName propertyName, u
 {
     ASSERT(!isCompilationThread());
     ASSERT(structure(vm)->classInfo() == info());
+
+    if (m_seenProperties.ruleOut(bitwise_cast<uintptr_t>(propertyName.uid())))
+        return invalidOffset;
 
     PropertyTable* propertyTable = ensurePropertyTableIfNotEmpty(vm);
     if (!propertyTable)
@@ -297,9 +301,9 @@ inline StructureChain* Structure::prototypeChain(VM& vm, JSGlobalObject* globalO
     return m_cachedPrototypeChain.get();
 }
 
-inline StructureChain* Structure::prototypeChain(ExecState* exec, JSObject* base) const
+inline StructureChain* Structure::prototypeChain(JSGlobalObject* globalObject, JSObject* base) const
 {
-    return prototypeChain(exec->vm(), exec->lexicalGlobalObject(), base);
+    return prototypeChain(globalObject->vm(), globalObject, base);
 }
 
 inline bool Structure::isValid(JSGlobalObject* globalObject, StructureChain* cachedPrototypeChain, JSObject* base) const
@@ -309,9 +313,9 @@ inline bool Structure::isValid(JSGlobalObject* globalObject, StructureChain* cac
 
     VM& vm = globalObject->vm();
     JSValue prototype = prototypeForLookup(globalObject, base);
-    WriteBarrier<Structure>* cachedStructure = cachedPrototypeChain->head();
+    StructureID* cachedStructure = cachedPrototypeChain->head();
     while (*cachedStructure && !prototype.isNull()) {
-        if (asObject(prototype)->structure(vm) != cachedStructure->get())
+        if (asObject(prototype)->structureID() != *cachedStructure)
             return false;
         ++cachedStructure;
         prototype = asObject(prototype)->getPrototypeDirect(vm);
@@ -329,7 +333,7 @@ inline void Structure::didReplaceProperty(PropertyOffset offset)
     WatchpointSet* set = map->get(offset);
     if (LIKELY(!set))
         return;
-    set->fireAll(*vm(), "Property did get replaced");
+    set->fireAll(vm(), "Property did get replaced");
 }
 
 inline WatchpointSet* Structure::propertyReplacementWatchpointSet(PropertyOffset offset)
@@ -410,11 +414,11 @@ inline size_t nextOutOfLineStorageCapacity(size_t currentCapacity)
     return currentCapacity * outOfLineGrowthFactor;
 }
 
-inline void Structure::setObjectToStringValue(ExecState* exec, VM& vm, JSString* value, PropertySlot toStringTagSymbolSlot)
+inline void Structure::setObjectToStringValue(JSGlobalObject* globalObject, VM& vm, JSString* value, PropertySlot toStringTagSymbolSlot)
 {
     if (!hasRareData())
         allocateRareData(vm);
-    rareData()->setObjectToStringValue(exec, vm, this, value, toStringTagSymbolSlot);
+    rareData()->setObjectToStringValue(globalObject, vm, this, value, toStringTagSymbolSlot);
 }
 
 template<Structure::ShouldPin shouldPin, typename Func>
@@ -446,6 +450,8 @@ inline PropertyOffset Structure::add(VM& vm, PropertyName propertyName, unsigned
     PropertyOffset newOffset = table->nextOffset(m_inlineCapacity);
 
     m_propertyHash = m_propertyHash ^ rep->existingSymbolAwareHash();
+
+    m_seenProperties.add(bitwise_cast<uintptr_t>(rep));
     
     PropertyOffset newLastOffset = m_offset;
     table->add(PropertyMapEntry(rep, newOffset, attributes), newLastOffset, PropertyTable::PropertyOffsetMayChange);
@@ -559,7 +565,7 @@ ALWAYS_INLINE bool Structure::shouldConvertToPolyProto(const Structure* a, const
     if (a->storedPrototype() == b->storedPrototype())
         return false;
 
-    VM& vm = *a->vm();
+    VM& vm = a->vm();
     JSObject* aObj = a->storedPrototypeObject();
     JSObject* bObj = b->storedPrototypeObject();
     while (aObj && bObj) {

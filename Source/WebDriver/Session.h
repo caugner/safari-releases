@@ -50,9 +50,9 @@ public:
     const String& id() const;
     const Capabilities& capabilities() const;
     bool isConnected() const;
-    Seconds scriptTimeout() const  { return m_scriptTimeout; }
-    Seconds pageLoadTimeout() const { return m_pageLoadTimeout; }
-    Seconds implicitWaitTimeout() const { return m_implicitWaitTimeout; }
+    double scriptTimeout() const  { return m_scriptTimeout; }
+    double pageLoadTimeout() const { return m_pageLoadTimeout; }
+    double implicitWaitTimeout() const { return m_implicitWaitTimeout; }
     static const String& webElementIdentifier();
 
     enum class FindElementsMode { Single, Multiple };
@@ -86,6 +86,7 @@ public:
     void closeWindow(Function<void (CommandResult&&)>&&);
     void switchToWindow(const String& windowHandle, Function<void (CommandResult&&)>&&);
     void getWindowHandles(Function<void (CommandResult&&)>&&);
+    void newWindow(Optional<String> typeHint, Function<void (CommandResult&&)>&&);
     void switchToFrame(RefPtr<JSON::Value>&&, Function<void (CommandResult&&)>&&);
     void switchToParentFrame(Function<void (CommandResult&&)>&&);
     void getWindowRect(Function<void (CommandResult&&)>&&);
@@ -107,6 +108,7 @@ public:
     void elementClick(const String& elementID, Function<void (CommandResult&&)>&&);
     void elementClear(const String& elementID, Function<void (CommandResult&&)>&&);
     void elementSendKeys(const String& elementID, const String& text, Function<void (CommandResult&&)>&&);
+    void getPageSource(Function<void (CommandResult&&)>&&);
     void executeScript(const String& script, RefPtr<JSON::Array>&& arguments, ExecuteScriptMode, Function<void (CommandResult&&)>&&);
     void getAllCookies(Function<void (CommandResult&&)>&&);
     void getNamedCookie(const String& name, Function<void (CommandResult&&)>&&);
@@ -144,6 +146,7 @@ private:
     RefPtr<JSON::Object> extractElement(JSON::Value&);
     String extractElementID(JSON::Value&);
     RefPtr<JSON::Value> handleScriptResult(RefPtr<JSON::Value>&&);
+    void elementIsEditable(const String& elementID, Function<void (CommandResult&&)>&&);
 
     struct Point {
         int x { 0 };
@@ -166,7 +169,12 @@ private:
     };
     void computeElementLayout(const String& elementID, OptionSet<ElementLayoutOption>, Function<void (Optional<Rect>&&, Optional<Point>&&, bool, RefPtr<JSON::Object>&&)>&&);
 
+    void elementIsFileUpload(const String& elementID, Function<void (CommandResult&&)>&&);
+    enum class FileUploadType { Single, Multiple };
+    Optional<FileUploadType> parseElementIsFileUploadResult(const RefPtr<JSON::Value>&);
     void selectOptionElement(const String& elementID, Function<void (CommandResult&&)>&&);
+    void setInputFileUploadFiles(const String& elementID, const String& text, bool multiple, Function<void (CommandResult&&)>&&);
+    void didSetInputFileUploadFiles(bool wasCancelled);
 
     enum class MouseInteraction { Move, Down, Up, SingleClick, DoubleClick };
     void performMouseInteraction(int x, int y, MouseButton, MouseInteraction, Function<void (CommandResult&&)>&&);
@@ -199,9 +207,9 @@ private:
     InputSourceState& inputSourceState(const String& id);
 
     std::unique_ptr<SessionHost> m_host;
-    Seconds m_scriptTimeout;
-    Seconds m_pageLoadTimeout;
-    Seconds m_implicitWaitTimeout;
+    double m_scriptTimeout;
+    double m_pageLoadTimeout;
+    double m_implicitWaitTimeout;
     Optional<String> m_toplevelBrowsingContext;
     Optional<String> m_currentBrowsingContext;
     HashMap<String, InputSource> m_activeInputSources;

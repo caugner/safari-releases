@@ -24,8 +24,10 @@
  */
 
 #import "config.h"
-#import <WebKit/WKFoundation.h>
 
+#import "Utilities.h"
+#import <WebKit/WKFoundation.h>
+#import <WebKit/WKProcessPoolPrivate.h>
 #import <WebKit/_WKProcessPoolConfiguration.h>
 #import <wtf/RetainPtr.h>
 
@@ -33,7 +35,14 @@ TEST(WKProcessPoolConfiguration, Copy)
 {
     auto configuration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
 
+#if PLATFORM(IOS_FAMILY)
+    NSSet<Class> *testSet = [NSSet setWithObjects:[UIColor class], nil];
+#else
+    NSSet<Class> *testSet = [NSSet setWithObjects:[NSColor class], nil];
+#endif
+    
     [configuration setInjectedBundleURL:[NSURL fileURLWithPath:@"/path/to/injected.wkbundle"]];
+    [configuration setCustomClassesForParameterCoder:testSet];
     [configuration setCustomWebContentServiceBundleIdentifier:@"org.webkit.WebContent.custom"];
     [configuration setIgnoreSynchronousMessagingTimeoutsForTesting:YES];
     [configuration setAttrStyleEnabled:YES];
@@ -41,10 +50,8 @@ TEST(WKProcessPoolConfiguration, Copy)
     [configuration setDiskCacheSizeOverride:42000];
     [configuration setCachePartitionedURLSchemes:@[ @"ssh", @"vnc" ]];
     [configuration setAlwaysRevalidatedURLSchemes:@[ @"afp", @"smb" ]];
-    [configuration setDiskCacheSpeculativeValidationEnabled:YES];
     [configuration setShouldCaptureAudioInUIProcess:YES];
 #if PLATFORM(IOS_FAMILY)
-    [configuration setCTDataConnectionServiceType:@"best"];
     [configuration setAlwaysRunsAtBackgroundPriority:YES];
     [configuration setShouldTakeUIBackgroundAssertion:YES];
 #endif
@@ -54,11 +61,11 @@ TEST(WKProcessPoolConfiguration, Copy)
     [configuration setProcessSwapsOnWindowOpenWithOpener:YES];
     [configuration setPrewarmsProcessesAutomatically:YES];
     [configuration setPageCacheEnabled:YES];
-    [configuration setSuppressesConnectionTerminationOnSystemChange:YES];
 
     auto copy = adoptNS([configuration copy]);
 
     EXPECT_TRUE([[configuration injectedBundleURL] isEqual:[copy injectedBundleURL]]);
+    EXPECT_TRUE([[copy customClassesForParameterCoder] isEqualToSet:testSet]);
     EXPECT_TRUE([[configuration customWebContentServiceBundleIdentifier] isEqual:[copy customWebContentServiceBundleIdentifier]]);
     EXPECT_EQ([configuration ignoreSynchronousMessagingTimeoutsForTesting], [copy ignoreSynchronousMessagingTimeoutsForTesting]);
     EXPECT_EQ([configuration attrStyleEnabled], [copy attrStyleEnabled]);
@@ -66,10 +73,8 @@ TEST(WKProcessPoolConfiguration, Copy)
     EXPECT_EQ([configuration diskCacheSizeOverride], [copy diskCacheSizeOverride]);
     EXPECT_TRUE([[configuration cachePartitionedURLSchemes] isEqual:[copy cachePartitionedURLSchemes]]);
     EXPECT_TRUE([[configuration alwaysRevalidatedURLSchemes] isEqual:[copy alwaysRevalidatedURLSchemes]]);
-    EXPECT_EQ([configuration diskCacheSpeculativeValidationEnabled], [copy diskCacheSpeculativeValidationEnabled]);
     EXPECT_EQ([configuration shouldCaptureAudioInUIProcess], [copy shouldCaptureAudioInUIProcess]);
 #if PLATFORM(IOS_FAMILY)
-    EXPECT_TRUE([[configuration CTDataConnectionServiceType] isEqual:[copy CTDataConnectionServiceType]]);
     EXPECT_EQ([configuration alwaysRunsAtBackgroundPriority], [copy alwaysRunsAtBackgroundPriority]);
     EXPECT_EQ([configuration shouldTakeUIBackgroundAssertion], [copy shouldTakeUIBackgroundAssertion]);
 #endif
@@ -79,5 +84,37 @@ TEST(WKProcessPoolConfiguration, Copy)
     EXPECT_EQ([configuration processSwapsOnWindowOpenWithOpener], [copy processSwapsOnWindowOpenWithOpener]);
     EXPECT_EQ([configuration prewarmsProcessesAutomatically], [copy prewarmsProcessesAutomatically]);
     EXPECT_EQ([configuration pageCacheEnabled], [copy pageCacheEnabled]);
-    EXPECT_EQ([configuration suppressesConnectionTerminationOnSystemChange], [copy suppressesConnectionTerminationOnSystemChange]);
+}
+
+TEST(WKProcessPool, JavaScriptConfiguration)
+{
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    NSURL *tempDir = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:@"CustomPathsTest"] isDirectory:YES];
+    NSError *error = nil;
+    BOOL success = [fileManager createDirectoryAtURL:tempDir withIntermediateDirectories:YES attributes:nil error:&error];
+    EXPECT_TRUE(success);
+    EXPECT_FALSE(error);
+
+    NSData *contents = [@""
+    "processName =~ /WebContent/ {\n"
+        "logFile = \"Log.txt\"\n"
+        "jscOptions {\n"
+            "dumpOptions = 1\n"
+            "dumpDFGDisassembly = true\n"
+        "}\n"
+    "}"
+    "" dataUsingEncoding:NSUTF8StringEncoding];
+    BOOL result = [contents writeToURL:[tempDir URLByAppendingPathComponent:@"JSC.config"] atomically:YES];
+    EXPECT_TRUE(result);
+
+    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    configuration.get().processPool._javaScriptConfigurationDirectory = tempDir;
+    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
+    [webView loadHTMLString:@"<html>hello</html>" baseURL:[NSURL URLWithString:@"https://webkit.org/"]];
+
+    NSString *path = [tempDir URLByAppendingPathComponent:@"Log.txt"].path;
+    while (![fileManager fileExistsAtPath:path])
+        TestWebKitAPI::Util::spinRunLoop();
+    [fileManager removeItemAtPath:tempDir.path error:&error];
+    EXPECT_FALSE(error);
 }

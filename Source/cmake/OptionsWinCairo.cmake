@@ -4,6 +4,7 @@ include(OptionsWin)
 
 find_package(Cairo 1.15.12 REQUIRED)
 find_package(CURL 7.60.0 REQUIRED)
+find_package(ICU REQUIRED COMPONENTS data i18n uc)
 find_package(JPEG 1.5.2 REQUIRED)
 find_package(LibXml2 2.9.7 REQUIRED)
 find_package(OpenSSL 2.0.0 REQUIRED)
@@ -12,14 +13,19 @@ find_package(Sqlite 3.23.1 REQUIRED)
 find_package(ZLIB 1.2.11 REQUIRED)
 find_package(LibPSL 0.20.2 REQUIRED)
 
-find_package(WebP 1.0.0)
-
-if (WEBP_FOUND)
-    SET_AND_EXPOSE_TO_BUILD(USE_WEBP ON)
-endif ()
-
 if (ENABLE_XSLT)
     find_package(LibXslt 1.1.32 REQUIRED)
+endif ()
+
+# Optional packages
+find_package(OpenJPEG 2.3.1)
+if (OpenJPEG_FOUND)
+    SET_AND_EXPOSE_TO_BUILD(USE_OPENJPEG ON)
+endif ()
+
+find_package(WebP 1.0.0)
+if (WEBP_FOUND)
+    SET_AND_EXPOSE_TO_BUILD(USE_WEBP ON)
 endif ()
 
 SET_AND_EXPOSE_TO_BUILD(USE_CAIRO ON)
@@ -40,6 +46,7 @@ set(COREFOUNDATION_LIBRARY CFlite)
 SET_AND_EXPOSE_TO_BUILD(ENABLE_DEVELOPER_MODE ${DEVELOPER_MODE})
 
 add_definitions(-DWTF_PLATFORM_WIN_CAIRO=1)
+add_definitions(-DNOCRYPT)
 
 # Override headers directories
 set(ANGLE_FRAMEWORK_HEADERS_DIR ${CMAKE_BINARY_DIR}/ANGLE/Headers)
@@ -62,3 +69,7 @@ set(WebKit_DERIVED_SOURCES_DIR ${CMAKE_BINARY_DIR}/WebKit/DerivedSources)
 # Override scripts directories
 set(WTF_SCRIPTS_DIR ${CMAKE_BINARY_DIR}/WTF/Scripts)
 set(JavaScriptCore_SCRIPTS_DIR ${CMAKE_BINARY_DIR}/JavaScriptCore/Scripts)
+
+# Override library types
+set(WebCore_LIBRARY_TYPE OBJECT)
+set(WebCoreTestSupport_LIBRARY_TYPE OBJECT)

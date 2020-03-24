@@ -23,20 +23,16 @@ bool DisplayVkFuchsia::isValidNativeWindow(EGLNativeWindowType window) const
 }
 
 SurfaceImpl *DisplayVkFuchsia::createWindowSurfaceVk(const egl::SurfaceState &state,
-                                                     EGLNativeWindowType window,
-                                                     EGLint width,
-                                                     EGLint height)
+                                                     EGLNativeWindowType window)
 {
     ASSERT(isValidNativeWindow(window));
-    return new WindowSurfaceVkFuchsia(state, window, width, height);
+    return new WindowSurfaceVkFuchsia(state, window);
 }
 
 egl::ConfigSet DisplayVkFuchsia::generateConfigs()
 {
     constexpr GLenum kColorFormats[] = {GL_BGRA8_EXT, GL_BGRX8_ANGLEX};
-    constexpr EGLint kSampleCounts[] = {0};
-    return egl_vk::GenerateConfigs(kColorFormats, egl_vk::kConfigDepthStencilFormats, kSampleCounts,
-                                   this);
+    return egl_vk::GenerateConfigs(kColorFormats, egl_vk::kConfigDepthStencilFormats, this);
 }
 
 bool DisplayVkFuchsia::checkConfigSupport(egl::Config *config)

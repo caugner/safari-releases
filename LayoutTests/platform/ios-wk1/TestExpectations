@@ -29,6 +29,9 @@ imported/w3c/web-platform-tests/pointerevents [ Skip ]
 fast/forms/datalist [ WontFix ]
 imported/w3c/web-platform-tests/html/semantics/forms/the-datalist-element [ WontFix ]
 
+# DOM paste access requests are not implemented in WebKit1.
+editing/async-clipboard/clipboard-change-data-while-reading.html [ Skip ]
+
 # testRunner.queueLoad() does not support loading data URLs in iOS WK1
 http/tests/security/contentSecurityPolicy/navigate-self-to-data-url.html [ Skip ]
 
@@ -1827,7 +1830,6 @@ imported/blink/compositing/squashing/squashed-clip-parent.html [ Pass ImageOnlyF
 imported/blink/editing/style/justify-left-crash.html [ Pass ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-multicol/multicol-fill-auto-block-children-002.xht [ Pass ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-multicol/multicol-nested-margin-002.xht [ Pass ImageOnlyFailure ]
-imported/w3c/web-platform-tests/html/browsers/offline/browser-state/navigator_online_online.html [ Failure Pass ]
 svg/animations/reset-animation-crash.html [ Pass ImageOnlyFailure ]
 svg/css/use-window-inactive-crash.html [ Pass ImageOnlyFailure ]
 transitions/cancel-transition.html [ Pass Failure ]
@@ -1999,3 +2001,9 @@ webkit.org/b/188762 fast/writing-mode/english-rl-text-with-spelling-marker.html 
 inspector/canvas/recording-html-2d.html
 
 webkit.org/b/159724 [ Debug ] imported/w3c/web-platform-tests/xhr/send-redirect-post-upload.htm [ Skip ]
+
+# Skip IsLoggedIn
+http/tests/is-logged-in/ [ Skip ]
+
+# Stale-while-revalidate is not supported on WK1
+imported/w3c/web-platform-tests/fetch/stale-while-revalidate [ Skip ]

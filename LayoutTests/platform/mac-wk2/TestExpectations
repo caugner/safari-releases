@@ -10,7 +10,9 @@ compositing/scrolling/async-overflow-scrolling [ Pass ]
 compositing/layer-creation/clipping-scope [ Pass ]
 editing/find [ Pass ]
 editing/undo-manager [ Pass ]
+editing/pasteboard/dom-paste [ Pass ]
 fast/forms/select/mac-wk2 [ Pass ]
+fast/sandbox/mac [ Pass ]
 fast/visual-viewport/tiled-drawing [ Pass ]
 fast/web-share [ Pass ]
 scrollingcoordinator [ Pass ]
@@ -20,6 +22,8 @@ tiled-drawing [ Pass ]
 
 fast/events/autoscroll-when-zoomed.html [ Pass ]
 fast/events/autoscroll-main-document.html [ Pass ]
+
+fast/forms/enterkeyhint-attribute-values.html [ Pass ]
 
 accessibility/smart-invert.html [ Pass ]
 webkit.org/b/189818 accessibility/smart-invert-reference.html [ Pass ImageOnlyFailure ]
@@ -360,7 +364,7 @@ webkit.org/b/151709 [ Release ] http/tests/xmlhttprequest/workers/methods.html [
 
 webkit.org/b/155312 inspector/heap/getPreview.html [ Pass Timeout ]
 
-webkit.org/b/156077 inspector/heap/getRemoteObject.html [ Pass Failure ]
+webkit.org/b/156077 inspector/heap/getRemoteObject.html [ Skip ]
 
 # Video fullscreen is not implemented for mac wk2 in webkittestrunner
 media/media-fullscreen-loop-inline.html [ Skip ]
@@ -476,24 +480,6 @@ webkit.org/b/71298 accessibility/mac/iframe-with-title-correct-hierarchy.html
 ########################################
 ### START OF (5) Features that are not supported when NetworkProcess is enabled (i.e. they only work on Mountain Lion, and not on newer OS versions).
 
-# https://bugs.webkit.org/show_bug.cgi?id=115274
-# PPT: testRunner.setPrivateBrowsingEnabled doesn't work with NetworkProcess
-http/tests/security/appcache-in-private-browsing.html [ Skip ]
-http/tests/security/appcache-switching-private-browsing.html [ Skip ]
-http/tests/security/cookies/first-party-cookie-allow-xslt.xml [ Skip ]
-http/tests/security/cookies/third-party-cookie-blocking-main-frame.html [ Skip ]
-http/tests/security/cookies/third-party-cookie-blocking-user-action.html [ Skip ]
-http/tests/security/cookies/third-party-cookie-blocking-xslt.xml [ Skip ]
-http/tests/security/cookies/third-party-cookie-blocking.html [ Skip ]
-http/tests/security/cross-frame-access-private-browsing.html [ Skip ]
-http/tests/security/cross-origin-plugin-private-browsing-toggled-allowed.html [ Skip ]
-http/tests/security/cross-origin-plugin-private-browsing-toggled.html [ Skip ]
-http/tests/security/storage-blocking-loosened-private-browsing-plugin.html [ Skip ]
-http/tests/security/storage-blocking-strengthened-private-browsing-plugin.html [ Skip ]
-plugins/private-browsing-mode-2.html [ Skip ]
-plugins/private-browsing-mode.html [ Skip ]
-storage/websql/private-browsing-noread-nowrite.html [ Skip ]
-
 # There is no network load scheduling or prioritization with NetworkProcess.
 webkit.org/b/123431 http/tests/css/link-css-disabled-value-with-slow-loading-sheet-in-error.html [ Pass Failure ]
 webkit.org/b/123431 http/tests/css/link-css-disabled-value-with-slow-loading-sheet.html [ Pass Failure ]
@@ -556,6 +542,7 @@ webkit.org/b/170620 [ Sierra+ ] media/controls/pip-placeholder-without-video-con
 webkit.org/b/172998 [ Sierra+ ] media/fullscreen-api-enabled-media-with-presentation-mode.html [ Failure ]
 webkit.org/b/173199 [ Sierra+ ] media/navigate-with-pip-should-not-crash.html [ Pass Failure ]
 [ Sierra+ ] media/pip-video-going-into-fullscreen.html [ Pass ]
+[ Sierra+ ] media/picture-in-picture [ Pass ]
 
 # RTL Scrollbars are enabled on Sierra WebKit2.
 webkit.org/b/179455 [ Sierra+ ] fast/scrolling/rtl-scrollbars.html [ Pass ImageOnlyFailure ]
@@ -659,9 +646,6 @@ webkit.org/b/168336 [ Debug ] imported/w3c/web-platform-tests/streams/readable-s
 # Skipped because Mac doesn't have a key to show the context menu
 fast/events/context-activated-by-key-event.html [ Skip ]
 
-webkit.org/b/169621 imported/w3c/web-platform-tests/IndexedDB/fire-error-event-exception.html [ Pass Failure ]
-webkit.org/b/169760 imported/w3c/web-platform-tests/IndexedDB/fire-success-event-exception.html [ Pass Failure ]
-
 compositing/tiling/non-visible-window-tile-coverage.html [ Pass ]
 
 webkit.org/b/170629  memory/memory-pressure-simulation.html [ Pass Failure ]
@@ -675,8 +659,6 @@ webkit.org/b/171553 [ Release ] http/tests/websocket/tests/hybi/inspector/binary
 webkit.org/b/171763 compositing/tiling/non-active-window-tiles-size.html [ Pass Failure ]
 
 webkit.org/b/171837 [ Debug ] http/tests/security/storage-blocking-loosened-plugin.html [ Pass Failure ]
-
-webkit.org/b/171935 [ Sierra ] tiled-drawing/scrolling/fast-scroll-select-latched-mainframe.html [ Pass Failure ]
 
 webkit.org/b/171939 [ Sierra Release ] media/track/track-cue-rendering-on-resize.html [ Pass Timeout ]
 
@@ -706,33 +688,10 @@ webkit.org/b/172397 legacy-animation-engine/animations/needs-layout.html [ Pass 
 # Touch events are not available on open source bots, thus only tested on Mac.
 http/tests/resourceLoadStatistics/user-interaction-in-cross-origin-sub-frame.html [ Pass ]
 http/tests/resourceLoadStatistics/user-interaction-reported-after-website-data-removal.html [ Pass ]
-
-[ HighSierra+ ] http/tests/storageAccess/has-storage-access-crash.html [ Pass ]
-[ HighSierra+ ] http/tests/storageAccess/request-and-grant-access-cross-origin-non-sandboxed-iframe.html [ Pass ]
-[ HighSierra+ ] http/tests/storageAccess/request-and-grant-access-cross-origin-sandboxed-iframe.html [ Pass ]
-[ HighSierra+ ] http/tests/storageAccess/request-storage-access-crash.html [ Pass ]
-[ HighSierra+ ] http/tests/storageAccess/request-storage-access-cross-origin-sandboxed-iframe-with-unique-origin.html [ Pass ]
-[ HighSierra+ ] http/tests/storageAccess/request-storage-access-cross-origin-sandboxed-iframe-without-allow-token.html [ Pass ]
-[ HighSierra+ ] http/tests/storageAccess/request-storage-access-same-origin-iframe.html [ Pass ]
-[ HighSierra+ ] http/tests/storageAccess/request-storage-access-same-origin-sandboxed-iframe-without-allow-token.html [ Pass ]
-[ HighSierra+ ] http/tests/storageAccess/request-storage-access-same-origin-sandboxed-iframe.html [ Pass ]
-[ HighSierra+ ] http/tests/storageAccess/request-and-grant-access-cross-origin-sandboxed-nested-iframe.html [ Pass ]
-[ HighSierra+ ] http/tests/storageAccess/request-and-grant-access-cross-origin-sandboxed-iframe-from-prevalent-domain-with-user-interaction.html [ Pass ]
-[ HighSierra+ ] http/tests/storageAccess/request-and-grant-access-cross-origin-sandboxed-iframe-from-prevalent-domain-with-user-interaction-and-access-from-right-frame.html [ Pass ]
-[ HighSierra+ ] http/tests/storageAccess/request-and-grant-access-cross-origin-sandboxed-iframe-from-prevalent-domain-with-user-interaction-but-access-from-wrong-frame.html [ Pass ]
-[ HighSierra+ ] http/tests/storageAccess/request-and-grant-access-cross-origin-sandboxed-iframe-from-prevalent-domain-without-user-interaction.html [ Pass ]
-[ HighSierra+ ] http/tests/storageAccess/request-storage-access-top-frame.html [ Pass ]
-[ HighSierra+ ] http/tests/storageAccess/request-storage-access-cross-origin-sandboxed-iframe-without-user-gesture.html [ Pass ]
-[ HighSierra+ ] http/tests/storageAccess/has-storage-access-from-prevalent-domain-with-user-interaction.html [ Pass ]
-[ HighSierra+ ] http/tests/storageAccess/request-and-grant-access-then-detach-should-not-have-access.html [ Pass ]
-[ HighSierra+ ] http/tests/storageAccess/request-and-grant-access-then-navigate-cross-site-should-not-have-access.html [ Pass ]
-[ HighSierra+ ] http/tests/storageAccess/request-and-grant-access-then-navigate-same-site-should-have-access.html [ Pass ]
-[ HighSierra+ ] http/tests/storageAccess/deny-storage-access-under-opener.html [ Pass ]
-[ HighSierra+ ] http/tests/storageAccess/deny-storage-access-under-opener-if-auto-dismiss.html [ Pass ]
-[ HighSierra+ ] http/tests/storageAccess/grant-with-prompt-preserves-gesture.html [ Pass ]
+[ HighSierra+ ] http/tests/storageAccess/ [ Pass ]
+[ HighSierra+ ] http/tests/storageAccess/request-and-grant-access-then-navigate-cross-site-should-not-have-access-database.html [ Pass Timeout ]
 [ HighSierra+ ] http/tests/storageAccess/deny-with-prompt-does-not-preserve-gesture.html [ Skip ]
-[ HighSierra+ ] http/tests/storageAccess/deny-without-prompt-preserves-gesture.html [ Pass ]
-[ HighSierra+ ] http/tests/storageAccess/has-storage-access-true-if-feature-off.html [ Pass ]
+[ HighSierra+ ] http/tests/storageAccess/deny-with-prompt-does-not-preserve-gesture-database.html [ Skip ]
 
 # As of https://trac.webkit.org/changeset/227762 the timestampResolution is just 5 seconds which makes this test flaky
 http/tests/resourceLoadStatistics/user-interaction-only-reported-once-within-short-period-of-time.html [ Skip ]
@@ -791,17 +750,15 @@ webkit.org/b/185994 fast/text/user-installed-fonts/shadow-postscript-family.html
 [ HighSierra+ ] http/tests/resourceLoadStatistics/cookie-deletion.html [ Pass ]
 [ HighSierra+ ] http/tests/resourceLoadStatistics/non-prevalent-resources-can-access-cookies-in-a-third-party-context.html [ Pass ]
 [ HighSierra+ ] http/tests/resourceLoadStatistics/add-blocking-to-redirect.html [ Pass ]
-[ HighSierra+ ] http/tests/resourceLoadStatistics/remove-blocking-in-redirect.html [ Pass ]
+[ HighSierra+ ] http/tests/resourceLoadStatistics/do-not-remove-blocking-in-redirect.html [ Pass ]
 [ HighSierra+ ] http/tests/resourceLoadStatistics/clear-in-memory-and-persistent-store.html [ Pass ]
 [ HighSierra+ ] http/tests/resourceLoadStatistics/clear-in-memory-and-persistent-store-one-hour.html [ Pass ]
 [ HighSierra+ ] http/tests/resourceLoadStatistics/grandfathering.html [ Pass ]
-[ HighSierra+ ] http/tests/resourceLoadStatistics/strip-referrer-to-origin-for-prevalent-subresource-redirects.html [ Pass ]
-[ HighSierra+ ] http/tests/resourceLoadStatistics/strip-referrer-to-origin-for-prevalent-subresource-requests.html [ Pass ]
+[ HighSierra+ ] http/tests/resourceLoadStatistics/strip-referrer-to-origin-for-third-party-redirects.html [ Pass ]
+[ HighSierra+ ] http/tests/resourceLoadStatistics/strip-referrer-to-origin-for-third-party-requests.html [ Pass ]
 [ HighSierra+ ] http/tests/resourceLoadStatistics/cap-cache-max-age-for-prevalent-resource.html [ Pass ]
 
 # Skipped in general expectations since they only work on iOS and Mac, WK2.
-http/tests/security/strip-referrer-to-origin-for-third-party-redirects-in-private-mode.html [ Pass ]
-http/tests/security/strip-referrer-to-origin-for-third-party-requests-in-private-mode.html [ Pass ]
 media/deactivate-audio-session.html [ Pass ]
 
 # Link preconnect is disabled on pre-High Sierra because the CFNetwork SPI is missing.
@@ -812,7 +769,6 @@ webkit.org/b/171839 [ Debug ] tiled-drawing/scrolling/scroll-snap/scroll-snap-ma
 webkit.org/b/177687 http/tests/inspector/network/resource-sizes-memory-cache.html [ Pass Failure ]
 
 webkit.org/b/178472 http/tests/resourceLoadStatistics/prevalent-resource-handled-keydown.html [ Skip ]
-webkit.org/b/183093 http/tests/resourceLoadStatistics/prevalent-resource-unhandled-keydown.html [ Skip ]
 webkit.org/b/178472 http/tests/resourceLoadStatistics/prevalent-resource-with-user-interaction-timeout.html [ Skip ]
 
 webkit.org/b/176881 plugins/js-from-destroy.html [ Pass Failure ]
@@ -829,10 +785,8 @@ webkit.org/b/173742 security/contentSecurityPolicy/plugins-types-allows-youtube-
 
 webkit.org/b/181167 imported/w3c/web-platform-tests/service-workers/service-worker/ServiceWorkerGlobalScope/update.https.html [ Pass Failure ]
 
-http/wpt/cache-storage/cache-put-stream.https.any.html [ Slow ]
 http/wpt/cache-storage/cache-put-keys.https.any.html [ Slow ]
 http/wpt/cache-storage/a-cache-open.https.html [ Slow ]
-http/wpt/cache-storage/cache-put-stream.https.any.worker.html [ Slow ]
 http/wpt/cache-storage/cache-quota.any.html [ Slow ]
 http/wpt/cache-storage/cache-put-keys.https.any.worker.html [ Slow ]
 http/wpt/cache-storage/cache-remove-twice.html [ Slow ]
@@ -846,8 +800,6 @@ webkit.org/b/181502 swipe/pushstate-with-manual-scrollrestoration.html [ Failure
 webkit.org/b/181750 imported/w3c/web-platform-tests/service-workers/service-worker/fetch-request-redirect.https.html [ DumpJSConsoleLogInStdErr Pass Failure ]
 
 webkit.org/b/181839 [ Debug ] inspector/debugger/breakpoint-action-log.html [ Pass Timeout ]
-
-webkit.org/b/181835 webrtc/captureCanvas-webrtc.html [ Pass Timeout ]
 
 webkit.org/b/182341 imported/w3c/web-platform-tests/service-workers/service-worker/clients-matchall-client-types.https.html [ Pass Failure ]
 
@@ -905,14 +857,21 @@ imported/w3c/web-platform-tests/payment-request/user-accepts-payment-request-alg
 
 webkit.org/b/189598 compositing/backing/backing-store-attachment-fill-forwards-animation.html [ Pass Failure ]
 
-# Skip local authenticator tests for mac now.
+# Local authenticator tests require restricted keychain entitlement, which cannot be signed with ad hoc signing.
+# Therefore, tests fail on OpenSource bots. They will be covered by Internal bots.
 http/wpt/webauthn/public-key-credential-create-failure-local.https.html [ Skip ]
+http/wpt/webauthn/public-key-credential-create-failure-local-silent.https.html [ Skip ]
 http/wpt/webauthn/public-key-credential-create-success-local.https.html [ Skip ]
 http/wpt/webauthn/public-key-credential-get-failure-local.https.html [ Skip ]
+http/wpt/webauthn/public-key-credential-get-failure-local-silent.https.html [ Skip ]
 http/wpt/webauthn/public-key-credential-get-success-local.https.html [ Skip ]
-# The following tests require PublicKeyCredential objects. We can only produce them via local authenticators now.
-http/wpt/credential-management/credentialscontainer-store-basics.https.html [ Skip ]
-http/wpt/webauthn/idl.https.html [ Skip ]
+
+# NFC support require Catalina+, therefore skip them for HighSierra and Mojave.
+[ HighSierra Mojave ] http/wpt/webauthn/ctap-nfc-failure.https.html [ Skip ]
+[ HighSierra Mojave ] http/wpt/webauthn/public-key-credential-create-failure-nfc.https.html [ Skip ]
+[ HighSierra Mojave ] http/wpt/webauthn/public-key-credential-create-success-nfc.https.html [ Skip ]
+[ HighSierra Mojave ] http/wpt/webauthn/public-key-credential-get-failure-nfc.https.html [ Skip ]
+[ HighSierra Mojave ] http/wpt/webauthn/public-key-credential-get-success-nfc.https.html [ Skip ]
 
 webkit.org/b/183878 media/modern-media-controls/tracks-panel/tracks-panel-up-click-over-media-does-not-dimiss-media-controls-when-media-is-playing.html [ Pass Timeout ] 
 
@@ -922,21 +881,17 @@ webkit.org/b/194826 http/tests/resourceLoadStatistics/do-not-block-top-level-nav
 
 webkit.org/b/194916 fast/mediastream/MediaStream-video-element.html [ Pass Failure ]
 
-webkit.org/b/196376 storage/domstorage/localstorage/private-browsing-affects-storage.html [ Pass Failure ]
-
 webkit.org/b/196400 fast/mediastream/MediaStreamTrack-getSettings.html [ Pass Failure ]
 
 webkit.org/b/196403 imported/w3c/web-platform-tests/mediacapture-record/MediaRecorder-stop.html [ Pass Failure ]
 
 webkit.org/b/187391 accessibility/mac/async-increment-decrement-action.html [ Skip ]
 
-webkit.org/b/194164 http/tests/storageAccess/request-and-grant-access-cross-origin-sandboxed-iframe-from-prevalent-domain-with-user-interaction-but-access-from-wrong-frame.html [ Pass Timeout ]
+http/tests/storageAccess/request-and-grant-access-cross-origin-sandboxed-iframe-from-prevalent-domain-with-user-interaction-but-access-from-wrong-frame-database.html [ Pass Timeout ]
 
 webkit.org/b/197068 [ Debug ] fast/selectors/matches-backtracking.html [ Pass Timeout ]
 
 webkit.org/b/197283 fast/css-custom-paint/animate-repaint.html [ Pass Failure ]
-
-webkit.org/b/197285 http/tests/resourceLoadStatistics/prune-statistics.html [ Pass Failure ]
 
 webkit.org/b/197207 http/wpt/resource-timing/rt-resources-per-frame.html [ Pass Failure ]
 
@@ -952,15 +907,9 @@ webkit.org/b/198195 [ Release ] fast/css/sticky/sticky-left-percentage.html [ Pa
 
 webkit.org/b/187828 [ Release ] fast/css-grid-layout/flex-content-sized-columns-resize.html [ Pass ImageOnlyFailure ]
 
-webkit.org/b/196240 [ Mojave ] http/tests/websocket/tests/hybi/handshake-ok-with-legacy-websocket-response-headers.html [ Pass Failure ]
-
 webkit.org/b/198661 scrollingcoordinator/mac/nested-sticky.html [ Pass ImageOnlyFailure Timeout ]
 
 webkit.org/b/198663 http/tests/storageAccess/request-and-grant-access-then-navigate-same-site-should-have-access.html [ Pass Timeout ]
-
-webkit.org/b/198757 [ Mojave+ ] compositing/fixed-with-main-thread-scrolling.html [ Pass Timeout ]
-
-webkit.org/b/198774 imported/w3c/web-platform-tests/websockets/bufferedAmount-unchanged-by-sync-xhr.any.worker.html [ Failure ]
 
 webkit.org/b/176030 [ Debug ] http/tests/websocket/tests/hybi/send-object-tostring-check.html [ Pass Failure ]
 
@@ -968,7 +917,15 @@ webkit.org/b/198921 [ Mojave+ ] webgpu/blend-color-triangle-strip.html [ Pass Im
 
 webkit.org/b/195635 scrollingcoordinator/mac/multiple-fixed.html [ Pass Timeout ]
 
-# <rdar://problem/51524958> REGRESSION: [ Catalina WK2 ] http/wpt/webauthn/public-key-credential-create-success-u2f.https.html is failing
-[ Catalina+ ] http/wpt/webauthn/public-key-credential-create-success-u2f.https.html [ Failure ]
+webkit.org/b/199651 [ Mojave Debug ] webgpu/whlsl/builtin-vectors-2.html [ Slow ]
 
-webkit.org/b/199651 [ Mojave Debug ] webgpu/whlsl-builtin-vectors-2.html [ Slow ]
+webkit.org/b/199089 [ Mojave+ Debug ] plugins/window-open.html [ Skip ]
+
+# <rdar://problem/56506063> Layout Test imported/w3c/web-platform-tests/webrtc/RTCPeerConnection-iceConnectionState.https.html is a flaky failure (203256)
+webkit.org/b/203256 [ Debug ] imported/w3c/web-platform-tests/webrtc/RTCPeerConnection-iceConnectionState.https.html [ Pass Failure ]
+
+webkit.org/b/205301 [ Mojave+ ] inspector/canvas/requestShaderSource-webgpu.html [ Pass Failure ]
+
+webkit.org/b/205886 http/wpt/service-workers/persistent-importScripts.html [ Pass Failure ]
+
+webkit.org/b/206958 http/tests/media/media-stream/get-display-media-prompt.html [ Pass Failure Timeout ]

@@ -54,8 +54,8 @@ namespace JSC {
 
 const ClassInfo UnlinkedCodeBlock::s_info = { "UnlinkedCodeBlock", nullptr, nullptr, nullptr, CREATE_METHOD_TABLE(UnlinkedCodeBlock) };
 
-UnlinkedCodeBlock::UnlinkedCodeBlock(VM* vm, Structure* structure, CodeType codeType, const ExecutableInfo& info, OptionSet<CodeGenerationMode> codeGenerationMode)
-    : Base(*vm, structure)
+UnlinkedCodeBlock::UnlinkedCodeBlock(VM& vm, Structure* structure, CodeType codeType, const ExecutableInfo& info, OptionSet<CodeGenerationMode> codeGenerationMode)
+    : Base(vm, structure)
     , m_usesEval(info.usesEval())
     , m_isStrictMode(info.isStrictMode())
     , m_isConstructor(info.isConstructor())
@@ -76,8 +76,6 @@ UnlinkedCodeBlock::UnlinkedCodeBlock(VM* vm, Structure* structure, CodeType code
     , m_codeGenerationMode(codeGenerationMode)
     , m_metadata(UnlinkedMetadataTable::create())
 {
-    for (auto& constantRegisterIndex : m_linkTimeConstants)
-        constantRegisterIndex = 0;
     ASSERT(m_constructorKind == static_cast<unsigned>(info.constructorKind()));
     ASSERT(m_codeType == static_cast<unsigned>(codeType));
     ASSERT(m_didOptimize == static_cast<unsigned>(MixedTriState));
@@ -89,7 +87,8 @@ void UnlinkedCodeBlock::visitChildren(JSCell* cell, SlotVisitor& visitor)
     ASSERT_GC_OBJECT_INHERITS(thisObject, info());
     Base::visitChildren(thisObject, visitor);
     auto locker = holdLock(thisObject->cellLock());
-    thisObject->m_age = std::min<unsigned>(static_cast<unsigned>(thisObject->m_age) + 1, maxAge);
+    if (visitor.isFirstVisit())
+        thisObject->m_age = std::min<unsigned>(static_cast<unsigned>(thisObject->m_age) + 1, maxAge);
     for (FunctionExpressionVector::iterator ptr = thisObject->m_functionDecls.begin(), end = thisObject->m_functionDecls.end(); ptr != end; ++ptr)
         visitor.append(*ptr);
     for (FunctionExpressionVector::iterator ptr = thisObject->m_functionExprs.begin(), end = thisObject->m_functionExprs.end(); ptr != end; ++ptr)
@@ -110,15 +109,15 @@ size_t UnlinkedCodeBlock::estimatedSize(JSCell* cell, VM& vm)
     return Base::estimatedSize(cell, vm) + extraSize;
 }
 
-int UnlinkedCodeBlock::lineNumberForBytecodeOffset(unsigned bytecodeOffset)
+int UnlinkedCodeBlock::lineNumberForBytecodeIndex(BytecodeIndex bytecodeIndex)
 {
-    ASSERT(bytecodeOffset < instructions().size());
+    ASSERT(bytecodeIndex.offset() < instructions().size());
     int divot { 0 };
     int startOffset { 0 };
     int endOffset { 0 };
     unsigned line { 0 };
     unsigned column { 0 };
-    expressionRangeForBytecodeOffset(bytecodeOffset, divot, startOffset, endOffset, line, column);
+    expressionRangeForBytecodeIndex(bytecodeIndex, divot, startOffset, endOffset, line, column);
     return line;
 }
 
@@ -178,10 +177,10 @@ void UnlinkedCodeBlock::dumpExpressionRangeInfo()
 }
 #endif
 
-void UnlinkedCodeBlock::expressionRangeForBytecodeOffset(unsigned bytecodeOffset,
+void UnlinkedCodeBlock::expressionRangeForBytecodeIndex(BytecodeIndex bytecodeIndex,
     int& divot, int& startOffset, int& endOffset, unsigned& line, unsigned& column) const
 {
-    ASSERT(bytecodeOffset < instructions().size());
+    ASSERT(bytecodeIndex.offset() < instructions().size());
 
     if (!m_expressionInfo.size()) {
         startOffset = 0;
@@ -198,7 +197,7 @@ void UnlinkedCodeBlock::expressionRangeForBytecodeOffset(unsigned bytecodeOffset
     int high = expressionInfo.size();
     while (low < high) {
         int mid = low + (high - low) / 2;
-        if (expressionInfo[mid].instructionOffset <= bytecodeOffset)
+        if (expressionInfo[mid].instructionOffset <= bytecodeIndex.offset())
             low = mid + 1;
         else
             high = mid;
@@ -270,7 +269,7 @@ void UnlinkedCodeBlock::addExpressionInfo(unsigned instructionOffset,
 
 bool UnlinkedCodeBlock::typeProfilerExpressionInfoForBytecodeOffset(unsigned bytecodeOffset, unsigned& startDivot, unsigned& endDivot)
 {
-    static const bool verbose = false;
+    static constexpr bool verbose = false;
     if (!m_rareData) {
         if (verbose)
             dataLogF("Don't have assignment info for offset:%u\n", bytecodeOffset);
@@ -324,9 +323,9 @@ const InstructionStream& UnlinkedCodeBlock::instructions() const
     return *m_instructions;
 }
 
-UnlinkedHandlerInfo* UnlinkedCodeBlock::handlerForBytecodeOffset(unsigned bytecodeOffset, RequiredHandler requiredHandler)
+UnlinkedHandlerInfo* UnlinkedCodeBlock::handlerForBytecodeIndex(BytecodeIndex bytecodeIndex, RequiredHandler requiredHandler)
 {
-    return handlerForIndex(bytecodeOffset, requiredHandler);
+    return handlerForIndex(bytecodeIndex.offset(), requiredHandler);
 }
 
 UnlinkedHandlerInfo* UnlinkedCodeBlock::handlerForIndex(unsigned index, RequiredHandler requiredHandler)
@@ -362,9 +361,6 @@ void UnlinkedCodeBlock::applyModification(BytecodeRewriter& rewriter, Instructio
         }
     }
 
-    for (size_t i = 0; i < m_propertyAccessInstructions.size(); ++i)
-        m_propertyAccessInstructions[i] = rewriter.adjustAbsoluteOffset(m_propertyAccessInstructions[i]);
-
     for (size_t i = 0; i < m_expressionInfo.size(); ++i)
         m_expressionInfo[i].instructionOffset = rewriter.adjustAbsoluteOffset(m_expressionInfo[i].instructionOffset);
 
@@ -381,7 +377,6 @@ void UnlinkedCodeBlock::shrinkToFit()
     auto locker = holdLock(cellLock());
     
     m_jumpTargets.shrinkToFit();
-    m_propertyAccessInstructions.shrinkToFit();
     m_identifiers.shrinkToFit();
     m_constantRegisters.shrinkToFit();
     m_constantsSourceCodeRepresentation.shrinkToFit();
@@ -413,7 +408,7 @@ BytecodeLivenessAnalysis& UnlinkedCodeBlock::livenessAnalysisSlow(CodeBlock* cod
         if (!m_liveness) {
             // There is a chance two compiler threads raced to the slow path.
             // Grabbing the lock above defends against computing liveness twice.
-            m_liveness = std::make_unique<BytecodeLivenessAnalysis>(codeBlock);
+            m_liveness = makeUnique<BytecodeLivenessAnalysis>(codeBlock);
         }
     }
     

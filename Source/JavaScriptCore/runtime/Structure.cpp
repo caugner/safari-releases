@@ -256,6 +256,7 @@ Structure::Structure(VM& vm, Structure* previous, DeferredStructureTransitionWat
     , m_transitionWatchpointSet(IsWatched)
     , m_offset(invalidOffset)
     , m_propertyHash(previous->m_propertyHash)
+    , m_seenProperties(previous->m_seenProperties)
 {
     setDictionaryKind(previous->dictionaryKind());
     setIsPinnedPropertyTable(false);
@@ -744,6 +745,7 @@ Structure* Structure::flattenDictionaryStructure(VM& vm, JSObject* object)
 {
     checkOffsetConsistency();
     ASSERT(isDictionary());
+    ASSERT(object->structure(vm) == this);
     
     GCSafeConcurrentJSLocker locker(m_lock, vm.heap);
     
@@ -777,16 +779,15 @@ Structure* Structure::flattenDictionaryStructure(VM& vm, JSObject* object)
 
         // We need to zero our unused property space; otherwise the GC might see a
         // stale pointer when we add properties in the future.
-        memset(
+        gcSafeZeroMemory(
             object->inlineStorageUnsafe() + inlineSize(),
-            0,
             (inlineCapacity() - inlineSize()) * sizeof(EncodedJSValue));
 
         Butterfly* butterfly = object->butterfly();
         size_t preCapacity = butterfly->indexingHeader()->preCapacity(this);
         void* base = butterfly->base(preCapacity, beforeOutOfLineCapacity);
         void* startOfPropertyStorageSlots = reinterpret_cast<EncodedJSValue*>(base) + preCapacity;
-        memset(startOfPropertyStorageSlots, 0, (beforeOutOfLineCapacity - outOfLineSize()) * sizeof(EncodedJSValue));
+        gcSafeZeroMemory(static_cast<JSValue*>(startOfPropertyStorageSlots), (beforeOutOfLineCapacity - outOfLineSize()) * sizeof(EncodedJSValue));
         checkOffsetConsistency();
     }
 
@@ -856,7 +857,7 @@ WatchpointSet* Structure::ensurePropertyReplacementWatchpointSet(VM& vm, Propert
     StructureRareData* rareData = this->rareData();
     if (!rareData->m_replacementWatchpointSets) {
         rareData->m_replacementWatchpointSets =
-            std::make_unique<StructureRareData::PropertyWatchpointMap>();
+            makeUnique<StructureRareData::PropertyWatchpointMap>();
         WTF::storeStoreFence();
     }
     auto result = rareData->m_replacementWatchpointSets->add(offset, nullptr);
@@ -1026,9 +1027,9 @@ void Structure::didTransitionFromThisStructure(DeferredStructureTransitionWatchp
 
     if (deferred) {
         ASSERT(deferred->structure() == this);
-        m_transitionWatchpointSet.fireAll(*vm(), deferred);
+        m_transitionWatchpointSet.fireAll(vm(), deferred);
     } else
-        m_transitionWatchpointSet.fireAll(*vm(), StructureFireDetail(this));
+        m_transitionWatchpointSet.fireAll(vm(), StructureFireDetail(this));
 }
 
 void Structure::visitChildren(JSCell* cell, SlotVisitor& visitor)
@@ -1053,7 +1054,7 @@ void Structure::visitChildren(JSCell* cell, SlotVisitor& visitor)
         // NOTE: This can interleave in pin(), in which case it may see a null property table.
         // That's fine, because then the barrier will fire and we will scan this again.
         visitor.append(thisObject->m_propertyTableUnsafe);
-    } else if (visitor.isBuildingHeapSnapshot())
+    } else if (visitor.isAnalyzingHeap())
         visitor.append(thisObject->m_propertyTableUnsafe);
     else if (thisObject->m_propertyTableUnsafe)
         thisObject->m_propertyTableUnsafe.clear();
@@ -1207,20 +1208,22 @@ JSPropertyNameEnumerator* Structure::cachedPropertyNameEnumerator() const
     return rareData()->cachedPropertyNameEnumerator();
 }
 
-bool Structure::canCachePropertyNameEnumerator() const
+bool Structure::canCachePropertyNameEnumerator(VM& vm) const
 {
     if (!this->canCacheOwnKeys())
         return false;
 
     StructureChain* structureChain = m_cachedPrototypeChain.get();
     ASSERT(structureChain);
-    WriteBarrier<Structure>* structure = structureChain->head();
+    StructureID* currentStructureID = structureChain->head();
     while (true) {
-        if (!structure->get())
+        StructureID structureID = *currentStructureID;
+        if (!structureID)
             return true;
-        if (!structure->get()->canCacheOwnKeys())
+        Structure* structure = vm.getStructure(structureID);
+        if (!structure->canCacheOwnKeys())
             return false;
-        structure++;
+        currentStructureID++;
     }
 
     ASSERT_NOT_REACHED();
@@ -1236,6 +1239,17 @@ bool Structure::canAccessPropertiesQuicklyForEnumeration() const
     if (isUncacheableDictionary())
         return false;
     return true;
+}
+
+auto Structure::findPropertyHashEntry(PropertyName propertyName) const -> Optional<PropertyHashEntry>
+{
+    for (const ClassInfo* info = classInfo(); info; info = info->parentClass) {
+        if (const HashTable* propHashTable = info->staticPropHashTable) {
+            if (const HashTableValue* entry = propHashTable->entry(propertyName))
+                return PropertyHashEntry { propHashTable, entry };
+        }
+    }
+    return WTF::nullopt;
 }
 
 } // namespace JSC

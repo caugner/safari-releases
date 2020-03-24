@@ -30,6 +30,7 @@
 
 #include "MediaPlayerPrivate.h"
 #include "SourceBufferPrivateClient.h"
+#include <wtf/Deque.h>
 #include <wtf/Function.h>
 #include <wtf/HashMap.h>
 #include <wtf/LoggerHelper.h>
@@ -189,7 +190,6 @@ private:
     bool paused() const override;
 
     void setVolume(float volume) override;
-    bool supportsMuting() const override { return true; }
     void setMuted(bool) override;
 
     bool supportsScanning() const override;
@@ -217,8 +217,6 @@ private:
     std::unique_ptr<PlatformTimeRanges> buffered() const override;
 
     bool didLoadingProgress() const override;
-
-    void setSize(const IntSize&) override;
 
     NativeImagePtr nativeImageForCurrentTime() override;
     bool updateLastPixelBuffer();
@@ -269,6 +267,7 @@ private:
     friend class MediaSourcePrivateAVFObjC;
 
     struct PendingSeek {
+        WTF_MAKE_STRUCT_FAST_ALLOCATED;
         PendingSeek(const MediaTime& targetTime, const MediaTime& negativeThreshold, const MediaTime& positiveThreshold)
             : targetTime(targetTime)
             , negativeThreshold(negativeThreshold)

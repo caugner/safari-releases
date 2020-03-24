@@ -28,6 +28,7 @@
 
 #include "Animation.h"
 #include "Element.h"
+#include "InspectorInstrumentation.h"
 #include "KeyframeEffect.h"
 #include <wtf/IsoMallocInlines.h>
 
@@ -37,17 +38,22 @@ WTF_MAKE_ISO_ALLOCATED_IMPL(CSSTransition);
 
 Ref<CSSTransition> CSSTransition::create(Element& owningElement, CSSPropertyID property, MonotonicTime generationTime, const Animation& backingAnimation, const RenderStyle* oldStyle, const RenderStyle& newStyle, Seconds delay, Seconds duration, const RenderStyle& reversingAdjustedStartStyle, double reversingShorteningFactor)
 {
-    auto result = adoptRef(*new CSSTransition(owningElement, property, generationTime, backingAnimation, newStyle, reversingAdjustedStartStyle, reversingShorteningFactor));
+    ASSERT(oldStyle);
+    auto result = adoptRef(*new CSSTransition(owningElement, property, generationTime, backingAnimation, *oldStyle, newStyle, reversingAdjustedStartStyle, reversingShorteningFactor));
     result->initialize(oldStyle, newStyle);
     result->setTimingProperties(delay, duration);
+
+    InspectorInstrumentation::didCreateWebAnimation(result.get());
+
     return result;
 }
 
-CSSTransition::CSSTransition(Element& element, CSSPropertyID property, MonotonicTime generationTime, const Animation& backingAnimation, const RenderStyle& targetStyle, const RenderStyle& reversingAdjustedStartStyle, double reversingShorteningFactor)
+CSSTransition::CSSTransition(Element& element, CSSPropertyID property, MonotonicTime generationTime, const Animation& backingAnimation, const RenderStyle& oldStyle, const RenderStyle& targetStyle, const RenderStyle& reversingAdjustedStartStyle, double reversingShorteningFactor)
     : DeclarativeAnimation(element, backingAnimation)
     , m_property(property)
     , m_generationTime(generationTime)
     , m_targetStyle(RenderStyle::clonePtr(targetStyle))
+    , m_currentStyle(RenderStyle::clonePtr(oldStyle))
     , m_reversingAdjustedStartStyle(RenderStyle::clonePtr(reversingAdjustedStartStyle))
     , m_reversingShorteningFactor(reversingShorteningFactor)
 {
@@ -72,6 +78,9 @@ void CSSTransition::setTimingProperties(Seconds delay, Seconds duration)
     animationEffect->setFill(FillMode::Backwards);
     animationEffect->setDelay(delay);
     animationEffect->setIterationDuration(duration);
+    animationEffect->setTimingFunction(backingAnimation().timingFunction());
+    animationEffect->updateStaticTimingProperties();
+    effectTimingDidChange();
 
     unsuspendEffectInvalidation();
 }

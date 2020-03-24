@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2015 The ANGLE Project Authors. All rights reserved.
+// Copyright 2015 The ANGLE Project Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -35,8 +35,9 @@
 
 namespace angle
 {
-struct WorkaroundsD3D;
+struct FeaturesD3D;
 struct FeaturesVk;
+struct FeaturesMtl;
 using TraceEventHandle = uint64_t;
 using EGLDisplayType   = void *;
 struct PlatformMethods;
@@ -215,15 +216,19 @@ inline void DefaultHistogramBoolean(PlatformMethods *platform, const char *name,
 
 // Allows us to programatically override ANGLE's default workarounds for testing purposes.
 using OverrideWorkaroundsD3DFunc = void (*)(PlatformMethods *platform,
-                                            angle::WorkaroundsD3D *workaroundsD3D);
+                                            angle::FeaturesD3D *featuresD3D);
 inline void DefaultOverrideWorkaroundsD3D(PlatformMethods *platform,
-                                          angle::WorkaroundsD3D *workaroundsD3D)
+                                          angle::FeaturesD3D *featuresD3D)
 {}
 
 using OverrideFeaturesVkFunc = void (*)(PlatformMethods *platform,
-                                        angle::FeaturesVk *workaroundsVulkan);
-inline void DefaultOverrideFeaturesVk(PlatformMethods *platform,
-                                      angle::FeaturesVk *workaroundsVulkan)
+                                        angle::FeaturesVk *featuresVulkan);
+inline void DefaultOverrideFeaturesVk(PlatformMethods *platform, angle::FeaturesVk *featuresVulkan)
+{}
+
+using OverrideFeaturesMtlFunc = void (*)(PlatformMethods *platform,
+                                         angle::FeaturesMtl *featuresMetal);
+inline void DefaultOverrideFeaturesMtl(PlatformMethods *platform, angle::FeaturesMtl *featuresMetal)
 {}
 
 // Callback on a successful program link with the program binary. Can be used to store
@@ -255,7 +260,8 @@ inline void DefaultCacheProgram(PlatformMethods *platform,
     OP(histogramBoolean, HistogramBoolean)                       \
     OP(overrideWorkaroundsD3D, OverrideWorkaroundsD3D)           \
     OP(overrideFeaturesVk, OverrideFeaturesVk)                   \
-    OP(cacheProgram, CacheProgram)
+    OP(cacheProgram, CacheProgram)                               \
+    OP(overrideFeaturesMtl, OverrideFeaturesMtl)
 
 #define ANGLE_PLATFORM_METHOD_DEF(Name, CapsName) CapsName##Func Name = Default##CapsName;
 

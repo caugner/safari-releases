@@ -276,16 +276,7 @@ webkit.org/b/182626 accessibility/aria-hidden-updates-alldescendants.html [ Fail
 
 webkit.org/b/183955 accessibility/row-with-aria-role-in-native-table.html [ Failure ]
 
-[ Debug ] accessibility/add-children-pseudo-element.html [ Crash ]
-[ Debug ] accessibility/aria-controls-with-tabs.html [ Crash ]
-[ Debug ] accessibility/aria-roles.html [ Crash ]
-[ Debug ] accessibility/contenteditable-hidden-div.html [ Crash ]
-[ Debug ] accessibility/disabled-controls-not-focusable.html [ Crash ]
-[ Debug ] accessibility/form-control-value-settable.html [ Crash ]
-[ Debug ] accessibility/removed-anonymous-block-child-causes-crash.html [ Crash ]
-[ Debug ] accessibility/removed-continuation-element-causes-crash.html [ Crash ]
-[ Debug ] accessibility/win/focus-events.html [ Skip ]
-[ Debug ] accessibility/win/text-role.html [ Crash ]
+[ Debug ] accessibility/removed-anonymous-block-child-causes-crash.html [ Crash Timeout ]
 
 ################################################################################
 ########################    End Accessibility Issues    ########################
@@ -340,3 +331,10 @@ fast/css/transition-color-unspecified.html [ Skip ]
 fast/filter-image/filter-image-animation.html [ Skip ]
 resize-observer/modify-frametree-in-callback.html [ Skip ]
 resize-observer/multi-frames.html [ Skip ]
+
+# WinCairo wk1 doesn't support inspector tests.
+webkit.org/b/191498 http/tests/inspector/network/resource-security-certificate.html [ Skip ]
+webkit.org/b/191498 http/tests/inspector/network/getSerializedCertificate.html [ Skip ]
+
+# Skip IsLoggedIn
+http/tests/is-logged-in/ [ Skip ]

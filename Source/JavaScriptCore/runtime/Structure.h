@@ -31,6 +31,7 @@
 #include "JSCJSValue.h"
 #include "JSCast.h"
 #include "JSType.h"
+#include "JSTypeInfo.h"
 #include "PropertyName.h"
 #include "PropertyNameArray.h"
 #include "PropertyOffset.h"
@@ -38,7 +39,7 @@
 #include "StructureIDBlob.h"
 #include "StructureRareData.h"
 #include "StructureTransitionTable.h"
-#include "JSTypeInfo.h"
+#include "TinyBloomFilter.h"
 #include "Watchpoint.h"
 #include "WriteBarrierInlines.h"
 #include <wtf/PrintStream.h>
@@ -61,15 +62,17 @@ class StructureShape;
 class SlotVisitor;
 class JSString;
 struct DumpContext;
+struct HashTable;
+struct HashTableValue;
 
 // The out-of-line property storage capacity to use when first allocating out-of-line
 // storage. Note that all objects start out without having any out-of-line storage;
 // this comes into play only on the first property store that exhausts inline storage.
-static const unsigned initialOutOfLineCapacity = 4;
+static constexpr unsigned initialOutOfLineCapacity = 4;
 
 // The factor by which to grow out-of-line storage when it is exhausted, after the
 // initial allocation.
-static const unsigned outOfLineGrowthFactor = 2;
+static constexpr unsigned outOfLineGrowthFactor = 2;
 
 struct PropertyMapEntry {
     UniquedStringImpl* key;
@@ -124,7 +127,7 @@ public:
     friend class StructureTransitionTable;
 
     typedef JSCell Base;
-    static const unsigned StructureFlags = Base::StructureFlags | StructureIsImmortal;
+    static constexpr unsigned StructureFlags = Base::StructureFlags | StructureIsImmortal;
     
     enum PolyProtoTag { PolyProto };
     static Structure* create(VM&, JSGlobalObject*, JSValue prototype, const TypeInfo&, const ClassInfo*, IndexingType = NonArray, unsigned inlineCapacity = 0);
@@ -201,7 +204,7 @@ public:
 
     JS_EXPORT_PRIVATE Structure* flattenDictionaryStructure(VM&, JSObject*);
 
-    static const bool needsDestruction = true;
+    static constexpr bool needsDestruction = true;
     static void destroy(JSCell*);
 
     // Versions that take a func will call it after making the change but while still holding
@@ -245,7 +248,7 @@ public:
         return typeInfo().isImmutablePrototypeExoticObject();
     }
 
-    // We use SlowPath in GetByIdStatus for structures that may get new impure properties later to prevent
+    // We use SlowPath in GetByStatus for structures that may get new impure properties later to prevent
     // DFG from inlining property accesses since structures don't transition when a new impure property appears.
     bool takesSlowPathInDFGForImpureProperty()
     {
@@ -292,7 +295,7 @@ public:
     JSValue prototypeForLookup(JSGlobalObject*) const;
     JSValue prototypeForLookup(JSGlobalObject*, JSCell* base) const;
     StructureChain* prototypeChain(VM&, JSGlobalObject*, JSObject* base) const;
-    StructureChain* prototypeChain(ExecState*, JSObject* base) const;
+    StructureChain* prototypeChain(JSGlobalObject*, JSObject* base) const;
     static void visitChildren(JSCell*, SlotVisitor&);
     
     // A Structure is cheap to mark during GC if doing so would only add a small and bounded amount
@@ -473,7 +476,7 @@ public:
 
     void setCachedPropertyNameEnumerator(VM&, JSPropertyNameEnumerator*);
     JSPropertyNameEnumerator* cachedPropertyNameEnumerator() const;
-    bool canCachePropertyNameEnumerator() const;
+    bool canCachePropertyNameEnumerator(VM&) const;
     bool canAccessPropertiesQuicklyForEnumeration() const;
 
     void setCachedOwnKeys(VM&, JSImmutableButterfly*);
@@ -490,7 +493,7 @@ public:
         return rareData()->objectToStringValue();
     }
 
-    void setObjectToStringValue(ExecState*, VM&, JSString* value, PropertySlot toStringTagSymbolSlot);
+    void setObjectToStringValue(JSGlobalObject*, VM&, JSString* value, PropertySlot toStringTagSymbolSlot);
 
     const ClassInfo* classInfo() const { return m_classInfo; }
 
@@ -615,6 +618,12 @@ public:
     unsigned propertyHash() const { return m_propertyHash; }
 
     static bool shouldConvertToPolyProto(const Structure* a, const Structure* b);
+
+    struct PropertyHashEntry {
+        const HashTable* table;
+        const HashTableValue* value;
+    };
+    Optional<PropertyHashEntry> findPropertyHashEntry(PropertyName) const;
     
     DECLARE_EXPORT_INFO;
 
@@ -627,8 +636,8 @@ private:
 
 public:
 #define DEFINE_BITFIELD(type, lowerName, upperName, width, offset) \
-    static const uint32_t s_##lowerName##Shift = offset;\
-    static const uint32_t s_##lowerName##Mask = ((1 << (width - 1)) | ((1 << (width - 1)) - 1));\
+    static constexpr uint32_t s_##lowerName##Shift = offset;\
+    static constexpr uint32_t s_##lowerName##Mask = ((1 << (width - 1)) | ((1 << (width - 1)) - 1));\
     type lowerName() const { return static_cast<type>((m_bitField >> offset) & s_##lowerName##Mask); }\
     void set##upperName(type newValue) \
     {\
@@ -748,8 +757,8 @@ private:
     
     void startWatchingInternalProperties(VM&);
 
-    static const int s_maxTransitionLength = 64;
-    static const int s_maxTransitionLengthForNonEvalPutById = 512;
+    static constexpr int s_maxTransitionLength = 64;
+    static constexpr int s_maxTransitionLengthForNonEvalPutById = 512;
 
     // These need to be properly aligned at the beginning of the 'Structure'
     // part of the object.
@@ -786,6 +795,9 @@ private:
     PropertyOffset m_offset;
 
     uint32_t m_propertyHash;
+    TinyBloomFilter m_seenProperties;
+
+    friend class VMInspector;
 };
 
 } // namespace JSC

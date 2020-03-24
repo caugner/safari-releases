@@ -28,6 +28,7 @@
 #include "BytecodeGeneratorification.h"
 
 #include "BytecodeDumper.h"
+#include "BytecodeGeneratorBaseInlines.h"
 #include "BytecodeLivenessAnalysisInlines.h"
 #include "BytecodeRewriter.h"
 #include "BytecodeStructs.h"
@@ -36,7 +37,7 @@
 #include "InterpreterInlines.h"
 #include "JSCInlines.h"
 #include "JSCJSValueInlines.h"
-#include "JSGeneratorFunction.h"
+#include "JSGenerator.h"
 #include "Label.h"
 #include "StrongInlines.h"
 #include "UnlinkedCodeBlock.h"
@@ -68,7 +69,7 @@ public:
         , m_codeBlock(codeBlock)
         , m_instructions(instructions)
         , m_graph(m_codeBlock, m_instructions)
-        , m_generatorFrameSymbolTable(*codeBlock->vm(), generatorFrameSymbolTable)
+        , m_generatorFrameSymbolTable(codeBlock->vm(), generatorFrameSymbolTable)
         , m_generatorFrameSymbolTableIndex(generatorFrameSymbolTableIndex)
     {
         for (BytecodeBasicBlock* block : m_graph) {
@@ -158,7 +159,7 @@ private:
         if (Optional<Storage> storage = m_storages[index])
             return *storage;
 
-        Identifier identifier = Identifier::from(&vm, index);
+        Identifier identifier = Identifier::from(vm, index);
         unsigned identifierIndex = m_codeBlock->numberOfIdentifiers();
         m_codeBlock->addIdentifier(identifier);
         ScopeOffset scopeOffset = m_generatorFrameSymbolTable->takeNextScopeOffset(NoLockingNecessary);
@@ -200,7 +201,7 @@ public:
         runLivenessFixpoint(codeBlock, instructions, m_generatorification.graph());
 
         for (YieldData& data : m_generatorification.yields())
-            data.liveness = getLivenessInfoAtBytecodeOffset(codeBlock, instructions, m_generatorification.graph(), m_generatorification.instructions().at(data.point).next().offset());
+            data.liveness = getLivenessInfoAtBytecodeIndex(codeBlock, instructions, m_generatorification.graph(), BytecodeIndex(m_generatorification.instructions().at(data.point).next().offset()));
     }
 
 private:
@@ -211,7 +212,7 @@ void BytecodeGeneratorification::run()
 {
     // We calculate the liveness at each merge point. This gives us the information which registers should be saved and resumed conservatively.
 
-    VM& vm = *m_bytecodeGenerator.vm();
+    VM& vm = m_bytecodeGenerator.vm();
     {
         GeneratorLivenessAnalysis pass(*this);
         pass.run(m_codeBlock, m_instructions);
@@ -223,7 +224,7 @@ void BytecodeGeneratorification::run()
     {
         auto nextToEnterPoint = enterPoint().next();
         unsigned switchTableIndex = m_codeBlock->numberOfSwitchJumpTables();
-        VirtualRegister state = virtualRegisterForArgument(static_cast<int32_t>(JSGeneratorFunction::GeneratorArgument::State));
+        VirtualRegister state = virtualRegisterForArgument(static_cast<int32_t>(JSGenerator::GeneratorArgument::State));
         auto& jumpTable = m_codeBlock->addSwitchJumpTable();
         jumpTable.min = 0;
         jumpTable.branchOffsets.resize(m_yields.size() + 1);
@@ -238,7 +239,7 @@ void BytecodeGeneratorification::run()
     }
 
     for (const YieldData& data : m_yields) {
-        VirtualRegister scope = virtualRegisterForArgument(static_cast<int32_t>(JSGeneratorFunction::GeneratorArgument::Frame));
+        VirtualRegister scope = virtualRegisterForArgument(static_cast<int32_t>(JSGenerator::GeneratorArgument::Frame));
 
         auto instruction = m_instructions.at(data.point);
         // Emit save sequence.
@@ -300,7 +301,7 @@ void BytecodeGeneratorification::run()
 void performGeneratorification(BytecodeGenerator& bytecodeGenerator, UnlinkedCodeBlock* codeBlock, InstructionStreamWriter& instructions, SymbolTable* generatorFrameSymbolTable, int generatorFrameSymbolTableIndex)
 {
     if (Options::dumpBytecodesBeforeGeneratorification())
-        BytecodeDumper<UnlinkedCodeBlock>::dumpBlock(codeBlock, instructions, WTF::dataFile());
+        CodeBlockBytecodeDumper<UnlinkedCodeBlock>::dumpBlock(codeBlock, instructions, WTF::dataFile());
 
     BytecodeGeneratorification pass(bytecodeGenerator, codeBlock, instructions, generatorFrameSymbolTable, generatorFrameSymbolTableIndex);
     pass.run();

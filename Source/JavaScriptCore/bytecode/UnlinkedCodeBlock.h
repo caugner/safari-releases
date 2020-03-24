@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2016 Apple Inc. All Rights Reserved.
+ * Copyright (C) 2012-2019 Apple Inc. All Rights Reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -37,7 +37,6 @@
 #include "Opcode.h"
 #include "ParserModes.h"
 #include "RegExp.h"
-#include "SpecialPointer.h"
 #include "UnlinkedFunctionExecutable.h"
 #include "UnlinkedMetadataTable.h"
 #include "VirtualRegister.h"
@@ -50,7 +49,6 @@
 
 namespace JSC {
 
-class BytecodeGenerator;
 class BytecodeLivenessAnalysis;
 class BytecodeRewriter;
 class CodeBlock;
@@ -64,6 +62,7 @@ class UnlinkedCodeBlock;
 class UnlinkedFunctionCodeBlock;
 class UnlinkedFunctionExecutable;
 struct ExecutableInfo;
+enum class LinkTimeConstant : int32_t;
 
 template<typename CodeBlockType>
 class CachedCodeBlock;
@@ -109,9 +108,15 @@ struct UnlinkedSimpleJumpTable {
 class UnlinkedCodeBlock : public JSCell {
 public:
     typedef JSCell Base;
-    static const unsigned StructureFlags = Base::StructureFlags;
+    static constexpr unsigned StructureFlags = Base::StructureFlags;
 
-    static const bool needsDestruction = true;
+    static constexpr bool needsDestruction = true;
+
+    template<typename, SubspaceAccess>
+    static void subspaceFor(VM&)
+    {
+        RELEASE_ASSERT_NOT_REACHED();
+    }
 
     enum { CallFunction, ApplyFunction };
 
@@ -163,7 +168,7 @@ public:
     void addSetConstant(IdentifierSet& set)
     {
         createRareDataIfNecessary();
-        VM& vm = *this->vm();
+        VM& vm = this->vm();
         auto locker = lockDuringMarking(vm.heap, cellLock());
         unsigned result = m_constantRegisters.size();
         m_constantRegisters.append(WriteBarrier<Unknown>());
@@ -173,7 +178,7 @@ public:
 
     unsigned addConstant(JSValue v, SourceCodeRepresentation sourceCodeRepresentation = SourceCodeRepresentation::Other)
     {
-        VM& vm = *this->vm();
+        VM& vm = this->vm();
         auto locker = lockDuringMarking(vm.heap, cellLock());
         unsigned result = m_constantRegisters.size();
         m_constantRegisters.append(WriteBarrier<Unknown>());
@@ -181,25 +186,15 @@ public:
         m_constantsSourceCodeRepresentation.append(sourceCodeRepresentation);
         return result;
     }
-    unsigned addConstant(LinkTimeConstant type)
+    unsigned addConstant(LinkTimeConstant linkTimeConstant)
     {
-        VM& vm = *this->vm();
+        VM& vm = this->vm();
         auto locker = lockDuringMarking(vm.heap, cellLock());
         unsigned result = m_constantRegisters.size();
-        ASSERT(result);
-        unsigned index = static_cast<unsigned>(type);
-        ASSERT(index < LinkTimeConstantCount);
-        m_linkTimeConstants[index] = result;
         m_constantRegisters.append(WriteBarrier<Unknown>());
-        m_constantsSourceCodeRepresentation.append(SourceCodeRepresentation::Other);
+        m_constantRegisters.last().set(vm, this, jsNumber(static_cast<int32_t>(linkTimeConstant)));
+        m_constantsSourceCodeRepresentation.append(SourceCodeRepresentation::LinkTimeConstant);
         return result;
-    }
-
-    unsigned registerIndexForLinkTimeConstant(LinkTimeConstant type)
-    {
-        unsigned index = static_cast<unsigned>(type);
-        ASSERT(index < LinkTimeConstantCount);
-        return m_linkTimeConstants[index];
     }
 
     const Vector<WriteBarrier<Unknown>>& constantRegisters() { return m_constantRegisters; }
@@ -217,7 +212,7 @@ public:
     unsigned jumpTarget(int index) const { return m_jumpTargets[index]; }
     unsigned lastJumpTarget() const { return m_jumpTargets.last(); }
 
-    UnlinkedHandlerInfo* handlerForBytecodeOffset(unsigned bytecodeOffset, RequiredHandler = RequiredHandler::AnyHandler);
+    UnlinkedHandlerInfo* handlerForBytecodeIndex(BytecodeIndex, RequiredHandler = RequiredHandler::AnyHandler);
     UnlinkedHandlerInfo* handlerForIndex(unsigned, RequiredHandler = RequiredHandler::AnyHandler);
 
     bool isBuiltinFunction() const { return m_isBuiltinFunction; }
@@ -246,7 +241,7 @@ public:
 
     unsigned addFunctionDecl(UnlinkedFunctionExecutable* n)
     {
-        VM& vm = *this->vm();
+        VM& vm = this->vm();
         auto locker = lockDuringMarking(vm.heap, cellLock());
         unsigned size = m_functionDecls.size();
         m_functionDecls.append(WriteBarrier<UnlinkedFunctionExecutable>());
@@ -257,7 +252,7 @@ public:
     size_t numberOfFunctionDecls() { return m_functionDecls.size(); }
     unsigned addFunctionExpr(UnlinkedFunctionExecutable* n)
     {
-        VM& vm = *this->vm();
+        VM& vm = this->vm();
         auto locker = lockDuringMarking(vm.heap, cellLock());
         unsigned size = m_functionExprs.size();
         m_functionExprs.append(WriteBarrier<UnlinkedFunctionExecutable>());
@@ -277,19 +272,11 @@ public:
     VirtualRegister thisRegister() const { return m_thisRegister; }
     VirtualRegister scopeRegister() const { return m_scopeRegister; }
 
-    void addPropertyAccessInstruction(InstructionStream::Offset propertyAccessInstruction)
-    {
-        m_propertyAccessInstructions.append(propertyAccessInstruction);
-    }
-
-    size_t numberOfPropertyAccessInstructions() const { return m_propertyAccessInstructions.size(); }
-    const Vector<InstructionStream::Offset>& propertyAccessInstructions() const { return m_propertyAccessInstructions; }
-
     bool hasRareData() const { return m_rareData.get(); }
 
-    int lineNumberForBytecodeOffset(unsigned bytecodeOffset);
+    int lineNumberForBytecodeIndex(BytecodeIndex);
 
-    void expressionRangeForBytecodeOffset(unsigned bytecodeOffset, int& divot,
+    void expressionRangeForBytecodeIndex(BytecodeIndex, int& divot,
         int& startOffset, int& endOffset, unsigned& line, unsigned& column) const;
 
     bool typeProfilerExpressionInfoForBytecodeOffset(unsigned bytecodeOffset, unsigned& startDivot, unsigned& endDivot);
@@ -377,7 +364,7 @@ public:
 
 
 protected:
-    UnlinkedCodeBlock(VM*, Structure*, CodeType, const ExecutableInfo&, OptionSet<CodeGenerationMode>);
+    UnlinkedCodeBlock(VM&, Structure*, CodeType, const ExecutableInfo&, OptionSet<CodeGenerationMode>);
 
     template<typename CodeBlockType>
     UnlinkedCodeBlock(Decoder&, Structure*, const CachedCodeBlock<CodeBlockType>&);
@@ -392,6 +379,8 @@ protected:
 private:
     friend class BytecodeRewriter;
     friend class BytecodeGenerator;
+    template<typename Traits>
+    friend class BytecodeGeneratorBase;
 
     template<typename CodeBlockType>
     friend class CachedCodeBlock;
@@ -402,7 +391,7 @@ private:
     {
         if (!m_rareData) {
             auto locker = lockDuringMarking(*heap(), cellLock());
-            m_rareData = std::make_unique<RareData>();
+            m_rareData = makeUnique<RareData>();
         }
     }
 
@@ -412,8 +401,6 @@ private:
 
     VirtualRegister m_thisRegister;
     VirtualRegister m_scopeRegister;
-
-    std::array<unsigned, LinkTimeConstantCount> m_linkTimeConstants;
 
     unsigned m_usesEval : 1;
     unsigned m_isStrictMode : 1;
@@ -458,9 +445,6 @@ private:
 #if ENABLE(DFG_JIT)
     DFG::ExitProfile m_exitProfile;
 #endif
-
-
-    Vector<InstructionStream::Offset> m_propertyAccessInstructions;
 
     // Constant Pools
     Vector<Identifier> m_identifiers;

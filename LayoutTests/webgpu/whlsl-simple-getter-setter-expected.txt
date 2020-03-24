@@ -1,4 +1,0 @@
-
-PASS simpleGetter 
-PASS simpleSetter 
-

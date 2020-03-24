@@ -34,6 +34,7 @@
 #include "HTMLMetaElement.h"
 #include "HTMLObjectElement.h"
 #include "LayoutUnit.h"
+#include "RuntimeEnabledFeatures.h"
 #include "Settings.h"
 #include "UserAgent.h"
 
@@ -280,6 +281,9 @@ bool Quirks::isGoogleMaps() const
 
 bool Quirks::shouldDispatchSimulatedMouseEvents() const
 {
+    if (RuntimeEnabledFeatures::sharedFeatures().mouseEventsSimulationEnabled())
+        return true;
+
     if (!needsQuirks())
         return false;
 
@@ -358,7 +362,7 @@ bool Quirks::shouldDispatchedSimulatedMouseEventsAssumeDefaultPrevented(EventTar
 
 Optional<Event::IsCancelable> Quirks::simulatedMouseEventTypeForTarget(EventTarget* target) const
 {
-    if (!needsQuirks() || !shouldDispatchSimulatedMouseEvents())
+    if (!shouldDispatchSimulatedMouseEvents())
         return { };
 
     // On Google Maps, we want to limit simulated mouse events to dragging the little man that allows entering into Street View.
@@ -371,6 +375,18 @@ Optional<Event::IsCancelable> Quirks::simulatedMouseEventTypeForTarget(EventTarg
     auto host = m_document->topDocument().url().host();
     if (equalLettersIgnoringASCIICase(host, "desmos.com") || host.endsWithIgnoringASCIICase(".desmos.com"))
         return Event::IsCancelable::No;
+
+    if (equalLettersIgnoringASCIICase(host, "airtable.com") || host.endsWithIgnoringASCIICase(".airtable.com")) {
+        // We want to limit simulated mouse events to elements under <div id="paneContainer"> to allow for column re-ordering and multiple cell selection.
+        if (is<Node>(target)) {
+            auto* node = downcast<Node>(target);
+            if (auto* paneContainer = node->treeScope().getElementById(AtomString("paneContainer"))) {
+                if (paneContainer->contains(node))
+                    return Event::IsCancelable::Yes;
+            }
+        }
+        return { };
+    }
 
     return Event::IsCancelable::Yes;
 }
@@ -437,46 +453,6 @@ bool Quirks::needsDeferKeyDownAndKeyPressTimersUntilNextEditingCommand() const
     auto& url = m_document->topDocument().url();
     return equalLettersIgnoringASCIICase(url.host(), "docs.google.com") && url.path().startsWithIgnoringASCIICase("/spreadsheets/");
 #else
-    return false;
-#endif
-}
-
-bool Quirks::shouldLightenJapaneseBoldSansSerif() const
-{
-#if USE(HIRAGINO_SANS_WORKAROUND)
-    if (!needsQuirks())
-        return false;
-
-    // lang="ja" style="font: bold sans-serif;" content would naturally get HiraginoSans-W8 here, but that's visually
-    // too bold. Instead, we should pick HiraginoSans-W6 instead.
-    // FIXME: webkit.org/b/200047 Remove this quirk.
-    auto host = m_document->topDocument().url().host();
-    return equalLettersIgnoringASCIICase(host, "m.yahoo.co.jp");
-#else
-    return false;
-#endif
-}
-
-bool Quirks::shouldIgnoreContentChange(const Element& element) const
-{
-#if PLATFORM(IOS_FAMILY)
-    if (!needsQuirks())
-        return false;
-
-    auto* parentElement = element.parentElement();
-    if (!parentElement || !parentElement->hasClass())
-        return false;
-
-    DOMTokenList& classList = parentElement->classList();
-    if (!classList.contains("feedback") || !classList.contains("feedback-mid"))
-        return false;
-
-    if (!equalLettersIgnoringASCIICase(topPrivatelyControlledDomain(m_document->url().host().toString()), "united.com"))
-        return false;
-
-    return true;
-#else
-    UNUSED_PARAM(element);
     return false;
 #endif
 }
@@ -554,6 +530,27 @@ bool Quirks::shouldAvoidScrollingWhenFocusedContentIsVisible() const
     return equalLettersIgnoringASCIICase(m_document->url().host(), "www.zillow.com");
 }
 
+bool Quirks::shouldUseLegacySelectPopoverDismissalBehaviorInDataActivation() const
+{
+    if (!needsQuirks())
+        return false;
+
+    auto host = m_document->url().host();
+    return equalLettersIgnoringASCIICase(host, "att.com") || host.endsWithIgnoringASCIICase(".att.com");
+}
+
+bool Quirks::shouldIgnoreAriaForFastPathContentObservationCheck() const
+{
+#if PLATFORM(IOS_FAMILY)
+    if (!needsQuirks())
+        return false;
+
+    auto host = m_document->url().host();
+    return equalLettersIgnoringASCIICase(host, "www.ralphlauren.com");
+#endif
+    return false;
+}
+
 bool Quirks::shouldOpenAsAboutBlank(const String& stringToOpen) const
 {
 #if PLATFORM(IOS_FAMILY)
@@ -564,7 +561,7 @@ bool Quirks::shouldOpenAsAboutBlank(const String& stringToOpen) const
     if (!equalLettersIgnoringASCIICase(openerURL.host(), "docs.google.com"))
         return false;
 
-    if (!m_document->frame() || !m_document->frame()->loader().userAgentForJavaScript(openerURL).contains("Macintosh"))
+    if (!m_document->frame() || !m_document->frame()->loader().userAgent(openerURL).contains("Macintosh"))
         return false;
 
     URL urlToOpen { URL { }, stringToOpen };
@@ -577,5 +574,69 @@ bool Quirks::shouldOpenAsAboutBlank(const String& stringToOpen) const
     return false;
 #endif
 }
+
+bool Quirks::needsPreloadAutoQuirk() const
+{
+#if PLATFORM(IOS_FAMILY)
+    if (!needsQuirks())
+        return false;
+
+    if (m_needsPreloadAutoQuirk)
+        return m_needsPreloadAutoQuirk.value();
+
+    auto domain = m_document->securityOrigin().domain().convertToASCIILowercase();
+
+    m_needsPreloadAutoQuirk = domain == "vimeo.com" || domain.endsWith("vimeo.com");
+
+    return m_needsPreloadAutoQuirk.value();
+#else
+    return false;
+#endif
+}
+
+bool Quirks::needsFullWidthHeightFullscreenStyleQuirk() const
+{
+    if (!needsQuirks())
+        return false;
+
+    if (m_needsFullWidthHeightFullscreenStyleQuirk)
+        return m_needsFullWidthHeightFullscreenStyleQuirk.value();
+
+    auto domain = m_document->securityOrigin().domain().convertToASCIILowercase();
+
+    m_needsFullWidthHeightFullscreenStyleQuirk = domain == "reddit.com" || domain.endsWith(".reddit.com");
+
+    return m_needsFullWidthHeightFullscreenStyleQuirk.value();
+}
+
+bool Quirks::shouldBypassBackForwardCache() const
+{
+    if (!needsQuirks())
+        return false;
+
+    auto topURL = m_document->topDocument().url();
+    auto host = topURL.host();
+
+    // Vimeo.com used to bypass the back/forward cache by serving "Cache-Control: no-store" over HTTPS.
+    // We started caching such content in r250437 but the vimeo.com content unfortunately is not currently compatible
+    // because it changes the opacity of its body to 0 when navigating away and fails to restore the original opacity
+    // when coming back from the back/forward cache (e.g. in 'pageshow' event handler). See <rdar://problem/56996057>.
+    if (topURL.protocolIs("https") && equalLettersIgnoringASCIICase(host, "vimeo.com")) {
+        if (auto* documentLoader = m_document->frame() ? m_document->frame()->loader().documentLoader() : nullptr)
+            return documentLoader->response().cacheControlContainsNoStore();
+    }
+
+    return false;
+}
+
+#if ENABLE(MEDIA_STREAM)
+bool Quirks::shouldEnableLegacyGetUserMedia() const
+{
+    if (!needsQuirks())
+        return false;
+
+    return m_document->url().protocolIs("https") && equalLettersIgnoringASCIICase(m_document-> url().host(), "www.baidu.com");
+}
+#endif
 
 }

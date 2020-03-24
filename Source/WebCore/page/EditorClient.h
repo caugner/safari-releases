@@ -121,6 +121,7 @@ public:
 
     virtual void handleKeyboardEvent(KeyboardEvent&) = 0;
     virtual void handleInputMethodKeydown(KeyboardEvent&) = 0;
+    virtual void didDispatchInputMethodKeydown(KeyboardEvent&) { }
     
     virtual void textFieldDidBeginEditing(Element*) = 0;
     virtual void textFieldDidEndEditing(Element*) = 0;
@@ -129,6 +130,7 @@ public:
     virtual void textWillBeDeletedInTextField(Element*) = 0;
     virtual void textDidChangeInTextArea(Element*) = 0;
     virtual void overflowScrollPositionChanged() = 0;
+    virtual void subFrameScrollPositionChanged() = 0;
 
 #if PLATFORM(IOS_FAMILY)
     virtual void startDelayingAndCoalescingContentChangeNotifications() = 0;

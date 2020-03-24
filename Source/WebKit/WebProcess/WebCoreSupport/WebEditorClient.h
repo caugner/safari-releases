@@ -37,6 +37,7 @@ namespace WebKit {
 class WebPage;
 
 class WebEditorClient final : public WebCore::EditorClient, public WebCore::TextCheckerClient {
+    WTF_MAKE_FAST_ALLOCATED;
 public:
     WebEditorClient(WebPage* page)
         : m_page(page)
@@ -112,6 +113,7 @@ private:
     void textWillBeDeletedInTextField(WebCore::Element*) final;
     void textDidChangeInTextArea(WebCore::Element*) final;
     void overflowScrollPositionChanged() final;
+    void subFrameScrollPositionChanged() final;
 
 #if PLATFORM(COCOA)
     void setInsertionPasteboard(const String& pasteboardName) final;
@@ -170,6 +172,10 @@ private:
 
 #if PLATFORM(GTK)
     bool shouldShowUnicodeMenu() final;
+#endif
+
+#if PLATFORM(GTK) || PLATFORM(WPE)
+    void didDispatchInputMethodKeydown(WebCore::KeyboardEvent&) final;
 #endif
 
 #if PLATFORM(IOS_FAMILY)

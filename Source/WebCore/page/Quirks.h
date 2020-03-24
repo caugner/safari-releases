@@ -57,10 +57,8 @@ public:
     bool shouldMakeTouchEventNonCancelableForTarget(EventTarget*) const;
 #endif
     bool shouldDisablePointerEventsQuirk() const;
-    bool shouldIgnoreContentChange(const Element&) const;
     bool needsInputModeNoneImplicitly(const HTMLElement&) const;
     bool needsDeferKeyDownAndKeyPressTimersUntilNextEditingCommand() const;
-    bool shouldLightenJapaneseBoldSansSerif() const;
     bool shouldDisableContentChangeObserverTouchEventAdjustment() const;
 
     WEBCORE_EXPORT bool shouldDispatchSyntheticMouseEventsWhenModifyingSelection() const;
@@ -69,6 +67,8 @@ public:
     WEBCORE_EXPORT bool isNeverRichlyEditableForTouchBar() const;
     WEBCORE_EXPORT bool shouldAvoidResizingWhenInputViewBoundsChange() const;
     WEBCORE_EXPORT bool shouldAvoidScrollingWhenFocusedContentIsVisible() const;
+    WEBCORE_EXPORT bool shouldUseLegacySelectPopoverDismissalBehaviorInDataActivation() const;
+    WEBCORE_EXPORT bool shouldIgnoreAriaForFastPathContentObservationCheck() const;
 
     WEBCORE_EXPORT bool needsYouTubeMouseOutQuirk() const;
     
@@ -78,6 +78,15 @@ public:
     bool needsYouTubeOverflowScrollQuirk() const;
 
     bool shouldOpenAsAboutBlank(const String&) const;
+
+    bool needsPreloadAutoQuirk() const;
+    bool needsFullWidthHeightFullscreenStyleQuirk() const;
+
+    bool shouldBypassBackForwardCache() const;
+
+#if ENABLE(MEDIA_STREAM)
+    bool shouldEnableLegacyGetUserMedia() const;
+#endif
 
 private:
     bool needsQuirks() const;
@@ -90,9 +99,11 @@ private:
     WeakPtr<Document> m_document;
 
     mutable Optional<bool> m_hasBrokenEncryptedMediaAPISupportQuirk;
+    mutable Optional<bool> m_needsFullWidthHeightFullscreenStyleQuirk;
 #if PLATFORM(IOS_FAMILY)
     mutable Optional<bool> m_needsGMailOverflowScrollQuirk;
     mutable Optional<bool> m_needsYouTubeOverflowScrollQuirk;
+    mutable Optional<bool> m_needsPreloadAutoQuirk;
 #endif
 };
 

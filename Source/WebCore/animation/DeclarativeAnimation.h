@@ -54,6 +54,7 @@ public:
     Optional<double> bindingsCurrentTime() const final;
     ExceptionOr<void> setBindingsCurrentTime(Optional<double>) final;
     WebAnimation::PlayState bindingsPlayState() const final;
+    WebAnimation::ReplaceState bindingsReplaceState() const final;
     bool bindingsPending() const final;
     WebAnimation::ReadyPromise& bindingsReady() final;
     WebAnimation::FinishedPromise& bindingsFinished() final;
@@ -65,6 +66,8 @@ public:
 
     bool needsTick() const override;
     void tick() override;
+
+    bool canHaveGlobalPosition() final;
 
 protected:
     DeclarativeAnimation(Element&, const Animation&);
@@ -80,15 +83,10 @@ private:
     void enqueueDOMEvent(const AtomString&, Seconds);
     void remove() final;
 
-    // ActiveDOMObject.
-    void suspend(ReasonForSuspension) final;
-    void resume() final;
-    void stop() final;
-
     bool m_wasPending { false };
     AnimationEffectPhase m_previousPhase { AnimationEffectPhase::Idle };
 
-    GenericEventQueue m_eventQueue;
+    UniqueRef<MainThreadGenericEventQueue> m_eventQueue;
 
     Element* m_owningElement;
     Ref<Animation> m_backingAnimation;

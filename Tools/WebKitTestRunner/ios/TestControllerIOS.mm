@@ -42,6 +42,7 @@
 #import <WebKit/WKUserContentControllerPrivate.h>
 #import <WebKit/WKWebViewConfigurationPrivate.h>
 #import <WebKit/WKWebViewPrivate.h>
+#import <WebKit/WKWebViewPrivateForTesting.h>
 #import <objc/runtime.h>
 #import <pal/spi/ios/GraphicsServicesSPI.h>
 #import <wtf/MainThread.h>
@@ -82,6 +83,9 @@ static void handleMenuDidHideNotification(CFNotificationCenterRef, void*, CFStri
 
 void TestController::notifyDone()
 {
+    UIView *contentView = [mainWebView()->platformView() valueForKeyPath:@"_currentContentView"];
+    UIView *selectionView = [contentView valueForKeyPath:@"interactionAssistant.selectionView"];
+    [selectionView _removeAllAnimations:YES];
 }
 
 void TestController::platformInitialize()
@@ -144,6 +148,13 @@ void TestController::platformResetStateToConsistentValues(const TestOptions& opt
 
     [[UIApplication sharedApplication] _cancelAllTouches];
     [[UIDevice currentDevice] setOrientation:UIDeviceOrientationPortrait animated:NO];
+    UIKeyboardPreferencesController *keyboardPreferences = UIKeyboardPreferencesController.sharedPreferencesController;
+    NSString *automaticMinimizationEnabledPreferenceKey = @"AutomaticMinimizationEnabled";
+    if (![keyboardPreferences boolForPreferenceKey:automaticMinimizationEnabledPreferenceKey]) {
+        [keyboardPreferences setValue:@YES forPreferenceKey:automaticMinimizationEnabledPreferenceKey];
+        CFPreferencesSetAppValue((__bridge CFStringRef)automaticMinimizationEnabledPreferenceKey, kCFBooleanTrue, CFSTR("com.apple.Preferences"));
+    }
+
     GSEventSetHardwareKeyboardAttached(true, 0);
 
     m_inputModeSwizzlers.clear();
@@ -151,8 +162,8 @@ void TestController::platformResetStateToConsistentValues(const TestOptions& opt
 
     m_presentPopoverSwizzlers.clear();
     if (!options.shouldPresentPopovers) {
-        m_presentPopoverSwizzlers.append(std::make_unique<InstanceMethodSwizzler>([UIViewController class], @selector(presentViewController:animated:completion:), reinterpret_cast<IMP>(overridePresentViewControllerOrPopover)));
-        m_presentPopoverSwizzlers.append(std::make_unique<InstanceMethodSwizzler>([UIPopoverController class], @selector(presentPopoverFromRect:inView:permittedArrowDirections:animated:), reinterpret_cast<IMP>(overridePresentViewControllerOrPopover)));
+        m_presentPopoverSwizzlers.append(makeUnique<InstanceMethodSwizzler>([UIViewController class], @selector(presentViewController:animated:completion:), reinterpret_cast<IMP>(overridePresentViewControllerOrPopover)));
+        m_presentPopoverSwizzlers.append(makeUnique<InstanceMethodSwizzler>([UIPopoverController class], @selector(presentPopoverFromRect:inView:permittedArrowDirections:animated:), reinterpret_cast<IMP>(overridePresentViewControllerOrPopover)));
     }
     
     BOOL shouldRestoreFirstResponder = NO;
@@ -164,7 +175,6 @@ void TestController::platformResetStateToConsistentValues(const TestOptions& opt
         webView.overrideSafeAreaInsets = UIEdgeInsetsZero;
         [webView _clearOverrideLayoutParameters];
         [webView _clearInterfaceOrientationOverride];
-        [webView resetInteractionCallbacks];
         [webView resetCustomMenuAction];
         [webView setAllowedMenuActions:nil];
 
@@ -240,7 +250,12 @@ void TestController::abortModal()
 
 const char* TestController::platformLibraryPathForTesting()
 {
-    return [[@"~/Library/Application Support/WebKitTestRunner" stringByExpandingTildeInPath] UTF8String];
+    static NSString *platformLibraryPath = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        platformLibraryPath = [[@"~/Library/Application Support/WebKitTestRunner" stringByExpandingTildeInPath] retain];
+    });
+    return platformLibraryPath.UTF8String;
 }
 
 void TestController::setHidden(bool)
@@ -269,9 +284,9 @@ void TestController::setKeyboardInputModeIdentifier(const String& identifier)
 
     auto controllerClass = UIKeyboardInputModeController.class;
     m_inputModeSwizzlers.reserveCapacity(3);
-    m_inputModeSwizzlers.uncheckedAppend(std::make_unique<InstanceMethodSwizzler>(controllerClass, @selector(currentInputMode), reinterpret_cast<IMP>(swizzleCurrentInputMode)));
-    m_inputModeSwizzlers.uncheckedAppend(std::make_unique<InstanceMethodSwizzler>(controllerClass, @selector(currentInputModeInPreference), reinterpret_cast<IMP>(swizzleCurrentInputMode)));
-    m_inputModeSwizzlers.uncheckedAppend(std::make_unique<InstanceMethodSwizzler>(controllerClass, @selector(activeInputModes), reinterpret_cast<IMP>(swizzleActiveInputModes)));
+    m_inputModeSwizzlers.uncheckedAppend(makeUnique<InstanceMethodSwizzler>(controllerClass, @selector(currentInputMode), reinterpret_cast<IMP>(swizzleCurrentInputMode)));
+    m_inputModeSwizzlers.uncheckedAppend(makeUnique<InstanceMethodSwizzler>(controllerClass, @selector(currentInputModeInPreference), reinterpret_cast<IMP>(swizzleCurrentInputMode)));
+    m_inputModeSwizzlers.uncheckedAppend(makeUnique<InstanceMethodSwizzler>(controllerClass, @selector(activeInputModes), reinterpret_cast<IMP>(swizzleActiveInputModes)));
     [UIKeyboardImpl.sharedInstance prepareKeyboardInputModeFromPreferences:nil];
 }
 

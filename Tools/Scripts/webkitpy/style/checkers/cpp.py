@@ -45,8 +45,9 @@ import string
 import sys
 import unicodedata
 
-from common import match, search, sub, subn
+from webkitpy.style.checkers.common import match, search, sub, subn
 from webkitpy.common.memoized import memoized
+from webkitpy.common.unicode_compatibility import unicode
 
 # The key to use to provide a class to fake loading a header file.
 INCLUDE_IO_INJECTION_KEY = 'include_header_io'
@@ -366,7 +367,25 @@ class Position(object):
         return '(%s, %s)' % (self.row, self.column)
 
     def __cmp__(self, other):
-        return self.row.__cmp__(other.row) or self.column.__cmp__(other.column)
+        return (self.row - other.row) or (self.column - other.column)
+
+    def __eq__(self, other):
+        return self.__cmp__(other) == 0
+
+    def __ne__(self, other):
+        return self.__cmp__(other) != 0
+
+    def __lt__(self, other):
+        return self.__cmp__(other) < 0
+
+    def __le__(self, other):
+        return self.__cmp__(other) <= 0
+
+    def __gt__(self, other):
+        return self.__cmp__(other) > 0
+
+    def __ge__(self, other):
+        return self.__cmp__(other) >= 0
 
 
 class Parameter(object):
@@ -897,7 +916,7 @@ def check_for_copyright(lines, error):
 
     # We'll say it should occur by line 10. Don't forget there's a
     # dummy line at the front.
-    for line in xrange(1, min(len(lines), 11)):
+    for line in range(1, min(len(lines), 11)):
         if re.search(r'Copyright', lines[line], re.I):
             break
     else:                       # means no copyright line was found
@@ -1596,7 +1615,7 @@ def detect_functions(clean_lines, line_number, function_state, error):
         return
 
     joined_line = ''
-    for start_line_number in xrange(line_number, clean_lines.num_lines()):
+    for start_line_number in range(line_number, clean_lines.num_lines()):
         start_line = clean_lines.elided[start_line_number]
         joined_line += ' ' + start_line.lstrip()
         body_match = search(r'{|;', start_line)
@@ -1978,13 +1997,14 @@ def check_spacing(file_extension, clean_lines, line_number, file_state, error):
     # there should either be zero or one spaces inside the parens.
     # We don't want: "if ( foo)" or "if ( foo   )".
     # Exception: "for ( ; foo; bar)" and "for (foo; bar; )" are allowed.
+    # Exception: "for (foo n in [foo bar:baz])" is allowed because of obj-c method calls
     matched = search(r'\b(?P<statement>if|for|while|switch)\s*\((?P<remainder>.*)$', line)
     if matched:
         statement = matched.group('statement')
         condition, rest = up_to_unmatched_closing_paren(matched.group('remainder'))
         if condition is not None:
-            if statement == 'for' and search(r'(?:[^ :]:[^:]|[^:]:[^ :])', condition):
-                error(line_number, 'whitespace/colon', 4, 'Missing space around : in range-based for statement')
+            if statement == 'for' and search(r'(?:[^ :]:[^:]|[^:]:[^ :])', condition) and not search(r'\[[^\]]+:[^\]]*\]', condition):
+                    error(line_number, 'whitespace/colon', 4, 'Missing space around : in range-based for statement')
             condition_match = search(r'(?P<leading>[ ]*)(?P<separator>.).*[^ ]+(?P<trailing>[ ]*)', condition)
             if condition_match:
                 n_leading = len(condition_match.group('leading'))
@@ -2050,7 +2070,7 @@ def check_spacing(file_extension, clean_lines, line_number, file_state, error):
     # 'delete []' or 'new char * []'. Objective-C can't follow this rule
     # because of method calls.
     if file_extension != 'mm' and file_extension != 'm':
-        if search(r'\w\s+\[', line) and not search(r'(delete|return)\s+\[', line):
+        if search(r'\w\s+\[', line) and not search(r'(delete|return|auto)\s+\[', line):
             error(line_number, 'whitespace/brackets', 5,
                   'Extra space before [.')
 
@@ -2396,6 +2416,33 @@ def check_wtf_optional(clean_lines, line_number, file_state, error):
         return
 
     error(line_number, 'runtime/wtf_optional', 4, "Use 'WTF::Optional<>' instead of 'std::optional<>'.")
+
+
+def check_wtf_make_unique(clean_lines, line_number, file_state, error):
+    """Looks for use of 'std::make_unique<>' which should be replaced with 'WTF::makeUnique<>'.
+
+    Args:
+      clean_lines: A CleansedLines instance containing the file.
+      line_number: The number of the line to check.
+      file_state: A _FileState instance which maintains information about
+                  the state of things in the file.
+      error: The function to call with any errors found.
+    """
+
+    line = clean_lines.elided[line_number]  # Get rid of comments and strings.
+
+    using_std_make_unique_search = search(r'\bstd::make_unique\s*<([^(]+)', line)
+    if not using_std_make_unique_search:
+        return
+
+    typename = using_std_make_unique_search.group(1).strip()[:-1].strip()
+    if typename.endswith('[]'):
+        error(line_number, 'runtime/wtf_make_unique', 4,
+              "Use 'WTF::makeUniqueArray<{new_typename}>' instead of 'std::make_unique<{original_typename}>'.".format(
+                  new_typename=typename[:-2], original_typename=typename))
+    else:
+        error(line_number, 'runtime/wtf_make_unique', 4,
+              "Use 'WTF::makeUnique<{typename}>' instead of 'std::make_unique<{typename}>'.".format(typename=typename))
 
 
 def check_ctype_functions(clean_lines, line_number, file_state, error):
@@ -2957,6 +3004,7 @@ def check_style(clean_lines, line_number, file_extension, class_state, file_stat
     check_max_min_macros(clean_lines, line_number, file_state, error)
     check_wtf_move(clean_lines, line_number, file_state, error)
     check_wtf_optional(clean_lines, line_number, file_state, error)
+    check_wtf_make_unique(clean_lines, line_number, file_state, error)
     check_ctype_functions(clean_lines, line_number, file_state, error)
     check_switch_indentation(clean_lines, line_number, error)
     check_braces(clean_lines, line_number, file_state, error)
@@ -3340,7 +3388,7 @@ def check_language(filename, clean_lines, line_number, file_extension, include_s
         nested_angle_bracket_count = 1
         previous_closing_angle_bracket_index = -1
         closing_angle_bracket_index = 9 # Used if only one pair of angle brackets.
-        for i in xrange(10, len(match_line) - 1):
+        for i in range(10, len(match_line) - 1):
             if match_line[i] == '<':
                 nested_angle_bracket_count += 1
             if match_line[i] == '>':
@@ -3353,7 +3401,7 @@ def check_language(filename, clean_lines, line_number, file_extension, include_s
                           'RetainPtr<> should never contain a type with \'*\'. Correct: RetainPtr<NSString>, RetainPtr<CFStringRef>.')
                 break
 
-    matched = re.compile('^\s*SOFT_LINK_(PRIVATE_)?FRAMEWORK.*\((\S+)\)').search(line)
+    matched = re.compile(r'^\s*SOFT_LINK_(PRIVATE_)?FRAMEWORK.*\((\S+)\)').search(line)
     if matched:
         framework_name = matched.group(2)
         if file_extension == 'h' and not search(r'^\s*SOFT_LINK_(PRIVATE_)?FRAMEWORK_FOR_HEADER.*\(', line):
@@ -3590,6 +3638,7 @@ def check_identifier_name_in_declaration(filename, line_number, line, file_state
             # Various exceptions to the rule: JavaScript op codes functions, const_iterator.
             if (not (filename.find('JavaScriptCore') >= 0 and (modified_identifier.find('op_') >= 0 or modified_identifier.find('intrinsic_') >= 0))
                 and not (('gtk' in filename or 'glib' in filename or 'wpe' in filename or 'atk' in filename) and modified_identifier.startswith('webkit_'))
+                and not ('glib' in filename and modified_identifier.startswith('jsc_'))
                 and not modified_identifier.startswith('tst_')
                 and not modified_identifier.startswith('webkit_dom_object_')
                 and not modified_identifier.startswith('webkit_soup')
@@ -3854,7 +3903,7 @@ def check_for_include_what_you_use(filename, clean_lines, include_state, error):
     required = {}  # A map of header name to line_number and the template entity.
         # Example of required: { '<functional>': (1219, 'less<>') }
 
-    for line_number in xrange(clean_lines.num_lines()):
+    for line_number in range(clean_lines.num_lines()):
         line = clean_lines.elided[line_number]
         if not line or line[0] == '#':
             continue
@@ -3897,7 +3946,7 @@ def check_for_include_what_you_use(filename, clean_lines, include_state, error):
 
     # include_state is modified during iteration, so we iterate over a copy of
     # the keys.
-    for header in include_state.keys():  # NOLINT
+    for header in list(include_state.keys()):  # NOLINT
         (same_module, common_path) = files_belong_to_same_module(abs_filename, header)
         fullpath = common_path + header
         if same_module and update_include_state(fullpath, include_state):
@@ -4022,7 +4071,7 @@ def _process_lines(filename, file_extension, lines, error, min_confidence):
     file_state = _FileState(clean_lines, file_extension)
     enum_state = _EnumState()
     asm_state = _InlineASMState()
-    for line in xrange(clean_lines.num_lines()):
+    for line in range(clean_lines.num_lines()):
         process_line(filename, file_extension, clean_lines, line,
                      include_state, function_state, class_state, file_state,
                      enum_state, asm_state, error)
@@ -4113,6 +4162,7 @@ class CppChecker(object):
         'runtime/unsigned',
         'runtime/virtual',
         'runtime/wtf_optional',
+        'runtime/wtf_make_unique',
         'runtime/wtf_move',
         'security/assertion',
         'security/printf',

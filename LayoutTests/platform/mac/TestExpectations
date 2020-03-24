@@ -12,6 +12,7 @@ editing/mac [ Pass ]
 fast/scrolling/latching [ Pass ]
 media/mac [ Pass ]
 editing/pasteboard/mac [ Pass ]
+fast/dom/Range/mac [ Pass ]
 
 fast/forms/search/search-padding-cancel-results-buttons.html [ Pass ]
 fast/forms/search/search-results-hidden-crash.html [ Pass ]
@@ -227,6 +228,10 @@ storage/storagequota-query-usage.html
 storage/storagequota-request-quota.html
 fast/workers/worker-storagequota-query-usage.html
 
+# Software keyboard is not supported.
+fast/events/autoscroll-with-software-keyboard.html [ Skip ]
+fast/events/autoscroll-when-input-is-offscreen.html [ Skip ]
+
 # HTTP 204 (No Content) should be ignored
 webkit.org/b/60206 http/tests/navigation/response204.html
 
@@ -288,8 +293,6 @@ webkit.org/b/82665 webarchive/test-css-url-resources-in-stylesheets.html [ Failu
 webkit.org/b/82665 webarchive/test-css-url-resources-inline-styles.html [ Failure ]
 
 webkit.org/b/82762 fast/animation/request-animation-frame-during-modal.html
-
-webkit.org/b/82805 fast/canvas/webgl/framebuffer-object-attachment.html [ Failure ]
 
 webkit.org/b/82972 plugins/keyboard-events.html [ Pass Failure ]
 webkit.org/b/82972 plugins/layout-in-beforeload-listener-affects-plugin-loading.html [ Pass Failure ]
@@ -373,7 +376,6 @@ webkit.org/b/147674 editing/mac/pasteboard/5583362.html [ Skip ]
 [ Debug ] imported/w3c/web-platform-tests/fetch/api/redirect/redirect-method.any.worker.html [ Skip ]
 [ Debug ] imported/w3c/web-platform-tests/fetch/api/redirect/redirect-method.any.html [ Skip ]
 
-webkit.org/b/184060 [ Debug ] imported/w3c/web-platform-tests/html/browsers/history/the-location-interface/location-protocol-setter-non-broken.html [ Pass Failure ]
 webkit.org/b/107118 fast/canvas/canvas-quadratic-same-endpoint.html [ Failure ]
 webkit.org/b/142258 fast/css/object-fit/object-fit-canvas.html [ Pass ImageOnlyFailure ]
 
@@ -392,34 +394,19 @@ editing/pasteboard/paste-global-selection.html
 
 # Unexpected WebGL Conformance tests that need to be fixed
 # These tests pass when run through webgl-conformance-tests.html but not when just opened via a browser (or via run-webkit-tests)
-webgl/1.0.2/conformance/context/context-creation-and-destruction.html [ Pass Timeout ]
-webgl/1.0.2/conformance/rendering/multisample-corruption.html [ Pass Timeout ]
-http/tests/webgl/1.0.2/origin-clean-conformance.html [ Skip ]
+webgl/1.0.3/conformance/context/context-creation-and-destruction.html [ Pass Timeout ]
+webgl/1.0.3/conformance/rendering/multisample-corruption.html [ Pass Timeout ]
 
-webkit.org/b/124935 [ Debug ] webgl/1.0.2/conformance/glsl/misc/shader-with-non-reserved-words.html [ Slow ]
-
-# Skip 1.0.3 tests for now, to be unskipped when we get closer to conformance
-webgl/1.0.3/conformance/attribs [ Skip ]
-webgl/1.0.3/conformance/buffers [ Skip ]
-webgl/1.0.3/conformance/canvas [ Skip ]
-webgl/1.0.3/conformance/context [ Skip ]
-webgl/1.0.3/conformance/glsl [ Skip ]
-webgl/1.0.3/conformance/renderbuffers [ Skip ]
-webgl/1.0.3/conformance/rendering [ Skip ]
-webgl/1.0.3/conformance/state [ Skip ]
-webgl/1.0.3/conformance/textures [ Skip ]
-webgl/1.0.3/conformance/typedarrays [ Skip ]
-webgl/1.0.3/conformance/uniforms [ Skip ]
-webgl/1.0.3/conformance/extensions/angle-instanced-arrays.html [ Skip ]
-webgl/1.0.3/conformance/extensions/oes-texture-half-float.html [ Skip ]
-webgl/1.0.3/conformance/extensions/webgl-compressed-texture-size-limit.html [ Skip ]
-webgl/1.0.3/conformance/extensions/webgl-draw-buffers.html [ Skip ]
+# Skip 1.0.3 tests that pass in conformance suite but timeout in TestRunner
+webgl/1.0.3/conformance/more/glsl [ Skip ]
+webgl/1.0.3/conformance/more/conformance [ Skip ]
+webgl/1.0.3/conformance/more/functions [ Skip ]
 
 # Sending the mouse down event to the scrollbar starts a nested run loop which causes a hang.
 fast/events/mousedown-in-subframe-scrollbar.html [ Skip ]
 
 webkit.org/b/96828 fast/canvas/webgl/oes-vertex-array-object.html [ Skip ]
-webkit.org/b/96828 webgl/1.0.2/conformance/extensions/oes-vertex-array-object.html [ Skip ]
+webkit.org/b/96828 webgl/1.0.3/conformance/extensions/oes-vertex-array-object.html [ Skip ]
 
 http/tests/misc/willCacheResponse-delegate-callback.html [ Failure ]
 http/tests/xmlhttprequest/basic-auth-nopassword.html [ Failure ]
@@ -442,8 +429,6 @@ plugins/form-value.html
 # WebKit1 OOP plug-ins: Exceptions aren't thrown on invoke failure.
 plugins/npruntime/invoke-failure.html
 
-webkit.org/b/93589 svg/dom/SVGScriptElement/script-change-externalResourcesRequired-while-loading.svg [ Pass Timeout ]
-
 # CSS image-resolution is not yet enabled.
 webkit.org/b/85262 fast/css/image-resolution
 
@@ -463,7 +448,6 @@ webkit.org/b/57688 fast/text/international/bidi-AN-after-empty-run.html [ Failur
 webkit.org/b/57688 fast/text/international/bidi-CS-after-AN.html [ Failure Pass ]
 webkit.org/b/57688 fast/text/international/thai-line-breaks.html [ Failure Pass ]
 
-webkit.org/b/112646 plugins/private-browsing-mode.html [ Failure Pass ]
 webkit.org/b/112616 plugins/plugin-clip-subframe.html [ Failure Pass ]
 
 # Flakey plugin tests
@@ -622,7 +606,6 @@ webkit.org/b/122038 legacy-animation-engine/animations/transform-non-accelerated
 
 webkit.org/b/123250 plugins/destroy-during-npp-new-object-with-fallback-content.html [ Pass Failure ]
 
-inspector/debugger/setBreakpoint-dfg-callee-and-examine-dfg-local.html
 inspector/debugger/didSampleProbe-multiple-probes.html
 inspector/debugger/nested-inspectors.html
 
@@ -703,7 +686,7 @@ webkit.org/b/131715 legacy-animation-engine/transitions/cancel-transition.html [
 webkit.org/b/89153 http/tests/websocket/tests/hybi/workers/close.html [ Pass Failure ]
 
 # <rdar://problem/16696298>
-webkit.org/b/131886 webgl/1.0.2/conformance/textures/texture-size-limit.html [ Pass Failure ]
+webkit.org/b/131886 webgl/1.0.3/conformance/textures/texture-size-limit.html [ Pass Failure ]
 webkit.org/b/131886 fast/canvas/webgl/webgl-compressed-texture-size-limit.html [ Pass Failure Timeout ]
 
 webkit.org/b/132385 compositing/repaint/repaint-on-layer-grouping-change.html [ Pass Failure ]
@@ -802,12 +785,12 @@ webkit.org/b/133686 media/track/w3c/interfaces/TextTrackCue/align.html [ Pass Fa
 webkit.org/b/135071 media/video-seek-with-negative-playback.html [ Pass Timeout ]
 webkit.org/b/135160 [ Sierra+ ] media/track/track-in-band-subtitles-too-large.html [ Failure ]
 webkit.org/b/135160 media/track/track-long-word-container-sizing.html [ Failure ]
-webkit.org/b/137311 media/video-fullscreeen-only-playback.html [ Pass Timeout Crash ]
+webkit.org/b/137311 media/video-fullscreen-only-playback.html [ Pass Timeout Crash ]
 webkit.org/b/139789 media/media-controls-timeline-updates.html [ Pass Failure ]
 webkit.org/b/139825 media/video-seek-past-end-paused.html [ Pass Timeout ]
 webkit.org/b/141084 http/tests/media/video-preload.html [ Pass Timeout ]
 webkit.org/b/141294 compositing/reflections/masked-reflection-on-composited.html [ Pass Crash ]
-webkit.org/b/142152 media/track/track-in-band-cues-added-once.html [ Failure Timeout ]
+webkit.org/b/142152 media/track/track-in-band-cues-added-once.html [ Pass Failure ]
 webkit.org/b/147944 media/video-seek-to-current-time.html [ Pass Failure ]
 webkit.org/b/150408 http/tests/media/video-load-suspend.html [ Pass Timeout ]
 webkit.org/b/155956 media/track/track-remove-track.html [ Pass Failure Timeout ]
@@ -858,6 +841,9 @@ webkit.org/b/103926 media/track/opera/track/webvtt/rendering/adhoc/voice_with_ev
 # WebVTT tests don't work because they need more than a 800x600 snapshot.
 # They are also flakily failing on WebKit2, as snapshot sometimes has a black rectangle for video element instead of white one.
 webkit.org/b/131476 media/track/w3c/track/webvtt [ Skip ]
+
+# VTTRegion height doesn't adjust when cue font size changes.
+webkit.org/b/203621 media/track/regions-webvtt/vtt-region-display.html [ Pass Failure ]
 
 webkit.org/b/67716 media/media-controls-invalid-url.html [ Failure ]
 
@@ -1023,19 +1009,16 @@ http/tests/media/video-served-as-text.html [ Failure ]
 http/tests/media/video-throttled-load-metadata.html [ Failure ]
 http/tests/security/contentSecurityPolicy/media-src-allowed.html [ Skip ]
 
-webkit.org/b/150978 fast/canvas/webgl/oes-texture-half-float-linear.html [ Pass Failure ]
-
 webkit.org/b/174066 inspector/canvas/console-record-webgl2.html [ Pass Timeout ]
 webkit.org/b/173931 inspector/canvas/context-attributes.html [ Pass Timeout ]
 webkit.org/b/178028 inspector/canvas/create-context-2d.html [ Pass Timeout ]
 webkit.org/b/174066 inspector/canvas/create-context-webgl2.html [ Pass Timeout ]
-webkit.org/b/174272 inspector/canvas/css-canvas-clients.html [ Pass Failure ]
 webkit.org/b/174066 inspector/canvas/recording-webgl2-frameCount.html [ Pass Failure Timeout ]
 webkit.org/b/174066 inspector/canvas/recording-webgl2-full.html [ Pass Failure Timeout ]
 webkit.org/b/174066 inspector/canvas/recording-webgl2-memoryLimit.html [ Pass Failure Timeout ]
 webkit.org/b/174066 inspector/canvas/recording-webgl2-snapshots.html [ Pass Failure Timeout ]
+webkit.org/b/174272 inspector/canvas/requestClientNodes-css.html [ Pass Failure ]
 webkit.org/b/174066 inspector/canvas/shaderProgram-add-remove-webgl2.html [ Pass Failure Timeout ]
-webkit.org/b/160048 [ Debug ] inspector/codemirror/prettyprinting-javascript.html [ Pass Timeout ]
 webkit.org/b/152025 [ Debug ] inspector/console/messagesCleared.html [ Pass Timeout ]
 webkit.org/b/152452 [ Debug ] inspector/console/messageRepeatCountUpdated.html [ Pass Timeout ]
 webkit.org/b/168926 inspector/controller/runtime-controller-import.html [ Pass Timeout ]
@@ -1056,23 +1039,19 @@ webkit.org/b/168090 [ Debug ] inspector/debugger/breakpoint-columns.html [ Pass 
 webkit.org/b/161951 [ Release ] inspector/debugger/breakpoints/resolved-dump-each-line.html [ Pass Timeout ]
 webkit.org/b/167711 [ Debug ] inspector/debugger/probe-manager-add-remove-actions.html [ Slow ]
 webkit.org/b/168399 [ Debug ] inspector/debugger/search-scripts.html [ Pass Timeout ]
-webkit.org/b/181952 [ Debug ] inspector/debugger/tail-deleted-frames-from-vm-entry.html [ Slow ]
-webkit.org/b/169119 [ Debug ] inspector/debugger/tail-deleted-frames-this-value.html [ Pass Timeout ]
+webkit.org/b/181952 [ Debug ] inspector/debugger/tail-deleted-frames/tail-deleted-frames-vm-entry.html [ Slow ]
 webkit.org/b/168387 [ Debug ] inspector/debugger/tail-recursion.html [ Pass Timeout ]
 webkit.org/b/170127 inspector/dom-debugger/dom-breakpoints.html [ Pass Timeout ]
 webkit.org/b/148636 inspector/dom/getAccessibilityPropertiesForNode.html [ Pass Timeout ]
-webkit.org/b/154610 inspector/dom-debugger/node-removed.html [ Pass Timeout ]
 webkit.org/b/153039 [ Debug ] inspector/heap/garbageCollected.html [ Pass Timeout ]
 webkit.org/b/167408 [ Debug ] inspector/heap/gc.html [ Slow ]
 webkit.org/b/167184 [ Debug ] inspector/indexeddb/clearObjectStore.html [ Pass Timeout ]
 webkit.org/b/159684 [ Debug ] inspector/indexeddb/deleteDatabaseNamesWithSpace.html [ Pass Timeout ]
 webkit.org/b/153894 [ Debug ] inspector/model/color.html [ Pass Timeout ]
 webkit.org/b/148636 inspector/model/parse-script-syntax-tree.html [ Pass Timeout ]
-webkit.org/b/148636 inspector/model/remote-object.html [ Pass Timeout ]
 webkit.org/b/167265 inspector/network/client-blocked-load.html [ Pass Timeout ]
 webkit.org/b/148636 inspector/page/main-frame-resource.html [ Pass Timeout ]
 webkit.org/b/168146 [ Debug ] inspector/protocol/inspector-backend-invocation-return-value.html [ Pass Timeout ]
-webkit.org/b/148636 inspector/model/remote-object-weak-collection.html [ Pass Timeout Failure ]
 webkit.org/b/153108 [ Debug ] inspector/model/scope-chain-node.html [ Pass Timeout ]
 webkit.org/b/164278 inspector/storage/domStorage-events.html [ Pass Failure ]
 webkit.org/b/184057 inspector/unit-tests/debouncer.html [ Pass Failure ]
@@ -1082,7 +1061,6 @@ webkit.org/b/181832 inspector/unit-tests/throttler.html [ Pass Failure ]
 webkit.org/b/161361 inspector/unit-tests/yieldable-task.html [ Pass Failure ]
 webkit.org/b/169228 inspector/worker/console-basic.html [ Pass Timeout ]
 webkit.org/b/164872 inspector/worker/debugger-multiple-targets-pause.html [ Pass Failure Timeout ]
-webkit.org/b/165582 inspector/worker/debugger-scripts.html [ Pass Failure ]
 webkit.org/b/167203 inspector/worker/debugger-shared-breakpoint.html [ Pass Failure Timeout ]
 webkit.org/b/155607 inspector/heap/imported-snapshot.html [ Pass Failure ]
 webkit.org/b/155607 inspector/heap/snapshot.html [ Pass Failure ]
@@ -1096,8 +1074,8 @@ webkit.org/b/191539 http/tests/inspector/network/resource-security-connection.ht
 
 webkit.org/b/149128 fast/text/control-characters [ ImageOnlyFailure ]
 
-# Touch events is not enabled on Mac
-webkit.org/b/149592 fast/shadow-dom/touch-event-ios.html [ Failure ]
+# Touch events are not enabled on Mac
+webkit.org/b/149592 fast/shadow-dom/touch-event-ios.html [ Skip ]
 
 webkit.org/b/149819 [ Debug Sierra+ ] compositing/video/video-poster.html [ Pass Crash ]
 
@@ -1136,7 +1114,7 @@ webkit.org/b/154753 js/basic-map.html [ Skip ]
 # outline: auto -focusring.
 accessibility/mac/selection-element-tabbing-to-link.html [ Pass Failure ]
 
-webkit.org/b/152506 webgl/1.0.2/conformance/extensions/get-extension.html [ Pass Timeout ]
+webkit.org/b/152506 webgl/1.0.3/conformance/extensions/get-extension.html [ Pass Timeout ]
 
 webkit.org/b/154709 [ Sierra+ ] fast/text/crash-complex-text-surrogate.html [ Pass Failure ]
 webkit.org/b/154709 [ Sierra+ ] legacy-animation-engine/fast/text/crash-complex-text-surrogate.html [ Pass Failure ]
@@ -1170,7 +1148,6 @@ webkit.org/b/158534 css3/filters/backdrop/dynamic-backdrop-filter-change.html [ 
 
 # These tests hardcode platform-specific font aliases.
 webkit.org/b/158649 [ Sierra+ ] fast/text/chinese-font-name-aliases-2.html [ ImageOnlyFailure ]
-webkit.org/b/159003 [ Sierra+ ] fast/text/font-cursive-italic-cjk.html [ Skip ]
 
 webkit.org/b/158889 media/video-controls-show-on-kb-or-ax-event.html [ Pass Failure Timeout ]
 
@@ -1202,8 +1179,6 @@ webkit.org/b/158889 media/video-controls-show-on-kb-or-ax-event.html [ Pass Fail
 
 # rdar://problem/27141291
 [ Sierra+ ] editing/selection/triple-click-in-pre.html [ Failure ]
-
-webkit.org/b/159379 fast/history/page-cache-webdatabase-pending-transaction.html [ Pass Failure ]
 
 # rdar://problem/31243824
 webkit.org/b/158747 media/restore-from-page-cache.html [ Pass Failure Crash ]
@@ -1242,8 +1217,6 @@ webkit.org/b/159755 [ Sierra+ ] fast/text/emoji-gender-fe0f-7.html [ Pass ]
 webkit.org/b/159755 [ Sierra+ ] fast/text/emoji-gender-fe0f-8.html [ Pass ]
 webkit.org/b/159755 [ Sierra+ ] fast/text/emoji-gender-fe0f-9.html [ Pass ]
 webkit.org/b/159755 [ Sierra+ ] fast/text/emoji-gender.html [ Pass ]
-
-webkit.org/b/161142 [ Release ] imported/w3c/web-platform-tests/html/dom/interfaces.html [ Pass Failure ]
 
 webkit.org/b/161144 http/tests/media/hls/hls-accessiblity-describes-video-menu.html [ Skip ]
 
@@ -1323,8 +1296,6 @@ webkit.org/b/168087 media/video-zoom.html [ Pass Failure ]
 webkit.org/b/168094 imported/w3c/web-platform-tests/media-source/SourceBuffer-abort.html [ Pass Failure ]
 webkit.org/b/167975 imported/w3c/web-platform-tests/media-source/SourceBuffer-abort-removed.html [ Pass Failure ]
 
-[ Debug ] imported/w3c/web-platform-tests/IndexedDB/interfaces.any.html [ Slow ]
-[ Debug ] imported/w3c/web-platform-tests/IndexedDB/interfaces.any.worker.html [ Slow ]
 [ Debug ] imported/w3c/web-platform-tests/hr-time/idlharness.html [ Slow ]
 
 webkit.org/b/168503 editing/pasteboard/drag-drop-copy-content.html [ Failure ]
@@ -1440,8 +1411,6 @@ crypto/subtle/ecdsa-import-key-sign-p521.html
 crypto/subtle/ecdsa-import-key-verify-p521.html
 crypto/subtle/ecdsa-import-pkcs8-key-p521-validate-ecprivatekey-parameters-publickey.html
 
-webkit.org/b/176444 fast/canvas/webgl/webgl2-getActiveUniforms.html [ Failure ]
-
 webkit.org/b/161491 media/video-main-content-allow-then-scroll.html [ Pass Failure ]
 
 webkit.org/b/172052 [ Debug ] imported/w3c/web-platform-tests/html/webappapis/timers/type-long-setinterval.html [ Pass Failure ]
@@ -1528,10 +1497,6 @@ webkit.org/b/172052 [ Debug ] imported/w3c/web-platform-tests/html/webappapis/ti
 # <rdar://problem/32352702> REGRESSION: fast/dom/HTMLMeterElement/meter-appearances LayoutTests failing
 [ HighSierra+ ] fast/dom/HTMLMeterElement/meter-appearances-capacity.html [ Failure ]
 [ HighSierra+ ] fast/dom/HTMLMeterElement/meter-appearances-rating-relevancy.html [ Failure ]
-
-
-# <rdar://problem/32431942> REGRESSION: webgl/1.0.2/conformance/textures/gl-teximage.html is failing
-[ HighSierra+ ] webgl/1.0.2/conformance/textures/gl-teximage.html [ Failure ]
 
 # <rdar://problem/32620024> REGRESSION: LayoutTests canvas/philip/tests/2d.path.stroke.scale2.html and imported/w3c/canvas/2d.path.stroke.scale2.html are failing
 [ HighSierra+ ] canvas/philip/tests/2d.path.stroke.scale2.html [ Failure ]
@@ -1627,14 +1592,9 @@ webkit.org/b/181565 imported/w3c/web-platform-tests/media-source/mediasource-con
 webkit.org/b/181565 imported/w3c/web-platform-tests/media-source/mediasource-config-change-mp4-v-bitrate.html [ Pass Failure ]
 webkit.org/b/181565 imported/w3c/web-platform-tests/media-source/mediasource-config-change-mp4-v-framesize.html [ Pass Failure ]
 
-webkit.org/b/181966 [ Debug ] media/W3C/audio/events/event_progress.html [ Pass Failure ]
-webkit.org/b/181966 media/W3C/video/events/event_order_loadstart_progress.html [ Pass Failure ]
-
 webkit.org/b/181969 fast/events/message-port.html [ Skip ]
 
 webkit.org/b/181831 [ HighSierra+ ] fast/forms/searchfield-heights.html [ Pass Failure ]
-
-webkit.org/b/181612 [ Debug ] webanimations/animation-opacity-animation-crash.html [ Pass Failure ]
 
 webkit.org/b/173946 [ Debug ] media/modern-media-controls/fullscreen-support/fullscreen-support-press.html [ Pass Failure ]
 
@@ -1655,7 +1615,7 @@ webkit.org/b/177616 [ HighSierra+ ] http/tests/media/video-buffered-range-contai
 
 webkit.org/b/184610 media/video-volume-slider-drag.html [ Pass Timeout ]
 
-webkit.org/b/184612 [ Debug ] media/audio-concurrent-supported.html [ Pass Failure ]
+webkit.org/b/184612 media/audio-concurrent-supported.html [ Pass Failure ]
 
 # Font collections are not supported on every OS.
 webkit.org/b/184624 [ Sierra ] fast/text/font-collection.html [ ImageOnlyFailure ]
@@ -1741,11 +1701,13 @@ webkit.org/b/187393 imported/w3c/web-platform-tests/2dcontext/imagebitmap/create
 [ Mojave+ ] fast/gradients/conic-gradient-extended-stops.html [ Pass ]
 [ Mojave+ ] fast/gradients/conic-gradient.html [ Pass ]
 [ Mojave+ ] fast/gradients/conic-two-hints.html [ Pass ]
+[ Mojave ] imported/w3c/web-platform-tests/css/css-images/multiple-position-color-stop-conic.html [ Pass ]
 
 # Dark Mode is Mojave and later.
 [ Mojave+ ] css-dark-mode [ Pass ]
 [ Mojave+ ] css-dark-mode/older-systems [ Skip ]
 [ Mojave+ ] inspector/css/force-page-appearance.html [ Pass ]
+[ Mojave+ ] editing/pasteboard/paste-dark-mode-color-filtered.html [ Pass ]
 
 # Test Dark Mode CSS support for light mode on older systems.
 [ Sierra HighSierra ] css-dark-mode/older-systems [ Pass ]
@@ -1763,9 +1725,7 @@ webgl/2.0.0/conformance/rendering/multisample-corruption.html [ Slow ]
 webgl/2.0.0/conformance2/attribs/gl-vertexattribipointer.html [ Slow ]
 [ HighSierra ] webgl/2.0.0/conformance2/textures/misc/copy-texture-image-luma-format.html [ Slow ]
 
-webkit.org/b/176929 [ Mojave+ ] imported/w3c/web-platform-tests/html/semantics/embedded-content/media-elements/ready-states/autoplay-with-slow-text-tracks.html [ Pass Failure ]
-
-webkit.org/b/170877 [ Debug ] webgl/1.0.2/conformance/glsl/misc/shader-with-reserved-words.html [ Pass Timeout ]
+webkit.org/b/170877 [ Debug ] webgl/1.0.3/conformance/glsl/misc/shader-with-reserved-words.html [ Pass Timeout ]
 
 webkit.org/b/190883 legacy-animation-engine/animations/suspend-resume-animation.html [ Pass Failure ]
 
@@ -1781,7 +1741,12 @@ webkit.org/b/190976 imported/w3c/web-platform-tests/media-source/mediasource-cha
 
 webkit.org/b/199275 [ HighSierra ] webgpu [ Skip ]
 webkit.org/b/199275 [ HighSierra ] inspector/canvas/create-context-webgpu.html [ Skip ]
-webkit.org/b/199275 [ HighSierra ] inspector/canvas/resolveCanvasContext-webgpu.html [ Skip ]
+webkit.org/b/199275 [ HighSierra ] inspector/canvas/requestClientNodes-webgpu.html [ Skip ]
+webkit.org/b/199275 [ HighSierra ] inspector/canvas/requestShaderSource-webgpu.html [ Skip ]
+webkit.org/b/199275 [ HighSierra ] inspector/canvas/resolveContext-webgpu.html [ Skip ]
+webkit.org/b/199275 [ HighSierra ] inspector/canvas/shaderProgram-add-remove-webgpu.html [ Skip ]
+webkit.org/b/199275 [ HighSierra ] inspector/canvas/updateShader-webgpu.html [ Skip ]
+webkit.org/b/199275 [ HighSierra ] inspector/canvas/updateShader-webgpu-sharedVertexFragment.html [ Skip ]
 
 webkit.org/b/189680 platform/mac/media/audio-session-category-video-paused.html [ Pass Timeout ]
 
@@ -1807,13 +1772,10 @@ webkit.org/b/196112 imported/w3c/web-platform-tests/mathml/relations/css-styling
 webkit.org/b/196112 imported/w3c/web-platform-tests/mathml/relations/css-styling/mathvariant-double-struck.html [ Pass ImageOnlyFailure ]
 webkit.org/b/196112 imported/w3c/web-platform-tests/mathml/relations/css-styling/mathvariant-italic.html [ Pass ImageOnlyFailure ]
 
+# Flaky for non MathML core.
+imported/w3c/web-platform-tests/mathml/presentation-markup/scripts/cramped-001.html [ Pass Failure ]
+
 webkit.org/b/19650 [ HighSierra+ ] accessibility/mac/press-not-work-for-disabled-menu-list.html [ Pass Failure ]
-
-webkit.org/b/196512 [ Mojave+ ] fast/text/complex-initial-advance.html [ ImageOnlyFailure ]
-
-webkit.org/b/196517 imported/w3c/web-platform-tests/mst-content-hint/MediaStreamTrack-contentHint.html [ Skip ]
-
-webkit.org/b/177663 media/W3C/video/events/event_progress_manual.html [ Pass Failure ]
 
 # Skip iOS-specific Pointer Events WPT tests.
 imported/w3c/web-platform-tests/pointerevents/pointerevent_change-touch-action-onpointerdown_touch.html [ Skip ]
@@ -1826,66 +1788,9 @@ imported/w3c/web-platform-tests/pointerevents/pointerevent_touch-action-inherit_
 imported/w3c/web-platform-tests/pointerevents/pointerevent_touch-action-pan-x-pan-y_touch.html [ Skip ]
 imported/w3c/web-platform-tests/pointerevents/pointerevent_pointerout_pen.html [ Skip ]
 
-# Skip all manual Pointer Events WPT tests.
-imported/w3c/web-platform-tests/pointerevents/pointerevent_attributes_hoverable_pointers-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/pointerevent_attributes_nohover_pointers-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/pointerevent_boundary_events_in_capturing-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/pointerevent_capture_suppressing_mouse-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/pointerevent_disabled_form_control-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/pointerevent_element_haspointercapture-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/pointerevent_element_haspointercapture_release_pending_capture-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/pointerevent_fractional_coordinates-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/pointerevent_multiple_primary_pointers_boundary_events-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/pointerevent_pointerId_scope-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/pointerevent_pointerleave_pen-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/pointerevent_releasepointercapture_events_to_original_target-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/pointerevent_releasepointercapture_release_right_after_capture-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/pointerevent_sequence_at_implicit_release_on_click-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/pointerevent_sequence_at_implicit_release_on_drag-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/pointerevent_setpointercapture_override_pending_capture_element-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/pointerevent_setpointercapture_to_same_element_twice-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/pointerevent_touch-action-button-test_touch-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/pointerevent_touch-action-inherit_child-auto-child-none_touch-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/pointerevent_touch-action-inherit_child-none_touch-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/pointerevent_touch-action-inherit_child-pan-x-child-pan-x_touch-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/pointerevent_touch-action-inherit_child-pan-x-child-pan-y_touch-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/pointerevent_touch-action-inherit_parent-none_touch-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/pointerevent_touch-action-keyboard-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/pointerevent_touch-action-mouse-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/pointerevent_touch-action-none-css_touch-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/pointerevent_touch-action-pan-x-css_touch-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/pointerevent_touch-action-pan-x-pan-y-pan-y_touch-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/pointerevent_touch-action-pan-y-css_touch-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/pointerevent_touch-action-rotated-divs_touch-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/pointerevent_touch-action-span-test_touch-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/pointerevent_touch-action-svg-test_touch-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/pointerevent_touch-action-table-test_touch-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/compat/pointerevent_touch-action_two-finger_interaction-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/extension/pointerevent_coalesced_events_attributes-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/extension/pointerevent_getCoalescedEvents_when_pointerlocked-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/extension/pointerevent_getPredictedEvents_when_pointerlocked-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/extension/pointerevent_pointerrawmove-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/extension/pointerevent_pointerrawmove_in_pointerlock-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/extension/pointerevent_predicted_events_attributes-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/extension/pointerevent_touch-action-pan-down-css_touch-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/extension/pointerevent_touch-action-pan-left-css_touch-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/extension/pointerevent_touch-action-pan-right-css_touch-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/extension/pointerevent_touch-action-pan-up-css_touch-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/html/pointerevent_drag_interaction-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/pointerlock/pointerevent_movementxy-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/pointerlock/pointerevent_movementxy_when_locked-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/pointerlock/pointerevent_pointerlock_after_pointercapture-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/pointerlock/pointerevent_pointerlock_supercedes_capture-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/pointerlock/pointerevent_pointermove_in_pointerlock-manual.html [ Skip ]
-imported/w3c/web-platform-tests/pointerevents/pointerlock/pointerevent_pointermove_on_chorded_mouse_button_when_locked-manual.html [ Skip ]
-
-webkit.org/b/192501 [ Debug ] animations/play-state-in-shorthand.html [ Pass Failure ]
-
 webkit.org/b/197473 imported/w3c/web-platform-tests/resource-timing/resource-timing-level1.sub.html [ Pass Failure ]
 
 webkit.org/b/136627 [ Mojave+ ] media/track/track-cue-rendering-vertical.html [ Failure ]
-
-webkit.org/b/175678 media/W3C/video/events/event_progress.html [ Pass Failure ]
 
 # <rdar://problem/46000736>
 [ Mojave+ ] webgl/2.0.0/conformance/extensions/angle-instanced-arrays.html [ Failure ]
@@ -1941,9 +1846,6 @@ webkit.org/b/195635 scrollingcoordinator/mac/multiple-fixed.html [ Pass Timeout 
 [ Catalina+ ] fast/text/font-collection.html [ ImageOnlyFailure ]
 [ Catalina+ ] fast/text/woff2.html [ ImageOnlyFailure ]
 
-# <rdar://problem/43305675>
-[ Catalina+ ] webaudio/silence-after-playback.html [ Failure ]
-
 # <rdar://problem/45056204>
 [ Catalina+ ] http/tests/cookies/third-party-cookie-relaxing.html [ Failure ]
 [ Catalina+ ] http/tests/xmlhttprequest/cross-origin-cookie-storage.html [ Failure ]
@@ -1955,12 +1857,6 @@ webkit.org/b/195635 scrollingcoordinator/mac/multiple-fixed.html [ Pass Timeout 
 # <rdar://problem/51055223>
 [ Catalina+ ] js/intl-numberformat.html [ Failure ]
 
-# <rdar://problem/51525184>
-[ Catalina+ ] imported/w3c/web-platform-tests/css/css-lists/content-property/marker-text-matches-armenian.html [ ImageOnlyFailure ]
-
-# <rdar://problem/51751581>
-[ Catalina+ ] imported/w3c/web-platform-tests/fetch/api/redirect/redirect-schemes.html [ Failure ]
-
 # <rdar://problem/51762717>
 [ Catalina+ ] http/wpt/resource-timing/rt-cors.html [ Pass Failure ]
 [ Catalina+ ] http/wpt/resource-timing/rt-cors.worker.html [ Pass Failure ]
@@ -1970,6 +1866,9 @@ webkit.org/b/195635 scrollingcoordinator/mac/multiple-fixed.html [ Pass Timeout 
 [ Catalina+ ] http/wpt/resource-timing/rt-initiatorType-element.html [ Pass Failure ]
 [ Catalina+ ] http/wpt/resource-timing/rt-initiatorType-xmlhttprequest.html [ Pass Failure ]
 
+# <rdar://problem/52689856> storage/websql/test-authorizer.html is failing
+[ Catalina+ ] storage/websql/test-authorizer.html [ Failure ]
+
 # These tests require the design system ui fonts to be installed.
 [ Catalina+ ] fast/text/design-system-ui-11.html [ Pass ]
 [ Catalina+ ] fast/text/design-system-ui-12.html [ Pass ]
@@ -1978,10 +1877,96 @@ webkit.org/b/195635 scrollingcoordinator/mac/multiple-fixed.html [ Pass Timeout 
 [ Catalina+ ] fast/text/design-system-ui-15.html [ Pass ]
 [ Catalina+ ] fast/text/design-system-ui-16.html [ Pass ]
 
-# rdar://52594556 (Layout test fast/text/international/system-language/han-quotes.html is failing)
-[ Catalina+ ] fast/text/international/system-language/han-quotes.html [ ImageOnlyFailure ]
+webkit.org/b/200128 imported/w3c/web-platform-tests/html/semantics/embedded-content/the-video-element/video_timeupdate_on_seek.html [ Timeout Pass ]
 
-# rdar://52557916 (REGRESSION: fast/css/paint-order.html and fast/css/paint-order-shadow.html are failing)
-[ Catalina+ ] fast/css/paint-order.html [ ImageOnlyFailure ]
-[ Catalina+ ] fast/css/paint-order-shadow.html [ ImageOnlyFailure ]
+# rdar://55405851 ([ macOS ] Layout tests webgpu/*-triangle-strip.html are flaky failures. (201827))
+webkit.org/b/201827 webgpu/blend-color-triangle-strip.html [ Pass ImageOnlyFailure ]
+webkit.org/b/201827 webgpu/blend-triangle-strip.html [ Pass ImageOnlyFailure ]
+webkit.org/b/201827 webgpu/color-write-mask-triangle-strip.html [ Pass ImageOnlyFailure ]
+webkit.org/b/201827 webgpu/depth-enabled-triangle-strip.html [ Pass ImageOnlyFailure ]
+webkit.org/b/201827 webgpu/simple-triangle-strip.html [ Pass ImageOnlyFailure ]
+webkit.org/b/201827 webgpu/texture-triangle-strip.html [ Pass ImageOnlyFailure ]
+webkit.org/b/201827 webgpu/viewport-scissor-rect-triangle-strip.html [ Pass ImageOnlyFailure ]
+
+# rdar://55204775 (REGRESSION (MacOS): Many webgpu/whlsl/* tests are flaky failures)
+webgpu/whlsl/arbitrary-vertex-attribute-locations.html [ Pass ImageOnlyFailure ]
+webgpu/whlsl/nested-dot-expression-rvalue.html [ Pass ImageOnlyFailure ]
+webgpu/whlsl/ensure-proper-variable-lifetime-3.html [ Pass ImageOnlyFailure ]
+webgpu/whlsl/separate-shader-modules/separate-shader-modules.html [ Pass ImageOnlyFailure ]
+webgpu/whlsl/separate-shader-modules/separate-shader-modules-2.html [ Pass ImageOnlyFailure ]
+webgpu/whlsl/separate-shader-modules/separate-shader-modules-10.html [ Pass ImageOnlyFailure ]
+webgpu/whlsl/separate-shader-modules/separate-shader-modules-11.html [ Pass ImageOnlyFailure ]
+webgpu/whlsl/separate-shader-modules/separate-shader-modules-12.html [ Pass ImageOnlyFailure ]
+webgpu/whlsl/separate-shader-modules/separate-shader-modules-13.html [ Pass ImageOnlyFailure ]
+webgpu/whlsl/separate-shader-modules/separate-shader-modules-14.html [ Pass ImageOnlyFailure ]
+webgpu/whlsl/separate-shader-modules/separate-shader-modules-15.html [ Pass ImageOnlyFailure ]
+webgpu/whlsl/separate-shader-modules/separate-shader-modules-16.html [ Pass ImageOnlyFailure ]
+webgpu/whlsl/separate-shader-modules/separate-shader-modules-17.html [ Pass ImageOnlyFailure ] 
+webgpu/whlsl/separate-shader-modules/separate-shader-modules-18.html [ Pass ImageOnlyFailure ]
+webgpu/whlsl/separate-shader-modules/separate-shader-modules-19.html [ Pass ImageOnlyFailure ]
+webgpu/whlsl/separate-shader-modules/separate-shader-modules-24.html [ Pass ImageOnlyFailure ]
+webgpu/whlsl/separate-shader-modules/separate-shader-modules-26.html [ Pass ImageOnlyFailure ]
+
+webkit.org/b/205524 webgpu/whlsl/loops-continue.html [ Pass Failure ]
+webkit.org/b/205525 webgpu/whlsl/buffer-fragment.html [ Pass Failure ]
+
+# The test runner is failing in an unrelated, unexplained, invisible to the human eye, 2 pixels difference.
+webkit.org/b/201401 imported/w3c/web-platform-tests/media-source/mediasource-video-is-visible.html [ Skip ]
+
+# rdar://55484256 (REGRESSION: (Catalina) fast/images/async-image-multiple-clients-repaint.html is a flakey failure)
+[ Catalina+ ] fast/images/async-image-multiple-clients-repaint.html [ Pass Failure ]
+
+# Two canvas tests fail with small antialiasing diffs
+imported/w3c/web-platform-tests/2dcontext/building-paths/canvas_complexshapes_arcto_001.htm [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/2dcontext/building-paths/canvas_complexshapes_beziercurveto_001.htm [ ImageOnlyFailure ]
+
+webkit.org/b/202455 imported/w3c/web-platform-tests/2dcontext/drawing-images-to-the-canvas/2d.drawImage.broken.html [ Failure ]
+
+webkit.org/b/202458 imported/w3c/web-platform-tests/2dcontext/imagebitmap/canvas-createImageBitmap-resize.html [ Failure ]
+
+webkit.org/b/202460 imported/w3c/web-platform-tests/2dcontext/image-smoothing/imagesmoothing.html [ Failure ]
+
+webkit.org/b/202516 imported/w3c/web-platform-tests/2dcontext/path-objects/2d.path.rect.winding.html [ Failure ]
+
+webkit.org/b/202523 imported/w3c/web-platform-tests/2dcontext/path-objects/2d.path.stroke.scale2.html [ Failure ]
+
+webkit.org/b/202598 imported/w3c/web-platform-tests/2dcontext/line-styles/2d.line.cap.round.html [ Failure ]
+
+webkit.org/b/198867 [ Mojave+ ] webgl/many-contexts.html [ Skip ]
+
+webkit.org/b/203171 inspector/layers/layers-for-node.html [ Pass Failure ]
+
+webkit.org/b/203305 [ HighSierra Debug ] imported/w3c/web-platform-tests/css/css-transitions/properties-value-001.html [ Pass Failure ]
+webkit.org/b/203305 [ HighSierra Debug ] imported/w3c/web-platform-tests/css/css-transitions/properties-value-inherit-001.html [ Pass Failure ]
+webkit.org/b/203357 [ Debug ] imported/w3c/web-platform-tests/css/css-transitions/event-dispatch.tentative.html [ Pass Failure ]
+webkit.org/b/203356 [ Debug ] imported/w3c/web-platform-tests/css/css-transitions/properties-value-003.html [ Pass Failure ]
+
+# rdar://54275897 ([ macOS ] Add support for batched key requests)
+platform/mac/media/encrypted-media/fps-multiple-pssh.html [ Skip ]
+
+webkit.org/b/204756 imported/w3c/web-platform-tests/fetch/content-encoding/bad-gzip-body.any.worker.html [ Pass Failure ]
+
+webkit.org/b/204820 [ Catalina+ ] fast/text/emoji-gender-3.html [ ImageOnlyFailure ]
+webkit.org/b/204820 [ Catalina+ ] fast/text/emoji-gender-4.html [ ImageOnlyFailure ]
+webkit.org/b/204820 [ Catalina+ ] fast/text/emoji-gender-5.html [ ImageOnlyFailure ]
+webkit.org/b/204820 [ Catalina+ ] fast/text/emoji-gender-6.html [ ImageOnlyFailure ]
+webkit.org/b/204820 [ Catalina+ ] fast/text/emoji-gender-8.html [ ImageOnlyFailure ]
+webkit.org/b/204820 [ Catalina+ ] fast/text/emoji-gender-9.html [ ImageOnlyFailure ]
+
+webkit.org/b/204246 [ Catalina ] editing/mac/selection/context-menu-select-editability.html [ Failure ]
+
+webkit.org/b/204247 [ Catalina ] webaudio/silence-after-playback.html [ Failure ]
+
+webkit.org/b/205216 imported/w3c/web-platform-tests/content-security-policy/reporting/report-same-origin-with-cookies.html [ Pass Failure ]
+
+webkit.org/b/205361 [ Release ] crypto/workers/subtle/aes-indexeddb.html [ Pass Timeout ]
+
+webkit.org/b/205403 accessibility/presentation-role-iframe.html [ Pass Failure ]
+
+webkit.org/b/202064 webaudio/silent-audio-interrupted-in-background.html [ Pass Crash ]
+
+webkit.org/b/205757 webgl/1.0.3/conformance/textures/texture-upload-size.html [ Pass Timeout ]
+
+# The navigator.language tests rely on functionality only available in recent releases of macOS Catalina and onward.
+webkit.org/b/200043 [ Sierra HighSierra Mojave Catalina ] fast/text/international/system-language/navigator-language [ Pass Failure ]
 

@@ -26,17 +26,18 @@
 
 #pragma once
 
+#include "BytecodeIndex.h"
 #include "Instruction.h"
 #include <wtf/Vector.h>
 
 namespace JSC {
 
-struct Instruction;
+DECLARE_ALLOCATOR_WITH_HEAP_IDENTIFIER(InstructionStream);
 
 class InstructionStream {
     WTF_MAKE_FAST_ALLOCATED;
 
-    using InstructionBuffer = Vector<uint8_t, 0, UnsafeVectorOverflow>;
+    using InstructionBuffer = Vector<uint8_t, 0, UnsafeVectorOverflow, 16, InstructionStreamMalloc>;
 
     friend class InstructionStreamWriter;
     friend class CachedInstructionStream;
@@ -77,10 +78,8 @@ private:
             return BaseRef { m_instructions, m_index + ptr()->size() };
         }
 
-        inline Offset offset() const
-        {
-            return m_index;
-        }
+        inline Offset offset() const { return m_index; }
+        inline BytecodeIndex index() const { return BytecodeIndex(offset()); }
 
         bool isValid() const
         {
@@ -134,10 +133,15 @@ private:
             return *this;
         }
 
-        iterator operator++()
+        iterator& operator+=(size_t size)
         {
-            m_index += ptr()->size();
+            m_index += size;
             return *this;
+        }
+
+        iterator& operator++()
+        {
+            return *this += ptr()->size();
         }
     };
 
@@ -152,6 +156,7 @@ public:
         return iterator { m_instructions, m_instructions.size() };
     }
 
+    inline const Ref at(BytecodeIndex index) const { return at(index.offset()); }
     inline const Ref at(Offset offset) const
     {
         ASSERT(offset < m_instructions.size());
@@ -278,10 +283,15 @@ private:
             return *this;
         }
 
-        iterator operator++()
+        iterator& operator+=(size_t size)
         {
-            m_index += ptr()->size();
+            m_index += size;
             return *this;
+        }
+
+        iterator& operator++()
+        {
+            return *this += ptr()->size();
         }
     };
 

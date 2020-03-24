@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2002-2014 The ANGLE Project Authors. All rights reserved.
+// Copyright 2002 The ANGLE Project Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -20,14 +20,20 @@
 #include "libANGLE/Thread.h"
 #include "libANGLE/formatutils.h"
 #include "libANGLE/renderer/EGLImplFactory.h"
-#include "third_party/trace_event/trace_event.h"
+#include "libANGLE/trace.h"
 
 namespace egl
 {
 
 SurfaceState::SurfaceState(const egl::Config *configIn, const AttributeMap &attributesIn)
-    : label(nullptr), config(configIn), attributes(attributesIn), timestampsEnabled(false)
-{}
+    : label(nullptr),
+      config(configIn),
+      attributes(attributesIn),
+      timestampsEnabled(false),
+      directComposition(false)
+{
+    directComposition = attributes.get(EGL_DIRECT_COMPOSITION_ANGLE, EGL_FALSE) == EGL_TRUE;
+}
 
 SurfaceState::~SurfaceState() = default;
 
@@ -84,8 +90,6 @@ Surface::Surface(EGLint surfaceType,
     mVGColorspace = static_cast<EGLenum>(attributes.get(EGL_VG_COLORSPACE, EGL_VG_COLORSPACE_sRGB));
     mMipmapTexture = (attributes.get(EGL_MIPMAP_TEXTURE, EGL_FALSE) == EGL_TRUE);
 
-    mDirectComposition = (attributes.get(EGL_DIRECT_COMPOSITION_ANGLE, EGL_FALSE) == EGL_TRUE);
-
     mRobustResourceInitialization =
         (attributes.get(EGL_ROBUST_RESOURCE_INITIALIZATION_ANGLE, EGL_FALSE) == EGL_TRUE);
     if (mRobustResourceInitialization)
@@ -136,8 +140,10 @@ void Surface::postSwap(const gl::Context *context)
     if (mRobustResourceInitialization && mSwapBehavior != EGL_BUFFER_PRESERVED)
     {
         mInitState = gl::InitState::MayNeedInit;
-        onStateChange(context, angle::SubjectMessage::STORAGE_CHANGED);
+        onStateChange(angle::SubjectMessage::SubjectChanged);
     }
+
+    context->onPostSwap();
 }
 
 Error Surface::initialize(const Display *display)
@@ -177,14 +183,17 @@ Error Surface::initialize(const Display *display)
     return NoError();
 }
 
-Error Surface::setIsCurrent(const gl::Context *context, bool isCurrent)
+Error Surface::makeCurrent(const gl::Context *context)
 {
-    if (isCurrent)
-    {
-        mRefCount++;
-        return NoError();
-    }
+    ANGLE_TRY(mImplementation->makeCurrent(context));
 
+    mRefCount++;
+    return NoError();
+}
+
+Error Surface::unMakeCurrent(const gl::Context *context)
+{
+    ANGLE_TRY(mImplementation->unMakeCurrent(context));
     return releaseRef(context->getDisplay());
 }
 
@@ -228,7 +237,9 @@ EGLint Surface::getType() const
 
 Error Surface::swap(const gl::Context *context)
 {
-    TRACE_EVENT0("gpu.angle", "egl::Surface::swap");
+    ANGLE_TRACE_EVENT0("gpu.angle", "egl::Surface::swap");
+
+    context->getState().getOverlay()->onSwap();
 
     ANGLE_TRY(mImplementation->swap(context));
     postSwap(context);
@@ -237,7 +248,18 @@ Error Surface::swap(const gl::Context *context)
 
 Error Surface::swapWithDamage(const gl::Context *context, EGLint *rects, EGLint n_rects)
 {
+    context->getState().getOverlay()->onSwap();
+
     ANGLE_TRY(mImplementation->swapWithDamage(context, rects, n_rects));
+    postSwap(context);
+    return NoError();
+}
+
+Error Surface::swapWithFrameToken(const gl::Context *context, EGLFrameTokenANGLE frameToken)
+{
+    context->getState().getOverlay()->onSwap();
+
+    ANGLE_TRY(mImplementation->swapWithFrameToken(context, frameToken));
     postSwap(context);
     return NoError();
 }
@@ -253,7 +275,11 @@ Error Surface::postSubBuffer(const gl::Context *context,
         return egl::NoError();
     }
 
-    return mImplementation->postSubBuffer(context, x, y, width, height);
+    context->getState().getOverlay()->onSwap();
+
+    ANGLE_TRY(mImplementation->postSubBuffer(context, x, y, width, height));
+    postSwap(context);
+    return NoError();
 }
 
 Error Surface::setPresentationTime(EGLnsecsANDROID time)
@@ -466,9 +492,10 @@ GLuint Surface::getId() const
     return 0;
 }
 
-gl::Framebuffer *Surface::createDefaultFramebuffer(const gl::Context *context)
+gl::Framebuffer *Surface::createDefaultFramebuffer(const gl::Context *context,
+                                                   egl::Surface *readSurface)
 {
-    return new gl::Framebuffer(context, this);
+    return new gl::Framebuffer(context, this, readSurface);
 }
 
 gl::InitState Surface::initState(const gl::ImageIndex & /*imageIndex*/) const

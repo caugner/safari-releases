@@ -562,10 +562,6 @@ the public iOS SDK. We will also need to update the FeatureDefines.xcconfig file
 #define ENABLE_MOUSE_FORCE_EVENTS 1
 #endif
 
-#if !defined(ENABLE_NAVIGATOR_CONTENT_UTILS)
-#define ENABLE_NAVIGATOR_CONTENT_UTILS 0
-#endif
-
 #if !defined(ENABLE_NETSCAPE_PLUGIN_API)
 #define ENABLE_NETSCAPE_PLUGIN_API 1
 #endif
@@ -576,6 +572,10 @@ the public iOS SDK. We will also need to update the FeatureDefines.xcconfig file
 
 #if !defined(ENABLE_NOTIFICATIONS)
 #define ENABLE_NOTIFICATIONS 0
+#endif
+
+#if !defined(ENABLE_OFFSCREEN_CANVAS)
+#define ENABLE_OFFSCREEN_CANVAS 0
 #endif
 
 #if !defined(ENABLE_OPENTYPE_VERTICAL)

@@ -40,9 +40,10 @@ import os
 import random
 import re
 import unittest
-import cpp as cpp_style
-from cpp import CppChecker
-from ..filter import FilterConfiguration
+from webkitpy.common.unicode_compatibility import decode_if_necessary
+from webkitpy.style.checkers import cpp as cpp_style
+from webkitpy.style.checkers.cpp import CppChecker
+from webkitpy.style.filter import FilterConfiguration
 
 
 # This class works as an error collector and replaces cpp_style.Error
@@ -2124,6 +2125,7 @@ class CppStyleTest(CppStyleTestBase):
 
     def test_spacing_before_brackets(self):
         self.assert_lint('delete [] base;', '')
+        self.assert_lint('auto [foo, bar] = getFooAndBar();', '')
         # See SOFT_LINK_CLASS_FOR_HEADER() macro in SoftLinking.h.
         self.assert_lint('        return [get_##framework##_##className##Class() alloc]; \\', '')
         self.assert_lint('        m_taskFunction = [callee, method, arguments...] {', '')
@@ -2447,7 +2449,7 @@ class CppStyleTest(CppStyleTestBase):
         def do_test(self, raw_bytes, has_invalid_utf8):
             error_collector = ErrorCollector(self.assertTrue)
             self.process_file_data('foo.cpp', 'cpp',
-                                   unicode(raw_bytes, 'utf8', 'replace').split('\n'),
+                                   decode_if_necessary(raw_bytes, encoding='utf8', errors='replace').split('\n'),
                                    error_collector)
             # The warning appears only once.
             self.assertEqual(
@@ -2457,12 +2459,12 @@ class CppStyleTest(CppStyleTestBase):
                     ' (or Unicode replacement character).'
                     '  [readability/utf8] [5]'))
 
-        do_test(self, 'Hello world\n', False)
-        do_test(self, '\xe9\x8e\xbd\n', False)
-        do_test(self, '\xe9x\x8e\xbd\n', True)
+        do_test(self, b'Hello world\n', False)
+        do_test(self, b'\xe9\x8e\xbd\n', False)
+        do_test(self, b'\xe9x\x8e\xbd\n', True)
         # This is the encoding of the replacement character itself (which
         # you can see by evaluating codecs.getencoder('utf8')(u'\ufffd')).
-        do_test(self, '\xef\xbf\xbd\n', True)
+        do_test(self, b'\xef\xbf\xbd\n', True)
 
     def test_is_blank_line(self):
         self.assertTrue(cpp_style.is_blank_line(''))
@@ -2786,7 +2788,7 @@ class CppStyleTest(CppStyleTestBase):
             other_decl_specs = [random.choice(qualifiers), random.choice(signs),
                                 random.choice(types)]
             # remove None
-            other_decl_specs = filter(lambda x: x is not None, other_decl_specs)
+            other_decl_specs = list(filter(lambda x: x is not None, other_decl_specs))
 
             # shuffle
             random.shuffle(other_decl_specs)
@@ -4360,6 +4362,12 @@ class WebKitStyleTest(CppStyleTestBase):
             '')
 
         self.assert_multi_line_lint(
+            '    for (foo *bar in [foo bar:baz])\n'
+            '        process(bar);\n',
+            '',
+            'foo.mm')
+
+        self.assert_multi_line_lint(
             '    for (const Vector& vector: vectors)\n'
             '        process(vector);\n',
             'Missing space around : in range-based for statement  [whitespace/colon] [4]')
@@ -5217,6 +5225,42 @@ class WebKitStyleTest(CppStyleTestBase):
             '  [runtime/max_min_macros] [4]',
             'foo.h')
 
+    def test_wtf_make_unique(self):
+        self.assert_lint(
+             'std::unique_ptr<Foo> foo = WTF::makeUnique<Foo>();',
+             '',
+             'foo.cpp')
+
+        self.assert_lint(
+            'std::unique_ptr<Foo> foo = std::make_unique<Foo>();',
+            "Use 'WTF::makeUnique<Foo>' instead of 'std::make_unique<Foo>'."
+            "  [runtime/wtf_make_unique] [4]",
+            'foo.cpp')
+
+        self.assert_lint(
+            'std::unique_ptr<Foo> foo = std::make_unique<Foo>();',
+            "Use 'WTF::makeUnique<Foo>' instead of 'std::make_unique<Foo>'."
+            "  [runtime/wtf_make_unique] [4]",
+            'foo.mm')
+
+    def test_wtf_make_unique_array(self):
+        self.assert_lint(
+             'WTF::UniqueArray<uint32_t> array = WTF::makeUniqueArray<uint32_t>(10);',
+             '',
+             'foo.cpp')
+
+        self.assert_lint(
+            'std::unique_ptr<uint32_t[]> array = std::make_unique<uint32_t[]>(10);',
+            "Use 'WTF::makeUniqueArray<uint32_t>' instead of 'std::make_unique<uint32_t[]>'."
+            "  [runtime/wtf_make_unique] [4]",
+            'foo.cpp')
+
+        self.assert_lint(
+            'std::unique_ptr<uint32_t[]> array = std::make_unique<uint32_t[]>(10);',
+            "Use 'WTF::makeUniqueArray<uint32_t>' instead of 'std::make_unique<uint32_t[]>'."
+            "  [runtime/wtf_make_unique] [4]",
+            'foo.mm')
+
     def test_wtf_move(self):
         self.assert_lint(
              'A a = WTFMove(b);',
@@ -5427,6 +5471,15 @@ class WebKitStyleTest(CppStyleTestBase):
         self.assert_lint_one_of_many_errors_re('void otherkit_web_view_load(int var1, int var2)',
             'otherkit_web_view_load is incorrectly named. Don\'t use underscores in your identifier names.'
             '  [readability/naming/underscores] [4]', 'Source/Webkit/webkit/foo.cpp')
+
+        # There is an exception for GLib JavaScriptCore API.
+        self.assert_lint('JSCValue* jsc_value_new_null(JSCContext* context)', '', 'Source/JavaScriptCore/API/glib/JSCValue.cpp')
+        self.assert_lint('void my_function(int variable_1)',
+                         ['my_function' + name_underscore_error_message,
+                          'variable_1' + name_underscore_error_message],
+                         'Source/JavaScriptCore/API/glib/JSCValue.cpp')
+        self.assert_lint('gboolean jsc_value_is_undefined(JSCValue* value)',
+                         'jsc_value_is_undefined' + name_underscore_error_message)
 
         # There is an exception for some unit tests that begin with "tst_".
         self.assert_lint('void tst_QWebFrame::arrayObjectEnumerable(int var1, int var2)', '')

@@ -69,7 +69,9 @@ struct TestOptions {
     bool useCharacterSelectionGranularity { false };
     bool enableAttachmentElement { false };
     bool enableIntersectionObserver { false };
+    bool useEphemeralSession { false };
     bool enableMenuItemElement { false };
+    bool enableKeygenElement { false };
     bool enableModernMediaControls { true };
     bool enablePointerLock { false };
     bool enableWebAuthentication { true };
@@ -92,7 +94,11 @@ struct TestOptions {
     bool shouldHandleRunOpenPanel { true };
     bool shouldPresentPopovers { true };
     bool enableAppNap { false };
-    bool enablePageCache { false };
+    bool enableBackForwardCache { false };
+    bool enableLazyImageLoading { false };
+    bool allowsLinkPreview { true };
+    bool enableCaptureVideoInUIProcess { false };
+    bool enableCaptureAudioInGPUProcess { false };
 
     double contentInsetTop { 0 };
 
@@ -121,7 +127,9 @@ struct TestOptions {
             || useCharacterSelectionGranularity != options.useCharacterSelectionGranularity
             || enableAttachmentElement != options.enableAttachmentElement
             || enableIntersectionObserver != options.enableIntersectionObserver
+            || useEphemeralSession != options.useEphemeralSession
             || enableMenuItemElement != options.enableMenuItemElement
+            || enableKeygenElement != options.enableKeygenElement
             || enableModernMediaControls != options.enableModernMediaControls
             || enablePointerLock != options.enablePointerLock
             || enableWebAuthentication != options.enableWebAuthentication
@@ -148,7 +156,11 @@ struct TestOptions {
             || contentInsetTop != options.contentInsetTop
             || contentMode != options.contentMode
             || enableAppNap != options.enableAppNap
-            || enablePageCache != options.enablePageCache)
+            || enableBackForwardCache != options.enableBackForwardCache
+            || enableLazyImageLoading != options.enableLazyImageLoading
+            || allowsLinkPreview != options.allowsLinkPreview
+            || enableCaptureVideoInUIProcess != options.enableCaptureVideoInUIProcess
+            || enableCaptureAudioInGPUProcess != options.enableCaptureAudioInGPUProcess)
             return false;
 
         if (!contextOptions.hasSameInitializationOptions(options.contextOptions))
