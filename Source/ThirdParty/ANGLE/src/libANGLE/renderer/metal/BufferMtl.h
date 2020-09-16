@@ -36,6 +36,10 @@ struct ConversionBufferMtl
 
     // The conversion is stored in a dynamic buffer.
     mtl::BufferPool data;
+
+    // These properties are to be filled by user of this buffer conversion
+    mtl::BufferRef convertedBuffer;
+    size_t convertedOffset;
 };
 
 struct IndexConversionBufferMtl : public ConversionBufferMtl
@@ -46,10 +50,6 @@ struct IndexConversionBufferMtl : public ConversionBufferMtl
 
     const gl::DrawElementsType type;
     const size_t offset;
-
-    // These properties are to be filled by user of this buffer conversion
-    mtl::BufferRef convertedBuffer;
-    size_t convertedOffset;
 };
 
 class BufferHolderMtl
@@ -63,10 +63,7 @@ class BufferHolderMtl
     // a queue of mtl::Buffer and only let CPU modifies a free mtl::Buffer.
     // So, in order to let GPU use the most recent modified content, one must call this method
     // right before the draw call to retrieved the most up-to-date mtl::Buffer.
-    mtl::BufferRef getCurrentBuffer(const gl::Context *context)
-    {
-        return mIsWeak ? mBufferWeakRef.lock() : mBuffer;
-    }
+    mtl::BufferRef getCurrentBuffer() { return mIsWeak ? mBufferWeakRef.lock() : mBuffer; }
 
   protected:
     mtl::BufferRef mBuffer;
@@ -111,8 +108,7 @@ class BufferMtl : public BufferImpl, public BufferHolderMtl
                                 bool primitiveRestartEnabled,
                                 gl::IndexRange *outRange) override;
 
-    angle::Result getFirstLastIndices(const gl::Context *context,
-                                      gl::DrawElementsType type,
+    angle::Result getFirstLastIndices(gl::DrawElementsType type,
                                       size_t offset,
                                       size_t count,
                                       std::pair<uint32_t, uint32_t> *outIndices) const;
@@ -128,7 +124,7 @@ class BufferMtl : public BufferImpl, public BufferHolderMtl
                                                        gl::DrawElementsType type,
                                                        size_t offset);
 
-    size_t size() const { return mState.getSize(); }
+    size_t size() const { return static_cast<size_t>(mState.getSize()); }
 
   private:
     angle::Result setSubDataImpl(const gl::Context *context,
@@ -137,8 +133,11 @@ class BufferMtl : public BufferImpl, public BufferHolderMtl
                                  size_t offset);
 
     angle::Result commitShadowCopy(const gl::Context *context);
+    angle::Result commitShadowCopy(const gl::Context *context, size_t size);
 
     void markConversionBuffersDirty();
+
+    void clearConversionBuffers();
 
     // Client side shadow buffer
     angle::MemoryBuffer mShadowCopy;

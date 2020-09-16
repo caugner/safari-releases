@@ -8,7 +8,7 @@
         jsTestIsAsync = true;
 
         if (window.internals)
-            internals.settings.setRenderingUpdateThrottlingEnabled(true);
+            internals.setOutsideViewportThrottlingEnabled(true);
 
         var framesPerSecond = 0;
         var iframeFramesPerSecond = 0;

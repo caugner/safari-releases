@@ -1,17 +1,17 @@
-CONSOLE MESSAGE: line 302: Blocked a frame with origin "http://localhost:8800" from accessing a frame with origin "http://127.0.0.1:8800". Protocols, domains, and ports must match.
-CONSOLE MESSAGE: line 287: Blocked a frame with origin "http://localhost:8800" from accessing a frame with origin "http://127.0.0.1:8800". Protocols, domains, and ports must match.
-CONSOLE MESSAGE: line 302: Blocked a frame with origin "http://localhost:8800" from accessing a frame with origin "http://127.0.0.1:8800". Protocols, domains, and ports must match.
-CONSOLE MESSAGE: line 287: Blocked a frame with origin "http://localhost:8800" from accessing a frame with origin "http://localhost:8800". The frame being accessed set "document.domain" to "localhost", but the frame requesting access did not. Both must set "document.domain" to the same value to allow access.
-CONSOLE MESSAGE: line 302: Blocked a frame with origin "http://localhost:8800" from accessing a frame with origin "http://localhost:8800". The frame being accessed set "document.domain" to "localhost", but the frame requesting access did not. Both must set "document.domain" to the same value to allow access.
-CONSOLE MESSAGE: line 302: Blocked a frame with origin "http://localhost:8800" from accessing a frame with origin "http://localhost:8800". The frame being accessed set "document.domain" to "localhost", but the frame requesting access did not. Both must set "document.domain" to the same value to allow access.
-CONSOLE MESSAGE: line 287: Blocked a frame with origin "http://localhost:8800" from accessing a frame with origin "http://127.0.0.1:8800". Protocols, domains, and ports must match.
-CONSOLE MESSAGE: line 302: Blocked a frame with origin "http://localhost:8800" from accessing a frame with origin "http://127.0.0.1:8800". Protocols, domains, and ports must match.
-CONSOLE MESSAGE: line 302: Blocked a frame with origin "http://localhost:8800" from accessing a frame with origin "http://127.0.0.1:8800". Protocols, domains, and ports must match.
+CONSOLE MESSAGE: Blocked a frame with origin "http://localhost:8800" from accessing a frame with origin "http://127.0.0.1:8800". Protocols, domains, and ports must match.
+CONSOLE MESSAGE: Blocked a frame with origin "http://localhost:8800" from accessing a frame with origin "http://127.0.0.1:8800". Protocols, domains, and ports must match.
+CONSOLE MESSAGE: Blocked a frame with origin "http://localhost:8800" from accessing a frame with origin "http://127.0.0.1:8800". Protocols, domains, and ports must match.
+CONSOLE MESSAGE: Blocked a frame with origin "http://localhost:8800" from accessing a frame with origin "http://localhost:8800". The frame being accessed set "document.domain" to "localhost", but the frame requesting access did not. Both must set "document.domain" to the same value to allow access.
+CONSOLE MESSAGE: Blocked a frame with origin "http://localhost:8800" from accessing a frame with origin "http://localhost:8800". The frame being accessed set "document.domain" to "localhost", but the frame requesting access did not. Both must set "document.domain" to the same value to allow access.
+CONSOLE MESSAGE: Blocked a frame with origin "http://localhost:8800" from accessing a frame with origin "http://localhost:8800". The frame being accessed set "document.domain" to "localhost", but the frame requesting access did not. Both must set "document.domain" to the same value to allow access.
+CONSOLE MESSAGE: Blocked a frame with origin "http://localhost:8800" from accessing a frame with origin "http://127.0.0.1:8800". Protocols, domains, and ports must match.
+CONSOLE MESSAGE: Blocked a frame with origin "http://localhost:8800" from accessing a frame with origin "http://127.0.0.1:8800". Protocols, domains, and ports must match.
+CONSOLE MESSAGE: Blocked a frame with origin "http://localhost:8800" from accessing a frame with origin "http://127.0.0.1:8800". Protocols, domains, and ports must match.
+CONSOLE MESSAGE: Unable to post message to http://does-not.exist. Recipient has origin http://localhost:8800.
+
 CONSOLE MESSAGE: Unable to post message to http://does-not.exist. Recipient has origin http://127.0.0.1:8800.
 
 CONSOLE MESSAGE: Unable to post message to http://localhost:8800. Recipient has origin http://127.0.0.1:8800.
-
-CONSOLE MESSAGE: Unable to post message to http://does-not.exist. Recipient has origin http://localhost:8800.
 
 CONSOLE MESSAGE: Unable to post message to http://does-not.exist. Recipient has origin http://127.0.0.1:8800.
 
@@ -21,12 +21,12 @@ CONSOLE MESSAGE: Unable to post message to http://localhost:8800. Recipient has 
 PASS Basic sanity-checking (cross-origin) 
 PASS Basic sanity-checking (same-origin + document.domain) 
 PASS Basic sanity-checking (cross-site) 
-PASS Only whitelisted properties are accessible cross-origin (cross-origin) 
-PASS Only whitelisted properties are accessible cross-origin (same-origin + document.domain) 
-PASS Only whitelisted properties are accessible cross-origin (cross-site) 
-PASS Only whitelisted properties are usable as cross-origin this objects (cross-origin) 
-PASS Only whitelisted properties are usable as cross-origin this objects (same-origin + document.domain) 
-PASS Only whitelisted properties are usable as cross-origin this objects (cross-site) 
+PASS Only certain properties are accessible cross-origin (cross-origin) 
+PASS Only certain properties are accessible cross-origin (same-origin + document.domain) 
+PASS Only certain properties are accessible cross-origin (cross-site) 
+PASS Only certain properties are usable as cross-origin this objects (cross-origin) 
+PASS Only certain properties are usable as cross-origin this objects (same-origin + document.domain) 
+PASS Only certain properties are usable as cross-origin this objects (cross-site) 
 PASS [[GetPrototypeOf]] should return null (cross-origin) 
 PASS [[GetPrototypeOf]] should return null (same-origin + document.domain) 
 PASS [[GetPrototypeOf]] should return null (cross-site) 

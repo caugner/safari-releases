@@ -34,17 +34,13 @@ ANGLE_CHROMIUM_DEPS = [
     'build',
     'buildtools',
     'testing',
-    'third_party/fuchsia-sdk',
     'third_party/googletest',
-    'third_party/googletest/src',
     'third_party/libjpeg_turbo',
     'third_party/jsoncpp',
-    'third_party/jsoncpp/source',
+    'third_party/nasm',
     'third_party/Python-Markdown',
     'third_party/qemu-linux-x64',
     'third_party/qemu-mac-x64',
-    'third_party/yasm',
-    'third_party/yasm/source/patched-yasm',
     'third_party/zlib',
     'tools/clang',
     'tools/md_browser',
@@ -97,6 +93,10 @@ class RollError(Exception):
     pass
 
 
+def StrExpansion():
+    return lambda str_value: str_value
+
+
 def VarLookup(local_scope):
     return lambda var_name: local_scope['vars'][var_name]
 
@@ -104,6 +104,7 @@ def VarLookup(local_scope):
 def ParseDepsDict(deps_content):
     local_scope = {}
     global_scope = {
+        'Str': StrExpansion(),
         'Var': VarLookup(local_scope),
         'deps_os': {},
     }

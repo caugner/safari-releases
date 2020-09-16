@@ -28,6 +28,7 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/resources/test/tests/functional/api-tests-1.html
 /LayoutTests/imported/w3c/web-platform-tests/resources/test/tests/functional/api-tests-2.html
 /LayoutTests/imported/w3c/web-platform-tests/resources/test/tests/functional/api-tests-3.html
+/LayoutTests/imported/w3c/web-platform-tests/resources/test/tests/functional/assert-array-equals.html
 /LayoutTests/imported/w3c/web-platform-tests/resources/test/tests/functional/force_timeout.html
 /LayoutTests/imported/w3c/web-platform-tests/resources/test/tests/functional/generate-callback.html
 /LayoutTests/imported/w3c/web-platform-tests/resources/test/tests/functional/iframe-callback.html
@@ -44,6 +45,8 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/resources/test/tests/functional/single-page-test-no-assertions.html
 /LayoutTests/imported/w3c/web-platform-tests/resources/test/tests/functional/single-page-test-no-body.html
 /LayoutTests/imported/w3c/web-platform-tests/resources/test/tests/functional/single-page-test-pass.html
+/LayoutTests/imported/w3c/web-platform-tests/resources/test/tests/functional/step_wait.html
+/LayoutTests/imported/w3c/web-platform-tests/resources/test/tests/functional/step_wait_func.html
 /LayoutTests/imported/w3c/web-platform-tests/resources/test/tests/functional/task-scheduling-promise-test.html
 /LayoutTests/imported/w3c/web-platform-tests/resources/test/tests/functional/task-scheduling-test.html
 /LayoutTests/imported/w3c/web-platform-tests/resources/test/tests/functional/uncaught-exception-handle.html

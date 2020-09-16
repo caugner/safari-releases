@@ -40,10 +40,6 @@
 
 namespace JSC { namespace Wasm {
 
-namespace WasmLLIntPlanInternal {
-static const bool verbose = false;
-}
-
 LLIntPlan::LLIntPlan(Context* context, Vector<uint8_t>&& source, AsyncWork work, CompletionTask&& task)
     : Base(context, WTFMove(source), work, WTFMove(task))
 {
@@ -146,7 +142,9 @@ void LLIntPlan::didCompleteCompilation(const AbstractLocker& locker)
             SignatureIndex signatureIndex = m_moduleInformation->internalFunctionSignatureIndices[functionIndex];
             const Signature& signature = SignatureInformation::get(signatureIndex);
             CCallHelpers jit;
-            std::unique_ptr<InternalFunction> function = createJSToWasmWrapper(jit, signature, &m_unlinkedWasmToWasmCalls[functionIndex], m_moduleInformation.get(), m_mode, functionIndex);
+            // The LLInt always bounds checks
+            MemoryMode mode = MemoryMode::BoundsChecking;
+            std::unique_ptr<InternalFunction> function = createJSToWasmWrapper(jit, signature, &m_unlinkedWasmToWasmCalls[functionIndex], m_moduleInformation.get(), mode, functionIndex);
 
             LinkBuffer linkBuffer(jit, nullptr, JITCompilationCanFail);
             if (UNLIKELY(linkBuffer.didFailToAllocate())) {

@@ -30,9 +30,8 @@
 
 #include "CodeBlock.h"
 #include "CodeBlockWithJITType.h"
-#include "DFGCommon.h"
 #include "DFGPlan.h"
-#include "JSCInlines.h"
+#include "HeapInlines.h"
 #include "ProfilerDatabase.h"
 
 namespace JSC { namespace DFG {
@@ -82,13 +81,6 @@ bool JITFinalizer::finalizeFunction()
 void JITFinalizer::finalizeCommon()
 {
     CodeBlock* codeBlock = m_plan.codeBlock();
-
-    // Some JIT finalizers may have added more constants. Shrink-to-fit those things now.
-    {
-        ConcurrentJSLocker locker(codeBlock->m_lock);
-        codeBlock->constants().shrinkToFit();
-        codeBlock->constantsSourceCodeRepresentation().shrinkToFit();
-    }
 
 #if ENABLE(FTL_JIT)
     m_jitCode->optimizeAfterWarmUp(codeBlock);

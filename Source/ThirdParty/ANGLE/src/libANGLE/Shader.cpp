@@ -317,7 +317,8 @@ void Shader::compile(const Context *context)
     mState.mGeometryShaderInputPrimitiveType.reset();
     mState.mGeometryShaderOutputPrimitiveType.reset();
     mState.mGeometryShaderMaxVertices.reset();
-    mState.mGeometryShaderInvocations = 1;
+    mState.mGeometryShaderInvocations      = 1;
+    mState.mEarlyFragmentTestsOptimization = false;
 
     mState.mCompileStatus = CompileStatus::COMPILE_REQUESTED;
     mBoundCompiler.set(context, context->getCompiler());
@@ -351,6 +352,8 @@ void Shader::compile(const Context *context)
 
     mCurrentMaxComputeWorkGroupInvocations =
         static_cast<GLuint>(context->getCaps().maxComputeWorkGroupInvocations);
+
+    mMaxComputeSharedMemory = context->getCaps().maxComputeSharedMemorySize;
 
     ASSERT(mBoundCompiler.get());
     ShCompilerInstance compilerInstance = mBoundCompiler->getInstance(mState.mShaderType);
@@ -461,6 +464,14 @@ void Shader::resolveCompile()
                     return;
                 }
             }
+
+            unsigned int sharedMemSize = sh::GetShaderSharedMemorySize(compilerHandle);
+            if (sharedMemSize > mMaxComputeSharedMemory)
+            {
+                WARN() << std::endl << "Exceeded maximum shared memory size";
+                mState.mCompileStatus = CompileStatus::NOT_COMPILED;
+                return;
+            }
             break;
         }
         case ShaderType::Vertex:
@@ -480,6 +491,8 @@ void Shader::resolveCompile()
             std::sort(mState.mInputVaryings.begin(), mState.mInputVaryings.end(), CompareShaderVar);
             mState.mActiveOutputVariables =
                 GetActiveShaderVariables(sh::GetOutputVariables(compilerHandle));
+            mState.mEarlyFragmentTestsOptimization =
+                sh::HasEarlyFragmentTestsOptimization(compilerHandle);
             break;
         }
         case ShaderType::Geometry:
@@ -641,7 +654,7 @@ std::string Shader::getTransformFeedbackVaryingMappedName(const std::string &tfV
             else if (varying.isStruct())
             {
                 GLuint fieldIndex = 0;
-                const auto *field = FindShaderVarField(varying, tfVaryingName, &fieldIndex);
+                const auto *field = varying.findField(tfVaryingName, &fieldIndex);
                 ASSERT(field != nullptr && !field->isStruct() && !field->isArray());
                 return varying.mappedName + "." + field->mappedName;
             }

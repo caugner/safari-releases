@@ -178,29 +178,28 @@ end
 # Wasm specific helpers
 
 macro preserveCalleeSavesUsedByWasm()
+    # NOTE: We intentionally don't save memoryBase and memorySize here. See the comment
+    # in restoreCalleeSavesUsedByWasm() below for why.
     subp CalleeSaveSpaceStackAligned, sp
     if ARM64 or ARM64E
-        emit "stp x23, x26, [x29, #-16]"
-        emit "stp x19, x22, [x29, #-32]"
+        emit "stp x19, x26, [x29, #-16]"
     elsif X86_64
-        storep memorySize, -0x08[cfr]
-        storep memoryBase, -0x10[cfr]
-        storep PB, -0x18[cfr]
-        storep wasmInstance, -0x20[cfr]
+        storep PB, -0x8[cfr]
+        storep wasmInstance, -0x10[cfr]
     else
         error
     end
 end
 
 macro restoreCalleeSavesUsedByWasm()
+    # NOTE: We intentionally don't restore memoryBase and memorySize here. These are saved
+    # and restored when entering Wasm by the JSToWasm wrapper and changes to them are meant
+    # to be observable within the same Wasm module.
     if ARM64 or ARM64E
-        emit "ldp x23, x26, [x29, #-16]"
-        emit "ldp x19, x22, [x29, #-32]"
+        emit "ldp x19, x26, [x29, #-16]"
     elsif X86_64
-        loadp -0x08[cfr], memorySize
-        loadp -0x10[cfr], memoryBase
-        loadp -0x18[cfr], PB
-        loadp -0x20[cfr], wasmInstance
+        loadp -0x8[cfr], PB
+        loadp -0x10[cfr], wasmInstance
     else
         error
     end
@@ -1103,7 +1102,7 @@ end)
 wasmOp(i32_trunc_s_f32, WasmI32TruncSF32, macro (ctx)
     mloadf(ctx, m_operand, ft0)
 
-    move 0xcf000000, t0 # INT32_MIN
+    move 0xcf000000, t0 # INT32_MIN (Note that INT32_MIN - 1.0 in float is the same as INT32_MIN in float).
     fi2f t0, ft1
     bfltun ft0, ft1, .outOfBoundsTrunc
 
@@ -1121,9 +1120,9 @@ end)
 wasmOp(i32_trunc_s_f64, WasmI32TruncSF64, macro (ctx)
     mloadd(ctx, m_operand, ft0)
 
-    move 0xc1e0000000000000, t0 # INT32_MIN
+    move 0xc1e0000000200000, t0 # INT32_MIN - 1.0
     fq2d t0, ft1
-    bdltun ft0, ft1, .outOfBoundsTrunc
+    bdltequn ft0, ft1, .outOfBoundsTrunc
 
     move 0x41e0000000000000, t0 # -INT32_MIN
     fq2d t0, ft1

@@ -13,10 +13,7 @@
     <script>
     description("Tests that requestAnimationFrame is throttled in subframes that are cross-origin, and not in same-origin frames");
     window.jsTestIsAsync = true;
-
-    if (window.internals)
-        internals.settings.setRenderingUpdateThrottlingEnabled(true);
-
+    
     var crossOriginFrame;
     var sameOriginFrame
 
@@ -57,15 +54,15 @@
 
     function checkInitiallyThrottled()
     {
-        shouldBeEqualToString("throttledState['cross']", "true");
-        shouldBeEqualToString("throttledState['same']", "false");
+        shouldBeEqualToString("throttledState['cross']", "NonInteractiveCrossOriginFrame");
+        shouldBeEqualToString("throttledState['same']", "[Unthrottled]");
         interactWithSubframes();
     }
 
     function checkUnthrottledAfterInteraction()
     {
-        shouldBeEqualToString("throttledState['cross']", "false");
-        shouldBeEqualToString("throttledState['same']", "false");
+        shouldBeEqualToString("throttledState['cross']", "[Unthrottled]");
+        shouldBeEqualToString("throttledState['same']", "[Unthrottled]");
         finishJSTest();
     }
 
@@ -78,7 +75,7 @@
             return;
         }
 
-        var re = /throttled\[(\w+)\]: (true|false)/;
+        var re = /throttled\[(\w+)\]: ((\w+)(\|\w+)*|\[Unthrottled\])/;
         var match = re.exec(message.data);
         if (match) {
             frameID = match[1];

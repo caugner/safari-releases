@@ -4,6 +4,7 @@ PASS KeyframeEffect.getTiming does NOT trigger a style change event
 PASS KeyframeEffect.getComputedTiming does NOT trigger a style change event 
 PASS KeyframeEffect.updateTiming does NOT trigger a style change event 
 PASS KeyframeEffect.target does NOT trigger a style change event 
+PASS KeyframeEffect.pseudoElement does NOT trigger a style change event 
 PASS KeyframeEffect.iterationComposite does NOT trigger a style change event 
 PASS KeyframeEffect.composite does NOT trigger a style change event 
 PASS KeyframeEffect.getKeyframes does NOT trigger a style change event 

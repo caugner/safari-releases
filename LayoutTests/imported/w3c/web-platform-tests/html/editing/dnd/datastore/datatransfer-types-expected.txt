@@ -1,0 +1,6 @@
+
+FAIL type's state on DataTransfer creation Illegal constructor
+FAIL Relationship between types and items Illegal constructor
+FAIL type's identity Illegal constructor
+FAIL Verify type is a read-only attribute Illegal constructor
+

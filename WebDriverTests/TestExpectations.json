@@ -1,12 +1,6 @@
 {
     "imported/selenium/py/test/selenium/webdriver/common/alerts_tests.py": {
         "subtests": {
-            "testShouldAllowUsersToAcceptAnAlertInAFrame": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/181727"}}
-            },
-            "testShouldAllowUsersToAcceptAnAlertInANestedFrame": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/181727"}}
-            },
             "testShouldHandleAlertOnPageBeforeUnload": {
                 "expected": {"gtk": {"status": ["FAIL"], "bug": "webkit.org/b/188118"}}
             }
@@ -27,9 +21,6 @@
     },
     "imported/selenium/py/test/selenium/webdriver/common/click_scrolling_tests.py": {
         "subtests": {
-            "testShouldBeAbleToClickOnAnElementHiddenByDoubleOverflow": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/174902"}}
-            },
             "testShouldNotScrollIfAlreadyScrolledAndElementIsInView": {
                 "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/181729"}}
             },
@@ -39,13 +30,7 @@
             "testShouldBeAbleToClickElementInAFrameThatIsOutOfView": {
                 "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/181731"}}
             },
-            "testShouldBeAbleToClickElementThatIsOutOfViewInAFrame": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/181731"}}
-            },
             "testShouldBeAbleToClickElementThatIsOutOfViewInAFrameThatIsOutOfView": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/181731"}}
-            },
-            "testShouldBeAbleToClickElementThatIsOutOfViewInANestedFrame": {
                 "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/181731"}}
             },
             "testShouldBeAbleToClickElementThatIsOutOfViewInANestedFrameThatIsOutOfView": {
@@ -56,10 +41,13 @@
             }
         }
     },
-    "imported/selenium/py/test/selenium/webdriver/common/correct_event_firing_tests.py": {
+    "imported/selenium/py/test/selenium/webdriver/common/cookie_tests.py": {
         "subtests": {
-            "testClearingAnElementShouldCauseTheOnChangeHandlerToFire": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/181732"}}
+            "testAddCookieSameSiteStrict": {
+                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/213960"}}
+            },
+            "testAddCookieSameSiteLax": {
+                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/213960"}}
             }
         }
     },
@@ -76,9 +64,6 @@
                 "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184967"}}
             },
             "testSelectingMultipleItems": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184967"}}
-            },
-            "testSendingKeysToActiveElementWithModifier": {
                 "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184967"}}
             }
         }
@@ -97,6 +82,18 @@
             },
             "testShouldGetCoordinatesOfAnElementInANestedFrame": {
                 "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/181735"}}
+            },
+            "testShouldGetCoordinatesOfAnElementWithFixedPosition": {
+                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/213139"}}
+            },
+            "testShouldGetCoordinatesOfAnElement[hidden]": {
+                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/211492"}}
+            },
+            "testShouldGetCoordinatesOfAnInvisibleElement": {
+                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/211492"}}
+            },
+            "testShouldScrollPageAndGetCoordinatesOfAnElementThatIsOutOfViewPort": {
+                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/213139"}}
             }
         }
     },
@@ -118,16 +115,10 @@
     },
     "imported/selenium/py/test/selenium/webdriver/common/text_handling_tests.py": {
         "subtests": {
-            "testReadALargeAmountOfData": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/181737"}}
-            },
             "testShouldConvertANonBreakingSpaceIntoANormalSpaceCharacter": {
                 "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/174617"}}
             },
             "testShouldTreatANonBreakingSpaceAsAnyOtherWhitespaceCharacterWhenCollapsingWhitespace": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/174617"}}
-            },
-            "testHavingInlineElementsShouldNotAffectHowTextIsReturned": {
                 "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/174617"}}
             },
             "testShouldBeAbleToSetMoreThanOneLineOfTextInATextArea": {
@@ -152,36 +143,16 @@
             "testAllPrintableKeys": {
                 "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/182333"}}
             },
+            "testArrowKeysAndPageUpAndDown": {
+                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/213961"}}
+            },
             "testNumberpadAndFunctionKeys": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/182333"}}
-            }
-        }
-    },
-    "imported/selenium/py/test/selenium/webdriver/common/visibility_tests.py": {
-        "subtests": {
-            "testShouldNotBeAbleToTypeAnElementThatIsNotDisplayed": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/182334"}}
-            },
-            "testShouldSayElementsWithNegativeTransformAreNotDisplayed": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/182334"}}
-            },
-            "testShouldSayElementsWithParentWithNegativeTransformAreNotDisplayed": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/182334"}}
-            }
-        }
-    },
-    "imported/selenium/py/test/selenium/webdriver/common/w3c_interaction_tests.py": {
-        "subtests": {
-            "testSendingKeysToActiveElementWithModifier": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184967"}}
+                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/213961"}}
             }
         }
     },
     "imported/selenium/py/test/selenium/webdriver/common/window_switching_tests.py": {
         "subtests": {
-            "testClickingOnAButtonThatClosesAnOpenWindowDoesNotCauseTheBrowserToHang": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184963"}}
-            },
             "testCanCallGetWindowHandlesAfterClosingAWindow": {
                 "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184963"}}
             }
@@ -194,19 +165,36 @@
             }
         }
     },
-    "imported/w3c/webdriver/tests/perform_actions/pointer_contextmenu.py": {
+    "imported/selenium/py/test/selenium/webdriver/support/relative_by_tests.py": {
         "subtests": {
-            "test_control_click[\\ue009-ctrlKey]": {
-                "expected": {"gtk": {"status": ["FAIL"], "bug": "webkit.org/b/188118"}}
+            "test_should_be_able_to_find_elements_above_another": {
+                "expected": {"gtk": {"status": ["FAIL"], "bug": "webkit.org/b/213451"}}
             },
-            "test_control_click[\\ue051-ctrlKey]": {
-                "expected": {"gtk": {"status": ["FAIL"], "bug": "webkit.org/b/188118"}}
-            },
-            "test_release_control_click": {
-                "expected": {"gtk": {"status": ["FAIL"], "bug": "webkit.org/b/188118"}}
+            "test_should_be_able_to_combine_filters": {
+                "expected": {"gtk": {"status": ["FAIL"], "bug": "webkit.org/b/213451"}}
             }
         }
     },
+    "imported/w3c/webdriver/tests/perform_actions/pointer_contextmenu.py": {
+        "subtests": {
+            "test_release_control_click": {
+                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/213060"}}
+            }
+        }
+    },
+
+    "imported/w3c/webdriver/tests/perform_actions/pointer_dblclick.py": {
+        "expected": {"wpe": {"status": ["FAIL"], "bug": "webkit.org/b/174674"}}
+    },
+
+    "imported/w3c/webdriver/tests/perform_actions/pointer_pause_dblclick.py": {
+        "subtests": {
+            "test_dblclick_with_pause_after_second_pointerdown": {
+                "expected": {"wpe": {"status": ["FAIL"], "bug": "webkit.org/b/174674"}}
+            }
+        }
+    },
+
     "imported/w3c/webdriver/tests/perform_actions/key_events.py": {
         "subtests": {
             "test_modifier_key_sends_correct_events[\\ue009-CONTROL]": {
@@ -242,22 +230,13 @@
             "test_special_key_sends_keydown[R_ARROWRIGHT-expected4]": {
                 "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184967"}}
             },
-            "test_special_key_sends_keydown[PAGE_UP-expected6]": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184967"}}
-            },
             "test_special_key_sends_keydown[R_PAGEUP-expected7]": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184967"}}
-            },
-            "test_special_key_sends_keydown[F12-expected10]": {
                 "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184967"}}
             },
             "test_special_key_sends_keydown[META-expected11]": {
                 "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184967"}}
             },
             "test_special_key_sends_keydown[NULL-expected15]": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184967"}}
-            },
-            "test_special_key_sends_keydown[SUBTRACT-expected16]": {
                 "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184967"}}
             },
             "test_special_key_sends_keydown[CONTROL-expected17]": {
@@ -269,19 +248,10 @@
             "test_special_key_sends_keydown[SEMICOLON-expected20]": {
                 "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184967"}}
             },
-            "test_special_key_sends_keydown[NUMPAD4-expected22]": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184967"}}
-            },
             "test_special_key_sends_keydown[R_ALT-expected25]": {
                 "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184967"}}
             },
-            "test_special_key_sends_keydown[DECIMAL-expected27]": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184967"}}
-            },
             "test_special_key_sends_keydown[R_DELETE-expected29]": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184967"}}
-            },
-            "test_special_key_sends_keydown[PAGE_DOWN-expected30]": {
                 "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184967"}}
             },
             "test_special_key_sends_keydown[PAUSE-expected31]": {
@@ -302,12 +272,6 @@
             "test_special_key_sends_keydown[R_PAGEDOWN-expected39]": {
                 "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184967"}}
             },
-            "test_special_key_sends_keydown[ADD-expected40]": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184967"}}
-            },
-            "test_special_key_sends_keydown[NUMPAD1-expected41]": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184967"}}
-            },
             "test_special_key_sends_keydown[R_INSERT-expected42]": {
                 "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184967"}}
             },
@@ -317,28 +281,7 @@
             "test_special_key_sends_keydown[CANCEL-expected44]": {
                 "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184967"}}
             },
-            "test_special_key_sends_keydown[NUMPAD6-expected45]": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184967"}}
-            },
-            "test_special_key_sends_keydown[F11-expected47]": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184967"}}
-            },
             "test_special_key_sends_keydown[R_END-expected48]": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184967"}}
-            },
-            "test_special_key_sends_keydown[NUMPAD7-expected49]": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184967"}}
-            },
-            "test_special_key_sends_keydown[NUMPAD2-expected50]": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184967"}}
-            },
-            "test_special_key_sends_keydown[F5-expected55]": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184967"}}
-            },
-            "test_special_key_sends_keydown[NUMPAD8-expected60]": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184967"}}
-            },
-            "test_special_key_sends_keydown[NUMPAD5-expected61]": {
                 "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184967"}}
             },
             "test_special_key_sends_keydown[R_HOME-expected63]": {
@@ -358,24 +301,36 @@
             }
         }
     },
-    "imported/w3c/webdriver/tests/perform_actions/pointer_modifier_click.py": {
+
+    "imported/w3c/webdriver/tests/perform_actions/key_modifiers.py": {
         "subtests": {
-            "test_many_modifiers_click": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184967"}}
+            "test_shift_modifier_generates_capital_letters[\\ue008]": {
+                "expected": {"wpe": {"status": ["FAIL"], "bug": "webkit.org/b/212953"}}
+            },
+            "test_shift_modifier_generates_capital_letters[\\ue050]": {
+                "expected": {"wpe": {"status": ["FAIL"], "bug": "webkit.org/b/212953"}}
             }
         }
     },
-    "imported/w3c/webdriver/tests/perform_actions/pointer_origin.py": {
+
+    "imported/w3c/webdriver/tests/perform_actions/key_shortcuts.py": {
         "subtests": {
-            "test_element_larger_than_viewport": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184967"}}
+            "test_mod_a_mod_c_right_mod_v_pastes_text": {
+                "expected": {"wpe": {"status": ["FAIL"], "bug": "webkit.org/b/213122"}}
             }
         }
     },
+
     "imported/w3c/webdriver/tests/release_actions/sequence.py": {
         "subtests": {
             "test_release_char_sequence_sends_keyup_events_in_reverse": {
                 "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184967"}}
+            },
+            "test_release_mouse_sequence_resets_dblclick_state": {
+                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184967"}}
+            },
+            "test_no_release_mouse_sequence_keeps_dblclick_state": {
+                "expected": {"wpe": {"status": ["FAIL"], "bug": "webkit.org/b/174674"}}
             }
         }
     },
@@ -399,23 +354,38 @@
             }
         }
     },
-    "imported/w3c/webdriver/tests/element_click/bubbling.py": {
+
+    "imported/w3c/webdriver/tests/element_clear/clear.py": {
         "subtests": {
-            "test_spin_event_loop": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/180400"}}
+            "test_input[color-#ff0000-#000000]": {
+                "expected": {"wpe": {"status": ["FAIL"], "bug": "webkit.org/b/180645"}}
             }
         }
     },
-    "imported/w3c/webdriver/tests/element_click/interactability.py": {
-        "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/188545"}},
+
+    "imported/w3c/webdriver/tests/element_click/bubbling.py": {
         "subtests": {
-            "test_element_intercepted": {
-                "expected": {"all": {"status": ["PASS"]}}
+            "test_spin_event_loop": {
+                "expected": {"wpe": {"status": ["FAIL", "PASS"], "bug": "webkit.org/b/213129"}}
+            }
+        }
+    },
+
+    "imported/w3c/webdriver/tests/element_click/interactability.py": {
+        "subtests": {
+            "test_element_intercepted_no_pointer_events": {
+                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/188545"}}
+            },
+            "test_element_not_visible_overflow_hidden": {
+                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/188545"}}
             }
         }
     },
     "imported/w3c/webdriver/tests/element_click/navigate.py": {
         "subtests": {
+            "test_link_closes_window": {
+                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/211548"}}
+            },
             "test_link_unload_event": {
                 "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/188118"}}
             }
@@ -502,16 +472,9 @@
         }
     },
     "imported/w3c/webdriver/tests/element_send_keys/form_controls.py": {
-        "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/182331"}},
         "subtests": {
-            "test_input": {
-                "expected": {"all": {"status": ["PASS"]}}
-            },
-            "test_textarea": {
-                "expected": {"all": {"status": ["PASS"]}}
-            },
-            "test_textarea_expand": {
-                "expected": {"all": {"status": ["PASS"]}}
+            "test_input_append": {
+                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/182331"}}
             }
         }
     },
@@ -532,48 +495,6 @@
             }
         }
     },
-    "imported/w3c/webdriver/tests/execute_script/collections.py": {
-        "subtests": {
-            "test_arguments": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184966"}}
-            },
-            "test_file_list": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184966"}}
-            },
-            "test_html_all_collection": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184966"}}
-            }
-        }
-    },
-    "imported/w3c/webdriver/tests/execute_async_script/collections.py": {
-        "subtests": {
-            "test_arguments": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184966"}}
-            },
-            "test_file_list": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184966"}}
-            },
-            "test_html_all_collection": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184966"}}
-            }
-        }
-    },
-    "imported/w3c/webdriver/tests/execute_async_script/promise.py": {
-        "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/204151"}},
-        "subtests": {
-            "test_await_promise_reject": {
-                "expected": {"all": {"status": ["PASS"]}}
-            }
-        }
-    },
-    "imported/w3c/webdriver/tests/execute_script/promise.py": {
-        "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/204151"}},
-        "subtests": {
-            "test_await_promise_reject": {
-                "expected": {"all": {"status": ["PASS"]}}
-            }
-        }
-    },
     "imported/w3c/webdriver/tests/element_send_keys/content_editable.py": {
         "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/180403"}}
     },
@@ -587,9 +508,6 @@
             },
             "test_get_current_url_nested_browsing_context": {
                 "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/180405"}}
-            },
-            "test_get_current_url_matches_location": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/180405"}}
             }
         }
     },
@@ -600,54 +518,60 @@
             }
         }
     },
-    "imported/w3c/webdriver/tests/get_element_property/get.py": {
+    "imported/w3c/webdriver/tests/new_session/response.py": {
         "subtests": {
-            "test_element_not_found": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/180413"}}
+            "test_capability_default_value[setWindowRect-True]": {
+                "expected": {"wpe": {"status": ["SKIP"]}}
             }
         }
     },
-    "imported/w3c/webdriver/tests/get_element_attribute/get.py": {
+
+    "imported/w3c/webdriver/tests/new_window/new.py": {
         "subtests": {
-            "test_element_not_found": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/180413"}}
+            "test_type_with_null_value": {
+                "expected": {"wpe": {"status": ["FAIL"], "bug": "webkit.org/b/212949"}}
             },
-            "test_boolean_attribute[button-attrs1]": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/180415"}}
-            },
-            "test_boolean_attribute[dialog-attrs3]": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/180415"}}
-            },
-            "test_boolean_attribute[form-attrs5]": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/180415"}}
-            },
-            "test_boolean_attribute[iframe-attrs6]": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/180415"}}
-            },
-            "test_boolean_attribute[img-attrs7]": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/180415"}}
-            },
-            "test_boolean_attribute[input-attrs8]": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/180415"}}
-            },
-            "test_boolean_attribute[menuitem-attrs9]": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/180415"}}
-            },
-            "test_boolean_attribute[object-attrs10]": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/180415"}}
-            },
-            "test_global_boolean_attributes": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/180415"}}
+            "test_type_with_unknown_value": {
+                "expected": {"wpe": {"status": ["FAIL"], "bug": "webkit.org/b/212949"}}
             }
         }
     },
-    "imported/w3c/webdriver/tests/get_element_tag_name/get.py": {
+
+    "imported/w3c/webdriver/tests/new_window/new_tab.py": {
+        "expected": {"wpe": {"status": ["FAIL"], "bug": "webkit.org/212949"}}
+    },
+
+    "imported/w3c/webdriver/tests/new_window/new_window.py": {
         "subtests": {
-            "test_element_not_found": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/180413"}}
+            "test_type_with_window": {
+                "expected": {"wpe": {"status": ["FAIL"], "bug": "webkit.org/b/212949"}}
             }
         }
     },
+
+    "imported/w3c/webdriver/tests/new_window/user_prompts.py": {
+        "subtests": {
+            "test_accept[capabilities0-alert-None]": {
+                "expected": {"wpe": {"status": ["FAIL"], "bug": "webkit.org/b/212950"}}
+            },
+            "test_accept[capabilities0-confirm-True]": {
+                "expected": {"wpe": {"status": ["FAIL"], "bug": "webkit.org/b/212950"}}
+            },
+            "test_accept[capabilities0-prompt-]": {
+                "expected": {"wpe": {"status": ["FAIL"], "bug": "webkit.org/b/212950"}}
+            },
+            "test_dismiss[capabilities0-alert-None]": {
+                "expected": {"wpe": {"status": ["FAIL"], "bug": "webkit.org/b/212950"}}
+            },
+            "test_dismiss[capabilities0-confirm-False]": {
+                "expected": {"wpe": {"status": ["FAIL"], "bug": "webkit.org/b/212950"}}
+            },
+            "test_dismiss[capabilities0-prompt-None]": {
+                "expected": {"wpe": {"status": ["FAIL"], "bug": "webkit.org/b/212950"}}
+            }
+        }
+    },
+
     "imported/w3c/webdriver/tests/get_element_tag_name/user_prompts.py": {
         "subtests": {
             "test_handle_prompt_dismiss": {
@@ -658,90 +582,57 @@
             }
         }
     },
-    "imported/w3c/webdriver/tests/get_element_text/get.py": {
-        "subtests": {
-            "test_getting_text_of_a_non_existant_element_is_an_error": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/180413"}}
-            }
-        }
-    },
+
     "imported/w3c/webdriver/tests/set_window_rect/set.py": {
+        "expected": { "wpe": { "status": ["SKIP"] } },
         "subtests": {
-            "test_fully_exit_fullscreen": {
-                "expected": {"gtk": {"status": ["FAIL"], "bug": "webkit.org/b/188118"}}
-            },
             "test_negative_x_y": {
                 "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/180418"}}
+            },
+            "test_height_width_smaller_than_minimum_browser_size": {
+                "expected": {"gtk": {"status": ["FAIL"], "bug": "webkit.org/b/205919"}}
             }
         }
     },
-    "imported/w3c/webdriver/tests/maximize_window/maximize.py": {
+    "imported/w3c/webdriver/tests/set_window_rect/user_prompts.py" : {
+        "expected": { "wpe": { "status": ["SKIP"] } }
+    },
+
+    "imported/w3c/webdriver/tests/is_element_enabled/enabled.py": {
         "subtests": {
-            "test_fully_exit_fullscreen": {
-                "expected": {"gtk": {"status": ["FAIL"], "bug": "webkit.org/b/188118"}}
-            }
-        }
-    },
-    "imported/w3c/webdriver/tests/minimize_window/minimize.py": {
-        "subtests": {
-            "test_fully_exit_fullscreen": {
-                "expected": {"gtk": {"status": ["FAIL"], "bug": "webkit.org/b/188118"}}
-            }
-        }
-    },
-    "imported/w3c/webdriver/tests/is_element_selected/user_prompts.py": {
-        "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/188118"}}
-    },
-    "imported/w3c/webdriver/tests/element_send_keys/user_prompts.py": {
-        "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/188118"}}
-    },
-    "imported/w3c/webdriver/tests/fullscreen_window/fullscreen.py": {
-        "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/204065"}},
-        "subtests": {
-            "test_no_browsing_context": {
-                "expected": {"all": {"status": ["PASS"]}}
-            }
-        }
-    },
-    "imported/w3c/webdriver/tests/fullscreen_window/stress.py": {
-        "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/204065"}}
-    },
-    "imported/w3c/webdriver/tests/fullscreen_window/user_prompts.py": {
-        "subtests": {
-            "test_accept[capabilities0-alert-None]": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/204065"}}
-            },
-            "test_accept[capabilities0-confirm-True]": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/204065"}}
-            },
-            "test_accept[capabilities0-prompt-]": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/204065"}}
-            },
-            "test_dismiss[capabilities0-alert-None]": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/204065"}}
-            },
-            "test_dismiss[capabilities0-confirm-False]": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/204065"}}
-            },
-            "test_dismiss[capabilities0-prompt-None]": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/204065"}}
-            }
-        }
-    },
-    "imported/w3c/webdriver/tests/send_alert_text/send.py": {
-        "subtests": {
-            "test_alert_unsupported_operation": {
-                "expected": {"all": {"status": ["SKIP"]}}
+            "test_xml_always_not_enabled": {
+                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/205923"}}
             }
         }
     },
     "imported/w3c/webdriver/tests/permissions/set.py": {
         "expected": {"all": {"status": ["SKIP"], "bug": "webkit.org/b/192978"}}
     },
-    "imported/w3c/webdriver/tests/take_screenshot/user_prompts.py": {
-        "expected": {"all": {"status": ["FAIL"]}}
+    "imported/w3c/webdriver/tests/switch_to_frame/cross_origin.py": {
+        "subtests": {
+            "test_nested_cross_origin_iframe": {
+                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/205994"}}
+            }
+        }
     },
-    "imported/w3c/webdriver/tests/take_element_screenshot/user_prompts.py": {
-        "expected": {"all": {"status": ["FAIL"]}}
+
+    "imported/w3c/webdriver/tests/maximize_window/user_prompts.py" : {
+        "expected": { "wpe": { "status": ["SKIP"] } }
+    },
+    "imported/w3c/webdriver/tests/maximize_window/stress.py" : {
+        "expected": { "wpe": { "status": ["SKIP"] } }
+    },
+    "imported/w3c/webdriver/tests/maximize_window/maximize.py" : {
+        "expected": { "wpe": { "status": ["SKIP"] } }
+    },
+
+    "imported/w3c/webdriver/tests/minimize_window/user_prompts.py" : {
+        "expected": { "wpe": { "status": ["SKIP"] } }
+    },
+    "imported/w3c/webdriver/tests/minimize_window/stress.py" : {
+        "expected": { "wpe": { "status": ["SKIP"] } }
+    },
+    "imported/w3c/webdriver/tests/minimize_window/minimize.py" : {
+        "expected": { "wpe": { "status": ["SKIP"] } }
     }
 }

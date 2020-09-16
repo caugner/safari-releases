@@ -1,7 +1,7 @@
 <script>
-	function doWork(timestamp) {
-		window.top.postMessage('subFrameRAFMessage', '*');
-		window.requestAnimationFrame(doWork);
-	}
-	window.requestAnimationFrame(doWork);
+    function doWork(timestamp) {
+        window.top.postMessage('subFrameRAFMessage', '*');
+        window.requestAnimationFrame(doWork);
+    }
+    window.requestAnimationFrame(doWork);
 </script>

@@ -11,8 +11,9 @@
 #include "common/debug.h"
 #include "common/platform.h"
 #include "common/system_utils.h"
-#include "common/tls.h"
 #include "libGLESv2/resource.h"
+
+#include <atomic>
 
 namespace gl
 {
@@ -38,7 +39,7 @@ namespace
 static TLSIndex threadTLS = TLS_INVALID_INDEX;
 Debug *g_Debug            = nullptr;
 
-ANGLE_REQUIRE_CONSTANT_INIT std::atomic<std::mutex *> g_Mutex(nullptr);
+ANGLE_REQUIRE_CONSTANT_INIT std::atomic<angle::GlobalMutex *> g_Mutex(nullptr);
 static_assert(std::is_trivially_destructible<decltype(g_Mutex)>::value,
               "global mutex is not trivially destructible");
 
@@ -57,6 +58,9 @@ Thread *AllocateCurrentThread()
         return nullptr;
     }
 
+    // Initialize fast TLS slot
+    SetContextToAndroidOpenGLTLSSlot(nullptr);
+
     return thread;
 }
 
@@ -73,8 +77,8 @@ void AllocateMutex()
 {
     if (g_Mutex == nullptr)
     {
-        std::unique_ptr<std::mutex> newMutex(new std::mutex());
-        std::mutex *expected = nullptr;
+        std::unique_ptr<angle::GlobalMutex> newMutex(new angle::GlobalMutex());
+        angle::GlobalMutex *expected = nullptr;
         if (g_Mutex.compare_exchange_strong(expected, newMutex.get()))
         {
             newMutex.release();
@@ -84,7 +88,7 @@ void AllocateMutex()
 
 }  // anonymous namespace
 
-std::mutex &GetGlobalMutex()
+angle::GlobalMutex &GetGlobalMutex()
 {
     AllocateMutex();
     return *g_Mutex;
@@ -131,6 +135,8 @@ void SetContextCurrent(Thread *thread, gl::Context *context)
         }
     }
     thread->setCurrent(context);
+
+    SetContextToAndroidOpenGLTLSSlot(context);
 }
 }  // namespace egl
 
@@ -155,10 +161,10 @@ void DeallocateDebug()
 
 void DeallocateMutex()
 {
-    std::mutex *mutex = g_Mutex.exchange(nullptr);
+    angle::GlobalMutex *mutex = g_Mutex.exchange(nullptr);
     {
         // Wait for the mutex to become released by other threads before deleting.
-        std::lock_guard<std::mutex> lock(*mutex);
+        std::lock_guard<angle::GlobalMutex> lock(*mutex);
     }
     SafeDelete(mutex);
 }
@@ -212,7 +218,7 @@ namespace
 {
 // The following WaitForDebugger code is based on SwiftShader. See:
 // https://cs.chromium.org/chromium/src/third_party/swiftshader/src/Vulkan/main.cpp
-#    if defined(ANGLE_ENABLE_ASSERTS)
+#    if defined(ANGLE_ENABLE_ASSERTS) && !defined(ANGLE_ENABLE_WINDOWS_UWP)
 INT_PTR CALLBACK DebuggerWaitDialogProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     RECT rect;
@@ -257,7 +263,7 @@ void WaitForDebugger(HINSTANCE instance)
 }
 #    else
 void WaitForDebugger(HINSTANCE instance) {}
-#    endif  // defined(ANGLE_ENABLE_ASSERTS)
+#    endif  // defined(ANGLE_ENABLE_ASSERTS) && !defined(ANGLE_ENABLE_WINDOWS_UWP)
 }  // namespace
 
 extern "C" BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID)

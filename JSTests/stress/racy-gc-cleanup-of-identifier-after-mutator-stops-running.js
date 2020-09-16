@@ -1,4 +1,5 @@
-//@ runDefault("--numberOfGCMarkers=1", "--useDFGJIT=false", "--forceBaseline=true")
+//@ skip if not $jitTests
+//@ runDefault("--numberOfGCMarkers=1", "--useDFGJIT=false", "--useLLInt=false")
 
 function foo() {
     gc();

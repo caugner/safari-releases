@@ -1,3 +1,167 @@
+2020-07-15  Fujii Hironori  <Hironori.Fujii@sony.com>
+
+        [CMake][WebDriver] Generating WebDriverAtoms.cpp is rarely failing as "ImportError: No module named jsmin"
+        https://bugs.webkit.org/show_bug.cgi?id=214339
+
+        Reviewed by Don Olmstead.
+
+        There are a race condition between copying jsmin.py in
+        JavaScriptCore and using it in WebDriver. WebDriver target should
+        have a dependency to it.
+
+        * CMakeLists.txt: Added add_dependencies for WebDriver.
+
+2020-06-26  Geoffrey Garen  <ggaren@apple.com>
+
+        Initializing the main thread should initialize the main run loop
+        https://bugs.webkit.org/show_bug.cgi?id=213637
+
+        Reviewed by Anders Carlsson.
+
+        * WebDriverService.cpp:
+        (WebDriver::WebDriverService::run):
+
+2020-06-23  Chris Dumez  <cdumez@apple.com>
+
+        Remove a lot of unnecessary calls to Ref::copyRef()
+        https://bugs.webkit.org/show_bug.cgi?id=213533
+
+        Reviewed by Darin Adler.
+
+        Remove a lot of unnecessary calls to Ref::copyRef() now that Ref is copyable.
+
+        * Session.cpp:
+        (WebDriver::Session::go):
+        (WebDriver::Session::getCurrentURL):
+        (WebDriver::Session::back):
+        (WebDriver::Session::forward):
+        (WebDriver::Session::refresh):
+        (WebDriver::Session::getTitle):
+        (WebDriver::Session::newWindow):
+        (WebDriver::Session::switchToFrame):
+        (WebDriver::Session::switchToParentFrame):
+        (WebDriver::Session::setWindowRect):
+        (WebDriver::Session::maximizeWindow):
+        (WebDriver::Session::minimizeWindow):
+        (WebDriver::Session::fullscreenWindow):
+        (WebDriver::Session::findElements):
+        (WebDriver::Session::getActiveElement):
+        (WebDriver::Session::isElementSelected):
+        (WebDriver::Session::getElementText):
+        (WebDriver::Session::getElementTagName):
+        (WebDriver::Session::getElementRect):
+        (WebDriver::Session::isElementEnabled):
+        (WebDriver::Session::isElementDisplayed):
+        (WebDriver::Session::getElementAttribute):
+        (WebDriver::Session::getElementProperty):
+        (WebDriver::Session::getElementCSSValue):
+        (WebDriver::Session::elementClick):
+        (WebDriver::Session::elementClear):
+        (WebDriver::Session::elementSendKeys):
+        (WebDriver::Session::getPageSource):
+        (WebDriver::Session::executeScript):
+        (WebDriver::Session::getAllCookies):
+        (WebDriver::Session::addCookie):
+        (WebDriver::Session::deleteCookie):
+        (WebDriver::Session::deleteAllCookies):
+        (WebDriver::Session::performActions):
+        (WebDriver::Session::takeScreenshot):
+
+2020-06-10  Geoffrey Garen  <ggaren@apple.com>
+
+        Some style improvements to main thread code
+        https://bugs.webkit.org/show_bug.cgi?id=213051
+
+        Reviewed by Darin Adler.
+
+        Updated for rename.
+
+        * WebDriverService.cpp:
+        (WebDriver::WebDriverService::run):
+
+2020-03-19  Charlie Turner  <cturner@igalia.com>
+
+        Fix many warnings with Clang 7.0 on GTK x86-64 in Debug.
+        https://bugs.webkit.org/show_bug.cgi?id=209146
+
+        Reviewed by Darin Adler.
+
+        * Session.cpp:
+        (WebDriver::Session::newWindow):
+        (WebDriver::Session::elementIsFileUpload):
+        (WebDriver::Session::elementIsEditable):
+        (WebDriver::Session::setInputFileUploadFiles):
+
+2020-02-12  Carlos Alberto Lopez Perez  <clopez@igalia.com>
+
+        WebDriver: return invalidSessionID exception if the WebProcess doesn't respond (crashes)
+        https://bugs.webkit.org/show_bug.cgi?id=207565
+
+        Reviewed by Adrian Perez de Castro.
+
+        Report InvalidSessionID if the session connection its not connected.
+
+        * WebDriverService.cpp:
+        (WebDriver::WebDriverService::findSessionOrCompleteWithError):
+
+2020-01-29  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        [GTK] WebDriver: screenshot ignores CSS transformations or WebGL content.
+        https://bugs.webkit.org/show_bug.cgi?id=206514
+
+        Reviewed by Carlos Alberto Lopez Perez.
+
+        * Session.cpp:
+        (WebDriver::Session::takeScreenshot): Always set clipToViewport to true.
+        * WebDriverService.cpp:
+        (WebDriver::WebDriverService::takeElementScreenshot): Stop pretending a GET command can have body.
+
+2020-01-13  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        WebDriver: pressed virtual keys not correctly handled in action sequences
+        https://bugs.webkit.org/show_bug.cgi?id=205997
+
+        Reviewed by Brian Burg.
+
+        We are assuming that only one virtual key can be pressed and that a key up always releases the pressed virtual
+        key if any. We should keep a list of pressed keys and remove them from the list when key up happens for them.
+
+        Fixes: imported/w3c/webdriver/tests/perform_actions/key_modifiers.py::test_shift_modifier_generates_capital_letters[\ue008]
+               imported/w3c/webdriver/tests/perform_actions/key_modifiers.py::test_shift_modifier_generates_capital_letters[\ue050]
+
+        * Session.cpp:
+        (WebDriver::Session::performActions):
+        * Session.h:
+
+2020-01-10  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        Automation: evaluateJavaScriptFunction should use Promises
+        https://bugs.webkit.org/show_bug.cgi?id=204151
+
+        Reviewed by Brian Burg.
+
+        * CommandResult.cpp:
+        (WebDriver::CommandResult::httpStatusCode const): Timeout errors should return 500 not 408.
+        * Session.cpp:
+        (WebDriver::Session::executeScript): Ensure the script body goes between new lines to avoid problems with
+        trailing comments like in function() { return foo; // Comment }.
+
+2020-01-07  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        WebDriver: handle no such element errors
+        https://bugs.webkit.org/show_bug.cgi?id=204684
+
+        Reviewed by Brian Burg.
+
+        Handle InvalidNodeIdentifier errors.
+
+        Fixes: imported/w3c/webdriver/tests/get_element_tag_name/get.py::test_element_not_found
+               imported/w3c/webdriver/tests/get_element_property/get.py::test_element_not_found
+               imported/w3c/webdriver/tests/get_element_attribute/get.py::test_element_not_found
+
+        * CommandResult.cpp:
+        (WebDriver::CommandResult::CommandResult):
+
 2019-12-23  Carlos Garcia Campos  <cgarcia@igalia.com>
 
         WebDriver: fix handling of session timeouts for values higher than MAX_INT

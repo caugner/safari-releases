@@ -24,6 +24,7 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/resources/chromium/device_enumeration_options.mojom.js.headers
 /LayoutTests/imported/w3c/web-platform-tests/resources/chromium/device_manager_client.mojom.js
 /LayoutTests/imported/w3c/web-platform-tests/resources/chromium/device_manager_client.mojom.js.headers
+/LayoutTests/imported/w3c/web-platform-tests/resources/chromium/enable-hyperlink-auditing.js
 /LayoutTests/imported/w3c/web-platform-tests/resources/chromium/generic_sensor_mocks.js
 /LayoutTests/imported/w3c/web-platform-tests/resources/chromium/generic_sensor_mocks.js.headers
 /LayoutTests/imported/w3c/web-platform-tests/resources/chromium/image_capture-mojom.js.headers
@@ -33,6 +34,11 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/resources/chromium/mock-facedetection.js
 /LayoutTests/imported/w3c/web-platform-tests/resources/chromium/mock-facedetection.js.headers
 /LayoutTests/imported/w3c/web-platform-tests/resources/chromium/mock-imagecapture.js
+/LayoutTests/imported/w3c/web-platform-tests/resources/chromium/mock-screenenumeration.js
+/LayoutTests/imported/w3c/web-platform-tests/resources/chromium/mock-screenenumeration.js.header
+/LayoutTests/imported/w3c/web-platform-tests/resources/chromium/mock-sms-receiver.js
+/LayoutTests/imported/w3c/web-platform-tests/resources/chromium/mock-textdetection.js
+/LayoutTests/imported/w3c/web-platform-tests/resources/chromium/mock-textdetection.js.headers
 /LayoutTests/imported/w3c/web-platform-tests/resources/chromium/mojo_bindings.js
 /LayoutTests/imported/w3c/web-platform-tests/resources/chromium/mojo_bindings.js.headers
 /LayoutTests/imported/w3c/web-platform-tests/resources/chromium/mojo_web_test_helper_test.mojom.js
@@ -40,7 +46,6 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/resources/chromium/nfc-mock.js
 /LayoutTests/imported/w3c/web-platform-tests/resources/chromium/sensor.mojom.js
 /LayoutTests/imported/w3c/web-platform-tests/resources/chromium/sensor_provider.mojom.js
-/LayoutTests/imported/w3c/web-platform-tests/resources/chromium/sms_mock.js
 /LayoutTests/imported/w3c/web-platform-tests/resources/chromium/string16.mojom.js
 /LayoutTests/imported/w3c/web-platform-tests/resources/chromium/string16.mojom.js.headers
 /LayoutTests/imported/w3c/web-platform-tests/resources/chromium/url.mojom.js
@@ -52,5 +57,7 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/resources/chromium/webusb-child-test.js.headers
 /LayoutTests/imported/w3c/web-platform-tests/resources/chromium/webusb-test.js
 /LayoutTests/imported/w3c/web-platform-tests/resources/chromium/webusb-test.js.headers
+/LayoutTests/imported/w3c/web-platform-tests/resources/chromium/webxr-test-math-helper.js
+/LayoutTests/imported/w3c/web-platform-tests/resources/chromium/webxr-test-math-helper.js.headers
 /LayoutTests/imported/w3c/web-platform-tests/resources/chromium/webxr-test.js
 /LayoutTests/imported/w3c/web-platform-tests/resources/chromium/webxr-test.js.headers

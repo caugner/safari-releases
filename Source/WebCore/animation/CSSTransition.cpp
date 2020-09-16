@@ -27,9 +27,11 @@
 #include "CSSTransition.h"
 
 #include "Animation.h"
+#include "DocumentTimeline.h"
 #include "Element.h"
 #include "InspectorInstrumentation.h"
 #include "KeyframeEffect.h"
+#include "TransitionEvent.h"
 #include <wtf/IsoMallocInlines.h>
 
 namespace WebCore {
@@ -52,6 +54,7 @@ CSSTransition::CSSTransition(Element& element, CSSPropertyID property, Monotonic
     : DeclarativeAnimation(element, backingAnimation)
     , m_property(property)
     , m_generationTime(generationTime)
+    , m_timelineTimeAtCreation(element.document().timeline().currentTime())
     , m_targetStyle(RenderStyle::clonePtr(targetStyle))
     , m_currentStyle(RenderStyle::clonePtr(oldStyle))
     , m_reversingAdjustedStartStyle(RenderStyle::clonePtr(reversingAdjustedStartStyle))
@@ -59,9 +62,9 @@ CSSTransition::CSSTransition(Element& element, CSSPropertyID property, Monotonic
 {
 }
 
-void CSSTransition::resolve(RenderStyle& targetStyle)
+void CSSTransition::resolve(RenderStyle& targetStyle, Optional<Seconds> startTime)
 {
-    DeclarativeAnimation::resolve(targetStyle);
+    DeclarativeAnimation::resolve(targetStyle, startTime);
     m_currentStyle = RenderStyle::clonePtr(targetStyle);
 }
 
@@ -83,6 +86,11 @@ void CSSTransition::setTimingProperties(Seconds delay, Seconds duration)
     effectTimingDidChange();
 
     unsuspendEffectInvalidation();
+}
+
+Ref<AnimationEventBase> CSSTransition::createEvent(const AtomString& eventType, double elapsedTime, const String& pseudoId, Optional<Seconds> timelineTime)
+{
+    return TransitionEvent::create(eventType, getPropertyNameString(m_property), elapsedTime, pseudoId, timelineTime, this);
 }
 
 } // namespace WebCore

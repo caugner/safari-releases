@@ -14,11 +14,14 @@ Property values requiring vendor prefixes:
 None
 ------------------------------------------------------------------------
 List of files:
+/LayoutTests/imported/w3c/web-platform-tests/resources/test/tests/unit/assert_implements.html
+/LayoutTests/imported/w3c/web-platform-tests/resources/test/tests/unit/assert_implements_optional.html
 /LayoutTests/imported/w3c/web-platform-tests/resources/test/tests/unit/assert_object_equals.html
 /LayoutTests/imported/w3c/web-platform-tests/resources/test/tests/unit/basic.html
 /LayoutTests/imported/w3c/web-platform-tests/resources/test/tests/unit/exceptional-cases-timeouts.html
 /LayoutTests/imported/w3c/web-platform-tests/resources/test/tests/unit/exceptional-cases.html
 /LayoutTests/imported/w3c/web-platform-tests/resources/test/tests/unit/format-value.html
+/LayoutTests/imported/w3c/web-platform-tests/resources/test/tests/unit/helpers.js
 /LayoutTests/imported/w3c/web-platform-tests/resources/test/tests/unit/late-test.html
 /LayoutTests/imported/w3c/web-platform-tests/resources/test/tests/unit/promise_setup-timeout.html
 /LayoutTests/imported/w3c/web-platform-tests/resources/test/tests/unit/promise_setup.html

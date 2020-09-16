@@ -1,0 +1,148 @@
+
+PASS .grid 1 
+PASS .grid 2 
+PASS .grid 3 
+FAIL .grid 4 assert_equals: 
+<div class="grid">
+  <div class="minHeight60 marginTop5" data-expected-height="60"></div>
+  <div data-expected-height="65"></div>
+</div>
+height expected 65 but got 60
+FAIL .grid 5 assert_equals: 
+<div class="grid">
+  <div class="minHeight60 marginTop5 marginLeftAuto" data-expected-height="60"></div>
+  <div data-expected-height="65"></div>
+</div>
+height expected 65 but got 60
+PASS .grid 6 
+FAIL .grid 7 assert_equals: 
+<div class="grid">
+  <div class="minHeight60 marginBottom10" data-expected-height="60"></div>
+  <div data-expected-height="70"></div>
+</div>
+height expected 70 but got 60
+PASS .grid 8 
+FAIL .grid 9 assert_equals: 
+<div class="grid">
+  <div class="minHeight60 marginTop5 marginBottom10" data-expected-height="60"></div>
+  <div data-expected-height="75"></div>
+</div>
+height expected 75 but got 60
+PASS .grid 10 
+PASS .grid 11 
+PASS .grid 12 
+PASS .grid 13 
+PASS .grid 14 
+PASS .grid 15 
+PASS .grid 16 
+PASS .grid 17 
+PASS .grid 18 
+PASS .grid 19 
+PASS .grid 20 
+PASS .grid 21 
+PASS .grid 22 
+FAIL .grid 23 assert_equals: 
+<div class="grid">
+  <div class="minHeight60 marginTop5 marginBottom10 paddingTop6 paddingBottom3 borderTop2 borderBottom4" data-expected-height="75"></div>
+  <div data-expected-height="90"></div>
+</div>
+height expected 90 but got 75
+PASS .grid 24 
+PASS .grid 25 
+PASS .grid 26 
+FAIL .grid 27 assert_equals: 
+<div class="grid directionRTL">
+  <div class="minHeight60 marginTop5" data-expected-height="60"></div>
+  <div data-expected-height="65"></div>
+</div>
+height expected 65 but got 60
+FAIL .grid 28 assert_equals: 
+<div class="grid directionRTL">
+  <div class="minHeight60 marginTop5 marginLeftAuto" data-expected-height="60"></div>
+  <div data-expected-height="65"></div>
+</div>
+height expected 65 but got 60
+PASS .grid 29 
+FAIL .grid 30 assert_equals: 
+<div class="grid directionRTL">
+  <div class="minHeight60 marginBottom10" data-expected-height="60"></div>
+  <div data-expected-height="70"></div>
+</div>
+height expected 70 but got 60
+PASS .grid 31 
+FAIL .grid 32 assert_equals: 
+<div class="grid directionRTL">
+  <div class="minHeight60 marginTop5 marginBottom10" data-expected-height="60"></div>
+  <div data-expected-height="75"></div>
+</div>
+height expected 75 but got 60
+PASS .grid 33 
+PASS .grid 34 
+PASS .grid 35 
+PASS .grid 36 
+PASS .grid 37 
+PASS .grid 38 
+PASS .grid 39 
+PASS .grid 40 
+PASS .grid 41 
+PASS .grid 42 
+PASS .grid 43 
+PASS .grid 44 
+PASS .grid 45 
+FAIL .grid 46 assert_equals: 
+<div class="grid directionRTL">
+  <div class="minHeight60 marginTop5 marginBottom10 paddingTop6 paddingBottom3 borderTop2 borderBottom4" data-expected-height="75"></div>
+  <div data-expected-height="90"></div>
+</div>
+height expected 90 but got 75
+Direction LTR
+
+Item height: 60px;
+ Item min-height: 60px;
+ Item height: 60px; & margin-left: 5px;
+ Item min-height: 60px; & margin-left: 5px;
+ Item min-height: 60px; & margin-top: 5px; & margin-left: auto
+ Item height: 60px; & margin-right: 10px;
+ Item min-height: 60px; & margin-right: 10px;
+ Item height: 60px; & margin-left: 5px; & margin-right: 10px;
+ Item min-height: 60px; & margin-left: 5px; & margin-right: 10px;
+ Item height: 60px; & padding-left: 6px;
+ Item min-height: 60px; & padding-left: 6px;
+ Item height: 60px; & padding-right: 3px;
+ Item min-height: 60px; & padding-right: 3px;
+ Item height: 60px; & padding-left: 6px; & padding-right: 3px;
+ Item min-height: 60px; & padding-left: 6px; & padding-right: 3px;
+ Item height: 60px; & border-left-width: 2px;
+ Item min-height: 60px; & border-left-width: 2px;
+ Item height: 60px; & border-right-width: 4px;
+ Item min-height: 60px; & border-right-width: 4px;
+ Item height: 60px; & border-left-width: 2px; & border-right-width: 4px;
+ Item min-height: 60px; & border-left-width: 2px; & border-right-width: 4px;
+ Item height: 60px; & margin-left: 5px; & margin-right: 10px; & padding-left: 6px; & padding-right: 3px; & border-left-width: 2px; & border-right-width: 4px;
+ Item min-height: 60px; & margin-left: 5px; & margin-right: 10px; & padding-left: 6px; & padding-right: 3px; & border-left-width: 2px; & border-right-width: 4px;
+Direction RTL
+
+Item height: 60px;
+ Item min-height: 60px;
+ Item height: 60px; & margin-left: 5px;
+ Item min-height: 60px; & margin-left: 5px;
+ Item min-height: 60px; & margin-top: 5px; & margin-left: auto
+ Item height: 60px; & margin-right: 10px;
+ Item min-height: 60px; & margin-right: 10px;
+ Item height: 60px; & margin-left: 5px; & margin-right: 10px;
+ Item min-height: 60px; & margin-left: 5px; & margin-right: 10px;
+ Item height: 60px; & padding-left: 6px;
+ Item min-height: 60px; & padding-left: 6px;
+ Item height: 60px; & padding-right: 3px;
+ Item min-height: 60px; & padding-right: 3px;
+ Item height: 60px; & padding-left: 6px; & padding-right: 3px;
+ Item min-height: 60px; & padding-left: 6px; & padding-right: 3px;
+ Item height: 60px; & border-left-width: 2px;
+ Item min-height: 60px; & border-left-width: 2px;
+ Item height: 60px; & border-right-width: 4px;
+ Item min-height: 60px; & border-right-width: 4px;
+ Item height: 60px; & border-left-width: 2px; & border-right-width: 4px;
+ Item min-height: 60px; & border-left-width: 2px; & border-right-width: 4px;
+ Item height: 60px; & margin-left: 5px; & margin-right: 10px; & padding-left: 6px; & padding-right: 3px; & border-left-width: 2px; & border-right-width: 4px;
+ Item min-height: 60px; & margin-left: 5px; & margin-right: 10px; & padding-left: 6px; & padding-right: 3px; & border-left-width: 2px; & border-right-width: 4px;
+

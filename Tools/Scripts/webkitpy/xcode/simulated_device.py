@@ -27,11 +27,12 @@ import plistlib
 import re
 import time
 
+from webkitcorepy import Version
+
 from webkitpy.common.memoized import memoized
 from webkitpy.common.system.executive import ScriptError
 from webkitpy.common.system.systemhost import SystemHost
 from webkitpy.common.timeout_context import Timeout
-from webkitpy.common.version import Version
 from webkitpy.port.device import Device
 from webkitpy.xcode.device_type import DeviceType
 
@@ -129,8 +130,9 @@ class SimulatedDeviceManager(object):
             return
 
         try:
-            simctl_json = json.loads(host.executive.run_command([SimulatedDeviceManager.xcrun, 'simctl', 'list', '--json'], decode_output=False))
+            simctl_json = json.loads(host.executive.run_command([SimulatedDeviceManager.xcrun, 'simctl', 'list', '--json'], decode_output=False, return_stderr=False))
         except (ValueError, ScriptError):
+            _log.error('Failed to decode json output')
             return
 
         SimulatedDeviceManager._device_identifier_to_name = {device['identifier']: device['name'] for device in simctl_json['devicetypes']}
@@ -203,15 +205,18 @@ class SimulatedDeviceManager(object):
 
     @staticmethod
     def get_runtime_for_device_type(device_type):
+        # Search for an available runtime that best matches the provided device type
+        candidate = None
         for runtime in SimulatedDeviceManager.AVAILABLE_RUNTIMES:
-            if runtime.os_variant == device_type.software_variant and (device_type.software_version is None or device_type.software_version == runtime.version):
-                return runtime
-
-        # Allow for a partial version match.
-        for runtime in SimulatedDeviceManager.AVAILABLE_RUNTIMES:
-            if runtime.os_variant == device_type.software_variant and runtime.version in device_type.software_version:
-                return runtime
-        return None
+            if runtime.os_variant != device_type.software_variant:
+                continue
+            if device_type.software_version and runtime.version.major != device_type.software_version.major:
+                continue
+            if device_type.software_version and runtime.version < device_type.software_version:
+                continue
+            if not candidate or runtime.version < candidate.version:
+                candidate = runtime
+        return candidate
 
     @staticmethod
     def _disambiguate_device_type(device_type):
@@ -246,8 +251,11 @@ class SimulatedDeviceManager(object):
 
     @staticmethod
     def _get_device_identifier_for_type(device_type):
+        type_name_for_request = u'{} {}'.format(device_type.hardware_family.lower(), device_type.standardized_hardware_type.lower())
         for type_id, type_name in SimulatedDeviceManager._device_identifier_to_name.items():
-            if type_name.lower() == u'{} {}'.format(device_type.hardware_family.lower(), device_type.hardware_type.lower()):
+            if type_name.lower() == type_name_for_request:
+                return type_id
+            if type_name.lower().endswith(DeviceType.FIRST_GENERATION) and type_name.lower()[:-len(DeviceType.FIRST_GENERATION)] == type_name_for_request:
                 return type_id
         return None
 
@@ -563,7 +571,7 @@ class SimulatedDevice(object):
             _log.debug(u'{} has no service to check if the device is usable'.format(self.device_type.software_variant))
             return True
 
-        system_processes = self.executive.run_command([SimulatedDeviceManager.xcrun, 'simctl', 'spawn', self.udid, 'launchctl', 'print', 'system'], decode_output=False)
+        system_processes = self.executive.run_command([SimulatedDeviceManager.xcrun, 'simctl', 'spawn', self.udid, 'launchctl', 'print', 'system'], decode_output=True, return_stderr=False)
         if re.search(r'"{}"'.format(home_screen_service), system_processes) or re.search(r'A\s+{}'.format(home_screen_service), system_processes):
             return True
         return False
@@ -604,7 +612,7 @@ class SimulatedDevice(object):
 
     def install_app(self, app_path, env=None):
         # Even after carousel is running, it takes a few seconds for watchOS to allow installs.
-        for i in xrange(self.NUM_INSTALL_RETRIES):
+        for i in range(self.NUM_INSTALL_RETRIES):
             exit_code = self.executive.run_command(['xcrun', 'simctl', 'install', self.udid, app_path], return_exit_code=True)
             if exit_code == 0:
                 return True
@@ -638,6 +646,7 @@ class SimulatedDevice(object):
                     ['xcrun', 'simctl', 'launch', self.udid, bundle_id] + args,
                     env=environment_to_use,
                     error_handler=_log_debug_error,
+                    return_stderr=False,
                 )
                 match = re.match(r'(?P<bundle>[^:]+): (?P<pid>\d+)\n', output)
                 # FIXME: We shouldn't need to check the PID <rdar://problem/31154075>.

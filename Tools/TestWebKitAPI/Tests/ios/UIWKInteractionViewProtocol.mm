@@ -28,11 +28,16 @@
 #if PLATFORM(IOS_FAMILY)
 
 #import "PlatformUtilities.h"
+#import "TestInputDelegate.h"
 #import "TestWKWebView.h"
 #import "UIKitSPI.h"
+#import "UserInterfaceSwizzler.h"
+#import <WebKit/WKWebViewPrivate.h>
+#import <WebKit/WKWebViewPrivateForTesting.h>
 #import <wtf/RetainPtr.h>
 
 @interface TestWKWebView (UIWKInteractionViewTesting)
+- (void)selectPositionAtPoint:(CGPoint)point;
 - (void)selectTextWithGranularity:(UITextGranularity)granularity atPoint:(CGPoint)point;
 - (void)updateSelectionWithExtentPoint:(CGPoint)point;
 - (void)updateSelectionWithExtentPoint:(CGPoint)point withBoundary:(UITextGranularity)granularity;
@@ -67,7 +72,18 @@
     TestWebKitAPI::Util::run(&done);
 }
 
+- (void)selectPositionAtPoint:(CGPoint)point
+{
+    __block bool done = false;
+    [self.textInputContentView selectPositionAtPoint:point completionHandler:^{
+        done = true;
+    }];
+    TestWebKitAPI::Util::run(&done);
+}
+
 @end
+
+namespace TestWebKitAPI {
 
 TEST(UIWKInteractionViewProtocol, SelectTextWithCharacterGranularity)
 {
@@ -91,5 +107,79 @@ TEST(UIWKInteractionViewProtocol, UpdateSelectionWithExtentPoint)
     [webView updateSelectionWithExtentPoint:CGPointMake(300, 20)];
     EXPECT_WK_STREQ("Hello world", [webView stringByEvaluatingJavaScript:@"getSelection().toString()"]);
 }
+
+TEST(UIWKInteractionViewProtocol, SelectPositionAtPointAfterBecomingFirstResponder)
+{
+    IPhoneUserInterfaceSwizzler userInterfaceSwizzler;
+
+    auto inputDelegate = adoptNS([TestInputDelegate new]);
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400)]);
+    [webView _setInputDelegate:inputDelegate.get()];
+    [inputDelegate setFocusStartsInputSessionPolicyHandler:[&] (WKWebView *, id <_WKFocusedElementInfo>) -> _WKFocusStartsInputSessionPolicy {
+        return _WKFocusStartsInputSessionPolicyAllow;
+    }];
+    // 1. Ensure that the WKWebView is not first responder.
+    [webView synchronouslyLoadHTMLString:@"<body style='margin: 0; padding: 0'><div contenteditable='true' style='height: 200px; width: 200px'></div></body>"];
+    [webView evaluateJavaScriptAndWaitForInputSessionToChange:@"document.querySelector('div').focus()"];
+
+    // We explicitly dismiss the form accessory view to ensure that a DOM blur event is dispatched
+    // regardless of the test device used as -resignFirstResponder may not do this (e.g. it does
+    // not do this on iPad when there is a hardware keyboard attached).
+    [webView dismissFormAccessoryView];
+    [webView resignFirstResponder];
+    EXPECT_WK_STREQ("BODY", [webView stringByEvaluatingJavaScript:@"document.activeElement.tagName"]);
+
+    // 2. Make it first responder and perform selection.
+    [webView becomeFirstResponder];
+    [webView selectPositionAtPoint:CGPointMake(8, 8)];
+    EXPECT_WK_STREQ("DIV", [webView stringByEvaluatingJavaScript:@"document.activeElement.tagName"]);
+}
+
+TEST(UIWKInteractionViewProtocol, SelectPositionAtPointInFocusedElementStartsInputSession)
+{
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400)]);
+    auto inputDelegate = adoptNS([TestInputDelegate new]);
+    [webView _setInputDelegate:inputDelegate.get()];
+
+    bool didCallDecidePolicyForFocusedElement = false;
+    [inputDelegate setFocusStartsInputSessionPolicyHandler:[&] (WKWebView *, id <_WKFocusedElementInfo>) -> _WKFocusStartsInputSessionPolicy {
+        didCallDecidePolicyForFocusedElement = true;
+        return _WKFocusStartsInputSessionPolicyDisallow;
+    }];
+
+    // 1. Focus element
+    [webView synchronouslyLoadHTMLString:@"<body style='margin: 0; padding: 0'><div contenteditable='true' style='height: 200px; width: 200px'></div></body>"];
+    [webView stringByEvaluatingJavaScript:@"document.querySelector('div').focus()"];
+    TestWebKitAPI::Util::run(&didCallDecidePolicyForFocusedElement);
+
+    // 2. Focus the element again via selecting a position at a point inside it.
+    didCallDecidePolicyForFocusedElement = false;
+    [webView becomeFirstResponder];
+    [webView selectPositionAtPoint:CGPointMake(8, 8)];
+    TestWebKitAPI::Util::run(&didCallDecidePolicyForFocusedElement);
+}
+
+TEST(UIWKInteractionViewProtocol, SelectPositionAtPointInElementInNonFocusedFrame)
+{
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400)]);
+    auto inputDelegate = adoptNS([TestInputDelegate new]);
+    [webView _setInputDelegate:inputDelegate.get()];
+
+    bool didStartInputSession = false;
+    [inputDelegate setFocusStartsInputSessionPolicyHandler:[&] (WKWebView *, id <_WKFocusedElementInfo>) {
+        didStartInputSession = true;
+        return _WKFocusStartsInputSessionPolicyAllow;
+    }];
+
+    [webView synchronouslyLoadHTMLString:@"<body style='margin: 0; padding: 0'><iframe height='100' width='100%' style='border: none; padding: 0; margin: 0' srcdoc='<body style=\"margin: 0; padding: 0\"><div contenteditable=\"true\" style=\"width: 200px; height: 200px\"></body>'></iframe></body>"];
+    EXPECT_WK_STREQ("BODY", [webView stringByEvaluatingJavaScript:@"document.querySelector('iframe').contentDocument.activeElement.tagName"]);
+
+    [webView becomeFirstResponder];
+    [webView selectPositionAtPoint:CGPointMake(0, 0)];
+    TestWebKitAPI::Util::run(&didStartInputSession);
+    EXPECT_WK_STREQ("DIV", [webView stringByEvaluatingJavaScript:@"document.querySelector('iframe').contentDocument.activeElement.tagName"]);
+}
+
+} // namespace TestWebKitAPI
 
 #endif

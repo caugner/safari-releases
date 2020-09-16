@@ -3,34 +3,35 @@
 flags:
   BigInt: useBigInt
   WeakRef: useWeakRefs
+  FinalizationRegistry: useWeakRefs
+  class-fields-public: usePublicClassFields
+  class-fields-private: usePrivateClassFields
+  Intl.DisplayNames: useIntlDisplayNames
 skip:
   features:
     - SharedArrayBuffer
     - Atomics
+    - Atomics.waitAsync
     # https://bugs.webkit.org/show_bug.cgi?id=174931
     - regexp-lookbehind
 
-    - class-fields-public
-    - class-fields-private
     - class-methods-private
     - class-static-fields-public
     - class-static-fields-private
     - class-static-methods-private
+    - cleanupSome
     - host-gc-required
+    # https://bugs.webkit.org/show_bug.cgi?id=202475
     - regexp-match-indices
     - top-level-await
-    - FinalizationGroup
     - Intl.DateTimeFormat-datetimestyle
+    - Intl.DateTimeFormat-dayPeriod
     - Intl.DateTimeFormat-formatRange
+    - Intl.DateTimeFormat-fractionalSecondDigits
     - Intl.ListFormat
-    - Intl.Locale
     - Intl.NumberFormat-unified
-    - Intl.RelativeTimeFormat
     - Intl.Segmenter
   paths:
-    # https://bugs.webkit.org/show_bug.cgi?id=192920
-    - test/intl402/NumberFormat/prototype/formatToParts
-
     - test/built-ins/DataView/prototype/getBigInt64
     - test/built-ins/DataView/prototype/getBigUint64
     - test/built-ins/DataView/prototype/setBigInt64
@@ -78,41 +79,13 @@ skip:
     - test/built-ins/TypedArrayConstructors/internals/Set/BigInt
     - test/built-ins/TypedArrayConstructors/of/BigInt
   files:
-    - test/built-ins/Array/prototype/reverse/length-exceeding-integer-limit-with-object.js
-    - test/built-ins/Array/prototype/unshift/length-near-integer-limit.js
-
     # https://bugs.webkit.org/show_bug.cgi?id=186749
     - test/built-ins/RegExp/property-escapes/character-class.js
-    
-    # https://bugs.webkit.org/show_bug.cgi?id=185495
-    - test/built-ins/Array/prototype/slice/S15.4.4.10_A3_T1.js
-    - test/built-ins/Array/prototype/slice/S15.4.4.10_A3_T2.js
-    - test/built-ins/Array/prototype/slice/create-non-array-invalid-len.js
-    - test/built-ins/Array/prototype/slice/create-proxied-array-invalid-len.js
-    - test/built-ins/Array/prototype/splice/create-species-undef-invalid-len.js
-    - test/built-ins/Array/prototype/splice/create-non-array-invalid-len.js
-    - test/built-ins/Array/prototype/splice/create-species-undef-invalid-len.js
-    - test/built-ins/Array/prototype/splice/length-near-integer-limit-grow-array.js
-
-    # https://bugs.webkit.org/show_bug.cgi?id=185625
-    - test/built-ins/Array/prototype/indexOf/15.4.4.14-3-28.js
-    - test/built-ins/Array/prototype/indexOf/15.4.4.14-3-29.js
-
-    # https://bugs.webkit.org/show_bug.cgi?id=164456
-    - test/built-ins/Array/prototype/lastIndexOf/15.4.4.15-3-28.js
-    - test/built-ins/Array/prototype/pop/S15.4.4.6_A3_T2.js
-    - test/built-ins/Array/prototype/push/S15.4.4.7_A4_T1.js
-    - test/built-ins/Array/prototype/push/length-near-integer-limit.js
 
     # [[OwnPropertyKeys]] order with large integer index keys up to 2 ** 53 - 1
     # https://bugs.webkit.org/show_bug.cgi?id=186691
     - test/built-ins/Reflect/ownKeys/return-on-corresponding-order-large-index.js
 
-    # https://bugs.webkit.org/show_bug.cgi?id=192920
-    - test/intl402/PluralRules/prototype/resolvedOptions/order.js
-    - test/intl402/PluralRules/prototype/resolvedOptions/pluralCategories.js
-    - test/intl402/NumberFormat/prototype/format/format-fraction-digits.js
-    - test/intl402/NumberFormat/prototype/format/format-significant-digits.js
 
     # https://bugs.webkit.org/show_bug.cgi?id=190800
     - test/built-ins/TypedArray/prototype/set/src-typedarray-big-throws.js
@@ -147,3 +120,10 @@ skip:
     - test/built-ins/TypedArrayConstructors/prototype/toLocaleString/bigint-inherited.js
     - test/built-ins/TypedArrayConstructors/prototype/toString/bigint-inherited.js
     - test/built-ins/TypedArrayConstructors/prototype/values/bigint-inherited.js
+
+    # requires ICU 65 (https://unicode-org.atlassian.net/browse/ICU-20654)
+    - test/intl402/RelativeTimeFormat/prototype/format/en-us-numeric-auto.js
+    - test/intl402/RelativeTimeFormat/prototype/formatToParts/en-us-numeric-auto.js
+
+    # Do not work with ICU 64, and work with ICU 66 or later.
+    - test/intl402/NumberFormat/prototype/format/numbering-systems.js

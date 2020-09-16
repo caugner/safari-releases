@@ -29,10 +29,11 @@ import os
 import re
 import unittest
 
+from webkitcorepy import unicode
+
 from webkitpy.common.host import Host
 from webkitpy.common.system.outputcapture import OutputCapture
 from webkitpy.common.webkit_finder import WebKitFinder
-from webkitpy.common.unicode_compatibility import unicode
 from webkitpy.thirdparty.BeautifulSoup import BeautifulSoup
 from webkitpy.w3c.test_converter import _W3CTestConverter
 
@@ -296,6 +297,8 @@ CONTENT OF TEST
 
         test_html = """<html>
 <head>
+<link href="../support/base-style.css">
+<video src="resources/video.mkv"></video>
 <script src="../../some-script.js"></script>
 <style src="../../../some-style.css"></style>
 </head>
@@ -304,7 +307,8 @@ CONTENT OF TEST
 </body>
 </html>
 """
-        test_reference_support_info = {'reference_relpath': '../', 'files': ['../../some-script.js', '../../../some-style.css', '../../../../some-image.jpg'], 'elements': ['script', 'style', 'img']}
+        test_reference_support_info = {'reference_relpath': '../', 'files': ['../../some-script.js', '../../../some-style.css', '../../../../some-image.jpg', '../support/base-style.css', 'resources/video.mkv'],
+                                       'elements': ['script', 'style', 'img', 'link', 'video']}
         converter = _W3CTestConverter(DUMMY_PATH, DUMMY_FILENAME, test_reference_support_info)
 
         oc = OutputCapture()
@@ -318,6 +322,62 @@ CONTENT OF TEST
 
         self.verify_conversion_happened(converted)
         self.verify_reference_relative_paths(converted, test_reference_support_info)
+
+    def test_convert_style_multiple_url(self):
+        """ Tests convert_attributes_if_needed() using a reference file that has several relative URL paths in the style """
+
+        test_html = """<html>
+<head>
+ <style type="text/css">
+        .redSquare {
+            position: absolute;
+            left:50px;
+            width: 100px;
+            height: 100px;
+            background-image:url(../support/yyy.png);
+        }
+        .greenSquare {
+            position: absolute;
+            left:50px;
+            width: 100px;
+            height: 100px;
+            background-image:url(../support/yy.png);
+        }
+        .yellowSquare {
+            position: absolute;
+            left:50px;
+            width: 100px;
+            height: 100px;
+            background-image:url(../../another/directory/x.png);
+        }
+        .container {
+            position: absolute;
+        }
+    </style>
+</head>
+<body>
+</body>
+</html>
+"""
+        test_reference_support_info = {'reference_relpath': '../', 'files': ['../support/yyy.png', '../support/yy.png', '../../another/directory/x.png']}
+        converter = _W3CTestConverter(DUMMY_PATH, DUMMY_FILENAME, test_reference_support_info)
+
+        oc = OutputCapture()
+        oc.capture_output()
+        try:
+            converter.feed(test_html)
+            converter.close()
+            converted = converter.output()
+        finally:
+            oc.restore_output()
+
+        self.verify_conversion_happened(converted)
+
+        for path in test_reference_support_info['files']:
+            expected_path = re.sub(test_reference_support_info['reference_relpath'], '', path, 1)
+            expected_url = 'background-image:url(' + expected_path + ');'
+            self.assertTrue(expected_url in converted[2], 'relative path ' + path + ' was not converted correcty')
+
 
     def verify_conversion_happened(self, converted):
         self.assertTrue(converted, "conversion didn't happen")
@@ -354,9 +414,10 @@ CONTENT OF TEST
     def verify_reference_relative_paths(self, converted, reference_support_info):
         idx = 0
         for path in reference_support_info['files']:
-            expected_path = re.sub(reference_support_info['reference_relpath'], '', path, 1)
+            expected_path = re.sub(re.escape(reference_support_info['reference_relpath']), '', path, 1)
             element = reference_support_info['elements'][idx]
-            expected_tag = '<' + element + ' src=\"' + expected_path + '\">'
+            element_src = 'href' if element == 'link' else 'src'
+            expected_tag = '<' + element + ' ' + element_src + '=\"' + expected_path + '\">'
             self.assertTrue(expected_tag in converted[2], 'relative path ' + path + ' was not converted correcty')
             idx += 1
 

@@ -15,3 +15,4 @@ None
 ------------------------------------------------------------------------
 List of files:
 /LayoutTests/imported/w3c/web-platform-tests/resources/test/tests/unit/IdlInterfaceMember/is_to_json_regular_operation.html
+/LayoutTests/imported/w3c/web-platform-tests/resources/test/tests/unit/IdlInterfaceMember/toString.html

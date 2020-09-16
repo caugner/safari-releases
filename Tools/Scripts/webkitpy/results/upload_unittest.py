@@ -29,6 +29,8 @@ import sys
 import time
 import unittest
 
+from webkitcorepy import BytesIO
+
 from webkitpy.results.upload import Upload
 from webkitpy.thirdparty import mock
 
@@ -232,12 +234,15 @@ class UploadTest(unittest.TestCase):
         )
 
         with mock.patch('requests.post', new=lambda url, headers={}, data={}, files={}, verify=True: self.MockResponse()):
-            self.assertTrue(upload.upload_archive('https://results.webkit.org', archive='content', log_line_func=lambda _: None))
+            self.assertTrue(upload.upload_archive('https://results.webkit.org', archive=BytesIO(b'content'), log_line_func=lambda _: None))
 
         with mock.patch('requests.post', new=lambda url, headers={}, data={}, files={}, verify=True: self.raise_requests_ConnectionError()):
             lines = []
-            self.assertFalse(upload.upload_archive('https://results.webkit.org', archive='content', log_line_func=lambda line: lines.append(line)))
-            self.assertEqual([' ' * 4 + 'Failed to upload test archive to https://results.webkit.org, results server not online'], lines)
+            self.assertTrue(upload.upload_archive('https://results.webkit.org', archive=BytesIO(b'content'), log_line_func=lambda line: lines.append(line)))
+            self.assertEqual([
+                ' ' * 4 + 'Failed to upload test archive to https://results.webkit.org, results server dropped connection, likely due to archive size (0.0 MB).',
+                ' ' * 4 + 'This error is not fatal, continuing'
+            ], lines)
 
         mock_404 = mock.patch('requests.post', new=lambda url, headers={}, data={}, files={}, verify=True: self.MockResponse(
             status_code=404,
@@ -249,4 +254,17 @@ class UploadTest(unittest.TestCase):
             self.assertEqual([
                 ' ' * 4 + 'Error uploading archive to https://results.webkit.org',
                 ' ' * 8 + 'No such address',
+            ], lines)
+
+        mock_413 = mock.patch('requests.post', new=lambda url, headers={}, data={}, files={}, verify=True: self.MockResponse(
+            status_code=413,
+            text=json.dumps(dict(description='Request Entity Too Large')),
+        ))
+        with mock_413:
+            lines = []
+            self.assertTrue(upload.upload_archive('https://results.webkit.org', archive='content', log_line_func=lambda line: lines.append(line)))
+            self.assertEqual([
+                ' ' * 4 + 'Upload to https://results.webkit.org failed:',
+                ' ' * 8 + 'Request Entity Too Large',
+                ' ' * 4 + 'This error is not fatal, continuing',
             ], lines)

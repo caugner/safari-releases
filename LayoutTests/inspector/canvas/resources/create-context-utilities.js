@@ -22,6 +22,8 @@ function createCSSCanvas(contextType, canvasName) {
     window.contexts.push();
 }
 
+let destroyCanvasesInterval = null;
+
 function destroyCanvases() {
     for (let context of window.contexts) {
         if (!context)
@@ -36,7 +38,12 @@ function destroyCanvases() {
 
     // Force GC to make sure the canvas element is destroyed, otherwise the frontend
     // does not receive Canvas.canvasRemoved events.
-    setTimeout(() => { GCController.collect(); }, 0);
+    destroyCanvasesInterval = setInterval(() => { GCController.collect(); }, 0);
+}
+
+function stopDestroyingCanvases()
+{
+    clearInterval(destroyCanvasesInterval);
 }
 
 TestPage.registerInitializer(() => {
@@ -49,11 +56,10 @@ TestPage.registerInitializer(() => {
             let contextDisplayName = WI.Canvas.displayNameForContextType(contextType);
             InspectorTest.expectEqual(canvas.contextType, contextType, `Canvas context should be ${contextDisplayName}.`);
 
+            let traceText = "";
             for (let i = 0; i < canvas.backtrace.length; ++i) {
                 let callFrame = canvas.backtrace[i];
-                let traceText = `  ${i}: `;
-                traceText += callFrame.functionName || "(anonymous function)";
-
+                traceText += `  ${i}: ` + (callFrame.functionName || "(anonymous function)");
                 if (callFrame.nativeCode)
                     traceText += " - [native code]";
                 else if (callFrame.programCode)
@@ -62,11 +68,9 @@ TestPage.registerInitializer(() => {
                     let location = callFrame.sourceCodeLocation;
                     traceText += " - " + sanitizeURL(location.sourceCode.url) + `:${location.lineNumber}:${location.columnNumber}`;
                 }
-
-                InspectorTest.log(traceText);
+                traceText += "\n";
             }
-
-            InspectorTest.log("");
+            InspectorTest.log(traceText);
 
             return canvas;
         });
@@ -110,7 +114,7 @@ TestPage.registerInitializer(() => {
                         return;
                     }
 
-                    let promise = awaitCanvasRemoved(canvas.identifier);
+                    let promise = awaitCanvasRemoved(canvas.identifier).then(() => { InspectorTest.evaluateInPage(`stopDestroyingCanvases()`); });
                     InspectorTest.evaluateInPage(`destroyCanvases()`);
                     return promise;
                 })

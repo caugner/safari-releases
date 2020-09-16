@@ -35,8 +35,12 @@
 
 #if !__has_feature(objc_arc)
 #    define ANGLE_MTL_AUTORELEASE autorelease
+#    define ANGLE_MTL_RETAIN retain
+#    define ANGLE_MTL_RELEASE release
 #else
 #    define ANGLE_MTL_AUTORELEASE self
+#    define ANGLE_MTL_RETAIN self
+#    define ANGLE_MTL_RELEASE self
 #endif
 
 #define ANGLE_MTL_UNUSED __attribute__((unused))
@@ -103,15 +107,17 @@ constexpr uint32_t kMaxShaderSamplers    = 16;
 constexpr size_t kDefaultUniformsMaxSize = 4 * 1024;
 constexpr uint32_t kMaxViewports         = 1;
 
-constexpr uint32_t kVertexAttribBufferOffsetAlignment = 4;
 constexpr uint32_t kVertexAttribBufferStrideAlignment = 4;
 // Alignment requirement for offset passed to setVertex|FragmentBuffer
 #if TARGET_OS_OSX || TARGET_OS_MACCATALYST
-constexpr uint32_t kBufferSettingOffsetAlignment = 256;
+constexpr uint32_t kUniformBufferSettingOffsetMinAlignment = 256;
 #else
-constexpr uint32_t kBufferSettingOffsetAlignment = 4;
+constexpr uint32_t kUniformBufferSettingOffsetMinAlignment = 4;
 #endif
 constexpr uint32_t kIndexBufferOffsetAlignment = 4;
+
+// Front end binding limits
+constexpr uint32_t kMaxGLSamplerBindings = 2 * kMaxShaderSamplers;
 
 // Binding index start for vertex data buffers:
 constexpr uint32_t kVboBindingIndexStart = 0;
@@ -322,6 +328,10 @@ class Context : public ErrorHandler
     } while (0)
 
 #define ANGLE_MTL_TRY(context, test) ANGLE_MTL_CHECK(context, test, GL_INVALID_OPERATION)
+
+#define ANGLE_MTL_UNREACHABLE(context) \
+    UNREACHABLE();                     \
+    ANGLE_MTL_TRY(context, false)
 
 }  // namespace mtl
 }  // namespace rx

@@ -133,6 +133,7 @@ public:
 
     static constexpr bool needsDestruction = true;
     static void destroy(JSCell*);
+    static void visitChildren(JSCell*, SlotVisitor&);
 
     DECLARE_EXPORT_INFO;
 
@@ -169,11 +170,10 @@ public:
     find_iterator find(const KeyType&);
     ValueType* get(const KeyType&);
     // Add a value to the table
-    enum EffectOnPropertyOffset { PropertyOffsetMayChange, PropertyOffsetMustNotChange };
-    std::pair<find_iterator, bool> add(const ValueType& entry, PropertyOffset&, EffectOnPropertyOffset);
+    std::pair<find_iterator, bool> WARN_UNUSED_RETURN add(VM&, const ValueType& entry);
     // Remove a value from the table.
-    void remove(const find_iterator& iter);
-    void remove(const KeyType& key);
+    void remove(VM&, const find_iterator& iter);
+    void remove(VM&, const KeyType& key);
 
     // Returns the number of values in the hashtable.
     unsigned size() const;
@@ -212,11 +212,14 @@ private:
     PropertyTable(VM&, unsigned initialCapacity, const PropertyTable&);
 
     PropertyTable(const PropertyTable&);
+
+    void finishCreation(VM&);
+
     // Used to insert a value known not to be in the table, and where we know capacity to be available.
     void reinsert(const ValueType& entry);
 
     // Rehash the table.  Used to grow, or to recover deleted slots.
-    void rehash(unsigned newCapacity);
+    void rehash(VM&, unsigned newCapacity);
 
     // The capacity of the table of values is half of the size of the index.
     unsigned tableCapacity() const;
@@ -300,7 +303,7 @@ inline PropertyTable::find_iterator PropertyTable::find(const KeyType& key)
     while (true) {
         unsigned entryIndex = m_index[hash & m_indexMask];
         if (entryIndex == EmptyEntryIndex)
-            return std::make_pair((ValueType*)0, hash & m_indexMask);
+            return std::make_pair((ValueType*)nullptr, hash & m_indexMask);
         if (key == table()[entryIndex - 1].key)
             return std::make_pair(&table()[entryIndex - 1], hash & m_indexMask);
 
@@ -321,6 +324,7 @@ inline PropertyTable::ValueType* PropertyTable::get(const KeyType& key)
 {
     ASSERT(key);
     ASSERT(key->isAtom() || key->isSymbol());
+    ASSERT(key != PROPERTY_MAP_DELETED_ENTRY_KEY);
 
     if (!m_keyCount)
         return nullptr;
@@ -335,8 +339,10 @@ inline PropertyTable::ValueType* PropertyTable::get(const KeyType& key)
         unsigned entryIndex = m_index[hash & m_indexMask];
         if (entryIndex == EmptyEntryIndex)
             return nullptr;
-        if (key == table()[entryIndex - 1].key)
+        if (key == table()[entryIndex - 1].key) {
+            ASSERT(!m_deletedOffsets || !m_deletedOffsets->contains(table()[entryIndex - 1].offset));
             return &table()[entryIndex - 1];
+        }
 
 #if DUMP_PROPERTYMAP_STATS
         ++propertyMapHashTableStats->numLookupProbing;
@@ -346,14 +352,14 @@ inline PropertyTable::ValueType* PropertyTable::get(const KeyType& key)
     }
 }
 
-inline std::pair<PropertyTable::find_iterator, bool> PropertyTable::add(const ValueType& entry, PropertyOffset& offset, EffectOnPropertyOffset offsetEffect)
+inline std::pair<PropertyTable::find_iterator, bool> WARN_UNUSED_RETURN PropertyTable::add(VM& vm, const ValueType& entry)
 {
+    ASSERT(!m_deletedOffsets || !m_deletedOffsets->contains(entry.offset));
+
     // Look for a value with a matching key already in the array.
     find_iterator iter = find(entry.key);
-    if (iter.first) {
-        RELEASE_ASSERT(iter.first->offset <= offset);
+    if (iter.first)
         return std::make_pair(iter, false);
-    }
 
 #if DUMP_PROPERTYMAP_STATS
     ++propertyMapHashTableStats->numAdds;
@@ -364,7 +370,7 @@ inline std::pair<PropertyTable::find_iterator, bool> PropertyTable::add(const Va
 
     // ensure capacity is available.
     if (!canInsert()) {
-        rehash(m_keyCount + 1);
+        rehash(vm, m_keyCount + 1);
         iter = find(entry.key);
         ASSERT(!iter.first);
     }
@@ -377,15 +383,10 @@ inline std::pair<PropertyTable::find_iterator, bool> PropertyTable::add(const Va
 
     ++m_keyCount;
     
-    if (offsetEffect == PropertyOffsetMayChange)
-        offset = std::max(offset, entry.offset);
-    else
-        RELEASE_ASSERT(offset >= entry.offset);
-    
     return std::make_pair(iter, true);
 }
 
-inline void PropertyTable::remove(const find_iterator& iter)
+inline void PropertyTable::remove(VM& vm, const find_iterator& iter)
 {
     // Removing a key that doesn't exist does nothing!
     if (!iter.first)
@@ -406,12 +407,12 @@ inline void PropertyTable::remove(const find_iterator& iter)
     ++m_deletedCount;
 
     if (m_deletedCount * 4 >= m_indexSize)
-        rehash(m_keyCount);
+        rehash(vm, m_keyCount);
 }
 
-inline void PropertyTable::remove(const KeyType& key)
+inline void PropertyTable::remove(VM& vm, const KeyType& key)
 {
-    remove(find(key));
+    remove(vm, find(key));
 }
 
 // returns the number of values in the hashtable.
@@ -451,6 +452,7 @@ inline void PropertyTable::addDeletedOffset(PropertyOffset offset)
 {
     if (!m_deletedOffsets)
         m_deletedOffsets = makeUnique<Vector<PropertyOffset>>();
+    ASSERT(!m_deletedOffsets->contains(offset));
     m_deletedOffsets->append(offset);
 }
 
@@ -502,12 +504,13 @@ inline void PropertyTable::reinsert(const ValueType& entry)
     ++m_keyCount;
 }
 
-inline void PropertyTable::rehash(unsigned newCapacity)
+inline void PropertyTable::rehash(VM& vm, unsigned newCapacity)
 {
 #if DUMP_PROPERTYMAP_STATS
     ++propertyMapHashTableStats->numRehashes;
 #endif
 
+    size_t oldDataSize = dataSize();
     unsigned* oldEntryIndices = m_index;
     iterator iter = this->begin();
     iterator end = this->end();
@@ -525,6 +528,9 @@ inline void PropertyTable::rehash(unsigned newCapacity)
     }
 
     PropertyTableMalloc::free(oldEntryIndices);
+
+    if (oldDataSize < dataSize())
+        vm.heap.reportExtraMemoryAllocated(dataSize() - oldDataSize);
 }
 
 inline unsigned PropertyTable::tableCapacity() const { return m_indexSize >> 1; }
@@ -560,7 +566,9 @@ inline unsigned PropertyTable::usedCount() const
 inline size_t PropertyTable::dataSize()
 {
     // The size in bytes of data needed for by the table.
-    return m_indexSize * sizeof(unsigned) + ((tableCapacity()) + 1) * sizeof(ValueType);
+    // Ensure that this function can be called concurrently.
+    unsigned indexSize = m_indexSize;
+    return indexSize * sizeof(unsigned) + ((indexSize >> 1) + 1) * sizeof(ValueType);
 }
 
 inline unsigned PropertyTable::sizeForCapacity(unsigned capacity)

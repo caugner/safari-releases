@@ -1,7 +1,16 @@
-CONSOLE MESSAGE: line 159: TypeError: undefined is not an object (evaluating 'panner.positionX.setValueAtTime')
+CONSOLE MESSAGE: Unhandled Promise Rejection: TypeError: undefined is not an object (evaluating 'context.listener.positionX.value')
 
-Harness Error (FAIL), message = TypeError: undefined is not an object (evaluating 'panner.positionX.setValueAtTime')
+Harness Error (FAIL), message = Unhandled rejection: undefined is not an object (evaluating 'context.listener.positionX.value')
 
 PASS # AUDIT TASK RUNNER STARTED. 
+TIMEOUT Executing "0: 1-channel inverse rolloff: 1" Test timed out
+NOTRUN Executing "0: 2-channel inverse rolloff: 1" 
+NOTRUN Executing "1: 1-channel inverse rolloff: 1" 
+NOTRUN Executing "1: 2-channel inverse rolloff: 1" 
+NOTRUN Executing "2: 1-channel exponential rolloff: 1.5" 
+NOTRUN Executing "2: 2-channel exponential rolloff: 1.5" 
+NOTRUN Executing "3: 1-channel linear rolloff: 1" 
+NOTRUN Executing "3: 2-channel linear rolloff: 1" 
+NOTRUN Audit report 
 PASS > [0: 1-channel inverse rolloff: 1]  
 

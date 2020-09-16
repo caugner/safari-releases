@@ -48,11 +48,17 @@ TestPage.registerInitializer(() => {
     InspectorTest.AnimationLifecycleUtilities = {};
 
     InspectorTest.AnimationLifecycleUtilities.awaitAnimationCreated = async function(animationType) {
+        let nameChangedPromise = null;
+        if (animationType === WI.Animation.Type.WebAnimation)
+            nameChangedPromise = WI.Animation.awaitEvent(WI.Animation.Event.NameChanged);
+
         let animationCollectionItemAddedEvent = await WI.animationManager.animationCollection.awaitEvent(WI.Collection.Event.ItemAdded);
 
-        InspectorTest.pass("Animation created.");
-
         let animation = animationCollectionItemAddedEvent.data.item;
+
+        await nameChangedPromise;
+
+        InspectorTest.pass(`Animation created '${animation.displayName}'.`);
 
         for (let i = 0; i < animation.backtrace.length; ++i) {
             let callFrame = animation.backtrace[i];
@@ -78,7 +84,7 @@ TestPage.registerInitializer(() => {
         if (animation.endDelay)
             InspectorTest.log("endDelay: " + JSON.stringify(animation.endDelay));
         if (animation.iterationCount)
-            InspectorTest.log("iterationCount: " + JSON.stringify(animation.iterationCount));
+            InspectorTest.log("iterationCount: " + (animation.iterationCount === Infinity ? "Infinity" : JSON.stringify(animation.iterationCount)));
         if (animation.iterationStart)
             InspectorTest.log("iterationStart: " + JSON.stringify(animation.iterationStart));
         if (animation.iterationDuration)

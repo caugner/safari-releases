@@ -1,3 +1,5 @@
+CONSOLE MESSAGE: User gesture is not detected. To use the platform authenticator, call 'navigator.credentials.create' within user activated events.
+CONSOLE MESSAGE: User gesture is not detected. To use the platform authenticator, call 'navigator.credentials.get' within user activated events.
 Description
 
 This test verifies that the implementations of the WebAuthN API match with its WebIDL definition.
@@ -67,6 +69,6 @@ PASS AuthenticatorAssertionResponse must be primary interface of requestedCreden
 PASS Stringification of requestedCredential.response 
 PASS AuthenticatorAssertionResponse interface: requestedCredential.response must inherit property "authenticatorData" with the proper type 
 PASS AuthenticatorAssertionResponse interface: requestedCredential.response must inherit property "signature" with the proper type 
-PASS AuthenticatorAssertionResponse interface: requestedCredential.response must inherit property "userHandle" with the proper type 
+FAIL AuthenticatorAssertionResponse interface: requestedCredential.response must inherit property "userHandle" with the proper type assert_true: wrong type: not a ArrayBuffer expected true got false
 PASS AuthenticatorResponse interface: requestedCredential.response must inherit property "clientDataJSON" with the proper type 
 

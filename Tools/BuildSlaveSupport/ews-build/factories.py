@@ -1,4 +1,4 @@
-# Copyright (C) 2018-2019 Apple Inc. All rights reserved.
+# Copyright (C) 2018-2020 Apple Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -25,11 +25,13 @@ from buildbot.process import factory
 from buildbot.steps import trigger
 
 from steps import (ApplyPatch, ApplyWatchList, CheckOutSource, CheckOutSpecificRevision, CheckPatchRelevance,
-                   CheckStyle, CompileJSC, CompileWebKit, ConfigureBuild,
-                   DownloadBuiltProduct, ExtractBuiltProduct, InstallGtkDependencies, InstallWpeDependencies, KillOldProcesses,
-                   PrintConfiguration, RunAPITests, RunBindingsTests, RunBuildWebKitOrgUnitTests, RunEWSBuildbotCheckConfig, RunEWSUnitTests,
-                   RunJavaScriptCoreTests, RunWebKit1Tests, RunWebKitPerlTests,
-                   RunWebKitPyTests, RunWebKitTests, UpdateWorkingDirectory, ValidatePatch)
+                   CheckPatchStatusOnEWSQueues, CheckStyle, CompileJSC, CompileWebKit, ConfigureBuild, CreateLocalGITCommit,
+                   DownloadBuiltProduct, ExtractBuiltProduct, FindModifiedChangeLogs, InstallGtkDependencies,
+                   InstallWpeDependencies, KillOldProcesses, PrintConfiguration, PushCommitToWebKitRepo,
+                   RunAPITests, RunBindingsTests, RunBuildWebKitOrgUnitTests, RunEWSBuildbotCheckConfig, RunEWSUnitTests,
+                   RunResultsdbpyTests, RunJavaScriptCoreTests, RunWebKit1Tests, RunWebKitPerlTests, RunWebKitPyPython2Tests,
+                   RunWebKitPyPython3Tests, RunWebKitTests, SetBuildSummary, TriggerCrashLogSubmission, UpdateWorkingDirectory,
+                   ValidatePatch, ValidateChangeLogAndReviewer, ValidateCommiterAndReviewer, WaitForCrashCollection)
 
 
 class Factory(factory.BuildFactory):
@@ -87,35 +89,57 @@ class WebKitPerlFactory(Factory):
 class WebKitPyFactory(Factory):
     def __init__(self, platform, configuration=None, architectures=None, additionalArguments=None, **kwargs):
         Factory.__init__(self, platform=platform, configuration=configuration, architectures=architectures, buildOnly=False, additionalArgument=additionalArguments, checkRelevance=True)
-        self.addStep(RunWebKitPyTests())
+        self.addStep(RunWebKitPyPython2Tests())
+        self.addStep(RunWebKitPyPython3Tests())
+        self.addStep(SetBuildSummary())
 
 
 class BuildFactory(Factory):
+    skipUpload = False
+
     def __init__(self, platform, configuration=None, architectures=None, triggers=None, additionalArguments=None, **kwargs):
         Factory.__init__(self, platform=platform, configuration=configuration, architectures=architectures, buildOnly=False, triggers=triggers, additionalArguments=additionalArguments)
         self.addStep(KillOldProcesses())
-        self.addStep(CompileWebKit())
+        if platform == 'gtk':
+            self.addStep(InstallGtkDependencies())
+        self.addStep(CompileWebKit(skipUpload=self.skipUpload))
 
 
 class TestFactory(Factory):
     LayoutTestClass = None
     APITestClass = None
+    willTriggerCrashLogSubmission = False
 
     def getProduct(self):
         self.addStep(DownloadBuiltProduct())
         self.addStep(ExtractBuiltProduct())
 
-    def __init__(self, platform, configuration=None, architectures=None, additionalArguments=None, **kwargs):
-        Factory.__init__(self, platform=platform, configuration=configuration, architectures=architectures, buildOnly=False, additionalArguments=additionalArguments)
+    def __init__(self, platform, configuration=None, architectures=None, additionalArguments=None, checkRelevance=False, **kwargs):
+        Factory.__init__(self, platform=platform, configuration=configuration, architectures=architectures, buildOnly=False, additionalArguments=additionalArguments, checkRelevance=checkRelevance)
+        if platform == 'gtk':
+            self.addStep(InstallGtkDependencies())
         self.getProduct()
+        if self.willTriggerCrashLogSubmission:
+            self.addStep(WaitForCrashCollection())
         self.addStep(KillOldProcesses())
         if self.LayoutTestClass:
             self.addStep(self.LayoutTestClass())
         if self.APITestClass:
             self.addStep(self.APITestClass())
+        if self.willTriggerCrashLogSubmission:
+            self.addStep(TriggerCrashLogSubmission())
+        if self.LayoutTestClass:
+            self.addStep(SetBuildSummary())
 
 
-class JSCTestsFactory(Factory):
+class JSCBuildFactory(Factory):
+    def __init__(self, platform, configuration='release', architectures=None, remotes=None, additionalArguments=None, **kwargs):
+        Factory.__init__(self, platform=platform, configuration=configuration, architectures=architectures, buildOnly=False, remotes=remotes, additionalArguments=additionalArguments, checkRelevance=True)
+        self.addStep(KillOldProcesses())
+        self.addStep(CompileJSC())
+
+
+class JSCBuildAndTestsFactory(Factory):
     def __init__(self, platform, configuration='release', architectures=None, remotes=None, additionalArguments=None, runTests='true', **kwargs):
         Factory.__init__(self, platform=platform, configuration=configuration, architectures=architectures, buildOnly=False, remotes=remotes, additionalArguments=additionalArguments, checkRelevance=True)
         self.addStep(KillOldProcesses())
@@ -132,28 +156,52 @@ class iOSBuildFactory(BuildFactory):
     pass
 
 
+class iOSEmbeddedBuildFactory(BuildFactory):
+    skipUpload = True
+
+
 class iOSTestsFactory(TestFactory):
     LayoutTestClass = RunWebKitTests
+    willTriggerCrashLogSubmission = True
 
 
 class macOSBuildFactory(BuildFactory):
     pass
 
 
+class macOSBuildOnlyFactory(BuildFactory):
+    skipUpload = True
+
+
+class watchOSBuildFactory(BuildFactory):
+    skipUpload = True
+
+
+class tvOSBuildFactory(BuildFactory):
+    skipUpload = True
+
+
 class macOSWK1Factory(TestFactory):
     LayoutTestClass = RunWebKit1Tests
+    willTriggerCrashLogSubmission = True
+
+    def __init__(self, platform, configuration=None, architectures=None, additionalArguments=None, checkRelevance=False, **kwargs):
+        super(macOSWK1Factory, self).__init__(platform=platform, configuration=configuration, architectures=architectures, additionalArguments=additionalArguments, checkRelevance=True, **kwargs)
 
 
 class macOSWK2Factory(TestFactory):
     LayoutTestClass = RunWebKitTests
+    willTriggerCrashLogSubmission = True
 
 
 class WindowsFactory(Factory):
     def __init__(self, platform, configuration=None, architectures=None, triggers=None, additionalArguments=None, **kwargs):
-        Factory.__init__(self, platform=platform, configuration=configuration, architectures=architectures, buildOnly=False, triggers=triggers, additionalArguments=additionalArguments)
+        Factory.__init__(self, platform=platform, configuration=configuration, architectures=architectures, buildOnly=False, triggers=triggers, additionalArguments=additionalArguments, checkRelevance=True)
         self.addStep(KillOldProcesses())
         self.addStep(CompileWebKit(skipUpload=True))
+        self.addStep(ValidatePatch(verifyBugClosed=False, addURLs=False))
         self.addStep(RunWebKit1Tests())
+        self.addStep(SetBuildSummary())
 
 
 class WinCairoFactory(Factory):
@@ -163,12 +211,12 @@ class WinCairoFactory(Factory):
         self.addStep(CompileWebKit(skipUpload=True))
 
 
-class GTKFactory(Factory):
-    def __init__(self, platform, configuration=None, architectures=None, triggers=None, additionalArguments=None, **kwargs):
-        Factory.__init__(self, platform=platform, configuration=configuration, architectures=architectures, buildOnly=True, triggers=triggers, additionalArguments=additionalArguments)
-        self.addStep(KillOldProcesses())
-        self.addStep(InstallGtkDependencies())
-        self.addStep(CompileWebKit(skipUpload=True))
+class GTKBuildFactory(BuildFactory):
+    pass
+
+
+class GTKTestsFactory(TestFactory):
+    LayoutTestClass = RunWebKitTests
 
 
 class WPEFactory(Factory):
@@ -184,9 +232,32 @@ class ServicesFactory(Factory):
         Factory.__init__(self, platform=platform, configuration=configuration, architectures=architectures, buildOnly=False, additionalArguments=additionalArguments, checkRelevance=True)
         self.addStep(RunEWSUnitTests())
         self.addStep(RunEWSBuildbotCheckConfig())
+        self.addStep(RunResultsdbpyTests())
         self.addStep(RunBuildWebKitOrgUnitTests())
 
 
-class CommitQueueFactory(Factory):
-    pass
-    # TODO: add appropriate build-steps for commit-queue
+class CommitQueueFactory(factory.BuildFactory):
+    def __init__(self, platform, configuration=None, architectures=None, additionalArguments=None, **kwargs):
+        factory.BuildFactory.__init__(self)
+        self.addStep(ConfigureBuild(platform=platform, configuration=configuration, architectures=architectures, buildOnly=False, triggers=None, remotes=None, additionalArguments=additionalArguments))
+        self.addStep(ValidatePatch(verifycqplus=True))
+        self.addStep(ValidateCommiterAndReviewer())
+        self.addStep(PrintConfiguration())
+        self.addStep(CheckOutSource())
+        self.addStep(UpdateWorkingDirectory())
+        self.addStep(ApplyPatch())
+        self.addStep(ValidateChangeLogAndReviewer())
+        self.addStep(FindModifiedChangeLogs())
+        self.addStep(KillOldProcesses())
+        self.addStep(CompileWebKit(skipUpload=True))
+        self.addStep(KillOldProcesses())
+        self.addStep(ValidatePatch(addURLs=False, verifycqplus=True))
+        self.addStep(CheckPatchStatusOnEWSQueues())
+        self.addStep(RunWebKitTests())
+        self.addStep(ValidatePatch(addURLs=False, verifycqplus=True))
+        self.addStep(CheckOutSource())
+        self.addStep(UpdateWorkingDirectory())
+        self.addStep(ApplyPatch())
+        self.addStep(CreateLocalGITCommit())
+        self.addStep(PushCommitToWebKitRepo())
+        self.addStep(SetBuildSummary())

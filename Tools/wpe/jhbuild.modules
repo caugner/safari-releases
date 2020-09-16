@@ -37,6 +37,8 @@
       href="http://mirrors.kernel.org/sources.redhat.com/"/>
   <repository type="tarball" name="ftp.gnome.org"
       href="http://ftp.gnome.org"/>
+  <repository type="tarball" name="download.gnome.org"
+      href="https://download.gnome.org"/>
   <repository type="tarball" name="cairographics.org"
       href="http://cairographics.org"/>
   <repository type="tarball" name="freedesktop.org"
@@ -100,9 +102,9 @@
       <dep package="glib-networking"/>
       <dep package="libpsl"/>
     </dependencies>
-    <branch module="/pub/GNOME/sources/libsoup/2.68/libsoup-${version}.tar.xz" version="2.68.3"
-            repo="ftp.gnome.org"
-            hash="sha256:534bb08e35b0ff3702f3adfde87d3441e27c12f9f5ec351f056fe04cba02bafb">
+    <branch module="/sources/libsoup/2.70/libsoup-${version}.tar.xz" version="2.70.0"
+            repo="download.gnome.org"
+            hash="sha256:54b020f74aefa438918d8e53cff62e2b1e59efe2de53e06b19a4b07b1f4d5342">
     </branch>
   </meson>
 
@@ -184,8 +186,9 @@
   </autotools>
 
   <cmake id="libwpe">
-    <branch repo="wpewebkit" module="libwpe-1.4.0.tar.xz" version="1.4.0"
-            hash="sha256:e2d3494fc33fe946ad917fd6a3abd127462b91bba62ef8b35507e92f8ede4188"/>
+    <branch module="WebPlatformForEmbedded/libwpe/releases/download/1.6.0/libwpe-1.6.0.tar.xz" version="1.6.0"
+            repo="github-tarball"
+            hash="3587c6b8a807f4bb76b268ba74ca82c6b395b90235db41ad8252224456193c90"/>
   </cmake>
 
   <cmake id="wpebackend-fdo">
@@ -193,8 +196,7 @@
       <dep package="libwpe"/>
       <dep package="glib"/>
     </dependencies>
-    <branch repo="wpewebkit" module="wpebackend-fdo-1.4.0.tar.xz" version="1.4.0"
-            hash="sha256:a919ca4a5bc445f9419a5b7f3781cfc98e5abcf5d7259eb1869f5ab20fd18baf"/>
+    <branch repo="github.com" module="Igalia/WPEBackend-fdo.git" checkoutdir="wpebackend-fdo" tag="1.3.1-54-g1f58ebdf632fdf90f691949d90c8338a8d7073c7"/>
   </cmake>
 
   <autotools id="libgpg-error" autogen-sh="autoreconf">
@@ -249,10 +251,10 @@
 
   <distutils id="meson" python3="1">
     <branch repo="github-tarball"
-            version="0.50.1"
+            version="0.54.1"
             module="mesonbuild/meson/releases/download/${version}/meson-${version}.tar.gz"
             checkoutdir="meson-${version}"
-            hash="sha256:f68f56d60c80a77df8fc08fa1016bc5831605d4717b622c96212573271e14ecc"/>
+            hash="sha256:2f76fb4572762be13ee479292610091b4509af5788bcceb391fe222bcd0296dc"/>
     <dependencies>
       <dep package="ninja"/>
     </dependencies>

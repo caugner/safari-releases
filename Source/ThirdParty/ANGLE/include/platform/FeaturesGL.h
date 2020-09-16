@@ -364,6 +364,12 @@ struct FeaturesGL : FeatureSetBase
         "GL_PRIMITIVE_RESTART and glPrimitiveRestartIndex.",
         &members, "http://anglebug.com/3997"};
 
+    Feature setPrimitiveRestartFixedIndexForDrawArrays = {
+        "set_primitive_restart_fixed_index_for_draw_arrays", FeatureCategory::OpenGLWorkarounds,
+        "Some drivers discard vertex data in DrawArrays calls when the fixed primitive restart "
+        "index is within the number of primitives being drawn.",
+        &members, "http://anglebug.com/3997"};
+
     // Dynamic indexing of swizzled l-values doesn't work correctly on various platforms.
     Feature removeDynamicIndexingOfSwizzledVector = {
         "remove_dynamic_indexing_of_swizzled_vector", FeatureCategory::OpenGLWorkarounds,
@@ -386,6 +392,83 @@ struct FeaturesGL : FeatureSetBase
         "All Mac drivers do not handle struct scopes correctly. This workaround overwrites a struct"
         "name with a unique prefix.",
         &members, "http://crbug.com/403957"};
+
+    // Quite some OpenGL ES drivers don't implement readPixels for RGBA/UNSIGNED_SHORT from
+    // EXT_texture_norm16 correctly
+    Feature readPixelsUsingImplementationColorReadFormatForNorm16 = {
+        "read_pixels_using_implementation_color_read_format", FeatureCategory::OpenGLWorkarounds,
+        "Quite some OpenGL ES drivers don't implement readPixels for RGBA/UNSIGNED_SHORT from "
+        "EXT_texture_norm16 correctly",
+        &members, "http://anglebug.com/4214"};
+
+    // Bugs exist in some Intel drivers where dependencies are incorrectly
+    // tracked for textures which are copy destinations (via CopyTexImage2D, for
+    // example). Flush before DeleteTexture if these entry points have been
+    // called recently.
+    Feature flushBeforeDeleteTextureIfCopiedTo = {
+        "flush_before_delete_texture_if_copied_to", FeatureCategory::OpenGLWorkarounds,
+        "Some drivers track CopyTex{Sub}Image texture dependencies incorrectly. Flush"
+        " before glDeleteTextures in this case",
+        &members, "http://anglebug.com/4267"};
+
+    // Rewrite row-major matrices as column-major as a driver bug workaround if
+    // necessary.
+    Feature rewriteRowMajorMatrices = {
+        "rewrite_row_major_matrices", FeatureCategory::OpenGLWorkarounds,
+        "Rewrite row major matrices in shaders as column major as a driver bug workaround",
+        &members, "http://anglebug.com/2273"};
+
+    // Bugs exist in various OpenGL Intel drivers on Windows that produce incorrect
+    // values for GL_COMPRESSED_SRGB_S3TC_DXT1_EXT format. Replace it with
+    // GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT as it's the closest option allowed by
+    // the WebGL extension spec.
+    Feature avoidDXT1sRGBTextureFormat = {
+        "avoid_dxt1_srgb_texture_format", FeatureCategory::OpenGLWorkarounds,
+        "Replaces DXT1 sRGB with DXT1 sRGB Alpha as a driver bug workaround.", &members};
+
+    // Bugs exist in OpenGL AMD drivers on Windows that produce incorrect pipeline state for
+    // colorMaski calls.
+    Feature disableDrawBuffersIndexed = {"disable_draw_buffers_indexed",
+                                         FeatureCategory::OpenGLWorkarounds,
+                                         "Disable OES_draw_buffers_indexed extension.", &members};
+
+    // GL_EXT_semaphore_fd doesn't work properly with Mesa 19.3.4 and earlier versions.
+    Feature disableSemaphoreFd = {"disable_semaphore_fd", FeatureCategory::OpenGLWorkarounds,
+                                  "Disable GL_EXT_semaphore_fd extension", &members,
+                                  "https://crbug.com/1046462"};
+
+    // GL_EXT_disjoint_timer_query doesn't work properly with Linux VMWare drivers.
+    Feature disableTimestampQueries = {
+        "disable_timestamp_queries", FeatureCategory::OpenGLWorkarounds,
+        "Disable GL_EXT_disjoint_timer_query extension", &members, "https://crbug.com/811661"};
+
+    // Some drivers use linear blending when generating mipmaps for sRGB textures. Work around this
+    // by generating mipmaps in a linear texture and copying back to sRGB.
+    Feature encodeAndDecodeSRGBForGenerateMipmap = {
+        "decode_encode_srgb_for_generatemipmap", FeatureCategory::OpenGLWorkarounds,
+        "Decode and encode before generateMipmap for srgb format textures.", &members,
+        "http://anglebug.com/4646"};
+
+    Feature emulateCopyTexImage2DFromRenderbuffers = {
+        "emulate_copyteximage2d_from_renderbuffers", FeatureCategory::OpenGLWorkarounds,
+        "CopyTexImage2D spuriously returns errors on iOS when copying from renderbuffers.",
+        &members, "https://anglebug.com/4674"};
+
+    Feature disableGPUSwitchingSupport = {
+        "disable_gpu_switching_support", FeatureCategory::OpenGLWorkarounds,
+        "Disable GPU switching support (use only the low-power GPU) on older MacBook Pros.",
+        &members, "https://crbug.com/1091824"};
+
+    // KHR_parallel_shader_compile fails TSAN on Linux, so we avoid using it with this workaround.
+    Feature disableNativeParallelCompile = {
+        "disable_native_parallel_compile", FeatureCategory::OpenGLWorkarounds,
+        "Do not use native KHR_parallel_shader_compile even when available.", &members,
+        "http://crbug.com/1094869"};
+
+    Feature emulatePackSkipRowsAndPackSkipPixels = {
+        "emulate_pack_skip_rows_and_pack_skip_pixels", FeatureCategory::OpenGLWorkarounds,
+        "GL_PACK_SKIP_ROWS and GL_PACK_SKIP_PIXELS are ignored in Apple's OpenGL driver.", &members,
+        "https://anglebug.com/4849"};
 };
 
 inline FeaturesGL::FeaturesGL()  = default;

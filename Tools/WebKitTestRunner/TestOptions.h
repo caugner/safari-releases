@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2018 Apple Inc. All rights reserved.
+ * Copyright (C) 2015-2020 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -38,13 +38,15 @@ struct TestOptions {
         bool ignoreSynchronousMessagingTimeouts { false };
         bool enableProcessSwapOnNavigation { true };
         bool enableProcessSwapOnWindowOpen { false };
+        bool useServiceWorkerShortTimeout { false };
 
         bool hasSameInitializationOptions(const ContextOptions& options) const
         {
             if (ignoreSynchronousMessagingTimeouts != options.ignoreSynchronousMessagingTimeouts
                 || overrideLanguages != options.overrideLanguages
                 || enableProcessSwapOnNavigation != options.enableProcessSwapOnNavigation
-                || enableProcessSwapOnWindowOpen != options.enableProcessSwapOnWindowOpen)
+                || enableProcessSwapOnWindowOpen != options.enableProcessSwapOnWindowOpen
+                || useServiceWorkerShortTimeout != options.useServiceWorkerShortTimeout)
                 return false;
             return true;
         }
@@ -88,9 +90,9 @@ struct TestOptions {
     bool checkForWorldLeaks { false };
     bool shouldIgnoreMetaViewport { false };
     bool shouldShowSpellCheckingDots { false };
+    bool enableServiceControls { false };
     bool enableEditableImages { false };
     bool editable { false };
-    bool enableUndoManagerAPI { false };
     bool shouldHandleRunOpenPanel { true };
     bool shouldPresentPopovers { true };
     bool enableAppNap { false };
@@ -98,7 +100,12 @@ struct TestOptions {
     bool enableLazyImageLoading { false };
     bool allowsLinkPreview { true };
     bool enableCaptureVideoInUIProcess { false };
+    bool enableCaptureVideoInGPUProcess { false };
+    bool enableCaptureAudioInUIProcess { false };
     bool enableCaptureAudioInGPUProcess { false };
+    bool allowTopNavigationToDataURLs { true };
+    bool enableInAppBrowserPrivacy { false };
+    bool isAppBoundWebView { false };
 
     double contentInsetTop { 0 };
 
@@ -106,10 +113,12 @@ struct TestOptions {
     std::string applicationManifest;
     std::string jscOptions;
     std::string additionalSupportedImageTypes;
+    std::string standaloneWebApplicationURL;
     HashMap<String, bool> experimentalFeatures;
     HashMap<String, bool> internalDebugFeatures;
     String contentMode;
-
+    String applicationBundleIdentifier;
+    
     ContextOptions contextOptions;
 
     TestOptions(const std::string& pathOrURL);
@@ -147,20 +156,27 @@ struct TestOptions {
             || runSingly != options.runSingly
             || checkForWorldLeaks != options.checkForWorldLeaks
             || shouldShowSpellCheckingDots != options.shouldShowSpellCheckingDots
+            || enableServiceControls != options.enableServiceControls
             || shouldIgnoreMetaViewport != options.shouldIgnoreMetaViewport
             || enableEditableImages != options.enableEditableImages
             || editable != options.editable
-            || enableUndoManagerAPI != options.enableUndoManagerAPI
             || shouldHandleRunOpenPanel != options.shouldHandleRunOpenPanel
             || shouldPresentPopovers != options.shouldPresentPopovers
             || contentInsetTop != options.contentInsetTop
             || contentMode != options.contentMode
+            || applicationBundleIdentifier != options.applicationBundleIdentifier
             || enableAppNap != options.enableAppNap
             || enableBackForwardCache != options.enableBackForwardCache
             || enableLazyImageLoading != options.enableLazyImageLoading
             || allowsLinkPreview != options.allowsLinkPreview
             || enableCaptureVideoInUIProcess != options.enableCaptureVideoInUIProcess
-            || enableCaptureAudioInGPUProcess != options.enableCaptureAudioInGPUProcess)
+            || enableCaptureVideoInGPUProcess != options.enableCaptureVideoInGPUProcess
+            || enableCaptureAudioInUIProcess != options.enableCaptureAudioInUIProcess
+            || enableCaptureAudioInGPUProcess != options.enableCaptureAudioInGPUProcess
+            || allowTopNavigationToDataURLs != options.allowTopNavigationToDataURLs
+            || enableInAppBrowserPrivacy != options.enableInAppBrowserPrivacy
+            || standaloneWebApplicationURL != options.standaloneWebApplicationURL
+            || isAppBoundWebView != options.isAppBoundWebView)
             return false;
 
         if (!contextOptions.hasSameInitializationOptions(options.contextOptions))
