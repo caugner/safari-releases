@@ -44,12 +44,8 @@ webkit.org/b/196112 imported/w3c/web-platform-tests/mathml/relations/css-styling
 
 http/wpt/cache-storage/quota-third-party.https.html [ Slow ]
 http/wpt/fetch/response-opaque-clone.html [ Slow ]
-http/wpt/cache-storage/cache-quota-after-restart.any.html [ Slow ]
-http/wpt/cache-storage/cache-quota.any.html [ Slow ]
 http/wpt/cache-storage/a-cache-open.https.html [ Slow ]
 http/wpt/cache-storage/cache-quota-add.any.html [ Slow ]
-
-webkit.org/b/196403 imported/w3c/web-platform-tests/mediacapture-record/MediaRecorder-stop.html [ Pass Failure ]
 
 webkit.org/b/195341 fast/viewport/ios/constant-width-viewport-after-changing-view-scale.html [ Pass Failure ]
 
@@ -60,8 +56,6 @@ webkit.org/b/197207 http/wpt/resource-timing/rt-resources-per-frame.html [ Pass 
 imported/w3c/web-platform-tests/IndexedDB/keypath-special-identifiers.htm [ Slow ]
 
 webkit.org/b/172001 scrollingcoordinator/ios/sync-layer-positions-after-scroll.html [ Pass Failure ]
-
-webkit.org/b/214685 imported/w3c/web-platform-tests/html/semantics/scripting-1/the-script-element/moving-between-documents/before-prepare-createHTMLDocument-fetch-error-external-classic.html [ Pass Failure ]
 
 # NearField.framework doesn't present in the simulator, and therefore skip all WebAuthn NFC tests
 http/wpt/webauthn/ctap-nfc-failure.https.html [ Skip ]
@@ -82,8 +76,6 @@ webkit.org/b/207002 imported/w3c/web-platform-tests/FileAPI/historical.https.htm
 
 webkit.org/b/206952 imported/w3c/IndexedDB-private-browsing/idbindex_getKey6.html [ Pass Timeout ]
 
-webkit.org/b/207515 http/wpt/service-workers/service-worker-spinning-fetch.https.html [ Pass Failure ]
-
 webkit.org/b/208036 http/wpt/cache-storage/cache-put-keys.https.any.worker.html [ Pass Failure ]
 
 webkit.org/b/209234 [ Release ] platform/ios/ios/plugin/youtube-flash-plugin-iframe-no-height-or-width.html [ Pass Failure ]
@@ -98,14 +90,13 @@ webkit.org/b/214730 [ Debug ] imported/w3c/web-platform-tests/webrtc/RTCPeerConn
 webkit.org/b/214730 [ Debug ] imported/w3c/web-platform-tests/webrtc/RTCSctpTransport-constructor.html [ Skip ]
 webkit.org/b/214661 [ Debug ] imported/w3c/web-platform-tests/webrtc/RTCSctpTransport-events.html [ Skip ]
 webkit.org/b/214730 [ Debug ] webrtc/simulcast-h264.html [ Skip ]
+imported/w3c/web-platform-tests/webrtc/RTCPeerConnection-candidate-in-sdp.https.html [ Pass Failure ]
 
 webkit.org/b/214358 fast/scrolling/ios/programmatic-scroll-while-zoomed.html [ Pass Failure ]
 
-webkit.org/b/214731 [ Debug ] imported/w3c/web-platform-tests/IndexedDB/key-generators/reading-autoincrement-store-cursors.any.serviceworker.html [ Pass Failure ]
+webkit.org/b/214731 imported/w3c/web-platform-tests/IndexedDB/key-generators/reading-autoincrement-store-cursors.any.serviceworker.html [ Pass Failure ]
 
 webkit.org/b/214732 imported/w3c/web-platform-tests/IndexedDB/key-generators/reading-autoincrement-store.any.serviceworker.html [ Pass Failure ]
-
-webkit.org/b/214734 [ Debug ] imported/w3c/web-platform-tests/html/semantics/scripting-1/the-script-element/moving-between-documents/before-prepare-createHTMLDocument-fetch-error-external-module.html [ Pass Failure ]
 
 webkit.org/b/214735 http/tests/security/xssAuditor/cached-frame.html [ Pass Timeout ]
 
@@ -125,6 +116,45 @@ webkit.org/b/214824 [ Debug ] js/throw-large-string-oom.html [ Skip ]
 
 webkit.org/b/214877 imported/w3c/web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-drawImage.html [ Pass Failure ]
 
-webkit.org/b/215025 imported/w3c/web-platform-tests/webrtc/RTCSctpTransport-maxChannels.html [ Crash ]
+webkit.org/b/215025 imported/w3c/web-platform-tests/webrtc/RTCSctpTransport-maxChannels.html [ Pass Crash ]
 
 webkit.org/b/215033 imported/w3c/web-platform-tests/websockets/cookies/third-party-cookie-accepted.https.html [ Pass Failure ]
+
+webkit.org/b/215216 imported/w3c/web-platform-tests/svg/import/interact-zoom-01-t-manual.svg [ Pass Failure ]
+
+webkit.org/b/215608 [ Release ] imported/w3c/web-platform-tests/IndexedDB/transaction_bubble-and-capture.htm [ Pass Timeout ]
+
+webkit.org/b/215676 [ Release ] http/tests/security/contentSecurityPolicy/worker-redirect-allowed.html [ Pass ]
+
+webkit.org/b/217114 [ Release ] compositing/debug-borders-dynamic.html [ Pass ImageOnlyFailure ]
+
+webkit.org/b/217414 [ Release ] imported/w3c/web-platform-tests/user-timing/measure-l3.any.html [ Pass Failure ]
+
+webkit.org/b/217419 [ Release ] imported/w3c/web-platform-tests/css/css-cascade/all-prop-initial-xml.html [ Failure ]
+
+webkit.org/b/217461 imported/w3c/web-platform-tests/css/css-masking/clip-path/svg-clipPath.svg [ Skip ]
+
+webkit.org/b/217462 [ Release ] imported/w3c/web-platform-tests/service-workers/cache-storage/serviceworker/cache-add.https.html [ Pass Failure ]
+
+webkit.org/b/217357 http/wpt/cache-storage/cache-quota-after-restart.any.html [ Pass Failure ]
+
+webkit.org/b/217412 http/wpt/cache-storage/cache-quota.any.html [ Pass Failure ]
+
+webkit.org/b/217643 imported/w3c/web-platform-tests/css/css-flexbox/auto-margins-001.html [ Pass ImageOnlyFailure ]
+
+webkit.org/b/217669 http/wpt/service-workers/service-worker-spinning-activate.https.html [ Pass Timeout Failure ]
+webkit.org/b/217669 http/wpt/service-workers/service-worker-spinning-fetch.https.html [ Pass Timeout Failure ]
+webkit.org/b/217669 http/wpt/service-workers/service-worker-spinning-install.https.html [ Pass Timeout Failure ]
+webkit.org/b/217669 http/wpt/service-workers/service-worker-spinning-message.https.html [ Pass Timeout Failure ]
+
+webkit.org/b/217687 accessibility/aria-current.html [ Pass Timeout ]
+webkit.org/b/217687 accessibility/insert-newline.html [ Pass Timeout ]
+webkit.org/b/217687 accessibility/ios-simulator/abbreviation.html [ Pass Timeout ]
+webkit.org/b/217687 accessibility/ios-simulator/accessibility-aria-table-children.html [ Pass Timeout ]
+
+webkit.org/b/217759 media/now-playing-status-without-media.html [ Pass Failure ]
+
+webkit.org/b/217268 imported/w3c/web-platform-tests/mathml/relations/css-styling/padding-border-margin/border-002.html [ Failure ]
+webkit.org/b/217268 imported/w3c/web-platform-tests/mathml/relations/html5-tree/dynamic-childlist-001.html [ Failure ]
+
+webkit.org/b/209139 fast/canvas/webgl/webgl-clear-composited-notshowing.html [ Failure ]

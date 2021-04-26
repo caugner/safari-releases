@@ -25,14 +25,10 @@
 
 #pragma once
 
-#import "UIScriptControllerCocoa.h"
-#import <wtf/BlockPtr.h>
-
 #if PLATFORM(IOS_FAMILY)
 
-#if HAVE(PENCILKIT)
-@class PKCanvasView;
-#endif
+#import "UIScriptControllerCocoa.h"
+#import <wtf/BlockPtr.h>
 
 namespace WebCore {
 class FloatPoint;
@@ -41,13 +37,14 @@ class FloatRect;
 
 namespace WTR {
 
-class UIScriptControllerIOS : public UIScriptControllerCocoa {
+class UIScriptControllerIOS final : public UIScriptControllerCocoa {
 public:
     explicit UIScriptControllerIOS(UIScriptContext& context)
         : UIScriptControllerCocoa(context)
     {
     }
 
+private:
     void waitForOutstandingCallbacks() override;
     void doAfterPresentationUpdate(JSValueRef) override;
     void doAfterNextStablePresentationUpdate(JSValueRef) override;
@@ -97,8 +94,8 @@ public:
     double contentOffsetY() const override;
     bool scrollUpdatesDisabled() const override;
     void setScrollUpdatesDisabled(bool) override;
-    void scrollToOffset(long x, long y) override;
-    void immediateScrollToOffset(long x, long y) override;
+    void scrollToOffset(long x, long y, ScrollToOptions*) override;
+    void immediateScrollToOffset(long x, long y, ScrollToOptions*) override;
     void immediateScrollElementAtContentPointToOffset(long x, long y, long xScrollOffset, long yScrollOffset) override;
     void immediateZoomToScale(double scale) override;
     void keyboardAccessoryBarNext() override;
@@ -118,7 +115,6 @@ public:
     JSObjectRef selectionCaretViewRect() const override;
     JSObjectRef selectionRangeViewRects() const override;
     JSObjectRef inputViewBounds() const override;
-    void removeAllDynamicDictionaries() override;
     JSRetainPtr<JSStringRef> scrollingTreeAsText() const override;
     JSObjectRef propertiesOfLayerWithID(uint64_t layerID) const override;
     void simulateRotation(DeviceOrientation*, JSValueRef) override;
@@ -133,8 +129,6 @@ public:
     void completeBackSwipe(JSValueRef) override;
     bool isShowingDataListSuggestions() const override;
     void activateDataListSuggestion(unsigned, JSValueRef) override;
-    void drawSquareInEditableImage() override;
-    long numberOfStrokesInEditableImage() override;
     void setKeyboardInputModeIdentifier(JSStringRef) override;
     void toggleCapsLock(JSValueRef) override;
     bool keyboardIsAutomaticallyShifted() const override;
@@ -146,6 +140,7 @@ public:
     void copyText(JSStringRef) override;
     void installTapGestureOnWindow(JSValueRef) override;
     bool isShowingContextMenu() const override;
+    void setSpellCheckerResults(JSValueRef) override { }
 
     bool mayContainEditableElementsInRect(unsigned x, unsigned y, unsigned width, unsigned height) override;
 
@@ -162,14 +157,10 @@ public:
     void setDidEndScrollingCallback(JSValueRef) override;
     void clearAllCallbacks() override;
 
-private:
     void waitForModalTransitionToFinish() const;
     void waitForSingleTapToReset() const;
     WebCore::FloatRect rectForMenuAction(CFStringRef) const;
     void singleTapAtPointWithModifiers(WebCore::FloatPoint location, Vector<String>&& modifierFlags, BlockPtr<void()>&&);
-#if HAVE(PENCILKIT)
-    PKCanvasView *findEditableImageCanvas() const;
-#endif
 };
 
 }

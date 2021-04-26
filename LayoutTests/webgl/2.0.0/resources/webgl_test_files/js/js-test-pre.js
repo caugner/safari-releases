@@ -38,7 +38,6 @@
     }
 
     if (window.layoutTestController) {
-      window.layoutTestController.overridePreference("WebKitWebGLEnabled", "1");
       window.layoutTestController.dumpAsText();
       window.layoutTestController.waitUntilDone();
     }
@@ -705,6 +704,12 @@ function webglHarnessCollectGarbage() {
 
     if (window.CollectGarbage) {
         CollectGarbage();
+        return;
+    }
+
+    // WebKit's MiniBrowser
+    if (window.$vm) {
+        window.$vm.gc();
         return;
     }
 

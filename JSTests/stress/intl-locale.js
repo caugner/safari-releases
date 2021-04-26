@@ -45,6 +45,12 @@ shouldThrow(() => new Intl.Locale(['en', 'ja']), RangeError);
 shouldThrow(() => new Intl.Locale({}), RangeError);
 shouldThrow(() => new Intl.Locale({ toString() { throw new Error(); } }), Error);
 shouldThrow(() => new Intl.Locale([]), RangeError);
+shouldThrow(() => new Intl.Locale('i-klingon'), RangeError); // grandfathered tag is not accepted by IsStructurallyValidLanguageTag
+shouldThrow(() => new Intl.Locale('x-en-US-12345'), RangeError);
+shouldThrow(() => new Intl.Locale('x-12345-12345-en-US'), RangeError);
+shouldThrow(() => new Intl.Locale('x-en-US-12345-12345'), RangeError);
+shouldThrow(() => new Intl.Locale('x-en-u-foo'), RangeError);
+shouldThrow(() => new Intl.Locale('x-en-u-foo-u-bar'), RangeError);
 shouldNotThrow(() => new Intl.Locale({ toString() { return 'en'; } }));
 
 shouldThrow(() => new Intl.Locale('en', null), TypeError);
@@ -72,16 +78,10 @@ const validLanguageTags = [
     'cmn-hans-cn', // + ISO 3166-1 country code
     'es-419', // + UN M.49 region code
     'es-419-u-nu-latn-cu-bob', // + Unicode locale extension sequence
-    'i-klingon', // grandfathered tag
     'cmn-hans-cn-t-ca-u-ca-x-t-u', // singleton subtags can also be used as private use subtags
     'enochian-enochian', // language and variant subtags may be the same
     'de-gregory-u-ca-gregory', // variant and extension subtags may be the same
     'aa-a-foo-x-a-foo-bar', // variant subtags can also be used as private use subtags
-    'x-en-US-12345', // anything goes in private use tags
-    'x-12345-12345-en-US',
-    'x-en-US-12345-12345',
-    'x-en-u-foo',
-    'x-en-u-foo-u-bar'
 ];
 for (let validLanguageTag of validLanguageTags)
     shouldNotThrow(() => new Intl.Locale(validLanguageTag));
@@ -150,7 +150,7 @@ shouldBe(
     new Intl.Locale('En-laTn-us-variAnt-fOObar-1abc-U-kn-tRue-A-aa-aaa-x-RESERVED').toString(),
     $vm.icuVersion() >= 67
         ? 'en-Latn-US-1abc-foobar-variant-a-aa-aaa-u-kn-x-reserved'
-        : 'en-Latn-US-variant-foobar-1abc-a-aa-aaa-u-kn-true-x-reserved'
+        : 'en-Latn-US-variant-foobar-1abc-a-aa-aaa-u-kn-x-reserved'
 );
 shouldBe(new Intl.Locale('cel-gaulish', { script: 'Arab', numberingSystem: 'gujr' }).toString(), 'xtg-Arab-u-nu-gujr-x-cel-gaulish');
 shouldBe(new Intl.Locale('en-Latn-US-u-ca-gregory-co-phonebk-hc-h12-kf-upper-kn-false-nu-latn').toString(), 'en-Latn-US-u-ca-gregory-co-phonebk-hc-h12-kf-upper-kn-false-nu-latn');

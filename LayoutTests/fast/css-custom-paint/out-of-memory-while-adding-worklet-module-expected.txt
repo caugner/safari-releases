@@ -1,2 +1,1 @@
-CONSOLE MESSAGE: RangeError: Out of memory
-
+PASS: threw a RangeError: Out of memory exception

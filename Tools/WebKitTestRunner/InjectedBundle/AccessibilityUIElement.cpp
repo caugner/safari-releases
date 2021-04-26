@@ -55,6 +55,13 @@ bool AccessibilityUIElement::isValid() const
     return m_element;            
 }
 
+#if !ENABLE(ACCESSIBILITY_ISOLATED_TREE)
+bool AccessibilityUIElement::isIsolatedObject() const
+{
+    return false;
+}
+#endif
+
 // iOS specific methods
 #if !PLATFORM(IOS_FAMILY)
 JSRetainPtr<JSStringRef> AccessibilityUIElement::identifier() { return nullptr; }
@@ -81,6 +88,9 @@ bool AccessibilityUIElement::isTextArea() const { return false; }
 RefPtr<AccessibilityTextMarkerRange> AccessibilityUIElement::textMarkerRangeMatchesTextNearMarkers(JSStringRef, AccessibilityTextMarker*, AccessibilityTextMarker*) { return nullptr; }
 JSRetainPtr<JSStringRef> AccessibilityUIElement::attributedStringForElement() { return nullptr; }
 bool AccessibilityUIElement::isInTableCell() const { return false; }
+bool AccessibilityUIElement::isInTable() const { return false; }
+bool AccessibilityUIElement::isInLandmark() const { return false; }
+bool AccessibilityUIElement::isInList() const { return false; }
 #endif
     
 // Unsupported methods on various platforms. As they're implemented on other platforms this list should be modified.
@@ -97,9 +107,13 @@ void AccessibilityUIElement::resetSelectedTextMarkerRange() { }
 void AccessibilityUIElement::setBoolAttributeValue(JSStringRef, bool) { }
 void AccessibilityUIElement::setValue(JSStringRef) { }
 JSValueRef AccessibilityUIElement::searchTextWithCriteria(JSContextRef, JSValueRef, JSStringRef, JSStringRef) { return nullptr; }
+bool AccessibilityUIElement::isOnScreen() const { return true; }
 #endif
 
 #if !PLATFORM(COCOA) || !HAVE(ACCESSIBILITY)
+JSRetainPtr<JSStringRef> AccessibilityUIElement::domIdentifier() const { return nullptr; }
+JSRetainPtr<JSStringRef> AccessibilityUIElement::currentStateValue() const { return nullptr; }
+JSRetainPtr<JSStringRef> AccessibilityUIElement::sortDirection() const { return nullptr; }
 RefPtr<AccessibilityTextMarkerRange> AccessibilityUIElement::leftWordTextMarkerRangeForTextMarker(AccessibilityTextMarker*) { return nullptr; }
 RefPtr<AccessibilityTextMarkerRange> AccessibilityUIElement::rightWordTextMarkerRangeForTextMarker(AccessibilityTextMarker*) { return nullptr; }
 RefPtr<AccessibilityTextMarker> AccessibilityUIElement::previousWordStartTextMarkerForTextMarker(AccessibilityTextMarker*) { return nullptr; }

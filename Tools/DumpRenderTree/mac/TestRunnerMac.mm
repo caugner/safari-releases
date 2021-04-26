@@ -32,6 +32,7 @@
 
 #import "DefaultPolicyDelegate.h"
 #import "EditingDelegate.h"
+#import "JSBasics.h"
 #import "LayoutTestSpellChecker.h"
 #import "MockGeolocationProvider.h"
 #import "MockWebNotificationProvider.h"
@@ -207,16 +208,6 @@ void TestRunner::setSpellCheckerLoggingEnabled(bool enabled)
     [LayoutTestSpellChecker checker].spellCheckerLoggingEnabled = enabled;
 #else
     UNUSED_PARAM(enabled);
-#endif
-}
-
-void TestRunner::setSpellCheckerResults(JSContextRef context, JSObjectRef results)
-{
-#if PLATFORM(MAC)
-    [[LayoutTestSpellChecker checker] setResultsFromJSObject:results inContext:context];
-#else
-    UNUSED_PARAM(results);
-    UNUSED_PARAM(context);
 #endif
 }
 
@@ -413,11 +404,6 @@ void TestRunner::setAppCacheMaximumSize(unsigned long long size)
     [WebApplicationCache setMaximumSize:size];
 }
 
-void TestRunner::setAuthorAndUserStylesEnabled(bool flag)
-{
-    [[[mainFrame webView] preferences] setAuthorAndUserStylesEnabled:flag];
-}
-
 void TestRunner::setCustomPolicyDelegate(bool setDelegate, bool permissive)
 {
     if (!setDelegate) {
@@ -519,46 +505,6 @@ void TestRunner::setPrivateBrowsingEnabled(bool privateBrowsingEnabled)
     [[[mainFrame webView] preferences] setPrivateBrowsingEnabled:privateBrowsingEnabled];
 }
 
-void TestRunner::setXSSAuditorEnabled(bool enabled)
-{
-    [[[mainFrame webView] preferences] setXSSAuditorEnabled:enabled];
-}
-
-void TestRunner::setSpatialNavigationEnabled(bool enabled)
-{
-    [[[mainFrame webView] preferences] setSpatialNavigationEnabled:enabled];
-}
-
-void TestRunner::setAllowUniversalAccessFromFileURLs(bool enabled)
-{
-    [[[mainFrame webView] preferences] setAllowUniversalAccessFromFileURLs:enabled];
-}
-
-void TestRunner::setAllowFileAccessFromFileURLs(bool enabled)
-{
-    [[[mainFrame webView] preferences] setAllowFileAccessFromFileURLs:enabled];
-}
-
-void TestRunner::setNeedsStorageAccessFromFileURLsQuirk(bool needsQuirk)
-{
-    [[[mainFrame webView] preferences] setNeedsStorageAccessFromFileURLsQuirk:needsQuirk];
-}
-
-void TestRunner::setPopupBlockingEnabled(bool popupBlockingEnabled)
-{
-    [[[mainFrame webView] preferences] setJavaScriptCanOpenWindowsAutomatically:!popupBlockingEnabled];
-}
-
-void TestRunner::setPluginsEnabled(bool pluginsEnabled)
-{
-    [[[mainFrame webView] preferences] setPlugInsEnabled:pluginsEnabled];
-}
-
-void TestRunner::setJavaScriptCanAccessClipboard(bool enabled)
-{
-    [[[mainFrame webView] preferences] setJavaScriptCanAccessClipboard:enabled];
-}
-
 void TestRunner::setAutomaticLinkDetectionEnabled(bool enabled)
 {
 #if !PLATFORM(IOS_FAMILY)
@@ -572,11 +518,6 @@ void TestRunner::setTabKeyCyclesThroughElements(bool cycles)
 }
 
 #if PLATFORM(IOS_FAMILY)
-void TestRunner::setTelephoneNumberParsingEnabled(bool enabled)
-{
-    [[[mainFrame webView] preferences] _setTelephoneNumberParsingEnabled:enabled];
-}
-
 void TestRunner::setPagePaused(bool paused)
 {
     [gWebBrowserView setPaused:paused];
@@ -585,14 +526,14 @@ void TestRunner::setPagePaused(bool paused)
 
 void TestRunner::setUserStyleSheetEnabled(bool flag)
 {
-    [[WebPreferences standardPreferences] setUserStyleSheetEnabled:flag];
+    [[[mainFrame webView] preferences] setUserStyleSheetEnabled:flag];
 }
 
 void TestRunner::setUserStyleSheetLocation(JSStringRef path)
 {
     RetainPtr<CFStringRef> pathCF = adoptCF(JSStringCopyCFString(kCFAllocatorDefault, path));
     NSURL *url = [NSURL URLWithString:(__bridge NSString *)pathCF.get()];
-    [[WebPreferences standardPreferences] setUserStyleSheetLocation:url];
+    [[[mainFrame webView] preferences] setUserStyleSheetLocation:url];
 }
 
 void TestRunner::setValueForUser(JSContextRef context, JSValueRef nodeObject, JSStringRef value)
@@ -608,17 +549,6 @@ void TestRunner::setValueForUser(JSContextRef context, JSValueRef nodeObject, JS
 void TestRunner::dispatchPendingLoadRequests()
 {
     [[mainFrame webView] _dispatchPendingLoadRequests];
-}
-
-void TestRunner::overridePreference(JSStringRef key, JSStringRef value)
-{
-    RetainPtr<CFStringRef> keyCF = adoptCF(JSStringCopyCFString(kCFAllocatorDefault, key));
-    NSString *keyNS = (__bridge NSString *)keyCF.get();
-
-    RetainPtr<CFStringRef> valueCF = adoptCF(JSStringCopyCFString(kCFAllocatorDefault, value));
-    NSString *valueNS = (__bridge NSString *)valueCF.get();
-
-    [[WebPreferences standardPreferences] _setPreferenceForTestWithValue:valueNS forKey:keyNS];
 }
 
 void TestRunner::removeAllVisitedLinks()
@@ -680,15 +610,10 @@ bool TestRunner::findString(JSContextRef context, JSStringRef target, JSObjectRe
 {
     WebFindOptions options = 0;
 
-    auto lengthPropertyName = adopt(JSStringCreateWithUTF8CString("length"));
-    JSValueRef lengthValue = JSObjectGetProperty(context, optionsArray, lengthPropertyName.get(), 0);
-    if (!JSValueIsNumber(context, lengthValue))
-        return false;
+    auto length = WTR::arrayLength(context, optionsArray);
+    auto targetCFString = adoptCF(JSStringCopyCFString(kCFAllocatorDefault, target));
 
-    RetainPtr<CFStringRef> targetCFString = adoptCF(JSStringCopyCFString(kCFAllocatorDefault, target));
-
-    size_t length = static_cast<size_t>(JSValueToNumber(context, lengthValue, 0));
-    for (size_t i = 0; i < length; ++i) {
+    for (unsigned i = 0; i < length; ++i) {
         JSValueRef value = JSObjectGetPropertyAtIndex(context, optionsArray, i, 0);
         if (!JSValueIsString(context, value))
             continue;
@@ -714,7 +639,7 @@ bool TestRunner::findString(JSContextRef context, JSStringRef target, JSObjectRe
 
 void TestRunner::setCacheModel(int cacheModel)
 {
-    [[WebPreferences standardPreferences] setCacheModel:(WebCacheModel)cacheModel];
+    [[[mainFrame webView] preferences] setCacheModel:(WebCacheModel)cacheModel];
 }
 
 bool TestRunner::isCommandEnabled(JSStringRef name)
@@ -791,11 +716,6 @@ void TestRunner::addUserStyleSheet(JSStringRef source, bool allFrames)
     RetainPtr<CFStringRef> sourceCF = adoptCF(JSStringCopyCFString(kCFAllocatorDefault, source));
     NSString *sourceNS = (__bridge NSString *)sourceCF.get();
     [WebView _addUserStyleSheetToGroup:@"org.webkit.DumpRenderTree" world:[WebScriptWorld world] source:sourceNS url:nil includeMatchPatternStrings:nil excludeMatchPatternStrings:nil injectedFrames:(allFrames ? WebInjectInAllFrames : WebInjectInTopFrameOnly)];
-}
-
-void TestRunner::setDeveloperExtrasEnabled(bool enabled)
-{
-    [[[mainFrame webView] preferences] setDeveloperExtrasEnabled:enabled];
 }
 
 void TestRunner::showWebInspector()

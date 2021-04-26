@@ -206,7 +206,7 @@ static JSValueRef uiElementCountForSearchPredicateCallback(JSContextRef context,
     AccessibilityUIElement* startElement = nullptr;
     bool isDirectionNext = true;
     JSValueRef searchKey = nullptr;
-    JSRetainPtr<JSStringRef> searchText = nullptr;
+    JSRetainPtr<JSStringRef> searchText;
     bool visibleOnly = false;
     bool immediateDescendantsOnly = false;
     if (argumentCount >= 5 && argumentCount <= 6) {
@@ -1381,6 +1381,11 @@ static JSValueRef getIsVisibleCallback(JSContextRef context, JSObjectRef thisObj
     return JSValueMakeBoolean(context, toAXElement(thisObject)->isVisible());
 }
 
+static JSValueRef getIsOnScreenCallback(JSContextRef context, JSObjectRef thisObject, JSStringRef, JSValueRef*)
+{
+    return JSValueMakeBoolean(context, toAXElement(thisObject)->isOnScreen());
+}
+
 static JSValueRef getIsOffScreenCallback(JSContextRef context, JSObjectRef thisObject, JSStringRef, JSValueRef*)
 {
     return JSValueMakeBoolean(context, toAXElement(thisObject)->isOffScreen());
@@ -1637,6 +1642,7 @@ bool AccessibilityUIElement::isEqual(AccessibilityUIElement* otherElement)
 
 #if !PLATFORM(MAC)
 void AccessibilityUIElement::setBoolAttributeValue(JSStringRef, bool) { }
+bool AccessibilityUIElement::isOnScreen() const { return true; }
 #endif
 
 #if !SUPPORTS_AX_TEXTMARKERS
@@ -1891,6 +1897,7 @@ JSClassRef AccessibilityUIElement::getJSClass()
         { "isChecked", getIsCheckedCallback, 0, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "isIndeterminate", getIsIndeterminate, 0, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "isVisible", getIsVisibleCallback, 0, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
+        { "isOnScreen", getIsOnScreenCallback, 0, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "isOffScreen", getIsOffScreenCallback, 0, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "isCollapsed", getIsCollapsedCallback, 0, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "hasPopup", getHasPopupCallback, 0, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },

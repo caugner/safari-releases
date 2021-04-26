@@ -753,11 +753,8 @@ WI.DataGrid = class DataGrid extends WI.View
             insertionIndex = this.orderedColumns.length;
         insertionIndex = Number.constrain(insertionIndex, 0, this.orderedColumns.length);
 
-        var listeners = new WI.EventListenerSet(this, "DataGrid column DOM listeners");
-
         // Copy configuration properties instead of keeping a reference to the passed-in object.
         var column = Object.shallowCopy(columnData);
-        column["listeners"] = listeners;
         column["ordinal"] = insertionIndex;
         column["columnIdentifier"] = columnIdentifier;
 
@@ -793,10 +790,11 @@ WI.DataGrid = class DataGrid extends WI.View
             let headerView = column["headerView"];
             console.assert(headerView instanceof WI.View);
 
+            headerView.element.classList.add("header-cell-content");
             headerCellElement.appendChild(headerView.element);
             this.addSubview(headerView);
         } else {
-            let titleElement = headerCellElement.createChild("div");
+            let titleElement = headerCellElement.createChild("div", "header-cell-content");
             if (column["titleDOMFragment"])
                 titleElement.appendChild(column["titleDOMFragment"]);
             else
@@ -804,7 +802,7 @@ WI.DataGrid = class DataGrid extends WI.View
         }
 
         if (column["sortable"]) {
-            listeners.register(headerCellElement, "click", this._headerCellClicked);
+            headerCellElement.addEventListener("click", this._headerCellClicked.bind(this));
             headerCellElement.classList.add(WI.DataGrid.SortableColumnStyleClassName);
         }
 
@@ -821,9 +819,9 @@ WI.DataGrid = class DataGrid extends WI.View
 
             var collapseDiv = headerCellElement.createChild("div", "collapser-button");
             collapseDiv.title = this._collapserButtonCollapseColumnsToolTip();
-            listeners.register(collapseDiv, "mouseover", this._mouseoverColumnCollapser);
-            listeners.register(collapseDiv, "mouseout", this._mouseoutColumnCollapser);
-            listeners.register(collapseDiv, "click", this._clickInColumnCollapser);
+            collapseDiv.addEventListener("mouseover", this._mouseoverColumnCollapser.bind(this));
+            collapseDiv.addEventListener("mouseout", this._mouseoutColumnCollapser.bind(this));
+            collapseDiv.addEventListener("click", this._clickInColumnCollapser.bind(this));
 
             headerCellElement.collapsesGroup = column["collapsesGroup"];
             headerCellElement.classList.add("collapser");
@@ -844,8 +842,6 @@ WI.DataGrid = class DataGrid extends WI.View
         var referenceElement = this._fillerRowElement.children[insertionIndex];
         this._fillerRowElement.insertBefore(fillerCellElement, referenceElement);
 
-        listeners.install();
-
         this.setColumnVisible(columnIdentifier, !column.hidden);
     }
 
@@ -862,8 +858,6 @@ WI.DataGrid = class DataGrid extends WI.View
             if (ordinal > removedOrdinal)
                 column["ordinal"] = ordinal - 1;
         }
-
-        removedColumn["listeners"].uninstall(true);
 
         if (removedColumn["disclosure"])
             this.disclosureColumnIdentifier = undefined;

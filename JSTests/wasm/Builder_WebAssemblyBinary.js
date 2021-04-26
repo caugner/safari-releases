@@ -29,18 +29,22 @@ import * as WASM from './WASM.js';
 
 const put = (bin, type, value) => bin[type](value);
 
-const putResizableLimits = (bin, initial, maximum) => {
+const putResizableLimits = (bin, initial, maximum, shared = false) => {
     assert.truthy(typeof initial === "number", "We expect 'initial' to be an integer");
-    let hasMaximum = 0;
+    let flag = 0;
     if (typeof maximum === "number") {
-        hasMaximum = 1;
+        flag |= 0b01;
     } else {
         assert.truthy(typeof maximum === "undefined", "We expect 'maximum' to be an integer if it's defined");
     }
+    if (shared) {
+        assert.truthy(typeof maximum === "number", "We expect 'maximum' to be an integer if shared is true");
+        flag |= 0b10;
+    }
 
-    put(bin, "varuint1", hasMaximum);
+    put(bin, "uint8", flag);
     put(bin, "varuint32", initial);
-    if (hasMaximum)
+    if (flag & 0b01)
         put(bin, "varuint32", maximum);
 };
 
@@ -55,7 +59,7 @@ const valueType = WASM.description.type.i32.type
 
 const putGlobalType = (bin, global) => {
     put(bin, valueType, WASM.typeValue[global.type]);
-    put(bin, "varuint1", global.mutability);
+    put(bin, "uint8", global.mutability);
 };
 
 const putOp = (bin, op) => {
@@ -93,7 +97,7 @@ const putOp = (bin, op) => {
 
 const putInitExpr = (bin, expr) => {
     if (expr.op == "ref.null")
-        putOp(bin, { value: WASM.description.opcode[expr.op].value, name: expr.op, immediates: [], arguments: [] });
+        putOp(bin, { value: WASM.description.opcode[expr.op].value, name: expr.op, immediates: [expr.reftype], arguments: [] });
     else
         putOp(bin, { value: WASM.description.opcode[expr.op].value, name: expr.op, immediates: [expr.initValue], arguments: [] });
     putOp(bin, { value: WASM.description.opcode.end.value, name: "end", immediates: [], arguments: [] });
@@ -132,8 +136,8 @@ const emitters = {
                 break;
             }
             case "Memory": {
-                let {initial, maximum} = entry.memoryDescription;
-                putResizableLimits(bin, initial, maximum);
+                let {initial, maximum, shared} = entry.memoryDescription;
+                putResizableLimits(bin, initial, maximum, shared);
                 break;
             };
             case "Global":
@@ -160,7 +164,7 @@ const emitters = {
         // Flags, currently can only be [0,1]
         put(bin, "varuint1", section.data.length);
         for (const memory of section.data)
-            putResizableLimits(bin, memory.initial, memory.maximum);
+            putResizableLimits(bin, memory.initial, memory.maximum, memory.shared);
     },
 
     Global: (section, bin) => {
@@ -193,10 +197,13 @@ const emitters = {
     Element: (section, bin) => {
         const data = section.data;
         put(bin, "varuint32", data.length);
-        for (const {tableIndex, offset, functionIndices} of data) {
-            if (tableIndex != 0)
-                put(bin, "uint8", 2);
-            put(bin, "varuint32", tableIndex);
+        for (const {tableIndex, offset, elemkind, functionIndices} of data) {
+            let flags = tableIndex == 0 ? 0 : 2;
+            put(bin, "uint8", flags);
+
+            if (flags == 2) {
+              put(bin, "varuint32", tableIndex);
+            }
 
             let initExpr;
             if (typeof offset === "number")
@@ -204,6 +211,10 @@ const emitters = {
             else
                 initExpr = offset;
             putInitExpr(bin, initExpr);
+
+            if (flags == 2) {
+              put(bin, "uint8", elemkind);
+            }
 
             put(bin, "varuint32", functionIndices.length);
             for (const functionIndex of functionIndices)

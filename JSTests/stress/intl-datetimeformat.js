@@ -84,17 +84,15 @@ shouldBe(
     JSON.stringify(Intl.DateTimeFormat.supportedLocalesOf('En-laTn-us-variAnt-fOObar-1abc-U-kn-tRue-A-aa-aaa-x-RESERVED')),
     $vm.icuVersion() >= 67
         ? '["en-Latn-US-1abc-foobar-variant-a-aa-aaa-u-kn-x-reserved"]'
-        : '["en-Latn-US-variant-foobar-1abc-a-aa-aaa-u-kn-true-x-reserved"]'
+        : '["en-Latn-US-variant-foobar-1abc-a-aa-aaa-u-kn-x-reserved"]'
 );
-// Replaces outdated tags.
-shouldBe(JSON.stringify(Intl.DateTimeFormat.supportedLocalesOf('no-bok')), '["nb"]');
-// Doesn't throw, but ignores private tags.
-shouldBe(JSON.stringify(Intl.DateTimeFormat.supportedLocalesOf('x-some-thing')), '[]');
 // Throws on problems with length, get, or toString.
 shouldThrow(() => Intl.DateTimeFormat.supportedLocalesOf(Object.create(null, { length: { get() { throw new Error(); } } })), Error);
 shouldThrow(() => Intl.DateTimeFormat.supportedLocalesOf(Object.create(null, { length: { value: 1 }, 0: { get() { throw new Error(); } } })), Error);
 shouldThrow(() => Intl.DateTimeFormat.supportedLocalesOf([ { toString() { throw new Error(); } } ]), Error);
 // Throws on bad tags.
+shouldThrow(() => Intl.DateTimeFormat.supportedLocalesOf('no-bok'), RangeError);
+shouldThrow(() => Intl.DateTimeFormat.supportedLocalesOf('x-some-thing'), RangeError);
 shouldThrow(() => Intl.DateTimeFormat.supportedLocalesOf([ 5 ]), TypeError);
 shouldThrow(() => Intl.DateTimeFormat.supportedLocalesOf(''), RangeError);
 shouldThrow(() => Intl.DateTimeFormat.supportedLocalesOf('a'), RangeError);
@@ -107,6 +105,13 @@ shouldThrow(() => Intl.DateTimeFormat.supportedLocalesOf('en-x'), RangeError);
 shouldThrow(() => Intl.DateTimeFormat.supportedLocalesOf('en-*'), RangeError);
 shouldThrow(() => Intl.DateTimeFormat.supportedLocalesOf('en-'), RangeError);
 shouldThrow(() => Intl.DateTimeFormat.supportedLocalesOf('en--US'), RangeError);
+shouldThrow(() => Intl.DateTimeFormat.supportedLocalesOf('i-klingon'), RangeError); // grandfathered tag is not accepted by IsStructurallyValidLanguageTag
+shouldThrow(() => Intl.DateTimeFormat.supportedLocalesOf('x-en-US-12345'), RangeError);
+shouldThrow(() => Intl.DateTimeFormat.supportedLocalesOf('x-12345-12345-en-US'), RangeError);
+shouldThrow(() => Intl.DateTimeFormat.supportedLocalesOf('x-en-US-12345-12345'), RangeError);
+shouldThrow(() => Intl.DateTimeFormat.supportedLocalesOf('x-en-u-foo'), RangeError);
+shouldThrow(() => Intl.DateTimeFormat.supportedLocalesOf('x-en-u-foo-u-bar'), RangeError);
+
 // Accepts valid tags
 var validLanguageTags = [
     'de', // ISO 639 language code
@@ -118,16 +123,10 @@ var validLanguageTags = [
     'cmn-hans-cn', // + ISO 3166-1 country code
     'es-419', // + UN M.49 region code
     'es-419-u-nu-latn-cu-bob', // + Unicode locale extension sequence
-    'i-klingon', // grandfathered tag
     'cmn-hans-cn-t-ca-u-ca-x-t-u', // singleton subtags can also be used as private use subtags
     'enochian-enochian', // language and variant subtags may be the same
     'de-gregory-u-ca-gregory', // variant and extension subtags may be the same
     'aa-a-foo-x-a-foo-bar', // variant subtags can also be used as private use subtags
-    'x-en-US-12345', // anything goes in private use tags
-    'x-12345-12345-en-US',
-    'x-en-US-12345-12345',
-    'x-en-u-foo',
-    'x-en-u-foo-u-bar'
 ];
 for (var validLanguageTag of validLanguageTags)
     shouldNotThrow(() => Intl.DateTimeFormat.supportedLocalesOf(validLanguageTag));
@@ -561,8 +560,14 @@ for (let locale of localesSample) {
     let legacy = Object.create(Intl.DateTimeFormat.prototype);
     let incompat = {};
     shouldBe(Intl.DateTimeFormat.apply(legacy), legacy);
+    legacy = Object.create(Intl.DateTimeFormat.prototype);
     shouldBe(Intl.DateTimeFormat.call(legacy, 'en-u-nu-arab', { timeZone: 'America/Los_Angeles' }).format(1451099872641), '١٢/٢٥/٢٠١٥');
     shouldBe(Intl.DateTimeFormat.apply(incompat) !== incompat, true);
+    shouldThrow(() => {
+        let legacy = Object.create(Intl.DateTimeFormat.prototype);
+        Intl.DateTimeFormat.call(legacy);
+        Intl.DateTimeFormat.call(legacy, 'en-u-nu-arab');
+    }, TypeError);
 }
 
 // ECMA-402 4th edition 15.4 Intl.DateTimeFormat.prototype.formatToParts
@@ -661,3 +666,85 @@ shouldBe(Intl.DateTimeFormat('zh-u-ca-chinese', { era: 'short', year: 'numeric' 
 shouldBe(Intl.DateTimeFormat('zh', { era: 'short', year: 'numeric', calendar: 'chinese' }).format(0), '1969己酉年');
 shouldBe(JSON.stringify(Intl.DateTimeFormat('zh-u-ca-chinese', { era: 'short', year: 'numeric' }).formatToParts(0)), parts);
 shouldBe(JSON.stringify(Intl.DateTimeFormat('zh', { era: 'short', year: 'numeric', calendar: 'chinese' }).formatToParts(0)), parts);
+
+{
+    let t = new Date("2019-05-20T07:00:23.123");
+    {
+        let dtf = new Intl.DateTimeFormat("en", {hour: "numeric", minute: "numeric", second: "numeric", fractionalSecondDigits: 3});
+        shouldBe(dtf.format(t), `7:00:23.123 AM`);
+        let expected = [
+            {type: "hour", value: "7"},
+            {type: "literal", value: ":"},
+            {type: "minute", value: "00"},
+            {type: "literal", value: ":"},
+            {type: "second", value: "23"},
+            {type: "literal", value: "."},
+            {type: "fractionalSecond", value: "123"},
+            {type: "literal", value: " "},
+            {type: "dayPeriod", value: "AM"}
+        ];
+        let actual = dtf.formatToParts(t);
+        shouldBe(actual.length, expected.length);
+        for (let index = 0; index < expected.length; ++index) {
+            shouldBe(actual[index].type, expected[index].type);
+            shouldBe(actual[index].value, expected[index].value);
+        }
+    }
+    {
+        let dtf = new Intl.DateTimeFormat("en", {hour: "numeric", minute: "numeric", second: "numeric", fractionalSecondDigits: 2});
+        shouldBe(dtf.format(t), `7:00:23.12 AM`);
+    }
+    {
+        let dtf = new Intl.DateTimeFormat("en", {hour: "numeric", minute: "numeric", second: "numeric", fractionalSecondDigits: 1});
+        shouldBe(dtf.format(t), `7:00:23.1 AM`);
+        shouldBe(JSON.stringify(dtf.resolvedOptions()), `{"locale":"en","calendar":"gregory","numberingSystem":"latn","timeZone":"America/Los_Angeles","hourCycle":"h12","hour12":true,"dayPeriod":"short","hour":"numeric","minute":"2-digit","second":"2-digit","fractionalSecondDigits":1}`);
+    }
+    shouldThrow(() => {
+        new Intl.DateTimeFormat("en", {hour: "numeric", minute: "numeric", second: "numeric", fractionalSecondDigits: 0});
+    }, RangeError);
+    shouldThrow(() => {
+        new Intl.DateTimeFormat("en", {hour: "numeric", minute: "numeric", second: "numeric", fractionalSecondDigits: 4});
+    }, RangeError);
+}
+{
+    const expected = [
+      "second",
+      "fractionalSecondDigits",
+      "localeMatcher",
+      "second",
+      "fractionalSecondDigits",
+      "timeZoneName",
+      "formatMatcher",
+    ];
+
+    const actual = [];
+
+    const options = {
+      get second() {
+        actual.push("second");
+        return "numeric";
+      },
+      get fractionalSecondDigits() {
+        actual.push("fractionalSecondDigits");
+        return undefined;
+      },
+      get localeMatcher() {
+        actual.push("localeMatcher");
+        return undefined;
+      },
+      get timeZoneName() {
+        actual.push("timeZoneName");
+        return undefined;
+      },
+      get formatMatcher() {
+        actual.push("formatMatcher");
+        return undefined;
+      },
+    };
+
+    new Intl.DateTimeFormat("en", options);
+    shouldBe(JSON.stringify(actual), JSON.stringify(expected));
+}
+{
+    shouldBe(new Date(0).toLocaleTimeString('zh-Hans-CN', { timeZone: 'UTC', numberingSystem: 'hanidec', hour: "numeric", minute: "numeric", second: "numeric", fractionalSecondDigits: 2 }), "上午一二:〇〇:〇〇.〇〇");
+}

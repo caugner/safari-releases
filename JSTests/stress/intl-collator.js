@@ -19,10 +19,6 @@ function shouldThrow(func, errorType) {
         throw new Error(`Expected ${errorType.name}!`);
 }
 
-function explicitTrueBeforeICU67() {
-    return $vm.icuVersion() < 67 ? '-true' : '';
-}
-
 // 10.1 The Intl.Collator Constructor
 
 // The Intl.Collator constructor is a standard built-in property of the Intl object.
@@ -85,8 +81,8 @@ shouldBe(testCollator(Intl.Collator('en-u-co-abcd'), [{locale: 'en'}]), true);
 shouldBe(testCollator(Intl.Collator('de-u-co-phonebk'), [{locale: 'de-u-co-phonebk', collation: 'phonebk'}, {locale: 'de'}]), true);
 
 // The 'kn' key is processed correctly.
-shouldBe(testCollator(Intl.Collator('en-u-kn'), [{locale: 'en-u-kn' + explicitTrueBeforeICU67(), numeric: true}]), true);
-shouldBe(testCollator(Intl.Collator('en-u-kn-true'), [{locale: 'en-u-kn' + explicitTrueBeforeICU67(), numeric: true}]), true);
+shouldBe(testCollator(Intl.Collator('en-u-kn'), [{locale: 'en-u-kn', numeric: true}]), true);
+shouldBe(testCollator(Intl.Collator('en-u-kn-true'), [{locale: 'en-u-kn', numeric: true}]), true);
 shouldBe(testCollator(Intl.Collator('en-u-kn-false'), [{locale: 'en-u-kn-false', numeric: false}]), true);
 shouldBe(testCollator(Intl.Collator('en-u-kn-abcd'), [{locale: 'en'}]), true);
 
@@ -150,7 +146,7 @@ shouldThrow(() => Intl.Collator('en', { get ignorePunctuation() { throw new Erro
 // Options override the language tag.
 shouldBe(testCollator(Intl.Collator('en-u-kn-true', {numeric: false}), [{locale: 'en', numeric: false}]), true);
 shouldBe(testCollator(Intl.Collator('en-u-kn-false', {numeric: true}), [{locale: 'en', numeric: true}]), true);
-shouldBe(testCollator(Intl.Collator('en-u-kn-true', {numeric: true}), [{locale: 'en-u-kn' + explicitTrueBeforeICU67(), numeric: true}]), true);
+shouldBe(testCollator(Intl.Collator('en-u-kn-true', {numeric: true}), [{locale: 'en-u-kn', numeric: true}]), true);
 shouldBe(testCollator(Intl.Collator('en-u-kn-false', {numeric: false}), [{locale: 'en-u-kn-false', numeric: false}]), true);
 
 // Options and extension keys are processed correctly.
@@ -192,17 +188,15 @@ shouldBe(
     JSON.stringify(Intl.Collator.supportedLocalesOf('En-laTn-us-variAnt-fOObar-1abc-U-kn-tRue-A-aa-aaa-x-RESERVED')),
     $vm.icuVersion() >= 67
         ? '["en-Latn-US-1abc-foobar-variant-a-aa-aaa-u-kn-x-reserved"]'
-        : '["en-Latn-US-variant-foobar-1abc-a-aa-aaa-u-kn-true-x-reserved"]'
+        : '["en-Latn-US-variant-foobar-1abc-a-aa-aaa-u-kn-x-reserved"]'
 );
-// Replaces outdated tags.
-shouldBe(JSON.stringify(Intl.Collator.supportedLocalesOf('no-bok')), '["nb"]');
-// Doesn't throw, but ignores private tags.
-shouldBe(JSON.stringify(Intl.Collator.supportedLocalesOf('x-some-thing')), '[]');
 // Throws on problems with length, get, or toString.
 shouldThrow(() => Intl.Collator.supportedLocalesOf(Object.create(null, { length: { get() { throw Error() } } })), Error);
 shouldThrow(() => Intl.Collator.supportedLocalesOf(Object.create(null, { length: { value: 1 }, 0: { get() { throw Error() } } })), Error);
 shouldThrow(() => Intl.Collator.supportedLocalesOf([ { toString() { throw Error() } } ]), Error);
 // Throws on bad tags.
+shouldThrow(() => Intl.Collator.supportedLocalesOf('no-bok'), RangeError);
+shouldThrow(() => Intl.Collator.supportedLocalesOf('x-some-thing'), RangeError);
 shouldThrow(() => Intl.Collator.supportedLocalesOf([ 5 ]), TypeError);
 shouldThrow(() => Intl.Collator.supportedLocalesOf(''), RangeError);
 shouldThrow(() => Intl.Collator.supportedLocalesOf('a'), RangeError);
@@ -215,6 +209,13 @@ shouldThrow(() => Intl.Collator.supportedLocalesOf('en-x'), RangeError);
 shouldThrow(() => Intl.Collator.supportedLocalesOf('en-*'), RangeError);
 shouldThrow(() => Intl.Collator.supportedLocalesOf('en-'), RangeError);
 shouldThrow(() => Intl.Collator.supportedLocalesOf('en--US'), RangeError);
+shouldThrow(() => Intl.Collator.supportedLocalesOf('i-klingon'), RangeError); // grandfathered tag is not accepted by IsStructurallyValidLanguageTag
+shouldThrow(() => Intl.Collator.supportedLocalesOf('x-en-US-12345'), RangeError);
+shouldThrow(() => Intl.Collator.supportedLocalesOf('x-12345-12345-en-US'), RangeError);
+shouldThrow(() => Intl.Collator.supportedLocalesOf('x-en-US-12345-12345'), RangeError);
+shouldThrow(() => Intl.Collator.supportedLocalesOf('x-en-u-foo'), RangeError);
+shouldThrow(() => Intl.Collator.supportedLocalesOf('x-en-u-foo-u-bar'), RangeError);
+
 // Accepts valid tags
 var validLanguageTags = [
     'de', // ISO 639 language code
@@ -226,16 +227,10 @@ var validLanguageTags = [
     'cmn-hans-cn', // + ISO 3166-1 country code
     'es-419', // + UN M.49 region code
     'es-419-u-nu-latn-cu-bob', // + Unicode locale extension sequence
-    'i-klingon', // grandfathered tag
     'cmn-hans-cn-t-ca-u-ca-x-t-u', // singleton subtags can also be used as private use subtags
     'enochian-enochian', // language and variant subtags may be the same
     'de-gregory-u-ca-gregory', // variant and extension subtags may be the same
     'aa-a-foo-x-a-foo-bar', // variant subtags can also be used as private use subtags
-    'x-en-US-12345', // anything goes in private use tags
-    'x-12345-12345-en-US',
-    'x-en-US-12345-12345',
-    'x-en-u-foo',
-    'x-en-u-foo-u-bar'
 ];
 for (var validLanguageTag of validLanguageTags)
     shouldNotThrow(() => Intl.Collator.supportedLocalesOf(validLanguageTag));

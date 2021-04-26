@@ -86,7 +86,7 @@ class Git(SCM, SVNRepository):
         # git_bits = platform.architecture(executable=git_path, bits='default')[0]
         # git_bits is just 'default', meaning the call failed.
         file_output = self.run(['file', path])
-        return re.search('x86_64', file_output)
+        return re.search('64', file_output)
 
     def _check_git_architecture(self):
         if not self._machine_is_64bit():
@@ -113,7 +113,7 @@ class Git(SCM, SVNRepository):
         try:
             executive = executive or Executive()
             return executive.run_command([cls.executable_name, 'rev-parse', '--is-inside-work-tree'], cwd=path, ignore_errors=True).rstrip() == "true"
-        except OSError as e:
+        except OSError:
             # The Windows bots seem to through a WindowsError when git isn't installed.
             return False
 
@@ -122,7 +122,7 @@ class Git(SCM, SVNRepository):
         try:
             executive = executive or Executive()
             return executive.run_command([cls.executable_name, 'clone', '-v', url, directory], ignore_errors=True)
-        except OSError as e:
+        except OSError:
             return False
 
     def find_checkout_root(self, path):
@@ -386,7 +386,7 @@ class Git(SCM, SVNRepository):
     def _string_to_int_or_none(self, string):
         try:
             return int(string)
-        except ValueError as e:
+        except ValueError:
             return None
 
     @memoized

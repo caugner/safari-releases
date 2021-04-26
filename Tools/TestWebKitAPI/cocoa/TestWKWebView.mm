@@ -161,6 +161,11 @@ static NSString *overrideBundleIdentifier(id, SEL)
     [self expectElementTagsInOrder:@[tagName, otherTagName]];
 }
 
+- (BOOL)evaluateMediaQuery:(NSString *)query
+{
+    return [[self objectByEvaluatingJavaScript:[NSString stringWithFormat:@"window.matchMedia(\"(%@)\").matches", query]] boolValue];
+}
+
 - (id)objectByEvaluatingJavaScript:(NSString *)script
 {
     bool isWaitingForJavaScript = false;
@@ -457,7 +462,7 @@ static UICalloutBar *suppressUICalloutBar()
 {
 #if PLATFORM(MAC)
     _hostWindow = adoptNS([[TestWKWebViewHostWindow alloc] initWithWebView:self contentRect:frame styleMask:(NSWindowStyleMaskBorderless | NSWindowStyleMaskMiniaturizable) backing:NSBackingStoreBuffered defer:NO]);
-    [_hostWindow setFrameOrigin:NSMakePoint(0, 0)];
+    [_hostWindow setFrameOrigin:frame.origin];
     [_hostWindow setIsVisible:YES];
     [_hostWindow contentView].wantsLayer = YES;
     [[_hostWindow contentView] addSubview:self];
@@ -528,6 +533,16 @@ static UICalloutBar *suppressUICalloutBar()
 {
     __block bool done = false;
     [self _doAfterNextPresentationUpdate:^() {
+        done = true;
+    }];
+
+    TestWebKitAPI::Util::run(&done);
+}
+
+- (void)waitUntilActivityStateUpdateDone
+{
+    __block bool done = false;
+    [self _doAfterActivityStateUpdate:^() {
         done = true;
     }];
 

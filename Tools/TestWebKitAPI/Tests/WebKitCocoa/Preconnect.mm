@@ -25,8 +25,6 @@
 
 #import "config.h"
 
-#if HAVE(NETWORK_FRAMEWORK)
-
 #import "HTTPServer.h"
 #import "PlatformUtilities.h"
 #import "TestNavigationDelegate.h"
@@ -53,9 +51,11 @@ namespace TestWebKitAPI {
 
 TEST(Preconnect, HTTP)
 {
+    size_t connectionCount = 0;
     bool connected = false;
     bool requested = false;
     HTTPServer server([&] (Connection connection) {
+        ++connectionCount;
         connected = true;
         connection.receiveHTTPRequest([&](Vector<char>&&) {
             requested = true;
@@ -68,6 +68,38 @@ TEST(Preconnect, HTTP)
     EXPECT_FALSE(requested);
     [webView loadRequest:server.request()];
     Util::run(&requested);
+
+    EXPECT_EQ(connectionCount, 1u);
+}
+
+TEST(Preconnect, ConnectionCount)
+{
+    size_t connectionCount = 0;
+    bool anyConnections = false;
+    bool requested = false;
+    HTTPServer server([&] (Connection connection) {
+        ++connectionCount;
+        anyConnections = true;
+        connection.receiveHTTPRequest([&](Vector<char>&&) {
+            requested = true;
+        });
+    });
+    auto webView = adoptNS([WKWebView new]);
+
+    // The preconnect to the server will use the default setting of "use the credential store",
+    // and therefore use the credential-store-blessed NSURLSession.
+    [webView _preconnectToServer:server.request().URL];
+    Util::run(&anyConnections);
+    Util::spinRunLoop(10);
+    EXPECT_FALSE(requested);
+
+    // Then this request will *not* use the credential store, therefore using a different NSURLSession
+    // that doesn't know about the above preconnect, triggering a second connection to the server.
+    webView.get()._canUseCredentialStorage = NO;
+    [webView loadRequest:server.request()];
+    Util::run(&requested);
+
+    EXPECT_EQ(connectionCount, 2u);
 }
 
 // Mojave CFNetwork _preconnect SPI seems to have a bug causing this to time out.
@@ -133,8 +165,7 @@ static void pingPong(Ref<H2::Connection>&& connection, size_t* headersCount)
     });
 }
 
-// This should remain disabled until rdar://problem/65055930 is integrated and bots are updated
-TEST(Preconnect, DISABLED_H2Ping)
+TEST(Preconnect, H2Ping)
 {
     size_t headersCount = 0;
     HTTPServer server([headersCount = &headersCount] (Connection tlsConnection) {
@@ -174,8 +205,7 @@ TEST(Preconnect, DISABLED_H2Ping)
     EXPECT_EQ(headersCount, 1u);
 }
 
-// This should remain disabled until rdar://problem/65055930 is integrated and bots are updated
-TEST(Preconnect, DISABLED_H2PingFromWebCoreNSURLSession)
+TEST(Preconnect, H2PingFromWebCoreNSURLSession)
 {
     size_t headersCount = 0;
     HTTPServer server([headersCount = &headersCount] (Connection tlsConnection) {
@@ -199,10 +229,6 @@ TEST(Preconnect, DISABLED_H2PingFromWebCoreNSURLSession)
     EXPECT_TRUE(receivedChallenge);
 }
 
-
-
 #endif // HAVE(PRECONNECT_PING)
 
 }
-
-#endif

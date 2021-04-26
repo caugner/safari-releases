@@ -54,6 +54,8 @@ public:
 
     bool scrollingUpdatesDisabledForTesting() final;
 
+    void setHasBlankOverlay(bool) final;
+
 #if ENABLE(ATTACHMENT_ELEMENT)
     void didInsertAttachment(API::Attachment&, const String& source) final;
     void didRemoveAttachment(API::Attachment&) final;
@@ -65,6 +67,7 @@ public:
     WebCore::DictationContext addDictationAlternatives(NSTextAlternatives *) final;
     void removeDictationAlternatives(WebCore::DictationContext) final;
     Vector<String> dictationAlternatives(WebCore::DictationContext) final;
+    NSTextAlternatives *platformDictationAlternatives(WebCore::DictationContext) final;
 
 protected:
     WeakObjCPtr<WKWebView> m_webView;

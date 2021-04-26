@@ -57,11 +57,6 @@ webkit.org/b/58183 editing/execCommand/convert-style-elements-to-spans.html [ Pa
 # This test has been skipped for a long time. Temporarily marking as flaky to see what bots think.
 webkit.org/b/60648 fast/frames/flattening/frameset-flattening-subframesets.html [ Pass Failure ]
 
-# WebKitTestRunner needs overridePreference for non-boolean values
-# (zero-font-size.html passes because overridePreference does not work)
-webkit.org/b/42197 fast/harness/override-preferences-2.html [ Failure ]
-webkit.org/b/42197 fast/text/zero-font-size.html [ Pass ]
-
 webkit.org/b/82665 http/tests/webarchive/test-css-url-encoding.html [ Skip ]
 webkit.org/b/82665 http/tests/webarchive/test-css-url-encoding-shift-jis.html [ Skip ]
 webkit.org/b/82665 http/tests/webarchive/test-css-url-encoding-utf-8.html [ Skip ]
@@ -195,7 +190,7 @@ editing/pasteboard/drag-drop-url-with-style.html
 
 # WTR needs an implementation for eventSender.continuousMouseScrollBy
 # https://bugs.webkit.org/show_bug.cgi?id=69417
-fast/events/wheelevent-direction-inverted-from-device.html
+fast/events/wheel/wheelevent-direction-inverted-from-device.html
 
 # This should only be a layer change.
 # http://webkit.org/b/82129
@@ -292,24 +287,6 @@ plugins/get-url-with-blank-target.html
 http/tests/media/video-buffered.html
 
 # WebKit2 needs Java support
-dom/html/level2/html/HTMLAppletElement01.html
-dom/html/level2/html/HTMLAppletElement02.html
-dom/html/level2/html/HTMLAppletElement03.html
-dom/html/level2/html/HTMLAppletElement04.html
-dom/html/level2/html/HTMLAppletElement06.html
-dom/html/level2/html/HTMLAppletElement07.html
-dom/html/level2/html/HTMLAppletElement08.html
-dom/html/level2/html/HTMLAppletElement09.html
-dom/html/level2/html/HTMLAppletElement10.html
-dom/xhtml/level2/html/HTMLAppletElement01.xhtml
-dom/xhtml/level2/html/HTMLAppletElement02.xhtml
-dom/xhtml/level2/html/HTMLAppletElement03.xhtml
-dom/xhtml/level2/html/HTMLAppletElement04.xhtml
-dom/xhtml/level2/html/HTMLAppletElement06.xhtml
-dom/xhtml/level2/html/HTMLAppletElement07.xhtml
-dom/xhtml/level2/html/HTMLAppletElement08.xhtml
-dom/xhtml/level2/html/HTMLAppletElement09.xhtml
-dom/xhtml/level2/html/HTMLAppletElement10.xhtml
 editing/selection/selection-applet.html
 fast/replaced/applet-disabled-positioned.html
 fast/replaced/applet-rendering-java-disabled.html
@@ -518,7 +495,6 @@ plugins/open-and-close-window-with-plugin.html [ WontFix ]
 # Internals.registerDefaultPortForProtocol() does not affect NetworkProcess. We should
 # look to remove it and write these test to make use of an HTTP server running on port 80.
 http/tests/security/contentSecurityPolicy/script-src-parsing-implicit-and-explicit-port-number.html
-http/tests/security/http-0.9/default-port-plugin-blocked.html
 http/tests/security/http-0.9/default-port-script-blocked.html
 http/tests/security/http-0.9/image-default-port-allowed.html
 http/tests/security/http-0.9/image-on-HTTP-0.9-default-port-page-allowed-ref-test.html
@@ -723,14 +699,28 @@ http/tests/resourceLoadStatistics/classify-as-prevalent-based-on-top-frame-redir
 http/tests/resourceLoadStatistics/classify-as-prevalent-based-on-top-frame-unique-redirects-to.html [ Pass ]
 http/tests/resourceLoadStatistics/clear-in-memory-and-persistent-store.html [ Pass ]
 http/tests/resourceLoadStatistics/grandfathering.html [ Pass ]
-webkit.org/b/180703 http/tests/resourceLoadStatistics/telemetry-generation.html [ Pass Failure ]
 http/tests/resourceLoadStatistics/prune-statistics.html [ Pass ]
 http/tests/resourceLoadStatistics [ Pass ]
+
+# App Bound Domains is for iOS only, so we should skip
+# them here and enable them in the iOS platform specific file.
+http/tests/resourceLoadStatistics/exemptDomains/ [ Skip ]
 
 # The SameSite cookie API is only available in macOS Catalina and above.
 http/tests/resourceLoadStatistics/set-all-cookies-to-same-site-strict.html [ Skip ]
 http/tests/resourceLoadStatistics/enforce-samesite-strict-based-on-top-frame-unique-redirects-to.html [ Skip ]
-http/tests/resourceLoadStatistics/enforce-samesite-strict-based-on-top-frame-unique-redirects-to-database.html [ Skip ]
+
+# This test is flaky. <rdar://problem/69748720>
+http/tests/resourceLoadStatistics/operating-dates-all-but-cookies-removed-statistics-with-no-user-interaction.html [ Pass Failure ]
+
+# The CNAME and cookie transform SPIs are only available in macOS Big Sur + iOS 14 and above.
+http/tests/resourceLoadStatistics/cname-cloaking-top-cname-sub-1p-cname.html [ Skip ]
+http/tests/resourceLoadStatistics/cname-cloaking-top-cname-sub-3p-cname.html [ Skip ]
+http/tests/resourceLoadStatistics/cname-cloaking-top-cname-sub-matching-cname.html [ Skip ]
+http/tests/resourceLoadStatistics/cname-cloaking-top-cname-sub-no-cname.html [ Skip ]
+http/tests/resourceLoadStatistics/cname-cloaking-top-no-cname-sub-1p-cname.html [ Skip ]
+http/tests/resourceLoadStatistics/cname-cloaking-top-no-cname-sub-3p-cname.html [ Skip ]
+http/tests/resourceLoadStatistics/cname-cloaking-top-no-cname-sub-no-cname.html [ Skip ]
 
 http/tests/websocket/connection-refusal-in-frame-resource-load-statistics.html [ Pass ]
 # These are only supported behind a compile time flag in macOS High Sierra + iOS 11, and above.
@@ -755,7 +745,7 @@ storage/indexeddb/IDBObject-leak.html [ Pass ]
 
 fast/forms/call-text-did-change-in-text-field-when-typing.html [ Pass ]
 
-http/tests/adClickAttribution [ Pass ]
+http/tests/privateClickMeasurement [ Pass ]
 
 # User interaction is a WebKit2 concept.
 inspector/debugger/evaluateOnCallFrame-emulateUserGesture-userIsInteracting.html [ Pass ]
@@ -765,8 +755,8 @@ inspector/runtime/callFunctionOn-emulateUserGesture-userIsInteracting.html [ Pas
 # Target domain is only present in WebKit2.
 http/tests/inspector/target [ Pass ]
 
-# ITP and AdClickAttribution are WK2 only.
-inspector/page/overrideSetting-AdClickAttributionDebugModeEnabled.html [ Pass ]
+# ITP and PrivateClickMeasurement are WK2 only.
+inspector/page/overrideSetting-PrivateClickMeasurementDebugModeEnabled.html [ Pass ]
 inspector/page/overrideSetting-ITPDebugModeEnabled.html [ Pass ]
 
 # Highlighting marked text ranges from layout tests is only supported in WebKit2.
@@ -774,6 +764,11 @@ editing/input/composition-highlights.html [ Pass ]
 
 # Tests a setting behind the ENABLE_FULLSCREEN_API flag, which is WK2-only
 media/video-supports-fullscreen.html [ Pass ]
+
+imported/w3c/web-platform-tests/service-workers/service-worker/svg-target-reftest.https.html [ Pass ]
+
+# These tests rely on webkit-test-runner flags that aren't implemented for DumpRenderTree, so they will fail under legacy WebKit.
+editing/selection/expando.html [ Pass ]
 
 ### END OF (5) Progressions, expected successes that are expected failures in WebKit1.
 ########################################
@@ -807,3 +802,7 @@ http/tests/websocket/tests/hybi/closed-port-delay.html [ Pass ]
 
 # WebKit2 only.
 js/throw-large-string-oom.html [ Pass ]
+fast/speechrecognition/permission-error.html [ Pass ]
+fast/speechrecognition/start-recognition-then-stop.html [ Pass ]
+fast/speechrecognition/start-second-recognition.html [ Pass ]
+fullscreen/full-screen-enter-while-exiting.html [ Pass ]

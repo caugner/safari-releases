@@ -689,6 +689,12 @@
     "imported/w3c/web-platform-tests/css/cssom-view/scroll-behavior-subframe-window.html": [
         "slow"
     ],
+    "imported/w3c/web-platform-tests/css/cssom/idlharness.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/css/selectors/focus-visible-002.html": [
+        "slow"
+    ],
     "imported/w3c/web-platform-tests/dom/events/Event-dispatch-on-disabled-elements.html": [
         "slow"
     ],
@@ -1430,6 +1436,9 @@
     "imported/w3c/web-platform-tests/fetch/redirect-navigate/preserve-fragment.html": [
         "slow"
     ],
+    "imported/w3c/web-platform-tests/geolocation-API/getCurrentPosition_IDL.https.html": [
+        "slow"
+    ],
     "imported/w3c/web-platform-tests/html/browsers/browsing-the-web/history-traversal/persisted-user-state-restoration/resume-timer-on-history-back.html": [
         "slow"
     ],
@@ -1542,6 +1551,9 @@
         "slow"
     ],
     "imported/w3c/web-platform-tests/html/browsers/windows/auxiliary-browsing-contexts/opener-setter.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/browsers/windows/clear-window-name.https.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/html/browsers/windows/noreferrer-window-name.html": [
@@ -2447,6 +2459,96 @@
     "imported/w3c/web-platform-tests/mathml/presentation-markup/operators/operator-dictionary-001.html": [
         "slow"
     ],
+    "imported/w3c/web-platform-tests/mathml/presentation-markup/operators/operator-dictionary-largeop-001.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/mathml/presentation-markup/operators/operator-dictionary-largeop-002.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/mathml/presentation-markup/operators/operator-dictionary-largeop-003.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/mathml/presentation-markup/operators/operator-dictionary-largeop-004.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/mathml/presentation-markup/operators/operator-dictionary-largeop-005.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/mathml/presentation-markup/operators/operator-dictionary-largeop-006.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/mathml/presentation-markup/operators/operator-dictionary-movablelimits-001.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/mathml/presentation-markup/operators/operator-dictionary-movablelimits-002.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/mathml/presentation-markup/operators/operator-dictionary-movablelimits-003.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/mathml/presentation-markup/operators/operator-dictionary-movablelimits-004.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/mathml/presentation-markup/operators/operator-dictionary-movablelimits-005.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/mathml/presentation-markup/operators/operator-dictionary-movablelimits-006.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/mathml/presentation-markup/operators/operator-dictionary-spacing-001.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/mathml/presentation-markup/operators/operator-dictionary-spacing-002.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/mathml/presentation-markup/operators/operator-dictionary-spacing-003.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/mathml/presentation-markup/operators/operator-dictionary-spacing-004.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/mathml/presentation-markup/operators/operator-dictionary-spacing-005.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/mathml/presentation-markup/operators/operator-dictionary-spacing-006.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/mathml/presentation-markup/operators/operator-dictionary-stretchy-001.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/mathml/presentation-markup/operators/operator-dictionary-stretchy-002.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/mathml/presentation-markup/operators/operator-dictionary-stretchy-003.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/mathml/presentation-markup/operators/operator-dictionary-stretchy-004.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/mathml/presentation-markup/operators/operator-dictionary-stretchy-005.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/mathml/presentation-markup/operators/operator-dictionary-stretchy-006.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/mathml/presentation-markup/operators/operator-dictionary-symmetric-001.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/mathml/presentation-markup/operators/operator-dictionary-symmetric-002.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/mathml/presentation-markup/operators/operator-dictionary-symmetric-003.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/mathml/presentation-markup/operators/operator-dictionary-symmetric-004.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/mathml/presentation-markup/operators/operator-dictionary-symmetric-005.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/mathml/presentation-markup/operators/operator-dictionary-symmetric-006.html": [
+        "slow"
+    ],
     "imported/w3c/web-platform-tests/mathml/relations/html5-tree/tabindex-002.html": [
         "slow"
     ],
@@ -2825,6 +2927,9 @@
     "imported/w3c/web-platform-tests/svg/animations/svglengthlist-animation-3.html": [
         "slow"
     ],
+    "imported/w3c/web-platform-tests/uievents/mouse/mouseevent_move_button.html": [
+        "slow"
+    ],
     "imported/w3c/web-platform-tests/url/failure.html": [
         "slow"
     ],
@@ -2861,6 +2966,9 @@
     "imported/w3c/web-platform-tests/webrtc/RTCIceConnectionState-candidate-pair.https.html": [
         "slow"
     ],
+    "imported/w3c/web-platform-tests/webrtc/RTCPeerConnection-SLD-SRD-timing.https.html": [
+        "slow"
+    ],
     "imported/w3c/web-platform-tests/webrtc/RTCPeerConnection-createDataChannel.html": [
         "slow"
     ],
@@ -2871,6 +2979,12 @@
         "slow"
     ],
     "imported/w3c/web-platform-tests/webrtc/RTCPeerConnection-mandatory-getStats.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webrtc/RTCPeerConnection-perfect-negotiation-stress-glare-linear.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webrtc/RTCPeerConnection-perfect-negotiation-stress-glare.https.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/webrtc/RTCPeerConnection-perfect-negotiation.https.html": [
@@ -2892,6 +3006,9 @@
         "slow"
     ],
     "imported/w3c/web-platform-tests/webrtc/RTCRtpReceiver-getSynchronizationSources.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webrtc/RTCRtpSender-encode-same-track-twice.https.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/webrtc/RTCRtpSender-replaceTrack.https.html": [
@@ -3018,6 +3135,30 @@
         "slow"
     ],
     "imported/w3c/web-platform-tests/workers/semantics/multiple-workers/007.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/worklets/animation-worklet-csp.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/worklets/animation-worklet-referrer.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/worklets/audio-worklet-csp.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/worklets/audio-worklet-referrer.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/worklets/layout-worklet-csp.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/worklets/layout-worklet-referrer.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/worklets/paint-worklet-csp.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/worklets/paint-worklet-referrer.https.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/xhr/overridemimetype-blob.html": [

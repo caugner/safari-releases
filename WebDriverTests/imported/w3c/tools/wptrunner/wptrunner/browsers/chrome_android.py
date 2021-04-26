@@ -49,7 +49,6 @@ def executor_kwargs(test_type, server_config, cache_manager, run_info_data,
                                              **kwargs)
     # Remove unsupported options on mobile.
     del executor_kwargs["capabilities"]["goog:chromeOptions"]["prefs"]
-    del executor_kwargs["capabilities"]["goog:chromeOptions"]["useAutomationExtension"]
 
     assert kwargs["package_name"], "missing --package-name"
     executor_kwargs["capabilities"]["goog:chromeOptions"]["androidPackage"] = \
@@ -114,7 +113,7 @@ class ChromeAndroidBrowser(Browser):
         # TODO(ato): This only indicates the driver is alive,
         # and doesn't say anything about whether a browser session
         # is active.
-        return self.server.is_alive
+        return self.server.is_alive()
 
     def cleanup(self):
         self.stop()

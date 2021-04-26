@@ -114,7 +114,7 @@ function analyseAudio(stream, duration, context)
 
            var hasFrequency = expectedFrequency => {
                 var bin = Math.floor(expectedFrequency * analyser.fftSize / context.sampleRate);
-                return bin < freqDomain.length && freqDomain[bin] >= 150;
+                return bin < freqDomain.length && freqDomain[bin] >= 100;
            };
 
            if (!results.heardHum)
@@ -167,7 +167,7 @@ function waitForVideoSize(video, width, height, count)
 
 async function doHumAnalysis(stream, expected)
 {
-    var context = new webkitAudioContext();
+    var context = new AudioContext();
     for (var cptr = 0; cptr < 20; cptr++) {
         var results = await analyseAudio(stream, 200, context);
         if (results.heardHum === expected)
@@ -276,4 +276,24 @@ async function computeFrameRate(stream, video)
     await new Promise(resolve => setTimeout(resolve, 1000)); 
     const stats2 = await getReceivedTrackStats(connection);
     return (stats2.framesReceived - stats1.framesReceived) * 1000 / (stats2.timestamp - stats1.timestamp);
+}
+
+function setH264BaselineCodec(sdp)
+{
+    const lines = sdp.split('\r\n');
+    const h264Lines = lines.filter(line => line.indexOf("a=fmtp") === 0 && line.indexOf("42e01f") !== -1);
+    const baselineNumber = h264Lines[0].substring(6).split(' ')[0];
+    return lines.filter(line => {
+        return (line.indexOf('a=fmtp') === -1 && line.indexOf('a=rtcp-fb') === -1 && line.indexOf('a=rtpmap') === -1) || line.indexOf(baselineNumber) !== -1;
+    }).join('\r\n');
+}
+
+function setH264HighCodec(sdp)
+{
+    const lines = sdp.split('\r\n');
+    const h264Lines = lines.filter(line => line.indexOf("a=fmtp") === 0 && line.indexOf("640c1f") !== -1);
+    const baselineNumber = h264Lines[0].substring(6).split(' ')[0];
+    return lines.filter(line => {
+        return (line.indexOf('a=fmtp') === -1 && line.indexOf('a=rtcp-fb') === -1 && line.indexOf('a=rtpmap') === -1) || line.indexOf(baselineNumber) !== -1;
+    }).join('\r\n');
 }

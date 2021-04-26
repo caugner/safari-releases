@@ -3,7 +3,7 @@
 /*---
 esid: sec-integer-indexed-exotic-objects-defineownproperty-p-desc
 description: >
-  Throws a TypeError if object has valid numeric index and a detached buffer
+  Returns false if this has valid numeric index and a detached buffer
   (honoring the Realm of the current execution context)
 info: |
   9.4.5.3 [[DefineOwnProperty]] ( P, Desc)
@@ -17,20 +17,29 @@ info: |
         2. Return ? IntegerIndexedElementSet(O, intIndex, value).
   ...
 
-  9.4.5.9 IntegerIndexedElementSet ( O, index, value )
+  IntegerIndexedElementSet ( O, index, value )
 
-  ...
-  4. Let buffer be the value of O's [[ViewedArrayBuffer]] internal slot.
-  5. If IsDetachedBuffer(buffer) is true, throw a TypeError exception.
-  ...
+  Assert: O is an Integer-Indexed exotic object.
+  If O.[[ContentType]] is BigInt, let numValue be ? ToBigInt(value).
+  Otherwise, let numValue be ? ToNumber(value).
+  Let buffer be O.[[ViewedArrayBuffer]].
+  If IsDetachedBuffer(buffer) is false and ! IsValidIntegerIndex(O, index) is true, then
+    Let offset be O.[[ByteOffset]].
+    Let arrayTypeName be the String value of O.[[TypedArrayName]].
+    Let elementSize be the Element Size value specified in Table 62 for arrayTypeName.
+    Let indexedPosition be (ℝ(index) × elementSize) + offset.
+    Let elementType be the Element Type value in Table 62 for arrayTypeName.
+    Perform SetValueInBuffer(buffer, indexedPosition, elementType, numValue, true, Unordered).
+  Return NormalCompletion(undefined).
+
 includes: [testBigIntTypedArray.js, detachArrayBuffer.js]
-features: [BigInt, cross-realm, Reflect, TypedArray]
+features: [align-detached-buffer-semantics-with-web-reality, BigInt, cross-realm, Reflect, TypedArray]
 ---*/
-
 var other = $262.createRealm().global;
+
 var desc = {
   value: 0n,
-  configurable: false,
+  configurable: true,
   enumerable: true,
   writable: true
 };
@@ -38,10 +47,11 @@ var desc = {
 testWithBigIntTypedArrayConstructors(function(TA) {
   var OtherTA = other[TA.name];
   var sample = new OtherTA(1);
-
   $DETACHBUFFER(sample.buffer);
 
-  assert.throws(TypeError, function() {
-    Reflect.defineProperty(sample, '0', desc);
-  });
+  assert.sameValue(
+    Reflect.defineProperty(sample, '0', desc),
+    false,
+    'Reflect.defineProperty(sample, "0", {value: 0n, configurable: true, enumerable: true, writable: true} ) must return false'
+  );
 });

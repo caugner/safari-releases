@@ -1,5 +1,5 @@
 
-FAIL speakers, initially mono The string did not match the expected pattern.
-FAIL discrete The string did not match the expected pattern.
-FAIL speakers, initially stereo The string did not match the expected pattern.
+PASS speakers, initially mono
+PASS discrete
+PASS speakers, initially stereo
 

@@ -87,7 +87,10 @@
 
 (define-once (framebuffer-access)
     (allow iokit-open
-        (iokit-user-client-class "IOMobileFramebufferUserClient")
+        (require-all
+            (extension "com.apple.webkit.extension.iokit")
+            (iokit-user-client-class "IOMobileFramebufferUserClient")
+        )
         (when (defined? 'iokit-external-method)
             (apply-message-filter
                 (deny (with telemetry)
@@ -231,8 +234,14 @@
 
     ;; Items with known uses
     (allow iokit-open
-        (iokit-connection "IOGPU")
-        (iokit-user-client-class "AGXDeviceUserClient") ;; Used by WebGL
+        (require-all
+            (extension "com.apple.webkit.extension.iokit")
+            (iokit-connection "IOGPU")
+        )
+        (require-all
+            (extension "com.apple.webkit.extension.iokit")
+            (iokit-user-client-class "AGXDeviceUserClient") ;; Used by WebGL
+        )
         (when (defined? 'iokit-external-method)
             (apply-message-filter
                 (deny (with telemetry)
@@ -383,7 +392,10 @@
     )
 
     (allow iokit-open
-        (iokit-user-client-class "AppleJPEGDriverUserClient")
+        (require-all
+            (extension "com.apple.webkit.extension.iokit")
+            (iokit-user-client-class "AppleJPEGDriverUserClient")
+        )
         (when (defined? 'iokit-external-method)
             (apply-message-filter
                 (deny (with telemetry)
@@ -397,7 +409,10 @@
 
     ; WebKit-required IOKit classes
     (allow iokit-open
-        (iokit-user-client-class "IOSurfaceAcceleratorClient") ;; Media rendering into pixel buffers
+        (require-all
+            (extension "com.apple.webkit.extension.iokit")
+            (iokit-user-client-class "IOSurfaceAcceleratorClient") ;; Media rendering into pixel buffers
+        )
         (when (defined? 'iokit-external-method)
             (apply-message-filter
                 (deny (with telemetry)
@@ -410,7 +425,10 @@
     )
 
     (allow iokit-open
-        (iokit-user-client-class "IOSurfaceRootUserClient") ;; Needed by Tiled Grid code.
+        (require-all
+            (extension "com.apple.webkit.extension.iokit")
+            (iokit-user-client-class "IOSurfaceRootUserClient") ;; Needed by Tiled Grid code.
+        )
         (when (defined? 'iokit-external-method)
             (apply-message-filter
                 (deny (with telemetry)
@@ -543,14 +561,10 @@
     (allow-read-write-and-issue-generic-extensions
            (extension "com.apple.security.exception.files.absolute-path.read-write")
            (extension "com.apple.security.exception.files.home-relative-path.read-write"))
-    (allow iokit-open
-           (extension "com.apple.security.exception.iokit-user-client-class"))
     (allow managed-preference-read
            (extension "com.apple.security.exception.managed-preference.read-only"))
     (allow user-preference-read
            (extension "com.apple.security.exception.shared-preference.read-only"))
-    (allow user-preference-read user-preference-write
-           (extension "com.apple.security.exception.shared-preference.read-write"))
 
     (allow file-issue-extension
           (require-all
@@ -612,13 +626,21 @@
        (require-entitlement "com.apple.private.kernel.override-cpumon"))
 
 (deny sysctl-read (with no-report)
-      (sysctl-name "sysctl.proc_native"))
+      (sysctl-name
+          "hw.cpufrequency_compat"
+          "hw.tbfrequency_compat" ;; <rdar://71740719>
+          "sysctl.proc_native"))
 
 (with-filter (system-attribute apple-internal)
     (allow sysctl-read sysctl-write
            (sysctl-name "vm.footprint_suspend")))
 
-(allow file-read-metadata network-outbound
+(allow network-outbound
+       (literal "/private/var/run/syslog"))
+
+;; Confirm this is unused:
+(allow file-read-metadata
+       (with report) (with telemetry-backtrace)
        (literal "/private/var/run/syslog"))
 
 (allow mach-lookup
@@ -805,12 +827,20 @@
     )
 )
 
+(deny file-read* (with no-report)
+    (home-literal
+        "/Library/Preferences/com.apple.WebKit.WebContent.plist"
+    )
+)
+
 (deny sysctl*)
 (allow sysctl-read
     (sysctl-name
         "hw.activecpu" ;; Needed by JSC engine.
         "hw.availcpu"
+        "hw.byteorder"
         "hw.cachelinesize"
+        "hw.cachelinesize_compat"
         "hw.cpufamily" ;; <rdar://problem/58416475>
         "hw.cputype"
         "hw.l2cachesize"
@@ -824,6 +854,7 @@
         "hw.physicalcpu"
         "hw.physicalcpu_max"
         "hw.product"
+        "hw.vectorunit"
         "kern.bootargs"
         "kern.hostname"
         "kern.maxfilesperproc" ;; <rdar://problem/65900517>
@@ -848,6 +879,7 @@
     (iokit-property "BaseAddressAlignmentRequirement")
     (iokit-property-regex #"^DisplayPipe(PlaneBaseAlignment|StrideRequirements)")
     (iokit-property "HEVCSupported")
+    (iokit-property "HEVCCanDecodeTileToCanvas")
     (iokit-property-regex #"IOGVA(BGRAEnc|Codec|EncoderRestricted|Scaler)")
     (iokit-property "IOClassNameOverride")
     (iokit-property "IOPlatformUUID")
@@ -922,6 +954,13 @@
 
 (media-accessibility-support)
 
+(deny mach-lookup (with no-report)
+    (global-name "com.apple.SystemConfiguration.configd")
+    (global-name "com.apple.aggregated")
+    (global-name "com.apple.diagnosticd")
+    (global-name "com.apple.fontservicesd")
+)
+
 (deny mach-lookup (with telemetry-backtrace)
     (global-name "com.apple.PowerManagement.control"))
 
@@ -949,6 +988,31 @@
 
 (deny mach-lookup (with telemetry-backtrace)
     (global-name "com.apple.mobilegestalt.xpc")
+)
+
+(deny mach-lookup (with no-log)
+    (xpc-service-name "com.apple.audio.toolbox.reporting.service")
+)
+
+;; FIXME: This is just for logging. Remove when the GPU process is enabled by default.
+(allow iokit-open (with report) (with telemetry-backtrace)
+    (require-all
+        (require-not (extension "com.apple.webkit.extension.iokit"))
+        (iokit-user-client-class
+            "IOMobileFramebufferUserClient"
+            "AGXDeviceUserClient"
+            "AppleJPEGDriverUserClient"
+            "IOSurfaceAcceleratorClient"
+            "IOSurfaceRootUserClient"
+        )
+    )
+)
+
+(allow iokit-open (with report) (with telemetry-backtrace)
+    (require-all
+        (require-not (extension "com.apple.webkit.extension.iokit"))
+        (iokit-connection "IOGPU")
+    )
 )
 
 (allow mach-lookup
@@ -1003,7 +1067,6 @@
         (xpc-service-name
             ;;; FIXME(207716): The following should be removed when the GPU process is complete
             "com.apple.MediaPlayer.RemotePlayerService"
-            "com.apple.audio.toolbox.reporting.service"
             ;;; FIXME(207716): End services to remove.
         )
     )
@@ -1255,6 +1318,7 @@
         (machtrap-number MSC_host_self_trap)
         (machtrap-number MSC_mach_generate_activity_id)
         (machtrap-number MSC_mach_msg_trap)
+        (machtrap-number MSC_mach_msg_overwrite_trap)
         (machtrap-number MSC_mach_reply_port)
         (machtrap-number MSC_mach_timebase_info_trap)
         (machtrap-number MSC_mach_voucher_extract_attr_recipe_trap)
@@ -1338,6 +1402,13 @@
                 (when (defined? 'vm_remap_external) vm_remap_external)
                 )
             )
+            (when (defined? 'mach_port_is_connection_for_service)
+                (allow mach-message-send (kernel-mig-routine mach_port_is_connection_for_service))
+            )
         )
     )
+)
+
+(when (defined? 'darwin-notification-post)
+    (allow darwin-notification-post (with telemetry))
 )

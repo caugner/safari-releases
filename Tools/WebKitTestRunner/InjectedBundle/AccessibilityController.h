@@ -45,17 +45,15 @@ public:
     static Ref<AccessibilityController> create();
     ~AccessibilityController();
 
-    void makeWindowObject(JSContextRef, JSObjectRef windowObject, JSValueRef* exception);
+    void makeWindowObject(JSContextRef);
     virtual JSClassRef wrapperClass();
     
     // Enhanced accessibility.
     void enableEnhancedAccessibility(bool);
     bool enhancedAccessibilityEnabled();
 
-#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
-    void setAccessibilityIsolatedTreeMode(bool);
-#endif
-    
+    void setIsolatedTreeMode(bool);
+
     JSRetainPtr<JSStringRef> platformName();
 
     // Controller Methods - platform-independent implementations.

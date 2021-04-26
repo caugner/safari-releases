@@ -1,3 +1,153 @@
+2021-01-05  Jon Davis  <jond@apple.com>
+
+        Limit failed login attempts on webkit.org blog
+        https://bugs.webkit.org/show_bug.cgi?id=220032
+
+        Reviewed by Timothy Hatcher.
+
+        * wp-content/plugins/limit-logins.php: Added.
+
+2021-01-05  Jon Davis  <jond@apple.com>
+
+        Disable public APIs on webkit.org blog
+        https://bugs.webkit.org/show_bug.cgi?id=220028
+
+        Reviewed by Timothy Hatcher.
+
+        * wp-content/plugins/disable-public-apis.php: Added.
+
+2021-01-05  Jon Davis  <jond@apple.com>
+
+        Enforce strong password changes on webkit.org blog
+        https://bugs.webkit.org/show_bug.cgi?id=220027
+
+        Reviewed by Timothy Hatcher.
+
+        * wp-content/plugins/strong-passwords.php: Added.
+
+2020-12-11  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Add Big Sur to WebKit Build Archives page
+        https://bugs.webkit.org/show_bug.cgi?id=219789
+
+        Reviewed by Alexey Proskuryakov.
+
+        * wp-content/themes/webkit/build-archives.php:
+        Add Big Sur, remove High Sierra since we aren't producing new archives for it.
+
+2020-11-02  Jon Davis  <jond@apple.com>
+
+        Input sanitization improvements for Payment Request demo
+        https://bugs.webkit.org/show_bug.cgi?id=218470
+
+        Reviewed by Andy Estes.
+
+        * demos/payment-request/merchant-validation.php:
+
+2020-09-02  Jon Davis  <jond@apple.com>
+
+        Add an STP callout to Web Inspector documentation
+        https://bugs.webkit.org/show_bug.cgi?id=216105
+
+        Reviewed by Devin Rousso.
+
+        * wp-content/themes/webkit/single-web_inspector_page.php:
+        * wp-content/themes/webkit/style.css:
+        (article .meta .icon):
+
+2020-08-24  Jon Davis  <jond@apple.com>
+
+        Disable unused RPC services
+        https://bugs.webkit.org/show_bug.cgi?id=215779
+
+        Reviewed by Alexey Proskuryakov.
+
+        * .htaccess:
+
+2020-08-18  Darin Adler  <darin@apple.com>
+
+        * languages.md: Fixed "Movaje" typo.
+
+2020-08-18  Darin Adler  <darin@apple.com>
+
+        Document versions of C++ and Python
+        https://bugs.webkit.org/show_bug.cgi?id=215191
+
+        Reviewed by Jonathan Bedard.
+
+        * languages.md: Added.
+
+2020-08-12  Jon Davis  <jond@apple.com>
+
+        Remove unused selector performance test
+        https://bugs.webkit.org/show_bug.cgi?id=215414
+
+        Reviewed by Darin Adler.
+
+        * perf/slickspeed/config.ini: Removed.
+        * perf/slickspeed/footer.html: Removed.
+        * perf/slickspeed/frameworks/DomQuery.js: Removed.
+        * perf/slickspeed/frameworks/dummy.js: Removed.
+        * perf/slickspeed/frameworks/jquery-1.2.3.js: Removed.
+        * perf/slickspeed/frameworks/prototype.js: Removed.
+        * perf/slickspeed/header.html: Removed.
+        * perf/slickspeed/index.php: Removed.
+        * perf/slickspeed/instructions.txt: Removed.
+        * perf/slickspeed/logo.png: Removed.
+        * perf/slickspeed/selectors.list: Removed.
+        * perf/slickspeed/style.css: Removed.
+        * perf/slickspeed/system/index.php: Removed.
+        * perf/slickspeed/system/slickspeed.js: Removed.
+        * perf/slickspeed/system/template.php: Removed.
+        * perf/slickspeed/template.html: Removed.
+
+2020-08-06  Jon Davis  <jond@apple.com>
+
+        Fixed widget method argument compatibility with WordPress
+        https://bugs.webkit.org/show_bug.cgi?id=215103
+
+        Reviewed by Devin Rousso.
+
+        * wp-content/themes/webkit/widgets/icon.php:
+        * wp-content/themes/webkit/widgets/page.php:
+        * wp-content/themes/webkit/widgets/post.php:
+        * wp-content/themes/webkit/widgets/twitter.php:
+
+2020-08-06  Jon Davis  <jond@apple.com>
+
+        Removed XML declaration from SVGs and updated copyrights
+        https://bugs.webkit.org/show_bug.cgi?id=215102
+
+        Reviewed by Devin Rousso.
+
+        * wp-content/themes/webkit/images/chevron-dark.svg:
+        * wp-content/themes/webkit/images/chevron.svg:
+        * wp-content/themes/webkit/images/circular.svg:
+        * wp-content/themes/webkit/images/compass.svg:
+        * wp-content/themes/webkit/images/download-white.svg:
+        * wp-content/themes/webkit/images/download.svg:
+        * wp-content/themes/webkit/images/filter.svg:
+        * wp-content/themes/webkit/images/icons.svg:
+        * wp-content/themes/webkit/images/inspector.svg:
+        * wp-content/themes/webkit/images/invert-lightness.svg:
+        * wp-content/themes/webkit/images/menu-down.svg:
+        * wp-content/themes/webkit/images/search.svg:
+        * wp-content/themes/webkit/images/spinner.svg:
+        * wp-content/themes/webkit/images/squirrelfish-lives.svg:
+        * wp-content/themes/webkit/images/template.svg:
+        * wp-content/themes/webkit/images/twitter.svg:
+        * wp-content/themes/webkit/images/webkit.svg:
+
+2020-08-05  Jon Davis  <jond@apple.com>
+
+        Enhance feature status page origin for flexible test environments
+        https://bugs.webkit.org/show_bug.cgi?id=215178
+
+        Reviewed by Devin Rousso.
+
+        * wp-content/themes/webkit/css-status.php:
+        * wp-content/themes/webkit/status.php:
+
 2020-04-23  Filip Pizlo  <fpizlo@apple.com>
 
         Unreviewed, check in some more files for a blog post.

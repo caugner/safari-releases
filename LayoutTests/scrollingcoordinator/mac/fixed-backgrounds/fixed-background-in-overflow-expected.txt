@@ -4,7 +4,7 @@ Fixed background
 (Frame scrolling node
   (scrollable area size 800 600)
   (contents size 800 600)
-  (scrollable area parameters 
+  (scrollable area parameters
     (horizontal scroll elasticity 2)
     (vertical scroll elasticity 2)
     (horizontal scrollbar mode 0)
@@ -18,13 +18,13 @@ Fixed background
     (Overflow scrolling node
       (scrollable area size 405 305)
       (contents size 410 1020)
-      (scrollable area parameters 
+      (scrollable area parameters
         (horizontal scroll elasticity 0)
         (vertical scroll elasticity 0)
         (horizontal scrollbar mode 0)
         (vertical scrollbar mode 0)
-        (has enabled horizontal scrollbar 1)
-        (has enabled vertical scrollbar 1))
+        (allows horizontal scrolling 1)
+        (allows vertical scrolling 1))
       (Scrolling on main thread because: Has slow repaint objects)
     )
   )

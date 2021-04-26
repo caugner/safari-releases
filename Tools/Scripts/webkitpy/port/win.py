@@ -103,26 +103,23 @@ class WinPort(ApplePort):
             self._os_version = self.host.platform.os_version
 
     def do_text_results_differ(self, expected_text, actual_text):
-        # Sanity was restored in WK2, so we don't need this hack there.
-        if self.get_option('webkit_test_runner'):
-            return ApplePort.do_text_results_differ(self, expected_text, actual_text)
-
-        # This is a hack (which dates back to ORWT).
-        # Windows does not have an EDITING DELEGATE, so we strip any EDITING DELEGATE
-        # messages to make more of the tests pass.
-        # It's possible more of the ports might want this and this could move down into WebKitPort.
-        delegate_regexp = re.compile("^EDITING DELEGATE: .*?\n", re.MULTILINE)
-        expected_text = delegate_regexp.sub("", expected_text)
-        actual_text = delegate_regexp.sub("", actual_text)
-        return expected_text != actual_text
+        # Sanity was restored in WebKitTestRunner, so we don't need this hack there.
+        if not self.get_option('webkit_test_runner'):
+            # Windows does not have an EDITING DELEGATE, so strip those messages to make more tests pass.
+            # It's possible other ports might want this, and if so, this could move down into WebKitPort.
+            delegate_regexp = re.compile("^EDITING DELEGATE: .*?\n", re.MULTILINE)
+            expected_text = delegate_regexp.sub("", expected_text)
+            actual_text = delegate_regexp.sub("", actual_text)
+        return ApplePort.do_text_results_differ(self, expected_text, actual_text)
 
     def default_baseline_search_path(self, **kwargs):
         version_name_map = VersionNameMap.map(self.host.platform)
         if self._os_version < self.VERSION_MIN or self._os_version > self.VERSION_MAX:
-            fallback_versions = [self._os_version]
+            fallback_versions = [self._os_version] if self._os_version else []
         else:
             sorted_versions = sorted(version_name_map.mapping_for_platform(platform=self.port_name).values())
             fallback_versions = sorted_versions[sorted_versions.index(self._os_version):]
+
         fallback_names = ['win-' + version_name_map.to_name(version, platform=self.port_name).lower().replace(' ', '') for version in fallback_versions]
         fallback_names.append('win')
 
@@ -475,7 +472,7 @@ class WinCairoPort(WinPort):
         paths = []
         version_name_map = VersionNameMap.map(self.host.platform)
         if self._os_version < self.VERSION_MIN or self._os_version > self.VERSION_MAX:
-            versions = [self._os_version]
+            versions = [self._os_version] if self._os_version else []
         else:
             sorted_versions = sorted(version_name_map.mapping_for_platform(platform=self.port_name).values())
             versions = sorted_versions[sorted_versions.index(self._os_version):]

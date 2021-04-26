@@ -25,8 +25,6 @@
 
 #import "config.h"
 
-#if HAVE(SSL)
-
 #import "HTTPServer.h"
 #import "PlatformUtilities.h"
 #import "TCPServer.h"
@@ -34,11 +32,15 @@
 #import "TestUIDelegate.h"
 #import "TestWKWebView.h"
 #import "Utilities.h"
+#import <WebKit/WKHTTPCookieStorePrivate.h>
 #import <WebKit/WKWebsiteDataStorePrivate.h>
 #import <WebKit/WebKit.h>
 #import <WebKit/_WKWebsiteDataStoreConfiguration.h>
+#import <pal/spi/cf/CFNetworkSPI.h>
 #import <wtf/RetainPtr.h>
 #import <wtf/text/StringConcatenateNumbers.h>
+
+#if HAVE(SSL)
 
 @interface ProxyDelegate : NSObject <WKNavigationDelegate, WKUIDelegate>
 - (NSString *)waitForAlert;
@@ -183,12 +185,16 @@ TEST(WebKit, SecureProxyConnection)
 
 #endif // HAVE(SSL)
 
-#if HAVE(NETWORK_FRAMEWORK)
-
 namespace TestWebKitAPI {
 
 TEST(WebKit, RelaxThirdPartyCookieBlocking)
 {
+    __block bool setDefaultCookieAcceptPolicy = false;
+    [[WKWebsiteDataStore defaultDataStore].httpCookieStore _setCookieAcceptPolicy:NSHTTPCookieAcceptPolicyOnlyFromMainDocumentDomain completionHandler:^{
+        setDefaultCookieAcceptPolicy = true;
+    }];
+    Util::run(&setDefaultCookieAcceptPolicy);
+
     auto runTest = [] (bool shouldRelaxThirdPartyCookieBlocking) {
         HTTPServer server([connectionCount = 0, shouldRelaxThirdPartyCookieBlocking] (Connection connection) mutable {
             ++connectionCount;
@@ -274,5 +280,3 @@ TEST(WebKit, RelaxThirdPartyCookieBlocking)
 }
 
 } // namespace TestWebKitAPI
-
-#endif // HAVE(NETWORK_FRAMEWORK)

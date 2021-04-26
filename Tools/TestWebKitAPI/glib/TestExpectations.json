@@ -61,10 +61,7 @@
                 "expected": {"all": {"status": ["PASS", "FAIL"], "bug": "webkit.org/b/188117"}}
             },
             "/webkit/WebKitWebsiteData/storage": {
-                "expected": {"wpe": {"status": ["PASS", "FAIL"]}}
-            },
-            "/webkit/WebKitWebsiteData/configuration": {
-                "expected": {"gtk": {"status": ["PASS", "FAIL"], "bug": "webkit.org/b/205441"}}
+                "expected": { "wpe": {"status": ["PASS", "FAIL"]}}
             },
             "/webkit/WebKitWebsiteData/dom-cache": {
                 "expected": {
@@ -98,6 +95,11 @@
         }
     },
     "TestInspectorServer": {
+        "subtests": {
+           "/webkit/WebKitWebInspectorServer/test-page-list": {
+              "expected": {"gtk": {"status": ["FAIL", "PASS"], "bug": "webkit.org/b/216646"}}
+           }
+        },
         "expected": {"all": {"slow": true}}
     },
     "TestWebKitFaviconDatabase": {

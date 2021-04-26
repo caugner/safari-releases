@@ -51,6 +51,7 @@
 - (void)setAllowedMenuActions:(NSArray<NSString *> *)actions;
 
 - (void)resetCustomMenuAction;
+- (void)immediatelyDismissContextMenuIfNeeded;
 - (void)installCustomMenuAction:(NSString *)name dismissesAutomatically:(BOOL)dismissesAutomatically callback:(dispatch_block_t)callback;
 
 - (void)zoomToScale:(double)scale animated:(BOOL)animated completionHandler:(void (^)(void))completionHandler;
@@ -59,6 +60,7 @@
 
 @property (nonatomic, assign) UIEdgeInsets overrideSafeAreaInsets;
 
+@property (nonatomic, readonly) UIView *contentView;
 @property (nonatomic, readonly, getter=isShowingKeyboard) BOOL showingKeyboard;
 @property (nonatomic, readonly, getter=isDismissingMenu) BOOL dismissingMenu;
 @property (nonatomic, readonly, getter=isShowingPopover) BOOL showingPopover;
@@ -71,6 +73,9 @@
 @property (nonatomic, readonly, getter=isShowingMenu) BOOL showingMenu;
 @property (nonatomic, copy) void (^didShowMenuCallback)(void);
 @property (nonatomic, copy) void (^didHideMenuCallback)(void);
+@property (nonatomic, readonly, getter=isShowingContactPicker) BOOL showingContactPicker;
+@property (nonatomic, copy) void (^didShowContactPickerCallback)(void);
+@property (nonatomic, copy) void (^didHideContactPickerCallback)(void);
 @property (nonatomic, retain, setter=_setStableStateOverride:) NSNumber *_stableStateOverride;
 @property (nonatomic, setter=_setScrollingUpdatesDisabledForTesting:) BOOL _scrollingUpdatesDisabledForTesting;
 

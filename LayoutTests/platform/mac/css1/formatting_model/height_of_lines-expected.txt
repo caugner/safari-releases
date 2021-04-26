@@ -100,8 +100,8 @@ layer at (0,0) size 785x2299
                   text run at (422,21) width 298: "Any images within the paragraph should increase the"
                   text run at (0,223) width 365: "height of the line-box so that they fit within the line box, such as "
                 RenderImage {IMG} at (364,40) size 201x200
-                RenderText {#text} at (564,223) size 28x17
-                  text run at (564,223) width 28: " and "
+                RenderText {#text} at (564,223) size 25x17
+                  text run at (564,223) width 25: " and"
                 RenderImage {IMG} at (0,243) size 200x200
                 RenderText {#text} at (200,243) size 733x218
                   text run at (200,243) width 7: ". "
@@ -115,8 +115,8 @@ layer at (0,0) size 785x2299
                   text run at (134,21) width 595: "Any images within the paragraph should increase the height of the line-box so that they fit, including their"
                   text run at (0,183) width 437: "padding (5px), border (10px) and margins (15px) within the line box, such as "
                 RenderImage {IMG} at (451,55) size 131x130 [border: (10px solid #000000)]
-                RenderText {#text} at (596,183) size 28x17
-                  text run at (596,183) width 28: " and "
+                RenderText {#text} at (596,183) size 25x17
+                  text run at (596,183) width 25: " and"
                 RenderImage {IMG} at (15,218) size 130x130 [border: (10px solid #000000)]
                 RenderText {#text} at (160,203) size 747x237
                   text run at (160,203) width 7: ". "

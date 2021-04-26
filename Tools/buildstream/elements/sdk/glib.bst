@@ -1,14 +1,12 @@
 kind: meson
 sources:
 - kind: tar
-  url: gnome_downloads:glib/2.64/glib-2.64.2.tar.xz
-  ref: 9a2f21ed8f13b9303399de13a0252b7cbcede593d26971378ec6cb90e87f2277
+  url: gnome_downloads:glib/2.66/glib-2.66.3.tar.xz
+  ref: 79f31365a99cb1cc9db028625635d1438890702acde9e2802eae0acebcf7b5b1
 depends:
 - filename: components/libffi.bst
   junction: freedesktop-sdk.bst
 - filename: components/util-linux.bst
-  junction: freedesktop-sdk.bst
-- filename: components/pcre.bst
   junction: freedesktop-sdk.bst
 - filename: components/python3.bst
   junction: freedesktop-sdk.bst
@@ -27,6 +25,7 @@ variables:
     -Dgtk_doc=false
     -Dinstalled-tests=true
     -Dselinux=disabled
+    -Dinternal_pcre=false
 public:
   bst:
     integration-commands:

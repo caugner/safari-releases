@@ -1,5 +1,3 @@
-//@ runDefault("--useBigInt=true", "--usePublicClassFields=true")
-
 let assert = {
     sameValue(a, e) {
         if (a !== e)

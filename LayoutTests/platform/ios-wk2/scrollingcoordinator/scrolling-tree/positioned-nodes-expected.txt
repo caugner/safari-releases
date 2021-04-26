@@ -7,7 +7,7 @@ Scrolling content
 (Frame scrolling node
   (scrollable area size 800 600)
   (contents size 800 741)
-  (scrollable area parameters 
+  (scrollable area parameters
     (horizontal scroll elasticity 1)
     (vertical scroll elasticity 1)
     (horizontal scrollbar mode 0)
@@ -20,33 +20,33 @@ Scrolling content
     (Overflow scrolling node
       (scrollable area size 220 170)
       (contents size 220 1020)
-      (scrollable area parameters 
+      (scrollable area parameters
         (horizontal scroll elasticity 1)
         (vertical scroll elasticity 1)
         (horizontal scrollbar mode 0)
         (vertical scrollbar mode 0)
-        (has enabled vertical scrollbar 1))
+        (allows vertical scrolling 1))
     )
     (Overflow scrolling node
       (scrollable area size 220 170)
       (contents size 242 1020)
-      (scrollable area parameters 
+      (scrollable area parameters
         (horizontal scroll elasticity 1)
         (vertical scroll elasticity 1)
         (horizontal scrollbar mode 0)
         (vertical scrollbar mode 0)
-        (has enabled horizontal scrollbar 1)
-        (has enabled vertical scrollbar 1))
+        (allows horizontal scrolling 1)
+        (allows vertical scrolling 1))
       (children 1
         (Overflow scrolling node
           (scrollable area size 220 170)
           (contents size 220 1020)
-          (scrollable area parameters 
+          (scrollable area parameters
             (horizontal scroll elasticity 1)
             (vertical scroll elasticity 1)
             (horizontal scrollbar mode 0)
             (vertical scrollbar mode 0)
-            (has enabled vertical scrollbar 1))
+            (allows vertical scrolling 1))
         )
       )
     )
@@ -56,25 +56,25 @@ Scrolling content
     (Overflow scrolling node
       (scrollable area size 220 170)
       (contents size 220 1020)
-      (scrollable area parameters 
+      (scrollable area parameters
         (horizontal scroll elasticity 1)
         (vertical scroll elasticity 1)
         (horizontal scrollbar mode 0)
         (vertical scrollbar mode 0)
-        (has enabled vertical scrollbar 1))
+        (allows vertical scrolling 1))
     )
     (Overflow scrolling node
       (scrollable area size 220 170)
       (contents size 220 1020)
-      (scrollable area parameters 
+      (scrollable area parameters
         (horizontal scroll elasticity 1)
         (vertical scroll elasticity 1)
         (horizontal scrollbar mode 0)
         (vertical scrollbar mode 0)
-        (has enabled vertical scrollbar 1))
+        (allows vertical scrolling 1))
       (children 1
         (Positioned node
-          (layout constraints 
+          (layout constraints
             (layer-position-at-last-layout (81,30)))
           (related overflow nodes 1)
         )

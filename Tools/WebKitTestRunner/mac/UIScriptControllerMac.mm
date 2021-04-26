@@ -28,6 +28,7 @@
 
 #import "EventSenderProxy.h"
 #import "EventSerializerMac.h"
+#import "LayoutTestSpellChecker.h"
 #import "PlatformViewHelpers.h"
 #import "PlatformWebView.h"
 #import "PlatformWebView.h"
@@ -94,6 +95,43 @@ void UIScriptControllerMac::simulateAccessibilitySettingsChangeNotification(JSVa
             return;
         m_context->asyncTaskComplete(callbackID);
     }).get()];
+}
+
+bool UIScriptControllerMac::isShowingDateTimePicker() const
+{
+    for (NSWindow *childWindow in webView().window.childWindows) {
+        if ([childWindow isKindOfClass:NSClassFromString(@"WKDateTimePickerWindow")])
+            return true;
+    }
+    return false;
+}
+
+double UIScriptControllerMac::dateTimePickerValue() const
+{
+    for (NSWindow *childWindow in webView().window.childWindows) {
+        if ([childWindow isKindOfClass:NSClassFromString(@"WKDateTimePickerWindow")]) {
+            for (NSView *subview in childWindow.contentView.subviews) {
+                if ([subview isKindOfClass:[NSDatePicker class]])
+                    return [[(NSDatePicker *)subview dateValue] timeIntervalSince1970] * 1000;
+            }
+        }
+    }
+    return 0;
+}
+
+void UIScriptControllerMac::chooseDateTimePickerValue()
+{
+    for (NSWindow *childWindow in webView().window.childWindows) {
+        if ([childWindow isKindOfClass:NSClassFromString(@"WKDateTimePickerWindow")]) {
+            for (NSView *subview in childWindow.contentView.subviews) {
+                if ([subview isKindOfClass:[NSDatePicker class]]) {
+                    NSDatePicker *datePicker = (NSDatePicker *)subview;
+                    [datePicker.target performSelector:datePicker.action withObject:datePicker];
+                    return;
+                }
+            }
+        }
+    }
 }
 
 bool UIScriptControllerMac::isShowingDataListSuggestions() const
@@ -191,7 +229,7 @@ void UIScriptControllerMac::completeBackSwipe(JSValueRef callback)
 
 void UIScriptControllerMac::playBackEventStream(JSStringRef eventStream, JSValueRef callback)
 {
-    RetainPtr<CFStringRef> stream = adoptCF(JSStringCopyCFString(kCFAllocatorDefault, eventStream));
+    auto stream = adoptCF(JSStringCopyCFString(kCFAllocatorDefault, eventStream));
     playBackEvents(webView(), m_context, (__bridge NSString *)stream.get(), callback);
 }
 
@@ -261,6 +299,11 @@ void UIScriptControllerMac::copyText(JSStringRef text)
     NSPasteboard *pasteboard = NSPasteboard.generalPasteboard;
     [pasteboard declareTypes:@[NSPasteboardTypeString] owner:nil];
     [pasteboard setString:text->string() forType:NSPasteboardTypeString];
+}
+
+void UIScriptControllerMac::setSpellCheckerResults(JSValueRef results)
+{
+    [[LayoutTestSpellChecker checker] setResultsFromJSValue:results inContext:m_context->jsContext()];
 }
 
 } // namespace WTR

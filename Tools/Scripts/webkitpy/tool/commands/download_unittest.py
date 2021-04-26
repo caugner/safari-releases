@@ -26,14 +26,16 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import logging
 import unittest
 
-from webkitpy.common.system.outputcapture import OutputCapture
 from webkitpy.thirdparty.mock import Mock
 from webkitpy.tool.commands.commandtest import CommandsTest
 from webkitpy.tool.commands.download import *
 from webkitpy.tool.mocktool import MockOptions, MockTool
 from webkitpy.common.checkout.checkout_mock import MockCheckout
+
+from webkitcorepy import OutputCapture
 
 
 class AbstractRevertPrepCommandTest(unittest.TestCase):
@@ -41,17 +43,18 @@ class AbstractRevertPrepCommandTest(unittest.TestCase):
         command = AbstractRevertPrepCommand()
         tool = MockTool()
         command.bind_to_tool(tool)
-        output = OutputCapture()
 
-        expected_logs = "Preparing revert for bug 50000.\n"
-        commit_info = output.assert_outputs(self, command._commit_info, [1234], expected_logs=expected_logs)
+        with OutputCapture(level=logging.INFO) as captured:
+            commit_info = command._commit_info(1234)
+        self.assertEqual(captured.root.log.getvalue(), 'Preparing revert for bug 50000.\n')
         self.assertTrue(commit_info)
 
         mock_commit_info = Mock()
         mock_commit_info.bug_id = lambda: None
         tool._checkout.commit_info_for_revision = lambda revision: mock_commit_info
-        expected_logs = "Unable to parse bug number from diff.\n"
-        commit_info = output.assert_outputs(self, command._commit_info, [1234], expected_logs=expected_logs)
+        with OutputCapture(level=logging.INFO) as captured:
+            commit_info = command._commit_info(1234)
+        self.assertEqual(captured.root.log.getvalue(), 'Unable to parse bug number from diff.\n')
         self.assertEqual(commit_info, mock_commit_info)
 
     def test_prepare_state(self):
@@ -81,6 +84,7 @@ class DownloadCommandsTest(CommandsTest):
         options.check_style_filter = None
         options.clean = True
         options.close_bug = True
+        options.comment_bug = True
         options.force_clean = False
         options.non_interactive = False
         options.parent_command = 'MOCK parent command'
@@ -145,7 +149,7 @@ Running Perl unit tests
 Running JavaScriptCore tests
 Running run-webkit-tests
 Committed r49824: <https://trac.webkit.org/changeset/49824>
-Updating bug 50000
+Adding comment and closing bug 50000
 """
         mock_tool = MockTool()
         mock_tool.scm().create_patch = Mock(return_value="Patch1\nMockPatch\n")
@@ -188,7 +192,7 @@ Running Perl unit tests
 Running JavaScriptCore tests
 Running run-webkit-tests
 Committed r49824: <https://trac.webkit.org/changeset/49824>
-Updating bug 50000
+Adding comment and closing bug 50000
 """
         mock_tool = MockTool()
         mock_tool.buildbot.light_tree_on_fire()
@@ -271,6 +275,51 @@ Committed r49824: <https://trac.webkit.org/changeset/49824>
 Not closing bug 50000 as attachment 10000 has review=+.  Assuming there are more patches to land from this bug.
 """
         self.assert_execute_outputs(LandFromURL(), ["https://bugs.webkit.org/show_bug.cgi?id=50000"], options=self._default_options(), expected_logs=expected_logs)
+
+    def test_land_no_comment(self):
+        expected_logs = """Building WebKit
+Running Python unit tests
+Running Perl unit tests
+Running JavaScriptCore tests
+Running run-webkit-tests
+Committed r49824: <https://trac.webkit.org/changeset/49824>
+Not updating bug 50000
+"""
+        options = self._default_options()
+        options.comment_bug = False
+        self.assert_execute_outputs(Land(), [50000], options=options, expected_logs=expected_logs)
+
+    def test_land_no_close(self):
+        expected_logs = """Building WebKit
+Running Python unit tests
+Running Perl unit tests
+Running JavaScriptCore tests
+Running run-webkit-tests
+Committed r49824: <https://trac.webkit.org/changeset/49824>
+Commenting without closing bug 50000
+MOCK bug comment: bug_id=50000, cc=None, see_also=None
+--- Begin comment ---
+Committed r49824: <https://trac.webkit.org/changeset/49824>
+--- End comment ---
+
+"""
+        options = self._default_options()
+        options.close_bug = False
+        self.assert_execute_outputs(Land(), [50000], options=options, expected_logs=expected_logs)
+
+    def test_land_no_comment_no_close(self):
+        expected_logs = """Building WebKit
+Running Python unit tests
+Running Perl unit tests
+Running JavaScriptCore tests
+Running run-webkit-tests
+Committed r49824: <https://trac.webkit.org/changeset/49824>
+Not updating bug 50000
+"""
+        options = self._default_options()
+        options.comment_bug = False
+        options.close_bug = False
+        self.assert_execute_outputs(Land(), [50000], options=options, expected_logs=expected_logs)
 
     def test_prepare_revert(self):
         expected_logs = "Preparing revert for bug 50000.\nUpdating working directory\n"

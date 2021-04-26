@@ -10,6 +10,7 @@ class Manifest {
         CommitLog.clearStaticMap();
         Metric.clearStaticMap();
         Platform.clearStaticMap();
+        PlatformGroup.clearStaticMap();
         Repository.clearStaticMap();
         CommitSet.clearStaticMap();
         Test.clearStaticMap();
@@ -21,12 +22,22 @@ class Manifest {
         Bug.clearStaticMap();
     }
 
-    static fetch()
+    static async fetch()
     {
         this.reset();
-        return RemoteAPI.getJSON('/data/manifest.json').catch(function () {
-            return RemoteAPI.getJSON('/api/manifest/');
-        }).then(this._didFetchManifest.bind(this));
+        const rawManifest = await this.fetchRawResponse();
+        return this._didFetchManifest(rawManifest);
+    }
+
+    static async fetchRawResponse()
+    {
+        try {
+            return await RemoteAPI.getJSON('/data/manifest.json');
+        } catch(error) {
+            if (error != 404)
+                throw `Failed to fetch manifest.json with ${error}`
+            return await RemoteAPI.getJSON('/api/manifest/');
+        }
     }
 
     static _didFetchManifest(rawResponse)
@@ -50,12 +61,14 @@ class Manifest {
             raw.test = Test.findById(raw.test);
         });
 
+        buildObjectsFromIdMap(rawResponse.platformGroups, PlatformGroup);
         buildObjectsFromIdMap(rawResponse.all, Platform, (raw) => {
             raw.lastModifiedByMetric = {};
             raw.lastModified.forEach((lastModified, index) => {
                 raw.lastModifiedByMetric[raw.metrics[index]] = lastModified;
             });
             raw.metrics = raw.metrics.map((id) => { return Metric.findById(id); });
+            raw.group = PlatformGroup.findById(raw.group);
         });
         buildObjectsFromIdMap(rawResponse.builders, Builder);
         buildObjectsFromIdMap(rawResponse.repositories, Repository);
@@ -88,6 +101,8 @@ class Manifest {
             siteTitle: rawResponse.siteTitle,
             dashboards: rawResponse.dashboards, // FIXME: Add an abstraction around dashboards.
             summaryPages: rawResponse.summaryPages,
+            testAgeToleranceInHours: rawResponse.testAgeToleranceInHours,
+            maxRootReuseAgeInDays: rawResponse.maxRootReuseAgeInDays,
         }
     }
 }

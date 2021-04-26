@@ -467,20 +467,26 @@ class WebCoreColorProvider:
     def _to_string_extended(self):
         extended_color = self.valobj.GetChildMemberWithName('m_colorData').GetChildMemberWithName('extendedColor').Dereference()
         profile = extended_color.GetChildMemberWithName('m_colorSpace').GetValue()
-        if profile == 'ColorSpaceSRGB':
+        if profile == 'SRGB':
             profile = 'srgb'
-        elif profile == 'ColorSpaceDisplayP3':
+        elif profile == 'LinearRGB':
+            profile = 'linear-rgb'
+        elif profile == 'DisplayP3':
             profile = 'display-p3'
         else:
             profile = 'unknown'
-        red = float(extended_color.GetChildMemberWithName('m_red').GetValue())
-        green = float(extended_color.GetChildMemberWithName('m_green').GetValue())
-        blue = float(extended_color.GetChildMemberWithName('m_blue').GetValue())
-        alpha = float(extended_color.GetChildMemberWithName('m_alpha').GetValue())
+
+        color_components = extended_color.GetChildMemberWithName('m_components')
+        std_array_elems = color_components.GetChildMemberWithName('components').GetChildMemberWithName('__elems_')
+
+        red = float(std_array_elems.GetChildAtIndex(0).GetValue())
+        green = float(std_array_elems.GetChildAtIndex(1).GetValue())
+        blue = float(std_array_elems.GetChildAtIndex(2).GetValue())
+        alpha = float(std_array_elems.GetChildAtIndex(3).GetValue())
         return "color(%s %1.2f %1.2f %1.2f / %1.2f)" % (profile, red, green, blue, alpha)
 
     def to_string(self):
-        rgba_and_flags = self.valobj.GetChildMemberWithName('m_colorData').GetChildMemberWithName('rgbaAndFlags').GetValueAsUnsigned(0)
+        rgba_and_flags = self.valobj.GetChildMemberWithName('m_colorData').GetChildMemberWithName('inlineColorAndFlags').GetValueAsUnsigned(0)
 
         if self._is_extended(rgba_and_flags):
             return self._to_string_extended()
@@ -489,10 +495,10 @@ class WebCoreColorProvider:
             return 'invalid'
 
         color = rgba_and_flags >> 32
-        red = (color >> 16) & 0xFF
-        green = (color >> 8) & 0xFF
-        blue = color & 0xFF
-        alpha = ((color >> 24) & 0xFF) / 255.0
+        red = (color >> 24) & 0xFF
+        green = (color >> 16) & 0xFF
+        blue = (color >> 8) & 0xFF
+        alpha = (color & 0xFF) / 255.0
 
         semantic = ' semantic' if self._is_semantic(rgba_and_flags) else ""
 

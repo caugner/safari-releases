@@ -67,11 +67,11 @@ shouldBe(
     JSON.stringify(Intl.RelativeTimeFormat.supportedLocalesOf('En-laTn-us-variAnt-fOObar-1abc-U-kn-tRue-A-aa-aaa-x-RESERVED')),
     $vm.icuVersion() >= 67
         ? '["en-Latn-US-1abc-foobar-variant-a-aa-aaa-u-kn-x-reserved"]'
-        : '["en-Latn-US-variant-foobar-1abc-a-aa-aaa-u-kn-true-x-reserved"]'
+        : '["en-Latn-US-variant-foobar-1abc-a-aa-aaa-u-kn-x-reserved"]'
 );
-shouldBe(JSON.stringify(Intl.RelativeTimeFormat.supportedLocalesOf('no-bok')), '["nb"]');
-shouldBe(JSON.stringify(Intl.RelativeTimeFormat.supportedLocalesOf('x-some-thing')), '[]');
 
+shouldThrow(() => Intl.RelativeTimeFormat.supportedLocalesOf('no-bok'), RangeError);
+shouldThrow(() => Intl.RelativeTimeFormat.supportedLocalesOf('x-some-thing'), RangeError);
 shouldThrow(() => Intl.RelativeTimeFormat.supportedLocalesOf(Object.create(null, { length: { get() { throw new Error(); } } })), Error);
 shouldThrow(() => Intl.RelativeTimeFormat.supportedLocalesOf(Object.create(null, { length: { value: 1 }, 0: { get() { throw new Error(); } } })), Error);
 shouldThrow(() => Intl.RelativeTimeFormat.supportedLocalesOf([{ toString() { throw new Error(); } }]), Error);
@@ -87,6 +87,12 @@ shouldThrow(() => Intl.RelativeTimeFormat.supportedLocalesOf('en-x'), RangeError
 shouldThrow(() => Intl.RelativeTimeFormat.supportedLocalesOf('en-*'), RangeError);
 shouldThrow(() => Intl.RelativeTimeFormat.supportedLocalesOf('en-'), RangeError);
 shouldThrow(() => Intl.RelativeTimeFormat.supportedLocalesOf('en--US'), RangeError);
+shouldThrow(() => Intl.RelativeTimeFormat.supportedLocalesOf('i-klingon'), RangeError); // grandfathered tag is not accepted by IsStructurallyValidLanguageTag
+shouldThrow(() => Intl.RelativeTimeFormat.supportedLocalesOf('x-en-US-12345'), RangeError);
+shouldThrow(() => Intl.RelativeTimeFormat.supportedLocalesOf('x-12345-12345-en-US'), RangeError);
+shouldThrow(() => Intl.RelativeTimeFormat.supportedLocalesOf('x-en-US-12345-12345'), RangeError);
+shouldThrow(() => Intl.RelativeTimeFormat.supportedLocalesOf('x-en-u-foo'), RangeError);
+shouldThrow(() => Intl.RelativeTimeFormat.supportedLocalesOf('x-en-u-foo-u-bar'), RangeError);
 
 const validLanguageTags = [
     'de', // ISO 639 language code
@@ -98,16 +104,10 @@ const validLanguageTags = [
     'cmn-hans-cn', // + ISO 3166-1 country code
     'es-419', // + UN M.49 region code
     'es-419-u-nu-latn-cu-bob', // + Unicode locale extension sequence
-    'i-klingon', // grandfathered tag
     'cmn-hans-cn-t-ca-u-ca-x-t-u', // singleton subtags can also be used as private use subtags
     'enochian-enochian', // language and variant subtags may be the same
     'de-gregory-u-ca-gregory', // variant and extension subtags may be the same
     'aa-a-foo-x-a-foo-bar', // variant subtags can also be used as private use subtags
-    'x-en-US-12345', // anything goes in private use tags
-    'x-12345-12345-en-US',
-    'x-en-US-12345-12345',
-    'x-en-u-foo',
-    'x-en-u-foo-u-bar'
 ];
 for (let validLanguageTag of validLanguageTags)
     shouldNotThrow(() => Intl.RelativeTimeFormat.supportedLocalesOf(validLanguageTag));
@@ -179,11 +179,11 @@ if (icuVersion >= 63)
 for (let unit of units) {
     shouldBe(defaultRTF.format(10, unit), defaultRTF.format(10, `${unit}s`));
 
-    shouldBe(defaultRTF.format(10000.5, unit), `in 10,000.5 ${unit}s`);
+    shouldBe([`in 10,000.5 ${unit}s`, `in 10000.5 ${unit}s`].includes(defaultRTF.format(10000.5, unit)), true);
     shouldBe(defaultRTF.format(10, unit), `in 10 ${unit}s`);
     shouldBe(defaultRTF.format(0, unit), `in 0 ${unit}s`);
     shouldBe(defaultRTF.format(-10, unit), `10 ${unit}s ago`);
-    shouldBe(defaultRTF.format(-10000.5, unit), `10,000.5 ${unit}s ago`);
+    shouldBe([`10,000.5 ${unit}s ago`, `10000.5 ${unit}s ago`].includes(defaultRTF.format(-10000.5, unit)), true);
 
     shouldBeForICUVersion(64, defaultRTF.format(1, unit), `in 1 ${unit}`);
     shouldBeForICUVersion(63, defaultRTF.format(-0, unit), `0 ${unit}s ago`);
@@ -219,29 +219,31 @@ for (let unit of units) {
 
     const concatenateValues = (parts) => parts.map(part => part.value).join('');
 
-    shouldBe(concatenateValues(defaultRTF.formatToParts(10000.5, unit)), `in 10,000.5 ${unit}s`);
+    shouldBe([`in 10,000.5 ${unit}s`, `in 10000.5 ${unit}s`].includes(concatenateValues(defaultRTF.formatToParts(10000.5, unit))), true);
     shouldBe(concatenateValues(defaultRTF.formatToParts(10, unit)), `in 10 ${unit}s`);
     shouldBe(concatenateValues(defaultRTF.formatToParts(0, unit)), `in 0 ${unit}s`);
     shouldBe(concatenateValues(defaultRTF.formatToParts(-10, unit)), `10 ${unit}s ago`);
-    shouldBe(concatenateValues(defaultRTF.formatToParts(-10000.5, unit)), `10,000.5 ${unit}s ago`);
+    shouldBe([`10,000.5 ${unit}s ago`, `10000.5 ${unit}s ago`].includes(concatenateValues(defaultRTF.formatToParts(-10000.5, unit))), true);
 
     shouldBeForICUVersion(64, concatenateValues(defaultRTF.formatToParts(1, unit)), `in 1 ${unit}`);
     shouldBeForICUVersion(63, concatenateValues(defaultRTF.formatToParts(-0, unit)), `0 ${unit}s ago`);
     shouldBeForICUVersion(64, concatenateValues(defaultRTF.formatToParts(-1, unit)), `1 ${unit} ago`);
 }
 
-shouldBe(
-    JSON.stringify(defaultRTF.formatToParts(10000.5, 'day')),
-    JSON.stringify([
-        { type: 'literal', value: 'in ' },
-        { type: 'integer', value: '10', unit: 'day' },
-        { type: 'group', value: ',', unit: 'day' },
-        { type: 'integer', value: '000', unit: 'day' },
-        { type: 'decimal', value: '.', unit: 'day' },
-        { type: 'fraction', value: '5', unit: 'day' },
-        { type: 'literal', value: ' days' }
-    ])
-);
+if ($vm.icuVersion() >= 64) {
+    shouldBe(
+        JSON.stringify(defaultRTF.formatToParts(10000.5, 'day')),
+        JSON.stringify([
+            { type: 'literal', value: 'in ' },
+            { type: 'integer', value: '10', unit: 'day' },
+            { type: 'group', value: ',', unit: 'day' },
+            { type: 'integer', value: '000', unit: 'day' },
+            { type: 'decimal', value: '.', unit: 'day' },
+            { type: 'fraction', value: '5', unit: 'day' },
+            { type: 'literal', value: ' days' }
+        ])
+    );
+}
 
 shouldBe(
     JSON.stringify(new Intl.RelativeTimeFormat('sw').formatToParts(10, 'year')),

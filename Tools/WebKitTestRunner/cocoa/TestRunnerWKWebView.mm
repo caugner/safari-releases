@@ -78,6 +78,7 @@ struct CustomMenuActionInfo {
 @property (nonatomic, getter=isDismissingMenu, setter=setIsDismissingMenu:) BOOL dismissingMenu;
 @property (nonatomic, getter=isShowingPopover, setter=setIsShowingPopover:) BOOL showingPopover;
 @property (nonatomic, getter=isShowingContextMenu, setter=setIsShowingContextMenu:) BOOL showingContextMenu;
+@property (nonatomic, getter=isShowingContactPicker, setter=setIsShowingContactPicker:) BOOL showingContactPicker;
 
 @end
 
@@ -90,7 +91,7 @@ IGNORE_WARNINGS_BEGIN("deprecated-implementations")
 - (void)dragImage:(NSImage *)anImage at:(NSPoint)viewLocation offset:(NSSize)initialOffset event:(NSEvent *)event pasteboard:(NSPasteboard *)pboard source:(id)sourceObj slideBack:(BOOL)slideFlag
 IGNORE_WARNINGS_END
 {
-    RetainPtr<WebKitTestRunnerDraggingInfo> draggingInfo = adoptNS([[WebKitTestRunnerDraggingInfo alloc] initWithImage:anImage offset:initialOffset pasteboard:pboard source:sourceObj]);
+    auto draggingInfo = adoptNS([[WebKitTestRunnerDraggingInfo alloc] initWithImage:anImage offset:initialOffset pasteboard:pboard source:sourceObj]);
     [self draggingUpdated:draggingInfo.get()];
 }
 #endif
@@ -171,6 +172,8 @@ IGNORE_WARNINGS_END
 {
     self.didShowMenuCallback = nil;
     self.didHideMenuCallback = nil;
+    self.didShowContactPickerCallback = nil;
+    self.didHideContactPickerCallback = nil;
 #if PLATFORM(IOS_FAMILY)
     self.didStartFormControlInteractionCallback = nil;
     self.didEndFormControlInteractionCallback = nil;
@@ -214,6 +217,21 @@ IGNORE_WARNINGS_END
 - (BOOL)isInteractingWithFormControl
 {
     return _isInteractingWithFormControl;
+}
+
+- (void)immediatelyDismissContextMenuIfNeeded
+{
+    if (!self.showingContextMenu)
+        return;
+
+    self.showingContextMenu = NO;
+
+#if PLATFORM(IOS)
+    for (id <UIInteraction> interaction in self.contentView.interactions) {
+        if ([interaction isKindOfClass:UIContextMenuInteraction.class])
+            [(UIContextMenuInteraction *)interaction dismissMenu];
+    }
+#endif
 }
 
 - (void)_didShowContextMenu
@@ -502,6 +520,11 @@ IGNORE_WARNINGS_END
     return _overrideSafeAreaInsets;
 }
 
+- (UIView *)contentView
+{
+    return [self valueForKeyPath:@"_currentContentView"];
+}
+
 #pragma mark - WKUIDelegatePrivate
 
 // In extra zoom mode, fullscreen form control UI takes on the same role as keyboards and input view controllers
@@ -524,5 +547,25 @@ IGNORE_WARNINGS_END
 }
 
 #endif // PLATFORM(IOS_FAMILY)
+
+- (void)_didPresentContactPicker
+{
+    if (self.showingContactPicker)
+        return;
+
+    self.showingContactPicker = YES;
+    if (self.didShowContactPickerCallback)
+        self.didShowContactPickerCallback();
+}
+
+- (void)_didDismissContactPicker
+{
+    if (!self.showingContactPicker)
+        return;
+
+    self.showingContactPicker = NO;
+    if (self.didHideContactPickerCallback)
+        self.didHideContactPickerCallback();
+}
 
 @end
