@@ -49,11 +49,38 @@ class BlobURL {
 public:
     static URL createPublicURL(SecurityOrigin*);
     static URL createInternalURL();
-    static String getOrigin(const URL&);
+
+    static URL getOriginURL(const URL&);
+    static bool isSecureBlobURL(const URL&);
 
 private:
     static URL createBlobURL(const String& originString);
     BlobURL() { }
+};
+
+class URLWithBlobURLLifetimeExtension {
+    WTF_MAKE_FAST_ALLOCATED;
+    WTF_MAKE_NONCOPYABLE(URLWithBlobURLLifetimeExtension);
+public:
+    URLWithBlobURLLifetimeExtension() = default;
+    explicit URLWithBlobURLLifetimeExtension(const URL&);
+    ~URLWithBlobURLLifetimeExtension();
+
+    URLWithBlobURLLifetimeExtension(URLWithBlobURLLifetimeExtension&& other)
+        : m_url(std::exchange(other.m_url, { }))
+    { }
+
+    URLWithBlobURLLifetimeExtension& operator=(URLWithBlobURLLifetimeExtension&&);
+    URLWithBlobURLLifetimeExtension& operator=(URL&&);
+
+    operator const URL&() const { return m_url; }
+    const URL& url() const { return m_url; }
+
+private:
+    void unregisterCurrentURLIfNecessary();
+    void extendBlobURLLifetimeIfNecessary();
+
+    URL m_url;
 };
 
 } // namespace WebCore

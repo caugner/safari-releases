@@ -1,6 +1,6 @@
 /*
  *  Copyright (C) 2001 Peter Kelly (pmk@post.com)
- *  Copyright (C) 2003-2019 Apple Inc. All Rights Reserved.
+ *  Copyright (C) 2003-2021 Apple Inc. All Rights Reserved.
  *
  *  This library is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU Lesser General Public
@@ -78,7 +78,8 @@ JSObject* JSEventListener::initializeJSFunction(ScriptExecutionContext&) const
     return nullptr;
 }
 
-void JSEventListener::visitJSFunction(SlotVisitor& visitor)
+template<typename Visitor>
+inline void JSEventListener::visitJSFunctionImpl(Visitor& visitor)
 {
     // If m_wrapper is null, we are not keeping m_jsFunction alive.
     if (!m_wrapper)
@@ -86,6 +87,9 @@ void JSEventListener::visitJSFunction(SlotVisitor& visitor)
 
     visitor.append(m_jsFunction);
 }
+
+void JSEventListener::visitJSFunction(AbstractSlotVisitor& visitor) { visitJSFunctionImpl(visitor); }
+void JSEventListener::visitJSFunction(SlotVisitor& visitor) { visitJSFunctionImpl(visitor); }
 
 static void handleBeforeUnloadEventReturnValue(BeforeUnloadEvent& event, const String& returnValue)
 {
@@ -130,7 +134,7 @@ void JSEventListener::handleEvent(ScriptExecutionContext& scriptExecutionContext
             return;
     }
 
-    JSGlobalObject* lexicalGlobalObject = globalObject;
+    JSGlobalObject* lexicalGlobalObject = jsFunction->globalObject();
 
     JSValue handleEventFunction = jsFunction;
 
@@ -173,23 +177,23 @@ void JSEventListener::handleEvent(ScriptExecutionContext& scriptExecutionContext
             jsFunctionWindow->setCurrentEvent(&event);
     }
 
-    VMEntryScope entryScope(vm, vm.entryScope ? vm.entryScope->globalObject() : globalObject);
+    VMEntryScope entryScope(vm, vm.entryScope ? vm.entryScope->globalObject() : lexicalGlobalObject);
 
     JSExecState::instrumentFunction(&scriptExecutionContext, callData);
 
     JSValue thisValue = handleEventFunction == jsFunction ? toJS(lexicalGlobalObject, globalObject, event.currentTarget()) : jsFunction;
-    NakedPtr<JSC::Exception> exception;
-    JSValue retval = JSExecState::profiledCall(lexicalGlobalObject, JSC::ProfilingReason::Other, handleEventFunction, callData, thisValue, args, exception);
+    NakedPtr<JSC::Exception> uncaughtException;
+    JSValue retval = JSExecState::profiledCall(lexicalGlobalObject, JSC::ProfilingReason::Other, handleEventFunction, callData, thisValue, args, uncaughtException);
 
     InspectorInstrumentation::didCallFunction(&scriptExecutionContext);
 
     if (jsFunctionWindow)
         jsFunctionWindow->setCurrentEvent(savedEvent.get());
 
-    auto handleExceptionIfNeeded = [&] () -> bool {
+    auto handleExceptionIfNeeded = [&] (JSC::Exception* exception) -> bool {
         if (is<WorkerGlobalScope>(scriptExecutionContext)) {
             auto& scriptController = *downcast<WorkerGlobalScope>(scriptExecutionContext).script();
-            bool terminatorCausedException = (scope.exception() && isTerminatedExecutionException(vm, scope.exception()));
+            bool terminatorCausedException = (exception && vm.isTerminationException(exception));
             if (terminatorCausedException || scriptController.isTerminatingExecution())
                 scriptController.forbidExecution();
         }
@@ -202,7 +206,7 @@ void JSEventListener::handleEvent(ScriptExecutionContext& scriptExecutionContext
         return false;
     };
 
-    if (handleExceptionIfNeeded())
+    if (handleExceptionIfNeeded(uncaughtException))
         return;
 
     if (!m_isAttribute) {
@@ -217,8 +221,7 @@ void JSEventListener::handleEvent(ScriptExecutionContext& scriptExecutionContext
         if (is<BeforeUnloadEvent>(event)) {
             String resultStr = convert<IDLNullable<IDLDOMString>>(*lexicalGlobalObject, retval);
             if (UNLIKELY(scope.exception())) {
-                exception = scope.exception();
-                if (handleExceptionIfNeeded())
+                if (handleExceptionIfNeeded(scope.exception()))
                     return;
             }
             handleBeforeUnloadEventReturnValue(downcast<BeforeUnloadEvent>(event), resultStr);
@@ -274,7 +277,10 @@ static inline RefPtr<JSEventListener> createEventListenerForEventHandlerAttribut
 
 JSC::JSValue eventHandlerAttribute(EventTarget& target, const AtomString& eventType, DOMWrapperWorld& isolatedWorld)
 {
-    return eventHandlerAttribute(target.attributeEventListener(eventType, isolatedWorld), *target.scriptExecutionContext());
+    auto* context = target.scriptExecutionContext();
+    if (!context)
+        return jsNull();
+    return eventHandlerAttribute(target.attributeEventListener(eventType, isolatedWorld), *context);
 }
 
 void setEventHandlerAttribute(JSC::JSGlobalObject& lexicalGlobalObject, JSC::JSObject& wrapper, EventTarget& target, const AtomString& eventType, JSC::JSValue value)

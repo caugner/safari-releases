@@ -1,4 +1,4 @@
-# Copyright (C) 2020 Apple Inc. All rights reserved.
+# Copyright (C) 2020, 2021 Apple Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -22,7 +22,6 @@
 
 from setuptools import setup
 
-
 def readme():
     with open('README.md') as f:
         return f.read()
@@ -30,7 +29,7 @@ def readme():
 
 setup(
     name='webkitscmpy',
-    version='0.8.0',
+    version='1.0.4',
     description='Library designed to interact with git and svn repositories.',
     long_description=readme(),
     classifiers=[
@@ -59,7 +58,7 @@ setup(
         'webkitscmpy.test',
     ],
     scripts=['git-webkit'],
-    install_requires=['fasteners', 'monotonic', 'webkitcorepy', 'xmltodict'],
+    install_requires=['fasteners', 'monotonic', 'webkitcorepy', 'whichcraft', 'xmltodict'],
     include_package_data=True,
     zip_safe=False,
 )

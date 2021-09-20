@@ -1,4 +1,4 @@
-# Copyright (C) 2011-2020 Apple Inc. All rights reserved.
+# Copyright (C) 2011-2021 Apple Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -488,11 +488,36 @@ macro cagedPrimitive(ptr, length, scratch, scratch2)
     if GIGACAGE_ENABLED
         cagePrimitive(GigacageConfig + Gigacage::Config::basePtrs + GigacagePrimitiveBasePtrOffset, constexpr Gigacage::primitiveGigacageMask, source, scratch)
         if ARM64E
-            const numberOfPACBits = constexpr MacroAssembler::numberOfPACBits
-            bfiq scratch2, 0, 64 - numberOfPACBits, ptr
+            const maxNumberOfAllowedPACBits = constexpr MacroAssembler::maxNumberOfAllowedPACBits
+            bfiq scratch2, 0, 64 - maxNumberOfAllowedPACBits, ptr
         end
     end
     if ARM64E
+        untagArrayPtr length, ptr
+    end
+end
+
+macro cagedPrimitiveMayBeNull(ptr, length, scratch, scratch2)
+    if ARM64E
+        const source = scratch2
+        move ptr, scratch2
+        removeArrayPtrTag scratch2
+        btpz scratch2, .nullCase
+        move ptr, scratch2
+    else
+        # Note that we may produce non-nullptr for nullptr in non-ARM64E architecture since we add Gigacage offset.
+        # But this behavior is aligned to AssemblyHelpers::{cageConditionallyAndUntag,cageWithoutUntagging}, FTL implementation of caging etc.
+        const source = ptr
+    end
+    if GIGACAGE_ENABLED
+        cagePrimitive(GigacageConfig + Gigacage::Config::basePtrs + GigacagePrimitiveBasePtrOffset, constexpr Gigacage::primitiveGigacageMask, source, scratch)
+        if ARM64E
+            const maxNumberOfAllowedPACBits = constexpr MacroAssembler::maxNumberOfAllowedPACBits
+            bfiq scratch2, 0, 64 - maxNumberOfAllowedPACBits, ptr
+        end
+    end
+    if ARM64E
+        .nullCase:
         untagArrayPtr length, ptr
     end
 end
@@ -1815,6 +1840,47 @@ llintOpWithMetadata(op_put_private_name, OpPutPrivateName, macro (size, get, dis
     dispatch()
 end)
 
+llintOpWithMetadata(op_set_private_brand, OpSetPrivateBrand, macro (size, get, dispatch, metadata, return)
+    get(m_base, t3)
+    loadConstantOrVariableCell(size, t3, t0, .opSetPrivateBrandSlow)
+    get(m_brand, t3)
+    loadConstantOrVariableCell(size, t3, t1, .opSetPrivateBrandSlow)
+    metadata(t5, t2)
+    loadi OpSetPrivateBrand::Metadata::m_oldStructureID[t5], t2
+    bineq t2, JSCell::m_structureID[t0], .opSetPrivateBrandSlow
+
+    loadp OpSetPrivateBrand::Metadata::m_brand[t5], t3
+    bpneq t3, t1, .opSetPrivateBrandSlow
+
+    loadi OpSetPrivateBrand::Metadata::m_newStructureID[t5], t1
+    storei t1, JSCell::m_structureID[t0]
+    writeBarrierOnOperand(size, get, m_base)
+    dispatch()
+
+.opSetPrivateBrandSlow:
+    callSlowPath(_llint_slow_path_set_private_brand)
+    dispatch()
+end)
+
+llintOpWithMetadata(op_check_private_brand, OpCheckPrivateBrand, macro (size, get, dispatch, metadata, return)
+    metadata(t5, t2)
+    get(m_base, t3)
+    loadConstantOrVariableCell(size, t3, t0, .opCheckPrivateBrandSlow)
+    get(m_brand, t3)
+    loadConstantOrVariableCell(size, t3, t1, .opCheckPrivateBrandSlow)
+
+    loadp OpCheckPrivateBrand::Metadata::m_brand[t5], t3
+    bqneq t3, t1, .opCheckPrivateBrandSlow
+
+    loadi OpCheckPrivateBrand::Metadata::m_structureID[t5], t2
+    bineq t2, JSCell::m_structureID[t0], .opCheckPrivateBrandSlow
+    dispatch()
+
+.opCheckPrivateBrandSlow:
+    callSlowPath(_llint_slow_path_check_private_brand)
+    dispatch()
+end)
+
 macro putByValOp(opcodeName, opcodeStruct, osrExitPoint)
     llintOpWithMetadata(op_%opcodeName%, opcodeStruct, macro (size, get, dispatch, metadata, return)
         macro contiguousPutByVal(storeCallback)
@@ -2094,6 +2160,52 @@ macro compareUnsignedJumpOp(opcodeName, opcodeStruct, integerCompareMacro)
 end
 
 
+macro compareOp(opcodeName, opcodeStruct, integerCompareAndSet, doubleCompareAndSet)
+    llintOpWithReturn(op_%opcodeName%, opcodeStruct, macro (size, get, dispatch, return)
+        get(m_lhs, t2)
+        get(m_rhs, t0)
+        loadConstantOrVariable(size, t0, t1)
+        loadConstantOrVariable(size, t2, t0)
+        bqb t0, numberTag, .op1NotInt
+        bqb t1, numberTag, .op2NotInt
+        integerCompareAndSet(t0, t1, t0)
+        orq ValueFalse, t0
+        return(t0)
+
+    .op1NotInt:
+        btqz t0, numberTag, .slow
+        bqb t1, numberTag, .op1NotIntOp2NotInt
+        ci2ds t1, ft1
+        jmp .op1NotIntReady
+
+    .op1NotIntOp2NotInt:
+        btqz t1, numberTag, .slow
+        addq numberTag, t1
+        fq2d t1, ft1
+
+    .op1NotIntReady:
+        addq numberTag, t0
+        fq2d t0, ft0
+        doubleCompareAndSet(ft0, ft1, t0)
+        orq ValueFalse, t0
+        return(t0)
+
+    .op2NotInt:
+        ci2ds t0, ft0
+        btqz t1, numberTag, .slow
+        addq numberTag, t1
+        fq2d t1, ft1
+        doubleCompareAndSet(ft0, ft1, t0)
+        orq ValueFalse, t0
+        return(t0)
+
+    .slow:
+        callSlowPath(_slow_path_%opcodeName%)
+        dispatch()
+    end)
+end
+
+
 macro compareUnsignedOp(opcodeName, opcodeStruct, integerCompareAndSet)
     llintOpWithReturn(op_%opcodeName%, opcodeStruct, macro (size, get, dispatch, return)
         get(m_lhs, t2)
@@ -2112,15 +2224,17 @@ llintOpWithJump(op_switch_imm, OpSwitchImm, macro (size, get, jump, dispatch)
     getu(size, OpSwitchImm, m_tableIndex, t3)
     loadConstantOrVariable(size, t2, t1)
     loadp CodeBlock[cfr], t2
-    loadp CodeBlock::m_rareData[t2], t2
-    muli sizeof SimpleJumpTable, t3
-    loadp CodeBlock::RareData::m_switchJumpTables + VectorBufferOffset[t2], t2
+    loadp CodeBlock::m_unlinkedCode[t2], t2
+    loadp UnlinkedCodeBlock::m_rareData[t2], t2
+    muli sizeof UnlinkedSimpleJumpTable, t3
+    loadp UnlinkedCodeBlock::RareData::m_unlinkedSwitchJumpTables + FixedVector::m_storage + RefCountedArray::m_data[t2], t2
     addp t3, t2
     bqb t1, numberTag, .opSwitchImmNotInt
-    subi SimpleJumpTable::min[t2], t1
-    biaeq t1, SimpleJumpTable::branchOffsets + VectorSizeOffset[t2], .opSwitchImmFallThrough
-    loadp SimpleJumpTable::branchOffsets + VectorBufferOffset[t2], t3
-    loadis [t3, t1, 4], t1
+    subi UnlinkedSimpleJumpTable::m_min[t2], t1
+    loadp UnlinkedSimpleJumpTable::m_branchOffsets + FixedVector::m_storage + RefCountedArray::m_data[t2], t2
+    btpz t2, .opSwitchImmFallThrough
+    biaeq t1, RefCountedArrayStorageNonNullSizeOffset[t2], .opSwitchImmFallThrough
+    loadis [t2, t1, 4], t1
     btiz t1, .opSwitchImmFallThrough
     dispatchIndirect(t1)
 
@@ -2140,9 +2254,10 @@ llintOpWithJump(op_switch_char, OpSwitchChar, macro (size, get, jump, dispatch)
     getu(size, OpSwitchChar, m_tableIndex, t3)
     loadConstantOrVariable(size, t2, t1)
     loadp CodeBlock[cfr], t2
-    loadp CodeBlock::m_rareData[t2], t2
-    muli sizeof SimpleJumpTable, t3
-    loadp CodeBlock::RareData::m_switchJumpTables + VectorBufferOffset[t2], t2
+    loadp CodeBlock::m_unlinkedCode[t2], t2
+    loadp UnlinkedCodeBlock::m_rareData[t2], t2
+    muli sizeof UnlinkedSimpleJumpTable, t3
+    loadp UnlinkedCodeBlock::RareData::m_unlinkedSwitchJumpTables + FixedVector::m_storage + RefCountedArray::m_data[t2], t2
     addp t3, t2
     btqnz t1, notCellMask, .opSwitchCharFallThrough
     bbneq JSCell::m_type[t1], StringType, .opSwitchCharFallThrough
@@ -2156,9 +2271,10 @@ llintOpWithJump(op_switch_char, OpSwitchChar, macro (size, get, jump, dispatch)
 .opSwitchChar8Bit:
     loadb [t1], t0
 .opSwitchCharReady:
-    subi SimpleJumpTable::min[t2], t0
-    biaeq t0, SimpleJumpTable::branchOffsets + VectorSizeOffset[t2], .opSwitchCharFallThrough
-    loadp SimpleJumpTable::branchOffsets + VectorBufferOffset[t2], t2
+    subi UnlinkedSimpleJumpTable::m_min[t2], t0
+    loadp UnlinkedSimpleJumpTable::m_branchOffsets + FixedVector::m_storage + RefCountedArray::m_data[t2], t2
+    btpz t2, .opSwitchCharFallThrough
+    biaeq t0, RefCountedArrayStorageNonNullSizeOffset[t2], .opSwitchCharFallThrough
     loadis [t2, t0, 4], t1
     btiz t1, .opSwitchCharFallThrough
     dispatchIndirect(t1)
@@ -2298,16 +2414,12 @@ commonOp(llint_op_catch, macro () end, macro (size)
     loadp VM::targetInterpreterPCForThrow[t3], PC
     subp PB, PC
 
-    callSlowPath(_llint_slow_path_check_if_exception_is_uncatchable_and_notify_profiler)
-    bpeq r1, 0, .isCatchableException
+    callSlowPath(_llint_slow_path_retrieve_and_clear_exception_if_catchable)
+    bpneq r1, 0, .isCatchableException
     jmp _llint_throw_from_slow_path_trampoline
 
 .isCatchableException:
-    loadp CodeBlock[cfr], t3
-    loadp CodeBlock::m_vm[t3], t3
-
-    loadp VM::m_exception[t3], t0
-    storep 0, VM::m_exception[t3]
+    move r1, t0
     get(size, OpCatch, m_exception, t2)
     storeq t0, [cfr, t2, 8]
 
@@ -2644,7 +2756,7 @@ llintOpWithMetadata(op_put_to_scope, OpPutToScope, macro (size, get, dispatch, m
         storeq t2, JSLexicalEnvironment_variables[t0, t1, 8]
     end
 
-    macro putLocalClosureVar()
+    macro putResolvedClosureVar()
         get(m_value, t1)
         loadConstantOrVariable(size, t1, t2)
         loadp OpPutToScope::Metadata::m_watchpointSet[t5], t3
@@ -2670,10 +2782,10 @@ llintOpWithMetadata(op_put_to_scope, OpPutToScope, macro (size, get, dispatch, m
     loadi OpPutToScope::Metadata::m_getPutInfo + GetPutInfo::m_operand[t5], t0
     andi ResolveTypeMask, t0
 
-#pLocalClosureVar:
-    bineq t0, LocalClosureVar, .pGlobalProperty
+#pResolvedClosureVar:
+    bineq t0, ResolvedClosureVar, .pGlobalProperty
     loadVariable(get, m_scope, t0)
-    putLocalClosureVar()
+    putResolvedClosureVar()
     writeBarrierOnOperands(size, get, m_scope, m_value)
     dispatch()
 
@@ -2686,6 +2798,7 @@ llintOpWithMetadata(op_put_to_scope, OpPutToScope, macro (size, get, dispatch, m
 
 .pGlobalVar:
     bineq t0, GlobalVar, .pGlobalLexicalVar
+    varReadOnlyCheck(.pDynamic, t2)
     putGlobalVariable()
     writeBarrierOnGlobalObject(size, get, m_value)
     dispatch()
@@ -2713,7 +2826,10 @@ llintOpWithMetadata(op_put_to_scope, OpPutToScope, macro (size, get, dispatch, m
 
 .pGlobalVarWithVarInjectionChecks:
     bineq t0, GlobalVarWithVarInjectionChecks, .pGlobalLexicalVarWithVarInjectionChecks
+    # FIXME: Avoid loading m_globalObject twice
+    # https://bugs.webkit.org/show_bug.cgi?id=223097
     varInjectionCheck(.pDynamic, t2)
+    varReadOnlyCheck(.pDynamic, t2)
     putGlobalVariable()
     writeBarrierOnGlobalObject(size, get, m_value)
     dispatch()

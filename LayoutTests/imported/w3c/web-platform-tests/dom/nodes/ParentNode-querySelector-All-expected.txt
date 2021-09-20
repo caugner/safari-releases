@@ -595,8 +595,8 @@ PASS Document.querySelectorAll: :empty pseudo-class selector, matching all empty
 PASS Document.querySelector: :empty pseudo-class selector, matching all empty elements: #pseudo-empty :empty
 PASS Document.querySelectorAll: :link and :visited pseudo-class selectors, matching a and area elements with href attributes: #pseudo-link :link, #pseudo-link :visited
 PASS Document.querySelector: :link and :visited pseudo-class selectors, matching a and area elements with href attributes: #pseudo-link :link, #pseudo-link :visited
-PASS Document.querySelectorAll: :link and :visited pseudo-class selectors, matching link elements with href attributes: #head :link, #head :visited
-PASS Document.querySelector: :link and :visited pseudo-class selectors, matching link elements with href attributes: #head :link, #head :visited
+PASS Document.querySelectorAll: :link and :visited pseudo-class selectors, matching no elements: #head :link, #head :visited
+PASS Document.querySelector: :link and :visited pseudo-class selectors, matching no elements: #head :link, #head :visited
 PASS Document.querySelectorAll: :target pseudo-class selector, matching the element referenced by the URL fragment identifier: :target
 PASS Document.querySelector: :target pseudo-class selector, matching the element referenced by the URL fragment identifier: :target
 PASS Document.querySelectorAll: :lang pseudo-class selector, matching inherited language: #pseudo-lang-div1:lang(en)

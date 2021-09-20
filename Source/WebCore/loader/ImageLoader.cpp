@@ -34,6 +34,7 @@
 #include "EventSender.h"
 #include "Frame.h"
 #include "FrameLoader.h"
+#include "HTMLImageElement.h"
 #include "HTMLNames.h"
 #include "HTMLObjectElement.h"
 #include "HTMLParserIdioms.h"
@@ -552,6 +553,7 @@ void ImageLoader::dispatchPendingErrorEvent()
     if (!m_hasPendingErrorEvent)
         return;
     m_hasPendingErrorEvent = false;
+    errorEventSender().cancelEvent(*this);
     if (element().document().hasLivingRenderTree())
         element().dispatchEvent(Event::create(eventNames().errorEvent, Event::CanBubble::No, Event::IsCancelable::No));
 
@@ -600,6 +602,18 @@ void ImageLoader::resetLazyImageLoading(Document& document)
     if (isDeferred())
         LazyLoadImageObserver::unobserve(element(), document);
     m_lazyImageLoadState = LazyImageLoadState::None;
+}
+
+VisibleInViewportState ImageLoader::imageVisibleInViewport(const Document& document) const
+{
+    if (&element().document() != &document)
+        return VisibleInViewportState::No;
+
+    auto* renderer = element().renderer();
+    if (!is<RenderReplaced>(renderer))
+        return VisibleInViewportState::No;
+
+    return downcast<RenderReplaced>(*renderer).isContentLikelyVisibleInViewport() ? VisibleInViewportState::Yes : VisibleInViewportState::No;
 }
 
 }

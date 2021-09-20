@@ -25,10 +25,13 @@
 
 #import <WebKit/WKWebView.h>
 #import <WebKit/_WKElementAction.h>
+#import <WebKit/_WKTapHandlingResult.h>
 
 #if TARGET_OS_IPHONE
 
 @class _WKTextInputContext;
+@class UIEventAttribution;
+@class UIGestureRecognizer;
 @class UIWKDocumentContext;
 @class UIWKDocumentRequest;
 
@@ -38,17 +41,24 @@
 @property (nonatomic, readonly) NSString *selectFormPopoverTitle;
 @property (nonatomic, readonly) NSString *formInputLabel;
 @property (nonatomic, readonly) NSArray<NSValue *> *_uiTextSelectionRects;
-@property (nonatomic, readonly) CGRect _inputViewBounds;
+@property (nonatomic, readonly) CGRect _inputViewBoundsInWindow;
 @property (nonatomic, readonly) NSString *_scrollingTreeAsText;
 @property (nonatomic, readonly) NSNumber *_stableStateOverride;
 @property (nonatomic, readonly) CGRect _dragCaretRect;
+@property (nonatomic, readonly, getter=_isAnimatingDragCancel) BOOL _animatingDragCancel;
+@property (nonatomic, readonly) CGRect _tapHighlightViewRect;
+@property (nonatomic, readonly) UIGestureRecognizer *_imageAnalysisGestureRecognizer;
 
 - (void)keyboardAccessoryBarNext;
 - (void)keyboardAccessoryBarPrevious;
 - (void)dismissFormAccessoryView;
+- (NSArray<NSString *> *)_filePickerAcceptedTypeIdentifiers;
 - (void)_dismissFilePicker;
 - (void)selectFormAccessoryPickerRow:(int)rowIndex;
 - (BOOL)selectFormAccessoryHasCheckedItemAtRow:(long)rowIndex;
+- (void)setSelectedColorForColorPicker:(UIColor *)color;
+- (void)_selectDataListOption:(int)optionIndex;
+- (BOOL)_isShowingDataListSuggestions;
 
 - (BOOL)_mayContainEditableElementsInRect:(CGRect)rect;
 - (void)_requestTextInputContextsInRect:(CGRect)rect completionHandler:(void (^)(NSArray<_WKTextInputContext *> *))completionHandler;
@@ -57,6 +67,7 @@
 - (void)_didFinishTextInteractionInTextInputContext:(_WKTextInputContext *)context;
 - (void)_requestDocumentContext:(UIWKDocumentRequest *)request completionHandler:(void (^)(UIWKDocumentContext *))completionHandler;
 - (void)_adjustSelectionWithDelta:(NSRange)deltaRange completionHandler:(void (^)(void))completionHandler;
+- (void)_didTapAtPoint:(CGPoint)point withResult:(_WKTapHandlingResult)result;
 
 - (void)setTimePickerValueToHour:(NSInteger)hour minute:(NSInteger)minute;
 - (double)timePickerValueHour;
@@ -64,8 +75,6 @@
 
 - (void)applyAutocorrection:(NSString *)newString toString:(NSString *)oldString withCompletionHandler:(void (^)(void))completionHandler;
 
-- (void)_didShowContextMenu;
-- (void)_didDismissContextMenu;
 - (void)_doAfterResettingSingleTapGesture:(dispatch_block_t)action;
 
 - (NSDictionary *)_propertiesOfLayerWithID:(unsigned long long)layerID;
@@ -80,6 +89,10 @@
 - (void)_setDeviceOrientationUserPermissionHandlerForTesting:(BOOL (^)(void))handler;
 
 - (void)_setDeviceHasAGXCompilerServiceForTesting;
+
+#if !TARGET_OS_TV && !TARGET_OS_WATCH
+- (void)_setUIEventAttributionForTesting:(UIEventAttribution *)attribution withNonce:(NSString *)nonce;
+#endif
 
 @end
 

@@ -562,9 +562,9 @@ void platformCopyRichTextWithImage()
     auto richText = adoptNS([[NSMutableAttributedString alloc] init]);
     auto image = adoptNS([[NSTextAttachment alloc] initWithData:testImageData() ofType:(__bridge NSString *)kUTTypePNG]);
 
-    [richText appendAttributedString:[[[NSAttributedString alloc] initWithString:@"Lorem ipsum "] autorelease]];
+    [richText appendAttributedString:adoptNS([[NSAttributedString alloc] initWithString:@"Lorem ipsum "]).get()];
     [richText appendAttributedString:[NSAttributedString attributedStringWithAttachment:image.get()]];
-    [richText appendAttributedString:[[[NSAttributedString alloc] initWithString:@" dolor sit amet."] autorelease]];
+    [richText appendAttributedString:adoptNS([[NSAttributedString alloc] initWithString:@" dolor sit amet."]).get()];
 
 #if PLATFORM(MAC)
     NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
@@ -601,7 +601,7 @@ typedef UIImage PlatformImage;
 PlatformImage *platformImageWithData(NSData *data)
 {
 #if PLATFORM(MAC)
-    return [[[NSImage alloc] initWithData:data] autorelease];
+    return adoptNS([[NSImage alloc] initWithData:data]).autorelease();
 #else
     return [UIImage imageWithData:data];
 #endif
@@ -1896,7 +1896,8 @@ TEST(WKAttachmentTestsIOS, InsertDroppedRichAndPlainTextFilesAsAttachments)
     EXPECT_WK_STREQ("hello.rtf", [webView stringByEvaluatingJavaScript:@"document.querySelectorAll('attachment')[0].getAttribute('title')"]);
     EXPECT_WK_STREQ((__bridge NSString *)kUTTypeFlatRTFD, [webView stringByEvaluatingJavaScript:@"document.querySelectorAll('attachment')[0].getAttribute('type')"]);
     EXPECT_WK_STREQ("world.txt", [webView stringByEvaluatingJavaScript:@"document.querySelectorAll('attachment')[1].getAttribute('title')"]);
-    EXPECT_WK_STREQ((__bridge NSString *)kUTTypeUTF8PlainText, [webView stringByEvaluatingJavaScript:@"document.querySelectorAll('attachment')[1].getAttribute('type')"]);
+    auto contentType = [webView stringByEvaluatingJavaScript:@"document.querySelectorAll('attachment')[1].getAttribute('type')"];
+    EXPECT_TRUE([contentType isEqualToString:(__bridge NSString *)kUTTypeUTF8PlainText] || [contentType containsString:@"text/plain"]);
 }
 
 TEST(WKAttachmentTestsIOS, InsertDroppedZipArchiveAsAttachment)
@@ -1953,7 +1954,8 @@ TEST(WKAttachmentTestsIOS, InsertDroppedItemProvidersInOrder)
     [webView expectElementTagsInOrder:@[ @"ATTACHMENT", @"A", @"ATTACHMENT" ]];
 
     EXPECT_WK_STREQ("first.txt", [webView stringByEvaluatingJavaScript:@"document.querySelectorAll('attachment')[0].getAttribute('title')"]);
-    EXPECT_WK_STREQ((__bridge NSString *)kUTTypeUTF8PlainText, [webView stringByEvaluatingJavaScript:@"document.querySelectorAll('attachment')[0].getAttribute('type')"]);
+    auto contentType = [webView stringByEvaluatingJavaScript:@"document.querySelectorAll('attachment')[0].getAttribute('type')"];
+    EXPECT_TRUE([contentType isEqualToString:(__bridge NSString *)kUTTypeUTF8PlainText] || [contentType containsString:@"text/plain"]);
     EXPECT_WK_STREQ([appleURL absoluteString], [webView valueOfAttribute:@"href" forQuerySelector:@"a"]);
     EXPECT_WK_STREQ("second.pdf", [webView stringByEvaluatingJavaScript:@"document.querySelectorAll('attachment')[1].getAttribute('title')"]);
     EXPECT_WK_STREQ("application/pdf", [webView stringByEvaluatingJavaScript:@"document.querySelectorAll('attachment')[1].getAttribute('type')"]);
@@ -2082,7 +2084,7 @@ TEST(WKAttachmentTestsIOS, InsertDroppedContactAsAttachment)
 
 TEST(WKAttachmentTestsIOS, InsertPastedContactAsAttachment)
 {
-    UIPasteboard.generalPasteboard.itemProviders = @[ contactItemForTesting().autorelease() ];
+    UIPasteboard.generalPasteboard.itemProviders = @[ contactItemForTesting().get() ];
     auto webView = webViewForTestingAttachments();
     ObserveAttachmentUpdatesForScope observer(webView.get());
     [webView paste:nil];
@@ -2099,7 +2101,7 @@ TEST(WKAttachmentTestsIOS, InsertPastedContactAsAttachment)
 TEST(WKAttachmentTestsIOS, InsertPastedMapItemAsAttachment)
 {
     UIApplicationInitialize();
-    UIPasteboard.generalPasteboard.itemProviders = @[ mapItemForTesting().autorelease() ];
+    UIPasteboard.generalPasteboard.itemProviders = @[ mapItemForTesting().get() ];
     auto webView = webViewForTestingAttachments();
     ObserveAttachmentUpdatesForScope observer(webView.get());
     [webView paste:nil];

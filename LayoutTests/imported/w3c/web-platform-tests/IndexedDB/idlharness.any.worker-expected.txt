@@ -7,10 +7,10 @@ PASS Partial interface Window: member names are unique
 PASS Window includes GlobalEventHandlers: member names are unique
 PASS Window includes WindowEventHandlers: member names are unique
 PASS Window includes WindowOrWorkerGlobalScope: member names are unique
+PASS WorkerGlobalScope includes WindowOrWorkerGlobalScope: member names are unique
 PASS Window includes AnimationFrameProvider: member names are unique
 PASS Window includes WindowSessionStorage: member names are unique
 PASS Window includes WindowLocalStorage: member names are unique
-PASS WorkerGlobalScope includes WindowOrWorkerGlobalScope: member names are unique
 PASS IDBRequest interface: existence and properties of interface object
 PASS IDBRequest interface object length
 PASS IDBRequest interface object name
@@ -164,7 +164,7 @@ PASS IDBCursor interface: attribute source
 PASS IDBCursor interface: attribute direction
 PASS IDBCursor interface: attribute key
 PASS IDBCursor interface: attribute primaryKey
-FAIL IDBCursor interface: attribute request assert_true: The prototype object must have a property "request" expected true got false
+PASS IDBCursor interface: attribute request
 PASS IDBCursor interface: operation advance(unsigned long)
 PASS IDBCursor interface: operation continue(optional any)
 PASS IDBCursor interface: operation continuePrimaryKey(any, any)
@@ -185,15 +185,14 @@ PASS IDBTransaction interface: existence and properties of interface prototype o
 PASS IDBTransaction interface: existence and properties of interface prototype object's @@unscopables property
 PASS IDBTransaction interface: attribute objectStoreNames
 PASS IDBTransaction interface: attribute mode
-FAIL IDBTransaction interface: attribute durability assert_true: The prototype object must have a property "durability" expected true got false
+PASS IDBTransaction interface: attribute durability
 PASS IDBTransaction interface: attribute db
 PASS IDBTransaction interface: attribute error
 PASS IDBTransaction interface: operation objectStore(DOMString)
-FAIL IDBTransaction interface: operation commit() assert_own_property: interface prototype object missing non-static operation expected property "commit" missing
+PASS IDBTransaction interface: operation commit()
 PASS IDBTransaction interface: operation abort()
 PASS IDBTransaction interface: attribute onabort
 PASS IDBTransaction interface: attribute oncomplete
 PASS IDBTransaction interface: attribute onerror
-PASS Window interface: existence and properties of interface object
 PASS WorkerGlobalScope interface: attribute indexedDB
 

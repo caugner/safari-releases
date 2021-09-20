@@ -2,7 +2,7 @@
  * Copyright (C) 1999 Lars Knoll (knoll@kde.org)
  *           (C) 1999 Antti Koivisto (koivisto@kde.org)
  *           (C) 2000 Dirk Mueller (mueller@kde.org)
- * Copyright (C) 2003, 2006-2020, 2016 Apple Inc.
+ * Copyright (C) 2003-2021 Apple Inc.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -30,16 +30,29 @@
 #include "GraphicsContext.h"
 #include "LayoutRect.h"
 #include "Logging.h"
+#include "RuntimeApplicationChecks.h"
 #include <pal/spi/cg/CoreGraphicsSPI.h>
 #include <wtf/MathExtras.h>
 
 #if PLATFORM(COCOA)
-#include <pal/spi/cocoa/CoreTextSPI.h>
+#include <pal/spi/cf/CoreTextSPI.h>
 #else
 #include <pal/spi/win/CoreTextSPIWin.h>
 #endif
 
 namespace WebCore {
+
+FontCascade::FontCascade(const FontPlatformData& fontData, FontSmoothingMode fontSmoothingMode)
+    : m_fonts(FontCascadeFonts::createForPlatformFont(fontData))
+    , m_enableKerning(computeEnableKerning())
+    , m_requiresShaping(computeRequiresShaping())
+{
+    m_fontDescription.setFontSmoothing(fontSmoothingMode);
+    m_fontDescription.setSpecifiedSize(CTFontGetSize(fontData.ctFont()));
+    m_fontDescription.setComputedSize(CTFontGetSize(fontData.ctFont()));
+    m_fontDescription.setIsItalic(CTFontGetSymbolicTraits(fontData.ctFont()) & kCTFontTraitItalic);
+    m_fontDescription.setWeight((CTFontGetSymbolicTraits(fontData.ctFont()) & kCTFontTraitBold) ? boldWeightValue() : normalWeightValue());
+}
 
 static const AffineTransform& rotateLeftTransform()
 {
@@ -183,11 +196,16 @@ static void setCGFontRenderingMode(GraphicsContext& context)
     CGContextSetShouldSubpixelQuantizeFonts(cgContext, doSubpixelQuantization);
 }
 
-void FontCascade::drawGlyphs(GraphicsContext& context, const Font& font, const GlyphBuffer& glyphBuffer, unsigned from, unsigned numGlyphs, const FloatPoint& anchorPoint, FontSmoothingMode smoothingMode)
+void FontCascade::drawGlyphs(GraphicsContext& context, const Font& font, const GlyphBufferGlyph* glyphs, const GlyphBufferAdvance* advances, unsigned numGlyphs, const FloatPoint& anchorPoint, FontSmoothingMode smoothingMode)
 {
     const auto& platformData = font.platformData();
     if (!platformData.size())
         return;
+
+    if (isInGPUProcess() && font.hasAnyComplexColorFormatGlyphs(glyphs, numGlyphs)) {
+        ASSERT_NOT_REACHED();
+        return;
+    }
 
     CGContextRef cgContext = context.platformContext();
 
@@ -260,23 +278,23 @@ void FontCascade::drawGlyphs(GraphicsContext& context, const Font& font, const G
         float shadowTextX = point.x() + shadowOffset.width();
         // If shadows are ignoring transforms, then we haven't applied the Y coordinate flip yet, so down is negative.
         float shadowTextY = point.y() + shadowOffset.height() * (context.shadowsIgnoreTransforms() ? -1 : 1);
-        showGlyphsWithAdvances(FloatPoint(shadowTextX, shadowTextY), font, cgContext, glyphBuffer.glyphs(from), glyphBuffer.advances(from), numGlyphs, textMatrix);
+        showGlyphsWithAdvances(FloatPoint(shadowTextX, shadowTextY), font, cgContext, glyphs, advances, numGlyphs, textMatrix);
         if (syntheticBoldOffset)
-            showGlyphsWithAdvances(FloatPoint(shadowTextX + syntheticBoldOffset, shadowTextY), font, cgContext, glyphBuffer.glyphs(from), glyphBuffer.advances(from), numGlyphs, textMatrix);
+            showGlyphsWithAdvances(FloatPoint(shadowTextX + syntheticBoldOffset, shadowTextY), font, cgContext, glyphs, advances, numGlyphs, textMatrix);
         context.setFillColor(fillColor);
     }
 
 #if ENABLE(LETTERPRESS)
     if (useLetterpressEffect)
-        showLetterpressedGlyphsWithAdvances(point, font, context, glyphBuffer.glyphs(from), glyphBuffer.advances(from), numGlyphs);
+        showLetterpressedGlyphsWithAdvances(point, font, context, glyphs, advances, numGlyphs);
     else
 #endif
     {
-        showGlyphsWithAdvances(point, font, cgContext, glyphBuffer.glyphs(from), glyphBuffer.advances(from), numGlyphs, textMatrix);
+        showGlyphsWithAdvances(point, font, cgContext, glyphs, advances, numGlyphs, textMatrix);
     }
 
     if (syntheticBoldOffset)
-        showGlyphsWithAdvances(FloatPoint(point.x() + syntheticBoldOffset, point.y()), font, cgContext, glyphBuffer.glyphs(from), glyphBuffer.advances(from), numGlyphs, textMatrix);
+        showGlyphsWithAdvances(FloatPoint(point.x() + syntheticBoldOffset, point.y()), font, cgContext, glyphs, advances, numGlyphs, textMatrix);
 
     if (hasSimpleShadow)
         context.setShadow(shadowOffset, shadowBlur, shadowColor);

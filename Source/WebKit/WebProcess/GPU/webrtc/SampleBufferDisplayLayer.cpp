@@ -30,6 +30,7 @@
 
 #include "GPUProcessConnection.h"
 #include "LayerHostingContext.h"
+#include "Logging.h"
 #include "RemoteSampleBufferDisplayLayerManagerMessages.h"
 #include "RemoteSampleBufferDisplayLayerManagerMessagesReplies.h"
 #include "RemoteSampleBufferDisplayLayerMessages.h"
@@ -65,6 +66,14 @@ void SampleBufferDisplayLayer::initialize(bool hideRootLayer, IntSize size, Comp
         callback(!!m_videoLayer);
     });
 }
+
+#if !RELEASE_LOG_DISABLED
+void SampleBufferDisplayLayer::setLogIdentifier(String&& logIdentifier)
+{
+    ASSERT(m_videoLayer);
+    m_connection->send(Messages::RemoteSampleBufferDisplayLayer::SetLogIdentifier { logIdentifier }, m_identifier);
+}
+#endif
 
 SampleBufferDisplayLayer::~SampleBufferDisplayLayer()
 {
@@ -105,16 +114,20 @@ void SampleBufferDisplayLayer::flushAndRemoveImage()
 
 void SampleBufferDisplayLayer::play()
 {
+    m_paused = false;
     m_connection->send(Messages::RemoteSampleBufferDisplayLayer::Play { }, m_identifier);
 }
 
 void SampleBufferDisplayLayer::pause()
 {
+    m_paused = true;
     m_connection->send(Messages::RemoteSampleBufferDisplayLayer::Pause { }, m_identifier);
 }
 
 void SampleBufferDisplayLayer::enqueueSample(MediaSample& sample)
 {
+    if (m_paused)
+        return;
     if (auto remoteSample = RemoteVideoSample::create(sample))
         m_connection->send(Messages::RemoteSampleBufferDisplayLayer::EnqueueSample { *remoteSample }, m_identifier);
 }

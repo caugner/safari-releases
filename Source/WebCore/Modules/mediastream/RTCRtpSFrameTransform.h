@@ -31,6 +31,10 @@
 #include "JSDOMPromiseDeferred.h"
 #include "RTCRtpSFrameTransformer.h"
 
+namespace JSC {
+class JSGlobalObject;
+};
+
 namespace WebCore {
 
 class CryptoKey;
@@ -52,13 +56,14 @@ public:
     static Ref<RTCRtpSFrameTransform> create(ScriptExecutionContext& context, Options options) { return adoptRef(*new RTCRtpSFrameTransform(context, options)); }
     ~RTCRtpSFrameTransform();
 
-    void setEncryptionKey(CryptoKey&, Optional<uint64_t>, DOMPromiseDeferred<void>&&);
+    void setEncryptionKey(CryptoKey&, std::optional<uint64_t>, DOMPromiseDeferred<void>&&);
 
     bool isAttached() const;
     void initializeBackendForReceiver(RTCRtpTransformBackend&);
     void initializeBackendForSender(RTCRtpTransformBackend&);
     void willClearBackend(RTCRtpTransformBackend&);
 
+    WEBCORE_EXPORT void setCounterForTesting(uint64_t);
     WEBCORE_EXPORT uint64_t counterForTesting() const;
     WEBCORE_EXPORT uint64_t keyIdForTesting() const;
 
@@ -70,7 +75,7 @@ private:
 
     enum class Side { Sender, Receiver };
     void initializeTransformer(RTCRtpTransformBackend&, Side);
-    void createStreams();
+    void createStreams(JSC::JSGlobalObject&);
 
     bool m_isAttached { false };
     Ref<RTCRtpSFrameTransformer> m_transformer;

@@ -58,14 +58,14 @@ String copyImageUnknownFileLabel()
     return WEB_UI_STRING("unknown", "Unknown filename");
 }
 #if ENABLE(APP_HIGHLIGHTS)
-String contextMenuItemTagAddHighlightToCurrentGroup()
+String contextMenuItemTagAddHighlightToCurrentQuickNote()
 {
-    return localizedNSString(@"Add Highlight To Current Group");
+    return localizedNSString(@"Add to Quick Note");
 }
 
-String contextMenuItemTagAddHighlightToNewGroup()
+String contextMenuItemTagAddHighlightToNewQuickNote()
 {
-    return localizedNSString(@"Add Highlight To New Group");
+    return localizedNSString(@"New Quick Note");
 }
 #endif
 
@@ -267,6 +267,12 @@ String fileButtonNoMediaFilesSelectedLabel()
 {
     return WEB_UI_STRING("no media selected (multiple)", "Text to display in file button used in HTML forms for media files when no media files are selected and the button allows multiple files to be selected");
 }
+
+
+String formControlDoneButtonTitle()
+{
+    return WEB_UI_STRING("Done", "Title of the Done button for form controls.");
+}
 #endif
 
 String validationMessageTooLongText(int, int maxLength)
@@ -305,5 +311,29 @@ String exitFullScreenButtonAccessibilityTitle()
     return WEB_UI_STRING("Exit Full Screen", "Button for exiting full screen when in full screen media playback");
 }
 #endif // PLATFORM(MAC)
+
+#if ENABLE(IMAGE_ANALYSIS)
+
+String contextMenuItemTagLookUpImage()
+{
+    return WEB_UI_STRING("Look Up", "Title for Look Up action button");
+}
+
+String contextMenuItemTagQuickLookImage()
+{
+    return WEB_UI_STRING("Quick Look", "Title for Quick Look action button");
+}
+
+String contextMenuItemTagQuickLookImageForTextSelection()
+{
+    return WEB_UI_STRING("Select Text in Quick Look", "Title for Quick Look action button for images with text");
+}
+
+String contextMenuItemTagQuickLookImageForVisualSearch()
+{
+    return WEB_UI_STRING("Look Up in Quick Look", "Title for Quick Look action button for images with visual search results");
+}
+
+#endif // ENABLE(IMAGE_ANALYSIS)
 
 } // namespace WebCore

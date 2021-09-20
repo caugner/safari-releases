@@ -357,7 +357,25 @@ void TestInvocation::didReceiveMessageFromInjectedBundle(WKStringRef messageName
         postPageMessage("CallRemoveChromeInputFieldCallback");
         return;
     }
-    
+
+    if (WKStringIsEqualToUTF8CString(messageName, "SetTextInChromeInputField")) {
+        TestController::singleton().mainWebView()->setTextInChromeInputField(toWTFString(stringValue(messageBody)));
+        postPageMessage("CallSetTextInChromeInputFieldCallback");
+        return;
+    }
+
+    if (WKStringIsEqualToUTF8CString(messageName, "SelectChromeInputField")) {
+        TestController::singleton().mainWebView()->selectChromeInputField();
+        postPageMessage("CallSelectChromeInputFieldCallback");
+        return;
+    }
+
+    if (WKStringIsEqualToUTF8CString(messageName, "GetSelectedTextInChromeInputField")) {
+        auto selectedText = TestController::singleton().mainWebView()->getSelectedTextInChromeInputField();
+        postPageMessage("CallGetSelectedTextInChromeInputFieldCallback", toWK(selectedText));
+        return;
+    }
+
     if (WKStringIsEqualToUTF8CString(messageName, "FocusWebView")) {
         TestController::singleton().mainWebView()->makeWebViewFirstResponder();
         postPageMessage("CallFocusWebViewCallback");
@@ -677,10 +695,11 @@ void TestInvocation::didReceiveMessageFromInjectedBundle(WKStringRef messageName
     if (WKStringIsEqualToUTF8CString(messageName, "SetStatisticsExpiredStatistic")) {
         auto messageBodyDictionary = dictionaryValue(messageBody);
         auto hostName = stringValue(messageBodyDictionary, "HostName");
+        auto numberOfOperatingDaysPassed = uint64Value(messageBodyDictionary, "NumberOfOperatingDaysPassed");
         auto hadUserInteraction = booleanValue(messageBodyDictionary, "HadUserInteraction");
         auto isScheduledForAllButCookieDataRemoval = booleanValue(messageBodyDictionary, "IsScheduledForAllButCookieDataRemoval");
         auto isPrevalent = booleanValue(messageBodyDictionary, "IsPrevalent");
-        TestController::singleton().setStatisticsExpiredStatistic(hostName, hadUserInteraction, isScheduledForAllButCookieDataRemoval, isPrevalent);
+        TestController::singleton().setStatisticsExpiredStatistic(hostName, numberOfOperatingDaysPassed, hadUserInteraction, isScheduledForAllButCookieDataRemoval, isPrevalent);
         return;
     }
 
@@ -1063,7 +1082,13 @@ WKRetainPtr<WKTypeRef> TestInvocation::didReceiveSynchronousMessageFromInjectedB
         bool statisticInDatabaseOnce = TestController::singleton().isStatisticsOnlyInDatabaseOnce(subHost, topHost);
         return adoptWK(WKBooleanCreate(statisticInDatabaseOnce));
     }
-    
+
+    if (WKStringIsEqualToUTF8CString(messageName, "DidLoadAppInitiatedRequest"))
+        return adoptWK(WKBooleanCreate(TestController::singleton().didLoadAppInitiatedRequest()));
+
+    if (WKStringIsEqualToUTF8CString(messageName, "DidLoadNonAppInitiatedRequest"))
+        return adoptWK(WKBooleanCreate(TestController::singleton().didLoadNonAppInitiatedRequest()));
+
     if (WKStringIsEqualToUTF8CString(messageName, "SetStatisticsGrandfathered")) {
         auto messageBodyDictionary = dictionaryValue(messageBody);
         auto hostName = stringValue(messageBodyDictionary, "HostName");
@@ -1338,10 +1363,24 @@ WKRetainPtr<WKTypeRef> TestInvocation::didReceiveSynchronousMessageFromInjectedB
         TestController::singleton().simulateResourceLoadStatisticsSessionRestart();
         return nullptr;
     }
-    
-    if (WKStringIsEqualToUTF8CString(messageName, "SetPrivateClickMeasurementConversionURLForTesting")) {
+
+    if (WKStringIsEqualToUTF8CString(messageName, "SetPrivateClickMeasurementTokenPublicKeyURLForTesting")) {
         ASSERT(WKGetTypeID(messageBody) == WKURLGetTypeID());
-        TestController::singleton().setPrivateClickMeasurementConversionURLForTesting(static_cast<WKURLRef>(messageBody));
+        TestController::singleton().setPrivateClickMeasurementTokenPublicKeyURLForTesting(static_cast<WKURLRef>(messageBody));
+        return nullptr;
+    }
+
+    if (WKStringIsEqualToUTF8CString(messageName, "SetPrivateClickMeasurementTokenSignatureURLForTesting")) {
+        ASSERT(WKGetTypeID(messageBody) == WKURLGetTypeID());
+        TestController::singleton().setPrivateClickMeasurementTokenSignatureURLForTesting(static_cast<WKURLRef>(messageBody));
+        return nullptr;
+    }
+
+    if (WKStringIsEqualToUTF8CString(messageName, "SetPrivateClickMeasurementAttributionReportURLsForTesting")) {
+        auto testDictionary = dictionaryValue(messageBody);
+        auto sourceURL = adoptWK(WKURLCreateWithUTF8CString(toWTFString(stringValue(testDictionary, "SourceURLString")).utf8().data()));
+        auto destinationURL = adoptWK(WKURLCreateWithUTF8CString(toWTFString(stringValue(testDictionary, "AttributeOnURLString")).utf8().data()));
+        TestController::singleton().setPrivateClickMeasurementAttributionReportURLsForTesting(sourceURL.get(), destinationURL.get());
         return nullptr;
     }
 
@@ -1350,13 +1389,29 @@ WKRetainPtr<WKTypeRef> TestInvocation::didReceiveSynchronousMessageFromInjectedB
         return nullptr;
     }
 
+    if (WKStringIsEqualToUTF8CString(messageName, "SetPCMFraudPreventionValuesForTesting")) {
+        auto testDictionary = dictionaryValue(messageBody);
+        auto unlinkableToken = stringValue(testDictionary, "UnlinkableToken");
+        auto secretToken = stringValue(testDictionary, "SecretToken");
+        auto signature = stringValue(testDictionary, "Signature");
+        auto keyID = stringValue(testDictionary, "KeyID");
+
+        TestController::singleton().setPCMFraudPreventionValuesForTesting(unlinkableToken, secretToken, signature, keyID);
+        return nullptr;
+    }
+
     if (WKStringIsEqualToUTF8CString(messageName, "SyncLocalStorage")) {
         TestController::singleton().syncLocalStorage();
         return nullptr;
     }
 
-    if (WKStringIsEqualToUTF8CString(messageName, "setIsSpeechRecognitionPermissionGranted")) {
+    if (WKStringIsEqualToUTF8CString(messageName, "SetIsSpeechRecognitionPermissionGranted")) {
         TestController::singleton().setIsSpeechRecognitionPermissionGranted(booleanValue(messageBody));
+        return nullptr;
+    }
+
+    if (WKStringIsEqualToUTF8CString(messageName, "SetIsMediaKeySystemPermissionGranted")) {
+        TestController::singleton().setIsMediaKeySystemPermissionGranted(booleanValue(messageBody));
         return nullptr;
     }
 
@@ -1400,6 +1455,12 @@ void TestInvocation::uiScriptDidComplete(const String& result, unsigned scriptCa
 void TestInvocation::outputText(const WTF::String& text)
 {
     m_textOutput.append(text);
+}
+
+void TestInvocation::didHandleTap(bool wasMeaningful)
+{
+    auto messageBody = adoptWK(WKBooleanCreate(wasMeaningful));
+    postPageMessage("CallDidHandleTapCallback", messageBody);
 }
 
 void TestInvocation::didBeginSwipe()

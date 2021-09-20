@@ -34,7 +34,7 @@
 #import <dispatch/dispatch.h>
 #import <stdio.h>
 #import <wtf/Assertions.h>
-#import <wtf/HashSet.h>
+#import <wtf/BlockPtr.h>
 #import <wtf/RetainPtr.h>
 #import <wtf/RunLoop.h>
 #import <wtf/SchedulePair.h>
@@ -73,14 +73,16 @@ void dispatchAsyncOnMainThreadWithWebThreadLockIfNeeded(void (^block)())
 {
 #if USE(WEB_THREAD)
     if (WebCoreWebThreadIsEnabled && WebCoreWebThreadIsEnabled()) {
-        dispatch_async(dispatch_get_main_queue(), ^{
+        RunLoop::main().dispatch([block = makeBlockPtr(block)] {
             WebCoreWebThreadLock();
             block();
         });
         return;
     }
 #endif
-    dispatch_async(dispatch_get_main_queue(), block);
+    RunLoop::main().dispatch([block = makeBlockPtr(block)] {
+        block();
+    });
 }
 
 void callOnWebThreadOrDispatchAsyncOnMainThread(void (^block)())
@@ -91,7 +93,9 @@ void callOnWebThreadOrDispatchAsyncOnMainThread(void (^block)())
         return;
     }
 #endif
-    dispatch_async(dispatch_get_main_queue(), block);
+    RunLoop::main().dispatch([block = makeBlockPtr(block)] {
+        block();
+    });
 }
 
 #if USE(WEB_THREAD)

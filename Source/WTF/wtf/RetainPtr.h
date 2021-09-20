@@ -52,6 +52,12 @@
 typedef struct objc_object *id;
 #endif
 
+// Because ARC enablement is a compile-time choice, and we compile this header
+// both ways, we need a separate copy of our code when ARC is enabled.
+#if __has_feature(objc_arc)
+#define adoptNS adoptNSArc
+#endif
+
 namespace WTF {
 
 // Unlike most most of our smart pointers, RetainPtr can take either the pointer type or the pointed-to type,
@@ -396,6 +402,8 @@ template<typename T> T* dynamic_objc_cast(id object)
 using WTF::RetainPtr;
 using WTF::adoptCF;
 using WTF::retainPtr;
+using WTF::safeCFEqual;
+using WTF::safeCFHash;
 
 #ifdef __OBJC__
 using WTF::adoptNS;

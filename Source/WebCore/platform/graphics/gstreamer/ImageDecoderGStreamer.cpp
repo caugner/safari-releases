@@ -28,10 +28,11 @@
 #include "ImageGStreamer.h"
 #include "MediaSampleGStreamer.h"
 #include "NotImplemented.h"
+#include "RuntimeApplicationChecks.h"
 #include <gst/app/gstappsink.h>
 #include <wtf/Lock.h>
 #include <wtf/MainThread.h>
-#include <wtf/Optional.h>
+#include <wtf/Scope.h>
 #include <wtf/Threading.h>
 
 namespace WebCore {
@@ -100,7 +101,10 @@ bool ImageDecoderGStreamer::supportsContainerType(const String& type)
 {
     // Ideally this decoder should operate only from the WebProcess (or from the GPUProcess) which
     // should be the only process where GStreamer has been runtime initialized.
-    if (!gst_is_initialized())
+    if (!isInWebProcess())
+        return false;
+
+    if (!type.startsWith("video/"_s))
         return false;
 
     return GStreamerRegistryScanner::singleton().isContainerTypeSupported(GStreamerRegistryScanner::Configuration::Decoding, type);
@@ -108,12 +112,15 @@ bool ImageDecoderGStreamer::supportsContainerType(const String& type)
 
 bool ImageDecoderGStreamer::canDecodeType(const String& mimeType)
 {
-    // Ideally this decoder should operate only from the WebProcess (or from the GPUProcess) which
-    // should be the only process where GStreamer has been runtime initialized.
-    if (!gst_is_initialized())
+    if (mimeType.isEmpty())
         return false;
 
-    if (mimeType.isEmpty())
+    if (!mimeType.startsWith("video/"_s))
+        return false;
+
+    // Ideally this decoder should operate only from the WebProcess (or from the GPUProcess) which
+    // should be the only process where GStreamer has been runtime initialized.
+    if (!isInWebProcess())
         return false;
 
     return GStreamerRegistryScanner::singleton().isContainerTypeSupported(GStreamerRegistryScanner::Configuration::Decoding, mimeType);
@@ -175,13 +182,12 @@ unsigned ImageDecoderGStreamer::frameBytesAtIndex(size_t index, SubsamplingLevel
     if (!frameIsCompleteAtIndex(index))
         return 0;
 
-    IntSize frameSize = frameSizeAtIndex(index, subsamplingLevel);
-    return (frameSize.area() * 4).unsafeGet();
+    return frameSizeAtIndex(index, subsamplingLevel).area() * 4;
 }
 
 PlatformImagePtr ImageDecoderGStreamer::createFrameImageAtIndex(size_t index, SubsamplingLevel, const DecodingOptions&)
 {
-    LockHolder holder { m_sampleGeneratorLock };
+    Locker locker { m_sampleGeneratorLock };
 
     auto* sampleData = sampleAtIndex(index);
     if (!sampleData)
@@ -223,24 +229,6 @@ const ImageDecoderGStreamerSample* ImageDecoderGStreamer::sampleAtIndex(size_t i
     return toSample(iter);
 }
 
-int ImageDecoderGStreamer::InnerDecoder::selectStream(GstStream* stream)
-{
-    // Select only the first video stream.
-    auto* object = GST_OBJECT_CAST(m_decodebin.get());
-    GST_OBJECT_LOCK(object);
-    auto numberOfSourcePads = m_decodebin->numsrcpads;
-    GST_OBJECT_UNLOCK(object);
-
-    if (numberOfSourcePads) {
-        GST_DEBUG_OBJECT(m_pipeline.get(), "Discarding additional %" GST_PTR_FORMAT, stream);
-        return 0;
-    }
-
-    int result = gst_stream_get_stream_type(stream) & GST_STREAM_TYPE_VIDEO ? 1 : 0;
-    GST_DEBUG_OBJECT(m_pipeline.get(), "%" GST_PTR_FORMAT " selected: %s", stream, boolForPrinting(result));
-    return result;
-}
-
 void ImageDecoderGStreamer::InnerDecoder::decodebinPadAddedCallback(ImageDecoderGStreamer::InnerDecoder* decoder, GstPad* pad)
 {
     decoder->connectDecoderPad(pad);
@@ -250,9 +238,17 @@ void ImageDecoderGStreamer::InnerDecoder::connectDecoderPad(GstPad* pad)
 {
     auto padCaps = adoptGRef(gst_pad_query_caps(pad, nullptr));
     GST_DEBUG_OBJECT(m_pipeline.get(), "New decodebin pad %" GST_PTR_FORMAT " caps: %" GST_PTR_FORMAT, pad, padCaps.get());
-    RELEASE_ASSERT(doCapsHaveType(padCaps.get(), "video"));
 
-    GstElement* sink = gst_element_factory_make("appsink", nullptr);
+    // Decodebin3 in GStreamer <= 1.16 does not respect user-supplied select-stream events. So we
+    // need to relax the release assert for these versions. This bug was fixed in:
+    // https://gitlab.freedesktop.org/gstreamer/gst-plugins-base/-/commit/b41b87522f59355bb21c001e9e2df96dc6956928
+    bool isVideo = doCapsHaveType(padCaps.get(), "video");
+    if (webkitGstCheckVersion(1, 18, 0))
+        RELEASE_ASSERT(isVideo);
+    else if (!isVideo)
+        return;
+
+    GstElement* sink = makeGStreamerElement("appsink", nullptr);
     static GstAppSinkCallbacks callbacks = {
         nullptr,
         [](GstAppSink* sink, gpointer userData) -> GstFlowReturn {
@@ -265,6 +261,10 @@ void ImageDecoderGStreamer::InnerDecoder::connectDecoderPad(GstPad* pad)
             static_cast<ImageDecoderGStreamer*>(userData)->notifySample(WTFMove(sample));
             return GST_FLOW_OK;
         },
+#if GST_CHECK_VERSION(1, 19, 1)
+        // new_event
+        nullptr,
+#endif
         { nullptr }
     };
     gst_app_sink_set_callbacks(GST_APP_SINK(sink), &callbacks, &m_decoder, nullptr);
@@ -272,7 +272,7 @@ void ImageDecoderGStreamer::InnerDecoder::connectDecoderPad(GstPad* pad)
     GRefPtr<GstCaps> caps = adoptGRef(gst_caps_from_string("video/x-raw, format=(string)RGBA"));
     g_object_set(sink, "sync", false, "caps", caps.get(), nullptr);
 
-    GstElement* videoconvert = gst_element_factory_make("videoconvert", nullptr);
+    GstElement* videoconvert = makeGStreamerElement("videoconvert", nullptr);
 
     gst_bin_add_many(GST_BIN_CAST(m_pipeline.get()), videoconvert, sink, nullptr);
     gst_element_link(videoconvert, sink);
@@ -286,32 +286,40 @@ void ImageDecoderGStreamer::setHasEOS()
 {
     GST_DEBUG("EOS on decoder %p", this);
     {
-        LockHolder lock(m_sampleMutex);
+        Locker locker { m_sampleLock };
         m_eos = true;
         m_sampleCondition.notifyOne();
     }
     {
-        LockHolder lock(m_handlerMutex);
-        m_handlerCondition.wait(m_handlerMutex);
+        Locker locker { m_handlerLock };
+        m_handlerCondition.wait(m_handlerLock);
     }
 }
 
 void ImageDecoderGStreamer::notifySample(GRefPtr<GstSample>&& sample)
 {
     {
-        LockHolder lock(m_sampleMutex);
+        Locker locker { m_sampleLock };
         m_sample = WTFMove(sample);
         m_sampleCondition.notifyOne();
     }
     {
-        LockHolder lock(m_handlerMutex);
-        m_handlerCondition.wait(m_handlerMutex);
+        Locker locker { m_handlerLock };
+        m_handlerCondition.wait(m_handlerLock);
     }
 }
 
 void ImageDecoderGStreamer::InnerDecoder::handleMessage(GstMessage* message)
 {
     ASSERT(&m_runLoop == &RunLoop::current());
+
+    auto scopeExit = makeScopeExit([protectedThis = makeWeakPtr(this)] {
+        if (!protectedThis)
+            return;
+        Locker locker { protectedThis->m_messageLock };
+        protectedThis->m_messageDispatched = true;
+        protectedThis->m_messageCondition.notifyOne();
+    });
 
     GUniqueOutPtr<GError> error;
     GUniqueOutPtr<gchar> debug;
@@ -329,6 +337,27 @@ void ImageDecoderGStreamer::InnerDecoder::handleMessage(GstMessage* message)
         g_warning("Error: %d, %s. Debug output: %s", error->code, error->message, debug.get());
         m_decoder.setHasEOS();
         break;
+    case GST_MESSAGE_STREAM_COLLECTION: {
+        GRefPtr<GstStreamCollection> collection;
+        gst_message_parse_stream_collection(message, &collection.outPtr());
+        if (collection && GST_MESSAGE_SRC(message) == GST_OBJECT_CAST(m_decodebin.get())) {
+            unsigned size = gst_stream_collection_get_size(collection.get());
+            GList* streams = nullptr;
+            for (unsigned i = 0 ; i < size; i++) {
+                auto* stream = gst_stream_collection_get_stream(collection.get(), i);
+                auto streamType = gst_stream_get_stream_type(stream);
+                if (streamType == GST_STREAM_TYPE_VIDEO) {
+                    streams = g_list_append(streams, const_cast<char*>(gst_stream_get_stream_id(stream)));
+                    break;
+                }
+            }
+            if (streams) {
+                gst_element_send_event(m_decodebin.get(), gst_event_new_select_streams(streams));
+                g_list_free(streams);
+            }
+        }
+        break;
+    }
     default:
         break;
     }
@@ -344,6 +373,11 @@ void ImageDecoderGStreamer::InnerDecoder::preparePipeline()
 
     gst_bus_set_sync_handler(bus.get(), [](GstBus*, GstMessage* message, gpointer userData) {
         auto& decoder = *static_cast<ImageDecoderGStreamer::InnerDecoder*>(userData);
+
+        {
+            Locker locker { decoder.m_messageLock };
+            decoder.m_messageDispatched = false;
+        }
         if (&decoder.m_runLoop == &RunLoop::current())
             decoder.handleMessage(message);
         else {
@@ -353,18 +387,20 @@ void ImageDecoderGStreamer::InnerDecoder::preparePipeline()
                 if (weakThis)
                     weakThis->handleMessage(protectedMessage.get());
             });
+            {
+                Locker locker { decoder.m_messageLock };
+                if (!decoder.m_messageDispatched)
+                    decoder.m_messageCondition.wait(decoder.m_messageLock);
+            }
         }
         gst_message_unref(message);
         return GST_BUS_DROP;
     }, this, nullptr);
 
-    GstElement* source = gst_element_factory_make("giostreamsrc", nullptr);
+    GstElement* source = makeGStreamerElement("giostreamsrc", nullptr);
     g_object_set(source, "stream", m_memoryStream.get(), nullptr);
 
-    m_decodebin = gst_element_factory_make("decodebin3", nullptr);
-    g_signal_connect(m_decodebin.get(), "select-stream", G_CALLBACK(+[](GstElement*, GstStreamCollection*, GstStream* stream, ImageDecoderGStreamer::InnerDecoder* decoder) -> int {
-        return decoder->selectStream(stream);
-    }), this);
+    m_decodebin = makeGStreamerElement("decodebin3", nullptr);
     g_signal_connect_swapped(m_decodebin.get(), "pad-added", G_CALLBACK(decodebinPadAddedCallback), this);
 
     gst_bin_add_many(GST_BIN_CAST(m_pipeline.get()), source, m_decodebin.get(), nullptr);
@@ -400,13 +436,13 @@ void ImageDecoderGStreamer::pushEncodedData(const SharedBuffer& buffer)
     thread->detach();
     bool isEOS = false;
     {
-        LockHolder lock(m_sampleMutex);
+        Locker locker { m_sampleLock };
         isEOS = m_eos;
     }
     while (!isEOS) {
         {
-            LockHolder lock(m_sampleMutex);
-            m_sampleCondition.wait(m_sampleMutex);
+            Locker locker { m_sampleLock };
+            m_sampleCondition.wait(m_sampleLock);
             isEOS = m_eos;
             if (m_sample) {
                 auto* caps = gst_sample_get_caps(m_sample.get());
@@ -418,7 +454,7 @@ void ImageDecoderGStreamer::pushEncodedData(const SharedBuffer& buffer)
             }
         }
         {
-            LockHolder lock(m_handlerMutex);
+            Locker locker { m_handlerLock };
             m_handlerCondition.notifyAll();
         }
     }

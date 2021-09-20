@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 Apple Inc. All rights reserved.
+ * Copyright (C) 2018-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -32,7 +32,6 @@
 
 namespace WebCore {
 
-class JSWorkletGlobalScope;
 class WorkletGlobalScope;
 
 class JSWorkletGlobalScopeBase : public JSDOMGlobalObject {
@@ -67,7 +66,7 @@ protected:
     JSWorkletGlobalScopeBase(JSC::VM&, JSC::Structure*, RefPtr<WorkletGlobalScope>&&);
     void finishCreation(JSC::VM&, JSC::JSProxy*);
 
-    static void visitChildren(JSC::JSCell*, JSC::SlotVisitor&);
+    DECLARE_VISIT_CHILDREN;
 
 private:
     RefPtr<WorkletGlobalScope> m_wrapped;
@@ -79,7 +78,5 @@ JSC::JSValue toJS(JSC::JSGlobalObject*, JSDOMGlobalObject*, WorkletGlobalScope&)
 inline JSC::JSValue toJS(JSC::JSGlobalObject* lexicalGlobalObject, JSDOMGlobalObject* globalObject, WorkletGlobalScope* scope) { return scope ? toJS(lexicalGlobalObject, globalObject, *scope) : JSC::jsNull(); }
 JSC::JSValue toJS(JSC::JSGlobalObject*, WorkletGlobalScope&);
 inline JSC::JSValue toJS(JSC::JSGlobalObject* lexicalGlobalObject, WorkletGlobalScope* scope) { return scope ? toJS(lexicalGlobalObject, *scope) : JSC::jsNull(); }
-
-JSWorkletGlobalScope* toJSWorkletGlobalScope(JSC::VM&, JSC::JSValue);
 
 } // namespace WebCore

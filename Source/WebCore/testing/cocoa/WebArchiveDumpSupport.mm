@@ -39,7 +39,7 @@ using namespace WebCore;
 
 namespace WebCoreTestSupport {
 
-static CFURLResponseRef createCFURLResponseFromResponseData(CFDataRef responseData)
+static RetainPtr<CFURLResponseRef> createCFURLResponseFromResponseData(CFDataRef responseData)
 {
     NSURLResponse *response;
     auto unarchiver = adoptNS([[NSKeyedUnarchiver alloc] initForReadingFromData:(__bridge NSData *)responseData error:nullptr]);
@@ -53,7 +53,7 @@ static CFURLResponseRef createCFURLResponseFromResponseData(CFDataRef responseDa
     }
 
     if (![response isKindOfClass:[NSHTTPURLResponse class]])
-        return CFURLResponseCreate(kCFAllocatorDefault, (__bridge CFURLRef)response.URL, (__bridge CFStringRef)response.MIMEType, response.expectedContentLength, (__bridge CFStringRef)response.textEncodingName, kCFURLCacheStorageAllowed);
+        return adoptCF(CFURLResponseCreate(kCFAllocatorDefault, (__bridge CFURLRef)response.URL, (__bridge CFStringRef)response.MIMEType, response.expectedContentLength, (__bridge CFStringRef)response.textEncodingName, kCFURLCacheStorageAllowed));
 
     NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *)response;
 
@@ -64,7 +64,7 @@ static CFURLResponseRef createCFURLResponseFromResponseData(CFDataRef responseDa
     for (NSString *headerField in [headerFields keyEnumerator])
         CFHTTPMessageSetHeaderFieldValue(httpMessage.get(), (__bridge CFStringRef)headerField, (__bridge CFStringRef)[headerFields objectForKey:headerField]);
 
-    return CFURLResponseCreateWithHTTPResponse(kCFAllocatorDefault, (__bridge CFURLRef)response.URL, httpMessage.get(), kCFURLCacheStorageAllowed);
+    return adoptCF(CFURLResponseCreateWithHTTPResponse(kCFAllocatorDefault, (__bridge CFURLRef)response.URL, httpMessage.get(), kCFURLCacheStorageAllowed));
 }
 
 static void convertMIMEType(CFMutableStringRef mimeType)
@@ -156,7 +156,7 @@ static void convertWebResourceResponseToDictionary(CFMutableDictionaryRef proper
     if (CFGetTypeID(responseData) != CFDataGetTypeID())
         return;
 
-    RetainPtr<CFURLResponseRef> response = adoptCF(createCFURLResponseFromResponseData(responseData));
+    auto response = createCFURLResponseFromResponseData(responseData);
     if (!response)
         return;
 
@@ -200,7 +200,7 @@ static CFComparisonResult compareResourceURLs(const void *val1, const void *val2
     return CFStringCompare(url1, url2, kCFCompareAnchored);
 }
 
-CFStringRef createXMLStringFromWebArchiveData(CFDataRef webArchiveData)
+RetainPtr<CFStringRef> createXMLStringFromWebArchiveData(CFDataRef webArchiveData)
 {
     CFErrorRef error = 0;
     CFPropertyListFormat format = kCFPropertyListBinaryFormat_v1_0;
@@ -208,8 +208,8 @@ CFStringRef createXMLStringFromWebArchiveData(CFDataRef webArchiveData)
 
     if (!propertyList) {
         if (error)
-            return CFErrorCopyDescription(error);
-        return static_cast<CFStringRef>(CFRetain(CFSTR("An unknown error occurred converting data to property list.")));
+            return adoptCF(CFErrorCopyDescription(error));
+        return CFSTR("An unknown error occurred converting data to property list.");
     }
 
     RetainPtr<CFMutableArrayRef> resources = adoptCF(CFArrayCreateMutable(kCFAllocatorDefault, 0, &kCFTypeArrayCallBacks));
@@ -250,8 +250,8 @@ CFStringRef createXMLStringFromWebArchiveData(CFDataRef webArchiveData)
 
     if (!xmlData) {
         if (error)
-            return CFErrorCopyDescription(error);
-        return static_cast<CFStringRef>(CFRetain(CFSTR("An unknown error occurred converting property list to data.")));
+            return adoptCF(CFErrorCopyDescription(error));
+        return CFSTR("An unknown error occurred converting property list to data.");
     }
 
     RetainPtr<CFStringRef> xmlString = adoptCF(CFStringCreateFromExternalRepresentation(kCFAllocatorDefault, xmlData.get(), kCFStringEncodingUTF8));
@@ -266,7 +266,7 @@ CFStringRef createXMLStringFromWebArchiveData(CFDataRef webArchiveData)
     quickLookURLReplacements().clear();
 #endif
 
-    return string.leakRef();
+    return string;
 }
 
 } // namespace WebCoreTestSupport

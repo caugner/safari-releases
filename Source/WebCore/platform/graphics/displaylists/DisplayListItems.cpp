@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Apple Inc. All rights reserved.
+ * Copyright (C) 2015-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -29,7 +29,6 @@
 #include "DisplayListReplayer.h"
 #include "FontCascade.h"
 #include "ImageBuffer.h"
-#include "ImageData.h"
 #include "MediaPlayer.h"
 #include "SharedBuffer.h"
 #include <wtf/text/TextStream.h>
@@ -115,32 +114,22 @@ static TextStream& operator<<(TextStream& ts, const ConcatenateCTM& item)
     return ts;
 }
 
-SetInlineFillGradient::SetInlineFillGradient(const Gradient& gradient)
+SetInlineFillGradient::SetInlineFillGradient(const Gradient& gradient, const AffineTransform& gradientSpaceTransform)
     : m_data(gradient.data())
-    , m_gradientSpaceTransformation(gradient.gradientSpaceTransform())
+    , m_gradientSpaceTransform(gradientSpaceTransform)
     , m_spreadMethod(gradient.spreadMethod())
     , m_colorStopCount(static_cast<uint8_t>(gradient.stops().size()))
 {
     RELEASE_ASSERT(m_colorStopCount <= maxColorStopCount);
     for (uint8_t i = 0; i < m_colorStopCount; ++i) {
         m_offsets[i] = gradient.stops()[i].offset;
-        m_colors[i] = gradient.stops()[i].color.asInline();
+        m_colors[i] = *gradient.stops()[i].color.tryGetAsSRGBABytes();
     }
 }
 
-Ref<Gradient> SetInlineFillGradient::gradient() const
-{
-    auto gradient = Gradient::create(Gradient::Data(m_data));
-    for (uint8_t i = 0; i < m_colorStopCount; ++i)
-        gradient->addColorStop({ m_offsets[i], Color(m_colors[i]) });
-    gradient->setSpreadMethod(m_spreadMethod);
-    gradient->setGradientSpaceTransform(m_gradientSpaceTransformation);
-    return gradient;
-}
-
-SetInlineFillGradient::SetInlineFillGradient(float offsets[maxColorStopCount], SRGBA<uint8_t> colors[maxColorStopCount], const Gradient::Data& data, const AffineTransform& gradientSpaceTransformation, GradientSpreadMethod spreadMethod, uint8_t colorStopCount)
+SetInlineFillGradient::SetInlineFillGradient(float offsets[maxColorStopCount], SRGBA<uint8_t> colors[maxColorStopCount], const Gradient::Data& data, const AffineTransform& gradientSpaceTransform, GradientSpreadMethod spreadMethod, uint8_t colorStopCount)
     : m_data(data)
-    , m_gradientSpaceTransformation(gradientSpaceTransformation)
+    , m_gradientSpaceTransform(gradientSpaceTransform)
     , m_spreadMethod(spreadMethod)
     , m_colorStopCount(colorStopCount)
 {
@@ -151,10 +140,36 @@ SetInlineFillGradient::SetInlineFillGradient(float offsets[maxColorStopCount], S
     }
 }
 
+SetInlineFillGradient::SetInlineFillGradient(const SetInlineFillGradient& other)
+{
+    if (WTF::holds_alternative<Gradient::RadialData>(other.m_data) || WTF::holds_alternative<Gradient::LinearData>(other.m_data) || WTF::holds_alternative<Gradient::ConicData>(other.m_data)) {
+        m_data = other.m_data;
+        m_gradientSpaceTransform = other.m_gradientSpaceTransform;
+        m_spreadMethod = other.m_spreadMethod;
+        m_colorStopCount = other.m_colorStopCount;
+        if (m_colorStopCount > maxColorStopCount)
+            m_colorStopCount = 0;
+        for (uint8_t i = 0; i < m_colorStopCount; ++i) {
+            m_offsets[i] = other.m_offsets[i];
+            m_colors[i] = other.m_colors[i];
+        }
+    } else
+        m_isValid = false;
+}
+
+Ref<Gradient> SetInlineFillGradient::gradient() const
+{
+    auto gradient = Gradient::create(Gradient::Data(m_data));
+    for (uint8_t i = 0; i < m_colorStopCount; ++i)
+        gradient->addColorStop({ m_offsets[i], Color(m_colors[i]) });
+    gradient->setSpreadMethod(m_spreadMethod);
+    return gradient;
+}
+
 void SetInlineFillGradient::apply(GraphicsContext& context) const
 {
     if (m_colorStopCount <= maxColorStopCount)
-        context.setFillGradient(gradient());
+        context.setFillGradient(gradient(), m_gradientSpaceTransform);
 }
 
 bool SetInlineFillGradient::isInline(const Gradient& gradient)
@@ -163,7 +178,7 @@ bool SetInlineFillGradient::isInline(const Gradient& gradient)
         return false;
 
     for (auto& colorStop : gradient.stops()) {
-        if (!colorStop.color.isInline())
+        if (!colorStop.color.tryGetAsSRGBABytes())
             return false;
     }
 
@@ -210,23 +225,29 @@ static TextStream& operator<<(TextStream& ts, const SetStrokeThickness& state)
 }
 
 SetState::SetState(const GraphicsContextState& state, GraphicsContextState::StateChangeFlags flags)
-    : m_state(state, flags)
+    : m_stateChange(state, flags)
 {
 }
 
-SetState::SetState(const GraphicsContextStateChange& stateChange)
-    : m_state(stateChange)
+SetState::SetState(const GraphicsContextStateChange& stateChange, const PatternData& strokePattern, const PatternData& fillPattern)
+    : m_stateChange(stateChange)
+    , m_strokePattern(strokePattern)
+    , m_fillPattern(fillPattern)
 {
 }
 
-void SetState::apply(GraphicsContext& context) const
+void SetState::apply(GraphicsContext& context, NativeImage* strokePatternImage, NativeImage* fillPatternImage)
 {
-    m_state.apply(context);
+    if (m_stateChange.m_changeFlags.contains(GraphicsContextState::StrokePatternChange) && strokePatternImage)
+        m_stateChange.m_state.strokePattern = Pattern::create(makeRef(*strokePatternImage), m_strokePattern.parameters);
+    if (m_stateChange.m_changeFlags.contains(GraphicsContextState::FillPatternChange) && fillPatternImage)
+        m_stateChange.m_state.fillPattern = Pattern::create(makeRef(*fillPatternImage), m_fillPattern.parameters);
+    m_stateChange.apply(context);
 }
 
 static TextStream& operator<<(TextStream& ts, const SetState& state)
 {
-    ts << state.state();
+    ts << state.stateChange();
     return ts;
 }
 
@@ -342,18 +363,16 @@ static TextStream& operator<<(TextStream& ts, const ClipPath& item)
     return ts;
 }
 
-void ClipToDrawingCommands::apply(GraphicsContext& context) const
-{
-    context.clipToDrawingCommands(m_destination, m_colorSpace, [&] (GraphicsContext& clippingContext) {
-        Replayer replayer { clippingContext, m_drawingCommands };
-        replayer.replay();
-    });
-}
-
-static TextStream& operator<<(TextStream& ts, const ClipToDrawingCommands& item)
+static TextStream& operator<<(TextStream& ts, const BeginClipToDrawingCommands& item)
 {
     ts.dumpProperty("destination", item.destination());
     ts.dumpProperty("color-space", item.colorSpace());
+    return ts;
+}
+
+static TextStream& operator<<(TextStream& ts, const EndClipToDrawingCommands& item)
+{
+    ts.dumpProperty("destination", item.destination());
     return ts;
 }
 
@@ -381,17 +400,9 @@ DrawGlyphs::DrawGlyphs(const Font& font, const GlyphBufferGlyph* glyphs, const G
     computeBounds(font);
 }
 
-inline GlyphBuffer DrawGlyphs::generateGlyphBuffer(const Font& font) const
-{
-    GlyphBuffer result;
-    for (size_t i = 0; i < m_glyphs.size(); ++i)
-        result.add(m_glyphs[i], font, m_advances[i], GlyphBuffer::noOffset);
-    return result;
-}
-
 void DrawGlyphs::apply(GraphicsContext& context, const Font& font) const
 {
-    context.drawGlyphs(font, generateGlyphBuffer(font), 0, m_glyphs.size(), anchorPoint(), m_smoothingMode);
+    context.drawGlyphs(font, m_glyphs.data(), m_advances.data(), m_glyphs.size(), anchorPoint(), m_smoothingMode);
 }
 
 void DrawGlyphs::computeBounds(const Font& font)
@@ -503,7 +514,7 @@ static TextStream& operator<<(TextStream& ts, const DrawRect& item)
     return ts;
 }
 
-Optional<FloatRect> DrawLine::localBounds(const GraphicsContext&) const
+std::optional<FloatRect> DrawLine::localBounds(const GraphicsContext&) const
 {
     FloatRect bounds;
     bounds.fitToPoints(m_point1, m_point2);
@@ -537,7 +548,7 @@ void DrawLinesForText::apply(GraphicsContext& context) const
     context.drawLinesForText(point(), m_thickness, m_widths, m_printing, m_doubleLines);
 }
 
-Optional<FloatRect> DrawLinesForText::localBounds(const GraphicsContext&) const
+std::optional<FloatRect> DrawLinesForText::localBounds(const GraphicsContext&) const
 {
     // This function needs to return a value equal to or enclosing what GraphicsContext::computeLineBoundsAndAntialiasingModeForText() returns.
 
@@ -564,10 +575,13 @@ static TextStream& operator<<(TextStream& ts, const DrawLinesForText& item)
 
 void DrawDotsForDocumentMarker::apply(GraphicsContext& context) const
 {
-    context.drawDotsForDocumentMarker(m_rect, m_style);
+    context.drawDotsForDocumentMarker(m_rect, {
+        static_cast<DocumentMarkerLineStyle::Mode>(m_styleMode),
+        m_styleShouldUseDarkAppearance,
+    });
 }
 
-Optional<FloatRect> DrawDotsForDocumentMarker::localBounds(const GraphicsContext&) const
+std::optional<FloatRect> DrawDotsForDocumentMarker::localBounds(const GraphicsContext&) const
 {
     return m_rect;
 }
@@ -591,11 +605,7 @@ static TextStream& operator<<(TextStream& ts, const DrawEllipse& item)
 
 void DrawPath::apply(GraphicsContext& context) const
 {
-#if USE(CG)
     context.drawPath(m_path);
-#else
-    UNUSED_PARAM(context);
-#endif
 }
 
 static TextStream& operator<<(TextStream& ts, const DrawPath&)
@@ -609,7 +619,7 @@ void DrawFocusRingPath::apply(GraphicsContext& context) const
     context.drawFocusRing(m_path, m_width, m_offset, m_color);
 }
 
-Optional<FloatRect> DrawFocusRingPath::localBounds(const GraphicsContext&) const
+std::optional<FloatRect> DrawFocusRingPath::localBounds(const GraphicsContext&) const
 {
     FloatRect result = m_path.fastBoundingRect();
     result.inflate(platformFocusRingWidth);
@@ -638,7 +648,7 @@ void DrawFocusRingRects::apply(GraphicsContext& context) const
     context.drawFocusRing(m_rects, m_width, m_offset, m_color);
 }
 
-Optional<FloatRect> DrawFocusRingRects::localBounds(const GraphicsContext&) const
+std::optional<FloatRect> DrawFocusRingRects::localBounds(const GraphicsContext&) const
 {
     FloatRect result;
     for (auto& rect : m_rects)
@@ -739,12 +749,45 @@ static TextStream& operator<<(TextStream& ts, const FillRectWithRoundedHole& ite
 
 #if ENABLE(INLINE_PATH_DATA)
 
-void FillInlinePath::apply(GraphicsContext& context) const
+void FillLine::apply(GraphicsContext& context) const
 {
     context.fillPath(path());
 }
 
-static TextStream& operator<<(TextStream& ts, const FillInlinePath& item)
+static TextStream& operator<<(TextStream& ts, const FillLine& item)
+{
+    ts.dumpProperty("path", item.path());
+    return ts;
+}
+
+void FillArc::apply(GraphicsContext& context) const
+{
+    context.fillPath(path());
+}
+
+static TextStream& operator<<(TextStream& ts, const FillArc& item)
+{
+    ts.dumpProperty("path", item.path());
+    return ts;
+}
+
+void FillQuadCurve::apply(GraphicsContext& context) const
+{
+    context.fillPath(path());
+}
+
+static TextStream& operator<<(TextStream& ts, const FillQuadCurve& item)
+{
+    ts.dumpProperty("path", item.path());
+    return ts;
+}
+
+void FillBezierCurve::apply(GraphicsContext& context) const
+{
+    context.fillPath(path());
+}
+
+static TextStream& operator<<(TextStream& ts, const FillBezierCurve& item)
 {
     ts.dumpProperty("path", item.path());
     return ts;
@@ -774,40 +817,62 @@ static TextStream& operator<<(TextStream& ts, const FillEllipse& item)
     return ts;
 }
 
-PutImageData::PutImageData(AlphaPremultiplication inputFormat, const ImageData& imageData, const IntRect& srcRect, const IntPoint& destPoint, AlphaPremultiplication destFormat)
+static TextStream& operator<<(TextStream& ts, const GetPixelBuffer& item)
+{
+    ts.dumpProperty("outputFormat", item.outputFormat());
+    ts.dumpProperty("srcRect", item.srcRect());
+    return ts;
+}
+
+PutPixelBuffer::PutPixelBuffer(const PixelBuffer& pixelBuffer, const IntRect& srcRect, const IntPoint& destPoint, AlphaPremultiplication destFormat)
     : m_srcRect(srcRect)
     , m_destPoint(destPoint)
-    , m_imageData(imageData.deepClone()) // This copy is actually required to preserve the semantics of putImageData().
-    , m_inputFormat(inputFormat)
+    , m_pixelBuffer(pixelBuffer.deepClone()) // This copy is actually required to preserve the semantics of putPixelBuffer().
     , m_destFormat(destFormat)
 {
 }
 
-PutImageData::PutImageData(AlphaPremultiplication inputFormat, Ref<ImageData>&& imageData, const IntRect& srcRect, const IntPoint& destPoint, AlphaPremultiplication destFormat)
+PutPixelBuffer::PutPixelBuffer(PixelBuffer&& pixelBuffer, const IntRect& srcRect, const IntPoint& destPoint, AlphaPremultiplication destFormat)
     : m_srcRect(srcRect)
     , m_destPoint(destPoint)
-    , m_imageData(WTFMove(imageData))
-    , m_inputFormat(inputFormat)
+    , m_pixelBuffer(WTFMove(pixelBuffer))
     , m_destFormat(destFormat)
 {
 }
 
-NO_RETURN_DUE_TO_ASSERT void PutImageData::apply(GraphicsContext&) const
+PutPixelBuffer::PutPixelBuffer(const PutPixelBuffer& other)
+    : m_srcRect(other.m_srcRect)
+    , m_destPoint(other.m_destPoint)
+    , m_pixelBuffer(other.m_pixelBuffer.deepClone())
+    , m_destFormat(other.m_destFormat)
 {
-    // Should be handled by the delegate.
-    ASSERT_NOT_REACHED();
 }
 
-static TextStream& operator<<(TextStream& ts, const PutImageData& item)
+PutPixelBuffer& PutPixelBuffer::operator=(const PutPixelBuffer& other)
 {
-    ts.dumpProperty("inputFormat", item.inputFormat());
-    ts.dumpProperty("imageDataSize", item.imageData().size());
+    PutPixelBuffer copy { other };
+    swap(copy);
+    return *this;
+}
+
+void PutPixelBuffer::swap(PutPixelBuffer& other)
+{
+    std::swap(m_srcRect, other.m_srcRect);
+    std::swap(m_destPoint, other.m_destPoint);
+    std::swap(m_pixelBuffer, other.m_pixelBuffer);
+    std::swap(m_destFormat, other.m_destFormat);
+}
+
+static TextStream& operator<<(TextStream& ts, const PutPixelBuffer& item)
+{
+    ts.dumpProperty("pixelBufferSize", item.pixelBuffer().size());
     ts.dumpProperty("srcRect", item.srcRect());
     ts.dumpProperty("destPoint", item.destPoint());
     ts.dumpProperty("destFormat", item.destFormat());
     return ts;
 }
 
+#if ENABLE(VIDEO)
 PaintFrameForMedia::PaintFrameForMedia(MediaPlayer& player, const FloatRect& destination)
     : m_identifier(player.identifier())
     , m_destination(destination)
@@ -825,8 +890,9 @@ static TextStream& operator<<(TextStream& ts, const PaintFrameForMedia& item)
     ts.dumpProperty("destination", item.destination());
     return ts;
 }
+#endif
 
-Optional<FloatRect> StrokeRect::localBounds(const GraphicsContext&) const
+std::optional<FloatRect> StrokeRect::localBounds(const GraphicsContext&) const
 {
     FloatRect bounds = m_rect;
     bounds.expand(m_lineWidth, m_lineWidth);
@@ -845,7 +911,7 @@ static TextStream& operator<<(TextStream& ts, const StrokeRect& item)
     return ts;
 }
 
-Optional<FloatRect> StrokePath::localBounds(const GraphicsContext& context) const
+std::optional<FloatRect> StrokePath::localBounds(const GraphicsContext& context) const
 {
     // FIXME: Need to take stroke thickness into account correctly, via CGPathByStrokingPath().
     float strokeThickness = context.strokeThickness();
@@ -866,7 +932,7 @@ static TextStream& operator<<(TextStream& ts, const StrokePath& item)
     return ts;
 }
 
-Optional<FloatRect> StrokeEllipse::localBounds(const GraphicsContext& context) const
+std::optional<FloatRect> StrokeEllipse::localBounds(const GraphicsContext& context) const
 {
     float strokeThickness = context.strokeThickness();
 
@@ -886,7 +952,7 @@ static TextStream& operator<<(TextStream& ts, const StrokeEllipse& item)
     return ts;
 }
 
-Optional<FloatRect> StrokeLine::localBounds(const GraphicsContext& context) const
+std::optional<FloatRect> StrokeLine::localBounds(const GraphicsContext& context) const
 {
     float strokeThickness = context.strokeThickness();
 
@@ -917,22 +983,64 @@ static TextStream& operator<<(TextStream& ts, const StrokeLine& item)
 
 #if ENABLE(INLINE_PATH_DATA)
 
-Optional<FloatRect> StrokeInlinePath::localBounds(const GraphicsContext& context) const
+std::optional<FloatRect> StrokeArc::localBounds(const GraphicsContext& context) const
 {
     // FIXME: Need to take stroke thickness into account correctly, via CGPathByStrokingPath().
     float strokeThickness = context.strokeThickness();
 
-    FloatRect bounds = path().fastBoundingRect();
+    auto bounds = path().fastBoundingRect();
     bounds.expand(strokeThickness, strokeThickness);
     return bounds;
 }
 
-void StrokeInlinePath::apply(GraphicsContext& context) const
+void StrokeArc::apply(GraphicsContext& context) const
 {
     context.strokePath(path());
 }
 
-static TextStream& operator<<(TextStream& ts, const StrokeInlinePath& item)
+static TextStream& operator<<(TextStream& ts, const StrokeArc& item)
+{
+    ts.dumpProperty("path", item.path());
+    return ts;
+}
+
+std::optional<FloatRect> StrokeQuadCurve::localBounds(const GraphicsContext& context) const
+{
+    // FIXME: Need to take stroke thickness into account correctly, via CGPathByStrokingPath().
+    float strokeThickness = context.strokeThickness();
+
+    auto bounds = path().fastBoundingRect();
+    bounds.expand(strokeThickness, strokeThickness);
+    return bounds;
+}
+
+void StrokeQuadCurve::apply(GraphicsContext& context) const
+{
+    context.strokePath(path());
+}
+
+static TextStream& operator<<(TextStream& ts, const StrokeQuadCurve& item)
+{
+    ts.dumpProperty("path", item.path());
+    return ts;
+}
+
+std::optional<FloatRect> StrokeBezierCurve::localBounds(const GraphicsContext& context) const
+{
+    // FIXME: Need to take stroke thickness into account correctly, via CGPathByStrokingPath().
+    float strokeThickness = context.strokeThickness();
+
+    auto bounds = path().fastBoundingRect();
+    bounds.expand(strokeThickness, strokeThickness);
+    return bounds;
+}
+
+void StrokeBezierCurve::apply(GraphicsContext& context) const
+{
+    context.strokePath(path());
+}
+
+static TextStream& operator<<(TextStream& ts, const StrokeBezierCurve& item)
 {
     ts.dumpProperty("path", item.path());
     return ts;
@@ -964,7 +1072,8 @@ static TextStream& operator<<(TextStream& ts, const BeginTransparencyLayer& item
 
 void EndTransparencyLayer::apply(GraphicsContext& context) const
 {
-    context.endTransparencyLayer();
+    if (context.isInTransparencyLayer())
+        context.endTransparencyLayer();
 }
 
 #if USE(CG)
@@ -1038,7 +1147,8 @@ static TextStream& operator<<(TextStream& ts, ItemType type)
     case ItemType::ClipToImageBuffer: ts << "clip-to-image-buffer"; break;
     case ItemType::ClipOutToPath: ts << "clip-out-to-path"; break;
     case ItemType::ClipPath: ts << "clip-path"; break;
-    case ItemType::ClipToDrawingCommands: ts << "clip-to-image-buffer"; break;
+    case ItemType::BeginClipToDrawingCommands: ts << "begin-clip-to-drawing-commands:"; break;
+    case ItemType::EndClipToDrawingCommands: ts << "end-clip-to-drawing-commands"; break;
     case ItemType::DrawGlyphs: ts << "draw-glyphs"; break;
     case ItemType::DrawImageBuffer: ts << "draw-image-buffer"; break;
     case ItemType::DrawNativeImage: ts << "draw-native-image"; break;
@@ -1058,19 +1168,27 @@ static TextStream& operator<<(TextStream& ts, ItemType type)
     case ItemType::FillRoundedRect: ts << "fill-rounded-rect"; break;
     case ItemType::FillRectWithRoundedHole: ts << "fill-rect-with-rounded-hole"; break;
 #if ENABLE(INLINE_PATH_DATA)
-    case ItemType::FillInlinePath: ts << "fill-inline-path"; break;
+    case ItemType::FillLine: ts << "fill-line"; break;
+    case ItemType::FillArc: ts << "fill-arc"; break;
+    case ItemType::FillQuadCurve: ts << "fill-quad-curve"; break;
+    case ItemType::FillBezierCurve: ts << "fill-bezier-curve"; break;
 #endif
     case ItemType::FillPath: ts << "fill-path"; break;
     case ItemType::FillEllipse: ts << "fill-ellipse"; break;
     case ItemType::FlushContext: ts << "flush-context"; break;
     case ItemType::MetaCommandChangeDestinationImageBuffer: ts << "meta-command-change-destination-image-buffer"; break;
     case ItemType::MetaCommandChangeItemBuffer: ts << "meta-command-change-item-buffer"; break;
-    case ItemType::PutImageData: ts << "put-image-data"; break;
+    case ItemType::GetPixelBuffer: ts << "get-pixel-buffer"; break;
+    case ItemType::PutPixelBuffer: ts << "put-pixel-buffer"; break;
+#if ENABLE(VIDEO)
     case ItemType::PaintFrameForMedia: ts << "paint-frame-for-media"; break;
+#endif
     case ItemType::StrokeRect: ts << "stroke-rect"; break;
     case ItemType::StrokeLine: ts << "stroke-line"; break;
 #if ENABLE(INLINE_PATH_DATA)
-    case ItemType::StrokeInlinePath: ts << "stroke-inline-path"; break;
+    case ItemType::StrokeArc: ts << "stroke-arc"; break;
+    case ItemType::StrokeQuadCurve: ts << "stroke-quad-curve"; break;
+    case ItemType::StrokeBezierCurve: ts << "stroke-bezier-curve"; break;
 #endif
     case ItemType::StrokePath: ts << "stroke-path"; break;
     case ItemType::StrokeEllipse: ts << "stroke-ellipse"; break;
@@ -1149,8 +1267,11 @@ TextStream& operator<<(TextStream& ts, ItemHandle item)
     case ItemType::ClipPath:
         ts << item.get<ClipPath>();
         break;
-    case ItemType::ClipToDrawingCommands:
-        ts << item.get<ClipToDrawingCommands>();
+    case ItemType::BeginClipToDrawingCommands:
+        ts << item.get<BeginClipToDrawingCommands>();
+        break;
+    case ItemType::EndClipToDrawingCommands:
+        ts << item.get<EndClipToDrawingCommands>();
         break;
     case ItemType::DrawGlyphs:
         ts << item.get<DrawGlyphs>();
@@ -1207,8 +1328,17 @@ TextStream& operator<<(TextStream& ts, ItemHandle item)
         ts << item.get<FillRectWithRoundedHole>();
         break;
 #if ENABLE(INLINE_PATH_DATA)
-    case ItemType::FillInlinePath:
-        ts << item.get<FillInlinePath>();
+    case ItemType::FillLine:
+        ts << item.get<FillLine>();
+        break;
+    case ItemType::FillArc:
+        ts << item.get<FillArc>();
+        break;
+    case ItemType::FillQuadCurve:
+        ts << item.get<FillQuadCurve>();
+        break;
+    case ItemType::FillBezierCurve:
+        ts << item.get<FillBezierCurve>();
         break;
 #endif
     case ItemType::FillPath:
@@ -1226,12 +1356,17 @@ TextStream& operator<<(TextStream& ts, ItemHandle item)
     case ItemType::MetaCommandChangeItemBuffer:
         ts << item.get<MetaCommandChangeItemBuffer>();
         break;
-    case ItemType::PutImageData:
-        ts << item.get<PutImageData>();
+    case ItemType::GetPixelBuffer:
+        ts << item.get<GetPixelBuffer>();
         break;
+    case ItemType::PutPixelBuffer:
+        ts << item.get<PutPixelBuffer>();
+        break;
+#if ENABLE(VIDEO)
     case ItemType::PaintFrameForMedia:
         ts << item.get<PaintFrameForMedia>();
         break;
+#endif
     case ItemType::StrokeRect:
         ts << item.get<StrokeRect>();
         break;
@@ -1239,8 +1374,14 @@ TextStream& operator<<(TextStream& ts, ItemHandle item)
         ts << item.get<StrokeLine>();
         break;
 #if ENABLE(INLINE_PATH_DATA)
-    case ItemType::StrokeInlinePath:
-        ts << item.get<StrokeInlinePath>();
+    case ItemType::StrokeArc:
+        ts << item.get<StrokeArc>();
+        break;
+    case ItemType::StrokeQuadCurve:
+        ts << item.get<StrokeQuadCurve>();
+        break;
+    case ItemType::StrokeBezierCurve:
+        ts << item.get<StrokeBezierCurve>();
         break;
 #endif
     case ItemType::StrokePath:

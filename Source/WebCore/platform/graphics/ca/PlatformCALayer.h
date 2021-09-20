@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010, 2014 Apple Inc. All rights reserved.
+ * Copyright (C) 2010-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -48,7 +48,7 @@ class PlatformCALayerClient;
 
 typedef Vector<RefPtr<PlatformCALayer>> PlatformCALayerList;
 
-class WEBCORE_EXPORT PlatformCALayer : public ThreadSafeRefCounted<PlatformCALayer> {
+class WEBCORE_EXPORT PlatformCALayer : public ThreadSafeRefCounted<PlatformCALayer, WTF::DestructionThread::Main> {
 #if PLATFORM(COCOA)
     friend class PlatformCALayerCocoa;
 #elif PLATFORM(WIN)
@@ -76,6 +76,9 @@ public:
         LayerTypeLightSystemBackdropLayer,
         LayerTypeDarkSystemBackdropLayer,
         LayerTypeScrollContainerLayer,
+#if ENABLE(MODEL_ELEMENT)
+        LayerTypeModelLayer,
+#endif
         LayerTypeCustom,
     };
     enum FilterType { Linear, Nearest, Trilinear };
@@ -118,6 +121,7 @@ public:
     virtual PlatformCALayer* superlayer() const = 0;
     virtual void removeFromSuperlayer() = 0;
     virtual void setSublayers(const PlatformCALayerList&) = 0;
+    virtual PlatformCALayerList sublayersForLogging() const = 0;
     virtual void removeAllSublayers() = 0;
     virtual void appendSublayer(PlatformCALayer&) = 0;
     virtual void insertSublayer(PlatformCALayer&, size_t index) = 0;
@@ -246,6 +250,19 @@ public:
     virtual GraphicsLayer::CustomAppearance customAppearance() const = 0;
     virtual void updateCustomAppearance(GraphicsLayer::CustomAppearance) = 0;
 
+#if HAVE(CORE_ANIMATION_SEPARATED_LAYERS)
+    virtual bool isSeparated() const = 0;
+    virtual void setIsSeparated(bool) = 0;
+    
+#if HAVE(CORE_ANIMATION_SEPARATED_PORTALS)
+    virtual bool isSeparatedPortal() const = 0;
+    virtual void setIsSeparatedPortal(bool) = 0;
+
+    virtual bool isDescendentOfSeparatedPortal() const = 0;
+    virtual void setIsDescendentOfSeparatedPortal(bool) = 0;
+#endif
+#endif
+
     virtual TiledBacking* tiledBacking() = 0;
 
     virtual void drawTextAtPoint(CGContextRef, CGFloat x, CGFloat y, CGSize scale, CGFloat fontSize, const char* text, size_t length, CGFloat strokeWidthAsPercentageOfFontSize = 0, Color strokeColor = Color()) const;
@@ -291,6 +308,8 @@ public:
     static CGRect frameForLayer(const PlatformLayer*);
 
     void moveToLayerPool();
+    
+    virtual void dumpAdditionalProperties(TextStream&, OptionSet<PlatformLayerTreeAsTextFlags>);
 
 protected:
     PlatformCALayer(LayerType, PlatformCALayerClient* owner);
@@ -342,6 +361,9 @@ template<> struct EnumTraits<WebCore::PlatformCALayer::LayerType> {
         WebCore::PlatformCALayer::LayerType::LayerTypeLightSystemBackdropLayer,
         WebCore::PlatformCALayer::LayerType::LayerTypeDarkSystemBackdropLayer,
         WebCore::PlatformCALayer::LayerType::LayerTypeScrollContainerLayer,
+#if ENABLE(MODEL_ELEMENT)
+        WebCore::PlatformCALayer::LayerType::LayerTypeModelLayer,
+#endif
         WebCore::PlatformCALayer::LayerType::LayerTypeCustom
     >;
 };

@@ -71,16 +71,16 @@ static inline void updateLogicalHeightForCell(RenderTableSection::RowStruct& row
     if (logicalHeight.isPositive() || (logicalHeight.isRelative() && logicalHeight.value() >= 0)) {
         Length cRowLogicalHeight = row.logicalHeight;
         switch (logicalHeight.type()) {
-        case Percent:
+        case LengthType::Percent:
             if (!cRowLogicalHeight.isPercent() || cRowLogicalHeight.percent() < logicalHeight.percent())
                 row.logicalHeight = logicalHeight;
             break;
-        case Fixed:
+        case LengthType::Fixed:
             if (cRowLogicalHeight.isAuto() || cRowLogicalHeight.isRelative()
                 || (cRowLogicalHeight.isFixed() && cRowLogicalHeight.value() < logicalHeight.value()))
                 row.logicalHeight = logicalHeight;
             break;
-        case Relative:
+        case LengthType::Relative:
         default:
             break;
         }
@@ -112,9 +112,9 @@ void RenderTableSection::styleDidChange(StyleDifference diff, const RenderStyle*
         table->invalidateCollapsedBorders();
 }
 
-void RenderTableSection::willBeRemovedFromTree()
+void RenderTableSection::willBeRemovedFromTree(IsInternalMove isInternalMove)
 {
-    RenderBox::willBeRemovedFromTree();
+    RenderBox::willBeRemovedFromTree(isInternalMove);
 
     // Preventively invalidate our cells as we may be re-inserted into
     // a new table which would require us to rebuild our structure.
@@ -867,24 +867,24 @@ void RenderTableSection::recalcOuterBorder()
     m_outerBorderEnd = calcOuterBorderEnd();
 }
 
-Optional<int> RenderTableSection::firstLineBaseline() const
+std::optional<LayoutUnit> RenderTableSection::firstLineBaseline() const
 {
     if (!m_grid.size())
-        return Optional<int>();
+        return std::optional<LayoutUnit>();
 
-    int firstLineBaseline = m_grid[0].baseline;
+    LayoutUnit firstLineBaseline = m_grid[0].baseline;
     if (firstLineBaseline)
-        return firstLineBaseline + roundToInt(m_rowPos[0]);
+        return firstLineBaseline + m_rowPos[0];
 
-    Optional<int> result;
+    std::optional<LayoutUnit> result;
     const Row& firstRow = m_grid[0].row;
     for (size_t i = 0; i < firstRow.size(); ++i) {
         const CellStruct& cs = firstRow.at(i);
         const RenderTableCell* cell = cs.primaryCell();
         // Only cells with content have a baseline
         if (cell && cell->contentLogicalHeight()) {
-            int candidate = roundToInt(cell->logicalTop() + cell->borderAndPaddingBefore() + cell->contentLogicalHeight());
-            result = std::max(result.valueOr(candidate), candidate);
+            LayoutUnit candidate = cell->logicalTop() + cell->borderAndPaddingBefore() + cell->contentLogicalHeight();
+            result = std::max(result.value_or(candidate), candidate);
         }
     }
 
@@ -1455,7 +1455,7 @@ bool RenderTableSection::nodeAtPoint(const HitTestRequest& request, HitTestResul
     // Just forward to our children always.
     LayoutPoint adjustedLocation = accumulatedOffset + location();
 
-    if (hasOverflowClip() && !locationInContainer.intersects(overflowClipRect(adjustedLocation, nullptr)))
+    if (hasNonVisibleOverflow() && !locationInContainer.intersects(overflowClipRect(adjustedLocation, nullptr)))
         return false;
 
     if (hasOverflowingCell()) {

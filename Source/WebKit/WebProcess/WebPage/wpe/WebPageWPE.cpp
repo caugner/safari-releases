@@ -69,12 +69,6 @@ bool WebPage::platformCanHandleRequest(const ResourceRequest&)
     return false;
 }
 
-String WebPage::platformUserAgent(const URL&) const
-{
-    notImplemented();
-    return String();
-}
-
 bool WebPage::hoverSupportedByPrimaryPointingDevice() const
 {
 #if ENABLE(TOUCH_EVENTS)
@@ -93,7 +87,7 @@ bool WebPage::hoverSupportedByAnyAvailablePointingDevice() const
 #endif
 }
 
-Optional<PointerCharacteristics> WebPage::pointerCharacteristicsOfPrimaryPointingDevice() const
+std::optional<PointerCharacteristics> WebPage::pointerCharacteristicsOfPrimaryPointingDevice() const
 {
 #if ENABLE(TOUCH_EVENTS)
     if (screenIsTouchPrimaryInputDevice())

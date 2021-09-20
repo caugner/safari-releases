@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009 Apple Inc. All rights reserved.
+ * Copyright (C) 2009-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -45,16 +45,17 @@
 
 namespace WebCore {
 
-HashMap<WebGLProgram*, WebGLRenderingContextBase*>& WebGLProgram::instances(const LockHolder&)
+Lock WebGLProgram::s_instancesLock;
+
+HashMap<WebGLProgram*, WebGLRenderingContextBase*>& WebGLProgram::instances()
 {
     static NeverDestroyed<HashMap<WebGLProgram*, WebGLRenderingContextBase*>> instances;
     return instances;
 }
 
-Lock& WebGLProgram::instancesMutex()
+Lock& WebGLProgram::instancesLock()
 {
-    static Lock mutex;
-    return mutex;
+    return s_instancesLock;
 }
 
 Ref<WebGLProgram> WebGLProgram::create(WebGLRenderingContextBase& ctx)
@@ -69,8 +70,8 @@ WebGLProgram::WebGLProgram(WebGLRenderingContextBase& ctx)
     ASSERT(scriptExecutionContext());
 
     {
-        LockHolder lock(instancesMutex());
-        instances(lock).add(this, &ctx);
+        Locker locker { instancesLock() };
+        instances().add(this, &ctx);
     }
 
     setObject(ctx.graphicsContextGL()->createProgram());
@@ -81,9 +82,9 @@ WebGLProgram::~WebGLProgram()
     InspectorInstrumentation::willDestroyWebGLProgram(*this);
 
     {
-        LockHolder lock(instancesMutex());
-        ASSERT(instances(lock).contains(this));
-        instances(lock).remove(this);
+        Locker locker { instancesLock() };
+        ASSERT(instances().contains(this));
+        instances().remove(this);
     }
 
     if (!hasGroupOrContext())
@@ -206,7 +207,7 @@ bool WebGLProgram::detachShader(const AbstractLocker&, WebGLShader* shader)
     }
 }
 
-void WebGLProgram::addMembersToOpaqueRoots(const AbstractLocker&, JSC::SlotVisitor& visitor)
+void WebGLProgram::addMembersToOpaqueRoots(const AbstractLocker&, JSC::AbstractSlotVisitor& visitor)
 {
     visitor.addOpaqueRoot(m_vertexShader.get());
     visitor.addOpaqueRoot(m_fragmentShader.get());

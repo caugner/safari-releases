@@ -304,15 +304,15 @@ DOMRange *kit(WebCore::Range* value)
     if (!value)
         return nil;
     if (DOMRange *wrapper = getDOMWrapper(value))
-        return [[wrapper retain] autorelease];
-    DOMRange *wrapper = [[DOMRange alloc] _init];
+        return retainPtr(wrapper).autorelease();
+    auto wrapper = adoptNS([[DOMRange alloc] _init]);
     wrapper->_internal = reinterpret_cast<DOMObjectInternal*>(value);
     value->ref();
-    addDOMWrapper(wrapper, value);
-    return [wrapper autorelease];
+    addDOMWrapper(wrapper.get(), value);
+    return wrapper.autorelease();
 }
 
-DOMRange *kit(const Optional<WebCore::SimpleRange>& value)
+DOMRange *kit(const std::optional<WebCore::SimpleRange>& value)
 {
     return kit(createLiveRange(value).get());
 }

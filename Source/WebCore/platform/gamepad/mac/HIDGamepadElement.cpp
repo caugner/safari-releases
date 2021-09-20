@@ -26,8 +26,6 @@
 #include "config.h"
 #include "HIDGamepadElement.h"
 
-#include <IOKit/hid/IOHIDElement.h>
-
 #if ENABLE(GAMEPAD) && PLATFORM(MAC)
 
 namespace WebCore {

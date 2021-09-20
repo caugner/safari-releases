@@ -302,41 +302,28 @@ static TextStream& operator<<(TextStream& ts, FeatureToAnimate feature)
 }
 #endif
 
-#if !ENABLE(WEBPROCESS_WINDOWSERVER_BLOCKING)
-@interface WebScrollbarPartAnimation : NSAnimation
-#else
 @interface WebScrollbarPartAnimation : NSObject
-#endif
 {
     Scrollbar* _scrollbar;
     RetainPtr<NSScrollerImp> _scrollerImp;
     FeatureToAnimate _featureToAnimate;
     CGFloat _startValue;
     CGFloat _endValue;
-#if ENABLE(WEBPROCESS_WINDOWSERVER_BLOCKING)
     NSTimeInterval _duration;
     RetainPtr<NSTimer> _timer;
     RetainPtr<NSDate> _startDate;
     RefPtr<CubicBezierTimingFunction> _timingFunction;
-#endif
 }
 - (id)initWithScrollbar:(Scrollbar*)scrollbar featureToAnimate:(FeatureToAnimate)featureToAnimate animateFrom:(CGFloat)startValue animateTo:(CGFloat)endValue duration:(NSTimeInterval)duration;
-#if ENABLE(WEBPROCESS_WINDOWSERVER_BLOCKING)
 - (void)setCurrentProgress:(NSTimer *)timer;
 - (void)setDuration:(NSTimeInterval)duration;
 - (void)stopAnimation;
-#endif
 @end
 
 @implementation WebScrollbarPartAnimation
 
 - (id)initWithScrollbar:(Scrollbar*)scrollbar featureToAnimate:(FeatureToAnimate)featureToAnimate animateFrom:(CGFloat)startValue animateTo:(CGFloat)endValue duration:(NSTimeInterval)duration
 {
-#if !ENABLE(WEBPROCESS_WINDOWSERVER_BLOCKING)
-    self = [super initWithDuration:duration animationCurve:NSAnimationEaseInOut];
-    if (!self)
-        return nil;
-#else
     self = [super init];
     if (!self)
         return nil;
@@ -345,7 +332,6 @@ static TextStream& operator<<(TextStream& ts, FeatureToAnimate feature)
     _timer = adoptNS([[NSTimer alloc] initWithFireDate:[NSDate dateWithTimeIntervalSinceNow:0] interval:timeInterval target:self selector:@selector(setCurrentProgress:) userInfo:nil repeats:YES]);
     _duration = duration;
     _timingFunction = CubicBezierTimingFunction::create(CubicBezierTimingFunction::EaseInOut);
-#endif
 
     LOG_WITH_STREAM(OverlayScrollbars, stream << "Creating WebScrollbarPartAnimation for " << featureToAnimate << " from " << startValue << " to " << endValue);
 
@@ -353,10 +339,6 @@ static TextStream& operator<<(TextStream& ts, FeatureToAnimate feature)
     _featureToAnimate = featureToAnimate;
     _startValue = startValue;
     _endValue = endValue;
-
-#if !ENABLE(WEBPROCESS_WINDOWSERVER_BLOCKING)
-    [self setAnimationBlockingMode:NSAnimationNonblocking];
-#endif
 
     return self;
 }
@@ -369,12 +351,8 @@ static TextStream& operator<<(TextStream& ts, FeatureToAnimate feature)
 
     LOG_WITH_STREAM(OverlayScrollbars, stream << "-[WebScrollbarPartAnimation " << self << "startAnimation] for " << _featureToAnimate);
 
-#if !ENABLE(WEBPROCESS_WINDOWSERVER_BLOCKING)
-    [super startAnimation];
-#else
     [[NSRunLoop mainRunLoop] addTimer:_timer.get() forMode:NSDefaultRunLoopMode];
     _startDate = adoptNS([[NSDate alloc] initWithTimeIntervalSinceNow:0]);
-#endif
 }
 
 - (void)setStartValue:(CGFloat)startValue
@@ -387,15 +365,8 @@ static TextStream& operator<<(TextStream& ts, FeatureToAnimate feature)
     _endValue = endValue;
 }
 
-#if !ENABLE(WEBPROCESS_WINDOWSERVER_BLOCKING)
-- (void)setCurrentProgress:(NSAnimationProgress)progress
-#else
 - (void)setCurrentProgress:(NSTimer *)timer
-#endif
 {
-#if !ENABLE(WEBPROCESS_WINDOWSERVER_BLOCKING)
-    [super setCurrentProgress:progress];
-#else
     CGFloat progress = 0;
     NSDate *now = [NSDate dateWithTimeIntervalSinceNow:0];
     NSTimeInterval elapsed = [now timeIntervalSinceDate:_startDate.get()];
@@ -408,7 +379,6 @@ static TextStream& operator<<(TextStream& ts, FeatureToAnimate feature)
             t = elapsed / _duration;
         progress = _timingFunction->transformTime(t, _duration);
     }
-#endif
     ASSERT(_scrollbar);
 
     LOG_WITH_STREAM(OverlayScrollbars, stream << "-[WebScrollbarPartAnimation " << self << "setCurrentProgress:" << progress <<"] for " << _featureToAnimate);
@@ -446,7 +416,6 @@ static TextStream& operator<<(TextStream& ts, FeatureToAnimate feature)
     _scrollbar = 0;
 }
 
-#if ENABLE(WEBPROCESS_WINDOWSERVER_BLOCKING)
 - (void)setDuration:(NSTimeInterval)duration
 {
     _duration = duration;
@@ -456,7 +425,6 @@ static TextStream& operator<<(TextStream& ts, FeatureToAnimate feature)
 {
     [_timer invalidate];
 }
-#endif
 
 @end
 
@@ -783,26 +751,24 @@ static bool rubberBandingEnabledForSystem()
 }
 #endif
 
-bool ScrollAnimatorMac::scroll(ScrollbarOrientation orientation, ScrollGranularity granularity, float step, float multiplier, ScrollBehavior behavior)
+bool ScrollAnimatorMac::scroll(ScrollbarOrientation orientation, ScrollGranularity granularity, float step, float multiplier, OptionSet<ScrollBehavior> behavior)
 {
     m_haveScrolledSincePageLoad = true;
 
-    if (!scrollAnimationEnabledForSystem() || !m_scrollableArea.scrollAnimatorEnabled())
-        return ScrollAnimator::scroll(orientation, granularity, step, multiplier, behavior);
-
-    if (granularity == ScrollByPixel)
-        return ScrollAnimator::scroll(orientation, granularity, step, multiplier, behavior);
-
     // This method doesn't do directional snapping, but our base class does. It will call into
     // ScrollAnimatorMac::scroll again with the snapped positions and ScrollBehavior::Default.
-    if (behavior == ScrollBehavior::DoDirectionalSnapping)
+    if (behavior.contains(ScrollBehavior::DoDirectionalSnapping))
         return ScrollAnimator::scroll(orientation, granularity, step, multiplier, behavior);
 
-    FloatPoint currentPosition = this->currentPosition();
-    FloatPoint newPosition = positionFromStep(orientation, step, multiplier);
-    newPosition = newPosition.constrainedBetween(m_scrollableArea.minimumScrollPosition(), m_scrollableArea.maximumScrollPosition());
-    if (currentPosition == newPosition)
-        return false;
+    bool shouldAnimate = scrollAnimationEnabledForSystem() && m_scrollableArea.scrollAnimatorEnabled() && granularity != ScrollByPixel
+        && !behavior.contains(ScrollBehavior::NeverAnimate);
+    FloatPoint newPosition = this->currentPosition() + deltaFromStep(orientation, step, multiplier);
+    newPosition = newPosition.constrainedBetween(scrollableArea().minimumScrollPosition(), scrollableArea().maximumScrollPosition());
+
+    LOG_WITH_STREAM(Scrolling, stream << "ScrollAnimatorMac::scroll from " << currentPosition() << " to " << newPosition);
+
+    if (!shouldAnimate)
+        return scrollToPositionWithoutAnimation(newPosition);
 
     if ([m_scrollAnimationHelper _isAnimating]) {
         NSPoint targetOrigin = [m_scrollAnimationHelper targetOrigin];
@@ -812,16 +778,27 @@ bool ScrollAnimatorMac::scroll(ScrollbarOrientation orientation, ScrollGranulari
             newPosition.setX(targetOrigin.x);
     }
 
-    LOG_WITH_STREAM(Scrolling, stream << "ScrollAnimatorMac::scroll " << " from " << currentPosition << " to " << newPosition);
+    LOG_WITH_STREAM(Scrolling, stream << "ScrollAnimatorMac::scroll " << " from " << currentPosition() << " to " << newPosition);
     [m_scrollAnimationHelper scrollToPoint:newPosition];
     return true;
 }
 
-// FIXME: Maybe this should take a position.
-void ScrollAnimatorMac::scrollToOffsetWithoutAnimation(const FloatPoint& offset, ScrollClamping clamping)
+bool ScrollAnimatorMac::scrollToPositionWithAnimation(const FloatPoint& newPosition)
+{
+    bool positionChanged = newPosition != currentPosition();
+    if (!positionChanged && !scrollableArea().scrollOriginChanged())
+        return false;
+
+    // FIXME: This is used primarily by smooth scrolling. This should ideally use native scroll animations.
+    // See: https://bugs.webkit.org/show_bug.cgi?id=218857
+    [m_scrollAnimationHelper _stopRun];
+    return ScrollAnimator::scrollToPositionWithAnimation(newPosition);
+}
+
+bool ScrollAnimatorMac::scrollToPositionWithoutAnimation(const FloatPoint& position, ScrollClamping clamping)
 {
     [m_scrollAnimationHelper _stopRun];
-    immediateScrollToPosition(ScrollableArea::scrollPositionFromOffset(offset, toFloatSize(m_scrollableArea.scrollOrigin())), clamping);
+    return ScrollAnimator::scrollToPositionWithoutAnimation(position, clamping);
 }
 
 FloatPoint ScrollAnimatorMac::adjustScrollPositionIfNecessary(const FloatPoint& position) const
@@ -844,21 +821,6 @@ void ScrollAnimatorMac::adjustScrollPositionToBoundsIfNecessary()
     m_scrollableArea.setConstrainsScrollingToContentEdge(currentlyConstrainsToContentEdge);
 }
 
-void ScrollAnimatorMac::immediateScrollToPosition(const FloatPoint& newPosition, ScrollClamping clamping)
-{
-    FloatPoint currentPosition = this->currentPosition();
-    FloatPoint adjustedPosition = clamping == ScrollClamping::Clamped ? adjustScrollPositionIfNecessary(newPosition) : newPosition;
- 
-    bool positionChanged = adjustedPosition != currentPosition;
-    if (!positionChanged && !scrollableArea().scrollOriginChanged())
-        return;
-
-    FloatSize delta = adjustedPosition - currentPosition;
-    m_currentPosition = adjustedPosition;
-    notifyPositionChanged(delta);
-    updateActiveScrollSnapIndexForOffset();
-}
-
 bool ScrollAnimatorMac::isUserScrollInProgress() const
 {
     return m_scrollController.isUserScrollInProgress();
@@ -875,11 +837,7 @@ bool ScrollAnimatorMac::isRubberBandInProgress() const
 
 bool ScrollAnimatorMac::isScrollSnapInProgress() const
 {
-#if ENABLE(CSS_SCROLL_SNAP)
     return m_scrollController.isScrollSnapInProgress();
-#else
-    return false;
-#endif
 }
 
 static String scrollbarState(Scrollbar* scrollbar)
@@ -922,7 +880,7 @@ String ScrollAnimatorMac::verticalScrollbarStateForTesting() const
 void ScrollAnimatorMac::immediateScrollToPositionForScrollAnimation(const FloatPoint& newPosition)
 {
     ASSERT(m_scrollAnimationHelper);
-    immediateScrollToPosition(newPosition);
+    ScrollAnimator::scrollToPositionWithoutAnimation(newPosition);
 }
 
 void ScrollAnimatorMac::notifyPositionChanged(const FloatSize& delta)
@@ -1057,10 +1015,8 @@ void ScrollAnimatorMac::didBeginScrollGesture() const
 
     [m_scrollerImpPair beginScrollGesture];
 
-#if ENABLE(CSS_SCROLL_SNAP) || ENABLE(RUBBER_BANDING)
     if (m_wheelEventTestMonitor)
         m_wheelEventTestMonitor->deferForReason(reinterpret_cast<WheelEventTestMonitor::ScrollableAreaIdentifier>(this), WheelEventTestMonitor::ContentScrollInProgress);
-#endif
 }
 
 void ScrollAnimatorMac::didEndScrollGesture() const
@@ -1072,10 +1028,8 @@ void ScrollAnimatorMac::didEndScrollGesture() const
 
     [m_scrollerImpPair endScrollGesture];
 
-#if ENABLE(CSS_SCROLL_SNAP) || ENABLE(RUBBER_BANDING)
     if (m_wheelEventTestMonitor)
         m_wheelEventTestMonitor->removeDeferralForReason(reinterpret_cast<WheelEventTestMonitor::ScrollableAreaIdentifier>(this), WheelEventTestMonitor::ContentScrollInProgress);
-#endif
 }
 
 void ScrollAnimatorMac::mayBeginScrollGesture() const
@@ -1315,18 +1269,19 @@ bool ScrollAnimatorMac::isPinnedForScrollDelta(const FloatSize& delta) const
     return false;
 }
 
-#if ENABLE(CSS_SCROLL_SNAP)
-static bool gestureShouldBeginSnap(const PlatformWheelEvent& wheelEvent, const Vector<LayoutUnit>* snapOffsets)
+static bool gestureShouldBeginSnap(const PlatformWheelEvent& wheelEvent, ScrollEventAxis axis, const LayoutScrollSnapOffsetsInfo* offsetInfo)
 {
-    if (!snapOffsets)
+    if (!offsetInfo)
         return false;
-    
+
+    if (offsetInfo->offsetsForAxis(axis).isEmpty())
+        return false;
+
     if (wheelEvent.phase() != PlatformWheelEventPhase::Ended && !wheelEvent.isEndOfMomentumScroll())
         return false;
 
     return true;
 }
-#endif
 
 bool ScrollAnimatorMac::allowsVerticalStretching(const PlatformWheelEvent& wheelEvent) const
 {
@@ -1336,10 +1291,8 @@ bool ScrollAnimatorMac::allowsVerticalStretching(const PlatformWheelEvent& wheel
         Scrollbar* vScroller = m_scrollableArea.verticalScrollbar();
         bool scrollbarsAllowStretching = ((vScroller && vScroller->enabled()) || (!hScroller || !hScroller->enabled()));
         bool eventPreventsStretching = m_scrollableArea.hasScrollableOrRubberbandableAncestor() && wheelEvent.isGestureStart() && m_scrollableArea.isPinnedForScrollDeltaOnAxis(-wheelEvent.deltaY(), ScrollEventAxis::Vertical);
-#if ENABLE(CSS_SCROLL_SNAP)
         if (!eventPreventsStretching)
-            eventPreventsStretching = gestureShouldBeginSnap(wheelEvent, m_scrollableArea.verticalSnapOffsets());
-#endif
+            eventPreventsStretching = gestureShouldBeginSnap(wheelEvent, ScrollEventAxis::Vertical, m_scrollableArea.snapOffsetsInfo());
         return scrollbarsAllowStretching && !eventPreventsStretching;
     }
     case ScrollElasticityNone:
@@ -1360,10 +1313,8 @@ bool ScrollAnimatorMac::allowsHorizontalStretching(const PlatformWheelEvent& whe
         Scrollbar* vScroller = m_scrollableArea.verticalScrollbar();
         bool scrollbarsAllowStretching = ((hScroller && hScroller->enabled()) || (!vScroller || !vScroller->enabled()));
         bool eventPreventsStretching = m_scrollableArea.hasScrollableOrRubberbandableAncestor() && wheelEvent.isGestureStart() && m_scrollableArea.isPinnedForScrollDeltaOnAxis(-wheelEvent.deltaX(), ScrollEventAxis::Horizontal);
-#if ENABLE(CSS_SCROLL_SNAP)
         if (!eventPreventsStretching)
-            eventPreventsStretching = gestureShouldBeginSnap(wheelEvent, m_scrollableArea.horizontalSnapOffsets());
-#endif
+            eventPreventsStretching = gestureShouldBeginSnap(wheelEvent, ScrollEventAxis::Horizontal, m_scrollableArea.snapOffsetsInfo());
         return scrollbarsAllowStretching && !eventPreventsStretching;
     }
     case ScrollElasticityNone:
@@ -1534,6 +1485,11 @@ void ScrollAnimatorMac::setVisibleScrollerThumbRect(const IntRect& scrollerThumb
 
     m_scrollableArea.setVisibleScrollerThumbRect(rectInViewCoordinates);
     m_visibleScrollerThumbRect = rectInViewCoordinates;
+}
+
+bool ScrollAnimatorMac::processWheelEventForScrollSnap(const PlatformWheelEvent& wheelEvent)
+{
+    return m_scrollController.processWheelEventForScrollSnap(wheelEvent);
 }
 
 } // namespace WebCore

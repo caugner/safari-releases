@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009 Apple Inc. All rights reserved.
+ * Copyright (C) 2009-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -34,7 +34,7 @@
 #include <wtf/Vector.h>
 
 namespace JSC {
-class SlotVisitor;
+class AbstractSlotVisitor;
 }
 
 namespace WTF {
@@ -65,7 +65,7 @@ public:
         virtual void onDetached(const WTF::AbstractLocker&, GraphicsContextGL*) = 0;
         virtual void attach(GraphicsContextGL*, GCGLenum target, GCGLenum attachment) = 0;
         virtual void unattach(GraphicsContextGL*, GCGLenum target, GCGLenum attachment) = 0;
-        virtual void addMembersToOpaqueRoots(const WTF::AbstractLocker&, JSC::SlotVisitor&) = 0;
+        virtual void addMembersToOpaqueRoots(const WTF::AbstractLocker&, JSC::AbstractSlotVisitor&) = 0;
 
     protected:
         WebGLAttachment();
@@ -74,6 +74,9 @@ public:
     virtual ~WebGLFramebuffer();
 
     static Ref<WebGLFramebuffer> create(WebGLRenderingContextBase&);
+#if ENABLE(WEBXR)
+    static Ref<WebGLFramebuffer> createOpaque(WebGLRenderingContextBase&);
+#endif
 
     void setAttachmentForBoundFramebuffer(GCGLenum target, GCGLenum attachment, GCGLenum texTarget, WebGLTexture*, GCGLint level, GCGLint layer);
     void setAttachmentForBoundFramebuffer(GCGLenum target, GCGLenum attachment, WebGLRenderbuffer*);
@@ -114,7 +117,12 @@ public:
 
     GCGLenum getDrawBuffer(GCGLenum);
 
-    void addMembersToOpaqueRoots(const WTF::AbstractLocker&, JSC::SlotVisitor&);
+    void addMembersToOpaqueRoots(const WTF::AbstractLocker&, JSC::AbstractSlotVisitor&);
+
+#if ENABLE(WEBXR)
+    bool isOpaque() const { return m_opaque; }
+    void setOpaqueActive(bool active) { m_opaqueActive = active; }
+#endif
 
 private:
     WebGLFramebuffer(WebGLRenderingContextBase&);
@@ -151,6 +159,11 @@ private:
 
     Vector<GCGLenum> m_drawBuffers;
     Vector<GCGLenum> m_filteredDrawBuffers;
+
+#if ENABLE(WEBXR)
+    bool m_opaque { false };
+    bool m_opaqueActive { false };
+#endif
 };
 
 } // namespace WebCore

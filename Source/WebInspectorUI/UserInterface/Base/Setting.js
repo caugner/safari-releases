@@ -197,6 +197,11 @@ WI.settings = {
     enableElementsTabIndependentStylesDetailsSidebarPanel: new WI.Setting("elements-tab-independent-styles-details-panel", true),
     enableLineWrapping: new WI.Setting("enable-line-wrapping", true),
     frontendAppearance: new WI.Setting("frontend-appearance", "system"),
+    gridOverlayShowAreaNames: new WI.Setting("grid-overlay-show-area-names", false),
+    gridOverlayShowExtendedGridLines: new WI.Setting("grid-overlay-show-extended-grid-lines", false),
+    gridOverlayShowLineNames: new WI.Setting("grid-overlay-show-line-names", false),
+    gridOverlayShowLineNumbers: new WI.Setting("grid-overlay-show-line-numbers", true),
+    gridOverlayShowTrackSizes: new WI.Setting("grid-overlay-show-track-sizes", true),
     groupMediaRequestsByDOMNode: new WI.Setting("group-media-requests-by-dom-node", WI.Setting.migrateValue("group-by-dom-node") || false),
     indentUnit: new WI.Setting("indent-unit", 4),
     indentWithTabs: new WI.Setting("indent-with-tabs", false),
@@ -206,6 +211,7 @@ WI.settings = {
     searchRegularExpression: new WI.Setting("search-regular-expression", false),
     selectedNetworkDetailContentViewIdentifier: new WI.Setting("network-detail-content-view-identifier", "preview"),
     sourceMapsEnabled: new WI.Setting("source-maps-enabled", true),
+    showCSSPropertySyntaxInDocumentationPopover: new WI.Setting("show-css-property-syntax-in-documentation-popover", false),
     showCanvasPath: new WI.Setting("show-canvas-path", false),
     showImageGrid: new WI.Setting("show-image-grid", true),
     showInvisibleCharacters: new WI.Setting("show-invisible-characters", !!WI.Setting.migrateValue("show-invalid-characters")),
@@ -223,6 +229,8 @@ WI.settings = {
     experimentalEnablePreviewFeatures: new WI.Setting("experimental-enable-preview-features", true),
     experimentalEnableStylesJumpToEffective: new WI.Setting("experimental-styles-jump-to-effective", false),
     experimentalEnableStylesJumpToVariableDeclaration: new WI.Setting("experimental-styles-jump-to-variable-declaration", false),
+    experimentalCollapseBlackboxedCallFrames: new WI.Setting("experimental-collapse-blackboxed-call-frames", false),
+    experimentalAllowInspectingInspector: new WI.Setting("experimental-allow-inspecting-inspector", false),
 
     // Protocol
     protocolLogAsText: new WI.Setting("protocol-log-as-text", false),

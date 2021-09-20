@@ -30,15 +30,15 @@
 
 #import "APIData.h"
 #import "Logging.h"
-#import "PDFKitImports.h"
 #import "PrintInfo.h"
 #import "ShareableBitmap.h"
 #import "WebPageProxy.h"
 #import <Quartz/Quartz.h>
-#import <WebCore/GraphicsContext.h>
+#import <WebCore/GraphicsContextCG.h>
 #import <WebCore/LocalDefaultSystemAppearance.h>
-#import <WebCore/WebCoreObjCExtras.h>
 #import <wtf/RunLoop.h>
+
+#import "PDFKitSoftLink.h"
 
 NSString * const WebKitOriginalTopPrintingMarginKey = @"WebKitOriginalTopMargin";
 NSString * const WebKitOriginalBottomPrintingMarginKey = @"WebKitOriginalBottomMargin";
@@ -63,7 +63,7 @@ static BOOL isForcingPreviewUpdate;
 
 - (void)dealloc
 {
-    callOnMainThread([frame = WTFMove(_webFrame), previews = WTFMove(_pagePreviews)] {
+    ensureOnMainRunLoop([frame = WTFMove(_webFrame), previews = WTFMove(_pagePreviews)] {
         // Deallocate these on the main thread, not the current thread, since the
         // reference counting and the destructors aren't threadsafe.
     });
@@ -259,7 +259,7 @@ static void pageDidDrawToImage(const WebKit::ShareableBitmap::Handle& imageHandl
         return;
     }
 
-    auto locker = holdLock(_printingCallbackMutex);
+    Locker locker { _printingCallbackMutex };
 
     ASSERT([self _hasPageRects]);
     ASSERT(_printedPagesData.isEmpty());
@@ -278,7 +278,7 @@ static void pageDidDrawToImage(const WebKit::ShareableBitmap::Handle& imageHandl
     _webFrame->page()->beginPrinting(_webFrame.get(), printInfo);
 
     IPCCallbackContext* context = new IPCCallbackContext;
-    auto callback = WebKit::DataCallback::create([context](API::Data* data, WebKit::CallbackBase::Error) {
+    auto callback = [context](API::Data* data) {
         ASSERT(RunLoop::isMain());
 
         std::unique_ptr<IPCCallbackContext> contextDeleter(context);
@@ -293,13 +293,10 @@ static void pageDidDrawToImage(const WebKit::ShareableBitmap::Handle& imageHandl
             view->_expectedPrintCallback = 0;
             view->_printingCallbackCondition.notifyOne();
         }
-    });
-    _expectedPrintCallback = callback->callbackID().toInteger();
-
+    };
+    _expectedPrintCallback = _webFrame->page()->drawPagesToPDF(_webFrame.get(), printInfo, firstPage - 1, lastPage - firstPage + 1, WTFMove(callback));
     context->view = self;
-    context->callbackID = callback->callbackID().toInteger();
-
-    _webFrame->page()->drawPagesToPDF(_webFrame.get(), printInfo, firstPage - 1, lastPage - firstPage + 1, WTFMove(callback));
+    context->callbackID = _expectedPrintCallback;
 }
 
 static void pageDidComputePageRects(const Vector<WebCore::IntRect>& pageRects, double totalScaleFactorForPrinting, const WebCore::FloatBoxExtent& computedPageMargin, IPCCallbackContext* context)
@@ -361,15 +358,14 @@ static void pageDidComputePageRects(const Vector<WebCore::IntRect>& pageRects, d
     ASSERT(!_expectedComputedPagesCallback);
 
     IPCCallbackContext* context = new IPCCallbackContext;
-    auto callback = WebKit::ComputedPagesCallback::create([context](const Vector<WebCore::IntRect>& pageRects, double totalScaleFactorForPrinting, const WebCore::FloatBoxExtent& computedPageMargin, WebKit::CallbackBase::Error) {
+    auto callback = [context](const Vector<WebCore::IntRect>& pageRects, double totalScaleFactorForPrinting, const WebCore::FloatBoxExtent& computedPageMargin) {
         std::unique_ptr<IPCCallbackContext> contextDeleter(context);
         pageDidComputePageRects(pageRects, totalScaleFactorForPrinting, computedPageMargin, context);
-    });
-    _expectedComputedPagesCallback = callback->callbackID().toInteger();
+    };
+    _expectedComputedPagesCallback = _webFrame->page()->computePagesForPrinting(_webFrame.get(), WebKit::PrintInfo([_printOperation.get() printInfo]), WTFMove(callback));
     context->view = self;
     context->callbackID = _expectedComputedPagesCallback;
 
-    _webFrame->page()->computePagesForPrinting(_webFrame.get(), WebKit::PrintInfo([_printOperation.get() printInfo]), WTFMove(callback));
     return YES;
 }
 
@@ -377,7 +373,7 @@ static void prepareDataForPrintingOnSecondaryThread(WKPrintingView *view)
 {
     ASSERT(RunLoop::isMain());
 
-    auto locker = holdLock(view->_printingCallbackMutex);
+    Locker locker { view->_printingCallbackMutex };
 
     // We may have received page rects while a message to call this function traveled from secondary thread to main one.
     if ([view _hasPageRects]) {
@@ -419,13 +415,13 @@ static void prepareDataForPrintingOnSecondaryThread(WKPrintingView *view)
         *range = NSMakeRange(1, _printingPageRects.size());
     else if (!RunLoop::isMain()) {
         ASSERT(![self _isPrintingPreview]);
-        std::unique_lock<Lock> lock(_printingCallbackMutex);
+        Locker lock { _printingCallbackMutex };
 
         RunLoop::main().dispatch([self] {
             prepareDataForPrintingOnSecondaryThread(self);
         });
 
-        _printingCallbackCondition.wait(lock);
+        _printingCallbackCondition.wait(_printingCallbackMutex);
         *range = NSMakeRange(1, _printingPageRects.size());
     } else {
         ASSERT([self _isPrintingPreview]);
@@ -490,7 +486,7 @@ static NSString *linkDestinationName(PDFDocument *document, PDFDestination *dest
     }
 
     for (PDFAnnotation *annotation in [pdfPage annotations]) {
-        if (![annotation isKindOfClass:WebKit::pdfAnnotationLinkClass()])
+        if (![annotation isKindOfClass:WebKit::getPDFAnnotationLinkClass()])
             continue;
 
         ALLOW_DEPRECATED_DECLARATIONS_BEGIN
@@ -541,17 +537,15 @@ static NSString *linkDestinationName(PDFDocument *document, PDFDestination *dest
                 _webFrame->page()->beginPrinting(_webFrame.get(), WebKit::PrintInfo([_printOperation.get() printInfo]));
 
                 IPCCallbackContext* context = new IPCCallbackContext;
-                auto callback = WebKit::ImageCallback::create([context](const WebKit::ShareableBitmap::Handle& imageHandle, WebKit::CallbackBase::Error) {
+                auto callback = [context](const WebKit::ShareableBitmap::Handle& imageHandle) {
                     std::unique_ptr<IPCCallbackContext> contextDeleter(context);
                     pageDidDrawToImage(imageHandle, context);
-                });
-                _latestExpectedPreviewCallback = callback->callbackID().toInteger();
+                };
+                _latestExpectedPreviewCallback = _webFrame->page()->drawRectToImage(_webFrame.get(), WebKit::PrintInfo([_printOperation.get() printInfo]), scaledPrintingRect, imageSize, WTFMove(callback));
                 _expectedPreviewCallbacks.add(_latestExpectedPreviewCallback, scaledPrintingRect);
 
                 context->view = self;
-                context->callbackID = callback->callbackID().toInteger();
-
-                _webFrame->page()->drawRectToImage(_webFrame.get(), WebKit::PrintInfo([_printOperation.get() printInfo]), scaledPrintingRect, imageSize, WTFMove(callback));
+                context->callbackID = _latestExpectedPreviewCallback;
                 return;
             }
         }
@@ -562,7 +556,7 @@ static NSString *linkDestinationName(PDFDocument *document, PDFDestination *dest
 
     RefPtr<WebKit::ShareableBitmap> bitmap = pagePreviewIterator->value;
 
-    WebCore::GraphicsContext context([[NSGraphicsContext currentContext] CGContext]);
+    WebCore::GraphicsContextCG context([[NSGraphicsContext currentContext] CGContext]);
     WebCore::GraphicsContextStateSaver stateSaver(context);
 
     bitmap->paint(context, _webFrame->page()->deviceScaleFactor(), WebCore::IntPoint(nsRect.origin), bitmap->bounds());
@@ -590,7 +584,7 @@ static NSString *linkDestinationName(PDFDocument *document, PDFDestination *dest
 
     if (!_printedPagesPDFDocument) {
         RetainPtr<NSData> pdfData = adoptNS([[NSData alloc] initWithBytes:_printedPagesData.data() length:_printedPagesData.size()]);
-        _printedPagesPDFDocument = adoptNS([[WebKit::pdfDocumentClass() alloc] initWithData:pdfData.get()]);
+        _printedPagesPDFDocument = adoptNS([WebKit::allocPDFDocumentInstance() initWithData:pdfData.get()]);
 
         unsigned pageCount = [_printedPagesPDFDocument pageCount];
         _linkDestinationsPerPage.clear();
@@ -598,7 +592,7 @@ static NSString *linkDestinationName(PDFDocument *document, PDFDestination *dest
         for (unsigned i = 0; i < pageCount; i++) {
             PDFPage *page = [_printedPagesPDFDocument pageAtIndex:i];
             for (PDFAnnotation *annotation in page.annotations) {
-                if (![annotation isKindOfClass:WebKit::pdfAnnotationLinkClass()])
+                if (![annotation isKindOfClass:WebKit::getPDFAnnotationLinkClass()])
                     continue;
 
                 ALLOW_DEPRECATED_DECLARATIONS_BEGIN

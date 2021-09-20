@@ -155,10 +155,6 @@ void TestController::initializeTestPluginDirectory()
     m_testPluginDirectory.adopt(WKStringCreateWithCFString((__bridge CFStringRef)[[NSBundle mainBundle] bundlePath]));
 }
 
-void TestController::platformResetPreferencesToConsistentValues()
-{
-}
-
 bool TestController::platformResetStateToConsistentValues(const TestOptions& options)
 {
     [LayoutTestSpellChecker uninstallAndReset];
@@ -187,7 +183,7 @@ void TestController::configureContentExtensionForTest(const TestInvocation& test
     auto testURL = adoptCF(WKURLCopyCFURL(kCFAllocatorDefault, test.url()));
     NSURL *filterURL = [(__bridge NSURL *)testURL.get() URLByAppendingPathExtension:@"json"];
 
-    __block NSString *contentExtensionString;
+    __block RetainPtr<NSString> contentExtensionString;
     __block bool doneFetchingContentExtension = false;
     auto delegate = adoptNS([WKTRSessionDelegate new]);
     NSURLSession *session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration ephemeralSessionConfiguration] delegate:delegate.get() delegateQueue:[NSOperationQueue mainQueue]];
@@ -195,7 +191,7 @@ void TestController::configureContentExtensionForTest(const TestInvocation& test
         ASSERT(data);
         ASSERT(response);
         ASSERT(!error);
-        contentExtensionString = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+        contentExtensionString = adoptNS([[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding]);
         doneFetchingContentExtension = true;
     }];
     [task resume];
@@ -210,7 +206,7 @@ void TestController::configureContentExtensionForTest(const TestInvocation& test
     } else
         tempDir = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:@"ContentExtensions"] isDirectory:YES];
 
-    [[_WKUserContentExtensionStore storeWithURL:tempDir] compileContentExtensionForIdentifier:@"TestContentExtensions" encodedContentExtension:contentExtensionString completionHandler:^(_WKUserContentFilter *filter, NSError *error)
+    [[_WKUserContentExtensionStore storeWithURL:tempDir] compileContentExtensionForIdentifier:@"TestContentExtensions" encodedContentExtension:contentExtensionString.get() completionHandler:^(_WKUserContentFilter *filter, NSError *error)
     {
         if (!error)
             [mainWebView()->platformView().configuration.userContentController _addUserContentFilter:filter];
@@ -227,7 +223,7 @@ void TestController::platformConfigureViewForTest(const TestInvocation& test)
 
 static NSSet *allowedFontFamilySet()
 {
-    static NSSet *fontFamilySet = [[NSSet setWithObjects:
+    static NeverDestroyed<RetainPtr<NSSet>> fontFamilySet = [NSSet setWithObjects:
         @"Ahem",
         @"Al Bayan",
         @"American Typewriter",
@@ -355,18 +351,18 @@ static NSSet *allowedFontFamilySet()
         @"Wingdings",
         @"Zapf Dingbats",
         @"Zapfino",
-        nil] retain];
+        nil];
 
-    return fontFamilySet;
+    return fontFamilySet.get().get();
 }
 
 static NSSet *systemHiddenFontFamilySet()
 {
-    static NSSet *fontFamilySet = [[NSSet setWithObjects:
+    static NeverDestroyed<RetainPtr<NSSet>> fontFamilySet = [NSSet setWithObjects:
         @".LucidaGrandeUI",
-        nil] retain];
+        nil];
 
-    return fontFamilySet;
+    return fontFamilySet.get().get();
 }
 
 static WKRetainPtr<WKArrayRef> generateFontAllowList()
@@ -430,12 +426,12 @@ void TestController::abortModal()
 
 const char* TestController::platformLibraryPathForTesting()
 {
-    static NSString *platformLibraryPath = nil;
+    static NeverDestroyed<RetainPtr<NSString>> platformLibraryPath;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        platformLibraryPath = [[@"~/Library/Application Support/DumpRenderTree" stringByExpandingTildeInPath] retain];
+        platformLibraryPath.get() = [@"~/Library/Application Support/DumpRenderTree" stringByExpandingTildeInPath];
     });
-    return platformLibraryPath.UTF8String;
+    return [platformLibraryPath.get() UTF8String];
 }
 
 } // namespace WTR

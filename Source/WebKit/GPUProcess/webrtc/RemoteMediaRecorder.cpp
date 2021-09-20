@@ -69,7 +69,7 @@ void RemoteMediaRecorder::audioSamplesStorageChanged(const SharedMemory::IPCHand
 
     m_description = description;
 
-    m_ringBuffer = makeUnique<CARingBuffer>(makeUniqueRef<ReadOnlySharedRingBufferStorage>(ipcHandle.handle), description, numberOfFrames);
+    m_ringBuffer = CARingBuffer::adoptStorage(makeUniqueRef<ReadOnlySharedRingBufferStorage>(ipcHandle.handle), description, numberOfFrames).moveToUniquePtr();
     m_audioBufferList = makeUnique<WebAudioBufferList>(m_description);
 }
 
@@ -107,14 +107,15 @@ void RemoteMediaRecorder::videoSampleAvailable(WebCore::RemoteVideoSample&& remo
 void RemoteMediaRecorder::fetchData(CompletionHandler<void(IPC::DataReference&&, double)>&& completionHandler)
 {
     m_writer->fetchData([completionHandler = WTFMove(completionHandler)](auto&& data, auto timeCode) mutable {
-        auto* pointer = reinterpret_cast<const uint8_t*>(data ? data->data() : nullptr);
+        auto* pointer = data ? data->data() : nullptr;
         completionHandler(IPC::DataReference { pointer, data ? data->size() : 0 }, timeCode);
     });
 }
 
-void RemoteMediaRecorder::stopRecording()
+void RemoteMediaRecorder::stopRecording(CompletionHandler<void()>&& completionHandler)
 {
     m_writer->stopRecording();
+    completionHandler();
 }
 
 void RemoteMediaRecorder::pause(CompletionHandler<void()>&& completionHandler)

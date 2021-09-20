@@ -33,6 +33,7 @@
 #include "WebProcess.h"
 #include "WebTouchEvent.h"
 #include "WebWheelEvent.h"
+#include <WebCore/DisplayUpdate.h>
 #include <WebCore/Page.h>
 #include <WebCore/WheelEventTestMonitor.h>
 #include <wtf/MainThread.h>
@@ -66,12 +67,13 @@ EventDispatcher::EventDispatcher()
 
 EventDispatcher::~EventDispatcher()
 {
+    ASSERT_NOT_REACHED();
 }
 
 #if ENABLE(SCROLLING_THREAD)
 void EventDispatcher::addScrollingTreeForPage(WebPage* webPage)
 {
-    LockHolder locker(m_scrollingTreesMutex);
+    Locker locker { m_scrollingTreesLock };
 
     ASSERT(webPage->corePage()->scrollingCoordinator());
     ASSERT(!m_scrollingTrees.contains(webPage->identifier()));
@@ -82,7 +84,7 @@ void EventDispatcher::addScrollingTreeForPage(WebPage* webPage)
 
 void EventDispatcher::removeScrollingTreeForPage(WebPage* webPage)
 {
-    LockHolder locker(m_scrollingTreesMutex);
+    Locker locker { m_scrollingTreesLock };
     ASSERT(m_scrollingTrees.contains(webPage->identifier()));
 
     m_scrollingTrees.remove(webPage->identifier());
@@ -121,12 +123,14 @@ void EventDispatcher::wheelEvent(PageIdentifier pageID, const WebWheelEvent& whe
 
     auto processingSteps = OptionSet<WebCore::WheelEventProcessingSteps> { WheelEventProcessingSteps::MainThreadForScrolling, WheelEventProcessingSteps::MainThreadForBlockingDOMEventDispatch };
 #if ENABLE(SCROLLING_THREAD)
-    processingSteps = [&]() -> OptionSet<WheelEventProcessingSteps> {
-        LockHolder locker(m_scrollingTreesMutex);
+    do {
+        Locker locker { m_scrollingTreesLock };
 
         auto scrollingTree = m_scrollingTrees.get(pageID);
-        if (!scrollingTree)
-            return { WheelEventProcessingSteps::MainThreadForScrolling, WheelEventProcessingSteps::MainThreadForBlockingDOMEventDispatch };
+        if (!scrollingTree) {
+            dispatchWheelEventViaMainThread(pageID, wheelEvent, processingSteps);
+            break;
+        }
         
         // FIXME: It's pretty horrible that we're updating the back/forward state here.
         // WebCore should always know the current state and know when it changes so the
@@ -159,13 +163,7 @@ void EventDispatcher::wheelEvent(PageIdentifier pageID, const WebWheelEvent& whe
             // respond to the UI process that the event was handled.
             protectedThis->sendDidReceiveEvent(pageID, wheelEvent.type(), result.wasHandled);
         });
-
-        return processingSteps;
-    }();
-
-    auto scrollingTree = m_scrollingTrees.get(pageID);
-    if (!scrollingTree)
-        dispatchWheelEventViaMainThread(pageID, wheelEvent, processingSteps);
+    } while (false);
 #else
     UNUSED_PARAM(canRubberBandAtLeft);
     UNUSED_PARAM(canRubberBandAtRight);
@@ -188,28 +186,33 @@ void EventDispatcher::gestureEvent(PageIdentifier pageID, const WebKit::WebGestu
 #if ENABLE(IOS_TOUCH_EVENTS)
 void EventDispatcher::takeQueuedTouchEventsForPage(const WebPage& webPage, TouchEventQueue& destinationQueue)
 {
-    LockHolder locker(&m_touchEventsLock);
+    Locker locker { m_touchEventsLock };
     destinationQueue = m_touchEvents.take(webPage.identifier());
 }
 
-void EventDispatcher::touchEvent(PageIdentifier pageID, const WebKit::WebTouchEvent& touchEvent, Optional<CallbackID> callbackID)
+void EventDispatcher::touchEventWithoutCallback(PageIdentifier pageID, const WebTouchEvent& touchEvent)
+{
+    this->touchEvent(pageID, touchEvent, nullptr);
+}
+
+void EventDispatcher::touchEvent(PageIdentifier pageID, const WebTouchEvent& touchEvent, CompletionHandler<void(bool)>&& completionHandler)
 {
     bool updateListWasEmpty;
     {
-        LockHolder locker(&m_touchEventsLock);
+        Locker locker { m_touchEventsLock };
         updateListWasEmpty = m_touchEvents.isEmpty();
         auto addResult = m_touchEvents.add(pageID, TouchEventQueue());
         if (addResult.isNewEntry)
-            addResult.iterator->value.append({ touchEvent, callbackID });
+            addResult.iterator->value.append({ touchEvent, WTFMove(completionHandler) });
         else {
             auto& queuedEvents = addResult.iterator->value;
             ASSERT(!queuedEvents.isEmpty());
             auto& lastEventAndCallback = queuedEvents.last();
             // Coalesce touch move events.
-            if (touchEvent.type() == WebEvent::TouchMove && lastEventAndCallback.first.type() == WebEvent::TouchMove && !callbackID && !lastEventAndCallback.second)
-                queuedEvents.last() = { touchEvent, WTF::nullopt };
+            if (touchEvent.type() == WebEvent::TouchMove && lastEventAndCallback.first.type() == WebEvent::TouchMove && !completionHandler && !lastEventAndCallback.second)
+                queuedEvents.last() = { touchEvent, nullptr };
             else
-                queuedEvents.append({ touchEvent, callbackID });
+                queuedEvents.append({ touchEvent, WTFMove(completionHandler) });
         }
     }
 
@@ -226,13 +229,13 @@ void EventDispatcher::dispatchTouchEvents()
 
     HashMap<PageIdentifier, TouchEventQueue> localCopy;
     {
-        LockHolder locker(&m_touchEventsLock);
+        Locker locker { m_touchEventsLock };
         localCopy.swap(m_touchEvents);
     }
 
     for (auto& slot : localCopy) {
-        if (WebPage* webPage = WebProcess::singleton().webPage(slot.key))
-            webPage->dispatchAsynchronousTouchEvents(slot.value);
+        if (auto* webPage = WebProcess::singleton().webPage(slot.key))
+            webPage->dispatchAsynchronousTouchEvents(WTFMove(slot.value));
     }
 }
 #endif
@@ -279,20 +282,25 @@ void EventDispatcher::sendDidReceiveEvent(PageIdentifier pageID, WebEvent::Type 
 void EventDispatcher::notifyScrollingTreesDisplayWasRefreshed(PlatformDisplayID displayID)
 {
 #if ENABLE(SCROLLING_THREAD)
-    LockHolder locker(m_scrollingTreesMutex);
+    Locker locker { m_scrollingTreesLock };
     for (auto keyValuePair : m_scrollingTrees)
         keyValuePair.value->displayDidRefresh(displayID);
 #endif
 }
 
-#if ENABLE(WEBPROCESS_WINDOWSERVER_BLOCKING)
-void EventDispatcher::displayWasRefreshed(PlatformDisplayID displayID)
+#if HAVE(CVDISPLAYLINK)
+void EventDispatcher::displayWasRefreshed(PlatformDisplayID displayID, const DisplayUpdate& displayUpdate, bool sendToMainThread)
 {
+    tracePoint(DisplayRefreshDispatchingToMainThread, displayID, sendToMainThread);
+
     ASSERT(!RunLoop::isMain());
     notifyScrollingTreesDisplayWasRefreshed(displayID);
 
-    RunLoop::main().dispatch([displayID]() {
-        DisplayRefreshMonitorManager::sharedManager().displayWasUpdated(displayID);
+    if (!sendToMainThread)
+        return;
+
+    RunLoop::main().dispatch([displayID, displayUpdate]() {
+        DisplayRefreshMonitorManager::sharedManager().displayWasUpdated(displayID, displayUpdate);
     });
 }
 #endif

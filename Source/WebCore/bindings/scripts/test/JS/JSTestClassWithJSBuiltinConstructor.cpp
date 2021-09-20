@@ -26,6 +26,7 @@
 #include "JSDOMBinding.h"
 #include "JSDOMBuiltinConstructor.h"
 #include "JSDOMExceptionHandling.h"
+#include "JSDOMGlobalObjectInlines.h"
 #include "JSDOMWrapperCache.h"
 #include "ScriptExecutionContext.h"
 #include "TestClassWithJSBuiltinConstructorBuiltins.h"
@@ -34,6 +35,7 @@
 #include <JavaScriptCore/HeapAnalyzer.h>
 #include <JavaScriptCore/JSCInlines.h>
 #include <JavaScriptCore/JSDestructibleObjectHeapCellType.h>
+#include <JavaScriptCore/SlotVisitorMacros.h>
 #include <JavaScriptCore/SubspaceInlines.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
@@ -81,6 +83,8 @@ STATIC_ASSERT_ISO_SUBSPACE_SHARABLE(JSTestClassWithJSBuiltinConstructorPrototype
 
 using JSTestClassWithJSBuiltinConstructorDOMConstructor = JSDOMBuiltinConstructor<JSTestClassWithJSBuiltinConstructor>;
 
+template<> const ClassInfo JSTestClassWithJSBuiltinConstructorDOMConstructor::s_info = { "TestClassWithJSBuiltinConstructor", &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestClassWithJSBuiltinConstructorDOMConstructor) };
+
 template<> JSValue JSTestClassWithJSBuiltinConstructorDOMConstructor::prototypeForStructure(JSC::VM& vm, const JSDOMGlobalObject& globalObject)
 {
     UNUSED_PARAM(vm);
@@ -98,8 +102,6 @@ template<> FunctionExecutable* JSTestClassWithJSBuiltinConstructorDOMConstructor
 {
     return testClassWithJSBuiltinConstructorInitializeTestClassWithJSBuiltinConstructorCodeGenerator(vm);
 }
-
-template<> const ClassInfo JSTestClassWithJSBuiltinConstructorDOMConstructor::s_info = { "TestClassWithJSBuiltinConstructor", &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestClassWithJSBuiltinConstructorDOMConstructor) };
 
 /* Hash table for prototype */
 
@@ -145,7 +147,7 @@ JSObject* JSTestClassWithJSBuiltinConstructor::prototype(VM& vm, JSDOMGlobalObje
 
 JSValue JSTestClassWithJSBuiltinConstructor::getConstructor(VM& vm, const JSGlobalObject* globalObject)
 {
-    return getDOMConstructor<JSTestClassWithJSBuiltinConstructorDOMConstructor>(vm, *jsCast<const JSDOMGlobalObject*>(globalObject));
+    return getDOMConstructor<JSTestClassWithJSBuiltinConstructorDOMConstructor, DOMConstructorID::TestClassWithJSBuiltinConstructor>(vm, *jsCast<const JSDOMGlobalObject*>(globalObject));
 }
 
 void JSTestClassWithJSBuiltinConstructor::destroy(JSC::JSCell* cell)
@@ -178,7 +180,9 @@ JSC::IsoSubspace* JSTestClassWithJSBuiltinConstructor::subspaceForImpl(JSC::VM& 
     auto* space = spaces.m_subspaceForTestClassWithJSBuiltinConstructor.get();
 IGNORE_WARNINGS_BEGIN("unreachable-code")
 IGNORE_WARNINGS_BEGIN("tautological-compare")
-    if (&JSTestClassWithJSBuiltinConstructor::visitOutputConstraints != &JSC::JSCell::visitOutputConstraints)
+    void (*myVisitOutputConstraint)(JSC::JSCell*, JSC::SlotVisitor&) = JSTestClassWithJSBuiltinConstructor::visitOutputConstraints;
+    void (*jsCellVisitOutputConstraint)(JSC::JSCell*, JSC::SlotVisitor&) = JSC::JSCell::visitOutputConstraints;
+    if (myVisitOutputConstraint != jsCellVisitOutputConstraint)
         clientData.outputConstraintSpaces().append(space);
 IGNORE_WARNINGS_END
 IGNORE_WARNINGS_END
@@ -194,7 +198,7 @@ void JSTestClassWithJSBuiltinConstructor::analyzeHeap(JSCell* cell, HeapAnalyzer
     Base::analyzeHeap(cell, analyzer);
 }
 
-bool JSTestClassWithJSBuiltinConstructorOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, SlotVisitor& visitor, const char** reason)
+bool JSTestClassWithJSBuiltinConstructorOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, AbstractSlotVisitor& visitor, const char** reason)
 {
     UNUSED_PARAM(handle);
     UNUSED_PARAM(visitor);

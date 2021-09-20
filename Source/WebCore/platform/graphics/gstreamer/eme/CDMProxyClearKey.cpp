@@ -113,15 +113,14 @@ bool CDMProxyClearKey::cencSetCounterVector(const cencDecryptContext& input)
     return true;
 }
 
-bool CDMProxyClearKey::cencSetDecryptionKey(const cencDecryptContext& in)
+bool CDMProxyClearKey::cencSetDecryptionKey(cencDecryptContext& in)
 {
     // FIXME: Unnecessary copy, can we avoid this while still exposing
     // a non-GStreamer-specific DecryptInput API? These buffers are
     // small (16 bytes), so not a huge deal, I guess.
-    Vector<uint8_t> keyIDVec;
-    keyIDVec.append(in.keyID, in.keyIDSizeInBytes);
+    Vector<uint8_t> keyIDVec { in.keyID, in.keyIDSizeInBytes };
 
-    auto keyData = getOrWaitForKeyValue(keyIDVec);
+    auto keyData = getOrWaitForKeyValue(keyIDVec, WTFMove(in.cdmProxyDecryptionClient));
     if (!keyData)
         return false;
 
@@ -213,12 +212,6 @@ bool CDMProxyClearKey::cencDecrypt(CDMProxyClearKey::cencDecryptContext& input)
         return false;
 
     return input.isSubsampled() ? cencDecryptSubsampled(input) : cencDecryptFullSample(input);
-}
-
-void CDMProxyClearKey::releaseDecryptionResources()
-{
-    closeGCryptHandle();
-    CDMProxy::releaseDecryptionResources();
 }
 
 void CDMProxyClearKey::closeGCryptHandle()

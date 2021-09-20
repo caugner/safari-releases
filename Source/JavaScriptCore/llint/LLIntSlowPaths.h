@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2020 Apple Inc. All rights reserved.
+ * Copyright (C) 2011-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -69,7 +69,12 @@ LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_instanceof_custom);
 LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_try_get_by_id);
 LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_get_by_id_direct);
 LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_get_by_id);
+LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_get_by_id_with_this);
 LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_put_by_id);
+LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_in_by_id);
+LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_in_by_val);
+LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_has_private_name);
+LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_has_private_brand);
 LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_del_by_id);
 LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_get_by_val);
 LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_get_private_name);
@@ -77,6 +82,8 @@ LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_get_argument_by_val);
 LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_put_by_val);
 LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_put_by_val_direct);
 LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_put_private_name);
+LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_check_private_brand);
+LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_set_private_brand);
 LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_del_by_val);
 LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_put_getter_by_id);
 LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_put_setter_by_id);
@@ -135,7 +142,7 @@ LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_debug);
 LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_handle_exception);
 LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_get_from_scope);
 LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_put_to_scope);
-LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_check_if_exception_is_uncatchable_and_notify_profiler);
+LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_retrieve_and_clear_exception_if_catchable);
 LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_profile_catch);
 LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_log_shadow_chicken_prologue);
 LLINT_SLOW_PATH_HIDDEN_DECL(slow_path_log_shadow_chicken_tail);

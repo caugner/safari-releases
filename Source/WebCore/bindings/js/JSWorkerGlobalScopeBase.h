@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008, 2009 Apple Inc. All rights reserved.
+ * Copyright (C) 2008-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -33,19 +33,9 @@
 #include "ServiceWorkerGlobalScope.h"
 #endif
 
-namespace JSC {
-class JSProxy;
-}
-
 namespace WebCore {
 
-class JSDedicatedWorkerGlobalScope;
-class JSWorkerGlobalScope;
 class WorkerGlobalScope;
-
-#if ENABLE(SERVICE_WORKER)
-class JSServiceWorkerGlobalScope;
-#endif
 
 class JSWorkerGlobalScopeBase : public JSDOMGlobalObject {
 public:
@@ -79,7 +69,7 @@ protected:
     JSWorkerGlobalScopeBase(JSC::VM&, JSC::Structure*, RefPtr<WorkerGlobalScope>&&);
     void finishCreation(JSC::VM&, JSC::JSProxy*);
 
-    static void visitChildren(JSC::JSCell*, JSC::SlotVisitor&);
+    DECLARE_VISIT_CHILDREN;
 
 private:
     RefPtr<WorkerGlobalScope> m_wrapped;
@@ -92,10 +82,4 @@ inline JSC::JSValue toJS(JSC::JSGlobalObject* lexicalGlobalObject, JSDOMGlobalOb
 JSC::JSValue toJS(JSC::JSGlobalObject*, WorkerGlobalScope&);
 inline JSC::JSValue toJS(JSC::JSGlobalObject* lexicalGlobalObject, WorkerGlobalScope* scope) { return scope ? toJS(lexicalGlobalObject, *scope) : JSC::jsNull(); }
 
-JSDedicatedWorkerGlobalScope* toJSDedicatedWorkerGlobalScope(JSC::VM&, JSC::JSValue);
-JSWorkerGlobalScope* toJSWorkerGlobalScope(JSC::VM&, JSC::JSValue);
-
-#if ENABLE(SERVICE_WORKER)
-JSServiceWorkerGlobalScope* toJSServiceWorkerGlobalScope(JSC::VM&, JSC::JSValue);
-#endif
 } // namespace WebCore

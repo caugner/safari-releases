@@ -18,6 +18,18 @@ If the element has a red background, then the test result is FAILURE. If the ele
 
 
 
-
-FAIL Mouse focus on elements which would show a virtual keyboard should match :focus-visible assert_equals: expected "rgb(0, 100, 0)" but got "rgba(46, 52, 54, 0.59)"
+PASS Focus element INPUT#input1 via mouse should match :focus-visible as it supports keyboard input
+PASS Focus element INPUT#input2 via mouse should match :focus-visible as it supports keyboard input
+PASS Focus element INPUT#input3 via mouse should match :focus-visible as it supports keyboard input
+PASS Focus element INPUT#input4 via mouse should match :focus-visible as it supports keyboard input
+PASS Focus element INPUT#input5 via mouse should match :focus-visible as it supports keyboard input
+PASS Focus element INPUT#input6 via mouse should match :focus-visible as it supports keyboard input
+PASS Focus element INPUT#input7 via mouse should match :focus-visible as it supports keyboard input
+PASS Focus element INPUT#input8 via mouse should match :focus-visible as it supports keyboard input
+PASS Focus element INPUT#input9 via mouse should match :focus-visible as it supports keyboard input
+PASS Focus element INPUT#input10 via mouse should match :focus-visible as it supports keyboard input
+PASS Focus element INPUT#input11 via mouse should match :focus-visible as it supports keyboard input
+PASS Focus element INPUT#input12 via mouse should match :focus-visible as it supports keyboard input
+PASS Focus element INPUT#input13 via mouse should match :focus-visible as it supports keyboard input
+PASS Focus element TEXTAREA#input14 via mouse should match :focus-visible as it supports keyboard input
 

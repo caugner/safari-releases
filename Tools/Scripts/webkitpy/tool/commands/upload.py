@@ -36,18 +36,20 @@ from optparse import make_option
 
 from webkitpy.tool import steps
 
+from webkitcorepy import string_utils
+
 from webkitpy.common.checkout.changelog import parse_bug_id_from_changelog
 from webkitpy.common.config.committers import CommitterList
 from webkitpy.common.system.user import User
-from webkitpy.thirdparty.mock import Mock
 from webkitpy.tool.commands.abstractsequencedcommand import AbstractSequencedCommand
+from webkitpy.tool.commands.deprecatedcommand import DeprecatedCommand
 from webkitpy.tool.comments import bug_comment_from_svn_revision
-from webkitpy.tool.grammar import pluralize, join_with_separators
 from webkitpy.tool.multicommandtool import Command
 
 _log = logging.getLogger(__name__)
 
 
+@DeprecatedCommand
 class CommitMessageForCurrentDiff(Command):
     name = "commit-message"
     help_text = "Print a commit message suitable for the uncommitted changes"
@@ -64,6 +66,7 @@ class CommitMessageForCurrentDiff(Command):
         print("%s" % tool.checkout().commit_message_for_this_commit(options.git_commit).message())
 
 
+@DeprecatedCommand
 class CleanPendingCommit(Command):
     name = "clean-pending-commit"
     help_text = "Clear r+ on obsolete patches so they do not appear in the pending-commit list."
@@ -78,7 +81,7 @@ class CleanPendingCommit(Command):
                 what_was_cleared.append(u"%s's review+" % patch.reviewer().full_name)
             else:
                 what_was_cleared.append("review+")
-        return join_with_separators(what_was_cleared)
+        return string_utils.join(what_was_cleared)
 
     def execute(self, options, args, tool):
         for bug_id in tool.bugs.queries.fetch_bug_ids_from_pending_commit_list():
@@ -93,6 +96,7 @@ class CleanPendingCommit(Command):
 
 
 # FIXME: This should be share more logic with AssignToCommitter and CleanPendingCommit
+@DeprecatedCommand
 class CleanReviewQueue(Command):
     name = "clean-review-queue"
     help_text = "Clear r? on obsolete patches so they do not appear in the pending-review list."
@@ -118,6 +122,7 @@ class CleanReviewQueue(Command):
             self._tool.bugs.obsolete_attachment(patch.id(), message)
 
 
+@DeprecatedCommand
 class AssignToCommitter(Command):
     name = "assign-to-committer"
     help_text = "Assign bug to whoever attached the most recent r+'d patch"
@@ -161,6 +166,7 @@ class AssignToCommitter(Command):
             self._assign_bug_to_last_patch_attacher(bug_id)
 
 
+@DeprecatedCommand
 class ObsoleteAttachments(AbstractSequencedCommand):
     name = "obsolete-attachments"
     help_text = "Mark all attachments on a bug as obsolete"
@@ -173,6 +179,7 @@ class ObsoleteAttachments(AbstractSequencedCommand):
         return { "bug_id" : args[0] }
 
 
+@DeprecatedCommand
 class AttachToBug(AbstractSequencedCommand):
     name = "attach-to-bug"
     help_text = "Attach the file to the bug"
@@ -241,6 +248,7 @@ class LandSafely(AbstractPatchUploadingCommand):
     ]
 
 
+@DeprecatedCommand
 class HasLanded(AbstractPatchUploadingCommand):
     name = "has-landed"
     help_text = "Check that the current code was successfully landed and no changes remain."
@@ -311,6 +319,7 @@ class EditChangeLogs(AbstractSequencedCommand):
     ]
 
 
+@DeprecatedCommand
 class PostCommits(Command):
     name = "post-commits"
     help_text = "Attach a range of local commits to bugs as patch files"
@@ -339,7 +348,7 @@ class PostCommits(Command):
     def execute(self, options, args, tool):
         commit_ids = tool.scm().commit_ids_from_commitish_arguments(args)
         if len(commit_ids) > 10:  # We could lower this limit, 10 is too many for one bug as-is.
-            _log.error("webkit-patch does not support attaching %s at once.  Are you sure you passed the right commit range?" % (pluralize(len(commit_ids), "patch")))
+            _log.error("webkit-patch does not support attaching %s at once.  Are you sure you passed the right commit range?" % (string_utils.pluralize(len(commit_ids), 'patch', plural='patches')))
             sys.exit(1)
 
         have_obsoleted_patches = set()
@@ -397,7 +406,7 @@ class MarkBugFixed(Command):
             bug_id = parse_bug_id_from_changelog(commit_log)
 
         if not svn_revision:
-            match = re.search("^r(?P<svn_revision>\d+) \|", commit_log, re.MULTILINE)
+            match = re.search(r"^r(?P<svn_revision>\d+) \|", commit_log, re.MULTILINE)
             if match:
                 svn_revision = match.group('svn_revision')
 
@@ -452,6 +461,7 @@ class MarkBugFixed(Command):
 
 
 # FIXME: Requires unit test.  Blocking issue: too complex for now.
+@DeprecatedCommand
 class CreateBug(Command):
     name = "create-bug"
     help_text = "Create a bug from local changes or local commits"
@@ -536,6 +546,7 @@ class CreateBug(Command):
             self.create_bug_from_patch(options, args, tool)
 
 
+@DeprecatedCommand
 class WPTChangeExport(AbstractPatchUploadingCommand):
     name = "wpt-change-export"
     help_text = "Opens a pull request to synchronize any changes in the LayoutTests/imported/w3c/web-platform-tests directory"

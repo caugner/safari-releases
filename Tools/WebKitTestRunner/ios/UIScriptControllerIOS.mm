@@ -58,6 +58,16 @@ SOFT_LINK_CLASS(UIKit, UIPhysicalKeyboardEvent)
 
 namespace WTR {
 
+static BOOL returnYes()
+{
+    return YES;
+}
+
+static BOOL returnNo()
+{
+    return NO;
+}
+
 static NSDictionary *toNSDictionary(CGRect rect)
 {
     return @{
@@ -553,6 +563,12 @@ void UIScriptControllerIOS::dismissFormAccessoryView()
     [webView() dismissFormAccessoryView];
 }
 
+JSObjectRef UIScriptControllerIOS::filePickerAcceptedTypeIdentifiers()
+{
+    NSArray *acceptedTypeIdentifiers = [webView() _filePickerAcceptedTypeIdentifiers];
+    return JSValueToObject(m_context->jsContext(), [JSValue valueWithObject:acceptedTypeIdentifiers inContext:[JSContext contextWithJSGlobalContextRef:m_context->jsContext()]].JSValueRef, nullptr);
+}
+
 void UIScriptControllerIOS::dismissFilePicker(JSValueRef callback)
 {
     TestRunnerWKWebView *webView = this->webView();
@@ -736,16 +752,16 @@ double UIScriptControllerIOS::maximumZoomScale() const
     return webView().scrollView.maximumZoomScale;
 }
 
-Optional<bool> UIScriptControllerIOS::stableStateOverride() const
+std::optional<bool> UIScriptControllerIOS::stableStateOverride() const
 {
     TestRunnerWKWebView *webView = this->webView();
     if (webView._stableStateOverride)
         return webView._stableStateOverride.boolValue;
 
-    return WTF::nullopt;
+    return std::nullopt;
 }
 
-void UIScriptControllerIOS::setStableStateOverride(Optional<bool> overrideValue)
+void UIScriptControllerIOS::setStableStateOverride(std::optional<bool> overrideValue)
 {
     TestRunnerWKWebView *webView = this->webView();
     if (overrideValue)
@@ -833,7 +849,7 @@ JSObjectRef UIScriptControllerIOS::selectionRangeViewRects() const
 
 JSObjectRef UIScriptControllerIOS::inputViewBounds() const
 {
-    return JSValueToObject(m_context->jsContext(), [JSValue valueWithObject:toNSDictionary(webView()._inputViewBounds) inContext:[JSContext contextWithJSGlobalContextRef:m_context->jsContext()]].JSValueRef, nullptr);
+    return JSValueToObject(m_context->jsContext(), [JSValue valueWithObject:toNSDictionary(webView()._inputViewBoundsInWindow) inContext:[JSContext contextWithJSGlobalContextRef:m_context->jsContext()]].JSValueRef, nullptr);
 }
 
 JSRetainPtr<JSStringRef> UIScriptControllerIOS::scrollingTreeAsText() const
@@ -922,26 +938,6 @@ void UIScriptControllerIOS::setDidEndFormControlInteractionCallback(JSValueRef c
         m_context->fireCallback(CallbackTypeDidEndFormControlInteraction);
     }).get();
 }
-    
-void UIScriptControllerIOS::setDidShowContextMenuCallback(JSValueRef callback)
-{
-    UIScriptController::setDidShowContextMenuCallback(callback);
-    webView().didShowContextMenuCallback = makeBlockPtr([this, strongThis = makeRef(*this)] {
-        if (!m_context)
-            return;
-        m_context->fireCallback(CallbackTypeDidShowContextMenu);
-    }).get();
-}
-
-void UIScriptControllerIOS::setDidDismissContextMenuCallback(JSValueRef callback)
-{
-    UIScriptController::setDidDismissContextMenuCallback(callback);
-    webView().didDismissContextMenuCallback = makeBlockPtr([this, strongThis = makeRef(*this)] {
-        if (!m_context)
-            return;
-        m_context->fireCallback(CallbackTypeDidDismissContextMenu);
-    }).get();
-}
 
 void UIScriptControllerIOS::setWillBeginZoomingCallback(JSValueRef callback)
 {
@@ -980,6 +976,16 @@ void UIScriptControllerIOS::setDidHideKeyboardCallback(JSValueRef callback)
         if (!m_context)
             return;
         m_context->fireCallback(CallbackTypeDidHideKeyboard);
+    }).get();
+}
+
+void UIScriptControllerIOS::setWillStartInputSessionCallback(JSValueRef callback)
+{
+    UIScriptController::setWillStartInputSessionCallback(callback);
+    webView().willStartInputSessionCallback = makeBlockPtr([this, strongThis = makeRef(*this)] {
+        if (!m_context)
+            return;
+        m_context->fireCallback(CallbackTypeWillStartInputSession);
     }).get();
 }
 
@@ -1034,29 +1040,37 @@ JSObjectRef UIScriptControllerIOS::rectForMenuAction(JSStringRef jsAction) const
 
 WebCore::FloatRect UIScriptControllerIOS::rectForMenuAction(CFStringRef action) const
 {
-    UIWindow *windowForButton = nil;
-    UIButton *buttonForAction = nil;
-    UIView *calloutBar = UICalloutBar.activeCalloutBar;
-    if (!calloutBar.window)
-        return { };
+    UIView *viewForAction = nil;
+    UIWindow *window = webView().window;
 
-    for (UIButton *button in findAllViewsInHierarchyOfType(calloutBar, UIButton.class)) {
-        NSString *buttonTitle = [button titleForState:UIControlStateNormal];
-        if (!buttonTitle.length)
-            continue;
+    if (UIView *calloutBar = UICalloutBar.activeCalloutBar; calloutBar.window) {
+        for (UIButton *button in findAllViewsInHierarchyOfType(calloutBar, UIButton.class)) {
+            NSString *buttonTitle = [button titleForState:UIControlStateNormal];
+            if (!buttonTitle.length)
+                continue;
 
-        if (![buttonTitle isEqualToString:(__bridge NSString *)action])
-            continue;
+            if (![buttonTitle isEqualToString:(__bridge NSString *)action])
+                continue;
 
-        buttonForAction = button;
-        windowForButton = calloutBar.window;
-        break;
+            viewForAction = button;
+            break;
+        }
     }
 
-    if (!buttonForAction)
+    if (!viewForAction) {
+        for (UILabel *label in findAllViewsInHierarchyOfType(window, UILabel.class)) {
+            if (![label.text isEqualToString:(__bridge NSString *)action])
+                continue;
+
+            viewForAction = label;
+            break;
+        }
+    }
+
+    if (!viewForAction)
         return { };
 
-    CGRect rectInRootViewCoordinates = [buttonForAction convertRect:buttonForAction.bounds toView:platformContentView()];
+    CGRect rectInRootViewCoordinates = [viewForAction convertRect:viewForAction.bounds toView:platformContentView()];
     return WebCore::FloatRect(rectInRootViewCoordinates.origin.x, rectInRootViewCoordinates.origin.y, rectInRootViewCoordinates.size.width, rectInRootViewCoordinates.size.height);
 }
 
@@ -1108,8 +1122,7 @@ void UIScriptControllerIOS::completeBackSwipe(JSValueRef callback)
 
 void UIScriptControllerIOS::activateDataListSuggestion(unsigned index, JSValueRef callback)
 {
-    // FIXME: Not implemented.
-    UNUSED_PARAM(index);
+    [webView() _selectDataListOption:index];
 
     unsigned callbackID = m_context->prepareForAsyncTask(callback, CallbackTypeNonPersistent);
     dispatch_async(dispatch_get_main_queue(), makeBlockPtr([this, strongThis = makeRef(*this), callbackID] {
@@ -1121,6 +1134,9 @@ void UIScriptControllerIOS::activateDataListSuggestion(unsigned index, JSValueRe
 
 bool UIScriptControllerIOS::isShowingDataListSuggestions() const
 {
+#if ENABLE(IOS_FORM_CONTROL_REFRESH)
+    return [webView() _isShowingDataListSuggestions];
+#else
     Class remoteKeyboardWindowClass = NSClassFromString(@"UIRemoteKeyboardWindow");
     Class suggestionsPickerViewClass = NSClassFromString(@"WKDataListSuggestionsPickerView");
     UIWindow *remoteInputHostingWindow = nil;
@@ -1141,6 +1157,13 @@ bool UIScriptControllerIOS::isShowingDataListSuggestions() const
         *stop = YES;
     });
     return foundDataListSuggestionsPickerView;
+#endif
+}
+
+void UIScriptControllerIOS::setSelectedColorForColorPicker(double red, double green, double blue)
+{
+    UIColor *color = [UIColor colorWithRed:red green:green blue:blue alpha:1.0f];
+    [webView() setSelectedColorForColorPicker:color];
 }
 
 void UIScriptControllerIOS::setKeyboardInputModeIdentifier(JSStringRef identifier)
@@ -1162,6 +1185,16 @@ void UIScriptControllerIOS::toggleCapsLock(JSValueRef callback)
 bool UIScriptControllerIOS::keyboardIsAutomaticallyShifted() const
 {
     return UIKeyboardImpl.activeInstance.isAutoShifted;
+}
+
+bool UIScriptControllerIOS::isAnimatingDragCancel() const
+{
+    return webView()._animatingDragCancel;
+}
+
+JSObjectRef UIScriptControllerIOS::tapHighlightViewRect() const
+{
+    return JSValueToObject(m_context->jsContext(), [JSValue valueWithObject:toNSDictionary(webView()._tapHighlightViewRect) inContext:[JSContext contextWithJSGlobalContextRef:m_context->jsContext()]].JSValueRef, nullptr);
 }
 
 JSObjectRef UIScriptControllerIOS::attachmentInfo(JSStringRef jsAttachmentIdentifier)
@@ -1197,6 +1230,7 @@ JSObjectRef UIScriptControllerIOS::calendarType() const
 void UIScriptControllerIOS::setHardwareKeyboardAttached(bool attached)
 {
     GSEventSetHardwareKeyboardAttached(attached, 0);
+    method_setImplementation(class_getClassMethod([UIKeyboard class], @selector(isInHardwareKeyboardMode)), reinterpret_cast<IMP>(attached ? returnYes : returnNo));
 }
 
 void UIScriptControllerIOS::setAllowsViewportShrinkToFit(bool allows)
@@ -1248,9 +1282,14 @@ void UIScriptControllerIOS::installTapGestureOnWindow(JSValueRef callback)
     }).get();
 }
 
-bool UIScriptControllerIOS::isShowingContextMenu() const
+bool UIScriptControllerIOS::suppressSoftwareKeyboard() const
 {
-    return webView().showingContextMenu;
+    return webView()._suppressSoftwareKeyboard;
+}
+
+void UIScriptControllerIOS::setSuppressSoftwareKeyboard(bool suppressSoftwareKeyboard)
+{
+    webView()._suppressSoftwareKeyboard = suppressSoftwareKeyboard;
 }
 
 }

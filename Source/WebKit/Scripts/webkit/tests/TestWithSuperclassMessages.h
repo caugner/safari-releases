@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2021 Apple Inc. All rights reserved.
+ * Copyright (C) 2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -29,8 +29,8 @@
 #include "MessageNames.h"
 #include "TestClassName.h"
 #include "TestWithSuperclassMessagesReplies.h"
+#include <optional>
 #include <wtf/Forward.h>
-#include <wtf/Optional.h>
 #include <wtf/ThreadSafeRefCounted.h>
 #include <wtf/text/WTFString.h>
 
@@ -51,7 +51,7 @@ public:
     using Arguments = std::tuple<const String&>;
 
     static IPC::MessageName name() { return IPC::MessageName::TestWithSuperclass_LoadURL; }
-    static const bool isSync = false;
+    static constexpr bool isSync = false;
 
     explicit LoadURL(const String& url)
         : m_arguments(url)
@@ -73,13 +73,14 @@ public:
     using Arguments = std::tuple<WebKit::TestTwoStateEnum>;
 
     static IPC::MessageName name() { return IPC::MessageName::TestWithSuperclass_TestAsyncMessage; }
-    static const bool isSync = false;
+    static constexpr bool isSync = false;
 
     static void callReply(IPC::Decoder&, CompletionHandler<void(uint64_t&&)>&&);
     static void cancelReply(CompletionHandler<void(uint64_t&&)>&&);
     static IPC::MessageName asyncMessageReplyName() { return IPC::MessageName::TestWithSuperclass_TestAsyncMessageReply; }
     using AsyncReply = TestAsyncMessageAsyncReply;
-    static void send(std::unique_ptr<IPC::Encoder>&&, IPC::Connection&, uint64_t result);
+    static constexpr auto callbackThread = WTF::CompletionHandlerCallThread::MainThread;
+    static void send(UniqueRef<IPC::Encoder>&&, IPC::Connection&, uint64_t result);
     using Reply = std::tuple<uint64_t&>;
     using ReplyArguments = std::tuple<uint64_t>;
     explicit TestAsyncMessage(WebKit::TestTwoStateEnum twoStateEnum)
@@ -103,13 +104,14 @@ public:
     using Arguments = std::tuple<>;
 
     static IPC::MessageName name() { return IPC::MessageName::TestWithSuperclass_TestAsyncMessageWithNoArguments; }
-    static const bool isSync = false;
+    static constexpr bool isSync = false;
 
     static void callReply(IPC::Decoder&, CompletionHandler<void()>&&);
     static void cancelReply(CompletionHandler<void()>&&);
     static IPC::MessageName asyncMessageReplyName() { return IPC::MessageName::TestWithSuperclass_TestAsyncMessageWithNoArgumentsReply; }
     using AsyncReply = TestAsyncMessageWithNoArgumentsAsyncReply;
-    static void send(std::unique_ptr<IPC::Encoder>&&, IPC::Connection&);
+    static constexpr auto callbackThread = WTF::CompletionHandlerCallThread::ConstructionThread;
+    static void send(UniqueRef<IPC::Encoder>&&, IPC::Connection&);
     using Reply = std::tuple<>;
     using ReplyArguments = std::tuple<>;
     const Arguments& arguments() const
@@ -128,13 +130,14 @@ public:
     using Arguments = std::tuple<>;
 
     static IPC::MessageName name() { return IPC::MessageName::TestWithSuperclass_TestAsyncMessageWithMultipleArguments; }
-    static const bool isSync = false;
+    static constexpr bool isSync = false;
 
     static void callReply(IPC::Decoder&, CompletionHandler<void(bool&&, uint64_t&&)>&&);
     static void cancelReply(CompletionHandler<void(bool&&, uint64_t&&)>&&);
     static IPC::MessageName asyncMessageReplyName() { return IPC::MessageName::TestWithSuperclass_TestAsyncMessageWithMultipleArgumentsReply; }
     using AsyncReply = TestAsyncMessageWithMultipleArgumentsAsyncReply;
-    static void send(std::unique_ptr<IPC::Encoder>&&, IPC::Connection&, bool flag, uint64_t value);
+    static constexpr auto callbackThread = WTF::CompletionHandlerCallThread::ConstructionThread;
+    static void send(UniqueRef<IPC::Encoder>&&, IPC::Connection&, bool flag, uint64_t value);
     using Reply = std::tuple<bool&, uint64_t&>;
     using ReplyArguments = std::tuple<bool, uint64_t>;
     const Arguments& arguments() const
@@ -153,13 +156,14 @@ public:
     using Arguments = std::tuple<const int&>;
 
     static IPC::MessageName name() { return IPC::MessageName::TestWithSuperclass_TestAsyncMessageWithConnection; }
-    static const bool isSync = false;
+    static constexpr bool isSync = false;
 
     static void callReply(IPC::Decoder&, CompletionHandler<void(bool&&)>&&);
     static void cancelReply(CompletionHandler<void(bool&&)>&&);
     static IPC::MessageName asyncMessageReplyName() { return IPC::MessageName::TestWithSuperclass_TestAsyncMessageWithConnectionReply; }
     using AsyncReply = TestAsyncMessageWithConnectionAsyncReply;
-    static void send(std::unique_ptr<IPC::Encoder>&&, IPC::Connection&, bool flag);
+    static constexpr auto callbackThread = WTF::CompletionHandlerCallThread::ConstructionThread;
+    static void send(UniqueRef<IPC::Encoder>&&, IPC::Connection&, bool flag);
     using Reply = std::tuple<bool&>;
     using ReplyArguments = std::tuple<bool>;
     explicit TestAsyncMessageWithConnection(const int& value)
@@ -182,10 +186,11 @@ public:
     using Arguments = std::tuple<uint32_t>;
 
     static IPC::MessageName name() { return IPC::MessageName::TestWithSuperclass_TestSyncMessage; }
-    static const bool isSync = true;
+    static constexpr bool isSync = true;
 
     using DelayedReply = TestSyncMessageDelayedReply;
-    static void send(std::unique_ptr<IPC::Encoder>&&, IPC::Connection&, uint8_t reply);
+    static constexpr auto callbackThread = WTF::CompletionHandlerCallThread::ConstructionThread;
+    static void send(UniqueRef<IPC::Encoder>&&, IPC::Connection&, uint8_t reply);
     using Reply = std::tuple<uint8_t&>;
     using ReplyArguments = std::tuple<uint8_t>;
     explicit TestSyncMessage(uint32_t param)
@@ -207,12 +212,13 @@ public:
     using Arguments = std::tuple<bool>;
 
     static IPC::MessageName name() { return IPC::MessageName::TestWithSuperclass_TestSynchronousMessage; }
-    static const bool isSync = true;
+    static constexpr bool isSync = true;
 
     using DelayedReply = TestSynchronousMessageDelayedReply;
-    static void send(std::unique_ptr<IPC::Encoder>&&, IPC::Connection&, const Optional<WebKit::TestClassName>& optionalReply);
-    using Reply = std::tuple<Optional<WebKit::TestClassName>&>;
-    using ReplyArguments = std::tuple<Optional<WebKit::TestClassName>>;
+    static constexpr auto callbackThread = WTF::CompletionHandlerCallThread::ConstructionThread;
+    static void send(UniqueRef<IPC::Encoder>&&, IPC::Connection&, const std::optional<WebKit::TestClassName>& optionalReply);
+    using Reply = std::tuple<std::optional<WebKit::TestClassName>&>;
+    using ReplyArguments = std::tuple<std::optional<WebKit::TestClassName>>;
     explicit TestSynchronousMessage(bool value)
         : m_arguments(value)
     {

@@ -55,6 +55,7 @@
 #include "OESVertexArrayObject.h"
 #include "RenderBox.h"
 #include "RuntimeEnabledFeatures.h"
+#include "WebGLBuffer.h"
 #include "WebGLColorBufferFloat.h"
 #include "WebGLCompressedTextureASTC.h"
 #include "WebGLCompressedTextureATC.h"
@@ -67,7 +68,15 @@
 #include "WebGLDebugShaders.h"
 #include "WebGLDepthTexture.h"
 #include "WebGLDrawBuffers.h"
+#include "WebGLFramebuffer.h"
 #include "WebGLLoseContext.h"
+#include "WebGLMultiDraw.h"
+#include "WebGLProgram.h"
+#include "WebGLRenderbuffer.h"
+#include "WebGLSampler.h"
+#include "WebGLTexture.h"
+#include "WebGLTransformFeedback.h"
+#include "WebGLVertexArrayObject.h"
 #include "WebGLVertexArrayObjectOES.h"
 #include <JavaScriptCore/GenericTypedArrayViewInlines.h>
 #include <JavaScriptCore/HeapInlines.h>
@@ -204,13 +213,14 @@ WebGLExtension* WebGLRenderingContext::getExtension(const String& name)
     ENABLE_IF_REQUESTED(EXTColorBufferHalfFloat, m_extColorBufferHalfFloat, "EXT_color_buffer_half_float", EXTColorBufferHalfFloat::supported(*this));
     ENABLE_IF_REQUESTED(EXTFloatBlend, m_extFloatBlend, "EXT_float_blend", EXTFloatBlend::supported(*this));
     ENABLE_IF_REQUESTED(WebGLColorBufferFloat, m_webglColorBufferFloat, "WEBGL_color_buffer_float", WebGLColorBufferFloat::supported(*this));
+    ENABLE_IF_REQUESTED(WebGLMultiDraw, m_webglMultiDraw, "WEBGL_multi_draw", WebGLMultiDraw::supported(*this));
     return nullptr;
 }
 
-Optional<Vector<String>> WebGLRenderingContext::getSupportedExtensions()
+std::optional<Vector<String>> WebGLRenderingContext::getSupportedExtensions()
 {
     if (isContextLost())
-        return WTF::nullopt;
+        return std::nullopt;
 
     Vector<String> result;
 
@@ -279,6 +289,8 @@ Optional<Vector<String>> WebGLRenderingContext::getSupportedExtensions()
         result.append("WEBGL_color_buffer_float"_s);
     if (KHRParallelShaderCompile::supported(*this))
         result.append("KHR_parallel_shader_compile");
+    if (WebGLMultiDraw::supported(*this))
+        result.append("WEBGL_multi_draw"_s);
 
     return result;
 }
@@ -292,6 +304,13 @@ WebGLAny WebGLRenderingContext::getFramebufferAttachmentParameter(GCGLenum targe
         synthesizeGLError(GraphicsContextGL::INVALID_OPERATION, "getFramebufferAttachmentParameter", "no framebuffer bound");
         return nullptr;
     }
+
+#if ENABLE(WEBXR)
+    if (m_framebufferBinding->isOpaque()) {
+        synthesizeGLError(GraphicsContextGL::INVALID_OPERATION, "getFramebufferAttachmentParameter", "An opaque framebuffer's attachments cannot be inspected or changed");
+        return nullptr;
+    }
+#endif
 
     auto object = makeRefPtr(m_framebufferBinding->getAttachmentObject(attachment));
     if (!object) {
@@ -384,7 +403,7 @@ bool WebGLRenderingContext::validateIndexArrayConservative(GCGLenum type, unsign
     auto buffer = elementArrayBuffer->elementArrayBuffer();
     ASSERT(buffer);
 
-    Optional<unsigned> maxIndex = elementArrayBuffer->getCachedMaxIndex(type);
+    std::optional<unsigned> maxIndex = elementArrayBuffer->getCachedMaxIndex(type);
     if (!maxIndex) {
         // Compute the maximum index in the entire buffer for the given type of index.
         switch (type) {

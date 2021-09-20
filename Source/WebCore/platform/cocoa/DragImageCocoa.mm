@@ -35,15 +35,15 @@
 #import "FontCascade.h"
 #import "FontDescription.h"
 #import "FontSelector.h"
-#import "GraphicsContext.h"
+#import "GraphicsContextCG.h"
 #import "Image.h"
 #import "LocalDefaultSystemAppearance.h"
 #import "Page.h"
 #import "StringTruncator.h"
 #import "TextIndicator.h"
 #import "WebKitNSImageExtras.h"
+#import <pal/spi/cf/CoreTextSPI.h>
 #import <pal/spi/cg/CoreGraphicsSPI.h>
-#import <pal/spi/cocoa/CoreTextSPI.h>
 #import <pal/spi/cocoa/URLFormattingSPI.h>
 #import <wtf/SoftLinking.h>
 #import <wtf/URL.h>
@@ -300,7 +300,7 @@ DragImageRef createDragImageForLink(Element& element, URL& url, const String& ti
     RetainPtr<NSImage> dragImage = adoptNS([[NSImage alloc] initWithSize:imageSize]);
     [dragImage _web_lockFocusWithDeviceScaleFactor:deviceScaleFactor];
 
-    GraphicsContext context([NSGraphicsContext currentContext].CGContext);
+    GraphicsContextCG context([NSGraphicsContext currentContext].CGContext);
 
     context.fillRoundedRect(FloatRoundedRect(layout.boundingRect, FloatRoundedRect::Radii(linkImageCornerRadius)), colorFromNSColor([NSColor controlBackgroundColor]));
 

@@ -39,8 +39,8 @@ namespace LayoutIntegration {
 enum class AvoidanceReason : uint64_t {
     FlowIsInsideANonMultiColumnThread            = 1LLU  << 0,
     FlowHasHorizonalWritingMode                  = 1LLU  << 1,
-    FlowHasOutline                               = 1LLU  << 2,
-    FlowIsRuby                                   = 1LLU  << 3,
+    ContentHasOutline                            = 1LLU  << 2,
+    ContentIsRuby                                = 1LLU  << 3,
     FlowIsPaginated                              = 1LLU  << 4,
     FlowHasTextOverflow                          = 1LLU  << 5,
     FlowIsDepricatedFlexBox                      = 1LLU  << 6,
@@ -89,7 +89,18 @@ enum class AvoidanceReason : uint64_t {
     MultiColumnFlowVerticalAlign                 = 1LLU  << 49,
     MultiColumnFlowIsFloating                    = 1LLU  << 50,
     FlowIncludesDocumentMarkers                  = 1LLU  << 51,
-    EndOfReasons                                 = 1LLU  << 52
+    FlowIncludesHighlights                       = 1LLU  << 52,
+    FlowHasJustifiedNonBreakingSpace             = 1LLU  << 53,
+    UnsupportedFieldset                          = 1LLU  << 54,
+    ChildBoxIsFloatingOrPositioned               = 1LLU  << 55,
+    ContentIsSVG                                 = 1LLU  << 56,
+    ChildBoxHasUnsupportedStyle                  = 1LLU  << 57,
+    UnsupportedImageMap                          = 1LLU  << 58,
+    InlineBoxNeedsLayer                          = 1LLU  << 59,
+    InlineBoxHasBorderOrBorderImage              = 1LLU  << 60,
+    InlineBoxHasBackground                       = 1LLU  << 61,
+    InlineBoxHasNegativeMargin                   = 1LLU  << 62,
+    EndOfReasons                                 = 1LLU  << 63
 };
 
 bool canUseForLineLayout(const RenderBlockFlow&);

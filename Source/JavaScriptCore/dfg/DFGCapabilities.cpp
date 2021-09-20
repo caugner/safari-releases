@@ -250,6 +250,8 @@ CapabilityLevel capabilityLevel(OpcodeID opcodeID, CodeBlock* codeBlock, const I
     case op_switch_char:
     case op_in_by_val:
     case op_in_by_id:
+    case op_has_private_name:
+    case op_has_private_brand:
     case op_get_scope:
     case op_get_from_scope:
     case op_get_enumerable_length:
@@ -294,9 +296,11 @@ CapabilityLevel capabilityLevel(OpcodeID opcodeID, CodeBlock* codeBlock, const I
     case op_super_sampler_end:
     case op_get_private_name:
     case op_put_private_name:
+    case op_set_private_brand:
+    case op_check_private_brand:
+    case op_switch_string:
         return CanCompileAndInline;
 
-    case op_switch_string: // Don't inline because we don't want to copy string tables in the concurrent JIT.
     case op_call_eval:
         return CanCompile;
 
@@ -366,6 +370,8 @@ CapabilityLevel capabilityLevel(OpcodeID opcodeID, CodeBlock* codeBlock, const I
     case wasm_trampoline_wasm_call_no_tls:
     case wasm_trampoline_wasm_call_indirect:
     case wasm_trampoline_wasm_call_indirect_no_tls:
+    case wasm_trampoline_wasm_call_ref:
+    case wasm_trampoline_wasm_call_ref_no_tls:
         return CannotCompile;
     }
     return CannotCompile;

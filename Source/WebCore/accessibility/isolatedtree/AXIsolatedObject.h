@@ -252,7 +252,6 @@ private:
     AXCoreObject* parentObjectUnignored() const override;
     void linkedUIElements(AccessibilityChildrenVector& children) const override { fillChildrenVectorForProperty(AXPropertyName::LinkedUIElements, children); }
     AXCoreObject* titleUIElement() const override { return objectAttributeValue(AXPropertyName::TitleUIElement); }
-    bool exposesTitleUIElement() const override { return boolAttributeValue(AXPropertyName::ExposesTitleUIElement); }
     AXCoreObject* scrollBar(AccessibilityOrientation) override;
     AccessibilityRole ariaRoleAttribute() const override { return static_cast<AccessibilityRole>(intAttributeValue(AXPropertyName::ARIARoleAttribute)); }
     String computedLabel() override { return stringAttributeValue(AXPropertyName::ComputedLabel); }
@@ -272,6 +271,8 @@ private:
     void accessibilityText(Vector<AccessibilityText>& texts) const override;
     String brailleLabel() const override { return stringAttributeValue(AXPropertyName::BrailleLabel); }
     String brailleRoleDescription() const override { return stringAttributeValue(AXPropertyName::BrailleRoleDescription); }
+    String embeddedImageDescription() const override { return stringAttributeValue(AXPropertyName::EmbeddedImageDescription); }
+    std::optional<AccessibilityChildrenVector> imageOverlayElements() override { return std::nullopt; }
 
     String computedRoleString() const override { return stringAttributeValue(AXPropertyName::ComputedRoleString); }
     bool isValueAutofilled() const override { return boolAttributeValue(AXPropertyName::IsValueAutofilled); }
@@ -372,6 +373,7 @@ private:
 
     // PlainTextRange support.
     PlainTextRange selectedTextRange() const override;
+    int insertionPointLineNumber() const override;
     PlainTextRange doAXRangeForLine(unsigned) const override;
     String doAXStringForRange(const PlainTextRange&) const override;
     PlainTextRange doAXRangeForPosition(const IntPoint&) const override;
@@ -385,12 +387,10 @@ private:
     void setSelectedVisiblePositionRange(const VisiblePositionRange&) const override;
 
     // TODO: Text ranges and selection.
-    unsigned selectionStart() const override;
-    unsigned selectionEnd() const override;
     String selectedText() const override;
     VisiblePositionRange visiblePositionRange() const override;
     VisiblePositionRange visiblePositionRangeForLine(unsigned) const override;
-    Optional<SimpleRange> elementRange() const override;
+    std::optional<SimpleRange> elementRange() const override;
     VisiblePositionRange visiblePositionRangeForUnorderedPositions(const VisiblePosition&, const VisiblePosition&) const override;
     VisiblePositionRange positionOfLeftWord(const VisiblePosition&) const override;
     VisiblePositionRange positionOfRightWord(const VisiblePosition&) const override;
@@ -401,7 +401,10 @@ private:
     VisiblePositionRange styleRangeForPosition(const VisiblePosition&) const override;
     VisiblePositionRange visiblePositionRangeForRange(const PlainTextRange&) const override;
     VisiblePositionRange lineRangeForPosition(const VisiblePosition&) const override;
-    Optional<SimpleRange> rangeForPlainTextRange(const PlainTextRange&) const override;
+    std::optional<SimpleRange> rangeForPlainTextRange(const PlainTextRange&) const override;
+#if PLATFORM(MAC)
+    AXTextMarkerRangeRef textMarkerRangeForNSRange(const NSRange&) const override;
+#endif
     String stringForRange(const SimpleRange&) const override;
     IntRect boundsForVisiblePositionRange(const VisiblePositionRange&) const override;
     IntRect boundsForRange(const SimpleRange&) const override;
@@ -443,7 +446,7 @@ private:
     void setPreventKeyboardDOMEventDispatch(bool) override;
 
     String textUnderElement(AccessibilityTextUnderElementMode = AccessibilityTextUnderElementMode()) const override;
-    Optional<SimpleRange> misspellingRange(const SimpleRange&, AccessibilitySearchDirection) const override;
+    std::optional<SimpleRange> misspellingRange(const SimpleRange&, AccessibilitySearchDirection) const override;
     FloatRect convertFrameToSpace(const FloatRect&, AccessibilityConversionSpace) const override;
     void increment() override;
     void decrement() override;
@@ -463,6 +466,7 @@ private:
     bool isAccessibilityRenderObject() const override;
     bool isAccessibilityScrollbar() const override;
     bool isAccessibilityScrollViewInstance() const override;
+    bool isAXImageInstance() const override;
     bool isAccessibilitySVGRoot() const override;
     bool isAccessibilitySVGElement() const override;
     bool isAccessibilityTableInstance() const override;
@@ -565,7 +569,7 @@ private:
     Element* actionElement() const override;
     Path elementPath() const override { return pathAttributeValue(AXPropertyName::Path); };
     bool supportsPath() const override { return boolAttributeValue(AXPropertyName::SupportsPath); }
-    TextIteratorBehavior textIteratorBehaviorForTextRange() const override;
+    TextIteratorBehaviors textIteratorBehaviorForTextRange() const override;
     Widget* widget() const override;
     PlatformWidget platformWidget() const override;
     
@@ -584,12 +588,10 @@ private:
     ScrollView* scrollView() const override;
     ScrollView* scrollViewAncestor() const override;
     void childrenChanged() override;
-    void textChanged() override;
     void updateAccessibilityRole() override;
     void addChildren() override;
     void addChild(AXCoreObject*) override;
     void insertChild(AXCoreObject*, unsigned) override;
-    bool shouldIgnoreAttributeRole() const override;
     bool canHaveChildren() const override;
     bool hasChildren() const override { return boolAttributeValue(AXPropertyName::HasChildren); }
     void setNeedsToUpdateChildren() override;

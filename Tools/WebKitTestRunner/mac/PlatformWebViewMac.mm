@@ -35,6 +35,7 @@
 #import <WebKit/WKWebViewConfiguration.h>
 #import <WebKit/WKWebViewPrivate.h>
 #import <wtf/RetainPtr.h>
+#import <wtf/text/WTFString.h>
 
 @interface WKWebView ()
 - (WKPageRef)_pageForTesting;
@@ -149,14 +150,13 @@ void PlatformWebView::didInitializeClients()
 
 void PlatformWebView::addChromeInputField()
 {
-    NSTextField *textField = [[NSTextField alloc] initWithFrame:NSMakeRect(0, 0, 100, 20)];
-    textField.tag = 1;
-    [[m_window contentView] addSubview:textField];
-    [textField release];
+    auto textField = adoptNS([[NSTextField alloc] initWithFrame:NSMakeRect(0, 0, 100, 20)]);
+    [textField setTag:1];
+    [[m_window contentView] addSubview:textField.get()];
 
     NSView *view = platformView();
     [textField setNextKeyView:view];
-    [view setNextKeyView:textField];
+    [view setNextKeyView:textField.get()];
 }
 
 void PlatformWebView::removeChromeInputField()
@@ -166,6 +166,19 @@ void PlatformWebView::removeChromeInputField()
         [textField removeFromSuperview];
         makeWebViewFirstResponder();
     }
+}
+
+void PlatformWebView::setTextInChromeInputField(const String&)
+{
+}
+
+void PlatformWebView::selectChromeInputField()
+{
+}
+
+String PlatformWebView::getSelectedTextInChromeInputField()
+{
+    return { };
 }
 
 void PlatformWebView::addToWindow()

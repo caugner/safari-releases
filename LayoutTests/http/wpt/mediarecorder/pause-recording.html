@@ -9,9 +9,6 @@
 <body>
     <video id="video1" controls></video>
     <script>
-if (window.internals)
-    window.internals.setUseGPUProcessForWebRTC(false);
-
 function waitFor(duration)
 {
     return new Promise((resolve) => setTimeout(resolve, duration));
@@ -30,7 +27,7 @@ promise_test(async (test) => {
     setTimeout(() => recorder.pause(), 50);
     setTimeout(() => recorder.resume(), 950);
 
-    await waitFor(1000);
+    await waitFor(2000);
     recorder.stop();
     const blob = await dataPromise;
 
@@ -38,10 +35,29 @@ promise_test(async (test) => {
     video1.src = url;
     await video1.play();
 
-    assert_less_than(video1.duration, 0.5);
+    assert_less_than(video1.duration, 1.5);
 
     URL.revokeObjectURL(url);
 }, "Pausing and resuming the recording should impact the video duration");
+
+promise_test(async (test) => {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+
+    const recorder = new MediaRecorder(stream);
+    const dataPromise = new Promise(resolve => recorder.ondataavailable = (e) => resolve(e.data));
+
+    const startPromise = new Promise(resolve => recorder.onstart = resolve);
+    recorder.start();
+    await startPromise;
+
+    await waitFor(1000);
+    recorder.pause();
+    recorder.requestData();
+
+    const blob = await dataPromise;
+    assert_greater_than(blob.size, 2000);
+}, "Calling requestData once after pausing should lead to more than header data");
+
 
     </script>
 </body>

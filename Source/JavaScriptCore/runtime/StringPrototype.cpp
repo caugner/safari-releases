@@ -1,6 +1,6 @@
 /*
  *  Copyright (C) 1999-2001 Harri Porten (porten@kde.org)
- *  Copyright (C) 2004-2020 Apple Inc. All rights reserved.
+ *  Copyright (C) 2004-2021 Apple Inc. All rights reserved.
  *  Copyright (C) 2009 Torch Mobile, Inc.
  *  Copyright (C) 2015 Jordan Harband (ljharb@gmail.com)
  *
@@ -121,9 +121,9 @@ StringPrototype::StringPrototype(VM& vm, Structure* structure)
 {
 }
 
-void StringPrototype::finishCreation(VM& vm, JSGlobalObject* globalObject, JSString* nameAndMessage)
+void StringPrototype::finishCreation(VM& vm, JSGlobalObject* globalObject)
 {
-    Base::finishCreation(vm, nameAndMessage);
+    Base::finishCreation(vm, jsEmptyString(vm));
     ASSERT(inherits(vm, info()));
 
     JSC_NATIVE_INTRINSIC_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->toString, stringProtoFuncToString, static_cast<unsigned>(PropertyAttribute::DontEnum), 0, StringPrototypeValueOfIntrinsic);
@@ -165,14 +165,12 @@ void StringPrototype::finishCreation(VM& vm, JSGlobalObject* globalObject, JSStr
     putDirectWithoutTransition(vm, vm.propertyNames->iteratorSymbol, iteratorFunction, static_cast<unsigned>(PropertyAttribute::DontEnum));
 
     // The constructor will be added later, after StringConstructor has been built
-    putDirectWithoutTransition(vm, vm.propertyNames->length, jsNumber(0), PropertyAttribute::DontDelete | PropertyAttribute::ReadOnly | PropertyAttribute::DontEnum);
 }
 
 StringPrototype* StringPrototype::create(VM& vm, JSGlobalObject* globalObject, Structure* structure)
 {
-    JSString* empty = jsEmptyString(vm);
     StringPrototype* prototype = new (NotNull, allocateCell<StringPrototype>(vm.heap)) StringPrototype(vm, structure);
-    prototype->finishCreation(vm, globalObject, empty);
+    prototype->finishCreation(vm, globalObject);
     return prototype;
 }
 
@@ -312,7 +310,7 @@ static ALWAYS_INLINE JSString* jsSpliceSubstrings(JSGlobalObject* globalObject, 
     Checked<int, AssertNoOverflow> totalLength = 0;
     for (int i = 0; i < rangeCount; i++)
         totalLength += substringRanges[i].length;
-    ASSERT(totalLength <= String::MaxLength);
+    ASSERT(totalLength <= static_cast<int>(String::MaxLength));
 
     if (!totalLength)
         return jsEmptyString(vm);
@@ -320,7 +318,7 @@ static ALWAYS_INLINE JSString* jsSpliceSubstrings(JSGlobalObject* globalObject, 
     if (source.is8Bit()) {
         LChar* buffer;
         const LChar* sourceData = source.characters8();
-        auto impl = StringImpl::tryCreateUninitialized(totalLength.unsafeGet(), buffer);
+        auto impl = StringImpl::tryCreateUninitialized(totalLength, buffer);
         if (!impl) {
             throwOutOfMemoryError(globalObject, scope);
             return nullptr;
@@ -329,7 +327,7 @@ static ALWAYS_INLINE JSString* jsSpliceSubstrings(JSGlobalObject* globalObject, 
         Checked<int, AssertNoOverflow> bufferPos = 0;
         for (int i = 0; i < rangeCount; i++) {
             if (int srcLen = substringRanges[i].length) {
-                StringImpl::copyCharacters(buffer + bufferPos.unsafeGet(), sourceData + substringRanges[i].position, srcLen);
+                StringImpl::copyCharacters(buffer + bufferPos.value(), sourceData + substringRanges[i].position, srcLen);
                 bufferPos += srcLen;
             }
         }
@@ -340,7 +338,7 @@ static ALWAYS_INLINE JSString* jsSpliceSubstrings(JSGlobalObject* globalObject, 
     UChar* buffer;
     const UChar* sourceData = source.characters16();
 
-    auto impl = StringImpl::tryCreateUninitialized(totalLength.unsafeGet(), buffer);
+    auto impl = StringImpl::tryCreateUninitialized(totalLength, buffer);
     if (!impl) {
         throwOutOfMemoryError(globalObject, scope);
         return nullptr;
@@ -349,7 +347,7 @@ static ALWAYS_INLINE JSString* jsSpliceSubstrings(JSGlobalObject* globalObject, 
     Checked<int, AssertNoOverflow> bufferPos = 0;
     for (int i = 0; i < rangeCount; i++) {
         if (int srcLen = substringRanges[i].length) {
-            StringImpl::copyCharacters(buffer + bufferPos.unsafeGet(), sourceData + substringRanges[i].position, srcLen);
+            StringImpl::copyCharacters(buffer + bufferPos.value(), sourceData + substringRanges[i].position, srcLen);
             bufferPos += srcLen;
         }
     }
@@ -378,7 +376,7 @@ static ALWAYS_INLINE JSString* jsSpliceSubstringsWithSeparators(JSGlobalObject* 
         RELEASE_AND_RETURN(scope, jsString(globalObject, leftPart, separators[0], rightPart));
     }
 
-    Checked<int, RecordOverflow> totalLength = 0;
+    CheckedInt32 totalLength = 0;
     bool allSeparators8Bit = true;
     for (int i = 0; i < rangeCount; i++)
         totalLength += substringRanges[i].length;
@@ -399,7 +397,7 @@ static ALWAYS_INLINE JSString* jsSpliceSubstringsWithSeparators(JSGlobalObject* 
         LChar* buffer;
         const LChar* sourceData = source.characters8();
 
-        auto impl = StringImpl::tryCreateUninitialized(totalLength.unsafeGet(), buffer);
+        auto impl = StringImpl::tryCreateUninitialized(totalLength, buffer);
         if (!impl) {
             throwOutOfMemoryError(globalObject, scope);
             return nullptr;
@@ -410,13 +408,13 @@ static ALWAYS_INLINE JSString* jsSpliceSubstringsWithSeparators(JSGlobalObject* 
         for (int i = 0; i < maxCount; i++) {
             if (i < rangeCount) {
                 if (int srcLen = substringRanges[i].length) {
-                    StringImpl::copyCharacters(buffer + bufferPos.unsafeGet(), sourceData + substringRanges[i].position, srcLen);
+                    StringImpl::copyCharacters(buffer + bufferPos.value(), sourceData + substringRanges[i].position, srcLen);
                     bufferPos += srcLen;
                 }
             }
             if (i < separatorCount) {
                 if (int sepLen = separators[i].length()) {
-                    StringImpl::copyCharacters(buffer + bufferPos.unsafeGet(), separators[i].characters8(), sepLen);
+                    StringImpl::copyCharacters(buffer + bufferPos.value(), separators[i].characters8(), sepLen);
                     bufferPos += sepLen;
                 }
             }
@@ -426,7 +424,7 @@ static ALWAYS_INLINE JSString* jsSpliceSubstringsWithSeparators(JSGlobalObject* 
     }
 
     UChar* buffer;
-    auto impl = StringImpl::tryCreateUninitialized(totalLength.unsafeGet(), buffer);
+    auto impl = StringImpl::tryCreateUninitialized(totalLength, buffer);
     if (!impl) {
         throwOutOfMemoryError(globalObject, scope);
         return nullptr;
@@ -438,18 +436,18 @@ static ALWAYS_INLINE JSString* jsSpliceSubstringsWithSeparators(JSGlobalObject* 
         if (i < rangeCount) {
             if (int srcLen = substringRanges[i].length) {
                 if (source.is8Bit())
-                    StringImpl::copyCharacters(buffer + bufferPos.unsafeGet(), source.characters8() + substringRanges[i].position, srcLen);
+                    StringImpl::copyCharacters(buffer + bufferPos.value(), source.characters8() + substringRanges[i].position, srcLen);
                 else
-                    StringImpl::copyCharacters(buffer + bufferPos.unsafeGet(), source.characters16() + substringRanges[i].position, srcLen);
+                    StringImpl::copyCharacters(buffer + bufferPos.value(), source.characters16() + substringRanges[i].position, srcLen);
                 bufferPos += srcLen;
             }
         }
         if (i < separatorCount) {
             if (int sepLen = separators[i].length()) {
                 if (separators[i].is8Bit())
-                    StringImpl::copyCharacters(buffer + bufferPos.unsafeGet(), separators[i].characters8(), sepLen);
+                    StringImpl::copyCharacters(buffer + bufferPos.value(), separators[i].characters8(), sepLen);
                 else
-                    StringImpl::copyCharacters(buffer + bufferPos.unsafeGet(), separators[i].characters16(), sepLen);
+                    StringImpl::copyCharacters(buffer + bufferPos.value(), separators[i].characters16(), sepLen);
                 bufferPos += sepLen;
             }
         }
@@ -761,7 +759,7 @@ static ALWAYS_INLINE JSString* replaceUsingStringSearch(VM& vm, JSGlobalObject* 
     RETURN_IF_EXCEPTION(scope, nullptr);
 
     auto callData = getCallData(vm, replaceValue);
-    Optional<CachedCall> cachedCall;
+    std::optional<CachedCall> cachedCall;
     String replaceString;
     if (callData.type == CallData::Type::None) {
         replaceString = replaceValue.toWTFString(globalObject);
@@ -994,7 +992,7 @@ JSC_DEFINE_HOST_FUNCTION(stringProtoFuncCharAt, (JSGlobalObject* globalObject, C
             return JSValue::encode(jsSingleCharacterString(vm, view[i]));
         return JSValue::encode(jsEmptyString(vm));
     }
-    double dpos = a0.toInteger(globalObject);
+    double dpos = a0.toIntegerOrInfinity(globalObject);
     RETURN_IF_EXCEPTION(scope, { });
     if (dpos >= 0 && dpos < view.length())
         return JSValue::encode(jsSingleCharacterString(vm, view[static_cast<unsigned>(dpos)]));
@@ -1021,7 +1019,7 @@ JSC_DEFINE_HOST_FUNCTION(stringProtoFuncCharCodeAt, (JSGlobalObject* globalObjec
             return JSValue::encode(jsNumber(view[i]));
         return JSValue::encode(jsNaN());
     }
-    double dpos = a0.toInteger(globalObject);
+    double dpos = a0.toIntegerOrInfinity(globalObject);
     RETURN_IF_EXCEPTION(scope, { });
     if (dpos >= 0 && dpos < view.length())
         return JSValue::encode(jsNumber(view[static_cast<int>(dpos)]));
@@ -1061,7 +1059,7 @@ JSC_DEFINE_HOST_FUNCTION(stringProtoFuncCodePointAt, (JSGlobalObject* globalObje
 
     RETURN_IF_EXCEPTION(scope, encodedJSValue());
 
-    double doublePosition = argument0.toInteger(globalObject);
+    double doublePosition = argument0.toIntegerOrInfinity(globalObject);
     RETURN_IF_EXCEPTION(scope, encodedJSValue());
     if (doublePosition >= 0 && doublePosition < length)
         return JSValue::encode(jsNumber(codePointAt(string, static_cast<unsigned>(doublePosition), length)));
@@ -1092,7 +1090,7 @@ static EncodedJSValue stringIndexOfImpl(JSGlobalObject* globalObject, CallFrame*
         if (a1.isUInt32())
             pos = std::min<uint32_t>(a1.asUInt32(), len);
         else {
-            double dpos = a1.toInteger(globalObject);
+            double dpos = a1.toIntegerOrInfinity(globalObject);
             RETURN_IF_EXCEPTION(scope, encodedJSValue());
             if (dpos < 0)
                 dpos = 0;
@@ -1191,9 +1189,9 @@ JSC_DEFINE_HOST_FUNCTION(stringProtoFuncSlice, (JSGlobalObject* globalObject, Ca
     RELEASE_ASSERT(length >= 0);
 
     // The arg processing is very much like ArrayProtoFunc::Slice
-    double start = a0.toInteger(globalObject);
+    double start = a0.toIntegerOrInfinity(globalObject);
     RETURN_IF_EXCEPTION(scope, encodedJSValue());
-    double end = a1.isUndefined() ? length : a1.toInteger(globalObject);
+    double end = a1.isUndefined() ? length : a1.toIntegerOrInfinity(globalObject);
     RETURN_IF_EXCEPTION(scope, encodedJSValue());
     RELEASE_AND_RETURN(scope, JSValue::encode(stringSlice(globalObject, vm, string, length, start, end)));
 }
@@ -1393,9 +1391,9 @@ JSC_DEFINE_HOST_FUNCTION(stringProtoFuncSubstr, (JSGlobalObject* globalObject, C
     JSValue a0 = callFrame->argument(0);
     JSValue a1 = callFrame->argument(1);
 
-    double start = a0.toInteger(globalObject);
+    double start = a0.toIntegerOrInfinity(globalObject);
     RETURN_IF_EXCEPTION(scope, encodedJSValue());
-    double length = a1.isUndefined() ? len : a1.toInteger(globalObject);
+    double length = a1.isUndefined() ? len : a1.toIntegerOrInfinity(globalObject);
     RETURN_IF_EXCEPTION(scope, encodedJSValue());
     if (start >= len || length <= 0)
         return JSValue::encode(jsEmptyString(vm));
@@ -1539,8 +1537,8 @@ JSC_DEFINE_HOST_FUNCTION(stringProtoFuncLocaleCompare, (JSGlobalObject* globalOb
     else {
         collator = IntlCollator::create(vm, globalObject->collatorStructure());
         collator->initializeCollator(globalObject, locales, options);
-        RETURN_IF_EXCEPTION(scope, encodedJSValue());
     }
+    RETURN_IF_EXCEPTION(scope, encodedJSValue());
     RELEASE_AND_RETURN(scope, JSValue::encode(collator->compareStrings(globalObject, string, that)));
 }
 
@@ -1731,7 +1729,7 @@ JSC_DEFINE_HOST_FUNCTION(stringProtoFuncStartsWith, (JSGlobalObject* globalObjec
         start = std::max(0, positionArg.asInt32());
     else {
         unsigned length = stringToSearchIn.length();
-        start = clampAndTruncateToUnsigned(positionArg.toInteger(globalObject), 0, length);
+        start = clampAndTruncateToUnsigned(positionArg.toIntegerOrInfinity(globalObject), 0, length);
         RETURN_IF_EXCEPTION(scope, encodedJSValue());
     }
 
@@ -1766,7 +1764,7 @@ JSC_DEFINE_HOST_FUNCTION(stringProtoFuncEndsWith, (JSGlobalObject* globalObject,
     if (endPositionArg.isInt32())
         end = std::max(0, endPositionArg.asInt32());
     else if (!endPositionArg.isUndefined()) {
-        end = clampAndTruncateToUnsigned(endPositionArg.toInteger(globalObject), 0, length);
+        end = clampAndTruncateToUnsigned(endPositionArg.toIntegerOrInfinity(globalObject), 0, length);
         RETURN_IF_EXCEPTION(scope, encodedJSValue());
     }
 
@@ -1781,7 +1779,7 @@ static EncodedJSValue stringIncludesImpl(JSGlobalObject* globalObject, VM& vm, S
         start = std::max(0, positionArg.asInt32());
     else {
         unsigned length = stringToSearchIn.length();
-        start = clampAndTruncateToUnsigned(positionArg.toInteger(globalObject), 0, length);
+        start = clampAndTruncateToUnsigned(positionArg.toIntegerOrInfinity(globalObject), 0, length);
         RETURN_IF_EXCEPTION(scope, encodedJSValue());
     }
 

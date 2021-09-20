@@ -65,8 +65,12 @@ Ref<MediaQuerySet> MediaQuerySet::create(const String& mediaString, MediaQueryPa
 {
     if (mediaString.isEmpty())
         return MediaQuerySet::create();
+
+    auto parsedMediaQuerySet = MediaQueryParser::parseMediaQuerySet(mediaString, context);
+    if (UNLIKELY(!parsedMediaQuerySet))
+        return MediaQuerySet::create();
     
-    return MediaQueryParser::parseMediaQuerySet(mediaString, context).releaseNonNull();
+    return parsedMediaQuerySet.releaseNonNull();
 }
 
 MediaQuerySet::MediaQuerySet() = default;
@@ -146,7 +150,7 @@ String MediaQuerySet::mediaText() const
     bool needComma = false;
     for (auto& query : m_queries) {
         if (needComma)
-            text.appendLiteral(", ");
+            text.append(", ");
         text.append(query.cssText());
         needComma = true;
     }

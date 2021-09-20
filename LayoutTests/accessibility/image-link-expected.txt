@@ -64,9 +64,9 @@ AXDOMClassList: <array of size 0>
 AXFocusableAncestor: <AXImage>
 AXEditableAncestor: (null)
 AXHighestEditableAncestor: (null)
+AXImageOverlayElements: (null)
+AXEmbeddedImageDescription:
 AXURL: LayoutTests/accessibility/resources/cake.png
-AXAccessKey: (null)
-AXLinkRelationshipType:
 AXElementBusy: 0
 
 

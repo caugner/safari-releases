@@ -33,10 +33,9 @@
 #include "FullscreenVideoController.h"
 #include "MarshallingHelpers.h"
 #include "PageStorageSessionProvider.h"
-#include "PluginDatabase.h"
-#include "PluginView.h"
 #include "WebApplicationCache.h"
 #include "WebBackForwardList.h"
+#include "WebBroadcastChannelRegistry.h"
 #include "WebChromeClient.h"
 #include "WebContextMenuClient.h"
 #include "WebDatabaseManager.h"
@@ -116,6 +115,7 @@
 #include <WebCore/GeolocationController.h>
 #include <WebCore/GeolocationError.h>
 #include <WebCore/GraphicsContext.h>
+#include <WebCore/GraphicsContextWin.h>
 #include <WebCore/HTMLNames.h>
 #include <WebCore/HTMLVideoElement.h>
 #include <WebCore/HWndDC.h>
@@ -137,7 +137,6 @@
 #include <WebCore/NetworkStorageSession.h>
 #include <WebCore/NotImplemented.h>
 #include <WebCore/PageConfiguration.h>
-#include <WebCore/PageGroup.h>
 #include <WebCore/PathUtilities.h>
 #include <WebCore/PlatformKeyboardEvent.h>
 #include <WebCore/PlatformMouseEvent.h>
@@ -147,6 +146,7 @@
 #include <WebCore/PopupMenuWin.h>
 #include <WebCore/ProgressTracker.h>
 #include <WebCore/RenderLayer.h>
+#include <WebCore/RenderLayerScrollableArea.h>
 #include <WebCore/RenderTheme.h>
 #include <WebCore/RenderTreeAsText.h>
 #include <WebCore/RenderView.h>
@@ -1131,7 +1131,7 @@ static void getUpdateRects(HRGN region, const IntRect& dirtyRect, Vector<IntRect
         rects.append(*rect);
 }
 
-void WebView::updateBackingStore(FrameView* frameView, HDC dc, bool backingStoreCompletelyDirty, WindowsToPaint windowsToPaint)
+void WebView::updateBackingStore(FrameView* frameView, HDC dc, bool backingStoreCompletelyDirty)
 {
     ASSERT(!isAcceleratedCompositing());
 
@@ -1173,7 +1173,7 @@ void WebView::updateBackingStore(FrameView* frameView, HDC dc, bool backingStore
         }
 
         for (unsigned i = 0; i < paintRects.size(); ++i)
-            paintIntoBackingStore(frameView, bitmapDC, paintRects[i], windowsToPaint);
+            paintIntoBackingStore(frameView, bitmapDC, paintRects[i]);
 
         if (m_uiDelegatePrivate)
             m_uiDelegatePrivate->webViewPainted(this);
@@ -1250,7 +1250,7 @@ void WebView::paintWithDirect2D()
 
     RECT clientRect = {};
     PlatformContextDirect2D platformContext(m_renderTarget.get());
-    GraphicsContext gc(&platformContext, GraphicsContext::BitmapRenderingContextType::GPUMemory);
+    GraphicsContextWin gc(&platformContext, GraphicsContext::BitmapRenderingContextType::GPUMemory);
 
     {
         m_renderTarget->SetTags(WEBKIT_DRAWING, __LINE__);
@@ -1305,23 +1305,16 @@ void WebView::paint(HDC dc, LPARAM options)
     GDIObject<HRGN> region;
     int regionType = NULLREGION;
     PAINTSTRUCT ps;
-    WindowsToPaint windowsToPaint;
     if (!dc) {
         region = adoptGDIObject(::CreateRectRgn(0, 0, 0, 0));
         regionType = GetUpdateRgn(m_viewWindow, region.get(), false);
         hdc = BeginPaint(m_viewWindow, &ps);
         rcPaint = ps.rcPaint;
-        // We're painting to the screen, and our child windows can handle
-        // painting themselves to the screen.
-        windowsToPaint = PaintWebViewOnly;
     } else {
         hdc = dc;
         ::GetClientRect(m_viewWindow, &rcPaint);
         if (options & PRF_ERASEBKGND)
             ::FillRect(hdc, &rcPaint, (HBRUSH)GetStockObject(WHITE_BRUSH));
-        // Since we aren't painting to the screen, we want to paint all our
-        // children into the HDC.
-        windowsToPaint = PaintWebViewAndChildren;
     }
 
     bool backingStoreCompletelyDirty = ensureBackingStore();
@@ -1335,7 +1328,7 @@ void WebView::paint(HDC dc, LPARAM options)
     HGDIOBJ oldBitmap = ::SelectObject(bitmapDC.get(), m_backingStoreBitmap->get());
 
     // Update our backing store if needed.
-    updateBackingStore(frameView, bitmapDC.get(), backingStoreCompletelyDirty, windowsToPaint);
+    updateBackingStore(frameView, bitmapDC.get(), backingStoreCompletelyDirty);
 
     // Now we blit the updated backing store
     IntRect windowDirtyRect = rcPaint;
@@ -1371,7 +1364,7 @@ void WebView::paint(HDC dc, LPARAM options)
         deleteBackingStoreSoon();
 }
 
-void WebView::paintIntoBackingStore(FrameView* frameView, HDC bitmapDC, const IntRect& dirtyRectPixels, WindowsToPaint windowsToPaint)
+void WebView::paintIntoBackingStore(FrameView* frameView, HDC bitmapDC, const IntRect& dirtyRectPixels)
 {
     // FIXME: This function should never be called in accelerated compositing mode, and we should
     // assert as such. But currently it *is* sometimes called, so we can't assert yet. See
@@ -1407,8 +1400,7 @@ void WebView::paintIntoBackingStore(FrameView* frameView, HDC bitmapDC, const In
     m_backingStoreRenderTarget = nullptr;
 #endif
 
-    GraphicsContext gc(bitmapDC, m_transparent);
-    gc.setShouldIncludeChildWindows(windowsToPaint == PaintWebViewAndChildren);
+    GraphicsContextWin gc(bitmapDC, m_transparent);
     gc.save();
     if (m_transparent)
         gc.clearRect(logicalDirtyRect);
@@ -1568,6 +1560,7 @@ Page* WebView::page()
     return m_page;
 }
 
+#if ENABLE(CONTEXT_MENUS)
 static HMENU createContextMenuFromItems(const Vector<ContextMenuItem>& items)
 {
     HMENU menu = ::CreatePopupMenu();
@@ -1624,9 +1617,11 @@ HMENU WebView::createContextMenu()
 
     return contextMenu;
 }
+#endif
 
 bool WebView::handleContextMenuEvent(WPARAM wParam, LPARAM lParam)
 {
+#if ENABLE(CONTEXT_MENUS)
     // Translate the screen coordinates into window coordinates
     POINT coords = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
     if (coords.x == -1 || coords.y == -1) {
@@ -1656,7 +1651,7 @@ bool WebView::handleContextMenuEvent(WPARAM wParam, LPARAM lParam)
     m_page->contextMenuController().clearContextMenu();
 
     IntPoint documentPoint(m_page->mainFrame().view()->windowToContents(logicalCoords));
-    constexpr OptionSet<HitTestRequest::RequestType> hitType { HitTestRequest::ReadOnly, HitTestRequest::Active, HitTestRequest::DisallowUserAgentShadowContent, HitTestRequest::AllowChildFrameContent };
+    constexpr OptionSet<HitTestRequest::Type> hitType { HitTestRequest::Type::ReadOnly, HitTestRequest::Type::Active, HitTestRequest::Type::DisallowUserAgentShadowContent, HitTestRequest::Type::AllowChildFrameContent };
     HitTestResult result = m_page->mainFrame().eventHandler().hitTestResultAtPoint(documentPoint, hitType);
     Frame* targetFrame = result.innerNonSharedNode() ? result.innerNonSharedNode()->document().frame() : &m_page->focusController().focusedOrMainFrame();
 
@@ -1712,6 +1707,11 @@ bool WebView::handleContextMenuEvent(WPARAM wParam, LPARAM lParam)
     }
 
     return true;
+#else
+    UNUSED_PARAM(wParam);
+    UNUSED_PARAM(lParam);
+    return false;
+#endif
 }
 
 bool WebView::onMeasureItem(WPARAM /*wParam*/, LPARAM lParam)
@@ -1780,6 +1780,7 @@ bool WebView::onUninitMenuPopup(WPARAM wParam, LPARAM /*lParam*/)
 
 void WebView::onMenuCommand(WPARAM wParam, LPARAM lParam)
 {
+#if ENABLE(CONTEXT_MENUS)
     HMENU hMenu = reinterpret_cast<HMENU>(lParam);
     unsigned index = static_cast<unsigned>(wParam);
 
@@ -1812,6 +1813,10 @@ void WebView::onMenuCommand(WPARAM wParam, LPARAM lParam)
     }
 
     m_page->contextMenuController().contextMenuItemSelected(action, title);
+#else
+    UNUSED_PARAM(wParam);
+    UNUSED_PARAM(lParam);
+#endif
 }
 
 bool WebView::handleMouseEvent(UINT message, WPARAM wParam, LPARAM lParam)
@@ -1849,9 +1854,9 @@ bool WebView::handleMouseEvent(UINT message, WPARAM wParam, LPARAM lParam)
         // Always start capturing events when the mouse goes down in our HWND.
         ::SetCapture(m_viewWindow);
 
-        if (((messageTime - globalPrevMouseDownTime) < (LONG)::GetDoubleClickTime()) && 
-            insideThreshold &&
-            mouseEvent.button() == globalPrevButton)
+        if ((messageTime - globalPrevMouseDownTime) < getDoubleClickTime()
+            && insideThreshold
+            && mouseEvent.button() == globalPrevButton)
             globalClickCount++;
         else
             // Reset the click count.
@@ -1918,7 +1923,7 @@ bool WebView::gestureNotify(WPARAM wParam, LPARAM lParam)
     IntPoint logicalGestureBeginPoint(gestureBeginPoint);
     logicalGestureBeginPoint.scale(inverseScaleFactor, inverseScaleFactor);
 
-    HitTestRequest request { OptionSet<HitTestRequest::RequestType> { HitTestRequest::ReadOnly, HitTestRequest::DisallowUserAgentShadowContent } };
+    HitTestRequest request { OptionSet<HitTestRequest::Type> { HitTestRequest::Type::ReadOnly, HitTestRequest::Type::DisallowUserAgentShadowContent } };
     for (RefPtr<Frame> childFrame = &m_page->mainFrame(); childFrame; childFrame = EventHandler::subframeForTargetNode(m_gestureTargetNode.get())) {
         FrameView* frameView = childFrame->view();
         if (!frameView)
@@ -2038,18 +2043,18 @@ bool WebView::gesture(WPARAM wParam, LPARAM lParam)
         float scaleFactor = deviceScaleFactor();
         IntSize logicalScrollDelta(-deltaX * scaleFactor, -deltaY * scaleFactor);
 
-        RenderLayer* scrollableLayer = nullptr;
+        RenderLayer* scrollableArea = nullptr;
         if (m_gestureTargetNode && m_gestureTargetNode->renderer()) {
             if (auto* layer = m_gestureTargetNode->renderer()->enclosingLayer())
-                scrollableLayer = layer->enclosingScrollableLayer(IncludeSelfOrNot::ExcludeSelf, CrossFrameBoundaries::Yes);
+                scrollableArea = layer->enclosingScrollableLayer(IncludeSelfOrNot::ExcludeSelf, CrossFrameBoundaries::Yes);
         }
 
-        if (!scrollableLayer) {
+        if (!scrollableArea) {
             // We might directly hit the document without hitting any nodes
             coreFrame->view()->scrollBy(logicalScrollDelta);
             scrolledArea = coreFrame->view();
         } else
-            scrollableLayer->scrollByRecursively(logicalScrollDelta, &scrolledArea);
+            scrollableArea->ensureLayerScrollableArea()->scrollByRecursively(logicalScrollDelta, &scrolledArea);
 
         if (!(UpdatePanningFeedbackPtr() && BeginPanningFeedbackPtr() && EndPanningFeedbackPtr())) {
             CloseGestureInfoHandlePtr()(gestureHandle);
@@ -2354,6 +2359,9 @@ bool WebView::handleEditingKeyboardEvent(KeyboardEvent& event)
     if (!keyEvent || keyEvent->isSystemKey())  // do not treat this as text input if it's a system key event
         return false;
 
+    if (event.type() != eventNames().keydownEvent && event.type() != eventNames().keypressEvent)
+        return false;
+
     auto command = frame->editor().command(interpretKeyEvent(&event));
 
     if (keyEvent->type() == PlatformEvent::RawKeyDown) {
@@ -2562,19 +2570,6 @@ LRESULT CALLBACK WebView::WebViewWndProc(HWND hWnd, UINT message, WPARAM wParam,
     // hold a ref, since the WebView could go away in an event handler.
     COMPtr<WebView> protector(webView);
     ASSERT(webView);
-
-    // Windows Media Player has a modal message loop that will deliver messages
-    // to us at inappropriate times and we will crash if we handle them when:
-    // they are delivered. We repost paint messages so that we eventually get
-    // a chance to paint once the modal loop has exited, but other messages
-    // aren't safe to repost, so we just drop them.
-#if ENABLE(NETSCAPE_PLUGIN_API)
-    if (PluginView::isCallingPlugin()) {
-        if (message == WM_PAINT)
-            PostMessage(hWnd, message, wParam, lParam);
-        return 0;
-    }
-#endif
 
     bool handled = true;
 
@@ -3134,10 +3129,13 @@ HRESULT WebView::initWithFrame(RECT frame, _In_ BSTR frameName, _In_ BSTR groupN
         makeUniqueRef<WebProgressTrackerClient>(),
         makeUniqueRef<WebFrameLoaderClient>(webFrame),
         makeUniqueRef<DummySpeechRecognitionProvider>(),
-        makeUniqueRef<MediaRecorderProvider>()
+        makeUniqueRef<MediaRecorderProvider>(),
+        WebBroadcastChannelRegistry::getOrCreate(false)
     );
     configuration.chromeClient = new WebChromeClient(this);
+#if ENABLE(CONTEXT_MENUS)
     configuration.contextMenuClient = new WebContextMenuClient(this);
+#endif
     configuration.dragClient = makeUnique<WebDragClient>(this);
     configuration.inspectorClient = m_inspectorClient;
     configuration.applicationCacheStorage = &WebApplicationCache::storage();
@@ -4109,7 +4107,7 @@ HRESULT WebView::elementAtPoint(_In_ LPPOINT point, _COM_Outptr_opt_ IPropertyBa
     webCorePoint.scale(inverseScaleFactor, inverseScaleFactor);
     HitTestResult result = HitTestResult(webCorePoint);
     if (frame->contentRenderer()) {
-        constexpr OptionSet<HitTestRequest::RequestType> hitType { HitTestRequest::ReadOnly, HitTestRequest::Active, HitTestRequest::DisallowUserAgentShadowContent, HitTestRequest::AllowChildFrameContent };
+        constexpr OptionSet<HitTestRequest::Type> hitType { HitTestRequest::Type::ReadOnly, HitTestRequest::Type::Active, HitTestRequest::Type::DisallowUserAgentShadowContent, HitTestRequest::Type::AllowChildFrameContent };
         result = frame->eventHandler().hitTestResultAtPoint(webCorePoint, hitType);
     }
     *elementDictionary = WebElementPropertyBag::createInstance(result);
@@ -5247,11 +5245,6 @@ HRESULT WebView::notifyPreferencesChanged(IWebNotification* notification)
         return hr;
     RuntimeEnabledFeatures::sharedFeatures().setKeygenElementEnabled(!!enabled);
 
-    hr = prefsPrivate->modernMediaControlsEnabled(&enabled);
-    if (FAILED(hr))
-        return hr;
-    RuntimeEnabledFeatures::sharedFeatures().setModernMediaControlsEnabled(!!enabled);
-
     hr = prefsPrivate->webAnimationsCompositeOperationsEnabled(&enabled);
     if (FAILED(hr))
         return hr;
@@ -5295,7 +5288,7 @@ HRESULT WebView::notifyPreferencesChanged(IWebNotification* notification)
     hr = prefsPrivate->webSQLEnabled(&enabled);
     if (FAILED(hr))
         return hr;
-    RuntimeEnabledFeatures::sharedFeatures().setWebSQLDisabled(!enabled);
+    RuntimeEnabledFeatures::sharedFeatures().setWebSQLEnabled(enabled);
 
     hr = prefsPrivate->visualViewportAPIEnabled(&enabled);
     if (FAILED(hr))
@@ -5327,6 +5320,7 @@ HRESULT WebView::notifyPreferencesChanged(IWebNotification* notification)
         WebFrameNetworkingContext::destroyPrivateBrowsingSession();
 #endif
     m_page->setSessionID(!!enabled ? PAL::SessionID::legacyPrivateSessionID() : PAL::SessionID::defaultSessionID());
+    m_page->setBroadcastChannelRegistry(WebBroadcastChannelRegistry::getOrCreate(!!enabled));
 
     hr = preferences->sansSerifFontFamily(&str);
     if (FAILED(hr))
@@ -5524,12 +5518,6 @@ HRESULT WebView::notifyPreferencesChanged(IWebNotification* notification)
 
 #if ENABLE(WEB_AUDIO)
     settings.setWebAudioEnabled(true);
-    settings.setPrefixedWebAudioEnabled(true);
-
-    hr = prefsPrivate->modernUnprefixedWebAudioEnabled(&enabled);
-    if (FAILED(hr))
-        return hr;
-    settings.setModernUnprefixedWebAudioEnabled(!!enabled);
 #endif // ENABLE(WEB_AUDIO)
 
 #if ENABLE(WEBGL)
@@ -5662,6 +5650,8 @@ HRESULT WebView::notifyPreferencesChanged(IWebNotification* notification)
     if (FAILED(hr))
         return hr;
     settings.setOverscrollBehaviorEnabled(!!enabled);
+
+    settings.setCanvasColorSpaceEnabled(m_preferences->canvasColorSpaceEnabled());
 
     return S_OK;
 }
@@ -5831,7 +5821,7 @@ HRESULT WebView::visibleContentRect(_Out_ LPRECT rect)
     return S_OK;
 }
 
-static DWORD dragOperationToDragCursor(Optional<DragOperation> operation)
+static DWORD dragOperationToDragCursor(std::optional<DragOperation> operation)
 {
     if (!operation)
         return DROPEFFECT_NONE;
@@ -6014,9 +6004,8 @@ HRESULT WebView::setAllowSiteSpecificHacks(BOOL allow)
     return S_OK;
 }
 
-HRESULT WebView::addAdditionalPluginDirectory(_In_ BSTR directory)
+HRESULT WebView::addAdditionalPluginDirectory(_In_ BSTR)
 {
-    PluginDatabase::installedPlugins()->addExtraPluginDirectory(toString(directory));
     return S_OK;
 }
 
@@ -6274,8 +6263,8 @@ static void compositionToUnderlines(const Vector<DWORD>& clauses, const Vector<B
 #define APPEND_ARGUMENT_NAME(name) \
     if (lparam & name) { \
         if (needsComma) \
-            result.appendLiteral(", "); \
-        result.appendLiteral(#name); \
+            result.append(", "); \
+        result.append(#name); \
         needsComma = true; \
     }
 
@@ -6439,7 +6428,7 @@ LRESULT WebView::onIMERequestCharPosition(Frame* targetFrame, IMECHARPOSITION* c
     if (charPos->dwCharPos && !targetFrame->editor().hasComposition())
         return 0;
     IntRect caret;
-    Optional<SimpleRange> range;
+    std::optional<SimpleRange> range;
     if (targetFrame->editor().hasComposition())
         range = targetFrame->editor().compositionRange();
     else
@@ -6610,7 +6599,7 @@ HRESULT WebView::reportException(_In_ JSContextRef context, _In_ JSValueRef exce
     JSC::JSLockHolder lock(globalObject);
 
     // Make sure the context has a DOMWindow global object, otherwise this context didn't originate from a WebView.
-    if (!toJSDOMWindow(globalObject->vm(), globalObject))
+    if (!globalObject->inherits<JSDOMWindow>(globalObject->vm()))
         return E_FAIL;
 
     WebCore::reportException(globalObject, toJS(globalObject, exception));

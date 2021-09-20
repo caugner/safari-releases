@@ -28,6 +28,7 @@
 
 #include "IntlObjectInlines.h"
 #include "IntlSegments.h"
+#include "IntlWorkaround.h"
 #include "JSCInlines.h"
 #include "ObjectConstructor.h"
 
@@ -67,13 +68,8 @@ void IntlSegmenter::initializeSegmenter(JSGlobalObject* globalObject, JSValue lo
     auto requestedLocales = canonicalizeLocaleList(globalObject, locales);
     RETURN_IF_EXCEPTION(scope, void());
 
-    JSObject* options;
-    if (optionsValue.isUndefined())
-        options = constructEmptyObject(vm, globalObject->nullPrototypeObjectStructure());
-    else {
-        options = optionsValue.toObject(globalObject);
-        RETURN_IF_EXCEPTION(scope, void());
-    }
+    JSObject* options = intlGetOptionsObject(globalObject, optionsValue);
+    RETURN_IF_EXCEPTION(scope, void());
 
     ResolveLocaleOptions localeOptions;
 
@@ -84,7 +80,7 @@ void IntlSegmenter::initializeSegmenter(JSGlobalObject* globalObject, JSValue lo
         return { };
     };
 
-    auto& availableLocales = intlSegmenterAvailableLocales();
+    const auto& availableLocales = intlSegmenterAvailableLocales();
     auto resolved = resolveLocale(globalObject, availableLocales, requestedLocales, localeMatcher, localeOptions, { }, localeData);
 
     m_locale = resolved.locale;
@@ -130,7 +126,7 @@ JSValue IntlSegmenter::segment(JSGlobalObject* globalObject, JSValue stringValue
     auto upconvertedCharacters = Box<Vector<UChar>>::create(string.charactersWithoutNullTermination());
 
     UErrorCode status = U_ZERO_ERROR;
-    auto segmenter = std::unique_ptr<UBreakIterator, UBreakIteratorDeleter>(ubrk_safeClone(m_segmenter.get(), nullptr, nullptr, &status));
+    auto segmenter = std::unique_ptr<UBreakIterator, UBreakIteratorDeleter>(cloneUBreakIterator(m_segmenter.get(), &status));
     if (U_FAILURE(status)) {
         throwTypeError(globalObject, scope, "failed to initialize Segments"_s);
         return { };

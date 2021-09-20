@@ -28,6 +28,7 @@
 #include "JSDOMConstructorNotConstructable.h"
 #include "JSDOMConvertStrings.h"
 #include "JSDOMExceptionHandling.h"
+#include "JSDOMGlobalObjectInlines.h"
 #include "JSDOMWrapperCache.h"
 #include "ScriptExecutionContext.h"
 #include "WebCoreJSClientData.h"
@@ -35,6 +36,7 @@
 #include <JavaScriptCore/HeapAnalyzer.h>
 #include <JavaScriptCore/JSCInlines.h>
 #include <JavaScriptCore/JSDestructibleObjectHeapCellType.h>
+#include <JavaScriptCore/SlotVisitorMacros.h>
 #include <JavaScriptCore/SubspaceInlines.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
@@ -83,6 +85,8 @@ STATIC_ASSERT_ISO_SUBSPACE_SHARABLE(JSTestGenerateIsReachablePrototype, JSTestGe
 
 using JSTestGenerateIsReachableDOMConstructor = JSDOMConstructorNotConstructable<JSTestGenerateIsReachable>;
 
+template<> const ClassInfo JSTestGenerateIsReachableDOMConstructor::s_info = { "TestGenerateIsReachable", &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestGenerateIsReachableDOMConstructor) };
+
 template<> JSValue JSTestGenerateIsReachableDOMConstructor::prototypeForStructure(JSC::VM& vm, const JSDOMGlobalObject& globalObject)
 {
     UNUSED_PARAM(vm);
@@ -95,8 +99,6 @@ template<> void JSTestGenerateIsReachableDOMConstructor::initializeProperties(VM
     putDirect(vm, vm.propertyNames->name, jsNontrivialString(vm, "TestGenerateIsReachable"_s), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
     putDirect(vm, vm.propertyNames->length, jsNumber(0), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
 }
-
-template<> const ClassInfo JSTestGenerateIsReachableDOMConstructor::s_info = { "TestGenerateIsReachable", &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestGenerateIsReachableDOMConstructor) };
 
 /* Hash table for prototype */
 
@@ -153,18 +155,13 @@ JSObject* JSTestGenerateIsReachable::prototype(VM& vm, JSDOMGlobalObject& global
 
 JSValue JSTestGenerateIsReachable::getConstructor(VM& vm, const JSGlobalObject* globalObject)
 {
-    return getDOMConstructor<JSTestGenerateIsReachableDOMConstructor>(vm, *jsCast<const JSDOMGlobalObject*>(globalObject));
+    return getDOMConstructor<JSTestGenerateIsReachableDOMConstructor, DOMConstructorID::TestGenerateIsReachable>(vm, *jsCast<const JSDOMGlobalObject*>(globalObject));
 }
 
 void JSTestGenerateIsReachable::destroy(JSC::JSCell* cell)
 {
     JSTestGenerateIsReachable* thisObject = static_cast<JSTestGenerateIsReachable*>(cell);
     thisObject->JSTestGenerateIsReachable::~JSTestGenerateIsReachable();
-}
-
-template<> inline JSTestGenerateIsReachable* IDLAttribute<JSTestGenerateIsReachable>::cast(JSGlobalObject& lexicalGlobalObject, EncodedJSValue thisValue)
-{
-    return jsDynamicCast<JSTestGenerateIsReachable*>(JSC::getVM(&lexicalGlobalObject), JSValue::decode(thisValue));
 }
 
 JSC_DEFINE_CUSTOM_GETTER(jsTestGenerateIsReachableConstructor, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, PropertyName))
@@ -185,9 +182,9 @@ static inline JSValue jsTestGenerateIsReachable_aSecretAttributeGetter(JSGlobalO
     RELEASE_AND_RETURN(throwScope, (toJS<IDLDOMString>(lexicalGlobalObject, throwScope, impl.aSecretAttribute())));
 }
 
-JSC_DEFINE_CUSTOM_GETTER(jsTestGenerateIsReachable_aSecretAttribute, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, PropertyName))
+JSC_DEFINE_CUSTOM_GETTER(jsTestGenerateIsReachable_aSecretAttribute, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, PropertyName attributeName))
 {
-    return IDLAttribute<JSTestGenerateIsReachable>::get<jsTestGenerateIsReachable_aSecretAttributeGetter, CastedThisErrorBehavior::Assert>(*lexicalGlobalObject, thisValue, "aSecretAttribute");
+    return IDLAttribute<JSTestGenerateIsReachable>::get<jsTestGenerateIsReachable_aSecretAttributeGetter, CastedThisErrorBehavior::Assert>(*lexicalGlobalObject, thisValue, attributeName);
 }
 
 JSC::IsoSubspace* JSTestGenerateIsReachable::subspaceForImpl(JSC::VM& vm)
@@ -204,7 +201,9 @@ JSC::IsoSubspace* JSTestGenerateIsReachable::subspaceForImpl(JSC::VM& vm)
     auto* space = spaces.m_subspaceForTestGenerateIsReachable.get();
 IGNORE_WARNINGS_BEGIN("unreachable-code")
 IGNORE_WARNINGS_BEGIN("tautological-compare")
-    if (&JSTestGenerateIsReachable::visitOutputConstraints != &JSC::JSCell::visitOutputConstraints)
+    void (*myVisitOutputConstraint)(JSC::JSCell*, JSC::SlotVisitor&) = JSTestGenerateIsReachable::visitOutputConstraints;
+    void (*jsCellVisitOutputConstraint)(JSC::JSCell*, JSC::SlotVisitor&) = JSC::JSCell::visitOutputConstraints;
+    if (myVisitOutputConstraint != jsCellVisitOutputConstraint)
         clientData.outputConstraintSpaces().append(space);
 IGNORE_WARNINGS_END
 IGNORE_WARNINGS_END
@@ -220,7 +219,7 @@ void JSTestGenerateIsReachable::analyzeHeap(JSCell* cell, HeapAnalyzer& analyzer
     Base::analyzeHeap(cell, analyzer);
 }
 
-bool JSTestGenerateIsReachableOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, SlotVisitor& visitor, const char** reason)
+bool JSTestGenerateIsReachableOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, AbstractSlotVisitor& visitor, const char** reason)
 {
     auto* jsTestGenerateIsReachable = jsCast<JSTestGenerateIsReachable*>(handle.slot()->asCell());
     TestGenerateIsReachable* root = &jsTestGenerateIsReachable->wrapped();

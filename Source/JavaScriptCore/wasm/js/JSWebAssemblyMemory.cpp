@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2017 Apple Inc. All rights reserved.
+ * Copyright (C) 2016-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -131,6 +131,27 @@ Wasm::PageCount JSWebAssemblyMemory::grow(VM& vm, JSGlobalObject* globalObject, 
     return grown.value();
 }
 
+JSObject* JSWebAssemblyMemory::type(JSGlobalObject* globalObject)
+{
+    VM& vm = globalObject->vm();
+
+    Wasm::PageCount minimum = m_memory->initial();
+    Wasm::PageCount maximum = m_memory->maximum();
+
+    JSObject* result;
+    if (maximum.isValid()) {
+        result = constructEmptyObject(globalObject, globalObject->objectPrototype(), 3);
+        result->putDirect(vm, Identifier::fromString(vm, "maximum"), jsNumber(maximum.pageCount()));
+    } else
+        result = constructEmptyObject(globalObject, globalObject->objectPrototype(), 2);
+
+    result->putDirect(vm, Identifier::fromString(vm, "minimum"), jsNumber(minimum.pageCount()));
+    result->putDirect(vm, Identifier::fromString(vm, "shared"), jsBoolean(m_memory->sharingMode() == Wasm::MemorySharingMode::Shared));
+
+    return result;
+}
+
+
 void JSWebAssemblyMemory::growSuccessCallback(VM& vm, Wasm::PageCount oldPageCount, Wasm::PageCount newPageCount)
 {
     // We need to clear out the old array buffer because it might now be pointing to stale memory.
@@ -159,7 +180,8 @@ void JSWebAssemblyMemory::destroy(JSCell* cell)
     memory->JSWebAssemblyMemory::~JSWebAssemblyMemory();
 }
 
-void JSWebAssemblyMemory::visitChildren(JSCell* cell, SlotVisitor& visitor)
+template<typename Visitor>
+void JSWebAssemblyMemory::visitChildrenImpl(JSCell* cell, Visitor& visitor)
 {
     auto* thisObject = jsCast<JSWebAssemblyMemory*>(cell);
     ASSERT_GC_OBJECT_INHERITS(thisObject, info());
@@ -168,6 +190,8 @@ void JSWebAssemblyMemory::visitChildren(JSCell* cell, SlotVisitor& visitor)
     visitor.append(thisObject->m_bufferWrapper);
     visitor.reportExtraMemoryVisited(thisObject->memory().size());
 }
+
+DEFINE_VISIT_CHILDREN(JSWebAssemblyMemory);
 
 } // namespace JSC
 

@@ -32,6 +32,7 @@
 #include "RemoteMediaResourceIdentifier.h"
 #include <WebCore/PolicyChecker.h>
 #include <wtf/HashMap.h>
+#include <wtf/WeakPtr.h>
 
 namespace IPC {
 class Connection;

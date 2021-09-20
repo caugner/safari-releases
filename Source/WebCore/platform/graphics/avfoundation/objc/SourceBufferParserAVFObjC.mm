@@ -176,7 +176,7 @@ private:
     }
 
     FourCharCode m_originalCodec;
-    mutable Optional<AtomString> m_codec;
+    mutable std::optional<AtomString> m_codec;
     bool m_isVideo;
     bool m_isAudio;
     bool m_isText;
@@ -228,7 +228,9 @@ void SourceBufferParserAVFObjC::flushPendingMediaData()
 
 void SourceBufferParserAVFObjC::setShouldProvideMediaDataForTrackID(bool should, uint64_t trackID)
 {
+    BEGIN_BLOCK_OBJC_EXCEPTIONS
     [m_parser setShouldProvideMediaData:should forTrackID:trackID];
+    END_BLOCK_OBJC_EXCEPTIONS
 }
 
 bool SourceBufferParserAVFObjC::shouldProvideMediadataForTrackID(uint64_t trackID)
@@ -239,7 +241,6 @@ bool SourceBufferParserAVFObjC::shouldProvideMediadataForTrackID(uint64_t trackI
 void SourceBufferParserAVFObjC::resetParserState()
 {
     m_parserStateWasReset = true;
-    m_discardSamplesUntilNextInitializationSegment = true;
 }
 
 void SourceBufferParserAVFObjC::invalidate()
@@ -259,9 +260,7 @@ void SourceBufferParserAVFObjC::setLogger(const Logger& logger, const void* logI
 
 void SourceBufferParserAVFObjC::didParseStreamDataAsAsset(AVAsset* asset)
 {
-    callOnMainThread([this, strongThis = makeRef(*this), asset = retainPtr(asset)] {
-        m_discardSamplesUntilNextInitializationSegment = false;
-
+    m_callOnClientThreadCallback([this, strongThis = makeRef(*this), asset = retainPtr(asset)] {
         if (!m_didParseInitializationDataCallback)
             return;
 
@@ -302,7 +301,7 @@ void SourceBufferParserAVFObjC::didParseStreamDataAsAsset(AVAsset* asset)
 
 void SourceBufferParserAVFObjC::didFailToParseStreamDataWithError(NSError* error)
 {
-    callOnMainThread([this, strongThis = makeRef(*this), error = retainPtr(error)] {
+    m_callOnClientThreadCallback([this, strongThis = makeRef(*this), error = retainPtr(error)] {
         if (m_didEncounterErrorDuringParsingCallback)
             m_didEncounterErrorDuringParsingCallback(error.get().code);
     });
@@ -311,11 +310,8 @@ void SourceBufferParserAVFObjC::didFailToParseStreamDataWithError(NSError* error
 void SourceBufferParserAVFObjC::didProvideMediaDataForTrackID(uint64_t trackID, CMSampleBufferRef sampleBuffer, const String& mediaType, unsigned flags)
 {
     UNUSED_PARAM(flags);
-    callOnMainThread([this, strongThis = makeRef(*this), sampleBuffer = retainPtr(sampleBuffer), trackID, mediaType = mediaType] {
+    m_callOnClientThreadCallback([this, strongThis = makeRef(*this), sampleBuffer = retainPtr(sampleBuffer), trackID, mediaType = mediaType] {
         if (!m_didProvideMediaDataCallback)
-            return;
-
-        if (m_discardSamplesUntilNextInitializationSegment)
             return;
 
         auto mediaSample = MediaSampleAVFObjC::create(sampleBuffer.get(), trackID);

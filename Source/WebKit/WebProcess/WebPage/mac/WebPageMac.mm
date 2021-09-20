@@ -35,7 +35,6 @@
 #import "FontInfo.h"
 #import "FrameInfoData.h"
 #import "InjectedBundleHitTestResult.h"
-#import "PDFKitImports.h"
 #import "PDFPlugin.h"
 #import "PageBanner.h"
 #import "PluginView.h"
@@ -96,27 +95,31 @@
 #import <pal/spi/cocoa/NSAccessibilitySPI.h>
 #import <pal/spi/mac/NSApplicationSPI.h>
 #import <wtf/SetForScope.h>
+#import <wtf/SortedArrayMap.h>
 
 #if ENABLE(WIRELESS_PLAYBACK_TARGET)
 #import <WebCore/MediaPlaybackTargetCocoa.h>
+#import <WebCore/MediaPlaybackTargetContext.h>
 #import <WebCore/MediaPlaybackTargetMock.h>
 #endif
+
+#import "PDFKitSoftLink.h"
 
 namespace WebKit {
 using namespace WebCore;
 
 void WebPage::platformInitialize()
 {
-    WKAccessibilityWebPageObject* mockAccessibilityElement = [[[WKAccessibilityWebPageObject alloc] init] autorelease];
+    auto mockAccessibilityElement = adoptNS([[WKAccessibilityWebPageObject alloc] init]);
 
     // Get the pid for the starting process.
     pid_t pid = WebCore::presentingApplicationPID();
     // FIXME: WKAccessibilityWebPageObject doesn't respond to -accessibilitySetPresenterProcessIdentifier:.
     // Either it needs to or this call should be removed.
     if ([mockAccessibilityElement respondsToSelector:@selector(accessibilitySetPresenterProcessIdentifier:)])
-        [(id)mockAccessibilityElement accessibilitySetPresenterProcessIdentifier:pid];
+        [(id)mockAccessibilityElement.get() accessibilitySetPresenterProcessIdentifier:pid];
     [mockAccessibilityElement setWebPage:this];
-    m_mockAccessibilityElement = mockAccessibilityElement;
+    m_mockAccessibilityElement = WTFMove(mockAccessibilityElement);
 
     accessibilityTransferRemoteToken(accessibilityRemoteTokenData());
 }
@@ -196,37 +199,31 @@ NSObject *WebPage::accessibilityObjectForMainFramePlugin()
     return nil;
 }
 
-bool WebPage::shouldUsePDFPlugin() const
+bool WebPage::shouldUsePDFPlugin(const String& contentType, StringView path) const
 {
-    return pdfPluginEnabled() && classFromPDFKit(@"PDFLayerController");
-}
-
-typedef HashMap<String, String> SelectorNameMap;
-
-// Map selectors into Editor command names.
-// This is not needed for any selectors that have the same name as the Editor command.
-static const SelectorNameMap* createSelectorExceptionMap()
-{
-    SelectorNameMap* map = new HashMap<String, String>;
-
-    map->add("insertNewlineIgnoringFieldEditor:", "InsertNewline");
-    map->add("insertParagraphSeparator:", "InsertNewline");
-    map->add("insertTabIgnoringFieldEditor:", "InsertTab");
-    map->add("pageDown:", "MovePageDown");
-    map->add("pageDownAndModifySelection:", "MovePageDownAndModifySelection");
-    map->add("pageUp:", "MovePageUp");
-    map->add("pageUpAndModifySelection:", "MovePageUpAndModifySelection");
-
-    return map;
+    return pdfPluginEnabled()
+        && getPDFLayerControllerClass()
+        && (MIMETypeRegistry::isPDFOrPostScriptMIMEType(contentType)
+            || (contentType.isEmpty()
+                && (path.endsWithIgnoringASCIICase(".pdf") || path.endsWithIgnoringASCIICase(".ps"))));
 }
 
 static String commandNameForSelectorName(const String& selectorName)
 {
-    // Check the exception map first.
-    static const SelectorNameMap* exceptionMap = createSelectorExceptionMap();
-    SelectorNameMap::const_iterator it = exceptionMap->find(selectorName);
-    if (it != exceptionMap->end())
-        return it->value;
+    // Map selectors into Editor command names.
+    // This is not needed for any selectors that have the same name as the Editor command.
+    static constexpr std::pair<ComparableASCIILiteral, ASCIILiteral> selectorExceptions[] = {
+        { "insertNewlineIgnoringFieldEditor:", "InsertNewline"_s },
+        { "insertParagraphSeparator:", "InsertNewline"_s },
+        { "insertTabIgnoringFieldEditor:", "InsertTab"_s },
+        { "pageDown:", "MovePageDown"_s },
+        { "pageDownAndModifySelection:", "MovePageDownAndModifySelection"_s },
+        { "pageUp:", "MovePageUp"_s },
+        { "pageUpAndModifySelection:", "MovePageUpAndModifySelection"_s },
+    };
+    static constexpr SortedArrayMap map { selectorExceptions };
+    if (auto commandName = map.tryGet(selectorName))
+        return *commandName;
 
     // Remove the trailing colon.
     // No need to capitalize the command name since Editor command names are not case sensitive.
@@ -378,7 +375,7 @@ void WebPage::fontAtSelection(CompletionHandler<void(const FontInfo&, double, bo
         return;
     }
 
-    auto* font = frame.editor().fontForSelection(selectionHasMultipleFonts);
+    auto font = frame.editor().fontForSelection(selectionHasMultipleFonts);
     if (!font) {
         completionHandler({ }, 0, false);
         return;
@@ -466,31 +463,34 @@ bool WebPage::performNonEditingBehaviorForSelector(const String& selector, Keybo
     // Should such non-editing behaviors be implemented in Editor or EventHandler::defaultArrowEventHandler() perhaps?
     
     bool didPerformAction = false;
+    
+    if (!frame->settings().eventHandlerDrivenSmoothKeyboardScrollingEnabled()) {
+        if (selector == "moveUp:")
+            didPerformAction = scroll(m_page.get(), ScrollUp, ScrollByLine);
+        else if (selector == "moveToBeginningOfParagraph:")
+            didPerformAction = scroll(m_page.get(), ScrollUp, ScrollByPage);
+        else if (selector == "moveToBeginningOfDocument:") {
+            didPerformAction = scroll(m_page.get(), ScrollUp, ScrollByDocument);
+            didPerformAction |= scroll(m_page.get(), ScrollLeft, ScrollByDocument);
+        } else if (selector == "moveDown:")
+            didPerformAction = scroll(m_page.get(), ScrollDown, ScrollByLine);
+        else if (selector == "moveToEndOfParagraph:")
+            didPerformAction = scroll(m_page.get(), ScrollDown, ScrollByPage);
+        else if (selector == "moveToEndOfDocument:") {
+            didPerformAction = scroll(m_page.get(), ScrollDown, ScrollByDocument);
+            didPerformAction |= scroll(m_page.get(), ScrollLeft, ScrollByDocument);
+        } else if (selector == "moveLeft:")
+            didPerformAction = scroll(m_page.get(), ScrollLeft, ScrollByLine);
+        else if (selector == "moveWordLeft:")
+            didPerformAction = scroll(m_page.get(), ScrollLeft, ScrollByPage);
+        else if (selector == "moveRight:")
+            didPerformAction = scroll(m_page.get(), ScrollRight, ScrollByLine);
+        else if (selector == "moveWordRight:")
+            didPerformAction = scroll(m_page.get(), ScrollRight, ScrollByPage);
+    }
 
-    if (selector == "moveUp:")
-        didPerformAction = scroll(m_page.get(), ScrollUp, ScrollByLine);
-    else if (selector == "moveToBeginningOfParagraph:")
-        didPerformAction = scroll(m_page.get(), ScrollUp, ScrollByPage);
-    else if (selector == "moveToBeginningOfDocument:") {
-        didPerformAction = scroll(m_page.get(), ScrollUp, ScrollByDocument);
-        didPerformAction |= scroll(m_page.get(), ScrollLeft, ScrollByDocument);
-    } else if (selector == "moveDown:")
-        didPerformAction = scroll(m_page.get(), ScrollDown, ScrollByLine);
-    else if (selector == "moveToEndOfParagraph:")
-        didPerformAction = scroll(m_page.get(), ScrollDown, ScrollByPage);
-    else if (selector == "moveToEndOfDocument:") {
-        didPerformAction = scroll(m_page.get(), ScrollDown, ScrollByDocument);
-        didPerformAction |= scroll(m_page.get(), ScrollLeft, ScrollByDocument);
-    } else if (selector == "moveLeft:")
-        didPerformAction = scroll(m_page.get(), ScrollLeft, ScrollByLine);
-    else if (selector == "moveWordLeft:")
-        didPerformAction = scroll(m_page.get(), ScrollLeft, ScrollByPage);
-    else if (selector == "moveToLeftEndOfLine:")
+    if (selector == "moveToLeftEndOfLine:")
         didPerformAction = m_userInterfaceLayoutDirection == WebCore::UserInterfaceLayoutDirection::LTR ? m_page->backForward().goBack() : m_page->backForward().goForward();
-    else if (selector == "moveRight:")
-        didPerformAction = scroll(m_page.get(), ScrollRight, ScrollByLine);
-    else if (selector == "moveWordRight:")
-        didPerformAction = scroll(m_page.get(), ScrollRight, ScrollByPage);
     else if (selector == "moveToRightEndOfLine:")
         didPerformAction = m_userInterfaceLayoutDirection == WebCore::UserInterfaceLayoutDirection::LTR ? m_page->backForward().goForward() : m_page->backForward().goBack();
 
@@ -595,7 +595,7 @@ void WebPage::shouldDelayWindowOrderingEvent(const WebKit::WebMouseEvent& event,
 
     bool result = false;
 #if ENABLE(DRAG_SUPPORT)
-    constexpr OptionSet<HitTestRequest::RequestType> hitType { HitTestRequest::ReadOnly, HitTestRequest::Active, HitTestRequest::AllowChildFrameContent };
+    constexpr OptionSet<HitTestRequest::Type> hitType { HitTestRequest::Type::ReadOnly, HitTestRequest::Type::Active, HitTestRequest::Type::AllowChildFrameContent };
     HitTestResult hitResult = frame.eventHandler().hitTestResultAtPoint(frame.view()->windowToContents(event.position()), hitType);
     if (hitResult.isSelected())
         result = frame.eventHandler().eventMayStartDrag(platform(event));
@@ -613,7 +613,7 @@ void WebPage::acceptsFirstMouse(int eventNumber, const WebKit::WebMouseEvent& ev
 
     auto& frame = m_page->focusController().focusedOrMainFrame();
 
-    constexpr OptionSet<HitTestRequest::RequestType> hitType { HitTestRequest::ReadOnly, HitTestRequest::Active, HitTestRequest::AllowChildFrameContent };
+    constexpr OptionSet<HitTestRequest::Type> hitType { HitTestRequest::Type::ReadOnly, HitTestRequest::Type::Active, HitTestRequest::Type::AllowChildFrameContent };
     HitTestResult hitResult = frame.eventHandler().hitTestResultAtPoint(frame.view()->windowToContents(event.position()), hitType);
     frame.eventHandler().setActivationEventNumber(eventNumber);
     bool result = false;
@@ -729,7 +729,7 @@ static void drawPDFPage(PDFDocument *pdfDocument, CFIndex pageIndex, CGContextRe
     CGAffineTransform transform = CGContextGetCTM(context);
 
     for (PDFAnnotation *annotation in [pdfPage annotations]) {
-        if (![annotation isKindOfClass:pdfAnnotationLinkClass()])
+        if (![annotation isKindOfClass:getPDFAnnotationLinkClass()])
             continue;
 
         ALLOW_DEPRECATED_DECLARATIONS_BEGIN
@@ -841,7 +841,7 @@ bool WebPage::hoverSupportedByAnyAvailablePointingDevice() const
     return true;
 }
 
-Optional<PointerCharacteristics> WebPage::pointerCharacteristicsOfPrimaryPointingDevice() const
+std::optional<PointerCharacteristics> WebPage::pointerCharacteristicsOfPrimaryPointingDevice() const
 {
     return PointerCharacteristics::Fine;
 }
@@ -861,9 +861,13 @@ void WebPage::performImmediateActionHitTestAtLocation(WebCore::FloatPoint locati
         return;
     }
 
-    IntPoint locationInContentCoordinates = mainFrame.view()->rootViewToContents(roundedIntPoint(locationInViewCoordinates));
-    constexpr OptionSet<HitTestRequest::RequestType> hitType { HitTestRequest::ReadOnly, HitTestRequest::Active, HitTestRequest::DisallowUserAgentShadowContent, HitTestRequest::AllowChildFrameContent };
-    HitTestResult hitTestResult = mainFrame.eventHandler().hitTestResultAtPoint(locationInContentCoordinates, hitType);
+    auto locationInContentCoordinates = mainFrame.view()->rootViewToContents(roundedIntPoint(locationInViewCoordinates));
+    auto hitTestResult = mainFrame.eventHandler().hitTestResultAtPoint(locationInContentCoordinates, {
+        HitTestRequest::Type::ReadOnly,
+        HitTestRequest::Type::Active,
+        HitTestRequest::Type::DisallowUserAgentShadowContentExceptForImageOverlays,
+        HitTestRequest::Type::AllowChildFrameContent,
+    });
 
     bool immediateActionHitTestPreventsDefault = false;
     Element* element = hitTestResult.targetElement();
@@ -876,10 +880,18 @@ void WebPage::performImmediateActionHitTestAtLocation(WebCore::FloatPoint locati
 
     auto selectionRange = corePage()->focusController().focusedOrMainFrame().selection().selection().firstRange();
 
+    auto indicatorOptions = [&](const SimpleRange& range) {
+        OptionSet<TextIndicatorOption> options { TextIndicatorOption::UseBoundingRectAndPaintAllContentForComplexRanges };
+        if (HTMLElement::isInsideImageOverlay(range))
+            options.add({ TextIndicatorOption::PaintAllContent, TextIndicatorOption::PaintBackgrounds });
+        return options;
+    };
+
     URL absoluteLinkURL = hitTestResult.absoluteLinkURL();
-    Element* URLElement = hitTestResult.URLElement();
-    if (!absoluteLinkURL.isEmpty() && URLElement)
-        immediateActionResult.linkTextIndicator = TextIndicator::createWithRange(makeRangeSelectingNodeContents(*URLElement), { TextIndicatorOption::UseBoundingRectAndPaintAllContentForComplexRanges }, TextIndicatorPresentationTransition::FadeIn);
+    if (auto urlElement = makeRefPtr(hitTestResult.URLElement()); !absoluteLinkURL.isEmpty() && urlElement) {
+        auto elementRange = makeRangeSelectingNodeContents(*urlElement);
+        immediateActionResult.linkTextIndicator = TextIndicator::createWithRange(elementRange, indicatorOptions(elementRange), TextIndicatorPresentationTransition::FadeIn);
+    }
 
     if (auto lookupResult = lookupTextAtLocation(locationInViewCoordinates)) {
         auto [lookupRange, options] = WTFMove(*lookupResult);
@@ -907,7 +919,7 @@ void WebPage::performImmediateActionHitTestAtLocation(WebCore::FloatPoint locati
         pageOverlayDidOverrideDataDetectors = true;
         immediateActionResult.detectedDataActionContext = actionContext->context.get();
         immediateActionResult.detectedDataBoundingBox = view->contentsToWindow(enclosingIntRect(unitedBoundingBoxes(RenderObject::absoluteTextQuads(actionContext->range))));
-        immediateActionResult.detectedDataTextIndicator = TextIndicator::createWithRange(actionContext->range, { TextIndicatorOption::UseBoundingRectAndPaintAllContentForComplexRanges }, TextIndicatorPresentationTransition::FadeIn);
+        immediateActionResult.detectedDataTextIndicator = TextIndicator::createWithRange(actionContext->range, indicatorOptions(actionContext->range), TextIndicatorPresentationTransition::FadeIn);
         immediateActionResult.detectedDataOriginatingPageOverlay = overlay->pageOverlayID();
         break;
     }
@@ -917,8 +929,7 @@ void WebPage::performImmediateActionHitTestAtLocation(WebCore::FloatPoint locati
         if (auto result = DataDetection::detectItemAroundHitTestResult(hitTestResult)) {
             immediateActionResult.detectedDataActionContext = WTFMove(result->actionContext);
             immediateActionResult.detectedDataBoundingBox = result->boundingBox;
-            immediateActionResult.detectedDataTextIndicator = TextIndicator::createWithRange(result->range,
-                { TextIndicatorOption::UseBoundingRectAndPaintAllContentForComplexRanges }, TextIndicatorPresentationTransition::FadeIn);
+            immediateActionResult.detectedDataTextIndicator = TextIndicator::createWithRange(result->range, indicatorOptions(result->range), TextIndicatorPresentationTransition::FadeIn);
         }
     }
 
@@ -955,16 +966,18 @@ void WebPage::performImmediateActionHitTestAtLocation(WebCore::FloatPoint locati
     send(Messages::WebPageProxy::DidPerformImmediateActionHitTest(immediateActionResult, immediateActionHitTestPreventsDefault, UserData(WebProcess::singleton().transformObjectsToHandles(userData.get()).get())));
 }
 
-Optional<std::tuple<WebCore::SimpleRange, NSDictionary *>> WebPage::lookupTextAtLocation(FloatPoint locationInViewCoordinates)
+std::optional<std::tuple<WebCore::SimpleRange, NSDictionary *>> WebPage::lookupTextAtLocation(FloatPoint locationInViewCoordinates)
 {
     auto& mainFrame = corePage()->mainFrame();
     if (!mainFrame.view() || !mainFrame.view()->renderView())
-        return WTF::nullopt;
+        return std::nullopt;
 
-    auto point = roundedIntPoint(locationInViewCoordinates);
-    constexpr OptionSet<HitTestRequest::RequestType> hitType { HitTestRequest::ReadOnly, HitTestRequest::Active, HitTestRequest::DisallowUserAgentShadowContent, HitTestRequest::AllowChildFrameContent };
-    auto result = mainFrame.eventHandler().hitTestResultAtPoint(m_page->mainFrame().view()->windowToContents(point), hitType);
-    return DictionaryLookup::rangeAtHitTestResult(result);
+    return DictionaryLookup::rangeAtHitTestResult(mainFrame.eventHandler().hitTestResultAtPoint(m_page->mainFrame().view()->windowToContents(roundedIntPoint(locationInViewCoordinates)), {
+        HitTestRequest::Type::ReadOnly,
+        HitTestRequest::Type::Active,
+        HitTestRequest::Type::DisallowUserAgentShadowContentExceptForImageOverlays,
+        HitTestRequest::Type::AllowChildFrameContent,
+    }));
 }
 
 void WebPage::immediateActionDidUpdate()
@@ -1028,26 +1041,18 @@ void WebPage::updateVisibleContentRects(const VisibleContentRectUpdateInfo&, Mon
 {
 }
 
-void WebPage::didUpdateRendering()
-{
-    if (m_didUpdateRenderingAfterCommittingLoad)
-        return;
-
-    m_didUpdateRenderingAfterCommittingLoad = true;
-    send(Messages::WebPageProxy::DidUpdateRenderingAfterCommittingLoad());
-}
-
 #if ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS_FAMILY)
-void WebPage::playbackTargetSelected(PlaybackTargetClientContextIdentifier contextId, const WebCore::MediaPlaybackTargetContext& targetContext) const
+void WebPage::playbackTargetSelected(PlaybackTargetClientContextIdentifier contextId, WebCore::MediaPlaybackTargetContext&& targetContext) const
 {
     switch (targetContext.type()) {
-    case MediaPlaybackTargetContext::AVOutputContextType:
-        m_page->setPlaybackTarget(contextId, WebCore::MediaPlaybackTargetCocoa::create(targetContext.avOutputContext()));
+    case MediaPlaybackTargetContext::Type::AVOutputContext:
+    case MediaPlaybackTargetContext::Type::SerializedAVOutputContext:
+        m_page->setPlaybackTarget(contextId, MediaPlaybackTargetCocoa::create(WTFMove(targetContext)));
         break;
-    case MediaPlaybackTargetContext::MockType:
-        m_page->setPlaybackTarget(contextId, WebCore::MediaPlaybackTargetMock::create(targetContext.mockDeviceName(), targetContext.mockState()));
+    case MediaPlaybackTargetContext::Type::Mock:
+        m_page->setPlaybackTarget(contextId, MediaPlaybackTargetMock::create(targetContext.deviceName(), targetContext.mockState()));
         break;
-    case MediaPlaybackTargetContext::None:
+    case MediaPlaybackTargetContext::Type::None:
         ASSERT_NOT_REACHED();
         break;
     }

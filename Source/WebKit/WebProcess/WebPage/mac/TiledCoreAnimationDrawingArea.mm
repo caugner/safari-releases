@@ -28,7 +28,7 @@
 
 #if PLATFORM(MAC)
 
-#import "ColorSpaceData.h"
+#import "DisplayRefreshMonitorMac.h"
 #import "DrawingAreaProxyMessages.h"
 #import "LayerHostingContext.h"
 #import "LayerTreeContext.h"
@@ -44,6 +44,7 @@
 #import <pal/spi/cocoa/QuartzCoreSPI.h>
 #import <QuartzCore/QuartzCore.h>
 #import <WebCore/DebugPageOverlays.h>
+#import <WebCore/DestinationColorSpace.h>
 #import <WebCore/Frame.h>
 #import <WebCore/FrameView.h>
 #import <WebCore/GraphicsContext.h>
@@ -90,6 +91,7 @@ TiledCoreAnimationDrawingArea::TiledCoreAnimationDrawingArea(WebPage& webPage, c
     });
 
     updateLayerHostingContext();
+    
     setColorSpace(parameters.colorSpace);
 
     if (auto viewExposedRect = parameters.viewExposedRect)
@@ -102,6 +104,8 @@ TiledCoreAnimationDrawingArea::TiledCoreAnimationDrawingArea(WebPage& webPage, c
 TiledCoreAnimationDrawingArea::~TiledCoreAnimationDrawingArea()
 {
     invalidateRenderingUpdateRunLoopObserver();
+    for (auto& callback : m_nextActivityStateChangeCallbacks)
+        callback();
 }
 
 void TiledCoreAnimationDrawingArea::sendDidFirstLayerFlushIfNeeded()
@@ -446,6 +450,9 @@ void TiledCoreAnimationDrawingArea::updateRendering(UpdateRenderingType flushTyp
         scaleViewToFitDocumentIfNeeded();
 
         m_webPage.updateRendering();
+        m_webPage.flushPendingThemeColorChange();
+        m_webPage.flushPendingPageExtendedBackgroundColorChange();
+        m_webPage.flushPendingSampledPageTopColorChange();
         m_webPage.flushPendingEditorStateUpdate();
         m_webPage.flushPendingIntrinsicContentSizeUpdate();
 
@@ -496,9 +503,8 @@ void TiledCoreAnimationDrawingArea::handleActivityStateChangeCallbacks()
     if (m_activityStateChangeID != ActivityStateChangeAsynchronous)
         m_webPage.send(Messages::WebPageProxy::DidUpdateActivityState());
 
-    for (auto& callbackID : m_nextActivityStateChangeCallbackIDs)
-        m_webPage.send(Messages::WebPageProxy::VoidCallback(callbackID));
-    m_nextActivityStateChangeCallbackIDs.clear();
+    for (auto& callback : std::exchange(m_nextActivityStateChangeCallbacks, { }))
+        callback();
 
     m_activityStateChangeID = ActivityStateChangeAsynchronous;
 }
@@ -529,9 +535,9 @@ void TiledCoreAnimationDrawingArea::handleActivityStateChangeCallbacksIfNeeded()
     } forPhase:kCATransactionPhasePostCommit];
 }
 
-void TiledCoreAnimationDrawingArea::activityStateDidChange(OptionSet<ActivityState::Flag> changed, ActivityStateChangeID activityStateChangeID, const Vector<CallbackID>& nextActivityStateChangeCallbackIDs)
+void TiledCoreAnimationDrawingArea::activityStateDidChange(OptionSet<ActivityState::Flag> changed, ActivityStateChangeID activityStateChangeID, CompletionHandler<void()>&& nextActivityStateChangeCallback)
 {
-    m_nextActivityStateChangeCallbackIDs.appendVector(nextActivityStateChangeCallbackIDs);
+    m_nextActivityStateChangeCallbacks.append(WTFMove(nextActivityStateChangeCallback));
     m_activityStateChangeID = std::max(m_activityStateChangeID, activityStateChangeID);
 
     if (changed & ActivityState::IsVisible) {
@@ -541,7 +547,7 @@ void TiledCoreAnimationDrawingArea::activityStateDidChange(OptionSet<ActivitySta
             suspendPainting();
     }
 
-    if (m_activityStateChangeID != ActivityStateChangeAsynchronous || !m_nextActivityStateChangeCallbackIDs.isEmpty()) {
+    if (m_activityStateChangeID != ActivityStateChangeAsynchronous || !m_nextActivityStateChangeCallbacks.isEmpty()) {
         m_shouldHandleActivityStateChangeCallbacks = true;
         triggerRenderingUpdate();
     }
@@ -570,7 +576,7 @@ void TiledCoreAnimationDrawingArea::resumePainting()
     [[NSNotificationCenter defaultCenter] postNotificationName:@"NSCAViewRenderDidResumeNotification" object:nil userInfo:@{ @"layer": m_hostingLayer.get() }];
 }
 
-void TiledCoreAnimationDrawingArea::setViewExposedRect(Optional<FloatRect> viewExposedRect)
+void TiledCoreAnimationDrawingArea::setViewExposedRect(std::optional<FloatRect> viewExposedRect)
 {
     m_viewExposedRect = viewExposedRect;
 
@@ -645,9 +651,14 @@ void TiledCoreAnimationDrawingArea::setLayerHostingMode(LayerHostingMode)
     send(Messages::DrawingAreaProxy::UpdateAcceleratedCompositingMode(0, layerTreeContext));
 }
 
-void TiledCoreAnimationDrawingArea::setColorSpace(const ColorSpaceData& colorSpace)
+void TiledCoreAnimationDrawingArea::setColorSpace(std::optional<WebCore::DestinationColorSpace> colorSpace)
 {
-    m_layerHostingContext->setColorSpace(colorSpace.cgColorSpace.get());
+    m_layerHostingContext->setColorSpace(colorSpace ? colorSpace->platformColorSpace() : nullptr);
+}
+
+RefPtr<WebCore::DisplayRefreshMonitor> TiledCoreAnimationDrawingArea::createDisplayRefreshMonitor(PlatformDisplayID displayID)
+{
+    return DisplayRefreshMonitorMac::create(displayID);
 }
 
 void TiledCoreAnimationDrawingArea::updateLayerHostingContext()

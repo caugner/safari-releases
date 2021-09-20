@@ -26,6 +26,7 @@
 #include "JSDOMBinding.h"
 #include "JSDOMConstructorNotConstructable.h"
 #include "JSDOMExceptionHandling.h"
+#include "JSDOMGlobalObjectInlines.h"
 #include "JSDOMWrapperCache.h"
 #include "ScriptExecutionContext.h"
 #include "WebCoreJSClientData.h"
@@ -33,6 +34,7 @@
 #include <JavaScriptCore/HeapAnalyzer.h>
 #include <JavaScriptCore/JSCInlines.h>
 #include <JavaScriptCore/JSDestructibleObjectHeapCellType.h>
+#include <JavaScriptCore/SlotVisitorMacros.h>
 #include <JavaScriptCore/SubspaceInlines.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
@@ -80,6 +82,8 @@ STATIC_ASSERT_ISO_SUBSPACE_SHARABLE(JSTestReportExtraMemoryCostPrototype, JSTest
 
 using JSTestReportExtraMemoryCostDOMConstructor = JSDOMConstructorNotConstructable<JSTestReportExtraMemoryCost>;
 
+template<> const ClassInfo JSTestReportExtraMemoryCostDOMConstructor::s_info = { "TestReportExtraMemoryCost", &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestReportExtraMemoryCostDOMConstructor) };
+
 template<> JSValue JSTestReportExtraMemoryCostDOMConstructor::prototypeForStructure(JSC::VM& vm, const JSDOMGlobalObject& globalObject)
 {
     UNUSED_PARAM(vm);
@@ -92,8 +96,6 @@ template<> void JSTestReportExtraMemoryCostDOMConstructor::initializeProperties(
     putDirect(vm, vm.propertyNames->name, jsNontrivialString(vm, "TestReportExtraMemoryCost"_s), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
     putDirect(vm, vm.propertyNames->length, jsNumber(0), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
 }
-
-template<> const ClassInfo JSTestReportExtraMemoryCostDOMConstructor::s_info = { "TestReportExtraMemoryCost", &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestReportExtraMemoryCostDOMConstructor) };
 
 /* Hash table for prototype */
 
@@ -140,7 +142,7 @@ JSObject* JSTestReportExtraMemoryCost::prototype(VM& vm, JSDOMGlobalObject& glob
 
 JSValue JSTestReportExtraMemoryCost::getConstructor(VM& vm, const JSGlobalObject* globalObject)
 {
-    return getDOMConstructor<JSTestReportExtraMemoryCostDOMConstructor>(vm, *jsCast<const JSDOMGlobalObject*>(globalObject));
+    return getDOMConstructor<JSTestReportExtraMemoryCostDOMConstructor, DOMConstructorID::TestReportExtraMemoryCost>(vm, *jsCast<const JSDOMGlobalObject*>(globalObject));
 }
 
 void JSTestReportExtraMemoryCost::destroy(JSC::JSCell* cell)
@@ -173,20 +175,25 @@ JSC::IsoSubspace* JSTestReportExtraMemoryCost::subspaceForImpl(JSC::VM& vm)
     auto* space = spaces.m_subspaceForTestReportExtraMemoryCost.get();
 IGNORE_WARNINGS_BEGIN("unreachable-code")
 IGNORE_WARNINGS_BEGIN("tautological-compare")
-    if (&JSTestReportExtraMemoryCost::visitOutputConstraints != &JSC::JSCell::visitOutputConstraints)
+    void (*myVisitOutputConstraint)(JSC::JSCell*, JSC::SlotVisitor&) = JSTestReportExtraMemoryCost::visitOutputConstraints;
+    void (*jsCellVisitOutputConstraint)(JSC::JSCell*, JSC::SlotVisitor&) = JSC::JSCell::visitOutputConstraints;
+    if (myVisitOutputConstraint != jsCellVisitOutputConstraint)
         clientData.outputConstraintSpaces().append(space);
 IGNORE_WARNINGS_END
 IGNORE_WARNINGS_END
     return space;
 }
 
-void JSTestReportExtraMemoryCost::visitChildren(JSCell* cell, SlotVisitor& visitor)
+template<typename Visitor>
+void JSTestReportExtraMemoryCost::visitChildrenImpl(JSCell* cell, Visitor& visitor)
 {
     auto* thisObject = jsCast<JSTestReportExtraMemoryCost*>(cell);
     ASSERT_GC_OBJECT_INHERITS(thisObject, info());
     Base::visitChildren(thisObject, visitor);
     visitor.reportExtraMemoryVisited(thisObject->wrapped().memoryCost());
 }
+
+DEFINE_VISIT_CHILDREN(JSTestReportExtraMemoryCost);
 
 size_t JSTestReportExtraMemoryCost::estimatedSize(JSCell* cell, VM& vm)
 {
@@ -203,7 +210,7 @@ void JSTestReportExtraMemoryCost::analyzeHeap(JSCell* cell, HeapAnalyzer& analyz
     Base::analyzeHeap(cell, analyzer);
 }
 
-bool JSTestReportExtraMemoryCostOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, SlotVisitor& visitor, const char** reason)
+bool JSTestReportExtraMemoryCostOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, AbstractSlotVisitor& visitor, const char** reason)
 {
     UNUSED_PARAM(handle);
     UNUSED_PARAM(visitor);

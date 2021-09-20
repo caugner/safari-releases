@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2019 Apple Inc. All rights reserved.
+ * Copyright (C) 2011-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -32,7 +32,7 @@
 #include "FunctionCodeBlock.h"
 #include "JSImmutableButterfly.h"
 #include "ScopedArguments.h"
-#include "SlowPathReturnType.h"
+#include "SlowPathFunction.h"
 #include "StackAlignment.h"
 #include "VMInlines.h"
 #include <wtf/StdLibExtras.h>
@@ -57,7 +57,7 @@ ALWAYS_INLINE int numberOfExtraSlots(int argumentCountIncludingThis)
 
 ALWAYS_INLINE int numberOfStackPaddingSlots(CodeBlock* codeBlock, int argumentCountIncludingThis)
 {
-    if (argumentCountIncludingThis >= codeBlock->numParameters())
+    if (static_cast<unsigned>(argumentCountIncludingThis) >= codeBlock->numParameters())
         return 0;
     int alignedFrameSize = WTF::roundUpToMultipleOf(stackAlignmentRegisters(), argumentCountIncludingThis + CallFrame::headerSizeInRegisters);
     int alignedFrameSizeForParameters = WTF::roundUpToMultipleOf(stackAlignmentRegisters(), codeBlock->numParameters() + CallFrame::headerSizeInRegisters);
@@ -66,7 +66,7 @@ ALWAYS_INLINE int numberOfStackPaddingSlots(CodeBlock* codeBlock, int argumentCo
 
 ALWAYS_INLINE int numberOfStackPaddingSlotsWithExtraSlots(CodeBlock* codeBlock, int argumentCountIncludingThis)
 {
-    if (argumentCountIncludingThis >= codeBlock->numParameters())
+    if (static_cast<unsigned>(argumentCountIncludingThis) >= codeBlock->numParameters())
         return 0;
     return numberOfStackPaddingSlots(codeBlock, argumentCountIncludingThis) + numberOfExtraSlots(argumentCountIncludingThis);
 }
@@ -251,9 +251,6 @@ JSC_DECLARE_COMMON_SLOW_PATH(slow_path_typeof_is_object);
 JSC_DECLARE_COMMON_SLOW_PATH(slow_path_typeof_is_function);
 JSC_DECLARE_COMMON_SLOW_PATH(slow_path_is_callable);
 JSC_DECLARE_COMMON_SLOW_PATH(slow_path_is_constructor);
-JSC_DECLARE_COMMON_SLOW_PATH(slow_path_in_by_id);
-JSC_DECLARE_COMMON_SLOW_PATH(slow_path_in_by_val);
-JSC_DECLARE_COMMON_SLOW_PATH(slow_path_del_by_val);
 JSC_DECLARE_COMMON_SLOW_PATH(slow_path_strcat);
 JSC_DECLARE_COMMON_SLOW_PATH(slow_path_to_primitive);
 JSC_DECLARE_COMMON_SLOW_PATH(slow_path_to_property_key);
@@ -278,9 +275,7 @@ JSC_DECLARE_COMMON_SLOW_PATH(slow_path_create_promise);
 JSC_DECLARE_COMMON_SLOW_PATH(slow_path_create_generator);
 JSC_DECLARE_COMMON_SLOW_PATH(slow_path_create_async_generator);
 JSC_DECLARE_COMMON_SLOW_PATH(slow_path_create_rest);
-JSC_DECLARE_COMMON_SLOW_PATH(slow_path_get_by_id_with_this);
 JSC_DECLARE_COMMON_SLOW_PATH(slow_path_get_by_val_with_this);
-JSC_DECLARE_COMMON_SLOW_PATH(slow_path_get_private_name);
 JSC_DECLARE_COMMON_SLOW_PATH(slow_path_get_prototype_of);
 JSC_DECLARE_COMMON_SLOW_PATH(slow_path_put_by_id_with_this);
 JSC_DECLARE_COMMON_SLOW_PATH(slow_path_put_by_val_with_this);
@@ -298,7 +293,5 @@ JSC_DECLARE_COMMON_SLOW_PATH(iterator_open_try_fast_wide32);
 JSC_DECLARE_COMMON_SLOW_PATH(iterator_next_try_fast_narrow);
 JSC_DECLARE_COMMON_SLOW_PATH(iterator_next_try_fast_wide16);
 JSC_DECLARE_COMMON_SLOW_PATH(iterator_next_try_fast_wide32);
-
-using SlowPathFunction = SlowPathReturnType(JIT_OPERATION_ATTRIBUTES*)(CallFrame*, const Instruction*);
 
 } // namespace JSC

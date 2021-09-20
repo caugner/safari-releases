@@ -35,7 +35,6 @@
 
 #import "DumpRenderTreeMac.h"
 #import "NSPasteboardAdditions.h"
-#import <WebKit/WebTypesInternal.h>
 #import <objc/runtime.h>
 #import <wtf/Assertions.h>
 #import <wtf/HashMap.h>
@@ -56,7 +55,7 @@
 -(id)initWithName:(NSString *)name;
 @end
 
-static NSMutableDictionary *localPasteboards;
+static RetainPtr<NSMutableDictionary> localPasteboards;
 
 @implementation DumpRenderTreePasteboard
 
@@ -67,19 +66,16 @@ static NSMutableDictionary *localPasteboards;
     if (!name)
         name = [NSString stringWithFormat:@"LocalPasteboard%d", ++number];
     if (!localPasteboards)
-        localPasteboards = [[NSMutableDictionary alloc] init];
-    LocalPasteboard *pasteboard = [localPasteboards objectForKey:name];
-    if (pasteboard)
+        localPasteboards = adoptNS([[NSMutableDictionary alloc] init]);
+    if (LocalPasteboard *pasteboard = [localPasteboards objectForKey:name])
         return pasteboard;
-    pasteboard = [[LocalPasteboard alloc] initWithName:name];
-    [localPasteboards setObject:pasteboard forKey:name];
-    [pasteboard release];
-    return pasteboard;
+    auto pasteboard = adoptNS([[LocalPasteboard alloc] initWithName:name]);
+    [localPasteboards setObject:pasteboard.get() forKey:name];
+    return pasteboard.get();
 }
 
 + (void)releaseLocalPasteboards
 {
-    [localPasteboards release];
     localPasteboards = nil;
 }
 

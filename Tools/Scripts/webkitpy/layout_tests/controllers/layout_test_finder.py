@@ -32,7 +32,7 @@ import logging
 import re
 
 from webkitpy.common import find_files
-from webkitpy.layout_tests.models import test_expectations
+from webkitpy.layout_tests.models.test import Test
 from webkitpy.port.base import Port
 
 
@@ -40,7 +40,7 @@ _log = logging.getLogger(__name__)
 
 
 # When collecting test cases, we include any file with these extensions.
-_supported_test_extensions = set(['.html', '.shtml', '.xml', '.xhtml', '.pl', '.htm', '.php', '.svg', '.mht', '.xht'])
+_supported_test_extensions = set(['.html', '.shtml', '.xml', '.xhtml', '.pl', '.py', '.htm', '.php', '.svg', '.mht', '.xht'])
 
 
 # If any changes are made here be sure to update the isUsedInReftest method in old-run-webkit-tests as well.
@@ -79,18 +79,35 @@ class LayoutTestFinder(object):
         self._filesystem = self._port.host.filesystem
         self.LAYOUT_TESTS_DIRECTORY = 'LayoutTests'
         self._w3c_resource_files = None
+        self.http_subdir = 'http' + port.TEST_PATH_SEPARATOR + 'test'
+        self.websocket_subdir = 'websocket' + port.TEST_PATH_SEPARATOR
+        self.web_platform_test_subdir = port.web_platform_test_server_doc_root()
+        self.webkit_specific_web_platform_test_subdir = (
+            'http' + port.TEST_PATH_SEPARATOR + 'wpt' + port.TEST_PATH_SEPARATOR
+        )
 
     def find_tests(self, options, args, device_type=None):
         paths = self._strip_test_dir_prefixes(args)
         if options and options.test_list:
             paths += self._strip_test_dir_prefixes(self._read_test_names_from_file(options.test_list, self._port.TEST_PATH_SEPARATOR))
-        test_files = self.find_tests_by_path(paths, device_type=device_type)
-        return (paths, test_files)
+        tests = self.find_tests_by_path(paths, device_type=device_type)
+        return (paths, tests)
 
     def find_tests_by_path(self, paths, device_type=None):
         """Return the list of tests found. Both generic and platform-specific tests matching paths should be returned."""
         expanded_paths = self._expanded_paths(paths, device_type=device_type)
-        return self._real_tests(expanded_paths)
+        return [
+            Test(
+                test_file,
+                is_http_test=self.http_subdir in test_file,
+                is_websocket_test=self.websocket_subdir in test_file,
+                is_wpt_test=(
+                    self.web_platform_test_subdir in test_file
+                    or self.webkit_specific_web_platform_test_subdir in test_file
+                ),
+            )
+            for test_file in self._real_tests(expanded_paths)
+        ]
 
     def _expanded_paths(self, paths, device_type=None):
         expanded_paths = []
@@ -107,7 +124,7 @@ class LayoutTestFinder(object):
 
     def _real_tests(self, paths):
         # When collecting test cases, skip these directories
-        skipped_directories = set(['.svn', '_svn', 'resources', 'support', 'script-tests', 'reference', 'reftest'])
+        skipped_directories = set(['.svn', '_svn', 'resources', 'support', 'script-tests', 'tools', 'reference', 'reftest'])
         files = find_files.find(self._port._filesystem, self._port.layout_tests_dir(), paths, skipped_directories, self._is_test_file, self._port.test_key)
         return [self._port.relative_test_filename(f) for f in files]
 
@@ -117,6 +134,9 @@ class LayoutTestFinder(object):
         if _is_reference_html_file(filesystem, dirname, filename):
             return False
         if self._is_w3c_resource_file(filesystem, dirname, filename):
+            return False
+        # Special case for websocket tooling
+        if filename.endswith('_wsh.py'):
             return False
         return True
 
@@ -131,6 +151,10 @@ class LayoutTestFinder(object):
             json_data = filesystem.read_text_file(filepath)
             self._w3c_resource_files = json.loads(json_data)
 
+        _, extension = filesystem.splitext(filename)
+        if extension == '.py':
+            return True
+
         subpath = path[len(w3c_path) + 1:].replace('\\', '/')
         if subpath in self._w3c_resource_files["files"]:
             return True
@@ -138,31 +162,6 @@ class LayoutTestFinder(object):
             if dirpath in subpath:
                 return True
         return False
-
-    def find_touched_tests(self, new_or_modified_paths, apply_skip_expectations=True):
-        potential_test_paths = []
-        for test_file in new_or_modified_paths:
-            if not test_file.startswith(self.LAYOUT_TESTS_DIRECTORY):
-                continue
-
-            test_file = self._strip_test_dir_prefix(test_file)
-            test_paths = self._port.potential_test_names_from_expected_file(test_file)
-            if test_paths:
-                potential_test_paths.extend(test_paths)
-            else:
-                potential_test_paths.append(test_file)
-
-        if not potential_test_paths:
-            return None
-
-        tests = self.find_tests_by_path(list(set(potential_test_paths)))
-        if not apply_skip_expectations:
-            return tests
-
-        expectations = test_expectations.TestExpectations(self._port, tests, force_expectations_pass=False)
-        expectations.parse_all_expectations()
-        tests_to_skip = self.skip_tests(potential_test_paths, tests, expectations, None)
-        return [test for test in tests if test not in tests_to_skip]
 
     def _strip_test_dir_prefixes(self, paths):
         return [self._strip_test_dir_prefix(path) for path in paths if path]
@@ -206,81 +205,3 @@ class LayoutTestFinder(object):
             return None
         else:
             return line
-
-    def skip_tests(self, paths, all_tests_list, expectations, http_tests):
-        all_tests = set(all_tests_list)
-
-        tests_to_skip = expectations.model().get_tests_with_result_type(test_expectations.SKIP)
-        if self._options.skip_failing_tests:
-            tests_to_skip.update(expectations.model().get_tests_with_result_type(test_expectations.FAIL))
-            tests_to_skip.update(expectations.model().get_tests_with_result_type(test_expectations.FLAKY))
-
-        if self._options.skipped == 'only':
-            tests_to_skip = all_tests - tests_to_skip
-        elif self._options.skipped == 'ignore':
-            tests_to_skip = set()
-
-        # unless of course we don't want to run the HTTP tests :)
-        if not self._options.http:
-            tests_to_skip.update(set(http_tests))
-
-        return tests_to_skip
-
-    def split_into_chunks(self, test_names):
-        """split into a list to run and a set to skip, based on --run-chunk and --run-part."""
-        if not self._options.run_chunk and not self._options.run_part:
-            return test_names, set()
-
-        # If the user specifies they just want to run a subset of the tests,
-        # just grab a subset of the non-skipped tests.
-        chunk_value = self._options.run_chunk or self._options.run_part
-        try:
-            (chunk_num, chunk_len) = chunk_value.split(":")
-            chunk_num = int(chunk_num)
-            assert(chunk_num >= 0)
-            test_size = int(chunk_len)
-            assert(test_size > 0)
-        except AssertionError:
-            _log.critical("invalid chunk '%s'" % chunk_value)
-            return (None, None)
-
-        # Get the number of tests
-        num_tests = len(test_names)
-
-        # Get the start offset of the slice.
-        if self._options.run_chunk:
-            chunk_len = test_size
-            # In this case chunk_num can be really large. We need
-            # to make the worker fit in the current number of tests.
-            slice_start = (chunk_num * chunk_len) % num_tests
-        else:
-            # Validate the data.
-            assert(test_size <= num_tests)
-            assert(chunk_num <= test_size)
-
-            # To count the chunk_len, and make sure we don't skip
-            # some tests, we round to the next value that fits exactly
-            # all the parts.
-            rounded_tests = num_tests
-            if rounded_tests % test_size != 0:
-                rounded_tests = (num_tests + test_size - (num_tests % test_size))
-
-            chunk_len = rounded_tests // test_size
-            slice_start = chunk_len * (chunk_num - 1)
-            # It does not mind if we go over test_size.
-
-        # Get the end offset of the slice.
-        slice_end = min(num_tests, slice_start + chunk_len)
-
-        tests_to_run = test_names[slice_start:slice_end]
-
-        _log.debug('chunk slice [%d:%d] of %d is %d tests' % (slice_start, slice_end, num_tests, (slice_end - slice_start)))
-
-        # If we reached the end and we don't have enough tests, we run some
-        # from the beginning.
-        if slice_end - slice_start < chunk_len:
-            extra = chunk_len - (slice_end - slice_start)
-            _log.debug('   last chunk is partial, appending [0:%d]' % extra)
-            tests_to_run.extend(test_names[0:extra])
-
-        return (tests_to_run, set(test_names) - set(tests_to_run))

@@ -29,7 +29,9 @@
 
 #if ENABLE(DATE_AND_TIME_INPUT_TYPES)
 
+#include "EventNames.h"
 #include "FontCascade.h"
+#include "KeyboardEvent.h"
 #include "RenderBlock.h"
 #include "RenderStyle.h"
 #include <wtf/IsoMallocInlines.h>
@@ -57,7 +59,7 @@ void DateTimeSymbolicFieldElement::adjustMinWidth(RenderStyle& style) const
     for (auto& symbol : m_symbols)
         width = std::max(width, font.width(RenderBlock::constructTextRun(symbol, style)));
 
-    style.setMinWidth({ width, Fixed });
+    style.setMinWidth({ width, LengthType::Fixed });
 }
 
 bool DateTimeSymbolicFieldElement::hasValue() const

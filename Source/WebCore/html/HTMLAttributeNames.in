@@ -68,8 +68,9 @@ aria-valuenow
 aria-valuetext
 as
 async
+attributiondestination
 attributionsourceid
-attributeon
+attributionsourcenonce
 autocomplete
 autofocus
 autopictureinpicture
@@ -223,6 +224,7 @@ oncanplay
 oncanplaythrough
 onchange
 onclick
+onclose
 oncontextmenu
 oncopy
 oncut
@@ -242,6 +244,7 @@ onerror
 onfocus
 onfocusin
 onfocusout
+onformdata
 onhashchange
 oninput
 oninvalid
@@ -428,7 +431,6 @@ autocapitalize
 onwebkitcurrentplaybacktargetiswirelesschanged
 onwebkitplaybacktargetavailabilitychanged
 onwebkitpresentationmodechanged
-x-webkit-imagemenu
 webkit-playsinline
 x-webkit-airplay
 x-webkit-wirelessvideoplaybackdisabled

@@ -370,6 +370,13 @@ window.UIHelper = class UIHelper {
         });
     }
 
+    static isAnimatingDragCancel()
+    {
+        return new Promise(resolve => {
+            testRunner.runUIScript(`uiController.isAnimatingDragCancel`, result => resolve(result === "true"));
+        });
+    }
+
     static ensurePresentationUpdate()
     {
         if (!this.isWebKit2()) {
@@ -668,6 +675,22 @@ window.UIHelper = class UIHelper {
         });
     }
 
+    static waitForContextMenuToShow()
+    {
+        if (!this.isWebKit2() || !this.isIOSFamily())
+            return Promise.resolve();
+
+        return new Promise(resolve => {
+            testRunner.runUIScript(`
+                (function() {
+                    if (!uiController.isShowingContextMenu)
+                        uiController.didShowContextMenuCallback = () => uiController.uiScriptComplete();
+                    else
+                        uiController.uiScriptComplete();
+                })()`, resolve);
+        });
+    }
+
     static waitForContextMenuToHide()
     {
         if (!this.isWebKit2() || !this.isIOSFamily())
@@ -796,6 +819,15 @@ window.UIHelper = class UIHelper {
         });
     }
 
+    static tapHighlightViewRect()
+    {
+        return new Promise(resolve => {
+            testRunner.runUIScript("JSON.stringify(uiController.tapHighlightViewRect)", jsonString => {
+                resolve(JSON.parse(jsonString));
+            });
+        });
+    }
+
     static replaceTextAtRange(text, location, length) {
         return new Promise(resolve => {
             testRunner.runUIScript(`(() => {
@@ -848,6 +880,12 @@ window.UIHelper = class UIHelper {
         });
     }
 
+    static setSelectedColorForColorPicker(red, green, blue)
+    {
+        const selectColorScript = `uiController.setSelectedColorForColorPicker(${red}, ${green}, ${blue})`;
+        return new Promise(resolve => testRunner.runUIScript(selectColorScript, resolve));
+    }
+
     static enterText(text)
     {
         const escapedText = text.replace(/`/g, "\\`");
@@ -888,6 +926,31 @@ window.UIHelper = class UIHelper {
             testRunner.runUIScript(`(() => {
                 uiController.uiScriptComplete(uiController.formInputLabel);
             })()`, resolve);
+        });
+    }
+
+    static dismissFilePicker()
+    {
+        if (!this.isWebKit2() || !this.isIOSFamily())
+            return Promise.resolve();
+
+        const script = `uiController.dismissFilePicker(() => {
+            uiController.uiScriptComplete();
+        })`;
+        return new Promise(resolve => testRunner.runUIScript(script, resolve));
+    }
+
+    static filePickerAcceptedTypeIdentifiers()
+    {
+        if (!this.isWebKit2() || !this.isIOSFamily())
+            return Promise.resolve();
+
+        return new Promise(resolve => {
+            testRunner.runUIScript(`(() => {
+                uiController.uiScriptComplete(JSON.stringify(uiController.filePickerAcceptedTypeIdentifiers));
+            })()`, jsonString => {
+                resolve(JSON.parse(jsonString));
+            });
         });
     }
 
@@ -1031,6 +1094,30 @@ window.UIHelper = class UIHelper {
             return Promise.resolve();
 
         return new Promise(resolve => testRunner.runUIScript(`uiController.resignFirstResponder()`, resolve));
+    }
+
+    static becomeFirstResponder()
+    {
+        if (!this.isWebKit2())
+            return Promise.resolve();
+
+        return new Promise(resolve => testRunner.runUIScript(`uiController.becomeFirstResponder()`, resolve));
+    }
+
+    static removeViewFromWindow()
+    {
+        if (!this.isWebKit2())
+            return Promise.resolve();
+
+        return new Promise(resolve => testRunner.runUIScript(`uiController.removeViewFromWindow()`, resolve));
+    }
+
+    static addViewToWindow()
+    {
+        if (!this.isWebKit2())
+            return Promise.resolve();
+
+        return new Promise(resolve => testRunner.runUIScript(`uiController.addViewToWindow()`, resolve));
     }
 
     static minimumZoomScale()
@@ -1197,11 +1284,17 @@ window.UIHelper = class UIHelper {
         });
     }
 
-    static async chooseMenuAction(action)
+    static chooseMenuAction(action)
     {
-        const menuRect = await this.rectForMenuAction(action);
-        if (menuRect)
-            await this.activateAt(menuRect.left + menuRect.width / 2, menuRect.top + menuRect.height / 2);
+        return new Promise(resolve => {
+            testRunner.runUIScript(`
+                (() => {
+                    uiController.chooseMenuAction("${action}", () => {
+                        uiController.uiScriptComplete();
+                    });
+                })();
+            `, resolve);
+        });
     }
 
     static waitForEvent(target, eventName)
@@ -1253,6 +1346,33 @@ window.UIHelper = class UIHelper {
             scrollTarget.addEventListener("scroll", handleScroll, true);
 
             functionToCall.apply(this, theArguments);
+        });
+    }
+
+    static waitForTargetScrollAnimationToSettle(scrollTarget)
+    {
+        return new Promise((resolved) => {
+            let lastObservedScrollPosition = [scrollTarget.scrollLeft, scrollTarget.scrollTop];
+            let frameOfLastChange = 0;
+            let totalFrames = 0;
+
+            function animationFrame() {
+                if (lastObservedScrollPosition[0] != scrollTarget.scrollLeft ||
+                    lastObservedScrollPosition[1] != scrollTarget.scrollTop) {
+                    lastObservedScrollPosition = [scrollTarget.scrollLeft, scrollTarget.scrollTop];
+                    frameOfLastChange = totalFrames;
+                }
+
+                // If we have gone 20 frames without changing, resolve. If we have gone 500, then time out.
+                // This matches the amount of frames used in the WPT scroll animation helper.
+                if (totalFrames - frameOfLastChange >= 20 || totalFrames > 500)
+                    resolved();
+
+                totalFrames++;
+                requestAnimationFrame(animationFrame);
+            }
+
+            requestAnimationFrame(animationFrame);
         });
     }
 
@@ -1472,6 +1592,31 @@ window.UIHelper = class UIHelper {
        const script = `(() => uiController.dismissContactPickerWithContacts(${JSON.stringify(contacts)}))()`;
        return new Promise(resolve => testRunner.runUIScript(script, resolve));
     }
+
+    static addChromeInputField()
+    {
+        return new Promise(resolve => testRunner.addChromeInputField(resolve));
+    }
+
+    static removeChromeInputField()
+    {
+        return new Promise(resolve => testRunner.removeChromeInputField(resolve));
+    }
+
+    static setTextInChromeInputField(text)
+    {
+        return new Promise(resolve => testRunner.setTextInChromeInputField(text, resolve));
+    }
+
+    static selectChromeInputField()
+    {
+        return new Promise(resolve => testRunner.selectChromeInputField(resolve));
+    }
+
+    static getSelectedTextInChromeInputField()
+    {
+        return new Promise(resolve => testRunner.getSelectedTextInChromeInputField(resolve));
+    }
 }
 
 UIHelper.EventStreamBuilder = class {
@@ -1508,6 +1653,11 @@ UIHelper.EventStreamBuilder = class {
         });
         this.currentX = x;
         this.currentY = y;
+        return this;
+    }
+
+    wait(duration) {
+        this.currentTimeOffset += duration;
         return this;
     }
 

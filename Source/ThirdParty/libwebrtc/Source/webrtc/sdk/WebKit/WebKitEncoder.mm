@@ -222,10 +222,7 @@ std::unique_ptr<webrtc::VideoEncoderFactory> createWebKitEncoderFactory(WebKitH2
 
     auto internalFactory = ObjCToNativeVideoEncoderFactory([[RTCDefaultVideoEncoderFactory alloc] initWithH265: supportsH265 == WebKitH265::On vp9Profile0:supportsVP9 > WebKitVP9::Off vp9Profile2:supportsVP9 == WebKitVP9::Profile0And2 lowLatencyH264:useH264LowLatency == WebKitH264LowLatency::On]);
 
-    if (videoEncoderCallbacks().createCallback)
-        internalFactory = std::make_unique<RemoteVideoEncoderFactory>(std::move(internalFactory));
-
-    return std::make_unique<VideoEncoderFactoryWithSimulcast>(std::move(internalFactory));
+    return std::make_unique<VideoEncoderFactoryWithSimulcast>(std::make_unique<RemoteVideoEncoderFactory>(std::move(internalFactory)));
 }
 
 RemoteVideoEncoder::RemoteVideoEncoder(WebKitVideoEncoder internalEncoder)
@@ -304,7 +301,6 @@ void encoderVideoTaskComplete(void* callback, webrtc::VideoCodecType codecType, 
     encodedImage.timing_ = info.timing;
     encodedImage._frameType = info.frameType;
     encodedImage.rotation_ = info.rotation;
-    encodedImage._completeFrame = info.completeFrame;
     encodedImage.qp_ = info.qp;
     encodedImage.content_type_ = info.contentType;
 
@@ -335,7 +331,6 @@ void* createLocalEncoder(const webrtc::SdpVideoFormat& format, LocalEncoderCallb
         info.frameType = encodedImage._frameType;
         info.rotation = encodedImage.rotation_;
         info.contentType = encodedImage.content_type_;
-        info.completeFrame = encodedImage._completeFrame;
         info.qp = encodedImage.qp_;
         info.timing = encodedImage.timing_;
 

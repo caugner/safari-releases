@@ -105,11 +105,12 @@ void NetworkResourceLoadParameters::encode(IPC::Encoder& encoder) const
     encoder << shouldEnableCrossOriginResourcePolicy;
 
     encoder << frameAncestorOrigins;
-    encoder << isHTTPSUpgradeEnabled;
     encoder << pageHasResourceLoadClient;
     encoder << parentFrameID;
     encoder << crossOriginAccessControlCheckEnabled;
 
+    encoder << documentURL;
+    
 #if ENABLE(SERVICE_WORKER)
     encoder << serviceWorkersMode;
     encoder << serviceWorkerRegistrationIdentifier;
@@ -122,50 +123,51 @@ void NetworkResourceLoadParameters::encode(IPC::Encoder& encoder) const
 #endif
     
     encoder << isNavigatingToAppBoundDomain;
+    encoder << pcmDataCarried;
 }
 
-Optional<NetworkResourceLoadParameters> NetworkResourceLoadParameters::decode(IPC::Decoder& decoder)
+std::optional<NetworkResourceLoadParameters> NetworkResourceLoadParameters::decode(IPC::Decoder& decoder)
 {
     NetworkResourceLoadParameters result;
 
     if (!decoder.decode(result.identifier))
-        return WTF::nullopt;
+        return std::nullopt;
         
-    Optional<WebPageProxyIdentifier> webPageProxyID;
+    std::optional<WebPageProxyIdentifier> webPageProxyID;
     decoder >> webPageProxyID;
     if (!webPageProxyID)
-        return WTF::nullopt;
+        return std::nullopt;
     result.webPageProxyID = *webPageProxyID;
 
-    Optional<PageIdentifier> webPageID;
+    std::optional<PageIdentifier> webPageID;
     decoder >> webPageID;
     if (!webPageID)
-        return WTF::nullopt;
+        return std::nullopt;
     result.webPageID = *webPageID;
 
     if (!decoder.decode(result.webFrameID))
-        return WTF::nullopt;
+        return std::nullopt;
 
     if (!decoder.decode(result.parentPID))
-        return WTF::nullopt;
+        return std::nullopt;
 
     if (!decoder.decode(result.request))
-        return WTF::nullopt;
+        return std::nullopt;
 
     bool hasHTTPBody;
     if (!decoder.decode(hasHTTPBody))
-        return WTF::nullopt;
+        return std::nullopt;
 
     if (hasHTTPBody) {
         RefPtr<FormData> formData = FormData::decode(decoder);
         if (!formData)
-            return WTF::nullopt;
+            return std::nullopt;
         result.request.setHTTPBody(WTFMove(formData));
 
-        Optional<SandboxExtension::HandleArray> requestBodySandboxExtensionHandles;
+        std::optional<SandboxExtension::HandleArray> requestBodySandboxExtensionHandles;
         decoder >> requestBodySandboxExtensionHandles;
         if (!requestBodySandboxExtensionHandles)
-            return WTF::nullopt;
+            return std::nullopt;
         for (size_t i = 0; i < requestBodySandboxExtensionHandles->size(); ++i) {
             if (auto extension = SandboxExtension::create(WTFMove(requestBodySandboxExtensionHandles->at(i))))
                 result.requestBodySandboxExtensions.append(WTFMove(extension));
@@ -173,144 +175,150 @@ Optional<NetworkResourceLoadParameters> NetworkResourceLoadParameters::decode(IP
     }
 
     if (result.request.url().isLocalFile()) {
-        Optional<SandboxExtension::Handle> resourceSandboxExtensionHandle;
+        std::optional<SandboxExtension::Handle> resourceSandboxExtensionHandle;
         decoder >> resourceSandboxExtensionHandle;
         if (!resourceSandboxExtensionHandle)
-            return WTF::nullopt;
+            return std::nullopt;
         result.resourceSandboxExtension = SandboxExtension::create(WTFMove(*resourceSandboxExtensionHandle));
     }
 
     if (!decoder.decode(result.contentSniffingPolicy))
-        return WTF::nullopt;
+        return std::nullopt;
     if (!decoder.decode(result.contentEncodingSniffingPolicy))
-        return WTF::nullopt;
+        return std::nullopt;
     if (!decoder.decode(result.storedCredentialsPolicy))
-        return WTF::nullopt;
+        return std::nullopt;
     if (!decoder.decode(result.clientCredentialPolicy))
-        return WTF::nullopt;
+        return std::nullopt;
     if (!decoder.decode(result.shouldPreconnectOnly))
-        return WTF::nullopt;
+        return std::nullopt;
     if (!decoder.decode(result.shouldClearReferrerOnHTTPSToHTTPRedirect))
-        return WTF::nullopt;
+        return std::nullopt;
     if (!decoder.decode(result.needsCertificateInfo))
-        return WTF::nullopt;
+        return std::nullopt;
     if (!decoder.decode(result.isMainFrameNavigation))
-        return WTF::nullopt;
+        return std::nullopt;
     if (!decoder.decode(result.isMainResourceNavigationForAnyFrame))
-        return WTF::nullopt;
+        return std::nullopt;
     if (!decoder.decode(result.shouldRelaxThirdPartyCookieBlocking))
-        return WTF::nullopt;
+        return std::nullopt;
     if (!decoder.decode(result.maximumBufferingTime))
-        return WTF::nullopt;
+        return std::nullopt;
 
     bool hasSourceOrigin;
     if (!decoder.decode(hasSourceOrigin))
-        return WTF::nullopt;
+        return std::nullopt;
     if (hasSourceOrigin) {
         result.sourceOrigin = SecurityOrigin::decode(decoder);
         if (!result.sourceOrigin)
-            return WTF::nullopt;
+            return std::nullopt;
     }
 
     bool hasTopOrigin;
     if (!decoder.decode(hasTopOrigin))
-        return WTF::nullopt;
+        return std::nullopt;
     if (hasTopOrigin) {
         result.topOrigin = SecurityOrigin::decode(decoder);
         if (!result.topOrigin)
-            return WTF::nullopt;
+            return std::nullopt;
     }
 
-    Optional<FetchOptions> options;
+    std::optional<FetchOptions> options;
     decoder >> options;
     if (!options)
-        return WTF::nullopt;
+        return std::nullopt;
     result.options = *options;
 
     if (!decoder.decode(result.cspResponseHeaders))
-        return WTF::nullopt;
+        return std::nullopt;
     if (!decoder.decode(result.originalRequestHeaders))
-        return WTF::nullopt;
+        return std::nullopt;
 
-    Optional<bool> shouldRestrictHTTPResponseAccess;
+    std::optional<bool> shouldRestrictHTTPResponseAccess;
     decoder >> shouldRestrictHTTPResponseAccess;
     if (!shouldRestrictHTTPResponseAccess)
-        return WTF::nullopt;
+        return std::nullopt;
     result.shouldRestrictHTTPResponseAccess = *shouldRestrictHTTPResponseAccess;
 
     if (!decoder.decode(result.preflightPolicy))
-        return WTF::nullopt;
+        return std::nullopt;
 
-    Optional<bool> shouldEnableCrossOriginResourcePolicy;
+    std::optional<bool> shouldEnableCrossOriginResourcePolicy;
     decoder >> shouldEnableCrossOriginResourcePolicy;
     if (!shouldEnableCrossOriginResourcePolicy)
-        return WTF::nullopt;
+        return std::nullopt;
     result.shouldEnableCrossOriginResourcePolicy = *shouldEnableCrossOriginResourcePolicy;
 
     if (!decoder.decode(result.frameAncestorOrigins))
-        return WTF::nullopt;
+        return std::nullopt;
 
-    Optional<bool> isHTTPSUpgradeEnabled;
-    decoder >> isHTTPSUpgradeEnabled;
-    if (!isHTTPSUpgradeEnabled)
-        return WTF::nullopt;
-    result.isHTTPSUpgradeEnabled = *isHTTPSUpgradeEnabled;
-
-    Optional<bool> pageHasResourceLoadClient;
+    std::optional<bool> pageHasResourceLoadClient;
     decoder >> pageHasResourceLoadClient;
     if (!pageHasResourceLoadClient)
-        return WTF::nullopt;
+        return std::nullopt;
     result.pageHasResourceLoadClient = *pageHasResourceLoadClient;
     
-    Optional<Optional<FrameIdentifier>> parentFrameID;
+    std::optional<std::optional<FrameIdentifier>> parentFrameID;
     decoder >> parentFrameID;
     if (!parentFrameID)
-        return WTF::nullopt;
+        return std::nullopt;
     result.parentFrameID = WTFMove(*parentFrameID);
 
-    Optional<bool> crossOriginAccessControlCheckEnabled;
+    std::optional<bool> crossOriginAccessControlCheckEnabled;
     decoder >> crossOriginAccessControlCheckEnabled;
     if (!crossOriginAccessControlCheckEnabled)
-        return WTF::nullopt;
+        return std::nullopt;
     result.crossOriginAccessControlCheckEnabled = *crossOriginAccessControlCheckEnabled;
     
+    std::optional<URL> documentURL;
+    decoder >> documentURL;
+    if (!documentURL)
+        return std::nullopt;
+    result.documentURL = *documentURL;
+
 #if ENABLE(SERVICE_WORKER)
-    Optional<ServiceWorkersMode> serviceWorkersMode;
+    std::optional<ServiceWorkersMode> serviceWorkersMode;
     decoder >> serviceWorkersMode;
     if (!serviceWorkersMode)
-        return WTF::nullopt;
+        return std::nullopt;
     result.serviceWorkersMode = *serviceWorkersMode;
 
-    Optional<Optional<ServiceWorkerRegistrationIdentifier>> serviceWorkerRegistrationIdentifier;
+    std::optional<std::optional<ServiceWorkerRegistrationIdentifier>> serviceWorkerRegistrationIdentifier;
     decoder >> serviceWorkerRegistrationIdentifier;
     if (!serviceWorkerRegistrationIdentifier)
-        return WTF::nullopt;
+        return std::nullopt;
     result.serviceWorkerRegistrationIdentifier = *serviceWorkerRegistrationIdentifier;
 
-    Optional<OptionSet<HTTPHeadersToKeepFromCleaning>> httpHeadersToKeep;
+    std::optional<OptionSet<HTTPHeadersToKeepFromCleaning>> httpHeadersToKeep;
     decoder >> httpHeadersToKeep;
     if (!httpHeadersToKeep)
-        return WTF::nullopt;
+        return std::nullopt;
     result.httpHeadersToKeep = WTFMove(*httpHeadersToKeep);
 #endif
 
 #if ENABLE(CONTENT_EXTENSIONS)
     if (!decoder.decode(result.mainDocumentURL))
-        return WTF::nullopt;
+        return std::nullopt;
 
-    Optional<Optional<UserContentControllerIdentifier>> userContentControllerIdentifier;
+    std::optional<std::optional<UserContentControllerIdentifier>> userContentControllerIdentifier;
     decoder >> userContentControllerIdentifier;
     if (!userContentControllerIdentifier)
-        return WTF::nullopt;
+        return std::nullopt;
     result.userContentControllerIdentifier = *userContentControllerIdentifier;
 #endif
 
-    Optional<Optional<NavigatingToAppBoundDomain>> isNavigatingToAppBoundDomain;
+    std::optional<std::optional<NavigatingToAppBoundDomain>> isNavigatingToAppBoundDomain;
     decoder >> isNavigatingToAppBoundDomain;
     if (!isNavigatingToAppBoundDomain)
-        return WTF::nullopt;
+        return std::nullopt;
     result.isNavigatingToAppBoundDomain = *isNavigatingToAppBoundDomain;
 
+    std::optional<std::optional<WebCore::PrivateClickMeasurement::PcmDataCarried>> pcmDataCarried;
+    decoder >> pcmDataCarried;
+    if (!pcmDataCarried)
+        return std::nullopt;
+    result.pcmDataCarried = *pcmDataCarried;
+    
     return result;
 }
     

@@ -55,28 +55,6 @@ void ScrollingTreeScrollingNodeDelegateMac::nodeWillBeDestroyed()
     m_scrollController.stopAllTimers();
 }
 
-#if ENABLE(CSS_SCROLL_SNAP)
-static inline Vector<LayoutUnit> convertToLayoutUnits(const Vector<float>& snapOffsetsAsFloat)
-{
-    Vector<LayoutUnit> snapOffsets;
-    snapOffsets.reserveInitialCapacity(snapOffsetsAsFloat.size());
-    for (auto offset : snapOffsetsAsFloat)
-        snapOffsets.uncheckedAppend(offset);
-
-    return snapOffsets;
-}
-
-static inline Vector<ScrollOffsetRange<LayoutUnit>> convertToLayoutUnits(const Vector<ScrollOffsetRange<float>>& snapOffsetRangesAsFloat)
-{
-    Vector<ScrollOffsetRange<LayoutUnit>> snapOffsetRanges;
-    snapOffsetRanges.reserveInitialCapacity(snapOffsetRangesAsFloat.size());
-    for (auto range : snapOffsetRangesAsFloat)
-        snapOffsetRanges.uncheckedAppend({ LayoutUnit(range.start), LayoutUnit(range.end) });
-
-    return snapOffsetRanges;
-}
-#endif
-
 void ScrollingTreeScrollingNodeDelegateMac::updateFromStateNode(const ScrollingStateScrollingNode& scrollingStateNode)
 {
     if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::PainterForScrollbar)) {
@@ -85,32 +63,17 @@ void ScrollingTreeScrollingNodeDelegateMac::updateFromStateNode(const ScrollingS
         m_horizontalScrollerImp = scrollingStateNode.horizontalScrollerImp();
     }
 
-#if ENABLE(CSS_SCROLL_SNAP)
-    if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::HorizontalSnapOffsets) || scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::HorizontalSnapOffsetRanges))
-        updateScrollSnapPoints(ScrollEventAxis::Horizontal, convertToLayoutUnits(scrollingStateNode.horizontalSnapOffsets()), convertToLayoutUnits(scrollingStateNode.horizontalSnapOffsetRanges()));
-
-    if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::VerticalSnapOffsets) || scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::VerticalSnapOffsetRanges))
-        updateScrollSnapPoints(ScrollEventAxis::Vertical, convertToLayoutUnits(scrollingStateNode.verticalSnapOffsets()), convertToLayoutUnits(scrollingStateNode.verticalSnapOffsetRanges()));
+    if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::SnapOffsetsInfo))
+        m_scrollController.setSnapOffsetsInfo(scrollingStateNode.snapOffsetsInfo().convertUnits<LayoutScrollSnapOffsetsInfo>());
 
     if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::CurrentHorizontalSnapOffsetIndex))
-        setActiveScrollSnapIndexForAxis(ScrollEventAxis::Horizontal, scrollingStateNode.currentHorizontalSnapPointIndex());
-    
+        m_scrollController.setActiveScrollSnapIndexForAxis(ScrollEventAxis::Horizontal, scrollingStateNode.currentHorizontalSnapPointIndex());
+
     if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::CurrentVerticalSnapOffsetIndex))
-        setActiveScrollSnapIndexForAxis(ScrollEventAxis::Vertical, scrollingStateNode.currentVerticalSnapPointIndex());
-#endif
+        m_scrollController.setActiveScrollSnapIndexForAxis(ScrollEventAxis::Vertical, scrollingStateNode.currentVerticalSnapPointIndex());
 }
 
-void ScrollingTreeScrollingNodeDelegateMac::updateScrollSnapPoints(ScrollEventAxis axis, const Vector<LayoutUnit>& snapOffsets, const Vector<ScrollOffsetRange<LayoutUnit>>& snapRanges)
-{
-    m_scrollController.updateScrollSnapPoints(axis, snapOffsets, snapRanges);
-}
-
-void ScrollingTreeScrollingNodeDelegateMac::setActiveScrollSnapIndexForAxis(ScrollEventAxis axis, unsigned index)
-{
-    m_scrollController.setActiveScrollSnapIndexForAxis(axis, index);
-}
-
-unsigned ScrollingTreeScrollingNodeDelegateMac::activeScrollSnapIndexForAxis(ScrollEventAxis axis) const
+std::optional<unsigned> ScrollingTreeScrollingNodeDelegateMac::activeScrollSnapIndexForAxis(ScrollEventAxis axis) const
 {
     return m_scrollController.activeScrollSnapIndexForAxis(axis);
 }
@@ -134,9 +97,7 @@ bool ScrollingTreeScrollingNodeDelegateMac::handleWheelEvent(const PlatformWheel
         [m_horizontalScrollerImp setUsePresentationValue:m_inMomentumPhase];
     }
 
-#if ENABLE(CSS_SCROLL_SNAP) || ENABLE(RUBBER_BANDING)
     auto deferrer = WheelEventTestMonitorCompletionDeferrer { scrollingTree().wheelEventTestMonitor(), reinterpret_cast<WheelEventTestMonitor::ScrollableAreaIdentifier>(scrollingNode().scrollingNodeID()), WheelEventTestMonitor::HandlingWheelEvent };
-#endif
 
     bool wasInUserScroll = m_scrollController.isUserScrollInProgress();
     m_scrollController.updateGestureInProgressState(wheelEvent);
@@ -255,9 +216,31 @@ bool ScrollingTreeScrollingNodeDelegateMac::isPinnedForScrollDeltaOnAxis(float s
 std::unique_ptr<ScrollControllerTimer> ScrollingTreeScrollingNodeDelegateMac::createTimer(Function<void()>&& function)
 {
     return WTF::makeUnique<ScrollControllerTimer>(RunLoop::current(), [function = WTFMove(function), protectedNode = makeRef(scrollingNode())] {
-        LockHolder locker(protectedNode->scrollingTree().treeMutex());
+        Locker locker { protectedNode->scrollingTree().treeLock() };
         function();
     });
+}
+
+void ScrollingTreeScrollingNodeDelegateMac::startAnimationCallback(ScrollController&)
+{
+    if (!m_scrollControllerAnimationTimer)
+        m_scrollControllerAnimationTimer = WTF::makeUnique<RunLoop::Timer<ScrollingTreeScrollingNodeDelegateMac>>(RunLoop::current(), this, &ScrollingTreeScrollingNodeDelegateMac::scrollControllerAnimationTimerFired);
+
+    if (m_scrollControllerAnimationTimer->isActive())
+        return;
+
+    m_scrollControllerAnimationTimer->startRepeating(1_s / 60.);
+}
+
+void ScrollingTreeScrollingNodeDelegateMac::stopAnimationCallback(ScrollController&)
+{
+    if (m_scrollControllerAnimationTimer)
+        m_scrollControllerAnimationTimer->stop();
+}
+
+void ScrollingTreeScrollingNodeDelegateMac::scrollControllerAnimationTimerFired()
+{
+    m_scrollController.animationCallback(MonotonicTime::now());
 }
 
 bool ScrollingTreeScrollingNodeDelegateMac::allowsHorizontalStretching(const PlatformWheelEvent& wheelEvent) const
@@ -395,7 +378,6 @@ void ScrollingTreeScrollingNodeDelegateMac::adjustScrollPositionToBoundsIfNecess
     immediateScrollBy(constrainedPosition - scrollPosition);
 }
 
-#if ENABLE(CSS_SCROLL_SNAP)
 FloatPoint ScrollingTreeScrollingNodeDelegateMac::scrollOffset() const
 {
     return ScrollableArea::scrollOffsetFromPosition(currentScrollPosition(), scrollOrigin());
@@ -442,7 +424,6 @@ FloatSize ScrollingTreeScrollingNodeDelegateMac::viewportSize() const
 {
     return scrollableAreaSize();
 }
-#endif
 
 void ScrollingTreeScrollingNodeDelegateMac::deferWheelEventTestCompletionForReason(WheelEventTestMonitor::ScrollableAreaIdentifier identifier, WheelEventTestMonitor::DeferReason reason) const
 {

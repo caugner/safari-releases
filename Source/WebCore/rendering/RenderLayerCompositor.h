@@ -35,6 +35,7 @@
 
 namespace WebCore {
 
+class DisplayRefreshMonitorFactory;
 class FixedPositionViewportConstraints;
 class GraphicsLayer;
 class GraphicsLayerUpdater;
@@ -83,6 +84,7 @@ enum class CompositingReason {
     WillChange                             = 1 << 24,
     Root                                   = 1 << 25,
     IsolatesCompositedBlendingDescendants  = 1 << 26,
+    Model                                  = 1 << 27,
 };
 
 enum class ScrollCoordinationRole {
@@ -314,7 +316,11 @@ public:
 
     void widgetDidChangeSize(RenderWidget&);
 
-    String layerTreeAsText(LayerTreeFlags);
+    WEBCORE_EXPORT String layerTreeAsText(LayerTreeFlags = 0) const;
+    WEBCORE_EXPORT String trackedRepaintRectsAsText() const;
+
+    WEBCORE_EXPORT String layerTreeAsText(LayerTreeFlags = 0);
+    WEBCORE_EXPORT std::optional<String> platformLayerTreeAsText(Element&, OptionSet<PlatformLayerTreeAsTextFlags>);
 
     float deviceScaleFactor() const override;
     float contentsScaleMultiplierForNewTiles(const GraphicsLayer*) const override;
@@ -343,7 +349,9 @@ public:
     GraphicsLayer* updateLayerForBottomOverhangArea(bool wantsLayer);
     GraphicsLayer* updateLayerForHeader(bool wantsLayer);
     GraphicsLayer* updateLayerForFooter(bool wantsLayer);
-#endif
+
+    void updateLayerForOverhangAreasBackgroundColor();
+#endif // ENABLE(RUBBER_BANDING)
 
     // FIXME: make the coordinated/async terminology consistent.
     bool isViewportConstrainedFixedOrStickyLayer(const RenderLayer&) const;
@@ -375,9 +383,7 @@ public:
 
     void updateRootContentLayerClipping();
 
-#if ENABLE(CSS_SCROLL_SNAP)
     void updateScrollSnapPropertiesWithFrameView(const FrameView&) const;
-#endif
 
     // For testing.
     void startTrackingLayerFlushes() { m_layerFlushCount = 0; }
@@ -401,7 +407,8 @@ private:
     bool isTrackingRepaints() const override { return m_isTrackingRepaints; }
     
     // GraphicsLayerUpdaterClient implementation
-    void flushLayersSoon(GraphicsLayerUpdater&) override;
+    void flushLayersSoon(GraphicsLayerUpdater&) final;
+    DisplayRefreshMonitorFactory* displayRefreshMonitorFactory() final;
 
     // Copy the accelerated compositing related flags from Settings
     void cacheAcceleratedCompositingFlags();
@@ -484,8 +491,6 @@ private:
     GraphicsLayerFactory* graphicsLayerFactory() const;
     ScrollingCoordinator* scrollingCoordinator() const;
 
-    RefPtr<DisplayRefreshMonitor> createDisplayRefreshMonitor(PlatformDisplayID) const override;
-
     // Non layout-dependent
     bool requiresCompositingForAnimation(RenderLayerModelObject&) const;
     bool requiresCompositingForTransform(RenderLayerModelObject&) const;
@@ -494,6 +499,7 @@ private:
     bool requiresCompositingForCanvas(RenderLayerModelObject&) const;
     bool requiresCompositingForFilters(RenderLayerModelObject&) const;
     bool requiresCompositingForWillChange(RenderLayerModelObject&) const;
+    bool requiresCompositingForModel(RenderLayerModelObject&) const;
 
     // Layout-dependent
     bool requiresCompositingForPlugin(RenderLayerModelObject&, RequiresCompositingData&) const;
@@ -561,14 +567,15 @@ private:
     bool shouldCompositeOverflowControls() const;
 
 #if !LOG_DISABLED
-    const char* logReasonsForCompositing(const RenderLayer&);
+    const char* logOneReasonForCompositing(const RenderLayer&);
     void logLayerInfo(const RenderLayer&, const char*, int depth);
 #endif
 
     bool documentUsesTiledBacking() const;
     bool isMainFrameCompositor() const;
-    
-private:
+
+    void updateCompositingForLayerTreeAsTextDump();
+
     RenderView& m_renderView;
     Timer m_updateCompositingLayersTimer;
 
@@ -645,6 +652,7 @@ void paintScrollbar(Scrollbar*, GraphicsContext&, const IntRect& clip);
 
 WTF::TextStream& operator<<(WTF::TextStream&, CompositingUpdateType);
 WTF::TextStream& operator<<(WTF::TextStream&, CompositingPolicy);
+WTF::TextStream& operator<<(WTF::TextStream&, CompositingReason);
 
 } // namespace WebCore
 

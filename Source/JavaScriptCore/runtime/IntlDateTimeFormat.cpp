@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2015 Andy VanWagoner (andy@vanwagoner.family)
- * Copyright (C) 2016-2020 Apple Inc. All rights reserved.
+ * Copyright (C) 2016-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -31,6 +31,7 @@
 #include "IntlObjectInlines.h"
 #include "JSBoundFunction.h"
 #include "JSCInlines.h"
+#include "JSDateMath.h"
 #include "ObjectConstructor.h"
 #include <unicode/ucal.h>
 #include <unicode/uenum.h>
@@ -58,8 +59,6 @@ void UDateIntervalFormatDeleter::operator()(UDateIntervalFormat* formatter)
     if (formatter)
         udtitvfmt_close(formatter);
 }
-
-static constexpr double minECMAScriptTime = -8.64E15;
 
 const ClassInfo IntlDateTimeFormat::s_info = { "Object", &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(IntlDateTimeFormat) };
 
@@ -90,7 +89,8 @@ void IntlDateTimeFormat::finishCreation(VM& vm)
     ASSERT(inherits(vm, info()));
 }
 
-void IntlDateTimeFormat::visitChildren(JSCell* cell, SlotVisitor& visitor)
+template<typename Visitor>
+void IntlDateTimeFormat::visitChildrenImpl(JSCell* cell, Visitor& visitor)
 {
     IntlDateTimeFormat* thisObject = jsCast<IntlDateTimeFormat*>(cell);
     ASSERT_GC_OBJECT_INHERITS(thisObject, info());
@@ -99,6 +99,8 @@ void IntlDateTimeFormat::visitChildren(JSCell* cell, SlotVisitor& visitor)
 
     visitor.append(thisObject->m_boundFormat);
 }
+
+DEFINE_VISIT_CHILDREN(IntlDateTimeFormat);
 
 void IntlDateTimeFormat::setBoundFormat(VM& vm, JSBoundFunction* format)
 {
@@ -205,7 +207,7 @@ static JSObject* toDateTimeOptionsAnyDate(JSGlobalObject* globalObject, JSValue 
         options = constructEmptyObject(vm, globalObject->nullPrototypeObjectStructure());
     else {
         JSObject* originalToObject = originalOptions.toObject(globalObject);
-        RETURN_IF_EXCEPTION(scope, nullptr);
+        RETURN_IF_EXCEPTION(scope, { });
         options = constructEmptyObject(globalObject, originalToObject);
     }
 
@@ -221,22 +223,22 @@ static JSObject* toDateTimeOptionsAnyDate(JSGlobalObject* globalObject, JSValue 
     // iii. ReturnIfAbrupt(value).
     // iv. If value is not undefined, then let needDefaults be false.
     JSValue weekday = options->get(globalObject, vm.propertyNames->weekday);
-    RETURN_IF_EXCEPTION(scope, nullptr);
+    RETURN_IF_EXCEPTION(scope, { });
     if (!weekday.isUndefined())
         needDefaults = false;
 
     JSValue year = options->get(globalObject, vm.propertyNames->year);
-    RETURN_IF_EXCEPTION(scope, nullptr);
+    RETURN_IF_EXCEPTION(scope, { });
     if (!year.isUndefined())
         needDefaults = false;
 
     JSValue month = options->get(globalObject, vm.propertyNames->month);
-    RETURN_IF_EXCEPTION(scope, nullptr);
+    RETURN_IF_EXCEPTION(scope, { });
     if (!month.isUndefined())
         needDefaults = false;
 
     JSValue day = options->get(globalObject, vm.propertyNames->day);
-    RETURN_IF_EXCEPTION(scope, nullptr);
+    RETURN_IF_EXCEPTION(scope, { });
     if (!day.isUndefined())
         needDefaults = false;
 
@@ -250,35 +252,35 @@ static JSObject* toDateTimeOptionsAnyDate(JSGlobalObject* globalObject, JSValue 
     // iv. If value is not undefined, then let needDefaults be false.
     if (Options::useIntlDateTimeFormatDayPeriod()) {
         JSValue dayPeriod = options->get(globalObject, vm.propertyNames->dayPeriod);
-        RETURN_IF_EXCEPTION(scope, nullptr);
+        RETURN_IF_EXCEPTION(scope, { });
         if (!dayPeriod.isUndefined())
             needDefaults = false;
     }
 
     JSValue hour = options->get(globalObject, vm.propertyNames->hour);
-    RETURN_IF_EXCEPTION(scope, nullptr);
+    RETURN_IF_EXCEPTION(scope, { });
     if (!hour.isUndefined())
         needDefaults = false;
 
     JSValue minute = options->get(globalObject, vm.propertyNames->minute);
-    RETURN_IF_EXCEPTION(scope, nullptr);
+    RETURN_IF_EXCEPTION(scope, { });
     if (!minute.isUndefined())
         needDefaults = false;
 
     JSValue second = options->get(globalObject, vm.propertyNames->second);
-    RETURN_IF_EXCEPTION(scope, nullptr);
+    RETURN_IF_EXCEPTION(scope, { });
     if (!second.isUndefined())
         needDefaults = false;
 
     JSValue fractionalSecondDigits = options->get(globalObject, vm.propertyNames->fractionalSecondDigits);
-    RETURN_IF_EXCEPTION(scope, nullptr);
+    RETURN_IF_EXCEPTION(scope, { });
     if (!fractionalSecondDigits.isUndefined())
         needDefaults = false;
 
     JSValue dateStyle = options->get(globalObject, vm.propertyNames->dateStyle);
-    RETURN_IF_EXCEPTION(scope, nullptr);
+    RETURN_IF_EXCEPTION(scope, { });
     JSValue timeStyle = options->get(globalObject, vm.propertyNames->timeStyle);
-    RETURN_IF_EXCEPTION(scope, nullptr);
+    RETURN_IF_EXCEPTION(scope, { });
 
     if (!dateStyle.isUndefined() || !timeStyle.isUndefined())
         needDefaults = false;
@@ -292,13 +294,13 @@ static JSObject* toDateTimeOptionsAnyDate(JSGlobalObject* globalObject, JSValue 
         JSString* numeric = jsNontrivialString(vm, "numeric"_s);
 
         options->putDirect(vm, vm.propertyNames->year, numeric);
-        RETURN_IF_EXCEPTION(scope, nullptr);
+        RETURN_IF_EXCEPTION(scope, { });
 
         options->putDirect(vm, vm.propertyNames->month, numeric);
-        RETURN_IF_EXCEPTION(scope, nullptr);
+        RETURN_IF_EXCEPTION(scope, { });
 
         options->putDirect(vm, vm.propertyNames->day, numeric);
-        RETURN_IF_EXCEPTION(scope, nullptr);
+        RETURN_IF_EXCEPTION(scope, { });
     }
 
     // 8. If needDefaults is true and defaults is either "time" or "all", then
@@ -560,11 +562,11 @@ void IntlDateTimeFormat::initializeDateTimeFormat(JSGlobalObject* globalObject, 
             localeOptions[static_cast<unsigned>(RelevantExtensionKey::Hc)] = String(hourCycleString(hourCycle));
     } else {
         // If there is hour12, hourCycle is ignored.
-        // We are setting null String explicitly here (localeOptions' entries are Optional<String>). This leads us to use HourCycle::None later.
+        // We are setting null String explicitly here (localeOptions' entries are std::optional<String>). This leads us to use HourCycle::None later.
         localeOptions[static_cast<unsigned>(RelevantExtensionKey::Hc)] = String();
     }
 
-    const HashSet<String>& availableLocales = intlDateTimeFormatAvailableLocales();
+    const auto& availableLocales = intlDateTimeFormatAvailableLocales();
     auto resolved = resolveLocale(globalObject, availableLocales, requestedLocales, localeMatcher, localeOptions, { RelevantExtensionKey::Ca, RelevantExtensionKey::Hc, RelevantExtensionKey::Nu }, localeData);
 
     m_locale = resolved.locale;
@@ -607,13 +609,13 @@ void IntlDateTimeFormat::initializeDateTimeFormat(JSGlobalObject* globalObject, 
     RETURN_IF_EXCEPTION(scope, void());
     switch (weekday) {
     case Weekday::Narrow:
-        skeletonBuilder.appendLiteral("EEEEE");
+        skeletonBuilder.append("EEEEE");
         break;
     case Weekday::Short:
-        skeletonBuilder.appendLiteral("EEE");
+        skeletonBuilder.append("EEE");
         break;
     case Weekday::Long:
-        skeletonBuilder.appendLiteral("EEEE");
+        skeletonBuilder.append("EEEE");
         break;
     case Weekday::None:
         break;
@@ -623,13 +625,13 @@ void IntlDateTimeFormat::initializeDateTimeFormat(JSGlobalObject* globalObject, 
     RETURN_IF_EXCEPTION(scope, void());
     switch (era) {
     case Era::Narrow:
-        skeletonBuilder.appendLiteral("GGGGG");
+        skeletonBuilder.append("GGGGG");
         break;
     case Era::Short:
-        skeletonBuilder.appendLiteral("GGG");
+        skeletonBuilder.append("GGG");
         break;
     case Era::Long:
-        skeletonBuilder.appendLiteral("GGGG");
+        skeletonBuilder.append("GGGG");
         break;
     case Era::None:
         break;
@@ -639,7 +641,7 @@ void IntlDateTimeFormat::initializeDateTimeFormat(JSGlobalObject* globalObject, 
     RETURN_IF_EXCEPTION(scope, void());
     switch (year) {
     case Year::TwoDigit:
-        skeletonBuilder.appendLiteral("yy");
+        skeletonBuilder.append("yy");
         break;
     case Year::Numeric:
         skeletonBuilder.append('y');
@@ -652,19 +654,19 @@ void IntlDateTimeFormat::initializeDateTimeFormat(JSGlobalObject* globalObject, 
     RETURN_IF_EXCEPTION(scope, void());
     switch (month) {
     case Month::TwoDigit:
-        skeletonBuilder.appendLiteral("MM");
+        skeletonBuilder.append("MM");
         break;
     case Month::Numeric:
         skeletonBuilder.append('M');
         break;
     case Month::Narrow:
-        skeletonBuilder.appendLiteral("MMMMM");
+        skeletonBuilder.append("MMMMM");
         break;
     case Month::Short:
-        skeletonBuilder.appendLiteral("MMM");
+        skeletonBuilder.append("MMM");
         break;
     case Month::Long:
-        skeletonBuilder.appendLiteral("MMMM");
+        skeletonBuilder.append("MMMM");
         break;
     case Month::None:
         break;
@@ -674,7 +676,7 @@ void IntlDateTimeFormat::initializeDateTimeFormat(JSGlobalObject* globalObject, 
     RETURN_IF_EXCEPTION(scope, void());
     switch (day) {
     case Day::TwoDigit:
-        skeletonBuilder.appendLiteral("dd");
+        skeletonBuilder.append("dd");
         break;
     case Day::Numeric:
         skeletonBuilder.append('d');
@@ -743,13 +745,13 @@ void IntlDateTimeFormat::initializeDateTimeFormat(JSGlobalObject* globalObject, 
         // https://unicode-org.atlassian.net/browse/ICU-20731
         switch (dayPeriod) {
         case DayPeriod::Narrow:
-            skeletonBuilder.appendLiteral("BBBBB");
+            skeletonBuilder.append("BBBBB");
             break;
         case DayPeriod::Short:
             skeletonBuilder.append('B');
             break;
         case DayPeriod::Long:
-            skeletonBuilder.appendLiteral("BBBB");
+            skeletonBuilder.append("BBBB");
             break;
         case DayPeriod::None:
             break;
@@ -760,7 +762,7 @@ void IntlDateTimeFormat::initializeDateTimeFormat(JSGlobalObject* globalObject, 
     RETURN_IF_EXCEPTION(scope, void());
     switch (minute) {
     case Minute::TwoDigit:
-        skeletonBuilder.appendLiteral("mm");
+        skeletonBuilder.append("mm");
         break;
     case Minute::Numeric:
         skeletonBuilder.append('m');
@@ -773,7 +775,7 @@ void IntlDateTimeFormat::initializeDateTimeFormat(JSGlobalObject* globalObject, 
     RETURN_IF_EXCEPTION(scope, void());
     switch (second) {
     case Second::TwoDigit:
-        skeletonBuilder.appendLiteral("ss");
+        skeletonBuilder.append("ss");
         break;
     case Second::Numeric:
         skeletonBuilder.append('s');
@@ -794,7 +796,7 @@ void IntlDateTimeFormat::initializeDateTimeFormat(JSGlobalObject* globalObject, 
         skeletonBuilder.append('z');
         break;
     case TimeZoneName::Long:
-        skeletonBuilder.appendLiteral("zzzz");
+        skeletonBuilder.append("zzzz");
         break;
     case TimeZoneName::None:
         break;

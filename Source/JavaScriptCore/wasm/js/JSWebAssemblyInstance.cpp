@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2019 Apple Inc. All rights reserved.
+ * Copyright (C) 2016-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -73,7 +73,8 @@ void JSWebAssemblyInstance::destroy(JSCell* cell)
     static_cast<JSWebAssemblyInstance*>(cell)->JSWebAssemblyInstance::~JSWebAssemblyInstance();
 }
 
-void JSWebAssemblyInstance::visitChildren(JSCell* cell, SlotVisitor& visitor)
+template<typename Visitor>
+void JSWebAssemblyInstance::visitChildrenImpl(JSCell* cell, Visitor& visitor)
 {
     auto* thisObject = jsCast<JSWebAssemblyInstance*>(cell);
     ASSERT_GC_OBJECT_INHERITS(thisObject, info());
@@ -83,8 +84,8 @@ void JSWebAssemblyInstance::visitChildren(JSCell* cell, SlotVisitor& visitor)
     visitor.append(thisObject->m_codeBlock);
     visitor.append(thisObject->m_moduleRecord);
     visitor.append(thisObject->m_memory);
-    for (unsigned i = 0; i < thisObject->instance().module().moduleInformation().tableCount(); ++i)
-        visitor.append(thisObject->m_tables[i]);
+    for (auto& table : thisObject->m_tables)
+        visitor.append(table);
     visitor.reportExtraMemoryVisited(thisObject->m_instance->extraMemoryAllocated());
     for (unsigned i = 0; i < thisObject->instance().numImportFunctions(); ++i)
         visitor.append(*thisObject->instance().importFunction<WriteBarrier<JSObject>>(i)); // This also keeps the functions' JSWebAssemblyInstance alive.
@@ -97,10 +98,12 @@ void JSWebAssemblyInstance::visitChildren(JSCell* cell, SlotVisitor& visitor)
     for (size_t i : thisObject->instance().globalsToMark())
         visitor.appendUnbarriered(JSValue::decode(thisObject->instance().loadI64Global(i)));
 
-    auto locker = holdLock(cell->cellLock());
+    Locker locker { cell->cellLock() };
     for (auto& wrapper : thisObject->instance().functionWrappers())
         visitor.appendUnbarriered(wrapper.get());
 }
+
+DEFINE_VISIT_CHILDREN(JSWebAssemblyInstance);
 
 void JSWebAssemblyInstance::finalizeCreation(VM& vm, JSGlobalObject* globalObject, Ref<Wasm::CodeBlock>&& wasmCodeBlock, JSObject* importObject, Wasm::CreationMode creationMode)
 {
@@ -109,7 +112,7 @@ void JSWebAssemblyInstance::finalizeCreation(VM& vm, JSGlobalObject* globalObjec
     auto scope = DECLARE_THROW_SCOPE(vm);
 
     if (!wasmCodeBlock->runnable()) {
-        throwException(globalObject, scope, JSWebAssemblyLinkError::create(globalObject, vm, this->globalObject()->webAssemblyLinkErrorStructure(), wasmCodeBlock->errorMessage()));
+        throwException(globalObject, scope, createJSWebAssemblyLinkError(globalObject, vm, wasmCodeBlock->errorMessage()));
         return;
     }
 
@@ -125,7 +128,7 @@ void JSWebAssemblyInstance::finalizeCreation(VM& vm, JSGlobalObject* globalObjec
     } else {
         jsCodeBlock = JSWebAssemblyCodeBlock::create(vm, WTFMove(wasmCodeBlock), module()->module().moduleInformation());
         if (UNLIKELY(!jsCodeBlock->runnable())) {
-            throwException(globalObject, scope, JSWebAssemblyLinkError::create(globalObject, vm, this->globalObject()->webAssemblyLinkErrorStructure(), jsCodeBlock->errorMessage()));
+            throwException(globalObject, scope, createJSWebAssemblyLinkError(globalObject, vm, jsCodeBlock->errorMessage()));
             return;
         }
         m_codeBlock.set(vm, this, jsCodeBlock);

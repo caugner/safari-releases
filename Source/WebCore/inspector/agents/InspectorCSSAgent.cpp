@@ -37,9 +37,11 @@
 #include "CSSStyleRule.h"
 #include "CSSStyleSheet.h"
 #include "CSSValueKeywords.h"
+#include "ContainerNode.h"
 #include "ContentSecurityPolicy.h"
 #include "DOMWindow.h"
 #include "ElementAncestorIterator.h"
+#include "ElementChildIterator.h"
 #include "Font.h"
 #include "FontCache.h"
 #include "FontCascade.h"
@@ -54,6 +56,7 @@
 #include "Node.h"
 #include "NodeList.h"
 #include "PseudoElement.h"
+#include "RenderGrid.h"
 #include "RenderStyleConstants.h"
 #include "SVGStyleElement.h"
 #include "SelectorChecker.h"
@@ -66,7 +69,6 @@
 #include "StyleSheetContents.h"
 #include "StyleSheetList.h"
 #include <JavaScriptCore/InspectorProtocolObjects.h>
-#include <wtf/Optional.h>
 #include <wtf/Ref.h>
 #include <wtf/Vector.h>
 #include <wtf/text/CString.h>
@@ -301,6 +303,7 @@ InspectorCSSAgent::InspectorCSSAgent(WebAgentContext& context)
     : InspectorAgentBase("CSS"_s, context)
     , m_frontendDispatcher(makeUnique<CSSFrontendDispatcher>(context.frontendRouter))
     , m_backendDispatcher(CSSBackendDispatcher::create(context.backendDispatcher, this))
+    , m_layoutContextTypeChangedTimer(*this, &InspectorCSSAgent::layoutContextTypeChangedTimerFired)
 {
 }
 
@@ -323,6 +326,10 @@ void InspectorCSSAgent::reset()
     m_nodeToInspectorStyleSheet.clear();
     m_documentToInspectorStyleSheet.clear();
     m_documentToKnownCSSStyleSheets.clear();
+    m_nodesWithPendingLayoutContextTypeChanges.clear();
+    if (m_layoutContextTypeChangedTimer.isActive())
+        m_layoutContextTypeChangedTimer.stop();
+    m_layoutContextTypeChangedMode = Protocol::CSS::LayoutContextTypeChangedMode::Observed;
     resetPseudoStates();
 }
 
@@ -433,7 +440,7 @@ bool InspectorCSSAgent::forcePseudoState(const Element& element, CSSSelector::Ps
     }
 }
 
-static Optional<Protocol::CSS::PseudoId> protocolValueForPseudoId(PseudoId pseudoId)
+static std::optional<Protocol::CSS::PseudoId> protocolValueForPseudoId(PseudoId pseudoId)
 {
     switch (pseudoId) {
     case PseudoId::FirstLine:
@@ -471,7 +478,7 @@ static Optional<Protocol::CSS::PseudoId> protocolValueForPseudoId(PseudoId pseud
     }
 }
 
-Protocol::ErrorStringOr<std::tuple<RefPtr<JSON::ArrayOf<Protocol::CSS::RuleMatch>>, RefPtr<JSON::ArrayOf<Protocol::CSS::PseudoIdMatches>>, RefPtr<JSON::ArrayOf<Protocol::CSS::InheritedStyleEntry>>>> InspectorCSSAgent::getMatchedStylesForNode(Protocol::DOM::NodeId nodeId, Optional<bool>&& includePseudo, Optional<bool>&& includeInherited)
+Protocol::ErrorStringOr<std::tuple<RefPtr<JSON::ArrayOf<Protocol::CSS::RuleMatch>>, RefPtr<JSON::ArrayOf<Protocol::CSS::PseudoIdMatches>>, RefPtr<JSON::ArrayOf<Protocol::CSS::InheritedStyleEntry>>>> InspectorCSSAgent::getMatchedStylesForNode(Protocol::DOM::NodeId nodeId, std::optional<bool>&& includePseudo, std::optional<bool>&& includeInherited)
 {
     Protocol::ErrorString errorString;
 
@@ -498,6 +505,9 @@ Protocol::ErrorStringOr<std::tuple<RefPtr<JSON::ArrayOf<Protocol::CSS::RuleMatch
         if (!includePseudo || *includePseudo) {
             pseudoElements = JSON::ArrayOf<Protocol::CSS::PseudoIdMatches>::create();
             for (PseudoId pseudoId = PseudoId::FirstPublicPseudoId; pseudoId < PseudoId::AfterLastInternalPseudoId; pseudoId = static_cast<PseudoId>(static_cast<unsigned>(pseudoId) + 1)) {
+                // `*::marker` selectors are only applicable to elements with `display: list-item`.
+                if (pseudoId == PseudoId::Marker && element->computedStyle()->display() != DisplayType::ListItem)
+                    continue;
                 if (auto protocolPseudoId = protocolValueForPseudoId(pseudoId)) {
                     auto matchedRules = styleResolver.pseudoStyleRulesForElement(element, pseudoId, Style::Resolver::AllCSSRules);
                     if (!matchedRules.isEmpty()) {
@@ -924,6 +934,66 @@ Protocol::ErrorStringOr<void> InspectorCSSAgent::forcePseudoState(Protocol::DOM:
     return { };
 }
 
+std::optional<Protocol::CSS::LayoutContextType> InspectorCSSAgent::layoutContextTypeForRenderer(RenderObject* renderer)
+{
+    if (is<RenderGrid>(renderer))
+        return Protocol::CSS::LayoutContextType::Grid;
+    return std::nullopt;
+}
+
+static void pushChildrenNodesToFrontendIfLayoutContextTypePresent(InspectorDOMAgent& domAgent, ContainerNode& node)
+{
+    for (auto& child : childrenOfType<Element>(node))
+        pushChildrenNodesToFrontendIfLayoutContextTypePresent(domAgent, child);
+    
+    if (InspectorCSSAgent::layoutContextTypeForRenderer(node.renderer()))
+        domAgent.pushNodeToFrontend(&node);
+}
+
+Protocol::ErrorStringOr<void> InspectorCSSAgent::setLayoutContextTypeChangedMode(Protocol::CSS::LayoutContextTypeChangedMode mode)
+{
+    if (m_layoutContextTypeChangedMode == mode)
+        return { };
+    
+    m_layoutContextTypeChangedMode = mode;
+    
+    if (mode == Protocol::CSS::LayoutContextTypeChangedMode::All) {
+        auto* domAgent = m_instrumentingAgents.persistentDOMAgent();
+        if (!domAgent)
+            return makeUnexpected("DOM domain must be enabled"_s);
+
+        for (auto* document : domAgent->documents())
+            pushChildrenNodesToFrontendIfLayoutContextTypePresent(*domAgent, *document);
+    }
+    
+    return { };
+}
+
+void InspectorCSSAgent::nodeLayoutContextTypeChanged(Node& node, RenderObject* newRenderer)
+{
+    auto* domAgent = m_instrumentingAgents.persistentDOMAgent();
+    if (!domAgent)
+        return;
+
+    auto nodeId = domAgent->boundNodeId(&node);
+    if (!nodeId && m_layoutContextTypeChangedMode == Protocol::CSS::LayoutContextTypeChangedMode::All) {
+        // FIXME: <https://webkit.org/b/189687> Preserve DOM.NodeId if a node is removed and re-added
+        nodeId = domAgent->identifierForNode(node);
+    }
+    if (!nodeId)
+        return;
+
+    m_nodesWithPendingLayoutContextTypeChanges.set(nodeId, layoutContextTypeForRenderer(newRenderer));
+    if (!m_layoutContextTypeChangedTimer.isActive())
+        m_layoutContextTypeChangedTimer.startOneShot(0_s);
+}
+
+void InspectorCSSAgent::layoutContextTypeChangedTimerFired()
+{
+    for (auto&& [nodeId, layoutContextType] : std::exchange(m_nodesWithPendingLayoutContextTypeChanges, { }))
+        m_frontendDispatcher->nodeLayoutContextTypeChanged(nodeId, WTFMove(layoutContextType));
+}
+
 InspectorStyleSheetForInlineStyle& InspectorCSSAgent::asInspectorStyleSheet(StyledElement& element)
 {
     return m_nodeToInspectorStyleSheet.ensure(&element, [this, &element] {
@@ -1029,11 +1099,7 @@ RefPtr<Protocol::CSS::CSSRule> InspectorCSSAgent::buildObjectForRule(const Style
         styleResolver.inspectorCSSOMWrappers().collectScopeWrappers(shadowRoot->styleScope());
 
     CSSStyleRule* cssomWrapper = styleResolver.inspectorCSSOMWrappers().getWrapperForRuleInSheets(styleRule);
-    if (!cssomWrapper)
-        return nullptr;
-
-    InspectorStyleSheet* inspectorStyleSheet = bindStyleSheet(cssomWrapper->parentStyleSheet());
-    return inspectorStyleSheet ? inspectorStyleSheet->buildObjectForRule(cssomWrapper) : nullptr;
+    return buildObjectForRule(cssomWrapper);
 }
 
 RefPtr<Protocol::CSS::CSSRule> InspectorCSSAgent::buildObjectForRule(CSSStyleRule* rule)
@@ -1082,7 +1148,7 @@ Ref<JSON::ArrayOf<Protocol::CSS::RuleMatch>> InspectorCSSAgent::buildArrayForMat
 RefPtr<Protocol::CSS::CSSStyle> InspectorCSSAgent::buildObjectForAttributesStyle(StyledElement& element)
 {
     // FIXME: Ugliness below.
-    auto* attributeStyle = const_cast<StyleProperties*>(element.presentationAttributeStyle());
+    auto* attributeStyle = const_cast<StyleProperties*>(element.presentationalHintStyle());
     if (!attributeStyle)
         return nullptr;
 
@@ -1093,6 +1159,7 @@ RefPtr<Protocol::CSS::CSSStyle> InspectorCSSAgent::buildObjectForAttributesStyle
 
 void InspectorCSSAgent::didRemoveDOMNode(Node& node, Protocol::DOM::NodeId nodeId)
 {
+    // This can be called in response to GC.
     m_nodeIdToForcedPseudoState.remove(nodeId);
 
     auto sheet = m_nodeToInspectorStyleSheet.take(&node);

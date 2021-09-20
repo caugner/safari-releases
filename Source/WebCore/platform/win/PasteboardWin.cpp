@@ -48,7 +48,6 @@
 #include "TextEncoding.h"
 #include "WebCoreInstanceHandle.h"
 #include "markup.h"
-#include <wtf/Optional.h>
 #include <wtf/URL.h>
 #include <wtf/WindowsExtras.h>
 #include <wtf/text/CString.h>
@@ -93,9 +92,9 @@ static LRESULT CALLBACK PasteboardOwnerWndProc(HWND hWnd, UINT message, WPARAM w
     return lresult;
 }
 
-std::unique_ptr<Pasteboard> Pasteboard::createForCopyAndPaste()
+std::unique_ptr<Pasteboard> Pasteboard::createForCopyAndPaste(std::unique_ptr<PasteboardContext>&& context)
 {
-    auto pasteboard = makeUnique<Pasteboard>();
+    auto pasteboard = makeUnique<Pasteboard>(WTFMove(context));
     COMPtr<IDataObject> clipboardData;
     if (!SUCCEEDED(OleGetClipboard(&clipboardData)))
         clipboardData = 0;
@@ -104,20 +103,20 @@ std::unique_ptr<Pasteboard> Pasteboard::createForCopyAndPaste()
 }
 
 #if ENABLE(DRAG_SUPPORT)
-std::unique_ptr<Pasteboard> Pasteboard::createForDragAndDrop()
+std::unique_ptr<Pasteboard> Pasteboard::createForDragAndDrop(std::unique_ptr<PasteboardContext>&& context)
 {
     COMPtr<WCDataObject> dataObject;
     WCDataObject::createInstance(&dataObject);
-    return makeUnique<Pasteboard>(dataObject.get());
+    return makeUnique<Pasteboard>(WTFMove(context), dataObject.get());
 }
 
 // static
-std::unique_ptr<Pasteboard> Pasteboard::createForDragAndDrop(const DragData& dragData)
+std::unique_ptr<Pasteboard> Pasteboard::create(const DragData& dragData)
 {
     if (dragData.platformData())
-        return makeUnique<Pasteboard>(dragData.platformData());
+        return makeUnique<Pasteboard>(dragData.createPasteboardContext(), dragData.platformData());
     // FIXME: Should add a const overload of dragDataMap so we don't need a const_cast here.
-    return makeUnique<Pasteboard>(const_cast<DragData&>(dragData).dragDataMap());
+    return makeUnique<Pasteboard>(dragData.createPasteboardContext(), const_cast<DragData&>(dragData).dragDataMap());
 }
 #endif
 
@@ -139,29 +138,33 @@ void Pasteboard::finishCreatingPasteboard()
     CustomDataClipboardFormat = ::RegisterClipboardFormat(L"WebKit Custom Data Format");
 }
 
-Pasteboard::Pasteboard()
-    : m_dataObject(0)
+Pasteboard::Pasteboard(std::unique_ptr<PasteboardContext>&& context)
+    : m_context(WTFMove(context))
+    , m_dataObject(0)
     , m_writableDataObject(0)
 {
     finishCreatingPasteboard();
 }
 
-Pasteboard::Pasteboard(IDataObject* dataObject)
-    : m_dataObject(dataObject)
+Pasteboard::Pasteboard(std::unique_ptr<PasteboardContext>&& context, IDataObject* dataObject)
+    : m_context(WTFMove(context))
+    , m_dataObject(dataObject)
     , m_writableDataObject(0)
 {
     finishCreatingPasteboard();
 }
 
-Pasteboard::Pasteboard(WCDataObject* dataObject)
-    : m_dataObject(dataObject)
+Pasteboard::Pasteboard(std::unique_ptr<PasteboardContext>&& context, WCDataObject* dataObject)
+    : m_context(WTFMove(context))
+    , m_dataObject(dataObject)
     , m_writableDataObject(dataObject)
 {
     finishCreatingPasteboard();
 }
 
-Pasteboard::Pasteboard(const DragDataMap& dataMap)
-    : m_dataObject(0)
+Pasteboard::Pasteboard(std::unique_ptr<PasteboardContext>&& context, const DragDataMap& dataMap)
+    : m_context(WTFMove(context))
+    , m_dataObject(0)
     , m_writableDataObject(0)
     , m_dragDataMap(dataMap)
 {
@@ -242,13 +245,13 @@ static void addMimeTypesForFormat(ListHashSet<String>& results, const FORMATETC&
         results.add("text/plain");
 }
 
-Optional<PasteboardCustomData> Pasteboard::readPasteboardCustomData()
+std::optional<PasteboardCustomData> Pasteboard::readPasteboardCustomData()
 {
     if (::IsClipboardFormatAvailable(CustomDataClipboardFormat) && ::OpenClipboard(m_owner)) {
         if (HANDLE cbData = ::GetClipboardData(CustomDataClipboardFormat)) {
             size_t size = GlobalSize(cbData);
             auto data = static_cast<uint8_t*>(GlobalLock(cbData));
-            auto customData = PasteboardCustomData::fromPersistenceDecoder({data, size});
+            auto customData = PasteboardCustomData::fromPersistenceDecoder({{ data, size }});
 
             GlobalUnlock(cbData);
             ::CloseClipboard();
@@ -258,14 +261,14 @@ Optional<PasteboardCustomData> Pasteboard::readPasteboardCustomData()
         ::CloseClipboard();
     }
 
-    return WTF::nullopt;
+    return std::nullopt;
 }
 
 Vector<String> Pasteboard::typesSafeForBindings(const String& origin)
 {
     ListHashSet<String> domPasteboardTypes;
 
-    Optional<PasteboardCustomData> customData = readPasteboardCustomData();
+    std::optional<PasteboardCustomData> customData = readPasteboardCustomData();
 
     if (customData && customData->origin() == origin) {
         for (const auto& type : customData->orderedTypes())
@@ -313,7 +316,7 @@ Vector<String> Pasteboard::typesForLegacyUnsafeBindings()
 
 String Pasteboard::readOrigin()
 {
-    Optional<PasteboardCustomData> customData = readPasteboardCustomData();
+    std::optional<PasteboardCustomData> customData = readPasteboardCustomData();
 
     if (customData)
         return customData->origin();
@@ -343,7 +346,7 @@ String Pasteboard::readString(const String& type)
 
 String Pasteboard::readStringInCustomData(const String& type)
 {
-    Optional<PasteboardCustomData> customData = readPasteboardCustomData();
+    std::optional<PasteboardCustomData> customData = readPasteboardCustomData();
 
     if (customData)
         return customData->readStringInCustomData(type);
@@ -366,7 +369,7 @@ Pasteboard::FileContentState Pasteboard::fileContentState()
     return reader.count ? FileContentState::MayContainFilePaths : FileContentState::NoFileOrImageData;
 }
 
-void Pasteboard::read(PasteboardFileReader& reader, Optional<size_t>)
+void Pasteboard::read(PasteboardFileReader& reader, std::optional<size_t>)
 {
 #if USE(CF)
     if (m_dataObject) {
@@ -830,7 +833,7 @@ bool Pasteboard::canSmartReplace()
     return ::IsClipboardFormatAvailable(WebSmartPasteFormat);
 }
 
-void Pasteboard::read(PasteboardPlainText& text, PlainTextURLReadingPolicy, Optional<size_t>)
+void Pasteboard::read(PasteboardPlainText& text, PlainTextURLReadingPolicy, std::optional<size_t>)
 {
     if (::IsClipboardFormatAvailable(CF_UNICODETEXT) && ::OpenClipboard(m_owner)) {
         if (HANDLE cbData = ::GetClipboardData(CF_UNICODETEXT)) {
@@ -1115,7 +1118,7 @@ void Pasteboard::write(const PasteboardWebContent&)
 {
 }
 
-void Pasteboard::read(PasteboardWebContentReader&, WebContentReadingPolicy, Optional<size_t>)
+void Pasteboard::read(PasteboardWebContentReader&, WebContentReadingPolicy, std::optional<size_t>)
 {
 }
 

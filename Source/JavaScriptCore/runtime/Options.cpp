@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2020 Apple Inc. All rights reserved.
+ * Copyright (C) 2011-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -38,8 +38,8 @@
 #include <wtf/ASCIICType.h>
 #include <wtf/Compiler.h>
 #include <wtf/DataLog.h>
+#include <wtf/Gigacage.h>
 #include <wtf/NumberOfCores.h>
-#include <wtf/Optional.h>
 #include <wtf/OSLogPrintStream.h>
 #include <wtf/StdLibExtras.h>
 #include <wtf/TranslatedProcess.h>
@@ -53,72 +53,73 @@
 #if ENABLE(JIT_CAGE)
 #include <WebKitAdditions/JITCageAdditions.h>
 #include <machine/cpu_capabilities.h>
+#include <wtf/cocoa/Entitlements.h>
 #endif
 
 namespace JSC {
 
 template<typename T>
-Optional<T> parse(const char* string);
+std::optional<T> parse(const char* string);
 
 template<>
-Optional<OptionsStorage::Bool> parse(const char* string)
+std::optional<OptionsStorage::Bool> parse(const char* string)
 {
     if (equalLettersIgnoringASCIICase(string, "true") || equalLettersIgnoringASCIICase(string, "yes") || !strcmp(string, "1"))
         return true;
     if (equalLettersIgnoringASCIICase(string, "false") || equalLettersIgnoringASCIICase(string, "no") || !strcmp(string, "0"))
         return false;
-    return WTF::nullopt;
+    return std::nullopt;
 }
 
 template<>
-Optional<OptionsStorage::Int32> parse(const char* string)
+std::optional<OptionsStorage::Int32> parse(const char* string)
 {
     int32_t value;
     if (sscanf(string, "%d", &value) == 1)
         return value;
-    return WTF::nullopt;
+    return std::nullopt;
 }
 
 template<>
-Optional<OptionsStorage::Unsigned> parse(const char* string)
+std::optional<OptionsStorage::Unsigned> parse(const char* string)
 {
     unsigned value;
     if (sscanf(string, "%u", &value) == 1)
         return value;
-    return WTF::nullopt;
+    return std::nullopt;
 }
 
 #if CPU(ADDRESS64) || OS(DARWIN)
 template<>
-Optional<OptionsStorage::Size> parse(const char* string)
+std::optional<OptionsStorage::Size> parse(const char* string)
 {
     size_t value;
     if (sscanf(string, "%zu", &value) == 1)
         return value;
-    return WTF::nullopt;
+    return std::nullopt;
 }
 #endif // CPU(ADDRESS64) || OS(DARWIN)
 
 template<>
-Optional<OptionsStorage::Double> parse(const char* string)
+std::optional<OptionsStorage::Double> parse(const char* string)
 {
     double value;
     if (sscanf(string, "%lf", &value) == 1)
         return value;
-    return WTF::nullopt;
+    return std::nullopt;
 }
 
 template<>
-Optional<OptionsStorage::OptionRange> parse(const char* string)
+std::optional<OptionsStorage::OptionRange> parse(const char* string)
 {
     OptionRange range;
     if (range.init(string))
         return range;
-    return WTF::nullopt;
+    return std::nullopt;
 }
 
 template<>
-Optional<OptionsStorage::OptionString> parse(const char* string)
+std::optional<OptionsStorage::OptionString> parse(const char* string)
 {
     const char* value = nullptr;
     if (!strlen(string))
@@ -131,7 +132,7 @@ Optional<OptionsStorage::OptionString> parse(const char* string)
 }
 
 template<>
-Optional<OptionsStorage::GCLogLevel> parse(const char* string)
+std::optional<OptionsStorage::GCLogLevel> parse(const char* string)
 {
     if (equalLettersIgnoringASCIICase(string, "none") || equalLettersIgnoringASCIICase(string, "no") || equalLettersIgnoringASCIICase(string, "false") || !strcmp(string, "0"))
         return GCLogging::None;
@@ -142,7 +143,7 @@ Optional<OptionsStorage::GCLogLevel> parse(const char* string)
     if (equalLettersIgnoringASCIICase(string, "verbose") || !strcmp(string, "2"))
         return GCLogging::Verbose;
 
-    return WTF::nullopt;
+    return std::nullopt;
 }
 
 bool Options::isAvailable(Options::ID id, Options::Availability availability)
@@ -182,7 +183,7 @@ bool overrideOptionWithHeuristic(T& variable, Options::ID id, const char* name, 
         return false;
     
     if (available) {
-        Optional<T> value = parse<T>(stringValue);
+        std::optional<T> value = parse<T>(stringValue);
         if (value) {
             variable = value.value();
             return true;
@@ -351,6 +352,12 @@ static void overrideDefaults()
             Options::gcIncrementScale() = 0;
     }
 
+#if PLATFORM(MAC) && CPU(ARM64)
+    Options::numberOfGCMarkers() = 4;
+    Options::numberOfDFGCompilerThreads() = 2;
+    Options::numberOfFTLCompilerThreads() = 2;
+#endif
+
 #if USE(BMALLOC_MEMORY_FOOTPRINT_API)
     // On iOS and conditionally Linux, we control heap growth using process memory footprint. Therefore these values can be agressive.
     Options::smallHeapRAMFraction() = 0.8;
@@ -427,6 +434,11 @@ void Options::recomputeDependentOptions()
     Options::useConcurrentGC() = false;
 #endif
 
+    if (!isARM64())
+        Options::useDataIC() = false;
+    if (!Options::useDataIC())
+        Options::useDataICInOptimizingJIT() = false;
+
     // At initialization time, we may decide that useJIT should be false for any
     // number of reasons (including failing to allocate JIT memory), and therefore,
     // will / should not be able to enable any JIT related services.
@@ -450,7 +462,8 @@ void Options::recomputeDependentOptions()
     if (!Options::useWebAssembly())
         Options::useFastTLSForWasmContext() = false;
     
-    if (Options::dumpDisassembly()
+    if (Options::logJIT()
+        || Options::dumpDisassembly()
         || Options::dumpDFGDisassembly()
         || Options::dumpFTLDisassembly()
         || Options::dumpBytecodeAtDFGTime()
@@ -495,6 +508,9 @@ void Options::recomputeDependentOptions()
         Options::useConcurrentJIT() = false;
     }
 
+    if (Options::useProfiler())
+        Options::useConcurrentJIT() = false;
+
     if (Options::alwaysUseShadowChicken())
         Options::maximumInliningDepth() = 1;
 
@@ -538,6 +554,9 @@ void Options::recomputeDependentOptions()
         Options::randomIntegrityAuditRate() = 0;
     else if (Options::randomIntegrityAuditRate() > 1.0)
         Options::randomIntegrityAuditRate() = 1.0;
+    
+    if (Options::usePrivateMethods())
+        Options::usePrivateClassFields() = true;
 
     if (!Options::allowUnsupportedTiers()) {
 #define DISABLE_TIERS(option, flags, ...) do { \
@@ -554,6 +573,9 @@ void Options::recomputeDependentOptions()
 
     if (Options::usePrivateStaticClassFields())
         Options::usePrivateClassFields() = true;
+
+    if (Options::verboseVerifyGC())
+        Options::verifyGC() = true;
 }
 
 inline void* Options::addressOfOption(Options::ID id)
@@ -830,7 +852,7 @@ bool Options::setOptionWithoutAlias(const char* arg)
         if (Availability::availability_ != Availability::Normal    \
             && !isAvailable(name_##ID, Availability::availability_)) \
             return false;                                          \
-        Optional<OptionsStorage::type_> value;                     \
+        std::optional<OptionsStorage::type_> value;                     \
         value = parse<OptionsStorage::type_>(valueStr);            \
         if (value) {                                               \
             name_() = value.value();                               \
@@ -849,7 +871,7 @@ bool Options::setOptionWithoutAlias(const char* arg)
 
 static const char* invertBoolOptionValue(const char* valueStr)
 {
-    Optional<OptionsStorage::Bool> value = parse<OptionsStorage::Bool>(valueStr);
+    std::optional<OptionsStorage::Bool> value = parse<OptionsStorage::Bool>(valueStr);
     if (!value)
         return nullptr;
     return value.value() ? "false" : "true";
@@ -995,9 +1017,9 @@ void Options::dumpOption(StringBuilder& builder, DumpLevel level, Options::ID id
 
     if (wasOverridden && (dumpDefaultsOption == DumpDefaults)) {
         auto defaultOption = OptionReader::defaultFor(id);
-        builder.appendLiteral(" (default: ");
+        builder.append(" (default: ");
         defaultOption.dump(builder);
-        builder.appendLiteral(")");
+        builder.append(")");
     }
 
     if (needsDescription)
@@ -1017,6 +1039,10 @@ void Options::ensureOptionsAreCoherent()
     if (useWebAssembly() && !(useWasmLLInt() || useBBQJIT())) {
         coherent = false;
         dataLog("INCOHERENT OPTIONS: at least one of useWasmLLInt or useBBQJIT must be true\n");
+    }
+    if (useProfiler() && useConcurrentJIT()) {
+        coherent = false;
+        dataLogLn("Bytecode profiler is not concurrent JIT safe.");
     }
     if (!coherent)
         CRASH();
@@ -1070,33 +1096,26 @@ void OptionReader::Option::dump(StringBuilder& builder) const
         builder.append(m_bool ? "true" : "false");
         break;
     case Options::Type::Unsigned:
-        builder.appendNumber(m_unsigned);
+        builder.append(m_unsigned);
         break;
     case Options::Type::Size:
-        builder.appendNumber(m_size);
+        builder.append(m_size);
         break;
     case Options::Type::Double:
         builder.append(m_double);
         break;
     case Options::Type::Int32:
-        builder.appendNumber(m_int32);
+        builder.append(m_int32);
         break;
     case Options::Type::OptionRange:
         builder.append(m_optionRange.rangeString());
         break;
-    case Options::Type::OptionString: {
-        const char* option = m_optionString;
-        if (!option)
-            option = "";
-        builder.append('"');
-        builder.append(option);
-        builder.append('"');
+    case Options::Type::OptionString:
+        builder.append('"', m_optionString ? m_optionString : "", '"');
         break;
-    }
-    case Options::Type::GCLogLevel: {
+    case Options::Type::GCLogLevel:
         builder.append(GCLogging::levelAsString(m_gcLogLevel));
         break;
-    }
     }
 }
 
@@ -1126,9 +1145,20 @@ bool OptionReader::Option::operator==(const Option& other) const
 }
 
 #if ENABLE(JIT_CAGE)
-bool canUseJITCage() { return JSC_JIT_CAGE_VERSION(); }
+bool canUseJITCage()
+{
+    return JSC_JIT_CAGE_VERSION() && WTF::processHasEntitlement("com.apple.private.verified-jit");
+}
 #else
 bool canUseJITCage() { return false; }
 #endif
+
+bool canUseWebAssemblyFastMemory()
+{
+    // Gigacage::hasCapacityToUseLargeGigacage is determined based on EFFECTIVE_ADDRESS_WIDTH.
+    // If we have enough address range to potentially use a large gigacage,
+    // then we have enough address range to useWebAssemblyFastMemory.
+    return Gigacage::hasCapacityToUseLargeGigacage;
+}
 
 } // namespace JSC

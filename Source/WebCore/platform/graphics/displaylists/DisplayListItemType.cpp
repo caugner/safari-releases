@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 Apple Inc. All rights reserved.
+ * Copyright (C) 2020-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -78,8 +78,10 @@ static size_t sizeOfItemInBytes(ItemType type)
         return sizeof(ClipOutToPath);
     case ItemType::ClipPath:
         return sizeof(ClipPath);
-    case ItemType::ClipToDrawingCommands:
-        return sizeof(ClipToDrawingCommands);
+    case ItemType::BeginClipToDrawingCommands:
+        return sizeof(BeginClipToDrawingCommands);
+    case ItemType::EndClipToDrawingCommands:
+        return sizeof(EndClipToDrawingCommands);
     case ItemType::DrawGlyphs:
         return sizeof(DrawGlyphs);
     case ItemType::DrawImageBuffer:
@@ -117,8 +119,14 @@ static size_t sizeOfItemInBytes(ItemType type)
     case ItemType::FillRectWithRoundedHole:
         return sizeof(FillRectWithRoundedHole);
 #if ENABLE(INLINE_PATH_DATA)
-    case ItemType::FillInlinePath:
-        return sizeof(FillInlinePath);
+    case ItemType::FillLine:
+        return sizeof(FillLine);
+    case ItemType::FillArc:
+        return sizeof(FillArc);
+    case ItemType::FillQuadCurve:
+        return sizeof(FillQuadCurve);
+    case ItemType::FillBezierCurve:
+        return sizeof(FillBezierCurve);
 #endif
     case ItemType::FillPath:
         return sizeof(FillPath);
@@ -130,17 +138,25 @@ static size_t sizeOfItemInBytes(ItemType type)
         return sizeof(MetaCommandChangeDestinationImageBuffer);
     case ItemType::MetaCommandChangeItemBuffer:
         return sizeof(MetaCommandChangeItemBuffer);
-    case ItemType::PutImageData:
-        return sizeof(PutImageData);
+    case ItemType::GetPixelBuffer:
+        return sizeof(GetPixelBuffer);
+    case ItemType::PutPixelBuffer:
+        return sizeof(PutPixelBuffer);
+#if ENABLE(VIDEO)
     case ItemType::PaintFrameForMedia:
         return sizeof(PaintFrameForMedia);
+#endif
     case ItemType::StrokeRect:
         return sizeof(StrokeRect);
     case ItemType::StrokeLine:
         return sizeof(StrokeLine);
 #if ENABLE(INLINE_PATH_DATA)
-    case ItemType::StrokeInlinePath:
-        return sizeof(StrokeInlinePath);
+    case ItemType::StrokeArc:
+        return sizeof(StrokeArc);
+    case ItemType::StrokeQuadCurve:
+        return sizeof(StrokeQuadCurve);
+    case ItemType::StrokeBezierCurve:
+        return sizeof(StrokeBezierCurve);
 #endif
     case ItemType::StrokePath:
         return sizeof(StrokePath);
@@ -167,6 +183,9 @@ static size_t sizeOfItemInBytes(ItemType type)
 
 bool isDrawingItem(ItemType type)
 {
+    /* See the comment at the top of DisplayListItems.h for what this means.
+     * This needs to match all the "static constexpr bool isDrawingItem"s inside the individual item classes. */
+
     switch (type) {
     case ItemType::ApplyDeviceScaleFactor:
 #if USE(CG)
@@ -179,7 +198,8 @@ bool isDrawingItem(ItemType type)
     case ItemType::ClipToImageBuffer:
     case ItemType::ClipOutToPath:
     case ItemType::ClipPath:
-    case ItemType::ClipToDrawingCommands:
+    case ItemType::BeginClipToDrawingCommands:
+    case ItemType::EndClipToDrawingCommands:
     case ItemType::ConcatenateCTM:
     case ItemType::FlushContext:
     case ItemType::MetaCommandChangeDestinationImageBuffer:
@@ -199,6 +219,7 @@ bool isDrawingItem(ItemType type)
     case ItemType::SetState:
     case ItemType::SetStrokeThickness:
     case ItemType::Translate:
+    case ItemType::GetPixelBuffer:
         return false;
     case ItemType::BeginTransparencyLayer:
     case ItemType::ClearRect:
@@ -218,7 +239,10 @@ bool isDrawingItem(ItemType type)
     case ItemType::FillCompositedRect:
     case ItemType::FillEllipse:
 #if ENABLE(INLINE_PATH_DATA)
-    case ItemType::FillInlinePath:
+    case ItemType::FillLine:
+    case ItemType::FillArc:
+    case ItemType::FillQuadCurve:
+    case ItemType::FillBezierCurve:
 #endif
     case ItemType::FillPath:
     case ItemType::FillRect:
@@ -226,11 +250,15 @@ bool isDrawingItem(ItemType type)
     case ItemType::FillRectWithGradient:
     case ItemType::FillRectWithRoundedHole:
     case ItemType::FillRoundedRect:
+#if ENABLE(VIDEO)
     case ItemType::PaintFrameForMedia:
-    case ItemType::PutImageData:
+#endif
+    case ItemType::PutPixelBuffer:
     case ItemType::StrokeEllipse:
 #if ENABLE(INLINE_PATH_DATA)
-    case ItemType::StrokeInlinePath:
+    case ItemType::StrokeArc:
+    case ItemType::StrokeQuadCurve:
+    case ItemType::StrokeBezierCurve:
 #endif
     case ItemType::StrokePath:
     case ItemType::StrokeRect:
@@ -246,12 +274,31 @@ size_t paddedSizeOfTypeAndItemInBytes(ItemType type)
     return sizeof(uint64_t) + roundUpToMultipleOf(alignof(uint64_t), sizeOfItemInBytes(type));
 }
 
+size_t paddedSizeOfTypeAndItemInBytes(const DisplayListItem& displayListItem)
+{
+    auto itemSize = WTF::visit([](const auto& item) {
+        return sizeof(item);
+    }, displayListItem);
+    return sizeof(uint64_t) + roundUpToMultipleOf(alignof(uint64_t), itemSize);
+}
+
+ItemType displayListItemType(const DisplayListItem& displayListItem)
+{
+    return WTF::visit([](const auto& item) {
+        return item.itemType;
+    }, displayListItem);
+}
+
 bool isInlineItem(ItemType type)
 {
+    /* See the comment at the top of DisplayListItems.h for what this means.
+     * This needs to match (1) RemoteImageBufferProxy::encodeItem(), (2) RemoteRenderingBackend::decodeItem(),
+     * and (3) all the "static constexpr bool isInlineItem"s inside the individual item classes. */
+
     switch (type) {
+    case ItemType::BeginClipToDrawingCommands:
     case ItemType::ClipOutToPath:
     case ItemType::ClipPath:
-    case ItemType::ClipToDrawingCommands:
     case ItemType::DrawFocusRingPath:
     case ItemType::DrawFocusRingRects:
     case ItemType::DrawGlyphs:
@@ -263,7 +310,8 @@ bool isInlineItem(ItemType type)
     case ItemType::FillRectWithGradient:
     case ItemType::FillRectWithRoundedHole:
     case ItemType::FillRoundedRect:
-    case ItemType::PutImageData:
+    case ItemType::GetPixelBuffer:
+    case ItemType::PutPixelBuffer:
     case ItemType::SetLineDash:
     case ItemType::SetState:
     case ItemType::StrokePath:
@@ -279,6 +327,7 @@ bool isInlineItem(ItemType type)
     case ItemType::Clip:
     case ItemType::ClipOut:
     case ItemType::ClipToImageBuffer:
+    case ItemType::EndClipToDrawingCommands:
     case ItemType::ConcatenateCTM:
     case ItemType::DrawDotsForDocumentMarker:
     case ItemType::DrawEllipse:
@@ -290,13 +339,18 @@ bool isInlineItem(ItemType type)
     case ItemType::EndTransparencyLayer:
     case ItemType::FillEllipse:
 #if ENABLE(INLINE_PATH_DATA)
-    case ItemType::FillInlinePath:
+    case ItemType::FillLine:
+    case ItemType::FillArc:
+    case ItemType::FillQuadCurve:
+    case ItemType::FillBezierCurve:
 #endif
     case ItemType::FillRect:
     case ItemType::FlushContext:
     case ItemType::MetaCommandChangeDestinationImageBuffer:
     case ItemType::MetaCommandChangeItemBuffer:
+#if ENABLE(VIDEO)
     case ItemType::PaintFrameForMedia:
+#endif
     case ItemType::Restore:
     case ItemType::Rotate:
     case ItemType::Save:
@@ -311,7 +365,9 @@ bool isInlineItem(ItemType type)
     case ItemType::SetStrokeThickness:
     case ItemType::StrokeEllipse:
 #if ENABLE(INLINE_PATH_DATA)
-    case ItemType::StrokeInlinePath:
+    case ItemType::StrokeArc:
+    case ItemType::StrokeQuadCurve:
+    case ItemType::StrokeBezierCurve:
 #endif
     case ItemType::StrokeRect:
     case ItemType::StrokeLine:

@@ -194,7 +194,7 @@
 
     async function writeWebsiteDataAndContinue() {
         // Write cookies.
-        await fetch("/cookies/resources/set-http-only-cookie.php?cookieName=" + httpOnlyCookieName, { credentials: "same-origin" });
+        await fetch("/cookies/resources/set-http-only-cookie.py?cookieName=" + httpOnlyCookieName, { credentials: "same-origin" });
         await fetch("/cookies/resources/setCookies.cgi", { headers: { "Set-Cookie": serverSideCookieName + "=1; path=/;" }, credentials: "same-origin" });
         document.cookie = clientSideCookieName + "=1";
 
@@ -238,8 +238,12 @@
 
     function runTest() {
         setEnableFeature(true, function () {
-            // insertStatisticsExpiredStatistic(domain, hasHadUserInteraction, isScheduledForAllButCookieDataRemoval, isPrevalent)
-            testRunner.setStatisticsExpiredStatistic(originUnderTest, true, false, true, function() {
+            testRunner.setStatisticsExpiredStatistic(originUnderTest,
+                30,    // numberOfOperatingDaysPassed
+                true,  // hasUserInteraction
+                false, // isScheduledForAllButCookieDataRemoval,
+                true,  // isPrevalent
+                function() {
                 if (!testRunner.isStatisticsPrevalentResource(originUnderTest))
                     addOutput("FAIL: " + originUnderTest + " did not get inserted into database.");
                 writeWebsiteDataAndContinue();

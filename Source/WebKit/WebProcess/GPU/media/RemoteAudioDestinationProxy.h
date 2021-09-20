@@ -29,6 +29,7 @@
 
 #include "Connection.h"
 #include "GPUProcessConnection.h"
+#include "IPCSemaphore.h"
 #include "RemoteAudioDestinationIdentifier.h"
 #include <WebCore/AudioIOCallback.h>
 #include <wtf/CrossThreadQueue.h>
@@ -45,12 +46,6 @@
 namespace WebCore {
 class CARingBuffer;
 class WebAudioBufferList;
-}
-
-namespace WTF {
-#if PLATFORM(COCOA)
-class MachSemaphore;
-#endif
 }
 
 namespace WebKit {
@@ -83,7 +78,8 @@ private:
     void stopRenderingThread();
     void renderQuantum();
 
-    void connectToGPUProcess();
+    IPC::Connection* connection();
+    IPC::Connection* existingConnection();
 
     // GPUProcessConnection::Client.
     void gpuProcessConnectionDidClose(GPUProcessConnection&) final;
@@ -99,18 +95,19 @@ private:
     void storageChanged(SharedMemory*, const WebCore::CAAudioStreamDescription& format, size_t frameCount);
 #endif
 
-    RemoteAudioDestinationIdentifier m_destinationID;
+    RemoteAudioDestinationIdentifier m_destinationID; // Call destinationID() getter to make sure the destinationID is valid.
 
+    WeakPtr<GPUProcessConnection> m_gpuProcessConnection;
 #if PLATFORM(COCOA)
     uint64_t m_numberOfFrames { 0 };
     std::unique_ptr<WebCore::CARingBuffer> m_ringBuffer;
-    std::unique_ptr<WTF::MachSemaphore> m_renderSemaphore;
     std::unique_ptr<WebCore::WebAudioBufferList> m_audioBufferList;
     uint64_t m_currentFrame { 0 };
     float m_sampleRate;
 #else
     unsigned m_numberOfOutputChannels;
 #endif
+    IPC::Semaphore m_renderSemaphore;
 
     String m_inputDeviceId;
     unsigned m_numberOfInputChannels;

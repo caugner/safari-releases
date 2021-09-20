@@ -50,6 +50,7 @@
 #endif
 
 #if USE(WPE_RENDERER)
+#include <wpe/wpe.h>
 #include <wpe/fdo-egl.h>
 #if WPE_FDO_CHECK_VERSION(1, 7, 0)
 #include <wayland-server.h>
@@ -71,7 +72,7 @@ namespace WebKit {
 using namespace WebCore;
 
 enum class WaylandImpl { Unsupported, EGL, SHM };
-static Optional<WaylandImpl> s_waylandImpl;
+static std::optional<WaylandImpl> s_waylandImpl;
 
 #if USE(WPE_RENDERER)
 static bool isEGLImageAvailable(bool useIndexedGetString)

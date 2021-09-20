@@ -60,7 +60,12 @@ protected:
         HasMeridiem = 1 << 7,
     };
 
-    BaseDateAndTimeInputType(Type type, HTMLInputElement& element) : InputType(type, element) { }
+    BaseDateAndTimeInputType(Type type, HTMLInputElement& element)
+        : InputType(type, element)
+    {
+        ASSERT(needsShadowSubtree());
+    }
+
     ~BaseDateAndTimeInputType();
 
     Decimal parseToNumber(const String&, const Decimal&) const override;
@@ -87,8 +92,8 @@ private:
         OptionSet<DateTimeFormatValidationResults> m_results;
     };
 
-    virtual Optional<DateComponents> parseToDateComponents(const StringView&) const = 0;
-    virtual Optional<DateComponents> setMillisecondToDateComponents(double) const = 0;
+    virtual std::optional<DateComponents> parseToDateComponents(const StringView&) const = 0;
+    virtual std::optional<DateComponents> setMillisecondToDateComponents(double) const = 0;
     virtual void setupLayoutParameters(DateTimeEditElement::LayoutParameters&, const DateComponents&) const = 0;
     virtual bool isValidFormat(OptionSet<DateTimeFormatValidationResults>) const = 0;
     virtual String serializeWithMilliseconds(double) const;
@@ -102,7 +107,6 @@ private:
     double valueAsDouble() const final;
     ExceptionOr<void> setValueAsDecimal(const Decimal&, TextFieldEventBehavior) const final;
     Decimal defaultValueForStepUp() const override;
-    bool isSteppableSlow() const final;
     String localizeValue(const String&) const final;
     bool supportsReadOnly() const final;
     bool shouldRespectListAttribute() final;

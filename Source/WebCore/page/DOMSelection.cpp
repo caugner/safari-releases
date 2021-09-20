@@ -64,16 +64,16 @@ RefPtr<Frame> DOMSelection::frame() const
     return DOMWindowProperty::frame();
 }
 
-Optional<SimpleRange> DOMSelection::range() const
+std::optional<SimpleRange> DOMSelection::range() const
 {
     auto frame = this->frame();
     if (!frame)
-        return WTF::nullopt;
+        return std::nullopt;
     auto range = frame->settings().liveRangeSelectionEnabled()
         ? frame->selection().selection().range()
         : frame->selection().selection().firstRange();
     if (!range || range->start.container->isInShadowTree())
-        return WTF::nullopt;
+        return std::nullopt;
     return range;
 }
 
@@ -367,11 +367,7 @@ ExceptionOr<Ref<Range>> DOMSelection::getRangeAt(unsigned index)
         return frame->selection().associatedLiveRange().releaseNonNull();
     if (auto shadowAncestor = selectionShadowAncestor(frame))
         return createLiveRange(makeSimpleRange(*makeBoundaryPointBeforeNode(*shadowAncestor)));
-    auto simpleRange = frame->selection().selection().firstRange();
-    ASSERT(simpleRange); // selection is orphaned but this shouldn't happen.
-    if (!simpleRange)
-        return Exception { IndexSizeError };
-    return createLiveRange(*simpleRange);
+    return createLiveRange(*frame->selection().selection().firstRange());
 }
 
 void DOMSelection::removeAllRanges()

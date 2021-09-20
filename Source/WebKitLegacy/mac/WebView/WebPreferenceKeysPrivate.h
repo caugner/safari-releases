@@ -147,7 +147,6 @@
 #define WebKitAnimatedImageAsyncDecodingEnabledPreferenceKey @"WebKitAnimatedImageAsyncDecodingEnabled"
 #if TARGET_OS_IPHONE
 #define WebKitAudioSessionCategoryOverride @"WebKitAudioSessionCategoryOverride"
-#define WebKitAVKitEnabled @"WebKitAVKitEnabled"
 #endif
 #define WebKitShouldRespectImageOrientationKey @"WebKitShouldRespectImageOrientation"
 #define WebKitRequestAnimationFrameEnabledPreferenceKey @"WebKitRequestAnimationFrameEnabled"
@@ -161,7 +160,6 @@
 #define WebKitMediaSourceEnabledPreferenceKey @"WebKitMediaSourceEnabled"
 #define WebKitSourceBufferChangeTypeEnabledPreferenceKey @"WebKitSourceBufferChangeTypeEnabled"
 #define WebKitShouldConvertPositionStyleOnCopyPreferenceKey @"WebKitShouldConvertPositionStyleOnCopy"
-#define WebKitImageControlsEnabledPreferenceKey @"WebKitImageControlsEnabled"
 #define WebKitGamepadsEnabledPreferenceKey @"WebKitGamepadsEnabled"
 #define WebKitServiceControlsEnabledPreferenceKey @"WebKitServiceControlsEnabled"
 #define WebKitMediaKeysStorageDirectoryKey @"WebKitMediaKeysStorageDirectory"
@@ -172,7 +170,6 @@
 #define WebKitDownloadAttributeEnabledPreferenceKey @"WebKitDownloadAttributeEnabled"
 #define WebKitDirectoryUploadEnabledPreferenceKey @"WebKitDirectoryUploadEnabled"
 #define WebKitCSSOMViewScrollingAPIEnabledPreferenceKey @"WebKitCSSOMViewScrollingAPIEnabled"
-#define WebKitModernMediaControlsEnabledPreferenceKey @"WebKitModernMediaControlsEnabled"
 #define WebKitSubtleCryptoEnabledPreferenceKey @"WebKitSubtleCryptoEnabled"
 #define WebKitMediaDevicesEnabledPreferenceKey @"WebKitMediaDevicesEnabled"
 #define WebKitMediaStreamEnabledPreferenceKey @"WebKitMediaStreamEnabled"
@@ -254,8 +251,6 @@
 // These are all now generated via GeneratePreferences.rb
 // FIXME: If these are not used anywhere, we should remove them and only use WebFeature mechanism for the preference.
 #define WebKitUserGesturePromisePropagationEnabledPreferenceKey @"WebKitUserGesturePromisePropagationEnabled"
-#define WebKitModernUnprefixedWebAudioEnabledPreferenceKey @"WebKitModernUnprefixedWebAudioEnabled"
-#define WebKitAudioWorkletEnabledPreferenceKey @"WebKitAudioWorkletEnabled"
 #define WebKitRequestIdleCallbackEnabledPreferenceKey @"WebKitRequestIdleCallbackEnabled"
 #define WebKitHighlightAPIEnabledPreferenceKey @"WebKitHighlightAPIEnabled"
 #define WebKitAsyncClipboardAPIEnabledPreferenceKey @"WebKitAsyncClipboardAPIEnabled"
@@ -266,7 +261,6 @@
 #define WebKitWebAnimationsCompositeOperationsEnabledPreferenceKey @"WebKitWebAnimationsCompositeOperationsEnabled"
 #define WebKitWebAnimationsMutableTimelinesEnabledPreferenceKey @"WebKitWebAnimationsMutableTimelinesEnabled"
 #define WebKitWebGL2EnabledPreferenceKey @"WebKitWebGL2Enabled"
-#define WebKitWebGPUEnabledPreferenceKey @"WebKitWebGPUEnabled"
 #define WebKitMaskWebGLStringsEnabledPreferenceKey @"WebKitMaskWebGLStringsEnabled"
 #define WebKitAccessibilityObjectModelEnabledPreferenceKey @"WebKitAccessibilityObjectModelEnabled"
 #define WebKitServerTimingEnabledPreferenceKey @"WebKitServerTimingEnabled"

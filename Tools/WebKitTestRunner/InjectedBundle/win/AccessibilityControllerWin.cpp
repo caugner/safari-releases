@@ -28,6 +28,7 @@
 
 #if HAVE(ACCESSIBILITY)
 
+#include "AccessibilityUIElement.h"
 #include <WebCore/NotImplemented.h>
 
 namespace WTR {
@@ -47,6 +48,11 @@ JSRetainPtr<JSStringRef> AccessibilityController::platformName()
 {
     notImplemented();
     return nullptr;
+}
+
+void AccessibilityController::injectAccessibilityPreference(JSStringRef domain, JSStringRef key, JSStringRef value)
+{
+    notImplemented();
 }
 
 Ref<AccessibilityUIElement> AccessibilityController::rootElement()

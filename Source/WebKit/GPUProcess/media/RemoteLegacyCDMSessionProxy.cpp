@@ -65,10 +65,10 @@ static RefPtr<Uint8Array> convertToUint8Array(IPC::SharedBufferCopy&& buffer)
 }
 
 template <typename T>
-static Optional<IPC::SharedBufferCopy> convertToOptionalDataReference(T array)
+static std::optional<IPC::SharedBufferCopy> convertToOptionalDataReference(T array)
 {
     if (!array)
-        return WTF::nullopt;
+        return std::nullopt;
     return { SharedBuffer::create((const char*)array->data(), array->byteLength()) };
 }
 
@@ -100,7 +100,7 @@ void RemoteLegacyCDMSessionProxy::update(IPC::SharedBufferCopy&& update, UpdateC
 {
     auto updateArray = convertToUint8Array(WTFMove(update));
     if (!updateArray) {
-        completion(false, WTF::nullopt, 0, 0);
+        completion(false, std::nullopt, 0, 0);
         return;
     }
 
@@ -128,22 +128,36 @@ void RemoteLegacyCDMSessionProxy::sendMessage(Uint8Array* message, String destin
     if (!m_factory)
         return;
 
-    m_factory->gpuConnectionToWebProcess().connection().send(Messages::RemoteLegacyCDMSession::SendMessage(convertToOptionalDataReference(message), destinationURL), m_identifier);
+    auto* gpuConnectionToWebProcess = m_factory->gpuConnectionToWebProcess();
+    if (!gpuConnectionToWebProcess)
+        return;
+
+    gpuConnectionToWebProcess->connection().send(Messages::RemoteLegacyCDMSession::SendMessage(convertToOptionalDataReference(message), destinationURL), m_identifier);
 }
 
 void RemoteLegacyCDMSessionProxy::sendError(MediaKeyErrorCode errorCode, uint32_t systemCode)
 {
-    if (m_factory)
-        m_factory->gpuConnectionToWebProcess().connection().send(Messages::RemoteLegacyCDMSession::SendError(errorCode, systemCode), m_identifier);
+    if (!m_factory)
+        return;
+
+    auto* gpuConnectionToWebProcess = m_factory->gpuConnectionToWebProcess();
+    if (!gpuConnectionToWebProcess)
+        return;
+
+    gpuConnectionToWebProcess->connection().send(Messages::RemoteLegacyCDMSession::SendError(errorCode, systemCode), m_identifier);
 }
 
 String RemoteLegacyCDMSessionProxy::mediaKeysStorageDirectory() const
 {
-    if (m_factory)
-        return m_factory->gpuConnectionToWebProcess().mediaKeysStorageDirectory();
-    return emptyString();
-}
+    if (!m_factory)
+        return emptyString();
 
+    auto* gpuConnectionToWebProcess = m_factory->gpuConnectionToWebProcess();
+    if (!gpuConnectionToWebProcess)
+        return emptyString();
+
+    return gpuConnectionToWebProcess->mediaKeysStorageDirectory();
+}
 
 }
 

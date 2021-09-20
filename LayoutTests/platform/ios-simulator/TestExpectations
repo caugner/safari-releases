@@ -7,6 +7,7 @@ accessibility/insert-newline.html [ Pass ]
 accessibility/misspelling-range.html [ Pass ]
 accessibility/url-test.html [ Pass ]
 accessibility/keyevents-posted-for-dismiss-action.html [ Pass ]
+accessibility/embedded-image-description.html [ Pass ]
 fast/multicol/flexbox-rows.html [ Skip ]
 workers/wasm-mem-post-message.html [ Failure ]
 
@@ -30,10 +31,6 @@ svg/filters/filter-hidden-content.svg [ Failure ]
 
 transforms/hittest-translated-content-off-to-infinity-and-back.html [ Pass ImageOnlyFailure ]
 
-webkit.org/b/172965 media/track/track-cue-overlap-snap-to-lines-not-set.html [ Failure ]
-
-webkit.org/b/156718 storage/websql/alter-to-info-table.html [ Failure ]
-
 # This test relies on Arial being used to draw Arabic. However, on iOS,
 # we explicitly disallow this because this font is too slow.
 fast/text/initial-advance-in-intermediate-run-complex.html [ ImageOnlyFailure ]
@@ -47,7 +44,7 @@ webkit.org/b/170176 fast/inline-block/baseline-vertical-04.html [ ImageOnlyFailu
 # Imported w3c tests require fuzzy image comparison
 imported/w3c/web-platform-tests/density-size-correction/density-corrected-various-elements.html [ ImageOnlyFailure ]
 
-# WebGL tests which need triaging https://bugs.webkit.org/b/174100
+# # WebGL tests which need triaging https://bugs.webkit.org/b/174100
 webgl/1.0.3/conformance/uniforms/uniform-default-values.html [ Failure ]
 
 # This test requires Skia, which isn't available on iOS.
@@ -98,6 +95,9 @@ webkit.org/b/189686 webgl/2.0.0/conformance2/buffers/one-large-uniform-buffer.ht
 # to draw lots of nothing.
 webkit.org/b/209416 fast/canvas/webgl/out-of-bounds-simulated-vertexAttrib0-drawArrays.html [ Pass Timeout ]
 
+# Test is slow.
+webkit.org/b/226813 webgl/draw-webgl-to-context2d-memory-test.html [ Skip ]
+
 imported/w3c/web-platform-tests/css/css-lists/content-property/marker-text-matches-georgian.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-lists/content-property/marker-text-matches-lower-greek.html [ Pass ]
 imported/w3c/web-platform-tests/css/css-lists/list-and-writing-mode-001.html [ Failure ]
@@ -110,5 +110,15 @@ imported/w3c/web-platform-tests/wasm [ Skip ]
 
 webkit.org/b/201509 imported/w3c/web-platform-tests/html/semantics/embedded-content/the-video-element/video_timeupdate_on_seek.html [ Failure ]
 
+# ANGLE Metal backend failing tests with shared texture memory on the simulator
+webkit.org/b/222685 webgl/1.0.3/conformance/textures/tex-image-and-sub-image-2d-with-array-buffer-view.html [ Pass Failure ]
+webkit.org/b/222685 webgl/1.0.3/conformance/textures/texture-mips.html [ Pass Failure ]
+
 # WebGPU is not enabled on iOS Simulator.
 webgpu [ Skip ]
+
+# webkit.org/b/223724 These two tests are flakey timeouts on iOS Debug:
+http/tests/security/webaudio-render-remote-audio-allowed-crossorigin.html [ Pass Timeout ]
+http/tests/security/webaudio-render-remote-audio-allowed-crossorigin-redirect.html [ Pass Timeout ]
+
+webkit.org/b/223949 crypto/crypto-random-values-oom.html [ Pass Timeout ]

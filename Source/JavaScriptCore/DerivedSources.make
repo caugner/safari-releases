@@ -106,7 +106,6 @@ JavaScriptCore_BUILTINS_SOURCES = \
     $(JavaScriptCore)/builtins/GeneratorPrototype.js \
     $(JavaScriptCore)/builtins/GlobalObject.js \
     $(JavaScriptCore)/builtins/GlobalOperations.js \
-    $(JavaScriptCore)/builtins/InspectorInstrumentationObject.js \
     $(JavaScriptCore)/builtins/InternalPromiseConstructor.js \
     $(JavaScriptCore)/builtins/IteratorHelpers.js \
     $(JavaScriptCore)/builtins/IteratorPrototype.js \
@@ -153,7 +152,6 @@ OBJECT_LUT_HEADERS = \
     DatePrototype.lut.h \
     ErrorPrototype.lut.h \
     GeneratorPrototype.lut.h \
-    InspectorInstrumentationObject.lut.h \
     IntlCollatorConstructor.lut.h \
     IntlCollatorPrototype.lut.h \
     IntlDateTimeFormatConstructor.lut.h \
@@ -193,6 +191,7 @@ OBJECT_LUT_HEADERS = \
     StringPrototype.lut.h \
     SymbolConstructor.lut.h \
     SymbolPrototype.lut.h \
+    TemporalObject.lut.h \
     WebAssemblyCompileErrorConstructor.lut.h \
     WebAssemblyCompileErrorPrototype.lut.h \
     WebAssemblyGlobalConstructor.lut.h \

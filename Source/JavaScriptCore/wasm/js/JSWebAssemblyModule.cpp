@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2017 Apple Inc. All rights reserved.
+ * Copyright (C) 2016-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -44,7 +44,7 @@ JSWebAssemblyModule* JSWebAssemblyModule::createStub(VM& vm, JSGlobalObject* glo
 {
     auto scope = DECLARE_THROW_SCOPE(vm);
     if (!result.has_value()) {
-        auto* error = JSWebAssemblyCompileError::create(globalObject, vm, structure->globalObject()->webAssemblyCompileErrorStructure(), result.error());
+        auto* error = createJSWebAssemblyCompileError(globalObject, vm, result.error());
         RETURN_IF_EXCEPTION(scope, nullptr);
         throwException(globalObject, scope, error);
         return nullptr;
@@ -124,7 +124,8 @@ void JSWebAssemblyModule::setCodeBlock(VM& vm, Wasm::MemoryMode mode, JSWebAssem
     m_codeBlocks[static_cast<size_t>(mode)].set(vm, this, codeBlock);
 }
 
-void JSWebAssemblyModule::visitChildren(JSCell* cell, SlotVisitor& visitor)
+template<typename Visitor>
+void JSWebAssemblyModule::visitChildrenImpl(JSCell* cell, Visitor& visitor)
 {
     JSWebAssemblyModule* thisObject = jsCast<JSWebAssemblyModule*>(cell);
     ASSERT_GC_OBJECT_INHERITS(thisObject, info());
@@ -134,6 +135,8 @@ void JSWebAssemblyModule::visitChildren(JSCell* cell, SlotVisitor& visitor)
     for (unsigned i = 0; i < Wasm::NumberOfMemoryModes; ++i)
         visitor.append(thisObject->m_codeBlocks[i]);
 }
+
+DEFINE_VISIT_CHILDREN(JSWebAssemblyModule);
 
 } // namespace JSC
 

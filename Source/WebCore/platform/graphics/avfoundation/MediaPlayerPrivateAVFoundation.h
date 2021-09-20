@@ -64,6 +64,8 @@ public:
 #if ENABLE(WIRELESS_PLAYBACK_TARGET)
     void playbackTargetIsWirelessChanged();
 #endif
+
+    void queueTaskOnEventLoop(Function<void()>&&);
     
     class Notification {
     public:
@@ -269,6 +271,7 @@ protected:
     static const HashSet<String, ASCIICaseInsensitiveHash>& staticMIMETypeList();
 
 protected:
+    void scheduleUpdateStates();
     void updateStates();
 
     void setHasVideo(bool);
@@ -318,13 +321,15 @@ protected:
     void setResolvedURL(URL&&);
     const URL& resolvedURL() const { return m_resolvedURL; }
 
+    void renderingModeChanged();
+
 private:
     MediaPlayer* m_player;
 
     WTF::Function<void()> m_pendingSeek;
 
-    Deque<Notification> m_queuedNotifications;
-    mutable Lock m_queueMutex;
+    mutable Lock m_queuedNotificationsLock;
+    Deque<Notification> m_queuedNotifications WTF_GUARDED_BY_LOCK(m_queuedNotificationsLock);
 
     mutable std::unique_ptr<PlatformTimeRanges> m_cachedLoadedTimeRanges;
 
@@ -366,6 +371,7 @@ private:
     bool m_characteristicsChanged;
     bool m_shouldMaintainAspectRatio;
     bool m_seeking;
+    bool m_delayingReadyState { false };
 };
 
 } // namespace WebCore

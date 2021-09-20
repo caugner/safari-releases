@@ -31,7 +31,9 @@ class Contributor(object):
     GIT_AUTHOR_RE = re.compile(r'Author: (?P<author>.*) <(?P<email>[^@]+@[^@]+)(@.*)?>')
     AUTOMATED_CHECKIN_RE = re.compile(r'Author: (?P<author>.*) <devnull>')
     UNKNOWN_AUTHOR = re.compile(r'Author: (?P<author>.*) <None>')
-    SVN_AUTHOR_RE = re.compile(r'r\d+ \| (?P<email>.*) \| (?P<date>.*) \| \d+ lines?')
+    EMPTY_AUTHOR = re.compile(r'Author: (?P<author>.*) <>')
+    SVN_AUTHOR_RE = re.compile(r'r(?P<revision>\d+) \| (?P<email>.*) \| (?P<date>.*) \| \d+ lines?')
+    SVN_AUTHOR_Q_RE = re.compile(r'r(?P<revision>\d+) \| (?P<email>.*) \| (?P<date>.*)')
     SVN_PATCH_FROM_RE = re.compile(r'Patch by (?P<author>.*) <(?P<email>.*)> on \d+-\d+-\d+')
 
     class Encoder(json.JSONEncoder):
@@ -102,6 +104,8 @@ class Contributor(object):
 
             self[contributor.name] = contributor
             for email in contributor.emails or []:
+                if not email:
+                    continue
                 self[email] = contributor
                 self[email.lower()] = contributor
             return contributor
@@ -112,11 +116,19 @@ class Contributor(object):
         email = None
         author = None
 
-        for expression in [cls.GIT_AUTHOR_RE, cls.SVN_AUTHOR_RE, cls.SVN_PATCH_FROM_RE, cls.AUTOMATED_CHECKIN_RE, cls.UNKNOWN_AUTHOR]:
+        for expression in [
+            cls.GIT_AUTHOR_RE,
+            cls.SVN_AUTHOR_RE,
+            cls.SVN_PATCH_FROM_RE,
+            cls.AUTOMATED_CHECKIN_RE,
+            cls.UNKNOWN_AUTHOR,
+            cls.EMPTY_AUTHOR,
+            cls.SVN_AUTHOR_Q_RE,
+        ]:
             match = expression.match(line)
             if match:
                 if 'author' in expression.groupindex:
-                    author = match.group('author')
+                    author = match.group('author').lstrip()
                     if '(no author)' in author or 'Automated Checkin' in author or 'Unknown' in author:
                         author = None
                 if 'email' in expression.groupindex:
@@ -145,10 +157,7 @@ class Contributor(object):
         return self.emails[0]
 
     def __repr__(self):
-        return '{} <{}>'.format(
-            string_utils.encode(self.name, target_type=str),
-            string_utils.encode(self.email, target_type=str),
-        )
+        return u'{} <{}>'.format(self.name, self.email)
 
     def __hash__(self):
         return hash(self.name)

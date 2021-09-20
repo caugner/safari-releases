@@ -35,6 +35,7 @@
 #import <WebKit/WKWebViewConfigurationPrivate.h>
 #import <WebKit/WKWebsiteDataRecordPrivate.h>
 #import <WebKit/WKWebsiteDataStorePrivate.h>
+#import <WebKit/_WKProcessPoolConfiguration.h>
 #import <WebKit/_WKWebsiteDataStoreConfiguration.h>
 #import <wtf/RetainPtr.h>
 
@@ -326,7 +327,7 @@ TEST(ResourceLoadStatistics, RemoveSessionID)
 {
     auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     auto websiteDataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
-    configuration.get().websiteDataStore = [[[WKWebsiteDataStore alloc] _initWithConfiguration:websiteDataStoreConfiguration.get()] autorelease];
+    configuration.get().websiteDataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:websiteDataStoreConfiguration.get()]).get();
 
     auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
@@ -535,12 +536,12 @@ TEST(ResourceLoadStatistics, DataTaskIdentifierCollision)
         TCPServer::write(socket, body, strlen(body));
     });
 
-    _WKWebsiteDataStoreConfiguration *storeConfiguration = [[_WKWebsiteDataStoreConfiguration new] autorelease];
-    storeConfiguration.httpsProxy = [NSURL URLWithString:[NSString stringWithFormat:@"https://127.0.0.1:%d/", httpsServer.port()]];
-    storeConfiguration.allowsServerPreconnect = NO;
-    WKWebsiteDataStore *dataStore = [[[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration] autorelease];
+    auto storeConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
+    storeConfiguration.get().httpsProxy = [NSURL URLWithString:[NSString stringWithFormat:@"https://127.0.0.1:%d/", httpsServer.port()]];
+    storeConfiguration.get().allowsServerPreconnect = NO;
+    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
     auto viewConfiguration = adoptNS([WKWebViewConfiguration new]);
-    [viewConfiguration setWebsiteDataStore:dataStore];
+    [viewConfiguration setWebsiteDataStore:dataStore.get()];
 
     auto webView1 = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 100, 100) configuration:viewConfiguration.get()]);
     [webView1 synchronouslyLoadHTMLString:@"start network process and initialize data store"];
@@ -583,8 +584,8 @@ TEST(ResourceLoadStatistics, DataTaskIdentifierCollision)
 TEST(ResourceLoadStatistics, NoMessagesWhenNotTesting)
 {
     auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    WKWebsiteDataStore *dataStore = [[[WKWebsiteDataStore alloc] _initWithConfiguration:[[[_WKWebsiteDataStoreConfiguration alloc] init] autorelease]] autorelease];
-    [configuration setWebsiteDataStore:dataStore];
+    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]).get()]);
+    [configuration setWebsiteDataStore:dataStore.get()];
     [dataStore _setResourceLoadStatisticsEnabled:YES];
     auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
     [webView synchronouslyLoadTestPageNamed:@"simple"];
@@ -1250,9 +1251,9 @@ TEST(ResourceLoadStatistics, CanAccessDataSummaryWithNoProcessPool)
     [defaultFileManager copyItemAtPath:newFileURL.path toPath:fileURL.path error:nil];
     EXPECT_TRUE([defaultFileManager fileExistsAtPath:fileURL.path]);
 
-    _WKWebsiteDataStoreConfiguration *dataStoreConfiguration = [[_WKWebsiteDataStoreConfiguration new] autorelease];
-    dataStoreConfiguration._resourceLoadStatisticsDirectory = itpRootURL;
-    auto *dataStore = [[[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration] autorelease];
+    auto dataStoreConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
+    dataStoreConfiguration.get()._resourceLoadStatisticsDirectory = itpRootURL;
+    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]);
     [dataStore _setResourceLoadStatisticsEnabled:YES];
 
     static bool doneFlag = false;
@@ -1279,7 +1280,7 @@ TEST(ResourceLoadStatistics, StoreSuspension)
 {
     auto *sharedProcessPool = [WKProcessPool _sharedProcessPool];
     auto *dataStore1 = [WKWebsiteDataStore defaultDataStore];
-    auto *dataStore2 = [[[WKWebsiteDataStore alloc] _initWithConfiguration:[[[_WKWebsiteDataStoreConfiguration alloc] init] autorelease]] autorelease];
+    auto dataStore2 = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]).get()]);
 
     [dataStore1 _setResourceLoadStatisticsEnabled:YES];
     [dataStore2 _setResourceLoadStatisticsEnabled:YES];
@@ -1290,7 +1291,7 @@ TEST(ResourceLoadStatistics, StoreSuspension)
 
     auto configuration2 = adoptNS([[WKWebViewConfiguration alloc] init]);
     [configuration2 setProcessPool: sharedProcessPool];
-    configuration2.get().websiteDataStore = dataStore2;
+    configuration2.get().websiteDataStore = dataStore2.get();
 
     auto webView1 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration1.get()]);
     auto webView2 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration2.get()]);
@@ -1325,7 +1326,7 @@ TEST(ResourceLoadStatistics, StoreSuspension)
     else if ([task.request.URL.path isEqualToString:@"/tp-load"])
         response = @"<body></body>";
 
-    [task didReceiveResponse:[[[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:@"text/html" expectedContentLength:response.length textEncodingName:nil] autorelease]];
+    [task didReceiveResponse:adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:@"text/html" expectedContentLength:response.length textEncodingName:nil]).get()];
     [task didReceiveData:[response dataUsingEncoding:NSUTF8StringEncoding]];
     [task didFinish];
 }
@@ -1338,14 +1339,19 @@ TEST(ResourceLoadStatistics, StoreSuspension)
 
 TEST(ResourceLoadStatistics, BackForwardPerPageData)
 {
+    auto processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    processPoolConfiguration.get().processSwapsOnNavigationWithinSameNonHTTPFamilyProtocol = YES;
+    auto processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
+
     auto *dataStore = [WKWebsiteDataStore defaultDataStore];
     auto delegate = adoptNS([TestNavigationDelegate new]);
 
     auto schemeHandler = adoptNS([[ResourceLoadStatisticsSchemeHandler alloc] init]);
-    WKWebViewConfiguration *configuration = [[[WKWebViewConfiguration alloc] init] autorelease];
+    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    [configuration setProcessPool:processPool.get()];
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"resource-load-statistics"];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
     [webView setNavigationDelegate:delegate.get()];
 
     static bool doneFlag = false;
@@ -1406,5 +1412,52 @@ TEST(ResourceLoadStatistics, BackForwardPerPageData)
         doneFlag = true;
     }];
     
+    TestWebKitAPI::Util::run(&doneFlag);
+}
+
+TEST(ResourceLoadStatistics, MigrateDistinctDataFromTableWithMissingIndexes)
+{
+    auto *sharedProcessPool = [WKProcessPool _sharedProcessPool];
+
+    auto defaultFileManager = [NSFileManager defaultManager];
+    auto *dataStore = [WKWebsiteDataStore defaultDataStore];
+    NSURL *itpRootURL = [[dataStore _configuration] _resourceLoadStatisticsDirectory];
+    NSURL *fileURL = [itpRootURL URLByAppendingPathComponent:@"observations.db"];
+    [defaultFileManager removeItemAtPath:itpRootURL.path error:nil];
+    EXPECT_FALSE([defaultFileManager fileExistsAtPath:itpRootURL.path]);
+
+    // Load an incorrect database schema with pre-seeded ITP data. In this case, it contains various entries of webkit.org and apple.com
+    // repeatedly stored as subframes, subresources, and unique redirects. It also has them as repeated source and destination sites for PCM.
+    // Once we add unique indexes, each entry should be migrated exactly once. Debug asserts when running the test will indicate failure.
+    [defaultFileManager createDirectoryAtURL:itpRootURL withIntermediateDirectories:YES attributes:nil error:nil];
+    NSURL *newFileURL = [[NSBundle mainBundle] URLForResource:@"resourceLoadStatisticsMissingUniqueIndex" withExtension:@"db" subdirectory:@"TestWebKitAPI.resources"];
+    EXPECT_TRUE([defaultFileManager fileExistsAtPath:newFileURL.path]);
+    [defaultFileManager copyItemAtPath:newFileURL.path toPath:fileURL.path error:nil];
+    EXPECT_TRUE([defaultFileManager fileExistsAtPath:fileURL.path]);
+
+    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    [configuration setProcessPool: sharedProcessPool];
+    configuration.get().websiteDataStore = dataStore;
+
+    // We need an active NetworkProcess to perform ResourceLoadStatistics operations.
+    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    [dataStore _setResourceLoadStatisticsEnabled:YES];
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"about:blank"]]];
+
+    __block bool doneFlag = false;
+    // Check that the webkit.org is stored as appearing under apple.com exactly once.
+    [dataStore _isRelationshipOnlyInDatabaseOnce:[NSURL URLWithString:@"http://apple.com"] thirdParty:[NSURL URLWithString:@"http://webkit.org"] completionHandler:^void(BOOL result) {
+        EXPECT_TRUE(result);
+        doneFlag = true;
+    }];
+    TestWebKitAPI::Util::run(&doneFlag);
+
+    doneFlag = false;
+    // Check that the apple.com is stored as appearing under webkit.org exactly once.
+    [dataStore _isRelationshipOnlyInDatabaseOnce:[NSURL URLWithString:@"http://webkit.org"] thirdParty:[NSURL URLWithString:@"http://apple.com"] completionHandler:^void(BOOL result) {
+        EXPECT_TRUE(result);
+        doneFlag = true;
+    }];
+
     TestWebKitAPI::Util::run(&doneFlag);
 }

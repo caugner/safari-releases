@@ -27,6 +27,7 @@
 #import "WKWebViewPrivateForTesting.h"
 
 #import "AudioSessionRoutingArbitratorProxy.h"
+#import "MediaSessionCoordinatorProxyPrivate.h"
 #import "PlaybackSessionManagerProxy.h"
 #import "UserMediaProcessManager.h"
 #import "ViewGestureController.h"
@@ -39,7 +40,18 @@
 #import "_WKInspectorInternal.h"
 #import <WebCore/RuntimeApplicationChecks.h>
 #import <WebCore/ValidationBubble.h>
+#import <wtf/RetainPtr.h>
 
+#if ENABLE(MEDIA_SESSION_COORDINATOR)
+@interface WKMediaSessionCoordinatorHelper : NSObject <_WKMediaSessionCoordinatorDelegate>
+- (id)initWithCoordinator:(WebCore::MediaSessionCoordinatorClient*)coordinator;
+- (void)seekSessionToTime:(double)time withCompletion:(void(^)(BOOL))completionHandler;
+- (void)playSessionWithCompletion:(void(^)(BOOL))completionHandler;
+- (void)pauseSessionWithCompletion:(void(^)(BOOL))completionHandler;
+- (void)setSessionTrack:(NSString*)trackIdentifier withCompletion:(void(^)(BOOL))completionHandler;
+- (void)coordinatorStateChanged:(_WKMediaSessionCoordinatorState)state;
+@end
+#endif
 
 @implementation WKWebView (WKTesting)
 
@@ -71,6 +83,9 @@
         return @{ userInterfaceItem: @{ @"message": (NSString *)message, @"fontSize": @(fontSize) } };
     }
 
+    if (NSDictionary *contents = _page->contentsOfUserInterfaceItem(userInterfaceItem))
+        return contents;
+
 #if PLATFORM(IOS_FAMILY)
     return [_contentView _contentsOfUserInterfaceItem:(NSString *)userInterfaceItem];
 #else
@@ -85,12 +100,9 @@
         return;
     }
 
-    auto handler = makeBlockPtr(callback);
-    auto localCallback = WebKit::NowPlayingInfoCallback::create([handler](bool active, bool registeredAsNowPlayingApplication, String title, double duration, double elapsedTime, uint64_t uniqueIdentifier, WebKit::CallbackBase::Error) {
+    _page->requestActiveNowPlayingSessionInfo([handler = makeBlockPtr(callback)] (bool active, bool registeredAsNowPlayingApplication, String title, double duration, double elapsedTime, uint64_t uniqueIdentifier) {
         handler(active, registeredAsNowPlayingApplication, title, duration, elapsedTime, uniqueIdentifier);
     });
-
-    _page->requestActiveNowPlayingSessionInfo(WTFMove(localCallback));
 }
 
 - (BOOL)_scrollingUpdatesDisabledForTesting
@@ -114,7 +126,9 @@
     _visibleContentRectUpdateCallbacks.append(makeBlockPtr(updateBlock));
     [self _scheduleVisibleContentRectUpdate];
 #else
-    dispatch_async(dispatch_get_main_queue(), updateBlock);
+    RunLoop::main().dispatch([updateBlock = makeBlockPtr(updateBlock)] {
+        updateBlock();
+    });
 #endif
 }
 
@@ -303,11 +317,35 @@
     });
 }
 
-- (void)_setPrivateClickMeasurementConversionURLForTesting:(NSURL *)url completionHandler:(void(^)(void))completionHandler
+- (void)_setPrivateClickMeasurementAttributionReportURLsForTesting:(NSURL *)sourceURL destinationURL:(NSURL *)destinationURL completionHandler:(void(^)(void))completionHandler
 {
-    _page->setPrivateClickMeasurementConversionURLForTesting(url, [completionHandler = makeBlockPtr(completionHandler)] {
+    _page->setPrivateClickMeasurementAttributionReportURLsForTesting(sourceURL, destinationURL, [completionHandler = makeBlockPtr(completionHandler)] {
         completionHandler();
     });
+}
+
+- (void)_setPrivateClickMeasurementAttributionTokenPublicKeyURLForTesting:(NSURL *)url completionHandler:(void(^)(void))completionHandler
+{
+    _page->setPrivateClickMeasurementTokenPublicKeyURLForTesting(url, [completionHandler = makeBlockPtr(completionHandler)] {
+        completionHandler();
+    });
+}
+
+- (void)_setPrivateClickMeasurementAttributionTokenSignatureURLForTesting:(NSURL *)url completionHandler:(void(^)(void))completionHandler
+{
+    _page->setPrivateClickMeasurementTokenSignatureURLForTesting(url, [completionHandler = makeBlockPtr(completionHandler)] {
+        completionHandler();
+    });
+}
+
+- (void)_didShowContextMenu
+{
+    // For subclasses to override.
+}
+
+- (void)_didDismissContextMenu
+{
+    // For subclasses to override.
 }
 
 - (void)_didPresentContactPicker
@@ -327,4 +365,272 @@
 #endif
 }
 
+- (void)_lastNavigationWasAppInitiated:(void(^)(BOOL))completionHandler
+{
+    _page->lastNavigationWasAppInitiated([completionHandler = makeBlockPtr(completionHandler)] (bool isAppInitiated) {
+        completionHandler(isAppInitiated);
+    });
+}
+
+- (void)_appPrivacyReportTestingData:(void(^)(struct WKAppPrivacyReportTestingData data))completionHandler
+{
+    _page->appPrivacyReportTestingData([completionHandler = makeBlockPtr(completionHandler)] (auto&& appPrivacyReportTestingData) {
+        completionHandler({ appPrivacyReportTestingData.hasLoadedAppInitiatedRequestTesting, appPrivacyReportTestingData.hasLoadedNonAppInitiatedRequestTesting, appPrivacyReportTestingData.didPerformSoftUpdate });
+    });
+}
+
+- (void)_clearAppPrivacyReportTestingData:(void(^)(void))completionHandler
+{
+    _page->clearAppPrivacyReportTestingData([completionHandler = makeBlockPtr(completionHandler)] {
+        completionHandler();
+    });
+}
+
+- (void)_createMediaSessionCoordinatorForTesting:(id <_WKMediaSessionCoordinator>)privateCoordinator completionHandler:(void(^)(BOOL))completionHandler
+{
+#if ENABLE(MEDIA_SESSION_COORDINATOR)
+    class WKMediaSessionCoordinatorForTesting
+        : public WebKit::MediaSessionCoordinatorProxyPrivate
+        , public WebCore::MediaSessionCoordinatorClient {
+        WTF_MAKE_FAST_ALLOCATED;
+    public:
+
+        static Ref<WKMediaSessionCoordinatorForTesting> create(id <_WKMediaSessionCoordinator> privateCoordinator)
+        {
+            return adoptRef(*new WKMediaSessionCoordinatorForTesting(privateCoordinator));
+        }
+
+        using WebCore::MediaSessionCoordinatorClient::weakPtrFactory;
+        using WeakValueType = WebCore::MediaSessionCoordinatorClient::WeakValueType;
+
+    private:
+        explicit WKMediaSessionCoordinatorForTesting(id <_WKMediaSessionCoordinator> clientCoordinator)
+            : WebKit::MediaSessionCoordinatorProxyPrivate()
+            , m_clientCoordinator(clientCoordinator)
+        {
+            auto* delegateHelper = [[WKMediaSessionCoordinatorHelper alloc] initWithCoordinator:this];
+            [m_clientCoordinator setDelegate:delegateHelper];
+            m_coordinatorDelegate = adoptNS(delegateHelper);
+        }
+
+        void seekSessionToTime(double time, CompletionHandler<void(bool)>&& callback) final
+        {
+            if (auto coordinatorClient = client())
+                coordinatorClient->seekSessionToTime(time, WTFMove(callback));
+            else
+                callback(false);
+        }
+
+        void playSession(std::optional<double> atTime, std::optional<MonotonicTime> hostTime, CompletionHandler<void(bool)>&& callback) final
+        {
+            if (auto coordinatorClient = client())
+                coordinatorClient->playSession(WTFMove(atTime), WTFMove(hostTime), WTFMove(callback));
+            else
+                callback(false);
+        }
+
+        void pauseSession(CompletionHandler<void(bool)>&& callback) final
+        {
+            if (auto coordinatorClient = client())
+                coordinatorClient->pauseSession(WTFMove(callback));
+            else
+                callback(false);
+        }
+
+        void setSessionTrack(const String& trackIdentifier, CompletionHandler<void(bool)>&& callback) final
+        {
+            if (auto coordinatorClient = client())
+                coordinatorClient->setSessionTrack(trackIdentifier, WTFMove(callback));
+            else
+                callback(false);
+        }
+
+        void coordinatorStateChanged(WebCore::MediaSessionCoordinatorState state) final
+        {
+            if (auto coordinatorClient = client())
+                coordinatorClient->coordinatorStateChanged(state);
+        }
+
+        std::optional<WebCore::ExceptionData> result(bool success) const
+        {
+            if (!success)
+                return { WebCore::ExceptionData { WebCore::InvalidStateError, String() } };
+
+            return { };
+        }
+
+        String identifier() const
+        {
+            return [m_clientCoordinator identifier];
+        }
+
+        void join(WebKit::MediaSessionCommandCompletionHandler&& callback) final
+        {
+            [m_clientCoordinator joinWithCompletion:makeBlockPtr([weakThis = makeWeakPtr(this), callback = WTFMove(callback)] (BOOL success) mutable {
+                if (!weakThis) {
+                    callback(WebCore::ExceptionData { WebCore::InvalidStateError, String() });
+                    return;
+                }
+
+                callback(weakThis->result(success));
+            }).get()];
+        }
+
+        void leave() final
+        {
+            [m_clientCoordinator leave];
+        }
+
+        void seekTo(double time, WebKit::MediaSessionCommandCompletionHandler&& callback) final
+        {
+            [m_clientCoordinator seekTo:time withCompletion:makeBlockPtr([weakThis = makeWeakPtr(this), callback = WTFMove(callback)] (BOOL success) mutable {
+                if (!weakThis) {
+                    callback(WebCore::ExceptionData { WebCore::InvalidStateError, String() });
+                    return;
+                }
+
+                callback(weakThis->result(success));
+            }).get()];
+        }
+
+        void play(WebKit::MediaSessionCommandCompletionHandler&& callback) final
+        {
+            [m_clientCoordinator playWithCompletion:makeBlockPtr([weakThis = makeWeakPtr(this), callback = WTFMove(callback)] (BOOL success) mutable {
+                if (!weakThis) {
+                    callback(WebCore::ExceptionData { WebCore::InvalidStateError, String() });
+                    return;
+                }
+
+                callback(weakThis->result(success));
+            }).get()];
+        }
+
+        void pause(WebKit::MediaSessionCommandCompletionHandler&& callback) final
+        {
+            [m_clientCoordinator pauseWithCompletion:makeBlockPtr([weakThis = makeWeakPtr(this), callback = WTFMove(callback)] (BOOL success) mutable {
+                if (!weakThis) {
+                    callback(WebCore::ExceptionData { WebCore::InvalidStateError, String() });
+                    return;
+                }
+
+                callback(weakThis->result(success));
+            }).get()];
+        }
+
+        void setTrack(const String& track, WebKit::MediaSessionCommandCompletionHandler&& callback) final
+        {
+            [m_clientCoordinator setTrack:track withCompletion:makeBlockPtr([weakThis = makeWeakPtr(this), callback = WTFMove(callback)] (BOOL success) mutable {
+                if (!weakThis) {
+                    callback(WebCore::ExceptionData { WebCore::InvalidStateError, String() });
+                    return;
+                }
+
+                callback(weakThis->result(success));
+            }).get()];
+        }
+
+        void positionStateChanged(const std::optional<WebCore::MediaPositionState>& state) final
+        {
+            if (!state) {
+                [m_clientCoordinator positionStateChanged:nil];
+                return;
+            }
+
+            _WKMediaPositionState position = {
+                .duration = state->duration,
+                .playbackRate = state->playbackRate,
+                .position = state->position
+            };
+            [m_clientCoordinator positionStateChanged:&position];
+        }
+
+        void readyStateChanged(WebCore::MediaSessionReadyState state) final
+        {
+            static_assert(static_cast<size_t>(WebCore::MediaSessionReadyState::Havenothing) == static_cast<size_t>(WKMediaSessionReadyStateHaveNothing), "WKMediaSessionReadyStateHaveNothing does not match WebKit value");
+            static_assert(static_cast<size_t>(WebCore::MediaSessionReadyState::Havemetadata) == static_cast<size_t>(WKMediaSessionReadyStateHaveMetadata), "WKMediaSessionReadyStateHaveMetadata does not match WebKit value");
+            static_assert(static_cast<size_t>(WebCore::MediaSessionReadyState::Havecurrentdata) == static_cast<size_t>(WKMediaSessionReadyStateHaveCurrentData), "WKMediaSessionReadyStateHaveCurrentData does not match WebKit value");
+            static_assert(static_cast<size_t>(WebCore::MediaSessionReadyState::Havefuturedata) == static_cast<size_t>(WKMediaSessionReadyStateHaveFutureData), "WKMediaSessionReadyStateHaveFutureData does not match WebKit value");
+            static_assert(static_cast<size_t>(WebCore::MediaSessionReadyState::Haveenoughdata) == static_cast<size_t>(WKMediaSessionReadyStateHaveEnoughData), "WKMediaSessionReadyStateHaveEnoughData does not match WebKit value");
+
+            [m_clientCoordinator readyStateChanged:static_cast<_WKMediaSessionReadyState>(state)];
+        }
+
+        void playbackStateChanged(WebCore::MediaSessionPlaybackState state) final
+        {
+            static_assert(static_cast<size_t>(WebCore::MediaSessionPlaybackState::None) == static_cast<size_t>(WKMediaSessionPlaybackStateNone), "WKMediaSessionPlaybackStateNone does not match WebKit value");
+            static_assert(static_cast<size_t>(WebCore::MediaSessionPlaybackState::Paused) == static_cast<size_t>(WKMediaSessionPlaybackStatePaused), "WKMediaSessionPlaybackStatePaused does not match WebKit value");
+            static_assert(static_cast<size_t>(WebCore::MediaSessionPlaybackState::Playing) == static_cast<size_t>(WKMediaSessionPlaybackStatePlaying), "WKMediaSessionPlaybackStatePlaying does not match WebKit value");
+
+            [m_clientCoordinator playbackStateChanged:static_cast<_WKMediaSessionPlaybackState>(state)];
+        }
+
+        void trackIdentifierChanged(const String& identifier) final
+        {
+            [m_clientCoordinator trackIdentifierChanged:identifier];
+        }
+
+    private:
+        RetainPtr<id <_WKMediaSessionCoordinator>> m_clientCoordinator;
+        RetainPtr<WKMediaSessionCoordinatorHelper> m_coordinatorDelegate;
+    };
+
+    ASSERT(!_impl->mediaSessionCoordinatorForTesting());
+
+    _impl->setMediaSessionCoordinatorForTesting(WKMediaSessionCoordinatorForTesting::create(privateCoordinator).ptr());
+    _impl->page().createMediaSessionCoordinator(*_impl->mediaSessionCoordinatorForTesting(), [completionHandler = makeBlockPtr(completionHandler)] (bool success) {
+        completionHandler(success);
+    });
+#else
+
+    completionHandler(NO);
+
+#endif
+}
+
 @end
+
+#if ENABLE(MEDIA_SESSION_COORDINATOR)
+@implementation WKMediaSessionCoordinatorHelper {
+    WeakPtr<WebCore::MediaSessionCoordinatorClient> m_coordinatorClient;
+}
+
+- (id)initWithCoordinator:(WebCore::MediaSessionCoordinatorClient*)coordinator
+{
+    self = [super init];
+    if (!self)
+        return nil;
+    m_coordinatorClient = makeWeakPtr(coordinator);
+    return self;
+}
+
+- (void)seekSessionToTime:(double)time withCompletion:(void(^)(BOOL))completionHandler
+{
+    m_coordinatorClient->seekSessionToTime(time, makeBlockPtr(completionHandler));
+}
+
+- (void)playSessionWithCompletion:(void(^)(BOOL))completionHandler
+{
+    m_coordinatorClient->playSession({ }, std::optional<MonotonicTime>(), makeBlockPtr(completionHandler));
+}
+
+- (void)pauseSessionWithCompletion:(void(^)(BOOL))completionHandler
+{
+    m_coordinatorClient->pauseSession(makeBlockPtr(completionHandler));
+}
+
+- (void)setSessionTrack:(NSString*)trackIdentifier withCompletion:(void(^)(BOOL))completionHandler
+{
+    m_coordinatorClient->setSessionTrack(trackIdentifier, makeBlockPtr(completionHandler));
+}
+
+- (void)coordinatorStateChanged:(_WKMediaSessionCoordinatorState)state
+{
+    static_assert(static_cast<size_t>(WebCore::MediaSessionCoordinatorState::Waiting) == static_cast<size_t>(WKMediaSessionCoordinatorStateWaiting), "WKMediaSessionCoordinatorStateWaiting does not match WebKit value");
+    static_assert(static_cast<size_t>(WebCore::MediaSessionCoordinatorState::Joined) == static_cast<size_t>(WKMediaSessionCoordinatorStateJoined), "WKMediaSessionCoordinatorStateJoined does not match WebKit value");
+    static_assert(static_cast<size_t>(WebCore::MediaSessionCoordinatorState::Closed) == static_cast<size_t>(WKMediaSessionCoordinatorStateClosed), "WKMediaSessionCoordinatorStateClosed does not match WebKit value");
+
+    m_coordinatorClient->coordinatorStateChanged(static_cast<WebCore::MediaSessionCoordinatorState>(state));
+}
+
+@end
+#endif

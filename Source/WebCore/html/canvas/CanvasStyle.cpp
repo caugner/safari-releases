@@ -37,10 +37,12 @@
 #include "Gradient.h"
 #include "GraphicsContext.h"
 #include "HTMLCanvasElement.h"
+#include "StyleProperties.h"
+
 #if ENABLE(OFFSCREEN_CANVAS)
+#include "CSSPropertyParserWorkerSafe.h"
 #include "OffscreenCanvas.h"
 #endif
-#include "StyleProperties.h"
 
 #if USE(CG)
 #include <CoreGraphics/CGContext.h>
@@ -57,7 +59,7 @@ Color parseColor(const String& colorString, CanvasBase& canvasBase)
 {
 #if ENABLE(OFFSCREEN_CANVAS)
     if (canvasBase.isOffscreenCanvas())
-        return CSSParser::parseColorWorkerSafe(colorString);
+        return CSSPropertyParserWorkerSafe::parseColor(colorString);
 #else
     UNUSED_PARAM(canvasBase);
 #endif
@@ -95,7 +97,7 @@ CanvasStyle::CanvasStyle(Color color)
 }
 
 CanvasStyle::CanvasStyle(const SRGBA<float>& colorComponents)
-    : m_style(convertToComponentBytes(colorComponents))
+    : m_style(convertColor<SRGBA<uint8_t>>(colorComponents))
 {
 }
 
@@ -117,7 +119,7 @@ inline CanvasStyle::CanvasStyle(CurrentColor color)
 CanvasStyle CanvasStyle::createFromString(const String& colorString, CanvasBase& canvasBase)
 {
     if (isCurrentColorString(colorString))
-        return CurrentColor { WTF::nullopt };
+        return CurrentColor { std::nullopt };
 
     Color color = parseColor(colorString, canvasBase);
     if (!color.isValid())
@@ -148,7 +150,7 @@ bool CanvasStyle::isEquivalentColor(const CanvasStyle& other) const
 
 bool CanvasStyle::isEquivalent(const SRGBA<float>& components) const
 {
-    return WTF::holds_alternative<Color>(m_style) && WTF::get<Color>(m_style) == convertToComponentBytes(components);
+    return WTF::holds_alternative<Color>(m_style) && WTF::get<Color>(m_style) == convertColor<SRGBA<uint8_t>>(components);
 }
 
 void CanvasStyle::applyStrokeColor(GraphicsContext& context) const

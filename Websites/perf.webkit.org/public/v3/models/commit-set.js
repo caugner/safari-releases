@@ -76,8 +76,8 @@ class CommitSet extends DataModelObject {
 
     areAllRootsAvailable(earliestCreationTime)
     {
-        return this.allRootFiles().every(rootFile => (!rootFile.deletedAt() || this.customRoots().find(rootFile))
-            && rootFile.createdAt() >= earliestCreationTime);
+        return this.allRootFiles().every(rootFile => this.customRoots().includes(rootFile)
+            || (!rootFile.deletedAt() && rootFile.createdAt() >= earliestCreationTime));
     }
 
     revisionForRepository(repository)
@@ -292,14 +292,15 @@ class MeasurementCommitSet extends CommitSet {
             const commitId = values[0];
             const repositoryId = values[1];
             const revision = values[2];
-            const order = values[3];
-            const time = values[4];
+            const revisionIdentifier = values[3];
+            const order = values[4];
+            const time = values[5];
             const repository = Repository.findById(repositoryId);
             if (!repository)
                 continue;
 
             // FIXME: Add a flag to remember the fact this commit log is incomplete.
-            const commit = CommitLog.ensureSingleton(commitId, {id: commitId, repository, revision, order, time});
+            const commit = CommitLog.ensureSingleton(commitId, {id: commitId, repository, revision, revisionIdentifier, order, time});
             this._repositoryToCommitMap.set(repository, commit);
             this._repositories.push(repository);
         }

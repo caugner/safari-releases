@@ -44,15 +44,13 @@ public:
 
     void commitTreeStateIfNeeded() override;
 
-    bool handleWheelEventForScrolling(const PlatformWheelEvent&, ScrollingNodeID, Optional<WheelScrollGestureState>) override;
-    void wheelEventWasProcessedByMainThread(const PlatformWheelEvent&, Optional<WheelScrollGestureState>) override;
+    bool handleWheelEventForScrolling(const PlatformWheelEvent&, ScrollingNodeID, std::optional<WheelScrollGestureState>) override;
+    void wheelEventWasProcessedByMainThread(const PlatformWheelEvent&, std::optional<WheelScrollGestureState>) override;
 
 private:
     void scheduleTreeStateCommit() override;
 
-    void commitTreeState();
-
-    RunLoop::Timer<ScrollingCoordinatorNicosia> m_scrollingStateTreeCommitterTimer;
+    void willStartRenderingUpdate() final;
 };
 
 } // namespace WebCore

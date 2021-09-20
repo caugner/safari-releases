@@ -64,6 +64,7 @@
 #include "ResetInputType.h"
 #include "ScopedEventQueue.h"
 #include "SearchInputType.h"
+#include "SelectionRestorationMode.h"
 #include "Settings.h"
 #include "ShadowRoot.h"
 #include "StepRange.h"
@@ -166,21 +167,6 @@ bool InputType::themeSupportsDataListUI(InputType* type)
     return RenderTheme::singleton().supportsDataListUI(type->formControlType());
 }
 
-bool InputType::isTextField() const
-{
-    return false;
-}
-
-bool InputType::isTextType() const
-{
-    return false;
-}
-
-bool InputType::isRangeControl() const
-{
-    return false;
-}
-
 bool InputType::shouldSaveAndRestoreFormControlState() const
 {
     return true;
@@ -239,11 +225,6 @@ ExceptionOr<void> InputType::setValueAsDouble(double doubleValue, TextFieldEvent
 ExceptionOr<void> InputType::setValueAsDecimal(const Decimal&, TextFieldEventBehavior) const
 {
     return Exception { InvalidStateError };
-}
-
-bool InputType::supportsValidation() const
-{
-    return true;
 }
 
 bool InputType::typeMismatchFor(const String&) const
@@ -658,7 +639,7 @@ void InputType::handleBlurEvent()
 bool InputType::accessKeyAction(bool)
 {
     ASSERT(element());
-    element()->focus(SelectionRestorationMode::SelectAll);
+    element()->focus({ SelectionRestorationMode::SelectAll });
     return false;
 }
 
@@ -816,143 +797,19 @@ bool InputType::shouldRespectListAttribute()
     return false;
 }
 
-bool InputType::isTextButton() const
-{
-    return false;
-}
-
-bool InputType::isRadioButton() const
-{
-    return false;
-}
-
-bool InputType::isSearchField() const
-{
-    return false;
-}
-
-bool InputType::isHiddenType() const
-{
-    return false;
-}
-
-bool InputType::isPasswordField() const
-{
-    return false;
-}
-
-bool InputType::isCheckbox() const
-{
-    return false;
-}
-
-bool InputType::isEmailField() const
-{
-    return false;
-}
-
-bool InputType::isFileUpload() const
-{
-    return false;
-}
-
-bool InputType::isImageButton() const
-{
-    return false;
-}
-
 bool InputType::isInteractiveContent() const
 {
-    return true;
+    return m_type != Type::Hidden;
 }
 
 bool InputType::supportLabels() const
 {
-    return true;
+    return m_type != Type::Hidden;
 }
 
-bool InputType::isNumberField() const
+bool InputType::isEnumeratable() const
 {
-    return false;
-}
-
-bool InputType::isSubmitButton() const
-{
-    return false;
-}
-
-bool InputType::isTelephoneField() const
-{
-    return false;
-}
-
-bool InputType::isURLField() const
-{
-    return false;
-}
-
-bool InputType::isDateField() const
-{
-    return false;
-}
-
-bool InputType::isDateTimeField() const
-{
-    return false;
-}
-
-bool InputType::isDateTimeLocalField() const
-{
-    return false;
-}
-
-bool InputType::isMonthField() const
-{
-    return false;
-}
-
-bool InputType::isTimeField() const
-{
-    return false;
-}
-
-bool InputType::isWeekField() const
-{
-    return false;
-}
-
-bool InputType::isEnumeratable()
-{
-    return true;
-}
-
-bool InputType::isCheckable()
-{
-    return false;
-}
-
-// Do not use virtual function for performance reason.
-bool InputType::isSteppable() const
-{
-    switch (m_type) {
-    case Type::Date:
-    case Type::DateTimeLocal:
-    case Type::Month:
-    case Type::Time:
-    case Type::Week:
-    case Type::Number:
-    case Type::Range:
-        ASSERT(isSteppableSlow());
-        return true;
-    default:
-        ASSERT(!isSteppableSlow());
-        return false;
-    }
-}
-
-bool InputType::isColorControl() const
-{
-    return false;
+    return m_type != Type::Image;
 }
 
 bool InputType::shouldRespectHeightAndWidthAttributes()
@@ -1008,10 +865,10 @@ void InputType::dataListMayHaveChanged()
 {
 }
 
-Optional<Decimal> InputType::findClosestTickMarkValue(const Decimal&)
+std::optional<Decimal> InputType::findClosestTickMarkValue(const Decimal&)
 {
     ASSERT_NOT_REACHED();
-    return WTF::nullopt;
+    return std::nullopt;
 }
 #endif
 
@@ -1073,8 +930,9 @@ ExceptionOr<void> InputType::applyStep(int count, AnyStepHandling anyStepHandlin
     if (newValue > stepRange.maximum())
         newValue = stepRange.maximum();
 
+    auto protectedThis = makeRef(*this);
     auto result = setValueAsDecimal(newValue, eventBehavior);
-    if (result.hasException())
+    if (result.hasException() || !element())
         return result;
 
     if (AXObjectCache* cache = element()->document().existingAXObjectCache())
@@ -1223,6 +1081,12 @@ Vector<Color> InputType::suggestedColors() const
 RefPtr<TextControlInnerTextElement> InputType::innerTextElement() const
 {
     return nullptr;
+}
+
+String InputType::resultForDialogSubmit() const
+{
+    ASSERT(element());
+    return element()->value();
 }
 
 } // namespace WebCore

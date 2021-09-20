@@ -64,6 +64,7 @@ public:
 
     ServiceWorkerIdentifier identifier() const { return m_data.identifier; }
     ServiceWorkerRegistrationIdentifier registrationIdentifier() const { return m_data.registrationIdentifier; }
+    WorkerType workerType() const { return m_data.type; }
 
     using RefCounted::ref;
     using RefCounted::deref;
@@ -80,8 +81,6 @@ private:
     // ActiveDOMObject.
     const char* activeDOMObjectName() const final;
     void stop() final;
-
-    bool isAlwaysOnLoggingAllowed() const;
 
     SWClientConnection& swConnection();
 

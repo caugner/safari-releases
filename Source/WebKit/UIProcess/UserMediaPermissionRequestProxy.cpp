@@ -140,7 +140,7 @@ String convertEnumerationToString(UserMediaPermissionRequestProxy::UserMediaAcce
     return values[static_cast<size_t>(enumerationValue)];
 }
 
-void UserMediaPermissionRequestProxy::doDefaultAction()
+void UserMediaPermissionRequestProxy::prompt()
 {
 #if ENABLE(MEDIA_STREAM) && PLATFORM(COCOA)
     ASSERT(m_manager);
@@ -155,18 +155,16 @@ void UserMediaPermissionRequestProxy::doDefaultAction()
         return;
     }
 
-    OptionSet<MediaPermissionType> requestedTypes;
+    MediaPermissionReason reason = MediaPermissionReason::Camera;
     if (requiresAudioCapture())
-        requestedTypes.add(MediaPermissionType::Audio);
-    if (requiresVideoCapture())
-        requestedTypes.add(MediaPermissionType::Video);
-    alertForPermission(m_manager->page(), MediaPermissionReason::UserMedia, requestedTypes, topLevelDocumentSecurityOrigin(), [this, protectedThis = makeRef(*this)](bool granted) {
+        reason = requiresVideoCapture() ? MediaPermissionReason::CameraAndMicrophone : MediaPermissionReason::Microphone;
+    alertForPermission(m_manager->page(), reason, topLevelDocumentSecurityOrigin().data(), [this, protectedThis = makeRef(*this)](bool granted) {
         if (!granted)
             deny(UserMediaAccessDenialReason::PermissionDenied);
         else
             allow();
     });
-# else
+#else
     deny();
 #endif
 }

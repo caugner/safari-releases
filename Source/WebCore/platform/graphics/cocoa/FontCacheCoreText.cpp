@@ -31,11 +31,12 @@
 #include "FontFamilySpecificationCoreText.h"
 #include "RenderThemeCocoa.h"
 #include "SystemFontDatabaseCoreText.h"
-#include <pal/spi/cocoa/CoreTextSPI.h>
+#include <pal/spi/cf/CoreTextSPI.h>
 
 #include <CoreText/SFNTLayoutTypes.h>
 
 #include <wtf/HashSet.h>
+#include <wtf/Lock.h>
 #include <wtf/MainThread.h>
 #include <wtf/MemoryPressureHandler.h>
 #include <wtf/NeverDestroyed.h>
@@ -507,7 +508,7 @@ RetainPtr<CTFontRef> preparePlatformFont(CTFontRef originalFont, const FontDescr
     if (applyWeightWidthSlopeVariations && !fontIsSystemFont(originalFont)) {
         float weight = fontSelectionRequest.weight;
         float width = fontSelectionRequest.width;
-        float slope = fontSelectionRequest.slope.valueOr(normalItalicValue());
+        float slope = fontSelectionRequest.slope.value_or(normalItalicValue());
         if (auto weightValue = fontFaceCapabilities.weight)
             weight = std::max(std::min(weight, static_cast<float>(weightValue->maximum)), static_cast<float>(weightValue->minimum));
         if (auto widthValue = fontFaceCapabilities.width)
@@ -619,7 +620,7 @@ RetainPtr<CTFontRef> preparePlatformFont(CTFontRef originalFont, const FontDescr
     return adoptCF(CTFontCreateCopyWithAttributes(originalFont, CTFontGetSize(originalFont), nullptr, descriptor.get()));
 }
 
-RefPtr<Font> FontCache::similarFont(const FontDescription& description, const AtomString& family)
+RefPtr<Font> FontCache::similarFont(const FontDescription& description, const String& family)
 {
     // Attempt to find an appropriate font using a match based on the presence of keywords in
     // the requested names. For example, we'll match any name that contains "Arabic" to Geeza Pro.
@@ -628,27 +629,19 @@ RefPtr<Font> FontCache::similarFont(const FontDescription& description, const At
 
 #if PLATFORM(IOS_FAMILY)
     // Substitute the default monospace font for well-known monospace fonts.
-    if (equalLettersIgnoringASCIICase(family, "monaco") || equalLettersIgnoringASCIICase(family, "menlo")) {
-        static MainThreadNeverDestroyed<const AtomString> courier("courier", AtomString::ConstructFromLiteral);
-        return fontForFamily(description, courier);
-    }
+    if (equalLettersIgnoringASCIICase(family, "monaco") || equalLettersIgnoringASCIICase(family, "menlo"))
+        return fontForFamily(description, "courier"_s);
 
     // Substitute Verdana for Lucida Grande.
-    if (equalLettersIgnoringASCIICase(family, "lucida grande")) {
-        static MainThreadNeverDestroyed<const AtomString> verdana("verdana", AtomString::ConstructFromLiteral);
-        return fontForFamily(description, verdana);
-    }
+    if (equalLettersIgnoringASCIICase(family, "lucida grande"))
+        return fontForFamily(description, "verdana"_s);
 #endif
 
-    static NeverDestroyed<String> arabic(MAKE_STATIC_STRING_IMPL("Arabic"));
-    static NeverDestroyed<String> pashto(MAKE_STATIC_STRING_IMPL("Pashto"));
-    static NeverDestroyed<String> urdu(MAKE_STATIC_STRING_IMPL("Urdu"));
-    static String* matchWords[3] = { &arabic.get(), &pashto.get(), &urdu.get() };
-    static MainThreadNeverDestroyed<const AtomString> geezaPlain("GeezaPro", AtomString::ConstructFromLiteral);
-    static MainThreadNeverDestroyed<const AtomString> geezaBold("GeezaPro-Bold", AtomString::ConstructFromLiteral);
-    for (String* matchWord : matchWords) {
-        if (family.containsIgnoringASCIICase(*matchWord))
-            return fontForFamily(description, isFontWeightBold(description.weight()) ? geezaBold : geezaPlain);
+    static constexpr ASCIILiteral matchWords[] = { "Arabic"_s, "Pashto"_s, "Urdu"_s };
+    auto familyMatcher = StringView(family);
+    for (auto matchWord : matchWords) {
+        if (equalIgnoringASCIICase(familyMatcher, StringView(matchWord)))
+            return fontForFamily(description, isFontWeightBold(description.weight()) ? "GeezaPro-Bold"_s : "GeezaPro"_s);
     }
     return nullptr;
 }
@@ -853,7 +846,7 @@ public:
     {
         auto folded = FontCascadeDescription::foldedFamilyName(familyName);
         {
-            auto locker = holdLock(m_familyNameToFontDescriptorsLock);
+            Locker locker { m_familyNameToFontDescriptorsLock };
             auto it = m_familyNameToFontDescriptors.find(folded);
             if (it != m_familyNameToFontDescriptors.end())
                 return *it->value;
@@ -879,7 +872,7 @@ public:
             return makeUnique<InstalledFontFamily>();
         }();
 
-        auto locker = holdLock(m_familyNameToFontDescriptorsLock);
+        Locker locker { m_familyNameToFontDescriptorsLock };
         return *m_familyNameToFontDescriptors.add(folded.isolatedCopy(), WTFMove(installedFontFamily)).iterator->value;
     }
 
@@ -903,7 +896,7 @@ public:
     void clear()
     {
         {
-            auto locker = holdLock(m_familyNameToFontDescriptorsLock);
+            Locker locker { m_familyNameToFontDescriptorsLock };
             m_familyNameToFontDescriptors.clear();
         }
         m_postScriptNameToFontDescriptors.clear();
@@ -918,7 +911,7 @@ private:
     }
 
     Lock m_familyNameToFontDescriptorsLock;
-    HashMap<String, std::unique_ptr<InstalledFontFamily>> m_familyNameToFontDescriptors;
+    HashMap<String, std::unique_ptr<InstalledFontFamily>> m_familyNameToFontDescriptors WTF_GUARDED_BY_LOCK(m_familyNameToFontDescriptorsLock);
     HashMap<String, InstalledFont> m_postScriptNameToFontDescriptors;
     AllowUserInstalledFonts m_allowUserInstalledFonts;
 };
@@ -931,12 +924,12 @@ struct MinMax {
 };
 
 struct VariationCapabilities {
-    Optional<MinMax> weight;
-    Optional<MinMax> width;
-    Optional<MinMax> slope;
+    std::optional<MinMax> weight;
+    std::optional<MinMax> width;
+    std::optional<MinMax> slope;
 };
 
-static Optional<MinMax> extractVariationBounds(CFDictionaryRef axis)
+static std::optional<MinMax> extractVariationBounds(CFDictionaryRef axis)
 {
     CFNumberRef minimumValue = static_cast<CFNumberRef>(CFDictionaryGetValue(axis, kCTFontVariationAxisMinimumValueKey));
     CFNumberRef maximumValue = static_cast<CFNumberRef>(CFDictionaryGetValue(axis, kCTFontVariationAxisMaximumValueKey));
@@ -946,7 +939,7 @@ static Optional<MinMax> extractVariationBounds(CFDictionaryRef axis)
     CFNumberGetValue(maximumValue, kCFNumberFloatType, &rawMaximumValue);
     if (rawMinimumValue < rawMaximumValue)
         return {{ rawMinimumValue, rawMaximumValue }};
-    return WTF::nullopt;
+    return std::nullopt;
 }
 
 static VariationCapabilities variationCapabilitiesForFontDescriptor(CTFontDescriptorRef fontDescriptor)
@@ -1117,8 +1110,9 @@ static FontLookup platformFontLookupWithFamily(const AtomString& family, FontSel
     if (equalLettersIgnoringASCIICase(family, ".applesystemuifontserif")
         || equalLettersIgnoringASCIICase(family, ".sf ns mono")
         || equalLettersIgnoringASCIICase(family, ".sf ui mono")
+        || equalLettersIgnoringASCIICase(family, ".sf arabic")
         || equalLettersIgnoringASCIICase(family, ".applesystemuifontrounded")) {
-        // If you want to use these fonts, use ui-serif, ui-monospace, and ui-rounded.
+        // If you want to use these fonts, use system-ui, ui-serif, ui-monospace, or ui-rounded.
         return { nullptr };
     }
 
@@ -1161,26 +1155,21 @@ static FontLookup platformFontLookupWithFamily(const AtomString& family, FontSel
 
 static void invalidateFontCache()
 {
-    if (!isMainThread()) {
-        callOnMainThread([] {
-            invalidateFontCache();
-        });
-        return;
-    }
+    ensureOnMainThread([] {
+        SystemFontDatabaseCoreText::singleton().clear();
+        clearFontFamilySpecificationCoreTextCache();
 
-    SystemFontDatabaseCoreText::singleton().clear();
-    clearFontFamilySpecificationCoreTextCache();
+        FontDatabase::singletonAllowingUserInstalledFonts().clear();
+        FontDatabase::singletonDisallowingUserInstalledFonts().clear();
 
-    FontDatabase::singletonAllowingUserInstalledFonts().clear();
-    FontDatabase::singletonDisallowingUserInstalledFonts().clear();
-
-    FontCache::singleton().invalidate();
+        FontCache::singleton().invalidate();
+    });
 }
 
 static RetainPtr<CTFontRef> fontWithFamilySpecialCase(const AtomString& family, const FontDescription& fontDescription, float size, AllowUserInstalledFonts allowUserInstalledFonts)
 {
     // FIXME: See comment in FontCascadeDescription::effectiveFamilyAt() in FontDescriptionCocoa.cpp
-    Optional<SystemFontKind> systemDesign;
+    std::optional<SystemFontKind> systemDesign;
 
 #if HAVE(DESIGN_SYSTEM_UI_FONTS)
     if (equalLettersIgnoringASCIICase(family, "ui-serif"))
@@ -1279,8 +1268,7 @@ static void autoActivateFont(const String& name, CGFloat size)
     CFTypeRef values[] = { fontName.get() };
     auto attributes = adoptCF(CFDictionaryCreate(kCFAllocatorDefault, keys, values, WTF_ARRAY_LENGTH(keys), &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks));
     auto descriptor = adoptCF(CTFontDescriptorCreateWithAttributes(attributes.get()));
-    if (auto newFont = CTFontCreateWithFontDescriptor(descriptor.get(), size, nullptr))
-        CFRelease(newFont);
+    auto newFont = adoptCF(CTFontCreateWithFontDescriptor(descriptor.get(), size, nullptr));
 }
 #endif
 
@@ -1429,7 +1417,7 @@ RefPtr<Font> FontCache::systemFallbackForCharacters(const FontDescription& descr
     return fontForPlatformData(alternateFont);
 }
 
-const AtomString& FontCache::platformAlternateFamilyName(const AtomString& familyName)
+std::optional<ASCIILiteral> FontCache::platformAlternateFamilyName(const String& familyName)
 {
     static const UChar heitiString[] = { 0x9ed1, 0x4f53 };
     static const UChar songtiString[] = { 0x5b8b, 0x4f53 };
@@ -1437,10 +1425,10 @@ const AtomString& FontCache::platformAlternateFamilyName(const AtomString& famil
     static const UChar weiruanYaHeiString[] = { 0x5fae, 0x8f6f, 0x96c5, 0x9ed1 };
     static const UChar weiruanZhengHeitiString[] = { 0x5fae, 0x8edf, 0x6b63, 0x9ed1, 0x9ad4 };
 
-    static MainThreadNeverDestroyed<const AtomString> songtiSC("Songti SC", AtomString::ConstructFromLiteral);
-    static MainThreadNeverDestroyed<const AtomString> songtiTC("Songti TC", AtomString::ConstructFromLiteral);
-    static MainThreadNeverDestroyed<const AtomString> heitiSCReplacement("PingFang SC", AtomString::ConstructFromLiteral);
-    static MainThreadNeverDestroyed<const AtomString> heitiTCReplacement("PingFang TC", AtomString::ConstructFromLiteral);
+    static constexpr ASCIILiteral songtiSC = "Songti SC"_s;
+    static constexpr ASCIILiteral songtiTC = "Songti TC"_s;
+    static constexpr ASCIILiteral heitiSCReplacement = "PingFang SC"_s;
+    static constexpr ASCIILiteral heitiTCReplacement = "PingFang TC"_s;
 
     switch (familyName.length()) {
     case 2:
@@ -1475,7 +1463,7 @@ const AtomString& FontCache::platformAlternateFamilyName(const AtomString& famil
         break;
     }
 
-    return nullAtom();
+    return std::nullopt;
 }
 
 void addAttributesForInstalledFonts(CFMutableDictionaryRef attributes, AllowUserInstalledFonts allowUserInstalledFonts)
@@ -1552,15 +1540,8 @@ Ref<Font> FontCache::lastResortFallbackFont(const FontDescription& fontDescripti
         return *result;
 
     // LastResort is guaranteed to be non-null.
-// FIXME: Likely we can remove this special case for watchOS and tvOS.
-#if !PLATFORM(WATCHOS) && !PLATFORM(APPLETV)
     auto fontDescriptor = adoptCF(CTFontDescriptorCreateLastResort());
     auto font = adoptCF(CTFontCreateWithFontDescriptor(fontDescriptor.get(), fontDescription.computedPixelSize(), nullptr));
-#else
-    // Even if Helvetica doesn't exist, CTFontCreateWithName will return
-    // a thin wrapper around a GraphicsFont which represents LastResort.
-    auto font = adoptCF(CTFontCreateWithName(CFSTR("Helvetica"), fontDescription.computedPixelSize(), nullptr));
-#endif
     auto [syntheticBold, syntheticOblique] = computeNecessarySynthesis(font.get(), fontDescription).boldObliquePair();
     FontPlatformData platformData(font.get(), fontDescription.computedPixelSize(), syntheticBold, syntheticOblique, fontDescription.orientation(), fontDescription.widthVariant(), fontDescription.textRenderingMode());
     return fontForPlatformData(platformData);
@@ -1604,6 +1585,7 @@ void FontCache::prewarm(const PrewarmInformation& prewarmInformation)
 
 void FontCache::prewarmGlobally()
 {
+#if !HAVE(STATIC_FONT_REGISTRY)
     if (MemoryPressureHandler::singleton().isUnderMemoryPressure())
         return;
 
@@ -1623,6 +1605,7 @@ void FontCache::prewarmGlobally()
     FontCache::PrewarmInformation prewarmInfo;
     prewarmInfo.seenFamilies = WTFMove(families);
     FontCache::singleton().prewarm(prewarmInfo);
+#endif
 }
 
 }

@@ -262,12 +262,14 @@ static NSArray *convertMathPairsToNSArray(const AccessibilityObject::Accessibili
 
 NSArray *convertToNSArray(const WebCore::AXCoreObject::AccessibilityChildrenVector& children)
 {
-    return createNSArray(children, [] (auto& child) -> id {
+    return createNSArray(children, [] (const auto& child) -> id {
         auto wrapper = child->wrapper();
+
         // We want to return the attachment view instead of the object representing the attachment,
         // otherwise, we get palindrome errors in the AX hierarchy.
         if (child->isAttachment() && wrapper.attachmentView)
             return wrapper.attachmentView;
+
         return wrapper;
     }).autorelease();
 }
@@ -322,8 +324,7 @@ NSArray *convertToNSArray(const WebCore::AXCoreObject::AccessibilityChildrenVect
 {
     // Calling updateBackingStore() can invalidate this element so self must be retained.
     // If it does become invalidated, self.axBackingObject will be nil.
-    CFRetain((__bridge CFTypeRef)self);
-    CFAutorelease((__bridge CFTypeRef)self);
+    retainPtr(self).autorelease();
 
     auto* backingObject = self.axBackingObject;
     if (!backingObject)
@@ -431,12 +432,12 @@ static void convertPathToScreenSpaceFunction(PathConversionInfo& conversion, con
 
 - (CGPathRef)convertPathToScreenSpace:(const Path&)path
 {
-    PathConversionInfo conversion = { self, CGPathCreateMutable() };
+    auto convertedPath = adoptCF(CGPathCreateMutable());
+    PathConversionInfo conversion = { self, convertedPath.get() };
     path.apply([&conversion](const PathElement& pathElement) {
         convertPathToScreenSpaceFunction(conversion, pathElement);
     });
-    CFAutorelease(conversion.path);
-    return conversion.path;
+    return convertedPath.autorelease();
 }
 
 - (id)_accessibilityWebDocumentView
@@ -527,7 +528,7 @@ static bool isValueTypeSupported(id value)
 static NSArray *arrayRemovingNonSupportedTypes(NSArray *array)
 {
     ASSERT([array isKindOfClass:[NSArray class]]);
-    NSMutableArray *mutableArray = [array mutableCopy];
+    auto mutableArray = adoptNS([array mutableCopy]);
     for (NSUInteger i = 0; i < [mutableArray count];) {
         id value = [mutableArray objectAtIndex:i];
         if ([value isKindOfClass:[NSDictionary class]])
@@ -540,7 +541,7 @@ static NSArray *arrayRemovingNonSupportedTypes(NSArray *array)
         }
         i++;
     }
-    return [mutableArray autorelease];
+    return mutableArray.autorelease();
 }
 
 static NSDictionary *dictionaryRemovingNonSupportedTypes(NSDictionary *dictionary)
@@ -548,7 +549,7 @@ static NSDictionary *dictionaryRemovingNonSupportedTypes(NSDictionary *dictionar
     if (!dictionary)
         return nil;
     ASSERT([dictionary isKindOfClass:[NSDictionary class]]);
-    NSMutableDictionary *mutableDictionary = [dictionary mutableCopy];
+    auto mutableDictionary = adoptNS([dictionary mutableCopy]);
     for (NSString *key in dictionary) {
         id value = [dictionary objectForKey:key];
         if ([value isKindOfClass:[NSDictionary class]])
@@ -558,7 +559,7 @@ static NSDictionary *dictionaryRemovingNonSupportedTypes(NSDictionary *dictionar
         else if (!isValueTypeSupported(value))
             [mutableDictionary removeObjectForKey:key];
     }
-    return [mutableDictionary autorelease];
+    return mutableDictionary.autorelease();
 }
 
 - (void)accessibilityPostedNotification:(NSString *)notificationName userInfo:(NSDictionary *)userInfo
@@ -657,10 +658,10 @@ static AccessibilitySearchKey accessibilitySearchKeyForString(const String& valu
     return static_cast<int>(searchKey) ? searchKey : AccessibilitySearchKey::AnyType;
 }
 
-static Optional<AccessibilitySearchKey> makeVectorElement(const AccessibilitySearchKey*, id arrayElement)
+static std::optional<AccessibilitySearchKey> makeVectorElement(const AccessibilitySearchKey*, id arrayElement)
 {
     if (![arrayElement isKindOfClass:NSString.class])
-        return WTF::nullopt;
+        return std::nullopt;
     return { { accessibilitySearchKeyForString(arrayElement) } };
 }
 

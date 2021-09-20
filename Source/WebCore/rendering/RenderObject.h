@@ -53,7 +53,7 @@ class DocumentTimeline;
 class HitTestLocation;
 class HitTestRequest;
 class HitTestResult;
-class InlineBox;
+class LegacyInlineBox;
 class Path;
 class Position;
 class RenderBoxModelObject;
@@ -72,7 +72,7 @@ class TransformState;
 class VisiblePosition;
 
 #if PLATFORM(IOS_FAMILY)
-class SelectionRect;
+class SelectionGeometry;
 #endif
 
 struct InlineRunAndOffset;
@@ -84,8 +84,6 @@ const int caretWidth = 2; // This value should be kept in sync with UIKit. See <
 #else
 const int caretWidth = 1;
 #endif
-
-enum class ShouldAllowCrossOriginScrolling { No, Yes };
 
 struct ScrollRectToVisibleOptions;
 
@@ -100,6 +98,7 @@ class RenderObject : public CachedImageClient, public CanMakeWeakPtr<RenderObjec
     friend class RenderBlockFlow;
     friend class RenderElement;
     friend class RenderLayer;
+    friend class RenderLayerScrollableArea;
 public:
     // Anonymous objects should pass the document as their node, and they will then automatically be
     // marked as anonymous in the constructor.
@@ -115,6 +114,8 @@ public:
 
     RenderObject* previousSibling() const { return m_previous; }
     RenderObject* nextSibling() const { return m_next; }
+    RenderObject* previousInFlowSibling() const;
+    RenderObject* nextInFlowSibling() const;
 
     // Use RenderElement versions instead.
     virtual RenderObject* firstChildSlow() const { return nullptr; }
@@ -154,7 +155,7 @@ public:
 
     WEBCORE_EXPORT RenderBox& enclosingBox() const;
     RenderBoxModelObject& enclosingBoxModelObject() const;
-    const RenderBox* enclosingScrollableContainerForSnapping() const;
+    RenderBox* enclosingScrollableContainerForSnapping() const;
 
     // Return our enclosing flow thread if we are contained inside one. Follows the containing block chain.
     RenderFragmentedFlow* enclosingFragmentedFlow() const;
@@ -200,6 +201,8 @@ public:
     bool isRenderInline() const;
     bool isRenderLayerModelObject() const;
 
+    bool isAtomicInlineLevelBox() const;
+
     virtual bool isCounter() const { return false; }
     virtual bool isQuote() const { return false; }
 
@@ -221,6 +224,9 @@ public:
     virtual bool isRenderButton() const { return false; }
     virtual bool isRenderIFrame() const { return false; }
     virtual bool isRenderImage() const { return false; }
+#if ENABLE(MODEL_ELEMENT)
+    virtual bool isRenderModel() const { return false; }
+#endif
     virtual bool isRenderFragmentContainer() const { return false; }
     virtual bool isReplica() const { return false; }
 
@@ -253,8 +259,6 @@ public:
     virtual bool isRenderFullScreenPlaceholder() const { return false; }
 #endif
     virtual bool isRenderGrid() const { return false; }
-    bool isInFlowRenderFragmentedFlow() const { return isRenderFragmentedFlow() && !isOutOfFlowPositioned(); }
-    bool isOutOfFlowRenderFragmentedFlow() const { return isRenderFragmentedFlow() && isOutOfFlowPositioned(); }
 
     virtual bool isMultiColumnBlockFlow() const { return false; }
     virtual bool isRenderMultiColumnSet() const { return false; }
@@ -291,7 +295,7 @@ public:
         InsideInFragmentedFlow = 1,
     };
 
-    void setFragmentedFlowStateIncludingDescendants(FragmentedFlowState);
+    void setFragmentedFlowStateIncludingDescendants(FragmentedFlowState, const RenderElement* fragmentedFlowRoot);
 
     FragmentedFlowState fragmentedFlowState() const { return m_bitfields.fragmentedFlowState(); }
     void setFragmentedFlowState(FragmentedFlowState state) { m_bitfields.setFragmentedFlowState(state); }
@@ -372,7 +376,7 @@ public:
     // rest of the rendering tree will move to a similar model.
     virtual bool nodeAtFloatPoint(const HitTestRequest&, HitTestResult&, const FloatPoint& pointInParent, HitTestAction);
 
-    bool hasAspectRatio() const { return isReplaced() && (isImage() || isVideo() || isCanvas()); }
+    bool hasIntrinsicAspectRatio() const { return isReplaced() && (isImage() || isVideo() || isCanvas()); }
     bool isAnonymous() const { return m_bitfields.isAnonymous(); }
     bool isAnonymousBlock() const;
 
@@ -431,7 +435,9 @@ public:
 
     bool isSelectionBorder() const;
 
-    bool hasOverflowClip() const { return m_bitfields.hasOverflowClip(); }
+    bool hasNonVisibleOverflow() const { return m_bitfields.hasNonVisibleOverflow(); }
+
+    bool hasPotentiallyScrollableOverflow() const;
 
     bool hasTransformRelatedProperty() const { return m_bitfields.hasTransformRelatedProperty(); } // Transform, perspective or transform-style: preserve-3d.
     bool hasTransform() const { return hasTransformRelatedProperty() && (style().hasTransform() || style().translate() || style().scale() || style().rotate()); }
@@ -489,7 +495,7 @@ public:
     void setIsRenderView() { ASSERT(isBox()); m_bitfields.setIsTextOrRenderView(true); }
     void setReplaced(bool b = true) { m_bitfields.setIsReplaced(b); }
     void setHorizontalWritingMode(bool b = true) { m_bitfields.setHorizontalWritingMode(b); }
-    void setHasOverflowClip(bool b = true) { m_bitfields.setHasOverflowClip(b); }
+    void setHasNonVisibleOverflow(bool b = true) { m_bitfields.setHasNonVisibleOverflow(b); }
     void setHasLayer(bool b = true) { m_bitfields.setHasLayer(b); }
     void setHasTransformRelatedProperty(bool b = true) { m_bitfields.setHasTransformRelatedProperty(b); }
 
@@ -542,10 +548,10 @@ public:
     LayoutSize offsetFromAncestorContainer(RenderElement&) const;
 
 #if PLATFORM(IOS_FAMILY)
-    virtual void collectSelectionRects(Vector<SelectionRect>&, unsigned startOffset = 0, unsigned endOffset = std::numeric_limits<unsigned>::max());
+    virtual void collectSelectionGeometries(Vector<SelectionGeometry>&, unsigned startOffset = 0, unsigned endOffset = std::numeric_limits<unsigned>::max());
     virtual void absoluteQuadsForSelection(Vector<FloatQuad>& quads) const { absoluteQuads(quads); }
-    WEBCORE_EXPORT static Vector<SelectionRect> collectSelectionRects(const SimpleRange&);
-    WEBCORE_EXPORT static Vector<SelectionRect> collectSelectionRectsWithoutUnionInteriorLines(const SimpleRange&);
+    WEBCORE_EXPORT static Vector<SelectionGeometry> collectSelectionGeometries(const SimpleRange&);
+    WEBCORE_EXPORT static Vector<SelectionGeometry> collectSelectionGeometriesWithoutUnionInteriorLines(const SimpleRange&);
 #endif
 
     virtual void absoluteRects(Vector<IntRect>&, const LayoutPoint&) const { }
@@ -601,25 +607,6 @@ public:
     // Repaint a slow repaint object, which, at this time, means we are repainting an object with background-attachment:fixed.
     void repaintSlowRepaintObject() const;
 
-    // Returns the rect that should be repainted whenever this object changes.  The rect is in the view's
-    // coordinate space.  This method deals with outlines and overflow.
-    LayoutRect absoluteClippedOverflowRect() const { return clippedOverflowRectForRepaint(nullptr); }
-    WEBCORE_EXPORT IntRect pixelSnappedAbsoluteClippedOverflowRect() const;
-    virtual LayoutRect clippedOverflowRectForRepaint(const RenderLayerModelObject* repaintContainer) const;
-    virtual LayoutRect rectWithOutlineForRepaint(const RenderLayerModelObject* repaintContainer, LayoutUnit outlineWidth) const;
-    virtual LayoutRect outlineBoundsForRepaint(const RenderLayerModelObject* /*repaintContainer*/, const RenderGeometryMap* = nullptr) const { return LayoutRect(); }
-
-    // Given a rect in the object's coordinate space, compute a rect suitable for repainting
-    // that rect in view coordinates.
-    LayoutRect computeAbsoluteRepaintRect(const LayoutRect& rect) const { return computeRectForRepaint(rect, nullptr); }
-    // Given a rect in the object's coordinate space, compute a rect suitable for repainting
-    // that rect in the coordinate space of repaintContainer.
-    LayoutRect computeRectForRepaint(const LayoutRect&, const RenderLayerModelObject* repaintContainer) const;
-    FloatRect computeFloatRectForRepaint(const FloatRect&, const RenderLayerModelObject* repaintContainer) const;
-
-    // Given a rect in the object's coordinate space, compute the location in container space where this rect is visible,
-    // when clipping and scrolling as specified by the context. When using edge-inclusive intersection, return WTF::nullopt
-    // rather than an empty rect if the rect is completely clipped out in container space.
     enum class VisibleRectContextOption {
         UseEdgeInclusiveIntersection = 1 << 0,
         ApplyCompositedClips = 1 << 1,
@@ -638,14 +625,38 @@ public:
         bool descendantNeedsEnclosingIntRect { false };
         OptionSet<VisibleRectContextOption> options;
     };
-    virtual Optional<LayoutRect> computeVisibleRectInContainer(const LayoutRect&, const RenderLayerModelObject* repaintContainer, VisibleRectContext) const;
-    virtual Optional<FloatRect> computeFloatVisibleRectInContainer(const FloatRect&, const RenderLayerModelObject* repaintContainer, VisibleRectContext) const;
+
+    // Returns the rect that should be repainted whenever this object changes. The rect is in the view's
+    // coordinate space. This method deals with outlines and overflow.
+    LayoutRect absoluteClippedOverflowRectForRepaint() const { return clippedOverflowRect(nullptr, visibleRectContextForRepaint()); }
+    LayoutRect absoluteClippedOverflowRectForSpatialNavigation() const { return clippedOverflowRect(nullptr, visibleRectContextForSpatialNavigation()); }
+    WEBCORE_EXPORT IntRect pixelSnappedAbsoluteClippedOverflowRect() const;
+    virtual LayoutRect clippedOverflowRect(const RenderLayerModelObject* repaintContainer, VisibleRectContext) const;
+    LayoutRect clippedOverflowRectForRepaint(const RenderLayerModelObject* repaintContainer) const { return clippedOverflowRect(repaintContainer, visibleRectContextForRepaint()); }
+    virtual LayoutRect rectWithOutlineForRepaint(const RenderLayerModelObject* repaintContainer, LayoutUnit outlineWidth) const;
+    virtual LayoutRect outlineBoundsForRepaint(const RenderLayerModelObject* /*repaintContainer*/, const RenderGeometryMap* = nullptr) const { return LayoutRect(); }
+
+    // Given a rect in the object's coordinate space, compute a rect suitable for repainting
+    // that rect in view coordinates.
+    LayoutRect computeAbsoluteRepaintRect(const LayoutRect& rect) const { return computeRect(rect, nullptr, visibleRectContextForRepaint()); }
+    // Given a rect in the object's coordinate space, compute a rect  in the coordinate space
+    // of repaintContainer suitable for the given VisibleRectContext.
+    LayoutRect computeRect(const LayoutRect&, const RenderLayerModelObject* repaintContainer, VisibleRectContext) const;
+    LayoutRect computeRectForRepaint(const LayoutRect& rect, const RenderLayerModelObject* repaintContainer) const { return computeRect(rect, repaintContainer, visibleRectContextForRepaint()); }
+    FloatRect computeFloatRectForRepaint(const FloatRect&, const RenderLayerModelObject* repaintContainer) const;
+
+    // Given a rect in the object's coordinate space, compute the location in container space where this rect is visible,
+    // when clipping and scrolling as specified by the context. When using edge-inclusive intersection, return std::nullopt
+    // rather than an empty rect if the rect is completely clipped out in container space.
+    virtual std::optional<LayoutRect> computeVisibleRectInContainer(const LayoutRect&, const RenderLayerModelObject* repaintContainer, VisibleRectContext) const;
+    virtual std::optional<FloatRect> computeFloatVisibleRectInContainer(const FloatRect&, const RenderLayerModelObject* repaintContainer, VisibleRectContext) const;
 
     WEBCORE_EXPORT bool hasNonEmptyVisibleRectRespectingParentFrames() const;
 
     virtual unsigned length() const { return 1; }
 
     bool isFloatingOrOutOfFlowPositioned() const { return (isFloating() || isOutOfFlowPositioned()); }
+    bool isInFlow() const { return !isFloatingOrOutOfFlowPositioned(); }
 
     enum HighlightState {
         None, // The object is not selected.
@@ -713,11 +724,15 @@ public:
 
     LayoutRect absoluteOutlineBounds() const { return outlineBoundsForRepaint(nullptr); }
 
-    virtual void willBeRemovedFromTree();
+    // FIXME: Renderers should not need to be notified about internal reparenting (webkit.org/b/224143).
+    enum class IsInternalMove { No, Yes };
+    virtual void insertedIntoTree(IsInternalMove = IsInternalMove::No);
+    virtual void willBeRemovedFromTree(IsInternalMove = IsInternalMove::No);
+
     void resetFragmentedFlowStateOnRemoval();
     void initializeFragmentedFlowStateOnInsertion();
-    virtual void insertedIntoTree();
 
+    virtual String description() const;
     virtual String debugDescription() const;
 
 protected:
@@ -746,9 +761,8 @@ protected:
 
     static FragmentedFlowState computedFragmentedFlowState(const RenderObject&);
 
-    static bool shouldApplyCompositedContainerScrollsForRepaint();
-
     static VisibleRectContext visibleRectContextForRepaint();
+    static VisibleRectContext visibleRectContextForSpatialNavigation();
 
     bool isSetNeedsLayoutForbidden() const;
 
@@ -758,11 +772,11 @@ private:
     void setLayerNeedsFullRepaintForPositionedMovementLayout();
 
 #if PLATFORM(IOS_FAMILY)
-    struct SelectionRects {
-        Vector<SelectionRect> rects;
+    struct SelectionGeometries {
+        Vector<SelectionGeometry> geometries;
         int maxLineNumber;
     };
-    WEBCORE_EXPORT static SelectionRects collectSelectionRectsInternal(const SimpleRange&);
+    WEBCORE_EXPORT static SelectionGeometries collectSelectionGeometriesInternal(const SimpleRange&);
 #endif
 
     Node* generatingPseudoHostElement() const;
@@ -834,7 +848,7 @@ private:
             , m_isLineBreak(false)
             , m_horizontalWritingMode(true)
             , m_hasLayer(false)
-            , m_hasOverflowClip(false)
+            , m_hasNonVisibleOverflow(false)
             , m_hasTransformRelatedProperty(false)
             , m_everHadLayout(false)
             , m_childrenInline(false)
@@ -867,7 +881,7 @@ private:
         ADD_BOOLEAN_BITFIELD(horizontalWritingMode, HorizontalWritingMode);
 
         ADD_BOOLEAN_BITFIELD(hasLayer, HasLayer);
-        ADD_BOOLEAN_BITFIELD(hasOverflowClip, HasOverflowClip); // Set in the case of overflow:auto/scroll/hidden
+        ADD_BOOLEAN_BITFIELD(hasNonVisibleOverflow, HasNonVisibleOverflow); // Set in the case of overflow:auto/scroll/hidden
         ADD_BOOLEAN_BITFIELD(hasTransformRelatedProperty, HasTransformRelatedProperty);
 
         ADD_BOOLEAN_BITFIELD(everHadLayout, EverHadLayout);
@@ -1127,6 +1141,11 @@ inline auto RenderObject::visibleRectContextForRepaint() -> VisibleRectContext
     return { false, false, { VisibleRectContextOption::ApplyContainerClip, VisibleRectContextOption::ApplyCompositedContainerScrolls } };
 }
 
+inline auto RenderObject::visibleRectContextForSpatialNavigation() -> VisibleRectContext
+{
+    return { false, false, { VisibleRectContextOption::ApplyContainerClip, VisibleRectContextOption::ApplyCompositedContainerScrolls, VisibleRectContextOption::ApplyCompositedClips } };
+}
+
 inline bool RenderObject::isSetNeedsLayoutForbidden() const
 {
 #if ASSERT_ENABLED
@@ -1149,6 +1168,34 @@ inline void Node::setRenderer(RenderObject* renderer)
     m_rendererWithStyleFlags.setPointer(renderer);
 }
 
+inline RenderObject* RenderObject::previousInFlowSibling() const
+{
+    auto* previousSibling = this->previousSibling();
+    while (previousSibling && !previousSibling->isInFlow())
+        previousSibling = previousSibling->previousSibling();
+    return previousSibling;
+}
+
+inline RenderObject* RenderObject::nextInFlowSibling() const
+{
+    auto* nextSibling = this->nextSibling();
+    while (nextSibling && !nextSibling->isInFlow())
+        nextSibling = nextSibling->nextSibling();
+    return nextSibling;
+}
+
+inline bool RenderObject::isAtomicInlineLevelBox() const
+{
+    return style().isDisplayInlineType() && !(style().display() == DisplayType::Inline && !isReplaced());
+}
+
+inline bool RenderObject::hasPotentiallyScrollableOverflow() const
+{
+    // We only need to test one overflow dimension since 'visible' and 'clip' always get accompanied
+    // with 'clip' or 'visible' in the other dimension (see Style::Adjuster::adjust).
+    return hasNonVisibleOverflow() && style().overflowX() != Overflow::Clip && style().overflowX() != Overflow::Visible;
+}
+
 WTF::TextStream& operator<<(WTF::TextStream&, const RenderObject&);
 
 #if ENABLE(TREE_DEBUGGING)
@@ -1156,6 +1203,9 @@ void printRenderTreeForLiveDocuments();
 void printLayerTreeForLiveDocuments();
 void printGraphicsLayerTreeForLiveDocuments();
 #endif
+
+bool shouldApplyLayoutContainment(const RenderObject&);
+bool shouldApplySizeContainment(const RenderObject&);
 
 } // namespace WebCore
 

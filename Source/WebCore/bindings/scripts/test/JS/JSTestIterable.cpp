@@ -27,6 +27,7 @@
 #include "JSDOMConstructorNotConstructable.h"
 #include "JSDOMConvertInterface.h"
 #include "JSDOMExceptionHandling.h"
+#include "JSDOMGlobalObjectInlines.h"
 #include "JSDOMIterator.h"
 #include "JSDOMOperation.h"
 #include "JSDOMWrapperCache.h"
@@ -38,6 +39,7 @@
 #include <JavaScriptCore/HeapAnalyzer.h>
 #include <JavaScriptCore/JSCInlines.h>
 #include <JavaScriptCore/JSDestructibleObjectHeapCellType.h>
+#include <JavaScriptCore/SlotVisitorMacros.h>
 #include <JavaScriptCore/SubspaceInlines.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
@@ -92,6 +94,8 @@ STATIC_ASSERT_ISO_SUBSPACE_SHARABLE(JSTestIterablePrototype, JSTestIterableProto
 
 using JSTestIterableDOMConstructor = JSDOMConstructorNotConstructable<JSTestIterable>;
 
+template<> const ClassInfo JSTestIterableDOMConstructor::s_info = { "TestIterable", &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestIterableDOMConstructor) };
+
 template<> JSValue JSTestIterableDOMConstructor::prototypeForStructure(JSC::VM& vm, const JSDOMGlobalObject& globalObject)
 {
     UNUSED_PARAM(vm);
@@ -104,8 +108,6 @@ template<> void JSTestIterableDOMConstructor::initializeProperties(VM& vm, JSDOM
     putDirect(vm, vm.propertyNames->name, jsNontrivialString(vm, "TestIterable"_s), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
     putDirect(vm, vm.propertyNames->length, jsNumber(0), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
 }
-
-template<> const ClassInfo JSTestIterableDOMConstructor::s_info = { "TestIterable", &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestIterableDOMConstructor) };
 
 /* Hash table for prototype */
 
@@ -156,18 +158,13 @@ JSObject* JSTestIterable::prototype(VM& vm, JSDOMGlobalObject& globalObject)
 
 JSValue JSTestIterable::getConstructor(VM& vm, const JSGlobalObject* globalObject)
 {
-    return getDOMConstructor<JSTestIterableDOMConstructor>(vm, *jsCast<const JSDOMGlobalObject*>(globalObject));
+    return getDOMConstructor<JSTestIterableDOMConstructor, DOMConstructorID::TestIterable>(vm, *jsCast<const JSDOMGlobalObject*>(globalObject));
 }
 
 void JSTestIterable::destroy(JSC::JSCell* cell)
 {
     JSTestIterable* thisObject = static_cast<JSTestIterable*>(cell);
     thisObject->JSTestIterable::~JSTestIterable();
-}
-
-template<> inline JSTestIterable* IDLOperation<JSTestIterable>::cast(JSGlobalObject& lexicalGlobalObject, CallFrame& callFrame)
-{
-    return jsDynamicCast<JSTestIterable*>(JSC::getVM(&lexicalGlobalObject), callFrame.thisValue());
 }
 
 JSC_DEFINE_CUSTOM_GETTER(jsTestIterableConstructor, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, PropertyName))
@@ -208,7 +205,9 @@ public:
         auto* space = spaces.m_subspaceForTestIterableIterator.get();
 IGNORE_WARNINGS_BEGIN("unreachable-code")
 IGNORE_WARNINGS_BEGIN("tautological-compare")
-        if (&TestIterableIterator::visitOutputConstraints != &JSC::JSCell::visitOutputConstraints)
+        void (*myVisitOutputConstraint)(JSC::JSCell*, JSC::SlotVisitor&) = TestIterableIterator::visitOutputConstraints;
+        void (*jsCellVisitOutputConstraint)(JSC::JSCell*, JSC::SlotVisitor&) = JSC::JSCell::visitOutputConstraints;
+        if (myVisitOutputConstraint != jsCellVisitOutputConstraint)
             clientData.outputConstraintSpaces().append(space);
 IGNORE_WARNINGS_END
 IGNORE_WARNINGS_END
@@ -298,7 +297,9 @@ JSC::IsoSubspace* JSTestIterable::subspaceForImpl(JSC::VM& vm)
     auto* space = spaces.m_subspaceForTestIterable.get();
 IGNORE_WARNINGS_BEGIN("unreachable-code")
 IGNORE_WARNINGS_BEGIN("tautological-compare")
-    if (&JSTestIterable::visitOutputConstraints != &JSC::JSCell::visitOutputConstraints)
+    void (*myVisitOutputConstraint)(JSC::JSCell*, JSC::SlotVisitor&) = JSTestIterable::visitOutputConstraints;
+    void (*jsCellVisitOutputConstraint)(JSC::JSCell*, JSC::SlotVisitor&) = JSC::JSCell::visitOutputConstraints;
+    if (myVisitOutputConstraint != jsCellVisitOutputConstraint)
         clientData.outputConstraintSpaces().append(space);
 IGNORE_WARNINGS_END
 IGNORE_WARNINGS_END
@@ -314,7 +315,7 @@ void JSTestIterable::analyzeHeap(JSCell* cell, HeapAnalyzer& analyzer)
     Base::analyzeHeap(cell, analyzer);
 }
 
-bool JSTestIterableOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, SlotVisitor& visitor, const char** reason)
+bool JSTestIterableOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, AbstractSlotVisitor& visitor, const char** reason)
 {
     UNUSED_PARAM(handle);
     UNUSED_PARAM(visitor);

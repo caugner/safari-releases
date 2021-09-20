@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009 Apple Inc. All rights reserved.
+ * Copyright (C) 2009-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -35,7 +35,6 @@
 #include <wtf/HashMap.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/text/CString.h>
-#include <wtf/text/StringBuilder.h>
 #include <wtf/text/TextStream.h>
 #include <wtf/text/WTFString.h>
 
@@ -150,6 +149,13 @@ GraphicsLayer::GraphicsLayer(Type type, GraphicsLayerClient& layerClient)
     , m_isTrackingDisplayListReplay(false)
     , m_userInteractionEnabled(true)
     , m_canDetachBackingStore(true)
+#if HAVE(CORE_ANIMATION_SEPARATED_LAYERS)
+    , m_isSeparated(false)
+#if HAVE(CORE_ANIMATION_SEPARATED_PORTALS)
+    , m_isSeparatedPortal(false)
+    , m_isDescendentOfSeparatedPortal(false)
+#endif
+#endif
 {
 #ifndef NDEBUG
     client().verifyNotPainting();
@@ -197,7 +203,7 @@ void GraphicsLayer::willBeDestroyed()
     }
 
     removeAllChildren();
-    removeFromParent();
+    removeFromParentInternal();
 }
 
 void GraphicsLayer::clearClient()
@@ -332,7 +338,7 @@ void GraphicsLayer::removeAllChildren()
     }
 }
 
-void GraphicsLayer::removeFromParent()
+void GraphicsLayer::removeFromParentInternal()
 {
     if (m_parent) {
         GraphicsLayer* parent = m_parent;
@@ -368,6 +374,13 @@ void GraphicsLayer::setChildrenTransform(const TransformationMatrix& matrix)
         *m_childrenTransform = matrix;
     else
         m_childrenTransform = makeUnique<TransformationMatrix>(matrix);
+}
+
+void GraphicsLayer::removeFromParent()
+{
+    // removeFromParentInternal is nonvirtual, for use in willBeDestroyed,
+    // which is called from destructors.
+    removeFromParentInternal();
 }
 
 void GraphicsLayer::setMaskLayer(RefPtr<GraphicsLayer>&& layer)
@@ -588,11 +601,7 @@ FloatRect GraphicsLayer::adjustCoverageRectForMovement(const FloatRect& coverage
 String GraphicsLayer::animationNameForTransition(AnimatedPropertyID property)
 {
     // | is not a valid identifier character in CSS, so this can never conflict with a keyframe identifier.
-    StringBuilder id;
-    id.appendLiteral("-|transition");
-    id.appendNumber(static_cast<int>(property));
-    id.append('-');
-    return id.toString();
+    return makeString("-|transition", static_cast<int>(property), '-');
 }
 
 void GraphicsLayer::suspendAnimations(MonotonicTime)
@@ -652,30 +661,6 @@ void GraphicsLayer::updateDebugIndicators()
 void GraphicsLayer::setZPosition(float position)
 {
     m_zPosition = position;
-}
-
-float GraphicsLayer::accumulatedOpacity() const
-{
-    if (!preserves3D())
-        return 1;
-        
-    return m_opacity * (parent() ? parent()->accumulatedOpacity() : 1);
-}
-
-void GraphicsLayer::distributeOpacity(float accumulatedOpacity)
-{
-    // If this is a transform layer we need to distribute our opacity to all our children
-    
-    // Incoming accumulatedOpacity is the contribution from our parent(s). We mutiply this by our own
-    // opacity to get the total contribution
-    accumulatedOpacity *= m_opacity;
-    
-    setOpacityInternal(accumulatedOpacity);
-    
-    if (preserves3D()) {
-        for (auto& layer : children())
-            layer->distributeOpacity(accumulatedOpacity);
-    }
 }
 
 static inline const FilterOperations& filterOperationsAt(const KeyframeValueList& valueList, size_t index)
@@ -964,7 +949,7 @@ void GraphicsLayer::dumpProperties(TextStream& ts, LayerTreeAsTextBehavior behav
     if (m_maskLayer) {
         ts << indent << "(mask layer";
         if (behavior & LayerTreeAsTextDebug)
-            ts << " " << m_maskLayer;
+            ts << " " << m_maskLayer.get();
         ts << ")\n";
 
         TextStream::IndentScope indentScope(ts);
@@ -974,7 +959,7 @@ void GraphicsLayer::dumpProperties(TextStream& ts, LayerTreeAsTextBehavior behav
     if (m_replicaLayer) {
         ts << indent << "(replica layer";
         if (behavior & LayerTreeAsTextDebug)
-            ts << " " << m_replicaLayer;
+            ts << " " << m_replicaLayer.get();
         ts << ")\n";
 
         TextStream::IndentScope indentScope(ts);

@@ -40,6 +40,7 @@ WI.DOMManager = class DOMManager extends WI.Object
 
         this._idToDOMNode = {};
         this._document = null;
+        this._documentPromise = null;
         this._attributeLoadNodeIds = {};
         this._restoreSelectedNodeIsAllowed = true;
         this._loadNodeAttributesTimeout = 0;
@@ -155,36 +156,10 @@ WI.DOMManager = class DOMManager extends WI.Object
 
     requestDocument(callback)
     {
-        if (this._document) {
-            callback(this._document);
-            return;
-        }
+        if (typeof callback !== "function")
+            return this._requestDocumentWithPromise();
 
-        if (this._pendingDocumentRequestCallbacks)
-            this._pendingDocumentRequestCallbacks.push(callback);
-        else
-            this._pendingDocumentRequestCallbacks = [callback];
-
-        if (this._hasRequestedDocument)
-            return;
-
-        if (!WI.pageTarget)
-            return;
-
-        if (!WI.pageTarget.hasDomain("DOM"))
-            return;
-
-        this._hasRequestedDocument = true;
-
-        WI.pageTarget.DOMAgent.getDocument((error, root) => {
-            if (!error)
-                this._setDocument(root);
-
-            for (let callback of this._pendingDocumentRequestCallbacks)
-                callback(this._document);
-
-            this._pendingDocumentRequestCallbacks = null;
-        });
+        this._requestDocumentWithCallback(callback);
     }
 
     ensureDocument()
@@ -209,6 +184,15 @@ WI.DOMManager = class DOMManager extends WI.Object
     }
 
     // DOMObserver
+
+    willDestroyDOMNode(nodeId)
+    {
+        let node = this._idToDOMNode[nodeId];
+        node.markDestroyed();
+        delete this._idToDOMNode[nodeId];
+
+        this.dispatchEventToListeners(WI.DOMManager.Event.NodeRemoved, {node});
+    }
 
     didAddEventListener(nodeId)
     {
@@ -246,6 +230,21 @@ WI.DOMManager = class DOMManager extends WI.Object
         node.powerEfficientPlaybackStateChanged(timestamp, isPowerEfficient);
     }
 
+    nodeLayoutContextTypeChanged(nodeId, layoutContextType)
+    {
+        let domNode = this._idToDOMNode[nodeId];
+        console.assert(domNode instanceof WI.DOMNode, domNode, nodeId);
+        if (!domNode)
+            return;
+
+        domNode.layoutContextType = layoutContextType;
+    }
+
+    nodesWithLayoutContextType(layoutContextType)
+    {
+        return Object.values(this._idToDOMNode).filter((node) => node.layoutContextType === layoutContextType);
+    }
+
     // Private
 
     _dispatchWhenDocumentAvailable(func, callback)
@@ -262,6 +261,57 @@ WI.DOMManager = class DOMManager extends WI.Object
             }
         }
         this.requestDocument(onDocumentAvailable.bind(this));
+    }
+
+    _requestDocumentWithPromise()
+    {
+        if (this._documentPromise)
+            return this._documentPromise.promise;
+
+        this._documentPromise = new WI.WrappedPromise;
+        if (this._document)
+            this._documentPromise.resolve(this._document);
+        else {
+            this._requestDocumentWithCallback((doc) => {
+                this._documentPromise.resolve(doc);
+            });
+        }
+
+        return this._documentPromise.promise;
+    }
+
+    _requestDocumentWithCallback(callback)
+    {
+        if (this._document) {
+            callback(this._document);
+            return;
+        }
+
+        if (this._pendingDocumentRequestCallbacks)
+            this._pendingDocumentRequestCallbacks.push(callback);
+        else
+            this._pendingDocumentRequestCallbacks = [callback];
+
+        if (this._hasRequestedDocument)
+            return;
+
+        if (!WI.pageTarget)
+            return;
+
+        if (!WI.pageTarget.hasDomain("DOM"))
+            return;
+
+        this._hasRequestedDocument = true;
+
+        WI.pageTarget.DOMAgent.getDocument((error, root) => {
+            if (!error)
+                this._setDocument(root);
+
+            for (let callback of this._pendingDocumentRequestCallbacks)
+                callback(this._document);
+
+            this._pendingDocumentRequestCallbacks = null;
+        });
     }
 
     _attributeModified(nodeId, name, value)
@@ -360,6 +410,9 @@ WI.DOMManager = class DOMManager extends WI.Object
             return;
 
         this._document = newDocument;
+
+        // Force the promise to be recreated so that it resolves to the new document.
+        this._documentPromise = null;
 
         if (!this._document)
             this._hasRequestedDocument = false;

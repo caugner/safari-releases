@@ -25,14 +25,15 @@
 #include "CSSParserContext.h"
 #include "CSSRegisteredCustomProperty.h"
 #include "CSSValue.h"
+#include "ColorTypes.h"
 #include "WritingMode.h"
-#include <wtf/Optional.h>
 #include <wtf/text/WTFString.h>
 
 namespace WebCore {
 
 class CSSParserObserver;
 class CSSSelectorList;
+class CSSValueList;
 class CSSValuePool;
 class Color;
 class Element;
@@ -42,7 +43,6 @@ class StyleRuleBase;
 class StyleRuleKeyframe;
 class StyleSheetContents;
 class RenderStyle;
-template<typename> struct SRGBA;
 
 namespace CSSPropertyParserHelpers {
 struct FontRaw;
@@ -79,24 +79,19 @@ public:
     static ParseResult parseValue(MutableStyleProperties&, CSSPropertyID, const String&, bool important, const CSSParserContext&);
     static ParseResult parseCustomPropertyValue(MutableStyleProperties&, const AtomString& propertyName, const String&, bool important, const CSSParserContext&);
     
-    static RefPtr<CSSValue> parseFontFaceDescriptor(CSSPropertyID, const String&, const CSSParserContext&);
-
     static RefPtr<CSSValue> parseSingleValue(CSSPropertyID, const String&, const CSSParserContext& = strictCSSParserContext());
 
     WEBCORE_EXPORT bool parseDeclaration(MutableStyleProperties&, const String&);
     static Ref<ImmutableStyleProperties> parseInlineStyleDeclaration(const String&, const Element*);
 
-    Optional<CSSSelectorList> parseSelector(const String&);
+    std::optional<CSSSelectorList> parseSelector(const String&);
 
     RefPtr<CSSValue> parseValueWithVariableReferences(CSSPropertyID, const CSSValue&, Style::BuilderState&);
 
     WEBCORE_EXPORT static Color parseColor(const String&, bool strict = false);
-    static Color parseColorWorkerSafe(const String&);
     static Color parseSystemColor(StringView);
-    static Optional<SRGBA<uint8_t>> parseNamedColor(StringView);
-    static Optional<SRGBA<uint8_t>> parseHexColor(StringView);
-
-    static Optional<CSSPropertyParserHelpers::FontRaw> parseFontWorkerSafe(const String&, CSSParserMode = HTMLStandardMode);
+    static std::optional<SRGBA<uint8_t>> parseNamedColor(StringView);
+    static std::optional<SRGBA<uint8_t>> parseHexColor(StringView);
 
 private:
     ParseResult parseValue(MutableStyleProperties&, CSSPropertyID, const String&, bool important);

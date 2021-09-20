@@ -37,6 +37,7 @@
 #include "MIMETypeRegistry.h"
 #include "MediaPlayerPrivate.h"
 #include "PlatformTimeRanges.h"
+#include <wtf/Lock.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/text/CString.h>
 #include "InbandTextTrackPrivate.h"
@@ -205,7 +206,7 @@ static void addMediaEngine(std::unique_ptr<MediaPlayerFactory>&&);
 
 static Lock mediaEngineVectorLock;
 
-static bool& haveMediaEnginesVector()
+static bool& haveMediaEnginesVector() WTF_REQUIRES_LOCK(mediaEngineVectorLock)
 {
     static bool haveVector;
     return haveVector;
@@ -228,7 +229,7 @@ void RemoteMediaPlayerSupport::setRegisterRemotePlayerCallback(RegisterRemotePla
     registerRemotePlayerCallback() = WTFMove(callback);
 }
 
-static void buildMediaEnginesVector()
+static void buildMediaEnginesVector() WTF_REQUIRES_LOCK(mediaEngineVectorLock)
 {
     ASSERT(mediaEngineVectorLock.isLocked());
 
@@ -282,7 +283,7 @@ static void buildMediaEnginesVector()
 static const Vector<std::unique_ptr<MediaPlayerFactory>>& installedMediaEngines()
 {
     {
-        auto locker = holdLock(mediaEngineVectorLock);
+        Locker locker { mediaEngineVectorLock };
         if (!haveMediaEnginesVector())
             buildMediaEnginesVector();
     }
@@ -325,7 +326,11 @@ const MediaPlayerFactory* MediaPlayer::mediaEngine(MediaPlayerEnums::MediaEngine
     });
 
     if (currentIndex == notFound) {
+#if PLATFORM(IOS_FAMILY_SIMULATOR)
+        ASSERT(identifier == MediaPlayerEnums::MediaEngineIdentifier::AVFoundationMSE);
+#else
         ASSERT_NOT_REACHED();
+#endif
         return nullptr;
     }
 
@@ -528,21 +533,7 @@ const MediaPlayerFactory* MediaPlayer::nextBestMediaEngine(const MediaPlayerFact
 
 void MediaPlayer::reloadAndResumePlaybackIfNeeded()
 {
-    auto previousMediaTime = currentTime();
-    bool wasPaused = paused();
-
-    // FIXME: It would be even better if we could resume in full screen mode, but, for now, exiting full screen makes the video rendering work.
-    if (client().mediaPlayerFullscreenMode() != MediaPlayer::VideoFullscreenModeNone)
-        client().mediaPlayerExitFullscreen();
-
-    m_currentMediaEngine = nullptr;
-    loadWithNextMediaEngine(nullptr);
-
-    prepareToPlay();
-    if (!wasPaused)
-        play();
-    if (previousMediaTime)
-        seekWhenPossible(previousMediaTime);
+    client().mediaPlayerReloadAndResumePlaybackIfNeeded();
 }
 
 void MediaPlayer::loadWithNextMediaEngine(const MediaPlayerFactory* current)
@@ -591,7 +582,7 @@ void MediaPlayer::loadWithNextMediaEngine(const MediaPlayerFactory* current)
     if (m_private) {
 #if ENABLE(MEDIA_SOURCE)
         if (m_mediaSource)
-            m_private->load(m_url, m_contentType, m_mediaSource.get());
+            m_private->load(m_url, m_contentMIMETypeWasInferredFromExtension ? ContentType() : m_contentType, m_mediaSource.get());
         else
 #endif
 #if ENABLE(MEDIA_STREAM)
@@ -599,7 +590,7 @@ void MediaPlayer::loadWithNextMediaEngine(const MediaPlayerFactory* current)
             m_private->load(*m_mediaStream);
         else
 #endif
-        m_private->load(m_url, m_contentType, m_keySystem);
+        m_private->load(m_url, m_contentMIMETypeWasInferredFromExtension ? ContentType() : m_contentType, m_keySystem);
     } else {
         m_private = makeUnique<NullMediaPlayerPrivate>(this);
         if (!m_activeEngineIdentifier && installedMediaEngines().size() > 1 && nextBestMediaEngine(m_currentMediaEngine))
@@ -612,6 +603,12 @@ void MediaPlayer::loadWithNextMediaEngine(const MediaPlayerFactory* current)
 
     m_initializingMediaEngine = false;
     client().mediaPlayerDidInitializeMediaEngine();
+}
+
+void MediaPlayer::queueTaskOnEventLoop(Function<void()>&& task)
+{
+    ASSERT(isMainThread());
+    client().mediaPlayerQueueTaskOnEventLoop(WTFMove(task));
 }
 
 bool MediaPlayer::hasAvailableVideoFrame() const
@@ -721,6 +718,11 @@ MediaTime MediaPlayer::initialTime() const
 MediaTime MediaPlayer::currentTime() const
 {
     return m_private->currentMediaTime();
+}
+
+bool MediaPlayer::setCurrentTimeDidChangeCallback(CurrentTimeDidChangeCallback&& callback)
+{
+    return m_private->setCurrentTimeDidChangeCallback(WTFMove(callback));
 }
 
 MediaTime MediaPlayer::getStartDate() const
@@ -917,6 +919,11 @@ void MediaPlayer::setRate(double rate)
     m_private->setRateDouble(rate);
 }
 
+double MediaPlayer::effectiveRate() const
+{
+    return m_private->effectiveRate();
+}
+
 double MediaPlayer::requestedRate() const
 {
     return client().mediaPlayerRequestedPlaybackRate();
@@ -982,9 +989,9 @@ double MediaPlayer::liveUpdateInterval()
     return m_private->liveUpdateInterval();
 }
 
-bool MediaPlayer::didLoadingProgress()
+void MediaPlayer::didLoadingProgress(DidLoadingProgressCompletionHandler&& callback) const
 {
-    return m_private->didLoadingProgress();
+    m_private->didLoadingProgressAsync(WTFMove(callback));
 }
 
 void MediaPlayer::setSize(const IntSize& size)
@@ -1020,10 +1027,21 @@ void MediaPlayer::paint(GraphicsContext& p, const FloatRect& r)
     m_private->paint(p, r);
 }
 
+#if !USE(AVFOUNDATION)
+
 bool MediaPlayer::copyVideoTextureToPlatformTexture(GraphicsContextGL* context, PlatformGLObject texture, GCGLenum target, GCGLint level, GCGLenum internalFormat, GCGLenum format, GCGLenum type, bool premultiplyAlpha, bool flipY)
 {
     return m_private->copyVideoTextureToPlatformTexture(context, texture, target, level, internalFormat, format, type, premultiplyAlpha, flipY);
 }
+
+#else
+
+RetainPtr<CVPixelBufferRef> MediaPlayer::pixelBufferForCurrentTime()
+{
+    return m_private->pixelBufferForCurrentTime();
+}
+
+#endif
 
 RefPtr<NativeImage> MediaPlayer::nativeImageForCurrentTime()
 {
@@ -1036,6 +1054,10 @@ MediaPlayer::SupportsType MediaPlayer::supportsType(const MediaEngineSupportPara
     // user agent knows it cannot render or is the type "application/octet-stream"
     AtomString containerType = parameters.type.containerType();
     if (containerType == applicationOctetStream())
+        return SupportsType::IsNotSupported;
+
+    auto lowercaseType = containerType.convertToASCIILowercase();
+    if (!lowercaseType.startsWith("video/") && !lowercaseType.startsWith("audio/") && !lowercaseType.startsWith("application/"))
         return SupportsType::IsNotSupported;
 
     const MediaPlayerFactory* engine = bestMediaEngineForSupportParameters(parameters);
@@ -1154,9 +1176,8 @@ bool MediaPlayer::didPassCORSAccessCheck() const
 
 bool MediaPlayer::wouldTaintOrigin(const SecurityOrigin& origin) const
 {
-    auto wouldTaint = m_private->wouldTaintOrigin(origin);
-    if (wouldTaint.hasValue())
-        return wouldTaint.value();
+    if (auto wouldTaint = m_private->wouldTaintOrigin(origin))
+        return *wouldTaint;
 
     if (m_url.protocolIsData())
         return false;
@@ -1214,9 +1235,9 @@ static void addToHash(HashSet<T>& toHash, HashSet<T>&& fromHash)
         toHash.add(fromHash.begin(), fromHash.end());
 }
     
-HashSet<RefPtr<SecurityOrigin>> MediaPlayer::originsInMediaCache(const String& path)
+HashSet<SecurityOriginData> MediaPlayer::originsInMediaCache(const String& path)
 {
-    HashSet<RefPtr<SecurityOrigin>> origins;
+    HashSet<SecurityOriginData> origins;
     for (auto& engine : installedMediaEngines())
         addToHash(origins, engine->originsInMediaCache(path));
 
@@ -1229,7 +1250,7 @@ void MediaPlayer::clearMediaCache(const String& path, WallTime modifiedSince)
         engine->clearMediaCache(path, modifiedSince);
 }
 
-void MediaPlayer::clearMediaCacheForOrigins(const String& path, const HashSet<RefPtr<SecurityOrigin>>& origins)
+void MediaPlayer::clearMediaCacheForOrigins(const String& path, const HashSet<SecurityOriginData>& origins)
 {
     for (auto& engine : installedMediaEngines())
         engine->clearMediaCacheForOrigins(path, origins);
@@ -1270,7 +1291,7 @@ void MediaPlayer::readyStateChanged()
 {
     client().mediaPlayerReadyStateChanged();
     if (m_pendingSeekRequest && m_private->readyState() == MediaPlayer::ReadyState::HaveMetadata)
-        seek(*std::exchange(m_pendingSeekRequest, WTF::nullopt));
+        seek(*std::exchange(m_pendingSeekRequest, std::nullopt));
 }
 
 void MediaPlayer::volumeChanged(double newVolume)
@@ -1491,7 +1512,7 @@ Vector<RefPtr<PlatformTextTrack>> MediaPlayer::outOfBandTrackSources()
 
 void MediaPlayer::resetMediaEngines()
 {
-    auto locker = holdLock(mediaEngineVectorLock);
+    Locker locker { mediaEngineVectorLock };
 
     mutableInstalledMediaEnginesVector().clear();
     haveMediaEnginesVector() = false;
@@ -1548,10 +1569,10 @@ bool MediaPlayer::ended() const
     return m_private->ended();
 }
 
-Optional<VideoPlaybackQualityMetrics> MediaPlayer::videoPlaybackQualityMetrics()
+std::optional<VideoPlaybackQualityMetrics> MediaPlayer::videoPlaybackQualityMetrics()
 {
     if (!m_private)
-        return WTF::nullopt;
+        return std::nullopt;
 
     return m_private->videoPlaybackQualityMetrics();
 }
@@ -1662,6 +1683,37 @@ void MediaPlayer::audioOutputDeviceChanged()
 MediaPlayerIdentifier MediaPlayer::identifier() const
 {
     return m_private->identifier();
+}
+
+String MediaPlayer::elementId() const
+{
+    return client().mediaPlayerElementId();
+}
+
+bool MediaPlayer::supportsPlayAtHostTime() const
+{
+    return m_private->supportsPlayAtHostTime();
+}
+
+bool MediaPlayer::supportsPauseAtHostTime() const
+{
+    return m_private->supportsPauseAtHostTime();
+}
+
+bool MediaPlayer::playAtHostTime(const MonotonicTime& hostTime)
+{
+    // It is invalid to call playAtHostTime() if the underlying
+    // media player does not support it.
+    ASSERT(supportsPlayAtHostTime());
+    return m_private->playAtHostTime(hostTime);
+}
+
+bool MediaPlayer::pauseAtHostTime(const MonotonicTime& hostTime)
+{
+    // It is invalid to call pauseAtHostTime() if the underlying
+    // media player does not support it.
+    ASSERT(supportsPauseAtHostTime());
+    return m_private->pauseAtHostTime(hostTime);
 }
 
 #if !RELEASE_LOG_DISABLED

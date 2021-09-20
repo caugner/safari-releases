@@ -50,7 +50,6 @@
 #include "SecurityOrigin.h"
 #include "Settings.h"
 #include <wtf/CompletionHandler.h>
-#include <wtf/HashMap.h>
 #include <wtf/MainThread.h>
 
 namespace WebCore {
@@ -180,8 +179,10 @@ void ApplicationCacheGroup::selectCache(Frame& frame, const URL& passedManifestU
     }
 
     // The resource was loaded from the network, check if it is a HTTP/HTTPS GET.    
-    auto& request = frame.loader().activeDocumentLoader()->request();
-
+    auto loader = frame.loader().activeDocumentLoader();
+    if (!loader)
+        return;
+    auto& request = loader->request();
     if (!ApplicationCache::requestIsHTTPOrHTTPSGet(request))
         return;
 
@@ -437,7 +438,7 @@ void ApplicationCacheGroup::update(Frame& frame, ApplicationCacheUpdateOption up
     auto request = createRequest(URL { m_manifestURL }, m_newestCache ? m_newestCache->manifestResource() : nullptr);
 
     m_currentResourceIdentifier = m_frame->page()->progress().createUniqueIdentifier();
-    InspectorInstrumentation::willSendRequest(m_frame.get(), m_currentResourceIdentifier, m_frame->loader().documentLoader(), request, ResourceResponse { });
+    InspectorInstrumentation::willSendRequest(m_frame.get(), m_currentResourceIdentifier, m_frame->loader().documentLoader(), request, ResourceResponse { }, nullptr);
 
     m_manifestLoader = ApplicationCacheResourceLoader::create(ApplicationCacheResource::Type::Manifest, documentLoader.cachedResourceLoader(), WTFMove(request), [this] (auto&& resourceOrError) {
         // 'this' is only valid if returned value is not Error::Abort.
@@ -594,9 +595,8 @@ void ApplicationCacheGroup::didFinishLoadingManifest()
         ApplicationCacheResource* newestManifest = m_newestCache->manifestResource();
         ASSERT(newestManifest);
     
-        if (!m_manifestResource || // The resource will be null if HTTP response was 304 Not Modified.
-            (newestManifest->data().size() == m_manifestResource->data().size() && !memcmp(newestManifest->data().data(), m_manifestResource->data().data(), newestManifest->data().size()))) {
-
+        // The resource will be null if HTTP response was 304 Not Modified.
+        if (!m_manifestResource || newestManifest->data() == m_manifestResource->data()) {
             m_completionType = NoUpdate;
             m_manifestResource = nullptr;
             deliverDelayedMainResources();
@@ -899,7 +899,7 @@ void ApplicationCacheGroup::startLoadingEntry()
     auto request = createRequest(URL { { }, firstPendingEntryURL }, m_newestCache ? m_newestCache->resourceForURL(firstPendingEntryURL) : nullptr);
 
     m_currentResourceIdentifier = m_frame->page()->progress().createUniqueIdentifier();
-    InspectorInstrumentation::willSendRequest(m_frame.get(), m_currentResourceIdentifier, m_frame->loader().documentLoader(), request, ResourceResponse { });
+    InspectorInstrumentation::willSendRequest(m_frame.get(), m_currentResourceIdentifier, m_frame->loader().documentLoader(), request, ResourceResponse { }, nullptr);
 
     auto& documentLoader = *m_frame->loader().documentLoader();
     auto requestURL = request.url();

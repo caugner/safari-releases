@@ -71,7 +71,7 @@ public:
 
     virtual bool shouldCaptureExtraNetworkLoadMetrics() const { return false; }
 
-    virtual void didNegotiateModernTLS(const WebCore::AuthenticationChallenge&) { }
+    virtual void didNegotiateModernTLS(const URL&) { }
 
     void didCompleteWithError(const WebCore::ResourceError& error)
     {
@@ -133,6 +133,8 @@ public:
 
     virtual String description() const;
     virtual void setH2PingCallback(const URL&, CompletionHandler<void(Expected<WTF::Seconds, WebCore::ResourceError>&&)>&&);
+
+    virtual void setPriority(WebCore::ResourceLoadPriority) { }
 
     PAL::SessionID sessionID() const;
 

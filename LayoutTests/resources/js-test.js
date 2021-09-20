@@ -311,7 +311,7 @@ function shouldBeOneOfValues(_a, _values)
         testFailed(_a + " should be one of " + stringifiedValues + ". Threw exception " + _exception);
     else {
         var matchedValue = _values.find(function (value) { return isResultCorrect(_av, value); });
-        if (matchedValue) {
+        if (matchedValue !== undefined) {
             testPassed(_a + " is one of " + stringifiedValues);
         } else {
             testFailed(_a + " should be one of " + stringifiedValues + ". Was " + stringify(_av) + ".");
@@ -350,6 +350,10 @@ function shouldBecomeEqual(_a, _b, completionHandler)
     }
     return false;
   }
+
+  if (!completionHandler)
+    return new Promise(resolve => setTimeout(_waitForCondition, 0, condition, resolve));
+
   setTimeout(_waitForCondition, 0, condition, completionHandler);
 }
 
@@ -462,6 +466,10 @@ function shouldBecomeDifferent(_a, _b, completionHandler)
     }
     return false;
   }
+
+  if (!completionHandler)
+    return new Promise(resolve => setTimeout(_waitForCondition, 0, condition, resolve));
+
   setTimeout(_waitForCondition, 0, condition, completionHandler);
 }
 
@@ -930,7 +938,7 @@ if (isWorker()) {
 
 function downgradeReferrerCallback(policy, host) {
     let scriptElement = document.createElement("script");
-    scriptElement.src = "http://".concat(host, ":8000/referrer-policy/resources/script.php");
+    scriptElement.src = "http://".concat(host, ":8000/referrer-policy/resources/script.py");
     scriptElement.referrerPolicy = policy;
     document.body.appendChild(scriptElement);
 }

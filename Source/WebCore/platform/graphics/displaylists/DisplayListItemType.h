@@ -51,7 +51,8 @@ enum class ItemType : uint8_t {
     ClipToImageBuffer,
     ClipOutToPath,
     ClipPath,
-    ClipToDrawingCommands,
+    BeginClipToDrawingCommands,
+    EndClipToDrawingCommands,
     DrawGlyphs,
     DrawImageBuffer,
     DrawNativeImage,
@@ -71,19 +72,27 @@ enum class ItemType : uint8_t {
     FillRoundedRect,
     FillRectWithRoundedHole,
 #if ENABLE(INLINE_PATH_DATA)
-    FillInlinePath,
+    FillLine,
+    FillArc,
+    FillQuadCurve,
+    FillBezierCurve,
 #endif
     FillPath,
     FillEllipse,
     FlushContext,
     MetaCommandChangeDestinationImageBuffer,
     MetaCommandChangeItemBuffer,
-    PutImageData,
+    GetPixelBuffer,
+    PutPixelBuffer,
+#if ENABLE(VIDEO)
     PaintFrameForMedia,
+#endif
     StrokeRect,
     StrokeLine,
 #if ENABLE(INLINE_PATH_DATA)
-    StrokeInlinePath,
+    StrokeArc,
+    StrokeQuadCurve,
+    StrokeBezierCurve,
 #endif
     StrokePath,
     StrokeEllipse,

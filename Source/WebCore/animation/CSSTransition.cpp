@@ -41,7 +41,7 @@ Ref<CSSTransition> CSSTransition::create(const Styleable& owningElement, CSSProp
 {
     ASSERT(oldStyle);
     auto result = adoptRef(*new CSSTransition(owningElement, property, generationTime, backingAnimation, *oldStyle, newStyle, reversingAdjustedStartStyle, reversingShorteningFactor));
-    result->initialize(oldStyle, newStyle);
+    result->initialize(oldStyle, newStyle, nullptr);
     result->setTimingProperties(delay, duration);
 
     InspectorInstrumentation::didCreateWebAnimation(result.get());
@@ -61,9 +61,9 @@ CSSTransition::CSSTransition(const Styleable& styleable, CSSPropertyID property,
 {
 }
 
-void CSSTransition::resolve(RenderStyle& targetStyle, Optional<Seconds> startTime)
+void CSSTransition::resolve(RenderStyle& targetStyle, const RenderStyle* parentElementStyle, std::optional<Seconds> startTime)
 {
-    DeclarativeAnimation::resolve(targetStyle, startTime);
+    DeclarativeAnimation::resolve(targetStyle, parentElementStyle, startTime);
     m_currentStyle = RenderStyle::clonePtr(targetStyle);
 }
 
@@ -87,7 +87,7 @@ void CSSTransition::setTimingProperties(Seconds delay, Seconds duration)
     unsuspendEffectInvalidation();
 }
 
-Ref<AnimationEventBase> CSSTransition::createEvent(const AtomString& eventType, double elapsedTime, const String& pseudoId, Optional<Seconds> timelineTime)
+Ref<AnimationEventBase> CSSTransition::createEvent(const AtomString& eventType, double elapsedTime, const String& pseudoId, std::optional<Seconds> timelineTime)
 {
     return TransitionEvent::create(eventType, getPropertyNameString(m_property), elapsedTime, pseudoId, timelineTime, this);
 }

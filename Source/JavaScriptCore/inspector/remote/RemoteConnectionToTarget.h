@@ -33,7 +33,7 @@
 #include <wtf/ThreadSafeRefCounted.h>
 
 #if PLATFORM(COCOA)
-#include <wtf/BlockPtr.h>
+#include <wtf/Function.h>
 #include <wtf/RetainPtr.h>
 
 OBJC_CLASS NSString;
@@ -66,7 +66,7 @@ public:
     void close();
     void targetClosed();
 
-    Optional<TargetID> targetIdentifier() const;
+    std::optional<TargetID> targetIdentifier() const;
 #if PLATFORM(COCOA)
     NSString *connectionIdentifier() const;
     NSString *destination() const;

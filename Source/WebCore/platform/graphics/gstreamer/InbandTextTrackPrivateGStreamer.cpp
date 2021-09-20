@@ -42,6 +42,7 @@ namespace WebCore {
 InbandTextTrackPrivateGStreamer::InbandTextTrackPrivateGStreamer(gint index, GRefPtr<GstPad> pad)
     : InbandTextTrackPrivate(CueFormat::WebVTT)
     , TrackPrivateBaseGStreamer(this, index, pad)
+    , m_kind(Kind::Subtitles)
 {
     m_eventProbe = gst_pad_add_probe(m_pad.get(), GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM, [] (GstPad*, GstPadProbeInfo* info, gpointer userData) -> GstPadProbeReturn {
         auto* track = static_cast<InbandTextTrackPrivateGStreamer*>(userData);
@@ -64,6 +65,11 @@ InbandTextTrackPrivateGStreamer::InbandTextTrackPrivateGStreamer(gint index, GRe
 {
     m_streamId = gst_stream_get_stream_id(stream.get());
     GST_INFO("Track %d got stream start for stream %s.", m_index, m_streamId.utf8().data());
+
+    GST_DEBUG("Stream %" GST_PTR_FORMAT, stream.get());
+    auto caps = adoptGRef(gst_stream_get_caps(stream.get()));
+    const char* mediaType = capsMediaType(caps.get());
+    m_kind = g_str_has_prefix(mediaType, "closedcaption/") ? Kind::Captions : Kind::Subtitles;
 }
 
 void InbandTextTrackPrivateGStreamer::disconnect()
@@ -77,7 +83,7 @@ void InbandTextTrackPrivateGStreamer::disconnect()
 void InbandTextTrackPrivateGStreamer::handleSample(GRefPtr<GstSample> sample)
 {
     {
-        LockHolder lock(m_sampleMutex);
+        Locker locker { m_sampleMutex };
         m_pendingSamples.append(sample);
     }
 
@@ -99,7 +105,7 @@ void InbandTextTrackPrivateGStreamer::notifyTrackOfSample()
 {
     Vector<GRefPtr<GstSample> > samples;
     {
-        LockHolder lock(m_sampleMutex);
+        Locker locker { m_sampleMutex };
         m_pendingSamples.swap(samples);
     }
 
@@ -119,7 +125,7 @@ void InbandTextTrackPrivateGStreamer::notifyTrackOfSample()
 
         GST_INFO("Track %d parsing sample: %.*s", m_index, static_cast<int>(mappedBuffer.size()),
             reinterpret_cast<char*>(mappedBuffer.data()));
-        client()->parseWebVTTCueData(reinterpret_cast<char*>(mappedBuffer.data()), mappedBuffer.size());
+        client()->parseWebVTTCueData(mappedBuffer.data(), mappedBuffer.size());
     }
 }
 

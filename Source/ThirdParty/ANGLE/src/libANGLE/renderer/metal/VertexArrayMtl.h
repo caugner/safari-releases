@@ -53,14 +53,20 @@ class VertexArrayMtl : public VertexArrayImpl
 
     angle::Result getIndexBuffer(const gl::Context *glContext,
                                  gl::DrawElementsType indexType,
-                                 gl::PrimitiveMode primitiveMode,
                                  size_t indexCount,
                                  const void *sourcePointer,
                                  mtl::BufferRef *idxBufferOut,
                                  size_t *idxBufferOffsetOut,
-                                 gl::DrawElementsType *indexTypeOut,
-                                 size_t *indexBufferCountOut);
-
+                                 gl::DrawElementsType *indexTypeOut);
+    
+    
+    std::vector<DrawCommandRange> getDrawIndices(const gl::Context *glContext,
+                                                 gl::DrawElementsType originalIndexType,
+                                                 gl::DrawElementsType indexType,
+                                                 gl::PrimitiveMode primitiveMode,
+                                                 uint32_t indexCount,
+                                                 size_t offset);
+    
     // Use to emulate instanced draw for instance <instanceId>.
     // The typical call sequence for emulated instance draw is:
     // - setupDraw()
@@ -86,19 +92,15 @@ class VertexArrayMtl : public VertexArrayImpl
 
     angle::Result convertIndexBuffer(const gl::Context *glContext,
                                      gl::DrawElementsType indexType,
-                                     gl::PrimitiveMode mode,
                                      size_t offset,
                                      mtl::BufferRef *idxBufferOut,
-                                     size_t *idxBufferOffsetOut,
-                                     size_t *indexBufferCountOut);
+                                     size_t *idxBufferOffsetOut);
     angle::Result streamIndexBufferFromClient(const gl::Context *glContext,
                                               gl::DrawElementsType indexType,
-                                              gl::PrimitiveMode primitiveType,
                                               size_t indexCount,
                                               const void *sourcePointer,
                                               mtl::BufferRef *idxBufferOut,
-                                              size_t *idxBufferOffsetOut,
-                                              size_t *idxBufferCountOut);
+                                              size_t *idxBufferOffsetOut);
 
     angle::Result convertIndexBufferGPU(const gl::Context *glContext,
                                         gl::DrawElementsType indexType,
@@ -130,7 +132,7 @@ class VertexArrayMtl : public VertexArrayImpl
                                          size_t vertexCount,
                                          bool isExpandingComponents,
                                          ConversionBufferMtl *conversion);
-
+    
     // These can point to real BufferMtl or converted buffer in mConvertedArrayBufferHolders
     gl::AttribArray<BufferHolderMtl *> mCurrentArrayBuffers;
     gl::AttribArray<SimpleWeakBufferHolderMtl> mConvertedArrayBufferHolders;

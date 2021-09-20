@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2020 Apple Inc. All rights reserved.
+ * Copyright (C) 2011-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -36,8 +36,8 @@
 #include "DFGNode.h"
 #include "DFGPlan.h"
 #include "DFGPropertyTypeKey.h"
-#include "DFGScannable.h"
 #include "FullBytecodeLiveness.h"
+#include "JITScannable.h"
 #include "MethodOfGettingAValueProfile.h"
 #include <wtf/BitVector.h>
 #include <wtf/HashMap.h>
@@ -835,7 +835,6 @@ public:
 
     DesiredIdentifiers& identifiers() { return m_plan.identifiers(); }
     DesiredWatchpoints& watchpoints() { return m_plan.watchpoints(); }
-    DesiredGlobalProperties& globalProperties() { return m_plan.globalProperties(); }
 
     // Returns false if the key is already invalid or unwatchable. If this is a Presence condition,
     // this also makes it cheap to query if the condition holds. Also makes sure that the GC knows
@@ -916,7 +915,7 @@ public:
             // Arguments are always live. This would be redundant if it wasn't for our
             // op_call_varargs inlining. See the comment above.
             exclusionStart = stackOffset + CallFrame::argumentOffsetIncludingThis(0);
-            exclusionEnd = stackOffset + CallFrame::argumentOffsetIncludingThis(inlineCallFrame->argumentsWithFixup.size());
+            exclusionEnd = stackOffset + CallFrame::argumentOffsetIncludingThis(inlineCallFrame->m_argumentsWithFixup.size());
             
             // We will always have a "this" argument and exclusionStart should be a smaller stack
             // offset than exclusionEnd.
@@ -1000,9 +999,10 @@ public:
     bool canDoFastSpread(Node*, const AbstractValue&);
     
     void registerFrozenValues();
-    
+
+    void visitChildren(AbstractSlotVisitor&) final;
     void visitChildren(SlotVisitor&) final;
-    
+
     void logAssertionFailure(
         std::nullptr_t, const char* file, int line, const char* function,
         const char* assertion);
@@ -1035,8 +1035,8 @@ public:
     }
     bool willCatchExceptionInMachineFrame(CodeOrigin, CodeOrigin& opCatchOriginOut, HandlerInfo*& catchHandlerOut);
     
-    bool needsScopeRegister() const { return m_hasDebuggerEnabled || m_codeBlock->usesEval(); }
-    bool needsFlushedThis() const { return m_codeBlock->usesEval(); }
+    bool needsScopeRegister() const { return m_hasDebuggerEnabled || m_codeBlock->usesCallEval(); }
+    bool needsFlushedThis() const { return m_codeBlock->usesCallEval(); }
 
     void clearCPSCFGData();
 
@@ -1063,6 +1063,19 @@ public:
     Prefix& prefix() { return m_prefix; }
     void nextPhase() { m_prefix.phaseNumber++; }
 
+    const UnlinkedSimpleJumpTable& unlinkedSwitchJumpTable(unsigned index) const { return *m_unlinkedSwitchJumpTables[index]; }
+    SimpleJumpTable& switchJumpTable(unsigned index) { return m_switchJumpTables[index]; }
+
+    const UnlinkedStringJumpTable& unlinkedStringSwitchJumpTable(unsigned index) const { return *m_unlinkedStringSwitchJumpTables[index]; }
+    StringJumpTable& stringSwitchJumpTable(unsigned index) { return m_stringSwitchJumpTables[index]; }
+
+    void appendCatchEntrypoint(BytecodeIndex bytecodeIndex, MacroAssemblerCodePtr<ExceptionHandlerPtrTag> machineCode, Vector<FlushFormat>&& argumentFormats)
+    {
+        m_catchEntrypoints.append(CatchEntrypointData { machineCode, FixedVector<FlushFormat>(WTFMove(argumentFormats)), bytecodeIndex });
+    }
+
+    void freeDFGIRAfterLowering();
+
     StackCheck m_stackChecker;
     VM& m_vm;
     Plan& m_plan;
@@ -1072,6 +1085,12 @@ public:
     Vector<RefPtr<BasicBlock>, 8> m_blocks;
     Vector<BasicBlock*, 1> m_roots;
     Vector<Edge, 16> m_varArgChildren;
+
+    // UnlinkedSimpleJumpTable/UnlinkedStringJumpTable are kept by UnlinkedCodeBlocks retained by baseline CodeBlocks handled by DFG / FTL.
+    Vector<const UnlinkedSimpleJumpTable*> m_unlinkedSwitchJumpTables;
+    Vector<SimpleJumpTable> m_switchJumpTables;
+    Vector<const UnlinkedStringJumpTable*> m_unlinkedStringSwitchJumpTables;
+    Vector<StringJumpTable> m_stringSwitchJumpTables;
 
     HashMap<EncodedJSValue, FrozenValue*, EncodedJSValueHash, EncodedJSValueHashTraits> m_frozenValueMap;
     Bag<FrozenValue> m_frozenValues;
@@ -1154,6 +1173,7 @@ public:
     // This maps an entrypoint index to a particular op_catch bytecode offset. By convention,
     // it'll never have zero as a key because we use zero to mean the op_enter entrypoint.
     HashMap<unsigned, BytecodeIndex> m_entrypointIndexToCatchBytecodeIndex;
+    Vector<CatchEntrypointData> m_catchEntrypoints;
 
     HashSet<String> m_localStrings;
     HashMap<const StringImpl*, String> m_copiedStrings;
@@ -1173,7 +1193,7 @@ public:
     bool m_hasExceptionHandlers { false };
     bool m_isInSSAConversion { false };
     bool m_isValidating { false };
-    Optional<uint32_t> m_maxLocalsForCatchOSREntry;
+    std::optional<uint32_t> m_maxLocalsForCatchOSREntry;
     std::unique_ptr<FlowIndexing> m_indexingCache;
     std::unique_ptr<FlowMap<AbstractValue>> m_abstractValuesCache;
     Bag<EntrySwitchData> m_entrySwitchData;
@@ -1184,6 +1204,8 @@ public:
     HashSet<Node*> m_slowGetByVal;
 
 private:
+    template<typename Visitor> void visitChildrenImpl(Visitor&);
+
     bool isStringPrototypeMethodSane(JSGlobalObject*, UniquedStringImpl*);
 
     void handleSuccessor(Vector<BasicBlock*, 16>& worklist, BasicBlock*, BasicBlock* successor);

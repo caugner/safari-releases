@@ -30,11 +30,11 @@
 #if ENABLE(WEBGL) && USE(OPENGL)
 
 #include "ExtensionsGLOpenGL.h"
-#include "ImageData.h"
 #include "IntRect.h"
 #include "IntSize.h"
 #include "Logging.h"
 #include "NotImplemented.h"
+#include "PixelBuffer.h"
 #include "TemporaryOpenGLSetting.h"
 #include <algorithm>
 #include <cstring>
@@ -61,12 +61,12 @@
 
 namespace WebCore {
 
-
-RefPtr<ImageData> GraphicsContextGLOpenGL::readPixelsForPaintResults()
+std::optional<PixelBuffer> GraphicsContextGLOpenGL::readPixelsForPaintResults()
 {
-    auto imageData = ImageData::create(getInternalFramebufferSize());
-    if (!imageData)
-        return nullptr;
+    PixelBufferFormat format { AlphaPremultiplication::Unpremultiplied, PixelFormat::RGBA8, DestinationColorSpace::SRGB() };
+    auto pixelBuffer = PixelBuffer::tryCreate(format, getInternalFramebufferSize());
+    if (!pixelBuffer)
+        return std::nullopt;
 
     GLint packAlignment = 4;
     bool mustRestorePackAlignment = false;
@@ -76,12 +76,12 @@ RefPtr<ImageData> GraphicsContextGLOpenGL::readPixelsForPaintResults()
         mustRestorePackAlignment = true;
     }
 
-    ::glReadPixels(0, 0, imageData->width(), imageData->height(), GL_RGBA, GL_UNSIGNED_BYTE, imageData->data()->data());
+    ::glReadPixels(0, 0, pixelBuffer->size().width(), pixelBuffer->size().height(), GL_RGBA, GL_UNSIGNED_BYTE, pixelBuffer->data().data());
 
     if (mustRestorePackAlignment)
         ::glPixelStorei(GL_PACK_ALIGNMENT, packAlignment);
 
-    return imageData;
+    return pixelBuffer;
 }
 
 void GraphicsContextGLOpenGL::validateAttributes()
@@ -106,7 +106,7 @@ bool GraphicsContextGLOpenGL::reshapeFBOs(const IntSize& size)
         // We don't allow the logic where stencil is required and depth is not.
         // See GraphicsContextGLOpenGL::validateAttributes.
 
-        ExtensionsGL& extensions = getExtensions();
+        ExtensionsGLOpenGLCommon& extensions = getExtensions();
         // Use a 24 bit depth buffer where we know we have it.
         if (extensions.supports("GL_EXT_packed_depth_stencil"))
             internalDepthStencilFormat = GL_DEPTH24_STENCIL8_EXT;
@@ -407,7 +407,7 @@ void GraphicsContextGLOpenGL::clearDepth(GCGLclampf depth)
 }
 
 #if !PLATFORM(GTK)
-ExtensionsGL& GraphicsContextGLOpenGL::getExtensions()
+ExtensionsGLOpenGLCommon& GraphicsContextGLOpenGL::getExtensions()
 {
     if (!m_extensions)
         m_extensions = makeUnique<ExtensionsGLOpenGL>(this, isGLES2Compliant());

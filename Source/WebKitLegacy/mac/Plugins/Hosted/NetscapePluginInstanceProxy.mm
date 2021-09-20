@@ -651,11 +651,7 @@ void NetscapePluginInstanceProxy::performRequest(PluginRequest* pluginRequest)
         frame = kit(core([m_pluginView webFrame])->loader().findFrameForNavigation(frameName));
         if (!frame) {
             WebView *currentWebView = [m_pluginView webView];
-            NSDictionary *features = [[NSDictionary alloc] init];
-            WebView *newWebView = [[currentWebView _UIDelegateForwarder] webView:currentWebView
-                                                        createWebViewWithRequest:nil
-                                                                  windowFeatures:features];
-            [features release];
+            WebView *newWebView = [[currentWebView _UIDelegateForwarder] webView:currentWebView createWebViewWithRequest:nil windowFeatures:@{ }];
 
             if (!newWebView) {
                 _WKPHLoadURLNotify(m_pluginHostProxy->port(), m_pluginID, pluginRequest->requestID(), NPERR_GENERIC_ERROR);
@@ -729,7 +725,7 @@ void NetscapePluginInstanceProxy::evaluateJavaScript(PluginRequest* pluginReques
                                                                 expectedContentLength:[JSData length]
                                                                      textEncodingName:nil]);
         stream->startStreamWithResponse(response.get());
-        stream->didReceiveData(0, static_cast<const char*>([JSData bytes]), [JSData length]);
+        stream->didReceiveData(0, static_cast<const uint8_t*>([JSData bytes]), [JSData length]);
         stream->didFinishLoading(0);
     }
 }
@@ -887,7 +883,7 @@ bool NetscapePluginInstanceProxy::evaluate(uint32_t objectID, const String& scri
 
     Strong<JSGlobalObject> globalObject(vm, frame->script().globalObject(pluginWorld()));
 
-    UserGestureIndicator gestureIndicator(allowPopups ? Optional<ProcessingUserGestureState>(ProcessingUserGesture) : WTF::nullopt);
+    UserGestureIndicator gestureIndicator(allowPopups ? std::optional<ProcessingUserGestureState>(ProcessingUserGesture) : std::nullopt);
     
     JSValue result = JSC::evaluate(globalObject.get(), JSC::makeSource(script, { }));
     

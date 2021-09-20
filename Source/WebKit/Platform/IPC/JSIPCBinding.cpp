@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 Apple Inc. All rights reserved.
+ * Copyright (C) 2020-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -28,8 +28,7 @@
 
 #if ENABLE(IPC_TESTING_API)
 
-#include <JavaScriptCore/JSCJSValueInlines.h>
-#include <JavaScriptCore/JSGlobalObjectInlines.h>
+#include <JavaScriptCore/JSCInlines.h>
 #include <JavaScriptCore/ObjectConstructor.h>
 #include <WebCore/FloatRect.h>
 #include <WebCore/IntRect.h>
@@ -52,19 +51,19 @@ static JSC::JSValue jsValueForDecodedStringArgumentValue(JSC::JSGlobalObject* gl
 }
 
 template<>
-JSC::JSValue jsValueForDecodedArgumentValue(JSC::JSGlobalObject* globalObject, const String& value)
+JSC::JSValue jsValueForDecodedArgumentValue(JSC::JSGlobalObject* globalObject, String&& value)
 {
     return jsValueForDecodedStringArgumentValue(globalObject, value, "String"_s);
 }
 
 template<>
-JSC::JSValue jsValueForDecodedArgumentValue(JSC::JSGlobalObject* globalObject, const URL& value)
+JSC::JSValue jsValueForDecodedArgumentValue(JSC::JSGlobalObject* globalObject, URL&& value)
 {
     return jsValueForDecodedStringArgumentValue(globalObject, value.string(), "URL"_s);
 }
 
 template<>
-JSC::JSValue jsValueForDecodedArgumentValue(JSC::JSGlobalObject* globalObject, const WebCore::RegistrableDomain& value)
+JSC::JSValue jsValueForDecodedArgumentValue(JSC::JSGlobalObject* globalObject, WebCore::RegistrableDomain&& value)
 {
     return jsValueForDecodedStringArgumentValue(globalObject, value.string(), "RegistrableDomain"_s);
 }
@@ -157,6 +156,12 @@ JSC::JSValue jsValueForDecodedArgumentValue(JSC::JSGlobalObject* globalObject, u
     return jsValueForDecodedNumericArgumentValue(globalObject, value, "uint64_t");
 }
 
+template<>
+JSC::JSValue jsValueForDecodedArgumentValue(JSC::JSGlobalObject* globalObject, size_t value)
+{
+    return jsValueForDecodedNumericArgumentValue(globalObject, value, "size_t");
+}
+
 template<typename RectType>
 JSC::JSValue jsValueForDecodedArgumentRect(JSC::JSGlobalObject* globalObject, const RectType& value, const String& type)
 {
@@ -178,13 +183,13 @@ JSC::JSValue jsValueForDecodedArgumentRect(JSC::JSGlobalObject* globalObject, co
 }
 
 template<>
-JSC::JSValue jsValueForDecodedArgumentValue(JSC::JSGlobalObject* globalObject, const WebCore::IntRect& value)
+JSC::JSValue jsValueForDecodedArgumentValue(JSC::JSGlobalObject* globalObject, WebCore::IntRect&& value)
 {
     return jsValueForDecodedArgumentRect(globalObject, value, "IntRect");
 }
 
 template<>
-JSC::JSValue jsValueForDecodedArgumentValue(JSC::JSGlobalObject* globalObject, const WebCore::FloatRect& value)
+JSC::JSValue jsValueForDecodedArgumentValue(JSC::JSGlobalObject* globalObject, WebCore::FloatRect&& value)
 {
     return jsValueForDecodedArgumentRect(globalObject, value, "FloatRect");
 }

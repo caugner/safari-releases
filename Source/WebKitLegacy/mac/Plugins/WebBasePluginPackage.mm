@@ -32,7 +32,6 @@
 #import "WebKitNSStringExtras.h"
 #import "WebNetscapePluginPackage.h"
 #import "WebPluginPackage.h"
-#import "WebTypesInternal.h"
 #import <JavaScriptCore/InitializeThreading.h>
 #import <WebCore/WebCoreJITOperations.h>
 #import <algorithm>
@@ -69,17 +68,17 @@
 + (WebBasePluginPackage *)pluginWithPath:(NSString *)pluginPath
 {
     
-    WebBasePluginPackage *pluginPackage = [[WebPluginPackage alloc] initWithPath:pluginPath];
+    auto pluginPackage = adoptNS([[WebPluginPackage alloc] initWithPath:pluginPath]);
 
     if (!pluginPackage) {
 #if ENABLE(NETSCAPE_PLUGIN_API)
-        pluginPackage = [[WebNetscapePluginPackage alloc] initWithPath:pluginPath];
+        pluginPackage = adoptNS([[WebNetscapePluginPackage alloc] initWithPath:pluginPath]);
 #else
         return nil;
 #endif
     }
 
-    return [pluginPackage autorelease];
+    return pluginPackage.autorelease();
 }
 
 - (id)initWithPath:(NSString *)pluginPath

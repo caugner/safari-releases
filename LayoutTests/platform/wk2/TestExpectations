@@ -29,7 +29,7 @@
 # This file should contain entries for expectations that are generic
 # to any port running the WebKit2 variant (--webkit-test-runner)
 
-###### This file has four sections. When adding new tests, make sure to
+###### This file has five sections. When adding new tests, make sure to
 ###### add to the right section:
 
 ### (1) Classified failures with bug reports
@@ -93,7 +93,6 @@ http/tests/security/cross-origin-plugin-private-browsing-toggled.html [ Skip ]
 http/tests/security/storage-blocking-loosened-private-browsing-plugin.html [ Skip ]
 http/tests/security/storage-blocking-strengthened-private-browsing-plugin.html [ Skip ]
 plugins/private-browsing-mode-2.html [ Skip ]
-storage/websql/private-browsing-noread-nowrite.html [ Skip ]
 
 # [WebKit2] WebKitTestRunner doesn't support emulating pressing a tab key during IME composition
 webkit.org/b/188428 editing/input/press-tab-during-ime-composition.html
@@ -209,6 +208,53 @@ http/tests/download/inherited-encoding.html
 # https://bugs.webkit.org/show_bug.cgi?id=186613
 http/tests/images/loading-image-border.html
 http/tests/images/loading-image-no-border.html
+
+# webkit.org/b/221694
+http/tests/media/hls/hls-hdr-switch.html [ Timeout ]
+http/tests/media/hls/hls-progress.html [ Failure ]
+
+# webkit.org/b/221685
+media/modern-media-controls/media-controller/media-controller-fullscreen-change.html [ Failure Pass ]
+media/modern-media-controls/media-controller/media-controller-inline-to-fullscreen-to-inline.html [ Timeout Pass ]
+media/modern-media-controls/media-controller/media-controller-inline-to-fullscreen-to-pip-to-inline.html [ Timeout Pass ]
+media/modern-media-controls/media-controller/media-controller-space-bar-toggle-playback.html [ Failure Pass ]
+media/modern-media-controls/placard-support/placard-support-airplay-fullscreen.html [ Timeout Pass ]
+media/modern-media-controls/scrubber-support/scrubber-support-drag.html [ Timeout Pass ]
+
+# webkit.org/b/221693
+media/encrypted-media/clearKey/clearKey-session-life-cycle.html [ Failure Crash ]
+
+# webkit.org/b/220805
+webaudio/Panner/hrtf-database.html [ Timeout ]
+webaudio/codec-tests/aac/vbr-128kbps-44khz.html [ Timeout ]
+webaudio/codec-tests/mp3/128kbps-44khz.html [ Timeout ]
+
+# webkit.org/b/221791
+# fast/canvas/webgl/tex-image-and-sub-image-2d-with-video-rgb565.html [ Failure ]
+# fast/canvas/webgl/tex-image-and-sub-image-2d-with-video-rgba4444.html [ Failure ]
+# fast/canvas/webgl/tex-image-and-sub-image-2d-with-video-rgba5551.html [ Failure ]
+# fast/canvas/webgl/tex-image-and-sub-image-2d-with-video.html [ Failure ]
+# fast/canvas/webgl/texImage2D-mse-flipY-false.html [ Failure ]
+# fast/canvas/webgl/texImage2D-mse-flipY-true.html [ Failure ]
+
+# webkit.org/b/221790
+# webgl/1.0.3/conformance/textures/tex-image-and-sub-image-2d-with-video-rgb565.html [ Failure ]
+# webgl/1.0.3/conformance/textures/tex-image-and-sub-image-2d-with-video-rgba4444.html [ Failure ]
+# webgl/1.0.3/conformance/textures/tex-image-and-sub-image-2d-with-video-rgba5551.html [ Failure ]
+# webgl/1.0.3/conformance/extensions/oes-texture-float-with-video.html [ Failure ]
+# webgl/1.0.3/conformance/extensions/oes-texture-half-float-with-video.html [ Failure ]
+# webgl/1.0.3/conformance/textures/tex-image-and-sub-image-2d-with-video.html [ Failure ]
+
+# webkit.org/b/221806
+# webgl/2.0.0/conformance/extensions/oes-texture-float-with-video.html [ Failure ]
+# webgl/2.0.0/conformance/extensions/oes-texture-half-float-with-video.html [ Failure ]
+# webgl/2.0.0/conformance/textures/video/tex-2d-rgb-rgb-unsigned_byte.html [ Failure ]
+
+webkit.org/b/221816 http/wpt/mediarecorder/MediaRecorder-AV-audio-video-dataavailable.html [ Failure ]
+
+webkit.org/b/221819 imported/w3c/web-platform-tests/webaudio/the-audio-api/the-mediaelementaudiosourcenode-interface/mediaElementAudioSourceToScriptProcessorTest.html [ Failure ]
+
+webkit.org/b/222569 fast/mediastream/media-stream-track-interrupted.html [ Crash Pass ]
 
 ### END OF (1) Classified failures with bug reports
 ########################################
@@ -399,7 +445,6 @@ fast/overflow/overflow_hidden.html
 platform/mac/fast/loader/non-html-load-event.html
 plugins/embed-attributes-style.html
 plugins/plugin-initiate-popup-window.html
-storage/websql/open-database-while-transaction-in-progress.html
 svg/hixie/cascade/002.xml
 transitions/font-family-during-transition.html
 
@@ -441,9 +486,6 @@ webkit.org/b/158703 userscripts/window-onerror-for-isolated-world-3.html [ Skip 
 transitions/color-transition-all.html
 transitions/min-max-width-height-transitions.html
 transitions/text-indent-transition.html
-
-# These storage tests fail in WebKit2 on the bot, but not running locally
-storage/websql/multiple-databases-garbage-collection.html
 
 # Mysterious failure after enabling paste tests
 editing/mac/pasteboard/text-precomposed.html
@@ -514,6 +556,7 @@ loader/navigation-while-deferring-loads.html [ Skip ]
 
 # WebKitTestRunner doesn't have objCController
 platform/mac/fast/dom/objc-wrapper-identity.html
+platform/mac/fast/dom/objc-wrapper-toprimitive.html
 platform/mac/fast/dom/wrapper-classes-objc.html
 platform/mac/fast/dom/wrapper-round-tripping.html
 platform/mac/fast/objc/dom-html-select-activate.html
@@ -650,11 +693,23 @@ fast/events/drag-display-none-element.html
 # Skip tests in fast/text/shaping
 fast/text/shaping
 
+# WebSQL is disabled
+storage/websql [ Skip ]
+fast/dom/MutationObserver/database-callback-delivery.html [ Skip ]
+http/tests/security/cross-origin-websql-allowed.html [ Skip ]
+http/tests/security/cross-origin-websql.html [ Skip ]
+http/tests/security/same-origin-websql-blocked.html [ Skip ]
+http/tests/security/storage-blocking-loosened-websql.html [ Skip ]
+http/tests/security/storage-blocking-strengthened-websql.html [ Skip ]
+http/tests/storage/callbacks-are-called-in-correct-context.html [ Skip ]
+fast/history/page-cache-webdatabase-no-transaction-db.html [ Skip ]
+fast/history/page-cache-webdatabase-pending-transaction.html [ Skip ]
+
 # WebKitTestRunner testRunner.setPrivateBrowsingEnabled_DEPRECATED() doesn't work with NetworkProcess.
 # We explicitly Skip the following tests instead of marking them as Failure because some of these tests will naturally pass
 # as a consequence of testRunner.setPrivateBrowsingEnabled_DEPRECATED() effectively being a no-op as of the time of writing (07/08/2015).
-webkit.org/b/115274 http/tests/security/contentSecurityPolicy/report-cross-origin-no-cookies-when-private-browsing-toggled.php [ Skip ]
-webkit.org/b/115274 http/tests/security/contentSecurityPolicy/report-same-origin-no-cookies-when-private-browsing-toggled.php [ Skip ]
+webkit.org/b/115274 http/tests/security/contentSecurityPolicy/report-cross-origin-no-cookies-when-private-browsing-toggled.py [ Skip ]
+webkit.org/b/115274 http/tests/security/contentSecurityPolicy/report-same-origin-no-cookies-when-private-browsing-toggled.py [ Skip ]
 
 ### END OF (4) Features that are not supported in WebKit2 and likely never will be
 ########################################
@@ -671,9 +726,6 @@ http/tests/storage/storage-map-leaking.html [ Pass ]
 
 # DumpRenderTree does not implement setWillSendRequestHTTPBody
 http/tests/misc/will-send-request-with-client-provided-http-body.html [ Pass ]
-
-# bug 162281
-imported/w3c/web-platform-tests/fetch/api/request/request-cache-only-if-cached.html [ Failure ]
 
 printing/printing-events.html [ Pass ]
 
@@ -711,7 +763,7 @@ http/tests/resourceLoadStatistics/set-all-cookies-to-same-site-strict.html [ Ski
 http/tests/resourceLoadStatistics/enforce-samesite-strict-based-on-top-frame-unique-redirects-to.html [ Skip ]
 
 # This test is flaky. <rdar://problem/69748720>
-http/tests/resourceLoadStatistics/operating-dates-all-but-cookies-removed-statistics-with-no-user-interaction.html [ Pass Failure ]
+http/tests/resourceLoadStatistics/operating-dates-all-but-cookies-removed-with-user-interaction-7-days-ago.html [ Pass Failure ]
 
 # The CNAME and cookie transform SPIs are only available in macOS Big Sur + iOS 14 and above.
 http/tests/resourceLoadStatistics/cname-cloaking-top-cname-sub-1p-cname.html [ Skip ]
@@ -739,15 +791,15 @@ http/tests/navigation/process-swap-window-open.html [ Skip ]
 # Cross-Origin-Resource-Policy response header is only implemented in WebKit2.
 http/wpt/cross-origin-resource-policy/ [ Pass ]
 
-http/tests/navigation/useragent-reload.php [ Pass ]
+http/tests/navigation/useragent-reload.py [ Pass ]
 storage/indexeddb/modern/opendatabase-after-storage-crash.html [ Pass ]
-storage/indexeddb/IDBObject-leak.html [ Pass ]
 
 fast/forms/call-text-did-change-in-text-field-when-typing.html [ Pass ]
 
 http/tests/privateClickMeasurement [ Pass ]
 
 # User interaction is a WebKit2 concept.
+inspector/debugger/breakpoint-action-emulateUserGesture-userIsInteracting.html [ Pass ]
 inspector/debugger/evaluateOnCallFrame-emulateUserGesture-userIsInteracting.html [ Pass ]
 inspector/runtime/evaluate-emulateUserGesture-userIsInteracting.html [ Pass ]
 inspector/runtime/callFunctionOn-emulateUserGesture-userIsInteracting.html [ Pass ]
@@ -773,7 +825,7 @@ editing/selection/expando.html [ Pass ]
 ### END OF (5) Progressions, expected successes that are expected failures in WebKit1.
 ########################################
 
-###### This file has four sections. When adding new tests, make sure to
+###### This file has five sections. When adding new tests, make sure to
 ###### add to the right section:
 
 ### (1) Classified failures with bug reports
@@ -794,6 +846,12 @@ webkit.org/b/186406 compositing/iframes/display-none-subframe.html [ Pass Failur
 
 webkit.org/b/187766 http/wpt/service-workers/update-service-worker.https.html [ Pass Failure Timeout ]
 
+# These 2 tests have been failing on WK2 only since adding support for BroadcastChannel. The test triggers several navigations with
+# target=_blank and it seems only the last one proceeds. I suspect this is an async policy decision issue and previous navigations
+# are getting cancelled when triggering a new one.
+imported/w3c/web-platform-tests/html/semantics/links/links-created-by-a-and-area-elements/target_blank_implicit_noopener.html [ Skip ]
+imported/w3c/web-platform-tests/html/semantics/links/links-created-by-a-and-area-elements/target_blank_implicit_noopener_base.html [ Skip ]
+
 # Newly imported test that is flaky on WebKit2 only.
 imported/w3c/web-platform-tests/html/browsers/the-window-object/apis-for-creating-and-navigating-browsing-contexts-by-name/no_window_open_when_term_nesting_level_nonzero.window.html [ Pass Failure ]
 
@@ -806,3 +864,4 @@ fast/speechrecognition/permission-error.html [ Pass ]
 fast/speechrecognition/start-recognition-then-stop.html [ Pass ]
 fast/speechrecognition/start-second-recognition.html [ Pass ]
 fullscreen/full-screen-enter-while-exiting.html [ Pass ]
+

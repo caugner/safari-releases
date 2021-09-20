@@ -32,7 +32,6 @@
 #include "RectEdges.h"
 #include <utility>
 #include <wtf/IsoMalloc.h>
-#include <wtf/Optional.h>
 #include <wtf/RefCounted.h>
 
 namespace WebCore {
@@ -46,6 +45,7 @@ class BoxGeometry;
 
 namespace Display {
 
+DECLARE_ALLOCATOR_WITH_HEAP_IDENTIFIER(BoxClip);
 class BoxClip : public RefCounted<BoxClip> {
     WTF_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(BoxClip);
 public:
@@ -54,7 +54,7 @@ public:
     static Ref<BoxClip> create() { return adoptRef(*new BoxClip); }
     Ref<BoxClip> copy() const;
 
-    Optional<AbsoluteFloatRect> clipRect() const { return m_clipRect; }
+    std::optional<AbsoluteFloatRect> clipRect() const { return m_clipRect; }
     
     bool affectedByBorderRadius() const { return m_affectedByBorderRadius; }
     const Vector<FloatRoundedRect>& clipStack() const { return m_clipStack; }
@@ -66,7 +66,7 @@ private:
     BoxClip();
     BoxClip(const BoxClip&);
 
-    Optional<AbsoluteFloatRect> m_clipRect;
+    std::optional<AbsoluteFloatRect> m_clipRect;
     Vector<FloatRoundedRect> m_clipStack;
     bool m_affectedByBorderRadius { false };
 };

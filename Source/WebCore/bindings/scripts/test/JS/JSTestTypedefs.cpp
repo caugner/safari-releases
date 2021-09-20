@@ -23,9 +23,11 @@
 
 #include "ActiveDOMObject.h"
 #include "DOMIsoSubspaces.h"
+#include "IDLTypes.h"
 #include "JSDOMAttribute.h"
 #include "JSDOMBinding.h"
 #include "JSDOMConstructor.h"
+#include "JSDOMConvertBase.h"
 #include "JSDOMConvertBoolean.h"
 #include "JSDOMConvertBufferSource.h"
 #include "JSDOMConvertCallbacks.h"
@@ -38,6 +40,7 @@
 #include "JSDOMConvertUnion.h"
 #include "JSDOMExceptionHandling.h"
 #include "JSDOMGlobalObject.h"
+#include "JSDOMGlobalObjectInlines.h"
 #include "JSDOMOperation.h"
 #include "JSDOMWrapperCache.h"
 #include "JSSVGPoint.h"
@@ -53,6 +56,7 @@
 #include <JavaScriptCore/JSArray.h>
 #include <JavaScriptCore/JSCInlines.h>
 #include <JavaScriptCore/JSDestructibleObjectHeapCellType.h>
+#include <JavaScriptCore/SlotVisitorMacros.h>
 #include <JavaScriptCore/SubspaceInlines.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
@@ -79,7 +83,6 @@ static JSC_DECLARE_HOST_FUNCTION(jsTestTypedefsPrototypeFunction_pointFunction);
 static JSC_DECLARE_HOST_FUNCTION(jsTestTypedefsPrototypeFunction_stringSequenceFunction);
 static JSC_DECLARE_HOST_FUNCTION(jsTestTypedefsPrototypeFunction_stringSequenceFunction2);
 static JSC_DECLARE_HOST_FUNCTION(jsTestTypedefsPrototypeFunction_callWithSequenceThatRequiresInclude);
-static JSC_DECLARE_HOST_FUNCTION(jsTestTypedefsPrototypeFunction_methodWithException);
 
 // Attributes
 
@@ -181,6 +184,8 @@ template<> EncodedJSValue JSC_HOST_CALL_ATTRIBUTES JSTestTypedefsDOMConstructor:
 }
 JSC_ANNOTATE_HOST_FUNCTION(JSTestTypedefsDOMConstructorConstruct, JSTestTypedefsDOMConstructor::construct);
 
+template<> const ClassInfo JSTestTypedefsDOMConstructor::s_info = { "TestTypedefs", &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestTypedefsDOMConstructor) };
+
 template<> JSValue JSTestTypedefsDOMConstructor::prototypeForStructure(JSC::VM& vm, const JSDOMGlobalObject& globalObject)
 {
     UNUSED_PARAM(vm);
@@ -194,8 +199,6 @@ template<> void JSTestTypedefsDOMConstructor::initializeProperties(VM& vm, JSDOM
     putDirect(vm, vm.propertyNames->length, jsNumber(3), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
     reifyStaticProperties(vm, JSTestTypedefs::info(), JSTestTypedefsConstructorTableValues, *this);
 }
-
-template<> const ClassInfo JSTestTypedefsDOMConstructor::s_info = { "TestTypedefs", &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestTypedefsDOMConstructor) };
 
 /* Hash table for prototype */
 
@@ -222,7 +225,6 @@ static const HashTableValue JSTestTypedefsPrototypeTableValues[] =
     { "stringSequenceFunction", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestTypedefsPrototypeFunction_stringSequenceFunction), (intptr_t) (1) } },
     { "stringSequenceFunction2", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestTypedefsPrototypeFunction_stringSequenceFunction2), (intptr_t) (1) } },
     { "callWithSequenceThatRequiresInclude", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestTypedefsPrototypeFunction_callWithSequenceThatRequiresInclude), (intptr_t) (1) } },
-    { "methodWithException", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestTypedefsPrototypeFunction_methodWithException), (intptr_t) (0) } },
 };
 
 const ClassInfo JSTestTypedefsPrototype::s_info = { "TestTypedefs", &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestTypedefsPrototype) };
@@ -262,23 +264,13 @@ JSObject* JSTestTypedefs::prototype(VM& vm, JSDOMGlobalObject& globalObject)
 
 JSValue JSTestTypedefs::getConstructor(VM& vm, const JSGlobalObject* globalObject)
 {
-    return getDOMConstructor<JSTestTypedefsDOMConstructor>(vm, *jsCast<const JSDOMGlobalObject*>(globalObject));
+    return getDOMConstructor<JSTestTypedefsDOMConstructor, DOMConstructorID::TestTypedefs>(vm, *jsCast<const JSDOMGlobalObject*>(globalObject));
 }
 
 void JSTestTypedefs::destroy(JSC::JSCell* cell)
 {
     JSTestTypedefs* thisObject = static_cast<JSTestTypedefs*>(cell);
     thisObject->JSTestTypedefs::~JSTestTypedefs();
-}
-
-template<> inline JSTestTypedefs* IDLAttribute<JSTestTypedefs>::cast(JSGlobalObject& lexicalGlobalObject, EncodedJSValue thisValue)
-{
-    return jsDynamicCast<JSTestTypedefs*>(JSC::getVM(&lexicalGlobalObject), JSValue::decode(thisValue));
-}
-
-template<> inline JSTestTypedefs* IDLOperation<JSTestTypedefs>::cast(JSGlobalObject& lexicalGlobalObject, CallFrame& callFrame)
-{
-    return jsDynamicCast<JSTestTypedefs*>(JSC::getVM(&lexicalGlobalObject), callFrame.thisValue());
 }
 
 JSC_DEFINE_CUSTOM_GETTER(jsTestTypedefsConstructor, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, PropertyName))
@@ -299,9 +291,9 @@ static inline JSValue jsTestTypedefs_unsignedLongLongAttrGetter(JSGlobalObject& 
     RELEASE_AND_RETURN(throwScope, (toJS<IDLUnsignedLongLong>(lexicalGlobalObject, throwScope, impl.unsignedLongLongAttr())));
 }
 
-JSC_DEFINE_CUSTOM_GETTER(jsTestTypedefs_unsignedLongLongAttr, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, PropertyName))
+JSC_DEFINE_CUSTOM_GETTER(jsTestTypedefs_unsignedLongLongAttr, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, PropertyName attributeName))
 {
-    return IDLAttribute<JSTestTypedefs>::get<jsTestTypedefs_unsignedLongLongAttrGetter, CastedThisErrorBehavior::Assert>(*lexicalGlobalObject, thisValue, "unsignedLongLongAttr");
+    return IDLAttribute<JSTestTypedefs>::get<jsTestTypedefs_unsignedLongLongAttrGetter, CastedThisErrorBehavior::Assert>(*lexicalGlobalObject, thisValue, attributeName);
 }
 
 static inline bool setJSTestTypedefs_unsignedLongLongAttrSetter(JSGlobalObject& lexicalGlobalObject, JSTestTypedefs& thisObject, JSValue value)
@@ -311,15 +303,15 @@ static inline bool setJSTestTypedefs_unsignedLongLongAttrSetter(JSGlobalObject& 
     auto& impl = thisObject.wrapped();
     auto nativeValue = convert<IDLUnsignedLongLong>(lexicalGlobalObject, value);
     RETURN_IF_EXCEPTION(throwScope, false);
-    AttributeSetter::call(lexicalGlobalObject, throwScope, [&] {
+    invokeFunctorPropagatingExceptionIfNecessary(lexicalGlobalObject, throwScope, [&] {
         return impl.setUnsignedLongLongAttr(WTFMove(nativeValue));
     });
     return true;
 }
 
-JSC_DEFINE_CUSTOM_SETTER(setJSTestTypedefs_unsignedLongLongAttr, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, EncodedJSValue encodedValue))
+JSC_DEFINE_CUSTOM_SETTER(setJSTestTypedefs_unsignedLongLongAttr, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, EncodedJSValue encodedValue, PropertyName attributeName))
 {
-    return IDLAttribute<JSTestTypedefs>::set<setJSTestTypedefs_unsignedLongLongAttrSetter>(*lexicalGlobalObject, thisValue, encodedValue, "unsignedLongLongAttr");
+    return IDLAttribute<JSTestTypedefs>::set<setJSTestTypedefs_unsignedLongLongAttrSetter>(*lexicalGlobalObject, thisValue, encodedValue, attributeName);
 }
 
 static inline JSValue jsTestTypedefs_serializedScriptValueGetter(JSGlobalObject& lexicalGlobalObject, JSTestTypedefs& thisObject)
@@ -330,9 +322,9 @@ static inline JSValue jsTestTypedefs_serializedScriptValueGetter(JSGlobalObject&
     RELEASE_AND_RETURN(throwScope, (toJS<IDLSerializedScriptValue<SerializedScriptValue>>(lexicalGlobalObject, *thisObject.globalObject(), throwScope, impl.serializedScriptValue())));
 }
 
-JSC_DEFINE_CUSTOM_GETTER(jsTestTypedefs_serializedScriptValue, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, PropertyName))
+JSC_DEFINE_CUSTOM_GETTER(jsTestTypedefs_serializedScriptValue, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, PropertyName attributeName))
 {
-    return IDLAttribute<JSTestTypedefs>::get<jsTestTypedefs_serializedScriptValueGetter, CastedThisErrorBehavior::Assert>(*lexicalGlobalObject, thisValue, "serializedScriptValue");
+    return IDLAttribute<JSTestTypedefs>::get<jsTestTypedefs_serializedScriptValueGetter, CastedThisErrorBehavior::Assert>(*lexicalGlobalObject, thisValue, attributeName);
 }
 
 static inline bool setJSTestTypedefs_serializedScriptValueSetter(JSGlobalObject& lexicalGlobalObject, JSTestTypedefs& thisObject, JSValue value)
@@ -342,15 +334,15 @@ static inline bool setJSTestTypedefs_serializedScriptValueSetter(JSGlobalObject&
     auto& impl = thisObject.wrapped();
     auto nativeValue = convert<IDLSerializedScriptValue<SerializedScriptValue>>(lexicalGlobalObject, value);
     RETURN_IF_EXCEPTION(throwScope, false);
-    AttributeSetter::call(lexicalGlobalObject, throwScope, [&] {
+    invokeFunctorPropagatingExceptionIfNecessary(lexicalGlobalObject, throwScope, [&] {
         return impl.setSerializedScriptValue(WTFMove(nativeValue));
     });
     return true;
 }
 
-JSC_DEFINE_CUSTOM_SETTER(setJSTestTypedefs_serializedScriptValue, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, EncodedJSValue encodedValue))
+JSC_DEFINE_CUSTOM_SETTER(setJSTestTypedefs_serializedScriptValue, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, EncodedJSValue encodedValue, PropertyName attributeName))
 {
-    return IDLAttribute<JSTestTypedefs>::set<setJSTestTypedefs_serializedScriptValueSetter>(*lexicalGlobalObject, thisValue, encodedValue, "serializedScriptValue");
+    return IDLAttribute<JSTestTypedefs>::set<setJSTestTypedefs_serializedScriptValueSetter>(*lexicalGlobalObject, thisValue, encodedValue, attributeName);
 }
 
 static inline JSValue jsTestTypedefsConstructor_TestSubObjGetter(JSGlobalObject& lexicalGlobalObject)
@@ -359,9 +351,9 @@ static inline JSValue jsTestTypedefsConstructor_TestSubObjGetter(JSGlobalObject&
     return JSTestSubObj::getConstructor(JSC::getVM(&lexicalGlobalObject), thisObject.globalObject());
 }
 
-JSC_DEFINE_CUSTOM_GETTER(jsTestTypedefsConstructor_TestSubObj, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, PropertyName))
+JSC_DEFINE_CUSTOM_GETTER(jsTestTypedefsConstructor_TestSubObj, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, PropertyName attributeName))
 {
-    return IDLAttribute<JSTestTypedefs>::getStatic<jsTestTypedefsConstructor_TestSubObjGetter>(*lexicalGlobalObject, thisValue, "TestSubObj");
+    return IDLAttribute<JSTestTypedefs>::getStatic<jsTestTypedefsConstructor_TestSubObjGetter>(*lexicalGlobalObject, thisValue, attributeName);
 }
 
 static inline JSValue jsTestTypedefs_attributeWithClampGetter(JSGlobalObject& lexicalGlobalObject, JSTestTypedefs& thisObject)
@@ -372,9 +364,9 @@ static inline JSValue jsTestTypedefs_attributeWithClampGetter(JSGlobalObject& le
     RELEASE_AND_RETURN(throwScope, (toJS<IDLClampAdaptor<IDLUnsignedLongLong>>(lexicalGlobalObject, throwScope, impl.attributeWithClamp())));
 }
 
-JSC_DEFINE_CUSTOM_GETTER(jsTestTypedefs_attributeWithClamp, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, PropertyName))
+JSC_DEFINE_CUSTOM_GETTER(jsTestTypedefs_attributeWithClamp, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, PropertyName attributeName))
 {
-    return IDLAttribute<JSTestTypedefs>::get<jsTestTypedefs_attributeWithClampGetter, CastedThisErrorBehavior::Assert>(*lexicalGlobalObject, thisValue, "attributeWithClamp");
+    return IDLAttribute<JSTestTypedefs>::get<jsTestTypedefs_attributeWithClampGetter, CastedThisErrorBehavior::Assert>(*lexicalGlobalObject, thisValue, attributeName);
 }
 
 static inline bool setJSTestTypedefs_attributeWithClampSetter(JSGlobalObject& lexicalGlobalObject, JSTestTypedefs& thisObject, JSValue value)
@@ -384,15 +376,15 @@ static inline bool setJSTestTypedefs_attributeWithClampSetter(JSGlobalObject& le
     auto& impl = thisObject.wrapped();
     auto nativeValue = convert<IDLClampAdaptor<IDLUnsignedLongLong>>(lexicalGlobalObject, value);
     RETURN_IF_EXCEPTION(throwScope, false);
-    AttributeSetter::call(lexicalGlobalObject, throwScope, [&] {
+    invokeFunctorPropagatingExceptionIfNecessary(lexicalGlobalObject, throwScope, [&] {
         return impl.setAttributeWithClamp(WTFMove(nativeValue));
     });
     return true;
 }
 
-JSC_DEFINE_CUSTOM_SETTER(setJSTestTypedefs_attributeWithClamp, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, EncodedJSValue encodedValue))
+JSC_DEFINE_CUSTOM_SETTER(setJSTestTypedefs_attributeWithClamp, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, EncodedJSValue encodedValue, PropertyName attributeName))
 {
-    return IDLAttribute<JSTestTypedefs>::set<setJSTestTypedefs_attributeWithClampSetter>(*lexicalGlobalObject, thisValue, encodedValue, "attributeWithClamp");
+    return IDLAttribute<JSTestTypedefs>::set<setJSTestTypedefs_attributeWithClampSetter>(*lexicalGlobalObject, thisValue, encodedValue, attributeName);
 }
 
 static inline JSValue jsTestTypedefs_attributeWithClampInTypedefGetter(JSGlobalObject& lexicalGlobalObject, JSTestTypedefs& thisObject)
@@ -403,9 +395,9 @@ static inline JSValue jsTestTypedefs_attributeWithClampInTypedefGetter(JSGlobalO
     RELEASE_AND_RETURN(throwScope, (toJS<IDLClampAdaptor<IDLLong>>(lexicalGlobalObject, throwScope, impl.attributeWithClampInTypedef())));
 }
 
-JSC_DEFINE_CUSTOM_GETTER(jsTestTypedefs_attributeWithClampInTypedef, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, PropertyName))
+JSC_DEFINE_CUSTOM_GETTER(jsTestTypedefs_attributeWithClampInTypedef, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, PropertyName attributeName))
 {
-    return IDLAttribute<JSTestTypedefs>::get<jsTestTypedefs_attributeWithClampInTypedefGetter, CastedThisErrorBehavior::Assert>(*lexicalGlobalObject, thisValue, "attributeWithClampInTypedef");
+    return IDLAttribute<JSTestTypedefs>::get<jsTestTypedefs_attributeWithClampInTypedefGetter, CastedThisErrorBehavior::Assert>(*lexicalGlobalObject, thisValue, attributeName);
 }
 
 static inline bool setJSTestTypedefs_attributeWithClampInTypedefSetter(JSGlobalObject& lexicalGlobalObject, JSTestTypedefs& thisObject, JSValue value)
@@ -415,15 +407,15 @@ static inline bool setJSTestTypedefs_attributeWithClampInTypedefSetter(JSGlobalO
     auto& impl = thisObject.wrapped();
     auto nativeValue = convert<IDLClampAdaptor<IDLLong>>(lexicalGlobalObject, value);
     RETURN_IF_EXCEPTION(throwScope, false);
-    AttributeSetter::call(lexicalGlobalObject, throwScope, [&] {
+    invokeFunctorPropagatingExceptionIfNecessary(lexicalGlobalObject, throwScope, [&] {
         return impl.setAttributeWithClampInTypedef(WTFMove(nativeValue));
     });
     return true;
 }
 
-JSC_DEFINE_CUSTOM_SETTER(setJSTestTypedefs_attributeWithClampInTypedef, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, EncodedJSValue encodedValue))
+JSC_DEFINE_CUSTOM_SETTER(setJSTestTypedefs_attributeWithClampInTypedef, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, EncodedJSValue encodedValue, PropertyName attributeName))
 {
-    return IDLAttribute<JSTestTypedefs>::set<setJSTestTypedefs_attributeWithClampInTypedefSetter>(*lexicalGlobalObject, thisValue, encodedValue, "attributeWithClampInTypedef");
+    return IDLAttribute<JSTestTypedefs>::set<setJSTestTypedefs_attributeWithClampInTypedefSetter>(*lexicalGlobalObject, thisValue, encodedValue, attributeName);
 }
 
 static inline JSValue jsTestTypedefs_bufferSourceAttrGetter(JSGlobalObject& lexicalGlobalObject, JSTestTypedefs& thisObject)
@@ -434,9 +426,9 @@ static inline JSValue jsTestTypedefs_bufferSourceAttrGetter(JSGlobalObject& lexi
     RELEASE_AND_RETURN(throwScope, (toJS<IDLUnion<IDLArrayBufferView, IDLArrayBuffer>>(lexicalGlobalObject, *thisObject.globalObject(), throwScope, impl.bufferSourceAttr())));
 }
 
-JSC_DEFINE_CUSTOM_GETTER(jsTestTypedefs_bufferSourceAttr, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, PropertyName))
+JSC_DEFINE_CUSTOM_GETTER(jsTestTypedefs_bufferSourceAttr, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, PropertyName attributeName))
 {
-    return IDLAttribute<JSTestTypedefs>::get<jsTestTypedefs_bufferSourceAttrGetter, CastedThisErrorBehavior::Assert>(*lexicalGlobalObject, thisValue, "bufferSourceAttr");
+    return IDLAttribute<JSTestTypedefs>::get<jsTestTypedefs_bufferSourceAttrGetter, CastedThisErrorBehavior::Assert>(*lexicalGlobalObject, thisValue, attributeName);
 }
 
 static inline bool setJSTestTypedefs_bufferSourceAttrSetter(JSGlobalObject& lexicalGlobalObject, JSTestTypedefs& thisObject, JSValue value)
@@ -446,15 +438,15 @@ static inline bool setJSTestTypedefs_bufferSourceAttrSetter(JSGlobalObject& lexi
     auto& impl = thisObject.wrapped();
     auto nativeValue = convert<IDLUnion<IDLArrayBufferView, IDLArrayBuffer>>(lexicalGlobalObject, value);
     RETURN_IF_EXCEPTION(throwScope, false);
-    AttributeSetter::call(lexicalGlobalObject, throwScope, [&] {
+    invokeFunctorPropagatingExceptionIfNecessary(lexicalGlobalObject, throwScope, [&] {
         return impl.setBufferSourceAttr(WTFMove(nativeValue));
     });
     return true;
 }
 
-JSC_DEFINE_CUSTOM_SETTER(setJSTestTypedefs_bufferSourceAttr, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, EncodedJSValue encodedValue))
+JSC_DEFINE_CUSTOM_SETTER(setJSTestTypedefs_bufferSourceAttr, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, EncodedJSValue encodedValue, PropertyName attributeName))
 {
-    return IDLAttribute<JSTestTypedefs>::set<setJSTestTypedefs_bufferSourceAttrSetter>(*lexicalGlobalObject, thisValue, encodedValue, "bufferSourceAttr");
+    return IDLAttribute<JSTestTypedefs>::set<setJSTestTypedefs_bufferSourceAttrSetter>(*lexicalGlobalObject, thisValue, encodedValue, attributeName);
 }
 
 static inline JSValue jsTestTypedefs_domTimeStampAttrGetter(JSGlobalObject& lexicalGlobalObject, JSTestTypedefs& thisObject)
@@ -465,9 +457,9 @@ static inline JSValue jsTestTypedefs_domTimeStampAttrGetter(JSGlobalObject& lexi
     RELEASE_AND_RETURN(throwScope, (toJS<IDLUnsignedLongLong>(lexicalGlobalObject, throwScope, impl.domTimeStampAttr())));
 }
 
-JSC_DEFINE_CUSTOM_GETTER(jsTestTypedefs_domTimeStampAttr, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, PropertyName))
+JSC_DEFINE_CUSTOM_GETTER(jsTestTypedefs_domTimeStampAttr, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, PropertyName attributeName))
 {
-    return IDLAttribute<JSTestTypedefs>::get<jsTestTypedefs_domTimeStampAttrGetter, CastedThisErrorBehavior::Assert>(*lexicalGlobalObject, thisValue, "domTimeStampAttr");
+    return IDLAttribute<JSTestTypedefs>::get<jsTestTypedefs_domTimeStampAttrGetter, CastedThisErrorBehavior::Assert>(*lexicalGlobalObject, thisValue, attributeName);
 }
 
 static inline bool setJSTestTypedefs_domTimeStampAttrSetter(JSGlobalObject& lexicalGlobalObject, JSTestTypedefs& thisObject, JSValue value)
@@ -477,15 +469,15 @@ static inline bool setJSTestTypedefs_domTimeStampAttrSetter(JSGlobalObject& lexi
     auto& impl = thisObject.wrapped();
     auto nativeValue = convert<IDLUnsignedLongLong>(lexicalGlobalObject, value);
     RETURN_IF_EXCEPTION(throwScope, false);
-    AttributeSetter::call(lexicalGlobalObject, throwScope, [&] {
+    invokeFunctorPropagatingExceptionIfNecessary(lexicalGlobalObject, throwScope, [&] {
         return impl.setDomTimeStampAttr(WTFMove(nativeValue));
     });
     return true;
 }
 
-JSC_DEFINE_CUSTOM_SETTER(setJSTestTypedefs_domTimeStampAttr, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, EncodedJSValue encodedValue))
+JSC_DEFINE_CUSTOM_SETTER(setJSTestTypedefs_domTimeStampAttr, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, EncodedJSValue encodedValue, PropertyName attributeName))
 {
-    return IDLAttribute<JSTestTypedefs>::set<setJSTestTypedefs_domTimeStampAttrSetter>(*lexicalGlobalObject, thisValue, encodedValue, "domTimeStampAttr");
+    return IDLAttribute<JSTestTypedefs>::set<setJSTestTypedefs_domTimeStampAttrSetter>(*lexicalGlobalObject, thisValue, encodedValue, attributeName);
 }
 
 static inline JSC::EncodedJSValue jsTestTypedefsPrototypeFunction_funcBody(JSC::JSGlobalObject* lexicalGlobalObject, JSC::CallFrame* callFrame, typename IDLOperation<JSTestTypedefs>::ClassParameter castedThis)
@@ -498,9 +490,7 @@ static inline JSC::EncodedJSValue jsTestTypedefsPrototypeFunction_funcBody(JSC::
     EnsureStillAliveScope argument0 = callFrame->argument(0);
     auto x = argument0.value().isUndefined() ? Converter<IDLSequence<IDLLong>>::ReturnType{ } : convert<IDLSequence<IDLLong>>(*lexicalGlobalObject, argument0.value());
     RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
-    throwScope.release();
-    impl.func(WTFMove(x));
-    return JSValue::encode(jsUndefined());
+    RELEASE_AND_RETURN(throwScope, JSValue::encode(toJS<IDLUndefined>(*lexicalGlobalObject, throwScope, [&]() -> decltype(auto) { return impl.func(WTFMove(x)); })));
 }
 
 JSC_DEFINE_HOST_FUNCTION(jsTestTypedefsPrototypeFunction_func, (JSGlobalObject* lexicalGlobalObject, CallFrame* callFrame))
@@ -530,11 +520,9 @@ static inline JSC::EncodedJSValue jsTestTypedefsPrototypeFunction_setShadowBody(
     auto color = argument3.value().isUndefined() ? String() : convert<IDLDOMString>(*lexicalGlobalObject, argument3.value());
     RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
     EnsureStillAliveScope argument4 = callFrame->argument(4);
-    auto alpha = argument4.value().isUndefined() ? Optional<Converter<IDLUnrestrictedFloat>::ReturnType>() : Optional<Converter<IDLUnrestrictedFloat>::ReturnType>(convert<IDLUnrestrictedFloat>(*lexicalGlobalObject, argument4.value()));
+    auto alpha = argument4.value().isUndefined() ? std::optional<Converter<IDLUnrestrictedFloat>::ReturnType>() : std::optional<Converter<IDLUnrestrictedFloat>::ReturnType>(convert<IDLUnrestrictedFloat>(*lexicalGlobalObject, argument4.value()));
     RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
-    throwScope.release();
-    impl.setShadow(WTFMove(width), WTFMove(height), WTFMove(blur), WTFMove(color), WTFMove(alpha));
-    return JSValue::encode(jsUndefined());
+    RELEASE_AND_RETURN(throwScope, JSValue::encode(toJS<IDLUndefined>(*lexicalGlobalObject, throwScope, [&]() -> decltype(auto) { return impl.setShadow(WTFMove(width), WTFMove(height), WTFMove(blur), WTFMove(color), WTFMove(alpha)); })));
 }
 
 JSC_DEFINE_HOST_FUNCTION(jsTestTypedefsPrototypeFunction_setShadow, (JSGlobalObject* lexicalGlobalObject, CallFrame* callFrame))
@@ -554,7 +542,7 @@ static inline JSC::EncodedJSValue jsTestTypedefsPrototypeFunction_methodWithSequ
     EnsureStillAliveScope argument0 = callFrame->uncheckedArgument(0);
     auto sequenceArg = convert<IDLSequence<IDLSerializedScriptValue<SerializedScriptValue>>>(*lexicalGlobalObject, argument0.value());
     RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
-    RELEASE_AND_RETURN(throwScope, JSValue::encode(toJS<IDLUnsignedLongLong>(impl.methodWithSequenceArg(WTFMove(sequenceArg)))));
+    RELEASE_AND_RETURN(throwScope, JSValue::encode(toJS<IDLUnsignedLongLong>(*lexicalGlobalObject, throwScope, impl.methodWithSequenceArg(WTFMove(sequenceArg)))));
 }
 
 JSC_DEFINE_HOST_FUNCTION(jsTestTypedefsPrototypeFunction_methodWithSequenceArg, (JSGlobalObject* lexicalGlobalObject, CallFrame* callFrame))
@@ -574,9 +562,7 @@ static inline JSC::EncodedJSValue jsTestTypedefsPrototypeFunction_nullableSequen
     EnsureStillAliveScope argument0 = callFrame->uncheckedArgument(0);
     auto sequenceArg = convert<IDLNullable<IDLSequence<IDLDOMString>>>(*lexicalGlobalObject, argument0.value());
     RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
-    throwScope.release();
-    impl.nullableSequenceArg(WTFMove(sequenceArg));
-    return JSValue::encode(jsUndefined());
+    RELEASE_AND_RETURN(throwScope, JSValue::encode(toJS<IDLUndefined>(*lexicalGlobalObject, throwScope, [&]() -> decltype(auto) { return impl.nullableSequenceArg(WTFMove(sequenceArg)); })));
 }
 
 JSC_DEFINE_HOST_FUNCTION(jsTestTypedefsPrototypeFunction_nullableSequenceArg, (JSGlobalObject* lexicalGlobalObject, CallFrame* callFrame))
@@ -596,9 +582,7 @@ static inline JSC::EncodedJSValue jsTestTypedefsPrototypeFunction_sequenceOfNull
     EnsureStillAliveScope argument0 = callFrame->uncheckedArgument(0);
     auto sequenceArg = convert<IDLSequence<IDLNullable<IDLDOMString>>>(*lexicalGlobalObject, argument0.value());
     RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
-    throwScope.release();
-    impl.sequenceOfNullablesArg(WTFMove(sequenceArg));
-    return JSValue::encode(jsUndefined());
+    RELEASE_AND_RETURN(throwScope, JSValue::encode(toJS<IDLUndefined>(*lexicalGlobalObject, throwScope, [&]() -> decltype(auto) { return impl.sequenceOfNullablesArg(WTFMove(sequenceArg)); })));
 }
 
 JSC_DEFINE_HOST_FUNCTION(jsTestTypedefsPrototypeFunction_sequenceOfNullablesArg, (JSGlobalObject* lexicalGlobalObject, CallFrame* callFrame))
@@ -618,9 +602,7 @@ static inline JSC::EncodedJSValue jsTestTypedefsPrototypeFunction_nullableSequen
     EnsureStillAliveScope argument0 = callFrame->uncheckedArgument(0);
     auto sequenceArg = convert<IDLNullable<IDLSequence<IDLNullable<IDLDOMString>>>>(*lexicalGlobalObject, argument0.value());
     RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
-    throwScope.release();
-    impl.nullableSequenceOfNullablesArg(WTFMove(sequenceArg));
-    return JSValue::encode(jsUndefined());
+    RELEASE_AND_RETURN(throwScope, JSValue::encode(toJS<IDLUndefined>(*lexicalGlobalObject, throwScope, [&]() -> decltype(auto) { return impl.nullableSequenceOfNullablesArg(WTFMove(sequenceArg)); })));
 }
 
 JSC_DEFINE_HOST_FUNCTION(jsTestTypedefsPrototypeFunction_nullableSequenceOfNullablesArg, (JSGlobalObject* lexicalGlobalObject, CallFrame* callFrame))
@@ -640,9 +622,7 @@ static inline JSC::EncodedJSValue jsTestTypedefsPrototypeFunction_nullableSequen
     EnsureStillAliveScope argument0 = callFrame->uncheckedArgument(0);
     auto sequenceArg = convert<IDLNullable<IDLSequence<IDLUnion<IDLDOMString, IDLSequence<IDLDOMString>>>>>(*lexicalGlobalObject, argument0.value());
     RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
-    throwScope.release();
-    impl.nullableSequenceOfUnionsArg(WTFMove(sequenceArg));
-    return JSValue::encode(jsUndefined());
+    RELEASE_AND_RETURN(throwScope, JSValue::encode(toJS<IDLUndefined>(*lexicalGlobalObject, throwScope, [&]() -> decltype(auto) { return impl.nullableSequenceOfUnionsArg(WTFMove(sequenceArg)); })));
 }
 
 JSC_DEFINE_HOST_FUNCTION(jsTestTypedefsPrototypeFunction_nullableSequenceOfUnionsArg, (JSGlobalObject* lexicalGlobalObject, CallFrame* callFrame))
@@ -662,9 +642,7 @@ static inline JSC::EncodedJSValue jsTestTypedefsPrototypeFunction_unionArgBody(J
     EnsureStillAliveScope argument0 = callFrame->uncheckedArgument(0);
     auto unionArg = convert<IDLUnion<IDLDOMString, IDLLong>>(*lexicalGlobalObject, argument0.value());
     RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
-    throwScope.release();
-    impl.unionArg(WTFMove(unionArg));
-    return JSValue::encode(jsUndefined());
+    RELEASE_AND_RETURN(throwScope, JSValue::encode(toJS<IDLUndefined>(*lexicalGlobalObject, throwScope, [&]() -> decltype(auto) { return impl.unionArg(WTFMove(unionArg)); })));
 }
 
 JSC_DEFINE_HOST_FUNCTION(jsTestTypedefsPrototypeFunction_unionArg, (JSGlobalObject* lexicalGlobalObject, CallFrame* callFrame))
@@ -685,11 +663,9 @@ static inline JSC::EncodedJSValue jsTestTypedefsPrototypeFunction_funcWithClampB
     auto arg1 = convert<IDLClampAdaptor<IDLUnsignedLongLong>>(*lexicalGlobalObject, argument0.value());
     RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
     EnsureStillAliveScope argument1 = callFrame->argument(1);
-    auto arg2 = argument1.value().isUndefined() ? Optional<Converter<IDLClampAdaptor<IDLUnsignedLongLong>>::ReturnType>() : Optional<Converter<IDLClampAdaptor<IDLUnsignedLongLong>>::ReturnType>(convert<IDLClampAdaptor<IDLUnsignedLongLong>>(*lexicalGlobalObject, argument1.value()));
+    auto arg2 = argument1.value().isUndefined() ? std::optional<Converter<IDLClampAdaptor<IDLUnsignedLongLong>>::ReturnType>() : std::optional<Converter<IDLClampAdaptor<IDLUnsignedLongLong>>::ReturnType>(convert<IDLClampAdaptor<IDLUnsignedLongLong>>(*lexicalGlobalObject, argument1.value()));
     RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
-    throwScope.release();
-    impl.funcWithClamp(WTFMove(arg1), WTFMove(arg2));
-    return JSValue::encode(jsUndefined());
+    RELEASE_AND_RETURN(throwScope, JSValue::encode(toJS<IDLUndefined>(*lexicalGlobalObject, throwScope, [&]() -> decltype(auto) { return impl.funcWithClamp(WTFMove(arg1), WTFMove(arg2)); })));
 }
 
 JSC_DEFINE_HOST_FUNCTION(jsTestTypedefsPrototypeFunction_funcWithClamp, (JSGlobalObject* lexicalGlobalObject, CallFrame* callFrame))
@@ -709,9 +685,7 @@ static inline JSC::EncodedJSValue jsTestTypedefsPrototypeFunction_funcWithClampI
     EnsureStillAliveScope argument0 = callFrame->uncheckedArgument(0);
     auto arg = convert<IDLClampAdaptor<IDLLong>>(*lexicalGlobalObject, argument0.value());
     RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
-    throwScope.release();
-    impl.funcWithClampInTypedef(WTFMove(arg));
-    return JSValue::encode(jsUndefined());
+    RELEASE_AND_RETURN(throwScope, JSValue::encode(toJS<IDLUndefined>(*lexicalGlobalObject, throwScope, [&]() -> decltype(auto) { return impl.funcWithClampInTypedef(WTFMove(arg)); })));
 }
 
 JSC_DEFINE_HOST_FUNCTION(jsTestTypedefsPrototypeFunction_funcWithClampInTypedef, (JSGlobalObject* lexicalGlobalObject, CallFrame* callFrame))
@@ -726,7 +700,7 @@ static inline JSC::EncodedJSValue jsTestTypedefsPrototypeFunction_pointFunctionB
     UNUSED_PARAM(throwScope);
     UNUSED_PARAM(callFrame);
     auto& impl = castedThis->wrapped();
-    RELEASE_AND_RETURN(throwScope, JSValue::encode(toJS<IDLInterface<SVGPoint>>(*lexicalGlobalObject, *castedThis->globalObject(), impl.pointFunction())));
+    RELEASE_AND_RETURN(throwScope, JSValue::encode(toJS<IDLInterface<SVGPoint>>(*lexicalGlobalObject, *castedThis->globalObject(), throwScope, impl.pointFunction())));
 }
 
 JSC_DEFINE_HOST_FUNCTION(jsTestTypedefsPrototypeFunction_pointFunction, (JSGlobalObject* lexicalGlobalObject, CallFrame* callFrame))
@@ -786,29 +760,12 @@ static inline JSC::EncodedJSValue jsTestTypedefsPrototypeFunction_callWithSequen
     EnsureStillAliveScope argument0 = callFrame->uncheckedArgument(0);
     auto sequenceArg = convert<IDLSequence<IDLInterface<TestEventTarget>>>(*lexicalGlobalObject, argument0.value());
     RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
-    RELEASE_AND_RETURN(throwScope, JSValue::encode(toJS<IDLBoolean>(impl.callWithSequenceThatRequiresInclude(WTFMove(sequenceArg)))));
+    RELEASE_AND_RETURN(throwScope, JSValue::encode(toJS<IDLBoolean>(*lexicalGlobalObject, throwScope, impl.callWithSequenceThatRequiresInclude(WTFMove(sequenceArg)))));
 }
 
 JSC_DEFINE_HOST_FUNCTION(jsTestTypedefsPrototypeFunction_callWithSequenceThatRequiresInclude, (JSGlobalObject* lexicalGlobalObject, CallFrame* callFrame))
 {
     return IDLOperation<JSTestTypedefs>::call<jsTestTypedefsPrototypeFunction_callWithSequenceThatRequiresIncludeBody>(*lexicalGlobalObject, *callFrame, "callWithSequenceThatRequiresInclude");
-}
-
-static inline JSC::EncodedJSValue jsTestTypedefsPrototypeFunction_methodWithExceptionBody(JSC::JSGlobalObject* lexicalGlobalObject, JSC::CallFrame* callFrame, typename IDLOperation<JSTestTypedefs>::ClassParameter castedThis)
-{
-    auto& vm = JSC::getVM(lexicalGlobalObject);
-    auto throwScope = DECLARE_THROW_SCOPE(vm);
-    UNUSED_PARAM(throwScope);
-    UNUSED_PARAM(callFrame);
-    auto& impl = castedThis->wrapped();
-    throwScope.release();
-    propagateException(*lexicalGlobalObject, throwScope, impl.methodWithException());
-    return JSValue::encode(jsUndefined());
-}
-
-JSC_DEFINE_HOST_FUNCTION(jsTestTypedefsPrototypeFunction_methodWithException, (JSGlobalObject* lexicalGlobalObject, CallFrame* callFrame))
-{
-    return IDLOperation<JSTestTypedefs>::call<jsTestTypedefsPrototypeFunction_methodWithExceptionBody>(*lexicalGlobalObject, *callFrame, "methodWithException");
 }
 
 JSC::IsoSubspace* JSTestTypedefs::subspaceForImpl(JSC::VM& vm)
@@ -825,7 +782,9 @@ JSC::IsoSubspace* JSTestTypedefs::subspaceForImpl(JSC::VM& vm)
     auto* space = spaces.m_subspaceForTestTypedefs.get();
 IGNORE_WARNINGS_BEGIN("unreachable-code")
 IGNORE_WARNINGS_BEGIN("tautological-compare")
-    if (&JSTestTypedefs::visitOutputConstraints != &JSC::JSCell::visitOutputConstraints)
+    void (*myVisitOutputConstraint)(JSC::JSCell*, JSC::SlotVisitor&) = JSTestTypedefs::visitOutputConstraints;
+    void (*jsCellVisitOutputConstraint)(JSC::JSCell*, JSC::SlotVisitor&) = JSC::JSCell::visitOutputConstraints;
+    if (myVisitOutputConstraint != jsCellVisitOutputConstraint)
         clientData.outputConstraintSpaces().append(space);
 IGNORE_WARNINGS_END
 IGNORE_WARNINGS_END
@@ -841,7 +800,7 @@ void JSTestTypedefs::analyzeHeap(JSCell* cell, HeapAnalyzer& analyzer)
     Base::analyzeHeap(cell, analyzer);
 }
 
-bool JSTestTypedefsOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, SlotVisitor& visitor, const char** reason)
+bool JSTestTypedefsOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, AbstractSlotVisitor& visitor, const char** reason)
 {
     UNUSED_PARAM(handle);
     UNUSED_PARAM(visitor);

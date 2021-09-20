@@ -29,6 +29,7 @@
 
 #include "B3SparseCollection.h"
 #include "BasicBlockLocation.h"
+#include "CheckPrivateBrandVariant.h"
 #include "CodeBlock.h"
 #include "DFGAdjacencyList.h"
 #include "DFGArithMode.h"
@@ -48,12 +49,13 @@
 #include "DFGUseKind.h"
 #include "DFGVariableAccessData.h"
 #include "DOMJITSignature.h"
-#include "DeleteByIdVariant.h"
-#include "GetByIdVariant.h"
+#include "DeleteByVariant.h"
+#include "GetByVariant.h"
 #include "JSCJSValue.h"
 #include "Operands.h"
 #include "PrivateFieldPutKind.h"
 #include "PutByIdVariant.h"
+#include "SetPrivateBrandVariant.h"
 #include "SpeculatedType.h"
 #include "TypeLocation.h"
 #include "ValueProfile.h"
@@ -97,7 +99,7 @@ struct MultiPutByOffsetData {
 
 struct MultiDeleteByOffsetData {
     unsigned identifierNumber;
-    Vector<DeleteByIdVariant, 2> variants;
+    Vector<DeleteByVariant, 2> variants;
 
     bool writesStructures() const;
     bool allVariantsStoreEmpty() const;
@@ -1445,7 +1447,7 @@ public:
         return op() == IsCellWithType;
     }
 
-    Optional<SpeculatedType> speculatedTypeForQuery()
+    std::optional<SpeculatedType> speculatedTypeForQuery()
     {
         return speculationFromJSType(queriedType());
     }
@@ -2795,6 +2797,16 @@ public:
     {
         return isNotCellNorBigIntSpeculation(prediction());
     }
+
+    bool shouldSpeculateNotDouble()
+    {
+        return isNotDoubleSpeculation(prediction());
+    }
+
+    bool shouldSpeculateNeitherDoubleNorHeapBigIntNorString()
+    {
+        return isNeitherDoubleNorHeapBigIntNorStringSpeculation(prediction());
+    }
     
     bool shouldSpeculateUntypedForArithmetic()
     {
@@ -3107,15 +3119,15 @@ public:
         return m_opInfo.as<GetByStatus*>();
     }
     
-    bool hasInByIdStatus()
+    bool hasInByStatus()
     {
-        return op() == FilterInByIdStatus;
+        return op() == FilterInByStatus;
     }
     
-    InByIdStatus* inByIdStatus()
+    InByStatus* inByStatus()
     {
-        ASSERT(hasInByIdStatus());
-        return m_opInfo.as<InByIdStatus*>();
+        ASSERT(hasInByStatus());
+        return m_opInfo.as<InByStatus*>();
     }
     
     bool hasPutByIdStatus()
@@ -3138,6 +3150,28 @@ public:
     {
         ASSERT(hasDeleteByStatus());
         return m_opInfo.as<DeleteByStatus*>();
+    }
+
+    bool hasCheckPrivateBrandStatus()
+    {
+        return op() == FilterCheckPrivateBrandStatus;
+    }
+
+    CheckPrivateBrandStatus* checkPrivateBrandStatus()
+    {
+        ASSERT(hasCheckPrivateBrandStatus());
+        return m_opInfo.as<CheckPrivateBrandStatus*>();
+    }
+
+    bool hasSetPrivateBrandStatus()
+    {
+        return op() == FilterSetPrivateBrandStatus;
+    }
+
+    SetPrivateBrandStatus* setPrivateBrandStatus()
+    {
+        ASSERT(hasSetPrivateBrandStatus());
+        return m_opInfo.as<SetPrivateBrandStatus*>();
     }
 
     void dumpChildren(PrintStream& out)

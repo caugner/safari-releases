@@ -159,8 +159,6 @@ public:
     void fillUnsetProperties();
     void cullEmptyLayers();
 
-    static bool imagesIdentical(const FillLayer*, const FillLayer*);
-
     static FillAttachment initialFillAttachment(FillLayerType) { return FillAttachment::ScrollBackground; }
     static FillBox initialFillClip(FillLayerType) { return FillBox::Border; }
     static FillBox initialFillOrigin(FillLayerType type) { return type == FillLayerType::Background ? FillBox::Padding : FillBox::Border; }
@@ -169,8 +167,8 @@ public:
     static CompositeOperator initialFillComposite(FillLayerType) { return CompositeOperator::SourceOver; }
     static BlendMode initialFillBlendMode(FillLayerType) { return BlendMode::Normal; }
     static FillSize initialFillSize(FillLayerType) { return { }; }
-    static Length initialFillXPosition(FillLayerType) { return Length(0.0f, Percent); }
-    static Length initialFillYPosition(FillLayerType) { return Length(0.0f, Percent); }
+    static Length initialFillXPosition(FillLayerType) { return Length(0.0f, LengthType::Percent); }
+    static Length initialFillYPosition(FillLayerType) { return Length(0.0f, LengthType::Percent); }
     static StyleImage* initialFillImage(FillLayerType) { return nullptr; }
     static MaskSourceType initialFillMaskSourceType(FillLayerType) { return MaskSourceType::Alpha; }
 

@@ -25,9 +25,11 @@
 
 #pragma once
 
+#include "AppHighlight.h"
+#include "AppHighlightRangeData.h"
 #include <wtf/Forward.h>
+#include <wtf/MonotonicTime.h>
 #include <wtf/OptionSet.h>
-#include <wtf/Optional.h>
 #include <wtf/RefCounted.h>
 #include <wtf/WeakPtr.h>
 #include <wtf/text/WTFString.h>
@@ -36,21 +38,35 @@ namespace WebCore {
 
 #if ENABLE(APP_HIGHLIGHTS)
 
-class AppHighlightListData;
-class AppHighlightRangeData;
 class Document;
 class SharedBuffer;
+class StaticRange;
+class Highlight;
 
-class AppHighlightStorage : RefCounted<AppHighlightStorage> {
+enum class RestoreWithTextSearch : bool { No, Yes };
+
+enum class ScrollToHighlight : bool { No, Yes };
+
+class AppHighlightStorage final {
     WTF_MAKE_FAST_ALLOCATED;
 public:
     AppHighlightStorage(Document&);
+    ~AppHighlightStorage();
 
-    AppHighlightListData createAppHighlightListData();
-    Vector<AppHighlightRangeData> restoreAppHighlights(Ref<SharedBuffer>&&);
+    WEBCORE_EXPORT void storeAppHighlight(Ref<StaticRange>&&);
+    WEBCORE_EXPORT void restoreAndScrollToAppHighlight(Ref<SharedBuffer>&&, ScrollToHighlight);
+    void restoreUnrestoredAppHighlights();
+    MonotonicTime lastRangeSearchTime() const { return m_timeAtLastRangeSearch; }
+    void resetLastRangeSearchTime() { m_timeAtLastRangeSearch = MonotonicTime::now(); }
+    bool hasUnrestoredHighlights() const { return m_unrestoredHighlights.size() || m_unrestoredScrollHighlight; }
 
 private:
+    bool attemptToRestoreHighlightAndScroll(AppHighlightRangeData&, ScrollToHighlight);
+    
     WeakPtr<Document> m_document;
+    MonotonicTime m_timeAtLastRangeSearch;
+    Vector<AppHighlightRangeData> m_unrestoredHighlights;
+    std::optional<AppHighlightRangeData> m_unrestoredScrollHighlight;
 };
 
 #endif

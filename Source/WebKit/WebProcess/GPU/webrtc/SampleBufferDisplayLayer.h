@@ -36,7 +36,7 @@ namespace WebKit {
 
 class SampleBufferDisplayLayerManager;
 
-class SampleBufferDisplayLayer final : public WebCore::SampleBufferDisplayLayer, public IPC::MessageReceiver, public CanMakeWeakPtr<SampleBufferDisplayLayer> {
+class SampleBufferDisplayLayer final : public WebCore::SampleBufferDisplayLayer, public IPC::MessageReceiver {
 public:
     static std::unique_ptr<SampleBufferDisplayLayer> create(SampleBufferDisplayLayerManager&, Client&);
     ~SampleBufferDisplayLayer();
@@ -50,6 +50,9 @@ private:
 
     // WebCore::SampleBufferDisplayLayer
     void initialize(bool hideRootLayer, WebCore::IntSize, CompletionHandler<void(bool)>&&) final;
+#if !RELEASE_LOG_DISABLED
+    void setLogIdentifier(String&&) final;
+#endif
     bool didFail() const final;
     void updateDisplayMode(bool hideDisplayLayer, bool hideRootLayer) final;
     void updateAffineTransform(CGAffineTransform) final;
@@ -70,6 +73,7 @@ private:
 
     PlatformLayerContainer m_videoLayer;
     bool m_didFail { false };
+    bool m_paused { false };
 };
 
 }

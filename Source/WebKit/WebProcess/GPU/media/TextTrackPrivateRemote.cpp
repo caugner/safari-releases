@@ -29,28 +29,32 @@
 
 #if ENABLE(GPU_PROCESS)
 
-#include "Connection.h"
 #include "DataReference.h"
+#include "GPUProcessConnection.h"
 #include "MediaPlayerPrivateRemote.h"
-#include "RemoteTextTrackProxyMessages.h"
-#include <WebCore/NotImplemented.h>
+#include "RemoteMediaPlayerProxyMessages.h"
 
 namespace WebKit {
 using namespace WebCore;
 
-TextTrackPrivateRemote::TextTrackPrivateRemote(IPC::Connection& connection, TrackPrivateRemoteIdentifier idendifier, TextTrackPrivateRemoteConfiguration&& configuration)
+TextTrackPrivateRemote::TextTrackPrivateRemote(GPUProcessConnection& gpuProcessConnection, MediaPlayerIdentifier playerIdentifier, TrackPrivateRemoteIdentifier idendifier, TextTrackPrivateRemoteConfiguration&& configuration)
     : WebCore::InbandTextTrackPrivate(configuration.cueFormat)
-    , m_connection(connection)
-    , m_idendifier(idendifier)
+    , m_gpuProcessConnection(makeWeakPtr(gpuProcessConnection))
+    , m_playerIdentifier(playerIdentifier)
+    , m_identifier(idendifier)
 {
     updateConfiguration(WTFMove(configuration));
 }
 
 void TextTrackPrivateRemote::setMode(TextTrackMode mode)
 {
-    if (mode != m_mode)
-        m_connection.send(Messages::RemoteTextTrackProxy::SetMode(mode), m_idendifier);
+    if (!m_gpuProcessConnection)
+        return;
 
+    if (mode == InbandTextTrackPrivate::mode())
+        return;
+
+    m_gpuProcessConnection->connection().send(Messages::RemoteMediaPlayerProxy::TextTrackSetMode(m_identifier, mode), m_playerIdentifier);
     InbandTextTrackPrivate::setMode(mode);
 }
 
@@ -78,11 +82,10 @@ void TextTrackPrivateRemote::updateConfiguration(TextTrackPrivateRemoteConfigura
     }
 
     m_trackIndex = configuration.trackIndex;
+    m_inBandMetadataTrackDispatchType = configuration.inBandMetadataTrackDispatchType;
     m_startTimeVariance = configuration.startTimeVariance;
 
-    m_format = configuration.cueFormat;
     m_kind = configuration.kind;
-    m_mode = configuration.mode;
     m_isClosedCaptions = configuration.isClosedCaptions;
     m_isSDH = configuration.isSDH;
     m_containsOnlyForcedSubtitles = configuration.containsOnlyForcedSubtitles;
@@ -123,7 +126,7 @@ void TextTrackPrivateRemote::parseWebVTTCueData(const IPC::DataReference& data)
 {
     ASSERT(client());
     if (auto* client = this->client())
-        client->parseWebVTTCueData(reinterpret_cast<const char*>(data.data()), data.size());
+        client->parseWebVTTCueData(data.data(), data.size());
 }
 
 void TextTrackPrivateRemote::parseWebVTTCueDataStruct(ISOWebVTTCue&& cueData)
@@ -137,7 +140,7 @@ void TextTrackPrivateRemote::addDataCue(MediaTime&& start, MediaTime&& end, IPC:
 {
     ASSERT(client());
     if (auto* client = this->client())
-        client->addDataCue(WTFMove(start), WTFMove(end), reinterpret_cast<const char*>(data.data()), data.size());
+        client->addDataCue(WTFMove(start), WTFMove(end), data.data(), data.size());
 }
 
 #if ENABLE(DATACUE_VALUE)

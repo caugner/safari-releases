@@ -60,9 +60,9 @@ IGNORE_WARNINGS_END
 {
     if (_WKDownload *wrapper = [downloadWrapperMap() objectForKey:download])
         return wrapper;
-    _WKDownload *wrapper = [[[_WKDownload alloc] initWithDownload2:download] autorelease];
-    [downloadWrapperMap() setObject:wrapper forKey:download];
-    return wrapper;
+    auto wrapper = adoptNS([[_WKDownload alloc] initWithDownload2:download]);
+    [downloadWrapperMap() setObject:wrapper.get() forKey:download];
+    return wrapper.autorelease();
 }
 
 - (void)cancel
@@ -84,9 +84,8 @@ IGNORE_WARNINGS_END
 
 - (WKWebView *)originatingWebView
 {
-    if (auto* originatingPage = _download->_download->originatingPage())
-        return [[fromWebPageProxy(*originatingPage) retain] autorelease];
-    return nil;
+    auto page = _download->_download->originatingPage();
+    return page ? page->cocoaView().autorelease() : nil;
 }
 
 -(NSArray<NSURL *> *)redirectChain

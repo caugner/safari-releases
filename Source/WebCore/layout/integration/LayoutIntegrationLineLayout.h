@@ -66,6 +66,8 @@ public:
     static bool canUseFor(const RenderBlockFlow&);
     static bool canUseForAfterStyleChange(const RenderBlockFlow&, StyleDifference);
 
+    bool shouldSwitchToLegacyOnInvalidation() const;
+
     void updateReplacedDimensions(const RenderBox&);
     void updateInlineBlockDimensions(const RenderBlock&);
     void updateLineBreakBoxDimensions(const RenderLineBreak&);
@@ -94,6 +96,7 @@ public:
     LineIterator lastLine() const;
 
     LayoutRect enclosingBorderBoxRectFor(const RenderInline&) const;
+    LayoutRect visualOverflowBoundingBoxRectFor(const RenderInline&) const;
 
     const RenderObject& rendererForLayoutBox(const Layout::Box&) const;
     const RenderBlockFlow& flow() const { return m_boxTree.flow(); }
@@ -120,7 +123,7 @@ private:
     Layout::LayoutState m_layoutState;
     Layout::InlineFormattingState& m_inlineFormattingState;
     RefPtr<InlineContent> m_inlineContent;
-    Optional<LayoutUnit> m_paginatedHeight;
+    std::optional<LayoutUnit> m_paginatedHeight;
 };
 
 }

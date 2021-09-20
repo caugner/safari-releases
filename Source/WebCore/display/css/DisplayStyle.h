@@ -36,7 +36,6 @@
 #include "TransformOperations.h"
 #include <wtf/IsoMalloc.h>
 #include <wtf/OptionSet.h>
-#include <wtf/Optional.h>
 
 namespace WebCore {
 
@@ -50,6 +49,8 @@ namespace Display {
 // All colors should be resolved to their painted values [visitedDependentColorWithColorFilter()].
 // Should contain only absolute float values; no Lengths (which can contain calc values).
 // Should be sharable between boxes with different geometry but the same style.
+
+DECLARE_ALLOCATOR_WITH_HEAP_IDENTIFIER(Style);
 class Style {
     WTF_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(Style);
 public:
@@ -74,8 +75,8 @@ public:
     
     const ShadowData* boxShadow() const { return m_boxShadow.get(); }
 
-    Optional<int> zIndex() const { return m_zIndex; }
-    bool isStackingContext() const { return m_zIndex.hasValue(); }
+    std::optional<int> zIndex() const { return m_zIndex; }
+    bool isStackingContext() const { return m_zIndex.has_value(); }
     
     bool isPositioned() const { return m_flags.contains(Flags::Positioned); }
     bool isFloating() const { return m_flags.contains(Flags::Floating); }
@@ -123,7 +124,7 @@ private:
     
     float m_opacity;
 
-    Optional<int> m_zIndex;
+    std::optional<int> m_zIndex;
     OptionSet<Flags> m_flags;
 };
 

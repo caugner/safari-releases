@@ -26,10 +26,11 @@
 #import "config.h"
 #import "WKMouseDeviceObserver.h"
 
-#if HAVE(UIKIT_WITH_MOUSE_SUPPORT) && PLATFORM(IOS)
+#if HAVE(MOUSE_DEVICE_OBSERVATION)
 
 #import "WebProcessProxy.h"
 #import <wtf/BlockPtr.h>
+#import <wtf/MainThread.h>
 #import <wtf/OSObjectPtr.h>
 #import <wtf/RetainPtr.h>
 
@@ -42,10 +43,8 @@
 
 + (WKMouseDeviceObserver *)sharedInstance
 {
-    static WKMouseDeviceObserver *instance;
-    if (!instance)
-        instance = [[WKMouseDeviceObserver alloc] init];
-    return instance;
+    static NeverDestroyed<RetainPtr<WKMouseDeviceObserver>> instance = adoptNS([[WKMouseDeviceObserver alloc] init]);
+    return instance.get().get();
 }
 
 - (instancetype)init
@@ -108,7 +107,9 @@
 
     _hasMouseDevice = hasMouseDevice;
 
-    WebKit::WebProcessProxy::notifyHasMouseDeviceChanged();
+    ensureOnMainRunLoop([hasMouseDevice] {
+        WebKit::WebProcessProxy::notifyHasMouseDeviceChanged(hasMouseDevice);
+    });
 }
 
 #pragma mark - Testing
@@ -117,9 +118,11 @@
 {
     _hasMouseDevice = hasMouseDevice;
 
-    WebKit::WebProcessProxy::notifyHasMouseDeviceChanged();
+    ensureOnMainRunLoop([hasMouseDevice] {
+        WebKit::WebProcessProxy::notifyHasMouseDeviceChanged(hasMouseDevice);
+    });
 }
 
 @end
 
-#endif // HAVE(UIKIT_WITH_MOUSE_SUPPORT) && PLATFORM(IOS)
+#endif // HAVE(MOUSE_DEVICE_OBSERVATION)

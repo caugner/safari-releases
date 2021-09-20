@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 Apple Inc. All rights reserved.
+ * Copyright (C) 2020-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -30,6 +30,8 @@
 
 #include "InspectorExtensionTypes.h"
 #include "WebInspectorUIExtensionControllerProxy.h"
+#include <WebCore/ExceptionDetails.h>
+#include <wtf/UniqueRef.h>
 
 namespace API {
 
@@ -44,14 +46,39 @@ Ref<InspectorExtension> InspectorExtension::create(const WTF::String& identifier
     return adoptRef(*new InspectorExtension(identifier, extensionControllerProxy));
 }
 
-void InspectorExtension::createTab(const WTF::String& tabName, const WTF::URL& tabIconURL, const WTF::URL& sourceURL, WTF::CompletionHandler<void(Expected<WebKit::InspectorExtensionTabID, WebKit::InspectorExtensionError>)>&& completionHandler)
+void InspectorExtension::setClient(UniqueRef<InspectorExtensionClient>&& client)
+{
+    m_client = client.moveToUniquePtr();
+}
+
+void InspectorExtension::createTab(const WTF::String& tabName, const WTF::URL& tabIconURL, const WTF::URL& sourceURL, WTF::CompletionHandler<void(Expected<Inspector::ExtensionTabID, Inspector::ExtensionError>)>&& completionHandler)
 {
     if (!m_extensionControllerProxy) {
-        completionHandler(makeUnexpected(WebKit::InspectorExtensionError::ContextDestroyed));
+        completionHandler(makeUnexpected(Inspector::ExtensionError::ContextDestroyed));
         return;
     }
 
     m_extensionControllerProxy->createTabForExtension(m_identifier, tabName, tabIconURL, sourceURL, WTFMove(completionHandler));
+}
+
+void InspectorExtension::evaluateScript(const WTF::String& scriptSource, const std::optional<WTF::URL>& frameURL, const std::optional<WTF::URL>& contextSecurityOrigin, const std::optional<bool>& useContentScriptContext, WTF::CompletionHandler<void(Inspector::ExtensionEvaluationResult)>&& completionHandler)
+{
+    if (!m_extensionControllerProxy) {
+        completionHandler(makeUnexpected(Inspector::ExtensionError::ContextDestroyed));
+        return;
+    }
+
+    m_extensionControllerProxy->evaluateScriptForExtension(m_identifier, scriptSource, frameURL, contextSecurityOrigin, useContentScriptContext, WTFMove(completionHandler));
+}
+
+void InspectorExtension::reloadIgnoringCache(const std::optional<bool>& ignoreCache, const std::optional<WTF::String>& userAgent, const std::optional<WTF::String>& injectedScript,  WTF::CompletionHandler<void(Inspector::ExtensionEvaluationResult)>&& completionHandler)
+{
+    if (!m_extensionControllerProxy) {
+        completionHandler(makeUnexpected(Inspector::ExtensionError::ContextDestroyed));
+        return;
+    }
+
+    m_extensionControllerProxy->reloadForExtension(m_identifier, ignoreCache, userAgent, injectedScript, WTFMove(completionHandler));
 }
 
 } // namespace API

@@ -35,13 +35,6 @@
 namespace WebCore {
 using namespace JSC;
 
-static JSC_DECLARE_CUSTOM_GETTER(jsLocationInstanceFunction_replaceNonCaching);
-
-JSC_DEFINE_CUSTOM_GETTER(jsLocationInstanceFunction_replaceNonCaching, (JSGlobalObject* globalObject, EncodedJSValue, PropertyName propertyName))
-{
-    return nonCachingStaticFunctionGetterImpl<jsLocationInstanceFunction_replace, 1>(globalObject, propertyName);
-}
-
 static bool getOwnPropertySlotCommon(JSLocation& thisObject, JSGlobalObject& lexicalGlobalObject, PropertyName propertyName, PropertySlot& slot)
 {
     VM& vm = lexicalGlobalObject.vm();
@@ -62,7 +55,9 @@ static bool getOwnPropertySlotCommon(JSLocation& thisObject, JSGlobalObject& lex
 
     // We only allow access to Location.replace() cross origin.
     if (propertyName == vm.propertyNames->replace) {
-        slot.setCustom(&thisObject, static_cast<unsigned>(PropertyAttribute::ReadOnly | PropertyAttribute::DontEnum), jsLocationInstanceFunction_replaceNonCaching);
+        auto* entry = JSLocation::info()->staticPropHashTable->entry(propertyName);
+        auto* jsFunction = thisObject.globalObject()->createCrossOriginFunction(&lexicalGlobalObject, propertyName, entry->function(), entry->functionLength());
+        slot.setValue(&thisObject, PropertyAttribute::ReadOnly | PropertyAttribute::DontEnum, jsFunction);
         return true;
     }
 
@@ -70,8 +65,8 @@ static bool getOwnPropertySlotCommon(JSLocation& thisObject, JSGlobalObject& lex
     // a descriptor that has a setter but no getter.
     if (slot.internalMethodType() == PropertySlot::InternalMethodType::GetOwnProperty && propertyName == static_cast<JSVMClientData*>(vm.clientData)->builtinNames().hrefPublicName()) {
         auto* entry = JSLocation::info()->staticPropHashTable->entry(propertyName);
-        CustomGetterSetter* customGetterSetter = CustomGetterSetter::create(vm, nullptr, entry->propertyPutter());
-        slot.setCustomGetterSetter(&thisObject, static_cast<unsigned>(JSC::PropertyAttribute::CustomAccessor | PropertyAttribute::DontEnum), customGetterSetter);
+        auto* getterSetter = thisObject.globalObject()->createCrossOriginGetterSetter(&lexicalGlobalObject, propertyName, nullptr, entry->propertyPutter());
+        slot.setGetterSlot(&thisObject, PropertyAttribute::Accessor | PropertyAttribute::DontEnum, getterSetter);
         return true;
     }
 
@@ -113,37 +108,29 @@ bool JSLocation::getOwnPropertySlotByIndex(JSObject* object, JSGlobalObject* lex
     RELEASE_AND_RETURN(scope, JSObject::getOwnPropertySlotByIndex(object, lexicalGlobalObject, index, slot));
 }
 
-void JSLocation::doPutPropertySecurityCheck(JSObject* object, JSGlobalObject* lexicalGlobalObject, PropertyName propertyName, PutPropertySlot&)
-{
-    auto* thisObject = jsCast<JSLocation*>(object);
-    ASSERT_GC_OBJECT_INHERITS(thisObject, info());
-
-    VM& vm = lexicalGlobalObject->vm();
-
-    // Always allow assigning to the whole location.
-    // However, alllowing assigning of pieces might inadvertently disclose parts of the original location.
-    // So fall through to the access check for those.
-    if (propertyName == static_cast<JSVMClientData*>(vm.clientData)->builtinNames().hrefPublicName())
-        return;
-
-    // Block access and throw if there is a security error.
-    BindingSecurity::shouldAllowAccessToDOMWindow(lexicalGlobalObject, thisObject->wrapped().window(), ThrowSecurityError);
-}
-
 bool JSLocation::put(JSCell* cell, JSGlobalObject* lexicalGlobalObject, PropertyName propertyName, JSValue value, PutPropertySlot& putPropertySlot)
 {
     VM& vm = lexicalGlobalObject->vm();
+    auto scope = DECLARE_THROW_SCOPE(vm);
     auto* thisObject = jsCast<JSLocation*>(cell);
     ASSERT_GC_OBJECT_INHERITS(thisObject, info());
 
     // Always allow assigning to the whole location.
     // However, allowing assigning of pieces might inadvertently disclose parts of the original location.
     // So fall through to the access check for those.
-    if (propertyName != static_cast<JSVMClientData*>(vm.clientData)->builtinNames().hrefPublicName()) {
-        if (!BindingSecurity::shouldAllowAccessToDOMWindow(lexicalGlobalObject, thisObject->wrapped().window(), ThrowSecurityError))
-            return false;
+    String errorMessage;
+    if (!BindingSecurity::shouldAllowAccessToDOMWindow(*lexicalGlobalObject, thisObject->wrapped().window(), errorMessage)) {
+        if (propertyName == static_cast<JSVMClientData*>(vm.clientData)->builtinNames().hrefPublicName()) {
+            auto* setter = s_info.staticPropHashTable->entry(propertyName)->propertyPutter();
+            scope.release();
+            setter(lexicalGlobalObject, JSValue::encode(putPropertySlot.thisValue()), JSValue::encode(value), propertyName);
+            return true;
+        }
+        throwSecurityError(*lexicalGlobalObject, scope, errorMessage);
+        return false;
     }
 
+    scope.release();
     return JSObject::put(thisObject, lexicalGlobalObject, propertyName, value, putPropertySlot);
 }
 

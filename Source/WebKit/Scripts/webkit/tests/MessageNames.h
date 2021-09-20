@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2021 Apple Inc. All rights reserved.
+ * Copyright (C) 2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -29,17 +29,26 @@
 namespace IPC {
 
 enum class ReceiverName : uint8_t {
-    TestWithIfMessage = 1
-    , TestWithLegacyReceiver = 2
-    , TestWithSuperclass = 3
-    , TestWithoutAttributes = 4
-    , IPC = 5
-    , AsyncReply = 6
-    , Invalid = 7
+    TestWithCVPixelBuffer = 1
+    , TestWithIfMessage = 2
+    , TestWithImageData = 3
+    , TestWithLegacyReceiver = 4
+    , TestWithSemaphore = 5
+    , TestWithStream = 6
+    , TestWithStreamBuffer = 7
+    , TestWithSuperclass = 8
+    , TestWithoutAttributes = 9
+    , IPC = 10
+    , AsyncReply = 11
+    , Invalid = 12
 };
 
 enum class MessageName : uint16_t {
-    TestWithIfMessage_LoadURL
+    TestWithCVPixelBuffer_ReceiveCVPixelBuffer
+    , TestWithCVPixelBuffer_SendCVPixelBuffer
+    , TestWithIfMessage_LoadURL
+    , TestWithImageData_ReceiveImageData
+    , TestWithImageData_SendImageData
     , TestWithLegacyReceiver_AddEvent
     , TestWithLegacyReceiver_Close
     , TestWithLegacyReceiver_CreatePlugin
@@ -60,6 +69,14 @@ enum class MessageName : uint16_t {
     , TestWithLegacyReceiver_TemplateTest
     , TestWithLegacyReceiver_TestParameterAttributes
     , TestWithLegacyReceiver_TouchEvent
+    , TestWithSemaphore_ReceiveSemaphore
+    , TestWithSemaphore_SendSemaphore
+    , TestWithStreamBuffer_SendStreamBuffer
+    , TestWithStream_ReceiveMachSendRight
+    , TestWithStream_SendAndReceiveMachSendRight
+    , TestWithStream_SendMachSendRight
+    , TestWithStream_SendString
+    , TestWithStream_SendStringSynchronized
     , TestWithSuperclass_LoadURL
     , TestWithSuperclass_TestAsyncMessage
     , TestWithSuperclass_TestAsyncMessageWithConnection
@@ -87,6 +104,8 @@ enum class MessageName : uint16_t {
     , TestWithoutAttributes_TouchEvent
     , InitializeConnection
     , LegacySessionState
+    , ProcessOutOfStreamMessage
+    , SetStreamDestinationID
     , SyncMessageReply
     , TestWithSuperclass_TestAsyncMessageReply
     , TestWithSuperclass_TestAsyncMessageWithConnectionReply

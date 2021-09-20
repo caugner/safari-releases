@@ -34,6 +34,7 @@
 #include <wtf/OptionSet.h>
 #include <wtf/SetForScope.h>
 #include <wtf/text/StringBuilder.h>
+#include <wtf/text/StringToIntegerConversion.h>
 
 namespace WebCore {
 
@@ -58,7 +59,7 @@ private:
 static AtomString serializeANPlusB(const std::pair<int, int>&);
 static bool consumeANPlusB(CSSParserTokenRange&, std::pair<int, int>&);
 
-Optional<CSSSelectorList> parseCSSSelector(CSSParserTokenRange range, const CSSParserContext& context, StyleSheetContents* styleSheet)
+std::optional<CSSSelectorList> parseCSSSelector(CSSParserTokenRange range, const CSSParserContext& context, StyleSheetContents* styleSheet)
 {
     CSSSelectorParser parser(context, styleSheet);
     range.consumeWhitespace();
@@ -276,6 +277,7 @@ static bool isUserActionPseudoClass(CSSSelector::PseudoClassType pseudo)
     case CSSSelector::PseudoClassHover:
     case CSSSelector::PseudoClassFocus:
     case CSSSelector::PseudoClassActive:
+    case CSSSelector::PseudoClassFocusVisible:
     case CSSSelector::PseudoClassFocusWithin:
         return true;
     default:
@@ -581,6 +583,10 @@ std::unique_ptr<CSSParserSelector> CSSSelectorParser::consumePseudo(CSSParserTok
         if (selector->match() == CSSSelector::PseudoClass) {
             if (m_context.mode != UASheetMode && selector->pseudoClassType() == CSSSelector::PseudoClassDirectFocus)
                 return nullptr;
+            if (m_context.mode != UASheetMode && selector->pseudoClassType() == CSSSelector::PseudoClassModalDialog)
+                return nullptr;
+            if (!m_context.focusVisibleEnabled && selector->pseudoClassType() == CSSSelector::PseudoClassFocusVisible)
+                return nullptr;
 #if ENABLE(ATTACHMENT_ELEMENT)
             if (!m_context.attachmentEnabled && selector->pseudoClassType() == CSSSelector::PseudoClassHasAttachment)
                 return nullptr;
@@ -862,7 +868,7 @@ static bool consumeANPlusB(CSSParserTokenRange& range, std::pair<int, int>& resu
         nString = range.consume().value().toString();
     } else if (token.type() == DimensionToken && token.numericValueType() == IntegerValueType) {
         result.first = token.numericValue();
-        nString = token.value().toString();
+        nString = token.unitString().toString();
     } else if (token.type() == IdentToken) {
         if (token.value()[0] == '-') {
             result.first = -1;
@@ -881,9 +887,9 @@ static bool consumeANPlusB(CSSParserTokenRange& range, std::pair<int, int>& resu
         return false;
 
     if (nString.length() > 2) {
-        bool valid;
-        result.second = nString.substring(1).toIntStrict(&valid);
-        return valid;
+        auto parsedNumber = parseInteger<int>(StringView { nString }.substring(1));
+        result.second = parsedNumber.value_or(0);
+        return parsedNumber.has_value();
     }
 
     NumericSign sign = nString.length() == 1 ? NoSign : MinusSign;

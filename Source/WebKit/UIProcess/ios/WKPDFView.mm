@@ -61,7 +61,7 @@
     NSUInteger _findStringCount;
     NSUInteger _findStringMaxCount;
     RetainPtr<UIView> _fixedOverlayView;
-    Optional<NSUInteger> _focusedSearchResultIndex;
+    std::optional<NSUInteger> _focusedSearchResultIndex;
     NSInteger _focusedSearchResultPendingOffset;
     RetainPtr<PDFHostViewController> _hostViewController;
     CGSize _overlaidAccessoryViewsInset;
@@ -136,7 +136,7 @@
     _suggestedFilename = adoptNS([filename copy]);
 
     [PDFHostViewController createHostView:[self, weakSelf = WeakObjCPtr<WKPDFView>(self)](PDFHostViewController *hostViewController) {
-        ASSERT(isMainThread());
+        ASSERT(isMainRunLoop());
 
         WKPDFView *autoreleasedSelf = weakSelf.getAutoreleased();
         if (!autoreleasedSelf)
@@ -258,7 +258,7 @@ static NSStringCompareOptions stringCompareOptions(_WKFindOptions findOptions)
     _findString = nil;
     _findStringCount = 0;
     _findStringMaxCount = 0;
-    _focusedSearchResultIndex = WTF::nullopt;
+    _focusedSearchResultIndex = std::nullopt;
     _focusedSearchResultPendingOffset = 0;
 }
 
@@ -509,7 +509,7 @@ static NSStringCompareOptions stringCompareOptions(_WKFindOptions findOptions)
 - (void)pdfHostViewControllerExtensionProcessDidCrash:(PDFHostViewController *)controller
 {
     // FIXME 40916725: PDFKit should dispatch this message to the main thread like it does for other delegate messages.
-    dispatch_async(dispatch_get_main_queue(), [webView = _webView] {
+    RunLoop::main().dispatch([webView = _webView] {
         if (auto page = [webView _page])
             page->dispatchProcessDidTerminate(WebKit::ProcessTerminationReason::Crash);
     });
@@ -518,7 +518,7 @@ static NSStringCompareOptions stringCompareOptions(_WKFindOptions findOptions)
 
 #pragma mark WKActionSheetAssistantDelegate
 
-- (Optional<WebKit::InteractionInformationAtPosition>)positionInformationForActionSheetAssistant:(WKActionSheetAssistant *)assistant
+- (std::optional<WebKit::InteractionInformationAtPosition>)positionInformationForActionSheetAssistant:(WKActionSheetAssistant *)assistant
 {
     return _positionInformation;
 }

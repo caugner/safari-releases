@@ -164,7 +164,7 @@ static WebViewInsertAction kit(EditorInsertAction action)
 
 + (WebUndoStep *)stepWithUndoStep:(Ref<UndoStep>&&)step
 {
-    return [[[WebUndoStep alloc] initWithUndoStep:WTFMove(step)] autorelease];
+    return adoptNS([[WebUndoStep alloc] initWithUndoStep:WTFMove(step)]).autorelease();
 }
 
 - (UndoStep&)step
@@ -236,7 +236,7 @@ int WebEditorClient::spellCheckerDocumentTag()
 
 #endif
 
-bool WebEditorClient::shouldDeleteRange(const Optional<SimpleRange>& range)
+bool WebEditorClient::shouldDeleteRange(const std::optional<SimpleRange>& range)
 {
     return [[m_webView _editingDelegateForwarder] webView:m_webView shouldDeleteDOMRange:kit(range)];
 }
@@ -257,7 +257,7 @@ bool WebEditorClient::isSelectTrailingWhitespaceEnabled() const
     return page->settings().selectTrailingWhitespaceEnabled();
 }
 
-bool WebEditorClient::shouldApplyStyle(const StyleProperties& style, const Optional<SimpleRange>& range)
+bool WebEditorClient::shouldApplyStyle(const StyleProperties& style, const std::optional<SimpleRange>& range)
 {
     return [[m_webView _editingDelegateForwarder] webView:m_webView
         shouldApplyStyle:kit(&style.mutableCopy()->ensureCSSStyleDeclaration())
@@ -296,13 +296,13 @@ bool WebEditorClient::shouldEndEditing(const SimpleRange& range)
     return [[m_webView _editingDelegateForwarder] webView:m_webView shouldEndEditingInDOMRange:kit(range)];
 }
 
-bool WebEditorClient::shouldInsertText(const String& text, const Optional<SimpleRange>& range, EditorInsertAction action)
+bool WebEditorClient::shouldInsertText(const String& text, const std::optional<SimpleRange>& range, EditorInsertAction action)
 {
     WebView* webView = m_webView;
     return [[webView _editingDelegateForwarder] webView:webView shouldInsertText:text replacingDOMRange:kit(range) givenAction:kit(action)];
 }
 
-bool WebEditorClient::shouldChangeSelectedRange(const Optional<SimpleRange>& fromRange, const Optional<SimpleRange>& toRange, Affinity selectionAffinity, bool stillSelecting)
+bool WebEditorClient::shouldChangeSelectedRange(const std::optional<SimpleRange>& fromRange, const std::optional<SimpleRange>& toRange, Affinity selectionAffinity, bool stillSelecting)
 {
     return [m_webView _shouldChangeSelectedDOMRange:kit(fromRange) toDOMRange:kit(toRange) affinity:kit(selectionAffinity) stillSelecting:stillSelecting];
 }
@@ -408,12 +408,12 @@ void WebEditorClient::didWriteSelectionToPasteboard()
 #endif
 }
 
-void WebEditorClient::willWriteSelectionToPasteboard(const Optional<SimpleRange>&)
+void WebEditorClient::willWriteSelectionToPasteboard(const std::optional<SimpleRange>&)
 {
     // Not implemented WebKit, only WebKit2.
 }
 
-void WebEditorClient::getClientPasteboardData(const Optional<SimpleRange>&, Vector<String>& pasteboardTypes, Vector<RefPtr<WebCore::SharedBuffer>>& pasteboardData)
+void WebEditorClient::getClientPasteboardData(const std::optional<SimpleRange>&, Vector<String>& pasteboardTypes, Vector<RefPtr<WebCore::SharedBuffer>>& pasteboardData)
 {
     // Not implemented WebKit, only WebKit2.
 }
@@ -434,7 +434,7 @@ void _WebCreateFragment(Document&, NSAttributedString *, FragmentAndResources&)
 static NSDictionary *attributesForAttributedStringConversion()
 {
     // This function needs to be kept in sync with identically named one in WebCore, which is used on newer OS versions.
-    NSMutableArray *excludedElements = [[NSMutableArray alloc] initWithObjects:
+    auto excludedElements = adoptNS([[NSMutableArray alloc] initWithObjects:
         // Omit style since we want style to be inline so the fragment can be easily inserted.
         @"style",
         // Omit xml so the result is not XHTML.
@@ -447,26 +447,22 @@ static NSDictionary *attributesForAttributedStringConversion()
         // Omit object so no file attachments are part of the fragment.
         @"object",
 #endif
-        nil];
+        nil]);
 
 #if ENABLE(ATTACHMENT_ELEMENT)
     if (!RuntimeEnabledFeatures::sharedFeatures().attachmentElementEnabled())
         [excludedElements addObject:@"object"];
 #endif
 
-    NSDictionary *dictionary = @{ NSExcludedElementsDocumentAttribute: excludedElements };
-
-    [excludedElements release];
-
-    return dictionary;
+    return @{ NSExcludedElementsDocumentAttribute: excludedElements.get() };
 }
 
 void _WebCreateFragment(Document& document, NSAttributedString *string, FragmentAndResources& result)
 {
-    static NSDictionary *documentAttributes = [attributesForAttributedStringConversion() retain];
+    static NeverDestroyed<RetainPtr<NSDictionary>> documentAttributes = attributesForAttributedStringConversion();
     NSArray *subresources;
     DOMDocumentFragment* fragment = [string _documentFromRange:NSMakeRange(0, [string length])
-        document:kit(&document) documentAttributes:documentAttributes subresources:&subresources];
+        document:kit(&document) documentAttributes:documentAttributes.get().get() subresources:&subresources];
     result.fragment = core(fragment);
     for (WebResource* resource in subresources)
         result.resources.append([resource _coreResource].get());
@@ -574,7 +570,7 @@ void WebEditorClient::toggleAutomaticSpellingCorrection()
 
 #endif // USE(AUTOMATIC_TEXT_REPLACEMENT)
 
-bool WebEditorClient::shouldInsertNode(Node& node, const Optional<SimpleRange>& replacingRange, EditorInsertAction givenAction)
+bool WebEditorClient::shouldInsertNode(Node& node, const std::optional<SimpleRange>& replacingRange, EditorInsertAction givenAction)
 { 
     return [[m_webView _editingDelegateForwarder] webView:m_webView shouldInsertNode:kit(&node) replacingDOMRange:kit(replacingRange) givenAction:(WebViewInsertAction)givenAction];
 }
@@ -1122,10 +1118,10 @@ void WebEditorClient::requestCandidatesForSelection(const VisibleSelection& sele
     NSTextCheckingTypes checkingTypes = NSTextCheckingTypeSpelling | NSTextCheckingTypeReplacement | NSTextCheckingTypeCorrection;
     auto weakEditor = makeWeakPtr(*this);
     m_lastCandidateRequestSequenceNumber = [[NSSpellChecker sharedSpellChecker] requestCandidatesForSelectedRange:m_rangeForCandidates inString:m_paragraphContextForCandidateRequest.get() types:checkingTypes options:nil inSpellDocumentWithTag:spellCheckerDocumentTag() completionHandler:[weakEditor](NSInteger sequenceNumber, NSArray<NSTextCheckingResult *> *candidates) {
-        dispatch_async(dispatch_get_main_queue(), ^{
+        RunLoop::main().dispatch([weakEditor, sequenceNumber, candidates = retainPtr(candidates)] {
             if (!weakEditor)
                 return;
-            weakEditor->handleRequestedCandidates(sequenceNumber, candidates);
+            weakEditor->handleRequestedCandidates(sequenceNumber, candidates.get());
         });
     }];
 }

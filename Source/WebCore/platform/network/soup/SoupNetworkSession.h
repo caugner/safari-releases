@@ -37,7 +37,6 @@
 typedef struct _SoupCache SoupCache;
 typedef struct _SoupCookieJar SoupCookieJar;
 typedef struct _SoupMessage SoupMessage;
-typedef struct _SoupRequest SoupRequest;
 typedef struct _SoupSession SoupSession;
 
 namespace WebCore {
@@ -66,7 +65,7 @@ public:
     void setAcceptLanguages(const CString&);
 
     WEBCORE_EXPORT void setIgnoreTLSErrors(bool);
-    Optional<ResourceError> checkTLSErrors(const URL&, GTlsCertificate*, GTlsCertificateFlags);
+    std::optional<ResourceError> checkTLSErrors(const URL&, GTlsCertificate*, GTlsCertificateFlags);
     static void allowSpecificHTTPSCertificateForHost(const CertificateInfo&, const String& host);
 
     void getHostNamesWithHSTSCache(HashSet<String>&);

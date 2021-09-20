@@ -26,11 +26,10 @@
 #import "config.h"
 #import "PageClientImplCocoa.h"
 
-#import "WKWebViewConfigurationPrivate.h"
 #import "WKWebViewInternal.h"
-#import "WKWebViewPrivate.h"
-#import "WKWebViewPrivateForTesting.h"
 #import <WebCore/AlternativeTextUIController.h>
+#import <WebKit/WKWebViewConfigurationPrivate.h>
+#import <WebKit/WKWebViewPrivateForTesting.h>
 #import <wtf/Vector.h>
 #import <wtf/cocoa/VectorCocoa.h>
 #import <wtf/text/WTFString.h>
@@ -45,6 +44,54 @@ PageClientImplCocoa::PageClientImplCocoa(WKWebView *webView)
 
 PageClientImplCocoa::~PageClientImplCocoa() = default;
 
+void PageClientImplCocoa::themeColorWillChange()
+{
+    [m_webView willChangeValueForKey:@"themeColor"];
+
+    // FIXME: Remove old `-[WKWebView _themeColor]` SPI <rdar://76662644>
+    [m_webView willChangeValueForKey:@"_themeColor"];
+}
+
+void PageClientImplCocoa::themeColorDidChange()
+{
+    [m_webView didChangeValueForKey:@"themeColor"];
+
+    // FIXME: Remove old `-[WKWebView _themeColor]` SPI <rdar://76662644>
+    [m_webView didChangeValueForKey:@"_themeColor"];
+}
+
+void PageClientImplCocoa::underPageBackgroundColorWillChange()
+{
+    [m_webView willChangeValueForKey:@"underPageBackgroundColor"];
+}
+
+void PageClientImplCocoa::underPageBackgroundColorDidChange()
+{
+    [m_webView didChangeValueForKey:@"underPageBackgroundColor"];
+}
+
+void PageClientImplCocoa::pageExtendedBackgroundColorWillChange()
+{
+    // FIXME: Remove old `-[WKWebView _pageExtendedBackgroundColor]` SPI <rdar://77789732>
+    [m_webView willChangeValueForKey:@"_pageExtendedBackgroundColor"];
+}
+
+void PageClientImplCocoa::pageExtendedBackgroundColorDidChange()
+{
+    // FIXME: Remove old `-[WKWebView _pageExtendedBackgroundColor]` SPI <rdar://77789732>
+    [m_webView didChangeValueForKey:@"_pageExtendedBackgroundColor"];
+}
+
+void PageClientImplCocoa::sampledPageTopColorWillChange()
+{
+    [m_webView willChangeValueForKey:@"_sampledPageTopColor"];
+}
+
+void PageClientImplCocoa::sampledPageTopColorDidChange()
+{
+    [m_webView didChangeValueForKey:@"_sampledPageTopColor"];
+}
+
 void PageClientImplCocoa::isPlayingAudioWillChange()
 {
     [m_webView willChangeValueForKey:NSStringFromSelector(@selector(_isPlayingAudio))];
@@ -58,11 +105,6 @@ void PageClientImplCocoa::isPlayingAudioDidChange()
 bool PageClientImplCocoa::scrollingUpdatesDisabledForTesting()
 {
     return [m_webView _scrollingUpdatesDisabledForTesting];
-}
-
-void PageClientImplCocoa::setHasBlankOverlay(bool hasBlankOverlay)
-{
-    [m_webView _setHasBlankOverlay:hasBlankOverlay];
 }
 
 #if ENABLE(ATTACHMENT_ELEMENT)
@@ -99,6 +141,13 @@ NSSet *PageClientImplCocoa::serializableFileWrapperClasses() const
 
 #endif
 
+#if ENABLE(APP_HIGHLIGHTS)
+void PageClientImplCocoa::storeAppHighlight(const WebCore::AppHighlight &highlight)
+{
+    [m_webView _storeAppHighlight:highlight];
+}
+#endif // ENABLE(APP_HIGHLIGHTS)
+
 void PageClientImplCocoa::pageClosed()
 {
     m_alternativeTextUIController->clear();
@@ -123,5 +172,25 @@ NSTextAlternatives *PageClientImplCocoa::platformDictationAlternatives(WebCore::
 {
     return m_alternativeTextUIController->alternativesForContext(dictationContext);
 }
-    
+
+void PageClientImplCocoa::microphoneCaptureWillChange()
+{
+    [m_webView willChangeValueForKey:@"microphoneCaptureState"];
+}
+
+void PageClientImplCocoa::cameraCaptureWillChange()
+{
+    [m_webView willChangeValueForKey:@"cameraCaptureState"];
+}
+
+void PageClientImplCocoa::microphoneCaptureChanged()
+{
+    [m_webView didChangeValueForKey:@"microphoneCaptureState"];
+}
+
+void PageClientImplCocoa::cameraCaptureChanged()
+{
+    [m_webView didChangeValueForKey:@"cameraCaptureState"];
+}
+
 }

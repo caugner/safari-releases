@@ -33,6 +33,8 @@
   cmd: runWebAssemblySuite unless parseRunCommands
 - path: wasm/references
   cmd: runWebAssemblySuite unless parseRunCommands
+- path: wasm/function-references
+  cmd: runWebAssemblySuite unless parseRunCommands
 - path: wasm/fuzz
   cmd: runWebAssemblySuite unless parseRunCommands
 - path: wasm/lowExecutableMemory
@@ -129,6 +131,8 @@
 - path: wasm/threads-spec-tests/memory.wast.js
   cmd: runWebAssemblySpecTest :normal
 - path: wasm/threads-spec-tests/atomic-signed.wast.js
+  cmd: runWebAssemblySpecTest :normal
+- path: wasm/threads-spec-tests/wait-large.wast.js
   cmd: runWebAssemblySpecTest :normal
 
 - path: wasm/spec-tests/address.wast.js

@@ -46,7 +46,6 @@ public:
     static StyleSheetContents* mediaControlsStyleSheet;
     static StyleSheetContents* fullscreenStyleSheet;
     static StyleSheetContents* plugInsStyleSheet;
-    static StyleSheetContents* imageControlsStyleSheet;
 #if ENABLE(DATALIST_ELEMENT)
     static StyleSheetContents* dataListStyleSheet;
 #endif
@@ -54,7 +53,7 @@ public:
     static StyleSheetContents* colorInputStyleSheet;
 #endif
 #if ENABLE(IOS_FORM_CONTROL_REFRESH)
-    static StyleSheetContents* formControlsIOSStyleSheet;
+    static StyleSheetContents* legacyFormControlsIOSStyleSheet;
 #endif
 
     static StyleSheetContents* mediaQueryStyleSheet;

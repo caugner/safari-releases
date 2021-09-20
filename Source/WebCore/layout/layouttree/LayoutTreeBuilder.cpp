@@ -30,6 +30,7 @@
 
 #include "CachedImage.h"
 #include "HTMLNames.h"
+#include "HTMLParserIdioms.h"
 #include "HTMLTableCellElement.h"
 #include "HTMLTableColElement.h"
 #include "HTMLTableElement.h"
@@ -87,7 +88,7 @@ static void appendChild(ContainerBox& parent, Box& newChild)
     parent.setLastChild(newChild);
 }
 
-static Optional<LayoutSize> accumulatedOffsetForInFlowPositionedContinuation(const RenderBox& block)
+static std::optional<LayoutSize> accumulatedOffsetForInFlowPositionedContinuation(const RenderBox& block)
 {
     // FIXE: This is a workaround of the continuation logic when the relatively positioned parent inline box
     // becomes a sibling box of this block and only reachable through the continuation link which we don't have here.
@@ -116,8 +117,8 @@ std::unique_ptr<Layout::LayoutTree> TreeBuilder::buildLayoutTree(const RenderVie
     PhaseScope scope(Phase::Type::TreeBuilding);
 
     auto rootStyle = RenderStyle::clone(renderView.style());
-    rootStyle.setLogicalWidth(Length(renderView.width(), Fixed));
-    rootStyle.setLogicalHeight(Length(renderView.height(), Fixed));
+    rootStyle.setLogicalWidth(Length(renderView.width(), LengthType::Fixed));
+    rootStyle.setLogicalHeight(Length(renderView.height(), LengthType::Fixed));
 
     auto rootLayoutBox = makeUnique<InitialContainingBlock>(WTFMove(rootStyle));
     auto& rootContainer = *rootLayoutBox;
@@ -132,7 +133,7 @@ TreeBuilder::TreeBuilder(LayoutTree& layoutTree)
 {
 }
 
-Box& TreeBuilder::createReplacedBox(Optional<Box::ElementAttributes> elementAttributes, RenderStyle&& style)
+Box& TreeBuilder::createReplacedBox(std::optional<Box::ElementAttributes> elementAttributes, RenderStyle&& style)
 {
     auto newBox = makeUnique<ReplacedBox>(elementAttributes, WTFMove(style));
     auto& box = *newBox;
@@ -156,7 +157,7 @@ Box& TreeBuilder::createLineBreakBox(bool isOptional, RenderStyle&& style)
     return box;
 }
 
-ContainerBox& TreeBuilder::createContainer(Optional<Box::ElementAttributes> elementAttributes, RenderStyle&& style)
+ContainerBox& TreeBuilder::createContainer(std::optional<Box::ElementAttributes> elementAttributes, RenderStyle&& style)
 {
     auto newContainer = makeUnique<ContainerBox>(elementAttributes, WTFMove(style));
     auto& container = *newContainer;
@@ -166,7 +167,7 @@ ContainerBox& TreeBuilder::createContainer(Optional<Box::ElementAttributes> elem
 
 Box* TreeBuilder::createLayoutBox(const ContainerBox& parentContainer, const RenderObject& childRenderer)
 {
-    auto elementAttributes = [] (const RenderElement& renderer) -> Optional<Box::ElementAttributes> {
+    auto elementAttributes = [] (const RenderElement& renderer) -> std::optional<Box::ElementAttributes> {
         if (renderer.isDocumentElementRenderer())
             return Box::ElementAttributes { Box::ElementType::Document };
         if (auto* element = renderer.element()) {
@@ -178,7 +179,7 @@ Box* TreeBuilder::createLayoutBox(const ContainerBox& parentContainer, const Ren
                 return Box::ElementAttributes { Box::ElementType::IFrame };
             return Box::ElementAttributes { Box::ElementType::GenericElement };
         }
-        return WTF::nullopt;
+        return std::nullopt;
     };
 
     Box* childLayoutBox = nullptr;
@@ -199,7 +200,7 @@ Box* TreeBuilder::createLayoutBox(const ContainerBox& parentContainer, const Ren
 
         if (is<RenderLineBreak>(renderer)) {
             clonedStyle.setDisplay(DisplayType::Inline);
-            clonedStyle.setFloating(Float::No);
+            clonedStyle.setFloating(Float::None);
             clonedStyle.setPosition(PositionType::Static);
             childLayoutBox = &createLineBreakBox(downcast<RenderLineBreak>(childRenderer).isWBR(), WTFMove(clonedStyle));
         } else if (is<RenderTable>(renderer)) {
@@ -237,8 +238,8 @@ Box* TreeBuilder::createLayoutBox(const ContainerBox& parentContainer, const Ren
         } else {
             if (displayType == DisplayType::Block) {
                 if (auto offset = accumulatedOffsetForInFlowPositionedContinuation(downcast<RenderBox>(renderer))) {
-                    clonedStyle.setTop({ offset->height(), Fixed });
-                    clonedStyle.setLeft({ offset->width(), Fixed });
+                    clonedStyle.setTop({ offset->height(), LengthType::Fixed });
+                    clonedStyle.setLeft({ offset->width(), LengthType::Fixed });
                     childLayoutBox = &createContainer(elementAttributes(renderer), WTFMove(clonedStyle));
                 } else
                     childLayoutBox = &createContainer(elementAttributes(renderer), WTFMove(clonedStyle));
@@ -258,7 +259,7 @@ Box* TreeBuilder::createLayoutBox(const ContainerBox& parentContainer, const Ren
                 auto& tableColElement = static_cast<HTMLTableColElement&>(*renderer.element());
                 auto columnWidth = tableColElement.width();
                 if (!columnWidth.isEmpty())
-                    childLayoutBox->setColumnWidth(columnWidth.toInt());
+                    childLayoutBox->setColumnWidth(parseHTMLInteger(columnWidth).value_or(0));
                 if (tableColElement.span() > 1)
                     childLayoutBox->setColumnSpan(tableColElement.span());
             } else {
@@ -276,7 +277,6 @@ Box* TreeBuilder::createLayoutBox(const ContainerBox& parentContainer, const Ren
                 auto rowSpan = cellElement.rowSpan();
                 if (rowSpan > 1)
                     childLayoutBox->setRowSpan(rowSpan);
-
                 auto columnSpan = cellElement.colSpan();
                 if (columnSpan > 1)
                     childLayoutBox->setColumnSpan(columnSpan);
@@ -304,7 +304,7 @@ void TreeBuilder::buildTableStructure(const RenderTable& tableRenderer, Containe
 
     auto tableBoxStyle = RenderStyle::clone(tableRenderer.style());
     tableBoxStyle.setPosition(PositionType::Static);
-    tableBoxStyle.setFloating(Float::No);
+    tableBoxStyle.setFloating(Float::None);
     tableBoxStyle.resetMargin();
     // FIXME: Figure out where the spec says table width is like box-sizing: border-box;
     if (is<HTMLTableElement>(tableRenderer.element()))
@@ -395,7 +395,8 @@ void showInlineTreeAndRuns(TextStream& stream, const LayoutState& layoutState, c
         addSpacing();
         auto& line = lines[lineIndex];
         auto& lineBoxLogicalRect = line.lineBoxLogicalRect();
-        stream << "line at (" << lineBoxLogicalRect.left() << "," << lineBoxLogicalRect.top() << ") size (" << lineBoxLogicalRect.width() << "x" << lineBoxLogicalRect.height() << ") baseline (" << line.baseline() << ")";
+        auto enclosingTopAndBottom = line.enclosingTopAndBottom();
+        stream << "line at (" << lineBoxLogicalRect.left() << "," << lineBoxLogicalRect.top() << ") size (" << lineBoxLogicalRect.width() << "x" << lineBoxLogicalRect.height() << ") baseline (" << line.baseline() << ") enclosing top (" << enclosingTopAndBottom.top << ") bottom (" << enclosingTopAndBottom.bottom << ")";
         stream.nextLine();
 
         addSpacing();
@@ -406,29 +407,33 @@ void showInlineTreeAndRuns(TextStream& stream, const LayoutState& layoutState, c
         auto outputInlineLevelBox = [&](const auto& inlineLevelBox) {
             addSpacing();
             stream << "    ";
-            if (inlineLevelBox.isRootInlineBox())
-                stream << "Root inline box";
-            else if (inlineLevelBox.isAtomicInlineLevelBox())
-                stream << "Atomic inline level box";
-            else if (inlineLevelBox.isLineBreakBox())
-                stream << "Line break box";
-            else if (inlineLevelBox.isInlineBox())
-                stream << "Generic inline box";
-            else
-                stream << "Generic inline level box";
+            auto logicalRect = InlineRect { };
             auto& layoutBox = inlineLevelBox.layoutBox();
-            auto logicalRect = lineBox.logicalMarginRectForInlineLevelBox(layoutBox, layoutState.geometryForBox(layoutBox));
+            if (inlineLevelBox.isRootInlineBox()) {
+                stream << "Root inline box";
+                logicalRect = lineBox.logicalRectForRootInlineBox();
+            } else if (inlineLevelBox.isAtomicInlineLevelBox()) {
+                stream << "Atomic inline level box";
+                logicalRect = lineBox.logicalBorderBoxForAtomicInlineLevelBox(layoutBox, layoutState.geometryForBox(layoutBox));
+            } else if (inlineLevelBox.isLineBreakBox()) {
+                stream << "Line break box";
+                logicalRect = lineBox.logicalRectForLineBreakBox(layoutBox);
+            } else if (inlineLevelBox.isInlineBox()) {
+                stream << "Inline box";
+                logicalRect = lineBox.logicalBorderBoxForInlineBox(layoutBox, layoutState.geometryForBox(layoutBox));
+            } else
+                stream << "Generic inline level box";
             stream
                 << " at (" << logicalRect.left() << "," << logicalRect.top() << ")"
                 << " size (" << logicalRect.width() << "x" << logicalRect.height() << ")"
                 << " baseline (" << logicalRect.top() + inlineLevelBox.baseline() << ")"
                 << " ascent (" << inlineLevelBox.baseline() << "/" << inlineLevelBox.layoutBounds().ascent << ")"
-                << " descent (" << inlineLevelBox.descent().valueOr(0.0f) << "/" << inlineLevelBox.layoutBounds().descent << ")";
+                << " descent (" << inlineLevelBox.descent().value_or(0.0f) << "/" << inlineLevelBox.layoutBounds().descent << ")";
             stream.nextLine();
         };
         outputInlineLevelBox(lineBox.rootInlineBox());
         for (auto& inlineLevelBox : lineBox.nonRootInlineLevelBoxes())
-            outputInlineLevelBox(*inlineLevelBox);
+            outputInlineLevelBox(inlineLevelBox);
 
         addSpacing();
         stream << "  Runs:";

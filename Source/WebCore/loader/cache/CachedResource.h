@@ -45,7 +45,6 @@ class CachedResourceHandleBase;
 class CachedResourceLoader;
 class CachedResourceRequest;
 class CookieJar;
-class LoadTiming;
 class MemoryCache;
 class NetworkLoadMetrics;
 class SecurityOrigin;
@@ -73,6 +72,9 @@ public:
         FontResource,
         SVGFontResource,
         MediaResource,
+#if ENABLE(MODEL_ELEMENT)
+        ModelResource,
+#endif
         RawResource,
         Icon,
         Beacon,
@@ -101,7 +103,7 @@ public:
     static constexpr unsigned bitWidthOfStatus = 3;
     static_assert(static_cast<unsigned>(DecodeError) <= ((1ULL << bitWidthOfStatus) - 1));
 
-    CachedResource(CachedResourceRequest&&, Type, const PAL::SessionID&, const CookieJar*);
+    CachedResource(CachedResourceRequest&&, Type, PAL::SessionID, const CookieJar*);
     virtual ~CachedResource();
 
     virtual void load(CachedResourceLoader&);
@@ -110,7 +112,7 @@ public:
     virtual String encoding() const { return String(); }
     virtual const TextResourceDecoder* textResourceDecoder() const { return nullptr; }
     virtual void updateBuffer(SharedBuffer&);
-    virtual void updateData(const char* data, unsigned length);
+    virtual void updateData(const uint8_t* data, unsigned length);
     virtual void finishLoading(SharedBuffer*, const NetworkLoadMetrics&);
     virtual void error(CachedResource::Status);
 
@@ -131,7 +133,7 @@ public:
     static bool shouldUsePingLoad(Type type) { return type == Type::Beacon || type == Type::Ping; }
 
     ResourceLoadPriority loadPriority() const { return m_loadPriority; }
-    void setLoadPriority(const Optional<ResourceLoadPriority>&);
+    void setLoadPriority(const std::optional<ResourceLoadPriority>&);
 
     WEBCORE_EXPORT void addClient(CachedResourceClient&);
     WEBCORE_EXPORT void removeClient(CachedResourceClient&);
@@ -178,7 +180,7 @@ public:
 
     bool isImage() const { return type() == Type::ImageResource; }
     // FIXME: CachedRawResource could be a main resource, an audio/video resource, or a raw XHR/icon resource.
-    bool isMainOrMediaOrIconOrRawResource() const { return type() == Type::MainResource || type() == Type::MediaResource || type() == Type::Icon || type() == Type::RawResource || type() == Type::Beacon || type() == Type::Ping; }
+    bool isMainOrMediaOrIconOrRawResource() const;
 
     // Whether this request should impact request counting and delay window.onload.
     bool ignoreForRequestCount() const
@@ -279,12 +281,11 @@ public:
 
     virtual void didSendData(unsigned long long /* bytesSent */, unsigned long long /* totalBytesToBeSent */) { }
 
-#if USE(FOUNDATION) || USE(SOUP)
+#if ENABLE(SHAREABLE_RESOURCE)
     WEBCORE_EXPORT void tryReplaceEncodedData(SharedBuffer&);
 #endif
 
     unsigned long identifierForLoadWithoutResourceLoader() const { return m_identifierForLoadWithoutResourceLoader; }
-    static ResourceLoadPriority defaultPriorityForResourceType(Type);
 
     void setOriginalRequest(std::unique_ptr<ResourceRequest>&& originalRequest) { m_originalRequest = WTFMove(originalRequest); }
     const std::unique_ptr<ResourceRequest>& originalRequest() const { return m_originalRequest; }
@@ -295,7 +296,7 @@ public:
 
 protected:
     // CachedResource constructor that may be used when the CachedResource can already be filled with response data.
-    CachedResource(const URL&, Type, const PAL::SessionID&, const CookieJar*);
+    CachedResource(const URL&, Type, PAL::SessionID, const CookieJar*);
 
     void setEncodedSize(unsigned);
     void setDecodedSize(unsigned);
@@ -307,6 +308,8 @@ protected:
 
 private:
     class Callback;
+
+    void deleteThis();
 
     bool addClientToSet(CachedResourceClient&);
 
@@ -405,6 +408,19 @@ private:
     CachedResourceClient& m_client;
     Timer m_timer;
 };
+
+inline bool CachedResource::isMainOrMediaOrIconOrRawResource() const
+{
+    return type() == Type::MainResource
+        || type() == Type::MediaResource
+#if ENABLE(MODEL_ELEMENT)
+        || type() == Type::ModelResource
+#endif
+        || type() == Type::Icon
+        || type() == Type::RawResource
+        || type() == Type::Beacon
+        || type() == Type::Ping;
+}
 
 } // namespace WebCore
 

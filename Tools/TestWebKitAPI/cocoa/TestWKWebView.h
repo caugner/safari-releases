@@ -48,6 +48,10 @@
 @end
 
 @interface WKWebView (TestWebKitAPI)
+#if PLATFORM(IOS_FAMILY)
+@property (nonatomic, readonly) UIView <UITextInputPrivate, UITextInputInternal, UITextInputMultiDocument, UIWKInteractionViewProtocol, UITextInputTokenizer> *textInputContentView;
+#endif
+@property (nonatomic, readonly) NSString *contentsAsString;
 @property (nonatomic, readonly) NSArray<NSString *> *tagsInBody;
 - (void)loadTestPageNamed:(NSString *)pageName;
 - (void)synchronouslyGoBack;
@@ -79,6 +83,7 @@
 - (void)synchronouslyLoadHTMLStringAndWaitUntilAllImmediateChildFramesPaint:(NSString *)html;
 - (void)clearMessageHandlers:(NSArray *)messageNames;
 - (void)performAfterReceivingMessage:(NSString *)message action:(dispatch_block_t)action;
+- (void)performAfterReceivingAnyMessage:(void (^)(NSString *))action;
 - (void)waitForMessage:(NSString *)message;
 
 // This function waits until a DOM load event is fired.
@@ -95,6 +100,7 @@
 - (void)addToTestWindow;
 - (BOOL)selectionRangeHasStartOffset:(int)start endOffset:(int)end;
 - (void)clickOnElementID:(NSString *)elementID;
+- (void)waitForPendingMouseEvents;
 @end
 
 #if PLATFORM(IOS_FAMILY)
@@ -109,7 +115,6 @@
 @end
 
 @interface TestWKWebView (IOSOnly)
-@property (nonatomic, readonly) UIView <UITextInputPrivate, UITextInputInternal, UITextInputMultiDocument, UIWKInteractionViewProtocol, UITextInputTokenizer> *textInputContentView;
 @property (nonatomic, readonly) RetainPtr<NSArray> selectionRectsAfterPresentationUpdate;
 @property (nonatomic, readonly) CGRect caretViewRectInContentCoordinates;
 @property (nonatomic, readonly) NSArray<NSValue *> *selectionViewRectsInContentCoordinates;
@@ -132,8 +137,8 @@
 - (void)sendClicksAtPoint:(NSPoint)pointInWindow numberOfClicks:(NSUInteger)numberOfClicks;
 - (void)sendClickAtPoint:(NSPoint)pointInWindow;
 - (NSWindow *)hostWindow;
+- (void)typeCharacter:(char)character modifiers:(NSEventModifierFlags)modifiers;
 - (void)typeCharacter:(char)character;
-- (void)waitForPendingMouseEvents;
 - (void)setEventTimestampOffset:(NSTimeInterval)offset;
 @property (nonatomic, readonly) NSTimeInterval eventTimestamp;
 @end

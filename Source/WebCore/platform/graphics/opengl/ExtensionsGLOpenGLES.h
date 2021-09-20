@@ -33,6 +33,9 @@
 #if USE(LIBEPOXY)
 #include <epoxy/gl.h>
 #else
+#if HAVE(OPENGL_ES_3)
+#include <GLES3/gl3.h>
+#endif // HAVE(OPENGL_ES_3)
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
 #endif
@@ -64,6 +67,8 @@ typedef void (GL_APIENTRYP PFNGLGETNUNIFORMIVEXTPROC) (GLuint program, GLint loc
 
 namespace WebCore {
 
+class GraphicsContextGLOpenGL;
+
 class ExtensionsGLOpenGLES : public ExtensionsGLOpenGLCommon {
 public:
     // This class only needs to be instantiated by GraphicsContextGLOpenGL implementations.
@@ -75,11 +80,7 @@ public:
 
     // Extension3D methods
     bool isEnabled(const String&) override;
-    void blitFramebufferANGLE(GCGLint srcX0, GCGLint srcY0, GCGLint srcX1, GCGLint srcY1, GCGLint dstX0, GCGLint dstY0, GCGLint dstX1, GCGLint dstY1, GCGLbitfield mask, GCGLenum filter) override;
-    void renderbufferStorageMultisampleANGLE(GCGLenum target, GCGLsizei samples, GCGLenum internalformat, GCGLsizei width, GCGLsizei height) override;
-    void insertEventMarkerEXT(const String&) override;
-    void pushGroupMarkerEXT(const String&) override;
-    void popGroupMarkerEXT(void) override;
+    void renderbufferStorageMultisampleANGLE(GCGLenum target, GCGLsizei samples, GCGLenum internalformat, GCGLsizei width, GCGLsizei height);
 
     PlatformGLObject createVertexArrayOES() override;
     void deleteVertexArrayOES(PlatformGLObject) override;

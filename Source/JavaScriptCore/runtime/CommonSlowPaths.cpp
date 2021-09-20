@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2020 Apple Inc. All rights reserved.
+ * Copyright (C) 2011-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -34,6 +34,7 @@
 #include "ErrorHandlingScope.h"
 #include "ExceptionFuzz.h"
 #include "FrameTracers.h"
+#include "IteratorOperations.h"
 #include "JSArrayIterator.h"
 #include "JSAsyncGenerator.h"
 #include "JSCInlines.h"
@@ -234,7 +235,7 @@ JSC_DEFINE_COMMON_SLOW_PATH(slow_path_create_this)
 
         size_t inlineCapacity = bytecode.m_inlineCapacity;
         ObjectAllocationProfileWithPrototype* allocationProfile = constructor->ensureRareDataAndAllocationProfile(globalObject, inlineCapacity)->objectAllocationProfile();
-        throwScope.releaseAssertNoException();
+        CHECK_EXCEPTION();
         Structure* structure = allocationProfile->structure();
         result = constructEmptyObject(vm, structure);
         if (structure->hasPolyProto()) {
@@ -245,13 +246,16 @@ JSC_DEFINE_COMMON_SLOW_PATH(slow_path_create_this)
             ASSERT_WITH_MESSAGE(!hasIndexedProperties(result->indexingType()), "We rely on JSFinalObject not starting out with an indexing type otherwise we would potentially need to convert to slow put storage");
         }
     } else {
-        // http://ecma-international.org/ecma-262/6.0/#sec-ordinarycreatefromconstructor
+        // https://tc39.es/ecma262/#sec-getprototypefromconstructor
         JSValue proto = constructorAsObject->get(globalObject, vm.propertyNames->prototype);
         CHECK_EXCEPTION();
         if (proto.isObject())
             result = constructEmptyObject(globalObject, asObject(proto));
-        else
-            result = constructEmptyObject(globalObject);
+        else {
+            JSGlobalObject* functionGlobalObject = getFunctionRealm(globalObject, constructorAsObject);
+            CHECK_EXCEPTION();
+            result = constructEmptyObject(functionGlobalObject);
+        }
     }
     RETURN(result);
 }
@@ -264,15 +268,11 @@ JSC_DEFINE_COMMON_SLOW_PATH(slow_path_create_promise)
 
     JSPromise* result = nullptr;
     if (bytecode.m_isInternalPromise) {
-        Structure* structure = constructorAsObject == globalObject->internalPromiseConstructor()
-            ? globalObject->internalPromiseStructure()
-            : InternalFunction::createSubclassStructure(globalObject, constructorAsObject, getFunctionRealm(vm, constructorAsObject)->internalPromiseStructure());
+        Structure* structure = JSC_GET_DERIVED_STRUCTURE(vm, internalPromiseStructure, constructorAsObject, globalObject->internalPromiseConstructor());
         CHECK_EXCEPTION();
         result = JSInternalPromise::create(vm, structure);
     } else {
-        Structure* structure = constructorAsObject == globalObject->promiseConstructor()
-            ? globalObject->promiseStructure()
-            : InternalFunction::createSubclassStructure(globalObject, constructorAsObject, getFunctionRealm(vm, constructorAsObject)->promiseStructure());
+        Structure* structure = JSC_GET_DERIVED_STRUCTURE(vm, promiseStructure, constructorAsObject, globalObject->promiseConstructor());
         CHECK_EXCEPTION();
         result = JSPromise::create(vm, structure);
     }
@@ -830,32 +830,9 @@ JSC_DEFINE_COMMON_SLOW_PATH(slow_path_is_constructor)
     RETURN(jsBoolean(GET_C(bytecode.m_operand).jsValue().isConstructor(vm)));
 }
 
-JSC_DEFINE_COMMON_SLOW_PATH(slow_path_in_by_val)
-{
-    BEGIN();
-    auto bytecode = pc->as<OpInByVal>();
-    auto& metadata = bytecode.metadata(codeBlock);
-    RETURN(jsBoolean(CommonSlowPaths::opInByVal(globalObject, GET_C(bytecode.m_base).jsValue(), GET_C(bytecode.m_property).jsValue(), &metadata.m_arrayProfile)));
-}
-
-JSC_DEFINE_COMMON_SLOW_PATH(slow_path_in_by_id)
-{
-    BEGIN();
-
-    auto bytecode = pc->as<OpInById>();
-    JSValue baseValue = GET_C(bytecode.m_base).jsValue();
-    if (!baseValue.isObject())
-        THROW(createInvalidInParameterError(globalObject, baseValue));
-
-    RETURN(jsBoolean(asObject(baseValue)->hasProperty(globalObject, codeBlock->identifier(bytecode.m_property))));
-}
-
 template<OpcodeSize width>
-ALWAYS_INLINE SlowPathReturnType iteratorOpenTryFastImpl(CallFrame* callFrame, const Instruction* pc)
+ALWAYS_INLINE SlowPathReturnType iteratorOpenTryFastImpl(VM& vm, JSGlobalObject* globalObject, CodeBlock* codeBlock, CallFrame* callFrame, const Instruction* pc)
 {
-    // Don't set PC; we can't throw and it's relatively slow.
-    BEGIN_NO_SET_PC();
-
     auto bytecode = pc->asKnownWidth<OpIteratorOpen, width>();
     auto& metadata = bytecode.metadata(codeBlock);
     JSValue iterable = GET_C(bytecode.m_iterable).jsValue();
@@ -863,59 +840,45 @@ ALWAYS_INLINE SlowPathReturnType iteratorOpenTryFastImpl(CallFrame* callFrame, c
     JSValue symbolIterator = GET_C(bytecode.m_symbolIterator).jsValue();
     auto& iterator = GET(bytecode.m_iterator);
 
-    auto prepareForFastArrayIteration = [&] {
-        if (!globalObject->arrayIteratorProtocolWatchpointSet().isStillValid())
-            return IterationMode::Generic;
-
-        // This is correct because we just checked the watchpoint is still valid.
-        JSFunction* symbolIteratorFunction = jsDynamicCast<JSFunction*>(vm, symbolIterator);
-        if (!symbolIteratorFunction)
-            return IterationMode::Generic; 
-
-        // We don't want to allocate the values function just to check if it's the same as our function at so we use the concurrent accessor.
-        // FIXME: This only works for arrays from the same global object as ourselves but we should be able to support any pairing.
-        if (globalObject->arrayProtoValuesFunctionConcurrently() != symbolIteratorFunction)
-            return IterationMode::Generic;
-
+    if (getIterationMode(vm, globalObject, iterable, symbolIterator) == IterationMode::FastArray) {
         // We should be good to go.
         metadata.m_iterationMetadata.seenModes = metadata.m_iterationMetadata.seenModes | IterationMode::FastArray;
         GET(bytecode.m_next) = JSValue();
         auto* iteratedObject = jsCast<JSObject*>(iterable);
         iterator = JSArrayIterator::create(vm, globalObject->arrayIteratorStructure(), iteratedObject, IterationKind::Values);
         PROFILE_VALUE_IN(iterator.jsValue(), m_iteratorProfile);
-        return IterationMode::FastArray;
-    };
-
-    if (iterable.inherits<JSArray>(vm)) {
-        if (prepareForFastArrayIteration() == IterationMode::FastArray)
-            return encodeResult(pc, reinterpret_cast<void*>(IterationMode::FastArray));
+        return encodeResult(pc, reinterpret_cast<void*>(static_cast<uintptr_t>(IterationMode::FastArray)));
     }
 
     // Return to the bytecode to try in generic mode.
     metadata.m_iterationMetadata.seenModes = metadata.m_iterationMetadata.seenModes | IterationMode::Generic;
-    return encodeResult(pc, reinterpret_cast<void*>(IterationMode::Generic));
+    return encodeResult(pc, reinterpret_cast<void*>(static_cast<uintptr_t>(IterationMode::Generic)));
 }
 
 JSC_DEFINE_COMMON_SLOW_PATH(iterator_open_try_fast_narrow)
 {
-    return iteratorOpenTryFastImpl<Narrow>(callFrame, pc);
+    // Don't set PC; we can't throw and it's relatively slow.
+    BEGIN_NO_SET_PC();
+    return iteratorOpenTryFastImpl<Narrow>(vm, globalObject, codeBlock, callFrame, pc);
 }
 
 JSC_DEFINE_COMMON_SLOW_PATH(iterator_open_try_fast_wide16)
 {
-    return iteratorOpenTryFastImpl<Wide16>(callFrame, pc);
+    // Don't set PC; we can't throw and it's relatively slow.
+    BEGIN_NO_SET_PC();
+    return iteratorOpenTryFastImpl<Wide16>(vm, globalObject, codeBlock, callFrame, pc);
 }
 
 JSC_DEFINE_COMMON_SLOW_PATH(iterator_open_try_fast_wide32)
 {
-    return iteratorOpenTryFastImpl<Wide32>(callFrame, pc);
+    // Don't set PC; we can't throw and it's relatively slow.
+    BEGIN_NO_SET_PC();
+    return iteratorOpenTryFastImpl<Wide32>(vm, globalObject, codeBlock, callFrame, pc);
 }
 
 template<OpcodeSize width>
-ALWAYS_INLINE SlowPathReturnType iteratorNextTryFastImpl(CallFrame* callFrame, const Instruction* pc)
+ALWAYS_INLINE SlowPathReturnType iteratorNextTryFastImpl(VM& vm, JSGlobalObject* globalObject, CodeBlock* codeBlock, CallFrame* callFrame, ThrowScope& throwScope, const Instruction* pc)
 {
-    BEGIN();
-
     auto bytecode = pc->asKnownWidth<OpIteratorNext, width>();
     auto& metadata = bytecode.metadata(codeBlock);
 
@@ -955,46 +918,20 @@ ALWAYS_INLINE SlowPathReturnType iteratorNextTryFastImpl(CallFrame* callFrame, c
 
 JSC_DEFINE_COMMON_SLOW_PATH(iterator_next_try_fast_narrow)
 {
-    return iteratorNextTryFastImpl<Narrow>(callFrame, pc);
+    BEGIN();
+    return iteratorNextTryFastImpl<Narrow>(vm, globalObject, codeBlock, callFrame, throwScope, pc);
 }
 
 JSC_DEFINE_COMMON_SLOW_PATH(iterator_next_try_fast_wide16)
 {
-    return iteratorNextTryFastImpl<Wide16>(callFrame, pc);
+    BEGIN();
+    return iteratorNextTryFastImpl<Wide16>(vm, globalObject, codeBlock, callFrame, throwScope, pc);
 }
 
 JSC_DEFINE_COMMON_SLOW_PATH(iterator_next_try_fast_wide32)
 {
-    return iteratorNextTryFastImpl<Wide32>(callFrame, pc);
-}
-
-JSC_DEFINE_COMMON_SLOW_PATH(slow_path_del_by_val)
-{
     BEGIN();
-    auto bytecode = pc->as<OpDelByVal>();
-    JSValue baseValue = GET_C(bytecode.m_base).jsValue();
-    JSObject* baseObject = baseValue.toObject(globalObject);
-    CHECK_EXCEPTION();
-    
-    JSValue subscript = GET_C(bytecode.m_property).jsValue();
-    
-    bool couldDelete;
-    
-    uint32_t i;
-    if (subscript.getUInt32(i))
-        couldDelete = baseObject->methodTable(vm)->deletePropertyByIndex(baseObject, globalObject, i);
-    else {
-        CHECK_EXCEPTION();
-        auto property = subscript.toPropertyKey(globalObject);
-        CHECK_EXCEPTION();
-        couldDelete = JSCell::deleteProperty(baseObject, globalObject, property);
-    }
-    CHECK_EXCEPTION();
-    
-    if (!couldDelete && bytecode.m_ecmaMode.isStrict())
-        THROW(createTypeError(globalObject, UnableToDeletePropertyError));
-    
-    RETURN(jsBoolean(couldDelete));
+    return iteratorNextTryFastImpl<Wide32>(vm, globalObject, codeBlock, callFrame, throwScope, pc);
 }
 
 JSC_DEFINE_COMMON_SLOW_PATH(slow_path_strcat)
@@ -1289,18 +1226,6 @@ JSC_DEFINE_COMMON_SLOW_PATH(slow_path_create_rest)
     RETURN(constructArray(globalObject, structure, argumentsToCopyRegion, arraySize));
 }
 
-JSC_DEFINE_COMMON_SLOW_PATH(slow_path_get_by_id_with_this)
-{
-    BEGIN();
-    auto bytecode = pc->as<OpGetByIdWithThis>();
-    const Identifier& ident = codeBlock->identifier(bytecode.m_property);
-    JSValue baseValue = GET_C(bytecode.m_base).jsValue();
-    JSValue thisVal = GET_C(bytecode.m_thisValue).jsValue();
-    PropertySlot slot(thisVal, PropertySlot::PropertySlot::InternalMethodType::Get);
-    JSValue result = baseValue.get(globalObject, ident, slot);
-    RETURN_PROFILED(result);
-}
-
 JSC_DEFINE_COMMON_SLOW_PATH(slow_path_get_by_val_with_this)
 {
     BEGIN();
@@ -1441,7 +1366,7 @@ JSC_DEFINE_COMMON_SLOW_PATH(slow_path_new_array_with_spread)
         }
     }
 
-    Checked<unsigned, RecordOverflow> checkedArraySize = 0;
+    CheckedUint32 checkedArraySize = 0;
     for (int i = 0; i < numItems; i++) {
         if (bitVector.get(i)) {
             JSValue value = values[-i];
@@ -1453,7 +1378,7 @@ JSC_DEFINE_COMMON_SLOW_PATH(slow_path_new_array_with_spread)
     if (UNLIKELY(checkedArraySize.hasOverflowed()))
         THROW(createOutOfMemoryError(globalObject));
 
-    unsigned arraySize = checkedArraySize.unsafeGet();
+    unsigned arraySize = checkedArraySize;
     if (UNLIKELY(arraySize >= MIN_ARRAY_STORAGE_CONSTRUCTION_LENGTH))
         THROW(createOutOfMemoryError(globalObject));
 

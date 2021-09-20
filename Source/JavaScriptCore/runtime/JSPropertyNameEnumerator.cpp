@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2019 Apple Inc. All rights reserved.
+ * Copyright (C) 2014-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -35,7 +35,7 @@ const ClassInfo JSPropertyNameEnumerator::s_info = { "JSPropertyNameEnumerator",
 JSPropertyNameEnumerator* JSPropertyNameEnumerator::create(VM& vm, Structure* structure, uint32_t indexedLength, uint32_t numberStructureProperties, PropertyNameArray&& propertyNames)
 {
     unsigned propertyNamesSize = propertyNames.size();
-    unsigned propertyNamesBufferSizeInBytes = (Checked<unsigned>(propertyNamesSize) * sizeof(WriteBarrier<JSString>)).unsafeGet();
+    unsigned propertyNamesBufferSizeInBytes = Checked<unsigned>(propertyNamesSize) * sizeof(WriteBarrier<JSString>);
     WriteBarrier<JSString>* propertyNamesBuffer = nullptr;
     if (propertyNamesBufferSizeInBytes) {
         propertyNamesBuffer = static_cast<WriteBarrier<JSString>*>(vm.jsValueGigacageAuxiliarySpace.allocateNonVirtual(vm, propertyNamesBufferSizeInBytes, nullptr, AllocationFailureMode::Assert));
@@ -70,7 +70,8 @@ void JSPropertyNameEnumerator::finishCreation(VM& vm, RefPtr<PropertyNameArrayDa
     }
 }
 
-void JSPropertyNameEnumerator::visitChildren(JSCell* cell, SlotVisitor& visitor)
+template<typename Visitor>
+void JSPropertyNameEnumerator::visitChildrenImpl(JSCell* cell, Visitor& visitor)
 {
     JSPropertyNameEnumerator* thisObject = jsCast<JSPropertyNameEnumerator*>(cell);
     ASSERT_GC_OBJECT_INHERITS(thisObject, info());
@@ -86,6 +87,8 @@ void JSPropertyNameEnumerator::visitChildren(JSCell* cell, SlotVisitor& visitor)
         visitor.appendUnbarriered(vm.getStructure(thisObject->cachedStructureID()));
     }
 }
+
+DEFINE_VISIT_CHILDREN(JSPropertyNameEnumerator);
 
 // FIXME: Assert that properties returned by getOwnPropertyNames() are reported enumerable by getOwnPropertySlot().
 // https://bugs.webkit.org/show_bug.cgi?id=219926

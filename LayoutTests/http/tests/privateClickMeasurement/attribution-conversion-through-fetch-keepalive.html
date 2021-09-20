@@ -7,7 +7,7 @@
 </head>
 <body onload="runTest()">
 <div id="description">Tests triggering of private click measurement attributions with fetch on pagehide.</div>
-<a id="targetLink" href="http://localhost:8000/privateClickMeasurement/attribution-conversion-through-fetch-keepalive.html?stepTwo" attributionsourceid="3" attributeon="http://localhost:8000">Link</a><br>
+<a id="targetLink" href="http://localhost:8000/privateClickMeasurement/attribution-conversion-through-fetch-keepalive.html?stepTwo" attributionsourceid=3 attributiondestination="http://localhost:8000">Link</a><br>
 <div id="output"></div>
 <script>
     prepareTest();
@@ -27,7 +27,7 @@
     }
 
     function triggerFetch(conversionData) {
-        return fetch("https://127.0.0.1:8443/privateClickMeasurement/resources/redirectToConversion.php?conversionData="+ conversionData + "&delay_ms=100", { keepalive: true });
+        return fetch("https://127.0.0.1:8443/privateClickMeasurement/resources/redirectToConversion.py?conversionData="+ conversionData + "&delay_ms=100", { keepalive: true });
     }
 
     function runTest() {

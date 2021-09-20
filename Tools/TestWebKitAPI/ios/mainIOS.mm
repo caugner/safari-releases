@@ -25,29 +25,34 @@
 
 #import "config.h"
 #import "TestsController.h"
-
+#import "UIKitMacHelperSPI.h"
 #import <WebKit/WKProcessPoolPrivate.h>
+#import <wtf/RetainPtr.h>
 
 int main(int argc, char** argv)
 {
-    NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
-
-    [[NSUserDefaults standardUserDefaults] removePersistentDomainForName:@"TestWebKitAPI"];
-
-    // Set up user defaults.
-    NSMutableDictionary *argumentDomain = [[[NSUserDefaults standardUserDefaults] volatileDomainForName:NSArgumentDomain] mutableCopy];
-    if (!argumentDomain)
-        argumentDomain = [[NSMutableDictionary alloc] init];
-
-    [[NSUserDefaults standardUserDefaults] setVolatileDomain:argumentDomain forName:NSArgumentDomain];
-
-#ifndef BUILDING_TEST_WTF
-    [WKProcessPool _setLinkedOnOrAfterEverythingForTesting];
+    bool passed = false;
+    @autoreleasepool {
+#if PLATFORM(MACCATALYST)
+        UINSApplicationInstantiate();
 #endif
 
-    bool passed = TestWebKitAPI::TestsController::singleton().run(argc, argv);
+        [[NSUserDefaults standardUserDefaults] removePersistentDomainForName:@"TestWebKitAPI"];
 
-    [pool drain];
+        // Set up user defaults.
+        auto argumentDomain = adoptNS([[[NSUserDefaults standardUserDefaults] volatileDomainForName:NSArgumentDomain] mutableCopy]);
+        if (!argumentDomain)
+            argumentDomain = adoptNS([[NSMutableDictionary alloc] init]);
 
-    return passed ? EXIT_SUCCESS : EXIT_FAILURE;
+        [[NSUserDefaults standardUserDefaults] setVolatileDomain:argumentDomain.get() forName:NSArgumentDomain];
+
+#ifndef BUILDING_TEST_WTF
+        [WKProcessPool _setLinkedOnOrAfterEverythingForTesting];
+#endif
+
+        passed = TestWebKitAPI::TestsController::singleton().run(argc, argv);
+    }
+
+    // FIXME: Work-around for <rdar://problem/77922262>
+    exit(passed ? EXIT_SUCCESS : EXIT_FAILURE);
 }

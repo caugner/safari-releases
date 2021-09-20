@@ -61,7 +61,7 @@ HTMLInputElement& RenderSlider::element() const
     return downcast<HTMLInputElement>(nodeForNonAnonymous());
 }
 
-int RenderSlider::baselinePosition(FontBaseline, bool /*firstLine*/, LineDirectionMode, LinePositionMode) const
+LayoutUnit RenderSlider::baselinePosition(FontBaseline, bool /*firstLine*/, LineDirectionMode, LinePositionMode) const
 {
     // FIXME: Patch this function for writing-mode.
     return height() + marginTop();
@@ -69,6 +69,8 @@ int RenderSlider::baselinePosition(FontBaseline, bool /*firstLine*/, LineDirecti
 
 void RenderSlider::computeIntrinsicLogicalWidths(LayoutUnit& minLogicalWidth, LayoutUnit& maxLogicalWidth) const
 {
+    if (shouldApplySizeContainment(*this))
+        return;
     maxLogicalWidth = defaultTrackLength * style().effectiveZoom();
     if (!style().width().isPercentOrCalculated())
         minLogicalWidth = maxLogicalWidth;
@@ -84,19 +86,7 @@ void RenderSlider::computePreferredLogicalWidths()
     else
         computeIntrinsicLogicalWidths(m_minPreferredLogicalWidth, m_maxPreferredLogicalWidth);
 
-    if (style().minWidth().isFixed() && style().minWidth().value() > 0) {
-        m_maxPreferredLogicalWidth = std::max(m_maxPreferredLogicalWidth, adjustContentBoxLogicalWidthForBoxSizing(style().minWidth()));
-        m_minPreferredLogicalWidth = std::max(m_minPreferredLogicalWidth, adjustContentBoxLogicalWidthForBoxSizing(style().minWidth()));
-    }
-
-    if (style().maxWidth().isFixed()) {
-        m_maxPreferredLogicalWidth = std::min(m_maxPreferredLogicalWidth, adjustContentBoxLogicalWidthForBoxSizing(style().maxWidth()));
-        m_minPreferredLogicalWidth = std::min(m_minPreferredLogicalWidth, adjustContentBoxLogicalWidthForBoxSizing(style().maxWidth()));
-    }
-
-    LayoutUnit toAdd = horizontalBorderAndPaddingExtent();
-    m_minPreferredLogicalWidth += toAdd;
-    m_maxPreferredLogicalWidth += toAdd;
+    RenderBox::computePreferredLogicalWidths(style().minWidth(), style().maxWidth(), horizontalBorderAndPaddingExtent());
 
     setPreferredLogicalWidthsDirty(false); 
 }

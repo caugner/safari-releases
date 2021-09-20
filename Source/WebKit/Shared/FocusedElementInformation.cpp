@@ -40,23 +40,23 @@ void OptionItem::encode(IPC::Encoder& encoder) const
     encoder << parentGroupID;
 }
 
-Optional<OptionItem> OptionItem::decode(IPC::Decoder& decoder)
+std::optional<OptionItem> OptionItem::decode(IPC::Decoder& decoder)
 {
     OptionItem result;
     if (!decoder.decode(result.text))
-        return WTF::nullopt;
+        return std::nullopt;
 
     if (!decoder.decode(result.isGroup))
-        return WTF::nullopt;
+        return std::nullopt;
 
     if (!decoder.decode(result.isSelected))
-        return WTF::nullopt;
+        return std::nullopt;
 
     if (!decoder.decode(result.disabled))
-        return WTF::nullopt;
+        return std::nullopt;
 
     if (!decoder.decode(result.parentGroupID))
-        return WTF::nullopt;
+        return std::nullopt;
     
     return WTFMove(result);
 }
@@ -99,9 +99,12 @@ void FocusedElementInformation::encode(IPC::Encoder& encoder) const
     encoder << label;
     encoder << ariaLabel;
     encoder << focusedElementIdentifier;
+    encoder << containerScrollingNodeID;
 #if ENABLE(DATALIST_ELEMENT)
     encoder << hasSuggestions;
+    encoder << isFocusingWithDataListDropdown;
 #if ENABLE(INPUT_TYPE_COLOR)
+    encoder << colorValue;
     encoder << suggestedColors;
 #endif
 #endif
@@ -223,11 +226,20 @@ bool FocusedElementInformation::decode(IPC::Decoder& decoder, FocusedElementInfo
     if (!decoder.decode(result.focusedElementIdentifier))
         return false;
 
+    if (!decoder.decode(result.containerScrollingNodeID))
+        return false;
+
 #if ENABLE(DATALIST_ELEMENT)
     if (!decoder.decode(result.hasSuggestions))
         return false;
 
+    if (!decoder.decode(result.isFocusingWithDataListDropdown))
+        return false;
+
 #if ENABLE(INPUT_TYPE_COLOR)
+    if (!decoder.decode(result.colorValue))
+        return false;
+
     if (!decoder.decode(result.suggestedColors))
         return false;
 #endif

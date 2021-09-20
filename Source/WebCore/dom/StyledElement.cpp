@@ -37,6 +37,7 @@
 #include "DOMTokenList.h"
 #include "ElementRareData.h"
 #include "HTMLElement.h"
+#include "HTMLImageElement.h"
 #include "HTMLParserIdioms.h"
 #include "InspectorInstrumentation.h"
 #include "PropertySetCSSStyleDeclaration.h"
@@ -145,8 +146,8 @@ void StyledElement::attributeChanged(const QualifiedName& name, const AtomString
     if (oldValue != newValue) {
         if (name == styleAttr)
             styleAttributeChanged(newValue, reason);
-        else if (isPresentationAttribute(name)) {
-            elementData()->setPresentationAttributeStyleIsDirty(true);
+        else if (hasPresentationalHintsForAttribute(name)) {
+            elementData()->setPresentationalHintStyleIsDirty(true);
             invalidateStyle();
         }
     }
@@ -196,7 +197,7 @@ void StyledElement::styleAttributeChanged(const AtomString& newStyleString, Attr
     if (document().scriptableDocumentParser() && !document().isInDocumentWrite())
         startLineNumber = document().scriptableDocumentParser()->textPosition().m_line;
 
-    if (reason == ModifiedByCloning || document().contentSecurityPolicy()->allowInlineStyle(document().url().string(), startLineNumber, String(), isInUserAgentShadowTree()))
+    if (reason == ModifiedByCloning || document().contentSecurityPolicy()->allowInlineStyle(document().url().string(), startLineNumber, { }, isInUserAgentShadowTree()))
         setInlineStyleFromString(newStyleString);
 
     elementData()->setStyleAttributeIsDirty(false);
@@ -290,30 +291,36 @@ void StyledElement::addSubresourceAttributeURLs(ListHashSet<URL>& urls) const
     });
 }
 
-void StyledElement::rebuildPresentationAttributeStyle()
+void StyledElement::rebuildPresentationalHintStyle()
 {
-    RefPtr<StyleProperties> style = MutableStyleProperties::create(isSVGElement() ? SVGAttributeMode : HTMLQuirksMode);
+    auto style = MutableStyleProperties::create(isSVGElement() ? SVGAttributeMode : HTMLQuirksMode);
     for (const Attribute& attribute : attributesIterator())
-        collectStyleForPresentationAttribute(attribute.name(), attribute.value(), static_cast<MutableStyleProperties&>(*style));
+        collectPresentationalHintsForAttribute(attribute.name(), attribute.value(), style);
+
+    if (is<HTMLImageElement>(*this))
+        collectExtraStyleForPresentationalHints(style);
 
     // ShareableElementData doesn't store presentation attribute style, so make sure we have a UniqueElementData.
     UniqueElementData& elementData = ensureUniqueElementData();
 
-    elementData.setPresentationAttributeStyleIsDirty(false);
-    elementData.m_presentationAttributeStyle = style->isEmpty() ? nullptr : WTFMove(style);
+    elementData.setPresentationalHintStyleIsDirty(false);
+    if (style->isEmpty())
+        elementData.m_presentationalHintStyle = nullptr;
+    else
+        elementData.m_presentationalHintStyle = WTFMove(style);
 }
 
-void StyledElement::addPropertyToPresentationAttributeStyle(MutableStyleProperties& style, CSSPropertyID propertyID, CSSValueID identifier)
+void StyledElement::addPropertyToPresentationalHintStyle(MutableStyleProperties& style, CSSPropertyID propertyID, CSSValueID identifier)
 {
     style.setProperty(propertyID, CSSValuePool::singleton().createIdentifierValue(identifier));
 }
 
-void StyledElement::addPropertyToPresentationAttributeStyle(MutableStyleProperties& style, CSSPropertyID propertyID, double value, CSSUnitType unit)
+void StyledElement::addPropertyToPresentationalHintStyle(MutableStyleProperties& style, CSSPropertyID propertyID, double value, CSSUnitType unit)
 {
     style.setProperty(propertyID, CSSValuePool::singleton().createValue(value, unit));
 }
     
-void StyledElement::addPropertyToPresentationAttributeStyle(MutableStyleProperties& style, CSSPropertyID propertyID, const String& value)
+void StyledElement::addPropertyToPresentationalHintStyle(MutableStyleProperties& style, CSSPropertyID propertyID, const String& value)
 {
     style.setProperty(propertyID, value, false, CSSParserContext(document()));
 }

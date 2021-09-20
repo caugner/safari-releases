@@ -37,6 +37,7 @@
 #import <WebKit/_WKActivatedElementInfo.h>
 #import <WebKit/_WKProcessPoolConfiguration.h>
 #import <objc/runtime.h>
+#import <wtf/BlockPtr.h>
 #import <wtf/RetainPtr.h>
 
 #if PLATFORM(MAC)
@@ -130,6 +131,27 @@ static NSString *overrideBundleIdentifier(id, SEL)
     return success;
 }
 
+#if PLATFORM(IOS_FAMILY)
+
+- (UIView <UITextInputPrivate, UITextInputMultiDocument> *)textInputContentView
+{
+    return (UIView <UITextInputPrivate, UITextInputMultiDocument> *)[self valueForKey:@"_currentContentView"];
+}
+
+#endif // PLATFORM(IOS_FAMILY)
+
+- (NSString *)contentsAsString
+{
+    __block bool done = false;
+    __block RetainPtr<NSString> result;
+    [self _getContentsAsStringWithCompletionHandler:^(NSString *contents, NSError *error) {
+        result = contents;
+        done = true;
+    }];
+    TestWebKitAPI::Util::run(&done);
+    return result.autorelease();
+}
+
 - (NSArray<NSString *> *)tagsInBody
 {
     return [self objectByEvaluatingJavaScript:@"Array.from(document.body.getElementsByTagName('*')).map(e => e.tagName)"];
@@ -203,16 +225,16 @@ static NSString *overrideBundleIdentifier(id, SEL)
         *errorOut = nil;
 
     RetainPtr<id> evalResult;
+    RetainPtr<NSError> strongError;
     [self callAsyncJavaScript:script arguments:arguments inFrame:nil inContentWorld:WKContentWorld.pageWorld completionHandler:[&] (id result, NSError *error) {
         evalResult = result;
-        if (errorOut)
-            *errorOut = [error retain];
+        strongError = error;
         isWaitingForJavaScript = true;
     }];
     TestWebKitAPI::Util::run(&isWaitingForJavaScript);
 
     if (errorOut)
-        [*errorOut autorelease];
+        *errorOut = strongError.autorelease();
 
     return evalResult.autorelease();
 }
@@ -243,6 +265,7 @@ static NSString *overrideBundleIdentifier(id, SEL)
 
 @implementation TestMessageHandler {
     NSMutableDictionary<NSString *, dispatch_block_t> *_messageHandlers;
+    BlockPtr<void(NSString *)> _wildcardMessageHandler;
 }
 
 - (void)addMessage:(NSString *)message withHandler:(dispatch_block_t)handler
@@ -251,6 +274,11 @@ static NSString *overrideBundleIdentifier(id, SEL)
         _messageHandlers = [NSMutableDictionary dictionary];
 
     _messageHandlers[message] = [handler copy];
+}
+
+- (void)setWildcardMessageHandler:(void (^)(NSString *))handler
+{
+    _wildcardMessageHandler = handler;
 }
 
 - (void)removeMessage:(NSString *)message
@@ -263,6 +291,9 @@ static NSString *overrideBundleIdentifier(id, SEL)
     dispatch_block_t handler = _messageHandlers[message.body];
     if (handler)
         handler();
+
+    if (_wildcardMessageHandler)
+        _wildcardMessageHandler(message.body);
 }
 
 @end
@@ -416,8 +447,8 @@ static InputSessionChangeCount nextInputSessionChangeCount()
 
 - (instancetype)initWithFrame:(CGRect)frame
 {
-    WKWebViewConfiguration *defaultConfiguration = [[[WKWebViewConfiguration alloc] init] autorelease];
-    return [self initWithFrame:frame configuration:defaultConfiguration];
+    auto defaultConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    return [self initWithFrame:frame configuration:defaultConfiguration.get()];
 }
 
 - (instancetype)initWithFrame:(CGRect)frame configuration:(WKWebViewConfiguration *)configuration
@@ -454,7 +485,7 @@ static UICalloutBar *suppressUICalloutBar()
 
 - (instancetype)initWithFrame:(CGRect)frame configuration:(WKWebViewConfiguration *)configuration processPoolConfiguration:(_WKProcessPoolConfiguration *)processPoolConfiguration
 {
-    [configuration setProcessPool:[[[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration] autorelease]];
+    [configuration setProcessPool:adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration]).get()];
     return [self initWithFrame:frame configuration:configuration];
 }
 
@@ -497,6 +528,15 @@ static UICalloutBar *suppressUICalloutBar()
     }
 
     [_testHandler addMessage:message withHandler:action];
+}
+
+- (void)performAfterReceivingAnyMessage:(void (^)(NSString *))action
+{
+    if (!_testHandler) {
+        _testHandler = adoptNS([[TestMessageHandler alloc] init]);
+        [[[self configuration] userContentController] addScriptMessageHandler:_testHandler.get() name:@"testHandler"];
+    }
+    [_testHandler setWildcardMessageHandler:action];
 }
 
 - (void)synchronouslyLoadHTMLStringAndWaitUntilAllImmediateChildFramesPaint:(NSString *)html
@@ -605,6 +645,15 @@ static UICalloutBar *suppressUICalloutBar()
     [self evaluateJavaScript:[NSString stringWithFormat:@"document.getElementById('%@').click();", elementID] completionHandler:nil];
 }
 
+- (void)waitForPendingMouseEvents
+{
+    __block bool doneProcessingMouseEvents = false;
+    [self _doAfterProcessingAllPendingMouseEvents:^{
+        doneProcessingMouseEvents = true;
+    }];
+    TestWebKitAPI::Util::run(&doneProcessingMouseEvents);
+}
+
 #if PLATFORM(IOS_FAMILY)
 
 - (void)didStartFormControlInteraction
@@ -645,11 +694,6 @@ static UICalloutBar *suppressUICalloutBar()
     }
 }
 
-- (UIView <UITextInputPrivate, UITextInputMultiDocument> *)textInputContentView
-{
-    return (UIView <UITextInputPrivate, UITextInputMultiDocument> *)[self valueForKey:@"_currentContentView"];
-}
-
 - (RetainPtr<NSArray>)selectionRectsAfterPresentationUpdate
 {
     RetainPtr<TestWKWebView> retainedSelf = self;
@@ -657,7 +701,7 @@ static UICalloutBar *suppressUICalloutBar()
     __block bool isDone = false;
     __block RetainPtr<NSArray> selectionRects;
     [self _doAfterNextPresentationUpdate:^() {
-        selectionRects = adoptNS([[retainedSelf _uiTextSelectionRects] retain]);
+        selectionRects = [retainedSelf _uiTextSelectionRects];
         isDone = true;
     }];
 
@@ -802,20 +846,16 @@ static WKContentView *recursiveFindWKContentView(UIView *view)
 
 - (void)typeCharacter:(char)character
 {
+    [self typeCharacter:character modifiers:0];
+}
+
+- (void)typeCharacter:(char)character modifiers:(NSEventModifierFlags)modifiers
+{
     NSString *characterAsString = [NSString stringWithFormat:@"%c" , character];
     NSEventType keyDownEventType = NSEventTypeKeyDown;
     NSEventType keyUpEventType = NSEventTypeKeyUp;
-    [self keyDown:[NSEvent keyEventWithType:keyDownEventType location:NSZeroPoint modifierFlags:0 timestamp:self.eventTimestamp windowNumber:[_hostWindow windowNumber] context:nil characters:characterAsString charactersIgnoringModifiers:characterAsString isARepeat:NO keyCode:character]];
-    [self keyUp:[NSEvent keyEventWithType:keyUpEventType location:NSZeroPoint modifierFlags:0 timestamp:self.eventTimestamp windowNumber:[_hostWindow windowNumber] context:nil characters:characterAsString charactersIgnoringModifiers:characterAsString isARepeat:NO keyCode:character]];
-}
-
-- (void)waitForPendingMouseEvents
-{
-    __block bool doneProcessingMouseEvents = false;
-    [self _doAfterProcessingAllPendingMouseEvents:^{
-        doneProcessingMouseEvents = true;
-    }];
-    TestWebKitAPI::Util::run(&doneProcessingMouseEvents);
+    [self keyDown:[NSEvent keyEventWithType:keyDownEventType location:NSZeroPoint modifierFlags:modifiers timestamp:self.eventTimestamp windowNumber:[_hostWindow windowNumber] context:nil characters:characterAsString charactersIgnoringModifiers:characterAsString isARepeat:NO keyCode:character]];
+    [self keyUp:[NSEvent keyEventWithType:keyUpEventType location:NSZeroPoint modifierFlags:modifiers timestamp:self.eventTimestamp windowNumber:[_hostWindow windowNumber] context:nil characters:characterAsString charactersIgnoringModifiers:characterAsString isARepeat:NO keyCode:character]];
 }
 
 @end

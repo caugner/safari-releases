@@ -59,7 +59,7 @@ private:
 
     // CachedRawResourceClient
     void responseReceived(CachedResource&, const ResourceResponse&, CompletionHandler<void()>&&) final;
-    void dataReceived(CachedResource&, const char*, int) final;
+    void dataReceived(CachedResource&, const uint8_t*, int) final;
     void notifyFinished(CachedResource&, const NetworkLoadMetrics&) final;
 
     void fulfillRequestWithResource(CachedResource&);
@@ -72,7 +72,7 @@ std::unique_ptr<CachedResourceMediaLoader> CachedResourceMediaLoader::create(Web
 {
     // FIXME: Skip Content Security Policy check if the element that inititated this request
     // is in a user-agent shadow tree. See <https://bugs.webkit.org/show_bug.cgi?id=173498>.
-    CachedResourceRequest request(WTFMove(resourceRequest), ResourceLoaderOptions(
+    ResourceLoaderOptions loaderOptions(
         SendCallbackPolicy::SendCallbacks,
         ContentSniffingPolicy::DoNotSniffContent,
         DataBufferingPolicy::BufferData,
@@ -84,7 +84,10 @@ std::unique_ptr<CachedResourceMediaLoader> CachedResourceMediaLoader::create(Web
         CertificateInfoPolicy::DoNotIncludeCertificateInfo,
         ContentSecurityPolicyImposition::DoPolicyCheck,
         DefersLoadingPolicy::AllowDefersLoading,
-        CachingPolicy::DisallowCaching));
+        CachingPolicy::DisallowCaching
+    );
+    loaderOptions.destination = FetchOptions::Destination::Video;
+    CachedResourceRequest request(WTFMove(resourceRequest), loaderOptions);
 
     auto resource = loader.requestMedia(WTFMove(request)).value_or(nullptr);
     if (!resource)
@@ -125,7 +128,7 @@ void CachedResourceMediaLoader::notifyFinished(CachedResource& resource, const N
     m_parent.loadFinished();
 }
 
-void CachedResourceMediaLoader::dataReceived(CachedResource& resource, const char*, int)
+void CachedResourceMediaLoader::dataReceived(CachedResource& resource, const uint8_t*, int)
 {
     ASSERT(&resource == m_resource);
     if (auto* data = resource.resourceBuffer())
@@ -151,7 +154,7 @@ private:
     void redirectReceived(PlatformMediaResource&, ResourceRequest&& request, const ResourceResponse&, CompletionHandler<void(ResourceRequest&&)>&& completionHandler) final { completionHandler(WTFMove(request)); }
     bool shouldCacheResponse(PlatformMediaResource&, const ResourceResponse&) final { return false; }
     void dataSent(PlatformMediaResource&, unsigned long long, unsigned long long) final { }
-    void dataReceived(PlatformMediaResource&, const char*, int) final;
+    void dataReceived(PlatformMediaResource&, const uint8_t*, int) final;
     void accessControlCheckFailed(PlatformMediaResource&, const ResourceError& error) final { loadFailed(error); }
     void loadFailed(PlatformMediaResource&, const ResourceError& error) final { loadFailed(error); }
     void loadFinished(PlatformMediaResource&, const NetworkLoadMetrics&) final { loadFinished(); }
@@ -167,7 +170,7 @@ WeakPtr<PlatformResourceMediaLoader> PlatformResourceMediaLoader::create(WebCore
     if (!resource)
         return nullptr;
     auto* resourcePointer = resource.get();
-    auto client = std::unique_ptr<PlatformResourceMediaLoader>(new PlatformResourceMediaLoader { parent, resource.releaseNonNull() });
+    auto client = adoptRef(*new PlatformResourceMediaLoader { parent, resource.releaseNonNull() });
     auto result = makeWeakPtr(client.get());
 
     resourcePointer->setClient(WTFMove(client));
@@ -206,7 +209,7 @@ void PlatformResourceMediaLoader::loadFinished()
     m_parent.loadFinished();
 }
 
-void PlatformResourceMediaLoader::dataReceived(PlatformMediaResource&, const char* data, int size)
+void PlatformResourceMediaLoader::dataReceived(PlatformMediaResource&, const uint8_t* data, int size)
 {
     if (!m_buffer)
         m_buffer = SharedBuffer::create(data, size);
@@ -242,6 +245,13 @@ void WebCoreAVFResourceLoader::startLoading()
 
     ResourceRequest request(nsRequest);
     request.setPriority(ResourceLoadPriority::Low);
+
+    if (AVAssetResourceLoadingDataRequest *dataRequest = [m_avRequest dataRequest]; dataRequest.requestedLength
+        && !request.hasHTTPHeaderField(HTTPHeaderName::Range)
+        && !request.url().protocolIsBlob()) {
+        String rangeEnd = dataRequest.requestsAllDataToEndOfResource ? "*"_s : makeString(dataRequest.requestedOffset + dataRequest.requestedLength - 1);
+        request.addHTTPHeaderField(HTTPHeaderName::Range, makeString("bytes=", dataRequest.requestedOffset, '-', rangeEnd));
+    }
 
     if (auto* loader = m_parent->player()->cachedResourceLoader()) {
         m_resourceMediaLoader = CachedResourceMediaLoader::create(*this, *loader, ResourceRequest(request));

@@ -16,6 +16,7 @@ imported/w3c/web-platform-tests/fetch/cross-origin-resource-policy [ Skip ]
 
 # Skip WebRTC for now in WK1
 imported/w3c/web-platform-tests/webrtc [ Skip ]
+imported/w3c/web-platform-tests/webrtc-encoded-transform [ Skip ]
 webrtc [ Skip ]
 
 # Not supported on WK1
@@ -532,7 +533,6 @@ compositing/columns/hittest-composited-in-paginated.html [ Failure ]
 compositing/columns/rotated-in-paginated.html [ Failure ]
 compositing/columns/untransformed-composited-in-paginated.html [ Failure ]
 compositing/contents-opaque/control-layer.html [ Failure ]
-compositing/contents-scale/rasterization-scale.html [ ImageOnlyFailure ]
 compositing/contents-scale/rounded-contents-scale.html [ Failure ]
 compositing/contents-scale/scaled-ancestor.html [ Failure ]
 compositing/contents-scale/simple-scale.html [ Failure ]
@@ -899,9 +899,6 @@ http/tests/navigation/page-cache-iframe-no-current-historyItem.html [ Failure ]
 # JavaScripts tests that fail:
 js/dom/deep-recursion-test.html [ Failure ]
 
-# iOS-specific tests that fail:
-platform/ios/ios/storage/domstorage/5mb-quota.html [ Failure ]
-
 # LayoutTests/fast test that time out:
 fast/block/positioning/vertical-rl/001.html
 fast/body-propagation/background-color/001-xhtml.xhtml
@@ -1053,8 +1050,8 @@ http/tests/globalhistory/history-delegate-basic-refresh-redirect.html
 http/tests/globalhistory/history-delegate-basic-title.html
 http/tests/globalhistory/history-delegate-basic-visited-links.html
 http/tests/history/back-during-onload-triggered-by-back.html
-http/tests/history/back-to-post.php
-http/tests/history/back-with-fragment-change.php
+http/tests/history/back-to-post.py
+http/tests/history/back-with-fragment-change.py
 http/tests/history/cross-origin-replace-history-object-child.html
 http/tests/local/blob/send-sliced-data-blob.html
 http/tests/local/formdata/send-form-data-with-empty-blob-filename.html
@@ -1393,9 +1390,6 @@ imported/w3c/web-platform-tests/html/browsers/browsing-the-web/scroll-to-fragid/
 imported/w3c/web-platform-tests/html/browsers/browsing-the-web/scroll-to-fragid/scroll-to-id-top.html [ Failure ]
 imported/w3c/web-platform-tests/html/browsers/browsing-the-web/scroll-to-fragid/scroll-to-top.html [ Failure ]
 
-# w3c tests that pass
-imported/w3c/canvas/2d.line.cap.round.html [ Pass ]
-
 # import tests that pass
 imported/mozilla/svg/smil/transform/rotate-angle-4.svg [ Pass ]
 imported/mozilla/svg/smil/transform/rotate-angle-5.svg [ Pass ]
@@ -1451,7 +1445,7 @@ fast/viewport/ios/width-is-device-width-overflowing-no-shrink-to-fit.html [ Pass
 fast/viewport/ios/width-is-device-width-overflowing.html [ Pass Failure ]
 fast/viewport/ios/width-is-device-width.html [ Pass Failure ]
 fast/zooming/ios/zoom-to-scale.html [ Pass Failure Timeout ]
-http/tests/security/contentSecurityPolicy/report-only-from-header.php [ Pass Failure ]
+http/tests/security/contentSecurityPolicy/report-only-from-header.py [ Pass Failure ]
 imported/blink/css3/blending/svg-isolation-add-filter.html [ Pass ImageOnlyFailure ]
 imported/blink/css3/blending/svg-isolation-add-isolation.html [ Pass ImageOnlyFailure ]
 imported/blink/css3/blending/svg-isolation-remove-opacity.html [ Pass ImageOnlyFailure ]
@@ -1796,7 +1790,7 @@ fast/borders/hidpi-border-clipping-right-after-move.html [ Pass ImageOnlyFailure
 fast/forms/input-select-webkit-user-select-none.html [ Crash Failure ]
 fast/forms/textarea-live-pseudo-selectors.html [ Crash Failure ]
 fast/text/font-weights.html [ Pass Failure ]
-http/tests/loading/preload-append-scan.php [ Crash Failure Pass ]
+http/tests/loading/preload-append-scan.py [ Crash Failure Pass ]
 http/tests/security/appcache-switching-private-browsing.html [ Pass Failure ]
 http/tests/security/contentSecurityPolicy/blob-url-does-not-match-source-self.html [ Pass ImageOnlyFailure ]
 http/tests/security/contentSecurityPolicy/upgrade-insecure-requests/upgrade-insecure-fetch-in-main-frame.html [ Pass Failure ]
@@ -1954,3 +1948,5 @@ http/tests/is-logged-in/ [ Skip ]
 
 # Stale-while-revalidate is not supported on WK1
 imported/w3c/web-platform-tests/fetch/stale-while-revalidate [ Skip ]
+
+webkit.org/b/223193 imported/w3c/web-platform-tests/html/canvas/element/path-objects/2d.path.stroke.scale2.html [ Failure ]

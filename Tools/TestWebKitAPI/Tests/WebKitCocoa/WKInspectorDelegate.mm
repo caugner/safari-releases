@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 Apple Inc. All rights reserved.
+ * Copyright (C) 2017-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -46,6 +46,7 @@
 @class SimpleURLSchemeHandler;
 
 static bool didAttachLocalInspectorCalled = false;
+static bool inspectorFrontendLoadedCalled = false;
 static bool willCloseLocalInspectorCalled = false;
 static bool browserDomainEnabledForInspectorCalled = false;
 static bool browserDomainDisabledForInspectorCalled = false;
@@ -61,6 +62,7 @@ static RetainPtr<NSURL> urlToOpen;
 static void resetGlobalState()
 {
     didAttachLocalInspectorCalled = false;
+    inspectorFrontendLoadedCalled = false;
     willCloseLocalInspectorCalled = false;
     browserDomainEnabledForInspectorCalled = false;
     browserDomainDisabledForInspectorCalled = false;
@@ -104,28 +106,23 @@ static void resetGlobalState()
 
 @implementation InspectorDelegate
 
-- (void)inspectorDidEnableBrowserDomain:(_WKInspector *)inspector
-{
-    browserDomainEnabledForInspectorCalled = true;
-}
-
-- (void)inspectorDidDisableBrowserDomain:(_WKInspector *)inspector
-{
-    browserDomainDisabledForInspectorCalled = true;
-}
-
 - (void)inspector:(_WKInspector *)inspector openURLExternally:(NSURL *)url
 {
     EXPECT_STREQ(url.absoluteString.UTF8String, urlToOpen.get().absoluteString.UTF8String);
     openURLExternallyCalled = true;
 }
 
+- (void)inspectorFrontendLoaded:(_WKInspector *)inspector
+{
+    inspectorFrontendLoadedCalled = true;
+}
+
 @end
 
-@interface UIDelegate : NSObject <WKUIDelegate>
+@interface UIDelegateForTesting : NSObject <WKUIDelegate>
 @end
 
-@implementation UIDelegate
+@implementation UIDelegateForTesting
 
 - (_WKInspectorConfiguration *)_webView:(WKWebView *)webView configurationForLocalInspector:(_WKInspector *)inspector
 {
@@ -134,10 +131,10 @@ static void resetGlobalState()
     sharedInspectorDelegate = [InspectorDelegate new];
     [inspector setDelegate:sharedInspectorDelegate.get()];
 
-    sharedURLSchemeHandler = [[SimpleURLSchemeHandler alloc] init];
-    RetainPtr<_WKInspectorConfiguration> inspectorConfiguration = [[_WKInspectorConfiguration alloc] init];
+    sharedURLSchemeHandler = adoptNS([[SimpleURLSchemeHandler alloc] init]);
+    auto inspectorConfiguration = adoptNS([[_WKInspectorConfiguration alloc] init]);
     [inspectorConfiguration setURLSchemeHandler:sharedURLSchemeHandler.get() forURLScheme:@"testing"];
-    return [inspectorConfiguration autorelease];
+    return inspectorConfiguration.autorelease();
 }
 
 - (void)_webView:(WKWebView *)webView didAttachLocalInspector:(_WKInspector *)inspector
@@ -156,6 +153,16 @@ static void resetGlobalState()
         [inspector close];
 }
 
+- (void)_webViewDidEnableInspectorBrowserDomain:(WKWebView *)webView
+{
+    browserDomainEnabledForInspectorCalled = true;
+}
+
+- (void)_webViewDidDisableInspectorBrowserDomain:(WKWebView *)webView
+{
+    browserDomainDisabledForInspectorCalled = true;
+}
+
 @end
 
 TEST(WKInspectorDelegate, InspectorLifecycleCallbacks)
@@ -165,7 +172,7 @@ TEST(WKInspectorDelegate, InspectorLifecycleCallbacks)
     auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
     webViewConfiguration.get().preferences._developerExtrasEnabled = YES;
     auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
-    auto uiDelegate = adoptNS([UIDelegate new]);
+    auto uiDelegate = adoptNS([UIDelegateForTesting new]);
 
     [webView setUIDelegate:uiDelegate.get()];
     [webView loadHTMLString:@"<head><title>Test page to be inspected</title></head><body><p>Filler content</p></body>" baseURL:[NSURL URLWithString:@"http://example.com/"]];
@@ -189,7 +196,7 @@ TEST(WKInspectorDelegate, InspectorCloseCalledReentrantly)
     auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
     webViewConfiguration.get().preferences._developerExtrasEnabled = YES;
     auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
-    auto uiDelegate = adoptNS([UIDelegate new]);
+    auto uiDelegate = adoptNS([UIDelegateForTesting new]);
 
     [webView setUIDelegate:uiDelegate.get()];
     [webView loadHTMLString:@"<head><title>Test page to be inspected</title></head><body><p>Filler content</p></body>" baseURL:[NSURL URLWithString:@"http://example.com/"]];
@@ -213,13 +220,14 @@ TEST(WKInspectorDelegate, ShowURLExternally)
     auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
     webViewConfiguration.get().preferences._developerExtrasEnabled = YES;
     auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
-    auto uiDelegate = adoptNS([UIDelegate new]);
+    auto uiDelegate = adoptNS([UIDelegateForTesting new]);
 
     [webView setUIDelegate:uiDelegate.get()];
     [webView loadHTMLString:@"<head><title>Test page to be inspected</title></head><body><p>Filler content</p></body>" baseURL:[NSURL URLWithString:@"http://example.com/"]];
 
     [[webView _inspector] show];
     TestWebKitAPI::Util::run(&didAttachLocalInspectorCalled);
+    TestWebKitAPI::Util::run(&inspectorFrontendLoadedCalled);
 
     urlToOpen = [NSURL URLWithString:@"https://www.webkit.org/"];
 
@@ -232,15 +240,14 @@ TEST(WKInspectorDelegate, ShowURLExternally)
     TestWebKitAPI::Util::run(&openURLExternallyCalled);
 }
 
-// FIXME: re-enabling this test case is blocked, tracking this task in <rdar://problem/70505272>.
-TEST(WKInspectorDelegate, DISABLED_InspectorConfiguration)
+TEST(WKInspectorDelegate, InspectorConfiguration)
 {
     resetGlobalState();
 
     auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
     webViewConfiguration.get().preferences._developerExtrasEnabled = YES;
     auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
-    auto uiDelegate = adoptNS([UIDelegate new]);
+    auto uiDelegate = adoptNS([UIDelegateForTesting new]);
 
     [webView setUIDelegate:uiDelegate.get()];
     [webView loadHTMLString:@"<head><title>Test page to be inspected</title></head><body><p>Filler content</p></body>" baseURL:[NSURL URLWithString:@"http://example.com/"]];
@@ -250,13 +257,11 @@ TEST(WKInspectorDelegate, DISABLED_InspectorConfiguration)
     [[webView _inspector] show];
     TestWebKitAPI::Util::run(&configurationForLocalInspectorCalled);
     TestWebKitAPI::Util::run(&didAttachLocalInspectorCalled);
+    TestWebKitAPI::Util::run(&inspectorFrontendLoadedCalled);
 
-    // FIXME: WKInspectorViewController's navigation delegate cancels all main frame
-    // loads that are not the Web Inspector page. So, this cannot be fully tested until
-    // we can used the createTab API to load the custom URL scheme resource in an iframe.
     urlToOpen = [NSURL URLWithString:@"testing:main1"];
     sharedURLSchemeHandler.get().expectedURL = urlToOpen.get();
-    [[webView _inspector] _openURLExternallyForTesting:urlToOpen.get() useFrontendAPI:NO];
+    [[webView _inspector] _fetchURLForTesting:urlToOpen.get()];
     TestWebKitAPI::Util::run(&startURLSchemeTaskCalled);
 
     [[webView _inspector] close];

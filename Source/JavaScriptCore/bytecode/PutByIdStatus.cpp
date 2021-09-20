@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2019 Apple Inc. All rights reserved.
+ * Copyright (C) 2012-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -41,6 +41,11 @@ namespace JSC {
 bool PutByIdStatus::appendVariant(const PutByIdVariant& variant)
 {
     return appendICStatusVariant(m_variants, variant);
+}
+
+void PutByIdStatus::shrinkToFit()
+{
+    m_variants.shrinkToFit();
 }
 
 PutByIdStatus PutByIdStatus::computeFromLLInt(CodeBlock* profiledBlock, BytecodeIndex bytecodeIndex, UniquedStringImpl* uid)
@@ -142,10 +147,10 @@ PutByIdStatus PutByIdStatus::computeForStubInfo(
         
     case CacheType::PutByIdReplace: {
         PropertyOffset offset =
-            stubInfo->u.byIdSelf.baseObjectStructure->getConcurrently(uid);
+            stubInfo->m_inlineAccessBaseStructure->getConcurrently(uid);
         if (isValidOffset(offset)) {
             return PutByIdVariant::replace(
-                stubInfo->u.byIdSelf.baseObjectStructure.get(), offset);
+                stubInfo->m_inlineAccessBaseStructure.get(), offset);
         }
         return PutByIdStatus(JSC::slowVersion(summary));
     }
@@ -229,6 +234,7 @@ PutByIdStatus PutByIdStatus::computeForStubInfo(
                 return PutByIdStatus(JSC::slowVersion(summary));
         }
         
+        result.shrinkToFit();
         return result;
     }
         
@@ -371,6 +377,7 @@ PutByIdStatus PutByIdStatus::computeFor(JSGlobalObject* globalObject, const Stru
             return PutByIdStatus(TakesSlowPath);
     }
     
+    result.shrinkToFit();
     return result;
 }
 #endif
@@ -396,11 +403,15 @@ PutByIdStatus PutByIdStatus::slowVersion() const
     return PutByIdStatus(makesCalls() ? MakesCalls : TakesSlowPath);
 }
 
-void PutByIdStatus::markIfCheap(SlotVisitor& visitor)
+template<typename Visitor>
+void PutByIdStatus::markIfCheap(Visitor& visitor)
 {
     for (PutByIdVariant& variant : m_variants)
         variant.markIfCheap(visitor);
 }
+
+template void PutByIdStatus::markIfCheap(AbstractSlotVisitor&);
+template void PutByIdStatus::markIfCheap(SlotVisitor&);
 
 bool PutByIdStatus::finalize(VM& vm)
 {
@@ -433,6 +444,7 @@ void PutByIdStatus::merge(const PutByIdStatus& other)
             if (!appendVariant(other))
                 return mergeSlow();
         }
+        shrinkToFit();
         return;
         
     case TakesSlowPath:

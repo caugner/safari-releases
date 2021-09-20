@@ -29,6 +29,7 @@
 #include "JSDOMConvertSequences.h"
 #include "JSDOMConvertStrings.h"
 #include "JSDOMExceptionHandling.h"
+#include "JSDOMGlobalObjectInlines.h"
 #include "JSDOMWrapperCache.h"
 #include "ScriptExecutionContext.h"
 #include "WebCoreJSClientData.h"
@@ -38,6 +39,7 @@
 #include <JavaScriptCore/JSArray.h>
 #include <JavaScriptCore/JSCInlines.h>
 #include <JavaScriptCore/JSDestructibleObjectHeapCellType.h>
+#include <JavaScriptCore/SlotVisitorMacros.h>
 #include <JavaScriptCore/SubspaceInlines.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
@@ -136,13 +138,19 @@ template<> EncodedJSValue JSC_HOST_CALL_ATTRIBUTES JSTestOverloadedConstructorsW
         JSValue distinguishingArg = callFrame->uncheckedArgument(0);
         if (distinguishingArg.isUndefined())
             RELEASE_AND_RETURN(throwScope, (constructJSTestOverloadedConstructorsWithSequence1(lexicalGlobalObject, callFrame)));
-        if (hasIteratorMethod(lexicalGlobalObject, distinguishingArg))
-            RELEASE_AND_RETURN(throwScope, (constructJSTestOverloadedConstructorsWithSequence1(lexicalGlobalObject, callFrame)));
+        {
+            bool success = hasIteratorMethod(lexicalGlobalObject, distinguishingArg);
+            RETURN_IF_EXCEPTION(throwScope, { });
+            if (success)
+                RELEASE_AND_RETURN(throwScope, (constructJSTestOverloadedConstructorsWithSequence1(lexicalGlobalObject, callFrame)));
+        }
         RELEASE_AND_RETURN(throwScope, (constructJSTestOverloadedConstructorsWithSequence2(lexicalGlobalObject, callFrame)));
     }
     return throwVMTypeError(lexicalGlobalObject, throwScope);
 }
 JSC_ANNOTATE_HOST_FUNCTION(JSTestOverloadedConstructorsWithSequenceConstructorConstruct, JSTestOverloadedConstructorsWithSequenceDOMConstructor::construct);
+
+template<> const ClassInfo JSTestOverloadedConstructorsWithSequenceDOMConstructor::s_info = { "TestOverloadedConstructorsWithSequence", &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestOverloadedConstructorsWithSequenceDOMConstructor) };
 
 template<> JSValue JSTestOverloadedConstructorsWithSequenceDOMConstructor::prototypeForStructure(JSC::VM& vm, const JSDOMGlobalObject& globalObject)
 {
@@ -156,8 +164,6 @@ template<> void JSTestOverloadedConstructorsWithSequenceDOMConstructor::initiali
     putDirect(vm, vm.propertyNames->name, jsNontrivialString(vm, "TestOverloadedConstructorsWithSequence"_s), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
     putDirect(vm, vm.propertyNames->length, jsNumber(0), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
 }
-
-template<> const ClassInfo JSTestOverloadedConstructorsWithSequenceDOMConstructor::s_info = { "TestOverloadedConstructorsWithSequence", &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestOverloadedConstructorsWithSequenceDOMConstructor) };
 
 /* Hash table for prototype */
 
@@ -203,7 +209,7 @@ JSObject* JSTestOverloadedConstructorsWithSequence::prototype(VM& vm, JSDOMGloba
 
 JSValue JSTestOverloadedConstructorsWithSequence::getConstructor(VM& vm, const JSGlobalObject* globalObject)
 {
-    return getDOMConstructor<JSTestOverloadedConstructorsWithSequenceDOMConstructor>(vm, *jsCast<const JSDOMGlobalObject*>(globalObject));
+    return getDOMConstructor<JSTestOverloadedConstructorsWithSequenceDOMConstructor, DOMConstructorID::TestOverloadedConstructorsWithSequence>(vm, *jsCast<const JSDOMGlobalObject*>(globalObject));
 }
 
 void JSTestOverloadedConstructorsWithSequence::destroy(JSC::JSCell* cell)
@@ -236,7 +242,9 @@ JSC::IsoSubspace* JSTestOverloadedConstructorsWithSequence::subspaceForImpl(JSC:
     auto* space = spaces.m_subspaceForTestOverloadedConstructorsWithSequence.get();
 IGNORE_WARNINGS_BEGIN("unreachable-code")
 IGNORE_WARNINGS_BEGIN("tautological-compare")
-    if (&JSTestOverloadedConstructorsWithSequence::visitOutputConstraints != &JSC::JSCell::visitOutputConstraints)
+    void (*myVisitOutputConstraint)(JSC::JSCell*, JSC::SlotVisitor&) = JSTestOverloadedConstructorsWithSequence::visitOutputConstraints;
+    void (*jsCellVisitOutputConstraint)(JSC::JSCell*, JSC::SlotVisitor&) = JSC::JSCell::visitOutputConstraints;
+    if (myVisitOutputConstraint != jsCellVisitOutputConstraint)
         clientData.outputConstraintSpaces().append(space);
 IGNORE_WARNINGS_END
 IGNORE_WARNINGS_END
@@ -252,7 +260,7 @@ void JSTestOverloadedConstructorsWithSequence::analyzeHeap(JSCell* cell, HeapAna
     Base::analyzeHeap(cell, analyzer);
 }
 
-bool JSTestOverloadedConstructorsWithSequenceOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, SlotVisitor& visitor, const char** reason)
+bool JSTestOverloadedConstructorsWithSequenceOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, AbstractSlotVisitor& visitor, const char** reason)
 {
     UNUSED_PARAM(handle);
     UNUSED_PARAM(visitor);

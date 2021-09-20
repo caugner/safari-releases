@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2020 Sony Interactive Entertainment Inc.
+ * Copyright (C) 2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -26,7 +27,7 @@
 #include "config.h"
 #include "IntlLocale.h"
 
-#include "IntlObject.h"
+#include "IntlObjectInlines.h"
 #include "JSCInlines.h"
 #include <unicode/uloc.h>
 #include <wtf/unicode/icu/ICUHelpers.h>
@@ -58,13 +59,16 @@ void IntlLocale::finishCreation(VM& vm)
     ASSERT(inherits(vm, info()));
 }
 
-void IntlLocale::visitChildren(JSCell* cell, SlotVisitor& visitor)
+template<typename Visitor>
+void IntlLocale::visitChildrenImpl(JSCell* cell, Visitor& visitor)
 {
     auto* thisObject = jsCast<IntlLocale*>(cell);
     ASSERT_GC_OBJECT_INHERITS(thisObject, info());
 
     Base::visitChildren(thisObject, visitor);
 }
+
+DEFINE_VISIT_CHILDREN(IntlLocale);
 
 class LocaleIDBuilder final {
 public:
@@ -83,7 +87,7 @@ bool LocaleIDBuilder::initialize(const String& tag)
     if (!isStructurallyValidLanguageTag(tag))
         return false;
     ASSERT(tag.isAllASCII());
-    m_buffer = localeIDBufferForLanguageTag(tag.ascii());
+    m_buffer = localeIDBufferForLanguageTagWithNullTerminator(tag.ascii());
     return m_buffer.size();
 }
 
@@ -91,12 +95,11 @@ CString LocaleIDBuilder::toCanonical()
 {
     ASSERT(m_buffer.size());
 
-    Vector<char, 32> buffer;
-    auto status = callBufferProducingFunction(uloc_canonicalize, m_buffer.data(), buffer);
-    if (U_FAILURE(status))
+    auto buffer = canonicalizeLocaleIDWithoutNullTerminator(m_buffer.data());
+    if (!buffer)
         return CString();
 
-    auto result = canonicalizeUnicodeExtensionsAfterICULocaleCanonicalization(WTFMove(buffer));
+    auto result = canonicalizeUnicodeExtensionsAfterICULocaleCanonicalization(WTFMove(buffer.value()));
     return CString(result.data(), result.size());
 }
 
@@ -146,15 +149,21 @@ void LocaleIDBuilder::overrideLanguageScriptRegion(StringView language, StringVi
         else
             hasAppended = true;
 
-        ASSERT(subtag.is8Bit() && subtag.isAllASCII());
-        buffer.append(reinterpret_cast<const char*>(subtag.characters8()), subtag.length());
+        ASSERT(subtag.isAllASCII());
+        if (subtag.is8Bit())
+            buffer.append(subtag.characters8(), subtag.length());
+        else
+            buffer.append(subtag.characters16(), subtag.length());
     }
 
     if (endOfLanguageScriptRegionVariant != length) {
         auto rest = localeIDView.right(length - endOfLanguageScriptRegionVariant);
 
-        ASSERT(rest.is8Bit() && rest.isAllASCII());
-        buffer.append(reinterpret_cast<const char*>(rest.characters8()), rest.length());
+        ASSERT(rest.isAllASCII());
+        if (rest.is8Bit())
+            buffer.append(rest.characters8(), rest.length());
+        else
+            buffer.append(rest.characters16(), rest.length());
     }
 
     buffer.append('\0');
@@ -165,8 +174,13 @@ void LocaleIDBuilder::setKeywordValue(ASCIILiteral key, StringView value)
 {
     ASSERT(m_buffer.size());
 
-    ASSERT(value.is8Bit() && value.isAllASCII());
-    CString rawValue { reinterpret_cast<const char*>(value.characters8()), value.length() };
+    ASSERT(value.isAllASCII());
+    Vector<char, 32> rawValue(value.length() + 1);
+    if (value.is8Bit())
+        StringImpl::copyCharacters(reinterpret_cast<LChar*>(rawValue.data()), value.characters8(), value.length());
+    else
+        StringImpl::copyCharacters(reinterpret_cast<LChar*>(rawValue.data()), value.characters16(), value.length());
+    rawValue[value.length()] = '\0';
 
     UErrorCode status = U_ZERO_ERROR;
     auto length = uloc_setKeywordValue(key.characters(), rawValue.data(), m_buffer.data(), m_buffer.size(), &status);
@@ -187,7 +201,7 @@ String IntlLocale::keywordValue(ASCIILiteral key, bool isBoolean) const
     if (needsToGrowToProduceCString(status)) {
         buffer.grow(bufferLength + 1);
         status = U_ZERO_ERROR;
-        uloc_getKeywordValue(m_localeID.data(), key.characters(), buffer.data(), bufferLength + 1, &status);
+        uloc_getKeywordValue(m_localeID.data(), key.characters(), buffer.data(), buffer.size(), &status);
     }
     ASSERT(U_SUCCESS(status));
     if (isBoolean)
@@ -219,11 +233,8 @@ void IntlLocale::initializeLocale(JSGlobalObject* globalObject, const String& ta
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
 
-    JSValue options = optionsValue;
-    if (!optionsValue.isUndefined()) {
-        options = optionsValue.toObject(globalObject);
-        RETURN_IF_EXCEPTION(scope, void());
-    }
+    JSObject* options = intlCoerceOptionsToObject(globalObject, optionsValue);
+    RETURN_IF_EXCEPTION(scope, void());
 
     LocaleIDBuilder localeID;
     if (!localeID.initialize(tag)) {
@@ -311,17 +322,49 @@ void IntlLocale::initializeLocale(JSGlobalObject* globalObject, const String& ta
 const String& IntlLocale::maximal()
 {
     if (m_maximal.isNull()) {
+        // ICU has a serious bug that it fails to perform uloc_addLikelySubtags when the input localeID is longer than ULOC_FULLNAME_CAPACITY,
+        // and that can be achieved if we add many unicode extensions. While ICU needs to be fixed, we work-around this bug for now: We pass
+        // non-keyword part of ICU locale ID and later, concatenate keyword part to the output.
+        // Note that ICU locale ID consists of Language, Script, Country (unicode language tag's region.
+        // FIXME: ICU tracking bug https://unicode-org.atlassian.net/browse/ICU-21639.
         UErrorCode status = U_ZERO_ERROR;
         Vector<char, 32> buffer(32);
         auto bufferLength = uloc_addLikelySubtags(m_localeID.data(), buffer.data(), buffer.size(), &status);
         if (needsToGrowToProduceCString(status)) {
             buffer.grow(bufferLength + 1);
             status = U_ZERO_ERROR;
-            uloc_addLikelySubtags(m_localeID.data(), buffer.data(), bufferLength + 1, &status);
+            uloc_addLikelySubtags(m_localeID.data(), buffer.data(), buffer.size(), &status);
         }
-        ASSERT(U_SUCCESS(status));
 
-        m_maximal = languageTagForLocaleID(buffer.data());
+        if (U_SUCCESS(status))
+            m_maximal = languageTagForLocaleID(buffer.data());
+        else {
+            status = U_ZERO_ERROR;
+            Vector<char, 32> baseNameID;
+            auto bufferLength = uloc_getBaseName(m_localeID.data(), baseNameID.data(), baseNameID.size(), &status);
+            if (needsToGrowToProduceCString(status)) {
+                baseNameID.grow(bufferLength + 1);
+                status = U_ZERO_ERROR;
+                uloc_getBaseName(m_localeID.data(), baseNameID.data(), baseNameID.size(), &status);
+            }
+            ASSERT(U_SUCCESS(status));
+
+            Vector<char, 32> maximal;
+            status = callBufferProducingFunction(uloc_addLikelySubtags, baseNameID.data(), maximal);
+            // We fail if,
+            // 1. uloc_addLikelySubtags still fails.
+            // 2. New maximal locale ID includes newly-added keywords.
+            if (!U_SUCCESS(status) || maximal.find(ULOC_KEYWORD_SEPARATOR) != notFound) {
+                m_maximal = toString();
+                return m_maximal;
+            }
+
+            auto endOfLanguageScriptRegionVariant = WTF::find(m_localeID.data(), m_localeID.length(), ULOC_KEYWORD_SEPARATOR);
+            if (endOfLanguageScriptRegionVariant != notFound)
+                maximal.appendRange(m_localeID.data() + endOfLanguageScriptRegionVariant, m_localeID.data() + m_localeID.length());
+            maximal.append('\0');
+            m_maximal = languageTagForLocaleID(maximal.data());
+        }
     }
     return m_maximal;
 }
@@ -330,17 +373,49 @@ const String& IntlLocale::maximal()
 const String& IntlLocale::minimal()
 {
     if (m_minimal.isNull()) {
+        // ICU has a serious bug that it fails to perform uloc_minimizeSubtags when the input localeID is longer than ULOC_FULLNAME_CAPACITY,
+        // and that can be achieved if we add many unicode extensions. While ICU needs to be fixed, we work-around this bug for now: We pass
+        // non-keyword part of ICU locale ID and later, concatenate keyword part to the output.
+        // Note that ICU locale ID consists of Language, Script, Country (unicode language tag's region.
+        // FIXME: ICU tracking bug https://unicode-org.atlassian.net/browse/ICU-21639.
         UErrorCode status = U_ZERO_ERROR;
         Vector<char, 32> buffer(32);
         auto bufferLength = uloc_minimizeSubtags(m_localeID.data(), buffer.data(), buffer.size(), &status);
         if (needsToGrowToProduceCString(status)) {
             buffer.grow(bufferLength + 1);
             status = U_ZERO_ERROR;
-            uloc_minimizeSubtags(m_localeID.data(), buffer.data(), bufferLength + 1, &status);
+            uloc_minimizeSubtags(m_localeID.data(), buffer.data(), buffer.size(), &status);
         }
-        ASSERT(U_SUCCESS(status));
 
-        m_minimal = languageTagForLocaleID(buffer.data());
+        if (U_SUCCESS(status))
+            m_minimal = languageTagForLocaleID(buffer.data());
+        else {
+            status = U_ZERO_ERROR;
+            Vector<char, 32> baseNameID;
+            auto bufferLength = uloc_getBaseName(m_localeID.data(), baseNameID.data(), baseNameID.size(), &status);
+            if (needsToGrowToProduceCString(status)) {
+                baseNameID.grow(bufferLength + 1);
+                status = U_ZERO_ERROR;
+                uloc_getBaseName(m_localeID.data(), baseNameID.data(), baseNameID.size(), &status);
+            }
+            ASSERT(U_SUCCESS(status));
+
+            Vector<char, 32> minimal;
+            auto status = callBufferProducingFunction(uloc_minimizeSubtags, baseNameID.data(), minimal);
+            // We fail if,
+            // 1. uloc_minimizeSubtags still fails.
+            // 2. New minimal locale ID includes newly-added keywords.
+            if (!U_SUCCESS(status) || minimal.find(ULOC_KEYWORD_SEPARATOR) != notFound) {
+                m_minimal = toString();
+                return m_minimal;
+            }
+
+            auto endOfLanguageScriptRegionVariant = WTF::find(m_localeID.data(), m_localeID.length(), ULOC_KEYWORD_SEPARATOR);
+            if (endOfLanguageScriptRegionVariant != notFound)
+                minimal.appendRange(m_localeID.data() + endOfLanguageScriptRegionVariant, m_localeID.data() + m_localeID.length());
+            minimal.append('\0');
+            m_minimal = languageTagForLocaleID(minimal.data());
+        }
     }
     return m_minimal;
 }
@@ -363,7 +438,7 @@ const String& IntlLocale::baseName()
         if (needsToGrowToProduceCString(status)) {
             buffer.grow(bufferLength + 1);
             status = U_ZERO_ERROR;
-            uloc_getBaseName(m_localeID.data(), buffer.data(), bufferLength + 1, &status);
+            uloc_getBaseName(m_localeID.data(), buffer.data(), buffer.size(), &status);
         }
         ASSERT(U_SUCCESS(status));
 

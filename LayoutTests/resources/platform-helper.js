@@ -1,16 +1,18 @@
 function isGtk()
 {
+    // Set in Tools/WebKitTestRunner/gtk/TestControllerGTK.cpp.
     return navigator.userAgent.includes("WebKitTestRunnerGTK");
 }
 
-function isEfl()
+function isWPE()
 {
-    return navigator.userAgent.includes("WebKitTestRunnerEFL");
+    // Set in Tools/WebKitTestRunner/wpe/TestControllerWPE.cpp.
+    return navigator.userAgent.includes("WebKitTestRunnerWPE");
 }
 
 function videoCanvasPixelComparisonTolerance()
 {
-    if (isGtk() || isEfl())
+    if (isGtk())
         return 6;
 
     return 2;

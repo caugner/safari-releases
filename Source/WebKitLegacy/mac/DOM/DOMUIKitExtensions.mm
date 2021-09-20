@@ -50,7 +50,6 @@
 #import <WebCore/HTMLSelectElement.h>
 #import <WebCore/HTMLTextAreaElement.h>
 #import <WebCore/Image.h>
-#import <WebCore/InlineBox.h>
 #import <WebCore/NodeTraversal.h>
 #import <WebCore/Range.h>
 #import <WebCore/RenderBlock.h>
@@ -182,11 +181,8 @@ static WebCore::Node* firstNodeAfter(const WebCore::BoundaryPoint& point)
             quads = [self lineBoxQuads];
     }
 
-    if (![quads count]) {
-        WKQuadObject* quadObject = [[WKQuadObject alloc] initWithQuad:[self absoluteQuad]];
-        quads = @[quadObject];
-        [quadObject release];
-    }
+    if (![quads count])
+        quads = @[adoptNS([[WKQuadObject alloc] initWithQuad:[self absoluteQuad]]).get()];
 
     return quads;
 }
@@ -360,10 +356,7 @@ static WebCore::Node* firstNodeAfter(const WebCore::BoundaryPoint& point)
 
 - (NSArray *)absoluteQuadsWithOwner:(DOMNode *)owner
 {
-    WKQuadObject *quadObject = [[WKQuadObject alloc] initWithQuad:[self absoluteQuadWithOwner:owner]];
-    NSArray *quadArray = @[quadObject];
-    [quadObject release];
-    return quadArray;
+    return @[adoptNS([[WKQuadObject alloc] initWithQuad:[self absoluteQuadWithOwner:owner]]).get()];
 }
 
 @end

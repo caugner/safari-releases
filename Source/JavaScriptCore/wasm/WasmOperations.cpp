@@ -58,6 +58,7 @@ IGNORE_WARNINGS_BEGIN("frame-address")
 
 namespace JSC { namespace Wasm {
 
+#if ENABLE(WEBASSEMBLY_B3JIT)
 static bool shouldTriggerOMGCompile(TierUpCount& tierUp, OMGCallee* replacement, uint32_t functionIndex)
 {
     if (!replacement && !tierUp.checkIfOptimizationThresholdReached()) {
@@ -77,7 +78,7 @@ static void triggerOMGReplacementCompile(TierUpCount& tierUp, OMGCallee* replace
 
     bool compile = false;
     {
-        auto locker = holdLock(tierUp.getLock());
+        Locker locker { tierUp.getLock() };
         switch (tierUp.m_compilationStatusForOMG) {
         case TierUpCount::CompilationStatus::StartCompilation:
             tierUp.setOptimizationThresholdBasedOnCompilationResult(functionIndex, CompilationDeferred);
@@ -277,7 +278,7 @@ JSC_DEFINE_JIT_OPERATION(operationWasmTriggerOSREntryNow, void, (Probe::Context&
 
     TierUpCount::CompilationStatus compilationStatus = TierUpCount::CompilationStatus::NotCompiled;
     {
-        auto locker = holdLock(tierUp.getLock());
+        Locker locker { tierUp.getLock() };
         compilationStatus = tierUp.m_compilationStatusForOMGForOSREntry;
     }
 
@@ -295,7 +296,7 @@ JSC_DEFINE_JIT_OPERATION(operationWasmTriggerOSREntryNow, void, (Probe::Context&
         // We were asked to enter as soon as possible and start compiling an
         // entry for the current loopIndex. Unset this trigger so we
         // don't continually enter.
-        auto locker = holdLock(tierUp.getLock());
+        Locker locker { tierUp.getLock() };
         TierUpCount::TriggerReason reason = tierUp.osrEntryTriggers()[loopIndex];
         if (reason == TierUpCount::TriggerReason::StartCompilation) {
             tierUp.osrEntryTriggers()[loopIndex] = TierUpCount::TriggerReason::DontTrigger;
@@ -349,7 +350,7 @@ JSC_DEFINE_JIT_OPERATION(operationWasmTriggerOSREntryNow, void, (Probe::Context&
             // we'll eventually trigger some loop that is executing to compile. We start with trying to compile outer
             // loops since we believe outer loop compilations reveal the best opportunities for optimizing code.
             uint32_t currentLoopIndex = tierUp.outerLoops()[loopIndex];
-            auto locker = holdLock(tierUp.getLock());
+            Locker locker { tierUp.getLock() };
 
             // We already started OMGForOSREntryPlan.
             if (callee.didStartCompilingOSREntryCallee())
@@ -381,7 +382,7 @@ JSC_DEFINE_JIT_OPERATION(operationWasmTriggerOSREntryNow, void, (Probe::Context&
 
     bool startOSREntryCompilation = false;
     {
-        auto locker = holdLock(tierUp.getLock());
+        Locker locker { tierUp.getLock() };
         if (tierUp.m_compilationStatusForOMGForOSREntry == TierUpCount::CompilationStatus::NotCompiled) {
             tierUp.m_compilationStatusForOMGForOSREntry = TierUpCount::CompilationStatus::StartCompilation;
             startOSREntryCompilation = true;
@@ -453,6 +454,7 @@ JSC_DEFINE_JIT_OPERATION(operationWasmTriggerTierUpNow, void, (Instance* instanc
         }
     }
 }
+#endif
 
 JSC_DEFINE_JIT_OPERATION(operationWasmUnwind, void, (CallFrame* callFrame))
 {
@@ -546,26 +548,26 @@ JSC_DEFINE_JIT_OPERATION(operationIterateResults, void, (CallFrame* callFrame, I
         JSValue value = buffer.at(index);
 
         uint64_t unboxedValue = 0;
-        switch (signature->returnType(index)) {
-        case I32:
+        switch (signature->returnType(index).kind) {
+        case TypeKind::I32:
             unboxedValue = value.toInt32(globalObject);
             break;
-        case I64:
+        case TypeKind::I64:
             unboxedValue = value.toBigInt64(globalObject);
             break;
-        case F32:
+        case TypeKind::F32:
             unboxedValue = bitwise_cast<uint32_t>(value.toFloat(globalObject));
             break;
-        case F64:
+        case TypeKind::F64:
             unboxedValue = bitwise_cast<uint64_t>(value.toNumber(globalObject));
             break;
-        case Funcref:
+        case TypeKind::Funcref:
             if (!value.isCallable(vm)) {
                 throwTypeError(globalObject, scope, "Funcref value is not a function"_s);
                 return;
             }
             FALLTHROUGH;
-        case Externref:
+        case TypeKind::Externref:
             unboxedValue = bitwise_cast<uint64_t>(value);
             RELEASE_ASSERT(Options::useWebAssemblyReferences());
             break;
@@ -603,12 +605,12 @@ JSC_DEFINE_JIT_OPERATION(operationAllocateResultsArray, JSArray*, (CallFrame* ca
 
     static_assert(sizeof(JSValue) == sizeof(CPURegister), "The code below relies on this.");
     for (unsigned i = 0; i < signature->returnCount(); ++i) {
-        B3::ValueRep rep = wasmCallInfo.results[i];
+        ValueLocation loc = wasmCallInfo.results[i];
         JSValue value;
-        if (rep.isReg())
-            value = stackPointerFromCallee[(registerResults.find(rep.reg())->offset() + wasmCallInfo.headerAndArgumentStackSizeInBytes) / sizeof(JSValue)];
+        if (loc.isReg())
+            value = stackPointerFromCallee[(registerResults.find(loc.reg())->offset() + wasmCallInfo.headerAndArgumentStackSizeInBytes) / sizeof(JSValue)];
         else
-            value = stackPointerFromCallee[rep.offsetFromSP() / sizeof(JSValue)];
+            value = stackPointerFromCallee[loc.offsetFromSP() / sizeof(JSValue)];
         result->initializeIndex(initializationScope, i, value);
     }
 
@@ -786,24 +788,22 @@ JSC_DEFINE_JIT_OPERATION(operationWasmTableCopy, bool, (Instance* instance, unsi
     if ((srcOffset < 0) || (dstOffset < 0) || (length < 0))
         return false;
 
-    Checked<uint32_t, RecordOverflow> lastDstElementIndexChecked = static_cast<uint32_t>(dstOffset);
+    CheckedUint32 lastDstElementIndexChecked = static_cast<uint32_t>(dstOffset);
     lastDstElementIndexChecked += static_cast<uint32_t>(length);
 
-    uint32_t lastDstElementIndex;
-    if (lastDstElementIndexChecked.safeGet(lastDstElementIndex) == CheckedState::DidOverflow)
+    if (lastDstElementIndexChecked.hasOverflowed())
         return false;
 
-    if (lastDstElementIndex > dstTable->length())
+    if (lastDstElementIndexChecked > dstTable->length())
         return false;
 
-    Checked<uint32_t, RecordOverflow> lastSrcElementIndexChecked = static_cast<uint32_t>(srcOffset);
+    CheckedUint32 lastSrcElementIndexChecked = static_cast<uint32_t>(srcOffset);
     lastSrcElementIndexChecked += static_cast<uint32_t>(length);
 
-    uint32_t lastSrcElementIndex;
-    if (lastSrcElementIndexChecked.safeGet(lastSrcElementIndex) == CheckedState::DidOverflow)
+    if (lastSrcElementIndexChecked.hasOverflowed())
         return false;
 
-    if (lastSrcElementIndex > srcTable->length())
+    if (lastSrcElementIndexChecked > srcTable->length())
         return false;
 
     instance->tableCopy(dstOffset, srcOffset, length, dstTableIndex, srcTableIndex);
@@ -864,7 +864,7 @@ JSC_DEFINE_JIT_OPERATION(operationMemoryAtomicWait32, int32_t, (Instance* instan
         return -1;
     if (!vm.m_typedArrayController->isAtomicsWaitAllowedOnCurrentThread())
         return -1;
-    uint32_t* pointer = bitwise_cast<uint32_t*>(instance->memory()->memory()) + offsetInMemory;
+    uint32_t* pointer = bitwise_cast<uint32_t*>(bitwise_cast<uint8_t*>(instance->memory()->memory()) + offsetInMemory);
     return wait<uint32_t>(vm, pointer, value, timeoutInNanoseconds);
 }
 
@@ -882,7 +882,7 @@ JSC_DEFINE_JIT_OPERATION(operationMemoryAtomicWait64, int32_t, (Instance* instan
         return -1;
     if (!vm.m_typedArrayController->isAtomicsWaitAllowedOnCurrentThread())
         return -1;
-    uint64_t* pointer = bitwise_cast<uint64_t*>(instance->memory()->memory()) + offsetInMemory;
+    uint64_t* pointer = bitwise_cast<uint64_t*>(bitwise_cast<uint8_t*>(instance->memory()->memory()) + offsetInMemory);
     return wait<uint64_t>(vm, pointer, value, timeoutInNanoseconds);
 }
 
@@ -932,7 +932,7 @@ JSC_DEFINE_JIT_OPERATION(operationWasmToJSException, void*, (CallFrame* callFram
         if (type == ExceptionType::StackOverflow)
             error = createStackOverflowError(globalObject);
         else
-            error = JSWebAssemblyRuntimeError::create(globalObject, vm, globalObject->webAssemblyRuntimeErrorStructure(), Wasm::errorMessageForExceptionType(type));
+            error = createJSWebAssemblyRuntimeError(globalObject, vm, Wasm::errorMessageForExceptionType(type));
         throwException(globalObject, throwScope, error);
     }
 

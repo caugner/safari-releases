@@ -30,6 +30,7 @@
 #include "Frame.h"
 #include "FrameSelection.h"
 #include "FullscreenManager.h"
+#include "HTMLDialogElement.h"
 #include "HTMLFrameElement.h"
 #include "HTMLIFrameElement.h"
 #include "HTMLImageElement.h"
@@ -470,6 +471,29 @@ ALWAYS_INLINE bool matchesFocusPseudoClass(const Element& element)
         return true;
 
     return (element.focused() || doesShadowTreeContainFocusedElement(element)) && isFrameFocused(element);
+}
+
+ALWAYS_INLINE bool matchesFocusVisiblePseudoClass(const Element& element)
+{
+    if (InspectorInstrumentation::forcePseudoState(element, CSSSelector::PseudoClassFocusVisible))
+        return true;
+
+    return element.hasFocusVisible() && isFrameFocused(element);
+}
+
+ALWAYS_INLINE bool matchesFocusWithinPseudoClass(const Element& element)
+{
+    if (InspectorInstrumentation::forcePseudoState(element, CSSSelector::PseudoClassFocusWithin))
+        return true;
+
+    return element.hasFocusWithin() && isFrameFocused(element);
+}
+
+ALWAYS_INLINE bool matchesModalDialogPseudoClass(const Element& element)
+{
+    if (is<HTMLDialogElement>(element))
+        return downcast<HTMLDialogElement>(element).isModal();
+    return false;
 }
 
 } // namespace WebCore

@@ -32,17 +32,19 @@
 #include "ANGLEHeaders.h"
 #include "ExtensionsGLANGLE.h"
 #include "GraphicsContextGLANGLEUtilities.h"
+#include "GraphicsContextGLOpenGL.h"
 #include "ImageBuffer.h"
-#include "ImageData.h"
 #include "IntRect.h"
 #include "IntSize.h"
 #include "Logging.h"
 #include "NotImplemented.h"
+#include "PixelBuffer.h"
 #include "TemporaryANGLESetting.h"
 #include <JavaScriptCore/RegularExpression.h>
 #include <algorithm>
 #include <cstring>
 #include <wtf/HexNumber.h>
+#include <wtf/Seconds.h>
 #include <wtf/ThreadSpecific.h>
 #include <wtf/text/CString.h>
 #include <wtf/text/StringBuilder.h>
@@ -60,10 +62,7 @@ namespace WebCore {
 
 static const char* packedDepthStencilExtensionName = "GL_OES_packed_depth_stencil";
 
-namespace {
-
-
-} // namespace anonymous
+static Seconds maxFrameDuration = 5_s;
 
 #if PLATFORM(MAC) || PLATFORM(IOS_FAMILY)
 static void wipeAlphaChannelFromPixels(int width, int height, unsigned char* pixels)
@@ -76,11 +75,12 @@ static void wipeAlphaChannelFromPixels(int width, int height, unsigned char* pix
 }
 #endif
 
-RefPtr<ImageData> GraphicsContextGLOpenGL::readPixelsForPaintResults()
+std::optional<PixelBuffer> GraphicsContextGLOpenGL::readPixelsForPaintResults()
 {
-    auto imageData = ImageData::create(getInternalFramebufferSize());
-    if (!imageData)
-        return nullptr;
+    PixelBufferFormat format { AlphaPremultiplication::Unpremultiplied, PixelFormat::RGBA8, DestinationColorSpace::SRGB() };
+    auto pixelBuffer = PixelBuffer::tryCreate(format, getInternalFramebufferSize());
+    if (!pixelBuffer)
+        return std::nullopt;
     ScopedPixelStorageMode packAlignment(GL_PACK_ALIGNMENT);
     if (packAlignment > 4)
         packAlignment.pixelStore(4);
@@ -89,20 +89,22 @@ RefPtr<ImageData> GraphicsContextGLOpenGL::readPixelsForPaintResults()
     ScopedPixelStorageMode packSkipPixels(GL_PACK_SKIP_PIXELS, 0, m_isForWebGL2);
     ScopedBufferBinding scopedPixelPackBufferReset(GL_PIXEL_PACK_BUFFER, 0, m_isForWebGL2);
 
-    gl::ReadnPixelsRobustANGLE(0, 0, imageData->width(), imageData->height(), GL_RGBA, GL_UNSIGNED_BYTE, imageData->data()->byteLength(), nullptr, nullptr, nullptr, imageData->data()->data());
+    gl::ReadnPixelsRobustANGLE(0, 0, pixelBuffer->size().width(), pixelBuffer->size().height(), GL_RGBA, GL_UNSIGNED_BYTE, pixelBuffer->data().byteLength(), nullptr, nullptr, nullptr, pixelBuffer->data().data());
     // FIXME: Rendering to GL_RGB textures with a IOSurface bound to the texture image leaves
     // the alpha in the IOSurface in incorrect state. Also ANGLE gl::ReadPixels will in some
     // cases expose the non-255 values.
     // https://bugs.webkit.org/show_bug.cgi?id=215804
 #if PLATFORM(MAC) || PLATFORM(IOS_FAMILY)
     if (!contextAttributes().alpha)
-        wipeAlphaChannelFromPixels(imageData->width(), imageData->height(), imageData->data()->data());
+        wipeAlphaChannelFromPixels(pixelBuffer->size().width(), pixelBuffer->size().height(), pixelBuffer->data().data());
 #endif
-    return imageData;
+    return pixelBuffer;
 }
 
 void GraphicsContextGLOpenGL::validateAttributes()
 {
+    m_internalColorFormat = contextAttributes().alpha ? GL_RGBA8 : GL_RGB8;
+
     validateDepthStencil(packedDepthStencilExtensionName);
 }
 
@@ -111,25 +113,7 @@ bool GraphicsContextGLOpenGL::reshapeFBOs(const IntSize& size)
     auto attrs = contextAttributes();
     const int width = size.width();
     const int height = size.height();
-    GLuint colorFormat, internalDepthStencilFormat = 0;
-    if (attrs.alpha) {
-        m_internalColorFormat = GL_RGBA8;
-        colorFormat = GL_RGBA;
-    } else {
-        m_internalColorFormat = GL_RGB8;
-        colorFormat = GL_RGB;
-    }
-    if (attrs.stencil || attrs.depth) {
-        // We don't allow the logic where stencil is required and depth is not.
-        // See GraphicsContextGLOpenGL::validateAttributes.
-
-        ExtensionsGL& extensions = getExtensions();
-        // Use a 24 bit depth buffer where we know we have it.
-        if (extensions.supports(packedDepthStencilExtensionName))
-            internalDepthStencilFormat = GL_DEPTH24_STENCIL8_OES;
-        else
-            internalDepthStencilFormat = GL_DEPTH_COMPONENT16;
-    }
+    GLuint colorFormat = attrs.alpha ? GL_RGBA : GL_RGB;
 
     // Resize multisample FBO.
     if (attrs.antialias) {
@@ -144,10 +128,10 @@ bool GraphicsContextGLOpenGL::reshapeFBOs(const IntSize& size)
         gl::FramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, m_multisampleColorBuffer);
         if (attrs.stencil || attrs.depth) {
             gl::BindRenderbuffer(GL_RENDERBUFFER, m_multisampleDepthStencilBuffer);
-            gl::RenderbufferStorageMultisampleANGLE(GL_RENDERBUFFER, sampleCount, internalDepthStencilFormat, width, height);
+            gl::RenderbufferStorageMultisampleANGLE(GL_RENDERBUFFER, sampleCount, m_internalDepthStencilFormat, width, height);
             // WebGL 1.0's rules state that combined depth/stencil renderbuffers
             // have to be attached to the synthetic DEPTH_STENCIL_ATTACHMENT point.
-            if (!isGLES2Compliant() && internalDepthStencilFormat == GL_DEPTH24_STENCIL8_OES)
+            if (!isGLES2Compliant() && m_internalDepthStencilFormat == GL_DEPTH24_STENCIL8_OES)
                 gl::FramebufferRenderbuffer(GL_FRAMEBUFFER, DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, m_multisampleDepthStencilBuffer);
             else {
                 if (attrs.stencil)
@@ -208,7 +192,7 @@ bool GraphicsContextGLOpenGL::reshapeFBOs(const IntSize& size)
 #endif
 #endif // PLATFORM(COCOA)
 
-    attachDepthAndStencilBufferIfNeeded(internalDepthStencilFormat, width, height);
+    attachDepthAndStencilBufferIfNeeded(m_internalDepthStencilFormat, width, height);
 
     bool mustRestoreFBO = true;
     if (attrs.antialias) {
@@ -265,13 +249,14 @@ void GraphicsContextGLOpenGL::resolveMultisamplingIfNecessary(const IntRect& rec
     gl::BindFramebuffer(GL_DRAW_FRAMEBUFFER_ANGLE, m_fbo);
 
     // FIXME: figure out more efficient solution for iOS.
-    IntRect resolveRect = rect;
-    // When using an ES 2.0 context, the full framebuffer must always be
-    // resolved; partial blits are not allowed.
-    if (!isGLES2Compliant() || rect.isEmpty())
-        resolveRect = IntRect(0, 0, m_currentWidth, m_currentHeight);
-
-    gl::BlitFramebufferANGLE(resolveRect.x(), resolveRect.y(), resolveRect.maxX(), resolveRect.maxY(), resolveRect.x(), resolveRect.y(), resolveRect.maxX(), resolveRect.maxY(), GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    if (m_isForWebGL2) {
+        // ES 3.0 has BlitFramebuffer.
+        IntRect resolveRect = rect.isEmpty() ? IntRect { 0, 0, m_currentWidth, m_currentHeight } : rect;
+        gl::BlitFramebuffer(resolveRect.x(), resolveRect.y(), resolveRect.maxX(), resolveRect.maxY(), resolveRect.x(), resolveRect.y(), resolveRect.maxX(), resolveRect.maxY(), GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    } else {
+        // ES 2.0 has BlitFramebufferANGLE only.
+        gl::BlitFramebufferANGLE(0, 0, m_currentWidth, m_currentHeight, 0, 0, m_currentWidth, m_currentHeight, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    }
     if (m_isForWebGL2) {
         gl::BindFramebuffer(GL_DRAW_FRAMEBUFFER, boundFrameBuffer);
         gl::BindFramebuffer(GL_READ_FRAMEBUFFER, boundReadFrameBuffer);
@@ -292,23 +277,6 @@ void GraphicsContextGLOpenGL::getIntegerv(GCGLenum pname, GCGLSpan<GCGLint> valu
     if (!makeContextCurrent())
         return;
     gl::GetIntegervRobustANGLE(pname, value.bufSize, nullptr, value.data);
-
-    switch (pname) {
-#if PLATFORM(MAC)
-    // Some older hardware advertises a larger maximum than they
-    // can actually handle. Rather than detecting such devices, simply
-    // clamp the maximum to 8192, which is big enough for a 5K display.
-    case MAX_RENDERBUFFER_SIZE:
-        *value = std::min(8192, *value);
-        break;
-    case MAX_VIEWPORT_DIMS:
-        value[0] = std::min(8192, value[0]);
-        value[1] = std::min(8192, value[1]);
-        break;
-#endif
-    default:
-        break;
-    }
 }
 
 void GraphicsContextGLOpenGL::getShaderPrecisionFormat(GCGLenum shaderType, GCGLenum precisionType, GCGLSpan<GCGLint, 2> range, GCGLint* precision)
@@ -452,17 +420,25 @@ void GraphicsContextGLOpenGL::readnPixelsImpl(GCGLint x, GCGLint y, GCGLsizei wi
 void GraphicsContextGLOpenGL::validateDepthStencil(const char* packedDepthStencilExtension)
 {
     ExtensionsGL& extensions = getExtensions();
-    auto attrs = contextAttributes();
+    // FIXME: Since the constructors of various platforms are not shared, we initialize this here.
+    // Upon constructing the context, always initialize the extensions that the WebGLRenderingContext* will
+    // use to turn on feature flags.
+    if (extensions.supports(packedDepthStencilExtension)) {
+        extensions.ensureEnabled(packedDepthStencilExtension);
+        m_internalDepthStencilFormat = GL_DEPTH24_STENCIL8_OES;
+    } else
+        m_internalDepthStencilFormat = GL_DEPTH_COMPONENT16;
 
+    auto attrs = contextAttributes();
     if (attrs.stencil) {
-        if (extensions.supports(packedDepthStencilExtension)) {
-            extensions.ensureEnabled(packedDepthStencilExtension);
+        if (m_internalDepthStencilFormat == GL_DEPTH24_STENCIL8_OES) {
             // Force depth if stencil is true.
             attrs.depth = true;
         } else
             attrs.stencil = false;
         setContextAttributes(attrs);
     }
+
     if (attrs.antialias) {
         // FIXME: must adjust this when upgrading to WebGL 2.0 / OpenGL ES 3.0 support.
         if (!extensions.supports("GL_ANGLE_framebuffer_multisample") || !extensions.supports("GL_ANGLE_framebuffer_blit") || !extensions.supports("GL_OES_rgb8_rgba8")) {
@@ -531,7 +507,7 @@ void GraphicsContextGLOpenGL::prepareTextureImpl()
 #endif
 }
 
-RefPtr<ImageData> GraphicsContextGLOpenGL::readRenderingResults()
+std::optional<PixelBuffer> GraphicsContextGLOpenGL::readRenderingResults()
 {
     ScopedRestoreReadFramebufferBinding fboBinding(m_isForWebGL2, m_state.boundReadFBO);
     if (contextAttributes().antialias) {
@@ -950,6 +926,14 @@ void GraphicsContextGLOpenGL::compileShaderDirect(PlatformGLObject shader)
         return;
 
     gl::CompileShader(shader);
+}
+
+void GraphicsContextGLOpenGL::texImage2DDirect(GCGLenum target, GCGLint level, GCGLenum internalformat, GCGLsizei width, GCGLsizei height, GCGLint border, GCGLenum format, GCGLenum type, const void* pixels)
+{
+    if (!makeContextCurrent())
+        return;
+    gl::TexImage2D(target, level, internalformat, width, height, border, format, type, pixels);
+    m_state.textureSeedCount.add(m_state.currentBoundTexture());
 }
 
 void GraphicsContextGLOpenGL::copyTexImage2D(GCGLenum target, GCGLint level, GCGLenum internalformat, GCGLint x, GCGLint y, GCGLsizei width, GCGLsizei height, GCGLint border)
@@ -1734,7 +1718,10 @@ PlatformGLObject GraphicsContextGLOpenGL::createVertexArray()
         return 0;
 
     GLuint array = 0;
-    gl::GenVertexArrays(1, &array);
+    if (m_isForWebGL2)
+        gl::GenVertexArrays(1, &array);
+    else
+        gl::GenVertexArraysOES(1, &array);
     return array;
 }
 
@@ -1744,8 +1731,10 @@ void GraphicsContextGLOpenGL::deleteVertexArray(PlatformGLObject array)
         return;
     if (!makeContextCurrent())
         return;
-
-    gl::DeleteVertexArrays(1, &array);
+    if (m_isForWebGL2)
+        gl::DeleteVertexArrays(1, &array);
+    else
+        gl::DeleteVertexArraysOES(1, &array);
 }
 
 GCGLboolean GraphicsContextGLOpenGL::isVertexArray(PlatformGLObject array)
@@ -1755,15 +1744,19 @@ GCGLboolean GraphicsContextGLOpenGL::isVertexArray(PlatformGLObject array)
     if (!makeContextCurrent())
         return GL_FALSE;
 
-    return gl::IsVertexArray(array);
+    if (m_isForWebGL2)
+        return gl::IsVertexArray(array);
+    return gl::IsVertexArrayOES(array);
 }
 
 void GraphicsContextGLOpenGL::bindVertexArray(PlatformGLObject array)
 {
     if (!makeContextCurrent())
         return;
-
-    gl::BindVertexArray(array);
+    if (m_isForWebGL2)
+        gl::BindVertexArray(array);
+    else
+        gl::BindVertexArrayOES(array);
 }
 
 void GraphicsContextGLOpenGL::getBooleanv(GCGLenum pname, GCGLSpan<GCGLboolean> value)
@@ -2808,6 +2801,47 @@ void GraphicsContextGLOpenGL::getActiveUniformBlockiv(GCGLuint program, GCGLuint
     gl::GetActiveUniformBlockivRobustANGLE(program, uniformBlockIndex, pname, params.bufSize, nullptr, params.data);
 }
 
+void GraphicsContextGLOpenGL::multiDrawArraysANGLE(GCGLenum mode, GCGLSpan<const GCGLint> firsts, GCGLSpan<const GCGLsizei> counts, GCGLsizei drawcount)
+{
+    if (!makeContextCurrent())
+        return;
+
+    gl::MultiDrawArraysANGLE(mode, firsts.data, counts.data, drawcount);
+}
+
+void GraphicsContextGLOpenGL::multiDrawArraysInstancedANGLE(GCGLenum mode, GCGLSpan<const GCGLint> firsts, GCGLSpan<const GCGLsizei> counts, GCGLSpan<const GCGLsizei> instanceCounts, GCGLsizei drawcount)
+{
+    if (!makeContextCurrent())
+        return;
+
+    gl::MultiDrawArraysInstancedANGLE(mode, firsts.data, counts.data, instanceCounts.data, drawcount);
+}
+
+void GraphicsContextGLOpenGL::multiDrawElementsANGLE(GCGLenum mode, GCGLSpan<const GCGLsizei> counts, GCGLenum type, GCGLSpan<const GCGLint> offsets, GCGLsizei drawcount)
+{
+    if (!makeContextCurrent())
+        return;
+
+    // Must perform conversion from integer offsets to void* pointers before passing down to ANGLE.
+    Vector<void*> pointers;
+    for (size_t i = 0; i < offsets.bufSize; ++i)
+        pointers.append(reinterpret_cast<void*>(offsets[i]));
+
+    gl::MultiDrawElementsANGLE(mode, counts.data, type, pointers.data(), drawcount);
+}
+
+void GraphicsContextGLOpenGL::multiDrawElementsInstancedANGLE(GCGLenum mode, GCGLSpan<const GCGLsizei> counts, GCGLenum type, GCGLSpan<const GCGLint> offsets, GCGLSpan<const GCGLsizei> instanceCounts, GCGLsizei drawcount)
+{
+    if (!makeContextCurrent())
+        return;
+
+    // Must perform conversion from integer offsets to void* pointers before passing down to ANGLE.
+    Vector<void*> pointers;
+    for (size_t i = 0; i < offsets.bufSize; ++i)
+        pointers.append(reinterpret_cast<void*>(offsets[i]));
+
+    gl::MultiDrawElementsInstancedANGLE(mode, counts.data, type, pointers.data(), instanceCounts.data, drawcount);
+}
 
 #if ENABLE(VIDEO) && USE(AVFOUNDATION)
 GraphicsContextGLCV* GraphicsContextGLOpenGL::asCV()
@@ -2817,6 +2851,28 @@ GraphicsContextGLCV* GraphicsContextGLOpenGL::asCV()
     return m_cv.get();
 }
 #endif
+
+bool GraphicsContextGLOpenGL::waitAndUpdateOldestFrame()
+{
+    size_t oldestFrameCompletionFence = m_oldestFrameCompletionFence++ % maxPendingFrames;
+    bool success = true;
+    if (ScopedGLFence fence = WTFMove(m_frameCompletionFences[oldestFrameCompletionFence])) {
+        // Wait so that rendering doeØs not get more than maxPendingFrames frames ahead.
+        GLbitfield flags = GL_SYNC_FLUSH_COMMANDS_BIT;
+#if PLATFORM(COCOA)
+        // Avoid using the GL_SYNC_FLUSH_COMMANDS_BIT because each each frame is ended with a flush
+        // due to external IOSurface access. This particular fence is maxPendingFrames behind.
+        // This means the creation of this fence has already been flushed.
+        flags = 0;
+#endif
+        GLenum result = gl::ClientWaitSync(fence, flags, maxFrameDuration.nanosecondsAs<GLuint64>());
+        ASSERT(result != GL_WAIT_FAILED);
+        success = result != GL_WAIT_FAILED && result != GL_TIMEOUT_EXPIRED;
+    }
+    m_frameCompletionFences[oldestFrameCompletionFence].fenceSync();
+    return success;
+}
+
 }
 
 #endif // ENABLE(WEBGL) && USE(ANGLE)

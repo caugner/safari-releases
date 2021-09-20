@@ -26,24 +26,27 @@
 #include "config.h"
 #include "DisplayListReaderHandle.h"
 
+#include <wtf/CheckedArithmetic.h>
+
 namespace WebKit {
 using namespace WebCore;
 
-size_t DisplayListReaderHandle::advance(size_t amount)
+std::optional<size_t> DisplayListReaderHandle::advance(size_t amount)
 {
     auto previousUnreadBytes = header().unreadBytes.exchangeSub(amount);
-    if (UNLIKELY(previousUnreadBytes < amount)) {
-        // FIXME: This should result in terminating the web process.
-        RELEASE_ASSERT_NOT_REACHED();
-        return 0;
-    }
+    if (UNLIKELY(previousUnreadBytes < amount))
+        return std::nullopt;
     return previousUnreadBytes - amount;
 }
 
 std::unique_ptr<DisplayList::DisplayList> DisplayListReaderHandle::displayListForReading(size_t offset, size_t capacity, DisplayList::ItemBufferReadingClient& client) const
 {
+    auto checkedExtent = checkedSum<size_t>(offset, capacity);
+    if (UNLIKELY(checkedExtent.hasOverflowed() || checkedExtent > sharedMemory().size()))
+        return nullptr;
+
     auto displayList = makeUnique<DisplayList::DisplayList>(DisplayList::ItemBufferHandles {{ identifier(), data() + offset, capacity }});
-    displayList->setItemBufferClient(&client);
+    displayList->setItemBufferReadingClient(&client);
     return displayList;
 }
 

@@ -28,6 +28,7 @@
 
 #if USE(PASSKIT) && ENABLE(APPLE_PAY)
 
+#import <WebCore/ApplePayShippingMethod.h>
 #import <WebCore/Payment.h>
 #import <WebCore/PaymentMethod.h>
 #import <WebCore/PaymentSessionError.h>
@@ -42,6 +43,9 @@
     WebKit::DidSelectPaymentMethodCompletion _didSelectPaymentMethodCompletion;
     WebKit::DidSelectShippingContactCompletion _didSelectShippingContactCompletion;
     WebKit::DidSelectShippingMethodCompletion _didSelectShippingMethodCompletion;
+#if HAVE(PASSKIT_COUPON_CODE)
+    WebKit::DidChangeCouponCodeCompletion _didChangeCouponCodeCompletion;
+#endif
 }
 
 - (NSArray<PKPaymentSummaryItem *> *)summaryItems
@@ -61,9 +65,9 @@
 
 - (void)completePaymentMethodSelection:(PKPaymentRequestPaymentMethodUpdate *)paymentMethodUpdate
 {
-    PKPaymentRequestPaymentMethodUpdate *update = paymentMethodUpdate ?: [[PAL::allocPKPaymentRequestPaymentMethodUpdateInstance() initWithPaymentSummaryItems:_summaryItems.get()] autorelease];
-    _summaryItems = adoptNS([update.paymentSummaryItems copy]);
-    std::exchange(_didSelectPaymentMethodCompletion, nil)(update);
+    auto update = paymentMethodUpdate ? retainPtr(paymentMethodUpdate) : adoptNS([PAL::allocPKPaymentRequestPaymentMethodUpdateInstance() initWithPaymentSummaryItems:_summaryItems.get()]);
+    _summaryItems = adoptNS([[update paymentSummaryItems] copy]);
+    std::exchange(_didSelectPaymentMethodCompletion, nil)(update.get());
 }
 
 - (void)completePaymentSession:(PKPaymentAuthorizationStatus)status errors:(NSArray<NSError *> *)errors
@@ -73,18 +77,30 @@
 }
 - (void)completeShippingContactSelection:(PKPaymentRequestShippingContactUpdate *)shippingContactUpdate
 {
-    PKPaymentRequestShippingContactUpdate *update = shippingContactUpdate ?: [[PAL::allocPKPaymentRequestShippingContactUpdateInstance() initWithErrors:@[] paymentSummaryItems:_summaryItems.get() shippingMethods:_shippingMethods.get()] autorelease];
-    _summaryItems = adoptNS([update.paymentSummaryItems copy]);
-    _shippingMethods = adoptNS([update.shippingMethods copy]);
-    std::exchange(_didSelectShippingContactCompletion, nil)(update);
+    auto update = shippingContactUpdate ? retainPtr(shippingContactUpdate) : adoptNS([PAL::allocPKPaymentRequestShippingContactUpdateInstance() initWithErrors:@[] paymentSummaryItems:_summaryItems.get() shippingMethods:_shippingMethods.get()]);
+    _summaryItems = adoptNS([[update paymentSummaryItems] copy]);
+    _shippingMethods = adoptNS([[update shippingMethods] copy]);
+    std::exchange(_didSelectShippingContactCompletion, nil)(update.get());
 }
 
 - (void)completeShippingMethodSelection:(PKPaymentRequestShippingMethodUpdate *)shippingMethodUpdate
 {
-    PKPaymentRequestShippingMethodUpdate *update = shippingMethodUpdate ?: [[PAL::allocPKPaymentRequestShippingMethodUpdateInstance() initWithPaymentSummaryItems:_summaryItems.get()] autorelease];
-    _summaryItems = adoptNS([update.paymentSummaryItems copy]);
-    std::exchange(_didSelectShippingMethodCompletion, nil)(update);
+    auto update = shippingMethodUpdate ? retainPtr(shippingMethodUpdate) : adoptNS([PAL::allocPKPaymentRequestShippingMethodUpdateInstance() initWithPaymentSummaryItems:_summaryItems.get()]);
+    _summaryItems = adoptNS([[update paymentSummaryItems] copy]);
+    std::exchange(_didSelectShippingMethodCompletion, nil)(update.get());
 }
+
+#if HAVE(PASSKIT_COUPON_CODE)
+
+- (void)completeCouponCodeChange:(PKPaymentRequestCouponCodeUpdate *)couponCodeUpdate
+{
+    PKPaymentRequestCouponCodeUpdate *update = couponCodeUpdate ?: adoptNS([PAL::allocPKPaymentRequestCouponCodeUpdateInstance() initWithErrors:@[] paymentSummaryItems:_summaryItems.get() shippingMethods:_shippingMethods.get()]).autorelease();
+    _summaryItems = adoptNS([update.paymentSummaryItems copy]);
+    _shippingMethods = adoptNS([update.shippingMethods copy]);
+    std::exchange(_didChangeCouponCodeCompletion, nil)(update);
+}
+
+#endif // HAVE(PASSKIT_COUPON_CODE)
 
 - (void)invalidate
 {
@@ -135,7 +151,7 @@
         if (error)
             LOG_ERROR("PKCanMakePaymentsWithMerchantIdentifierAndDomain error %@", error);
 
-        dispatch_async(dispatch_get_main_queue(), ^{
+        RunLoop::main().dispatch([self, protectedSelf = retainPtr(self), merchantURL = retainPtr(merchantURL)] {
             ASSERT(_didRequestMerchantSessionCompletion);
 
             auto presenter = _presenter.get();
@@ -144,7 +160,7 @@
                 return;
             }
 
-            presenter->client().presenterWillValidateMerchant(*presenter, merchantURL);
+            presenter->client().presenterWillValidateMerchant(*presenter, merchantURL.get());
         });
     }];
 }
@@ -173,16 +189,45 @@
     presenter->client().presenterDidSelectShippingContact(*presenter, WebCore::PaymentContact(contact));
 }
 
-static WebCore::ApplePaySessionPaymentRequest::ShippingMethod toShippingMethod(PKShippingMethod *shippingMethod)
+#if HAVE(PASSKIT_SHIPPING_METHOD_DATE_COMPONENTS_RANGE)
+
+static WebCore::ApplePayDateComponents toDateComponents(NSDateComponents *dateComponents)
+{
+    ASSERT(dateComponents);
+
+    WebCore::ApplePayDateComponents result;
+    result.years = dateComponents.year;
+    result.months = dateComponents.month;
+    result.days = dateComponents.day;
+    result.hours = dateComponents.hour;
+    return result;
+}
+
+static WebCore::ApplePayDateComponentsRange toDateComponentsRange(PKDateComponentsRange *dateComponentsRange)
+{
+    ASSERT(dateComponentsRange);
+
+    WebCore::ApplePayDateComponentsRange result;
+    result.startDateComponents = toDateComponents(dateComponentsRange.startDateComponents);
+    result.endDateComponents = toDateComponents(dateComponentsRange.endDateComponents);
+    return result;
+}
+
+#endif // HAVE(PASSKIT_SHIPPING_METHOD_DATE_COMPONENTS_RANGE)
+
+static WebCore::ApplePayShippingMethod toShippingMethod(PKShippingMethod *shippingMethod)
 {
     ASSERT(shippingMethod);
 
-    WebCore::ApplePaySessionPaymentRequest::ShippingMethod result;
+    WebCore::ApplePayShippingMethod result;
     result.amount = shippingMethod.amount.stringValue;
     result.detail = shippingMethod.detail;
     result.identifier = shippingMethod.identifier;
     result.label = shippingMethod.label;
-
+#if HAVE(PASSKIT_SHIPPING_METHOD_DATE_COMPONENTS_RANGE)
+    if (shippingMethod.dateComponentsRange)
+        result.dateComponentsRange = toDateComponentsRange(shippingMethod.dateComponentsRange);
+#endif
     return result;
 }
 
@@ -197,6 +242,22 @@ static WebCore::ApplePaySessionPaymentRequest::ShippingMethod toShippingMethod(P
 
     presenter->client().presenterDidSelectShippingMethod(*presenter, toShippingMethod(shippingMethod));
 }
+
+#if HAVE(PASSKIT_COUPON_CODE)
+
+- (void)_didChangeCouponCode:(NSString *)couponCode completion:(void (^)(PKPaymentRequestCouponCodeUpdate *update))completion
+{
+    ASSERT(!_didChangeCouponCodeCompletion);
+    _didChangeCouponCodeCompletion = completion;
+
+    auto presenter = _presenter.get();
+    if (!presenter)
+        return [self completeCouponCodeChange:nil];
+
+    presenter->client().presenterDidChangeCouponCode(*presenter, couponCode);
+}
+
+#endif // HAVE(PASSKIT_COUPON_CODE)
 
 - (void) NO_RETURN_DUE_TO_ASSERT _getPaymentServicesMerchantURL:(void(^)(NSURL *, NSError *))completion
 {

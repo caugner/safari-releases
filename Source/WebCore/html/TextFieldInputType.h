@@ -89,7 +89,6 @@ protected:
 private:
     bool isKeyboardFocusable(KeyboardEvent*) const final;
     bool isMouseFocusable() const final;
-    bool isTextField() const final;
     bool isEmptyValue() const final;
     void handleBeforeTextInsertedEvent(BeforeTextInsertedEvent&) final;
     void forwardEvent(Event&) final;
@@ -126,6 +125,7 @@ private:
 #if ENABLE(DATALIST_ELEMENT)
     void createDataListDropdownIndicator();
     bool isPresentingAttachedView() const final;
+    bool isFocusingWithDataListDropdown() const final;
     void dataListMayHaveChanged() final;
     void displaySuggestions(DataListSuggestionActivationType);
     void closeSuggestions();
@@ -136,9 +136,10 @@ private:
     void didSelectDataListOption(const String&) final;
     void didCloseSuggestions() final;
 
-    static bool shouldOnlyShowDataListDropdownButtonWhenFocusedOrEdited();
+    bool shouldOnlyShowDataListDropdownButtonWhenFocusedOrEdited() const;
 
     void dataListButtonElementWasClicked() final;
+    bool m_isFocusingWithDataListDropdown { false };
     RefPtr<DataListButtonElement> m_dataListDropdownIndicator;
 
     std::pair<String, Vector<DataListSuggestion>> m_cachedSuggestions;

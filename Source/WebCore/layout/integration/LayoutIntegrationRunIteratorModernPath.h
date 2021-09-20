@@ -29,6 +29,7 @@
 
 #include "FontCascade.h"
 #include "LayoutIntegrationInlineContent.h"
+#include "TextBoxSelectableRange.h"
 
 namespace WebCore {
 
@@ -91,7 +92,7 @@ public:
         if (isLineBreak())
             return rect().x();
 
-        auto endOffset = clampedOffset(offset);
+        auto endOffset = selectableRange().clamp(offset);
 
         LayoutRect selectionRect = LayoutRect(rect().x(), 0, 0, 0);
         TextRun textRun = createTextRun(HyphenMode::Ignore);
@@ -101,13 +102,12 @@ public:
 
     bool isSelectable(unsigned start, unsigned end) const
     {
-        return clampedOffset(start) < clampedOffset(end);
+        return selectableRange().intersects(start, end);
     }
 
     LayoutRect selectionRect(unsigned rangeStart, unsigned rangeEnd) const
     {
-        unsigned clampedStart = clampedOffset(rangeStart);
-        unsigned clampedEnd = clampedOffset(rangeEnd);
+        auto [clampedStart, clampedEnd] = selectableRange().clamp(rangeStart, rangeEnd);
 
         if (clampedStart >= clampedEnd && !(rangeStart == rangeEnd && rangeStart >= start() && rangeStart <= end()))
             return { };
@@ -195,9 +195,8 @@ public:
     bool operator==(const RunIteratorModernPath& other) const { return m_inlineContent == other.m_inlineContent && m_runIndex == other.m_runIndex; }
 
     bool atEnd() const { return m_runIndex == runs().size() || !run().hasUnderlyingLayout(); }
-    void setAtEnd() { m_runIndex = runs().size(); }
 
-    InlineBox* legacyInlineBox() const
+    LegacyInlineBox* legacyInlineBox() const
     {
         return nullptr;
     }
@@ -205,14 +204,14 @@ public:
 private:
     friend class RunIterator;
 
-    unsigned clampedOffset(unsigned offset) const
+    TextBoxSelectableRange selectableRange() const
     {
-        auto clampedOffset = std::max(start(), std::min(offset, end())) - start();
-        // We treat the last codepoint in this run and the hyphen as a single unit.
-        if (hasHyphen() && clampedOffset == length())
-            clampedOffset += run().style().hyphenString().length();
-
-        return clampedOffset;
+        return {
+            start(),
+            length(),
+            run().style().hyphenString().length(),
+            run().isLineBreak()
+        };
     }
 
     enum class HyphenMode { Include, Ignore };
@@ -221,7 +220,7 @@ private:
         auto& style = run().style();
         auto expansion = run().expansion();
         auto rect = this->rect();
-        auto xPos = rect.x() - (line().lineBoxLeft() + line().contentLeftOffset());
+        auto xPos = rect.x() - (line().lineBoxLeft() + line().contentLeft());
 
         auto textForRun = [&] {
             if (hyphenMode == HyphenMode::Ignore || !hasHyphen())
@@ -234,6 +233,8 @@ private:
         textRun.setTabSize(!style.collapseWhiteSpace(), style.tabSize());
         return textRun;
     };
+
+    void setAtEnd() { m_runIndex = runs().size(); }
 
     const InlineContent::Runs& runs() const { return m_inlineContent->runs; }
     const Run& run() const { return runs()[m_runIndex]; }

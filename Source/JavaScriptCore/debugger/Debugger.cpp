@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2008-2019 Apple Inc. All rights reserved.
+ *  Copyright (C) 2008-2021 Apple Inc. All rights reserved.
  *  Copyright (C) 1999-2001 Harri Porten (porten@kde.org)
  *  Copyright (C) 2001 Peter Kelly (pmk@post.com)
  *
@@ -29,6 +29,7 @@
 #include "JSCInlines.h"
 #include "MarkedSpaceInlines.h"
 #include "VMEntryScope.h"
+#include "VMTrapsInlines.h"
 #include <wtf/HashMap.h>
 #include <wtf/HashSet.h>
 #include <wtf/RefPtr.h>
@@ -361,7 +362,7 @@ void Debugger::toggleBreakpoint(CodeBlock* codeBlock, Breakpoint& breakpoint, Br
     // Inspector breakpoint line and column values are zero-based but the executable
     // and CodeBlock line and column values are one-based.
     unsigned line = breakpoint.lineNumber() + 1;
-    Optional<unsigned> column;
+    std::optional<unsigned> column;
     if (breakpoint.columnNumber())
         column = breakpoint.columnNumber() + 1;
 
@@ -456,7 +457,7 @@ bool Debugger::resolveBreakpoint(Breakpoint& breakpoint, SourceProvider* sourceP
     }
 
     DebuggerParseData& parseData = debuggerParseData(breakpoint.sourceID(), sourceProvider);
-    Optional<JSTextPosition> resolvedPosition = parseData.pausePositions.breakpointLocationForLineColumn(line, column);
+    std::optional<JSTextPosition> resolvedPosition = parseData.pausePositions.breakpointLocationForLineColumn(line, column);
     if (!resolvedPosition)
         return false;
 
@@ -615,7 +616,7 @@ bool Debugger::evaluateBreakpointCondition(Breakpoint& breakpoint, JSGlobalObjec
 
     NakedPtr<Exception> exception;
     DebuggerCallFrame& debuggerCallFrame = currentDebuggerCallFrame();
-    JSObject* scopeExtensionObject = m_client ? m_client->scopeExtensionObject(*this, globalObject, debuggerCallFrame) : nullptr;
+    JSObject* scopeExtensionObject = m_client ? m_client->debuggerScopeExtensionObject(*this, globalObject, debuggerCallFrame) : nullptr;
     JSValue result = debuggerCallFrame.evaluateWithScopeExtension(condition, scopeExtensionObject, exception);
 
     // We can lose the debugger while executing JavaScript.
@@ -637,7 +638,10 @@ void Debugger::evaluateBreakpointActions(Breakpoint& breakpoint, JSGlobalObject*
 
     m_currentProbeBatchId++;
 
-    for (auto& action : breakpoint.actions()) {
+    for (const auto& action : breakpoint.actions()) {
+        if (m_client)
+            m_client->debuggerWillEvaluate(*this, action);
+
         auto& debuggerCallFrame = currentDebuggerCallFrame();
 
         switch (action.type) {
@@ -649,7 +653,7 @@ void Debugger::evaluateBreakpointActions(Breakpoint& breakpoint, JSGlobalObject*
 
         case Breakpoint::Action::Type::Evaluate: {
             NakedPtr<Exception> exception;
-            JSObject* scopeExtensionObject = m_client ? m_client->scopeExtensionObject(*this, globalObject, debuggerCallFrame) : nullptr;
+            JSObject* scopeExtensionObject = m_client ? m_client->debuggerScopeExtensionObject(*this, globalObject, debuggerCallFrame) : nullptr;
             debuggerCallFrame.evaluateWithScopeExtension(action.data, scopeExtensionObject, exception);
             if (exception)
                 reportException(debuggerCallFrame.globalObject(), exception);
@@ -664,7 +668,7 @@ void Debugger::evaluateBreakpointActions(Breakpoint& breakpoint, JSGlobalObject*
 
         case Breakpoint::Action::Type::Probe: {
             NakedPtr<Exception> exception;
-            JSObject* scopeExtensionObject = m_client ? m_client->scopeExtensionObject(*this, globalObject, debuggerCallFrame) : nullptr;
+            JSObject* scopeExtensionObject = m_client ? m_client->debuggerScopeExtensionObject(*this, globalObject, debuggerCallFrame) : nullptr;
             JSValue result = debuggerCallFrame.evaluateWithScopeExtension(action.data, scopeExtensionObject, exception);
             JSC::JSGlobalObject* debuggerGlobalObject = debuggerCallFrame.globalObject();
             if (exception)
@@ -676,6 +680,9 @@ void Debugger::evaluateBreakpointActions(Breakpoint& breakpoint, JSGlobalObject*
             break;
         }
         }
+
+        if (m_client)
+            m_client->debuggerDidEvaluate(*this, action);
 
         if (!isAttached(globalObject))
             return;
@@ -859,6 +866,7 @@ void Debugger::updateCallFrameInternal(CallFrame* callFrame)
 void Debugger::pauseIfNeeded(JSGlobalObject* globalObject)
 {
     VM& vm = m_vm;
+    DeferTermination deferScope(vm);
     auto scope = DECLARE_THROW_SCOPE(vm);
 
     if (m_isPaused)
@@ -1195,7 +1203,7 @@ DebuggerCallFrame& Debugger::currentDebuggerCallFrame()
     return *m_currentDebuggerCallFrame;
 }
 
-void Debugger::setBlackboxType(SourceID sourceID, Optional<BlackboxType> type)
+void Debugger::setBlackboxType(SourceID sourceID, std::optional<BlackboxType> type)
 {
     if (type)
         m_blackboxedScripts.set(sourceID, type.value());

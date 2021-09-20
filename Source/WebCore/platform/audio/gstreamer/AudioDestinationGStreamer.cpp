@@ -44,6 +44,9 @@ GST_DEBUG_CATEGORY(webkit_audio_destination_debug);
 
 static void initializeDebugCategory()
 {
+    ensureGStreamerInitialized();
+    registerWebKitGStreamerElements();
+
     static std::once_flag onceFlag;
     std::call_once(onceFlag, [] {
         GST_DEBUG_CATEGORY_INIT(webkit_audio_destination_debug, "webkitaudiodestination", 0, "WebKit WebAudio Destination");
@@ -156,8 +159,8 @@ AudioDestinationGStreamer::AudioDestinationGStreamer(AudioIOCallback& callback, 
         }
     }
 
-    GstElement* audioConvert = gst_element_factory_make("audioconvert", nullptr);
-    GstElement* audioResample = gst_element_factory_make("audioresample", nullptr);
+    GstElement* audioConvert = makeGStreamerElement("audioconvert", nullptr);
+    GstElement* audioResample = makeGStreamerElement("audioresample", nullptr);
     gst_bin_add_many(GST_BIN_CAST(m_pipeline.get()), m_src.get(), audioConvert, audioResample, audioSink.get(), nullptr);
 
     // Link src pads from webkitAudioSrc to audioConvert ! audioResample ! autoaudiosink.

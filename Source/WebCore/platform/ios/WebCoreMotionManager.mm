@@ -89,13 +89,11 @@ static const double kGravity = 9.80665;
 
     if (m_headingAvailable)
         [m_locationManager stopUpdatingHeading];
-    [m_locationManager release];
 
     if (m_gyroAvailable)
         [m_motionManager stopDeviceMotionUpdates];
     else
         [m_motionManager stopAccelerometerUpdates];
-    [m_motionManager release];
 
     [super dealloc];
 }
@@ -142,16 +140,16 @@ static const double kGravity = 9.80665;
 {
     ASSERT(!WebThreadIsCurrent());
 
-    m_motionManager = [allocCMMotionManagerInstance() init];
+    m_motionManager = adoptNS([allocCMMotionManagerInstance() init]);
 
-    m_gyroAvailable = m_motionManager.deviceMotionAvailable;
+    m_gyroAvailable = m_motionManager.get().deviceMotionAvailable;
 
     if (m_gyroAvailable)
-        m_motionManager.deviceMotionUpdateInterval = kMotionUpdateInterval;
+        [m_motionManager setDeviceMotionUpdateInterval:kMotionUpdateInterval];
     else
-        m_motionManager.accelerometerUpdateInterval = kMotionUpdateInterval;
+        [m_motionManager setAccelerometerUpdateInterval:kMotionUpdateInterval];
 
-    m_locationManager = [allocCLLocationManagerInstance() init];
+    m_locationManager = adoptNS([allocCLLocationManagerInstance() init]);
     m_headingAvailable = [getCLLocationManagerClass() headingAvailable];
 
     m_initialized = YES;
@@ -180,18 +178,11 @@ static const double kGravity = 9.80665;
         if (m_headingAvailable)
             [m_locationManager startUpdatingHeading];
 
-        if (!m_updateTimer) {
-            m_updateTimer = [[NSTimer scheduledTimerWithTimeInterval:kMotionUpdateInterval
-                                                              target:self
-                                                            selector:@selector(update)
-                                                            userInfo:nil
-                                                             repeats:YES] retain];
-        }
+        if (!m_updateTimer)
+            m_updateTimer = [NSTimer scheduledTimerWithTimeInterval:kMotionUpdateInterval target:self selector:@selector(update) userInfo:nil repeats:YES];
     } else {
-        NSTimer *timer = m_updateTimer;
+        [m_updateTimer invalidate];
         m_updateTimer = nil;
-        [timer invalidate];
-        [timer release];
 
         if (m_gyroAvailable)
             [m_motionManager stopDeviceMotionUpdates];
@@ -211,11 +202,11 @@ static const double kGravity = 9.80665;
         return;
     
     // We should, however, guard for the case where the managers return nil data.
-    CMDeviceMotion *deviceMotion = m_motionManager.deviceMotion;
+    CMDeviceMotion *deviceMotion = [m_motionManager deviceMotion];
     if (m_gyroAvailable && deviceMotion)
-        [self sendMotionData:deviceMotion withHeading:m_locationManager.heading];
+        [self sendMotionData:deviceMotion withHeading:[m_locationManager heading]];
     else {
-        if (CMAccelerometerData *accelerometerData = m_motionManager.accelerometerData)
+        if (CMAccelerometerData *accelerometerData = [m_motionManager accelerometerData])
             [self sendAccelerometerData:accelerometerData];
     }
 }
@@ -232,7 +223,7 @@ static const double kGravity = 9.80665;
 
         for (auto& client : motionClients) {
             if (client)
-                client->motionChanged(0, 0, 0, accel.x * kGravity, accel.y * kGravity, accel.z * kGravity, WTF::nullopt, WTF::nullopt, WTF::nullopt);
+                client->motionChanged(0, 0, 0, accel.x * kGravity, accel.y * kGravity, accel.z * kGravity, std::nullopt, std::nullopt, std::nullopt);
         }
     });
 }

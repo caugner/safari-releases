@@ -29,6 +29,7 @@
 #import "Test.h"
 #import "TestNavigationDelegate.h"
 #import "TestWKWebView.h"
+#import "UserMediaCaptureUIDelegate.h"
 #import <WebKit/WKBackForwardListItemPrivate.h>
 #import <WebKit/WKContentRuleListStore.h>
 #import <WebKit/WKHTTPCookieStorePrivate.h>
@@ -505,6 +506,7 @@ static RetainPtr<_WKProcessPoolConfiguration> psonProcessPoolConfiguration()
     processPoolConfiguration.get().processSwapsOnNavigation = YES;
     processPoolConfiguration.get().usesWebProcessCache = YES;
     processPoolConfiguration.get().prewarmsProcessesAutomatically = YES;
+    processPoolConfiguration.get().processSwapsOnNavigationWithinSameNonHTTPFamilyProtocol = YES;
     return processPoolConfiguration;
 }
 
@@ -563,6 +565,57 @@ TEST(ProcessSwap, Basic)
 TEST(ProcessSwap, BasicWithAsyncSchemeHandler)
 {
     runBasicTest(SchemeHandlerShouldBeAsync::Yes);
+}
+
+TEST(ProcessSwap, NoProcessSwappingWithinSameNonHTTPFamilyProtocol)
+{
+    auto processPoolConfiguration = psonProcessPoolConfiguration();
+    processPoolConfiguration.get().processSwapsOnNavigationWithinSameNonHTTPFamilyProtocol = NO;
+    auto processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
+
+    auto webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    [webViewConfiguration setProcessPool:processPool.get()];
+    auto handler = adoptNS([[PSONScheme alloc] init]);
+    [webViewConfiguration setURLSchemeHandler:handler.get() forURLScheme:@"CUSTOM"];
+
+    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    auto delegate = adoptNS([[PSONNavigationDelegate alloc] init]);
+    [webView setNavigationDelegate:delegate.get()];
+
+    NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"custom://abc/main1.html"]];
+    [webView loadRequest:request];
+    TestWebKitAPI::Util::run(&done);
+    done = false;
+
+    auto pid1 = [webView _webProcessIdentifier];
+
+    request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"custom://def/main2.html"]];
+    [webView loadRequest:request];
+    TestWebKitAPI::Util::run(&done);
+    done = false;
+
+    EXPECT_EQ(pid1, [webView _webProcessIdentifier]);
+
+    request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"custom://ghi/main3.html"]];
+    [webView loadRequest:request];
+    TestWebKitAPI::Util::run(&done);
+    done = false;
+
+    EXPECT_EQ(pid1, [webView _webProcessIdentifier]);
+
+    // Switch to the file protocol.
+    [webView loadRequest:[NSURLRequest requestWithURL:[[NSBundle mainBundle] URLForResource:@"simple" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"]]];
+    TestWebKitAPI::Util::run(&done);
+    done = false;
+
+    auto pid2 = [webView _webProcessIdentifier];
+    EXPECT_NE(pid1, pid2);
+
+    [webView loadRequest:[NSURLRequest requestWithURL:[[NSBundle mainBundle] URLForResource:@"simple2" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"]]];
+    TestWebKitAPI::Util::run(&done);
+    done = false;
+
+    EXPECT_EQ(pid2, [webView _webProcessIdentifier]);
 }
 
 TEST(ProcessSwap, LoadAfterPolicyDecision)
@@ -3350,6 +3403,33 @@ TEST(ProcessSwap, PageCache1)
     EXPECT_EQ(2u, seenPIDs.size());
 }
 
+TEST(ProcessSwap, NavigateBackAfterCrossOriginClientRedirect)
+{
+    auto processPoolConfiguration = psonProcessPoolConfiguration();
+    auto processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
+
+    auto webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    [webViewConfiguration setProcessPool:processPool.get()];
+    auto handler = adoptNS([[PSONScheme alloc] init]);
+    [handler addMappingFromURLString:@"pson://webkit.org/navigated_from" toData:"<a href='pson://apple.com/'>hello</a>"];
+    [handler addMappingFromURLString:@"pson://apple.com/" toData:"<script>window.location.href='pson://webkit.org/redirected_to'</script>redirecting..."];
+    [handler addMappingFromURLString:@"pson://webkit.org/redirected_to" toData:"<p>hello again</p>"];
+    [webViewConfiguration setURLSchemeHandler:handler.get() forURLScheme:@"PSON"];
+
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"pson://webkit.org/navigated_from"]]];
+    [webView _test_waitForDidFinishNavigation];
+
+    [webView evaluateJavaScript:@"document.querySelector('a').click()" completionHandler:nil];
+    [webView _test_waitForDidFinishNavigation];
+    [webView _test_waitForDidFinishNavigation];
+    EXPECT_WK_STREQ([webView objectByEvaluatingJavaScript:@"window.location.href"], "pson://webkit.org/redirected_to");
+    [webView goBack];
+    [webView _test_waitForDidFinishNavigation];
+    EXPECT_WK_STREQ([webView objectByEvaluatingJavaScript:@"window.location.href"], "pson://webkit.org/navigated_from");
+}
+
 TEST(ProcessSwap, BackForwardCacheSkipBackForwardListItem)
 {
     auto processPoolConfiguration = psonProcessPoolConfiguration();
@@ -3687,6 +3767,104 @@ TEST(ProcessSwap, UseWebProcessCacheAfterTermination)
 
     EXPECT_EQ(webkitPID, [webView _webProcessIdentifier]);
     EXPECT_EQ(1U, [processPool _webProcessCountIgnoringPrewarmed]);
+}
+
+TEST(ProcessSwap, ProcessCrashedWhileInTheCache)
+{
+    auto processPoolConfiguration = psonProcessPoolConfiguration();
+    auto processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
+
+    auto webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    [webViewConfiguration setProcessPool:processPool.get()];
+    auto handler = adoptNS([[PSONScheme alloc] init]);
+    [webViewConfiguration setURLSchemeHandler:handler.get() forURLScheme:@"PSON"];
+
+    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    [navigationDelegate setDidFinishNavigation:^(WKWebView *, WKNavigation *) {
+        done = true;
+    }];
+
+    int webkitPID = 0;
+
+    @autoreleasepool {
+        auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+        [webView setNavigationDelegate:navigationDelegate.get()];
+
+        NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"pson://www.webkit.org/main.html"]];
+
+        [webView loadRequest:request];
+        TestWebKitAPI::Util::run(&done);
+        done = false;
+        webkitPID = [webView _webProcessIdentifier];
+    }
+
+    while ([processPool _processCacheSize] != 1)
+        TestWebKitAPI::Util::sleep(0.1);
+
+    kill(webkitPID, 9);
+
+    while ([processPool _processCacheSize])
+        TestWebKitAPI::Util::sleep(0.1);
+
+    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    [webView setNavigationDelegate:navigationDelegate.get()];
+
+    NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"pson://www.webkit.org/main.html"]];
+
+    [webView loadRequest:request];
+    TestWebKitAPI::Util::run(&done);
+    done = false;
+
+    EXPECT_NE(webkitPID, [webView _webProcessIdentifier]);
+}
+
+TEST(ProcessSwap, ProcessTerminatedWhileInTheCache)
+{
+    auto processPoolConfiguration = psonProcessPoolConfiguration();
+    auto processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
+
+    auto webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    [webViewConfiguration setProcessPool:processPool.get()];
+    auto handler = adoptNS([[PSONScheme alloc] init]);
+    [webViewConfiguration setURLSchemeHandler:handler.get() forURLScheme:@"PSON"];
+
+    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    [navigationDelegate setDidFinishNavigation:^(WKWebView *, WKNavigation *) {
+        done = true;
+    }];
+
+    int webkitPID = 0;
+
+    @autoreleasepool {
+        auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+        [webView setNavigationDelegate:navigationDelegate.get()];
+
+        NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"pson://www.webkit.org/main.html"]];
+
+        [webView loadRequest:request];
+        TestWebKitAPI::Util::run(&done);
+        done = false;
+        webkitPID = [webView _webProcessIdentifier];
+    }
+
+    while ([processPool _processCacheSize] != 1)
+        TestWebKitAPI::Util::sleep(0.1);
+
+    EXPECT_TRUE([processPool _requestWebProcessTermination:webkitPID]);
+    TestWebKitAPI::Util::spinRunLoop(100);
+
+    EXPECT_EQ(0U, [processPool _processCacheSize]);
+
+    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    [webView setNavigationDelegate:navigationDelegate.get()];
+
+    NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"pson://www.webkit.org/main.html"]];
+
+    [webView loadRequest:request];
+    TestWebKitAPI::Util::run(&done);
+    done = false;
+
+    EXPECT_NE(webkitPID, [webView _webProcessIdentifier]);
 }
 
 TEST(ProcessSwap, UseWebProcessCacheForLoadInNewView)
@@ -5454,7 +5632,7 @@ TEST(ProcessSwap, UsePrewarmedProcessAfterTerminatingNetworkProcess)
 
     auto webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [webViewConfiguration setProcessPool:processPool.get()];
-    webViewConfiguration.get().websiteDataStore = [[[WKWebsiteDataStore alloc] _initWithConfiguration:websiteDataStoreConfiguration.get()] autorelease];
+    webViewConfiguration.get().websiteDataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:websiteDataStoreConfiguration.get()]).get();
 
     auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
     auto delegate = adoptNS([[PSONNavigationDelegate alloc] init]);
@@ -6480,26 +6658,14 @@ TEST(ProcessSwap, LoadAlternativeHTML)
 
 static bool isCapturing = false;
 static bool isNotCapturing = false;
-@interface GetUserMediaUIDelegate : NSObject<WKUIDelegate>
-- (void)_webView:(WKWebView *)webView requestUserMediaAuthorizationForDevices:(_WKCaptureDevices)devices url:(NSURL *)url mainFrameURL:(NSURL *)mainFrameURL decisionHandler:(void (^)(BOOL authorized))decisionHandler;
-- (void)_webView:(WKWebView *)webView checkUserMediaPermissionForURL:(NSURL *)url mainFrameURL:(NSURL *)mainFrameURL frameIdentifier:(NSUInteger)frameIdentifier decisionHandler:(void (^)(NSString *salt, BOOL authorized))decisionHandler;
-- (void)_webView:(WKWebView *)webView mediaCaptureStateDidChange:(_WKMediaCaptureState)state;
+@interface GetUserMediaUIDelegate : UserMediaCaptureUIDelegate
+- (void)_webView:(WKWebView *)webView mediaCaptureStateDidChange:(_WKMediaCaptureStateDeprecated)state;
 @end
 
 @implementation GetUserMediaUIDelegate
-- (void)_webView:(WKWebView *)webView requestUserMediaAuthorizationForDevices:(_WKCaptureDevices)devices url:(NSURL *)url mainFrameURL:(NSURL *)mainFrameURL decisionHandler:(void (^)(BOOL authorized))decisionHandler
+- (void)_webView:(WKWebView *)webView mediaCaptureStateDidChange:(_WKMediaCaptureStateDeprecated)state
 {
-    decisionHandler(YES);
-}
-
-- (void)_webView:(WKWebView *)webView checkUserMediaPermissionForURL:(NSURL *)url mainFrameURL:(NSURL *)mainFrameURL frameIdentifier:(NSUInteger)frameIdentifier decisionHandler:(void (^)(NSString *salt, BOOL authorized))decisionHandler
-{
-    decisionHandler(@"0x987654321", YES);
-}
-
-- (void)_webView:(WKWebView *)webView mediaCaptureStateDidChange:(_WKMediaCaptureState)state
-{
-    isCapturing = state == _WKMediaCaptureStateActiveCamera;
+    isCapturing = state == _WKMediaCaptureStateDeprecatedActiveCamera;
     isNotCapturing = !state;
 }
 @end

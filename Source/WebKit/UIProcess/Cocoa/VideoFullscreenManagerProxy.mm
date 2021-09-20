@@ -61,7 +61,7 @@
 #else
 - (CALayer *)makeBackingLayer
 {
-    return [[[CALayerHost alloc] init] autorelease];
+    return adoptNS([[CALayerHost alloc] init]).autorelease();
 }
 #endif
 
@@ -181,6 +181,16 @@ void VideoFullscreenModelContext::removeClient(VideoFullscreenModelClient& clien
     m_clients.remove(&client);
 }
 
+void VideoFullscreenModelContext::requestCloseAllMediaPresentations(bool finishedWithMedia, CompletionHandler<void()>&& completionHandler)
+{
+    if (!m_manager) {
+        completionHandler();
+        return;
+    }
+
+    m_manager->requestCloseAllMediaPresentations(m_contextId, finishedWithMedia, WTFMove(completionHandler));
+}
+
 void VideoFullscreenModelContext::requestFullscreenMode(HTMLMediaElementEnums::VideoFullscreenMode mode, bool finishedWithMedia)
 {
     if (m_manager)
@@ -214,9 +224,9 @@ UIViewController *VideoFullscreenModelContext::presentingViewController()
     return nullptr;
 }
 
-UIViewController *VideoFullscreenModelContext::createVideoFullscreenViewController(AVPlayerViewController *avPlayerViewController)
+RetainPtr<UIViewController> VideoFullscreenModelContext::createVideoFullscreenViewController(AVPlayerViewController *avPlayerViewController)
 {
-    return [[WKVideoFullScreenViewController alloc] initWithAVPlayerViewController:avPlayerViewController];
+    return adoptNS([[WKVideoFullScreenViewController alloc] initWithAVPlayerViewController:avPlayerViewController]);
 }
 #endif
 
@@ -328,6 +338,8 @@ VideoFullscreenManagerProxy::VideoFullscreenManagerProxy(WebPageProxy& page, Pla
 
 VideoFullscreenManagerProxy::~VideoFullscreenManagerProxy()
 {
+    callCloseCompletionHandlers();
+
     if (!m_page)
         return;
     invalidate();
@@ -475,7 +487,7 @@ void VideoFullscreenManagerProxy::removeClientForContext(PlaybackSessionContextI
     m_clientCounts.set(contextId, clientCount);
 }
 
-void VideoFullscreenManagerProxy::forEachSession(Function<void(VideoFullscreenModel&, PlatformVideoFullscreenInterface&)>&& callback)
+void VideoFullscreenManagerProxy::forEachSession(Function<void(VideoFullscreenModelContext&, PlatformVideoFullscreenInterface&)>&& callback)
 {
     if (m_contextMap.isEmpty())
         return;
@@ -508,7 +520,7 @@ void VideoFullscreenManagerProxy::hasVideoInPictureInPictureDidChange(bool value
 
 #pragma mark Messages from VideoFullscreenManager
 
-void VideoFullscreenManagerProxy::setupFullscreenWithID(PlaybackSessionContextIdentifier contextId, WebKit::LayerHostingContextID videoLayerID, const WebCore::IntRect& initialRect, const WebCore::FloatSize& videoDimensions, float hostingDeviceScaleFactor, HTMLMediaElementEnums::VideoFullscreenMode videoFullscreenMode, bool allowsPictureInPicture, bool standby, bool blocksReturnToFullscreenFromPictureInPicture)
+void VideoFullscreenManagerProxy::setupFullscreenWithID(PlaybackSessionContextIdentifier contextId, WebKit::LayerHostingContextID videoLayerID, const WebCore::FloatRect& initialRect, const WebCore::FloatSize& videoDimensions, float hostingDeviceScaleFactor, HTMLMediaElementEnums::VideoFullscreenMode videoFullscreenMode, bool allowsPictureInPicture, bool standby, bool blocksReturnToFullscreenFromPictureInPicture)
 {
     MESSAGE_CHECK(videoLayerID);
 
@@ -549,7 +561,7 @@ void VideoFullscreenManagerProxy::setupFullscreenWithID(PlaybackSessionContextId
     UNUSED_PARAM(videoDimensions);
     UNUSED_PARAM(blocksReturnToFullscreenFromPictureInPicture);
     IntRect initialWindowRect;
-    m_page->rootViewToWindow(initialRect, initialWindowRect);
+    m_page->rootViewToWindow(enclosingIntRect(initialRect), initialWindowRect);
     interface->setupFullscreen(*model->layerHostView(), initialWindowRect, m_page->platformWindow(), videoFullscreenMode, allowsPictureInPicture);
 #endif
 }
@@ -602,7 +614,7 @@ void VideoFullscreenManagerProxy::enterFullscreen(PlaybackSessionContextIdentifi
     }
 }
 
-void VideoFullscreenManagerProxy::exitFullscreen(PlaybackSessionContextIdentifier contextId, WebCore::IntRect finalRect, CompletionHandler<void(bool)>&& completionHandler)
+void VideoFullscreenManagerProxy::exitFullscreen(PlaybackSessionContextIdentifier contextId, WebCore::FloatRect finalRect, CompletionHandler<void(bool)>&& completionHandler)
 {
     ASSERT(m_contextMap.contains(contextId));
     if (!m_contextMap.contains(contextId)) {
@@ -612,7 +624,10 @@ void VideoFullscreenManagerProxy::exitFullscreen(PlaybackSessionContextIdentifie
 
 #if !PLATFORM(IOS_FAMILY)
     IntRect finalWindowRect;
-    m_page->rootViewToWindow(finalRect, finalWindowRect);
+    m_page->rootViewToWindow(enclosingIntRect(finalRect), finalWindowRect);
+#else
+    if (hasMode(WebCore::HTMLMediaElementEnums::VideoFullscreenModeStandard))
+        m_page->fullscreenMayReturnToInline();
 #endif
 
     if (m_mockVideoPresentationModeEnabled) {
@@ -652,7 +667,7 @@ void VideoFullscreenManagerProxy::exitFullscreenWithoutAnimationToMode(PlaybackS
 
 #if PLATFORM(IOS_FAMILY)
 
-void VideoFullscreenManagerProxy::setInlineRect(PlaybackSessionContextIdentifier contextId, const WebCore::IntRect& inlineRect, bool visible)
+void VideoFullscreenManagerProxy::setInlineRect(PlaybackSessionContextIdentifier contextId, const WebCore::FloatRect& inlineRect, bool visible)
 {
     if (m_mockVideoPresentationModeEnabled)
         return;
@@ -676,7 +691,7 @@ void VideoFullscreenManagerProxy::setHasVideoContentLayer(PlaybackSessionContext
 
 #else
 
-NO_RETURN_DUE_TO_ASSERT void VideoFullscreenManagerProxy::setInlineRect(PlaybackSessionContextIdentifier, const WebCore::IntRect&, bool)
+NO_RETURN_DUE_TO_ASSERT void VideoFullscreenManagerProxy::setInlineRect(PlaybackSessionContextIdentifier, const WebCore::FloatRect&, bool)
 {
     ASSERT_NOT_REACHED();
 }
@@ -698,13 +713,13 @@ void VideoFullscreenManagerProxy::cleanupFullscreen(PlaybackSessionContextIdenti
     ensureInterface(contextId).cleanupFullscreen();
 }
 
-void VideoFullscreenManagerProxy::preparedToReturnToInline(PlaybackSessionContextIdentifier contextId, bool visible, WebCore::IntRect inlineRect)
+void VideoFullscreenManagerProxy::preparedToReturnToInline(PlaybackSessionContextIdentifier contextId, bool visible, WebCore::FloatRect inlineRect)
 {
     m_page->fullscreenMayReturnToInline();
 
 #if !PLATFORM(IOS_FAMILY)
     IntRect inlineWindowRect;
-    m_page->rootViewToWindow(inlineRect, inlineWindowRect);
+    m_page->rootViewToWindow(enclosingIntRect(inlineRect), inlineWindowRect);
 #endif
 
     if (m_mockVideoPresentationModeEnabled)
@@ -726,6 +741,25 @@ void VideoFullscreenManagerProxy::preparedToExitFullscreen(PlaybackSessionContex
 }
 
 #pragma mark Messages to VideoFullscreenManager
+
+void VideoFullscreenManagerProxy::callCloseCompletionHandlers()
+{
+    auto closeMediaCallbacks = WTFMove(m_closeCompletionHandlers);
+    for (auto& callback : closeMediaCallbacks)
+        callback();
+}
+
+void VideoFullscreenManagerProxy::requestCloseAllMediaPresentations(PlaybackSessionContextIdentifier contextId, bool finishedWithMedia, CompletionHandler<void()>&& completionHandler)
+{
+    if (!hasMode(WebCore::HTMLMediaElementEnums::VideoFullscreenModePictureInPicture)
+        && !hasMode(WebCore::HTMLMediaElementEnums::VideoFullscreenModeStandard)) {
+        completionHandler();
+        return;
+    }
+
+    m_closeCompletionHandlers.append(WTFMove(completionHandler));
+    requestFullscreenMode(contextId, WebCore::HTMLMediaElementEnums::VideoFullscreenModeNone, finishedWithMedia);
+}
 
 void VideoFullscreenManagerProxy::requestFullscreenMode(PlaybackSessionContextIdentifier contextId, WebCore::HTMLMediaElementEnums::VideoFullscreenMode mode, bool finishedWithMedia)
 {
@@ -766,15 +800,18 @@ void VideoFullscreenManagerProxy::didExitFullscreen(PlaybackSessionContextIdenti
     m_page->send(Messages::VideoFullscreenManager::DidExitFullscreen(contextId));
 
 #if PLATFORM(IOS_FAMILY)
-    if (ensureInterface(contextId).changingStandbyOnly())
+    if (ensureInterface(contextId).changingStandbyOnly()) {
+        callCloseCompletionHandlers();
         return;
+    }
 #endif
     m_page->didExitFullscreen();
+    callCloseCompletionHandlers();
 }
 
 void VideoFullscreenManagerProxy::didEnterFullscreen(PlaybackSessionContextIdentifier contextId, const WebCore::FloatSize& size)
 {
-    Optional<FloatSize> optionalSize;
+    std::optional<FloatSize> optionalSize;
     if (!size.isEmpty())
         optionalSize = size;
 

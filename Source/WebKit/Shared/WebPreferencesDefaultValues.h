@@ -66,10 +66,7 @@ bool allowsDeprecatedSynchronousXMLHttpRequestDuringUnload();
 
 bool defaultAsyncFrameScrollingEnabled();
 bool defaultAsyncOverflowScrollingEnabled();
-
-#if ENABLE(APP_HIGHLIGHTS)
-bool defaultAppHighlightsEnabled();
-#endif
+bool defaultOfflineWebApplicationCacheEnabled();
 
 #if ENABLE(GPU_PROCESS)
 bool defaultUseGPUProcessForCanvasRenderingEnabled();
@@ -86,10 +83,6 @@ bool defaultCaptureVideoInGPUProcessEnabled();
 
 #if ENABLE(WEB_RTC)
 bool defaultWebRTCCodecsInGPUProcess();
-#endif
-
-#if ENABLE(WEBGPU)
-bool defaultWebGPUEnabled();
 #endif
 
 bool defaultInAppBrowserPrivacy();
@@ -110,9 +103,15 @@ bool defaultWebMFormatReaderEnabled();
 bool defaultVP8DecoderEnabled();
 bool defaultVP9DecoderEnabled();
 bool defaultVP9SWDecoderEnabledOnBattery();
+#endif
+
 #if ENABLE(MEDIA_SOURCE)
 bool defaultWebMParserEnabled();
+bool defaultWebMWebAudioEnabled();
 #endif
+
+#if ENABLE(MEDIA_SESSION_COORDINATOR)
+bool defaultMediaSessionCoordinatorEnabled();
 #endif
 
 } // namespace WebKit

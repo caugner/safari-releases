@@ -46,11 +46,12 @@ public:
     void addProxy(RemoteAudioSessionProxy&);
     void removeProxy(RemoteAudioSessionProxy&);
 
-    void setCategoryForProcess(RemoteAudioSessionProxy&, WebCore::AudioSession::CategoryType, WebCore::RouteSharingPolicy);
+    void updateCategory();
     void setPreferredBufferSizeForProcess(RemoteAudioSessionProxy&, size_t);
 
     bool tryToSetActiveForProcess(RemoteAudioSessionProxy&, bool);
 
+    WebCore::AudioSession& session() { return m_session; }
     const WebCore::AudioSession& session() const { return m_session; }
 
 private:

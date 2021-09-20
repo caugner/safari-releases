@@ -109,6 +109,7 @@ FileInputType::FileInputType(HTMLInputElement& element)
     : BaseClickableWithKeyInputType(Type::File, element)
     , m_fileList(FileList::create())
 {
+    ASSERT(needsShadowSubtree());
 }
 
 FileInputType::~FileInputType()
@@ -143,7 +144,7 @@ FormControlState FileInputType::saveFormControlState() const
     auto length = Checked<size_t>(m_fileList->files().size()) * Checked<size_t>(2);
 
     Vector<String> stateVector;
-    stateVector.reserveInitialCapacity(length.unsafeGet());
+    stateVector.reserveInitialCapacity(length);
     for (auto& file : m_fileList->files()) {
         stateVector.uncheckedAppend(file->path());
         stateVector.uncheckedAppend(file->name());
@@ -273,13 +274,9 @@ void FileInputType::setValue(const String&, bool, TextFieldEventBehavior)
     element()->invalidateStyleForSubtree();
 }
 
-bool FileInputType::isFileUpload() const
-{
-    return true;
-}
-
 void FileInputType::createShadowSubtreeAndUpdateInnerTextElementEditability(ContainerNode::ChildChange::Source source, bool)
 {
+    ASSERT(needsShadowSubtree());
     ASSERT(element());
     ASSERT(element()->shadowRoot());
     element()->userAgentShadowRoot()->appendChild(source, element()->multiple() ? UploadButtonElement::createForMultiple(element()->document()): UploadButtonElement::create(element()->document()));

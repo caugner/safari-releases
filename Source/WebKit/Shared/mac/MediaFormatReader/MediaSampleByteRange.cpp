@@ -25,12 +25,12 @@
 
 #include "config.h"
 #include "MediaSampleByteRange.h"
+#include <pal/cf/CoreMediaSoftLink.h>
 
 #if ENABLE(WEBM_FORMAT_READER)
 
 namespace WebKit {
 
-using namespace PAL;
 using namespace WebCore;
 
 MediaSampleByteRange::MediaSampleByteRange(MediaSample& sample, MTPluginByteSourceRef byteSource, uint64_t trackID)
@@ -38,19 +38,19 @@ MediaSampleByteRange::MediaSampleByteRange(MediaSample& sample, MTPluginByteSour
     , m_presentationTime(sample.presentationTime())
     , m_decodeTime(sample.decodeTime())
     , m_duration(sample.duration())
+    , m_byteRange(*sample.byteRange())
+    , m_trackID(trackID)
     , m_sizeInBytes(sample.sizeInBytes())
     , m_presentationSize(sample.presentationSize())
-    , m_flags(sample.flags())
-    , m_trackID(trackID)
-    , m_byteRange(sample.byteRange())
     , m_byteSource(byteSource)
+    , m_flags(sample.flags())
 {
-    ASSERT(!isMainThread());
+    ASSERT(!isMainRunLoop());
     ASSERT(m_decodeTime == m_presentationTime || m_decodeTime == MediaTime::invalidTime());
     auto platformSample = sample.platformSample();
     switch (platformSample.type) {
     case PlatformSample::CMSampleBufferType:
-        m_formatDescription = CMSampleBufferGetFormatDescription(platformSample.sample.cmSampleBuffer);
+        m_formatDescription = PAL::CMSampleBufferGetFormatDescription(platformSample.sample.cmSampleBuffer);
         break;
     case PlatformSample::ByteRangeSampleType:
         m_formatDescription = platformSample.sample.byteRangeSample.second;

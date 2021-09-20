@@ -44,6 +44,7 @@
 #import <WebKit/_WKUserStyleSheet.h>
 #import <wtf/RetainPtr.h>
 #import <wtf/Vector.h>
+#import <wtf/WeakObjCPtr.h>
 
 static bool isDoneWithNavigation;
 
@@ -132,7 +133,7 @@ TEST(WKUserContentController, ScriptMessageHandlerBasicPostIsolatedWorld)
         TestWebKitAPI::Util::run(&isDoneWithNavigation);
 
     __block bool isDoneEvaluatingScript = false;
-    __block NSString *resultValue = @"";
+    __block RetainPtr<NSString> resultValue = @"";
     [webView evaluateJavaScript:
         @"var result;"
          "if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.testHandler) {"
@@ -142,13 +143,13 @@ TEST(WKUserContentController, ScriptMessageHandlerBasicPostIsolatedWorld)
          "} " 
          "result;"
          completionHandler:^(id value, NSError *error) {
-            resultValue = [((NSDictionary *)value)[@"result"] copy];
+            resultValue = ((NSDictionary *)value)[@"result"];
             isDoneEvaluatingScript = true;
         }];
 
     TestWebKitAPI::Util::run(&isDoneEvaluatingScript);
 
-    EXPECT_WK_STREQ(@"PASS", resultValue);
+    EXPECT_WK_STREQ(@"PASS", resultValue.get());
 }
 
 TEST(WKUserContentController, ScriptMessageHandlerBasicRemove)
@@ -238,7 +239,7 @@ static RetainPtr<WKWebView> webViewForScriptMessageHandlerMultipleHandlerRemoval
 
     RetainPtr<ScriptMessageHandler> handler = adoptNS([[ScriptMessageHandler alloc] init]);
     RetainPtr<WKWebViewConfiguration> configurationCopy = adoptNS([configuration copy]);
-    [configurationCopy setUserContentController:[[[WKUserContentController alloc] init] autorelease]];
+    [configurationCopy setUserContentController:adoptNS([[WKUserContentController alloc] init]).get()];
     [[configurationCopy userContentController] addScriptMessageHandler:handler.get() name:@"handlerToRemove"];
     [[configurationCopy userContentController] addScriptMessageHandler:handler.get() name:@"handlerToPost"];
     RetainPtr<WKWebView> webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configurationCopy.get()]);
@@ -256,7 +257,7 @@ TEST(WKUserContentController, ScriptMessageHandlerMultipleHandlerRemoval)
 
     RetainPtr<WKWebViewConfiguration> configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     RetainPtr<_WKProcessPoolConfiguration> processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
-    [configuration setProcessPool:[[[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()] autorelease]];
+    [configuration setProcessPool:adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]).get()];
 
     RetainPtr<WKWebView> webView = webViewForScriptMessageHandlerMultipleHandlerRemovalTest(configuration.get());
     RetainPtr<WKWebView> webView2 = webViewForScriptMessageHandlerMultipleHandlerRemovalTest(configuration.get());
@@ -390,7 +391,7 @@ TEST(WKUserContentController, AddUserStyleSheetBeforeCreatingView)
 TEST(WKUserContentController, NonCanonicalizedURL)
 {
     RetainPtr<WKContentWorld> world = [WKContentWorld worldWithName:@"TestWorld"];
-    RetainPtr<_WKUserStyleSheet> styleSheet = adoptNS([[_WKUserStyleSheet alloc] initWithSource:styleSheetSource forWKWebView:nil forMainFrameOnly:NO includeMatchPatternStrings:@[] excludeMatchPatternStrings:@[] baseURL:[[[NSURL alloc] initWithString:@"http://CamelCase/"] autorelease] level:_WKUserStyleUserLevel contentWorld:world.get()]);
+    RetainPtr<_WKUserStyleSheet> styleSheet = adoptNS([[_WKUserStyleSheet alloc] initWithSource:styleSheetSource forWKWebView:nil forMainFrameOnly:NO includeMatchPatternStrings:@[] excludeMatchPatternStrings:@[] baseURL:adoptNS([[NSURL alloc] initWithString:@"http://CamelCase/"]).get() level:_WKUserStyleUserLevel contentWorld:world.get()]);
 }
 
 TEST(WKUserContentController, AddUserStyleSheetAfterCreatingView)
@@ -892,65 +893,65 @@ TEST(WKUserContentController, InjectUserScriptImmediately)
 
 TEST(WKUserContentController, UserScriptNotification)
 {
-    WKUserScript *waitsForNotification = [[[WKUserScript alloc] _initWithSource:@"alert('waited for notification')" injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:YES includeMatchPatternStrings:@[] excludeMatchPatternStrings:@[] associatedURL:[NSURL URLWithString:@"test:///script"] contentWorld:[WKContentWorld defaultClientWorld] deferRunningUntilNotification:YES] autorelease];
-    WKUserScript *documentEnd = [[[WKUserScript alloc] initWithSource:@"alert('document parsing ended')" injectionTime:WKUserScriptInjectionTimeAtDocumentEnd forMainFrameOnly:YES] autorelease];
+    auto waitsForNotification = adoptNS([[WKUserScript alloc] _initWithSource:@"alert('waited for notification')" injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:YES includeMatchPatternStrings:@[] excludeMatchPatternStrings:@[] associatedURL:[NSURL URLWithString:@"test:///script"] contentWorld:[WKContentWorld defaultClientWorld] deferRunningUntilNotification:YES]);
+    auto documentEnd = adoptNS([[WKUserScript alloc] initWithSource:@"alert('document parsing ended')" injectionTime:WKUserScriptInjectionTimeAtDocumentEnd forMainFrameOnly:YES]);
 
-    TestWKWebView *webView1 = [[TestWKWebView new] autorelease];
-    EXPECT_TRUE(webView1._deferrableUserScriptsNeedNotification);
-    [webView1.configuration.userContentController addUserScript:waitsForNotification];
-    [webView1.configuration.userContentController addUserScript:documentEnd];
-    TestUIDelegate *delegate = [[TestUIDelegate new] autorelease];
-    webView1.UIDelegate = delegate;
+    auto webView1 = adoptNS([TestWKWebView new]);
+    EXPECT_TRUE([webView1 _deferrableUserScriptsNeedNotification]);
+    [[webView1 configuration].userContentController addUserScript:waitsForNotification.get()];
+    [[webView1 configuration].userContentController addUserScript:documentEnd.get()];
+    auto delegate = adoptNS([TestUIDelegate new]);
+    [webView1 setUIDelegate:delegate.get()];
     [webView1 loadTestPageNamed:@"simple"];
     EXPECT_WK_STREQ([delegate waitForAlert], "document parsing ended");
-    EXPECT_TRUE(webView1._deferrableUserScriptsNeedNotification);
+    EXPECT_TRUE([webView1 _deferrableUserScriptsNeedNotification]);
     [webView1 _notifyUserScripts];
-    EXPECT_FALSE(webView1._deferrableUserScriptsNeedNotification);
+    EXPECT_FALSE([webView1 _deferrableUserScriptsNeedNotification]);
     EXPECT_WK_STREQ([delegate waitForAlert], "waited for notification");
 
     [webView1 _killWebContentProcessAndResetState];
     [webView1 reload];
 
     EXPECT_WK_STREQ([delegate waitForAlert], "document parsing ended");
-    EXPECT_TRUE(webView1._deferrableUserScriptsNeedNotification);
+    EXPECT_TRUE([webView1 _deferrableUserScriptsNeedNotification]);
     [webView1 _notifyUserScripts];
-    EXPECT_FALSE(webView1._deferrableUserScriptsNeedNotification);
+    EXPECT_FALSE([webView1 _deferrableUserScriptsNeedNotification]);
     EXPECT_WK_STREQ([delegate waitForAlert], "waited for notification");
 
     [webView1 reload];
 
-    EXPECT_FALSE(webView1._deferrableUserScriptsNeedNotification);
+    EXPECT_FALSE([webView1 _deferrableUserScriptsNeedNotification]);
     EXPECT_WK_STREQ([delegate waitForAlert], "waited for notification");
     EXPECT_WK_STREQ([delegate waitForAlert], "document parsing ended");
 
-    WKWebViewConfiguration *configuration = [[WKWebViewConfiguration new] autorelease];
-    EXPECT_TRUE(configuration._deferrableUserScriptsShouldWaitUntilNotification);
-    configuration._deferrableUserScriptsShouldWaitUntilNotification = NO;
-    TestWKWebView *webView2 = [[[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration] autorelease];
-    EXPECT_FALSE(webView2._deferrableUserScriptsNeedNotification);
-    [webView2.configuration.userContentController addUserScript:waitsForNotification];
-    [webView2.configuration.userContentController addUserScript:documentEnd];
-    webView2.UIDelegate = delegate;
+    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    EXPECT_TRUE([configuration _deferrableUserScriptsShouldWaitUntilNotification]);
+    configuration.get()._deferrableUserScriptsShouldWaitUntilNotification = NO;
+    auto webView2 = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    EXPECT_FALSE([webView2 _deferrableUserScriptsNeedNotification]);
+    [[webView2 configuration].userContentController addUserScript:waitsForNotification.get()];
+    [[webView2 configuration].userContentController addUserScript:documentEnd.get()];
+    [webView2 setUIDelegate:delegate.get()];
     [webView2 loadTestPageNamed:@"simple"];
     EXPECT_WK_STREQ([delegate waitForAlert], "waited for notification");
     EXPECT_WK_STREQ([delegate waitForAlert], "document parsing ended");
 
-    TestWKWebView *webView3 = [[TestWKWebView new] autorelease];
-    EXPECT_TRUE(webView3._deferrableUserScriptsNeedNotification);
-    [webView3.configuration.userContentController addUserScript:waitsForNotification];
-    [webView3.configuration.userContentController addUserScript:documentEnd];
-    webView3.UIDelegate = delegate;
+    auto webView3 = adoptNS([TestWKWebView new]);
+    EXPECT_TRUE([webView3 _deferrableUserScriptsNeedNotification]);
+    [[webView3 configuration].userContentController addUserScript:waitsForNotification.get()];
+    [[webView3 configuration].userContentController addUserScript:documentEnd.get()];
+    [webView3 setUIDelegate:delegate.get()];
     [webView3 loadTestPageNamed:@"simple"];
     [webView3 _notifyUserScripts];
-    EXPECT_FALSE(webView3._deferrableUserScriptsNeedNotification);
+    EXPECT_FALSE([webView3 _deferrableUserScriptsNeedNotification]);
     EXPECT_WK_STREQ([delegate waitForAlert], "waited for notification");
     EXPECT_WK_STREQ([delegate waitForAlert], "document parsing ended");
 
-    TestWKWebView *webView4 = [[TestWKWebView new] autorelease];
-    EXPECT_TRUE(webView4._deferrableUserScriptsNeedNotification);
-    [webView4.configuration.userContentController addUserScript:waitsForNotification];
-    [webView4.configuration.userContentController addUserScript:documentEnd];
-    webView4.UIDelegate = delegate;
+    auto webView4 = adoptNS([TestWKWebView new]);
+    EXPECT_TRUE([webView4 _deferrableUserScriptsNeedNotification]);
+    [[webView4 configuration].userContentController addUserScript:waitsForNotification.get()];
+    [[webView4 configuration].userContentController addUserScript:documentEnd.get()];
+    [webView4 setUIDelegate:delegate.get()];
     [webView4 loadTestPageNamed:@"simple-iframe"];
     [webView4 _notifyUserScripts];
 
@@ -979,6 +980,13 @@ TEST(WKUserContentController, UserScriptNotification)
         }
         if ([message.body isEqualToString:@"Undefined"]) {
             replyHandler(nil, nil);
+            bool caught = false;
+            @try {
+                replyHandler(nil, nil);
+            } @catch (NSException *exception) {
+                caught = true;
+            }
+            EXPECT_TRUE(caught);
             return;
         }
         if ([message.body isEqualToString:@"Do nothing"]) {
@@ -986,7 +994,7 @@ TEST(WKUserContentController, UserScriptNotification)
             return;
         }
         if ([message.body isEqualToString:@"Invalid reply"]) {
-            replyHandler([[[NSData alloc] init] autorelease], nil);
+            replyHandler(adoptNS([[NSData alloc] init]).get(), nil);
             return;
         }
     }
@@ -1228,4 +1236,17 @@ TEST(WKUserContentController, WorldLifetime)
     }];
     TestWebKitAPI::Util::run(&done);
     done = false;
+}
+
+TEST(WKUserContentController, RemoveAllScriptMessageHandlers)
+{
+    WeakObjCPtr<ScriptMessageHandler> weakHandler;
+    auto handler = adoptNS([ScriptMessageHandler new]);
+    weakHandler = handler.get();
+    auto controller = adoptNS([WKUserContentController new]);
+    [controller addScriptMessageHandler:handler.get() name:@"testname"];
+    handler = nullptr;
+    EXPECT_NOT_NULL(weakHandler.get());
+    [controller removeAllScriptMessageHandlers];
+    EXPECT_NULL(weakHandler.get());
 }

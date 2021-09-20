@@ -370,7 +370,7 @@ bool FillLayer::hasOpaqueImage(const RenderElement& renderer) const
     if (static_cast<CompositeOperator>(m_composite) == CompositeOperator::Clear || static_cast<CompositeOperator>(m_composite) == CompositeOperator::Copy)
         return true;
 
-    return static_cast<BlendMode>(m_blendMode) == BlendMode::Normal && static_cast<CompositeOperator>(m_composite) == CompositeOperator::SourceOver && m_image->knownToBeOpaque(&renderer);
+    return static_cast<BlendMode>(m_blendMode) == BlendMode::Normal && static_cast<CompositeOperator>(m_composite) == CompositeOperator::SourceOver && m_image->knownToBeOpaque(renderer);
 }
 
 bool FillLayer::hasRepeatXY() const
@@ -394,16 +394,6 @@ bool FillLayer::hasFixedImage() const
             return true;
     }
     return false;
-}
-
-bool FillLayer::imagesIdentical(const FillLayer* layer1, const FillLayer* layer2)
-{
-    for (; layer1 && layer2; layer1 = layer1->next(), layer2 = layer2->next()) {
-        if (!arePointingToEqualData(layer1->image(), layer2->image()))
-            return false;
-    }
-
-    return !layer1 && !layer2;
 }
 
 TextStream& operator<<(TextStream& ts, FillSize fillSize)

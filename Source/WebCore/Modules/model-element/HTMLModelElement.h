@@ -27,11 +27,26 @@
 
 #if ENABLE(MODEL_ELEMENT)
 
+#include "CachedRawResource.h"
+#include "CachedRawResourceClient.h"
+#include "CachedResourceHandle.h"
 #include "HTMLElement.h"
+#include "IDLTypes.h"
+#include "SharedBuffer.h"
+#include <wtf/UniqueRef.h>
+
+#if HAVE(ARKIT_INLINE_PREVIEW_MAC)
+#include "PlatformLayer.h"
+OBJC_CLASS ASVInlinePreview;
+#endif
 
 namespace WebCore {
 
-class HTMLModelElement final : public HTMLElement {
+class Model;
+
+template<typename IDLType> class DOMPromiseProxyWithResolveCallback;
+
+class HTMLModelElement final : public HTMLElement, private CachedRawResourceClient {
     WTF_MAKE_ISO_ALLOCATED(HTMLModelElement);
 public:
     static Ref<HTMLModelElement> create(const QualifiedName&, Document&);
@@ -40,14 +55,57 @@ public:
     void sourcesChanged();
     const URL& currentSrc() const { return m_sourceURL; }
 
+    using ReadyPromise = DOMPromiseProxyWithResolveCallback<IDLInterface<HTMLModelElement>>;
+    ReadyPromise& ready() { return m_readyPromise.get(); }
+
+    RefPtr<SharedBuffer> modelData() const;
+    RefPtr<Model> model() const;
+
+#if HAVE(ARKIT_INLINE_PREVIEW)
+    WEBCORE_EXPORT static void setModelElementCacheDirectory(const String&);
+    WEBCORE_EXPORT static const String& modelElementCacheDirectory();
+#endif
+
+#if HAVE(ARKIT_INLINE_PREVIEW_MAC)
+    PlatformLayer* platformLayer() const;
+    WEBCORE_EXPORT void inlinePreviewDidObtainContextId(const String& uuid, uint32_t contextId);
+#endif
+
+    void enterFullscreen();
+
 private:
     HTMLModelElement(const QualifiedName&, Document&);
 
+    void setSourceURL(const URL&);
+    HTMLModelElement& readyPromiseResolve();
+
+#if HAVE(ARKIT_INLINE_PREVIEW_MAC)
+    void clearFile();
+    void createFile();
+    void modelDidChange();
+#endif
+
+    // DOM overrides.
     void didMoveToNewDocument(Document& oldDocument, Document& newDocument) final;
 
-    void setSourceURL(const URL&);
+    // Rendering overrides.
+    RenderPtr<RenderElement> createElementRenderer(RenderStyle&&, const RenderTreePosition&) final;
+
+    // CachedRawResourceClient overrides.
+    void dataReceived(CachedResource&, const uint8_t* data, int dataLength) final;
+    void notifyFinished(CachedResource&, const NetworkLoadMetrics&) final;
 
     URL m_sourceURL;
+    CachedResourceHandle<CachedRawResource> m_resource;
+    RefPtr<SharedBuffer> m_data;
+    RefPtr<Model> m_model;
+    UniqueRef<ReadyPromise> m_readyPromise;
+    bool m_dataComplete { false };
+
+#if HAVE(ARKIT_INLINE_PREVIEW_MAC)
+    String m_filePath;
+    RetainPtr<ASVInlinePreview> m_inlinePreview;
+#endif
 };
 
 } // namespace WebCore

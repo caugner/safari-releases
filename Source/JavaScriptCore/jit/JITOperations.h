@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2020 Apple Inc. All rights reserved.
+ * Copyright (C) 2013-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -174,10 +174,14 @@ JSC_DECLARE_JIT_OPERATION(operationGetByIdDirect, EncodedJSValue, (JSGlobalObjec
 JSC_DECLARE_JIT_OPERATION(operationGetByIdDirectGeneric, EncodedJSValue, (JSGlobalObject*, EncodedJSValue, uintptr_t));
 JSC_DECLARE_JIT_OPERATION(operationGetByIdDirectOptimize, EncodedJSValue, (JSGlobalObject*, StructureStubInfo*, EncodedJSValue, uintptr_t));
 
-JSC_DECLARE_JIT_OPERATION(operationInById, EncodedJSValue, (JSGlobalObject*, StructureStubInfo*, EncodedJSValue, uintptr_t));
+JSC_DECLARE_JIT_OPERATION(operationInByIdGeneric, EncodedJSValue, (JSGlobalObject*, StructureStubInfo*, EncodedJSValue, uintptr_t));
 JSC_DECLARE_JIT_OPERATION(operationInByIdOptimize, EncodedJSValue, (JSGlobalObject*, StructureStubInfo*, EncodedJSValue, uintptr_t));
-
-JSC_DECLARE_JIT_OPERATION(operationInByVal, EncodedJSValue, (JSGlobalObject*, JSCell*, EncodedJSValue));
+JSC_DECLARE_JIT_OPERATION(operationInByValGeneric, EncodedJSValue, (JSGlobalObject*, StructureStubInfo*, ArrayProfile*, EncodedJSValue, EncodedJSValue));
+JSC_DECLARE_JIT_OPERATION(operationInByValOptimize, EncodedJSValue, (JSGlobalObject*, StructureStubInfo*, ArrayProfile*, EncodedJSValue, EncodedJSValue));
+JSC_DECLARE_JIT_OPERATION(operationHasPrivateNameGeneric, EncodedJSValue, (JSGlobalObject*, StructureStubInfo*, EncodedJSValue, EncodedJSValue));
+JSC_DECLARE_JIT_OPERATION(operationHasPrivateNameOptimize, EncodedJSValue, (JSGlobalObject*, StructureStubInfo*, EncodedJSValue, EncodedJSValue));
+JSC_DECLARE_JIT_OPERATION(operationHasPrivateBrandGeneric, EncodedJSValue, (JSGlobalObject*, StructureStubInfo*, EncodedJSValue, EncodedJSValue));
+JSC_DECLARE_JIT_OPERATION(operationHasPrivateBrandOptimize, EncodedJSValue, (JSGlobalObject*, StructureStubInfo*, EncodedJSValue, EncodedJSValue));
 
 JSC_DECLARE_JIT_OPERATION(operationPutByIdStrict, void, (JSGlobalObject*, StructureStubInfo*, EncodedJSValue encodedValue, EncodedJSValue encodedBase, uintptr_t));
 JSC_DECLARE_JIT_OPERATION(operationPutByIdNonStrict, void, (JSGlobalObject*, StructureStubInfo*, EncodedJSValue encodedValue, EncodedJSValue encodedBase, uintptr_t));
@@ -191,6 +195,11 @@ JSC_DECLARE_JIT_OPERATION(operationPutByIdDefinePrivateFieldStrict, void, (JSGlo
 JSC_DECLARE_JIT_OPERATION(operationPutByIdDefinePrivateFieldStrictOptimize, void, (JSGlobalObject*, StructureStubInfo*, EncodedJSValue encodedValue, EncodedJSValue encodedBase, uintptr_t));
 JSC_DECLARE_JIT_OPERATION(operationPutByIdSetPrivateFieldStrict, void, (JSGlobalObject*, StructureStubInfo*, EncodedJSValue encodedValue, EncodedJSValue encodedBase, uintptr_t));
 JSC_DECLARE_JIT_OPERATION(operationPutByIdSetPrivateFieldStrictOptimize, void, (JSGlobalObject*, StructureStubInfo*, EncodedJSValue encodedValue, EncodedJSValue encodedBase, uintptr_t));
+
+JSC_DECLARE_JIT_OPERATION(operationSetPrivateBrandOptimize, void, (JSGlobalObject*, StructureStubInfo*, EncodedJSValue, EncodedJSValue));
+JSC_DECLARE_JIT_OPERATION(operationCheckPrivateBrandOptimize, void, (JSGlobalObject*, StructureStubInfo*, EncodedJSValue, EncodedJSValue));
+JSC_DECLARE_JIT_OPERATION(operationSetPrivateBrandGeneric, void, (JSGlobalObject*, StructureStubInfo*, EncodedJSValue, EncodedJSValue));
+JSC_DECLARE_JIT_OPERATION(operationCheckPrivateBrandGeneric, void, (JSGlobalObject*, StructureStubInfo*, EncodedJSValue, EncodedJSValue));
 
 JSC_DECLARE_JIT_OPERATION(operationPutPrivateNameOptimize, void, (JSGlobalObject*, EncodedJSValue, EncodedJSValue, EncodedJSValue, ByValInfo*, PrivateFieldPutKind));
 JSC_DECLARE_JIT_OPERATION(operationPutPrivateNameGeneric, void, (JSGlobalObject*, EncodedJSValue, EncodedJSValue, EncodedJSValue, ByValInfo*, PrivateFieldPutKind));
@@ -275,9 +284,12 @@ JSC_DECLARE_JIT_OPERATION(operationGetPrivateNameById, EncodedJSValue, (JSGlobal
 JSC_DECLARE_JIT_OPERATION(operationGetPrivateNameByIdOptimize, EncodedJSValue, (JSGlobalObject*, StructureStubInfo*, EncodedJSValue, uintptr_t));
 JSC_DECLARE_JIT_OPERATION(operationGetPrivateNameByIdGeneric, EncodedJSValue, (JSGlobalObject*, EncodedJSValue, uintptr_t));
 
-JSC_DECLARE_JIT_OPERATION(operationSwitchCharWithUnknownKeyType, char*, (JSGlobalObject*, EncodedJSValue key, size_t tableIndex));
-JSC_DECLARE_JIT_OPERATION(operationSwitchImmWithUnknownKeyType, char*, (VM*, EncodedJSValue key, size_t tableIndex));
+JSC_DECLARE_JIT_OPERATION(operationSwitchCharWithUnknownKeyType, char*, (JSGlobalObject*, EncodedJSValue key, size_t tableIndex, int32_t min));
+JSC_DECLARE_JIT_OPERATION(operationSwitchImmWithUnknownKeyType, char*, (VM*, EncodedJSValue key, size_t tableIndex, int32_t min));
 JSC_DECLARE_JIT_OPERATION(operationSwitchStringWithUnknownKeyType, char*, (JSGlobalObject*, EncodedJSValue key, size_t tableIndex));
+#if ENABLE(EXTRA_CTI_THUNKS)
+JSC_DECLARE_JIT_OPERATION(operationResolveScopeForBaseline, EncodedJSValue, (JSGlobalObject*, const Instruction* bytecodePC));
+#endif
 JSC_DECLARE_JIT_OPERATION(operationGetFromScope, EncodedJSValue, (JSGlobalObject*, const Instruction* bytecodePC));
 JSC_DECLARE_JIT_OPERATION(operationPutToScope, void, (JSGlobalObject*, const Instruction* bytecodePC));
 
@@ -290,7 +302,7 @@ JSC_DECLARE_JIT_OPERATION(operationOSRWriteBarrier, void, (VM*, JSCell*));
 JSC_DECLARE_JIT_OPERATION(operationExceptionFuzz, void, (JSGlobalObject*));
 JSC_DECLARE_JIT_OPERATION(operationExceptionFuzzWithCallFrame, void, (VM*));
 
-JSC_DECLARE_JIT_OPERATION(operationCheckIfExceptionIsUncatchableAndNotifyProfiler, int32_t, (VM*));
+JSC_DECLARE_JIT_OPERATION(operationRetrieveAndClearExceptionIfCatchable, JSCell*, (VM*));
 JSC_DECLARE_JIT_OPERATION(operationInstanceOfCustom, size_t, (JSGlobalObject*, EncodedJSValue encodedValue, JSObject* constructor, EncodedJSValue encodedHasInstance));
 
 JSC_DECLARE_JIT_OPERATION(operationValueAdd, EncodedJSValue, (JSGlobalObject*, EncodedJSValue encodedOp1, EncodedJSValue encodedOp2));

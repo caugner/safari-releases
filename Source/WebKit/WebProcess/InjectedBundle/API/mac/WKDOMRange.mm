@@ -32,6 +32,7 @@
 #import <WebCore/Document.h>
 #import <WebCore/TextIterator.h>
 #import <WebCore/VisibleUnits.h>
+#import <wtf/MainThread.h>
 #import <wtf/cocoa/VectorCocoa.h>
 
 @implementation WKDOMRange
@@ -55,7 +56,9 @@
 
 - (void)dealloc
 {
-    WebKit::WKDOMRangeCache().remove(_impl.get());
+    ensureOnMainRunLoop([range = WTFMove(_impl)] {
+        WebKit::WKDOMRangeCache().remove(range.get());
+    });
     [super dealloc];
 }
 
@@ -135,7 +138,7 @@
 {
     auto range = makeSimpleRange(*_impl);
     auto newRange = rangeExpandedByCharactersInDirectionAtWordBoundary(makeDeprecatedLegacyPosition(direction == WKDOMRangeDirectionForward ? range.end : range.start), characters, direction == WKDOMRangeDirectionForward ? WebCore::SelectionDirection::Forward : WebCore::SelectionDirection::Backward);
-    return [[[WKDOMRange alloc] _initWithImpl:createLiveRange(newRange).get()] autorelease];
+    return adoptNS([[WKDOMRange alloc] _initWithImpl:createLiveRange(newRange).get()]).autorelease();
 }
 
 @end

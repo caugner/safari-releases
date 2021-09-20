@@ -30,6 +30,7 @@
 
 #if HAVE(ACCESSIBILITY)
 
+#include "AccessibilityUIElement.h"
 #include "InjectedBundle.h"
 #include "InjectedBundlePage.h"
 
@@ -97,6 +98,10 @@ JSRetainPtr<JSStringRef> AccessibilityController::platformName()
 {
     JSRetainPtr<JSStringRef> platformName(Adopt, JSStringCreateWithUTF8CString("atk"));
     return platformName;
+}
+
+void AccessibilityController::injectAccessibilityPreference(JSStringRef domain, JSStringRef key, JSStringRef value)
+{
 }
 
 Ref<AccessibilityUIElement> AccessibilityController::rootElement()

@@ -30,6 +30,7 @@
 #include "HitTestResult.h"
 #include "RenderLayer.h"
 #include "RenderLayerBacking.h"
+#include "RenderLayerScrollableArea.h"
 #include "RenderView.h"
 #include "SecurityOrigin.h"
 #include <wtf/IsoMallocInlines.h>
@@ -223,7 +224,7 @@ void RenderWidget::paintContents(PaintInfo& paintInfo, const LayoutPoint& paintO
 {
     if (paintInfo.requireSecurityOriginAccessForWidgets) {
         if (auto contentDocument = frameOwnerElement().contentDocument()) {
-            if (!document().securityOrigin().canAccess(contentDocument->securityOrigin()))
+            if (!document().securityOrigin().isSameOriginDomain(contentDocument->securityOrigin()))
                 return;
         }
     }
@@ -332,8 +333,10 @@ void RenderWidget::paint(PaintInfo& paintInfo, const LayoutPoint& paintOffset)
         paintInfo.context().fillRect(snappedIntRect(selectionRect()), selectionBackgroundColor());
     }
 
-    if (hasLayer() && layer()->canResize())
-        layer()->paintResizer(paintInfo.context(), roundedIntPoint(adjustedPaintOffset), paintInfo.rect);
+    if (hasLayer() && layer()->canResize()) {
+        ASSERT(layer()->scrollableArea());
+        layer()->scrollableArea()->paintResizer(paintInfo.context(), roundedIntPoint(adjustedPaintOffset), paintInfo.rect);
+    }
 }
 
 void RenderWidget::setOverlapTestResult(bool isOverlapped)
@@ -384,7 +387,7 @@ RenderWidget* RenderWidget::find(const Widget& widget)
 
 bool RenderWidget::nodeAtPoint(const HitTestRequest& request, HitTestResult& result, const HitTestLocation& locationInContainer, const LayoutPoint& accumulatedOffset, HitTestAction action)
 {
-    auto shouldHitTestChildFrameContent = request.allowsChildFrameContent() || (request.allowsVisibleChildFrameContent() && visibleToHitTesting());
+    auto shouldHitTestChildFrameContent = request.allowsChildFrameContent() || (request.allowsVisibleChildFrameContent() && visibleToHitTesting(request));
     auto hasRenderView = is<FrameView>(widget()) && downcast<FrameView>(*widget()).renderView();
     if (shouldHitTestChildFrameContent && hasRenderView) {
         FrameView& childFrameView = downcast<FrameView>(*widget());
@@ -392,7 +395,7 @@ bool RenderWidget::nodeAtPoint(const HitTestRequest& request, HitTestResult& res
         LayoutPoint adjustedLocation = accumulatedOffset + location();
         LayoutPoint contentOffset = LayoutPoint(borderLeft() + paddingLeft(), borderTop() + paddingTop()) - toIntSize(childFrameView.scrollPosition());
         HitTestLocation newHitTestLocation(locationInContainer, -adjustedLocation - contentOffset);
-        HitTestRequest newHitTestRequest(request.type() | HitTestRequest::ChildFrameHitTest);
+        HitTestRequest newHitTestRequest(request.type() | HitTestRequest::Type::ChildFrameHitTest);
         HitTestResult childFrameResult(newHitTestLocation);
 
         auto* document = childFrameView.frame().document();

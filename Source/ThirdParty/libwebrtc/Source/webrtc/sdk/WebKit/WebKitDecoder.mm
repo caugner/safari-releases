@@ -125,7 +125,7 @@ private:
 class RemoteVideoDecoder final : public webrtc::VideoDecoder {
 public:
     explicit RemoteVideoDecoder(WebKitVideoDecoder);
-    ~RemoteVideoDecoder() = default;
+    ~RemoteVideoDecoder();
 
 private:
     int32_t InitDecode(const VideoCodec*, int32_t number_of_cores) final;
@@ -163,6 +163,11 @@ RemoteVideoDecoder::RemoteVideoDecoder(WebKitVideoDecoder internalDecoder)
 {
 }
 
+RemoteVideoDecoder::~RemoteVideoDecoder()
+{
+    videoDecoderCallbacks().releaseCallback(m_internalDecoder);
+}
+
 void videoDecoderTaskComplete(void* callback, uint32_t timeStamp, CVPixelBufferRef pixelBuffer, uint32_t timeStampRTP)
 {
     auto videoFrame = VideoFrame::Builder().set_video_frame_buffer(pixelBufferToFrame(pixelBuffer))
@@ -198,7 +203,8 @@ int32_t RemoteVideoDecoder::RegisterDecodeCompleteCallback(DecodedImageCallback*
 
 int32_t RemoteVideoDecoder::Release()
 {
-    return videoDecoderCallbacks().releaseCallback(m_internalDecoder);
+    RegisterDecodeCompleteCallback(nullptr);
+    return 0;
 }
 
 RemoteVideoDecoderFactory::RemoteVideoDecoderFactory(std::unique_ptr<VideoDecoderFactory>&& internalFactory)
@@ -226,9 +232,7 @@ std::unique_ptr<VideoDecoder> RemoteVideoDecoderFactory::CreateVideoDecoder(cons
 std::unique_ptr<webrtc::VideoDecoderFactory> createWebKitDecoderFactory(WebKitH265 supportsH265, WebKitVP9 supportsVP9, WebKitVP9VTB supportsVP9VTB)
 {
     auto internalFactory = ObjCToNativeVideoDecoderFactory([[RTCDefaultVideoDecoderFactory alloc] initWithH265: supportsH265 == WebKitH265::On vp9Profile0:supportsVP9 > WebKitVP9::Off vp9Profile2:supportsVP9 == WebKitVP9::Profile0And2 vp9VTB: supportsVP9VTB == WebKitVP9VTB::On]);
-    if (videoDecoderCallbacks().createCallback)
-        return std::make_unique<RemoteVideoDecoderFactory>(std::move(internalFactory));
-    return internalFactory;
+    return std::make_unique<RemoteVideoDecoderFactory>(std::move(internalFactory));
 }
 
 void* createLocalH264Decoder(LocalDecoderCallback callback)

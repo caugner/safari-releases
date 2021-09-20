@@ -25,12 +25,15 @@
 
 #pragma once
 
-#include "AccessibilityUIElement.h"
 #include "JSWrappable.h"
 #include <JavaScriptCore/JSObjectRef.h>
+#include <JavaScriptCore/JSRetainPtr.h>
 #include <wtf/Condition.h>
 #include <wtf/FastMalloc.h>
 #include <wtf/Platform.h>
+#if PLATFORM(COCOA)
+#include <wtf/RetainPtr.h>
+#endif
 #include <wtf/Threading.h>
 #include <wtf/threads/BinarySemaphore.h>
 
@@ -39,7 +42,9 @@
 #endif
 
 namespace WTR {
-    
+
+class AccessibilityUIElement;
+
 class AccessibilityController : public JSWrappable {
 public:
     static Ref<AccessibilityController> create();
@@ -72,6 +77,7 @@ public:
 
     bool addNotificationListener(JSValueRef functionCallback);
     bool removeNotificationListener();
+    void injectAccessibilityPreference(JSStringRef domain, JSStringRef key, JSStringRef value);
 
     // Here for consistency with DRT. Not implemented because they don't do anything on the Mac.
     void logFocusEvents() { }

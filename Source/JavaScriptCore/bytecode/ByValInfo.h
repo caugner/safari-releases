@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2018 Apple Inc. All rights reserved.
+ * Copyright (C) 2012-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -56,7 +56,9 @@ enum JITArrayMode : uint8_t {
     JITUint16Array,
     JITUint32Array,
     JITFloat32Array,
-    JITFloat64Array
+    JITFloat64Array,
+    JITBigInt64Array,
+    JITBigUint64Array,
 };
 
 inline bool isOptimizableIndexingType(IndexingType indexingType)
@@ -146,6 +148,10 @@ inline JITArrayMode jitArrayModeForClassInfo(const ClassInfo* classInfo)
         return JITFloat32Array;
     case TypeFloat64:
         return JITFloat64Array;
+    case TypeBigInt64:
+        return JITBigInt64Array;
+    case TypeBigUint64:
+        return JITBigUint64Array;
     default:
         CRASH();
         return JITContiguous;
@@ -157,6 +163,10 @@ inline bool jitArrayModePermitsPut(JITArrayMode mode)
     switch (mode) {
     case JITDirectArguments:
     case JITScopedArguments:
+    // FIXME: Optimize BigInt64Array / BigUint64Array in IC
+    // https://bugs.webkit.org/show_bug.cgi?id=221183
+    case JITBigInt64Array:
+    case JITBigUint64Array:
         // We could support put_by_val on these at some point, but it's just not that profitable
         // at the moment.
         return false;
@@ -206,6 +216,10 @@ inline TypedArrayType typedArrayTypeForJITArrayMode(JITArrayMode mode)
         return TypeFloat32;
     case JITFloat64Array:
         return TypeFloat64;
+    case JITBigInt64Array:
+        return TypeBigInt64;
+    case JITBigUint64Array:
+        return TypeBigUint64;
     default:
         CRASH();
         return NotTypedArray;
@@ -230,10 +244,8 @@ struct ByValInfo {
     {
     }
 
-    void setUp(CodeLocationJump<JSInternalPtrTag> notIndexJump, CodeLocationJump<JSInternalPtrTag> badTypeJump, CodeLocationLabel<ExceptionHandlerPtrTag> exceptionHandler, JITArrayMode arrayMode, ArrayProfile* arrayProfile, CodeLocationLabel<JSInternalPtrTag> doneTarget, CodeLocationLabel<JSInternalPtrTag> badTypeNextHotPathTarget, CodeLocationLabel<JSInternalPtrTag> slowPathTarget)
+    void setUp(CodeLocationLabel<ExceptionHandlerPtrTag> exceptionHandler, JITArrayMode arrayMode, ArrayProfile* arrayProfile, CodeLocationLabel<JSInternalPtrTag> doneTarget, CodeLocationLabel<JSInternalPtrTag> badTypeNextHotPathTarget, CodeLocationLabel<JSInternalPtrTag> slowPathTarget)
     {
-        this->notIndexJump = notIndexJump;
-        this->badTypeJump = badTypeJump;
         this->exceptionHandler = exceptionHandler;
         this->doneTarget = doneTarget;
         this->badTypeNextHotPathTarget = badTypeNextHotPathTarget;
@@ -246,10 +258,23 @@ struct ByValInfo {
         this->seen = false;
     }
 
-    void visitAggregate(SlotVisitor&);
+    DECLARE_VISIT_AGGREGATE;
 
-    CodeLocationJump<JSInternalPtrTag> notIndexJump;
-    CodeLocationJump<JSInternalPtrTag> badTypeJump;
+    static ptrdiff_t offsetOfSlowOperation() { return OBJECT_OFFSETOF(ByValInfo, m_slowOperation); }
+    static ptrdiff_t offsetOfNotIndexJumpTarget() { return OBJECT_OFFSETOF(ByValInfo, m_notIndexJumpTarget); }
+    static ptrdiff_t offsetOfBadTypeJumpTarget() { return OBJECT_OFFSETOF(ByValInfo, m_badTypeJumpTarget); }
+
+    FunctionPtr<OperationPtrTag> m_slowOperation;
+
+    union {
+        CodeLocationLabel<JITStubRoutinePtrTag> m_notIndexJumpTarget;
+        CodeLocationJump<JSInternalPtrTag> m_notIndexJump;
+    };
+    union {
+        CodeLocationLabel<JITStubRoutinePtrTag> m_badTypeJumpTarget;
+        CodeLocationJump<JSInternalPtrTag> m_badTypeJump;
+    };
+
     CodeLocationLabel<ExceptionHandlerPtrTag> exceptionHandler;
     CodeLocationLabel<JSInternalPtrTag> doneTarget;
     CodeLocationLabel<JSInternalPtrTag> badTypeNextHotPathTarget;

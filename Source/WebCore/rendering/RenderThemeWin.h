@@ -61,12 +61,12 @@ public:
 
     Color systemColor(CSSValueID, OptionSet<StyleColor::Options>) const override;
 
-    bool paintCheckbox(const RenderObject& o, const PaintInfo& i, const IntRect& r) override
-    { return paintButton(o, i, r); }
+    bool paintCheckbox(const RenderObject& o, const PaintInfo& i, const FloatRect& r) override
+    { return paintButton(o, i, IntRect(r)); }
     void setCheckboxSize(RenderStyle&) const override;
 
-    bool paintRadio(const RenderObject& o, const PaintInfo& i, const IntRect& r) override
-    { return paintButton(o, i, r); }
+    bool paintRadio(const RenderObject& o, const PaintInfo& i, const FloatRect& r) override
+    { return paintButton(o, i, IntRect(r)); }
     void setRadioSize(RenderStyle& style) const override
     { return setCheckboxSize(style); }
 
@@ -121,7 +121,7 @@ public:
 
 #if ENABLE(VIDEO)
     String mediaControlsStyleSheet() override;
-    String mediaControlsScript() override;
+    Vector<String, 2> mediaControlsScripts() override;
 #endif
 
     IntSize meterSizeForBounds(const RenderMeter&, const IntRect&) const override;

@@ -102,7 +102,7 @@ public:
 
     MonotonicTime startTime() const { return m_startTime; }
 
-    bool isValidForDocument(Document&) const;
+    bool isValidForDocument(const Document&) const;
 
 private:
     UserGestureToken(ProcessingUserGestureState, UserGestureType, Document*);
@@ -123,12 +123,12 @@ class UserGestureIndicator {
 public:
     WEBCORE_EXPORT static RefPtr<UserGestureToken> currentUserGesture();
 
-    WEBCORE_EXPORT static bool processingUserGesture(Document* = nullptr);
+    WEBCORE_EXPORT static bool processingUserGesture(const Document* = nullptr);
     WEBCORE_EXPORT static bool processingUserGestureForMedia();
 
     // If a document is provided, its last known user gesture timestamp is updated.
     enum class ProcessInteractionStyle { Immediate, Delayed };
-    WEBCORE_EXPORT explicit UserGestureIndicator(Optional<ProcessingUserGestureState>, Document* = nullptr, UserGestureType = UserGestureType::Other, ProcessInteractionStyle = ProcessInteractionStyle::Immediate);
+    WEBCORE_EXPORT explicit UserGestureIndicator(std::optional<ProcessingUserGestureState>, Document* = nullptr, UserGestureType = UserGestureType::Other, ProcessInteractionStyle = ProcessInteractionStyle::Immediate);
     WEBCORE_EXPORT explicit UserGestureIndicator(RefPtr<UserGestureToken>, UserGestureToken::GestureScope = UserGestureToken::GestureScope::All, UserGestureToken::IsPropagatedFromFetch = UserGestureToken::IsPropagatedFromFetch::No);
     WEBCORE_EXPORT ~UserGestureIndicator();
 

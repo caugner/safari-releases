@@ -38,7 +38,7 @@ class Settings : public SettingsBase, public RefCounted<Settings> {
     WTF_MAKE_NONCOPYABLE(Settings); WTF_MAKE_FAST_ALLOCATED;
 public:
     WEBCORE_EXPORT static Ref<Settings> create(Page*);
-    WEBCORE_EXPORT ~Settings();
+    WEBCORE_EXPORT virtual ~Settings();
 
 <%- for @condition in @allSettingsSet.conditions do -%>
 <%- if @condition.condition -%>
@@ -63,20 +63,23 @@ public:
 
 <%- for @setting in @allSettingsSet.inspectorOverrideSettings do -%>
     <%- if @setting.hasComplexSetter? -%>
-    WEBCORE_EXPORT void <%= @setting.setterFunctionName %>InspectorOverride(Optional<<%= @setting.parameterType %>>);
+    WEBCORE_EXPORT void <%= @setting.setterFunctionName %>InspectorOverride(std::optional<<%= @setting.parameterType %>>);
     <%- else -%>
-    void <%= @setting.setterFunctionName %>InspectorOverride(Optional<<%= @setting.parameterType %>> <%= @setting.name %>InspectorOverride) { m_values.<%= @setting.name %>InspectorOverride = <%= @setting.name %>InspectorOverride; }
+    void <%= @setting.setterFunctionName %>InspectorOverride(std::optional<<%= @setting.parameterType %>> <%= @setting.name %>InspectorOverride) { m_values.<%= @setting.name %>InspectorOverride = <%= @setting.name %>InspectorOverride; }
     <%- end -%>
 <%- end -%>
+    FontGenericFamilies& fontGenericFamilies() final { return m_values.fontGenericFamilies; }
+    const FontGenericFamilies& fontGenericFamilies() const final { return m_values.fontGenericFamilies; }
 
     struct Values {
         void initialize();
         Values isolatedCopy() const;
 
 <%- for @setting in @allSettingsSet.inspectorOverrideSettings do -%>
-        Optional<<%= @setting.type %>> <%= @setting.name %>InspectorOverride;
+        std::optional<<%= @setting.type %>> <%= @setting.name %>InspectorOverride;
 <%- end -%>
 
+        FontGenericFamilies fontGenericFamilies;
 <%- for @condition in @allSettingsSet.conditions do -%>
 <%- if @condition.nonBoolSettingsNeedingImplementation.length != 0 -%>
 <%- if @condition.condition -%>

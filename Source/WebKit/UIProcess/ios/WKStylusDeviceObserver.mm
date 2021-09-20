@@ -26,7 +26,7 @@
 #import "config.h"
 #import "WKStylusDeviceObserver.h"
 
-#if HAVE(PENCILKIT_TEXT_INPUT)
+#if HAVE(STYLUS_DEVICE_OBSERVATION)
 
 #import "WebProcessProxy.h"
 #import <UIKit/UIScribbleInteraction.h>
@@ -44,10 +44,8 @@ static Seconds changeTimeInterval { 10_min };
 
 + (WKStylusDeviceObserver *)sharedInstance
 {
-    static WKStylusDeviceObserver *instance;
-    if (!instance)
-        instance = [[WKStylusDeviceObserver alloc] init];
-    return instance;
+    static NeverDestroyed<RetainPtr<WKStylusDeviceObserver>> instance = adoptNS([[WKStylusDeviceObserver alloc] init]);
+    return instance.get().get();
 }
 
 - (instancetype)init
@@ -126,4 +124,4 @@ static Seconds changeTimeInterval { 10_min };
 
 @end
 
-#endif // HAVE(PENCILKIT_TEXT_INPUT)
+#endif // HAVE(STYLUS_DEVICE_OBSERVATION)

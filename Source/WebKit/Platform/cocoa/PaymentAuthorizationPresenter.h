@@ -41,8 +41,12 @@ class Payment;
 class PaymentContact;
 class PaymentMerchantSession;
 class PaymentMethod;
-class PaymentMethodUpdate;
 class PaymentSessionError;
+struct ApplePayCouponCodeUpdate;
+struct ApplePayPaymentMethodUpdate;
+struct ApplePayShippingContactUpdate;
+struct ApplePayShippingMethod;
+struct ApplePayShippingMethodUpdate;
 }
 
 namespace WebKit {
@@ -58,7 +62,10 @@ public:
         virtual void presenterDidFinish(PaymentAuthorizationPresenter&, WebCore::PaymentSessionError&&) = 0;
         virtual void presenterDidSelectPaymentMethod(PaymentAuthorizationPresenter&, const WebCore::PaymentMethod&) = 0;
         virtual void presenterDidSelectShippingContact(PaymentAuthorizationPresenter&, const WebCore::PaymentContact&) = 0;
-        virtual void presenterDidSelectShippingMethod(PaymentAuthorizationPresenter&, const WebCore::ApplePaySessionPaymentRequest::ShippingMethod&) = 0;
+        virtual void presenterDidSelectShippingMethod(PaymentAuthorizationPresenter&, const WebCore::ApplePayShippingMethod&) = 0;
+#if HAVE(PASSKIT_COUPON_CODE)
+        virtual void presenterDidChangeCouponCode(PaymentAuthorizationPresenter&, const String& couponCode) = 0;
+#endif
         virtual void presenterWillValidateMerchant(PaymentAuthorizationPresenter&, const URL&) = 0;
     };
 
@@ -67,10 +74,13 @@ public:
     Client& client() { return m_client; }
 
     void completeMerchantValidation(const WebCore::PaymentMerchantSession&);
-    void completePaymentMethodSelection(const Optional<WebCore::PaymentMethodUpdate>&);
-    void completePaymentSession(const Optional<WebCore::PaymentAuthorizationResult>&);
-    void completeShippingContactSelection(const Optional<WebCore::ShippingContactUpdate>&);
-    void completeShippingMethodSelection(const Optional<WebCore::ShippingMethodUpdate>&);
+    void completePaymentMethodSelection(std::optional<WebCore::ApplePayPaymentMethodUpdate>&&);
+    void completePaymentSession(const std::optional<WebCore::PaymentAuthorizationResult>&);
+    void completeShippingContactSelection(std::optional<WebCore::ApplePayShippingContactUpdate>&&);
+    void completeShippingMethodSelection(std::optional<WebCore::ApplePayShippingMethodUpdate>&&);
+#if HAVE(PASSKIT_COUPON_CODE)
+    void completeCouponCodeChange(std::optional<WebCore::ApplePayCouponCodeUpdate>&&);
+#endif
 
     virtual void dismiss() = 0;
 #if PLATFORM(IOS_FAMILY)

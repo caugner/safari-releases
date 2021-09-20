@@ -36,7 +36,9 @@ import re
 import platform
 
 from webkitpy.common.system.logutils import configure_logging
+from webkitcorepy import string_utils
 import toml
+import json
 
 try:
     from urllib.parse import urlparse  # pylint: disable=E0611
@@ -48,11 +50,14 @@ try:
 except ImportError:
     from urllib2 import urlopen
 
-FLATPAK_REQ = [
-    ("flatpak", "1.4.4"),
-]
+try:
+    from contextlib import nullcontext
+except ImportError:
+    @contextmanager
+    def nullcontext(enter_result=None):
+        yield enter_result
 
-FLATPAK_VERSION = {}
+FLATPAK_REQUIRED_VERSION = "1.4.4"
 
 scriptdir = os.path.abspath(os.path.dirname(__file__))
 _log = logging.getLogger(__name__)
@@ -119,17 +124,22 @@ class Console:
         cls.colored_message_if_supported(Colors.WARNING, str_format, *args)
 
 
-def run_sanitized(command, gather_output=False, ignore_stderr=False):
+def run_sanitized(command, gather_output=False, ignore_stderr=False, env=None):
     """ Runs a command in a santized environment and optionally returns decoded output or raises
         subprocess.CalledProcessError
     """
+    if env:
+        sanitized_env = env.copy()
+    else:
+        sanitized_env = os.environ.copy()
+
     # We need clean output free of debug messages
-    sanitized_env = os.environ.copy()
     try:
         del sanitized_env["G_MESSAGES_DEBUG"]
     except KeyError:
         pass
 
+    _log.debug("Running %s", " ".join(command))
     keywords = dict(env=sanitized_env)
     if gather_output:
         if ignore_stderr:
@@ -137,7 +147,7 @@ def run_sanitized(command, gather_output=False, ignore_stderr=False):
                 output = subprocess.check_output(command, stderr=devnull, **keywords)
         else:
             output = subprocess.check_output(command, **keywords)
-        return output.decode('utf-8')
+        return output.strip().decode('utf-8')
     else:
         keywords["stdout"] = sys.stdout
         return subprocess.check_call(command, **keywords)
@@ -146,33 +156,32 @@ def run_sanitized(command, gather_output=False, ignore_stderr=False):
 def check_flatpak(verbose=True):
     # Flatpak is only supported on Linux.
     if not sys.platform.startswith("linux"):
-        return False
+        return ()
 
-    for app, required_version in FLATPAK_REQ:
-        try:
-            output = run_sanitized([app, "--version"], gather_output=True)
-        except (subprocess.CalledProcessError, OSError):
-            if verbose:
-                Console.error_message("You need to install %s >= %s"
-                                      " to be able to use the '%s' script.\n\n"
-                                      "You can find some informations about"
-                                      " how to install it for your distribution at:\n"
-                                      "    * https://flatpak.org/\n", app, required_version,
-                                      sys.argv[0])
-            return False
+    required_version = FLATPAK_REQUIRED_VERSION
+    try:
+        output = run_sanitized(["flatpak", "--version"], gather_output=True)
+    except (subprocess.CalledProcessError, OSError):
+        if verbose:
+            Console.error_message("You need to install flatpak >= %s"
+                                  " to be able to use the '%s' script.\n\n"
+                                  "You can find some informations about"
+                                  " how to install it for your distribution at:\n"
+                                  "    * https://flatpak.org/\n", required_version,
+                                  sys.argv[0])
+            return ()
 
-        def comparable_version(version):
-            return tuple(map(int, (version.split("."))))
+    def comparable_version(version):
+        return tuple(map(int, (version.split("."))))
 
-        version = output.split(" ")[1].strip("\n")
-        current = comparable_version(version)
-        FLATPAK_VERSION[app] = current
-        if current < comparable_version(required_version):
-            Console.error_message("%s %s required but %s found. Please update and try again\n",
-                                  app, required_version, version)
-            return False
+    version = output.split(" ")[1].strip("\n")
+    current_version = comparable_version(version)
+    if current_version < comparable_version(required_version):
+        Console.error_message("flatpak %s required but %s found. Please update and try again\n",
+                              required_version, version)
+        return ()
 
-    return True
+    return current_version
 
 
 class FlatpakObject:
@@ -392,11 +401,13 @@ class FlatpakPackage(FlatpakObject):
 
 
 @contextmanager
-def disable_signals(signals=[signal.SIGINT]):
+def disable_signals(signals=[signal.SIGINT, signal.SIGTERM, signal.SIGHUP]):
     old_signal_handlers = []
 
     for disabled_signal in signals:
-        old_signal_handlers.append((disabled_signal, signal.getsignal(disabled_signal)))
+        handler = signal.getsignal(disabled_signal)
+        if handler:
+            old_signal_handlers.append((disabled_signal, handler))
         signal.signal(disabled_signal, signal.SIG_IGN)
 
     yield
@@ -444,7 +455,7 @@ class WebkitFlatpak:
         distributed_build_options = parser.add_argument_group("Distributed building")
         distributed_build_options.add_argument("--use-icecream", dest="use_icecream", help="Use the distributed icecream (icecc) compiler.", action="store_true")
         distributed_build_options.add_argument("-r", "--regenerate-toolchains", dest="regenerate_toolchains", action="store_true",
-                                               help="Regenerate IceCC distributable toolchain archives")
+                                               help="Regenerate IceCC/SCCache standalone toolchain archives")
         distributed_build_options.add_argument("-t", "--sccache-token", dest="sccache_token",
                                                help="sccache authentication token")
         distributed_build_options.add_argument("-s", "--sccache-scheduler", dest="sccache_scheduler",
@@ -520,20 +531,25 @@ class WebkitFlatpak:
         self.sccache_token = ""
         self.sccache_scheduler = DEFAULT_SCCACHE_SCHEDULER
 
-    def execute_command(self, args, stdout=None, stderr=None, env=None):
-        _log.debug('Running: %s\n' % ' '.join(args))
+    def execute_command(self, args, stdout=None, stderr=None, env=None, keep_signals=True):
+        if keep_signals:
+            ctx_manager = nullcontext()
+        else:
+            ctx_manager = disable_signals()
+        _log.debug('Running: %s\n' % ' '.join(string_utils.decode(arg) for arg in args))
         result = 0
-        try:
-            result = subprocess.check_call(args, stdout=stdout, stderr=stderr, env=env)
-        except subprocess.CalledProcessError as err:
-            if self.verbose:
-                cmd = ' '.join(err.cmd)
-                message = "'%s' returned a non-zero exit code." % cmd
-                if stderr:
-                    with open(stderr.name, 'r') as stderrf:
-                        message += " Stderr: %s" % stderrf.read()
-                Console.error_message(message)
-            return err.returncode
+        with ctx_manager:
+            try:
+                result = subprocess.check_call(args, stdout=stdout, stderr=stderr, env=env)
+            except subprocess.CalledProcessError as err:
+                if self.verbose:
+                    cmd = ' '.join(string_utils.decode(arg) for arg in err.cmd)
+                    message = "'%s' returned a non-zero exit code." % cmd
+                    if stderr:
+                        with open(stderr.name, 'r') as stderrf:
+                            message += " Stderr: %s" % stderrf.read()
+                    Console.error_message(message)
+                return err.returncode
         return result
 
     def clean_args(self):
@@ -553,13 +569,26 @@ class WebkitFlatpak:
         if self.gdb is None and '--gdb' in sys.argv:
             self.gdb = True
 
-        self.build_root = os.path.join(self.source_root, 'WebKitBuild')
-        self.build_path = os.path.join(self.build_root, self.platform, self.build_type)
+        base_build_dir = 'WebKitBuild'
+
+        # This path doesn't take $WEBKIT_OUTPUTDIR in account because the standalone toolchains
+        # paths depend on it and those are also hard-coded in the generated sccache config.
+        self.build_root = os.path.join(self.source_root, base_build_dir)
+
         self.config_file = os.path.join(self.flatpak_build_path, 'webkit_flatpak_config.json')
         self.sccache_config_file = os.path.join(self.flatpak_build_path, 'sccache.toml')
 
+        build_root = os.environ.get("WEBKIT_OUTPUTDIR", self.source_root)
+        self.build_path = os.path.join(build_root, base_build_dir, self.platform, self.build_type)
+        _log.debug("Building %s port in %s" % (self.platform, self.build_path))
+
+        self.toolchains_directory = os.path.join(self.build_root, "Toolchains")
+        if not os.path.isdir(self.toolchains_directory):
+            os.makedirs(self.toolchains_directory)
+
         Console.quiet = self.quiet
-        if not check_flatpak():
+        self.flatpak_version = check_flatpak()
+        if not self.flatpak_version:
             return False
 
         self._reset_repository()
@@ -604,7 +633,7 @@ class WebkitFlatpak:
         if not gst_dir:
             if building:
                 _log.debug("$GST_BUILD_PATH environment variable not set. Skipping gst-build\n")
-            return []
+            return {}
 
         if not os.path.exists(os.path.join(gst_dir, 'gst-env.py')):
             raise RuntimeError('GST_BUILD_PATH set to %s but it doesn\'t seem to be a valid `gst-build` checkout.' % gst_dir)
@@ -629,7 +658,7 @@ class WebkitFlatpak:
         gst_env = run_sanitized(command, gather_output=True)
         allowlist = ("LD_LIBRARY_PATH", "PATH", "PKG_CONFIG_PATH")
         nopathlist = ("GST_DEBUG", "GST_VERSION", "GST_ENV")
-        env = []
+        env = {}
         for line in [line for line in gst_env.splitlines() if not line.startswith("export")]:
             tokens = line.split("=")
             var_name, contents = tokens[0], "=".join(tokens[1:])
@@ -639,7 +668,7 @@ class WebkitFlatpak:
                 new_contents = ':'.join([self.host_path_to_sandbox_path(p) for p in contents.split(":")])
             else:
                 new_contents = contents.replace("'", "")
-            env.append("--env=%s=%s" % (var_name, new_contents))
+            env[var_name] = new_contents
         return env
 
     def is_branch_build(self):
@@ -665,6 +694,9 @@ class WebkitFlatpak:
     def is_build_webkit(self, command):
         return command and "build-webkit" in os.path.basename(command)
 
+    def is_build_jsc(self, command):
+        return command and "build-jsc" in os.path.basename(command)
+
     def host_path_to_sandbox_path(self, host_path):
         # For now this supports only files in the WebKit path
         return host_path.replace(self.source_root, self.sandbox_source_root)
@@ -679,6 +711,12 @@ class WebkitFlatpak:
         start_sccache = kwargs.get("start_sccache", True)
         skip_icc = kwargs.get("skip_icc", False)
         building_gst = kwargs.get("building_gst", False)
+        gather_output = kwargs.get("gather_output", False)
+
+        if gather_output:
+            start_sccache = False
+            skip_icc = True
+            building_gst = False
 
         if not isinstance(args, list):
             args = list(args)
@@ -686,13 +724,16 @@ class WebkitFlatpak:
         sandbox_build_path = os.path.join(self.sandbox_source_root, "WebKitBuild", self.build_type)
         sandbox_environment = {
             "TEST_RUNNER_INJECTED_BUNDLE_FILENAME": os.path.join(sandbox_build_path, "lib/libTestRunnerInjectedBundle.so"),
+            "PATH": "/usr/lib/sdk/llvm11/bin:/usr/bin:/usr/lib/sdk/rust-stable/bin/",
         }
 
         if not args:
             args.append("bash")
 
         if args:
-            if os.path.exists(args[0]):
+            if gather_output:
+                command = args[0]
+            elif os.path.exists(args[0]):
                 command = os.path.normpath(os.path.abspath(args[0]))
                 # Take into account the fact that the webkit source dir is remounted inside the sandbox.
                 args[0] = command.replace(self.source_root, self.sandbox_source_root)
@@ -700,7 +741,10 @@ class WebkitFlatpak:
             if args[0] == "bash":
                 args.extend(['--noprofile', '--norc', '-i'])
                 sandbox_environment["PS1"] = "[📦🌐🐱 $FLATPAK_ID \\W]\\$ "
-            building = os.path.basename(args[0]).startswith("build")
+            if gather_output:
+                building = False
+            else:
+                building = self.is_build_jsc(args[0]) or self.is_build_webkit(args[0])
         else:
             building = False
 
@@ -713,13 +757,18 @@ class WebkitFlatpak:
                            "--talk-name=org.gtk.vfs",
                            "--talk-name=org.gtk.vfs.*"]
 
-        if args and self.is_build_webkit(args[0]) and not self.is_branch_build():
+        if not gather_output and args and self.is_build_webkit(args[0]) and not self.is_branch_build():
             # Ensure self.build_path exists.
             try:
                 os.makedirs(self.build_path)
             except OSError as e:
                 if e.errno != errno.EEXIST:
                     raise e
+
+        share_network_option = "--share=network"
+
+        if self.platform == 'WPE':
+            flatpak_command.append(share_network_option)
 
         if not building:
             flatpak_command.extend([
@@ -728,6 +777,7 @@ class WebkitFlatpak:
                 "--share=ipc",
                 "--share=network",
                 "--socket=pulseaudio",
+                "--socket=session-bus",
                 "--socket=system-bus",
                 "--socket=wayland",
                 "--socket=x11",
@@ -751,8 +801,10 @@ class WebkitFlatpak:
             "JSC",
             "MESA",
             "LIBGL",
+            "PIPEWIRE",
             "RUST",
             "SCCACHE",
+            "SPA",
             "WAYLAND",
             "WEBKIT",
             "WEBKIT2",
@@ -780,6 +832,7 @@ class WebkitFlatpak:
             "QML2_IMPORT_PATH",
             "RESULTS_SERVER_API_KEY",
             "SSLKEYLOGFILE",
+            "XR_RUNTIME_JSON",
         ]
 
         def envvar_in_suffixes_to_keep(envvar):
@@ -795,7 +848,6 @@ class WebkitFlatpak:
             if var_tokens[0] in env_var_prefixes_to_keep or envvar in env_vars_to_keep or envvar_in_suffixes_to_keep(envvar) or (not os.environ.get('GST_BUILD_PATH') and var_tokens[0] == "GST"):
                 sandbox_environment[envvar] = value
 
-        share_network_option = "--share=network"
         remote_sccache_configs = set(["SCCACHE_REDIS", "SCCACHE_BUCKET", "SCCACHE_MEMCACHED",
                                       "SCCACHE_GCS_BUCKET", "SCCACHE_AZURE_CONNECTION_STRING",
                                       "WEBKIT_USE_SCCACHE"])
@@ -824,20 +876,22 @@ class WebkitFlatpak:
 
         if self.use_icecream and not skip_icc:
             _log.debug('Enabling the icecream compiler')
-            if share_network_option not in flatpak_command:
-                flatpak_command.append(share_network_option)
-            flatpak_command.append("--filesystem=home")
+            flatpak_command.extend([share_network_option, "--filesystem=home"])
 
             n_cores = multiprocessing.cpu_count() * 3
             _log.debug('Following icecream recommendation for the number of cores to use: %d' % n_cores)
             toolchain_name = os.environ.get("CC", "gcc")
             try:
-                toolchain_path = self.icc_version[toolchain_name]
+                toolchain_path = os.environ.get("ICECC_VERSION_OVERRIDE", self.icc_version[toolchain_name])
             except KeyError:
                 Console.error_message("Toolchains configuration not found. Please run webkit-flatpak -r")
                 return 1
-            if not os.path.isfile(toolchain_path):
-                Console.error_message("%s is not a valid IceCC toolchain. Please run webkit-flatpak -r", toolchain_path)
+            if "ICECC_VERSION_APPEND" in os.environ:
+                toolchain_path += ","
+                toolchain_path += os.environ["ICECC_VERSION_APPEND"]
+            native_toolchain = toolchain_path.split(",")[0]
+            if not os.path.isfile(native_toolchain):
+                Console.error_message("%s is not a valid IceCC toolchain. Please run webkit-flatpak -r", native_toolchain)
                 return 1
             sandbox_environment.update({
                 "CCACHE_PREFIX": "icecc",
@@ -846,23 +900,70 @@ class WebkitFlatpak:
                 "NUMBER_OF_PROCESSORS": n_cores,
             })
 
+        # Set PKG_CONFIG_PATH in sandbox so uninstalled WebKit.pc files can be used.
+        pkg_config_path = os.environ.get("PKG_CONFIG_PATH")
+        if pkg_config_path:
+            pkg_config_path = "%s:%s" % (self.build_path, pkg_config_path)
+        else:
+            pkg_config_path = self.build_path
+        sandbox_environment["PKG_CONFIG_PATH"] = pkg_config_path
+
+        if not building_gst and args[0] != "sccache":
+            # Merge gst-build env vars in sandbox environment, without overriding previously set PATH values.
+            gst_env = self.setup_gstbuild(building)
+            for var_name in list(gst_env.keys()):
+                if var_name not in sandbox_environment:
+                    sandbox_environment[var_name] = gst_env[var_name]
+                else:
+                    contents = gst_env[var_name]
+                    if var_name.endswith('PATH'):
+                        sandbox_environment[var_name] = "%s:%s" % (sandbox_environment[var_name], contents)
+
         for envvar, value in sandbox_environment.items():
             flatpak_command.append("--env=%s=%s" % (envvar, value))
 
-        if not building_gst and args[0] != "sccache":
-            extra_flatpak_args.extend(self.setup_gstbuild(building))
+        # $WEBKIT_OUTPUTDIR is not forwarded in the build sandbox because the host build path is
+        # always bind-mounted to /app in the sandbox.
+        env_vars_to_drop = ("WEBKIT_OUTPUTDIR", "LANGUAGE")
+        flatpak_env = os.environ.copy()
+        for envvar in list(flatpak_env.keys()):
+            if envvar.startswith("LC_") or envvar in env_vars_to_drop:
+                del flatpak_env[envvar]
+                if self.flatpak_version >= (1, 10, 0):
+                    flatpak_command.append("--unset-env=%s" % envvar)
+
+        # Avoid 'error: Invalid byte sequence in conversion input' after removing
+        # all `LANG` vars.
+        flatpak_env["LANG"] = "en_US.UTF-8"
+
+        keep_signals = args[0] != "gdb"
+        if not keep_signals:
+            module_path = os.path.join(self.build_path, "lib", "libsigaction-disabler.so")
+            # Enable module in bwrap child processes.
+            extra_flatpak_args.append("--env=WEBKIT_FLATPAK_LD_PRELOAD=%s" % module_path)
+            # Enable module in `flatpak run`.
+            flatpak_env["LD_PRELOAD"] = module_path
 
         flatpak_command += extra_flatpak_args + ['--command=%s' % args[0], "org.webkit.Sdk"] + args[1:]
 
-        flatpak_env = os.environ
         flatpak_env.update({
             "FLATPAK_BWRAP": os.path.join(scriptdir, "webkit-bwrap"),
             "WEBKIT_BUILD_DIR_BIND_MOUNT": "%s:%s" % (sandbox_build_path, self.build_path),
             "WEBKIT_FLATPAK_USER_DIR": os.environ["FLATPAK_USER_DIR"],
         })
 
+        display = os.environ.get("DISPLAY")
+        if display:
+            flatpak_env["WEBKIT_FLATPAK_DISPLAY"] = display
+
+        # FIXME: Remove duplicate values from the flatpak command.
+        command = flatpak_command
+
+        if gather_output:
+            return run_sanitized(command, gather_output=True, ignore_stderr=True, env=flatpak_env)
+
         try:
-            return self.execute_command(flatpak_command, stdout=stdout, env=flatpak_env)
+            return self.execute_command(command, stdout=stdout, env=flatpak_env, keep_signals=keep_signals)
         except KeyboardInterrupt:
             return 0
 
@@ -901,14 +1002,18 @@ class WebkitFlatpak:
 
         result = self.setup_dev_env()
         if regenerate_toolchains:
-            Console.message("Updating icecc distributable toolchain archives")
+            Console.message("Updating icecc/sccache standalone toolchain archives")
             self.icc_version = {}
-            toolchains = self.pack_toolchain(("gcc", "g++"), {"/usr/bin/c++": "/usr/bin/g++"})
-            toolchains.extend(self.pack_toolchain(("clang", "clang++"), {"/usr/bin/clang++": "/usr/bin/clang++"}))
+            gcc_archive, toolchains = self.pack_toolchain(("gcc", "g++"), {"/usr/bin/c++": "g++",
+                                                                           "/usr/bin/cc": "gcc"})
+            clang_archive, clang_toolchains = self.pack_toolchain(("clang", "clang++"), {"/usr/bin/clang++": "clang++",
+                                                                                          "/usr/bin/clang": "clang"})
+            toolchains.extend(clang_toolchains)
             if len(toolchains) > 1:
                 self.save_config(toolchains)
+                self.purge_unused_toolchains((gcc_archive, clang_archive))
             else:
-                Console.error_message("Error generating icecc distributable toolchain archives")
+                Console.error_message("Error generating icecc/sccache standalone toolchain archives")
 
         return result
 
@@ -947,6 +1052,12 @@ class WebkitFlatpak:
             toml.dump(sccache_config, config)
             Console.message("Created %s sccache config file. It will automatically be used when building WebKit", self.sccache_config_file)
 
+    def purge_unused_toolchains(self, allow_list):
+        for filename in os.listdir(self.toolchains_directory):
+            if filename not in allow_list:
+                _log.debug("Removing unused toolchain: %s", filename)
+                os.remove(os.path.join(self.toolchains_directory, filename))
+
     def check_toolchains_generated(self):
         found_toolchains = 0
         if os.path.isfile(self.config_file):
@@ -959,9 +1070,13 @@ class WebkitFlatpak:
         return found_toolchains > 1
 
     def pack_toolchain(self, compilers, path_mapping):
+        compiler_mapping = {}
+        for compiler in compilers:
+            compiler_mapping[compiler] = self.run_in_sandbox("/usr/bin/which", compiler, gather_output=True)
+
         with tempfile.NamedTemporaryFile() as tmpfile:
             command = ['icecc', '--build-native']
-            command.extend(["/usr/bin/%s" % compiler for compiler in compilers])
+            command.extend(compiler_mapping.values())
             retcode = self.run_in_sandbox(*command, stdout=tmpfile, cwd=self.source_root, skip_icc=True)
             if retcode != 0:
                 Console.error_message('Flatpak command "%s" failed with return code %s', " ".join(command), retcode)
@@ -969,10 +1084,8 @@ class WebkitFlatpak:
             tmpfile.flush()
             tmpfile.seek(0)
             icc_version_filename, = re.findall(br'.*creating (.*)', tmpfile.read())
-            toolchains_directory = os.path.join(self.build_root, "Toolchains")
-            if not os.path.isdir(toolchains_directory):
-                os.makedirs(toolchains_directory)
-            archive_filename = os.path.join(toolchains_directory, "webkit-sdk-{name}-{filename}".format(name=compilers[0], filename=icc_version_filename.decode()))
+            relative_filename = "webkit-sdk-{name}-{filename}".format(name=compilers[0], filename=icc_version_filename.decode())
+            archive_filename = os.path.join(self.toolchains_directory, relative_filename)
             os.rename(icc_version_filename, archive_filename)
             self.icc_version[compilers[0]] = archive_filename
             Console.message("Created %s self-contained toolchain archive", archive_filename)
@@ -982,9 +1095,9 @@ class WebkitFlatpak:
                 item = {'type': 'path_override',
                         'compiler_executable': compiler_executable,
                         'archive': archive_filename,
-                        'archive_compiler_executable': archive_compiler_executable}
+                        'archive_compiler_executable': compiler_mapping[archive_compiler_executable]}
                 sccache_toolchains.append(item)
-            return sccache_toolchains
+            return (relative_filename, sccache_toolchains)
 
     def check_installed_packages(self):
         for package in self._get_packages():
@@ -1028,8 +1141,11 @@ class WebkitFlatpak:
         self.flathub_repo = self.repos.add(FlatpakRepo("flathub", url="https://dl.flathub.org/repo/",
                                                        repo_file="https://dl.flathub.org/repo/flathub.flatpakrepo"))
 
-        packages.append(FlatpakPackage("org.freedesktop.Sdk.Extension.rust-stable", "20.08",
-                                       self.flathub_repo, arch))
+        fdo_branch = "20.08"
+        extensions = ("rust-stable", "llvm11")
+        for name in extensions:
+            packages.append(FlatpakPackage("org.freedesktop.Sdk.Extension.%s" % name, fdo_branch,
+                                           self.flathub_repo, arch))
 
         return packages
 
@@ -1059,6 +1175,10 @@ class WebkitFlatpak:
 
                 result = self.execute_command(cmd, stdout=coredump, stderr=stderr)
                 if result != 0:
+                    Console.error_message("coredumpctl failed")
+                    with open(stderr.name, 'r') as stderrf:
+                        stderr = stderrf.read()
+                        Console.error_message(stderr)
                     return result
 
                 with open(stderr.name, 'r') as stderrf:

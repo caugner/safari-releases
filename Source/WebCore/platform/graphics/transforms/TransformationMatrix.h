@@ -119,6 +119,12 @@ public:
 
     WEBCORE_EXPORT TransformationMatrix(const AffineTransform&);
 
+    static TransformationMatrix fromQuaternion(double qx, double qy, double qz, double qw);
+
+    // Field of view in radians
+    static TransformationMatrix fromProjection(double fovUp, double fovDown, double fovLeft, double fovRight, double depthNear, double depthFar);
+    static TransformationMatrix fromProjection(double fovy, double aspect, double depthNear, double depthFar);
+
     static const TransformationMatrix identity;
 
     void setMatrix(double a, double b, double c, double d, double e, double f)
@@ -280,7 +286,7 @@ public:
     WEBCORE_EXPORT static TransformationMatrix rectToRect(const FloatRect&, const FloatRect&);
 
     WEBCORE_EXPORT bool isInvertible() const;
-    WEBCORE_EXPORT Optional<TransformationMatrix> inverse() const;
+    WEBCORE_EXPORT std::optional<TransformationMatrix> inverse() const;
 
     // Decompose the matrix into its component parts.
     struct Decomposed2Type {

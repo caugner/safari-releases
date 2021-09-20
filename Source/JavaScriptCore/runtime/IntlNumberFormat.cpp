@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2015 Andy VanWagoner (andy@vanwagoner.family)
  * Copyright (C) 2016 Sukolsak Sakshuwong (sukolsak@gmail.com)
- * Copyright (C) 2016-2020 Apple Inc. All rights reserved.
+ * Copyright (C) 2016-2021 Apple Inc. All rights reserved.
  * Copyright (C) 2020 Sony Interactive Entertainment Inc.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -73,7 +73,8 @@ void IntlNumberFormat::finishCreation(VM& vm)
     ASSERT(inherits(vm, info()));
 }
 
-void IntlNumberFormat::visitChildren(JSCell* cell, SlotVisitor& visitor)
+template<typename Visitor>
+void IntlNumberFormat::visitChildrenImpl(JSCell* cell, Visitor& visitor)
 {
     IntlNumberFormat* thisObject = jsCast<IntlNumberFormat*>(cell);
     ASSERT_GC_OBJECT_INHERITS(thisObject, info());
@@ -82,6 +83,8 @@ void IntlNumberFormat::visitChildren(JSCell* cell, SlotVisitor& visitor)
 
     visitor.append(thisObject->m_boundFormat);
 }
+
+DEFINE_VISIT_CHILDREN(IntlNumberFormat);
 
 Vector<String> IntlNumberFormat::localeData(const String& locale, RelevantExtensionKey key)
 {
@@ -154,7 +157,7 @@ struct MeasureUnit {
     ASCIILiteral subType;
 };
 
-static Optional<MeasureUnit> sanctionedSimpleUnitIdentifier(StringView unitIdentifier)
+static std::optional<MeasureUnit> sanctionedSimpleUnitIdentifier(StringView unitIdentifier)
 {
     static constexpr MeasureUnit simpleUnits[] = {
         { "area"_s, "acre"_s },
@@ -213,7 +216,7 @@ static Optional<MeasureUnit> sanctionedSimpleUnitIdentifier(StringView unitIdent
         });
     if (iterator != std::end(simpleUnits) && iterator->subType == unitIdentifier)
         return *iterator;
-    return WTF::nullopt;
+    return std::nullopt;
 }
 
 struct WellFormedUnit {
@@ -230,10 +233,10 @@ public:
     }
 
     MeasureUnit numerator;
-    Optional<MeasureUnit> denominator;
+    std::optional<MeasureUnit> denominator;
 };
 
-static Optional<WellFormedUnit> wellFormedUnitIdentifier(StringView unitIdentifier)
+static std::optional<WellFormedUnit> wellFormedUnitIdentifier(StringView unitIdentifier)
 {
     // https://tc39.es/ecma402/#sec-iswellformedunitidentifier
     if (auto unit = sanctionedSimpleUnitIdentifier(unitIdentifier))
@@ -243,21 +246,21 @@ static Optional<WellFormedUnit> wellFormedUnitIdentifier(StringView unitIdentifi
     auto per = StringView("-per-"_s);
     auto position = unitIdentifier.find(per);
     if (position == WTF::notFound)
-        return WTF::nullopt;
+        return std::nullopt;
     if (unitIdentifier.find(per, position + per.length()) != WTF::notFound)
-        return WTF::nullopt;
+        return std::nullopt;
 
     // If the result of IsSanctionedSimpleUnitIdentifier(numerator) is false, then return false.
     auto numerator = unitIdentifier.substring(0, position);
     auto numeratorUnit = sanctionedSimpleUnitIdentifier(numerator);
     if (!numeratorUnit)
-        return WTF::nullopt;
+        return std::nullopt;
 
     // If the result of IsSanctionedSimpleUnitIdentifier(denominator) is false, then return false.
     auto denominator = unitIdentifier.substring(position + per.length());
     auto denominatorUnit = sanctionedSimpleUnitIdentifier(denominator);
     if (!denominatorUnit)
-        return WTF::nullopt;
+        return std::nullopt;
 
     return WellFormedUnit(numeratorUnit.value(), denominatorUnit.value());
 }
@@ -271,13 +274,8 @@ void IntlNumberFormat::initializeNumberFormat(JSGlobalObject* globalObject, JSVa
     auto requestedLocales = canonicalizeLocaleList(globalObject, locales);
     RETURN_IF_EXCEPTION(scope, void());
 
-    JSObject* options;
-    if (optionsValue.isUndefined())
-        options = constructEmptyObject(vm, globalObject->nullPrototypeObjectStructure());
-    else {
-        options = optionsValue.toObject(globalObject);
-        RETURN_IF_EXCEPTION(scope, void());
-    }
+    JSObject* options = intlCoerceOptionsToObject(globalObject, optionsValue);
+    RETURN_IF_EXCEPTION(scope, void());
 
     ResolveLocaleOptions localeOptions;
 
@@ -294,7 +292,7 @@ void IntlNumberFormat::initializeNumberFormat(JSGlobalObject* globalObject, JSVa
         localeOptions[static_cast<unsigned>(RelevantExtensionKey::Nu)] = numberingSystem;
     }
 
-    auto& availableLocales = intlNumberFormatAvailableLocales();
+    const auto& availableLocales = intlNumberFormatAvailableLocales();
     auto resolved = resolveLocale(globalObject, availableLocales, requestedLocales, localeMatcher, localeOptions, { RelevantExtensionKey::Nu }, localeData);
 
     m_locale = resolved.locale;
@@ -337,7 +335,7 @@ void IntlNumberFormat::initializeNumberFormat(JSGlobalObject* globalObject, JSVa
 
     String unit = intlStringOption(globalObject, options, Identifier::fromString(vm, "unit"), { }, nullptr, nullptr);
     RETURN_IF_EXCEPTION(scope, void());
-    Optional<WellFormedUnit> wellFormedUnit;
+    std::optional<WellFormedUnit> wellFormedUnit;
     if (!unit.isNull()) {
         wellFormedUnit = wellFormedUnitIdentifier(unit);
         if (!wellFormedUnit) {
@@ -382,32 +380,31 @@ void IntlNumberFormat::initializeNumberFormat(JSGlobalObject* globalObject, JSVa
     // https://github.com/unicode-org/icu/blob/master/docs/userguide/format_parse/numbers/skeletons.md
 
     StringBuilder skeletonBuilder;
-    skeletonBuilder.appendLiteral("rounding-mode-half-up");
+    skeletonBuilder.append("rounding-mode-half-up");
 
     switch (m_style) {
     case Style::Decimal:
         // No skeleton is needed.
         break;
     case Style::Percent:
-        skeletonBuilder.appendLiteral(" percent scale/100");
+        skeletonBuilder.append(" percent scale/100");
         break;
     case Style::Currency: {
-        skeletonBuilder.appendLiteral(" currency/");
-        skeletonBuilder.append(currency);
+        skeletonBuilder.append(" currency/", currency);
 
         // https://github.com/unicode-org/icu/blob/master/docs/userguide/format_parse/numbers/skeletons.md#unit-width
         switch (m_currencyDisplay) {
         case CurrencyDisplay::Code:
-            skeletonBuilder.appendLiteral(" unit-width-iso-code");
+            skeletonBuilder.append(" unit-width-iso-code");
             break;
         case CurrencyDisplay::Symbol:
             // Default option. Do not specify unit-width.
             break;
         case CurrencyDisplay::NarrowSymbol:
-            skeletonBuilder.appendLiteral(" unit-width-narrow");
+            skeletonBuilder.append(" unit-width-narrow");
             break;
         case CurrencyDisplay::Name:
-            skeletonBuilder.appendLiteral(" unit-width-full-name");
+            skeletonBuilder.append(" unit-width-full-name");
             break;
         }
         break;
@@ -416,25 +413,24 @@ void IntlNumberFormat::initializeNumberFormat(JSGlobalObject* globalObject, JSVa
         // The measure-unit stem takes one required option: the unit identifier of the unit to be formatted.
         // The full unit identifier is required: both the type and the subtype (for example, length-meter).
         // https://github.com/unicode-org/icu/blob/master/docs/userguide/format_parse/numbers/skeletons.md#unit
-        skeletonBuilder.appendLiteral(" measure-unit/");
+        skeletonBuilder.append(" measure-unit/");
         auto numeratorUnit = wellFormedUnit->numerator;
         skeletonBuilder.append(numeratorUnit.type, '-', numeratorUnit.subType);
         if (auto denominatorUnitValue = wellFormedUnit->denominator) {
             auto denominatorUnit = denominatorUnitValue.value();
-            skeletonBuilder.appendLiteral(" per-measure-unit/");
-            skeletonBuilder.append(denominatorUnit.type, '-', denominatorUnit.subType);
+            skeletonBuilder.append(" per-measure-unit/", denominatorUnit.type, '-', denominatorUnit.subType);
         }
 
         // https://github.com/unicode-org/icu/blob/master/docs/userguide/format_parse/numbers/skeletons.md#unit-width
         switch (m_unitDisplay) {
         case UnitDisplay::Short:
-            skeletonBuilder.appendLiteral(" unit-width-short");
+            skeletonBuilder.append(" unit-width-short");
             break;
         case UnitDisplay::Narrow:
-            skeletonBuilder.appendLiteral(" unit-width-narrow");
+            skeletonBuilder.append(" unit-width-narrow");
             break;
         case UnitDisplay::Long:
-            skeletonBuilder.appendLiteral(" unit-width-full-name");
+            skeletonBuilder.append(" unit-width-full-name");
             break;
         }
         break;
@@ -442,8 +438,7 @@ void IntlNumberFormat::initializeNumberFormat(JSGlobalObject* globalObject, JSVa
     }
 
     // https://github.com/unicode-org/icu/blob/master/docs/userguide/format_parse/numbers/skeletons.md#integer-width
-    skeletonBuilder.appendLiteral(" integer-width/");
-    skeletonBuilder.append((WTF::ICU::majorVersion() >= 67) ? '*' : '+'); // Prior to ICU 67, use the symbol + instead of *.
+    skeletonBuilder.append(" integer-width/", WTF::ICU::majorVersion() >= 67 ? '*' : '+'); // Prior to ICU 67, use the symbol + instead of *.
     for (unsigned i = 0; i < m_minimumIntegerDigits; ++i)
         skeletonBuilder.append('0');
 
@@ -476,18 +471,18 @@ void IntlNumberFormat::initializeNumberFormat(JSGlobalObject* globalObject, JSVa
     case IntlNotation::Standard:
         break;
     case IntlNotation::Scientific:
-        skeletonBuilder.appendLiteral(" scientific");
+        skeletonBuilder.append(" scientific");
         break;
     case IntlNotation::Engineering:
-        skeletonBuilder.appendLiteral(" engineering");
+        skeletonBuilder.append(" engineering");
         break;
     case IntlNotation::Compact:
         switch (m_compactDisplay) {
         case CompactDisplay::Short:
-            skeletonBuilder.appendLiteral(" compact-short");
+            skeletonBuilder.append(" compact-short");
             break;
         case CompactDisplay::Long:
-            skeletonBuilder.appendLiteral(" compact-long");
+            skeletonBuilder.append(" compact-long");
             break;
         }
         break;
@@ -499,29 +494,29 @@ void IntlNumberFormat::initializeNumberFormat(JSGlobalObject* globalObject, JSVa
     switch (m_signDisplay) {
     case SignDisplay::Auto:
         if (useAccounting)
-            skeletonBuilder.appendLiteral(" sign-accounting");
+            skeletonBuilder.append(" sign-accounting");
         else
-            skeletonBuilder.appendLiteral(" sign-auto");
+            skeletonBuilder.append(" sign-auto");
         break;
     case SignDisplay::Never:
-        skeletonBuilder.appendLiteral(" sign-never");
+        skeletonBuilder.append(" sign-never");
         break;
     case SignDisplay::Always:
         if (useAccounting)
-            skeletonBuilder.appendLiteral(" sign-accounting-always");
+            skeletonBuilder.append(" sign-accounting-always");
         else
-            skeletonBuilder.appendLiteral(" sign-always");
+            skeletonBuilder.append(" sign-always");
         break;
     case SignDisplay::ExceptZero:
         if (useAccounting)
-            skeletonBuilder.appendLiteral(" sign-accounting-except-zero");
+            skeletonBuilder.append(" sign-accounting-except-zero");
         else
-            skeletonBuilder.appendLiteral(" sign-except-zero");
+            skeletonBuilder.append(" sign-except-zero");
         break;
     }
 
     if (!m_useGrouping)
-        skeletonBuilder.appendLiteral(" group-off");
+        skeletonBuilder.append(" group-off");
 
     String skeleton = skeletonBuilder.toString();
     dataLogLnIf(IntlNumberFormatInternal::verbose, skeleton);
@@ -550,8 +545,8 @@ void IntlNumberFormat::initializeNumberFormat(JSGlobalObject* globalObject, JSVa
             style = UNUM_CURRENCY;
             break;
         case CurrencyDisplay::NarrowSymbol:
-            throwTypeError(globalObject, scope, "Failed to initialize NumberFormat since used feature is not supported in the linked ICU version"_s);
-            return;
+            style = UNUM_CURRENCY; // Use the same option to "symbol" since linked-ICU does not support it.
+            break;
         case CurrencyDisplay::Name:
             style = UNUM_CURRENCY_PLURAL;
             break;
@@ -560,13 +555,13 @@ void IntlNumberFormat::initializeNumberFormat(JSGlobalObject* globalObject, JSVa
         case CurrencySign::Standard:
             break;
         case CurrencySign::Accounting:
-            throwTypeError(globalObject, scope, "Failed to initialize NumberFormat since used feature is not supported in the linked ICU version"_s);
-            return;
+            // Ignore this case since linked ICU does not support it.
+            break;
         }
         break;
     case Style::Unit:
-        throwTypeError(globalObject, scope, "Failed to initialize NumberFormat since used feature is not supported in the linked ICU version"_s);
-        return;
+        // Ignore this case since linked ICU does not support it.
+        break;
     }
 
     switch (m_notation) {
@@ -575,8 +570,8 @@ void IntlNumberFormat::initializeNumberFormat(JSGlobalObject* globalObject, JSVa
     case IntlNotation::Scientific:
     case IntlNotation::Engineering:
     case IntlNotation::Compact:
-        throwTypeError(globalObject, scope, "Failed to initialize NumberFormat since used feature is not supported in the linked ICU version"_s);
-        return;
+        // Ignore this case since linked ICU does not support it.
+        break;
     }
 
     switch (m_signDisplay) {
@@ -585,8 +580,8 @@ void IntlNumberFormat::initializeNumberFormat(JSGlobalObject* globalObject, JSVa
     case SignDisplay::Never:
     case SignDisplay::Always:
     case SignDisplay::ExceptZero:
-        throwTypeError(globalObject, scope, "Failed to initialize NumberFormat since used feature is not supported in the linked ICU version"_s);
-        return;
+        // Ignore this case since linked ICU does not support it.
+        break;
     }
 
     UErrorCode status = U_ZERO_ERROR;
@@ -616,8 +611,8 @@ void IntlNumberFormat::initializeNumberFormat(JSGlobalObject* globalObject, JSVa
         unum_setAttribute(m_numberFormat.get(), UNUM_MAX_SIGNIFICANT_DIGITS, m_maximumSignificantDigits);
         break;
     case IntlRoundingType::CompactRounding:
-        throwTypeError(globalObject, scope, "Failed to initialize NumberFormat since used feature is not supported in the linked ICU version"_s);
-        return;
+        // Ignore this case since linked ICU does not support it.
+        break;
     }
     unum_setAttribute(m_numberFormat.get(), UNUM_GROUPING_USED, m_useGrouping);
     unum_setAttribute(m_numberFormat.get(), UNUM_ROUNDING_MODE, UNUM_ROUND_HALFUP);

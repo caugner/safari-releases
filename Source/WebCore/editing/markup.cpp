@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2017 Apple Inc. All rights reserved.
+ * Copyright (C) 2004-2021 Apple Inc. All rights reserved.
  * Copyright (C) 2008, 2009, 2010, 2011 Google Inc. All rights reserved.
  * Copyright (C) 2011 Igalia S.L.
  * Copyright (C) 2011 Motorola Mobility. All rights reserved.
@@ -70,6 +70,7 @@
 #include "Range.h"
 #include "RenderBlock.h"
 #include "RuntimeEnabledFeatures.h"
+#include "ScriptWrappableInlines.h"
 #include "Settings.h"
 #include "SocketProvider.h"
 #include "StyleProperties.h"
@@ -182,7 +183,9 @@ std::unique_ptr<Page> createPageForSanitizingWebContent()
     auto pageConfiguration = pageConfigurationWithEmptyClients(PAL::SessionID::defaultSessionID());
     
     auto page = makeUnique<Page>(WTFMove(pageConfiguration));
+#if ENABLE(VIDEO)
     page->settings().setMediaEnabled(false);
+#endif
     page->settings().setScriptEnabled(false);
     page->settings().setHTMLParserScriptingFlagPolicy(HTMLParserScriptingFlagPolicy::Enabled);
     page->settings().setPluginsEnabled(false);
@@ -205,7 +208,7 @@ std::unique_ptr<Page> createPageForSanitizingWebContent()
     return page;
 }
 
-String sanitizeMarkup(const String& rawHTML, MSOListQuirks msoListQuirks, Optional<WTF::Function<void(DocumentFragment&)>> fragmentSanitizer)
+String sanitizeMarkup(const String& rawHTML, MSOListQuirks msoListQuirks, std::optional<WTF::Function<void(DocumentFragment&)>> fragmentSanitizer)
 {
     auto page = createPageForSanitizingWebContent();
     Document* stagingDocument = page->mainFrame().document();
@@ -383,11 +386,11 @@ void StyledMarkupAccumulator::appendStyleNodeOpenTag(StringBuilder& out, StylePr
     // wrappingStyleForSerialization should have removed -webkit-text-decorations-in-effect
     ASSERT(propertyMissingOrEqualToNone(style, CSSPropertyWebkitTextDecorationsInEffect));
     if (isBlock)
-        out.appendLiteral("<div style=\"");
+        out.append("<div style=\"");
     else
-        out.appendLiteral("<span style=\"");
+        out.append("<span style=\"");
     appendAttributeValue(out, style->asText(), document.isHTMLDocument());
-    out.appendLiteral("\">");
+    out.append("\">");
 }
 
 const String& StyledMarkupAccumulator::styleNodeCloseTag(bool isBlock)
@@ -412,7 +415,7 @@ String StyledMarkupAccumulator::takeResults()
     for (auto& string : m_reversedPrecedingMarkup)
         length += string.length();
     StringBuilder result;
-    result.reserveCapacity(length.unsafeGet());
+    result.reserveCapacity(length);
     for (auto& string : makeReversedRange(m_reversedPrecedingMarkup))
         result.append(string);
     result.append(takeMarkup());
@@ -452,7 +455,7 @@ void StyledMarkupAccumulator::appendText(StringBuilder& out, const Text& text)
     
 String StyledMarkupAccumulator::renderedTextRespectingRange(const Text& text)
 {
-    TextIteratorBehavior behavior = TextIteratorDefaultBehavior;
+    TextIteratorBehaviors behaviors;
     Position start = &text == m_start.containerNode() ? m_start : firstPositionInNode(const_cast<Text*>(&text));
     Position end;
     if (&text == m_end.containerNode())
@@ -460,11 +463,11 @@ String StyledMarkupAccumulator::renderedTextRespectingRange(const Text& text)
     else {
         end = lastPositionInNode(const_cast<Text*>(&text));
         if (!m_end.isNull())
-            behavior = TextIteratorBehavesAsIfNodesFollowing;
+            behaviors.add(TextIteratorBehavior::BehavesAsIfNodesFollowing);
     }
 
     auto range = makeSimpleRange(start, end);
-    return range ? plainText(*range, behavior) : emptyString();
+    return range ? plainText(*range, behaviors) : emptyString();
 }
 
 String StyledMarkupAccumulator::textContentRespectingRange(const Text& text)
@@ -601,7 +604,7 @@ void StyledMarkupAccumulator::appendStartTag(StringBuilder& out, const Element& 
         }
 
         if (!newInlineStyle->isEmpty()) {
-            out.appendLiteral(" style=\"");
+            out.append(" style=\"");
             appendAttributeValue(out, newInlineStyle->style()->asText(), documentIsHTML);
             out.append('"');
         }
@@ -694,23 +697,24 @@ Node* StyledMarkupAccumulator::traverseNodesForSerialization(Node* startNode, No
                 }
             }
         }
-        ASSERT(next || !pastEnd);
+        ASSERT(next || !pastEnd || n->containsIncludingShadowDOM(pastEnd));
 
         if (isBlock(n) && canHaveChildrenForEditing(*n) && next == pastEnd) {
             // Don't write out empty block containers that aren't fully selected.
             continue;
         }
 
-        if (!enterNode(*n)) {
+        bool didEnterNode = false;
+        if (!enterNode(*n))
             next = nextSkippingChildren(*n);
-            // Don't skip over pastEnd.
-            if (pastEnd && (isDescendantOf(*pastEnd, *n) || !next))
-                next = pastEnd;
-            ASSERT(next || !pastEnd);
-        } else {
-            if (!hasChildNodes(*n))
-                exitNode(*n);
-        }
+        else if (!hasChildNodes(*n))
+            exitNode(*n);
+        else
+            didEnterNode = true;
+
+        bool aboutToGoPastEnd = pastEnd && !didEnterNode && (!next || isDescendantOf(*pastEnd, *n));
+        if (aboutToGoPastEnd)
+            next = pastEnd;
 
         for (auto* ancestor : exitedAncestors) {
             if (!depth && next == pastEnd)
@@ -1198,6 +1202,8 @@ Ref<DocumentFragment> createFragmentFromText(const SimpleRange& context, const S
     bool useClonesOfEnclosingBlock = block
         && !block->hasTagName(bodyTag)
         && !block->hasTagName(htmlTag)
+        // Avoid using table as paragraphs due to its special treatment in Position::upstream/downstream.
+        && !isRenderedTable(block)
         && block != editableRootForPosition(start);
     bool useLineBreak = enclosingTextFormControl(start);
 
@@ -1236,11 +1242,9 @@ String documentTypeString(const Document& document)
 String urlToMarkup(const URL& url, const String& title)
 {
     StringBuilder markup;
-    markup.appendLiteral("<a href=\"");
-    markup.append(url.string());
-    markup.appendLiteral("\">");
+    markup.append("<a href=\"", url.string(), "\">");
     MarkupAccumulator::appendCharactersReplacingEntities(markup, title, 0, title.length(), EntityMaskInPCDATA);
-    markup.appendLiteral("</a>");
+    markup.append("</a>");
     return markup.toString();
 }
 
@@ -1382,7 +1386,6 @@ ExceptionOr<void> replaceChildrenWithFragment(ContainerNode& container, Ref<Docu
     auto* containerChild = containerNode->firstChild();
     if (containerChild && !containerChild->nextSibling()) {
         if (is<Text>(*containerChild) && hasOneTextChild(fragment) && canUseSetDataOptimization(downcast<Text>(*containerChild), mutation)) {
-            ASSERT(!fragment->firstChild()->refCount());
             downcast<Text>(*containerChild).setData(downcast<Text>(*fragment->firstChild()).data());
             return { };
         }

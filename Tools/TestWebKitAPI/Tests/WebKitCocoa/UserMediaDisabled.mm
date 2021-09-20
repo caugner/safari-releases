@@ -59,18 +59,11 @@ static RetainPtr<WKScriptMessage> lastScriptMessage;
 
 @implementation UserMediaUIDelegate
 
-- (void)_webView:(WKWebView *)webView requestMediaCaptureAuthorization: (_WKCaptureDevices)devices decisionHandler:(void (^)(BOOL))decisionHandler
+- (void)webView:(WKWebView *)webView requestMediaCapturePermissionForOrigin:(WKSecurityOrigin *)origin initiatedByFrame:(WKFrameInfo *)frame type:(WKMediaCaptureType)type decisionHandler:(void (^)(WKPermissionDecision decision))decisionHandler
 {
     wasPrompted = true;
 
-    BOOL needsMicrophoneAuthorized = devices & _WKCaptureDeviceMicrophone;
-    BOOL needsCameraAuthorized = devices & _WKCaptureDeviceCamera;
-    if (!needsMicrophoneAuthorized && !needsCameraAuthorized) {
-        decisionHandler(NO);
-        return;
-    }
-
-    decisionHandler(YES);
+    decisionHandler(WKPermissionDecisionGrant);
 }
 
 - (void)_webView:(WKWebView *)webView includeSensitiveMediaDeviceDetails:(void (^)(BOOL includeSensitiveDetails))decisionHandler
@@ -136,7 +129,7 @@ TEST_F(MediaCaptureDisabledTest, UnsecureContext)
     preferences._mediaCaptureRequiresSecureConnection = YES;
 
     receivedScriptMessage = false;
-    [m_webView loadHTMLString:@"<html><body><script>window.webkit.messageHandlers.testHandler.postMessage(Navigator.prototype.hasOwnProperty('mediaDevices') ? 'has' : 'none');</script></body></html>" baseURL: [[NSURL alloc] initWithString:@"http://test.org"]];
+    [m_webView loadHTMLString:@"<html><body><script>window.webkit.messageHandlers.testHandler.postMessage(Navigator.prototype.hasOwnProperty('mediaDevices') ? 'has' : 'none');</script></body></html>" baseURL:adoptNS([[NSURL alloc] initWithString:@"http://test.org"]).get()];
 
     TestWebKitAPI::Util::run(&receivedScriptMessage);
     EXPECT_STREQ([(NSString *)[lastScriptMessage body] UTF8String], "none");

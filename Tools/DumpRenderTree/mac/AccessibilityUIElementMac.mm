@@ -34,7 +34,6 @@
 #import <JavaScriptCore/JSStringRefCF.h>
 #import <WebKit/WebFrame.h>
 #import <WebKit/WebHTMLView.h>
-#import <WebKit/WebTypesInternal.h>
 #import <wtf/RetainPtr.h>
 #import <wtf/Vector.h>
 #import <wtf/cocoa/VectorCocoa.h>
@@ -81,12 +80,12 @@ typedef void (*AXPostedNotificationCallback)(id element, NSString* notification,
 - (void)_accessibilitySetValue:(id)value forAttribute:(NSString*)attributeName;
 @end
 
-static Optional<AccessibilityUIElement> makeVectorElement(const AccessibilityUIElement*, id element)
+static std::optional<AccessibilityUIElement> makeVectorElement(const AccessibilityUIElement*, id element)
 {
     return { { element } };
 }
 
-static Optional<AccessibilityTextMarkerRange> makeVectorElement(const AccessibilityTextMarkerRange*, id element)
+static std::optional<AccessibilityTextMarkerRange> makeVectorElement(const AccessibilityTextMarkerRange*, id element)
 {
     return { { element } };
 }
@@ -962,6 +961,14 @@ bool AccessibilityUIElement::ariaIsGrabbed() const
     return false;
 }
 
+JSRetainPtr<JSStringRef> AccessibilityUIElement::embeddedImageDescription() const
+{
+    BEGIN_AX_OBJC_EXCEPTIONS
+    NSString *value = descriptionOfValue([m_element accessibilityAttributeValue:@"AXEmbeddedImageDescription"], m_element.get());
+    return concatenateAttributeAndValue(@"AXEmbeddedImageDescription", value);
+    END_AX_OBJC_EXCEPTIONS
+}
+
 JSRetainPtr<JSStringRef> AccessibilityUIElement::ariaDropEffects() const
 {
     BEGIN_AX_OBJC_EXCEPTIONS
@@ -1480,7 +1487,8 @@ bool AccessibilityUIElement::addNotificationListener(JSObjectRef functionCallbac
     // Other platforms may be different.
     if (m_notificationHandler)
         return false;
-    m_notificationHandler = [[AccessibilityNotificationHandler alloc] init];
+
+    m_notificationHandler = adoptNS([[AccessibilityNotificationHandler alloc] init]);
     [m_notificationHandler setPlatformElement:platformUIElement()];
     [m_notificationHandler setCallback:functionCallback];
     [m_notificationHandler startObserving];
@@ -1494,7 +1502,6 @@ void AccessibilityUIElement::removeNotificationListener()
     ASSERT(m_notificationHandler);
 
     [m_notificationHandler stopObserving];
-    [m_notificationHandler release];
     m_notificationHandler = nil;
 }
 
@@ -1806,7 +1813,7 @@ static JSRetainPtr<JSStringRef> createJSStringRef(id string)
 {
     if (!string)
         return nullptr;
-    id mutableString = [[[NSMutableString alloc] init] autorelease];
+    auto mutableString = adoptNS([[NSMutableString alloc] init]);
     id attributes = [string attributesAtIndex:0 effectiveRange:nil];
     id attributeEnumerationBlock = ^(NSDictionary<NSString *, id> *attrs, NSRange range, BOOL *stop) {
         BOOL misspelled = [[attrs objectForKey:NSAccessibilityMisspelledTextAttribute] boolValue];

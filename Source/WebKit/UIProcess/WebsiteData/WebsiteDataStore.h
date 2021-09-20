@@ -62,6 +62,8 @@
 #endif
 
 #if USE(SOUP)
+#include "SoupCookiePersistentStorageType.h"
+#include <WebCore/HTTPCookieAcceptPolicy.h>
 #include <WebCore/SoupNetworkProxySettings.h>
 #endif
 
@@ -139,7 +141,7 @@ public:
     void sendNetworkProcessPrepareToSuspendForTesting(CompletionHandler<void()>&&);
     void sendNetworkProcessWillSuspendImminentlyForTesting();
     void sendNetworkProcessDidResume();
-    void networkProcessCrashed(NetworkProcessProxy&);
+    void networkProcessDidTerminate(NetworkProcessProxy&);
     static void makeNextNetworkProcessLaunchFailForTesting();
     static bool shouldMakeNextNetworkProcessLaunchFailForTesting();
 
@@ -170,7 +172,7 @@ public:
     void resetServiceWorkerTimeoutForTesting();
 
 #if ENABLE(RESOURCE_LOAD_STATISTICS)
-    void fetchDataForRegistrableDomains(OptionSet<WebsiteDataType>, OptionSet<WebsiteDataFetchOption>, const Vector<WebCore::RegistrableDomain>&, CompletionHandler<void(Vector<WebsiteDataRecord>&&, HashSet<WebCore::RegistrableDomain>&&)>&&);
+    void fetchDataForRegistrableDomains(OptionSet<WebsiteDataType>, OptionSet<WebsiteDataFetchOption>, Vector<WebCore::RegistrableDomain>&&, CompletionHandler<void(Vector<WebsiteDataRecord>&&, HashSet<WebCore::RegistrableDomain>&&)>&&);
     void clearPrevalentResource(const URL&, CompletionHandler<void()>&&);
     void clearUserInteraction(const URL&, CompletionHandler<void()>&&);
     void dumpResourceLoadStatistics(CompletionHandler<void(const String&)>&&);
@@ -196,8 +198,9 @@ public:
     void setLastSeen(const URL&, Seconds, CompletionHandler<void()>&&);
     void domainIDExistsInDatabase(int domainID, CompletionHandler<void(bool)>&&);
     void statisticsDatabaseHasAllTables(CompletionHandler<void(bool)>&&);
+    void statisticsDatabaseColumnsForTable(const String&, CompletionHandler<void(Vector<String>&&)>&&);
     void mergeStatisticForTesting(const URL&, const URL& topFrameUrl1, const URL& topFrameUrl2, Seconds lastSeen, bool hadUserInteraction, Seconds mostRecentUserInteraction, bool isGrandfathered, bool isPrevalent, bool isVeryPrevalent, unsigned dataRecordsRemoved, CompletionHandler<void()>&&);
-    void insertExpiredStatisticForTesting(const URL&, bool hadUserInteraction, bool isScheduledForAllButCookieDataRemoval, bool isPrevalent, CompletionHandler<void()>&&);
+    void insertExpiredStatisticForTesting(const URL&, unsigned numberOfOperatingDaysPassed, bool hadUserInteraction, bool isScheduledForAllButCookieDataRemoval, bool isPrevalent, CompletionHandler<void()>&&);
     void setNotifyPagesWhenDataRecordsWereScanned(bool, CompletionHandler<void()>&&);
     void setIsRunningResourceLoadStatisticsTest(bool, CompletionHandler<void()>&&);
     void setPruneEntriesDownTo(size_t, CompletionHandler<void()>&&);
@@ -252,12 +255,16 @@ public:
     const String& resolvedServiceWorkerRegistrationDirectory() const { return m_resolvedConfiguration->serviceWorkerRegistrationDirectory(); }
     const String& resolvedResourceLoadStatisticsDirectory() const { return m_resolvedConfiguration->resourceLoadStatisticsDirectory(); }
     const String& resolvedHSTSStorageDirectory() const { return m_resolvedConfiguration->hstsStorageDirectory(); }
+#if HAVE(ARKIT_INLINE_PREVIEW)
+    const String& resolvedModelElementCacheDirectory() const { return m_resolvedConfiguration->modelElementCacheDirectory(); }
+#endif
 
     void allowSpecificHTTPSCertificateForHost(const WebCertificateInfo*, const String& host);
 
     DeviceIdHashSaltStorage& deviceIdHashSaltStorage() { return m_deviceIdHashSaltStorage.get(); }
 
     WebsiteDataStoreParameters parameters();
+    static Vector<WebsiteDataStoreParameters> parametersFromEachWebsiteDataStore();
 
     void flushCookies(CompletionHandler<void()>&&);
     void clearCachedCredentials();
@@ -269,6 +276,8 @@ public:
 #if PLATFORM(COCOA)
     void sendNetworkProcessXPCEndpointToWebProcess(WebProcessProxy&);
     void sendNetworkProcessXPCEndpointToAllWebProcesses();
+    
+    static bool useNetworkLoader();
 #endif
 
 #if USE(CURL)
@@ -283,6 +292,8 @@ public:
     bool ignoreTLSErrors() const { return m_ignoreTLSErrors; }
     void setNetworkProxySettings(WebCore::SoupNetworkProxySettings&&);
     const WebCore::SoupNetworkProxySettings& networkProxySettings() const { return m_networkProxySettings; }
+    void setCookiePersistentStorage(const String&, SoupCookiePersistentStorageType);
+    void setHTTPCookieAcceptPolicy(WebCore::HTTPCookieAcceptPolicy);
 #endif
 
     static void allowWebsiteDataRecordsForAllOrigins();
@@ -325,6 +336,9 @@ public:
 #if USE(GLIB)
     static WTF::String defaultHSTSDirectory();
 #endif
+#if HAVE(ARKIT_INLINE_PREVIEW)
+    static WTF::String defaultModelElementCacheDirectory();
+#endif
     static WTF::String defaultIndexedDBDatabaseDirectory();
     static WTF::String defaultCacheStorageDirectory();
     static WTF::String defaultMediaCacheDirectory();
@@ -347,7 +361,9 @@ public:
 #endif
     void updateBundleIdentifierInNetworkProcess(const String&, CompletionHandler<void()>&&);
     void clearBundleIdentifierInNetworkProcess(CompletionHandler<void()>&&);
-    
+
+    void countNonDefaultSessionSets(CompletionHandler<void(size_t)>&&);
+
 private:
     enum class ForceReinitialization : bool { No, Yes };
 #if ENABLE(APP_BOUND_DOMAINS)
@@ -355,7 +371,7 @@ private:
     void addTestDomains() const;
 #endif
 
-    void fetchDataAndApply(OptionSet<WebsiteDataType>, OptionSet<WebsiteDataFetchOption>, RefPtr<WorkQueue>&&, Function<void(Vector<WebsiteDataRecord>)>&& apply);
+    void fetchDataAndApply(OptionSet<WebsiteDataType>, OptionSet<WebsiteDataFetchOption>, Ref<WorkQueue>&&, Function<void(Vector<WebsiteDataRecord>)>&& apply);
 
     void platformInitialize();
     void platformDestroy();
@@ -386,7 +402,7 @@ private:
     void registerWithSessionIDMap();
 
 #if ENABLE(APP_BOUND_DOMAINS)
-    static Optional<HashSet<WebCore::RegistrableDomain>> appBoundDomainsIfInitialized();
+    static std::optional<HashSet<WebCore::RegistrableDomain>> appBoundDomainsIfInitialized();
     constexpr static const std::atomic<bool> isAppBoundITPRelaxationEnabled = false;
     static void forwardAppBoundDomainsToITPIfInitialized(CompletionHandler<void()>&&);
     void setAppBoundDomainsForITP(const HashSet<WebCore::RegistrableDomain>&, CompletionHandler<void()>&&);
@@ -421,6 +437,9 @@ private:
     bool m_persistentCredentialStorageEnabled { true };
     bool m_ignoreTLSErrors { true };
     WebCore::SoupNetworkProxySettings m_networkProxySettings;
+    String m_cookiePersistentStoragePath;
+    SoupCookiePersistentStorageType m_cookiePersistentStorageType { SoupCookiePersistentStorageType::SQLite };
+    WebCore::HTTPCookieAcceptPolicy m_cookieAcceptPolicy { WebCore::HTTPCookieAcceptPolicy::ExclusivelyFromMainDocumentDomain };
 #endif
 
     WeakHashSet<WebProcessProxy> m_processes;
@@ -448,7 +467,7 @@ private:
     UniqueRef<SOAuthorizationCoordinator> m_soAuthorizationCoordinator;
 #endif
 #if ENABLE(RESOURCE_LOAD_STATISTICS)
-    mutable Optional<WebCore::ThirdPartyCookieBlockingMode> m_thirdPartyCookieBlockingMode; // Lazily computed.
+    mutable std::optional<WebCore::ThirdPartyCookieBlockingMode> m_thirdPartyCookieBlockingMode; // Lazily computed.
 #endif
 };
 

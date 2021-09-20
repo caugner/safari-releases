@@ -21,10 +21,12 @@
 #if ENABLE(WEB_AUDIO) && ENABLE(VIDEO) && USE(GSTREAMER)
 
 #include "AudioSourceProvider.h"
+#include "AudioSourceProviderClient.h"
 #include "GRefPtrGStreamer.h"
 #include "MainThreadNotifier.h"
 #include <gst/gst.h>
 #include <wtf/Forward.h>
+#include <wtf/Lock.h>
 #include <wtf/Noncopyable.h>
 
 #if ENABLE(MEDIA_STREAM)
@@ -60,7 +62,7 @@ public:
 
     void provideInput(AudioBus*, size_t framesToProcess) override;
     void setClient(AudioSourceProviderClient*) override;
-    const AudioSourceProviderClient* client() const { return m_client; }
+    const AudioSourceProviderClient* client() const { return m_client.get(); }
 
     void handleNewDeinterleavePad(GstPad*);
     void deinterleavePadsConfigured();
@@ -78,13 +80,13 @@ private:
     };
     Ref<MainThreadNotifier<MainThreadNotification>> m_notifier;
     GRefPtr<GstElement> m_audioSinkBin;
-    AudioSourceProviderClient* m_client { nullptr };
+    WeakPtr<AudioSourceProviderClient> m_client;
     int m_deinterleaveSourcePads { 0 };
-    HashMap<int, GRefPtr<GstAdapter>> m_adapters;
+    HashMap<int, GRefPtr<GstAdapter>> m_adapters WTF_GUARDED_BY_LOCK(m_adapterLock);
     unsigned long m_deinterleavePadAddedHandlerId { 0 };
     unsigned long m_deinterleaveNoMorePadsHandlerId { 0 };
     unsigned long m_deinterleavePadRemovedHandlerId { 0 };
-    Lock m_adapterMutex;
+    Lock m_adapterLock;
 };
 
 }

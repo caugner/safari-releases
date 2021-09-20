@@ -30,6 +30,7 @@
 #include "InspectorStyleSheet.h"
 #include "InspectorWebAgentBase.h"
 #include "SecurityContext.h"
+#include "Timer.h"
 #include <JavaScriptCore/InspectorBackendDispatchers.h>
 #include <wtf/HashMap.h>
 #include <wtf/HashSet.h>
@@ -50,6 +51,7 @@ class Document;
 class Element;
 class Node;
 class NodeList;
+class RenderObject;
 class StyleRule;
 
 namespace Style {
@@ -81,6 +83,7 @@ public:
     };
 
     static CSSStyleRule* asCSSStyleRule(CSSRule&);
+    static std::optional<Inspector::Protocol::CSS::LayoutContextType> layoutContextTypeForRenderer(RenderObject*);
 
     // InspectorAgentBase
     void didCreateFrontendAndBackend(Inspector::FrontendRouter*, Inspector::BackendDispatcher*);
@@ -92,7 +95,7 @@ public:
     Inspector::Protocol::ErrorStringOr<Ref<JSON::ArrayOf<Inspector::Protocol::CSS::CSSComputedStyleProperty>>> getComputedStyleForNode(Inspector::Protocol::DOM::NodeId);
     Inspector::Protocol::ErrorStringOr<Ref<Inspector::Protocol::CSS::Font>> getFontDataForNode(Inspector::Protocol::DOM::NodeId);
     Inspector::Protocol::ErrorStringOr<std::tuple<RefPtr<Inspector::Protocol::CSS::CSSStyle> /* inlineStyle */, RefPtr<Inspector::Protocol::CSS::CSSStyle> /* attributesStyle */>> getInlineStylesForNode(Inspector::Protocol::DOM::NodeId);
-    Inspector::Protocol::ErrorStringOr<std::tuple<RefPtr<JSON::ArrayOf<Inspector::Protocol::CSS::RuleMatch>>, RefPtr<JSON::ArrayOf<Inspector::Protocol::CSS::PseudoIdMatches>>, RefPtr<JSON::ArrayOf<Inspector::Protocol::CSS::InheritedStyleEntry>>>> getMatchedStylesForNode(Inspector::Protocol::DOM::NodeId, Optional<bool>&& includePseudo, Optional<bool>&& includeInherited);
+    Inspector::Protocol::ErrorStringOr<std::tuple<RefPtr<JSON::ArrayOf<Inspector::Protocol::CSS::RuleMatch>>, RefPtr<JSON::ArrayOf<Inspector::Protocol::CSS::PseudoIdMatches>>, RefPtr<JSON::ArrayOf<Inspector::Protocol::CSS::InheritedStyleEntry>>>> getMatchedStylesForNode(Inspector::Protocol::DOM::NodeId, std::optional<bool>&& includePseudo, std::optional<bool>&& includeInherited);
     Inspector::Protocol::ErrorStringOr<Ref<JSON::ArrayOf<Inspector::Protocol::CSS::CSSStyleSheetHeader>>> getAllStyleSheets();
     Inspector::Protocol::ErrorStringOr<Ref<Inspector::Protocol::CSS::CSSStyleSheetBody>> getStyleSheet(const Inspector::Protocol::CSS::StyleSheetId&);
     Inspector::Protocol::ErrorStringOr<String> getStyleSheetText(const Inspector::Protocol::CSS::StyleSheetId&);
@@ -104,6 +107,7 @@ public:
     Inspector::Protocol::ErrorStringOr<Ref<JSON::ArrayOf<Inspector::Protocol::CSS::CSSPropertyInfo>>> getSupportedCSSProperties();
     Inspector::Protocol::ErrorStringOr<Ref<JSON::ArrayOf<String>>> getSupportedSystemFontFamilyNames();
     Inspector::Protocol::ErrorStringOr<void> forcePseudoState(Inspector::Protocol::DOM::NodeId, Ref<JSON::Array>&& forcedPseudoClasses);
+    Inspector::Protocol::ErrorStringOr<void> setLayoutContextTypeChangedMode(Inspector::Protocol::CSS::LayoutContextTypeChangedMode);
 
     // InspectorStyleSheet::Listener
     void styleSheetChanged(InspectorStyleSheet*);
@@ -113,6 +117,7 @@ public:
     void mediaQueryResultChanged();
     void activeStyleSheetsUpdated(Document&);
     bool forcePseudoState(const Element&, CSSSelector::PseudoClassType);
+    void nodeLayoutContextTypeChanged(Node&, RenderObject*);
 
     // InspectorDOMAgent hooks
     void didRemoveDOMNode(Node&, Inspector::Protocol::DOM::NodeId);
@@ -152,6 +157,7 @@ private:
     Ref<JSON::ArrayOf<Inspector::Protocol::CSS::RuleMatch>> buildArrayForMatchedRuleList(const Vector<RefPtr<const StyleRule>>&, Style::Resolver&, Element&, PseudoId);
     RefPtr<Inspector::Protocol::CSS::CSSStyle> buildObjectForAttributesStyle(StyledElement&);
 
+    void layoutContextTypeChangedTimerFired();
 
     void resetPseudoStates();
 
@@ -168,6 +174,10 @@ private:
 
     int m_lastStyleSheetId { 1 };
     bool m_creatingViaInspectorStyleSheet { false };
+
+    HashMap<Inspector::Protocol::DOM::NodeId, std::optional<Inspector::Protocol::CSS::LayoutContextType>> m_nodesWithPendingLayoutContextTypeChanges;
+    Timer m_layoutContextTypeChangedTimer;
+    Inspector::Protocol::CSS::LayoutContextTypeChangedMode m_layoutContextTypeChangedMode { Inspector::Protocol::CSS::LayoutContextTypeChangedMode::Observed };
 };
 
 } // namespace WebCore

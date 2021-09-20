@@ -33,7 +33,7 @@
 #import "WKSafeBrowsingWarning.h"
 #import "WKScrollViewMac.h"
 #import "WKTextFinderClient.h"
-#import "WKUIDelegatePrivate.h"
+#import <WebKit/WKUIDelegatePrivate.h>
 #import "WebBackForwardList.h"
 #import "WebPageProxy.h"
 #import "WebProcessProxy.h"
@@ -43,7 +43,7 @@
 #import <WebCore/VersionChecks.h>
 #import <pal/spi/mac/NSTextFinderSPI.h>
 
-_WKOverlayScrollbarStyle toAPIScrollbarStyle(Optional<WebCore::ScrollbarOverlayStyle> coreScrollbarStyle)
+_WKOverlayScrollbarStyle toAPIScrollbarStyle(std::optional<WebCore::ScrollbarOverlayStyle> coreScrollbarStyle)
 {
     if (!coreScrollbarStyle)
         return _WKOverlayScrollbarStyleAutomatic;
@@ -60,7 +60,7 @@ _WKOverlayScrollbarStyle toAPIScrollbarStyle(Optional<WebCore::ScrollbarOverlayS
     return _WKOverlayScrollbarStyleAutomatic;
 }
 
-Optional<WebCore::ScrollbarOverlayStyle> toCoreScrollbarStyle(_WKOverlayScrollbarStyle scrollbarStyle)
+std::optional<WebCore::ScrollbarOverlayStyle> toCoreScrollbarStyle(_WKOverlayScrollbarStyle scrollbarStyle)
 {
     switch (scrollbarStyle) {
     case _WKOverlayScrollbarStyleDark:
@@ -72,7 +72,7 @@ Optional<WebCore::ScrollbarOverlayStyle> toCoreScrollbarStyle(_WKOverlayScrollba
     case _WKOverlayScrollbarStyleAutomatic:
         break;
     }
-    return WTF::nullopt;
+    return std::nullopt;
 }
 
 @interface WKWebView (WKImplementationMac) <NSTextInputClient
@@ -83,6 +83,9 @@ Optional<WebCore::ScrollbarOverlayStyle> toCoreScrollbarStyle(_WKOverlayScrollba
 #if ENABLE(DRAG_SUPPORT)
     , NSFilePromiseProviderDelegate
     , NSDraggingSource
+#endif
+#if HAVE(NSSCROLLVIEW_SEPARATOR_TRACKING_ADAPTER)
+    , NSScrollViewSeparatorTrackingAdapter
 #endif
     >
 @end
@@ -994,6 +997,26 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
 
 #endif // HAVE(TOUCH_BAR)
 
+#pragma mark - NSScrollViewSeparatorTrackingAdapter
+
+#if HAVE(NSSCROLLVIEW_SEPARATOR_TRACKING_ADAPTER)
+
+- (NSRect)scrollViewFrame
+{
+    if (!_impl)
+        return NSZeroRect;
+    return _impl->scrollViewFrame();
+}
+
+- (BOOL)hasScrolledContentsUnderTitlebar
+{
+    if (!_impl)
+        return NO;
+    return _impl->hasScrolledContentsUnderTitlebar();
+}
+
+#endif // HAVE(NSSCROLLVIEW_SEPARATOR_TRACKING_ADAPTER)
+
 @end
 
 #pragma mark -
@@ -1223,6 +1246,23 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
     // Only called with UI-side compositing.
 }
 
+#pragma mark - QLPreviewPanelController
+
+- (BOOL)acceptsPreviewPanelControl:(QLPreviewPanel *)panel
+{
+    return _impl->acceptsPreviewPanelControl(panel);
+}
+
+- (void)beginPreviewPanelControl:(QLPreviewPanel *)panel
+{
+    _impl->beginPreviewPanelControl(panel);
+}
+
+- (void)endPreviewPanelControl:(QLPreviewPanel *)panel
+{
+    _impl->endPreviewPanelControl(panel);
+}
+
 #pragma mark -
 
 - (void)_setupScrollAndContentViews
@@ -1283,11 +1323,6 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
 - (void)_setRubberBandingEnabled:(_WKRectEdge)state
 {
     _impl->setRubberBandingEnabled(state);
-}
-
-- (NSColor *)_pageExtendedBackgroundColor
-{
-    return _impl->pageExtendedBackgroundColor();
 }
 
 - (NSColor *)_backgroundColor

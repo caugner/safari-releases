@@ -37,6 +37,8 @@
 namespace WebCore {
 namespace Display {
 
+DEFINE_ALLOCATOR_WITH_HEAP_IDENTIFIER(Style);
+
 static RefPtr<FillLayer> deepCopy(const FillLayer& layer)
 {
     RefPtr<FillLayer> firstLayer;
@@ -103,7 +105,7 @@ Style::Style(const RenderStyle& style, const RenderStyle* styleForBackground)
         m_zIndex = style.usedZIndex();
 
     setIsPositioned(style.position() != PositionType::Static);
-    setIsFloating(style.floating() != Float::No);
+    setIsFloating(style.floating() != Float::None);
     setHasTransform(style.hasTransform());
 }
 

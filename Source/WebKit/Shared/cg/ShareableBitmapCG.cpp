@@ -40,7 +40,7 @@ using namespace WebCore;
     
 static CGColorSpaceRef colorSpace(const ShareableBitmap::Configuration& configuration)
 {
-    return configuration.colorSpace.cgColorSpace.get() ?: sRGBColorSpaceRef();
+    return configuration.colorSpace ? configuration.colorSpace->platformColorSpace() : WebCore::sRGBColorSpaceRef();
 }
 
 static bool wantsExtendedRange(const ShareableBitmap::Configuration& configuration)
@@ -70,38 +70,44 @@ static CGBitmapInfo bitmapInfo(const ShareableBitmap::Configuration& configurati
     return info;
 }
 
-Checked<unsigned, RecordOverflow> ShareableBitmap::calculateBytesPerRow(WebCore::IntSize size, const Configuration& configuration)
+CheckedUint32 ShareableBitmap::calculateBytesPerRow(WebCore::IntSize size, const Configuration& configuration)
 {
-    unsigned bytesPerRow = calculateBytesPerPixel(configuration) * size.width();
+    CheckedUint32 bytesPerRow = calculateBytesPerPixel(configuration) * size.width();
 #if HAVE(IOSURFACE)
+    if (bytesPerRow.hasOverflowed())
+        return bytesPerRow;
     return IOSurfaceAlignProperty(kIOSurfaceBytesPerRow, bytesPerRow);
 #else
     return bytesPerRow;
 #endif
 }
 
-unsigned ShareableBitmap::calculateBytesPerPixel(const Configuration& configuration)
+CheckedUint32 ShareableBitmap::calculateBytesPerPixel(const Configuration& configuration)
 {
     return wantsExtendedRange(configuration) ? 8 : 4;
 }
 
 std::unique_ptr<GraphicsContext> ShareableBitmap::createGraphicsContext()
 {
-    ASSERT(RunLoop::isMain());
-    ref(); // Balanced by deref in releaseBitmapContextData.
+    auto bitsPerComponent = calculateBytesPerPixel(m_configuration) * 8 / 4;
+    if (bitsPerComponent.hasOverflowed())
+        return nullptr;
 
-    unsigned bytesPerPixel = calculateBytesPerPixel(m_configuration);
-    RetainPtr<CGContextRef> bitmapContext = adoptCF(CGBitmapContextCreateWithData(data(), m_size.width(), m_size.height(), bytesPerPixel * 8 / 4, calculateBytesPerRow(m_size, m_configuration).unsafeGet(), colorSpace(m_configuration), bitmapInfo(m_configuration), releaseBitmapContextData, this));
+    auto bytesPerRow = calculateBytesPerRow(m_size, m_configuration);
+    if (bytesPerRow.hasOverflowed())
+        return nullptr;
+
+    RetainPtr<CGContextRef> bitmapContext = adoptCF(CGBitmapContextCreateWithData(data(), m_size.width(), m_size.height(), bitsPerComponent, bytesPerRow, colorSpace(m_configuration), bitmapInfo(m_configuration), releaseBitmapContextData, this));
     if (!bitmapContext)
         return nullptr;
 
-    ASSERT(bitmapContext.get());
+    ref(); // Balanced by deref in releaseBitmapContextData.
 
     // We want the origin to be in the top left corner so we flip the backing store context.
     CGContextTranslateCTM(bitmapContext.get(), 0, m_size.height());
     CGContextScaleCTM(bitmapContext.get(), 1, -1);
 
-    return makeUnique<GraphicsContext>(bitmapContext.get());
+    return makeUnique<GraphicsContextCG>(bitmapContext.get());
 }
 
 void ShareableBitmap::paint(WebCore::GraphicsContext& context, const IntPoint& destination, const IntRect& source)
@@ -135,8 +141,7 @@ RetainPtr<CGImageRef> ShareableBitmap::makeCGImageCopy()
     if (!graphicsContext)
         return nullptr;
 
-    RetainPtr<CGImageRef> image = adoptCF(CGBitmapContextCreateImage(graphicsContext->platformContext()));
-    return image;
+    return adoptCF(CGBitmapContextCreateImage(graphicsContext->platformContext()));
 }
 
 RetainPtr<CGImageRef> ShareableBitmap::makeCGImage()
@@ -150,20 +155,20 @@ RetainPtr<CGImageRef> ShareableBitmap::makeCGImage()
 RetainPtr<CGImageRef> ShareableBitmap::createCGImage(CGDataProviderRef dataProvider) const
 {
     ASSERT_ARG(dataProvider, dataProvider);
-    unsigned bytesPerPixel = calculateBytesPerPixel(m_configuration);
-    RetainPtr<CGImageRef> image = adoptCF(CGImageCreate(m_size.width(), m_size.height(), bytesPerPixel * 8 / 4, bytesPerPixel * 8, calculateBytesPerRow(m_size, m_configuration).unsafeGet(), colorSpace(m_configuration), bitmapInfo(m_configuration), dataProvider, 0, false, kCGRenderingIntentDefault));
+    auto bitsPerPixel = calculateBytesPerPixel(m_configuration) * 8;
+    if (bitsPerPixel.hasOverflowed())
+        return nullptr;
+
+    auto bytesPerRow = calculateBytesPerRow(m_size, m_configuration);
+    if (bytesPerRow.hasOverflowed())
+        return nullptr;
+
+    RetainPtr<CGImageRef> image = adoptCF(CGImageCreate(m_size.width(), m_size.height(), bitsPerPixel / 4, bitsPerPixel, bytesPerRow, colorSpace(m_configuration), bitmapInfo(m_configuration), dataProvider, 0, false, kCGRenderingIntentDefault));
     return image;
 }
 
 void ShareableBitmap::releaseBitmapContextData(void* typelessBitmap, void* typelessData)
 {
-    if (!RunLoop::isMain()) {
-        RunLoop::main().dispatch([typelessBitmap, typelessData] {
-            releaseBitmapContextData(typelessBitmap, typelessData);
-        });
-        return;
-    }
-
     ShareableBitmap* bitmap = static_cast<ShareableBitmap*>(typelessBitmap);
     ASSERT_UNUSED(typelessData, bitmap->data() == typelessData);
     bitmap->deref(); // Balanced by ref in createGraphicsContext.
@@ -171,13 +176,6 @@ void ShareableBitmap::releaseBitmapContextData(void* typelessBitmap, void* typel
 
 void ShareableBitmap::releaseDataProviderData(void* typelessBitmap, const void* typelessData, size_t)
 {
-    if (!RunLoop::isMain()) {
-        RunLoop::main().dispatch([typelessBitmap, typelessData] {
-            releaseDataProviderData(typelessBitmap, typelessData, 0);
-        });
-        return;
-    }
-
     ShareableBitmap* bitmap = static_cast<ShareableBitmap*>(typelessBitmap);
     ASSERT_UNUSED(typelessData, bitmap->data() == typelessData);
     bitmap->deref(); // Balanced by ref in createCGImage.

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2017 Apple Inc. All rights reserved.
+ * Copyright (C) 2009-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -63,7 +63,7 @@ namespace {
         void onDetached(const AbstractLocker&, GraphicsContextGL*) override;
         void attach(GraphicsContextGL*, GCGLenum target, GCGLenum attachment) override;
         void unattach(GraphicsContextGL*, GCGLenum target, GCGLenum attachment) override;
-        void addMembersToOpaqueRoots(const AbstractLocker&, JSC::SlotVisitor&) override;
+        void addMembersToOpaqueRoots(const AbstractLocker&, JSC::AbstractSlotVisitor&) override;
 
         WebGLRenderbufferAttachment() { };
 
@@ -145,7 +145,7 @@ namespace {
             context->framebufferRenderbuffer(target, attachment, GraphicsContextGL::RENDERBUFFER, 0);
     }
 
-    void WebGLRenderbufferAttachment::addMembersToOpaqueRoots(const AbstractLocker&, JSC::SlotVisitor& visitor)
+    void WebGLRenderbufferAttachment::addMembersToOpaqueRoots(const AbstractLocker&, JSC::AbstractSlotVisitor& visitor)
     {
         visitor.addOpaqueRoot(m_renderbuffer.get());
     }
@@ -169,7 +169,7 @@ namespace {
         void onDetached(const AbstractLocker&, GraphicsContextGL*) override;
         void attach(GraphicsContextGL*, GCGLenum target, GCGLenum attachment) override;
         void unattach(GraphicsContextGL*, GCGLenum target, GCGLenum attachment) override;
-        void addMembersToOpaqueRoots(const AbstractLocker&, JSC::SlotVisitor&) override;
+        void addMembersToOpaqueRoots(const AbstractLocker&, JSC::AbstractSlotVisitor&) override;
 
         WebGLTextureAttachment() { };
 
@@ -267,7 +267,7 @@ namespace {
 #endif
     }
 
-    void WebGLTextureAttachment::addMembersToOpaqueRoots(const AbstractLocker&, JSC::SlotVisitor& visitor)
+    void WebGLTextureAttachment::addMembersToOpaqueRoots(const AbstractLocker&, JSC::AbstractSlotVisitor& visitor)
     {
         visitor.addOpaqueRoot(m_texture.get());
     }
@@ -308,6 +308,17 @@ Ref<WebGLFramebuffer> WebGLFramebuffer::create(WebGLRenderingContextBase& ctx)
 {
     return adoptRef(*new WebGLFramebuffer(ctx));
 }
+
+#if ENABLE(WEBXR)
+
+Ref<WebGLFramebuffer> WebGLFramebuffer::createOpaque(WebGLRenderingContextBase& ctx)
+{
+    auto framebuffer = adoptRef(*new WebGLFramebuffer(ctx));
+    framebuffer->m_opaque = true;
+    return framebuffer;
+}
+
+#endif
 
 WebGLFramebuffer::WebGLFramebuffer(WebGLRenderingContextBase& ctx)
     : WebGLContextObject(ctx)
@@ -489,6 +500,16 @@ GCGLenum WebGLFramebuffer::getColorBufferFormat() const
 
 GCGLenum WebGLFramebuffer::checkStatus(const char** reason) const
 {
+#if ENABLE(WEBXR)
+    // https://immersive-web.github.io/webxr/#opaque-framebuffer
+    if (m_opaque) {
+        if (m_opaqueActive)
+            return GL_FRAMEBUFFER_COMPLETE;
+        *reason = "An opaque framebuffer is considered incomplete outside of a requestAnimationFrame";
+        return GL_FRAMEBUFFER_UNSUPPORTED;
+    }
+#endif
+
     unsigned int count = 0;
     GCGLsizei width = 0, height = 0;
     bool haveDepth = false;
@@ -581,7 +602,7 @@ bool WebGLFramebuffer::initializeAttachments(GraphicsContextGL* g3d, const char*
         // Context has been deleted - should not be calling this.
         return false;
     }
-    auto locker = holdLock(objectGraphLockForContext());
+    Locker locker { objectGraphLockForContext() };
 
     ASSERT(object());
     GCGLbitfield mask = 0;
@@ -721,7 +742,7 @@ GCGLenum WebGLFramebuffer::getDrawBuffer(GCGLenum drawBuffer)
     return GraphicsContextGL::NONE;
 }
 
-void WebGLFramebuffer::addMembersToOpaqueRoots(const AbstractLocker& locker, JSC::SlotVisitor& visitor)
+void WebGLFramebuffer::addMembersToOpaqueRoots(const AbstractLocker& locker, JSC::AbstractSlotVisitor& visitor)
 {
     for (auto& entry : m_attachments)
         entry.value->addMembersToOpaqueRoots(locker, visitor);
@@ -733,7 +754,7 @@ void WebGLFramebuffer::setAttachmentInternal(GCGLenum attachment, GCGLenum texTa
         // Context has been deleted - should not be calling this.
         return;
     }
-    auto locker = holdLock(objectGraphLockForContext());
+    Locker locker { objectGraphLockForContext() };
 
     removeAttachmentInternal(locker, attachment);
     if (texture && texture->object()) {
@@ -749,7 +770,7 @@ void WebGLFramebuffer::setAttachmentInternal(GCGLenum attachment, WebGLRenderbuf
         // Context has been deleted - should not be calling this.
         return;
     }
-    auto locker = holdLock(objectGraphLockForContext());
+    Locker locker { objectGraphLockForContext() };
 
     removeAttachmentInternal(locker, attachment);
     if (renderbuffer && renderbuffer->object()) {

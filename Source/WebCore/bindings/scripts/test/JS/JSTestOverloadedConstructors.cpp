@@ -32,6 +32,7 @@
 #include "JSDOMConvertStrings.h"
 #include "JSDOMConvertVariadic.h"
 #include "JSDOMExceptionHandling.h"
+#include "JSDOMGlobalObjectInlines.h"
 #include "JSDOMWrapperCache.h"
 #include "ScriptExecutionContext.h"
 #include "WebCoreJSClientData.h"
@@ -39,6 +40,7 @@
 #include <JavaScriptCore/HeapAnalyzer.h>
 #include <JavaScriptCore/JSCInlines.h>
 #include <JavaScriptCore/JSDestructibleObjectHeapCellType.h>
+#include <JavaScriptCore/SlotVisitorMacros.h>
 #include <JavaScriptCore/SubspaceInlines.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
@@ -205,6 +207,8 @@ template<> EncodedJSValue JSC_HOST_CALL_ATTRIBUTES JSTestOverloadedConstructorsD
 }
 JSC_ANNOTATE_HOST_FUNCTION(JSTestOverloadedConstructorsConstructorConstruct, JSTestOverloadedConstructorsDOMConstructor::construct);
 
+template<> const ClassInfo JSTestOverloadedConstructorsDOMConstructor::s_info = { "TestOverloadedConstructors", &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestOverloadedConstructorsDOMConstructor) };
+
 template<> JSValue JSTestOverloadedConstructorsDOMConstructor::prototypeForStructure(JSC::VM& vm, const JSDOMGlobalObject& globalObject)
 {
     UNUSED_PARAM(vm);
@@ -217,8 +221,6 @@ template<> void JSTestOverloadedConstructorsDOMConstructor::initializeProperties
     putDirect(vm, vm.propertyNames->name, jsNontrivialString(vm, "TestOverloadedConstructors"_s), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
     putDirect(vm, vm.propertyNames->length, jsNumber(0), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
 }
-
-template<> const ClassInfo JSTestOverloadedConstructorsDOMConstructor::s_info = { "TestOverloadedConstructors", &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestOverloadedConstructorsDOMConstructor) };
 
 /* Hash table for prototype */
 
@@ -264,7 +266,7 @@ JSObject* JSTestOverloadedConstructors::prototype(VM& vm, JSDOMGlobalObject& glo
 
 JSValue JSTestOverloadedConstructors::getConstructor(VM& vm, const JSGlobalObject* globalObject)
 {
-    return getDOMConstructor<JSTestOverloadedConstructorsDOMConstructor>(vm, *jsCast<const JSDOMGlobalObject*>(globalObject));
+    return getDOMConstructor<JSTestOverloadedConstructorsDOMConstructor, DOMConstructorID::TestOverloadedConstructors>(vm, *jsCast<const JSDOMGlobalObject*>(globalObject));
 }
 
 void JSTestOverloadedConstructors::destroy(JSC::JSCell* cell)
@@ -297,7 +299,9 @@ JSC::IsoSubspace* JSTestOverloadedConstructors::subspaceForImpl(JSC::VM& vm)
     auto* space = spaces.m_subspaceForTestOverloadedConstructors.get();
 IGNORE_WARNINGS_BEGIN("unreachable-code")
 IGNORE_WARNINGS_BEGIN("tautological-compare")
-    if (&JSTestOverloadedConstructors::visitOutputConstraints != &JSC::JSCell::visitOutputConstraints)
+    void (*myVisitOutputConstraint)(JSC::JSCell*, JSC::SlotVisitor&) = JSTestOverloadedConstructors::visitOutputConstraints;
+    void (*jsCellVisitOutputConstraint)(JSC::JSCell*, JSC::SlotVisitor&) = JSC::JSCell::visitOutputConstraints;
+    if (myVisitOutputConstraint != jsCellVisitOutputConstraint)
         clientData.outputConstraintSpaces().append(space);
 IGNORE_WARNINGS_END
 IGNORE_WARNINGS_END
@@ -313,7 +317,7 @@ void JSTestOverloadedConstructors::analyzeHeap(JSCell* cell, HeapAnalyzer& analy
     Base::analyzeHeap(cell, analyzer);
 }
 
-bool JSTestOverloadedConstructorsOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, SlotVisitor& visitor, const char** reason)
+bool JSTestOverloadedConstructorsOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, AbstractSlotVisitor& visitor, const char** reason)
 {
     UNUSED_PARAM(handle);
     UNUSED_PARAM(visitor);

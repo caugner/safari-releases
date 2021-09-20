@@ -27,6 +27,7 @@
 
 #include "APIObject.h"
 #include "Connection.h"
+#include "DataReference.h"
 #include "DownloadID.h"
 #include "SandboxExtension.h"
 #include <WebCore/ResourceRequest.h>
@@ -79,7 +80,7 @@ public:
     void processDidClose();
 
     void didReceiveDownloadProxyMessage(IPC::Connection&, IPC::Decoder&);
-    void didReceiveSyncDownloadProxyMessage(IPC::Connection&, IPC::Decoder&, std::unique_ptr<IPC::Encoder>&);
+    bool didReceiveSyncDownloadProxyMessage(IPC::Connection&, IPC::Decoder&, UniqueRef<IPC::Encoder>&);
 
     WebPageProxy* originatingPage() const;
 

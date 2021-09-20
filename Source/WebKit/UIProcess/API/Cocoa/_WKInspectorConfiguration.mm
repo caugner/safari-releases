@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 Apple Inc. All rights reserved.
+ * Copyright (C) 2020-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -26,7 +26,10 @@
 #import "config.h"
 #import "_WKInspectorConfigurationInternal.h"
 
+#import "WKProcessPoolInternal.h"
+#import <WebKit/WKWebViewConfigurationPrivate.h>
 #import "WebURLSchemeHandlerCocoa.h"
+#import <WebCore/WebCoreObjCExtras.h>
 
 @implementation _WKInspectorConfiguration
 
@@ -42,6 +45,8 @@
 
 - (void)dealloc
 {
+    if (WebCoreObjCScheduleDeallocateOnMainRunLoop(_WKInspectorConfiguration.class, self))
+        return;
     _configuration->API::InspectorConfiguration::~InspectorConfiguration();
     [super dealloc];
 }
@@ -56,12 +61,28 @@
     _configuration->addURLSchemeHandler(WebKit::WebURLSchemeHandlerCocoa::create(urlSchemeHandler), urlScheme);
 }
 
+- (void)setProcessPool:(WKProcessPool *)processPool
+{
+    _configuration->setProcessPool(processPool ? processPool->_processPool.get() : nullptr);
+}
+
+- (WKProcessPool *)processPool
+{
+    return wrapper(_configuration->processPool());
+}
+
 - (void)applyToWebViewConfiguration:(WKWebViewConfiguration *)configuration
 {
     for (auto pair : _configuration->urlSchemeHandlers()) {
         auto& handler = static_cast<WebKit::WebURLSchemeHandlerCocoa&>(pair.first.get());
         [configuration setURLSchemeHandler:handler.apiHandler() forURLScheme:pair.second];
     }
+
+    if (auto* processPool = self.processPool)
+        [configuration setProcessPool:processPool];
+
+    if (auto* groupIdentifier = self.groupIdentifier)
+        [configuration _setGroupIdentifier:groupIdentifier];
 }
 
 - (id)copyWithZone:(NSZone *)zone
@@ -72,6 +93,12 @@
         auto& handler = static_cast<WebKit::WebURLSchemeHandlerCocoa&>(pair.first.get());
         [configuration setURLSchemeHandler:handler.apiHandler() forURLScheme:pair.second];
     }
+
+    if (auto* processPool = self.processPool)
+        [configuration setProcessPool:processPool];
+
+    if (auto* groupIdentifier = self.groupIdentifier)
+        [configuration setGroupIdentifier:groupIdentifier];
 
     return configuration;
 }

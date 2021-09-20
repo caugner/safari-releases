@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include <WebCore/SecurityOriginData.h>
 #include <wtf/CompletionHandler.h>
 #include <wtf/Vector.h>
 
@@ -48,8 +49,12 @@ enum class MediaPermissionResult {
 };
 
 enum class MediaPermissionReason {
-    UserMedia,
-    SpeechRecognition,
+    Camera,
+    CameraAndMicrophone,
+    Microphone,
+    DeviceOrientation,
+    Geolocation,
+    SpeechRecognition
 };
 
 #if PLATFORM(COCOA)
@@ -57,7 +62,7 @@ bool checkSandboxRequirementForType(MediaPermissionType);
 bool checkUsageDescriptionStringForType(MediaPermissionType);
 bool checkUsageDescriptionStringForSpeechRecognition();
 
-void alertForPermission(WebPageProxy&, MediaPermissionReason, OptionSet<MediaPermissionType>, const WebCore::SecurityOrigin&, CompletionHandler<void(bool)>&&);
+void alertForPermission(WebPageProxy&, MediaPermissionReason, const WebCore::SecurityOriginData&, CompletionHandler<void(bool)>&&);
 #endif
 
 #if HAVE(AVCAPTUREDEVICE)

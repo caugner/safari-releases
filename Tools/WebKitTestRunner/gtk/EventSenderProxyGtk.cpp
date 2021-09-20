@@ -36,11 +36,11 @@
 #include "PlatformWebView.h"
 #include "StringFunctions.h"
 #include "TestController.h"
-#include "WebKitWebViewBaseInternal.h"
 #include <WebCore/GtkUtilities.h>
 #include <WebCore/GtkVersioning.h>
 #include <gdk/gdk.h>
 #include <gdk/gdkkeysyms.h>
+#include <webkit2/WebKitWebViewBaseInternal.h>
 #include <wtf/StdLibExtras.h>
 #include <wtf/UniqueArray.h>
 #include <wtf/glib/GUniquePtr.h>
@@ -157,6 +157,10 @@ static int getGDKKeySymForKeyRef(WKStringRef keyRef, unsigned location, guint* m
         return GDK_KEY_Alt_L;
     if (WKStringIsEqualToUTF8CString(keyRef, "rightAlt"))
         return GDK_KEY_Alt_R;
+    if (WKStringIsEqualToUTF8CString(keyRef, "leftMeta"))
+        return GDK_KEY_Meta_L;
+    if (WKStringIsEqualToUTF8CString(keyRef, "rightMeta"))
+        return GDK_KEY_Meta_R;
     if (WKStringIsEqualToUTF8CString(keyRef, "leftArrow"))
         return GDK_KEY_Left;
     if (WKStringIsEqualToUTF8CString(keyRef, "rightArrow"))

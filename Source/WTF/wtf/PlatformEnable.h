@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2006-2020 Apple Inc. All rights reserved.
+ * Copyright (C) 2006-2021 Apple Inc. All rights reserved.
  * Copyright (C) 2007-2009 Torch Mobile, Inc.
  * Copyright (C) 2010, 2011 Research In Motion Limited. All rights reserved.
  * Copyright (C) 2013 Samsung Electronics. All rights reserved.
@@ -106,10 +106,6 @@
 
 #if !defined(ENABLE_WEBPROCESS_NSRUNLOOP)
 #define ENABLE_WEBPROCESS_NSRUNLOOP 0
-#endif
-
-#if !defined(ENABLE_WEBPROCESS_WINDOWSERVER_BLOCKING)
-#define ENABLE_WEBPROCESS_WINDOWSERVER_BLOCKING 0
 #endif
 
 #if !defined(ENABLE_MAC_GESTURE_EVENTS)
@@ -225,6 +221,10 @@
 #define ENABLE_CSS_CONIC_GRADIENTS 0
 #endif
 
+#if !defined(ENABLE_CSS_TRANSFORM_STYLE_OPTIMIZED_3D)
+#define ENABLE_CSS_TRANSFORM_STYLE_OPTIMIZED_3D 0
+#endif
+
 #if !defined(ENABLE_CUSTOM_CURSOR_SUPPORT)
 #define ENABLE_CUSTOM_CURSOR_SUPPORT 1
 #endif
@@ -239,6 +239,14 @@
 
 #if !defined(ENABLE_DEVICE_ORIENTATION)
 #define ENABLE_DEVICE_ORIENTATION 0
+#endif
+
+#if !defined(ENABLE_DESTINATION_COLOR_SPACE_DISPLAY_P3)
+#define ENABLE_DESTINATION_COLOR_SPACE_DISPLAY_P3 0
+#endif
+
+#if !defined(ENABLE_DESTINATION_COLOR_SPACE_LINEAR_SRGB)
+#define ENABLE_DESTINATION_COLOR_SPACE_LINEAR_SRGB 1
 #endif
 
 #if !defined(ENABLE_DOWNLOAD_ATTRIBUTE)
@@ -277,14 +285,6 @@
 
 #if !defined(ENABLE_GEOLOCATION)
 #define ENABLE_GEOLOCATION 0
-#endif
-
-#if !defined(ENABLE_INDEXED_DATABASE)
-#define ENABLE_INDEXED_DATABASE 0
-#endif
-
-#if !defined(ENABLE_INDEXED_DATABASE_IN_WORKERS)
-#define ENABLE_INDEXED_DATABASE_IN_WORKERS 0
 #endif
 
 #if !defined(ENABLE_INPUT_TYPE_COLOR)
@@ -376,6 +376,10 @@
 #define ENABLE_MHTML 0
 #endif
 
+#if !defined(ENABLE_MODERN_MEDIA_CONTROLS)
+#define ENABLE_MODERN_MEDIA_CONTROLS 0
+#endif
+
 #if !defined(ENABLE_MOUSE_CURSOR_SCALE)
 #define ENABLE_MOUSE_CURSOR_SCALE 0
 #endif
@@ -398,6 +402,10 @@
 
 #if !defined(ENABLE_OFFSCREEN_CANVAS)
 #define ENABLE_OFFSCREEN_CANVAS 0
+#endif
+
+#if !defined(ENABLE_OFFSCREEN_CANVAS_IN_WORKERS)
+#define ENABLE_OFFSCREEN_CANVAS_IN_WORKERS 0
 #endif
 
 #if !defined(ENABLE_THUNDER)
@@ -570,6 +578,12 @@
 #endif
 
 #if USE(JSVALUE32_64)
+/* Disable WebAssembly on all 32bit platforms. Its LLInt tier could
+ * work on them, but still needs some final touches. */
+#undef ENABLE_WEBASSEMBLY
+#define ENABLE_WEBASSEMBLY 0
+#undef ENABLE_WEBASSEMBLY_B3JIT
+#define ENABLE_WEBASSEMBLY_B3JIT 0
 #if (CPU(ARM_THUMB2) || CPU(MIPS)) && OS(LINUX)
 /* On ARMv7 and MIPS on Linux the JIT is enabled unless explicitly disabled. */
 #if !defined(ENABLE_JIT)
@@ -647,14 +661,9 @@
 #define ENABLE_FAST_TLS_JIT 1
 #endif
 
-#if ENABLE(JIT) && (CPU(X86) || CPU(X86_64) || CPU(ARM_THUMB2) || CPU(ARM64) || CPU(MIPS))
-#define ENABLE_MASM_PROBE 1
-#endif
-
 /* FIXME: This should be turned into an #error invariant */
-/* If the baseline jit is not available, then disable upper tiers as well.
-   The MacroAssembler::probe() is also required for supporting the upper tiers. */
-#if !ENABLE(JIT) || !ENABLE(MASM_PROBE)
+/* If the baseline jit is not available, then disable upper tiers as well. */
+#if !ENABLE(JIT)
 #undef ENABLE_DFG_JIT
 #undef ENABLE_FTL_JIT
 #define ENABLE_DFG_JIT 0
@@ -675,6 +684,7 @@
 
 #if !defined(ENABLE_WEBASSEMBLY) && (ENABLE(B3_JIT) && PLATFORM(COCOA) && CPU(ADDRESS64))
 #define ENABLE_WEBASSEMBLY 1
+#define ENABLE_WEBASSEMBLY_B3JIT 1
 #endif
 
 /* The SamplingProfiler is the probabilistic and low-overhead profiler used by
@@ -739,6 +749,10 @@
 /* Enable JIT'ing Regular Expressions that have nested back references. */
 #if ENABLE(YARR_JIT) && (CPU(ARM64) || (CPU(X86_64) && !OS(WINDOWS)))
 #define ENABLE_YARR_JIT_BACKREFERENCES 1
+#endif
+
+#if CPU(ARM64) || CPU(X86_64)
+#define ENABLE_YARR_JIT_UNICODE_EXPRESSIONS 1
 #endif
 
 /* If either the JIT or the RegExp JIT is enabled, then the Assembler must be
@@ -809,6 +823,22 @@
 #define ENABLE_GC_VALIDATION 1
 #endif
 
+#if OS(DARWIN) && ENABLE(JIT) && USE(APPLE_INTERNAL_SDK) && CPU(ARM64E) && HAVE(JIT_CAGE) && !PLATFORM(MAC)
+#define ENABLE_JIT_CAGE 1
+#endif
+
+#if OS(DARWIN) && CPU(ADDRESS64) && ENABLE(JIT) && (ENABLE(JIT_CAGE) || ASSERT_ENABLED)
+#define ENABLE_JIT_OPERATION_VALIDATION 1
+#endif
+
+#if CPU(ARM64) || (CPU(X86_64) && !OS(WINDOWS))
+/* The implementation of these thunks can use up to 6 argument registers, and
+   make use of ARM64 like features. For now, we'll only support them on platforms
+   that have 6 or more argument registers to use.
+*/
+#define ENABLE_EXTRA_CTI_THUNKS 1
+#endif
+
 #if !defined(ENABLE_BINDING_INTEGRITY) && !OS(WINDOWS)
 #define ENABLE_BINDING_INTEGRITY 1
 #endif
@@ -876,14 +906,18 @@
 #error "ENABLE(WEBGL2) requires ENABLE(WEBGL)"
 #endif
 
-#if ENABLE(WHLSL_COMPILER) && !ENABLE(WEBGPU)
-#error "ENABLE(WHLSL_COMPILER) requires ENABLE(WEBGPU)"
+#if ENABLE(OFFSCREEN_CANVAS_IN_WORKERS) && !ENABLE(OFFSCREEN_CANVAS)
+#error "ENABLE(OFFSCREEN_CANVAS_IN_WORKERS) requires ENABLE(OFFSCREEN_CANVAS)"
 #endif
 
-#if OS(DARWIN) && ENABLE(JIT) && USE(APPLE_INTERNAL_SDK) && CPU(ARM64E) && defined(__IPHONE_OS_VERSION_MIN_REQUIRED) && __IPHONE_OS_VERSION_MIN_REQUIRED >= 150000
-#define ENABLE_JIT_CAGE 1
+#if USE(CG)
+
+#if ENABLE(DESTINATION_COLOR_SPACE_DISPLAY_P3) && !HAVE(CORE_GRAPHICS_DISPLAY_P3_COLOR_SPACE)
+#error "ENABLE(DESTINATION_COLOR_SPACE_DISPLAY_P3) requires HAVE(CORE_GRAPHICS_DISPLAY_P3_COLOR_SPACE) on platforms using CoreGraphics"
 #endif
 
-#if OS(DARWIN) && CPU(ADDRESS64) && ENABLE(JIT) && (ENABLE(JIT_CAGE) || ASSERT_ENABLED)
-#define ENABLE_JIT_OPERATION_VALIDATION 1
+#if ENABLE(DESTINATION_COLOR_SPACE_LINEAR_SRGB) && !HAVE(CORE_GRAPHICS_LINEAR_SRGB_COLOR_SPACE)
+#error "ENABLE(DESTINATION_COLOR_SPACE_LINEAR_SRGB) requires HAVE(CORE_GRAPHICS_LINEAR_SRGB_COLOR_SPACE) on platforms using CoreGraphics"
+#endif
+
 #endif

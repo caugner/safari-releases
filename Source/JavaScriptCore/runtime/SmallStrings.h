@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2019 Apple Inc. All Rights Reserved.
+ * Copyright (C) 2008-2021 Apple Inc. All Rights Reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -51,7 +51,6 @@ namespace JSC {
 
 class VM;
 class JSString;
-class SlotVisitor;
 
 static constexpr unsigned maxSingleCharacterString = 0xFF;
 
@@ -71,14 +70,14 @@ public:
         return m_singleCharacterStrings[character];
     }
 
-    JS_EXPORT_PRIVATE Ref<StringImpl> singleCharacterStringRep(unsigned char character);
+    JS_EXPORT_PRIVATE Ref<AtomStringImpl> singleCharacterStringRep(unsigned char character);
 
     void setIsInitialized(bool isInitialized) { m_isInitialized = isInitialized; }
 
     JSString** singleCharacterStrings() { return &m_singleCharacterStrings[0]; }
 
     void initializeCommonStrings(VM&);
-    void visitStrongReferences(SlotVisitor&);
+    template<typename Visitor> void visitStrongReferences(Visitor&);
 
 #define JSC_COMMON_STRINGS_ACCESSOR_DEFINITION(name) \
     JSString* name##String() const                   \

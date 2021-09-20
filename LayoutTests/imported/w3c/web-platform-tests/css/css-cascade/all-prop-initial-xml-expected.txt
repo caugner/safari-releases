@@ -41,6 +41,8 @@ PASS border-bottom-right-radius
 PASS border-bottom-style
 PASS border-bottom-width
 PASS border-collapse
+PASS border-end-end-radius
+PASS border-end-start-radius
 PASS border-image-outset
 PASS border-image-repeat
 PASS border-image-slice
@@ -58,6 +60,8 @@ PASS border-left-width
 PASS border-right-color
 PASS border-right-style
 PASS border-right-width
+PASS border-start-end-radius
+PASS border-start-start-radius
 PASS border-top-color
 PASS border-top-left-radius
 PASS border-top-right-radius
@@ -89,6 +93,7 @@ PASS column-rule-style
 PASS column-rule-width
 PASS column-span
 PASS column-width
+PASS contain
 PASS content
 PASS counter-increment
 PASS counter-reset
@@ -224,15 +229,20 @@ PASS rx
 PASS ry
 PASS scale
 PASS scroll-behavior
+PASS scroll-margin-block
 PASS scroll-margin-bottom
+PASS scroll-margin-inline
 PASS scroll-margin-left
 PASS scroll-margin-right
 PASS scroll-margin-top
+PASS scroll-padding-block
 PASS scroll-padding-bottom
+PASS scroll-padding-inline
 PASS scroll-padding-left
 PASS scroll-padding-right
 PASS scroll-padding-top
 PASS scroll-snap-align
+PASS scroll-snap-stop
 PASS scroll-snap-type
 PASS shape-image-threshold
 PASS shape-margin

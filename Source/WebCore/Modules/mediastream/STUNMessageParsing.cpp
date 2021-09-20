@@ -28,7 +28,7 @@
 
 #if ENABLE(WEB_RTC)
 
-#include <WebCore/LibWebRTCMacros.h>
+#include <LibWebRTCMacros.h>
 #include <webrtc/rtc_base/byte_order.h>
 
 namespace WebCore {
@@ -41,7 +41,7 @@ static inline bool isStunMessage(uint16_t messageType)
     return !(messageType & 0xC000);
 }
 
-Optional<STUNMessageLengths> getSTUNOrTURNMessageLengths(const uint8_t* data, size_t size)
+std::optional<STUNMessageLengths> getSTUNOrTURNMessageLengths(const uint8_t* data, size_t size)
 {
     if (size < 4)
         return { };

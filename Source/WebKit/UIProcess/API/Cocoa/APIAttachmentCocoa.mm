@@ -122,13 +122,13 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     setFileWrapper(fileWrapper);
 }
 
-Optional<uint64_t> Attachment::fileSizeForDisplay() const
+std::optional<uint64_t> Attachment::fileSizeForDisplay() const
 {
     auto fileWrapper = this->fileWrapper();
 
     if (![fileWrapper isRegularFile]) {
         // FIXME: We should display a size estimate for directory-type file wrappers.
-        return WTF::nullopt;
+        return std::nullopt;
     }
 
     if (auto fileSize = [[fileWrapper fileAttributes][NSFileSize] unsignedLongLongValue])
@@ -187,7 +187,7 @@ void Attachment::updateFromSerializedRepresentation(Ref<WebCore::SharedBuffer>&&
         return;
 
     setFileWrapperAndUpdateContentType(fileWrapper, contentType);
-    m_webPage->updateAttachmentAttributes(*this, [] (auto) { });
+    m_webPage->updateAttachmentAttributes(*this, [] { });
 }
 
 void Attachment::setFileWrapperGenerator(Function<RetainPtr<NSFileWrapper>(void)>&& fileWrapperGenerator)

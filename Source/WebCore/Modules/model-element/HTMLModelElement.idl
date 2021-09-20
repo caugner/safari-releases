@@ -29,4 +29,8 @@
     Exposed=Window,
 ] interface HTMLModelElement : HTMLElement {
     [URL] readonly attribute USVString currentSrc;
+
+    readonly attribute Promise<HTMLModelElement> ready;
+
+    undefined enterFullscreen();
 };

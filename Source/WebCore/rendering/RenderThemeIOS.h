@@ -72,6 +72,8 @@ private:
 
     LengthBox popupInternalPaddingBox(const RenderStyle&, const Settings&) const override;
 
+    LayoutRect adjustedPaintRect(const RenderBox&, const LayoutRect&) const override;
+
     int baselinePosition(const RenderBox&) const override;
 
     bool isControlStyled(const RenderStyle&, const RenderStyle& userAgentStyle) const override;
@@ -112,21 +114,38 @@ private:
     void paintSearchFieldDecorations(const RenderObject&, const PaintInfo&, const IntRect&) override;
 
 #if ENABLE(IOS_FORM_CONTROL_REFRESH)
-    bool paintCheckbox(const RenderObject&, const PaintInfo&, const IntRect&) override;
-    bool paintRadio(const RenderObject&, const PaintInfo&, const IntRect&) override;
+    Color checkboxRadioBorderColor(OptionSet<ControlStates::States>, OptionSet<StyleColor::Options>);
+    Color checkboxRadioBackgroundColor(OptionSet<ControlStates::States>, OptionSet<StyleColor::Options>);
+    Color checkboxRadioIndicatorColor(OptionSet<ControlStates::States>, OptionSet<StyleColor::Options>);
+
+    bool paintCheckbox(const RenderObject&, const PaintInfo&, const FloatRect&) override;
+    bool paintRadio(const RenderObject&, const PaintInfo&, const FloatRect&) override;
 
     Seconds animationRepeatIntervalForProgressBar(const RenderProgress&) const final;
 
     bool supportsMeter(ControlPart, const HTMLMeterElement&) const final;
     bool paintMeter(const RenderObject&, const PaintInfo&, const IntRect&) final;
 
+#if ENABLE(DATALIST_ELEMENT)
+    void paintSliderTicks(const RenderObject&, const PaintInfo&, const FloatRect&) final;
+#endif
+
 #if ENABLE(INPUT_TYPE_COLOR)
     String colorInputStyleSheet(const Settings&) const final;
 
     void adjustColorWellStyle(RenderStyle&, const Element*) const final;
     bool paintColorWell(const RenderObject&, const PaintInfo&, const IntRect&) final;
-    void paintColorWellDecorations(const RenderObject&, const PaintInfo&, const IntRect&) final;
+    void paintColorWellDecorations(const RenderObject&, const PaintInfo&, const FloatRect&) final;
 #endif
+
+    void adjustSearchFieldDecorationPartStyle(RenderStyle&, const Element*) const final;
+    bool paintSearchFieldDecorationPart(const RenderObject&, const PaintInfo&, const IntRect&) final;
+
+    void adjustSearchFieldResultsDecorationPartStyle(RenderStyle&, const Element*) const final;
+    bool paintSearchFieldResultsDecorationPart(const RenderBox&, const PaintInfo&, const IntRect&) final;
+
+    void adjustSearchFieldResultsButtonStyle(RenderStyle&, const Element*) const final;
+    bool paintSearchFieldResultsButton(const RenderBox&, const PaintInfo&, const IntRect&) final;
 #endif
 
     bool supportsFocusRing(const RenderStyle&) const final;
@@ -147,13 +166,6 @@ private:
 
     bool shouldHaveSpinButton(const HTMLInputElement&) const override;
 
-#if ENABLE(VIDEO)
-    String mediaControlsStyleSheet() override;
-    String modernMediaControlsStyleSheet() override;
-    String mediaControlsScript() override;
-    String mediaControlsBase64StringForIconNameAndType(const String&, const String&) override;
-#endif
-
 #if ENABLE(ATTACHMENT_ELEMENT)
     LayoutSize attachmentIntrinsicSize(const RenderAttachment&) const override;
     int attachmentBaseline(const RenderAttachment&) const override;
@@ -168,8 +180,6 @@ private:
     RenderThemeIOS();
     virtual ~RenderThemeIOS() = default;
 
-    void purgeCaches() override;
-
 #if PLATFORM(WATCHOS)
     String extraDefaultStyleSheet() final;
 #endif
@@ -180,14 +190,11 @@ private:
     void paintMenuListButtonDecorationsWithFormControlRefresh(const RenderBox&, const PaintInfo&, const FloatRect&);
 #endif
 
+    void adjustPressedStyle(RenderStyle&, const Element&) const;
+
     FloatRect addRoundedBorderClip(const RenderObject& box, GraphicsContext&, const IntRect&);
 
     Color systemColor(CSSValueID, OptionSet<StyleColor::Options>) const override;
-
-    String m_legacyMediaControlsScript;
-    String m_mediaControlsScript;
-    String m_legacyMediaControlsStyleSheet;
-    String m_mediaControlsStyleSheet;
 
 #if USE(SYSTEM_PREVIEW)
     RetainPtr<CIContext> m_ciContext;

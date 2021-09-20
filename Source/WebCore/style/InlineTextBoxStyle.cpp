@@ -27,13 +27,13 @@
 #include "InlineTextBoxStyle.h"
 
 #include "FontCascade.h"
-#include "InlineTextBox.h"
-#include "RootInlineBox.h"
+#include "LegacyInlineTextBox.h"
+#include "LegacyRootInlineBox.h"
 #include "TextUnderlineOffset.h"
 
 namespace WebCore {
     
-float computeUnderlineOffset(TextUnderlinePosition underlinePosition, TextUnderlineOffset underlineOffset, const FontMetrics& fontMetrics, const InlineTextBox* inlineTextBox, float defaultGap)
+float computeUnderlineOffset(TextUnderlinePosition underlinePosition, TextUnderlineOffset underlineOffset, const FontMetrics& fontMetrics, const LegacyInlineTextBox* inlineTextBox, float defaultGap)
 {
     // This represents the gap between the baseline and the closest edge of the underline.
     float gap = std::max<int>(1, std::ceil(defaultGap / 2.0f));
@@ -66,7 +66,7 @@ float computeUnderlineOffset(TextUnderlinePosition underlinePosition, TextUnderl
     case TextUnderlinePosition::Under: {
         ASSERT(inlineTextBox);
         // Position underline relative to the bottom edge of the lowest element's content box.
-        const RootInlineBox& rootBox = inlineTextBox->root();
+        const LegacyRootInlineBox& rootBox = inlineTextBox->root();
         const RenderElement* decorationRenderer = inlineTextBox->parent()->renderer().enclosingRendererWithTextDecoration(TextDecoration::Underline, inlineTextBox->isFirstLine());
         
         float offset;
@@ -97,12 +97,7 @@ WavyStrokeParameters getWavyStrokeParameters(float fontSize)
     return result;
 }
 
-static inline void extendIntToFloat(int& extendMe, float extendTo)
-{
-    extendMe = std::max(extendMe, static_cast<int>(ceilf(extendTo)));
-}
-
-GlyphOverflow visualOverflowForDecorations(const RenderStyle& lineStyle, const InlineTextBox* inlineTextBox)
+GlyphOverflow visualOverflowForDecorations(const RenderStyle& lineStyle, const LegacyInlineTextBox* inlineTextBox)
 {
     ASSERT(!inlineTextBox || inlineTextBox->lineStyle() == lineStyle);
     
@@ -134,11 +129,11 @@ GlyphOverflow visualOverflowForDecorations(const RenderStyle& lineStyle, const I
         auto defaultGap = lineStyle.computedFontSize() / textDecorationBaseFontSize;
         underlineOffset += computeUnderlineOffset(lineStyle.textUnderlinePosition(), lineStyle.textUnderlineOffset(), lineStyle.fontMetrics(), inlineTextBox, defaultGap);
         if (decorationStyle == TextDecorationStyle::Wavy) {
-            extendIntToFloat(overflowResult.bottom, underlineOffset + wavyOffset + wavyStrokeParameters.controlPointDistance + strokeThickness - height);
-            extendIntToFloat(overflowResult.top, -(underlineOffset + wavyOffset - wavyStrokeParameters.controlPointDistance - strokeThickness));
+            overflowResult.extendBottom(underlineOffset + wavyOffset + wavyStrokeParameters.controlPointDistance + strokeThickness - height);
+            overflowResult.extendTop(-(underlineOffset + wavyOffset - wavyStrokeParameters.controlPointDistance - strokeThickness));
         } else {
-            extendIntToFloat(overflowResult.bottom, underlineOffset + strokeThickness - height);
-            extendIntToFloat(overflowResult.top, -underlineOffset);
+            overflowResult.extendBottom(underlineOffset + strokeThickness - height);
+            overflowResult.extendTop(-underlineOffset);
         }
     }
     if (decoration & TextDecoration::Overline) {
@@ -151,8 +146,8 @@ GlyphOverflow visualOverflowForDecorations(const RenderStyle& lineStyle, const I
             wavyExpansion.setBottom(wavyStrokeParameters.controlPointDistance);
             rect.expand(wavyExpansion);
         }
-        extendIntToFloat(overflowResult.top, -rect.y());
-        extendIntToFloat(overflowResult.bottom, rect.maxY() - height);
+        overflowResult.extendTop(-rect.y());
+        overflowResult.extendBottom(rect.maxY() - height);
     }
     if (decoration & TextDecoration::LineThrough) {
         FloatRect rect(FloatPoint(), FloatSize(1, strokeThickness));
@@ -165,8 +160,8 @@ GlyphOverflow visualOverflowForDecorations(const RenderStyle& lineStyle, const I
             wavyExpansion.setBottom(wavyStrokeParameters.controlPointDistance);
             rect.expand(wavyExpansion);
         }
-        extendIntToFloat(overflowResult.top, -rect.y());
-        extendIntToFloat(overflowResult.bottom, rect.maxY() - height);
+        overflowResult.extendTop(-rect.y());
+        overflowResult.extendBottom(rect.maxY() - height);
     }
     return overflowResult;
 }

@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2011 Google Inc. All rights reserved.
- * Copyright (C) 2013 Apple Inc. All rights reserved.
+ * Copyright (C) 2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -30,6 +30,93 @@
  */
 
 WI.CSSKeywordCompletions = {};
+
+WI.CSSKeywordCompletions.forPartialPropertyName = function(text, {caretPosition, allowEmptyPrefix} = {})
+{
+    caretPosition ??= text.length;
+    allowEmptyPrefix ??= false;
+
+    // FIXME: <webkit.org/b/227157> Styles: Support completions mid-token.
+    if (caretPosition !== caretPosition)
+        return {prefix: text, completions: []};
+
+    if (!text.length && allowEmptyPrefix)
+        return {prefix: text, completions: WI.CSSCompletions.cssNameCompletions.values};
+    return {prefix: text, completions:WI.CSSCompletions.cssNameCompletions.startsWith(text)};
+};
+
+WI.CSSKeywordCompletions.forPartialPropertyValue = function(text, propertyName, {caretPosition, additionalFunctionValueCompletionsProvider} = {})
+{
+    caretPosition ??= text.length;
+
+    console.assert(caretPosition >= 0 && caretPosition <= text.length, text, caretPosition);
+    if (caretPosition < 0 || caretPosition > text.length)
+        return {prefix: "", completions: []};
+
+    if (!text.length)
+        return {prefix: "", completions: WI.CSSKeywordCompletions.forProperty(propertyName).values};
+
+    let tokens = WI.tokenizeCSSValue(text);
+
+    // Find the token that the cursor is either in or at the end of.
+    let indexOfTokenAtCaret = -1;
+    let passedCharacters = 0;
+    for (let i = 0; i < tokens.length; ++i) {
+        passedCharacters += tokens[i].value.length;
+        if (passedCharacters >= caretPosition) {
+            indexOfTokenAtCaret = i;
+            break;
+        }
+    }
+
+    let tokenAtCaret = tokens[indexOfTokenAtCaret];
+    console.assert(tokenAtCaret, text, caretPosition);
+    if (!tokenAtCaret)
+        return {prefix: "", completions: []};
+
+    if (tokenAtCaret.type && /\b(comment|string)\b/.test(tokenAtCaret.type))
+        return {prefix: "", completions: []};
+
+    let currentTokenValue = tokenAtCaret.value.trim();
+    let caretIsInMiddleOfToken = caretPosition !== passedCharacters;
+
+    // FIXME: <webkit.org/b/227157 Styles: Support completions mid-token.
+    // If the cursor was in middle of a token or the next token starts with a valid character for a value, we are effectively mid-token.
+    let tokenAfterCaret = tokens[indexOfTokenAtCaret + 1];
+    if ((caretIsInMiddleOfToken && currentTokenValue.length) || (!caretIsInMiddleOfToken && tokenAfterCaret && /[a-zA-Z0-9-]/.test(tokenAfterCaret.value[0])))
+        return {prefix: "", completions: []};
+
+    // If the current token value is a comma or opening parenthesis, treat it as if we are at the start of a new token.
+    if (currentTokenValue === "(" || currentTokenValue === ",")
+        currentTokenValue = "";
+
+    let functionName = null;
+    let preceedingFunctionDepth = 0;
+    for (let i = indexOfTokenAtCaret; i >= 0; --i) {
+        let value = tokens[i].value;
+
+        // There may be one or more complete functions between the cursor and the current scope's functions name.
+        if (value === ")")
+            ++preceedingFunctionDepth;
+        else if (value === "(") {
+            if (preceedingFunctionDepth)
+                --preceedingFunctionDepth;
+            else {
+                functionName = tokens[i - 1]?.value;
+                break;
+            }
+        }
+    }
+
+    if (functionName) {
+        let completions = WI.CSSKeywordCompletions.forFunction(functionName);
+        let contextualValueCompletions = additionalFunctionValueCompletionsProvider?.(functionName) || [];
+        completions.addValues(contextualValueCompletions);
+        return {prefix: currentTokenValue, completions: completions.startsWith(currentTokenValue)};
+    }
+
+    return {prefix: currentTokenValue, completions: WI.CSSKeywordCompletions.forProperty(propertyName).startsWith(currentTokenValue)};
+};
 
 WI.CSSKeywordCompletions.forProperty = function(propertyName)
 {
@@ -313,7 +400,8 @@ WI.CSSKeywordCompletions._colors = [
     "paleturquoise", "palevioletred", "papayawhip", "peachpuff", "peru", "pink", "plum", "powderblue", "rebeccapurple", "rosybrown",
     "royalblue", "saddlebrown", "salmon", "sandybrown", "seagreen", "seashell", "sienna", "skyblue", "slateblue",
     "slategray", "slategrey", "snow", "springgreen", "steelblue", "tan", "thistle", "tomato", "turquoise", "violet",
-    "wheat", "whitesmoke", "yellowgreen", "rgb()", "rgba()", "hsl()", "hsla()", "color()",
+    "wheat", "whitesmoke", "yellowgreen", "rgb()", "rgba()", "hsl()", "hsla()", "color()", "hwb()", "lch()", "lab()",
+    "color-mix()", "color-contrast()",
 ];
 
 WI.CSSKeywordCompletions._colorAwareProperties = new Set([
@@ -845,7 +933,7 @@ WI.CSSKeywordCompletions._propertyKeywordMap = {
         "ease", "linear", "ease-in", "ease-out", "ease-in-out", "step-start", "step-end", "steps()", "cubic-bezier()", "spring()",
     ],
     "-webkit-appearance": [
-        "none", "checkbox", "radio", "push-button", "square-button", "button", "button-bevel", "default-button", "inner-spin-button", "listbox", "listitem", "media-controls-background", "media-controls-dark-bar-background", "media-controls-fullscreen-background", "media-controls-light-bar-background", "media-current-time-display", "media-enter-fullscreen-button", "media-exit-fullscreen-button", "media-fullscreen-volume-slider", "media-fullscreen-volume-slider-thumb", "media-mute-button", "media-overlay-play-button", "media-play-button", "media-return-to-realtime-button", "media-rewind-button", "media-seek-back-button", "media-seek-forward-button", "media-slider", "media-sliderthumb", "media-time-remaining-display", "media-toggle-closed-captions-button", "media-volume-slider", "media-volume-slider-container", "media-volume-slider-mute-button", "media-volume-sliderthumb", "menulist", "menulist-button", "menulist-text", "menulist-textfield", "meter", "progress-bar", "progress-bar-value", "slider-horizontal", "slider-vertical", "sliderthumb-horizontal", "sliderthumb-vertical", "caret", "searchfield", "searchfield-decoration", "searchfield-results-decoration", "searchfield-results-button", "searchfield-cancel-button", "snapshotted-plugin-overlay", "textfield", "relevancy-level-indicator", "continuous-capacity-level-indicator", "discrete-capacity-level-indicator", "rating-level-indicator", "image-controls-button", "-apple-pay-button", "textarea", "attachment", "borderless-attachment", "caps-lock-indicator",
+        "none", "checkbox", "radio", "push-button", "square-button", "button", "button-bevel", "default-button", "inner-spin-button", "listbox", "listitem", "media-controls-background", "media-controls-dark-bar-background", "media-controls-fullscreen-background", "media-controls-light-bar-background", "media-current-time-display", "media-enter-fullscreen-button", "media-exit-fullscreen-button", "media-fullscreen-volume-slider", "media-fullscreen-volume-slider-thumb", "media-mute-button", "media-overlay-play-button", "media-play-button", "media-return-to-realtime-button", "media-rewind-button", "media-seek-back-button", "media-seek-forward-button", "media-slider", "media-sliderthumb", "media-time-remaining-display", "media-toggle-closed-captions-button", "media-volume-slider", "media-volume-slider-container", "media-volume-slider-mute-button", "media-volume-sliderthumb", "menulist", "menulist-button", "menulist-text", "menulist-textfield", "meter", "progress-bar", "progress-bar-value", "slider-horizontal", "slider-vertical", "sliderthumb-horizontal", "sliderthumb-vertical", "caret", "searchfield", "searchfield-decoration", "searchfield-results-decoration", "searchfield-results-button", "searchfield-cancel-button", "snapshotted-plugin-overlay", "textfield", "relevancy-level-indicator", "continuous-capacity-level-indicator", "discrete-capacity-level-indicator", "rating-level-indicator", "-apple-pay-button", "textarea", "attachment", "borderless-attachment", "caps-lock-indicator",
     ],
     "-webkit-backface-visibility": [
         "hidden", "visible",

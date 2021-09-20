@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 Apple Inc. All rights reserved.
+ * Copyright (C) 2020-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -31,21 +31,16 @@
 @protocol _WKInspectorDelegate <NSObject>
 @optional
 
-/*! @abstract Called when the Browser domain is enabled for the associated _WKInspector.
-    @param inspector the associated _WKInspector for which the Browser domain has been enabled.
- */
-- (void)inspectorDidEnableBrowserDomain:(_WKInspector *)inspector;
-
-/*! @abstract Called when the  Browser domain is disabled for the associated _WKInspector.
-    @param inspector the associated _WKInspector for which the Browser domain has been disabled.
- */
-- (void)inspectorDidDisableBrowserDomain:(_WKInspector *)inspector;
-
 /*! @abstract Called when the _WKInspector requests to show a resource externally. This
     is used to display documentation pages and to show external URLs that are linkified.
     @param inspector the associated inspector for which an external navigation should be triggered.
     @param url The resource to be shown.
  */
 - (void)inspector:(_WKInspector *)inspector openURLExternally:(NSURL *)url;
+
+/*! @abstract Called when the _WKInspector user interface has been fully loaded.
+    @param inspector the associated inspector that has finished loading.
+*/
+- (void)inspectorFrontendLoaded:(_WKInspector *)inspector;
 
 @end

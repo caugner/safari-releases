@@ -29,7 +29,6 @@
 #import <WebKitLegacy/WebDownload.h>
 
 #import "NetworkStorageSessionMap.h"
-#import "WebTypesInternal.h"
 #import <Foundation/NSURLAuthenticationChallenge.h>
 #import <WebCore/AuthenticationMac.h>
 #import <WebCore/Credential.h>
@@ -41,6 +40,7 @@
 #import <pal/spi/cocoa/NSURLDownloadSPI.h>
 #import <wtf/Assertions.h>
 #import <wtf/MainThread.h>
+#import <wtf/WorkQueue.h>
 #import <wtf/spi/darwin/dyldSPI.h>
 
 static bool shouldCallOnNetworkThread()
@@ -65,14 +65,17 @@ static void callOnDelegateThreadAndWait(Callable&& work)
 {
     if (shouldCallOnNetworkThread() || isMainThread())
         work();
-    else
-        dispatch_sync(dispatch_get_main_queue(), work);
+    else {
+        WorkQueue::main().dispatchSync([work = WTFMove(work)]() mutable {
+            work();
+        });
+    }
 }
 
 using namespace WebCore;
 
 @interface WebDownloadInternal : NSObject <NSURLDownloadDelegate> {
-    id realDelegate;
+    RetainPtr<id> realDelegate;
 }
 - (void)setRealDelegate:(id)realDelegate;
 @end
@@ -81,14 +84,11 @@ using namespace WebCore;
 
 - (void)dealloc
 {
-    [realDelegate release];
     [super dealloc];
 }
 
 - (void)setRealDelegate:(id)rd
 {
-    [rd retain];
-    [realDelegate release];
     realDelegate = rd;
 }
 
@@ -111,7 +111,7 @@ using namespace WebCore;
 
 - (void)downloadDidBegin:(NSURLDownload *)download
 {
-    callOnDelegateThread([realDelegate = retainPtr(realDelegate), download = retainPtr(download)] {
+    callOnDelegateThread([realDelegate = realDelegate, download = retainPtr(download)] {
         [realDelegate downloadDidBegin:download.get()];
     });
 }
@@ -140,11 +140,11 @@ using namespace WebCore;
     }
 
     if ([realDelegate respondsToSelector:@selector(download:didReceiveAuthenticationChallenge:)]) {
-        callOnDelegateThread([realDelegate = retainPtr(realDelegate), download = retainPtr(download), challenge = retainPtr(challenge)] {
+        callOnDelegateThread([realDelegate = realDelegate, download = retainPtr(download), challenge = retainPtr(challenge)] {
             [realDelegate download:download.get() didReceiveAuthenticationChallenge:challenge.get()];
         });
     } else {
-        callOnDelegateThread([realDelegate = retainPtr(realDelegate), download = retainPtr(download), challenge = retainPtr(challenge)] {
+        callOnDelegateThread([realDelegate = realDelegate, download = retainPtr(download), challenge = retainPtr(challenge)] {
             NSWindow *window = nil;
             if ([realDelegate respondsToSelector:@selector(downloadWindowForAuthenticationSheet:)])
                 window = [realDelegate downloadWindowForAuthenticationSheet:(WebDownload *)download.get()];
@@ -157,14 +157,14 @@ using namespace WebCore;
 
 - (void)download:(NSURLDownload *)download didReceiveResponse:(NSURLResponse *)response
 {
-    callOnDelegateThread([realDelegate = retainPtr(realDelegate), download = retainPtr(download), response = retainPtr(response)] {
+    callOnDelegateThread([realDelegate = realDelegate, download = retainPtr(download), response = retainPtr(response)] {
         [realDelegate download:download.get() didReceiveResponse:response.get()];
     });
 }
 
 - (void)download:(NSURLDownload *)download didReceiveDataOfLength:(NSUInteger)length
 {
-    callOnDelegateThread([realDelegate = retainPtr(realDelegate), download = retainPtr(download), length] {
+    callOnDelegateThread([realDelegate = realDelegate, download = retainPtr(download), length] {
         [realDelegate download:download.get() didReceiveDataOfLength:length];
     });
 }
@@ -181,28 +181,28 @@ using namespace WebCore;
 
 - (void)download:(NSURLDownload *)download decideDestinationWithSuggestedFilename:(NSString *)filename
 {
-    callOnDelegateThread([realDelegate = retainPtr(realDelegate), download = retainPtr(download), filename = retainPtr(filename)] {
+    callOnDelegateThread([realDelegate = realDelegate, download = retainPtr(download), filename = retainPtr(filename)] {
         [realDelegate download:download.get() decideDestinationWithSuggestedFilename:filename.get()];
     });
 }
 
 - (void)download:(NSURLDownload *)download didCreateDestination:(NSString *)path
 {
-    callOnDelegateThread([realDelegate = retainPtr(realDelegate), download = retainPtr(download), path = retainPtr(path)] {
+    callOnDelegateThread([realDelegate = realDelegate, download = retainPtr(download), path = retainPtr(path)] {
         [realDelegate download:download.get() didCreateDestination:path.get()];
     });
 }
 
 - (void)downloadDidFinish:(NSURLDownload *)download
 {
-    callOnDelegateThread([realDelegate = retainPtr(realDelegate), download = retainPtr(download)] {
+    callOnDelegateThread([realDelegate = realDelegate, download = retainPtr(download)] {
         [realDelegate downloadDidFinish:download.get()];
     });
 }
 
 - (void)download:(NSURLDownload *)download didFailWithError:(NSError *)error
 {
-    callOnDelegateThread([realDelegate = retainPtr(realDelegate), download = retainPtr(download), error = retainPtr(error)] {
+    callOnDelegateThread([realDelegate = realDelegate, download = retainPtr(download), error = retainPtr(error)] {
         [realDelegate download:download.get() didFailWithError:error.get()];
     });
 }

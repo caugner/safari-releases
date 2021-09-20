@@ -1,4 +1,4 @@
-# Copyright (C) 2011-2020 Apple Inc. All rights reserved.
+# Copyright (C) 2011-2021 Apple Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -265,6 +265,8 @@ const YarrEntryPtrTag = constexpr YarrEntryPtrTag
 const CSSSelectorPtrTag = constexpr CSSSelectorPtrTag
 const NoPtrTag = constexpr NoPtrTag
  
+# VMTraps data
+const VMTrapsAsyncEvents = constexpr VMTraps::AsyncEvents
 
 # Some register conventions.
 # - We use a pair of registers to represent the PC: one register for the
@@ -556,6 +558,7 @@ const Float64ArrayType = constexpr Float64ArrayType
 
 const FirstTypedArrayType = constexpr FirstTypedArrayType
 const NumberOfTypedArrayTypesExcludingDataView = constexpr NumberOfTypedArrayTypesExcludingDataView
+const NumberOfTypedArrayTypesExcludingBigIntArraysAndDataView = constexpr NumberOfTypedArrayTypesExcludingBigIntArraysAndDataView
 
 # Type flags constants.
 const MasqueradesAsUndefined = constexpr MasqueradesAsUndefined
@@ -589,7 +592,7 @@ const GlobalProperty = constexpr GlobalProperty
 const GlobalVar = constexpr GlobalVar
 const GlobalLexicalVar = constexpr GlobalLexicalVar
 const ClosureVar = constexpr ClosureVar
-const LocalClosureVar = constexpr LocalClosureVar
+const ResolvedClosureVar = constexpr ResolvedClosureVar
 const ModuleVar = constexpr ModuleVar
 const GlobalPropertyWithVarInjectionChecks = constexpr GlobalPropertyWithVarInjectionChecks
 const GlobalVarWithVarInjectionChecks = constexpr GlobalVarWithVarInjectionChecks
@@ -611,6 +614,8 @@ const BlackThreshold = constexpr blackThreshold
 
 const VectorBufferOffset = Vector::m_buffer
 const VectorSizeOffset = Vector::m_size
+
+const RefCountedArrayStorageNonNullSizeOffset = -(constexpr (RefCountedArray::Header::size())) + RefCountedArray::Header::length
 
 # Some common utilities.
 macro crash()
@@ -1233,7 +1238,7 @@ macro getByValTypedArray(base, index, finishIntGetByVal, finishDoubleGetByVal, s
     # First lets check if we even have a typed array. This lets us do some boilerplate up front.
     loadb JSCell::m_type[base], t2
     subi FirstTypedArrayType, t2
-    biaeq t2, NumberOfTypedArrayTypesExcludingDataView, slowPath
+    biaeq t2, NumberOfTypedArrayTypesExcludingBigIntArraysAndDataView, slowPath
     
     # Sweet, now we know that we have a typed array. Do some basic things now.
 
@@ -1260,6 +1265,8 @@ macro getByValTypedArray(base, index, finishIntGetByVal, finishDoubleGetByVal, s
     #    Uint32ArrayType,
     #    Float32ArrayType,
     #    Float64ArrayType,
+    #
+    # Yet, we are not supporting BitInt64Array and BigUint64Array.
 
     bia t2, Uint16ArrayType - FirstTypedArrayType, .opGetByValAboveUint16Array
 
@@ -1336,6 +1343,13 @@ end
 
 macro notifyWrite(set, slow)
     bbneq WatchpointSet::m_state[set], IsInvalidated, slow
+end
+
+macro varReadOnlyCheck(slowPath, scratch)
+    loadp CodeBlock[cfr], scratch
+    loadp CodeBlock::m_globalObject[scratch], scratch
+    loadp JSGlobalObject::m_varReadOnlyWatchpoint[scratch], scratch
+    bbeq WatchpointSet::m_state[scratch], IsInvalidated, slowPath
 end
 
 macro checkSwitchToJIT(increment, action)
@@ -1540,7 +1554,7 @@ macro functionInitialization(profileArgSkip)
     addp -profileArgSkip, t0 # Use addi because that's what has the peephole
     assert(macro (ok) bpgteq t0, 0, ok end)
     btpz t0, .argumentProfileDone
-    loadp CodeBlock::m_argumentValueProfiles + RefCountedArray::m_data[t1], t3
+    loadp CodeBlock::m_argumentValueProfiles + FixedVector::m_storage + RefCountedArray::m_data[t1], t3
     btpz t3, .argumentProfileDone # When we can't JIT, we don't allocate any argument value profiles.
     mulp sizeof ValueProfile, t0, t2 # Aaaaahhhh! Need strength reduction!
     lshiftp 3, t0 # offset of last JSValue arguments on the stack.
@@ -1614,9 +1628,24 @@ end
     ret
 
 # a0, a1, a2 are used. a3 contains function address.
-global _vmEntryCustomAccessor
-_vmEntryCustomAccessor:
+# EncodedJSValue(JIT_OPERATION_ATTRIBUTES*)(JSGlobalObject*, EncodedJSValue, PropertyName, void*);
+global _vmEntryCustomGetter
+_vmEntryCustomGetter:
+if ARM64E
     jmp a3, CustomAccessorPtrTag
+else
+    crash()
+end
+
+# a0, a1, a2, a3 are used. a4 contains function address.
+# bool (JIT_OPERATION_ATTRIBUTES*)(JSGlobalObject*, EncodedJSValue, EncodedJSValue, PropertyName, void*);
+global _vmEntryCustomSetter
+_vmEntryCustomSetter:
+if ARM64E
+    jmp a4, CustomAccessorPtrTag
+else
+    crash()
+end
 
 # a0 and a1 are used. a2 contains function address.
 global _vmEntryHostFunction
@@ -1965,13 +1994,10 @@ slowPathOp(define_accessor_property)
 slowPathOp(define_data_property)
 slowPathOp(enumerator_generic_pname)
 slowPathOp(enumerator_structure_pname)
-slowPathOp(get_by_id_with_this)
 slowPathOp(get_by_val_with_this)
 slowPathOp(get_direct_pname)
 slowPathOp(get_enumerable_length)
 slowPathOp(get_property_enumerator)
-slowPathOp(greater)
-slowPathOp(greatereq)
 slowPathOp(has_enumerable_indexed_property)
 slowPathOp(has_enumerable_property)
 
@@ -1982,12 +2008,8 @@ if not JSVALUE64
     slowPathOp(get_prototype_of)
 end
 
-slowPathOp(in_by_id)
-slowPathOp(in_by_val)
 slowPathOp(is_callable)
 slowPathOp(is_constructor)
-slowPathOp(less)
-slowPathOp(lesseq)
 slowPathOp(mod)
 slowPathOp(new_array_buffer)
 slowPathOp(new_array_with_spread)
@@ -2014,6 +2036,10 @@ macro llintSlowPathOp(opcodeName)
     end)
 end
 
+llintSlowPathOp(in_by_id)
+llintSlowPathOp(in_by_val)
+llintSlowPathOp(has_private_name)
+llintSlowPathOp(has_private_brand)
 llintSlowPathOp(del_by_id)
 llintSlowPathOp(del_by_val)
 llintSlowPathOp(instanceof)
@@ -2040,6 +2066,7 @@ llintSlowPathOp(super_sampler_begin)
 llintSlowPathOp(super_sampler_end)
 llintSlowPathOp(throw)
 llintSlowPathOp(try_get_by_id)
+llintSlowPathOp(get_by_id_with_this)
 
 llintOp(op_switch_string, unused, macro (unused, unused, unused)
     callSlowPath(_llint_slow_path_switch_string)
@@ -2081,6 +2108,21 @@ llintJumpTrueOrFalseOp(jfalse, OpJfalse,
     # Truthy Cell
     macro (dispatch) dispatch() end)
 
+compareOp(greater, OpGreater,
+    macro (left, right, result) cigt left, right, result end,
+    macro (left, right, result) cdgt left, right, result end)
+
+compareOp(greatereq, OpGreatereq,
+    macro (left, right, result) cigteq left, right, result end,
+    macro (left, right, result) cdgteq left, right, result end)
+
+compareOp(less, OpLess,
+    macro (left, right, result) cilt left, right, result end,
+    macro (left, right, result) cdlt left, right, result end)
+
+compareOp(lesseq, OpLesseq,
+    macro (left, right, result) cilteq left, right, result end,
+    macro (left, right, result) cdlteq left, right, result end)
 
 compareJumpOp(
     jless, OpJless,
@@ -2166,7 +2208,8 @@ end)
 llintOp(op_check_traps, OpCheckTraps, macro (unused, unused, dispatch)
     loadp CodeBlock[cfr], t1
     loadp CodeBlock::m_vm[t1], t1
-    loadb VM::m_traps+VMTraps::m_needTrapHandling[t1], t0
+    loadi VM::m_traps+VMTraps::m_trapBits[t1], t0
+    andi VMTrapsAsyncEvents, t0
     btpnz t0, .handleTraps
 .afterHandlingTraps:
     dispatch()
@@ -2500,14 +2543,20 @@ _wasm_trampoline_wasm_call:
 _wasm_trampoline_wasm_call_no_tls:
 _wasm_trampoline_wasm_call_indirect:
 _wasm_trampoline_wasm_call_indirect_no_tls:
+_wasm_trampoline_wasm_call_ref:
+_wasm_trampoline_wasm_call_ref_no_tls:
 _wasm_trampoline_wasm_call_wide16:
 _wasm_trampoline_wasm_call_no_tls_wide16:
 _wasm_trampoline_wasm_call_indirect_wide16:
 _wasm_trampoline_wasm_call_indirect_no_tls_wide16:
+_wasm_trampoline_wasm_call_ref_wide16:
+_wasm_trampoline_wasm_call_ref_no_tls_wide16:
 _wasm_trampoline_wasm_call_wide32:
 _wasm_trampoline_wasm_call_no_tls_wide32:
 _wasm_trampoline_wasm_call_indirect_wide32:
 _wasm_trampoline_wasm_call_indirect_no_tls_wide32:
+_wasm_trampoline_wasm_call_ref_wide32:
+_wasm_trampoline_wasm_call_ref_no_tls_wide32:
     crash()
 
 end

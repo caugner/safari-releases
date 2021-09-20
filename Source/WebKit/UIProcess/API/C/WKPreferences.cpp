@@ -58,6 +58,16 @@ WKPreferencesRef WKPreferencesCreateCopy(WKPreferencesRef preferencesRef)
     return toAPI(&preferences.leakRef());
 }
 
+void WKPreferencesStartBatchingUpdates(WKPreferencesRef preferencesRef)
+{
+    toImpl(preferencesRef)->startBatchingUpdates();
+}
+
+void WKPreferencesEndBatchingUpdates(WKPreferencesRef preferencesRef)
+{
+    toImpl(preferencesRef)->endBatchingUpdates();
+}
+
 void WKPreferencesEnableAllExperimentalFeatures(WKPreferencesRef preferencesRef)
 {
     toImpl(preferencesRef)->enableAllExperimentalFeatures();
@@ -826,16 +836,6 @@ bool WKPreferencesGetMediaControlsScaleWithPageZoom(WKPreferencesRef preferences
     return toImpl(preferencesRef)->mediaControlsScaleWithPageZoom();
 }
 
-void WKPreferencesSetModernMediaControlsEnabled(WKPreferencesRef preferencesRef, bool flag)
-{
-    toImpl(preferencesRef)->setModernMediaControlsEnabled(flag);
-}
-
-bool WKPreferencesGetModernMediaControlsEnabled(WKPreferencesRef preferencesRef)
-{
-    return toImpl(preferencesRef)->modernMediaControlsEnabled();
-}
-
 void WKPreferencesSetWebAuthenticationEnabled(WKPreferencesRef preferencesRef, bool flag)
 {
     toImpl(preferencesRef)->setWebAuthenticationEnabled(flag);
@@ -1435,14 +1435,15 @@ bool WKPreferencesGetServiceControlsEnabled(WKPreferencesRef preferencesRef)
     return toImpl(preferencesRef)->serviceControlsEnabled();
 }
 
-void WKPreferencesSetImageControlsEnabled(WKPreferencesRef preferencesRef, bool enabled)
+void WKPreferencesSetImageControlsEnabled(WKPreferencesRef, bool)
 {
-    toImpl(preferencesRef)->setImageControlsEnabled(enabled);
+    // Image controls are no longer supported.
 }
 
-bool WKPreferencesGetImageControlsEnabled(WKPreferencesRef preferencesRef)
+bool WKPreferencesGetImageControlsEnabled(WKPreferencesRef)
 {
-    return toImpl(preferencesRef)->imageControlsEnabled();
+    // Image controls are no longer supported.
+    return false;
 }
 
 void WKPreferencesSetGamepadsEnabled(WKPreferencesRef preferencesRef, bool enabled)
@@ -1995,16 +1996,6 @@ bool WKPreferencesGetPunchOutWhiteBackgroundsInDarkMode(WKPreferencesRef prefere
     return toImpl(preferencesRef)->punchOutWhiteBackgroundsInDarkMode();
 }
 
-void WKPreferencesSetWebSQLDisabled(WKPreferencesRef preferencesRef, bool flag)
-{
-    toImpl(preferencesRef)->setWebSQLDisabled(flag);
-}
-
-bool WKPreferencesGetWebSQLDisabled(WKPreferencesRef preferencesRef)
-{
-    return toImpl(preferencesRef)->webSQLDisabled();
-}
-
 void WKPreferencesSetCaptureAudioInUIProcessEnabled(WKPreferencesRef preferencesRef, bool flag)
 {
     toImpl(preferencesRef)->setCaptureAudioInUIProcessEnabled(flag);
@@ -2043,6 +2034,16 @@ void WKPreferencesSetCaptureVideoInGPUProcessEnabled(WKPreferencesRef preference
 bool WKPreferencesGetCaptureVideoInGPUProcessEnabled(WKPreferencesRef preferencesRef)
 {
     return toImpl(preferencesRef)->captureVideoInGPUProcessEnabled();
+}
+
+void WKPreferencesSetVP9DecoderEnabled(WKPreferencesRef preferencesRef, bool flag)
+{
+    toImpl(preferencesRef)->setVP9DecoderEnabled(flag);
+}
+
+bool WKPreferencesGetVP9DecoderEnabled(WKPreferencesRef preferencesRef)
+{
+    return toImpl(preferencesRef)->vp9DecoderEnabled();
 }
 
 void WKPreferencesSetReferrerPolicyAttributeEnabled(WKPreferencesRef preferencesRef, bool flag)
@@ -2215,4 +2216,13 @@ void WKPreferencesSetSubpixelCSSOMElementMetricsEnabled(WKPreferencesRef, bool)
 bool WKPreferencesGetSubpixelCSSOMElementMetricsEnabled(WKPreferencesRef)
 {
     return false;
+}
+
+void WKPreferencesSetWebSQLDisabled(WKPreferencesRef, bool)
+{
+}
+
+bool WKPreferencesGetWebSQLDisabled(WKPreferencesRef preferencesRef)
+{
+    return true;
 }

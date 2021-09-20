@@ -32,6 +32,7 @@
 
 #if PLATFORM(WIN)
 #include "COMPtr.h"
+#include "FontMemoryResource.h"
 #include "SharedGDIObject.h"
 #endif
 
@@ -110,11 +111,11 @@ public:
     FontPlatformData(float size, bool syntheticBold, bool syntheticOblique, FontOrientation = FontOrientation::Horizontal, FontWidthVariant = FontWidthVariant::RegularWidth, TextRenderingMode = TextRenderingMode::AutoTextRendering, CreationData* = nullptr);
 
 #if USE(CORE_TEXT)
-    WEBCORE_EXPORT FontPlatformData(CTFontRef, float size, bool syntheticBold = false, bool syntheticOblique = false, FontOrientation = FontOrientation::Horizontal, FontWidthVariant = FontWidthVariant::RegularWidth, TextRenderingMode = TextRenderingMode::AutoTextRendering, CreationData* = nullptr);
+    WEBCORE_EXPORT FontPlatformData(RetainPtr<CTFontRef>&&, float size, bool syntheticBold = false, bool syntheticOblique = false, FontOrientation = FontOrientation::Horizontal, FontWidthVariant = FontWidthVariant::RegularWidth, TextRenderingMode = TextRenderingMode::AutoTextRendering, CreationData* = nullptr);
 #endif
 
 #if PLATFORM(WIN)
-    FontPlatformData(GDIObject<HFONT>, float size, bool syntheticBold, bool syntheticOblique, bool useGDI);
+    FontPlatformData(GDIObject<HFONT>, float size, bool syntheticBold, bool syntheticOblique, bool useGDI, CreationData* = nullptr);
 #if USE(CORE_TEXT)
     FontPlatformData(GDIObject<HFONT>, CTFontRef, CGFontRef, float size, bool syntheticBold, bool syntheticOblique, bool useGDI);
 #endif
@@ -122,7 +123,7 @@ public:
     FontPlatformData(GDIObject<HFONT>&&, COMPtr<IDWriteFont>&&, float size, bool syntheticBold, bool syntheticOblique, bool useGDI);
 #endif
 #if USE(CAIRO)
-    FontPlatformData(GDIObject<HFONT>, cairo_font_face_t*, float size, bool bold, bool italic);
+    FontPlatformData(GDIObject<HFONT>, cairo_font_face_t*, float size, bool bold, bool italic, CreationData* = nullptr);
 #endif
 #endif
 
@@ -230,9 +231,12 @@ public:
     struct CreationData {
         Ref<SharedBuffer> fontFaceData;
         String itemInCollection;
+#if PLATFORM(WIN)
+        Ref<FontMemoryResource> m_fontResource;
+#endif
     };
 
-    const Optional<CreationData>& creationData() const
+    const std::optional<CreationData>& creationData() const
     {
         return m_creationData;
     }
@@ -283,7 +287,7 @@ private:
     FontWidthVariant m_widthVariant { FontWidthVariant::RegularWidth };
     TextRenderingMode m_textRenderingMode { TextRenderingMode::AutoTextRendering };
 
-    Optional<CreationData> m_creationData;
+    std::optional<CreationData> m_creationData;
 
     bool m_syntheticBold { false };
     bool m_syntheticOblique { false };

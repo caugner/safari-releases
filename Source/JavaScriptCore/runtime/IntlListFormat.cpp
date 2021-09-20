@@ -91,13 +91,8 @@ void IntlListFormat::initializeListFormat(JSGlobalObject* globalObject, JSValue 
     auto requestedLocales = canonicalizeLocaleList(globalObject, locales);
     RETURN_IF_EXCEPTION(scope, void());
 
-    JSObject* options;
-    if (optionsValue.isUndefined())
-        options = constructEmptyObject(vm, globalObject->nullPrototypeObjectStructure());
-    else {
-        options = optionsValue.toObject(globalObject);
-        RETURN_IF_EXCEPTION(scope, void());
-    }
+    JSObject* options = intlGetOptionsObject(globalObject, optionsValue);
+    RETURN_IF_EXCEPTION(scope, void());
 
     ResolveLocaleOptions localeOptions;
 
@@ -108,7 +103,7 @@ void IntlListFormat::initializeListFormat(JSGlobalObject* globalObject, JSValue 
         return { };
     };
 
-    auto& availableLocales = intlListFormatAvailableLocales();
+    const auto& availableLocales = intlListFormatAvailableLocales();
     auto resolved = resolveLocale(globalObject, availableLocales, requestedLocales, localeMatcher, localeOptions, { }, localeData);
 
     m_locale = resolved.locale;

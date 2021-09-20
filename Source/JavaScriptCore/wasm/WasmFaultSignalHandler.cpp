@@ -54,8 +54,10 @@ static bool fastHandlerInstalled { false };
 
 #if ENABLE(WEBASSEMBLY_SIGNALING_MEMORY)
 
-static SignalAction trapHandler(Signal, SigInfo& sigInfo, PlatformRegisters& context)
+static SignalAction trapHandler(Signal signal, SigInfo& sigInfo, PlatformRegisters& context)
 {
+    RELEASE_ASSERT(signal == Signal::AccessFault);
+
     auto instructionPointer = MachineContext::instructionPointer(context);
     if (!instructionPointer)
         return SignalAction::NotHandled;
@@ -81,8 +83,8 @@ static SignalAction trapHandler(Signal, SigInfo& sigInfo, PlatformRegisters& con
                 if (LLInt::isWasmLLIntPC(faultingInstruction))
                     return true;
                 auto& calleeRegistry = CalleeRegistry::singleton();
-                auto locker = holdLock(calleeRegistry.getLock());
-                for (auto* callee : calleeRegistry.allCallees(locker)) {
+                Locker locker { calleeRegistry.getLock() };
+                for (auto* callee : calleeRegistry.allCallees()) {
                     auto [start, end] = callee->range();
                     dataLogLnIf(WasmFaultSignalHandlerInternal::verbose, "function start: ", RawPointer(start), " end: ", RawPointer(end));
                     if (start <= faultingInstruction && faultingInstruction < end) {
@@ -94,8 +96,8 @@ static SignalAction trapHandler(Signal, SigInfo& sigInfo, PlatformRegisters& con
             };
 
             if (didFaultInWasm(faultingInstruction)) {
-                MachineContext::argumentPointer<1>(context) = reinterpret_cast<void*>(static_cast<uintptr_t>(Wasm::Context::useFastTLS()));
-                MachineContext::setInstructionPointer(context, LLInt::getCodePtr<CFunctionPtrTag>(wasm_throw_from_fault_handler_trampoline));
+                MachineContext::setInstructionPointer(context,
+                    LLInt::getCodePtr<CFunctionPtrTag>(Wasm::Context::useFastTLS() ? wasm_throw_from_fault_handler_trampoline_fastTLS : wasm_throw_from_fault_handler_trampoline_reg_instance));
                 return SignalAction::Handled;
             }
         }

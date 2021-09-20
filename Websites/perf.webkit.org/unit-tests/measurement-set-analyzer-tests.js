@@ -227,14 +227,15 @@ describe('MeasurementSetAnalyzer', () => {
             assert.equal(requests.length, 3);
             assert.equal(requests[2].url, '/privileged-api/create-analysis-task');
             assert.deepEqual(requests[2].data, {
-                slaveName: 'test',
-                slavePassword: 'password',
+                workerName: 'test',
+                workerPassword: 'password',
                 name: 'Potential 2.38% regression on Some platform between WebKit: r35-r44',
                 startRun: 6434,
                 endRun: 6443,
                 repetitionCount: 4,
                 testGroupName: 'Confirm',
                 needsNotification: true,
+                repetitionType: 'alternating',
                 revisionSets: [{'11': {revision: 35, ownerRevision: null, patch: null}},
                     {'11': {revision: 44, ownerRevision: null, patch: null}}]
             });
@@ -286,14 +287,15 @@ describe('MeasurementSetAnalyzer', () => {
             assert.equal(requests.length, 3);
             assert.equal(requests[2].url, '/privileged-api/create-analysis-task');
             assert.deepEqual(requests[2].data, {
-                slaveName: 'test',
-                slavePassword: 'password',
+                workerName: 'test',
+                workerPassword: 'password',
                 name: 'Potential 2.38% regression on Some platform between WebKit: r35-r44',
                 startRun: 6434,
                 endRun: 6443,
                 repetitionCount: 4,
                 testGroupName: 'Confirm',
                 needsNotification: true,
+                repetitionType: 'alternating',
                 revisionSets: [{'11': {revision: 35, ownerRevision: null, patch: null}},
                     {'11': {revision: 44, ownerRevision: null, patch: null}}]
             });
@@ -373,8 +375,8 @@ describe('MeasurementSetAnalyzer', () => {
             assert.equal(requests.length, 3);
             assert.equal(requests[2].url, '/privileged-api/create-analysis-task');
             assert.deepEqual(requests[2].data, {
-                slaveName: 'test',
-                slavePassword: 'password',
+                workerName: 'test',
+                workerPassword: 'password',
                 name: 'Potential 2.38% regression on Some platform between WebKit: r35-r44',
                 startRun: 6434,
                 endRun: 6443
@@ -518,14 +520,15 @@ describe('MeasurementSetAnalyzer', () => {
             assert.equal(requests.length, 3);
             assert.equal(requests[2].url, '/privileged-api/create-analysis-task');
             assert.deepEqual(requests[2].data, {
-                slaveName: 'test',
-                slavePassword: 'password',
+                workerName: 'test',
+                workerPassword: 'password',
                 name: 'Potential 2.38% regression on Some platform between WebKit: r40-r49',
                 startRun: 6439,
                 endRun: 6448,
                 repetitionCount: 4,
                 testGroupName: 'Confirm',
                 needsNotification: true,
+                repetitionType: 'alternating',
                 revisionSets: [{'11': {revision: 40, ownerRevision: null, patch: null}},
                     {'11': {revision: 49, ownerRevision: null, patch: null}}]
             });
@@ -610,14 +613,15 @@ describe('MeasurementSetAnalyzer', () => {
             assert.equal(requests.length, 3);
             assert.equal(requests[2].url, '/privileged-api/create-analysis-task');
             assert.deepEqual(requests[2].data, {
-                slaveName: 'test',
-                slavePassword: 'password',
+                workerName: 'test',
+                workerPassword: 'password',
                 name: 'Potential 9.15% progression on Some platform between WebKit: r3-r8',
                 startRun: 6402,
                 endRun: 6407,
                 repetitionCount: 4,
                 testGroupName: 'Confirm',
                 needsNotification: true,
+                repetitionType: 'alternating',
                 revisionSets: [{'11': {revision: 3, ownerRevision: null, patch: null}},
                     {'11': {revision: 8, ownerRevision: null, patch: null}}]
             });

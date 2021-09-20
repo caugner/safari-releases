@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2019 Apple Inc. All rights reserved.
+ * Copyright (C) 2016-2021 Apple Inc. All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -48,11 +48,11 @@ using WebCore::PlaybackSessionInterfaceMac;
 @synthesize seekToTime = _seekToTime;
 @synthesize hasEnabledAudio = _hasEnabledAudio;
 @synthesize hasEnabledVideo = _hasEnabledVideo;
-@synthesize rate = _rate;
 @synthesize canTogglePlayback = _canTogglePlayback;
 @synthesize allowsPictureInPicturePlayback;
 @synthesize pictureInPictureActive;
 @synthesize canTogglePictureInPicture;
+@synthesize canSeek = _canSeek;
 
 - (void)dealloc
 {
@@ -89,6 +89,8 @@ using WebCore::PlaybackSessionInterfaceMac;
 - (void)setSeekableTimeRanges:(NSArray *)timeRanges
 {
     _seekableTimeRanges = timeRanges;
+
+    _canSeek = timeRanges.count;
 }
 
 - (BOOL)isSeeking
@@ -98,10 +100,11 @@ using WebCore::PlaybackSessionInterfaceMac;
 
 - (void)seekToTime:(NSTimeInterval)time toleranceBefore:(NSTimeInterval)toleranceBefore toleranceAfter:(NSTimeInterval)toleranceAfter
 {
-    UNUSED_PARAM(toleranceBefore);
-    UNUSED_PARAM(toleranceAfter);
+    if (!_playbackSessionInterfaceMac)
+        return;
+
     if (auto* model = _playbackSessionInterfaceMac->playbackSessionModel())
-        model->seekToTime(time);
+        model->sendRemoteCommand(WebCore::PlatformMediaSession::RemoteControlCommandType::SeekToPlaybackPositionCommand, { time, toleranceBefore || toleranceAfter });
 }
 
 - (void)cancelThumbnailAndAudioAmplitudeSampleGeneration
@@ -128,17 +131,29 @@ using WebCore::PlaybackSessionInterfaceMac;
     // quirk means we pretend Netflix is a live stream for Touch Bar.) It's not ideal to return YES all the time for
     // other media. The intent of the API is that we return NO when the media is being scrubbed via the on-screen scrubber.
     // But we can only possibly get the right answer for media that uses the default controls.
-    return std::isfinite(_contentDuration) && [_seekableTimeRanges count];
+    return _canSeek && std::isfinite(_contentDuration);
 }
 
 - (void)beginTouchBarScrubbing
 {
-    _playbackSessionInterfaceMac->beginScrubbing();
+    if (!_playbackSessionInterfaceMac)
+        return;
+
+    auto* model = _playbackSessionInterfaceMac->playbackSessionModel();
+    if (!model)
+        return;
+        
+    _playbackSessionInterfaceMac->willBeginScrubbing();
+    model->sendRemoteCommand(WebCore::PlatformMediaSession::RemoteControlCommandType::BeginScrubbingCommand, { });
 }
 
 - (void)endTouchBarScrubbing
 {
-    _playbackSessionInterfaceMac->endScrubbing();
+    if (!_playbackSessionInterfaceMac)
+        return;
+
+    if (auto* model = _playbackSessionInterfaceMac->playbackSessionModel())
+        model->sendRemoteCommand(WebCore::PlatformMediaSession::RemoteControlCommandType::EndScrubbingCommand, { });
 }
 
 - (NSArray<AVTouchBarMediaSelectionOption *> *)audioTouchBarMediaSelectionOptions
@@ -282,8 +297,11 @@ static RetainPtr<NSArray> mediaSelectionOptions(const Vector<MediaSelectionOptio
 
 - (void)togglePlayback
 {
-    if (_playbackSessionInterfaceMac && _playbackSessionInterfaceMac->playbackSessionModel())
-        _playbackSessionInterfaceMac->playbackSessionModel()->togglePlayState();
+    if (!_playbackSessionInterfaceMac)
+        return;
+
+    if (auto* model = _playbackSessionInterfaceMac->playbackSessionModel())
+        model->sendRemoteCommand(WebCore::PlatformMediaSession::RemoteControlCommandType::TogglePlayPauseCommand, { });
 }
 
 - (void)setPlaying:(BOOL)playing
@@ -300,9 +318,9 @@ static RetainPtr<NSArray> mediaSelectionOptions(const Vector<MediaSelectionOptio
     if (auto* model = _playbackSessionInterfaceMac->playbackSessionModel()) {
         BOOL isCurrentlyPlaying = model->isPlaying();
         if (!isCurrentlyPlaying && _playing)
-            model->play();
+            model->sendRemoteCommand(WebCore::PlatformMediaSession::RemoteControlCommandType::PlayCommand, { });
         else if (isCurrentlyPlaying && !_playing)
-            model->pause();
+            model->sendRemoteCommand(WebCore::PlatformMediaSession::RemoteControlCommandType::PauseCommand, { });
     }
 }
 
@@ -311,10 +329,63 @@ static RetainPtr<NSArray> mediaSelectionOptions(const Vector<MediaSelectionOptio
     return _playing;
 }
 
+- (double)defaultPlaybackRate
+{
+    return _defaultPlaybackRate;
+}
+
+- (void)setDefaultPlaybackRate:(double)defaultPlaybackRate
+{
+    if (defaultPlaybackRate == _defaultPlaybackRate)
+        return;
+
+    _defaultPlaybackRate = defaultPlaybackRate;
+
+    if (_playbackSessionInterfaceMac) {
+        if (auto* model = _playbackSessionInterfaceMac->playbackSessionModel(); model && model->defaultPlaybackRate() != _defaultPlaybackRate)
+            model->setDefaultPlaybackRate(_defaultPlaybackRate);
+    }
+
+    if ([self isPlaying])
+        [self setRate:_defaultPlaybackRate];
+}
+
+- (float)rate
+{
+    return _rate;
+}
+
+- (void)setRate:(float)rate
+{
+    if (rate == _rate)
+        return;
+
+    _rate = rate;
+
+    // AVKit doesn't have a separate variable for "paused", instead representing it by a `rate` of
+    // `0`. Unfortunately, `HTMLMediaElement::play` doesn't call `HTMLMediaElement::setPlaybackRate`
+    // so if we propagate a `rate` of `0` along to the `HTMLMediaElement` then any attempt to
+    // `HTMLMediaElement::play` will effectively be a no-op since the `playbackRate` will be `0`.
+    if (!_rate)
+        return;
+
+    // In AVKit, the `defaultPlaybackRate` is used when playback starts, such as resuming after
+    // pausing. In WebKit, however, `defaultPlaybackRate` is only used when first loading and after
+    // ending scanning, with the `playbackRate` being used in all other cases, including when
+    // resuming after pausing. As such, WebKit should return the `playbackRate` instead of the
+    // `defaultPlaybackRate` in these cases when communicating with AVKit.
+    [self setDefaultPlaybackRate:_rate];
+
+    if (_playbackSessionInterfaceMac) {
+        if (auto* model = _playbackSessionInterfaceMac->playbackSessionModel(); model && model->playbackRate() != _rate)
+            model->setPlaybackRate(_rate);
+    }
+}
+
 - (void)togglePictureInPicture
 {
-    if (_playbackSessionInterfaceMac && _playbackSessionInterfaceMac->playbackSessionModel())
-        _playbackSessionInterfaceMac->playbackSessionModel()->togglePictureInPicture();
+    if (auto* model = _playbackSessionInterfaceMac->playbackSessionModel())
+        model->togglePictureInPicture();
 }
 
 IGNORE_WARNINGS_END

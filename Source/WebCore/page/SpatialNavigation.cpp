@@ -41,6 +41,7 @@
 #include "Page.h"
 #include "RenderInline.h"
 #include "RenderLayer.h"
+#include "RenderLayerScrollableArea.h"
 #include "Settings.h"
 
 namespace WebCore {
@@ -324,7 +325,7 @@ bool hasOffscreenRect(Node* node, FocusDirection direction)
     if (!render)
         return true;
 
-    LayoutRect rect(render->absoluteClippedOverflowRect());
+    LayoutRect rect(render->absoluteClippedOverflowRectForSpatialNavigation());
     if (rect.isEmpty())
         return true;
 
@@ -394,7 +395,8 @@ bool scrollInDirection(Node* container, FocusDirection direction)
             return false;
         }
 
-        container->renderBox()->enclosingLayer()->scrollByRecursively(IntSize(dx, dy));
+        if (auto* scrollableArea = container->renderBox()->enclosingLayer()->scrollableArea())
+            scrollableArea->scrollByRecursively(IntSize(dx, dy));
         return true;
     }
 

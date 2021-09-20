@@ -187,6 +187,7 @@ public:
 
     void deferFocusedUIElementChangeIfNeeded(Node* oldFocusedNode, Node* newFocusedNode);
     void deferModalChange(Element*);
+    void deferMenuListValueChange(Element*);
     void handleScrolledToAnchor(const Node* anchorNode);
     void handleScrollbarUpdate(ScrollView*);
     
@@ -225,8 +226,8 @@ public:
     Vector<RefPtr<AXCoreObject>> objectsForIDs(const Vector<AXID>&) const;
 
     // Text marker utilities.
-    Optional<TextMarkerData> textMarkerDataForVisiblePosition(const VisiblePosition&);
-    Optional<TextMarkerData> textMarkerDataForFirstPositionInTextControl(HTMLTextFormControlElement&);
+    std::optional<TextMarkerData> textMarkerDataForVisiblePosition(const VisiblePosition&);
+    std::optional<TextMarkerData> textMarkerDataForFirstPositionInTextControl(HTMLTextFormControlElement&);
     void textMarkerDataForCharacterOffset(TextMarkerData&, const CharacterOffset&);
     void textMarkerDataForNextCharacterOffset(TextMarkerData&, const CharacterOffset&);
     void textMarkerDataForPreviousCharacterOffset(TextMarkerData&, const CharacterOffset&);
@@ -238,23 +239,23 @@ public:
     void startOrEndTextMarkerDataForRange(TextMarkerData&, const SimpleRange&, bool);
     CharacterOffset startOrEndCharacterOffsetForRange(const SimpleRange&, bool, bool enterTextControls = false);
     AccessibilityObject* accessibilityObjectForTextMarkerData(TextMarkerData&);
-    Optional<SimpleRange> rangeForUnorderedCharacterOffsets(const CharacterOffset&, const CharacterOffset&);
+    std::optional<SimpleRange> rangeForUnorderedCharacterOffsets(const CharacterOffset&, const CharacterOffset&);
     static SimpleRange rangeForNodeContents(Node&);
-    static int lengthForRange(const Optional<SimpleRange>&);
+    static int lengthForRange(const std::optional<SimpleRange>&);
     
     // Word boundary
     CharacterOffset nextWordEndCharacterOffset(const CharacterOffset&);
     CharacterOffset previousWordStartCharacterOffset(const CharacterOffset&);
-    Optional<SimpleRange> leftWordRange(const CharacterOffset&);
-    Optional<SimpleRange> rightWordRange(const CharacterOffset&);
+    std::optional<SimpleRange> leftWordRange(const CharacterOffset&);
+    std::optional<SimpleRange> rightWordRange(const CharacterOffset&);
     
     // Paragraph
-    Optional<SimpleRange> paragraphForCharacterOffset(const CharacterOffset&);
+    std::optional<SimpleRange> paragraphForCharacterOffset(const CharacterOffset&);
     CharacterOffset nextParagraphEndCharacterOffset(const CharacterOffset&);
     CharacterOffset previousParagraphStartCharacterOffset(const CharacterOffset&);
     
     // Sentence
-    Optional<SimpleRange> sentenceForCharacterOffset(const CharacterOffset&);
+    std::optional<SimpleRange> sentenceForCharacterOffset(const CharacterOffset&);
     CharacterOffset nextSentenceEndCharacterOffset(const CharacterOffset&);
     CharacterOffset previousSentenceStartCharacterOffset(const CharacterOffset&);
     
@@ -283,10 +284,12 @@ public:
         AXFocusedUIElementChanged,
         AXFrameLoadComplete,
         AXIdAttributeChanged,
+        AXImageOverlayChanged,
         AXLanguageChanged,
         AXLayoutComplete,
         AXLoadComplete,
         AXNewDocumentLoadComplete,
+        AXPageScrolled,
         AXSelectedChildrenChanged,
         AXSelectedTextChanged,
         AXValueChanged,
@@ -353,7 +356,7 @@ public:
     AXComputedObjectAttributeCache* computedObjectAttributeCache() { return m_computedObjectAttributeCache.get(); }
 
     Document& document() const { return m_document; }
-    Optional<PageIdentifier> pageID() const { return m_pageID; }
+    std::optional<PageIdentifier> pageID() const { return m_pageID; }
 
 #if PLATFORM(MAC)
     static void setShouldRepostNotificationsForTests(bool value);
@@ -365,7 +368,9 @@ public:
     void performDeferredCacheUpdate();
     void deferTextReplacementNotificationForTextControl(HTMLTextFormControlElement&, const String& previousValue);
 
-    Optional<SimpleRange> rangeMatchesTextNearRange(const SimpleRange&, const String&);
+    std::optional<SimpleRange> rangeMatchesTextNearRange(const SimpleRange&, const String&);
+
+    static String notificationPlatformName(AXNotification);
 
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
     WEBCORE_EXPORT static bool isIsolatedTreeEnabled();
@@ -383,7 +388,6 @@ private:
 #endif
 
 protected:
-    static String notificationPlatformName(AXNotification);
     void postPlatformNotification(AXCoreObject*, AXNotification);
     void platformHandleFocusedUIElementChanged(Node* oldFocusedNode, Node* newFocusedNode);
 
@@ -473,7 +477,7 @@ private:
     void handleModalChange(Element&);
     
     Document& m_document;
-    const Optional<PageIdentifier> m_pageID; // constant for object's lifetime.
+    const std::optional<PageIdentifier> m_pageID; // constant for object's lifetime.
     HashMap<AXID, RefPtr<AccessibilityObject>> m_objects;
     HashMap<RenderObject*, AXID> m_renderObjectMapping;
     HashMap<Widget*, AXID> m_widgetObjectMapping;
@@ -511,6 +515,7 @@ private:
     ListHashSet<RefPtr<AXCoreObject>> m_deferredChildrenChangedList;
     ListHashSet<Node*> m_deferredChildrenChangedNodeList;
     WeakHashSet<Element> m_deferredModalChangedList;
+    WeakHashSet<Element> m_deferredMenuListChange;
     HashMap<Element*, String> m_deferredTextFormControlValue;
     HashMap<Element*, QualifiedName> m_deferredAttributeChange;
     Vector<std::pair<Node*, Node*>> m_deferredFocusedNodeChange;
@@ -617,7 +622,7 @@ inline void AXObjectCache::selectedChildrenChanged(RenderObject*) { }
 inline void AXObjectCache::selectedChildrenChanged(Node*) { }
 inline void AXObjectCache::setIsSynchronizingSelection(bool) { }
 inline void AXObjectCache::setTextSelectionIntent(const AXTextStateChangeIntent&) { }
-inline Optional<SimpleRange> AXObjectCache::rangeForUnorderedCharacterOffsets(const CharacterOffset&, const CharacterOffset&) { return WTF::nullopt; }
+inline std::optional<SimpleRange> AXObjectCache::rangeForUnorderedCharacterOffsets(const CharacterOffset&, const CharacterOffset&) { return std::nullopt; }
 inline IntRect AXObjectCache::absoluteCaretBoundsForCharacterOffset(const CharacterOffset&) { return IntRect(); }
 inline CharacterOffset AXObjectCache::characterOffsetForIndex(int, const AXCoreObject*) { return CharacterOffset(); }
 inline CharacterOffset AXObjectCache::startOrEndCharacterOffsetForRange(const SimpleRange&, bool, bool) { return CharacterOffset(); }

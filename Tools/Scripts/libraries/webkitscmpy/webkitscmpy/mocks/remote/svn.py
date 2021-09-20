@@ -26,13 +26,13 @@ import re
 import xmltodict
 
 from collections import OrderedDict
-from datetime import datetime
 from webkitcorepy import mocks
 from webkitscmpy import Commit, Contributor, remote as scmremote
 
 
 class Svn(mocks.Requests):
     top = None
+    remotes = []
     REVISION_REQUEST_RE = re.compile(r'svn/rvr/(?P<revision>\d+)(/(?P<category>\S+))?$')
 
     def __init__(self, remote='svn.example.org/repository/webkit', datafile=None):
@@ -54,6 +54,7 @@ class Svn(mocks.Requests):
     def __enter__(self):
         super(Svn, self).__enter__()
 
+        self.remotes.append(self.hosts[0])
         cache_path = scmremote.Svn('http://{}'.format(self.remote))._cache_path
         if os.path.isfile(cache_path):
             with open(cache_path, 'r') as cache:
@@ -70,6 +71,7 @@ class Svn(mocks.Requests):
             with open(cache_path, 'w') as cache:
                 cache.write(self._cache_contents)
 
+        self.remotes.remove(self.hosts[0])
         super(Svn, self).__exit__(*args, **kwargs)
 
     def latest(self):
@@ -104,32 +106,21 @@ class Svn(mocks.Requests):
 
         if category and category.startswith('branches/'):
             category = category.split('/')[-1]
+        category = [category] if category else self.branches(start) + self.tags(start)
 
-        if not category:
-            for commits in self.commits.values():
-                for commit in commits:
-                    if commit.revision == start:
-                        category = commit.branch
-                        break
-
-        if not category:
-            return []
-
-        result = [commit for commit in reversed(self.commits[category])]
-        if self.commits[category][0].branch_point:
-            result += [commit for commit in reversed(self.commits['trunk'][:self.commits[category][0].branch_point])]
-
-        for index in reversed(range(len(result))):
-            if result[index].revision < end:
-                result = result[:index]
-                continue
-            if result[index].revision > start:
-                result = result[index:]
-                break
-
-        return result
+        previous = None
+        for b in category + ['trunk']:
+            for candidate in reversed(self.commits.get(b, [])):
+                if candidate.revision > start or candidate.revision < end:
+                    continue
+                if previous and previous.revision <= candidate.revision:
+                    continue
+                previous = candidate
+                yield candidate
 
     def request(self, method, url, data=None, **kwargs):
+        from datetime import datetime, timedelta
+
         if not url.startswith('http://') and not url.startswith('https://'):
             return mocks.Response.create404(url)
 
@@ -255,18 +246,18 @@ class Svn(mocks.Requests):
                     '</D:multistatus>\n'.format(
                         stripped_url,
                         commit.revision,
-                        datetime.fromtimestamp(commit.timestamp).strftime('%Y-%m-%dT%H:%M:%S.103754Z'),
+                        datetime.utcfromtimestamp(commit.timestamp - timedelta(hours=7).seconds).strftime('%Y-%m-%dT%H:%M:%S.103754Z'),
                         commit.author.email,
                 ),
             )
 
         # Log for commit
         if method == 'REPORT' and stripped_url.startswith('{}!'.format(self.remote)) and match and data.get('S:log-report'):
-            commits = self.range(
+            commits = list(self.range(
                 category=match.group('category'),
                 start=int(data['S:log-report']['S:start-revision']),
                 end=int(data['S:log-report']['S:end-revision']),
-            )
+            ))
 
             limit = int(data['S:log-report'].get('S:limit', 0))
             if limit and len(commits) > limit:
@@ -287,7 +278,7 @@ class Svn(mocks.Requests):
                         '<S:date>{}</S:date>\n'
                         '{}{}</S:log-item>\n'.format(
                             commit.revision,
-                            datetime.fromtimestamp(commit.timestamp).strftime('%Y-%m-%dT%H:%M:%S.103754Z'),
+                            datetime.utcfromtimestamp(commit.timestamp - timedelta(hours=7).seconds).strftime('%Y-%m-%dT%H:%M:%S.103754Z'),
                             '' if data['S:log-report'].get('S:revpro') else '<D:comment>{}</D:comment>\n'
                             '<D:creator-displayname>{}</D:creator-displayname>\n'.format(
                                 commit.message,

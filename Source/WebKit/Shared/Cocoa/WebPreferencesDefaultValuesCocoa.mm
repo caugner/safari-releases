@@ -40,17 +40,20 @@ namespace WebKit {
 // Because of <rdar://problem/60608008>, WebKit has to parse the feature flags plist file
 bool isFeatureFlagEnabled(const String& featureName)
 {
-    BOOL isWebKitBundleFromStagedFramework = [[[NSBundle mainBundle] bundlePath] hasPrefix:@"/Library/Apple/System/Library/StagedFrameworks/WebKit"];
+    static bool isWebKitBundleFromStagedFramework = [] {
+        NSBundle *webkit2Bundle = [NSBundle bundleForClass:NSClassFromString(@"WKWebView")];
+        return [webkit2Bundle.bundlePath hasPrefix:@"/Library/Apple/System/Library/StagedFrameworks/Safari/"];
+    }();
 
     if (!isWebKitBundleFromStagedFramework)
         return _os_feature_enabled_impl("WebKit", (const char*)featureName.utf8().data());
 
-    static NSDictionary* dictionary = [[NSDictionary dictionaryWithContentsOfFile:@"/Library/Apple/System/Library/FeatureFlags/Domain/WebKit.plist"] retain];
+    static NeverDestroyed<RetainPtr<NSDictionary>> dictionary = [NSDictionary dictionaryWithContentsOfFile:@"/Library/Apple/System/Library/FeatureFlags/Domain/WebKit.plist"];
 
-    if (![[dictionary objectForKey:featureName] objectForKey:@"Enabled"])
+    if (![[dictionary.get() objectForKey:featureName] objectForKey:@"Enabled"])
         return _os_feature_enabled_impl("WebKit", (const char*)featureName.characters8());
 
-    return [[[dictionary objectForKey:featureName] objectForKey:@"Enabled"] isKindOfClass:[NSNumber class]] && [[[dictionary objectForKey:featureName] objectForKey:@"Enabled"] boolValue];
+    return [[[dictionary.get() objectForKey:featureName] objectForKey:@"Enabled"] isKindOfClass:[NSNumber class]] && [[[dictionary.get() objectForKey:featureName] objectForKey:@"Enabled"] boolValue];
 }
 
 } // namespace WebKit

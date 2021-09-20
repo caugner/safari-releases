@@ -26,14 +26,13 @@
 #import "config.h"
 #import "WebKit2Initialize.h"
 
-#import "WebKitJITOperations.h"
 #import <JavaScriptCore/InitializeThreading.h>
 #import <WebCore/VersionChecks.h>
 #import <WebCore/WebCoreJITOperations.h>
 #import <mutex>
 #import <wtf/MainThread.h>
 #import <wtf/RefCounted.h>
-#import <wtf/RunLoop.h>
+#import <wtf/WorkQueue.h>
 
 #if PLATFORM(IOS_FAMILY)
 #import <WebCore/WebCoreThreadSystemInterface.h>
@@ -58,7 +57,6 @@ static void runInitializationCode(void* = nullptr)
     WTF::RefCountedBase::enableThreadingChecksGlobally();
 
     WebCore::populateJITOperations();
-    WebKit::populateJITOperations();
 }
 
 void InitializeWebKit2()
@@ -69,7 +67,7 @@ void InitializeWebKit2()
         if ([NSThread isMainThread] || linkedOnOrAfter(WebCore::SDKVersion::FirstWithInitializeWebKit2MainThreadAssertion))
             runInitializationCode();
         else
-            dispatch_sync_f(dispatch_get_main_queue(), nullptr, runInitializationCode);
+            WorkQueue::main().dispatchSync([] { runInitializationCode(); });
     });
 }
 

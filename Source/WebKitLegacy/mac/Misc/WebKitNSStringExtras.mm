@@ -30,7 +30,7 @@
 
 #import <WebCore/ColorMac.h>
 #import <WebCore/FontCascade.h>
-#import <WebCore/GraphicsContext.h>
+#import <WebCore/GraphicsContextCG.h>
 #import <WebCore/LoaderNSURLExtras.h>
 #import <WebCore/TextRun.h>
 #import <pal/spi/cg/CoreGraphicsSPI.h>
@@ -78,7 +78,7 @@ static bool canUseFastRenderer(const UniChar* buffer, unsigned length)
 
         NSGraphicsContext *nsContext = [NSGraphicsContext currentContext];
         CGContextRef cgContext = [nsContext CGContext];
-        GraphicsContext graphicsContext { cgContext };
+        GraphicsContextCG graphicsContext { cgContext };
 
         // WebCore requires a flipped graphics context.
         bool flipped = [nsContext isFlipped];
@@ -158,9 +158,9 @@ static bool canUseFastRenderer(const UniChar* buffer, unsigned length)
 
 -(NSString *)_webkit_stringByTrimmingWhitespace
 {
-    NSMutableString *trimmed = [[self mutableCopy] autorelease];
-    CFStringTrimWhitespace((__bridge CFMutableStringRef)trimmed);
-    return trimmed;
+    auto trimmed = adoptNS([self mutableCopy]);
+    CFStringTrimWhitespace((__bridge CFMutableStringRef)trimmed.get());
+    return trimmed.autorelease();
 }
 
 #if PLATFORM(MAC)

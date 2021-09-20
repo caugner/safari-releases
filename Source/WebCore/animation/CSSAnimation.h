@@ -38,7 +38,7 @@ class RenderStyle;
 class CSSAnimation final : public DeclarativeAnimation {
     WTF_MAKE_ISO_ALLOCATED(CSSAnimation);
 public:
-    static Ref<CSSAnimation> create(const Styleable&, const Animation&, const RenderStyle* oldStyle, const RenderStyle& newStyle);
+    static Ref<CSSAnimation> create(const Styleable&, const Animation&, const RenderStyle* oldStyle, const RenderStyle& newStyle, const RenderStyle* parentElementStyle);
     ~CSSAnimation() = default;
 
     bool isCSSAnimation() const override { return true; }
@@ -51,12 +51,12 @@ private:
     CSSAnimation(const Styleable&, const Animation&);
 
     void syncPropertiesWithBackingAnimation() final;
-    Ref<AnimationEventBase> createEvent(const AtomString& eventType, double elapsedTime, const String& pseudoId, Optional<Seconds> timelineTime) final;
+    Ref<AnimationEventBase> createEvent(const AtomString& eventType, double elapsedTime, const String& pseudoId, std::optional<Seconds> timelineTime) final;
 
     ExceptionOr<void> bindingsPlay() final;
     ExceptionOr<void> bindingsPause() final;
     void setBindingsEffect(RefPtr<AnimationEffect>&&) final;
-    void setBindingsStartTime(Optional<double>) final;
+    void setBindingsStartTime(std::optional<double>) final;
     ExceptionOr<void> bindingsReverse() final;
 
     enum class Property : uint8_t {

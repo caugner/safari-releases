@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 Apple Inc. All rights reserved.
+ * Copyright (C) 2020-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -27,47 +27,85 @@
 
 #if ENABLE(MEDIA_SESSION)
 
+#include "CachedImageClient.h"
+#include "CachedResourceHandle.h"
+#include "MediaMetadataInit.h"
 #include "MediaSession.h"
-#include <wtf/Optional.h>
+#include <wtf/Function.h>
 #include <wtf/Vector.h>
 #include <wtf/WeakPtr.h>
 
 namespace WebCore {
 
+class CachedImage;
 class Document;
-class MediaSession;
+class Image;
 struct MediaImage;
-struct MediaMetadataInit;
+
+using MediaSessionMetadata = MediaMetadataInit;
+
+class ArtworkImageLoader final : public CachedImageClient {
+    WTF_MAKE_FAST_ALLOCATED;
+public:
+    using ArtworkImageLoaderCallback = Function<void(Image*)>;
+    // The callback will only be called upon success or explicit failure to retrieve the image. If the operation is interrupted following the
+    // destruction of the ArtworkImageLoader, the callback won't be called.
+    WEBCORE_EXPORT ArtworkImageLoader(Document&, const String& src, ArtworkImageLoaderCallback&&);
+    WEBCORE_EXPORT ~ArtworkImageLoader();
+
+    WEBCORE_EXPORT void requestImageResource();
+
+protected:
+    void notifyFinished(CachedResource&, const NetworkLoadMetrics&) override;
+
+private:
+    Document& m_document;
+    const String m_src;
+    ArtworkImageLoaderCallback m_callback;
+    CachedResourceHandle<CachedImage> m_cachedImage;
+};
 
 class MediaMetadata : public RefCounted<MediaMetadata> {
 public:
-    static ExceptionOr<Ref<MediaMetadata>> create(ScriptExecutionContext&, Optional<MediaMetadataInit>&&);
+    static ExceptionOr<Ref<MediaMetadata>> create(ScriptExecutionContext&, std::optional<MediaMetadataInit>&&);
     ~MediaMetadata();
 
     void setMediaSession(MediaSession&);
     void resetMediaSession();
 
-    const String& title() const { return m_title; }
+    const String& title() const { return m_metadata.title; }
     void setTitle(const String&);
 
-    const String& artist() const { return m_artist; }
+    const String& artist() const { return m_metadata.artist; }
     void setArtist(const String&);
 
-    const String& album() const { return m_album; }
+    const String& album() const { return m_metadata.album; }
     void setAlbum(const String&);
 
-    const Vector<MediaImage>& artwork() const { return m_artwork; }
+    const Vector<MediaImage>& artwork() const { return m_metadata.artwork; }
     ExceptionOr<void> setArtwork(ScriptExecutionContext&, Vector<MediaImage>&&);
+
+    const String& artworkSrc() const { return m_artworkImageSrc; }
+    const RefPtr<Image>& artworkImage() const { return m_artworkImage; }
+
+    const MediaSessionMetadata& metadata() const { return m_metadata; }
+
+#if ENABLE(MEDIA_SESSION_PLAYLIST)
+    const String& trackIdentifier() const { return m_metadata.trackIdentifier; }
+    void setTrackIdentifier(const String&);
+#endif
 
 private:
     MediaMetadata();
+    void setArtworkImage(Image*);
     void metadataUpdated();
+    void refreshArtworkImage();
 
     WeakPtr<MediaSession> m_session;
-    String m_title;
-    String m_artist;
-    String m_album;
-    Vector<MediaImage> m_artwork;
+    MediaSessionMetadata m_metadata;
+    std::unique_ptr<ArtworkImageLoader> m_artworkLoader;
+    String m_artworkImageSrc;
+    RefPtr<Image> m_artworkImage;
 };
 
 }

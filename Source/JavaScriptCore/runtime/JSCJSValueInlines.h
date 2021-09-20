@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2020 Apple Inc. All rights reserved.
+ * Copyright (C) 2011-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -80,8 +80,6 @@ inline uint32_t JSValue::toIndex(JSGlobalObject* globalObject, const char* error
 }
 
 // https://tc39.es/ecma262/#sec-tointegerorinfinity
-// FIXME: We will replace toInteger with toIntegerOrInfinity. The difference is that toIntegerOrInfinity will convert -0 to +0.
-// https://bugs.webkit.org/show_bug.cgi?id=218642
 inline double JSValue::toIntegerOrInfinity(JSGlobalObject* globalObject) const
 {
     if (isInt32())
@@ -109,7 +107,7 @@ inline double JSValue::asNumber() const
     return isInt32() ? asInt32() : asDouble();
 }
 
-inline Optional<uint32_t> JSValue::tryGetAsUint32Index()
+inline std::optional<uint32_t> JSValue::tryGetAsUint32Index()
 {
     if (isUInt32()) {
         ASSERT(isIndex(asUInt32()));
@@ -121,10 +119,10 @@ inline Optional<uint32_t> JSValue::tryGetAsUint32Index()
         if (static_cast<double>(asUint) == number && isIndex(asUint))
             return asUint;
     }
-    return WTF::nullopt;
+    return std::nullopt;
 }
 
-inline Optional<int32_t> JSValue::tryGetAsInt32()
+inline std::optional<int32_t> JSValue::tryGetAsInt32()
 {
     if (isInt32())
         return asInt32();
@@ -134,7 +132,7 @@ inline Optional<int32_t> JSValue::tryGetAsInt32()
         if (static_cast<double>(asInt) == number)
             return asInt;
     }
-    return WTF::nullopt;
+    return std::nullopt;
 }
 
 inline JSValue jsNaN()
@@ -851,7 +849,7 @@ ALWAYS_INLINE JSValue JSValue::toNumeric(JSGlobalObject* globalObject) const
     return jsNumber(value);
 }
 
-ALWAYS_INLINE Optional<uint32_t> JSValue::toUInt32AfterToNumeric(JSGlobalObject* globalObject) const
+ALWAYS_INLINE std::optional<uint32_t> JSValue::toUInt32AfterToNumeric(JSGlobalObject* globalObject) const
 {
     VM& vm = getVM(globalObject);
     auto scope = DECLARE_THROW_SCOPE(vm);
@@ -859,7 +857,7 @@ ALWAYS_INLINE Optional<uint32_t> JSValue::toUInt32AfterToNumeric(JSGlobalObject*
     RETURN_IF_EXCEPTION(scope, { });
     if (LIKELY(result.isInt32()))
         return static_cast<uint32_t>(result.asInt32());
-    return WTF::nullopt;
+    return std::nullopt;
 }
 
 ALWAYS_INLINE JSValue JSValue::toBigIntOrInt32(JSGlobalObject* globalObject) const
@@ -1045,6 +1043,18 @@ ALWAYS_INLINE JSValue JSValue::get(JSGlobalObject* globalObject, uint64_t proper
     if (LIKELY(propertyName <= std::numeric_limits<unsigned>::max()))
         return get(globalObject, static_cast<unsigned>(propertyName));
     return get(globalObject, Identifier::from(getVM(globalObject), static_cast<double>(propertyName)));
+}
+
+template<typename T, typename PropertyNameType>
+ALWAYS_INLINE T JSValue::getAs(JSGlobalObject* globalObject, PropertyNameType propertyName) const
+{
+    JSValue value = get(globalObject, propertyName);
+#if ASSERT_ENABLED || ENABLE(SECURITY_ASSERTIONS)
+    VM& vm = getVM(globalObject);
+    if (vm.exceptionForInspection())
+        return nullptr;
+#endif
+    return jsCast<T>(value);
 }
 
 inline bool JSValue::put(JSGlobalObject* globalObject, PropertyName propertyName, JSValue value, PutPropertySlot& slot)

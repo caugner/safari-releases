@@ -29,6 +29,7 @@
 #include "JSDOMConvertInterface.h"
 #include "JSDOMConvertStrings.h"
 #include "JSDOMExceptionHandling.h"
+#include "JSDOMGlobalObjectInlines.h"
 #include "JSDOMLegacyFactoryFunction.h"
 #include "JSDOMWrapperCache.h"
 #include "ScriptExecutionContext.h"
@@ -37,6 +38,7 @@
 #include <JavaScriptCore/HeapAnalyzer.h>
 #include <JavaScriptCore/JSCInlines.h>
 #include <JavaScriptCore/JSDestructibleObjectHeapCellType.h>
+#include <JavaScriptCore/SlotVisitorMacros.h>
 #include <JavaScriptCore/SubspaceInlines.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
@@ -85,6 +87,8 @@ STATIC_ASSERT_ISO_SUBSPACE_SHARABLE(JSTestLegacyFactoryFunctionPrototype, JSTest
 using JSTestLegacyFactoryFunctionDOMConstructor = JSDOMConstructorNotConstructable<JSTestLegacyFactoryFunction>;
 using JSTestLegacyFactoryFunctionLegacyFactoryFunction = JSDOMLegacyFactoryFunction<JSTestLegacyFactoryFunction>;
 
+template<> const ClassInfo JSTestLegacyFactoryFunctionDOMConstructor::s_info = { "TestLegacyFactoryFunction", &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestLegacyFactoryFunctionDOMConstructor) };
+
 template<> JSValue JSTestLegacyFactoryFunctionDOMConstructor::prototypeForStructure(JSC::VM& vm, const JSDOMGlobalObject& globalObject)
 {
     UNUSED_PARAM(vm);
@@ -97,8 +101,6 @@ template<> void JSTestLegacyFactoryFunctionDOMConstructor::initializeProperties(
     putDirect(vm, vm.propertyNames->name, jsNontrivialString(vm, "TestLegacyFactoryFunction"_s), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
     putDirect(vm, vm.propertyNames->length, jsNumber(1), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
 }
-
-template<> const ClassInfo JSTestLegacyFactoryFunctionDOMConstructor::s_info = { "TestLegacyFactoryFunction", &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestLegacyFactoryFunctionDOMConstructor) };
 
 template<> EncodedJSValue JSC_HOST_CALL_ATTRIBUTES JSTestLegacyFactoryFunctionLegacyFactoryFunction::construct(JSGlobalObject* lexicalGlobalObject, CallFrame* callFrame)
 {
@@ -133,6 +135,8 @@ template<> EncodedJSValue JSC_HOST_CALL_ATTRIBUTES JSTestLegacyFactoryFunctionLe
 }
 JSC_ANNOTATE_HOST_FUNCTION(JSTestLegacyFactoryFunctionLegacyFactoryFunctionConstruct, JSTestLegacyFactoryFunctionLegacyFactoryFunction::construct);
 
+template<> const ClassInfo JSTestLegacyFactoryFunctionLegacyFactoryFunction::s_info = { "Audio", &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestLegacyFactoryFunctionLegacyFactoryFunction) };
+
 template<> JSValue JSTestLegacyFactoryFunctionLegacyFactoryFunction::prototypeForStructure(JSC::VM& vm, const JSDOMGlobalObject& globalObject)
 {
     UNUSED_PARAM(vm);
@@ -145,8 +149,6 @@ template<> void JSTestLegacyFactoryFunctionLegacyFactoryFunction::initializeProp
     putDirect(vm, vm.propertyNames->name, jsNontrivialString(vm, "Audio"_s), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
     putDirect(vm, vm.propertyNames->length, jsNumber(1), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
 }
-
-template<> const ClassInfo JSTestLegacyFactoryFunctionLegacyFactoryFunction::s_info = { "Audio", &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestLegacyFactoryFunctionLegacyFactoryFunction) };
 
 /* Hash table for prototype */
 
@@ -192,12 +194,12 @@ JSObject* JSTestLegacyFactoryFunction::prototype(VM& vm, JSDOMGlobalObject& glob
 
 JSValue JSTestLegacyFactoryFunction::getConstructor(VM& vm, const JSGlobalObject* globalObject)
 {
-    return getDOMConstructor<JSTestLegacyFactoryFunctionDOMConstructor>(vm, *jsCast<const JSDOMGlobalObject*>(globalObject));
+    return getDOMConstructor<JSTestLegacyFactoryFunctionDOMConstructor, DOMConstructorID::TestLegacyFactoryFunction>(vm, *jsCast<const JSDOMGlobalObject*>(globalObject));
 }
 
 JSValue JSTestLegacyFactoryFunction::getLegacyFactoryFunction(VM& vm, JSGlobalObject* globalObject)
 {
-    return getDOMConstructor<JSTestLegacyFactoryFunctionLegacyFactoryFunction>(vm, *jsCast<JSDOMGlobalObject*>(globalObject));
+    return getDOMConstructor<JSTestLegacyFactoryFunctionLegacyFactoryFunction, DOMConstructorID::TestLegacyFactoryFunctionLegacyFactory>(vm, *jsCast<JSDOMGlobalObject*>(globalObject));
 }
 
 void JSTestLegacyFactoryFunction::destroy(JSC::JSCell* cell)
@@ -230,7 +232,9 @@ JSC::IsoSubspace* JSTestLegacyFactoryFunction::subspaceForImpl(JSC::VM& vm)
     auto* space = spaces.m_subspaceForTestLegacyFactoryFunction.get();
 IGNORE_WARNINGS_BEGIN("unreachable-code")
 IGNORE_WARNINGS_BEGIN("tautological-compare")
-    if (&JSTestLegacyFactoryFunction::visitOutputConstraints != &JSC::JSCell::visitOutputConstraints)
+    void (*myVisitOutputConstraint)(JSC::JSCell*, JSC::SlotVisitor&) = JSTestLegacyFactoryFunction::visitOutputConstraints;
+    void (*jsCellVisitOutputConstraint)(JSC::JSCell*, JSC::SlotVisitor&) = JSC::JSCell::visitOutputConstraints;
+    if (myVisitOutputConstraint != jsCellVisitOutputConstraint)
         clientData.outputConstraintSpaces().append(space);
 IGNORE_WARNINGS_END
 IGNORE_WARNINGS_END
@@ -246,7 +250,7 @@ void JSTestLegacyFactoryFunction::analyzeHeap(JSCell* cell, HeapAnalyzer& analyz
     Base::analyzeHeap(cell, analyzer);
 }
 
-bool JSTestLegacyFactoryFunctionOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, SlotVisitor& visitor, const char** reason)
+bool JSTestLegacyFactoryFunctionOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, AbstractSlotVisitor& visitor, const char** reason)
 {
     auto* jsTestLegacyFactoryFunction = jsCast<JSTestLegacyFactoryFunction*>(handle.slot()->asCell());
     auto& wrapped = jsTestLegacyFactoryFunction->wrapped();

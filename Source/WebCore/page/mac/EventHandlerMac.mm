@@ -54,6 +54,7 @@
 #import "PlatformWheelEvent.h"
 #import "Range.h"
 #import "RenderLayer.h"
+#import "RenderLayerScrollableArea.h"
 #import "RenderListBox.h"
 #import "RenderView.h"
 #import "RenderWidget.h"
@@ -151,7 +152,7 @@ bool EventHandler::wheelEvent(NSEvent *event)
     OptionSet<WheelEventProcessingSteps> processingSteps = { WheelEventProcessingSteps::MainThreadForScrolling, WheelEventProcessingSteps::MainThreadForBlockingDOMEventDispatch };
 
     if (wheelEvent.phase() == PlatformWheelEventPhase::Changed || wheelEvent.momentumPhase() == PlatformWheelEventPhase::Changed) {
-        if (m_frame.settings().wheelEventGesturesBecomeNonBlocking() && m_wheelScrollGestureState.valueOr(WheelScrollGestureState::Blocking) == WheelScrollGestureState::NonBlocking)
+        if (m_frame.settings().wheelEventGesturesBecomeNonBlocking() && m_wheelScrollGestureState.value_or(WheelScrollGestureState::Blocking) == WheelScrollGestureState::NonBlocking)
             processingSteps = { WheelEventProcessingSteps::MainThreadForScrolling, WheelEventProcessingSteps::MainThreadForNonBlockingDOMEventDispatch };
     }
     return handleWheelEvent(wheelEvent, processingSteps);
@@ -467,13 +468,11 @@ static void setNSScrollViewScrollWheelShouldRetainSelf(bool shouldRetain)
 
 static void selfRetainingNSScrollViewScrollWheel(NSScrollView *self, SEL selector, NSEvent *event)
 {
-    bool shouldRetainSelf = isMainThread() && nsScrollViewScrollWheelShouldRetainSelf();
+    RetainPtr<NSScrollView> retainedSelf;
+    if (isMainThread() && nsScrollViewScrollWheelShouldRetainSelf())
+        retainedSelf = self;
 
-    if (shouldRetainSelf)
-        CFRetain((__bridge CFTypeRef)self);
     wtfCallIMP<void>(originalNSScrollViewScrollWheel, self, selector, event);
-    if (shouldRetainSelf)
-        CFRelease((__bridge CFTypeRef)self);
 }
 
 bool EventHandler::passWheelEventToWidget(const PlatformWheelEvent& wheelEvent, Widget& widget, OptionSet<WheelEventProcessingSteps> processingSteps)
@@ -791,7 +790,10 @@ static ScrollableArea* scrollableAreaForBox(RenderBox& box)
     if (is<RenderListBox>(box))
         return downcast<RenderListBox>(&box);
 
-    return box.layer();
+    if (auto* scrollableArea = box.layer() ? box.layer()->scrollableArea() : nullptr)
+        return scrollableArea;
+
+    return nullptr;
 }
 
 // FIXME: This could be written in terms of ScrollableArea::enclosingScrollableArea().
@@ -1009,10 +1011,8 @@ void EventHandler::processWheelEventForScrollSnap(const PlatformWheelEvent& whee
     if (wheelEvent.phase() != PlatformWheelEventPhase::Ended && wheelEvent.momentumPhase() != PlatformWheelEventPhase::Ended)
         return;
 
-#if ENABLE(CSS_SCROLL_SNAP)
     if (auto* scrollAnimator = scrollableArea->existingScrollAnimator())
         scrollAnimator->processWheelEventForScrollSnap(wheelEvent);
-#endif
 }
 
 VisibleSelection EventHandler::selectClosestWordFromHitTestResultBasedOnLookup(const HitTestResult& result)
@@ -1076,10 +1076,10 @@ IntPoint EventHandler::targetPositionInWindowForSelectionAutoscroll() const
 {
     Page* page = m_frame.page();
     if (!page)
-        return m_lastKnownMousePosition;
+        return m_lastKnownMousePosition.value_or(IntPoint());
 
     auto frame = toUserSpaceForPrimaryScreen(screenRectForDisplay(page->chrome().displayID()));
-    return m_lastKnownMousePosition + autoscrollAdjustmentFactorForScreenBoundaries(m_lastKnownMouseGlobalPosition, frame);
+    return m_lastKnownMousePosition.value_or(IntPoint()) + autoscrollAdjustmentFactorForScreenBoundaries(m_lastKnownMouseGlobalPosition, frame);
 }
 
 }

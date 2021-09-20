@@ -91,8 +91,8 @@ public:
 
     bool allowJavaScriptURLs(const String& contextURL, const WTF::OrdinalNumber& contextLine, bool overrideContentSecurityPolicy = false) const;
     bool allowInlineEventHandlers(const String& contextURL, const WTF::OrdinalNumber& contextLine, bool overrideContentSecurityPolicy = false) const;
-    bool allowInlineScript(const String& contextURL, const WTF::OrdinalNumber& contextLine, const String& scriptContent, bool overrideContentSecurityPolicy = false) const;
-    bool allowInlineStyle(const String& contextURL, const WTF::OrdinalNumber& contextLine, const String& styleContent, bool overrideContentSecurityPolicy = false) const;
+    bool allowInlineScript(const String& contextURL, const WTF::OrdinalNumber& contextLine, StringView scriptContent, bool overrideContentSecurityPolicy = false) const;
+    bool allowInlineStyle(const String& contextURL, const WTF::OrdinalNumber& contextLine, StringView styleContent, bool overrideContentSecurityPolicy = false) const;
 
     bool allowEval(JSC::JSGlobalObject*, bool overrideContentSecurityPolicy = false) const;
 
@@ -138,7 +138,7 @@ public:
     void reportDirectiveAsSourceExpression(const String& directiveName, const String& sourceExpression) const;
     void reportInvalidPathCharacter(const String& directiveName, const String& value, const char) const;
     void reportInvalidSourceExpression(const String& directiveName, const String& source) const;
-    bool urlMatchesSelf(const URL&) const;
+    bool urlMatchesSelf(const URL&, bool forFrameSrc) const;
     bool allowContentSecurityPolicySourceStarToMatchAnyProtocol() const;
 
     // Used by ContentSecurityPolicyDirectiveList
@@ -175,6 +175,8 @@ public:
     void setClient(ContentSecurityPolicyClient* client) { m_client = client; }
     void updateSourceSelf(const SecurityOrigin&);
 
+    void setDocumentURL(URL& documentURL) { m_documentURL = documentURL; }
+
 private:
     void logToConsole(const String& message, const String& contextURL = String(), const WTF::OrdinalNumber& contextLine = WTF::OrdinalNumber::beforeFirst(), const WTF::OrdinalNumber& contextColumn = WTF::OrdinalNumber::beforeFirst(), JSC::JSGlobalObject* = nullptr) const;
     void applyPolicyToScriptExecutionContext();
@@ -204,7 +206,7 @@ private:
     bool allowResourceFromSource(const URL&, RedirectResponseReceived, const char*, ResourcePredicate) const;
 
     using HashInEnforcedAndReportOnlyPoliciesPair = std::pair<bool, bool>;
-    template<typename Predicate> HashInEnforcedAndReportOnlyPoliciesPair findHashOfContentInPolicies(Predicate&&, const String& content, OptionSet<ContentSecurityPolicyHashAlgorithm>) const WARN_UNUSED_RETURN;
+    template<typename Predicate> HashInEnforcedAndReportOnlyPoliciesPair findHashOfContentInPolicies(Predicate&&, StringView content, OptionSet<ContentSecurityPolicyHashAlgorithm>) const WARN_UNUSED_RETURN;
 
     void reportViolation(const String& effectiveViolatedDirective, const ContentSecurityPolicyDirective& violatedDirective, const URL& blockedURL, const String& consoleMessage, JSC::JSGlobalObject*) const;
     void reportViolation(const String& effectiveViolatedDirective, const String& violatedDirective, const ContentSecurityPolicyDirectiveList&, const URL& blockedURL, const String& consoleMessage, JSC::JSGlobalObject* = nullptr) const;
@@ -216,6 +218,7 @@ private:
     ScriptExecutionContext* m_scriptExecutionContext { nullptr };
     ContentSecurityPolicyClient* m_client { nullptr };
     URL m_protectedURL;
+    std::optional<URL> m_documentURL;
     std::unique_ptr<ContentSecurityPolicySource> m_selfSource;
     String m_selfSourceProtocol;
     CSPDirectiveListVector m_policies;
@@ -231,7 +234,7 @@ private:
     OptionSet<ContentSecurityPolicyHashAlgorithm> m_hashAlgorithmsForInlineScripts;
     OptionSet<ContentSecurityPolicyHashAlgorithm> m_hashAlgorithmsForInlineStylesheets;
     HashSet<SecurityOriginData> m_insecureNavigationRequestsToUpgrade;
-    mutable Optional<ContentSecurityPolicyResponseHeaders> m_cachedResponseHeaders;
+    mutable std::optional<ContentSecurityPolicyResponseHeaders> m_cachedResponseHeaders;
 };
 
 }

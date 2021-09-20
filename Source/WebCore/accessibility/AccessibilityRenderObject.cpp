@@ -41,6 +41,7 @@
 #include "DocumentSVG.h"
 #include "Editing.h"
 #include "Editor.h"
+#include "EditorClient.h"
 #include "ElementIterator.h"
 #include "EventHandler.h"
 #include "FloatRect.h"
@@ -83,6 +84,7 @@
 #include "RenderInline.h"
 #include "RenderIterator.h"
 #include "RenderLayer.h"
+#include "RenderLayerScrollableArea.h"
 #include "RenderLineBreak.h"
 #include "RenderListBox.h"
 #include "RenderListItem.h"
@@ -549,7 +551,7 @@ bool AccessibilityRenderObject::isOffScreen() const
     if (!m_renderer)
         return true;
 
-    IntRect contentRect = snappedIntRect(m_renderer->absoluteClippedOverflowRect());
+    IntRect contentRect = snappedIntRect(m_renderer->absoluteClippedOverflowRectForSpatialNavigation());
     // FIXME: unclear if we need LegacyIOSDocumentVisibleRect.
     IntRect viewRect = m_renderer->view().frameView().visibleContentRect(ScrollableArea::LegacyIOSDocumentVisibleRect);
     viewRect.intersect(contentRect);
@@ -648,7 +650,7 @@ String AccessibilityRenderObject::textUnderElement(AccessibilityTextUnderElement
         // If possible, use a text iterator to get the text, so that whitespace
         // is handled consistently.
         Document* nodeDocument = nullptr;
-        Optional<SimpleRange> textRange;
+        std::optional<SimpleRange> textRange;
         if (Node* node = m_renderer->node()) {
             nodeDocument = &node->document();
             textRange = makeRangeSelectingNodeContents(*node);
@@ -769,7 +771,7 @@ String AccessibilityRenderObject::stringValue() const
     }
     
     if (is<RenderListMarker>(*m_renderer))
-        return downcast<RenderListMarker>(*m_renderer).text();
+        return downcast<RenderListMarker>(*m_renderer).textWithoutSuffix().toString();
     
     if (isWebArea())
         return String();
@@ -1003,7 +1005,7 @@ AccessibilityObject* AccessibilityRenderObject::internalLinkElement() const
     if (!equalIgnoringFragmentIdentifier(documentURL, linkURL))
         return nullptr;
 
-    auto linkedNode = m_renderer->document().findAnchor(fragmentIdentifier.toStringWithoutCopying());
+    auto linkedNode = m_renderer->document().findAnchor(fragmentIdentifier);
     if (!linkedNode)
         return nullptr;
 
@@ -1213,9 +1215,9 @@ void AccessibilityRenderObject::titleElementText(Vector<AccessibilityText>& text
     
 AccessibilityObject* AccessibilityRenderObject::titleUIElement() const
 {
-    if (!m_renderer)
+    if (!m_renderer || !exposesTitleUIElement())
         return nullptr;
-    
+
     // if isFieldset is true, the renderer is guaranteed to be a RenderFieldset
     if (isFieldset())
         return axObjectCache()->getOrCreate(downcast<RenderBlock>(*m_renderer).findFieldsetLegend(RenderBlock::FieldsetIncludeFloatingOrOutOfFlow));
@@ -1550,8 +1552,8 @@ bool AccessibilityRenderObject::computeAccessibilityIsIgnored() const
 
     // Find out if this element is inside of a label element.
     // If so, it may be ignored because it's the label for a checkbox or radio button.
-    AccessibilityObject* controlObject = correspondingControlForLabelElement();
-    if (controlObject && !controlObject->exposesTitleUIElement() && controlObject->isCheckboxOrRadio())
+    auto* controlObject = correspondingControlForLabelElement();
+    if (controlObject && controlObject->isCheckboxOrRadio() && !controlObject->titleUIElement())
         return true;
 
     // By default, objects should be ignored so that the AX hierarchy is not
@@ -1664,6 +1666,36 @@ PlainTextRange AccessibilityRenderObject::selectedTextRange() const
     return documentBasedSelectedTextRange();
 }
 
+int AccessibilityRenderObject::insertionPointLineNumber() const
+{
+    ASSERT(isTextControl());
+
+    // Use the text control native range if it's a native object.
+    if (isNativeTextControl()) {
+        auto& textControl = downcast<RenderTextControl>(*m_renderer).textFormControlElement();
+        int start = textControl.selectionStart();
+        int end = textControl.selectionEnd();
+
+        // If the selection range is not a collapsed range, we don't know whether the insertion point is the start or the end, thus return -1.
+        // FIXME: for non-collapsed selection, determine the insertion point based on the TextFieldSelectionDirection.
+        if (start != end)
+            return -1;
+
+        return lineForPosition(textControl.visiblePositionForIndex(start));
+    }
+
+    auto* frame = this->frame();
+    if (!frame)
+        return -1;
+
+    auto selectedTextRange = frame->selection().selection().firstRange();
+    // If the selection range is not a collapsed range, we don't know whether the insertion point is the start or the end, thus return -1.
+    if (!selectedTextRange || !selectedTextRange->collapsed())
+        return -1;
+
+    return lineForPosition(makeDeprecatedLegacyPosition(selectedTextRange->start));
+}
+
 static void setTextSelectionIntent(AXObjectCache* cache, AXTextStateChangeType type)
 {
     if (!cache)
@@ -1685,6 +1717,9 @@ void AccessibilityRenderObject::setSelectedTextRange(const PlainTextRange& range
 {
     setTextSelectionIntent(axObjectCache(), range.length ? AXTextStateChangeTypeSelectionExtend : AXTextStateChangeTypeSelectionMove);
 
+    if (auto client = m_renderer->document().editor().client())
+        client->willChangeSelectionForAccessibility();
+
     if (isNativeTextControl()) {
         HTMLTextFormControlElement& textControl = downcast<RenderTextControl>(*m_renderer).textFormControlElement();
         textControl.setSelectionRange(range.start, range.start + range.length);
@@ -1702,6 +1737,9 @@ void AccessibilityRenderObject::setSelectedTextRange(const PlainTextRange& range
     }
     
     clearTextSelectionIntent(axObjectCache());
+
+    if (auto client = m_renderer->document().editor().client())
+        client->didChangeSelectionForAccessibility();
 }
 
 URL AccessibilityRenderObject::url() const
@@ -2244,6 +2282,9 @@ void AccessibilityRenderObject::setSelectedVisiblePositionRange(const VisiblePos
         && isVisiblePositionRangeInDifferentDocument(range))
         return;
 
+    if (auto client = m_renderer->document().editor().client())
+        client->willChangeSelectionForAccessibility();
+
     // make selection and tell the document to use it. if it's zero length, then move to that position
     if (range.start == range.end) {
         setTextSelectionIntent(axObjectCache(), AXTextStateChangeTypeSelectionMove);
@@ -2259,10 +2300,13 @@ void AccessibilityRenderObject::setSelectedVisiblePositionRange(const VisiblePos
         setTextSelectionIntent(axObjectCache(), AXTextStateChangeTypeSelectionExtend);
 
         VisibleSelection newSelection = VisibleSelection(range.start, range.end);
-        m_renderer->frame().selection().setSelection(newSelection, FrameSelection::defaultSetSelectionOptions());
+        m_renderer->frame().selection().setSelection(newSelection, FrameSelection::defaultSetSelectionOptions(UserTriggered));
     }
 
     clearTextSelectionIntent(axObjectCache());
+
+    if (auto client = m_renderer->document().editor().client())
+        client->didChangeSelectionForAccessibility();
 }
 
 VisiblePosition AccessibilityRenderObject::visiblePositionForPoint(const IntPoint& point) const
@@ -2282,7 +2326,7 @@ VisiblePosition AccessibilityRenderObject::visiblePositionForPoint(const IntPoin
     Node* innerNode = nullptr;
     
     // Locate the node containing the point
-    // FIXME: Remove this loop and instead add HitTestRequest::AllowVisibleChildFrameContentOnly to the hit test request type.
+    // FIXME: Remove this loop and instead add HitTestRequest::Type::AllowVisibleChildFrameContentOnly to the hit test request type.
     LayoutPoint pointResult;
     while (1) {
         LayoutPoint pointToUse;
@@ -2291,7 +2335,7 @@ VisiblePosition AccessibilityRenderObject::visiblePositionForPoint(const IntPoin
 #else
         pointToUse = point;
 #endif
-        constexpr OptionSet<HitTestRequest::RequestType> hitType { HitTestRequest::ReadOnly, HitTestRequest::Active };
+        constexpr OptionSet<HitTestRequest::Type> hitType { HitTestRequest::Type::ReadOnly, HitTestRequest::Type::Active };
         HitTestResult result { pointToUse };
         renderView->document().hitTest(hitType, result);
         innerNode = result.innerNode();
@@ -2505,7 +2549,7 @@ AXCoreObject* AccessibilityRenderObject::accessibilityHitTest(const IntPoint& po
 
     RenderLayer* layer = downcast<RenderBox>(*m_renderer).layer();
      
-    constexpr OptionSet<HitTestRequest::RequestType> hitType { HitTestRequest::ReadOnly, HitTestRequest::Active, HitTestRequest::AccessibilityHitTest };
+    constexpr OptionSet<HitTestRequest::Type> hitType { HitTestRequest::Type::ReadOnly, HitTestRequest::Type::Active, HitTestRequest::Type::AccessibilityHitTest };
     HitTestResult hitTestResult { point };
     layer->hitTest(hitType, hitTestResult);
     Node* node = hitTestResult.innerNode();
@@ -2534,8 +2578,8 @@ AXCoreObject* AccessibilityRenderObject::accessibilityHitTest(const IntPoint& po
     
     if (result && result->accessibilityIsIgnored()) {
         // If this element is the label of a control, a hit test should return the control.
-        AXCoreObject* controlObject = result->correspondingControlForLabelElement();
-        if (controlObject && !controlObject->exposesTitleUIElement())
+        auto* controlObject = result->correspondingControlForLabelElement();
+        if (controlObject && !controlObject->titleUIElement())
             return controlObject;
 
         result = result->parentObjectUnignored();
@@ -2757,6 +2801,14 @@ bool AccessibilityRenderObject::supportsExpandedTextValue() const
             return parent->hasTagName(abbrTag) || parent->hasTagName(acronymTag);
     }
     
+    return false;
+}
+
+bool AccessibilityRenderObject::shouldIgnoreAttributeRole() const
+{
+    if (m_ariaRole == AccessibilityRole::Document
+        && hasContentEditableAttributeSet())
+        return true;
     return false;
 }
 
@@ -3126,27 +3178,6 @@ bool AccessibilityRenderObject::canSetTextRangeAttributes() const
     return isTextControl();
 }
 
-void AccessibilityRenderObject::textChanged()
-{
-    // If this element supports ARIA live regions, or is part of a region with an ARIA editable role,
-    // then notify the AT of changes.
-    AXObjectCache* cache = axObjectCache();
-    if (!cache)
-        return;
-    
-    for (RenderObject* renderParent = renderer(); renderParent; renderParent = renderParent->parent()) {
-        AccessibilityObject* parent = cache->get(renderParent);
-        if (!parent)
-            continue;
-        
-        if (parent->supportsLiveRegion())
-            cache->postLiveRegionChangeNotification(parent);
-
-        if (parent->isNonNativeTextControl())
-            cache->postNotification(renderParent, AXObjectCache::AXValueChanged);
-    }
-}
-
 void AccessibilityRenderObject::clearChildren()
 {
     AccessibilityObject::clearChildren();
@@ -3231,7 +3262,7 @@ AccessibilitySVGRoot* AccessibilityRenderObject::remoteSVGRootElement(CreationCh
     Image* image = cachedImage->image();
     if (!is<SVGImage>(image))
         return nullptr;
-    
+
     FrameView* frameView = downcast<SVGImage>(*image).frameView();
     if (!frameView)
         return nullptr;
@@ -3910,7 +3941,7 @@ ScrollableArea* AccessibilityRenderObject::getScrollableAreaIfScrollable() const
     if (!box.canBeScrolledAndHasScrollableArea())
         return nullptr;
 
-    return box.layer();
+    return box.layer() ? box.layer()->scrollableArea() : nullptr;
 }
 
 void AccessibilityRenderObject::scrollTo(const IntPoint& point) const
@@ -3923,7 +3954,9 @@ void AccessibilityRenderObject::scrollTo(const IntPoint& point) const
         return;
 
     // FIXME: is point a ScrollOffset or ScrollPosition? Test in RTL overflow.
-    box.layer()->scrollToOffset(point);
+    ASSERT(box.layer());
+    ASSERT(box.layer()->scrollableArea());
+    box.layer()->scrollableArea()->scrollToOffset(point);
 }
 
 #if ENABLE(MATHML)

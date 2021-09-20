@@ -56,9 +56,12 @@
 #import <wtf/cocoa/NSURLExtras.h>
 #import <wtf/spi/cocoa/SecuritySPI.h>
 
-
 #if !HAVE(URL_FORMATTING)
 SOFT_LINK_PRIVATE_FRAMEWORK_OPTIONAL(LinkPresentation)
+#endif
+
+#if HAVE(UIKIT_WEBKIT_INTERNALS)
+#include <WebKitAdditions/WKFullscreenWindowControllerAdditions.h>
 #endif
 
 namespace WebKit {
@@ -549,7 +552,7 @@ private:
     [_window setHidden:NO];
 
     _rootViewController = [[UIViewController alloc] init];
-    _rootViewController.get().view = [[[UIView alloc] initWithFrame:_window.get().bounds] autorelease];
+    _rootViewController.get().view = adoptNS([[UIView alloc] initWithFrame:_window.get().bounds]).get();
     _rootViewController.get().view.backgroundColor = [UIColor clearColor];
     _rootViewController.get().view.autoresizingMask = (UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight);
     [_rootViewController setModalPresentationStyle:UIModalPresentationCustom];
@@ -605,8 +608,6 @@ private:
         
         [[_webViewPlaceholder layer] setContents:(id)[snapshotImage CGImage]];
         WebKit::replaceViewWithView(webView.get(), _webViewPlaceholder.get());
-
-        WebKit::WKWebViewState().applyTo(webView.get());
         
         [webView setAutoresizingMask:(UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight)];
         [webView setFrame:[_window bounds]];
@@ -680,6 +681,7 @@ private:
             return;
         }
 
+        WebKit::WKWebViewState().applyTo(webView.get());
         auto page = [self._webView _page];
         auto* manager = self._manager;
         if (page && manager) {
@@ -687,6 +689,10 @@ private:
             manager->didEnterFullScreen();
             manager->setAnimatingFullScreen(false);
             page->setSuppressVisibilityUpdates(false);
+
+#if HAVE(UIKIT_WEBKIT_INTERNALS)
+            configureViewForFullscreen(_fullscreenViewController.get().view);
+#endif
 
             if (auto* videoFullscreenManager = self._videoFullscreenManager) {
                 videoFullscreenManager->setClient(&_videoFullscreenManagerProxyClient);
@@ -812,7 +818,7 @@ private:
 
     _viewState.applyTo(webView.get());
     if (auto page = [webView _page])
-        page->setOverrideViewportArguments(WTF::nullopt);
+        page->setOverrideViewportArguments(std::nullopt);
 
     [webView setNeedsLayout];
     [webView layoutIfNeeded];
@@ -855,6 +861,7 @@ private:
         completionHandler();
 
     [_fullscreenViewController setPrefersStatusBarHidden:YES];
+    [_fullscreenViewController invalidate];
     _fullscreenViewController = nil;
 }
 
@@ -881,7 +888,7 @@ private:
     if (superview)
         return;
 
-    dispatch_async(dispatch_get_main_queue(), ^{
+    RunLoop::main().dispatch([self, strongSelf = retainPtr(self)] {
         if ([_webViewPlaceholder superview] == nil && [_webViewPlaceholder parent] == self)
             [self close];
     });
@@ -1030,28 +1037,28 @@ private:
     if (!trust)
         return nil;
 
-    NSDictionary *infoDictionary = CFBridgingRelease(SecTrustCopyInfo(trust));
+    auto infoDictionary = adoptCF(SecTrustCopyInfo(trust));
     // If SecTrustCopyInfo returned NULL then it's likely that the SecTrustRef has not been evaluated
     // and the only way to get the information we need is to call SecTrustEvaluate ourselves.
     if (!infoDictionary) {
         if (!SecTrustEvaluateWithError(trust, nullptr))
             return nil;
-        infoDictionary = CFBridgingRelease(SecTrustCopyInfo(trust));
+        infoDictionary = adoptCF(SecTrustCopyInfo(trust));
         if (!infoDictionary)
             return nil;
     }
 
     // Make sure that the EV certificate is valid against our certificate chain.
-    id hasEV = [infoDictionary objectForKey:(__bridge NSString *)kSecTrustInfoExtendedValidationKey];
+    id hasEV = [(__bridge NSDictionary *)infoDictionary.get() objectForKey:(__bridge NSString *)kSecTrustInfoExtendedValidationKey];
     if (![hasEV isKindOfClass:[NSValue class]] || ![hasEV boolValue])
         return nil;
 
     // Make sure that we could contact revocation server and it is still valid.
-    id isNotRevoked = [infoDictionary objectForKey:(__bridge NSString *)kSecTrustInfoRevocationKey];
+    id isNotRevoked = [(__bridge NSDictionary *)infoDictionary.get() objectForKey:(__bridge NSString *)kSecTrustInfoRevocationKey];
     if (![isNotRevoked isKindOfClass:[NSValue class]] || ![isNotRevoked boolValue])
         return nil;
 
-    _EVOrganizationName = [infoDictionary objectForKey:(__bridge NSString *)kSecTrustInfoCompanyNameKey];
+    _EVOrganizationName = [(__bridge NSDictionary *)infoDictionary.get() objectForKey:(__bridge NSString *)kSecTrustInfoCompanyNameKey];
     return _EVOrganizationName.get();
 }
 

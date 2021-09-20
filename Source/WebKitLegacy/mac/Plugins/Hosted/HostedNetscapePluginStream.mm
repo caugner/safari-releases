@@ -115,12 +115,12 @@ void HostedNetscapePluginStream::startStream(NSURL *responseURL, long long expec
                      const_cast<char*>(reinterpret_cast<const char*>([headers bytes])), [headers length]);
 }
                      
-void HostedNetscapePluginStream::didReceiveData(WebCore::NetscapePlugInStreamLoader*, const char* bytes, int length)
+void HostedNetscapePluginStream::didReceiveData(WebCore::NetscapePlugInStreamLoader*, const uint8_t* bytes, int length)
 {
     _WKPHStreamDidReceiveData(m_instance->hostProxy()->port(),
                               m_instance->pluginID(),
                               m_streamID,
-                              const_cast<char*>(bytes), length);
+                              const_cast<char*>(reinterpret_cast<const char*>(bytes)), length);
 }
     
 void HostedNetscapePluginStream::didFinishLoading(WebCore::NetscapePlugInStreamLoader*)
@@ -261,11 +261,11 @@ void HostedNetscapePluginStream::cancelLoad(NSError *error)
 
 NSError *HostedNetscapePluginStream::pluginCancelledConnectionError() const
 {
-    return [[[NSError alloc] _initWithPluginErrorCode:WebKitErrorPlugInCancelledConnection
+    return adoptNS([[NSError alloc] _initWithPluginErrorCode:WebKitErrorPlugInCancelledConnection
                                            contentURL:m_responseURL ? m_responseURL.get() : m_requestURL.get()
                                         pluginPageURL:nil
                                            pluginName:[[m_instance->pluginView() pluginPackage] pluginInfo].name
-                                             MIMEType:m_mimeType.get()] autorelease];
+                                             MIMEType:m_mimeType.get()]).autorelease();
 }
 
 NSError *HostedNetscapePluginStream::errorForReason(NPReason reason) const

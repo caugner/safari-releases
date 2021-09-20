@@ -833,6 +833,7 @@ private:
             break;
         }
             
+        case ToBoolean:
         case LogicalNot: {
             if (node->child1()->shouldSpeculateBoolean()) {
                 if (node->child1()->result() == NodeResultBoolean) {
@@ -1052,7 +1053,19 @@ private:
                     m_graph.varArgChild(node, 0)->prediction(),
                     m_graph.varArgChild(node, 1)->prediction(),
                     SpecNone));
-            
+
+            switch (node->arrayMode().type()) {
+            case Array::BigInt64Array:
+            case Array::BigUint64Array:
+                // Make it Array::Generic.
+                // FIXME: Add BigInt64Array / BigUint64Array support.
+                // https://bugs.webkit.org/show_bug.cgi?id=221172
+                node->setArrayMode(ArrayMode(Array::Generic, node->arrayMode().action()));
+                break;
+            default:
+                break;
+            }
+
             blessArrayOperation(m_graph.varArgChild(node, 0), m_graph.varArgChild(node, 1), m_graph.varArgChild(node, 2));
             
             ArrayMode arrayMode = node->arrayMode();
@@ -1060,7 +1073,7 @@ private:
             case Array::Contiguous:
             case Array::Double:
             case Array::Int32: {
-                Optional<Array::Speculation> saneChainSpeculation;
+                std::optional<Array::Speculation> saneChainSpeculation;
                 if (arrayMode.isJSArrayWithOriginalStructure()) {
                     // Check if InBoundsSaneChain will work on a per-type basis. Note that:
                     //
@@ -1223,6 +1236,18 @@ private:
                     child1->prediction(),
                     child2->prediction(),
                     child3->prediction()));
+
+            switch (node->arrayMode().type()) {
+            case Array::BigInt64Array:
+            case Array::BigUint64Array:
+                // Make it Array::Generic.
+                // FIXME: Add BigInt64Array / BigUint64Array support.
+                // https://bugs.webkit.org/show_bug.cgi?id=221172
+                node->setArrayMode(ArrayMode(Array::Generic, node->arrayMode().action()));
+                break;
+            default:
+                break;
+            }
             
             blessArrayOperation(child1, child2, m_graph.varArgChild(node, 3));
             
@@ -1335,33 +1360,63 @@ private:
                 node->arrayMode().refine(
                     m_graph, node, base->prediction(), index->prediction()));
             
-            if (!node->arrayMode().isOneOfTypedArrayView()) {
+            switch (node->arrayMode().type()) {
+            case Array::Int8Array:
+            case Array::Uint8Array:
+            case Array::Int16Array:
+            case Array::Uint16Array:
+            case Array::Int32Array:
+            case Array::Uint32Array: {
+                for (unsigned i = numExtraAtomicsArgs(node->op()); i--;) {
+                    Edge& child = m_graph.child(node, 2 + i);
+                    if (child->shouldSpeculateInt32())
+                        fixIntOrBooleanEdge(child);
+                    else if (child->shouldSpeculateInt52())
+                        fixEdge<Int52RepUse>(child);
+                    else {
+                        RELEASE_ASSERT(child->shouldSpeculateNumberOrBoolean() && m_graph.m_plan.isFTL());
+                        fixDoubleOrBooleanEdge(child);
+                    }
+                }
+
+                blessArrayOperation(base, index, m_graph.child(node, 2 + numExtraAtomicsArgs(node->op())));
+                fixEdge<CellUse>(base);
+                fixEdge<Int32Use>(index);
+
+                if (node->op() == AtomicsStore) {
+                    Edge& operand = m_graph.child(node, 2);
+                    switch (operand.useKind()) {
+                    case Int32Use:
+                        // Default result type.
+                        break;
+                    case Int52RepUse:
+                        node->setResult(NodeResultInt52);
+                        break;
+                    case DoubleRepUse:
+                        node->setResult(NodeResultDouble);
+                        break;
+                    default:
+                        DFG_CRASH(m_graph, node, "Bad use kind");
+                        break;
+                    }
+                } else {
+                    if (node->arrayMode().type() == Array::Uint32Array) {
+                        // NOTE: This means basically always doing Int52.
+                        if (node->shouldSpeculateInt52())
+                            node->setResult(NodeResultInt52);
+                        else
+                            node->setResult(NodeResultDouble);
+                    }
+                }
+                break;
+            }
+            default: {
+                // Make it Array::Generic.
+                // FIXME: Add BigInt64Array / BigUint64Array support.
+                // https://bugs.webkit.org/show_bug.cgi?id=221172
                 node->setArrayMode(ArrayMode(Array::Generic, node->arrayMode().action()));
                 break;
             }
-            
-            for (unsigned i = numExtraAtomicsArgs(node->op()); i--;) {
-                Edge& child = m_graph.child(node, 2 + i);
-                if (child->shouldSpeculateInt32())
-                    fixIntOrBooleanEdge(child);
-                else if (child->shouldSpeculateInt52())
-                    fixEdge<Int52RepUse>(child);
-                else {
-                    RELEASE_ASSERT(child->shouldSpeculateNumberOrBoolean() && m_graph.m_plan.isFTL());
-                    fixDoubleOrBooleanEdge(child);
-                }
-            }
-            
-            blessArrayOperation(base, index, m_graph.child(node, 2 + numExtraAtomicsArgs(node->op())));
-            fixEdge<CellUse>(base);
-            fixEdge<Int32Use>(index);
-            
-            if (node->arrayMode().type() == Array::Uint32Array) {
-                // NOTE: This means basically always doing Int52.
-                if (node->shouldSpeculateInt52())
-                    node->setResult(NodeResultInt52);
-                else
-                    node->setResult(NodeResultDouble);
             }
             break;
         }
@@ -1918,7 +1973,18 @@ private:
             break;
         }
 
+        case FunctionToString: {
+            fixEdge<FunctionUse>(node->child1());
+            break;
+        }
 
+        case SetPrivateBrand: {
+            fixEdge<CellUse>(node->child1());
+            fixEdge<SymbolUse>(node->child2());
+            break;
+        }
+
+        case CheckPrivateBrand:
         case PutPrivateName: {
             fixEdge<SymbolUse>(node->child2());
             break;
@@ -2041,6 +2107,13 @@ private:
             }
 
             fixEdge<CellUse>(node->child1());
+            break;
+        }
+
+        case HasPrivateName:
+        case HasPrivateBrand: {
+            fixEdge<CellUse>(node->child1());
+            fixEdge<SymbolUse>(node->child2());
             break;
         }
 
@@ -2727,6 +2800,15 @@ private:
             break;
         }
 
+        case ObjectAssign: {
+            Edge& source = node->child2();
+            if (source->shouldSpeculateObject())
+                fixEdge<ObjectUse>(source);
+            else
+                fixEdge<UntypedUse>(source);
+            break;
+        }
+
 #if ASSERT_ENABLED
         // Have these no-op cases here to ensure that nobody forgets to add handlers for new opcodes.
         case SetArgumentDefinitely:
@@ -2813,8 +2895,10 @@ private:
         case FilterCallLinkStatus:
         case FilterGetByStatus:
         case FilterPutByIdStatus:
-        case FilterInByIdStatus:
+        case FilterInByStatus:
         case FilterDeleteByStatus:
+        case FilterCheckPrivateBrandStatus:
+        case FilterSetPrivateBrandStatus:
         case InvalidationPoint:
         case CreateArgumentsButterfly:
             break;
@@ -2943,7 +3027,7 @@ private:
 
     void fixupIsCellWithType(Node* node)
     {
-        Optional<SpeculatedType> filter = node->speculatedTypeForQuery();
+        std::optional<SpeculatedType> filter = node->speculatedTypeForQuery();
         if (filter) {
             switch (filter.value()) {
             case SpecString:
@@ -4207,6 +4291,14 @@ private:
     {
         ASSERT(node->op() == SameValue || node->op() == CompareStrictEq);
 
+        if (node->child1().node() == node->child2().node()
+            && node->child1()->shouldSpeculateNotDouble()) {
+            m_insertionSet.insertNode(
+                m_indexInBlock, SpecNone, Check, node->origin,
+                Edge(node->child1().node(), NotDoubleUse));
+            m_graph.convertToConstant(node, jsBoolean(true));
+            return;
+        }
         if (Node::shouldSpeculateBoolean(node->child1().node(), node->child2().node())) {
             fixEdge<BooleanUse>(node->child1());
             fixEdge<BooleanUse>(node->child2());
@@ -4325,6 +4417,23 @@ private:
             node->setOpAndDefaultFlags(CompareStrictEq);
             return;
         }
+#if !USE(BIGINT32)
+        // As long as a BigInt32 and a HeapBigInt can compare equal, it is not sound to replace compareStrictEq by a simple comparison of the JSValue in the following cases.
+        if (node->child1()->shouldSpeculateNeitherDoubleNorHeapBigIntNorString()
+            && node->child2()->shouldSpeculateNotDouble()) {
+            fixEdge<NeitherDoubleNorHeapBigIntNorStringUse>(node->child1());
+            fixEdge<NotDoubleUse>(node->child2());
+            node->setOpAndDefaultFlags(CompareStrictEq);
+            return;
+        }
+        if (node->child1()->shouldSpeculateNotDouble()
+            && node->child2()->shouldSpeculateNeitherDoubleNorHeapBigIntNorString()) {
+            fixEdge<NotDoubleUse>(node->child1());
+            fixEdge<NeitherDoubleNorHeapBigIntNorStringUse>(node->child2());
+            node->setOpAndDefaultFlags(CompareStrictEq);
+            return;
+        }
+#endif
     }
 
     void fixupChecksInBlock(BasicBlock* block)

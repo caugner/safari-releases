@@ -52,7 +52,7 @@ Filing a new bug, fixing a bug, or adding a new feature.
 
 There are three different kinds of contributors in the WebKit project.
 
- * Contributor - This category emcompasses everyone. Anyone who files a bug or contributes a code change or reviews a code change is considered as a contributor
+ * Contributor - This category encompasses everyone. Anyone who files a bug or contributes a code change or reviews a code change is considered as a contributor
  * Committer - A committer is someone who has write access to [WebKit's subversion repository](https://svn.webkit.org/repository/webkit/).
  * Reviewer - A reviewer is someone who has the right to review and approve code changes other contributors proposed.
 
@@ -816,7 +816,7 @@ In addition to handling all network accesses,
 this process is also responsible for managing the disk cache and Web APIs that allow websites
 to store structured data such as [Web Storage API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Storage_API)
 and [IndexedDB API](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API):
-![Diagram of WebKit2's multi-process architecture](webkit2-process-architecture.png)
+![Diagram of WebKit2's multi-process architecture](resources/webkit2-process-architecture.png)
 Because a WebContent process can Just-in-Time compile arbitrary JavaScript code loaded from the internet,
 meaning that it can write to memory that gets executed, this process is tightly sandboxed.
 It does not have access to any file system unless the user grants an access,
@@ -1344,5 +1344,49 @@ FIXME: Talk about how to debug API tests.
 
 # Logging in WebKit
 
-FIXME: Write this.
+Some places in WebKit use a macro called `LOG_WITH_STREAM`. Here's an example invocation:
 
+```
+LOG_WITH_STREAM(Scrolling, stream << "ScrollingTree::commitTreeState - removing unvisited node " << nodeID);
+```
+
+The first argument is the _log channel_ and the second is the _log content_. By default, this logging is enabled in
+debug builds and disabled in release builds (see definition of `LOG_DISABLED`).
+
+The only logs that will be printed are those whose channels you have enabled. You can specify the channels you want to
+enable by constructing a comma-separated list with the following syntax:
+
+* `ChannelName` to enable logging for this channel
+* `all` to enable logging for all channels
+* `-ChannelName` to disable logging for this channel
+
+Where you specify this list depends on the platform you are running WebKit on.
+
+### Linux
+
+Set the `WEBKIT_DEBUG` environment variable.
+
+```
+WEBKIT_DEBUG=Scrolling Tools/Scripts/run-minibrowser --gtk --debug
+```
+
+### Mac
+
+Set a value for the `WebCoreLogging` key in [standardUserDefaults](https://developer.apple.com/documentation/foundation/nsuserdefaults/1416603-standarduserdefaults).
+
+You may also pass this key and value as an argument:
+
+```
+Tools/Scripts/run-minibrowser --debug -WebCoreLogging Scrolling
+```
+
+or set the key and value on the [NSGlobalDomain](https://developer.apple.com/documentation/foundation/nsglobaldomain).
+
+```
+defaults write NSGlobalDomain  WebCoreLogging -string Scrolling
+Tools/Scripts/run-minibrowser --debug
+```
+
+### Windows
+
+Set the `WebCoreLogging` environment variable.

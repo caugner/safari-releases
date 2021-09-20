@@ -1283,7 +1283,7 @@ var checkCanvasRectColor = function(gl, x, y, width, height, color, opt_errorRan
           was += "," + buf[offset + j];
         }
         differentFn('at (' + (x + (i % width)) + ', ' + (y + Math.floor(i / width)) +
-                    ') expected: ' + color + ' was ' + was);
+                    ') expected: ' + color + ' was ' + was, buf);
         return;
       }
     }
@@ -1751,13 +1751,23 @@ var framebufferStatusShouldBe = function(gl, target, glStatuses, opt_msg) {
     return glEnumToString(gl, status);
   }).join(' or ');
   if (ndx < 0) {
-    var msg = "checkFramebufferStatus expected" + ((glStatuses.length > 1) ? " one of: " : ": ");
-    testFailed(msg + expected +  ". Was " + glEnumToString(gl, status) + " : " + opt_msg);
-  } else {
-    var msg = "checkFramebufferStatus was " + ((glStatuses.length > 1) ? "one of: " : "expected value: ");
-    testPassed(msg + expected + " : " + opt_msg);
+    let msg = "checkFramebufferStatus expected" + ((glStatuses.length > 1) ? " one of: " : ": ") +
+      expected +  ". Was " + glEnumToString(gl, status);
+    if (opt_msg) {
+      msg += ": " + opt_msg;
+    }
+    testFailed(msg);
+    return false;
   }
-  return status;
+  let msg = `checkFramebufferStatus was ${glEnumToString(gl, status)}`;
+  if (glStatuses.length > 1) {
+    msg += `, one of: ${expected}`;
+  }
+  if (opt_msg) {
+    msg += ": " + opt_msg;
+  }
+  testPassed(msg);
+  return [status];
 }
 
 /**
@@ -3122,7 +3132,16 @@ var runSteps = function(steps) {
  * @param {!function(!HTMLVideoElement): void} callback Function to call when
  *        video is ready.
  */
-var startPlayingAndWaitForVideo = function(video, callback) {
+function startPlayingAndWaitForVideo(video, callback) {
+  if (video.error) {
+    testFailed('Video failed to load: ' + video.error);
+    return;
+  }
+
+  video.addEventListener(
+      'error', e => { testFailed('Video playback failed: ' + e.message); },
+      true);
+
   var rvfc = getRequestVidFrameCallback();
   if (rvfc === undefined) {
     var timeWatcher = function() {
@@ -3319,12 +3338,12 @@ function comparePixels(cmp, ref, tolerance, diff) {
 }
 
 function destroyContext(gl) {
-  gl.canvas.width = 1;
-  gl.canvas.height = 1;
   const ext = gl.getExtension('WEBGL_lose_context');
   if (ext) {
     ext.loseContext();
   }
+  gl.canvas.width = 1;
+  gl.canvas.height = 1;
 }
 
 function destroyAllContexts() {

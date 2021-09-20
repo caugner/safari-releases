@@ -28,7 +28,6 @@
 
 #include "PeerConnectionBackend.h"
 #include "RealtimeMediaSource.h"
-#include <wtf/HashMap.h>
 
 namespace webrtc {
 class IceCandidateInterface;
@@ -111,6 +110,7 @@ private:
 
     void suspend() final;
     void resume() final;
+    void disableICECandidateFiltering() final;
 
     Ref<LibWebRTCMediaEndpoint> m_endpoint;
     bool m_isLocalDescriptionSet { false };

@@ -84,6 +84,15 @@
     [self _didSelectPaymentMethod:paymentMethod completion:completion];
 }
 
+#if HAVE(PASSKIT_COUPON_CODE)
+
+- (void)paymentAuthorizationController:(PKPaymentAuthorizationController *)controller didChangeCouponCode:(NSString *)couponCode handler:(void (^)(PKPaymentRequestCouponCodeUpdate *update))completion
+{
+    [self _didChangeCouponCode:couponCode completion:completion];
+}
+
+#endif // HAVE(PASSKIT_COUPON_CODE)
+
 #pragma mark PKPaymentAuthorizationControllerPrivateDelegate
 
 - (void)paymentAuthorizationController:(PKPaymentAuthorizationController *)controller willFinishWithError:(NSError *)error

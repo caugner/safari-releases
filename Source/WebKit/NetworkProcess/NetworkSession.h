@@ -25,7 +25,10 @@
 
 #pragma once
 
+#include "AppPrivacyReport.h"
+#include "NavigatingToAppBoundDomain.h"
 #include "PrefetchCache.h"
+#include "PrivateClickMeasurementNetworkLoader.h"
 #include "SandboxExtension.h"
 #include "ServiceWorkerSoftUpdateLoader.h"
 #include "WebResourceLoadStatisticsStore.h"
@@ -51,14 +54,18 @@ struct SecurityOriginData;
 
 namespace WebKit {
 
-class PrivateClickMeasurementManager;
 class NetworkDataTask;
+class NetworkLoadScheduler;
 class NetworkProcess;
 class NetworkResourceLoader;
+class NetworkBroadcastChannelRegistry;
 class NetworkSocketChannel;
+class PrivateClickMeasurementManager;
+class WebPageNetworkParameters;
 class WebResourceLoadStatisticsStore;
 class WebSocketTask;
 struct NetworkSessionCreationParameters;
+struct SessionSet;
 
 enum class WebsiteDataType : uint32_t;
 
@@ -104,9 +111,9 @@ public:
     void setThirdPartyCookieBlockingMode(WebCore::ThirdPartyCookieBlockingMode);
     void setShouldEnbleSameSiteStrictEnforcement(WebCore::SameSiteStrictEnforcementEnabled);
     void setFirstPartyHostCNAMEDomain(String&& firstPartyHost, WebCore::RegistrableDomain&& cnameDomain);
-    Optional<WebCore::RegistrableDomain> firstPartyHostCNAMEDomain(const String& firstPartyHost);
+    std::optional<WebCore::RegistrableDomain> firstPartyHostCNAMEDomain(const String& firstPartyHost);
     void setThirdPartyCNAMEDomainForTesting(WebCore::RegistrableDomain&& domain) { m_thirdPartyCNAMEDomainForTesting = WTFMove(domain); };
-    Optional<WebCore::RegistrableDomain> thirdPartyCNAMEDomainForTesting() const { return m_thirdPartyCNAMEDomainForTesting; }
+    std::optional<WebCore::RegistrableDomain> thirdPartyCNAMEDomainForTesting() const { return m_thirdPartyCNAMEDomainForTesting; }
     void resetCNAMEDomainData();
     void destroyResourceLoadStatistics(CompletionHandler<void()>&&);
 #endif
@@ -122,8 +129,11 @@ public:
     void clearPrivateClickMeasurementForRegistrableDomain(WebCore::RegistrableDomain&&);
     void setPrivateClickMeasurementOverrideTimerForTesting(bool value);
     void markAttributedPrivateClickMeasurementsAsExpiredForTesting(CompletionHandler<void()>&&);
-    void setPrivateClickMeasurementConversionURLForTesting(URL&&);
+    void setPrivateClickMeasurementTokenPublicKeyURLForTesting(URL&&);
+    void setPrivateClickMeasurementTokenSignatureURLForTesting(URL&&);
+    void setPrivateClickMeasurementAttributionReportURLsForTesting(URL&& sourceURL, URL&& destinationURL);
     void markPrivateClickMeasurementsAsExpiredForTesting();
+    void setPCMFraudPreventionValuesForTesting(String&& unlinkableToken, String&& secretToken, String&& signature, String&& keyID);
     void firePrivateClickMeasurementTimerImmediately();
 
     void addKeptAliveLoad(Ref<NetworkResourceLoader>&&);
@@ -134,11 +144,12 @@ public:
     PrefetchCache& prefetchCache() { return m_prefetchCache; }
     void clearPrefetchCache() { m_prefetchCache.clear(); }
 
-    virtual std::unique_ptr<WebSocketTask> createWebSocketTask(NetworkSocketChannel&, const WebCore::ResourceRequest&, const String& protocol);
-    virtual void removeWebSocketTask(WebSocketTask&) { }
-    virtual void addWebSocketTask(WebSocketTask&) { }
+    virtual std::unique_ptr<WebSocketTask> createWebSocketTask(WebPageProxyIdentifier, NetworkSocketChannel&, const WebCore::ResourceRequest&, const String& protocol);
+    virtual void removeWebSocketTask(SessionSet&, WebSocketTask&) { }
+    virtual void addWebSocketTask(WebPageProxyIdentifier, WebSocketTask&) { }
 
     WebCore::BlobRegistryImpl& blobRegistry() { return m_blobRegistry; }
+    NetworkBroadcastChannelRegistry& broadcastChannelRegistry() { return m_broadcastChannelRegistry; }
 
     unsigned testSpeedMultiplier() const { return m_testSpeedMultiplier; }
     bool allowsServerPreconnect() const { return m_allowsServerPreconnect; }
@@ -149,6 +160,24 @@ public:
     void addSoftUpdateLoader(std::unique_ptr<ServiceWorkerSoftUpdateLoader>&& loader) { m_softUpdateLoaders.add(WTFMove(loader)); }
     void removeSoftUpdateLoader(ServiceWorkerSoftUpdateLoader* loader) { m_softUpdateLoaders.remove(loader); }
 #endif
+
+    NetworkLoadScheduler& networkLoadScheduler();
+    PrivateClickMeasurementManager& privateClickMeasurement() { return *m_privateClickMeasurement; }
+
+#if PLATFORM(COCOA)
+    AppPrivacyReportTestingData& appPrivacyReportTestingData() { return m_appPrivacyReportTestingData; }
+#endif
+
+    void addPrivateClickMeasurementNetworkLoader(std::unique_ptr<PrivateClickMeasurementNetworkLoader>&& loader) { m_privateClickMeasurementNetworkLoaders.add(WTFMove(loader)); }
+    void removePrivateClickMeasurementNetworkLoader(PrivateClickMeasurementNetworkLoader* loader) { m_privateClickMeasurementNetworkLoaders.remove(loader); }
+
+    virtual void removeNetworkWebsiteData(std::optional<WallTime>, std::optional<HashSet<WebCore::RegistrableDomain>>&&, CompletionHandler<void()>&& completionHandler) { completionHandler(); }
+
+    virtual void addWebPageNetworkParameters(WebPageProxyIdentifier, WebPageNetworkParameters&&) { }
+    virtual void removeWebPageNetworkParameters(WebPageProxyIdentifier) { }
+    virtual size_t countNonDefaultSessionSets() const { return 0; }
+
+    String attributedBundleIdentifierFromPageIdentifier(WebPageProxyIdentifier) const;
 
 protected:
     NetworkSession(NetworkProcess&, const NetworkSessionCreationParameters&);
@@ -173,10 +202,10 @@ protected:
     WebCore::FirstPartyWebsiteDataRemovalMode m_firstPartyWebsiteDataRemovalMode { WebCore::FirstPartyWebsiteDataRemovalMode::AllButCookies };
     WebCore::RegistrableDomain m_standaloneApplicationDomain;
     HashMap<String, WebCore::RegistrableDomain> m_firstPartyHostCNAMEDomains;
-    Optional<WebCore::RegistrableDomain> m_thirdPartyCNAMEDomainForTesting;
+    std::optional<WebCore::RegistrableDomain> m_thirdPartyCNAMEDomainForTesting;
 #endif
     bool m_isStaleWhileRevalidateEnabled { false };
-    UniqueRef<PrivateClickMeasurementManager> m_privateClickMeasurement;
+    std::unique_ptr<PrivateClickMeasurementManager> m_privateClickMeasurement;
 
     HashSet<Ref<NetworkResourceLoader>> m_keptAliveLoads;
 
@@ -186,13 +215,22 @@ protected:
     bool m_isInvalidated { false };
 #endif
     RefPtr<NetworkCache::Cache> m_cache;
+    std::unique_ptr<NetworkLoadScheduler> m_networkLoadScheduler;
     WebCore::BlobRegistryImpl m_blobRegistry;
+    UniqueRef<NetworkBroadcastChannelRegistry> m_broadcastChannelRegistry;
     unsigned m_testSpeedMultiplier { 1 };
     bool m_allowsServerPreconnect { true };
 
 #if ENABLE(SERVICE_WORKER)
     HashSet<std::unique_ptr<ServiceWorkerSoftUpdateLoader>> m_softUpdateLoaders;
 #endif
+    
+#if PLATFORM(COCOA)
+    AppPrivacyReportTestingData m_appPrivacyReportTestingData;
+#endif
+
+    HashSet<std::unique_ptr<PrivateClickMeasurementNetworkLoader>> m_privateClickMeasurementNetworkLoaders;
+    HashMap<WebPageProxyIdentifier, String> m_attributedBundleIdentifierFromPageIdentifiers;
 };
 
 } // namespace WebKit

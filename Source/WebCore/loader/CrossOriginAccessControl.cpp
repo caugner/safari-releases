@@ -88,6 +88,8 @@ ResourceRequest createAccessControlPreflightRequest(const ResourceRequest& reque
     preflightRequest.setHTTPMethod("OPTIONS");
     preflightRequest.setHTTPHeaderField(HTTPHeaderName::AccessControlRequestMethod, request.httpMethod());
     preflightRequest.setPriority(request.priority());
+    preflightRequest.setFirstPartyForCookies(request.firstPartyForCookies());
+    preflightRequest.setIsAppInitiated(request.isAppInitiated());
     if (!referrer.isNull())
         preflightRequest.setHTTPReferrer(referrer);
 
@@ -255,7 +257,7 @@ Expected<void, String> passesAccessControlCheck(const ResourceResponse& response
     return { };
 }
 
-Expected<void, String> validatePreflightResponse(const ResourceRequest& request, const ResourceResponse& response, StoredCredentialsPolicy storedCredentialsPolicy, const SecurityOrigin& securityOrigin, const CrossOriginAccessControlCheckDisabler* checkDisabler)
+Expected<void, String> validatePreflightResponse(PAL::SessionID sessionID, const ResourceRequest& request, const ResourceResponse& response, StoredCredentialsPolicy storedCredentialsPolicy, const SecurityOrigin& securityOrigin, const CrossOriginAccessControlCheckDisabler* checkDisabler)
 {
     if (!response.isSuccessful())
         return makeUnexpected("Preflight response is not successful"_s);
@@ -270,7 +272,7 @@ Expected<void, String> validatePreflightResponse(const ResourceRequest& request,
 
     auto entry = WTFMove(result.value());
     auto errorDescription = entry->validateMethodAndHeaders(request.httpMethod(), request.httpHeaderFields());
-    CrossOriginPreflightResultCache::singleton().appendEntry(securityOrigin.toString(), request.url(), entry.moveToUniquePtr());
+    CrossOriginPreflightResultCache::singleton().appendEntry(sessionID, securityOrigin.toString(), request.url(), entry.moveToUniquePtr());
 
     if (errorDescription)
         return makeUnexpected(WTFMove(*errorDescription));
@@ -302,18 +304,18 @@ static inline bool shouldCrossOriginResourcePolicyCancelLoad(const SecurityOrigi
     return false;
 }
 
-Optional<ResourceError> validateCrossOriginResourcePolicy(const SecurityOrigin& origin, const URL& requestURL, const ResourceResponse& response)
+std::optional<ResourceError> validateCrossOriginResourcePolicy(const SecurityOrigin& origin, const URL& requestURL, const ResourceResponse& response)
 {
     if (shouldCrossOriginResourcePolicyCancelLoad(origin, response))
         return ResourceError { errorDomainWebKitInternal, 0, requestURL, makeString("Cancelled load to ", response.url().stringCenterEllipsizedToLength(), " because it violates the resource's Cross-Origin-Resource-Policy response header."), ResourceError::Type::AccessControl };
-    return WTF::nullopt;
+    return std::nullopt;
 }
 
-Optional<ResourceError> validateRangeRequestedFlag(const ResourceRequest& request, const ResourceResponse& response)
+std::optional<ResourceError> validateRangeRequestedFlag(const ResourceRequest& request, const ResourceResponse& response)
 {
     if (response.isRangeRequested() && response.httpStatusCode() == 206 && response.type() == ResourceResponse::Type::Opaque && !request.hasHTTPHeaderField(HTTPHeaderName::Range))
         return ResourceError({ }, 0, response.url(), { }, ResourceError::Type::General);
-    return WTF::nullopt;
+    return std::nullopt;
 }
 
 } // namespace WebCore

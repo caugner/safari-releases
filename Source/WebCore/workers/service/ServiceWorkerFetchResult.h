@@ -29,6 +29,7 @@
 
 #include "ContentSecurityPolicyResponseHeaders.h"
 #include "ResourceError.h"
+#include "ScriptBuffer.h"
 #include "ServiceWorkerRegistrationKey.h"
 #include "ServiceWorkerTypes.h"
 
@@ -37,7 +38,7 @@ namespace WebCore {
 struct ServiceWorkerFetchResult {
     ServiceWorkerJobDataIdentifier jobDataIdentifier;
     ServiceWorkerRegistrationKey registrationKey;
-    String script;
+    ScriptBuffer script;
     CertificateInfo certificateInfo;
     ContentSecurityPolicyResponseHeaders contentSecurityPolicy;
     String referrerPolicy;
@@ -64,7 +65,7 @@ void ServiceWorkerFetchResult::encode(Encoder& encoder) const
 template<class Decoder>
 bool ServiceWorkerFetchResult::decode(Decoder& decoder, ServiceWorkerFetchResult& result)
 {
-    Optional<ServiceWorkerJobDataIdentifier> jobDataIdentifier;
+    std::optional<ServiceWorkerJobDataIdentifier> jobDataIdentifier;
     decoder >> jobDataIdentifier;
     if (!jobDataIdentifier)
         return false;
@@ -84,7 +85,7 @@ bool ServiceWorkerFetchResult::decode(Decoder& decoder, ServiceWorkerFetchResult
     if (!decoder.decode(result.scriptError))
         return false;
     
-    Optional<CertificateInfo> certificateInfo;
+    std::optional<CertificateInfo> certificateInfo;
     decoder >> certificateInfo;
     if (!certificateInfo)
         return false;

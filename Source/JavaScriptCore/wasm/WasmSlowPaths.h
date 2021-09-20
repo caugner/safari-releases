@@ -49,9 +49,11 @@ namespace LLInt {
 #define WASM_SLOW_PATH_HIDDEN_DECL(name) \
     WASM_SLOW_PATH_DECL(name) WTF_INTERNAL
 
+#if ENABLE(WEBASSEMBLY_B3JIT)
 WASM_SLOW_PATH_HIDDEN_DECL(prologue_osr);
 WASM_SLOW_PATH_HIDDEN_DECL(loop_osr);
 WASM_SLOW_PATH_HIDDEN_DECL(epilogue_osr);
+#endif
 
 WASM_SLOW_PATH_HIDDEN_DECL(trace);
 WASM_SLOW_PATH_HIDDEN_DECL(out_of_line_jump_target);
@@ -74,6 +76,8 @@ WASM_SLOW_PATH_HIDDEN_DECL(call);
 WASM_SLOW_PATH_HIDDEN_DECL(call_no_tls);
 WASM_SLOW_PATH_HIDDEN_DECL(call_indirect);
 WASM_SLOW_PATH_HIDDEN_DECL(call_indirect_no_tls);
+WASM_SLOW_PATH_HIDDEN_DECL(call_ref);
+WASM_SLOW_PATH_HIDDEN_DECL(call_ref_no_tls);
 WASM_SLOW_PATH_HIDDEN_DECL(set_global_ref);
 WASM_SLOW_PATH_HIDDEN_DECL(set_global_ref_portable_binding);
 WASM_SLOW_PATH_HIDDEN_DECL(memory_atomic_wait32);

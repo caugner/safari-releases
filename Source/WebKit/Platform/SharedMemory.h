@@ -28,11 +28,10 @@
 
 #include <wtf/Forward.h>
 #include <wtf/Noncopyable.h>
-#include <wtf/RefCounted.h>
+#include <wtf/ThreadSafeRefCounted.h>
 
 #if USE(UNIX_DOMAIN_SOCKETS)
 #include "Attachment.h"
-#include <wtf/Optional.h>
 #endif
 
 #if OS(WINDOWS)
@@ -56,7 +55,9 @@ class MachSendRight;
 
 namespace WebKit {
 
-class SharedMemory : public RefCounted<SharedMemory> {
+enum class MemoryLedger { None, Default, Network, Media, Graphics, Neural };
+
+class SharedMemory : public ThreadSafeRefCounted<SharedMemory> {
 public:
     enum class Protection {
         ReadOnly,
@@ -77,6 +78,9 @@ public:
         size_t size() const { return m_size; }
 #endif
 
+        // Take ownership of the memory for jetsam purposes.
+        void takeOwnershipOfMemory(MemoryLedger) const;
+
         void clear();
 
 #if USE(UNIX_DOMAIN_SOCKETS)
@@ -85,7 +89,7 @@ public:
 #endif
 #if OS(WINDOWS)
         static void encodeHandle(IPC::Encoder&, HANDLE);
-        static Optional<HANDLE> decodeHandle(IPC::Decoder&);
+        static std::optional<HANDLE> decodeHandle(IPC::Decoder&);
 #endif
     private:
         friend class SharedMemory;
@@ -161,7 +165,7 @@ private:
 #endif
 
 #if USE(UNIX_DOMAIN_SOCKETS)
-    Optional<int> m_fileDescriptor;
+    std::optional<int> m_fileDescriptor;
     bool m_isWrappingMap { false };
 #elif OS(DARWIN)
     mach_port_t m_port { MACH_PORT_NULL };

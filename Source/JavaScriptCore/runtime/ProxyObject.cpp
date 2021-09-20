@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2020 Apple Inc. All Rights Reserved.
+ * Copyright (C) 2016-2021 Apple Inc. All Rights Reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -164,6 +164,26 @@ bool ProxyObject::performGet(JSGlobalObject* globalObject, PropertyName property
     return true;
 }
 
+// https://tc39.es/ecma262/#sec-completepropertydescriptor
+static void completePropertyDescriptor(PropertyDescriptor& desc)
+{
+    if (desc.isAccessorDescriptor()) {
+        if (!desc.getter())
+            desc.setGetter(jsUndefined());
+        if (!desc.setter())
+            desc.setSetter(jsUndefined());
+    } else {
+        if (!desc.value())
+            desc.setValue(jsUndefined());
+        if (!desc.writablePresent())
+            desc.setWritable(false);
+    }
+    if (!desc.enumerablePresent())
+        desc.setEnumerable(false);
+    if (!desc.configurablePresent())
+        desc.setConfigurable(false);
+}
+
 bool ProxyObject::performInternalMethodGetOwnProperty(JSGlobalObject* globalObject, PropertyName propertyName, PropertySlot& slot)
 {
     NO_TAIL_CALLS();
@@ -234,6 +254,7 @@ bool ProxyObject::performInternalMethodGetOwnProperty(JSGlobalObject* globalObje
     PropertyDescriptor trapResultAsDescriptor;
     toPropertyDescriptor(globalObject, trapResult, trapResultAsDescriptor);
     RETURN_IF_EXCEPTION(scope, false);
+    completePropertyDescriptor(trapResultAsDescriptor);
     bool throwException = false;
     bool valid = validateAndApplyPropertyDescriptor(globalObject, nullptr, propertyName, isExtensible,
         trapResultAsDescriptor, isTargetPropertyDescriptorDefined, targetPropertyDescriptor, throwException);
@@ -443,6 +464,7 @@ bool ProxyObject::put(JSCell* cell, JSGlobalObject* globalObject, PropertyName p
 {
     VM& vm = globalObject->vm();
     slot.disableCaching();
+    slot.setIsTaintedByOpaqueObject();
 
     ProxyObject* thisObject = jsCast<ProxyObject*>(cell);
     auto performDefaultPut = [&] () {
@@ -902,44 +924,30 @@ void ProxyObject::performGetOwnPropertyNames(JSGlobalObject* globalObject, Prope
     JSValue trapResult = call(globalObject, ownKeysMethod, callData, handler, arguments);
     RETURN_IF_EXCEPTION(scope, void());
 
-    HashSet<UniquedStringImpl*> uncheckedResultKeys;
-    {
-        RuntimeTypeMask resultFilter = 0;
-        switch (propertyNames.propertyNameMode()) {
-        case PropertyNameMode::Symbols:
-            resultFilter = TypeSymbol;
-            break;
-        case PropertyNameMode::Strings:
-            resultFilter = TypeString;
-            break;
-        case PropertyNameMode::StringsAndSymbols:
-            resultFilter = TypeSymbol | TypeString;
-            break;
-        }
-        ASSERT(resultFilter);
-
-        auto addPropName = [&] (JSValue value, RuntimeType type) -> bool {
-            static constexpr bool doExitEarly = true;
-            static constexpr bool dontExitEarly = false;
-
-            Identifier ident = value.toPropertyKey(globalObject);
-            RETURN_IF_EXCEPTION(scope, doExitEarly);
-
-            if (!uncheckedResultKeys.add(ident.impl()).isNewEntry) {
-                throwTypeError(globalObject, scope, "Proxy handler's 'ownKeys' trap result must not contain any duplicate names"_s);
-                return doExitEarly;
-            }
-
-            if (type & resultFilter)
-                propertyNames.add(ident.impl());
-
-            return dontExitEarly;
-        };
-
-        RuntimeTypeMask dontThrowAnExceptionTypeFilter = TypeString | TypeSymbol;
-        createListFromArrayLike(globalObject, trapResult, dontThrowAnExceptionTypeFilter, "Proxy handler's 'ownKeys' method must return an object"_s, "Proxy handler's 'ownKeys' method must return an array-like object containing only Strings and Symbols"_s, addPropName);
-        RETURN_IF_EXCEPTION(scope, void());
+    if (!trapResult.isObject()) {
+        throwTypeError(globalObject, scope, "Proxy handler's 'ownKeys' method must return an object"_s);
+        return;
     }
+
+    HashSet<UniquedStringImpl*> uncheckedResultKeys;
+    forEachInArrayLike(globalObject, asObject(trapResult), [&] (JSValue value) -> bool {
+        if (!value.isString() && !value.isSymbol()) {
+            throwTypeError(globalObject, scope, "Proxy handler's 'ownKeys' method must return an array-like object containing only Strings and Symbols"_s);
+            return false;
+        }
+
+        Identifier ident = value.toPropertyKey(globalObject);
+        RETURN_IF_EXCEPTION(scope, false);
+
+        if (!uncheckedResultKeys.add(ident.impl()).isNewEntry) {
+            throwTypeError(globalObject, scope, "Proxy handler's 'ownKeys' trap result must not contain any duplicate names"_s);
+            return false;
+        }
+
+        propertyNames.add(ident);
+        return true;
+    });
+    RETURN_IF_EXCEPTION(scope, void());
 
     bool targetIsExensible = target->isExtensible(globalObject);
     RETURN_IF_EXCEPTION(scope, void());
@@ -947,30 +955,20 @@ void ProxyObject::performGetOwnPropertyNames(JSGlobalObject* globalObject, Prope
     PropertyNameArray targetKeys(vm, PropertyNameMode::StringsAndSymbols, PrivateSymbolMode::Exclude);
     target->methodTable(vm)->getOwnPropertyNames(target, globalObject, targetKeys, DontEnumPropertiesMode::Include);
     RETURN_IF_EXCEPTION(scope, void());
-    Vector<UniquedStringImpl*> targetConfigurableKeys;
-    Vector<UniquedStringImpl*> targetNonConfigurableKeys;
+    HashSet<UniquedStringImpl*> targetNonConfigurableKeys;
+    HashSet<UniquedStringImpl*> targetConfigurableKeys;
     for (const Identifier& ident : targetKeys) {
         PropertyDescriptor descriptor;
         bool isPropertyDefined = target->getOwnPropertyDescriptor(globalObject, ident.impl(), descriptor); 
         RETURN_IF_EXCEPTION(scope, void());
         if (isPropertyDefined && !descriptor.configurable())
-            targetNonConfigurableKeys.append(ident.impl());
-        else
-            targetConfigurableKeys.append(ident.impl());
+            targetNonConfigurableKeys.add(ident.impl());
+        else if (!targetIsExensible)
+            targetConfigurableKeys.add(ident.impl());
     }
 
-    enum ContainedIn { IsContainedIn, IsNotContainedIn };
-    auto removeIfContainedInUncheckedResultKeys = [&] (UniquedStringImpl* impl) -> ContainedIn {
-        auto iter = uncheckedResultKeys.find(impl);
-        if (iter == uncheckedResultKeys.end())
-            return IsNotContainedIn;
-
-        uncheckedResultKeys.remove(iter);
-        return IsContainedIn;
-    };
-
     for (UniquedStringImpl* impl : targetNonConfigurableKeys) {
-        if (removeIfContainedInUncheckedResultKeys(impl) == IsNotContainedIn) {
+        if (!uncheckedResultKeys.remove(impl)) {
             throwTypeError(globalObject, scope, makeString("Proxy object's 'target' has the non-configurable property '", String(impl), "' that was not in the result from the 'ownKeys' trap"));
             return;
         }
@@ -978,7 +976,7 @@ void ProxyObject::performGetOwnPropertyNames(JSGlobalObject* globalObject, Prope
 
     if (!targetIsExensible) {
         for (UniquedStringImpl* impl : targetConfigurableKeys) {
-            if (removeIfContainedInUncheckedResultKeys(impl) == IsNotContainedIn) {
+            if (!uncheckedResultKeys.remove(impl)) {
                 throwTypeError(globalObject, scope, makeString("Proxy object's non-extensible 'target' has configurable property '", String(impl), "' that was not in the result from the 'ownKeys' trap"));
                 return;
             }
@@ -1158,7 +1156,8 @@ bool ProxyObject::isRevoked() const
     return handler().isNull();
 }
 
-void ProxyObject::visitChildren(JSCell* cell, SlotVisitor& visitor)
+template<typename Visitor>
+void ProxyObject::visitChildrenImpl(JSCell* cell, Visitor& visitor)
 {
     ProxyObject* thisObject = jsCast<ProxyObject*>(cell);
     ASSERT_GC_OBJECT_INHERITS(thisObject, info());
@@ -1167,5 +1166,7 @@ void ProxyObject::visitChildren(JSCell* cell, SlotVisitor& visitor)
     visitor.append(thisObject->m_target);
     visitor.append(thisObject->m_handler);
 }
+
+DEFINE_VISIT_CHILDREN(ProxyObject);
 
 } // namespace JSC

@@ -52,28 +52,15 @@ bool isFeatureFlagEnabled(const String& featureName)
     if (!isWebKitBundleFromStagedFramework)
         return _os_feature_enabled_impl("WebKit", (const char*)featureName.utf8().data());
 
-    static NSDictionary* dictionary = [[NSDictionary dictionaryWithContentsOfFile:@"/Library/Apple/System/Library/FeatureFlags/Domain/WebKit.plist"] retain];
+    static NeverDestroyed<RetainPtr<NSDictionary>> dictionary = [NSDictionary dictionaryWithContentsOfFile:@"/Library/Apple/System/Library/FeatureFlags/Domain/WebKit.plist"];
 
-    if (![[dictionary objectForKey:featureName] objectForKey:@"Enabled"])
+    if (![[dictionary.get() objectForKey:featureName] objectForKey:@"Enabled"])
         return _os_feature_enabled_impl("WebKit", (const char*)featureName.characters8());
 
-    return [[[dictionary objectForKey:featureName] objectForKey:@"Enabled"] isKindOfClass:[NSNumber class]] && [[[dictionary objectForKey:featureName] objectForKey:@"Enabled"] boolValue];
+    return [[[dictionary.get() objectForKey:featureName] objectForKey:@"Enabled"] isKindOfClass:[NSNumber class]] && [[[dictionary.get() objectForKey:featureName] objectForKey:@"Enabled"] boolValue];
 }
 
 #endif
-
-#if ENABLE(WEBGPU)
-
-bool defaultWebGPUEnabled()
-{
-#if HAVE(SYSTEM_FEATURE_FLAGS)
-    return isFeatureFlagEnabled("WebGPU");
-#endif
-
-    return false;
-}
-
-#endif // ENABLE(WEBGPU)
 
 #if HAVE(INCREMENTAL_PDF_APIS)
 
@@ -221,18 +208,6 @@ bool defaultNeedsKeyboardEventDisambiguationQuirks()
     return needsQuirks;
 }
 
-bool defaultEnforceCSSMIMETypeInNoQuirksMode()
-{
-    static bool needsQuirk = !_CFAppVersionCheckLessThan(CFSTR("com.apple.iWeb"), -1, 2.1);
-    return needsQuirk;
-}
-
-bool defaultNeedsIsLoadingInAPISenseQuirk()
-{
-    static bool needsQuirk = _CFAppVersionCheckLessThan(CFSTR("com.apple.iAdProducer"), -1, 2.1);
-    return needsQuirk;
-}
-
 #endif // PLATFORM(MAC)
 
 bool defaultAttachmentElementEnabled()
@@ -298,5 +273,49 @@ bool defaultWheelEventGesturesBecomeNonBlocking()
 }
 
 #endif
+
+#if ENABLE(MEDIA_SOURCE)
+
+bool defaultWebMParserEnabled()
+{
+#if HAVE(SYSTEM_FEATURE_FLAGS)
+    return isFeatureFlagEnabled("webm_parser");
+#endif
+
+    return true;
+}
+
+bool defaultWebMWebAudioEnabled()
+{
+#if HAVE(SYSTEM_FEATURE_FLAGS)
+    return isFeatureFlagEnabled("webm_webaudio");
+#endif
+
+    return false;
+}
+
+#endif // ENABLE(MEDIA_SOURCE)
+
+#if ENABLE(VP9)
+
+bool defaultVP8DecoderEnabled()
+{
+#if HAVE(SYSTEM_FEATURE_FLAGS)
+    return isFeatureFlagEnabled("vp8_decoder");
+#endif
+
+    return false;
+}
+
+bool defaultVP9DecoderEnabled()
+{
+#if HAVE(SYSTEM_FEATURE_FLAGS)
+    return isFeatureFlagEnabled("vp9_decoder");
+#endif
+
+    return true;
+}
+
+#endif // ENABLE(VP9)
 
 } // namespace WebKit

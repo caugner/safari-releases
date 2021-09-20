@@ -52,22 +52,6 @@ function typedArraySpeciesConstructor(value)
     return constructor;
 }
 
-@globalPrivate
-function typedArrayClampArgumentToStartOrEnd(value, length, undefinedValue)
-{
-    "use strict";
-
-    if (value === @undefined)
-        return undefinedValue;
-
-    var int = @toInteger(value);
-    if (int < 0) {
-        int += length;
-        return int < 0 ? 0 : int;
-    }
-    return int > length ? length : int;
-}
-
 function every(callback /*, thisArg */)
 {
     "use strict";
@@ -83,25 +67,6 @@ function every(callback /*, thisArg */)
     }
 
     return true;
-}
-
-function fill(value /* [, start [, end]] */)
-{
-    "use strict";
-
-    var length = @typedArrayLength(this);
-
-    var number = @toNumber(value);
-
-    var start = @typedArrayClampArgumentToStartOrEnd(@argument(1), length, 0);
-    var end = @typedArrayClampArgumentToStartOrEnd(@argument(2), length, length);
-
-    if (@isDetached(this))
-        @throwTypeError("Underlying ArrayBuffer has been detached from the view");
-
-    for (var i = start; i < end; i++)
-        this[i] = number;
-    return this;
 }
 
 function find(callback /* [, thisArg] */)
@@ -121,6 +86,23 @@ function find(callback /* [, thisArg] */)
     return @undefined;
 }
 
+function findLast(callback /* [, thisArg] */)
+{
+    "use strict";
+    var length = @typedArrayLength(this);
+    var thisArg = @argument(1);
+
+    if (!@isCallable(callback))
+        @throwTypeError("TypedArray.prototype.findLast callback must be a function");
+
+    for (var i = length - 1; i >= 0; i--) {
+        var element = this[i];
+        if (callback.@call(thisArg, element, i, this))
+            return element;
+    }
+    return @undefined;
+}
+
 function findIndex(callback /* [, thisArg] */)
 {
     "use strict";
@@ -131,6 +113,22 @@ function findIndex(callback /* [, thisArg] */)
         @throwTypeError("TypedArray.prototype.findIndex callback must be a function");
 
     for (var i = 0; i < length; i++) {
+        if (callback.@call(thisArg, this[i], i, this))
+            return i;
+    }
+    return -1;
+}
+
+function findLastIndex(callback /* [, thisArg] */)
+{
+    "use strict";
+    var length = @typedArrayLength(this);
+    var thisArg = @argument(1);
+
+    if (!@isCallable(callback))
+        @throwTypeError("TypedArray.prototype.findLastIndex callback must be a function");
+
+    for (var i = length - 1; i >= 0; i--) {
         if (callback.@call(thisArg, this[i], i, this))
             return i;
     }
@@ -208,7 +206,8 @@ function typedArrayMergeSort(array, valueCount, comparator)
 {
     "use strict";
 
-    var buffer = @newArrayWithSize(valueCount);
+    var constructor = @typedArrayGetOriginalConstructor(array);
+    var buffer = new constructor(valueCount);
     var dst = buffer;
     var src = array;
 
@@ -257,10 +256,10 @@ function subarray(begin, end)
     if (!@isTypedArrayView(this))
         @throwTypeError("|this| should be a typed array view");
 
-    var start = @toInteger(begin);
+    var start = @toIntegerOrInfinity(begin);
     var finish;
     if (end !== @undefined)
-        finish = @toInteger(end);
+        finish = @toIntegerOrInfinity(end);
 
     var constructor = @typedArraySpeciesConstructor(this);
 
@@ -335,6 +334,8 @@ function map(callback /*, thisArg */)
     var result = new constructor(length);
     if (@typedArrayLength(result) < length)
         @throwTypeError("TypedArray.prototype.map constructed typed array of insufficient length");
+    if (@typedArrayContentType(this) !== @typedArrayContentType(result))
+        @throwTypeError("TypedArray.prototype.map constructed typed array of different content type from |this|");
 
     for (var i = 0; i < length; i++) {
         var mappedValue = callback.@call(thisArg, this[i], i, this);
@@ -366,6 +367,8 @@ function filter(callback /*, thisArg */)
     var result = new constructor(length);
     if (@typedArrayLength(result) < length)
         @throwTypeError("TypedArray.prototype.filter constructed typed array of insufficient length");
+    if (@typedArrayContentType(this) !== @typedArrayContentType(result))
+        @throwTypeError("TypedArray.prototype.filter constructed typed array of different content type from |this|");
 
     for (var i = 0; i < length; i++)
         result[i] = kept[i];
@@ -395,7 +398,7 @@ function at(index)
 
     var length = @typedArrayLength(this);
 
-    var k = @toInteger(index);
+    var k = @toIntegerOrInfinity(index);
     if (k < 0)
         k += length;
 

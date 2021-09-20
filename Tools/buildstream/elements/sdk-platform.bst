@@ -10,9 +10,11 @@ depends:
 # replaced (patched) elements:
 - sdk/adwaita-icon-theme.bst
 - sdk/capnp.bst
+- sdk/cargo-c.bst
 - sdk/ccls.bst
 - sdk/cmake-lsp.bst
 - sdk/clangd.bst
+- sdk/eigen.bst
 - sdk/enchant-2.bst
 - sdk/ffmpeg.bst
 - sdk/glib-networking.bst
@@ -20,6 +22,7 @@ depends:
 - sdk/graphviz.bst
 - sdk/gst-libav.bst
 - sdk/gst-plugin-dav1d.bst
+- sdk/gst-plugin-closedcaption.bst
 - sdk/gst-plugins-bad.bst
 - sdk/gst-plugins-base.bst
 - sdk/gst-plugins-good.bst
@@ -28,7 +31,6 @@ depends:
 - sdk/gtk+-3.bst
 - sdk/gtk.bst
 - sdk/icecc.bst
-- sdk/intltool.bst
 - sdk/krb5.bst
 - sdk/libavif.bst
 - sdk/libcap-ng.bst
@@ -40,11 +42,14 @@ depends:
 - sdk/libnotify.bst
 - sdk/libsecret.bst
 - sdk/libsoup.bst
+- sdk/libsoup3.bst
 - sdk/libusrsctp.bst
 - sdk/libwpe.bst
 - sdk/libzstd.bst
 - sdk/lzo2.bst
 - sdk/mesa.bst
+- sdk/monado.bst
+- sdk/nghttp2.bst
 - sdk/openjpeg.bst
 - sdk/openxr.bst
 - sdk/os-release.bst
@@ -193,6 +198,7 @@ depends:
 - freedesktop-sdk.bst:components/python3-sitecustomize.bst
 - freedesktop-sdk.bst:components/python3-six.bst
 - freedesktop-sdk.bst:components/python3-usercustomize.bst
+- freedesktop-sdk.bst:components/python3-virtualenv.bst
 - freedesktop-sdk.bst:components/python3.bst
 - freedesktop-sdk.bst:components/sdl2-image.bst
 - freedesktop-sdk.bst:components/sdl2-mixer.bst

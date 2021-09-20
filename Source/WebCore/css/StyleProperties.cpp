@@ -237,6 +237,8 @@ String StyleProperties::getPropertyValue(CSSPropertyID propertyID) const
         return getAlignmentShorthandValue(placeSelfShorthand());
     case CSSPropertyFont:
         return fontValue();
+    case CSSPropertyFontVariant:
+        return fontVariantValue();
     case CSSPropertyInset:
         return get4Values(insetShorthand());
     case CSSPropertyInsetBlock:
@@ -289,18 +291,26 @@ String StyleProperties::getPropertyValue(CSSPropertyID propertyID) const
         return get2Values(gapShorthand());
     case CSSPropertyScrollMargin:
         return get4Values(scrollMarginShorthand());
+    case CSSPropertyScrollMarginBlock:
+        return get2Values(scrollMarginBlockShorthand());
+    case CSSPropertyScrollMarginInline:
+        return get2Values(scrollMarginInlineShorthand());
     case CSSPropertyScrollPadding:
         return get4Values(scrollPaddingShorthand());
+    case CSSPropertyScrollPaddingBlock:
+        return get2Values(scrollPaddingBlockShorthand());
+    case CSSPropertyScrollPaddingInline:
+        return get2Values(scrollPaddingInlineShorthand());
     default:
         return String();
     }
 }
 
-Optional<Color> StyleProperties::propertyAsColor(CSSPropertyID property) const
+std::optional<Color> StyleProperties::propertyAsColor(CSSPropertyID property) const
 {
     auto colorValue = getPropertyCSSValue(property);
     if (!is<CSSPrimitiveValue>(colorValue))
-        return WTF::nullopt;
+        return std::nullopt;
 
     auto& primitiveColor = downcast<CSSPrimitiveValue>(*colorValue);
     return primitiveColor.isRGBColor() ? primitiveColor.color() : CSSParser::parseColor(colorValue->cssText());
@@ -354,7 +364,12 @@ void StyleProperties::appendFontLonghandValueIfExplicit(CSSPropertyID propertyID
     case CSSPropertyFontStyle:
         break; // No prefix.
     case CSSPropertyFontFamily:
+    case CSSPropertyFontVariantAlternates:
     case CSSPropertyFontVariantCaps:
+    case CSSPropertyFontVariantLigatures:
+    case CSSPropertyFontVariantNumeric:
+    case CSSPropertyFontVariantPosition:
+    case CSSPropertyFontVariantEastAsian:
     case CSSPropertyFontWeight:
     case CSSPropertyFontStretch:
         prefix = ' ';
@@ -401,6 +416,21 @@ String StyleProperties::fontValue() const
     result.append(fontFamilyProperty.value()->cssText());
     if (isCSSWideValueKeyword(commonValue))
         return commonValue;
+    return result.toString();
+}
+
+String StyleProperties::fontVariantValue() const
+{
+    String commonValue;
+    StringBuilder result;
+    appendFontLonghandValueIfExplicit(CSSPropertyFontVariantLigatures, result, commonValue);
+    if (isCSSWideValueKeyword(result.toString()))
+        return result.toString();
+    appendFontLonghandValueIfExplicit(CSSPropertyFontVariantAlternates, result, commonValue);
+    appendFontLonghandValueIfExplicit(CSSPropertyFontVariantCaps, result, commonValue);
+    appendFontLonghandValueIfExplicit(CSSPropertyFontVariantEastAsian, result, commonValue);
+    appendFontLonghandValueIfExplicit(CSSPropertyFontVariantNumeric, result, commonValue);
+    appendFontLonghandValueIfExplicit(CSSPropertyFontVariantPosition, result, commonValue);
     return result.toString();
 }
 
@@ -585,7 +615,7 @@ String StyleProperties::getLayeredShorthandValue(const StylePropertyShorthand& s
                 if (property == CSSPropertyBackgroundSize || property == CSSPropertyWebkitMaskSize) {
                     if (!foundPositionYCSSProperty)
                         continue;
-                    layerResult.appendLiteral("/ ");
+                    layerResult.append("/ ");
                 }
 
                 if (useRepeatXShorthand) {
@@ -910,6 +940,23 @@ void MutableStyleProperties::setProperty(CSSPropertyID propertyID, RefPtr<CSSVal
         m_propertyVector.append(CSSProperty(longhand, value.copyRef(), important));
 }
 
+bool MutableStyleProperties::canUpdateInPlace(const CSSProperty& property, CSSProperty* toReplace) const
+{
+    // If the property is in a logical property group, we can't just update the value in-place,
+    // because afterwards there might be another property of the same group but different mapping logic.
+    // In that case the latter might override the former, so setProperty would have no effect.
+    CSSPropertyID id = property.id();
+    if (CSSProperty::isInLogicalPropertyGroup(id)) {
+        ASSERT(toReplace >= m_propertyVector.begin());
+        ASSERT(toReplace < m_propertyVector.end());
+        for (CSSProperty* it = toReplace + 1; it != m_propertyVector.end(); ++it) {
+            if (CSSProperty::areInSameLogicalPropertyGroupWithDifferentMappingLogic(id, it->id()))
+                return false;
+        }
+    }
+    return true;
+}
+
 bool MutableStyleProperties::setProperty(const CSSProperty& property, CSSProperty* slot)
 {
     if (!removeShorthandProperty(property.id())) {
@@ -923,11 +970,15 @@ bool MutableStyleProperties::setProperty(const CSSProperty& property, CSSPropert
         }
         
         if (toReplace) {
-            if (*toReplace == property)
-                return false;
+            if (canUpdateInPlace(property, toReplace)) {
+                if (*toReplace == property)
+                    return false;
 
-            *toReplace = property;
-            return true;
+                *toReplace = property;
+                return true;
+            }
+            m_propertyVector.remove(toReplace - m_propertyVector.begin());
+            toReplace = nullptr;
         }
     }
 
@@ -1178,11 +1229,27 @@ String StyleProperties::asText() const
             case CSSPropertyScrollMarginLeft:
                 shorthandPropertyID = CSSPropertyScrollMargin;
                 break;
+            case CSSPropertyScrollMarginBlockStart:
+            case CSSPropertyScrollMarginBlockEnd:
+                shorthandPropertyID = CSSPropertyScrollMarginBlock;
+                break;
+            case CSSPropertyScrollMarginInlineStart:
+            case CSSPropertyScrollMarginInlineEnd:
+                shorthandPropertyID = CSSPropertyScrollMarginInline;
+                break;
             case CSSPropertyScrollPaddingTop:
             case CSSPropertyScrollPaddingRight:
             case CSSPropertyScrollPaddingBottom:
             case CSSPropertyScrollPaddingLeft:
                 shorthandPropertyID = CSSPropertyScrollPadding;
+                break;
+            case CSSPropertyScrollPaddingBlockStart:
+            case CSSPropertyScrollPaddingBlockEnd:
+                shorthandPropertyID = CSSPropertyScrollPaddingBlock;
+                break;
+            case CSSPropertyScrollPaddingInlineStart:
+            case CSSPropertyScrollPaddingInlineEnd:
+                shorthandPropertyID = CSSPropertyScrollPaddingInline;
                 break;
             case CSSPropertyTransitionProperty:
             case CSSPropertyTransitionDuration:

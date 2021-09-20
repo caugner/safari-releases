@@ -53,8 +53,6 @@ webkit.org/b/186581 [ Debug ] fast/parser/xml-error-adopted.xml [ Pass Timeout ]
 
 webkit.org/b/197207 http/wpt/resource-timing/rt-resources-per-frame.html [ Pass Failure ]
 
-imported/w3c/web-platform-tests/IndexedDB/keypath-special-identifiers.htm [ Slow ]
-
 webkit.org/b/172001 scrollingcoordinator/ios/sync-layer-positions-after-scroll.html [ Pass Failure ]
 
 # NearField.framework doesn't present in the simulator, and therefore skip all WebAuthn NFC tests
@@ -91,6 +89,7 @@ webkit.org/b/214730 [ Debug ] imported/w3c/web-platform-tests/webrtc/RTCSctpTran
 webkit.org/b/214661 [ Debug ] imported/w3c/web-platform-tests/webrtc/RTCSctpTransport-events.html [ Skip ]
 webkit.org/b/214730 [ Debug ] webrtc/simulcast-h264.html [ Skip ]
 imported/w3c/web-platform-tests/webrtc/RTCPeerConnection-candidate-in-sdp.https.html [ Pass Failure ]
+imported/w3c/web-platform-tests/webrtc/protocol/crypto-suite.https.html [ Failure ]
 
 webkit.org/b/214358 fast/scrolling/ios/programmatic-scroll-while-zoomed.html [ Pass Failure ]
 
@@ -122,8 +121,6 @@ webkit.org/b/215033 imported/w3c/web-platform-tests/websockets/cookies/third-par
 
 webkit.org/b/215216 imported/w3c/web-platform-tests/svg/import/interact-zoom-01-t-manual.svg [ Pass Failure ]
 
-webkit.org/b/215608 [ Release ] imported/w3c/web-platform-tests/IndexedDB/transaction_bubble-and-capture.htm [ Pass Timeout ]
-
 webkit.org/b/215676 [ Release ] http/tests/security/contentSecurityPolicy/worker-redirect-allowed.html [ Pass ]
 
 webkit.org/b/217114 [ Release ] compositing/debug-borders-dynamic.html [ Pass ImageOnlyFailure ]
@@ -154,7 +151,26 @@ webkit.org/b/217687 accessibility/ios-simulator/accessibility-aria-table-childre
 
 webkit.org/b/217759 media/now-playing-status-without-media.html [ Pass Failure ]
 
-webkit.org/b/217268 imported/w3c/web-platform-tests/mathml/relations/css-styling/padding-border-margin/border-002.html [ Failure ]
 webkit.org/b/217268 imported/w3c/web-platform-tests/mathml/relations/html5-tree/dynamic-childlist-001.html [ Failure ]
 
-webkit.org/b/209139 fast/canvas/webgl/webgl-clear-composited-notshowing.html [ Failure ]
+webkit.org/b/222808 imported/w3c/web-platform-tests/webrtc/protocol/candidate-exchange.https.html [ Pass Failure ]
+
+# webkit.org/b/209139 fast/canvas/webgl/webgl-clear-composited-notshowing.html [ Failure ]
+
+webkit.org/b/224121 css2.1/20110323/replaced-intrinsic-ratio-001.htm [ Pass Failure ]
+
+# webkit.org/b/224558 The following two page-cache tests are flakey crasing:
+webrtc/peerconnection-new-candidate-page-cache.html [ Pass Crash ]
+http/tests/navigation/page-cache-mediastream.html [ Pass Crash ]
+
+webkit.org/b/224633 media/presentationmodechanged-fired-once.html [ Pass Timeout ]
+
+webkit.org/b/225169 imported/w3c/web-platform-tests/workers/interfaces/DedicatedWorkerGlobalScope/postMessage/structured-clone-message.html [ Pass Crash ]
+
+webkit.org/b/225668 http/tests/xmlhttprequest/redirect-cross-origin-tripmine.html [ Slow ]
+
+webkit.org/b/225830 imported/w3c/web-platform-tests/css/css-will-change/will-change-transform-huge-offset-scrolled.html  [ Pass ImageOnlyFailure ]
+
+webkit.org/b/227755 fast/dom/Window/post-message-large-array-buffer-should-not-crash.html  [ Pass Failure ]
+
+webkit.org/b/226600 imported/w3c/web-platform-tests/navigation-timing/test_navigate_within_document.html [ Pass Failure ]

@@ -42,7 +42,8 @@ function startTests()
         testMap,
         testSet,
         testGeometryTypes,
-        testCryptoKey
+        testCryptoKey,
+        testDOMExceptionObject
     ];
 
     function nextTest() {
@@ -311,29 +312,38 @@ function testRegExpObject(callback)
 function testImageData(callback)
 {
     debug("Testing ImageData");
-    evalAndLog("canvas = document.createElement('canvas')");
-    evalAndLog("canvas.width = 8");
-    evalAndLog("canvas.height = 8");
-    evalAndLog("test_data = canvas.getContext('2d').getImageData(0, 0, 8, 8)");
+    function testImageData(colorSpace, callback) {
+        debug(`Testing ImageData: { colorSpace: ${colorSpace} }`);
+        evalAndLog("canvas = document.createElement('canvas')");
+        evalAndLog("canvas.width = 8");
+        evalAndLog("canvas.height = 8");
+        evalAndLog(`test_data = canvas.getContext('2d').getImageData(0, 0, 8, 8, { colorSpace: ${colorSpace} })`);
 
-    for (var i = 0; i < 256; ++i) {
-        test_data.data[i] = i;
+        for (var i = 0; i < 256; ++i) {
+            test_data.data[i] = i;
+        }
+
+        testValue(test_data, function(result) {
+            self.result = result;
+            shouldBeTrue("test_data !== result");
+            shouldBeEqualToString("Object.prototype.toString.call(result)", "[object ImageData]");
+            shouldBe("result.width", "test_data.width");
+            shouldBe("result.height", "test_data.height");
+            shouldBe("result.data.length", "test_data.data.length");
+            shouldBe("result.colorSpace", "test_data.colorSpace");
+            if (arrayCompare(test_data.data, result.data)) {
+                testPassed("result data matches");
+            } else {
+                testFailed("result data doesn't match");
+            }
+            callback();
+        });
     }
 
-    testValue(test_data, function(result) {
-        self.result = result;
-        shouldBeTrue("test_data !== result");
-        shouldBeEqualToString("Object.prototype.toString.call(result)", "[object ImageData]");
-        shouldBe("result.width", "test_data.width");
-        shouldBe("result.height", "test_data.height");
-        shouldBe("result.data.length", "test_data.data.length");
-        if (arrayCompare(test_data.data, result.data)) {
-            testPassed("result data matches");
-        } else {
-            testFailed("result data doesn't match");
-        }
-        callback();
-    });
+    forEachWithCallback(testImageData, [
+        `"srgb"`,
+        `undefined`
+    ], callback);
 }
 
 function readBlobAsText(blob, callback)
@@ -513,7 +523,9 @@ function testTypedArray(callback)
         "new Int32Array([0x00000000, 0x00000001, 0xFFFFFFFE, 0xFFFFFFFF])",
         "new Uint8ClampedArray([0, 1, 254, 255])",
         "new Float32Array([-Infinity, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, Infinity, NaN])",
-        "new Float64Array([-Infinity, -Number.MAX_VALUE, -Number.MIN_VALUE, 0, Number.MIN_VALUE, Number.MAX_VALUE, Infinity, NaN])"
+        "new Float64Array([-Infinity, -Number.MAX_VALUE, -Number.MIN_VALUE, 0, Number.MIN_VALUE, Number.MAX_VALUE, Infinity, NaN])",
+        "new BigInt64Array([0x7fffffffffffffffn, 1n, 0n, -1n, -0x8000000000000000n])",
+        "new BigUint64Array([0n, 0xffffffffffffffffn])",
     ], callback);
 }
 
@@ -611,6 +623,31 @@ function testCryptoKey(callback)
     });
 }
 
+function testDOMExceptionObject(callback)
+{
+    debug("Testing DOMException objects");
+    function testDOMException(string, callback) {
+        debug("Testing: " + string);
+        var value = eval("value = (" + string + ")");
+        test_data = value;
+        testValue(test_data, function(result) {
+            self.result = result;
+            shouldBeEqualToString("typeof result", "object");
+            shouldBe("Object.prototype.toString.call(result)", "Object.prototype.toString.call(test_data)");
+            shouldBeTrue("test_data !== result");
+            shouldBe("result.toString()", "test_data.toString()");
+            callback();
+        });
+    }
+
+    forEachWithCallback(testDOMException, [
+        "new DOMException()",
+        "new DOMException(\"message\")",
+        "new DOMException(\"message\", \"name\")",
+        "new DOMException(\"\", \"\")"
+    ], callback);
+}
+
 function testBadTypes()
 {
     debug("Test types that can't be cloned:");
@@ -625,8 +662,6 @@ function testBadTypes()
     evalAndExpectException("store.put(new Error, 'key')", "DOMException.DATA_CLONE_ERR");
     debug("Testing Function");
     evalAndExpectException("store.put(new Function, 'key')", "DOMException.DATA_CLONE_ERR");
-    debug("Testing DOMException");
-    evalAndExpectException("store.put(new DOMException, 'key')", "DOMException.DATA_CLONE_ERR");
 
     debug("Testing other host object types");
     evalAndExpectException("store.put(self, 'key')", "DOMException.DATA_CLONE_ERR");

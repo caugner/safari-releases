@@ -113,7 +113,7 @@ private:
 
     bool hoverSupportedByPrimaryPointingDevice() const final;
     bool hoverSupportedByAnyAvailablePointingDevice() const final;
-    Optional<WebCore::PointerCharacteristics> pointerCharacteristicsOfPrimaryPointingDevice() const final;
+    std::optional<WebCore::PointerCharacteristics> pointerCharacteristicsOfPrimaryPointingDevice() const final;
     OptionSet<WebCore::PointerCharacteristics> pointerCharacteristicsOfAllAvailablePointingDevices() const final;
 
     // HostWindow member function finals.
@@ -133,14 +133,16 @@ private:
     PlatformPageClient platformPageClient() const final;
     void contentsSizeChanged(WebCore::Frame&, const WebCore::IntSize&) const final;
     void intrinsicContentsSizeChanged(const WebCore::IntSize&) const final;
-    void scrollRectIntoView(const WebCore::IntRect&) const final; // Currently only Mac has a non empty implementation.
+
+    void scrollContainingScrollViewsToRevealRect(const WebCore::IntRect&) const final; // Currently only Mac has a non empty implementation.
+    void scrollMainFrameToRevealRect(const WebCore::IntRect&) const final;
 
     bool shouldUnavailablePluginMessageBeButton(WebCore::RenderEmbeddedObject::PluginUnavailabilityReason) const final;
     void unavailablePluginButtonClicked(WebCore::Element&, WebCore::RenderEmbeddedObject::PluginUnavailabilityReason) const final;
 
     void mouseDidMoveOverElement(const WebCore::HitTestResult&, unsigned modifierFlags, const String& toolTip, WebCore::TextDirection) final;
 
-    void print(WebCore::Frame&) final;
+    void print(WebCore::Frame&, const WebCore::StringWithDirection&) final;
 
     void exceededDatabaseQuota(WebCore::Frame&, const String& databaseName, WebCore::DatabaseDetails) final;
 
@@ -163,6 +165,8 @@ private:
 #if ENABLE(IOS_TOUCH_EVENTS)
     void didPreventDefaultForEvent() final;
 #endif
+
+    void didHandleOrPreventMouseDownOrMouseUpEvent() final;
 
 #if PLATFORM(IOS_FAMILY)
     void didReceiveMobileDocType(bool) final;
@@ -199,7 +203,7 @@ private:
 
     void runOpenPanel(WebCore::Frame&, WebCore::FileChooser&) final;
     void showShareSheet(WebCore::ShareDataWithParsedURL&, WTF::CompletionHandler<void(bool)>&&) final;
-    void showContactPicker(const WebCore::ContactsRequestData&, WTF::CompletionHandler<void(Optional<Vector<WebCore::ContactInfo>>&&)>&&) final;
+    void showContactPicker(const WebCore::ContactsRequestData&, WTF::CompletionHandler<void(std::optional<Vector<WebCore::ContactInfo>>&&)>&&) final;
     void loadIconForFiles(const Vector<String>&, WebCore::FileIconLoader&) final;
 
     void setCursor(const WebCore::Cursor&) final;
@@ -225,6 +229,7 @@ private:
     void attachRootGraphicsLayer(WebCore::Frame&, WebCore::GraphicsLayer*) final;
     void attachViewOverlayGraphicsLayer(WebCore::GraphicsLayer*) final;
     void setNeedsOneShotDrawingSynchronization() final;
+    bool shouldTriggerRenderingUpdate(unsigned rescheduledRenderingUpdateCount) const final;
     void triggerRenderingUpdate() final;
 
     void contentRuleListNotification(const URL&, const WebCore::ContentRuleListResults&) final;
@@ -239,10 +244,10 @@ private:
 
     void animationDidFinishForElement(const WebCore::Element&) final;
 
-    RefPtr<WebCore::DisplayRefreshMonitor> createDisplayRefreshMonitor(WebCore::PlatformDisplayID) const final;
+    WebCore::DisplayRefreshMonitorFactory* displayRefreshMonitorFactory() const final;
 
 #if ENABLE(GPU_PROCESS)
-    RefPtr<WebCore::ImageBuffer> createImageBuffer(const WebCore::FloatSize&, WebCore::RenderingMode, WebCore::RenderingPurpose, float resolutionScale, WebCore::ColorSpace, WebCore::PixelFormat) const final;
+    RefPtr<WebCore::ImageBuffer> createImageBuffer(const WebCore::FloatSize&, WebCore::RenderingMode, WebCore::RenderingPurpose, float resolutionScale, const WebCore::DestinationColorSpace&, WebCore::PixelFormat) const final;
 #if ENABLE(WEBGL)
     RefPtr<WebCore::GraphicsContextGL> createGraphicsContextGL(const WebCore::GraphicsContextGLAttributes&, WebCore::PlatformDisplayID hostWindowDisplayID) const final;
 #endif
@@ -324,11 +329,17 @@ private:
     void notifyScrollerThumbIsVisibleInRect(const WebCore::IntRect&) final;
     void recommendedScrollbarStyleDidChange(WebCore::ScrollbarStyle newStyle) final;
 
-    Optional<WebCore::ScrollbarOverlayStyle> preferredScrollbarOverlayStyle() final;
+    std::optional<WebCore::ScrollbarOverlayStyle> preferredScrollbarOverlayStyle() final;
 
     WebCore::Color underlayColor() const final;
 
-    void pageExtendedBackgroundColorDidChange(WebCore::Color) const final;
+    void themeColorChanged() const final;
+    void pageExtendedBackgroundColorDidChange() const final;
+    void sampledPageTopColorChanged() const final;
+    
+#if ENABLE(APP_HIGHLIGHTS)
+    WebCore::HighlightVisibility appHighlightsVisiblility() const final;
+#endif
     
     void wheelEventHandlersChanged(bool) final;
 
@@ -342,8 +353,14 @@ private:
 
     bool shouldUseTiledBackingForFrameView(const WebCore::FrameView&) const final;
 
-    void isPlayingMediaDidChange(WebCore::MediaProducer::MediaStateFlags, uint64_t) final;
+    void isPlayingMediaDidChange(WebCore::MediaProducer::MediaStateFlags) final;
     void handleAutoplayEvent(WebCore::AutoplayEvent, OptionSet<WebCore::AutoplayEventFlags>) final;
+
+#if ENABLE(APP_HIGHLIGHTS)
+    void storeAppHighlight(WebCore::AppHighlight&&) const final;
+#endif
+
+    void setTextIndicator(const WebCore::TextIndicatorData&) const final;
 
 #if ENABLE(WEB_CRYPTO)
     bool wrapCryptoKey(const Vector<uint8_t>&, Vector<uint8_t>&) const final;
@@ -354,6 +371,10 @@ private:
 
 #if ENABLE(TELEPHONE_NUMBER_DETECTION) && PLATFORM(MAC)
     void handleTelephoneNumberClick(const String& number, const WebCore::IntPoint&) final;
+#endif
+
+#if ENABLE(DATA_DETECTION)
+    void handleClickForDataDetectionResult(const WebCore::DataDetectorElementInfo&, const WebCore::IntPoint&) final;
 #endif
 
 #if ENABLE(SERVICE_CONTROLS)
@@ -373,7 +394,7 @@ private:
     void showPlaybackTargetPicker(WebCore::PlaybackTargetClientContextIdentifier, const WebCore::IntPoint&, bool) final;
     void playbackTargetPickerClientStateDidChange(WebCore::PlaybackTargetClientContextIdentifier, WebCore::MediaProducer::MediaStateFlags) final;
     void setMockMediaPlaybackTargetPickerEnabled(bool) final;
-    void setMockMediaPlaybackTargetPickerState(const String&, WebCore::MediaPlaybackTargetContext::State) final;
+    void setMockMediaPlaybackTargetPickerState(const String&, WebCore::MediaPlaybackTargetContext::MockState) final;
     void mockMediaPlaybackTargetPickerDismissPopup() final;
 #endif
 
@@ -407,6 +428,38 @@ private:
 
 #if PLATFORM(MAC)
     void changeUniversalAccessZoomFocus(const WebCore::IntRect&, const WebCore::IntRect&) final;
+#endif
+
+#if ENABLE(IMAGE_ANALYSIS)
+    void requestTextRecognition(WebCore::Element&, CompletionHandler<void(RefPtr<WebCore::Element>&&)>&& = { }) final;
+#endif
+
+    bool needsImageOverlayControllerForSelectionPainting() const final
+    {
+#if USE(UIKIT_EDITING)
+        return false;
+#else
+        return true;
+#endif
+    }
+
+#if ENABLE(TEXT_AUTOSIZING)
+    void textAutosizingUsesIdempotentModeChanged() final;
+#endif
+
+#if ENABLE(MEDIA_CONTROLS_CONTEXT_MENUS) && USE(UICONTEXTMENU)
+    void showMediaControlsContextMenu(WebCore::FloatRect&&, Vector<WebCore::MediaControlsContextMenuItem>&&, CompletionHandler<void(WebCore::MediaControlsContextMenuItem::ID)>&&) final;
+#endif // ENABLE(MEDIA_CONTROLS_CONTEXT_MENUS) && USE(UICONTEXTMENU)
+
+#if ENABLE(WEBXR) && !USE(OPENXR)
+    void enumerateImmersiveXRDevices(CompletionHandler<void(const PlatformXR::Instance::DeviceList&)>&&) final;
+#endif
+
+#if HAVE(ARKIT_INLINE_PREVIEW_IOS)
+    void takeModelElementFullscreen(WebCore::GraphicsLayer::PlatformLayerID contentLayerId) const final;
+#endif
+#if HAVE(ARKIT_INLINE_PREVIEW_MAC)
+    void modelElementDidCreatePreview(WebCore::HTMLModelElement&, const URL&, const String&, const WebCore::FloatSize&) const final;
 #endif
 
     mutable bool m_cachedMainFrameHasHorizontalScrollbar { false };

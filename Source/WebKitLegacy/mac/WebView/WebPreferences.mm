@@ -54,6 +54,7 @@
 #import <pal/spi/cf/CFNetworkSPI.h>
 #import <wtf/Compiler.h>
 #import <wtf/MainThread.h>
+#import <wtf/OptionSet.h>
 #import <wtf/RetainPtr.h>
 #import <wtf/RunLoop.h>
 #import <wtf/cocoa/RuntimeApplicationChecksCocoa.h>
@@ -75,8 +76,17 @@ NSString *WebPreferencesCacheModelChangedInternalNotification = @"WebPreferences
 
 enum { WebPreferencesVersion = 1 };
 
-static WebPreferences *_standardPreferences;
-static NSMutableDictionary *webPreferencesInstances;
+static RetainPtr<WebPreferences>& standardPreferences()
+{
+    static NeverDestroyed<RetainPtr<WebPreferences>> standardPreferences;
+    return standardPreferences;
+}
+
+static RetainPtr<NSMutableDictionary>& webPreferencesInstances()
+{
+    static NeverDestroyed<RetainPtr<NSMutableDictionary>> webPreferencesInstances;
+    return webPreferencesInstances;
+}
 
 static unsigned webPreferencesInstanceCountWithPrivateBrowsingEnabled;
 
@@ -182,36 +192,32 @@ WebCacheModel TestWebPreferencesCacheModelForMainBundle(NSString *bundleIdentifi
 + (NSString *)_IBCreatorID;
 @end
 
+enum class UpdateAfterBatchType : uint8_t {
+    API         = 1 << 0,
+    Internal    = 1 << 1
+};
+
 struct WebPreferencesPrivate
 {
 public:
     WebPreferencesPrivate()
-    : inPrivateBrowsing(NO)
-    , autosaves(NO)
-    , automaticallyDetectsCacheModel(NO)
-    , numWebViews(0)
 #if PLATFORM(IOS_FAMILY)
-    , readWriteQueue(dispatch_queue_create("com.apple.WebPreferences.ReadWriteQueue", DISPATCH_QUEUE_CONCURRENT))
+        : readWriteQueue { adoptNS(dispatch_queue_create("com.apple.WebPreferences.ReadWriteQueue", DISPATCH_QUEUE_CONCURRENT)) }
 #endif
     {
     }
 
 #if PLATFORM(IOS_FAMILY)
-    ~WebPreferencesPrivate()
-    {
-        dispatch_release(readWriteQueue);
-    }
+    RetainPtr<dispatch_queue_t> readWriteQueue;
 #endif
-
     RetainPtr<NSMutableDictionary> values;
-    BOOL inPrivateBrowsing;
     RetainPtr<NSString> identifier;
-    BOOL autosaves;
-    BOOL automaticallyDetectsCacheModel;
-    unsigned numWebViews;
-#if PLATFORM(IOS_FAMILY)
-    dispatch_queue_t readWriteQueue;
-#endif
+    BOOL inPrivateBrowsing { NO };
+    BOOL autosaves { NO };
+    BOOL automaticallyDetectsCacheModel { NO };
+    unsigned numWebViews { 0 };
+    unsigned updateBatchCount { 0 };
+    OptionSet<UpdateAfterBatchType> updateAfterBatchType;
 };
 
 #if PLATFORM(IOS_FAMILY)
@@ -336,7 +342,7 @@ public:
     if ([encoder allowsKeyedCoding]){
         [encoder encodeObject:_private->identifier.get() forKey:@"Identifier"];
 #if PLATFORM(IOS_FAMILY)
-        dispatch_sync(_private->readWriteQueue, ^{
+        dispatch_sync(_private->readWriteQueue.get(), ^{
 #endif
         [encoder encodeObject:_private->values.get() forKey:@"Values"];
         LOG (Encoding, "Identifier = %@, Values = %@\n", _private->identifier.get(), _private->values.get());
@@ -349,7 +355,7 @@ public:
         [encoder encodeValueOfObjCType:@encode(int) at:&version];
         [encoder encodeObject:_private->identifier.get()];
 #if PLATFORM(IOS_FAMILY)
-        dispatch_sync(_private->readWriteQueue, ^{
+        dispatch_sync(_private->readWriteQueue.get(), ^{
 #endif
         [encoder encodeObject:_private->values.get()];
 #if PLATFORM(IOS_FAMILY)
@@ -361,24 +367,20 @@ public:
 + (WebPreferences *)standardPreferences
 {
 #if !PLATFORM(IOS_FAMILY)
-    if (_standardPreferences == nil) {
-        _standardPreferences = [[WebPreferences alloc] initWithIdentifier:nil];
-        [_standardPreferences setAutosaves:YES];
+    if (!standardPreferences()) {
+        standardPreferences() = adoptNS([[WebPreferences alloc] initWithIdentifier:nil]);
+        [standardPreferences() setAutosaves:YES];
     }
 #else
-    // FIXME: This check is necessary to avoid recursion (see <rdar://problem/9564337>), but it also makes _standardPreferences construction not thread safe.
-    if (_standardPreferences)
-        return _standardPreferences;
-
     static dispatch_once_t pred;
     dispatch_once(&pred, ^{
-        _standardPreferences = [[WebPreferences alloc] initWithIdentifier:nil sendChangeNotification:NO];
-        [_standardPreferences _postPreferencesChangedNotification];
-        [_standardPreferences setAutosaves:YES];
+        standardPreferences() = adoptNS([[WebPreferences alloc] initWithIdentifier:nil sendChangeNotification:NO]);
+        [standardPreferences() _postPreferencesChangedNotification];
+        [standardPreferences() setAutosaves:YES];
     });
 #endif
 
-    return _standardPreferences;
+    return standardPreferences().get();
 }
 
 // if we ever have more than one WebPreferences object, this would move to init
@@ -421,7 +423,7 @@ public:
 
 #if PLATFORM(IOS_FAMILY)
         @NO, WebKitStorageTrackerEnabledPreferenceKey,
-        @(AudioSession::None), WebKitAudioSessionCategoryOverride,
+        @(static_cast<unsigned>(AudioSession::CategoryType::None)), WebKitAudioSessionCategoryOverride,
 
         // Per-Origin Quota on iOS is 25MB. When the quota is reached for a particular origin
         // the quota for that origin can be increased. See also webView:exceededApplicationCacheOriginQuotaForSecurityOrigin:totalSpaceNeeded in WebUI/WebUIDelegate.m.
@@ -431,9 +433,6 @@ public:
         @(static_cast<int>(InterpolationQuality::Low)), WebKitInterpolationQualityPreferenceKey,
         @NO, WebKitNetworkDataUsageTrackingEnabledPreferenceKey,
         @"", WebKitNetworkInterfaceNamePreferenceKey,
-#if HAVE(AVKIT)
-        @YES, WebKitAVKitEnabled,
-#endif
 #endif
         nil];
 
@@ -462,7 +461,7 @@ public:
     NSString *_key = KEY(key);
 #if PLATFORM(IOS_FAMILY)
     __block id o = nil;
-    dispatch_sync(_private->readWriteQueue, ^{
+    dispatch_sync(_private->readWriteQueue.get(), ^{
         o = [_private->values.get() objectForKey:_key];
     });
 #else
@@ -488,7 +487,7 @@ public:
         return;
     NSString *_key = KEY(key);
 #if PLATFORM(IOS_FAMILY)
-    dispatch_barrier_sync(_private->readWriteQueue, ^{
+    dispatch_barrier_sync(_private->readWriteQueue.get(), ^{
 #endif
     [_private->values.get() setObject:value forKey:_key];
 #if PLATFORM(IOS_FAMILY)
@@ -518,7 +517,7 @@ public:
 {
     NSString *_key = KEY(key);
 #if PLATFORM(IOS_FAMILY)
-    dispatch_barrier_sync(_private->readWriteQueue, ^{
+    dispatch_barrier_sync(_private->readWriteQueue.get(), ^{
 #endif
         [_private->values.get() setObject:value forKey:_key];
 #if PLATFORM(IOS_FAMILY)
@@ -541,7 +540,7 @@ public:
         return;
     NSString *_key = KEY(key);
 #if PLATFORM(IOS_FAMILY)
-    dispatch_barrier_sync(_private->readWriteQueue, ^{
+    dispatch_barrier_sync(_private->readWriteQueue.get(), ^{
 #endif
     [_private->values.get() setObject:@(value) forKey:_key];
 #if PLATFORM(IOS_FAMILY)
@@ -564,7 +563,7 @@ public:
         return;
     NSString *_key = KEY(key);
 #if PLATFORM(IOS_FAMILY)
-    dispatch_barrier_sync(_private->readWriteQueue, ^{
+    dispatch_barrier_sync(_private->readWriteQueue.get(), ^{
 #endif
     [_private->values.get() setObject:@(value) forKey:_key];
 #if PLATFORM(IOS_FAMILY)
@@ -587,7 +586,7 @@ public:
         return;
     NSString *_key = KEY(key);
 #if PLATFORM(IOS_FAMILY)
-    dispatch_barrier_sync(_private->readWriteQueue, ^{
+    dispatch_barrier_sync(_private->readWriteQueue.get(), ^{
 #endif
     [_private->values.get() setObject:@(value) forKey:_key];
 #if PLATFORM(IOS_FAMILY)
@@ -609,7 +608,7 @@ public:
         return;
     NSString *_key = KEY(key);
 #if PLATFORM(IOS_FAMILY)
-    dispatch_barrier_sync(_private->readWriteQueue, ^{
+    dispatch_barrier_sync(_private->readWriteQueue.get(), ^{
 #endif
     [_private->values.get() setObject:@(value) forKey:_key];
 #if PLATFORM(IOS_FAMILY)
@@ -632,7 +631,7 @@ public:
         return;
     NSString *_key = KEY(key);
 #if PLATFORM(IOS_FAMILY)
-    dispatch_barrier_sync(_private->readWriteQueue, ^{
+    dispatch_barrier_sync(_private->readWriteQueue.get(), ^{
 #endif
     [_private->values.get() setObject:@(value) forKey:_key];
 #if PLATFORM(IOS_FAMILY)
@@ -655,7 +654,7 @@ public:
         return;
     NSString *_key = KEY(key);
 #if PLATFORM(IOS_FAMILY)
-    dispatch_barrier_sync(_private->readWriteQueue, ^{
+    dispatch_barrier_sync(_private->readWriteQueue.get(), ^{
 #endif
     [_private->values.get() setObject:@(value) forKey:_key];
 #if PLATFORM(IOS_FAMILY)
@@ -1581,36 +1580,76 @@ public:
     LOG(Encoding, "requesting for %@\n", ident);
 
     if (!ident)
-        return _standardPreferences;
+        return standardPreferences().get();
 
-    WebPreferences *instance = [webPreferencesInstances objectForKey:[self _concatenateKeyWithIBCreatorID:ident]];
+    WebPreferences *instance = [webPreferencesInstances() objectForKey:[self _concatenateKeyWithIBCreatorID:ident]];
 
     return instance;
 }
 
 + (void)_setInstance:(WebPreferences *)instance forIdentifier:(NSString *)ident
 {
-    if (!webPreferencesInstances)
-        webPreferencesInstances = [[NSMutableDictionary alloc] init];
-    if (ident) {
-        [webPreferencesInstances setObject:instance forKey:[self _concatenateKeyWithIBCreatorID:ident]];
-        LOG(Encoding, "recording %p for %@\n", instance, [self _concatenateKeyWithIBCreatorID:ident]);
-    }
+    if (!ident)
+        return;
+
+    auto& instances = webPreferencesInstances();
+    if (!instances)
+        instances = adoptNS([[NSMutableDictionary alloc] init]);
+    [instances setObject:instance forKey:[self _concatenateKeyWithIBCreatorID:ident]];
+    LOG(Encoding, "recording %p for %@\n", instance, [self _concatenateKeyWithIBCreatorID:ident]);
 }
 
 + (void)_checkLastReferenceForIdentifier:(id)identifier
 {
     // FIXME: This won't work at all under garbage collection because retainCount returns a constant.
     // We may need to change WebPreferences API so there's an explicit way to end the lifetime of one.
-    WebPreferences *instance = [webPreferencesInstances objectForKey:identifier];
+    WebPreferences *instance = [webPreferencesInstances() objectForKey:identifier];
     if ([instance retainCount] == 1)
-        [webPreferencesInstances removeObjectForKey:identifier];
+        [webPreferencesInstances() removeObjectForKey:identifier];
 }
 
 + (void)_removeReferenceForIdentifier:(NSString *)ident
 {
     if (ident)
         [self performSelector:@selector(_checkLastReferenceForIdentifier:) withObject:[self _concatenateKeyWithIBCreatorID:ident] afterDelay:0.1];
+}
+
+- (void)_startBatchingUpdates
+{
+    if (!_private->updateBatchCount)
+        _private->updateAfterBatchType = { };
+
+    _private->updateBatchCount++;
+}
+
+- (void)_stopBatchingUpdates
+{
+    ASSERT(_private->updateBatchCount > 0);
+    if (_private->updateBatchCount <= 0)
+        NSLog(@"ERROR: Unbalanced _startBatchingUpdates/_stopBatchingUpdates.");
+
+    _private->updateBatchCount--;
+    if (!_private->updateBatchCount) {
+        if (_private->updateAfterBatchType.contains(UpdateAfterBatchType::Internal)) {
+            if (_private->updateAfterBatchType.contains(UpdateAfterBatchType::API))
+                [self _postPreferencesChangedNotification];
+            else
+                [self _postPreferencesChangedAPINotification];
+        }
+    }
+}
+
+- (void)_batchUpdatePreferencesInBlock:(void (^)(WebPreferences *))block
+{
+    [self _startBatchingUpdates];
+    block(self);
+    [self _stopBatchingUpdates];
+}
+
+- (void)_resetForTesting
+{
+    _private->values = adoptNS([[NSMutableDictionary alloc] init]);
+    [self _postPreferencesChangedNotification];
 }
 
 - (void)_postPreferencesChangedNotification
@@ -1622,6 +1661,11 @@ public:
     }
 #endif
 
+    if (_private->updateBatchCount) {
+        _private->updateAfterBatchType.add({ UpdateAfterBatchType::API, UpdateAfterBatchType::Internal });
+        return;
+    }
+
     [[NSNotificationCenter defaultCenter] postNotificationName:WebPreferencesChangedInternalNotification object:self userInfo:nil];
     [[NSNotificationCenter defaultCenter] postNotificationName:WebPreferencesChangedNotification object:self userInfo:nil];
 }
@@ -1630,6 +1674,11 @@ public:
 {
     if (!pthread_main_np()) {
         [self performSelectorOnMainThread:_cmd withObject:nil waitUntilDone:NO];
+        return;
+    }
+
+    if (_private->updateBatchCount) {
+        _private->updateAfterBatchType.add({ UpdateAfterBatchType::Internal });
         return;
     }
 
@@ -1647,13 +1696,15 @@ public:
         @{ WebKitDefaultTextEncodingNamePreferenceKey: defaultTextEncodingNameForSystemLanguage() }];
 }
 
-static NSString *classIBCreatorID = nil;
+static RetainPtr<NSString>& classIBCreatorID()
+{
+    static NeverDestroyed<RetainPtr<NSString>> classIBCreatorID;
+    return classIBCreatorID;
+}
 
 + (void)_setIBCreatorID:(NSString *)string
 {
-    NSString *old = classIBCreatorID;
-    classIBCreatorID = [string copy];
-    [old release];
+    classIBCreatorID() = adoptNS([string copy]);
 }
 
 - (BOOL)isDOMPasteAllowed
@@ -2015,47 +2066,35 @@ static NSString *classIBCreatorID = nil;
 
 - (void)setAudioSessionCategoryOverride:(unsigned)override
 {
-    if (override > AudioSession::AudioProcessing) {
+    if (override > static_cast<unsigned>(AudioSession::CategoryType::AudioProcessing)) {
         // Clients are passing us OSTypes values from AudioToolbox/AudioSession.h,
         // which need to be translated into AudioSession::CategoryType:
         switch (override) {
         case WebKitAudioSessionCategoryAmbientSound:
-            override = AudioSession::AmbientSound;
+            override = static_cast<unsigned>(AudioSession::CategoryType::AmbientSound);
             break;
         case WebKitAudioSessionCategorySoloAmbientSound:
-            override = AudioSession::SoloAmbientSound;
+            override = static_cast<unsigned>(AudioSession::CategoryType::SoloAmbientSound);
             break;
         case WebKitAudioSessionCategoryMediaPlayback:
-            override = AudioSession::MediaPlayback;
+            override = static_cast<unsigned>(AudioSession::CategoryType::MediaPlayback);
             break;
         case WebKitAudioSessionCategoryRecordAudio:
-            override = AudioSession::RecordAudio;
+            override = static_cast<unsigned>(AudioSession::CategoryType::RecordAudio);
             break;
         case WebKitAudioSessionCategoryPlayAndRecord:
-            override = AudioSession::PlayAndRecord;
+            override = static_cast<unsigned>(AudioSession::CategoryType::PlayAndRecord);
             break;
         case WebKitAudioSessionCategoryAudioProcessing:
-            override = AudioSession::AudioProcessing;
+            override = static_cast<unsigned>(AudioSession::CategoryType::AudioProcessing);
             break;
         default:
-            override = AudioSession::None;
+            override = static_cast<unsigned>(AudioSession::CategoryType::None);
             break;
         }
     }
 
     [self _setUnsignedIntValue:override forKey:WebKitAudioSessionCategoryOverride];
-}
-
-- (BOOL)avKitEnabled
-{
-    return [self _boolValueForKey:WebKitAVKitEnabled];
-}
-
-- (void)setAVKitEnabled:(BOOL)flag
-{
-#if HAVE(AVKIT)
-    [self _setBoolValue:flag forKey:WebKitAVKitEnabled];
-#endif
 }
 
 - (BOOL)networkDataUsageTrackingEnabled
@@ -2215,7 +2254,7 @@ static NSString *classIBCreatorID = nil;
 #if PLATFORM(IOS_FAMILY)
 - (void)_invalidateCachedPreferences
 {
-    dispatch_barrier_sync(_private->readWriteQueue, ^{
+    dispatch_barrier_sync(_private->readWriteQueue.get(), ^{
         if (_private->values)
             _private->values = adoptNS([[NSMutableDictionary alloc] init]);
     });
@@ -2440,12 +2479,14 @@ static NSString *classIBCreatorID = nil;
 
 - (BOOL)imageControlsEnabled
 {
-    return [self _boolValueForKey:WebKitImageControlsEnabledPreferenceKey];
+    // Image controls are no longer supported.
+    return NO;
 }
 
 - (void)setImageControlsEnabled:(BOOL)enabled
 {
-    [self _setBoolValue:enabled forKey:WebKitImageControlsEnabledPreferenceKey];
+    // Image controls are no longer supported.
+    UNUSED_PARAM(enabled);
 }
 
 - (BOOL)serviceControlsEnabled
@@ -2718,16 +2759,6 @@ static NSString *classIBCreatorID = nil;
     [self _setBoolValue:flag forKey:WebKitCSSOMViewScrollingAPIEnabledPreferenceKey];
 }
 
-- (BOOL)modernMediaControlsEnabled
-{
-    return [self _boolValueForKey:WebKitModernMediaControlsEnabledPreferenceKey];
-}
-
-- (void)setModernMediaControlsEnabled:(BOOL)flag
-{
-    [self _setBoolValue:flag forKey:WebKitModernMediaControlsEnabledPreferenceKey];
-}
-
 - (BOOL)menuItemElementEnabled
 {
     return [self _boolValueForKey:WebKitMenuItemElementEnabledPreferenceKey];
@@ -2946,7 +2977,7 @@ static NSString *classIBCreatorID = nil;
 
 + (NSString *)_IBCreatorID
 {
-    return classIBCreatorID;
+    return classIBCreatorID().get();
 }
 
 + (NSString *)_concatenateKeyWithIBCreatorID:(NSString *)key
@@ -3027,26 +3058,6 @@ static NSString *classIBCreatorID = nil;
 - (void)setUserGesturePromisePropagationEnabled:(BOOL)flag
 {
     [self _setBoolValue:flag forKey:WebKitUserGesturePromisePropagationEnabledPreferenceKey];
-}
-
-- (BOOL)modernUnprefixedWebAudioEnabled
-{
-    return [self _boolValueForKey:WebKitModernUnprefixedWebAudioEnabledPreferenceKey];
-}
-
-- (void)setModernUnprefixedWebAudioEnabled:(BOOL)enabled
-{
-    [self _setBoolValue:enabled forKey:WebKitModernUnprefixedWebAudioEnabledPreferenceKey];
-}
-
-- (BOOL)audioWorkletEnabled
-{
-    return [self _boolValueForKey:WebKitAudioWorkletEnabledPreferenceKey];
-}
-
-- (void)setAudioWorkletEnabled:(BOOL)enabled
-{
-    [self _setBoolValue:enabled forKey:WebKitAudioWorkletEnabledPreferenceKey];
 }
 
 - (BOOL)requestIdleCallbackEnabled
@@ -3157,16 +3168,6 @@ static NSString *classIBCreatorID = nil;
 - (void)setWebGL2Enabled:(BOOL)enabled
 {
     [self _setBoolValue:enabled forKey:WebKitWebGL2EnabledPreferenceKey];
-}
-
-- (BOOL)webGPUEnabled
-{
-    return [self _boolValueForKey:WebKitWebGPUEnabledPreferenceKey];
-}
-
-- (void)setWebGPUEnabled:(BOOL)enabled
-{
-    [self _setBoolValue:enabled forKey:WebKitWebGPUEnabledPreferenceKey];
 }
 
 - (BOOL)maskWebGLStringsEnabled

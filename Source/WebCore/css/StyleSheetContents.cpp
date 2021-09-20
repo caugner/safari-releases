@@ -417,11 +417,6 @@ Document* StyleSheetContents::singleOwnerDocument() const
     return ownerNode ? &ownerNode->document() : 0;
 }
 
-URL StyleSheetContents::completeURL(const String& url) const
-{
-    return m_parserContext.completeURL(url);
-}
-
 static bool traverseRulesInVector(const Vector<RefPtr<StyleRuleBase>>& rules, const WTF::Function<bool (const StyleRuleBase&)>& handler)
 {
     for (auto& rule : rules) {
@@ -444,6 +439,7 @@ static bool traverseRulesInVector(const Vector<RefPtr<StyleRuleBase>>& rules, co
         case StyleRuleType::Namespace:
         case StyleRuleType::Unknown:
         case StyleRuleType::Charset:
+        case StyleRuleType::CounterStyle:
         case StyleRuleType::Keyframe:
         case StyleRuleType::Supports:
             break;
@@ -478,6 +474,8 @@ bool StyleSheetContents::traverseSubresources(const WTF::Function<bool (const Ca
             if (auto* cachedResource = downcast<StyleRuleImport>(rule).cachedCSSStyleSheet())
                 return handler(*cachedResource);
             return false;
+        case StyleRuleType::CounterStyle:
+            return m_parserContext.counterStyleAtRuleImageSymbolsEnabled;
         case StyleRuleType::Media:
         case StyleRuleType::Page:
         case StyleRuleType::Keyframes:
@@ -508,7 +506,7 @@ bool StyleSheetContents::subresourcesAllowReuse(CachePolicy cachePolicy, FrameLo
         auto* documentLoader = loader.documentLoader();
         if (page && documentLoader) {
             const auto& request = resource.resourceRequest();
-            auto results = page->userContentProvider().processContentRuleListsForLoad(request.url(), ContentExtensions::toResourceType(resource.type()), *documentLoader);
+            auto results = page->userContentProvider().processContentRuleListsForLoad(*page, request.url(), ContentExtensions::toResourceType(resource.type(), resource.resourceRequest().requester()), *documentLoader);
             if (results.summary.blockedLoad || results.summary.madeHTTPS)
                 return true;
         }

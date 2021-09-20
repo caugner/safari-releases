@@ -34,6 +34,7 @@
 #include "JSImmutableButterfly.h"
 #include "JSStringJoiner.h"
 #include "ObjectConstructor.h"
+#include "ObjectPrototype.h"
 #include "StringRecursionChecker.h"
 #include <algorithm>
 #include <wtf/Assertions.h>
@@ -107,7 +108,11 @@ void ArrayPrototype::finishCreation(VM& vm, JSGlobalObject* globalObject)
     JSC_NATIVE_INTRINSIC_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->builtinNames().keysPublicName(), arrayProtoFuncKeys, static_cast<unsigned>(PropertyAttribute::DontEnum), 0, ArrayKeysIntrinsic);
     JSC_NATIVE_INTRINSIC_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->builtinNames().entriesPublicName(), arrayProtoFuncEntries, static_cast<unsigned>(PropertyAttribute::DontEnum), 0, ArrayEntriesIntrinsic);
     JSC_BUILTIN_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->builtinNames().findPublicName(), arrayPrototypeFindCodeGenerator, static_cast<unsigned>(PropertyAttribute::DontEnum));
+    if (Options::useArrayFindLastMethod())
+        JSC_BUILTIN_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->builtinNames().findLastPublicName(), arrayPrototypeFindLastCodeGenerator, static_cast<unsigned>(PropertyAttribute::DontEnum));
     JSC_BUILTIN_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->builtinNames().findIndexPublicName(), arrayPrototypeFindIndexCodeGenerator, static_cast<unsigned>(PropertyAttribute::DontEnum));
+    if (Options::useArrayFindLastMethod())
+        JSC_BUILTIN_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->builtinNames().findLastIndexPublicName(), arrayPrototypeFindLastIndexCodeGenerator, static_cast<unsigned>(PropertyAttribute::DontEnum));
     JSC_BUILTIN_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->builtinNames().includesPublicName(), arrayPrototypeIncludesCodeGenerator, static_cast<unsigned>(PropertyAttribute::DontEnum));
     JSC_BUILTIN_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->builtinNames().copyWithinPublicName(), arrayPrototypeCopyWithinCodeGenerator, static_cast<unsigned>(PropertyAttribute::DontEnum));
 
@@ -133,6 +138,10 @@ void ArrayPrototype::finishCreation(VM& vm, JSGlobalObject* globalObject)
         &vm.propertyNames->builtinNames().keysPublicName(),
         &vm.propertyNames->builtinNames().valuesPublicName()
     };
+    if (Options::useArrayFindLastMethod()) {
+        unscopables->putDirect(vm, vm.propertyNames->builtinNames().findLastPublicName(), jsBoolean(true));
+        unscopables->putDirect(vm, vm.propertyNames->builtinNames().findLastIndexPublicName(), jsBoolean(true));
+    }
     if (Options::useAtMethod())
         unscopables->putDirect(vm, vm.propertyNames->builtinNames().atPublicName(), jsBoolean(true));
     for (const auto* unscopableName : unscopableNames)
@@ -144,24 +153,11 @@ void ArrayPrototype::finishCreation(VM& vm, JSGlobalObject* globalObject)
 
 static ALWAYS_INLINE JSValue getProperty(JSGlobalObject* globalObject, JSObject* object, uint64_t index)
 {
-    VM& vm = globalObject->vm();
-    auto scope = DECLARE_THROW_SCOPE(vm);
-    
     if (JSValue result = object->tryGetIndexQuickly(index))
         return result;
-    // We want to perform get and has in the same operation.
-    // We can only do so when this behavior is not observable. The
-    // only time it is observable is when we encounter an opaque objects (ProxyObject and JSModuleNamespaceObject)
-    // somewhere in the prototype chain.
-    PropertySlot slot(object, PropertySlot::InternalMethodType::HasProperty);
-    bool hasProperty = object->getPropertySlot(globalObject, index, slot);
-    EXCEPTION_ASSERT(!scope.exception() || !hasProperty);
-    if (!hasProperty)
-        return { };
-    if (UNLIKELY(slot.isTaintedByOpaqueObject()))
-        RELEASE_AND_RETURN(scope, object->get(globalObject, index));
 
-    RELEASE_AND_RETURN(scope, slot.getValue(globalObject, index));
+    // Don't return undefined if the property is not found.
+    return object->getIfPropertyExists(globalObject, Identifier::from(globalObject->vm(), index));
 }
 
 static ALWAYS_INLINE void setLength(JSGlobalObject* globalObject, VM& vm, JSObject* obj, uint64_t value)
@@ -287,7 +283,7 @@ static inline uint64_t argumentClampedIndexFromStartOrEnd(JSGlobalObject* global
     if (value.isUndefined())
         return undefinedValue;
 
-    double indexDouble = value.toInteger(globalObject);
+    double indexDouble = value.toIntegerOrInfinity(globalObject);
     if (indexDouble < 0) {
         indexDouble += length;
         return indexDouble < 0 ? 0 : static_cast<uint64_t>(indexDouble);
@@ -612,19 +608,13 @@ JSC_DEFINE_HOST_FUNCTION(arrayProtoFuncToString, (JSGlobalObject* globalObject, 
     Integrity::auditStructureID(vm, thisObject->structureID());
     if (!canUseDefaultArrayJoinForToString(vm, thisObject)) {
         // 2. Let func be the result of calling the [[Get]] internal method of array with argument "join".
-        JSValue function = JSValue(thisObject).get(globalObject, vm.propertyNames->join);
+        JSValue function = thisObject->get(globalObject, vm.propertyNames->join);
         RETURN_IF_EXCEPTION(scope, encodedJSValue());
 
         // 3. If IsCallable(func) is false, then let func be the standard built-in method Object.prototype.toString (15.2.4.2).
-        bool customJoinCase = false;
-        if (!function.isCell())
-            customJoinCase = true;
         auto callData = getCallData(vm, function);
-        if (callData.type == CallData::Type::None)
-            customJoinCase = true;
-
-        if (UNLIKELY(customJoinCase))
-            RELEASE_AND_RETURN(scope, JSValue::encode(jsMakeNontrivialString(globalObject, "[object ", thisObject->methodTable(vm)->className(thisObject, vm), "]")));
+        if (UNLIKELY(callData.type == CallData::Type::None))
+            RELEASE_AND_RETURN(scope, JSValue::encode(objectPrototypeToString(globalObject, thisObject)));
 
         // 4. Return the result of calling the [[Call]] internal method of func providing array as the this value and an empty arguments list.
         if (!isJSArray(thisObject) || callData.type != CallData::Type::Native || callData.native.function != arrayProtoFuncJoin)
@@ -1167,7 +1157,7 @@ JSC_DEFINE_HOST_FUNCTION(arrayProtoFuncSplice, (JSGlobalObject* globalObject, Ca
 
     uint64_t actualDeleteCount = length - actualStart;
     if (callFrame->argumentCount() > 1) {
-        double deleteCount = callFrame->uncheckedArgument(1).toInteger(globalObject);
+        double deleteCount = callFrame->uncheckedArgument(1).toIntegerOrInfinity(globalObject);
         RETURN_IF_EXCEPTION(scope, encodedJSValue());
         if (deleteCount < 0)
             actualDeleteCount = 0;
@@ -1427,7 +1417,7 @@ JSC_DEFINE_HOST_FUNCTION(arrayProtoFuncLastIndexOf, (JSGlobalObject* globalObjec
     uint64_t index = length - 1;
     if (callFrame->argumentCount() >= 2) {
         JSValue fromValue = callFrame->uncheckedArgument(1);
-        double fromDouble = fromValue.toInteger(globalObject);
+        double fromDouble = fromValue.toIntegerOrInfinity(globalObject);
         RETURN_IF_EXCEPTION(scope, { });
         if (fromDouble < 0) {
             fromDouble += length;
@@ -1496,14 +1486,14 @@ static EncodedJSValue concatAppendOne(JSGlobalObject* globalObject, VM& vm, JSAr
     Butterfly* firstButterfly = first->butterfly();
     unsigned firstArraySize = firstButterfly->publicLength();
 
-    Checked<unsigned, RecordOverflow> checkedResultSize = firstArraySize;
+    CheckedUint32 checkedResultSize = firstArraySize;
     checkedResultSize += 1;
     if (UNLIKELY(checkedResultSize.hasOverflowed())) {
         throwOutOfMemoryError(globalObject, scope);
         return encodedJSValue();
     }
 
-    unsigned resultSize = checkedResultSize.unsafeGet();
+    unsigned resultSize = checkedResultSize;
     IndexingType type = first->mergeIndexingTypeForCopying(indexingTypeForValue(second) | IsArray);
     
     if (type == NonArray)
@@ -1589,7 +1579,7 @@ JSC_DEFINE_HOST_FUNCTION(arrayProtoPrivateFuncConcatMemcpy, (JSGlobalObject* glo
     unsigned firstArraySize = firstButterfly->publicLength();
     unsigned secondArraySize = secondButterfly->publicLength();
 
-    Checked<unsigned, RecordOverflow> checkedResultSize = firstArraySize;
+    CheckedUint32 checkedResultSize = firstArraySize;
     checkedResultSize += secondArraySize;
 
     if (UNLIKELY(checkedResultSize.hasOverflowed())) {
@@ -1597,7 +1587,7 @@ JSC_DEFINE_HOST_FUNCTION(arrayProtoPrivateFuncConcatMemcpy, (JSGlobalObject* glo
         return encodedJSValue();
     }
 
-    unsigned resultSize = checkedResultSize.unsafeGet();
+    unsigned resultSize = checkedResultSize;
     IndexingType firstType = firstArray->indexingType();
     IndexingType secondType = secondArray->indexingType();
     IndexingType type = firstArray->mergeIndexingTypeForCopying(secondType);

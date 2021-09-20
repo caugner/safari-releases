@@ -50,7 +50,7 @@ class RTCRtpScriptTransformer;
 class RequestAnimationFrameCallback;
 class SerializedScriptValue;
 
-#if ENABLE(OFFSCREEN_CANVAS)
+#if ENABLE(OFFSCREEN_CANVAS_IN_WORKERS)
 class WorkerAnimationController;
 
 using CallbackId = int;
@@ -70,16 +70,16 @@ public:
 
     DedicatedWorkerThread& thread();
 
-#if ENABLE(OFFSCREEN_CANVAS)
+#if ENABLE(OFFSCREEN_CANVAS_IN_WORKERS)
     CallbackId requestAnimationFrame(Ref<RequestAnimationFrameCallback>&&);
     void cancelAnimationFrame(CallbackId);
 #endif
 
 #if ENABLE(WEB_RTC)
-    RefPtr<RTCRtpScriptTransformer> createRTCRtpScriptTransformer(String&&, TransferredMessagePort);
-    ExceptionOr<void> registerRTCRtpScriptTransformer(String&&, Ref<JSRTCRtpScriptTransformerConstructor>&&);
-    RefPtr<MessagePort> takePendingRTCTransfomerMessagePort() { return WTFMove(m_pendingRTCTransfomerMessagePort); }
+    RefPtr<RTCRtpScriptTransformer> createRTCRtpScriptTransformer(MessageWithMessagePorts&&);
 #endif
+
+    FetchOptions::Destination destination() const final { return FetchOptions::Destination::Worker; }
 
 private:
     using Base = WorkerGlobalScope;
@@ -94,12 +94,8 @@ private:
 
     String m_name;
 
-#if ENABLE(OFFSCREEN_CANVAS)
+#if ENABLE(OFFSCREEN_CANVAS_IN_WORKERS)
     RefPtr<WorkerAnimationController> m_workerAnimationController;
-#endif
-#if ENABLE(WEB_RTC)
-    HashMap<String, RefPtr<JSRTCRtpScriptTransformerConstructor>> m_rtcRtpTransformerConstructorMap;
-    RefPtr<MessagePort> m_pendingRTCTransfomerMessagePort;
 #endif
 };
 

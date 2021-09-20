@@ -136,7 +136,6 @@ public:
 #include <JavaScriptCore/InspectorBackendDispatcher.h>
 #include <tuple>
 #include <wtf/Expected.h>
-#include <wtf/Optional.h>
 #include <wtf/text/WTFString.h>
 
 namespace Inspector {
@@ -302,7 +301,6 @@ void Network1BackendDispatcher::loadResource(long protocol_requestId, RefPtr<JSO
 
 #include "TestProtocolObjects.h"
 #include <wtf/JSONValues.h>
-#include <wtf/Optional.h>
 #include <wtf/text/WTFString.h>
 
 namespace Inspector {
@@ -404,7 +402,6 @@ void Network3FrontendDispatcher::resourceLoaded()
 
 #include <JavaScriptCore/InspectorProtocolTypes.h>
 #include <wtf/JSONValues.h>
-#include <wtf/Optional.h>
 #include <wtf/text/WTFString.h>
 
 namespace Inspector {
@@ -747,8 +744,8 @@ using namespace Inspector;
 @implementation TestProtocolConfiguration
 {
     AugmentableInspectorController* _controller;
-    id<TestProtocolNetwork1DomainHandler> _network1Handler;
-    TestProtocolNetwork3DomainEventDispatcher *_network3EventDispatcher;
+    RetainPtr<id<TestProtocolNetwork1DomainHandler>> _network1Handler;
+    RetainPtr<TestProtocolNetwork3DomainEventDispatcher> _network3EventDispatcher;
 }
 
 - (instancetype)initWithController:(AugmentableInspectorController*)controller
@@ -761,20 +758,12 @@ using namespace Inspector;
     return self;
 }
 
-- (void)dealloc
-{
-    [_network1Handler release];
-    [_network3EventDispatcher release];
-    [super dealloc];
-}
-
 - (void)setNetwork1Handler:(id<TestProtocolNetwork1DomainHandler>)handler
 {
     if (handler == _network1Handler)
         return;
 
-    [_network1Handler release];
-    _network1Handler = [handler retain];
+    _network1Handler = handler;
 
     auto alternateDispatcher = makeUnique<ObjCInspectorNetwork1BackendDispatcher>(handler);
     auto alternateAgent = makeUnique<AlternateDispatchableAgent<Network1BackendDispatcher, AlternateNetwork1BackendDispatcher>>("Network1"_s, *_controller, WTFMove(alternateDispatcher));
@@ -783,14 +772,14 @@ using namespace Inspector;
 
 - (id<TestProtocolNetwork1DomainHandler>)network1Handler
 {
-    return _network1Handler;
+    return _network1Handler.get();
 }
 
 - (TestProtocolNetwork3DomainEventDispatcher *)network3EventDispatcher
 {
     if (!_network3EventDispatcher)
-        _network3EventDispatcher = [[TestProtocolNetwork3DomainEventDispatcher alloc] initWithController:_controller];
-    return _network3EventDispatcher;
+        _network3EventDispatcher = adoptNS([[TestProtocolNetwork3DomainEventDispatcher alloc] initWithController:_controller]);
+    return _network3EventDispatcher.get();
 }
 
 @end
@@ -1005,7 +994,7 @@ __attribute__((visibility ("default")))
 namespace Inspector {
 
 template<typename ObjCEnumType>
-Optional<ObjCEnumType> fromProtocolString(const String& value);
+std::optional<ObjCEnumType> fromProtocolString(const String& value);
 
 
 

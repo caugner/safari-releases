@@ -33,11 +33,13 @@
 
 namespace WebCore {
 
+class DestinationColorSpace;
 class HTMLImageLoader;
 class ImageBuffer;
 class RenderVideo;
 class PictureInPictureObserver;
 
+enum class PixelFormat : uint8_t;
 enum class RenderingMode : bool;
 
 class HTMLVideoElement final : public HTMLMediaElement, public Supplementable<HTMLVideoElement> {
@@ -70,16 +72,12 @@ public:
     void webkitRequestFullscreen() override;
 #endif
 
-    RefPtr<ImageBuffer> createBufferForPainting(const FloatSize&, RenderingMode) const;
+    RefPtr<ImageBuffer> createBufferForPainting(const FloatSize&, RenderingMode, const DestinationColorSpace&, PixelFormat) const;
 
     // Used by canvas to gain raw pixel access
     void paintCurrentFrameInContext(GraphicsContext&, const FloatRect&);
 
     RefPtr<NativeImage> nativeImageForCurrentTime();
-
-    // Used by WebGL to do GPU-GPU textures copy if possible.
-    // See more details at MediaPlayer::copyVideoTextureToPlatformTexture() defined in Source/WebCore/platform/graphics/MediaPlayer.h.
-    bool copyVideoTextureToPlatformTexture(GraphicsContextGL*, PlatformGLObject texture, GCGLenum target, GCGLint level, GCGLenum internalFormat, GCGLenum format, GCGLenum type, bool premultiplyAlpha, bool flipY);
 
     WEBCORE_EXPORT bool shouldDisplayPosterImage() const;
 
@@ -119,8 +117,8 @@ private:
     bool rendererIsNeeded(const RenderStyle&) final;
     void didAttachRenderers() final;
     void parseAttribute(const QualifiedName&, const AtomString&) final;
-    bool isPresentationAttribute(const QualifiedName&) const final;
-    void collectStyleForPresentationAttribute(const QualifiedName&, const AtomString&, MutableStyleProperties&) final;
+    bool hasPresentationalHintsForAttribute(const QualifiedName&) const final;
+    void collectPresentationalHintsForAttribute(const QualifiedName&, const AtomString&, MutableStyleProperties&) final;
     bool isVideo() const final { return true; }
     bool hasVideo() const final { return player() && player()->hasVideo(); }
     bool supportsFullscreen(HTMLMediaElementEnums::VideoFullscreenMode) const final;

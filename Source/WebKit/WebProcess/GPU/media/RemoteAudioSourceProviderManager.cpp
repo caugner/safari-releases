@@ -45,6 +45,11 @@ RemoteAudioSourceProviderManager::RemoteAudioSourceProviderManager()
 
 RemoteAudioSourceProviderManager::~RemoteAudioSourceProviderManager()
 {
+    ASSERT(!m_connection);
+}
+
+void RemoteAudioSourceProviderManager::stopListeningForIPC()
+{
     setConnection(nullptr);
 }
 
@@ -67,7 +72,7 @@ void RemoteAudioSourceProviderManager::addProvider(Ref<RemoteAudioSourceProvider
     ASSERT(WTF::isMainRunLoop());
     setConnection(&WebProcess::singleton().ensureGPUProcessConnection().connection());
 
-    m_queue->dispatch([this, provider = WTFMove(provider)]() mutable {
+    m_queue->dispatch([this, protectedThis = makeRef(*this), provider = WTFMove(provider)]() mutable {
         auto identifier = provider->identifier();
 
         ASSERT(!m_providers.contains(identifier));
@@ -79,7 +84,7 @@ void RemoteAudioSourceProviderManager::removeProvider(MediaPlayerIdentifier iden
 {
     ASSERT(WTF::isMainRunLoop());
 
-    m_queue->dispatch([this, identifier] {
+    m_queue->dispatch([this, protectedThis = makeRef(*this), identifier] {
         ASSERT(m_providers.contains(identifier));
         m_providers.remove(identifier);
     });
@@ -119,7 +124,10 @@ void RemoteAudioSourceProviderManager::RemoteAudio::setStorage(const SharedMemor
 {
     m_description = description;
 
-    m_ringBuffer = makeUnique<CARingBuffer>(makeUniqueRef<ReadOnlySharedRingBufferStorage>(handle), description, numberOfFrames);
+    // Take ownership of shared memory and mark it as media-related memory.
+    handle.takeOwnershipOfMemory(MemoryLedger::Media);
+
+    m_ringBuffer = CARingBuffer::adoptStorage(makeUniqueRef<ReadOnlySharedRingBufferStorage>(handle), description, numberOfFrames).moveToUniquePtr();
     m_buffer = makeUnique<WebAudioBufferList>(description, numberOfFrames);
 }
 

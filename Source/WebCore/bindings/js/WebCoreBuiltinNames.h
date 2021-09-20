@@ -64,6 +64,7 @@ namespace WebCore {
     macro(BaseAudioContext) \
     macro(BeforeLoadEvent) \
     macro(BlobEvent) \
+    macro(BroadcastChannel) \
     macro(Cache) \
     macro(CacheStorage) \
     macro(Client) \
@@ -74,7 +75,9 @@ namespace WebCore {
     macro(ContactsManager) \
     macro(Credential) \
     macro(CredentialsContainer) \
+    macro(CryptoKey) \
     macro(CSSAnimation) \
+    macro(CSSCounterStyleRule) \
     macro(CSSImageValue) \
     macro(CSSNumericValue) \
     macro(CSSPaintSize) \
@@ -101,34 +104,6 @@ namespace WebCore {
     macro(Gamepad) \
     macro(GamepadButton) \
     macro(GamepadEvent) \
-    macro(GPU) \
-    macro(GPUAdapter) \
-    macro(GPUBindGroup) \
-    macro(GPUBindGroupLayout) \
-    macro(GPUBuffer) \
-    macro(GPUBufferUsage) \
-    macro(GPUCanvasContext) \
-    macro(GPUColorWrite) \
-    macro(GPUCommandBuffer) \
-    macro(GPUCommandEncoder) \
-    macro(GPUComputePassEncoder) \
-    macro(GPUComputePipeline) \
-    macro(GPUDevice) \
-    macro(GPUOutOfMemoryError) \
-    macro(GPUPipelineLayout) \
-    macro(GPUProgrammablePassEncoder) \
-    macro(GPUQueue) \
-    macro(GPURenderPassEncoder) \
-    macro(GPURenderPipeline) \
-    macro(GPUSampler) \
-    macro(GPUShaderModule) \
-    macro(GPUShaderStage) \
-    macro(GPUSwapChain) \
-    macro(GPUTexture) \
-    macro(GPUTextureUsage) \
-    macro(GPUTextureView) \
-    macro(GPUUncapturedErrorEvent) \
-    macro(GPUValidationError) \
     macro(HighlightRegister) \
     macro(Highlight) \
     macro(HTMLAttachmentElement) \
@@ -171,12 +146,12 @@ namespace WebCore {
     macro(MediaQueryListEvent) \
     macro(MediaRecorder) \
     macro(MediaRecorderErrorEvent) \
+    macro(MediaSessionCoordinator) \
     macro(MediaSource) \
     macro(MediaStream) \
     macro(MediaStreamTrack) \
     macro(MerchantValidationEvent) \
     macro(MockRTCRtpTransform) \
-    macro(ModernMediaControls) \
     macro(NavigatorCredentials) \
     macro(NavigatorMediaDevices) \
     macro(NavigatorUserMedia) \
@@ -191,6 +166,7 @@ namespace WebCore {
     macro(PaymentRequest) \
     macro(PaymentRequestUpdateEvent) \
     macro(PaymentResponse) \
+    macro(PerformanceNavigationTiming) \
     macro(PictureInPictureWindow) \
     macro(SQLError) \
     macro(SQLResultSet) \
@@ -232,6 +208,7 @@ namespace WebCore {
     macro(RTCSessionDescription) \
     macro(RTCStatsReport) \
     macro(RTCTrackEvent) \
+    macro(RTCTransformEvent) \
     macro(ReadableByteStreamController) \
     macro(ReadableStream) \
     macro(ReadableStreamBYOBReader) \
@@ -254,15 +231,19 @@ namespace WebCore {
     macro(SpeechRecognitionEvent) \
     macro(SpeechRecognitionResult) \
     macro(SpeechRecognitionResultList) \
+    macro(SourceBuffer) \
+    macro(SourceBufferList) \
     macro(StaticRange) \
     macro(StereoPannerNode) \
     macro(StylePropertyMapReadOnly) \
     macro(StylePropertyMap) \
+    macro(SubtleCrypto) \
     macro(TextDecoderStream) \
     macro(TextDecoderStreamDecoder) \
     macro(TextEncoderStream) \
     macro(TextEncoderStreamEncoder) \
     macro(TextTrackCue) \
+    macro(TextTrackCueGeneric) \
     macro(TransformStream) \
     macro(TransformStreamDefaultController) \
     macro(UndoItem) \
@@ -337,6 +318,7 @@ namespace WebCore {
     macro(controller) \
     macro(createImageBitmap) \
     macro(createReadableStream) \
+    macro(crossOriginIsolated) \
     macro(customElements) \
     macro(decode) \
     macro(disturbed) \
@@ -368,6 +350,8 @@ namespace WebCore {
     macro(isDisturbed) \
     macro(isLoading) \
     macro(isSecureContext) \
+    macro(kind) \
+    macro(language) \
     macro(localStreams) \
     macro(location) \
     macro(makeDOMException) \
@@ -376,6 +360,7 @@ namespace WebCore {
     macro(matchingElementInFlatTree) \
     macro(mediaStreamTrackConstraints) \
     macro(openDatabase) \
+    macro(onrtctransform) \
     macro(ontouchcancel) \
     macro(ontouchend) \
     macro(ontouchmove) \
@@ -441,8 +426,7 @@ namespace WebCore {
     macro(streamReadable) \
     macro(streamWaiting) \
     macro(streamWritable) \
-    macro(structuredCloneArrayBuffer) \
-    macro(structuredCloneArrayBufferView) \
+    macro(structuredCloneForStream) \
     macro(timeline) \
     macro(top) \
     macro(textDecoderStreamDecoder) \

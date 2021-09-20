@@ -42,6 +42,7 @@
 #import <WebCore/FrameView.h>
 #import <WebCore/Page.h>
 #import <WebCore/PageOverlayController.h>
+#import <WebCore/PlatformScreen.h>
 #import <WebCore/ScrollView.h>
 #import <WebCore/Scrollbar.h>
 #import <WebCore/WebAccessibilityObjectWrapperMac.h>
@@ -63,7 +64,6 @@ namespace ax = WebCore::Accessibility;
 - (void)dealloc
 {
     NSAccessibilityUnregisterUniqueIdForUIElement(self);
-    [m_parent release];
     [super dealloc];
 }
 
@@ -96,7 +96,7 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
         return cachedNames;
 #endif
 
-    id names = ax::retrieveValueFromMainThread<RetainPtr<id>>([PROTECTED_SELF] () -> RetainPtr<id> {
+    auto names = ax::retrieveValueFromMainThread<RetainPtr<id>>([PROTECTED_SELF] () -> RetainPtr<id> {
         auto page = protectedSelf->m_page;
         if (!page)
             return @[];
@@ -106,13 +106,13 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
             return @[];
 
         return createNSArray(corePage->pageOverlayController().copyAccessibilityAttributesNames(true));
-    }).autorelease();
+    });
 
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
-    self.cachedParameterizedAttributeNames = names;
+    self.cachedParameterizedAttributeNames = names.get();
 #endif
 
-    return names;
+    return names.autorelease();
 }
 
 ALLOW_DEPRECATED_IMPLEMENTATIONS_BEGIN
@@ -161,7 +161,7 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
         WebCore::AXObjectCache::enableAccessibility();
     
     if ([attribute isEqualToString:NSAccessibilityParentAttribute])
-        return m_parent;
+        return m_parent.get();
     
     if ([attribute isEqualToString:NSAccessibilityWindowAttribute])
         return [m_parent accessibilityAttributeValue:NSAccessibilityWindowAttribute];
@@ -185,7 +185,7 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
         return [self accessibilityAttributePositionValue];
     
     if ([attribute isEqualToString:NSAccessibilityPrimaryScreenHeightAttribute])
-        return [[self accessibilityRootObjectWrapper] accessibilityAttributeValue:attribute];
+        return @(WebCore::screenRectForPrimaryScreen().size().height());
     
     if ([attribute isEqualToString:NSAccessibilitySizeAttribute])
         return [self accessibilityAttributeSizeValue];

@@ -32,7 +32,10 @@
 #include "Performance.h"
 #include "UserGestureIndicator.h"
 #include "WorkerGlobalScope.h"
+#include <wtf/HexNumber.h>
 #include <wtf/IsoMallocInlines.h>
+#include <wtf/text/StringBuilder.h>
+#include <wtf/text/TextStream.h>
 
 namespace WebCore {
 
@@ -128,7 +131,7 @@ void Event::setTarget(RefPtr<EventTarget>&& target)
         receivedTarget();
 }
 
-void Event::setCurrentTarget(EventTarget* currentTarget, Optional<bool> isInShadowTree)
+void Event::setCurrentTarget(EventTarget* currentTarget, std::optional<bool> isInShadowTree)
 {
     m_currentTarget = currentTarget;
     m_currentTargetIsInShadowTree = isInShadowTree ? *isInShadowTree : (is<Node>(currentTarget) && downcast<Node>(*currentTarget).isInShadowTree());
@@ -179,6 +182,17 @@ void Event::resetAfterDispatch()
     m_immediatePropagationStopped = false;
 
     InspectorInstrumentation::eventDidResetAfterDispatch(*this);
+}
+
+String Event::debugDescription() const
+{
+    return makeString(type(), " phase ", eventPhase(), bubbles() ? " bubbles " : " ", cancelable() ? "cancelable " : " ", "0x"_s, hex(reinterpret_cast<uintptr_t>(this), Lowercase));
+}
+
+TextStream& operator<<(TextStream& ts, const Event& event)
+{
+    ts << event.debugDescription();
+    return ts;
 }
 
 } // namespace WebCore

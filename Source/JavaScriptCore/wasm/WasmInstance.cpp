@@ -29,6 +29,7 @@
 #if ENABLE(WEBASSEMBLY)
 
 #include "JSCJSValueInlines.h"
+#include "JSWebAssemblyHelpers.h"
 #include "JSWebAssemblyInstance.h"
 #include "Register.h"
 #include "WasmModuleInformation.h"
@@ -40,7 +41,7 @@ namespace JSC { namespace Wasm {
 namespace {
 size_t globalMemoryByteSize(Module& module)
 {
-    return (Checked<size_t>(module.moduleInformation().globals.size()) * sizeof(Register)).unsafeGet();
+    return Checked<size_t>(module.moduleInformation().globals.size()) * sizeof(Register);
 }
 }
 
@@ -123,7 +124,7 @@ void Instance::setFunctionWrapper(unsigned i, JSValue value)
     ASSERT(m_owner);
     ASSERT(value.isCallable(owner<JSWebAssemblyInstance>()->vm()));
     ASSERT(!m_functionWrappers.contains(i));
-    auto locker = holdLock(owner<JSWebAssemblyInstance>()->cellLock());
+    Locker locker { owner<JSWebAssemblyInstance>()->cellLock() };
     m_functionWrappers.set(i, WriteBarrier<Unknown>(owner<JSWebAssemblyInstance>()->vm(), owner<JSWebAssemblyInstance>(), value));
     ASSERT(getFunctionWrapper(i) == value);
 }

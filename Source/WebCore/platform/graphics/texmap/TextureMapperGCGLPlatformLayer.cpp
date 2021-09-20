@@ -33,23 +33,15 @@
 
 namespace WebCore {
 
-TextureMapperGCGLPlatformLayer::TextureMapperGCGLPlatformLayer(GraphicsContextGLOpenGL& context, GraphicsContextGLOpenGL::Destination destination)
+TextureMapperGCGLPlatformLayer::TextureMapperGCGLPlatformLayer(GraphicsContextGLOpenGL& context)
     : m_context(context)
 {
-    switch (destination) {
-    case GraphicsContextGLOpenGL::Destination::Offscreen: {
-        auto sharingContext = PlatformDisplay::sharedDisplayForCompositing().sharingGLContext()->platformContext();
+    auto sharingContext = PlatformDisplay::sharedDisplayForCompositing().sharingGLContext()->platformContext();
 #if ENABLE(WEBGL2)
-        m_glContext = ANGLEContext::createContext(sharingContext, context.contextAttributes().webGLVersion == GraphicsContextGLWebGLVersion::WebGL2);
+    m_glContext = ANGLEContext::createContext(sharingContext, context.contextAttributes().webGLVersion == GraphicsContextGLWebGLVersion::WebGL2);
 #else
-        m_glContext = ANGLEContext::createContext(sharingContext, false);
+    m_glContext = ANGLEContext::createContext(sharingContext, false);
 #endif
-        break;
-    }
-    case GraphicsContextGLOpenGL::Destination::DirectlyToHostWindow:
-        ASSERT_NOT_REACHED();
-        break;
-    }
 
 #if USE(COORDINATED_GRAPHICS)
     m_platformLayerProxy = adoptRef(new TextureMapperPlatformLayerProxy());
@@ -92,7 +84,7 @@ void TextureMapperGCGLPlatformLayer::swapBuffersIfNeeded()
     TextureMapperGL::Flags flags = TextureMapperGL::ShouldFlipTexture | (m_context.m_attrs.alpha ? TextureMapperGL::ShouldBlend : 0);
 
     {
-        LockHolder holder(m_platformLayerProxy->lock());
+        Locker locker { m_platformLayerProxy->lock() };
         m_platformLayerProxy->pushNextBuffer(makeUnique<TextureMapperPlatformLayerBuffer>(m_context.m_compositorTexture, textureSize, flags, m_context.m_internalColorFormat));
     }
 

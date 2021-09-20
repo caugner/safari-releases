@@ -41,12 +41,8 @@
 
 + (id)sharedInstance
 {
-    static WKWebInspectorPreferenceObserver *instance = nil;
-
-    if (!instance)
-        instance = [[[self class] alloc] init];
-
-    return instance;
+    static NeverDestroyed<RetainPtr<WKWebInspectorPreferenceObserver>> instance = adoptNS([[[self class] alloc] init]);
+    return instance.get().get();
 }
 
 - (instancetype)init
@@ -67,8 +63,8 @@
 
 - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary<NSKeyValueChangeKey, id> *)change context:(void *)context
 {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        for (auto* pool : WebKit::WebProcessPool::allProcessPools()) {
+    RunLoop::main().dispatch([] {
+        for (auto& pool : WebKit::WebProcessPool::allProcessPools()) {
             for (size_t i = 0; i < pool->processes().size(); ++i) {
                 auto process = pool->processes()[i];
                 process->enableRemoteInspectorIfNeeded();

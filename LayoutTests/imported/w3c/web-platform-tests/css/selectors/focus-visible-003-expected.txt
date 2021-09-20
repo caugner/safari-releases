@@ -17,5 +17,16 @@ Focus me
  Focus me.
  Focus me.
 
-FAIL Mouse focus on input elements which do not show a virtual keyboard should NOT match :focus-visible assert_equals: expected "none" but got "auto"
+PASS Focus element SPAN#el-1 via mouse should NOT match :focus-visible as it does NOT support keyboard input
+PASS Focus element SPAN#el-2 via mouse should NOT match :focus-visible as it does NOT support keyboard input
+PASS Focus element SPAN#el-3 via mouse should NOT match :focus-visible as it does NOT support keyboard input
+PASS Focus element BUTTON#el-4 via mouse should NOT match :focus-visible as it does NOT support keyboard input
+PASS Focus element INPUT#el-5 via mouse should NOT match :focus-visible as it does NOT support keyboard input
+PASS Focus element INPUT#el-6 via mouse should NOT match :focus-visible as it does NOT support keyboard input
+PASS Focus element INPUT#el-7 via mouse should NOT match :focus-visible as it does NOT support keyboard input
+PASS Focus element INPUT#el-8 via mouse should NOT match :focus-visible as it does NOT support keyboard input
+PASS Focus element INPUT#el-9 via mouse should NOT match :focus-visible as it does NOT support keyboard input
+PASS Focus element INPUT#el-10 via mouse should NOT match :focus-visible as it does NOT support keyboard input
+PASS Focus element INPUT#el-12 via mouse should NOT match :focus-visible as it does NOT support keyboard input
+PASS Focus element INPUT#el-13 via mouse should NOT match :focus-visible as it does NOT support keyboard input
 

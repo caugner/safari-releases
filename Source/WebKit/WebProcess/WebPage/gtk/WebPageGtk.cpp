@@ -45,10 +45,8 @@
 #include <WebCore/PlatformKeyboardEvent.h>
 #include <WebCore/PlatformScreen.h>
 #include <WebCore/PointerCharacteristics.h>
-#include <WebCore/RenderTheme.h>
 #include <WebCore/Settings.h>
 #include <WebCore/SharedBuffer.h>
-#include <WebCore/UserAgent.h>
 #include <WebCore/WindowsKeyboardCodes.h>
 #include <gtk/gtk.h>
 #include <wtf/glib/GUniquePtr.h>
@@ -123,14 +121,6 @@ bool WebPage::platformCanHandleRequest(const ResourceRequest&)
     return false;
 }
 
-String WebPage::platformUserAgent(const URL& url) const
-{
-    if (url.isNull() || !m_page->settings().needsSiteSpecificQuirks())
-        return String();
-
-    return WebCore::standardUserAgentForURL(url);
-}
-
 bool WebPage::hoverSupportedByPrimaryPointingDevice() const
 {
 #if ENABLE(TOUCH_EVENTS)
@@ -149,7 +139,7 @@ bool WebPage::hoverSupportedByAnyAvailablePointingDevice() const
 #endif
 }
 
-Optional<PointerCharacteristics> WebPage::pointerCharacteristicsOfPrimaryPointingDevice() const
+std::optional<PointerCharacteristics> WebPage::pointerCharacteristicsOfPrimaryPointingDevice() const
 {
 #if ENABLE(TOUCH_EVENTS)
     if (screenIsTouchPrimaryInputDevice())
@@ -165,14 +155,6 @@ OptionSet<PointerCharacteristics> WebPage::pointerCharacteristicsOfAllAvailableP
         return PointerCharacteristics::Coarse;
 #endif
     return PointerCharacteristics::Fine;
-}
-
-void WebPage::getCenterForZoomGesture(const IntPoint& centerInViewCoordinates, CompletionHandler<void(WebCore::IntPoint&&)>&& completionHandler)
-{
-    IntPoint result = mainFrameView()->rootViewToContents(centerInViewCoordinates);
-    double scale = m_page->pageScaleFactor();
-    result.scale(1 / scale, 1 / scale);
-    completionHandler(WTFMove(result));
 }
 
 void WebPage::collapseSelectionInFrame(FrameIdentifier frameID)
@@ -193,17 +175,6 @@ void WebPage::showEmojiPicker(Frame& frame)
             frame->editor().insertText(result, nullptr);
     };
     sendWithAsyncReply(Messages::WebPageProxy::ShowEmojiPicker(frame.view()->contentsToRootView(frame.selection().absoluteCaretBounds())), WTFMove(completionHandler));
-}
-
-void WebPage::themeDidChange(String&& themeName)
-{
-    if (m_themeName == themeName)
-        return;
-
-    m_themeName = WTFMove(themeName);
-    g_object_set(gtk_settings_get_default(), "gtk-theme-name", m_themeName.utf8().data(), nullptr);
-    RenderTheme::singleton().platformColorsDidChange();
-    Page::updateStyleForAllPagesAfterGlobalChangeInEnvironment();
 }
 
 } // namespace WebKit

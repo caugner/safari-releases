@@ -111,7 +111,7 @@ bool EventHandler::wheelEvent(WebEvent *event)
     OptionSet<WheelEventProcessingSteps> processingSteps = { WheelEventProcessingSteps::MainThreadForScrolling, WheelEventProcessingSteps::MainThreadForBlockingDOMEventDispatch };
 
     if (wheelEvent.isGestureStart())
-        m_wheelScrollGestureState = WTF::nullopt;
+        m_wheelScrollGestureState = std::nullopt;
     else if (wheelEvent.phase() == PlatformWheelEventPhase::Changed || wheelEvent.momentumPhase() == PlatformWheelEventPhase::Changed) {
         if (m_wheelScrollGestureState && *m_wheelScrollGestureState == WheelScrollGestureState::NonBlocking)
             processingSteps = { WheelEventProcessingSteps::MainThreadForScrolling, WheelEventProcessingSteps::MainThreadForNonBlockingDOMEventDispatch };
@@ -608,11 +608,11 @@ void EventHandler::startSelectionAutoscroll(RenderObject* renderer, const FloatP
 void EventHandler::cancelSelectionAutoscroll()
 {
     m_isAutoscrolling = false;
-    m_initialTargetAutoscrollPositionInUnscrolledRootViewCoordinates = WTF::nullopt;
+    m_initialTargetAutoscrollPositionInUnscrolledRootViewCoordinates = std::nullopt;
     m_autoscrollController->stopAutoscrollTimer();
 }
 
-static IntPoint adjustAutoscrollDestinationForInsetEdges(IntPoint autoscrollPoint, Optional<IntPoint> initialAutoscrollPoint, FloatRect unobscuredRootViewRect)
+static IntPoint adjustAutoscrollDestinationForInsetEdges(IntPoint autoscrollPoint, std::optional<IntPoint> initialAutoscrollPoint, FloatRect unobscuredRootViewRect)
 {
     IntPoint resultPoint = autoscrollPoint;
 
@@ -719,7 +719,7 @@ bool EventHandler::tryToBeginDragAtPoint(const IntPoint& clientPosition, const I
     PlatformMouseEvent syntheticMousePressEvent(adjustedClientPosition, adjustedGlobalPosition, LeftButton, PlatformEvent::MousePressed, 1, false, false, false, false, WallTime::now(), 0, NoTap);
     PlatformMouseEvent syntheticMouseMoveEvent(adjustedClientPosition, adjustedGlobalPosition, LeftButton, PlatformEvent::MouseMoved, 0, false, false, false, false, WallTime::now(), 0, NoTap);
 
-    constexpr OptionSet<HitTestRequest::RequestType> hitType { HitTestRequest::Active, HitTestRequest::DisallowUserAgentShadowContent };
+    constexpr OptionSet<HitTestRequest::Type> hitType { HitTestRequest::Type::Active, HitTestRequest::Type::DisallowUserAgentShadowContent };
     auto documentPoint = protectedFrame->view() ? protectedFrame->view()->windowToContents(syntheticMouseMoveEvent.position()) : syntheticMouseMoveEvent.position();
     auto hitTestedMouseEvent = document->prepareMouseEvent(hitType, documentPoint, syntheticMouseMoveEvent);
 

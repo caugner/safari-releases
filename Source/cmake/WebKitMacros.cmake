@@ -277,7 +277,7 @@ macro(_WEBKIT_EXECUTABLE_LINK_FRAMEWORK _target)
         get_property(_linked_into GLOBAL PROPERTY ${framework}_LINKED_INTO)
 
         # See if the executable is linking a framework that the specified framework is already linked into
-        if ((NOT _linked_into) OR (${framework} STREQUAL ${_linked_into}) OR (NOT ${_linked_into} IN_LIST opt_LINK))
+        if ((NOT _linked_into) OR (${framework} STREQUAL ${_linked_into}) OR (NOT ${_linked_into} IN_LIST ${_target}_FRAMEWORKS))
             list(APPEND ${_target}_PRIVATE_LIBRARIES WebKit::${framework})
 
             # The WebKit:: alias targets do not propagate OBJECT libraries so the
@@ -397,41 +397,6 @@ macro(WEBKIT_CREATE_FORWARDING_HEADER _target_directory _file)
 
     if (NOT _old_content STREQUAL _content)
         file(WRITE "${_target_filename}" "${_content}")
-    endif ()
-endmacro()
-
-macro(WEBKIT_CREATE_FORWARDING_HEADERS _framework)
-    # On Windows, we copy the entire contents of forwarding headers.
-    if (NOT WIN32)
-        set(_processing_directories 0)
-        set(_processing_files 0)
-        set(_target_directory "${FORWARDING_HEADERS_DIR}/${_framework}")
-
-        file(GLOB _files "${_target_directory}/*.h")
-        foreach (_file ${_files})
-            file(READ "${_file}" _content)
-            string(REGEX MATCH "^#include \"([^\"]*)\"" _matched ${_content})
-            if (_matched AND NOT EXISTS "${CMAKE_SOURCE_DIR}/Source/${CMAKE_MATCH_1}")
-               file(REMOVE "${_file}")
-            endif ()
-        endforeach ()
-
-        foreach (_currentArg ${ARGN})
-            if ("${_currentArg}" STREQUAL "DIRECTORIES")
-                set(_processing_directories 1)
-                set(_processing_files 0)
-            elseif ("${_currentArg}" STREQUAL "FILES")
-                set(_processing_directories 0)
-                set(_processing_files 1)
-            elseif (_processing_directories)
-                file(GLOB _files "${_currentArg}/*.h")
-                foreach (_file ${_files})
-                    WEBKIT_CREATE_FORWARDING_HEADER(${_target_directory} ${_file})
-                endforeach ()
-            elseif (_processing_files)
-                WEBKIT_CREATE_FORWARDING_HEADER(${_target_directory} ${_currentArg})
-            endif ()
-        endforeach ()
     endif ()
 endmacro()
 

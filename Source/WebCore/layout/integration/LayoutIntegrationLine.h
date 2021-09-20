@@ -28,6 +28,7 @@
 #if ENABLE(LAYOUT_FORMATTING_CONTEXT)
 
 #include "FloatRect.h"
+#include "LayoutBox.h"
 
 namespace WebCore {
 namespace LayoutIntegration {
@@ -35,7 +36,7 @@ namespace LayoutIntegration {
 class Line {
     WTF_MAKE_FAST_ALLOCATED;
 public:
-    Line(size_t firstRunIndex, size_t runCount, const FloatRect& lineBoxRect, float enclosingContentTop, float enclosingContentBottom, const FloatRect& scrollableOverflow, const FloatRect& inkOverflow, float baseline, float contentLeftOffset, float contentWidth)
+    Line(size_t firstRunIndex, size_t runCount, const FloatRect& lineBoxRect, float enclosingContentTop, float enclosingContentBottom, const FloatRect& scrollableOverflow, const FloatRect& inkOverflow, float baseline, float contentLeft, float contentWidth)
         : m_firstRunIndex(firstRunIndex)
         , m_runCount(runCount)
         , m_lineBoxRect(lineBoxRect)
@@ -44,7 +45,7 @@ public:
         , m_scrollableOverflow(scrollableOverflow)
         , m_inkOverflow(inkOverflow)
         , m_baseline(baseline)
-        , m_contentLeftOffset(contentLeftOffset)
+        , m_contentLeft(contentLeft)
         , m_contentWidth(contentWidth)
     {
     }
@@ -65,7 +66,7 @@ public:
 
     float baseline() const { return m_baseline; }
 
-    float contentLeftOffset() const { return m_contentLeftOffset; }
+    float contentLeft() const { return m_contentLeft; }
     float contentWidth() const { return m_contentWidth; }
 
 private:
@@ -81,8 +82,34 @@ private:
     FloatRect m_scrollableOverflow;
     FloatRect m_inkOverflow;
     float m_baseline { 0 };
-    float m_contentLeftOffset { 0 };
+    float m_contentLeft { 0 };
     float m_contentWidth { 0 };
+};
+
+class NonRootInlineBox {
+public:
+    NonRootInlineBox(size_t lineIndex, const Layout::Box& layoutBox, const FloatRect& rect, bool canContributeToLineOverflow)
+        : m_lineIndex(lineIndex)
+        , m_layoutBox(makeWeakPtr(layoutBox))
+        , m_rect(rect)
+        , m_canContributeToLineOverflow(canContributeToLineOverflow)
+    {
+    }
+
+    const Layout::Box& layoutBox() const { return *m_layoutBox; }
+    const RenderStyle& style() const { return m_layoutBox->style(); }
+
+    size_t lineIndex() const { return m_lineIndex; }
+
+    FloatRect rect() const { return m_rect; }
+
+    bool canContributeToLineOverflow() const { return m_canContributeToLineOverflow; }
+
+private:
+    const size_t m_lineIndex;
+    WeakPtr<const Layout::Box> m_layoutBox;
+    FloatRect m_rect;
+    bool m_canContributeToLineOverflow { false };
 };
 
 }

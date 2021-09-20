@@ -151,17 +151,17 @@ static bool canUpdatePreviewForActiveDragSource(const DragSourceState& source)
     return false;
 }
 
-Optional<DragSourceState> DragDropInteractionState::activeDragSourceForItem(UIDragItem *item) const
+std::optional<DragSourceState> DragDropInteractionState::activeDragSourceForItem(UIDragItem *item) const
 {
     if (![item.privateLocalContext isKindOfClass:[NSNumber class]])
-        return WTF::nullopt;
+        return std::nullopt;
 
     auto identifier = [(NSNumber *)item.privateLocalContext integerValue];
     for (auto& source : m_activeDragSources) {
         if (source.itemIdentifier == identifier)
             return source;
     }
-    return WTF::nullopt;
+    return std::nullopt;
 }
 
 bool DragDropInteractionState::anyActiveDragSourceIs(WebCore::DragSourceAction action) const
@@ -364,7 +364,7 @@ void DragDropInteractionState::clearStagedDragSource(DidBecomeActive didBecomeAc
 {
     if (didBecomeActive == DidBecomeActive::Yes)
         m_activeDragSources.append(stagedDragSource());
-    m_stagedDragSource = WTF::nullopt;
+    m_stagedDragSource = std::nullopt;
 }
 
 void DragDropInteractionState::dragAndDropSessionsDidEnd()
@@ -397,16 +397,16 @@ void DragDropInteractionState::updatePreviewsForActiveDragSources()
             dragItem.previewProvider = [title = retainPtr((NSString *)source.linkTitle), url = retainPtr((NSURL *)source.linkURL), center = source.adjustedOrigin] () -> UIDragPreview * {
                 UIURLDragPreviewView *previewView = [UIURLDragPreviewView viewWithTitle:title.get() URL:url.get()];
                 previewView.center = center;
-                UIDragPreviewParameters *parameters = [[[UIDragPreviewParameters alloc] initWithTextLineRects:@[ [NSValue valueWithCGRect:previewView.bounds] ]] autorelease];
-                return [[[UIDragPreview alloc] initWithView:previewView parameters:parameters] autorelease];
+                auto parameters = adoptNS([[UIDragPreviewParameters alloc] initWithTextLineRects:@[ [NSValue valueWithCGRect:previewView.bounds] ]]);
+                return adoptNS([[UIDragPreview alloc] initWithView:previewView parameters:parameters.get()]).autorelease();
             };
         }
 #if ENABLE(INPUT_TYPE_COLOR)
         else if (source.action.contains(DragSourceAction::Color)) {
             dragItem.previewProvider = [image = source.image] () -> UIDragPreview * {
-                UIImageView *imageView = [[[UIImageView alloc] initWithImage:image.get()] autorelease];
-                UIDragPreviewParameters *parameters = [[[UIDragPreviewParameters alloc] initWithTextLineRects:@[ [NSValue valueWithCGRect:[imageView bounds]] ]] autorelease];
-                return [[[UIDragPreview alloc] initWithView:imageView parameters:parameters] autorelease];
+                auto imageView = adoptNS([[UIImageView alloc] initWithImage:image.get()]);
+                auto parameters = adoptNS([[UIDragPreviewParameters alloc] initWithTextLineRects:@[ [NSValue valueWithCGRect:[imageView bounds]] ]]);
+                return adoptNS([[UIDragPreview alloc] initWithView:imageView.get() parameters:parameters.get()]).autorelease();
             };
         }
 #endif

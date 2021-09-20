@@ -50,12 +50,15 @@ typedef void (*AXPostedNotificationCallback)(id element, NSString* notification,
 - (id)accessibilityElementForRow:(NSInteger)row andColumn:(NSInteger)column;
 - (NSURL *)accessibilityURL;
 - (NSArray *)accessibilityHeaderElements;
+- (NSArray *)accessibilityDetailsElements;
+- (NSArray *)accessibilityErrorMessageElements;
 - (NSString *)accessibilityPlaceholderValue;
 - (NSString *)stringForRange:(NSRange)range;
 - (NSAttributedString *)attributedStringForRange:(NSRange)range;
 - (NSAttributedString *)attributedStringForElement;
 - (NSArray *)elementsForRange:(NSRange)range;
 - (NSString *)selectionRangeString;
+- (NSArray *)lineRectsAndText;
 - (CGPoint)accessibilityClickPoint;
 - (void)accessibilityModifySelection:(WebCore::TextGranularity)granularity increase:(BOOL)increase;
 - (NSRange)_accessibilitySelectedTextRange;
@@ -77,6 +80,7 @@ typedef void (*AXPostedNotificationCallback)(id element, NSString* notification,
 - (NSUInteger)accessibilityARIAColumnCount;
 - (NSUInteger)accessibilityARIARowIndex;
 - (NSUInteger)accessibilityARIAColumnIndex;
+- (NSString *)accessibilityInvalidStatus;
 - (BOOL)accessibilityIsInDescriptionListDefinition;
 - (BOOL)accessibilityIsInDescriptionListTerm;
 - (UIAccessibilityTraits)_axContainedByFieldsetTrait;
@@ -98,11 +102,14 @@ typedef void (*AXPostedNotificationCallback)(id element, NSString* notification,
 - (id)_accessibilityTableAncestor;
 - (id)_accessibilityLandmarkAncestor;
 - (id)_accessibilityListAncestor;
+- (id)_accessibilityPhotoDescription;
+- (NSArray *)accessibilityImageOverlayElements;
 
 // TextMarker related
 - (NSArray *)textMarkerRange;
 - (NSInteger)lengthForTextMarkers:(NSArray *)textMarkers;
 - (NSString *)stringForTextMarkers:(NSArray *)markers;
+- (NSArray *)textRectsFromMarkers:(NSArray *)markers withText:(NSString *)text;
 - (id)startOrEndTextMarkerForTextMarkers:(NSArray*)textMarkers isStart:(BOOL)isStart;
 - (NSArray *)textMarkerRangeForMarkers:(NSArray *)textMarkers;
 - (NSInteger)positionForTextMarker:(id)marker;
@@ -128,7 +135,7 @@ typedef void (*AXPostedNotificationCallback)(id element, NSString* notification,
     if (!jsStringRef)
         return nil;
     
-    return CFBridgingRelease(JSStringCopyCFString(kCFAllocatorDefault, jsStringRef));
+    return adoptCF(JSStringCopyCFString(kCFAllocatorDefault, jsStringRef)).bridgingAutorelease();
 }
 
 - (JSRetainPtr<JSStringRef>)createJSStringRef
@@ -210,6 +217,11 @@ void AccessibilityUIElement::getDocumentLinks(Vector<RefPtr<AccessibilityUIEleme
 {
 }
 
+JSValueRef AccessibilityUIElement::children() const
+{
+    return makeJSArray(makeVector<RefPtr<AccessibilityUIElement>>([m_element accessibilityElements]));
+}
+
 void AccessibilityUIElement::getChildren(Vector<RefPtr<AccessibilityUIElement> >& elementVector)
 {
     NSInteger childCount = [m_element accessibilityElementCount];
@@ -240,21 +252,11 @@ RefPtr<AccessibilityUIElement> AccessibilityUIElement::elementAtPoint(int x, int
     
     return AccessibilityUIElement::create(element);
 }
-    
-static JSValueRef convertElementsToObjectArray(JSContextRef context, const Vector<RefPtr<AccessibilityUIElement>>& elements)
-{
-    auto array = JSObjectMakeArray(context, 0, nullptr, nullptr);
-    auto size = elements.size();
-    for (size_t i = 0; i < size; ++i)
-        JSObjectSetPropertyAtIndex(context, array, i, JSObjectMake(context, elements[i]->wrapperClass(), elements[i].get()), nullptr);
-    return array;
-}
+
 JSValueRef AccessibilityUIElement::elementsForRange(unsigned location, unsigned length)
 {
-    WKBundleFrameRef mainFrame = WKBundlePageGetMainFrame(InjectedBundle::singleton().page()->page());
-    JSContextRef context = WKBundleFrameGetJavaScriptContext(mainFrame);
     NSArray *elementsForRange = [m_element elementsForRange:NSMakeRange(location, length)];
-    return convertElementsToObjectArray(context, makeVector<RefPtr<AccessibilityUIElement>>(elementsForRange));
+    return makeJSArray(makeVector<RefPtr<AccessibilityUIElement>>(elementsForRange));
 }
 
 unsigned AccessibilityUIElement::indexOfChild(AccessibilityUIElement* element)
@@ -277,6 +279,22 @@ RefPtr<AccessibilityUIElement> AccessibilityUIElement::linkedUIElementAtIndex(un
     return nullptr;
 }
 
+JSValueRef AccessibilityUIElement::detailsElements() const
+{
+    NSArray *elements = [m_element accessibilityDetailsElements];
+    if ([elements isKindOfClass:NSArray.class])
+        return makeJSArray(makeVector<RefPtr<AccessibilityUIElement>>(elements));
+    return { };
+}
+
+JSValueRef AccessibilityUIElement::errorMessageElements() const
+{
+    NSArray *elements = [m_element accessibilityErrorMessageElements];
+    if ([elements isKindOfClass:NSArray.class])
+        return makeJSArray(makeVector<RefPtr<AccessibilityUIElement>>(elements));
+    return { };
+}
+
 RefPtr<AccessibilityUIElement> AccessibilityUIElement::ariaOwnsElementAtIndex(unsigned index)
 {
     return nullptr;
@@ -290,6 +308,22 @@ RefPtr<AccessibilityUIElement> AccessibilityUIElement::ariaFlowToElementAtIndex(
 RefPtr<AccessibilityUIElement> AccessibilityUIElement::ariaControlsElementAtIndex(unsigned index)
 {
     return 0;
+}
+
+RefPtr<AccessibilityUIElement> AccessibilityUIElement::ariaDetailsElementAtIndex(unsigned index)
+{
+    return nil;
+}
+
+RefPtr<AccessibilityUIElement> AccessibilityUIElement::ariaErrorMessageElementAtIndex(unsigned index)
+{
+    NSArray *elements = [m_element accessibilityErrorMessageElements];
+    if (![elements isKindOfClass:NSArray.class])
+        return nullptr;
+
+    if (index < elements.count)
+        return create([elements objectAtIndex:index]);
+    return nullptr;
 }
 
 RefPtr<AccessibilityUIElement> AccessibilityUIElement::disclosedRowAtIndex(unsigned index)
@@ -376,10 +410,13 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::stringAttributeValue(JSStringRe
 
     if (JSStringIsEqualToUTF8CString(attribute, "AXExpandedTextValue"))
         return [[m_element accessibilityExpandedTextValue] createJSStringRef];
-    
+
+    if (JSStringIsEqualToUTF8CString(attribute, "AXInvalid"))
+        return [[m_element accessibilityInvalidStatus] createJSStringRef];
+
     if (JSStringIsEqualToUTF8CString(attribute, "AXSortDirection"))
         return [[m_element accessibilitySortDirection] createJSStringRef];
-    
+
     if (JSStringIsEqualToUTF8CString(attribute, "AXVisibleContentRect")) {
         CGRect screenRect = [m_element accessibilityVisibleContentRect];
         NSString *rectStr = [NSString stringWithFormat:@"{%.2f, %.2f, %.2f, %.2f}", screenRect.origin.x, screenRect.origin.y, screenRect.size.width, screenRect.size.height];
@@ -388,7 +425,7 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::stringAttributeValue(JSStringRe
 
     if (JSStringIsEqualToUTF8CString(attribute, "AXTextualContext"))
         return [[m_element accessibilityTextualContext] createJSStringRef];
-    
+
     return createJSString();
 }
 
@@ -535,6 +572,11 @@ double AccessibilityUIElement::clickPointX()
 double AccessibilityUIElement::clickPointY()
 {
     return [m_element accessibilityClickPoint].y;
+}
+
+JSRetainPtr<JSStringRef> AccessibilityUIElement::lineRectsAndText() const
+{
+    return [[[m_element lineRectsAndText] componentsJoinedByString:@"|"] createJSStringRef];
 }
 
 double AccessibilityUIElement::intValue() const
@@ -1021,7 +1063,8 @@ bool AccessibilityUIElement::addNotificationListener(JSValueRef functionCallback
     // Other platforms may be different.
     if (m_notificationHandler)
         return false;
-    m_notificationHandler = [[AccessibilityNotificationHandler alloc] init];
+
+    m_notificationHandler = adoptNS([[AccessibilityNotificationHandler alloc] init]);
     [m_notificationHandler setPlatformElement:platformUIElement()];
     [m_notificationHandler setCallback:functionCallback];
     [m_notificationHandler startObserving];
@@ -1035,7 +1078,6 @@ bool AccessibilityUIElement::removeNotificationListener()
     ASSERT(m_notificationHandler);
     
     [m_notificationHandler stopObserving];
-    [m_notificationHandler release];
     m_notificationHandler = nil;
     
     return true;
@@ -1064,6 +1106,16 @@ bool AccessibilityUIElement::isVisible() const
 bool AccessibilityUIElement::isOffScreen() const
 {
     return false;
+}
+
+JSRetainPtr<JSStringRef> AccessibilityUIElement::embeddedImageDescription() const
+{
+    return concatenateAttributeAndValue(@"AXEmbeddedImageDescription", [m_element _accessibilityPhotoDescription]);
+}
+
+JSValueRef AccessibilityUIElement::imageOverlayElements() const
+{
+    return makeJSArray(makeVector<RefPtr<AccessibilityUIElement>>([m_element accessibilityImageOverlayElements]));
 }
 
 bool AccessibilityUIElement::isCollapsed() const
@@ -1159,6 +1211,14 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::stringForTextMarkerRange(Access
     if (![textMarkers isKindOfClass:[NSArray class]])
         return createJSString();
     return [[m_element stringForTextMarkers:textMarkers] createJSStringRef];
+}
+
+JSRetainPtr<JSStringRef> AccessibilityUIElement::rectsForTextMarkerRange(AccessibilityTextMarkerRange* markerRange, JSStringRef text)
+{
+    id textMarkers = markerRange->platformTextMarkerRange();
+    if (![textMarkers isKindOfClass:[NSArray class]])
+        return createJSString();
+    return [[[m_element textRectsFromMarkers:textMarkers withText:[NSString stringWithJSStringRef:text]] componentsJoinedByString:@","] createJSStringRef];
 }
 
 RefPtr<AccessibilityTextMarkerRange> AccessibilityUIElement::textMarkerRangeForMarkers(AccessibilityTextMarker* startMarker, AccessibilityTextMarker* endMarker)

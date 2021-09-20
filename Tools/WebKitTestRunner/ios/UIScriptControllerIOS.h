@@ -80,6 +80,7 @@ private:
     void rawKeyUp(JSStringRef) override;
 
     void dismissFormAccessoryView() override;
+    JSObjectRef filePickerAcceptedTypeIdentifiers() override;
     void dismissFilePicker(JSValueRef) override;
     JSRetainPtr<JSStringRef> selectFormPopoverTitle() const override;
     JSRetainPtr<JSStringRef> textContentType() const override;
@@ -105,8 +106,8 @@ private:
     void applyAutocorrection(JSStringRef newString, JSStringRef oldString, JSValueRef) override;
     double minimumZoomScale() const override;
     double maximumZoomScale() const override;
-    Optional<bool> stableStateOverride() const override;
-    void setStableStateOverride(Optional<bool> overrideValue) override;
+    std::optional<bool> stableStateOverride() const override;
+    void setStableStateOverride(std::optional<bool> overrideValue) override;
     JSObjectRef contentVisibleRect() const override;
     JSObjectRef textSelectionRangeRects() const override;
     JSObjectRef textSelectionCaretRect() const override;
@@ -129,9 +130,12 @@ private:
     void completeBackSwipe(JSValueRef) override;
     bool isShowingDataListSuggestions() const override;
     void activateDataListSuggestion(unsigned, JSValueRef) override;
+    void setSelectedColorForColorPicker(double, double, double) override;
     void setKeyboardInputModeIdentifier(JSStringRef) override;
     void toggleCapsLock(JSValueRef) override;
     bool keyboardIsAutomaticallyShifted() const override;
+    bool isAnimatingDragCancel() const override;
+    JSObjectRef tapHighlightViewRect() const override;
     JSObjectRef attachmentInfo(JSStringRef) override;
     UIView *platformContentView() const override;
     JSObjectRef calendarType() const override;
@@ -139,23 +143,24 @@ private:
     void setAllowsViewportShrinkToFit(bool) override;
     void copyText(JSStringRef) override;
     void installTapGestureOnWindow(JSValueRef) override;
-    bool isShowingContextMenu() const override;
     void setSpellCheckerResults(JSValueRef) override { }
 
     bool mayContainEditableElementsInRect(unsigned x, unsigned y, unsigned width, unsigned height) override;
 
     void setDidStartFormControlInteractionCallback(JSValueRef) override;
     void setDidEndFormControlInteractionCallback(JSValueRef) override;
-    void setDidShowContextMenuCallback(JSValueRef) override;
-    void setDidDismissContextMenuCallback(JSValueRef) override;
     void setWillBeginZoomingCallback(JSValueRef) override;
     void setDidEndZoomingCallback(JSValueRef) override;
     void setDidShowKeyboardCallback(JSValueRef) override;
     void setDidHideKeyboardCallback(JSValueRef) override;
+    void setWillStartInputSessionCallback(JSValueRef) override;
     void setWillPresentPopoverCallback(JSValueRef) override;
     void setDidDismissPopoverCallback(JSValueRef) override;
     void setDidEndScrollingCallback(JSValueRef) override;
     void clearAllCallbacks() override;
+
+    bool suppressSoftwareKeyboard() const final;
+    void setSuppressSoftwareKeyboard(bool) final;
 
     void waitForModalTransitionToFinish() const;
     void waitForSingleTapToReset() const;

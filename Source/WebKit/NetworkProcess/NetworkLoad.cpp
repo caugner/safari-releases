@@ -29,6 +29,7 @@
 #include "AuthenticationChallengeDisposition.h"
 #include "AuthenticationManager.h"
 #include "NetworkDataTaskBlob.h"
+#include "NetworkLoadScheduler.h"
 #include "NetworkProcess.h"
 #include "NetworkProcessProxyMessages.h"
 #include "NetworkSession.h"
@@ -36,6 +37,7 @@
 #include "WebErrors.h"
 #include <WebCore/ResourceRequest.h>
 #include <WebCore/SharedBuffer.h>
+#include <wtf/NeverDestroyed.h>
 #include <wtf/Seconds.h>
 
 namespace WebKit {
@@ -60,9 +62,19 @@ void NetworkLoad::start()
         m_task->resume();
 }
 
+void NetworkLoad::startWithScheduling()
+{
+    if (!m_task || !m_task->networkSession())
+        return;
+    m_scheduler = makeWeakPtr(m_task->networkSession()->networkLoadScheduler());
+    m_scheduler->schedule(*this);
+}
+
 NetworkLoad::~NetworkLoad()
 {
     ASSERT(RunLoop::isMain());
+    if (m_scheduler)
+        m_scheduler->unschedule(*this);
     if (m_redirectCompletionHandler)
         m_redirectCompletionHandler({ });
     if (m_task)
@@ -90,6 +102,13 @@ void NetworkLoad::updateRequestAfterRedirection(WebCore::ResourceRequest& newReq
     ResourceRequest updatedRequest = m_currentRequest;
     updateRequest(updatedRequest, newRequest);
     newRequest = WTFMove(updatedRequest);
+}
+
+void NetworkLoad::reprioritizeRequest(ResourceLoadPriority priority)
+{
+    m_currentRequest.setPriority(priority);
+    if (m_task)
+        m_task->setPriority(priority);
 }
 
 void NetworkLoad::continueWillSendRequest(WebCore::ResourceRequest&& newRequest)
@@ -179,7 +198,7 @@ void NetworkLoad::didReceiveChallenge(AuthenticationChallenge&& challenge, Negot
     auto scheme = challenge.protectionSpace().authenticationScheme();
     bool isTLSHandshake = scheme == ProtectionSpaceAuthenticationSchemeServerTrustEvaluationRequested
         || scheme == ProtectionSpaceAuthenticationSchemeClientCertificateRequested;
-    if (!isAllowedToAskUserForCredentials() && !isTLSHandshake) {
+    if (!isAllowedToAskUserForCredentials() && !isTLSHandshake && !challenge.protectionSpace().isProxy()) {
         m_client.get().didBlockAuthenticationChallenge();
         completionHandler(AuthenticationChallengeDisposition::UseCredential, { });
         return;
@@ -225,6 +244,11 @@ void NetworkLoad::didReceiveData(Ref<SharedBuffer>&& buffer)
 
 void NetworkLoad::didCompleteWithError(const ResourceError& error, const WebCore::NetworkLoadMetrics& networkLoadMetrics)
 {
+    if (m_scheduler) {
+        m_scheduler->unschedule(*this);
+        m_scheduler = nullptr;
+    }
+
     if (error.isNull())
         m_client.get().didFinishLoading(networkLoadMetrics);
     else
@@ -251,10 +275,10 @@ void NetworkLoad::wasBlockedByRestrictions()
     m_client.get().didFailLoading(wasBlockedByRestrictionsError(m_currentRequest));
 }
 
-void NetworkLoad::didNegotiateModernTLS(const WebCore::AuthenticationChallenge& challenge)
+void NetworkLoad::didNegotiateModernTLS(const URL& url)
 {
     if (m_parameters.webPageProxyID)
-        m_networkProcess->send(Messages::NetworkProcessProxy::DidNegotiateModernTLS(m_parameters.webPageProxyID, challenge));
+        m_networkProcess->send(Messages::NetworkProcessProxy::DidNegotiateModernTLS(m_parameters.webPageProxyID, url));
 }
 
 String NetworkLoad::description() const

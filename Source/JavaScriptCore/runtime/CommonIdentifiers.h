@@ -61,6 +61,7 @@
     macro(SharedArrayBuffer) \
     macro(String) \
     macro(Symbol) \
+    macro(Temporal) \
     macro(WeakRef) \
     macro(__defineGetter__) \
     macro(__defineSetter__) \
@@ -84,6 +85,7 @@
     macro(callee) \
     macro(caller) \
     macro(caseFirst) \
+    macro(cause) \
     macro(clear) \
     macro(collation) \
     macro(column) \
@@ -128,6 +130,7 @@
     macro(granularity) \
     macro(groups) \
     macro(has) \
+    macro(hasIndices) \
     macro(hasOwnProperty) \
     macro(hash) \
     macro(header) \
@@ -138,6 +141,7 @@
     macro(ignoreCase) \
     macro(ignorePunctuation) \
     macro(index) \
+    macro(indices) \
     macro(inferredName) \
     macro(input) \
     macro(instructionCount) \

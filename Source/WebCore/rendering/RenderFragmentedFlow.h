@@ -41,11 +41,11 @@ class CurrentRenderFragmentContainerMaintainer;
 class RenderFragmentedFlow;
 class RenderStyle;
 class RenderFragmentContainer;
-class RootInlineBox;
+class LegacyRootInlineBox;
 
 typedef ListHashSet<RenderFragmentContainer*> RenderFragmentContainerList;
 typedef Vector<RenderLayer*> RenderLayerList;
-typedef HashMap<const RootInlineBox*, RenderFragmentContainer*> ContainingFragmentMap;
+typedef HashMap<const LegacyRootInlineBox*, RenderFragmentContainer*> ContainingFragmentMap;
 
 // RenderFragmentedFlow is used to collect all the render objects that participate in a
 // flow thread. It will also help in doing the layout. However, it will not render
@@ -101,6 +101,8 @@ public:
 
     virtual void setPageBreak(const RenderBlock*, LayoutUnit /*offset*/, LayoutUnit /*spaceShortage*/) { }
     virtual void updateMinimumPageHeight(const RenderBlock*, LayoutUnit /*offset*/, LayoutUnit /*minHeight*/) { }
+
+    virtual void updateSpaceShortageForSizeContainment(const RenderBlock*, LayoutUnit /*offset*/, LayoutUnit /*shortage*/) { }
 
     virtual RenderFragmentContainer* fragmentAtBlockOffset(const RenderBox*, LayoutUnit, bool extendLastFragment = false) const;
 
@@ -160,7 +162,7 @@ public:
 
     bool fragmentInRange(const RenderFragmentContainer* targetFragment, const RenderFragmentContainer* startFragment, const RenderFragmentContainer* endFragment) const;
 
-    virtual bool absoluteQuadsForBox(Vector<FloatQuad>&, bool*, const RenderBox*, float, float) const { return false; }
+    bool absoluteQuadsForBox(Vector<FloatQuad>&, bool*, const RenderBox*) const;
 
     void layout() override;
 

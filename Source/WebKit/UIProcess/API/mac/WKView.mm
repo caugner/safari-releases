@@ -31,6 +31,7 @@
 #import "APIHitTestResult.h"
 #import "APIIconLoadingClient.h"
 #import "APIPageConfiguration.h"
+#import "AppKitSPI.h"
 #import "WKBrowsingContextGroupPrivate.h"
 #import "WKNSData.h"
 #import "WKProcessGroupPrivate.h"
@@ -43,6 +44,7 @@
 #import "WebProcessPool.h"
 #import "WebViewImpl.h"
 #import "_WKLinkIconParametersInternal.h"
+#import <WebCore/WebCoreObjCExtras.h>
 #import <WebCore/WebViewVisualIdentificationOverlay.h>
 #import <WebKit/WKDragDestinationAction.h>
 #import <pal/spi/cocoa/AVKitSPI.h>
@@ -64,6 +66,11 @@
 
 #if HAVE(TOUCH_BAR)
 @interface WKView () <NSTouchBarProvider>
+@end
+#endif
+
+#if HAVE(NSSCROLLVIEW_SEPARATOR_TRACKING_ADAPTER)
+@interface WKView () <NSScrollViewSeparatorTrackingAdapter>
 @end
 #endif
 
@@ -90,6 +97,9 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
 
 - (void)dealloc
 {
+    if (WebCoreObjCScheduleDeallocateOnMainRunLoop(WKView.class, self))
+        return;
+
     _data->_impl->page().setIconLoadingClient(nullptr);
     _data->_impl = nullptr;
 
@@ -926,18 +936,15 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
     private:
         typedef void (^IconLoadCompletionHandler)(NSData*);
 
-        void getLoadDecisionForIcon(const WebCore::LinkIcon& linkIcon, WTF::CompletionHandler<void(WTF::Function<void(API::Data*, WebKit::CallbackBase::Error)>&&)>&& completionHandler) override
+        void getLoadDecisionForIcon(const WebCore::LinkIcon& linkIcon, CompletionHandler<void(CompletionHandler<void(API::Data*)>&&)>&& completionHandler) override
         {
             RetainPtr<_WKLinkIconParameters> parameters = adoptNS([[_WKLinkIconParameters alloc] _initWithLinkIcon:linkIcon]);
 
             [m_wkView _shouldLoadIconWithParameters:parameters.get() completionHandler:makeBlockPtr([completionHandler = WTFMove(completionHandler)](IconLoadCompletionHandler loadCompletionHandler) mutable {
                 ASSERT(RunLoop::isMain());
                 if (loadCompletionHandler) {
-                    completionHandler([loadCompletionHandler = BlockPtr<void (NSData *)>(loadCompletionHandler)](API::Data* data, WebKit::CallbackBase::Error error) {
-                        if (error != WebKit::CallbackBase::Error::None || !data)
-                            loadCompletionHandler(nil);
-                        else
-                            loadCompletionHandler(wrapper(*data));
+                    completionHandler([loadCompletionHandler = makeBlockPtr(loadCompletionHandler)](API::Data* data) {
+                        loadCompletionHandler(wrapper(data));
                     });
                 } else
                     completionHandler(nullptr);
@@ -1129,6 +1136,24 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
 }
 
 #endif // HAVE(TOUCH_BAR)
+
+#if HAVE(NSSCROLLVIEW_SEPARATOR_TRACKING_ADAPTER)
+
+- (NSRect)scrollViewFrame
+{
+    if (!_data->_impl)
+        return NSZeroRect;
+    return _data->_impl->scrollViewFrame();
+}
+
+- (BOOL)hasScrolledContentsUnderTitlebar
+{
+    if (!_data->_impl)
+        return NO;
+    return _data->_impl->hasScrolledContentsUnderTitlebar();
+}
+
+#endif // HAVE(NSSCROLLVIEW_SEPARATOR_TRACKING_ADAPTER)
 
 #if ENABLE(DRAG_SUPPORT)
 
@@ -1691,6 +1716,21 @@ static WebCore::UserInterfaceLayoutDirection toUserInterfaceLayoutDirection(NSUs
 - (BOOL)_useSystemAppearance
 {
     return _data->_impl->useSystemAppearance();
+}
+
+- (BOOL)acceptsPreviewPanelControl:(QLPreviewPanel *)panel
+{
+    return _data->_impl->acceptsPreviewPanelControl(panel);
+}
+
+- (void)beginPreviewPanelControl:(QLPreviewPanel *)panel
+{
+    _data->_impl->beginPreviewPanelControl(panel);
+}
+
+- (void)endPreviewPanelControl:(QLPreviewPanel *)panel
+{
+    _data->_impl->endPreviewPanelControl(panel);
 }
 
 @end

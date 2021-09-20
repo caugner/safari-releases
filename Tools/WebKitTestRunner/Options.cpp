@@ -103,7 +103,7 @@ static bool handleOptionAllowAnyHTTPSCertificateForAllowedHosts(Options& options
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
 static bool handleOptionAccessibilityIsolatedTreeMode(Options& options, const char*, const char*)
 {
-    options.accessibilityIsolatedTreeMode = true;
+    options.features.boolWebPreferenceFeatures.insert_or_assign("IsAccessibilityIsolatedTreeEnabled", true);
     return true;
 }
 #endif
@@ -125,6 +125,12 @@ static bool parseFeature(std::string_view featureString, TestFeatures& features)
 
     // FIXME: Generalize this to work for any type of web preference using test header logic in TestFeatures.cpp
     features.boolWebPreferenceFeatures.insert({ std::string { featureName }, enabled });
+    return true;
+}
+
+static bool handleOptionNoEnableAllExperimentalFeatures(Options& options, const char*, const char* feature)
+{
+    options.enableAllExperimentalFeatures = false;
     return true;
 }
 
@@ -162,6 +168,7 @@ OptionsHandler::OptionsHandler(Options& o)
     optionList.append(Option("--show-webview", "Show the WebView during test runs (for debugging)", handleOptionShowWebView));
     optionList.append(Option("--show-touches", "Show the touches during test runs (for debugging)", handleOptionShowTouches));
     optionList.append(Option("--world-leaks", "Check for leaks of world objects (currently, documents)", handleOptionCheckForWorldLeaks));
+    optionList.append(Option("--no-enable-all-experimental-features", "Do not enable all experimental features by default", handleOptionNoEnableAllExperimentalFeatures));
     optionList.append(Option("--experimental-feature", "Enable experimental feature", handleOptionExperimentalFeature, true));
     optionList.append(Option("--internal-feature", "Enable internal feature", handleOptionInternalFeature, true));
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)

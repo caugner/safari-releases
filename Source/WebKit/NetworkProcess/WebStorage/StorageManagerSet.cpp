@@ -115,11 +115,26 @@ void StorageManagerSet::removeConnection(IPC::Connection& connection)
     connection.removeWorkQueueMessageReceiver(Messages::StorageManagerSet::messageReceiverName());
 
     m_queue->dispatch([this, protectedThis = makeRef(*this), connectionID]() {
-        for (const auto& storageArea : m_storageAreas.values()) {
-            ASSERT(storageArea);
+        Vector<StorageAreaIdentifier> identifiersToRemove;
+        for (auto& [identifier, storageArea] : m_storageAreas) {
             if (storageArea)
                 storageArea->removeListener(connectionID);
+
+            if (!storageArea)
+                identifiersToRemove.append(identifier);
         }
+
+        for (auto identifier : identifiersToRemove)
+            m_storageAreas.remove(identifier);
+    });
+}
+
+void StorageManagerSet::handleLowMemoryWarning()
+{
+    ASSERT(RunLoop::isMain());
+    m_queue->dispatch([this, protectedThis = makeRef(*this)] {
+        for (auto& storageArea : m_storageAreas.values())
+            storageArea->handleLowMemoryWarning();
     });
 }
 
@@ -127,17 +142,13 @@ void StorageManagerSet::waitUntilTasksFinished()
 {
     ASSERT(RunLoop::isMain());
 
-    BinarySemaphore semaphore;
-    m_queue->dispatch([this, &semaphore] {
+    m_queue->dispatchSync([this] {
         for (auto& storageManager : m_storageManagers.values())
             storageManager->clearStorageNamespaces();
 
         m_storageManagers.clear();
         m_storageAreas.clear();
-
-        semaphore.signal();
     });
-    semaphore.wait();
 }
 
 void StorageManagerSet::waitUntilSyncingLocalStorageFinished()
@@ -146,42 +157,44 @@ void StorageManagerSet::waitUntilSyncingLocalStorageFinished()
 
     BinarySemaphore semaphore;
     m_queue->dispatch([this, &semaphore] {
-        for (const auto& storageArea : m_storageAreas.values()) {
-            ASSERT(storageArea);
-            if (storageArea)
-                storageArea->syncToDatabase();
-        }
-
+        flushLocalStorage();
         semaphore.signal();
     });
     semaphore.wait();
+}
+
+void StorageManagerSet::flushLocalStorage()
+{
+    ASSERT(!RunLoop::isMain());
+    for (const auto& storageArea : m_storageAreas.values()) {
+        ASSERT(storageArea);
+        if (storageArea)
+            storageArea->syncToDatabase();
+    }
 }
 
 void StorageManagerSet::suspend(CompletionHandler<void()>&& completionHandler)
 {
     ASSERT(RunLoop::isMain());
 
-    CompletionHandlerCallingScope completionHandlerCaller(WTFMove(completionHandler));
-    Locker<Lock> stateLocker(m_stateLock);
-    if (m_state != State::Running)
-        return;
-    m_state = State::WillSuspend;
+    Locker suspensionLocker { m_suspensionLock };
+    m_shouldSuspend = true;
 
-    m_queue->dispatch([this, protectedThis = makeRef(*this), completionHandler = completionHandlerCaller.release()] () mutable {
-        Locker<Lock> stateLocker(m_stateLock);
-        ASSERT(m_state != State::Suspended);
-
-        if (m_state != State::WillSuspend) {
+    m_queue->dispatch([this, protectedThis = makeRef(*this), suspensionIdentifier = ++m_suspensionIdentifier, completionHandler = WTFMove(completionHandler)] () mutable {
+        Locker suspensionLocker { m_suspensionLock };
+        if (!m_shouldSuspend || suspensionIdentifier != m_suspensionIdentifier) {
             RunLoop::main().dispatch(WTFMove(completionHandler));
             return;
         }
 
-        m_state = State::Suspended;
+        // Make sure we flush local storage to disk before we suspend the thread as we want to make sure any pending
+        // SQL transaction has been committed.
+        flushLocalStorage();
+
         RunLoop::main().dispatch(WTFMove(completionHandler));
 
-        while (m_state == State::Suspended)
-            m_stateChangeCondition.wait(m_stateLock);
-        ASSERT(m_state == State::Running);
+        while (m_shouldSuspend)
+            m_suspensionCondition.wait(m_suspensionLock);
     });
 }
 
@@ -189,11 +202,9 @@ void StorageManagerSet::resume()
 {
     ASSERT(RunLoop::isMain());
 
-    Locker<Lock> stateLocker(m_stateLock);
-    auto previousState = m_state;
-    m_state = State::Running;
-    if (previousState == State::Suspended)
-        m_stateChangeCondition.notifyOne();
+    Locker suspensionLocker { m_suspensionLock };
+    m_shouldSuspend = false;
+    m_suspensionCondition.notifyOne();
 }
 
 void StorageManagerSet::getSessionStorageOrigins(PAL::SessionID sessionID, GetOriginsCallback&& completionHandler)
@@ -311,13 +322,13 @@ void StorageManagerSet::connectToLocalStorageArea(IPC::Connection& connection, P
 
     auto* storageManager = m_storageManagers.get(sessionID);
     if (!storageManager) {
-        completionHandler(WTF::nullopt);
+        completionHandler(std::nullopt);
         return;
     }
 
     auto* storageArea = storageManager->createLocalStorageArea(storageNamespaceID, WTFMove(originData), m_queue.copyRef());
     if (!storageArea) {
-        completionHandler(WTF::nullopt);
+        completionHandler(std::nullopt);
         return;
     }
 
@@ -336,13 +347,13 @@ void StorageManagerSet::connectToTransientLocalStorageArea(IPC::Connection& conn
 
     auto* storageManager = m_storageManagers.get(sessionID);
     if (!storageManager) {
-        completionHandler(WTF::nullopt);
+        completionHandler(std::nullopt);
         return;
     }
 
     auto* storageArea = storageManager->createTransientLocalStorageArea(storageNamespaceID, WTFMove(topLevelOriginData), WTFMove(originData), m_queue.copyRef());
     if (!storageArea) {
-        completionHandler(WTF::nullopt);
+        completionHandler(std::nullopt);
         return;
     }
 
@@ -361,13 +372,13 @@ void StorageManagerSet::connectToSessionStorageArea(IPC::Connection& connection,
 
     auto* storageManager = m_storageManagers.get(sessionID);
     if (!storageManager) {
-        completionHandler(WTF::nullopt);
+        completionHandler(std::nullopt);
         return;
     }
 
     auto* storageArea = storageManager->createSessionStorageArea(storageNamespaceID, WTFMove(originData), m_queue.copyRef());
     if (!storageArea) {
-        completionHandler(WTF::nullopt);
+        completionHandler(std::nullopt);
         return;
     }
 
@@ -388,8 +399,12 @@ void StorageManagerSet::disconnectFromStorageArea(IPC::Connection& connection, S
     ASSERT(storageArea);
     ASSERT(storageArea->hasListener(connection.uniqueID()));
 
-    if (storageArea)
-        storageArea->removeListener(connection.uniqueID());
+    if (!storageArea)
+        return;
+
+    storageArea->removeListener(connection.uniqueID());
+    if (!storageArea)
+        m_storageAreas.remove(storageAreaID);
 }
 
 void StorageManagerSet::getValues(IPC::Connection& connection, StorageAreaIdentifier storageAreaID, GetValuesCallback&& completionHandler)

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2020 Apple Inc. All rights reserved.
+ * Copyright (C) 2015-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -58,14 +58,16 @@ void JSModuleNamespaceObject::finishCreation(JSGlobalObject* globalObject, Abstr
     });
 
     m_moduleRecord.set(vm, this, moduleRecord);
-    m_names.reserveCapacity(resolutions.size());
+    m_names = FixedVector<Identifier>(resolutions.size());
     {
-        auto locker = holdLock(cellLock());
+        Locker locker { cellLock() };
+        unsigned index = 0;
         for (const auto& pair : resolutions) {
-            m_names.append(pair.first);
+            m_names[index] = pair.first;
             auto addResult = m_exports.add(pair.first.impl(), ExportEntry());
             addResult.iterator->value.localName = pair.second.localName;
             addResult.iterator->value.moduleRecord.set(vm, this, pair.second.moduleRecord);
+            ++index;
         }
     }
 
@@ -76,7 +78,7 @@ void JSModuleNamespaceObject::finishCreation(JSGlobalObject* globalObject, Abstr
     // http://www.ecma-international.org/ecma-262/6.0/#sec-module-namespace-exotic-objects-isextensible
     // http://www.ecma-international.org/ecma-262/6.0/#sec-module-namespace-exotic-objects-preventextensions
     methodTable(vm)->preventExtensions(this, globalObject);
-    scope.assertNoException();
+    scope.assertNoExceptionExceptTermination();
 }
 
 void JSModuleNamespaceObject::destroy(JSCell* cell)
@@ -85,18 +87,21 @@ void JSModuleNamespaceObject::destroy(JSCell* cell)
     thisObject->JSModuleNamespaceObject::~JSModuleNamespaceObject();
 }
 
-void JSModuleNamespaceObject::visitChildren(JSCell* cell, SlotVisitor& visitor)
+template<typename Visitor>
+void JSModuleNamespaceObject::visitChildrenImpl(JSCell* cell, Visitor& visitor)
 {
     JSModuleNamespaceObject* thisObject = jsCast<JSModuleNamespaceObject*>(cell);
     ASSERT_GC_OBJECT_INHERITS(thisObject, info());
     Base::visitChildren(thisObject, visitor);
     visitor.append(thisObject->m_moduleRecord);
     {
-        auto locker = holdLock(thisObject->cellLock());
+        Locker locker { thisObject->cellLock() };
         for (auto& pair : thisObject->m_exports)
             visitor.appendHidden(pair.value.moduleRecord);
     }
 }
+
+DEFINE_VISIT_CHILDREN(JSModuleNamespaceObject);
 
 static JSValue getValue(JSModuleEnvironment* environment, PropertyName localName, ScopeOffset& scopeOffset)
 {
@@ -209,12 +214,19 @@ bool JSModuleNamespaceObject::putByIndex(JSCell*, JSGlobalObject* globalObject, 
 
 bool JSModuleNamespaceObject::deleteProperty(JSCell* cell, JSGlobalObject* globalObject, PropertyName propertyName, DeletePropertySlot& slot)
 {
-    // http://www.ecma-international.org/ecma-262/6.0/#sec-module-namespace-exotic-objects-delete-p
+    // https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-delete-p
     JSModuleNamespaceObject* thisObject = jsCast<JSModuleNamespaceObject*>(cell);
     if (propertyName.isSymbol())
         return Base::deleteProperty(thisObject, globalObject, propertyName, slot);
 
     return !thisObject->m_exports.contains(propertyName.uid());
+}
+
+bool JSModuleNamespaceObject::deletePropertyByIndex(JSCell* cell, JSGlobalObject* globalObject, unsigned propertyName)
+{
+    VM& vm = globalObject->vm();
+    JSModuleNamespaceObject* thisObject = jsCast<JSModuleNamespaceObject*>(cell);
+    return !thisObject->m_exports.contains(Identifier::from(vm, propertyName).impl());
 }
 
 void JSModuleNamespaceObject::getOwnPropertyNames(JSObject* cell, JSGlobalObject* globalObject, PropertyNameArray& propertyNames, DontEnumPropertiesMode mode)

@@ -32,8 +32,15 @@
 
 #include "ExtensionsGL.h"
 #include "ImageBuffer.h"
-#include "ImageData.h"
+#include "MediaPlayerPrivate.h"
+#include "PixelBuffer.h"
 #include <wtf/UniqueArray.h>
+
+#if USE(AVFOUNDATION)
+#include "GraphicsContextGLCV.h"
+#endif
+
+#include <memory>
 
 namespace WebCore {
 
@@ -187,8 +194,10 @@ void GraphicsContextGLOpenGL::setContextVisibility(bool)
 {
 }
 
-void GraphicsContextGLOpenGL::simulateContextChanged()
+void GraphicsContextGLOpenGL::simulateEventForTesting(SimulatedEventForTesting event)
 {
+    if (event == SimulatedEventForTesting::GPUStatusFailure)
+        m_failNextStatusCheck = true;
 }
 
 void GraphicsContextGLOpenGL::prepareForDisplay()
@@ -196,47 +205,96 @@ void GraphicsContextGLOpenGL::prepareForDisplay()
 }
 #endif
 
-void GraphicsContextGLOpenGL::paintRenderingResultsToCanvas(ImageBuffer* imageBuffer)
+void GraphicsContextGLOpenGL::paintRenderingResultsToCanvas(ImageBuffer& imageBuffer)
 {
     if (!makeContextCurrent())
         return;
     if (getInternalFramebufferSize().isEmpty())
         return;
-    auto imageData = readRenderingResults();
-    if (!imageData)
+    auto pixelBuffer = readRenderingResults();
+    if (!pixelBuffer)
         return;
-    paintToCanvas(imageData.releaseNonNull(), imageBuffer->backendSize(), imageBuffer->context());
+    paintToCanvas(contextAttributes(), WTFMove(*pixelBuffer), imageBuffer.backendSize(), imageBuffer.context());
 }
 
-void GraphicsContextGLOpenGL::paintCompositedResultsToCanvas(ImageBuffer* imageBuffer)
+void GraphicsContextGLOpenGL::paintCompositedResultsToCanvas(ImageBuffer& imageBuffer)
 {
     if (!makeContextCurrent())
         return;
     if (getInternalFramebufferSize().isEmpty())
         return;
-    auto imageData = readCompositedResults();
-    if (!imageData)
+    auto pixelBuffer = readCompositedResults();
+    if (!pixelBuffer)
         return;
-    paintToCanvas(imageData.releaseNonNull(), imageBuffer->backendSize(), imageBuffer->context());
+    paintToCanvas(contextAttributes(), WTFMove(*pixelBuffer), imageBuffer.backendSize(), imageBuffer.context());
 }
 
-RefPtr<ImageData> GraphicsContextGLOpenGL::paintRenderingResultsToImageData()
+std::optional<PixelBuffer> GraphicsContextGLOpenGL::paintRenderingResultsToPixelBuffer()
 {
-    if (!makeContextCurrent())
-        return nullptr;
-    if (getInternalFramebufferSize().isEmpty())
-        return nullptr;
-    // Reading premultiplied alpha would involve unpremultiplying, which is
-    // lossy.
+    // Reading premultiplied alpha would involve unpremultiplying, which is lossy.
     if (contextAttributes().premultipliedAlpha)
-        return nullptr;
+        return std::nullopt;
+    auto results = readRenderingResultsForPainting();
+    if (results && !results->size().isEmpty()) {
+        ASSERT(results->format().pixelFormat == PixelFormat::RGBA8 || results->format().pixelFormat == PixelFormat::BGRA8);
+        // FIXME: Make PixelBufferConversions support negative rowBytes and in-place conversions.
+        const auto size = results->size();
+        const size_t rowStride = size.width() * 4;
+        uint8_t* top = results->data().data();
+        uint8_t* bottom = top + (size.height() - 1) * rowStride;
+        std::unique_ptr<uint8_t[]> temp(new uint8_t[rowStride]);
+        for (; top < bottom; top += rowStride, bottom -= rowStride) {
+            memcpy(temp.get(), bottom, rowStride);
+            memcpy(bottom, top, rowStride);
+            memcpy(top, temp.get(), rowStride);
+        }
+    }
+    return results;
+}
+
+std::optional<PixelBuffer> GraphicsContextGLOpenGL::readRenderingResultsForPainting()
+{
+    if (!makeContextCurrent())
+        return std::nullopt;
+    if (getInternalFramebufferSize().isEmpty())
+        return std::nullopt;
     return readRenderingResults();
+}
+
+std::optional<PixelBuffer> GraphicsContextGLOpenGL::readCompositedResultsForPainting()
+{
+    if (!makeContextCurrent())
+        return std::nullopt;
+    if (getInternalFramebufferSize().isEmpty())
+        return std::nullopt;
+    return readCompositedResults();
 }
 
 #if !PLATFORM(COCOA)
-RefPtr<ImageData> GraphicsContextGLOpenGL::readCompositedResults()
+std::optional<PixelBuffer> GraphicsContextGLOpenGL::readCompositedResults()
 {
     return readRenderingResults();
+}
+#endif
+
+#if ENABLE(VIDEO)
+bool GraphicsContextGLOpenGL::copyTextureFromMedia(MediaPlayer& player, PlatformGLObject outputTexture, GCGLenum outputTarget, GCGLint level, GCGLenum internalFormat, GCGLenum format, GCGLenum type, bool premultiplyAlpha, bool flipY)
+{
+#if USE(AVFOUNDATION)
+    auto pixelBuffer = player.pixelBufferForCurrentTime();
+    if (!pixelBuffer)
+        return false;
+
+    auto contextCV = asCV();
+    if (!contextCV)
+        return false;
+
+    UNUSED_VARIABLE(premultiplyAlpha);
+    ASSERT_UNUSED(outputTarget, outputTarget == GraphicsContextGL::TEXTURE_2D);
+    return contextCV->copyPixelBufferToTexture(pixelBuffer.get(), outputTexture, level, internalFormat, format, type, GraphicsContextGL::FlipY(flipY));
+#else
+    return player.copyVideoTextureToPlatformTexture(this, outputTexture, outputTarget, level, internalFormat, format, type, premultiplyAlpha, flipY);
+#endif
 }
 #endif
 

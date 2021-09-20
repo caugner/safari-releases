@@ -25,6 +25,8 @@
 
 #include "config.h"
 #include "HTMLDialogElement.h"
+#include "EventLoop.h"
+#include "EventNames.h"
 
 #include "HTMLNames.h"
 #include <wtf/IsoMallocInlines.h>
@@ -40,28 +42,13 @@ HTMLDialogElement::HTMLDialogElement(const QualifiedName& tagName, Document& doc
 {
 }
 
-bool HTMLDialogElement::isOpen() const
-{
-    return m_isOpen;
-}
-
-const String& HTMLDialogElement::returnValue()
-{
-    return m_returnValue;
-}
-
-void HTMLDialogElement::setReturnValue(String&& returnValue)
-{
-    m_returnValue = WTFMove(returnValue);
-}
-
 void HTMLDialogElement::show()
 {
     // If the element already has an open attribute, then return.
     if (isOpen())
         return;
-    
-    toggleOpen();
+
+    setBooleanAttribute(openAttr, true);
 }
 
 ExceptionOr<void> HTMLDialogElement::showModal()
@@ -74,34 +61,38 @@ ExceptionOr<void> HTMLDialogElement::showModal()
     if (!isConnected())
         return Exception { InvalidStateError };
 
-    toggleOpen();
+    setBooleanAttribute(openAttr, true);
+
+    m_isModal = true;
+
+    // FIXME: Only add dialog to top layer if it's not already in it. (webkit.org/b/227907)
+    document().addToTopLayer(*this);
+
+    // FIXME: Add steps 8 & 9 from spec. (webkit.org/b/227537)
+
     return { };
 }
 
-void HTMLDialogElement::close(const String& returnValue)
+void HTMLDialogElement::close(const String& result)
 {
     if (!isOpen())
         return;
-    
-    toggleOpen();
-    if (!returnValue.isNull())
-        m_returnValue = returnValue;
-}
 
-void HTMLDialogElement::parseAttribute(const QualifiedName& name, const AtomString& value)
-{
-    if (name == HTMLNames::openAttr) {
-        m_isOpen = !value.isNull();
-        return;
-    }
-    
-    HTMLElement::parseAttribute(name, value);
-}
+    setBooleanAttribute(openAttr, false);
 
-void HTMLDialogElement::toggleOpen()
-{
-    m_isOpen = !m_isOpen;
-    setAttributeWithoutSynchronization(HTMLNames::openAttr, m_isOpen ? emptyAtom() : nullAtom());
+    m_isModal = false;
+
+    if (!result.isNull())
+        m_returnValue = result;
+
+    // FIXME: Only remove dialog from top layer if it's inside it. (webkit.org/b/227907)
+    document().removeFromTopLayer(*this);
+
+    // FIXME: Add step 6 from spec. (webkit.org/b/227537)
+
+    document().eventLoop().queueTask(TaskSource::UserInteraction, [protectedThis = GCReachableRef { *this }] {
+        protectedThis->dispatchEvent(Event::create(eventNames().closeEvent, Event::CanBubble::No, Event::IsCancelable::No));
+    });
 }
 
 }

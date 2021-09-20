@@ -352,6 +352,16 @@
 #define UNUSED_FUNCTION
 #endif
 
+/* UNUSED_TYPE_ALIAS */
+
+#if !defined(UNUSED_TYPE_ALIAS) && COMPILER(GCC_COMPATIBLE)
+#define UNUSED_TYPE_ALIAS __attribute__((unused))
+#endif
+
+#if !defined(UNUSED_TYPE_ALIAS)
+#define UNUSED_TYPE_ALIAS
+#endif
+
 /* REFERENCED_FROM_ASM */
 
 #if !defined(REFERENCED_FROM_ASM) && COMPILER(GCC_COMPATIBLE)
@@ -502,3 +512,22 @@
 
 #define IGNORE_NULL_CHECK_WARNINGS_BEGIN IGNORE_WARNINGS_BEGIN("nonnull")
 #define IGNORE_NULL_CHECK_WARNINGS_END IGNORE_WARNINGS_END
+
+#define IGNORE_ARRAY_BOUNDS_WARNINGS_BEGIN IGNORE_WARNINGS_BEGIN("array-bounds")
+#define IGNORE_ARRAY_BOUNDS_WARNINGS_END IGNORE_WARNINGS_END
+
+/* https://bugs.webkit.org/show_bug.cgi?id=224452 */
+#define IGNORE_ERRONEOUS_GCC_NULL_CHECK_WARNINGS_BEGIN IGNORE_GCC_WARNINGS_BEGIN("nonnull")
+#define IGNORE_ERRONEOUS_GCC_NULL_CHECK_WARNINGS_END IGNORE_GCC_WARNINGS_END
+
+/* NO_UNIQUE_ADDRESS */
+
+#if !defined(NO_UNIQUE_ADDRESS) && defined(__has_cpp_attribute)
+#if __has_cpp_attribute(no_unique_address)
+#define NO_UNIQUE_ADDRESS [[no_unique_address]] // NOLINT: check-webkit-style does not understand annotations.
+#endif
+#endif
+
+#if !defined(NO_UNIQUE_ADDRESS)
+#define NO_UNIQUE_ADDRESS
+#endif

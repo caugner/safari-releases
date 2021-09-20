@@ -35,10 +35,7 @@
 #include "WebPageMessages.h"
 #include "WebPasteboardProxy.h"
 #include "WebProcessProxy.h"
-#include "WebsiteDataStore.h"
-#include <WebCore/NotImplemented.h>
 #include <WebCore/PlatformDisplay.h>
-#include <WebCore/UserAgent.h>
 #include <wtf/NeverDestroyed.h>
 
 namespace WebKit {
@@ -52,20 +49,6 @@ GtkWidget* WebPageProxy::viewWidget()
     return static_cast<PageClientImpl&>(pageClient()).viewWidget();
 }
 
-String WebPageProxy::userAgentForURL(const URL& url)
-{
-    if (url.isNull() || !preferences().needsSiteSpecificQuirks())
-        return this->userAgent();
-
-    auto userAgent = WebCore::standardUserAgentForURL(url);
-    return userAgent.isNull() ? this->userAgent() : userAgent;
-}
-
-String WebPageProxy::standardUserAgent(const String& applicationNameForUserAgent)
-{
-    return WebCore::standardUserAgent(applicationNameForUserAgent);
-}
-
 void WebPageProxy::bindAccessibilityTree(const String& plugID)
 {
 #if !USE(GTK4)
@@ -75,42 +58,18 @@ void WebPageProxy::bindAccessibilityTree(const String& plugID)
 #endif
 }
 
-void WebPageProxy::saveRecentSearches(const String&, const Vector<WebCore::RecentSearch>&)
+void WebPageProxy::didUpdateEditorState(const EditorState&, const EditorState& newEditorState)
 {
-    notImplemented();
-}
-
-void WebPageProxy::loadRecentSearches(const String&, CompletionHandler<void(Vector<WebCore::RecentSearch>&&)>&& completionHandler)
-{
-    notImplemented();
-    completionHandler({ });
-}
-
-void WebsiteDataStore::platformRemoveRecentSearches(WallTime oldestTimeToRemove)
-{
-    UNUSED_PARAM(oldestTimeToRemove);
-    notImplemented();
-}
-
-void WebPageProxy::updateEditorState(const EditorState& editorState)
-{
-    m_editorState = editorState;
-    
-    if (editorState.shouldIgnoreSelectionChanges)
+    if (newEditorState.shouldIgnoreSelectionChanges)
         return;
-    if (m_editorState.selectionIsRange)
+    if (newEditorState.selectionIsRange)
         WebPasteboardProxy::singleton().setPrimarySelectionOwner(focusedFrame());
     pageClient().selectionDidChange();
 }
 
-void WebPageProxy::setInputMethodState(Optional<InputMethodState>&& state)
+void WebPageProxy::setInputMethodState(std::optional<InputMethodState>&& state)
 {
     webkitWebViewBaseSetInputMethodState(WEBKIT_WEB_VIEW_BASE(viewWidget()), WTFMove(state));
-}
-
-void WebPageProxy::getCenterForZoomGesture(const WebCore::IntPoint& centerInViewCoordinates, WebCore::IntPoint& center)
-{
-    sendSync(Messages::WebPage::GetCenterForZoomGesture(centerInViewCoordinates), Messages::WebPage::GetCenterForZoomGesture::Reply(center));
 }
 
 bool WebPageProxy::makeGLContextCurrent()
@@ -136,15 +95,6 @@ void WebPageProxy::sendMessageToWebViewWithReply(UserMessage&& message, Completi
 void WebPageProxy::sendMessageToWebView(UserMessage&& message)
 {
     sendMessageToWebViewWithReply(WTFMove(message), [](UserMessage&&) { });
-}
-
-void WebPageProxy::themeDidChange()
-{
-    if (!hasRunningProcess())
-        return;
-
-    send(Messages::WebPage::ThemeDidChange(pageClient().themeName()));
-    effectiveAppearanceDidChange();
 }
 
 } // namespace WebKit

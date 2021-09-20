@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2017 Caio Lima <ticaiolima@gmail.com>
- * Copyright (C) 2017-2020 Apple Inc. All rights reserved.
+ * Copyright (C) 2017-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -67,7 +67,8 @@ JSBigInt::JSBigInt(VM& vm, Structure* structure, Digit* data, unsigned length)
     , m_data(vm, this, data, length)
 { }
 
-void JSBigInt::visitChildren(JSCell* cell, SlotVisitor& visitor)
+template<typename Visitor>
+void JSBigInt::visitChildrenImpl(JSCell* cell, Visitor& visitor)
 {
     auto* thisObject = jsCast<JSBigInt*>(cell);
     ASSERT_GC_OBJECT_INHERITS(thisObject, info());
@@ -75,6 +76,8 @@ void JSBigInt::visitChildren(JSCell* cell, SlotVisitor& visitor)
     if (auto* data = thisObject->m_data.getUnsafe())
         visitor.markAuxiliary(data);
 }
+
+DEFINE_VISIT_CHILDREN(JSBigInt);
 
 void JSBigInt::initialize(InitializationType initType)
 {
@@ -2524,8 +2527,8 @@ JSValue JSBigInt::parseInt(JSGlobalObject* nullOrGlobalObjectForOOM, VM& vm, Cha
 
         if (!heapResult) {
             if (p == length) {
-                ASSERT(digit.unsafeGet() <= std::numeric_limits<int64_t>::max());
-                int64_t maybeResult = digit.unsafeGet();
+                ASSERT(digit <= static_cast<uint64_t>(std::numeric_limits<int64_t>::max()));
+                int64_t maybeResult = digit;
                 ASSERT(maybeResult >= 0);
                 if (sign == ParseIntSign::Signed)
                     maybeResult *= -1;
@@ -2544,9 +2547,9 @@ JSValue JSBigInt::parseInt(JSGlobalObject* nullOrGlobalObjectForOOM, VM& vm, Cha
             heapResult->initialize(InitializationType::WithZero);
         }
 
-        ASSERT(static_cast<uint64_t>(static_cast<Digit>(multiplier.unsafeGet())) == multiplier.unsafeGet());
-        ASSERT(static_cast<uint64_t>(static_cast<Digit>(digit.unsafeGet())) == digit.unsafeGet());
-        heapResult->inplaceMultiplyAdd(static_cast<Digit>(multiplier.unsafeGet()), static_cast<Digit>(digit.unsafeGet()));
+        ASSERT(static_cast<uint64_t>(static_cast<Digit>(multiplier)) == multiplier);
+        ASSERT(static_cast<uint64_t>(static_cast<Digit>(digit)) == digit);
+        heapResult->inplaceMultiplyAdd(static_cast<Digit>(multiplier), static_cast<Digit>(digit));
     }
 
     heapResult->setSign(sign == ParseIntSign::Signed);
@@ -2705,16 +2708,16 @@ JSBigInt::ComparisonResult JSBigInt::compareToDouble(JSBigInt* x, double y)
 }
 
 template <typename BigIntImpl>
-Optional<JSBigInt::Digit> JSBigInt::toShiftAmount(BigIntImpl x)
+std::optional<JSBigInt::Digit> JSBigInt::toShiftAmount(BigIntImpl x)
 {
     if (x.length() > 1)
-        return WTF::nullopt;
+        return std::nullopt;
     
     Digit value = x.digit(0);
     static_assert(maxLengthBits < std::numeric_limits<Digit>::max(), "maxLengthBits needs to be less than digit");
     
     if (value > maxLengthBits)
-        return WTF::nullopt;
+        return std::nullopt;
 
     return value;
 }
@@ -3071,11 +3074,11 @@ static ALWAYS_INLINE unsigned computeHash(JSBigInt::Digit* digits, unsigned leng
     return hasher.hash();
 }
 
-Optional<unsigned> JSBigInt::concurrentHash()
+std::optional<unsigned> JSBigInt::concurrentHash()
 {
     // FIXME: Implement JSBigInt::concurrentHash by inserting right store barriers.
     // https://bugs.webkit.org/show_bug.cgi?id=216801
-    return WTF::nullopt;
+    return std::nullopt;
 }
 
 unsigned JSBigInt::hashSlow()

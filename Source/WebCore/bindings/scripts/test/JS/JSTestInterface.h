@@ -83,6 +83,8 @@ public:
 #if ENABLE(Condition11) || ENABLE(Condition12)
     JSC::JSValue supplementalMethod3(JSC::JSGlobalObject&, JSC::CallFrame&);
 #endif
+public:
+    static constexpr unsigned StructureFlags = Base::StructureFlags | JSC::OverridesPut;
 protected:
     JSTestInterface(JSC::Structure*, JSDOMGlobalObject&, Ref<TestInterface>&&);
 
@@ -91,7 +93,7 @@ protected:
 
 class WEBCORE_EXPORT JSTestInterfaceOwner final : public JSC::WeakHandleOwner {
 public:
-    bool isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown>, void* context, JSC::SlotVisitor&, const char**) final;
+    bool isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown>, void* context, JSC::AbstractSlotVisitor&, const char**) final;
     void finalize(JSC::Handle<JSC::Unknown>, void* context) final;
 };
 

@@ -241,7 +241,7 @@ void StopFrameCapture()
 SurfaceMtl::SurfaceMtl(DisplayMtl *display,
                        const egl::SurfaceState &state,
                        const egl::AttributeMap &attribs)
-    : SurfaceMtlProtocol(state)
+    : SurfaceImpl(state)
 {
     mRobustResourceInit =
         attribs.get(EGL_ROBUST_RESOURCE_INITIALIZATION_ANGLE, EGL_FALSE) == EGL_TRUE;
@@ -322,7 +322,7 @@ egl::Error SurfaceMtl::makeCurrent(const gl::Context *context)
 egl::Error SurfaceMtl::unMakeCurrent(const gl::Context *context)
 {
     ContextMtl *contextMtl = mtl::GetImpl(context);
-    contextMtl->flushCommandBufer();
+    contextMtl->flushCommandBuffer(mtl::WaitUntilScheduled);
 
     StopFrameCapture();
     return egl::NoError();
@@ -607,15 +607,15 @@ egl::Error WindowSurfaceMtl::initialize(const egl::Display *display)
         mMetalLayer.get().autoresizingMask = kCALayerWidthSizable | kCALayerHeightSizable;
 #endif
 
-        // ensure drawableSize is set to correct value:
-        mMetalLayer.get().drawableSize = mCurrentKnownDrawableSize = calcExpectedDrawableSize();
-
         if (mMetalLayer.get() != mLayer)
         {
             mMetalLayer.get().contentsScale = mLayer.contentsScale;
 
             [mLayer addSublayer:mMetalLayer.get()];
         }
+
+        // ensure drawableSize is set to correct value:
+        mMetalLayer.get().drawableSize = mCurrentKnownDrawableSize = calcExpectedDrawableSize();
     }
 
     return egl::NoError();
@@ -874,7 +874,7 @@ egl::Error OffscreenSurfaceMtl::bindTexImage(const gl::Context *context,
                                              EGLint buffer)
 {
     ContextMtl *contextMtl = mtl::GetImpl(context);
-    contextMtl->flushCommandBufer();
+    contextMtl->flushCommandBuffer(mtl::WaitUntilScheduled);
 
     // Initialize offscreen textures if needed:
     ANGLE_TO_EGL_TRY(ensureTexturesSizeCorrect(context));
@@ -892,7 +892,7 @@ egl::Error OffscreenSurfaceMtl::releaseTexImage(const gl::Context *context, EGLi
     }
 
     // NOTE(hqle): Should we finishCommandBuffer or flush is enough?
-    contextMtl->flushCommandBufer();
+    contextMtl->flushCommandBuffer(mtl::WaitUntilScheduled);
     return egl::NoError();
 }
 

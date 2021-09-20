@@ -43,6 +43,7 @@ namespace JSC {
     macro(GetBySelfPatch) \
     macro(InAddAccessCase) \
     macro(InReplaceWithJump) \
+    macro(InReplaceWithGeneric) \
     macro(InstanceOfAddAccessCase) \
     macro(InstanceOfReplaceWithJump) \
     macro(OperationGetById) \
@@ -52,7 +53,7 @@ namespace JSC {
     macro(OperationGetByValOptimize) \
     macro(OperationGetByIdWithThisOptimize) \
     macro(OperationGenericIn) \
-    macro(OperationInById) \
+    macro(OperationInByIdGeneric) \
     macro(OperationInByIdOptimize) \
     macro(OperationPutByIdStrict) \
     macro(OperationPutByIdNonStrict) \
@@ -75,7 +76,11 @@ namespace JSC {
     macro(OperationGetPrivateNameOptimize) \
     macro(OperationGetPrivateNameById) \
     macro(OperationGetPrivateNameByIdOptimize) \
-    macro(OperationGetPrivateNameByIdGeneric)
+    macro(OperationGetPrivateNameByIdGeneric) \
+    macro(CheckPrivateBrandAddAccessCase) \
+    macro(SetPrivateBrandAddAccessCase) \
+    macro(CheckPrivateBrandReplaceWithJump) \
+    macro(SetPrivateBrandReplaceWithJump)
 
 class ICEvent {
 public:

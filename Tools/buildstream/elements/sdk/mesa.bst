@@ -68,7 +68,7 @@ variables:
     -Dlibunwind=%{enable_libunwind}
     -Dllvm=true
     -Dlmsensors=false
-    -Dplatforms=x11,drm,surfaceless,wayland
+    -Dplatforms=x11,wayland
     -Dselinux=false
     -Dshared-glapi=true
     -Dvalgrind=false
@@ -105,9 +105,13 @@ public:
 sources:
 - kind: git_tag
   url: gitlab_freedesktop_org:mesa/mesa.git
-  track: '20.1'
-  ref: mesa-20.1.10-1-gbdf94921c02b82e0d5f67d7c1ee0aacbce336056
+  track: '20.3'
+  ref: mesa-20.3.5-1-g42a4d76fccfee52ec5ca24db7a8df661a0e8e66b
+  exclude:
+  - '*.0'
 - kind: patch
   path: patches/mesa/mesa_libdrm_deps.patch
 - kind: patch
-  path: patches/mesa/0004-mesa-clear-texture-s-views-when-texture-is-remove.patch
+  path: patches/mesa/0001-i915-Prevent-invalid-framebuffer-usage.patch
+- kind: patch
+  path: patches/mesa/0002-i965-Prevent-invalid-framebuffer-usage.patch

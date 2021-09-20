@@ -30,6 +30,7 @@
 #include "CoreMediaWrapped.h"
 #include <WebCore/SampleMap.h>
 #include <wtf/Condition.h>
+#include <wtf/Lock.h>
 
 DECLARE_CORE_MEDIA_TRAITS(TrackReader);
 
@@ -56,11 +57,12 @@ public:
     static CoreMediaWrapped<MediaTrackReader>* unwrap(CMBaseObjectRef);
     static WTF::WorkQueue& storageQueue();
 
-    static RefPtr<MediaTrackReader> create(Allocator&&, const MediaFormatReader&, CMMediaType, uint64_t, Optional<bool>);
+    static RefPtr<MediaTrackReader> create(Allocator&&, const MediaFormatReader&, CMMediaType, uint64_t, std::optional<bool>);
 
     uint64_t trackID() const { return m_trackID; }
     CMMediaType mediaType() const { return m_mediaType; }
     const MediaTime& duration() const { return m_duration; }
+    MediaTime greatestPresentationTime() const;
 
     void setEnabled(bool enabled) { m_isEnabled = enabled ? Enabled::True : Enabled::False; }
     void addSample(Ref<WebCore::MediaSample>&&, MTPluginByteSourceRef);
@@ -73,7 +75,7 @@ public:
 private:
     using CoreMediaWrapped<MediaTrackReader>::unwrap;
 
-    MediaTrackReader(Allocator&&, const MediaFormatReader&, CMMediaType, uint64_t, Optional<bool>);
+    MediaTrackReader(Allocator&&, const MediaFormatReader&, CMMediaType, uint64_t, std::optional<bool>);
 
     // CMBaseClass
     String debugDescription() const final { return "WebKit::MediaTrackReader"_s; }
@@ -88,7 +90,7 @@ private:
 
     struct SampleStorage {
         WTF_MAKE_STRUCT_FAST_ALLOCATED;
-        ~SampleStorage() { ASSERT(!isMainThread()); }
+        ~SampleStorage() { ASSERT(!isMainRunLoop()); }
         WebCore::SampleMap sampleMap;
         bool hasAllSamples { false };
     };
@@ -106,7 +108,7 @@ private:
     std::atomic<Enabled> m_isEnabled { Enabled::Unknown };
     mutable Condition m_sampleStorageCondition;
     mutable Lock m_sampleStorageLock;
-    mutable std::unique_ptr<SampleStorage> m_sampleStorage;
+    mutable std::unique_ptr<SampleStorage> m_sampleStorage WTF_GUARDED_BY_LOCK(m_sampleStorageLock);
     Ref<const Logger> m_logger;
     const void* m_logIdentifier;
 };

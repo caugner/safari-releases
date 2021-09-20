@@ -29,9 +29,10 @@
 #import <WebCore/InspectorOverlay.h>
 
 @interface WKInspectorHighlightView : UIView {
-    NSMutableArray *_layers; // CAShapeLayers.
+    RetainPtr<NSMutableArray<CAShapeLayer *>> _layers;
+    RetainPtr<NSMutableArray<CALayer *>> _gridOverlayLayers;
 }
-- (void)update:(const WebCore::InspectorOverlay::Highlight&)highlight;
+- (void)update:(const WebCore::InspectorOverlay::Highlight&)highlight scale:(double)scale;
 @end
 
 #endif

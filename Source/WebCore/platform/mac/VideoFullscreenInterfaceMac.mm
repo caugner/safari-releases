@@ -40,6 +40,7 @@
 #import <pal/avfoundation/MediaTimeAVFoundation.h>
 #import <pal/spi/cocoa/AVKitSPI.h>
 #import <pal/spi/mac/PIPSPI.h>
+#import <wtf/RunLoop.h>
 
 #import <pal/cf/CoreMediaSoftLink.h>
 
@@ -372,7 +373,6 @@ enum class PIPState {
 @end
 
 namespace WebCore {
-using namespace PAL;
 
 VideoFullscreenInterfaceMac::VideoFullscreenInterfaceMac(PlaybackSessionInterfaceMac& playbackSessionInterface)
     : m_playbackSessionInterface(playbackSessionInterface)
@@ -427,9 +427,9 @@ void VideoFullscreenInterfaceMac::clearMode(HTMLMediaElementEnums::VideoFullscre
         m_videoFullscreenModel->fullscreenModeChanged(m_mode);
 }
 
-void VideoFullscreenInterfaceMac::rateChanged(bool isPlaying, float playbackRate)
+void VideoFullscreenInterfaceMac::rateChanged(OptionSet<PlaybackSessionModel::PlaybackState> playbackState, double playbackRate, double /* defaultPlaybackRate */)
 {
-    [videoFullscreenInterfaceObjC() updateIsPlaying:isPlaying newPlaybackRate:playbackRate];
+    [videoFullscreenInterfaceObjC() updateIsPlaying:playbackState.contains(PlaybackSessionModel::PlaybackState::Playing) newPlaybackRate:playbackRate];
 }
 
 void VideoFullscreenInterfaceMac::ensureControlsManager()
@@ -456,7 +456,7 @@ void VideoFullscreenInterfaceMac::setupFullscreen(NSView& layerHostedView, const
 
     [videoFullscreenInterfaceObjC() setUpPIPForVideoView:&layerHostedView withFrame:(NSRect)initialRect inWindow:parentWindow];
 
-    dispatch_async(dispatch_get_main_queue(), [protectedThis = makeRefPtr(this), this] {
+    RunLoop::main().dispatch([protectedThis = makeRefPtr(this), this] {
         if (m_fullscreenChangeObserver)
             m_fullscreenChangeObserver->didSetupFullscreen();
     });

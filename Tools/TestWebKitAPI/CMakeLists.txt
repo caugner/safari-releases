@@ -1,8 +1,5 @@
 set(TESTWEBKITAPI_DIR "${TOOLS_DIR}/TestWebKitAPI")
 
-get_property(gtest_DEFINITIONS GLOBAL PROPERTY gtest_DEFINITIONS)
-add_definitions(${gtest_DEFINITIONS})
-
 macro(WEBKIT_TEST _target)
     WEBKIT_EXECUTABLE(${_target})
     add_test(${_target} ${TESTWEBKITAPI_RUNTIME_OUTPUT_DIRECTORY}/${_target})
@@ -44,6 +41,7 @@ set(TestWTF_SOURCES
     Tests/WTF/EnumTraits.cpp
     Tests/WTF/Expected.cpp
     Tests/WTF/FileSystem.cpp
+    Tests/WTF/FixedVector.cpp
     Tests/WTF/Function.cpp
     Tests/WTF/HashCountedSet.cpp
     Tests/WTF/HashMap.cpp
@@ -68,7 +66,6 @@ set(TestWTF_SOURCES
     Tests/WTF/NakedPtr.cpp
     Tests/WTF/NeverDestroyed.cpp
     Tests/WTF/OptionSet.cpp
-    Tests/WTF/Optional.cpp
     Tests/WTF/Packed.cpp
     Tests/WTF/PackedRef.cpp
     Tests/WTF/PackedRefPtr.cpp
@@ -79,12 +76,15 @@ set(TestWTF_SOURCES
     Tests/WTF/RefCounter.cpp
     Tests/WTF/RefLogger.cpp
     Tests/WTF/RefPtr.cpp
+    Tests/WTF/RobinHoodHashMap.cpp
+    Tests/WTF/RobinHoodHashSet.cpp
     Tests/WTF/RunLoop.cpp
     Tests/WTF/SHA1.cpp
     Tests/WTF/SaturatedArithmeticOperations.cpp
     Tests/WTF/Scope.cpp
     Tests/WTF/ScopedLambda.cpp
     Tests/WTF/SetForScope.cpp
+    Tests/WTF/Span.cpp
     Tests/WTF/StdLibExtras.cpp
     Tests/WTF/StringBuilder.cpp
     Tests/WTF/StringConcatenate.cpp
@@ -92,6 +92,7 @@ set(TestWTF_SOURCES
     Tests/WTF/StringImpl.cpp
     Tests/WTF/StringOperators.cpp
     Tests/WTF/StringParsingBuffer.cpp
+    Tests/WTF/StringToIntegerConversion.cpp
     Tests/WTF/StringView.cpp
     Tests/WTF/SynchronizedFixedQueue.cpp
     Tests/WTF/TextBreakIterator.cpp
@@ -114,11 +115,10 @@ set(TestWTF_SOURCES
 set(TestWTF_PRIVATE_INCLUDE_DIRECTORIES
     ${CMAKE_BINARY_DIR}
     ${TESTWEBKITAPI_DIR}
-    ${THIRDPARTY_DIR}/gtest/include
 )
 
 set(TestWTF_LIBRARIES
-    gtest
+    WebKit::gtest
 )
 
 set(TestWTF_FRAMEWORKS
@@ -137,21 +137,21 @@ if (ENABLE_JAVASCRIPTCORE)
         WTFStringUtilities.cpp
 
         Tests/JavaScriptCore/DisallowVMEntry.cpp
+        Tests/JavaScriptCore/InspectorConsoleMessage.cpp
         Tests/JavaScriptCore/PropertySlot.cpp
     )
 
     set(TestJavaScriptCore_LIBRARIES
-        gtest
+        WebKit::gtest
     )
     set(TestJavaScriptCore_FRAMEWORKS
         JavaScriptCore
+        WTF
     )
 
     set(TestJavaScriptCore_PRIVATE_INCLUDE_DIRECTORIES
         ${CMAKE_BINARY_DIR}
         ${TESTWEBKITAPI_DIR}
-        ${THIRDPARTY_DIR}/gtest/include
-        ${JavaScriptCoreCore_PRIVATE_FRAMEWORK_HEADERS_DIR}
     )
 
     WEBKIT_EXECUTABLE_DECLARE(TestJavaScriptCore)
@@ -169,7 +169,6 @@ if (ENABLE_WEBCORE)
         Tests/WebCore/ColorTests.cpp
         Tests/WebCore/ComplexTextController.cpp
         Tests/WebCore/ContextMenuAction.cpp
-        Tests/WebCore/ExtendedColorTests.cpp
         Tests/WebCore/FileMonitor.cpp
         Tests/WebCore/FloatPointTests.cpp
         Tests/WebCore/FloatRectTests.cpp
@@ -183,6 +182,7 @@ if (ENABLE_WEBCORE)
         Tests/WebCore/KeyedCoding.cpp
         Tests/WebCore/LayoutUnitTests.cpp
         Tests/WebCore/MIMETypeRegistry.cpp
+        Tests/WebCore/NowPlayingInfoTests.cpp
         Tests/WebCore/ParsedContentRange.cpp
         Tests/WebCore/PublicSuffix.cpp
         Tests/WebCore/SecurityOrigin.cpp
@@ -194,7 +194,7 @@ if (ENABLE_WEBCORE)
     )
 
     set(TestWebCore_LIBRARIES
-        gtest
+        WebKit::gtest
     )
     set(TestWebCore_FRAMEWORKS
         PAL
@@ -204,9 +204,6 @@ if (ENABLE_WEBCORE)
     set(TestWebCore_PRIVATE_INCLUDE_DIRECTORIES
         ${CMAKE_BINARY_DIR}
         ${TESTWEBKITAPI_DIR}
-        ${THIRDPARTY_DIR}/gtest/include
-        ${PAL_FRAMEWORK_HEADERS_DIR}
-        ${WebCore_PRIVATE_FRAMEWORK_HEADERS_DIR}
     )
 
     WEBKIT_EXECUTABLE_DECLARE(TestWebCore)
@@ -220,7 +217,7 @@ if (ENABLE_WEBKIT_LEGACY)
     )
 
     set(TestWebKitLegacy_LIBRARIES
-        gtest
+        WebKit::gtest
     )
     if (NOT APPLE)
         list(APPEND TestWebKitLegacy_LIBRARIES
@@ -231,7 +228,6 @@ if (ENABLE_WEBKIT_LEGACY)
     set(TestWebKitLegacy_PRIVATE_INCLUDE_DIRECTORIES
         ${CMAKE_BINARY_DIR}
         ${TESTWEBKITAPI_DIR}
-        ${THIRDPARTY_DIR}/gtest/include
         ${PAL_FRAMEWORK_HEADERS_DIR}
         ${WebCore_PRIVATE_FRAMEWORK_HEADERS_DIR}
         ${WebKitLegacy_FRAMEWORK_HEADERS_DIR}
@@ -299,16 +295,16 @@ if (ENABLE_WEBKIT)
 
     set(TestWebKit_PRIVATE_INCLUDE_DIRECTORIES
         ${CMAKE_BINARY_DIR}
-        ${TESTWEBKITAPI_DIR}
-        ${THIRDPARTY_DIR}/gtest/include
+        ${JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS_DIR}
         ${PAL_FRAMEWORK_HEADERS_DIR}
+        ${TESTWEBKITAPI_DIR}
         ${WebCore_PRIVATE_FRAMEWORK_HEADERS_DIR}
         ${WebKit_FRAMEWORK_HEADERS_DIR}
     )
 
     set(TestWebKit_LIBRARIES
         TestWebKitAPIBase
-        gtest
+        WebKit::gtest
     )
     set(TestWebKit_FRAMEWORKS
         WebKit
@@ -326,7 +322,7 @@ if (ENABLE_WEBKIT)
     )
     target_compile_definitions(TestWebKitAPIBase PRIVATE BUILDING_TestWebKit)
     target_include_directories(TestWebKitAPIBase PRIVATE ${TestWebKit_PRIVATE_INCLUDE_DIRECTORIES})
-    target_link_libraries(TestWebKitAPIBase PRIVATE WebKit::WebKit gtest)
+    target_link_libraries(TestWebKitAPIBase PRIVATE WebKit::WebKit WebKit::gtest)
 
     if (COMPILER_IS_GCC_OR_CLANG)
         WEBKIT_ADD_TARGET_CXX_FLAGS(TestWebKitAPIBase -Wno-dangling-else
@@ -378,7 +374,7 @@ if (ENABLE_WEBKIT)
 
     target_compile_definitions(TestWebKitAPIInjectedBundle PRIVATE BUILDING_TestWebKit)
     target_include_directories(TestWebKitAPIInjectedBundle PRIVATE ${TestWebKit_PRIVATE_INCLUDE_DIRECTORIES})
-    target_link_libraries(TestWebKitAPIInjectedBundle PRIVATE WebKit::WebKit)
+    target_link_libraries(TestWebKitAPIInjectedBundle PRIVATE WebKit::WebKit WebKit::gtest)
 
     if (COMPILER_IS_GCC_OR_CLANG)
         WEBKIT_ADD_TARGET_CXX_FLAGS(TestWebKitAPIInjectedBundle -Wno-dangling-else

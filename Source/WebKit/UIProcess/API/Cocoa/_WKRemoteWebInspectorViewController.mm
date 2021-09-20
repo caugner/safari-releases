@@ -31,7 +31,7 @@
 #import "APIDebuggableInfo.h"
 #import "APIInspectorConfiguration.h"
 #import "DebuggableInfoData.h"
-#import "RemoteWebInspectorProxy.h"
+#import "RemoteWebInspectorUIProxy.h"
 #import "WKWebViewInternal.h"
 #import "_WKInspectorConfigurationInternal.h"
 #import "_WKInspectorDebuggableInfoInternal.h"
@@ -53,15 +53,15 @@ NS_ASSUME_NONNULL_BEGIN
 
 namespace WebKit {
 
-class _WKRemoteWebInspectorProxyClient final : public RemoteWebInspectorProxyClient {
+class _WKRemoteWebInspectorUIProxyClient final : public RemoteWebInspectorUIProxyClient {
     WTF_MAKE_FAST_ALLOCATED;
 public:
-    _WKRemoteWebInspectorProxyClient(_WKRemoteWebInspectorViewController *controller)
+    _WKRemoteWebInspectorUIProxyClient(_WKRemoteWebInspectorViewController *controller)
         : m_controller(controller)
     {
     }
 
-    virtual ~_WKRemoteWebInspectorProxyClient()
+    virtual ~_WKRemoteWebInspectorUIProxyClient()
     {
     }
 
@@ -75,7 +75,7 @@ public:
         [m_controller closeFromFrontend];
     }
     
-    Ref<API::InspectorConfiguration> configurationForRemoteInspector(RemoteWebInspectorProxy& inspector) override
+    Ref<API::InspectorConfiguration> configurationForRemoteInspector(RemoteWebInspectorUIProxy& inspector) override
     {
         return static_cast<API::InspectorConfiguration&>([m_controller.configuration _apiObject]);
     }
@@ -87,7 +87,7 @@ private:
 } // namespace WebKit
 
 @implementation _WKRemoteWebInspectorViewController {
-    std::unique_ptr<WebKit::_WKRemoteWebInspectorProxyClient> m_remoteInspectorClient;
+    std::unique_ptr<WebKit::_WKRemoteWebInspectorUIProxyClient> m_remoteInspectorClient;
     _WKInspectorConfiguration *_configuration;
 }
 
@@ -98,8 +98,8 @@ private:
 
     _configuration = [configuration copy];
 
-    m_remoteInspectorProxy = WebKit::RemoteWebInspectorProxy::create();
-    m_remoteInspectorClient = makeUnique<WebKit::_WKRemoteWebInspectorProxyClient>(self);
+    m_remoteInspectorProxy = WebKit::RemoteWebInspectorUIProxy::create();
+    m_remoteInspectorClient = makeUnique<WebKit::_WKRemoteWebInspectorUIProxyClient>(self);
     m_remoteInspectorProxy->setClient(m_remoteInspectorClient.get());
 
     return self;
@@ -135,7 +135,7 @@ private:
     m_remoteInspectorProxy->sendMessageToFrontend(message);
 }
 
-// MARK: RemoteWebInspectorProxyClient methods
+// MARK: RemoteWebInspectorUIProxyClient methods
 
 - (void)sendMessageToBackend:(NSString *)message
 {
@@ -159,16 +159,27 @@ private:
 
 // MARK: _WKInspectorExtensionHost methods
 
-- (void)registerExtensionWithID:(NSString *)extensionID displayName:(NSString *)displayName completionHandler:(void(^)(NSError *, _WKInspectorExtension *))completionHandler
+- (WKWebView *)extensionHostWebView
+{
+    return self.webView;
+}
+
+- (void)registerExtensionWithID:(NSString *)extensionID displayName:(NSString *)displayName completionHandler:(void(^)(NSError *, _WKInspectorExtension * _Nullable))completionHandler
 {
 #if ENABLE(INSPECTOR_EXTENSIONS)
-    m_remoteInspectorProxy->extensionController().registerExtension(extensionID, displayName, [protectedExtensionID = retainPtr(extensionID), protectedSelf = retainPtr(self), capturedBlock = makeBlockPtr(completionHandler)] (Expected<bool, WebKit::InspectorExtensionError> result) mutable {
+    // If this method is called prior to creating a frontend with -loadForDebuggable:backendCommandsURL:, it will not succeed.
+    if (!m_remoteInspectorProxy->extensionController()) {
+        completionHandler([NSError errorWithDomain:WKErrorDomain code:WKErrorUnknown userInfo:@{ NSLocalizedFailureReasonErrorKey: Inspector::extensionErrorToString(Inspector::ExtensionError::InvalidRequest) }], nil);
+        return;
+    }
+
+    m_remoteInspectorProxy->extensionController()->registerExtension(extensionID, displayName, [protectedExtensionID = retainPtr(extensionID), protectedSelf = retainPtr(self), capturedBlock = makeBlockPtr(completionHandler)] (Expected<RefPtr<API::InspectorExtension>, Inspector::ExtensionError> result) mutable {
         if (!result) {
-            capturedBlock([NSError errorWithDomain:WKErrorDomain code:WKErrorUnknown userInfo:@{ NSLocalizedFailureReasonErrorKey: inspectorExtensionErrorToString(result.error())}], nil);
+            capturedBlock([NSError errorWithDomain:WKErrorDomain code:WKErrorUnknown userInfo:@{ NSLocalizedFailureReasonErrorKey: Inspector::extensionErrorToString(result.error()) }], nil);
             return;
         }
 
-        capturedBlock(nil, [[wrapper(API::InspectorExtension::create(protectedExtensionID.get(), protectedSelf->m_remoteInspectorProxy->extensionController())) retain] autorelease]);
+        capturedBlock(nil, wrapper(result.value()));
     });
 #else
     completionHandler([NSError errorWithDomain:WKErrorDomain code:WKErrorUnknown userInfo:nil], nil);
@@ -178,9 +189,14 @@ private:
 - (void)unregisterExtension:(_WKInspectorExtension *)extension completionHandler:(void(^)(NSError *))completionHandler
 {
 #if ENABLE(INSPECTOR_EXTENSIONS)
-    m_remoteInspectorProxy->extensionController().unregisterExtension(extension.extensionID, [protectedSelf = retainPtr(self), capturedBlock = makeBlockPtr(completionHandler)] (Expected<bool, WebKit::InspectorExtensionError> result) mutable {
+    // If this method is called prior to creating a frontend with -loadForDebuggable:backendCommandsURL:, it will not succeed.
+    if (!m_remoteInspectorProxy->extensionController()) {
+        completionHandler([NSError errorWithDomain:WKErrorDomain code:WKErrorUnknown userInfo:@{ NSLocalizedFailureReasonErrorKey: Inspector::extensionErrorToString(Inspector::ExtensionError::InvalidRequest) }]);
+        return;
+    }
+    m_remoteInspectorProxy->extensionController()->unregisterExtension(extension.extensionID, [protectedSelf = retainPtr(self), capturedBlock = makeBlockPtr(completionHandler)] (Expected<bool, Inspector::ExtensionError> result) mutable {
         if (!result) {
-            capturedBlock([NSError errorWithDomain:WKErrorDomain code:WKErrorUnknown userInfo:@{ NSLocalizedFailureReasonErrorKey: inspectorExtensionErrorToString(result.error())}]);
+            capturedBlock([NSError errorWithDomain:WKErrorDomain code:WKErrorUnknown userInfo:@{ NSLocalizedFailureReasonErrorKey: Inspector::extensionErrorToString(result.error()) }]);
             return;
         }
 

@@ -29,8 +29,10 @@
 #if ENABLE(APPLE_PAY)
 
 #import "ApplePaySessionPaymentRequest.h"
+#import "ApplePayShippingMethod.h"
 #import <unicode/ucurr.h>
 #import <unicode/uloc.h>
+#import <wtf/unicode/icu/ICUHelpers.h>
 
 namespace WebCore {
 
@@ -38,8 +40,8 @@ static ExceptionOr<void> validateCountryCode(const String&);
 static ExceptionOr<void> validateCurrencyCode(const String&);
 static ExceptionOr<void> validateMerchantCapabilities(const ApplePaySessionPaymentRequest::MerchantCapabilities&);
 static ExceptionOr<void> validateSupportedNetworks(const Vector<String>&);
-static ExceptionOr<void> validateShippingMethods(const Vector<ApplePaySessionPaymentRequest::ShippingMethod>&);
-static ExceptionOr<void> validateShippingMethod(const ApplePaySessionPaymentRequest::ShippingMethod&);
+static ExceptionOr<void> validateShippingMethods(const Vector<ApplePayShippingMethod>&);
+static ExceptionOr<void> validateShippingMethod(const ApplePayShippingMethod&);
 
 ExceptionOr<void> PaymentRequestValidator::validate(const ApplePaySessionPaymentRequest& paymentRequest)
 {
@@ -76,7 +78,7 @@ ExceptionOr<void> PaymentRequestValidator::validate(const ApplePaySessionPayment
     return { };
 }
 
-ExceptionOr<void> PaymentRequestValidator::validateTotal(const ApplePaySessionPaymentRequest::LineItem& total)
+ExceptionOr<void> PaymentRequestValidator::validateTotal(const ApplePayLineItem& total)
 {
     if (!total.label)
         return Exception { TypeError, "Missing total label." };
@@ -114,7 +116,7 @@ static ExceptionOr<void> validateCurrencyCode(const String& currencyCode)
         return Exception { TypeError, "Missing currency code." };
 
     UErrorCode errorCode = U_ZERO_ERROR;
-    auto currencyCodes = std::unique_ptr<UEnumeration, void (*)(UEnumeration*)>(ucurr_openISOCurrencies(UCURR_ALL, &errorCode), uenum_close);
+    auto currencyCodes = std::unique_ptr<UEnumeration, ICUDeleter<uenum_close>>(ucurr_openISOCurrencies(UCURR_ALL, &errorCode));
 
     int32_t length;
     while (auto *currencyCodePtr = uenum_next(currencyCodes.get(), &length, &errorCode)) {
@@ -141,7 +143,7 @@ static ExceptionOr<void> validateSupportedNetworks(const Vector<String>& support
     return { };
 }
 
-static ExceptionOr<void> validateShippingMethod(const ApplePaySessionPaymentRequest::ShippingMethod& shippingMethod)
+static ExceptionOr<void> validateShippingMethod(const ApplePayShippingMethod& shippingMethod)
 {
     NSDecimalNumber *amount = [NSDecimalNumber decimalNumberWithString:shippingMethod.amount locale:@{ NSLocaleDecimalSeparator : @"." }];
     if (amount.integerValue < 0)
@@ -150,7 +152,7 @@ static ExceptionOr<void> validateShippingMethod(const ApplePaySessionPaymentRequ
     return { };
 }
 
-static ExceptionOr<void> validateShippingMethods(const Vector<ApplePaySessionPaymentRequest::ShippingMethod>& shippingMethods)
+static ExceptionOr<void> validateShippingMethods(const Vector<ApplePayShippingMethod>& shippingMethods)
 {
     for (const auto& shippingMethod : shippingMethods) {
         auto validatedShippingMethod = validateShippingMethod(shippingMethod);

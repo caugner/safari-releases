@@ -24,7 +24,7 @@
  */
 
 [
-    EnabledAtRuntime=WebXR,
+    EnabledBySetting=WebXR,
     Conditional=WEBXR,
     ActiveDOMObject,
     SecureContext,
@@ -39,7 +39,7 @@
     [SameObject] readonly attribute WebXRInputSourceArray inputSources;
 
     // Methods
-    [MayThrowException] undefined updateRenderState(optional XRRenderStateInit stateInit);
+    undefined updateRenderState(optional XRRenderStateInit stateInit);
     [NewObject] Promise<WebXRReferenceSpace> requestReferenceSpace(XRReferenceSpaceType type);
 
     unsigned long requestAnimationFrame(XRFrameRequestCallback callback);

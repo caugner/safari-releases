@@ -31,11 +31,13 @@
 
 namespace WebCore {
 
+struct BlendingContext;
+
 class TranslateTransformOperation final : public TransformOperation {
 public:
     static Ref<TranslateTransformOperation> create(const Length& tx, const Length& ty, OperationType type)
     {
-        return adoptRef(*new TranslateTransformOperation(tx, ty, Length(0, Fixed), type));
+        return adoptRef(*new TranslateTransformOperation(tx, ty, Length(0, LengthType::Fixed), type));
     }
 
     static Ref<TranslateTransformOperation> create(const Length& tx, const Length& ty, const Length& tz, OperationType type)
@@ -66,7 +68,7 @@ public:
 
     bool operator==(const TransformOperation&) const final;
 
-    Ref<TransformOperation> blend(const TransformOperation* from, double progress, bool blendToIdentity = false) final;
+    Ref<TransformOperation> blend(const TransformOperation* from, const BlendingContext&, bool blendToIdentity = false) final;
 
     bool isRepresentableIn2D() const final { return m_z.isZero(); }
 

@@ -344,7 +344,7 @@ static RetainPtr<CGImageRef> createImageWithCopiedData(CGImageRef sourceImage)
     [self.window enterFullScreenMode:self];
 }
 
-static const float minVideoWidth = 480 + 20 + 20; // Note: Keep in sync with mediaControlsApple.css (video:-webkit-full-screen::-webkit-media-controls-panel)
+static const float minVideoWidth = 468; // Keep in sync with `--controls-bar-width`.
 
 - (void)finishedEnterFullScreenAnimation:(bool)completed
 {
@@ -641,15 +641,21 @@ static RetainPtr<CGImageRef> takeWindowSnapshot(CGSWindowID windowID, bool captu
 
 - (void)didEnterPictureInPicture
 {
-    [self requestExitFullScreen];
+    if ([self isFullScreen])
+        [self requestExitFullScreen];
+}
+
+- (void)setVideoFullscreenManagerClient:(WebKit::VideoFullscreenManagerProxyClient *)client
+{
+    if (auto* videoFullscreenManager = self._videoFullscreenManager) {
+        ASSERT(videoFullscreenManager->client() == &_videoFullscreenManagerProxyClient);
+        videoFullscreenManager->setClient(client);
+    }
 }
 
 - (void)didExitPictureInPicture
 {
-    if (auto* videoFullscreenManager = self._videoFullscreenManager) {
-        ASSERT(videoFullscreenManager->client() == &_videoFullscreenManagerProxyClient);
-        videoFullscreenManager->setClient(nullptr);
-    }
+    [self setVideoFullscreenManagerClient:nullptr];
 }
 
 #pragma mark -
@@ -682,22 +688,23 @@ static RetainPtr<CGImageRef> takeWindowSnapshot(CGSWindowID windowID, bool captu
 
 - (void)windowDidEnterFullScreen:(NSNotification *)notification
 {
+    RetainPtr<WKFullScreenWindowController> retain = self;
     [self finishedEnterFullScreenAnimation:YES];
-
-    if (auto* videoFullscreenManager = self._videoFullscreenManager) {
-        ASSERT(videoFullscreenManager->client() == nullptr);
-        videoFullscreenManager->setClient(&_videoFullscreenManagerProxyClient);
-    }
+    [self setVideoFullscreenManagerClient:&_videoFullscreenManagerProxyClient];
 }
 
 - (void)windowDidFailToExitFullScreen:(NSWindow *)window
 {
+    RetainPtr<WKFullScreenWindowController> retain = self;
     [self finishedExitFullScreenAnimation:NO];
+    [self setVideoFullscreenManagerClient:nullptr];
 }
 
 - (void)windowDidExitFullScreen:(NSNotification *)notification
 {
+    RetainPtr<WKFullScreenWindowController> retain = self;
     [self finishedExitFullScreenAnimation:YES];
+    [self setVideoFullscreenManagerClient:nullptr];
 }
 
 - (NSWindow *)destinationWindowToExitFullScreenForWindow:(NSWindow *)window
@@ -712,6 +719,7 @@ static RetainPtr<CGImageRef> takeWindowSnapshot(CGSWindowID windowID, bool captu
 {
     if (!_page)
         return nullptr;
+
     return _page->fullScreenManager();
 }
 

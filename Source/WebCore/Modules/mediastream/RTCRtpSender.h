@@ -47,14 +47,20 @@ class RTCDTMFSender;
 class RTCPeerConnection;
 struct RTCRtpCapabilities;
 
-class RTCRtpSender final : public RefCounted<RTCRtpSender>, public ScriptWrappable, public CanMakeWeakPtr<RTCRtpSender> {
+class RTCRtpSender final : public RefCounted<RTCRtpSender>
+    , public ScriptWrappable
+    , public CanMakeWeakPtr<RTCRtpSender>
+#if !RELEASE_LOG_DISABLED
+    , private LoggerHelper
+#endif
+    {
     WTF_MAKE_ISO_ALLOCATED(RTCRtpSender);
 public:
     static Ref<RTCRtpSender> create(RTCPeerConnection&, Ref<MediaStreamTrack>&&, std::unique_ptr<RTCRtpSenderBackend>&&);
     static Ref<RTCRtpSender> create(RTCPeerConnection&, String&& trackKind, std::unique_ptr<RTCRtpSenderBackend>&&);
-    ~RTCRtpSender();
+    virtual ~RTCRtpSender();
 
-    static Optional<RTCRtpCapabilities> getCapabilities(ScriptExecutionContext&, const String& kind);
+    static std::optional<RTCRtpCapabilities> getCapabilities(ScriptExecutionContext&, const String& kind);
 
     MediaStreamTrack* track() { return m_track.get(); }
 
@@ -81,13 +87,20 @@ public:
     bool isCreatedBy(const RTCPeerConnection&) const;
 
     RTCDTMFSender* dtmf();
-    Optional<RTCRtpTransceiverDirection> currentTransceiverDirection() const;
+    std::optional<RTCRtpTransceiverDirection> currentTransceiverDirection() const;
 
-    Optional<RTCRtpTransform::Internal> transform();
-    ExceptionOr<void> setTransform(Optional<RTCRtpTransform>&&);
+    std::optional<RTCRtpTransform::Internal> transform();
+    ExceptionOr<void> setTransform(std::unique_ptr<RTCRtpTransform>&&);
 
 private:
     RTCRtpSender(RTCPeerConnection&, String&& trackKind, std::unique_ptr<RTCRtpSenderBackend>&&);
+
+#if !RELEASE_LOG_DISABLED
+    const Logger& logger() const final { return m_logger.get(); }
+    const void* logIdentifier() const final { return m_logIdentifier; }
+    const char* logClassName() const final { return "RTCRtpSender"; }
+    WTFLogChannel& logChannel() const final;
+#endif
 
     RefPtr<MediaStreamTrack> m_track;
     String m_trackId;
@@ -95,7 +108,11 @@ private:
     std::unique_ptr<RTCRtpSenderBackend> m_backend;
     WeakPtr<RTCPeerConnection> m_connection;
     RefPtr<RTCDTMFSender> m_dtmfSender;
-    Optional<RTCRtpTransform> m_transform;
+    std::unique_ptr<RTCRtpTransform> m_transform;
+#if !RELEASE_LOG_DISABLED
+    Ref<const Logger> m_logger;
+    const void* m_logIdentifier { nullptr };
+#endif
 };
 
 } // namespace WebCore

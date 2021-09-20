@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2020 Apple Inc. All rights reserved.
+ * Copyright (C) 2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -28,6 +29,7 @@
 
 #include "IntlObjectInlines.h"
 #include "IntlSegmentIterator.h"
+#include "IntlWorkaround.h"
 #include "JSCInlines.h"
 #include "ObjectConstructor.h"
 #include <unicode/ucurr.h>
@@ -71,7 +73,7 @@ JSValue IntlSegments::containing(JSGlobalObject* globalObject, JSValue indexValu
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
 
-    double value = indexValue.toInteger(globalObject);
+    double value = indexValue.toIntegerOrInfinity(globalObject);
     RETURN_IF_EXCEPTION(scope, { });
 
     if (value < 0 || value >= m_buffer->size())
@@ -99,7 +101,7 @@ JSObject* IntlSegments::createSegmentIterator(JSGlobalObject* globalObject)
     auto scope = DECLARE_THROW_SCOPE(vm);
 
     UErrorCode status = U_ZERO_ERROR;
-    auto segmenter = std::unique_ptr<UBreakIterator, UBreakIteratorDeleter>(ubrk_safeClone(m_segmenter.get(), nullptr, nullptr, &status));
+    auto segmenter = std::unique_ptr<UBreakIterator, UBreakIteratorDeleter>(cloneUBreakIterator(m_segmenter.get(), &status));
     if (U_FAILURE(status)) {
         throwTypeError(globalObject, scope, "failed to initialize SegmentIterator"_s);
         return nullptr;
@@ -109,11 +111,14 @@ JSObject* IntlSegments::createSegmentIterator(JSGlobalObject* globalObject)
     return IntlSegmentIterator::create(vm, globalObject->segmentIteratorStructure(), WTFMove(segmenter), m_buffer, m_string.get(), m_granularity);
 }
 
-void IntlSegments::visitChildren(JSCell* cell, SlotVisitor& visitor)
+template<typename Visitor>
+void IntlSegments::visitChildrenImpl(JSCell* cell, Visitor& visitor)
 {
     auto* thisObject = jsCast<IntlSegments*>(cell);
     Base::visitChildren(thisObject, visitor);
     visitor.append(thisObject->m_string);
 }
+
+DEFINE_VISIT_CHILDREN(IntlSegments);
 
 } // namespace JSC

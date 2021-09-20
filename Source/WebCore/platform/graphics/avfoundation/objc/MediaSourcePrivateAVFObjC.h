@@ -93,6 +93,10 @@ public:
     void setVideoLayer(AVSampleBufferDisplayLayer*);
     void setDecompressionSession(WebCoreDecompressionSession*);
 
+#if PLATFORM(IOS_FAMILY)
+    void flushActiveSourceBuffersIfNeeded();
+#endif
+
 #if ENABLE(ENCRYPTED_MEDIA)
     void cdmInstanceAttached(CDMInstance&);
     void cdmInstanceDetached(CDMInstance&);
@@ -123,7 +127,6 @@ private:
 #if ENABLE(LEGACY_ENCRYPTED_MEDIA)
     void sourceBufferKeyNeeded(SourceBufferPrivateAVFObjC*, Uint8Array*);
 #endif
-    void monitorSourceBuffers();
     void removeSourceBuffer(SourceBufferPrivate*);
 
     void setSourceBufferWithSelectedVideo(SourceBufferPrivateAVFObjC*);

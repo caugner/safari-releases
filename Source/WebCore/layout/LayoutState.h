@@ -65,6 +65,8 @@ public:
     FlexFormattingState& establishedFlexFormattingState(const ContainerBox& formattingContextRoot) const;
 
     FormattingState& formattingStateForBox(const Box&) const;
+
+    bool hasFormattingState(const ContainerBox& formattingRoot) const;
     bool hasInlineFormattingState(const ContainerBox& formattingRoot) const { return m_inlineFormattingStates.contains(&formattingRoot); }
 
 #ifndef NDEBUG
@@ -81,7 +83,7 @@ public:
     enum class QuirksMode { No, Limited, Yes };
     bool inQuirksMode() const { return m_quirksMode == QuirksMode::Yes; }
     bool inLimitedQuirksMode() const { return m_quirksMode == QuirksMode::Limited; }
-    bool inNoQuirksMode() const { return m_quirksMode == QuirksMode::No; }
+    bool inStandardsMode() const { return m_quirksMode == QuirksMode::No; }
 
     bool hasRoot() const { return !!m_rootContainer; }
     const ContainerBox& root() const { return *m_rootContainer; }

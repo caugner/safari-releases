@@ -1359,26 +1359,26 @@ Object.defineProperty(Number, "bytesToString",
     value(bytes, higherResolution, bytesThreshold)
     {
         higherResolution ??= true;
-        bytesThreshold ??= 1024;
+        bytesThreshold ??= 1000;
 
         if (Math.abs(bytes) < bytesThreshold)
             return WI.UIString("%.0f B").format(bytes);
 
-        let kilobytes = bytes / 1024;
-        if (Math.abs(kilobytes) < 1024) {
+        let kilobytes = bytes / 1000;
+        if (Math.abs(kilobytes) < 1000) {
             if (higherResolution || Math.abs(kilobytes) < 10)
                 return WI.UIString("%.2f KB").format(kilobytes);
             return WI.UIString("%.1f KB").format(kilobytes);
         }
 
-        let megabytes = kilobytes / 1024;
-        if (Math.abs(megabytes) < 1024) {
+        let megabytes = kilobytes / 1000;
+        if (Math.abs(megabytes) < 1000) {
             if (higherResolution || Math.abs(megabytes) < 10)
                 return WI.UIString("%.2f MB").format(megabytes);
             return WI.UIString("%.1f MB").format(megabytes);
         }
 
-        let gigabytes = megabytes / 1024;
+        let gigabytes = megabytes / 1000;
         if (higherResolution || Math.abs(gigabytes) < 10)
             return WI.UIString("%.2f GB").format(gigabytes);
         return WI.UIString("%.1f GB").format(gigabytes);
@@ -1624,6 +1624,40 @@ Object.defineProperty(Array.prototype, "binaryIndexOf",
     }
 });
 
+Object.defineProperty(Array.prototype, "groupBy",
+{
+    value(groupFunction, minGroupSize = 1)
+    {
+        let result = [];
+        let startIndex = null;
+
+        let flush = (endIndex) => {
+            if (startIndex === null)
+                return;
+            let group = this.slice(startIndex, endIndex + 1);
+            let adjacentCount = (endIndex + 1) - startIndex;
+            if (adjacentCount >= minGroupSize)
+                result.push(group);
+            else
+                result.pushAll(group);
+        }
+
+        this.forEach((item, i) => {
+            if (groupFunction(item)) {
+                startIndex ??= i;
+                if (i === this.length - 1)
+                    flush(this.length - 1);
+            } else {
+                flush(i - 1);
+                result.push(item);
+                startIndex = null;
+            }
+        });
+
+        return result;
+    }
+});
+
 Object.defineProperty(Promise, "chain",
 {
     async value(callbacks, initialValue)
@@ -1751,3 +1785,17 @@ function insertObjectIntoSortedArray(object, array, comparator)
 {
     array.splice(insertionIndexForObjectInListSortedByFunction(object, array, comparator), 0, object);
 }
+
+WI.setReentrantCheck = function(object, key)
+{
+    key = "__checkReentrant_" + key;
+    object[key] = (object[key] || 0) + 1;
+    return object[key] === 1;
+};
+
+WI.clearReentrantCheck = function(object, key)
+{
+    key = "__checkReentrant_" + key;
+    object[key] = (object[key] || 0) - 1;
+    return object[key] === 0;
+};

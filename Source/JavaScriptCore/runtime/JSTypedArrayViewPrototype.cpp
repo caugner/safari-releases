@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2019 Apple Inc. All rights reserved.
+ * Copyright (C) 2015-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -32,6 +32,7 @@
 #include "JSCInlines.h"
 #include "JSGenericTypedArrayViewPrototypeFunctions.h"
 #include "Operations.h"
+#include "VMTrapsInlines.h"
 
 namespace JSC {
 
@@ -44,6 +45,7 @@ static JSC_DECLARE_HOST_FUNCTION(typedArrayViewProtoFuncIncludes);
 static JSC_DECLARE_HOST_FUNCTION(typedArrayViewProtoFuncLastIndexOf);
 static JSC_DECLARE_HOST_FUNCTION(typedArrayViewProtoFuncIndexOf);
 static JSC_DECLARE_HOST_FUNCTION(typedArrayViewProtoFuncJoin);
+static JSC_DECLARE_HOST_FUNCTION(typedArrayViewProtoFuncFill);
 static JSC_DECLARE_HOST_FUNCTION(typedArrayViewProtoGetterFuncBuffer);
 static JSC_DECLARE_HOST_FUNCTION(typedArrayViewProtoGetterFuncLength);
 static JSC_DECLARE_HOST_FUNCTION(typedArrayViewProtoGetterFuncByteLength);
@@ -72,6 +74,10 @@ static JSC_DECLARE_HOST_FUNCTION(typedArrayViewProtoGetterFuncToStringTag);
         return functionName<JSInt16Array>(vm, globalObject, callFrame);                         \
     case TypeUint16:                                                                            \
         return functionName<JSUint16Array>(vm, globalObject, callFrame);                        \
+    case TypeBigInt64:                                                                          \
+        return functionName<JSBigInt64Array>(vm, globalObject, callFrame);                      \
+    case TypeBigUint64:                                                                         \
+        return functionName<JSBigUint64Array>(vm, globalObject, callFrame);                     \
     case NotTypedArray:                                                                         \
     case TypeDataView:                                                                          \
         return throwVMTypeError(globalObject, scope,                                            \
@@ -169,6 +175,16 @@ JSC_DEFINE_HOST_FUNCTION(typedArrayViewPrivateFuncLength, (JSGlobalObject* globa
         return throwVMTypeError(globalObject, scope, "Underlying ArrayBuffer has been detached from the view"_s);
 
     return JSValue::encode(jsNumber(thisObject->length()));
+}
+
+JSC_DEFINE_HOST_FUNCTION(typedArrayViewPrivateFuncContentType, (JSGlobalObject* globalObject, CallFrame* callFrame))
+{
+    VM& vm = globalObject->vm();
+    auto scope = DECLARE_THROW_SCOPE(vm);
+    JSValue argument = callFrame->argument(0);
+    if (!argument.isCell() || !isTypedView(argument.asCell()->classInfo(vm)->typedArrayStorageType))
+        return throwVMTypeError(globalObject, scope, "Receiver should be a typed array view"_s);
+    return JSValue::encode(jsNumber(static_cast<int32_t>(contentType(argument.asCell()->classInfo(vm)->typedArrayStorageType))));
 }
 
 JSC_DEFINE_HOST_FUNCTION(typedArrayViewPrivateFuncGetOriginalConstructor, (JSGlobalObject* globalObject, CallFrame* callFrame))
@@ -285,6 +301,17 @@ JSC_DEFINE_HOST_FUNCTION(typedArrayViewProtoFuncJoin, (JSGlobalObject* globalObj
     CALL_GENERIC_TYPEDARRAY_PROTOTYPE_FUNCTION(genericTypedArrayViewProtoFuncJoin);
 }
 
+JSC_DEFINE_HOST_FUNCTION(typedArrayViewProtoFuncFill, (JSGlobalObject* globalObject, CallFrame* callFrame))
+{
+    VM& vm = globalObject->vm();
+    auto scope = DECLARE_THROW_SCOPE(vm);
+    JSValue thisValue = callFrame->thisValue();
+    if (!thisValue.isObject())
+        return throwVMTypeError(globalObject, scope, "Receiver should be a typed array view but was not an object"_s);
+    scope.release();
+    CALL_GENERIC_TYPEDARRAY_PROTOTYPE_FUNCTION(genericTypedArrayViewProtoFuncFill);
+}
+
 JSC_DEFINE_HOST_FUNCTION(typedArrayViewProtoGetterFuncBuffer, (JSGlobalObject* globalObject, CallFrame* callFrame))
 {
     VM& vm = globalObject->vm();
@@ -388,6 +415,10 @@ JSC_DEFINE_HOST_FUNCTION(typedArrayViewProtoGetterFuncToStringTag, (JSGlobalObje
         return JSValue::encode(jsNontrivialString(vm, "Int16Array"_s));
     case TypeUint16:
         return JSValue::encode(jsNontrivialString(vm, "Uint16Array"_s));
+    case TypeBigInt64:
+        return JSValue::encode(jsNontrivialString(vm, "BigInt64Array"_s));
+    case TypeBigUint64:
+        return JSValue::encode(jsNontrivialString(vm, "BigUint64Array"_s));
     case NotTypedArray:
     case TypeDataView:
         return JSValue::encode(jsUndefined());
@@ -420,9 +451,13 @@ void JSTypedArrayViewPrototype::finishCreation(VM& vm, JSGlobalObject* globalObj
     JSC_BUILTIN_FUNCTION_WITHOUT_TRANSITION("sort", typedArrayPrototypeSortCodeGenerator, static_cast<unsigned>(PropertyAttribute::DontEnum));
     JSC_NATIVE_INTRINSIC_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->builtinNames().entriesPublicName(), typedArrayProtoViewFuncEntries, static_cast<unsigned>(PropertyAttribute::DontEnum), 0, TypedArrayEntriesIntrinsic);
     JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("includes", typedArrayViewProtoFuncIncludes, static_cast<unsigned>(PropertyAttribute::DontEnum), 1);
-    JSC_BUILTIN_FUNCTION_WITHOUT_TRANSITION("fill", typedArrayPrototypeFillCodeGenerator, static_cast<unsigned>(PropertyAttribute::DontEnum));
+    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->builtinNames().fillPublicName(), typedArrayViewProtoFuncFill, static_cast<unsigned>(PropertyAttribute::DontEnum), 1);
     JSC_BUILTIN_FUNCTION_WITHOUT_TRANSITION("find", typedArrayPrototypeFindCodeGenerator, static_cast<unsigned>(PropertyAttribute::DontEnum));
+    if (Options::useArrayFindLastMethod())
+        JSC_BUILTIN_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->builtinNames().findLastPublicName(), typedArrayPrototypeFindLastCodeGenerator, static_cast<unsigned>(PropertyAttribute::DontEnum));
     JSC_BUILTIN_FUNCTION_WITHOUT_TRANSITION("findIndex", typedArrayPrototypeFindIndexCodeGenerator, static_cast<unsigned>(PropertyAttribute::DontEnum));
+    if (Options::useArrayFindLastMethod())
+        JSC_BUILTIN_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->builtinNames().findLastIndexPublicName(), typedArrayPrototypeFindLastIndexCodeGenerator, static_cast<unsigned>(PropertyAttribute::DontEnum));
     JSC_BUILTIN_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->forEach, typedArrayPrototypeForEachCodeGenerator, static_cast<unsigned>(PropertyAttribute::DontEnum));
     JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("indexOf", typedArrayViewProtoFuncIndexOf, static_cast<unsigned>(PropertyAttribute::DontEnum), 1);
     JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->join, typedArrayViewProtoFuncJoin, static_cast<unsigned>(PropertyAttribute::DontEnum), 1);

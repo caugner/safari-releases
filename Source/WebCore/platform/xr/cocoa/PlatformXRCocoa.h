@@ -25,8 +25,6 @@
 
 #pragma once
 
-#if ENABLE(WEBXR) && PLATFORM(COCOA)
-
-#include <WebKitAdditions/PlatformXRAdditions.h>
-
+#if ENABLE(WEBXR) && USE(EMPTYXR)
+#include "PlatformXR.h"
 #endif

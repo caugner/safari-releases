@@ -81,7 +81,7 @@
 #import <WebCore/FrameLoaderStateMachine.h>
 #import <WebCore/FrameSelection.h>
 #import <WebCore/FrameTree.h>
-#import <WebCore/GraphicsContext.h>
+#import <WebCore/GraphicsContextCG.h>
 #import <WebCore/HTMLFrameOwnerElement.h>
 #import <WebCore/HTMLNames.h>
 #import <WebCore/HistoryItem.h>
@@ -95,6 +95,8 @@
 #import <WebCore/PrintContext.h>
 #import <WebCore/Range.h>
 #import <WebCore/RenderLayer.h>
+#import <WebCore/RenderLayerCompositor.h>
+#import <WebCore/RenderLayerScrollableArea.h>
 #import <WebCore/RenderView.h>
 #import <WebCore/RenderWidget.h>
 #import <WebCore/RenderedDocumentMarker.h>
@@ -186,17 +188,8 @@ NSString *NSAccessibilityEnhancedUserInterfaceAttribute = @"AXEnhancedUserInterf
 
 @implementation WebFramePrivate
 
-- (void)dealloc
-{
-    [webFrameView release];
-
-    [super dealloc];
-}
-
 - (void)setWebFrameView:(WebFrameView *)v
 { 
-    [v retain];
-    [webFrameView release];
     webFrameView = v;
 }
 
@@ -305,9 +298,8 @@ WebView *getWebView(WebFrame *webFrame)
 {
     WebView *webView = kit(page);
 
-    WebFrame *frame = [[self alloc] _initWithWebFrameView:frameView webView:webView];
-    auto coreFrame = WebCore::Frame::create(page, ownerElement, makeUniqueRef<WebFrameLoaderClient>(frame));
-    [frame release];
+    RetainPtr<WebFrame> frame = adoptNS([[self alloc] _initWithWebFrameView:frameView webView:webView]);
+    auto coreFrame = WebCore::Frame::create(page, ownerElement, makeUniqueRef<WebFrameLoaderClient>(frame.get()));
     frame->_private->coreFrame = coreFrame.ptr();
 
     coreFrame.get().tree().setName(name);
@@ -327,10 +319,9 @@ WebView *getWebView(WebFrame *webFrame)
 {
     WebView *webView = kit(page);
 
-    WebFrame *frame = [[self alloc] _initWithWebFrameView:frameView webView:webView];
+    RetainPtr<WebFrame> frame = adoptNS([[self alloc] _initWithWebFrameView:frameView webView:webView]);
     frame->_private->coreFrame = &page->mainFrame();
-    static_cast<WebFrameLoaderClient&>(page->mainFrame().loader().client()).setWebFrame(*frame);
-    [frame release];
+    static_cast<WebFrameLoaderClient&>(page->mainFrame().loader().client()).setWebFrame(*frame.get());
 
     page->mainFrame().tree().setName(name);
     page->mainFrame().init();
@@ -355,12 +346,11 @@ static NSURL *createUniqueWebDataURL();
 {
     WebView *webView = kit(page);
     
-    WebFrame *frame = [[self alloc] _initWithWebFrameView:frameView webView:webView];
+    RetainPtr<WebFrame> frame = adoptNS([[self alloc] _initWithWebFrameView:frameView webView:webView]);
     frame->_private->coreFrame = &page->mainFrame();
-    static_cast<WebFrameLoaderClient&>(page->mainFrame().loader().client()).setWebFrame(*frame);
-    [frame release];
+    static_cast<WebFrameLoaderClient&>(page->mainFrame().loader().client()).setWebFrame(*frame.get());
 
-    frame->_private->coreFrame->initWithSimpleHTMLDocument(style, createUniqueWebDataURL());
+    frame.get()->_private->coreFrame->initWithSimpleHTMLDocument(style, createUniqueWebDataURL());
 }
 #endif
 
@@ -582,7 +572,7 @@ static NSURL *createUniqueWebDataURL();
 {
     if (!range)
         return @"";
-    return plainText(makeSimpleRange(*core(range)), WebCore::TextIteratorDefaultBehavior, true);
+    return plainText(makeSimpleRange(*core(range)), { }, true);
 }
 
 - (OptionSet<WebCore::PaintBehavior>)_paintBehaviorForDestinationContext:(CGContextRef)context
@@ -603,11 +593,14 @@ static NSURL *createUniqueWebDataURL();
         return [[documentView window] isInSnapshottingPaint] ? WebCore::PaintBehavior::Snapshotting : WebCore::PaintBehavior::Normal;
 #endif
 #if PLATFORM(MAC)
-        if ([documentView _web_isDrawingIntoLayer])
+        // Even if we are layer-backed, we may be painting into an offscreen context.
+        // We can be sure it's an offscreen context if we are not parented in a window, so exclude that case.
+        // This does not cover all cases, such as a parented view being painted into an offscreen context.
+        if ([documentView _web_isDrawingIntoLayer] && documentView.window)
             return WebCore::PaintBehavior::Normal;
 #endif
     }
-    
+
     return OptionSet<WebCore::PaintBehavior>(WebCore::PaintBehavior::FlattenCompositingLayers) | WebCore::PaintBehavior::Snapshotting;
 }
 
@@ -620,7 +613,7 @@ static NSURL *createUniqueWebDataURL();
 #else
     CGContextRef ctx = WKGetCurrentGraphicsContext();
 #endif
-    WebCore::GraphicsContext context(ctx);
+    WebCore::GraphicsContextCG context(ctx);
 
 #if PLATFORM(IOS_FAMILY)
     WebCore::Frame *frame = core(self);
@@ -738,9 +731,10 @@ static NSURL *createUniqueWebDataURL();
 #else
         auto* layer = startNode->renderer()->enclosingLayer();
         if (layer) {
-            layer->setAdjustForIOSCaretWhenScrolling(true);
+            auto* scrollableArea = layer->ensureLayerScrollableArea();
+            scrollableArea->setAdjustForIOSCaretWhenScrolling(true);
             startNode->renderer()->scrollRectToVisible(WebCore::enclosingIntRect(rangeRect), insideFixed, { WebCore::SelectionRevealMode::Reveal, WebCore::ScrollAlignment::alignToEdgeIfNeeded, WebCore::ScrollAlignment::alignToEdgeIfNeeded, WebCore::ShouldAllowCrossOriginScrolling::Yes });
-            layer->setAdjustForIOSCaretWhenScrolling(false);
+            scrollableArea->setAdjustForIOSCaretWhenScrolling(false);
             _private->coreFrame->selection().setCaretRectNeedsUpdate();
             _private->coreFrame->selection().updateAppearance();
         }
@@ -758,9 +752,10 @@ static NSURL *createUniqueWebDataURL();
     if (startNode && startNode->renderer()) {
         auto* layer = startNode->renderer()->enclosingLayer();
         if (layer) {
-            layer->setAdjustForIOSCaretWhenScrolling(true);
+            auto* scrollableArea = layer->ensureLayerScrollableArea();
+            scrollableArea->setAdjustForIOSCaretWhenScrolling(true);
             startNode->renderer()->scrollRectToVisible(WebCore::enclosingIntRect(rangeRect), insideFixed, { WebCore::SelectionRevealMode::Reveal, WebCore::ScrollAlignment::alignToEdgeIfNeeded, WebCore::ScrollAlignment::alignToEdgeIfNeeded, WebCore::ShouldAllowCrossOriginScrolling::Yes});
-            layer->setAdjustForIOSCaretWhenScrolling(false);
+            scrollableArea->setAdjustForIOSCaretWhenScrolling(false);
 
             auto coreFrame = core(self);
             if (coreFrame) {
@@ -809,15 +804,15 @@ static NSURL *createUniqueWebDataURL();
     return characterRange(makeBoundaryPointBeforeNodeContents(*element), range);
 }
 
-- (Optional<WebCore::SimpleRange>)_convertToDOMRange:(NSRange)nsrange
+- (std::optional<WebCore::SimpleRange>)_convertToDOMRange:(NSRange)nsrange
 {
     return [self _convertToDOMRange:nsrange rangeIsRelativeTo:WebRangeIsRelativeTo::EditableRoot];
 }
 
-- (Optional<WebCore::SimpleRange>)_convertToDOMRange:(NSRange)range rangeIsRelativeTo:(WebRangeIsRelativeTo)rangeIsRelativeTo
+- (std::optional<WebCore::SimpleRange>)_convertToDOMRange:(NSRange)range rangeIsRelativeTo:(WebRangeIsRelativeTo)rangeIsRelativeTo
 {
     if (range.location == NSNotFound)
-        return WTF::nullopt;
+        return std::nullopt;
 
     if (rangeIsRelativeTo == WebRangeIsRelativeTo::EditableRoot) {
         // Our critical assumption is that this code path is only called by input methods that
@@ -828,7 +823,7 @@ static NSURL *createUniqueWebDataURL();
         // That fits with AppKit's idea of an input context.
         auto* element = _private->coreFrame->selection().rootEditableElementOrDocumentElement();
         if (!element)
-            return WTF::nullopt;
+            return std::nullopt;
         return resolveCharacterRange(makeRangeSelectingNodeContents(*element), range);
     }
 
@@ -836,7 +831,7 @@ static NSURL *createUniqueWebDataURL();
 
     auto paragraphStart = makeBoundaryPoint(startOfParagraph(_private->coreFrame->selection().selection().visibleStart()));
     if (!paragraphStart)
-        return WTF::nullopt;
+        return std::nullopt;
 
     auto scopeEnd = makeBoundaryPointAfterNodeContents(paragraphStart->container->treeScope().rootNode());
     return WebCore::resolveCharacterRange({ WTFMove(*paragraphStart), WTFMove(scopeEnd) }, range);
@@ -987,7 +982,7 @@ static NSURL *createUniqueWebDataURL();
     auto* document = _private->coreFrame->document();
     document->setShouldCreateRenderers(_private->shouldCreateRenderers);
 
-    _private->coreFrame->loader().documentLoader()->commitData((const char *)[data bytes], [data length]);
+    _private->coreFrame->loader().documentLoader()->commitData((const uint8_t*)[data bytes], [data length]);
 }
 
 @end
@@ -1725,7 +1720,7 @@ static WebFrameLoadType toWebFrameLoadType(WebCore::FrameLoadType frameLoadType)
     auto& selection = frame->selection().selection();
     auto root = selection.isNone() ? frame->document()->bodyOrFrameset() : selection.rootEditableElement();
 
-    DOMRange *previousDOMRange = nil;
+    RetainPtr<DOMRange> previousDOMRange;
     id previousMetadata = nil;
 
     for (WebCore::Node* node = root; node; node = WebCore::NodeTraversal::next(*node)) {
@@ -1752,13 +1747,11 @@ static WebFrameLoadType toWebFrameLoadType(WebCore::FrameLoadType frameLoadType)
                 // It is possible for a DocumentMarker to be split by editing. Adjacent markers with the
                 // the same metadata are for the same result. So combine their ranges.
                 ASSERT(previousDOMRange == [ranges lastObject]);
-                [previousDOMRange retain];
                 [ranges removeLastObject];
                 DOMNode *startContainer = [domRange startContainer];
                 int startOffset = [domRange startOffset];
                 [previousDOMRange setEnd:startContainer offset:startOffset];
-                [ranges addObject:previousDOMRange];
-                [previousDOMRange release];
+                [ranges addObject:previousDOMRange.get()];
             }
         }
     }
@@ -1832,9 +1825,8 @@ static WebFrameLoadType toWebFrameLoadType(WebCore::FrameLoadType frameLoadType)
     bool multipleFonts = false;
     CTFontRef font = nil;
     if (_private->coreFrame) {
-        const WebCore::Font* fd = _private->coreFrame->editor().fontForSelection(multipleFonts);
-        if (fd)
-            font = fd->getCTFont();
+        if (auto coreFont = _private->coreFrame->editor().fontForSelection(multipleFonts))
+            font = coreFont->getCTFont();
     }
     
     if (hasMultipleFonts)
@@ -2183,7 +2175,7 @@ static WebFrameLoadType toWebFrameLoadType(WebCore::FrameLoadType frameLoadType)
     if (!coreFrame)
         return @"";
 
-    return coreFrame->layerTreeAsText();
+    return coreFrame->contentRenderer()->compositor().layerTreeAsText();
 }
 
 - (id)accessibilityRoot
@@ -2340,8 +2332,8 @@ static WebFrameLoadType toWebFrameLoadType(WebCore::FrameLoadType frameLoadType)
     auto coreFrame = _private->coreFrame;
     if (!coreFrame)
         return nil;
-    constexpr OptionSet<HitTestRequest::RequestType> hitType { HitTestRequest::ReadOnly, HitTestRequest::Active, HitTestRequest::IgnoreClipping, HitTestRequest::DisallowUserAgentShadowContent, HitTestRequest::AllowChildFrameContent };
-    return [[[WebElementDictionary alloc] initWithHitTestResult:coreFrame->eventHandler().hitTestResultAtPoint(WebCore::IntPoint(point), hitType)] autorelease];
+    constexpr OptionSet<HitTestRequest::Type> hitType { HitTestRequest::Type::ReadOnly, HitTestRequest::Type::Active, HitTestRequest::Type::IgnoreClipping, HitTestRequest::Type::DisallowUserAgentShadowContent, HitTestRequest::Type::AllowChildFrameContent };
+    return adoptNS([[WebElementDictionary alloc] initWithHitTestResult:coreFrame->eventHandler().hitTestResultAtPoint(WebCore::IntPoint(point), hitType)]).autorelease();
 }
 
 - (NSURL *)_unreachableURL
@@ -2384,7 +2376,7 @@ static WebFrameLoadType toWebFrameLoadType(WebCore::FrameLoadType frameLoadType)
 
 - (WebFrameView *)frameView
 {
-    return _private->webFrameView;
+    return _private->webFrameView.get();
 }
 
 - (WebView *)webView
@@ -2469,12 +2461,9 @@ static bool needsMicrosoftMessengerDOMDocumentWorkaround()
 
 static NSURL *createUniqueWebDataURL()
 {
-    CFUUIDRef UUIDRef = CFUUIDCreate(kCFAllocatorDefault);
-    NSString *UUIDString = (NSString *)CFUUIDCreateString(kCFAllocatorDefault, UUIDRef);
-    CFRelease(UUIDRef);
-    NSURL *URL = [NSURL URLWithString:[NSString stringWithFormat:@"applewebdata://%@", UUIDString]];
-    CFRelease(UUIDString);
-    return URL;
+    auto UUIDRef = adoptCF(CFUUIDCreate(kCFAllocatorDefault));
+    auto UUIDString = adoptCF(CFUUIDCreateString(kCFAllocatorDefault, UUIDRef.get()));
+    return [NSURL URLWithString:[NSString stringWithFormat:@"applewebdata://%@", (__bridge NSString *)UUIDString.get()]];
 }
 
 - (void)_loadData:(NSData *)data MIMEType:(NSString *)MIMEType textEncodingName:(NSString *)encodingName baseURL:(NSURL *)baseURL unreachableURL:(NSURL *)unreachableURL
@@ -2575,7 +2564,7 @@ static NSURL *createUniqueWebDataURL()
     auto coreFrame = _private->coreFrame;
     if (!coreFrame)
         return nil;
-    return [[kit(coreFrame->tree().parent()) retain] autorelease];
+    return retainPtr(kit(coreFrame->tree().parent())).autorelease();
 }
 
 - (NSArray *)childFrames

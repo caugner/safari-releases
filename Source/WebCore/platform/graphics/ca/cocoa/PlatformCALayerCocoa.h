@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010, 2013 Apple Inc. All rights reserved.
+ * Copyright (C) 2010-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -53,6 +53,7 @@ public:
     PlatformCALayer* superlayer() const override;
     void removeFromSuperlayer() override;
     void setSublayers(const PlatformCALayerList&) override;
+    PlatformCALayerList sublayersForLogging() const override;
     void removeAllSublayers() override;
     void appendSublayer(PlatformCALayer&) override;
     void insertSublayer(PlatformCALayer&, size_t index) override;
@@ -174,6 +175,19 @@ public:
 #if ENABLE(SCROLLING_THREAD)
     ScrollingNodeID scrollingNodeID() const override { return m_scrollingNodeID; }
     void setScrollingNodeID(ScrollingNodeID nodeID) override { m_scrollingNodeID = nodeID; }
+#endif
+
+#if HAVE(CORE_ANIMATION_SEPARATED_LAYERS)
+    bool isSeparated() const override;
+    void setIsSeparated(bool) override;
+
+#if HAVE(CORE_ANIMATION_SEPARATED_PORTALS)
+    bool isSeparatedPortal() const override;
+    void setIsSeparatedPortal(bool) override;
+
+    bool isDescendentOfSeparatedPortal() const override;
+    void setIsDescendentOfSeparatedPortal(bool) override;
+#endif
 #endif
 
     TiledBacking* tiledBacking() override;

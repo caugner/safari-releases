@@ -24,15 +24,18 @@ import argparse
 import logging
 import os
 
-from webkitcorepy import arguments, log as webkitcorepy_log
-from webkitscmpy import local, log, remote
-
+from .blame import Blame
 from .canonicalize import Canonicalize
+from .clean import Clean
 from .command import Command
 from .checkout import Checkout
-from .find import Find
+from .find import Find, Info
+from .log import Log
 from .pull import Pull
 from .setup_git_svn import SetupGitSvn
+
+from webkitcorepy import arguments, log as webkitcorepy_log
+from webkitscmpy import local, log, remote
 
 
 def main(args=None, path=None, loggers=None, contributors=None, identifier_template=None, subversion=None):
@@ -44,7 +47,11 @@ def main(args=None, path=None, loggers=None, contributors=None, identifier_templ
         description='Custom git tooling from the WebKit team to interact with a ' +
                     'repository using identifers',
     )
-    arguments.LoggingGroup(parser)
+    arguments.LoggingGroup(
+        parser,
+        loggers=loggers,
+        help='{} amount of logging and commit information displayed',
+    )
 
     group = parser.add_argument_group('Repository')
     group.add_argument(
@@ -56,13 +63,18 @@ def main(args=None, path=None, loggers=None, contributors=None, identifier_templ
 
     subparsers = parser.add_subparsers(help='sub-command help')
 
-    programs = [Find, Checkout, Canonicalize, Pull]
+    programs = [Find, Info, Checkout, Canonicalize, Pull, Clean, Log, Blame]
     if subversion:
         programs.append(SetupGitSvn)
 
     for program in programs:
         subparser = subparsers.add_parser(program.name, help=program.help)
         subparser.set_defaults(main=program.main)
+        arguments.LoggingGroup(
+            subparser,
+            loggers=loggers,
+            help='{} amount of logging and commit information displayed',
+        )
         program.parser(subparser, loggers=loggers)
 
     parsed = parser.parse_args(args=args)
@@ -71,6 +83,10 @@ def main(args=None, path=None, loggers=None, contributors=None, identifier_templ
         repository = remote.Scm.from_url(parsed.repository, contributors=contributors)
     else:
         repository = local.Scm.from_path(path=parsed.repository, contributors=contributors)
+
+    if not getattr(parsed, 'main', None):
+        parser.print_help()
+        return -1
 
     return parsed.main(
         args=parsed,

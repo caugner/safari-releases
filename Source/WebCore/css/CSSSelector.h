@@ -114,6 +114,7 @@ namespace WebCore {
             PseudoClassDirectFocus,
             PseudoClassDrag,
             PseudoClassFocus,
+            PseudoClassFocusVisible,
             PseudoClassFocusWithin,
             PseudoClassActive,
             PseudoClassChecked,
@@ -173,6 +174,7 @@ namespace WebCore {
 #if ENABLE(ATTACHMENT_ELEMENT)
             PseudoClassHasAttachment,
 #endif
+            PseudoClassModalDialog,
         };
 
         enum PseudoElementType {

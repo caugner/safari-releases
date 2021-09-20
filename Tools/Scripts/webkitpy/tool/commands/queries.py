@@ -37,22 +37,24 @@ import re
 from datetime import datetime
 from optparse import make_option
 
+from webkitcorepy.string_utils import pluralize
+
 from webkitpy.tool import steps
 
+import webkitpy.common.config.urls as config_urls
 from webkitpy.common.checkout.commitinfo import CommitInfo
 from webkitpy.common.config.committers import CommitterList
-import webkitpy.common.config.urls as config_urls
-from webkitpy.common.net.buildbot import BuildBot
 from webkitpy.common.net.bugzilla import Bugzilla
+from webkitpy.common.net.buildbot import BuildBot
 from webkitpy.common.net.regressionwindow import RegressionWindow
 from webkitpy.common.system.crashlogs import CrashLogs
 from webkitpy.common.system.user import User
-from webkitpy.tool.commands.abstractsequencedcommand import AbstractSequencedCommand
-from webkitpy.tool.grammar import pluralize
-from webkitpy.tool.multicommandtool import Command
 from webkitpy.layout_tests.controllers.layout_test_finder import LayoutTestFinder
 from webkitpy.layout_tests.models.test_expectations import TestExpectations
 from webkitpy.port import platform_options, configuration_options
+from webkitpy.tool.commands.abstractsequencedcommand import AbstractSequencedCommand
+from webkitpy.tool.commands.deprecatedcommand import DeprecatedCommand
+from webkitpy.tool.multicommandtool import Command
 
 _log = logging.getLogger(__name__)
 
@@ -68,6 +70,7 @@ class SuggestReviewers(AbstractSequencedCommand):
         options.suggest_reviewers = True
 
 
+@DeprecatedCommand
 class BugsToCommit(Command):
     name = "bugs-to-commit"
     help_text = "List bugs in the commit-queue"
@@ -79,6 +82,7 @@ class BugsToCommit(Command):
             print("%s" % bug_id)
 
 
+@DeprecatedCommand
 class PatchesInCommitQueue(Command):
     name = "patches-in-commit-queue"
     help_text = "List patches in the commit-queue"
@@ -90,6 +94,7 @@ class PatchesInCommitQueue(Command):
             print(patch.url())
 
 
+@DeprecatedCommand
 class PatchesToCommitQueue(Command):
     name = "patches-to-commit-queue"
     help_text = "Patches which should be added to the commit queue"
@@ -125,6 +130,7 @@ class PatchesToCommitQueue(Command):
                 print("%s" % tool.bugs.attachment_url_for_id(patch.id(), action="edit"))
 
 
+@DeprecatedCommand
 class PatchesToReview(Command):
     name = "patches-to-review"
     help_text = "List bugs which have attachments pending review"
@@ -179,6 +185,7 @@ class PatchesToReview(Command):
         self._print_report(report, cc_email, options.all)
 
 
+@DeprecatedCommand
 class WhatBroke(Command):
     name = "what-broke"
     help_text = "Print failing buildbots (%s) and what revisions broke them" % config_urls.buildbot_url
@@ -225,6 +232,7 @@ class WhatBroke(Command):
             print("All builders are passing!")
 
 
+@DeprecatedCommand
 class ResultsFor(Command):
     name = "results-for"
     help_text = "Print a list of failures for the passed revision from bots on %s" % config_urls.buildbot_url
@@ -247,6 +255,7 @@ class ResultsFor(Command):
             self._print_layout_test_results(build.layout_test_results())
 
 
+@DeprecatedCommand
 class FailureReason(Command):
     name = "failure-reason"
     help_text = "Lists revisions where individual test failures started at %s" % config_urls.buildbot_url
@@ -343,6 +352,7 @@ class FailureReason(Command):
         return self._explain_failures_for_builder(builder, start_revision=int(start_revision))
 
 
+@DeprecatedCommand
 class FindFlakyTests(Command):
     name = "find-flaky-tests"
     help_text = "Lists tests that often fail for a single build at %s" % config_urls.buildbot_url
@@ -412,6 +422,7 @@ class FindFlakyTests(Command):
         return self._walk_backwards_from(builder, latest_revision, limit=int(limit))
 
 
+@DeprecatedCommand
 class TreeStatus(Command):
     name = "tree-status"
     help_text = "Print the status of the %s buildbots" % config_urls.buildbot_url
@@ -424,6 +435,7 @@ and displayes the status of each builder."""
             print("%s : %s" % (status_string.ljust(4), builder["name"]))
 
 
+@DeprecatedCommand
 class CrashLog(Command):
     name = "crash-log"
     help_text = "Print the newest crash log for the given process"
@@ -440,6 +452,7 @@ and PID and prints it to stdout."""
         print(crash_logs.find_newest_log(args[0], pid))
 
 
+@DeprecatedCommand
 class PrintExpectations(Command):
     name = 'print-expectations'
     help_text = 'Print the expected result for the given test(s) on the given port(s)'
@@ -491,10 +504,11 @@ class PrintExpectations(Command):
             return
 
         finder = LayoutTestFinder(default_port, None)
-        tests = set(finder.find_tests_by_path(args))
+        tests = finder.find_tests_by_path(args)
+        test_files = {test.test_path for test in tests}
         for port_name in port_names:
-            model = self._model(options, port_name, tests)
-            tests_to_print = self._filter_tests(options, model, tests)
+            model = self._model(options, port_name, test_files)
+            tests_to_print = self._filter_tests(options, model, test_files)
             lines = [model.get_expectation_line(test) for test in sorted(tests_to_print)]
             if port_name != port_names[0]:
                 print()
@@ -529,6 +543,7 @@ class PrintExpectations(Command):
         return expectations.model()
 
 
+@DeprecatedCommand
 class PrintBaselines(Command):
     name = 'print-baselines'
     help_text = 'Prints the baseline locations for given test(s) on the given port(s)'
@@ -539,7 +554,7 @@ class PrintBaselines(Command):
                         help='display the baselines for *all* tests'),
         ] + platform_options(use_globs=True)
         Command.__init__(self, options=options)
-        self._platform_regexp = re.compile('platform/([^\/]+)/(.+)')
+        self._platform_regexp = re.compile(r'platform/([^\/]+)/(.+)')
 
     def execute(self, options, args, tool):
         if not args and not options.all:
@@ -579,6 +594,7 @@ class PrintBaselines(Command):
         return None
 
 
+@DeprecatedCommand
 class FindResolvedBugs(Command):
     name = "find-resolved-bugs"
     help_text = "Collect the RESOLVED bugs in the given TestExpectations file"
@@ -593,7 +609,7 @@ class FindResolvedBugs(Command):
         ids = set()
         inputfile = tool.filesystem.open_text_file_for_reading(filename)
         for line in inputfile:
-            result = re.search("(https://bugs\.webkit\.org/show_bug\.cgi\?id=|webkit\.org/b/)([0-9]+)", line)
+            result = re.search(r"(https://bugs\.webkit\.org/show_bug\.cgi\?id=|webkit\.org/b/)([0-9]+)", line)
             if result:
                 ids.add(result.group(2))
         inputfile.close()

@@ -29,10 +29,10 @@
 #if ENABLE(PDFKIT_PLUGIN)
 
 #import "PDFAnnotationTextWidgetDetails.h"
-#import "PDFKitImports.h"
 #import "PDFLayerControllerSPI.h"
 #import "PDFPlugin.h"
 #import <Quartz/Quartz.h>
+#import <WebCore/AddEventListenerOptions.h>
 #import <WebCore/CSSPrimitiveValue.h>
 #import <WebCore/CSSPropertyNames.h>
 #import <WebCore/ColorMac.h>

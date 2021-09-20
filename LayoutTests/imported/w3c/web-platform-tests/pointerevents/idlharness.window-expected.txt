@@ -8,15 +8,15 @@ PASS Partial interface mixin GlobalEventHandlers: member names are unique
 PASS Partial interface Navigator: original interface defined
 PASS Partial interface Navigator: member names are unique
 PASS Partial interface UIEvent: member names are unique
+PASS Partial interface MouseEvent: member names are unique
+PASS Partial interface UIEvent[2]: member names are unique
+PASS Partial dictionary UIEventInit: member names are unique
 PASS Partial interface Document: member names are unique
 PASS Partial interface mixin NavigatorID: member names are unique
 PASS Partial interface Document[2]: member names are unique
 PASS Partial interface Window: member names are unique
 PASS Document includes GlobalEventHandlers: member names are unique
 PASS Document includes DocumentAndElementEventHandlers: member names are unique
-PASS Document includes NonElementParentNode: member names are unique
-PASS Document includes ParentNode: member names are unique
-PASS Document includes XPathEvaluatorBase: member names are unique
 PASS HTMLElement includes GlobalEventHandlers: member names are unique
 PASS HTMLElement includes DocumentAndElementEventHandlers: member names are unique
 PASS HTMLElement includes ElementContentEditable: member names are unique
@@ -24,9 +24,6 @@ PASS HTMLElement includes HTMLOrSVGElement: member names are unique
 PASS Window includes GlobalEventHandlers: member names are unique
 PASS Window includes WindowEventHandlers: member names are unique
 PASS Window includes WindowOrWorkerGlobalScope: member names are unique
-PASS Window includes AnimationFrameProvider: member names are unique
-PASS Window includes WindowSessionStorage: member names are unique
-PASS Window includes WindowLocalStorage: member names are unique
 PASS Navigator includes NavigatorID: member names are unique
 PASS Navigator includes NavigatorLanguage: member names are unique
 PASS Navigator includes NavigatorOnLine: member names are unique
@@ -34,10 +31,16 @@ PASS Navigator includes NavigatorContentUtils: member names are unique
 PASS Navigator includes NavigatorCookies: member names are unique
 PASS Navigator includes NavigatorPlugins: member names are unique
 PASS Navigator includes NavigatorConcurrentHardware: member names are unique
+PASS Window includes AnimationFrameProvider: member names are unique
+PASS Window includes WindowSessionStorage: member names are unique
+PASS Window includes WindowLocalStorage: member names are unique
+PASS Document includes NonElementParentNode: member names are unique
+PASS Document includes ParentNode: member names are unique
 PASS Element includes ParentNode: member names are unique
 PASS Element includes NonDocumentTypeChildNode: member names are unique
 PASS Element includes ChildNode: member names are unique
 PASS Element includes Slottable: member names are unique
+PASS Document includes XPathEvaluatorBase: member names are unique
 PASS PointerEvent interface: existence and properties of interface object
 PASS PointerEvent interface object length
 PASS PointerEvent interface object name

@@ -45,10 +45,9 @@ static RetainPtr<WKWebView> createdWebView;
 
 @interface SpeechRecognitionUIDelegate : NSObject<WKUIDelegatePrivate>
 - (void)_webView:(WKWebView *)webView requestSpeechRecognitionPermissionForOrigin:(WKSecurityOrigin *)origin decisionHandler:(void (^)(BOOL))decisionHandler;
-- (void)_webView:(WKWebView *)webView requestMediaCaptureAuthorization: (_WKCaptureDevices)devices decisionHandler:(void (^)(BOOL))decisionHandler;
-- (void)_webView:(WKWebView *)webView checkUserMediaPermissionForURL:(NSURL *)url mainFrameURL:(NSURL *)mainFrameURL frameIdentifier:(NSUInteger)frameIdentifier decisionHandler:(void (^)(NSString *salt, BOOL authorized))decisionHandler;
+- (void)webView:(WKWebView *)webView requestMediaCapturePermissionForOrigin:(WKSecurityOrigin *)origin initiatedByFrame:(WKFrameInfo *)frame type:(WKMediaCaptureType)type decisionHandler:(void (^)(WKPermissionDecision decision))decisionHandler;
 - (WKWebView *)webView:(WKWebView *)webView createWebViewWithConfiguration:(WKWebViewConfiguration *)configuration forNavigationAction:(WKNavigationAction *)navigationAction windowFeatures:(WKWindowFeatures *)windowFeatures;
-- (void)_webView:(WKWebView *)webView mediaCaptureStateDidChange:(_WKMediaCaptureState)state;
+- (void)_webView:(WKWebView *)webView mediaCaptureStateDidChange:(_WKMediaCaptureStateDeprecated)state;
 @end
 
 @implementation SpeechRecognitionUIDelegate
@@ -58,15 +57,16 @@ static RetainPtr<WKWebView> createdWebView;
     decisionHandler(shouldGrantPermissionRequest);
 }
 
+- (void)webView:(WKWebView *)webView requestMediaCapturePermissionForOrigin:(WKSecurityOrigin *)origin initiatedByFrame:(WKFrameInfo *)frame type:(WKMediaCaptureType)type decisionHandler:(void (^)(WKPermissionDecision decision))decisionHandler
+{
+    permissionRequested = true;
+    decisionHandler(shouldGrantPermissionRequest ? WKPermissionDecisionGrant : WKPermissionDecisionDeny);
+}
+
 - (void)_webView:(WKWebView *)webView requestMediaCaptureAuthorization: (_WKCaptureDevices)devices decisionHandler:(void (^)(BOOL))decisionHandler
 {
     permissionRequested = true;
     decisionHandler(shouldGrantPermissionRequest);
-}
-
-- (void)_webView:(WKWebView *)webView checkUserMediaPermissionForURL:(NSURL *)url mainFrameURL:(NSURL *)mainFrameURL frameIdentifier:(NSUInteger)frameIdentifier decisionHandler:(void (^)(NSString *salt, BOOL authorized))decisionHandler
-{
-    decisionHandler(@"0x9876543210", YES);
 }
 
 - (WKWebView *)webView:(WKWebView *)webView createWebViewWithConfiguration:(WKWebViewConfiguration *)configuration forNavigationAction:(WKNavigationAction *)navigationAction windowFeatures:(WKWindowFeatures *)windowFeatures
@@ -75,9 +75,9 @@ static RetainPtr<WKWebView> createdWebView;
     return createdWebView.get();
 }
 
-- (void)_webView:(WKWebView *)webView mediaCaptureStateDidChange:(_WKMediaCaptureState)state
+- (void)_webView:(WKWebView *)webView mediaCaptureStateDidChange:(_WKMediaCaptureStateDeprecated)state
 {
-    isCapturing = state == _WKMediaCaptureStateActiveMicrophone;
+    isCapturing = state == _WKMediaCaptureStateDeprecatedActiveMicrophone;
     captureStateDidChange = true;
 }
 @end
@@ -204,7 +204,7 @@ TEST(WebKit2, SpeechRecognitionErrorWhenStartingAudioCaptureOnDifferentPage)
     EXPECT_WK_STREQ(@"Audio Mute", [lastScriptMessage body]);
 }
 
-// FIXME: enable this test on iOS when https://webkit.org/b/175204 is fixed.
+// FIXME: test this on iOS when https://webkit.org/b/175204 is fixed.
 #if PLATFORM(MAC)
 
 TEST(WebKit2, SpeechRecognitionPageBecomesInvisible)
@@ -223,19 +223,19 @@ TEST(WebKit2, SpeechRecognitionPageBecomesInvisible)
     shouldGrantPermissionRequest = true;
     receivedScriptMessage = false;
     [webView synchronouslyLoadTestPageNamed:@"speechrecognition-basic"];
-    [webView stringByEvaluatingJavaScript:@"start()"];
+    [webView evaluateJavaScript:@"setShouldHandleEndEvent(true); start();" completionHandler:nil];
     TestWebKitAPI::Util::run(&receivedScriptMessage);
     EXPECT_WK_STREQ(@"Start", [lastScriptMessage body]);
 
     // Hide page.
     receivedScriptMessage = false;
-#if PLATFORM(MAC)
     [webView.get().window setIsVisible:NO];
-#else
-    webView.get().window.hidden = YES;
-#endif
+    Util::sleep(0.1);
+    // Ongoing recognition does not stop automatically.
+    EXPECT_FALSE(receivedScriptMessage);
+    [webView stringByEvaluatingJavaScript:@"stop()"];
     TestWebKitAPI::Util::run(&receivedScriptMessage);
-    EXPECT_WK_STREQ(@"Error: aborted - Page is no longer visible", [lastScriptMessage body]);
+    EXPECT_WK_STREQ(@"End", [lastScriptMessage body]);
 
     // Page is invisible.
     receivedScriptMessage = false;
@@ -304,5 +304,32 @@ TEST(WebKit2, SpeechRecognitionMediaCaptureStateChange)
 }
 
 #endif
+
+TEST(WebKit2, SpeechRecognitionWebProcessCrash)
+{
+    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    auto handler = adoptNS([[SpeechRecognitionMessageHandler alloc] init]);
+    [[configuration userContentController] addScriptMessageHandler:handler.get() name:@"testHandler"];
+    auto preferences = [configuration preferences];
+    preferences._mockCaptureDevicesEnabled = YES;
+    preferences._speechRecognitionEnabled = YES;
+    auto delegate = adoptNS([[SpeechRecognitionUIDelegate alloc] init]);
+    shouldGrantPermissionRequest = true;
+
+    @autoreleasepool {
+        auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+        [webView setUIDelegate:delegate.get()];
+
+        receivedScriptMessage = false;
+        [webView synchronouslyLoadTestPageNamed:@"speechrecognition-basic"];
+        [webView evaluateJavaScript:@"start();" completionHandler:nil];
+        TestWebKitAPI::Util::run(&receivedScriptMessage);
+        EXPECT_WK_STREQ(@"Start", [lastScriptMessage body]);
+
+        [webView _killWebContentProcess];
+    }
+
+    TestWebKitAPI::Util::sleep(0.5);
+}
 
 } // namespace TestWebKitAPI

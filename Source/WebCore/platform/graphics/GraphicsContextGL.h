@@ -32,6 +32,7 @@
 #include "Image.h"
 #include "IntRect.h"
 #include "IntSize.h"
+#include "MediaPlayer.h"
 #include "PlatformLayer.h"
 #include <wtf/HashSet.h>
 #include <wtf/RefCounted.h>
@@ -53,7 +54,7 @@ namespace WebCore {
 class ExtensionsGL;
 class HostWindow;
 class ImageBuffer;
-class ImageData;
+class PixelBuffer;
 
 #if ENABLE(VIDEO) && USE(AVFOUNDATION)
 class GraphicsContextGLCV;
@@ -576,6 +577,7 @@ public:
     static constexpr GCGLenum RG32I = 0x823B;
     static constexpr GCGLenum RG32UI = 0x823C;
     static constexpr GCGLenum VERTEX_ARRAY_BINDING = 0x85B5;
+    static constexpr GCGLenum VERTEX_ARRAY_BINDING_OES = 0x85B5;
     static constexpr GCGLenum R8_SNORM = 0x8F94;
     static constexpr GCGLenum RG8_SNORM = 0x8F95;
     static constexpr GCGLenum RGB8_SNORM = 0x8F96;
@@ -746,12 +748,8 @@ public:
         D32,
         D32F,
         DS24_8,
-        NumFormats
-    };
-
-    enum class Destination : uint8_t {
-        Offscreen,
-        DirectlyToHostWindow,
+        NumFormats,
+        Invalid = NumFormats
     };
 
     enum class ChannelBits : uint8_t {
@@ -913,15 +911,15 @@ public:
 
     // Creates a GraphicsContextGL instance to render into offscreen destination in context of HostWindow.
     // HostWindow might affect the decision which backend is to be used.
-    static RefPtr<GraphicsContextGL> create(const GraphicsContextGLAttributes&, HostWindow*);
+    WEBCORE_EXPORT static RefPtr<GraphicsContextGL> create(const GraphicsContextGLAttributes&, HostWindow*);
 
-    GraphicsContextGL(GraphicsContextGLAttributes, Destination = Destination::Offscreen, GraphicsContextGL* sharedContext = nullptr);
+    GraphicsContextGL(GraphicsContextGLAttributes, GraphicsContextGL* sharedContext = nullptr);
     virtual ~GraphicsContextGL() = default;
 
     void addClient(Client& client) { m_clients.add(&client); }
     void removeClient(Client& client) { m_clients.remove(&client); }
 
-    // WebGL functions.
+    // ========== WebGL 1 entry points.
     virtual void activeTexture(GCGLenum texture) = 0;
     virtual void attachShader(PlatformGLObject program, PlatformGLObject shader) = 0;
     virtual void bindAttribLocation(PlatformGLObject, GCGLuint index, const String& name) = 0;
@@ -1229,7 +1227,15 @@ public:
 
     virtual void getActiveUniformBlockiv(GCGLuint program, GCGLuint uniformBlockIndex, GCGLenum pname, GCGLSpan<GCGLint> params) = 0;
 
-    // Other functions.
+    // ========== Extension related entry points.
+
+    // GL_ANGLE_multi_draw
+    virtual void multiDrawArraysANGLE(GCGLenum mode, GCGLSpan<const GCGLint> firsts, GCGLSpan<const GCGLsizei> counts, GCGLsizei drawcount) = 0;
+    virtual void multiDrawArraysInstancedANGLE(GCGLenum mode, GCGLSpan<const GCGLint> firsts, GCGLSpan<const GCGLsizei> counts, GCGLSpan<const GCGLsizei> instanceCounts, GCGLsizei drawcount) = 0;
+    virtual void multiDrawElementsANGLE(GCGLenum mode, GCGLSpan<const GCGLsizei> counts, GCGLenum type, GCGLSpan<const GCGLint> offsets, GCGLsizei drawcount) = 0;
+    virtual void multiDrawElementsInstancedANGLE(GCGLenum mode, GCGLSpan<const GCGLsizei> counts, GCGLenum type, GCGLSpan<const GCGLint> offsets, GCGLSpan<const GCGLsizei> instanceCounts, GCGLsizei drawcount) = 0;
+
+    // ========== Other functions.
     GCGLfloat getFloat(GCGLenum pname);
     GCGLboolean getBoolean(GCGLenum pname);
     GCGLint getInteger(GCGLenum pname);
@@ -1271,8 +1277,6 @@ public:
     // error list. Return true if at least one error is moved.
     virtual bool moveErrorsToSyntheticErrorList() = 0;
 
-    virtual void setFailNextGPUStatusCheck() = 0;
-
     virtual void prepareForDisplay() = 0;
 
     // FIXME: should be removed, caller should keep track of changed state.
@@ -1288,22 +1292,29 @@ public:
     // FIXME: these should be removed, they're part of drawing buffer and
     // display buffer abstractions that the caller should hold separate to
     // the context.
-    virtual void paintRenderingResultsToCanvas(ImageBuffer*) = 0;
-    virtual RefPtr<ImageData> paintRenderingResultsToImageData() = 0;
-    virtual void paintCompositedResultsToCanvas(ImageBuffer*) = 0;
+    virtual void paintRenderingResultsToCanvas(ImageBuffer&) = 0;
+    virtual std::optional<PixelBuffer> paintRenderingResultsToPixelBuffer() = 0;
+    virtual void paintCompositedResultsToCanvas(ImageBuffer&) = 0;
 
     // FIXME: this should be removed. The layer should be marked composited by
     // preparing for display, so that canvas image buffer and the layer agree
     // on the content.
     virtual void markLayerComposited() = 0;
 
-    virtual void simulateContextChanged() = 0;
+    enum class SimulatedEventForTesting {
+        ContextChange,
+        GPUStatusFailure,
+        Timeout
+    };
+    virtual void simulateEventForTesting(SimulatedEventForTesting) = 0;
 
 #if ENABLE(VIDEO) && USE(AVFOUNDATION)
     // Returns interface for CV interaction if the functionality is present.
     virtual GraphicsContextGLCV* asCV() = 0;
 #endif
-
+#if ENABLE(VIDEO)
+    virtual bool copyTextureFromMedia(MediaPlayer&, PlatformGLObject texture, GCGLenum target, GCGLint level, GCGLenum internalFormat, GCGLenum format, GCGLenum type, bool premultiplyAlpha, bool flipY) = 0;
+#endif
 
     IntSize getInternalFramebufferSize() const { return IntSize(m_currentWidth, m_currentHeight); }
 
@@ -1333,11 +1344,11 @@ public:
     //   INVALID_ENUM if format/type is illegal.
     static GCGLenum computeImageSizeInBytes(GCGLenum format, GCGLenum type, GCGLsizei width, GCGLsizei height, GCGLsizei depth, const PixelStoreParams&, unsigned* imageSizeInBytes, unsigned* paddingInBytes, unsigned* skipSizeInBytes);
 
-    // Extracts the contents of the given ImageData into the passed Vector,
+    // Extracts the contents of the given PixelBuffer into the passed Vector,
     // packing the pixel data according to the given format and type,
     // and obeying the flipY and premultiplyAlpha flags. Returns true
     // upon success.
-    static bool extractImageData(ImageData*, DataFormat, const IntRect& sourceImageSubRectangle, int depth, int unpackImageHeight, GCGLenum format, GCGLenum type, bool flipY, bool premultiplyAlpha, Vector<uint8_t>& data);
+    static bool extractPixelBuffer(const PixelBuffer&, DataFormat, const IntRect& sourceImageSubRectangle, int depth, int unpackImageHeight, GCGLenum format, GCGLenum type, bool flipY, bool premultiplyAlpha, Vector<uint8_t>& data);
 
     // Helper function which extracts the user-supplied texture
     // data, applying the flipY and premultiplyAlpha parameters.
@@ -1351,8 +1362,6 @@ public:
     // Returns true upon success.
     static bool packImageData(Image*, const void* pixels, GCGLenum format, GCGLenum type, bool flipY, AlphaOp, DataFormat sourceFormat, unsigned sourceImageWidth, unsigned sourceImageHeight, const IntRect& sourceImageSubRectangle, int depth, unsigned sourceUnpackAlignment, int unpackImageHeight, Vector<uint8_t>& data);
 
-    Destination destination() const { return m_destination; }
-
 protected:
     int m_currentWidth { 0 };
     int m_currentHeight { 0 };
@@ -1360,7 +1369,6 @@ protected:
 
 private:
     GraphicsContextGLAttributes m_attrs;
-    Destination m_destination;
 };
 
 inline GCGLfloat GraphicsContextGL::getFloat(GCGLenum pname)

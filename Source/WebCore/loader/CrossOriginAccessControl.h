@@ -33,6 +33,10 @@
 #include <wtf/Forward.h>
 #include <wtf/OptionSet.h>
 
+namespace PAL {
+class SessionID;
+}
+
 namespace WebCore {
 
 class CachedResourceRequest;
@@ -78,10 +82,10 @@ private:
 };
 
 WEBCORE_EXPORT Expected<void, String> passesAccessControlCheck(const ResourceResponse&, StoredCredentialsPolicy, const SecurityOrigin&, const CrossOriginAccessControlCheckDisabler*);
-WEBCORE_EXPORT Expected<void, String> validatePreflightResponse(const ResourceRequest&, const ResourceResponse&, StoredCredentialsPolicy, const SecurityOrigin&, const CrossOriginAccessControlCheckDisabler*);
+WEBCORE_EXPORT Expected<void, String> validatePreflightResponse(PAL::SessionID, const ResourceRequest&, const ResourceResponse&, StoredCredentialsPolicy, const SecurityOrigin&, const CrossOriginAccessControlCheckDisabler*);
 
-WEBCORE_EXPORT Optional<ResourceError> validateCrossOriginResourcePolicy(const SecurityOrigin&, const URL&, const ResourceResponse&);
-Optional<ResourceError> validateRangeRequestedFlag(const ResourceRequest&, const ResourceResponse&);
+WEBCORE_EXPORT std::optional<ResourceError> validateCrossOriginResourcePolicy(const SecurityOrigin&, const URL&, const ResourceResponse&);
+std::optional<ResourceError> validateRangeRequestedFlag(const ResourceRequest&, const ResourceResponse&);
 String validateCrossOriginRedirectionURL(const URL&);
 
 } // namespace WebCore

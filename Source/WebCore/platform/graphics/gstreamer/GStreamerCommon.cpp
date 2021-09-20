@@ -27,6 +27,7 @@
 #include "GStreamerAudioMixer.h"
 #include "GstAllocatorFastMalloc.h"
 #include "IntSize.h"
+#include "RuntimeApplicationChecks.h"
 #include "SharedBuffer.h"
 #include "WebKitAudioSinkGStreamer.h"
 #include <gst/audio/audio-info.h>
@@ -125,11 +126,11 @@ bool getVideoSizeAndFormatFromCaps(const GstCaps* caps, WebCore::IntSize& size, 
     return true;
 }
 
-Optional<FloatSize> getVideoResolutionFromCaps(const GstCaps* caps)
+std::optional<FloatSize> getVideoResolutionFromCaps(const GstCaps* caps)
 {
     if (!doCapsHaveType(caps, GST_VIDEO_CAPS_TYPE_PREFIX)) {
         GST_WARNING("Failed to get the video resolution, these are not a video caps");
-        return WTF::nullopt;
+        return std::nullopt;
     }
 
     int width = 0, height = 0;
@@ -144,7 +145,7 @@ Optional<FloatSize> getVideoResolutionFromCaps(const GstCaps* caps)
         GstVideoInfo info;
         gst_video_info_init(&info);
         if (!gst_video_info_from_caps(&info, caps))
-            return WTF::nullopt;
+            return std::nullopt;
 
         width = GST_VIDEO_INFO_WIDTH(&info);
         height = GST_VIDEO_INFO_HEIGHT(&info);
@@ -152,7 +153,7 @@ Optional<FloatSize> getVideoResolutionFromCaps(const GstCaps* caps)
         pixelAspectRatioDenominator = GST_VIDEO_INFO_PAR_D(&info);
     }
 
-    return makeOptional(FloatSize(width, height * (static_cast<float>(pixelAspectRatioDenominator) / static_cast<float>(pixelAspectRatioNumerator))));
+    return std::make_optional(FloatSize(width, height * (static_cast<float>(pixelAspectRatioDenominator) / static_cast<float>(pixelAspectRatioNumerator))));
 }
 
 bool getSampleVideoInfo(GstSample* sample, GstVideoInfo& videoInfo)
@@ -182,7 +183,7 @@ const char* capsMediaType(const GstCaps* caps)
         return nullptr;
     }
 #if ENABLE(ENCRYPTED_MEDIA)
-    if (gst_structure_has_name(structure, "application/x-cenc") || gst_structure_has_name(structure, "application/x-webm-enc"))
+    if (gst_structure_has_name(structure, "application/x-cenc") || gst_structure_has_name(structure, "application/x-cbcs") || gst_structure_has_name(structure, "application/x-webm-enc"))
         return gst_structure_get_string(structure, "original-media-type");
 #endif
     return gst_structure_get_name(structure);
@@ -214,6 +215,12 @@ bool areEncryptedCaps(const GstCaps* caps)
 #endif
 }
 
+static std::optional<Vector<String>> s_UIProcessCommandLineOptions;
+void setGStreamerOptionsFromUIProcess(Vector<String>&& options)
+{
+    s_UIProcessCommandLineOptions = WTFMove(options);
+}
+
 Vector<String> extractGStreamerOptionsFromCommandLine()
 {
     GUniqueOutPtr<char> contents;
@@ -230,11 +237,12 @@ Vector<String> extractGStreamerOptionsFromCommandLine()
     return options;
 }
 
-bool initializeGStreamer(Optional<Vector<String>>&& options)
+bool ensureGStreamerInitialized()
 {
+    RELEASE_ASSERT(isInWebProcess());
     static std::once_flag onceFlag;
     static bool isGStreamerInitialized;
-    std::call_once(onceFlag, [options = WTFMove(options)] {
+    std::call_once(onceFlag, [] {
         isGStreamerInitialized = false;
 
         // USE_PLAYBIN3 is dangerous for us because its potential sneaky effect
@@ -245,7 +253,8 @@ bool initializeGStreamer(Optional<Vector<String>>&& options)
             WTFLogAlways("The USE_PLAYBIN3 variable was detected in the environment. Expect playback issues or please unset it.");
 
 #if ENABLE(VIDEO) || ENABLE(WEB_AUDIO)
-        Vector<String> parameters = options.valueOr(extractGStreamerOptionsFromCommandLine());
+        Vector<String> parameters = s_UIProcessCommandLineOptions.value_or(extractGStreamerOptionsFromCommandLine());
+        s_UIProcessCommandLineOptions.reset();
         char** argv = g_new0(char*, parameters.size() + 2);
         int argc = parameters.size() + 1;
         argv[0] = g_strdup(getCurrentExecutableName().data());
@@ -292,11 +301,8 @@ bool isThunderRanked()
 }
 #endif
 
-bool initializeGStreamerAndRegisterWebKitElements()
+void registerWebKitGStreamerElements()
 {
-    if (!initializeGStreamer())
-        return false;
-
     static std::once_flag onceFlag;
     std::call_once(onceFlag, [] {
 #if USE(GSTREAMER_FULL)
@@ -305,10 +311,6 @@ bool initializeGStreamerAndRegisterWebKitElements()
 
 #if ENABLE(ENCRYPTED_MEDIA)
         gst_element_register(nullptr, "webkitclearkey", GST_RANK_PRIMARY + 200, WEBKIT_TYPE_MEDIA_CK_DECRYPT);
-#if ENABLE(THUNDER)
-        unsigned thunderRank = isThunderRanked() ? 300 : 100;
-        gst_element_register(nullptr, "webkitthunder", GST_RANK_PRIMARY + thunderRank, WEBKIT_TYPE_MEDIA_THUNDER_DECRYPT);
-#endif
 #endif
 
 #if ENABLE(MEDIA_STREAM)
@@ -343,7 +345,6 @@ bool initializeGStreamerAndRegisterWebKitElements()
             }
         }
     });
-    return true;
 }
 
 unsigned getGstPlayFlag(const char* nick)
@@ -418,9 +419,7 @@ void connectSimpleBusMessageCallback(GstElement* pipeline)
 
 Vector<uint8_t> GstMappedBuffer::createVector() const
 {
-    Vector<uint8_t> vector;
-    vector.append(data(), size());
-    return vector;
+    return { data(), size() };
 }
 
 Ref<SharedBuffer> GstMappedOwnedBuffer::createSharedBuffer()
@@ -436,6 +435,11 @@ bool isGStreamerPluginAvailable(const char* name)
     return plugin;
 }
 
+bool gstElementFactoryEquals(GstElement* element, const char* name)
+{
+    return equal(GST_OBJECT_NAME(gst_element_get_factory(element)), name);
+}
+
 GstElement* createPlatformAudioSink()
 {
     GstElement* audioSink = webkitAudioSinkNew();
@@ -446,11 +450,7 @@ GstElement* createPlatformAudioSink()
         //   runtime requirements are not fullfilled.
         // - the sink was created for the WPE port, audio mixing was not requested and no
         //   WPEBackend-FDO audio receiver has been registered at runtime.
-        audioSink = gst_element_factory_make("autoaudiosink", nullptr);
-    }
-    if (!audioSink) {
-        GST_WARNING("GStreamer's autoaudiosink not found. Please check your gst-plugins-good installation");
-        return nullptr;
+        audioSink = makeGStreamerElement("autoaudiosink", nullptr);
     }
 
     return audioSink;
@@ -462,7 +462,7 @@ bool webkitGstSetElementStateSynchronously(GstElement* pipeline, GstState target
 
     GstState currentState;
     auto result = gst_element_get_state(pipeline, &currentState, nullptr, 10);
-    if (result == GST_STATE_CHANGE_SUCCESS && currentState >= targetState) {
+    if (result == GST_STATE_CHANGE_SUCCESS && currentState == targetState) {
         GST_DEBUG_OBJECT(pipeline, "Target state already reached");
         return true;
     }
@@ -495,6 +495,26 @@ bool webkitGstSetElementStateSynchronously(GstElement* pipeline, GstState target
         }
     }
     return true;
+}
+
+GstBuffer* gstBufferNewWrappedFast(void* data, size_t length)
+{
+    return gst_buffer_new_wrapped_full(static_cast<GstMemoryFlags>(0), data, length, 0, length, data, fastFree);
+}
+
+GstElement* makeGStreamerElement(const char* factoryName, const char* name)
+{
+    auto* element = gst_element_factory_make(factoryName, name);
+    RELEASE_ASSERT_WITH_MESSAGE(element, "GStreamer element %s not found. Please install it", factoryName);
+    return element;
+}
+
+GstElement* makeGStreamerBin(const char* description, bool ghostUnlinkedPads)
+{
+    GUniqueOutPtr<GError> error;
+    auto* bin = gst_parse_bin_from_description(description, ghostUnlinkedPads, &error.outPtr());
+    RELEASE_ASSERT_WITH_MESSAGE(bin, "Unable to create bin for description: \"%s\". Error: %s", description, error->message);
+    return bin;
 }
 
 }

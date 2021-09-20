@@ -11,7 +11,9 @@ function tearDownAndFinish() {
     if (window.testRunner) {
         testRunner.setAllowsAnySSLCertificate(false);
         testRunner.setPrivateClickMeasurementOverrideTimerForTesting(false);
-        testRunner.setPrivateClickMeasurementConversionURLForTesting("");
+        testRunner.setPrivateClickMeasurementAttributionReportURLsForTesting("", "");
+        testRunner.setPrivateClickMeasurementTokenSignatureURLForTesting("");
+        testRunner.setPrivateClickMeasurementTokenPublicKeyURLForTesting("");
         testRunner.notifyDone();
     }
 }

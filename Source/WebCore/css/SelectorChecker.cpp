@@ -958,6 +958,8 @@ bool SelectorChecker::checkOne(CheckingContext& checkingContext, const LocalCont
             return element.isBeingDragged();
         case CSSSelector::PseudoClassFocus:
             return matchesFocusPseudoClass(element);
+        case CSSSelector::PseudoClassFocusVisible:
+            return matchesFocusVisiblePseudoClass(element);
         case CSSSelector::PseudoClassFocusWithin:
             return element.hasFocusWithin();
         case CSSSelector::PseudoClassHover:
@@ -1079,6 +1081,9 @@ bool SelectorChecker::checkOne(CheckingContext& checkingContext, const LocalCont
             return hasAttachment(element);
 #endif
 
+        case CSSSelector::PseudoClassModalDialog:
+            return matchesModalDialogPseudoClass(element);
+
         case CSSSelector::PseudoClassUnknown:
             ASSERT_NOT_REACHED();
             break;
@@ -1143,7 +1148,7 @@ bool SelectorChecker::checkOne(CheckingContext& checkingContext, const LocalCont
             // Always matches when not specifically requested so it gets added to the pseudoIdSet.
             if (checkingContext.pseudoId == PseudoId::None)
                 return true;
-            if (checkingContext.pseudoId != PseudoId::Highlight)
+            if (checkingContext.pseudoId != PseudoId::Highlight || !selector.argumentList())
                 return false;
             return selector.argumentList()->first() == checkingContext.nameForHightlightPseudoElement;
 

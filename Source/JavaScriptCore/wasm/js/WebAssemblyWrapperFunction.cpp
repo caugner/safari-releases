@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2018 Apple Inc. All rights reserved.
+ * Copyright (C) 2017-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -39,8 +39,7 @@ const ClassInfo WebAssemblyWrapperFunction::s_info = { "WebAssemblyWrapperFuncti
 static JSC_DECLARE_HOST_FUNCTION(callWebAssemblyWrapperFunction);
 
 WebAssemblyWrapperFunction::WebAssemblyWrapperFunction(VM& vm, NativeExecutable* executable, JSGlobalObject* globalObject, Structure* structure, Wasm::WasmToWasmImportableFunction importableFunction)
-    : Base(vm, executable, globalObject, structure)
-    , m_importableFunction(importableFunction)
+    : Base(vm, executable, globalObject, structure, importableFunction)
 { }
 
 WebAssemblyWrapperFunction* WebAssemblyWrapperFunction::create(VM& vm, JSGlobalObject* globalObject, Structure* structure, JSObject* function, unsigned importIndex, JSWebAssemblyInstance* instance, Wasm::SignatureIndex signatureIndex)
@@ -67,7 +66,8 @@ Structure* WebAssemblyWrapperFunction::createStructure(VM& vm, JSGlobalObject* g
     return Structure::create(vm, globalObject, prototype, TypeInfo(JSFunctionType, StructureFlags), info());
 }
 
-void WebAssemblyWrapperFunction::visitChildren(JSCell* cell, SlotVisitor& visitor)
+template<typename Visitor>
+void WebAssemblyWrapperFunction::visitChildrenImpl(JSCell* cell, Visitor& visitor)
 {
     WebAssemblyWrapperFunction* thisObject = jsCast<WebAssemblyWrapperFunction*>(cell);
     ASSERT_GC_OBJECT_INHERITS(thisObject, info());
@@ -75,6 +75,8 @@ void WebAssemblyWrapperFunction::visitChildren(JSCell* cell, SlotVisitor& visito
 
     visitor.append(thisObject->m_function);
 }
+
+DEFINE_VISIT_CHILDREN(WebAssemblyWrapperFunction);
 
 JSC_DEFINE_HOST_FUNCTION(callWebAssemblyWrapperFunction, (JSGlobalObject* globalObject, CallFrame* callFrame))
 {

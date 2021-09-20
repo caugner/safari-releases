@@ -1,6 +1,6 @@
 /*
  *  Copyright (C) 1999-2000 Harri Porten (porten@kde.org)
- *  Copyright (C) 2008-2019 Apple Inc. All rights reserved.
+ *  Copyright (C) 2008-2021 Apple Inc. All rights reserved.
  *
  *  This library is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU Lesser General Public
@@ -25,6 +25,7 @@
 #include "JSArray.h"
 #include "JSCInlines.h"
 #include "JSImmutableButterfly.h"
+#include "ObjectConstructorInlines.h"
 #include "PropertyDescriptor.h"
 #include "PropertyNameArray.h"
 #include "Symbol.h"
@@ -32,6 +33,7 @@
 namespace JSC {
 
 static JSC_DECLARE_HOST_FUNCTION(objectConstructorAssign);
+static JSC_DECLARE_HOST_FUNCTION(objectConstructorEntries);
 static JSC_DECLARE_HOST_FUNCTION(objectConstructorValues);
 static JSC_DECLARE_HOST_FUNCTION(objectConstructorGetPrototypeOf);
 static JSC_DECLARE_HOST_FUNCTION(objectConstructorSetPrototypeOf);
@@ -74,9 +76,9 @@ const ClassInfo ObjectConstructor::s_info = { "Function", &InternalFunction::s_i
   isFrozen                  objectConstructorIsFrozen                   DontEnum|Function 1
   isExtensible              objectConstructorIsExtensible               DontEnum|Function 1
   is                        objectConstructorIs                         DontEnum|Function 2 ObjectIsIntrinsic
-  assign                    objectConstructorAssign                     DontEnum|Function 2
+  assign                    objectConstructorAssign                     DontEnum|Function 2 ObjectAssignIntrinsic
   values                    objectConstructorValues                     DontEnum|Function 1
-  entries                   JSBuiltin                                   DontEnum|Function 1
+  entries                   objectConstructorEntries                    DontEnum|Function 1
   fromEntries               JSBuiltin                                   DontEnum|Function 1
 @end
 */
@@ -98,7 +100,6 @@ void ObjectConstructor::finishCreation(VM& vm, JSGlobalObject* globalObject, Obj
 
     JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->builtinNames().createPrivateName(), objectConstructorCreate, static_cast<unsigned>(PropertyAttribute::DontEnum), 2);
     JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->builtinNames().definePropertyPrivateName(), objectConstructorDefineProperty, static_cast<unsigned>(PropertyAttribute::DontEnum), 3);
-    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->builtinNames().getOwnPropertyNamesPrivateName(), objectConstructorGetOwnPropertyNames, static_cast<unsigned>(PropertyAttribute::DontEnum), 1);
 }
 
 // ES 19.1.1.1 Object([value])
@@ -114,7 +115,9 @@ static ALWAYS_INLINE JSObject* constructObjectWithNewTarget(JSGlobalObject* glob
     // 1. If NewTarget is neither undefined nor the active function, then
     if (newTarget && newTarget != objectConstructor) {
         // a. Return ? OrdinaryCreateFromConstructor(NewTarget, "%ObjectPrototype%").
-        Structure* baseStructure = getFunctionRealm(vm, asObject(newTarget))->objectStructureForObjectConstructor();
+        JSGlobalObject* functionGlobalObject = getFunctionRealm(globalObject, asObject(newTarget));
+        RETURN_IF_EXCEPTION(scope, nullptr);
+        Structure* baseStructure = functionGlobalObject->objectStructureForObjectConstructor();
         Structure* objectStructure = InternalFunction::createSubclassStructure(globalObject, asObject(newTarget), baseStructure);
         RETURN_IF_EXCEPTION(scope, nullptr);
         return constructEmptyObject(vm, objectStructure);
@@ -206,7 +209,8 @@ JSValue objectConstructorGetOwnPropertyDescriptors(JSGlobalObject* globalObject,
 
         PutPropertySlot slot(descriptors);
         descriptors->putOwnDataPropertyMayBeIndex(globalObject, propertyName, fromDescriptor, slot);
-        scope.assertNoException();
+        scope.assertNoExceptionExceptTermination();
+        RETURN_IF_EXCEPTION(scope, { });
     }
 
     return descriptors;
@@ -248,7 +252,7 @@ JSC_DEFINE_HOST_FUNCTION(objectConstructorGetOwnPropertySymbols, (JSGlobalObject
     auto scope = DECLARE_THROW_SCOPE(vm);
     JSObject* object = callFrame->argument(0).toObject(globalObject);
     RETURN_IF_EXCEPTION(scope, encodedJSValue());
-    RELEASE_AND_RETURN(scope, JSValue::encode(ownPropertyKeys(globalObject, object, PropertyNameMode::Symbols, DontEnumPropertiesMode::Include, WTF::nullopt)));
+    RELEASE_AND_RETURN(scope, JSValue::encode(ownPropertyKeys(globalObject, object, PropertyNameMode::Symbols, DontEnumPropertiesMode::Include, std::nullopt)));
 }
 
 JSC_DEFINE_HOST_FUNCTION(objectConstructorKeys, (JSGlobalObject* globalObject, CallFrame* callFrame))
@@ -258,6 +262,43 @@ JSC_DEFINE_HOST_FUNCTION(objectConstructorKeys, (JSGlobalObject* globalObject, C
     JSObject* object = callFrame->argument(0).toObject(globalObject);
     RETURN_IF_EXCEPTION(scope, encodedJSValue());
     RELEASE_AND_RETURN(scope, JSValue::encode(ownPropertyKeys(globalObject, object, PropertyNameMode::Strings, DontEnumPropertiesMode::Exclude, CachedPropertyNamesKind::Keys)));
+}
+
+void objectAssignGeneric(JSGlobalObject* globalObject, VM& vm, JSObject* target, JSObject* source)
+{
+    auto scope = DECLARE_THROW_SCOPE(vm);
+
+    // [[GetOwnPropertyNames]], [[Get]] etc. could modify target object and invalidate this assumption.
+    // For example, [[Get]] of source object could configure setter to target object. So disable the fast path.
+
+    PropertyNameArray properties(vm, PropertyNameMode::StringsAndSymbols, PrivateSymbolMode::Exclude);
+    source->methodTable(vm)->getOwnPropertyNames(source, globalObject, properties, DontEnumPropertiesMode::Include);
+    RETURN_IF_EXCEPTION(scope, void());
+
+    unsigned numProperties = properties.size();
+    for (unsigned j = 0; j < numProperties; j++) {
+        const auto& propertyName = properties[j];
+        ASSERT(!propertyName.isPrivateName());
+
+        PropertySlot slot(source, PropertySlot::InternalMethodType::GetOwnProperty);
+        bool hasProperty = source->methodTable(vm)->getOwnPropertySlot(source, globalObject, propertyName, slot);
+        RETURN_IF_EXCEPTION(scope, void());
+        if (!hasProperty)
+            continue;
+        if (slot.attributes() & PropertyAttribute::DontEnum)
+            continue;
+
+        JSValue value;
+        if (LIKELY(!slot.isTaintedByOpaqueObject()))
+            value = slot.getValue(globalObject, propertyName);
+        else
+            value = source->get(globalObject, propertyName);
+        RETURN_IF_EXCEPTION(scope, void());
+
+        PutPropertySlot putPropertySlot(target, true);
+        target->putInline(globalObject, propertyName, value, putPropertySlot);
+        RETURN_IF_EXCEPTION(scope, void());
+    }
 }
 
 JSC_DEFINE_HOST_FUNCTION(objectConstructorAssign, (JSGlobalObject* globalObject, CallFrame* callFrame))
@@ -273,7 +314,7 @@ JSC_DEFINE_HOST_FUNCTION(objectConstructorAssign, (JSGlobalObject* globalObject,
 
     // FIXME: Extend this for non JSFinalObject. For example, we would like to use this fast path for function objects too.
     // https://bugs.webkit.org/show_bug.cgi?id=185358
-    bool targetCanPerformFastPut = jsDynamicCast<JSFinalObject*>(vm, target) && target->canPerformFastPutInlineExcludingProto(vm);
+    bool targetCanPerformFastPut = jsDynamicCast<JSFinalObject*>(vm, target) && target->canPerformFastPutInlineExcludingProto(vm) && target->isStructureExtensible(vm);
 
     Vector<RefPtr<UniquedStringImpl>, 8> properties;
     MarkedArgumentBuffer values;
@@ -291,101 +332,76 @@ JSC_DEFINE_HOST_FUNCTION(objectConstructorAssign, (JSGlobalObject* globalObject,
                 RETURN_IF_EXCEPTION(scope, { });
             }
 
-            auto canPerformFastPropertyEnumerationForObjectAssign = [] (Structure* structure) {
-                if (structure->typeInfo().overridesGetOwnPropertySlot())
-                    return false;
-                if (structure->typeInfo().overridesAnyFormOfGetOwnPropertyNames())
-                    return false;
-                // FIXME: Indexed properties can be handled.
-                // https://bugs.webkit.org/show_bug.cgi?id=185358
-                if (hasIndexedProperties(structure->indexingType()))
-                    return false;
-                if (structure->hasGetterSetterProperties())
-                    return false;
-                if (structure->hasReadOnlyOrGetterSetterPropertiesExcludingProto())
-                    return false;
-                if (structure->hasCustomGetterSetterProperties())
-                    return false;
-                if (structure->isUncacheableDictionary())
-                    return false;
-                // Cannot perform fast [[Put]] to |target| if the property names of the |source| contain "__proto__".
-                if (structure->hasUnderscoreProtoPropertyExcludingOriginalProto())
-                    return false;
-                return true;
-            };
-
             if (canPerformFastPropertyEnumerationForObjectAssign(source->structure(vm))) {
-                // |source| Structure does not have any getters. And target can perform fast put.
-                // So enumerating properties and putting properties are non observable.
-
-                // FIXME: It doesn't seem like we should have to do this in two phases, but
-                // we're running into crashes where it appears that source is transitioning
-                // under us, and even ends up in a state where it has a null butterfly. My
-                // leading hypothesis here is that we fire some value replacement watchpoint
-                // that ends up transitioning the structure underneath us.
-                // https://bugs.webkit.org/show_bug.cgi?id=187837
-
-                // Do not clear since Vector::clear shrinks the backing store.
-                properties.resize(0);
-                values.clear();
-                source->structure(vm)->forEachProperty(vm, [&] (const PropertyMapEntry& entry) -> bool {
-                    if (entry.attributes & PropertyAttribute::DontEnum)
-                        return true;
-
-                    PropertyName propertyName(entry.key);
-                    if (propertyName.isPrivateName())
-                        return true;
-
-                    properties.append(entry.key);
-                    values.appendWithCrashOnOverflow(source->getDirect(entry.offset));
-
-                    return true;
-                });
-
-                for (size_t i = 0; i < properties.size(); ++i) {
-                    // FIXME: We could put properties in a batching manner to accelerate Object.assign more.
-                    // https://bugs.webkit.org/show_bug.cgi?id=185358
-                    PutPropertySlot putPropertySlot(target, true);
-                    target->putOwnDataProperty(vm, properties[i].get(), values.at(i), putPropertySlot);
-                }
+                objectAssignFast(vm, target, source, properties, values);
                 continue;
             }
         }
 
-        // [[GetOwnPropertyNames]], [[Get]] etc. could modify target object and invalidate this assumption.
-        // For example, [[Get]] of source object could configure setter to target object. So disable the fast path.
         targetCanPerformFastPut = false;
-
-        PropertyNameArray properties(vm, PropertyNameMode::StringsAndSymbols, PrivateSymbolMode::Exclude);
-        source->methodTable(vm)->getOwnPropertyNames(source, globalObject, properties, DontEnumPropertiesMode::Include);
+        objectAssignGeneric(globalObject, vm, target, source);
         RETURN_IF_EXCEPTION(scope, { });
-
-        unsigned numProperties = properties.size();
-        for (unsigned j = 0; j < numProperties; j++) {
-            const auto& propertyName = properties[j];
-            ASSERT(!propertyName.isPrivateName());
-
-            PropertySlot slot(source, PropertySlot::InternalMethodType::GetOwnProperty);
-            bool hasProperty = source->methodTable(vm)->getOwnPropertySlot(source, globalObject, propertyName, slot);
-            RETURN_IF_EXCEPTION(scope, { });
-            if (!hasProperty)
-                continue;
-            if (slot.attributes() & PropertyAttribute::DontEnum)
-                continue;
-
-            JSValue value;
-            if (LIKELY(!slot.isTaintedByOpaqueObject()))
-                value = slot.getValue(globalObject, propertyName);
-            else
-                value = source->get(globalObject, propertyName);
-            RETURN_IF_EXCEPTION(scope, { });
-
-            PutPropertySlot putPropertySlot(target, true);
-            target->putInline(globalObject, propertyName, value, putPropertySlot);
-            RETURN_IF_EXCEPTION(scope, { });
-        }
     }
     return JSValue::encode(target);
+}
+
+JSC_DEFINE_HOST_FUNCTION(objectConstructorEntries, (JSGlobalObject* globalObject, CallFrame* callFrame))
+{
+    VM& vm = globalObject->vm();
+    auto scope = DECLARE_THROW_SCOPE(vm);
+
+    JSValue targetValue = callFrame->argument(0);
+    if (targetValue.isUndefinedOrNull())
+        return throwVMTypeError(globalObject, scope, "Object.entries requires that input parameter not be null or undefined"_s);
+    JSObject* target = targetValue.toObject(globalObject);
+    RETURN_IF_EXCEPTION(scope, { });
+
+    JSArray* entries = constructEmptyArray(globalObject, nullptr);
+    RETURN_IF_EXCEPTION(scope, { });
+
+    PropertyNameArray properties(vm, PropertyNameMode::Strings, PrivateSymbolMode::Exclude);
+    target->methodTable(vm)->getOwnPropertyNames(target, globalObject, properties, DontEnumPropertiesMode::Include);
+    RETURN_IF_EXCEPTION(scope, { });
+
+    unsigned index = 0;
+    auto append = [&] (JSGlobalObject* globalObject, PropertyName propertyName) {
+        PropertySlot slot(target, PropertySlot::InternalMethodType::GetOwnProperty);
+        bool hasProperty = target->methodTable(vm)->getOwnPropertySlot(target, globalObject, propertyName, slot);
+        RETURN_IF_EXCEPTION(scope, void());
+        if (!hasProperty)
+            return;
+        if (slot.attributes() & PropertyAttribute::DontEnum)
+            return;
+
+        JSValue value;
+        if (LIKELY(!slot.isTaintedByOpaqueObject()))
+            value = slot.getValue(globalObject, propertyName);
+        else
+            value = target->get(globalObject, propertyName);
+        RETURN_IF_EXCEPTION(scope, void());
+
+        JSString* key = jsOwnedString(vm, propertyName.uid());
+        JSArray* entry = nullptr;
+        {
+            ObjectInitializationScope initializationScope(vm);
+            if ((entry = JSArray::tryCreateUninitializedRestricted(initializationScope, nullptr, globalObject->arrayStructureForIndexingTypeDuringAllocation(ArrayWithContiguous), 2))) {
+                entry->initializeIndex(initializationScope, 0, key);
+                entry->initializeIndex(initializationScope, 1, value);
+            }
+        }
+        if (!entry) {
+            throwOutOfMemoryError(globalObject, scope);
+            return;
+        }
+        entries->putDirectIndex(globalObject, index++, entry);
+    };
+
+    for (const auto& propertyName : properties) {
+        append(globalObject, propertyName);
+        RETURN_IF_EXCEPTION(scope, { });
+    }
+
+    return JSValue::encode(entries);
 }
 
 JSC_DEFINE_HOST_FUNCTION(objectConstructorValues, (JSGlobalObject* globalObject, CallFrame* callFrame))
@@ -407,7 +423,7 @@ JSC_DEFINE_HOST_FUNCTION(objectConstructorValues, (JSGlobalObject* globalObject,
     RETURN_IF_EXCEPTION(scope, { });
 
     unsigned index = 0;
-    auto addValue = [&] (PropertyName propertyName) {
+    auto append = [&] (JSGlobalObject* globalObject, PropertyName propertyName) {
         PropertySlot slot(target, PropertySlot::InternalMethodType::GetOwnProperty);
         bool hasProperty = target->methodTable(vm)->getOwnPropertySlot(target, globalObject, propertyName, slot);
         RETURN_IF_EXCEPTION(scope, void());
@@ -426,23 +442,18 @@ JSC_DEFINE_HOST_FUNCTION(objectConstructorValues, (JSGlobalObject* globalObject,
         values->putDirectIndex(globalObject, index++, value);
     };
 
-    for (unsigned i = 0, numProperties = properties.size(); i < numProperties; i++) {
-        const auto& propertyName = properties[i];
-        if (propertyName.isSymbol())
-            continue;
-
-        addValue(propertyName);
+    for (const auto& propertyName : properties) {
+        append(globalObject, propertyName);
         RETURN_IF_EXCEPTION(scope, { });
     }
 
     return JSValue::encode(values);
 }
 
-
-// ES6 6.2.4.5 ToPropertyDescriptor
 // https://tc39.github.io/ecma262/#sec-topropertydescriptor
 bool toPropertyDescriptor(JSGlobalObject* globalObject, JSValue in, PropertyDescriptor& desc)
 {
+    ASSERT(desc.isEmpty());
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
 
@@ -660,12 +671,13 @@ bool setIntegrityLevel(JSGlobalObject* globalObject, VM& vm, JSObject* object)
         if (level == IntegrityLevel::Sealed)
             desc.setConfigurable(false);
         else {
-            bool hasPropertyDescriptor = object->getOwnPropertyDescriptor(globalObject, propertyName, desc);
+            PropertyDescriptor currentDesc;
+            bool hasPropertyDescriptor = object->getOwnPropertyDescriptor(globalObject, propertyName, currentDesc);
             RETURN_IF_EXCEPTION(scope, false);
             if (!hasPropertyDescriptor)
                 continue;
 
-            if (desc.isDataDescriptor())
+            if (!currentDesc.isAccessorDescriptor())
                 desc.setWritable(false);
 
             desc.setConfigurable(false);
@@ -861,7 +873,7 @@ JSC_DEFINE_HOST_FUNCTION(objectConstructorIs, (JSGlobalObject* globalObject, Cal
     return JSValue::encode(jsBoolean(sameValue(globalObject, callFrame->argument(0), callFrame->argument(1))));
 }
 
-JSArray* ownPropertyKeys(JSGlobalObject* globalObject, JSObject* object, PropertyNameMode propertyNameMode, DontEnumPropertiesMode dontEnumPropertiesMode, Optional<CachedPropertyNamesKind> kind)
+JSArray* ownPropertyKeys(JSGlobalObject* globalObject, JSObject* object, PropertyNameMode propertyNameMode, DontEnumPropertiesMode dontEnumPropertiesMode, std::optional<CachedPropertyNamesKind> kind)
 {
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);

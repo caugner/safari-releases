@@ -335,10 +335,21 @@ class Plan
         END_REPRO_SCRIPT_COMMAND
     end
 
+    def statusCommand(status_code)
+        # May be called in th rescue block, so status is not
+        # guaranteed to be set; if it isn't, set the exit code to
+        # something that's clearly invalid.
+        <<-END_STATUS_COMMAND
+          File.open("#{statusFile}", "w") { |f|
+              f.puts("#{$runUniqueId} \#{status.nil? ? 999999999 : status.exitstatus} #{status_code}")
+          }
+        END_STATUS_COMMAND
+    end
+
     def failCommand
         <<-END_FAIL_COMMAND
             print "FAIL: #{Shellwords.shellescape(@name)}\n"
-            FileUtils.touch("#{failFile}")
+            #{statusCommand(STATUS_FILE_FAIL)}
             #{reproScriptCommand}
         END_FAIL_COMMAND
     end
@@ -346,28 +357,18 @@ class Plan
     def successCommand
         if $progressMeter or $verbosity >= 2
             <<-END_VERBOSE_SUCCESS_COMMAND
-                File.unlink("#{failFile}") if File.exists?("#{failFile}")
                 print "PASS: #{Shellwords.shellescape(@name)}\n"
+                #{statusCommand(STATUS_FILE_PASS)}
             END_VERBOSE_SUCCESS_COMMAND
         else
-            "File.unlink(\"#{failFile}\") if File.exists?(\"#{failFile}\")\n"
+            "#{statusCommand(STATUS_FILE_PASS)}\n"
         end
     end
     
-    def failFile
-        "test_fail_#{@index}"
+    def statusFile
+        "#{STATUS_FILE_PREFIX}#{@index}"
     end
 
-    def statusWrite
-        <<-END_STATUS_WRITE
-            if !success(status)
-                File.open("#{failFile}", "w") do |code_file|
-                    code_file.puts status.exitstatus
-                end
-            end
-        END_STATUS_WRITE
-    end
-    
     def writeRunScript(filename)
         File.open(filename, "w") {
             | outp |
@@ -382,8 +383,6 @@ class Plan
 
             cmd = shellCommand
 
-            cmd += statusWrite
-
             cmd += @outputHandler.call(@name)
 
             if $verbosity >= 3
@@ -393,7 +392,7 @@ class Plan
             @errorHandler.call(outp, self)
             outp.puts "rescue"
             outp.puts "    print \"FAIL: #{Shellwords.shellescape(@name)}\\n\""
-            outp.puts "    FileUtils.touch(\"#{failFile}\")"
+            outp.puts "    #{statusCommand(STATUS_FILE_FAIL)}"
             outp.puts "end"
         }
     end
@@ -410,24 +409,48 @@ def prepareShellTestRunner
     `dos2unix #{$runnerDir + "runscript"}`    
 end
 
+def output_target(outp, plan, prereqs)
+    index = plan.index
+    target = "test_done_#{index}"
+    outp.puts "#{target}: #{prereqs.join(" ")}"
+    outp.puts "\truby test_script_#{index}"
+    target
+end
+
 def prepareMakeTestRunner(remoteIndex)
-    runIndices = []
+    serialPlans = {}
+    $serialRunlist.each { |p| serialPlans[p] = nil }
+    runPlans = []
+    serialRunPlans = []
     $runlist.each {
         | plan |
         if !$remote or plan.index % $remoteHosts.length == remoteIndex
-            runIndices << plan.index
+            if serialPlans.has_key?(plan)
+                serialRunPlans << plan
+            else
+                runPlans << plan
+            end
         end
     }
-    
+
     File.open($runnerDir + "Makefile.#{remoteIndex}", "w") {
         | outp |
-        outp.puts("all: " + runIndices.map{|v| "test_done_#{v}"}.join(' '))
-        runIndices.each {
-            | index |
-            plan = $runlist[index]
-            outp.puts "test_done_#{index}:"
-            outp.puts "\truby test_script_#{plan.index}"
+        if serialRunPlans.empty?
+            outp.puts("all: parallel")
+        else
+            serialPrereq = "test_done_#{serialRunPlans[-1].index}"
+            outp.puts("all: #{serialPrereq}")
+            prev_target = "parallel"
+            serialRunPlans.each {
+                | plan |
+                prev_target = output_target(outp, plan, [prev_target])
+            }
+        end
+        parallelTargets = runPlans.collect {
+            | plan |
+            output_target(outp, plan, [])
         }
+        outp.puts("parallel: " + parallelTargets.join(" "))
     }
 end
 

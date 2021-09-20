@@ -26,9 +26,10 @@
 #import "config.h"
 #import "UTIUtilities.h"
 
+#import <wtf/Lock.h>
 #import <wtf/MainThread.h>
+#import <wtf/SortedArrayMap.h>
 #import <wtf/TinyLRUCache.h>
-#import <wtf/text/StringHash.h>
 #import <wtf/text/WTFString.h>
 
 #if PLATFORM(IOS_FAMILY)
@@ -84,57 +85,44 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     return emptyString();
 }
 
-static String UTIFromUnknownMIMEType(const String& mimeType)
+static CFStringRef UTIFromUnknownMIMEType(StringView mimeType)
 {
-    static const auto map = makeNeverDestroyed([] {
-        struct TypeExtensionPair {
-            ASCIILiteral type;
-            ASCIILiteral uti;
-        };
-
-        static const TypeExtensionPair pairs[] = {
-            { "model/vnd.usdz+zip"_s, "com.pixar.universal-scene-description-mobile"_s },
-            { "model/usd"_s, "com.pixar.universal-scene-description-mobile"_s },
-            { "model/vnd.pixar.usd"_s, "com.pixar.universal-scene-description-mobile"_s },
-            { "model/vnd.reality"_s, "com.apple.reality"_s }
-        };
-
-        HashMap<String, String, ASCIICaseInsensitiveHash> map;
-        for (auto& pair : pairs)
-            map.add(pair.type, pair.uti);
-        return map;
-    }());
-
-    auto mapEntry = map.get().find(mimeType);
-    if (mapEntry == map.get().end())
-        return emptyString();
-
-    return mapEntry->value;
+    static constexpr std::pair<ComparableLettersLiteral, NSString *> typesArray[] = {
+        { "model/usd", @"com.pixar.universal-scene-description-mobile" },
+        { "model/vnd.pixar.usd", @"com.pixar.universal-scene-description-mobile" },
+        { "model/vnd.reality", @"com.apple.reality" },
+        { "model/vnd.usdz+zip", @"com.pixar.universal-scene-description-mobile" },
+    };
+    static constexpr SortedArrayMap typesMap { typesArray };
+    return (__bridge CFStringRef)typesMap.get(mimeType, @"");
 }
 
-struct UTIFromMIMETypeCachePolicy : TinyLRUCachePolicy<String, String> {
+struct UTIFromMIMETypeCachePolicy : TinyLRUCachePolicy<String, RetainPtr<CFStringRef>> {
 public:
-    static String createValueForKey(const String& mimeType)
+    static RetainPtr<CFStringRef> createValueForKey(const String& mimeType)
     {
 ALLOW_DEPRECATED_DECLARATIONS_BEGIN
         auto type = adoptCF(UTTypeCreatePreferredIdentifierForTag(kUTTagClassMIMEType, mimeType.createCFString().get(), 0));
 ALLOW_DEPRECATED_DECLARATIONS_END
         if (type)
-            return type.get();
+            return type;
         return UTIFromUnknownMIMEType(mimeType);
     }
+
+    static String createKeyForStorage(const String& key) { return key.isolatedCopy(); }
 };
 
-static TinyLRUCache<String, String, 16, UTIFromMIMETypeCachePolicy>& cacheUTIFromMimeType()
+static Lock cacheUTIFromMIMETypeLock;
+static TinyLRUCache<String, RetainPtr<CFStringRef>, 16, UTIFromMIMETypeCachePolicy>& cacheUTIFromMIMEType() WTF_REQUIRES_LOCK(cacheUTIFromMIMETypeLock)
 {
-    static NeverDestroyed<TinyLRUCache<String, String, 16, UTIFromMIMETypeCachePolicy>> cache;
+    static NeverDestroyed<TinyLRUCache<String, RetainPtr<CFStringRef>, 16, UTIFromMIMETypeCachePolicy>> cache;
     return cache;
 }
 
 String UTIFromMIMEType(const String& mimeType)
 {
-    ASSERT(isMainThread());
-    return cacheUTIFromMimeType().get(mimeType);
+    Locker locker { cacheUTIFromMIMETypeLock };
+    return cacheUTIFromMIMEType().get(mimeType).get();
 }
 
 bool isDeclaredUTI(const String& UTI)

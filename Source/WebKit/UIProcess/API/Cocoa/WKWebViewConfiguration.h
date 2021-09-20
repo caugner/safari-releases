@@ -128,6 +128,11 @@ WK_CLASS_AVAILABLE(macos(10.10), ios(8.0))
  */
 @property (nonatomic) BOOL allowsAirPlayForMediaPlayback WK_API_AVAILABLE(macos(10.11), ios(9.0));
 
+/*! @abstract A Boolean value indicating whether HTTP requests to servers known to support HTTPS should be automatically upgraded to HTTPS requests.
+ @discussion The default value is YES.
+ */
+@property (nonatomic) BOOL upgradeKnownHostsToHTTPS WK_API_AVAILABLE(macos(12.0), ios(15.0));
+
 @property (nonatomic) WKAudiovisualMediaTypes mediaTypesRequiringUserActionForPlayback WK_API_AVAILABLE(macos(10.12), ios(10.0));
 
 /*! @abstract The set of default webpage preferences to use when loading and rendering content.

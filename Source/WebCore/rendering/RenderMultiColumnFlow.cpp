@@ -43,15 +43,6 @@ WTF_MAKE_ISO_ALLOCATED_IMPL(RenderMultiColumnFlow);
 RenderMultiColumnFlow::RenderMultiColumnFlow(Document& document, RenderStyle&& style)
     : RenderFragmentedFlow(document, WTFMove(style))
     , m_spannerMap(makeUnique<SpannerMap>())
-    , m_lastSetWorkedOn(nullptr)
-    , m_columnCount(1)
-    , m_columnWidth(0)
-    , m_columnHeightAvailable(0)
-    , m_inLayout(false)
-    , m_inBalancingPass(false)
-    , m_needsHeightsRecalculation(false)
-    , m_progressionIsInline(false)
-    , m_progressionIsReversed(false)
 {
     setFragmentedFlowState(InsideInFragmentedFlow);
 }
@@ -147,14 +138,14 @@ void RenderMultiColumnFlow::addFragmentToThread(RenderFragmentContainer* fragmen
     fragmentContainer->setIsValid(true);
 }
 
-void RenderMultiColumnFlow::willBeRemovedFromTree()
+void RenderMultiColumnFlow::willBeRemovedFromTree(IsInternalMove isInternalMove)
 {
     // Detach all column sets from the flow thread. Cannot destroy them at this point, since they
     // are siblings of this object, and there may be pointers to this object's sibling somewhere
     // further up on the call stack.
     for (RenderMultiColumnSet* columnSet = firstMultiColumnSet(); columnSet; columnSet = columnSet->nextSiblingMultiColumnSet())
         columnSet->detachFragment();
-    RenderFragmentedFlow::willBeRemovedFromTree();
+    RenderFragmentedFlow::willBeRemovedFromTree(isInternalMove);
 }
 
 void RenderMultiColumnFlow::fragmentedFlowDescendantBoxLaidOut(RenderBox* descendant)
@@ -201,6 +192,12 @@ void RenderMultiColumnFlow::updateMinimumPageHeight(const RenderBlock* block, La
 {
     if (auto* multicolSet = downcast<RenderMultiColumnSet>(fragmentAtBlockOffset(block, offset)))
         multicolSet->updateMinimumColumnHeight(minHeight);
+}
+
+void RenderMultiColumnFlow::updateSpaceShortageForSizeContainment(const RenderBlock* block, LayoutUnit offset, LayoutUnit shortage)
+{
+    if (auto* multicolSet = downcast<RenderMultiColumnSet>(fragmentAtBlockOffset(block, offset)))
+        multicolSet->updateSpaceShortageForSizeContainment(shortage);
 }
 
 RenderFragmentContainer* RenderMultiColumnFlow::fragmentAtBlockOffset(const RenderBox* box, LayoutUnit offset, bool extendLastFragment) const

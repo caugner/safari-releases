@@ -10,7 +10,7 @@
 </style>
 </head>
 <body>
-<canvas id="canvas" width="700" height="500" style="width: 700px; height; 500px;"></canvas>
+<canvas id="canvas" width="700" height="500" style="width: 700px; height: 500px;"></canvas>
 <script>
 if (window.testRunner)
     testRunner.waitUntilDone();
@@ -20,6 +20,7 @@ document.fonts.load(font).then(function() {
     let canvas = document.getElementById("canvas");
     let context = canvas.getContext("2d");
     context.font = font;
+    context.lineWidth = 2;
     context.strokeStyle = "green";
     context.strokeText("A\u7EB5B", 100, 100);
     if (window.testRunner)

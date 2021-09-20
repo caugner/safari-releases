@@ -26,6 +26,7 @@
 #include "JSDOMBinding.h"
 #include "JSDOMConstructorNotConstructable.h"
 #include "JSDOMExceptionHandling.h"
+#include "JSDOMGlobalObjectInlines.h"
 #include "JSDOMWrapperCache.h"
 #include "JSPluginElementFunctions.h"
 #include "ScriptExecutionContext.h"
@@ -34,6 +35,7 @@
 #include <JavaScriptCore/HeapAnalyzer.h>
 #include <JavaScriptCore/JSCInlines.h>
 #include <JavaScriptCore/JSDestructibleObjectHeapCellType.h>
+#include <JavaScriptCore/SlotVisitorMacros.h>
 #include <JavaScriptCore/SubspaceInlines.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
@@ -81,6 +83,8 @@ STATIC_ASSERT_ISO_SUBSPACE_SHARABLE(JSTestPluginInterfacePrototype, JSTestPlugin
 
 using JSTestPluginInterfaceDOMConstructor = JSDOMConstructorNotConstructable<JSTestPluginInterface>;
 
+template<> const ClassInfo JSTestPluginInterfaceDOMConstructor::s_info = { "TestPluginInterface", &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestPluginInterfaceDOMConstructor) };
+
 template<> JSValue JSTestPluginInterfaceDOMConstructor::prototypeForStructure(JSC::VM& vm, const JSDOMGlobalObject& globalObject)
 {
     UNUSED_PARAM(vm);
@@ -93,8 +97,6 @@ template<> void JSTestPluginInterfaceDOMConstructor::initializeProperties(VM& vm
     putDirect(vm, vm.propertyNames->name, jsNontrivialString(vm, "TestPluginInterface"_s), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
     putDirect(vm, vm.propertyNames->length, jsNumber(0), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
 }
-
-template<> const ClassInfo JSTestPluginInterfaceDOMConstructor::s_info = { "TestPluginInterface", &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestPluginInterfaceDOMConstructor) };
 
 /* Hash table for prototype */
 
@@ -140,7 +142,7 @@ JSObject* JSTestPluginInterface::prototype(VM& vm, JSDOMGlobalObject& globalObje
 
 JSValue JSTestPluginInterface::getConstructor(VM& vm, const JSGlobalObject* globalObject)
 {
-    return getDOMConstructor<JSTestPluginInterfaceDOMConstructor>(vm, *jsCast<const JSDOMGlobalObject*>(globalObject));
+    return getDOMConstructor<JSTestPluginInterfaceDOMConstructor, DOMConstructorID::TestPluginInterface>(vm, *jsCast<const JSDOMGlobalObject*>(globalObject));
 }
 
 void JSTestPluginInterface::destroy(JSC::JSCell* cell)
@@ -180,26 +182,38 @@ bool JSTestPluginInterface::put(JSCell* cell, JSGlobalObject* lexicalGlobalObjec
     auto* thisObject = jsCast<JSTestPluginInterface*>(cell);
     ASSERT_GC_OBJECT_INHERITS(thisObject, info());
 
+    if (UNLIKELY(thisObject != putPropertySlot.thisValue()))
+        return JSObject::put(thisObject, lexicalGlobalObject, propertyName, value, putPropertySlot);
+    auto throwScope = DECLARE_THROW_SCOPE(lexicalGlobalObject->vm());
+
     bool putResult = false;
-    if (pluginElementCustomPut(thisObject, lexicalGlobalObject, propertyName, value, putPropertySlot, putResult))
+    bool success = pluginElementCustomPut(thisObject, lexicalGlobalObject, propertyName, value, putPropertySlot, putResult);
+    RETURN_IF_EXCEPTION(throwScope, false);
+    if (success)
         return putResult;
 
-    return JSObject::put(thisObject, lexicalGlobalObject, propertyName, value, putPropertySlot);
+    throwScope.assertNoException();
+    RELEASE_AND_RETURN(throwScope, JSObject::put(thisObject, lexicalGlobalObject, propertyName, value, putPropertySlot));
 }
 
 bool JSTestPluginInterface::putByIndex(JSCell* cell, JSGlobalObject* lexicalGlobalObject, unsigned index, JSValue value, bool shouldThrow)
 {
-    VM& vm = JSC::getVM(lexicalGlobalObject);
     auto* thisObject = jsCast<JSTestPluginInterface*>(cell);
     ASSERT_GC_OBJECT_INHERITS(thisObject, info());
+
+    VM& vm = JSC::getVM(lexicalGlobalObject);
+    auto throwScope = DECLARE_THROW_SCOPE(vm);
 
     auto propertyName = Identifier::from(vm, index);
     PutPropertySlot putPropertySlot(thisObject, shouldThrow);
     bool putResult = false;
-    if (pluginElementCustomPut(thisObject, lexicalGlobalObject, propertyName, value, putPropertySlot, putResult))
+    bool success = pluginElementCustomPut(thisObject, lexicalGlobalObject, propertyName, value, putPropertySlot, putResult);
+    RETURN_IF_EXCEPTION(throwScope, false);
+    if (success)
         return putResult;
 
-    return JSObject::putByIndex(cell, lexicalGlobalObject, index, value, shouldThrow);
+    throwScope.assertNoException();
+    RELEASE_AND_RETURN(throwScope, JSObject::putByIndex(cell, lexicalGlobalObject, index, value, shouldThrow));
 }
 
 CallData JSTestPluginInterface::getCallData(JSCell* cell)
@@ -234,12 +248,27 @@ JSC::IsoSubspace* JSTestPluginInterface::subspaceForImpl(JSC::VM& vm)
     auto* space = spaces.m_subspaceForTestPluginInterface.get();
 IGNORE_WARNINGS_BEGIN("unreachable-code")
 IGNORE_WARNINGS_BEGIN("tautological-compare")
-    if (&JSTestPluginInterface::visitOutputConstraints != &JSC::JSCell::visitOutputConstraints)
+    void (*myVisitOutputConstraint)(JSC::JSCell*, JSC::SlotVisitor&) = JSTestPluginInterface::visitOutputConstraints;
+    void (*jsCellVisitOutputConstraint)(JSC::JSCell*, JSC::SlotVisitor&) = JSC::JSCell::visitOutputConstraints;
+    if (myVisitOutputConstraint != jsCellVisitOutputConstraint)
         clientData.outputConstraintSpaces().append(space);
 IGNORE_WARNINGS_END
 IGNORE_WARNINGS_END
     return space;
 }
+
+template<typename Visitor>
+void JSTestPluginInterface::visitChildrenImpl(JSCell* cell, Visitor& visitor)
+{
+    auto* thisObject = jsCast<JSTestPluginInterface*>(cell);
+    ASSERT_GC_OBJECT_INHERITS(thisObject, info());
+    Base::visitChildren(thisObject, visitor);
+#if PLATFORM(COCOA)
+    thisObject->wrapped().pluginReplacementScriptObject().visit(visitor);
+#endif
+}
+
+DEFINE_VISIT_CHILDREN(JSTestPluginInterface);
 
 void JSTestPluginInterface::analyzeHeap(JSCell* cell, HeapAnalyzer& analyzer)
 {
@@ -250,7 +279,7 @@ void JSTestPluginInterface::analyzeHeap(JSCell* cell, HeapAnalyzer& analyzer)
     Base::analyzeHeap(cell, analyzer);
 }
 
-bool JSTestPluginInterfaceOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, SlotVisitor& visitor, const char** reason)
+bool JSTestPluginInterfaceOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, AbstractSlotVisitor& visitor, const char** reason)
 {
     UNUSED_PARAM(handle);
     UNUSED_PARAM(visitor);

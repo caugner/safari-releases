@@ -90,11 +90,8 @@ public:
     void setForcedSupportsHighDynamicRangeValue(ForcedAccessibilityValue);
 
     // RuntimeEnabledFeatures.
-    ExceptionOr<void> setWebGL2Enabled(bool);
-    ExceptionOr<void> setWebGPUEnabled(bool);
     ExceptionOr<void> setFetchAPIKeepAliveEnabled(bool);
     ExceptionOr<void> setCustomPasteboardDataEnabled(bool);
-    ExceptionOr<void> setWebRTCPlatformCodecsInGPUProcessEnabled(bool);
 
     bool vp9DecoderEnabled() const;
 
@@ -110,6 +107,7 @@ public:
     ExceptionOr<void> setEditableRegionEnabled(bool);
     ExceptionOr<void> setCanStartMedia(bool);
     ExceptionOr<void> setUseDarkAppearance(bool);
+    ExceptionOr<void> setUseElevatedUserInterfaceLevel(bool);
 
     // ScrollView
     ExceptionOr<void> setAllowUnclampedScrollPosition(bool);
@@ -128,8 +126,6 @@ private:
 
     Settings& settings() const;
     static const char* supplementName();
-
-    void setUseDarkAppearanceInternal(bool);
 
     class Backup {
     public:
@@ -160,7 +156,6 @@ private:
         WebCore::FrameFlattening m_frameFlattening;
 
         // RuntimeEnabledFeatures
-        bool m_webGL2Enabled;
         bool m_fetchAPIKeepAliveAPIEnabled;
         bool m_customPasteboardDataEnabled;
 

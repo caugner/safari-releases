@@ -52,6 +52,7 @@
 #include "StringAdaptors.h"
 #include "TextResourceDecoder.h"
 #include "ThreadableLoader.h"
+#include "URLSearchParams.h"
 #include "XMLDocument.h"
 #include "XMLHttpRequestProgressEvent.h"
 #include "XMLHttpRequestUpload.h"
@@ -207,8 +208,7 @@ Ref<Blob> XMLHttpRequest::createResponseBlob()
     // FIXME: We just received the data from NetworkProcess, and are sending it back. This is inefficient.
     Vector<uint8_t> data;
     if (m_binaryResponseBuilder)
-        data.append(m_binaryResponseBuilder->data(), m_binaryResponseBuilder->size());
-    m_binaryResponseBuilder = nullptr;
+        data = std::exchange(m_binaryResponseBuilder, nullptr)->extractData();
     String normalizedContentType = Blob::normalizedContentType(responseMIMEType(FinalMIMEType::Yes)); // responseMIMEType defaults to text/xml which may be incorrect.
     return Blob::create(scriptExecutionContext(), WTFMove(data), normalizedContentType);
 }
@@ -251,7 +251,7 @@ ExceptionOr<void> XMLHttpRequest::setResponseType(ResponseType type)
     // attempt to discourage synchronous XHR use. responseType is one such piece of functionality.
     // We'll only disable this functionality for HTTP(S) requests since sync requests for local protocols
     // such as file: and data: still make sense to allow.
-    if (!m_async && scriptExecutionContext()->isDocument() && m_url.protocolIsInHTTPFamily()) {
+    if (!m_async && scriptExecutionContext()->isDocument() && m_url.url().protocolIsInHTTPFamily()) {
         logConsoleError(scriptExecutionContext(), "XMLHttpRequest.responseType cannot be changed for synchronous HTTP(S) requests made from the window context.");
         return Exception { InvalidAccessError };
     }
@@ -382,8 +382,9 @@ ExceptionOr<void> XMLHttpRequest::open(const String& method, const URL& url, boo
     clearResponse();
     clearRequest();
 
-    m_url = url;
-    context->contentSecurityPolicy()->upgradeInsecureRequestIfNeeded(m_url, ContentSecurityPolicy::InsecureRequestType::Load);
+    auto upgradedURL = url;
+    context->contentSecurityPolicy()->upgradeInsecureRequestIfNeeded(upgradedURL, ContentSecurityPolicy::InsecureRequestType::Load);
+    m_url = WTFMove(upgradedURL);
 
     m_async = async;
 
@@ -405,10 +406,10 @@ ExceptionOr<void> XMLHttpRequest::open(const String& method, const String& url, 
     return open(method, urlWithCredentials, async);
 }
 
-Optional<ExceptionOr<void>> XMLHttpRequest::prepareToSend()
+std::optional<ExceptionOr<void>> XMLHttpRequest::prepareToSend()
 {
-    // A return value other than WTF::nullopt means we should not try to send, and we should return that value to the caller.
-    // WTF::nullopt means we are ready to send and should continue with the send algorithm.
+    // A return value other than std::nullopt means we should not try to send, and we should return that value to the caller.
+    // std::nullopt means we are ready to send and should continue with the send algorithm.
 
     if (!scriptExecutionContext())
         return ExceptionOr<void> { };
@@ -416,7 +417,7 @@ Optional<ExceptionOr<void>> XMLHttpRequest::prepareToSend()
     auto& context = *scriptExecutionContext();
 
     if (is<Document>(context) && downcast<Document>(context).shouldIgnoreSyncXHRs()) {
-        logConsoleError(scriptExecutionContext(), makeString("Ignoring XMLHttpRequest.send() call for '", m_url.string(), "' because the maximum number of synchronous failures was reached."));
+        logConsoleError(scriptExecutionContext(), makeString("Ignoring XMLHttpRequest.send() call for '", m_url.url().string(), "' because the maximum number of synchronous failures was reached."));
         return ExceptionOr<void> { };
     }
 
@@ -436,10 +437,10 @@ Optional<ExceptionOr<void>> XMLHttpRequest::prepareToSend()
     }
 
     m_error = false;
-    return WTF::nullopt;
+    return std::nullopt;
 }
 
-ExceptionOr<void> XMLHttpRequest::send(Optional<SendTypes>&& sendType)
+ExceptionOr<void> XMLHttpRequest::send(std::optional<SendTypes>&& sendType)
 {
     InspectorInstrumentation::willSendXMLHttpRequest(scriptExecutionContext(), url().string());
     m_userGestureToken = UserGestureIndicator::currentUserGesture();
@@ -454,6 +455,7 @@ ExceptionOr<void> XMLHttpRequest::send(Optional<SendTypes>&& sendType)
             [this] (const RefPtr<JSC::ArrayBufferView>& arrayBufferView) -> ExceptionOr<void> { return send(*arrayBufferView); },
             [this] (const RefPtr<JSC::ArrayBuffer>& arrayBuffer) -> ExceptionOr<void> { return send(*arrayBuffer); },
             [this] (const RefPtr<DOMFormData>& formData) -> ExceptionOr<void> { return send(*formData); },
+            [this] (const RefPtr<URLSearchParams>& searchParams) -> ExceptionOr<void> { return send(*searchParams); },
             [this] (const String& string) -> ExceptionOr<void> { return send(string); }
         );
     }
@@ -478,7 +480,12 @@ ExceptionOr<void> XMLHttpRequest::send(Document& document)
 
         // FIXME: According to XMLHttpRequest Level 2, this should use the Document.innerHTML algorithm
         // from the HTML5 specification to serialize the document.
-        m_requestEntityBody = FormData::create(UTF8Encoding().encode(serializeFragment(document, SerializedNodes::SubtreeIncludingNode), UnencodableHandling::Entities));
+
+        // https://xhr.spec.whatwg.org/#dom-xmlhttprequest-send Step 4.2.
+        auto serialized = serializeFragment(document, SerializedNodes::SubtreeIncludingNode);
+        auto converted = replaceUnpairedSurrogatesWithReplacementCharacter(WTFMove(serialized));
+        auto encoded = UTF8Encoding().encode(WTFMove(converted), UnencodableHandling::Entities);
+        m_requestEntityBody = FormData::create(WTFMove(encoded));
         if (m_upload)
             m_requestEntityBody->setAlwaysStream(true);
     }
@@ -514,7 +521,7 @@ ExceptionOr<void> XMLHttpRequest::send(Blob& body)
         return WTFMove(result.value());
 
     if (m_method != "GET" && m_method != "HEAD") {
-        if (!m_url.protocolIsInHTTPFamily()) {
+        if (!m_url.url().protocolIsInHTTPFamily()) {
             // FIXME: We would like to support posting Blobs to non-http URLs (e.g. custom URL schemes)
             // but because of the architecture of blob-handling that will require a fair amount of work.
             
@@ -535,6 +542,13 @@ ExceptionOr<void> XMLHttpRequest::send(Blob& body)
     }
 
     return createRequest();
+}
+
+ExceptionOr<void> XMLHttpRequest::send(const URLSearchParams& params)
+{
+    if (!m_requestHeaders.contains(HTTPHeaderName::ContentType))
+        m_requestHeaders.set(HTTPHeaderName::ContentType, "application/x-www-form-urlencoded;charset=UTF-8"_s);
+    return send(params.toString());
 }
 
 ExceptionOr<void> XMLHttpRequest::send(DOMFormData& body)
@@ -580,7 +594,7 @@ ExceptionOr<void> XMLHttpRequest::sendBytesData(const void* data, size_t length)
 ExceptionOr<void> XMLHttpRequest::createRequest()
 {
     // Only GET request is supported for blob URL.
-    if (!m_async && m_url.protocolIsBlob() && m_method != "GET")
+    if (!m_async && m_url.url().protocolIsBlob() && m_method != "GET")
         return Exception { NetworkError };
 
     if (m_async && m_upload && m_upload->hasEventListeners())
@@ -623,7 +637,7 @@ ExceptionOr<void> XMLHttpRequest::createRequest()
         }
     }
 
-    m_exceptionCode = WTF::nullopt;
+    m_exceptionCode = std::nullopt;
     m_error = false;
     m_uploadComplete = !request.httpBody();
     m_sendFlag = true;
@@ -699,8 +713,8 @@ bool XMLHttpRequest::internalAbort()
 
     // Cancelling m_loadingActivity may trigger a window.onload callback which can call open() on the same xhr.
     // This would create internalAbort reentrant call.
-    // m_loadingActivity is set to WTF::nullopt before being cancelled to exit early in any reentrant internalAbort() call.
-    auto loadingActivity = std::exchange(m_loadingActivity, WTF::nullopt);
+    // m_loadingActivity is set to std::nullopt before being cancelled to exit early in any reentrant internalAbort() call.
+    auto loadingActivity = std::exchange(m_loadingActivity, std::nullopt);
     loadingActivity->loader->cancel();
 
     // If window.onload callback calls open() and send() on the same xhr, m_loadingActivity is now set to a new value.
@@ -732,6 +746,7 @@ void XMLHttpRequest::clearRequest()
 {
     m_requestHeaders.clear();
     m_requestEntityBody = nullptr;
+    m_url = URL { };
 }
 
 void XMLHttpRequest::genericError()
@@ -922,7 +937,8 @@ void XMLHttpRequest::didFinishLoading(unsigned long)
 
     m_responseBuilder.shrinkToFit();
 
-    m_loadingActivity = WTF::nullopt;
+    m_loadingActivity = std::nullopt;
+    m_url = URL { };
 
     m_sendFlag = false;
     changeState(DONE);
@@ -1016,7 +1032,7 @@ Ref<TextResourceDecoder> XMLHttpRequest::createDecoder() const
     return TextResourceDecoder::create("text/plain", "UTF-8");
 }
 
-void XMLHttpRequest::didReceiveData(const char* data, int len)
+void XMLHttpRequest::didReceiveData(const uint8_t* data, int len)
 {
     if (m_error)
         return;
@@ -1038,7 +1054,7 @@ void XMLHttpRequest::didReceiveData(const char* data, int len)
         return;
 
     if (len == -1)
-        len = strlen(data);
+        len = strlen(reinterpret_cast<const char*>(data));
 
     if (useDecoder)
         m_responseBuilder.append(m_decoder->decode(data, len));
@@ -1059,12 +1075,10 @@ void XMLHttpRequest::didReceiveData(const char* data, int len)
             callReadyStateChangeListener();
         }
 
-        if (m_async) {
-            long long expectedLength = m_response.expectedContentLength();
-            bool lengthComputable = expectedLength > 0 && m_receivedLength <= expectedLength;
-            unsigned long long total = lengthComputable ? expectedLength : 0;
-            m_progressEventThrottle.dispatchThrottledProgressEvent(lengthComputable, m_receivedLength, total);
-        }
+        long long expectedLength = m_response.expectedContentLength();
+        bool lengthComputable = expectedLength > 0 && m_receivedLength <= expectedLength;
+        unsigned long long total = lengthComputable ? expectedLength : 0;
+        m_progressEventThrottle.updateProgress(m_async, lengthComputable, m_receivedLength, total);
     }
 }
 
@@ -1161,7 +1175,7 @@ void XMLHttpRequest::contextDestroyed()
     ActiveDOMObject::contextDestroyed();
 }
 
-void XMLHttpRequest::eventListenersDidChange()
+void XMLHttpRequest::updateHasRelevantEventListener()
 {
     m_hasRelevantEventListener = hasEventListeners(eventNames().abortEvent)
         || hasEventListeners(eventNames().errorEvent)
@@ -1169,14 +1183,20 @@ void XMLHttpRequest::eventListenersDidChange()
         || hasEventListeners(eventNames().loadendEvent)
         || hasEventListeners(eventNames().progressEvent)
         || hasEventListeners(eventNames().readystatechangeEvent)
-        || hasEventListeners(eventNames().timeoutEvent);
+        || hasEventListeners(eventNames().timeoutEvent)
+        || (m_upload && m_upload->hasRelevantEventListener());
+}
+
+void XMLHttpRequest::eventListenersDidChange()
+{
+    updateHasRelevantEventListener();
 }
 
 // An XMLHttpRequest object must not be garbage collected if its state is either opened with the send() flag set, headers received, or loading, and
 // it has one or more event listeners registered whose type is one of readystatechange, progress, abort, error, load, timeout, and loadend.
 bool XMLHttpRequest::virtualHasPendingActivity() const
 {
-    if (!m_hasRelevantEventListener && !(m_upload && m_upload->hasRelevantEventListener()))
+    if (!m_hasRelevantEventListener)
         return false;
 
     switch (readyState()) {

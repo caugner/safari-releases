@@ -25,6 +25,19 @@
 namespace rx
 {
 
+struct DrawCommandRange
+{
+    uint32_t count;
+    size_t offset;
+};
+
+// Inclusive range of consecutive primitive restart value indexes.
+struct IndexRange
+{
+    IndexRange(size_t begin, size_t end) : restartBegin(begin), restartEnd(end) {}
+    size_t restartBegin;
+    size_t restartEnd;
+};
 // Conversion buffers hold translated index and vertex data.
 struct ConversionBufferMtl
 {
@@ -36,7 +49,6 @@ struct ConversionBufferMtl
 
     // The conversion is stored in a dynamic buffer.
     mtl::BufferPool data;
-
     // These properties are to be filled by user of this buffer conversion
     mtl::BufferRef convertedBuffer;
     size_t convertedOffset;
@@ -61,10 +73,11 @@ struct IndexConversionBufferMtl : public ConversionBufferMtl
                              gl::DrawElementsType elemType,
                              bool primitiveRestartEnabled,
                              size_t offsetIn);
-
     const gl::DrawElementsType elemType;
     const size_t offset;
     bool primitiveRestartEnabled;
+    IndexRange getRangeForConvertedBuffer(size_t count);
+
 };
 
 struct UniformConversionBufferMtl : public ConversionBufferMtl
@@ -85,7 +98,7 @@ class BufferHolderMtl
     // a queue of mtl::Buffer and only let CPU modifies a free mtl::Buffer.
     // So, in order to let GPU use the most recent modified content, one must call this method
     // right before the draw call to retrieved the most up-to-date mtl::Buffer.
-    mtl::BufferRef getCurrentBuffer() { return mIsWeak ? mBufferWeakRef.lock() : mBuffer; }
+    mtl::BufferRef getCurrentBuffer() const { return mIsWeak ? mBufferWeakRef.lock() : mBuffer; }
 
   protected:
     mtl::BufferRef mBuffer;
@@ -157,7 +170,9 @@ class BufferMtl : public BufferImpl, public BufferHolderMtl
     void markConversionBuffersDirty();
 
     size_t size() const { return static_cast<size_t>(mState.getSize()); }
-
+    
+    const std::vector<IndexRange> & getRestartIndices(ContextMtl * ctx, gl::DrawElementsType indexType);
+    
   private:
     angle::Result setDataImpl(const gl::Context *context,
                               gl::BufferBinding target,
@@ -193,8 +208,12 @@ class BufferMtl : public BufferImpl, public BufferHolderMtl
     std::vector<VertexConversionBufferMtl> mVertexConversionBuffers;
 
     std::vector<IndexConversionBufferMtl> mIndexConversionBuffers;
-
+    
     std::vector<UniformConversionBufferMtl> mUniformConversionBuffers;
+    
+    bool mRestartIndicesDirty;
+    std::vector<IndexRange> mRestartIndices;
+    
 };
 
 class SimpleWeakBufferHolderMtl : public BufferHolderMtl

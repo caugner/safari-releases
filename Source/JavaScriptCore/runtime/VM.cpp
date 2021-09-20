@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2020 Apple Inc. All rights reserved.
+ * Copyright (C) 2008-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -29,10 +29,12 @@
 #include "config.h"
 #include "VM.h"
 
+#include "AccessCase.h"
 #include "AggregateError.h"
 #include "ArgList.h"
 #include "BigIntObject.h"
 #include "BooleanObject.h"
+#include "BrandedStructure.h"
 #include "BuiltinExecutables.h"
 #include "BytecodeIntrinsicRegistry.h"
 #include "CheckpointOSRExitSideState.h"
@@ -42,7 +44,6 @@
 #include "CommonIdentifiers.h"
 #include "ControlFlowProfiler.h"
 #include "CustomGetterSetter.h"
-#include "DFGWorklist.h"
 #include "DOMAttributeGetterSetter.h"
 #include "DateInstance.h"
 #include "DebuggerScope.h"
@@ -80,6 +81,7 @@
 #include "IsoInlinedHeapCellType.h"
 #include "JITCode.h"
 #include "JITOperationList.h"
+#include "JITSizeStatistics.h"
 #include "JITThunks.h"
 #include "JITWorklist.h"
 #include "JSAPIGlobalObject.h"
@@ -95,7 +97,8 @@
 #include "JSCallbackFunction.h"
 #include "JSCallbackObject.h"
 #include "JSCallee.h"
-#include "JSCustomGetterSetterFunction.h"
+#include "JSCustomGetterFunction.h"
+#include "JSCustomSetterFunction.h"
 #include "JSDestructibleObjectHeapCellType.h"
 #include "JSFinalizationRegistry.h"
 #include "JSFunction.h"
@@ -289,6 +292,8 @@ VM::VM(VMType vmType, HeapType heapType, WTF::RunLoop* runLoop, bool* success)
     , callbackConstructorHeapCellType(IsoHeapCellType::create<JSCallbackConstructor>())
     , callbackGlobalObjectHeapCellType(IsoHeapCellType::create<JSCallbackObject<JSGlobalObject>>())
     , callbackObjectHeapCellType(IsoHeapCellType::create<JSCallbackObject<JSNonFinalObject>>())
+    , customGetterFunctionHeapCellType(IsoHeapCellType::create<JSCustomGetterFunction>())
+    , customSetterFunctionHeapCellType(IsoHeapCellType::create<JSCustomSetterFunction>())
     , dateInstanceHeapCellType(IsoHeapCellType::create<DateInstance>())
     , errorInstanceHeapCellType(IsoHeapCellType::create<ErrorInstance>())
     , finalizationRegistryCellType(IsoHeapCellType::create<JSFinalizationRegistry>())
@@ -369,6 +374,7 @@ VM::VM(VMType vmType, HeapType heapType, WTF::RunLoop* runLoop, bool* success)
     , structureChainSpace ISO_SUBSPACE_INIT(heap, cellHeapCellType.get(), StructureChain)
     , structureRareDataSpace ISO_SUBSPACE_INIT(heap, destructibleCellHeapCellType.get(), StructureRareData) // Hash:0xaca4e62d
     , structureSpace ISO_SUBSPACE_INIT(heap, destructibleCellHeapCellType.get(), Structure) // Hash:0x1f1bcdca
+    , brandedStructureSpace ISO_SUBSPACE_INIT(heap, destructibleCellHeapCellType.get(), BrandedStructure)
     , symbolTableSpace ISO_SUBSPACE_INIT(heap, destructibleCellHeapCellType.get(), SymbolTable) // Hash:0xc5215afd
     , executableToCodeBlockEdgesWithConstraints(executableToCodeBlockEdgeSpace)
     , executableToCodeBlockEdgesWithFinalizers(executableToCodeBlockEdgeSpace)
@@ -386,7 +392,6 @@ VM::VM(VMType vmType, HeapType heapType, WTF::RunLoop* runLoop, bool* success)
     , propertyNames(nullptr)
     , emptyList(new ArgList)
     , machineCodeBytesPerBytecodeWordForBaselineJIT(makeUnique<SimpleStats>())
-    , customGetterSetterFunctionMap(*this)
     , stringCache(*this)
     , symbolImplToSymbolMap(*this)
     , structureCache(*this)
@@ -428,7 +433,6 @@ VM::VM(VMType vmType, HeapType heapType, WTF::RunLoop* runLoop, bool* success)
     smallStrings.initializeCommonStrings(*this);
 
     propertyNames = new CommonIdentifiers(*this);
-    terminatedExecutionErrorStructure.set(*this, TerminatedExecutionError::createStructure(*this, nullptr, jsNull()));
     propertyNameEnumeratorStructure.set(*this, JSPropertyNameEnumerator::createStructure(*this, nullptr, jsNull()));
     getterSetterStructure.set(*this, GetterSetter::createStructure(*this, nullptr, jsNull()));
     customGetterSetterStructure.set(*this, CustomGetterSetter::createStructure(*this, nullptr, jsNull()));
@@ -564,11 +568,17 @@ VM::VM(VMType vmType, HeapType heapType, WTF::RunLoop* runLoop, bool* success)
 #endif // ENABLE(FTL_JIT)
         getCTIInternalFunctionTrampolineFor(CodeForCall);
         getCTIInternalFunctionTrampolineFor(CodeForConstruct);
+        m_sharedJITStubs = makeUnique<SharedJITStubSet>();
     }
-#endif
+#endif // ENABLE(JIT)
 
     if (Options::forceDebuggerBytecodeGeneration() || Options::alwaysUseShadowChicken())
         ensureShadowChicken();
+
+#if ENABLE(JIT)
+    if (Options::dumpBaselineJITSizeStatistics() || Options::dumpDFGJITSizeStatistics())
+        jitSizeStatistics = makeUnique<JITSizeStatistics>();
+#endif
 
     VMInspector::instance().add(this);
 
@@ -580,12 +590,12 @@ static ReadWriteLock s_destructionLock;
 
 void waitForVMDestruction()
 {
-    auto locker = holdLock(s_destructionLock.write());
+    Locker locker { s_destructionLock.write() };
 }
 
 VM::~VM()
 {
-    auto destructionLocker = holdLock(s_destructionLock.read());
+    Locker destructionLocker { s_destructionLock.read() };
     
     Gigacage::removePrimitiveDisableCallback(primitiveGigacageDisabledCallback, this);
     deferredWorkTimer->stopRunningTasks();
@@ -610,20 +620,8 @@ VM::~VM()
     
 #if ENABLE(JIT)
     if (JITWorklist* worklist = JITWorklist::existingGlobalWorklistOrNull())
-        worklist->completeAllForVM(*this);
+        worklist->cancelAllPlansForVM(*this);
 #endif // ENABLE(JIT)
-
-#if ENABLE(DFG_JIT)
-    // Make sure concurrent compilations are done, but don't install them, since there is
-    // no point to doing so.
-    for (unsigned i = DFG::numberOfWorklists(); i--;) {
-        if (DFG::Worklist* worklist = DFG::existingWorklistForIndexOrNull(i)) {
-            worklist->removeNonCompilingPlansForVM(*this);
-            worklist->waitUntilAllPlansForVMAreReady(*this);
-            worklist->removeAllReadyPlansForVM(*this);
-        }
-    }
-#endif // ENABLE(DFG_JIT)
     
     waitForAsynchronousDisassembly();
     
@@ -658,6 +656,10 @@ VM::~VM()
 #if ENABLE(DFG_JIT)
     for (unsigned i = 0; i < m_scratchBuffers.size(); ++i)
         VMMalloc::free(m_scratchBuffers[i]);
+#endif
+
+#if ENABLE(JIT)
+    m_sharedJITStubs = nullptr;
 #endif
 }
 
@@ -737,8 +739,10 @@ VM*& VM::sharedInstanceInternal()
 
 Watchdog& VM::ensureWatchdog()
 {
-    if (!m_watchdog)
+    if (!m_watchdog) {
         m_watchdog = adoptRef(new Watchdog(this));
+        ensureTerminationException();
+    }
     return *m_watchdog;
 }
 
@@ -757,6 +761,16 @@ SamplingProfiler& VM::ensureSamplingProfiler(Ref<Stopwatch>&& stopwatch)
     return *m_samplingProfiler;
 }
 #endif // ENABLE(SAMPLING_PROFILER)
+
+static StringImpl::StaticStringImpl terminationErrorString { "JavaScript execution terminated." };
+Exception* VM::ensureTerminationException()
+{
+    if (!m_terminationException) {
+        JSString* terminationError = jsNontrivialString(*this, terminationErrorString);
+        m_terminationException = Exception::create(*this, terminationError, Exception::DoNotCaptureStack);
+    }
+    return m_terminationException;
+}
 
 #if ENABLE(JIT)
 static ThunkGenerator thunkGeneratorForIntrinsic(Intrinsic intrinsic)
@@ -942,8 +956,56 @@ void VM::clearSourceProviderCaches()
     sourceProviderCacheMap.clear();
 }
 
-Exception* VM::throwException(JSGlobalObject* globalObject, Exception* exception)
+bool VM::hasExceptionsAfterHandlingTraps()
 {
+    if (UNLIKELY(traps().needHandling(VMTraps::NonDebuggerAsyncEvents)))
+        m_traps.handleTraps(VMTraps::NonDebuggerAsyncEvents);
+    return exception();
+}
+
+void VM::clearException()
+{
+#if ENABLE(EXCEPTION_SCOPE_VERIFICATION)
+    m_needExceptionCheck = false;
+    m_nativeStackTraceOfLastThrow = nullptr;
+    m_throwingThread = nullptr;
+#endif
+    m_exception = nullptr;
+    traps().clearTrapBit(VMTraps::NeedExceptionHandling);
+}
+
+void VM::setException(Exception* exception)
+{
+    m_exception = exception;
+    m_lastException = exception;
+    if (exception)
+        traps().setTrapBit(VMTraps::NeedExceptionHandling);
+}
+
+void VM::throwTerminationException()
+{
+    ASSERT(!m_traps.isDeferringTermination());
+    setException(terminationException());
+}
+
+Exception* VM::throwException(JSGlobalObject* globalObject, Exception* exceptionToThrow)
+{
+    // The TerminationException should never be overridden.
+    if (hasPendingTerminationException())
+        return m_exception;
+
+    // The TerminationException is not like ordinary exceptions that should be
+    // reported to the debugger. The fact that the TerminationException uses the
+    // exception handling mechanism is just a VM internal implementation detail.
+    // It is not meaningful to report it to the debugger as an exception.
+    if (isTerminationException(exceptionToThrow)) {
+        // Note: we can only get here is we're just re-throwing the TerminationException
+        // from C++ functions to propagate it. If we're throwing it for the first
+        // time, we would have gone through VM::throwTerminationException().
+        setException(exceptionToThrow);
+        return exceptionToThrow;
+    }
+
     CallFrame* throwOriginFrame = topJSCallFrame();
     if (!throwOriginFrame)
         throwOriginFrame = globalObject->deprecatedCallFrameForDebugger();
@@ -954,15 +1016,15 @@ Exception* VM::throwException(JSGlobalObject* globalObject, Exception* exception
         CRASH();
     }
 
-    interpreter->notifyDebuggerOfExceptionToBeThrown(*this, globalObject, throwOriginFrame, exception);
+    interpreter->notifyDebuggerOfExceptionToBeThrown(*this, globalObject, throwOriginFrame, exceptionToThrow);
 
-    setException(exception);
+    setException(exceptionToThrow);
 
 #if ENABLE(EXCEPTION_SCOPE_VERIFICATION)
     m_nativeStackTraceOfLastThrow = StackTrace::captureStackTrace(Options::unexpectedExceptionStackTraceLimit());
     m_throwingThread = &Thread::current();
 #endif
-    return exception;
+    return exceptionToThrow;
 }
 
 Exception* VM::throwException(JSGlobalObject* globalObject, JSValue thrownValue)
@@ -1064,7 +1126,7 @@ void VM::updateStackLimits()
 #if ENABLE(DFG_JIT)
 void VM::gatherScratchBufferRoots(ConservativeRoots& conservativeRoots)
 {
-    auto lock = holdLock(m_scratchBufferLock);
+    Locker locker { m_scratchBufferLock };
     for (auto* scratchBuffer : m_scratchBuffers) {
         if (scratchBuffer->activeLength()) {
             void* bufferStart = scratchBuffer->dataBuffer();
@@ -1123,6 +1185,7 @@ void VM::popAllCheckpointOSRSideStateUntil(CallFrame* target)
     // We have to worry about migrating from another thread since there may be no checkpoints in our thread but one in the other threads.
     while (m_checkpointSideState.size() && bounds.contains(m_checkpointSideState.last()->associatedCallFrame))
         m_checkpointSideState.takeLast();
+    m_checkpointSideState.shrinkToFit();
 }
 
 void logSanitizeStack(VM& vm)
@@ -1305,13 +1368,15 @@ void VM::callPromiseRejectionCallback(Strong<JSPromise>& promise)
 
 void VM::didExhaustMicrotaskQueue()
 {
-    auto unhandledRejections = WTFMove(m_aboutToBeNotifiedRejectedPromises);
-    for (auto& promise : unhandledRejections) {
-        if (promise->isHandled(*this))
-            continue;
+    do {
+        auto unhandledRejections = WTFMove(m_aboutToBeNotifiedRejectedPromises);
+        for (auto& promise : unhandledRejections) {
+            if (promise->isHandled(*this))
+                continue;
 
-        callPromiseRejectionCallback(promise);
-    }
+            callPromiseRejectionCallback(promise);
+        }
+    } while (!m_aboutToBeNotifiedRejectedPromises.isEmpty());
 }
 
 void VM::promiseRejected(JSPromise* promise)
@@ -1321,14 +1386,18 @@ void VM::promiseRejected(JSPromise* promise)
 
 void VM::drainMicrotasks()
 {
-    do {
-        while (!m_microtaskQueue.isEmpty()) {
-            m_microtaskQueue.takeFirst()->run();
-            if (m_onEachMicrotaskTick)
-                m_onEachMicrotaskTick(*this);
-        }
-        didExhaustMicrotaskQueue();
-    } while (!m_microtaskQueue.isEmpty());
+    if (UNLIKELY(executionForbidden()))
+        m_microtaskQueue.clear();
+    else {
+        do {
+            while (!m_microtaskQueue.isEmpty()) {
+                m_microtaskQueue.takeFirst()->run();
+                if (m_onEachMicrotaskTick)
+                    m_onEachMicrotaskTick(*this);
+            }
+            didExhaustMicrotaskQueue();
+        } while (!m_microtaskQueue.isEmpty());
+    }
     finalizeSynchronousJSExecution();
 }
 
@@ -1423,7 +1492,7 @@ ScratchBuffer* VM::scratchBufferForSize(size_t size)
     if (!size)
         return nullptr;
 
-    auto locker = holdLock(m_scratchBufferLock);
+    Locker locker { m_scratchBufferLock };
 
     if (size > m_sizeOfLastScratchBuffer) {
         // Protect against a N^2 memory usage pathology by ensuring
@@ -1443,7 +1512,7 @@ ScratchBuffer* VM::scratchBufferForSize(size_t size)
 
 void VM::clearScratchBuffers()
 {
-    auto lock = holdLock(m_scratchBufferLock);
+    Locker locker { m_scratchBufferLock };
     for (auto* scratchBuffer : m_scratchBuffers)
         scratchBuffer->setActiveLength(0);
 }
@@ -1471,14 +1540,17 @@ DYNAMIC_ISO_SUBSPACE_DEFINE_MEMBER_SLOW(apiValueWrapperSpace, cellHeapCellType.g
 DYNAMIC_ISO_SUBSPACE_DEFINE_MEMBER_SLOW(arrayBufferSpace, cellHeapCellType.get(), JSArrayBuffer)
 DYNAMIC_ISO_SUBSPACE_DEFINE_MEMBER_SLOW(arrayIteratorSpace, cellHeapCellType.get(), JSArrayIterator)
 DYNAMIC_ISO_SUBSPACE_DEFINE_MEMBER_SLOW(asyncGeneratorSpace, cellHeapCellType.get(), JSAsyncGenerator)
+DYNAMIC_ISO_SUBSPACE_DEFINE_MEMBER_SLOW(bigInt64ArraySpace, cellHeapCellType.get(), JSBigInt64Array)
 DYNAMIC_ISO_SUBSPACE_DEFINE_MEMBER_SLOW(bigIntObjectSpace, cellHeapCellType.get(), BigIntObject)
+DYNAMIC_ISO_SUBSPACE_DEFINE_MEMBER_SLOW(bigUint64ArraySpace, cellHeapCellType.get(), JSBigUint64Array)
 DYNAMIC_ISO_SUBSPACE_DEFINE_MEMBER_SLOW(booleanObjectSpace, cellHeapCellType.get(), BooleanObject)
 DYNAMIC_ISO_SUBSPACE_DEFINE_MEMBER_SLOW(boundFunctionSpace, cellHeapCellType.get(), JSBoundFunction) // Hash:0xd7916d41
 DYNAMIC_ISO_SUBSPACE_DEFINE_MEMBER_SLOW(callbackConstructorSpace, callbackConstructorHeapCellType.get(), JSCallbackConstructor)
 DYNAMIC_ISO_SUBSPACE_DEFINE_MEMBER_SLOW(callbackGlobalObjectSpace, callbackGlobalObjectHeapCellType.get(), JSCallbackObject<JSGlobalObject>)
 DYNAMIC_ISO_SUBSPACE_DEFINE_MEMBER_SLOW(callbackFunctionSpace, cellHeapCellType.get(), JSCallbackFunction) // Hash:0xe7648ebc
 DYNAMIC_ISO_SUBSPACE_DEFINE_MEMBER_SLOW(callbackObjectSpace, callbackObjectHeapCellType.get(), JSCallbackObject<JSNonFinalObject>)
-DYNAMIC_ISO_SUBSPACE_DEFINE_MEMBER_SLOW(customGetterSetterFunctionSpace, cellHeapCellType.get(), JSCustomGetterSetterFunction) // Hash:0x18091000
+DYNAMIC_ISO_SUBSPACE_DEFINE_MEMBER_SLOW(customGetterFunctionSpace, customGetterFunctionHeapCellType.get(), JSCustomGetterFunction)
+DYNAMIC_ISO_SUBSPACE_DEFINE_MEMBER_SLOW(customSetterFunctionSpace, customSetterFunctionHeapCellType.get(), JSCustomSetterFunction)
 DYNAMIC_ISO_SUBSPACE_DEFINE_MEMBER_SLOW(dataViewSpace, cellHeapCellType.get(), JSDataView)
 DYNAMIC_ISO_SUBSPACE_DEFINE_MEMBER_SLOW(debuggerScopeSpace, cellHeapCellType.get(), DebuggerScope)
 DYNAMIC_ISO_SUBSPACE_DEFINE_MEMBER_SLOW(errorInstanceSpace, errorInstanceHeapCellType.get(), ErrorInstance) // Hash:0x3f40d4a
@@ -1614,26 +1686,26 @@ void VM::setCrashOnVMCreation(bool shouldCrash)
 
 void VM::addLoopHintExecutionCounter(const Instruction* instruction)
 {
-    auto locker = holdLock(m_loopHintExecutionCountLock);
-    auto addResult = m_loopHintExecutionCounts.add(instruction, std::pair<unsigned, std::unique_ptr<uint64_t>>(0, nullptr));
+    Locker locker { m_loopHintExecutionCountLock };
+    auto addResult = m_loopHintExecutionCounts.add(instruction, std::pair<unsigned, std::unique_ptr<uintptr_t>>(0, nullptr));
     if (addResult.isNewEntry) {
-        auto ptr = WTF::makeUniqueWithoutFastMallocCheck<uint64_t>();
+        auto ptr = WTF::makeUniqueWithoutFastMallocCheck<uintptr_t>();
         *ptr = 0;
         addResult.iterator->value.second = WTFMove(ptr);
     }
     ++addResult.iterator->value.first;
 }
 
-uint64_t* VM::getLoopHintExecutionCounter(const Instruction* instruction)
+uintptr_t* VM::getLoopHintExecutionCounter(const Instruction* instruction)
 {
-    auto locker = holdLock(m_loopHintExecutionCountLock);
+    Locker locker { m_loopHintExecutionCountLock };
     auto iter = m_loopHintExecutionCounts.find(instruction);
     return iter->value.second.get();
 }
 
 void VM::removeLoopHintExecutionCounter(const Instruction* instruction)
 {
-    auto locker = holdLock(m_loopHintExecutionCountLock);
+    Locker locker { m_loopHintExecutionCountLock };
     auto iter = m_loopHintExecutionCounts.find(instruction);
     RELEASE_ASSERT(!!iter->value.first);
     --iter->value.first;

@@ -38,11 +38,11 @@ class Page;
 class RenderImageResource;
 
 template<typename T> class EventSender;
-typedef EventSender<ImageLoader> ImageEventSender;
+using ImageEventSender = EventSender<ImageLoader>;
 
 enum class RelevantMutation : bool { Yes, No };
 
-class ImageLoader : public CachedImageClient {
+class ImageLoader : public CachedImageClient, public CanMakeWeakPtr<ImageLoader> {
     WTF_MAKE_FAST_ALLOCATED;
 public:
     virtual ~ImageLoader();
@@ -114,6 +114,8 @@ private:
     void decode();
     
     void timerFired();
+
+    VisibleInViewportState imageVisibleInViewport(const Document&) const override;
 
     Element& m_element;
     CachedResourceHandle<CachedImage> m_image;

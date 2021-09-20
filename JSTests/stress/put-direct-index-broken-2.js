@@ -1,4 +1,4 @@
-//@ skip if $architecture == "x86" or $architecture == "arm"
+//@ skip if $architecture == "x86"
 function assert(b) {
     if (!b)
         throw new Error("Bad assertion");
@@ -56,7 +56,7 @@ test(function() {
     } catch(e) {
         err = e;
     }
-    assert(!err);
+    assert(err.toString() == "TypeError: Attempting to store out-of-bounds property on a typed array at index: 0");
 });
 
 test(function() {

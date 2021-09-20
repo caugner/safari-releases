@@ -67,13 +67,13 @@ public:
 
     ~RuleSet();
 
-    typedef Vector<RuleData, 1> RuleDataVector;
+    typedef Vector<RuleData, 1, CrashOnOverflow, 16, RuleMalloc> RuleDataVector;
     typedef HashMap<AtomString, std::unique_ptr<RuleDataVector>> AtomRuleMap;
 
     struct DynamicMediaQueryRules {
         Vector<Ref<const MediaQuerySet>> mediaQuerySets;
         Vector<size_t> affectedRulePositions;
-        Vector<RuleFeature> ruleFeatures;
+        RuleFeatureVector ruleFeatures;
         bool requiresFullReset { false };
         bool result { true };
     };
@@ -87,7 +87,7 @@ public:
         struct DynamicContext {
             Ref<const MediaQuerySet> set;
             Vector<size_t> affectedRulePositions { };
-            Vector<RuleFeature> ruleFeatures { };
+            RuleFeatureVector ruleFeatures { };
         };
         Vector<DynamicContext> dynamicContextStack { };
 
@@ -113,7 +113,7 @@ public:
 
     bool hasViewportDependentMediaQueries() const { return m_hasViewportDependentMediaQueries; }
 
-    Optional<DynamicMediaQueryEvaluationChanges> evaluateDynamicMediaQueryRules(const MediaQueryEvaluator&);
+    std::optional<DynamicMediaQueryEvaluationChanges> evaluateDynamicMediaQueryRules(const MediaQueryEvaluator&);
 
     const RuleFeatureSet& features() const { return m_features; }
 
@@ -123,7 +123,7 @@ public:
     const RuleDataVector* shadowPseudoElementRules(const AtomString& key) const { return m_shadowPseudoElementRules.get(key); }
     const RuleDataVector* linkPseudoClassRules() const { return &m_linkPseudoClassRules; }
 #if ENABLE(VIDEO)
-    const RuleDataVector* cuePseudoRules() const { return &m_cuePseudoRules; }
+    const RuleDataVector& cuePseudoRules() const { return m_cuePseudoRules; }
 #endif
     const RuleDataVector& hostPseudoClassRules() const { return m_hostPseudoClassRules; }
     const RuleDataVector& slottedPseudoElementRules() const { return m_slottedPseudoElementRules; }
@@ -135,7 +135,7 @@ public:
 
     unsigned ruleCount() const { return m_ruleCount; }
 
-    bool hasShadowPseudoElementRules() const;
+    bool hasShadowPseudoElementRules() const { return !m_shadowPseudoElementRules.isEmpty(); }
     bool hasHostPseudoClassRulesMatchingInShadowTree() const { return m_hasHostPseudoClassRulesMatchingInShadowTree; }
 
 private:
@@ -147,7 +147,7 @@ private:
     struct CollectedMediaQueryChanges {
         bool requiredFullReset { false };
         Vector<size_t> changedQueryIndexes { };
-        Vector<const Vector<RuleFeature>*> ruleFeatures { };
+        Vector<RuleFeatureVector*> ruleFeatures { };
     };
     CollectedMediaQueryChanges evaluateDynamicMediaQueryRules(const MediaQueryEvaluator&, size_t startIndex);
 

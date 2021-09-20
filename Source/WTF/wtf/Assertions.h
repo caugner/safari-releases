@@ -218,7 +218,9 @@ WTF_EXPORT_PRIVATE void WTFSetLogChannelLevel(WTFLogChannel*, WTFLogLevel);
 WTF_EXPORT_PRIVATE bool WTFWillLogWithLevel(WTFLogChannel*, WTFLogLevel);
 
 WTF_EXPORT_PRIVATE void WTFGetBacktrace(void** stack, int* size);
+WTF_EXPORT_PRIVATE void WTFReportBacktraceWithPrefix(const char*);
 WTF_EXPORT_PRIVATE void WTFReportBacktrace(void);
+WTF_EXPORT_PRIVATE void WTFPrintBacktraceWithPrefix(void** stack, int size, const char* prefix);
 WTF_EXPORT_PRIVATE void WTFPrintBacktrace(void** stack, int size);
 #if !RELEASE_LOG_DISABLED
 WTF_EXPORT_PRIVATE void WTFReleaseLogStackTrace(WTFLogChannel*);
@@ -235,7 +237,7 @@ WTF_EXPORT_PRIVATE bool WTFIsDebuggerAttached(void);
 #elif CPU(ARM_THUMB2)
 #define WTFBreakpointTrap()  asm volatile ("bkpt #0")
 #elif CPU(ARM64)
-#define WTFBreakpointTrap()  asm volatile ("brk #0")
+#define WTFBreakpointTrap()  asm volatile ("brk #0xc471")
 #else
 #define WTFBreakpointTrap() WTFCrash() // Not implemented.
 #endif
@@ -503,10 +505,25 @@ constexpr bool assertionFailureDueToUnreachableCode = false;
 #define LOG_WITH_LEVEL(channel, level, ...) WTFLogWithLevel(&LOG_CHANNEL(channel), level, __VA_ARGS__)
 #endif
 
+/* LOG_WITH_STREAM */
+
+#if LOG_DISABLED
+#define LOG_WITH_STREAM(channel, commands) ((void)0)
+#else
+#define LOG_WITH_STREAM(channel, commands) do { \
+        if (LOG_CHANNEL(channel).state == WTFLogChannelState::On) { \
+            WTF::TextStream stream(WTF::TextStream::LineMode::SingleLine); \
+            commands; \
+            WTFLog(&LOG_CHANNEL(channel), "%s", stream.release().utf8().data()); \
+        } \
+    } while (0)
+#endif
+
 /* RELEASE_LOG */
 
 #if RELEASE_LOG_DISABLED
 #define PUBLIC_LOG_STRING "s"
+#define PRIVATE_LOG_STRING "s"
 #define RELEASE_LOG(channel, ...) ((void)0)
 #define RELEASE_LOG_ERROR(channel, ...) LOG_ERROR(__VA_ARGS__)
 #define RELEASE_LOG_FAULT(channel, ...) LOG_ERROR(__VA_ARGS__)
@@ -524,6 +541,7 @@ constexpr bool assertionFailureDueToUnreachableCode = false;
 
 #if USE(OS_LOG) && !RELEASE_LOG_DISABLED
 #define PUBLIC_LOG_STRING "{public}s"
+#define PRIVATE_LOG_STRING "{private}s"
 #define RELEASE_LOG(channel, ...) os_log(LOG_CHANNEL(channel).osLogChannel, __VA_ARGS__)
 #define RELEASE_LOG_ERROR(channel, ...) os_log_error(LOG_CHANNEL(channel).osLogChannel, __VA_ARGS__)
 #define RELEASE_LOG_FAULT(channel, ...) os_log_fault(LOG_CHANNEL(channel).osLogChannel, __VA_ARGS__)
@@ -541,6 +559,7 @@ constexpr bool assertionFailureDueToUnreachableCode = false;
 
 #if USE(JOURNALD) && !RELEASE_LOG_DISABLED
 #define PUBLIC_LOG_STRING "s"
+#define PRIVATE_LOG_STRING "s"
 #define SD_JOURNAL_SEND(channel, priority, file, line, function, ...) do { \
     if (LOG_CHANNEL(channel).state != WTFLogChannelState::Off) \
         sd_journal_send_with_location("CODE_FILE=" file, "CODE_LINE=" line, function, "WEBKIT_SUBSYSTEM=%s", LOG_CHANNEL(channel).subsystem, "WEBKIT_CHANNEL=%s", LOG_CHANNEL(channel).name, "PRIORITY=%i", priority, "MESSAGE=" __VA_ARGS__, nullptr); \
@@ -573,6 +592,13 @@ constexpr bool assertionFailureDueToUnreachableCode = false;
 #define RELEASE_LOG_STACKTRACE(channel) WTFReleaseLogStackTrace(&LOG_CHANNEL(channel))
 #endif
 
+/* ALWAYS_LOG */
+
+#define ALWAYS_LOG_WITH_STREAM(commands) do { \
+        WTF::TextStream stream(WTF::TextStream::LineMode::SingleLine); \
+        commands; \
+        WTFLogAlways("%s", stream.release().utf8().data()); \
+    } while (0)
 
 /* RELEASE_ASSERT */
 
@@ -680,7 +706,12 @@ void isIntegralOrPointerType(T, Types... types)
     static_assert(std::is_integral<T>::value || std::is_enum<T>::value || std::is_pointer<T>::value, "All types need to be bitwise_cast-able to integral type for logging");
     isIntegralOrPointerType(types...);
 }
-}
+
+#if PLATFORM(COCOA)
+WTF_EXPORT_PRIVATE void disableForwardingVPrintfStdErrToOSLog();
+#endif
+
+} // namespace WTF
 
 inline void compilerFenceForCrash()
 {

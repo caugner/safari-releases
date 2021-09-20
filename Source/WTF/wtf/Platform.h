@@ -96,7 +96,11 @@
 #endif
 
 #if USE(SOUP)
-#define SOUP_VERSION_MIN_REQUIRED SOUP_VERSION_2_42
+#if USE(SOUP2)
+#define SOUP_VERSION_MIN_REQUIRED SOUP_VERSION_2_54
+#else
+#define SOUP_VERSION_MIN_REQUIRED SOUP_VERSION_3_0
+#endif
 #endif
 
 #if PLATFORM(COCOA)
@@ -144,7 +148,7 @@
 #endif
 
 /* FIXME: The availability of RSA_PSS should not depend on the policy decision to USE(GCRYPT). */
-#if PLATFORM(MAC) || PLATFORM(IOS) || PLATFORM(MACCATALYST) || USE(GCRYPT)
+#if PLATFORM(MAC) || PLATFORM(IOS) || PLATFORM(MACCATALYST) || USE(GCRYPT) || USE(OPENSSL)
 #define HAVE_RSA_PSS 1
 #endif
 

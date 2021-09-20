@@ -1,0 +1,5 @@
+
+FAIL COOP+COEP blob URL popup: window.open() assert_true: Cross-origin without CORP did not fail expected true got false
+FAIL COOP+COEP blob URL popup: <a> assert_true: Cross-origin without CORP did not fail expected true got false
+FAIL COOP+COEP blob URL popup: <a rel=noopener> assert_true: Cross-origin without CORP did not fail expected true got false
+

@@ -36,6 +36,7 @@
 #include "RenderBlock.h"
 #include "RenderStyle.h"
 #include <wtf/IsoMallocInlines.h>
+#include <wtf/text/StringToIntegerConversion.h>
 
 namespace WebCore {
 
@@ -78,7 +79,7 @@ void DateTimeNumericFieldElement::adjustMinWidth(RenderStyle& style) const
         width = std::max(width, font.width(RenderBlock::constructTextRun(numberString, style)));
     }
 
-    style.setMinWidth({ width, Fixed });
+    style.setMinWidth({ width, LengthType::Fixed });
 }
 
 int DateTimeNumericFieldElement::maximum() const
@@ -182,7 +183,7 @@ void DateTimeNumericFieldElement::handleKeyboardEvent(KeyboardEvent& keyboardEve
     }
 
     m_typeAheadBuffer.append(number);
-    setValueAsInteger(m_typeAheadBuffer.toString().toInt(), DispatchInputAndChangeEvents);
+    setValueAsInteger(parseIntegerAllowingTrailingJunk<int>(m_typeAheadBuffer).value_or(0), DispatchInputAndChangeEvents);
 
     keyboardEvent.setDefaultHandled();
 }

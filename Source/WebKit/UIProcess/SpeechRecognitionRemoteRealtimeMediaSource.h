@@ -27,6 +27,7 @@
 
 #if ENABLE(MEDIA_STREAM)
 
+#include "SharedMemory.h"
 #include <WebCore/RealtimeMediaSource.h>
 #include <WebCore/RealtimeMediaSourceIdentifier.h>
 
@@ -43,8 +44,9 @@ class WebAudioBufferList;
 }
 
 namespace WebKit {
-
-class SpeechRecognitionRemoteRealtimeMediaSource : public WebCore::RealtimeMediaSource {
+class SpeechRecognitionRemoteRealtimeMediaSourceManager;
+    
+class SpeechRecognitionRemoteRealtimeMediaSource : public WebCore::RealtimeMediaSource, public CanMakeWeakPtr<SpeechRecognitionRemoteRealtimeMediaSource> {
 public:
     static Ref<WebCore::RealtimeMediaSource> create(SpeechRecognitionRemoteRealtimeMediaSourceManager&, const WebCore::CaptureDevice&);
     ~SpeechRecognitionRemoteRealtimeMediaSource();

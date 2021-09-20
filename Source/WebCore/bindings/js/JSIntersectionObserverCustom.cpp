@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2020 Igalia S.L.
+ * Copyright (C) 2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -26,14 +27,29 @@
 #include "config.h"
 #include "JSIntersectionObserver.h"
 
+#include "JSNodeCustom.h"
 #include <JavaScriptCore/JSCInlines.h>
 
 namespace WebCore {
 
-void JSIntersectionObserver::visitAdditionalChildren(JSC::SlotVisitor& visitor)
+template<typename Visitor>
+void JSIntersectionObserver::visitAdditionalChildren(Visitor& visitor)
 {
     if (auto* callback = wrapped().callbackConcurrently())
         callback->visitJSFunction(visitor);
+    visitor.addOpaqueRoot(root(wrapped().root()));
 }
 
+DEFINE_VISIT_ADDITIONAL_CHILDREN(JSIntersectionObserver);
+
+bool JSIntersectionObserverOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, JSC::AbstractSlotVisitor& visitor, const char**reason)
+{
+    if (JSC::jsCast<JSIntersectionObserver*>(handle.slot()->asCell())->wrapped().isReachableFromOpaqueRoots(visitor)) {
+        if (UNLIKELY(reason))
+            *reason = "Reachable from observed nodes";
+        return true;
+    }
+    return false;
 }
+
+} // namespace WebCore

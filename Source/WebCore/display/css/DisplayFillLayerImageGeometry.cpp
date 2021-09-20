@@ -99,8 +99,8 @@ static LayoutSize calculateImageIntrinsicDimensions(StyleImage* image, LayoutSiz
     // FIXME: Call computeIntrinsicDimensions().
     auto imageSize = image->imageSize(nullptr, 1);
     auto intrinsicRatio = imageSize;
-    Length intrinsicWidth = Length(intrinsicRatio.width(), Fixed);
-    Length intrinsicHeight = Length(intrinsicRatio.height(), Fixed);
+    Length intrinsicWidth = Length(intrinsicRatio.width(), LengthType::Fixed);
+    Length intrinsicHeight = Length(intrinsicRatio.height(), LengthType::Fixed);
 
     ASSERT(!intrinsicWidth.isPercentOrCalculated());
     ASSERT(!intrinsicHeight.isPercentOrCalculated());
@@ -268,10 +268,10 @@ static FillLayerImageGeometry geometryForLayer(const FillLayer& fillLayer, Layou
             top = geometry.borderTop();
             bottom = geometry.borderBottom();
             if (fillLayer.origin() == FillBox::Content) {
-                left += geometry.paddingLeft().valueOr(0);
-                right += geometry.paddingRight().valueOr(0);
-                top += geometry.paddingTop().valueOr(0);
-                bottom += geometry.paddingBottom().valueOr(0);
+                left += geometry.paddingLeft().value_or(0);
+                right += geometry.paddingRight().value_or(0);
+                top += geometry.paddingTop().value_or(0);
+                bottom += geometry.paddingBottom().value_or(0);
             }
         }
 

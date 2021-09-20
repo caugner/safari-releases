@@ -64,23 +64,23 @@ InbandTextTrackPrivateAVF::~InbandTextTrackPrivateAVF()
     disconnect();
 }
 
-static Optional<SRGBA<uint8_t>> makeSimpleColorFromARGBCFArray(CFArrayRef colorArray)
+static std::optional<SRGBA<uint8_t>> makeSimpleColorFromARGBCFArray(CFArrayRef colorArray)
 {
     if (CFArrayGetCount(colorArray) < 4)
-        return WTF::nullopt;
+        return std::nullopt;
 
     float componentArray[4];
     for (int i = 0; i < 4; i++) {
         CFNumberRef value = static_cast<CFNumberRef>(CFArrayGetValueAtIndex(colorArray, i));
         if (CFGetTypeID(value) != CFNumberGetTypeID())
-            return WTF::nullopt;
+            return std::nullopt;
 
         float component;
         CFNumberGetValue(value, kCFNumberFloatType, &component);
         componentArray[i] = component;
     }
 
-    return convertToComponentBytes(SRGBA { componentArray[1], componentArray[2], componentArray[3], componentArray[0] });
+    return convertColor<SRGBA<uint8_t>>(SRGBA<float> { componentArray[1], componentArray[2], componentArray[3], componentArray[0] });
 }
 
 Ref<InbandGenericCue> InbandTextTrackPrivateAVF::processCueAttributes(CFAttributedStringRef attributedString)
@@ -151,7 +151,7 @@ Ref<InbandGenericCue> InbandTextTrackPrivateAVF::processCueAttributes(CFAttribut
                 if (static_cast<CFBooleanRef>(value) != kCFBooleanTrue)
                     continue;
 
-                tagStart.appendLiteral("<b>");
+                tagStart.append("<b>");
                 tagEnd = "</b>" + tagEnd;
                 continue;
             }
@@ -160,7 +160,7 @@ Ref<InbandGenericCue> InbandTextTrackPrivateAVF::processCueAttributes(CFAttribut
                 if (static_cast<CFBooleanRef>(value) != kCFBooleanTrue)
                     continue;
 
-                tagStart.appendLiteral("<i>");
+                tagStart.append("<i>");
                 tagEnd = "</i>" + tagEnd;
                 continue;
             }
@@ -169,7 +169,7 @@ Ref<InbandGenericCue> InbandTextTrackPrivateAVF::processCueAttributes(CFAttribut
                 if (static_cast<CFBooleanRef>(value) != kCFBooleanTrue)
                     continue;
 
-                tagStart.appendLiteral("<u>");
+                tagStart.append("<u>");
                 tagEnd = "</u>" + tagEnd;
                 continue;
             }
@@ -530,12 +530,10 @@ void InbandTextTrackPrivateAVF::processNativeSamples(CFArrayRef nativeSamples, c
 
             // A WebVTT header is terminated by "One or more WebVTT line terminators" so append two line feeds to make sure the parser
             // reccognized this string as a full header.
-            StringBuilder header;
-            header.appendCharacters(reinterpret_cast<const unsigned char*>(CFDataGetBytePtr(webvttHeaderData)), length);
-            header.append("\n\n");
+            auto header = makeString(StringView { CFDataGetBytePtr(webvttHeaderData), length }, "\n\n");
 
-            INFO_LOG(LOGIDENTIFIER, "VTT header ", &header);
-            client()->parseWebVTTFileHeader(header.toString());
+            INFO_LOG(LOGIDENTIFIER, "VTT header ", header);
+            client()->parseWebVTTFileHeader(WTFMove(header));
             m_haveReportedVTTHeader = true;
         } while (0);
 

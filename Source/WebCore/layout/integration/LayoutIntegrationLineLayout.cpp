@@ -119,6 +119,14 @@ bool LineLayout::canUseForAfterStyleChange(const RenderBlockFlow& flow, StyleDif
     return canUseForLineLayoutAfterStyleChange(flow, diff);
 }
 
+bool LineLayout::shouldSwitchToLegacyOnInvalidation() const
+{
+    // FIXME: Support partial invalidation in LFC.
+    // This avoids O(n^2) when lots of boxes are being added dynamically while forcing layouts between.
+    constexpr size_t maximimumBoxTreeSizeForInvalidation = 128;
+    return m_boxTree.boxCount() > maximimumBoxTreeSizeForInvalidation;
+}
+
 void LineLayout::updateReplacedDimensions(const RenderBox& replaced)
 {
     updateLayoutBoxDimensions(replaced);
@@ -137,11 +145,14 @@ void LineLayout::updateLayoutBoxDimensions(const RenderBox& replacedOrInlineBloc
 
     // Always use the physical size here for inline level boxes (this is where the logical vs. physical coords flip happens).
     auto& replacedBoxGeometry = m_layoutState.ensureGeometryForBox(replacedBox);
-    // Scrollbars are placed "between" the border and the padding box and they never stretch the border box. They may shrink the padding box though.
-    auto horizontalSpaceReservedForScrollbar = std::min(replacedOrInlineBlock.width() - replacedOrInlineBlock.paddingBoxWidth(), LayoutUnit(replacedOrInlineBlock.verticalScrollbarWidth()));
+
+    // Scrollbars eat into the padding box area. They never stretch the border box but they may shrink the padding box.
+    // In legacy render tree, RenderBox::contentWidth/contentHeight values are adjusted to accomodate the scrollbar width/height.
+    // e.g. <div style="width: 10px; overflow: scroll;">content</div>, RenderBox::contentWidth() won't be returning the value of 10px but instead 0px (10px - 15px).
+    auto horizontalSpaceReservedForScrollbar = replacedOrInlineBlock.paddingBoxRectIncludingScrollbar().width() - replacedOrInlineBlock.paddingBoxWidth();
     replacedBoxGeometry.setHorizontalSpaceForScrollbar(horizontalSpaceReservedForScrollbar);
 
-    auto verticalSpaceReservedForScrollbar = std::min(replacedOrInlineBlock.height() - replacedOrInlineBlock.paddingBoxHeight(), LayoutUnit(replacedOrInlineBlock.horizontalScrollbarHeight()));
+    auto verticalSpaceReservedForScrollbar = replacedOrInlineBlock.paddingBoxRectIncludingScrollbar().height() - replacedOrInlineBlock.paddingBoxHeight();
     replacedBoxGeometry.setVerticalSpaceForScrollbar(verticalSpaceReservedForScrollbar);
 
     replacedBoxGeometry.setContentBoxWidth(replacedOrInlineBlock.contentWidth());
@@ -173,9 +184,17 @@ void LineLayout::updateInlineBoxDimensions(const RenderInline& renderInline)
 {
     auto& boxGeometry = m_layoutState.ensureGeometryForBox(m_boxTree.layoutBoxForRenderer(renderInline));
 
-    boxGeometry.setBorder({ { renderInline.borderLeft(), renderInline.borderRight() }, { renderInline.borderTop(), renderInline.borderBottom() } });
-    boxGeometry.setPadding(Layout::Edges { { renderInline.paddingLeft(), renderInline.paddingRight() }, { renderInline.paddingTop(), renderInline.paddingBottom() } });
-    boxGeometry.setHorizontalMargin({ renderInline.marginLeft(), renderInline.marginRight() });
+    // Check if this renderer is part of a continuation and adjust horizontal margin/border/padding accordingly.
+    auto shouldNotRetainBorderPaddingAndMarginStart = renderInline.parent()->isAnonymousBlock() && renderInline.isContinuation();
+    auto shouldNotRetainBorderPaddingAndMarginEnd = renderInline.parent()->isAnonymousBlock() && !renderInline.isContinuation() && renderInline.inlineContinuation();
+    
+    auto horizontalMargin = Layout::BoxGeometry::HorizontalMargin { shouldNotRetainBorderPaddingAndMarginStart ? 0_lu : renderInline.marginLeft(), shouldNotRetainBorderPaddingAndMarginEnd ? 0_lu : renderInline.marginRight() };
+    auto horizontalBorder = Layout::HorizontalEdges { shouldNotRetainBorderPaddingAndMarginStart ? 0_lu : renderInline.borderLeft(), shouldNotRetainBorderPaddingAndMarginEnd ? 0_lu : renderInline.borderRight() };
+    auto horizontalPadding = Layout::HorizontalEdges { shouldNotRetainBorderPaddingAndMarginStart ? 0_lu : renderInline.paddingLeft(), shouldNotRetainBorderPaddingAndMarginEnd ? 0_lu : renderInline.paddingRight() };
+    
+    boxGeometry.setPadding(Layout::Edges { horizontalPadding, { renderInline.paddingTop(), renderInline.paddingBottom() } });
+    boxGeometry.setBorder({ horizontalBorder, { renderInline.borderTop(), renderInline.borderBottom() } });
+    boxGeometry.setHorizontalMargin(horizontalMargin);
     boxGeometry.setVerticalMargin({ });
 }
 
@@ -197,18 +216,18 @@ void LineLayout::layout()
 
     auto invalidationState = Layout::InvalidationState { };
     auto horizontalConstraints = Layout::HorizontalConstraints { flow().borderAndPaddingStart(), flow().contentSize().width() };
-    auto verticalConstraints = Layout::VerticalConstraints { flow().borderAndPaddingBefore(), { } };
 
-    inlineFormattingContext.lineLayoutForIntergration(invalidationState, { horizontalConstraints, verticalConstraints });
+    inlineFormattingContext.lineLayoutForIntergration(invalidationState, { horizontalConstraints, flow().borderAndPaddingBefore() });
 
     constructContent();
 }
 
 void LineLayout::constructContent()
 {
-    auto inlineContentBuilder = InlineContentBuilder { m_layoutState, flow(), m_boxTree };
-    inlineContentBuilder.build(m_inlineFormattingState, ensureInlineContent());
+    auto inlineFormattingContext = Layout::InlineFormattingContext { rootLayoutBox(), m_inlineFormattingState };
 
+    auto inlineContentBuilder = InlineContentBuilder { m_layoutState, flow(), m_boxTree };
+    inlineContentBuilder.build(inlineFormattingContext, ensureInlineContent());
     ASSERT(m_inlineContent);
 
     for (auto& run : m_inlineContent->runs) {
@@ -231,7 +250,7 @@ void LineLayout::prepareLayoutState()
 
     auto& rootGeometry = m_layoutState.ensureGeometryForBox(rootLayoutBox());
     rootGeometry.setContentBoxWidth(flow().contentSize().width());
-    rootGeometry.setPadding({ { } });
+    rootGeometry.setPadding({ });
     rootGeometry.setBorder({ });
     rootGeometry.setHorizontalMargin({ });
     rootGeometry.setVerticalMargin({ });
@@ -327,7 +346,7 @@ void LineLayout::collectOverflow()
 {
     for (auto& line : inlineContent()->lines) {
         flow().addLayoutOverflow(Layout::toLayoutRect(line.scrollableOverflow()));
-        if (!flow().hasOverflowClip())
+        if (!flow().hasNonVisibleOverflow())
             flow().addVisualOverflow(Layout::toLayoutRect(line.inkOverflow()));
     }
 }
@@ -345,7 +364,7 @@ TextRunIterator LineLayout::textRunsFor(const RenderText& renderText) const
         return { };
     auto& layoutBox = m_boxTree.layoutBoxForRenderer(renderText);
 
-    auto firstIndex = [&]() -> Optional<size_t> {
+    auto firstIndex = [&]() -> std::optional<size_t> {
         for (size_t i = 0; i < m_inlineContent->runs.size(); ++i) {
             if (&m_inlineContent->runs[i].layoutBox() == &layoutBox)
                 return i;
@@ -395,8 +414,16 @@ LayoutRect LineLayout::enclosingBorderBoxRectFor(const RenderInline& renderInlin
     if (!m_inlineContent)
         return { };
 
-    auto boxGeometry = m_inlineFormattingState.boxGeometry(m_boxTree.layoutBoxForRenderer(renderInline));
-    return { Layout::BoxGeometry::borderBoxTopLeft(boxGeometry), boxGeometry.contentBox().size() };
+    if (m_inlineContent->runs.isEmpty())
+        return { };
+
+    return Layout::BoxGeometry::borderBoxRect(m_inlineFormattingState.boxGeometry(m_boxTree.layoutBoxForRenderer(renderInline)));
+}
+
+LayoutRect LineLayout::visualOverflowBoundingBoxRectFor(const RenderInline& renderInline) const
+{
+    // FIXME: This doesn't contain overflow.
+    return enclosingBorderBoxRectFor(renderInline);
 }
 
 const RenderObject& LineLayout::rendererForLayoutBox(const Layout::Box& layoutBox) const
@@ -468,7 +495,7 @@ void LineLayout::paint(PaintInfo& paintInfo, const LayoutPoint& paintOffset)
         // TextRun expects the xPos to be adjusted with the aligment offset (e.g. when the line is center aligned
         // and the run starts at 100px, due to the horizontal aligment, the xpos is supposed to be at 0px).
         auto& fontCascade = style.fontCascade();
-        auto xPos = rect.x() - (line.lineBoxLeft() + line.contentLeftOffset());
+        auto xPos = rect.x() - (line.lineBoxLeft() + line.contentLeft());
         WebCore::TextRun textRun { textContent.renderedContent(), xPos, expansion.horizontalExpansion, expansion.behavior };
         textRun.setTabSize(!style.collapseWhiteSpace(), style.tabSize());
 
@@ -501,15 +528,15 @@ bool LineLayout::hitTest(const HitTestRequest& request, HitTestResult& result, c
 
     // FIXME: This should do something efficient to find the run range.
     for (auto& run : WTF::makeReversedRange(inlineContent.runs)) {
-        auto runRect = Layout::toLayoutRect(run.rect());
-        runRect.moveBy(accumulatedOffset);
-
-        if (!locationInContainer.intersects(runRect))
-            continue;
-
         auto& renderer = m_boxTree.rendererForLayoutBox(run.layoutBox());
 
         if (is<RenderText>(renderer)) {
+            auto runRect = Layout::toLayoutRect(run.rect());
+            runRect.moveBy(accumulatedOffset);
+
+            if (!locationInContainer.intersects(runRect))
+                continue;
+            
             auto& style = run.style();
             if (style.visibility() != Visibility::Visible || style.pointerEvents() == PointerEvents::None)
                 continue;
@@ -530,6 +557,24 @@ bool LineLayout::hitTest(const HitTestRequest& request, HitTestResult& result, c
                 return true;
             }
         }
+    }
+
+    for (auto& inlineBox : WTF::makeReversedRange(inlineContent.nonRootInlineBoxes)) {
+        auto inlineBoxRect = Layout::toLayoutRect(inlineBox.rect());
+        inlineBoxRect.moveBy(accumulatedOffset);
+
+        if (!locationInContainer.intersects(inlineBoxRect))
+            continue;
+
+        auto& style = inlineBox.style();
+        if (style.visibility() != Visibility::Visible || style.pointerEvents() == PointerEvents::None)
+            continue;
+
+        auto& renderer = m_boxTree.rendererForLayoutBox(inlineBox.layoutBox());
+
+        renderer.updateHitTestResult(result, locationInContainer.point() - toLayoutSize(accumulatedOffset));
+        if (result.addNodeToListBasedTestResult(renderer.nodeForHitTest(), request, locationInContainer, inlineBoxRect) == HitTestProgress::Stop)
+            return true;
     }
 
     return false;

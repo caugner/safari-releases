@@ -62,12 +62,17 @@ typedef int SandboxFlags;
 
 class SecurityContext {
 public:
+    // https://html.spec.whatwg.org/multipage/origin.html#determining-the-creation-sandboxing-flags
+    SandboxFlags creationSandboxFlags() const { return m_creationSandboxFlags; }
+
     SandboxFlags sandboxFlags() const { return m_sandboxFlags; }
     ContentSecurityPolicy* contentSecurityPolicy() { return m_contentSecurityPolicy.get(); }
 
     bool isSecureTransitionTo(const URL&) const;
 
-    void enforceSandboxFlags(SandboxFlags mask);
+    enum class SandboxFlagsSource : bool { CSP, Other };
+    void enforceSandboxFlags(SandboxFlags, SandboxFlagsSource = SandboxFlagsSource::Other);
+
     bool isSandboxed(SandboxFlags mask) const { return m_sandboxFlags & mask; }
 
     SecurityOriginPolicy* securityOriginPolicy() const { return m_securityOriginPolicy.get(); }
@@ -108,6 +113,8 @@ public:
     // the Secure Context spec: https://w3c.github.io/webappsec-secure-contexts/#settings-object (Editor's Draft, 17 November 2016)
     virtual bool isSecureContext() const = 0;
 
+    bool haveInitializedSecurityOrigin() const { return m_haveInitializedSecurityOrigin; }
+
 protected:
     SecurityContext();
     virtual ~SecurityContext();
@@ -117,11 +124,13 @@ protected:
     void disableSandboxFlags(SandboxFlags mask) { m_sandboxFlags &= ~mask; }
 
     void didFailToInitializeSecurityOrigin() { m_haveInitializedSecurityOrigin = false; }
-    bool haveInitializedSecurityOrigin() const { return m_haveInitializedSecurityOrigin; }
 
 private:
+    void addSandboxFlags(SandboxFlags);
+
     RefPtr<SecurityOriginPolicy> m_securityOriginPolicy;
     std::unique_ptr<ContentSecurityPolicy> m_contentSecurityPolicy;
+    SandboxFlags m_creationSandboxFlags { SandboxNone };
     SandboxFlags m_sandboxFlags { SandboxNone };
     OptionSet<MixedContentType> m_mixedContentTypes;
     bool m_haveInitializedSecurityOrigin { false };

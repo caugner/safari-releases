@@ -25,7 +25,9 @@
 #include <glib.h>
 #include <seccomp.h>
 #include <sys/ioctl.h>
+#include <unistd.h>
 #include <wtf/FileSystem.h>
+#include <wtf/UniStdExtras.h>
 #include <wtf/glib/GLibUtilities.h>
 #include <wtf/glib/GRefPtr.h>
 #include <wtf/glib/GUniquePtr.h>
@@ -128,6 +130,30 @@ argsToFd(const Vector<CString>& args, const char *name)
     return memfd;
 }
 
+static int createFlatpakInfo()
+{
+    static NeverDestroyed<GUniquePtr<char>> data;
+    static size_t size;
+
+    if (!data.get()) {
+        // xdg-desktop-portal relates your name to certain permissions so we want
+        // them to be application unique which is best done via GApplication.
+        GApplication* app = g_application_get_default();
+        if (!app)
+            g_error("GApplication is required for xdg-desktop-portal access in the WebKit sandbox.");
+
+        const char* appID = g_application_get_application_id(app);
+        if (!appID)
+            g_error("GApplication must have a valid ID for xdg-desktop-portal access in the WebKit sandbox.");
+
+        GUniquePtr<GKeyFile> keyFile(g_key_file_new());
+        g_key_file_set_string(keyFile.get(), "Application", "name", appID);
+        data->reset(g_key_file_to_data(keyFile.get(), &size, nullptr));
+    }
+
+    return createSealedMemFdWithData("flatpak-info", data->get(), size);
+}
+
 enum class DBusAddressType {
     Normal,
     Abstract,
@@ -158,7 +184,7 @@ public:
         m_permissions = WTFMove(permissions);
     };
 
-    void launch()
+    void launch(bool enableLogging)
     {
         RELEASE_ASSERT_WITH_SECURITY_IMPLICATION(!isRunning());
 
@@ -166,8 +192,9 @@ public:
             return;
 
         int syncFds[2];
-        if (pipe2(syncFds, O_CLOEXEC) == -1)
+        if (pipe(syncFds) == -1)
             g_error("Failed to make syncfds for dbus-proxy: %s", g_strerror(errno));
+        setCloseOnExec(syncFds[0]);
 
         GUniquePtr<char> syncFdStr(g_strdup_printf("--fd=%d", syncFds[1]));
 
@@ -177,7 +204,7 @@ public:
             syncFdStr.get(),
         };
 
-        if (!g_strcmp0(g_getenv("WEBKIT_ENABLE_DBUS_PROXY_LOGGING"), "1"))
+        if (enableLogging)
             proxyArgs.append("--log");
 
         proxyArgs.appendVector(m_permissions);
@@ -185,6 +212,9 @@ public:
         int proxyFd = argsToFd(proxyArgs, "dbus-proxy");
         GUniquePtr<char> proxyArgsStr(g_strdup_printf("--args=%d", proxyFd));
 
+        // We have to run xdg-dbus-proxy under bubblewrap because we need /.flatpak-info to exist in
+        // xdg-dbus-proxy's mount namespace. Portals may use this as a trusted way to get the
+        // sandboxed process's application ID, and will break if it's missing.
         Vector<CString> args = {
             DBUS_PROXY_EXECUTABLE,
             proxyArgsStr.get(),
@@ -198,14 +228,16 @@ public:
         argv[i] = nullptr;
 
         GRefPtr<GSubprocessLauncher> launcher = adoptGRef(g_subprocess_launcher_new(G_SUBPROCESS_FLAGS_INHERIT_FDS));
-        g_subprocess_launcher_set_child_setup(launcher.get(), childSetupFunc, GINT_TO_POINTER(syncFds[1]), nullptr);
         g_subprocess_launcher_take_fd(launcher.get(), proxyFd, proxyFd);
         g_subprocess_launcher_take_fd(launcher.get(), syncFds[1], syncFds[1]);
+
         // We are purposefully leaving syncFds[0] open here.
         // xdg-dbus-proxy will exit() itself once that is closed on our exit
 
+        ProcessLauncher::LaunchOptions launchOptions;
+        launchOptions.processType = ProcessLauncher::ProcessType::DBusProxy;
         GUniqueOutPtr<GError> error;
-        GRefPtr<GSubprocess> process = adoptGRef(g_subprocess_launcher_spawnv(launcher.get(), argv, &error.outPtr()));
+        GRefPtr<GSubprocess> process = bubblewrapSpawn(launcher.get(), launchOptions, argv, &error.outPtr());
         if (!process.get())
             g_error("Failed to start dbus proxy: %s", error->message);
 
@@ -219,12 +251,6 @@ public:
     };
 
 private:
-    static void childSetupFunc(gpointer userdata)
-    {
-        int fd = GPOINTER_TO_INT(userdata);
-        fcntl(fd, F_SETFD, 0); // Unset CLOEXEC
-    }
-
     static CString makeProxyPath(const char* appRunDir)
     {
         if (g_mkdir_with_parents(appRunDir, 0700) == -1) {
@@ -303,6 +329,7 @@ static void bindDBusSession(Vector<CString>& args, XDGDBusProxyLauncher& proxy)
     }
 }
 
+#if PLATFORM(X11)
 static void bindX11(Vector<CString>& args)
 {
     const char* display = g_getenv("DISPLAY");
@@ -325,13 +352,11 @@ static void bindX11(Vector<CString>& args)
     } else
         bindIfExists(args, xauth);
 }
+#endif
 
 #if PLATFORM(WAYLAND) && USE(EGL)
 static void bindWayland(Vector<CString>& args)
 {
-    if (PlatformDisplay::sharedDisplay().type() != PlatformDisplay::Type::Wayland)
-        return;
-
     const char* display = g_getenv("WAYLAND_DISPLAY");
     if (!display)
         display = "wayland-0";
@@ -481,7 +506,7 @@ static void bindA11y(Vector<CString>& args)
             "--call=org.a11y.atspi.Registry=org.a11y.atspi.DeviceEventController.NotifyListenersAsync@/org/a11y/atspi/registry/deviceeventcontroller",
         });
 
-        proxy.launch();
+        proxy.launch(!g_strcmp0(g_getenv("WEBKIT_ENABLE_A11Y_DBUS_PROXY_LOGGING"), "1"));
     }
 
     if (proxy.proxyPath().data()) {
@@ -559,6 +584,8 @@ static void bindV4l(Vector<CString>& args)
         // Not pretty but a stop-gap for pipewire anyway.
         "--dev-bind-try", "/dev/video0", "/dev/video0",
         "--dev-bind-try", "/dev/video1", "/dev/video1",
+        "--dev-bind-try", "/dev/video2", "/dev/video2",
+        "--dev-bind-try", "/dev/media0", "/dev/media0",
     }));
 }
 
@@ -692,28 +719,27 @@ static int setupSeccomp()
     return tmpfd;
 }
 
-static int createFlatpakInfo()
+static bool shouldUnshareNetwork(ProcessLauncher::ProcessType processType)
 {
-    GUniquePtr<GKeyFile> keyFile(g_key_file_new());
+    // xdg-dbus-proxy needs access to host abstract sockets to connect to the a11y bus. Secure
+    // host services must not use abstract sockets.
+    if (processType == ProcessLauncher::ProcessType::DBusProxy)
+        return false;
 
-    // xdg-desktop-portal relates your name to certain permissions so we want
-    // them to be application unique which is best done via GApplication.
-    GApplication* app = g_application_get_default();
-    if (!app) {
-        g_warning("GApplication is required for xdg-desktop-portal access in the WebKit sandbox. Actions that require xdg-desktop-portal will be broken.");
-        return -1;
+#if PLATFORM(X11)
+    // Also, the web process needs access to host networking if the X server is running over TCP or
+    // on a different host's Unix socket; this is likely the case if the first character of DISPLAY
+    // is not a colon.
+    if (processType == ProcessLauncher::ProcessType::Web && PlatformDisplay::sharedDisplay().type() == PlatformDisplay::Type::X11) {
+        const char* display = g_getenv("DISPLAY");
+        if (display && display[0] != ':')
+            return false;
     }
-    g_key_file_set_string(keyFile.get(), "Application", "name", g_application_get_application_id(app));
+#endif
 
-    size_t size;
-    GUniqueOutPtr<GError> error;
-    GUniquePtr<char> data(g_key_file_to_data(keyFile.get(), &size, &error.outPtr()));
-    if (error.get()) {
-        g_warning("%s", error->message);
-        return -1;
-    }
-
-    return createSealedMemFdWithData("flatpak-info", data.get(), size);
+    // Otherwise, only the network process should have network access. If we are the network
+    // process, then we are not sandboxed and have already bailed out before this point.
+    return true;
 }
 
 GRefPtr<GSubprocess> bubblewrapSpawn(GSubprocessLauncher* launcher, const ProcessLauncher::LaunchOptions& launchOptions, char** argv, GError **error)
@@ -726,11 +752,11 @@ GRefPtr<GSubprocess> bubblewrapSpawn(GSubprocessLauncher* launcher, const Proces
     if (launchOptions.processType == ProcessLauncher::ProcessType::Network)
         return adoptGRef(g_subprocess_launcher_spawnv(launcher, argv, error));
 
+    const char* runDir = g_get_user_runtime_dir();
     Vector<CString> sandboxArgs = {
         "--die-with-parent",
         "--unshare-pid",
         "--unshare-uts",
-        "--unshare-net",
 
         // We assume /etc has safe permissions.
         // At a later point we can start masking privacy-concerning files.
@@ -739,7 +765,8 @@ GRefPtr<GSubprocess> bubblewrapSpawn(GSubprocessLauncher* launcher, const Proces
         "--proc", "/proc",
         "--tmpfs", "/tmp",
         "--unsetenv", "TMPDIR",
-        "--dir", "/run",
+        "--dir", runDir,
+        "--setenv", "XDG_RUNTIME_DIR", runDir,
         "--symlink", "../run", "/var/run",
         "--symlink", "../tmp", "/var/tmp",
         "--ro-bind", "/sys/block", "/sys/block",
@@ -758,12 +785,32 @@ GRefPtr<GSubprocess> bubblewrapSpawn(GSubprocessLauncher* launcher, const Proces
         "--ro-bind-try", "/usr/lib", "/usr/lib",
         "--ro-bind-try", "/usr/local/lib", "/usr/local/lib",
         "--ro-bind-try", LIBDIR, LIBDIR,
+#if CPU(ADDRESS64)
         "--ro-bind-try", "/lib64", "/lib64",
         "--ro-bind-try", "/usr/lib64", "/usr/lib64",
         "--ro-bind-try", "/usr/local/lib64", "/usr/local/lib64",
+#else
+        "--ro-bind-try", "/lib32", "/lib32",
+        "--ro-bind-try", "/usr/lib32", "/usr/lib32",
+        "--ro-bind-try", "/usr/local/lib32", "/usr/local/lib32",
+#endif
 
         "--ro-bind-try", PKGLIBEXECDIR, PKGLIBEXECDIR,
     };
+
+    if (launchOptions.processType == ProcessLauncher::ProcessType::DBusProxy) {
+        sandboxArgs.appendVector(Vector<CString>({
+            "--ro-bind", DBUS_PROXY_EXECUTABLE, DBUS_PROXY_EXECUTABLE,
+            // This is a lot of access, but xdg-dbus-proxy is trusted so that's OK. It's sandboxed
+            // only because we have to mount .flatpak-info in its mount namespace. The user rundir
+            // is where we mount our proxy socket.
+            "--bind", runDir, runDir,
+        }));
+    }
+
+    if (shouldUnshareNetwork(launchOptions.processType))
+        sandboxArgs.append("--unshare-net");
+
     // We would have to parse ld config files for more info.
     bindPathVar(sandboxArgs, "LD_LIBRARY_PATH");
 
@@ -796,14 +843,16 @@ GRefPtr<GSubprocess> bubblewrapSpawn(GSubprocessLauncher* launcher, const Proces
     if (launchOptions.processType == ProcessLauncher::ProcessType::Web) {
         static XDGDBusProxyLauncher proxy;
 
-        // If Wayland in use don't grant X11
 #if PLATFORM(WAYLAND) && USE(EGL)
         if (PlatformDisplay::sharedDisplay().type() == PlatformDisplay::Type::Wayland) {
             bindWayland(sandboxArgs);
             sandboxArgs.append("--unshare-ipc");
-        } else
+        }
 #endif
+#if PLATFORM(X11)
+        if (PlatformDisplay::sharedDisplay().type() == PlatformDisplay::Type::X11)
             bindX11(sandboxArgs);
+#endif
 
         for (const auto& pathAndPermission : launchOptions.extraWebProcessSandboxPaths) {
             sandboxArgs.appendVector(Vector<CString>({
@@ -843,7 +892,7 @@ GRefPtr<GSubprocess> bubblewrapSpawn(GSubprocessLauncher* launcher, const Proces
                 permissions.append("--talk=org.freedesktop.portal.Desktop");
             }
             proxy.setPermissions(WTFMove(permissions));
-            proxy.launch();
+            proxy.launch(!g_strcmp0(g_getenv("WEBKIT_ENABLE_DBUS_PROXY_LOGGING"), "1"));
         }
     } else {
         // Only X11 users need this for XShm which is only the Web process.
@@ -853,14 +902,14 @@ GRefPtr<GSubprocess> bubblewrapSpawn(GSubprocessLauncher* launcher, const Proces
 #if ENABLE(DEVELOPER_MODE)
     const char* execDirectory = g_getenv("WEBKIT_EXEC_PATH");
     if (execDirectory) {
-        String parentDir = FileSystem::directoryName(FileSystem::stringFromFileSystemRepresentation(execDirectory));
+        String parentDir = FileSystem::parentPath(FileSystem::stringFromFileSystemRepresentation(execDirectory));
         bindIfExists(sandboxArgs, parentDir.utf8().data());
     }
 
     CString executablePath = getCurrentExecutablePath();
     if (!executablePath.isNull()) {
         // Our executable is `/foo/bar/bin/Process`, we want `/foo/bar` as a usable prefix
-        String parentDir = FileSystem::directoryName(FileSystem::directoryName(FileSystem::stringFromFileSystemRepresentation(executablePath.data())));
+        String parentDir = FileSystem::parentPath(FileSystem::parentPath(FileSystem::stringFromFileSystemRepresentation(executablePath.data())));
         bindIfExists(sandboxArgs, parentDir.utf8().data());
     }
 #endif

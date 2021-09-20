@@ -114,7 +114,7 @@ public:
     void stepOutOfFunction();
 
     enum class BlackboxType { Deferred, Ignored };
-    void setBlackboxType(SourceID, Optional<BlackboxType>);
+    void setBlackboxType(SourceID, std::optional<BlackboxType>);
     void clearBlackbox();
 
     bool isPaused() const { return m_isPaused; }
@@ -144,7 +144,9 @@ public:
     public:
         virtual ~Client() = default;
 
-        virtual JSObject* scopeExtensionObject(Debugger&, JSGlobalObject*, DebuggerCallFrame&) { return nullptr; }
+        virtual JSObject* debuggerScopeExtensionObject(Debugger&, JSGlobalObject*, DebuggerCallFrame&) { return nullptr; }
+        virtual void debuggerWillEvaluate(Debugger&, const Breakpoint::Action&) { }
+        virtual void debuggerDidEvaluate(Debugger&, const Breakpoint::Action&) { }
     };
 
     void setClient(Client*);

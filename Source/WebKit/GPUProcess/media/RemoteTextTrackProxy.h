@@ -34,6 +34,7 @@
 #include <WebCore/MediaPlayerIdentifier.h>
 #include <WebCore/TrackBase.h>
 #include <wtf/Ref.h>
+#include <wtf/WeakPtr.h>
 
 namespace IPC {
 class Connection;
@@ -47,8 +48,7 @@ struct TextTrackPrivateRemoteConfiguration;
 
 class RemoteTextTrackProxy final
     : public ThreadSafeRefCounted<RemoteTextTrackProxy, WTF::DestructionThread::Main>
-    , private WebCore::InbandTextTrackPrivateClient
-    , private IPC::MessageReceiver {
+    , private WebCore::InbandTextTrackPrivateClient {
 public:
     static Ref<RemoteTextTrackProxy> create(GPUConnectionToWebProcess& connectionToWebProcess, TrackPrivateRemoteIdentifier identifier, WebCore::InbandTextTrackPrivate& trackPrivate, WebCore::MediaPlayerIdentifier mediaPlayerIdentifier)
     {
@@ -58,6 +58,7 @@ public:
     virtual ~RemoteTextTrackProxy();
 
     TrackPrivateRemoteIdentifier identifier() const { return m_identifier; }
+    void setMode(WebCore::InbandTextTrackPrivate::Mode mode) { m_trackPrivate->setMode(mode); }
 
 private:
     RemoteTextTrackProxy(GPUConnectionToWebProcess&, TrackPrivateRemoteIdentifier, WebCore::InbandTextTrackPrivate&, WebCore::MediaPlayerIdentifier);
@@ -76,7 +77,7 @@ private:
     virtual void removeGenericCue(WebCore::InbandGenericCue&);
 
     virtual void parseWebVTTFileHeader(String&&);
-    virtual void parseWebVTTCueData(const char* data, unsigned length);
+    virtual void parseWebVTTCueData(const uint8_t* data, unsigned length);
     virtual void parseWebVTTCueData(WebCore::ISOWebVTTCue&&);
 
     // TrackPrivateBaseClient
@@ -85,13 +86,10 @@ private:
     void languageChanged(const AtomString&) final;
     void willRemove() final;
 
-    void didReceiveMessage(IPC::Connection&, IPC::Decoder&) final;
-    void setMode(WebCore::InbandTextTrackPrivate::Mode mode) { m_trackPrivate->setMode(mode); }
-
     TextTrackPrivateRemoteConfiguration& configuration();
     void configurationChanged();
 
-    GPUConnectionToWebProcess& m_connectionToWebProcess;
+    WeakPtr<GPUConnectionToWebProcess> m_connectionToWebProcess;
     TrackPrivateRemoteIdentifier m_identifier;
     Ref<WebCore::InbandTextTrackPrivate> m_trackPrivate;
     WebCore::MediaPlayerIdentifier m_mediaPlayerIdentifier;

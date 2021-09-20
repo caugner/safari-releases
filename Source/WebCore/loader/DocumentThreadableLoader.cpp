@@ -40,10 +40,11 @@
 #include "CrossOriginPreflightResultCache.h"
 #include "DOMWindow.h"
 #include "Document.h"
+#include "DocumentLoader.h"
 #include "Frame.h"
+#include "FrameLoader.h"
 #include "InspectorInstrumentation.h"
 #include "LegacySchemeRegistry.h"
-#include "LoadTiming.h"
 #include "LoaderStrategy.h"
 #include "MixedContentChecker.h"
 #include "Performance.h"
@@ -222,7 +223,7 @@ void DocumentThreadableLoader::makeCrossOriginAccessRequest(ResourceRequest&& re
             return;
 
         m_simpleRequest = false;
-        if (CrossOriginPreflightResultCache::singleton().canSkipPreflight(securityOrigin().toString(), request.url(), m_options.storedCredentialsPolicy, request.httpMethod(), request.httpHeaderFields()))
+        if (auto* page = document().page(); page && CrossOriginPreflightResultCache::singleton().canSkipPreflight(page->sessionID(), securityOrigin().toString(), request.url(), m_options.storedCredentialsPolicy, request.httpMethod(), request.httpHeaderFields()))
             preflightSuccess(WTFMove(request));
         else
             makeCrossOriginAccessRequestWithPreflight(WTFMove(request));
@@ -300,7 +301,7 @@ void DocumentThreadableLoader::clearResource()
         resource->removeClient(*this);
     }
     if (m_preflightChecker)
-        m_preflightChecker = WTF::nullopt;
+        m_preflightChecker = std::nullopt;
 }
 
 void DocumentThreadableLoader::redirectReceived(CachedResource& resource, ResourceRequest&& request, const ResourceResponse& redirectResponse, CompletionHandler<void(ResourceRequest&&)>&& completionHandler)
@@ -424,13 +425,13 @@ void DocumentThreadableLoader::didReceiveResponse(unsigned long identifier, cons
     m_client->didReceiveResponse(identifier, response);
 }
 
-void DocumentThreadableLoader::dataReceived(CachedResource& resource, const char* data, int dataLength)
+void DocumentThreadableLoader::dataReceived(CachedResource& resource, const uint8_t* data, int dataLength)
 {
     ASSERT_UNUSED(resource, &resource == m_resource);
     didReceiveData(m_resource->identifier(), data, dataLength);
 }
 
-void DocumentThreadableLoader::didReceiveData(unsigned long, const char* data, int dataLength)
+void DocumentThreadableLoader::didReceiveData(unsigned long, const uint8_t* data, int dataLength)
 {
     ASSERT(m_client);
 
@@ -480,14 +481,20 @@ void DocumentThreadableLoader::didFinishLoading(unsigned long identifier)
 
         if (options().filteringPolicy == ResponseFilteringPolicy::Disable) {
             m_client->didReceiveResponse(identifier, response);
-            if (m_resource->resourceBuffer())
-                m_client->didReceiveData(m_resource->resourceBuffer()->data(), m_resource->resourceBuffer()->size());
+            if (auto* buffer = m_resource->resourceBuffer()) {
+                buffer->forEachSegment([&](auto& segment) {
+                    m_client->didReceiveData(segment.data(), segment.size());
+                });
+            }
         } else {
             ASSERT(response.type() == ResourceResponse::Type::Default);
 
             m_client->didReceiveResponse(identifier, ResourceResponse::filter(response, m_options.credentials == FetchOptions::Credentials::Include ? ResourceResponse::PerformExposeAllHeadersCheck::No : ResourceResponse::PerformExposeAllHeadersCheck::Yes));
-            if (m_resource->resourceBuffer())
-                m_client->didReceiveData(m_resource->resourceBuffer()->data(), m_resource->resourceBuffer()->size());
+            if (auto* buffer = m_resource->resourceBuffer()) {
+                buffer->forEachSegment([&](auto& segment) {
+                    m_client->didReceiveData(segment.data(), segment.size());
+                });
+            }
         }
     }
 
@@ -504,7 +511,7 @@ void DocumentThreadableLoader::didFail(unsigned long, const ResourceError& error
         m_options.serviceWorkersMode = ServiceWorkersMode::None;
         makeCrossOriginAccessRequestWithPreflight(WTFMove(m_bypassingPreflightForServiceWorkerRequest.value()));
         ASSERT(m_bypassingPreflightForServiceWorkerRequest->isNull());
-        m_bypassingPreflightForServiceWorkerRequest = WTF::nullopt;
+        m_bypassingPreflightForServiceWorkerRequest = std::nullopt;
         return;
     }
 #endif
@@ -520,7 +527,7 @@ void DocumentThreadableLoader::preflightSuccess(ResourceRequest&& request)
     ResourceRequest actualRequest(WTFMove(request));
     updateRequestForAccessControl(actualRequest, securityOrigin(), m_options.storedCredentialsPolicy);
 
-    m_preflightChecker = WTF::nullopt;
+    m_preflightChecker = std::nullopt;
 
     // It should be ok to skip the security check since we already asked about the preflight request.
     loadRequest(WTFMove(actualRequest), SecurityCheckPolicy::SkipSecurityCheck);
@@ -528,7 +535,7 @@ void DocumentThreadableLoader::preflightSuccess(ResourceRequest&& request)
 
 void DocumentThreadableLoader::preflightFailure(unsigned long identifier, const ResourceError& error)
 {
-    m_preflightChecker = WTF::nullopt;
+    m_preflightChecker = std::nullopt;
 
     InspectorInstrumentation::didFailLoading(m_document.frame(), m_document.frame()->loader().documentLoader(), identifier, error);
 
@@ -582,8 +589,8 @@ void DocumentThreadableLoader::loadRequest(ResourceRequest&& request, SecurityCh
     // If credentials mode is 'Omit', we should disable cookie sending.
     ASSERT(m_options.credentials != FetchOptions::Credentials::Omit);
 
-    LoadTiming loadTiming;
-    loadTiming.markStartTimeAndFetchStart();
+    ResourceLoadTiming loadTiming;
+    loadTiming.markStartTime();
 
     // FIXME: ThreadableLoaderOptions.sniffContent is not supported for synchronous requests.
     RefPtr<SharedBuffer> data;
@@ -597,7 +604,7 @@ void DocumentThreadableLoader::loadRequest(ResourceRequest&& request, SecurityCh
         identifier = frameLoader.loadResourceSynchronously(request, m_options.clientCredentialPolicy, m_options, *m_originalHeaders, error, response, data);
     }
 
-    loadTiming.setResponseEnd(MonotonicTime::now());
+    loadTiming.markEndTime();
 
     if (!error.isNull() && response.httpStatusCode() <= 0) {
         if (requestURL.isLocalFile()) {
@@ -648,16 +655,14 @@ void DocumentThreadableLoader::loadRequest(ResourceRequest&& request, SecurityCh
     }
     didReceiveResponse(identifier, response);
 
-    if (data)
-        didReceiveData(identifier, data->data(), data->size());
+    if (data) {
+        data->forEachSegment([&](auto& segment) {
+            didReceiveData(identifier, segment.data(), segment.size());
+        });
+    }
 
     const auto* timing = response.deprecatedNetworkLoadMetricsOrNull();
-    Optional<NetworkLoadMetrics> empty;
-    if (!timing) {
-        empty.emplace();
-        timing = &empty.value();
-    }
-    auto resourceTiming = ResourceTiming::fromSynchronousLoad(requestURL, m_options.initiator, loadTiming, *timing, response, securityOrigin());
+    auto resourceTiming = ResourceTiming::fromSynchronousLoad(requestURL, m_options.initiator, loadTiming, timing ? *timing : NetworkLoadMetrics { }, response, securityOrigin());
     if (options().initiatorContext == InitiatorContext::Worker)
         finishedTimingForWorkerLoad(resourceTiming);
     else {

@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2020 Igalia S.L.
+ * Copyright (C) 2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -26,15 +27,30 @@
 #include "config.h"
 #include "JSResizeObserver.h"
 
+#include "Element.h"
+#include "JSNodeCustom.h"
 #include <JavaScriptCore/JSCInlines.h>
 
 namespace WebCore {
 
-void JSResizeObserver::visitAdditionalChildren(JSC::SlotVisitor& visitor)
+template<typename Visitor>
+void JSResizeObserver::visitAdditionalChildren(Visitor& visitor)
 {
     ResizeObserverCallback* callback = wrapped().callbackConcurrently();
     if (callback)
         callback->visitJSFunction(visitor);
 }
 
+DEFINE_VISIT_ADDITIONAL_CHILDREN(JSResizeObserver);
+
+bool JSResizeObserverOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, JSC::AbstractSlotVisitor& visitor, const char**reason)
+{
+    if (JSC::jsCast<JSResizeObserver*>(handle.slot()->asCell())->wrapped().isReachableFromOpaqueRoots(visitor)) {
+        if (UNLIKELY(reason))
+            *reason = "Reachable from observed nodes";
+        return true;
+    }
+    return false;
 }
+
+} // namespace WebCore

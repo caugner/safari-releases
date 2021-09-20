@@ -146,7 +146,7 @@ const char* MediaRecorder::activeDOMObjectName() const
     return "MediaRecorder";
 }
 
-ExceptionOr<void> MediaRecorder::startRecording(Optional<unsigned> timeSlice)
+ExceptionOr<void> MediaRecorder::startRecording(std::optional<unsigned> timeSlice)
 {
     if (!m_isActive)
         return Exception { InvalidStateError, "The MediaRecorder is not active"_s };
@@ -198,7 +198,7 @@ ExceptionOr<void> MediaRecorder::startRecording(Optional<unsigned> timeSlice)
 
 static inline Ref<BlobEvent> createDataAvailableEvent(ScriptExecutionContext* context, RefPtr<SharedBuffer>&& buffer, const String& mimeType, double timeCode)
 {
-    auto blob = buffer ? Blob::create(context, buffer.releaseNonNull(), mimeType) : Blob::create(context);
+    auto blob = buffer ? Blob::create(context, buffer->extractData(), mimeType) : Blob::create(context);
     return BlobEvent::create(eventNames().dataavailableEvent, BlobEvent::Init { { false, false, false }, WTFMove(blob), timeCode }, BlobEvent::IsTrusted::Yes);
 }
 
@@ -311,33 +311,38 @@ void MediaRecorder::fetchData(FetchDataCallback&& callback, TakePrivateRecorder 
     });
 }
 
-void MediaRecorder::stopRecordingInternal()
+void MediaRecorder::stopRecordingInternal(CompletionHandler<void()>&& completionHandler)
 {
-    if (state() == RecordingState::Inactive)
+    if (state() == RecordingState::Inactive) {
+        completionHandler();
         return;
+    }
 
     for (auto& track : m_tracks)
         track->removeObserver(*this);
 
     m_state = RecordingState::Inactive;
-    m_private->stop();
+    m_private->stop(WTFMove(completionHandler));
 }
 
 void MediaRecorder::handleTrackChange()
 {
     queueTaskKeepingObjectAlive(*this, TaskSource::Networking, [this] {
-        if (!m_isActive || state() == RecordingState::Inactive)
-            return;
-        stopRecordingInternal();
-        dispatchError(Exception { InvalidModificationError, "Track cannot be added to or removed from the MediaStream while recording"_s });
-        if (!m_isActive)
-            return;
+        stopRecordingInternal([this, pendingActivity = makePendingActivity(*this)] {
+            queueTaskKeepingObjectAlive(*this, TaskSource::Networking, [this] {
+                if (!m_isActive)
+                    return;
+                dispatchError(Exception { InvalidModificationError, "Track cannot be added to or removed from the MediaStream while recording"_s });
 
-        dispatchEvent(createDataAvailableEvent(scriptExecutionContext(), { }, { }, 0));
+                if (!m_isActive)
+                    return;
+                dispatchEvent(createDataAvailableEvent(scriptExecutionContext(), { }, { }, 0));
 
-        if (!m_isActive)
-            return;
-        dispatchEvent(Event::create(eventNames().stopEvent, Event::CanBubble::No, Event::IsCancelable::No));
+                if (!m_isActive)
+                    return;
+                dispatchEvent(Event::create(eventNames().stopEvent, Event::CanBubble::No, Event::IsCancelable::No));
+            });
+        });
     });
 }
 
@@ -357,14 +362,17 @@ void MediaRecorder::trackEnded(MediaStreamTrackPrivate&)
         return;
 
     queueTaskKeepingObjectAlive(*this, TaskSource::Networking, [this] {
-        if (!m_isActive || state() == RecordingState::Inactive)
-            return;
+        stopRecordingInternal([this, pendingActivity = makePendingActivity(*this)] {
+            queueTaskKeepingObjectAlive(*this, TaskSource::Networking, [this] {
+                if (!m_isActive)
+                    return;
+                dispatchEvent(createDataAvailableEvent(scriptExecutionContext(), { }, { }, 0));
 
-        stopRecordingInternal();
-        dispatchEvent(createDataAvailableEvent(scriptExecutionContext(), { }, { }, 0));
-        if (!m_isActive)
-            return;
-        dispatchEvent(Event::create(eventNames().stopEvent, Event::CanBubble::No, Event::IsCancelable::No));
+                if (!m_isActive)
+                    return;
+                dispatchEvent(Event::create(eventNames().stopEvent, Event::CanBubble::No, Event::IsCancelable::No));
+            });
+        });
     });
 }
 

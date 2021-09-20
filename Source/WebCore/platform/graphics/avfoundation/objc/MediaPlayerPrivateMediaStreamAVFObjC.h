@@ -33,14 +33,11 @@
 #include "SampleBufferDisplayLayer.h"
 #include <wtf/Deque.h>
 #include <wtf/Forward.h>
+#include <wtf/Lock.h>
 #include <wtf/LoggerHelper.h>
 
 OBJC_CLASS AVSampleBufferDisplayLayer;
 OBJC_CLASS WebRootSampleBufferBoundsChangeListener;
-
-namespace PAL {
-class Clock;
-}
 
 namespace WebCore {
 
@@ -172,6 +169,8 @@ private:
 
     void scheduleDeferredTask(Function<void ()>&&);
 
+    void layersAreInitialized(IntSize, bool);
+
     enum DisplayMode {
         None,
         PaintItBlack,
@@ -211,8 +210,6 @@ private:
     void setVideoFullscreenLayer(PlatformLayer*, WTF::Function<void()>&& completionHandler) override;
     void setVideoFullscreenFrame(FloatRect) override;
 
-    MediaTime streamTime() const;
-
     AudioSourceProvider* audioSourceProvider() final;
 
     void applicationDidBecomeActive() final;
@@ -224,8 +221,8 @@ private:
     MediaPlayer* m_player { nullptr };
     RefPtr<MediaStreamPrivate> m_mediaStreamPrivate;
     RefPtr<VideoTrackPrivateMediaStream> m_activeVideoTrack;
-    std::unique_ptr<PAL::Clock> m_clock;
 
+    MediaTime m_startTime;
     MediaTime m_pausedTime;
 
     struct CurrentFramePainter {
@@ -247,7 +244,7 @@ private:
     float m_volume { 1 };
     DisplayMode m_displayMode { None };
     PlaybackState m_playbackState { PlaybackState::None };
-    Optional<CGAffineTransform> m_videoTransform;
+    std::optional<CGAffineTransform> m_videoTransform;
 
     // Used on both main thread and sample thread.
     std::unique_ptr<SampleBufferDisplayLayer> m_sampleBufferDisplayLayer;
@@ -267,6 +264,9 @@ private:
     void sampleBufferDisplayLayerStatusDidChange(SampleBufferDisplayLayer&) final;
 
     RetainPtr<WebRootSampleBufferBoundsChangeListener> m_boundsChangeListener;
+
+    Lock m_currentVideoSampleLock;
+    RefPtr<MediaSample> m_currentVideoSample WTF_GUARDED_BY_LOCK(m_currentVideoSampleLock);
 
     bool m_playing { false };
     bool m_muted { false };

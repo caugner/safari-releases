@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2020 Apple Inc. All rights reserved.
+ * Copyright (C) 2011-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -35,6 +35,7 @@ namespace JSC {
 
 class DateInstance;
 class JSBigInt;
+struct UnlinkedStringJumpTable;
 
 namespace DFG {
 
@@ -52,6 +53,8 @@ JSC_DECLARE_JIT_OPERATION(operationObjectGetOwnPropertyNames, JSArray*, (JSGloba
 JSC_DECLARE_JIT_OPERATION(operationObjectGetOwnPropertyNamesObject, JSArray*, (JSGlobalObject*, JSObject*));
 JSC_DECLARE_JIT_OPERATION(operationObjectCreate, JSCell*, (JSGlobalObject*, EncodedJSValue));
 JSC_DECLARE_JIT_OPERATION(operationObjectCreateObject, JSCell*, (JSGlobalObject*, JSObject*));
+JSC_DECLARE_JIT_OPERATION(operationObjectAssignObject, void, (JSGlobalObject*, JSObject*, JSObject*));
+JSC_DECLARE_JIT_OPERATION(operationObjectAssignUntyped, void, (JSGlobalObject*, JSObject*, EncodedJSValue));
 JSC_DECLARE_JIT_OPERATION(operationCreateThis, JSCell*, (JSGlobalObject*, JSObject* constructor, uint32_t inlineCapacity));
 JSC_DECLARE_JIT_OPERATION(operationCreatePromise, JSCell*, (JSGlobalObject*, JSObject* constructor));
 JSC_DECLARE_JIT_OPERATION(operationCreateInternalPromise, JSCell*, (JSGlobalObject*, JSObject* constructor));
@@ -130,6 +133,10 @@ JSC_DECLARE_JIT_OPERATION(operationNewFloat32ArrayWithSize, char*, (JSGlobalObje
 JSC_DECLARE_JIT_OPERATION(operationNewFloat32ArrayWithOneArgument, char*, (JSGlobalObject*, Structure*, EncodedJSValue));
 JSC_DECLARE_JIT_OPERATION(operationNewFloat64ArrayWithSize, char*, (JSGlobalObject*, Structure*, int32_t, char*));
 JSC_DECLARE_JIT_OPERATION(operationNewFloat64ArrayWithOneArgument, char*, (JSGlobalObject*, Structure*, EncodedJSValue));
+JSC_DECLARE_JIT_OPERATION(operationNewBigInt64ArrayWithSize, char*, (JSGlobalObject*, Structure*, int32_t, char*));
+JSC_DECLARE_JIT_OPERATION(operationNewBigInt64ArrayWithOneArgument, char*, (JSGlobalObject*, Structure*, EncodedJSValue));
+JSC_DECLARE_JIT_OPERATION(operationNewBigUint64ArrayWithSize, char*, (JSGlobalObject*, Structure*, int32_t, char*));
+JSC_DECLARE_JIT_OPERATION(operationNewBigUint64ArrayWithOneArgument, char*, (JSGlobalObject*, Structure*, EncodedJSValue));
 JSC_DECLARE_JIT_OPERATION(operationNewArrayIterator, JSCell*, (VM*, Structure*));
 JSC_DECLARE_JIT_OPERATION(operationNewMapIterator, JSCell*, (VM*, Structure*));
 JSC_DECLARE_JIT_OPERATION(operationNewSetIterator, JSCell*, (VM*, Structure*));
@@ -241,6 +248,7 @@ JSC_DECLARE_JIT_OPERATION(operationDoubleToString, char*, (JSGlobalObject*, doub
 JSC_DECLARE_JIT_OPERATION(operationInt32ToStringWithValidRadix, char*, (JSGlobalObject*, int32_t, int32_t));
 JSC_DECLARE_JIT_OPERATION(operationInt52ToStringWithValidRadix, char*, (JSGlobalObject*, int64_t, int32_t));
 JSC_DECLARE_JIT_OPERATION(operationDoubleToStringWithValidRadix, char*, (JSGlobalObject*, double, int32_t));
+JSC_DECLARE_JIT_OPERATION(operationFunctionToString, JSString*, (JSGlobalObject*, JSFunction*));
 
 JSC_DECLARE_JIT_OPERATION(operationNormalizeMapKeyHeapBigInt, EncodedJSValue, (VM*, JSBigInt*));
 JSC_DECLARE_JIT_OPERATION(operationMapHash, UCPUStrictInt32, (JSGlobalObject*, EncodedJSValue input));
@@ -264,8 +272,8 @@ JSC_DECLARE_JIT_OPERATION(operationMakeRope2, JSString*, (JSGlobalObject*, JSStr
 JSC_DECLARE_JIT_OPERATION(operationMakeRope3, JSString*, (JSGlobalObject*, JSString*, JSString*, JSString*));
 JSC_DECLARE_JIT_OPERATION(operationStrCat2, JSString*, (JSGlobalObject*, EncodedJSValue, EncodedJSValue));
 JSC_DECLARE_JIT_OPERATION(operationStrCat3, JSString*, (JSGlobalObject*, EncodedJSValue, EncodedJSValue, EncodedJSValue));
-JSC_DECLARE_JIT_OPERATION(operationFindSwitchImmTargetForDouble, char*, (VM*, EncodedJSValue, size_t tableIndex));
-JSC_DECLARE_JIT_OPERATION(operationSwitchString, char*, (JSGlobalObject*, size_t tableIndex, JSString*));
+JSC_DECLARE_JIT_OPERATION(operationFindSwitchImmTargetForDouble, char*, (VM*, EncodedJSValue, size_t tableIndex, int32_t));
+JSC_DECLARE_JIT_OPERATION(operationSwitchString, char*, (JSGlobalObject*, size_t tableIndex, const UnlinkedStringJumpTable*, JSString*));
 JSC_DECLARE_JIT_OPERATION(operationCompareStringImplLess, uintptr_t, (StringImpl*, StringImpl*));
 JSC_DECLARE_JIT_OPERATION(operationCompareStringImplLessEq, uintptr_t, (StringImpl*, StringImpl*));
 JSC_DECLARE_JIT_OPERATION(operationCompareStringImplGreater, uintptr_t, (StringImpl*, StringImpl*));
@@ -361,6 +369,10 @@ inline auto operationNewTypedArrayWithSizeForType(TypedArrayType type) -> declty
         return operationNewFloat32ArrayWithSize;
     case TypeFloat64:
         return operationNewFloat64ArrayWithSize;
+    case TypeBigInt64:
+        return operationNewBigInt64ArrayWithSize;
+    case TypeBigUint64:
+        return operationNewBigUint64ArrayWithSize;
     case NotTypedArray:
     case TypeDataView:
         break;
@@ -390,6 +402,10 @@ inline auto operationNewTypedArrayWithOneArgumentForType(TypedArrayType type) ->
         return operationNewFloat32ArrayWithOneArgument;
     case TypeFloat64:
         return operationNewFloat64ArrayWithOneArgument;
+    case TypeBigInt64:
+        return operationNewBigInt64ArrayWithOneArgument;
+    case TypeBigUint64:
+        return operationNewBigUint64ArrayWithOneArgument;
     case NotTypedArray:
     case TypeDataView:
         break;

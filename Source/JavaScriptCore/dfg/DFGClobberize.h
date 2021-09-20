@@ -233,6 +233,7 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
     case NumberIsInteger:
     case IsObject:
     case IsTypedArrayView:
+    case ToBoolean:
     case LogicalNot:
     case CheckInBounds:
     case DoubleRep:
@@ -503,8 +504,10 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
     case FilterCallLinkStatus:
     case FilterGetByStatus:
     case FilterPutByIdStatus:
-    case FilterInByIdStatus:
+    case FilterInByStatus:
     case FilterDeleteByStatus:
+    case FilterCheckPrivateBrandStatus:
+    case FilterSetPrivateBrandStatus:
         write(SideState);
         return;
         
@@ -677,6 +680,10 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
     case PutPrivateNameById:
     case GetPrivateName:
     case GetPrivateNameById:
+    // FIXME: We should have a better cloberize rule for both CheckPrivateBrand and SetPrivateBrand
+    // https://bugs.webkit.org/show_bug.cgi?id=221571
+    case CheckPrivateBrand:
+    case SetPrivateBrand:
     case DefineDataProperty:
     case DefineAccessorProperty:
     case DeleteById:
@@ -699,6 +706,8 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
     case ToPropertyKey:
     case InByVal:
     case InById:
+    case HasPrivateName:
+    case HasPrivateBrand:
     case HasOwnProperty:
     case ValueNegate:
     case SetFunctionName:
@@ -914,6 +923,8 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
             return;
             
         case Array::Generic:
+        case Array::BigInt64Array:
+        case Array::BigUint64Array:
             clobberTop();
             return;
             
@@ -1051,6 +1062,8 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
             return;
             
         case Array::Generic:
+        case Array::BigInt64Array:
+        case Array::BigUint64Array:
             clobberTop();
             return;
             
@@ -1666,6 +1679,11 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
         return;
     }
 
+    case ObjectAssign: {
+        clobberTop();
+        return;
+    }
+
     case ObjectCreate: {
         switch (node->child1().useKind()) {
         case ObjectUse:
@@ -1805,6 +1823,10 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
             RELEASE_ASSERT_NOT_REACHED();
             return;
         }
+
+    case FunctionToString:
+        def(PureValue(node));
+        return;
         
     case CountExecution:
     case SuperSamplerBegin:

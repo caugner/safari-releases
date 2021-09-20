@@ -72,7 +72,7 @@ public:
     void dispatchChangeEvent();
     void dispatchFormControlInputEvent();
 
-    bool isDisabledFormControl() const override;
+    bool isDisabledFormControl() const final { return m_disabled || m_disabledByAncestorFieldset; }
 
     bool isEnumeratable() const override { return false; }
 
@@ -100,6 +100,7 @@ public:
     WEBCORE_EXPORT AutocapitalizeType autocapitalizeType() const final;
 #endif
 
+    // "willValidate" means "is a candidate for constraint validation".
     WEBCORE_EXPORT bool willValidate() const final;
     void updateVisibleValidationMessage();
     void hideVisibleValidationMessage();
@@ -124,6 +125,10 @@ public:
     AutofillMantle autofillMantle() const;
 
     WEBCORE_EXPORT AutofillData autofillData() const;
+
+    virtual bool isSubmitButton() const { return false; }
+
+    virtual String resultForDialogSubmit() const { return attributeWithoutSynchronization(HTMLNames::valueAttr); }
 
     using Node::ref;
     using Node::deref;
@@ -153,7 +158,7 @@ protected:
     void dispatchBlurEvent(RefPtr<Element>&& newFocusedElement) override;
 
     // This must be called any time the result of willValidate() has changed.
-    void setNeedsWillValidateCheck();
+    void updateWillValidateAndValidity();
     virtual bool computeWillValidate() const;
 
     bool validationMessageShadowTreeContains(const Node&) const;

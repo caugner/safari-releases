@@ -82,7 +82,7 @@ inline bool isVerticalPiece(ImagePiece piece)
     return piece == LeftPiece || piece == RightPiece || piece == MiddlePiece;
 }
 
-inline Optional<BoxSide> imagePieceHorizontalSide(ImagePiece piece)
+inline std::optional<BoxSide> imagePieceHorizontalSide(ImagePiece piece)
 {
     if (piece == TopLeftPiece || piece == TopPiece || piece == TopRightPiece)
         return BoxSide::Top;
@@ -90,10 +90,10 @@ inline Optional<BoxSide> imagePieceHorizontalSide(ImagePiece piece)
     if (piece == BottomLeftPiece || piece == BottomPiece || piece == BottomRightPiece)
         return BoxSide::Bottom;
 
-    return WTF::nullopt;
+    return std::nullopt;
 }
 
-inline Optional<BoxSide> imagePieceVerticalSide(ImagePiece piece)
+inline std::optional<BoxSide> imagePieceVerticalSide(ImagePiece piece)
 {
     if (piece == TopLeftPiece || piece == LeftPiece || piece == BottomLeftPiece)
         return BoxSide::Left;
@@ -101,7 +101,7 @@ inline Optional<BoxSide> imagePieceVerticalSide(ImagePiece piece)
     if (piece == TopRightPiece || piece == RightPiece || piece == BottomRightPiece)
         return BoxSide::Right;
 
-    return WTF::nullopt;
+    return std::nullopt;
 }
 
 class NinePieceImage {
@@ -198,9 +198,9 @@ private:
         NinePieceImageRule horizontalRule { NinePieceImageRule::Stretch };
         NinePieceImageRule verticalRule { NinePieceImageRule::Stretch };
         RefPtr<StyleImage> image;
-        LengthBox imageSlices { { 100, Percent }, { 100, Percent }, { 100, Percent }, { 100, Percent } };
-        LengthBox borderSlices { { 1, Relative }, { 1, Relative }, { 1, Relative }, { 1, Relative } };
-        LengthBox outset { 0 };
+        LengthBox imageSlices { { 100, LengthType::Percent }, { 100, LengthType::Percent }, { 100, LengthType::Percent }, { 100, LengthType::Percent } };
+        LengthBox borderSlices { { 1, LengthType::Relative }, { 1, LengthType::Relative }, { 1, LengthType::Relative }, { 1, LengthType::Relative } };
+        LengthBox outset { LengthType::Relative };
 
     private:
         Data();
@@ -215,5 +215,6 @@ private:
 };
 
 WTF::TextStream& operator<<(WTF::TextStream&, const NinePieceImage&);
+WTF::TextStream& operator<<(WTF::TextStream&, NinePieceImageRule);
 
 } // namespace WebCore

@@ -27,7 +27,6 @@
 
 #include "JSWrappable.h"
 #include <JavaScriptCore/JSRetainPtr.h>
-#include <wtf/Optional.h>
 #include <wtf/Ref.h>
 
 OBJC_CLASS NSUndoManager;
@@ -98,8 +97,8 @@ public:
     virtual void setMinimumEffectiveWidth(double) { notImplemented(); }
     virtual void setAllowsViewportShrinkToFit(bool) { notImplemented(); }
 
-    virtual Optional<bool> stableStateOverride() const { notImplemented(); return WTF::nullopt; }
-    virtual void setStableStateOverride(Optional<bool>) { notImplemented(); }
+    virtual std::optional<bool> stableStateOverride() const { notImplemented(); return std::nullopt; }
+    virtual void setStableStateOverride(std::optional<bool>) { notImplemented(); }
 
     virtual JSObjectRef contentVisibleRect() const { notImplemented(); return nullptr; }
     
@@ -176,6 +175,18 @@ public:
         return false;
     }
 
+    virtual bool isAnimatingDragCancel() const
+    {
+        notImplemented();
+        return false;
+    }
+
+    virtual JSObjectRef tapHighlightViewRect() const
+    {
+        notImplemented();
+        return nullptr;
+    }
+
     virtual void rawKeyDown(JSStringRef) { notImplemented(); }
     virtual void rawKeyUp(JSStringRef) { notImplemented(); }
 
@@ -196,6 +207,9 @@ public:
     virtual bool windowIsKey() const { notImplemented(); return false; }
     virtual void setWindowIsKey(bool) { notImplemented(); }
 
+    virtual bool suppressSoftwareKeyboard() const { notImplemented(); return false; }
+    virtual void setSuppressSoftwareKeyboard(bool) { notImplemented(); }
+
     // Stylus
 
     virtual void stylusDownAtPoint(long, long, float, float, float, JSValueRef) { notImplemented(); }
@@ -211,6 +225,7 @@ public:
 
     // Form Controls
     
+    virtual JSObjectRef filePickerAcceptedTypeIdentifiers() { notImplemented(); return nullptr; }
     virtual void dismissFilePicker(JSValueRef) { notImplemented(); }
     virtual void dismissFormAccessoryView() { notImplemented(); }
     virtual void selectFormAccessoryPickerRow(long) { notImplemented(); }
@@ -229,6 +244,7 @@ public:
     virtual void setDefaultCalendarType(JSStringRef, JSStringRef) { notImplemented(); }
     virtual JSObjectRef inputViewBounds() const { notImplemented(); return nullptr; }
     virtual void activateDataListSuggestion(unsigned, JSValueRef) { notImplemented(); }
+    virtual void setSelectedColorForColorPicker(double, double, double) { notImplemented(); }
 
     // Find in Page
 
@@ -322,6 +338,9 @@ public:
 
     virtual void setDidHideKeyboardCallback(JSValueRef);
     JSValueRef didHideKeyboardCallback() const;
+
+    virtual void setWillStartInputSessionCallback(JSValueRef);
+    JSValueRef willStartInputSessionCallback() const;
 
     virtual void setDidHideMenuCallback(JSValueRef);
     JSValueRef didHideMenuCallback() const;

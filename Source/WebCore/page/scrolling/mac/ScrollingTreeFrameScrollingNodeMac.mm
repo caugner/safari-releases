@@ -124,12 +124,11 @@ WheelEventHandlingResult ScrollingTreeFrameScrollingNodeMac::handleWheelEvent(co
 
     bool handled = m_delegate.handleWheelEvent(wheelEvent);
 
-#if ENABLE(CSS_SCROLL_SNAP)
     setScrollSnapInProgress(m_delegate.isScrollSnapInProgress());
 
     if (m_delegate.activeScrollSnapIndexDidChange())
         scrollingTree().setActiveScrollSnapIndices(scrollingNodeID(), m_delegate.activeScrollSnapIndexForAxis(ScrollEventAxis::Horizontal), m_delegate.activeScrollSnapIndexForAxis(ScrollEventAxis::Vertical));
-#endif
+
     return WheelEventHandlingResult::result(handled);
 }
 
@@ -244,18 +243,16 @@ unsigned ScrollingTreeFrameScrollingNodeMac::exposedUnfilledArea() const
 
     while (!layerQueue.isEmpty() && tiles.isEmpty()) {
         CALayer* layer = layerQueue.takeFirst();
-        NSArray* sublayers = [[layer sublayers] copy];
+        auto sublayers = adoptNS([[layer sublayers] copy]);
 
         // If this layer is the parent of a tile, it is the parent of all of the tiles and nothing else.
         if ([[[sublayers objectAtIndex:0] valueForKey:@"isTile"] boolValue]) {
-            for (CALayer* sublayer in sublayers)
+            for (CALayer* sublayer in sublayers.get())
                 tiles.append(sublayer);
         } else {
-            for (CALayer* sublayer in sublayers)
+            for (CALayer* sublayer in sublayers.get())
                 layerQueue.append(sublayer);
         }
-
-        [sublayers release];
     }
 
     FloatPoint clampedScrollPosition = clampScrollPosition(currentScrollPosition());

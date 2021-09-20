@@ -110,10 +110,6 @@ void TestController::platformInitialize()
     CFNotificationCenterAddObserver(center, this, handleKeyboardDidHideNotification, (CFStringRef)UIKeyboardDidHideNotification, nullptr, CFNotificationSuspensionBehaviorDeliverImmediately);
     CFNotificationCenterAddObserver(center, this, handleMenuWillHideNotification, (CFStringRef)UIMenuControllerWillHideMenuNotification, nullptr, CFNotificationSuspensionBehaviorDeliverImmediately);
     CFNotificationCenterAddObserver(center, this, handleMenuDidHideNotification, (CFStringRef)UIMenuControllerDidHideMenuNotification, nullptr, CFNotificationSuspensionBehaviorDeliverImmediately);
-
-    // Override the implementation of +[UIKeyboard isInHardwareKeyboardMode] to ensure that test runs are deterministic
-    // regardless of whether a hardware keyboard is attached. We intentionally never restore the original implementation.
-    method_setImplementation(class_getClassMethod([UIKeyboard class], @selector(isInHardwareKeyboardMode)), reinterpret_cast<IMP>(overrideIsInHardwareKeyboardMode));
 }
 
 void TestController::platformDestroy()
@@ -142,12 +138,14 @@ void TestController::configureContentExtensionForTest(const TestInvocation&)
 {
 }
 
-void TestController::platformResetPreferencesToConsistentValues()
+static _WKDragInteractionPolicy dragInteractionPolicy(const TestOptions& options)
 {
-    WKPreferencesRef preferences = platformPreferences();
-    WKPreferencesSetTextAutosizingEnabled(preferences, false);
-    WKPreferencesSetTextAutosizingUsesIdempotentMode(preferences, false);
-    WKPreferencesSetContentChangeObserverEnabled(preferences, false);
+    auto policy = options.dragInteractionPolicy();
+    if (policy == "always-enable")
+        return _WKDragInteractionPolicyAlwaysEnable;
+    if (policy == "always-disable")
+        return _WKDragInteractionPolicyAlwaysDisable;
+    return _WKDragInteractionPolicyDefault;
 }
 
 bool TestController::platformResetStateToConsistentValues(const TestOptions& options)
@@ -176,6 +174,12 @@ bool TestController::platformResetStateToConsistentValues(const TestOptions& opt
 
     GSEventSetHardwareKeyboardAttached(true, 0);
 
+    // Override the implementation of +[UIKeyboard isInHardwareKeyboardMode] to ensure that test runs are deterministic
+    // regardless of whether a hardware keyboard is attached. We intentionally never restore the original implementation.
+    //
+    // FIXME: Investigate whether this can be removed. The swizzled return value is inconsistent with GSEventSetHardwareKeyboardAttached.
+    method_setImplementation(class_getClassMethod([UIKeyboard class], @selector(isInHardwareKeyboardMode)), reinterpret_cast<IMP>(overrideIsInHardwareKeyboardMode));
+
 #if !HAVE(NONDESTRUCTIVE_IMAGE_PASTE_SUPPORT_QUERY)
     // FIXME: Remove this workaround once -[UIKeyboardImpl delegateSupportsImagePaste] no longer increments the general pasteboard's changeCount.
     if (!m_keyboardDelegateSupportsImagePasteSwizzler)
@@ -200,6 +204,7 @@ bool TestController::platformResetStateToConsistentValues(const TestOptions& opt
     BOOL shouldRestoreFirstResponder = NO;
     if (PlatformWebView* platformWebView = mainWebView()) {
         TestRunnerWKWebView *webView = platformWebView->platformView();
+        webView._suppressSoftwareKeyboard = NO;
         webView._stableStateOverride = nil;
         webView._scrollingUpdatesDisabledForTesting = NO;
         webView.usesSafariLikeRotation = NO;
@@ -208,14 +213,19 @@ bool TestController::platformResetStateToConsistentValues(const TestOptions& opt
         [webView _clearInterfaceOrientationOverride];
         [webView resetCustomMenuAction];
         [webView setAllowedMenuActions:nil];
+        webView._dragInteractionPolicy = dragInteractionPolicy(options);
 
         UIScrollView *scrollView = webView.scrollView;
         [scrollView _removeAllAnimations:YES];
         [scrollView setZoomScale:1 animated:NO];
-        
+
+        auto currentContentInset = scrollView.contentInset;
         auto contentInsetTop = options.contentInsetTop();
-        scrollView.contentInset = UIEdgeInsetsMake(contentInsetTop, 0, 0, 0);
-        scrollView.contentOffset = CGPointMake(0, -contentInsetTop);
+        if (currentContentInset.top != contentInsetTop) {
+            currentContentInset.top = contentInsetTop;
+            scrollView.contentInset = currentContentInset;
+            scrollView.contentOffset = CGPointMake(-currentContentInset.left, -currentContentInset.top);
+        }
 
         if (webView.interactingWithFormControl)
             shouldRestoreFirstResponder = [webView resignFirstResponder];
@@ -251,7 +261,7 @@ bool TestController::platformResetStateToConsistentValues(const TestOptions& opt
         }
         
         if (hasPresentedViewController) {
-            TestInvocation::dumpWebProcessUnresponsiveness("TestController::platformResetPreferencesToConsistentValues - Failed to remove presented view controller\n");
+            TestInvocation::dumpWebProcessUnresponsiveness("TestController::platformResetStateToConsistentValues - Failed to remove presented view controller\n");
             return false;
         }
     }
@@ -313,12 +323,12 @@ void TestController::abortModal()
 
 const char* TestController::platformLibraryPathForTesting()
 {
-    static NSString *platformLibraryPath = nil;
+    static NeverDestroyed<RetainPtr<NSString>> platformLibraryPath;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        platformLibraryPath = [[@"~/Library/Application Support/WebKitTestRunner" stringByExpandingTildeInPath] retain];
+        platformLibraryPath.get() = [@"~/Library/Application Support/WebKitTestRunner" stringByExpandingTildeInPath];
     });
-    return platformLibraryPath.UTF8String;
+    return [platformLibraryPath.get() UTF8String];
 }
 
 void TestController::setHidden(bool)

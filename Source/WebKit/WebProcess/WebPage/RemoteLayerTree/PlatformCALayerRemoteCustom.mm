@@ -100,6 +100,13 @@ uint32_t PlatformCALayerRemoteCustom::hostingContextID()
     return m_layerHostingContext->contextID();
 }
 
+void PlatformCALayerRemoteCustom::populateCreationProperties(RemoteLayerTreeTransaction::LayerCreationProperties& properties, const RemoteLayerTreeContext& context, PlatformCALayer::LayerType type)
+{
+    PlatformCALayerRemote::populateCreationProperties(properties, context, type);
+    properties.hostingContextID = hostingContextID();
+    properties.hostingDeviceScaleFactor = context.deviceScaleFactor();
+}
+
 Ref<WebCore::PlatformCALayer> PlatformCALayerRemoteCustom::clone(PlatformCALayerClient* owner) const
 {
     RetainPtr<CALayer> clonedLayer;
@@ -112,7 +119,7 @@ Ref<WebCore::PlatformCALayer> PlatformCALayerRemoteCustom::clone(PlatformCALayer
 
             AVPlayerLayer *destinationPlayerLayer = static_cast<AVPlayerLayer *>(clonedLayer.get());
             AVPlayerLayer *sourcePlayerLayer = static_cast<AVPlayerLayer *>(platformLayer());
-            dispatch_async(dispatch_get_main_queue(), [destinationPlayerLayer, sourcePlayerLayer] {
+            RunLoop::main().dispatch([destinationPlayerLayer, sourcePlayerLayer] {
                 [destinationPlayerLayer setPlayer:[sourcePlayerLayer player]];
             });
         } else {

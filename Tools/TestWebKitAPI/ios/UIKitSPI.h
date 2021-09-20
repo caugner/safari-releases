@@ -47,6 +47,7 @@
 #import <UIKit/UIViewController_Private.h>
 #import <UIKit/UIWKTextInteractionAssistant.h>
 #import <UIKit/UIWebFormAccessory.h>
+#import <UIKit/UIWebTouchEventsGestureRecognizer.h>
 #import <UIKit/_UINavigationInteractiveTransition.h>
 
 IGNORE_WARNINGS_BEGIN("deprecated-implementations")
@@ -249,6 +250,13 @@ IGNORE_WARNINGS_END
 - (void)_scrollView:(UIScrollView *)scrollView asynchronouslyHandleScrollEvent:(UIScrollEvent *)scrollEvent completion:(void (^)(BOOL handled))completion;
 @end
 
+@interface UITextInteractionAssistant : NSObject <UIResponderStandardEditActions>
+@end
+
+@interface UIWKTextInteractionAssistant : UITextInteractionAssistant
+- (void)lookup:(NSString *)textWithContext withRange:(NSRange)range fromRect:(CGRect)presentationRect;
+@end
+
 #endif // USE(APPLE_INTERNAL_SDK)
 
 #define UIWKDocumentRequestMarkedTextRects (1 << 5)
@@ -306,6 +314,13 @@ typedef NS_ENUM(NSUInteger, _UIClickInteractionEvent) {
 
 @interface UIResponder (Internal)
 - (void)_share:(id)sender;
+@end
+
+@interface UIWebGeolocationPolicyDecider : NSObject
+@end
+
+@interface UIWebGeolocationPolicyDecider ()
++ (instancetype)sharedPolicyDecider;
 @end
 
 #endif // PLATFORM(IOS_FAMILY)

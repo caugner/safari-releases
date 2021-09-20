@@ -95,6 +95,8 @@ public:
 
     static bool resourcePrioritiesEnabled();
 
+    WEBCORE_EXPORT void replacePlatformRequest(HTTPBodyUpdatePolicy);
+
 private:
     friend class ResourceRequestBase;
 
@@ -127,7 +129,7 @@ inline bool ResourceRequest::resourcePrioritiesEnabled()
 }
 
 #if PLATFORM(COCOA)
-NSURLRequest *copyRequestWithStorageSession(CFURLStorageSessionRef, NSURLRequest *);
+RetainPtr<NSURLRequest> copyRequestWithStorageSession(CFURLStorageSessionRef, NSURLRequest *);
 WEBCORE_EXPORT NSCachedURLResponse *cachedResponseForRequest(CFURLStorageSessionRef, NSURLRequest *);
 #endif
 

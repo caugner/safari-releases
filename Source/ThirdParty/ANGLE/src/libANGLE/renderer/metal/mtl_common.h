@@ -108,12 +108,12 @@ class DisplayMtl;
 class ContextMtl;
 class FramebufferMtl;
 class BufferMtl;
+class ImageMtl;
 class VertexArrayMtl;
 class TextureMtl;
 class ProgramMtl;
 class SamplerMtl;
 class TransformFeedbackMtl;
-class SurfaceMtlProtocol;
 
 ANGLE_GL_OBJECTS_X(ANGLE_PRE_DECLARE_MTL_OBJECT)
 
@@ -132,6 +132,7 @@ constexpr MTLBlitOption kBlitOptionRowLinearPVRTC          = MTLBlitOptionRowLin
 #endif
 
 #if defined(__IPHONE_13_0) || defined(__MAC_10_15)
+#    define ANGLE_MTL_SWIZZLE_AVAILABLE 1
 using TextureSwizzleChannels                   = MTLTextureSwizzleChannels;
 using RenderStages                             = MTLRenderStages;
 constexpr MTLRenderStages kRenderStageVertex   = MTLRenderStageVertex;
@@ -170,11 +171,13 @@ struct ImplTypeHelper<egl::Display>
 {
     using ImplType = DisplayMtl;
 };
+
 template <>
-struct ImplTypeHelper<egl::Surface>
+struct ImplTypeHelper<egl::Image>
 {
-    using ImplType = SurfaceMtlProtocol;
+    using ImplType = ImageMtl;
 };
+
 template <typename T>
 using GetImplType = typename ImplTypeHelper<T>::ImplType;
 
@@ -235,7 +238,7 @@ class AutoObjCPtr : public WrappedObject<T>
 
     AutoObjCPtr() {}
 
-    AutoObjCPtr(const std::nullptr_t &theNull) {}
+    AutoObjCPtr(std::nullptr_t) {}
 
     AutoObjCPtr(const AutoObjCPtr &src) { this->retainAssign(src.get()); }
 
@@ -268,7 +271,7 @@ class AutoObjCPtr : public WrappedObject<T>
         return *this;
     }
 
-    AutoObjCPtr &operator=(const std::nullptr_t &theNull)
+    AutoObjCPtr &operator=(std::nullptr_t)
     {
         this->set(nil);
         return *this;
@@ -278,13 +281,15 @@ class AutoObjCPtr : public WrappedObject<T>
 
     bool operator==(T rhs) const { return this->get() == rhs; }
 
-    bool operator==(const std::nullptr_t &theNull) const { return this->get(); }
+    bool operator==(std::nullptr_t) const { return this->get() == nullptr; }
 
     inline operator bool() { return this->get(); }
 
     bool operator!=(const AutoObjCPtr &rhs) const { return (*this) != rhs.get(); }
 
     bool operator!=(T rhs) const { return this->get() != rhs; }
+
+    bool operator!=(std::nullptr_t) const { return this->get() != nullptr; }
 
     using ParentType::retainAssign;
 
@@ -301,9 +306,11 @@ using AutoObjCObj = AutoObjCPtr<T *>;
 
 // NOTE: SharedEvent is only declared on iOS 12.0+ or mac 10.14+
 #if defined(__IPHONE_12_0) || defined(__MAC_10_14)
+#define ANGLE_MTL_EVENT_AVAILABLE 1
 using SharedEventRef = AutoObjCPtr<id<MTLSharedEvent>>;
 #else
-using SharedEventRef                                       = AutoObjCObj<NSObject>;
+#define ANGLE_MTL_EVENT_AVAILABLE 0
+using SharedEventRef = AutoObjCObj<NSObject>;
 #endif
 
 // The native image index used by Metal back-end,  the image index uses native mipmap level instead

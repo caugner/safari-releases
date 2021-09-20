@@ -27,6 +27,7 @@
 #import "_WKProcessPoolConfigurationInternal.h"
 
 #import "LegacyGlobalSettings.h"
+#import <WebCore/WebCoreObjCExtras.h>
 #import <objc/runtime.h>
 #import <wtf/RetainPtr.h>
 #import <wtf/cocoa/VectorCocoa.h>
@@ -45,6 +46,9 @@
 
 - (void)dealloc
 {
+    if (WebCoreObjCScheduleDeallocateOnMainRunLoop(_WKProcessPoolConfiguration.class, self))
+        return;
+
     _processPoolConfiguration->~ProcessPoolConfiguration();
 
     [super dealloc];
@@ -69,11 +73,11 @@
     if (classes.isEmpty())
         return [NSSet set];
 
-    NSMutableSet *result = [[NSMutableSet alloc] initWithCapacity:classes.size()];
+    auto result = adoptNS([[NSMutableSet alloc] initWithCapacity:classes.size()]);
     for (const auto& value : classes)
         [result addObject: objc_lookUpClass(value.utf8().data())];
 
-    return [result autorelease];
+    return result.autorelease();
 }
 
 - (void)setCustomClassesForParameterCoder:(NSSet<Class> *)classesForCoder
@@ -135,6 +139,16 @@
 - (void)setAttrStyleEnabled:(BOOL)enabled
 {
     return _processPoolConfiguration->setAttrStyleEnabled(enabled);
+}
+
+- (BOOL)shouldThrowExceptionForGlobalConstantRedeclaration
+{
+    return _processPoolConfiguration->shouldThrowExceptionForGlobalConstantRedeclaration();
+}
+
+- (void)setShouldThrowExceptionForGlobalConstantRedeclaration:(BOOL)shouldThrow
+{
+    return _processPoolConfiguration->setShouldThrowExceptionForGlobalConstantRedeclaration(shouldThrow);
 }
 
 - (NSArray<NSURL *> *)additionalReadAccessAllowedURLs
@@ -269,6 +283,16 @@
 - (BOOL)processSwapsOnWindowOpenWithOpener
 {
     return _processPoolConfiguration->processSwapsOnWindowOpenWithOpener();
+}
+
+- (void)setProcessSwapsOnNavigationWithinSameNonHTTPFamilyProtocol:(BOOL)swaps
+{
+    _processPoolConfiguration->setProcessSwapsOnNavigationWithinSameNonHTTPFamilyProtocol(swaps);
+}
+
+- (BOOL)processSwapsOnNavigationWithinSameNonHTTPFamilyProtocol
+{
+    return _processPoolConfiguration->processSwapsOnNavigationWithinSameNonHTTPFamilyProtocol();
 }
 
 - (BOOL)pageCacheEnabled

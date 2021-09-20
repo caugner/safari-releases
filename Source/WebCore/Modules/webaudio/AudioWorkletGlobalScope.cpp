@@ -36,6 +36,7 @@
 #include "AudioWorkletMessagingProxy.h"
 #include "AudioWorkletProcessorConstructionData.h"
 #include "BaseAudioContext.h"
+#include "CommonVM.h"
 #include "JSAudioWorkletProcessor.h"
 #include "JSAudioWorkletProcessorConstructor.h"
 #include "JSDOMConvert.h"
@@ -47,8 +48,16 @@ namespace WebCore {
 
 WTF_MAKE_ISO_ALLOCATED_IMPL(AudioWorkletGlobalScope);
 
-AudioWorkletGlobalScope::AudioWorkletGlobalScope(AudioWorkletThread& thread, const WorkletParameters& parameters)
-    : WorkletGlobalScope(thread, parameters)
+RefPtr<AudioWorkletGlobalScope> AudioWorkletGlobalScope::tryCreate(AudioWorkletThread& thread, const WorkletParameters& parameters)
+{
+    auto vm = JSC::VM::tryCreate();
+    if (!vm)
+        return nullptr;
+    return adoptRef(*new AudioWorkletGlobalScope(thread, vm.releaseNonNull(), parameters));
+}
+
+AudioWorkletGlobalScope::AudioWorkletGlobalScope(AudioWorkletThread& thread, Ref<JSC::VM>&& vm, const WorkletParameters& parameters)
+    : WorkletGlobalScope(thread, WTFMove(vm), parameters)
     , m_sampleRate(parameters.sampleRate)
 {
     ASSERT(!isMainThread());
@@ -73,13 +82,13 @@ ExceptionOr<void> AudioWorkletGlobalScope::registerProcessor(String&& name, Ref<
     auto scope = DECLARE_THROW_SCOPE(vm);
 
     if (!jsConstructor->isConstructor(vm))
-        return Exception { TypeError, "Class definitition passed to registerProcessor() is not a constructor"_s };
+        return Exception { TypeError, "Class definition passed to registerProcessor() is not a constructor"_s };
 
     auto prototype = jsConstructor->getPrototype(vm, globalObject);
     RETURN_IF_EXCEPTION(scope, Exception { ExistingExceptionError });
 
     if (!prototype.isObject())
-        return Exception { TypeError, "Class definitition passed to registerProcessor() has invalid prototype"_s };
+        return Exception { TypeError, "Class definition passed to registerProcessor() has invalid prototype"_s };
 
     auto parameterDescriptorsValue = jsConstructor->get(globalObject, JSC::Identifier::fromString(vm, "parameterDescriptors"));
     RETURN_IF_EXCEPTION(scope, Exception { ExistingExceptionError });
@@ -101,7 +110,11 @@ ExceptionOr<void> AudioWorkletGlobalScope::registerProcessor(String&& name, Ref<
         }
     }
 
-    m_processorConstructorMap.add(name, WTFMove(processorContructor));
+    auto addResult = m_processorConstructorMap.add(name, WTFMove(processorContructor));
+
+    // We've already checked at the beginning of this function but then we ran some JS so we need to check again.
+    if (!addResult.isNewEntry)
+        return Exception { NotSupportedError, "A processor was already registered with this name"_s };
 
     thread().messagingProxy().postTaskToAudioWorklet([name = name.isolatedCopy(), parameterDescriptors = crossThreadCopy(parameterDescriptors)](AudioWorklet& worklet) mutable {
         ASSERT(isMainThread());
@@ -137,10 +150,13 @@ RefPtr<AudioWorkletProcessor> AudioWorkletGlobalScope::createProcessor(const Str
     ASSERT(!!scope.exception() == !object);
     RETURN_IF_EXCEPTION(scope, nullptr);
 
-    auto& jsProcessor = *JSC::jsCast<JSAudioWorkletProcessor*>(object);
-    jsProcessor.wrapped().setProcessCallback(makeUnique<JSCallbackDataStrong>(&jsProcessor, globalObject));
+    auto* jsProcessor = JSC::jsDynamicCast<JSAudioWorkletProcessor*>(vm, object);
+    if (!jsProcessor)
+        return nullptr;
 
-    return &jsProcessor.wrapped();
+    jsProcessor->wrapped().setProcessCallback(makeUnique<JSCallbackDataStrong>(jsProcessor, globalObject));
+
+    return &jsProcessor->wrapped();
 }
 
 void AudioWorkletGlobalScope::prepareForDestruction()
@@ -174,8 +190,13 @@ void AudioWorkletGlobalScope::handlePostRenderTasks(size_t currentFrame)
 {
     m_currentFrame = currentFrame;
 
-    // This takes care of processing the MicroTask queue after rendering.
-    m_lockDuringRendering = WTF::nullopt;
+    {
+        // Heap allocations are forbidden on the audio thread for performance reasons so we need to
+        // explicitly allow the following allocation(s).
+        DisableMallocRestrictionsForCurrentThreadScope disableMallocRestrictions;
+        // This takes care of processing the MicroTask queue after rendering.
+        m_lockDuringRendering = std::nullopt;
+    }
 }
 
 } // namespace WebCore

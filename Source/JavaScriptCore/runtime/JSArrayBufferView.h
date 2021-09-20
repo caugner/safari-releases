@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2020 Apple Inc. All rights reserved.
+ * Copyright (C) 2013-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -169,10 +169,8 @@ protected:
     
     JS_EXPORT_PRIVATE JSArrayBufferView(VM&, ConstructionContext&);
     JS_EXPORT_PRIVATE void finishCreation(VM&);
-    
-    static bool put(JSCell*, JSGlobalObject*, PropertyName, JSValue, PutPropertySlot&);
 
-    static void visitChildren(JSCell*, SlotVisitor&);
+    DECLARE_VISIT_CHILDREN;
     
 public:
     TypedArrayMode mode() const { return m_mode; }
@@ -190,9 +188,10 @@ public:
 
     bool hasVector() const { return !!m_vector; }
     void* vector() const { return m_vector.getMayBeNull(length()); }
+    void* vectorWithoutPACValidation() const { return m_vector.getUnsafe(); }
     
     inline unsigned byteOffset();
-    inline Optional<unsigned> byteOffsetConcurrently();
+    inline std::optional<unsigned> byteOffsetConcurrently();
 
     unsigned length() const { return m_length; }
     unsigned byteLength() const;
@@ -223,6 +222,8 @@ protected:
     uint32_t m_length;
     TypedArrayMode m_mode;
 };
+
+JSArrayBufferView* validateTypedArray(JSGlobalObject*, JSValue);
 
 } // namespace JSC
 

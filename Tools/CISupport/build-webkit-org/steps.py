@@ -1,4 +1,4 @@
-# Copyright (C) 2017-2020 Apple Inc. All rights reserved.
+# Copyright (C) 2017-2021 Apple Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -20,36 +20,32 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from buildbot.process import buildstep, factory, properties
+from buildbot.plugins import steps, util
+from buildbot.process import buildstep, factory, logobserver, properties
+from buildbot.process.results import Results, SUCCESS, FAILURE, WARNINGS, SKIPPED, EXCEPTION, RETRY
 from buildbot.steps import master, shell, transfer, trigger
-from buildbot.status.builder import SUCCESS, FAILURE, WARNINGS, SKIPPED, EXCEPTION
-
+from buildbot.steps.source.svn import SVN
 from twisted.internet import defer
 
+import json
 import os
 import re
 import socket
-import json
+import sys
 import urllib
 
-APPLE_WEBKIT_AWS_PROXY = "http://proxy01.webkit.org:3128"
+if sys.version_info < (3, 5):
+    print('ERROR: Please use Python 3. This code is not compatible with Python 2.')
+    sys.exit(1)
+
 BUILD_WEBKIT_HOSTNAME = 'build.webkit.org'
+COMMITS_INFO_URL = 'https://commits.webkit.org/'
 CURRENT_HOSTNAME = socket.gethostname().strip()
 RESULTS_WEBKIT_URL = 'https://results.webkit.org'
 RESULTS_SERVER_API_KEY = 'RESULTS_SERVER_API_KEY'
-S3URL = "https://s3-us-west-2.amazonaws.com/"
-USE_BUILDBOT_VERSION2 = os.getenv('USE_BUILDBOT_VERSION2') is not None
+S3URL = 'https://s3-us-west-2.amazonaws.com/'
 WithProperties = properties.WithProperties
-if USE_BUILDBOT_VERSION2:
-    Interpolate = properties.Interpolate
-    from buildbot.process import logobserver
-    from buildbot.process.results import Results
-    from buildbot.steps.source.svn import SVN
-else:
-    import cStringIO
-    from buildbot.steps.source import SVN
-    logobserver = lambda: None
-    logobserver.LineConsumerLogObserver = type('LineConsumerLogObserver', (object,), {})
+Interpolate = properties.Interpolate
 
 
 class ParseByLineLogObserver(logobserver.LineConsumerLogObserver):
@@ -91,17 +87,6 @@ class TestWithFailureCount(shell.Test):
 
         return SUCCESS
 
-    def getText(self, cmd, results):
-        # FIXME: delete this method after switching to Buildbot v2
-        return self.getText2(cmd, results)
-
-    def getText2(self, cmd, results):
-        # FIXME: delete this method after switching to Buildbot v2
-        if results != SUCCESS and self.failedTestCount:
-            return [self.failedTestsFormatString % (self.failedTestCount, self.failedTestPluralSuffix)]
-
-        return [self.name]
-
     def getResultSummary(self):
         status = self.name
 
@@ -130,7 +115,6 @@ class ConfigureBuild(buildstep.BuildStep):
         self.buildOnly = buildOnly
         self.additionalArguments = additionalArguments
         self.device_model = device_model
-        self.addFactoryArguments(platform=platform, configuration=configuration, architecture=architecture, buildOnly=buildOnly, additionalArguments=additionalArguments, device_model=device_model)
 
     def start(self):
         self.setProperty("platform", self.platform)
@@ -140,23 +124,41 @@ class ConfigureBuild(buildstep.BuildStep):
         self.setProperty("buildOnly", self.buildOnly)
         self.setProperty("additionalArguments", self.additionalArguments)
         self.setProperty("device_model", self.device_model)
-        worker_name = self.getProperty("slavename")
-        if worker_name:
-            self.setProperty("workername", worker_name)  # Temporary workaround for supporting both older and newer buildbot versions.
         self.finished(SUCCESS)
         return defer.succeed(None)
 
 
 class CheckOutSource(SVN, object):
+    name = 'clean-and-update-working-directory'
+    haltOnFailure = False
+
     def __init__(self, **kwargs):
-        if USE_BUILDBOT_VERSION2:
-            kwargs['repourl'] = 'https://svn.webkit.org/repository/webkit/trunk'
-            kwargs['mode'] = 'incremental'
-        else:
-            kwargs['baseURL'] = "https://svn.webkit.org/repository/webkit/"
-            kwargs['defaultBranch'] = "trunk"
-            kwargs['mode'] = 'update'
+        kwargs['repourl'] = 'https://svn.webkit.org/repository/webkit/trunk'
+        kwargs['mode'] = 'incremental'
+        kwargs['logEnviron'] = False
         super(CheckOutSource, self).__init__(**kwargs)
+
+    def getResultSummary(self):
+        if self.results == FAILURE:
+            self.build.addStepsAfterCurrentStep([SVNCleanup()])
+
+        if self.results != SUCCESS:
+            return {'step': 'Failed to updated working directory'}
+        else:
+            return {'step': 'Cleaned and updated working directory'}
+
+
+class SVNCleanup(shell.ShellCommand):
+    name = 'svn-cleanup'
+    command = ['svn', 'cleanup']
+    descriptionDone = ['Run svn cleanup']
+
+    def __init__(self, **kwargs):
+        super(SVNCleanup, self).__init__(timeout=10 * 60, logEnviron=False, **kwargs)
+
+    def evaluateCommand(self, cmd):
+        self.build.buildFinished(['svn issue, retrying build'], RETRY)
+        return super(SVNCleanup, self).evaluateCommand(cmd)
 
 
 class InstallWin32Dependencies(shell.Compile):
@@ -176,21 +178,21 @@ class TriggerCrashLogSubmission(shell.Compile):
     name = "trigger-crash-log-submission"
     description = ["triggering crash log submission"]
     descriptionDone = ["triggered crash log submission"]
-    command = ["python", "./Tools/CISupport/trigger-crash-log-submission"]
+    command = ["python3", "Tools/CISupport/trigger-crash-log-submission"]
 
 
 class WaitForCrashCollection(shell.Compile):
     name = "wait-for-crash-collection"
     description = ["waiting for crash collection to quiesce"]
     descriptionDone = ["crash collection has quiesced"]
-    command = ["python", "./Tools/CISupport/wait-for-crash-collection", "--timeout", str(5 * 60)]
+    command = ["python3", "Tools/CISupport/wait-for-crash-collection", "--timeout", str(5 * 60)]
 
 
 class CleanBuildIfScheduled(shell.Compile):
     name = "delete-WebKitBuild-directory"
     description = ["deleting WebKitBuild directory"]
     descriptionDone = ["deleted WebKitBuild directory"]
-    command = ["python", "./Tools/CISupport/clean-build", WithProperties("--platform=%(fullPlatform)s"), WithProperties("--%(configuration)s")]
+    command = ["python3", "Tools/CISupport/clean-build", WithProperties("--platform=%(fullPlatform)s"), WithProperties("--%(configuration)s")]
 
     def start(self):
         if not self.getProperty('is_clean'):
@@ -203,7 +205,7 @@ class DeleteStaleBuildFiles(shell.Compile):
     name = "delete-stale-build-files"
     description = ["deleting stale build files"]
     descriptionDone = ["deleted stale build files"]
-    command = ["python", "./Tools/CISupport/delete-stale-build-files", WithProperties("--platform=%(fullPlatform)s"), WithProperties("--%(configuration)s")]
+    command = ["python3", "Tools/CISupport/delete-stale-build-files", WithProperties("--platform=%(fullPlatform)s"), WithProperties("--%(configuration)s")]
 
     def start(self):
         if self.getProperty('is_clean'):  # Nothing to be done if WebKitBuild had been removed.
@@ -272,22 +274,23 @@ class CompileWebKit(shell.Compile):
         architecture = self.getProperty('architecture')
         additionalArguments = self.getProperty('additionalArguments')
 
-        if USE_BUILDBOT_VERSION2:
-            self.log_observer = ParseByLineLogObserver(self.parseOutputLine)
-            self.addLogObserver('stdio', self.log_observer)
+        self.log_observer = ParseByLineLogObserver(self.parseOutputLine)
+        self.addLogObserver('stdio', self.log_observer)
 
         if additionalArguments:
             self.setCommand(self.command + additionalArguments)
         if platform in ('mac', 'ios', 'tvos', 'watchos') and architecture:
             self.setCommand(self.command + ['ARCHS=' + architecture])
-            if platform in ['ios', 'tvos', 'watchos']:
-                self.setCommand(self.command + ['ONLY_ACTIVE_ARCH=NO'])
+            self.setCommand(self.command + ['ONLY_ACTIVE_ARCH=NO'])
         if platform in ('mac', 'ios', 'tvos', 'watchos') and buildOnly:
             # For build-only bots, the expectation is that tests will be run on separate machines,
             # so we need to package debug info as dSYMs. Only generating line tables makes
             # this much faster than full debug info, and crash logs still have line numbers.
             self.setCommand(self.command + ['DEBUG_INFORMATION_FORMAT=dwarf-with-dsym'])
             self.setCommand(self.command + ['CLANG_DEBUG_INFORMATION_LEVEL=line-tables-only'])
+        if platform == 'gtk':
+            prefix = os.path.join("/app", "webkit", "WebKitBuild", self.getProperty("configuration").title(), "install")
+            self.setCommand(self.command + [f'--prefix={prefix}'])
 
         appendCustomBuildFlags(self, platform, self.getProperty('fullPlatform'))
 
@@ -307,25 +310,6 @@ class CompileWebKit(shell.Compile):
             log = yield self.addLog(logName)
         log.addStdout(message)
 
-    def createSummary(self, log):
-        # FIXME: delete this method after switching to Buildbot v2
-        if USE_BUILDBOT_VERSION2:
-            return
-        platform = self.getProperty('platform')
-        if platform.startswith('mac'):
-            warnings = []
-            errors = []
-            sio = cStringIO.StringIO(log.getText())
-            for line in sio.readlines():
-                if "arning:" in line:
-                    warnings.append(line)
-                if "rror:" in line:
-                    errors.append(line)
-            if warnings:
-                self.addCompleteLog('warnings', "".join(warnings))
-            if errors:
-                self.addCompleteLog('errors', "".join(errors))
-
 
 class CompileLLINTCLoop(CompileWebKit):
     command = ["perl", "./Tools/Scripts/build-jsc", "--cloop", WithProperties("--%(configuration)s")]
@@ -339,8 +323,16 @@ class CompileJSCOnly(CompileWebKit):
     command = ["perl", "./Tools/Scripts/build-jsc", WithProperties("--%(configuration)s")]
 
 
+class InstallBuiltProduct(shell.ShellCommand):
+    name = 'install-built-product'
+    description = ['Installing Built Product']
+    descriptionDone = ['Installed Built Product']
+    command = ["python3", "Tools/Scripts/install-built-product",
+               WithProperties("--platform=%(fullPlatform)s"), WithProperties("--%(configuration)s")]
+
+
 class ArchiveBuiltProduct(shell.ShellCommand):
-    command = ["python", "./Tools/CISupport/built-product-archive",
+    command = ["python3", "Tools/CISupport/built-product-archive",
                WithProperties("--platform=%(fullPlatform)s"), WithProperties("--%(configuration)s"), "archive"]
     name = "archive-built-product"
     description = ["archiving built product"]
@@ -349,7 +341,7 @@ class ArchiveBuiltProduct(shell.ShellCommand):
 
 
 class ArchiveMinifiedBuiltProduct(ArchiveBuiltProduct):
-    command = ["python", "./Tools/CISupport/built-product-archive",
+    command = ["python3", "Tools/CISupport/built-product-archive",
                WithProperties("--platform=%(fullPlatform)s"), WithProperties("--%(configuration)s"), "archive", "--minify"]
 
 
@@ -376,7 +368,7 @@ class GenerateMiniBrowserBundle(shell.ShellCommand):
 
 
 class ExtractBuiltProduct(shell.ShellCommand):
-    command = ["python", "./Tools/CISupport/built-product-archive",
+    command = ["python3", "Tools/CISupport/built-product-archive",
                WithProperties("--platform=%(fullPlatform)s"), WithProperties("--%(configuration)s"), "extract"]
     name = "extract-built-product"
     description = ["extracting built product"]
@@ -390,10 +382,7 @@ class UploadBuiltProduct(transfer.FileUpload):
     haltOnFailure = True
 
     def __init__(self, **kwargs):
-        if USE_BUILDBOT_VERSION2:
-            kwargs['workersrc'] = self.workersrc
-        else:
-            kwargs['slavesrc'] = self.workersrc
+        kwargs['workersrc'] = self.workersrc
         kwargs['masterdest'] = self.masterdest
         kwargs['mode'] = 0o644
         kwargs['blocksize'] = 1024 * 256
@@ -412,16 +401,41 @@ class DownloadBuiltProduct(shell.ShellCommand):
     name = "download-built-product"
     description = ["downloading built product"]
     descriptionDone = ["downloaded built product"]
+    haltOnFailure = False
+    flunkOnFailure = False
+
+    def start(self):
+        return shell.ShellCommand.start(self)
+
+    def evaluateCommand(self, cmd):
+        rc = shell.ShellCommand.evaluateCommand(self, cmd)
+        if rc == FAILURE:
+            self.build.addStepsAfterCurrentStep([DownloadBuiltProductFromMaster()])
+        return rc
+
+
+class DownloadBuiltProductFromMaster(transfer.FileDownload):
+    mastersrc = WithProperties('archives/%(fullPlatform)s-%(architecture)s-%(configuration)s/%(got_revision)s.zip')
+    workerdest = WithProperties('WebKitBuild/%(configuration)s.zip')
+    name = 'download-built-product-from-master'
+    description = ['downloading built product from buildbot master']
+    descriptionDone = ['Downloaded built product']
     haltOnFailure = True
     flunkOnFailure = True
 
-    def start(self):
-        if 'apple' in self.getProperty('buildername').lower():
-            if USE_BUILDBOT_VERSION2:
-                self.workerEnvironment['HTTPS_PROXY'] = APPLE_WEBKIT_AWS_PROXY  # curl env var to use a proxy
-            else:
-                self.slaveEnvironment['HTTPS_PROXY'] = APPLE_WEBKIT_AWS_PROXY  # curl env var to use a proxy
-        return shell.ShellCommand.start(self)
+    def __init__(self, **kwargs):
+        # Allow the unit test to override mastersrc
+        if 'mastersrc' not in kwargs:
+            kwargs['mastersrc'] = self.mastersrc
+        kwargs['workerdest'] = self.workerdest
+        kwargs['mode'] = 0o0644
+        kwargs['blocksize'] = 1024 * 256
+        transfer.FileDownload.__init__(self, **kwargs)
+
+    def getResultSummary(self):
+        if self.results != SUCCESS:
+            return {u'step': u'Failed to download built product from build master'}
+        return super(DownloadBuiltProductFromMaster, self).getResultSummary()
 
 
 class RunJavaScriptCoreTests(TestWithFailureCount):
@@ -448,10 +462,11 @@ class RunJavaScriptCoreTests(TestWithFailureCount):
         TestWithFailureCount.__init__(self, *args, **kwargs)
 
     def start(self):
-        if USE_BUILDBOT_VERSION2:
-            self.workerEnvironment[RESULTS_SERVER_API_KEY] = os.getenv(RESULTS_SERVER_API_KEY)
-        else:
-            self.slaveEnvironment[RESULTS_SERVER_API_KEY] = os.getenv(RESULTS_SERVER_API_KEY)
+        self.workerEnvironment[RESULTS_SERVER_API_KEY] = os.getenv(RESULTS_SERVER_API_KEY)
+        self.log_observer = logobserver.BufferLogObserver()
+        self.addLogObserver('stdio', self.log_observer)
+        self.failedTestCount = 0
+
         platform = self.getProperty('platform')
         architecture = self.getProperty("architecture")
         # Currently run-javascriptcore-test doesn't support run javascript core test binaries list below remotely
@@ -469,7 +484,7 @@ class RunJavaScriptCoreTests(TestWithFailureCount):
         return shell.Test.start(self)
 
     def countFailures(self, cmd):
-        logText = cmd.logs['stdio'].getText()
+        logText = self.log_observer.getStdout()
         count = 0
 
         match = re.search(r'^Results for JSC stress tests:\r?\n\s+(\d+) failure', logText, re.MULTILINE)
@@ -487,12 +502,6 @@ class RunJavaScriptCoreTests(TestWithFailureCount):
         return count
 
 
-class RunRemoteJavaScriptCoreTests(RunJavaScriptCoreTests):
-    def start(self):
-        self.setCommand(self.command + ["--remote-config-file", "../../remote-jsc-tests-config.json"])
-        return RunJavaScriptCoreTests.start(self)
-
-
 class RunTest262Tests(TestWithFailureCount):
     name = "test262-test"
     description = ["test262-tests running"]
@@ -502,10 +511,9 @@ class RunTest262Tests(TestWithFailureCount):
     test_summary_re = re.compile(r'^\! NEW FAIL')
 
     def start(self):
-        if USE_BUILDBOT_VERSION2:
-            self.log_observer = ParseByLineLogObserver(self.parseOutputLine)
-            self.addLogObserver('stdio', self.log_observer)
-            self.failedTestCount = 0
+        self.log_observer = ParseByLineLogObserver(self.parseOutputLine)
+        self.addLogObserver('stdio', self.log_observer)
+        self.failedTestCount = 0
         appendCustomBuildFlags(self, self.getProperty('platform'), self.getProperty('fullPlatform'))
         return shell.Test.start(self)
 
@@ -515,14 +523,7 @@ class RunTest262Tests(TestWithFailureCount):
             self.failedTestCount += 1
 
     def countFailures(self, cmd):
-        if USE_BUILDBOT_VERSION2:
-            return self.failedTestCount
-
-        logText = cmd.logs['stdio'].getText()
-        matches = re.findall(r'^\! NEW FAIL', logText, flags=re.MULTILINE)
-        if matches:
-            return len(matches)
-        return 0
+        return self.failedTestCount
 
 
 class RunWebKitTests(shell.Test):
@@ -538,7 +539,6 @@ class RunWebKitTests(shell.Test):
                "--builder-name", WithProperties("%(buildername)s"),
                "--build-number", WithProperties("%(buildnumber)s"),
                "--buildbot-worker", WithProperties("%(workername)s"),
-               "--master-name", "webkit.org",
                "--buildbot-master", CURRENT_HOSTNAME,
                "--report", RESULTS_WEBKIT_URL,
                "--exit-after-n-crashes-or-timeouts", "50",
@@ -559,14 +559,11 @@ class RunWebKitTests(shell.Test):
         shell.Test.__init__(self, *args, **kwargs)
 
     def start(self):
-        if USE_BUILDBOT_VERSION2:
-            self.workerEnvironment[RESULTS_SERVER_API_KEY] = os.getenv(RESULTS_SERVER_API_KEY)
-            self.log_observer = ParseByLineLogObserver(self.parseOutputLine)
-            self.addLogObserver('stdio', self.log_observer)
-            self.incorrectLayoutLines = []
-            self.testFailures = {}
-        else:
-            self.slaveEnvironment[RESULTS_SERVER_API_KEY] = os.getenv(RESULTS_SERVER_API_KEY)
+        self.workerEnvironment[RESULTS_SERVER_API_KEY] = os.getenv(RESULTS_SERVER_API_KEY)
+        self.log_observer = ParseByLineLogObserver(self.parseOutputLine)
+        self.addLogObserver('stdio', self.log_observer)
+        self.incorrectLayoutLines = []
+        self.testFailures = {}
 
         platform = self.getProperty('platform')
         appendCustomTestingFlags(self, platform, self.getProperty('device_model'))
@@ -588,29 +585,6 @@ class RunWebKitTests(shell.Test):
             return match_object.group('message')
         return line
 
-    def _parseRunWebKitTestsOutput(self, logText):
-        # FIXME: delete this method after switching to Buildbot v2
-        incorrectLayoutLines = []
-        testFailures = {}
-
-        for line in logText.splitlines():
-            if line.find('Exiting early') >= 0 or line.find('leaks found') >= 0:
-                incorrectLayoutLines.append(self._strip_python_logging_prefix(line))
-                continue
-            for name, expression in self.expressions:
-                match = expression.search(line)
-
-                if match:
-                    testFailures[name] = testFailures.get(name, 0) + int(match.group(1))
-                    break
-
-                # FIXME: Parse file names and put them in results
-
-        for name in testFailures:
-            incorrectLayoutLines.append(str(testFailures[name]) + ' ' + name)
-
-        self.incorrectLayoutLines = incorrectLayoutLines
-
     def parseOutputLine(self, line):
         if r'Exiting early' in line or r'leaks found' in line:
             self.incorrectLayoutLines.append(self._strip_python_logging_prefix(line))
@@ -625,18 +599,8 @@ class RunWebKitTests(shell.Test):
         for name, result in self.testFailures.items():
             self.incorrectLayoutLines.append(str(result) + ' ' + name)
 
-    def commandComplete(self, cmd):
-        # FIXME: delete this method after switching to Buildbot v2
-        shell.Test.commandComplete(self, cmd)
-
-        if not USE_BUILDBOT_VERSION2:
-            logText = cmd.logs['stdio'].getText()
-            self._parseRunWebKitTestsOutput(logText)
-
     def evaluateCommand(self, cmd):
-        if USE_BUILDBOT_VERSION2:
-            self.processTestFailures()
-
+        self.processTestFailures()
         result = SUCCESS
 
         if self.incorrectLayoutLines:
@@ -669,17 +633,6 @@ class RunWebKitTests(shell.Test):
             return {'step': status}
         return super(RunWebKitTests, self).getResultSummary()
 
-    def getText(self, cmd, results):
-        # FIXME: delete this method after switching to Buildbot v2
-        return self.getText2(cmd, results)
-
-    def getText2(self, cmd, results):
-        # FIXME: delete this method after switching to Buildbot v2
-        if results != SUCCESS and self.incorrectLayoutLines:
-            return self.incorrectLayoutLines
-
-        return [self.name]
-
 
 class RunDashboardTests(RunWebKitTests):
     name = "dashboard-tests"
@@ -699,7 +652,7 @@ class RunAPITests(TestWithFailureCount):
     jsonFileName = "api_test_results.json"
     logfiles = {"json": jsonFileName}
     command = [
-        "python",
+        "python3",
         "./Tools/Scripts/run-api-tests",
         "--no-build",
         "--json-output={0}".format(jsonFileName),
@@ -719,26 +672,15 @@ class RunAPITests(TestWithFailureCount):
         TestWithFailureCount.__init__(self, *args, **kwargs)
 
     def start(self):
-        if USE_BUILDBOT_VERSION2:
-            self.workerEnvironment[RESULTS_SERVER_API_KEY] = os.getenv(RESULTS_SERVER_API_KEY)
-            self.log_observer = ParseByLineLogObserver(self.parseOutputLine)
-            self.addLogObserver('stdio', self.log_observer)
-            self.failedTestCount = 0
-        else:
-            self.slaveEnvironment[RESULTS_SERVER_API_KEY] = os.getenv(RESULTS_SERVER_API_KEY)
+        self.workerEnvironment[RESULTS_SERVER_API_KEY] = os.getenv(RESULTS_SERVER_API_KEY)
+        self.log_observer = ParseByLineLogObserver(self.parseOutputLine)
+        self.addLogObserver('stdio', self.log_observer)
+        self.failedTestCount = 0
         appendCustomTestingFlags(self, self.getProperty('platform'), self.getProperty('device_model'))
         return shell.Test.start(self)
 
     def countFailures(self, cmd):
-        if USE_BUILDBOT_VERSION2:
-            return self.failedTestCount
-
-        log_text = cmd.logs['stdio'].getText()
-
-        match = re.search(r'Ran (?P<ran>\d+) tests of (?P<total>\d+) with (?P<passed>\d+) successful', log_text)
-        if not match:
-            return -1
-        return int(match.group('ran')) - int(match.group('passed'))
+        return self.failedTestCount
 
     def parseOutputLine(self, line):
         match = self.test_summary_re.match(line)
@@ -750,10 +692,9 @@ class RunPythonTests(TestWithFailureCount):
     test_summary_re = re.compile(r'^FAILED \((?P<counts>[^)]+)\)')  # e.g.: FAILED (failures=2, errors=1)
 
     def start(self):
-        if USE_BUILDBOT_VERSION2:
-            self.log_observer = ParseByLineLogObserver(self.parseOutputLine)
-            self.addLogObserver('stdio', self.log_observer)
-            self.failedTestCount = 0
+        self.log_observer = ParseByLineLogObserver(self.parseOutputLine)
+        self.addLogObserver('stdio', self.log_observer)
+        self.failedTestCount = 0
         platform = self.getProperty('platform')
         # Python tests are flaky on the GTK builders, running them serially
         # helps and does not significantly prolong the cycle time.
@@ -771,18 +712,7 @@ class RunPythonTests(TestWithFailureCount):
             self.failedTestCount = sum(int(component.split('=')[1]) for component in match.group('counts').split(', '))
 
     def countFailures(self, cmd):
-        if USE_BUILDBOT_VERSION2:
-            return self.failedTestCount
-
-        logText = cmd.logs['stdio'].getText()
-        # We're looking for the line that looks like this: FAILED (failures=2, errors=1)
-        regex = re.compile(r'^FAILED \((?P<counts>[^)]+)\)')
-        for line in logText.splitlines():
-            match = regex.match(line)
-            if not match:
-                continue
-            return sum(int(component.split('=')[1]) for component in match.group('counts').split(', '))
-        return 0
+        return self.failedTestCount
 
 
 class RunWebKitPyTests(RunPythonTests):
@@ -790,7 +720,7 @@ class RunWebKitPyTests(RunPythonTests):
     description = ["python-tests running"]
     descriptionDone = ["python-tests"]
     command = [
-        "python",
+        "python3",
         "./Tools/Scripts/test-webkitpy",
         "--verbose",
         "--buildbot-master", CURRENT_HOSTNAME,
@@ -806,10 +736,7 @@ class RunWebKitPyTests(RunPythonTests):
         RunPythonTests.__init__(self, *args, **kwargs)
 
     def start(self):
-        if USE_BUILDBOT_VERSION2:
-            self.workerEnvironment[RESULTS_SERVER_API_KEY] = os.getenv(RESULTS_SERVER_API_KEY)
-        else:
-            self.slaveEnvironment[RESULTS_SERVER_API_KEY] = os.getenv(RESULTS_SERVER_API_KEY)
+        self.workerEnvironment[RESULTS_SERVER_API_KEY] = os.getenv(RESULTS_SERVER_API_KEY)
         return RunPythonTests.start(self)
 
 
@@ -818,7 +745,7 @@ class RunLLDBWebKitTests(RunPythonTests):
     description = ["lldb-webkit-tests running"]
     descriptionDone = ["lldb-webkit-tests"]
     command = [
-        "python",
+        "python3",
         "./Tools/Scripts/test-lldb-webkit",
         "--verbose",
         "--no-build",
@@ -836,10 +763,9 @@ class RunPerlTests(TestWithFailureCount):
     test_summary_re = re.compile(r'^Failed \d+/\d+ test programs\. (?P<count>\d+)/\d+ subtests failed\.')  # e.g.: Failed 2/19 test programs. 5/363 subtests failed.
 
     def start(self):
-        if USE_BUILDBOT_VERSION2:
-            self.log_observer = ParseByLineLogObserver(self.parseOutputLine)
-            self.addLogObserver('stdio', self.log_observer)
-            self.failedTestCount = 0
+        self.log_observer = ParseByLineLogObserver(self.parseOutputLine)
+        self.addLogObserver('stdio', self.log_observer)
+        self.failedTestCount = 0
         return shell.Test.start(self)
 
     def parseOutputLine(self, line):
@@ -848,18 +774,7 @@ class RunPerlTests(TestWithFailureCount):
             self.failedTestCount = int(match.group('count'))
 
     def countFailures(self, cmd):
-        if USE_BUILDBOT_VERSION2:
-            return self.failedTestCount
-
-        logText = cmd.logs['stdio'].getText()
-        # We're looking for the line that looks like this: Failed 2/19 test programs. 5/363 subtests failed.
-        regex = re.compile(r'^Failed \d+/\d+ test programs\. (?P<count>\d+)/\d+ subtests failed\.')
-        for line in logText.splitlines():
-            match = regex.match(line)
-            if not match:
-                continue
-            return int(match.group('count'))
-        return 0
+        return self.failedTestCount
 
 
 class RunLLINTCLoopTests(TestWithFailureCount):
@@ -869,7 +784,7 @@ class RunLLINTCLoopTests(TestWithFailureCount):
     jsonFileName = "jsc_cloop.json"
     command = [
         "perl", "./Tools/Scripts/run-javascriptcore-tests",
-        "--cloop", "--no-build",
+        "--no-build",
         "--no-jsc-stress", "--no-fail-fast",
         "--json-output={0}".format(jsonFileName),
         WithProperties("--%(configuration)s"),
@@ -888,13 +803,10 @@ class RunLLINTCLoopTests(TestWithFailureCount):
         TestWithFailureCount.__init__(self, *args, **kwargs)
 
     def start(self):
-        if USE_BUILDBOT_VERSION2:
-            self.workerEnvironment[RESULTS_SERVER_API_KEY] = os.getenv(RESULTS_SERVER_API_KEY)
-            self.log_observer = ParseByLineLogObserver(self.parseOutputLine)
-            self.addLogObserver('stdio', self.log_observer)
-            self.failedTestCount = 0
-        else:
-            self.slaveEnvironment[RESULTS_SERVER_API_KEY] = os.getenv(RESULTS_SERVER_API_KEY)
+        self.workerEnvironment[RESULTS_SERVER_API_KEY] = os.getenv(RESULTS_SERVER_API_KEY)
+        self.log_observer = ParseByLineLogObserver(self.parseOutputLine)
+        self.addLogObserver('stdio', self.log_observer)
+        self.failedTestCount = 0
         return shell.Test.start(self)
 
     def parseOutputLine(self, line):
@@ -903,18 +815,7 @@ class RunLLINTCLoopTests(TestWithFailureCount):
             self.failedTestCount = int(match.group('count'))
 
     def countFailures(self, cmd):
-        if USE_BUILDBOT_VERSION2:
-            return self.failedTestCount
-
-        logText = cmd.logs['stdio'].getText()
-        # We're looking for the line that looks like this: 0 regressions found.
-        regex = re.compile(r'\s*(?P<count>\d+) regressions? found.')
-        for line in logText.splitlines():
-            match = regex.match(line)
-            if not match:
-                continue
-            return int(match.group('count'))
-        return 0
+        return self.failedTestCount
 
 
 class Run32bitJSCTests(TestWithFailureCount):
@@ -943,13 +844,10 @@ class Run32bitJSCTests(TestWithFailureCount):
         TestWithFailureCount.__init__(self, *args, **kwargs)
 
     def start(self):
-        if USE_BUILDBOT_VERSION2:
-            self.workerEnvironment[RESULTS_SERVER_API_KEY] = os.getenv(RESULTS_SERVER_API_KEY)
-            self.log_observer = ParseByLineLogObserver(self.parseOutputLine)
-            self.addLogObserver('stdio', self.log_observer)
-            self.failedTestCount = 0
-        else:
-            self.slaveEnvironment[RESULTS_SERVER_API_KEY] = os.getenv(RESULTS_SERVER_API_KEY)
+        self.workerEnvironment[RESULTS_SERVER_API_KEY] = os.getenv(RESULTS_SERVER_API_KEY)
+        self.log_observer = ParseByLineLogObserver(self.parseOutputLine)
+        self.addLogObserver('stdio', self.log_observer)
+        self.failedTestCount = 0
         return shell.Test.start(self)
 
     def parseOutputLine(self, line):
@@ -958,18 +856,7 @@ class Run32bitJSCTests(TestWithFailureCount):
             self.failedTestCount = int(match.group('count'))
 
     def countFailures(self, cmd):
-        if USE_BUILDBOT_VERSION2:
-            return self.failedTestCount
-
-        logText = cmd.logs['stdio'].getText()
-        # We're looking for the line that looks like this: 0 failures found.
-        regex = re.compile(r'\s*(?P<count>\d+) failures? found.')
-        for line in logText.splitlines():
-            match = regex.match(line)
-            if not match:
-                continue
-            return int(match.group('count'))
-        return 0
+        return self.failedTestCount
 
 
 class RunBindingsTests(shell.Test):
@@ -1009,22 +896,22 @@ class RunGLibAPITests(shell.Test):
         messages = []
         self.statusLine = []
 
-        foundItems = re.findall("Unexpected failures \((\d+)\)", logText)
+        foundItems = re.findall(r"Unexpected failures \((\d+)\)", logText)
         if foundItems:
             failedTests = int(foundItems[0])
             messages.append("%d failures" % failedTests)
 
-        foundItems = re.findall("Unexpected crashes \((\d+)\)", logText)
+        foundItems = re.findall(r"Unexpected crashes \((\d+)\)", logText)
         if foundItems:
             crashedTests = int(foundItems[0])
             messages.append("%d crashes" % crashedTests)
 
-        foundItems = re.findall("Unexpected timeouts \((\d+)\)", logText)
+        foundItems = re.findall(r"Unexpected timeouts \((\d+)\)", logText)
         if foundItems:
             timedOutTests = int(foundItems[0])
             messages.append("%d timeouts" % timedOutTests)
 
-        foundItems = re.findall("Unexpected passes \((\d+)\)", logText)
+        foundItems = re.findall(r"Unexpected passes \((\d+)\)", logText)
         if foundItems:
             newPassTests = int(foundItems[0])
             messages.append("%d new passes" % newPassTests)
@@ -1082,10 +969,10 @@ class RunWebDriverTests(shell.Test):
 
         self.failuresCount = 0
         self.newPassesCount = 0
-        foundItems = re.findall("^Unexpected .+ \((\d+)\)", logText, re.MULTILINE)
+        foundItems = re.findall(r"^Unexpected .+ \((\d+)\)", logText, re.MULTILINE)
         if foundItems:
             self.failuresCount = int(foundItems[0])
-        foundItems = re.findall("^Expected to .+, but passed \((\d+)\)", logText, re.MULTILINE)
+        foundItems = re.findall(r"^Expected to .+, but passed \((\d+)\)", logText, re.MULTILINE)
         if foundItems:
             self.newPassesCount = int(foundItems[0])
 
@@ -1217,10 +1104,7 @@ class UploadTestResults(transfer.FileUpload):
     masterdest = WithProperties("public_html/results/%(buildername)s/r%(got_revision)s (%(buildnumber)s).zip")
 
     def __init__(self, **kwargs):
-        if USE_BUILDBOT_VERSION2:
-            kwargs['workersrc'] = self.workersrc
-        else:
-            kwargs['slavesrc'] = self.workersrc
+        kwargs['workersrc'] = self.workersrc
         kwargs['masterdest'] = self.masterdest
         kwargs['mode'] = 0o644
         kwargs['blocksize'] = 1024 * 256
@@ -1235,18 +1119,15 @@ class TransferToS3(master.MasterShellCommand):
     minifiedArchive = WithProperties("archives/%(fullPlatform)s-%(architecture)s-%(configuration)s/minified-%(got_revision)s.zip")
     identifier = WithProperties("%(fullPlatform)s-%(architecture)s-%(configuration)s")
     revision = WithProperties("%(got_revision)s")
-    command = ["python", "../Shared/transfer-archive-to-s3", "--revision", revision, "--identifier", identifier, "--archive", archive]
+    command = ["python3", "../Shared/transfer-archive-to-s3", "--revision", revision, "--identifier", identifier, "--archive", archive]
     haltOnFailure = True
 
     def __init__(self, **kwargs):
         kwargs['command'] = self.command
-        if USE_BUILDBOT_VERSION2:
-            kwargs['logEnviron'] = False
+        kwargs['logEnviron'] = False
         master.MasterShellCommand.__init__(self, **kwargs)
 
     def start(self):
-        if USE_BUILDBOT_VERSION2:
-            self.command[0] = 'python3'
         return master.MasterShellCommand.start(self)
 
     def finished(self, result):
@@ -1259,32 +1140,19 @@ class TransferToS3(master.MasterShellCommand):
 class ExtractTestResults(master.MasterShellCommand):
     name = 'extract-test-results'
     descriptionDone = ['Extracted test results']
-    if USE_BUILDBOT_VERSION2:
-        renderables = ['resultDirectory', 'zipFile']
+    renderables = ['resultDirectory', 'zipFile']
 
     def __init__(self, **kwargs):
         kwargs['command'] = ""
-        if USE_BUILDBOT_VERSION2:
-            kwargs['logEnviron'] = False
-            self.zipFile = Interpolate('public_html/results/%(prop:buildername)s/r%(prop:got_revision)s (%(prop:buildnumber)s).zip')
-            self.resultDirectory = Interpolate('public_html/results/%(prop:buildername)s/r%(prop:got_revision)s (%(prop:buildnumber)s)')
-            kwargs['command'] = ['unzip', '-q', '-o', self.zipFile, '-d', self.resultDirectory]
+        kwargs['logEnviron'] = False
+        self.zipFile = Interpolate('public_html/results/%(prop:buildername)s/r%(prop:got_revision)s (%(prop:buildnumber)s).zip')
+        self.resultDirectory = Interpolate('public_html/results/%(prop:buildername)s/r%(prop:got_revision)s (%(prop:buildnumber)s)')
+        kwargs['command'] = ['unzip', '-q', '-o', self.zipFile, '-d', self.resultDirectory]
         master.MasterShellCommand.__init__(self, **kwargs)
 
     def resultDirectoryURL(self):
-        if USE_BUILDBOT_VERSION2:
-            return self.resultDirectory.replace('public_html/', '/') + '/'
-        else:
-            return self.build.getProperties().render(self.resultDirectory).replace('public_html/', '/') + '/'
-
-    def start(self):
-        if not USE_BUILDBOT_VERSION2:
-            self.zipFile = WithProperties("public_html/results/%(buildername)s/r%(got_revision)s (%(buildnumber)s).zip")
-            self.resultDirectory = WithProperties("public_html/results/%(buildername)s/r%(got_revision)s (%(buildnumber)s)")
-            self.zipFile = self.build.getProperties().render(self.zipFile)
-            self.resultDirectory = self.build.getProperties().render(self.resultDirectory)
-            self.command = ['unzip', '-q', '-o', self.zipFile, '-d', self.resultDirectory]
-        return master.MasterShellCommand.start(self)
+        self.setProperty('result_directory', self.resultDirectory)
+        return self.resultDirectory.replace('public_html/', '/') + '/'
 
     def addCustomURLs(self):
         self.addURL("view layout test results", self.resultDirectoryURL() + "results.html")
@@ -1295,8 +1163,144 @@ class ExtractTestResults(master.MasterShellCommand):
         return master.MasterShellCommand.finished(self, result)
 
 
-class ExtractTestResultsAndLeaks(ExtractTestResults):
-    def addCustomURLs(self):
-        ExtractTestResults.addCustomURLs(self)
-        url = "/LeaksViewer/?url=" + urllib.quote(self.resultDirectoryURL(), safe="")
-        self.addURL("view leaks", url)
+class PrintConfiguration(steps.ShellSequence):
+    name = 'configuration'
+    description = ['configuration']
+    haltOnFailure = False
+    flunkOnFailure = False
+    warnOnFailure = False
+    logEnviron = False
+    command_list_generic = [['hostname']]
+    command_list_apple = [['df', '-hl'], ['date'], ['sw_vers'], ['xcodebuild', '-sdk', '-version'], ['uptime']]
+    command_list_linux = [['df', '-hl'], ['date'], ['uname', '-a'], ['uptime']]
+    command_list_win = [['df', '-hl']]
+
+    def __init__(self, **kwargs):
+        super(PrintConfiguration, self).__init__(timeout=60, **kwargs)
+        self.commands = []
+        self.log_observer = logobserver.BufferLogObserver(wantStderr=True)
+        self.addLogObserver('stdio', self.log_observer)
+
+    def run(self):
+        command_list = list(self.command_list_generic)
+        platform = self.getProperty('platform', '*')
+        if platform != 'jsc-only':
+            platform = platform.split('-')[0]
+        if platform in ('mac', 'ios', 'tvos', 'watchos', '*'):
+            command_list.extend(self.command_list_apple)
+        elif platform in ('gtk', 'wpe', 'jsc-only'):
+            command_list.extend(self.command_list_linux)
+        elif platform in ('win'):
+            command_list.extend(self.command_list_win)
+
+        for command in command_list:
+            self.commands.append(util.ShellArg(command=command, logname='stdio'))
+        return super(PrintConfiguration, self).run()
+
+    def convert_build_to_os_name(self, build):
+        if not build:
+            return 'Unknown'
+
+        build_to_name_mapping = {
+            '11': 'Big Sur',
+            '10.15': 'Catalina',
+            '10.14': 'Mojave',
+            '10.13': 'High Sierra',
+            '10.12': 'Sierra',
+            '10.11': 'El Capitan',
+            '10.10': 'Yosemite',
+            '10.9': 'Maverick',
+            '10.8': 'Mountain Lion',
+            '10.7': 'Lion',
+            '10.6': 'Snow Leopard',
+            '10.5': 'Leopard',
+        }
+
+        for key, value in build_to_name_mapping.items():
+            if build.startswith(key):
+                return value
+        return 'Unknown'
+
+    def getResultSummary(self):
+        if self.results != SUCCESS:
+            return {'step': 'Failed to print configuration'}
+        logText = self.log_observer.getStdout() + self.log_observer.getStderr()
+        configuration = 'Printed configuration'
+        match = re.search('ProductVersion:[ \t]*(.+?)\n', logText)
+        if match:
+            os_version = match.group(1).strip()
+            os_name = self.convert_build_to_os_name(os_version)
+            configuration = 'OS: {} ({})'.format(os_name, os_version)
+
+        xcode_re = sdk_re = 'Xcode[ \t]+?([0-9.]+?)\n'
+        match = re.search(xcode_re, logText)
+        if match:
+            xcode_version = match.group(1).strip()
+            configuration += ', Xcode: {}'.format(xcode_version)
+        return {'step': configuration}
+
+
+
+class SetPermissions(master.MasterShellCommand):
+    name = 'set-permissions'
+
+    def __init__(self, **kwargs):
+        resultDirectory = Interpolate('%(prop:result_directory)s')
+        kwargs['command'] = ['chmod', 'a+rx', resultDirectory]
+        kwargs['logEnviron'] = False
+        master.MasterShellCommand.__init__(self, **kwargs)
+
+
+class ShowIdentifier(shell.ShellCommand):
+    name = 'show-identifier'
+    identifier_re = '^Identifier: (.*)$'
+    flunkOnFailure = False
+    haltOnFailure = False
+
+    def __init__(self, **kwargs):
+        shell.ShellCommand.__init__(self, timeout=10 * 60, logEnviron=False, **kwargs)
+
+    def start(self):
+        self.log_observer = logobserver.BufferLogObserver()
+        self.addLogObserver('stdio', self.log_observer)
+        revision = self.getProperty('got_revision')
+        self.setCommand(['python', 'Tools/Scripts/git-webkit', 'find', 'r{}'.format(revision)])
+        return shell.ShellCommand.start(self)
+
+    def evaluateCommand(self, cmd):
+        rc = shell.ShellCommand.evaluateCommand(self, cmd)
+        if rc != SUCCESS:
+            return rc
+
+        log_text = self.log_observer.getStdout()
+        match = re.search(self.identifier_re, log_text, re.MULTILINE)
+        if match:
+            identifier = match.group(1)
+            if identifier:
+                identifier = identifier.replace('trunk', 'main')
+            self.setProperty('identifier', identifier)
+            step = self.getLastBuildStepByName(CheckOutSource.name)
+            if not step:
+                step = self
+            step.addURL('Updated to {}'.format(identifier), self.url_for_identifier(identifier))
+            self.descriptionDone = 'Identifier: {}'.format(identifier)
+        else:
+            self.descriptionDone = 'Failed to find identifier'
+        return rc
+
+    def getLastBuildStepByName(self, name):
+        for step in reversed(self.build.executedSteps):
+            if name in step.name:
+                return step
+        return None
+
+    def url_for_identifier(self, identifier):
+        return '{}{}'.format(COMMITS_INFO_URL, identifier)
+
+    def getResultSummary(self):
+        if self.results != SUCCESS:
+            return {u'step': u'Failed to find identifier'}
+        return shell.ShellCommand.getResultSummary(self)
+
+    def hideStepIf(self, results, step):
+        return results == SUCCESS

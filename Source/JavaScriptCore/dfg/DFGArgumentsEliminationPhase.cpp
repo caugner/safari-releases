@@ -404,8 +404,10 @@ private:
                 case FilterGetByStatus:
                 case FilterPutByIdStatus:
                 case FilterCallLinkStatus:
-                case FilterInByIdStatus:
+                case FilterInByStatus:
                 case FilterDeleteByStatus:
+                case FilterCheckPrivateBrandStatus:
+                case FilterSetPrivateBrandStatus:
                     break;
 
                 case CheckArrayOrEmpty:
@@ -1265,8 +1267,10 @@ private:
                 case FilterGetByStatus:
                 case FilterPutByIdStatus:
                 case FilterCallLinkStatus:
-                case FilterInByIdStatus:
-                case FilterDeleteByStatus: {
+                case FilterInByStatus:
+                case FilterDeleteByStatus:
+                case FilterCheckPrivateBrandStatus:
+                case FilterSetPrivateBrandStatus: {
                     if (!isEliminatedAllocation(node->child1().node()))
                         break;
                     node->remove(m_graph);

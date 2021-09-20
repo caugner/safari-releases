@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2017 Apple Inc. All rights reserved.
+ * Copyright (C) 2015-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -106,7 +106,7 @@ ClonedArguments* ClonedArguments::createWithInlineFrame(JSGlobalObject* globalOb
             result = createEmpty(globalObject, callee, length);
 
             for (unsigned i = length; i--;)
-                result->putDirectIndex(globalObject, i, inlineCallFrame->argumentsWithFixup[i + 1].recover(targetFrame));
+                result->putDirectIndex(globalObject, i, inlineCallFrame->m_argumentsWithFixup[i + 1].recover(targetFrame));
         } else {
             length = targetFrame->argumentCount();
             result = createEmpty(globalObject, callee, length);
@@ -181,7 +181,7 @@ bool ClonedArguments::getOwnPropertySlot(JSObject* object, JSGlobalObject* globa
 
         if (ident == vm.propertyNames->callee) {
             if (isStrictMode || executable->usesNonSimpleParameterList()) {
-                slot.setGetterSlot(thisObject, PropertyAttribute::DontDelete | PropertyAttribute::DontEnum | PropertyAttribute::Accessor, thisObject->globalObject(vm)->throwTypeErrorArgumentsCalleeAndCallerGetterSetter());
+                slot.setGetterSlot(thisObject, PropertyAttribute::DontDelete | PropertyAttribute::DontEnum | PropertyAttribute::Accessor, thisObject->globalObject(vm)->throwTypeErrorArgumentsCalleeGetterSetter());
                 return true;
             }
             slot.setValue(thisObject, 0, thisObject->m_callee.get());
@@ -252,7 +252,7 @@ void ClonedArguments::materializeSpecials(JSGlobalObject* globalObject)
     bool isStrictMode = executable->isInStrictContext();
     
     if (isStrictMode || executable->usesNonSimpleParameterList())
-        putDirectAccessor(globalObject, vm.propertyNames->callee, this->globalObject(vm)->throwTypeErrorArgumentsCalleeAndCallerGetterSetter(), PropertyAttribute::DontDelete | PropertyAttribute::DontEnum | PropertyAttribute::Accessor);
+        putDirectAccessor(globalObject, vm.propertyNames->callee, this->globalObject(vm)->throwTypeErrorArgumentsCalleeGetterSetter(), PropertyAttribute::DontDelete | PropertyAttribute::DontEnum | PropertyAttribute::Accessor);
     else
         putDirect(vm, vm.propertyNames->callee, JSValue(m_callee.get()));
 
@@ -267,13 +267,16 @@ void ClonedArguments::materializeSpecialsIfNecessary(JSGlobalObject* globalObjec
         materializeSpecials(globalObject);
 }
 
-void ClonedArguments::visitChildren(JSCell* cell, SlotVisitor& visitor)
+template<typename Visitor>
+void ClonedArguments::visitChildrenImpl(JSCell* cell, Visitor& visitor)
 {
     ClonedArguments* thisObject = jsCast<ClonedArguments*>(cell);
     ASSERT_GC_OBJECT_INHERITS(thisObject, info());
     Base::visitChildren(thisObject, visitor);
     visitor.append(thisObject->m_callee);
 }
+
+DEFINE_VISIT_CHILDREN(ClonedArguments);
 
 } // namespace JSC
 

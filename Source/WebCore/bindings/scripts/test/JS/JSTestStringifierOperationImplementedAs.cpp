@@ -27,6 +27,7 @@
 #include "JSDOMConstructorNotConstructable.h"
 #include "JSDOMConvertStrings.h"
 #include "JSDOMExceptionHandling.h"
+#include "JSDOMGlobalObjectInlines.h"
 #include "JSDOMOperation.h"
 #include "JSDOMWrapperCache.h"
 #include "ScriptExecutionContext.h"
@@ -35,6 +36,7 @@
 #include <JavaScriptCore/HeapAnalyzer.h>
 #include <JavaScriptCore/JSCInlines.h>
 #include <JavaScriptCore/JSDestructibleObjectHeapCellType.h>
+#include <JavaScriptCore/SlotVisitorMacros.h>
 #include <JavaScriptCore/SubspaceInlines.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
@@ -87,6 +89,8 @@ STATIC_ASSERT_ISO_SUBSPACE_SHARABLE(JSTestStringifierOperationImplementedAsProto
 
 using JSTestStringifierOperationImplementedAsDOMConstructor = JSDOMConstructorNotConstructable<JSTestStringifierOperationImplementedAs>;
 
+template<> const ClassInfo JSTestStringifierOperationImplementedAsDOMConstructor::s_info = { "TestStringifierOperationImplementedAs", &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestStringifierOperationImplementedAsDOMConstructor) };
+
 template<> JSValue JSTestStringifierOperationImplementedAsDOMConstructor::prototypeForStructure(JSC::VM& vm, const JSDOMGlobalObject& globalObject)
 {
     UNUSED_PARAM(vm);
@@ -99,8 +103,6 @@ template<> void JSTestStringifierOperationImplementedAsDOMConstructor::initializ
     putDirect(vm, vm.propertyNames->name, jsNontrivialString(vm, "TestStringifierOperationImplementedAs"_s), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
     putDirect(vm, vm.propertyNames->length, jsNumber(0), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
 }
-
-template<> const ClassInfo JSTestStringifierOperationImplementedAsDOMConstructor::s_info = { "TestStringifierOperationImplementedAs", &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestStringifierOperationImplementedAsDOMConstructor) };
 
 /* Hash table for prototype */
 
@@ -148,18 +150,13 @@ JSObject* JSTestStringifierOperationImplementedAs::prototype(VM& vm, JSDOMGlobal
 
 JSValue JSTestStringifierOperationImplementedAs::getConstructor(VM& vm, const JSGlobalObject* globalObject)
 {
-    return getDOMConstructor<JSTestStringifierOperationImplementedAsDOMConstructor>(vm, *jsCast<const JSDOMGlobalObject*>(globalObject));
+    return getDOMConstructor<JSTestStringifierOperationImplementedAsDOMConstructor, DOMConstructorID::TestStringifierOperationImplementedAs>(vm, *jsCast<const JSDOMGlobalObject*>(globalObject));
 }
 
 void JSTestStringifierOperationImplementedAs::destroy(JSC::JSCell* cell)
 {
     JSTestStringifierOperationImplementedAs* thisObject = static_cast<JSTestStringifierOperationImplementedAs*>(cell);
     thisObject->JSTestStringifierOperationImplementedAs::~JSTestStringifierOperationImplementedAs();
-}
-
-template<> inline JSTestStringifierOperationImplementedAs* IDLOperation<JSTestStringifierOperationImplementedAs>::cast(JSGlobalObject& lexicalGlobalObject, CallFrame& callFrame)
-{
-    return jsDynamicCast<JSTestStringifierOperationImplementedAs*>(JSC::getVM(&lexicalGlobalObject), callFrame.thisValue());
 }
 
 JSC_DEFINE_CUSTOM_GETTER(jsTestStringifierOperationImplementedAsConstructor, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, PropertyName))
@@ -179,7 +176,7 @@ static inline JSC::EncodedJSValue jsTestStringifierOperationImplementedAsPrototy
     UNUSED_PARAM(throwScope);
     UNUSED_PARAM(callFrame);
     auto& impl = castedThis->wrapped();
-    RELEASE_AND_RETURN(throwScope, JSValue::encode(toJS<IDLDOMString>(*lexicalGlobalObject, impl.alternateIdentifier())));
+    RELEASE_AND_RETURN(throwScope, JSValue::encode(toJS<IDLDOMString>(*lexicalGlobalObject, throwScope, impl.alternateIdentifier())));
 }
 
 JSC_DEFINE_HOST_FUNCTION(jsTestStringifierOperationImplementedAsPrototypeFunction_identifier, (JSGlobalObject* lexicalGlobalObject, CallFrame* callFrame))
@@ -194,7 +191,7 @@ static inline JSC::EncodedJSValue jsTestStringifierOperationImplementedAsPrototy
     UNUSED_PARAM(throwScope);
     UNUSED_PARAM(callFrame);
     auto& impl = castedThis->wrapped();
-    RELEASE_AND_RETURN(throwScope, JSValue::encode(toJS<IDLDOMString>(*lexicalGlobalObject, impl.alternateIdentifier())));
+    RELEASE_AND_RETURN(throwScope, JSValue::encode(toJS<IDLDOMString>(*lexicalGlobalObject, throwScope, impl.alternateIdentifier())));
 }
 
 JSC_DEFINE_HOST_FUNCTION(jsTestStringifierOperationImplementedAsPrototypeFunction_toString, (JSGlobalObject* lexicalGlobalObject, CallFrame* callFrame))
@@ -216,7 +213,9 @@ JSC::IsoSubspace* JSTestStringifierOperationImplementedAs::subspaceForImpl(JSC::
     auto* space = spaces.m_subspaceForTestStringifierOperationImplementedAs.get();
 IGNORE_WARNINGS_BEGIN("unreachable-code")
 IGNORE_WARNINGS_BEGIN("tautological-compare")
-    if (&JSTestStringifierOperationImplementedAs::visitOutputConstraints != &JSC::JSCell::visitOutputConstraints)
+    void (*myVisitOutputConstraint)(JSC::JSCell*, JSC::SlotVisitor&) = JSTestStringifierOperationImplementedAs::visitOutputConstraints;
+    void (*jsCellVisitOutputConstraint)(JSC::JSCell*, JSC::SlotVisitor&) = JSC::JSCell::visitOutputConstraints;
+    if (myVisitOutputConstraint != jsCellVisitOutputConstraint)
         clientData.outputConstraintSpaces().append(space);
 IGNORE_WARNINGS_END
 IGNORE_WARNINGS_END
@@ -232,7 +231,7 @@ void JSTestStringifierOperationImplementedAs::analyzeHeap(JSCell* cell, HeapAnal
     Base::analyzeHeap(cell, analyzer);
 }
 
-bool JSTestStringifierOperationImplementedAsOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, SlotVisitor& visitor, const char** reason)
+bool JSTestStringifierOperationImplementedAsOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, AbstractSlotVisitor& visitor, const char** reason)
 {
     UNUSED_PARAM(handle);
     UNUSED_PARAM(visitor);

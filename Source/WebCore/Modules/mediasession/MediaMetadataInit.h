@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 Apple Inc. All rights reserved.
+ * Copyright (C) 2020-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -35,8 +35,63 @@ struct MediaMetadataInit {
     String title;
     String artist;
     String album;
+#if ENABLE(MEDIA_SESSION_PLAYLIST)
+    String trackIdentifier;
+#endif
     Vector<MediaImage> artwork;
+
+    template<class Encoder> void encode(Encoder&) const;
+    template<class Decoder> static std::optional<MediaMetadataInit> decode(Decoder&);
 };
+
+template<class Encoder> inline void MediaMetadataInit::encode(Encoder& encoder) const
+{
+    encoder << title << artist << album
+#if ENABLE(MEDIA_SESSION_PLAYLIST)
+    << trackIdentifier
+#endif
+    << artwork;
+}
+
+template<class Decoder> inline std::optional<MediaMetadataInit> MediaMetadataInit::decode(Decoder& decoder)
+{
+    std::optional<String> title;
+    decoder >> title;
+    if (!title)
+        return { };
+
+    std::optional<String> artist;
+    decoder >> artist;
+    if (!artist)
+        return { };
+
+    std::optional<String> album;
+    decoder >> album;
+    if (!album)
+        return { };
+
+#if ENABLE(MEDIA_SESSION_PLAYLIST)
+    std::optional<String> trackIdentifier;
+    decoder >> trackIdentifier;
+    if (!trackIdentifier)
+        return { };
+#endif
+
+    std::optional<Vector<MediaImage>> artwork;
+    decoder >> artwork;
+    if (!artwork)
+        return { };
+
+    return { {
+        WTFMove(*title),
+        WTFMove(*artist),
+        WTFMove(*album),
+#if ENABLE(MEDIA_SESSION_PLAYLIST)
+        WTFMove(*trackIdentifier),
+#endif
+        WTFMove(*artwork)
+    } };
+}
 
 }
 

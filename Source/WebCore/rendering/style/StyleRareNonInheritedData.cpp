@@ -43,6 +43,7 @@ StyleRareNonInheritedData::StyleRareNonInheritedData()
     : opacity(RenderStyle::initialOpacity())
     , aspectRatioWidth(RenderStyle::initialAspectRatioWidth())
     , aspectRatioHeight(RenderStyle::initialAspectRatioHeight())
+    , contain(RenderStyle::initialContainment())
     , perspective(RenderStyle::initialPerspective())
     , perspectiveOriginX(RenderStyle::initialPerspectiveOriginX())
     , perspectiveOriginY(RenderStyle::initialPerspectiveOriginY())
@@ -120,6 +121,7 @@ inline StyleRareNonInheritedData::StyleRareNonInheritedData(const StyleRareNonIn
     , opacity(o.opacity)
     , aspectRatioWidth(o.aspectRatioWidth)
     , aspectRatioHeight(o.aspectRatioHeight)
+    , contain(o.contain)
     , perspective(o.perspective)
     , perspectiveOriginX(o.perspectiveOriginX)
     , perspectiveOriginY(o.perspectiveOriginY)
@@ -138,10 +140,9 @@ inline StyleRareNonInheritedData::StyleRareNonInheritedData(const StyleRareNonIn
     , gridItem(o.gridItem)
     , scrollMargin(o.scrollMargin)
     , scrollPadding(o.scrollPadding)
-#if ENABLE(CSS_SCROLL_SNAP)
     , scrollSnapType(o.scrollSnapType)
     , scrollSnapAlign(o.scrollSnapAlign)
-#endif
+    , scrollSnapStop(o.scrollSnapStop)
     , overscrollBehaviorX(o.overscrollBehaviorX)
     , overscrollBehaviorY(o.overscrollBehaviorY)
     , content(o.content ? o.content->clone() : nullptr)
@@ -226,6 +227,7 @@ bool StyleRareNonInheritedData::operator==(const StyleRareNonInheritedData& o) c
     return opacity == o.opacity
         && aspectRatioWidth == o.aspectRatioWidth
         && aspectRatioHeight == o.aspectRatioHeight
+        && contain == o.contain
         && perspective == o.perspective
         && perspectiveOriginX == o.perspectiveOriginX
         && perspectiveOriginY == o.perspectiveOriginY
@@ -244,10 +246,9 @@ bool StyleRareNonInheritedData::operator==(const StyleRareNonInheritedData& o) c
         && gridItem == o.gridItem
         && scrollMargin == o.scrollMargin
         && scrollPadding == o.scrollPadding
-#if ENABLE(CSS_SCROLL_SNAP)
         && scrollSnapType == o.scrollSnapType
         && scrollSnapAlign == o.scrollSnapAlign
-#endif
+        && scrollSnapStop == o.scrollSnapStop
         && overscrollBehaviorX == o.overscrollBehaviorX
         && overscrollBehaviorY == o.overscrollBehaviorY
         && contentDataEquivalent(o)

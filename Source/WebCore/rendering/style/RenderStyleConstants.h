@@ -26,6 +26,7 @@
 #pragma once
 
 #include <initializer_list>
+#include <wtf/EnumTraits.h>
 
 namespace WTF {
 class TextStream;
@@ -236,9 +237,17 @@ enum class PositionType : uint8_t {
 };
 
 enum class Float : uint8_t {
-    No,
+    None,
     Left,
-    Right
+    Right,
+    InlineStart,
+    InlineEnd,
+};
+
+enum class UsedFloat : uint8_t {
+    None,
+    Left,
+    Right,
 };
 
 enum class MarginCollapse : uint8_t {
@@ -266,6 +275,7 @@ enum class BoxSizing : uint8_t {
 enum class Overflow : uint8_t {
     Visible,
     Hidden,
+    Clip,
     Scroll,
     Auto,
     PagedX,
@@ -286,10 +296,19 @@ enum class VerticalAlign : uint8_t {
 };
 
 enum class Clear : uint8_t {
-    None = 0,
-    Left = 1,
-    Right = 2,
-    Both = 3
+    None,
+    Left,
+    Right,
+    InlineStart,
+    InlineEnd,
+    Both
+};
+
+enum class UsedClear : uint8_t {
+    None,
+    Left,
+    Right,
+    Both
 };
 
 enum class TableLayoutType : uint8_t {
@@ -519,7 +538,8 @@ enum class ObjectFit : uint8_t {
 enum class AspectRatioType : uint8_t {
     Auto,
     Ratio,
-    AutoAndRatio
+    AutoAndRatio,
+    AutoZero
 };
 
 enum class WordBreak : uint8_t {
@@ -598,8 +618,8 @@ enum class ListStyleType : uint8_t {
     EthiopicHalehameAmEt,
     AmharicAbegede,
     EthiopicAbegedeAmEt,
-    CjkEarthlyBranch,
-    CjkHeavenlyStem,
+    CJKEarthlyBranch,
+    CJKHeavenlyStem,
     Ethiopic,
     EthiopicHalehameGez,
     EthiopicAbegede,
@@ -637,6 +657,20 @@ enum class ListStyleType : uint8_t {
     Katakana,
     HiraganaIroha,
     KatakanaIroha,
+    CJKDecimal,
+    Tamil,
+    DisclosureOpen,
+    DisclosureClosed,
+    JapaneseInformal,
+    JapaneseFormal,
+    KoreanHangulFormal,
+    KoreanHanjaInformal,
+    KoreanHanjaFormal,
+    SimplifiedChineseInformal,
+    SimplifiedChineseFormal,
+    TraditionalChineseInformal,
+    TraditionalChineseFormal,
+    EthiopicNumeric,
     String,
     None
 };
@@ -886,9 +920,7 @@ enum class DisplayType : uint8_t {
     Box,
     InlineBox,
     Flex,
-    WebKitFlex,
     InlineFlex,
-    WebKitInlineFlex,
     Contents,
     Grid,
     InlineGrid,
@@ -918,7 +950,10 @@ enum class PointerEvents : uint8_t {
 
 enum class TransformStyle3D : uint8_t {
     Flat,
-    Preserve3D
+    Preserve3D,
+#if ENABLE(CSS_TRANSFORM_STYLE_OPTIMIZED_3D)
+    Optimized3D
+#endif
 };
 
 enum class BackfaceVisibility : uint8_t {
@@ -1074,8 +1109,6 @@ enum class AutoRepeatType : uint8_t {
 // Reasonable maximum to prevent insane font sizes from causing crashes on some platforms (such as Windows).
 static const float maximumAllowedFontSize = 1000000.0f;
 
-#if ENABLE(CSS3_TEXT)
-
 enum class TextIndentLine : uint8_t {
     FirstLine,
     EachLine
@@ -1085,8 +1118,6 @@ enum class TextIndentType : uint8_t {
     Normal,
     Hanging
 };
-
-#endif
 
 enum class Isolation : uint8_t {
     Auto,
@@ -1105,7 +1136,6 @@ enum class CSSBoxType : uint8_t {
     ViewBox
 };
 
-#if ENABLE(CSS_SCROLL_SNAP)
 enum class ScrollSnapStrictness : uint8_t {
     None,
     Proximity,
@@ -1126,7 +1156,11 @@ enum class ScrollSnapAxisAlignType : uint8_t {
     Center,
     End
 };
-#endif
+
+enum class ScrollSnapStop : uint8_t {
+    Normal,
+    Always,
+};
 
 #if ENABLE(CSS_TRAILING_WORD)
 enum class TrailingWord : uint8_t {
@@ -1198,6 +1232,12 @@ enum class MathStyle : uint8_t {
     Compact,
 };
 
+enum class Containment : uint8_t {
+    Layout   = 1 << 0,
+    Paint    = 1 << 1,
+    Size     = 1 << 2,
+};
+
 extern const float defaultMiterLimit;
 
 WTF::TextStream& operator<<(WTF::TextStream&, AnimationFillMode);
@@ -1224,6 +1264,7 @@ WTF::TextStream& operator<<(WTF::TextStream&, BreakInside);
 WTF::TextStream& operator<<(WTF::TextStream&, CSSBoxType);
 WTF::TextStream& operator<<(WTF::TextStream&, CaptionSide);
 WTF::TextStream& operator<<(WTF::TextStream&, Clear);
+WTF::TextStream& operator<<(WTF::TextStream&, UsedClear);
 #if ENABLE(DARK_MODE_CSS)
 WTF::TextStream& operator<<(WTF::TextStream&, ColorScheme);
 #endif
@@ -1248,6 +1289,7 @@ WTF::TextStream& operator<<(WTF::TextStream&, FillSizeType);
 WTF::TextStream& operator<<(WTF::TextStream&, FlexDirection);
 WTF::TextStream& operator<<(WTF::TextStream&, FlexWrap);
 WTF::TextStream& operator<<(WTF::TextStream&, Float);
+WTF::TextStream& operator<<(WTF::TextStream&, UsedFloat);
 WTF::TextStream& operator<<(WTF::TextStream&, GridAutoFlow);
 WTF::TextStream& operator<<(WTF::TextStream&, HangingPunctuation);
 WTF::TextStream& operator<<(WTF::TextStream&, Hyphens);
@@ -1280,11 +1322,10 @@ WTF::TextStream& operator<<(WTF::TextStream&, QuoteType);
 WTF::TextStream& operator<<(WTF::TextStream&, ReflectionDirection);
 WTF::TextStream& operator<<(WTF::TextStream&, Resize);
 WTF::TextStream& operator<<(WTF::TextStream&, RubyPosition);
-#if ENABLE(CSS_SCROLL_SNAP)
 WTF::TextStream& operator<<(WTF::TextStream&, ScrollSnapAxis);
 WTF::TextStream& operator<<(WTF::TextStream&, ScrollSnapAxisAlignType);
+WTF::TextStream& operator<<(WTF::TextStream&, ScrollSnapStop);
 WTF::TextStream& operator<<(WTF::TextStream&, ScrollSnapStrictness);
-#endif
 WTF::TextStream& operator<<(WTF::TextStream&, SpeakAs);
 WTF::TextStream& operator<<(WTF::TextStream&, StyleDifference);
 WTF::TextStream& operator<<(WTF::TextStream&, TableLayoutType);
@@ -1314,3 +1355,13 @@ WTF::TextStream& operator<<(WTF::TextStream&, WordBreak);
 WTF::TextStream& operator<<(WTF::TextStream&, MathStyle);
 
 } // namespace WebCore
+
+namespace WTF {
+template<> struct EnumTraits<WebCore::ScrollSnapStop> {
+    using values = EnumValues<
+        WebCore::ScrollSnapStop,
+        WebCore::ScrollSnapStop::Normal,
+        WebCore::ScrollSnapStop::Always
+    >;
+};
+}

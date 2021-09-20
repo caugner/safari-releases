@@ -39,10 +39,6 @@ namespace WebKit {
 bool isFeatureFlagEnabled(const String&);
 #endif
 
-#if ENABLE(WEBGPU)
-bool defaultWebGPUEnabled();
-#endif
-
 #if HAVE(INCREMENTAL_PDF_APIS)
 bool defaultIncrementalPDFEnabled();
 #endif
@@ -71,8 +67,6 @@ bool defaultNeedsAdobeFrameReloadingQuirk();
 bool defaultTreatsAnyTextCSSLinkAsStylesheet();
 bool defaultNeedsFrameNameFallbackToIdQuirk();
 bool defaultNeedsKeyboardEventDisambiguationQuirks();
-bool defaultEnforceCSSMIMETypeInNoQuirksMode();
-bool defaultNeedsIsLoadingInAPISenseQuirk();
 #endif
 
 bool defaultAttachmentElementEnabled();
@@ -85,6 +79,16 @@ bool defaultShouldConvertInvalidURLsToBlank();
 #if PLATFORM(MAC)
 bool defaultPassiveWheelListenersAsDefaultOnDocument();
 bool defaultWheelEventGesturesBecomeNonBlocking();
+#endif
+
+#if ENABLE(MEDIA_SOURCE)
+bool defaultWebMParserEnabled();
+bool defaultWebMWebAudioEnabled();
+#endif
+
+#if ENABLE(VP9)
+bool defaultVP8DecoderEnabled();
+bool defaultVP9DecoderEnabled();
 #endif
 
 } // namespace WebKit

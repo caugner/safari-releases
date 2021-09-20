@@ -515,6 +515,10 @@ private:
             case Array::Int32Array:
                 changed |= mergePrediction(SpecInt32Only);
                 break;
+            case Array::BigInt64Array:
+            case Array::BigUint64Array:
+                changed |= mergePrediction(SpecBigInt);
+                break;
             default:
                 changed |= mergePrediction(node->getHeapPrediction());
                 break;
@@ -1021,6 +1025,7 @@ private:
         case DeleteByVal:
         case DeleteById:
         case MultiDeleteByOffset:
+        case ToBoolean:
         case LogicalNot:
         case CompareLess:
         case CompareLessEq:
@@ -1153,6 +1158,7 @@ private:
         case StringCharAt:
         case CallStringConstructor:
         case ToString:
+        case FunctionToString:
         case NumberToStringWithRadix:
         case NumberToStringWithValidRadixConstant:
         case MakeRope:
@@ -1199,19 +1205,15 @@ private:
             setPrediction(SpecObjectOther);
             break;
 
-        case InByVal:
-        case InById:
-            setPrediction(SpecBoolean);
-            break;
-
-        case HasOwnProperty:
-            setPrediction(SpecBoolean);
-            break;
-
         case GetEnumerableLength: {
             setPrediction(SpecInt32Only);
             break;
         }
+        case InByVal:
+        case InById:
+        case HasPrivateName:
+        case HasPrivateBrand:
+        case HasOwnProperty:
         case HasOwnStructureProperty:
         case InStructureProperty:
         case HasIndexedProperty:
@@ -1384,6 +1386,8 @@ private:
         case PutByVal:
         case PutPrivateName:
         case PutPrivateNameById:
+        case SetPrivateBrand:
+        case CheckPrivateBrand:
         case PutClosureVar:
         case PutInternalField:
         case PutToArguments:
@@ -1448,11 +1452,14 @@ private:
         case FilterCallLinkStatus:
         case FilterGetByStatus:
         case FilterPutByIdStatus:
-        case FilterInByIdStatus:
+        case FilterInByStatus:
         case FilterDeleteByStatus:
+        case FilterCheckPrivateBrandStatus:
+        case FilterSetPrivateBrandStatus:
         case ClearCatchLocals:
         case DataViewSet:
         case InvalidationPoint:
+        case ObjectAssign:
             break;
             
         // This gets ignored because it only pretends to produce a value.

@@ -205,7 +205,7 @@ function fill(value /* [, start [, end]] */)
     var array = @toObject(this, "Array.prototype.fill requires that |this| not be null or undefined");
     var length = @toLength(array.length);
 
-    var relativeStart = @toInteger(@argument(1));
+    var relativeStart = @toIntegerOrInfinity(@argument(1));
     var k = 0;
     if (relativeStart < 0) {
         k = length + relativeStart;
@@ -219,7 +219,7 @@ function fill(value /* [, start [, end]] */)
     var relativeEnd = length;
     var end = @argument(2);
     if (end !== @undefined)
-        relativeEnd = @toInteger(end);
+        relativeEnd = @toIntegerOrInfinity(end);
     var final = 0;
     if (relativeEnd < 0) {
         final = length + relativeEnd;
@@ -254,6 +254,25 @@ function find(callback /*, thisArg */)
     return @undefined;
 }
 
+function findLast(callback /*, thisArg */)
+{
+    "use strict";
+
+    var array = @toObject(this, "Array.prototype.findLast requires that |this| not be null or undefined");
+    var length = @toLength(array.length);
+
+    if (!@isCallable(callback))
+        @throwTypeError("Array.prototype.findLast callback must be a function");
+
+    var thisArg = @argument(1);
+    for (var i = length - 1; i >= 0; i--) {
+        var element = array[i];
+        if (callback.@call(thisArg, element, i, array))
+            return element;
+    }
+    return @undefined;
+}
+
 function findIndex(callback /*, thisArg */)
 {
     "use strict";
@@ -266,6 +285,24 @@ function findIndex(callback /*, thisArg */)
     
     var thisArg = @argument(1);
     for (var i = 0; i < length; i++) {
+        if (callback.@call(thisArg, array[i], i, array))
+            return i;
+    }
+    return -1;
+}
+
+function findLastIndex(callback /*, thisArg */)
+{
+    "use strict";
+
+    var array = @toObject(this, "Array.prototype.findLastIndex requires that |this| not be null or undefined");
+    var length = @toLength(array.length);
+
+    if (!@isCallable(callback))
+        @throwTypeError("Array.prototype.findLastIndex callback must be a function");
+
+    var thisArg = @argument(1);
+    for (var i = length - 1; i >= 0; i--) {
         if (callback.@call(thisArg, array[i], i, array))
             return i;
     }
@@ -285,7 +322,7 @@ function includes(searchElement /*, fromIndex*/)
     var fromIndex = 0;
     var from = @argument(1);
     if (from !== @undefined)
-        fromIndex = @toInteger(from);
+        fromIndex = @toIntegerOrInfinity(from);
 
     var index;
     if (fromIndex >= 0)
@@ -559,39 +596,45 @@ function concat(first)
     return @tailCallForwardArguments(@concatSlowPath, this);
 }
 
+@globalPrivate
+function maxWithPositives(a, b)
+{
+    "use strict";
+
+    return (a < b) ? b : a;
+}
+
+@globalPrivate
+function minWithMaybeNegativeZeroAndPositive(maybeNegativeZero, positive)
+{
+    "use strict";
+
+    return (maybeNegativeZero < positive) ? maybeNegativeZero : positive;
+}
+
 function copyWithin(target, start /*, end */)
 {
     "use strict";
 
-    function maxWithPositives(a, b)
-    {
-        return (a < b) ? b : a;
-    }
-
-    function minWithMaybeNegativeZeroAndPositive(maybeNegativeZero, positive)
-    {
-        return (maybeNegativeZero < positive) ? maybeNegativeZero : positive;
-    }
-
     var array = @toObject(this, "Array.prototype.copyWithin requires that |this| not be null or undefined");
     var length = @toLength(array.length);
 
-    var relativeTarget = @toInteger(target);
-    var to = (relativeTarget < 0) ? maxWithPositives(length + relativeTarget, 0) : minWithMaybeNegativeZeroAndPositive(relativeTarget, length);
+    var relativeTarget = @toIntegerOrInfinity(target);
+    var to = (relativeTarget < 0) ? @maxWithPositives(length + relativeTarget, 0) : @minWithMaybeNegativeZeroAndPositive(relativeTarget, length);
 
-    var relativeStart = @toInteger(start);
-    var from = (relativeStart < 0) ? maxWithPositives(length + relativeStart, 0) : minWithMaybeNegativeZeroAndPositive(relativeStart, length);
+    var relativeStart = @toIntegerOrInfinity(start);
+    var from = (relativeStart < 0) ? @maxWithPositives(length + relativeStart, 0) : @minWithMaybeNegativeZeroAndPositive(relativeStart, length);
 
     var relativeEnd;
     var end = @argument(2);
     if (end === @undefined)
         relativeEnd = length;
     else
-        relativeEnd = @toInteger(end);
+        relativeEnd = @toIntegerOrInfinity(end);
 
-    var finalValue = (relativeEnd < 0) ? maxWithPositives(length + relativeEnd, 0) : minWithMaybeNegativeZeroAndPositive(relativeEnd, length);
+    var finalValue = (relativeEnd < 0) ? @maxWithPositives(length + relativeEnd, 0) : @minWithMaybeNegativeZeroAndPositive(relativeEnd, length);
 
-    var count = minWithMaybeNegativeZeroAndPositive(finalValue - from, length - to);
+    var count = @minWithMaybeNegativeZeroAndPositive(finalValue - from, length - to);
 
     var direction = 1;
     if (from < to && to < from + count) {
@@ -641,7 +684,7 @@ function flat()
     var depthNum = 1;
     var depth = @argument(0);
     if (depth !== @undefined)
-        depthNum = @toInteger(depth);
+        depthNum = @toIntegerOrInfinity(depth);
 
     var result = @arraySpeciesCreate(array, 0);
 
@@ -694,7 +737,7 @@ function at(index)
     var array = @toObject(this, "Array.prototype.at requires that |this| not be null or undefined");
     var length = @toLength(array.length);
 
-    var k = @toInteger(index);
+    var k = @toIntegerOrInfinity(index);
     if (k < 0)
         k += length;
 

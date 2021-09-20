@@ -73,10 +73,8 @@ bool Plugin::Parameters::decode(IPC::Decoder& decoder, Parameters& parameters)
     if (!decoder.decode(parameters.layerHostingMode))
         return false;
 #endif
-    if (parameters.names.size() != parameters.values.size()) {
-        decoder.markInvalid();
+    if (parameters.names.size() != parameters.values.size())
         return false;
-    }
 
     return true;
 }
@@ -126,5 +124,12 @@ const PluginController* Plugin::controller() const
 {
     return m_pluginController.get();
 }
+
+#if PLATFORM(COCOA)
+WebCore::FloatSize Plugin::pdfDocumentSizeForPrinting() const
+{
+    return { };
+}
+#endif
 
 } // namespace WebKit

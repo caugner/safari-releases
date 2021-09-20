@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 Apple Inc.  All rights reserved.
+ * Copyright (C) 2020-2021 Apple Inc.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -26,7 +26,7 @@
 #pragma once
 
 #include "ImageBuffer.h"
-#include "ImageData.h"
+#include "PixelBuffer.h"
 
 namespace WebCore {
 
@@ -34,7 +34,7 @@ template<typename BackendType>
 class ConcreteImageBuffer : public ImageBuffer {
 public:
     template<typename ImageBufferType = ConcreteImageBuffer, typename... Arguments>
-    static RefPtr<ImageBufferType> create(const FloatSize& size, float resolutionScale, ColorSpace colorSpace, PixelFormat pixelFormat, const HostWindow* hostWindow, Arguments&&... arguments)
+    static RefPtr<ImageBufferType> create(const FloatSize& size, float resolutionScale, const DestinationColorSpace& colorSpace, PixelFormat pixelFormat, const HostWindow* hostWindow, Arguments&&... arguments)
     {
         auto parameters = ImageBufferBackend::Parameters { size, resolutionScale, colorSpace, pixelFormat };
         auto backend = BackendType::create(parameters, hostWindow);
@@ -46,7 +46,7 @@ public:
     template<typename ImageBufferType = ConcreteImageBuffer, typename... Arguments>
     static RefPtr<ImageBufferType> create(const FloatSize& size, const GraphicsContext& context, Arguments&&... arguments)
     {
-        auto parameters = ImageBufferBackend::Parameters { size, 1, ColorSpace::SRGB, PixelFormat::BGRA8 };
+        auto parameters = ImageBufferBackend::Parameters { size, 1, DestinationColorSpace::SRGB(), PixelFormat::BGRA8 };
         auto backend = BackendType::create(parameters, context);
         if (!backend)
             return nullptr;
@@ -91,7 +91,7 @@ protected:
 
     IntSize logicalSize() const override { return IntSize(m_parameters.logicalSize); }
     float resolutionScale() const override { return m_parameters.resolutionScale; }
-    ColorSpace colorSpace() const override { return m_parameters.colorSpace; }
+    DestinationColorSpace colorSpace() const override { return m_parameters.colorSpace; }
     PixelFormat pixelFormat() const override { return m_parameters.pixelFormat; }
     const ImageBufferBackend::Parameters& parameters() const override { return m_parameters; }
 
@@ -104,19 +104,19 @@ protected:
 
     AffineTransform baseTransform() const override
     {
-        if (BackendType::isOriginAtUpperLeftCorner)
+        if (BackendType::isOriginAtBottomLeftCorner)
             return AffineTransform(1, 0, 0, -1, 0, logicalSize().height());
         return { };
     }
 
     size_t memoryCost() const override
     {
-        return m_backend ? m_backend->memoryCost() : 0;
+        return BackendType::calculateMemoryCost(m_parameters);
     }
 
     size_t externalMemoryCost() const override
     {
-        return m_backend ? m_backend->externalMemoryCost() : 0;
+        return BackendType::calculateExternalMemoryCost(m_parameters);
     }
 
     RefPtr<NativeImage> copyNativeImage(BackingStoreCopy copyBehavior = CopyBackingStore) const override
@@ -195,15 +195,16 @@ protected:
         }
     }
 
-    void transformColorSpace(ColorSpace srcColorSpace, ColorSpace destColorSpace) override
+    void transformToColorSpace(const DestinationColorSpace& newColorSpace) override
     {
         if (auto* backend = ensureBackendCreated()) {
             flushDrawingContext();
-            backend->transformColorSpace(srcColorSpace, destColorSpace);
+            backend->transformToColorSpace(newColorSpace);
+            m_parameters.colorSpace = newColorSpace;
         }
     }
 
-    String toDataURL(const String& mimeType, Optional<double> quality, PreserveResolution preserveResolution) const override
+    String toDataURL(const String& mimeType, std::optional<double> quality, PreserveResolution preserveResolution) const override
     {
         if (auto* backend = ensureBackendCreated()) {
             const_cast<ConcreteImageBuffer&>(*this).flushContext();
@@ -212,7 +213,7 @@ protected:
         return String();
     }
 
-    Vector<uint8_t> toData(const String& mimeType, Optional<double> quality = WTF::nullopt) const override
+    Vector<uint8_t> toData(const String& mimeType, std::optional<double> quality = std::nullopt) const override
     {
         if (auto* backend = ensureBackendCreated()) {
             const_cast<ConcreteImageBuffer&>(*this).flushContext();
@@ -221,29 +222,20 @@ protected:
         return { };
     }
 
-    Vector<uint8_t> toBGRAData() const override
+    std::optional<PixelBuffer> getPixelBuffer(const PixelBufferFormat& outputFormat, const IntRect& srcRect) const override
     {
         if (auto* backend = ensureBackendCreated()) {
             const_cast<ConcreteImageBuffer&>(*this).flushContext();
-            return backend->toBGRAData();
+            return backend->getPixelBuffer(outputFormat, srcRect);
         }
-        return { };
+        return std::nullopt;
     }
 
-    RefPtr<ImageData> getImageData(AlphaPremultiplication outputFormat, const IntRect& srcRect) const override
-    {
-        if (auto* backend = ensureBackendCreated()) {
-            const_cast<ConcreteImageBuffer&>(*this).flushContext();
-            return backend->getImageData(outputFormat, srcRect);
-        }
-        return nullptr;
-    }
-
-    void putImageData(AlphaPremultiplication inputFormat, const ImageData& imageData, const IntRect& srcRect, const IntPoint& destPoint = { }, AlphaPremultiplication destFormat = AlphaPremultiplication::Premultiplied) override
+    void putPixelBuffer(const PixelBuffer& pixelBuffer, const IntRect& srcRect, const IntPoint& destPoint = { }, AlphaPremultiplication destFormat = AlphaPremultiplication::Premultiplied) override
     {
         if (auto* backend = ensureBackendCreated()) {
             flushContext();
-            backend->putImageData(inputFormat, imageData, srcRect, destPoint, destFormat);
+            backend->putPixelBuffer(pixelBuffer, srcRect, destPoint, destFormat);
         }
     }
 

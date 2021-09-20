@@ -62,6 +62,7 @@ set(WebKit_PUBLIC_FRAMEWORK_HEADERS
     UIProcess/API/C/WKIconDatabase.h
     UIProcess/API/C/WKInspector.h
     UIProcess/API/C/WKLayoutMode.h
+    UIProcess/API/C/WKMediaKeySystemPermissionCallback.h
     UIProcess/API/C/WKMessageListener.h
     UIProcess/API/C/WKMockDisplay.h
     UIProcess/API/C/WKMockMediaDevice.h
@@ -138,7 +139,6 @@ set(WebKit_PUBLIC_FRAMEWORK_HEADERS
     WebProcess/InjectedBundle/API/c/WKBundlePageEditorClient.h
     WebProcess/InjectedBundle/API/c/WKBundlePageFormClient.h
     WebProcess/InjectedBundle/API/c/WKBundlePageFullScreenClient.h
-    WebProcess/InjectedBundle/API/c/WKBundlePageGroup.h
     WebProcess/InjectedBundle/API/c/WKBundlePageLoaderClient.h
     WebProcess/InjectedBundle/API/c/WKBundlePageOverlay.h
     WebProcess/InjectedBundle/API/c/WKBundlePagePolicyClient.h

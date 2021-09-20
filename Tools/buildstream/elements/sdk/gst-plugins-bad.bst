@@ -1,14 +1,18 @@
 kind: meson
 sources:
 - kind: tar
-  url: gst_downloads:gst-plugins-bad/gst-plugins-bad-1.18.0.tar.xz
-  ref: f382ab1caddd64aaa7acb7c4787487f63fd39bd0fde9c757655cbaa457c1185f
+  url: gst_downloads:gst-plugins-bad/gst-plugins-bad-1.18.4.tar.xz
+  ref: 74e806bc5595b18c70e9ca93571e27e79dfb808e5d2e7967afa952b52e99c85f
+# Should be shipped in GStreamer 1.20. https://gitlab.freedesktop.org/gstreamer/gst-plugins-bad/-/merge_requests/2125
+- kind: patch
+  path: patches/gst-plugins-bad-0001-debugutils-Add-fakeaudiosink-element.patch
 build-depends:
 - freedesktop-sdk.bst:public-stacks/buildsystem-meson.bst
 depends:
 - sdk/gstreamer.bst
 - sdk/gst-plugins-base.bst
 - sdk/openjpeg.bst
+- sdk/libdrm.bst
 - sdk/libkate.bst
 - sdk/libusrsctp.bst
 - sdk-build-depends/libusb.bst
@@ -17,7 +21,6 @@ depends:
 - freedesktop-sdk.bst:components/librsvg.bst
 - freedesktop-sdk.bst:components/frei0r.bst
 - freedesktop-sdk.bst:components/ladspa-sdk.bst
-- freedesktop-sdk.bst:components/libdrm.bst
 - freedesktop-sdk.bst:components/libfdk-aac.bst
 - freedesktop-sdk.bst:components/libglvnd.bst
 - freedesktop-sdk.bst:components/libnice.bst

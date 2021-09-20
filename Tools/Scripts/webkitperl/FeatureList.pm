@@ -95,8 +95,6 @@ my (
     $geolocationSupport,
     $gpuProcessSupport,
     $gstreamerGLSupport,
-    $indexedDatabaseInWorkersSupport,
-    $indexedDatabaseSupport,
     $inputTypeColorSupport,
     $inputTypeDateSupport,
     $inputTypeDatetimelocalSupport,
@@ -131,6 +129,7 @@ my (
     $networkCacheStaleWhileRevalidateSupport,
     $notificationsSupport,
     $offscreenCanvasSupport,
+    $offscreenCanvasInWorkersSupport,
     $thunderSupport,
     $orientationEventsSupport,
     $overflowScrollingTouchSupport,
@@ -173,6 +172,7 @@ my (
     $videoUsesElementFullscreenSupport,
     $webAPIStatisticsSupport,
     $webAssemblySupport,
+    $webAssemblyB3JITSupport,
     $webAudioSupport,
     $webAuthNSupport,
     $webCryptoSupport,
@@ -260,9 +260,6 @@ my @features = (
     { option => "css-painting-api", desc => "Toggle CSS Painting API support",
       define => "ENABLE_CSS_PAINTING_API", value => \$cssPaintingAPISupport },
 
-    { option => "css-scroll-snap", desc => "Toggle CSS snap scroll support",
-      define => "ENABLE_CSS_SCROLL_SNAP", value => \$cssScrollSnapSupport },
-
     { option => "css-selectors-level4", desc => "Toggle CSS Selectors Level 4 support",
       define => "ENABLE_CSS_SELECTORS_LEVEL4", value => \$cssSelectorsLevel4Support },
 
@@ -325,12 +322,6 @@ my @features = (
 
     { option => "gpu-process", desc => "Toggle GPU Process support",
       define => "ENABLE_GPU_PROCESS", value => \$gpuProcessSupport },
-
-    { option => "indexed-database", desc => "Toggle Indexed Database support",
-      define => "ENABLE_INDEXED_DATABASE", value => \$indexedDatabaseSupport },
-
-    { option => "indexed-database-in-workers", desc => "Toggle support for Indexed Database in workers",
-      define => "ENABLE_INDEXED_DATABASE_IN_WORKERS", value => \$indexedDatabaseInWorkersSupport },
 
     { option => "input-type-color", desc => "Toggle Input Type Color support",
       define => "ENABLE_INPUT_TYPE_COLOR", value => \$inputTypeColorSupport },
@@ -431,6 +422,9 @@ my @features = (
     { option => "offscreen-canvas", desc => "Toggle OffscreenCanvas support",
       define => "ENABLE_OFFSCREEN_CANVAS", value => \$offscreenCanvasSupport },
 
+    { option => "offscreen-canvas-in-workers", desc => "Toggle OffscreenCanvas in Workers support",
+      define => "ENABLE_OFFSCREEN_CANVAS_IN_WORKERS", value => \$offscreenCanvasInWorkersSupport },
+
     { option => "thunder", desc => "Toggle Thunder CDM support",
       define => "ENABLE_THUNDER", value => \$thunderSupport },
 
@@ -515,9 +509,6 @@ my @features = (
     { option => "unified-builds", desc => "Toggle unified builds",
       define => "ENABLE_UNIFIED_BUILDS", value => \$unifiedBuildsSupport },
 
-    { option => "userselect-all", desc => "Toggle user-select:all support",
-      define => "ENABLE_USERSELECT_ALL", value => \$userselectAllSupport },
-
     { option => "user-message-handlers", desc => "Toggle user script message handler support",
       define => "ENABLE_USER_MESSAGE_HANDLERS", value => \$userMessageHandlersSupport },
 
@@ -535,6 +526,9 @@ my @features = (
 
     { option => "webassembly", desc => "Toggle WebAssembly support",
       define => "ENABLE_WEBASSEMBLY", value => \$webAssemblySupport },
+
+    { option => "webassembly-b3jit", desc => "Toggle WebAssembly B3 JIT support",
+      define => "ENABLE_WEBASSEMBLY_B3JIT", value => \$webAssemblyB3JITSupport },
 
     { option => "webassembly-streaming-api", desc => "Toggle WebAssembly streaming api support.",
       define => "ENABLE_WEBASSEMBLY_STREAMING_API", value => \$webassemblyStreamingAPISupport },

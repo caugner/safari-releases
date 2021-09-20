@@ -79,11 +79,9 @@ angle::Result StreamIndexData(ContextMtl *contextMtl,
                               const uint8_t *sourcePointer,
                               gl::DrawElementsType indexType,
                               size_t indexCount,
-                              gl::PrimitiveMode mode,
                               bool primitiveRestartEnabled,
                               mtl::BufferRef *bufferOut,
-                              size_t *bufferOffsetOut,
-                              size_t *indexCountOut)
+                              size_t *bufferOffsetOut)
 {
     dynamicBuffer->releaseInFlightBuffers(contextMtl);
     const size_t amount = GetIndexConvertedBufferSize(indexType, indexCount);
@@ -124,7 +122,6 @@ angle::Result StreamIndexData(ContextMtl *contextMtl,
     {
         memcpy(dst, sourcePointer, amount);
     }
-    *indexCountOut = indexCount;
     ANGLE_TRY(dynamicBuffer->commit(contextMtl));
 
     return angle::Result::Continue;
@@ -698,21 +695,19 @@ angle::Result VertexArrayMtl::syncDirtyAttrib(const gl::Context *glContext,
 
 angle::Result VertexArrayMtl::getIndexBuffer(const gl::Context *context,
                                              gl::DrawElementsType type,
-                                             gl::PrimitiveMode mode,
                                              size_t count,
                                              const void *indices,
                                              mtl::BufferRef *idxBufferOut,
                                              size_t *idxBufferOffsetOut,
-                                             gl::DrawElementsType *indexTypeOut,
-                                             size_t *indexBufferCountOut)
+                                             gl::DrawElementsType *indexTypeOut)
 {
     const gl::Buffer *glElementArrayBuffer = getState().getElementArrayBuffer();
 
     size_t convertedOffset = reinterpret_cast<size_t>(indices);
     if (!glElementArrayBuffer)
     {
-        ANGLE_TRY(streamIndexBufferFromClient(context, type, mode, count, indices, idxBufferOut,
-                                              idxBufferOffsetOut, indexBufferCountOut));
+        ANGLE_TRY(streamIndexBufferFromClient(context, type, count, indices, idxBufferOut,
+                                              idxBufferOffsetOut));
     }
     else
     {
@@ -720,8 +715,8 @@ angle::Result VertexArrayMtl::getIndexBuffer(const gl::Context *context,
                               (convertedOffset % mtl::kIndexBufferOffsetAlignment) != 0;
         if (needConversion)
         {
-            ANGLE_TRY(convertIndexBuffer(context, type, mode, convertedOffset, idxBufferOut,
-                                         idxBufferOffsetOut, indexBufferCountOut));
+            ANGLE_TRY(convertIndexBuffer(context, type, convertedOffset, idxBufferOut,
+                                         idxBufferOffsetOut));
         }
         else
         {
@@ -729,7 +724,6 @@ angle::Result VertexArrayMtl::getIndexBuffer(const gl::Context *context,
             BufferMtl *bufferMtl = mtl::GetImpl(glElementArrayBuffer);
             *idxBufferOut        = bufferMtl->getCurrentBuffer();
             *idxBufferOffsetOut  = convertedOffset;
-            *indexBufferCountOut = count;
         }
     }
 
@@ -743,13 +737,98 @@ angle::Result VertexArrayMtl::getIndexBuffer(const gl::Context *context,
     return angle::Result::Continue;
 }
 
+std::vector<DrawCommandRange> VertexArrayMtl::getDrawIndices(const gl::Context *glContext,
+                             gl::DrawElementsType originalIndexType,
+                             gl::DrawElementsType indexType,
+                             gl::PrimitiveMode primitiveMode,
+                             uint32_t indexCount,
+                             size_t offset)
+{
+    ContextMtl *contextMtl = mtl::GetImpl(glContext);
+    std::vector<DrawCommandRange> drawCommands;
+    // The indexed draw needs to be split to separate draw commands in case primitive restart is enabled
+    // and the drawn primitive supports primitive restart. Otherwise the whole indexed draw can be sent
+    // as one draw command.
+    bool isSimpleType =
+        primitiveMode == gl::PrimitiveMode::Points ||
+        primitiveMode == gl::PrimitiveMode::Lines ||
+        primitiveMode == gl::PrimitiveMode::Triangles;
+    if (!isSimpleType || !glContext->getState().isPrimitiveRestartEnabled())
+    {
+        drawCommands.push_back({indexCount, offset});
+        return drawCommands;
+    }
+
+    BufferMtl *idxBuffer = mtl::GetImpl(getState().getElementArrayBuffer());
+    const std::vector<IndexRange> &restartIndices = idxBuffer->getRestartIndices(contextMtl, originalIndexType);
+    // Reminder, offset is in bytes, not elements.
+    // Slice draw commands based off of indices.
+    int nIndicesPerPrimitive;
+    switch (primitiveMode)
+    {
+        case gl::PrimitiveMode::Points:
+            nIndicesPerPrimitive = 1;
+            break;
+        case gl::PrimitiveMode::Lines:
+            nIndicesPerPrimitive = 2;
+            break;
+        case gl::PrimitiveMode::Triangles:
+            nIndicesPerPrimitive = 3;
+            break;
+        default:
+            UNREACHABLE();
+            return drawCommands;
+    }
+    const GLuint indexTypeBytes = gl::GetDrawElementsTypeSize(indexType);
+    uint32_t indicesLeft = indexCount;
+    size_t currentIndexOffset = offset / indexTypeBytes;
+
+    for (auto &range : restartIndices)
+    {
+        if (range.restartBegin > currentIndexOffset)
+        {
+            int64_t nIndicesInSlice = ((int64_t)range.restartBegin - currentIndexOffset) - ((int64_t) range.restartBegin - currentIndexOffset) % nIndicesPerPrimitive;
+            size_t restartSize = (range.restartEnd - range.restartBegin) + 1;
+            if (nIndicesInSlice > nIndicesPerPrimitive)
+                drawCommands.push_back({(uint32_t) nIndicesInSlice, currentIndexOffset * indexTypeBytes});
+            // Account for dropped indices due to incomplete primitives.
+            size_t indicesUsed = ( (range.restartBegin + restartSize) - currentIndexOffset);
+            if (indicesLeft <= indicesUsed)
+            {
+                indicesLeft = 0;
+            }
+            else
+            {
+                indicesLeft -= indicesUsed;
+            }
+            currentIndexOffset = (size_t)(range.restartBegin + restartSize);
+        }
+        // If the initial offset into the index buffer is within a restart zone, move to the end of the restart zone.
+        else if (range.restartEnd >= currentIndexOffset)
+        {
+            size_t restartSize = (range.restartEnd - currentIndexOffset) + 1;
+            if (indicesLeft <= restartSize)
+            {
+                indicesLeft = 0;
+            }
+            else
+            {
+                indicesLeft -= restartSize;
+            }
+            currentIndexOffset = (size_t)(currentIndexOffset + restartSize);
+        }
+    }
+    if (indicesLeft >= nIndicesPerPrimitive)
+        drawCommands.push_back({indicesLeft, currentIndexOffset * indexTypeBytes});
+    return drawCommands;
+}
+
+
 angle::Result VertexArrayMtl::convertIndexBuffer(const gl::Context *glContext,
                                                  gl::DrawElementsType indexType,
-                                                 gl::PrimitiveMode mode,
                                                  size_t offset,
                                                  mtl::BufferRef *idxBufferOut,
-                                                 size_t *idxBufferOffsetOut,
-                                                 size_t *indexBufferCountOut)
+                                                 size_t *idxBufferOffsetOut)
 {
     size_t offsetModulo = offset % mtl::kIndexBufferOffsetAlignment;
     ASSERT(offsetModulo != 0 || indexType == gl::DrawElementsType::UnsignedByte);
@@ -784,16 +863,15 @@ angle::Result VertexArrayMtl::convertIndexBuffer(const gl::Context *glContext,
         // We shouldn't use GPU to convert when we are in a middle of a render pass.
         ANGLE_TRY(StreamIndexData(contextMtl, &conversion->data,
                                   idxBuffer->getClientShadowCopyData(contextMtl) + offsetModulo,
-                                  indexType, indexCount, mode, glState.isPrimitiveRestartEnabled(),
-                                  &conversion->convertedBuffer, &conversion->convertedOffset,
-                                  indexBufferCountOut));
+                                  indexType, indexCount, glState.isPrimitiveRestartEnabled(),
+                                  &conversion->convertedBuffer, &conversion->convertedOffset));
     }
     else
     {
         ANGLE_TRY(convertIndexBufferGPU(glContext, indexType, idxBuffer, offsetModulo, indexCount,
                                         conversion));
     }
-
+    //Calculate ranges for prim restart simple types.
     *idxBufferOut       = conversion->convertedBuffer;
     *idxBufferOffsetOut = conversion->convertedOffset + alignedOffset;
 
@@ -835,20 +913,18 @@ angle::Result VertexArrayMtl::convertIndexBufferGPU(const gl::Context *glContext
 
 angle::Result VertexArrayMtl::streamIndexBufferFromClient(const gl::Context *context,
                                                           gl::DrawElementsType indexType,
-                                                          gl::PrimitiveMode mode,
                                                           size_t indexCount,
                                                           const void *sourcePointer,
                                                           mtl::BufferRef *idxBufferOut,
-                                                          size_t *idxBufferOffsetOut,
-                                                          size_t *idxBufferCountOut)
+                                                          size_t *idxBufferOffsetOut)
 {
     ASSERT(getState().getElementArrayBuffer() == nullptr);
     ContextMtl *contextMtl = mtl::GetImpl(context);
 
     auto srcData = static_cast<const uint8_t *>(sourcePointer);
-    ANGLE_TRY(StreamIndexData(contextMtl, &mDynamicIndexData, srcData, indexType, indexCount, mode,
+    ANGLE_TRY(StreamIndexData(contextMtl, &mDynamicIndexData, srcData, indexType, indexCount,
                               context->getState().isPrimitiveRestartEnabled(), idxBufferOut,
-                              idxBufferOffsetOut, idxBufferCountOut));
+                              idxBufferOffsetOut));
 
     return angle::Result::Continue;
 }

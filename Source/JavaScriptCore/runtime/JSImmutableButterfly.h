@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2019 Apple Inc. All rights reserved.
+ * Copyright (C) 2018-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -53,7 +53,7 @@ public:
             return nullptr;
 
         // Because of the above maximumLength requirement, allocationSize can never overflow.
-        void* buffer = tryAllocateCell<JSImmutableButterfly>(vm.heap, allocationSize(length).unsafeGet());
+        void* buffer = tryAllocateCell<JSImmutableButterfly>(vm.heap, allocationSize(length));
         if (UNLIKELY(!buffer))
             return nullptr;
         JSImmutableButterfly* result = new (NotNull, buffer) JSImmutableButterfly(vm, structure, length);
@@ -145,7 +145,7 @@ public:
         return jsDoubleNumber(value);
     }
 
-    static void visitChildren(JSCell*, SlotVisitor&);
+    DECLARE_VISIT_CHILDREN;
 
     void copyToArguments(JSGlobalObject*, JSValue* firstElementDest, unsigned offset, unsigned length);
 

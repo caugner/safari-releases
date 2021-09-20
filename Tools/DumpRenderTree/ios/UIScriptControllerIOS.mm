@@ -34,9 +34,10 @@
 #import <WebCore/FloatRect.h>
 #import <wtf/BlockPtr.h>
 #import <wtf/MainThread.h>
+#import <wtf/WorkQueue.h>
 
-extern DumpRenderTreeBrowserView *gWebBrowserView;
-extern DumpRenderTreeWebScrollView *gWebScrollView;
+extern RetainPtr<DumpRenderTreeBrowserView> gWebBrowserView;
+extern RetainPtr<DumpRenderTreeWebScrollView> gWebScrollView;
 
 namespace WTR {
 
@@ -49,19 +50,18 @@ void UIScriptControllerIOS::doAsyncTask(JSValueRef callback)
 {
     unsigned callbackID = m_context->prepareForAsyncTask(callback, CallbackTypeNonPersistent);
 
-    dispatch_async(dispatch_get_main_queue(), makeBlockPtr([this, strongThis = makeRef(*this), callbackID] {
+    WorkQueue::main().dispatch([this, protectedThis = makeRef(*this), callbackID] {
         if (!m_context)
             return;
         m_context->asyncTaskComplete(callbackID);
-    }).get());
+    });
 }
 
 void UIScriptControllerIOS::zoomToScale(double scale, JSValueRef callback)
 {
     unsigned callbackID = m_context->prepareForAsyncTask(callback, CallbackTypeNonPersistent);
 
-    RefPtr<UIScriptController> protectedThis(this);
-    dispatch_async(dispatch_get_main_queue(), ^{
+    WorkQueue::main().dispatch([this, protectedThis = makeRef(*this), scale, callbackID] {
         [gWebScrollView zoomToScale:scale animated:YES completionHandler:makeBlockPtr([this, strongThis = makeRef(*this), callbackID] {
             if (!m_context)
                 return;
@@ -72,7 +72,7 @@ void UIScriptControllerIOS::zoomToScale(double scale, JSValueRef callback)
 
 double UIScriptControllerIOS::zoomScale() const
 {
-    return gWebScrollView.zoomScale;
+    return [gWebScrollView zoomScale];
 }
 
 static CGPoint contentOffsetBoundedIfNecessary(UIScrollView *scrollView, long x, long y, ScrollToOptions* options)
@@ -108,13 +108,13 @@ double UIScriptControllerIOS::contentOffsetY() const
 
 void UIScriptControllerIOS::scrollToOffset(long x, long y, ScrollToOptions* options)
 {
-    auto offset = contentOffsetBoundedIfNecessary(gWebScrollView, x, y, options);
+    auto offset = contentOffsetBoundedIfNecessary(gWebScrollView.get(), x, y, options);
     [gWebScrollView setContentOffset:offset animated:YES];
 }
 
 void UIScriptControllerIOS::immediateScrollToOffset(long x, long y, ScrollToOptions* options)
 {
-    auto offset = contentOffsetBoundedIfNecessary(gWebScrollView, x, y, options);
+    auto offset = contentOffsetBoundedIfNecessary(gWebScrollView.get(), x, y, options);
     [gWebScrollView setContentOffset:offset animated:NO];
 }
 
@@ -125,12 +125,12 @@ void UIScriptControllerIOS::immediateZoomToScale(double scale)
 
 double UIScriptControllerIOS::minimumZoomScale() const
 {
-    return gWebScrollView.minimumZoomScale;
+    return [gWebScrollView minimumZoomScale];
 }
 
 double UIScriptControllerIOS::maximumZoomScale() const
 {
-    return gWebScrollView.maximumZoomScale;
+    return [gWebScrollView maximumZoomScale];
 }
 
 JSObjectRef UIScriptControllerIOS::contentVisibleRect() const

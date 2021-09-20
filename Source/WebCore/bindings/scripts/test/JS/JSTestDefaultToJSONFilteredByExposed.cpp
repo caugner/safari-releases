@@ -29,6 +29,7 @@
 #include "JSDOMConvertNumbers.h"
 #include "JSDOMConvertStrings.h"
 #include "JSDOMExceptionHandling.h"
+#include "JSDOMGlobalObjectInlines.h"
 #include "JSDOMOperation.h"
 #include "JSDOMWrapperCache.h"
 #include "ScriptExecutionContext.h"
@@ -38,6 +39,7 @@
 #include <JavaScriptCore/JSCInlines.h>
 #include <JavaScriptCore/JSDestructibleObjectHeapCellType.h>
 #include <JavaScriptCore/ObjectConstructor.h>
+#include <JavaScriptCore/SlotVisitorMacros.h>
 #include <JavaScriptCore/SubspaceInlines.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
@@ -92,6 +94,8 @@ STATIC_ASSERT_ISO_SUBSPACE_SHARABLE(JSTestDefaultToJSONFilteredByExposedPrototyp
 
 using JSTestDefaultToJSONFilteredByExposedDOMConstructor = JSDOMConstructorNotConstructable<JSTestDefaultToJSONFilteredByExposed>;
 
+template<> const ClassInfo JSTestDefaultToJSONFilteredByExposedDOMConstructor::s_info = { "TestDefaultToJSONFilteredByExposed", &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestDefaultToJSONFilteredByExposedDOMConstructor) };
+
 template<> JSValue JSTestDefaultToJSONFilteredByExposedDOMConstructor::prototypeForStructure(JSC::VM& vm, const JSDOMGlobalObject& globalObject)
 {
     UNUSED_PARAM(vm);
@@ -104,8 +108,6 @@ template<> void JSTestDefaultToJSONFilteredByExposedDOMConstructor::initializePr
     putDirect(vm, vm.propertyNames->name, jsNontrivialString(vm, "TestDefaultToJSONFilteredByExposed"_s), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
     putDirect(vm, vm.propertyNames->length, jsNumber(0), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
 }
-
-template<> const ClassInfo JSTestDefaultToJSONFilteredByExposedDOMConstructor::s_info = { "TestDefaultToJSONFilteredByExposed", &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestDefaultToJSONFilteredByExposedDOMConstructor) };
 
 /* Hash table for prototype */
 
@@ -172,23 +174,13 @@ JSObject* JSTestDefaultToJSONFilteredByExposed::prototype(VM& vm, JSDOMGlobalObj
 
 JSValue JSTestDefaultToJSONFilteredByExposed::getConstructor(VM& vm, const JSGlobalObject* globalObject)
 {
-    return getDOMConstructor<JSTestDefaultToJSONFilteredByExposedDOMConstructor>(vm, *jsCast<const JSDOMGlobalObject*>(globalObject));
+    return getDOMConstructor<JSTestDefaultToJSONFilteredByExposedDOMConstructor, DOMConstructorID::TestDefaultToJSONFilteredByExposed>(vm, *jsCast<const JSDOMGlobalObject*>(globalObject));
 }
 
 void JSTestDefaultToJSONFilteredByExposed::destroy(JSC::JSCell* cell)
 {
     JSTestDefaultToJSONFilteredByExposed* thisObject = static_cast<JSTestDefaultToJSONFilteredByExposed*>(cell);
     thisObject->JSTestDefaultToJSONFilteredByExposed::~JSTestDefaultToJSONFilteredByExposed();
-}
-
-template<> inline JSTestDefaultToJSONFilteredByExposed* IDLAttribute<JSTestDefaultToJSONFilteredByExposed>::cast(JSGlobalObject& lexicalGlobalObject, EncodedJSValue thisValue)
-{
-    return jsDynamicCast<JSTestDefaultToJSONFilteredByExposed*>(JSC::getVM(&lexicalGlobalObject), JSValue::decode(thisValue));
-}
-
-template<> inline JSTestDefaultToJSONFilteredByExposed* IDLOperation<JSTestDefaultToJSONFilteredByExposed>::cast(JSGlobalObject& lexicalGlobalObject, CallFrame& callFrame)
-{
-    return jsDynamicCast<JSTestDefaultToJSONFilteredByExposed*>(JSC::getVM(&lexicalGlobalObject), callFrame.thisValue());
 }
 
 JSC_DEFINE_CUSTOM_GETTER(jsTestDefaultToJSONFilteredByExposedConstructor, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, PropertyName))
@@ -209,9 +201,9 @@ static inline JSValue jsTestDefaultToJSONFilteredByExposed_normalAttributeGetter
     RELEASE_AND_RETURN(throwScope, (toJS<IDLLong>(lexicalGlobalObject, throwScope, impl.normalAttribute())));
 }
 
-JSC_DEFINE_CUSTOM_GETTER(jsTestDefaultToJSONFilteredByExposed_normalAttribute, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, PropertyName))
+JSC_DEFINE_CUSTOM_GETTER(jsTestDefaultToJSONFilteredByExposed_normalAttribute, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, PropertyName attributeName))
 {
-    return IDLAttribute<JSTestDefaultToJSONFilteredByExposed>::get<jsTestDefaultToJSONFilteredByExposed_normalAttributeGetter, CastedThisErrorBehavior::Assert>(*lexicalGlobalObject, thisValue, "normalAttribute");
+    return IDLAttribute<JSTestDefaultToJSONFilteredByExposed>::get<jsTestDefaultToJSONFilteredByExposed_normalAttributeGetter, CastedThisErrorBehavior::Assert>(*lexicalGlobalObject, thisValue, attributeName);
 }
 
 static inline JSValue jsTestDefaultToJSONFilteredByExposed_filteredByExposedWindowAttributeGetter(JSGlobalObject& lexicalGlobalObject, JSTestDefaultToJSONFilteredByExposed& thisObject)
@@ -222,9 +214,9 @@ static inline JSValue jsTestDefaultToJSONFilteredByExposed_filteredByExposedWind
     RELEASE_AND_RETURN(throwScope, (toJS<IDLDouble>(lexicalGlobalObject, throwScope, impl.filteredByExposedWindowAttribute())));
 }
 
-JSC_DEFINE_CUSTOM_GETTER(jsTestDefaultToJSONFilteredByExposed_filteredByExposedWindowAttribute, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, PropertyName))
+JSC_DEFINE_CUSTOM_GETTER(jsTestDefaultToJSONFilteredByExposed_filteredByExposedWindowAttribute, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, PropertyName attributeName))
 {
-    return IDLAttribute<JSTestDefaultToJSONFilteredByExposed>::get<jsTestDefaultToJSONFilteredByExposed_filteredByExposedWindowAttributeGetter, CastedThisErrorBehavior::Assert>(*lexicalGlobalObject, thisValue, "filteredByExposedWindowAttribute");
+    return IDLAttribute<JSTestDefaultToJSONFilteredByExposed>::get<jsTestDefaultToJSONFilteredByExposed_filteredByExposedWindowAttributeGetter, CastedThisErrorBehavior::Assert>(*lexicalGlobalObject, thisValue, attributeName);
 }
 
 static inline JSValue jsTestDefaultToJSONFilteredByExposed_filteredByExposedWorkerAttributeGetter(JSGlobalObject& lexicalGlobalObject, JSTestDefaultToJSONFilteredByExposed& thisObject)
@@ -235,9 +227,9 @@ static inline JSValue jsTestDefaultToJSONFilteredByExposed_filteredByExposedWork
     RELEASE_AND_RETURN(throwScope, (toJS<IDLDOMString>(lexicalGlobalObject, throwScope, impl.filteredByExposedWorkerAttribute())));
 }
 
-JSC_DEFINE_CUSTOM_GETTER(jsTestDefaultToJSONFilteredByExposed_filteredByExposedWorkerAttribute, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, PropertyName))
+JSC_DEFINE_CUSTOM_GETTER(jsTestDefaultToJSONFilteredByExposed_filteredByExposedWorkerAttribute, (JSGlobalObject* lexicalGlobalObject, EncodedJSValue thisValue, PropertyName attributeName))
 {
-    return IDLAttribute<JSTestDefaultToJSONFilteredByExposed>::get<jsTestDefaultToJSONFilteredByExposed_filteredByExposedWorkerAttributeGetter, CastedThisErrorBehavior::Assert>(*lexicalGlobalObject, thisValue, "filteredByExposedWorkerAttribute");
+    return IDLAttribute<JSTestDefaultToJSONFilteredByExposed>::get<jsTestDefaultToJSONFilteredByExposed_filteredByExposedWorkerAttributeGetter, CastedThisErrorBehavior::Assert>(*lexicalGlobalObject, thisValue, attributeName);
 }
 
 static inline EncodedJSValue jsTestDefaultToJSONFilteredByExposedPrototypeFunction_toJSONBody(JSGlobalObject* lexicalGlobalObject, CallFrame*, JSTestDefaultToJSONFilteredByExposed* castedThis)
@@ -247,12 +239,18 @@ static inline EncodedJSValue jsTestDefaultToJSONFilteredByExposedPrototypeFuncti
     UNUSED_PARAM(throwScope);
     auto& impl = castedThis->wrapped();
     auto* result = constructEmptyObject(lexicalGlobalObject, castedThis->globalObject()->objectPrototype());
-    result->putDirect(vm, Identifier::fromString(vm, "normalAttribute"), toJS<IDLLong>(*lexicalGlobalObject, throwScope, impl.normalAttribute()));
+    auto normalAttributeValue = toJS<IDLLong>(*lexicalGlobalObject, throwScope, impl.normalAttribute());
+    RETURN_IF_EXCEPTION(throwScope, { });
+    result->putDirect(vm, Identifier::fromString(vm, "normalAttribute"), normalAttributeValue);
     if (jsCast<JSDOMGlobalObject*>(castedThis->globalObject())->scriptExecutionContext()->isDocument()) {
-        result->putDirect(vm, Identifier::fromString(vm, "filteredByExposedWindowAttribute"), toJS<IDLDouble>(*lexicalGlobalObject, throwScope, impl.filteredByExposedWindowAttribute()));
+        auto filteredByExposedWindowAttributeValue = toJS<IDLDouble>(*lexicalGlobalObject, throwScope, impl.filteredByExposedWindowAttribute());
+        RETURN_IF_EXCEPTION(throwScope, { });
+        result->putDirect(vm, Identifier::fromString(vm, "filteredByExposedWindowAttribute"), filteredByExposedWindowAttributeValue);
     }
     if (jsCast<JSDOMGlobalObject*>(castedThis->globalObject())->scriptExecutionContext()->isWorkerGlobalScope()) {
-        result->putDirect(vm, Identifier::fromString(vm, "filteredByExposedWorkerAttribute"), toJS<IDLDOMString>(*lexicalGlobalObject, throwScope, impl.filteredByExposedWorkerAttribute()));
+        auto filteredByExposedWorkerAttributeValue = toJS<IDLDOMString>(*lexicalGlobalObject, throwScope, impl.filteredByExposedWorkerAttribute());
+        RETURN_IF_EXCEPTION(throwScope, { });
+        result->putDirect(vm, Identifier::fromString(vm, "filteredByExposedWorkerAttribute"), filteredByExposedWorkerAttributeValue);
     }
     return JSValue::encode(result);
 }
@@ -276,7 +274,9 @@ JSC::IsoSubspace* JSTestDefaultToJSONFilteredByExposed::subspaceForImpl(JSC::VM&
     auto* space = spaces.m_subspaceForTestDefaultToJSONFilteredByExposed.get();
 IGNORE_WARNINGS_BEGIN("unreachable-code")
 IGNORE_WARNINGS_BEGIN("tautological-compare")
-    if (&JSTestDefaultToJSONFilteredByExposed::visitOutputConstraints != &JSC::JSCell::visitOutputConstraints)
+    void (*myVisitOutputConstraint)(JSC::JSCell*, JSC::SlotVisitor&) = JSTestDefaultToJSONFilteredByExposed::visitOutputConstraints;
+    void (*jsCellVisitOutputConstraint)(JSC::JSCell*, JSC::SlotVisitor&) = JSC::JSCell::visitOutputConstraints;
+    if (myVisitOutputConstraint != jsCellVisitOutputConstraint)
         clientData.outputConstraintSpaces().append(space);
 IGNORE_WARNINGS_END
 IGNORE_WARNINGS_END
@@ -292,7 +292,7 @@ void JSTestDefaultToJSONFilteredByExposed::analyzeHeap(JSCell* cell, HeapAnalyze
     Base::analyzeHeap(cell, analyzer);
 }
 
-bool JSTestDefaultToJSONFilteredByExposedOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, SlotVisitor& visitor, const char** reason)
+bool JSTestDefaultToJSONFilteredByExposedOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, AbstractSlotVisitor& visitor, const char** reason)
 {
     UNUSED_PARAM(handle);
     UNUSED_PARAM(visitor);

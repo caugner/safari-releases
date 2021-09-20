@@ -4,7 +4,7 @@
  *           (C) 2000 Dirk Mueller (mueller@kde.org)
  *           (C) 2006 Allan Sandfeld Jensen (kde@carewolf.com)
  *           (C) 2006 Samuel Weinig (sam.weinig@gmail.com)
- * Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011 Apple Inc. All rights reserved.
+ * Copyright (C) 2003-2021 Apple Inc. All rights reserved.
  * Copyright (C) 2010 Google Inc. All rights reserved.
  * Copyright (C) Research In Motion Limited 2011-2012. All rights reserved.
  *
@@ -44,11 +44,11 @@
 #include "HTMLMapElement.h"
 #include "HTMLNames.h"
 #include "HitTestResult.h"
-#include "InlineElementBox.h"
 #include "LayoutIntegrationLineIterator.h"
 #include "LayoutIntegrationRunIterator.h"
 #include "Page.h"
 #include "PaintInfo.h"
+#include "RenderChildIterator.h"
 #include "RenderFragmentedFlow.h"
 #include "RenderImageResourceStyleImage.h"
 #include "RenderLayoutState.h"
@@ -62,7 +62,7 @@
 
 #if PLATFORM(IOS_FAMILY)
 #include "LogicalSelectionOffsetCaches.h"
-#include "SelectionRect.h"
+#include "SelectionGeometry.h"
 #endif
 
 #if USE(CG)
@@ -79,12 +79,12 @@ WTF_MAKE_ISO_ALLOCATED_IMPL(RenderImage);
 // during selection creation yet anyway.
 // FIXME: We can't tell whether or not we contain the start or end of the selected Range using only the offsets
 // of the start and end, we need to know the whole Position.
-void RenderImage::collectSelectionRects(Vector<SelectionRect>& rects, unsigned, unsigned)
+void RenderImage::collectSelectionGeometries(Vector<SelectionGeometry>& geometries, unsigned, unsigned)
 {
     RenderBlock* containingBlock = this->containingBlock();
 
     IntRect imageRect;
-    // FIXME: It doesn't make sense to package line bounds into SelectionRects. We should find
+    // FIXME: It doesn't make sense to package line bounds into SelectionGeometry. We should find
     // the right and left extent of the selection once for the entire selected Range, perhaps
     // using the Range's common ancestor.
     IntRect lineExtentRect;
@@ -122,14 +122,14 @@ void RenderImage::collectSelectionRects(Vector<SelectionRect>& rects, unsigned, 
     }
 
     bool isFixed = false;
-    IntRect absoluteBounds = localToAbsoluteQuad(FloatRect(imageRect), UseTransforms, &isFixed).enclosingBoundingBox();
-    IntRect lineExtentBounds = localToAbsoluteQuad(FloatRect(lineExtentRect)).enclosingBoundingBox();
+    auto absoluteQuad = localToAbsoluteQuad(FloatRect(imageRect), UseTransforms, &isFixed);
+    auto lineExtentBounds = localToAbsoluteQuad(FloatRect(lineExtentRect)).enclosingBoundingBox();
     if (!containingBlock->isHorizontalWritingMode())
         lineExtentBounds = lineExtentBounds.transposedRect();
 
-    // FIXME: We should consider either making SelectionRect a struct or better organize its optional fields into
+    // FIXME: We should consider either making SelectionGeometry a struct or better organize its optional fields into
     // an auxiliary struct to simplify its initialization.
-    rects.append(SelectionRect(absoluteBounds, containingBlock->style().direction(), lineExtentBounds.x(), lineExtentBounds.maxX(), lineExtentBounds.maxY(), 0, false /* line break */, isFirstOnLine, isLastOnLine, false /* contains start */, false /* contains end */, containingBlock->style().isHorizontalWritingMode(), isFixed, false /* ruby text */, view().pageNumberForBlockProgressionOffset(absoluteBounds.x())));
+    geometries.append(SelectionGeometry(absoluteQuad, SelectionRenderingBehavior::CoalesceBoundingRects, containingBlock->style().direction(), lineExtentBounds.x(), lineExtentBounds.maxX(), lineExtentBounds.maxY(), 0, false /* line break */, isFirstOnLine, isLastOnLine, false /* contains start */, false /* contains end */, containingBlock->style().isHorizontalWritingMode(), isFixed, false /* ruby text */, view().pageNumberForBlockProgressionOffset(absoluteQuad.enclosingBoundingBox().x())));
 }
 #endif
 
@@ -138,11 +138,10 @@ using namespace HTMLNames;
 RenderImage::RenderImage(Element& element, RenderStyle&& style, StyleImage* styleImage, const float imageDevicePixelRatio)
     : RenderReplaced(element, WTFMove(style), IntSize())
     , m_imageResource(styleImage ? makeUnique<RenderImageResourceStyleImage>(*styleImage) : makeUnique<RenderImageResource>())
+    , m_hasImageOverlay(is<HTMLElement>(element) && downcast<HTMLElement>(element).hasImageOverlay())
     , m_imageDevicePixelRatio(imageDevicePixelRatio)
 {
     updateAltText();
-    if (is<HTMLImageElement>(element))
-        m_hasShadowControls = downcast<HTMLImageElement>(element).hasShadowControls();
 }
 
 RenderImage::RenderImage(Document& document, RenderStyle&& style, StyleImage* styleImage)
@@ -267,7 +266,7 @@ LayoutUnit RenderImage::computeReplacedLogicalWidth(ShouldComputePreferred shoul
     return RenderReplaced::computeReplacedLogicalWidth(shouldComputePreferred);
 }
 
-LayoutUnit RenderImage::computeReplacedLogicalHeight(Optional<LayoutUnit> estimatedUsedWidth) const
+LayoutUnit RenderImage::computeReplacedLogicalHeight(std::optional<LayoutUnit> estimatedUsedWidth) const
 {
     if (shouldCollapseToEmpty())
         return { };
@@ -537,9 +536,9 @@ void RenderImage::paintReplaced(PaintInfo& paintInfo, const LayoutPoint& paintOf
                 LayoutUnit textWidth { font.width(textRun) };
                 if (errorPictureDrawn) {
                     if (usableSize.width() >= textWidth && fontMetrics.height() <= imageOffset.height())
-                        context.drawText(font, textRun, altTextOffset);
+                        context.drawBidiText(font, textRun, altTextOffset);
                 } else if (usableSize.width() >= textWidth && usableSize.height() >= fontMetrics.height())
-                    context.drawText(font, textRun, altTextOffset);
+                    context.drawBidiText(font, textRun, altTextOffset);
             }
         }
         return;
@@ -692,7 +691,7 @@ ImageDrawResult RenderImage::paintIntoRect(PaintInfo& paintInfo, const FloatRect
     return drawResult;
 }
 
-bool RenderImage::boxShadowShouldBeAppliedToBackground(const LayoutPoint& paintOffset, BackgroundBleedAvoidance bleedAvoidance, InlineFlowBox*) const
+bool RenderImage::boxShadowShouldBeAppliedToBackground(const LayoutPoint& paintOffset, BackgroundBleedAvoidance bleedAvoidance, LegacyInlineFlowBox*) const
 {
     if (!RenderBoxModelObject::boxShadowShouldBeAppliedToBackground(paintOffset, bleedAvoidance))
         return false;
@@ -790,17 +789,13 @@ void RenderImage::updateAltText()
 
 bool RenderImage::canHaveChildren() const
 {
-#if !ENABLE(SERVICE_CONTROLS)
-    return false;
-#else
-    return m_hasShadowControls;
-#endif
+    return hasShadowContent();
 }
 
 void RenderImage::layout()
 {
-    // Recomputing overflow is required only when child content is present. 
-    if (needsSimplifiedNormalFlowLayoutOnly() && !m_hasShadowControls) {
+    // Recomputing overflow is required only when child content is present.
+    if (needsSimplifiedNormalFlowLayoutOnly() && !hasShadowContent()) {
         clearNeedsLayout();
         return;
     }
@@ -812,50 +807,43 @@ void RenderImage::layout()
 
     updateInnerContentRect();
 
-    if (m_hasShadowControls)
-        layoutShadowControls(oldSize);
+    if (hasShadowContent())
+        layoutShadowContent(oldSize);
 }
 
-void RenderImage::layoutShadowControls(const LayoutSize& oldSize)
+void RenderImage::layoutShadowContent(const LayoutSize& oldSize)
 {
-    // We expect a single containing box under the UA shadow root.
-    ASSERT(firstChild() == lastChild());
+    for (auto& renderBox : childrenOfType<RenderBox>(*this)) {
+        bool childNeedsLayout = renderBox.needsLayout();
+        // If the region chain has changed we also need to relayout the children to update the region box info.
+        // FIXME: We can do better once we compute region box info for RenderReplaced, not only for RenderBlock.
+        auto* fragmentedFlow = enclosingFragmentedFlow();
+        if (fragmentedFlow && !childNeedsLayout) {
+            if (fragmentedFlow->pageLogicalSizeChanged())
+                childNeedsLayout = true;
+        }
 
-    auto* controlsRenderer = downcast<RenderBox>(firstChild());
-    if (!controlsRenderer)
-        return;
-    
-    bool controlsNeedLayout = controlsRenderer->needsLayout();
-    // If the region chain has changed we also need to relayout the controls to update the region box info.
-    // FIXME: We can do better once we compute region box info for RenderReplaced, not only for RenderBlock.
-    const RenderFragmentedFlow* fragmentedFlow = enclosingFragmentedFlow();
-    if (fragmentedFlow && !controlsNeedLayout) {
-        if (fragmentedFlow->pageLogicalSizeChanged())
-            controlsNeedLayout = true;
+        auto newSize = contentBoxRect().size();
+        if (newSize == oldSize && !childNeedsLayout)
+            continue;
+
+        // When calling layout() on a child node, a parent must either push a LayoutStateMaintainer, or
+        // instantiate LayoutStateDisabler. Since using a LayoutStateMaintainer is slightly more efficient,
+        // and this method might be called many times per second during video playback, use a LayoutStateMaintainer:
+        LayoutStateMaintainer statePusher(*this, locationOffset(), hasTransform() || hasReflection() || style().isFlippedBlocksWritingMode());
+        renderBox.setLocation(LayoutPoint(borderLeft(), borderTop()) + LayoutSize(paddingLeft(), paddingTop()));
+        renderBox.mutableStyle().setHeight(Length(newSize.height(), LengthType::Fixed));
+        renderBox.mutableStyle().setWidth(Length(newSize.width(), LengthType::Fixed));
+        renderBox.setNeedsLayout(MarkOnlyThis);
+        renderBox.layout();
     }
 
-    LayoutSize newSize = contentBoxRect().size();
-    if (newSize == oldSize && !controlsNeedLayout)
-        return;
-
-    // When calling layout() on a child node, a parent must either push a LayoutStateMaintainter, or 
-    // instantiate LayoutStateDisabler. Since using a LayoutStateMaintainer is slightly more efficient,
-    // and this method might be called many times per second during video playback, use a LayoutStateMaintainer:
-    LayoutStateMaintainer statePusher(*this, locationOffset(), hasTransform() || hasReflection() || style().isFlippedBlocksWritingMode());
-
-    if (shadowControlsNeedCustomLayoutMetrics()) {
-        controlsRenderer->setLocation(LayoutPoint(borderLeft(), borderTop()) + LayoutSize(paddingLeft(), paddingTop()));
-        controlsRenderer->mutableStyle().setHeight(Length(newSize.height(), Fixed));
-        controlsRenderer->mutableStyle().setWidth(Length(newSize.width(), Fixed));
-    }
-
-    controlsRenderer->setNeedsLayout(MarkOnlyThis);
-    controlsRenderer->layout();
     clearChildNeedsLayout();
 }
 
 void RenderImage::computeIntrinsicRatioInformation(FloatSize& intrinsicSize, double& intrinsicRatio) const
 {
+    ASSERT(!shouldApplySizeContainment(*this));
     RenderReplaced::computeIntrinsicRatioInformation(intrinsicSize, intrinsicRatio);
 
     // Our intrinsicSize is empty if we're rendering generated images with relative width/height. Figure out the right intrinsic size to use.
@@ -870,7 +858,11 @@ void RenderImage::computeIntrinsicRatioInformation(FloatSize& intrinsicSize, dou
 
     // Don't compute an intrinsic ratio to preserve historical WebKit behavior if we're painting alt text and/or a broken image.
     if (shouldDisplayBrokenImageIcon()) {
-        intrinsicRatio = 1;
+        if (settings().aspectRatioOfImgFromWidthAndHeightEnabled()
+            && style().aspectRatioType() == AspectRatioType::AutoAndRatio && !isShowingAltText())
+            intrinsicRatio = style().logicalAspectRatio();
+        else
+            intrinsicRatio = 1;
         return;
     }
 }

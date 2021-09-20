@@ -40,7 +40,7 @@ using namespace WebCore;
 
 static bool categoryCanMixWithOthers(AudioSession::CategoryType category)
 {
-    return category == AudioSession::AmbientSound;
+    return category == AudioSession::CategoryType::AmbientSound;
 }
 
 RemoteAudioSessionProxyManager::RemoteAudioSessionProxyManager()
@@ -58,16 +58,21 @@ void RemoteAudioSessionProxyManager::addProxy(RemoteAudioSessionProxy& proxy)
 {
     ASSERT(!m_proxies.contains(proxy));
     m_proxies.add(proxy);
+    updateCategory();
 }
 
 void RemoteAudioSessionProxyManager::removeProxy(RemoteAudioSessionProxy& proxy)
 {
     ASSERT(m_proxies.contains(proxy));
     m_proxies.remove(proxy);
+    updateCategory();
 }
 
-void RemoteAudioSessionProxyManager::setCategoryForProcess(RemoteAudioSessionProxy& proxy, AudioSession::CategoryType category, RouteSharingPolicy policy)
+void RemoteAudioSessionProxyManager::updateCategory()
 {
+    AudioSession::CategoryType category = AudioSession::CategoryType::None;
+    RouteSharingPolicy policy = RouteSharingPolicy::Default;
+
     HashCountedSet<AudioSession::CategoryType, WTF::IntHash<AudioSession::CategoryType>, WTF::StrongEnumHashTraits<AudioSession::CategoryType>> categoryCounts;
     HashCountedSet<RouteSharingPolicy, WTF::IntHash<RouteSharingPolicy>, WTF::StrongEnumHashTraits<RouteSharingPolicy>> policyCounts;
     for (auto& otherProxy : m_proxies) {
@@ -75,29 +80,28 @@ void RemoteAudioSessionProxyManager::setCategoryForProcess(RemoteAudioSessionPro
         policyCounts.add(otherProxy.routeSharingPolicy());
     }
 
-    if (categoryCounts.contains(AudioSession::PlayAndRecord))
-        category = AudioSession::PlayAndRecord;
-    else if (categoryCounts.contains(AudioSession::RecordAudio))
-        category = AudioSession::RecordAudio;
-    else if (categoryCounts.contains(AudioSession::MediaPlayback))
-        category = AudioSession::MediaPlayback;
-    else if (categoryCounts.contains(AudioSession::SoloAmbientSound))
-        category = AudioSession::SoloAmbientSound;
-    else if (categoryCounts.contains(AudioSession::AmbientSound))
-        category = AudioSession::AmbientSound;
-    else if (categoryCounts.contains(AudioSession::AudioProcessing))
-        category = AudioSession::AudioProcessing;
+    if (categoryCounts.contains(AudioSession::CategoryType::PlayAndRecord))
+        category = AudioSession::CategoryType::PlayAndRecord;
+    else if (categoryCounts.contains(AudioSession::CategoryType::RecordAudio))
+        category = AudioSession::CategoryType::RecordAudio;
+    else if (categoryCounts.contains(AudioSession::CategoryType::MediaPlayback))
+        category = AudioSession::CategoryType::MediaPlayback;
+    else if (categoryCounts.contains(AudioSession::CategoryType::SoloAmbientSound))
+        category = AudioSession::CategoryType::SoloAmbientSound;
+    else if (categoryCounts.contains(AudioSession::CategoryType::AmbientSound))
+        category = AudioSession::CategoryType::AmbientSound;
+    else if (categoryCounts.contains(AudioSession::CategoryType::AudioProcessing))
+        category = AudioSession::CategoryType::AudioProcessing;
     else
-        category = AudioSession::None;
+        category = AudioSession::CategoryType::None;
 
+    policy = RouteSharingPolicy::Default;
     if (policyCounts.contains(RouteSharingPolicy::LongFormVideo))
         policy = RouteSharingPolicy::LongFormVideo;
     else if (policyCounts.contains(RouteSharingPolicy::LongFormAudio))
         policy = RouteSharingPolicy::LongFormAudio;
     else if (policyCounts.contains(RouteSharingPolicy::Independent))
-        policy = RouteSharingPolicy::Independent;
-    else
-        policy = RouteSharingPolicy::Default;
+        ASSERT_NOT_REACHED();
 
     m_session->setCategory(category, policy);
 }

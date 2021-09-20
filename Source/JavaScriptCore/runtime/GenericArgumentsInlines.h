@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2020 Apple Inc. All rights reserved.
+ * Copyright (C) 2015-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -31,7 +31,8 @@
 namespace JSC {
 
 template<typename Type>
-void GenericArguments<Type>::visitChildren(JSCell* thisCell, SlotVisitor& visitor)
+template<typename Visitor>
+void GenericArguments<Type>::visitChildrenImpl(JSCell* thisCell, Visitor& visitor)
 {
     Type* thisObject = static_cast<Type*>(thisCell);
     ASSERT_GC_OBJECT_INHERITS(thisObject, info());
@@ -40,6 +41,8 @@ void GenericArguments<Type>::visitChildren(JSCell* thisCell, SlotVisitor& visito
     if (thisObject->m_modifiedArgumentsDescriptor)
         visitor.markAuxiliary(thisObject->m_modifiedArgumentsDescriptor.getUnsafe());
 }
+
+DEFINE_VISIT_CHILDREN_WITH_MODIFIER(template<typename Type>, GenericArguments<Type>);
 
 template<typename Type>
 bool GenericArguments<Type>::getOwnPropertySlot(JSObject* object, JSGlobalObject* globalObject, PropertyName ident, PropertySlot& slot)
@@ -62,7 +65,7 @@ bool GenericArguments<Type>::getOwnPropertySlot(JSObject* object, JSGlobalObject
         }
     }
     
-    if (Optional<uint32_t> index = parseIndex(ident))
+    if (std::optional<uint32_t> index = parseIndex(ident))
         return GenericArguments<Type>::getOwnPropertySlotByIndex(thisObject, globalObject, *index, slot);
 
     return Base::getOwnPropertySlot(thisObject, globalObject, ident, slot);
@@ -131,18 +134,16 @@ bool GenericArguments<Type>::put(JSCell* cell, JSGlobalObject* globalObject, Pro
 
     // https://tc39.github.io/ecma262/#sec-arguments-exotic-objects-set-p-v-receiver
     // Fall back to the OrdinarySet when the receiver is altered from the thisObject.
-    if (UNLIKELY(isThisValueAltered(slot, thisObject)))
-        RELEASE_AND_RETURN(scope, ordinarySetSlow(globalObject, thisObject, ident, value, slot.thisValue(), slot.isStrictMode()));
+    if (UNLIKELY(slot.thisValue() != thisObject))
+        RELEASE_AND_RETURN(scope, Base::put(thisObject, globalObject, ident, value, slot));
     
-    Optional<uint32_t> index = parseIndex(ident);
+    std::optional<uint32_t> index = parseIndex(ident);
     if (index && thisObject->isMappedArgument(index.value())) {
         thisObject->setIndexQuickly(vm, index.value(), value);
         return true;
     }
 
-    auto result = Base::put(thisObject, globalObject, ident, value, slot);
-    RETURN_IF_EXCEPTION(scope, false);
-    RELEASE_AND_RETURN(scope, result);
+    RELEASE_AND_RETURN(scope, Base::put(thisObject, globalObject, ident, value, slot));
 }
 
 template<typename Type>
@@ -174,7 +175,7 @@ bool GenericArguments<Type>::deleteProperty(JSCell* cell, JSGlobalObject* global
         RETURN_IF_EXCEPTION(scope, false);
     }
 
-    if (Optional<uint32_t> index = parseIndex(ident))
+    if (std::optional<uint32_t> index = parseIndex(ident))
         RELEASE_AND_RETURN(scope, GenericArguments<Type>::deletePropertyByIndex(thisObject, globalObject, *index));
 
     RELEASE_AND_RETURN(scope, Base::deleteProperty(thisObject, globalObject, ident, slot));
@@ -222,7 +223,7 @@ bool GenericArguments<Type>::defineOwnProperty(JSObject* object, JSGlobalObject*
         || ident == vm.propertyNames->iteratorSymbol) {
         thisObject->overrideThingsIfNecessary(globalObject);
         RETURN_IF_EXCEPTION(scope, false);
-    } else if (Optional<uint32_t> optionalIndex = parseIndex(ident)) {
+    } else if (std::optional<uint32_t> optionalIndex = parseIndex(ident)) {
         uint32_t index = optionalIndex.value();
         bool isMapped = thisObject->isMappedArgument(index);
         PropertyDescriptor newDescriptor = descriptor;

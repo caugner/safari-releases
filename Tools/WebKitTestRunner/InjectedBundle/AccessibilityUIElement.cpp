@@ -87,6 +87,7 @@ bool AccessibilityUIElement::isInDefinitionListTerm() const { return false; }
 bool AccessibilityUIElement::isTextArea() const { return false; }
 RefPtr<AccessibilityTextMarkerRange> AccessibilityUIElement::textMarkerRangeMatchesTextNearMarkers(JSStringRef, AccessibilityTextMarker*, AccessibilityTextMarker*) { return nullptr; }
 JSRetainPtr<JSStringRef> AccessibilityUIElement::attributedStringForElement() { return nullptr; }
+JSRetainPtr<JSStringRef> AccessibilityUIElement::lineRectsAndText() const { return { }; }
 bool AccessibilityUIElement::isInTableCell() const { return false; }
 bool AccessibilityUIElement::isInTable() const { return false; }
 bool AccessibilityUIElement::isInLandmark() const { return false; }
@@ -102,6 +103,7 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::sentenceAtOffset(int) { return 
 #endif
 
 #if !PLATFORM(MAC) || !HAVE(ACCESSIBILITY)
+RefPtr<AccessibilityTextMarkerRange> AccessibilityUIElement::textMarkerRangeForRange(unsigned, unsigned) { return nullptr; }
 RefPtr<AccessibilityTextMarkerRange> AccessibilityUIElement::selectedTextMarkerRange() { return nullptr; }
 void AccessibilityUIElement::resetSelectedTextMarkerRange() { }
 void AccessibilityUIElement::setBoolAttributeValue(JSStringRef, bool) { }
@@ -126,6 +128,11 @@ RefPtr<AccessibilityTextMarker> AccessibilityUIElement::nextSentenceEndTextMarke
 RefPtr<AccessibilityTextMarker> AccessibilityUIElement::previousSentenceStartTextMarkerForTextMarker(AccessibilityTextMarker*) { return nullptr; }
 RefPtr<AccessibilityTextMarkerRange> AccessibilityUIElement::misspellingTextMarkerRange(AccessibilityTextMarkerRange*, bool) { return nullptr; }
 void AccessibilityUIElement::dismiss() { }
+JSValueRef AccessibilityUIElement::children() const { return { }; }
+JSValueRef AccessibilityUIElement::detailsElements() const { return { }; }
+JSValueRef AccessibilityUIElement::errorMessageElements() const { return { }; }
+JSValueRef AccessibilityUIElement::imageOverlayElements() const { return { }; }
+JSRetainPtr<JSStringRef> AccessibilityUIElement::embeddedImageDescription() const { return nullptr; }
 #endif
 
 } // namespace WTR

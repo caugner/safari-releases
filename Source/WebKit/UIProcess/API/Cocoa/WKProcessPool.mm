@@ -53,6 +53,7 @@
 #import <WebCore/HTTPCookieAcceptPolicyCocoa.h>
 #import <WebCore/PluginData.h>
 #import <WebCore/RegistrableDomain.h>
+#import <WebCore/WebCoreObjCExtras.h>
 #import <pal/spi/cf/CFNetworkSPI.h>
 #import <wtf/BlockPtr.h>
 #import <wtf/RetainPtr.h>
@@ -65,7 +66,11 @@
 #import "WKGeolocationProviderIOS.h"
 #endif
 
-static WKProcessPool *sharedProcessPool;
+static RetainPtr<WKProcessPool>& sharedProcessPool()
+{
+    static NeverDestroyed<RetainPtr<WKProcessPool>> sharedProcessPool;
+    return sharedProcessPool;
+}
 
 @implementation WKProcessPool {
     WeakObjCPtr<id <_WKAutomationDelegate>> _automationDelegate;
@@ -95,6 +100,9 @@ static WKProcessPool *sharedProcessPool;
 
 - (void)dealloc
 {
+    if (WebCoreObjCScheduleDeallocateOnMainRunLoop(WKProcessPool.class, self))
+        return;
+
     _processPool->~WebProcessPool();
 
     [super dealloc];
@@ -107,7 +115,7 @@ static WKProcessPool *sharedProcessPool;
 
 - (void)encodeWithCoder:(NSCoder *)coder
 {
-    if (self == sharedProcessPool) {
+    if (self == sharedProcessPool()) {
         [coder encodeBool:YES forKey:@"isSharedProcessPool"];
         return;
     }
@@ -159,16 +167,16 @@ static WKProcessPool *sharedProcessPool;
 {
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        sharedProcessPool = [[WKProcessPool alloc] init];
+        sharedProcessPool() = adoptNS([[WKProcessPool alloc] init]);
     });
 
-    return sharedProcessPool;
+    return sharedProcessPool().get();
 }
 
 + (NSArray<WKProcessPool *> *)_allProcessPoolsForTesting
 {
     return createNSArray(WebKit::WebProcessPool::allProcessPools(), [] (auto& pool) {
-        return wrapper(*pool);
+        return wrapper(pool.get());
     }).autorelease();
 }
 
@@ -383,6 +391,16 @@ static WKProcessPool *sharedProcessPool;
 #endif
 }
 
+- (BOOL)_requestWebProcessTermination:(pid_t)pid
+{
+    for (auto& process : _processPool->processes()) {
+        if (process->processIdentifier() == pid)
+            process->requestTermination(WebKit::ProcessTerminationReason::RequestedByClient);
+        return YES;
+    }
+    return NO;
+}
+
 - (void)_makeNextWebProcessLaunchFailForTesting
 {
     _processPool->setShouldMakeNextWebProcessLaunchFailForTesting(true);
@@ -464,6 +482,11 @@ static WKProcessPool *sharedProcessPool;
 #if ENABLE(GAMEPAD)
     WebKit::UIGamepadProvider::setUsesGameControllerFramework();
 #endif
+}
+
++ (void)_setLinkedOnOrBeforeEverythingForTesting
+{
+    setApplicationSDKVersion(0);
 }
 
 + (void)_setLinkedOnOrAfterEverythingForTesting

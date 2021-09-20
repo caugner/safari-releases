@@ -43,7 +43,6 @@ public:
     CanvasStyle();
     CanvasStyle(Color);
     CanvasStyle(const SRGBA<float>&);
-    CanvasStyle(const CMYKA<float>&);
     CanvasStyle(CanvasGradient&);
     CanvasStyle(CanvasPattern&);
 
@@ -52,7 +51,7 @@ public:
 
     bool isValid() const { return !WTF::holds_alternative<Invalid>(m_style); }
     bool isCurrentColor() const { return WTF::holds_alternative<CurrentColor>(m_style); }
-    Optional<float> overrideAlpha() const { return WTF::get<CurrentColor>(m_style).overrideAlpha; }
+    std::optional<float> overrideAlpha() const { return WTF::get<CurrentColor>(m_style).overrideAlpha; }
 
     String color() const;
     RefPtr<CanvasGradient> canvasGradient() const;
@@ -63,13 +62,12 @@ public:
 
     bool isEquivalentColor(const CanvasStyle&) const;
     bool isEquivalent(const SRGBA<float>&) const;
-    bool isEquivalent(const CMYKA<float>&) const;
 
 private:
     struct Invalid { };
 
     struct CurrentColor {
-        Optional<float> overrideAlpha;
+        std::optional<float> overrideAlpha;
     };
 
     CanvasStyle(CurrentColor);

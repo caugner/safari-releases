@@ -31,7 +31,6 @@
 
 #include "B3BasicBlockInlines.h"
 #include "B3CCallValue.h"
-#include "B3Compilation.h"
 #include "B3FrequentedBlock.h"
 #include "B3Procedure.h"
 #include "B3SwitchValue.h"
@@ -47,6 +46,7 @@
 #include "FTLWeight.h"
 #include "FTLWeightedTarget.h"
 #include "HeapCell.h"
+#include "JITCompilation.h"
 #include <wtf/OrderMaker.h>
 #include <wtf/StringPrintStream.h>
 
@@ -100,7 +100,7 @@ public:
 
     LValue framePointer();
 
-    B3::SlotBaseValue* lockedStackSlot(size_t bytes);
+    B3::SlotBaseValue* lockedStackSlot(uint64_t bytes);
 
     LValue constBool(bool value);
     LValue constInt32(int32_t value);

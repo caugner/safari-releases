@@ -29,6 +29,7 @@
 #if USE(UNIX_DOMAIN_SOCKETS)
 #include "SharedMemory.h"
 
+#include "ArgumentCoders.h"
 #include "Decoder.h"
 #include "Encoder.h"
 #include <errno.h>
@@ -47,6 +48,10 @@
 #if HAVE(LINUX_MEMFD_H)
 #include <linux/memfd.h>
 #include <sys/syscall.h>
+#endif
+
+#if PLATFORM(PLAYSTATION)
+#include "ArgumentCoders.h"
 #endif
 
 namespace WebKit {
@@ -195,7 +200,7 @@ RefPtr<SharedMemory> SharedMemory::map(const Handle& handle, Protection protecti
         return nullptr;
 
     RefPtr<SharedMemory> instance = wrapMap(data, handle.m_attachment.size(), -1);
-    instance->m_fileDescriptor = WTF::nullopt;
+    instance->m_fileDescriptor = std::nullopt;
     instance->m_isWrappingMap = false;
     return instance;
 }

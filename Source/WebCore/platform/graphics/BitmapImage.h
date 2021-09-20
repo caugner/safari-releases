@@ -82,7 +82,8 @@ public:
     RepetitionCount repetitionCount() const { return m_source->repetitionCount(); }
     String uti() const override { return m_source->uti(); }
     String filenameExtension() const override { return m_source->filenameExtension(); }
-    Optional<IntPoint> hotSpot() const override { return m_source->hotSpot(); }
+    String accessibilityDescription() const override { return m_source->accessibilityDescription(); }
+    std::optional<IntPoint> hotSpot() const override { return m_source->hotSpot(); }
 
     // FloatSize due to override.
     FloatSize size(ImageOrientation orientation = ImageOrientation::FromImage) const override { return m_source->size(orientation); }
@@ -94,7 +95,7 @@ public:
     bool frameHasAlphaAtIndex(size_t index) const { return m_source->frameHasAlphaAtIndex(index); }
 
     bool frameHasFullSizeNativeImageAtIndex(size_t index, SubsamplingLevel subsamplingLevel) { return m_source->frameHasFullSizeNativeImageAtIndex(index, subsamplingLevel); }
-    bool frameHasDecodedNativeImageCompatibleWithOptionsAtIndex(size_t index, const Optional<SubsamplingLevel>& subsamplingLevel, const DecodingOptions& decodingOptions) { return m_source->frameHasDecodedNativeImageCompatibleWithOptionsAtIndex(index, subsamplingLevel, decodingOptions); }
+    bool frameHasDecodedNativeImageCompatibleWithOptionsAtIndex(size_t index, const std::optional<SubsamplingLevel>& subsamplingLevel, const DecodingOptions& decodingOptions) { return m_source->frameHasDecodedNativeImageCompatibleWithOptionsAtIndex(index, subsamplingLevel, decodingOptions); }
 
     SubsamplingLevel frameSubsamplingLevelAtIndex(size_t index) const { return m_source->frameSubsamplingLevelAtIndex(index); }
 

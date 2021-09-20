@@ -33,13 +33,11 @@
 #include "ScriptSourceCode.h"
 #include "WorkerOrWorkletGlobalScope.h"
 #include "WorkerOrWorkletScriptController.h"
-#include "WorkerScriptLoaderClient.h"
 #include <JavaScriptCore/ConsoleMessage.h>
 #include <JavaScriptCore/RuntimeFlags.h>
 #include <wtf/CompletionHandler.h>
 #include <wtf/Deque.h>
 #include <wtf/ObjectIdentifier.h>
-#include <wtf/Optional.h>
 #include <wtf/URL.h>
 #include <wtf/WeakPtr.h>
 
@@ -54,7 +52,7 @@ struct WorkletParameters;
 enum WorkletGlobalScopeIdentifierType { };
 using WorkletGlobalScopeIdentifier = ObjectIdentifier<WorkletGlobalScopeIdentifierType>;
 
-class WorkletGlobalScope : public WorkerOrWorkletGlobalScope, public WorkerScriptLoaderClient {
+class WorkletGlobalScope : public WorkerOrWorkletGlobalScope {
     WTF_MAKE_ISO_ALLOCATED(WorkletGlobalScope);
 public:
     virtual ~WorkletGlobalScope();
@@ -88,19 +86,17 @@ public:
 
     void prepareForDestruction() override;
 
-    void fetchAndInvokeScript(const URL&, FetchRequestCredentials, CompletionHandler<void(Optional<Exception>&&)>&&);
+    void fetchAndInvokeScript(const URL&, FetchRequestCredentials, CompletionHandler<void(std::optional<Exception>&&)>&&);
 
     Document* responsibleDocument() { return m_document.get(); }
     const Document* responsibleDocument() const { return m_document.get(); }
 
 protected:
-    WorkletGlobalScope(WorkerOrWorkletThread&, const WorkletParameters&);
+    WorkletGlobalScope(WorkerOrWorkletThread&, Ref<JSC::VM>&&, const WorkletParameters&);
     WorkletGlobalScope(Document&, Ref<JSC::VM>&&, ScriptSourceCode&&);
 
 private:
-#if ENABLE(INDEXED_DATABASE)
     IDBClient::IDBConnectionProxy* idbConnectionProxy() final { ASSERT_NOT_REACHED(); return nullptr; }
-#endif
 
     // EventTarget.
     EventTargetInterface eventTargetInterface() const final { return WorkletGlobalScopeEventTargetInterfaceType; }
@@ -110,10 +106,6 @@ private:
     void logExceptionToConsole(const String& errorMessage, const String&, int, int, RefPtr<Inspector::ScriptCallStack>&&) final;
     void addMessage(MessageSource, MessageLevel, const String&, const String&, unsigned, unsigned, RefPtr<Inspector::ScriptCallStack>&&, JSC::JSGlobalObject*, unsigned long) final;
     void addConsoleMessage(MessageSource, MessageLevel, const String&, unsigned long) final;
-
-    // WorkerScriptLoaderClient.
-    void didReceiveResponse(unsigned long identifier, const ResourceResponse&) final;
-    void notifyFinished() final;
 
     EventTarget* errorEventTarget() final { return this; }
 
@@ -125,28 +117,16 @@ private:
     String userAgent(const URL&) const final;
     const Settings::Values& settingsValues() const final { return m_settingsValues; }
 
-    struct ScriptFetchJob {
-        URL moduleURL;
-        FetchRequestCredentials credentials;
-        CompletionHandler<void(Optional<Exception>&&)> completionHandler;
-    };
-
-    void processNextScriptFetchJobIfNeeded();
-    void didCompleteScriptFetchJob(ScriptFetchJob&&, Optional<Exception>);
-
     WeakPtr<Document> m_document;
 
     Ref<SecurityOrigin> m_topOrigin;
 
     URL m_url;
     JSC::RuntimeFlags m_jsRuntimeFlags;
-    Optional<ScriptSourceCode> m_code;
+    std::optional<ScriptSourceCode> m_code;
 
     std::unique_ptr<WorkerMessagePortChannelProvider> m_messagePortChannelProvider;
 
-    RefPtr<WorkerScriptLoader> m_scriptLoader;
-    Deque<ScriptFetchJob> m_scriptFetchJobs;
-    HashSet<URL> m_evaluatedModules;
     Settings::Values m_settingsValues;
 };
 

@@ -112,8 +112,8 @@ private:
     PlatformPageClient platformPageClient() const final;
     void contentsSizeChanged(WebCore::Frame&, const WebCore::IntSize&) const final;
     void intrinsicContentsSizeChanged(const WebCore::IntSize&) const final { }
-    void scrollRectIntoView(const WebCore::IntRect&) const final;
 
+    void scrollContainingScrollViewsToRevealRect(const WebCore::IntRect&) const final;
     void setStatusbarText(const String&) override;
 
     bool shouldUnavailablePluginMessageBeButton(WebCore::RenderEmbeddedObject::PluginUnavailabilityReason) const final;
@@ -122,7 +122,7 @@ private:
 
     void setToolTip(const String&);
 
-    void print(WebCore::Frame&) final;
+    void print(WebCore::Frame&, const WebCore::StringWithDirection&) final;
     void exceededDatabaseQuota(WebCore::Frame&, const String& databaseName, WebCore::DatabaseDetails) final;
     void reachedMaxAppCacheSize(int64_t spaceNeeded) final;
     void reachedApplicationCacheOriginQuota(WebCore::SecurityOrigin&, int64_t totalSpaceNeeded) final;
@@ -151,6 +151,12 @@ private:
     std::unique_ptr<WebCore::DateTimeChooser> createDateTimeChooser(WebCore::DateTimeChooserClient&) final;
 #endif
 
+#if ENABLE(APP_HIGHLIGHTS)
+    void storeAppHighlight(WebCore::AppHighlight&&) const final;
+#endif
+
+    void setTextIndicator(const WebCore::TextIndicatorData&) const final;
+
 #if ENABLE(POINTER_LOCK)
     bool requestPointerLock() final;
     void requestPointerUnlock() final;
@@ -160,7 +166,7 @@ private:
 
     bool hoverSupportedByPrimaryPointingDevice() const override { return true; }
     bool hoverSupportedByAnyAvailablePointingDevice() const override { return true; }
-    Optional<WebCore::PointerCharacteristics> pointerCharacteristicsOfPrimaryPointingDevice() const override { return WebCore::PointerCharacteristics::Fine; }
+    std::optional<WebCore::PointerCharacteristics> pointerCharacteristicsOfPrimaryPointingDevice() const override { return WebCore::PointerCharacteristics::Fine; }
     OptionSet<WebCore::PointerCharacteristics> pointerCharacteristicsOfAllAvailablePointingDevices() const override { return WebCore::PointerCharacteristics::Fine; }
 
     NSResponder *firstResponder() final;
@@ -239,7 +245,7 @@ private:
     void showPlaybackTargetPicker(WebCore::PlaybackTargetClientContextIdentifier, const WebCore::IntPoint&, bool /* hasVideo */) final;
     void playbackTargetPickerClientStateDidChange(WebCore::PlaybackTargetClientContextIdentifier, WebCore::MediaProducer::MediaStateFlags) final;
     void setMockMediaPlaybackTargetPickerEnabled(bool) final;
-    void setMockMediaPlaybackTargetPickerState(const String&, WebCore::MediaPlaybackTargetContext::State) final;
+    void setMockMediaPlaybackTargetPickerState(const String&, WebCore::MediaPlaybackTargetContext::MockState) final;
     void mockMediaPlaybackTargetPickerDismissPopup() override;
 #endif
 

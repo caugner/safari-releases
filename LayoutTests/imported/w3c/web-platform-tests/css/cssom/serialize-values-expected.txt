@@ -315,12 +315,12 @@ PASS color: rgba(5, 7, 10, 0.5)
 PASS color: inherit
 PASS content: normal
 PASS content: none
-FAIL content: "string" assert_equals: content raw inline style declaration expected "\"string\"" but got "string"
-FAIL content: 'string' assert_equals: content raw inline style declaration expected "\"string\"" but got "string"
+PASS content: "string"
+PASS content: 'string'
 PASS content: url("http://localhost/")
 PASS content: url(http://localhost/)
-FAIL content: counter(par-num) assert_equals: content raw inline style declaration expected "counter(par-num)" but got "counter(par-num, decimal)"
-FAIL content: counter(par-num, decimal) assert_equals: content raw inline style declaration expected "counter(par-num)" but got "counter(par-num, decimal)"
+PASS content: counter(par-num)
+PASS content: counter(par-num, decimal)
 PASS content: counter(par-num, upper-roman)
 PASS content: attr(foo-bar)
 PASS content: attr(foo_bar)
@@ -393,9 +393,9 @@ PASS font-style: normal
 PASS font-style: italic
 PASS font-style: oblique
 PASS font-style: inherit
-FAIL font-variant: normal assert_equals: font-variant raw inline style declaration expected "normal" but got ""
-FAIL font-variant: small-caps assert_equals: font-variant raw inline style declaration expected "small-caps" but got ""
-FAIL font-variant: inherit assert_equals: font-variant raw inline style declaration expected "inherit" but got ""
+PASS font-variant: normal
+PASS font-variant: small-caps
+PASS font-variant: inherit
 PASS font-weight: normal
 PASS font-weight: bold
 PASS font-weight: bolder
@@ -450,6 +450,8 @@ PASS list-style-position: inherit
 PASS list-style-type: disc
 PASS list-style-type: circle
 PASS list-style-type: square
+PASS list-style-type: disclosure-open
+PASS list-style-type: disclosure-closed
 PASS list-style-type: decimal
 PASS list-style-type: decimal-leading-zero
 PASS list-style-type: lower-roman

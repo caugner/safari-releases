@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2019 Apple Inc. All rights reserved.
+ * Copyright (C) 2008-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -55,7 +55,8 @@ void DebuggerScope::finishCreation(VM& vm)
     Base::finishCreation(vm);
 }
 
-void DebuggerScope::visitChildren(JSCell* cell, SlotVisitor& visitor)
+template<typename Visitor>
+void DebuggerScope::visitChildrenImpl(JSCell* cell, Visitor& visitor)
 {
     DebuggerScope* thisObject = jsCast<DebuggerScope*>(cell);
     ASSERT_GC_OBJECT_INHERITS(thisObject, info());
@@ -65,27 +66,7 @@ void DebuggerScope::visitChildren(JSCell* cell, SlotVisitor& visitor)
     visitor.append(thisObject->m_next);
 }
 
-String DebuggerScope::className(const JSObject* object, VM& vm)
-{
-    const DebuggerScope* scope = jsCast<const DebuggerScope*>(object);
-    // We cannot assert that scope->isValid() because the TypeProfiler may encounter an invalidated
-    // DebuggerScope in its log entries. We just need to handle it appropriately as below.
-    if (!scope->isValid())
-        return String();
-    JSObject* thisObject = JSScope::objectAtScope(scope->jsScope());
-    return thisObject->methodTable(vm)->className(thisObject, vm);
-}
-
-String DebuggerScope::toStringName(const JSObject* object, JSGlobalObject* globalObject)
-{
-    const DebuggerScope* scope = jsCast<const DebuggerScope*>(object);
-    // We cannot assert that scope->isValid() because the TypeProfiler may encounter an invalidated
-    // DebuggerScope in its log entries. We just need to handle it appropriately as below.
-    if (!scope->isValid())
-        return String();
-    JSObject* thisObject = JSScope::objectAtScope(scope->jsScope());
-    return thisObject->methodTable(globalObject->vm())->toStringName(thisObject, globalObject);
-}
+DEFINE_VISIT_CHILDREN(DebuggerScope);
 
 bool DebuggerScope::getOwnPropertySlot(JSObject* object, JSGlobalObject* globalObject, PropertyName propertyName, PropertySlot& slot)
 {

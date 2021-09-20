@@ -29,8 +29,13 @@
 #if ENABLE(GPU_PROCESS) && PLATFORM(COCOA)
 
 #import "RemoteAudioSourceProvider.h"
+#import "RemoteMediaPlayerProxyMessages.h"
+#import "WebCoreArgumentCoders.h"
+#import <WebCore/ColorSpaceCG.h>
+#import <WebCore/IOSurface.h>
 #import <WebCore/VideoLayerManagerObjC.h>
 #import <pal/spi/cocoa/QuartzCoreSPI.h>
+#import <wtf/MachSendRight.h>
 
 namespace WebKit {
 using namespace WebCore;
@@ -40,7 +45,7 @@ MediaPlayerPrivateRemote::MediaPlayerPrivateRemote(MediaPlayer* player, MediaPla
     : m_logger(player->mediaPlayerLogger())
     , m_logIdentifier(player->mediaPlayerLogIdentifier())
 #endif
-    , m_player(player)
+    , m_player(makeWeakPtr(*player))
     , m_mediaResourceLoader(*player->createResourceLoader())
     , m_videoLayerManager(makeUniqueRef<VideoLayerManagerObjC>(logger(), logIdentifier()))
     , m_manager(manager)
@@ -56,6 +61,35 @@ PlatformLayerContainer MediaPlayerPrivateRemote::createVideoFullscreenLayer()
     return adoptNS([[CALayer alloc] init]);
 }
 #endif
+
+RefPtr<NativeImage> MediaPlayerPrivateRemote::nativeImageForCurrentTime()
+{
+    std::optional<MachSendRight> sendRight;
+    if (!connection().sendSync(Messages::RemoteMediaPlayerProxy::NativeImageForCurrentTime(), Messages::RemoteMediaPlayerProxy::NativeImageForCurrentTime::Reply(sendRight), m_id))
+        return nullptr;
+
+    if (!sendRight)
+        return nullptr;
+
+    auto surface = WebCore::IOSurface::createFromSendRight(WTFMove(*sendRight), WebCore::DestinationColorSpace::SRGB());
+    if (!surface)
+        return nullptr;
+
+    auto platformImage = WebCore::IOSurface::sinkIntoImage(WTFMove(surface));
+    if (!platformImage)
+        return nullptr;
+
+    return NativeImage::create(WTFMove(platformImage));
+}
+
+RetainPtr<CVPixelBufferRef> MediaPlayerPrivateRemote::pixelBufferForCurrentTime()
+{
+
+    RetainPtr<CVPixelBufferRef> result;
+    if (!connection().sendSync(Messages::RemoteMediaPlayerProxy::PixelBufferForCurrentTime(), Messages::RemoteMediaPlayerProxy::PixelBufferForCurrentTime::Reply(result), m_id))
+        return nullptr;
+    return result;
+}
 
 } // namespace WebKit
 

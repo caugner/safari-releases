@@ -116,7 +116,6 @@ public:
         ContextMenuElementInfo,
 #endif
         ContextMenuListener,
-        CookieManager,
         CustomHeaderFields,
         InternalDebugFeature,
         DebuggableInfo,
@@ -188,6 +187,8 @@ public:
         WebAuthenticationAssertionResponse,
         WebAuthenticationPanel,
 #endif
+
+        MediaKeySystemPermissionCallback,
 
         // Bundle types
         Bundle,
@@ -365,7 +366,6 @@ template<> struct EnumTraits<API::Object::Type> {
         API::Object::Type::ContextMenuElementInfo,
 #endif
         API::Object::Type::ContextMenuListener,
-        API::Object::Type::CookieManager,
         API::Object::Type::CustomHeaderFields,
         API::Object::Type::InternalDebugFeature,
         API::Object::Type::DebuggableInfo,
@@ -437,6 +437,8 @@ template<> struct EnumTraits<API::Object::Type> {
         API::Object::Type::WebAuthenticationAssertionResponse,
         API::Object::Type::WebAuthenticationPanel,
 #endif
+
+        API::Object::Type::MediaKeySystemPermissionCallback,
 
         // Bundle types
         API::Object::Type::Bundle,
