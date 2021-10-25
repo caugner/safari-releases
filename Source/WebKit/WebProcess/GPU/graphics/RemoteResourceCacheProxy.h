@@ -57,6 +57,7 @@ public:
     void finalizeRenderingUpdate();
 
     void remoteResourceCacheWasDestroyed();
+    void releaseAllRemoteFonts();
     void releaseMemory();
 
 private:
@@ -79,6 +80,8 @@ private:
     using FontHashMap = HashMap<WebCore::RenderingResourceIdentifier, FontState>;
     
     void releaseNativeImage(WebCore::RenderingResourceIdentifier) override;
+    void clearNativeImageMap();
+
     void finalizeRenderingUpdateForFonts();
     void prepareForNextRenderingUpdate();
     void clearFontMap();

@@ -513,7 +513,7 @@ void HTMLMediaElement::initializeMediaSession()
     registerWithDocument(document);
 
 #if USE(AUDIO_SESSION) && PLATFORM(MAC)
-    AudioSession::sharedSession().addMutedStateObserver(this);
+    AudioSession::sharedSession().addConfigurationChangeObserver(*this);
 #endif
 
     m_mediaSession->clientWillBeginAutoplaying();
@@ -530,7 +530,7 @@ HTMLMediaElement::~HTMLMediaElement()
     unregisterWithDocument(document());
 
 #if USE(AUDIO_SESSION) && PLATFORM(MAC)
-    AudioSession::sharedSession().removeMutedStateObserver(this);
+    AudioSession::sharedSession().removeConfigurationChangeObserver(*this);
 #endif
 
     if (m_audioTracks)
@@ -819,8 +819,6 @@ void HTMLMediaElement::pauseAfterDetachedTask()
     if (!m_player)
         return;
 
-    m_player->acceleratedRenderingStateChanged();
-
     size_t extraMemoryCost = m_player->extraMemoryCost();
     if (extraMemoryCost > m_reportedExtraMemoryCost) {
         JSC::VM& vm = commonVM();
@@ -1070,7 +1068,7 @@ String HTMLMediaElement::canPlayType(const String& mimeType) const
     // Temporarily work around bug 226922. For now claim that the opus and vorbis codecs aren't supported
     // so that sites relying on this test to determine if webaudio use of opus or vorbis won't error.
     auto codecs = contentType.codecs();
-    if (support == MediaPlayer::SupportsType::IsSupported && ((codecs.contains("opus") && !webMWebAudioEnabled()) || codecs.contains("vorbis")))
+    if (support == MediaPlayer::SupportsType::IsSupported && ((codecs.contains("opus") || codecs.contains("vorbis")) && !webMWebAudioEnabled()))
         support = MediaPlayer::SupportsType::IsNotSupported;
 #endif
 
@@ -1554,7 +1552,7 @@ void HTMLMediaElement::loadResource(const URL& initialURL, ContentType& contentT
         if (!m_blobURLForReading.isEmpty())
             ThreadableBlobRegistry::unregisterBlobURL(m_blobURLForReading);
         m_blobURLForReading = BlobURL::createPublicURL(&document().securityOrigin());
-        ThreadableBlobRegistry::registerBlobURL(&document().securityOrigin(), m_blobURLForReading, m_blob->url());
+        ThreadableBlobRegistry::registerBlobURL(&document().securityOrigin(), document().policyContainer(), m_blobURLForReading, m_blob->url());
 
         if (!m_player->load(m_blobURLForReading, contentType, keySystem))
             mediaLoadingFailed(MediaPlayer::NetworkState::FormatError);
@@ -3810,9 +3808,9 @@ void HTMLMediaElement::setMuted(bool muted)
 }
 
 #if USE(AUDIO_SESSION) && PLATFORM(MAC)
-void HTMLMediaElement::hardwareMutedStateDidChange(AudioSession* session)
+void HTMLMediaElement::hardwareMutedStateDidChange(const AudioSession& session)
 {
-    if (!session->isMuted())
+    if (!session.isMuted())
         return;
 
     if (!hasAudio())
@@ -5056,9 +5054,6 @@ bool HTMLMediaElement::mediaPlayerRenderingCanBeAccelerated()
     if (m_videoFullscreenMode == VideoFullscreenModePictureInPicture)
         return true;
 
-    if (!m_inActiveDocument)
-        return false;
-
     auto* renderer = this->renderer();
     return is<RenderVideo>(renderer)
         && downcast<RenderVideo>(*renderer).view().compositor().canAccelerateVideoRendering(downcast<RenderVideo>(*renderer));
@@ -5840,7 +5835,7 @@ void HTMLMediaElement::visibilityStateChanged()
     updateSleepDisabling();
     mediaSession().visibilityChanged();
     if (m_player)
-        m_player->setVisible(!m_elementIsHidden);
+        m_player->setPageIsVisible(!m_elementIsHidden);
 }
 
 bool HTMLMediaElement::requiresTextTrackRepresentation() const
@@ -6748,7 +6743,8 @@ void HTMLMediaElement::createMediaPlayer() WTF_IGNORES_THREAD_SAFETY_ANALYSIS
     m_player->setBufferingPolicy(m_bufferingPolicy);
     m_player->setPreferredDynamicRangeMode(m_overrideDynamicRangeMode.value_or(preferredDynamicRangeMode(document().view())));
     m_player->setMuted(effectiveMuted());
-    m_player->setVisible(!m_elementIsHidden);
+    m_player->setPageIsVisible(!m_elementIsHidden);
+    m_player->setVisibleInViewport(isVisibleInViewport());
     schedulePlaybackControlsManagerUpdate();
 
 #if ENABLE(WEB_AUDIO)
@@ -7808,10 +7804,8 @@ bool HTMLMediaElement::shouldOverrideBackgroundPlaybackRestriction(PlatformMedia
             INFO_LOG(LOGIDENTIFIER, "returning true because isPlayingToAutomotiveHeadUnit() is true");
             return true;
         }
-        if (m_videoFullscreenMode & VideoFullscreenModePictureInPicture)
-            return true;
-#if PLATFORM(COCOA) && ENABLE(VIDEO_PRESENTATION_MODE)
-        if (((m_videoFullscreenMode == VideoFullscreenModeStandard) || m_videoFullscreenStandby) && supportsPictureInPicture() && isPlaying())
+#if ENABLE(VIDEO_PRESENTATION_MODE)
+        if (m_videoFullscreenMode == VideoFullscreenModePictureInPicture)
             return true;
 #endif
 #if ENABLE(MEDIA_STREAM)
@@ -8076,6 +8070,8 @@ bool HTMLMediaElement::isVideoTooSmallForInlinePlayback()
 
 void HTMLMediaElement::isVisibleInViewportChanged()
 {
+    if (m_player)
+        m_player->setVisibleInViewport(isVisibleInViewport());
     queueTaskKeepingObjectAlive(*this, TaskSource::MediaElement, [this] {
         if (isContextStopped())
             return;
@@ -8094,12 +8090,16 @@ void HTMLMediaElement::updateShouldAutoplay()
         return;
 
     bool canAutoplay = mediaSession().autoplayPermitted();
-    if (canAutoplay
-        && mediaSession().state() == PlatformMediaSession::Interrupted
-        && mediaSession().interruptionType() == PlatformMediaSession::InvisibleAutoplay)
-        mediaSession().endInterruption(PlatformMediaSession::MayResumePlaying);
-    else if (!canAutoplay
-        && mediaSession().state() != PlatformMediaSession::Interrupted)
+
+    if (canAutoplay) {
+        if (mediaSession().state() == PlatformMediaSession::Interrupted) {
+            if (mediaSession().interruptionType() == PlatformMediaSession::InvisibleAutoplay)
+                mediaSession().endInterruption(PlatformMediaSession::MayResumePlaying);
+        } else if (!isPlaying())
+            resumeAutoplaying();
+        return;
+    }
+    if (mediaSession().state() != PlatformMediaSession::Interrupted)
         mediaSession().beginInterruption(PlatformMediaSession::InvisibleAutoplay);
 }
 

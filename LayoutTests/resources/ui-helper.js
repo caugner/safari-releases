@@ -819,6 +819,13 @@ window.UIHelper = class UIHelper {
         });
     }
 
+    static selectionCaretBackgroundColor()
+    {
+        return new Promise(resolve => {
+            testRunner.runUIScript("uiController.uiScriptComplete(uiController.selectionCaretBackgroundColor)", resolve);
+        });
+    }
+
     static tapHighlightViewRect()
     {
         return new Promise(resolve => {
@@ -1398,6 +1405,18 @@ window.UIHelper = class UIHelper {
         return new Promise(resolve => {
             testRunner.runUIScript(`(() => {
                 return uiController.scrollingTreeAsText;
+            })()`, resolve);
+        });
+    }
+
+    static getUIViewTree()
+    {
+        if (!this.isWebKit2() || !this.isIOSFamily())
+            return Promise.resolve();
+
+        return new Promise(resolve => {
+            testRunner.runUIScript(`(() => {
+                return uiController.uiViewTreeAsText;
             })()`, resolve);
         });
     }

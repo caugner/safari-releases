@@ -357,8 +357,11 @@ public:
 #endif
     void cancelLoad();
 
-    void setVisible(bool);
+    void setPageIsVisible(bool);
     void setVisibleForCanvas(bool);
+
+    void setVisibleInViewport(bool);
+    bool isVisibleInViewport() const { return m_visibleInViewport; }
 
     void prepareToPlay();
     void play();
@@ -698,7 +701,8 @@ private:
     IntSize m_size;
     Preload m_preload { Preload::Auto };
     double m_volume { 1 };
-    bool m_visible { false };
+    bool m_pageIsVisible { false };
+    bool m_visibleInViewport { false };
     bool m_muted { false };
     bool m_preservesPitch { true };
     bool m_privateBrowsing { false };

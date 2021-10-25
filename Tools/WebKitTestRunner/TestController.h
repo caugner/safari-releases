@@ -172,7 +172,7 @@ public:
 
     static const char* webProcessName();
     static const char* networkProcessName();
-    static const char* databaseProcessName();
+    static const char* gpuProcessName();
 
     WorkQueueManager& workQueueManager() { return m_workQueueManager; }
 
@@ -361,6 +361,7 @@ public:
 
     void completeMediaKeySystemPermissionCheck(WKMediaKeySystemPermissionCallbackRef);
     void setIsMediaKeySystemPermissionGranted(bool);
+    WKRetainPtr<WKStringRef> takeViewPortSnapshot();
 
     void didHandleTap(bool wasMeaningful);
 

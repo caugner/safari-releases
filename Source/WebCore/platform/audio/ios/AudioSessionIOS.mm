@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2019 Apple Inc. All rights reserved.
+ * Copyright (C) 2013-2021 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -232,20 +232,6 @@ String AudioSessionIOS::routingContextUID() const
 #endif
 }
 
-void AudioSessionIOS::setCategoryOverride(CategoryType category)
-{
-    if (m_categoryOverride == category)
-        return;
-
-    m_categoryOverride = category;
-    setCategory(category, RouteSharingPolicy::Default);
-}
-
-AudioSession::CategoryType AudioSessionIOS::categoryOverride() const
-{
-    return m_categoryOverride;
-}
-
 float AudioSessionIOS::sampleRate() const
 {
     return [[PAL::getAVAudioSessionClass() sharedInstance] sampleRate];
@@ -301,6 +287,7 @@ void AudioSessionIOS::setPreferredBufferSize(size_t bufferSize)
     NSError *error = nil;
     float duration = bufferSize / sampleRate();
     [[PAL::getAVAudioSessionClass() sharedInstance] setPreferredIOBufferDuration:duration error:&error];
+    RELEASE_LOG_ERROR_IF(error, Media, "failed to set preferred buffer duration to %f with error: %@", duration, error.localizedDescription);
     ASSERT(!error);
 }
 
@@ -311,28 +298,6 @@ bool AudioSessionIOS::isMuted() const
 
 void AudioSessionIOS::handleMutedStateChange()
 {
-}
-
-void AudioSessionIOS::addInterruptionObserver(InterruptionObserver& observer)
-{
-    m_interruptionObservers.add(observer);
-}
-
-void AudioSessionIOS::removeInterruptionObserver(InterruptionObserver& observer)
-{
-    m_interruptionObservers.remove(observer);
-}
-
-void AudioSessionIOS::beginInterruption()
-{
-    for (auto& observer : m_interruptionObservers)
-        observer.beginAudioSessionInterruption();
-}
-
-void AudioSessionIOS::endInterruption(MayResume mayResume)
-{
-    for (auto& observer : m_interruptionObservers)
-        observer.endAudioSessionInterruption(mayResume);
 }
 
 }

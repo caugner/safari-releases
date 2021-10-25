@@ -117,6 +117,7 @@ private:
     JSObjectRef selectionRangeViewRects() const override;
     JSObjectRef inputViewBounds() const override;
     JSRetainPtr<JSStringRef> scrollingTreeAsText() const override;
+    JSRetainPtr<JSStringRef> uiViewTreeAsText() const override;
     JSObjectRef propertiesOfLayerWithID(uint64_t layerID) const override;
     void simulateRotation(DeviceOrientation*, JSValueRef) override;
     void simulateRotationLikeSafari(DeviceOrientation*, JSValueRef) override;
@@ -135,6 +136,7 @@ private:
     void toggleCapsLock(JSValueRef) override;
     bool keyboardIsAutomaticallyShifted() const override;
     bool isAnimatingDragCancel() const override;
+    JSRetainPtr<JSStringRef> selectionCaretBackgroundColor() const override;
     JSObjectRef tapHighlightViewRect() const override;
     JSObjectRef attachmentInfo(JSStringRef) override;
     UIView *platformContentView() const override;

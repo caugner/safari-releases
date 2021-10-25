@@ -117,7 +117,7 @@ public:
     bool hasVideo() const final { return false; }
     bool hasAudio() const final { return false; }
 
-    void setVisible(bool) final { }
+    void setPageIsVisible(bool) final { }
 
     double durationDouble() const final { return 0; }
 
@@ -573,8 +573,10 @@ void MediaPlayer::loadWithNextMediaEngine(const MediaPlayerFactory* current)
         m_private = engine->createMediaEnginePlayer(this);
         if (m_private) {
             client().mediaPlayerEngineUpdated();
-            if (m_visible)
-                m_private->setVisible(m_visible);
+            if (m_pageIsVisible)
+                m_private->setPageIsVisible(m_pageIsVisible);
+            if (m_visibleInViewport)
+                m_private->setVisibleInViewport(m_visibleInViewport);
             m_private->prepareForPlayback(m_privateBrowsing, m_preload, m_preservesPitch, m_shouldPrepareToRender);
         }
     }
@@ -1000,15 +1002,21 @@ void MediaPlayer::setSize(const IntSize& size)
     m_private->setSize(size);
 }
 
-void MediaPlayer::setVisible(bool visible)
+void MediaPlayer::setPageIsVisible(bool visible)
 {
-    m_visible = visible;
-    m_private->setVisible(visible);
+    m_pageIsVisible = visible;
+    m_private->setPageIsVisible(visible);
 }
 
 void MediaPlayer::setVisibleForCanvas(bool visible)
 {
     m_private->setVisibleForCanvas(visible);
+}
+
+void MediaPlayer::setVisibleInViewport(bool visible)
+{
+    m_visibleInViewport = visible;
+    m_private->setVisibleInViewport(visible);
 }
 
 MediaPlayer::Preload MediaPlayer::preload() const

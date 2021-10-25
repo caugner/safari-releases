@@ -12,11 +12,13 @@ editing/editable-region [ Pass ]
 editing/execCommand/ios [ Pass ]
 editing/deleting/ios [ Pass ]
 editing/input/cocoa [ Pass ]
+editing/selection/ios [ Pass ]
 http/tests/quicklook [ Pass ]
 media/ios [ Pass ]
 model-element [ Pass ]
 quicklook [ Pass ]
 system-preview [ Pass ]
+remote-layer-tree/ios [ Pass ]
 swipe [ Pass ]
 http/tests/swipe [ Pass ]
 
@@ -2102,6 +2104,9 @@ accessibility/aria-sort-changed-notification.html [ Pass ]
 # Enable "aria-table-attributes" test for iOS
 webkit.org/b/150366 accessibility/aria-table-attributes.html [ Pass ]
 
+accessibility/selected-state-changed-notifications.html [ Pass ]
+accessibility/element-line-rects-and-text.html [ Pass ]
+
 # Enable "attachment element" test for iOS
 accessibility/attachment-element.html [ Pass ]
 
@@ -2642,8 +2647,6 @@ crypto/subtle/ecdsa-import-pkcs8-key-p521-validate-ecprivatekey-parameters-publi
 
 webkit.org/b/155092 js/arraybuffer-wrappers.html [ Pass Timeout ]
 
-webkit.org/b/172052 [ Release ] imported/w3c/web-platform-tests/html/webappapis/timers/type-long-setinterval.html [ Pass Failure ]
-
 webkit.org/b/183441 mathml/presentation/multiscripts-equivalence.html [ ImageOnlyFailure ]
 
 # <rdar://problem/32632415> REGRESSION (ImageIO-1666): LayoutTests fast/images are failing together.
@@ -3010,7 +3013,6 @@ webkit.org/b/197778 [ Debug ] webgl/2.0.0/conformance2/attribs/gl-vertexattribip
 
 # FIXME: Unskip the following test once we have the fix for <rdar://problem/48322899>.
 editing/selection/ios/select-non-editable-text-using-keyboard.html [ Skip ]
-editing/selection/ios/select-all-non-editable-text-using-keyboard.html [ Skip ]
 
 # Dark Mode is iOS 13 and later.
 css-dark-mode [ Pass ]
@@ -3024,7 +3026,6 @@ fast/forms/password-scrolled-after-caps-lock-toggled.html [ Pass ]
 # <rdar://problem/48781098> HEIF and HEICS images are supported only on iOS 13
 fast/images/animated-heics-draw.html [ Pass ]
 fast/images/animated-heics-verify.html [ Pass ]
-fast/images/heic-as-background-image.html [ Pass ]
 
 # <rdar://problem/40172428> REGRESSION: LayoutTests fast/text/font-collection.html and fast/text/woff2.html are failing
 webkit.org/b/212172 fast/text/font-collection.html [ ImageOnlyFailure ]
@@ -3361,12 +3362,6 @@ imported/w3c/web-platform-tests/html/rendering/widgets/input-date-no-resize-on-h
 # rdar://80384054 ([ iOS15 ] css3/filters/filter-repaint-shadow-layer-child.html is flaky failure)
 css3/filters/filter-repaint-shadow-layer-child.html [ Pass ImageOnlyFailure ]
 
-# rdar://80384447 ([ iOS15 ] editing/selection/ios/hide-selection-after-tap-on-prevent-default-element.html is a Flaky timeout)
-editing/selection/ios/hide-selection-after-tap-on-prevent-default-element.html [ Pass Timeout ]
-
-# rdar://80384801 ([ iOS15 ] editing/selection/ios/select-all-in-readonly-input-does-not-overflow.html is a flaky timeout)
-editing/selection/ios/select-all-in-readonly-input-does-not-overflow.html  [ Pass Timeout ]
-
 # rdar://80392795 ([ iOS15 ] http/tests/misc/object-embedding-svg-delayed-size-negotiation-2.htm is a flaky failure)
 http/tests/misc/object-embedding-svg-delayed-size-negotiation-2.htm [ Pass Failure ]
 
@@ -3409,9 +3404,6 @@ fast/text/simple-line-wordspacing.html [ ImageOnlyFailure ]
 
 # rdar://80395949 ([ iOS15 ] http/tests/websocket/tests/hybi/too-long-payload.html is a constant timeout)
 http/tests/websocket/tests/hybi/too-long-payload.html [ Timeout ]
-
-#rdar://80386326 ([ iOS15 Release ] fast/events/touch/ios/long-press-on-link.html is a constant crash)
-fast/events/touch/ios/long-press-on-link.html [ Crash ]
 
 # rdar://80392337 ([ iOS15 ] fast/text/international/system-language/navigator-language/navigator-language-ru.html is a constant failure)
 fast/text/international/system-language/navigator-language/navigator-language-ru.html [ Failure ]
@@ -3468,6 +3460,8 @@ webkit.org/b/222239 webgl/conformance/extensions/khr-parallel-shader-compile.htm
 
 fast/text/line-break-with-locale.html [ ImageOnlyFailure ]
 
+webkit.org/b/229154 webrtc/peer-connection-audio-mute2.html [ Pass Failure ]
+
 # Skip WebXR tests on iOS
 imported/w3c/web-platform-tests/webxr [ Skip ]
 http/wpt/webxr [ Skip ]
@@ -3478,3 +3472,5 @@ http/tests/media/video-webm-stall.html [ Skip ]
 # webkit.org/b/223385 Two imported webrtc tests are flakey text failing on Release for BigSur+ and iOS 14
 [ Release ] imported/w3c/web-platform-tests/webrtc/RTCPeerConnection-addIceCandidate-connectionSetup.html [ Pass Failure ]
 [ Release ] imported/w3c/web-platform-tests/webrtc/RTCDtlsTransport-state.html [ Pass Failure ]
+
+webkit.org/b/228200 editing/selection/ios/scrolling-to-focused-element-inside-iframe.html [ Failure ]

@@ -82,6 +82,7 @@ editing/pasteboard/dom-paste [ Skip ]
 editing/pasteboard/mac [ Skip ]
 fast/media/ios [ Skip ]
 fast/dom/Range/mac [ Skip ]
+remote-layer-tree/ios [ Skip ]
 inspector/page/setScreenSizeOverride.html [ Skip ]
 
 # Requires async overflow scrolling
@@ -92,6 +93,8 @@ compositing/layer-creation/clipping-scope [ Skip ]
 # WebKit2 only.
 printing/printing-events.html [ Skip ]
 fast/forms/enterkeyhint-attribute-values.html [ Skip ]
+fast/scrolling/keyboard-scrolling-distance-downArrow.html [ Skip ]
+fast/scrolling/keyboard-scrolling-distance-pageDown.html [ Skip ]
 
 # Highlighting marked text ranges from layout tests is only supported in WebKit2.
 editing/input/composition-highlights.html [ Skip ]
@@ -392,11 +395,13 @@ imported/w3c/web-platform-tests/server-timing/navigation_timing_idl.html [ Skip 
 imported/w3c/web-platform-tests/server-timing/navigation_timing_idl.https.html [ Skip ]
 
 # Console log lines may appear in a different order so we silence them.
+http/wpt/html/cross-origin-embedder-policy/require-corp.https.html [ DumpJSConsoleLogInStdErr ]
 imported/w3c/web-platform-tests/eventsource/format-utf-8.htm [ DumpJSConsoleLogInStdErr ]
 imported/w3c/web-platform-tests/html/browsers/history/the-location-interface/location-protocol-setter-non-broken.html [ DumpJSConsoleLogInStdErr Failure Pass ]
 imported/w3c/web-platform-tests/html/browsers/history/the-location-interface/location-protocol-setter-non-broken-weird.html [ DumpJSConsoleLogInStdErr ]
 imported/w3c/web-platform-tests/html/browsers/origin/cross-origin-objects/cross-origin-objects.html [ DumpJSConsoleLogInStdErr ]
 imported/w3c/web-platform-tests/html/browsers/sandboxing/sandbox-disallow-popups.html [ DumpJSConsoleLogInStdErr ]
+imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/blob.https.html [ DumpJSConsoleLogInStdErr ]
 imported/w3c/web-platform-tests/html/cross-origin-opener-policy/navigate-to-aboutblank.https.html [ DumpJSConsoleLogInStdErr ]
 imported/w3c/web-platform-tests/html/cross-origin-opener-policy/navigate-top-to-aboutblank.https.html [ DumpJSConsoleLogInStdErr ]
 imported/w3c/web-platform-tests/html/semantics/embedded-content/the-iframe-element/iframe-network-error.sub.html [ DumpJSConsoleLogInStdErr ]
@@ -527,11 +532,6 @@ imported/w3c/web-platform-tests/html/browsers/sandboxing/sandbox-document-open.h
 imported/w3c/web-platform-tests/html/browsers/sandboxing/sandbox-inherited-from-required-csp.html [ Skip ]
 imported/w3c/web-platform-tests/html/browsers/sandboxing/window-open-blank-from-different-initiator.html [ Skip ]
 imported/w3c/web-platform-tests/html/browsers/the-window-object/navigate-to-about-blank-while-initial-load-pending.html [ Skip ]
-imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/cache-storage-reporting-service-worker.https.html [ Skip ]
-imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/credentialless/shared-worker.tentative.https.html [ Skip ]
-imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/dedicated-worker.https.html [ Skip ]
-imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/none.https.html [ Skip ]
-imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/reporting-to-frame-owner.https.html [ Skip ]
 imported/w3c/web-platform-tests/html/infrastructure/urls/resolving-urls/query-encoding/windows-1251.html [ Skip ]
 imported/w3c/web-platform-tests/html/infrastructure/urls/resolving-urls/query-encoding/windows-1252.html [ Skip ]
 imported/w3c/web-platform-tests/html/interaction/focus/focus-01.html [ Skip ]
@@ -714,14 +714,22 @@ imported/w3c/web-platform-tests/html/rendering/non-replaced-elements/phrasing-co
 # Cross-Origin Opener Policy reporting is not supported and it is causing those tests to time out.
 imported/w3c/web-platform-tests/html/cross-origin-opener-policy/reporting [ Skip ]
 
-# This test is timing out locally but passing on wpt.live. The issue is that we run the WPT tests over localhost and they
-# are thus marked as secure contexts even when served over HTTP. The test assumes the context is non-secure because the
-# test is served over HTTP.
-imported/w3c/web-platform-tests/html/cross-origin-opener-policy/no-https.html [ Skip ]
+# Cross-Origin-Embedder-Policy: credentialless is not supported.
+imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/credentialless
 
-# COOP tests that are failing and keep printing a different uuid in the error output.
-imported/w3c/web-platform-tests/html/cross-origin-opener-policy/blob-popup.https.html [ Failure Pass ]
-imported/w3c/web-platform-tests/html/cross-origin-opener-policy/coep-blob-popup.https.html [ Failure Pass ]
+# These tests are timing out locally but passing on wpt.live. The issue is that we run the WPT tests over localhost and they
+# are thus marked as secure contexts even when served over HTTP. These tests assume the context is non-secure because they
+# are served over HTTP.
+imported/w3c/web-platform-tests/html/cross-origin-opener-policy/no-https.html [ Skip ]
+imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/no-secure-context.html [ Skip ]
+
+# This test makes the assumption that get_host_info().REMOTE_ORIGIN is same-site, which is not true for
+# our layout tests. We maintain our own version of this test in http/wpt.
+imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/require-corp.https.html [ Skip ]
+
+# We do not support COEP reporting.
+imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/reporting-to-endpoint.https.html [ Failure Pass ]
+imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/multi-globals/workers-coep-report.https.html [ Skip ]
 
 # Newly imported WPT tests that are crashing.
 imported/w3c/web-platform-tests/html/semantics/embedded-content/the-embed-element/embed-represent-nothing-04.html [ ImageOnlyFailure Crash ]
@@ -776,11 +784,6 @@ imported/w3c/web-platform-tests/cookies/schemeful-same-site/schemeful-navigation
 imported/w3c/web-platform-tests/cookies/schemeful-same-site/schemeful-subresource.tentative.html [ Failure Pass ]
 imported/w3c/web-platform-tests/html/semantics/scripting-1/the-script-element/microtasks/checkpoint-after-window-onerror-module.html [ Failure Pass ]
 imported/w3c/web-platform-tests/html/browsers/windows/targeting-cross-origin-nested-browsing-contexts.html [ Failure Pass ]
-imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/credentialless/iframe-coep-credentialless.tentative.https.html [ Failure Pass ]
-imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/credentialless/iframe-coep-require-corp.tentative.https.html [ Failure Pass ]
-imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/credentialless/image.tentative.https.html [ Failure Pass ]
-imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/header-parsing.https.html [ Failure Pass ]
-imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/reporting-to-endpoint.https.html [ Failure Pass ]
 imported/w3c/web-platform-tests/html/webappapis/update-rendering/child-document-raf-order.html [ Failure Pass ]
 imported/w3c/web-platform-tests/html/rendering/replaced-elements/attributes-for-embedded-content-and-images/img-aspect-ratio-lazy.tentative.html [ Failure Pass ]
 imported/w3c/web-platform-tests/html/semantics/forms/autofocus/update-the-rendering.html [ Failure Pass ]
@@ -1118,9 +1121,7 @@ imported/w3c/web-platform-tests/mediacapture-fromelement/creation.html [ Pass Fa
 imported/w3c/web-platform-tests/resource-timing/font-timestamps.html [ Failure ]
 imported/w3c/web-platform-tests/resource-timing/cross-origin-start-end-time-with-redirects.html [ Pass Failure ]
 imported/w3c/web-platform-tests/resource-timing/resource_timing_content_length.html [ Skip ]
-imported/w3c/web-platform-tests/resource-timing/status-codes-create-entry.html [ Pass Failure ]
 imported/w3c/web-platform-tests/resource-timing/SO-XO-SO-redirect-chain-tao.https.html [ Failure ]
-imported/w3c/web-platform-tests/resource-timing/resource_TAO_cross_origin_redirect_chain.html [ Failure ]
 webkit.org/b/180240 imported/w3c/web-platform-tests/resource-timing/single-entry-per-resource.html [ Pass Failure ]
 webkit.org/b/189906 imported/w3c/web-platform-tests/resource-timing/resource_timing_buffer_full_eventually.html [ Skip ]
 imported/w3c/web-platform-tests/resource-timing/resource-reload-TAO.sub.html [ Skip ]
@@ -1130,7 +1131,6 @@ imported/w3c/web-platform-tests/resource-timing/crossorigin-sandwich-no-TAO.sub.
 imported/w3c/web-platform-tests/resource-timing/cors-preflight.any.html [ Failure Pass ]
 imported/w3c/web-platform-tests/resource-timing/crossorigin-sandwich-TAO.sub.html [ Pass Failure ]
 imported/w3c/web-platform-tests/resource-timing/crossorigin-sandwich-partial-TAO.sub.html [ Pass Failure ]
-imported/w3c/web-platform-tests/navigation-timing/nav2_test_attributes_values.html [ Pass Failure ]
 imported/w3c/web-platform-tests/navigation-timing/secure_connection_start_non_zero.https.html [ Pass Failure ]
 imported/w3c/web-platform-tests/navigation-timing/nav2_test_attributes_values.html [ Pass Failure ]
 imported/w3c/web-platform-tests/resource-timing/TAO-match.html [ Pass Failure ]
@@ -1504,10 +1504,6 @@ webkit.org/b/191508 fast/css-grid-layout/crash-large-positions.html [ Skip ]
 
 # Flaky tests at import time
 imported/w3c/web-platform-tests/css/css-scoping/css-scoping-shadow-host-namespace.html [ ImageOnlyFailure ]
-
-# Those WPT tests are flaky when failing.
-imported/w3c/web-platform-tests/html/semantics/document-metadata/the-meta-element/pragma-directives/attr-meta-http-equiv-refresh/allow-scripts-flag-changing-1.html [ Pass Failure ]
-imported/w3c/web-platform-tests/html/semantics/document-metadata/the-meta-element/pragma-directives/attr-meta-http-equiv-refresh/allow-scripts-flag-changing-2.html [ Pass Failure ]
 
 # WPT tests for custom elements
 webkit.org/b/187800 imported/w3c/web-platform-tests/custom-elements/Document-createElement-svg.svg [ Skip ]
@@ -2160,7 +2156,6 @@ fast/images/gif-loop-count.html [ ImageOnlyFailure ]
 # HEIF images are only supported on macOS and iOS post Mojave
 fast/images/animated-heics-draw.html [ Skip ]
 fast/images/animated-heics-verify.html [ Skip ]
-fast/images/heic-as-background-image.html [ Skip ]
 
 # WebP images are only supported on macOS and iOS post Catalina
 fast/images/webp-as-image.html [ Skip ]
@@ -3438,9 +3433,25 @@ webkit.org/b/203529 imported/w3c/web-platform-tests/css/css-text-decor/text-deco
 
 # wpt css-position failures
 webkit.org/b/203445 [ Debug ] imported/w3c/web-platform-tests/css/css-position/position-absolute-container-dynamic-002.html [ Skip ]
+webkit.org/b/203447 imported/w3c/web-platform-tests/css/css-position/position-absolute-dynamic-auto-overflow.html [ ImageOnlyFailure ]
 webkit.org/b/203447 imported/w3c/web-platform-tests/css/css-position/position-absolute-dynamic-overflow-001.html [ ImageOnlyFailure ]
 webkit.org/b/203447 imported/w3c/web-platform-tests/css/css-position/position-absolute-dynamic-overflow-002.html [ ImageOnlyFailure ]
 webkit.org/b/203448 imported/w3c/web-platform-tests/css/css-position/position-absolute-dynamic-static-position-table-cell.html [ ImageOnlyFailure ]
+webkit.org/b/228994 imported/w3c/web-platform-tests/css/css-position/position-absolute-iframe-print-001.sub.html [ ImageOnlyFailure ]
+webkit.org/b/228994 imported/w3c/web-platform-tests/css/css-position/position-absolute-iframe-print-002.sub.html [ ImageOnlyFailure ]
+webkit.org/b/228994 imported/w3c/web-platform-tests/css/css-position/position-absolute-in-inline-003.html [ ImageOnlyFailure ]
+webkit.org/b/228994 imported/w3c/web-platform-tests/css/css-position/position-absolute-in-inline-004.html [ ImageOnlyFailure ]
+webkit.org/b/228994 imported/w3c/web-platform-tests/css/css-position/position-absolute-replaced-no-intrinsic-size.tentative.html [ ImageOnlyFailure ]
+webkit.org/b/228994 imported/w3c/web-platform-tests/css/css-position/position-absolute-center-001.html [ ImageOnlyFailure ]
+webkit.org/b/228994 imported/w3c/web-platform-tests/css/css-position/position-absolute-center-002.html [ ImageOnlyFailure ]
+webkit.org/b/228994 imported/w3c/web-platform-tests/css/css-position/position-absolute-center-003.html [ ImageOnlyFailure ]
+webkit.org/b/228994 imported/w3c/web-platform-tests/css/css-position/position-absolute-center-004.html [ ImageOnlyFailure ]
+webkit.org/b/228994 imported/w3c/web-platform-tests/css/css-position/position-absolute-dynamic-static-position-inline.html [ ImageOnlyFailure ]
+webkit.org/b/203449 imported/w3c/web-platform-tests/css/css-position/position-relative-001.html [ ImageOnlyFailure ]
+webkit.org/b/203449 imported/w3c/web-platform-tests/css/css-position/position-relative-002.html [ ImageOnlyFailure ]
+webkit.org/b/203449 imported/w3c/web-platform-tests/css/css-position/position-relative-011.html [ ImageOnlyFailure ]
+webkit.org/b/203449 imported/w3c/web-platform-tests/css/css-position/position-relative-012.html [ ImageOnlyFailure ]
+webkit.org/b/203449 imported/w3c/web-platform-tests/css/css-position/position-relative-013.html [ ImageOnlyFailure ]
 webkit.org/b/203449 imported/w3c/web-platform-tests/css/css-position/position-relative-table-tbody-left-absolute-child.html [ ImageOnlyFailure ]
 webkit.org/b/203449 imported/w3c/web-platform-tests/css/css-position/position-relative-table-tbody-left.html [ ImageOnlyFailure ]
 webkit.org/b/203449 imported/w3c/web-platform-tests/css/css-position/position-relative-table-tbody-top-absolute-child.html [ ImageOnlyFailure ]
@@ -3457,14 +3468,27 @@ webkit.org/b/203449 imported/w3c/web-platform-tests/css/css-position/position-re
 webkit.org/b/203449 imported/w3c/web-platform-tests/css/css-position/position-relative-table-tr-left.html [ ImageOnlyFailure ]
 webkit.org/b/203449 imported/w3c/web-platform-tests/css/css-position/position-relative-table-tr-top-absolute-child.html [ ImageOnlyFailure ]
 webkit.org/b/203449 imported/w3c/web-platform-tests/css/css-position/position-relative-table-tr-top.html [ ImageOnlyFailure ]
-webkit.org/b/203450 imported/w3c/web-platform-tests/css/css-position/position-sticky-hyperlink.html [ ImageOnlyFailure ]
-webkit.org/b/203450 imported/w3c/web-platform-tests/css/css-position/position-sticky-inline.html [ ImageOnlyFailure ]
-webkit.org/b/203450 imported/w3c/web-platform-tests/css/css-position/position-sticky-nested-inline.html [ ImageOnlyFailure ]
-webkit.org/b/203450 imported/w3c/web-platform-tests/css/css-position/position-sticky-nested-table.html [ ImageOnlyFailure ]
-webkit.org/b/203450 imported/w3c/web-platform-tests/css/css-position/position-sticky-rendering.html [ ImageOnlyFailure ]
-webkit.org/b/203450 imported/w3c/web-platform-tests/css/css-position/position-sticky-table-parts.html [ ImageOnlyFailure ]
-webkit.org/b/203450 imported/w3c/web-platform-tests/css/css-position/position-sticky-table-th-bottom.html [ ImageOnlyFailure ]
-webkit.org/b/203450 imported/w3c/web-platform-tests/css/css-position/position-sticky-writing-modes.html [ ImageOnlyFailure ]
+webkit.org/b/228993 imported/w3c/web-platform-tests/css/css-position/multicol/vlr-ltr-rtl-in-multicols.tentative.html [ ImageOnlyFailure ]
+webkit.org/b/228993 imported/w3c/web-platform-tests/css/css-position/multicol/vlr-rtl-ltr-in-multicols.tentative.html [ ImageOnlyFailure ]
+webkit.org/b/228993 imported/w3c/web-platform-tests/css/css-position/multicol/vlr-rtl-rtl-in-multicols.html [ ImageOnlyFailure ]
+webkit.org/b/228993 imported/w3c/web-platform-tests/css/css-position/multicol/vrl-ltr-rtl-in-multicols.tentative.html [ ImageOnlyFailure ]
+webkit.org/b/228993 imported/w3c/web-platform-tests/css/css-position/multicol/vrl-rtl-ltr-in-multicols.tentative.html [ ImageOnlyFailure ]
+webkit.org/b/228993 imported/w3c/web-platform-tests/css/css-position/multicol/vrl-rtl-rtl-in-multicols.html [ ImageOnlyFailure ]
+webkit.org/b/228993 imported/w3c/web-platform-tests/css/css-position/multicol/static-position/vlr-ltr-ltr-in-multicol.html [ ImageOnlyFailure ]
+webkit.org/b/228993 imported/w3c/web-platform-tests/css/css-position/multicol/static-position/vlr-ltr-rtl-in-multicol.tentative.html [ ImageOnlyFailure ]
+webkit.org/b/228993 imported/w3c/web-platform-tests/css/css-position/multicol/static-position/vlr-rtl-ltr-in-multicol.tentative.html [ ImageOnlyFailure ]
+webkit.org/b/228993 imported/w3c/web-platform-tests/css/css-position/multicol/static-position/vlr-rtl-rtl-in-multicol.html [ ImageOnlyFailure ]
+webkit.org/b/228993 imported/w3c/web-platform-tests/css/css-position/multicol/static-position/vrl-ltr-ltr-in-multicol.html [ ImageOnlyFailure ]
+webkit.org/b/228993 imported/w3c/web-platform-tests/css/css-position/multicol/static-position/vrl-ltr-rtl-in-multicol.tentative.html [ ImageOnlyFailure ]
+webkit.org/b/228993 imported/w3c/web-platform-tests/css/css-position/multicol/static-position/vrl-rtl-ltr-in-multicol.tentative.html [ ImageOnlyFailure ]
+webkit.org/b/228993 imported/w3c/web-platform-tests/css/css-position/multicol/static-position/vrl-rtl-rtl-in-multicol.html [ ImageOnlyFailure ]
+webkit.org/b/203450 imported/w3c/web-platform-tests/css/css-position/sticky/position-sticky-inline.html [ ImageOnlyFailure ]
+webkit.org/b/203450 imported/w3c/web-platform-tests/css/css-position/sticky/position-sticky-nested-inline.html [ ImageOnlyFailure ]
+webkit.org/b/203450 imported/w3c/web-platform-tests/css/css-position/sticky/position-sticky-rendering.html [ ImageOnlyFailure ]
+webkit.org/b/203450 imported/w3c/web-platform-tests/css/css-position/sticky/position-sticky-writing-modes.html [ ImageOnlyFailure ]
+webkit.org/b/203450 imported/w3c/web-platform-tests/css/css-position/sticky/position-sticky-large-top-2.tentative.html [ ImageOnlyFailure ]
+webkit.org/b/203450 imported/w3c/web-platform-tests/css/css-position/sticky/position-sticky-large-top.tentative.html [ ImageOnlyFailure ]
+webkit.org/b/203450 imported/w3c/web-platform-tests/css/css-position/sticky/sticky-after-input.html [ Failure ]
 webkit.org/b/203451 imported/w3c/web-platform-tests/css/css-position/static-position/htb-ltr-ltr.html [ ImageOnlyFailure ]
 webkit.org/b/203451 imported/w3c/web-platform-tests/css/css-position/static-position/htb-ltr-rtl.tentative.html [ ImageOnlyFailure ]
 webkit.org/b/203451 imported/w3c/web-platform-tests/css/css-position/static-position/htb-rtl-ltr.tentative.html [ ImageOnlyFailure ]
@@ -3650,12 +3674,24 @@ webgl/1.0.x [ Skip ]
 
 # Explicitly enable tests which we have fixed and do not have corresponding 1.0.3 test functionality.
 webgl/1.0.x/conformance/canvas/to-data-url-test.html [ Pass ]
+webgl/1.0.x/conformance/misc/invalid-passed-params.html [ Pass ]
+webgl/1.0.x/conformance/glsl/bugs/character-set.html [ Pass ]
 
 # WebGL conformance test suite 2.0.1 is skipped until 2.0.0 is retired.
 webgl/2.0.y [ Skip ]
 
 # Explicitly enable tests which we have fixed and do not have corresponding 2.0.y test functionality.
 webgl/2.0.y/conformance/canvas/to-data-url-test.html [ Pass ]
+webgl/2.0.y/conformance/misc/invalid-passed-params.html [ Pass ]
+webgl/2.0.y/conformance/glsl/bugs/character-set.html [ Pass ]
+
+# WebGL 1.0.3 and 2.0.0 tests where behavior is obsolete and WebKit contains implementation
+# and tests for the new behavior. Should be removed once 1.0.3 and 2.0.0 are retired.
+webgl/1.0.3/conformance/glsl/misc/shader-with-define-line-continuation.frag.html [ Skip ]
+webgl/1.0.3/conformance/misc/invalid-passed-params.html [ Skip ]
+webgl/2.0.0/conformance/glsl/misc/shader-with-define-line-continuation.frag.html [ Skip ]
+webgl/2.0.0/conformance/misc/invalid-passed-params.html [ Skip ]
+fast/canvas/webgl/invalid-passed-params.html [ Skip ]
 
 # pre-wrap progression. Other rendering engines agree with the result.
 webkit.org/b/206168 [ Debug ] fast/dom/insert-span-into-long-text-bug-28245.html [ Skip ]
@@ -4642,14 +4678,6 @@ webkit.org/b/214459 imported/w3c/web-platform-tests/css/css-overflow/text-overfl
 webkit.org/b/214459 imported/w3c/web-platform-tests/css/css-overflow/webkit-line-clamp-035.html [ ImageOnlyFailure ]
 webkit.org/b/214459 imported/w3c/web-platform-tests/css/css-overflow/webkit-line-clamp-with-line-height.tentative.html [ ImageOnlyFailure ]
 
-webkit.org/b/214460 imported/w3c/web-platform-tests/css/css-position/position-absolute-center-001.tentative.html [ ImageOnlyFailure ]
-webkit.org/b/214460 imported/w3c/web-platform-tests/css/css-position/position-absolute-center-002.tentative.html [ ImageOnlyFailure ]
-webkit.org/b/214460 imported/w3c/web-platform-tests/css/css-position/position-absolute-center-003.html [ ImageOnlyFailure ]
-webkit.org/b/214460 imported/w3c/web-platform-tests/css/css-position/position-absolute-center-004.html [ ImageOnlyFailure ]
-webkit.org/b/214460 imported/w3c/web-platform-tests/css/css-position/position-absolute-dynamic-static-position-inline.html [ ImageOnlyFailure ]
-webkit.org/b/214460 imported/w3c/web-platform-tests/css/css-position/position-sticky-large-top-2.tentative.html [ ImageOnlyFailure ]
-webkit.org/b/214460 imported/w3c/web-platform-tests/css/css-position/position-sticky-large-top.tentative.html [ ImageOnlyFailure ]
-
 webkit.org/b/214461 imported/w3c/web-platform-tests/css/css-pseudo/active-selection-051.html [ ImageOnlyFailure ]
 webkit.org/b/214461 imported/w3c/web-platform-tests/css/css-pseudo/active-selection-052.html [ ImageOnlyFailure ]
 webkit.org/b/214461 imported/w3c/web-platform-tests/css/css-pseudo/active-selection-053.html [ ImageOnlyFailure ]
@@ -5117,3 +5145,19 @@ webkit.org/b/227849 imported/w3c/web-platform-tests/css/css-overflow/webkit-line
 webkit.org/b/227849 imported/w3c/web-platform-tests/css/css-overflow/webkit-line-clamp-037.html [ Skip ]
 webkit.org/b/227849 imported/w3c/web-platform-tests/css/css-overflow/parsing/scrollbar-gutter-invalid.html [ Skip ]
 webkit.org/b/227849 imported/w3c/web-platform-tests/css/css-overflow/parsing/scrollbar-gutter-valid.html [ Skip ]
+
+# Console logging interferes with imported test expectations and/or results in
+# hundreds of extra lines in test expectation files.
+http/wpt/crypto/aes-cbc-crash.any.html [ DumpJSConsoleLogInStdErr ]
+http/wpt/crypto/aes-ctr-crash.any.html [ DumpJSConsoleLogInStdErr ]
+imported/w3c/web-platform-tests/WebCryptoAPI/encrypt_decrypt/aes_cbc.https.any.html [ DumpJSConsoleLogInStdErr ]
+imported/w3c/web-platform-tests/WebCryptoAPI/encrypt_decrypt/aes_ctr.https.any.html [ DumpJSConsoleLogInStdErr ]
+
+# Skipping for disabled feature flag for branch
+platform/wpe/http/wpt/webxr [ Skip ]
+platform/wpe/imported/w3c/web-platform-tests/webxr [ Skip ]
+platform/mac/imported/w3c/web-platform-tests/webxr [ Skip ]
+http/wpt/webxr [ Skip ]
+imported/w3c/web-platform-tests/webxr [ Skip ]
+webxr [ Skip ]
+

@@ -41,8 +41,7 @@ RemoteResourceCacheProxy::RemoteResourceCacheProxy(RemoteRenderingBackendProxy& 
 
 RemoteResourceCacheProxy::~RemoteResourceCacheProxy()
 {
-    for (auto& nativeImageState : m_nativeImages.values())
-        nativeImageState.image->removeObserver(*this);
+    clearNativeImageMap();
 }
 
 void RemoteResourceCacheProxy::cacheImageBuffer(WebCore::ImageBuffer& imageBuffer)
@@ -133,9 +132,9 @@ void RemoteResourceCacheProxy::recordFontUse(Font& font)
     }
 
     auto& currentState = result.iterator->value;
+    ++currentState.useCount;
     if (currentState.lastRenderingUpdateVersionUsedWithin != m_remoteRenderingBackendProxy.renderingUpdateID()) {
         currentState.lastRenderingUpdateVersionUsedWithin = m_remoteRenderingBackendProxy.renderingUpdateID();
-        ++currentState.useCount;
         ++m_numberOfFontsUsedInCurrentRenderingUpdate;
     }
 }
@@ -153,15 +152,26 @@ void RemoteResourceCacheProxy::releaseNativeImage(RenderingResourceIdentifier re
     m_remoteRenderingBackendProxy.releaseRemoteResource(renderingResourceIdentifier, useCount);
 }
 
+void RemoteResourceCacheProxy::clearNativeImageMap()
+{
+    for (auto& nativeImageState : m_nativeImages.values())
+        nativeImageState.image->removeObserver(*this);
+    m_nativeImages.clear();
+}
+
 void RemoteResourceCacheProxy::prepareForNextRenderingUpdate()
 {
     m_numberOfFontsUsedInCurrentRenderingUpdate = 0;
 }
 
-void RemoteResourceCacheProxy::clearFontMap()
+void RemoteResourceCacheProxy::releaseAllRemoteFonts()
 {
     for (auto& fontState : m_fonts)
         m_remoteRenderingBackendProxy.releaseRemoteResource(fontState.key, fontState.value.useCount);
+}
+
+void RemoteResourceCacheProxy::clearFontMap()
+{
     m_fonts.clear();
     m_numberOfFontsUsedInCurrentRenderingUpdate = 0;
 }
@@ -197,19 +207,28 @@ void RemoteResourceCacheProxy::finalizeRenderingUpdate()
 
 void RemoteResourceCacheProxy::remoteResourceCacheWasDestroyed()
 {
+    clearNativeImageMap();
+    clearFontMap();
+
+    // Get a copy of m_imageBuffers.values() because clearBackend()
+    // may release some of the cached ImageBuffers.
+    for (auto& item : copyToVector(m_imageBuffers.values())) {
+        if (!item.imageBuffer)
+            continue;
+        item.useCount = 0;
+        item.imageBuffer->clearBackend();
+    }
+
     for (auto& item : m_imageBuffers.values()) {
         if (!item.imageBuffer)
             continue;
         m_remoteRenderingBackendProxy.createRemoteImageBuffer(*item.imageBuffer);
-        item.useCount = 0;
-        item.imageBuffer->clearBackend();
     }
-    m_nativeImages.clear();
-    clearFontMap();
 }
 
 void RemoteResourceCacheProxy::releaseMemory()
 {
+    releaseAllRemoteFonts();
     clearFontMap();
     m_remoteRenderingBackendProxy.deleteAllFonts();
 }

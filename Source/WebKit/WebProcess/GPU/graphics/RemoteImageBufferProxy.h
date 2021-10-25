@@ -65,7 +65,7 @@ public:
 
     ~RemoteImageBufferProxy()
     {
-        if (!m_remoteRenderingBackendProxy) {
+        if (!m_remoteRenderingBackendProxy || m_remoteRenderingBackendProxy->isGPUProcessConnectionClosed()) {
             clearDisplayList();
             return;
         }
@@ -260,7 +260,7 @@ protected:
         if (UNLIKELY(!m_remoteRenderingBackendProxy))
             return;
 
-        if (!m_drawingContext.displayList().isEmpty()) {
+        if (!m_drawingContext.displayList().isEmpty() || !hasPendingFlush()) {
             m_sentFlushIdentifier = WebCore::DisplayList::FlushIdentifier::generate();
             m_drawingContext.recorder().flushContext(m_sentFlushIdentifier);
         }

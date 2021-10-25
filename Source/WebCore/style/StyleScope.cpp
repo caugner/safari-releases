@@ -133,7 +133,6 @@ void Scope::createOrFindSharedShadowTreeResolver()
 void Scope::unshareShadowTreeResolverBeforeMutation()
 {
     ASSERT(m_shadowRoot);
-    ASSERT(!m_resolver->isSharedBetweenShadowTrees());
 
     documentScope().m_sharedShadowTreeResolvers.remove(makeResolverSharingKey());
 }
@@ -524,6 +523,9 @@ void Scope::updateActiveStyleSheets(UpdateType updateType)
 
 void Scope::invalidateStyleAfterStyleSheetChange(const StyleSheetChange& styleSheetChange)
 {
+    if (m_shadowRoot && !m_shadowRoot->isConnected())
+        return;
+
     // If we are already parsing the body and so may have significant amount of elements, put some effort into trying to avoid style recalcs.
     bool invalidateAll = !m_document.bodyOrFrameset() || m_document.hasNodesWithNonFinalStyle() || m_document.hasNodesWithMissingStyle();
 
@@ -628,8 +630,10 @@ void Scope::scheduleUpdate(UpdateType update)
 {
     if (update == UpdateType::ContentsOrInterpretation) {
         // :host and ::slotted rules might go away.
-        if (m_shadowRoot)
+        if (m_shadowRoot) {
             Invalidator::invalidateHostAndSlottedStyleIfNeeded(*m_shadowRoot);
+            unshareShadowTreeResolverBeforeMutation();
+        }
         // FIXME: Animation code may trigger resource load in middle of style recalc and that can add a rule to a content extension stylesheet.
         //        Fix and remove isResolvingTreeStyle() test below, see https://bugs.webkit.org/show_bug.cgi?id=194335
         // FIXME: The m_isUpdatingStyleResolver test is here because extension stylesheets can get us here from Resolver::appendAuthorStyleSheets.

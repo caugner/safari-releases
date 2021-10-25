@@ -146,6 +146,7 @@ public:
     virtual double contentOffsetY() const { notImplemented(); return 0; }
 
     virtual JSRetainPtr<JSStringRef> scrollingTreeAsText() const { notImplemented(); return nullptr; }
+    virtual JSRetainPtr<JSStringRef> uiViewTreeAsText() const { notImplemented(); return nullptr; }
 
     // Touches
 
@@ -179,6 +180,12 @@ public:
     {
         notImplemented();
         return false;
+    }
+
+    virtual JSRetainPtr<JSStringRef> selectionCaretBackgroundColor() const
+    {
+        notImplemented();
+        return { };
     }
 
     virtual JSObjectRef tapHighlightViewRect() const

@@ -185,6 +185,11 @@ webkit.org/b/215421 fast/encoding/denormalised-voiced-japanese-chars.html [ Imag
 
 # CSS counter styles
 webkit.org/b/223412 imported/w3c/web-platform-tests/css/css-counter-styles/lower-greek/css3-counter-styles-028.html [ ImageOnlyFailure ]
+webkit.org/b/223412 imported/w3c/web-platform-tests/css/css-counter-styles/lower-roman/css3-counter-styles-019.html [ ImageOnlyFailure ]
+webkit.org/b/223412 imported/w3c/web-platform-tests/css/css-counter-styles/lower-roman/css3-counter-styles-020a.html [ ImageOnlyFailure ]
+webkit.org/b/223412 imported/w3c/web-platform-tests/css/css-counter-styles/lower-roman/css3-counter-styles-020b.html [ ImageOnlyFailure ]
+webkit.org/b/223412 imported/w3c/web-platform-tests/css/css-counter-styles/upper-roman/css3-counter-styles-023.html [ ImageOnlyFailure ]
+webkit.org/b/223412 imported/w3c/web-platform-tests/css/css-counter-styles/upper-roman/css3-counter-styles-024a.html [ ImageOnlyFailure ]
 
 # CSS-masking and clip-path.
 webkit.org/b/217815 imported/w3c/web-platform-tests/css/css-masking/clip-path/clip-path-transform-mutated-002.html [ ImageOnlyFailure ]
@@ -247,6 +252,9 @@ webkit.org/b/223729 [ Debug ] css3/scroll-snap/scroll-snap-wheel-event.html [ Pa
 # Scrolling coordinator
 webkit.org/b/215508 [ Release ] scrollingcoordinator/overflow-proxy-reattach.html [ Pass Timeout ]
 
+#Simple Line Layout
+webkit.org/b/219976 fast/text/simple-line-wordspacing.html [ ImageOnlyFailure ]
+
 # Subpixel
 webkit.org/b/216037 imported/w3c/web-platform-tests/css/css-backgrounds/background-position/subpixel-position-center.tentative.html [ Pass ImageOnlyFailure ]
 
@@ -256,7 +264,6 @@ webkit.org/b/222895 imported/w3c/web-platform-tests/svg/text/reftests/dominant-b
 
 # WebGL
 webkit.org/b/213203 webgl/1.0.3/conformance/rendering/multisample-corruption.html [ Failure Timeout ]
-webkit.org/b/220720 fast/canvas/webgl/oes-vertex-array-object.html [ Failure ]
 
 # Workers
 webkit.org/b/187597 fast/workers/worker-exception-during-navigation.html [ Timeout Pass ]
@@ -503,8 +510,6 @@ fast/history/page-cache-notification-showing.html [ Skip ]
 
 # IsLoggedIn is an experimental feature (Introduced in r250944)
 http/tests/is-logged-in/ [ Skip ]
-
-webkit.org/b/172811 fast/css/input-search-padding.html [ Failure ]
 
 webkit.org/b/177527 fast/hidpi/filters-blur.html [ ImageOnlyFailure ]
 
@@ -761,6 +766,10 @@ Bug(WPE) fast/history/page-cache-geolocation.html [ Skip ]
 Bug(WPE) fast/history/page-cache-notification-suspendable.html [ Skip ]
 
 Bug(WPE) fast/dom/HTMLAnchorElement [ Skip ]
+
+Bug(WPE) fast/regex/unicodeCaseInsensitive.html [ Skip ]
+
+Bug(WPE) js/reserved-words.html [ Skip ]
 
 #////////////////////////////////////////////////////////////////////////////////////////
 # 4. TESTS CRASHING
@@ -1205,6 +1214,8 @@ Bug(WPE) css3/font-variant-synthesis-jdaggett.html [ ImageOnlyFailure ]
 Bug(WPE) css3/unicode-bidi-isolate-aharon-failing.html [ ImageOnlyFailure ]
 Bug(WPE) css3/zoom-coords.xhtml [ Failure ]
 
+webkit.org/b/216767 css3/font-feature-settings-stylistic-set.html [ ImageOnlyFailure ]
+
 # ENABLE_CSS_COMPOSITING
 transitions/svg-text-shadow-transition.html [ DumpJSConsoleLogInStdErr ]
 
@@ -1228,13 +1239,11 @@ Bug(WPE) svg/zoom/page/zoom-zoom-coords.xhtml [ Failure ]
 
 webkit.org/b/180134 webanimations/opacity-animation-no-longer-composited-upon-completion.html [ Failure ]
 
-# This 3 fullscreen tests are still not passing.
-webkit.org/b/185676 fullscreen/requestFullscreen-escape-key.html [ Failure ]
-
 webkit.org/b/185254 http/tests/cache/disk-cache/redirect-chain-limits.html [ Failure ]
 
 webkit.org/b/186100 css3/color-filters/color-filter-ignore-semantic.html [ ImageOnlyFailure ]
 
+# This fullscreen tests is still not passing.
 webkit.org/b/187601 fullscreen/full-screen-layer-dump.html [ Failure ]
 
 webkit.org/b/188433 svg/custom/href-svg-namespace-static.svg [ ImageOnlyFailure ]
@@ -1318,8 +1327,6 @@ webkit.org/b/195275 imported/w3c/web-platform-tests/css/css-text/hanging-punctua
 webkit.org/b/202736 http/wpt/cache-storage/cache-quota-after-restart.any.html [ Failure ]
 
 webkit.org/b/190626 imported/w3c/web-platform-tests/html/semantics/forms/the-datalist-element/datalistoptions.html [ Failure ]
-
-webkit.org/b/194933 http/tests/cookies/same-site/user-load-cross-site-redirect.py [ Failure ]
 
 webkit.org/b/202229 css-dark-mode/older-syntax/supported-color-schemes-css.html [ Pass Crash ]
 

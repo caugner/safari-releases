@@ -1511,7 +1511,6 @@ webkit.org/b/190882 animations/change-one-anim.html [ Pass Failure ]
 # <rdar://problem/48781098>
 [ Catalina+ ] fast/images/animated-heics-draw.html [ Pass ]
 [ Catalina+ ] fast/images/animated-heics-verify.html [ Pass ]
-[ BigSur+ ] fast/images/heic-as-background-image.html [ Pass ]
 
 # <rdar://problem/40172428>
 webkit.org/b/212172 [ Catalina ] fast/text/font-collection.html [ ImageOnlyFailure ]
@@ -2113,7 +2112,6 @@ webkit.org/b/222692 inspector/page/empty-or-missing-resources.html [ Pass Timeou
 # webkit.org/b/223043 the following tests have issues only on Apple Silicon
 [ arm64 ] webrtc/concurrentVideoPlayback2.html [ Pass Timeout ]
 [ arm64 ] webrtc/concurrentVideoPlayback.html [ Pass Timeout ]
-[ arm64 ] webrtc/direction-change.html [ Pass Timeout ]
 [ arm64 ] webrtc/multi-video.html [ Pass Timeout ]
 [ arm64 ] webrtc/h265.html [ Pass Timeout ]
 [ arm64 ] webrtc/video-setDirection.html [ Pass Timeout ]
@@ -2123,7 +2121,6 @@ webkit.org/b/222692 inspector/page/empty-or-missing-resources.html [ Pass Timeou
 [ arm64 ] webrtc/video.html [ Pass Timeout ]
 [ arm64 ] webrtc/video-with-data-channel.html [ Pass Timeout ]
 [ arm64 ] webrtc/video-unmute.html [ Pass Timeout ]
-[ arm64 ] webrtc/h264-high.html [ Skip ]
 [ arm64 ] webrtc/vp9-profile2.html [ Skip ]
 [ arm64 ] webrtc/captureCanvas-webrtc-software-h264-high.html [ Pass Failure ]
 [ arm64 ] webrtc/h264-baseline.html  [ Failure Timeout ]
@@ -2217,7 +2214,9 @@ webkit.org/b/225484 imported/w3c/web-platform-tests/css/css-animations/translati
 
 webkit.org/b/225425 [ Debug ] webgl/1.0.3/conformance/glsl/misc/expression-list-in-declarator-initializer.html [ Pass Timeout ]
 
-webkit.org/b/225523 webrtc/direction-change.html [ Pass Failure ]
+# This test is a flaky timeout on Apple Silicon and a flaky failure on other platforms.
+# See https://webkit.org/b/120081 for why this is one expectation.
+webkit.org/b/225523 webrtc/direction-change.html [ Pass Timeout Failure ]
 
 webkit.org/b/22525 webrtc/video-replace-muted-track.html [ Pass Failure ]
 
@@ -2267,8 +2266,8 @@ webkit.org/b/226299 [ BigSur ] http/tests/performance/performance-resource-timin
 [ Monterey ] imported/w3c/web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-flipY.html [ Timeout ]
 [ Monterey ] imported/w3c/web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-serializable.html [ Timeout ]
 
-# rdar://80344665 ([ Monterey ] webaudio/codec-tests/mp3/128kbps-44khz.html is a constant audio failure)
-[ Monterey ] webaudio/codec-tests/mp3/128kbps-44khz.html [ Failure ]
+[ BigSur Monterey ] webaudio/Panner/hrtf-database.html [ Pass ]
+[ BigSur Monterey ] webaudio/codec-tests/aac/vbr-128kbps-44khz.html [ Pass ]
 
 # rdar://80347712 ([ Monterey ] media/video-src-blob-replay.html is a flaky timeout)
 [ Monterey ] media/video-src-blob-replay.html [ Timeout ]
@@ -2314,6 +2313,14 @@ webkit.org/b/228311 imported/w3c/web-platform-tests/css/css-scoping/css-scoping-
 [ Monterey Debug arm64 ] imported/w3c/web-platform-tests/webrtc/RTCPeerConnection-restartIce.https.html [ Pass Failure Crash ]
 
 webkit.org/b/228640 [ Debug ] imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/credentialless/dedicated-worker.tentative.https.html [ Pass Failure ]
+
+#rdar://82003714 ([Star] webaudio/codec-tests/mp3/128kbps-44khz.html)
+webaudio/codec-tests/mp3/128kbps-44khz.html [ Pass Timeout Failure ]
+
+#rdar://82053210 ([Guard-Malloc] imported/w3c/web-platform-tests/mathml/relations/html5-tree/display-2.html is a flaky failure)
+imported/w3c/web-platform-tests/mathml/relations/html5-tree/display-2.html [ Pass ImageOnlyFailure ]
+
+webkit.org/b/229244 imported/w3c/web-platform-tests/IndexedDB/key-generators/reading-autoincrement-indexes-cursors.any.worker.html [ Pass Crash ]
 
 webkit.org/b/228396 fast/speechsynthesis/speech-synthesis-speak-empty-string.html [ Pass Failure ]
 
