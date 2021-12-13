@@ -196,6 +196,9 @@ fast/speechrecognition/permission-error.html [ Skip ]
 fast/speechrecognition/start-recognition-then-stop.html [ Skip ]
 fast/speechrecognition/start-second-recognition.html [ Skip ]
 fast/speechrecognition/ios/ [ Skip ]
+imported/w3c/web-platform-tests/storage/ [ Skip ]
+imported/w3c/web-platform-tests/file-system-access/ [ Skip ]
+storage/filesystemaccess/ [ Skip ]
 
 # app-privacy-report tests rely on WebKitAdditions
 http/tests/app-privacy-report/ [ Skip ]
@@ -266,6 +269,8 @@ webkit.org/b/202617 imported/w3c/web-platform-tests/picture-in-picture [ Skip ]
 media/picture-in-picture [ Skip ]
 
 media/remove-video-element-in-pip-from-document.html [ Skip ]
+# This test is only relevent on iPhone where videos always play in fullscreen.
+media/video-element-fullscreen-not-in-dom-accelerated-iphone.html [ Skip ]
 
 # Shared Workers are unsupported
 imported/w3c/web-platform-tests/secure-contexts/basic-shared-worker.html [ Skip ]
@@ -401,14 +406,19 @@ imported/w3c/web-platform-tests/html/browsers/history/the-location-interface/loc
 imported/w3c/web-platform-tests/html/browsers/history/the-location-interface/location-protocol-setter-non-broken-weird.html [ DumpJSConsoleLogInStdErr ]
 imported/w3c/web-platform-tests/html/browsers/origin/cross-origin-objects/cross-origin-objects.html [ DumpJSConsoleLogInStdErr ]
 imported/w3c/web-platform-tests/html/browsers/sandboxing/sandbox-disallow-popups.html [ DumpJSConsoleLogInStdErr ]
+imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/anonymous-iframe/require-corp-embed-anonymous-iframe.tentative.https.html [ DumpJSConsoleLogInStdErr ]
 imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/blob.https.html [ DumpJSConsoleLogInStdErr ]
+imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/reporting-to-endpoint.https.html [ DumpJSConsoleLogInStdErr ]
 imported/w3c/web-platform-tests/html/cross-origin-opener-policy/navigate-to-aboutblank.https.html [ DumpJSConsoleLogInStdErr ]
 imported/w3c/web-platform-tests/html/cross-origin-opener-policy/navigate-top-to-aboutblank.https.html [ DumpJSConsoleLogInStdErr ]
+imported/w3c/web-platform-tests/html/cross-origin-opener-policy/reporting/navigation-reporting/reporting-coop-navigated-opener.https.html [ DumpJSConsoleLogInStdErr ]
+imported/w3c/web-platform-tests/html/cross-origin-opener-policy/reporting/navigation-reporting/reporting-coop-navigated-popup.https.html [ DumpJSConsoleLogInStdErr ]
 imported/w3c/web-platform-tests/html/semantics/embedded-content/the-iframe-element/iframe-network-error.sub.html [ DumpJSConsoleLogInStdErr ]
 imported/w3c/web-platform-tests/html/semantics/scripting-1/the-script-element/css-module/integrity.html [ DumpJSConsoleLogInStdErr ]
 imported/w3c/web-platform-tests/html/semantics/scripting-1/the-script-element/css-module/import-css-module-basic.html [ DumpJSConsoleLogInStdErr ]
 imported/w3c/web-platform-tests/html/semantics/scripting-1/the-script-element/json-module/integrity.html [ DumpJSConsoleLogInStdErr ]
 imported/w3c/web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-invalid-args.html [ DumpJSConsoleLogInStdErr ]
+imported/w3c/web-platform-tests/html/canvas/element/manual/imagebitmap/createImageBitmap-invalid-args.html [ DumpJSConsoleLogInStdErr ]
 imported/w3c/web-platform-tests/html/user-activation/no-activation-thru-escape-key.html [ DumpJSConsoleLogInStdErr ]
 imported/w3c/web-platform-tests/html/webappapis/scripting/processing-model-2/unhandled-promise-rejections/promise-rejection-event-during-parse.html [ DumpJSConsoleLogInStdErr ]
 imported/w3c/web-platform-tests/html/webappapis/timers/negative-settimeout.any.html [ DumpJSConsoleLogInStdErr ]
@@ -711,8 +721,8 @@ imported/w3c/web-platform-tests/html/semantics/document-metadata/the-link-elemen
 imported/w3c/web-platform-tests/html/rendering/non-replaced-elements/form-controls/select-sizing-001.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/html/rendering/non-replaced-elements/phrasing-content-0/font-element-text-decoration-color/001-x.xhtml [ ImageOnlyFailure ]
 
-# Cross-Origin Opener Policy reporting is not supported and it is causing those tests to time out.
-imported/w3c/web-platform-tests/html/cross-origin-opener-policy/reporting [ Skip ]
+# Cross-Origin Opener Policy access reporting is not supported and it is causing those tests to time out.
+imported/w3c/web-platform-tests/html/cross-origin-opener-policy/reporting/access-reporting [ Skip ]
 
 # Cross-Origin-Embedder-Policy: credentialless is not supported.
 imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/credentialless
@@ -727,8 +737,7 @@ imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/no-secure-cont
 # our layout tests. We maintain our own version of this test in http/wpt.
 imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/require-corp.https.html [ Skip ]
 
-# We do not support COEP reporting.
-imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/reporting-to-endpoint.https.html [ Failure Pass ]
+# We do not support reporting JS API (https://www.w3.org/TR/reporting).
 imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/multi-globals/workers-coep-report.https.html [ Skip ]
 
 # Newly imported WPT tests that are crashing.
@@ -3676,6 +3685,8 @@ webgl/1.0.x [ Skip ]
 webgl/1.0.x/conformance/canvas/to-data-url-test.html [ Pass ]
 webgl/1.0.x/conformance/misc/invalid-passed-params.html [ Pass ]
 webgl/1.0.x/conformance/glsl/bugs/character-set.html [ Pass ]
+webgl/1.0.x/conformance/glsl/misc/fragcolor-fragdata-invariant.html [ Pass ]
+
 
 # WebGL conformance test suite 2.0.1 is skipped until 2.0.0 is retired.
 webgl/2.0.y [ Skip ]
@@ -3684,6 +3695,10 @@ webgl/2.0.y [ Skip ]
 webgl/2.0.y/conformance/canvas/to-data-url-test.html [ Pass ]
 webgl/2.0.y/conformance/misc/invalid-passed-params.html [ Pass ]
 webgl/2.0.y/conformance/glsl/bugs/character-set.html [ Pass ]
+
+# Explicitly turn on conformance test until all of webgl/2.0.y is enabled
+webgl/2.0.y/conformance/extensions/webgl-compressed-texture-s3tc-srgb.html [ Pass ]
+webgl/2.0.y/conformance/glsl/misc/fragcolor-fragdata-invariant.html [ Pass ]
 
 # WebGL 1.0.3 and 2.0.0 tests where behavior is obsolete and WebKit contains implementation
 # and tests for the new behavior. Should be removed once 1.0.3 and 2.0.0 are retired.
@@ -4284,17 +4299,27 @@ webkit.org/b/221482 imported/w3c/web-platform-tests/css/css-flexbox/flexbox-coll
 webkit.org/b/221482 imported/w3c/web-platform-tests/css/css-flexbox/flexbox-paint-ordering-002.xhtml [ ImageOnlyFailure ]
 
 # Newly imported Canvas WPT tests that are failing.
-imported/w3c/web-platform-tests/html/canvas/element/building-paths/canvas_complexshapes_arcto_001.htm [ ImageOnlyFailure Pass ]
 imported/w3c/web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/2d.drawImage.broken.html [ Failure Pass ]
 imported/w3c/web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-bitmap-orientation-none.tentative.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-bitmap-swap-width-height-orientation-none.tentative.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-bitmap-swap-width-height.tentative.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-bitmap.tentative.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-blob.tentative.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-element-orientation-none.tentative.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-element-swap-width-height-orientation-none.tentative.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-element-swap-width-height.tentative.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-element.tentative.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/html/canvas/element/manual/fill-and-stroke-styles/canvas_colorsandstyles_createlineargradient_001.htm [ Slow ]
+imported/w3c/web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/image-orientation/drawImage-from-bitmap-orientation-none.tentative.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/image-orientation/drawImage-from-bitmap-swap-width-height-orientation-none.tentative.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/image-orientation/drawImage-from-bitmap-swap-width-height.tentative.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/image-orientation/drawImage-from-blob.tentative.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/image-orientation/drawImage-from-element-orientation-none.tentative.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/image-orientation/drawImage-from-element-swap-width-height-orientation-none.tentative.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/image-orientation/drawImage-with-src-rect.tentative.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/html/canvas/element/manual/fill-and-stroke-styles/conic-gradient-rotation.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/html/canvas/element/manual/fill-and-stroke-styles/conic-gradient.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/html/canvas/element/manual/filters/canvas-filter-object-blur.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/html/canvas/element/manual/filters/canvas-filter-object-component-transfer.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/html/canvas/element/manual/filters/canvas-filter-object-convolve-matrix.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/html/canvas/element/manual/shadows/canvas_shadows_system_colors.html [ ImageOnlyFailure ]
 
 # CSS Masonry Layout not supported.
 imported/w3c/web-platform-tests/css/css-grid/masonry.tentative [ Skip ]
@@ -4794,8 +4819,6 @@ webkit.org/b/214466 imported/w3c/web-platform-tests/css/css-values/ex-unit-004.h
 webkit.org/b/214466 imported/w3c/web-platform-tests/css/css-shapes/shape-outside/formatting-context/shape-outside-formatting-context.tentative.html [ ImageOnlyFailure ]
 webkit.org/b/214466 imported/w3c/web-platform-tests/css/css-display/display-first-line-002.html [ ImageOnlyFailure ]
 
-webkit.org/b/214467 imported/w3c/web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-with-src-rect.tentative.html [ ImageOnlyFailure ]
-
 # WebKit2 only.
 js/throw-large-string-oom.html [ Skip ]
 
@@ -5112,6 +5135,32 @@ webkit.org/b/227086 imported/w3c/web-platform-tests/webxr/xrWebGLLayer_construct
 
 # Invalid test. Tests color(lab ...) which has been removed from the standard.
 imported/w3c/web-platform-tests/css/css-color/predefined-013.html [ Skip ]
+
+# display-p3 canvas and ImageData are Cocoa only for now.
+fast/canvas/canvas-color-space-display-p3-ImageData.html [ ImageOnlyFailure ]
+fast/canvas/canvas-color-space-display-p3.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-Blob.html [ Failure ]
+imported/w3c/web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-ImageBitmap.html [ Failure ]
+imported/w3c/web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-ImageData.html [ Failure ]
+imported/w3c/web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-canvas.html [ Failure ]
+imported/w3c/web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-cloned.html [ Failure ]
+imported/w3c/web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-image.html [ Failure ]
+imported/w3c/web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage.https.html [ Failure ]
+imported/w3c/web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-pattern-canvas.html [ Failure ]
+imported/w3c/web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-pattern-image.html [ Failure ]
+imported/w3c/web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-settings.html [ Failure ]
+imported/w3c/web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-draw-high-bit-depth-images.html [ Failure ]
+imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.fillText.html [ Failure ]
+imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.fillText.shadow.html [ Failure ]
+imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.strokeText.html [ Failure ]
+imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.to.p3.html [ Failure ]
+imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.to.srgb.html [ Failure ]
+imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.toBlob.p3.canvas.html [ Failure ]
+imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.toBlob.with.putImageData.html [ Failure ]
+imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.toDataURL.jpeg.p3.canvas.html [ Failure ]
+imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.toDataURL.p3.canvas.html [ Failure ]
+imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.toDataURL.with.putImageData.html [ Failure ]
+storage/indexeddb/structured-clone-image-data-display-p3.html [ Failure ]
 
 webkit.org/b/226942 imported/w3c/web-platform-tests/webaudio/the-audio-api/the-audiobuffersourcenode-interface/active-processing.https.html [ Pass Failure ]
 

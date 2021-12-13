@@ -1,3 +1,1849 @@
+2021-11-08  Kocsen Chung  <kocsen_chung@apple.com>
+
+        Cherry-pick r285208. rdar://problem/84824703
+
+    [iOS] Need API for marking file requests as non-app-initiated
+    https://bugs.webkit.org/show_bug.cgi?id=232506
+    <rdar://problem/84824703>
+    
+    Reviewed by Brent Fulgham.
+    
+    Source/WebKit:
+    
+    Pass app initiated value through to the WebPage so file loads
+    can be attributed correctly.
+    
+    * UIProcess/API/Cocoa/WKWebView.mm:
+    (-[WKWebView loadFileRequest:allowingReadAccessToURL:]):
+    * UIProcess/WebPageProxy.cpp:
+    (WebKit::WebPageProxy::loadFile):
+    * UIProcess/WebPageProxy.h:
+    
+    Tools:
+    
+    * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj:
+    * TestWebKitAPI/Tests/WebKitCocoa/AppPrivacyReport.mm:
+    * TestWebKitAPI/Tests/WebKitCocoa/file-with-iframe.html: Added.
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@285208 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-11-03  Kate Cheney  <katherine_cheney@apple.com>
+
+            [iOS] Need API for marking file requests as non-app-initiated
+            https://bugs.webkit.org/show_bug.cgi?id=232506
+            <rdar://problem/84824703>
+
+            Reviewed by Brent Fulgham.
+
+            * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj:
+            * TestWebKitAPI/Tests/WebKitCocoa/AppPrivacyReport.mm:
+            * TestWebKitAPI/Tests/WebKitCocoa/file-with-iframe.html: Added.
+
+2021-11-08  Kocsen Chung  <kocsen_chung@apple.com>
+
+        Cherry-pick r283180. rdar://problem/85168105
+
+    Validate DeviceIdHashSaltStorage persistent data
+    https://bugs.webkit.org/show_bug.cgi?id=230852
+    <rdar://problem/83615408>
+    
+    Reviewed by Eric Carlson.
+    
+    Source/WebKit:
+    
+    Add nullptr check to decoded data.
+    Covered by API test.
+    
+    * UIProcess/DeviceIdHashSaltStorage.cpp:
+    (WebKit::DeviceIdHashSaltStorage::loadStorageFromDisk):
+    
+    Tools:
+    
+    * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj:
+    * TestWebKitAPI/Tests/WebKit/GetUserMedia.mm:
+    * TestWebKitAPI/Tests/WebKit/invalidDeviceIDHashSalts: Added.
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@283180 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-09-28  Youenn Fablet  <youenn@apple.com>
+
+            Validate DeviceIdHashSaltStorage persistent data
+            https://bugs.webkit.org/show_bug.cgi?id=230852
+            <rdar://problem/83615408>
+
+            Reviewed by Eric Carlson.
+
+            * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj:
+            * TestWebKitAPI/Tests/WebKit/GetUserMedia.mm:
+            * TestWebKitAPI/Tests/WebKit/invalidDeviceIDHashSalts: Added.
+
+2021-11-04  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r285239. rdar://problem/80991209
+
+    Apply patch. rdar://problem/84982191
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/branches/safari-612.3.3.0-branch@285239 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-11-03  Russell Epstein  <repstein@apple.com>
+
+            Apply patch. rdar://problem/84982191
+
+        2021-11-03  Kate Cheney  <katherine_cheney@apple.com>
+
+                PCM: Safari on iOS and macOS are not sending ad click attribution reports for Private Click Measurement
+                https://bugs.webkit.org/show_bug.cgi?id=228104
+                <rdar://problem/80991209>
+
+                Reviewed by John Wilander.
+
+                * TestWebKitAPI/Tests/WebCore/PrivateClickMeasurement.cpp:
+                (TestWebKitAPI::TEST):
+
+2021-11-04  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r285089. rdar://problem/84522357
+
+    Layer tree should not be stuck in frozen state after explicitly stopping a page load
+    https://bugs.webkit.org/show_bug.cgi?id=232532
+    rdar://84522357
+    
+    Reviewed by Tim Horton.
+    
+    Source/WebCore:
+    
+    Add WEBCORE_EXPORT to a method. See WebKit/ChangeLog for more details.
+    
+    Test: http/tests/navigation/unfreeze-layer-tree-after-stopping-load.html
+    
+    * loader/FrameLoader.h:
+    
+    Source/WebKit:
+    
+    From diagnostic logs gathered in rdar://84522357, it's apparently possible for the layer tree to be stuck in a
+    state where it's indefinitely frozen after the user explicitly stops the page load (e.g. by tapping on the "x"
+    button in Safari). Specifically, these logs indicate that the `PageTransition` layer tree freeze reason may
+    persist even after the user has canceled the load, leading to situations where content may be visible but
+    unresponsive.
+    
+    From code inspection, this may happen for multiple reasons, one of which is that a media element has incremented
+    the load event delay count, which in turn prevents us from transitioning to completed state inside
+    `FrameLoader::checkLoadCompleteForThisFrame()`. It's unknown whether this (in particular) is the cause of
+    unresponsiveness observed by the reporter of rdar://84522357, but we can at least use this in order to come up
+    with a layout test; to mitigate all instances where the `PageTransition` reason may persist after the load has
+    been stopped, we make `WebPage::stopLoading()` complete the page transition (thereby lifting the freeze reason)
+    if needed.
+    
+    * WebProcess/WebPage/WebPage.cpp:
+    (WebKit::WebPage::stopLoading):
+    
+    Tools:
+    
+    Add support for `TestRunner.stopLoading()`, which immediately stops the page load, emulating what would normally
+    happen if the user taps or clicks the "x" button to cancel loading in Safari. See the layout test for more
+    details.
+    
+    * DumpRenderTree/TestRunner.cpp:
+    (stopLoadingCallback):
+    (TestRunner::staticFunctions):
+    * DumpRenderTree/TestRunner.h:
+    * DumpRenderTree/mac/TestRunnerMac.mm:
+    (TestRunner::stopLoading):
+    * DumpRenderTree/win/TestRunnerWin.cpp:
+    (TestRunner::stopLoading):
+    * WebKitTestRunner/InjectedBundle/Bindings/TestRunner.idl:
+    * WebKitTestRunner/InjectedBundle/TestRunner.cpp:
+    (WTR::TestRunner::stopLoading):
+    * WebKitTestRunner/InjectedBundle/TestRunner.h:
+    
+    LayoutTests:
+    
+    Add a test that verifies that a `requestAnimationFrame()` callback fires even after stopping page load. This
+    test fails without the fix in this patch, since the layer tree ends up in a permanently frozen state.
+    
+    * http/tests/navigation/unfreeze-layer-tree-after-stopping-load-expected.txt: Added.
+    * http/tests/navigation/unfreeze-layer-tree-after-stopping-load.html: Added.
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@285089 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-10-30  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+            Layer tree should not be stuck in frozen state after explicitly stopping a page load
+            https://bugs.webkit.org/show_bug.cgi?id=232532
+            rdar://84522357
+
+            Reviewed by Tim Horton.
+
+            Add support for `TestRunner.stopLoading()`, which immediately stops the page load, emulating what would normally
+            happen if the user taps or clicks the "x" button to cancel loading in Safari. See the layout test for more
+            details.
+
+            * DumpRenderTree/TestRunner.cpp:
+            (stopLoadingCallback):
+            (TestRunner::staticFunctions):
+            * DumpRenderTree/TestRunner.h:
+            * DumpRenderTree/mac/TestRunnerMac.mm:
+            (TestRunner::stopLoading):
+            * DumpRenderTree/win/TestRunnerWin.cpp:
+            (TestRunner::stopLoading):
+            * WebKitTestRunner/InjectedBundle/Bindings/TestRunner.idl:
+            * WebKitTestRunner/InjectedBundle/TestRunner.cpp:
+            (WTR::TestRunner::stopLoading):
+            * WebKitTestRunner/InjectedBundle/TestRunner.h:
+
+2021-11-04  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r285080. rdar://problem/84811692
+
+    [iOS 15] Loads after WKWebView session restore are marked as app-initiated
+    https://bugs.webkit.org/show_bug.cgi?id=232486
+    <rdar://problem/84811692>
+    
+    Reviewed by Brent Fulgham.
+    
+    Source/WebKit:
+    
+    Return app initiated value in the page's SessionState so it can be restored
+    by third party apps using the [WKWebView setInteractionState] API.
+    
+    * UIProcess/WebPageProxy.cpp:
+    (WebKit::WebPageProxy::sessionState const):
+    * UIProcess/mac/LegacySessionStateCoding.cpp:
+    (WebKit::encodeLegacySessionState):
+    (WebKit::decodeLegacySessionState):
+    
+    Tools:
+    
+    * TestWebKitAPI/Tests/WebKitCocoa/AppPrivacyReport.mm:
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@285080 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-10-30  Kate Cheney  <katherine_cheney@apple.com>
+
+            [iOS 15] Loads after WKWebView session restore are marked as app-initiated
+            https://bugs.webkit.org/show_bug.cgi?id=232486
+            <rdar://problem/84811692>
+
+            Reviewed by Brent Fulgham.
+
+            * TestWebKitAPI/Tests/WebKitCocoa/AppPrivacyReport.mm:
+
+2021-11-04  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r284875. rdar://problem/84597422
+
+    [ App Privacy Report ] Restoring a session after clearing the cache results in app initiated loads in Safari
+    https://bugs.webkit.org/show_bug.cgi?id=232292
+    <rdar://problem/84597422>
+    
+    Reviewed by Brent Fulgham.
+    
+    Source/WebKit:
+    
+    Update session restore code to also set the app initiated value on
+    the current document loader. Previously, this was only set on the new
+    document loader. This is a problem because the main resource load
+    uses the old document loader, so if we restore from a previous session
+    state, the main resource load will have the incorrect attribution
+    value.
+    
+    * WebProcess/WebPage/WebPage.cpp:
+    (WebKit::WebPage::goToBackForwardItem):
+    
+    Tools:
+    
+    Update API test in 2 ways. First, close the original WebView to
+    destroy the page's document loader as if the application was being
+    quit. Second, clear history to make sure there are no cached loads.
+    
+    * TestWebKitAPI/Tests/WebKitCocoa/AppPrivacyReport.mm:
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@284875 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-10-26  Kate Cheney  <katherine_cheney@apple.com>
+
+            [ App Privacy Report ] Restoring a session after clearing the cache results in app initiated loads in Safari
+            https://bugs.webkit.org/show_bug.cgi?id=232292
+            <rdar://problem/84597422>
+
+            Reviewed by Brent Fulgham.
+
+            Update API test in 2 ways. First, close the original WebView to
+            destroy the page's document loader as if the application was being
+            quit. Second, clear history to make sure there are no cached loads.
+
+            * TestWebKitAPI/Tests/WebKitCocoa/AppPrivacyReport.mm:
+
+2021-11-04  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r282632. rdar://problem/83067708
+
+    WebKit::WebProcessPool should use a weak observer with CFNotificationCenter
+    <https://webkit.org/b/230227>
+    <rdar://problem/83067708>
+    
+    Reviewed by Darin Adler.
+    
+    Source/WebKit:
+    
+    To fix the bug, implement an Objective-C class named
+    WKProcessPoolWeakObserver which contains an instance variable
+    holding a WeakPtr<WebProcessPool>, and tell CFNotificationCenter
+    to hold a weak reference to WKProcessPoolWeakObserver.
+    
+    Since WKProcessPoolWeakObserver is self-contained within the
+    source file, it uses the NS_DIRECT_MEMBERS attribute since it
+    does not require the overhead of dynamic Objective-C method
+    dispatch.
+    
+    * UIProcess/Cocoa/WebProcessPoolCocoa.mm:
+    (-[WKProcessPoolWeakObserver initWithWeakPtr:]): Add.
+    (-[WKProcessPoolWeakObserver pool]): Add.
+    - Implement WKProcessPoolWeakObserver class.
+    - Note that init methods can never be marked as NS_DIRECT, and
+      @property statements can't use NS_DIRECT in their declaration,
+      so the @property is declared in a category which uses
+      NS_DIRECT_MEMBERS.
+    (WebKit::extractWebProcessPool): Add.
+    - Static helper method for extracting RefPtr<WebProcessPool>
+      from type-punned WKProcessPoolWeakObserver.
+    (WebKit::WebProcessPool::backlightLevelDidChangeCallback):
+    (WebKit::WebProcessPool::accessibilityPreferencesChangedCallback):
+    (WebKit::WebProcessPool::mediaAccessibilityPreferencesChangedCallback):
+    (WebKit::WebProcessPool::colorPreferencesDidChangeCallback):
+    (WebKit::WebProcessPool::remoteWebInspectorEnabledCallback):
+    - Clean up function parameter list.
+    - Use extractWebProcessPool() helper method to get a
+      RefPtr<WebProcessPool> from `observer`.
+    (WebKit::WebProcessPool::addCFNotificationObserver): Add.
+    (WebKit::WebProcessPool::removeCFNotificationObserver): Add.
+    - Private helper methods to reduce duplicate code.
+    - Use m_weakObserver for CFNotificationCenter observer and
+      include _CFNotificationObserverIsObjC to fix the bug.
+    (WebKit::WebProcessPool::registerNotificationObservers):
+    - Make use of new addCFNotificationObserver() helper method.
+    - Fixes use of static_cast<CFStringRef> to make code ready for
+      ARC by using a __bridge cast or removing the static_cast when
+      CFSTR() is used.
+    (WebKit::WebProcessPool::unregisterNotificationObservers):
+    - Make use of new removeCFNotificationObserver() helper method.
+    
+    * UIProcess/WebProcessPool.h:
+    - Add m_weakObserver instance variable to hold the
+      WKProcessPoolWeakObserver object.
+    (WebKit::WebProcessPool::addCFNotificationObserver): Add.
+    (WebKit::WebProcessPool::removeCFNotificationObserver): Add.
+    - Add declarations for new helper methods.
+    (WebKit::WebProcessPool::backlightLevelDidChangeCallback):
+    (WebKit::WebProcessPool::accessibilityPreferencesChangedCallback):
+    (WebKit::WebProcessPool::mediaAccessibilityPreferencesChangedCallback):
+    (WebKit::WebProcessPool::colorPreferencesDidChangeCallback):
+    (WebKit::WebProcessPool::remoteWebInspectorEnabledCallback):
+    - Clean up function parameter list.
+    
+    Source/WTF:
+    
+    Tests (API):
+        TestWTF.TypeCastsNS.checked_ns_cast
+        TestWTF.TypeCastsNS.dynamic_ns_cast
+        TestWTF.TypeCastsNS.dynamic_ns_cast_RetainPtr
+    
+    * WTF.xcodeproj/project.pbxproj:
+    * wtf/PlatformMac.cmake:
+    - Add new header files to the project.
+    
+    * wtf/cocoa/TypeCastsNS.h: Add.
+    (WTF::checked_ns_cast):
+    (WTF::dynamic_ns_cast):
+    - Add casts for NS objects similar to TypeCastsCF.h.
+    
+    * wtf/PlatformHave.h:
+    (HAVE_NS_DIRECT_SUPPORT): Add.
+    - Note that clang for macOS 11 Big Sur claims to know about the
+      attributes, but will fail to compile if they are actually
+      used.
+    
+    * wtf/spi/cocoa/NSObjCRuntimeSPI.h: Add.
+    (NS_DIRECT):
+    (NS_DIRECT_MEMBERS):
+    - Define compiler attributes for direct dispatch of Objective-C
+      methods.
+    
+    Tools:
+    
+    * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj:
+    - Add TypeCastsNS.mm to the project.
+    * TestWebKitAPI/Tests/WTF/cocoa/TypeCastsNS.mm: Add.
+    (TestWebKitAPI::TEST): Add tests for <wtf/TypeCastsNS.h>.
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@282632 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-09-16  David Kilzer  <ddkilzer@apple.com>
+
+            WebKit::WebProcessPool should use a weak observer with CFNotificationCenter
+            <https://webkit.org/b/230227>
+            <rdar://problem/83067708>
+
+            Reviewed by Darin Adler.
+
+            * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj:
+            - Add TypeCastsNS.mm to the project.
+            * TestWebKitAPI/Tests/WTF/cocoa/TypeCastsNS.mm: Add.
+            (TestWebKitAPI::TEST): Add tests for <wtf/TypeCastsNS.h>.
+
+2021-10-25  Null  <null@apple.com>
+
+        Cherry-pick r284532. rdar://problem/84625267
+
+    Source/WebKit:
+    [WebAuthn] Obtain consent to create new credential when platform authenticator in excludedCredentials
+    https://bugs.webkit.org/show_bug.cgi?id=219813
+    <rdar://problem/72484635>
+    
+    Patch by John Pascoe <j_pascoe@apple.com> on 2021-10-20
+    Reviewed by Brent Fulgham.
+    
+    Currently, whenever the platform authenticator is within excludedCredentials during makeCredential we
+    always return NotAllowedError and merely flash a consent screen. This does not match the spec per Step 3.1
+    of makeCredential (https://w3c.github.io/webauthn/#sctn-op-make-cred). Instead, we should always obtain consent
+    and return a different error depending on consent was obtained.
+    
+    A fixme to add this was inadvertently removed in https://bugs.webkit.org/attachment.cgi?id=393180&action=prettypatch
+    
+    Added api test TestWebKitAPI.WebAuthenticationPanel.LADuplicateCredentialWithConsent
+    
+    * UIProcess/WebAuthentication/Cocoa/LocalAuthenticator.mm:
+    (WebKit::LocalAuthenticator::makeCredential):
+    
+    Tools:
+    [WebAuthn] Obtain consent to create new credential when platform authenticator in excludedCredentials
+    https://bugs.webkit.org/show_bug.cgi?id=219813
+    <rdar://problem/72484635>
+    
+    Patch by John Pascoe <j_pascoe@apple.com> on 2021-10-20
+    Reviewed by Brent Fulgham.
+    
+    Currently, whenever the platform authenticator is within excludedCredentials during makeCredential we
+    always return NotAllowedError and merely flash a consent screen. This does not match the spec per Step 3.1
+    of makeCredential (https://w3c.github.io/webauthn/#sctn-op-make-cred). Instead, we should always obtain consent
+    and return a different error depending on consent was obtained.
+    
+    This adds a test to confirm a different path is taken whenever consent is obtained.
+    
+    * TestWebKitAPI/Tests/WebKitCocoa/_WKWebAuthenticationPanel.mm:
+    (TestWebKitAPI::TEST):
+    
+    LayoutTests:
+    WebAuthn] Obtain consent to create new credential when platform authenticator in excludedCredentials
+    https://bugs.webkit.org/show_bug.cgi?id=219813
+    <rdar://problem/72484635>
+    
+    Patch by John Pascoe <j_pascoe@apple.com> on 2021-10-20
+    Reviewed by Brent Fulgham.
+    
+    Modify layout tests to reflect different exception returned when consent is provided
+    
+    * http/wpt/webauthn/public-key-credential-create-failure-local-silent.https.html:
+    * http/wpt/webauthn/public-key-credential-create-failure-local.https.html:
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@284532 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-10-20  John Pascoe  <j_pascoe@apple.com>
+            [WebAuthn] Obtain consent to create new credential when platform authenticator in excludedCredentials
+            https://bugs.webkit.org/show_bug.cgi?id=219813
+            <rdar://problem/72484635>
+
+            Reviewed by Brent Fulgham.
+
+            Currently, whenever the platform authenticator is within excludedCredentials during makeCredential we
+            always return NotAllowedError and merely flash a consent screen. This does not match the spec per Step 3.1
+            of makeCredential (https://w3c.github.io/webauthn/#sctn-op-make-cred). Instead, we should always obtain consent
+            and return a different error depending on consent was obtained.
+
+            This adds a test to confirm a different path is taken whenever consent is obtained.
+
+            * TestWebKitAPI/Tests/WebKitCocoa/_WKWebAuthenticationPanel.mm:
+            (TestWebKitAPI::TEST):
+
+2021-10-25  Null  <null@apple.com>
+
+        Cherry-pick r283515. rdar://problem/84624826
+
+    [WebAuthn] Prefer internal user verification if available over pin entry.
+    https://bugs.webkit.org/show_bug.cgi?id=213903
+    <rdar://problem/65359269>
+    
+    Patch by John Pascoe <j_pascoe@apple.com> on 2021-10-04
+    Reviewed by Brent Fulgham.
+    
+    Source/WebCore:
+    
+    This adds an option to mock internal user verification in tests.
+    
+    * testing/MockWebAuthenticationConfiguration.h:
+    (WebCore::MockWebAuthenticationConfiguration::HidConfiguration::encode const):
+    (WebCore::MockWebAuthenticationConfiguration::HidConfiguration::decode):
+    * testing/MockWebAuthenticationConfiguration.idl:
+    
+    Source/WebKit:
+    
+    * UIProcess/WebAuthentication/Mock/MockHidConnection.cpp:
+    (WebKit::MockHidConnection::feedReports):
+    * UIProcess/WebAuthentication/fido/CtapAuthenticator.cpp:
+    (WebKit::CtapAuthenticator::makeCredential):
+    (WebKit::CtapAuthenticator::getAssertion):
+    (WebKit::fido::toStatus): Deleted.
+    (WebKit::fido::isPinError): Deleted.
+    
+    Tools:
+    
+    * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj:
+    * TestWebKitAPI/Tests/WebKitCocoa/_WKWebAuthenticationPanel.mm:
+    (TestWebKitAPI::TEST):
+    * TestWebKitAPI/Tests/WebKitCocoa/web-authentication-get-assertion-hid-internal-uv.html: Added.
+    * TestWebKitAPI/Tests/WebKitCocoa/web-authentication-make-credential-hid-internal-uv.html: Added.
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@283515 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-10-04  John Pascoe  <j_pascoe@apple.com>
+
+            [WebAuthn] Prefer internal user verification if available over pin entry.
+            https://bugs.webkit.org/show_bug.cgi?id=213903
+            <rdar://problem/65359269>
+
+            Reviewed by Brent Fulgham.
+
+            * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj:
+            * TestWebKitAPI/Tests/WebKitCocoa/_WKWebAuthenticationPanel.mm:
+            (TestWebKitAPI::TEST):
+            * TestWebKitAPI/Tests/WebKitCocoa/web-authentication-get-assertion-hid-internal-uv.html: Added.
+            * TestWebKitAPI/Tests/WebKitCocoa/web-authentication-make-credential-hid-internal-uv.html: Added.
+
+2021-10-18  Russell Epstein  <repstein@apple.com>
+
+        Apply patch. rdar://problem/84351845
+
+    2021-10-18  Tadeu Zagallo  <tzagallo@apple.com>
+
+            Implement the WebAssembly exception handling proposal
+            https://bugs.webkit.org/show_bug.cgi?id=229681
+            <rdar://81603387>
+
+            Reviewed by Keith Miller.
+
+            * Scripts/run-jsc-stress-tests:
+
+2021-10-18  Russell Epstein  <repstein@apple.com>
+
+        Apply patch. rdar://problem/84313358
+
+    2021-10-18  Alex Christensen  <achristensen@webkit.org>
+
+            Use attributedBundleIdentifier instead of applicationBundleIdentifier when present for handling PCM attribution
+            https://bugs.webkit.org/show_bug.cgi?id=231827
+
+            Reviewed by John Wilander.
+
+            * TestWebKitAPI/Tests/WebKitCocoa/EventAttribution.mm:
+            (TestWebKitAPI::runBasicPCMTest):
+            (TestWebKitAPI::TEST):
+
+2021-10-15  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r283033. rdar://problem/83953190
+
+    [IOS 15] Video track does not get unmuted in case of tab was inactive less than ~500 ms
+    https://bugs.webkit.org/show_bug.cgi?id=230538
+    <rdar://problem/83355705>
+    
+    Reviewed by Eric Carlson.
+    
+    Source/WebCore:
+    
+    Add support for interrupting mock cameras.
+    Update internals to handle the case of out of main thread videoSampleAvailable calls.
+    
+    Update Page::setMuted to trigger setMuted logic even if Page muted state did not change.
+    This ensures we can restart capture in case a track is muted without the page being muted itself.
+    
+    When a source is muted and is in producing data state, it is interrupted.
+    When setMuted(false) is called, we need to uninterrupt.
+    To do so, we do a stop/start cycle
+    
+    Test: fast/mediastream/media-stream-video-track-interrupted.html
+    
+    * page/Page.cpp:
+    (WebCore::Page::setMuted):
+    * platform/mediastream/RealtimeMediaSource.cpp:
+    (WebCore::RealtimeMediaSource::setMuted):
+    * platform/mock/MockRealtimeMediaSourceCenter.cpp:
+    (WebCore::MockRealtimeMediaSourceCenter::setMockCameraIsInterrupted):
+    * platform/mock/MockRealtimeMediaSourceCenter.h:
+    * platform/mock/MockRealtimeVideoSource.cpp:
+    (WebCore::MockRealtimeVideoSource::MockRealtimeVideoSource):
+    (WebCore::MockRealtimeVideoSource::~MockRealtimeVideoSource):
+    (WebCore::MockRealtimeVideoSource::setIsInterrupted):
+    * platform/mock/MockRealtimeVideoSource.h:
+    * testing/Internals.cpp:
+    (WebCore::Internals::videoSampleAvailable):
+    * testing/Internals.h:
+    
+    Source/WebKit:
+    
+    Add support for mock capture interruption.
+    When receiving a notification that GPUProcess source is muted, we consider it is interrupted.
+    In that case, we notify the source is muted instead of calling setMuted (which would set the source as muted AND stop producing data).
+    It is important to not stop the source so that it can continue receiving interruption notifications.
+    
+    * GPUProcess/GPUProcess.cpp:
+    (WebKit::GPUProcess::setMockCameraIsInterrupted):
+    * GPUProcess/GPUProcess.h:
+    * GPUProcess/GPUProcess.messages.in:
+    * UIProcess/API/C/WKPage.cpp:
+    (WKPageIsMockRealtimeMediaSourceCenterEnabled):
+    (WKPageSetMockCameraIsInterrupted):
+    * UIProcess/API/C/WKPagePrivate.h:
+    * UIProcess/GPU/GPUProcessProxy.cpp:
+    (WebKit::GPUProcessProxy::setMockCameraIsInterrupted):
+    * UIProcess/GPU/GPUProcessProxy.h:
+    * WebProcess/cocoa/RemoteRealtimeAudioSource.h:
+    * WebProcess/cocoa/RemoteRealtimeVideoSource.h:
+    * WebProcess/cocoa/UserMediaCaptureManager.cpp:
+    (WebKit::UserMediaCaptureManager::sourceMutedChanged):
+    
+    Tools:
+    
+    Add mock API to mock camera interruption.
+    
+    * WebKitTestRunner/InjectedBundle/Bindings/TestRunner.idl:
+    * WebKitTestRunner/InjectedBundle/TestRunner.cpp:
+    (WTR::TestRunner::setMockCameraIsInterrupted):
+    * WebKitTestRunner/InjectedBundle/TestRunner.h:
+    * WebKitTestRunner/TestController.cpp:
+    (WTR::TestController::setMockCameraIsInterrupted):
+    * WebKitTestRunner/TestController.h:
+    * WebKitTestRunner/TestInvocation.cpp:
+    (WTR::TestInvocation::didReceiveSynchronousMessageFromInjectedBundle):
+    
+    LayoutTests:
+    
+    * fast/mediastream/media-stream-video-track-interrupted-expected.txt: Added.
+    * fast/mediastream/media-stream-video-track-interrupted.html: Added.
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@283033 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-09-24  Youenn Fablet  <youenn@apple.com>
+
+            [IOS 15] Video track does not get unmuted in case of tab was inactive less than ~500 ms
+            https://bugs.webkit.org/show_bug.cgi?id=230538
+            <rdar://problem/83355705>
+
+            Reviewed by Eric Carlson.
+
+            Add mock API to mock camera interruption.
+
+            * WebKitTestRunner/InjectedBundle/Bindings/TestRunner.idl:
+            * WebKitTestRunner/InjectedBundle/TestRunner.cpp:
+            (WTR::TestRunner::setMockCameraIsInterrupted):
+            * WebKitTestRunner/InjectedBundle/TestRunner.h:
+            * WebKitTestRunner/TestController.cpp:
+            (WTR::TestController::setMockCameraIsInterrupted):
+            * WebKitTestRunner/TestController.h:
+            * WebKitTestRunner/TestInvocation.cpp:
+            (WTR::TestInvocation::didReceiveSynchronousMessageFromInjectedBundle):
+
+2021-10-12  Alan Coon  <alancoon@apple.com>
+
+        Apply patch. rdar://problem/84130892
+
+    2021-10-12  John Wilander  <wilander@apple.com>
+
+            Cherry-picking of:
+            - https://trac.webkit.org/changeset/283316/webkit, <rdar://problem/83516528>
+            - https://trac.webkit.org/changeset/282109/webkit, <rdar://problem/82841844>
+
+            Plus a fix of an API test that was timing out (EventAttribution.FraudPrevention).
+
+        Patch by John Wilander.
+        Reviewed by Alex Christensen and Kate Cheney.
+
+        * TestWebKitAPI/Tests/WebKitCocoa/EventAttribution.mm:
+        (TestWebKitAPI::runBasicEventAttributionTest):
+        (TestWebKitAPI::TEST):
+            EventAttribution.FraudPrevention fixed. It was missing a call to
+            _setPrivateClickMeasurementAppBundleIDForTesting() so that the app bundle ID
+            for the triggering event matches the app bundle ID where the click happened.
+        * WebKitTestRunner/InjectedBundle/Bindings/TestRunner.idl:
+        * WebKitTestRunner/InjectedBundle/TestRunner.cpp:
+        (WTR::TestRunner::setPrivateClickMeasurementAppBundleIDForTesting):
+        * WebKitTestRunner/InjectedBundle/TestRunner.h:
+        * WebKitTestRunner/TestController.cpp:
+        (WTR::TestController::setPrivateClickMeasurementAppBundleIDForTesting):
+        * WebKitTestRunner/TestController.h:
+        * WebKitTestRunner/TestInvocation.cpp:
+        (WTR::TestInvocation::didReceiveSynchronousMessageFromInjectedBundle):
+
+2021-10-11  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r283194. rdar://problem/83953433
+
+    PCM: different bundleID entries will override each other
+    https://bugs.webkit.org/show_bug.cgi?id=230839
+    
+    Reviewed by Alex Christensen.
+    
+    Source/WebKit:
+    
+    We recently added a bundleID column to PCM tables. We want to make
+    sure entries with different bundleIDs do not override each other,
+    so we should make it a part of the unique constraint on both PCM
+    tables that contain it. This requires creating new tables and
+    migrating existing data to them. Luckily this code already exists
+    in the ITP database, and we can just move it to the shared
+    DatabaseUtilities class.
+    
+    * NetworkProcess/Classifier/ResourceLoadStatisticsDatabaseStore.cpp:
+    (WebKit::ResourceLoadStatisticsDatabaseStore::expectedTableAndIndexQueries):
+    (WebKit::stripIndexQueryToMatchStoredValue): Deleted.
+    (WebKit::expectedTableAndIndexQueries): Deleted.
+    (WebKit::ResourceLoadStatisticsDatabaseStore::currentTableAndIndexQueries): Deleted.
+    (WebKit::insertDistinctValuesInTableStatement): Deleted.
+    (WebKit::ResourceLoadStatisticsDatabaseStore::migrateDataToNewTablesIfNecessary): Deleted.
+    * NetworkProcess/Classifier/ResourceLoadStatisticsDatabaseStore.h:
+    * NetworkProcess/DatabaseUtilities.cpp:
+    (WebKit::DatabaseUtilities::stripIndexQueryToMatchStoredValue):
+    (WebKit::DatabaseUtilities::currentTableAndIndexQueries):
+    (WebKit::insertDistinctValuesInTableStatement):
+    (WebKit::DatabaseUtilities::migrateDataToNewTablesIfNecessary):
+    * NetworkProcess/DatabaseUtilities.h:
+    * NetworkProcess/PrivateClickMeasurement/PrivateClickMeasurementDatabase.cpp:
+    (WebKit::PCM::Database::Database):
+    (WebKit::PCM::Database::expectedTableAndIndexQueries):
+    (WebKit::PCM::Database::createUniqueIndices):
+    (WebKit::PCM::Database::needsUpdatedSchema):
+    * NetworkProcess/PrivateClickMeasurement/PrivateClickMeasurementDatabase.h:
+    
+    Tools:
+    
+    API test coverage for the case of existing PCM data with a bundleID
+    column but an expired unique index.
+    
+    * TestWebKitAPI/Tests/WebKitCocoa/PrivateClickMeasurement.mm:
+    (addUnattributedPCMv4):
+    (addAttributedPCMv4):
+    (dumpedPCM):
+    (pollUntilPCMIsMigrated):
+    (emptyPcmDBPath):
+    (createAndPopulatePCMObservedDomainTable):
+    (setUpFromResourceLoadStatisticsDatabase):
+    (setUpFromPCMDatabase):
+    (TEST):
+    (setUp): Deleted.
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@283194 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-09-28  Kate Cheney  <katherine_cheney@apple.com>
+
+            PCM: different bundleID entries will override each other
+            https://bugs.webkit.org/show_bug.cgi?id=230839
+
+            Reviewed by Alex Christensen.
+
+            API test coverage for the case of existing PCM data with a bundleID
+            column but an expired unique index.
+
+            * TestWebKitAPI/Tests/WebKitCocoa/PrivateClickMeasurement.mm:
+            (addUnattributedPCMv4):
+            (addAttributedPCMv4):
+            (dumpedPCM):
+            (pollUntilPCMIsMigrated):
+            (emptyPcmDBPath):
+            (createAndPopulatePCMObservedDomainTable):
+            (setUpFromResourceLoadStatisticsDatabase):
+            (setUpFromPCMDatabase):
+            (TEST):
+            (setUp): Deleted.
+
+2021-10-11  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r282884. rdar://problem/83954926
+
+    PCM should include the bundle ID of the app from which it originated
+    https://bugs.webkit.org/show_bug.cgi?id=230576
+    <rdar://83065221>
+    
+    Patch by Alex Christensen <achristensen@webkit.org> on 2021-09-22
+    Reviewed by Kate Cheney.
+    
+    Source/WebCore:
+    
+    This adds infrastructure to store the bundle ID of the application.
+    In another patch I'm going to use that to prevent PCMs from one app from overwriting PCMs from another app during attribution.
+    
+    * html/HTMLAnchorElement.cpp:
+    (WebCore::HTMLAnchorElement::parsePrivateClickMeasurement const):
+    * loader/PrivateClickMeasurement.cpp:
+    (WebCore::PrivateClickMeasurement::isolatedCopy const):
+    * loader/PrivateClickMeasurement.h:
+    (WebCore::PrivateClickMeasurement::PrivateClickMeasurement):
+    (WebCore::PrivateClickMeasurement::attributionTriggerData const):
+    (WebCore::PrivateClickMeasurement::sourceApplicationBundleID const):
+    (WebCore::PrivateClickMeasurement::encode const):
+    (WebCore::PrivateClickMeasurement::decode):
+    (WebCore::PrivateClickMeasurement::attributionTriggerData): Deleted.
+    
+    Source/WebKit:
+    
+    * NetworkProcess/DatabaseUtilities.cpp:
+    (WebKit::DatabaseUtilities::buildPrivateClickMeasurementFromDatabase const):
+    (WebKit::DatabaseUtilities::buildPrivateClickMeasurementFromDatabase): Deleted.
+    * NetworkProcess/DatabaseUtilities.h:
+    * NetworkProcess/PrivateClickMeasurement/PrivateClickMeasurementDatabase.cpp:
+    (WebKit::PCM::Database::Database):
+    (WebKit::PCM::Database::insertPrivateClickMeasurement):
+    (WebKit::PCM::Database::privateClickMeasurementToStringForTesting const):
+    (WebKit::PCM::Database::attributionToStringForTesting const):
+    (WebKit::PCM::Database::addBundleIDColumnIfNecessary):
+    (WebKit::PCM::Database::columnsForTable):
+    (WebKit::PCM::Database::addMissingColumnToTable):
+    * NetworkProcess/PrivateClickMeasurement/PrivateClickMeasurementDatabase.h:
+    * UIProcess/API/Cocoa/WKWebViewPrivate.h:
+    * UIProcess/API/Cocoa/WKWebViewPrivateForTesting.h:
+    * UIProcess/API/Cocoa/WKWebViewTesting.mm:
+    (-[WKWebView _addEventAttributionWithSourceID:destinationURL:sourceDescription:purchaser:reportEndpoint:optionalNonce:applicationBundleID:]):
+    (-[WKWebView _addEventAttributionWithSourceID:destinationURL:sourceDescription:purchaser:reportEndpoint:optionalNonce:]): Deleted.
+    * UIProcess/API/ios/WKWebViewIOS.mm:
+    (-[WKWebView _setEphemeralUIEventAttribution:]):
+    (-[WKWebView _setEphemeralUIEventAttribution:forApplicationWithBundleID:]):
+    
+    Tools:
+    
+    * TestWebKitAPI/Tests/WebCore/PrivateClickMeasurement.cpp:
+    (TestWebKitAPI::TEST):
+    * TestWebKitAPI/Tests/WebKitCocoa/EventAttribution.mm:
+    (TestWebKitAPI::TEST):
+    * TestWebKitAPI/Tests/WebKitCocoa/PrivateClickMeasurement.mm:
+    (pollUntilPCMIsMigrated):
+    
+    LayoutTests:
+    
+    * http/tests/contentextensions/block-private-click-measurement-expected.txt:
+    * http/tests/privateClickMeasurement/attribution-conversion-through-cross-site-image-redirect-expected.txt:
+    * http/tests/privateClickMeasurement/attribution-conversion-through-fetch-keepalive-expected.txt:
+    * http/tests/privateClickMeasurement/attribution-conversion-through-image-redirect-ephemeral-expected.txt:
+    * http/tests/privateClickMeasurement/attribution-conversion-through-image-redirect-in-new-window-expected.txt:
+    * http/tests/privateClickMeasurement/attribution-conversion-through-image-redirect-with-priority-expected.txt:
+    * http/tests/privateClickMeasurement/attribution-conversion-through-image-redirect-without-priority-expected.txt:
+    * http/tests/privateClickMeasurement/conversion-disabled-in-ephemeral-session-expected.txt:
+    * http/tests/privateClickMeasurement/private-click-measurement-with-source-nonce-null-content-expected.txt:
+    * http/tests/privateClickMeasurement/private-click-measurement-with-source-nonce-wrong-content-type-expected.txt:
+    * http/tests/privateClickMeasurement/second-attribution-converted-with-higher-priority-expected.txt:
+    * http/tests/privateClickMeasurement/second-attribution-converted-with-lower-priority-expected.txt:
+    * http/tests/privateClickMeasurement/second-conversion-with-higher-priority-expected.txt:
+    * http/tests/privateClickMeasurement/second-conversion-with-lower-priority-expected.txt:
+    * http/tests/privateClickMeasurement/store-private-click-measurement-expected.txt:
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@282884 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-09-22  Alex Christensen  <achristensen@webkit.org>
+
+            PCM should include the bundle ID of the app from which it originated
+            https://bugs.webkit.org/show_bug.cgi?id=230576
+            <rdar://83065221>
+
+            Reviewed by Kate Cheney.
+
+            * TestWebKitAPI/Tests/WebCore/PrivateClickMeasurement.cpp:
+            (TestWebKitAPI::TEST):
+            * TestWebKitAPI/Tests/WebKitCocoa/EventAttribution.mm:
+            (TestWebKitAPI::TEST):
+            * TestWebKitAPI/Tests/WebKitCocoa/PrivateClickMeasurement.mm:
+            (pollUntilPCMIsMigrated):
+
+2021-09-28  Chris Dumez  <cdumez@apple.com>
+
+        Move Cross-Origin-Opener-Policy handling to the NetworkProcess
+        https://bugs.webkit.org/show_bug.cgi?id=230812
+        <rdar://83504842>
+
+        Reviewed by Youenn Fablet.
+
+        Port COOP API tests from PSONSchemeHandler to HTTPServer. This was necessary since custom scheme handler
+        loads do not go via the networkProcess (Where COOP handling is now implemented).
+
+        * TestWebKitAPI/Tests/WebKitCocoa/ProcessSwapOnNavigation.mm:
+        (-[PSONNavigationDelegate webView:didReceiveAuthenticationChallenge:completionHandler:]):
+        (-[PSONScheme webView:startURLSchemeTask:]):
+        * TestWebKitAPI/cocoa/HTTPServer.h:
+
+2021-09-10  Chris Dumez  <cdumez@apple.com>
+
+        Implement navigation reporting for Cross-Origin-Opener-Policy
+        https://bugs.webkit.org/show_bug.cgi?id=230046
+
+        Reviewed by Alex Christensen.
+
+        Fix issue where [DumpJSConsoleLogInStdErr] was not working for tests that process-swap
+        due to COOP. Some data members on InjectedBundle such as m_dumpJSConsoleLogInStdErr
+        were only set in didReceiveMessageToPage(), before calling beginTesting(). However, in
+        case of process-swap, beginTesting() gets called a second time in the new process, from
+        InjectedBundle::didCreatePage() with BegingTestingMode::Resume. As a result, the
+        m_dumpJSConsoleLogInStdErr flag was not getting set in the new process' injected bundle
+        after a process-swap. To address the issue, those data members now get initialized in
+        beginTesting() instead.
+
+        * WebKitTestRunner/InjectedBundle/InjectedBundle.cpp:
+        (WTR::InjectedBundle::didReceiveMessageToPage):
+        (WTR::InjectedBundle::beginTesting):
+
+2021-08-31  Chris Dumez  <cdumez@apple.com>
+
+        Enable SharedArrayBuffer support when COOP/COEP headers are used
+        https://bugs.webkit.org/show_bug.cgi?id=229559
+        <rdar://problem/82391945>
+
+        Reviewed by Alex Christensen.
+
+        Add API test coverage. SharedArrayBuffer support is currently forcefully enabled by
+        run-webkit-tests.py so it would not be practical to write layout tests for this at
+        the moment.
+
+        * TestWebKitAPI/Tests/WebKitCocoa/ProcessSwapOnNavigation.mm:
+        (-[PSONScheme addMappingFromURLString:toData:withCOOPValue:withCOEPValue:]):
+        (-[PSONScheme webView:startURLSchemeTask:]):
+
+2021-08-27  Chris Dumez  <cdumez@apple.com>
+
+        Extend API test coverage to make sure didFailProvisionalLoad is not called upon COOP process swap
+        https://bugs.webkit.org/show_bug.cgi?id=229610
+
+        Reviewed by Alex Christensen.
+
+        * TestWebKitAPI/Tests/WebKitCocoa/ProcessSwapOnNavigation.mm:
+
+2021-08-24  Chris Dumez  <cdumez@apple.com>
+
+        [WK2] Implement process-swapping based on Cross-Origin-Opener-Policy HTTP header
+        https://bugs.webkit.org/show_bug.cgi?id=229203
+        <rdar://problem/82047686>
+
+        Reviewed by Alex Christensen.
+
+        Add API test coverage to validate that we are indeed process-swapping.
+
+        * TestWebKitAPI/Tests/WebKitCocoa/ProcessSwapOnNavigation.mm:
+        (-[PSONScheme addMappingFromURLString:toData:withCOOPValue:]):
+        (-[PSONScheme webView:startURLSchemeTask:]):
+
+2021-10-07  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r283272. rdar://problem/83955254
+
+    Migrate _WKDownload tests from TCPServer to HTTPServer
+    https://bugs.webkit.org/show_bug.cgi?id=230980
+    <rdar://82100878>
+    
+    Patch by Alex Christensen <achristensen@webkit.org> on 2021-09-29
+    Reviewed by Chris Dumez.
+    
+    The former is very picky when it comes to numbers of TCP connections, and causes tests to time out when
+    the number of connections changes.  The latter is more forgiving and runs code on the main thread.
+    
+    * TestWebKitAPI/Tests/WebKitCocoa/Download.mm:
+    (TestWebKitAPI::respondSlowly):
+    (TestWebKitAPI::downloadAtRate):
+    (TEST):
+    * TestWebKitAPI/cocoa/HTTPServer.mm:
+    (TestWebKitAPI::Connection::send const):
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@283272 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-09-29  Alex Christensen  <achristensen@webkit.org>
+
+            Migrate _WKDownload tests from TCPServer to HTTPServer
+            https://bugs.webkit.org/show_bug.cgi?id=230980
+            <rdar://82100878>
+
+            Reviewed by Chris Dumez.
+
+            The former is very picky when it comes to numbers of TCP connections, and causes tests to time out when
+            the number of connections changes.  The latter is more forgiving and runs code on the main thread.
+
+            * TestWebKitAPI/Tests/WebKitCocoa/Download.mm:
+            (TestWebKitAPI::respondSlowly):
+            (TestWebKitAPI::downloadAtRate):
+            (TEST):
+            * TestWebKitAPI/cocoa/HTTPServer.mm:
+            (TestWebKitAPI::Connection::send const):
+
+2021-10-07  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r283114. rdar://problem/83954017
+
+    Make sure to reset presenting application pid in case of mediaserverd crash
+    https://bugs.webkit.org/show_bug.cgi?id=230822
+    <rdar://83474184>
+    
+    Reviewed by Eric Carlson.
+    
+    Source/WebCore:
+    
+    Before the patch, we were asking MediaSessionHelper client to set the pid in case of mediaserverd crash.
+    Given GPUProcess is the only one receiving the notification now, only the GPUProcess client could do it,
+    which was not the case as MediaSessionManager in WebProcess was responsible to do so.
+    
+    Instead of relying on MediaSessionHelper client to do the setup, we now let MediaSessionHelper do it on its own.
+    Everything will happen in GPUProcess which should also be faster.
+    
+    We also make sure to reset the affine transform of m_sampleBufferDisplayLayer so that rotation is applied correctly
+    after mediaserverd crash.
+    
+    Manually tested by crashing mediaserverd.
+    Test: fast/mediastream/video-rotation-gpu-process-crash.html (covers affine transform change).
+    
+    * platform/audio/ios/MediaSessionHelperIOS.h:
+    * platform/audio/ios/MediaSessionHelperIOS.mm:
+    (MediaSessionHelperiOS::providePresentingApplicationPID):
+    (MediaSessionHelperiOS::mediaServerConnectionDied):
+    * platform/audio/ios/MediaSessionManagerIOS.h:
+    * platform/audio/ios/MediaSessionManagerIOS.mm:
+    * platform/graphics/avfoundation/objc/MediaPlayerPrivateMediaStreamAVFObjC.mm:
+    (WebCore::MediaPlayerPrivateMediaStreamAVFObjC::enqueueVideoSample):
+    
+    Source/WebKit:
+    
+    Add API to crash GPUProcess from WebKitTestRunner.
+    
+    Make sure to forward to MediaPlayer the fact that the layer failed.
+    This was handled for GPUProcess crash but not for other cases like mediaserverd crashes.
+    
+    * UIProcess/API/C/WKContext.cpp:
+    (WKContextTerminateGPUProcess):
+    * UIProcess/API/C/WKContextPrivate.h:
+    * UIProcess/GPU/GPUProcessProxy.cpp:
+    (WebKit::GPUProcessProxy::terminateForTesting):
+    * UIProcess/GPU/GPUProcessProxy.h:
+    * WebProcess/GPU/webrtc/SampleBufferDisplayLayer.cpp:
+    (WebKit::SampleBufferDisplayLayer::setDidFail):
+    
+    Tools:
+    
+    Add test runner API to crash GPUProcess.
+    
+    * WebKitTestRunner/InjectedBundle/Bindings/TestRunner.idl:
+    * WebKitTestRunner/InjectedBundle/TestRunner.cpp:
+    (WTR::TestRunner::terminateGPUProcess):
+    * WebKitTestRunner/InjectedBundle/TestRunner.h:
+    * WebKitTestRunner/TestController.cpp:
+    (WTR::TestController::terminateGPUProcess):
+    * WebKitTestRunner/TestController.h:
+    * WebKitTestRunner/TestInvocation.cpp:
+    (WTR::TestInvocation::didReceiveSynchronousMessageFromInjectedBundle):
+    
+    LayoutTests:
+    
+    * fast/mediastream/video-rotation-gpu-process-crash-expected.txt: Added.
+    * fast/mediastream/video-rotation-gpu-process-crash.html: Added.
+    * platform/ios-simulator/fast/mediastream/video-rotation-gpu-process-crash-expected.png: Added.
+    * platform/mac/fast/mediastream/video-rotation-gpu-process-crash-expected.png: Added.
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@283114 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-09-27  Youenn Fablet  <youenn@apple.com>
+
+            Make sure to reset presenting application pid in case of mediaserverd crash
+            https://bugs.webkit.org/show_bug.cgi?id=230822
+            <rdar://83474184>
+
+            Reviewed by Eric Carlson.
+
+            Add test runner API to crash GPUProcess.
+
+            * WebKitTestRunner/InjectedBundle/Bindings/TestRunner.idl:
+            * WebKitTestRunner/InjectedBundle/TestRunner.cpp:
+            (WTR::TestRunner::terminateGPUProcess):
+            * WebKitTestRunner/InjectedBundle/TestRunner.h:
+            * WebKitTestRunner/TestController.cpp:
+            (WTR::TestController::terminateGPUProcess):
+            * WebKitTestRunner/TestController.h:
+            * WebKitTestRunner/TestInvocation.cpp:
+            (WTR::TestInvocation::didReceiveSynchronousMessageFromInjectedBundle):
+
+2021-10-07  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r281779. rdar://problem/83957360
+
+    Migrate PrivateClickMeasurements from ResourceLoadStatistics database to new database
+    https://bugs.webkit.org/show_bug.cgi?id=229646
+    
+    Patch by Alex Christensen <achristensen@webkit.org> on 2021-08-30
+    Reviewed by Kate Cheney.
+    
+    Source/WebKit:
+    
+    In r281721 I moved the PCM database to be separate from the ResourceLoadStatistics database.
+    This patch extracts data from the old database and sends it to the new database.
+    
+    I added some tests that create databases in each of the 3 historical schemas then verify that
+    data is successfully migrated to the new database.
+    
+    * NetworkProcess/Classifier/ResourceLoadStatisticsDatabaseStore.cpp:
+    (WebKit::ResourceLoadStatisticsDatabaseStore::checkForMissingTablesInSchema):
+    (WebKit::ResourceLoadStatisticsDatabaseStore::tableExists):
+    (WebKit::ResourceLoadStatisticsDatabaseStore::deleteTable):
+    (WebKit::ResourceLoadStatisticsDatabaseStore::migrateDataToPCMDatabaseIfNecessary):
+    (WebKit::ResourceLoadStatisticsDatabaseStore::openAndUpdateSchemaIfNecessary):
+    (WebKit::ResourceLoadStatisticsDatabaseStore::destroyStatements):
+    * NetworkProcess/Classifier/ResourceLoadStatisticsDatabaseStore.h:
+    * NetworkProcess/DatabaseUtilities.cpp:
+    (WebKit::DatabaseUtilities::buildPrivateClickMeasurementFromDatabase):
+    * NetworkProcess/DatabaseUtilities.h:
+    * NetworkProcess/PrivateClickMeasurement/PrivateClickMeasurementDatabase.cpp:
+    (WebKit::PCM::Database::insertPrivateClickMeasurement):
+    (WebKit::PCM::Database::findPrivateClickMeasurement):
+    (WebKit::PCM::Database::allAttributedPrivateClickMeasurement):
+    (WebKit::PCM::Database::getDomainStringFromDomainID const):
+    (WebKit::PCM::Database::buildPrivateClickMeasurementFromDatabase): Deleted.
+    (WebKit::PCM::Database::getDomainStringFromDomainID): Deleted.
+    * NetworkProcess/PrivateClickMeasurement/PrivateClickMeasurementDatabase.h:
+    * UIProcess/API/Cocoa/WKWebViewPrivateForTesting.h:
+    * UIProcess/API/Cocoa/WKWebViewTesting.mm:
+    (-[WKWebView _dumpPrivateClickMeasurement:]):
+    
+    Tools:
+    
+    * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj:
+    * TestWebKitAPI/Tests/WebKitCocoa/EventAttribution.mm:
+    * TestWebKitAPI/Tests/WebKitCocoa/PrivateClickMeasurement.mm:
+    (webViewWithResourceLoadStatisticsEnabledInNetworkProcess):
+    (addValuesToTable):
+    (earliestTimeToSend):
+    (addAttributedPCMv1):
+    (addUnattributedPCMv1):
+    (addAttributedPCMv2):
+    (addUnattributedPCMv2):
+    (addAttributedPCMv3):
+    (addUnattributedPCMv3):
+    (dumpedPCM):
+    (pollUntilPCMIsMigrated):
+    (emptyObservationsDBPath):
+    (cleanUp):
+    (createAndPopulateObservedDomainTable):
+    (setUp):
+    (TEST):
+    * TestWebKitAPI/Tests/WebKitCocoa/pcmWithoutFraudPreventionDatabase.db: Removed.
+    * TestWebKitAPI/Tests/WebKitCocoa/pcmWithoutFraudPreventionDatabase.db-shm: Removed.
+    * TestWebKitAPI/Tests/WebKitCocoa/pcmWithoutFraudPreventionDatabase.db-wal: Removed.
+    * TestWebKitAPI/Tests/WebKitCocoa/pcmWithoutReportingColumns.db: Removed.
+    * TestWebKitAPI/Tests/WebKitCocoa/pcmWithoutReportingColumns.db-shm: Removed.
+    * TestWebKitAPI/Tests/WebKitCocoa/pcmWithoutReportingColumns.db-wal: Removed.
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@281779 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-08-30  Alex Christensen  <achristensen@webkit.org>
+
+            Migrate PrivateClickMeasurements from ResourceLoadStatistics database to new database
+            https://bugs.webkit.org/show_bug.cgi?id=229646
+
+            Reviewed by Kate Cheney.
+
+            * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj:
+            * TestWebKitAPI/Tests/WebKitCocoa/EventAttribution.mm:
+            * TestWebKitAPI/Tests/WebKitCocoa/PrivateClickMeasurement.mm:
+            (webViewWithResourceLoadStatisticsEnabledInNetworkProcess):
+            (addValuesToTable):
+            (earliestTimeToSend):
+            (addAttributedPCMv1):
+            (addUnattributedPCMv1):
+            (addAttributedPCMv2):
+            (addUnattributedPCMv2):
+            (addAttributedPCMv3):
+            (addUnattributedPCMv3):
+            (dumpedPCM):
+            (pollUntilPCMIsMigrated):
+            (emptyObservationsDBPath):
+            (cleanUp):
+            (createAndPopulateObservedDomainTable):
+            (setUp):
+            (TEST):
+            * TestWebKitAPI/Tests/WebKitCocoa/pcmWithoutFraudPreventionDatabase.db: Removed.
+            * TestWebKitAPI/Tests/WebKitCocoa/pcmWithoutFraudPreventionDatabase.db-shm: Removed.
+            * TestWebKitAPI/Tests/WebKitCocoa/pcmWithoutFraudPreventionDatabase.db-wal: Removed.
+            * TestWebKitAPI/Tests/WebKitCocoa/pcmWithoutReportingColumns.db: Removed.
+            * TestWebKitAPI/Tests/WebKitCocoa/pcmWithoutReportingColumns.db-shm: Removed.
+            * TestWebKitAPI/Tests/WebKitCocoa/pcmWithoutReportingColumns.db-wal: Removed.
+
+2021-10-07  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r281723. rdar://problem/83957360
+
+    Add UIEventAttribution SPI that uses PrivateClickMeasurementAttributionEphemeral::Yes
+    https://bugs.webkit.org/show_bug.cgi?id=229623
+    
+    Reviewed by John Wilander.
+    
+    Source/WebKit:
+    
+    This will be used by rdar://80806283.
+    
+    * UIProcess/API/Cocoa/WKWebViewPrivate.h:
+    * UIProcess/API/ios/WKWebViewIOS.mm:
+    (-[WKWebView _setEphemeralUIEventAttribution:]):
+    (-[WKWebView _ephemeralUIEventAttribution]):
+    
+    Tools:
+    
+    * TestWebKitAPI/Tests/WebKitCocoa/EventAttribution.mm:
+    (TestWebKitAPI::TEST):
+    
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@281723 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-08-27  Alex Christensen  <achristensen@webkit.org>
+
+            Add UIEventAttribution SPI that uses PrivateClickMeasurementAttributionEphemeral::Yes
+            https://bugs.webkit.org/show_bug.cgi?id=229623
+
+            Reviewed by John Wilander.
+
+            * TestWebKitAPI/Tests/WebKitCocoa/EventAttribution.mm:
+            (TestWebKitAPI::TEST):
+
+2021-10-07  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r281721. rdar://problem/83957360
+
+    Separate PrivateClickMeasurement database from ResourceLoadStatistics database and add SPI to set its location
+    https://bugs.webkit.org/show_bug.cgi?id=229527
+    
+    Reviewed by Kate Cheney.
+    
+    Source/WebCore:
+    
+    * loader/PrivateClickMeasurement.cpp:
+    (WebCore::PrivateClickMeasurement::SourceSecretToken::isolatedCopy const):
+    (WebCore::PrivateClickMeasurement::EphemeralSourceNonce::isolatedCopy const):
+    (WebCore::PrivateClickMeasurement::SourceUnlinkableToken::isolatedCopy const):
+    (WebCore::PrivateClickMeasurement::isolatedCopy const):
+    * loader/PrivateClickMeasurement.h:
+    
+    Source/WebKit:
+    
+    This will be used by rdar://80806283
+    
+    In order to do this, I moved common code to DatabaseUtilities and moved the PCM logic from ResourceLoadStatisticsDatabaseStore
+    to a new class.  It puts the data in a different file in the same directory unless SPI tells it to put it in a different directory.
+    
+    The biggest functional change I needed to do was to make a PCMObservedDomains table in the new DB instead of an ObservedDomains table,
+    which contained more information than I needed.  I need just an index and a list of domains.
+    
+    Another slight implementation change is that instead of checking isEphemeral in WebResourceLoadStatisticsStore, I just pass an empty
+    String to the Store if it's ephemeral, which causes no DB to be created, which causes equivalent behavior.
+    
+    I also moved the debug message broadcasting to PrivateClickMeasurementManager::attribute in order to make the Database object not
+    need to know about the NetworkProcess and not need to keep state of whether debug mode is enabled.  Database::attributePrivateClickMeasurement
+    now returns a DebugInfo object and PrivateClickMeasurementManager::attribute checks whether debug mode is enabled and broadcasts the messages.
+    
+    I added a few calls to PrivateClickMeasurement::isolatedCopy when moving an PrivateClickMeasurement object to another thread.
+    
+    I added a CompletionHandler to clearPrivateClickMeasurement and clearPrivateClickMeasurementForRegistrableDomain
+    so that clearing website data doesn't say it's done until it's done.
+    
+    An even smaller change is I added a "ForTesting" suffix on some function names of functions that are only used in tests.
+    
+    The rest of this patch just moves code from one location to another.
+    
+    I still need to implement migrating data from the old DB to the new DB.  I'll do that in another patch soon.
+    
+    * CMakeLists.txt:
+    * NetworkProcess/Classifier/ResourceLoadStatisticsDatabaseStore.cpp:
+    (WebKit::expectedTableAndIndexQueries):
+    (WebKit::ResourceLoadStatisticsDatabaseStore::ResourceLoadStatisticsDatabaseStore):
+    (WebKit::ResourceLoadStatisticsDatabaseStore::openITPDatabase):
+    (WebKit::ResourceLoadStatisticsDatabaseStore::needsUpdatedSchema):
+    (WebKit::insertDistinctValuesInTableStatement):
+    (WebKit::ResourceLoadStatisticsDatabaseStore::openAndUpdateSchemaIfNecessary):
+    (WebKit::ResourceLoadStatisticsDatabaseStore::interruptAllDatabases):
+    (WebKit::ResourceLoadStatisticsDatabaseStore::createUniqueIndices):
+    (WebKit::ResourceLoadStatisticsDatabaseStore::createSchema):
+    (WebKit::ResourceLoadStatisticsDatabaseStore::destroyStatements):
+    (WebKit::ResourceLoadStatisticsDatabaseStore::clearDatabaseContents):
+    (WebKit::expectedUnattributedColumns): Deleted.
+    (WebKit::expectedAttributedColumns): Deleted.
+    (WebKit::ResourceLoadStatisticsDatabaseStore::close): Deleted.
+    (WebKit::ResourceLoadStatisticsDatabaseStore::enableForeignKeys): Deleted.
+    (WebKit::ResourceLoadStatisticsDatabaseStore::needsUpdatedPrivateClickMeasurementSchema): Deleted.
+    (WebKit::ResourceLoadStatisticsDatabaseStore::addMissingColumnsToTable): Deleted.
+    (WebKit::ResourceLoadStatisticsDatabaseStore::addMissingColumnsIfNecessary): Deleted.
+    (WebKit::ResourceLoadStatisticsDatabaseStore::renameColumnInTable): Deleted.
+    (WebKit::ResourceLoadStatisticsDatabaseStore::renameColumnsIfNecessary): Deleted.
+    (WebKit::ResourceLoadStatisticsDatabaseStore::scopedStatement const): Deleted.
+    (WebKit::ResourceLoadStatisticsDatabaseStore::interrupt): Deleted.
+    (WebKit::ResourceLoadStatisticsDatabaseStore::buildPrivateClickMeasurementFromDatabase): Deleted.
+    (WebKit::ResourceLoadStatisticsDatabaseStore::findPrivateClickMeasurement): Deleted.
+    (WebKit::ResourceLoadStatisticsDatabaseStore::insertPrivateClickMeasurement): Deleted.
+    (WebKit::ResourceLoadStatisticsDatabaseStore::markAllUnattributedPrivateClickMeasurementAsExpiredForTesting): Deleted.
+    (WebKit::ResourceLoadStatisticsDatabaseStore::removeUnattributed): Deleted.
+    (WebKit::ResourceLoadStatisticsDatabaseStore::attributePrivateClickMeasurement): Deleted.
+    (WebKit::ResourceLoadStatisticsDatabaseStore::allAttributedPrivateClickMeasurement): Deleted.
+    (WebKit::ResourceLoadStatisticsDatabaseStore::clearPrivateClickMeasurement): Deleted.
+    (WebKit::ResourceLoadStatisticsDatabaseStore::clearExpiredPrivateClickMeasurement): Deleted.
+    (WebKit::ResourceLoadStatisticsDatabaseStore::attributionToString): Deleted.
+    (WebKit::ResourceLoadStatisticsDatabaseStore::privateClickMeasurementToString): Deleted.
+    (WebKit::ResourceLoadStatisticsDatabaseStore::earliestTimesToSend): Deleted.
+    (WebKit::ResourceLoadStatisticsDatabaseStore::markReportAsSentToSource): Deleted.
+    (WebKit::ResourceLoadStatisticsDatabaseStore::markReportAsSentToDestination): Deleted.
+    (WebKit::ResourceLoadStatisticsDatabaseStore::clearSentAttribution): Deleted.
+    (WebKit::ResourceLoadStatisticsDatabaseStore::markAttributedPrivateClickMeasurementsAsExpiredForTesting): Deleted.
+    (WebKit::ResourceLoadStatisticsDatabaseStore::beginTransactionIfNecessary): Deleted.
+    * NetworkProcess/Classifier/ResourceLoadStatisticsDatabaseStore.h:
+    * NetworkProcess/Classifier/ResourceLoadStatisticsMemoryStore.h:
+    * NetworkProcess/Classifier/ResourceLoadStatisticsStore.h:
+    * NetworkProcess/Classifier/WebResourceLoadStatisticsStore.cpp:
+    (WebKit::pcmStoreDirectory):
+    (WebKit::WebResourceLoadStatisticsStore::WebResourceLoadStatisticsStore):
+    (WebKit::WebResourceLoadStatisticsStore::create):
+    (WebKit::WebResourceLoadStatisticsStore::didDestroyNetworkSession):
+    (WebKit::WebResourceLoadStatisticsStore::suspend):
+    (WebKit::WebResourceLoadStatisticsStore::insertPrivateClickMeasurement): Deleted.
+    (WebKit::WebResourceLoadStatisticsStore::markAllUnattributedPrivateClickMeasurementAsExpiredForTesting): Deleted.
+    (WebKit::WebResourceLoadStatisticsStore::attributePrivateClickMeasurement): Deleted.
+    (WebKit::WebResourceLoadStatisticsStore::allAttributedPrivateClickMeasurement): Deleted.
+    (WebKit::WebResourceLoadStatisticsStore::clearPrivateClickMeasurement): Deleted.
+    (WebKit::WebResourceLoadStatisticsStore::clearPrivateClickMeasurementForRegistrableDomain): Deleted.
+    (WebKit::WebResourceLoadStatisticsStore::clearExpiredPrivateClickMeasurement): Deleted.
+    (WebKit::WebResourceLoadStatisticsStore::privateClickMeasurementToString): Deleted.
+    (WebKit::WebResourceLoadStatisticsStore::clearSentAttribution): Deleted.
+    (WebKit::WebResourceLoadStatisticsStore::markAttributedPrivateClickMeasurementsAsExpiredForTesting): Deleted.
+    * NetworkProcess/Classifier/WebResourceLoadStatisticsStore.h:
+    * NetworkProcess/DatabaseUtilities.cpp: Added.
+    (WebKit::DatabaseUtilities::DatabaseUtilities):
+    (WebKit::DatabaseUtilities::~DatabaseUtilities):
+    (WebKit::DatabaseUtilities::scopedStatement const):
+    (WebKit::DatabaseUtilities::beginTransactionIfNecessary):
+    (WebKit::DatabaseUtilities::openDatabaseAndCreateSchemaIfNecessary):
+    (WebKit::DatabaseUtilities::enableForeignKeys):
+    (WebKit::DatabaseUtilities::close):
+    (WebKit::DatabaseUtilities::interrupt):
+    * NetworkProcess/DatabaseUtilities.h: Copied from Source/WebKit/NetworkProcess/webrtc/NetworkRTCResolver.h.
+    * NetworkProcess/NetworkProcess.cpp:
+    (WebKit::NetworkProcess::deleteWebsiteData):
+    (WebKit::NetworkProcess::deleteWebsiteDataForOrigins):
+    (WebKit::NetworkProcess::prepareToSuspend):
+    (WebKit::NetworkProcess::resume):
+    (WebKit::NetworkProcess::clearPrivateClickMeasurement):
+    * NetworkProcess/NetworkResourceLoader.cpp:
+    (WebKit::NetworkResourceLoader::willSendRedirectedRequest):
+    (WebKit::NetworkResourceLoader::continueWillSendRedirectedRequest):
+    * NetworkProcess/NetworkSession.cpp:
+    (WebKit::NetworkSession::NetworkSession):
+    (WebKit::NetworkSession::setResourceLoadStatisticsEnabled):
+    (WebKit::NetworkSession::recreateResourceLoadStatisticStore):
+    (WebKit::NetworkSession::dumpPrivateClickMeasurement):
+    (WebKit::NetworkSession::clearPrivateClickMeasurement):
+    (WebKit::NetworkSession::clearPrivateClickMeasurementForRegistrableDomain):
+    * NetworkProcess/NetworkSession.h:
+    * NetworkProcess/PrivateClickMeasurement/PrivateClickMeasurementDatabase.cpp: Added.
+    (WebKit::PCM::Database::Database):
+    (WebKit::PCM::Database::~Database):
+    (WebKit::PCM::Database::interruptAllDatabases):
+    (WebKit::PCM::Database::createSchema):
+    (WebKit::PCM::Database::insertPrivateClickMeasurement):
+    (WebKit::PCM::Database::markAllUnattributedPrivateClickMeasurementAsExpiredForTesting):
+    (WebKit::PCM::Database::findPrivateClickMeasurement):
+    (WebKit::PCM::Database::attributePrivateClickMeasurement):
+    (WebKit::PCM::Database::buildPrivateClickMeasurementFromDatabase):
+    (WebKit::PCM::Database::removeUnattributed):
+    (WebKit::PCM::Database::allAttributedPrivateClickMeasurement):
+    (WebKit::PCM::Database::privateClickMeasurementToStringForTesting):
+    (WebKit::PCM::Database::attributionToStringForTesting):
+    (WebKit::PCM::Database::markAttributedPrivateClickMeasurementsAsExpiredForTesting):
+    (WebKit::PCM::Database::clearPrivateClickMeasurement):
+    (WebKit::PCM::Database::clearExpiredPrivateClickMeasurement):
+    (WebKit::PCM::Database::clearSentAttribution):
+    (WebKit::PCM::Database::markReportAsSentToDestination):
+    (WebKit::PCM::Database::markReportAsSentToSource):
+    (WebKit::PCM::Database::earliestTimesToSend):
+    (WebKit::PCM::Database::domainID):
+    (WebKit::PCM::Database::getDomainStringFromDomainID):
+    (WebKit::PCM::Database::ensureDomainID):
+    (WebKit::PCM::Database::destroyStatements):
+    * NetworkProcess/PrivateClickMeasurement/PrivateClickMeasurementDatabase.h: Added.
+    * NetworkProcess/PrivateClickMeasurement/PrivateClickMeasurementDebugInfo.cpp: Copied from Source/WebKit/NetworkProcess/webrtc/NetworkRTCResolver.h.
+    (WebKit::PCM::DebugInfo::isolatedCopy const):
+    (WebKit::PCM::DebugInfo::Message::isolatedCopy const):
+    * NetworkProcess/PrivateClickMeasurement/PrivateClickMeasurementDebugInfo.h: Copied from Source/WebKit/NetworkProcess/webrtc/NetworkRTCResolver.h.
+    * NetworkProcess/PrivateClickMeasurement/PrivateClickMeasurementStore.cpp: Added.
+    (WebKit::PCM::sharedWorkQueue):
+    (WebKit::PCM::Store::prepareForProcessToSuspend):
+    (WebKit::PCM::Store::processDidResume):
+    (WebKit::PCM::Store::Store):
+    (WebKit::PCM::Store::postTask):
+    (WebKit::PCM::Store::postTaskReply):
+    (WebKit::PCM::Store::insertPrivateClickMeasurement):
+    (WebKit::PCM::Store::markAllUnattributedPrivateClickMeasurementAsExpiredForTesting):
+    (WebKit::PCM::Store::attributePrivateClickMeasurement):
+    (WebKit::PCM::Store::privateClickMeasurementToStringForTesting):
+    (WebKit::PCM::Store::allAttributedPrivateClickMeasurement):
+    (WebKit::PCM::Store::markAttributedPrivateClickMeasurementsAsExpiredForTesting):
+    (WebKit::PCM::Store::clearPrivateClickMeasurement):
+    (WebKit::PCM::Store::clearPrivateClickMeasurementForRegistrableDomain):
+    (WebKit::PCM::Store::clearExpiredPrivateClickMeasurement):
+    (WebKit::PCM::Store::clearSentAttribution):
+    (WebKit::PCM::Store::close):
+    * NetworkProcess/PrivateClickMeasurement/PrivateClickMeasurementStore.h: Added.
+    (WebKit::PCM::Store::create):
+    * NetworkProcess/PrivateClickMeasurementManager.cpp:
+    (WebKit::PrivateClickMeasurementManager::insertPrivateClickMeasurement):
+    (WebKit::PrivateClickMeasurementManager::attribute):
+    (WebKit::PrivateClickMeasurementManager::clearSentAttribution):
+    (WebKit::PrivateClickMeasurementManager::firePendingAttributionRequests):
+    (WebKit::PrivateClickMeasurementManager::clear):
+    (WebKit::PrivateClickMeasurementManager::clearForRegistrableDomain):
+    (WebKit::PrivateClickMeasurementManager::clearExpired):
+    (WebKit::PrivateClickMeasurementManager::toStringForTesting const):
+    (WebKit::PrivateClickMeasurementManager::markAllUnattributedAsExpiredForTesting):
+    (WebKit::PrivateClickMeasurementManager::markAttributedPrivateClickMeasurementsAsExpiredForTesting):
+    (WebKit::PrivateClickMeasurementManager::toString const): Deleted.
+    * NetworkProcess/PrivateClickMeasurementManager.h:
+    * NetworkProcess/PrivateClickMeasurementNetworkLoader.cpp:
+    (WebKit::PrivateClickMeasurementNetworkLoader::~PrivateClickMeasurementNetworkLoader):
+    (WebKit::PrivateClickMeasurementNetworkLoader::cancel):
+    (WebKit::PrivateClickMeasurementNetworkLoader::willSendRedirectedRequest):
+    * NetworkProcess/PrivateClickMeasurementNetworkLoader.h:
+    * NetworkProcess/cache/NetworkCacheSpeculativeLoadManager.cpp:
+    * NetworkProcess/webrtc/NetworkRTCResolver.h:
+    * NetworkProcess/webrtc/NetworkRTCResolverCocoa.cpp:
+    (WebKit::resolvedName):
+    * Shared/ResourceLoadStatisticsParameters.h:
+    (WebKit::ResourceLoadStatisticsParameters::encode const):
+    (WebKit::ResourceLoadStatisticsParameters::decode):
+    * Sources.txt:
+    * UIProcess/API/Cocoa/WKWebsiteDataStore.mm:
+    (+[WKWebsiteDataStore _setNetworkProcessSuspensionAllowedForTesting:]):
+    (+[WKWebsiteDataStore _preventNetworkProcessSuspensionForTesting]): Deleted.
+    * UIProcess/API/Cocoa/WKWebsiteDataStorePrivate.h:
+    * UIProcess/API/Cocoa/_WKWebsiteDataStoreConfiguration.h:
+    * UIProcess/API/Cocoa/_WKWebsiteDataStoreConfiguration.mm:
+    (-[_WKWebsiteDataStoreConfiguration privateClickMeasurementStorageDirectory]):
+    (-[_WKWebsiteDataStoreConfiguration setPrivateClickMeasurementStorageDirectory:]):
+    * UIProcess/Network/NetworkProcessProxy.cpp:
+    (WebKit::NetworkProcessProxy::setSuspensionAllowedForTesting):
+    (WebKit::NetworkProcessProxy::sendPrepareToSuspend):
+    (WebKit::NetworkProcessProxy::preventSuspensionForTesting): Deleted.
+    * UIProcess/Network/NetworkProcessProxy.h:
+    * UIProcess/WebsiteData/WebsiteDataStore.cpp:
+    (WebKit::WebsiteDataStore::resolveDirectoriesIfNecessary):
+    (WebKit::WebsiteDataStore::parameters):
+    * UIProcess/WebsiteData/WebsiteDataStoreConfiguration.cpp:
+    (WebKit::WebsiteDataStoreConfiguration::copy const):
+    * UIProcess/WebsiteData/WebsiteDataStoreConfiguration.h:
+    (WebKit::WebsiteDataStoreConfiguration::privateClickMeasurementStorageDirectory const):
+    (WebKit::WebsiteDataStoreConfiguration::setPrivateClickMeasurementStorageDirectory):
+    * WebKit.xcodeproj/project.pbxproj:
+    
+    Tools:
+    
+    * TestWebKitAPI/Tests/WebKitCocoa/EventAttribution.mm:
+    (TestWebKitAPI::runBasicEventAttributionTest):
+    (TestWebKitAPI::TEST):
+    * TestWebKitAPI/Tests/WebKitCocoa/PrivateClickMeasurement.mm:
+    (TEST):
+    
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@281721 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-08-27  Alex Christensen  <achristensen@webkit.org>
+
+            Separate PrivateClickMeasurement database from ResourceLoadStatistics database and add SPI to set its location
+            https://bugs.webkit.org/show_bug.cgi?id=229527
+
+            Reviewed by Kate Cheney.
+
+            * TestWebKitAPI/Tests/WebKitCocoa/EventAttribution.mm:
+            (TestWebKitAPI::runBasicEventAttributionTest):
+            (TestWebKitAPI::TEST):
+            * TestWebKitAPI/Tests/WebKitCocoa/PrivateClickMeasurement.mm:
+            (TEST):
+
+2021-10-07  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r281699. rdar://problem/83953557
+
+    REGRESSION (r281516): imported/w3c/web-platform-tests/IndexedDB/serialize-sharedarraybuffer-throws.https.html is failing
+    https://bugs.webkit.org/show_bug.cgi?id=229501
+    <rdar://problem/82346152>
+    
+    Reviewed by Darin Adler.
+    
+    Tools:
+    
+    In case of a COOP process-swap, the old process gets a didFailProvisionalLoadWithErrorForFrame delegate call. We want to ignore
+    this call in WKTR's injected bundle since it causes the test to dump its output too eagerly, before the test has had a chance
+    to run in the new process.
+    
+    * WebKitTestRunner/InjectedBundle/InjectedBundlePage.cpp:
+    (WTR::InjectedBundlePage::didFailProvisionalLoadWithErrorForFrame):
+    (WTR::InjectedBundlePage::didCommitLoadForFrame):
+    * WebKitTestRunner/InjectedBundle/InjectedBundlePage.h:
+    
+    LayoutTests:
+    
+    Unskip tests now that they should no longer be flaky.
+    
+    * platform/ios/TestExpectations:
+    * platform/mac/TestExpectations:
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@281699 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-08-27  Chris Dumez  <cdumez@apple.com>
+
+            REGRESSION (r281516): imported/w3c/web-platform-tests/IndexedDB/serialize-sharedarraybuffer-throws.https.html is failing
+            https://bugs.webkit.org/show_bug.cgi?id=229501
+            <rdar://problem/82346152>
+
+            Reviewed by Darin Adler.
+
+            In case of a COOP process-swap, the old process gets a didFailProvisionalLoadWithErrorForFrame delegate call. We want to ignore
+            this call in WKTR's injected bundle since it causes the test to dump its output too eagerly, before the test has had a chance
+            to run in the new process.
+
+            * WebKitTestRunner/InjectedBundle/InjectedBundlePage.cpp:
+            (WTR::InjectedBundlePage::didFailProvisionalLoadWithErrorForFrame):
+            (WTR::InjectedBundlePage::didCommitLoadForFrame):
+            * WebKitTestRunner/InjectedBundle/InjectedBundlePage.h:
+
+2021-10-07  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r281480. rdar://problem/83957360
+
+    PCM: Support ephemeral measurement with non-persistent WebCore::PrivateClickMeasurement
+    https://bugs.webkit.org/show_bug.cgi?id=228984
+    <rdar://problem/81778213>
+    
+    Reviewed by Kate Cheney.
+    
+    This patch adds support for ephemeral measurement with non-persistent
+    WebCore::PrivateClickMeasurement for direct response advertising.
+    Such advertising means there is only one pending click, held in memory,
+    and only stored right before the triggering event causes attribution
+    reports to be scheduled.
+    
+    Source/WebCore:
+    
+    Test: http/tests/privateClickMeasurement/attribution-conversion-through-image-redirect-ephemeral.html
+    
+    * loader/PrivateClickMeasurement.h:
+    (WebCore::PrivateClickMeasurement::SourceSite::operator!= const):
+    (WebCore::PrivateClickMeasurement::AttributionDestinationSite::operator!= const):
+    (WebCore::PrivateClickMeasurement::PrivateClickMeasurement):
+        Now takes an optional PrivateClickMeasurementAttributionEphemeral
+        parameter, set to PrivateClickMeasurementAttributionEphemeral::No
+        by default.
+    (WebCore::PrivateClickMeasurement::isEphemeral const):
+    (WebCore::PrivateClickMeasurement::setEphemeral):
+    (WebCore::PrivateClickMeasurement::encode const):
+    (WebCore::PrivateClickMeasurement::decode):
+    
+    Source/WebKit:
+    
+    * NetworkProcess/Classifier/WebResourceLoadStatisticsStore.cpp:
+    (WebKit::WebResourceLoadStatisticsStore::attributePrivateClickMeasurement):
+        Now takes an optional ephemeral PrivateClickMeasurement parameter
+        and stores it right before moving on with attribution.
+    * NetworkProcess/Classifier/WebResourceLoadStatisticsStore.h:
+    * NetworkProcess/NetworkProcess.cpp:
+    (WebKit::NetworkProcess::setPrivateClickMeasurementEphemeralMeasurementForTesting):
+        Test infrastructure.
+    * NetworkProcess/NetworkProcess.h:
+    * NetworkProcess/NetworkProcess.messages.in:
+    * NetworkProcess/NetworkSession.cpp:
+    (WebKit::NetworkSession::setPrivateClickMeasurementEphemeralMeasurementForTesting):
+        Test infrastructure.
+    * NetworkProcess/NetworkSession.h:
+    * NetworkProcess/PrivateClickMeasurementManager.cpp:
+    (WebKit::PrivateClickMeasurementManager::storeUnattributed):
+    (WebKit::PrivateClickMeasurementManager::getSignedUnlinkableToken):
+    (WebKit::PrivateClickMeasurementManager::insertPrivateClickMeasurement):
+        New convenience function. Only stores in memory if the
+        PrivateClickMeasurement parameter is marked as ephemeral.
+    (WebKit::PrivateClickMeasurementManager::attribute):
+        Checks that the triggering event matches the ephemeral measurement if
+        it exists, and if so, forwards it.
+    (WebKit::PrivateClickMeasurementManager::clear):
+        Now clears the ephemeral state too.
+    * NetworkProcess/PrivateClickMeasurementManager.h:
+    (WebKit::PrivateClickMeasurementManager::setEphemeralMeasurementForTesting):
+        Test infrastructure.
+    * UIProcess/API/C/WKPage.cpp:
+    (WKPageSetPrivateClickMeasurementEphemeralMeasurementForTesting):
+        Test infrastructure.
+    * UIProcess/API/C/WKPagePrivate.h:
+    * UIProcess/WebPageProxy.cpp:
+    (WebKit::WebPageProxy::setPrivateClickMeasurementEphemeralMeasurementForTesting):
+        Test infrastructure.
+    * UIProcess/WebPageProxy.h:
+    
+    Tools:
+    
+    * WebKitTestRunner/InjectedBundle/Bindings/TestRunner.idl:
+    * WebKitTestRunner/InjectedBundle/TestRunner.cpp:
+    (WTR::TestRunner::setPrivateClickMeasurementEphemeralMeasurementForTesting):
+    * WebKitTestRunner/InjectedBundle/TestRunner.h:
+    * WebKitTestRunner/TestController.cpp:
+    (WTR::TestController::setPrivateClickMeasurementEphemeralMeasurementForTesting):
+    * WebKitTestRunner/TestController.h:
+    * WebKitTestRunner/TestInvocation.cpp:
+    (WTR::TestInvocation::didReceiveSynchronousMessageFromInjectedBundle):
+    
+    LayoutTests:
+    
+    * http/tests/privateClickMeasurement/attribution-conversion-through-image-redirect-ephemeral-expected.txt: Added.
+    * http/tests/privateClickMeasurement/attribution-conversion-through-image-redirect-ephemeral.html: Added.
+    * http/tests/privateClickMeasurement/resources/util.js:
+    (tearDownAndFinish):
+        Resets the new testRunner.setPrivateClickMeasurementEphemeralMeasurementForTesting().
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@281480 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-08-23  John Wilander  <wilander@apple.com>
+
+            PCM: Support ephemeral measurement with non-persistent WebCore::PrivateClickMeasurement
+            https://bugs.webkit.org/show_bug.cgi?id=228984
+            <rdar://problem/81778213>
+
+            Reviewed by Kate Cheney.
+
+            This patch adds support for ephemeral measurement with non-persistent
+            WebCore::PrivateClickMeasurement for direct response advertising.
+            Such advertising means there is only one pending click, held in memory,
+            and only stored right before the triggering event causes attribution
+            reports to be scheduled.
+
+            * WebKitTestRunner/InjectedBundle/Bindings/TestRunner.idl:
+            * WebKitTestRunner/InjectedBundle/TestRunner.cpp:
+            (WTR::TestRunner::setPrivateClickMeasurementEphemeralMeasurementForTesting):
+            * WebKitTestRunner/InjectedBundle/TestRunner.h:
+            * WebKitTestRunner/TestController.cpp:
+            (WTR::TestController::setPrivateClickMeasurementEphemeralMeasurementForTesting):
+            * WebKitTestRunner/TestController.h:
+            * WebKitTestRunner/TestInvocation.cpp:
+            (WTR::TestInvocation::didReceiveSynchronousMessageFromInjectedBundle):
+
+2021-10-07  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r281470. rdar://problem/83957311
+
+    LayoutTests/imported/w3c:
+    Preserve color space when getting current color in DisplayListDrawGlyphsRecorder.
+    https://bugs.webkit.org/show_bug.cgi?id=229024
+    <rdar://problem/81828477>
+    
+    Reviewed by Sam Weinig.
+    
+    Add tests for calling fillText() and strokeText() with a display-p3
+    color for fillStyle, strokeStyle, and shadowColor, on a display-p3 canvas.
+    
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.fillText-expected.txt: Added.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.fillText.html: Added.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.fillText.shadow-expected.txt: Added.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.fillText.shadow.html: Added.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.strokeText-expected.txt: Added.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.strokeText.html: Added.
+    * web-platform-tests/html/canvas/tools/yaml/element/color_space.yaml:
+    
+    Source/WebCore:
+    Preserve color space when getting current color in DisplayList::DrawGlyphsRecorder
+    https://bugs.webkit.org/show_bug.cgi?id=229024
+    <rdar://problem/81828477>
+    
+    Reviewed by Sam Weinig.
+    
+    When GPU canvas is enabled, DrawGlyphsRecorder records the text fill,
+    stroke, and shadow colors by getting them from the context using
+    CGGStateGetFillColor etc.  This is done so that color glyphs have each
+    part painted in the right color.  But the current conversion from
+    CGColor to WebCore::Color lossily converts to sRGB.  So we need to get
+    the color space and color components from the CGColor and preserve them.
+    
+    The existing Color(CGColorRef) constructor is replaced by two
+    constructor functions, createAndPreserveColorSpace and
+    roundAndClampToSRGBALossy, so the conversion behavior is clear at call
+    sites.  createAndPreserveColorSpace will match the CGColor's color
+    space to one of the predefined spaces that WebCore::Color can
+    represent.  If it's some other color space, we convert to XYZ (on
+    platforms where that's available), since that will result in the least
+    loss, or to sRGB (on platforms where XYZ is not available).
+    
+    CGColorSpaceEqualToColorSpace, which is used when determining the
+    CGColor's color space, is not very expensive, but it will do more than a
+    pointer comparison in case we pass in two CGColorSpaceRefs that are
+    equivalent but not the same pointer value.  Since our new
+    colorSpaceForCGColorSpace function will be used with CGColors that have
+    been set WebCore during canvas drawing, we will get back the same
+    pointers that we have cached in sRGBColorSpaceRef(),
+    displayP3ColorSpaceRef(), etc.  If calling CGColorSpaceEqualToColorSpace
+    on all our supported color spaces turns out to be too expensive, we
+    could start by doing a pointer comparison on each before calling
+    CGColorSpaceEqualToColorSpace.
+    
+    The way colorSpaceForCGColorSpace is written we could end up
+    instantiating all of our supported color spaces, if an author used an
+    XYZ color when drawing text (the last color profile we check).  We
+    could try harder to avoid doing this if it's important.
+    
+    Tests: imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.fillText.html
+           imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.fillText.shadow.html
+           imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.strokeText.html
+    
+    * page/CaptionUserPreferencesMediaAF.cpp:
+    (WebCore::CaptionUserPreferencesMediaAF::captionsWindowCSS const):
+    (WebCore::CaptionUserPreferencesMediaAF::captionsBackgroundCSS const):
+    (WebCore::CaptionUserPreferencesMediaAF::captionsTextColor const):
+    * platform/graphics/Color.h:
+    (WebCore::Color::createAndPreserveColorSpace):
+    (WebCore::Color::createAndLosslesslyConvertToSupportedColorSpace):
+    * platform/graphics/ca/cocoa/PlatformCALayerCocoa.mm:
+    (WebCore::PlatformCALayerCocoa::backgroundColor const):
+    * platform/graphics/ca/cocoa/WebTiledBackingLayer.mm:
+    (-[WebTiledBackingLayer setBorderColor:]):
+    * platform/graphics/ca/win/PlatformCALayerWin.cpp:
+    (PlatformCALayerWin::backgroundColor const):
+    (printColor):
+    * platform/graphics/ca/win/PlatformCALayerWinInternal.cpp:
+    (PlatformCALayerWinInternal::drawRepaintCounters):
+    * platform/graphics/cg/ColorCG.cpp:
+    (WebCore::roundAndClampToSRGBALossy):
+    (WebCore::Color::createAndLosslesslyConvertToSupportedColorSpace):
+    (WebCore::Color::createAndPreserveColorSpace):
+    (WebCore::platformConvertColorComponents):
+    * platform/graphics/cg/ColorSpaceCG.cpp:
+    (WebCore::colorSpaceForCGColorSpace):
+    * platform/graphics/cg/ColorSpaceCG.h:
+    * platform/graphics/displaylists/DisplayListDrawGlyphsRecorderCoreText.cpp:
+    (WebCore::DisplayList::DrawGlyphsRecorder::updateShadow):
+    (WebCore::DisplayList::DrawGlyphsRecorder::recordDrawGlyphs):
+    * platform/graphics/win/MediaPlayerPrivateFullscreenWindow.cpp:
+    (WebCore::MediaPlayerPrivateFullscreenWindow::setRootChildLayer):
+    * platform/ios/PlatformPasteboardIOS.mm:
+    (WebCore::PlatformPasteboard::color):
+    * rendering/RenderThemeIOS.mm:
+    (WebCore::systemColorFromCSSValueSystemColorInformation):
+    
+    Source/WebKit:
+    Preserve color space when getting current color in DisplayList::DrawGlyphsRecorder
+    https://bugs.webkit.org/show_bug.cgi?id=229024
+    <rdar://problem/81828477>
+    
+    Reviewed by Sam Weinig.
+    
+    Change existing CGColor -> WebCore::Color conversions to be explicit
+    about lossily converting to sRGB.
+    
+    * UIProcess/API/Cocoa/WKWebView.mm:
+    (-[WKWebView setUnderPageBackgroundColor:]):
+    * UIProcess/API/Cocoa/_WKApplicationManifest.mm:
+    (-[_WKApplicationManifest initWithCoder:]):
+    * UIProcess/mac/WebPageProxyMac.mm:
+    (WebKit::WebPageProxy::platformUnderPageBackgroundColor const):
+    * WebProcess/Plugins/PDF/PDFPlugin.mm:
+    (WebKit::PDFPlugin::PDFPlugin):
+    
+    Tools:
+    Preserve color space when getting current color in DisplayList::DrawGlyphsRecorder
+    https://bugs.webkit.org/show_bug.cgi?id=229024
+    <rdar://problem/81828477>
+    
+    Reviewed by Sam Weinig.
+    
+    Change existing CGColor -> WebCore::Color conversions to be explicit
+    about lossily converting to sRGB.
+    
+    * TestWebKitAPI/Tests/WebKitCocoa/SampledPageTopColor.mm:
+    (TEST):
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@281470 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-08-23  Cameron McCormack  <heycam@apple.com>
+
+            Preserve color space when getting current color in DisplayList::DrawGlyphsRecorder
+            https://bugs.webkit.org/show_bug.cgi?id=229024
+            <rdar://problem/81828477>
+
+            Reviewed by Sam Weinig.
+
+            Change existing CGColor -> WebCore::Color conversions to be explicit
+            about lossily converting to sRGB.
+
+            * TestWebKitAPI/Tests/WebKitCocoa/SampledPageTopColor.mm:
+            (TEST):
+
+2021-10-07  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r281349. rdar://problem/83957360
+
+    Make UIEventAttribution tests less platform dependent
+    https://bugs.webkit.org/show_bug.cgi?id=229323
+    
+    Reviewed by John Wilander.
+    
+    Source/WebKit:
+    
+    This allows me to run the UIEventAttribution tests on macOS.
+    It also makes them not time out, which they were doing since r277447.
+    To accomplish this, I added more test SPI to prevent the network process
+    suspension message, which was causing the test to time out on the iOS simulator.
+    
+    * UIProcess/API/Cocoa/WKWebViewPrivateForTesting.h:
+    * UIProcess/API/Cocoa/WKWebViewTesting.mm:
+    (-[WKWebView _addEventAttributionWithSourceID:destinationURL:sourceDescription:purchaser:reportEndpoint:optionalNonce:]):
+    * UIProcess/API/Cocoa/WKWebsiteDataStore.mm:
+    (+[WKWebsiteDataStore _preventNetworkProcessSuspensionForTesting]):
+    * UIProcess/API/Cocoa/WKWebsiteDataStorePrivate.h:
+    * UIProcess/API/ios/WKWebViewPrivateForTestingIOS.h:
+    * UIProcess/API/ios/WKWebViewTestingIOS.mm:
+    (-[WKWebView _setUIEventAttributionForTesting:withNonce:]): Deleted.
+    * UIProcess/Network/NetworkProcessProxy.cpp:
+    (WebKit::NetworkProcessProxy::preventSuspensionForTesting):
+    (WebKit::NetworkProcessProxy::sendPrepareToSuspend):
+    * UIProcess/Network/NetworkProcessProxy.h:
+    
+    Tools:
+    
+    * TestWebKitAPI/Tests/WebKitCocoa/EventAttribution.mm:
+    (TestWebKitAPI::exampleURL):
+    (TestWebKitAPI::runBasicEventAttributionTest):
+    (TestWebKitAPI::TEST):
+    
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@281349 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-08-20  Alex Christensen  <achristensen@webkit.org>
+
+            Make UIEventAttribution tests less platform dependent
+            https://bugs.webkit.org/show_bug.cgi?id=229323
+
+            Reviewed by John Wilander.
+
+            * TestWebKitAPI/Tests/WebKitCocoa/EventAttribution.mm:
+            (TestWebKitAPI::exampleURL):
+            (TestWebKitAPI::runBasicEventAttributionTest):
+            (TestWebKitAPI::TEST):
+
 2021-09-27  Alan Coon  <alancoon@apple.com>
 
         Cherry-pick r283035. rdar://problem/83584492

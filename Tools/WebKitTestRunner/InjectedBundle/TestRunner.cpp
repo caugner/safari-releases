@@ -969,6 +969,11 @@ void TestRunner::queueLoadHTMLString(JSStringRef content, JSStringRef baseURL, J
     InjectedBundle::singleton().queueLoadHTMLString(toWK(content).get(), baseURLWK.get(), unreachableURLWK.get());
 }
 
+void TestRunner::stopLoading()
+{
+    WKBundlePageStopLoading(page());
+}
+
 void TestRunner::queueReload()
 {
     InjectedBundle::singleton().queueReload();
@@ -1074,6 +1079,11 @@ void TestRunner::setShouldDownloadUndisplayableMIMETypes(bool value)
 void TestRunner::setShouldAllowDeviceOrientationAndMotionAccess(bool value)
 {
     postPageMessage("SetShouldAllowDeviceOrientationAndMotionAccess", value);
+}
+
+void TestRunner::terminateGPUProcess()
+{
+    postSynchronousPageMessage("TerminateGPUProcess");
 }
 
 void TestRunner::terminateNetworkProcess()
@@ -1819,6 +1829,11 @@ bool TestRunner::isMockRealtimeMediaSourceCenterEnabled()
     return postSynchronousMessageReturningBoolean("IsMockRealtimeMediaSourceCenterEnabled");
 }
 
+void TestRunner::setMockCameraIsInterrupted(bool isInterrupted)
+{
+    postSynchronousMessage("SetMockCameraIsInterrupted", isInterrupted);
+}
+
 #if ENABLE(GAMEPAD)
 
 void TestRunner::connectMockGamepad(unsigned index)
@@ -2071,6 +2086,11 @@ void TestRunner::markAttributedPrivateClickMeasurementsAsExpiredForTesting()
     postSynchronousPageMessage("MarkAttributedPrivateClickMeasurementsAsExpiredForTesting");
 }
 
+void TestRunner::setPrivateClickMeasurementEphemeralMeasurementForTesting(bool value)
+{
+    postSynchronousPageMessage("SetPrivateClickMeasurementEphemeralMeasurementForTesting", value);
+}
+
 void TestRunner::simulateResourceLoadStatisticsSessionRestart()
 {
     postSynchronousPageMessage("SimulateResourceLoadStatisticsSessionRestart");
@@ -2109,6 +2129,12 @@ void TestRunner::setPrivateClickMeasurementFraudPreventionValuesForTesting(JSStr
         { "Signature", toWK(signature) },
         { "KeyID", toWK(keyID) },
     }));
+}
+
+void TestRunner::setPrivateClickMeasurementAppBundleIDForTesting(JSStringRef appBundleID)
+{
+    postSynchronousPageMessage("SetPrivateClickMeasurementAppBundleIDForTesting",
+        toWK(appBundleID));
 }
 
 bool TestRunner::hasAppBoundSession()

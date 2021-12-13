@@ -2261,11 +2261,6 @@ webkit.org/b/226299 [ BigSur ] http/tests/performance/performance-resource-timin
 # rdar://80340280 ([ Monterey Debug ] http/tests/media/user-gesture-preserved-across-xmlhttprequest.html is a flaky timeout)
 [ Monterey Debug ] http/tests/media/user-gesture-preserved-across-xmlhttprequest.html [ Pass Timeout ]
 
-#rdar://80344478 ([ Monterey ] 3 imported/w3c/web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap* tests timing out)
-[ Monterey ] imported/w3c/web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-drawImage.html [ Timeout ]
-[ Monterey ] imported/w3c/web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-flipY.html [ Timeout ]
-[ Monterey ] imported/w3c/web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-serializable.html [ Timeout ]
-
 [ BigSur Monterey ] webaudio/Panner/hrtf-database.html [ Pass ]
 [ BigSur Monterey ] webaudio/codec-tests/aac/vbr-128kbps-44khz.html [ Pass ]
 
@@ -2305,9 +2300,6 @@ webkit.org/b/228311 imported/w3c/web-platform-tests/css/css-scoping/css-scoping-
 # webkit.org/b/228200 Adjusting test expectations for Monterey on Open Source <rdar://80344138>:
 [ Monterey ] imported/w3c/web-platform-tests/fetch/connection-pool/network-partition-key.html [ Failure ]
 
-# rdar://77527267 REGRESSION: imported/w3c/web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-flipY.html is a constant timeout and is flaky crashing and text failing
-[ Monterey ] imported/w3c/web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-invalid-args.html [ Pass Failure Timeout ]
-
 # webkit.org/b/228200 Setting multiple test expectations for Monetery on OpenSource:
 [ Monterey ] model-element/model-element-graphics-layers-opacity.html [ Pass Failure ]
 [ Monterey Debug arm64 ] imported/w3c/web-platform-tests/webrtc/RTCPeerConnection-restartIce.https.html [ Pass Failure Crash ]
@@ -2324,3 +2316,28 @@ webkit.org/b/229244 imported/w3c/web-platform-tests/IndexedDB/key-generators/rea
 
 webkit.org/b/228396 fast/speechsynthesis/speech-synthesis-speak-empty-string.html [ Pass Failure ]
 
+# display-p3 canvas and ImageData are Cocoa only for now.
+[ Monterey+ ] fast/canvas/canvas-color-space-display-p3-ImageData.html [ Pass ]
+[ Monterey+ ] fast/canvas/canvas-color-space-display-p3.html [ Pass ]
+[ Monterey+ ] imported/w3c/web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-Blob.html [ Pass ]
+[ Monterey+ ] imported/w3c/web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-ImageBitmap.html [ Pass ]
+[ Monterey+ ] imported/w3c/web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-ImageData.html [ Pass ]
+[ Monterey+ ] imported/w3c/web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-canvas.html [ Pass ]
+[ Monterey+ ] imported/w3c/web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-cloned.html [ Pass ]
+[ Monterey+ ] imported/w3c/web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-image.html [ Pass ]
+[ Monterey+ ] imported/w3c/web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage.https.html [ Pass ]
+[ Monterey+ ] imported/w3c/web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-pattern-canvas.html [ Pass ]
+[ Monterey+ ] imported/w3c/web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-pattern-image.html [ Pass ]
+[ Monterey+ ] imported/w3c/web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-settings.html [ Pass ]
+[ Monterey+ ] imported/w3c/web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-draw-high-bit-depth-images.html [ Pass ]
+[ Monterey+ ] imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.fillText.html [ Pass ]
+[ Monterey+ ] imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.fillText.shadow.html [ Pass ]
+[ Monterey+ ] imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.strokeText.html [ Pass ]
+[ Monterey+ ] imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.to.p3.html [ Pass ]
+[ Monterey+ ] imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.to.srgb.html [ Pass ]
+[ Monterey+ ] imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.toBlob.p3.canvas.html [ Pass ]
+[ Monterey+ ] imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.toBlob.with.putImageData.html [ Pass ]
+[ Monterey+ ] imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.toDataURL.jpeg.p3.canvas.html [ Pass ]
+[ Monterey+ ] imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.toDataURL.p3.canvas.html [ Pass ]
+[ Monterey+ ] imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.toDataURL.with.putImageData.html [ Pass ]
+[ Monterey+ ] storage/indexeddb/structured-clone-image-data-display-p3.html [ Pass ]

@@ -277,10 +277,12 @@ public:
     void setOpenPanelFileURLsMediaIcon(WKDataRef mediaIcon) { m_openPanelFileURLsMediaIcon = mediaIcon; }
 #endif
 
+    void terminateGPUProcess();
     void terminateNetworkProcess();
     void terminateServiceWorkers();
 
     void resetQuota();
+    void clearStorage();
 
     void removeAllSessionCredentials();
 
@@ -306,6 +308,7 @@ public:
     void resetMockMediaDevices();
     void setMockCameraOrientation(uint64_t);
     bool isMockRealtimeMediaSourceCenterEnabled() const;
+    void setMockCameraIsInterrupted(bool);
     bool hasAppBoundSession();
 
     void injectUserScript(WKStringRef);
@@ -345,12 +348,14 @@ public:
     void clearPrivateClickMeasurementsThroughWebsiteDataRemoval();
     void setPrivateClickMeasurementOverrideTimerForTesting(bool value);
     void markAttributedPrivateClickMeasurementsAsExpiredForTesting();
+    void setPrivateClickMeasurementEphemeralMeasurementForTesting(bool value);
     void simulateResourceLoadStatisticsSessionRestart();
     void setPrivateClickMeasurementTokenPublicKeyURLForTesting(WKURLRef);
     void setPrivateClickMeasurementTokenSignatureURLForTesting(WKURLRef);
     void setPrivateClickMeasurementAttributionReportURLsForTesting(WKURLRef sourceURL, WKURLRef destinationURL);
     void markPrivateClickMeasurementsAsExpiredForTesting();
     void setPCMFraudPreventionValuesForTesting(WKStringRef unlinkableToken, WKStringRef secretToken, WKStringRef signature, WKStringRef keyID);
+    void setPrivateClickMeasurementAppBundleIDForTesting(WKStringRef);
 
     void didSetAppBoundDomains() const;
 

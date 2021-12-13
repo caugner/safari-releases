@@ -1,3 +1,2506 @@
+2021-11-04  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r282379. rdar://problem/85039227
+
+    Fix computed style for transform-origin on SVG boxes
+    https://bugs.webkit.org/show_bug.cgi?id=230172
+    
+    Reviewed by Alan Bujtas.
+    
+    LayoutTests/imported/w3c:
+    
+    * web-platform-tests/css/css-transforms/transform-origin-014-expected.txt:
+    
+    Source/WebCore:
+    
+    When getting the computed value for transform-origin on SVG boxes, we need to get
+    the appropriate "reference box" from the renderer. Do minor refactoring to share
+    code between rendering and computed style for SVG and non-SVG boxes.
+    
+    Tested by imported/w3c/web-platform-tests/css/css-transforms/transform-origin-014.html
+    
+    * css/CSSComputedStyleDeclaration.cpp:
+    (WebCore::transformReferenceBox):
+    (WebCore::ComputedStyleExtractor::valueForPropertyInStyle):
+    * rendering/RenderLayer.cpp:
+    (WebCore::transformBoxToCSSBoxType): Deleted.
+    * rendering/style/RenderStyleConstants.cpp:
+    (WebCore::transformBoxToCSSBoxType):
+    * rendering/style/RenderStyleConstants.h:
+    * rendering/svg/SVGRenderSupport.cpp:
+    (WebCore::SVGRenderSupport::transformReferenceBox):
+    * rendering/svg/SVGRenderSupport.h:
+    * svg/SVGGraphicsElement.cpp:
+    (WebCore::SVGGraphicsElement::animatedLocalTransform const):
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@282379 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-09-13  Simon Fraser  <simon.fraser@apple.com>
+
+            Fix computed style for transform-origin on SVG boxes
+            https://bugs.webkit.org/show_bug.cgi?id=230172
+
+            Reviewed by Alan Bujtas.
+
+            * web-platform-tests/css/css-transforms/transform-origin-014-expected.txt:
+
+2021-11-04  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r284853. rdar://problem/84516016
+
+    Fix issue for transform-origin in SVG
+    https://bugs.webkit.org/show_bug.cgi?id=232189
+    
+    Patch by Nikolaos Mouchtaris <nmouchtaris@apple.com> on 2021-10-25
+    Reviewed by Simon Fraser.
+    
+    LayoutTests/imported/w3c:
+    
+    * web-platform-tests/svg/styling/render/transform-origin-not-explicit-style-ref.svg: Added.
+    * web-platform-tests/svg/styling/render/transform-origin-not-explicit-style.svg: Added.
+    
+    Source/WebCore:
+    
+    Add temp fix to use previously ignored transform-origin in SVGGraphicsElement::animatedLocalTransform
+    if not explicitly set in style. Proper fix to come: https://bugs.webkit.org/show_bug.cgi?id=232128.
+    
+    Tests: imported/w3c/web-platform-tests/svg/styling/render/transform-origin-not-explicit-style-ref.svg
+           imported/w3c/web-platform-tests/svg/styling/render/transform-origin-not-explicit-style.svg
+    
+    * svg/SVGGraphicsElement.cpp:
+    (WebCore::SVGGraphicsElement::animatedLocalTransform const):
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@284853 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-10-25  Nikolaos Mouchtaris  <nmouchtaris@apple.com>
+
+            Fix issue for transform-origin in SVG
+            https://bugs.webkit.org/show_bug.cgi?id=232189
+
+            Reviewed by Simon Fraser.
+
+            * web-platform-tests/svg/styling/render/transform-origin-not-explicit-style-ref.svg: Added.
+            * web-platform-tests/svg/styling/render/transform-origin-not-explicit-style.svg: Added.
+
+2021-10-25  Null  <null@apple.com>
+
+        Cherry-pick r284652. rdar://problem/84517013
+
+    FileSystemSyncAccessHandle should close platform file handle on close()
+    https://bugs.webkit.org/show_bug.cgi?id=232067
+    <rdar://problem/84517013>
+    
+    Reviewed by Youenn Fablet.
+    
+    LayoutTests/imported/w3c:
+    
+    * web-platform-tests/file-system-access/sandboxed_FileSystemSyncAccessHandle-close.https.tentative.worker-expected.txt:
+    
+    Source/WebCore:
+    
+    This patch also ensures no request is sent after close() is called.
+    
+    Test: storage/filesystemaccess/sync-access-handle-close-worker.html
+    
+    * Modules/filesystemaccess/FileSystemFileHandle.cpp:
+    (WebCore::FileSystemFileHandle::createSyncAccessHandle):
+    * Modules/filesystemaccess/FileSystemSyncAccessHandle.cpp:
+    (WebCore::FileSystemSyncAccessHandle::FileSystemSyncAccessHandle):
+    (WebCore::FileSystemSyncAccessHandle::~FileSystemSyncAccessHandle):
+    (WebCore::FileSystemSyncAccessHandle::isClosingOrClosed const):
+    (WebCore::FileSystemSyncAccessHandle::truncate):
+    (WebCore::FileSystemSyncAccessHandle::getSize):
+    (WebCore::FileSystemSyncAccessHandle::flush):
+    (WebCore::FileSystemSyncAccessHandle::close):
+    (WebCore::FileSystemSyncAccessHandle::didClose):
+    (WebCore::FileSystemSyncAccessHandle::read):
+    (WebCore::FileSystemSyncAccessHandle::write):
+    * Modules/filesystemaccess/FileSystemSyncAccessHandle.h:
+    
+    LayoutTests:
+    
+    * storage/filesystemaccess/resources/sync-access-handle-close.js: Added.
+    (finishTest):
+    (async testFunctions):
+    (async test):
+    * storage/filesystemaccess/sync-access-handle-close-worker-expected.txt: Added.
+    * storage/filesystemaccess/sync-access-handle-close-worker.html: Added.
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@284652 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-10-21  Sihui Liu  <sihui_liu@apple.com>
+
+            FileSystemSyncAccessHandle should close platform file handle on close()
+            https://bugs.webkit.org/show_bug.cgi?id=232067
+            <rdar://problem/84517013>
+
+            Reviewed by Youenn Fablet.
+
+            * web-platform-tests/file-system-access/sandboxed_FileSystemSyncAccessHandle-close.https.tentative.worker-expected.txt:
+
+2021-10-25  Null  <null@apple.com>
+
+        Cherry-pick r284436. rdar://problem/83753956
+
+    Make createImageBitmap() take EXIF orientation into account correctly
+    https://bugs.webkit.org/show_bug.cgi?id=231063
+    <rdar://problem/83753956>
+    
+    Reviewed by Myles Maxfield and Said Abou-Hallawa.
+    
+    LayoutTests/imported/w3c:
+    
+    * web-platform-tests/html/canvas/element/manual/imagebitmap/createImageBitmap-exif-orientation-expected.txt: Added.
+    * web-platform-tests/html/canvas/element/manual/imagebitmap/createImageBitmap-exif-orientation.html: Added.
+    * web-platform-tests/html/canvas/element/manual/imagebitmap/resources/squares.jpg: Added.
+    
+    Source/WebCore:
+    
+    Test: imported/w3c/web-platform-tests/html/canvas/element/manual/imagebitmap/createImageBitmap-exif-orientation.html
+    
+    This makes us treat {imageOrientation:"none"} as meaning "apply EXIF
+    orientation without any additional transformation", and
+    {imageOrientation:"flipY"} as meaning "apply EXIF orientation and then
+    apply an additional vertical flip". This behavior matches Firefox;
+    https://github.com/whatwg/html/issues/7210 is open on clarifying this
+    behavior in the HTML spec.
+    
+    * html/ImageBitmap.cpp:
+    (WebCore::ImageBitmap::createPromise):
+    (WebCore::ImageBitmap::createFromBuffer):
+    (WebCore::imageOrientationForOrientation): Deleted.
+    * html/ImageBitmapOptions.h:
+    (WebCore::ImageBitmapOptions::resolvedImageOrientation const):
+    * html/ImageBitmapOptions.idl:
+    * platform/graphics/ImageOrientation.h:
+    (WebCore::ImageOrientation::withFlippedY const):
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@284436 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-10-18  Cameron McCormack  <heycam@apple.com>
+
+            Make createImageBitmap() take EXIF orientation into account correctly
+            https://bugs.webkit.org/show_bug.cgi?id=231063
+            <rdar://problem/83753956>
+
+            Reviewed by Myles Maxfield and Said Abou-Hallawa.
+
+            * web-platform-tests/html/canvas/element/manual/imagebitmap/createImageBitmap-exif-orientation-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/imagebitmap/createImageBitmap-exif-orientation.html: Added.
+            * web-platform-tests/html/canvas/element/manual/imagebitmap/resources/squares.jpg: Added.
+
+2021-10-19  Russell Epstein  <repstein@apple.com>
+
+        Revert r283931. rdar://problem/83953710
+
+2021-10-15  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r281769. rdar://problem/84234711
+
+    Import file-system-access tests from WPT
+    https://bugs.webkit.org/show_bug.cgi?id=229593
+    
+    Reviewed by Ryosuke Niwa.
+    
+    * resources/import-expectations.json:
+    * web-platform-tests/file-system-access/META.yml: Added.
+    * web-platform-tests/file-system-access/README.md: Added.
+    * web-platform-tests/file-system-access/idlharness.https.any-expected.txt: Added.
+    * web-platform-tests/file-system-access/idlharness.https.any.html: Added.
+    * web-platform-tests/file-system-access/idlharness.https.any.js: Added.
+    * web-platform-tests/file-system-access/idlharness.https.any.worker-expected.txt: Added.
+    * web-platform-tests/file-system-access/idlharness.https.any.worker.html: Added.
+    * web-platform-tests/file-system-access/opaque-origin.https.window-expected.txt: Added.
+    * web-platform-tests/file-system-access/opaque-origin.https.window.html: Added.
+    * web-platform-tests/file-system-access/opaque-origin.https.window.js: Added.
+    (add_iframe):
+    (async verify_does_not_exist_in_data_uri_iframe):
+    (async verify_results_from_sandboxed_child_window):
+    * web-platform-tests/file-system-access/resources/data/testfile.txt: Added.
+    * web-platform-tests/file-system-access/resources/data/w3c-import.log: Added.
+    * web-platform-tests/file-system-access/resources/local-fs-test-helpers.js: Added.
+    (const.directory_promise.async await):
+    (const.directory_promise):
+    (directory_test):
+    (async directory_test):
+    * web-platform-tests/file-system-access/resources/message-target-dedicated-worker.js: Added.
+    * web-platform-tests/file-system-access/resources/message-target-service-worker.js: Added.
+    * web-platform-tests/file-system-access/resources/message-target-shared-worker.js: Added.
+    * web-platform-tests/file-system-access/resources/message-target.html: Added.
+    * web-platform-tests/file-system-access/resources/message-target.js: Added.
+    (async receiver):
+    (add_message_event_handlers):
+    * web-platform-tests/file-system-access/resources/messaging-blob-helpers.js: Added.
+    (async create_message_target_blob_url):
+    (async create_message_target_data_uri):
+    (async create_message_target_html_without_subresources):
+    (async fetch_text):
+    * web-platform-tests/file-system-access/resources/messaging-helpers.js: Added.
+    (create_dedicated_worker):
+    (async create_service_worker):
+    (async add_iframe):
+    (async open_window):
+    (async wait_for_loaded_message):
+    (create_message_channel):
+    (async create_file_system_handles):
+    (async do_post_message_test):
+    (async do_message_port_test):
+    * web-platform-tests/file-system-access/resources/messaging-serialize-helpers.js: Added.
+    (async serialize_handles):
+    (async serialize_handle):
+    (async serialize_file_system_handle):
+    (async serialize_file_system_file_handle):
+    (async serialize_file_system_directory_handle):
+    (async assert_equals_cloned_handles):
+    (assert_equals_serialized_handles):
+    (assert_equals_serialized_handle):
+    (assert_equals_serialized_file_system_handle):
+    (assert_equals_serialized_file_system_file_handle):
+    (assert_equals_serialized_file_system_directory_handle):
+    (serialize_message_error_event):
+    (assert_equals_serialized_message_error_event):
+    * web-platform-tests/file-system-access/resources/opaque-origin-sandbox.html: Added.
+    * web-platform-tests/file-system-access/resources/sandboxed-fs-test-helpers.js: Added.
+    (async cleanupSandboxedFileSystem):
+    * web-platform-tests/file-system-access/resources/sync-access-handle-test.js: Added.
+    (async cleanupSandboxedFileSystem):
+    * web-platform-tests/file-system-access/resources/test-helpers.js: Added.
+    (navigator.userAgent.includes):
+    (async getFileSize):
+    (async getFileContents):
+    (async getDirectoryEntryCount):
+    (async getSortedDirectoryEntries):
+    (async createFileWithContents):
+    (garbageCollect):
+    * web-platform-tests/file-system-access/resources/w3c-import.log: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-IndexedDB.https.any-expected.txt: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-IndexedDB.https.any.html: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-IndexedDB.https.any.js: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-IndexedDB.https.any.worker-expected.txt: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-IndexedDB.https.any.worker.html: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-isSameEntry.https.any-expected.txt: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-isSameEntry.https.any.html: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-isSameEntry.https.any.js: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-isSameEntry.https.any.worker-expected.txt: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-isSameEntry.https.any.worker.html: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-BroadcastChannel.https.window-expected.txt: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-BroadcastChannel.https.window.html: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-BroadcastChannel.https.window.js: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-Error.https.window-expected.txt: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-Error.https.window.html: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-Error.https.window.js: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-MessagePort-frames.https.window-expected.txt: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-MessagePort-frames.https.window.html: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-MessagePort-frames.https.window.js: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-MessagePort-windows.https.window-expected.txt: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-MessagePort-windows.https.window.html: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-MessagePort-windows.https.window.js: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-MessagePort-workers.https.window-expected.txt: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-MessagePort-workers.https.window.html: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-MessagePort-workers.https.window.js: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-frames.https.window-expected.txt: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-frames.https.window.html: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-frames.https.window.js: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-windows.https.window-expected.txt: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-windows.https.window.html: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-windows.https.window.js: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-workers.https.window-expected.txt: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-workers.https.window.html: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-workers.https.window.js: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-remove.https.any-expected.txt: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-remove.https.any.html: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-remove.https.any.js: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-remove.https.any.worker-expected.txt: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-remove.https.any.worker.html: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-getDirectoryHandle.https.any-expected.txt: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-getDirectoryHandle.https.any.html: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-getDirectoryHandle.https.any.js: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-getDirectoryHandle.https.any.worker-expected.txt: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-getDirectoryHandle.https.any.worker.html: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-getFileHandle.https.any-expected.txt: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-getFileHandle.https.any.html: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-getFileHandle.https.any.js: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-getFileHandle.https.any.worker-expected.txt: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-getFileHandle.https.any.worker.html: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-iteration.https.any-expected.txt: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-iteration.https.any.html: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-iteration.https.any.js: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-iteration.https.any.worker-expected.txt: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-iteration.https.any.worker.html: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-removeEntry.https.any-expected.txt: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-removeEntry.https.any.html: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-removeEntry.https.any.js: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-removeEntry.https.any.worker-expected.txt: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-removeEntry.https.any.worker.html: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-resolve.https.any-expected.txt: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-resolve.https.any.html: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-resolve.https.any.js: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-resolve.https.any.worker-expected.txt: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-resolve.https.any.worker.html: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemFileHandle-create-sync-access-handle-dedicated-worker.https.tentative.window-expected.txt: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemFileHandle-create-sync-access-handle-dedicated-worker.https.tentative.window.html: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemFileHandle-create-sync-access-handle-dedicated-worker.https.tentative.window.js: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemFileHandle-getFile.https.any-expected.txt: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemFileHandle-getFile.https.any.html: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemFileHandle-getFile.https.any.js: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemFileHandle-getFile.https.any.worker-expected.txt: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemFileHandle-getFile.https.any.worker.html: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemFileHandle-sync-access-handle-lock.https.tentative.worker-expected.txt: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemFileHandle-sync-access-handle-lock.https.tentative.worker.html: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemFileHandle-sync-access-handle-lock.https.tentative.worker.js: Added.
+    (promise_test.async t):
+    * web-platform-tests/file-system-access/sandboxed_FileSystemSyncAccessHandle-close.https.tentative.worker-expected.txt: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemSyncAccessHandle-close.https.tentative.worker.html: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemSyncAccessHandle-close.https.tentative.worker.js: Added.
+    (sync_access_handle_test.async testCase):
+    * web-platform-tests/file-system-access/sandboxed_FileSystemSyncAccessHandle-flush.https.tentative.worker-expected.txt: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemSyncAccessHandle-flush.https.tentative.worker.html: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemSyncAccessHandle-flush.https.tentative.worker.js: Added.
+    (sync_access_handle_test.async t):
+    (sync_access_handle_test.async testCase):
+    * web-platform-tests/file-system-access/sandboxed_FileSystemSyncAccessHandle-getSize.https.tentative.worker-expected.txt: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemSyncAccessHandle-getSize.https.tentative.worker.html: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemSyncAccessHandle-getSize.https.tentative.worker.js: Added.
+    (sync_access_handle_test.async testCase):
+    * web-platform-tests/file-system-access/sandboxed_FileSystemSyncAccessHandle-read-write.https.tentative.worker-expected.txt: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemSyncAccessHandle-read-write.https.tentative.worker.html: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemSyncAccessHandle-read-write.https.tentative.worker.js: Added.
+    (sync_access_handle_test):
+    * web-platform-tests/file-system-access/sandboxed_FileSystemSyncAccessHandle-truncate.https.tentative.worker-expected.txt: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemSyncAccessHandle-truncate.https.tentative.worker.html: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemSyncAccessHandle-truncate.https.tentative.worker.js: Added.
+    (sync_access_handle_test.async testCase):
+    * web-platform-tests/file-system-access/sandboxed_FileSystemWritableFileStream-piped.https.any-expected.txt: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemWritableFileStream-piped.https.any.html: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemWritableFileStream-piped.https.any.js: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemWritableFileStream-piped.https.any.worker-expected.txt: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemWritableFileStream-piped.https.any.worker.html: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemWritableFileStream-write.https.any-expected.txt: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemWritableFileStream-write.https.any.html: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemWritableFileStream-write.https.any.js: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemWritableFileStream-write.https.any.worker-expected.txt: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemWritableFileStream-write.https.any.worker.html: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemWritableFileStream.https.any-expected.txt: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemWritableFileStream.https.any.html: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemWritableFileStream.https.any.js: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemWritableFileStream.https.any.worker-expected.txt: Added.
+    * web-platform-tests/file-system-access/sandboxed_FileSystemWritableFileStream.https.any.worker.html: Added.
+    * web-platform-tests/file-system-access/script-tests/FileSystemBaseHandle-IndexedDB.js: Added.
+    (directory_test.async t):
+    * web-platform-tests/file-system-access/script-tests/FileSystemBaseHandle-isSameEntry.js: Added.
+    (directory_test.async t):
+    * web-platform-tests/file-system-access/script-tests/FileSystemBaseHandle-postMessage-BroadcastChannel.js: Added.
+    (async create_broadcast_channel):
+    (directory_test.async t):
+    * web-platform-tests/file-system-access/script-tests/FileSystemBaseHandle-postMessage-Error.js: Added.
+    (async do_send_message_error_test):
+    (async do_receive_message_error_test):
+    (async do_send_and_receive_message_error_test):
+    (async do_send_message_port_error_test):
+    (async do_receive_message_port_error_test):
+    (async do_send_and_receive_message_port_error_test):
+    (directory_test.async t):
+    * web-platform-tests/file-system-access/script-tests/FileSystemBaseHandle-postMessage-MessagePort-frames.js: Added.
+    (directory_test.async t):
+    * web-platform-tests/file-system-access/script-tests/FileSystemBaseHandle-postMessage-MessagePort-windows.js: Added.
+    (directory_test.async t):
+    * web-platform-tests/file-system-access/script-tests/FileSystemBaseHandle-postMessage-MessagePort-workers.js: Added.
+    (directory_test.async t):
+    (self.SharedWorker.undefined.directory_test.async t):
+    * web-platform-tests/file-system-access/script-tests/FileSystemBaseHandle-postMessage-frames.js: Added.
+    (directory_test.async t):
+    * web-platform-tests/file-system-access/script-tests/FileSystemBaseHandle-postMessage-windows.js: Added.
+    (directory_test.async t):
+    * web-platform-tests/file-system-access/script-tests/FileSystemBaseHandle-postMessage-workers.js: Added.
+    (directory_test.async t):
+    (self.SharedWorker.undefined.directory_test.async t):
+    * web-platform-tests/file-system-access/script-tests/FileSystemBaseHandle-remove.js: Added.
+    (directory_test.async t):
+    * web-platform-tests/file-system-access/script-tests/FileSystemDirectoryHandle-getDirectoryHandle.js: Added.
+    (directory_test.async t):
+    * web-platform-tests/file-system-access/script-tests/FileSystemDirectoryHandle-getFileHandle.js: Added.
+    (directory_test.async t):
+    * web-platform-tests/file-system-access/script-tests/FileSystemDirectoryHandle-iteration.js: Added.
+    (directory_test.async t):
+    * web-platform-tests/file-system-access/script-tests/FileSystemDirectoryHandle-removeEntry.js: Added.
+    (directory_test.async t):
+    * web-platform-tests/file-system-access/script-tests/FileSystemDirectoryHandle-resolve.js: Added.
+    (directory_test.async t):
+    * web-platform-tests/file-system-access/script-tests/FileSystemFileHandle-create-sync-access-handle-dedicated-worker.js: Added.
+    (directory_test.async t):
+    * web-platform-tests/file-system-access/script-tests/FileSystemFileHandle-getFile.js: Added.
+    (directory_test.async t):
+    * web-platform-tests/file-system-access/script-tests/FileSystemSyncAccessHandle-flush.js: Added.
+    (sync_access_handle_test.async handle):
+    * web-platform-tests/file-system-access/script-tests/FileSystemWritableFileStream-piped.js: Added.
+    (directory_test.async t):
+    * web-platform-tests/file-system-access/script-tests/FileSystemWritableFileStream-write.js: Added.
+    (directory_test.async t):
+    * web-platform-tests/file-system-access/script-tests/FileSystemWritableFileStream.js: Added.
+    (directory_test.async t):
+    * web-platform-tests/file-system-access/script-tests/w3c-import.log: Added.
+    * web-platform-tests/file-system-access/showPicker-errors.https.window-expected.txt: Added.
+    * web-platform-tests/file-system-access/showPicker-errors.https.window.html: Added.
+    * web-platform-tests/file-system-access/showPicker-errors.https.window.js: Added.
+    (promise_test.async t):
+    (define_file_picker_error_tests.async promise_test):
+    (define_file_picker_error_tests.async const):
+    (define_file_picker_error_tests):
+    (define_file_picker_extension_error_test):
+    * web-platform-tests/file-system-access/w3c-import.log: Added.
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@281769 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-08-30  Sihui Liu  <sihui_liu@apple.com>
+
+            Import file-system-access tests from WPT
+            https://bugs.webkit.org/show_bug.cgi?id=229593
+
+            Reviewed by Ryosuke Niwa.
+
+            * resources/import-expectations.json:
+            * web-platform-tests/file-system-access/META.yml: Added.
+            * web-platform-tests/file-system-access/README.md: Added.
+            * web-platform-tests/file-system-access/idlharness.https.any-expected.txt: Added.
+            * web-platform-tests/file-system-access/idlharness.https.any.html: Added.
+            * web-platform-tests/file-system-access/idlharness.https.any.js: Added.
+            * web-platform-tests/file-system-access/idlharness.https.any.worker-expected.txt: Added.
+            * web-platform-tests/file-system-access/idlharness.https.any.worker.html: Added.
+            * web-platform-tests/file-system-access/opaque-origin.https.window-expected.txt: Added.
+            * web-platform-tests/file-system-access/opaque-origin.https.window.html: Added.
+            * web-platform-tests/file-system-access/opaque-origin.https.window.js: Added.
+            (add_iframe):
+            (async verify_does_not_exist_in_data_uri_iframe):
+            (async verify_results_from_sandboxed_child_window):
+            * web-platform-tests/file-system-access/resources/data/testfile.txt: Added.
+            * web-platform-tests/file-system-access/resources/data/w3c-import.log: Added.
+            * web-platform-tests/file-system-access/resources/local-fs-test-helpers.js: Added.
+            (const.directory_promise.async await):
+            (const.directory_promise):
+            (directory_test):
+            (async directory_test):
+            * web-platform-tests/file-system-access/resources/message-target-dedicated-worker.js: Added.
+            * web-platform-tests/file-system-access/resources/message-target-service-worker.js: Added.
+            * web-platform-tests/file-system-access/resources/message-target-shared-worker.js: Added.
+            * web-platform-tests/file-system-access/resources/message-target.html: Added.
+            * web-platform-tests/file-system-access/resources/message-target.js: Added.
+            (async receiver):
+            (add_message_event_handlers):
+            * web-platform-tests/file-system-access/resources/messaging-blob-helpers.js: Added.
+            (async create_message_target_blob_url):
+            (async create_message_target_data_uri):
+            (async create_message_target_html_without_subresources):
+            (async fetch_text):
+            * web-platform-tests/file-system-access/resources/messaging-helpers.js: Added.
+            (create_dedicated_worker):
+            (async create_service_worker):
+            (async add_iframe):
+            (async open_window):
+            (async wait_for_loaded_message):
+            (create_message_channel):
+            (async create_file_system_handles):
+            (async do_post_message_test):
+            (async do_message_port_test):
+            * web-platform-tests/file-system-access/resources/messaging-serialize-helpers.js: Added.
+            (async serialize_handles):
+            (async serialize_handle):
+            (async serialize_file_system_handle):
+            (async serialize_file_system_file_handle):
+            (async serialize_file_system_directory_handle):
+            (async assert_equals_cloned_handles):
+            (assert_equals_serialized_handles):
+            (assert_equals_serialized_handle):
+            (assert_equals_serialized_file_system_handle):
+            (assert_equals_serialized_file_system_file_handle):
+            (assert_equals_serialized_file_system_directory_handle):
+            (serialize_message_error_event):
+            (assert_equals_serialized_message_error_event):
+            * web-platform-tests/file-system-access/resources/opaque-origin-sandbox.html: Added.
+            * web-platform-tests/file-system-access/resources/sandboxed-fs-test-helpers.js: Added.
+            (async cleanupSandboxedFileSystem):
+            * web-platform-tests/file-system-access/resources/sync-access-handle-test.js: Added.
+            (async cleanupSandboxedFileSystem):
+            * web-platform-tests/file-system-access/resources/test-helpers.js: Added.
+            (navigator.userAgent.includes):
+            (async getFileSize):
+            (async getFileContents):
+            (async getDirectoryEntryCount):
+            (async getSortedDirectoryEntries):
+            (async createFileWithContents):
+            (garbageCollect):
+            * web-platform-tests/file-system-access/resources/w3c-import.log: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-IndexedDB.https.any-expected.txt: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-IndexedDB.https.any.html: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-IndexedDB.https.any.js: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-IndexedDB.https.any.worker-expected.txt: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-IndexedDB.https.any.worker.html: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-isSameEntry.https.any-expected.txt: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-isSameEntry.https.any.html: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-isSameEntry.https.any.js: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-isSameEntry.https.any.worker-expected.txt: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-isSameEntry.https.any.worker.html: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-BroadcastChannel.https.window-expected.txt: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-BroadcastChannel.https.window.html: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-BroadcastChannel.https.window.js: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-Error.https.window-expected.txt: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-Error.https.window.html: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-Error.https.window.js: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-MessagePort-frames.https.window-expected.txt: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-MessagePort-frames.https.window.html: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-MessagePort-frames.https.window.js: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-MessagePort-windows.https.window-expected.txt: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-MessagePort-windows.https.window.html: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-MessagePort-windows.https.window.js: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-MessagePort-workers.https.window-expected.txt: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-MessagePort-workers.https.window.html: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-MessagePort-workers.https.window.js: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-frames.https.window-expected.txt: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-frames.https.window.html: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-frames.https.window.js: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-windows.https.window-expected.txt: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-windows.https.window.html: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-windows.https.window.js: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-workers.https.window-expected.txt: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-workers.https.window.html: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-postMessage-workers.https.window.js: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-remove.https.any-expected.txt: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-remove.https.any.html: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-remove.https.any.js: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-remove.https.any.worker-expected.txt: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemBaseHandle-remove.https.any.worker.html: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-getDirectoryHandle.https.any-expected.txt: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-getDirectoryHandle.https.any.html: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-getDirectoryHandle.https.any.js: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-getDirectoryHandle.https.any.worker-expected.txt: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-getDirectoryHandle.https.any.worker.html: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-getFileHandle.https.any-expected.txt: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-getFileHandle.https.any.html: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-getFileHandle.https.any.js: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-getFileHandle.https.any.worker-expected.txt: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-getFileHandle.https.any.worker.html: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-iteration.https.any-expected.txt: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-iteration.https.any.html: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-iteration.https.any.js: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-iteration.https.any.worker-expected.txt: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-iteration.https.any.worker.html: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-removeEntry.https.any-expected.txt: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-removeEntry.https.any.html: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-removeEntry.https.any.js: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-removeEntry.https.any.worker-expected.txt: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-removeEntry.https.any.worker.html: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-resolve.https.any-expected.txt: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-resolve.https.any.html: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-resolve.https.any.js: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-resolve.https.any.worker-expected.txt: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-resolve.https.any.worker.html: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemFileHandle-create-sync-access-handle-dedicated-worker.https.tentative.window-expected.txt: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemFileHandle-create-sync-access-handle-dedicated-worker.https.tentative.window.html: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemFileHandle-create-sync-access-handle-dedicated-worker.https.tentative.window.js: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemFileHandle-getFile.https.any-expected.txt: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemFileHandle-getFile.https.any.html: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemFileHandle-getFile.https.any.js: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemFileHandle-getFile.https.any.worker-expected.txt: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemFileHandle-getFile.https.any.worker.html: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemFileHandle-sync-access-handle-lock.https.tentative.worker-expected.txt: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemFileHandle-sync-access-handle-lock.https.tentative.worker.html: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemFileHandle-sync-access-handle-lock.https.tentative.worker.js: Added.
+            (promise_test.async t):
+            * web-platform-tests/file-system-access/sandboxed_FileSystemSyncAccessHandle-close.https.tentative.worker-expected.txt: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemSyncAccessHandle-close.https.tentative.worker.html: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemSyncAccessHandle-close.https.tentative.worker.js: Added.
+            (sync_access_handle_test.async testCase):
+            * web-platform-tests/file-system-access/sandboxed_FileSystemSyncAccessHandle-flush.https.tentative.worker-expected.txt: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemSyncAccessHandle-flush.https.tentative.worker.html: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemSyncAccessHandle-flush.https.tentative.worker.js: Added.
+            (sync_access_handle_test.async t):
+            (sync_access_handle_test.async testCase):
+            * web-platform-tests/file-system-access/sandboxed_FileSystemSyncAccessHandle-getSize.https.tentative.worker-expected.txt: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemSyncAccessHandle-getSize.https.tentative.worker.html: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemSyncAccessHandle-getSize.https.tentative.worker.js: Added.
+            (sync_access_handle_test.async testCase):
+            * web-platform-tests/file-system-access/sandboxed_FileSystemSyncAccessHandle-read-write.https.tentative.worker-expected.txt: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemSyncAccessHandle-read-write.https.tentative.worker.html: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemSyncAccessHandle-read-write.https.tentative.worker.js: Added.
+            (sync_access_handle_test):
+            * web-platform-tests/file-system-access/sandboxed_FileSystemSyncAccessHandle-truncate.https.tentative.worker-expected.txt: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemSyncAccessHandle-truncate.https.tentative.worker.html: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemSyncAccessHandle-truncate.https.tentative.worker.js: Added.
+            (sync_access_handle_test.async testCase):
+            * web-platform-tests/file-system-access/sandboxed_FileSystemWritableFileStream-piped.https.any-expected.txt: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemWritableFileStream-piped.https.any.html: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemWritableFileStream-piped.https.any.js: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemWritableFileStream-piped.https.any.worker-expected.txt: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemWritableFileStream-piped.https.any.worker.html: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemWritableFileStream-write.https.any-expected.txt: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemWritableFileStream-write.https.any.html: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemWritableFileStream-write.https.any.js: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemWritableFileStream-write.https.any.worker-expected.txt: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemWritableFileStream-write.https.any.worker.html: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemWritableFileStream.https.any-expected.txt: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemWritableFileStream.https.any.html: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemWritableFileStream.https.any.js: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemWritableFileStream.https.any.worker-expected.txt: Added.
+            * web-platform-tests/file-system-access/sandboxed_FileSystemWritableFileStream.https.any.worker.html: Added.
+            * web-platform-tests/file-system-access/script-tests/FileSystemBaseHandle-IndexedDB.js: Added.
+            (directory_test.async t):
+            * web-platform-tests/file-system-access/script-tests/FileSystemBaseHandle-isSameEntry.js: Added.
+            (directory_test.async t):
+            * web-platform-tests/file-system-access/script-tests/FileSystemBaseHandle-postMessage-BroadcastChannel.js: Added.
+            (async create_broadcast_channel):
+            (directory_test.async t):
+            * web-platform-tests/file-system-access/script-tests/FileSystemBaseHandle-postMessage-Error.js: Added.
+            (async do_send_message_error_test):
+            (async do_receive_message_error_test):
+            (async do_send_and_receive_message_error_test):
+            (async do_send_message_port_error_test):
+            (async do_receive_message_port_error_test):
+            (async do_send_and_receive_message_port_error_test):
+            (directory_test.async t):
+            * web-platform-tests/file-system-access/script-tests/FileSystemBaseHandle-postMessage-MessagePort-frames.js: Added.
+            (directory_test.async t):
+            * web-platform-tests/file-system-access/script-tests/FileSystemBaseHandle-postMessage-MessagePort-windows.js: Added.
+            (directory_test.async t):
+            * web-platform-tests/file-system-access/script-tests/FileSystemBaseHandle-postMessage-MessagePort-workers.js: Added.
+            (directory_test.async t):
+            (self.SharedWorker.undefined.directory_test.async t):
+            * web-platform-tests/file-system-access/script-tests/FileSystemBaseHandle-postMessage-frames.js: Added.
+            (directory_test.async t):
+            * web-platform-tests/file-system-access/script-tests/FileSystemBaseHandle-postMessage-windows.js: Added.
+            (directory_test.async t):
+            * web-platform-tests/file-system-access/script-tests/FileSystemBaseHandle-postMessage-workers.js: Added.
+            (directory_test.async t):
+            (self.SharedWorker.undefined.directory_test.async t):
+            * web-platform-tests/file-system-access/script-tests/FileSystemBaseHandle-remove.js: Added.
+            (directory_test.async t):
+            * web-platform-tests/file-system-access/script-tests/FileSystemDirectoryHandle-getDirectoryHandle.js: Added.
+            (directory_test.async t):
+            * web-platform-tests/file-system-access/script-tests/FileSystemDirectoryHandle-getFileHandle.js: Added.
+            (directory_test.async t):
+            * web-platform-tests/file-system-access/script-tests/FileSystemDirectoryHandle-iteration.js: Added.
+            (directory_test.async t):
+            * web-platform-tests/file-system-access/script-tests/FileSystemDirectoryHandle-removeEntry.js: Added.
+            (directory_test.async t):
+            * web-platform-tests/file-system-access/script-tests/FileSystemDirectoryHandle-resolve.js: Added.
+            (directory_test.async t):
+            * web-platform-tests/file-system-access/script-tests/FileSystemFileHandle-create-sync-access-handle-dedicated-worker.js: Added.
+            (directory_test.async t):
+            * web-platform-tests/file-system-access/script-tests/FileSystemFileHandle-getFile.js: Added.
+            (directory_test.async t):
+            * web-platform-tests/file-system-access/script-tests/FileSystemSyncAccessHandle-flush.js: Added.
+            (sync_access_handle_test.async handle):
+            * web-platform-tests/file-system-access/script-tests/FileSystemWritableFileStream-piped.js: Added.
+            (directory_test.async t):
+            * web-platform-tests/file-system-access/script-tests/FileSystemWritableFileStream-write.js: Added.
+            (directory_test.async t):
+            * web-platform-tests/file-system-access/script-tests/FileSystemWritableFileStream.js: Added.
+            (directory_test.async t):
+            * web-platform-tests/file-system-access/script-tests/w3c-import.log: Added.
+            * web-platform-tests/file-system-access/showPicker-errors.https.window-expected.txt: Added.
+            * web-platform-tests/file-system-access/showPicker-errors.https.window.html: Added.
+            * web-platform-tests/file-system-access/showPicker-errors.https.window.js: Added.
+            (promise_test.async t):
+            (define_file_picker_error_tests.async promise_test):
+            (define_file_picker_error_tests.async const):
+            (define_file_picker_error_tests):
+            (define_file_picker_extension_error_test):
+            * web-platform-tests/file-system-access/w3c-import.log: Added.
+
+2021-10-15  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r282088. rdar://problem/84234366
+
+    Import storage tests from WPT
+    https://bugs.webkit.org/show_bug.cgi?id=229965
+    
+    Reviewed by Youenn Fablet.
+    
+    * resources/import-expectations.json:
+    * web-platform-tests/storage/META.yml: Added.
+    * web-platform-tests/storage/README.md: Added.
+    * web-platform-tests/storage/buckets/META.yml: Added.
+    * web-platform-tests/storage/buckets/w3c-import.log: Added.
+    * web-platform-tests/storage/estimate-indexeddb.https.any-expected.txt: Added.
+    * web-platform-tests/storage/estimate-indexeddb.https.any.html: Added.
+    * web-platform-tests/storage/estimate-indexeddb.https.any.js: Added.
+    (indexedDbOpenRequest):
+    (promise_test.async t):
+    * web-platform-tests/storage/estimate-indexeddb.https.any.worker-expected.txt: Added.
+    * web-platform-tests/storage/estimate-indexeddb.https.any.worker.html: Added.
+    * web-platform-tests/storage/estimate-parallel.https.any-expected.txt: Added.
+    * web-platform-tests/storage/estimate-parallel.https.any.html: Added.
+    * web-platform-tests/storage/estimate-parallel.https.any.js: Added.
+    (promise_test.async t):
+    * web-platform-tests/storage/estimate-parallel.https.any.worker-expected.txt: Added.
+    * web-platform-tests/storage/estimate-parallel.https.any.worker.html: Added.
+    * web-platform-tests/storage/estimate-usage-details-application-cache.https.tentative-expected.txt: Added.
+    * web-platform-tests/storage/estimate-usage-details-application-cache.https.tentative.html: Added.
+    * web-platform-tests/storage/estimate-usage-details-caches.https.tentative.any-expected.txt: Added.
+    * web-platform-tests/storage/estimate-usage-details-caches.https.tentative.any.html: Added.
+    * web-platform-tests/storage/estimate-usage-details-caches.https.tentative.any.js: Added.
+    (promise_test.async t):
+    * web-platform-tests/storage/estimate-usage-details-caches.https.tentative.any.worker-expected.txt: Added.
+    * web-platform-tests/storage/estimate-usage-details-caches.https.tentative.any.worker.html: Added.
+    * web-platform-tests/storage/estimate-usage-details-indexeddb.https.tentative.any-expected.txt: Added.
+    * web-platform-tests/storage/estimate-usage-details-indexeddb.https.tentative.any.html: Added.
+    * web-platform-tests/storage/estimate-usage-details-indexeddb.https.tentative.any.js: Added.
+    (promise_test.async t):
+    * web-platform-tests/storage/estimate-usage-details-indexeddb.https.tentative.any.worker-expected.txt: Added.
+    * web-platform-tests/storage/estimate-usage-details-indexeddb.https.tentative.any.worker.html: Added.
+    * web-platform-tests/storage/estimate-usage-details-service-workers.https.tentative.window-expected.txt: Added.
+    * web-platform-tests/storage/estimate-usage-details-service-workers.https.tentative.window.html: Added.
+    * web-platform-tests/storage/estimate-usage-details-service-workers.https.tentative.window.js: Added.
+    (promise_test.async t):
+    * web-platform-tests/storage/estimate-usage-details.https.tentative.any-expected.txt: Added.
+    * web-platform-tests/storage/estimate-usage-details.https.tentative.any.html: Added.
+    * web-platform-tests/storage/estimate-usage-details.https.tentative.any.js: Added.
+    (promise_test.async t):
+    * web-platform-tests/storage/estimate-usage-details.https.tentative.any.worker-expected.txt: Added.
+    * web-platform-tests/storage/estimate-usage-details.https.tentative.any.worker.html: Added.
+    * web-platform-tests/storage/helpers.js: Added.
+    (createDB):
+    * web-platform-tests/storage/idlharness.https.any-expected.txt: Added.
+    * web-platform-tests/storage/idlharness.https.any.html: Added.
+    * web-platform-tests/storage/idlharness.https.any.js: Added.
+    * web-platform-tests/storage/idlharness.https.any.worker-expected.txt: Added.
+    * web-platform-tests/storage/idlharness.https.any.worker.html: Added.
+    * web-platform-tests/storage/opaque-origin.https.window-expected.txt: Added.
+    * web-platform-tests/storage/opaque-origin.https.window.html: Added.
+    * web-platform-tests/storage/opaque-origin.https.window.js: Added.
+    (load_iframe):
+    (wait_for_message.return.new.Promise):
+    (forEach.snippet.assert_equals):
+    * web-platform-tests/storage/permission-query.https.any-expected.txt: Added.
+    * web-platform-tests/storage/permission-query.https.any.html: Added.
+    * web-platform-tests/storage/permission-query.https.any.js: Added.
+    (promise_test.async t):
+    * web-platform-tests/storage/permission-query.https.any.worker-expected.txt: Added.
+    * web-platform-tests/storage/permission-query.https.any.worker.html: Added.
+    * web-platform-tests/storage/persisted.https.any-expected.txt: Added.
+    * web-platform-tests/storage/persisted.https.any.html: Added.
+    * web-platform-tests/storage/persisted.https.any.js: Added.
+    (test):
+    (promise_test):
+    * web-platform-tests/storage/persisted.https.any.worker-expected.txt: Added.
+    * web-platform-tests/storage/persisted.https.any.worker.html: Added.
+    * web-platform-tests/storage/quotachange-in-detached-iframe.tentative.https-expected.txt: Added.
+    * web-platform-tests/storage/quotachange-in-detached-iframe.tentative.https.html: Added.
+    * web-platform-tests/storage/resources/appcache.manifest: Added.
+    * web-platform-tests/storage/resources/iframe_with_appcache_manifest.html: Added.
+    * web-platform-tests/storage/resources/w3c-import.log: Added.
+    * web-platform-tests/storage/storagemanager-estimate.https.any-expected.txt: Added.
+    * web-platform-tests/storage/storagemanager-estimate.https.any.html: Added.
+    * web-platform-tests/storage/storagemanager-estimate.https.any.js: Added.
+    (test):
+    (promise_test):
+    * web-platform-tests/storage/storagemanager-estimate.https.any.worker-expected.txt: Added.
+    * web-platform-tests/storage/storagemanager-estimate.https.any.worker.html: Added.
+    * web-platform-tests/storage/storagemanager-persist.https.window-expected.txt: Added.
+    * web-platform-tests/storage/storagemanager-persist.https.window.html: Added.
+    * web-platform-tests/storage/storagemanager-persist.https.window.js: Added.
+    (promise_test):
+    * web-platform-tests/storage/storagemanager-persist.https.worker-expected.txt: Added.
+    * web-platform-tests/storage/storagemanager-persist.https.worker.html: Added.
+    * web-platform-tests/storage/storagemanager-persist.https.worker.js: Added.
+    (test):
+    * web-platform-tests/storage/storagemanager-persisted.https.any-expected.txt: Added.
+    * web-platform-tests/storage/storagemanager-persisted.https.any.html: Added.
+    * web-platform-tests/storage/storagemanager-persisted.https.any.js: Added.
+    (promise_test):
+    * web-platform-tests/storage/storagemanager-persisted.https.any.worker-expected.txt: Added.
+    * web-platform-tests/storage/storagemanager-persisted.https.any.worker.html: Added.
+    * web-platform-tests/storage/w3c-import.log: Added.
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@282088 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-09-07  Sihui Liu  <sihui_liu@apple.com>
+
+            Import storage tests from WPT
+            https://bugs.webkit.org/show_bug.cgi?id=229965
+
+            Reviewed by Youenn Fablet.
+
+            * resources/import-expectations.json:
+            * web-platform-tests/storage/META.yml: Added.
+            * web-platform-tests/storage/README.md: Added.
+            * web-platform-tests/storage/buckets/META.yml: Added.
+            * web-platform-tests/storage/buckets/w3c-import.log: Added.
+            * web-platform-tests/storage/estimate-indexeddb.https.any-expected.txt: Added.
+            * web-platform-tests/storage/estimate-indexeddb.https.any.html: Added.
+            * web-platform-tests/storage/estimate-indexeddb.https.any.js: Added.
+            (indexedDbOpenRequest):
+            (promise_test.async t):
+            * web-platform-tests/storage/estimate-indexeddb.https.any.worker-expected.txt: Added.
+            * web-platform-tests/storage/estimate-indexeddb.https.any.worker.html: Added.
+            * web-platform-tests/storage/estimate-parallel.https.any-expected.txt: Added.
+            * web-platform-tests/storage/estimate-parallel.https.any.html: Added.
+            * web-platform-tests/storage/estimate-parallel.https.any.js: Added.
+            (promise_test.async t):
+            * web-platform-tests/storage/estimate-parallel.https.any.worker-expected.txt: Added.
+            * web-platform-tests/storage/estimate-parallel.https.any.worker.html: Added.
+            * web-platform-tests/storage/estimate-usage-details-application-cache.https.tentative-expected.txt: Added.
+            * web-platform-tests/storage/estimate-usage-details-application-cache.https.tentative.html: Added.
+            * web-platform-tests/storage/estimate-usage-details-caches.https.tentative.any-expected.txt: Added.
+            * web-platform-tests/storage/estimate-usage-details-caches.https.tentative.any.html: Added.
+            * web-platform-tests/storage/estimate-usage-details-caches.https.tentative.any.js: Added.
+            (promise_test.async t):
+            * web-platform-tests/storage/estimate-usage-details-caches.https.tentative.any.worker-expected.txt: Added.
+            * web-platform-tests/storage/estimate-usage-details-caches.https.tentative.any.worker.html: Added.
+            * web-platform-tests/storage/estimate-usage-details-indexeddb.https.tentative.any-expected.txt: Added.
+            * web-platform-tests/storage/estimate-usage-details-indexeddb.https.tentative.any.html: Added.
+            * web-platform-tests/storage/estimate-usage-details-indexeddb.https.tentative.any.js: Added.
+            (promise_test.async t):
+            * web-platform-tests/storage/estimate-usage-details-indexeddb.https.tentative.any.worker-expected.txt: Added.
+            * web-platform-tests/storage/estimate-usage-details-indexeddb.https.tentative.any.worker.html: Added.
+            * web-platform-tests/storage/estimate-usage-details-service-workers.https.tentative.window-expected.txt: Added.
+            * web-platform-tests/storage/estimate-usage-details-service-workers.https.tentative.window.html: Added.
+            * web-platform-tests/storage/estimate-usage-details-service-workers.https.tentative.window.js: Added.
+            (promise_test.async t):
+            * web-platform-tests/storage/estimate-usage-details.https.tentative.any-expected.txt: Added.
+            * web-platform-tests/storage/estimate-usage-details.https.tentative.any.html: Added.
+            * web-platform-tests/storage/estimate-usage-details.https.tentative.any.js: Added.
+            (promise_test.async t):
+            * web-platform-tests/storage/estimate-usage-details.https.tentative.any.worker-expected.txt: Added.
+            * web-platform-tests/storage/estimate-usage-details.https.tentative.any.worker.html: Added.
+            * web-platform-tests/storage/helpers.js: Added.
+            (createDB):
+            * web-platform-tests/storage/idlharness.https.any-expected.txt: Added.
+            * web-platform-tests/storage/idlharness.https.any.html: Added.
+            * web-platform-tests/storage/idlharness.https.any.js: Added.
+            * web-platform-tests/storage/idlharness.https.any.worker-expected.txt: Added.
+            * web-platform-tests/storage/idlharness.https.any.worker.html: Added.
+            * web-platform-tests/storage/opaque-origin.https.window-expected.txt: Added.
+            * web-platform-tests/storage/opaque-origin.https.window.html: Added.
+            * web-platform-tests/storage/opaque-origin.https.window.js: Added.
+            (load_iframe):
+            (wait_for_message.return.new.Promise):
+            (forEach.snippet.assert_equals):
+            * web-platform-tests/storage/permission-query.https.any-expected.txt: Added.
+            * web-platform-tests/storage/permission-query.https.any.html: Added.
+            * web-platform-tests/storage/permission-query.https.any.js: Added.
+            (promise_test.async t):
+            * web-platform-tests/storage/permission-query.https.any.worker-expected.txt: Added.
+            * web-platform-tests/storage/permission-query.https.any.worker.html: Added.
+            * web-platform-tests/storage/persisted.https.any-expected.txt: Added.
+            * web-platform-tests/storage/persisted.https.any.html: Added.
+            * web-platform-tests/storage/persisted.https.any.js: Added.
+            (test):
+            (promise_test):
+            * web-platform-tests/storage/persisted.https.any.worker-expected.txt: Added.
+            * web-platform-tests/storage/persisted.https.any.worker.html: Added.
+            * web-platform-tests/storage/quotachange-in-detached-iframe.tentative.https-expected.txt: Added.
+            * web-platform-tests/storage/quotachange-in-detached-iframe.tentative.https.html: Added.
+            * web-platform-tests/storage/resources/appcache.manifest: Added.
+            * web-platform-tests/storage/resources/iframe_with_appcache_manifest.html: Added.
+            * web-platform-tests/storage/resources/w3c-import.log: Added.
+            * web-platform-tests/storage/storagemanager-estimate.https.any-expected.txt: Added.
+            * web-platform-tests/storage/storagemanager-estimate.https.any.html: Added.
+            * web-platform-tests/storage/storagemanager-estimate.https.any.js: Added.
+            (test):
+            (promise_test):
+            * web-platform-tests/storage/storagemanager-estimate.https.any.worker-expected.txt: Added.
+            * web-platform-tests/storage/storagemanager-estimate.https.any.worker.html: Added.
+            * web-platform-tests/storage/storagemanager-persist.https.window-expected.txt: Added.
+            * web-platform-tests/storage/storagemanager-persist.https.window.html: Added.
+            * web-platform-tests/storage/storagemanager-persist.https.window.js: Added.
+            (promise_test):
+            * web-platform-tests/storage/storagemanager-persist.https.worker-expected.txt: Added.
+            * web-platform-tests/storage/storagemanager-persist.https.worker.html: Added.
+            * web-platform-tests/storage/storagemanager-persist.https.worker.js: Added.
+            (test):
+            * web-platform-tests/storage/storagemanager-persisted.https.any-expected.txt: Added.
+            * web-platform-tests/storage/storagemanager-persisted.https.any.html: Added.
+            * web-platform-tests/storage/storagemanager-persisted.https.any.js: Added.
+            (promise_test):
+            * web-platform-tests/storage/storagemanager-persisted.https.any.worker-expected.txt: Added.
+            * web-platform-tests/storage/storagemanager-persisted.https.any.worker.html: Added.
+            * web-platform-tests/storage/w3c-import.log: Added.
+
+2021-10-12  Alan Coon  <alancoon@apple.com>
+
+        Apply patch. rdar://problem/83954451
+
+    Branch application of r282203.
+
+    2021-10-12  Cameron McCormack  <heycam@apple.com>
+
+            Update WPT tests under /html/canvas/element
+            https://bugs.webkit.org/show_bug.cgi?id=229750
+            <rdar://problem/82610102>
+
+            Reviewed by Youenn Fablet.
+
+            * resources/resource-files.json:
+            * web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/2d.drawImage.broken-expected.txt:
+            * web-platform-tests/html/canvas/element/drawing-text-to-the-canvas/2d.text.drawing.style.fontKerning-expected.txt:
+            * web-platform-tests/html/canvas/element/drawing-text-to-the-canvas/2d.text.drawing.style.fontKerning.html:
+            * web-platform-tests/html/canvas/element/drawing-text-to-the-canvas/2d.text.drawing.style.fontKerning.with.uppercase-expected.txt:
+            * web-platform-tests/html/canvas/element/drawing-text-to-the-canvas/2d.text.drawing.style.fontKerning.with.uppercase.html:
+            * web-platform-tests/html/canvas/element/drawing-text-to-the-canvas/2d.text.drawing.style.fontVariant.settings-expected.txt:
+            * web-platform-tests/html/canvas/element/drawing-text-to-the-canvas/2d.text.drawing.style.fontVariant.settings.html:
+            * web-platform-tests/html/canvas/element/drawing-text-to-the-canvas/2d.text.drawing.style.nonfinite.spacing-expected.txt:
+            * web-platform-tests/html/canvas/element/drawing-text-to-the-canvas/2d.text.drawing.style.nonfinite.spacing.html:
+            * web-platform-tests/html/canvas/element/drawing-text-to-the-canvas/2d.text.drawing.style.spacing-expected.txt:
+            * web-platform-tests/html/canvas/element/drawing-text-to-the-canvas/2d.text.drawing.style.spacing.html:
+            * web-platform-tests/html/canvas/element/drawing-text-to-the-canvas/2d.text.drawing.style.spacing.measure-expected.txt:
+            * web-platform-tests/html/canvas/element/drawing-text-to-the-canvas/2d.text.drawing.style.spacing.measure.html:
+            * web-platform-tests/html/canvas/element/drawing-text-to-the-canvas/2d.text.drawing.style.textRendering.settings-expected.txt:
+            * web-platform-tests/html/canvas/element/drawing-text-to-the-canvas/2d.text.drawing.style.textRendering.settings.html:
+            * web-platform-tests/html/canvas/element/filters/2d.filter.canvasFilterObject.blur.exceptions-expected.txt:
+            * web-platform-tests/html/canvas/element/filters/2d.filter.canvasFilterObject.blur.exceptions.html:
+            * web-platform-tests/html/canvas/element/filters/2d.filter.canvasFilterObject.colorMatrix-expected.txt:
+            * web-platform-tests/html/canvas/element/filters/2d.filter.canvasFilterObject.colorMatrix.html:
+            * web-platform-tests/html/canvas/element/filters/2d.filter.canvasFilterObject.componentTransfer.discrete.html:
+            * web-platform-tests/html/canvas/element/filters/2d.filter.canvasFilterObject.componentTransfer.gamma.html:
+            * web-platform-tests/html/canvas/element/filters/2d.filter.canvasFilterObject.componentTransfer.identity.html:
+            * web-platform-tests/html/canvas/element/filters/2d.filter.canvasFilterObject.componentTransfer.linear.html:
+            * web-platform-tests/html/canvas/element/filters/2d.filter.canvasFilterObject.componentTransfer.table.html:
+            * web-platform-tests/html/canvas/element/filters/2d.filter.canvasFilterObject.convolveMatrix.exceptions-expected.txt:
+            * web-platform-tests/html/canvas/element/filters/2d.filter.canvasFilterObject.convolveMatrix.exceptions.html:
+            * web-platform-tests/html/canvas/element/filters/2d.filter.canvasFilterObject.html:
+            * web-platform-tests/html/canvas/element/manual/README.md: Added.
+            * web-platform-tests/html/canvas/element/manual/building-paths/canvas_complexshapes_arcto_001-expected.htm: Added.
+            * web-platform-tests/html/canvas/element/manual/building-paths/canvas_complexshapes_arcto_001.htm: Added.
+            * web-platform-tests/html/canvas/element/manual/building-paths/canvas_complexshapes_beziercurveto_001-expected.htm: Added.
+            * web-platform-tests/html/canvas/element/manual/building-paths/canvas_complexshapes_beziercurveto_001.htm: Added.
+            * web-platform-tests/html/canvas/element/manual/building-paths/w3c-import.log: Copied from LayoutTests/imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/w3c-import.log.
+            * web-platform-tests/html/canvas/element/manual/compositing/canvas_compositing_globalcompositeoperation_001-expected.htm: Added.
+            * web-platform-tests/html/canvas/element/manual/compositing/canvas_compositing_globalcompositeoperation_001.htm: Added.
+            * web-platform-tests/html/canvas/element/manual/compositing/w3c-import.log: Copied from LayoutTests/imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/w3c-import.log.
+            * web-platform-tests/html/canvas/element/manual/context-attributes/canvas-with-padding-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/context-attributes/canvas-with-padding.html: Added.
+            * web-platform-tests/html/canvas/element/manual/context-attributes/getContextAttributes-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/context-attributes/getContextAttributes.html: Added.
+            * web-platform-tests/html/canvas/element/manual/context-attributes/w3c-import.log: Copied from LayoutTests/imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/w3c-import.log.
+            * web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/drawimage_canvas-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/drawimage_canvas.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/drawimage_canvas_self-expected.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/drawimage_canvas_self.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/drawimage_canvas_self_ref.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/drawimage_crossorigin.sub-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/drawimage_crossorigin.sub.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/drawimage_html_image-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/drawimage_html_image.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/drawimage_svg_image_1-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/drawimage_svg_image_1.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/drawimage_svg_image_with_foreign_object_does_not_taint-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/drawimage_svg_image_with_foreign_object_does_not_taint.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/image-orientation/drawImage-from-bitmap-orientation-none.tentative-expected.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/image-orientation/drawImage-from-bitmap-orientation-none.tentative.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/image-orientation/drawImage-from-bitmap-swap-width-height-orientation-none.tentative-expected.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/image-orientation/drawImage-from-bitmap-swap-width-height-orientation-none.tentative.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/image-orientation/drawImage-from-bitmap-swap-width-height.tentative-expected.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/image-orientation/drawImage-from-bitmap-swap-width-height.tentative.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/image-orientation/drawImage-from-bitmap.tentative-expected.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/image-orientation/drawImage-from-bitmap.tentative.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/image-orientation/drawImage-from-blob.tentative-expected.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/image-orientation/drawImage-from-blob.tentative.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/image-orientation/drawImage-from-element-orientation-none.tentative-expected.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/image-orientation/drawImage-from-element-orientation-none.tentative.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/image-orientation/drawImage-from-element-swap-width-height-orientation-none.tentative-expected.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/image-orientation/drawImage-from-element-swap-width-height-orientation-none.tentative.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/image-orientation/drawImage-from-element-swap-width-height.tentative-expected.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/image-orientation/drawImage-from-element-swap-width-height.tentative.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/image-orientation/drawImage-from-element.tentative-expected.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/image-orientation/drawImage-from-element.tentative.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/image-orientation/drawImage-with-src-rect.tentative-expected.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/image-orientation/drawImage-with-src-rect.tentative.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/image-orientation/w3c-import.log: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-images-to-the-canvas/w3c-import.log: Copied from LayoutTests/imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/w3c-import.log.
+            * web-platform-tests/html/canvas/element/manual/drawing-paths-to-the-canvas/canvas_complexshapes_ispointInpath_001-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-paths-to-the-canvas/canvas_complexshapes_ispointInpath_001.htm: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-paths-to-the-canvas/drawFocusIfNeeded_001-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-paths-to-the-canvas/drawFocusIfNeeded_001.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-paths-to-the-canvas/drawFocusIfNeeded_002-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-paths-to-the-canvas/drawFocusIfNeeded_002.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-paths-to-the-canvas/drawFocusIfNeeded_003-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-paths-to-the-canvas/drawFocusIfNeeded_003.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-paths-to-the-canvas/drawFocusIfNeeded_004-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-paths-to-the-canvas/drawFocusIfNeeded_004.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-paths-to-the-canvas/drawFocusIfNeeded_005-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-paths-to-the-canvas/drawFocusIfNeeded_005.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-paths-to-the-canvas/w3c-import.log: Copied from LayoutTests/imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/w3c-import.log.
+            * web-platform-tests/html/canvas/element/manual/drawing-text-to-the-canvas/canvas.2d.fontStretch.condensed-expected.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-text-to-the-canvas/canvas.2d.fontStretch.condensed.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-text-to-the-canvas/canvas.2d.fontStretch.expanded-expected.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-text-to-the-canvas/canvas.2d.fontStretch.expanded.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-text-to-the-canvas/canvas.2d.fontStretch.extra-condensed-expected.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-text-to-the-canvas/canvas.2d.fontStretch.extra-condensed.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-text-to-the-canvas/canvas.2d.fontStretch.extra-expanded-expected.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-text-to-the-canvas/canvas.2d.fontStretch.extra-expanded.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-text-to-the-canvas/canvas.2d.fontStretch.normal-expected.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-text-to-the-canvas/canvas.2d.fontStretch.normal.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-text-to-the-canvas/canvas.2d.fontStretch.semi-condensed-expected.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-text-to-the-canvas/canvas.2d.fontStretch.semi-condensed.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-text-to-the-canvas/canvas.2d.fontStretch.semi-expanded-expected.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-text-to-the-canvas/canvas.2d.fontStretch.semi-expanded.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-text-to-the-canvas/canvas.2d.fontStretch.ultra-condensed-expected.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-text-to-the-canvas/canvas.2d.fontStretch.ultra-condensed.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-text-to-the-canvas/canvas.2d.fontStretch.ultra-expanded-expected.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-text-to-the-canvas/canvas.2d.fontStretch.ultra-expanded.html: Added.
+            * web-platform-tests/html/canvas/element/manual/drawing-text-to-the-canvas/w3c-import.log: Added.
+            * web-platform-tests/html/canvas/element/manual/fill-and-stroke-styles/2d.fillStyle.parse.current.notrendered-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/fill-and-stroke-styles/2d.fillStyle.parse.current.notrendered.html: Added.
+            * web-platform-tests/html/canvas/element/manual/fill-and-stroke-styles/canvas_colorsandstyles_createlineargradient_001-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/fill-and-stroke-styles/canvas_colorsandstyles_createlineargradient_001.htm: Added.
+            * web-platform-tests/html/canvas/element/manual/fill-and-stroke-styles/conic-gradient-expected.html: Added.
+            * web-platform-tests/html/canvas/element/manual/fill-and-stroke-styles/conic-gradient-rotation-expected.html: Added.
+            * web-platform-tests/html/canvas/element/manual/fill-and-stroke-styles/conic-gradient-rotation.html: Added.
+            * web-platform-tests/html/canvas/element/manual/fill-and-stroke-styles/conic-gradient.html: Added.
+            * web-platform-tests/html/canvas/element/manual/fill-and-stroke-styles/w3c-import.log: Copied from LayoutTests/imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/w3c-import.log.
+            * web-platform-tests/html/canvas/element/manual/filters/canvas-filter-object-blur-expected.html: Added.
+            * web-platform-tests/html/canvas/element/manual/filters/canvas-filter-object-blur.html: Added.
+            * web-platform-tests/html/canvas/element/manual/filters/canvas-filter-object-component-transfer-expected.html: Added.
+            * web-platform-tests/html/canvas/element/manual/filters/canvas-filter-object-component-transfer.html: Added.
+            * web-platform-tests/html/canvas/element/manual/filters/canvas-filter-object-convolve-matrix-expected.html: Added.
+            * web-platform-tests/html/canvas/element/manual/filters/canvas-filter-object-convolve-matrix.html: Added.
+            * web-platform-tests/html/canvas/element/manual/filters/w3c-import.log: Copied from LayoutTests/imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/w3c-import.log.
+            * web-platform-tests/html/canvas/element/manual/hit-regions/addHitRegions-NotSupportedError-01-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/hit-regions/addHitRegions-NotSupportedError-01.html: Added.
+            * web-platform-tests/html/canvas/element/manual/hit-regions/hitregions-members-exist-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/hit-regions/hitregions-members-exist.html: Added.
+            * web-platform-tests/html/canvas/element/manual/hit-regions/w3c-import.log: Copied from LayoutTests/imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/w3c-import.log.
+            * web-platform-tests/html/canvas/element/manual/image-smoothing/imagesmoothing-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/image-smoothing/imagesmoothing.html: Added.
+            * web-platform-tests/html/canvas/element/manual/image-smoothing/w3c-import.log: Added.
+            * web-platform-tests/html/canvas/element/manual/imagebitmap/canvas-ImageBitmap-close-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/imagebitmap/canvas-ImageBitmap-close.html: Added.
+            * web-platform-tests/html/canvas/element/manual/imagebitmap/canvas-createImageBitmap-resize-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/imagebitmap/canvas-createImageBitmap-resize.html: Added.
+            * web-platform-tests/html/canvas/element/manual/imagebitmap/canvas-createImageBitmap-video-resize-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/imagebitmap/canvas-createImageBitmap-video-resize.html: Added.
+            * web-platform-tests/html/canvas/element/manual/imagebitmap/common.sub.js: Added.
+            (makeCanvas):
+            (imageBitmapVideoPromise.new.Promise.video.oncanplaythrough):
+            (imageBitmapVideoPromise.new.Promise):
+            (makeVideo):
+            (response.arrayBuffer.then.):
+            (response.arrayBuffer.then):
+            (makeMakeHTMLImage.):
+            (makeMakeHTMLImage):
+            (makeBlob.):
+            (factory.makeMakeHTMLImage):
+            (factory.makeMakeSVGImage):
+            * web-platform-tests/html/canvas/element/manual/imagebitmap/createImageBitmap-blob-invalidtype-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/imagebitmap/createImageBitmap-blob-invalidtype.html: Added.
+            * web-platform-tests/html/canvas/element/manual/imagebitmap/createImageBitmap-bounds-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/imagebitmap/createImageBitmap-bounds.html: Added.
+            * web-platform-tests/html/canvas/element/manual/imagebitmap/createImageBitmap-drawImage-closed-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/imagebitmap/createImageBitmap-drawImage-closed.html: Added.
+            * web-platform-tests/html/canvas/element/manual/imagebitmap/createImageBitmap-drawImage-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/imagebitmap/createImageBitmap-drawImage.html: Added.
+            * web-platform-tests/html/canvas/element/manual/imagebitmap/createImageBitmap-flipY-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/imagebitmap/createImageBitmap-flipY.html: Added.
+            * web-platform-tests/html/canvas/element/manual/imagebitmap/createImageBitmap-in-worker-transfer-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/imagebitmap/createImageBitmap-in-worker-transfer.html: Added.
+            * web-platform-tests/html/canvas/element/manual/imagebitmap/createImageBitmap-invalid-args-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/imagebitmap/createImageBitmap-invalid-args.html: Added.
+            * web-platform-tests/html/canvas/element/manual/imagebitmap/createImageBitmap-origin.sub-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/imagebitmap/createImageBitmap-origin.sub.html: Added.
+            * web-platform-tests/html/canvas/element/manual/imagebitmap/createImageBitmap-serializable-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/imagebitmap/createImageBitmap-serializable.html: Added.
+            * web-platform-tests/html/canvas/element/manual/imagebitmap/createImageBitmap-sizeOverflow-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/imagebitmap/createImageBitmap-sizeOverflow.html: Added.
+            * web-platform-tests/html/canvas/element/manual/imagebitmap/createImageBitmap-transfer-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/imagebitmap/createImageBitmap-transfer.html: Added.
+            * web-platform-tests/html/canvas/element/manual/imagebitmap/createImageBitmap-worker.js: Added.
+            (makeBlob.):
+            (makeBlob):
+            * web-platform-tests/html/canvas/element/manual/imagebitmap/imageBitmap-from-imageData-no-image-rotation-expected.html: Added.
+            * web-platform-tests/html/canvas/element/manual/imagebitmap/imageBitmap-from-imageData-no-image-rotation.html: Added.
+            * web-platform-tests/html/canvas/element/manual/imagebitmap/transfer-worker.js: Added.
+            * web-platform-tests/html/canvas/element/manual/imagebitmap/w3c-import.log: Copied from LayoutTests/imported/w3c/web-platform-tests/html/canvas/element/text-styles/w3c-import.log.
+            * web-platform-tests/html/canvas/element/manual/imagebitmap/worker-onmessage-noop.js: Added.
+            (self.onmessage):
+            * web-platform-tests/html/canvas/element/manual/line-styles/canvas_linestyles_linecap_001-expected.htm: Added.
+            * web-platform-tests/html/canvas/element/manual/line-styles/canvas_linestyles_linecap_001.htm: Added.
+            * web-platform-tests/html/canvas/element/manual/line-styles/lineto_a-expected.html: Added.
+            * web-platform-tests/html/canvas/element/manual/line-styles/lineto_a.html: Added.
+            * web-platform-tests/html/canvas/element/manual/line-styles/lineto_ref.html: Added.
+            * web-platform-tests/html/canvas/element/manual/line-styles/setLineDash-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/line-styles/setLineDash.html: Added.
+            * web-platform-tests/html/canvas/element/manual/line-styles/w3c-import.log: Copied from LayoutTests/imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/w3c-import.log.
+            * web-platform-tests/html/canvas/element/manual/shadows/canvas_shadows_001-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/shadows/canvas_shadows_001.htm: Added.
+            * web-platform-tests/html/canvas/element/manual/shadows/canvas_shadows_002-expected.htm: Added.
+            * web-platform-tests/html/canvas/element/manual/shadows/canvas_shadows_002.htm: Added.
+            * web-platform-tests/html/canvas/element/manual/shadows/canvas_shadows_system_colors-expected.html: Added.
+            * web-platform-tests/html/canvas/element/manual/shadows/canvas_shadows_system_colors.html: Added.
+            * web-platform-tests/html/canvas/element/manual/shadows/shadowBlur_gaussian_tolerance.1-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/shadows/shadowBlur_gaussian_tolerance.1.html: Added.
+            * web-platform-tests/html/canvas/element/manual/shadows/w3c-import.log: Copied from LayoutTests/imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/w3c-import.log.
+            * web-platform-tests/html/canvas/element/manual/text-styles/canvas_text_font_001-expected.htm: Added.
+            * web-platform-tests/html/canvas/element/manual/text-styles/canvas_text_font_001.htm: Added.
+            * web-platform-tests/html/canvas/element/manual/text-styles/w3c-import.log: Copied from LayoutTests/imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/w3c-import.log.
+            * web-platform-tests/html/canvas/element/manual/the-canvas-state/2d.state.saverestore.imageSmoothingEnabled-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/the-canvas-state/2d.state.saverestore.imageSmoothingEnabled.html: Added.
+            * web-platform-tests/html/canvas/element/manual/the-canvas-state/2d.zero.size.canvas-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/the-canvas-state/2d.zero.size.canvas.html: Added.
+            * web-platform-tests/html/canvas/element/manual/the-canvas-state/canvas_state_restore_001-expected.htm: Added.
+            * web-platform-tests/html/canvas/element/manual/the-canvas-state/canvas_state_restore_001.htm: Added.
+            * web-platform-tests/html/canvas/element/manual/the-canvas-state/w3c-import.log: Copied from LayoutTests/imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/w3c-import.log.
+            * web-platform-tests/html/canvas/element/manual/transformations/2d.transformation.getTransform-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/transformations/2d.transformation.getTransform.html: Added.
+            * web-platform-tests/html/canvas/element/manual/transformations/canvas_transformations_reset_001-expected.html: Added.
+            * web-platform-tests/html/canvas/element/manual/transformations/canvas_transformations_reset_001.html: Added.
+            * web-platform-tests/html/canvas/element/manual/transformations/canvas_transformations_scale_001-expected.htm: Added.
+            * web-platform-tests/html/canvas/element/manual/transformations/canvas_transformations_scale_001.htm: Added.
+            * web-platform-tests/html/canvas/element/manual/transformations/transform_a-expected.html: Added.
+            * web-platform-tests/html/canvas/element/manual/transformations/transform_a.html: Added.
+            * web-platform-tests/html/canvas/element/manual/transformations/transform_ref.html: Added.
+            * web-platform-tests/html/canvas/element/manual/transformations/w3c-import.log: Copied from LayoutTests/imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/w3c-import.log.
+            * web-platform-tests/html/canvas/element/manual/unclosed-canvas-1-expected.htm: Added.
+            * web-platform-tests/html/canvas/element/manual/unclosed-canvas-1.htm: Added.
+            * web-platform-tests/html/canvas/element/manual/unclosed-canvas-2-expected.htm: Added.
+            * web-platform-tests/html/canvas/element/manual/unclosed-canvas-2.htm: Added.
+            * web-platform-tests/html/canvas/element/manual/unclosed-canvas-3-expected.htm: Added.
+            * web-platform-tests/html/canvas/element/manual/unclosed-canvas-3.htm: Added.
+            * web-platform-tests/html/canvas/element/manual/unclosed-canvas-4-expected.htm: Added.
+            * web-platform-tests/html/canvas/element/manual/unclosed-canvas-4.htm: Added.
+            * web-platform-tests/html/canvas/element/manual/w3c-import.log: Copied from LayoutTests/imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/w3c-import.log.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/ImageData-fidelity-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/ImageData-fidelity.html: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-colorManaged-convertToBlob-roundtrip-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-colorManaged-convertToBlob-roundtrip.html: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-colorManaged-toBlob-toDataURL-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-colorManaged-toBlob-toDataURL.html: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-colorspace-arguments-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-colorspace-arguments.html: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-createImageBitmap-e_srgb-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-createImageBitmap-e_srgb.html: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-createPutGetImageData-colorManaged-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-createPutGetImageData-colorManaged.html: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-draw-high-bit-depth-images-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-draw-high-bit-depth-images.html: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-drawImage-e_srgb-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-drawImage-e_srgb.html: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-drawImage-offscreenCanvas-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-drawImage-offscreenCanvas.html: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-getImageData-e_srgb-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-getImageData-e_srgb.html: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/imageData-colorManagedBehavior-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/imageData-colorManagedBehavior.html: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/imagedata-no-color-settings-crash-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/imagedata-no-color-settings-crash.html: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/pattern-semitransparent-p3d65.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/pattern-semitransparent-rec2020.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/pattern-semitransparent-srgb.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/pattern-srgb-fullcolor.ogv: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/pattern-srgb-transparent.avif: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/pattern-srgb-transparent.bmp: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/pattern-srgb-transparent.ico: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/pattern-srgb-transparent.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/pattern-srgb-transparent.webp: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/pattern-srgb.avif: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/pattern-srgb.bmp: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/pattern-srgb.gif: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/pattern-srgb.ico: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/pattern-srgb.jpg: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/pattern-srgb.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/pattern-srgb.svg: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/pattern-srgb.webp: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/png-16bit/2x2_16bit_AdobeRGB_opaque.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/png-16bit/2x2_16bit_AdobeRGB_transparent.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/png-16bit/2x2_16bit_DisplayP3_opaque.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/png-16bit/2x2_16bit_DisplayP3_transparent.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/png-16bit/2x2_16bit_ProPhoto_opaque.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/png-16bit/2x2_16bit_ProPhoto_transparent.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/png-16bit/2x2_16bit_Rec2020_opaque.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/png-16bit/2x2_16bit_Rec2020_transparent.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/png-16bit/2x2_16bit_interlaced_AdobeRGB_opaque.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/png-16bit/2x2_16bit_interlaced_AdobeRGB_transparent.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/png-16bit/2x2_16bit_interlaced_DisplayP3_opaque.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/png-16bit/2x2_16bit_interlaced_DisplayP3_transparent.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/png-16bit/2x2_16bit_interlaced_ProPhoto_opaque.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/png-16bit/2x2_16bit_interlaced_ProPhoto_transparent.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/png-16bit/2x2_16bit_interlaced_Rec2020_opaque.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/png-16bit/2x2_16bit_interlaced_Rec2020_transparent.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/png-16bit/2x2_16bit_interlaced_sRGB_opaque.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/png-16bit/2x2_16bit_interlaced_sRGB_transparent.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/png-16bit/2x2_16bit_sRGB_opaque.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/png-16bit/2x2_16bit_sRGB_transparent.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/png-16bit/2x2_8bit_AdobeRGB_opaque.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/png-16bit/2x2_8bit_AdobeRGB_transparent.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/png-16bit/2x2_8bit_DisplayP3_opaque.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/png-16bit/2x2_8bit_DisplayP3_transparent.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/png-16bit/2x2_8bit_ProPhoto_opaque.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/png-16bit/2x2_8bit_ProPhoto_transparent.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/png-16bit/2x2_8bit_Rec2020_opaque.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/png-16bit/2x2_8bit_Rec2020_transparent.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/png-16bit/2x2_8bit_sRGB_opaque.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/png-16bit/2x2_8bit_sRGB_transparent.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/png-16bit/w3c-import.log: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/w3c-import.log: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/transferFromImageBitmap-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/transferFromImageBitmap.html: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/w3c-import.log: Added.
+            * web-platform-tests/html/canvas/element/path-objects/2d.path.roundrect.1.radius.dompointinit-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/path-objects/2d.path.roundrect.1.radius.dompointinit.html: Added.
+            * web-platform-tests/html/canvas/element/path-objects/2d.path.roundrect.2.radii.1.dompointinit-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/path-objects/2d.path.roundrect.2.radii.1.dompointinit.html: Added.
+            * web-platform-tests/html/canvas/element/path-objects/2d.path.roundrect.2.radii.2.dompointinit-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/path-objects/2d.path.roundrect.2.radii.2.dompointinit.html: Added.
+            * web-platform-tests/html/canvas/element/path-objects/2d.path.roundrect.3.radii.1.dompointinit-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/path-objects/2d.path.roundrect.3.radii.1.dompointinit.html: Added.
+            * web-platform-tests/html/canvas/element/path-objects/2d.path.roundrect.3.radii.2.dompointinit-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/path-objects/2d.path.roundrect.3.radii.2.dompointinit.html: Added.
+            * web-platform-tests/html/canvas/element/path-objects/2d.path.roundrect.3.radii.3.dompointinit-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/path-objects/2d.path.roundrect.3.radii.3.dompointinit.html: Added.
+            * web-platform-tests/html/canvas/element/path-objects/2d.path.roundrect.4.radii.1.dompointinit-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/path-objects/2d.path.roundrect.4.radii.1.dompointinit.html: Added.
+            * web-platform-tests/html/canvas/element/path-objects/2d.path.roundrect.4.radii.2.dompointinit-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/path-objects/2d.path.roundrect.4.radii.2.dompointinit.html: Added.
+            * web-platform-tests/html/canvas/element/path-objects/2d.path.roundrect.4.radii.3.dompointinit-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/path-objects/2d.path.roundrect.4.radii.3.dompointinit.html: Added.
+            * web-platform-tests/html/canvas/element/path-objects/2d.path.roundrect.4.radii.4.dompointinit-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/path-objects/2d.path.roundrect.4.radii.4.dompointinit.html: Added.
+            * web-platform-tests/html/canvas/element/path-objects/2d.path.roundrect.nonfinite.html:
+            * web-platform-tests/html/canvas/element/path-objects/2d.path.roundrect.radius.negative-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/path-objects/2d.path.roundrect.radius.negative.html: Added.
+            * web-platform-tests/html/canvas/element/path-objects/2d.path.roundrect.radius.none-expected.txt:
+            * web-platform-tests/html/canvas/element/path-objects/2d.path.roundrect.radius.none.html:
+            * web-platform-tests/html/canvas/element/path-objects/2d.path.roundrect.radius.toomany-expected.txt:
+            * web-platform-tests/html/canvas/element/path-objects/2d.path.roundrect.radius.toomany.html:
+            * web-platform-tests/html/canvas/element/path-objects/w3c-import.log:
+            * web-platform-tests/html/canvas/element/text-styles/2d.text.font.parse.family-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/text-styles/2d.text.font.parse.family.html: Copied from LayoutTests/imported/w3c/web-platform-tests/html/canvas/element/path-objects/2d.path.roundrect.radius.toomany.html.
+            * web-platform-tests/html/canvas/element/text-styles/w3c-import.log:
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/w3c-import.log:
+
+2021-10-11  Chris Dumez  <cdumez@apple.com>
+
+        Unreviewed, minor test rebaseline on the branch.
+
+        Due to lack of SharedArrayBuffer stubs.
+
+        * web-platform-tests/html/cross-origin-embedder-policy/reporting-to-endpoint.https-expected.txt:
+
+2021-10-04  Chris Dumez  <cdumez@apple.com>
+
+        Use isolated NSURLSessions for each first party registrable domain
+        https://bugs.webkit.org/show_bug.cgi?id=230750
+        <rdar://83159358>
+
+        Reviewed by Alex Christensen.
+
+        Rebaseline WPT test that is now passing more checks.
+
+        * web-platform-tests/fetch/connection-pool/network-partition-key-expected.txt:
+
+2021-09-28  Chris Dumez  <cdumez@apple.com>
+
+        Move Cross-Origin-Opener-Policy handling to the NetworkProcess
+        https://bugs.webkit.org/show_bug.cgi?id=230812
+        <rdar://83504842>
+
+        Reviewed by Youenn Fablet.
+
+        Rebaseline a couple of WPT tests due to some extra logging.
+
+        * web-platform-tests/html/cross-origin-opener-policy/coop-coep-sandbox.https-expected.txt:
+        * web-platform-tests/html/cross-origin-opener-policy/coop-sandbox.https-expected.txt:
+
+2021-09-16  Chris Dumez  <cdumez@apple.com>
+
+        Add violations reporting support for Cross-Origin-Embedder-Policy
+        https://bugs.webkit.org/show_bug.cgi?id=230269
+
+        Reviewed by Youenn Fablet.
+
+        * web-platform-tests/fetch/api/request/destination/fetch-destination-iframe.https-expected.txt:
+        Rebaseline test that is passing now that we support Fetch destination="iframe".
+
+        * web-platform-tests/html/cross-origin-embedder-policy/reporting-to-endpoint.https-expected.txt:
+        Rebaseline test that is passing now that we support reporting for COEP violations.
+
+        * web-platform-tests/html/cross-origin-embedder-policy/reporting-to-endpoint.https.html.sub.headers:
+        Merge fix from https://github.com/web-platform-tests/wpt/pull/30785 so that the test can run within
+        the WebKit test infrastructure.
+
+2021-09-10  Chris Dumez  <cdumez@apple.com>
+
+        Implement navigation reporting for Cross-Origin-Opener-Policy
+        https://bugs.webkit.org/show_bug.cgi?id=230046
+
+        Reviewed by Alex Christensen.
+
+        Rebaseline WPT COOP navigation reporting tests now that they are passing.
+
+        Merge the following fix to WPT tests so they can run with the WebKit infrastructure:
+        - https://github.com/web-platform-tests/wpt/pull/30411
+
+        Merge the following WPT test fix to address flakiness:
+        - https://github.com/web-platform-tests/wpt/pull/30548
+
+        * web-platform-tests/html/cross-origin-opener-policy/reporting/navigation-reporting/report-only-four-reports.https-expected.txt:
+        * web-platform-tests/html/cross-origin-opener-policy/reporting/navigation-reporting/report-only-four-reports.https.html.sub.headers:
+        * web-platform-tests/html/cross-origin-opener-policy/reporting/navigation-reporting/report-only-from-unsafe-none.https-expected.txt:
+        * web-platform-tests/html/cross-origin-opener-policy/reporting/navigation-reporting/report-only-same-origin-report-to.https-expected.txt:
+        * web-platform-tests/html/cross-origin-opener-policy/reporting/navigation-reporting/report-only-same-origin-report-to.https.html.sub.headers:
+        * web-platform-tests/html/cross-origin-opener-policy/reporting/navigation-reporting/report-only-same-origin.https-expected.txt:
+        * web-platform-tests/html/cross-origin-opener-policy/reporting/navigation-reporting/reporting-coop-navigated-opener.https-expected.txt:
+        * web-platform-tests/html/cross-origin-opener-policy/reporting/navigation-reporting/reporting-coop-navigated-popup.https-expected.txt:
+        * web-platform-tests/html/cross-origin-opener-policy/reporting/navigation-reporting/reporting-popup-same-origin-allow-popups-report-to.https-expected.txt:
+        * web-platform-tests/html/cross-origin-opener-policy/reporting/navigation-reporting/reporting-popup-same-origin-allow-popups-report-to.https.html.sub.headers:
+        * web-platform-tests/html/cross-origin-opener-policy/reporting/navigation-reporting/reporting-popup-same-origin-coep-report-to.https-expected.txt:
+        * web-platform-tests/html/cross-origin-opener-policy/reporting/navigation-reporting/reporting-popup-same-origin-coep-report-to.https.html.sub.headers:
+        * web-platform-tests/html/cross-origin-opener-policy/reporting/navigation-reporting/reporting-popup-same-origin-report-to.https-expected.txt:
+        * web-platform-tests/html/cross-origin-opener-policy/reporting/navigation-reporting/reporting-popup-same-origin-report-to.https.html.sub.headers:
+        * web-platform-tests/html/cross-origin-opener-policy/reporting/navigation-reporting/reporting-popup-same-origin.https-expected.txt:
+        * web-platform-tests/html/cross-origin-opener-policy/reporting/navigation-reporting/reporting-popup-unsafe-none-report-to.https-expected.txt:
+        * web-platform-tests/html/cross-origin-opener-policy/reporting/navigation-reporting/reporting-popup-unsafe-none-report-to.https.html.sub.headers:
+        * web-platform-tests/html/cross-origin-opener-policy/reporting/navigation-reporting/reporting-redirect-with-same-origin-allow-popups.https-expected.txt:
+        * web-platform-tests/html/cross-origin-opener-policy/reporting/resources/reporting-common.js:
+
+2021-08-31  Chris Dumez  <cdumez@apple.com>
+
+        Enable SharedArrayBuffer support when COOP/COEP headers are used
+        https://bugs.webkit.org/show_bug.cgi?id=229559
+        <rdar://problem/82391945>
+
+        Reviewed by Alex Christensen.
+
+        Rebaseline a few web-platform-tests now that window.crossOriginIsolated properly returns
+        true when COOP+COEP are used.
+
+        Note that SharedArrayBuffer are already forcefully enabled by run-webkit-tests.py when running
+        the layout tests, which is why there are not more layout test results changes. At some point,
+        we should stop forcefully enabling SharedArrayBuffer when running web-platform-tests at least,
+        since WPT tests already make sure to use COOP+COEP when testing SharedArrayBuffer.
+
+        * web-platform-tests/IndexedDB/serialize-sharedarraybuffer-throws.https-expected.txt:
+        * web-platform-tests/html/cross-origin-embedder-policy/cross-origin-isolated-permission.https-expected.txt:
+        Note that some subtests are failing because we don't support the Permissions-Policy HTTP header:
+        - https://w3c.github.io/webappsec-permissions-policy/
+
+        * web-platform-tests/html/cross-origin-opener-policy/coep.https-expected.txt:
+
+2021-08-31  Chris Dumez  <cdumez@apple.com>
+
+        [COOP] html/cross-origin-opener-policy/coop-same-origin-allow-popups-document-write.html WPT test is failing
+        https://bugs.webkit.org/show_bug.cgi?id=229692
+
+        Reviewed by Darin Adler.
+
+        * web-platform-tests/html/cross-origin-opener-policy/coop-same-origin-allow-popups-document-write-expected.txt:
+        Rebaseline WPT test that is now passing.
+
+        * web-platform-tests/html/cross-origin-opener-policy/coop-same-origin-allow-popups-document-write.html:
+        Merge typo fix from https://github.com/web-platform-tests/wpt/commit/0adccdd2cd38e2217a11d3d6dd14260f32a8a0a6
+
+2021-08-30  Chris Dumez  <cdumez@apple.com>
+
+        Resync COOP / COEP WPT tests from upstream
+        https://bugs.webkit.org/show_bug.cgi?id=229678
+
+        Reviewed by Alex Christensen.
+
+        Resync COOP / COEP WPT tests from upstream e216db9509def8bc72b24e482.
+
+        * web-platform-tests/html/cross-origin-embedder-policy/*: Updated.
+        * web-platform-tests/html/cross-origin-opener-policy/*: Updated.
+
+2021-08-24  Chris Dumez  <cdumez@apple.com>
+
+        [WK2] Implement process-swapping based on Cross-Origin-Opener-Policy HTTP header
+        https://bugs.webkit.org/show_bug.cgi?id=229203
+        <rdar://problem/82047686>
+
+        Reviewed by Alex Christensen.
+
+        Minor test rebaseline due to logging changes.
+
+        * web-platform-tests/html/cross-origin-opener-policy/coep-blob-popup.https-expected.txt:
+
+2021-10-08  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r283531. rdar://problem/83956741
+
+    Choose an appropriate color space when converting an SVG image into a NativeImage for canvas drawImage
+    https://bugs.webkit.org/show_bug.cgi?id=231062
+    <rdar://problem/83752451>
+    
+    Reviewed by Simon Fraser.
+    
+    LayoutTests/imported/w3c:
+    
+    Add a test for drawImage() with an SVG image that has sRGB and Display
+    P3 colors.
+    
+    Not adding tests for patterns pointing to SVG images for now, since
+    WebKit currently always taints the canvas in that case, or for
+    ImageBitmaps wrapping SVG images, since we always flatten them to sRGB
+    (and we don't track what content is inside the SVG to make a better
+    decision about what color space ImageBuffer to use).
+    
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage.https-expected.txt: Renamed from LayoutTests/imported/w3c/web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-expected.txt.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage.https.html: Renamed from LayoutTests/imported/w3c/web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage.html.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3.js:
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/Display-P3-0.7333-0-0.svg: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/Display-P3-1-0-0.svg: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/sRGB-BB0000.svg: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/sRGB-FF0000.svg: Added.
+    
+    Source/WebCore:
+    
+    When GPUP canvas is enabled, drawImage() with an SVG image is handled
+    by drawing into a NativeImage and then sending that to the GPUP. We
+    need to choose a color space for the NativeImage's ImageBuffer that
+    matches the canvas.
+    
+    Once full SVG rendering is supported by the GPU process, we can undo
+    this code, as we'll no longer be using a NativeImage.
+    
+    Test: imported/w3c/web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage.https.html
+    
+    * html/canvas/CanvasRenderingContext2DBase.cpp:
+    (WebCore::CanvasRenderingContext2DBase::drawImage):
+    (WebCore::drawImageToContext):
+    (WebCore::CanvasRenderingContext2DBase::fullCanvasCompositedDrawImage):
+    * platform/graphics/GraphicsContext.cpp:
+    (WebCore::GraphicsContext::drawImageForCanvas):
+    * platform/graphics/GraphicsContext.h:
+    * platform/graphics/Image.cpp:
+    (WebCore::Image::drawForCanvas):
+    * platform/graphics/Image.h:
+    * platform/graphics/MediaPlayer.h:
+    * svg/graphics/SVGImage.cpp:
+    (WebCore::SVGImage::drawForCanvasForContainer):
+    (WebCore::SVGImage::drawForContainer):
+    (WebCore::SVGImage::drawForContainerInternal):
+    (WebCore::SVGImage::nativeImage):
+    (WebCore::SVGImage::drawForCanvas):
+    (WebCore::SVGImage::draw):
+    (WebCore::SVGImage::drawInternal):
+    (WebCore::SVGImage::drawAsNativeImage):
+    * svg/graphics/SVGImage.h:
+    * svg/graphics/SVGImageForContainer.cpp:
+    (WebCore::SVGImageForContainer::drawForCanvas):
+    * svg/graphics/SVGImageForContainer.h:
+    
+    LayoutTests:
+    
+    * TestExpectations:
+    * platform/ios-14/TestExpectations:
+    * platform/ios/TestExpectations:
+    * platform/mac/TestExpectations:
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@283531 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-10-04  Cameron McCormack  <heycam@apple.com>
+
+            Choose an appropriate color space when converting an SVG image into a NativeImage for canvas drawImage
+            https://bugs.webkit.org/show_bug.cgi?id=231062
+            <rdar://problem/83752451>
+
+            Reviewed by Simon Fraser.
+
+            Add a test for drawImage() with an SVG image that has sRGB and Display
+            P3 colors.
+
+            Not adding tests for patterns pointing to SVG images for now, since
+            WebKit currently always taints the canvas in that case, or for
+            ImageBitmaps wrapping SVG images, since we always flatten them to sRGB
+            (and we don't track what content is inside the SVG to make a better
+            decision about what color space ImageBuffer to use).
+
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage.https-expected.txt: Renamed from LayoutTests/imported/w3c/web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-expected.txt.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage.https.html: Renamed from LayoutTests/imported/w3c/web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage.html.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3.js:
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/Display-P3-0.7333-0-0.svg: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/Display-P3-1-0-0.svg: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/sRGB-BB0000.svg: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/sRGB-FF0000.svg: Added.
+
+2021-10-08  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r283193. rdar://problem/83954782
+
+    Preserve color space when structured cloning ImageBitmaps
+    https://bugs.webkit.org/show_bug.cgi?id=230429
+    <rdar://problem/83293533>
+    
+    Reviewed by Sam Weinig.
+    
+    LayoutTests/imported/w3c:
+    
+    The test added in https://bugs.webkit.org/show_bug.cgi?id=230429 was
+    buggy, in that by the time the "message" event handler ran, the
+    values for the various test configuration variables had changed. The
+    key bugfix here is checking for the right testID value in the message
+    event handler, but the test is rewritten more substantially to be a bit
+    clearer and less indented.
+    
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-cloned-expected.txt:
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-cloned.html:
+    
+    Source/WebCore:
+    
+    The logic for serializing the CGColorSpace is copied and adapted from
+    the ArgumentCoder<CGColorSpaceRef> specialization, which we cannot
+    easily re-use.
+    
+    * bindings/js/SerializedScriptValue.cpp:
+    (WebCore::CloneSerializer::dumpImageBitmap):
+    (WebCore::CloneSerializer::write):
+    (WebCore::CloneDeserializer::read):
+    (WebCore::CloneDeserializer::readImageBitmap):
+    
+    LayoutTests:
+    
+    * fast/storage/serialized-script-value.html: Bump the current version
+    number.
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@283193 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-09-28  Cameron McCormack  <heycam@apple.com>
+
+            Preserve color space when structured cloning ImageBitmaps
+            https://bugs.webkit.org/show_bug.cgi?id=230429
+            <rdar://problem/83293533>
+
+            Reviewed by Sam Weinig.
+
+            The test added in https://bugs.webkit.org/show_bug.cgi?id=230429 was
+            buggy, in that by the time the "message" event handler ran, the
+            values for the various test configuration variables had changed. The
+            key bugfix here is checking for the right testID value in the message
+            event handler, but the test is rewritten more substantially to be a bit
+            clearer and less indented.
+
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-cloned-expected.txt:
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-cloned.html:
+
+2021-10-08  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r282696. rdar://problem/83954782
+
+    Preserve color space when creating ImageBuffers for ImageBitmaps
+    https://bugs.webkit.org/show_bug.cgi?id=229022
+    <rdar://problem/81828459>
+    
+    Reviewed by Sam Weinig.
+    
+    LayoutTests/imported/w3c:
+    
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-Blob-expected.txt: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-Blob.html: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-ImageBitmap-expected.txt: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-ImageBitmap.html: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-ImageData-expected.txt: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-ImageData.html: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-canvas-expected.txt: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-canvas.html: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-cloned-expected.txt: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-cloned.html: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-image-expected.txt: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-image.html: Added.
+    
+    Source/WebCore:
+    
+    ImageBitmaps can be created with various sources of image data.
+    Currently, they always create an sRGB ImageBuffer to copy the
+    image data into. This patch tries to preserve the color space
+    of the source image data. Because ImageBuffer only works with 8 bit
+    RGBA data, other color space models (such as CMYK) get converted
+    to Display P3 if available, or sRGB otherwise. The rationale for
+    this is that ImageBitmaps are designed to be drawn into canvases,
+    and we currently only support sRGB and Display P3 for canvas backing
+    stores.
+    
+    It's not ideal that we do the color space conversion, since it would
+    be better to delay the conversion until it's needed when drawing onto
+    the canvas. It's also not ideal that we can't preserve the pixel
+    format of the image data, which might be 16 bit color or floats. We
+    could support these only if ImageBuffer were extended to support them.
+    A different design for ImageBitmap where it can hold on to the image
+    data source directly (and support for structured cloning and worker
+    thread transferrance added) could also work. For now, we don't worry,
+    and accept the loss of color fidelity when downsampling or converting
+    from non-RGB color space models.
+    
+    Support for structured cloning of ImageBitmaps with non-sRGB data
+    isn't added, but a test for this is. (This will need a way to
+    serialize the DestinationColorSpace.)
+    
+    Tests: imported/w3c/web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-Blob.html
+           imported/w3c/web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-ImageBitmap.html
+           imported/w3c/web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-ImageData.html
+           imported/w3c/web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-canvas.html
+           imported/w3c/web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-cloned.html
+           imported/w3c/web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-image.html
+    
+    * bindings/js/SerializedScriptValue.cpp:
+    (WebCore::CloneSerializer::dumpImageBitmap):
+    (WebCore::CloneDeserializer::readImageBitmap):
+    * html/ImageBitmap.cpp:
+    (WebCore::ImageBitmap::create):
+    (WebCore::ImageBitmap::createImageBuffer):
+    (WebCore::ImageBitmap::resolveWithBlankImageBuffer):
+    (WebCore::ImageBitmap::createPromise):
+    (WebCore::ImageBitmap::createFromBuffer):
+    * html/ImageBitmap.h:
+    * html/OffscreenCanvas.cpp:
+    (WebCore::OffscreenCanvas::transferToImageBitmap):
+    (WebCore::OffscreenCanvas::createImageBuffer const):
+    * platform/graphics/BitmapImage.cpp:
+    (WebCore::BitmapImage::colorSpace):
+    * platform/graphics/BitmapImage.h:
+    * platform/graphics/DestinationColorSpace.cpp:
+    (WebCore::DestinationColorSpace::asRGB const): New function that
+    abstracts out the behavior "tell me whether the color space is
+    appropriate for use with an 8 bit RGB buffer", which is common
+    to ImageBitmap and ShareableBitmapCG.
+    * platform/graphics/DestinationColorSpace.h:
+    * platform/graphics/Image.cpp:
+    (WebCore::Image::colorSpace):
+    * platform/graphics/Image.h:
+    
+    Source/WebKit:
+    
+    * Shared/cg/ShareableBitmapCG.cpp:
+    (WebKit::ShareableBitmap::validateConfiguration): Factor out some
+    loging into DestinationColorSpace::asRGB.
+    
+    Source/WTF:
+    
+    * wtf/PlatformHave.h:
+    
+    LayoutTests:
+    
+    * TestExpectations:
+    * platform/ios-14/TestExpectations:
+    * platform/ios/TestExpectations:
+    * platform/mac/TestExpectations:
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@282696 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-09-17  Cameron McCormack  <heycam@apple.com>
+
+            Preserve color space when creating ImageBuffers for ImageBitmaps
+            https://bugs.webkit.org/show_bug.cgi?id=229022
+            <rdar://problem/81828459>
+
+            Reviewed by Sam Weinig.
+
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-Blob-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-Blob.html: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-ImageBitmap-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-ImageBitmap.html: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-ImageData-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-ImageData.html: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-canvas-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-canvas.html: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-cloned-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-cloned.html: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-image-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-ImageBitmap-image.html: Added.
+
+2021-10-08  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r282630. rdar://problem/83956741
+
+    Support patterns with a wide gamut source painting into a display-p3 canvas
+    https://bugs.webkit.org/show_bug.cgi?id=229023
+    <rdar://problem/81828466>
+    
+    Reviewed by Sam Weinig.
+    
+    LayoutTests/imported/w3c:
+    
+    Add tests for wide gamut <img> and <canvas> sources for patterns.
+    
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage.html:
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-pattern-canvas-expected.txt: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-pattern-canvas.html: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-pattern-image-expected.txt: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-pattern-image.html: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3.js:
+    
+    Source/WebKit:
+    
+    Patterns are sent to the GPU process using ShareableBitmaps created
+    from ImageBuffers. Ensure we pass along the pattern source color space
+    to ShareableBitmap::create.
+    
+    Tests: imported/w3c/web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-pattern-canvas.html
+           imported/w3c/web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-pattern-image.html
+    
+    * GPUProcess/graphics/RemoteRenderingBackend.cpp:
+    (WebKit::RemoteRenderingBackend::getShareableBitmapForImageBuffer):
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@282630 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-09-16  Cameron McCormack  <heycam@apple.com>
+
+            Support patterns with a wide gamut source painting into a display-p3 canvas
+            https://bugs.webkit.org/show_bug.cgi?id=229023
+            <rdar://problem/81828466>
+
+            Reviewed by Sam Weinig.
+
+            Add tests for wide gamut <img> and <canvas> sources for patterns.
+
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage.html:
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-pattern-canvas-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-pattern-canvas.html: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-pattern-image-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-pattern-image.html: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3.js:
+
+2021-10-08  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r283099. rdar://problem/83957623
+
+    Remove old test files from canvas WPTs that were moved
+    https://bugs.webkit.org/show_bug.cgi?id=230811
+    <rdar://problem/83554404>
+    
+    Reviewed by Tim Horton.
+    
+    LayoutTests/imported/w3c:
+    
+    A bunch of canvas test moved directories in
+    https://github.com/web-platform-tests/wpt/pull/23996. When we re-
+    imported canvas WPTs in bug 229750, these old files were left behind.
+    We can remove them since they all now live under
+    html/canvas/element/manual/.
+    
+    * web-platform-tests/html/canvas/element/building-paths/canvas_complexshapes_arcto_001.htm: Removed.
+    * web-platform-tests/html/canvas/element/building-paths/canvas_complexshapes_beziercurveto_001.htm: Removed.
+    * web-platform-tests/html/canvas/element/context-attributes/getContextAttributes-expected.txt: Removed.
+    * web-platform-tests/html/canvas/element/context-attributes/getContextAttributes.html: Removed.
+    * web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-bitmap-orientation-none.tentative-expected.html: Removed.
+    * web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-bitmap-orientation-none.tentative.html: Removed.
+    * web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-bitmap-swap-width-height-orientation-none.tentative-expected.html: Removed.
+    * web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-bitmap-swap-width-height-orientation-none.tentative.html: Removed.
+    * web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-bitmap-swap-width-height.tentative-expected.html: Removed.
+    * web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-bitmap-swap-width-height.tentative.html: Removed.
+    * web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-bitmap.tentative-expected.html: Removed.
+    * web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-bitmap.tentative.html: Removed.
+    * web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-blob.tentative-expected.html: Removed.
+    * web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-blob.tentative.html: Removed.
+    * web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-element-orientation-none.tentative-expected.html: Removed.
+    * web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-element-orientation-none.tentative.html: Removed.
+    * web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-element-swap-width-height-orientation-none.tentative-expected.html: Removed.
+    * web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-element-swap-width-height-orientation-none.tentative.html: Removed.
+    * web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-element-swap-width-height.tentative-expected.html: Removed.
+    * web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-element-swap-width-height.tentative.html: Removed.
+    * web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-element.tentative-expected.html: Removed.
+    * web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-element.tentative.html: Removed.
+    * web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-with-src-rect.tentative-expected.html: Removed.
+    * web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-with-src-rect.tentative.html: Removed.
+    * web-platform-tests/html/canvas/element/drawing-paths-to-the-canvas/canvas_complexshapes_ispointInpath_001.htm: Removed.
+    * web-platform-tests/html/canvas/element/drawing-paths-to-the-canvas/drawFocusIfNeeded_001-expected.txt: Removed.
+    * web-platform-tests/html/canvas/element/drawing-paths-to-the-canvas/drawFocusIfNeeded_001.html: Removed.
+    * web-platform-tests/html/canvas/element/drawing-paths-to-the-canvas/drawFocusIfNeeded_002-expected.txt: Removed.
+    * web-platform-tests/html/canvas/element/drawing-paths-to-the-canvas/drawFocusIfNeeded_002.html: Removed.
+    * web-platform-tests/html/canvas/element/drawing-paths-to-the-canvas/drawFocusIfNeeded_003-expected.txt: Removed.
+    * web-platform-tests/html/canvas/element/drawing-paths-to-the-canvas/drawFocusIfNeeded_003.html: Removed.
+    * web-platform-tests/html/canvas/element/drawing-paths-to-the-canvas/drawFocusIfNeeded_004-expected.txt: Removed.
+    * web-platform-tests/html/canvas/element/drawing-paths-to-the-canvas/drawFocusIfNeeded_004.html: Removed.
+    * web-platform-tests/html/canvas/element/drawing-paths-to-the-canvas/drawFocusIfNeeded_005-expected.txt: Removed.
+    * web-platform-tests/html/canvas/element/drawing-paths-to-the-canvas/drawFocusIfNeeded_005.html: Removed.
+    * web-platform-tests/html/canvas/element/image-smoothing/imagesmoothing-expected.txt: Removed.
+    * web-platform-tests/html/canvas/element/image-smoothing/imagesmoothing.html: Removed.
+    * web-platform-tests/html/canvas/element/imagebitmap/canvas-createImageBitmap-resize-expected.txt: Removed.
+    * web-platform-tests/html/canvas/element/imagebitmap/canvas-createImageBitmap-resize.html: Removed.
+    * web-platform-tests/html/canvas/element/imagebitmap/canvas-createImageBitmap-video-resize-expected.txt: Removed.
+    * web-platform-tests/html/canvas/element/imagebitmap/canvas-createImageBitmap-video-resize.html: Removed.
+    * web-platform-tests/html/canvas/element/imagebitmap/common.sub.js: Removed.
+    * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-blob-invalidtype-expected.txt: Removed.
+    * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-blob-invalidtype.html: Removed.
+    * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-bounds-expected.txt: Removed.
+    * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-bounds.html: Removed.
+    * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-drawImage-closed-expected.txt: Removed.
+    * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-drawImage-closed.html: Removed.
+    * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-drawImage-expected.txt: Removed.
+    * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-drawImage.html: Removed.
+    * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-flipY-expected.txt: Removed.
+    * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-flipY.html: Removed.
+    * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-in-worker-transfer-expected.txt: Removed.
+    * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-in-worker-transfer.html: Removed.
+    * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-invalid-args-expected.txt: Removed.
+    * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-invalid-args.html: Removed.
+    * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-origin.sub-expected.txt: Removed.
+    * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-origin.sub.html: Removed.
+    * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-serializable-expected.txt: Removed.
+    * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-serializable.html: Removed.
+    * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-sizeOverflow-expected.txt: Removed.
+    * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-sizeOverflow.html: Removed.
+    * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-transfer-expected.txt: Removed.
+    * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-transfer.html: Removed.
+    * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-worker.js: Removed.
+    * web-platform-tests/html/canvas/element/imagebitmap/transfer-worker.js: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/pattern-semitransparent-p3d65.png: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/pattern-semitransparent-rec2020.png: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/pattern-semitransparent-srgb.png: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/pattern-srgb-fullcolor.ogv: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/pattern-srgb-transparent.bmp: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/pattern-srgb-transparent.ico: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/pattern-srgb-transparent.png: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/pattern-srgb-transparent.webp: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/pattern-srgb.bmp: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/pattern-srgb.gif: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/pattern-srgb.ico: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/pattern-srgb.jpg: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/pattern-srgb.png: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/pattern-srgb.svg: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/pattern-srgb.webp: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_16bit_AdobeRGB_opaque.png: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_16bit_AdobeRGB_transparent.png: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_16bit_DisplayP3_opaque.png: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_16bit_DisplayP3_transparent.png: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_16bit_ProPhoto_opaque.png: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_16bit_ProPhoto_transparent.png: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_16bit_Rec2020_opaque.png: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_16bit_Rec2020_transparent.png: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_16bit_interlaced_AdobeRGB_opaque.png: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_16bit_interlaced_AdobeRGB_transparent.png: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_16bit_interlaced_DisplayP3_opaque.png: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_16bit_interlaced_DisplayP3_transparent.png: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_16bit_interlaced_ProPhoto_opaque.png: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_16bit_interlaced_ProPhoto_transparent.png: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_16bit_interlaced_Rec2020_opaque.png: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_16bit_interlaced_Rec2020_transparent.png: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_16bit_interlaced_sRGB_opaque.png: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_16bit_interlaced_sRGB_transparent.png: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_16bit_sRGB_opaque.png: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_16bit_sRGB_transparent.png: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_8bit_AdobeRGB_opaque.png: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_8bit_AdobeRGB_transparent.png: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_8bit_DisplayP3_opaque.png: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_8bit_DisplayP3_transparent.png: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_8bit_ProPhoto_opaque.png: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_8bit_ProPhoto_transparent.png: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_8bit_Rec2020_opaque.png: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_8bit_Rec2020_transparent.png: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_8bit_sRGB_opaque.png: Removed.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_8bit_sRGB_transparent.png: Removed.
+    
+    LayoutTests:
+    
+    * TestExpectations:
+    * platform/glib/TestExpectations:
+    * platform/glib/imported/w3c/web-platform-tests/html/canvas/element/image-smoothing/imagesmoothing-expected.txt: Removed.
+    * platform/glib/imported/w3c/web-platform-tests/html/canvas/element/imagebitmap/canvas-createImageBitmap-resize-expected.txt: Removed.
+    * platform/glib/imported/w3c/web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-drawImage-expected.txt: Removed.
+    * platform/glib/imported/w3c/web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-flipY-expected.txt: Removed.
+    * platform/glib/imported/w3c/web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-invalid-args-expected.txt: Removed.
+    * platform/glib/imported/w3c/web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-serializable-expected.txt: Removed.
+    * platform/glib/imported/w3c/web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-transfer-expected.txt: Removed.
+    * platform/ios-14/TestExpectations:
+    * platform/ios-simulator-wk2/TestExpectations:
+    * platform/ios-wk2/TestExpectations:
+    * platform/ios/TestExpectations:
+    * platform/mac-wk1/imported/w3c/web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-flipY-expected.txt: Removed.
+    * platform/mac/TestExpectations:
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@283099 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-09-26  Cameron McCormack  <heycam@apple.com>
+
+            Remove old test files from canvas WPTs that were moved
+            https://bugs.webkit.org/show_bug.cgi?id=230811
+            <rdar://problem/83554404>
+
+            Reviewed by Tim Horton.
+
+            A bunch of canvas test moved directories in
+            https://github.com/web-platform-tests/wpt/pull/23996. When we re-
+            imported canvas WPTs in bug 229750, these old files were left behind.
+            We can remove them since they all now live under
+            html/canvas/element/manual/.
+
+            * web-platform-tests/html/canvas/element/building-paths/canvas_complexshapes_arcto_001.htm: Removed.
+            * web-platform-tests/html/canvas/element/building-paths/canvas_complexshapes_beziercurveto_001.htm: Removed.
+            * web-platform-tests/html/canvas/element/context-attributes/getContextAttributes-expected.txt: Removed.
+            * web-platform-tests/html/canvas/element/context-attributes/getContextAttributes.html: Removed.
+            * web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-bitmap-orientation-none.tentative-expected.html: Removed.
+            * web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-bitmap-orientation-none.tentative.html: Removed.
+            * web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-bitmap-swap-width-height-orientation-none.tentative-expected.html: Removed.
+            * web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-bitmap-swap-width-height-orientation-none.tentative.html: Removed.
+            * web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-bitmap-swap-width-height.tentative-expected.html: Removed.
+            * web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-bitmap-swap-width-height.tentative.html: Removed.
+            * web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-bitmap.tentative-expected.html: Removed.
+            * web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-bitmap.tentative.html: Removed.
+            * web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-blob.tentative-expected.html: Removed.
+            * web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-blob.tentative.html: Removed.
+            * web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-element-orientation-none.tentative-expected.html: Removed.
+            * web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-element-orientation-none.tentative.html: Removed.
+            * web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-element-swap-width-height-orientation-none.tentative-expected.html: Removed.
+            * web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-element-swap-width-height-orientation-none.tentative.html: Removed.
+            * web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-element-swap-width-height.tentative-expected.html: Removed.
+            * web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-element-swap-width-height.tentative.html: Removed.
+            * web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-element.tentative-expected.html: Removed.
+            * web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-from-element.tentative.html: Removed.
+            * web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-with-src-rect.tentative-expected.html: Removed.
+            * web-platform-tests/html/canvas/element/drawing-images-to-the-canvas/image-orientation/drawImage-with-src-rect.tentative.html: Removed.
+            * web-platform-tests/html/canvas/element/drawing-paths-to-the-canvas/canvas_complexshapes_ispointInpath_001.htm: Removed.
+            * web-platform-tests/html/canvas/element/drawing-paths-to-the-canvas/drawFocusIfNeeded_001-expected.txt: Removed.
+            * web-platform-tests/html/canvas/element/drawing-paths-to-the-canvas/drawFocusIfNeeded_001.html: Removed.
+            * web-platform-tests/html/canvas/element/drawing-paths-to-the-canvas/drawFocusIfNeeded_002-expected.txt: Removed.
+            * web-platform-tests/html/canvas/element/drawing-paths-to-the-canvas/drawFocusIfNeeded_002.html: Removed.
+            * web-platform-tests/html/canvas/element/drawing-paths-to-the-canvas/drawFocusIfNeeded_003-expected.txt: Removed.
+            * web-platform-tests/html/canvas/element/drawing-paths-to-the-canvas/drawFocusIfNeeded_003.html: Removed.
+            * web-platform-tests/html/canvas/element/drawing-paths-to-the-canvas/drawFocusIfNeeded_004-expected.txt: Removed.
+            * web-platform-tests/html/canvas/element/drawing-paths-to-the-canvas/drawFocusIfNeeded_004.html: Removed.
+            * web-platform-tests/html/canvas/element/drawing-paths-to-the-canvas/drawFocusIfNeeded_005-expected.txt: Removed.
+            * web-platform-tests/html/canvas/element/drawing-paths-to-the-canvas/drawFocusIfNeeded_005.html: Removed.
+            * web-platform-tests/html/canvas/element/image-smoothing/imagesmoothing-expected.txt: Removed.
+            * web-platform-tests/html/canvas/element/image-smoothing/imagesmoothing.html: Removed.
+            * web-platform-tests/html/canvas/element/imagebitmap/canvas-createImageBitmap-resize-expected.txt: Removed.
+            * web-platform-tests/html/canvas/element/imagebitmap/canvas-createImageBitmap-resize.html: Removed.
+            * web-platform-tests/html/canvas/element/imagebitmap/canvas-createImageBitmap-video-resize-expected.txt: Removed.
+            * web-platform-tests/html/canvas/element/imagebitmap/canvas-createImageBitmap-video-resize.html: Removed.
+            * web-platform-tests/html/canvas/element/imagebitmap/common.sub.js: Removed.
+            * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-blob-invalidtype-expected.txt: Removed.
+            * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-blob-invalidtype.html: Removed.
+            * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-bounds-expected.txt: Removed.
+            * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-bounds.html: Removed.
+            * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-drawImage-closed-expected.txt: Removed.
+            * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-drawImage-closed.html: Removed.
+            * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-drawImage-expected.txt: Removed.
+            * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-drawImage.html: Removed.
+            * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-flipY-expected.txt: Removed.
+            * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-flipY.html: Removed.
+            * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-in-worker-transfer-expected.txt: Removed.
+            * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-in-worker-transfer.html: Removed.
+            * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-invalid-args-expected.txt: Removed.
+            * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-invalid-args.html: Removed.
+            * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-origin.sub-expected.txt: Removed.
+            * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-origin.sub.html: Removed.
+            * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-serializable-expected.txt: Removed.
+            * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-serializable.html: Removed.
+            * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-sizeOverflow-expected.txt: Removed.
+            * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-sizeOverflow.html: Removed.
+            * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-transfer-expected.txt: Removed.
+            * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-transfer.html: Removed.
+            * web-platform-tests/html/canvas/element/imagebitmap/createImageBitmap-worker.js: Removed.
+            * web-platform-tests/html/canvas/element/imagebitmap/transfer-worker.js: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/pattern-semitransparent-p3d65.png: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/pattern-semitransparent-rec2020.png: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/pattern-semitransparent-srgb.png: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/pattern-srgb-fullcolor.ogv: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/pattern-srgb-transparent.bmp: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/pattern-srgb-transparent.ico: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/pattern-srgb-transparent.png: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/pattern-srgb-transparent.webp: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/pattern-srgb.bmp: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/pattern-srgb.gif: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/pattern-srgb.ico: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/pattern-srgb.jpg: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/pattern-srgb.png: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/pattern-srgb.svg: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/pattern-srgb.webp: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_16bit_AdobeRGB_opaque.png: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_16bit_AdobeRGB_transparent.png: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_16bit_DisplayP3_opaque.png: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_16bit_DisplayP3_transparent.png: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_16bit_ProPhoto_opaque.png: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_16bit_ProPhoto_transparent.png: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_16bit_Rec2020_opaque.png: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_16bit_Rec2020_transparent.png: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_16bit_interlaced_AdobeRGB_opaque.png: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_16bit_interlaced_AdobeRGB_transparent.png: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_16bit_interlaced_DisplayP3_opaque.png: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_16bit_interlaced_DisplayP3_transparent.png: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_16bit_interlaced_ProPhoto_opaque.png: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_16bit_interlaced_ProPhoto_transparent.png: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_16bit_interlaced_Rec2020_opaque.png: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_16bit_interlaced_Rec2020_transparent.png: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_16bit_interlaced_sRGB_opaque.png: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_16bit_interlaced_sRGB_transparent.png: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_16bit_sRGB_opaque.png: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_16bit_sRGB_transparent.png: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_8bit_AdobeRGB_opaque.png: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_8bit_AdobeRGB_transparent.png: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_8bit_DisplayP3_opaque.png: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_8bit_DisplayP3_transparent.png: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_8bit_ProPhoto_opaque.png: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_8bit_ProPhoto_transparent.png: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_8bit_Rec2020_opaque.png: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_8bit_Rec2020_transparent.png: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_8bit_sRGB_opaque.png: Removed.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/resources/png-16bit/2x2_8bit_sRGB_transparent.png: Removed.
+
+2021-10-08  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r282634. rdar://problem/83957287
+
+    Preserve canvas color space when producing JPEGs from toDataURL/toBlob
+    https://bugs.webkit.org/show_bug.cgi?id=230209
+    <rdar://82948457>
+    
+    Reviewed by Sam Weinig.
+    
+    LayoutTests/imported/w3c:
+    
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.toDataURL.jpeg.p3.canvas-expected.txt: Added.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.toDataURL.jpeg.p3.canvas.html: Copied from LayoutTests/imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.toDataURL.p3.canvas.html.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.toDataURL.p3.canvas-expected.txt:
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.toDataURL.p3.canvas.html:
+    * web-platform-tests/html/canvas/tools/yaml/element/color_space.yaml:
+    
+    Source/WebCore:
+    
+    Test: imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.toDataURL.jpeg.p3.canvas.html
+    
+    * platform/graphics/cg/ImageBufferCGBackend.cpp:
+    (WebCore::colorSpaceForBitmap): Return an appropriate color space for
+    performing any graphics operations on ImageBuffers (such as scaling or
+    cropping, or compositing on top of solid colors) becore encoding.
+    (WebCore::createBitmapImageAfterScalingIfNeeded):
+    (WebCore::ImageBufferCGBackend::copyCGImageForEncoding const):
+    
+    LayoutTests:
+    
+    * TestExpectations:
+    * platform/ios-14/TestExpectations:
+    * platform/ios/TestExpectations:
+    * platform/mac/TestExpectations:
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@282634 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-09-16  Cameron McCormack  <heycam@apple.com>
+
+            Preserve canvas color space when producing JPEGs from toDataURL/toBlob
+            https://bugs.webkit.org/show_bug.cgi?id=230209
+            <rdar://82948457>
+
+            Reviewed by Sam Weinig.
+
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.toDataURL.jpeg.p3.canvas-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.toDataURL.jpeg.p3.canvas.html: Copied from LayoutTests/imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.toDataURL.p3.canvas.html.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.toDataURL.p3.canvas-expected.txt:
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.toDataURL.p3.canvas.html:
+            * web-platform-tests/html/canvas/tools/yaml/element/color_space.yaml:
+
+2021-10-08  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r282626. rdar://problem/83956767
+
+    Support drawImage with a wide gamut image painting into a display-p3 canvas
+    https://bugs.webkit.org/show_bug.cgi?id=229021
+    <rdar://problem/81828450>
+    
+    Reviewed by Sam Weinig.
+    
+    LayoutTests/imported/w3c:
+    
+    Adding a new WPT for drawImage() using images with various embedded
+    color profiles.
+    
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-expected.txt: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage.html: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-settings-expected.txt: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-settings.html: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3.js: Added.
+    (pixelsApproximatelyEqual):
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/Adobe-RGB-BB0000CC.png: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/Adobe-RGB-BB0000FF.png: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/Adobe-RGB-BBBC00000000CCCC.png: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/Adobe-RGB-BBBC00000000FFFF.png: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/Adobe-RGB-FF0000CC.png: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/Adobe-RGB-FF0000FF.png: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/Adobe-RGB-FFFF00000000CCCC.png: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/Adobe-RGB-FFFF00000000FFFF.png: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/Display-P3-BB0000CC.png: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/Display-P3-BB0000FF.png: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/Display-P3-BBBC00000000CCCC.png: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/Display-P3-BBBC00000000FFFF.png: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/Display-P3-FF0000CC.png: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/Display-P3-FF0000FF.png: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/Display-P3-FFFF00000000CCCC.png: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/Display-P3-FFFF00000000FFFF.png: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/Generic-CMYK-BE000000.jpg: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/Generic-CMYK-FF000000.jpg: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/sRGB-BB0000CC.png: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/sRGB-BB0000FF.png: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/sRGB-BBBC00000000CCCC.png: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/sRGB-BBBC00000000FFFF.png: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/sRGB-FF0000CC.png: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/sRGB-FF0000FF.png: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/sRGB-FFFF00000000CCCC.png: Added.
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/sRGB-FFFF00000000FFFF.png: Added.
+    
+    * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-draw-high-bit-depth-images-expected.txt:
+    Results changing for an existing test. It's designed to test canvas
+    with a float16 backing store, which is (at the moment) non-standard,
+    and unsupported by us. The sub-tests changing from PASS to FAIL are
+    notable; they are drawing semi-transparent 16 bit wide gamut images
+    and comparing the results to drawing 8 bit equivalent images. Might
+    be accuracy issues due to pre-multiplied alpha?
+    
+    Source/WebCore:
+    
+    Expose the color space of a NativeImage.
+    
+    Tests: imported/w3c/web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage.html
+           imported/w3c/web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-settings.html
+    
+    * platform/graphics/NativeImage.h:
+    * platform/graphics/cairo/NativeImageCairo.cpp:
+    (WebCore::NativeImage::colorSpace const):
+    * platform/graphics/cg/NativeImageCG.cpp:
+    (WebCore::NativeImage::colorSpace const):
+    * platform/graphics/win/NativeImageDirect2D.cpp:
+    (WebCore::NativeImage::colorSpace const):
+    
+    Source/WebKit:
+    
+    ShareableBitmap is used to share image data used by drawImage() calls,
+    from the Web process to the GPU process. This change makes
+    ShareableBitmap create a CGBitmap with a color space matching the
+    source NativeImage, if that is an RGB-based color space, or extended
+    sRGB otherwise. This allows us to pass Adobe RGB, Display P3, etc.
+    images to the GPU process without needing to convert color space,
+    while still allowing for example CMYK JPEGs to be drawn correctly.
+    
+    * Shared/ShareableBitmap.cpp:
+    (WebKit::ShareableBitmap::create):
+    (WebKit::ShareableBitmap::createShareable):
+    * Shared/ShareableBitmap.h:
+    * Shared/cairo/ShareableBitmapCairo.cpp:
+    (WebKit::ShareableBitmap::validateConfiguration):
+    * Shared/cg/ShareableBitmapCG.cpp:
+    (WebKit::ShareableBitmap::validateConfiguration): Map the requested
+    color space into one appropriate for the CGBitmap.
+    (WebKit::colorSpace):
+    * Shared/win/ShareableBitmapDirect2D.cpp:
+    (WebKit::ShareableBitmap::validateConfiguration):
+    * WebProcess/GPU/graphics/RemoteResourceCacheProxy.cpp:
+    (WebKit::createShareableBitmapFromNativeImage): Pass in the color
+    space of the NativeImage.
+    
+    LayoutTests:
+    
+    * TestExpectations:
+    * platform/ios-14/TestExpectations:
+    * platform/ios/TestExpectations:
+    * platform/mac/TestExpectations:
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@282626 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-09-16  Cameron McCormack  <heycam@apple.com>
+
+            Support drawImage with a wide gamut image painting into a display-p3 canvas
+            https://bugs.webkit.org/show_bug.cgi?id=229021
+            <rdar://problem/81828450>
+
+            Reviewed by Sam Weinig.
+
+            Adding a new WPT for drawImage() using images with various embedded
+            color profiles.
+
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-drawImage.html: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-settings-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3-settings.html: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-display-p3.js: Added.
+            (pixelsApproximatelyEqual):
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/Adobe-RGB-BB0000CC.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/Adobe-RGB-BB0000FF.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/Adobe-RGB-BBBC00000000CCCC.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/Adobe-RGB-BBBC00000000FFFF.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/Adobe-RGB-FF0000CC.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/Adobe-RGB-FF0000FF.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/Adobe-RGB-FFFF00000000CCCC.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/Adobe-RGB-FFFF00000000FFFF.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/Display-P3-BB0000CC.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/Display-P3-BB0000FF.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/Display-P3-BBBC00000000CCCC.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/Display-P3-BBBC00000000FFFF.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/Display-P3-FF0000CC.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/Display-P3-FF0000FF.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/Display-P3-FFFF00000000CCCC.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/Display-P3-FFFF00000000FFFF.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/Generic-CMYK-BE000000.jpg: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/Generic-CMYK-FF000000.jpg: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/sRGB-BB0000CC.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/sRGB-BB0000FF.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/sRGB-BBBC00000000CCCC.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/sRGB-BBBC00000000FFFF.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/sRGB-FF0000CC.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/sRGB-FF0000FF.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/sRGB-FFFF00000000CCCC.png: Added.
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/resources/sRGB-FFFF00000000FFFF.png: Added.
+
+            * web-platform-tests/html/canvas/element/manual/wide-gamut-canvas/canvas-draw-high-bit-depth-images-expected.txt:
+            Results changing for an existing test. It's designed to test canvas
+            with a float16 backing store, which is (at the moment) non-standard,
+            and unsupported by us. The sub-tests changing from PASS to FAIL are
+            notable; they are drawing semi-transparent 16 bit wide gamut images
+            and comparing the results to drawing 8 bit equivalent images. Might
+            be accuracy issues due to pre-multiplied alpha?
+
+2021-10-07  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r283093. rdar://problem/83955562
+
+    Remove canvas HitRegions tests
+    https://bugs.webkit.org/show_bug.cgi?id=230809
+    <rdar://problem/83553485>
+    
+    Reviewed by Alan Bujtas.
+    
+    These were removed upstream in
+    https://github.com/web-platform-tests/wpt/pull/30850.
+    
+    * web-platform-tests/html/canvas/element/hit-regions/addHitRegions-NotSupportedError-01-expected.txt: Removed.
+    * web-platform-tests/html/canvas/element/hit-regions/addHitRegions-NotSupportedError-01.html: Removed.
+    * web-platform-tests/html/canvas/element/hit-regions/hitregions-members-exist-expected.txt: Removed.
+    * web-platform-tests/html/canvas/element/hit-regions/hitregions-members-exist.html: Removed.
+    * web-platform-tests/html/canvas/element/hit-regions/w3c-import.log: Removed.
+    * web-platform-tests/html/canvas/element/manual/hit-regions/addHitRegions-NotSupportedError-01-expected.txt: Removed.
+    * web-platform-tests/html/canvas/element/manual/hit-regions/addHitRegions-NotSupportedError-01.html: Removed.
+    * web-platform-tests/html/canvas/element/manual/hit-regions/hitregions-members-exist-expected.txt: Removed.
+    * web-platform-tests/html/canvas/element/manual/hit-regions/hitregions-members-exist.html: Removed.
+    * web-platform-tests/html/canvas/element/manual/hit-regions/w3c-import.log: Removed.
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@283093 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-09-26  Cameron McCormack  <heycam@apple.com>
+
+            Remove canvas HitRegions tests
+            https://bugs.webkit.org/show_bug.cgi?id=230809
+            <rdar://problem/83553485>
+
+            Reviewed by Alan Bujtas.
+
+            These were removed upstream in
+            https://github.com/web-platform-tests/wpt/pull/30850.
+
+            * web-platform-tests/html/canvas/element/hit-regions/addHitRegions-NotSupportedError-01-expected.txt: Removed.
+            * web-platform-tests/html/canvas/element/hit-regions/addHitRegions-NotSupportedError-01.html: Removed.
+            * web-platform-tests/html/canvas/element/hit-regions/hitregions-members-exist-expected.txt: Removed.
+            * web-platform-tests/html/canvas/element/hit-regions/hitregions-members-exist.html: Removed.
+            * web-platform-tests/html/canvas/element/hit-regions/w3c-import.log: Removed.
+            * web-platform-tests/html/canvas/element/manual/hit-regions/addHitRegions-NotSupportedError-01-expected.txt: Removed.
+            * web-platform-tests/html/canvas/element/manual/hit-regions/addHitRegions-NotSupportedError-01.html: Removed.
+            * web-platform-tests/html/canvas/element/manual/hit-regions/hitregions-members-exist-expected.txt: Removed.
+            * web-platform-tests/html/canvas/element/manual/hit-regions/hitregions-members-exist.html: Removed.
+            * web-platform-tests/html/canvas/element/manual/hit-regions/w3c-import.log: Removed.
+
+2021-10-07  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r281470. rdar://problem/83957311
+
+    LayoutTests/imported/w3c:
+    Preserve color space when getting current color in DisplayListDrawGlyphsRecorder.
+    https://bugs.webkit.org/show_bug.cgi?id=229024
+    <rdar://problem/81828477>
+    
+    Reviewed by Sam Weinig.
+    
+    Add tests for calling fillText() and strokeText() with a display-p3
+    color for fillStyle, strokeStyle, and shadowColor, on a display-p3 canvas.
+    
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.fillText-expected.txt: Added.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.fillText.html: Added.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.fillText.shadow-expected.txt: Added.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.fillText.shadow.html: Added.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.strokeText-expected.txt: Added.
+    * web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.strokeText.html: Added.
+    * web-platform-tests/html/canvas/tools/yaml/element/color_space.yaml:
+    
+    Source/WebCore:
+    Preserve color space when getting current color in DisplayList::DrawGlyphsRecorder
+    https://bugs.webkit.org/show_bug.cgi?id=229024
+    <rdar://problem/81828477>
+    
+    Reviewed by Sam Weinig.
+    
+    When GPU canvas is enabled, DrawGlyphsRecorder records the text fill,
+    stroke, and shadow colors by getting them from the context using
+    CGGStateGetFillColor etc.  This is done so that color glyphs have each
+    part painted in the right color.  But the current conversion from
+    CGColor to WebCore::Color lossily converts to sRGB.  So we need to get
+    the color space and color components from the CGColor and preserve them.
+    
+    The existing Color(CGColorRef) constructor is replaced by two
+    constructor functions, createAndPreserveColorSpace and
+    roundAndClampToSRGBALossy, so the conversion behavior is clear at call
+    sites.  createAndPreserveColorSpace will match the CGColor's color
+    space to one of the predefined spaces that WebCore::Color can
+    represent.  If it's some other color space, we convert to XYZ (on
+    platforms where that's available), since that will result in the least
+    loss, or to sRGB (on platforms where XYZ is not available).
+    
+    CGColorSpaceEqualToColorSpace, which is used when determining the
+    CGColor's color space, is not very expensive, but it will do more than a
+    pointer comparison in case we pass in two CGColorSpaceRefs that are
+    equivalent but not the same pointer value.  Since our new
+    colorSpaceForCGColorSpace function will be used with CGColors that have
+    been set WebCore during canvas drawing, we will get back the same
+    pointers that we have cached in sRGBColorSpaceRef(),
+    displayP3ColorSpaceRef(), etc.  If calling CGColorSpaceEqualToColorSpace
+    on all our supported color spaces turns out to be too expensive, we
+    could start by doing a pointer comparison on each before calling
+    CGColorSpaceEqualToColorSpace.
+    
+    The way colorSpaceForCGColorSpace is written we could end up
+    instantiating all of our supported color spaces, if an author used an
+    XYZ color when drawing text (the last color profile we check).  We
+    could try harder to avoid doing this if it's important.
+    
+    Tests: imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.fillText.html
+           imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.fillText.shadow.html
+           imported/w3c/web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.strokeText.html
+    
+    * page/CaptionUserPreferencesMediaAF.cpp:
+    (WebCore::CaptionUserPreferencesMediaAF::captionsWindowCSS const):
+    (WebCore::CaptionUserPreferencesMediaAF::captionsBackgroundCSS const):
+    (WebCore::CaptionUserPreferencesMediaAF::captionsTextColor const):
+    * platform/graphics/Color.h:
+    (WebCore::Color::createAndPreserveColorSpace):
+    (WebCore::Color::createAndLosslesslyConvertToSupportedColorSpace):
+    * platform/graphics/ca/cocoa/PlatformCALayerCocoa.mm:
+    (WebCore::PlatformCALayerCocoa::backgroundColor const):
+    * platform/graphics/ca/cocoa/WebTiledBackingLayer.mm:
+    (-[WebTiledBackingLayer setBorderColor:]):
+    * platform/graphics/ca/win/PlatformCALayerWin.cpp:
+    (PlatformCALayerWin::backgroundColor const):
+    (printColor):
+    * platform/graphics/ca/win/PlatformCALayerWinInternal.cpp:
+    (PlatformCALayerWinInternal::drawRepaintCounters):
+    * platform/graphics/cg/ColorCG.cpp:
+    (WebCore::roundAndClampToSRGBALossy):
+    (WebCore::Color::createAndLosslesslyConvertToSupportedColorSpace):
+    (WebCore::Color::createAndPreserveColorSpace):
+    (WebCore::platformConvertColorComponents):
+    * platform/graphics/cg/ColorSpaceCG.cpp:
+    (WebCore::colorSpaceForCGColorSpace):
+    * platform/graphics/cg/ColorSpaceCG.h:
+    * platform/graphics/displaylists/DisplayListDrawGlyphsRecorderCoreText.cpp:
+    (WebCore::DisplayList::DrawGlyphsRecorder::updateShadow):
+    (WebCore::DisplayList::DrawGlyphsRecorder::recordDrawGlyphs):
+    * platform/graphics/win/MediaPlayerPrivateFullscreenWindow.cpp:
+    (WebCore::MediaPlayerPrivateFullscreenWindow::setRootChildLayer):
+    * platform/ios/PlatformPasteboardIOS.mm:
+    (WebCore::PlatformPasteboard::color):
+    * rendering/RenderThemeIOS.mm:
+    (WebCore::systemColorFromCSSValueSystemColorInformation):
+    
+    Source/WebKit:
+    Preserve color space when getting current color in DisplayList::DrawGlyphsRecorder
+    https://bugs.webkit.org/show_bug.cgi?id=229024
+    <rdar://problem/81828477>
+    
+    Reviewed by Sam Weinig.
+    
+    Change existing CGColor -> WebCore::Color conversions to be explicit
+    about lossily converting to sRGB.
+    
+    * UIProcess/API/Cocoa/WKWebView.mm:
+    (-[WKWebView setUnderPageBackgroundColor:]):
+    * UIProcess/API/Cocoa/_WKApplicationManifest.mm:
+    (-[_WKApplicationManifest initWithCoder:]):
+    * UIProcess/mac/WebPageProxyMac.mm:
+    (WebKit::WebPageProxy::platformUnderPageBackgroundColor const):
+    * WebProcess/Plugins/PDF/PDFPlugin.mm:
+    (WebKit::PDFPlugin::PDFPlugin):
+    
+    Tools:
+    Preserve color space when getting current color in DisplayList::DrawGlyphsRecorder
+    https://bugs.webkit.org/show_bug.cgi?id=229024
+    <rdar://problem/81828477>
+    
+    Reviewed by Sam Weinig.
+    
+    Change existing CGColor -> WebCore::Color conversions to be explicit
+    about lossily converting to sRGB.
+    
+    * TestWebKitAPI/Tests/WebKitCocoa/SampledPageTopColor.mm:
+    (TEST):
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@281470 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-08-23  Cameron McCormack  <heycam@apple.com>
+
+            Preserve color space when getting current color in DisplayListDrawGlyphsRecorder.
+            https://bugs.webkit.org/show_bug.cgi?id=229024
+            <rdar://problem/81828477>
+
+            Reviewed by Sam Weinig.
+
+            Add tests for calling fillText() and strokeText() with a display-p3
+            color for fillStyle, strokeStyle, and shadowColor, on a display-p3 canvas.
+
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.fillText-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.fillText.html: Added.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.fillText.shadow-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.fillText.shadow.html: Added.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.strokeText-expected.txt: Added.
+            * web-platform-tests/html/canvas/element/wide-gamut-canvas/2d.color.space.p3.strokeText.html: Added.
+            * web-platform-tests/html/canvas/tools/yaml/element/color_space.yaml:
+
+2021-10-06  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r283410. rdar://problem/83960033
+
+    Disable new incumbent-window until it is fully implemented
+    https://bugs.webkit.org/show_bug.cgi?id=230261
+    <rdar://problem/83099726>
+    
+    Reviewed by Chris Dumez and Geoffrey Garen.
+    
+    LayoutTests/imported/w3c:
+    
+    * web-platform-tests/html/webappapis/scripting/events/compile-event-handler-settings-objects-expected.txt:
+    * web-platform-tests/html/webappapis/scripting/processing-model-2/integration-with-the-javascript-job-queue/promise-job-incumbent-expected.txt:
+    
+    Source/JavaScriptCore:
+    
+    * interpreter/CallFrame.cpp:
+    (JSC::CallFrame::globalObjectOfClosestCodeBlock):
+    * runtime/JSObject.cpp:
+    (JSC::JSObject::getOwnPropertyDescriptor):
+    * runtime/PropertySlot.h:
+    
+    Source/WebCore:
+    
+    This patch disables new incumbent-window until it is fully implemented to avoid compatibility issue.
+    
+    * bindings/js/JSDOMConvertCallbacks.h:
+    (WebCore::Converter<IDLCallbackFunction<T>>::convert):
+    (WebCore::Converter<IDLCallbackInterface<T>>::convert):
+    * bindings/js/JSDOMGlobalObject.cpp:
+    (WebCore::callerGlobalObject):
+    (WebCore::legacyActiveGlobalObjectForAccessor):
+    * bindings/js/JSDOMGlobalObject.h:
+    * bindings/js/JSDOMWindowBase.cpp:
+    (WebCore::incumbentDOMWindow):
+    (WebCore::legacyActiveDOMWindowForAccessor):
+    * bindings/js/JSDOMWindowBase.h:
+    * bindings/scripts/CodeGeneratorJS.pm:
+    (GetJSCAttributesForAttribute):
+    (GenerateCallWith):
+    * page/Location.idl:
+    
+    LayoutTests:
+    
+    * http/tests/security/frameNavigation/context-for-location-href-gopd-expected.txt:
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@283410 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-10-01  Yusuke Suzuki  <ysuzuki@apple.com>
+
+            Disable new incumbent-window until it is fully implemented
+            https://bugs.webkit.org/show_bug.cgi?id=230261
+            <rdar://problem/83099726>
+
+            Reviewed by Chris Dumez and Geoffrey Garen.
+
+            * web-platform-tests/html/webappapis/scripting/events/compile-event-handler-settings-objects-expected.txt:
+            * web-platform-tests/html/webappapis/scripting/processing-model-2/integration-with-the-javascript-job-queue/promise-job-incumbent-expected.txt:
+
 2021-09-24  Russell Epstein  <repstein@apple.com>
 
         Cherry-pick r282084. rdar://problem/83429618

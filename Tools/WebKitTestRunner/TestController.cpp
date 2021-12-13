@@ -955,6 +955,7 @@ bool TestController::resetStateToConsistentValues(const TestOptions& options, Re
     clearDOMCaches();
 
     resetQuota();
+    clearStorage();
 
     WKContextClearCurrentModifierStateForTesting(TestController::singleton().context());
     WKContextSetUseSeparateServiceWorkerProcess(TestController::singleton().context(), false);
@@ -2698,6 +2699,11 @@ void TestController::setIgnoresViewportScaleLimits(bool ignoresViewportScaleLimi
     WKPageSetIgnoresViewportScaleLimits(m_mainWebView->page(), ignoresViewportScaleLimits);
 }
 
+void TestController::terminateGPUProcess()
+{
+    WKContextTerminateGPUProcess(platformContext());
+}
+
 void TestController::terminateNetworkProcess()
 {
     WKWebsiteDataStoreTerminateNetworkProcess(websiteDataStore());
@@ -2943,6 +2949,13 @@ void TestController::resetQuota()
 {
     StorageVoidCallbackContext context(*this);
     WKWebsiteDataStoreResetQuota(TestController::websiteDataStore(), &context, StorageVoidCallback);
+    runUntil(context.done, noTimeout);
+}
+
+void TestController::clearStorage()
+{
+    StorageVoidCallbackContext context(*this);
+    WKWebsiteDataStoreClearStorage(TestController::websiteDataStore(), &context, StorageVoidCallback);
     runUntil(context.done, noTimeout);
 }
 
@@ -3488,6 +3501,11 @@ bool TestController::isMockRealtimeMediaSourceCenterEnabled() const
     return WKPageIsMockRealtimeMediaSourceCenterEnabled(m_mainWebView->page());
 }
 
+void TestController::setMockCameraIsInterrupted(bool isInterrupted)
+{
+    WKPageSetMockCameraIsInterrupted(m_mainWebView->page(), isInterrupted);
+}
+
 struct InAppBrowserPrivacyCallbackContext {
     explicit InAppBrowserPrivacyCallbackContext(TestController& controller)
         : testController(controller)
@@ -3667,6 +3685,13 @@ void TestController::markAttributedPrivateClickMeasurementsAsExpiredForTesting()
     runUntil(callbackContext.done, noTimeout);
 }
 
+void TestController::setPrivateClickMeasurementEphemeralMeasurementForTesting(bool value)
+{
+    PrivateClickMeasurementVoidCallbackContext callbackContext(*this);
+    WKPageSetPrivateClickMeasurementEphemeralMeasurementForTesting(m_mainWebView->page(), value, privateClickMeasurementVoidCallback, &callbackContext);
+    runUntil(callbackContext.done, noTimeout);
+}
+
 void TestController::simulateResourceLoadStatisticsSessionRestart()
 {
     PrivateClickMeasurementVoidCallbackContext callbackContext(*this);
@@ -3706,6 +3731,13 @@ void TestController::setPCMFraudPreventionValuesForTesting(WKStringRef unlinkabl
 {
     PrivateClickMeasurementVoidCallbackContext callbackContext(*this);
     WKPageSetPCMFraudPreventionValuesForTesting(m_mainWebView->page(), unlinkableToken, secretToken, signature, keyID, privateClickMeasurementVoidCallback, &callbackContext);
+    runUntil(callbackContext.done, noTimeout);
+}
+
+void TestController::setPrivateClickMeasurementAppBundleIDForTesting(WKStringRef appBundleID)
+{
+    PrivateClickMeasurementVoidCallbackContext callbackContext(*this);
+    WKPageSetPrivateClickMeasurementAppBundleIDForTesting(m_mainWebView->page(), appBundleID, privateClickMeasurementVoidCallback, &callbackContext);
     runUntil(callbackContext.done, noTimeout);
 }
 

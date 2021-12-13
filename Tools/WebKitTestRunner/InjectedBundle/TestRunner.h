@@ -341,6 +341,7 @@ public:
     void setIgnoresViewportScaleLimits(bool);
     void setShouldDownloadUndisplayableMIMETypes(bool);
     void setShouldAllowDeviceOrientationAndMotionAccess(bool);
+    void stopLoading();
 
     bool didCancelClientRedirect() const { return m_didCancelClientRedirect; }
     void setDidCancelClientRedirect(bool value) { m_didCancelClientRedirect = value; }
@@ -478,6 +479,7 @@ public:
     void setShouldDismissJavaScriptAlertsAsynchronously(bool);
     void abortModal();
 
+    void terminateGPUProcess();
     void terminateNetworkProcess();
     void terminateServiceWorkers();
     void setUseSeparateServiceWorkerProcess(bool);
@@ -501,6 +503,7 @@ public:
     void resetMockMediaDevices();
     void setMockCameraOrientation(unsigned);
     bool isMockRealtimeMediaSourceCenterEnabled();
+    void setMockCameraIsInterrupted(bool);
 
     bool hasAppBoundSession();
     void clearAppBoundSession();
@@ -534,7 +537,9 @@ public:
     void setPrivateClickMeasurementAttributionReportURLsForTesting(JSStringRef sourceURL, JSStringRef destinationURL);
     void markPrivateClickMeasurementsAsExpiredForTesting();
     void markAttributedPrivateClickMeasurementsAsExpiredForTesting();
+    void setPrivateClickMeasurementEphemeralMeasurementForTesting(bool value);
     void setPrivateClickMeasurementFraudPreventionValuesForTesting(JSStringRef unlinkableToken, JSStringRef secretToken, JSStringRef signature, JSStringRef keyID);
+    void setPrivateClickMeasurementAppBundleIDForTesting(JSStringRef);
     void simulateResourceLoadStatisticsSessionRestart();
 
     void setIsSpeechRecognitionPermissionGranted(bool);

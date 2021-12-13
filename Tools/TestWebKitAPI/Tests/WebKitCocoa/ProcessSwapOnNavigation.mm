@@ -25,6 +25,7 @@
 
 #import "config.h"
 
+#import "HTTPServer.h"
 #import "PlatformUtilities.h"
 #import "Test.h"
 #import "TestNavigationDelegate.h"
@@ -139,6 +140,12 @@ static RetainPtr<NSURL> clientRedirectDestinationURL;
 
     seenPIDs.add([webView _webProcessIdentifier]);
     done = true;
+}
+
+- (void)webView:(WKWebView *)webView didReceiveAuthenticationChallenge:(NSURLAuthenticationChallenge *)challenge completionHandler:(void (^)(NSURLSessionAuthChallengeDisposition disposition, NSURLCredential * _Nullable credential))completionHandler
+{
+    EXPECT_WK_STREQ(challenge.protectionSpace.authenticationMethod, NSURLAuthenticationMethodServerTrust);
+    completionHandler(NSURLSessionAuthChallengeUseCredential, [NSURLCredential credentialForTrust:challenge.protectionSpace.serverTrust]);
 }
 
 - (void)webView:(WKWebView *)webView didStartProvisionalNavigation:(null_unspecified WKNavigation *)navigation
@@ -312,7 +319,11 @@ static RetainPtr<WKWebView> createdWebView;
     }
 
     doAsynchronouslyIfNecessary([finalURL = retainPtr(finalURL)](id <WKURLSchemeTask> task) {
-        RetainPtr<NSURLResponse> response = adoptNS([[NSURLResponse alloc] initWithURL:finalURL.get() MIMEType:@"text/html" expectedContentLength:1 textEncodingName:nil]);
+        NSMutableDictionary* headerDictionary = [NSMutableDictionary dictionary];
+        [headerDictionary setObject:@"text/html" forKey:@"Content-Type"];
+        [headerDictionary setObject:@"1" forKey:@"Content-Length"];
+
+        auto response = adoptNS([[NSHTTPURLResponse alloc] initWithURL:finalURL.get() statusCode:200 HTTPVersion:@"HTTP/1.1" headerFields:headerDictionary]);
         [task didReceiveResponse:response.get()];
     }, 0.1);
 
@@ -409,8 +420,6 @@ window.addEventListener('pageshow', function(event) {
 </script>
 )PSONRESOURCE";
 
-#if PLATFORM(MAC)
-
 static const char* windowOpenCrossSiteNoOpenerTestBytes = R"PSONRESOURCE(
 <script>
 window.onload = function() {
@@ -488,6 +497,7 @@ window.onload = function() {
 </script>
 )PSONRESOURCE";
 
+#if PLATFORM(MAC)
 static const char* linkToAppleTestBytes = R"PSONRESOURCE(
 <script>
 window.addEventListener('pageshow', function(event) {
@@ -497,8 +507,7 @@ window.addEventListener('pageshow', function(event) {
 </script>
 <a id="testLink" href="pson://www.apple.com/main.html">Navigate</a>
 )PSONRESOURCE";
-
-#endif // PLATFORM(MAC)
+#endif
 
 static RetainPtr<_WKProcessPoolConfiguration> psonProcessPoolConfiguration()
 {
@@ -1197,8 +1206,6 @@ TEST(ProcessSwap, BackNavigationAfterSessionRestore)
     EXPECT_NE(pid3, pid4);
 }
 
-#if PLATFORM(MAC)
-
 TEST(ProcessSwap, CrossSiteWindowOpenNoOpener)
 {
     auto processPoolConfiguration = psonProcessPoolConfiguration();
@@ -1206,6 +1213,7 @@ TEST(ProcessSwap, CrossSiteWindowOpenNoOpener)
 
     auto webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [webViewConfiguration setProcessPool:processPool.get()];
+    [webViewConfiguration preferences].javaScriptCanOpenWindowsAutomatically = YES;
     auto handler = adoptNS([[PSONScheme alloc] init]);
     [handler addMappingFromURLString:@"pson://www.webkit.org/main.html" toData:windowOpenCrossSiteNoOpenerTestBytes];
     [webViewConfiguration setURLSchemeHandler:handler.get() forURLScheme:@"PSON"];
@@ -1245,6 +1253,7 @@ TEST(ProcessSwap, CrossOriginButSameSiteWindowOpenNoOpener)
 
     auto webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [webViewConfiguration setProcessPool:processPool.get()];
+    [webViewConfiguration preferences].javaScriptCanOpenWindowsAutomatically = YES;
     auto handler = adoptNS([[PSONScheme alloc] init]);
     [handler addMappingFromURLString:@"pson://www.webkit.org/main.html" toData:windowOpenCrossOriginButSameSiteNoOpenerTestBytes];
     [webViewConfiguration setURLSchemeHandler:handler.get() forURLScheme:@"PSON"];
@@ -1285,6 +1294,7 @@ TEST(ProcessSwap, CrossSiteWindowOpenWithOpener)
 
     auto webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [webViewConfiguration setProcessPool:processPool.get()];
+    [webViewConfiguration preferences].javaScriptCanOpenWindowsAutomatically = YES;
     auto handler = adoptNS([[PSONScheme alloc] init]);
     [handler addMappingFromURLString:@"pson://www.webkit.org/main.html" toData:windowOpenCrossSiteWithOpenerTestBytes];
     [webViewConfiguration setURLSchemeHandler:handler.get() forURLScheme:@"PSON"];
@@ -1324,6 +1334,7 @@ TEST(ProcessSwap, SameSiteWindowOpenNoOpener)
 
     auto webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [webViewConfiguration setProcessPool:processPool.get()];
+    [webViewConfiguration preferences].javaScriptCanOpenWindowsAutomatically = YES;
     auto handler = adoptNS([[PSONScheme alloc] initWithBytes:windowOpenSameSiteNoOpenerTestBytes]);
     [webViewConfiguration setURLSchemeHandler:handler.get() forURLScheme:@"PSON"];
 
@@ -1362,6 +1373,7 @@ TEST(ProcessSwap, CrossSiteBlankTargetWithOpener)
 
     auto webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [webViewConfiguration setProcessPool:processPool.get()];
+    [webViewConfiguration preferences].javaScriptCanOpenWindowsAutomatically = YES;
     auto handler = adoptNS([[PSONScheme alloc] init]);
     [handler addMappingFromURLString:@"pson://www.webkit.org/main.html" toData:targetBlankCrossSiteWithExplicitOpenerTestBytes];
     [webViewConfiguration setURLSchemeHandler:handler.get() forURLScheme:@"PSON"];
@@ -1401,6 +1413,7 @@ TEST(ProcessSwap, CrossSiteBlankTargetImplicitNoOpener)
 
     auto webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [webViewConfiguration setProcessPool:processPool.get()];
+    [webViewConfiguration preferences].javaScriptCanOpenWindowsAutomatically = YES;
     auto handler = adoptNS([[PSONScheme alloc] init]);
     [handler addMappingFromURLString:@"pson://www.webkit.org/main.html" toData:targetBlankCrossSiteWithImplicitNoOpenerTestBytes];
     [webViewConfiguration setURLSchemeHandler:handler.get() forURLScheme:@"PSON"];
@@ -1440,6 +1453,7 @@ TEST(ProcessSwap, CrossSiteBlankTargetNoOpener)
 
     auto webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [webViewConfiguration setProcessPool:processPool.get()];
+    [webViewConfiguration preferences].javaScriptCanOpenWindowsAutomatically = YES;
     auto handler = adoptNS([[PSONScheme alloc] init]);
     [handler addMappingFromURLString:@"pson://www.webkit.org/main.html" toData:targetBlankCrossSiteNoOpenerTestBytes];
     [webViewConfiguration setURLSchemeHandler:handler.get() forURLScheme:@"PSON"];
@@ -1479,6 +1493,7 @@ TEST(ProcessSwap, SameSiteBlankTargetNoOpener)
 
     auto webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [webViewConfiguration setProcessPool:processPool.get()];
+    [webViewConfiguration preferences].javaScriptCanOpenWindowsAutomatically = YES;
     auto handler = adoptNS([[PSONScheme alloc] init]);
     [handler addMappingFromURLString:@"pson://www.webkit.org/main.html" toData:targetBlankSameSiteNoOpenerTestBytes];
     [webViewConfiguration setURLSchemeHandler:handler.get() forURLScheme:@"PSON"];
@@ -1510,8 +1525,6 @@ TEST(ProcessSwap, SameSiteBlankTargetNoOpener)
 
     EXPECT_EQ(pid1, pid2);
 }
-
-#endif // PLATFORM(MAC)
 
 TEST(ProcessSwap, ServerRedirectFromNewWebView)
 {
@@ -5094,8 +5107,6 @@ TEST(ProcessSwap, LoadingStateAfterPolicyDecision)
     [webView removeObserver:loadObserver.get() forKeyPath:@"URL" context:webView.get()];
 }
 
-#if PLATFORM(MAC)
-
 static const char* saveOpenerTestBytes = R"PSONRESOURCE(
 <script>
 window.onload = function() {
@@ -5107,6 +5118,8 @@ window.onload = function() {
 TEST(ProcessSwap, OpenerLinkAfterAPIControlledProcessSwappingOfOpener)
 {
     auto webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    [webViewConfiguration preferences].javaScriptCanOpenWindowsAutomatically = YES;
+
     auto handler = adoptNS([[PSONScheme alloc] init]);
     [handler addMappingFromURLString:@"pson://www.webkit.org/main1.html" toData:windowOpenSameSiteWithOpenerTestBytes]; // Opens "pson://www.webkit.org/main2.html".
     [handler addMappingFromURLString:@"pson://www.webkit.org/main2.html" toData:saveOpenerTestBytes];
@@ -5180,6 +5193,7 @@ TEST(ProcessSwap, OpenerLinkAfterAPIControlledProcessSwappingOfOpener)
 TEST(ProcessSwap, OpenerLinkAfterAPIControlledProcessSwappingOfOpenee)
 {
     auto webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    [webViewConfiguration preferences].javaScriptCanOpenWindowsAutomatically = YES;
     auto handler = adoptNS([[PSONScheme alloc] init]);
     [handler addMappingFromURLString:@"pson://www.webkit.org/main1.html" toData:windowOpenSameSiteWithOpenerTestBytes]; // Opens "pson://www.webkit.org/main2.html".
     [handler addMappingFromURLString:@"pson://www.webkit.org/main2.html" toData:saveOpenerTestBytes];
@@ -5234,8 +5248,6 @@ TEST(ProcessSwap, OpenerLinkAfterAPIControlledProcessSwappingOfOpenee)
     TestWebKitAPI::Util::run(&done);
     done = false;
 }
-
-#endif // PLATFORM(MAC)
 
 enum class ExpectSwap { No, Yes };
 static void runProcessSwapDueToRelatedWebViewTest(NSURL* relatedViewURL, NSURL* targetURL, ExpectSwap expectSwap)
@@ -7150,4 +7162,425 @@ TEST(WebProcessCache, ClearWhenEnteringCache)
 
     // Clear the WebProcess cache while the processes are being checked for responsiveness.
     [processPool _clearWebProcessCache];
+}
+
+static const char* windowOpenCrossOriginCOOPTestBytes = R"PSONRESOURCE(
+<script>
+window.onload = function() {
+    w = window.open("https://localhost:8181/popup.html", "foo");
+}
+</script>
+)PSONRESOURCE";
+
+static const char* windowOpenSameOriginCOOPTestBytes = R"PSONRESOURCE(
+<script>
+window.onload = function() {
+    w = window.open("popup.html", "foo");
+}
+</script>
+)PSONRESOURCE";
+
+enum class IsSameOrigin : bool { No, Yes };
+enum class DoServerSideRedirect : bool { No, Yes };
+static void runCOOPProcessSwapTest(const char* sourceCOOP, const char* sourceCOEP, const char* destinationCOOP, const char* destinationCOEP, IsSameOrigin isSameOrigin, DoServerSideRedirect doServerSideRedirect, ExpectSwap expectSwap)
+{
+    using namespace TestWebKitAPI;
+
+    HashMap<String, String> sourceHeaders;
+    sourceHeaders.add("Content-Type"_s, "text/html"_s);
+    if (sourceCOOP)
+        sourceHeaders.add("Cross-Origin-Opener-Policy"_s, String(sourceCOOP));
+    if (sourceCOEP)
+        sourceHeaders.add("Cross-Origin-Embedder-Policy"_s, String(sourceCOEP));
+    HTTPResponse sourceResponse(WTFMove(sourceHeaders), isSameOrigin == IsSameOrigin::Yes ? windowOpenSameOriginCOOPTestBytes : windowOpenCrossOriginCOOPTestBytes);
+
+    HashMap<String, String> destinationHeaders;
+    destinationHeaders.add("Content-Type"_s, "text/html"_s);
+    if (destinationCOOP)
+        destinationHeaders.add("Cross-Origin-Opener-Policy"_s, String(destinationCOOP));
+    if (destinationCOEP)
+        destinationHeaders.add("Cross-Origin-Embedder-Policy"_s, String(destinationCOEP));
+    HTTPResponse destinationResponse(WTFMove(destinationHeaders), "popup"_s);
+
+    std::unique_ptr<HTTPServer> server;
+    if (doServerSideRedirect == DoServerSideRedirect::Yes) {
+        HashMap<String, String> redirectHeaders;
+        redirectHeaders.add("location"_s, isSameOrigin == IsSameOrigin::Yes ? "https://127.0.0.1:8181/popup-after-redirection.html"_s : "https://localhost:8181/popup-after-redirection.html"_s);
+        HTTPResponse redirectResponse(301, WTFMove(redirectHeaders));
+
+        server = makeUnique<HTTPServer>(std::initializer_list<std::pair<String, HTTPResponse>> {
+            { "/main.html", WTFMove(sourceResponse) },
+            { "/popup.html", WTFMove(redirectResponse) },
+            { "/popup-after-redirection.html", WTFMove(destinationResponse) }
+        }, HTTPServer::Protocol::Https, nullptr, nullptr, 8181);
+    } else {
+        server = makeUnique<HTTPServer>(std::initializer_list<std::pair<String, HTTPResponse>> {
+            { "/main.html", WTFMove(sourceResponse) },
+            { "/popup.html", WTFMove(destinationResponse) }
+        }, HTTPServer::Protocol::Https, nullptr, nullptr, 8181);
+    }
+
+    auto processPoolConfiguration = psonProcessPoolConfiguration();
+    auto processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
+    bool sourceShouldBeCrossOriginIsolated = sourceCOOP && !strcmp(sourceCOOP, "same-origin") && sourceCOEP && !strcmp(sourceCOEP, "require-corp");
+    bool destinationShouldBeCrossOriginIsolated = destinationCOOP && !strcmp(destinationCOOP, "same-origin") && destinationCOEP && !strcmp(destinationCOEP, "require-corp");
+    EXPECT_TRUE(sourceShouldBeCrossOriginIsolated == destinationShouldBeCrossOriginIsolated || expectSwap == ExpectSwap::Yes);
+
+    auto webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    [webViewConfiguration setProcessPool:processPool.get()];
+    [webViewConfiguration preferences].javaScriptCanOpenWindowsAutomatically = YES;
+    for (_WKExperimentalFeature *feature in [WKPreferences _experimentalFeatures]) {
+        if ([feature.key isEqualToString:@"CrossOriginOpenerPolicyEnabled"])
+            [[webViewConfiguration preferences] _setEnabled:YES forExperimentalFeature:feature];
+        else if ([feature.key isEqualToString:@"CrossOriginEmbedderPolicyEnabled"])
+            [[webViewConfiguration preferences] _setEnabled:YES forExperimentalFeature:feature];
+    }
+
+    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    auto navigationDelegate = adoptNS([[PSONNavigationDelegate alloc] init]);
+
+    __block unsigned numberOfProvisionalLoads = 0;
+    navigationDelegate->didStartProvisionalNavigationHandler = ^{
+        ++numberOfProvisionalLoads;
+    };
+
+    [webView setNavigationDelegate:navigationDelegate.get()];
+    auto uiDelegate = adoptNS([[PSONUIDelegate alloc] initWithNavigationDelegate:navigationDelegate.get()]);
+    [webView setUIDelegate:uiDelegate.get()];
+
+    failed = false;
+    serverRedirected = false;
+    numberOfDecidePolicyCalls = 0;
+    NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"https://127.0.0.1:8181/main.html"]];
+    [webView loadRequest:request];
+
+    TestWebKitAPI::Util::run(&done);
+    done = false;
+
+    TestWebKitAPI::Util::run(&didCreateWebView);
+    didCreateWebView = false;
+
+    TestWebKitAPI::Util::run(&done);
+
+    if (doServerSideRedirect == DoServerSideRedirect::Yes) {
+        EXPECT_EQ(3, numberOfDecidePolicyCalls);
+        EXPECT_TRUE(serverRedirected);
+    } else {
+        EXPECT_EQ(2, numberOfDecidePolicyCalls);
+        EXPECT_FALSE(serverRedirected);
+    }
+    EXPECT_EQ(2U, numberOfProvisionalLoads); // One in each view.
+    EXPECT_FALSE(failed); // There should be no didFailProvisionalLoad call.
+
+    auto pid1 = [webView _webProcessIdentifier];
+    EXPECT_TRUE(!!pid1);
+    auto pid2 = [createdWebView _webProcessIdentifier];
+    EXPECT_TRUE(!!pid2);
+
+    if (expectSwap == ExpectSwap::Yes)
+        EXPECT_NE(pid1, pid2);
+    else
+        EXPECT_EQ(pid1, pid2);
+
+    bool finishedRunningScript = false;
+    [webView evaluateJavaScript:@"w.closed ? 'true' : 'false'" completionHandler: [&] (id result, NSError *error) {
+        NSString *isClosed = (NSString *)result;
+        if (expectSwap == ExpectSwap::Yes)
+            EXPECT_WK_STREQ(@"true", isClosed);
+        else
+            EXPECT_WK_STREQ(@"false", isClosed);
+        finishedRunningScript = true;
+    }];
+    TestWebKitAPI::Util::run(&finishedRunningScript);
+    finishedRunningScript = false;
+    [webView evaluateJavaScript:@"w.name" completionHandler: [&] (id result, NSError *error) {
+        NSString *windowName = (NSString *)result;
+        if (expectSwap == ExpectSwap::No && isSameOrigin == IsSameOrigin::Yes)
+            EXPECT_WK_STREQ(@"foo", windowName);
+        else
+            EXPECT_WK_STREQ(@"", windowName);
+        finishedRunningScript = true;
+    }];
+    TestWebKitAPI::Util::run(&finishedRunningScript);
+    finishedRunningScript = false;
+    [webView evaluateJavaScript:@"self.crossOriginIsolated ? 'isolated' : 'not-isolated'" completionHandler: [&] (id result, NSError *error) {
+        NSString *crossOriginIsolated = (NSString *)result;
+        if (sourceShouldBeCrossOriginIsolated)
+            EXPECT_WK_STREQ(@"isolated", crossOriginIsolated);
+        else
+            EXPECT_WK_STREQ(@"not-isolated", crossOriginIsolated);
+        finishedRunningScript = true;
+    }];
+    TestWebKitAPI::Util::run(&finishedRunningScript);
+    finishedRunningScript = false;
+    [webView evaluateJavaScript:@"self.SharedArrayBuffer ? 'has-sab' : 'does-not-have-sab'" completionHandler: [&] (id result, NSError *error) {
+        NSString *hasSAB = (NSString *)result;
+        if (sourceShouldBeCrossOriginIsolated)
+            EXPECT_WK_STREQ(@"has-sab", hasSAB);
+        else
+            EXPECT_WK_STREQ(@"does-not-have-sab", hasSAB);
+        finishedRunningScript = true;
+    }];
+    TestWebKitAPI::Util::run(&finishedRunningScript);
+
+    // Openee should not have an opener or a name.
+    finishedRunningScript = false;
+    [createdWebView evaluateJavaScript:@"window.opener ? 'true' : 'false'" completionHandler: [&] (id result, NSError *error) {
+        NSString *hasOpener = (NSString *)result;
+        if (expectSwap == ExpectSwap::Yes)
+            EXPECT_WK_STREQ(@"false", hasOpener);
+        else
+            EXPECT_WK_STREQ(@"true", hasOpener);
+        finishedRunningScript = true;
+    }];
+    TestWebKitAPI::Util::run(&finishedRunningScript);
+    finishedRunningScript = false;
+    [createdWebView evaluateJavaScript:@"window.name" completionHandler: [&] (id result, NSError *error) {
+        NSString *windowName = (NSString *)result;
+        if (expectSwap == ExpectSwap::Yes)
+            EXPECT_WK_STREQ(@"", windowName);
+        else
+            EXPECT_WK_STREQ(@"foo", windowName);
+        finishedRunningScript = true;
+    }];
+    TestWebKitAPI::Util::run(&finishedRunningScript);
+
+    finishedRunningScript = false;
+    [createdWebView evaluateJavaScript:@"document.body.innerText" completionHandler: [&] (id result, NSError *error) {
+        NSString *innerText = (NSString *)result;
+        EXPECT_WK_STREQ(@"popup", innerText);
+        finishedRunningScript = true;
+    }];
+    TestWebKitAPI::Util::run(&finishedRunningScript);
+    finishedRunningScript = false;
+    [createdWebView evaluateJavaScript:@"self.crossOriginIsolated ? 'isolated' : 'not-isolated'" completionHandler: [&] (id result, NSError *error) {
+        NSString *crossOriginIsolated = (NSString *)result;
+        if (destinationShouldBeCrossOriginIsolated)
+            EXPECT_WK_STREQ(@"isolated", crossOriginIsolated);
+        else
+            EXPECT_WK_STREQ(@"not-isolated", crossOriginIsolated);
+        finishedRunningScript = true;
+    }];
+    TestWebKitAPI::Util::run(&finishedRunningScript);
+    finishedRunningScript = false;
+    [createdWebView evaluateJavaScript:@"self.SharedArrayBuffer ? 'has-sab' : 'does-not-have-sab'" completionHandler: [&] (id result, NSError *error) {
+        NSString *hasSAB = (NSString *)result;
+        if (destinationShouldBeCrossOriginIsolated)
+            EXPECT_WK_STREQ(@"has-sab", hasSAB);
+        else
+            EXPECT_WK_STREQ(@"does-not-have-sab", hasSAB);
+        finishedRunningScript = true;
+    }];
+    TestWebKitAPI::Util::run(&finishedRunningScript);
+
+    createdWebView = nullptr;
+}
+
+TEST(ProcessSwap, NavigatingSameOriginToCOOPSameOrigin)
+{
+    runCOOPProcessSwapTest(nullptr, nullptr, "same-origin", nullptr, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::Yes);
+}
+
+TEST(ProcessSwap, NavigatingSameOriginToCOOPSameOrigin2)
+{
+    runCOOPProcessSwapTest("unsafe-none", nullptr, "same-origin", nullptr, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::Yes);
+}
+
+TEST(ProcessSwap, NavigatingSameOriginToCOOPSameOrigin3)
+{
+    runCOOPProcessSwapTest("unsafe-none", nullptr, "same-origin", "unsafe-none", IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::Yes);
+}
+
+TEST(ProcessSwap, NavigatingSameOriginToCOOPSameOrigin4)
+{
+    runCOOPProcessSwapTest("unsafe-none", "unsafe-none", "same-origin", "unsafe-none", IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::Yes);
+}
+
+TEST(ProcessSwap, NavigatingSameOriginToCOOPAndCOEPSameOrigin)
+{
+    runCOOPProcessSwapTest(nullptr, nullptr, "same-origin", "require-corp", IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::Yes);
+}
+
+TEST(ProcessSwap, NavigatingSameOriginFromCOOPSameOrigin)
+{
+    runCOOPProcessSwapTest("same-origin", nullptr, nullptr, nullptr, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::Yes);
+}
+
+TEST(ProcessSwap, NavigatingSameOriginFromCOOPSameOrigin2)
+{
+    runCOOPProcessSwapTest("same-origin", nullptr, "unsafe-none", nullptr, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::Yes);
+}
+
+TEST(ProcessSwap, NavigatingSameOriginFromCOOPSameOrigin3)
+{
+    runCOOPProcessSwapTest("same-origin", "unsafe-none", "unsafe-none", nullptr, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::Yes);
+}
+
+TEST(ProcessSwap, NavigatingSameOriginFromCOOPAndCOEPSameOrigin)
+{
+    runCOOPProcessSwapTest("same-origin", "require-corp", nullptr, nullptr, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::Yes);
+}
+
+TEST(ProcessSwap, NavigatingSameOriginFromCOOPSameOriginAllowPopup)
+{
+    runCOOPProcessSwapTest("same-origin-allow-popup", nullptr, nullptr, nullptr, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::No);
+}
+
+TEST(ProcessSwap, NavigatingSameOriginFromCOOPSameOriginAllowPopup2)
+{
+    runCOOPProcessSwapTest("same-origin-allow-popup", nullptr, "unsafe-none", nullptr, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::No);
+}
+
+TEST(ProcessSwap, NavigatingSameOriginFromCOOPSameOriginAllowPopup3)
+{
+    runCOOPProcessSwapTest("same-origin-allow-popup", "unsafe-none", "unsafe-none", nullptr, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::No);
+}
+
+TEST(ProcessSwap, NavigatingSameOriginFromCOOPSameOriginAllowPopup4)
+{
+    runCOOPProcessSwapTest("same-origin-allow-popup", "unsafe-none", "unsafe-none", "unsafe-none", IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::No);
+}
+
+TEST(ProcessSwap, NavigatingSameOriginFromCOOPAndCOEPSameOriginAllowPopup)
+{
+    runCOOPProcessSwapTest("same-origin-allow-popup", "require-corp", nullptr, nullptr, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::No);
+}
+
+TEST(ProcessSwap, NavigatingSameOriginFromCOOPSameOriginToCOOPSameOrigin)
+{
+    runCOOPProcessSwapTest("same-origin", nullptr, "same-origin", nullptr, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::No);
+}
+
+TEST(ProcessSwap, NavigatingSameOriginFromCOOPSameOriginToCOOPSameOrigin2)
+{
+    runCOOPProcessSwapTest("same-origin", "unsafe-none", "same-origin", nullptr, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::No);
+}
+
+TEST(ProcessSwap, NavigatingSameOriginFromCOOPSameOriginToCOOPSameOrigin3)
+{
+    runCOOPProcessSwapTest("same-origin", "unsafe-none", "same-origin", "unsafe-none", IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::No);
+}
+
+TEST(ProcessSwap, NavigatingSameOriginFromCOOPAndCOEPSameOriginToCOOPAndCOEPSameOrigin)
+{
+    runCOOPProcessSwapTest("same-origin", "require-corp", "same-origin", "require-corp", IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::No);
+}
+
+TEST(ProcessSwap, NavigatingSameOriginFromCOOPAndCOEPSameOriginToCOOPSameOrigin)
+{
+    // Should swap because the destination is missing COEP.
+    runCOOPProcessSwapTest("same-origin", "require-corp", "same-origin", nullptr, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::Yes);
+}
+
+TEST(ProcessSwap, NavigatingSameOriginFromCOOPSameOriginToCOOPAndCOEPSameOrigin)
+{
+    // Should swap because the source is missing COEP.
+    runCOOPProcessSwapTest("same-origin", nullptr, "same-origin", "require-corp", IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::Yes);
+}
+
+TEST(ProcessSwap, NavigatingSameOriginFromCOOPSameOriginToCOOPSameOriginWithRedirect)
+{
+    // We expect a swap because the redirect doesn't have COOP=same-origin.
+    runCOOPProcessSwapTest("same-origin", nullptr, "same-origin", nullptr, IsSameOrigin::Yes, DoServerSideRedirect::Yes, ExpectSwap::Yes);
+}
+
+TEST(ProcessSwap, NavigatingSameOriginFromCOOPAndCOEPSameOriginToCOOPAndCOEPSameOriginWithRedirect)
+{
+    // We expect a swap because the redirect doesn't have COOP=same-origin and COEP=require-corp.
+    runCOOPProcessSwapTest("same-origin", "require-corp", "same-origin", "require-corp", IsSameOrigin::Yes, DoServerSideRedirect::Yes, ExpectSwap::Yes);
+}
+
+TEST(ProcessSwap, NavigatingSameOriginWithoutCOOPWithRedirect)
+{
+    runCOOPProcessSwapTest(nullptr, nullptr, nullptr, nullptr, IsSameOrigin::Yes, DoServerSideRedirect::Yes, ExpectSwap::No);
+}
+
+TEST(ProcessSwap, NavigatingCrossOriginToCOOPSameOrigin)
+{
+    runCOOPProcessSwapTest(nullptr, nullptr, "same-origin", nullptr, IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
+}
+
+TEST(ProcessSwap, NavigatingCrossOriginToCOOPSameOrigin2)
+{
+    runCOOPProcessSwapTest("unsafe-none", nullptr, "same-origin", nullptr, IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
+}
+
+TEST(ProcessSwap, NavigatingCrossOriginToCOOPSameOrigin3)
+{
+    runCOOPProcessSwapTest("unsafe-none", nullptr, "same-origin", "unsafe-none", IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
+}
+
+TEST(ProcessSwap, NavigatingCrossOriginToCOOPSameOrigin4)
+{
+    runCOOPProcessSwapTest("unsafe-none", "unsafe-none", "same-origin", "unsafe-none", IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
+}
+
+TEST(ProcessSwap, NavigatingCrossOriginToCOOPAndCOEPSameOrigin)
+{
+    runCOOPProcessSwapTest(nullptr, nullptr, "same-origin", "require-corp", IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
+}
+
+TEST(ProcessSwap, NavigatingCrossOriginFromCOOPSameOrigin)
+{
+    runCOOPProcessSwapTest("same-origin", nullptr, nullptr, nullptr, IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
+}
+
+TEST(ProcessSwap, NavigatingCrossOriginFromCOOPSameOrigin2)
+{
+    runCOOPProcessSwapTest("same-origin", nullptr, "unsafe-none", nullptr, IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
+}
+
+TEST(ProcessSwap, NavigatingCrossOriginFromCOOPSameOrigin3)
+{
+    runCOOPProcessSwapTest("same-origin", "unsafe-none", "unsafe-none", nullptr, IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
+}
+
+TEST(ProcessSwap, NavigatingCrossOriginFromCOOPSameOrigin4)
+{
+    runCOOPProcessSwapTest("same-origin", "unsafe-none", "unsafe-none", "unsafe-none", IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
+}
+
+TEST(ProcessSwap, NavigatingCrossOriginFromCOOPAndCOEPSameOrigin)
+{
+    runCOOPProcessSwapTest("same-origin", "require-corp", nullptr, nullptr, IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
+}
+
+TEST(ProcessSwap, NavigatingCrossOriginFromCOOPSameOriginToCOOPSameOrigin)
+{
+    runCOOPProcessSwapTest("same-origin", nullptr, "same-origin", nullptr, IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
+}
+
+TEST(ProcessSwap, NavigatingCrossOriginFromCOOPAndCOEPSameOriginToCOOPAndCOEPSameOrigin)
+{
+    runCOOPProcessSwapTest("same-origin", "require-corp", "same-origin", "require-corp", IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
+}
+
+TEST(ProcessSwap, NavigatingCrossOriginFromCOOPAndCOEPSameOriginToCOOPSameOrigin)
+{
+    runCOOPProcessSwapTest("same-origin", "require-corp", "same-origin", nullptr, IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
+}
+
+TEST(ProcessSwap, NavigatingCrossOriginFromCOOPSameOriginToCOOPAndCOEPSameOrigin)
+{
+    runCOOPProcessSwapTest("same-origin", nullptr, "same-origin", "require-corp", IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
+}
+
+TEST(ProcessSwap, NavigatingCrossOriginFromCOOPSameOriginAllowPopup)
+{
+    runCOOPProcessSwapTest("same-origin-allow-popup", nullptr, nullptr, nullptr, IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::No);
+}
+
+TEST(ProcessSwap, NavigatingCrossOriginFromCOOPSameOriginAllowPopup2)
+{
+    runCOOPProcessSwapTest("same-origin-allow-popup", nullptr, "unsafe-none", nullptr, IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::No);
+}
+
+TEST(ProcessSwap, NavigatingCrossOriginFromCOOPSameOriginAllowPopup3)
+{
+    runCOOPProcessSwapTest("same-origin-allow-popup", "unsafe-none", "unsafe-none", nullptr, IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::No);
+}
+
+TEST(ProcessSwap, NavigatingCrossOriginFromCOOPSameOriginAllowPopup4)
+{
+    runCOOPProcessSwapTest("same-origin-allow-popup", "unsafe-none", "unsafe-none", "unsafe-none", IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::No);
 }
