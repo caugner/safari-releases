@@ -1,3 +1,581 @@
+2022-01-06  Russell Epstein  <repstein@apple.com>
+
+        Apply patch. rdar://problem/87125345
+
+    2022-01-06  Youenn Fablet  <youenn@apple.com>
+
+            Use requester when calling updateRequestAndAddExtraFields
+            https://bugs.webkit.org/show_bug.cgi?id=234507
+            <rdar://problem/85049490>
+
+            * http/wpt/service-workers/navigation-iframe-site-worker.js: Added.
+            * http/wpt/service-workers/navigation-iframe-site.https-expected.txt: Added.
+            * http/wpt/service-workers/navigation-iframe-site.https.html: Added.
+            * http/wpt/service-workers/resources/navigation-iframe-site-frame.html: Added.
+
+2022-01-05  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r287593. rdar://problem/86910670
+
+    "canceled" wheel events to non-zero deltas cause scrolling jumps in PDFs and CodeMirror
+    https://bugs.webkit.org/show_bug.cgi?id=234825
+    
+    Reviewed by Tim Horton.
+    
+    Source/WebKit:
+    
+    On some macOS versions, interrupting a momentum scroll via a two-finger tap on the trackpad can
+    result in the following sequence of wheel events: momentumPhase:end -> phase:mayBegin -> phase:cancelled,
+    and that last canceled event can have non-zero deltas (rdar://86653042).
+    
+    Protect against this by zeroing out the deltas for cancelled wheel events when constructing WebEvents
+    from NSEvents. Code in Element::dispatchWheelEvent() ensures that we don't dispatch wheel events with
+    zero deltas to script, fixing CodeMirror.
+    
+    Jumps only affected PDFs (and scrollable selects) because those are the code paths that don't go via
+    ScrollingEffectsController, which already ignores Cancelled events.
+    
+    Test: fast/scrolling/mac/canceled-event-with-non-zero-deltas.html
+    
+    * Shared/mac/WebEventFactory.mm:
+    (WebKit::WebEventFactory::createWebWheelEvent):
+    
+    LayoutTests:
+    
+    * fast/scrolling/mac/canceled-event-with-non-zero-deltas-expected.txt: Added.
+    * fast/scrolling/mac/canceled-event-with-non-zero-deltas.html: Added.
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@287593 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-01-04  Simon Fraser  <simon.fraser@apple.com>
+
+            "canceled" wheel events to non-zero deltas cause scrolling jumps in PDFs and CodeMirror
+            https://bugs.webkit.org/show_bug.cgi?id=234825
+
+            Reviewed by Tim Horton.
+
+            * fast/scrolling/mac/canceled-event-with-non-zero-deltas-expected.txt: Added.
+            * fast/scrolling/mac/canceled-event-with-non-zero-deltas.html: Added.
+
+2022-01-05  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r285710. rdar://problem/87125070
+
+    REGRESSION(r285624) Using revert keyword with a css variable hits assert
+    https://bugs.webkit.org/show_bug.cgi?id=233031
+    rdar://85332271
+    
+    Reviewed by Tim Horton.
+    
+    Source/WebCore:
+    
+    Test: fast/selectors/variable-revert-crash.html
+    
+    * style/StyleBuilderState.h:
+    
+    Default initialization set the variable to a value that is not in the enumeration.
+    
+    LayoutTests:
+    
+    * fast/selectors/variable-revert-crash-expected.txt: Added.
+    * fast/selectors/variable-revert-crash.html: Added.
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@285710 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-11-12  Antti Koivisto  <antti@apple.com>
+
+            REGRESSION(r285624) Using revert keyword with a css variable hits assert
+            https://bugs.webkit.org/show_bug.cgi?id=233031
+            rdar://85332271
+
+            Reviewed by Tim Horton.
+
+            * fast/selectors/variable-revert-crash-expected.txt: Added.
+            * fast/selectors/variable-revert-crash.html: Added.
+
+2021-12-22  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r287366. rdar://problem/84379650
+
+    [iOS] Scroll view pinch zoom gesture sometimes fails to recognize in WKWebView
+    https://bugs.webkit.org/show_bug.cgi?id=234584
+    rdar://84379650
+    
+    Reviewed by Simon Fraser.
+    
+    Source/WebKit:
+    
+    WKWebView may get into a state where the pinch zoom gesture recognizer on its scroll view sometimes fails to
+    transition to Changed state (and invoke its action, which sets the zoomScale of the scroll view); this happens
+    because the scroll view pinch gesture requires the touch start deferring gesture recognizer (TSDG) to fail, but
+    it's possible for TSDG to remain stuck in Possible state over the duration of a gesture after beginning a touch
+    over content with either passive touch event listeners, or no touch event listeners.
+    
+    In the case where the TSDG is stuck in Possible state, we observe the following sequence of events (let's
+    suppose the user is starting a touch over a passive touch event listener on a web page):
+    
+    1.      The UITouch is delivered to the web touch event gesture recognizer, which fires the action
+            (`-_webTouchEventsRecognized:`). We observe that we're over an async touch event handling region (i.e.
+            passive or no touch event listeners), so we immediately "lift the gesture gate" by transitioning all
+            deferring gesture recognizers to Failed state, (with the intent that they won't prevent native gestures
+            from recognizing).
+    
+    2.      A UITouch is then delivered to the TSDG in the same runloop as UIKit continues to deliver the touch
+            event to all gestures in the `NSSet` of gesture recognizers on the window. Receiving the UITouch causes
+            TSDG (which we already set to Failed state in step (1)) to internally reset and transition back to
+            Possible state, underneath WebKit.
+    
+    3.      TSDG is now in possible state after the gesture has begun, but we've already tried to unblock native
+            gestures. When performing the second touch of the pinch zoom gesture, the pinch zoom gesture fails to
+            commence because it's stuck waiting for TSDG to fail.
+    
+    In the normal (working) scenario, step (2) happens before step (1); this ensures that TSDG is set to Failed
+    state and remains in Failed state over the course of the gesture, thereby preventing the bug from happening. The
+    order in which (1) and (2) happen is dependent on the order in which the web touch event gesture and TSDG are
+    iterated in UIKit's `NSSet` of gestures, which explains why this bug only reproduces some of the time.
+    
+    This patch mitigates this by adding a mechanism to keep track of touch start deferrers that we've already
+    transitioned to Failed state during the course of a gesture, and uses this information to avoid adding failure
+    requirements to these deferring gestures that have already been "ungated". This ensures that even if the
+    deferring gesture resets to Possible state from underneath WebKit, we still avoid pushing out native gesture
+    recognition due to these deferring gestures.
+    
+    As an aside, I initially attempted to avoid having TSDG transition back to Possible state altogether in this
+    scenario, but this doesn't seem to be avoidable (short of overriding the SPI method `-_resetGestureRecognizer`
+    and not calling the superclass, which does not seem to be supported behavior).
+    
+    Test: fast/events/touch/ios/pinch-zoom-with-passive-touch-event-listeners.html
+    
+    * UIProcess/ios/WKContentViewInteraction.h:
+    * UIProcess/ios/WKContentViewInteraction.mm:
+    (-[WKContentView _webTouchEventsRecognized:]):
+    (-[WKContentView _doneDeferringTouchStart:]):
+    (-[WKContentView deferringGestureRecognizer:shouldDeferOtherGestureRecognizer:]):
+    
+    LayoutTests:
+    
+    Add a test to exercise the fix. Note that this test will only fail without the fix *some* of the time, since it
+    depends entirely on the order in which two gestures appear in an Objective-C hash datastructure (see WebKit
+    ChangeLog for more details).
+    
+    * fast/events/touch/ios/pinch-zoom-with-passive-touch-event-listeners-expected.txt: Added.
+    * fast/events/touch/ios/pinch-zoom-with-passive-touch-event-listeners.html: Added.
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@287366 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-12-22  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+            [iOS] Scroll view pinch zoom gesture sometimes fails to recognize in WKWebView
+            https://bugs.webkit.org/show_bug.cgi?id=234584
+            rdar://84379650
+
+            Reviewed by Simon Fraser.
+
+            Add a test to exercise the fix. Note that this test will only fail without the fix *some* of the time, since it
+            depends entirely on the order in which two gestures appear in an Objective-C hash datastructure (see WebKit
+            ChangeLog for more details).
+
+            * fast/events/touch/ios/pinch-zoom-with-passive-touch-event-listeners-expected.txt: Added.
+            * fast/events/touch/ios/pinch-zoom-with-passive-touch-event-listeners.html: Added.
+
+2021-12-21  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r287067. rdar://problem/86276497
+
+    Make sure to start a realtime outgoing source in case it is taken to another sender
+    https://bugs.webkit.org/show_bug.cgi?id=234296
+    <rdar://86276497>
+    
+    Reviewed by Eric Carlson.
+    
+    Source/WebCore:
+    
+    We are asynchronously starting libwebrtc sources.
+    When a sender is created first and is assigned a source later, we take the source and assign it to the sender.
+    In that case, the source might not be started and we will not send any data.
+    
+    Test: webrtc/addTransceiver-then-addTrack.html
+    
+    * Modules/mediastream/libwebrtc/LibWebRTCRtpSenderBackend.cpp:
+    
+    LayoutTests:
+    
+    * webrtc/addTransceiver-then-addTrack-expected.txt: Added.
+    * webrtc/addTransceiver-then-addTrack.html: Added.
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@287067 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-12-15  Youenn Fablet  <youenn@apple.com>
+
+            Make sure to start a realtime outgoing source in case it is taken to another sender
+            https://bugs.webkit.org/show_bug.cgi?id=234296
+            <rdar://86276497>
+
+            Reviewed by Eric Carlson.
+
+            * webrtc/addTransceiver-then-addTrack-expected.txt: Added.
+            * webrtc/addTransceiver-then-addTrack.html: Added.
+
+2021-12-09  Robert Jenner  <Jenner@apple.com>
+
+        REGRESSION(r285452-r285595):[ Monterey Release ] 2 accessibility (layout-tests) are constant text failures
+        <rdar://problem/86302643>
+
+        Unreviewed test gardening.
+
+        * platform/mac-wk2/TestExpectations:
+
+2021-12-02  Alan Coon  <alancoon@apple.com>
+
+        Revert r286394. rdar://problem/83070565
+
+2021-12-02  Alan Coon  <alancoon@apple.com>
+
+        Revert r286395. rdar://problem/83070565
+
+2021-12-01  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r285320. rdar://problem/85943167
+
+    Form action with a redirect should report correct blocked URI
+    https://bugs.webkit.org/show_bug.cgi?id=232660
+    <rdar://problem/84969024>
+    
+    Reviewed by Brent Fulgham.
+    
+    Source/WebCore:
+    
+    We currently report the blocked URI as the target of a redirect, per
+    the spec it should actually be the initiating url.
+    
+    Test: http/tests/security/contentSecurityPolicy/form-action-redirect-with-correct-blocked-uri.html
+    
+    * loader/DocumentLoader.cpp:
+    (WebCore::DocumentLoader::willSendRequest):
+    * loader/FrameLoader.cpp:
+    (WebCore::FrameLoader::checkIfFormActionAllowedByCSP const):
+    * loader/FrameLoader.h:
+    * page/csp/ContentSecurityPolicy.cpp:
+    (WebCore::ContentSecurityPolicy::allowResourceFromSource const):
+    (WebCore::ContentSecurityPolicy::allowFormAction const):
+    * page/csp/ContentSecurityPolicy.h:
+    
+    LayoutTests:
+    
+    * http/tests/security/contentSecurityPolicy/form-action-redirect-with-correct-blocked-uri-expected.txt: Added.
+    * http/tests/security/contentSecurityPolicy/form-action-redirect-with-correct-blocked-uri.html: Added.
+    * http/tests/security/contentSecurityPolicy/1.1/form-action-src-redirect-blocked-expected.txt:
+    Update console logging to report the correct URL.
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@285320 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-11-04  Kate Cheney  <katherine_cheney@apple.com>
+
+            Form action with a redirect should report correct blocked URI
+            https://bugs.webkit.org/show_bug.cgi?id=232660
+            <rdar://problem/84969024>
+
+            Reviewed by Brent Fulgham.
+
+            * http/tests/security/contentSecurityPolicy/form-action-redirect-with-correct-blocked-uri-expected.txt: Added.
+            * http/tests/security/contentSecurityPolicy/form-action-redirect-with-correct-blocked-uri.html: Added.
+            * http/tests/security/contentSecurityPolicy/1.1/form-action-src-redirect-blocked-expected.txt:
+            Update console logging to report the correct URL.
+
+2021-12-01  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r285570. rdar://problem/83070565
+
+    Fix crash in GraphicsContextCG::endTransparencyLayer
+    https://bugs.webkit.org/show_bug.cgi?id=230230
+    
+    Reviewed by Myles C. Maxfield.
+    
+    Source/WebCore:
+    
+    The crash was due to unbalanced calls to begin and end transparency layers.
+    
+    A branch handling ancestors of transparent layers that are transform root needed to be
+    aware of the top layer. Opacity on ancestors don't affect top layer elements so calling
+    `beginTransparencyLayers` on `parent()` is incorrect.
+    
+    Also fix `transparentPaintingAncestor()` to be top layer aware to avoid flickering layers
+    while scrolling.
+    
+    Test: fast/layers/top-layer-ancestor-opacity-and-transform-crash.html
+    
+    * rendering/RenderLayer.cpp:
+    (WebCore::RenderLayer::transparentPaintingAncestor):
+    (WebCore::RenderLayer::paintLayerWithEffects):
+    
+    LayoutTests:
+    
+    * fast/layers/top-layer-ancestor-opacity-and-transform-crash-expected.txt: Added.
+    * fast/layers/top-layer-ancestor-opacity-and-transform-crash.html: Added.
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@285570 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-11-10  Tim Nguyen  <ntim@apple.com>
+
+            Fix crash in GraphicsContextCG::endTransparencyLayer
+            https://bugs.webkit.org/show_bug.cgi?id=230230
+
+            Reviewed by Myles C. Maxfield.
+
+            * fast/layers/top-layer-ancestor-opacity-and-transform-crash-expected.txt: Added.
+            * fast/layers/top-layer-ancestor-opacity-and-transform-crash.html: Added.
+
+2021-12-01  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r285569. rdar://problem/83070565
+
+    Enable dialog tests on Windows
+    https://bugs.webkit.org/show_bug.cgi?id=232911
+    
+    Reviewed by Youenn Fablet.
+    
+    The runtime flag sometimes seems to be off for Windows, change the member in
+    RuntimeEnabledFeatures.h and re-enable tests.
+    
+    Source/WebCore:
+    
+    * page/RuntimeEnabledFeatures.h:
+    
+    LayoutTests:
+    
+    * platform/win/TestExpectations:
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@285569 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-11-10  Tim Nguyen  <ntim@apple.com>
+
+            Enable dialog tests on Windows
+            https://bugs.webkit.org/show_bug.cgi?id=232911
+
+            Reviewed by Youenn Fablet.
+
+            The runtime flag sometimes seems to be off for Windows, change the member in
+            RuntimeEnabledFeatures.h and re-enable tests.
+
+            * platform/win/TestExpectations:
+
+2021-11-16  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r285823. rdar://problem/85236459
+
+    `Cross-Origin-Embedder-Policy: require-corp` prevents loading of data URL images
+    https://bugs.webkit.org/show_bug.cgi?id=233131
+    <rdar://85236459>
+    
+    Reviewed by Geoffrey Garen.
+    
+    Source/WebCore:
+    
+    When doing an initial data URL <img> load, we properly wouldn't perform a cross-origin resource policy check.
+    This is per the Fetch specification that says to use a scheme fetch [1] when the request URL is a data URL.
+    When the protocol is data, the scheme fetch algorithm would return a response without performing an HTTP
+    Fetch. The HTTP check [2] is the algorithm that actually performs a cross-origin resource policy check, at
+    step 7.
+    
+    The issue with our implementation was that data URL <img> loads would perform a cross-origin resource policy
+    check in the case where the image is loaded from our memory cache, due to a check we had in
+    CachedResourceLoader::requestResource(). As a result, data URL <img> loads would fail when served from the
+    memory cache, when CORP is enforced. To address the issue and match the specification, we now disable this
+    CORP check when the request URL is a data URL.
+    
+    [1] https://fetch.spec.whatwg.org/#scheme-fetch
+    [2] https://fetch.spec.whatwg.org/#concept-http-fetch
+    
+    Test: http/wpt/html/cross-origin-embedder-policy/require-corp-data-url.html
+    
+    * loader/cache/CachedResourceLoader.cpp:
+    (WebCore::CachedResourceLoader::requestResource):
+    
+    LayoutTests:
+    
+    Add layout test coverage. This test is based on a reduce test case from Cameron McCormack.
+    
+    * http/wpt/html/cross-origin-embedder-policy/require-corp-data-url-expected.txt: Added.
+    * http/wpt/html/cross-origin-embedder-policy/require-corp-data-url.html: Added.
+    * http/wpt/html/cross-origin-embedder-policy/require-corp-data-url.html.headers: Added.
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@285823 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-11-15  Chris Dumez  <cdumez@apple.com>
+
+            `Cross-Origin-Embedder-Policy: require-corp` prevents loading of data URL images
+            https://bugs.webkit.org/show_bug.cgi?id=233131
+            <rdar://85236459>
+
+            Reviewed by Geoffrey Garen.
+
+            Add layout test coverage. This test is based on a reduce test case from Cameron McCormack.
+
+            * http/wpt/html/cross-origin-embedder-policy/require-corp-data-url-expected.txt: Added.
+            * http/wpt/html/cross-origin-embedder-policy/require-corp-data-url.html: Added.
+            * http/wpt/html/cross-origin-embedder-policy/require-corp-data-url.html.headers: Added.
+
+2021-11-15  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r285728. rdar://problem/85236241
+
+    [Web Animations] Accelerated animations with a single keyframe don't account for prior forward-filling animations
+    https://bugs.webkit.org/show_bug.cgi?id=233041
+    <rdar://problem/85236241>
+    
+    Reviewed by Dean Jackson.
+    
+    Source/WebCore:
+    
+    Test: webanimations/accelerated-animation-after-forward-filling-animation.html
+    
+    When starting an accelerated animation, we would fill any implicit keyframes based on the unanimated style.
+    We now also apply all animations below this animation in the target's effect stack such that a previous
+    forward-filling animation is accounted for.
+    
+    * animation/KeyframeEffect.cpp:
+    (WebCore::KeyframeEffect::applyPendingAcceleratedActions):
+    
+    LayoutTests:
+    
+    Add a new test that runs a forward-filling animation for `transform`, waits for its completion,
+    then runs another `transform` animation with an implicit initial keyframe, ensuring that the
+    result of the first forward-filling animation is accounted for when computing the initial
+    keyframe.
+    
+    This test would fail prior to this patch.
+    
+    * webanimations/accelerated-animation-after-forward-filling-animation-expected.html: Added.
+    * webanimations/accelerated-animation-after-forward-filling-animation.html: Added.
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@285728 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-11-12  Antoine Quint  <graouts@webkit.org>
+
+            [Web Animations] Accelerated animations with a single keyframe don't account for prior forward-filling animations
+            https://bugs.webkit.org/show_bug.cgi?id=233041
+            <rdar://problem/85236241>
+
+            Reviewed by Dean Jackson.
+
+            Add a new test that runs a forward-filling animation for `transform`, waits for its completion,
+            then runs another `transform` animation with an implicit initial keyframe, ensuring that the
+            result of the first forward-filling animation is accounted for when computing the initial
+            keyframe.
+
+            This test would fail prior to this patch.
+
+            * webanimations/accelerated-animation-after-forward-filling-animation-expected.html: Added.
+            * webanimations/accelerated-animation-after-forward-filling-animation.html: Added.
+
+2021-11-11  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r285565. rdar://problem/83159358
+
+    [macOS] Enable NSURLSession partitioning based on first-party domain at CFNetwork level
+    https://bugs.webkit.org/show_bug.cgi?id=230750
+    <rdar://problem/83159358>
+    
+    Reviewed by Alex Christensen.
+    
+    Source/WebKit:
+    
+    * NetworkProcess/cocoa/NetworkDataTaskCocoa.mm:
+    (WebKit::NetworkDataTaskCocoa::NetworkDataTaskCocoa):
+    (overrideAttributionContext): Deleted.
+    Stop disabling CFNetwork NSURLSession partitioning based on first-party domain on
+    macOS.
+    
+    * NetworkProcess/cocoa/NetworkSessionCocoa.h:
+    * NetworkProcess/cocoa/NetworkSessionCocoa.mm:
+    (WebKit::NetworkSessionCocoa::sessionWrapperForTask):
+    (WebKit::NetworkSessionCocoa::hasIsolatedSession const):
+    (WebKit::NetworkSessionCocoa::clearIsolatedSessions):
+    (WebKit::NetworkSessionCocoa::invalidateAndCancelSessionSet):
+    Disable ITP session partitioning of certain prevalent domains on platforms where
+    CFNetwork already does full partitioning of all domains (now that it is enabled
+    on macOS 12+ and iOS15+).
+    
+    Source/WTF:
+    
+    Add HAVE(CFNETWORK_SESSION_PARTITIONING_BASED_ON_FIRST_PARTY_DOMAIN) build time flag that is true
+    on newer Apple OSes where CFNetwork does NSURLSession partitioning based on first-party domain for
+    us.
+    
+    * wtf/PlatformHave.h:
+    
+    LayoutTests:
+    
+    Skip a few ITP session partitioning tests on newer OSes now that session partitioning
+    happens for all first-party domains at CFNetwork level on these OSes.
+    
+    * platform/ios-wk2/TestExpectations:
+    * platform/mac-wk2/TestExpectations:
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@285565 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-11-09  Chris Dumez  <cdumez@apple.com>
+
+            [macOS] Enable NSURLSession partitioning based on first-party domain at CFNetwork level
+            https://bugs.webkit.org/show_bug.cgi?id=230750
+            <rdar://problem/83159358>
+
+            Reviewed by Alex Christensen.
+
+            Skip a few ITP session partitioning tests on newer OSes now that session partitioning
+            happens for all first-party domains at CFNetwork level on these OSes.
+
+            * platform/ios-wk2/TestExpectations:
+            * platform/mac-wk2/TestExpectations:
+
+2021-11-11  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r284434. rdar://problem/77969801
+
+    WebM with invalid size should fail to load with error
+    https://bugs.webkit.org/show_bug.cgi?id=231886
+    rdar://77969801
+    
+    Reviewed by Jer Noble.
+    
+    Source/WebCore:
+    
+    libwebm for some elements are using a std::string or a std::vector<uint8_t>
+    to store their content. Those have infallible memory allocators.
+    We limit the size we allow the parser to use to some reasonable values.
+    
+    Test: media/media-webm-invalid-check.html
+    
+    * platform/graphics/cocoa/SourceBufferParserWebM.cpp:
+    (WebCore::SourceBufferParserWebM::OnElementBegin):
+    
+    LayoutTests:
+    
+    * media/content/invalid-size.webm: Added.
+    * media/media-webm-invalid-check-expected.txt: Added.
+    * media/media-webm-invalid-check.html: Added.
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@284434 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-10-18  Jean-Yves Avenard  <jya@apple.com>
+
+            WebM with invalid size should fail to load with error
+            https://bugs.webkit.org/show_bug.cgi?id=231886
+            rdar://77969801
+
+            Reviewed by Jer Noble.
+
+            * media/content/invalid-size.webm: Added.
+            * media/media-webm-invalid-check-expected.txt: Added.
+            * media/media-webm-invalid-check.html: Added.
+
 2021-11-09  Alan Coon  <alancoon@apple.com>
 
         Cherry-pick r285389. rdar://problem/84380291

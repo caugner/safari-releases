@@ -345,8 +345,6 @@ NetworkDataTaskCocoa::NetworkDataTaskCocoa(NetworkSession& session, NetworkDataT
     mutableRequest.get().attribution = request.isAppInitiated() ? NSURLRequestAttributionDeveloper : NSURLRequestAttributionUser;
 #endif
 
-    overrideAttributionContext(mutableRequest.get());
-
     if (parameters.pcmDataCarried)
         processPCMRequest(*parameters.pcmDataCarried, mutableRequest.get());
 
@@ -641,12 +639,15 @@ void NetworkDataTaskCocoa::resume()
 {
     WTFEmitSignpost(m_task.get(), "DataTask", "resume");
 
+    if (m_failureScheduled)
+        return;
+
     auto& cocoaSession = static_cast<NetworkSessionCocoa&>(*m_session);
     if (cocoaSession.deviceManagementRestrictionsEnabled() && m_isForMainResourceNavigationForAnyFrame) {
         auto didDetermineDeviceRestrictionPolicyForURL = makeBlockPtr([this, protectedThis = makeRef(*this)](BOOL isBlocked) mutable {
             callOnMainRunLoop([this, protectedThis = WTFMove(protectedThis), isBlocked] {
                 if (isBlocked) {
-                    scheduleFailure(RestrictedURLFailure);
+                    scheduleFailure(FailureType::RestrictedURL);
                     return;
                 }
 

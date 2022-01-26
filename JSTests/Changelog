@@ -1,3 +1,251 @@
+2022-01-05  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r286283. rdar://problem/87125362
+
+    [JSC] jumpForTypedArrayOutOfBounds should use asAnyInt since it uses isAnyInt
+    https://bugs.webkit.org/show_bug.cgi?id=233610
+    rdar://85820476
+    
+    Reviewed by Saam Barati.
+    
+    JSTests:
+    
+    * stress/anyint-index.js: Added.
+    (foo):
+    
+    Source/JavaScriptCore:
+    
+    Since we are using isAnyInt, then we should use asAnyInt. asUInt32 will crash
+    if the value is double AnyInt etc.
+    
+    * dfg/DFGSpeculativeJIT.cpp:
+    (JSC::DFG::SpeculativeJIT::jumpForTypedArrayOutOfBounds):
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@286283 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-11-29  Yusuke Suzuki  <ysuzuki@apple.com>
+
+            [JSC] jumpForTypedArrayOutOfBounds should use asAnyInt since it uses isAnyInt
+            https://bugs.webkit.org/show_bug.cgi?id=233610
+            rdar://85820476
+
+            Reviewed by Saam Barati.
+
+            * stress/anyint-index.js: Added.
+            (foo):
+
+2022-01-05  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r286275. rdar://problem/87125258
+
+    [JSC] slice should be aware of TerminationException
+    https://bugs.webkit.org/show_bug.cgi?id=233593
+    rdar://85823844
+    
+    Reviewed by Mark Lam.
+    
+    JSTests:
+    
+    * stress/slice-termination-exception.js: Added.
+    (async infiniteLoop):
+    
+    Source/JavaScriptCore:
+    
+    Since termination exception can happen at any time, assertNoException is wrong.
+    
+    * runtime/ArrayPrototype.cpp:
+    (JSC::JSC_DEFINE_HOST_FUNCTION):
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@286275 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-11-29  Yusuke Suzuki  <ysuzuki@apple.com>
+
+            [JSC] slice should be aware of TerminationException
+            https://bugs.webkit.org/show_bug.cgi?id=233593
+            rdar://85823844
+
+            Reviewed by Mark Lam.
+
+            * stress/slice-termination-exception.js: Added.
+            (async infiniteLoop):
+
+2022-01-05  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r286249. rdar://problem/87124979
+
+    [JSC] private name operation should use RETURN_IF_EXCEPTION
+    https://bugs.webkit.org/show_bug.cgi?id=233577
+    rdar://85813869
+    
+    Reviewed by Mark Lam.
+    
+    JSTests:
+    
+    * stress/termination-error-in-private-name.js: Added.
+    (C):
+    
+    Source/JavaScriptCore:
+    
+    Because of TerminatedExecutionError, error can be thrown at any time.
+    
+    * jit/JITOperations.cpp:
+    (JSC::JSC_DEFINE_JIT_OPERATION):
+    (JSC::putPrivateNameOptimize):
+    (JSC::putPrivateName):
+    * llint/LLIntSlowPaths.cpp:
+    (JSC::LLInt::LLINT_SLOW_PATH_DECL):
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@286249 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-11-29  Yusuke Suzuki  <ysuzuki@apple.com>
+
+            [JSC] private name operation should use RETURN_IF_EXCEPTION
+            https://bugs.webkit.org/show_bug.cgi?id=233577
+            rdar://85813869
+
+            Reviewed by Mark Lam.
+
+            * stress/termination-error-in-private-name.js: Added.
+            (C):
+
+2022-01-05  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r286228. rdar://problem/87125189
+
+    [JSC] GetTypedArrayLengthAsInt52 can get Array::Generic ArrayMode
+    https://bugs.webkit.org/show_bug.cgi?id=233571
+    rdar://85812164
+    
+    Reviewed by Mark Lam.
+    
+    JSTests:
+    
+    * stress/get-typed-array-length-as-int52-generic.js: Added.
+    (foo.bar):
+    (foo):
+    
+    Source/JavaScriptCore:
+    
+    If speculation is not populated enough, then GetTypedArrayLengthAsInt52 can get Array::Generic.
+    In that case, we should convert it to Array::ForceExit as it is done in GetArrayLength.
+    And blessArrayOperation inserts ForceOSRExit. So GetTypedArrayLengthAsInt52 won't be compiled.
+    
+    * dfg/DFGClobberize.h:
+    (JSC::DFG::clobberize):
+    * dfg/DFGFixupPhase.cpp:
+    (JSC::DFG::FixupPhase::fixupNode):
+    * dfg/DFGSpeculativeJIT64.cpp:
+    (JSC::DFG::SpeculativeJIT::compileGetTypedArrayLengthAsInt52):
+    * ftl/FTLLowerDFGToB3.cpp:
+    (JSC::FTL::DFG::LowerDFGToB3::compileGetTypedArrayLengthAsInt52):
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@286228 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-11-29  Yusuke Suzuki  <ysuzuki@apple.com>
+
+            [JSC] GetTypedArrayLengthAsInt52 can get Array::Generic ArrayMode
+            https://bugs.webkit.org/show_bug.cgi?id=233571
+            rdar://85812164
+
+            Reviewed by Mark Lam.
+
+            * stress/get-typed-array-length-as-int52-generic.js: Added.
+            (foo.bar):
+            (foo):
+
+2022-01-05  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r286153. rdar://problem/87124911
+
+    Skip new stress test get-array-length-reuse.js if memory-limited
+    https://bugs.webkit.org/show_bug.cgi?id=233299
+    rdar://85502079
+    
+    Patch by Michael Catanzaro <mcatanzaro@gnome.org> on 2021-11-24
+    Reviewed by Yusuke Suzuki.
+    
+    * stress/get-array-length-reuse.js:
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@286153 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-11-24  Michael Catanzaro  <mcatanzaro@gnome.org>
+
+            Skip new stress test get-array-length-reuse.js if memory-limited
+            https://bugs.webkit.org/show_bug.cgi?id=233299
+            rdar://85502079
+
+            Reviewed by Yusuke Suzuki.
+
+            * stress/get-array-length-reuse.js:
+
+2022-01-05  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r285978. rdar://problem/87124911
+
+    [JSC] TypedArray GetArrayLength should not use Reuse
+    https://bugs.webkit.org/show_bug.cgi?id=233299
+    rdar://85502079
+    
+    Reviewed by Robin Morisset.
+    
+    JSTests:
+    
+    * stress/get-array-length-reuse.js: Added.
+    (foo):
+    
+    Source/JavaScriptCore:
+    
+    We should not perform OSR exit after assigning a value to a reused register, otherwise,
+    OSR exit cannot recover the proper value. Now TypedArray GetArrayLength can perform
+    OSR exit after loading a length, so we should not use reused register for length.
+    
+    * dfg/DFGSpeculativeJIT.cpp:
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@285978 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-11-17  Yusuke Suzuki  <ysuzuki@apple.com>
+
+            [JSC] TypedArray GetArrayLength should not use Reuse
+            https://bugs.webkit.org/show_bug.cgi?id=233299
+            rdar://85502079
+
+            Reviewed by Robin Morisset.
+
+            * stress/get-array-length-reuse.js: Added.
+            (foo):
+
+2021-11-11  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r283300. rdar://problem/85259264
+
+    DFG strength reduction on % operator should handle an INT_MIN divisor.
+    https://bugs.webkit.org/show_bug.cgi?id=230391
+    <rdar://problem/83229740>
+    
+    Reviewed by Robin Morisset.
+    
+    JSTests:
+    
+    * stress/dfg-strength-reduction-on-mod-should-handle-INT_MIN.js: Added.
+    
+    Source/JavaScriptCore:
+    
+    * dfg/DFGStrengthReductionPhase.cpp:
+    (JSC::DFG::StrengthReductionPhase::handleNode):
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@283300 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2021-09-29  Mark Lam  <mark.lam@apple.com>
+
+            DFG strength reduction on % operator should handle an INT_MIN divisor.
+            https://bugs.webkit.org/show_bug.cgi?id=230391
+            <rdar://problem/83229740>
+
+            Reviewed by Robin Morisset.
+
+            * stress/dfg-strength-reduction-on-mod-should-handle-INT_MIN.js: Added.
+
 2021-10-25  Yusuke Suzuki  <ysuzuki@apple.com>
 
         [JSC] Don't branch around register allocation in DFG enumerator get by val

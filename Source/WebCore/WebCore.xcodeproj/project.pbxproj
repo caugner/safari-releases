@@ -4358,7 +4358,7 @@
 		CD336F6417FA0A4D00DDDCD0 /* VideoTrackPrivateAVF.h in Headers */ = {isa = PBXBuildFile; fileRef = CD336F6317FA0A4D00DDDCD0 /* VideoTrackPrivateAVF.h */; };
 		CD336F6717FA0AC600DDDCD0 /* VideoTrackPrivateAVFObjC.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CD336F6517FA0AC600DDDCD0 /* VideoTrackPrivateAVFObjC.cpp */; };
 		CD336F6817FA0AC600DDDCD0 /* VideoTrackPrivateAVFObjC.h in Headers */ = {isa = PBXBuildFile; fileRef = CD336F6617FA0AC600DDDCD0 /* VideoTrackPrivateAVFObjC.h */; };
-		CD36C1622607E78600C8C529 /* AudioSessionIOS.h in Headers */ = {isa = PBXBuildFile; fileRef = CD36C1612607E78600C8C529 /* AudioSessionIOS.h */; };
+		CD36C1622607E78600C8C529 /* AudioSessionIOS.h in Headers */ = {isa = PBXBuildFile; fileRef = CD36C1612607E78600C8C529 /* AudioSessionIOS.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		CD36C16B260A65CC00C8C529 /* SharedRoutingArbitrator.h in Headers */ = {isa = PBXBuildFile; fileRef = CD36C168260A63D300C8C529 /* SharedRoutingArbitrator.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		CD3A495F17A9D01B00274E42 /* MediaSource.h in Headers */ = {isa = PBXBuildFile; fileRef = CD3A495617A9D01B00274E42 /* MediaSource.h */; };
 		CD3A496217A9D01B00274E42 /* SourceBuffer.h in Headers */ = {isa = PBXBuildFile; fileRef = CD3A495917A9D01B00274E42 /* SourceBuffer.h */; };
@@ -6291,6 +6291,8 @@
 		0FA0A0E523AEAA35000EEB94 /* dialog.css */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.css; path = dialog.css; sourceTree = "<group>"; };
 		0FA24D77162DF91900A3F4C0 /* GraphicsLayerUpdater.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = GraphicsLayerUpdater.cpp; sourceTree = "<group>"; };
 		0FA24D78162DF91900A3F4C0 /* GraphicsLayerUpdater.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = GraphicsLayerUpdater.h; sourceTree = "<group>"; };
+		0FA2B233276817540020C7C1 /* PlatformCALayerContentsDelayedReleaser.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = PlatformCALayerContentsDelayedReleaser.h; sourceTree = "<group>"; };
+		0FA2B235276817550020C7C1 /* PlatformCALayerContentsDelayedReleaser.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = PlatformCALayerContentsDelayedReleaser.mm; sourceTree = "<group>"; };
 		0FB0689425243B90001E8E75 /* DisplayTextBox.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = DisplayTextBox.cpp; sourceTree = "<group>"; };
 		0FB0689625243B90001E8E75 /* DisplayTextBox.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DisplayTextBox.h; sourceTree = "<group>"; };
 		0FB6252C18DE1B1500A07C05 /* GeometryUtilities.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = GeometryUtilities.cpp; sourceTree = "<group>"; };
@@ -20068,6 +20070,8 @@
 				0F13163F16ED0CDE0035CC04 /* PlatformCAFiltersCocoa.mm */,
 				2D70BA1218074DDF0001908A /* PlatformCALayerCocoa.h */,
 				4958782012A57DDF007238AC /* PlatformCALayerCocoa.mm */,
+				0FA2B233276817540020C7C1 /* PlatformCALayerContentsDelayedReleaser.h */,
+				0FA2B235276817550020C7C1 /* PlatformCALayerContentsDelayedReleaser.mm */,
 				31DEA4541B39F4D900F77178 /* WebSystemBackdropLayer.h */,
 				31DEA4531B39F4D900F77178 /* WebSystemBackdropLayer.mm */,
 				0F580FA11496939100FB5BD8 /* WebTiledBackingLayer.h */,
