@@ -20,12 +20,13 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import os
 import requests
 import sys
 
 from .command import Command
 from requests.auth import HTTPBasicAuth
-from webkitcorepy import arguments, run, Terminal
+from webkitcorepy import arguments, run, Editor, Terminal
 from webkitscmpy import log, local, remote
 
 
@@ -34,12 +35,17 @@ class Setup(Command):
     help = 'Configure local settings for the current repository'
 
     @classmethod
-    def github(cls, args, repository, **kwargs):
-        log.warning('Saving GitHub credentials in system credential store...')
+    def github(cls, args, repository, additional_setup=None, **kwargs):
+        log.info('Saving GitHub credentials in system credential store...')
         username, access_token = repository.credentials(required=True)
-        log.warning('GitHub credentials saved via Keyring!')
+        log.info('GitHub credentials saved via Keyring!')
 
-        log.warning('Verifying user owned fork...')
+        # Any additional setup passed to main
+        result = 0
+        if additional_setup:
+            result += additional_setup(args, repository)
+
+        log.info('Verifying user owned fork...')
         auth = HTTPBasicAuth(username, access_token)
         response = requests.get('{}/repos/{}/{}'.format(
             repository.api_url,
@@ -47,14 +53,14 @@ class Setup(Command):
             repository.name,
         ), auth=auth, headers=dict(Accept='application/vnd.github.v3+json'))
         if response.status_code == 200:
-            log.warning("User already owns a fork of '{}'!".format(repository.name))
-            return 0
+            log.info("User already owns a fork of '{}'!".format(repository.name))
+            return result
 
         if repository.owner == username or args.defaults or Terminal.choose(
             "Create a private fork of '{}' belonging to '{}'".format(repository.name, username),
-            default='No',
+            default='Yes',
         ) == 'No':
-            log.warning("Continuing without forking '{}'".format(repository.name))
+            log.info("Continuing without forking '{}'".format(repository.name))
             return 1
 
         response = requests.post('{}/repos/{}/{}/forks'.format(
@@ -69,16 +75,16 @@ class Setup(Command):
         if response.status_code not in (200, 202):
             sys.stderr.write("Failed to create a fork of '{}' belonging to '{}'\n".format(repository.name, username))
             return 1
-        log.warning("Created a private fork of '{}' belonging to '{}'!".format(repository.name, username))
-        return 0
+        log.info("Created a private fork of '{}' belonging to '{}'!".format(repository.name, username))
+        return result
 
     @classmethod
-    def git(cls, args, repository, **kwargs):
+    def git(cls, args, repository, additional_setup=None, hooks=None, **kwargs):
         global_config = local.Git.config()
         result = 0
 
         email = global_config.get('user.email')
-        log.warning('Setting git user email for {}...'.format(repository.root_path))
+        log.info('Setting git user email for {}...'.format(repository.root_path))
         if not email or args.defaults is False or (not args.defaults and Terminal.choose(
             "Set '{}' as the git user email".format(email),
             default='Yes',
@@ -91,14 +97,14 @@ class Setup(Command):
             sys.stderr.write('Failed to set the git user email to {}\n'.format(email))
             result += 1
         else:
-            log.warning("Set git user email to '{}'".format(email))
+            log.info("Set git user email to '{}'".format(email))
 
         name = repository.contributors.get(email)
         if name:
             name = name.name
         else:
             name = global_config.get('user.name')
-        log.warning('Setting git user name for {}...'.format(repository.root_path))
+        log.info('Setting git user name for {}...'.format(repository.root_path))
         if not name or args.defaults is False or (not args.defaults and Terminal.choose(
             "Set '{}' as the git user name".format(name),
             default='Yes',
@@ -110,9 +116,9 @@ class Setup(Command):
             sys.stderr.write('Failed to set the git user name to {}\n'.format(name))
             result += 1
         else:
-            log.warning("Set git user name to '{}'".format(name))
+            log.info("Set git user name to '{}'".format(name))
 
-        log.warning('Setting better Objective-C diffing behavior...')
+        log.info('Setting better Objective-C diffing behavior...')
         result += run(
             [local.Git.executable(), 'config', 'diff.objcpp.xfuncname', '^[-+@a-zA-Z_].*$'],
             capture_output=True, cwd=repository.root_path,
@@ -121,10 +127,10 @@ class Setup(Command):
             [local.Git.executable(), 'config', 'diff.objcppheader.xfuncname', '^[@a-zA-Z_].*$'],
             capture_output=True, cwd=repository.root_path,
         ).returncode
-        log.warning('Set better Objective-C diffing behavior!')
+        log.info('Set better Objective-C diffing behavior!')
 
         if args.defaults or Terminal.choose(
-            'Auto-color status, diff, and branch?'.format(email),
+            'Auto-color status, diff, and branch?',
             default='Yes',
         ) == 'Yes':
             for command in ('status', 'diff', 'branch'):
@@ -133,13 +139,76 @@ class Setup(Command):
                     capture_output=True, cwd=repository.root_path,
                 ).returncode
 
-        log.warning('Using {} merge strategy'.format('merge commits as a' if args.merge else 'a rebase'))
+        log.info('Using {} merge strategy'.format('merge commits as a' if args.merge else 'a rebase'))
         if run(
             [local.Git.executable(), 'config', 'pull.rebase', 'false' if args.merge else 'true'],
             capture_output=True, cwd=repository.root_path,
         ).returncode:
             sys.stderr.write('Failed to use {} as the merge strategy\n'.format('merge commits' if args.merge else 'rebase'))
             result += 1
+
+        if hooks:
+            for hook in os.listdir(hooks):
+                source_path = os.path.join(hooks, hook)
+                if not os.path.isfile(source_path):
+                    continue
+                log.info('Configuring and copying hook {}'.format(source_path))
+                with open(source_path, 'r') as f:
+                    from jinja2 import Template
+                    contents = Template(f.read()).render(
+                        git=local.Git.executable(),
+                        location=source_path,
+                        python=os.path.basename(sys.executable),
+                    )
+
+                target = os.path.join(repository.root_path, '.git', 'hooks', hook)
+                if not os.path.exists(os.path.dirname(target)):
+                    os.makedirs(os.path.dirname(target))
+                with open(target, 'w') as f:
+                    f.write(contents)
+                    f.write('\n')
+                os.chmod(target, 0o775)
+
+        log.info('Setting git editor for {}...'.format(repository.root_path))
+        editor_name = 'default' if args.defaults else Terminal.choose(
+            'Pick a commit message editor',
+            options=['default'] + [program.name for program in Editor.programs()],
+            default='default',
+            numbered=True,
+        )
+        if editor_name == 'default':
+            log.info('Using the default git editor')
+        elif run(
+            [local.Git.executable(), 'config', 'core.editor', ' '.join([arg.replace(' ', '\\ ') for arg in Editor.by_name(editor_name).wait])],
+            capture_output=True,
+            cwd=repository.root_path,
+        ).returncode:
+            sys.stderr.write('Failed to set the git editor to {}\n'.format(editor_name))
+            result += 1
+        else:
+            log.info("Set git editor to '{}'".format(editor_name))
+
+        # Pushing to http repositories is difficult, offer to change http checkouts to ssh
+        http_remote = local.Git.HTTP_REMOTE.match(repository.url())
+        if http_remote and not args.defaults and Terminal.choose(
+            "http based remotes will prompt for your password when pushing,\nwould you like to convert to a ssh remote?",
+            default='Yes',
+        ) == 'Yes':
+            if run([
+                local.Git.executable(), 'config', 'remote.origin.url',
+                'git@{}:{}.git'.format(http_remote.group('host'), http_remote.group('path')),
+            ], capture_output=True, cwd=repository.root_path).returncode:
+                sys.stderr.write("Failed to change remote to ssh remote '{}'\n".format(
+                    'git@{}:{}.git'.format(http_remote.group('host'), http_remote.group('path'))
+                ))
+                result += 1
+            else:
+                # Force reset cache
+                repository.url(cached=False)
+
+        # Any additional setup passed to main
+        if additional_setup:
+            result += additional_setup(args, repository)
 
         # Only configure GitHub if the URL is a GitHub URL
         rmt = repository.remote()
@@ -152,7 +221,7 @@ class Setup(Command):
             return result
 
         username, _ = rmt.credentials(required=True)
-        log.warning("Adding forked remote as '{}' and 'fork'...".format(username))
+        log.info("Adding forked remote as '{}' and 'fork'...".format(username))
         url = repository.url()
 
         if '://' in url:
@@ -178,11 +247,11 @@ class Setup(Command):
                 result += 1
             else:
                 available_remotes.append(name)
-                log.warning("Added remote '{}'".format(name))
+                log.info("Added remote '{}'".format(name))
 
         if 'fork' not in available_remotes:
             return result
-        log.warning("Fetching '{}'".format(fork_remote))
+        log.info("Fetching '{}'".format(fork_remote))
         return run(
             [repository.executable(), 'fetch', 'fork'],
             capture_output=True, cwd=repository.root_path,

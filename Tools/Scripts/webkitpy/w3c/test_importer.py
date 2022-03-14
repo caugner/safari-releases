@@ -349,6 +349,8 @@ class TestImporter(object):
                     # Using a naming convention creates duplicate copies of the
                     # reference files.
                     ref_file = self.filesystem.splitext(test_basename)[0] + '-expected'
+                    if 'type' in test_info and test_info['type'] == 'mismatch':
+                        ref_file += '-mismatch'
                     ref_file += self.filesystem.splitext(test_info['reference'])[1]
 
                     copy_list.append({'src': test_info['reference'], 'dest': ref_file, 'reference_support_info': test_info['reference_support_info']})
@@ -421,7 +423,9 @@ class TestImporter(object):
                 items = line.split('META: global=', 1)[1].split(',')
                 suffixes = [self.globalToSuffix.get(item.strip(), '') for item in items]
                 environments = list(filter(None, set(suffixes)))
-        return set(environments) if len(environments) else ['html', 'worker.html']
+        if 'worker.html' in environments:
+            environments.append('serviceworker.html')
+        return set(environments) if len(environments) else ['html', 'worker.html', 'serviceworker.html']
 
     def write_html_files_for_templated_js_tests(self, orig_filepath, new_filepath):
         if (orig_filepath.endswith('.window.js')):

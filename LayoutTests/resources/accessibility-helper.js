@@ -1,3 +1,10 @@
+// This function is necessary when printing AX attributes that are stringified with angle brackets:
+//    AXChildren: <array of size 0>
+// `debug` outputs to the `innerHTML` of a generated element, so these brackets must be escaped to be printed.
+function debugEscaped(message) {
+    debug(escapeHTML(message));
+}
+
 // Dumps the accessibility tree hierarchy for the given accessibilityObject into
 // an element with id="tree", e.g., <pre id="tree"></pre>. In addition, it
 // returns a two element array with the first element [0] being false if the
@@ -110,3 +117,24 @@ function waitFor(condition)
         }, 0);
     });
 }
+
+async function waitForElementById(id) {
+    let element;
+    await waitFor(() => {
+        element = accessibilityController.accessibleElementById(id);
+        return element;
+    });
+    return element;
+}
+
+async function expectAsyncExpression(expression, expectedValue) {
+    if (typeof expression !== "string")
+        debug("WARN: The expression arg in waitForExpression() should be a string.");
+
+    const evalExpression = `${expression} === ${expectedValue}`;
+    await waitFor(() => {
+        return eval(evalExpression);
+    });
+    debug(`PASS ${evalExpression}`);
+}
+

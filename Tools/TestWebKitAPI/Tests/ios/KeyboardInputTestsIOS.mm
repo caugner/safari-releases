@@ -42,6 +42,7 @@
 #import <cmath>
 
 @interface WKContentView ()
+@property (nonatomic, readonly) NSUndoManager *undoManagerForWebView;
 - (BOOL)_shouldSimulateKeyboardInputOnTextInsertion;
 @end
 
@@ -183,6 +184,19 @@ static CGRect rounded(CGRect rect)
 - (UIView *)inputAccessoryView
 {
     return _customInputAccessoryView.get();
+}
+
+@end
+
+@interface CustomUndoManagerWebView : TestWKWebView
+@property (nonatomic, strong) NSUndoManager *customUndoManager;
+@end
+
+@implementation CustomUndoManagerWebView
+
+- (NSUndoManager *)undoManager
+{
+    return _customUndoManager ?: super.undoManager;
 }
 
 @end
@@ -799,6 +813,38 @@ TEST(KeyboardInputTests, InsertDictationAlternativesSimulatingKeyboardInput)
     [webView evaluateJavaScriptAndWaitForInputSessionToChange:@"document.body.focus()"];
     [[webView textInputContentView] insertText:@"hello" alternatives:@[ @"helo" ] style:UITextAlternativeStyleNone];
     EXPECT_NS_EQUAL((@[@"keydown", @"beforeinput", @"input", @"keyup", @"change"]), [webView objectByEvaluatingJavaScript:@"firedEvents"]);
+}
+
+TEST(KeyboardInputTests, OverrideUndoManager)
+{
+    auto webView = adoptNS([[CustomUndoManagerWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    auto contentView = [webView wkContentView];
+    EXPECT_EQ(contentView.undoManager, contentView.undoManagerForWebView);
+
+    auto undoManager = adoptNS([[NSUndoManager alloc] init]);
+    [webView setCustomUndoManager:undoManager.get()];
+    EXPECT_EQ(contentView.undoManager, undoManager);
+}
+
+static UIView * nilResizableSnapshotViewFromRect(id, SEL, CGRect, BOOL, UIEdgeInsets)
+{
+    return nil;
+}
+
+TEST(KeyboardInputTests, DoNotCrashWhenFocusingSelectWithoutViewSnapshot)
+{
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    auto delegate = adoptNS([TestInputDelegate new]);
+    [webView _setInputDelegate:delegate.get()];
+    [delegate setFocusStartsInputSessionPolicyHandler:[](WKWebView *, id <_WKFocusedElementInfo>) {
+        return _WKFocusStartsInputSessionPolicyAllow;
+    }];
+
+    [webView synchronouslyLoadHTMLString:@"<select id='select'><option>foo</option><option>bar</option></select>"];
+
+    InstanceMethodSwizzler swizzler { UIView.class, @selector(resizableSnapshotViewFromRect:afterScreenUpdates:withCapInsets:), reinterpret_cast<IMP>(nilResizableSnapshotViewFromRect) };
+    [webView stringByEvaluatingJavaScript:@"select.focus()"];
+    [webView waitForNextPresentationUpdate];
 }
 
 } // namespace TestWebKitAPI

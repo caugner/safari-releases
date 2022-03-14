@@ -25,12 +25,14 @@
 #include "stdafx.h"
 #include "WebKitBrowserWindow.h"
 
+#include "Common.h"
+#include "Common2.h"
 #include "MiniBrowserLibResource.h"
-#include "common.h"
 #include <WebCore/GDIUtilities.h>
 #include <WebKit/WKAuthenticationChallenge.h>
 #include <WebKit/WKAuthenticationDecisionListener.h>
 #include <WebKit/WKCertificateInfoCurl.h>
+#include <WebKit/WKContextConfigurationRef.h>
 #include <WebKit/WKCredential.h>
 #include <WebKit/WKInspector.h>
 #include <WebKit/WKPreferencesRefPrivate.h>
@@ -38,16 +40,9 @@
 #include <WebKit/WKProtectionSpaceCurl.h>
 #include <WebKit/WKWebsiteDataStoreRef.h>
 #include <WebKit/WKWebsiteDataStoreRefCurl.h>
+#include <filesystem>
+#include <sstream>
 #include <vector>
-
-std::wstring createString(WKStringRef wkString)
-{
-    size_t maxSize = WKStringGetLength(wkString);
-
-    std::vector<WKChar> wkCharBuffer(maxSize);
-    size_t actualLength = WKStringGetCharacters(wkString, wkCharBuffer.data(), maxSize);
-    return std::wstring(wkCharBuffer.data(), actualLength);
-}
 
 std::wstring createString(WKURLRef wkURL)
 {
@@ -107,6 +102,22 @@ WKRetainPtr<WKURLRef> createWKURL(const std::wstring& str)
     return adoptWK(WKURLCreateWithUTF8CString(utf8.data()));
 }
 
+WKRetainPtr<WKStringRef> injectedBundlePath()
+{
+    auto module = GetModuleHandle(nullptr);
+    std::wstring path;
+    for (;;) {
+        path.resize(path.size() + MAX_PATH);
+        auto copied = GetModuleFileName(module, path.data(), path.size());
+        if (copied < path.size()) {
+            path.resize(copied);
+            break;
+        }
+    }
+    path = std::filesystem::path(path).replace_filename("MiniBrowserInjectedBundle.dll");
+    return createWKString(path);
+}
+
 Ref<BrowserWindow> WebKitBrowserWindow::create(BrowserWindowClient& client, HWND mainWnd, bool)
 {
     auto conf = adoptWK(WKPageConfigurationCreate());
@@ -121,7 +132,10 @@ Ref<BrowserWindow> WebKitBrowserWindow::create(BrowserWindowClient& client, HWND
     WKPreferencesSetDeveloperExtrasEnabled(prefs.get(), true);
     WKPageConfigurationSetPreferences(conf.get(), prefs.get());
 
-    auto context =adoptWK(WKContextCreateWithConfiguration(nullptr));
+    auto contextConf = adoptWK(WKContextConfigurationCreate());
+    WKContextConfigurationSetInjectedBundlePath(contextConf.get(), injectedBundlePath().get());
+
+    auto context = adoptWK(WKContextCreateWithConfiguration(contextConf.get()));
     WKPageConfigurationSetContext(conf.get(), context.get());
 
     return adoptRef(*new WebKitBrowserWindow(client, conf.get(), mainWnd));
@@ -140,6 +154,7 @@ WebKitBrowserWindow::WebKitBrowserWindow(BrowserWindowClient& client, WKPageConf
     WKPageNavigationClientV0 navigationClient = { };
     navigationClient.base.version = 0;
     navigationClient.base.clientInfo = this;
+    navigationClient.didFailProvisionalNavigation = didFailProvisionalNavigation;
     navigationClient.didReceiveAuthenticationChallenge = didReceiveAuthenticationChallenge;
     WKPageSetPageNavigationClient(page, &navigationClient.base);
 
@@ -280,7 +295,9 @@ _bstr_t WebKitBrowserWindow::userAgent()
 
 void WebKitBrowserWindow::showLayerTree()
 {
-    // Not implemented
+    auto page = WKViewGetPage(m_view.get());
+    auto name = createWKString("DumpLayerTree");
+    WKPagePostMessageToInjectedBundle(page, name.get(), nullptr);
 }
 
 void WebKitBrowserWindow::updateStatistics(HWND hDlg)
@@ -342,6 +359,17 @@ void WebKitBrowserWindow::didChangeActiveURL(const void* clientInfo)
     auto page = WKViewGetPage(thisWindow.m_view.get());
     WKRetainPtr<WKURLRef> url = adoptWK(WKPageCopyActiveURL(page));
     thisWindow.m_client.activeURLChanged(createString(url.get()));
+}
+
+void WebKitBrowserWindow::didFailProvisionalNavigation(WKPageRef page, WKNavigationRef navigation, WKErrorRef error, WKTypeRef userData, const void* clientInfo)
+{
+    auto& thisWindow = toWebKitBrowserWindow(clientInfo);
+    std::wstringstream text;
+    text << createString(adoptWK(WKErrorCopyLocalizedDescription(error)).get()) << std::endl;
+    text << L"Error Code: " << WKErrorGetErrorCode(error) << std::endl;
+    text << L"Domain: " << createString(adoptWK(WKErrorCopyDomain(error)).get()) << std::endl;
+    text << L"Failing URL: " << createString(adoptWK(WKErrorCopyFailingURL(error)).get());
+    MessageBox(thisWindow.m_hMainWnd, text.str().c_str(), L"Provisional Navigation Failure", MB_OK | MB_ICONWARNING);
 }
 
 void WebKitBrowserWindow::didReceiveAuthenticationChallenge(WKPageRef page, WKAuthenticationChallengeRef challenge, const void* clientInfo)

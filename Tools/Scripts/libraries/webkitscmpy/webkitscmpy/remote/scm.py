@@ -1,4 +1,4 @@
-# Copyright (C) 2020 Apple Inc. All rights reserved.
+# Copyright (C) 2020, 2021 Apple Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -26,6 +26,32 @@ from webkitscmpy.scm_base import ScmBase
 
 
 class Scm(ScmBase):
+    class PRGenerator(object):
+        def __init__(self, repository):
+            self.repository = repository
+
+        def get(self, number):
+            raise NotImplementedError()
+
+        def find(self, opened=True, head=None, base=None):
+            raise NotImplementedError()
+
+        def create(self, head, title, body=None, commits=None, base=None):
+            raise NotImplementedError()
+
+        def update(self, pull_request, head=None, title=None, body=None, commits=None, base=None, opened=None):
+            raise NotImplementedError()
+
+        def reviewers(self, pull_request):
+            raise NotImplementedError()
+
+        def comment(self, pull_request, content):
+            raise NotImplementedError()
+
+        def comments(self, pull_request):
+            raise NotImplementedError()
+
+
     @classmethod
     def from_url(cls, url, contributors=None):
         from webkitscmpy import remote
@@ -42,3 +68,4 @@ class Scm(ScmBase):
         if not isinstance(url, six.string_types):
             raise ValueError("Expected 'url' to be a string type, not '{}'".format(type(url)))
         self.url = url
+        self.pull_requests = None

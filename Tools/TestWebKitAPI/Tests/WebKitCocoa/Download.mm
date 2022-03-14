@@ -26,6 +26,7 @@
 #import "config.h"
 #import <WebKit/WKFoundation.h>
 
+#import "DeprecatedGlobalValues.h"
 #import "HTTPServer.h"
 #import "PlatformUtilities.h"
 #import "Test.h"
@@ -57,7 +58,6 @@
 #import <wtf/WeakObjCPtr.h>
 #import <wtf/text/WTFString.h>
 
-static bool isDone;
 static unsigned redirectCount = 0;
 static bool hasReceivedResponse;
 static NSURL *sourceURL = [[NSBundle mainBundle] URLForResource:@"simple" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"];
@@ -1836,10 +1836,7 @@ TEST(WKDownload, ResumeWithoutInitialDataOnDisk)
             break;
         case 2:
             connection.receiveHTTPRequest([=](Vector<char>&& request) {
-#if !USE(LEGACY_CFNETWORK_DOWNLOADS)
-                // Mojave CFNetwork sends a range request when resuming a download after removing already-downloaded data.
                 EXPECT_FALSE(strnstr(request.data(), "Range", request.size()));
-#endif
                 connection.send(makeString(
                     "HTTP/1.1 200 OK\r\n"
                     "ETag: test\r\n"
@@ -2384,8 +2381,6 @@ TEST(WKDownload, DestinationNullString)
     });
 }
 
-// Mojave download tasks don't call didReceiveChallenge for server trust evaluation.
-#if !USE(LEGACY_CFNETWORK_DOWNLOADS)
 TEST(WKDownload, ChallengeSuccess)
 {
     HTTPServer server({{ "/", { "download content" }}}, HTTPServer::Protocol::Https);
@@ -2417,7 +2412,6 @@ TEST(WKDownload, ChallengeSuccess)
         DownloadCallback::DidFinish
     });
 }
-#endif
 
 TEST(WKDownload, ChallengeFailure)
 {
@@ -2427,12 +2421,7 @@ TEST(WKDownload, ChallengeFailure)
     __block bool failed = false;
     delegate.get().didFailWithError = ^(WKDownload *download, NSError *error, NSData *resumeData) {
         EXPECT_WK_STREQ(error.domain, NSURLErrorDomain);
-#if USE(LEGACY_CFNETWORK_DOWNLOADS)
-        // Mojave download tasks don't call didReceiveChallenge for server trust evaluation.
-        EXPECT_EQ(error.code, NSURLErrorSecureConnectionFailed);
-#else
         EXPECT_EQ(error.code, NSURLErrorCancelled);
-#endif
         failed = true;
     };
     __block bool receivedChallenge = false;
@@ -2445,14 +2434,9 @@ TEST(WKDownload, ChallengeFailure)
         download.delegate = delegate.get();
     }];
     Util::run(&failed);
-#if !USE(LEGACY_CFNETWORK_DOWNLOADS)
     EXPECT_TRUE(receivedChallenge);
-#endif
     checkCallbackRecord(delegate.get(), {
-#if !USE(LEGACY_CFNETWORK_DOWNLOADS)
-        // Mojave download tasks don't call didReceiveChallenge for server trust evaluation.
         DownloadCallback::AuthenticationChallenge,
-#endif
         DownloadCallback::DidFailWithError
     });
 }

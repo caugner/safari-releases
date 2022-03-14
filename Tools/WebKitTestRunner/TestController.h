@@ -56,6 +56,7 @@ class OriginSettings;
 class PlatformWebView;
 class TestInvocation;
 class TestOptions;
+struct Options;
 struct TestCommand;
 
 class AsyncTask {
@@ -124,7 +125,7 @@ public:
     bool beforeUnloadReturnValue() const { return m_beforeUnloadReturnValue; }
     void setBeforeUnloadReturnValue(bool value) { m_beforeUnloadReturnValue = value; }
 
-    void simulateWebNotificationClick(uint64_t notificationID);
+    void simulateWebNotificationClick(WKDataRef notificationID);
 
     // Geolocation.
     void setGeolocationPermission(bool);
@@ -190,6 +191,7 @@ public:
     void setShouldLogHistoryClientCallbacks(bool shouldLog) { m_shouldLogHistoryClientCallbacks = shouldLog; }
     void setShouldLogCanAuthenticateAgainstProtectionSpace(bool shouldLog) { m_shouldLogCanAuthenticateAgainstProtectionSpace = shouldLog; }
     void setShouldLogDownloadCallbacks(bool shouldLog) { m_shouldLogDownloadCallbacks = shouldLog; }
+    void setShouldLogDownloadSize(bool shouldLog) { m_shouldLogDownloadSize = shouldLog; }
 
     bool isCurrentInvocation(TestInvocation* invocation) const { return invocation == m_currentInvocation.get(); }
 
@@ -349,7 +351,7 @@ public:
     void setPrivateClickMeasurementOverrideTimerForTesting(bool value);
     void markAttributedPrivateClickMeasurementsAsExpiredForTesting();
     void setPrivateClickMeasurementEphemeralMeasurementForTesting(bool value);
-    void simulateResourceLoadStatisticsSessionRestart();
+    void simulatePrivateClickMeasurementSessionRestart();
     void setPrivateClickMeasurementTokenPublicKeyURLForTesting(WKURLRef);
     void setPrivateClickMeasurementTokenSignatureURLForTesting(WKURLRef);
     void setPrivateClickMeasurementAttributionReportURLsForTesting(WKURLRef sourceURL, WKURLRef destinationURL);
@@ -368,8 +370,6 @@ public:
     void setIsMediaKeySystemPermissionGranted(bool);
     WKRetainPtr<WKStringRef> takeViewPortSnapshot();
 
-    void didHandleTap(bool wasMeaningful);
-
 private:
     WKRetainPtr<WKPageConfigurationRef> generatePageConfiguration(const TestOptions&);
     WKRetainPtr<WKContextConfigurationRef> generateContextConfiguration(const TestOptions&) const;
@@ -385,19 +385,19 @@ private:
 
     bool handleControlCommand(const char* command);
 
-    void platformInitialize();
+    void platformInitialize(const Options&);
     void platformInitializeDataStore(WKPageConfigurationRef, const TestOptions&);
     void platformDestroy();
     WKContextRef platformAdjustContext(WKContextRef, WKContextConfigurationRef);
     void platformInitializeContext();
     void platformCreateWebView(WKPageConfigurationRef, const TestOptions&);
-    static PlatformWebView* platformCreateOtherPage(PlatformWebView* parentView, WKPageConfigurationRef, const TestOptions&);
+    static UniqueRef<PlatformWebView> platformCreateOtherPage(PlatformWebView* parentView, WKPageConfigurationRef, const TestOptions&);
 
     // Returns false if the reset timed out.
     bool platformResetStateToConsistentValues(const TestOptions&);
 
 #if PLATFORM(COCOA)
-    void cocoaPlatformInitialize();
+    void cocoaPlatformInitialize(const Options&);
     void cocoaResetStateToConsistentValues(const TestOptions&);
     void setApplicationBundleIdentifier(const std::string&);
     void clearApplicationBundleIdentifierTestingOverride();
@@ -443,6 +443,8 @@ private:
     WKRetainPtr<WKTypeRef> getInjectedBundleInitializationUserData();
 
     void didReceiveKeyDownMessageFromInjectedBundle(WKDictionaryRef messageBodyDictionary, bool synchronous);
+    void didReceiveRawKeyDownMessageFromInjectedBundle(WKDictionaryRef messageBodyDictionary, bool synchronous);
+    void didReceiveRawKeyUpMessageFromInjectedBundle(WKDictionaryRef messageBodyDictionary, bool synchronous);
 
     // WKContextClient
     static void networkProcessDidCrash(WKContextRef, const void*);
@@ -473,7 +475,10 @@ private:
     static bool downloadDidReceiveServerRedirectToURL(WKDownloadRef, WKURLResponseRef, WKURLRequestRef, const void*);
     bool downloadDidReceiveServerRedirectToURL(WKDownloadRef, WKURLRequestRef);
     static void downloadDidReceiveAuthenticationChallenge(WKDownloadRef, WKAuthenticationChallengeRef, const void *clientInfo);
-    
+
+    void downloadDidWriteData(long long totalBytesWritten);
+    static void downloadDidWriteData(WKDownloadRef, long long bytesWritten, long long totalBytesWritten, long long totalBytesExpectedToWrite, const void* clientInfo);
+
     static void webProcessDidTerminate(WKPageRef,  WKProcessTerminationReason, const void* clientInfo);
     void webProcessDidTerminate(WKProcessTerminationReason);
 
@@ -526,6 +531,9 @@ private:
     static WKPageRef createOtherPage(WKPageRef, WKPageConfigurationRef, WKNavigationActionRef, WKWindowFeaturesRef, const void*);
     WKPageRef createOtherPage(PlatformWebView* parentView, WKPageConfigurationRef, WKNavigationActionRef, WKWindowFeaturesRef);
 
+    static void closeOtherPage(WKPageRef, const void*);
+    void closeOtherPage(WKPageRef, PlatformWebView*);
+
     static void runModal(WKPageRef, const void* clientInfo);
     static void runModal(PlatformWebView*);
 
@@ -559,6 +567,7 @@ private:
     WebNotificationProvider m_webNotificationProvider;
 
     std::unique_ptr<PlatformWebView> m_mainWebView;
+    Vector<UniqueRef<PlatformWebView>> m_auxiliaryWebViews;
     WKRetainPtr<WKContextRef> m_context;
     WKRetainPtr<WKPageGroupRef> m_pageGroup;
     WKRetainPtr<WKUserContentControllerRef> m_userContentController;
@@ -567,9 +576,6 @@ private:
     Vector<std::unique_ptr<InstanceMethodSwizzler>> m_inputModeSwizzlers;
     RetainPtr<UIKeyboardInputMode> m_overriddenKeyboardInputMode;
     Vector<std::unique_ptr<InstanceMethodSwizzler>> m_presentPopoverSwizzlers;
-#if !HAVE(NONDESTRUCTIVE_IMAGE_PASTE_SUPPORT_QUERY)
-    std::unique_ptr<InstanceMethodSwizzler> m_keyboardDelegateSupportsImagePasteSwizzler;
-#endif
 #endif
 
     enum State {
@@ -662,6 +668,9 @@ private:
     bool m_isSpeechRecognitionPermissionGranted { false };
 
     bool m_isMediaKeySystemPermissionGranted { true };
+
+    std::optional<long long> m_downloadTotalBytesWritten;
+    bool m_shouldLogDownloadSize { false };
 };
 
 } // namespace WTR

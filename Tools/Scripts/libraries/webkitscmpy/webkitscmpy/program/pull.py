@@ -22,11 +22,14 @@
 
 import sys
 
+from .branch import Branch
 from .command import Command
+from webkitscmpy import local
 
 
 class Pull(Command):
     name = 'pull'
+    aliases = ['up', 'update']
     help = 'Update the current checkout, synchronize git-svn if configured'
 
     @classmethod
@@ -34,4 +37,8 @@ class Pull(Command):
         if not repository.path:
             sys.stderr.write('Cannot update remote repository\n')
             return 1
+
+        if isinstance(repository, local.Git):
+            branch_point = Branch.branch_point(repository)
+            return repository.pull(rebase=True, branch=branch_point.branch)
         return repository.pull()

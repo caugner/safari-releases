@@ -25,6 +25,7 @@
 
 #import "config.h"
 
+#import "DeprecatedGlobalValues.h"
 #import "PlatformUtilities.h"
 #import "TestNavigationDelegate.h"
 #import "TestUIDelegate.h"
@@ -694,10 +695,10 @@ struct ParsedRange {
     ASSERT_TRUE(!!parsedRange.range);
     auto& range = *parsedRange.range;
     
-    NSDictionary *headerFields = @{ @"Content-Length": [@(range.second - range.first) stringValue], @"Content-Range": [NSString stringWithFormat:@"bytes %lu-%lu/%lu", range.first, range.second, [videoData length]] };
+    NSDictionary *headerFields = @{ @"Content-Length": [@(range.second - range.first + 1) stringValue], @"Content-Range": [NSString stringWithFormat:@"bytes %lu-%lu/%lu", range.first, range.second, [videoData length]] };
     auto response = adoptNS([[NSHTTPURLResponse alloc] initWithURL:task.request.URL statusCode:200 HTTPVersion:(NSString *)kCFHTTPVersion1_1 headerFields:headerFields]);
     [task didReceiveResponse:response.get()];
-    [task didReceiveData:[videoData subdataWithRange:NSMakeRange(range.first, range.second - range.first)]];
+    [task didReceiveData:[videoData subdataWithRange:NSMakeRange(range.first, range.second - range.first + 1)]];
     [task didFinish];
     
 }
@@ -708,12 +709,7 @@ struct ParsedRange {
 
 @end
 
-// FIXME: Re-enable this test for Monterey+ once rdar://80476146 is resolved.
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= 120000
-TEST(WebpagePreferences, DISABLED_WebsitePoliciesDuringRedirect)
-#else
 TEST(WebpagePreferences, WebsitePoliciesDuringRedirect)
-#endif
 {
     auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     auto videoData = adoptNS([[NSData alloc] initWithContentsOfURL:[[NSBundle mainBundle] URLForResource:@"test" withExtension:@"mp4" subdirectory:@"TestWebKitAPI.resources"]]);
@@ -938,7 +934,7 @@ TEST(WebpagePreferences, WebsitePoliciesAutoplayQuirksAsyncPolicyDelegate)
     configuration.get().allowsInlineMediaPlayback = YES;
     configuration.get()._inlineMediaPlaybackRequiresPlaysInlineAttribute = NO;
 #endif
-    [configuration preferences]._needsSiteSpecificQuirks = YES;
+    [configuration preferences].siteSpecificQuirksModeEnabled = YES;
     auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
     auto delegate = adoptNS([[AsyncAutoplayPoliciesDelegate alloc] init]);
@@ -1316,7 +1312,7 @@ TEST(WebpagePreferences, WebsitePoliciesCustomUserAgentAsSiteSpecificQuirksDisab
         EXPECT_TRUE([userAgentString containsString:@"(KHTML, like Gecko)"]);
     }];
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"test"];
-    [configuration preferences]._needsSiteSpecificQuirks = NO;
+    [configuration preferences].siteSpecificQuirksModeEnabled = NO;
 
     auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
@@ -1353,7 +1349,7 @@ TEST(WebpagePreferences, WebsitePoliciesCustomUserAgentAsSiteSpecificQuirks)
         EXPECT_STREQ("Foo Site Specific Quriks UserAgent", [[task.request valueForHTTPHeaderField:@"User-Agent"] UTF8String]);
     }];
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"test"];
-    [configuration preferences]._needsSiteSpecificQuirks = YES;
+    [configuration preferences].siteSpecificQuirksModeEnabled = YES;
 
     auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
 
@@ -1555,7 +1551,7 @@ TEST(WebpagePreferences, WebsitePoliciesDeviceOrientationAskAccess)
     decisionHandler(WKNavigationActionPolicyAllow, websitePolicies.get());
 }
 
-- (nullable WKWebView *)webView:(WKWebView *)webView createWebViewWithConfiguration:(WKWebViewConfiguration *)configuration forNavigationAction:(WKNavigationAction *)navigationAction windowFeatures:(WKWindowFeatures *)windowFeatures
+- (WKWebView *)webView:(WKWebView *)webView createWebViewWithConfiguration:(WKWebViewConfiguration *)configuration forNavigationAction:(WKNavigationAction *)navigationAction windowFeatures:(WKWindowFeatures *)windowFeatures
 {
     return [[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration];
 }
@@ -1588,8 +1584,6 @@ TEST(WebpagePreferences, WebsitePoliciesPopUp)
     [webView loadRequest:request];
     [webView waitForMessage:@"pop-up-allowed"];
 }
-
-static bool done;
 
 @interface WebsitePoliciesWebsiteDataStoreDelegate : NSObject <WKNavigationDelegatePrivate, WKURLSchemeHandler, WKUIDelegate>
 @end
@@ -1762,4 +1756,28 @@ TEST(WebpagePreferences, WebsitePoliciesUserContentController)
 
     [replacementUserContentController _addUserScriptImmediately:makeScript(@"alert('testAlert3');").get()];
     EXPECT_WK_STREQ([uiDelegate waitForAlert], "testAlert3");
+}
+
+TEST(WebpagePreferences, UserExplicitlyPrefersColorSchemeLight)
+{
+    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+
+    configuration.get().defaultWebpagePreferences._colorSchemePreference = _WKWebsiteColorSchemePreferenceLight;
+
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+
+    [webView loadTestPageNamed:@"color-scheme"];
+    [webView waitForMessage:@"light-detected"];
+}
+
+TEST(WebpagePreferences, UserExplicitlyPrefersColorSchemeDark)
+{
+    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+
+    configuration.get().defaultWebpagePreferences._colorSchemePreference = _WKWebsiteColorSchemePreferenceDark;
+
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+
+    [webView loadTestPageNamed:@"color-scheme"];
+    [webView waitForMessage:@"dark-detected"];
 }

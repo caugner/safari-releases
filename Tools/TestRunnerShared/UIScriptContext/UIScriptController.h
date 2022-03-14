@@ -97,6 +97,8 @@ public:
     virtual void setMinimumEffectiveWidth(double) { notImplemented(); }
     virtual void setAllowsViewportShrinkToFit(bool) { notImplemented(); }
 
+    virtual void setScrollViewKeyboardAvoidanceEnabled(bool) { notImplemented(); }
+
     virtual std::optional<bool> stableStateOverride() const { notImplemented(); return std::nullopt; }
     virtual void setStableStateOverride(std::optional<bool>) { notImplemented(); }
 
@@ -118,6 +120,7 @@ public:
     virtual void firstResponderSuppressionForWebView(bool) { notImplemented(); }
     virtual void makeWindowContentViewFirstResponder() { notImplemented(); }
     virtual bool isWindowContentViewFirstResponder() const { notImplemented(); return false; }
+    virtual bool isWebContentFirstResponder() const { notImplemented(); return false; }
 
     virtual void removeViewFromWindow(JSValueRef) { notImplemented(); }
     virtual void addViewToWindow(JSValueRef) { notImplemented(); }

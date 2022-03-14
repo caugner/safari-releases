@@ -19,8 +19,11 @@
 
 #pragma once
 
+#include "DOMWindow.h"
 #include "DOMWrapperWorld.h"
 #include "EventListener.h"
+#include "EventNames.h"
+#include "HTMLElement.h"
 #include <JavaScriptCore/StrongInlines.h>
 #include <JavaScriptCore/Weak.h>
 #include <JavaScriptCore/WeakInlines.h>
@@ -31,14 +34,9 @@
 
 namespace WebCore {
 
-class DOMWindow;
-class Document;
-class EventTarget;
-class HTMLElement;
-
 class JSEventListener : public EventListener {
 public:
-    WEBCORE_EXPORT static Ref<JSEventListener> create(JSC::JSObject* listener, JSC::JSObject* wrapper, bool isAttribute, DOMWrapperWorld&);
+    WEBCORE_EXPORT static Ref<JSEventListener> create(JSC::JSObject& listener, JSC::JSObject& wrapper, bool isAttribute, DOMWrapperWorld&);
     WEBCORE_EXPORT static RefPtr<JSEventListener> create(JSC::JSValue listener, JSC::JSObject& wrapper, bool isAttribute, DOMWrapperWorld&);
 
     virtual ~JSEventListener();
@@ -60,12 +58,15 @@ public:
 
     String functionName() const;
 
+    void replaceJSFunctionForAttributeListener(JSC::JSObject* function, JSC::JSObject* wrapper);
+
 private:
     virtual JSC::JSObject* initializeJSFunction(ScriptExecutionContext&) const;
 
     template<typename Visitor> void visitJSFunctionImpl(Visitor&);
     void visitJSFunction(JSC::AbstractSlotVisitor&) final;
     void visitJSFunction(JSC::SlotVisitor&) final;
+    virtual String code() const { return String(); }
 
 protected:
     JSEventListener(JSC::JSObject* function, JSC::JSObject* wrapper, bool isAttribute, DOMWrapperWorld&);
@@ -83,26 +84,45 @@ private:
 
 // For "onxxx" attributes that automatically set up JavaScript event listeners.
 JSC::JSValue eventHandlerAttribute(EventTarget&, const AtomString& eventType, DOMWrapperWorld&);
-void setEventHandlerAttribute(JSC::JSGlobalObject&, JSC::JSObject&, EventTarget&, const AtomString& eventType, JSC::JSValue);
+
+template<typename JSMaybeErrorEventListener>
+inline void setEventHandlerAttribute(EventTarget& eventTarget, const AtomString& eventType, JSC::JSValue listener, JSC::JSObject& jsEventTarget)
+{
+    eventTarget.setAttributeEventListener<JSMaybeErrorEventListener>(eventType, listener, jsEventTarget);
+}
 
 // Like the functions above, but for attributes that forward event handlers to the window object rather than setting them on the target.
-JSC::JSValue windowEventHandlerAttribute(HTMLElement&, const AtomString& eventType, DOMWrapperWorld&);
-void setWindowEventHandlerAttribute(JSC::JSGlobalObject&, JSC::JSObject&, HTMLElement&, const AtomString& eventType, JSC::JSValue);
-JSC::JSValue windowEventHandlerAttribute(DOMWindow&, const AtomString& eventType, DOMWrapperWorld&);
-void setWindowEventHandlerAttribute(JSC::JSGlobalObject&, JSC::JSObject&, DOMWindow&, const AtomString& eventType, JSC::JSValue);
+inline JSC::JSValue windowEventHandlerAttribute(DOMWindow& window, const AtomString& eventType, DOMWrapperWorld& isolatedWorld)
+{
+    return eventHandlerAttribute(window, eventType, isolatedWorld);
+}
 
-// Like the functions above, but for attributes that forward event handlers to the document rather than setting them on the target.
-JSC::JSValue documentEventHandlerAttribute(HTMLElement&, const AtomString& eventType, DOMWrapperWorld&);
-void setDocumentEventHandlerAttribute(JSC::JSGlobalObject&, JSC::JSObject&, HTMLElement&, const AtomString& eventType, JSC::JSValue);
-JSC::JSValue documentEventHandlerAttribute(Document&, const AtomString& eventType, DOMWrapperWorld&);
-void setDocumentEventHandlerAttribute(JSC::JSGlobalObject&, JSC::JSObject&, Document&, const AtomString& eventType, JSC::JSValue);
+inline JSC::JSValue windowEventHandlerAttribute(HTMLElement& element, const AtomString& eventType, DOMWrapperWorld& isolatedWorld)
+{
+    if (auto* domWindow = element.document().domWindow())
+        return eventHandlerAttribute(*domWindow, eventType, isolatedWorld);
+    return JSC::jsNull();
+}
+
+template<typename JSMaybeErrorEventListener>
+inline void setWindowEventHandlerAttribute(DOMWindow& window, const AtomString& eventType, JSC::JSValue listener, JSC::JSObject& jsEventTarget)
+{
+    window.setAttributeEventListener<JSMaybeErrorEventListener>(eventType, listener, jsEventTarget);
+}
+
+template<typename JSMaybeErrorEventListener>
+inline void setWindowEventHandlerAttribute(HTMLElement& element, const AtomString& eventType, JSC::JSValue listener, JSC::JSObject& jsEventTarget)
+{
+    if (auto* domWindow = element.document().domWindow())
+        setWindowEventHandlerAttribute<JSMaybeErrorEventListener>(*domWindow, eventType, listener, jsEventTarget);
+}
 
 inline JSC::JSObject* JSEventListener::ensureJSFunction(ScriptExecutionContext& scriptExecutionContext) const
 {
     // initializeJSFunction can trigger code that deletes this event listener
     // before we're done. It should always return null in this case.
     JSC::VM& vm = m_isolatedWorld->vm();
-    auto protect = makeRef(const_cast<JSEventListener&>(*this));
+    Ref protect = const_cast<JSEventListener&>(*this);
     JSC::EnsureStillAliveScope protectedWrapper(m_wrapper.get());
 
     if (!m_isInitialized) {
@@ -112,7 +132,7 @@ inline JSC::JSObject* JSEventListener::ensureJSFunction(ScriptExecutionContext& 
             m_jsFunction = JSC::Weak<JSC::JSObject>(function);
             // When JSFunction is initialized, initializeJSFunction must ensure that m_wrapper should be initialized too.
             ASSERT(m_wrapper);
-            vm.heap.writeBarrier(m_wrapper.get(), function);
+            vm.writeBarrier(m_wrapper.get(), function);
             m_isInitialized = true;
         }
     }

@@ -280,13 +280,6 @@ void InjectedBundle::didReceiveMessageToPage(WKBundlePageRef page, WKStringRef m
         return;
     }
 
-    if (WKStringIsEqualToUTF8CString(messageName, "CallDidHandleTapCallback")) {
-        ASSERT(messageBody);
-        ASSERT(WKGetTypeID(messageBody) == WKBooleanGetTypeID());
-        m_testRunner->callDidHandleTapCallback(WKBooleanGetValue(static_cast<WKBooleanRef>(messageBody)));
-        return;
-    }
-
     if (WKStringIsEqualToUTF8CString(messageName, "CallDidBeginSwipeCallback")) {
         m_testRunner->callDidBeginSwipeCallback();
         return;
@@ -444,6 +437,11 @@ void InjectedBundle::didReceiveMessageToPage(WKBundlePageRef page, WKStringRef m
         return;
     }
 
+    if (WKStringIsEqualToUTF8CString(messageName, "NotifyDone")) {
+        InjectedBundle::page()->dump();
+        return;
+    }
+
     if (WKStringIsEqualToUTF8CString(messageName, "CallUISideScriptCallback")) {
         auto messageBodyDictionary = dictionaryValue(messageBody);
         auto callbackID = uint64Value(messageBodyDictionary, "CallbackID");
@@ -530,7 +528,6 @@ void InjectedBundle::beginTesting(WKDictionaryRef settings, BegingTestingMode te
 
     m_testRunner->setUserStyleSheetEnabled(false);
 
-    m_testRunner->setCloseRemainingWindowsWhenComplete(false);
     m_testRunner->setAcceptsEditing(true);
     m_testRunner->setTabKeyCyclesThroughElements(true);
     m_testRunner->clearTestRunnerCallbacks();
@@ -576,19 +573,7 @@ void InjectedBundle::done()
 
     WKBundlePagePostMessageIgnoringFullySynchronousMode(page()->page(), toWK("Done").get(), body.get());
 
-    closeOtherPages();
-
     m_state = Idle;
-}
-
-void InjectedBundle::closeOtherPages()
-{
-    Vector<WKBundlePageRef> pagesToClose;
-    size_t size = m_pages.size();
-    for (size_t i = 1; i < size; ++i)
-        pagesToClose.append(m_pages[i]->page());
-    for (auto& page : pagesToClose)
-        WKBundlePageClose(page);
 }
 
 void InjectedBundle::dumpBackForwardListsForAllPages(StringBuilder& stringBuilder)
@@ -609,7 +594,7 @@ void InjectedBundle::dumpToStdErr(const String& output)
     postPageMessage("DumpToStdErr", string ? string->data() : "Out of memory\n");
 }
 
-void InjectedBundle::outputText(const String& output)
+void InjectedBundle::outputText(const String& output, IsFinalTestOutput isFinalTestOutput)
 {
     if (m_state != Testing)
         return;
@@ -620,7 +605,8 @@ void InjectedBundle::outputText(const String& output)
     // We use WKBundlePagePostMessageIgnoringFullySynchronousMode() instead of WKBundlePagePostMessage() to make sure that all text output
     // is done via asynchronous IPC, even if the connection is in fully synchronous mode due to a WKBundlePagePostSynchronousMessageForTesting()
     // call. Otherwise, messages logged via sync and async IPC may end up out of order and cause flakiness.
-    WKBundlePagePostMessageIgnoringFullySynchronousMode(page()->page(), toWK("TextOutput").get(), toWK(string ? string->data() : "Out of memory\n").get());
+    auto messageName = isFinalTestOutput == IsFinalTestOutput::Yes ? toWK("FinalTextOutput") : toWK("TextOutput");
+    WKBundlePagePostMessageIgnoringFullySynchronousMode(page()->page(), messageName.get(), toWK(string ? string->data() : "Out of memory\n").get());
 }
 
 void InjectedBundle::postNewBeforeUnloadReturnValue(bool value)
@@ -677,9 +663,9 @@ void InjectedBundle::postSetViewSize(double width, double height)
     WKBundlePagePostSynchronousMessageForTesting(page()->page(), toWK("SetViewSize").get(), body.get(), 0);
 }
 
-void InjectedBundle::postSimulateWebNotificationClick(uint64_t notificationID)
+void InjectedBundle::postSimulateWebNotificationClick(WKDataRef notificationID)
 {
-    postPageMessage("SimulateWebNotificationClick", adoptWK(WKUInt64Create(notificationID)));
+    postPageMessage("SimulateWebNotificationClick", notificationID);
 }
 
 void InjectedBundle::postSetAddsVisitedLinks(bool addsVisitedLinks)
@@ -950,6 +936,12 @@ void postPageMessage(const char* name, const char* value)
 }
 
 void postPageMessage(const char* name, WKStringRef value)
+{
+    if (auto page = InjectedBundle::singleton().pageRef())
+        WKBundlePagePostMessage(page, toWK(name).get(), value);
+}
+
+void postPageMessage(const char* name, WKDataRef value)
 {
     if (auto page = InjectedBundle::singleton().pageRef())
         WKBundlePagePostMessage(page, toWK(name).get(), value);

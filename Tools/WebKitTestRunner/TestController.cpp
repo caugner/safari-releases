@@ -91,6 +91,7 @@
 #include <wtf/SetForScope.h>
 #include <wtf/UUID.h>
 #include <wtf/UniqueArray.h>
+#include <wtf/UniqueRef.h>
 #include <wtf/text/CString.h>
 #include <wtf/text/StringConcatenateNumbers.h>
 
@@ -145,7 +146,7 @@ void TestController::navigationDidBecomeDownloadShared(WKDownloadRef download, c
         TestController::downloadDidReceiveServerRedirectToURL,
         TestController::downloadDidReceiveAuthenticationChallenge,
         TestController::decideDestinationWithSuggestedFilename,
-        nullptr, // didWriteData
+        TestController::downloadDidWriteData,
         TestController::downloadDidFinish,
         TestController::downloadDidFail
     };
@@ -268,11 +269,10 @@ void TestController::runModal(WKPageRef page, const void* clientInfo)
     TestController::singleton().mainWebView()->setWindowIsKey(true);
 }
 
-static void closeOtherPage(WKPageRef page, const void* clientInfo)
+void TestController::closeOtherPage(WKPageRef page, const void* clientInfo)
 {
-    WKPageClose(page);
     PlatformWebView* view = static_cast<PlatformWebView*>(const_cast<void*>(clientInfo));
-    delete view;
+    TestController::singleton().closeOtherPage(page, view);
 }
 
 static void focus(WKPageRef page, const void* clientInfo)
@@ -359,6 +359,14 @@ void TestController::setIsMediaKeySystemPermissionGranted(bool granted)
     m_isMediaKeySystemPermissionGranted = granted;
 }
 
+void TestController::closeOtherPage(WKPageRef page, PlatformWebView* view)
+{
+    WKPageClose(page);
+    auto index = m_auxiliaryWebViews.findMatching([view](auto& auxiliaryWebView) { return auxiliaryWebView.ptr() == view; });
+    if (index != notFound)
+        m_auxiliaryWebViews.remove(index);
+}
+
 WKPageRef TestController::createOtherPage(WKPageRef, WKPageConfigurationRef configuration, WKNavigationActionRef navigationAction, WKWindowFeaturesRef windowFeatures, const void *clientInfo)
 {
     PlatformWebView* parentView = static_cast<PlatformWebView*>(const_cast<void*>(clientInfo));
@@ -369,19 +377,19 @@ WKPageRef TestController::createOtherPage(PlatformWebView* parentView, WKPageCon
 {
     m_currentInvocation->willCreateNewPage();
 
-    // The test needs to call testRunner.setCanOpenWindows() to open new windows.
+    // The test called testRunner.preventPopupWindows() to prevent opening new windows.
     if (!m_currentInvocation->canOpenWindows())
         return nullptr;
 
     m_createdOtherPage = true;
 
-    PlatformWebView* view = platformCreateOtherPage(parentView, configuration, parentView->options());
+    auto view = platformCreateOtherPage(parentView, configuration, parentView->options());
     WKPageRef newPage = view->page();
 
     view->resizeTo(800, 600);
 
     WKPageUIClientV8 otherPageUIClient = {
-        { 8, view },
+        { 8, view.ptr() },
         nullptr, // createNewPage_deprecatedForUseWithV0
         nullptr, // showPage
         closeOtherPage,
@@ -483,10 +491,19 @@ WKPageRef TestController::createOtherPage(PlatformWebView* parentView, WKPageCon
     };
     WKPageSetPageNavigationClient(newPage, &pageNavigationClient.base);
 
+    WKPageInjectedBundleClientV1 injectedBundleClient = {
+        { 1, this },
+        didReceivePageMessageFromInjectedBundle,
+        nullptr,
+        didReceiveSynchronousPageMessageFromInjectedBundleWithListener,
+    };
+    WKPageSetPageInjectedBundleClient(newPage, &injectedBundleClient.base);
+
     view->didInitializeClients();
 
-    TestController::singleton().updateWindowScaleForTest(view, *TestController::singleton().m_currentInvocation);
+    TestController::singleton().updateWindowScaleForTest(view.ptr(), *TestController::singleton().m_currentInvocation);
 
+    m_auxiliaryWebViews.append(WTFMove(view));
     WKRetain(newPage);
     return newPage;
 }
@@ -511,8 +528,6 @@ void TestController::initialize(int argc, const char* argv[])
     WTF::setProcessPrivileges(allPrivileges());
     WebCoreTestSupport::populateJITOperations();
 
-    platformInitialize();
-
     Options options;
     OptionsHandler optionsHandler(options);
 
@@ -522,6 +537,8 @@ void TestController::initialize(int argc, const char* argv[])
     }
     if (!optionsHandler.parse(argc, argv))
         exit(1);
+
+    platformInitialize(options);
 
     m_useWaitToDumpWatchdogTimer = options.useWaitToDumpWatchdogTimer;
     m_forceNoTimeout = options.forceNoTimeout;
@@ -591,10 +608,14 @@ void TestController::configureWebsiteDataStoreTemporaryDirectories(WKWebsiteData
         WKWebsiteDataStoreConfigurationSetMediaKeysStorageDirectory(configuration, toWK(makeString(temporaryFolder, pathSeparator, "MediaKeys", pathSeparator, randomNumber)).get());
         WKWebsiteDataStoreConfigurationSetResourceLoadStatisticsDirectory(configuration, toWK(makeString(temporaryFolder, pathSeparator, "ResourceLoadStatistics", pathSeparator, randomNumber)).get());
         WKWebsiteDataStoreConfigurationSetServiceWorkerRegistrationDirectory(configuration, toWK(makeString(temporaryFolder, pathSeparator, "ServiceWorkers", pathSeparator, randomNumber)).get());
+#if PLATFORM(WIN)
+        WKWebsiteDataStoreConfigurationSetCookieStorageFile(configuration, toWK(makeString(temporaryFolder, pathSeparator, "cookies", pathSeparator, randomNumber, pathSeparator, "cookiejar.db")).get());
+#endif
         WKWebsiteDataStoreConfigurationSetPerOriginStorageQuota(configuration, 400 * 1024);
         WKWebsiteDataStoreConfigurationSetNetworkCacheSpeculativeValidationEnabled(configuration, true);
         WKWebsiteDataStoreConfigurationSetStaleWhileRevalidateEnabled(configuration, true);
         WKWebsiteDataStoreConfigurationSetTestingSessionEnabled(configuration, true);
+        WKWebsiteDataStoreConfigurationSetPCMMachServiceName(configuration, nullptr);
     }
 }
 
@@ -911,6 +932,9 @@ bool TestController::resetStateToConsistentValues(const TestOptions& options, Re
     SetForScope<State> changeState(m_state, Resetting);
     m_beforeUnloadReturnValue = true;
 
+    for (auto& auxiliaryWebView : std::exchange(m_auxiliaryWebViews, { }))
+        WKPageClose(auxiliaryWebView->page());
+
     // This setting differs between the antique and modern Mac WebKit2 API.
     // For now, maintain the antique behavior, because some tests depend on it!
     // FIXME: We should be testing the default.
@@ -1086,6 +1110,8 @@ bool TestController::resetStateToConsistentValues(const TestOptions& options, Re
 #endif
         clearBundleIdentifierInNetworkProcess();
     }
+
+    m_downloadTotalBytesWritten = { };
 
     return m_doneResetting;
 }
@@ -1287,6 +1313,7 @@ TestOptions TestController::testOptionsForTest(const TestCommand& command) const
     merge(features, m_globalFeatures);
     merge(features, hardcodedFeaturesBasedOnPathForTest(command));
     merge(features, platformSpecificFeatureDefaultsForTest(command));
+    merge(features, featureDefaultsFromSelfComparisonHeader(command, TestOptions::keyTypeMapping()));
     merge(features, featureDefaultsFromTestHeaderForTest(command, TestOptions::keyTypeMapping()));
     merge(features, platformSpecificFeatureOverridesDefaultsForTest(command));
 
@@ -1455,6 +1482,9 @@ bool TestController::runTest(const char* inputLine)
     if (command.shouldDumpPixels || m_shouldDumpPixelsForAllTests)
         m_currentInvocation->setIsPixelTest(command.expectedPixelHash);
 
+    if (command.forceDumpPixels)
+        m_currentInvocation->setForceDumpPixels(true);
+
     if (command.timeout > 0_s)
         m_currentInvocation->setCustomTimeout(command.timeout);
 
@@ -1556,7 +1586,16 @@ WKTypeRef TestController::getInjectedBundleInitializationUserData(WKContextRef, 
 
 void TestController::didReceivePageMessageFromInjectedBundle(WKPageRef page, WKStringRef messageName, WKTypeRef messageBody, const void* clientInfo)
 {
-    static_cast<TestController*>(const_cast<void*>(clientInfo))->didReceiveMessageFromInjectedBundle(messageName, messageBody);
+    auto* testController = static_cast<TestController*>(const_cast<void*>(clientInfo));
+    if (page != testController->mainWebView()->page()) {
+        // If this is a Done message from an auxiliary view in its own WebProcess (due to process-swapping), we need to notify the injected bundle of the main WebView
+        // that the test is done.
+        if (WKStringIsEqualToUTF8CString(messageName, "Done") && testController->m_currentInvocation)
+            WKPagePostMessageToInjectedBundle(testController->mainWebView()->page(), toWK("NotifyDone").get(), nullptr);
+        if (!WKStringIsEqualToUTF8CString(messageName, "TextOutput"))
+            return;
+    }
+    testController->didReceiveMessageFromInjectedBundle(messageName, messageBody);
 }
 
 void TestController::didReceiveSynchronousPageMessageFromInjectedBundleWithListener(WKPageRef page, WKStringRef messageName, WKTypeRef messageBody, WKMessageListenerRef listener, const void* clientInfo)
@@ -1582,6 +1621,16 @@ void TestController::gpuProcessDidCrash(WKContextRef context, WKProcessID proces
 void TestController::didReceiveKeyDownMessageFromInjectedBundle(WKDictionaryRef dictionary, bool synchronous)
 {
     m_eventSenderProxy->keyDown(stringValue(dictionary, "Key"), uint64Value(dictionary, "Modifiers"), uint64Value(dictionary, "Location"));
+}
+
+void TestController::didReceiveRawKeyDownMessageFromInjectedBundle(WKDictionaryRef dictionary, bool synchronous)
+{
+    m_eventSenderProxy->rawKeyDown(stringValue(dictionary, "Key"), uint64Value(dictionary, "Modifiers"), uint64Value(dictionary, "Location"));
+}
+
+void TestController::didReceiveRawKeyUpMessageFromInjectedBundle(WKDictionaryRef dictionary, bool synchronous)
+{
+    m_eventSenderProxy->rawKeyUp(stringValue(dictionary, "Key"), uint64Value(dictionary, "Modifiers"), uint64Value(dictionary, "Location"));
 }
 
 void TestController::didReceiveLiveDocumentsList(WKArrayRef liveDocumentList)
@@ -1641,6 +1690,16 @@ void TestController::didReceiveMessageFromInjectedBundle(WKStringRef messageName
             return;
         }
 
+        if (WKStringIsEqualToUTF8CString(subMessageName, "RawKeyDown")) {
+            didReceiveRawKeyDownMessageFromInjectedBundle(dictionary, false);
+            return;
+        }
+
+        if (WKStringIsEqualToUTF8CString(subMessageName, "RawKeyUp")) {
+            didReceiveRawKeyUpMessageFromInjectedBundle(dictionary, false);
+            return;
+        }
+        
         if (WKStringIsEqualToUTF8CString(subMessageName, "MouseScrollBy")) {
             m_eventSenderProxy->mouseScrollBy(doubleValue(dictionary, "X"), doubleValue(dictionary, "Y"));
             return;
@@ -1654,6 +1713,14 @@ void TestController::didReceiveMessageFromInjectedBundle(WKStringRef messageName
             m_eventSenderProxy->mouseScrollByWithWheelAndMomentumPhases(x, y, phase, momentum);
             return;
         }
+
+#if PLATFORM(GTK)
+        if (WKStringIsEqualToUTF8CString(subMessageName, "SetWheelHasPreciseDeltas")) {
+            auto hasPreciseDeltas = booleanValue(dictionary, "HasPreciseDeltas");
+            m_eventSenderProxy->setWheelHasPreciseDeltas(hasPreciseDeltas);
+            return;
+        }
+#endif
 
         ASSERT_NOT_REACHED();
     }
@@ -1689,6 +1756,16 @@ void TestController::didReceiveSynchronousMessageFromInjectedBundle(WKStringRef 
 
         if (WKStringIsEqualToUTF8CString(subMessageName, "MouseUp")) {
             m_eventSenderProxy->mouseUp(uint64Value(dictionary, "Button"), uint64Value(dictionary, "Modifiers"), stringValue(dictionary, "PointerType"));
+            return completionHandler(nullptr);
+        }
+
+        if (WKStringIsEqualToUTF8CString(subMessageName, "RawKeyDown")) {
+            didReceiveRawKeyDownMessageFromInjectedBundle(dictionary, true);
+            return completionHandler(nullptr);
+        }
+
+        if (WKStringIsEqualToUTF8CString(subMessageName, "RawKeyUp")) {
+            didReceiveRawKeyUpMessageFromInjectedBundle(dictionary, true);
             return completionHandler(nullptr);
         }
 
@@ -2165,6 +2242,8 @@ WKStringRef TestController::decideDestinationWithSuggestedFilename(WKDownloadRef
 
 void TestController::downloadDidFinish(WKDownloadRef)
 {
+    if (m_shouldLogDownloadSize)
+        m_currentInvocation->outputText(makeString("Download size: ", m_downloadTotalBytesWritten.value_or(0), ".\n"));
     if (m_shouldLogDownloadCallbacks)
         m_currentInvocation->outputText("Download completed.\n");
     m_currentInvocation->notifyDownloadDone();
@@ -2195,6 +2274,18 @@ void TestController::downloadDidFail(WKDownloadRef, WKErrorRef error)
 void TestController::downloadDidReceiveAuthenticationChallenge(WKDownloadRef, WKAuthenticationChallengeRef authenticationChallenge, const void *clientInfo)
 {
     static_cast<TestController*>(const_cast<void*>(clientInfo))->didReceiveAuthenticationChallenge(nullptr, authenticationChallenge);
+}
+
+void TestController::downloadDidWriteData(long long totalBytesWritten)
+{
+    if (!m_shouldLogDownloadCallbacks)
+        return;
+    m_downloadTotalBytesWritten = totalBytesWritten;
+}
+
+void TestController::downloadDidWriteData(WKDownloadRef download, long long bytesWritten, long long totalBytesWritten, long long totalBytesExpectedToWrite, const void* clientInfo)
+{
+    static_cast<TestController*>(const_cast<void*>(clientInfo))->downloadDidWriteData(totalBytesWritten);
 }
 
 void TestController::webProcessDidTerminate(WKProcessTerminationReason reason)
@@ -2235,11 +2326,6 @@ void TestController::webProcessDidTerminate(WKProcessTerminationReason reason)
         exit(1);
 }
 
-void TestController::didHandleTap(bool wasMeaningful)
-{
-    m_currentInvocation->didHandleTap(wasMeaningful);
-}
-
 void TestController::didBeginNavigationGesture(WKPageRef)
 {
     m_currentInvocation->didBeginSwipe();
@@ -2260,7 +2346,7 @@ void TestController::didRemoveNavigationGestureSnapshot(WKPageRef)
     m_currentInvocation->didRemoveSwipeSnapshot();
 }
 
-void TestController::simulateWebNotificationClick(uint64_t notificationID)
+void TestController::simulateWebNotificationClick(WKDataRef notificationID)
 {
     m_webNotificationProvider.simulateWebNotificationClick(mainWebView()->page(), notificationID);
 }
@@ -2732,9 +2818,9 @@ void TestController::platformCreateWebView(WKPageConfigurationRef configuration,
     m_mainWebView = makeUnique<PlatformWebView>(configuration, options);
 }
 
-PlatformWebView* TestController::platformCreateOtherPage(PlatformWebView* parentView, WKPageConfigurationRef configuration, const TestOptions& options)
+UniqueRef<PlatformWebView> TestController::platformCreateOtherPage(PlatformWebView* parentView, WKPageConfigurationRef configuration, const TestOptions& options)
 {
-    return new PlatformWebView(configuration, options);
+    return makeUniqueRef<PlatformWebView>(configuration, options);
 }
 
 WKContextRef TestController::platformAdjustContext(WKContextRef context, WKContextConfigurationRef)
@@ -3596,7 +3682,9 @@ void TestController::installCustomMenuAction(const String&, bool)
 void TestController::setAllowedMenuActions(const Vector<String>&)
 {
 }
+#endif
 
+#if !PLATFORM(COCOA) && !PLATFORM(GTK) && !PLATFORM(WPE)
 WKRetainPtr<WKStringRef> TestController::takeViewPortSnapshot()
 {
     return adoptWK(WKStringCreateWithUTF8CString("not implemented"));
@@ -3692,10 +3780,10 @@ void TestController::setPrivateClickMeasurementEphemeralMeasurementForTesting(bo
     runUntil(callbackContext.done, noTimeout);
 }
 
-void TestController::simulateResourceLoadStatisticsSessionRestart()
+void TestController::simulatePrivateClickMeasurementSessionRestart()
 {
     PrivateClickMeasurementVoidCallbackContext callbackContext(*this);
-    WKPageSimulateResourceLoadStatisticsSessionRestart(m_mainWebView->page(), privateClickMeasurementVoidCallback, &callbackContext);
+    WKPageSimulatePrivateClickMeasurementSessionRestart(m_mainWebView->page(), privateClickMeasurementVoidCallback, &callbackContext);
     runUntil(callbackContext.done, noTimeout);
 }
 

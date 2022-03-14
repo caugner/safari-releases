@@ -47,6 +47,15 @@
 #import <objc/runtime.h>
 #import <pal/spi/ios/GraphicsServicesSPI.h>
 #import <wtf/MainThread.h>
+#import <wtf/SoftLinking.h>
+
+SOFT_LINK_PRIVATE_FRAMEWORK(TextInput)
+SOFT_LINK_CLASS(TextInput, TIPreferencesController);
+
+static void overrideSyncInputManagerToAcceptedAutocorrection(id, SEL, TIKeyboardCandidate *candidate, TIKeyboardInput *input)
+{
+    // Intentionally unimplemented. See usage below for more information.
+}
 
 static BOOL overrideIsInHardwareKeyboardMode()
 {
@@ -56,15 +65,6 @@ static BOOL overrideIsInHardwareKeyboardMode()
 static void overridePresentMenuOrPopoverOrViewController()
 {
 }
-
-#if !HAVE(NONDESTRUCTIVE_IMAGE_PASTE_SUPPORT_QUERY)
-
-static BOOL overrideKeyboardDelegateSupportsImagePaste(id, SEL)
-{
-    return NO;
-}
-
-#endif
 
 namespace WTR {
 
@@ -98,10 +98,10 @@ void TestController::notifyDone()
     [selectionView _removeAllAnimations:YES];
 }
 
-void TestController::platformInitialize()
+void TestController::platformInitialize(const Options& options)
 {
     setUpIOSLayoutTestCommunication();
-    cocoaPlatformInitialize();
+    cocoaPlatformInitialize(options);
 
     [UIApplication sharedApplication].idleTimerDisabled = YES;
     [[UIScreen mainScreen] _setScale:2.0];
@@ -157,14 +157,13 @@ bool TestController::platformResetStateToConsistentValues(const TestOptions& opt
     [UIPasteboard generalPasteboard].items = @[ ];
     [[UIApplication sharedApplication] _cancelAllTouches];
     [[UIDevice currentDevice] setOrientation:UIDeviceOrientationPortrait animated:NO];
-    UIKeyboardPreferencesController *keyboardPreferences = UIKeyboardPreferencesController.sharedPreferencesController;
-    auto globalPreferencesDomainName = CFSTR("com.apple.Preferences");
-    auto automaticMinimizationEnabledPreferenceKey = @"AutomaticMinimizationEnabled";
-    if (![keyboardPreferences boolForPreferenceKey:automaticMinimizationEnabledPreferenceKey]) {
-        [keyboardPreferences setValue:@YES forPreferenceKey:automaticMinimizationEnabledPreferenceKey];
-        CFPreferencesSetAppValue((__bridge CFStringRef)automaticMinimizationEnabledPreferenceKey, kCFBooleanTrue, globalPreferencesDomainName);
-    }
 
+    // Ensures that only the UCB is on-screen when showing the keyboard, if the hardware keyboard is attached.
+    TIPreferencesController *textInputPreferences = [getTIPreferencesControllerClass() sharedPreferencesController];
+    if (!textInputPreferences.automaticMinimizationEnabled)
+        textInputPreferences.automaticMinimizationEnabled = YES;
+
+    UIKeyboardPreferencesController *keyboardPreferences = UIKeyboardPreferencesController.sharedPreferencesController;
     // Ensures that changing selection does not cause the software keyboard to appear,
     // even when the hardware keyboard is attached.
     auto hardwareKeyboardLastSeenPreferenceKey = @"HardwareKeyboardLastSeen";
@@ -172,27 +171,29 @@ bool TestController::platformResetStateToConsistentValues(const TestOptions& opt
     if (![preferencesActions oneTimeActionCompleted:hardwareKeyboardLastSeenPreferenceKey])
         [preferencesActions didTriggerOneTimeAction:hardwareKeyboardLastSeenPreferenceKey];
 
+    auto didShowContinuousPathIntroductionKey = @"DidShowContinuousPathIntroduction";
+    if (![preferencesActions oneTimeActionCompleted:didShowContinuousPathIntroductionKey])
+        [preferencesActions didTriggerOneTimeAction:didShowContinuousPathIntroductionKey];
+
     // Disables the dictation keyboard shortcut for testing.
     auto dictationKeyboardShortcutPreferenceKey = @"HWKeyboardDictationShortcut";
     auto dictationKeyboardShortcutValueForTesting = @(-1);
     if (![dictationKeyboardShortcutValueForTesting isEqual:[keyboardPreferences valueForPreferenceKey:dictationKeyboardShortcutPreferenceKey]]) {
         [keyboardPreferences setValue:dictationKeyboardShortcutValueForTesting forPreferenceKey:dictationKeyboardShortcutPreferenceKey];
-        CFPreferencesSetAppValue((__bridge CFStringRef)dictationKeyboardShortcutPreferenceKey, (__bridge CFNumberRef)dictationKeyboardShortcutValueForTesting, globalPreferencesDomainName);
+        CFPreferencesSetAppValue((__bridge CFStringRef)dictationKeyboardShortcutPreferenceKey, (__bridge CFNumberRef)dictationKeyboardShortcutValueForTesting, CFSTR("com.apple.Preferences"));
     }
 
     GSEventSetHardwareKeyboardAttached(true, 0);
+
+    // Ignore calls to inform the keyboard daemon that we accepted autocorrection candidates.
+    // This prevents the device from learning misspelled words in between layout tests.
+    method_setImplementation(class_getInstanceMethod(UIKeyboardImpl.class, @selector(syncInputManagerToAcceptedAutocorrection:forInput:)), reinterpret_cast<IMP>(overrideSyncInputManagerToAcceptedAutocorrection));
 
     // Override the implementation of +[UIKeyboard isInHardwareKeyboardMode] to ensure that test runs are deterministic
     // regardless of whether a hardware keyboard is attached. We intentionally never restore the original implementation.
     //
     // FIXME: Investigate whether this can be removed. The swizzled return value is inconsistent with GSEventSetHardwareKeyboardAttached.
     method_setImplementation(class_getClassMethod([UIKeyboard class], @selector(isInHardwareKeyboardMode)), reinterpret_cast<IMP>(overrideIsInHardwareKeyboardMode));
-
-#if !HAVE(NONDESTRUCTIVE_IMAGE_PASTE_SUPPORT_QUERY)
-    // FIXME: Remove this workaround once -[UIKeyboardImpl delegateSupportsImagePaste] no longer increments the general pasteboard's changeCount.
-    if (!m_keyboardDelegateSupportsImagePasteSwizzler)
-        m_keyboardDelegateSupportsImagePasteSwizzler = makeUnique<InstanceMethodSwizzler>(UIKeyboardImpl.class, @selector(delegateSupportsImagePaste), reinterpret_cast<IMP>(overrideKeyboardDelegateSupportsImagePaste));
-#endif
 
     if (m_overriddenKeyboardInputMode) {
         m_overriddenKeyboardInputMode = nil;
@@ -226,6 +227,7 @@ bool TestController::platformResetStateToConsistentValues(const TestOptions& opt
         UIScrollView *scrollView = webView.scrollView;
         [scrollView _removeAllAnimations:YES];
         [scrollView setZoomScale:1 animated:NO];
+        scrollView.firstResponderKeyboardAvoidanceEnabled = YES;
 
         auto currentContentInset = scrollView.contentInset;
         auto contentInsetTop = options.contentInsetTop();

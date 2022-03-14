@@ -178,7 +178,7 @@ if ($vm.icuVersion() >= 61) {
                 return 'en-AA';
             }
         };
-        shouldBe(languageNames.of(object), object);
+        shouldBe(languageNames.of(object), 'en-AA');
     }
 
     languageNames = new Intl.DisplayNames(['en'], {type: 'language', fallback: 'none'});
@@ -195,9 +195,9 @@ if ($vm.icuVersion() >= 61) {
 
     shouldThrow(() => {
         Intl.DisplayNames.prototype.of.call({});
-    }, `TypeError: Intl.DisplayNames.prototype.of called on value that's not an object initialized as a DisplayNames`);
+    }, `TypeError: Intl.DisplayNames.prototype.of called on value that's not a DisplayNames`);
 
     shouldThrow(() => {
         Intl.DisplayNames.prototype.resolvedOptions.call({});
-    }, `TypeError: Intl.DisplayNames.prototype.resolvedOptions called on value that's not an object initialized as a DisplayNames`);
+    }, `TypeError: Intl.DisplayNames.prototype.resolvedOptions called on value that's not a DisplayNames`);
 }

@@ -78,7 +78,6 @@ def send_email(to_emails, subject, text, reference=''):
 def send_email_to_patch_author(author_email, subject, text, reference=''):
     if not author_email:
         return
-    send_email(['aakash_jain@apple.com'], subject, text, reference)
     if author_email in get_email_ids('EMAIL_IDS_TO_UNSUBSCRIBE'):
         print('email {} is in unsubscribe list, skipping email'.format(author_email))
         return
@@ -86,11 +85,12 @@ def send_email_to_patch_author(author_email, subject, text, reference=''):
 
 
 def send_email_to_bot_watchers(subject, text, builder_name, reference=''):
-    send_email(get_email_ids('APPLE_BOT_WATCHERS_EMAILS'), subject, text, reference)
     if any(pattern in builder_name.lower() for pattern in IGALIA_JSC_QUEUES_PATTERNS):
         send_email(get_email_ids('IGALIA_JSC_TEAM_EMAILS'), subject, text, reference)
-    if any(pattern in builder_name.lower() for pattern in IGALIA_GTK_WPE_QUEUES_PATTERNS):
+    elif any(pattern in builder_name.lower() for pattern in IGALIA_GTK_WPE_QUEUES_PATTERNS):
         send_email(get_email_ids('IGALIA_GTK_WPE_EMAILS'), subject, text, reference)
+    else:
+        send_email(get_email_ids('APPLE_BOT_WATCHERS_EMAILS'), subject, text, reference)
 
 
 def send_email_to_github_admin(subject, text, reference=''):

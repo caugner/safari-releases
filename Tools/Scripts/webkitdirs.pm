@@ -42,11 +42,15 @@ use File::Path qw(make_path mkpath rmtree);
 use File::Spec;
 use File::Temp qw(tempdir);
 use File::stat;
-use JSON::PP;
 use List::Util;
 use POSIX;
 use Time::HiRes qw(usleep);
 use VCSUtils;
+
+unless (defined(&decode_json)) {
+    eval "use JSON::XS;";
+    eval "use JSON::PP;" if $@;
+}
 
 BEGIN {
    use Exporter   ();
@@ -369,7 +373,8 @@ sub determineNativeArchitecture($)
             my $target = $split[0];
             my $port = 22;
             $port = $split[1] if scalar(@split) > 1;
-            $output = `ssh -o NoHostAuthenticationForLocalhost=yes -p $port $target 'uname  -m'`;
+            my $cmd = 'ssh -o NoHostAuthenticationForLocalhost=yes '. (exists $remote->{'idFilePath'} ? ('-i '.$remote->{'idFilePath'}) : '') ." -p $port $target 'uname  -m'";
+            $output = readpipe($cmd);
             last if ($? == 0);
         }
         if (length($output) == 0) {
@@ -1008,7 +1013,9 @@ sub XcodeOptions
     determineForceOptimizationLevel();
     determineCoverageIsEnabled();
     determineLTOMode();
-    determineXcodeSDK();
+    if (isAppleCocoaWebKit()) {
+      determineXcodeSDK();
+    }
 
     my @options;
     push @options, "-UseSanitizedBuildSystemEnvironment=YES";
@@ -1480,14 +1487,7 @@ sub isWin64()
 sub determineIsWin64()
 {
     return if defined($isWin64);
-    $isWin64 = checkForArgumentAndRemoveFromARGV("--64-bit") || ((isAnyWindows() || isJSCOnly()) && !shouldBuild32Bit());
-}
-
-sub determineIsWin64FromArchitecture($)
-{
-    my $arch = shift;
-    $isWin64 = ($arch eq "x86_64");
-    return $isWin64;
+    $isWin64 = checkForArgumentAndRemoveFromARGV("--64-bit") || (isAnyWindows() && !shouldBuild32Bit());
 }
 
 sub isCygwin()
@@ -2516,7 +2516,10 @@ sub generateBuildSystemFromCMakeProject
 
     push @args, "-DLTO_MODE=$ltoMode" if ltoMode();
 
-    push @args, '-DCMAKE_TOOLCHAIN_FILE=Platform/PlayStation' if isPlayStation();
+    if (isPlayStation()) {
+        my $toolChainFile = $ENV{'CMAKE_TOOLCHAIN_FILE'} || "Platform/PlayStation";
+        push @args, '-DCMAKE_TOOLCHAIN_FILE=' . $toolChainFile;
+    }
 
     if ($willUseNinja) {
         push @args, "-G";
@@ -2796,6 +2799,7 @@ sub setupIOSWebKitEnvironment($)
 
     prependToEnvironmentVariableList("DYLD_FRAMEWORK_PATH", $dyldFrameworkPath);
     prependToEnvironmentVariableList("DYLD_LIBRARY_PATH", $dyldFrameworkPath);
+    prependToEnvironmentVariableList("METAL_DEVICE_WRAPPER_TYPE", "1");
 
     setUpGuardMallocIfNeeded();
 }

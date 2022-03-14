@@ -31,6 +31,10 @@
 #include <wtf/Platform.h>
 #include <wtf/Vector.h>
 
+#if PLATFORM(MAC)
+OBJC_CLASS NSString;
+#endif
+
 #if PLATFORM(COCOA)
 #include <wtf/RetainPtr.h>
 #elif PLATFORM(WIN)
@@ -72,6 +76,12 @@ public:
     void getDocumentLinks(Vector<AccessibilityUIElement>&);
     void getChildren(Vector<AccessibilityUIElement>&);
     void getChildrenWithRange(Vector<AccessibilityUIElement>&, unsigned location, unsigned length);
+
+    bool hasDocumentRoleAncestor() const;
+    bool hasWebApplicationAncestor() const;
+    bool isInDescriptionListDetail() const;
+    bool isInDescriptionListTerm() const;
+    bool isInCell() const;
     
     AccessibilityUIElement elementAtPoint(int x, int y);
     AccessibilityUIElement getChildAtIndex(unsigned);
@@ -103,8 +113,13 @@ public:
     JSRetainPtr<JSStringRef> stringAttributeValue(JSStringRef attribute);
     double numberAttributeValue(JSStringRef attribute);
     void uiElementArrayAttributeValue(JSStringRef attribute, Vector<AccessibilityUIElement>& elements) const;
-    AccessibilityUIElement uiElementAttributeValue(JSStringRef attribute) const;    
+    AccessibilityUIElement uiElementAttributeValue(JSStringRef attribute) const;
     bool boolAttributeValue(JSStringRef attribute);
+#if PLATFORM(MAC)
+    bool boolAttributeValue(NSString *attribute) const;
+    JSRetainPtr<JSStringRef> stringAttributeValue(NSString *attribute) const;
+    double numberAttributeValue(NSString *attribute) const;
+#endif
     void setBoolAttributeValue(JSStringRef attribute, bool value);
     bool isAttributeSupported(JSStringRef attribute);
     bool isAttributeSettable(JSStringRef attribute);
@@ -169,6 +184,7 @@ public:
     JSRetainPtr<JSStringRef> documentURI();
     JSRetainPtr<JSStringRef> url();
     JSRetainPtr<JSStringRef> classList() const;
+    JSRetainPtr<JSStringRef> domIdentifier() const;
 
     // CSS3-speech properties.
     JSRetainPtr<JSStringRef> speakAs();
@@ -279,7 +295,7 @@ public:
     AccessibilityTextMarker nextSentenceEndTextMarkerForTextMarker(AccessibilityTextMarker*);
     AccessibilityTextMarkerRange selectedTextMarkerRange();
     void resetSelectedTextMarkerRange();
-    bool setSelectedVisibleTextRange(AccessibilityTextMarkerRange*);
+    bool setSelectedTextMarkerRange(AccessibilityTextMarkerRange*);
     bool replaceTextInRange(JSStringRef, int position, int length);
     bool insertText(JSStringRef);
 

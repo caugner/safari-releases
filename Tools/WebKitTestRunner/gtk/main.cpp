@@ -27,12 +27,13 @@
 
 #include "TestController.h"
 #include <WebCore/GtkVersioning.h>
-#include <WebKit/WKTextCheckerGtk.h>
+#include <WebKit/WKTextCheckerGLib.h>
 #include <wtf/glib/GRefPtr.h>
 
 int main(int argc, char** argv)
 {
     g_setenv("WEBKIT_DISABLE_MEMORY_PRESSURE_MONITOR", "1", FALSE);
+    g_setenv("WEBKIT_A11Y_BUS_ADDRESS", "", FALSE);
 
     gtk_init(&argc, &argv);
 

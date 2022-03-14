@@ -30,6 +30,7 @@
 
 #include "AXObjectCache.h"
 #include "DOMFormData.h"
+#include "DocumentInlines.h"
 #include "ElementTraversal.h"
 #include "EventHandler.h"
 #include "EventNames.h"
@@ -172,9 +173,6 @@ String HTMLSelectElement::validationMessage() const
 
 bool HTMLSelectElement::valueMissing() const
 {
-    if (!willValidate())
-        return false;
-
     if (!isRequired())
         return false;
 
@@ -388,12 +386,6 @@ void HTMLSelectElement::optionElementChildrenChanged()
     updateValidity();
     if (auto* cache = document().existingAXObjectCache())
         cache->childrenChanged(this);
-}
-
-bool HTMLSelectElement::accessKeyAction(bool sendMouseEvents)
-{
-    focus();
-    return dispatchSimulatedClick(0, sendMouseEvents ? SendMouseUpDownEvents : SendNoEvents);
 }
 
 void HTMLSelectElement::setMultiple(bool multiple)
@@ -1044,7 +1036,7 @@ void HTMLSelectElement::parseMultipleAttribute(const AtomString& value)
         invalidateStyleAndRenderersForSubtree();
 }
 
-bool HTMLSelectElement::appendFormData(DOMFormData& formData, bool)
+bool HTMLSelectElement::appendFormData(DOMFormData& formData)
 {
     const AtomString& name = this->name();
     if (name.isEmpty())

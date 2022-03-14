@@ -21,8 +21,9 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
-import json
+import time
 
+import json as jsonlib
 from webkitcorepy import mocks
 from webkitscmpy import Commit, remote as scmremote
 
@@ -49,7 +50,7 @@ class GitHub(mocks.Requests):
         super(GitHub, self).__init__(hostname, 'api.{}'.format(hostname))
 
         with open(datafile or os.path.join(os.path.dirname(os.path.dirname(__file__)), 'git-repo.json')) as file:
-            self.commits = json.load(file)
+            self.commits = jsonlib.load(file)
         for key, commits in self.commits.items():
             self.commits[key] = [Commit(**kwargs) for kwargs in commits]
             if not git_svn:
@@ -58,6 +59,9 @@ class GitHub(mocks.Requests):
 
         self.head = self.commits[self.default_branch][-1]
         self.tags = {}
+        self.pull_requests = []
+        self.issues = dict()
+        self.users = dict()
         self._environment = None
 
     def __enter__(self):
@@ -141,7 +145,7 @@ class GitHub(mocks.Requests):
             return mocks.Response(
                 status_code=404,
                 url=url,
-                text=json.dumps(dict(message='No commit found for SHA: {}'.format(ref))),
+                text=jsonlib.dumps(dict(message='No commit found for SHA: {}'.format(ref))),
             )
 
         response = []
@@ -187,7 +191,7 @@ class GitHub(mocks.Requests):
             return mocks.Response(
                 status_code=404,
                 url=url,
-                text=json.dumps(dict(message='No commit found for SHA: {}'.format(ref))),
+                text=jsonlib.dumps(dict(message='No commit found for SHA: {}'.format(ref))),
             )
         return mocks.Response.fromJson({
             'sha': commit.hash,
@@ -215,7 +219,7 @@ class GitHub(mocks.Requests):
             return mocks.Response(
                 status_code=404,
                 url=url,
-                text=json.dumps(dict(message='Not found')),
+                text=jsonlib.dumps(dict(message='Not found')),
             )
 
         if commit_a.branch != self.default_branch or commit_b.branch == self.default_branch:
@@ -280,7 +284,18 @@ class GitHub(mocks.Requests):
             ), url=url
         )
 
-    def request(self, method, url, data=None, params=None, **kwargs):
+    def _users(self, url, username):
+        user = self.users.get(username)
+        if not user:
+            return mocks.Response.create404(url)
+        return mocks.Response.fromJson(dict(
+            name=user.name,
+            email=user.email,
+        ), url=url)
+
+    def request(self, method, url, data=None, params=None, auth=None, json=None, **kwargs):
+        from datetime import datetime, timedelta
+
         if not url.startswith('http://') and not url.startswith('https://'):
             return mocks.Response.create404(url)
 
@@ -316,7 +331,7 @@ class GitHub(mocks.Requests):
         if stripped_url.startswith('{}/tree/'.format(self.remote)):
             return self._parents_of_request(url=url, ref=stripped_url.split('/')[-1])
 
-        # Check for existance of forked repo
+        # Check for existence of forked repo
         if stripped_url.startswith('{}/repos'.format(self.api_remote.split('/')[0])) and stripped_url.split('/')[-1] == self.remote.split('/')[-1]:
             username = stripped_url.split('/')[-2]
             if username in self.forks or username == self.remote.split('/')[-2]:
@@ -331,9 +346,117 @@ class GitHub(mocks.Requests):
 
         # Add fork
         if stripped_url.startswith('{}/forks'.format(self.api_remote)) and method == 'POST':
-            username = kwargs.get('json', {}).get('owner', None)
+            username = (json or {}).get('owner', None)
             if username:
                 self.forks.append(username)
-            return mocks.Response.fromJson({}) if username else mocks.Response.create404(url)
+            return mocks.Response.fromJson({}, url=url) if username else mocks.Response.create404(url)
+
+        # All pull-requests
+        pr_base = '{}/pulls'.format(self.api_remote)
+        if method == 'GET' and stripped_url == pr_base:
+            prs = []
+            for candidate in self.pull_requests:
+                state = params.get('state', 'all')
+                if state != 'all' and candidate.get('state', 'closed') != state:
+                    continue
+                base = params.get('base')
+                if base and candidate.get('base', {}).get('ref') != base:
+                    continue
+                head = params.get('head')
+                if head and head not in [candidate.get('head', {}).get('ref'), candidate.get('head', {}).get('label')]:
+                    continue
+                prs.append(candidate)
+            return mocks.Response.fromJson(prs, url=url)
+
+        # Pull-request by number
+        if method == 'GET' and stripped_url.startswith(pr_base):
+            for candidate in self.pull_requests:
+                if stripped_url.split('/')[5] == str(candidate['number']):
+                    if len(stripped_url.split('/')) == 7:
+                        if stripped_url.split('/')[6] == 'requested_reviewers':
+                            return mocks.Response.fromJson(dict(users=candidate.get('requested_reviews', [])))
+                        if stripped_url.split('/')[6] == 'reviews':
+                            return mocks.Response.fromJson(candidate.get('reviews', []))
+                        return mocks.Response.create404(url)
+                    return mocks.Response.fromJson({
+                        key: value for key, value in candidate.items() if key not in ('requested_reviews', 'reviews')
+                    }, url=url)
+            return mocks.Response(
+                status_code=404,
+                text=jsonlib.dumps(dict(message='Not found')),
+                url=url,
+            )
+
+        # Create/update pull-request
+        pr = dict()
+        if method == 'POST' and auth and stripped_url.startswith(pr_base):
+            if json.get('title'):
+                pr['title'] = json['title']
+            if json.get('body'):
+                pr['body'] = json['body']
+            if json.get('head'):
+                pr['head'] = dict(
+                    label=json['head'],
+                    ref=json['head'].split(':')[-1],
+                    user=dict(login=auth.username),
+                )
+            if json.get('base'):
+                pr['base'] = dict(
+                    label='{}:{}'.format(self.remote.split('/')[-2], json['base']),
+                    ref=json['base'],
+                    user=dict(login=self.remote.split('/')[-2]),
+                )
+            if json.get('state'):
+                pr['state'] = json.get('state')
+
+        # Create specifically
+        if method == 'POST' and auth and stripped_url == pr_base:
+            pr['number'] = 1 + max([0] + [pr.get('number', 0) for pr in self.pull_requests])
+            pr['state'] = 'open'
+            pr['user'] = dict(login=auth.username)
+            pr['_links'] = dict(issue=dict(href='https://{}/issues/{}'.format(self.api_remote, pr['number'])))
+            self.pull_requests.append(pr)
+            if int(pr['number']) not in self.issues:
+                self.issues[int(pr['number'])] = dict(
+                    comments=[],
+                    assignees=[],
+                )
+            return mocks.Response.fromJson(pr, url=url)
+
+        # Update specifically
+        if method == 'POST' and auth and stripped_url.startswith(pr_base):
+            number = int(stripped_url.split('/')[-1])
+            existing = None
+            for i in range(len(self.pull_requests)):
+                if self.pull_requests[i].get('number') == number:
+                    existing = i
+            if existing is None:
+                return mocks.Response.create404(url)
+            self.pull_requests[existing].update(pr)
+            return mocks.Response.fromJson(self.pull_requests[existing], url=url)
+
+        # Access user
+        if method == 'GET' and stripped_url.startswith('{}/users'.format(self.api_remote.split('/')[0])):
+            return self._users(url, stripped_url.split('/')[-1])
+
+        # Access underlying issue
+        if stripped_url.startswith('{}/issues/'.format(self.api_remote)):
+            number = int(stripped_url.split('/')[5])
+            issue = self.issues.get(number, dict(comments=[]))
+            if method == 'GET' and stripped_url.split('/')[6] == 'comments':
+                return mocks.Response.fromJson(issue['comments'], url=url)
+            if method == 'POST' and stripped_url.split('/')[6] == 'comments':
+                self.issues[number] = issue
+                now = datetime.utcfromtimestamp(int(time.time()) - timedelta(hours=7).seconds).strftime('%Y-%m-%dT%H:%M:%SZ')
+                self.issues[number]['comments'].append(dict(
+                    user=dict(login=auth.username),
+                    created_at=now, updated_at=now,
+                    body=json.get('body', ''),
+                ))
+                return mocks.Response.fromJson(issue['comments'], url=url)
+            if method == 'POST' and stripped_url.split('/')[6] == 'assignees':
+                self.issues[number]['assignees'] = {'login': name for name in json.get('assignees', [])}
+                return mocks.Response.fromJson(issue['assignees'], url=url)
+            return mocks.Response.create404(url)
 
         return mocks.Response.create404(url)

@@ -103,10 +103,6 @@ TEST(Preconnect, ConnectionCount)
     EXPECT_EQ(connectionCount, 2u);
 }
 
-// Mojave CFNetwork _preconnect SPI seems to have a bug causing this to time out.
-// That's no problem, because this is a test for SPI only to be used on later OS versions.
-#if !PLATFORM(MAC) || __MAC_OS_X_VERSION_MIN_REQUIRED >= 101500
-
 TEST(Preconnect, HTTPS)
 {
     bool connected = false;
@@ -135,8 +131,6 @@ TEST(Preconnect, HTTPS)
     Util::run(&requested);
     EXPECT_TRUE(receivedChallenge);
 }
-
-#endif
 
 #if HAVE(PRECONNECT_PING)
 static void pingPong(Ref<H2::Connection>&& connection, size_t* headersCount)
@@ -232,7 +226,7 @@ TEST(Preconnect, H2PingFromWebCoreNSURLSession)
 
 #endif // HAVE(PRECONNECT_PING)
 
-TEST(Preconnect, DisablePreconnect)
+static void verifyPreconnectDisabled(void(*disabler)(WKWebViewConfiguration *))
 {
     size_t connectionCount { 0 };
     HTTPServer server([&](Connection) {
@@ -242,7 +236,7 @@ TEST(Preconnect, DisablePreconnect)
 
     {
         auto configuration = adoptNS([WKWebViewConfiguration new]);
-        configuration.get()._allowedNetworkHosts = [NSSet set];
+        disabler(configuration.get());
         auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
         [webView loadHTMLString:html baseURL:nil];
         [webView _test_waitForDidFinishNavigation];
@@ -259,6 +253,16 @@ TEST(Preconnect, DisablePreconnect)
         while (connectionCount != 1)
             Util::spinRunLoop();
     }
+}
+
+TEST(Preconnect, DisablePreconnect)
+{
+    verifyPreconnectDisabled([] (WKWebViewConfiguration *configuration) {
+        configuration._allowedNetworkHosts = [NSSet set];
+    });
+    verifyPreconnectDisabled([] (WKWebViewConfiguration *configuration) {
+        configuration._loadsSubresources = NO;
+    });
 }
 
 }

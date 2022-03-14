@@ -1,4 +1,5 @@
-CONSOLE MESSAGE: ReferenceError: Can't find variable: SharedWorker
 
-FAIL messagechannel in shared worker Can't find variable: SharedWorker
+Harness Error (TIMEOUT), message = null
+
+TIMEOUT messagechannel in shared worker Test timed out
 

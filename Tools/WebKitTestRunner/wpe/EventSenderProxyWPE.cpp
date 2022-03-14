@@ -26,9 +26,9 @@
 #include "config.h"
 #include "EventSenderProxy.h"
 
-#include "HeadlessViewBackend.h"
 #include "PlatformWebView.h"
 #include "TestController.h"
+#include <WPEToolingBackends/HeadlessViewBackend.h>
 #include <WebCore/NotImplemented.h>
 #include <wpe/wpe.h>
 #include <wtf/MonotonicTime.h>
@@ -325,6 +325,14 @@ void EventSenderProxy::keyDown(WKStringRef keyRef, WKEventModifiers wkModifiers,
     event.pressed = false;
     wpe_view_backend_dispatch_keyboard_event(viewBackend(*m_testController), &event);
     free(entries);
+}
+
+void EventSenderProxy::rawKeyDown(WKStringRef key, WKEventModifiers modifiers, unsigned keyLocation)
+{
+}
+
+void EventSenderProxy::rawKeyUp(WKStringRef key, WKEventModifiers modifiers, unsigned keyLocation)
+{
 }
 
 void EventSenderProxy::addTouchPoint(int x, int y)

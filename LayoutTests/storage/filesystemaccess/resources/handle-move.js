@@ -1,20 +1,14 @@
 if (this.importScripts) {
     importScripts('../../../resources/js-test.js');
+    importScripts('shared.js');
 }
 
 description("This test checks move() of FileSystemHandle.");
 
 var rootHandle, dirHandle1, dirHandle2, fileHandle, fileHandle2, testError, getFileHandleError, moveFileError;
 
-function finishTest(error)
+async function test() 
 {
-    if (error) {
-        testFailed(error);
-    }
-    finishJSTest();
-}
-
-async function test() {
     try {
         var rootHandle = await navigator.storage.getDirectory();
         // Create two new folders for this test.
@@ -105,7 +99,7 @@ async function test() {
                 testError =  "Moved file back to dirHandle1 unexpectedly";
             }, (error) => {
                 moveFileError = error;
-                shouldBeEqualToString("moveFileError.toString()", "InvalidStateError: The object is in an invalid state.");
+                shouldBeEqualToString("moveFileError.toString()", "InvalidStateError: Some AccessHandle is active");
             });
 
             if (testError) {

@@ -283,20 +283,10 @@ static JSValueRef setCallCloseOnWebViewsCallback(JSContextRef context, JSObjectR
     return JSValueMakeUndefined(context);
 }
 
-static JSValueRef setCanOpenWindowsCallback(JSContextRef context, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception)
+static JSValueRef preventPopupWindowsCallback(JSContextRef context, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception)
 {
     TestRunner* controller = static_cast<TestRunner*>(JSObjectGetPrivate(thisObject));
-    controller->setCanOpenWindows(true);
-    return JSValueMakeUndefined(context);
-}
-
-static JSValueRef setCloseRemainingWindowsWhenCompleteCallback(JSContextRef context, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception)
-{
-    if (argumentCount < 1)
-        return JSValueMakeUndefined(context);
-
-    TestRunner* controller = static_cast<TestRunner*>(JSObjectGetPrivate(thisObject));
-    controller->setCloseRemainingWindowsWhenComplete(JSValueToBoolean(context, arguments[0]));
+    controller->setCanOpenWindows(false);
     return JSValueMakeUndefined(context);
 }
 
@@ -2061,8 +2051,7 @@ const JSStaticFunction* TestRunner::staticFunctions()
         { "setAuthenticationUsername", setAuthenticationUsernameCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "setCacheModel", setCacheModelCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "setCallCloseOnWebViews", setCallCloseOnWebViewsCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
-        { "setCanOpenWindows", setCanOpenWindowsCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
-        { "setCloseRemainingWindowsWhenComplete", setCloseRemainingWindowsWhenCompleteCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
+        { "preventPopupWindows", preventPopupWindowsCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "setCustomPolicyDelegate", setCustomPolicyDelegateCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "setDatabaseQuota", setDatabaseQuotaCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete }, 
         { "setDefersLoading", setDefersLoadingCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
@@ -2316,14 +2305,14 @@ void TestRunner::callUIScriptCallback(unsigned callbackID, JSStringRef result)
 {
     JSRetainPtr<JSStringRef> protectedResult(result);
 #if !PLATFORM(IOS_FAMILY)
-    RunLoop::main().dispatch([protectedThis = makeRef(*this), callbackID, protectedResult]() mutable {
+    RunLoop::main().dispatch([protectedThis = Ref { *this }, callbackID, protectedResult]() mutable {
         JSContextRef context = protectedThis->mainFrameJSContext();
         JSValueRef resultValue = JSValueMakeString(context, protectedResult.get());
         protectedThis->callTestRunnerCallback(callbackID, 1, &resultValue);
     });
 #else
     WebThreadRun(
-        makeBlockPtr([protectedThis = makeRef(*this), callbackID, protectedResult] {
+        makeBlockPtr([protectedThis = Ref { *this }, callbackID, protectedResult] {
             JSContextRef context = protectedThis->mainFrameJSContext();
             JSValueRef resultValue = JSValueMakeString(context, protectedResult.get());
             protectedThis->callTestRunnerCallback(callbackID, 1, &resultValue);

@@ -76,9 +76,9 @@ static bool handleOptionRemoteLayerTree(Options& options, const char*, const cha
     return true;
 }
 
-static bool handleOptionShowWebView(Options& options, const char*, const char*)
+static bool handleOptionShowWindow(Options& options, const char*, const char*)
 {
-    options.features.boolTestRunnerFeatures.insert_or_assign("shouldShowWebView", true);
+    options.features.boolTestRunnerFeatures.insert_or_assign("shouldShowWindow", true);
     return true;
 }
 
@@ -144,6 +144,18 @@ static bool handleOptionInternalFeature(Options& options, const char*, const cha
     return parseFeature(feature, options.features);
 }
 
+static bool handleOptionWebCoreLogging(Options& options, const char*, const char* channels)
+{
+    options.webCoreLogChannels = channels;
+    return true;
+}
+
+static bool handleOptionWebKitLogging(Options& options, const char*, const char* channels)
+{
+    options.webKitLogChannels = channels;
+    return true;
+}
+
 static bool handleOptionUnmatched(Options& options, const char* option, const char*)
 {
     if (option[0] && option[1] && option[0] == '-' && option[1] == '-')
@@ -165,7 +177,8 @@ OptionsHandler::OptionsHandler(Options& o)
     optionList.append(Option("--remote-layer-tree", "Use remote layer tree.", handleOptionRemoteLayerTree));
     optionList.append(Option("--allowed-host", "Allows access to the specified host from tests.", handleOptionAllowedHost, true));
     optionList.append(Option("--allow-any-certificate-for-allowed-hosts", "Allows any HTTPS certificate for an allowed host.", handleOptionAllowAnyHTTPSCertificateForAllowedHosts));
-    optionList.append(Option("--show-webview", "Show the WebView during test runs (for debugging)", handleOptionShowWebView));
+    optionList.append(Option("--show-webview", "DEPRECATED. Same as --show-window", handleOptionShowWindow));
+    optionList.append(Option("--show-window", "Make the test runner window visible during testing", handleOptionShowWindow));
     optionList.append(Option("--show-touches", "Show the touches during test runs (for debugging)", handleOptionShowTouches));
     optionList.append(Option("--world-leaks", "Check for leaks of world objects (currently, documents)", handleOptionCheckForWorldLeaks));
     optionList.append(Option("--no-enable-all-experimental-features", "Do not enable all experimental features by default", handleOptionNoEnableAllExperimentalFeatures));
@@ -174,6 +187,8 @@ OptionsHandler::OptionsHandler(Options& o)
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
     optionList.append(Option("--accessibility-isolated-tree", "Enable accessibility isolated tree mode for tests", handleOptionAccessibilityIsolatedTreeMode));
 #endif
+    optionList.append(Option("--webcore-logging", "Enable WebCore log channels", handleOptionWebCoreLogging, true));
+    optionList.append(Option("--webkit-logging", "Enable WebKit log channels", handleOptionWebKitLogging, true));
     
     optionList.append(Option(0, 0, handleOptionUnmatched));
 }

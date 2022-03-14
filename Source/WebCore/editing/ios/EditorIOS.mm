@@ -238,6 +238,14 @@ void Editor::pasteWithPasteboard(Pasteboard* pasteboard, OptionSet<PasteOption> 
         pasteAsFragment(fragment.releaseNonNull(), canSmartReplaceWithPasteboard(*pasteboard), false, options.contains(PasteOption::IgnoreMailBlockquote) ? MailBlockquoteHandling::IgnoreBlockquote : MailBlockquoteHandling::RespectBlockquote);
 }
 
+void Editor::platformCopyFont()
+{
+}
+
+void Editor::platformPasteFont()
+{
+}
+
 void Editor::insertDictationPhrases(Vector<Vector<String>>&& dictationPhrases, id metadata)
 {
     if (m_document.selection().isNone())
@@ -275,7 +283,7 @@ void Editor::setDictationPhrasesAsChildOfElement(const Vector<Vector<String>>& d
 
     element.appendChild(createFragmentFromText(context, dictationPhrasesBuilder.toString()));
 
-    auto weakElement = makeWeakPtr(element);
+    WeakPtr weakElement { element };
 
     // We need a layout in order to add markers below.
     document().updateLayout();

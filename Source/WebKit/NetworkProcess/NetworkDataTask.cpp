@@ -29,6 +29,7 @@
 #include "AuthenticationManager.h"
 #include "NetworkDataTaskBlob.h"
 #include "NetworkLoadParameters.h"
+#include "NetworkProcess.h"
 #include "NetworkSession.h"
 #include <WebCore/RegistrableDomain.h>
 #include <WebCore/ResourceError.h>
@@ -64,7 +65,7 @@ Ref<NetworkDataTask> NetworkDataTask::create(NetworkSession& session, NetworkDat
 }
 
 NetworkDataTask::NetworkDataTask(NetworkSession& session, NetworkDataTaskClient& client, const ResourceRequest& requestWithCredentials, StoredCredentialsPolicy storedCredentialsPolicy, bool shouldClearReferrerOnHTTPSToHTTPRedirect, bool dataTaskIsForMainFrameNavigation)
-    : m_session(makeWeakPtr(session))
+    : m_session(session)
     , m_client(&client)
     , m_partition(requestWithCredentials.cachePartition())
     , m_storedCredentialsPolicy(storedCredentialsPolicy)
@@ -101,7 +102,7 @@ NetworkDataTask::~NetworkDataTask()
 void NetworkDataTask::scheduleFailure(FailureType type)
 {
     m_failureScheduled = true;
-    RunLoop::main().dispatch([this, weakThis = makeWeakPtr(*this), type] {
+    RunLoop::main().dispatch([this, weakThis = WeakPtr { *this }, type] {
         if (!weakThis || !m_client)
             return;
 
@@ -121,7 +122,7 @@ void NetworkDataTask::scheduleFailure(FailureType type)
     });
 }
 
-void NetworkDataTask::didReceiveResponse(ResourceResponse&& response, NegotiatedLegacyTLS negotiatedLegacyTLS, ResponseCompletionHandler&& completionHandler)
+void NetworkDataTask::didReceiveResponse(ResourceResponse&& response, NegotiatedLegacyTLS negotiatedLegacyTLS, PrivateRelayed privateRelayed, ResponseCompletionHandler&& completionHandler)
 {
     if (response.isHTTP09()) {
         auto url = response.url();
@@ -140,7 +141,7 @@ void NetworkDataTask::didReceiveResponse(ResourceResponse&& response, Negotiated
         response.setUsedLegacyTLS(UsedLegacyTLS::Yes);
 
     if (m_client)
-        m_client->didReceiveResponse(WTFMove(response), negotiatedLegacyTLS, WTFMove(completionHandler));
+        m_client->didReceiveResponse(WTFMove(response), negotiatedLegacyTLS, privateRelayed, WTFMove(completionHandler));
     else
         completionHandler(PolicyAction::Ignore);
 }
@@ -178,7 +179,7 @@ bool NetworkDataTask::isThirdPartyRequest(const WebCore::ResourceRequest& reques
 
 void NetworkDataTask::restrictRequestReferrerToOriginIfNeeded(WebCore::ResourceRequest& request)
 {
-#if ENABLE(RESOURCE_LOAD_STATISTICS)
+#if ENABLE(INTELLIGENT_TRACKING_PREVENTION)
     if ((m_session->sessionID().isEphemeral() || m_session->isResourceLoadStatisticsEnabled()) && m_session->shouldDowngradeReferrer() && isThirdPartyRequest(request))
         request.setExistingHTTPReferrerToOriginString();
 #endif

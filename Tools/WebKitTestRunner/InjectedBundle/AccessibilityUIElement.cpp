@@ -35,6 +35,7 @@ namespace WTR {
 
 Ref<AccessibilityUIElement> AccessibilityUIElement::create(PlatformUIElement uiElement)
 {
+    RELEASE_ASSERT(uiElement);
     return adoptRef(*new AccessibilityUIElement(uiElement));
 }
     
@@ -82,12 +83,9 @@ bool AccessibilityUIElement::scrollPageRight() { return false; }
 bool AccessibilityUIElement::hasContainedByFieldsetTrait() { return false; }
 RefPtr<AccessibilityUIElement> AccessibilityUIElement::fieldsetAncestorElement() { return nullptr; }
 bool AccessibilityUIElement::isSearchField() const { return false; }
-bool AccessibilityUIElement::isInDefinitionListDefinition() const { return false; }
-bool AccessibilityUIElement::isInDefinitionListTerm() const { return false; }
 bool AccessibilityUIElement::isTextArea() const { return false; }
 RefPtr<AccessibilityTextMarkerRange> AccessibilityUIElement::textMarkerRangeMatchesTextNearMarkers(JSStringRef, AccessibilityTextMarker*, AccessibilityTextMarker*) { return nullptr; }
 JSRetainPtr<JSStringRef> AccessibilityUIElement::attributedStringForElement() { return nullptr; }
-bool AccessibilityUIElement::isInTableCell() const { return false; }
 bool AccessibilityUIElement::isInTable() const { return false; }
 bool AccessibilityUIElement::isInLandmark() const { return false; }
 bool AccessibilityUIElement::isInList() const { return false; }
@@ -110,9 +108,18 @@ void AccessibilityUIElement::setBoolAttributeValue(JSStringRef, bool) { }
 void AccessibilityUIElement::setValue(JSStringRef) { }
 JSValueRef AccessibilityUIElement::searchTextWithCriteria(JSContextRef, JSValueRef, JSStringRef, JSStringRef) { return nullptr; }
 bool AccessibilityUIElement::isOnScreen() const { return true; }
+JSValueRef AccessibilityUIElement::mathRootRadicand() const { return { }; }
 #endif
 
 #if !PLATFORM(COCOA) || !HAVE(ACCESSIBILITY)
+RefPtr<AccessibilityUIElement> AccessibilityUIElement::focusedElement() const { return nullptr; }
+
+bool AccessibilityUIElement::hasDocumentRoleAncestor() const { return false; }
+bool AccessibilityUIElement::hasWebApplicationAncestor() const { return false; }
+bool AccessibilityUIElement::isInDescriptionListDetail() const { return false; }
+bool AccessibilityUIElement::isInDescriptionListTerm() const { return false; }
+bool AccessibilityUIElement::isInCell() const { return false; }
+
 JSRetainPtr<JSStringRef> AccessibilityUIElement::domIdentifier() const { return nullptr; }
 JSRetainPtr<JSStringRef> AccessibilityUIElement::currentStateValue() const { return nullptr; }
 JSRetainPtr<JSStringRef> AccessibilityUIElement::sortDirection() const { return nullptr; }
@@ -134,7 +141,7 @@ JSValueRef AccessibilityUIElement::detailsElements() const { return { }; }
 JSValueRef AccessibilityUIElement::errorMessageElements() const { return { }; }
 JSValueRef AccessibilityUIElement::imageOverlayElements() const { return { }; }
 JSRetainPtr<JSStringRef> AccessibilityUIElement::embeddedImageDescription() const { return nullptr; }
-#endif
+#endif // !PLATFORM(COCOA) || !HAVE(ACCESSIBILITY)
 
 } // namespace WTR
 #endif // ENABLE(ACCESSIBILITY)

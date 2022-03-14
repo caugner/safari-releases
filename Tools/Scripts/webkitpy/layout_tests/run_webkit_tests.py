@@ -79,7 +79,7 @@ def main(argv, stdout, stderr):
     log_stack_trace_on_signal('SIGTERM', output_file=stack_trace_path)
     log_stack_trace_on_signal('SIGINT', output_file=stack_trace_path)
 
-    if options.print_expectations:
+    if options.print_expectations or options.print_summary:
         return _print_expectations(port, options, args, stderr)
 
     try:
@@ -258,7 +258,7 @@ def parse_args(args):
                  "'ignore' == Run them anyway, "
                  "'only' == only run the SKIP tests, "
                  "'always' == always skip, even if listed on the command line.")),
-        optparse.make_option("--force", action="store_true", default=False,
+        optparse.make_option("--expect-pass", "--force", action="store_true", default=False, dest="force",
             help="Run all tests with PASS as expected result, even those marked SKIP in the test list or " + \
                  "those which are device-specific (implies --skipped=ignore)"),
         optparse.make_option("--time-out-ms", "--timeout",
@@ -332,6 +332,9 @@ def parse_args(args):
             "--print-expectations", action="store_true", default=False,
             help=("Print the expected outcome for the given test, or all tests listed in TestExpectations. Does not run any tests.")),
         optparse.make_option(
+            "--print-summary", action="store_true", default=False,
+            help=("Print a summary of how tests are expected to run, grouped by directory. Does not run any tests.")),
+        optparse.make_option(
             "--webgl-test-suite", action="store_true", default=False,
             help=("Run exhaustive webgl list, including test ordinarily skipped for performance reasons. Equivalent to '--additional-expectations=LayoutTests/webgl/TestExpectations webgl'")),
         optparse.make_option(
@@ -340,6 +343,8 @@ def parse_args(args):
         optparse.make_option(
             "--prefer-integrated-gpu", action="store_true", default=False,
             help=("Prefer using the lower-power integrated GPU on a dual-GPU system. Note that other running applications and the tests themselves can override this request.")),
+        optparse.make_option("--show-window", action="store_true", default=False, help="Make the test runner window visible during testing."),
+        optparse.make_option("--self-compare-with-header", help="Run all tests as A/B tests between the default configuration and the given test features header (ignoring expected results)."),
     ]))
 
     option_group_definitions.append(("Web Platform Test Server Options", [
@@ -369,14 +374,14 @@ def parse_args(args):
         options.additional_expectations.insert(0, host.filesystem.join(host.scm().checkout_root, 'LayoutTests/gpu-process/TestExpectations'))
         if not options.internal_feature:
             options.internal_feature = []
-        options.internal_feature.append('UseGPUProcessForMediaEnabled')
         options.internal_feature.append('CaptureAudioInGPUProcessEnabled')
         options.internal_feature.append('CaptureVideoInGPUProcessEnabled')
         options.internal_feature.append('UseGPUProcessForCanvasRenderingEnabled')
-        options.internal_feature.append('UseGPUProcessForDOMRenderingEnabled')
+        options.internal_feature.append('UseGPUProcessForMediaEnabled')
+        options.internal_feature.append('WebRTCPlatformCodecsInGPUProcessEnabled')
         if not options.experimental_feature:
             options.experimental_feature = []
-        options.experimental_feature.append('WebRTCPlatformCodecsInGPUProcessEnabled')
+        options.experimental_feature.append('UseGPUProcessForDOMRenderingEnabled')
         options.experimental_feature.append('UseGPUProcessForWebGLEnabled')
         if options.result_report_flavor:
             raise RuntimeError('--use-gpu-process implicitly sets the result flavor, this should not be overridden')
@@ -394,7 +399,10 @@ def _print_expectations(port, options, args, logging_stream):
         _set_up_derived_options(port, options)
         manager = Manager(port, options, printer)
 
-        exit_code = manager.print_expectations(args)
+        if options.print_expectations:
+            exit_code = manager.print_expectations(args)
+        else:
+            exit_code = manager.print_summary(args)
         _log.debug("Printing expectations completed, Exit status: %d", exit_code)
         return exit_code
     except Exception as error:

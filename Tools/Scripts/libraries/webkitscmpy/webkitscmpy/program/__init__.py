@@ -23,15 +23,19 @@
 import argparse
 import logging
 import os
+import sys
 
 from .blame import Blame
+from .branch import Branch
 from .canonicalize import Canonicalize
 from .clean import Clean
 from .command import Command
 from .checkout import Checkout
 from .find import Find, Info
+from .land import Land
 from .log import Log
 from .pull import Pull
+from .pull_request import PullRequest
 from .setup_git_svn import SetupGitSvn
 from .setup import Setup
 
@@ -39,7 +43,11 @@ from webkitcorepy import arguments, log as webkitcorepy_log
 from webkitscmpy import local, log, remote
 
 
-def main(args=None, path=None, loggers=None, contributors=None, identifier_template=None, subversion=None):
+def main(
+    args=None, path=None, loggers=None, contributors=None,
+    identifier_template=None, subversion=None, additional_setup=None, hooks=None,
+    canonical_svn=False,
+):
     logging.basicConfig(level=logging.WARNING)
 
     loggers = [logging.getLogger(), webkitcorepy_log,  log] + (loggers or [])
@@ -63,14 +71,18 @@ def main(args=None, path=None, loggers=None, contributors=None, identifier_templ
     )
 
     subparsers = parser.add_subparsers(help='sub-command help')
-
-    programs = [Find, Info, Checkout, Canonicalize, Pull, Clean, Log, Blame, Setup]
+    programs = [Blame, Branch, Canonicalize, Checkout, Clean, Find, Info, Land, Log, Pull, PullRequest, Setup]
     if subversion:
         programs.append(SetupGitSvn)
 
     for program in programs:
-        subparser = subparsers.add_parser(program.name, help=program.help)
+        kwargs = dict(help=program.help)
+        if sys.version_info > (3, 0):
+            kwargs['aliases'] = program.aliases
+        subparser = subparsers.add_parser(program.name, **kwargs)
         subparser.set_defaults(main=program.main)
+        subparser.set_defaults(program=program.name)
+        subparser.set_defaults(aliases=program.aliases)
         arguments.LoggingGroup(
             subparser,
             loggers=loggers,
@@ -78,12 +90,42 @@ def main(args=None, path=None, loggers=None, contributors=None, identifier_templ
         )
         program.parser(subparser, loggers=loggers)
 
-    parsed = parser.parse_args(args=args)
+    args = args or sys.argv[1:]
+    parsed, unknown = parser.parse_known_args(args=args)
+    if unknown:
+        program_index = 0
+        for candidate in [parsed.program] + parsed.aliases:
+            if candidate in args:
+                program_index = args.index(candidate)
+                break
+        if getattr(parsed, 'args', None):
+            parsed.args = [arg for arg in args[program_index:] if arg in parsed.args or arg in unknown]
+        if any([option not in getattr(parsed, 'args', []) for option in unknown]):
+            parsed = parser.parse_args(args=args)
 
     if parsed.repository.startswith(('https://', 'http://')):
-        repository = remote.Scm.from_url(parsed.repository, contributors=contributors)
+        repository = remote.Scm.from_url(parsed.repository, contributors=None if callable(contributors) else contributors)
     else:
-        repository = local.Scm.from_path(path=parsed.repository, contributors=contributors)
+        repository = local.Scm.from_path(path=parsed.repository, contributors=None if callable(contributors) else contributors)
+
+    if callable(contributors):
+        repository.contributors = contributors(repository) or repository.contributors
+    if callable(identifier_template):
+        identifier_template = identifier_template(repository)
+    if callable(subversion):
+        subversion = subversion(repository)
+    if callable(hooks):
+        hooks = hooks(repository)
+
+    if sys.version_info > (3, 0):
+        import inspect
+    else:
+        import inspect2 as inspect
+    if callable(additional_setup) and list(inspect.signature(additional_setup).parameters.keys()) == ['repository']:
+        additional_setup = additional_setup(repository)
+
+    if callable(canonical_svn):
+        canonical_svn = canonical_svn(repository)
 
     if not getattr(parsed, 'main', None):
         parser.print_help()
@@ -94,4 +136,7 @@ def main(args=None, path=None, loggers=None, contributors=None, identifier_templ
         repository=repository,
         identifier_template=identifier_template,
         subversion=subversion,
+        additional_setup=additional_setup,
+        hooks=hooks,
+        canonical_svn=canonical_svn,
     )

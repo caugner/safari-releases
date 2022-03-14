@@ -5,11 +5,16 @@
 esid: sec-temporal.now.plaindatetime
 description: Observable interactions with the provided calendar-like object
 includes: [compareArray.js]
-features: [Temporal]
+features: [Proxy, Temporal]
 ---*/
 
 const actual = [];
-const expected = [
+const expectedWithout = [
+  'has calendar.calendar',
+  'get calendar.calendar',
+  'has nestedCalendar.calendar'
+];
+const expectedWith = [
   'has calendar.calendar',
   'get calendar.calendar',
   'has nestedCalendar.calendar',
@@ -58,4 +63,11 @@ Object.defineProperty(Temporal.Calendar, 'from', {
 
 Temporal.Now.plainDateTime(calendar);
 
-assert.compareArray(actual, expected);
+assert.compareArray(actual, expectedWithout, 'Observable interactions without `calendar` property');
+
+actual.length = 0;
+nestedCalendar.calendar = null;
+
+Temporal.Now.plainDateTime(calendar);
+
+assert.compareArray(actual, expectedWith, 'Observable interactions with `calendar` property');

@@ -27,7 +27,6 @@
 
 #import "HTTPServer.h"
 #import "PlatformUtilities.h"
-#import "ServiceWorkerTCPServer.h"
 #import "TestNavigationDelegate.h"
 #import "TestUIDelegate.h"
 #import "TestWKWebView.h"
@@ -603,7 +602,7 @@ self.addEventListener('message', async (event) => {
 
 async function queryAppPrivacyReportValue(event, haveSentInitialMessage)
 {
-    var result = await internals.lastNavigationWasAppPrivacyReport();
+    var result = await internals.lastNavigationWasAppInitiated();
     if (result) {
         if (event.data == "FIRST") {
             event.source.postMessage('app initiated');
@@ -665,17 +664,14 @@ TEST(AppPrivacyReport, RegisterServiceWorkerClientUpdatesAppInitiatedValue)
     webView1.get().navigationDelegate = delegate.get();
     webView2.get().navigationDelegate = delegate.get();
 
-    ServiceWorkerTCPServer server({
-        { "text/html", mainSWBytesDefaultValue },
-        { "application/javascript", scriptBytesDefaultValue },
-    }, {
-        { "text/html", mainSWBytesDefaultValue },
-        { "application/javascript", scriptBytesDefaultValue },
+    TestWebKitAPI::HTTPServer server({
+        { "/main.html", { mainSWBytesDefaultValue } },
+        { "/sw.js", { { { "Content-Type", "application/javascript" } }, scriptBytesDefaultValue } },
     });
 
     // Load WebView with an app initiated request. We expect the ServiceWorkerThreadProxy to be app initiated.
     expectedMessage = "app initiated";
-    [webView1 loadRequest:server.request()];
+    [webView1 loadRequest:server.request("/main.html")];
     TestWebKitAPI::Util::run(&receivedMessage);
 
     // Load WebView with a non app initiated request. We expect the ServiceWorkerThreadProxy to be app initiated
@@ -707,10 +703,11 @@ static void loadSimulatedRequestTest(IsAppInitiated isAppInitiated)
     auto delegate = adoptNS([[TestNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
 
-    NSMutableURLRequest *loadRequest = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:@"https://webkit.org"]];
+    NSMutableURLRequest *loadRequest = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:@"about:blank"]];
     loadRequest.attribution = isAppInitiated == IsAppInitiated::Yes ? NSURLRequestAttributionDeveloper : NSURLRequestAttributionUser;
 
-    NSString *HTML = @"<html><head></head><body><img src='https://apple.com/'></img></body></html>";
+    NSString *HTML = @"<html><head></head><body><iframe src='http://127.0.0.1/'></iframe></body></html>";
+
     [webView loadSimulatedRequest:loadRequest responseHTMLString:HTML];
     [delegate waitForDidFinishNavigation];
 
@@ -724,6 +721,7 @@ static void loadSimulatedRequestTest(IsAppInitiated isAppInitiated)
     TestWebKitAPI::Util::run(&isDone);
 }
 
+// FIXME: Re-enable these two tests once webkit.org/b/232166 is resolved.
 TEST(AppPrivacyReport, LoadSimulatedRequestIsAppInitiated)
 {
     loadSimulatedRequestTest(IsAppInitiated::Yes);
@@ -745,7 +743,6 @@ static void restoreFromSessionStateTest(IsAppInitiated isAppInitiated)
     [webView1 _test_waitForDidFinishNavigation];
 
     RetainPtr<_WKSessionState> sessionState = [webView1 _sessionState];
-    sessionState.get().isAppInitiated = isAppInitiated == IsAppInitiated::Yes ? true : false;
     [webView1 _close];
 
     static bool isDone = false;

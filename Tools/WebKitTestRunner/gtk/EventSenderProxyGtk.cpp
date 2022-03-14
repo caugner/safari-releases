@@ -70,8 +70,14 @@ EventSenderProxy::EventSenderProxy(TestController* testController)
 {
 }
 
+static inline WebKitWebViewBase* toWebKitGLibAPI(PlatformWKView view)
+{
+    return const_cast<WebKitWebViewBase*>(reinterpret_cast<const WebKitWebViewBase*>(view));
+}
+
 EventSenderProxy::~EventSenderProxy()
 {
+    webkitWebViewBaseSetWheelHasPreciseDeltas(toWebKitGLibAPI(m_testController->mainWebView()->platformView()), false);
 }
 
 static unsigned eventSenderButtonToGDKButton(unsigned button)
@@ -232,16 +238,19 @@ static int getGDKKeySymForKeyRef(WKStringRef keyRef, unsigned location, guint* m
     return gdk_unicode_to_keyval(static_cast<guint32>(buffer.get()[0]));
 }
 
-static inline WebKitWebViewBase* toWebKitGLibAPI(PlatformWKView view)
-{
-    return const_cast<WebKitWebViewBase*>(reinterpret_cast<const WebKitWebViewBase*>(view));
-}
-
 void EventSenderProxy::keyDown(WKStringRef keyRef, WKEventModifiers wkModifiers, unsigned location)
 {
     guint modifiers = webkitModifiersToGDKModifiers(wkModifiers);
     int gdkKeySym = getGDKKeySymForKeyRef(keyRef, location, &modifiers);
     webkitWebViewBaseSynthesizeKeyEvent(toWebKitGLibAPI(m_testController->mainWebView()->platformView()), KeyEventType::Insert, gdkKeySym, modifiers, ShouldTranslateKeyboardState::No);
+}
+
+void EventSenderProxy::rawKeyDown(WKStringRef key, WKEventModifiers modifiers, unsigned keyLocation)
+{
+}
+
+void EventSenderProxy::rawKeyUp(WKStringRef key, WKEventModifiers modifiers, unsigned keyLocation)
+{
 }
 
 void EventSenderProxy::mouseDown(unsigned button, WKEventModifiers wkModifiers, WKStringRef pointerType)
@@ -346,6 +355,11 @@ void EventSenderProxy::mouseScrollByWithWheelAndMomentumPhases(int horizontal, i
 
     webkitWebViewBaseSynthesizeWheelEvent(toWebKitGLibAPI(m_testController->mainWebView()->platformView()),
         horizontal, vertical, m_position.x, m_position.y, eventPhase, eventMomentumPhase);
+}
+
+void EventSenderProxy::setWheelHasPreciseDeltas(bool hasPreciseDeltas)
+{
+    webkitWebViewBaseSetWheelHasPreciseDeltas(toWebKitGLibAPI(m_testController->mainWebView()->platformView()), hasPreciseDeltas);
 }
 
 void EventSenderProxy::leapForward(int milliseconds)

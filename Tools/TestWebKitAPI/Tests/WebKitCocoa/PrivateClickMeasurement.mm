@@ -36,16 +36,15 @@
 #import <WebKit/_WKWebsiteDataStoreConfiguration.h>
 #import <wtf/RetainPtr.h>
 
-// FIXME: Remove _statisticsDatabaseColumnsForTable and its infrastructure in another patch.
-// It is no longer needed, but removing it is likely to cause unnecessary merge conflicts.
-
 static RetainPtr<WKWebView> webViewWithResourceLoadStatisticsEnabledInNetworkProcess()
 {
     auto *sharedProcessPool = [WKProcessPool _sharedProcessPool];
-    auto *dataStore = [WKWebsiteDataStore defaultDataStore];
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    auto dataStoreConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
+    dataStoreConfiguration.get().pcmMachServiceName = nil;
+    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]);
+    auto configuration = adoptNS([WKWebViewConfiguration new]);
     [configuration setProcessPool: sharedProcessPool];
-    configuration.get().websiteDataStore = dataStore;
+    configuration.get().websiteDataStore = dataStore.get();
 
     // We need an active NetworkProcess to perform PCM operations.
     auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
@@ -55,7 +54,7 @@ static RetainPtr<WKWebView> webViewWithResourceLoadStatisticsEnabledInNetworkPro
 }
 
 template<size_t size>
-void addValuesToTable(WebCore::SQLiteDatabase& database, ASCIILiteral query, std::array<Variant<StringView, int, double>, size> values)
+void addValuesToTable(WebCore::SQLiteDatabase& database, ASCIILiteral query, std::array<std::variant<StringView, int, double>, size> values)
 {
     auto statement = database.prepareStatement(query);
     EXPECT_TRUE(!!statement);
@@ -67,7 +66,7 @@ void addValuesToTable(WebCore::SQLiteDatabase& database, ASCIILiteral query, std
         }, [&] (double real) {
             return statement->bindDouble(i + 1, real);
         });
-        auto result = WTF::visit(visitor, values[i]);
+        auto result = std::visit(visitor, values[i]);
         EXPECT_EQ(result, SQLITE_OK);
     }
     EXPECT_EQ(statement->step(), SQLITE_DONE);
@@ -210,6 +209,27 @@ static void addAttributedPCMv4(WebCore::SQLiteDatabase& database)
     addValuesToTable<12>(database, insertAttributedPrivateClickMeasurementQueryV4, { 1, 2, 42, 14, 7, 1.0, earliestTimeToSend(), "test token", "test signature", "test key id", earliestTimeToSend(), bundleID });
 }
 
+static void addAttributedPCMv5(WebCore::SQLiteDatabase& database)
+{
+    constexpr auto createAttributedPrivateClickMeasurementV5 = "CREATE TABLE AttributedPrivateClickMeasurement ("
+        "sourceSiteDomainID INTEGER NOT NULL, destinationSiteDomainID INTEGER NOT NULL, sourceID INTEGER NOT NULL, "
+        "attributionTriggerData INTEGER NOT NULL, priority INTEGER NOT NULL, timeOfAdClick REAL NOT NULL, "
+        "earliestTimeToSendToSource REAL, token TEXT, signature TEXT, keyID TEXT, earliestTimeToSendToDestination REAL, sourceApplicationBundleID TEXT, destinationToken, destinationSignature, destinationKeyID,"
+        "FOREIGN KEY(sourceSiteDomainID) REFERENCES PCMObservedDomains(domainID) ON DELETE CASCADE, FOREIGN KEY(destinationSiteDomainID) REFERENCES "
+        "PCMObservedDomains(domainID) ON DELETE CASCADE)"_s;
+
+    EXPECT_TRUE(database.executeCommand(createAttributedPrivateClickMeasurementV5));
+    constexpr auto insertAttributedPrivateClickMeasurementQueryV5 = "INSERT OR REPLACE INTO AttributedPrivateClickMeasurement (sourceSiteDomainID, destinationSiteDomainID, "
+        "sourceID, attributionTriggerData, priority, timeOfAdClick, earliestTimeToSendToSource, token, signature, keyID, earliestTimeToSendToDestination, sourceApplicationBundleID, destinationToken, destinationSignature, destinationKeyID) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"_s;
+
+#if PLATFORM(MAC)
+    auto bundleID = "com.apple.Safari";
+#else
+    auto bundleID = "com.apple.mobilesafari";
+#endif
+    addValuesToTable<15>(database, insertAttributedPrivateClickMeasurementQueryV5, { 1, 2, 42, 14, 7, 1.0, earliestTimeToSend(), "test token", "test signature", "test key id", earliestTimeToSend(), bundleID, "test destination token", "test destination signature", "test destination key id" });
+}
+
 static RetainPtr<NSString> dumpedPCM(WKWebView *webView)
 {
     __block RetainPtr<NSString> pcm;
@@ -223,7 +243,8 @@ static RetainPtr<NSString> dumpedPCM(WKWebView *webView)
 }
 
 enum class MigratingFromResourceLoadStatistics : bool { No, Yes };
-static void pollUntilPCMIsMigrated(WKWebView *webView, MigratingFromResourceLoadStatistics migratingFromResourceLoadStatistics)
+enum class UsingDestinationToken : bool { No, Yes };
+static void pollUntilPCMIsMigrated(WKWebView *webView, MigratingFromResourceLoadStatistics migratingFromResourceLoadStatistics, UsingDestinationToken usingDestinationToken)
 {
     if (migratingFromResourceLoadStatistics == MigratingFromResourceLoadStatistics::Yes) {
         // This query is the first thing to open the old database, so migration has not happened yet.
@@ -252,15 +273,20 @@ static void pollUntilPCMIsMigrated(WKWebView *webView, MigratingFromResourceLoad
         "Attribution trigger data: 14\n"
         "Attribution priority: 7\n"
         "Attribution earliest time to send: Outside 24-48 hours\n"
-#if PLATFORM(MAC)
-        "Application bundle identifier: com.apple.Safari\n"
-#else
-        "Application bundle identifier: com.apple.mobilesafari\n"
-#endif
         "";
+
+    NSString *suffix = @"Destination token: ";
+    suffix = [suffix stringByAppendingString:(usingDestinationToken == UsingDestinationToken::No ? @"Not set\n" : @"\ntoken: test destination token\nsignature: test destination signature\nkey: test destination key id\n")];
+#if PLATFORM(MAC)
+    suffix = [suffix stringByAppendingString:@"Application bundle identifier: com.apple.Safari\n"];
+#else
+    suffix = [suffix stringByAppendingString:@"Application bundle identifier: com.apple.mobilesafari\n"];
+#endif
+    expectedMigratedPCMDatabase = [expectedMigratedPCMDatabase stringByAppendingString:suffix];
 
     while (![dumpedPCM(webView) isEqualToString:expectedMigratedPCMDatabase])
         usleep(10000);
+    EXPECT_WK_STREQ(dumpedPCM(webView).get(), expectedMigratedPCMDatabase);
 }
 
 static NSString *emptyObservationsDBPath()
@@ -285,12 +311,18 @@ static NSString *emptyPcmDBPath()
     return fileURL.path;
 }
 
-static void cleanUp()
+static void cleanUp(RetainPtr<WKWebView> webView)
 {
-    NSFileManager *defaultFileManager = NSFileManager.defaultManager;
-    NSString *itpRoot = WKWebsiteDataStore.defaultDataStore._configuration._resourceLoadStatisticsDirectory.path;
-    [defaultFileManager removeItemAtPath:itpRoot error:nil];
-    EXPECT_FALSE([defaultFileManager fileExistsAtPath:itpRoot]);
+    static bool isDone = false;
+    [[webView.get() configuration].websiteDataStore _closeDatabases:^{
+        NSFileManager *defaultFileManager = NSFileManager.defaultManager;
+        NSString *itpRoot = WKWebsiteDataStore.defaultDataStore._configuration._resourceLoadStatisticsDirectory.path;
+        [defaultFileManager removeItemAtPath:itpRoot error:nil];
+        while ([defaultFileManager fileExistsAtPath:itpRoot])
+            usleep(10000);
+        isDone = true;
+    }];
+    TestWebKitAPI::Util::run(&isDone);
 }
 
 static void createAndPopulateObservedDomainTable(WebCore::SQLiteDatabase& database)
@@ -355,30 +387,38 @@ TEST(PrivateClickMeasurement, MigrateFromResourceLoadStatistics1)
 {
     setUpFromResourceLoadStatisticsDatabase(addUnattributedPCMv1, addAttributedPCMv1);
     auto webView = webViewWithResourceLoadStatisticsEnabledInNetworkProcess();
-    pollUntilPCMIsMigrated(webView.get(), MigratingFromResourceLoadStatistics::Yes);
-    cleanUp();
+    pollUntilPCMIsMigrated(webView.get(), MigratingFromResourceLoadStatistics::Yes, UsingDestinationToken::No);
+    cleanUp(webView);
 }
 
 TEST(PrivateClickMeasurement, MigrateFromResourceLoadStatistics2)
 {
     setUpFromResourceLoadStatisticsDatabase(addUnattributedPCMv2, addAttributedPCMv2);
     auto webView = webViewWithResourceLoadStatisticsEnabledInNetworkProcess();
-    pollUntilPCMIsMigrated(webView.get(), MigratingFromResourceLoadStatistics::Yes);
-    cleanUp();
+    pollUntilPCMIsMigrated(webView.get(), MigratingFromResourceLoadStatistics::Yes, UsingDestinationToken::No);
+    cleanUp(webView);
 }
 
 TEST(PrivateClickMeasurement, MigrateFromResourceLoadStatistics3)
 {
     setUpFromResourceLoadStatisticsDatabase(addUnattributedPCMv3, addAttributedPCMv3);
     auto webView = webViewWithResourceLoadStatisticsEnabledInNetworkProcess();
-    pollUntilPCMIsMigrated(webView.get(), MigratingFromResourceLoadStatistics::Yes);
-    cleanUp();
+    pollUntilPCMIsMigrated(webView.get(), MigratingFromResourceLoadStatistics::Yes, UsingDestinationToken::No);
+    cleanUp(webView);
 }
 
 TEST(PrivateClickMeasurement, MigrateFromPCM1)
 {
     setUpFromPCMDatabase(addUnattributedPCMv4, addAttributedPCMv4);
     auto webView = webViewWithResourceLoadStatisticsEnabledInNetworkProcess();
-    pollUntilPCMIsMigrated(webView.get(), MigratingFromResourceLoadStatistics::No);
-    cleanUp();
+    pollUntilPCMIsMigrated(webView.get(), MigratingFromResourceLoadStatistics::No, UsingDestinationToken::No);
+    cleanUp(webView);
+}
+
+TEST(PrivateClickMeasurement, MigrateWithDestinationToken)
+{
+    setUpFromPCMDatabase(addUnattributedPCMv4, addAttributedPCMv5);
+    auto webView = webViewWithResourceLoadStatisticsEnabledInNetworkProcess();
+    pollUntilPCMIsMigrated(webView.get(), MigratingFromResourceLoadStatistics::No, UsingDestinationToken::Yes);
+    cleanUp(webView);
 }

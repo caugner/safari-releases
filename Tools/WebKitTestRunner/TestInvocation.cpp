@@ -27,6 +27,7 @@
 #include "config.h"
 #include "TestInvocation.h"
 
+#include "DataFunctions.h"
 #include "DictionaryFunctions.h"
 #include "PlatformWebView.h"
 #include "TestController.h"
@@ -332,7 +333,7 @@ void TestInvocation::didReceiveMessageFromInjectedBundle(WKStringRef messageName
         return;
     }
 
-    if (WKStringIsEqualToUTF8CString(messageName, "TextOutput")) {
+    if (WKStringIsEqualToUTF8CString(messageName, "TextOutput") || WKStringIsEqualToUTF8CString(messageName, "FinalTextOutput")) {
         m_textOutput.append(toWTFString(stringValue(messageBody)));
         return;
     }
@@ -390,7 +391,7 @@ void TestInvocation::didReceiveMessageFromInjectedBundle(WKStringRef messageName
     }
 
     if (WKStringIsEqualToUTF8CString(messageName, "SimulateWebNotificationClick")) {
-        uint64_t notificationID = uint64Value(messageBody);
+        WKDataRef notificationID = dataValue(messageBody);
         TestController::singleton().simulateWebNotificationClick(notificationID);
         return;
     }
@@ -534,6 +535,11 @@ void TestInvocation::didReceiveMessageFromInjectedBundle(WKStringRef messageName
 
     if (WKStringIsEqualToUTF8CString(messageName, "SetShouldLogDownloadCallbacks")) {
         TestController::singleton().setShouldLogDownloadCallbacks(booleanValue(messageBody));
+        return;
+    }
+
+    if (WKStringIsEqualToUTF8CString(messageName, "SetShouldLogDownloadSize")) {
+        TestController::singleton().setShouldLogDownloadSize(booleanValue(messageBody));
         return;
     }
 
@@ -829,7 +835,7 @@ WKRetainPtr<WKTypeRef> TestInvocation::didReceiveSynchronousMessageFromInjectedB
     }
 
     if (WKStringIsEqualToUTF8CString(messageName, "SetDumpPixels")) {
-        m_dumpPixels = booleanValue(messageBody);
+        m_dumpPixels = booleanValue(messageBody) || m_forceDumpPixels;
         return nullptr;
     }
     if (WKStringIsEqualToUTF8CString(messageName, "GetDumpPixels"))
@@ -1382,8 +1388,8 @@ WKRetainPtr<WKTypeRef> TestInvocation::didReceiveSynchronousMessageFromInjectedB
         return nullptr;
     }
     
-    if (WKStringIsEqualToUTF8CString(messageName, "SimulateResourceLoadStatisticsSessionRestart")) {
-        TestController::singleton().simulateResourceLoadStatisticsSessionRestart();
+    if (WKStringIsEqualToUTF8CString(messageName, "SimulatePrivateClickMeasurementSessionRestart")) {
+        TestController::singleton().simulatePrivateClickMeasurementSessionRestart();
         return nullptr;
     }
 
@@ -1483,12 +1489,6 @@ void TestInvocation::uiScriptDidComplete(const String& result, unsigned scriptCa
 void TestInvocation::outputText(const WTF::String& text)
 {
     m_textOutput.append(text);
-}
-
-void TestInvocation::didHandleTap(bool wasMeaningful)
-{
-    auto messageBody = adoptWK(WKBooleanCreate(wasMeaningful));
-    postPageMessage("CallDidHandleTapCallback", messageBody);
 }
 
 void TestInvocation::didBeginSwipe()

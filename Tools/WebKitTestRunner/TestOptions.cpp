@@ -64,6 +64,8 @@ const TestFeatures& TestOptions::defaults()
             { "AllowsInlineMediaPlayback", true },
             { "AsyncFrameScrollingEnabled", false },
             { "AsyncOverflowScrollingEnabled", false },
+            { "BroadcastChannelOriginPartitioningEnabled", false },
+            { "BuiltInNotificationsEnabled", false },
             { "CSSOMViewScrollingAPIEnabled", true },
             { "CaptureAudioInGPUProcessEnabled", captureAudioInGPUProcessEnabledValue },
             { "CaptureAudioInUIProcessEnabled", false },
@@ -87,12 +89,16 @@ const TestFeatures& TestOptions::defaults()
             { "InputTypeMonthEnabled", true },
             { "InputTypeTimeEnabled", true },
             { "InputTypeWeekEnabled", true },
+#if USE(ATSPI)
+            { "IsAccessibilityIsolatedTreeEnabled", true },
+#endif
             { "JavaScriptCanAccessClipboard", true },
             { "JavaScriptCanOpenWindowsAutomatically", true },
             { "LargeImageAsyncDecodingEnabled", false },
             { "MediaDevicesEnabled", true },
             { "MediaPreloadingEnabled", true },
             { "MediaSourceEnabled", mediaSourceEnabledValue },
+            { "MockScrollbarsControllerEnabled", false },
             { "MockCaptureDevicesEnabled", true },
             { "MockScrollbarsEnabled", true },
             { "ModernMediaControlsEnabled", true },
@@ -117,6 +123,9 @@ const TestFeatures& TestOptions::defaults()
             { "XSSAuditorEnabled", false },
 #if PLATFORM(IOS_FAMILY_SIMULATOR)
             { "VP9DecoderEnabled", false },
+#endif
+#if ENABLE(GPU_PROCESS)
+            { "UseGPUProcessForDOMRenderingEnabled", false },
 #endif
 #if ENABLE(GPU_PROCESS) && ENABLE(WEBGL)
             { "UseGPUProcessForWebGLEnabled", false },
@@ -148,7 +157,7 @@ const TestFeatures& TestOptions::defaults()
             { "shouldHandleRunOpenPanel", true },
             { "shouldPresentPopovers", true },
             { "shouldShowTouches", false },
-            { "shouldShowWebView", false },
+            { "shouldShowWindow", false },
             { "spellCheckingDots", false },
             { "textInteractionEnabled", true },
             { "useCharacterSelectionGranularity", false },
@@ -175,7 +184,7 @@ const TestFeatures& TestOptions::defaults()
             { "standaloneWebApplicationURL", { } },
         };
         features.stringVectorTestRunnerFeatures = {
-            { "language", { } },
+            { "language", { "en-US" } },
         };
     }
     
@@ -202,7 +211,7 @@ const std::unordered_map<std::string, TestHeaderKeyType>& TestOptions::keyTypeMa
         { "shouldHandleRunOpenPanel", TestHeaderKeyType::BoolTestRunner },
         { "shouldPresentPopovers", TestHeaderKeyType::BoolTestRunner },
         { "shouldShowTouches", TestHeaderKeyType::BoolTestRunner },
-        { "shouldShowWebView", TestHeaderKeyType::BoolTestRunner },
+        { "shouldShowWindow", TestHeaderKeyType::BoolTestRunner },
         { "spellCheckingDots", TestHeaderKeyType::BoolTestRunner },
         { "textInteractionEnabled", TestHeaderKeyType::BoolTestRunner },
         { "useCharacterSelectionGranularity", TestHeaderKeyType::BoolTestRunner },

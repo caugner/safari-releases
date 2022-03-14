@@ -22,6 +22,7 @@
 
 import os
 import json
+import time
 
 from webkitcorepy import mocks
 from webkitscmpy import Commit, remote as scmremote
@@ -53,6 +54,7 @@ class BitBucket(mocks.Requests):
 
         self.head = self.commits[self.default_branch][-1]
         self.tags = {}
+        self.pull_requests = []
 
     def commit(self, ref):
         if ref in self.commits:
@@ -157,7 +159,7 @@ class BitBucket(mocks.Requests):
             ],
         ), url=url)
 
-    def request(self, method, url, data=None, params=None, **kwargs):
+    def request(self, method, url, data=None, params=None, json=None, **kwargs):
         if not url.startswith('http://') and not url.startswith('https://'):
             return mocks.Response.create404(url)
 
@@ -193,5 +195,80 @@ class BitBucket(mocks.Requests):
 
         if stripped_url.startswith('{}/rest/branch-utils/latest/{}/branches/info/'.format(self.hosts[0], self.project)):
             return self._branches_for(stripped_url.split('/')[-1], url, params or {})
+
+        # All pull-requests
+        pr_base = '{}/rest/api/1.0/{}/pull-requests'.format(self.hosts[0], self.project)
+        if method == 'GET' and stripped_url == pr_base:
+            prs = []
+            for candidate in self.pull_requests:
+                states = (params or {}).get('state', [])
+                states = states if isinstance(states, list) else [states]
+                if states and candidate.get('state') not in states:
+                    continue
+                at = (params or {}).get('at', None)
+                if at and candidate.get('fromRef', {}).get('id') != at:
+                    continue
+                prs.append({key: value for key, value in candidate.items() if key != 'activities'})
+
+            return mocks.Response.fromJson(dict(
+                size=len(prs),
+                isLastPage=True,
+                values=prs,
+            ))
+
+        # Create pull-request
+        if method == 'POST' and stripped_url == pr_base:
+            json['author'] = dict(user=dict(displayName='Tim Committer', emailAddress='committer@webkit.org'))
+            json['participants'] = [json['author']]
+            json['id'] = 1 + max([0] + [pr.get('id', 0) for pr in self.pull_requests])
+            json['fromRef']['displayId'] = '/'.join(json['fromRef']['id'].split('/')[-2:])
+            json['toRef']['displayId'] = '/'.join(json['toRef']['id'].split('/')[-2:])
+            json['state'] = 'OPEN'
+            json['activities'] = []
+            self.pull_requests.append(json)
+            return mocks.Response.fromJson(json)
+
+        # Update or access pull-request
+        if stripped_url.startswith(pr_base):
+            split_url = stripped_url.split('/')
+            number = int(split_url[9])
+            existing = None
+            for i in range(len(self.pull_requests)):
+                if self.pull_requests[i].get('id') == number:
+                    existing = i
+            if existing is None:
+                return mocks.Response.create404(url)
+            if method == 'PUT':
+                self.pull_requests[existing].update(json)
+                self.pull_requests[existing]['fromRef']['displayId'] = '/'.join(json['fromRef']['id'].split('/')[-2:])
+                self.pull_requests[existing]['toRef']['displayId'] = '/'.join(json['toRef']['id'].split('/')[-2:])
+            if len(split_url) < 11:
+                return mocks.Response.fromJson({key: value for key, value in self.pull_requests[existing].items() if key != 'activities'})
+
+            if method == 'GET' and split_url[-1] == 'activities':
+                return mocks.Response.fromJson(dict(
+                    size=len(self.pull_requests[existing].get('activities', [])),
+                    isLastPage=True,
+                    values=self.pull_requests[existing].get('activities', []),
+                ))
+            if method == 'POST' and split_url[-1] == 'comments':
+                self.pull_requests[existing]['activities'].append(dict(comment=dict(
+                    author=dict(displayName='Tim Committer', emailAddress='committer@webkit.org'),
+                    createdDate=int(time.time() * 1000),
+                    updatedDate=int(time.time() * 1000),
+                    text=json.get('text', ''),
+                )))
+                return mocks.Response.fromJson({})
+            if method == 'POST' and split_url[-1] == 'decline':
+                self.pull_requests[existing]['open'] = False
+                self.pull_requests[existing]['closed'] = True
+                self.pull_requests[existing]['state'] = 'DECLINED'
+                return mocks.Response.fromJson({})
+            if method == 'POST' and split_url[-1] == 'reopen':
+                self.pull_requests[existing]['open'] = True
+                self.pull_requests[existing]['closed'] = False
+                self.pull_requests[existing]['state'] = 'OPEN'
+                return mocks.Response.fromJson({})
+            return mocks.Response.create404(url)
 
         return mocks.Response.create404(url)

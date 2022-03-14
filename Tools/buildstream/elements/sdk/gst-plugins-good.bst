@@ -1,8 +1,8 @@
 kind: meson
 sources:
 - kind: tar
-  url: gst_downloads:gst-plugins-good/gst-plugins-good-1.18.4.tar.xz
-  ref: b6e50e3a9bbcd56ee6ec71c33aa8332cc9c926b0c1fae995aac8b3040ebe39b0
+  url: gst_downloads:gst-plugins-good/gst-plugins-good-1.18.5.tar.xz
+  ref: 3aaeeea7765fbf8801acce4a503a9b05f73f04e8a35352e9d00232cfd555796b
 build-depends:
 - freedesktop-sdk.bst:public-stacks/buildsystem-meson.bst
 depends:
@@ -10,7 +10,7 @@ depends:
 - sdk/gstreamer.bst
 - sdk/gst-plugins-base.bst
 - sdk/gtk+-3.bst
-- sdk/libsoup.bst
+- freedesktop-sdk.bst:components/libsoup.bst
 - freedesktop-sdk.bst:components/v4l-utils.bst
 - qt5/qtdeclarative.bst
 - qt5/qtquickcontrols2.bst

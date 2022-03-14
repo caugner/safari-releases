@@ -64,7 +64,6 @@ public:
     InjectedBundlePage* page() const;
     WKBundlePageRef pageRef() const;
     size_t pageCount() const { return m_pages.size(); }
-    void closeOtherPages();
 
     void dumpBackForwardListsForAllPages(StringBuilder&);
 
@@ -82,7 +81,8 @@ public:
     bool shouldDumpPixels() const { return m_dumpPixels; }
     bool dumpJSConsoleLogInStdErr() const { return m_dumpJSConsoleLogInStdErr; };
 
-    void outputText(const String&);
+    enum class IsFinalTestOutput : bool { No, Yes };
+    void outputText(const String&, IsFinalTestOutput = IsFinalTestOutput::No);
     void dumpToStdErr(const String&);
     void postNewBeforeUnloadReturnValue(bool);
     void postAddChromeInputField();
@@ -94,7 +94,7 @@ public:
     void postSetBackingScaleFactor(double);
     void postSetWindowIsKey(bool);
     void postSetViewSize(double width, double height);
-    void postSimulateWebNotificationClick(uint64_t notificationID);
+    void postSimulateWebNotificationClick(WKDataRef notificationID);
     void postSetAddsVisitedLinks(bool);
 
     // Geolocation.
@@ -228,6 +228,7 @@ void postPageMessage(const char* name);
 void postPageMessage(const char* name, bool value);
 void postPageMessage(const char* name, const char* value);
 void postPageMessage(const char* name, WKStringRef value);
+void postPageMessage(const char* name, WKDataRef value);
 void postPageMessage(const char* name, const void* value) = delete;
 
 void postSynchronousPageMessage(const char* name);

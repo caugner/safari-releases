@@ -27,6 +27,7 @@
 #import "TestController.h"
 
 #import "CrashReporterInfo.h"
+#import "Options.h"
 #import "PlatformWebView.h"
 #import "StringFunctions.h"
 #import "TestInvocation.h"
@@ -55,6 +56,7 @@
 #import <WebKit/_WKUserContentExtensionStorePrivate.h>
 #import <WebKit/_WKWebsiteDataStoreConfiguration.h>
 #import <wtf/MainThread.h>
+#import <wtf/UniqueRef.h>
 #import <wtf/cocoa/VectorCocoa.h>
 #import <wtf/spi/cocoa/SecuritySPI.h>
 
@@ -102,7 +104,7 @@ void initializeWebViewConfiguration(const char* libraryPath, WKStringRef injecte
     }();
 }
 
-void TestController::cocoaPlatformInitialize()
+void TestController::cocoaPlatformInitialize(const Options& options)
 {
     const char* dumpRenderTreeTemp = libraryPathForTesting();
     if (!dumpRenderTreeTemp)
@@ -114,6 +116,12 @@ void TestController::cocoaPlatformInitialize()
     NSDictionary *resourceLogPlist = @{ @"version": @(1) };
     if (![resourceLogPlist writeToFile:fullBrowsingSessionResourceLog atomically:YES])
         WTFCrash();
+    
+    if (options.webCoreLogChannels.length())
+        [[NSUserDefaults standardUserDefaults] setValue:[NSString stringWithUTF8String:options.webCoreLogChannels.c_str()] forKey:@"WebCoreLogging"];
+
+    if (options.webKitLogChannels.length())
+        [[NSUserDefaults standardUserDefaults] setValue:[NSString stringWithUTF8String:options.webKitLogChannels.c_str()] forKey:@"WebKitLogging"];
 }
 
 WKContextRef TestController::platformContext()
@@ -203,14 +211,14 @@ void TestController::platformCreateWebView(WKPageConfigurationRef, const TestOpt
     [m_mainWebView->platformView() _setShareSheetCompletesImmediatelyWithResolutionForTesting:YES];
 }
 
-PlatformWebView* TestController::platformCreateOtherPage(PlatformWebView* parentView, WKPageConfigurationRef, const TestOptions& options)
+UniqueRef<PlatformWebView> TestController::platformCreateOtherPage(PlatformWebView* parentView, WKPageConfigurationRef, const TestOptions& options)
 {
     auto newConfiguration = adoptNS([globalWebViewConfiguration() copy]);
     [newConfiguration _setRelatedWebView:static_cast<WKWebView*>(parentView->platformView())];
     if ([newConfiguration _relatedWebView])
         [newConfiguration setWebsiteDataStore:[newConfiguration _relatedWebView].configuration.websiteDataStore];
-    PlatformWebView* view = new PlatformWebView(newConfiguration.get(), options);
-    finishCreatingPlatformWebView(view, options);
+    auto view = makeUniqueRef<PlatformWebView>(newConfiguration.get(), options);
+    finishCreatingPlatformWebView(view.ptr(), options);
     return view;
 }
 
@@ -218,7 +226,7 @@ PlatformWebView* TestController::platformCreateOtherPage(PlatformWebView* parent
 void TestController::finishCreatingPlatformWebView(PlatformWebView* view, const TestOptions& options)
 {
 #if PLATFORM(MAC)
-    if (options.shouldShowWebView())
+    if (options.shouldShowWindow())
         [view->platformWindow() orderFront:nil];
     else
         [view->platformWindow() orderBack:nil];
@@ -263,6 +271,7 @@ void TestController::setDefaultCalendarType(NSString *identifier, NSString *loca
         m_calendarSwizzler = makeUnique<ClassMethodSwizzler>([NSCalendar class], @selector(currentCalendar), reinterpret_cast<IMP>(swizzledCalendar));
 }
 
+#if ENABLE(CONTENT_EXTENSIONS)
 void TestController::resetContentExtensions()
 {
     __block bool doneRemoving = false;
@@ -277,6 +286,7 @@ void TestController::resetContentExtensions()
         [platformView.configuration.userContentController _removeAllUserContentFilters];
     }
 }
+#endif
 
 void TestController::setApplicationBundleIdentifier(const std::string& bundleIdentifier)
 {
@@ -460,11 +470,7 @@ void TestController::addTestKeyToKeychain(const String& privateKeyBase64, const 
         (id)kSecAttrLabel: attrLabel,
         (id)kSecAttrApplicationTag: adoptNS([[NSData alloc] initWithBase64EncodedString:applicationTagBase64 options:NSDataBase64DecodingIgnoreUnknownCharacters]).get(),
         (id)kSecAttrAccessible: (id)kSecAttrAccessibleAfterFirstUnlock,
-#if HAVE(DATA_PROTECTION_KEYCHAIN)
         (id)kSecUseDataProtectionKeychain: @YES
-#else
-        (id)kSecAttrNoLegacy: @YES
-#endif
     };
     OSStatus status = SecItemAdd((__bridge CFDictionaryRef)addQuery, NULL);
     ASSERT_UNUSED(status, !status);
@@ -475,11 +481,7 @@ void TestController::cleanUpKeychain(const String& attrLabel, const String& appl
     auto deleteQuery = adoptNS([[NSMutableDictionary alloc] init]);
     [deleteQuery setObject:(id)kSecClassKey forKey:(id)kSecClass];
     [deleteQuery setObject:attrLabel forKey:(id)kSecAttrLabel];
-#if HAVE(DATA_PROTECTION_KEYCHAIN)
     [deleteQuery setObject:@YES forKey:(id)kSecUseDataProtectionKeychain];
-#else
-    [deleteQuery setObject:@YES forKey:(id)kSecAttrNoLegacy];
-#endif
     if (!!applicationLabelBase64)
         [deleteQuery setObject:adoptNS([[NSData alloc] initWithBase64EncodedString:applicationLabelBase64 options:NSDataBase64DecodingIgnoreUnknownCharacters]).get() forKey:(id)kSecAttrApplicationLabel];
 
@@ -493,11 +495,7 @@ bool TestController::keyExistsInKeychain(const String& attrLabel, const String& 
         (id)kSecAttrKeyClass: (id)kSecAttrKeyClassPrivate,
         (id)kSecAttrLabel: attrLabel,
         (id)kSecAttrApplicationLabel: adoptNS([[NSData alloc] initWithBase64EncodedString:applicationLabelBase64 options:NSDataBase64DecodingIgnoreUnknownCharacters]).get(),
-#if HAVE(DATA_PROTECTION_KEYCHAIN)
         (id)kSecUseDataProtectionKeychain: @YES
-#else
-        (id)kSecAttrNoLegacy: @YES
-#endif
     };
     OSStatus status = SecItemCopyMatching((__bridge CFDictionaryRef)query, NULL);
     if (!status)

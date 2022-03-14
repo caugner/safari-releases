@@ -433,9 +433,9 @@ bool TestRunner::isCommandEnabled(JSStringRef name)
     return WKBundlePageIsEditingCommandEnabled(page(), toWK(name).get());
 }
 
-void TestRunner::setCanOpenWindows()
+void TestRunner::preventPopupWindows()
 {
-    postSynchronousMessage("SetCanOpenWindows", true);
+    postSynchronousMessage("SetCanOpenWindows", false);
 }
 
 void TestRunner::setCustomUserAgent(JSStringRef userAgent)
@@ -649,7 +649,6 @@ enum {
     EnterFullscreenForElementCallbackID,
     ExitFullscreenForElementCallbackID,
     AppBoundRequestContextDataForDomainCallbackID,
-    DidHandleTapCallbackID,
     TakeViewPortSnapshotCallbackID,
     FirstUIScriptCallbackID = 100
 };
@@ -882,7 +881,9 @@ void TestRunner::removeAllWebNotificationPermissions()
 void TestRunner::simulateWebNotificationClick(JSValueRef notification)
 {
     auto& injectedBundle = InjectedBundle::singleton();
-    injectedBundle.postSimulateWebNotificationClick(WKBundleGetWebNotificationID(injectedBundle.bundle(), mainFrameJSContext(), notification));
+
+    auto notificationID = adoptWK(WKBundleCopyWebNotificationID(injectedBundle.bundle(), mainFrameJSContext(), notification));
+    injectedBundle.postSimulateWebNotificationClick(notificationID.get());
 }
 
 void TestRunner::setGeolocationPermission(bool enabled)
@@ -1007,6 +1008,11 @@ void TestRunner::setShouldLogCanAuthenticateAgainstProtectionSpace(bool value)
 void TestRunner::setShouldLogDownloadCallbacks(bool value)
 {
     postPageMessage("SetShouldLogDownloadCallbacks", value);
+}
+
+void TestRunner::setShouldLogDownloadSize(bool value)
+{
+    postPageMessage("SetShouldLogDownloadSize", value);
 }
 
 void TestRunner::setAuthenticationUsername(JSStringRef username)
@@ -1153,17 +1159,6 @@ void TestRunner::installCustomMenuAction(JSStringRef name, bool dismissesAutomat
         { "name", toWK(name) },
         { "dismissesAutomatically", adoptWK(WKBooleanCreate(dismissesAutomatically)).get() },
     }));
-}
-
-void TestRunner::installDidHandleTapCallback(JSValueRef callback)
-{
-    cacheTestRunnerCallback(DidHandleTapCallbackID, callback);
-}
-
-void TestRunner::callDidHandleTapCallback(bool wasMeaningful)
-{
-    auto result = JSValueMakeBoolean(mainFrameJSContext(), wasMeaningful);
-    callTestRunnerCallback(DidHandleTapCallbackID, 1, &result);
 }
 
 void TestRunner::installDidBeginSwipeCallback(JSValueRef callback)
@@ -2091,9 +2086,9 @@ void TestRunner::setPrivateClickMeasurementEphemeralMeasurementForTesting(bool v
     postSynchronousPageMessage("SetPrivateClickMeasurementEphemeralMeasurementForTesting", value);
 }
 
-void TestRunner::simulateResourceLoadStatisticsSessionRestart()
+void TestRunner::simulatePrivateClickMeasurementSessionRestart()
 {
-    postSynchronousPageMessage("SimulateResourceLoadStatisticsSessionRestart");
+    postSynchronousPageMessage("SimulatePrivateClickMeasurementSessionRestart");
 }
 
 void TestRunner::setPrivateClickMeasurementTokenPublicKeyURLForTesting(JSStringRef urlString)

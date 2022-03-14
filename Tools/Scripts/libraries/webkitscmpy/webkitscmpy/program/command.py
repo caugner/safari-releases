@@ -29,11 +29,11 @@ import time
 
 from webkitcorepy import Terminal
 from webkitscmpy.commit import Commit
-from whichcraft import which
 
 
 class Command(object):
     name = None
+    aliases = []
     help = None
 
     @classmethod
@@ -49,7 +49,7 @@ class Command(object):
         return -1
 
 
-class FilteredCommand(object):
+class FilteredCommand(Command):
     IDENTIFIER = 'identifier'
     HASH = 'hash'
     REVISION = 'revision'
@@ -103,6 +103,8 @@ class FilteredCommand(object):
 
     @classmethod
     def pager(cls, args, repository, file=None, **kwargs):
+        from whichcraft import which
+
         if not repository.path:
             sys.stderr.write("Cannot run '{}' on remote repository\n".format(cls.name))
             return 1
