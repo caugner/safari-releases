@@ -60,11 +60,10 @@ void StructureRareData::destroy(JSCell* cell)
 
 StructureRareData::StructureRareData(VM& vm, Structure* previous)
     : JSCell(vm, vm.structureRareDataStructure.get())
+    , m_previous(vm, this, previous, WriteBarrierStructureID::MayBeNull)
     , m_maxOffset(invalidOffset)
     , m_transitionOffset(invalidOffset)
 {
-    if (previous)
-        m_previous.set(vm, this, previous);
 }
 
 template<typename Visitor>
@@ -136,6 +135,9 @@ void StructureRareData::cacheSpecialPropertySlow(JSGlobalObject* globalObject, V
     case CachedSpecialPropertyKey::ToPrimitive:
         uid = vm.propertyNames->toPrimitiveSymbol.impl();
         break;
+    case CachedSpecialPropertyKey::ToJSON:
+        uid = vm.propertyNames->toJSON.impl();
+        break;
     }
 
     if (!ownStructure->propertyAccessesAreCacheable() || ownStructure->isProxy()) {
@@ -188,11 +190,11 @@ void StructureRareData::cacheSpecialPropertySlow(JSGlobalObject* globalObject, V
             equivCondition = condition.attemptToMakeEquivalenceWithoutBarrier(vm);
 
             // The equivalence condition won't be watchable if we have already seen a replacement.
-            if (!equivCondition.isWatchable()) {
+            if (!equivCondition.isWatchable(PropertyCondition::MakeNoChanges)) {
                 giveUpOnSpecialPropertyCache(key);
                 return;
             }
-        } else if (!condition.isWatchable()) {
+        } else if (!condition.isWatchable(PropertyCondition::MakeNoChanges)) {
             giveUpOnSpecialPropertyCache(key);
             return;
         }
@@ -268,6 +270,8 @@ void CachedSpecialPropertyAdaptiveInferredPropertyValueWatchpoint::handleFire(VM
         key = CachedSpecialPropertyKey::ToString;
     else if (this->key().uid() == vm.propertyNames->valueOf.impl())
         key = CachedSpecialPropertyKey::ValueOf;
+    else if (this->key().uid() == vm.propertyNames->toJSON.impl())
+        key = CachedSpecialPropertyKey::ToJSON;
     else {
         ASSERT(this->key().uid() == vm.propertyNames->toPrimitiveSymbol.impl());
         key = CachedSpecialPropertyKey::ToPrimitive;

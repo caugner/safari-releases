@@ -197,7 +197,7 @@ inline void Structure::validateFlags() { }
 
 Structure::Structure(VM& vm, JSGlobalObject* globalObject, JSValue prototype, const TypeInfo& typeInfo, const ClassInfo* classInfo, IndexingType indexingType, unsigned inlineCapacity)
     : JSCell(vm, vm.structureStructure.get())
-    , m_blob(vm.heap.structureIDTable().allocateID(this), indexingType, typeInfo)
+    , m_blob(StructureID::encode(this), indexingType, typeInfo)
     , m_outOfLineTypeFlags(typeInfo.outOfLineTypeFlags())
     , m_inlineCapacity(inlineCapacity)
     , m_bitField(0)
@@ -264,7 +264,7 @@ Structure::Structure(VM& vm, CreatingEarlyCellTag)
     setMaxOffset(vm, invalidOffset);
  
     TypeInfo typeInfo = TypeInfo(StructureType, StructureFlags);
-    m_blob = StructureIDBlob(vm.heap.structureIDTable().allocateID(this), 0, typeInfo);
+    m_blob = StructureIDBlob(StructureID::encode(this), 0, typeInfo);
     m_outOfLineTypeFlags = typeInfo.outOfLineTypeFlags();
 
     ASSERT(hasReadOnlyOrGetterSetterPropertiesExcludingProto() || !m_classInfo->hasStaticSetterOrReadonlyProperties());
@@ -272,7 +272,7 @@ Structure::Structure(VM& vm, CreatingEarlyCellTag)
     ASSERT(!this->typeInfo().overridesGetCallData() || m_classInfo->methodTable.getCallData != &JSCell::getCallData);
 }
 
-Structure::Structure(VM& vm, Structure* previous, DeferredStructureTransitionWatchpointFire* deferred)
+Structure::Structure(VM& vm, Structure* previous)
     : JSCell(vm, vm.structureStructure.get())
     , m_inlineCapacity(previous->m_inlineCapacity)
     , m_bitField(0)
@@ -301,13 +301,15 @@ Structure::Structure(VM& vm, Structure* previous, DeferredStructureTransitionWat
     setMaxOffset(vm, invalidOffset);
  
     TypeInfo typeInfo = previous->typeInfo();
-    m_blob = StructureIDBlob(vm.heap.structureIDTable().allocateID(this), previous->indexingModeIncludingHistory(), typeInfo);
+    m_blob = StructureIDBlob(StructureID::encode(this), previous->indexingModeIncludingHistory(), typeInfo);
     m_outOfLineTypeFlags = typeInfo.outOfLineTypeFlags();
 
     ASSERT(!previous->typeInfo().structureIsImmortal());
     setPreviousID(vm, previous);
 
-    previous->didTransitionFromThisStructure(deferred);
+    // Do not fire watchpoint inside Structure constructor since watchpoint can involve further heap allocations.
+    // We fire watchpoint separately in Structure::finishCreation.
+    previous->didTransitionFromThisStructureWithoutFiringWatchpoint();
     
     // Copy this bit now, in case previous was being watched.
     setTransitionWatchpointIsLikelyToBeFired(previous->transitionWatchpointIsLikelyToBeFired());
@@ -326,7 +328,6 @@ Structure::~Structure()
 
     if (isBrandedStructure())
         static_cast<BrandedStructure*>(this)->destruct();
-    Heap::heap(this)->structureIDTable().deallocateID(this, m_blob.structureID());
 }
 
 void Structure::destroy(JSCell* cell)
@@ -910,7 +911,7 @@ Structure* Structure::flattenDictionaryStructure(VM& vm, JSObject* object)
     
     GCSafeConcurrentJSLocker locker(m_lock, vm);
     
-    object->setStructureIDDirectly(nuke(id()));
+    object->setStructureIDDirectly(id().nuke());
     WTF::storeStoreFence();
 
     size_t beforeOutOfLineCapacity = this->outOfLineCapacity();
@@ -1245,19 +1246,28 @@ void DeferredStructureTransitionWatchpointFire::dump(PrintStream& out) const
     out.print("Structure transition from ", *m_structure);
 }
 
-void Structure::didTransitionFromThisStructure(DeferredStructureTransitionWatchpointFire* deferred) const
+void Structure::didTransitionFromThisStructureWithoutFiringWatchpoint() const
 {
     // If the structure is being watched, and this is the kind of structure that the DFG would
     // like to watch, then make sure to note for all future versions of this structure that it's
     // unwise to watch it.
     if (m_transitionWatchpointSet.isBeingWatched())
         const_cast<Structure*>(this)->setTransitionWatchpointIsLikelyToBeFired(true);
+}
 
+void Structure::fireStructureTransitionWatchpoint(DeferredStructureTransitionWatchpointFire* deferred) const
+{
     if (deferred) {
         ASSERT(deferred->structure() == this);
         m_transitionWatchpointSet.fireAll(vm(), deferred);
     } else
         m_transitionWatchpointSet.fireAll(vm(), StructureFireDetail(this));
+}
+
+void Structure::didTransitionFromThisStructure(DeferredStructureTransitionWatchpointFire* deferred) const
+{
+    didTransitionFromThisStructureWithoutFiringWatchpoint();
+    fireStructureTransitionWatchpoint(deferred);
 }
 
 template<typename Visitor>
@@ -1370,7 +1380,7 @@ Ref<StructureShape> Structure::toStructureShape(JSValue value, bool& sawPolyProt
 
 void Structure::dump(PrintStream& out) const
 {
-    auto* structureID = reinterpret_cast<void*>(id());
+    auto* structureID = reinterpret_cast<void*>(id().bits());
     out.print(RawPointer(this), ":[", RawPointer(structureID),
         "/", (uint32_t)(reinterpret_cast<uintptr_t>(structureID)), ", ",
         classInfo()->className, ", (", inlineSize(), "/", inlineCapacity(), ", ",
@@ -1470,7 +1480,7 @@ uintptr_t Structure::cachedPropertyNameEnumeratorAndFlag() const
     return rareData()->cachedPropertyNameEnumeratorAndFlag();
 }
 
-bool Structure::canCachePropertyNameEnumerator(VM& vm) const
+bool Structure::canCachePropertyNameEnumerator(VM&) const
 {
     if (!this->canCacheOwnPropertyNames())
         return false;
@@ -1482,7 +1492,7 @@ bool Structure::canCachePropertyNameEnumerator(VM& vm) const
         StructureID structureID = *currentStructureID;
         if (!structureID)
             return true;
-        Structure* structure = vm.getStructure(structureID);
+        Structure* structure = structureID.decode();
         if (!structure->canCacheOwnPropertyNames())
             return false;
         currentStructureID++;

@@ -286,6 +286,7 @@ public:
     JS_EXPORT_PRIVATE JSGlobalObject* deprecatedVMEntryGlobalObject(JSGlobalObject*) const;
 
     WeakRandom& random() { return m_random; }
+    WeakRandom& heapRandom() { return m_heapRandom; }
     Integrity::Random& integrityRandom() { return m_integrityRandom; }
 
     bool terminationInProgress() const { return m_terminationInProgress; }
@@ -329,6 +330,7 @@ private:
     Ref<WTF::RunLoop> m_runLoop;
 
     WeakRandom m_random;
+    WeakRandom m_heapRandom;
     Integrity::Random m_integrityRandom;
 
 public:
@@ -585,8 +587,9 @@ public:
     SmallStrings smallStrings;
     NumericStrings numericStrings;
     std::unique_ptr<SimpleStats> machineCodeBytesPerBytecodeWordForBaselineJIT;
-    WeakGCMap<StringImpl*, JSString, PtrHash<StringImpl*>> stringCache;
     Strong<JSString> lastCachedString;
+    Ref<StringImpl> lastAtomizedIdentifierStringImpl { *StringImpl::empty() };
+    Ref<AtomStringImpl> lastAtomizedIdentifierAtomStringImpl { *static_cast<AtomStringImpl*>(StringImpl::empty()) };
     JSONAtomStringCache jsonAtomStringCache;
 
     AtomStringTable* atomStringTable() const { return m_atomStringTable; }
@@ -749,17 +752,6 @@ public:
         return result;
     }
     
-    ALWAYS_INLINE Structure* getStructure(StructureID id)
-    {
-        return heap.structureIDTable().get(decontaminate(id));
-    }
-
-    // FIXME: rdar://69036888: remove this function when no longer needed.
-    ALWAYS_INLINE Structure* tryGetStructure(StructureID id)
-    {
-        return heap.structureIDTable().tryGet(decontaminate(id));
-    }
-
     void* stackPointerAtVMEntry() const { return m_stackPointerAtVMEntry; }
     void setStackPointerAtVMEntry(void*);
 

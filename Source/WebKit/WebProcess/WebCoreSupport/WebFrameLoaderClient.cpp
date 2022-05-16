@@ -1187,8 +1187,11 @@ void WebFrameLoaderClient::finishedLoading(DocumentLoader* loader)
             if (!webPage)
                 return;
 
-            RefPtr<FragmentedSharedBuffer> mainResourceData = loader->mainResourceData();
-            IPC::DataReference dataReference(mainResourceData ? mainResourceData->makeContiguous()->data() : nullptr, mainResourceData ? mainResourceData->size() : 0);
+            RefPtr<const SharedBuffer> contiguousData;
+            RefPtr<const FragmentedSharedBuffer> mainResourceData = loader->mainResourceData();
+            if (mainResourceData)
+                contiguousData = mainResourceData->makeContiguous();
+            IPC::DataReference dataReference(contiguousData ? contiguousData->data() : nullptr, contiguousData ? contiguousData->size() : 0);
             webPage->send(Messages::WebPageProxy::DidFinishLoadingDataForCustomContentProvider(loader->response().suggestedFilename(), dataReference));
         }
 
@@ -1515,9 +1518,15 @@ void WebFrameLoaderClient::transitionToCommittedForNewPage()
     bool shouldHideScrollbars = shouldDisableScrolling;
     IntRect fixedVisibleContentRect;
 
+    auto oldView = m_frame->coreFrame()->view();
+
+    auto overrideSizeForCSSDefaultViewportUnits = oldView ? oldView->overrideSizeForCSSDefaultViewportUnits() : std::nullopt;
+    auto overrideSizeForCSSSmallViewportUnits = oldView ? oldView->overrideSizeForCSSSmallViewportUnits() : std::nullopt;
+    auto overrideSizeForCSSLargeViewportUnits = oldView ? oldView->overrideSizeForCSSLargeViewportUnits() : std::nullopt;
+
 #if USE(COORDINATED_GRAPHICS)
-    if (m_frame->coreFrame()->view())
-        fixedVisibleContentRect = m_frame->coreFrame()->view()->fixedVisibleContentRect();
+    if (oldView)
+        fixedVisibleContentRect = oldView->fixedVisibleContentRect();
     if (shouldUseFixedLayout)
         shouldHideScrollbars = true;
 #endif
@@ -1540,6 +1549,16 @@ void WebFrameLoaderClient::transitionToCommittedForNewPage()
         horizontalScrollbarMode, horizontalLock, verticalScrollbarMode, verticalLock);
 
     RefPtr<FrameView> view = m_frame->coreFrame()->view();
+
+    if (overrideSizeForCSSDefaultViewportUnits)
+        view->setOverrideSizeForCSSDefaultViewportUnits(*overrideSizeForCSSDefaultViewportUnits);
+
+    if (overrideSizeForCSSSmallViewportUnits)
+        view->setOverrideSizeForCSSSmallViewportUnits(*overrideSizeForCSSSmallViewportUnits);
+
+    if (overrideSizeForCSSLargeViewportUnits)
+        view->setOverrideSizeForCSSLargeViewportUnits(*overrideSizeForCSSLargeViewportUnits);
+
     if (int width = webPage->minimumSizeForAutoLayout().width()) {
         int height = std::max(webPage->minimumSizeForAutoLayout().height(), 1);
         view->enableFixedWidthAutoSizeMode(true, { width, height });
@@ -1558,7 +1577,7 @@ void WebFrameLoaderClient::transitionToCommittedForNewPage()
     }
 
     if (auto viewportSizeForViewportUnits = webPage->viewportSizeForCSSViewportUnits())
-        view->setSizeForCSSLargeViewportUnits(*viewportSizeForViewportUnits);
+        view->setSizeForCSSDefaultViewportUnits(*viewportSizeForViewportUnits);
     view->setProhibitsScrolling(shouldDisableScrolling);
     view->setVisualUpdatesAllowedByClient(!webPage->shouldExtendIncrementalRenderingSuppression());
 #if PLATFORM(COCOA)

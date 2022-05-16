@@ -161,15 +161,6 @@ void Styleable::willChangeRenderer() const
     }
 }
 
-static void clearCSSAnimationsForStyleable(const Styleable& styleable)
-{
-    for (auto& cssAnimation : styleable.animationsCreatedByMarkup())
-        cssAnimation->cancelFromStyle();
-    if (auto* effectStack = styleable.keyframeEffectStack())
-        effectStack->setCSSAnimationList(nullptr);
-    styleable.setAnimationsCreatedByMarkup({ });
-}
-
 void Styleable::cancelDeclarativeAnimations() const
 {
     if (auto* animations = this->animations()) {
@@ -179,7 +170,10 @@ void Styleable::cancelDeclarativeAnimations() const
         }
     }
 
-    clearCSSAnimationsForStyleable(*this);
+    if (auto* effectStack = keyframeEffectStack())
+        effectStack->setCSSAnimationList(nullptr);
+
+    setAnimationsCreatedByMarkup({ });
 }
 
 static bool keyframesRuleExistsForAnimation(Element& element, const Animation& animation, const String& animationName)
@@ -209,7 +203,10 @@ void Styleable::updateCSSAnimations(const RenderStyle* currentStyle, const Rende
 
     // In case this element is newly getting a "display: none" we need to cancel all of its animations and disregard new ones.
     if (currentStyle && currentStyle->display() != DisplayType::None && newStyle.display() == DisplayType::None) {
-        clearCSSAnimationsForStyleable(*this);
+        for (auto& cssAnimation : animationsCreatedByMarkup())
+            cssAnimation->cancelFromStyle();
+        keyframeEffectStack.setCSSAnimationList(nullptr);
+        setAnimationsCreatedByMarkup({ });
         return;
     }
 

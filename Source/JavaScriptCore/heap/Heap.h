@@ -43,7 +43,7 @@
 #include "MarkedSpace.h"
 #include "MutatorState.h"
 #include "Options.h"
-#include "StructureIDTable.h"
+#include "StructureID.h"
 #include "Synchronousness.h"
 #include "WeakHandleOwner.h"
 #include <wtf/AutomaticThread.h>
@@ -275,8 +275,6 @@ public:
     
     bool isDeferred() const { return !!m_deferralDepth; }
 
-    StructureIDTable& structureIDTable() { return m_structureIDTable; }
-
     CodeBlockSet& codeBlockSet() { return *m_codeBlocks; }
 
 #if USE(FOUNDATION)
@@ -390,6 +388,11 @@ public:
     HashMap<JSImmutableButterfly*, JSString*> immutableButterflyToStringCache;
 
     bool isMarkingForGCVerifier() const { return m_isMarkingForGCVerifier; }
+
+    void appendPossiblyAccessedStringFromConcurrentThreads(String&& string)
+    {
+        m_possiblyAccessedStringsFromConcurrentThreads.append(WTFMove(string));
+    }
 
 private:
     friend class AllocatingScope;
@@ -596,7 +599,6 @@ private:
     Markable<CollectionScope, EnumMarkableTraits<CollectionScope>> m_lastCollectionScope;
     Lock m_raceMarkStackLock;
 
-    StructureIDTable m_structureIDTable;
     MarkedSpace m_objectSpace;
     GCIncomingRefCountedSet<ArrayBuffer> m_arrayBuffers;
     size_t m_extraMemorySize { 0 };
@@ -641,6 +643,8 @@ private:
 
     Vector<WeakBlock*> m_logicallyEmptyWeakBlocks;
     size_t m_indexOfNextLogicallyEmptyWeakBlockToSweep { WTF::notFound };
+
+    Vector<String> m_possiblyAccessedStringsFromConcurrentThreads;
     
     RefPtr<FullGCActivityCallback> m_fullActivityCallback;
     RefPtr<GCActivityCallback> m_edenActivityCallback;

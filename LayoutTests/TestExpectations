@@ -92,6 +92,7 @@ compositing/shared-backing/overflow-scroll [ Skip ]
 compositing/scrolling/async-overflow-scrolling [ Skip ]
 compositing/layer-creation/clipping-scope [ Skip ]
 fast/repaint/background-attachment-local-scroll.html [ Skip ]
+fast/repaint/background-attachment-fixed-in-composited-scroll.html [ Skip ]
 
 # WebKit2 only.
 printing/printing-events.html [ Skip ]
@@ -484,44 +485,22 @@ imported/w3c/web-platform-tests/clipboard-apis/feature-policy/clipboard-read/cli
 imported/w3c/web-platform-tests/clipboard-apis/feature-policy/clipboard-read/clipboard-read-enabled-on-self-origin-by-feature-policy.tentative.https.sub.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/script-src-self/worker-import.http.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/script-src-self/worker-import.https.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/script-src-self/worker-import-data.http.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/script-src-self/worker-import-data.https.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/script-src-wildcard/worker-import.http.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/script-src-wildcard/worker-import.https.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/script-src-wildcard/worker-import-data.http.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/script-src-wildcard/worker-import-data.https.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-none/worker-import.http.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-none/worker-import.https.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-none/worker-import-data.http.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-none/worker-import-data.https.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-self/worker-import.http.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-self/worker-import.https.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-self/worker-import-data.http.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-self/worker-import-data.https.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-wildcard/worker-import.http.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-wildcard/worker-import.https.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-wildcard/worker-import-data.http.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-wildcard/worker-import-data.https.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/script-src-self/worker-import.http.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/script-src-self/worker-import.https.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/script-src-self/worker-import-data.http.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/script-src-self/worker-import-data.https.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/script-src-wildcard/worker-import.http.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/script-src-wildcard/worker-import.https.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/script-src-wildcard/worker-import-data.http.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/script-src-wildcard/worker-import-data.https.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/worker-src-none/worker-import.http.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/worker-src-none/worker-import.https.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/worker-src-none/worker-import-data.http.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/worker-src-none/worker-import-data.https.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/worker-src-self/worker-import.http.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/worker-src-self/worker-import.https.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/worker-src-self/worker-import-data.http.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/worker-src-self/worker-import-data.https.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/worker-src-wildcard/worker-import.http.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/worker-src-wildcard/worker-import.https.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/worker-src-wildcard/worker-import-data.http.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/worker-src-wildcard/worker-import-data.https.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/inheritance/history-iframe.sub.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/inheritance/javascript-url-open-in-main-window.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/inheritance/javascript-url-srcdoc-cross-origin-iframe-inheritance.html [ Skip ]
@@ -962,7 +941,6 @@ imported/w3c/web-platform-tests/content-security-policy/prefetch-src/prefetch-he
 imported/w3c/web-platform-tests/content-security-policy/prefetch-src/prefetch-header-allowed.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/prefetch-src/prefetch-blocked.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/prefetch-src/prefetch-allowed.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/navigation/to-javascript-url-script-src.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/navigate-to/spv-only-sent-to-initiator.sub.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/navigate-to/meta-refresh-redirected-blocked.sub.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/navigate-to/meta-refresh-cross-origin-blocked.sub.html [ Skip ]
@@ -1001,16 +979,6 @@ imported/w3c/web-platform-tests/content-security-policy/embedded-enforcement
 imported/w3c/web-platform-tests/content-security-policy/connect-src/shared-worker-connect-src-allowed.sub.html
 imported/w3c/web-platform-tests/content-security-policy/connect-src/shared-worker-connect-src-blocked.sub.html
 imported/w3c/web-platform-tests/content-security-policy/securitypolicyviolation/inside-shared-worker.html
-imported/w3c/web-platform-tests/content-security-policy/worker-src/shared-child.sub.html
-imported/w3c/web-platform-tests/content-security-policy/worker-src/shared-fallback.sub.html
-imported/w3c/web-platform-tests/content-security-policy/worker-src/shared-list.sub.html
-imported/w3c/web-platform-tests/content-security-policy/worker-src/shared-none.sub.html
-imported/w3c/web-platform-tests/content-security-policy/worker-src/shared-self.sub.html
-imported/w3c/web-platform-tests/content-security-policy/worker-src/shared-worker-src-child-fallback-blocked.sub.html
-imported/w3c/web-platform-tests/content-security-policy/worker-src/shared-worker-src-child-fallback.sub.html
-imported/w3c/web-platform-tests/content-security-policy/worker-src/shared-worker-src-default-fallback.sub.html
-imported/w3c/web-platform-tests/content-security-policy/worker-src/shared-worker-src-script-fallback.sub.html
-imported/w3c/web-platform-tests/content-security-policy/worker-src/shared-worker-src-self-fallback.sub.html
 
 # Sometimes logs a line about trying to connect to an external URL.
 imported/w3c/web-platform-tests/content-security-policy/frame-src/frame-src-same-document.sub.html [ Pass Failure ]
@@ -1109,6 +1077,8 @@ http/wpt/cross-origin-resource-policy/ [ Skip ]
 fast/files/blob-network-process-crash.html [ Skip ]
 fast/forms/file/entries-api/image-transcode-open-panel.html [ Skip ]
 fast/forms/file/entries-api/image-no-transcode-open-panel.html [ Skip ]
+fast/forms/file/entries-api/pages-jpeg-open-panel.html [ Skip ]
+fast/forms/file/entries-api/pdf-jpeg-open-panel.html [ Skip ]
 
 # This test is currently only relevant on mac-wk2
 fast/canvas/webgl/context-update-on-display-configuration.html [ Skip ]
@@ -1384,9 +1354,11 @@ imported/w3c/web-platform-tests/css/css-grid/abspos/orthogonal-positioned-grid-d
 imported/w3c/web-platform-tests/css/css-grid/abspos/orthogonal-positioned-grid-descendants-015.html [ Pass Failure ]
 webkit.org/b/216146 imported/w3c/web-platform-tests/css/css-grid/alignment/grid-baseline-align-001.html [ ImageOnlyFailure ]
 webkit.org/b/216146 imported/w3c/web-platform-tests/css/css-grid/alignment/grid-baseline-justify-001.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-grid/alignment/replaced-alignment-with-aspect-ratio-002.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-grid/alignment/replaced-alignment-with-aspect-ratio-007.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-grid/alignment/replaced-alignment-with-aspect-ratio-008.html [ ImageOnlyFailure ]
 
 imported/w3c/web-platform-tests/css/css-grid/grid-definition/grid-auto-repeat-dynamic-001.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-grid/grid-definition/grid-repeat-max-width-001.html [ ImageOnlyFailure ]
 
 webkit.org/b/234879 imported/w3c/web-platform-tests/css/css-grid/grid-items/grid-intrinsic-maximums.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-grid/grid-items/grid-item-inline-contribution-003.html [ ImageOnlyFailure ]
@@ -1603,44 +1575,24 @@ webkit.org/b/187034 imported/w3c/web-platform-tests/webmessaging/without-ports/0
 webkit.org/b/187034 imported/w3c/web-platform-tests/webmessaging/without-ports/021.html [ Skip ]
 
 # WPT tests requiring DTR/WTR to allow other URLs than localhost to not be blocked and be reachable (www2.localhost)
-imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/script-src-self/sharedworker-import-data.http.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/script-src-self/sharedworker-import-data.https.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/script-src-self/sharedworker-import.http.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/script-src-self/sharedworker-import.https.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/script-src-wildcard/sharedworker-import-data.http.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/script-src-wildcard/sharedworker-import-data.https.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/script-src-wildcard/sharedworker-import.http.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/script-src-wildcard/sharedworker-import.https.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-none/sharedworker-import-data.http.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-none/sharedworker-import-data.https.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-none/sharedworker-import.http.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-none/sharedworker-import.https.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-self/sharedworker-import-data.http.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-self/sharedworker-import-data.https.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-self/sharedworker-import.http.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-self/sharedworker-import.https.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-wildcard/sharedworker-import-data.http.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-wildcard/sharedworker-import-data.https.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-wildcard/sharedworker-import.http.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-wildcard/sharedworker-import.https.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/script-src-self/sharedworker-import-data.http.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/script-src-self/sharedworker-import-data.https.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/script-src-self/sharedworker-import.http.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/script-src-self/sharedworker-import.https.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/script-src-wildcard/sharedworker-import-data.http.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/script-src-wildcard/sharedworker-import-data.https.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/script-src-wildcard/sharedworker-import.http.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/script-src-wildcard/sharedworker-import.https.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/worker-src-none/sharedworker-import-data.http.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/worker-src-none/sharedworker-import-data.https.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/worker-src-none/sharedworker-import.http.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/worker-src-none/sharedworker-import.https.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/worker-src-self/sharedworker-import-data.http.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/worker-src-self/sharedworker-import-data.https.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/worker-src-self/sharedworker-import.http.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/worker-src-self/sharedworker-import.https.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/worker-src-wildcard/sharedworker-import-data.http.html [ Skip ]
-imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/worker-src-wildcard/sharedworker-import-data.https.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/worker-src-wildcard/sharedworker-import.http.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/gen/top.meta/worker-src-wildcard/sharedworker-import.https.html [ Skip ]
 imported/w3c/web-platform-tests/xhr/send-redirect-bogus.htm [ Skip ]
@@ -2352,10 +2304,6 @@ loader/stateobjects/replacestate-size.html [ Slow ]
 # outline: auto -focusring.
 imported/blink/fast/multicol/outlines-at-column-boundaries.html [ ImageOnlyFailure ]
 fast/multicol/multicol-with-child-renderLayer-for-input.html [ ImageOnlyFailure ]
-
-# Top layer tests
-webkit.org/b/229315 imported/w3c/web-platform-tests/html/semantics/interactive-elements/the-dialog-element/modal-dialog-in-replaced-renderer.html [ ImageOnlyFailure ]
-webkit.org/b/229315 imported/w3c/web-platform-tests/html/semantics/interactive-elements/the-dialog-element/modal-dialog-in-table-column.html [ ImageOnlyFailure ]
 
 # Assertion failure in MessagePort::contextDestroyed, usually attributed to later tests
 webkit.org/b/94458 http/tests/security/MessagePort/event-listener-context.html [ Skip ]
@@ -3698,6 +3646,7 @@ webgl/1.0.x/conformance/misc/invalid-passed-params.html [ Pass ]
 webgl/1.0.x/conformance/glsl/bugs/character-set.html [ Pass ]
 webgl/1.0.x/conformance/glsl/misc/fragcolor-fragdata-invariant.html [ Pass ]
 webgl/1.0.x/conformance/context/constants-and-properties.html [ Pass ]
+webgl/1.0.x/conformance/extensions/webgl-multi-draw.html [ Pass Slow ]
 
 
 # WebGL conformance test suite 2.0.1 is skipped until 2.0.0 is retired.
@@ -3708,6 +3657,7 @@ webgl/2.0.y/conformance/canvas/to-data-url-test.html [ Pass ]
 webgl/2.0.y/conformance/misc/invalid-passed-params.html [ Pass ]
 webgl/2.0.y/conformance/glsl/bugs/character-set.html [ Pass ]
 webgl/2.0.y/conformance/glsl/misc/fragcolor-fragdata-invariant.html [ Pass ]
+webgl/2.0.y/conformance/extensions/webgl-multi-draw.html [ Pass Slow ]
 webgl/2.0.y/conformance2/context/constants-and-properties-2.html [ Pass ]
 webgl/2.0.y/conformance2/vertex_arrays/vertex-array-object.html [ Pass ]
 webgl/1.0.x/conformance/extensions/oes-vertex-array-object.html [ Pass ]
@@ -4304,6 +4254,8 @@ webkit.org/b/209460 imported/w3c/web-platform-tests/css/css-grid/abspos/descenda
 webkit.org/b/209460 imported/w3c/web-platform-tests/css/css-grid/abspos/descendant-static-position-002.html [ ImageOnlyFailure ]
 webkit.org/b/209460 imported/w3c/web-platform-tests/css/css-grid/abspos/descendant-static-position-003.html [ ImageOnlyFailure ]
 webkit.org/b/212201 imported/w3c/web-platform-tests/css/css-grid/grid-definition/grid-limits-001.html [ Skip ]
+webkit.org/b/227900 imported/w3c/web-platform-tests/css/css-grid/alignment/grid-item-aspect-ratio-stretch-3.html [ ImageOnlyFailure ]
+webkit.org/b/227900 imported/w3c/web-platform-tests/css/css-grid/alignment/grid-item-aspect-ratio-stretch-4.html [ ImageOnlyFailure ]
 webkit.org/b/212246 imported/w3c/web-platform-tests/css/css-grid/alignment/grid-baseline-align-cycles-001.html [ ImageOnlyFailure ]
 webkit.org/b/231021 imported/w3c/web-platform-tests/css/css-grid/alignment/grid-inline-baseline.html [ ImageOnlyFailure ]
 webkit.org/b/212246 imported/w3c/web-platform-tests/css/css-grid/alignment/grid-item-content-baseline-001.html [ ImageOnlyFailure ]
@@ -4981,6 +4933,11 @@ imported/w3c/web-platform-tests/WebCryptoAPI/encrypt_decrypt/aes_ctr.https.any.h
 webkit.org/b/228176 fast/text/variable-system-font.html [ Pass ImageOnlyFailure ]
 webkit.org/b/228176 fast/text/variable-system-font-2.html [ Pass ImageOnlyFailure ]
 
+# Console message from workers sometimes don't make their way to test output, so disable them to avoid flakiness.
+imported/w3c/web-platform-tests/workers/interfaces/WorkerUtils/importScripts/ [ DumpJSConsoleLogInStdErr ]
+imported/w3c/web-platform-tests/FileAPI/file/File-constructor.any.worker.html [ DumpJSConsoleLogInStdErr ]
+imported/w3c/web-platform-tests/html/webappapis/microtask-queuing/queue-microtask-exceptions.any.worker.html [ DumpJSConsoleLogInStdErr ]
+
 webkit.org/b/229726 imported/w3c/web-platform-tests/css/css-font-loading/fontface-override-descriptors.html [ ImageOnlyFailure ]
 webkit.org/b/229726 imported/w3c/web-platform-tests/css/css-font-loading/fontface-size-adjust-descriptor.html [ ImageOnlyFailure ]
 webkit.org/b/229727 imported/w3c/web-platform-tests/css/css-font-loading/fontfaceset-load-var.html [ Skip ]
@@ -5244,4 +5201,8 @@ fullscreen/full-screen-plugin.html [ Skip ]
 imported/blink/http/tests/plugins [ Skip ]
 imported/blink/plugins [ Skip ]
 js/dom/reflect-set-onto-dom.html [ Skip ]
+security/contentSecurityPolicy/object-src-none-blocks-youtube-plugin-replacement.html [ Skip ]
+security/contentSecurityPolicy/plugins-types-allows-youtube-plugin-replacement.html [ Skip ]
+security/contentSecurityPolicy/plugins-types-blocks-youtube-plugin-replacement-without-mime-type.html [ Skip ]
+security/contentSecurityPolicy/plugins-types-blocks-youtube-plugin-replacement.html [ Skip ]
 userscripts/user-script-plugin-document.html [ Skip ]

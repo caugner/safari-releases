@@ -1,3 +1,1546 @@
+2022-04-18  Kocsen Chung  <kocsen_chung@apple.com>
+
+        Cherry-pick r292400. rdar://problem/89382543
+
+    [macOS][selectors] :focus-visible matching on button focused via script (after clicking on a different button)
+    https://bugs.webkit.org/show_bug.cgi?id=236782
+    <rdar://problem/89382543>
+    
+    Reviewed by Antti Koivisto.
+    
+    LayoutTests/imported/w3c:
+    
+    Add specific test for <button> element.
+    
+    * web-platform-tests/css/selectors/focus-visible-script-focus-008-b-expected.txt: Added.
+    * web-platform-tests/css/selectors/focus-visible-script-focus-008-b.html: Added.
+    
+    Source/WebCore:
+    
+    Document::m_latestFocusTrigger was not being updated after clicking on a button (or other form controls)
+    on platforms different than GTK and WPE.
+    This is because HTMLFormControlElement::isMouseFocusable() returns false on such platforms.
+    
+    This issue is causing problems with :focus-visible, as the button is not actually focused via mouse click,
+    if you move the focus via script afterwards, the new focused element always match :focus-visible.
+    
+    This patch is a workaround to solve that issue, by updating m_latestFocusTrigger on Document
+    even if the element is not actually focused.
+    That way :focus-visible doesn't match if there's a script focus afterwards.
+    
+    Fix :focus-visible after clicking on a button on Mac
+    
+    Test: imported/w3c/web-platform-tests/css/selectors/focus-visible-script-focus-008-b.html
+    
+    * dom/Document.h:
+    (WebCore::Document::setLatestFocusTrigger):
+    * page/EventHandler.cpp:
+    (WebCore::EventHandler::dispatchMouseEvent):
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@292400 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-04-05  Manuel Rego Casasnovas  <rego@igalia.com>
+
+            [macOS][selectors] :focus-visible matching on button focused via script (after clicking on a different button)
+            https://bugs.webkit.org/show_bug.cgi?id=236782
+            <rdar://problem/89382543>
+
+            Reviewed by Antti Koivisto.
+
+            Add specific test for <button> element.
+
+            * web-platform-tests/css/selectors/focus-visible-script-focus-008-b-expected.txt: Added.
+            * web-platform-tests/css/selectors/focus-visible-script-focus-008-b.html: Added.
+
+2022-04-07  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r292155. rdar://problem/90572543
+
+    Interop issue with position: sticky within contain: paint
+    https://bugs.webkit.org/show_bug.cgi?id=238016
+    
+    Patch by Rob Buis <rbuis@igalia.com> on 2022-03-31
+    Reviewed by Simon Fraser.
+    
+    LayoutTests/imported/w3c:
+    
+    * web-platform-tests/css/css-position/sticky/position-sticky-overflow-clip-container-expected.html: Added.
+    * web-platform-tests/css/css-position/sticky/position-sticky-overflow-clip-container-ref.html: Added.
+    * web-platform-tests/css/css-position/sticky/position-sticky-overflow-clip-container.html: Added.
+    
+    Source/WebCore:
+    
+    Elements with overflow: clip (contain: paint enables it) are
+    not scroll containers, so they can't act as scrolling
+    ancestor for sticky elements.
+    
+    Tests: imported/w3c/web-platform-tests/css/css-position/sticky/position-sticky-overflow-clip-container-ref.html
+           imported/w3c/web-platform-tests/css/css-position/sticky/position-sticky-overflow-clip-container.html
+    
+    * rendering/RenderLayer.cpp:
+    (WebCore::RenderLayer::enclosingOverflowClipLayer const):
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@292155 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-03-31  Rob Buis  <rbuis@igalia.com>
+
+            Interop issue with position: sticky within contain: paint
+            https://bugs.webkit.org/show_bug.cgi?id=238016
+
+            Reviewed by Simon Fraser.
+
+            * web-platform-tests/css/css-position/sticky/position-sticky-overflow-clip-container-expected.html: Added.
+            * web-platform-tests/css/css-position/sticky/position-sticky-overflow-clip-container-ref.html: Added.
+            * web-platform-tests/css/css-position/sticky/position-sticky-overflow-clip-container.html: Added.
+
+2022-04-07  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r292029. rdar://problem/90977336
+
+    Use Canvas/CanvasText system colors for <dialog> default styling
+    https://bugs.webkit.org/show_bug.cgi?id=238425
+    
+    Reviewed by Antti Koivisto.
+    
+    Per HTML spec change: https://github.com/whatwg/html/commit/22154a4c1d426dddf187fb12c05fbcb8816c94a5
+    Main change is that the colors now adapt to dark mode by default.
+    
+    LayoutTests/imported/w3c:
+    
+    Updated test result to pass.
+    
+    * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/default-color-expected.txt:
+    
+    Source/WebCore:
+    
+    Test: LayoutTests/imported/w3c/web-platform-tests/html/semantics/interactive-elements/the-dialog-element/default-color.html
+    
+    * css/dialog.css:
+    (dialog):
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@292029 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-03-29  Tim Nguyen  <ntim@apple.com>
+
+            Use Canvas/CanvasText system colors for <dialog> default styling
+            https://bugs.webkit.org/show_bug.cgi?id=238425
+
+            Reviewed by Antti Koivisto.
+
+            Per HTML spec change: https://github.com/whatwg/html/commit/22154a4c1d426dddf187fb12c05fbcb8816c94a5
+            Main change is that the colors now adapt to dark mode by default.
+
+            Updated test result to pass.
+
+            * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/default-color-expected.txt:
+
+2022-04-07  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r292028. rdar://problem/90977255
+
+    Re-import inert and <dialog> WPT
+    https://bugs.webkit.org/show_bug.cgi?id=238502
+    
+    Reviewed by Antti Koivisto.
+    
+    Upstream commit: https://github.com/web-platform-tests/wpt/commit/46e50fc357127c76c898675cd30ae34090a2268d
+    
+    Main changes:
+    - Removes .tentative.html suffix from inert tests
+    - Adds default-color.html test for <dialog>
+    
+    LayoutTests/imported/w3c:
+    
+    * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/default-color-expected.txt: Added.
+    * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/default-color.html: Added.
+    * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/dialog-inert-expected.txt: Renamed from LayoutTests/imported/w3c/web-platform-tests/html/semantics/interactive-elements/the-dialog-element/dialog-inert.tentative-expected.txt.
+    * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/dialog-inert.html: Renamed from LayoutTests/imported/w3c/web-platform-tests/html/semantics/interactive-elements/the-dialog-element/dialog-inert.tentative.html.
+    * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/modal-dialog-selection-expected.txt: Added.
+    * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/modal-dialog-selection.html: Added.
+    * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/w3c-import.log:
+    * web-platform-tests/inert/dynamic-inert-on-focused-element-expected.txt: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/dynamic-inert-on-focused-element.tentative-expected.txt.
+    * web-platform-tests/inert/dynamic-inert-on-focused-element.html: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/dynamic-inert-on-focused-element.tentative.html.
+    * web-platform-tests/inert/inert-and-contenteditable-expected.txt: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-and-contenteditable.tentative-expected.txt.
+    * web-platform-tests/inert/inert-and-contenteditable.html: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-and-contenteditable.tentative.html.
+    * web-platform-tests/inert/inert-canvas-fallback-content-expected.txt: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-canvas-fallback-content.tentative-expected.txt.
+    * web-platform-tests/inert/inert-canvas-fallback-content.html: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-canvas-fallback-content.tentative.html.
+    * web-platform-tests/inert/inert-does-not-match-disabled-selector-expected.txt: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-does-not-match-disabled-selector.tentative-expected.txt.
+    * web-platform-tests/inert/inert-does-not-match-disabled-selector.html: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-does-not-match-disabled-selector.tentative.html.
+    * web-platform-tests/inert/inert-iframe-hittest-expected.txt: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-iframe-hittest.tentative-expected.txt.
+    * web-platform-tests/inert/inert-iframe-hittest.html: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-iframe-hittest.tentative.html.
+    * web-platform-tests/inert/inert-iframe-tabbing-expected.txt: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-iframe-tabbing.tentative-expected.txt.
+    * web-platform-tests/inert/inert-iframe-tabbing.html: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-iframe-tabbing.tentative.html.
+    * web-platform-tests/inert/inert-in-shadow-dom-expected.txt: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-in-shadow-dom.tentative-expected.txt.
+    * web-platform-tests/inert/inert-in-shadow-dom.html: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-in-shadow-dom.tentative.html.
+    * web-platform-tests/inert/inert-inlines-expected.txt: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-inlines.tentative-expected.txt.
+    * web-platform-tests/inert/inert-inlines.html: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-inlines.tentative.html.
+    * web-platform-tests/inert/inert-label-focus-expected.txt: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-label-focus.tentative-expected.txt.
+    * web-platform-tests/inert/inert-label-focus.html: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-label-focus.tentative.html.
+    * web-platform-tests/inert/inert-node-is-uneditable-expected.txt: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-node-is-uneditable.tentative-expected.txt.
+    * web-platform-tests/inert/inert-node-is-uneditable.html: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-node-is-uneditable.tentative.html.
+    * web-platform-tests/inert/inert-node-is-unfocusable-expected.txt: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-node-is-unfocusable.tentative-expected.txt.
+    * web-platform-tests/inert/inert-node-is-unfocusable.html: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-node-is-unfocusable.tentative.html.
+    * web-platform-tests/inert/inert-node-is-unselectable-expected.txt: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-node-is-unselectable.tentative-expected.txt.
+    * web-platform-tests/inert/inert-node-is-unselectable.html: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-node-is-unselectable.tentative.html.
+    * web-platform-tests/inert/inert-on-non-html-expected.txt: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-on-non-html.tentative-expected.txt.
+    * web-platform-tests/inert/inert-on-non-html.html: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-on-non-html.tentative.html.
+    * web-platform-tests/inert/inert-on-slots-expected.txt: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-on-slots.tentative-expected.txt.
+    * web-platform-tests/inert/inert-on-slots.html: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-on-slots.tentative.html.
+    * web-platform-tests/inert/inert-svg-hittest-expected.txt: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-svg-hittest.tentative-expected.txt.
+    * web-platform-tests/inert/inert-svg-hittest.html: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-svg-hittest.tentative.html.
+    * web-platform-tests/inert/inert-with-modal-dialog-001-expected.txt: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-with-modal-dialog-001.tentative-expected.txt.
+    * web-platform-tests/inert/inert-with-modal-dialog-001.html: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-with-modal-dialog-001.tentative.html.
+    * web-platform-tests/inert/inert-with-modal-dialog-002-expected.txt: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-with-modal-dialog-002.tentative-expected.txt.
+    * web-platform-tests/inert/inert-with-modal-dialog-002.html: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-with-modal-dialog-002.tentative.html.
+    * web-platform-tests/inert/w3c-import.log:
+    
+    LayoutTests:
+    
+    * platform/ios-wk2/imported/w3c/web-platform-tests/inert/inert-iframe-hittest-expected.txt: Renamed from LayoutTests/platform/ios-wk2/imported/w3c/web-platform-tests/inert/inert-iframe-hittest.tentative-expected.txt.
+    * platform/ios-wk2/imported/w3c/web-platform-tests/inert/inert-iframe-tabbing-expected.txt: Renamed from LayoutTests/platform/ios-wk2/imported/w3c/web-platform-tests/inert/inert-iframe-tabbing.tentative-expected.txt.
+    * platform/ios-wk2/imported/w3c/web-platform-tests/inert/inert-node-is-uneditable-expected.txt: Renamed from LayoutTests/platform/ios-wk2/imported/w3c/web-platform-tests/inert/inert-node-is-uneditable.tentative-expected.txt.
+    * platform/ios-wk2/imported/w3c/web-platform-tests/inert/inert-svg-hittest-expected.txt: Renamed from LayoutTests/platform/ios-wk2/imported/w3c/web-platform-tests/inert/inert-svg-hittest.tentative-expected.txt.
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@292028 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-03-29  Tim Nguyen  <ntim@apple.com>
+
+            Re-import inert and <dialog> WPT
+            https://bugs.webkit.org/show_bug.cgi?id=238502
+
+            Reviewed by Antti Koivisto.
+
+            Upstream commit: https://github.com/web-platform-tests/wpt/commit/46e50fc357127c76c898675cd30ae34090a2268d
+
+            Main changes:
+            - Removes .tentative.html suffix from inert tests
+            - Adds default-color.html test for <dialog>
+
+            * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/default-color-expected.txt: Added.
+            * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/default-color.html: Added.
+            * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/dialog-inert-expected.txt: Renamed from LayoutTests/imported/w3c/web-platform-tests/html/semantics/interactive-elements/the-dialog-element/dialog-inert.tentative-expected.txt.
+            * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/dialog-inert.html: Renamed from LayoutTests/imported/w3c/web-platform-tests/html/semantics/interactive-elements/the-dialog-element/dialog-inert.tentative.html.
+            * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/modal-dialog-selection-expected.txt: Added.
+            * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/modal-dialog-selection.html: Added.
+            * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/w3c-import.log:
+            * web-platform-tests/inert/dynamic-inert-on-focused-element-expected.txt: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/dynamic-inert-on-focused-element.tentative-expected.txt.
+            * web-platform-tests/inert/dynamic-inert-on-focused-element.html: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/dynamic-inert-on-focused-element.tentative.html.
+            * web-platform-tests/inert/inert-and-contenteditable-expected.txt: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-and-contenteditable.tentative-expected.txt.
+            * web-platform-tests/inert/inert-and-contenteditable.html: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-and-contenteditable.tentative.html.
+            * web-platform-tests/inert/inert-canvas-fallback-content-expected.txt: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-canvas-fallback-content.tentative-expected.txt.
+            * web-platform-tests/inert/inert-canvas-fallback-content.html: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-canvas-fallback-content.tentative.html.
+            * web-platform-tests/inert/inert-does-not-match-disabled-selector-expected.txt: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-does-not-match-disabled-selector.tentative-expected.txt.
+            * web-platform-tests/inert/inert-does-not-match-disabled-selector.html: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-does-not-match-disabled-selector.tentative.html.
+            * web-platform-tests/inert/inert-iframe-hittest-expected.txt: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-iframe-hittest.tentative-expected.txt.
+            * web-platform-tests/inert/inert-iframe-hittest.html: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-iframe-hittest.tentative.html.
+            * web-platform-tests/inert/inert-iframe-tabbing-expected.txt: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-iframe-tabbing.tentative-expected.txt.
+            * web-platform-tests/inert/inert-iframe-tabbing.html: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-iframe-tabbing.tentative.html.
+            * web-platform-tests/inert/inert-in-shadow-dom-expected.txt: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-in-shadow-dom.tentative-expected.txt.
+            * web-platform-tests/inert/inert-in-shadow-dom.html: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-in-shadow-dom.tentative.html.
+            * web-platform-tests/inert/inert-inlines-expected.txt: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-inlines.tentative-expected.txt.
+            * web-platform-tests/inert/inert-inlines.html: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-inlines.tentative.html.
+            * web-platform-tests/inert/inert-label-focus-expected.txt: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-label-focus.tentative-expected.txt.
+            * web-platform-tests/inert/inert-label-focus.html: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-label-focus.tentative.html.
+            * web-platform-tests/inert/inert-node-is-uneditable-expected.txt: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-node-is-uneditable.tentative-expected.txt.
+            * web-platform-tests/inert/inert-node-is-uneditable.html: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-node-is-uneditable.tentative.html.
+            * web-platform-tests/inert/inert-node-is-unfocusable-expected.txt: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-node-is-unfocusable.tentative-expected.txt.
+            * web-platform-tests/inert/inert-node-is-unfocusable.html: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-node-is-unfocusable.tentative.html.
+            * web-platform-tests/inert/inert-node-is-unselectable-expected.txt: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-node-is-unselectable.tentative-expected.txt.
+            * web-platform-tests/inert/inert-node-is-unselectable.html: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-node-is-unselectable.tentative.html.
+            * web-platform-tests/inert/inert-on-non-html-expected.txt: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-on-non-html.tentative-expected.txt.
+            * web-platform-tests/inert/inert-on-non-html.html: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-on-non-html.tentative.html.
+            * web-platform-tests/inert/inert-on-slots-expected.txt: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-on-slots.tentative-expected.txt.
+            * web-platform-tests/inert/inert-on-slots.html: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-on-slots.tentative.html.
+            * web-platform-tests/inert/inert-svg-hittest-expected.txt: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-svg-hittest.tentative-expected.txt.
+            * web-platform-tests/inert/inert-svg-hittest.html: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-svg-hittest.tentative.html.
+            * web-platform-tests/inert/inert-with-modal-dialog-001-expected.txt: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-with-modal-dialog-001.tentative-expected.txt.
+            * web-platform-tests/inert/inert-with-modal-dialog-001.html: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-with-modal-dialog-001.tentative.html.
+            * web-platform-tests/inert/inert-with-modal-dialog-002-expected.txt: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-with-modal-dialog-002.tentative-expected.txt.
+            * web-platform-tests/inert/inert-with-modal-dialog-002.html: Renamed from LayoutTests/imported/w3c/web-platform-tests/inert/inert-with-modal-dialog-002.tentative.html.
+            * web-platform-tests/inert/w3c-import.log:
+
+2022-04-07  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r291886. rdar://problem/72814440
+
+    `PointerEvent.movementX` always 0 (breaks https://noisecraft.app/)
+    https://bugs.webkit.org/show_bug.cgi?id=220194
+    <rdar://problem/72814440>
+    
+    Reviewed by Simon Fraser.
+    
+    LayoutTests/imported/w3c:
+    
+    * web-platform-tests/pointerevents/pointerlock/pointerevent_movementxy_with_pointerlock-expected.txt:
+    This change causes the test to progress further than before, but there still appear to be
+    other issues elsewhere, so adjust the expected output to reflect that.
+    
+    Source/WebCore:
+    
+    Test: pointer-lock/pointermove-movement-delta.html
+    
+    * dom/PointerEvent.cpp:
+    (WebCore::PointerEvent::PointerEvent):
+    Also pass along the movement delta in the constructor that takes a `MouseEvent`.
+    
+    * dom/MouseEvent.h:
+    * dom/MouseEvent.cpp:
+    (WebCore::MouseEvent::create):
+    (WebCore::MouseEvent::MouseEvent):
+    Require that all constructors that aren't invoked from JS always provide a movement delta.
+    
+    * dom/MouseRelatedEvent.h:
+    (WebCore::MouseRelatedEvent::movementX const):
+    (WebCore::MouseRelatedEvent::movementY const):
+    Expose these methods even when `!ENABLE(POINTER_LOCK)` so that they can be called without
+    the callsite having to also have a `#if`.
+    
+    * page/EventHandler.cpp:
+    (WebCore::EventHandler::dispatchDragEvent):
+    Pass along the movement delta even when `!ENABLE(POINTER_LOCK)`.
+    
+    Tools:
+    
+    * DumpRenderTree/mac/EventSendingController.mm:
+    (-[EventSendingController mouseMoveToX:Y:]):
+    * WebKitTestRunner/mac/EventSenderProxy.mm:
+    (WTR::EventSenderProxy::mouseMoveTo):
+    On macOS, the screen's origin is the bottom-left corner, so we need to flip the `deltaY`.
+    
+    LayoutTests:
+    
+    * pointer-lock/pointermove-movement-delta.html: Added.
+    * pointer-lock/pointermove-movement-delta-expected.txt: Added.
+    
+    * pointer-lock/mouse-event-delivery-expected.txt: Added.
+    On macOS, the screen's origin is the bottom-left corner, so we need to flip the `deltaY`.
+    
+    * platform/gtk/imported/w3c/web-platform-tests/pointerevents/pointerlock/pointerevent_movementxy_with_pointerlock-expected.txt: Added.
+    This change causes the test to progress further than before, but there still appear to be
+    other issues elsewhere, so adjust the expected output to reflect that.
+    
+    * platform/mac-wk1/TestExpectations:
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@291886 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-03-25  Devin Rousso  <drousso@apple.com>
+
+            `PointerEvent.movementX` always 0 (breaks https://noisecraft.app/)
+            https://bugs.webkit.org/show_bug.cgi?id=220194
+            <rdar://problem/72814440>
+
+            Reviewed by Simon Fraser.
+
+            * web-platform-tests/pointerevents/pointerlock/pointerevent_movementxy_with_pointerlock-expected.txt:
+            This change causes the test to progress further than before, but there still appear to be
+            other issues elsewhere, so adjust the expected output to reflect that.
+
+2022-04-07  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r291420. rdar://problem/90335275
+
+    REGRESSION (iOS 15.4 / r287669): Mobile app stopped working due to CSS / angular animation
+    https://bugs.webkit.org/show_bug.cgi?id=237920
+    LayoutTests/imported/w3c:
+    
+    <rdar://problem/90335275>
+    
+    Reviewed by Antti Koivisto.
+    
+    Add a test that looks at the default computed style for the "transition" and "animation"
+    shorthands.
+    
+    * web-platform-tests/css/css-animations/parsing/animation-computed-expected.txt:
+    * web-platform-tests/css/css-animations/parsing/animation-computed.html:
+    * web-platform-tests/css/css-pseudo/first-letter-allowed-properties-expected.txt:
+    * web-platform-tests/css/css-pseudo/first-line-allowed-properties-expected.txt:
+    * web-platform-tests/css/css-transitions/parsing/transition-computed-expected.txt:
+    * web-platform-tests/css/css-transitions/parsing/transition-computed.html:
+    
+    Source/WebCore:
+    
+    Reviewed by Antti Koivisto.
+    
+    We refactored the computed style output for the "transition" and "animation" shorthand
+    properties in r287669 and always returned a CSSValueList, even when the list of transitions
+    or animations was empty. This meant that for an element without any transition or animation
+    properties, we'd return the empty string for those properties.
+    
+    Now we return the computed style for a default animation instead.
+    
+    * css/CSSComputedStyleDeclaration.cpp:
+    (WebCore::animationShorthandValue):
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@291420 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-03-17  Antoine Quint  <graouts@webkit.org>
+
+            REGRESSION (iOS 15.4 / r287669): Mobile app stopped working due to CSS / angular animation
+            https://bugs.webkit.org/show_bug.cgi?id=237920
+            <rdar://problem/90335275>
+
+            Reviewed by Antti Koivisto.
+
+            Add a test that looks at the default computed style for the "transition" and "animation"
+            shorthands.
+
+            * web-platform-tests/css/css-animations/parsing/animation-computed-expected.txt:
+            * web-platform-tests/css/css-animations/parsing/animation-computed.html:
+            * web-platform-tests/css/css-pseudo/first-letter-allowed-properties-expected.txt:
+            * web-platform-tests/css/css-pseudo/first-line-allowed-properties-expected.txt:
+            * web-platform-tests/css/css-transitions/parsing/transition-computed-expected.txt:
+            * web-platform-tests/css/css-transitions/parsing/transition-computed.html:
+
+2022-03-23  Alan Coon  <alancoon@apple.com>
+
+        Revert r285998. rdar://problem/85612240
+
+2022-03-23  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r290564. rdar://problem/89524668
+
+    Force -webkit-user-modify used style to readonly for inert nodes
+    https://bugs.webkit.org/show_bug.cgi?id=237244
+    
+    Reviewed by Darin Adler.
+    
+    This disallows programmatic edition of contenteditable inert nodes. Edition via user-input is
+    already prevented by forcing pointer-events style to none.
+    
+    We create a seperate effectiveUserModify, similar to effectiveUserSelect/effectivePointerEvents,
+    to avoid changing the computed style.
+    
+    This behaviour also matches Blink & Gecko.
+    
+    LayoutTests/imported/w3c:
+    
+    * web-platform-tests/inert/inert-and-contenteditable.tentative-expected.txt:
+    
+    Source/WebCore:
+    
+    Test: imported/w3c/web-platform-tests/inert/inert-and-contenteditable.tentative.html
+    
+    * dom/Node.cpp:
+    (WebCore::computeEditabilityFromComputedStyle):
+    * editing/ApplyBlockElementCommand.cpp:
+    (WebCore::ApplyBlockElementCommand::rangeForParagraphSplittingTextNodesIfNeeded):
+    * editing/ReplaceSelectionCommand.cpp:
+    (WebCore::ReplaceSelectionCommand::doApply):
+    * rendering/EventRegion.cpp:
+    (WebCore::EventRegion::unite):
+    * rendering/RenderElement.cpp:
+    (WebCore::RenderElement::styleWillChange):
+    * rendering/style/RenderStyle.h:
+    (WebCore::RenderStyle::effectiveUserModify const):
+    * style/StyleTreeResolver.cpp:
+    (WebCore::Style::TreeResolver::resolveElement):
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@290564 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-02-27  Tim Nguyen  <ntim@apple.com>
+
+            Force -webkit-user-modify used style to readonly for inert nodes
+            https://bugs.webkit.org/show_bug.cgi?id=237244
+
+            Reviewed by Darin Adler.
+
+            This disallows programmatic edition of contenteditable inert nodes. Edition via user-input is
+            already prevented by forcing pointer-events style to none.
+
+            We create a seperate effectiveUserModify, similar to effectiveUserSelect/effectivePointerEvents,
+            to avoid changing the computed style.
+
+            This behaviour also matches Blink & Gecko.
+
+            * web-platform-tests/inert/inert-and-contenteditable.tentative-expected.txt:
+
+2022-03-23  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r290550. rdar://problem/88675827
+
+    Update CSP handling of javascript URLs
+    https://bugs.webkit.org/show_bug.cgi?id=236351
+    <rdar://problem/88675827>
+    
+    Reviewed by Brent Fulgham.
+    
+    LayoutTests/imported/w3c:
+    
+    * web-platform-tests/content-security-policy/navigation/to-javascript-parent-initiated-parent-csp-disallow-expected.txt:
+    * web-platform-tests/content-security-policy/navigation/to-javascript-url-script-src-expected.txt:
+    
+    Source/WebCore:
+    
+    * bindings/js/ScriptController.cpp:
+    (WebCore::ScriptController::executeJavaScriptURL):
+    * loader/FrameLoader.cpp:
+    (WebCore::FrameLoader::continueLoadAfterNewWindowPolicy):
+    (WebCore::createWindow):
+    * loader/SubframeLoader.cpp:
+    (WebCore::FrameLoader::SubframeLoader::requestFrame):
+    * page/DOMWindow.cpp:
+    (WebCore::DOMWindow::setLocation):
+    * page/csp/ContentSecurityPolicy.cpp:
+    (WebCore::ContentSecurityPolicy::allowJavaScriptURLs const):
+    * page/csp/ContentSecurityPolicy.h:
+    
+    LayoutTests:
+    
+    * TestExpectations:
+    * http/tests/security/contentSecurityPolicy/inline-script-blocked-javascript-url-expected.txt:
+    * http/tests/security/contentSecurityPolicy/javascript-url-blocked-by-default-src-star-expected.txt:
+    * http/tests/security/contentSecurityPolicy/javascript-url-blocked-expected.txt:
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@290550 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-02-26  Kate Cheney  <katherine_cheney@apple.com>
+
+            Update CSP handling of javascript URLs
+            https://bugs.webkit.org/show_bug.cgi?id=236351
+            <rdar://problem/88675827>
+
+            Reviewed by Brent Fulgham.
+
+            * web-platform-tests/content-security-policy/navigation/to-javascript-parent-initiated-parent-csp-disallow-expected.txt:
+            * web-platform-tests/content-security-policy/navigation/to-javascript-url-script-src-expected.txt:
+
+2022-03-22  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r288792. rdar://problem/88227274
+
+    CSP: Properly block image content in object elements
+    https://bugs.webkit.org/show_bug.cgi?id=235837
+    
+    Reviewed by Kate Cheney.
+    
+    LayoutTests/imported/w3c:
+    
+    Update expectations with more passes.
+    
+    * web-platform-tests/content-security-policy/object-src/object-src-url-blocked-expected.txt:
+    * web-platform-tests/content-security-policy/object-src/object-src-url-embed-blocked-expected.txt:
+    * web-platform-tests/content-security-policy/object-src/object-src-url-redirect-blocked.sub-expected.txt:
+    
+    Source/WebCore:
+    
+    When an image is loaded through an object element it now passes through
+    the object-src directive check as the spec documents:
+    https://www.w3.org/TR/CSP3/#directive-object-src
+    
+    * loader/ImageLoader.cpp:
+    (WebCore::ImageLoader::updateFromElement):
+    * loader/ResourceLoaderOptions.h:
+    (WebCore::ResourceLoaderOptions::loadedFromPluginElement):
+    (WebCore::ResourceLoaderOptions::ResourceLoaderOptions):
+    (WebCore::ResourceLoaderOptions::loadedFromOpaqueSource): Deleted.
+    * loader/cache/CachedResourceLoader.cpp:
+    (WebCore::CachedResourceLoader::allowedByContentSecurityPolicy const):
+    * page/csp/ContentSecurityPolicy.cpp:
+    (WebCore::ContentSecurityPolicy::allowObjectFromSource const):
+    * page/csp/ContentSecurityPolicy.h:
+    
+    LayoutTests:
+    
+    * http/tests/security/contentSecurityPolicy/userAgentShadowDOM/default-src-object-data-url-blocked-expected.txt:
+    * http/tests/security/contentSecurityPolicy/userAgentShadowDOM/default-src-object-data-url-blocked2-expected.txt:
+    * http/tests/security/contentSecurityPolicy/userAgentShadowDOM/default-src-object-data-url-blocked3-expected.txt:
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@288792 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-01-29  Patrick Griffis  <pgriffis@igalia.com>
+
+            CSP: Properly block image content in object elements
+            https://bugs.webkit.org/show_bug.cgi?id=235837
+
+            Reviewed by Kate Cheney.
+
+            Update expectations with more passes.
+
+            * web-platform-tests/content-security-policy/object-src/object-src-url-blocked-expected.txt:
+            * web-platform-tests/content-security-policy/object-src/object-src-url-embed-blocked-expected.txt:
+            * web-platform-tests/content-security-policy/object-src/object-src-url-redirect-blocked.sub-expected.txt:
+
+2022-03-21  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r291527. rdar://problem/88857731
+
+    Dialog element only animates once
+    https://bugs.webkit.org/show_bug.cgi?id=236274
+    rdar://88857731
+    
+    Reviewed by Dean Jackson, Tim Nguyen and Antti Koivisto.
+    
+    LayoutTests/imported/w3c:
+    
+    Import relevant WPT tests that had already been upstreamed in a previous, reverted
+    version of this patch.
+    
+    * web-platform-tests/css/css-animations/dialog-animation-expected.txt: Added.
+    * web-platform-tests/css/css-animations/dialog-animation.html: Added.
+    * web-platform-tests/css/css-animations/dialog-backdrop-animation-expected.txt: Added.
+    * web-platform-tests/css/css-animations/dialog-backdrop-animation.html: Added.
+    * web-platform-tests/css/css-animations/support/testcommon.js:
+    (addElement):
+    (addDiv):
+    
+    Source/WebCore:
+    
+    Two issues related to CSS Animation surfaced in this bug which animates both <dialog>
+    and its ::backdrop as the dialog is open and eventually re-opened.
+    
+    The first issue was that we didn't clear all CSS Animations state when a <dialog> was
+    closed and its style was set to `display: none`. We now call setAnimationsCreatedByMarkup
+    to correctly clear such state both when we identify a Styleable is newly getting
+    `display: none`. We do the same when cancelDeclarativeAnimations() is called, but also
+    call setCSSAnimationList() on the associated effect stack since that wasn't done either.
+    Now both functions do similar cleanup.
+    
+    This allows us to remove removeCSSAnimationCreatedByMarkup() which did a fair bit of work
+    to clear CSS Animation state per-animation when we only ever used that function for
+    _all_ animations.
+    
+    The second issue was that we never called cancelDeclarativeAnimations() for ::backdrop.
+    We now do that inside of Element::removeFromTopLayer() at a point where the code in
+    Styleable::fromRenderer() will still work as the element will still be contained in
+    Document::topLayerElements().
+    
+    Finally, we need to be sure that calling Element::setAnimationsCreatedByMarkup() with an
+    empty list doesn't end up creating an ElementAnimationRareData object if there was no
+    pre-existing object and the list of animations are empty.
+    
+    Tests: imported/w3c/web-platform-tests/css/css-animations/dialog-animation.html
+           imported/w3c/web-platform-tests/css/css-animations/dialog-backdrop-animation.html
+    
+    * dom/Element.cpp:
+    (WebCore::Element::removeFromTopLayer):
+    (WebCore::Element::setAnimationsCreatedByMarkup):
+    * style/Styleable.cpp:
+    (WebCore::Styleable::cancelDeclarativeAnimations const):
+    (WebCore::Styleable::updateCSSAnimations const):
+    (WebCore::removeCSSAnimationCreatedByMarkup): Deleted.
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@291527 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-03-19  Antoine Quint  <graouts@webkit.org>
+
+            Dialog element only animates once
+            https://bugs.webkit.org/show_bug.cgi?id=236274
+            rdar://88857731
+
+            Reviewed by Dean Jackson, Tim Nguyen and Antti Koivisto.
+
+            Import relevant WPT tests that had already been upstreamed in a previous, reverted
+            version of this patch.
+
+            * web-platform-tests/css/css-animations/dialog-animation-expected.txt: Added.
+            * web-platform-tests/css/css-animations/dialog-animation.html: Added.
+            * web-platform-tests/css/css-animations/dialog-backdrop-animation-expected.txt: Added.
+            * web-platform-tests/css/css-animations/dialog-backdrop-animation.html: Added.
+            * web-platform-tests/css/css-animations/support/testcommon.js:
+            (addElement):
+            (addDiv):
+
+2022-03-21  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r291303. rdar://problem/72432683
+
+    background-clip:text doesn't work with display:flex
+    https://bugs.webkit.org/show_bug.cgi?id=169125
+    <rdar://problem/72432683>
+    
+    Reviewed by Simon Fraser.
+    
+    LayoutTests/imported/w3c:
+    
+    * web-platform-tests/css/css-backgrounds/background-clip/clip-text-flex-expected.html: Added.
+    * web-platform-tests/css/css-backgrounds/background-clip/clip-text-flex-ref.html: Added.
+    * web-platform-tests/css/css-backgrounds/background-clip/clip-text-flex.html: Added.
+    
+    Source/WebCore:
+    
+    Tests: imported/w3c/web-platform-tests/css/css-backgrounds/background-clip/clip-text-flex.html
+    
+    * rendering/RenderElement.cpp:
+    (WebCore::RenderElement::paintAsInlineBlock):
+    
+    Flexbox children paint as inline blocks. This path didn't support text clip paint phase.
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@291303 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-03-15  Antti Koivisto  <antti@apple.com>
+
+            background-clip:text doesn't work with display:flex
+            https://bugs.webkit.org/show_bug.cgi?id=169125
+            <rdar://problem/72432683>
+
+            Reviewed by Simon Fraser.
+
+            * web-platform-tests/css/css-backgrounds/background-clip/clip-text-flex-expected.html: Added.
+            * web-platform-tests/css/css-backgrounds/background-clip/clip-text-flex-ref.html: Added.
+            * web-platform-tests/css/css-backgrounds/background-clip/clip-text-flex.html: Added.
+
+2022-03-21  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r291282. rdar://problem/88857731
+
+    Dialog element only animates once
+    https://bugs.webkit.org/show_bug.cgi?id=236274
+    
+    Reviewed by Dean Jackson, Tim Nguyen and Antti Koivisto.
+    
+    LayoutTests/imported/w3c:
+    
+    Import relevant WPT tests that had already been upstreamed in a previous, reverted
+    version of this patch.
+    
+    * web-platform-tests/css/css-animations/dialog-animation-expected.txt: Added.
+    * web-platform-tests/css/css-animations/dialog-animation.html: Added.
+    * web-platform-tests/css/css-animations/dialog-backdrop-animation-expected.txt: Added.
+    * web-platform-tests/css/css-animations/dialog-backdrop-animation.html: Added.
+    * web-platform-tests/css/css-animations/support/testcommon.js:
+    (addElement):
+    (addDiv):
+    
+    Source/WebCore:
+    
+    Two issues related to CSS Animation surfaced in this bug which animates both <dialog>
+    and its ::backdrop as the dialog is open and eventually re-opened.
+    
+    The first issue was that we didn't clear all CSS Animations state when a <dialog> was
+    closed and its style was set to `display: none`. We now call setAnimationsCreatedByMarkup
+    to correctly clear such state both when we identify a Styleable is newly getting
+    `display: none`. We do the same when cancelDeclarativeAnimations() is called, but also
+    call setCSSAnimationList() on the associated effect stack since that wasn't done either.
+    Now both functions do similar cleanup.
+    
+    This allows us to remove removeCSSAnimationCreatedByMarkup() which did a fair bit of work
+    to clear CSS Animation state per-animation when we only ever used that function for
+    _all_ animations.
+    
+    The second issue was that we never called cancelDeclarativeAnimations() for ::backdrop.
+    We now do that inside of Element::removeFromTopLayer() at a point where the code in
+    Styleable::fromRenderer() will still work as the element will still be contained in
+    Document::topLayerElements().
+    
+    Tests: imported/w3c/web-platform-tests/css/css-animations/dialog-animation.html
+           imported/w3c/web-platform-tests/css/css-animations/dialog-backdrop-animation.html
+    
+    * dom/Element.cpp:
+    (WebCore::Element::removeFromTopLayer):
+    * style/Styleable.cpp:
+    (WebCore::Styleable::cancelDeclarativeAnimations const):
+    (WebCore::Styleable::updateCSSAnimations const):
+    (WebCore::removeCSSAnimationCreatedByMarkup): Deleted.
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@291282 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-03-15  Antoine Quint  <graouts@webkit.org>
+
+            Dialog element only animates once
+            https://bugs.webkit.org/show_bug.cgi?id=236274
+
+            Reviewed by Dean Jackson, Tim Nguyen and Antti Koivisto.
+
+            Import relevant WPT tests that had already been upstreamed in a previous, reverted
+            version of this patch.
+
+            * web-platform-tests/css/css-animations/dialog-animation-expected.txt: Added.
+            * web-platform-tests/css/css-animations/dialog-animation.html: Added.
+            * web-platform-tests/css/css-animations/dialog-backdrop-animation-expected.txt: Added.
+            * web-platform-tests/css/css-animations/dialog-backdrop-animation.html: Added.
+            * web-platform-tests/css/css-animations/support/testcommon.js:
+            (addElement):
+            (addDiv):
+
+2022-03-09  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r290556. rdar://problem/89525864
+
+    Re-import inert and <dialog> WPT
+    https://bugs.webkit.org/show_bug.cgi?id=237243
+    
+    Reviewed by Youenn Fablet.
+    
+    Upstream commit: https://github.com/web-platform-tests/wpt/commit/9261ca87db106c1f31f1ab4f54b8f4a2617cbc24
+    
+    LayoutTests/imported/w3c:
+    
+    * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/modal-dialog-in-replaced-renderer-expected.html:
+    * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/modal-dialog-in-replaced-renderer-ref.html:
+    * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/modal-dialog-in-replaced-renderer.html:
+    * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/modal-dialog-in-table-column-expected.html:
+    * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/modal-dialog-in-table-column-ref.html:
+    * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/modal-dialog-in-table-column.html:
+    * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/w3c-import.log:
+    * web-platform-tests/inert/inert-and-contenteditable.tentative-expected.txt: Added.
+    * web-platform-tests/inert/inert-and-contenteditable.tentative.html: Added.
+    * web-platform-tests/inert/inert-iframe-hittest.tentative-expected.txt:
+    * web-platform-tests/inert/inert-iframe-hittest.tentative.html:
+    * web-platform-tests/inert/inert-iframe-tabbing.tentative-expected.txt:
+    * web-platform-tests/inert/inert-iframe-tabbing.tentative.html:
+    * web-platform-tests/inert/w3c-import.log:
+    
+    LayoutTests:
+    
+    * TestExpectations:
+    * platform/ios-wk2/imported/w3c/web-platform-tests/inert/inert-iframe-hittest.tentative-expected.txt:
+    * platform/ios-wk2/imported/w3c/web-platform-tests/inert/inert-iframe-tabbing.tentative-expected.txt:
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@290556 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-02-27  Tim Nguyen  <ntim@apple.com>
+
+            Re-import inert and <dialog> WPT
+            https://bugs.webkit.org/show_bug.cgi?id=237243
+
+            Reviewed by Youenn Fablet.
+
+            Upstream commit: https://github.com/web-platform-tests/wpt/commit/9261ca87db106c1f31f1ab4f54b8f4a2617cbc24
+
+            * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/modal-dialog-in-replaced-renderer-expected.html:
+            * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/modal-dialog-in-replaced-renderer-ref.html:
+            * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/modal-dialog-in-replaced-renderer.html:
+            * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/modal-dialog-in-table-column-expected.html:
+            * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/modal-dialog-in-table-column-ref.html:
+            * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/modal-dialog-in-table-column.html:
+            * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/w3c-import.log:
+            * web-platform-tests/inert/inert-and-contenteditable.tentative-expected.txt: Added.
+            * web-platform-tests/inert/inert-and-contenteditable.tentative.html: Added.
+            * web-platform-tests/inert/inert-iframe-hittest.tentative-expected.txt:
+            * web-platform-tests/inert/inert-iframe-hittest.tentative.html:
+            * web-platform-tests/inert/inert-iframe-tabbing.tentative-expected.txt:
+            * web-platform-tests/inert/inert-iframe-tabbing.tentative.html:
+            * web-platform-tests/inert/w3c-import.log:
+
+2022-03-08  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r288701. rdar://problem/83734079
+
+    "Unrecognized Content-Security-Policy directive 'worker-src'."
+    https://bugs.webkit.org/show_bug.cgi?id=235260
+    <rdar://problem/83734079>
+    
+    Reviewed by Brent Fulgham.
+    
+    LayoutTests/imported/w3c:
+    
+    * web-platform-tests/content-security-policy/child-src/child-src-cross-origin-load.sub-expected.txt:
+    * web-platform-tests/content-security-policy/child-src/child-src-worker-blocked.sub-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.http-rp/script-src-self/sharedworker-import-data.http-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.http-rp/script-src-self/sharedworker-import-data.https-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.http-rp/script-src-self/worker-import-data.http-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.http-rp/script-src-self/worker-import-data.https-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.http-rp/script-src-wildcard/sharedworker-import-data.http-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.http-rp/script-src-wildcard/sharedworker-import-data.https-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.http-rp/script-src-wildcard/worker-import-data.http-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.http-rp/script-src-wildcard/worker-import-data.https-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-none/sharedworker-classic.http-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-none/sharedworker-classic.https-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-none/sharedworker-import-data.http-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-none/sharedworker-import-data.https-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-none/sharedworker-import.http-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-none/sharedworker-import.https-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-none/sharedworker-module.http-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-none/sharedworker-module.https-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-none/worker-classic.http-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-none/worker-classic.https-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-none/worker-import-data.http-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-none/worker-import-data.https-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-none/worker-import.http-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-none/worker-import.https-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-none/worker-module.http-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-none/worker-module.https-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-self/sharedworker-import-data.http-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-self/sharedworker-import-data.https-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-self/sharedworker-import.http-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-self/sharedworker-import.https-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-self/worker-import-data.http-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-self/worker-import-data.https-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-wildcard/sharedworker-import-data.http-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-wildcard/sharedworker-import-data.https-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-wildcard/worker-import-data.http-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-wildcard/worker-import-data.https-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.meta/script-src-self/sharedworker-import-data.http-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.meta/script-src-self/sharedworker-import-data.https-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.meta/script-src-self/worker-import-data.http-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.meta/script-src-self/worker-import-data.https-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.meta/script-src-wildcard/sharedworker-import-data.http-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.meta/script-src-wildcard/sharedworker-import-data.https-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.meta/script-src-wildcard/worker-import-data.http-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.meta/script-src-wildcard/worker-import-data.https-expected.txt:
+    * web-platform-tests/content-security-policy/worker-src/dedicated-fallback.sub-expected.txt:
+    * web-platform-tests/content-security-policy/worker-src/dedicated-none.sub-expected.txt:
+    * web-platform-tests/content-security-policy/worker-src/dedicated-worker-src-child-fallback-blocked.sub-expected.txt:
+    * web-platform-tests/content-security-policy/worker-src/dedicated-worker-src-script-fallback.sub-expected.txt:
+    * web-platform-tests/content-security-policy/worker-src/dedicated-worker-src-self-fallback.sub-expected.txt:
+    * web-platform-tests/content-security-policy/worker-src/service-none.https.sub-expected.txt:
+    * web-platform-tests/content-security-policy/worker-src/service-worker-src-child-fallback-blocked.https.sub-expected.txt:
+    * web-platform-tests/content-security-policy/worker-src/shared-child.sub-expected.txt: Added.
+    * web-platform-tests/content-security-policy/worker-src/shared-fallback.sub-expected.txt: Added.
+    * web-platform-tests/content-security-policy/worker-src/shared-list.sub-expected.txt: Added.
+    * web-platform-tests/content-security-policy/worker-src/shared-none.sub-expected.txt: Added.
+    * web-platform-tests/content-security-policy/worker-src/shared-self.sub-expected.txt: Added.
+    * web-platform-tests/content-security-policy/worker-src/shared-worker-src-child-fallback-blocked.sub-expected.txt: Added.
+    * web-platform-tests/content-security-policy/worker-src/shared-worker-src-child-fallback.sub-expected.txt: Added.
+    * web-platform-tests/content-security-policy/worker-src/shared-worker-src-default-fallback.sub-expected.txt: Added.
+    * web-platform-tests/content-security-policy/worker-src/shared-worker-src-script-fallback.sub-expected.txt: Added.
+    * web-platform-tests/content-security-policy/worker-src/shared-worker-src-self-fallback.sub-expected.txt: Added.
+    * web-platform-tests/content-security-policy/blob/self-doesnt-match-blob.sub-expected.txt:
+    * web-platform-tests/content-security-policy/blob/star-doesnt-match-blob.sub-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-self/worker-import-data.http-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.meta/worker-src-none/sharedworker-classic.http-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.meta/worker-src-none/sharedworker-classic.https-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.meta/worker-src-none/sharedworker-import-data.http-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.meta/worker-src-none/sharedworker-import-data.https-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.meta/worker-src-none/sharedworker-module.http-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.meta/worker-src-none/sharedworker-module.https-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.meta/worker-src-none/worker-classic.http-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.meta/worker-src-none/worker-classic.https-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.meta/worker-src-none/worker-import-data.http-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.meta/worker-src-none/worker-import-data.https-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.meta/worker-src-none/worker-import.http-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.meta/worker-src-none/worker-import.https-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.meta/worker-src-none/worker-module.http-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.meta/worker-src-none/worker-module.https-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.meta/worker-src-self/sharedworker-import-data.http-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.meta/worker-src-self/sharedworker-import-data.https-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.meta/worker-src-self/worker-import-data.http-expected.txt:
+    * web-platform-tests/content-security-policy/gen/top.meta/worker-src-self/worker-import-data.https-expected.txt:
+    
+    Source/WebCore:
+    
+    Implementation of worker-src directive. According to https://www.w3.org/TR/CSP3/#changes-from-level-2
+    the worker-src directive now restricts URLs that can be loaded by
+    workers, and defers to child-src if not specified.
+    
+    * bindings/js/WorkerModuleScriptLoader.cpp:
+    (WebCore::WorkerModuleScriptLoader::load):
+    Check worker-src instead of child-src for worker loads.
+    
+    * loader/DocumentThreadableLoader.cpp:
+    (WebCore::DocumentThreadableLoader::isAllowedByContentSecurityPolicy):
+    * loader/ThreadableLoader.h:
+    Check worker-src instead of child-src for worker loads.
+    
+    * page/csp/ContentSecurityPolicy.cpp:
+    We can remove allowChildContextFromSource which is now fully replaced
+    by allowWorkerFromSource.
+    
+    (WebCore::ContentSecurityPolicy::allowWorkerFromSource const):
+    (WebCore::ContentSecurityPolicy::allowChildContextFromSource const): Deleted.
+    * page/csp/ContentSecurityPolicy.h:
+    * page/csp/ContentSecurityPolicyDirectiveList.cpp:
+    (WebCore::ContentSecurityPolicyDirectiveList::operativeDirectiveForWorkerSrc const):
+    worker-src defers to child-src, then script-src, then default-src.
+    
+    (WebCore::ContentSecurityPolicyDirectiveList::violatedDirectiveForWorker):
+    (WebCore::ContentSecurityPolicyDirectiveList::addDirective):
+    * page/csp/ContentSecurityPolicyDirectiveList.h:
+    * page/csp/ContentSecurityPolicyDirectiveNames.cpp:
+    * page/csp/ContentSecurityPolicyDirectiveNames.h:
+    * workers/AbstractWorker.cpp:
+    (WebCore::AbstractWorker::resolveURL):
+    * workers/AbstractWorker.h:
+    We check LegacySchemeRegistry::schemeShouldBypassContentSecurityPolicy
+    in allowWorkerFromSource, so we don't need to check in in AbstractWorker::resolveURL
+    anymore. We can also replace the child-src checks with worker-src
+    ones.
+    
+    * workers/Worker.cpp:
+    (WebCore::Worker::create):
+    * workers/WorkerFontLoadRequest.cpp:
+    (WebCore::WorkerFontLoadRequest::load):
+    * workers/service/ServiceWorkerContainer.cpp:
+    (WebCore::ServiceWorkerContainer::addRegistration):
+    Block service worker registrations not specified by worker-src.
+    
+    * workers/shared/SharedWorker.cpp:
+    (WebCore::SharedWorker::create):
+    Block shared worker urls not specified by worker-src.
+    
+    * workers/shared/SharedWorkerScriptLoader.cpp:
+    (WebCore::SharedWorkerScriptLoader::SharedWorkerScriptLoader):
+    
+    Source/WebKit:
+    
+    * NetworkProcess/NetworkLoadChecker.cpp:
+    (WebKit::NetworkLoadChecker::isAllowedByContentSecurityPolicy):
+    
+    LayoutTests:
+    
+    Update tests now that worker-src defaults eventually to script-src.
+    Since this was not the case with child-src, legacy CSP tests do not
+    expect script-src policies to affect workers. We can fix this by
+    specifying a separate worker-src policy for these tests to maintain
+    behavior.
+    
+    * TestExpectations:
+    Some wpt tests log random URL strings that change for every test
+    iteration. For now we can't unskip those.
+    
+    * http/tests/security/contentSecurityPolicy/1.1/child-src/worker-blocked-expected.txt:
+    * http/tests/security/contentSecurityPolicy/1.1/child-src/worker-redirect-blocked-expected.txt:
+    * http/tests/security/contentSecurityPolicy/worker-blob-inherits-csp-blocks-eval.html:
+    * http/tests/security/contentSecurityPolicy/worker-blob-inherits-csp-importScripts-block-aborts-all-subsequent-imports.html:
+    * http/tests/security/contentSecurityPolicy/worker-blob-inherits-csp-importScripts-redirect-cross-origin-blocked.html:
+    * http/tests/security/contentSecurityPolicy/worker-blob-inherits-csp.html:
+    * http/tests/security/contentSecurityPolicy/worker-script-src.html:
+    * http/tests/security/isolatedWorld/bypass-main-world-csp-worker-blob-eval.html:
+    * http/tests/security/isolatedWorld/bypass-main-world-csp-worker-blob-importScript-redirect-cross-origin.html:
+    * http/tests/security/isolatedWorld/bypass-main-world-csp-worker-blob-xhr.html:
+    * http/tests/security/isolatedWorld/bypass-main-world-csp-worker.html:
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@288701 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-01-27  Kate Cheney  <katherine_cheney@apple.com>
+
+            "Unrecognized Content-Security-Policy directive 'worker-src'."
+            https://bugs.webkit.org/show_bug.cgi?id=235260
+            <rdar://problem/83734079>
+
+            Reviewed by Brent Fulgham.
+
+            * web-platform-tests/content-security-policy/child-src/child-src-cross-origin-load.sub-expected.txt:
+            * web-platform-tests/content-security-policy/child-src/child-src-worker-blocked.sub-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.http-rp/script-src-self/sharedworker-import-data.http-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.http-rp/script-src-self/sharedworker-import-data.https-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.http-rp/script-src-self/worker-import-data.http-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.http-rp/script-src-self/worker-import-data.https-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.http-rp/script-src-wildcard/sharedworker-import-data.http-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.http-rp/script-src-wildcard/sharedworker-import-data.https-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.http-rp/script-src-wildcard/worker-import-data.http-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.http-rp/script-src-wildcard/worker-import-data.https-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-none/sharedworker-classic.http-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-none/sharedworker-classic.https-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-none/sharedworker-import-data.http-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-none/sharedworker-import-data.https-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-none/sharedworker-import.http-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-none/sharedworker-import.https-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-none/sharedworker-module.http-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-none/sharedworker-module.https-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-none/worker-classic.http-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-none/worker-classic.https-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-none/worker-import-data.http-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-none/worker-import-data.https-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-none/worker-import.http-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-none/worker-import.https-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-none/worker-module.http-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-none/worker-module.https-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-self/sharedworker-import-data.http-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-self/sharedworker-import-data.https-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-self/sharedworker-import.http-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-self/sharedworker-import.https-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-self/worker-import-data.http-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-self/worker-import-data.https-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-wildcard/sharedworker-import-data.http-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-wildcard/sharedworker-import-data.https-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-wildcard/worker-import-data.http-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-wildcard/worker-import-data.https-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.meta/script-src-self/sharedworker-import-data.http-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.meta/script-src-self/sharedworker-import-data.https-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.meta/script-src-self/worker-import-data.http-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.meta/script-src-self/worker-import-data.https-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.meta/script-src-wildcard/sharedworker-import-data.http-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.meta/script-src-wildcard/sharedworker-import-data.https-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.meta/script-src-wildcard/worker-import-data.http-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.meta/script-src-wildcard/worker-import-data.https-expected.txt:
+            * web-platform-tests/content-security-policy/worker-src/dedicated-fallback.sub-expected.txt:
+            * web-platform-tests/content-security-policy/worker-src/dedicated-none.sub-expected.txt:
+            * web-platform-tests/content-security-policy/worker-src/dedicated-worker-src-child-fallback-blocked.sub-expected.txt:
+            * web-platform-tests/content-security-policy/worker-src/dedicated-worker-src-script-fallback.sub-expected.txt:
+            * web-platform-tests/content-security-policy/worker-src/dedicated-worker-src-self-fallback.sub-expected.txt:
+            * web-platform-tests/content-security-policy/worker-src/service-none.https.sub-expected.txt:
+            * web-platform-tests/content-security-policy/worker-src/service-worker-src-child-fallback-blocked.https.sub-expected.txt:
+            * web-platform-tests/content-security-policy/worker-src/shared-child.sub-expected.txt: Added.
+            * web-platform-tests/content-security-policy/worker-src/shared-fallback.sub-expected.txt: Added.
+            * web-platform-tests/content-security-policy/worker-src/shared-list.sub-expected.txt: Added.
+            * web-platform-tests/content-security-policy/worker-src/shared-none.sub-expected.txt: Added.
+            * web-platform-tests/content-security-policy/worker-src/shared-self.sub-expected.txt: Added.
+            * web-platform-tests/content-security-policy/worker-src/shared-worker-src-child-fallback-blocked.sub-expected.txt: Added.
+            * web-platform-tests/content-security-policy/worker-src/shared-worker-src-child-fallback.sub-expected.txt: Added.
+            * web-platform-tests/content-security-policy/worker-src/shared-worker-src-default-fallback.sub-expected.txt: Added.
+            * web-platform-tests/content-security-policy/worker-src/shared-worker-src-script-fallback.sub-expected.txt: Added.
+            * web-platform-tests/content-security-policy/worker-src/shared-worker-src-self-fallback.sub-expected.txt: Added.
+            * web-platform-tests/content-security-policy/blob/self-doesnt-match-blob.sub-expected.txt:
+            * web-platform-tests/content-security-policy/blob/star-doesnt-match-blob.sub-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.http-rp/worker-src-self/worker-import-data.http-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.meta/worker-src-none/sharedworker-classic.http-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.meta/worker-src-none/sharedworker-classic.https-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.meta/worker-src-none/sharedworker-import-data.http-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.meta/worker-src-none/sharedworker-import-data.https-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.meta/worker-src-none/sharedworker-module.http-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.meta/worker-src-none/sharedworker-module.https-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.meta/worker-src-none/worker-classic.http-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.meta/worker-src-none/worker-classic.https-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.meta/worker-src-none/worker-import-data.http-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.meta/worker-src-none/worker-import-data.https-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.meta/worker-src-none/worker-import.http-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.meta/worker-src-none/worker-import.https-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.meta/worker-src-none/worker-module.http-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.meta/worker-src-none/worker-module.https-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.meta/worker-src-self/sharedworker-import-data.http-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.meta/worker-src-self/sharedworker-import-data.https-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.meta/worker-src-self/worker-import-data.http-expected.txt:
+            * web-platform-tests/content-security-policy/gen/top.meta/worker-src-self/worker-import-data.https-expected.txt:
+
+2022-03-07  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r290765. rdar://problem/89232969
+
+    Throw proper exception on failed removeEntry() calls
+    https://bugs.webkit.org/show_bug.cgi?id=237382
+    <rdar://89232969>
+    
+    Reviewed by Chris Dumez.
+    
+    LayoutTests/imported/w3c:
+    
+    * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-getDirectoryHandle.https.any-expected.txt:
+    * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-getDirectoryHandle.https.any.worker-expected.txt:
+    * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-getFileHandle.https.any-expected.txt:
+    * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-getFileHandle.https.any.worker-expected.txt:
+    * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-removeEntry.https.any-expected.txt:
+    * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-removeEntry.https.any.worker-expected.txt:
+    
+    Source/WebKit:
+    
+    Updated existing tests.
+    
+    * NetworkProcess/storage/FileSystemStorageError.h:
+    (WebKit::convertToException):
+    * NetworkProcess/storage/FileSystemStorageHandle.cpp:
+    (WebKit::FileSystemStorageHandle::removeEntry):
+    
+    LayoutTests:
+    
+    * storage/filesystemaccess/handle-move-expected.txt:
+    * storage/filesystemaccess/handle-move-worker-expected.txt:
+    * storage/filesystemaccess/resources/handle-move.js:
+    (async test):
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@290765 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-03-02  Sihui Liu  <sihui_liu@apple.com>
+
+            Throw proper exception on failed removeEntry() calls
+            https://bugs.webkit.org/show_bug.cgi?id=237382
+            <rdar://89232969>
+
+            Reviewed by Chris Dumez.
+
+            * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-getDirectoryHandle.https.any-expected.txt:
+            * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-getDirectoryHandle.https.any.worker-expected.txt:
+            * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-getFileHandle.https.any-expected.txt:
+            * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-getFileHandle.https.any.worker-expected.txt:
+            * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-removeEntry.https.any-expected.txt:
+            * web-platform-tests/file-system-access/sandboxed_FileSystemDirectoryHandle-removeEntry.https.any.worker-expected.txt:
+
+2022-03-07  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r290554. rdar://problem/83757966
+
+    Remove Node::deprecatedIsInert
+    https://bugs.webkit.org/show_bug.cgi?id=230845
+    
+    Reviewed by Antti Koivisto.
+    
+    LayoutTests/imported/w3c:
+    
+    This change unfortunately regresses focusability state when dynamically setting inert, due to a cached
+    computed style invalidation bug. This is minor in practice, since focusability usually gets queried in
+    user-initiated ways, when style already has fully been updated.
+    
+    However, making this change will improve performance by avoiding a full DOM ancestor walk when there
+    is no inert attribute on the page, since we will only check a style bit after this patch.
+    
+    * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/remove-dialog-should-unblock-document-expected.txt:
+    * web-platform-tests/inert/inert-canvas-fallback-content.tentative-expected.txt:
+    * web-platform-tests/inert/inert-node-is-unfocusable.tentative-expected.txt:
+    
+    Source/WebCore:
+    
+    This change unfortunately regresses focusability state when dynamically setting inert, due to a cached
+    computed style invalidation bug. This is minor in practice, since focusability usually gets queried in
+    user-initiated ways, when style already has fully been updated.
+    
+    However, making this change will improve performance by avoiding a full DOM ancestor walk when there
+    is no inert attribute on the page, since we will only check a style bit after this patch.
+    
+    * dom/Element.cpp:
+    (WebCore::Element::isFocusable const):
+    (WebCore::Element::isFocusableWithoutResolvingFullStyle const):
+    (WebCore::Element::isVisibleWithoutResolvingFullStyle const): Deleted.
+    * dom/Element.h:
+    * dom/Node.cpp:
+    (WebCore::Node::deprecatedIsInert const): Deleted.
+    * dom/Node.h:
+    * html/HTMLAreaElement.cpp:
+    (WebCore::HTMLAreaElement::isFocusable const):
+    
+    LayoutTests:
+    
+    * platform/ios-wk2/imported/w3c/web-platform-tests/html/semantics/interactive-elements/the-dialog-element/dialog-focusing-steps-inert-expected.txt: Added.
+    * platform/ios-wk2/imported/w3c/web-platform-tests/html/semantics/interactive-elements/the-dialog-element/dialog-showModal-expected.txt: Added.
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@290554 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-02-26  Tim Nguyen  <ntim@apple.com>
+
+            Remove Node::deprecatedIsInert
+            https://bugs.webkit.org/show_bug.cgi?id=230845
+
+            Reviewed by Antti Koivisto.
+
+            This change unfortunately regresses focusability state when dynamically setting inert, due to a cached
+            computed style invalidation bug. This is minor in practice, since focusability usually gets queried in
+            user-initiated ways, when style already has fully been updated.
+
+            However, making this change will improve performance by avoiding a full DOM ancestor walk when there
+            is no inert attribute on the page, since we will only check a style bit after this patch.
+
+            * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/remove-dialog-should-unblock-document-expected.txt:
+            * web-platform-tests/inert/inert-canvas-fallback-content.tentative-expected.txt:
+            * web-platform-tests/inert/inert-node-is-unfocusable.tentative-expected.txt:
+
+2022-03-07  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r290306. rdar://problem/88352589
+
+    Make pointer-events checks for SVG take in account inert subtrees
+    https://bugs.webkit.org/show_bug.cgi?id=235836
+    
+    Reviewed by Antti Koivisto.
+    
+    LayoutTests/imported/w3c:
+    
+    Added tests for both inert attribute & modal dialog cases.
+    
+    * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/inert-svg-hittest-expected.txt: Added.
+    * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/inert-svg-hittest.html: Added.
+    * web-platform-tests/inert/inert-svg-hittest.tentative-expected.txt: Added.
+    * web-platform-tests/inert/inert-svg-hittest.tentative.html: Added.
+    
+    Source/WebCore:
+    
+    Re-using visibleToHitTesting in SVG code isn't possible, because visibleToHitTesting removes visibility: hidden;
+    content from hit-testing, which we do not want to here, since pointer-events has values for SVG which still
+    allow clicking content regardless of their visibility value (pointer-events: painted/fill/stroke/all).
+    
+    Instead, we add an inert-aware effectivePointerEvents, similar to effectiveUserSelect and re-use that across the codebase.
+    
+    Tests: imported/w3c/web-platform-tests/html/semantics/interactive-elements/the-dialog-element/inert-svg-hittest.html
+           imported/w3c/web-platform-tests/inert/inert-svg-hittest.tentative.html
+    
+    * rendering/RenderElement.cpp:
+    (WebCore::RenderElement::styleWillChange):
+    * rendering/RenderElement.h:
+    (WebCore::RenderElement::visibleToHitTesting const):
+    * rendering/RenderLayerCompositor.cpp:
+    (WebCore::RenderLayerCompositor::layerStyleChanged):
+    * rendering/style/RenderStyle.h:
+    (WebCore::RenderStyle::effectivePointerEvents const):
+    * rendering/svg/LegacyRenderSVGModelObject.cpp:
+    (WebCore::LegacyRenderSVGModelObject::checkIntersection):
+    (WebCore::LegacyRenderSVGModelObject::checkEnclosure):
+    * rendering/svg/LegacyRenderSVGShape.cpp:
+    (WebCore::LegacyRenderSVGShape::nodeAtFloatPoint):
+    * rendering/svg/RenderSVGImage.cpp:
+    (WebCore::RenderSVGImage::nodeAtFloatPoint):
+    * rendering/svg/RenderSVGModelObject.cpp:
+    (WebCore::RenderSVGModelObject::checkIntersection):
+    (WebCore::RenderSVGModelObject::checkEnclosure):
+    * rendering/svg/RenderSVGShape.cpp:
+    (WebCore::RenderSVGShape::nodeAtPoint):
+    * rendering/svg/RenderSVGText.cpp:
+    (WebCore::RenderSVGText::nodeAtFloatPoint):
+    * rendering/svg/SVGInlineTextBox.cpp:
+    (WebCore::SVGInlineTextBox::nodeAtPoint):
+    
+    LayoutTests:
+    
+    iOS doesn't support test_actions, so it needs different baselines.
+    
+    * platform/ios-wk2/imported/w3c/web-platform-tests/html/semantics/interactive-elements/the-dialog-element/inert-svg-hittest-expected.txt: Added.
+    * platform/ios-wk2/imported/w3c/web-platform-tests/inert/inert-svg-hittest.tentative-expected.txt: Added.
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@290306 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-02-22  Tim Nguyen  <ntim@apple.com>
+
+            Make pointer-events checks for SVG take in account inert subtrees
+            https://bugs.webkit.org/show_bug.cgi?id=235836
+
+            Reviewed by Antti Koivisto.
+
+            Added tests for both inert attribute & modal dialog cases.
+
+            * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/inert-svg-hittest-expected.txt: Added.
+            * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/inert-svg-hittest.html: Added.
+            * web-platform-tests/inert/inert-svg-hittest.tentative-expected.txt: Added.
+            * web-platform-tests/inert/inert-svg-hittest.tentative.html: Added.
+
+2022-03-07  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r290232. rdar://problem/88818132
+
+    Rebaseline inert-focus-in-frames.html after r290197.
+    
+    Unreviewed test gardening.
+    
+    For some reason, the rebaselining changes didn't make it in the patch.
+    
+    * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/inert-focus-in-frames-expected.txt:
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@290232 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-02-20  Tim Nguyen  <ntim@apple.com>
+
+            Rebaseline inert-focus-in-frames.html after r290197.
+
+            Unreviewed test gardening.
+
+            For some reason, the rebaselining changes didn't make it in the patch.
+
+            * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/inert-focus-in-frames-expected.txt:
+
+2022-03-07  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r290197. rdar://problem/88818132
+
+    Stop propagating inertness through iframes in Node::deprecatedIsInert()
+    https://bugs.webkit.org/show_bug.cgi?id=236512
+    
+    Reviewed by Chris Dumez.
+    
+    This is only a bug for Node::deprecatedIsInert(), so it only affects focus. Selection APIs, etc. weren't affected
+    before this bug.
+    
+    LayoutTests/imported/w3c:
+    
+    * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/inert-focus-in-frames-expected.txt:
+    
+    Source/WebCore:
+    
+    Test: web-platform-tests/html/semantics/interactive-elements/the-dialog-element/inert-focus-in-frames.html
+    
+    * dom/Node.cpp:
+    (WebCore::Node::deprecatedIsInert const):
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@290197 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-02-18  Tim Nguyen  <ntim@apple.com>
+
+            Stop propagating inertness through iframes in Node::deprecatedIsInert()
+            https://bugs.webkit.org/show_bug.cgi?id=236512
+
+            Reviewed by Chris Dumez.
+
+            This is only a bug for Node::deprecatedIsInert(), so it only affects focus. Selection APIs, etc. weren't affected
+            before this bug.
+
+            * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/inert-focus-in-frames-expected.txt:
+
+2022-03-07  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r290164. rdar://problem/89162532
+
+    Re-import inert and <dialog> WPT
+    https://bugs.webkit.org/show_bug.cgi?id=236808
+    
+    Reviewed by Simon Fraser.
+    
+    Commit: https://github.com/web-platform-tests/wpt/commit/0d483a3bea340a2c60cb7a4add49eb63cbba2a64
+    
+    LayoutTests/imported/w3c:
+    
+    * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/dialog-focus-shadow-double-nested-expected.txt: Renamed from LayoutTests/imported/w3c/web-platform-tests/html/semantics/interactive-elements/the-dialog-element/dialog-focus-shadow-delegatesfocus-expected.txt.
+    * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/dialog-focus-shadow-double-nested.html: Renamed from LayoutTests/imported/w3c/web-platform-tests/html/semantics/interactive-elements/the-dialog-element/dialog-focus-shadow-delegatesfocus.html.
+    * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/dialog-focus-shadow-expected.txt:
+    * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/dialog-focus-shadow.html:
+    * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/inert-focus-in-frames-expected.txt:
+    * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/inert-focus-in-frames.html:
+    * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/inert-label-focus.html:
+    * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/inertness-with-modal-dialogs-and-iframes-expected.txt:
+    * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/inertness-with-modal-dialogs-and-iframes.html:
+    * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/modal-dialog-scroll-height.html:
+    * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/w3c-import.log:
+    * web-platform-tests/inert/dynamic-inert-on-focused-element.tentative-expected.txt: Added.
+    * web-platform-tests/inert/dynamic-inert-on-focused-element.tentative.html: Added.
+    * web-platform-tests/inert/inert-canvas-fallback-content.tentative-expected.txt: Added.
+    * web-platform-tests/inert/inert-canvas-fallback-content.tentative.html: Added.
+    * web-platform-tests/inert/inert-iframe-hittest.tentative-expected.txt: Added.
+    * web-platform-tests/inert/inert-iframe-hittest.tentative.html: Added.
+    * web-platform-tests/inert/inert-iframe-tabbing.tentative-expected.txt: Added.
+    * web-platform-tests/inert/inert-iframe-tabbing.tentative.html: Added.
+    * web-platform-tests/inert/inert-node-is-uneditable.tentative.html:
+    * web-platform-tests/inert/inert-with-modal-dialog-001.tentative-expected.txt: Added.
+    * web-platform-tests/inert/inert-with-modal-dialog-001.tentative.html: Added.
+    * web-platform-tests/inert/inert-with-modal-dialog-002.tentative-expected.txt: Added.
+    * web-platform-tests/inert/inert-with-modal-dialog-002.tentative.html: Added.
+    * web-platform-tests/inert/w3c-import.log:
+    
+    LayoutTests:
+    
+    * platform/ios-wk2/imported/w3c/web-platform-tests/inert/inert-iframe-hittest.tentative-expected.txt: Added.
+    * platform/ios-wk2/imported/w3c/web-platform-tests/inert/inert-iframe-tabbing.tentative-expected.txt: Added.
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@290164 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-02-18  Tim Nguyen  <ntim@apple.com>
+
+            Re-import inert and <dialog> WPT
+            https://bugs.webkit.org/show_bug.cgi?id=236808
+
+            Reviewed by Simon Fraser.
+
+            Commit: https://github.com/web-platform-tests/wpt/commit/0d483a3bea340a2c60cb7a4add49eb63cbba2a64
+
+            * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/dialog-focus-shadow-double-nested-expected.txt: Renamed from LayoutTests/imported/w3c/web-platform-tests/html/semantics/interactive-elements/the-dialog-element/dialog-focus-shadow-delegatesfocus-expected.txt.
+            * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/dialog-focus-shadow-double-nested.html: Renamed from LayoutTests/imported/w3c/web-platform-tests/html/semantics/interactive-elements/the-dialog-element/dialog-focus-shadow-delegatesfocus.html.
+            * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/dialog-focus-shadow-expected.txt:
+            * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/dialog-focus-shadow.html:
+            * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/inert-focus-in-frames-expected.txt:
+            * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/inert-focus-in-frames.html:
+            * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/inert-label-focus.html:
+            * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/inertness-with-modal-dialogs-and-iframes-expected.txt:
+            * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/inertness-with-modal-dialogs-and-iframes.html:
+            * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/modal-dialog-scroll-height.html:
+            * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/w3c-import.log:
+            * web-platform-tests/inert/dynamic-inert-on-focused-element.tentative-expected.txt: Added.
+            * web-platform-tests/inert/dynamic-inert-on-focused-element.tentative.html: Added.
+            * web-platform-tests/inert/inert-canvas-fallback-content.tentative-expected.txt: Added.
+            * web-platform-tests/inert/inert-canvas-fallback-content.tentative.html: Added.
+            * web-platform-tests/inert/inert-iframe-hittest.tentative-expected.txt: Added.
+            * web-platform-tests/inert/inert-iframe-hittest.tentative.html: Added.
+            * web-platform-tests/inert/inert-iframe-tabbing.tentative-expected.txt: Added.
+            * web-platform-tests/inert/inert-iframe-tabbing.tentative.html: Added.
+            * web-platform-tests/inert/inert-node-is-uneditable.tentative.html:
+            * web-platform-tests/inert/inert-with-modal-dialog-001.tentative-expected.txt: Added.
+            * web-platform-tests/inert/inert-with-modal-dialog-001.tentative.html: Added.
+            * web-platform-tests/inert/inert-with-modal-dialog-002.tentative-expected.txt: Added.
+            * web-platform-tests/inert/inert-with-modal-dialog-002.tentative.html: Added.
+            * web-platform-tests/inert/w3c-import.log:
+
+2022-02-28  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r289526. rdar://problem/87061239
+
+    [:has() pseudo-class] Nullptr crash with non-function :has
+    https://bugs.webkit.org/show_bug.cgi?id=236431
+    rdar://87061239
+    
+    Reviewed by Cameron McCormack.
+    
+    LayoutTests/imported/w3c:
+    
+    * web-platform-tests/css/selectors/parsing/parse-has-expected.txt:
+    * web-platform-tests/css/selectors/parsing/parse-has.html:
+    
+    Source/WebCore:
+    
+    Test: fast/selectors/malformed-has.html
+    
+    * css/parser/CSSSelectorParser.cpp:
+    (WebCore::isOnlyPseudoClassFunction):
+    
+    :has() is legal, plain :has is not.
+    
+    LayoutTests:
+    
+    * fast/selectors/malformed-has-expected.txt: Added.
+    * fast/selectors/malformed-has.html: Added.
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@289526 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-02-10  Antti Koivisto  <antti@apple.com>
+
+            [:has() pseudo-class] Nullptr crash with non-function :has
+            https://bugs.webkit.org/show_bug.cgi?id=236431
+            rdar://87061239
+
+            Reviewed by Cameron McCormack.
+
+            * web-platform-tests/css/selectors/parsing/parse-has-expected.txt:
+            * web-platform-tests/css/selectors/parsing/parse-has.html:
+
+2022-02-28  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r289443. rdar://problem/88593617
+
+    REGRESSION (15.4): Angular virtual scrollers no longer work (because of contain:strict)
+    https://bugs.webkit.org/show_bug.cgi?id=236260
+    
+    Patch by Rob Buis <rbuis@igalia.com> on 2022-02-08
+    Reviewed by Simon Fraser.
+    
+    LayoutTests/imported/w3c:
+    
+    * web-platform-tests/css/css-contain/contain-paint-049-expected.txt: Added.
+    * web-platform-tests/css/css-contain/contain-paint-049.html: Added.
+    
+    Source/WebCore:
+    
+    Paint containment did not allow collecting scrollable overflow, breaking scrolling
+    of the container contents, this patch fixes that.
+    
+    Test: imported/w3c/web-platform-tests/css/css-contain/contain-paint-049.html
+    
+    * rendering/RenderBox.cpp:
+    (WebCore::RenderBox::addOverflowFromChild):
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@289443 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-02-08  Rob Buis  <rbuis@igalia.com>
+
+            REGRESSION (15.4): Angular virtual scrollers no longer work (because of contain:strict)
+            https://bugs.webkit.org/show_bug.cgi?id=236260
+
+            Reviewed by Simon Fraser.
+
+            * web-platform-tests/css/css-contain/contain-paint-049-expected.txt: Added.
+            * web-platform-tests/css/css-contain/contain-paint-049.html: Added.
+
+2022-02-14  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r289682. rdar://problem/88843567
+
+    Unreviewed, reverting r289498.
+    https://bugs.webkit.org/show_bug.cgi?id=236534
+    
+    Speedometer2 2% regression
+    
+    Reverted changeset:
+    
+    "Dialog element only animates once"
+    https://bugs.webkit.org/show_bug.cgi?id=236274
+    https://commits.webkit.org/r289498
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@289682 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-02-11  Commit Queue  <commit-queue@webkit.org>
+
+            Unreviewed, reverting r289498.
+            https://bugs.webkit.org/show_bug.cgi?id=236534
+
+            Speedometer2 2% regression
+
+            Reverted changeset:
+
+            "Dialog element only animates once"
+            https://bugs.webkit.org/show_bug.cgi?id=236274
+            https://commits.webkit.org/r289498
+
 2022-02-07  Russell Epstein  <repstein@apple.com>
 
         Cherry-pick r289021. rdar://problem/88599774

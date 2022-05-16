@@ -1,3 +1,254 @@
+2022-04-10  Yusuke Suzuki  <ysuzuki@apple.com>
+
+        [JSC] DFG / FTL should be aware of JSString's String replacement
+        https://bugs.webkit.org/show_bug.cgi?id=238918
+
+        Reviewed by Saam Barati.
+
+        * stress/resolve-rope-get-by-val.js: Added.
+        (shouldBe):
+        (test):
+        * stress/resolve-rope-string-char-at.js: Added.
+        (shouldBe):
+        (test):
+        * stress/resolve-rope-string-char-code-at.js: Added.
+        (shouldBe):
+        (test):
+        * stress/resolve-rope-string-code-point-at.js: Added.
+        (shouldBe):
+        (test):
+
+2022-04-18  Kocsen Chung  <kocsen_chung@apple.com>
+
+        Cherry-pick r292594. rdar://problem/91467003
+
+    [JSC] Fire structure transition watchpoint in Structure::finishCreation instead of Structure constructor
+    https://bugs.webkit.org/show_bug.cgi?id=238980
+    
+    Reviewed by Saam Barati.
+    
+    JSTests:
+    
+    * stress/heap-allocation-in-did-structure-transition-watchpoint.js: Added.
+    (__isPropertyOfType):
+    (__getProperties):
+    (__getObjects):
+    (__getRandomObject):
+    (__getRandomProperty):
+    (__callGC):
+    (get var):
+    
+    Source/JavaScriptCore:
+    
+    After https://github.com/WebKit/WebKit/commit/dc3a347474a183891f8e07966dc09e684d7a1d13 change,
+    we start using Structure::get in the main thread. However one of the difference between Structure::get and
+    Structure::getConcurrently is that it can allocate GC memory: PropertyTable can be materialized.
+    
+    Structure constructor was firing structure transition watchpoint. And some of watchpoints were using
+    Structure::getConcurrently. That's fine before, but now, it becomes Structure::get. It is not OK since
+    we cannot allocate GC memory inside constructor of GC managed objects.
+    
+    This patch split didTransitionFromThisStructure into didTransitionFromThisStructureWithoutFiringWatchpoint and
+    fireStructureTransitionWatchpoint. And firing watchpoints in Structure::finishCreation instead of Structure
+    constructor so that we can allocate GC memory while firing watchpoints.
+    
+    * runtime/BrandedStructure.cpp:
+    (JSC::BrandedStructure::BrandedStructure):
+    (JSC::BrandedStructure::create):
+    * runtime/BrandedStructure.h:
+    * runtime/Structure.cpp:
+    (JSC::Structure::Structure):
+    (JSC::Structure::didTransitionFromThisStructureWithoutFiringWatchpoint const):
+    (JSC::Structure::fireStructureTransitionWatchpoint const):
+    (JSC::Structure::didTransitionFromThisStructure const):
+    * runtime/Structure.h:
+    (JSC::Structure::finishCreation):
+    * runtime/StructureInlines.h:
+    (JSC::Structure::create):
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@292594 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-04-07  Yusuke Suzuki  <ysuzuki@apple.com>
+
+            [JSC] Fire structure transition watchpoint in Structure::finishCreation instead of Structure constructor
+            https://bugs.webkit.org/show_bug.cgi?id=238980
+
+            Reviewed by Saam Barati.
+
+            * stress/heap-allocation-in-did-structure-transition-watchpoint.js: Added.
+            (__isPropertyOfType):
+            (__getProperties):
+            (__getObjects):
+            (__getRandomObject):
+            (__getRandomProperty):
+            (__callGC):
+            (get var):
+
+2022-04-18  Kocsen Chung  <kocsen_chung@apple.com>
+
+        Cherry-pick r292484. rdar://problem/89253391
+
+    [JSC] Substring resolving should check 8bit / 16bit again
+    https://bugs.webkit.org/show_bug.cgi?id=236775
+    <rdar://problem/89253391>
+    
+    Reviewed by Saam Barati.
+    
+    JSTests:
+    
+    * stress/8bit-16bit-atomize-conversion.js: Added.
+    (main.v64):
+    (main):
+    
+    Source/JavaScriptCore:
+    
+    Substring JSString is wrapping JSString. Thus it is possible that underlying JSString's 8Bit / 16Bit status
+    becomes different from substring JSString wrapper's bit. We should not assume they are the same.
+    
+    * runtime/JSString.cpp:
+    (JSC::JSRopeString::resolveRopeInternal const):
+    (JSC::JSRopeString::resolveRopeToAtomString const):
+    (JSC::JSRopeString::resolveRopeToExistingAtomString const):
+    (JSC::JSRopeString::resolveRopeInternal8 const): Deleted.
+    (JSC::JSRopeString::resolveRopeInternal16 const): Deleted.
+    * runtime/JSString.h:
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@292484 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-04-06  Yusuke Suzuki  <ysuzuki@apple.com>
+
+            [JSC] Substring resolving should check 8bit / 16bit again
+            https://bugs.webkit.org/show_bug.cgi?id=236775
+            <rdar://problem/89253391>
+
+            Reviewed by Saam Barati.
+
+            * stress/8bit-16bit-atomize-conversion.js: Added.
+            (main.v64):
+            (main):
+
+2022-03-21  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r290981. rdar://problem/83326232
+
+    Remove invalid ASSERT in LocaleIDBuilder::overrideLanguageScriptRegion().
+    https://bugs.webkit.org/show_bug.cgi?id=237573
+    <rdar://problem/83326232>
+    
+    Reviewed by Yusuke Suzuki.
+    
+    JSTests:
+    
+    * stress/handle-empty-localeID-in-localeIDBufferForLanguageTagWithNullTerminator.js: Added.
+    
+    Source/JavaScriptCore:
+    
+    The ASSERT(length) in LocaleIDBuilder::overrideLanguageScriptRegion() is simply
+    incorrect.  The length can be 0 if uloc_forLanguageTag returns a 0 length in
+    localeIDBufferForLanguageTagWithNullTerminator().  LocaleIDBuilder::overrideLanguageScriptRegion()
+    already handles this scenario correctly.  We just need to remove this incorrect ASSERT.
+    
+    Also verified that we're producing the same result on the attached test case as
+    Chrome and Firefox produces.
+    
+    * runtime/IntlObject.cpp:
+    (JSC::localeIDBufferForLanguageTagWithNullTerminator):
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@290981 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-03-08  Mark Lam  <mark.lam@apple.com>
+
+            Remove invalid ASSERT in LocaleIDBuilder::overrideLanguageScriptRegion().
+            https://bugs.webkit.org/show_bug.cgi?id=237573
+            <rdar://problem/83326232>
+
+            Reviewed by Yusuke Suzuki.
+
+            * stress/handle-empty-localeID-in-localeIDBufferForLanguageTagWithNullTerminator.js: Added.
+
+2022-03-21  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r290517. rdar://problem/89428235
+
+    operationMaterializeObjectInOSR should DeferTerminationForAWhile instead of just DeferTermination.
+    https://bugs.webkit.org/show_bug.cgi?id=237173
+    rdar://problem/89450245
+    
+    Reviewed by Yusuke Suzuki.
+    
+    JSTests:
+    
+    * stress/termination-exception-in-operationMaterializeObjectInOSR2.js: Added.
+    
+    Source/JavaScriptCore:
+    
+    DeferTermination can throw the TerminationException on destruction of the scope
+    object.  operationMaterializeObjectInOSR() was using DeferTermination, resulting
+    in the TerminationException being thrown on exit.  This trips up
+    validateDFGExceptionHandling testing (which is enabled on Debug builds) because the
+    TerminationException is unexpected.  The solution is simply to use
+    DeferTerminationForAWhile instead, and let a more natural trap checkpoint throw
+    the TerminationException later.
+    
+    Also refactored notifyDebuggerOfUnwinding() to return early if a debugger is not
+    present.  This avoids unnecessarily entering and exiting a DeferTermination scope
+    in notifyDebuggerOfUnwinding().  This was observed while testing this change on
+    the attached test case.
+    
+    * ftl/FTLOperations.cpp:
+    (JSC::FTL::operationMaterializeObjectInOSR):
+    * interpreter/Interpreter.cpp:
+    (JSC::notifyDebuggerOfUnwinding):
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@290517 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-02-25  Mark Lam  <mark.lam@apple.com>
+
+            operationMaterializeObjectInOSR should DeferTerminationForAWhile instead of just DeferTermination.
+            https://bugs.webkit.org/show_bug.cgi?id=237173
+            rdar://problem/89450245
+
+            Reviewed by Yusuke Suzuki.
+
+            * stress/termination-exception-in-operationMaterializeObjectInOSR2.js: Added.
+
+2022-03-07  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r290265. rdar://problem/88258776
+
+    [JSC] Add explicit exception check after appendWithoutSideEffects
+    https://bugs.webkit.org/show_bug.cgi?id=236986
+    rdar://88258776
+    
+    Reviewed by Saam Barati.
+    
+    JSTests:
+    
+    * stress/array-to-string-oom.js: Added.
+    
+    Source/JavaScriptCore:
+    
+    Add exception check after JSStringJoiner::appendWithoutSideEffects call since JSString::value can throw OOM error.
+    
+    * runtime/ArrayPrototype.cpp:
+    (JSC::JSC_DEFINE_HOST_FUNCTION):
+    * runtime/JSStringJoiner.h:
+    (JSC::JSStringJoiner::append):
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@290265 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-02-21  Yusuke Suzuki  <ysuzuki@apple.com>
+
+            [JSC] Add explicit exception check after appendWithoutSideEffects
+            https://bugs.webkit.org/show_bug.cgi?id=236986
+            rdar://88258776
+
+            Reviewed by Saam Barati.
+
+            * stress/array-to-string-oom.js: Added.
+
 2022-02-09  Alan Coon  <alancoon@apple.com>
 
         Cherry-pick r289450. rdar://problem/88483574

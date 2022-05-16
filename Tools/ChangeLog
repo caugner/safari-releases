@@ -1,3 +1,1133 @@
+2022-04-19  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r292680. rdar://problem/91323230
+
+    The Youtube plugin replacement should only work for actual Youtube URLs
+    https://bugs.webkit.org/show_bug.cgi?id=239003
+    <rdar://91323230>
+    
+    Reviewed by Brent Fulgham.
+    
+    Source/WebCore:
+    
+    The Youtube plugin replacement was too permissive and was falling back to using
+    the original URL in cases there the original URL wasn't an expected Youtube
+    URL. This patch hardens the plugin replacement and drops the URL if it is not
+    a valid youtube URL instead.
+    
+    Covered by new API test.
+    
+    * Modules/plugins/YouTubePluginReplacement.cpp:
+    (WebCore::isYouTubeURL):
+    (WebCore::processAndCreateYouTubeURL):
+    (WebCore::YouTubePluginReplacement::youTubeURLFromAbsoluteURL):
+    
+    Tools:
+    
+    Add API test coverage.
+    
+    * TestWebKitAPI/SourcesCocoa.txt:
+    * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj:
+    * TestWebKitAPI/Tests/WebCore/YouTubePluginReplacement.cpp:
+    (TestWebKitAPI::test):
+    (TestWebKitAPI::TEST_F):
+    * TestWebKitAPI/Tests/WebKitCocoa/YoutubeReplacementPlugin.mm: Added.
+    (TEST):
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@292680 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-04-09  Chris Dumez  <cdumez@apple.com>
+
+            The Youtube plugin replacement should only work for actual Youtube URLs
+            https://bugs.webkit.org/show_bug.cgi?id=239003
+            <rdar://91323230>
+
+            Reviewed by Brent Fulgham.
+
+            Add API test coverage.
+
+            * TestWebKitAPI/SourcesCocoa.txt:
+            * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj:
+            * TestWebKitAPI/Tests/WebCore/YouTubePluginReplacement.cpp:
+            (TestWebKitAPI::test):
+            (TestWebKitAPI::TEST_F):
+            * TestWebKitAPI/Tests/WebKitCocoa/YoutubeReplacementPlugin.mm: Added.
+            (TEST):
+
+2022-04-19  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r291606. rdar://problem/91446317
+
+    Website policies are not respected when doing COOP based process swap
+    https://bugs.webkit.org/show_bug.cgi?id=238036
+    <rdar://89616625>
+    
+    Reviewed by Chris Dumez.
+    
+    Source/WebKit:
+    
+    In case of normal process swap, we make use of website policies so everything is fine.
+    For COOP based process swap, this happens later on, at a point where we lost website policies.
+    To overcome this, we store the website policies used by a navigation inside the API::Navigation object.
+    It is used by continueNavigationInNewProcess to correctly initialize the new WebPage website policies.
+    We then set the website policies in the navigation object just before continuing the load in the same process,
+    as process swap may happen later when inspecting the response.
+    Minor refactoring in continueNavigationInNewProcess to get the policies directly from the given Navigation object.
+    Minor refactoring in receivedNavigationPolicyDecision to make the code doing process swap clearer.
+    
+    Covered by API test.
+    
+    * UIProcess/API/APINavigation.h:
+    (API::Navigation::setWebsitePoliciesForProcessSwap):
+    (API::Navigation::takeWebsitePoliciesForProcessSwap):
+    * UIProcess/WebPageProxy.cpp:
+    (WebKit::WebPageProxy::receivedNavigationPolicyDecision):
+    (WebKit::WebPageProxy::receivedPolicyDecision):
+    (WebKit::WebPageProxy::continueNavigationInNewProcess):
+    (WebKit::WebPageProxy::triggerBrowsingContextGroupSwitchForNavigation):
+    * UIProcess/WebPageProxy.h:
+    
+    Tools:
+    
+    * TestWebKitAPI/Tests/WebKitCocoa/ProcessSwapOnNavigation.mm:
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@291606 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-03-22  Youenn Fablet  <youenn@apple.com>
+
+            Website policies are not respected when doing COOP based process swap
+            https://bugs.webkit.org/show_bug.cgi?id=238036
+            <rdar://89616625>
+
+            Reviewed by Chris Dumez.
+
+            * TestWebKitAPI/Tests/WebKitCocoa/ProcessSwapOnNavigation.mm:
+
+2022-04-18  Kocsen Chung  <kocsen_chung@apple.com>
+
+        Cherry-pick r292401. rdar://problem/83168970
+
+    5 Media API tests are flakily timing out on iOS14
+    https://bugs.webkit.org/show_bug.cgi?id=230321
+    <rdar://problem/83168970>
+    
+    Reviewed by Jer Noble.
+    
+    Source/WebKit:
+    
+    Un-skipped API test WKWebViewPausePlayingAudioTests.OutOfWindow
+    
+    * UIProcess/ios/WebPageProxyIOS.mm:
+    (WebKit::WebPageProxy::applicationWillEnterForegroundForMedia): Log the correct name.
+    
+    * WebProcess/WebPage/ios/WebPageIOS.mm:
+    (WebKit::WebPage::applicationDidEnterBackgroundForMedia): Call PlatformMediaSessionManager.
+    (WebKit::WebPage::applicationWillEnterForegroundForMedia): Ditto.
+    
+    Tools:
+    
+    * TestWebKitAPI/Tests/ios/WKWebViewPausePlayingAudioTests.mm:
+    (TestWebKitAPI::TEST):
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@292401 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-04-05  Eric Carlson  <eric.carlson@apple.com>
+
+            5 Media API tests are flakily timing out on iOS14
+            https://bugs.webkit.org/show_bug.cgi?id=230321
+            <rdar://problem/83168970>
+
+            Reviewed by Jer Noble.
+
+            * TestWebKitAPI/Tests/ios/WKWebViewPausePlayingAudioTests.mm:
+            (TestWebKitAPI::TEST):
+
+2022-04-13  Kocsen Chung  <kocsen_chung@apple.com>
+
+        Cherry-pick r292721. rdar://problem/88249235
+
+    Fix size computation in WebCore::StorageMap
+    https://bugs.webkit.org/show_bug.cgi?id=239024
+    rdar://88249235
+    
+    Reviewed by Chris Dumez.
+    
+    Source/WebCore:
+    
+    We use currentSize to track size for StorageMap. There are a few issues in current implementation that can make
+    currentSize incorrect and may lead to overflow:
+    1. When computing size of key, StorageMap uses parameter key instead of stored key. The problem is that
+    two Strings can be evaluated to equal while their sizeInBytes() value is different, when one String is 8-bit and
+    the other is 16-bit. That means removeItem() may decrease currentSize by wrong number (e.g setItem() with an
+    8-bit key, converting the key to 16-bit, removeItem() with the key). To fix this, StorageMap now always uses
+    stored key for computation.
+    2. When map.take(key) or map.get(key) returns null string, StorageMap takes it as the key does not exist and
+    will not correctly update currentSize, but user of WebCore::StorageMap may store null string as value. To fix
+    this, StorageMap now check if key exists with find() function.
+    3. StorageMap only uses CheckedUint32 in setItem(), but removeItem() and importItem() may cause overflow in
+    currentSize as mentioned above, and the error will not be caught until setItem() is called. To fix this,
+    StorageMap now uses CheckedUint32 in all places that update currentSize.
+    
+    New test: WKWebView.LocalStorageNoSizeOverflow
+    
+    * storage/StorageMap.cpp:
+    (WebCore::StorageMap::setItem):
+    (WebCore::StorageMap::removeItem):
+    (WebCore::StorageMap::importItems):
+    
+    Tools:
+    
+    * TestWebKitAPI/Tests/WebKitCocoa/LocalStoragePersistence.mm:
+    (TEST):
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@292721 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-04-11  Sihui Liu  <sihui_liu@apple.com>
+
+            Fix size computation in WebCore::StorageMap
+            https://bugs.webkit.org/show_bug.cgi?id=239024
+            rdar://88249235
+
+            Reviewed by Chris Dumez.
+
+            * TestWebKitAPI/Tests/WebKitCocoa/LocalStoragePersistence.mm:
+            (TEST):
+
+2022-04-07  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r291886. rdar://problem/72814440
+
+    `PointerEvent.movementX` always 0 (breaks https://noisecraft.app/)
+    https://bugs.webkit.org/show_bug.cgi?id=220194
+    <rdar://problem/72814440>
+    
+    Reviewed by Simon Fraser.
+    
+    LayoutTests/imported/w3c:
+    
+    * web-platform-tests/pointerevents/pointerlock/pointerevent_movementxy_with_pointerlock-expected.txt:
+    This change causes the test to progress further than before, but there still appear to be
+    other issues elsewhere, so adjust the expected output to reflect that.
+    
+    Source/WebCore:
+    
+    Test: pointer-lock/pointermove-movement-delta.html
+    
+    * dom/PointerEvent.cpp:
+    (WebCore::PointerEvent::PointerEvent):
+    Also pass along the movement delta in the constructor that takes a `MouseEvent`.
+    
+    * dom/MouseEvent.h:
+    * dom/MouseEvent.cpp:
+    (WebCore::MouseEvent::create):
+    (WebCore::MouseEvent::MouseEvent):
+    Require that all constructors that aren't invoked from JS always provide a movement delta.
+    
+    * dom/MouseRelatedEvent.h:
+    (WebCore::MouseRelatedEvent::movementX const):
+    (WebCore::MouseRelatedEvent::movementY const):
+    Expose these methods even when `!ENABLE(POINTER_LOCK)` so that they can be called without
+    the callsite having to also have a `#if`.
+    
+    * page/EventHandler.cpp:
+    (WebCore::EventHandler::dispatchDragEvent):
+    Pass along the movement delta even when `!ENABLE(POINTER_LOCK)`.
+    
+    Tools:
+    
+    * DumpRenderTree/mac/EventSendingController.mm:
+    (-[EventSendingController mouseMoveToX:Y:]):
+    * WebKitTestRunner/mac/EventSenderProxy.mm:
+    (WTR::EventSenderProxy::mouseMoveTo):
+    On macOS, the screen's origin is the bottom-left corner, so we need to flip the `deltaY`.
+    
+    LayoutTests:
+    
+    * pointer-lock/pointermove-movement-delta.html: Added.
+    * pointer-lock/pointermove-movement-delta-expected.txt: Added.
+    
+    * pointer-lock/mouse-event-delivery-expected.txt: Added.
+    On macOS, the screen's origin is the bottom-left corner, so we need to flip the `deltaY`.
+    
+    * platform/gtk/imported/w3c/web-platform-tests/pointerevents/pointerlock/pointerevent_movementxy_with_pointerlock-expected.txt: Added.
+    This change causes the test to progress further than before, but there still appear to be
+    other issues elsewhere, so adjust the expected output to reflect that.
+    
+    * platform/mac-wk1/TestExpectations:
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@291886 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-03-25  Devin Rousso  <drousso@apple.com>
+
+            `PointerEvent.movementX` always 0 (breaks https://noisecraft.app/)
+            https://bugs.webkit.org/show_bug.cgi?id=220194
+            <rdar://problem/72814440>
+
+            Reviewed by Simon Fraser.
+
+            * DumpRenderTree/mac/EventSendingController.mm:
+            (-[EventSendingController mouseMoveToX:Y:]):
+            * WebKitTestRunner/mac/EventSenderProxy.mm:
+            (WTR::EventSenderProxy::mouseMoveTo):
+            On macOS, the screen's origin is the bottom-left corner, so we need to flip the `deltaY`.
+
+2022-03-29  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r290371. rdar://problem/88652375
+
+    Call WKNavigationDelegate.didFailProvisionalNavigation even after a cross-origin navigation with COOP
+    https://bugs.webkit.org/show_bug.cgi?id=237071
+    <rdar://88652375>
+    
+    Patch by Alex Christensen <achristensen@webkit.org> on 2022-02-23
+    Reviewed by Chris Dumez.
+    
+    Source/WebKit:
+    
+    There was an assumption that this callback wasn't needed in this case, but it is.
+    Covered by an API test that verifies the callback is received.
+    
+    * UIProcess/ProvisionalPageProxy.cpp:
+    (WebKit::ProvisionalPageProxy::didFailProvisionalLoadForFrame):
+    
+    Tools:
+    
+    * TestWebKitAPI/Tests/WebKitCocoa/Navigation.mm:
+    (TEST):
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@290371 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-02-23  Alex Christensen  <achristensen@webkit.org>
+
+            Call WKNavigationDelegate.didFailProvisionalNavigation even after a cross-origin navigation with COOP
+            https://bugs.webkit.org/show_bug.cgi?id=237071
+            <rdar://88652375>
+
+            Reviewed by Chris Dumez.
+
+            * TestWebKitAPI/Tests/WebKitCocoa/Navigation.mm:
+            (TEST):
+
+2022-03-29  Alan Coon  <alancoon@apple.com>
+
+        Apply patch. rdar://problem/89997669
+
+    2022-02-14  Kimmo Kinnunen  <kkinnunen@apple.com>
+
+            ExtensionsGL is not useful class, it should be removed
+            https://bugs.webkit.org/show_bug.cgi?id=236490
+
+            Reviewed by Dean Jackson.
+
+            Update manually implemented functions.
+            * Scripts/generate-gpup-webgl:
+            * TestWebKitAPI/Tests/WebCore/cocoa/TestGraphicsContextGLCocoa.mm:
+
+2022-03-29  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r291980. rdar://problem/89434696
+
+    [iOS] Add `WKWebView` API to control CSS "small viewport" `sv*` and "large viewport" `lv*` units
+    https://bugs.webkit.org/show_bug.cgi?id=237979
+    <rdar://problem/89434696>
+    
+    Reviewed by Tim Horton.
+    
+    Source/WebCore:
+    
+    Tests: CSSViewportUnits.NegativeMinimumViewportInset
+           CSSViewportUnits.NegativeMaximumViewportInset
+           CSSViewportUnits.MinimumViewportInsetLargerThanMaximumViewportInset
+           CSSViewportUnits.MinimumViewportInsetLargerThanFrame
+           CSSViewportUnits.MaximumViewportInsetLargerThanFrame
+           CSSViewportUnits.MinimumViewportInset
+           CSSViewportUnits.MaximumViewportInset
+           CSSViewportUnits.MinimumViewportInsetWithZoom
+           CSSViewportUnits.MaximumViewportInsetWithZoom
+           CSSViewportUnits.MinimumViewportInsetWithWritingMode
+           CSSViewportUnits.MaximumViewportInsetWithWritingMode
+           CSSViewportUnits.MinimumViewportInsetWithFrame
+           CSSViewportUnits.MaximumViewportInsetWithFrame
+           CSSViewportUnits.MinimumViewportInsetWithBounds
+           CSSViewportUnits.MaximumViewportInsetWithBounds
+           CSSViewportUnits.MinimumViewportInsetWithContentInset
+           CSSViewportUnits.MaximumViewportInsetWithContentInset
+           CSSViewportUnits.MinimumViewportInsetWithSafeAreaInsets
+           CSSViewportUnits.MaximumViewportInsetWithSafeAreaInsets
+           CSSViewportUnits.UnobscuredSizeOverridesIgnoreMaximumViewportInsetAPI
+    
+    * page/FrameView.h:
+    * page/FrameView.cpp:
+    (WebCore::FrameView::performSizeToContentAutoSize):
+    (WebCore::FrameView::enableAutoSizeMode):
+    (WebCore::FrameView::clearSizeOverrideForCSSDefaultViewportUnits): Added.
+    (WebCore::FrameView::setSizeForCSSDefaultViewportUnits): Added.
+    (WebCore::FrameView::overrideWidthForCSSDefaultViewportUnits): Added.
+    (WebCore::FrameView::resetOverriddenWidthForCSSDefaultViewportUnits): Added.
+    (WebCore::FrameView::overrideSizeForCSSDefaultViewportUnits): Added.
+    (WebCore::FrameView::sizeForCSSDefaultViewportUnits const): Renamed from `sizeForCSSDefaultViewportUnits`.
+    (WebCore::FrameView::copyCSSViewportUnits const): Added.
+    Add all the various methods for getting/setting/overriding/clearing an override value for
+    CSS "default viewport" `v*` units. This allows for `WKWebView` clients to preserve existing
+    behavior (where CSS "default viewport" `v*` units match the size of the `WKWebView`) while
+    adding supporting CSS "small viewport" `sv*` units and CSS "large viewport" `lv*` units.
+    
+    Source/WebKit:
+    
+    Recently the W3C CSS working group added [some new unit types to CSS](https://drafts.csswg.org/css-values-4/#viewport-variants)
+    with the goal of helping web developers better deal with browsers that have dynamic UI
+    elements that change apperance/size/etc. based on user actions (e.g. the URL bar
+    collapsing/"squishing" and expanding/"unsquishing" depending on whether the user has most
+    recently scrolled/swiped down the page).
+    
+    These new units come in three categories:
+    - the "large viewport" units (`lvw`, `lvh`, etc.) each represent 1% of one dimension of the
+      size of the visual area of the page when all browser UI elements are in their smallest
+      state (e.g. when the URL bar is collapsed/"squished")
+    - the "small viewport" units (`svw`, `svh`, etc.) each represent 1% of one dimension of the
+      size of the visual area of the page when all browser UI elements are in their largest
+      state (e.g. when the URL bar is expanded/"unsquished")
+    - the "dynamic viewport" units (`dvw`, `dvh`, etc.) each represent 1% of one dimension of
+      the size of the current visual area of the page, which depends on the current state of all
+      browser UI elements
+    
+    This way, developer could use `100svh` to ensure that no matter what state the browser UI
+    elements are in the entire element will always be visible on the screen, or use `100dvh` to
+    respond to browser UI element changes by automatically resizing various elements to always
+    fully take advantage of the available space.
+    
+    Nothing needs to be added to support "dynamic viewport" `dv*` units as there already exists
+    other methods to adjust the visual area of the `WKWebView` without adjusting its `frame`
+    (e.g. `-[WKWebView setBounds:]`, `-[UIScrollView setContentInset:]`, etc.).
+    
+    But for "small viewport" `sv*` units and "large viewport" `lv*` units, however, there is
+    unfortunately no way to tell a `WKWebView` anything like "this is the smallest/largest that
+    this `WKWebView` will ever be", so there's no way to know ahead of time what the size of the
+    visual area would be when all browser UI elements are in their smallest/largest state. As
+    such, this patch adds a new API to allow for `WKWebView` clients to tell WebKit this
+    information ahead of time.
+    
+    Note that there already exists the concept of "default viewport" units (`vw`, `vh`, etc.)
+    that each represent 1% of one dimension of the size of the visual area of the page when all
+    browser UI elements are in their default state. The behavior of these units remain the same,
+    and the value can be changed via the existing `-[WKWebView setFrame:]`.
+    
+    Tests: CSSViewportUnits.NegativeMinimumViewportInset
+           CSSViewportUnits.NegativeMaximumViewportInset
+           CSSViewportUnits.MinimumViewportInsetLargerThanMaximumViewportInset
+           CSSViewportUnits.MinimumViewportInsetLargerThanFrame
+           CSSViewportUnits.MaximumViewportInsetLargerThanFrame
+           CSSViewportUnits.MinimumViewportInset
+           CSSViewportUnits.MaximumViewportInset
+           CSSViewportUnits.MinimumViewportInsetWithZoom
+           CSSViewportUnits.MaximumViewportInsetWithZoom
+           CSSViewportUnits.MinimumViewportInsetWithWritingMode
+           CSSViewportUnits.MaximumViewportInsetWithWritingMode
+           CSSViewportUnits.MinimumViewportInsetWithFrame
+           CSSViewportUnits.MaximumViewportInsetWithFrame
+           CSSViewportUnits.MinimumViewportInsetWithBounds
+           CSSViewportUnits.MaximumViewportInsetWithBounds
+           CSSViewportUnits.MinimumViewportInsetWithContentInset
+           CSSViewportUnits.MaximumViewportInsetWithContentInset
+           CSSViewportUnits.MinimumViewportInsetWithSafeAreaInsets
+           CSSViewportUnits.MaximumViewportInsetWithSafeAreaInsets
+           CSSViewportUnits.UnobscuredSizeOverridesIgnoreMaximumViewportInsetAPI
+    
+    * UIProcess/API/Cocoa/WKWebViewInternal.h:
+    * UIProcess/API/Cocoa/WKWebView.h:
+    * UIProcess/API/Cocoa/WKWebView.mm:
+    (-[WKWebView _recalculateViewportSizesWithMinimumViewportInset:maximumViewportInset:throwOnInvalidInput:]): Added.
+    (-[WKWebView setMinimumViewportInset:maximumViewportInset:]): Added.
+    * UIProcess/API/ios/WKWebViewIOS.mm:
+    (-[WKWebView _processWillSwapOrDidExit]):
+    (-[WKWebView _frameOrBoundsChanged]):
+    (-[WKWebView _didCompleteAnimatedResize]):
+    (-[WKWebView _setMinimumUnobscuredSizeOverride:]):
+    (-[WKWebView _setMaximumUnobscuredSizeOverride:]):
+    (-[WKWebView _beginAnimatedResizeWithUpdates:]):
+    (-[WKWebView _dispatchSetMinimumUnobscuredSize:]): Deleted.
+    (-[WKWebView _dispatchSetMaximumUnobscuredSize:]): Deleted.
+    Recalculate the size for CSS "small viewport" `sv*` units whenever the `frame` changes. Also
+    move the deduplication logic that prevents the same value from being sent to the WebProcess
+    more than once to the setter methods on `WebPageProxy` so that it can be used by more than
+    just iOS-only codepaths.
+    
+    * UIProcess/WebPageProxy.h:
+    * UIProcess/WebPageProxy.cpp:
+    (WebKit::WebPageProxy::setDefaultUnobscuredSize): Added.
+    (WebKit::WebPageProxy::setMinimumUnobscuredSize): Added.
+    (WebKit::WebPageProxy::setMaximumUnobscuredSize): Added.
+    (WebKit::WebPageProxy::creationParameters):
+    * UIProcess/ios/WebPageProxyIOS.mm:
+    (WebKit::WebPageProxy::dynamicViewportSizeUpdate):
+    (WebKit::WebPageProxy::setMinimumUnobscuredSize): Deleted.
+    (WebKit::WebPageProxy::setMaximumUnobscuredSize): Deleted.
+    * Shared/WebPageCreationParameters.h:
+    * Shared/WebPageCreationParameters.cpp:
+    (WebKit::WebPageCreationParameters::encode const):
+    (WebKit::WebPageCreationParameters::decode):
+    * WebProcess/WebPage/WebPage.messages.in:
+    * WebProcess/WebPage/WebPage.h:
+    * WebProcess/WebPage/WebPage.cpp:
+    (WebKit::WebPage::WebPage):
+    (WebKit::WebPage::setViewportSizeForCSSViewportUnits):
+    (WebKit::WebPage::setDefaultUnobscuredSize): Added.
+    (WebKit::WebPage::setMinimumUnobscuredSize): Added.
+    (WebKit::WebPage::setMaximumUnobscuredSize): Added.
+    (WebKit::WebPage::updateSizeForCSSDefaultViewportUnits): Added.
+    (WebKit::WebPage::updateSizeForCSSSmallViewportUnits): Added.
+    (WebKit::WebPage::updateSizeForCSSLargeViewportUnits): Added.
+    * WebProcess/WebPage/ios/WebPageIOS.mm:
+    (WebKit::WebPage::viewportConfigurationChanged):
+    (WebKit::WebPage::setMinimumUnobscuredSize): Deleted.
+    (WebKit::WebPage::setMaximumUnobscuredSize): Deleted.
+    (WebKit::WebPage::updateViewportSizeForCSSViewportUnits): Deleted.
+    Add all the various methods for getting/setting/overriding/clearing an override value for
+    CSS "default viewport" `v*` units. This allows for `WKWebView` clients to preserve existing
+    behavior (where CSS "default viewport" `v*` units match the size of the `WKWebView`) while
+    adding supporting CSS "small viewport" `sv*` units and CSS "large viewport" `lv*` units.
+    Move iOS-only code to be for all platforms.
+    
+    * WebProcess/WebCoreSupport/WebFrameLoaderClient.cpp:
+    (WebKit::WebFrameLoaderClient::transitionToCommittedForNewPage):
+    Propagate all viewport size overrides when a new `FrameView` is created.
+    
+    Tools:
+    
+    * TestWebKitAPI/Tests/WebKitCocoa/CSSViewportUnits.mm:
+    (TEST.CSSViewportUnits.NegativeMinimumViewportInset): Added.
+    (TEST.CSSViewportUnits.NegativeMaximumViewportInset): Added.
+    (TEST.CSSViewportUnits.MinimumViewportInsetLargerThanMaximumViewportInset): Added.
+    (TEST.CSSViewportUnits.MinimumViewportInsetLargerThanFrame): Added.
+    (TEST.CSSViewportUnits.MaximumViewportInsetLargerThanFrame): Added.
+    (TEST.CSSViewportUnits.MinimumViewportInset): Added.
+    (TEST.CSSViewportUnits.MaximumViewportInset): Added.
+    (TEST.CSSViewportUnits.MinimumViewportInsetWithZoom): Added.
+    (TEST.CSSViewportUnits.MaximumViewportInsetWithZoom): Added.
+    (TEST.CSSViewportUnits.MinimumViewportInsetWithWritingMode): Added.
+    (TEST.CSSViewportUnits.MaximumViewportInsetWithWritingMode): Added.
+    (TEST.CSSViewportUnits.MinimumViewportInsetWithFrame): Added.
+    (TEST.CSSViewportUnits.MaximumViewportInsetWithFrame): Added.
+    (TEST.CSSViewportUnits.MinimumViewportInsetWithBounds): Added.
+    (TEST.CSSViewportUnits.MaximumViewportInsetWithBounds): Added.
+    (TEST.CSSViewportUnits.MinimumViewportInsetWithContentInset): Added.
+    (TEST.CSSViewportUnits.MaximumViewportInsetWithContentInset): Added.
+    (TEST.CSSViewportUnits.MinimumViewportInsetWithSafeAreaInsets): Added.
+    (TEST.CSSViewportUnits.MaximumViewportInsetWithSafeAreaInsets): Added.
+    (TEST.CSSViewportUnits.UnobscuredSizeOverridesIgnoreMaximumViewportInsetAPI): Added.
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@291980 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-03-28  Devin Rousso  <drousso@apple.com>
+
+            [iOS] Add `WKWebView` API to control CSS "small viewport" `sv*` and "large viewport" `lv*` units
+            https://bugs.webkit.org/show_bug.cgi?id=237979
+            <rdar://problem/89434696>
+
+            Reviewed by Tim Horton.
+
+            * TestWebKitAPI/Tests/WebKitCocoa/CSSViewportUnits.mm:
+            (TEST.CSSViewportUnits.NegativeMinimumViewportInset): Added.
+            (TEST.CSSViewportUnits.NegativeMaximumViewportInset): Added.
+            (TEST.CSSViewportUnits.MinimumViewportInsetLargerThanMaximumViewportInset): Added.
+            (TEST.CSSViewportUnits.MinimumViewportInsetLargerThanFrame): Added.
+            (TEST.CSSViewportUnits.MaximumViewportInsetLargerThanFrame): Added.
+            (TEST.CSSViewportUnits.MinimumViewportInset): Added.
+            (TEST.CSSViewportUnits.MaximumViewportInset): Added.
+            (TEST.CSSViewportUnits.MinimumViewportInsetWithZoom): Added.
+            (TEST.CSSViewportUnits.MaximumViewportInsetWithZoom): Added.
+            (TEST.CSSViewportUnits.MinimumViewportInsetWithWritingMode): Added.
+            (TEST.CSSViewportUnits.MaximumViewportInsetWithWritingMode): Added.
+            (TEST.CSSViewportUnits.MinimumViewportInsetWithFrame): Added.
+            (TEST.CSSViewportUnits.MaximumViewportInsetWithFrame): Added.
+            (TEST.CSSViewportUnits.MinimumViewportInsetWithBounds): Added.
+            (TEST.CSSViewportUnits.MaximumViewportInsetWithBounds): Added.
+            (TEST.CSSViewportUnits.MinimumViewportInsetWithContentInset): Added.
+            (TEST.CSSViewportUnits.MaximumViewportInsetWithContentInset): Added.
+            (TEST.CSSViewportUnits.MinimumViewportInsetWithSafeAreaInsets): Added.
+            (TEST.CSSViewportUnits.MaximumViewportInsetWithSafeAreaInsets): Added.
+            (TEST.CSSViewportUnits.UnobscuredSizeOverridesIgnoreMaximumViewportInsetAPI): Added.
+
+2022-03-23  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r290985. rdar://problem/78421282
+
+    Add a preference to mute video capture in case audio capture gets interrupted
+    https://bugs.webkit.org/show_bug.cgi?id=237524
+    <rdar://78421282>
+    
+    Reviewed by Eric Carlson.
+    
+    Source/WebCore:
+    
+    In case we detect that a microphone track source gets muted due to interruption, we mute
+    capture video tracks based if allowed by the new MuteCameraOnMicrophoneInterruptionEnabled setting.
+    
+    Add support for mock microphone interruption and remove previous in process internals API.
+    
+    Test: fast/mediastream/media-stream-video-track-interrupted-from-audio.html
+    
+    * Modules/mediastream/MediaStreamTrack.cpp:
+    * Modules/mediastream/MediaStreamTrack.h:
+    * platform/mediastream/mac/CoreAudioCaptureSource.cpp:
+    * platform/mediastream/mac/CoreAudioCaptureSource.h:
+    * platform/mock/MockRealtimeAudioSource.cpp:
+    (WebCore::MockRealtimeAudioSource::setIsInterrupted):
+    * platform/mock/MockRealtimeAudioSource.h:
+    * platform/mock/MockRealtimeMediaSourceCenter.cpp:
+    (WebCore::MockRealtimeMediaSourceCenter::setMockCaptureDevicesInterrupted):
+    (WebCore::MockRealtimeMediaSourceCenter::setMockCameraIsInterrupted): Deleted.
+    * platform/mock/MockRealtimeMediaSourceCenter.h:
+    
+    Source/WebKit:
+    
+    Add support for interrupt mock microphone devices.
+    Send to WebProcess sources whether sources are interrupted each time the source muted value changes.
+    Store that value in remote sources.
+    
+    * GPUProcess/GPUProcess.cpp:
+    * GPUProcess/GPUProcess.h:
+    * GPUProcess/GPUProcess.messages.in:
+    * UIProcess/API/C/WKPage.cpp:
+    * UIProcess/API/C/WKPagePrivate.h:
+    * UIProcess/Cocoa/UserMediaCaptureManagerProxy.cpp:
+    * UIProcess/GPU/GPUProcessProxy.cpp:
+    * UIProcess/GPU/GPUProcessProxy.h:
+    * UIProcess/WebPageProxy.cpp:
+    * UIProcess/WebPageProxy.h:
+    * WebProcess/WebPage/WebPage.cpp:
+    * WebProcess/WebPage/WebPage.h:
+    * WebProcess/WebPage/WebPage.messages.in:
+    * WebProcess/cocoa/RemoteRealtimeAudioSource.h:
+    * WebProcess/cocoa/RemoteRealtimeDisplaySource.h:
+    * WebProcess/cocoa/RemoteRealtimeMediaSourceProxy.cpp:
+    * WebProcess/cocoa/RemoteRealtimeMediaSourceProxy.h:
+    * WebProcess/cocoa/RemoteRealtimeVideoSource.h:
+    * WebProcess/cocoa/UserMediaCaptureManager.cpp:
+    * WebProcess/cocoa/UserMediaCaptureManager.h:
+    * WebProcess/cocoa/UserMediaCaptureManager.messages.in:
+    
+    Source/WTF:
+    
+    * Scripts/Preferences/WebPreferencesInternal.yaml:
+    
+    Tools:
+    
+    Add support for interrupt mock microphone devices.
+    
+    * WebKitTestRunner/InjectedBundle/Bindings/TestRunner.idl:
+    * WebKitTestRunner/InjectedBundle/TestRunner.cpp:
+    * WebKitTestRunner/InjectedBundle/TestRunner.h:
+    * WebKitTestRunner/TestController.cpp:
+    * WebKitTestRunner/TestController.h:
+    * WebKitTestRunner/TestInvocation.cpp:
+    
+    LayoutTests:
+    
+    * fast/mediastream/media-stream-video-track-interrupted-from-audio-expected.txt: Added.
+    * fast/mediastream/media-stream-video-track-interrupted-from-audio.html: Added.
+    * fast/mediastream/media-stream-video-track-interrupted.html: Migrated to testRunner API.
+    * fast/mediastream/track-ended-while-muted.html:
+    * platform/glib/TestExpectations:
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@290985 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-03-08  Youenn Fablet  <youenn@apple.com>
+
+            Add a preference to mute video capture in case audio capture gets interrupted
+            https://bugs.webkit.org/show_bug.cgi?id=237524
+            <rdar://78421282>
+
+            Reviewed by Eric Carlson.
+
+            Add support for interrupt mock microphone devices.
+
+            * WebKitTestRunner/InjectedBundle/Bindings/TestRunner.idl:
+            * WebKitTestRunner/InjectedBundle/TestRunner.cpp:
+            * WebKitTestRunner/InjectedBundle/TestRunner.h:
+            * WebKitTestRunner/TestController.cpp:
+            * WebKitTestRunner/TestController.h:
+            * WebKitTestRunner/TestInvocation.cpp:
+
+2022-03-23  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r290978. rdar://problem/89901536
+
+    Add early return for empty path in makeAllDirectories
+    https://bugs.webkit.org/show_bug.cgi?id=237540
+    rdar://89901536
+    
+    Reviewed by Chris Dumez.
+    
+    Source/WTF:
+    
+    * wtf/posix/FileSystemPOSIX.cpp:
+    (WTF::FileSystemImpl::makeAllDirectories):
+    
+    Tools:
+    
+    * TestWebKitAPI/Tests/WTF/FileSystem.cpp:
+    (TestWebKitAPI::TEST_F):
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@290978 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-03-08  Sihui Liu  <sihui_liu@apple.com>
+
+            Add early return for empty path in makeAllDirectories
+            https://bugs.webkit.org/show_bug.cgi?id=237540
+            rdar://89901536
+
+            Reviewed by Chris Dumez.
+
+            * TestWebKitAPI/Tests/WTF/FileSystem.cpp:
+            (TestWebKitAPI::TEST_F):
+
+2022-03-22  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r290367. rdar://problem/88567612
+
+    Fix GPUP WebGL generator script wrt uninitialised sized span
+    https://bugs.webkit.org/show_bug.cgi?id=235889
+    
+    Patch by Kimmo Kinnunen <kkinnunen@apple.com> on 2022-02-23
+    Reviewed by Antti Koivisto.
+    Source/WebKit:
+    
+    Regenerated.
+    
+    * WebProcess/GPU/graphics/RemoteGraphicsContextGLProxyFunctionsGenerated.cpp:
+    (WebKit::RemoteGraphicsContextGLProxy::getShaderPrecisionFormat):
+    
+    Tools:
+    
+    Fix the generator. The r290328 only edited the generated files.
+    Add a other hunk missing from r290175.
+    
+    * Scripts/generate-gpup-webgl:
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@290367 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-02-23  Kimmo Kinnunen  <kkinnunen@apple.com>
+
+            Fix GPUP WebGL generator script wrt uninitialised sized span
+            https://bugs.webkit.org/show_bug.cgi?id=235889
+
+            Reviewed by Antti Koivisto.
+            Fix the generator. The r290328 only edited the generated files.
+            Add a other hunk missing from r290175.
+
+            * Scripts/generate-gpup-webgl:
+
+2022-03-22  Alan Coon  <alancoon@apple.com>
+
+        Revert r290708. rdar://problem/90113314
+
+2022-03-23  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r291773. rdar://problem/90716064
+
+    [Cocoa] Make IPCTestingAPI.CGColorInNSSecureCoding more robust
+    https://bugs.webkit.org/show_bug.cgi?id=238300
+    <rdar://problem/90124325>
+    
+    Unreviewed test gardening.
+    
+    Round-tripping a CGColor through CFData on iOS can turn extended sRGB color spaces
+    into regular sRGB color spaces, if the color is common to both.
+    
+    * TestWebKitAPI/Tests/WebKitCocoa/IPCTestingAPI.mm:
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@291773 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-03-23  Myles C. Maxfield  <mmaxfield@apple.com>
+
+            [Cocoa] Make IPCTestingAPI.CGColorInNSSecureCoding more robust
+            https://bugs.webkit.org/show_bug.cgi?id=238300
+            <rdar://problem/90124325>
+
+            Unreviewed test gardening.
+
+            Round-tripping a CGColor through CFData on iOS can turn extended sRGB color spaces
+            into regular sRGB color spaces, if the color is common to both.
+
+            * TestWebKitAPI/Tests/WebKitCocoa/IPCTestingAPI.mm:
+
+2022-03-21  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r291518. rdar://problem/90124325
+
+    [Cocoa] Teach WebKit how to serialize CGColors
+    https://bugs.webkit.org/show_bug.cgi?id=238069
+    <rdar://problem/90124325>
+    
+    Reviewed by Dean Jackson and Tim Horton.
+    
+    Source/WebKit:
+    
+    We have 2 ways of serializing Cocoa objects: NS type handling in ArgumentCodersCocoa.mm,
+    and CF type handling in ArgumentCodersCF.mm. CGColors are CF types, so this patch adds
+    direct support in ArgumentCodersCF to serialize them, by round-tripping them through
+    WebCore::Colors. However, NS containers (like font descriptor attribute dictionaries)
+    can contain CGColors, so this patch also teaches ArgumentCodersCocoa that there may be
+    CF types inside NS containers. If one is present, ArgumentCodersCocoa has to call into
+    ArgumentCodersCF to serialize it.
+    
+    This patch doesn't add support for the reverse path, where an NS object is contained
+    within a CF container. I intentionally omitted implementing this because I wasn't sure
+    if it would be a layering violation; ArgumentCodersCococa.mm already #includes
+    ArgumentCodersCF.h, but ArgumentCodersCF.mm doesn't #include ArgumentCodersCocoa.h.
+    This path isn't actually necessary to solve my problem at hand, so someone else can
+    add support if necessary in the future. I also added a comment at the site where the
+    code would fail, describing what the problem is and a potential workaround.
+    
+    This patch also adds support for our NSSecureCoding implementation for CGColors. This
+    is necessary because sometimes we want to serialize things like NSAttributedStrings,
+    which we don't have direct support for, so we use NSSecureCoding to serialize them
+    instead. NSAttributedStrings can contain fonts whose descriptor dictionaries contain
+    CGColors, so this path needs to work with CGColors too. Support is implemented using
+    NSKeyedArchiverDelegate and NSKeyedUnarchiverDelegate.
+    
+    Test: IPCTestingAPI.CGColorInNSSecureCoding
+          The non-NSSecureCoding parts of this patch are tested by our regular LayoutTests
+          when DOM GPU Process rendering is enabled.
+    
+    * Shared/Cocoa/ArgumentCodersCocoa.mm:
+    (-[WKSecureCodingArchivingDelegate archiver:willEncodeObject:]):
+    (-[WKSecureCodingArchivingDelegate unarchiver:didDecodeObject:]):
+    (-[WKSecureCodingCGColorWrapper wrappedColor]):
+    (+[WKSecureCodingCGColorWrapper supportsSecureCoding]):
+    (-[WKSecureCodingCGColorWrapper encodeWithCoder:]):
+    (-[WKSecureCodingCGColorWrapper initWithCoder:]):
+    (-[WKSecureCodingCGColorWrapper initWithCGColor:]):
+    (IPC::typeFromObject):
+    (IPC::decodeSecureCodingInternal):
+    (IPC::encodeCFInternal):
+    (IPC::decodeCFInternal):
+    (IPC::encodeObject):
+    (IPC::decodeObject):
+    * Shared/cf/ArgumentCodersCF.cpp:
+    (IPC::typeFromCFTypeRef):
+    (IPC::ArgumentCoder<CFTypeRef>::encode):
+    (IPC::ArgumentCoder<RetainPtr<CFTypeRef>>::decode):
+    (IPC::ArgumentCoder<CGColorRef>::encode):
+    (IPC::ArgumentCoder<RetainPtr<CGColorRef>>::decode):
+    * Shared/cf/ArgumentCodersCF.h:
+    
+    Tools:
+    
+    * Scripts/webkitpy/style/checkers/cpp.py:
+    * TestWebKitAPI/Tests/WebKitCocoa/IPCTestingAPI.mm:
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@291518 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-03-18  Myles C. Maxfield  <mmaxfield@apple.com>
+
+            [Cocoa] Teach WebKit how to serialize CGColors
+            https://bugs.webkit.org/show_bug.cgi?id=238069
+            <rdar://problem/90124325>
+
+            Reviewed by Dean Jackson and Tim Horton.
+
+            * Scripts/webkitpy/style/checkers/cpp.py:
+            * TestWebKitAPI/Tests/WebKitCocoa/IPCTestingAPI.mm:
+
+2022-03-21  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r290539. rdar://problem/88767812
+
+    [WebAuthn] Fallback to attestation=none whenever attestation fails
+    https://bugs.webkit.org/show_bug.cgi?id=237223
+    rdar://88767812
+    
+    Reviewed by Brent Fulgham.
+    
+    Source/WebKit:
+    
+    Whenever attestation is requested by a RP and it fails to complete,
+    we previously errored out of the registration. The more correct platform
+    behavior in this case is to provide attestation=none.
+    
+    Created API test for this behavior.
+    
+    * UIProcess/WebAuthentication/Cocoa/LocalAuthenticator.mm:
+    (WebKit::LocalAuthenticator::continueMakeCredentialAfterAttested):
+    
+    Tools:
+    
+    Add test for local authenticator attestation fallback behavior.
+    
+    * TestWebKitAPI/Tests/WebKitCocoa/_WKWebAuthenticationPanel.mm:
+    (TestWebKitAPI::TEST):
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@290539 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-02-25  J Pascoe  <j_pascoe@apple.com>
+
+            [WebAuthn] Fallback to attestation=none whenever attestation fails
+            https://bugs.webkit.org/show_bug.cgi?id=237223
+            rdar://88767812
+
+            Reviewed by Brent Fulgham.
+
+            Add test for local authenticator attestation fallback behavior.
+
+            * TestWebKitAPI/Tests/WebKitCocoa/_WKWebAuthenticationPanel.mm:
+            (TestWebKitAPI::TEST):
+
+2022-03-21  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r290519. rdar://problem/89148022
+
+    Re-add YouTubePluginReplacement, removed in r285252
+    https://bugs.webkit.org/show_bug.cgi?id=237182
+    Source/WebCore:
+    
+    <rdar://89148022>
+    
+    Patch by Alex Christensen <achristensen@webkit.org> on 2022-02-25
+    Reviewed by Chris Dumez.
+    
+    Tests: security/contentSecurityPolicy/object-src-none-blocks-youtube-plugin-replacement.html
+           security/contentSecurityPolicy/plugins-types-allows-youtube-plugin-replacement.html
+           security/contentSecurityPolicy/plugins-types-blocks-youtube-plugin-replacement-without-mime-type.html
+           security/contentSecurityPolicy/plugins-types-blocks-youtube-plugin-replacement.html
+    
+    Its removal broke webpages that work in Chrome and Firefox, so back it comes.
+    
+    * Headers.cmake:
+    * Modules/plugins: Copied from Source/WebCore/Modules/plugins.
+    * SourcesCocoa.txt:
+    * WebCore.xcodeproj/project.pbxproj:
+    * bindings/js/JSPluginElementFunctions.cpp:
+    (WebCore::pluginScriptObject):
+    * bindings/scripts/CodeGeneratorJS.pm:
+    (GenerateImplementation):
+    * bindings/scripts/test/JS/JSTestPluginInterface.cpp:
+    (WebCore::JSTestPluginInterface::visitChildrenImpl):
+    * html/HTMLPlugInElement.cpp:
+    (WebCore::HTMLPlugInElement::createElementRenderer):
+    (WebCore::HTMLPlugInElement::didAddUserAgentShadowRoot):
+    (WebCore::registrar):
+    (WebCore::pluginReplacementForType):
+    (WebCore::HTMLPlugInElement::requestObject):
+    (WebCore::HTMLPlugInElement::scriptObjectForPluginReplacement):
+    * html/HTMLPlugInElement.h:
+    (WebCore::HTMLPlugInElement::pluginReplacementScriptObject):
+    * html/shadow/ShadowPseudoIds.cpp:
+    (WebCore::ShadowPseudoIds::webkitPluginReplacement):
+    * html/shadow/ShadowPseudoIds.h:
+    * html/shadow/YouTubeEmbedShadowElement.cpp:
+    * html/shadow/YouTubeEmbedShadowElement.h:
+    * page/Settings.yaml:
+    
+    Tools:
+    
+    Patch by Alex Christensen <achristensen@webkit.org> on 2022-02-25
+    Reviewed by Chris Dumez.
+    
+    * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj:
+    * TestWebKitAPI/Tests/WebCore/YouTubePluginReplacement.cpp:
+    
+    LayoutTests:
+    
+    Patch by Alex Christensen <achristensen@webkit.org> on 2022-02-25
+    Reviewed by Chris Dumez.
+    
+    * TestExpectations:
+    * platform/ios-wk2/TestExpectations:
+    * platform/win/TestExpectations:
+    * security/contentSecurityPolicy/object-src-none-blocks-youtube-plugin-replacement-expected.txt: Copied from LayoutTests/security/contentSecurityPolicy/object-src-none-blocks-youtube-plugin-replacement-expected.txt.
+    * security/contentSecurityPolicy/object-src-none-blocks-youtube-plugin-replacement.html: Copied from LayoutTests/security/contentSecurityPolicy/object-src-none-blocks-youtube-plugin-replacement.html.
+    * security/contentSecurityPolicy/plugins-types-allows-youtube-plugin-replacement-expected.txt: Copied from LayoutTests/security/contentSecurityPolicy/plugins-types-allows-youtube-plugin-replacement-expected.txt.
+    * security/contentSecurityPolicy/plugins-types-allows-youtube-plugin-replacement.html: Copied from LayoutTests/security/contentSecurityPolicy/plugins-types-allows-youtube-plugin-replacement.html.
+    * security/contentSecurityPolicy/plugins-types-blocks-youtube-plugin-replacement-expected.txt: Copied from LayoutTests/security/contentSecurityPolicy/plugins-types-blocks-youtube-plugin-replacement-expected.txt.
+    * security/contentSecurityPolicy/plugins-types-blocks-youtube-plugin-replacement-without-mime-type-expected.txt: Copied from LayoutTests/security/contentSecurityPolicy/plugins-types-blocks-youtube-plugin-replacement-without-mime-type-expected.txt.
+    * security/contentSecurityPolicy/plugins-types-blocks-youtube-plugin-replacement-without-mime-type.html: Copied from LayoutTests/security/contentSecurityPolicy/plugins-types-blocks-youtube-plugin-replacement-without-mime-type.html.
+    * security/contentSecurityPolicy/plugins-types-blocks-youtube-plugin-replacement.html: Copied from LayoutTests/security/contentSecurityPolicy/plugins-types-blocks-youtube-plugin-replacement.html.
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@290519 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-02-25  Alex Christensen  <achristensen@webkit.org>
+
+            Re-add YouTubePluginReplacement, removed in r285252
+            https://bugs.webkit.org/show_bug.cgi?id=237182
+
+            Reviewed by Chris Dumez.
+
+            * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj:
+            * TestWebKitAPI/Tests/WebCore/YouTubePluginReplacement.cpp:
+
+2022-03-07  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r289255. rdar://problem/88490742
+
+    Always sync ResourceRequest isAppInitiated request with NSURLRequest attribution value
+    https://bugs.webkit.org/show_bug.cgi?id=236167
+    <rdar://88490742>
+    
+    Reviewed by Darin Adler.
+    
+    Source/WebCore:
+    
+    We should always keep the state of our 'isAppInitiated' flag in sync with the underlying
+    NSURLRequest object. This also corrects a problem where the 'setIsAppInitiated' method
+    does not mark the platform URL request as dirty, so it does not update with the correct
+    state of the flag.
+    
+    Tests: New TestWebKitAPI Test (AppPrivacyReport.NSURLRequestConstructorAttribution)
+    
+    * platform/network/ResourceRequestBase.cpp:
+    (WebCore::ResourceRequestBase::setIsAppInitiated):
+    * platform/network/ResourceRequestBase.h:
+    * platform/network/cf/ResourceRequest.h:
+    * platform/network/cocoa/ResourceRequestCocoa.mm:
+    (WebCore::ResourceRequest::ResourceRequest):
+    (WebCore::ResourceRequest::doUpdatePlatformRequest):
+    (WebCore::ResourceRequest::doUpdatePlatformHTTPBody):
+    (WebCore::copyRequestWithStorageSession):
+    * rendering/RenderThemeIOS.mm:
+    
+    Tools:
+    
+    * TestWebKitAPI/TestWebKitAPI.xcodeproj/xcshareddata/xcschemes/TestWebKitAPI.xcscheme:
+    * TestWebKitAPI/Tests/WebKitCocoa/AppPrivacyReport.mm:
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@289255 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-02-07  Brent Fulgham  <bfulgham@apple.com>
+
+            Always sync ResourceRequest isAppInitiated request with NSURLRequest attribution value
+            https://bugs.webkit.org/show_bug.cgi?id=236167
+            <rdar://88490742>
+
+            Reviewed by Darin Adler.
+
+            * TestWebKitAPI/TestWebKitAPI.xcodeproj/xcshareddata/xcschemes/TestWebKitAPI.xcscheme:
+            * TestWebKitAPI/Tests/WebKitCocoa/AppPrivacyReport.mm:
+
+2022-03-07  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r288700. rdar://problem/86602114
+
+    Default to 32 bit refcount for CanMakeCheckedPtr
+    https://bugs.webkit.org/show_bug.cgi?id=235723
+    rdar://86602114
+    
+    Reviewed by Darin Adler.
+    
+    Source/WTF:
+    
+    It is currently uint16_t for no good reason. It is no unreasonable to have an object being referenced
+    by a large number of other objects.
+    
+    We just hit the first bug caused by overrunning it (in IFC).
+    
+    * wtf/CheckedRef.h:
+    
+    uint16_t -> uint32_t
+    
+    Tools:
+    
+    * TestWebKitAPI/Tests/WTF/CheckedPtr.cpp:
+    (TestWebKitAPI::TEST):
+    * TestWebKitAPI/Tests/WTF/CheckedRef.cpp:
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@288700 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-01-27  Antti Koivisto  <antti@apple.com>
+
+            Default to 32 bit refcount for CanMakeCheckedPtr
+            https://bugs.webkit.org/show_bug.cgi?id=235723
+            rdar://86602114
+
+            Reviewed by Darin Adler.
+
+            * TestWebKitAPI/Tests/WTF/CheckedPtr.cpp:
+            (TestWebKitAPI::TEST):
+            * TestWebKitAPI/Tests/WTF/CheckedRef.cpp:
+
+2022-03-07  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r288310. rdar://problem/80352256
+
+    [ iOS15 ] TestWebKitAPI.WebKit.ServerTrust and TestWebKitAPI.WebKit.FastServerTrust tests timing out
+    https://bugs.webkit.org/show_bug.cgi?id=231320
+    <rdar://80352256>
+    
+    Patch by Alex Christensen <achristensen@webkit.org> on 2022-01-20
+    Reviewed by Chris Dumez.
+    
+    SecTrustCopyCertificateChain returns a CFArrayRef of SecCertificateRef, not CFData.
+    
+    * TestWebKitAPI/Tests/WebKitCocoa/Challenge.mm:
+    (verifyCertificateAndPublicKey):
+    (TestWebKitAPI::TEST):
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@288310 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-01-20  Alex Christensen  <achristensen@webkit.org>
+
+            [ iOS15 ] TestWebKitAPI.WebKit.ServerTrust and TestWebKitAPI.WebKit.FastServerTrust tests timing out
+            https://bugs.webkit.org/show_bug.cgi?id=231320
+            <rdar://80352256>
+
+            Reviewed by Chris Dumez.
+
+            SecTrustCopyCertificateChain returns a CFArrayRef of SecCertificateRef, not CFData.
+
+            * TestWebKitAPI/Tests/WebKitCocoa/Challenge.mm:
+            (verifyCertificateAndPublicKey):
+            (TestWebKitAPI::TEST):
+
+2022-03-01  Russell Epstein  <repstein@apple.com>
+
+        Revert r289282. rdar://problem/88876661
+
+2022-02-28  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r289502. rdar://problem/88528286
+
+    WKWebView: WKURLSchemeHandler “request to the end of the resource” produces an invalid header
+    https://bugs.webkit.org/show_bug.cgi?id=236401
+    rdar://88528286
+    
+    Reviewed by Brent Fulgham.
+    
+    Source/WebCore:
+    
+    
+    https://webkit.org/b/203302 added support for Range requests to AVAssetResourceLoadingDataRequest,
+    but it incorrectly used '*' instead of '' for "last-byte-pos:" for a request to the end of the resource.
+    
+    API test URLSchemeHandler.Ranges was updated.
+    
+    * platform/graphics/avfoundation/objc/WebCoreAVFResourceLoader.mm:
+    (WebCore::WebCoreAVFResourceLoader::startLoading):
+    
+    Tools:
+    
+    * TestWebKitAPI/Tests/WebKitCocoa/WKURLSchemeHandler-1.mm:
+    
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@289502 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-02-09  Eric Carlson  <eric.carlson@apple.com>
+
+            WKWebView: WKURLSchemeHandler “request to the end of the resource” produces an invalid header
+            https://bugs.webkit.org/show_bug.cgi?id=236401
+            rdar://88528286
+
+            Reviewed by Brent Fulgham.
+
+            * TestWebKitAPI/Tests/WebKitCocoa/WKURLSchemeHandler-1.mm:
+
 2022-02-07  Russell Epstein  <repstein@apple.com>
 
         Cherry-pick r288605. rdar://problem/87948317

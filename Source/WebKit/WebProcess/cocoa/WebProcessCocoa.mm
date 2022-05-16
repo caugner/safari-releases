@@ -28,7 +28,6 @@
 
 #import "AccessibilitySupportSPI.h"
 #import "GPUProcessConnectionParameters.h"
-#import "LaunchServicesDatabaseManager.h"
 #import "LegacyCustomProtocolManager.h"
 #import "LogInitialization.h"
 #import "Logging.h"
@@ -327,12 +326,6 @@ void WebProcess::platformInitializeWebProcess(WebProcessCreationParameters& para
     method_setImplementation(methodToPatch, (IMP)NSApplicationAccessibilityFocusedUIElement);
 #endif
 
-#if HAVE(LSDATABASECONTEXT)
-    // On Mac, this needs to be called before NSApplication is being initialized.
-    // The NSApplication initialization is being done in [NSApplication _accessibilityInitialize]
-    LaunchServicesDatabaseManager::singleton().waitForDatabaseUpdate();
-#endif
-
 #if PLATFORM(MAC) && ENABLE(WEBPROCESS_NSRUNLOOP)
     RefPtr<SandboxExtension> launchServicesExtension;
     if (parameters.launchServicesExtensionHandle) {
@@ -417,6 +410,7 @@ void WebProcess::platformInitializeWebProcess(WebProcessCreationParameters& para
 #endif
 
 #if PLATFORM(IOS_FAMILY)
+    SandboxExtension::consumePermanently(parameters.dynamicMachExtensionHandles);
     SandboxExtension::consumePermanently(parameters.dynamicIOKitExtensionHandles);
 #endif
     
@@ -455,6 +449,8 @@ void WebProcess::platformInitializeWebProcess(WebProcessCreationParameters& para
     
     if (!parameters.maximumIOSurfaceSize.isEmpty())
         WebCore::IOSurface::setMaximumSize(parameters.maximumIOSurfaceSize);
+
+    WebCore::IOSurface::setBytesPerRowAlignment(parameters.bytesPerRowIOSurfaceAlignment);
 
     accessibilityPreferencesDidChange(parameters.accessibilityPreferences);
 }

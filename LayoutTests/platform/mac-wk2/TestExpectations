@@ -43,6 +43,7 @@ fast/media/mq-prefers-contrast-live-update.html [ Pass ]
 fast/media/mq-prefers-contrast.html [ Pass ]
 
 fast/repaint/background-attachment-local-scroll.html [ Pass ]
+fast/repaint/background-attachment-fixed-in-composited-scroll.html [ Pass ]
 fast/scrolling/unfocusing-page-while-keyboard-scrolling.html [ Pass ]
 
 http/tests/ssl/applepay [ Pass ]
@@ -114,6 +115,8 @@ fast/animation/request-animation-frame-in-two-pages.html [ Pass ]
 
 fast/forms/file/entries-api/image-transcode-open-panel.html [ Pass ]
 fast/forms/file/entries-api/image-no-transcode-open-panel.html [ Pass ]
+fast/forms/file/entries-api/pages-jpeg-open-panel.html [ Pass ]
+fast/forms/file/entries-api/pdf-jpeg-open-panel.html [ Pass ]
 
 storage/indexeddb/database-transaction-cycle.html [ Pass ]
 
@@ -1487,8 +1490,9 @@ webkit.org/b/227639 [ BigSur Release ] fast/history/visited-href-mutation.html [
 # rdar://80340405 ([ Monterey wk2 Release ] http/tests/media/video-webm-stall.html is a constant timeout)
 [ Monterey ] http/tests/media/video-webm-stall.html [ Timeout ]
 
-# rdar://80335706 (REGRESSION: [ Monterey wk2 ] fast/text/international/system-language/navigator-language/navigator-language-ru.html [ Failure ])
-[ Monterey ] fast/text/international/system-language/navigator-language/navigator-language-ru.html [ Failure ]
+# Behavior of navigator-language-ru changed in Monterey
+[ Monterey+ ] fast/text/international/system-language/navigator-language/navigator-language-ru.html [ Failure ]
+[ BigSur Catalina Mojave ] fast/text/international/system-language/navigator-language/navigator-language-ru-2.html [ Failure ]
 
 webkit.org/b/227776 [ BigSur Release arm64 ] scrollbars/corner-resizer-window-inactive.html [ Pass ImageOnlyFailure ]
 

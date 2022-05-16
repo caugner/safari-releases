@@ -491,15 +491,18 @@ void DocumentThreadableLoader::didFinishLoading(ResourceLoaderIdentifier identif
 
         auto response = m_resource->response();
 
+        RefPtr<SharedBuffer> buffer;
+        if (m_resource->resourceBuffer())
+            buffer = m_resource->resourceBuffer()->makeContiguous();
         if (options().filteringPolicy == ResponseFilteringPolicy::Disable) {
             m_client->didReceiveResponse(identifier, response);
-            if (auto* buffer = m_resource->resourceBuffer())
+            if (buffer)
                 m_client->didReceiveData(*buffer);
         } else {
             ASSERT(response.type() == ResourceResponse::Type::Default);
 
             m_client->didReceiveResponse(identifier, ResourceResponse::filter(response, m_options.credentials == FetchOptions::Credentials::Include ? ResourceResponse::PerformExposeAllHeadersCheck::No : ResourceResponse::PerformExposeAllHeadersCheck::Yes));
-            if (auto* buffer = m_resource->resourceBuffer())
+            if (buffer)
                 m_client->didReceiveData(*buffer);
         }
     }
@@ -681,8 +684,8 @@ bool DocumentThreadableLoader::isAllowedByContentSecurityPolicy(const URL& url, 
     switch (m_options.contentSecurityPolicyEnforcement) {
     case ContentSecurityPolicyEnforcement::DoNotEnforce:
         return true;
-    case ContentSecurityPolicyEnforcement::EnforceChildSrcDirective:
-        return contentSecurityPolicy().allowChildContextFromSource(url, redirectResponseReceived, preRedirectURL);
+    case ContentSecurityPolicyEnforcement::EnforceWorkerSrcDirective:
+        return contentSecurityPolicy().allowWorkerFromSource(url, redirectResponseReceived, preRedirectURL);
     case ContentSecurityPolicyEnforcement::EnforceConnectSrcDirective:
         return contentSecurityPolicy().allowConnectToSource(url, redirectResponseReceived, preRedirectURL);
     case ContentSecurityPolicyEnforcement::EnforceScriptSrcDirective:

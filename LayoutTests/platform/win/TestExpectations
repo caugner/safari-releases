@@ -3280,6 +3280,7 @@ js/regress-141098.html [ Failure ]
 pageoverlay/overlay-installation.html [ Failure ]
 pageoverlay/overlay-large-document-scrolled.html [ Failure ]
 pageoverlay/overlay-large-document.html [ Failure ]
+security/contentSecurityPolicy/plugins-types-allows-youtube-plugin-replacement.html [ Failure ]
 storage/indexeddb/modern/blob-cursor.html [ Failure ]
 streams/readable-byte-stream-controller.html [ Failure ]
 streams/readable-byte-stream-controller-worker.html [ Failure ]
@@ -3698,6 +3699,7 @@ wasm/iframe-parent-postmessage.html [ Skip ]
 wasm/window-postmessage.html [ Skip ]
 imported/w3c/web-platform-tests/wasm/wasm_stream_instantiate_test.html  [ Skip ]
 imported/w3c/web-platform-tests/wasm/wasm_stream_compile_test.html  [ Skip ]
+http/tests/security/contentSecurityPolicy/allow-wasm-after-window-open.html [ Skip ]
 
 # Animated image throttling behaves differently on WK1.
 svg/animations/animated-svg-image-outside-viewport-paused.html [ Skip ]
@@ -3833,6 +3835,8 @@ webkit.org/b/177212 accessibility/crash-table-recursive-layout.html [ Failure ]
 inspector/console/webcore-logging.html [ Skip ]
 
 webkit.org/b/177216 fast/images/animated-image-mp4.html [ Skip ]
+
+webkit.org/b/228325 fast/images/exif-orientation-composited.html [ Pass ImageOnlyFailure ]
 
 webkit.org/b/177234 http/wpt/resource-timing/rt-cors.html [ Skip ]
 webkit.org/b/177234 http/wpt/resource-timing/rt-cors.worker.html [ Skip ]

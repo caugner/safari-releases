@@ -32,6 +32,7 @@
 #include "MediaPlayer.h"
 #include "NowPlayingInfo.h"
 #include "PlatformMediaSessionManager.h"
+#include <wtf/SetForScope.h>
 
 namespace WebCore {
 
@@ -235,6 +236,8 @@ bool PlatformMediaSession::clientWillBeginPlayback()
 
     ALWAYS_LOG(LOGIDENTIFIER, "state = ", m_state);
 
+    SetForScope<bool> preparingToPlay(m_preparingToPlay, true);
+
     if (!PlatformMediaSessionManager::sharedManager().sessionWillBeginPlayback(*this)) {
         if (state() == Interrupted)
             m_stateToRestore = Playing;
@@ -360,6 +363,11 @@ bool PlatformMediaSession::activeAudioSessionRequired() const
 bool PlatformMediaSession::canProduceAudio() const
 {
     return m_client.canProduceAudio();
+}
+
+bool PlatformMediaSession::hasMediaStreamSource() const
+{
+    return m_client.hasMediaStreamSource();
 }
 
 void PlatformMediaSession::canProduceAudioChanged()

@@ -1484,14 +1484,20 @@ static Ref<CSSValueList> valueListForAnimationOrTransitionProperty(CSSPropertyID
 static Ref<CSSValueList> animationShorthandValue(CSSPropertyID property, const AnimationList* animationList)
 {
     auto parentList = CSSValueList::createCommaSeparated();
-    if (animationList) {
-        for (const auto& animation : *animationList) {
-            auto childList = CSSValueList::createSpaceSeparated();
-            for (auto longhand : shorthandForProperty(property))
-                ComputedStyleExtractor::addValueForAnimationPropertyToList(childList.get(), longhand, animation.ptr());
-            parentList->append(childList);
-        }
-    }
+
+    auto addAnimation = [&](Ref<Animation> animation) {
+        auto childList = CSSValueList::createSpaceSeparated();
+        for (auto longhand : shorthandForProperty(property))
+            ComputedStyleExtractor::addValueForAnimationPropertyToList(childList.get(), longhand, animation.ptr());
+        parentList->append(childList);
+    };
+
+    if (animationList && !animationList->isEmpty()) {
+        for (const auto& animation : *animationList)
+            addAnimation(animation);
+    } else
+        addAnimation(Animation::create());
+
     return parentList;
 }
 
@@ -4419,14 +4425,19 @@ size_t ComputedStyleExtractor::getLayerCount(CSSPropertyID property)
     size_t layerCount = 0;
     for (auto* currLayer = &layers; currLayer; currLayer = currLayer->next())
         layerCount++;
+    if (layerCount == 1 && property == CSSPropertyMask && !layers.image())
+        return 0;
     return layerCount;
 }
 
-Ref<CSSValueList> ComputedStyleExtractor::getFillLayerPropertyShorthandValue(CSSPropertyID property, const StylePropertyShorthand& propertiesBeforeSlashSeparator, const StylePropertyShorthand& propertiesAfterSlashSeparator, CSSPropertyID lastLayerProperty)
+RefPtr<CSSValue> ComputedStyleExtractor::getFillLayerPropertyShorthandValue(CSSPropertyID property, const StylePropertyShorthand& propertiesBeforeSlashSeparator, const StylePropertyShorthand& propertiesAfterSlashSeparator, CSSPropertyID lastLayerProperty)
 {
     ASSERT(property == CSSPropertyBackground || property == CSSPropertyMask);
     size_t layerCount = getLayerCount(property);
-    ASSERT(layerCount);
+    if (!layerCount) {
+        ASSERT(property == CSSPropertyMask);
+        return CSSValuePool::singleton().createIdentifierValue(CSSValueNone);
+    }
 
     auto lastValue = lastLayerProperty != CSSPropertyInvalid ? propertyValue(lastLayerProperty, DoNotUpdateLayout) : nullptr;
     auto before = getCSSPropertyValuesForShorthandProperties(propertiesBeforeSlashSeparator);
@@ -4467,7 +4478,7 @@ Ref<CSSValueList> ComputedStyleExtractor::getFillLayerPropertyShorthandValue(CSS
 }
 
 
-Ref<CSSValueList> ComputedStyleExtractor::getBackgroundShorthandValue()
+RefPtr<CSSValue> ComputedStyleExtractor::getBackgroundShorthandValue()
 {
     static const CSSPropertyID propertiesBeforeSlashSeparator[] = { CSSPropertyBackgroundImage, CSSPropertyBackgroundRepeat, CSSPropertyBackgroundAttachment, CSSPropertyBackgroundPosition };
     static const CSSPropertyID propertiesAfterSlashSeparator[] = { CSSPropertyBackgroundSize, CSSPropertyBackgroundOrigin, CSSPropertyBackgroundClip };
@@ -4475,7 +4486,7 @@ Ref<CSSValueList> ComputedStyleExtractor::getBackgroundShorthandValue()
     return getFillLayerPropertyShorthandValue(CSSPropertyBackground, StylePropertyShorthand(CSSPropertyBackground, propertiesBeforeSlashSeparator), StylePropertyShorthand(CSSPropertyBackground, propertiesAfterSlashSeparator), CSSPropertyBackgroundColor);
 }
 
-Ref<CSSValueList> ComputedStyleExtractor::getMaskShorthandValue()
+RefPtr<CSSValue> ComputedStyleExtractor::getMaskShorthandValue()
 {
     static const CSSPropertyID propertiesBeforeSlashSeperator[2] = { CSSPropertyMaskImage, CSSPropertyMaskPosition };
     static const CSSPropertyID propertiesAfterSlashSeperator[6] = { CSSPropertyMaskSize, CSSPropertyMaskRepeat, CSSPropertyMaskOrigin, CSSPropertyMaskClip, CSSPropertyMaskComposite, CSSPropertyMaskMode };

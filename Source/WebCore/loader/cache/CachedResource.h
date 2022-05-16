@@ -213,7 +213,7 @@ public:
 
     void clearLoader();
 
-    SharedBuffer* resourceBuffer() const { return m_data.get(); }
+    FragmentedSharedBuffer* resourceBuffer() const { return m_data.get(); }
 
     virtual void redirectReceived(ResourceRequest&&, const ResourceResponse&, CompletionHandler<void(ResourceRequest&&)>&&);
     virtual void responseReceived(const ResourceResponse&);
@@ -310,6 +310,7 @@ protected:
 
 private:
     class Callback;
+    template<typename T> friend class CachedResourceClientWalker;
 
     void deleteThis();
 
@@ -336,7 +337,7 @@ protected:
     HashCountedSet<CachedResourceClient*> m_clients;
     std::unique_ptr<ResourceRequest> m_originalRequest; // Needed by Ping loads.
     RefPtr<SubresourceLoader> m_loader;
-    RefPtr<SharedBuffer> m_data;
+    RefPtr<FragmentedSharedBuffer> m_data;
 
 private:
     MonotonicTime m_lastDecodedAccessTime; // Used as a "thrash guard" in the cache

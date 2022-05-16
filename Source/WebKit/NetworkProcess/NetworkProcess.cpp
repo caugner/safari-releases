@@ -301,8 +301,10 @@ void NetworkProcess::lowMemoryHandler(Critical critical)
     });
 }
 
-void NetworkProcess::initializeNetworkProcess(NetworkProcessCreationParameters&& parameters)
+void NetworkProcess::initializeNetworkProcess(NetworkProcessCreationParameters&& parameters, CompletionHandler<void()>&& completionHandler)
 {
+    CompletionHandlerCallingScope callCompletionHandler(WTFMove(completionHandler));
+
     applyProcessCreationParameters(parameters.auxiliaryProcessParameters);
 #if HAVE(SEC_KEY_PROXY)
     WTF::setProcessPrivileges({ ProcessPrivilege::CanAccessRawCookies });
@@ -1344,10 +1346,20 @@ void NetworkProcess::preconnectTo(PAL::SessionID sessionID, WebPageProxyIdentifi
     parameters.storedCredentialsPolicy = storedCredentialsPolicy;
     parameters.shouldPreconnectOnly = PreconnectOnly::Yes;
 
+    NetworkLoadParameters parametersForAdditionalPreconnect = parameters;
+
     session->networkLoadScheduler().startedPreconnectForMainResource(url, userAgent);
-    auto task = new PreconnectTask(*session, WTFMove(parameters), [session = WeakPtr { *session }, url, userAgent](const WebCore::ResourceError& error) {
-        if (session)
+    auto task = new PreconnectTask(*session, WTFMove(parameters), [session = WeakPtr { *session }, url, userAgent, parametersForAdditionalPreconnect = WTFMove(parametersForAdditionalPreconnect)](const WebCore::ResourceError& error, const WebCore::NetworkLoadMetrics& metrics) mutable {
+        if (session) {
             session->networkLoadScheduler().finishedPreconnectForMainResource(url, userAgent, error);
+#if ENABLE(ADDITIONAL_PRECONNECT_ON_HTTP_1X)
+            if (equalIgnoringASCIICase(metrics.protocol, "http/1.1")) {
+                auto parameters = parametersForAdditionalPreconnect;
+                auto task = new PreconnectTask(*session, WTFMove(parameters), [](const WebCore::ResourceError& error, const WebCore::NetworkLoadMetrics& metrics) { });
+                task->start();
+            }
+#endif // ENABLE(ADDITIONAL_PRECONNECT_ON_HTTP_1X)
+        }
     });
     task->setTimeout(10_s);
     task->start();
@@ -2309,7 +2321,7 @@ void NetworkProcess::renameOriginInWebsiteData(PAL::SessionID sessionID, const U
 
     auto* session = networkSession(sessionID);
     if (auto* manager = session ? session->storageManager() : nullptr)
-        manager->moveData(oldOrigin, newOrigin, [aggregator] { });
+        manager->moveData(dataTypes, oldOrigin, newOrigin, [aggregator] { });
 
     if (dataTypes.contains(WebsiteDataType::IndexedDBDatabases) && session && session->hasIDBDatabasePath())
         session->ensureWebIDBServer().renameOrigin(oldOrigin, newOrigin, [aggregator] { });

@@ -100,10 +100,11 @@ void CachedCSSStyleSheet::setBodyDataFrom(const CachedResource& resource)
 void CachedCSSStyleSheet::finishLoading(const FragmentedSharedBuffer* data, const NetworkLoadMetrics& metrics)
 {
     if (data) {
-        m_data = data->makeContiguous();
+        auto contiguousData = data->makeContiguous();
         setEncodedSize(data->size());
         // Decode the data to find out the encoding and keep the sheet text around during checkNotify()
-        m_decodedSheetText = m_decoder->decodeAndFlush(m_data->data(), data->size());
+        m_decodedSheetText = m_decoder->decodeAndFlush(contiguousData->data(), data->size());
+        m_data = WTFMove(contiguousData);
     } else {
         m_data = nullptr;
         setEncodedSize(0);
@@ -119,8 +120,8 @@ void CachedCSSStyleSheet::checkNotify(const NetworkLoadMetrics&)
     if (isLoading())
         return;
 
-    CachedResourceClientWalker<CachedStyleSheetClient> w(m_clients);
-    while (CachedStyleSheetClient* c = w.next())
+    CachedResourceClientWalker<CachedStyleSheetClient> walker(*this);
+    while (CachedStyleSheetClient* c = walker.next())
         c->setCSSStyleSheet(m_resourceRequest.url().string(), m_response.url(), m_decoder->encoding().name(), this);
 }
 

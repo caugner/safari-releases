@@ -50,7 +50,7 @@ JSPropertyNameEnumerator* JSPropertyNameEnumerator::create(VM& vm, Structure* st
 JSPropertyNameEnumerator::JSPropertyNameEnumerator(VM& vm, Structure* structure, uint32_t indexedLength, uint32_t numberStructureProperties, WriteBarrier<JSString>* propertyNamesBuffer, unsigned propertyNamesSize)
     : JSCell(vm, vm.propertyNameEnumeratorStructure.get())
     , m_propertyNames(vm, this, propertyNamesBuffer)
-    , m_cachedStructureID(structure ? structure->id() : 0)
+    , m_cachedStructureID(vm, this, structure, WriteBarrierStructureID::MayBeNull)
     , m_indexedLength(indexedLength)
     , m_endStructurePropertyIndex(numberStructureProperties)
     , m_endGenericPropertyIndex(propertyNamesSize)
@@ -86,11 +86,7 @@ void JSPropertyNameEnumerator::visitChildrenImpl(JSCell* cell, Visitor& visitor)
         visitor.markAuxiliary(propertyNames);
         visitor.append(propertyNames, propertyNames + thisObject->sizeOfPropertyNames());
     }
-
-    if (thisObject->cachedStructureID()) {
-        VM& vm = visitor.vm();
-        visitor.appendUnbarriered(vm.getStructure(thisObject->cachedStructureID()));
-    }
+    visitor.append(thisObject->m_cachedStructureID);
 }
 
 DEFINE_VISIT_CHILDREN(JSPropertyNameEnumerator);
@@ -197,7 +193,7 @@ JSString* JSPropertyNameEnumerator::computeNext(JSGlobalObject* globalObject, JS
                 break;
             if (index < endStructurePropertyIndex() && base->structureID() == cachedStructureID())
                 break;
-            auto id = Identifier::fromString(vm, name->value(globalObject));
+            auto id = name->toIdentifier(globalObject);
             RETURN_IF_EXCEPTION(scope, nullptr);
             if (base->hasEnumerableProperty(globalObject, id))
                 break;

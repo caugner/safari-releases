@@ -26,6 +26,7 @@
 #pragma once
 
 #include "HTMLFormControlElementWithState.h"
+#include "HTMLOptionElement.h"
 #include "TypeAhead.h"
 
 namespace WebCore {
@@ -69,7 +70,7 @@ public:
 
     void setRecalcListItems();
     void invalidateSelectedItems();
-    void updateListItemSelectedStates();
+    void updateListItemSelectedStates(AllowStyleInvalidation = AllowStyleInvalidation::Yes);
 
     WEBCORE_EXPORT const Vector<HTMLElement*>& listItems() const;
 
@@ -115,7 +116,7 @@ private:
     bool isKeyboardFocusable(KeyboardEvent*) const final;
     bool isMouseFocusable() const final;
 
-    void dispatchFocusEvent(RefPtr<Element>&& oldFocusedElement, FocusDirection) final;
+    void dispatchFocusEvent(RefPtr<Element>&& oldFocusedElement, const FocusOptions&) final;
     void dispatchBlurEvent(RefPtr<Element>&& newFocusedElement) final;
     
     bool canStartSelection() const final { return false; }
@@ -144,7 +145,7 @@ private:
 
     void didRecalcStyle(Style::Change) final;
 
-    void recalcListItems(bool updateSelectedStates = true) const;
+    void recalcListItems(bool updateSelectedStates = true, AllowStyleInvalidation = AllowStyleInvalidation::Yes) const;
 
     void deselectItems(HTMLOptionElement* excludeElement = nullptr);
     void typeAheadFind(KeyboardEvent&);

@@ -64,9 +64,10 @@ String CachedXSLStyleSheet::encoding() const
 void CachedXSLStyleSheet::finishLoading(const FragmentedSharedBuffer* data, const NetworkLoadMetrics& metrics)
 {
     if (data) {
-        m_data = data->makeContiguous();
+        auto contiguousData = data->makeContiguous();
         setEncodedSize(data->size());
-        m_sheet = m_decoder->decodeAndFlush(m_data->data(), encodedSize());
+        m_sheet = m_decoder->decodeAndFlush(contiguousData->data(), encodedSize());
+        m_data = WTFMove(contiguousData);
     } else {
         m_data = nullptr;
         setEncodedSize(0);
@@ -80,8 +81,8 @@ void CachedXSLStyleSheet::checkNotify(const NetworkLoadMetrics&)
     if (isLoading())
         return;
     
-    CachedResourceClientWalker<CachedStyleSheetClient> w(m_clients);
-    while (CachedStyleSheetClient* c = w.next())
+    CachedResourceClientWalker<CachedStyleSheetClient> walker(*this);
+    while (CachedStyleSheetClient* c = walker.next())
         c->setXSLStyleSheet(m_resourceRequest.url().string(), m_response.url(), m_sheet);
 }
 

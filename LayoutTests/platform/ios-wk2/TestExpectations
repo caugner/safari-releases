@@ -839,7 +839,6 @@ fast/text/indic.html [ Failure Pass ]
 fast/text/justified-selection-at-edge.html [ Failure Pass ]
 fast/text/justified-selection.html [ Failure Pass ]
 fast/text/justify-ideograph-leading-expansion.html [ Failure Pass ]
-fast/text/khmer-lao-font.html [ Failure Pass ]
 fast/text/large-text-composed-char.html [ Failure Pass ]
 fast/text/letter-spacing-negative-opacity.html [ Failure Pass ]
 fast/text/line-breaks-after-white-space.html [ Failure Pass ]
@@ -2027,6 +2026,8 @@ imported/w3c/web-platform-tests/css/css-counter-styles/lower-greek/css3-counter-
 webkit.org/b/223586 webgl/conformance/extensions/khr-parallel-shader-compile.html [ Skip ]
 
 webkit.org/b/214955 fast/parser/xml-colon-entity.html [ Failure ]
+
+webkit.org/b/223750 [ Debug ] security/contentSecurityPolicy/plugins-types-allows-youtube-plugin-replacement.html [ Pass Crash ]
 
 webkit.org/b/155196 security/contentSecurityPolicy/video-with-file-url-allowed-by-media-src-star-with-AllowContentSecurityPolicySourceStarToMatchAnyProtocol-enabled.html [ Pass ImageOnlyFailure ]
 webkit.org/b/155196 security/contentSecurityPolicy/video-with-file-url-allowed-by-media-src-star.html [ Pass ImageOnlyFailure ]
