@@ -977,6 +977,9 @@ webkit.org/b/232910 fast/text/apply-start-width-after-skipped-text.html [ Failur
 webkit.org/b/232910 imported/w3c/web-platform-tests/css/css-text/line-breaking/line-breaking-ic-003.html [ ImageOnlyFailure ]
 webkit.org/b/232910 imported/w3c/web-platform-tests/css/css-text/white-space/white-space-intrinsic-size-001.html [ ImageOnlyFailure ]
 
+# Requires support for xHE-HAAC audio codec
+webkit.org/b/239750 media/media-source/media-mp4-xhe-aac.html [ Skip ]
+
 #////////////////////////////////////////////////////////////////////////////////////////
 # End of Expected failures.
 #////////////////////////////////////////////////////////////////////////////////////////
@@ -1612,8 +1615,6 @@ webkit.org/b/159143 fast/dom/horizontal-scrollbar-in-rtl.html [ Failure ]
 # Incomplete implementation of eventSender causes this test to fail
 webkit.org/b/42194 fast/scrolling/scroll-select-list.html [ ImageOnlyFailure ]
 
-webkit.org/b/139354 fast/repaint/selection-ruby-rl.html [ Failure ]
-
 # Missing glyph symbol is not rendered properly.
 webkit.org/b/140252 fast/css/line-height-determined-by-primary-font.html [ Failure ]
 webkit.org/b/140252 fast/text/decorations-with-text-combine.html [ Failure ]
@@ -2130,3 +2131,5 @@ webkit.org/b/160119 fast/repaint/selection-gap-flipped-fixed-child.html [ Failur
 #////////////////////////////////////////////////////////////////////////////////////////
 # UNSORTED Expectations. When in doubt, put it here.
 #////////////////////////////////////////////////////////////////////////////////////////
+
+accessibility/dialog-properties.html [ Skip ]

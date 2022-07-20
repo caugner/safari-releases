@@ -670,6 +670,7 @@ public:
     void clearSourceProviderCaches();
 
     StructureCache structureCache;
+    InlineWatchpointSet m_structureCacheClearedWatchpoint;
 
     typedef HashMap<RefPtr<SourceProvider>, RefPtr<SourceProviderCache>> SourceProviderCacheMap;
     SourceProviderCacheMap sourceProviderCacheMap;
@@ -752,6 +753,17 @@ public:
         return result;
     }
     
+    ALWAYS_INLINE Structure* getStructure(StructureID id)
+    {
+        return heap.structureIDTable().get(decontaminate(id));
+    }
+
+    // FIXME: rdar://69036888: remove this function when no longer needed.
+    ALWAYS_INLINE Structure* tryGetStructure(StructureID id)
+    {
+        return heap.structureIDTable().tryGet(decontaminate(id));
+    }
+
     void* stackPointerAtVMEntry() const { return m_stackPointerAtVMEntry; }
     void setStackPointerAtVMEntry(void*);
 

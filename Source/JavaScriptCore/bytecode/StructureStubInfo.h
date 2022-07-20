@@ -157,9 +157,11 @@ public:
 
     bool containsPC(void* pc) const;
 
-    uint32_t inlineSize() const
+    uint32_t inlineCodeSize() const
     {
-        int32_t inlineSize = MacroAssembler::differenceBetweenCodePtr(start, doneLocation);
+        if (!startLocation)
+            return 0;
+        int32_t inlineSize = MacroAssembler::differenceBetweenCodePtr(startLocation, doneLocation);
         ASSERT(inlineSize >= 0);
         return inlineSize;
     }
@@ -212,10 +214,6 @@ public:
         return considerCaching(vm, codeBlock, structure, impl);
     }
 
-    Structure* inlineAccessBaseStructure(VM&)
-    {
-        return m_inlineAccessBaseStructureID.get();
-    }
 private:
     ALWAYS_INLINE bool considerCaching(VM& vm, CodeBlock* codeBlock, Structure* structure, CacheableIdentifier impl)
     {
@@ -356,17 +354,24 @@ private:
 
 public:
     static ptrdiff_t offsetOfByIdSelfOffset() { return OBJECT_OFFSETOF(StructureStubInfo, byIdSelfOffset); }
-    static ptrdiff_t offsetOfInlineAccessBaseStructureID() { return OBJECT_OFFSETOF(StructureStubInfo, m_inlineAccessBaseStructureID); }
+    static ptrdiff_t offsetOfInlineAccessBaseStructure() { return OBJECT_OFFSETOF(StructureStubInfo, m_inlineAccessBaseStructure); }
     static ptrdiff_t offsetOfCodePtr() { return OBJECT_OFFSETOF(StructureStubInfo, m_codePtr); }
     static ptrdiff_t offsetOfDoneLocation() { return OBJECT_OFFSETOF(StructureStubInfo, doneLocation); }
     static ptrdiff_t offsetOfSlowPathStartLocation() { return OBJECT_OFFSETOF(StructureStubInfo, slowPathStartLocation); }
     static ptrdiff_t offsetOfSlowOperation() { return OBJECT_OFFSETOF(StructureStubInfo, m_slowOperation); }
     static ptrdiff_t offsetOfCountdown() { return OBJECT_OFFSETOF(StructureStubInfo, countdown); }
 
+    Structure* inlineAccessBaseStructure(VM& vm)
+    {
+        if (!m_inlineAccessBaseStructure)
+            return nullptr;
+        return vm.getStructure(m_inlineAccessBaseStructure);
+    }
+
     CodeOrigin codeOrigin;
     PropertyOffset byIdSelfOffset;
     std::unique_ptr<PolymorphicAccess> m_stub;
-    WriteBarrierStructureID m_inlineAccessBaseStructureID;
+    StructureID m_inlineAccessBaseStructure { 0 };
 private:
     CacheableIdentifier m_identifier;
     // Represents those structures that already have buffered AccessCases in the PolymorphicAccess.
@@ -375,7 +380,9 @@ private:
     // That's not so bad - we'll get rid of the redundant ones once we regenerate.
     HashSet<BufferedStructure, BufferedStructure::Hash, BufferedStructure::KeyTraits> m_bufferedStructures WTF_GUARDED_BY_LOCK(m_bufferedStructuresLock);
 public:
-    CodeLocationLabel<JITStubRoutinePtrTag> start; // This is either the start of the inline IC for *byId caches. or the location of patchable jump for 'instanceof' caches.
+    // This is either the start of the inline IC for *byId caches. or the location of patchable jump for 'instanceof' caches.
+    // If useDataIC is true, then it is nullptr.
+    CodeLocationLabel<JITStubRoutinePtrTag> startLocation;
     CodeLocationLabel<JSInternalPtrTag> doneLocation;
     CodeLocationLabel<JITStubRoutinePtrTag> slowPathStartLocation;
 
@@ -419,11 +426,10 @@ public:
     uint8_t countdown { 1 };
     uint8_t repatchCount { 0 };
     uint8_t numberOfCoolDowns { 0 };
-    uint8_t bufferingCountdown;
-private:
-    Lock m_bufferedStructuresLock;
-public:
+
     CallSiteIndex callSiteIndex;
+
+    uint8_t bufferingCountdown;
     bool resetByGC : 1;
     bool tookSlowPath : 1;
     bool everConsidered : 1;
@@ -433,6 +439,8 @@ public:
     bool propertyIsString : 1;
     bool propertyIsInt32 : 1;
     bool propertyIsSymbol : 1;
+private:
+    Lock m_bufferedStructuresLock;
 };
 
 inline CodeOrigin getStructureStubInfoCodeOrigin(StructureStubInfo& structureStubInfo)
@@ -481,9 +489,12 @@ struct UnlinkedStructureStubInfo {
     PutKind putKind;
     PrivateFieldPutKind privateFieldPutKind { PrivateFieldPutKind::none() };
     ECMAMode ecmaMode { ECMAMode::sloppy() };
-    bool propertyIsInt32 { false };
     BytecodeIndex bytecodeIndex;
-    CodeLocationLabel<JITStubRoutinePtrTag> start; // This is either the start of the inline IC for *byId caches. or the location of patchable jump for 'instanceof' caches.
+    bool propertyIsInt32 { false };
+    bool propertyIsString { false };
+    bool propertyIsSymbol { false };
+    bool prototypeIsKnownObject { false };
+    bool tookSlowPath { false };
     CodeLocationLabel<JSInternalPtrTag> doneLocation;
     CodeLocationLabel<JITStubRoutinePtrTag> slowPathStartLocation;
 };

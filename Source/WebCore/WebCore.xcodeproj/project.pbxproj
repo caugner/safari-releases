@@ -1346,6 +1346,7 @@
 		4682D2001F79783000C863DB /* StoredCredentialsPolicy.h in Headers */ = {isa = PBXBuildFile; fileRef = 4682D1FF1F79782300C863DB /* StoredCredentialsPolicy.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		468344E01EDDFAAA00B7795B /* DOMRectList.h in Headers */ = {isa = PBXBuildFile; fileRef = 468344DE1EDDFA5F00B7795B /* DOMRectList.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		4688EE3C26DD2610002AF5C4 /* CrossOriginMode.h in Headers */ = {isa = PBXBuildFile; fileRef = 4688EE3A26DD260C002AF5C4 /* CrossOriginMode.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		46893B8427E8D74C002CC13D /* PartitionedSecurityOrigin.h in Headers */ = {isa = PBXBuildFile; fileRef = 46893B8327E8D716002CC13D /* PartitionedSecurityOrigin.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		469CCCFE269D021C006E0314 /* BroadcastChannel.h in Headers */ = {isa = PBXBuildFile; fileRef = 469CCCFC269D0202006E0314 /* BroadcastChannel.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		469D77B82701625100142FA6 /* NavigationRequester.h in Headers */ = {isa = PBXBuildFile; fileRef = 469D77B62701625000142FA6 /* NavigationRequester.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		46AAAA3D25D3632000BAF42F /* AudioFileReaderCocoa.h in Headers */ = {isa = PBXBuildFile; fileRef = 46AAAA3A25D3631400BAF42F /* AudioFileReaderCocoa.h */; };
@@ -9215,6 +9216,7 @@
 		468344DD1EDDFA5F00B7795B /* DOMRectList.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = DOMRectList.cpp; sourceTree = "<group>"; };
 		468344DE1EDDFA5F00B7795B /* DOMRectList.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DOMRectList.h; sourceTree = "<group>"; };
 		4688EE3A26DD260C002AF5C4 /* CrossOriginMode.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CrossOriginMode.h; sourceTree = "<group>"; };
+		46893B8327E8D716002CC13D /* PartitionedSecurityOrigin.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = PartitionedSecurityOrigin.h; sourceTree = "<group>"; };
 		468B8BDE25CC849300F67822 /* JSBaseAudioContextCustom.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = JSBaseAudioContextCustom.cpp; sourceTree = "<group>"; };
 		469CCCFA269D0202006E0314 /* BroadcastChannel.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = BroadcastChannel.cpp; sourceTree = "<group>"; };
 		469CCCFC269D0202006E0314 /* BroadcastChannel.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BroadcastChannel.h; sourceTree = "<group>"; };
@@ -24084,6 +24086,7 @@
 				F40DAAEE25D9F3BF0011B4FA /* PagePasteboardContext.h */,
 				371E65CD13661EED00BEEDB0 /* PageSerializer.cpp */,
 				371E65CB13661EDC00BEEDB0 /* PageSerializer.h */,
+				46893B8327E8D716002CC13D /* PartitionedSecurityOrigin.h */,
 				BC4A53282560563B0028C592 /* PDFImageCachingPolicy.h */,
 				7C72471E2516758800C363CD /* Performance+NavigationTiming.idl */,
 				7C72471C251674CE00C363CD /* Performance+PerformanceTimeline.idl */,
@@ -36372,6 +36375,7 @@
 				447958041643B49A001E0A7F /* ParsedContentType.h in Headers */,
 				5C4A0FDA25C3449A00D9EE97 /* ParsedRequestRange.h in Headers */,
 				536D5A23193E8E0C00CE4CAB /* ParsingUtilities.h in Headers */,
+				46893B8427E8D74C002CC13D /* PartitionedSecurityOrigin.h in Headers */,
 				F55B3DCA1251F12D003EF269 /* PasswordInputType.h in Headers */,
 				4B2708C70AF19EE40065127F /* Pasteboard.h in Headers */,
 				F40DAAEC25D9F25E0011B4FA /* PasteboardContext.h in Headers */,

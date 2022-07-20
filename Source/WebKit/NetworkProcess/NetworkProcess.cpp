@@ -67,6 +67,7 @@
 #include "WebsiteDataType.h"
 #include <WebCore/ClientOrigin.h>
 #include <WebCore/CookieJar.h>
+#include <WebCore/CrossOriginPreflightResultCache.h>
 #include <WebCore/DNS.h>
 #include <WebCore/DeprecatedGlobalSettings.h>
 #include <WebCore/DiagnosticLoggingClient.h>
@@ -366,20 +367,20 @@ void NetworkProcess::initializeConnection(IPC::Connection* connection)
 
 void NetworkProcess::createNetworkConnectionToWebProcess(ProcessIdentifier identifier, PAL::SessionID sessionID, CompletionHandler<void(std::optional<IPC::Attachment>&&, HTTPCookieAcceptPolicy)>&& completionHandler)
 {
-    auto ipcConnection = createIPCConnectionPair();
-    if (!ipcConnection) {
+    auto connectionIdentifiers = IPC::Connection::createConnectionIdentifierPair();
+    if (!connectionIdentifiers) {
         completionHandler({ }, HTTPCookieAcceptPolicy::Never);
         return;
     }
 
-    auto newConnection = NetworkConnectionToWebProcess::create(*this, identifier, sessionID, ipcConnection->first);
+    auto newConnection = NetworkConnectionToWebProcess::create(*this, identifier, sessionID, connectionIdentifiers->server);
     auto& connection = newConnection.get();
 
     ASSERT(!m_webProcessConnections.contains(identifier));
     m_webProcessConnections.add(identifier, WTFMove(newConnection));
 
     auto* storage = storageSession(sessionID);
-    completionHandler(WTFMove(ipcConnection->second), storage ? storage->cookieAcceptPolicy() : HTTPCookieAcceptPolicy::Never);
+    completionHandler(WTFMove(connectionIdentifiers->client), storage ? storage->cookieAcceptPolicy() : HTTPCookieAcceptPolicy::Never);
 
     connection.setOnLineState(NetworkStateNotifier::singleton().onLine());
 
@@ -479,7 +480,7 @@ void NetworkProcess::ensureSession(PAL::SessionID sessionID, bool shouldUseTesti
     if (sessionID.isEphemeral())
         storageSession = createPrivateStorageSession(cfIdentifier.get(), std::nullopt, WebCore::NetworkStorageSession::ShouldDisableCFURLCache::Yes);
     else if (sessionID != PAL::SessionID::defaultSessionID())
-        storageSession = WebCore::NetworkStorageSession::createCFStorageSessionForIdentifier(cfIdentifier.get());
+        storageSession = WebCore::NetworkStorageSession::createCFStorageSessionForIdentifier(cfIdentifier.get(), WebCore::NetworkStorageSession::ShouldDisableCFURLCache::Yes);
 
     if (NetworkStorageSession::processMayUseCookieAPI()) {
         ASSERT(hasProcessPrivilege(ProcessPrivilege::CanAccessRawCookies));
@@ -1560,6 +1561,9 @@ void NetworkProcess::deleteWebsiteData(PAL::SessionID sessionID, OptionSet<Websi
     if (session)
         session->removeNetworkWebsiteData(modifiedSince, std::nullopt, [clearTasksHandler] { });
 
+    if (websiteDataTypes.contains(WebsiteDataType::MemoryCache))
+        CrossOriginPreflightResultCache::singleton().clear();
+
     if (websiteDataTypes.contains(WebsiteDataType::DiskCache) && !sessionID.isEphemeral())
         clearDiskCache(modifiedSince, [clearTasksHandler] { });
 
@@ -1643,6 +1647,9 @@ void NetworkProcess::deleteWebsiteDataForOrigins(PAL::SessionID sessionID, Optio
             server.clear(originData, [clearTasksHandler] { });
     }
 #endif
+
+    if (websiteDataTypes.contains(WebsiteDataType::MemoryCache))
+        CrossOriginPreflightResultCache::singleton().clear();
 
     if (websiteDataTypes.contains(WebsiteDataType::DiskCache) && !sessionID.isEphemeral()) {
         forEachNetworkSession([originDatas, &clearTasksHandler](auto& session) {
@@ -2603,6 +2610,15 @@ void NetworkProcess::connectionToWebProcessClosed(IPC::Connection& connection, P
         if (auto* manager = session->storageManager())
             manager->stopReceivingMessageFromConnection(connection);
     }
+}
+
+WebCore::ProcessIdentifier NetworkProcess::webProcessIdentifierForConnection(IPC::Connection& connection) const
+{
+    for (auto& [processIdentifier, webConnection] : m_webProcessConnections) {
+        if (&webConnection->connection() == &connection)
+            return processIdentifier;
+    }
+    return { };
 }
 
 NetworkConnectionToWebProcess* NetworkProcess::webProcessConnection(ProcessIdentifier identifier) const

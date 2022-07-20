@@ -110,9 +110,10 @@ ALWAYS_INLINE bool JSObject::getPropertySlot(JSGlobalObject* globalObject, unsig
 {
     VM& vm = getVM(globalObject);
     auto scope = DECLARE_THROW_SCOPE(vm);
+    auto& structureIDTable = vm.heap.structureIDTable();
     JSObject* object = this;
     while (true) {
-        Structure* structure = object->structureID().decode();
+        Structure* structure = structureIDTable.get(object->structureID());
         bool hasSlot = structure->classInfo()->methodTable.getOwnPropertySlotByIndex(object, globalObject, propertyName, slot);
         RETURN_IF_EXCEPTION(scope, false);
         if (hasSlot)
@@ -150,9 +151,10 @@ ALWAYS_INLINE bool JSObject::getNonIndexPropertySlot(JSGlobalObject* globalObjec
 
     VM& vm = getVM(globalObject);
     auto scope = DECLARE_THROW_SCOPE(vm);
+    auto& structureIDTable = vm.heap.structureIDTable();
     JSObject* object = this;
     while (true) {
-        Structure* structure = object->structureID().decode();
+        Structure* structure = structureIDTable.get(object->structureID());
         if (LIKELY(!TypeInfo::overridesGetOwnPropertySlot(object->inlineTypeFlags()))) {
             if (object->getOwnNonIndexPropertySlot(vm, structure, propertyName, slot))
                 return true;
@@ -217,7 +219,7 @@ inline void JSObject::putDirectWithoutTransition(VM& vm, PropertyName propertyNa
     ASSERT(!value.isGetterSetter() && !(attributes & PropertyAttribute::Accessor));
     ASSERT(!value.isCustomGetterSetter());
     StructureID structureID = this->structureID();
-    Structure* structure = structureID.decode();
+    Structure* structure = vm.heap.structureIDTable().get(structureID);
     PropertyOffset offset = prepareToPutDirectWithoutTransition(vm, propertyName, attributes, structureID, structure);
     putDirect(vm, offset, value);
     if (attributes & PropertyAttribute::ReadOnly)
@@ -326,14 +328,14 @@ ALWAYS_INLINE ASCIILiteral JSObject::putDirectInternal(VM& vm, PropertyName prop
     ASSERT(!parseIndex(propertyName));
 
     StructureID structureID = this->structureID();
-    Structure* structure = structureID.decode();
+    Structure* structure = vm.heap.structureIDTable().get(structureID);
     if (structure->isDictionary()) {
         ASSERT(!isCopyOnWrite(indexingMode()));
         
         unsigned currentAttributes;
         PropertyOffset offset = structure->get(vm, propertyName, currentAttributes);
         if (offset != invalidOffset) {
-            if ((mode == PutModePut || mode == PutModeDefineOwnProperty) && currentAttributes & PropertyAttribute::ReadOnlyOrAccessorOrCustomAccessor)
+            if (mode == PutModePut && (currentAttributes & PropertyAttribute::ReadOnlyOrAccessorOrCustomAccessor))
                 return ReadonlyPropertyChangeError;
 
             putDirect(vm, offset, value);
@@ -341,7 +343,7 @@ ALWAYS_INLINE ASCIILiteral JSObject::putDirectInternal(VM& vm, PropertyName prop
 
             // FIXME: Check attributes against PropertyAttribute::CustomAccessorOrValue. Changing GetterSetter should work w/o transition.
             // https://bugs.webkit.org/show_bug.cgi?id=214342
-            if ((mode == PutModeDefineOwnProperty || mode == PutModeDefineOwnPropertyIgnoringExtensibility) && (attributes != currentAttributes || (attributes & PropertyAttribute::AccessorOrCustomAccessorOrValue)))
+            if (mode == PutModeDefineOwnProperty && (attributes != currentAttributes || (attributes & PropertyAttribute::AccessorOrCustomAccessorOrValue)))
                 setStructure(vm, Structure::attributeChangeTransition(vm, structure, propertyName, attributes));
             else {
                 ASSERT(!(currentAttributes & PropertyAttribute::AccessorOrCustomAccessorOrValue));
@@ -351,7 +353,7 @@ ALWAYS_INLINE ASCIILiteral JSObject::putDirectInternal(VM& vm, PropertyName prop
             return ASCIILiteral::null();
         }
 
-        if ((mode == PutModePut || mode == PutModeDefineOwnProperty) && !isStructureExtensible(vm))
+        if (mode == PutModePut && !isStructureExtensible(vm))
             return NonExtensibleObjectPropertyDefineError;
 
         offset = prepareToPutDirectWithoutTransition(vm, propertyName, attributes, structureID, structure);
@@ -390,7 +392,7 @@ ALWAYS_INLINE ASCIILiteral JSObject::putDirectInternal(VM& vm, PropertyName prop
     unsigned currentAttributes;
     offset = structure->get(vm, propertyName, currentAttributes);
     if (offset != invalidOffset) {
-        if ((mode == PutModePut || mode == PutModeDefineOwnProperty) && currentAttributes & PropertyAttribute::ReadOnlyOrAccessorOrCustomAccessor)
+        if (mode == PutModePut && (currentAttributes & PropertyAttribute::ReadOnlyOrAccessorOrCustomAccessor))
             return ReadonlyPropertyChangeError;
 
         structure->didReplaceProperty(offset);
@@ -398,7 +400,7 @@ ALWAYS_INLINE ASCIILiteral JSObject::putDirectInternal(VM& vm, PropertyName prop
 
         // FIXME: Check attributes against PropertyAttribute::CustomAccessorOrValue. Changing GetterSetter should work w/o transition.
         // https://bugs.webkit.org/show_bug.cgi?id=214342
-        if ((mode == PutModeDefineOwnProperty || mode == PutModeDefineOwnPropertyIgnoringExtensibility) && (attributes != currentAttributes || (attributes & PropertyAttribute::AccessorOrCustomAccessorOrValue))) {
+        if (mode == PutModeDefineOwnProperty && (attributes != currentAttributes || (attributes & PropertyAttribute::AccessorOrCustomAccessorOrValue))) {
             // We want the structure transition watchpoint to fire after this object has switched structure.
             // This allows adaptive watchpoints to observe if the new structure is the one we want.
             DeferredStructureTransitionWatchpointFire deferredWatchpointFire(vm, structure);
@@ -411,7 +413,7 @@ ALWAYS_INLINE ASCIILiteral JSObject::putDirectInternal(VM& vm, PropertyName prop
         return ASCIILiteral::null();
     }
 
-    if ((mode == PutModePut || mode == PutModeDefineOwnProperty) && !isStructureExtensible(vm))
+    if (mode == PutModePut && !isStructureExtensible(vm))
         return NonExtensibleObjectPropertyDefineError;
     
     // We want the structure transition watchpoint to fire after this object has switched structure.

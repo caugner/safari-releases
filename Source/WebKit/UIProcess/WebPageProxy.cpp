@@ -3492,7 +3492,6 @@ void WebPageProxy::receivedNavigationPolicyDecision(PolicyAction policyAction, A
             receivedPolicyDecision(policyAction, navigation.ptr(), nullptr, WTFMove(navigationAction), WTFMove(sender), WillContinueLoadInNewProcess::Yes);
             return;
         }
-
         auto item = navigation->reloadItem() ? navigation->reloadItem() : navigation->targetItem();
         std::optional<SandboxExtension::Handle> optionalHandle;
         if (policyAction == PolicyAction::Use && item) {
@@ -4497,7 +4496,7 @@ void WebPageProxy::forceRepaint(CompletionHandler<void()>&& callback)
 static OptionSet<IPC::SendOption> printingSendOptions(bool isPerformingDOMPrintOperation)
 {
     if (isPerformingDOMPrintOperation)
-        return IPC::SendOption::DispatchMessageEvenWhenWaitingForSyncReply;
+        return IPC::SendOption::DispatchMessageEvenWhenWaitingForUnboundedSyncReply;
 
     return { };
 }

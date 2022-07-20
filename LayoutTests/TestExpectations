@@ -434,6 +434,8 @@ imported/w3c/web-platform-tests/html/browsers/history/the-location-interface/loc
 imported/w3c/web-platform-tests/html/browsers/origin/cross-origin-objects/cross-origin-objects.html [ DumpJSConsoleLogInStdErr ]
 imported/w3c/web-platform-tests/html/browsers/sandboxing/sandbox-disallow-popups.html [ DumpJSConsoleLogInStdErr ]
 imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/blob.https.html [ DumpJSConsoleLogInStdErr ]
+imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/require-corp-cached-images.https.html [ DumpJSConsoleLogInStdErr ]
+imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/require-corp-revalidated-images.https.html [ DumpJSConsoleLogInStdErr ]
 imported/w3c/web-platform-tests/html/cross-origin-opener-policy/coop-csp-sandbox.https.html [ DumpJSConsoleLogInStdErr ]
 imported/w3c/web-platform-tests/html/cross-origin-opener-policy/coop-navigated-history-popup.https.html [ DumpJSConsoleLogInStdErr ]
 imported/w3c/web-platform-tests/html/cross-origin-opener-policy/navigate-to-aboutblank.https.html [ DumpJSConsoleLogInStdErr ]
@@ -1107,7 +1109,7 @@ fast/animation/request-animation-frame-in-two-pages.html [ Skip ]
 
 # Only supported on iOS internal configurations, see: https://webkit.org/b/193214#c6
 pointerevents/ios [ Skip ]
-
+pointerevents/mouse [ Failure ]
 # permessage-deflate WebSocket extension only supported by Soup based ports
 http/tests/websocket/tests/hybi/imported/blink/permessage-deflate-comp-bit-onoff.html [ Skip ]
 http/tests/websocket/tests/hybi/imported/blink/permessage-deflate-invalid-parameter.html [ Skip ]
@@ -5122,6 +5124,9 @@ webkit.org/b/233344 imported/w3c/web-platform-tests/css/motion/offset-rotate-002
 # IPC test failing in Debug mode due to assert.
 [ Debug ] ipc/send-invalid-message.html [ Skip ]
 
+# The test invokes random messages, potentially produces random results.
+ipc/start-message-testing.html [ Skip ]
+
 imported/w3c/web-platform-tests/css/css-shadow-parts/interaction-with-nested-pseudo-class.html [ ImageOnlyFailure ]
 
 webkit.org/b/183994 imported/w3c/web-platform-tests/css/cssom/css-style-attr-decl-block.html [ Failure ]
@@ -5206,3 +5211,6 @@ security/contentSecurityPolicy/plugins-types-allows-youtube-plugin-replacement.h
 security/contentSecurityPolicy/plugins-types-blocks-youtube-plugin-replacement-without-mime-type.html [ Skip ]
 security/contentSecurityPolicy/plugins-types-blocks-youtube-plugin-replacement.html [ Skip ]
 userscripts/user-script-plugin-document.html [ Skip ]
+
+# Only some ports automatically relayout if a font is installed while the page is open
+fast/text/install-font-style-recalc.html [ Failure ]

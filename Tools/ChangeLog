@@ -1,3 +1,500 @@
+2022-04-13  Alex Christensen  <achristensen@webkit.org>
+
+        Punycode encode U+15AF when not in context of other Canadian aboriginal code points
+        https://bugs.webkit.org/show_bug.cgi?id=239316
+        <rdar://91248059>
+
+        Reviewed by Darin Adler.
+
+        * TestWebKitAPI/Tests/WTF/cocoa/URLExtras.mm:
+        (TestWebKitAPI::TEST):
+
+2022-02-25  Kimmo Kinnunen  <kkinnunen@apple.com>
+
+        REGRESSION(r289580): [ iOS macOS ] TestWebKitAPI.IPCTestingAPI.CanReceiveSharedMemory is a constant timeout
+        https://bugs.webkit.org/show_bug.cgi?id=236744
+
+        Reviewed by Antti Koivisto.
+
+        * TestWebKitAPI/Tests/WebKitCocoa/IPCTestingAPI.mm:
+
+2022-03-17  Kate Cheney  <katherine_cheney@apple.com>
+
+        Calls to print can result in unresponsive print modal
+        https://bugs.webkit.org/show_bug.cgi?id=237940
+        <rdar://problem/88257828>
+
+        Reviewed by Chris Dumez.
+
+        Add API test. Adjust delegate naming in the PDF case to be more
+        specific so we can use the generic PrintUIDelegate name in the general
+        case.
+
+        * TestWebKitAPI/SourcesCocoa.txt:
+        * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj:
+        * TestWebKitAPI/Tests/WebKitCocoa/WKPDFView.mm:
+        (TEST):
+        (-[PrintUIDelegate _webView:printFrame:pdfFirstPageSize:completionHandler:]): Deleted.
+        (-[PrintUIDelegate waitForPageSize]): Deleted.
+        (-[PrintUIDelegate lastPrintedFrame]): Deleted.
+        * TestWebKitAPI/Tests/WebKitCocoa/WKPrinting.mm: Added.
+        (-[PrintUIDelegate callBlockAsync:]):
+        (-[PrintUIDelegate _webView:printFrame:pdfFirstPageSize:completionHandler:]):
+        (-[PrintUIDelegate waitForPagination]):
+        (TEST):
+
+2022-04-27  Youenn Fablet  <youenn@apple.com>
+
+        Add testRunner API to clear memory cache
+        https://bugs.webkit.org/show_bug.cgi?id=239804
+        rdar://92033309
+
+        Reviewed by Chris Dumez.
+
+        Implement the clear memory cache testRunner API and related plumbery.
+
+        * WebKitTestRunner/InjectedBundle/Bindings/TestRunner.idl:
+        * WebKitTestRunner/InjectedBundle/TestRunner.cpp:
+        * WebKitTestRunner/InjectedBundle/TestRunner.h:
+        * WebKitTestRunner/TestController.cpp:
+        * WebKitTestRunner/TestController.h:
+        * WebKitTestRunner/TestInvocation.cpp:
+
+2022-03-17  Kate Cheney  <katherine_cheney@apple.com>
+
+        Calls to print can result in unresponsive print modal
+        https://bugs.webkit.org/show_bug.cgi?id=237940
+        <rdar://problem/88257828>
+
+        Reviewed by Chris Dumez.
+
+        Add API test. Adjust delegate naming in the PDF case to be more
+        specific so we can use the generic PrintUIDelegate name in the general
+        case.
+
+        * TestWebKitAPI/SourcesCocoa.txt:
+        * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj:
+        * TestWebKitAPI/Tests/WebKitCocoa/WKPDFView.mm:
+        (TEST):
+        (-[PrintUIDelegate _webView:printFrame:pdfFirstPageSize:completionHandler:]): Deleted.
+        (-[PrintUIDelegate waitForPageSize]): Deleted.
+        (-[PrintUIDelegate lastPrintedFrame]): Deleted.
+        * TestWebKitAPI/Tests/WebKitCocoa/WKPrinting.mm: Added.
+        (-[PrintUIDelegate callBlockAsync:]):
+        (-[PrintUIDelegate _webView:printFrame:pdfFirstPageSize:completionHandler:]):
+        (-[PrintUIDelegate waitForPagination]):
+        (TEST):
+
+2022-04-14  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+        [iOS] [WK2] Managed pasteboard should function for all managed domains
+        https://bugs.webkit.org/show_bug.cgi?id=239319
+        rdar://80059355
+
+        Reviewed by Kate Cheney.
+
+        Add a new API test to verify that we fall back to consulting `-[MCProfileConnection isURLManaged:]` when
+        determining the data owner for copy and paste, unless a data owner is already explicitly set on a view in the
+        responder chain (specifically, the WKWebView).
+
+        * TestWebKitAPI/Tests/ios/UIPasteboardTests.mm:
+        (+[TestUIPasteboard _performAsDataOwner:block:]):
+        (-[TestMCProfileConnection isURLManaged:]):
+        (TestWebKitAPI::TEST):
+
+2022-04-22  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r292274. rdar://problem/80544133
+
+    [Cocoa] Automatically relayout the page when new fonts are installed
+    https://bugs.webkit.org/show_bug.cgi?id=238483
+    <rdar://problem/80544133>
+    
+    Reviewed by Chris Dumez.
+    
+    Source/WebCore:
+    
+    This patch simply calls setNeedsRecalcStyleInAllFrames on every Page when we receive a
+    kCTFontManagerRegisteredFontsChangedNotification.
+    
+    FontCache::invalidateAllFontCaches() can't do this directly because it's in platform/ and
+    therefore isn't allowed to know what Pages are. Instead, this patch takes a process-global
+    callback and calls that instead. This callback is set at initialization time.
+    
+    Test: fast/text/install-font-style-recalc.html
+    
+    * page/Page.cpp:
+    (WebCore::m_contentSecurityPolicyModeForExtension):
+    (WebCore::Page::firstTimeInitialization):
+    * page/Page.h:
+    * platform/graphics/FontCache.cpp:
+    (WebCore::Function<void):
+    (WebCore::FontCache::registerFontCacheInvalidationCallback):
+    (WebCore::FontCache::invalidateAllFontCaches):
+    * platform/graphics/FontCache.h:
+    
+    Tools:
+    
+    Make TestRunner::dumpResourceLoadStatistics() clear any currently-recorded statistics.
+    This avoids the problem where spurious layouts during the time when the page has been created but
+    before the test has begun record irrelevant statistics.
+    
+    * WebKitTestRunner/InjectedBundle/InjectedBundle.cpp:
+    (WTR::InjectedBundle::beginTesting):
+    (WTR::InjectedBundle::clearResourceLoadStatistics):
+    * WebKitTestRunner/InjectedBundle/InjectedBundle.h:
+    * WebKitTestRunner/InjectedBundle/TestRunner.cpp:
+    (WTR::TestRunner::dumpResourceLoadStatistics):
+    
+    LayoutTests:
+    
+    * TestExpectations:
+    * fast/text/install-font-style-recalc-expected.txt: Added.
+    * fast/text/install-font-style-recalc.html: Added.
+    * platform/ios-wk2/TestExpectations:
+    * platform/mac-wk2/TestExpectations:
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@292274 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-04-02  Myles C. Maxfield  <mmaxfield@apple.com>
+
+            [Cocoa] Automatically relayout the page when new fonts are installed
+            https://bugs.webkit.org/show_bug.cgi?id=238483
+            <rdar://problem/80544133>
+
+            Reviewed by Chris Dumez.
+
+            Make TestRunner::dumpResourceLoadStatistics() clear any currently-recorded statistics.
+            This avoids the problem where spurious layouts during the time when the page has been created but
+            before the test has begun record irrelevant statistics.
+
+            * WebKitTestRunner/InjectedBundle/InjectedBundle.cpp:
+            (WTR::InjectedBundle::beginTesting):
+            (WTR::InjectedBundle::clearResourceLoadStatistics):
+            * WebKitTestRunner/InjectedBundle/InjectedBundle.h:
+            * WebKitTestRunner/InjectedBundle/TestRunner.cpp:
+            (WTR::TestRunner::dumpResourceLoadStatistics):
+
+2022-04-22  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r292274. rdar://problem/80544133
+
+    [Cocoa] Automatically relayout the page when new fonts are installed
+    https://bugs.webkit.org/show_bug.cgi?id=238483
+    <rdar://problem/80544133>
+    
+    Reviewed by Chris Dumez.
+    
+    Source/WebCore:
+    
+    This patch simply calls setNeedsRecalcStyleInAllFrames on every Page when we receive a
+    kCTFontManagerRegisteredFontsChangedNotification.
+    
+    FontCache::invalidateAllFontCaches() can't do this directly because it's in platform/ and
+    therefore isn't allowed to know what Pages are. Instead, this patch takes a process-global
+    callback and calls that instead. This callback is set at initialization time.
+    
+    Test: fast/text/install-font-style-recalc.html
+    
+    * page/Page.cpp:
+    (WebCore::m_contentSecurityPolicyModeForExtension):
+    (WebCore::Page::firstTimeInitialization):
+    * page/Page.h:
+    * platform/graphics/FontCache.cpp:
+    (WebCore::Function<void):
+    (WebCore::FontCache::registerFontCacheInvalidationCallback):
+    (WebCore::FontCache::invalidateAllFontCaches):
+    * platform/graphics/FontCache.h:
+    
+    Tools:
+    
+    Make TestRunner::dumpResourceLoadStatistics() clear any currently-recorded statistics.
+    This avoids the problem where spurious layouts during the time when the page has been created but
+    before the test has begun record irrelevant statistics.
+    
+    * WebKitTestRunner/InjectedBundle/InjectedBundle.cpp:
+    (WTR::InjectedBundle::beginTesting):
+    (WTR::InjectedBundle::clearResourceLoadStatistics):
+    * WebKitTestRunner/InjectedBundle/InjectedBundle.h:
+    * WebKitTestRunner/InjectedBundle/TestRunner.cpp:
+    (WTR::TestRunner::dumpResourceLoadStatistics):
+    
+    LayoutTests:
+    
+    * TestExpectations:
+    * fast/text/install-font-style-recalc-expected.txt: Added.
+    * fast/text/install-font-style-recalc.html: Added.
+    * platform/ios-wk2/TestExpectations:
+    * platform/mac-wk2/TestExpectations:
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@292274 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-04-02  Myles C. Maxfield  <mmaxfield@apple.com>
+
+            [Cocoa] Automatically relayout the page when new fonts are installed
+            https://bugs.webkit.org/show_bug.cgi?id=238483
+            <rdar://problem/80544133>
+
+            Reviewed by Chris Dumez.
+
+            Make TestRunner::dumpResourceLoadStatistics() clear any currently-recorded statistics.
+            This avoids the problem where spurious layouts during the time when the page has been created but
+            before the test has begun record irrelevant statistics.
+
+            * WebKitTestRunner/InjectedBundle/InjectedBundle.cpp:
+            (WTR::InjectedBundle::beginTesting):
+            (WTR::InjectedBundle::clearResourceLoadStatistics):
+            * WebKitTestRunner/InjectedBundle/InjectedBundle.h:
+            * WebKitTestRunner/InjectedBundle/TestRunner.cpp:
+            (WTR::TestRunner::dumpResourceLoadStatistics):
+
+2022-04-22  Alan Coon  <alancoon@apple.com>
+
+        Apply patch. rdar://problem/91446317
+
+    2022-04-21  Youenn Fablet  <youenn@apple.com>
+
+            Website policies are not respected when doing COOP based process swap
+            https://bugs.webkit.org/show_bug.cgi?id=238036
+            <rdar://89616625>
+
+            Reviewed by Chris Dumez.
+
+            * TestWebKitAPI/Tests/WebKitCocoa/ProcessSwapOnNavigation.mm:
+
+2022-04-22  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r292274. rdar://problem/80544133
+
+    [Cocoa] Automatically relayout the page when new fonts are installed
+    https://bugs.webkit.org/show_bug.cgi?id=238483
+    <rdar://problem/80544133>
+    
+    Reviewed by Chris Dumez.
+    
+    Source/WebCore:
+    
+    This patch simply calls setNeedsRecalcStyleInAllFrames on every Page when we receive a
+    kCTFontManagerRegisteredFontsChangedNotification.
+    
+    FontCache::invalidateAllFontCaches() can't do this directly because it's in platform/ and
+    therefore isn't allowed to know what Pages are. Instead, this patch takes a process-global
+    callback and calls that instead. This callback is set at initialization time.
+    
+    Test: fast/text/install-font-style-recalc.html
+    
+    * page/Page.cpp:
+    (WebCore::m_contentSecurityPolicyModeForExtension):
+    (WebCore::Page::firstTimeInitialization):
+    * page/Page.h:
+    * platform/graphics/FontCache.cpp:
+    (WebCore::Function<void):
+    (WebCore::FontCache::registerFontCacheInvalidationCallback):
+    (WebCore::FontCache::invalidateAllFontCaches):
+    * platform/graphics/FontCache.h:
+    
+    Tools:
+    
+    Make TestRunner::dumpResourceLoadStatistics() clear any currently-recorded statistics.
+    This avoids the problem where spurious layouts during the time when the page has been created but
+    before the test has begun record irrelevant statistics.
+    
+    * WebKitTestRunner/InjectedBundle/InjectedBundle.cpp:
+    (WTR::InjectedBundle::beginTesting):
+    (WTR::InjectedBundle::clearResourceLoadStatistics):
+    * WebKitTestRunner/InjectedBundle/InjectedBundle.h:
+    * WebKitTestRunner/InjectedBundle/TestRunner.cpp:
+    (WTR::TestRunner::dumpResourceLoadStatistics):
+    
+    LayoutTests:
+    
+    * TestExpectations:
+    * fast/text/install-font-style-recalc-expected.txt: Added.
+    * fast/text/install-font-style-recalc.html: Added.
+    * platform/ios-wk2/TestExpectations:
+    * platform/mac-wk2/TestExpectations:
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@292274 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-04-02  Myles C. Maxfield  <mmaxfield@apple.com>
+
+            [Cocoa] Automatically relayout the page when new fonts are installed
+            https://bugs.webkit.org/show_bug.cgi?id=238483
+            <rdar://problem/80544133>
+
+            Reviewed by Chris Dumez.
+
+            Make TestRunner::dumpResourceLoadStatistics() clear any currently-recorded statistics.
+            This avoids the problem where spurious layouts during the time when the page has been created but
+            before the test has begun record irrelevant statistics.
+
+            * WebKitTestRunner/InjectedBundle/InjectedBundle.cpp:
+            (WTR::InjectedBundle::beginTesting):
+            (WTR::InjectedBundle::clearResourceLoadStatistics):
+            * WebKitTestRunner/InjectedBundle/InjectedBundle.h:
+            * WebKitTestRunner/InjectedBundle/TestRunner.cpp:
+            (WTR::TestRunner::dumpResourceLoadStatistics):
+
+2022-04-22  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r292274. rdar://problem/80544133
+
+    [Cocoa] Automatically relayout the page when new fonts are installed
+    https://bugs.webkit.org/show_bug.cgi?id=238483
+    <rdar://problem/80544133>
+    
+    Reviewed by Chris Dumez.
+    
+    Source/WebCore:
+    
+    This patch simply calls setNeedsRecalcStyleInAllFrames on every Page when we receive a
+    kCTFontManagerRegisteredFontsChangedNotification.
+    
+    FontCache::invalidateAllFontCaches() can't do this directly because it's in platform/ and
+    therefore isn't allowed to know what Pages are. Instead, this patch takes a process-global
+    callback and calls that instead. This callback is set at initialization time.
+    
+    Test: fast/text/install-font-style-recalc.html
+    
+    * page/Page.cpp:
+    (WebCore::m_contentSecurityPolicyModeForExtension):
+    (WebCore::Page::firstTimeInitialization):
+    * page/Page.h:
+    * platform/graphics/FontCache.cpp:
+    (WebCore::Function<void):
+    (WebCore::FontCache::registerFontCacheInvalidationCallback):
+    (WebCore::FontCache::invalidateAllFontCaches):
+    * platform/graphics/FontCache.h:
+    
+    Tools:
+    
+    Make TestRunner::dumpResourceLoadStatistics() clear any currently-recorded statistics.
+    This avoids the problem where spurious layouts during the time when the page has been created but
+    before the test has begun record irrelevant statistics.
+    
+    * WebKitTestRunner/InjectedBundle/InjectedBundle.cpp:
+    (WTR::InjectedBundle::beginTesting):
+    (WTR::InjectedBundle::clearResourceLoadStatistics):
+    * WebKitTestRunner/InjectedBundle/InjectedBundle.h:
+    * WebKitTestRunner/InjectedBundle/TestRunner.cpp:
+    (WTR::TestRunner::dumpResourceLoadStatistics):
+    
+    LayoutTests:
+    
+    * TestExpectations:
+    * fast/text/install-font-style-recalc-expected.txt: Added.
+    * fast/text/install-font-style-recalc.html: Added.
+    * platform/ios-wk2/TestExpectations:
+    * platform/mac-wk2/TestExpectations:
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@292274 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-04-02  Myles C. Maxfield  <mmaxfield@apple.com>
+
+            [Cocoa] Automatically relayout the page when new fonts are installed
+            https://bugs.webkit.org/show_bug.cgi?id=238483
+            <rdar://problem/80544133>
+
+            Reviewed by Chris Dumez.
+
+            Make TestRunner::dumpResourceLoadStatistics() clear any currently-recorded statistics.
+            This avoids the problem where spurious layouts during the time when the page has been created but
+            before the test has begun record irrelevant statistics.
+
+            * WebKitTestRunner/InjectedBundle/InjectedBundle.cpp:
+            (WTR::InjectedBundle::beginTesting):
+            (WTR::InjectedBundle::clearResourceLoadStatistics):
+            * WebKitTestRunner/InjectedBundle/InjectedBundle.h:
+            * WebKitTestRunner/InjectedBundle/TestRunner.cpp:
+            (WTR::TestRunner::dumpResourceLoadStatistics):
+
+2022-04-22  Russell Epstein  <repstein@apple.com>
+
+        Apply patch. rdar://problem/91288849
+
+    2022-04-21  Youenn Fablet  <youenn@apple.com>
+
+            In case of COOP-based process swap, we need to make sure the document gets controlled by its matching service worker registration
+            https://bugs.webkit.org/show_bug.cgi?id=238800
+            <rdar://problem/91288849>
+
+            Reviewed by Chris Dumez.
+
+            * TestWebKitAPI/Tests/WebKitCocoa/ServiceWorkerBasic.mm:
+
+2022-04-22  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r292274. rdar://problem/80544133
+
+    [Cocoa] Automatically relayout the page when new fonts are installed
+    https://bugs.webkit.org/show_bug.cgi?id=238483
+    <rdar://problem/80544133>
+    
+    Reviewed by Chris Dumez.
+    
+    Source/WebCore:
+    
+    This patch simply calls setNeedsRecalcStyleInAllFrames on every Page when we receive a
+    kCTFontManagerRegisteredFontsChangedNotification.
+    
+    FontCache::invalidateAllFontCaches() can't do this directly because it's in platform/ and
+    therefore isn't allowed to know what Pages are. Instead, this patch takes a process-global
+    callback and calls that instead. This callback is set at initialization time.
+    
+    Test: fast/text/install-font-style-recalc.html
+    
+    * page/Page.cpp:
+    (WebCore::m_contentSecurityPolicyModeForExtension):
+    (WebCore::Page::firstTimeInitialization):
+    * page/Page.h:
+    * platform/graphics/FontCache.cpp:
+    (WebCore::Function<void):
+    (WebCore::FontCache::registerFontCacheInvalidationCallback):
+    (WebCore::FontCache::invalidateAllFontCaches):
+    * platform/graphics/FontCache.h:
+    
+    Tools:
+    
+    Make TestRunner::dumpResourceLoadStatistics() clear any currently-recorded statistics.
+    This avoids the problem where spurious layouts during the time when the page has been created but
+    before the test has begun record irrelevant statistics.
+    
+    * WebKitTestRunner/InjectedBundle/InjectedBundle.cpp:
+    (WTR::InjectedBundle::beginTesting):
+    (WTR::InjectedBundle::clearResourceLoadStatistics):
+    * WebKitTestRunner/InjectedBundle/InjectedBundle.h:
+    * WebKitTestRunner/InjectedBundle/TestRunner.cpp:
+    (WTR::TestRunner::dumpResourceLoadStatistics):
+    
+    LayoutTests:
+    
+    * TestExpectations:
+    * fast/text/install-font-style-recalc-expected.txt: Added.
+    * fast/text/install-font-style-recalc.html: Added.
+    * platform/ios-wk2/TestExpectations:
+    * platform/mac-wk2/TestExpectations:
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@292274 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-04-02  Myles C. Maxfield  <mmaxfield@apple.com>
+
+            [Cocoa] Automatically relayout the page when new fonts are installed
+            https://bugs.webkit.org/show_bug.cgi?id=238483
+            <rdar://problem/80544133>
+
+            Reviewed by Chris Dumez.
+
+            Make TestRunner::dumpResourceLoadStatistics() clear any currently-recorded statistics.
+            This avoids the problem where spurious layouts during the time when the page has been created but
+            before the test has begun record irrelevant statistics.
+
+            * WebKitTestRunner/InjectedBundle/InjectedBundle.cpp:
+            (WTR::InjectedBundle::beginTesting):
+            (WTR::InjectedBundle::clearResourceLoadStatistics):
+            * WebKitTestRunner/InjectedBundle/InjectedBundle.h:
+            * WebKitTestRunner/InjectedBundle/TestRunner.cpp:
+            (WTR::TestRunner::dumpResourceLoadStatistics):
+
 2022-04-19  Alan Coon  <alancoon@apple.com>
 
         Cherry-pick r292680. rdar://problem/91323230
@@ -53,55 +550,6 @@
             (TestWebKitAPI::TEST_F):
             * TestWebKitAPI/Tests/WebKitCocoa/YoutubeReplacementPlugin.mm: Added.
             (TEST):
-
-2022-04-19  Alan Coon  <alancoon@apple.com>
-
-        Cherry-pick r291606. rdar://problem/91446317
-
-    Website policies are not respected when doing COOP based process swap
-    https://bugs.webkit.org/show_bug.cgi?id=238036
-    <rdar://89616625>
-    
-    Reviewed by Chris Dumez.
-    
-    Source/WebKit:
-    
-    In case of normal process swap, we make use of website policies so everything is fine.
-    For COOP based process swap, this happens later on, at a point where we lost website policies.
-    To overcome this, we store the website policies used by a navigation inside the API::Navigation object.
-    It is used by continueNavigationInNewProcess to correctly initialize the new WebPage website policies.
-    We then set the website policies in the navigation object just before continuing the load in the same process,
-    as process swap may happen later when inspecting the response.
-    Minor refactoring in continueNavigationInNewProcess to get the policies directly from the given Navigation object.
-    Minor refactoring in receivedNavigationPolicyDecision to make the code doing process swap clearer.
-    
-    Covered by API test.
-    
-    * UIProcess/API/APINavigation.h:
-    (API::Navigation::setWebsitePoliciesForProcessSwap):
-    (API::Navigation::takeWebsitePoliciesForProcessSwap):
-    * UIProcess/WebPageProxy.cpp:
-    (WebKit::WebPageProxy::receivedNavigationPolicyDecision):
-    (WebKit::WebPageProxy::receivedPolicyDecision):
-    (WebKit::WebPageProxy::continueNavigationInNewProcess):
-    (WebKit::WebPageProxy::triggerBrowsingContextGroupSwitchForNavigation):
-    * UIProcess/WebPageProxy.h:
-    
-    Tools:
-    
-    * TestWebKitAPI/Tests/WebKitCocoa/ProcessSwapOnNavigation.mm:
-    
-    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@291606 268f45cc-cd09-0410-ab3c-d52691b4dbfc
-
-    2022-03-22  Youenn Fablet  <youenn@apple.com>
-
-            Website policies are not respected when doing COOP based process swap
-            https://bugs.webkit.org/show_bug.cgi?id=238036
-            <rdar://89616625>
-
-            Reviewed by Chris Dumez.
-
-            * TestWebKitAPI/Tests/WebKitCocoa/ProcessSwapOnNavigation.mm:
 
 2022-04-18  Kocsen Chung  <kocsen_chung@apple.com>
 

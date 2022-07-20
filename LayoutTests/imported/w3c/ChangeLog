@@ -1,3 +1,469 @@
+2022-04-08  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        Incorrect CORP/COEP check in 304 responses
+        https://bugs.webkit.org/show_bug.cgi?id=238238
+        <rdar://problem/90706510>
+
+        Reviewed by Youenn Fablet.
+
+        Sync cross-origin-embedder-policy tests to include the new test require-corp-revalidated-images.https.html.
+
+        * web-platform-tests/html/cross-origin-embedder-policy/block-local-documents-inheriting-none.https.html:
+        * web-platform-tests/html/cross-origin-embedder-policy/credentialless/cache-storage.https.window.html: Added.
+        * web-platform-tests/html/cross-origin-embedder-policy/credentialless/cache-storage.https.window.js: Renamed from LayoutTests/imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/credentialless/cache-storage.tentative.https.window.js.
+        * web-platform-tests/html/cross-origin-embedder-policy/credentialless/cache.window.html: Added.
+        * web-platform-tests/html/cross-origin-embedder-policy/credentialless/cache.window.js: Renamed from LayoutTests/imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/credentialless/cache.tentative.window.js.
+        * web-platform-tests/html/cross-origin-embedder-policy/credentialless/dedicated-worker.https.window.html: Added.
+        * web-platform-tests/html/cross-origin-embedder-policy/credentialless/dedicated-worker.https.window.js: Renamed from LayoutTests/imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/credentialless/dedicated-worker.tentative.https.window.js.
+        * web-platform-tests/html/cross-origin-embedder-policy/credentialless/fetch.https.window.html: Added.
+        * web-platform-tests/html/cross-origin-embedder-policy/credentialless/fetch.https.window.js: Renamed from LayoutTests/imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/credentialless/fetch.tentative.https.window.js.
+        * web-platform-tests/html/cross-origin-embedder-policy/credentialless/iframe-coep-credentialless.https.window.html: Added.
+        * web-platform-tests/html/cross-origin-embedder-policy/credentialless/iframe-coep-credentialless.https.window.js: Renamed from LayoutTests/imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/credentialless/iframe-coep-credentialless.tentative.https.window.js.
+        * web-platform-tests/html/cross-origin-embedder-policy/credentialless/iframe-coep-none.https.window.html: Added.
+        * web-platform-tests/html/cross-origin-embedder-policy/credentialless/iframe-coep-none.https.window.js: Renamed from LayoutTests/imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/credentialless/iframe-coep-none.tentative.https.window.js.
+        * web-platform-tests/html/cross-origin-embedder-policy/credentialless/iframe-coep-require-corp.https.window.html: Added.
+        * web-platform-tests/html/cross-origin-embedder-policy/credentialless/iframe-coep-require-corp.https.window.js: Renamed from LayoutTests/imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/credentialless/iframe-coep-require-corp.tentative.https.window.js.
+        * web-platform-tests/html/cross-origin-embedder-policy/credentialless/iframe.window.html: Added.
+        * web-platform-tests/html/cross-origin-embedder-policy/credentialless/iframe.window.js: Renamed from LayoutTests/imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/credentialless/iframe.tentative.window.js.
+        * web-platform-tests/html/cross-origin-embedder-policy/credentialless/image.https.window.html: Added.
+        * web-platform-tests/html/cross-origin-embedder-policy/credentialless/image.https.window.js: Renamed from LayoutTests/imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/credentialless/image.tentative.https.window.js.
+        * web-platform-tests/html/cross-origin-embedder-policy/credentialless/link.https.window.html: Added.
+        * web-platform-tests/html/cross-origin-embedder-policy/credentialless/link.https.window.js: Renamed from LayoutTests/imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/credentialless/link.tentative.https.window.js.
+        * web-platform-tests/html/cross-origin-embedder-policy/credentialless/redirect.window.html: Added.
+        * web-platform-tests/html/cross-origin-embedder-policy/credentialless/redirect.window.js: Renamed from LayoutTests/imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/credentialless/redirect.tentative.window.js.
+        * web-platform-tests/html/cross-origin-embedder-policy/credentialless/reporting-navigation.https.window.html: Added.
+        * web-platform-tests/html/cross-origin-embedder-policy/credentialless/reporting-navigation.https.window.js: Renamed from LayoutTests/imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/credentialless/reporting-navigation.tentative.https.window.js.
+        * web-platform-tests/html/cross-origin-embedder-policy/credentialless/reporting-subresource-corp.https.window.html: Added.
+        * web-platform-tests/html/cross-origin-embedder-policy/credentialless/reporting-subresource-corp.https.window.js: Renamed from LayoutTests/imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/credentialless/reporting-subresource-corp.tentative.https.window.js.
+        * web-platform-tests/html/cross-origin-embedder-policy/credentialless/script.https.window.html: Added.
+        * web-platform-tests/html/cross-origin-embedder-policy/credentialless/script.https.window.js: Renamed from LayoutTests/imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/credentialless/script.tentative.https.window.js.
+        * web-platform-tests/html/cross-origin-embedder-policy/credentialless/service-worker-coep-credentialless-proxy.https.window.html: Added.
+        * web-platform-tests/html/cross-origin-embedder-policy/credentialless/service-worker-coep-credentialless-proxy.https.window.js: Renamed from LayoutTests/imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/credentialless/service-worker-coep-credentialless-proxy.tentative.https.window.js.
+        * web-platform-tests/html/cross-origin-embedder-policy/credentialless/service-worker-coep-none-proxy.https.window.html: Added.
+        * web-platform-tests/html/cross-origin-embedder-policy/credentialless/service-worker-coep-none-proxy.https.window.js: Renamed from LayoutTests/imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/credentialless/service-worker-coep-none-proxy.tentative.https.window.js.
+        * web-platform-tests/html/cross-origin-embedder-policy/credentialless/service-worker.https.window.html: Added.
+        * web-platform-tests/html/cross-origin-embedder-policy/credentialless/service-worker.https.window.js: Renamed from LayoutTests/imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/credentialless/service-worker.tentative.https.window.js.
+        * web-platform-tests/html/cross-origin-embedder-policy/credentialless/shared-worker.https.window.html: Added.
+        * web-platform-tests/html/cross-origin-embedder-policy/credentialless/shared-worker.https.window.js: Renamed from LayoutTests/imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/credentialless/shared-worker.tentative.https.window.js.
+        * web-platform-tests/html/cross-origin-embedder-policy/credentialless/video.https.window.html: Added.
+        * web-platform-tests/html/cross-origin-embedder-policy/credentialless/video.https.window.js: Renamed from LayoutTests/imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/credentialless/video.tentative.https.window.js.
+        * web-platform-tests/html/cross-origin-embedder-policy/credentialless/video.https.window.js.headers: Renamed from LayoutTests/imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/credentialless/video.tentative.https.window.js.headers.
+        * web-platform-tests/html/cross-origin-embedder-policy/credentialless/w3c-import.log:
+        * web-platform-tests/html/cross-origin-embedder-policy/dedicated-worker.https-expected.txt:
+        * web-platform-tests/html/cross-origin-embedder-policy/dedicated-worker.https.html:
+        * web-platform-tests/html/cross-origin-embedder-policy/reporting-to-endpoint.https.html:
+        * web-platform-tests/html/cross-origin-embedder-policy/reporting-to-endpoint.https.html.headers:
+        * web-platform-tests/html/cross-origin-embedder-policy/require-corp-cached-images.https-expected.txt:
+        * web-platform-tests/html/cross-origin-embedder-policy/require-corp-cached-images.https.html:
+        * web-platform-tests/html/cross-origin-embedder-policy/require-corp-revalidated-images.https-expected.txt: Added.
+        * web-platform-tests/html/cross-origin-embedder-policy/require-corp-revalidated-images.https.html: Added.
+        * web-platform-tests/html/cross-origin-embedder-policy/resources/corp-image.py:
+        (main):
+        * web-platform-tests/html/cross-origin-embedder-policy/resources/fetch-and-create-url.html: Added.
+        * web-platform-tests/html/cross-origin-embedder-policy/resources/load-corp-images.html:
+        * web-platform-tests/html/cross-origin-embedder-policy/resources/w3c-import.log:
+        * web-platform-tests/html/cross-origin-embedder-policy/resources/worker-support.js: Added.
+        (setCoep):
+        (resolveUrl):
+        (async withIframe):
+        (waitForMessage):
+        (async createLocalUrl):
+        * web-platform-tests/html/cross-origin-embedder-policy/shared-workers.https-expected.txt:
+        * web-platform-tests/html/cross-origin-embedder-policy/shared-workers.https.html:
+        * web-platform-tests/html/cross-origin-embedder-policy/w3c-import.log:
+
+2022-05-06  Manuel Rego Casasnovas  <rego@igalia.com>
+
+        [selectors] Double script focus after mouse click shouldn't match :focus-visible
+        https://bugs.webkit.org/show_bug.cgi?id=239472
+        <rdar://problem/92301472>
+
+        Reviewed by Antti Koivisto.
+
+        * web-platform-tests/css/selectors/focus-visible-script-focus-020-expected.txt: Added.
+        * web-platform-tests/css/selectors/focus-visible-script-focus-020.html: Added.
+
+2022-05-16  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r294012. rdar://problem/92425915
+
+    Fix inertness of pseudo-elements
+    https://bugs.webkit.org/show_bug.cgi?id=239831
+    
+    Reviewed by Antti Koivisto.
+    
+    When we adjust style for a pseudo-element, `m_element` and `document().activeModalDialog()` are both null. So we accidentally reset inertness to false in those cases.
+    
+    Fix this by making checking for m_element's existence too.
+    
+    LayoutTests/imported/w3c:
+    
+    * web-platform-tests/inert/inert-pseudo-element-hittest-expected.txt: Added.
+    * web-platform-tests/inert/inert-pseudo-element-hittest.html: Added.
+    
+    Source/WebCore:
+    
+    Test: imported/w3c/web-platform-tests/inert/inert-pseudo-element-hittest.html
+    
+    * style/StyleAdjuster.cpp:
+    (WebCore::Style::Adjuster::adjust const):
+    
+    LayoutTests:
+    
+    * platform/ios-wk2/imported/w3c/web-platform-tests/inert/inert-pseudo-element-hittest-expected.txt: Added.
+    
+    Canonical link: https://commits.webkit.org/250446@main
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@294012 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-05-10  Tim Nguyen  <ntim@apple.com>
+
+            Fix inertness of pseudo-elements
+            https://bugs.webkit.org/show_bug.cgi?id=239831
+
+            Reviewed by Antti Koivisto.
+
+            When we adjust style for a pseudo-element, `m_element` and `document().activeModalDialog()` are both null. So we accidentally reset inertness to false in those cases.
+
+            Fix this by making checking for m_element's existence too.
+
+            * web-platform-tests/inert/inert-pseudo-element-hittest-expected.txt: Added.
+            * web-platform-tests/inert/inert-pseudo-element-hittest.html: Added.
+
+2022-05-16  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r293987. rdar://problem/92775435
+
+    Implement CSS :modal pseudo class
+    https://bugs.webkit.org/show_bug.cgi?id=240109
+    
+    Reviewed by Simon Fraser.
+    
+    LayoutTests/imported/w3c:
+    
+    Add and extend tests for :modal pseudo-class.
+    
+    * web-platform-tests/css/selectors/invalidation/modal-pseudo-class-in-has-expected.txt: Added.
+    * web-platform-tests/css/selectors/invalidation/modal-pseudo-class-in-has.html: Added.
+    * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/dialog-show-modal.html:
+    
+    Source/WebCore:
+    
+    Test: imported/w3c/web-platform-tests/css/selectors/invalidation/modal-pseudo-class-in-has.html
+    
+    Renames :-internal-modal-dialog to :modal and adds :has() invalidation support.
+    
+    * css/CSSSelector.cpp:
+    (WebCore::CSSSelector::selectorText const):
+    * css/CSSSelector.h:
+    * css/SelectorChecker.cpp:
+    (WebCore::SelectorChecker::checkOne const):
+    * css/SelectorCheckerTestFunctions.h:
+    (WebCore::matchesModalPseudoClass):
+    (WebCore::matchesModalDialogPseudoClass): Deleted.
+    * css/SelectorPseudoClassAndCompatibilityElementMap.in:
+    * css/dialog.css:
+    (dialog:modal):
+    (dialog:-internal-modal-dialog): Deleted.
+    * css/parser/CSSSelectorParser.cpp:
+    (WebCore::CSSSelectorParser::consumePseudo):
+    * cssjit/SelectorCompiler.cpp:
+    (WebCore::SelectorCompiler::JSC_DEFINE_JIT_OPERATION):
+    (WebCore::SelectorCompiler::addPseudoClassType):
+    * html/HTMLDialogElement.cpp:
+    (WebCore::HTMLDialogElement::showModal):
+    (WebCore::HTMLDialogElement::close):
+    (WebCore::HTMLDialogElement::removedFromAncestor):
+    (WebCore::HTMLDialogElement::setIsModal):
+    * html/HTMLDialogElement.h:
+    
+    LayoutTests:
+    
+    Removes :-internal-modal-dialog from internal pseudo classes.
+    
+    * fast/css/pseudo-class-internal-expected.txt:
+    * fast/css/pseudo-class-internal.html:
+    
+    Canonical link: https://commits.webkit.org/250424@main
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@293987 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-05-09  Tim Nguyen  <ntim@apple.com>
+
+            Implement CSS :modal pseudo class
+            https://bugs.webkit.org/show_bug.cgi?id=240109
+
+            Reviewed by Simon Fraser.
+
+            Add and extend tests for :modal pseudo-class.
+
+            * web-platform-tests/css/selectors/invalidation/modal-pseudo-class-in-has-expected.txt: Added.
+            * web-platform-tests/css/selectors/invalidation/modal-pseudo-class-in-has.html: Added.
+            * web-platform-tests/html/semantics/interactive-elements/the-dialog-element/dialog-show-modal.html:
+
+2022-05-16  Alan Coon  <alancoon@apple.com>
+
+        Apply patch. rdar://problem/88672183
+
+    2022-02-19  Antoine Quint  <graouts@webkit.org>
+
+            REGRESSION (r287524): hihello.me does not show sliding sheet at the bottom of the page
+            https://bugs.webkit.org/show_bug.cgi?id=236838
+            rdar://88672183
+
+            Reviewed by Dean Jackson.
+
+            Add new WPT tests to check we correctly compute implicit keyframes when a 0% and/or 100% keyframe
+            is defined but only specifies a timing function. One test checks the output of getKeyframes() and
+            the other that we correctly account for the implicit vaues when computing styles.
+
+            * web-platform-tests/css/css-animations/KeyframeEffect-getKeyframes.tentative-expected.txt:
+            * web-platform-tests/css/css-animations/KeyframeEffect-getKeyframes.tentative.html:
+            * web-platform-tests/css/css-animations/animation-multiple-from-to-keyframes-with-only-timing-function-expected.txt: Added.
+            * web-platform-tests/css/css-animations/animation-multiple-from-to-keyframes-with-only-timing-function.html: Added.
+
+2022-04-22  Alan Coon  <alancoon@apple.com>
+
+        Cherry-pick r291589. rdar://problem/90511155
+
+    LayoutTests/imported/w3c:
+    BroadcastChannel instances in distinct opaque origins can communicate
+    https://bugs.webkit.org/show_bug.cgi?id=238090
+    <rdar://problem/90511155>
+    
+    Reviewed by Alex Christensen.
+    
+    Import web-platform-tests test coverage.
+    
+    * web-platform-tests/webmessaging/broadcastchannel/opaque-origin-expected.txt: Added.
+    * web-platform-tests/webmessaging/broadcastchannel/opaque-origin.html: Added.
+    * web-platform-tests/webmessaging/broadcastchannel/w3c-import.log:
+    
+    Source/WebCore:
+    BroadcastChannel instances in distinct opaque origins can communicate
+    https://bugs.webkit.org/show_bug.cgi?id=238090
+    <rdar://problem/90511155>
+    
+    Reviewed by Alex Christensen.
+    
+    The issue is that we would use a ClientOrigin to distinguish origins for BroadcastChannel,
+    which relies on SecurityOriginData internally. A unique/opaque SecurityOrigin becomes an empty
+    SecurityOriginData upon conversion. As a result, when comparing ClientOrigin objects from
+    unique SecurityOrigins, they would compare as equal.
+    
+    To address the issue, I introduced a new PartitionedSecurityOrigin type which is similar
+    to ClientOrigin but stores SecurityOrigin objects internally, instead of SecurityOriginData
+    objects. PartitionedSecurityOrigin's operator==() is such that different SecurityOrigins
+    would not be equal but the same unique SecurityOrigin would be. I then used this new
+    PartitionedSecurityOrigin type as key in our HashMap on the WebProcess side instead of
+    ClientOrigin. This allows communication between several BroadcastChannels from the same
+    unique origin, while preventing communication between distinct opaque origins.
+    
+    When the PartitionedSecurityOrigin contains an opaque security origin, we don't involve
+    the Network Process at all since the destination can only be in the same WebProcess.
+    
+    Test: imported/w3c/web-platform-tests/webmessaging/broadcastchannel/opaque-origin.html
+    
+    * Headers.cmake:
+    * WebCore.xcodeproj/project.pbxproj:
+    * dom/BroadcastChannel.cpp:
+    (WebCore::shouldPartitionOrigin):
+    (WebCore::BroadcastChannel::MainThreadBridge::registerChannel):
+    (WebCore::BroadcastChannel::MainThreadBridge::unregisterChannel):
+    (WebCore::BroadcastChannel::MainThreadBridge::postMessage):
+    * dom/BroadcastChannelRegistry.h:
+    * loader/EmptyClients.cpp:
+    * page/PartitionedSecurityOrigin.h: Added.
+    (WebCore::PartitionedSecurityOrigin::PartitionedSecurityOrigin):
+    (WebCore::PartitionedSecurityOrigin::isHashTableDeletedValue const):
+    (WebCore::PartitionedSecurityOrigin::isHashTableEmptyValue const):
+    (WebCore::operator==):
+    (WTF::add):
+    (WTF::PartitionedSecurityOriginHash::hash):
+    (WTF::PartitionedSecurityOriginHash::equal):
+    (WTF::HashTraits<WebCore::PartitionedSecurityOrigin>::emptyValue):
+    (WTF::HashTraits<WebCore::PartitionedSecurityOrigin>::constructEmptyValue):
+    (WTF::HashTraits<WebCore::PartitionedSecurityOrigin>::isEmptyValue):
+    (WTF::HashTraits<WebCore::PartitionedSecurityOrigin>::peek):
+    (WTF::HashTraits<WebCore::PartitionedSecurityOrigin>::take):
+    
+    Source/WebKit:
+    BroadcastChannel instances in distinct opaque origins can communicate
+    https://bugs.webkit.org/show_bug.cgi?id=238090
+    <rdar://problem/90511155>
+    
+    Reviewed by Alex Christensen.
+    
+    The issue is that we would use a ClientOrigin to distinguish origins for BroadcastChannel,
+    which relies on SecurityOriginData internally. A unique/opaque SecurityOrigin becomes an empty
+    SecurityOriginData upon conversion. As a result, when comparing ClientOrigin objects from
+    unique SecurityOrigins, they would compare as equal.
+    
+    To address the issue, I introduced a new PartitionedSecurityOrigin type which is similar
+    to ClientOrigin but stores SecurityOrigin objects internally, instead of SecurityOriginData
+    objects. PartitionedSecurityOrigin's operator==() is such that different SecurityOrigins
+    would not be equal but the same unique SecurityOrigin would be. I then used this new
+    PartitionedSecurityOrigin type as key in our HashMap on the WebProcess side instead of
+    ClientOrigin. This allows communication between several BroadcastChannels from the same
+    unique origin, while preventing communication between distinct opaque origins.
+    
+    When the PartitionedSecurityOrigin contains an opaque security origin, we don't involve
+    the Network Process at all since the destination can only be in the same WebProcess.
+    
+    * WebProcess/WebCoreSupport/WebBroadcastChannelRegistry.cpp:
+    (WebKit::toClientOrigin):
+    (WebKit::WebBroadcastChannelRegistry::registerChannel):
+    (WebKit::WebBroadcastChannelRegistry::unregisterChannel):
+    (WebKit::WebBroadcastChannelRegistry::postMessage):
+    (WebKit::WebBroadcastChannelRegistry::postMessageLocally):
+    (WebKit::WebBroadcastChannelRegistry::postMessageToRemote):
+    (WebKit::WebBroadcastChannelRegistry::networkProcessCrashed):
+    * WebProcess/WebCoreSupport/WebBroadcastChannelRegistry.h:
+    
+    Source/WebKitLegacy:
+    Dust off Mac CMake build
+    https://bugs.webkit.org/show_bug.cgi?id=238121
+    
+    Reviewed by Yusuke Suzuki.
+    
+    * PlatformMac.cmake:
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@291589 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-03-21  Chris Dumez  <cdumez@apple.com>
+
+            BroadcastChannel instances in distinct opaque origins can communicate
+            https://bugs.webkit.org/show_bug.cgi?id=238090
+            <rdar://problem/90511155>
+
+            Reviewed by Alex Christensen.
+
+            Import web-platform-tests test coverage.
+
+            * web-platform-tests/webmessaging/broadcastchannel/opaque-origin-expected.txt: Added.
+            * web-platform-tests/webmessaging/broadcastchannel/opaque-origin.html: Added.
+            * web-platform-tests/webmessaging/broadcastchannel/w3c-import.log:
+
+2022-04-22  Russell Epstein  <repstein@apple.com>
+
+        Cherry-pick r291589. rdar://problem/90511155
+
+    LayoutTests/imported/w3c:
+    BroadcastChannel instances in distinct opaque origins can communicate
+    https://bugs.webkit.org/show_bug.cgi?id=238090
+    <rdar://problem/90511155>
+    
+    Reviewed by Alex Christensen.
+    
+    Import web-platform-tests test coverage.
+    
+    * web-platform-tests/webmessaging/broadcastchannel/opaque-origin-expected.txt: Added.
+    * web-platform-tests/webmessaging/broadcastchannel/opaque-origin.html: Added.
+    * web-platform-tests/webmessaging/broadcastchannel/w3c-import.log:
+    
+    Source/WebCore:
+    BroadcastChannel instances in distinct opaque origins can communicate
+    https://bugs.webkit.org/show_bug.cgi?id=238090
+    <rdar://problem/90511155>
+    
+    Reviewed by Alex Christensen.
+    
+    The issue is that we would use a ClientOrigin to distinguish origins for BroadcastChannel,
+    which relies on SecurityOriginData internally. A unique/opaque SecurityOrigin becomes an empty
+    SecurityOriginData upon conversion. As a result, when comparing ClientOrigin objects from
+    unique SecurityOrigins, they would compare as equal.
+    
+    To address the issue, I introduced a new PartitionedSecurityOrigin type which is similar
+    to ClientOrigin but stores SecurityOrigin objects internally, instead of SecurityOriginData
+    objects. PartitionedSecurityOrigin's operator==() is such that different SecurityOrigins
+    would not be equal but the same unique SecurityOrigin would be. I then used this new
+    PartitionedSecurityOrigin type as key in our HashMap on the WebProcess side instead of
+    ClientOrigin. This allows communication between several BroadcastChannels from the same
+    unique origin, while preventing communication between distinct opaque origins.
+    
+    When the PartitionedSecurityOrigin contains an opaque security origin, we don't involve
+    the Network Process at all since the destination can only be in the same WebProcess.
+    
+    Test: imported/w3c/web-platform-tests/webmessaging/broadcastchannel/opaque-origin.html
+    
+    * Headers.cmake:
+    * WebCore.xcodeproj/project.pbxproj:
+    * dom/BroadcastChannel.cpp:
+    (WebCore::shouldPartitionOrigin):
+    (WebCore::BroadcastChannel::MainThreadBridge::registerChannel):
+    (WebCore::BroadcastChannel::MainThreadBridge::unregisterChannel):
+    (WebCore::BroadcastChannel::MainThreadBridge::postMessage):
+    * dom/BroadcastChannelRegistry.h:
+    * loader/EmptyClients.cpp:
+    * page/PartitionedSecurityOrigin.h: Added.
+    (WebCore::PartitionedSecurityOrigin::PartitionedSecurityOrigin):
+    (WebCore::PartitionedSecurityOrigin::isHashTableDeletedValue const):
+    (WebCore::PartitionedSecurityOrigin::isHashTableEmptyValue const):
+    (WebCore::operator==):
+    (WTF::add):
+    (WTF::PartitionedSecurityOriginHash::hash):
+    (WTF::PartitionedSecurityOriginHash::equal):
+    (WTF::HashTraits<WebCore::PartitionedSecurityOrigin>::emptyValue):
+    (WTF::HashTraits<WebCore::PartitionedSecurityOrigin>::constructEmptyValue):
+    (WTF::HashTraits<WebCore::PartitionedSecurityOrigin>::isEmptyValue):
+    (WTF::HashTraits<WebCore::PartitionedSecurityOrigin>::peek):
+    (WTF::HashTraits<WebCore::PartitionedSecurityOrigin>::take):
+    
+    Source/WebKit:
+    BroadcastChannel instances in distinct opaque origins can communicate
+    https://bugs.webkit.org/show_bug.cgi?id=238090
+    <rdar://problem/90511155>
+    
+    Reviewed by Alex Christensen.
+    
+    The issue is that we would use a ClientOrigin to distinguish origins for BroadcastChannel,
+    which relies on SecurityOriginData internally. A unique/opaque SecurityOrigin becomes an empty
+    SecurityOriginData upon conversion. As a result, when comparing ClientOrigin objects from
+    unique SecurityOrigins, they would compare as equal.
+    
+    To address the issue, I introduced a new PartitionedSecurityOrigin type which is similar
+    to ClientOrigin but stores SecurityOrigin objects internally, instead of SecurityOriginData
+    objects. PartitionedSecurityOrigin's operator==() is such that different SecurityOrigins
+    would not be equal but the same unique SecurityOrigin would be. I then used this new
+    PartitionedSecurityOrigin type as key in our HashMap on the WebProcess side instead of
+    ClientOrigin. This allows communication between several BroadcastChannels from the same
+    unique origin, while preventing communication between distinct opaque origins.
+    
+    When the PartitionedSecurityOrigin contains an opaque security origin, we don't involve
+    the Network Process at all since the destination can only be in the same WebProcess.
+    
+    * WebProcess/WebCoreSupport/WebBroadcastChannelRegistry.cpp:
+    (WebKit::toClientOrigin):
+    (WebKit::WebBroadcastChannelRegistry::registerChannel):
+    (WebKit::WebBroadcastChannelRegistry::unregisterChannel):
+    (WebKit::WebBroadcastChannelRegistry::postMessage):
+    (WebKit::WebBroadcastChannelRegistry::postMessageLocally):
+    (WebKit::WebBroadcastChannelRegistry::postMessageToRemote):
+    (WebKit::WebBroadcastChannelRegistry::networkProcessCrashed):
+    * WebProcess/WebCoreSupport/WebBroadcastChannelRegistry.h:
+    
+    Source/WebKitLegacy:
+    Dust off Mac CMake build
+    https://bugs.webkit.org/show_bug.cgi?id=238121
+    
+    Reviewed by Yusuke Suzuki.
+    
+    * PlatformMac.cmake:
+    
+    git-svn-id: https://svn.webkit.org/repository/webkit/trunk@291589 268f45cc-cd09-0410-ab3c-d52691b4dbfc
+
+    2022-03-21  Chris Dumez  <cdumez@apple.com>
+
+            BroadcastChannel instances in distinct opaque origins can communicate
+            https://bugs.webkit.org/show_bug.cgi?id=238090
+            <rdar://problem/90511155>
+
+            Reviewed by Alex Christensen.
+
+            Import web-platform-tests test coverage.
+
+            * web-platform-tests/webmessaging/broadcastchannel/opaque-origin-expected.txt: Added.
+            * web-platform-tests/webmessaging/broadcastchannel/opaque-origin.html: Added.
+            * web-platform-tests/webmessaging/broadcastchannel/w3c-import.log:
+
 2022-04-18  Kocsen Chung  <kocsen_chung@apple.com>
 
         Cherry-pick r292400. rdar://problem/89382543

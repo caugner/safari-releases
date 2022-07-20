@@ -273,6 +273,9 @@ fast/events/mouseover-button.html [ Skip ]
 # TODO Accept header is handled by the browser
 http/tests/misc/image-checks-for-accept.html [ Skip ]
 
+# Failing since added in https://bugs.webkit.org/show_bug.cgi?id=241022.
+accessibility/node-only-inert-object.html [ Failure ]
+
 # Need to implement AccessibilityUIElement::clearSelectedChildren()
 accessibility/aria-listbox-clear-selection-crash.html [ Skip ]
 accessibility/listbox-clear-selection.html [ Skip ]
@@ -281,10 +284,22 @@ accessibility/img-no-alt-not-ignored-with-title.html [ Skip ]
 accessibility/visible-character-range.html [ Skip ]
 accessibility/model-element-attributes.html [ Skip ]
 
+accessibility/visible-character-range-basic.html [ Skip ]
+accessibility/visible-character-range-height-changes.html [ Skip ]
+accessibility/visible-character-range-scrolling.html [ Skip ]
+accessibility/visible-character-range-width-changes.html [ Skip ]
+
+# Need to implement AccessibilityUIElement::insertText.
+accessibility/insert-text-into-password-field.html [ Skip ]
+
 # Need to implement AccessibilityUIElement::hasDocumentRoleAncestor(), AccessibilityUIElement::hasWebApplicationAncestor(),
 # AccessibilityUIElement::isInDescriptionListDetail(), AccessibilityUIElement::isInDescriptionListTerm(), and
 # AccessibilityUIElement::isInCell().
 accessibility/ancestor-computation.html [ Skip ]
+
+# Missing AccessibilityUIElement::uiElementForSearchPredicate implementation.
+accessibility/aria-modal-with-text-crash.html [ Skip ]
+accessibility/ignore-modals-without-any-content.html [ Skip ]
 
 # TODO Conic gradients
 http/wpt/css/css-images-4/conic-gradient-parsing.html [ Skip ]
@@ -4737,6 +4752,7 @@ webkit.org/b/229300 http/tests/security/no-javascript-refresh-spaces.py [ Pass C
 
 accessibility/selected-state-changed-notifications.html [ Skip ]
 accessibility/element-line-rects-and-text.html [ Skip ]
+accessibility/dialog-properties.html [ Skip ]
 
 webkit.org/b/229247 http/tests/fetch/keepalive-fetch-2.html [ Pass Failure ]
 
