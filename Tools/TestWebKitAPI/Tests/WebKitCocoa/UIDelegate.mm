@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2018 Apple Inc. All rights reserved.
+ * Copyright (C) 2017-2022 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -38,6 +38,7 @@
 #import <WebKit/WKGeolocationManager.h>
 #import <WebKit/WKGeolocationPosition.h>
 #import <WebKit/WKPreferencesPrivate.h>
+#import <WebKit/WKProcessPoolPrivate.h>
 #import <WebKit/WKRetainPtr.h>
 #import <WebKit/WKUIDelegatePrivate.h>
 #import <WebKit/WKWebViewPrivateForTesting.h>
@@ -47,6 +48,11 @@
 
 #if PLATFORM(MAC)
 #import <Carbon/Carbon.h>
+#endif
+
+#if PLATFORM(IOS)
+#import "ClassMethodSwizzler.h"
+#import "UIKitSPI.h"
 #endif
 
 static bool didReceiveMessage;
@@ -245,25 +251,25 @@ TEST(WebKit, GeolocationPermission)
 }
 @end
 
-static const char* mainFrameText = R"DOCDOCDOC(
+static constexpr auto mainFrameText = R"DOCDOCDOC(
 <html><body>
 <iframe src='https://127.0.0.1:9091/frame' allow='geolocation:https://127.0.0.1:9091'></iframe>
 </body></html>
-)DOCDOCDOC";
-static const char* frameText = R"DOCDOCDOC(
+)DOCDOCDOC"_s;
+static constexpr auto frameText = R"DOCDOCDOC(
 <html><body><script>
 navigator.geolocation.getCurrentPosition(() => { webkit.messageHandlers.testHandler.postMessage("ok") }, () => { webkit.messageHandlers.testHandler.postMessage("ko") });
 </script></body></html>
-)DOCDOCDOC";
+)DOCDOCDOC"_s;
 
 TEST(WebKit, GeolocationPermissionInIFrame)
 {
     TestWebKitAPI::HTTPServer server1({
-        { "/", { mainFrameText } }
+        { "/"_s, { mainFrameText } }
     }, TestWebKitAPI::HTTPServer::Protocol::Https, nullptr, nullptr, 9090);
 
     TestWebKitAPI::HTTPServer server2({
-        { "/frame", { frameText } },
+        { "/frame"_s, { frameText } },
     }, TestWebKitAPI::HTTPServer::Protocol::Https, nullptr, nullptr, 9091);
 
     auto pool = adoptNS([[WKProcessPool alloc] init]);
@@ -313,20 +319,20 @@ TEST(WebKit, GeolocationPermissionInIFrame)
     EXPECT_TRUE(done);
 }
 
-static const char* notAllowingMainFrameText = R"DOCDOCDOC(
+static constexpr auto notAllowingMainFrameText = R"DOCDOCDOC(
 <html><body>
 <iframe src='https://127.0.0.1:9091/frame' allow='geolocation:https://127.0.0.1:9092'></iframe>
 </body></html>
-)DOCDOCDOC";
+)DOCDOCDOC"_s;
 
 TEST(WebKit, GeolocationPermissionInDisallowedIFrame)
 {
     TestWebKitAPI::HTTPServer server1({
-        { "/", { notAllowingMainFrameText } }
+        { "/"_s, { notAllowingMainFrameText } }
     }, TestWebKitAPI::HTTPServer::Protocol::Https, nullptr, nullptr, 9090);
 
     TestWebKitAPI::HTTPServer server2({
-        { "/frame", { frameText } },
+        { "/frame"_s, { frameText } },
     }, TestWebKitAPI::HTTPServer::Protocol::Https, nullptr, nullptr, 9091);
 
     auto pool = adoptNS([[WKProcessPool alloc] init]);
@@ -388,6 +394,153 @@ TEST(WebKit, InjectedBundleNodeHandleIsSelectElement)
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"about:blank"]]];
     TestWebKitAPI::Util::run(&done);
 }
+
+#if PLATFORM(IOS)
+
+static int presentViewControllerCallCount = 0;
+
+static UIViewController *overrideViewControllerForFullscreenPresentation()
+{
+    ++presentViewControllerCallCount;
+    return nil;
+}
+
+constexpr auto WebKitCaptivePortalModeAlertShownKey = @"WebKitCaptivePortalModeAlertShown";
+
+TEST(WebKit, LockdownModeDefaultFirstUseMessage)
+{
+    ClassMethodSwizzler swizzler(UIViewController.class, @selector(_viewControllerForFullScreenPresentationFromView:), reinterpret_cast<IMP>(overrideViewControllerForFullscreenPresentation));
+
+    [[NSUserDefaults standardUserDefaults] removeObjectForKey:WebKitCaptivePortalModeAlertShownKey];
+    [WKProcessPool _setCaptivePortalModeEnabledGloballyForTesting:YES];
+    [WKWebView _resetPresentLockdownModeMessage];
+
+    presentViewControllerCallCount = 0;
+
+    auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    EXPECT_FALSE(webViewConfiguration.get().defaultWebpagePreferences.lockdownModeEnabled);
+    webViewConfiguration.get().defaultWebpagePreferences.lockdownModeEnabled = YES;
+
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:webViewConfiguration.get() addToWindow:YES]);
+
+    EXPECT_EQ(presentViewControllerCallCount, 1);
+
+    EXPECT_TRUE([[NSUserDefaults standardUserDefaults] boolForKey:WebKitCaptivePortalModeAlertShownKey]);
+    
+    [WKProcessPool _clearCaptivePortalModeEnabledGloballyForTesting];
+    [[NSUserDefaults standardUserDefaults] removeObjectForKey:WebKitCaptivePortalModeAlertShownKey];
+}
+
+static bool showedNoFirstUseMessage;
+
+@interface NoLockdownFirstUseMessage : NSObject <WKUIDelegatePrivate>
+@end
+
+@implementation NoLockdownFirstUseMessage
+- (void)webView:(WKWebView *)webView showLockdownModeFirstUseMessage:(NSString *)message completionHandler:(void (^)(WKDialogResult))completionHandler
+{
+    showedNoFirstUseMessage = true;
+    completionHandler(WKDialogResultHandled);
+}
+@end
+
+TEST(WebKit, LockdownModeNoFirstUseMessage)
+{
+    ClassMethodSwizzler swizzler(UIViewController.class, @selector(_viewControllerForFullScreenPresentationFromView:), reinterpret_cast<IMP>(overrideViewControllerForFullscreenPresentation));
+
+    [[NSUserDefaults standardUserDefaults] removeObjectForKey:WebKitCaptivePortalModeAlertShownKey];
+    [WKProcessPool _setCaptivePortalModeEnabledGloballyForTesting:YES];
+    [WKWebView _resetPresentLockdownModeMessage];
+
+    presentViewControllerCallCount = 0;
+    showedNoFirstUseMessage = false;
+
+    auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    EXPECT_FALSE(webViewConfiguration.get().defaultWebpagePreferences.lockdownModeEnabled);
+    webViewConfiguration.get().defaultWebpagePreferences.lockdownModeEnabled = YES;
+
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:webViewConfiguration.get() addToWindow:NO]);
+
+    auto delegate = adoptNS([[NoLockdownFirstUseMessage alloc] init]);
+    [webView setUIDelegate:delegate.get()];
+    [webView addToTestWindow];
+
+    EXPECT_TRUE(showedNoFirstUseMessage);
+    EXPECT_EQ(presentViewControllerCallCount, 0);
+
+    EXPECT_TRUE([[NSUserDefaults standardUserDefaults] boolForKey:WebKitCaptivePortalModeAlertShownKey]);
+    
+    [WKProcessPool _clearCaptivePortalModeEnabledGloballyForTesting];
+    [[NSUserDefaults standardUserDefaults] removeObjectForKey:WebKitCaptivePortalModeAlertShownKey];
+}
+
+static bool showedCustomFirstUseMessage;
+static bool requestFutureFirstUseMessage;
+
+@interface AskAgainFirstUseMessage : NSObject <WKUIDelegatePrivate>
+@end
+
+@implementation AskAgainFirstUseMessage
+- (void)webView:(WKWebView *)webView showLockdownModeFirstUseMessage:(NSString *)message completionHandler:(void (^)(WKDialogResult))completionHandler
+{
+    if (requestFutureFirstUseMessage) {
+        requestFutureFirstUseMessage = false;
+        showedCustomFirstUseMessage = false;
+        completionHandler(WKDialogResultShowDefault);
+        return;
+    }
+        
+    requestFutureFirstUseMessage = true;
+    showedCustomFirstUseMessage = true;
+    completionHandler(WKDialogResultAskAgain);
+}
+@end
+
+TEST(WebKit, LockdownModeAskAgainFirstUseMessage)
+{
+    ClassMethodSwizzler swizzler(UIViewController.class, @selector(_viewControllerForFullScreenPresentationFromView:), reinterpret_cast<IMP>(overrideViewControllerForFullscreenPresentation));
+
+    [[NSUserDefaults standardUserDefaults] removeObjectForKey:WebKitCaptivePortalModeAlertShownKey];
+    [WKProcessPool _setCaptivePortalModeEnabledGloballyForTesting:YES];
+    [WKWebView _resetPresentLockdownModeMessage];
+
+    presentViewControllerCallCount = 0;
+    showedCustomFirstUseMessage = false;
+    requestFutureFirstUseMessage = false;
+
+    auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    EXPECT_FALSE(webViewConfiguration.get().defaultWebpagePreferences.lockdownModeEnabled);
+    webViewConfiguration.get().defaultWebpagePreferences.lockdownModeEnabled = YES;
+
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:webViewConfiguration.get() addToWindow:NO]);
+
+    auto delegate = adoptNS([[AskAgainFirstUseMessage alloc] init]);
+    [webView setUIDelegate:delegate.get()];
+    [webView addToTestWindow];
+
+    EXPECT_EQ(presentViewControllerCallCount, 0);
+    EXPECT_TRUE(showedCustomFirstUseMessage);
+    EXPECT_TRUE(requestFutureFirstUseMessage);
+
+    EXPECT_FALSE([[NSUserDefaults standardUserDefaults] boolForKey:WebKitCaptivePortalModeAlertShownKey]);
+
+    // Load a new view and ask again:
+    auto secondWebView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:webViewConfiguration.get() addToWindow:NO]);
+
+    [secondWebView setUIDelegate:delegate.get()];
+    [secondWebView addToTestWindow];
+
+    EXPECT_EQ(presentViewControllerCallCount, 1);
+    EXPECT_FALSE(showedCustomFirstUseMessage);
+    EXPECT_FALSE(requestFutureFirstUseMessage);
+
+    EXPECT_TRUE([[NSUserDefaults standardUserDefaults] boolForKey:WebKitCaptivePortalModeAlertShownKey]);
+
+    [WKProcessPool _clearCaptivePortalModeEnabledGloballyForTesting];
+    [[NSUserDefaults standardUserDefaults] removeObjectForKey:WebKitCaptivePortalModeAlertShownKey];
+}
+
+#endif
 
 #if PLATFORM(MAC)
 
@@ -705,16 +858,18 @@ TEST(WebKit, PrintWithCompletionHandler)
 
 TEST(WebKit, NotificationPermission)
 {
-    NSString *html = @"<script>Notification.requestPermission(function(p){alert('permission '+p)})</script>";
-    auto webView = adoptNS([[WKWebView alloc] init]);
+    NSString *html = @"<script>function requestPermission() { Notification.requestPermission(function(p){alert('permission '+p)}); }</script>";
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:adoptNS([[WKWebViewConfiguration alloc] init]).get()]);
     auto uiDelegate = adoptNS([[NotificationDelegate alloc] initWithAllowNotifications:YES]);
     [webView setUIDelegate:uiDelegate.get()];
-    [webView loadHTMLString:html baseURL:[NSURL URLWithString:@"https://example.org"]];
+    [webView synchronouslyLoadHTMLString:html baseURL:[NSURL URLWithString:@"https://example.org"]];
+    [webView evaluateJavaScript:@"requestPermission()" completionHandler:nil];
     TestWebKitAPI::Util::run(&done);
     done = false;
     uiDelegate = adoptNS([[NotificationDelegate alloc] initWithAllowNotifications:NO]);
     [webView setUIDelegate:uiDelegate.get()];
-    [webView loadHTMLString:html baseURL:[NSURL URLWithString:@"https://example.com"]];
+    [webView synchronouslyLoadHTMLString:html baseURL:[NSURL URLWithString:@"https://example.com"]];
+    [webView evaluateJavaScript:@"requestPermission()" completionHandler:nil];
     TestWebKitAPI::Util::run(&done);
 }
 

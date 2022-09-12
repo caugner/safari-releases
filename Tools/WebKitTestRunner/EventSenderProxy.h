@@ -32,7 +32,7 @@
 #include <wtf/RetainPtr.h>
 #include <wtf/Vector.h>
 
-#if PLATFORM(WPE)
+#if USE(LIBWPE)
 #include <wpe/wpe.h>
 #endif
 
@@ -130,7 +130,7 @@ private:
     RetainPtr<NSEvent> pressureChangeEvent(int stage, float pressure, PressureChangeDirection);
 #endif
 
-#if PLATFORM(WPE)
+#if ENABLE(TOUCH_EVENTS) && USE(LIBWPE)
     Vector<struct wpe_input_touch_event_raw> getUpdatedTouchEvents();
     void removeUpdatedTouchEvents();
     void prepareAndDispatchTouchEvent(enum wpe_input_touch_event_type);
@@ -152,10 +152,15 @@ private:
 #if PLATFORM(COCOA)
     int m_eventNumber { 0 };
 #endif
-#if PLATFORM(WPE)
+#if PLATFORM(GTK)
+    bool m_hasPreciseDeltas { false };
+#endif
+#if USE(LIBWPE)
     uint32_t m_buttonState { 0 };
+#if ENABLE(TOUCH_EVENTS)
     Vector<struct wpe_input_touch_event_raw> m_touchEvents;
     HashSet<unsigned, DefaultHash<unsigned>, WTF::UnsignedWithZeroKeyHashTraits<unsigned>> m_updatedTouchEvents;
+#endif
 #endif
 };
 

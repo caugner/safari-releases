@@ -334,8 +334,6 @@ public:
 
     void setPOSIXLocale(JSStringRef);
 
-    void setWebViewEditable(bool);
-
     void abortModal();
 
     static void setSerializeHTTPLoads(bool);
@@ -386,6 +384,8 @@ public:
 
     bool didCancelClientRedirect() const { return m_didCancelClientRedirect; }
     void setDidCancelClientRedirect(bool value) { m_didCancelClientRedirect = value; }
+
+    bool isSecureEventInputEnabled() const;
 
 private:
     TestRunner(const std::string& testURL, const std::string& expectedPixelHash);

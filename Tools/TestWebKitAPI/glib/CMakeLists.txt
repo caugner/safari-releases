@@ -110,6 +110,7 @@ set(WebKitGLibAPITests_DEFINITIONS
 add_library(WebKitGLibAPITestsCore STATIC ${WebKitGLibAPITests_SOURCES})
 target_include_directories(WebKitGLibAPITestsCore PUBLIC ${WebKitGLibAPITests_INCLUDE_DIRECTORIES})
 target_include_directories(WebKitGLibAPITestsCore SYSTEM PUBLIC ${WebKitGLibAPITests_SYSTEM_INCLUDE_DIRECTORIES})
+target_compile_definitions(WebKitGLibAPITestsCore PRIVATE BUILDING_TestWebKit)
 target_compile_definitions(WebKitGLibAPITestsCore PUBLIC ${WebKitGLibAPITests_DEFINITIONS})
 target_link_libraries(WebKitGLibAPITestsCore ${WebKitGLibAPITestsCore_LIBRARIES})
 
@@ -118,13 +119,16 @@ if (COMPILER_IS_GCC_OR_CLANG)
 endif ()
 
 add_custom_command(
-    OUTPUT ${TEST_RESOURCES_DIR}/webkitglib-tests-resources.gresource
+    OUTPUT ${TEST_RESOURCES_DIR}/webkitglib-tests-resources.gresource ${TEST_RESOURCES_DIR}/webkitglib-tests-resources.deps
     DEPENDS ${TOOLS_DIR}/TestWebKitAPI/Tests/WebKitGLib/resources/webkitglib-tests.gresource.xml
             ${TOOLS_DIR}/TestWebKitAPI/Tests/WebKitGLib/resources/link-title.js
+    DEPFILE ${TEST_RESOURCES_DIR}/webkitglib-tests-resources.deps
     COMMAND glib-compile-resources
             --target=${TEST_RESOURCES_DIR}/webkitglib-tests-resources.gresource
             --sourcedir=${CMAKE_SOURCE_DIR}
+            --dependency-file=${TEST_RESOURCES_DIR}/webkitglib-tests-resources.deps
             ${TOOLS_DIR}/TestWebKitAPI/Tests/WebKitGLib/resources/webkitglib-tests.gresource.xml
+    VERBATIM
 )
 
 add_custom_target(test-gresource-bundle

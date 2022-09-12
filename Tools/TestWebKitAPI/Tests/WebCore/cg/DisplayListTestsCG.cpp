@@ -73,7 +73,7 @@ TEST(DisplayListTests, ReplayWithMissingResource)
     }
 
     {
-        auto imageBuffer = ImageBuffer::create({ 100, 100 }, RenderingMode::Unaccelerated, 1, colorSpace, PixelFormat::BGRA8);
+        auto imageBuffer = ImageBuffer::create({ 100, 100 }, RenderingPurpose::Unspecified, 1, colorSpace, PixelFormat::BGRA8);
         LocalResourceHeap resourceHeap;
         resourceHeap.add(imageBufferIdentifier, imageBuffer.releaseNonNull());
 
@@ -136,7 +136,6 @@ TEST(DisplayListTests, OutOfLineItemDecodingFailure)
     Replayer replayer { context, shallowCopy };
     auto result = replayer.replay();
     EXPECT_GT(result.numberOfBytesRead, 0U);
-    EXPECT_EQ(result.nextDestinationImageBuffer, std::nullopt);
     EXPECT_EQ(result.missingCachedResourceIdentifier, std::nullopt);
     EXPECT_EQ(result.reasonForStopping, StopReplayReason::InvalidItemOrExtent);
 }
@@ -149,24 +148,23 @@ TEST(DisplayListTests, InlineItemValidationFailure)
     auto cgContext = adoptCF(CGBitmapContextCreate(nullptr, contextWidth, contextHeight, 8, 4 * contextWidth, colorSpace.get(), kCGImageAlphaPremultipliedLast));
     GraphicsContextCG context { cgContext.get() };
 
-    auto runTestWithInvalidIdentifier = [&](GraphicsContextFlushIdentifier identifier) {
+    auto runTestWithInvalidIdentifier = [&](RenderingResourceIdentifier identifier) {
         EXPECT_FALSE(identifier.isValid());
 
         DisplayList list;
         ReadingClient reader;
         list.setItemBufferReadingClient(&reader);
-        list.append<FlushContext>(identifier);
+        list.append<ClipToImageBuffer>(identifier, FloatRect { });
 
         Replayer replayer { context, list };
         auto result = replayer.replay();
         EXPECT_EQ(result.numberOfBytesRead, 0U);
-        EXPECT_EQ(result.nextDestinationImageBuffer, std::nullopt);
         EXPECT_EQ(result.missingCachedResourceIdentifier, std::nullopt);
         EXPECT_EQ(result.reasonForStopping, StopReplayReason::InvalidItemOrExtent);
     };
 
-    runTestWithInvalidIdentifier(GraphicsContextFlushIdentifier { });
-    runTestWithInvalidIdentifier(GraphicsContextFlushIdentifier { WTF::HashTableDeletedValue });
+    runTestWithInvalidIdentifier(RenderingResourceIdentifier { });
+    runTestWithInvalidIdentifier(RenderingResourceIdentifier { WTF::HashTableDeletedValue });
 }
 
 } // namespace TestWebKitAPI

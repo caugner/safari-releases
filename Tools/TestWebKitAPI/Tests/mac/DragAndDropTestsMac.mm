@@ -58,6 +58,18 @@ TEST(DragAndDropTests, NumberOfValidItemsForDrop)
     EXPECT_EQ(1U, numberOfValidItemsForDrop);
 }
 
+TEST(DragAndDropTests, DropUserSelectAllUserDragElementDiv)
+{
+    auto simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebViewFrame:NSMakeRect(0, 0, 320, 500)]);
+
+    TestWKWebView *webView = [simulator webView];
+    [webView synchronouslyLoadTestPageNamed:@"contenteditable-user-select-user-drag"];
+
+    [simulator runFrom:NSMakePoint(100, 100) to:NSMakePoint(100, 300)];
+
+    EXPECT_WK_STREQ(@"Text", [webView stringByEvaluatingJavaScript:@"document.getElementById(\"editor\").textContent"]);
+}
+
 #if ENABLE(INPUT_TYPE_COLOR)
 TEST(DragAndDropTests, DropColor)
 {
@@ -102,6 +114,29 @@ TEST(DragAndDropTests, DragPromisedImageFileIntoFileUpload)
         return [webView stringByEvaluatingJavaScript:@"imageload.textContent"].boolValue;
     }, 2, @"Expected image to finish loading.");
     EXPECT_EQ(1, [webView stringByEvaluatingJavaScript:@"filecount.textContent"].integerValue);
+}
+
+TEST(DragAndDropTests, ReadURLWhenDroppingPromisedWebLoc)
+{
+    auto simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebViewFrame:NSMakeRect(0, 0, 400, 400)]);
+    auto *webView = [simulator webView];
+    [webView synchronouslyLoadTestPageNamed:@"dump-datatransfer-types"];
+
+    [simulator writePromisedWebLoc:[NSURL URLWithString:@"https://webkit.org/"]];
+    [simulator runFrom:CGPointMake(0, 0) to:CGPointMake(375, 375)];
+
+    NSString *s = [webView stringByEvaluatingJavaScript:@"output.value"];
+    BOOL success = TestWebKitAPI::Util::jsonMatchesExpectedValues(s, @{
+        @"dragover" : @{
+            @"Files": @"",
+            @"text/uri-list": @""
+        },
+        @"drop": @{
+            @"Files": @"",
+            @"text/uri-list": @"https://webkit.org/"
+        }
+    });
+    EXPECT_TRUE(success);
 }
 
 TEST(DragAndDropTests, DragImageFileIntoFileUpload)
@@ -169,7 +204,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     EXPECT_EQ(imageFromUniquePasteboard.TIFFRepresentation.length, imageFromDragPasteboard.TIFFRepresentation.length);
     EXPECT_TRUE(NSEqualSizes(imageFromDragPasteboard.size, imageFromUniquePasteboard.size));
     EXPECT_FALSE(NSEqualSizes(NSZeroSize, imageFromUniquePasteboard.size));
-    EXPECT_GT([dragPasteboard dataForType:@(WebCore::PasteboardCustomData::cocoaType())].length, 0u);
+    EXPECT_GT([dragPasteboard dataForType:@(WebCore::PasteboardCustomData::cocoaType().characters())].length, 0u);
 }
 
 TEST(DragAndDropTests, ProvideImageDataAsTypeIdentifiers)

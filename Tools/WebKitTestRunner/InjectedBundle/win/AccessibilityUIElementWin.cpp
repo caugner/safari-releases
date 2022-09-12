@@ -26,7 +26,7 @@
 #include "config.h"
 #include "AccessibilityUIElement.h"
 
-#if HAVE(ACCESSIBILITY)
+#if ENABLE(ACCESSIBILITY)
 
 #include <WebCore/NotImplemented.h>
 
@@ -190,6 +190,12 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::stringAttributeValue(JSStringRe
     return nullptr;
 }
 
+JSRetainPtr<JSStringRef> AccessibilityUIElement::currentStateValue() const
+{
+    notImplemented();
+    return nullptr;
+}
+
 JSRetainPtr<JSStringRef> AccessibilityUIElement::stringDescriptionOfAttributeValue(JSStringRef)
 {
     notImplemented();
@@ -292,6 +298,24 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::orientation() const
     return nullptr;
 }
 
+bool AccessibilityUIElement::isAtomicLiveRegion() const
+{
+    notImplemented();
+    return false;
+}
+
+JSRetainPtr<JSStringRef> AccessibilityUIElement::liveRegionRelevant() const
+{
+    notImplemented();
+    return nullptr;
+}
+
+JSRetainPtr<JSStringRef> AccessibilityUIElement::liveRegionStatus() const
+{
+    notImplemented();
+    return nullptr;
+}
+
 JSRetainPtr<JSStringRef> AccessibilityUIElement::stringValue()
 {
     notImplemented();
@@ -389,6 +413,12 @@ bool AccessibilityUIElement::isIncrementActionSupported()
 }
 
 bool AccessibilityUIElement::isDecrementActionSupported()
+{
+    notImplemented();
+    return false;
+}
+
+bool AccessibilityUIElement::isBusy() const
 {
     notImplemented();
     return false;
@@ -1003,6 +1033,12 @@ bool AccessibilityUIElement::insertText(JSStringRef)
     return false;
 }
 
+JSRetainPtr<JSStringRef> AccessibilityUIElement::domIdentifier() const
+{
+    notImplemented();
+    return nullptr;
+}
+
 } // namespace  WTF
 
-#endif // HAVE(ACCESSIBILITY)
+#endif // ENABLE(ACCESSIBILITY)

@@ -1,4 +1,4 @@
-# Copyright (C) 2021 Apple Inc. All rights reserved.
+# Copyright (C) 2021-2022 Apple Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -24,34 +24,54 @@ import logging
 import os
 import time
 
+from mock import patch
+from webkitbugspy import Tracker, User, bugzilla, radar, mocks as bmocks
 from webkitcorepy import OutputCapture, testing
-from webkitcorepy.mocks import Terminal as MockTerminal, Time as MockTime
+from webkitcorepy.mocks import Terminal as MockTerminal, Time as MockTime, Environment
 from webkitscmpy import Contributor, Commit, local, program, mocks
 
 
-def repository(path, has_oops=True, remote=None, git_svn=False):
+def repository(path, has_oops=True, remote=None, remotes=None, git_svn=False, issue_url=None):
     branch = 'eng/example'
-    result = mocks.local.Git(path, remote=remote, git_svn=git_svn)
-    result.commits[branch] = [Commit(
-        hash='a5fe8afe9bf7d07158fcd9e9732ff02a712db2fd',
-        identifier='3.1@{}'.format(branch),
-        timestamp=int(time.time()) - 60,
-        author=Contributor('Tim Committer', ['tcommitter@webkit.org']),
-        message='To Be Committed\n\nReviewed by {}.\n'.format(
-            'NOBODY (OOPS!)' if has_oops else 'Ricky Reviewer',
-        ),
-    )]
-    result.head = result.commits[branch][0]
+    result = mocks.local.Git(path, remote=remote, remotes=remotes, git_svn=git_svn)
+    result.commits[branch] = [
+        result.commits[result.default_branch][2],
+        Commit(
+            hash='a5fe8afe9bf7d07158fcd9e9732ff02a712db2fd',
+            identifier='3.1@{}'.format(branch),
+            revision=10,
+            timestamp=int(time.time()) - 60,
+            author=Contributor('Tim Committer', ['tcommitter@webkit.org']),
+            message='To Be Committed\n{}\nReviewed by {}.\n{}'.format(
+                '{}\n'.format(issue_url) if issue_url else '',
+                'NOBODY (OOPS!)' if has_oops else 'Ricky Reviewer',
+                '\ngit-svn-id: https://svn.{}/repository/{}/trunk@10 268f45cc-cd09-0410-ab3c-d52691b4dbfc\n'.format(
+                    result.remote.split('@')[-1].split(':')[0],
+                    os.path.basename(result.path),
+                ) if git_svn else '',
+            ),
+        )
+    ]
+    result.head = result.commits[branch][-1]
     return result
 
 
 class TestLand(testing.PathTestCase):
     basepath = 'mock/repository'
+    BUGZILLA = 'https://bugs.example.com'
 
     def setUp(self):
         super(TestLand, self).setUp()
         os.mkdir(os.path.join(self.path, '.git'))
         os.mkdir(os.path.join(self.path, '.svn'))
+
+    def test_none(self):
+        with OutputCapture(level=logging.INFO) as captured, mocks.local.Git(), mocks.local.Svn():
+            self.assertEqual(1, program.main(
+                args=('land', '-v'),
+                path=self.path,
+            ))
+        self.assertEqual(captured.stderr.getvalue(), 'No repository provided\n')
 
     def test_non_editable(self):
         with OutputCapture(level=logging.INFO) as captured, mocks.local.Git(self.path), mocks.local.Svn():
@@ -81,6 +101,7 @@ class TestLand(testing.PathTestCase):
         self.assertEqual(
             [line for line in log if 'Mock process' not in line], [
                 '    Found 1 commit...',
+                'Using committed changes...'
             ],
         )
         self.assertEqual(
@@ -102,6 +123,7 @@ class TestLand(testing.PathTestCase):
         self.assertEqual(
             [line for line in log if 'Mock process' not in line], [
                 '    Found 1 commit...',
+                'Using committed changes...',
                 "Rebasing 'eng/example' from 'main' to 'main'...",
                 "Rebased 'eng/example' from 'main' to 'main'!",
             ],
@@ -112,7 +134,7 @@ class TestLand(testing.PathTestCase):
         )
         self.assertEqual(
             captured.stdout.getvalue(),
-            'Landed a5fe8afe9bf7d07158fcd9e9732ff02a712db2fd!\n'
+            'Landed a5fe8afe9bf7!\n'
             "Delete branch 'eng/example'? ([Yes]/No): \n",
         )
 
@@ -137,9 +159,10 @@ class TestLand(testing.PathTestCase):
         self.assertEqual(
             [line for line in log if 'Mock process' not in line], [
                 '    Found 1 commit...',
+                'Using committed changes...',
                 "Rebasing 'eng/example' from 'main' to 'main'...",
                 "Rebased 'eng/example' from 'main' to 'main'!",
-                '1 commit to be editted...',
+                '1 commit to be edited...',
                 'Base commit is 5@main (ref d8bce26fa65c6fc8f39c17927abb77f69fab82fc)',
             ],
         )
@@ -152,7 +175,7 @@ class TestLand(testing.PathTestCase):
             'Rewrite a5fe8afe9bf7d07158fcd9e9732ff02a712db2fd (1/1) (--- seconds passed, remaining --- predicted)\n'
             'Overwriting a5fe8afe9bf7d07158fcd9e9732ff02a712db2fd\n'
             '1 commit successfully canonicalized!\n'
-            'Landed https://commits.webkit.org/6@main (a5fe8afe9bf7d07158fcd9e9732ff02a712db2fd)!\n'
+            'Landed https://commits.webkit.org/6@main (a5fe8afe9bf7)!\n'
             "Delete branch 'eng/example'? ([Yes]/No): \n",
         )
 
@@ -182,6 +205,7 @@ class TestLand(testing.PathTestCase):
         self.assertEqual(
             [line for line in log if 'Mock process' not in line], [
                 '    Found 1 commit...',
+                'Using committed changes...',
                 "Rebasing 'eng/example' from 'main' to 'main'...",
                 "Rebased 'eng/example' from 'main' to 'main'!",
                 '    Verifying mirror processesed change',
@@ -193,13 +217,147 @@ class TestLand(testing.PathTestCase):
         )
         self.assertEqual(
             captured.stdout.getvalue(),
-            'Landed a5fe8afe9bf7d07158fcd9e9732ff02a712db2fd!\n'
+            'Landed a5fe8afe9bf7!\n'
+            "Delete branch 'eng/example'? ([Yes]/No): \n",
+        )
+
+    def test_default_with_radar(self):
+        with OutputCapture(level=logging.INFO) as captured, repository(self.path, has_oops=False, issue_url='<rdar://problem/1>'), mocks.local.Svn(), \
+                MockTerminal.input('n'), Environment(RADAR_USERNAME='tcontributor'), bmocks.Radar(issues=bmocks.ISSUES), \
+                patch('webkitbugspy.Tracker._trackers', [radar.Tracker()]):
+
+            self.assertEqual(0, program.main(
+                args=('land', '-v'),
+                path=self.path,
+            ))
+            self.assertEqual(str(local.Git(self.path).commit()), '6@main')
+            self.assertEqual(
+                Tracker.instance().issue(1).comments[-1].content,
+                'Landed a5fe8afe9bf7!',
+            )
+            self.assertFalse(Tracker.instance().issue(1).opened)
+
+        log = captured.root.log.getvalue().splitlines()
+        self.assertEqual(
+            [line for line in log if 'Mock process' not in line], [
+                '    Found 1 commit...',
+                'Using committed changes...',
+                "Rebasing 'eng/example' from 'main' to 'main'...",
+                "Rebased 'eng/example' from 'main' to 'main'!",
+            ],
+        )
+        self.assertEqual(
+            captured.stderr.getvalue(),
+            "Failed to find pull-request associated with 'eng/example'\n",
+        )
+        self.assertEqual(
+            captured.stdout.getvalue(),
+            'Landed a5fe8afe9bf7!\n'
+            "Delete branch 'eng/example'? ([Yes]/No): \n",
+        )
+
+    def test_canonicalize_with_bugzilla(self):
+        with OutputCapture(level=logging.INFO) as captured, repository(self.path, has_oops=False, issue_url='{}/show_bug.cgi?id=1'.format(self.BUGZILLA)), \
+                mocks.local.Svn(), MockTerminal.input('n'), patch('webkitbugspy.Tracker._trackers', [bugzilla.Tracker(self.BUGZILLA)]), bmocks.Bugzilla(
+                    self.BUGZILLA.split('://')[-1],
+                    issues=bmocks.ISSUES,
+                    environment=Environment(
+                        BUGS_EXAMPLE_COM_USERNAME='tcontributor@example.com',
+                        BUGS_EXAMPLE_COM_PASSWORD='password',
+                )):
+
+            self.assertEqual(0, program.main(
+                args=('land', '-v'),
+                path=self.path,
+                identifier_template='Canonical link: https://commits.webkit.org/{}',
+            ))
+            self.assertEqual(
+                Tracker.instance().issue(1).comments[-1].content,
+                'Landed https://commits.webkit.org/6@main (a5fe8afe9bf7)!',
+            )
+            self.assertFalse(Tracker.instance().issue(1).opened)
+
+            commit = local.Git(self.path).commit(branch='main')
+            self.assertEqual(str(commit), '6@main')
+            self.assertEqual(
+                commit.message,
+                'To Be Committed\n'
+                'https://bugs.example.com/show_bug.cgi?id=1\n\n'
+                'Reviewed by Ricky Reviewer.\n\n'
+                'Canonical link: https://commits.webkit.org/6@main',
+            )
+
+        log = captured.root.log.getvalue().splitlines()
+        self.assertEqual(
+            [line for line in log if 'Mock process' not in line], [
+                '    Found 1 commit...',
+                'Using committed changes...',
+                "Rebasing 'eng/example' from 'main' to 'main'...",
+                "Rebased 'eng/example' from 'main' to 'main'!",
+                '1 commit to be edited...',
+                'Base commit is 5@main (ref d8bce26fa65c6fc8f39c17927abb77f69fab82fc)',
+            ],
+        )
+        self.assertEqual(
+            captured.stderr.getvalue(),
+            "Failed to find pull-request associated with 'eng/example'\n",
+        )
+        self.assertEqual(
+            captured.stdout.getvalue(),
+            'Rewrite a5fe8afe9bf7d07158fcd9e9732ff02a712db2fd (1/1) (--- seconds passed, remaining --- predicted)\n'
+            'Overwriting a5fe8afe9bf7d07158fcd9e9732ff02a712db2fd\n'
+            '1 commit successfully canonicalized!\n'
+            'Landed https://commits.webkit.org/6@main (a5fe8afe9bf7)!\n'
+            "Delete branch 'eng/example'? ([Yes]/No): \n",
+        )
+
+    def test_svn_with_bugzilla(self):
+        with MockTime, OutputCapture(level=logging.INFO) as captured, \
+                repository(self.path, has_oops=False, git_svn=True, issue_url='{}/show_bug.cgi?id=1'.format(self.BUGZILLA)), \
+                mocks.local.Svn(), MockTerminal.input('n'), patch('webkitbugspy.Tracker._trackers', [bugzilla.Tracker(self.BUGZILLA)]), \
+                bmocks.Bugzilla(
+                    self.BUGZILLA.split('://')[-1],
+                    issues=bmocks.ISSUES,
+                    environment=Environment(
+                        BUGS_EXAMPLE_COM_USERNAME='tcontributor@example.com',
+                        BUGS_EXAMPLE_COM_PASSWORD='password',
+                )):
+
+            self.assertEqual(0, program.main(
+                args=('land', '-v'),
+                path=self.path, canonical_svn=True,
+            ))
+            self.assertEqual(str(local.Git(self.path).commit()), '6@main')
+            self.assertEqual(
+                Tracker.instance().issue(1).comments[-1].content,
+                'Landed r10!',
+            )
+            self.assertFalse(Tracker.instance().issue(1).opened)
+
+        log = captured.root.log.getvalue().splitlines()
+        self.assertEqual(
+            [line for line in log if 'Mock process' not in line], [
+                '    Found 1 commit...',
+                'Using committed changes...',
+                "Rebasing 'eng/example' from 'main' to 'main'...",
+                "Rebased 'eng/example' from 'main' to 'main'!",
+                '    Verifying mirror processesed change',
+            ],
+        )
+        self.assertEqual(
+            captured.stderr.getvalue(),
+            "Failed to find pull-request associated with 'eng/example'\n",
+        )
+        self.assertEqual(
+            captured.stdout.getvalue(),
+            'Landed a5fe8afe9bf7!\n'
             "Delete branch 'eng/example'? ([Yes]/No): \n",
         )
 
 
 class TestLandGitHub(testing.PathTestCase):
     basepath = 'mock/repository'
+    BUGZILLA = 'https://bugs.example.com'
 
     def setUp(self):
         super(TestLandGitHub, self).setUp()
@@ -207,17 +365,21 @@ class TestLandGitHub(testing.PathTestCase):
         os.mkdir(os.path.join(self.path, '.svn'))
 
     @classmethod
-    def webserver(cls, approved=None):
-        result = mocks.remote.GitHub()
-        result.users = dict(
-            rreviewer=Contributor('Ricky Reviewer', ['rreviewer@webkit.org'], github='rreviewer'),
-            tcontributor=Contributor('Tim Contributor', ['tcontributor@webkit.org'], github='tcontributor'),
-        )
+    def webserver(cls, approved=None, labels=None):
+        result = mocks.remote.GitHub(labels=labels)
+        result.users.create('Ricky Reviewer', 'rreviewer', ['rreviewer@webkit.org'])
+        result.users.create('Tim Contributor', 'tcontributor', ['tcontributor@webkit.org'])
         result.issues = {
             1: dict(
+                number=1,
+                opened=True,
+                title='Example Change',
+                description='?',
+                creator=result.users.create(name='Tim Contributor', username='tcontributor'),
+                timestamp=1639536160,
+                assignee=None,
                 comments=[],
-                assignees=[],
-            )
+            ),
         }
         result.pull_requests = [dict(
             number=1,
@@ -240,7 +402,7 @@ class TestLandGitHub(testing.PathTestCase):
                 dict(user=dict(login='rreviewer'), state='CHANGES_REQUESTED')
             ] if approved is not None else [], _links=dict(
                 issue=dict(href='https://{}/issues/1'.format(result.api_remote)),
-            ),
+            ), draft=False,
         )]
         return result
 
@@ -258,6 +420,7 @@ class TestLandGitHub(testing.PathTestCase):
         self.assertEqual(
             [line for line in log if 'Mock process' not in line], [
                 '    Found 1 commit...',
+                'Using committed changes...',
             ],
         )
         self.assertEqual(
@@ -280,6 +443,7 @@ class TestLandGitHub(testing.PathTestCase):
         self.assertEqual(
             [line for line in log if 'Mock process' not in line], [
                 '    Found 1 commit...',
+                'Using committed changes...',
             ],
         )
         self.assertEqual(
@@ -289,7 +453,8 @@ class TestLandGitHub(testing.PathTestCase):
         self.assertEqual(captured.stdout.getvalue(), '')
 
     def test_insert_review(self):
-        with OutputCapture(level=logging.INFO) as captured, MockTerminal.input('y', 'n'), self.webserver(approved=True) as remote, \
+        with OutputCapture(level=logging.INFO) as captured, MockTerminal.input('y', 'n'), self.webserver(
+                approved=True) as remote, \
                 repository(self.path, has_oops=True, remote='https://{}'.format(remote.remote)), mocks.local.Svn():
             self.assertEqual(0, program.main(
                 args=('land', '-v'),
@@ -300,13 +465,14 @@ class TestLandGitHub(testing.PathTestCase):
             self.assertEqual(str(repo.commit()), '6@main')
             self.assertEqual(
                 [comment.content for comment in repo.remote().pull_requests.get(1).comments],
-                ['Landed a5fe8afe9bf7d07158fcd9e9732ff02a712db2fd!'],
+                ['Landed a5fe8afe9bf7!'],
             )
 
         log = captured.root.log.getvalue().splitlines()
         self.assertEqual(
             [line for line in log if 'Mock process' not in line], [
                 '    Found 1 commit...',
+                'Using committed changes...',
                 'Setting Ricky Reviewer as reviewer',
                 "Rebasing 'eng/example' from 'main' to 'main'...",
                 "Rebased 'eng/example' from 'main' to 'main'!",
@@ -317,8 +483,101 @@ class TestLandGitHub(testing.PathTestCase):
         self.assertEqual(
             captured.stdout.getvalue(),
             "Set 'Ricky Reviewer' as your reviewer? ([Yes]/No): \n"
-            'Landed a5fe8afe9bf7d07158fcd9e9732ff02a712db2fd!\n'
+            'Landed a5fe8afe9bf7!\n'
             "Delete branch 'eng/example'? ([Yes]/No): \n",
+        )
+
+    def test_merge_queue(self):
+        with OutputCapture(level=logging.INFO) as captured, MockTerminal.input('y', 'n'), self.webserver(
+            approved=True, labels={'merge-queue': dict(color='3AE653', description="Send PR to merge-queue")},
+        ) as remote, mocks.local.Svn(), repository(
+            self.path, has_oops=True,
+            remote='https://{}'.format(remote.remote),
+            remotes=dict(fork='https://{}/Contributor/WebKit'.format(remote.hosts[0])),
+        ):
+            self.assertEqual(0, program.main(
+                args=('land', '-v'),
+                path=self.path,
+            ))
+
+        log = captured.root.log.getvalue().splitlines()
+        self.assertEqual(
+            [line for line in log if 'Mock process' not in line], [
+                '    Found 1 commit...',
+                'Using committed changes...',
+                'Detected merging automation, using that instead of local git tooling',
+                "Rebasing 'eng/example' on 'main'...",
+                "Rebased 'eng/example' on 'main!'",
+                'Running pre-PR checks...',
+                'No pre-PR checks to run',
+                'Checking if PR already exists...',
+                'PR #1 found.',
+                'Checking PR labels for active labels...',
+                "Pushing 'eng/example' to 'fork'...",
+                "Syncing 'main' to remote 'fork'",
+                "Creating 'eng/example-1' as a reference branch",
+                "Updating pull-request for 'eng/example'...",
+                "Adding 'merge-queue' to 'PR 1 | To Be Committed'",
+            ],
+        )
+        self.assertEqual(captured.stderr.getvalue(), '')
+        self.assertEqual(
+            captured.stdout.getvalue(),
+            "Updated 'PR 1 | To Be Committed'!\n"
+            "https://github.example.com/WebKit/WebKit/pull/1\n"
+            "Added 'merge-queue' to 'PR 1 | To Be Committed', change is in the queue to be landed\n",
+        )
+
+    def test_merge_queue_linked_bug(self):
+        self.maxDiff = None
+        with OutputCapture(level=logging.INFO) as captured, MockTerminal.input('y', 'n'), self.webserver(
+            approved=True, labels={'merge-queue': dict(color='3AE653', description="Send PR to merge-queue")},
+        ) as remote, mocks.local.Svn(), repository(
+            self.path, has_oops=True,
+            issue_url='{}/show_bug.cgi?id=1'.format(self.BUGZILLA),
+            remote='https://{}'.format(remote.remote),
+            remotes=dict(fork='https://{}/Contributor/WebKit'.format(remote.hosts[0])),
+        ), patch('webkitbugspy.Tracker._trackers', [bugzilla.Tracker(self.BUGZILLA)]), bmocks.Bugzilla(
+            self.BUGZILLA.split('://')[-1],
+            issues=bmocks.ISSUES,
+            environment=Environment(
+            BUGS_EXAMPLE_COM_USERNAME='tcontributor@example.com',
+            BUGS_EXAMPLE_COM_PASSWORD='password',
+        )):
+            self.assertEqual(0, program.main(
+                args=('land', '-v'),
+                path=self.path,
+            ))
+            self.assertEqual(len(Tracker.instance().issue(1).comments), 2)
+
+        log = captured.root.log.getvalue().splitlines()
+        self.assertEqual(
+            [line for line in log if 'Mock process' not in line], [
+                '    Found 1 commit...',
+                'Using committed changes...',
+                'Detected merging automation, using that instead of local git tooling',
+                "Rebasing 'eng/example' on 'main'...",
+                "Rebased 'eng/example' on 'main!'",
+                'Running pre-PR checks...',
+                'No pre-PR checks to run',
+                'Checking if PR already exists...',
+                'PR #1 found.',
+                'Checking PR labels for active labels...',
+                "Pushing 'eng/example' to 'fork'...",
+                "Syncing 'main' to remote 'fork'",
+                "Creating 'eng/example-1' as a reference branch",
+                "Updating pull-request for 'eng/example'...",
+                'Syncing PR labels with issue component...',
+                'No label syncing required',
+                "Adding 'merge-queue' to 'PR 1 | To Be Committed'",
+            ],
+        )
+        self.assertEqual(captured.stderr.getvalue(), '')
+        self.assertEqual(
+            captured.stdout.getvalue(),
+            "Updated 'PR 1 | To Be Committed'!\n"
+            "https://github.example.com/WebKit/WebKit/pull/1\n"
+            "Added 'merge-queue' to 'PR 1 | To Be Committed', change is in the queue to be landed\n",
         )
 
 
@@ -383,6 +642,7 @@ class TestLandBitBucket(testing.PathTestCase):
         self.assertEqual(
             [line for line in log if 'Mock process' not in line], [
                 '    Found 1 commit...',
+                'Using committed changes...',
             ],
         )
         self.assertEqual(
@@ -407,6 +667,7 @@ class TestLandBitBucket(testing.PathTestCase):
         self.assertEqual(
             [line for line in log if 'Mock process' not in line], [
                 '    Found 1 commit...',
+                'Using committed changes...',
             ],
         )
         self.assertEqual(
@@ -429,13 +690,14 @@ class TestLandBitBucket(testing.PathTestCase):
             self.assertEqual(str(repo.commit()), '6@main')
             self.assertEqual(
                 [comment.content for comment in repo.remote().pull_requests.get(1).comments],
-                ['Landed a5fe8afe9bf7d07158fcd9e9732ff02a712db2fd!'],
+                ['Landed a5fe8afe9bf7!'],
             )
 
         log = captured.root.log.getvalue().splitlines()
         self.assertEqual(
             [line for line in log if 'Mock process' not in line], [
                 '    Found 1 commit...',
+                'Using committed changes...',
                 'Setting Ricky Reviewer as reviewer',
                 "Rebasing 'eng/example' from 'main' to 'main'...",
                 "Rebased 'eng/example' from 'main' to 'main'!",
@@ -446,6 +708,6 @@ class TestLandBitBucket(testing.PathTestCase):
         self.assertEqual(
             captured.stdout.getvalue(),
             "Set 'Ricky Reviewer' as your reviewer? ([Yes]/No): \n"
-            'Landed a5fe8afe9bf7d07158fcd9e9732ff02a712db2fd!\n'
+            'Landed a5fe8afe9bf7!\n'
             "Delete branch 'eng/example'? ([Yes]/No): \n",
         )

@@ -41,8 +41,7 @@ protected:
 private:
     void setViewScale(double) override;
     void setMinimumEffectiveWidth(double) override;
-    void becomeFirstResponder() override;
-    void resignFirstResponder() override;
+    void setWebViewEditable(bool) override;
     void removeViewFromWindow(JSValueRef) override;
     void addViewToWindow(JSValueRef) override;
     void overridePreference(JSStringRef, JSStringRef) override;

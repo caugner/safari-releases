@@ -36,6 +36,7 @@
 #import "UIKitSPI.h"
 #import "UserInterfaceSwizzler.h"
 #import <WebKit/WKProcessPoolPrivate.h>
+#import <WebKit/WKWebViewConfigurationPrivate.h>
 #import <WebKit/WKWebViewPrivate.h>
 #import <WebKit/_WKProcessPoolConfiguration.h>
 #import <WebKitLegacy/WebEvent.h>
@@ -623,7 +624,7 @@ TEST(KeyboardInputTests, OverrideInputViewAndInputAccessoryView)
     EXPECT_EQ(inputView.get(), [contentView inputView]);
 }
 
-TEST(KeyboardInputTests, DisableSmartQuotesAndDashes)
+TEST(KeyboardInputTests, DisableSpellChecking)
 {
     auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
@@ -632,27 +633,28 @@ TEST(KeyboardInputTests, DisableSmartQuotesAndDashes)
     }];
     [webView _setInputDelegate:inputDelegate.get()];
 
-    auto checkSmartQuotesAndDashesType = [&] (UITextSmartDashesType dashesType, UITextSmartQuotesType quotesType) {
+    auto checkSmartQuotesAndDashesType = [&] (UITextSmartDashesType dashesType, UITextSmartQuotesType quotesType, UITextSpellCheckingType spellCheckingType) {
         UITextInputTraits *traits = [[webView textInputContentView] textInputTraits];
         EXPECT_EQ(dashesType, traits.smartDashesType);
         EXPECT_EQ(quotesType, traits.smartQuotesType);
+        EXPECT_EQ(spellCheckingType, traits.spellCheckingType);
     };
 
     [webView synchronouslyLoadHTMLString:@"<div id='foo' contenteditable spellcheck='false'></div><textarea id='bar' spellcheck='false'></textarea><input id='baz' spellcheck='false'>"];
     [webView evaluateJavaScriptAndWaitForInputSessionToChange:@"foo.focus()"];
-    checkSmartQuotesAndDashesType(UITextSmartDashesTypeNo, UITextSmartQuotesTypeNo);
+    checkSmartQuotesAndDashesType(UITextSmartDashesTypeNo, UITextSmartQuotesTypeNo, UITextSpellCheckingTypeNo);
     [webView evaluateJavaScriptAndWaitForInputSessionToChange:@"bar.focus()"];
-    checkSmartQuotesAndDashesType(UITextSmartDashesTypeNo, UITextSmartQuotesTypeNo);
+    checkSmartQuotesAndDashesType(UITextSmartDashesTypeNo, UITextSmartQuotesTypeNo, UITextSpellCheckingTypeNo);
     [webView evaluateJavaScriptAndWaitForInputSessionToChange:@"baz.focus()"];
-    checkSmartQuotesAndDashesType(UITextSmartDashesTypeNo, UITextSmartQuotesTypeNo);
+    checkSmartQuotesAndDashesType(UITextSmartDashesTypeNo, UITextSmartQuotesTypeNo, UITextSpellCheckingTypeNo);
 
     [webView synchronouslyLoadHTMLString:@"<div id='foo' contenteditable></div><textarea id='bar' spellcheck='true'></textarea><input id='baz'>"];
     [webView evaluateJavaScriptAndWaitForInputSessionToChange:@"foo.focus()"];
-    checkSmartQuotesAndDashesType(UITextSmartDashesTypeDefault, UITextSmartQuotesTypeDefault);
+    checkSmartQuotesAndDashesType(UITextSmartDashesTypeDefault, UITextSmartQuotesTypeDefault, UITextSpellCheckingTypeDefault);
     [webView evaluateJavaScriptAndWaitForInputSessionToChange:@"bar.focus()"];
-    checkSmartQuotesAndDashesType(UITextSmartDashesTypeDefault, UITextSmartQuotesTypeDefault);
+    checkSmartQuotesAndDashesType(UITextSmartDashesTypeDefault, UITextSmartQuotesTypeDefault, UITextSpellCheckingTypeDefault);
     [webView evaluateJavaScriptAndWaitForInputSessionToChange:@"baz.focus()"];
-    checkSmartQuotesAndDashesType(UITextSmartDashesTypeDefault, UITextSmartQuotesTypeDefault);
+    checkSmartQuotesAndDashesType(UITextSmartDashesTypeDefault, UITextSmartQuotesTypeDefault, UITextSpellCheckingTypeDefault);
 }
 
 TEST(KeyboardInputTests, SelectionClipRectsWhenPresentingInputView)
@@ -826,6 +828,29 @@ TEST(KeyboardInputTests, OverrideUndoManager)
     EXPECT_EQ(contentView.undoManager, undoManager);
 }
 
+TEST(KeyboardInputTests, DoNotRegisterActionsInOverriddenUndoManager)
+{
+    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    [configuration _setUndoManagerAPIEnabled:YES];
+
+    auto webView = adoptNS([[CustomUndoManagerWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get()]);
+    auto contentView = [webView wkContentView];
+    EXPECT_FALSE([contentView.undoManagerForWebView canUndo]);
+
+    auto overrideUndoManager = adoptNS([[NSUndoManager alloc] init]);
+    [webView setCustomUndoManager:overrideUndoManager.get()];
+
+    __block bool doneWaiting = false;
+    [webView synchronouslyLoadHTMLString:@"<body></body>"];
+    [webView evaluateJavaScript:@"document.undoManager.addItem(new UndoItem({ label: '', undo: () => debug(\"Performed undo.\"), redo: () => debug(\"Performed redo.\") }))" completionHandler:^(id, NSError *) {
+        doneWaiting = true;
+    }];
+
+    TestWebKitAPI::Util::run(&doneWaiting);
+    EXPECT_TRUE([contentView.undoManagerForWebView canUndo]);
+    EXPECT_FALSE([overrideUndoManager canUndo]);
+}
+
 static UIView * nilResizableSnapshotViewFromRect(id, SEL, CGRect, BOOL, UIEdgeInsets)
 {
     return nil;
@@ -845,6 +870,28 @@ TEST(KeyboardInputTests, DoNotCrashWhenFocusingSelectWithoutViewSnapshot)
     InstanceMethodSwizzler swizzler { UIView.class, @selector(resizableSnapshotViewFromRect:afterScreenUpdates:withCapInsets:), reinterpret_cast<IMP>(nilResizableSnapshotViewFromRect) };
     [webView stringByEvaluatingJavaScript:@"select.focus()"];
     [webView waitForNextPresentationUpdate];
+}
+
+TEST(KeyboardInputTests, EditableWebViewRequiresKeyboardWhenFirstResponder)
+{
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    auto delegate = adoptNS([TestInputDelegate new]);
+    [webView _setInputDelegate:delegate.get()];
+    [delegate setFocusStartsInputSessionPolicyHandler:[](WKWebView *, id <_WKFocusedElementInfo>) {
+        return _WKFocusStartsInputSessionPolicyAllow;
+    }];
+
+    auto contentView = [webView textInputContentView];
+    [webView synchronouslyLoadHTMLString:@"<input value='foo' readonly>"];
+    EXPECT_FALSE([contentView _requiresKeyboardWhenFirstResponder]);
+
+    [webView _setEditable:YES];
+    [webView waitForNextPresentationUpdate];
+    EXPECT_TRUE([contentView _requiresKeyboardWhenFirstResponder]);
+
+    [webView stringByEvaluatingJavaScript:@"document.querySelector('input').focus()"];
+    [webView waitForNextPresentationUpdate];
+    EXPECT_FALSE([contentView _requiresKeyboardWhenFirstResponder]);
 }
 
 } // namespace TestWebKitAPI

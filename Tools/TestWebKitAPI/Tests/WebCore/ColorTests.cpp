@@ -31,6 +31,7 @@
 #include <WebCore/ColorConversion.h>
 #include <WebCore/ColorSerialization.h>
 #include <WebCore/ColorTypes.h>
+#include <wtf/Hasher.h>
 #include <wtf/MathExtras.h>
 
 using namespace WebCore;
@@ -240,7 +241,7 @@ TEST(Color, Constructor)
     EXPECT_FLOAT_EQ(0.5, g);
     EXPECT_FLOAT_EQ(0.25, b);
     EXPECT_FLOAT_EQ(1.0, alpha);
-    EXPECT_EQ(serializationForCSS(c1), "color(display-p3 1 0.5 0.25)");
+    EXPECT_EQ(serializationForCSS(c1), "color(display-p3 1 0.5 0.25)"_s);
 }
 
 TEST(Color, CopyConstructor)
@@ -255,7 +256,7 @@ TEST(Color, CopyConstructor)
     EXPECT_FLOAT_EQ(0.5, g);
     EXPECT_FLOAT_EQ(0.25, b);
     EXPECT_FLOAT_EQ(1.0, alpha);
-    EXPECT_EQ(serializationForCSS(c2), "color(display-p3 1 0.5 0.25)");
+    EXPECT_EQ(serializationForCSS(c2), "color(display-p3 1 0.5 0.25)"_s);
 }
 
 TEST(Color, Assignment)
@@ -270,7 +271,7 @@ TEST(Color, Assignment)
     EXPECT_FLOAT_EQ(0.5, g);
     EXPECT_FLOAT_EQ(0.25, b);
     EXPECT_FLOAT_EQ(1.0, alpha);
-    EXPECT_EQ(serializationForCSS(c2), "color(display-p3 1 0.5 0.25)");
+    EXPECT_EQ(serializationForCSS(c2), "color(display-p3 1 0.5 0.25)"_s);
 }
 
 TEST(Color, Equality)
@@ -299,19 +300,19 @@ TEST(Color, Hash)
     {
         Color c1 { DisplayP3<float> { 1.0, 0.5, 0.25, 1.0 } };
         Color c2 { DisplayP3<float> { 1.0, 0.5, 0.25, 1.0 } };
-        EXPECT_EQ(c1.hash(), c2.hash());
+        EXPECT_EQ(computeHash(c1), computeHash(c2));
     }
 
     {
         Color c1 { DisplayP3<float> { 1.0, 0.5, 0.25, 1.0 } };
         Color c2 { SRGBA<float> { 1.0, 0.5, 0.25, 1.0 } };
-        EXPECT_NE(c1.hash(), c2.hash());
+        EXPECT_NE(computeHash(c1), computeHash(c2));
     }
 
     auto componentBytes = SRGBA<uint8_t> { 255, 128, 63, 127 };
     Color rgb1 { convertColor<SRGBA<float>>(componentBytes) };
     Color rgb2 { componentBytes };
-    EXPECT_NE(rgb1.hash(), rgb2.hash());
+    EXPECT_NE(computeHash(rgb1), computeHash(rgb2));
 }
 
 TEST(Color, MoveConstructor)
@@ -332,7 +333,7 @@ TEST(Color, MoveConstructor)
     EXPECT_FLOAT_EQ(0.5, g);
     EXPECT_FLOAT_EQ(0.25, b);
     EXPECT_FLOAT_EQ(1.0, alpha);
-    EXPECT_EQ(serializationForCSS(c2), "color(display-p3 1 0.5 0.25)");
+    EXPECT_EQ(serializationForCSS(c2), "color(display-p3 1 0.5 0.25)"_s);
 }
 
 TEST(Color, MoveAssignment)
@@ -353,7 +354,7 @@ TEST(Color, MoveAssignment)
     EXPECT_FLOAT_EQ(0.5, g);
     EXPECT_FLOAT_EQ(0.25, b);
     EXPECT_FLOAT_EQ(1.0, alpha);
-    EXPECT_EQ(serializationForCSS(c2), "color(display-p3 1 0.5 0.25)");
+    EXPECT_EQ(serializationForCSS(c2), "color(display-p3 1 0.5 0.25)"_s);
 }
 
 Color makeColor()
@@ -364,7 +365,7 @@ Color makeColor()
 TEST(Color, ReturnValues)
 {
     Color c2 = makeColor();
-    EXPECT_EQ(serializationForCSS(c2), "color(display-p3 1 0.5 0.25)");
+    EXPECT_EQ(serializationForCSS(c2), "color(display-p3 1 0.5 0.25)"_s);
 }
 
 TEST(Color, P3ConversionToSRGB)
@@ -372,6 +373,16 @@ TEST(Color, P3ConversionToSRGB)
     Color p3Color { DisplayP3<float> { 1.0, 0.5, 0.25, 0.75 } };
     auto sRGBAColor = p3Color.toColorTypeLossy<SRGBA<float>>().resolved();
     EXPECT_FLOAT_EQ(sRGBAColor.red, 1.0f);
+    EXPECT_FLOAT_EQ(sRGBAColor.green, 0.50120097f);
+    EXPECT_FLOAT_EQ(sRGBAColor.blue, 0.26161569f);
+    EXPECT_FLOAT_EQ(sRGBAColor.alpha, 0.75f);
+}
+
+TEST(Color, P3ConversionToExtendedSRGB)
+{
+    Color p3Color { DisplayP3<float> { 1.0, 0.5, 0.25, 0.75 } };
+    auto sRGBAColor = p3Color.toColorTypeLossy<ExtendedSRGBA<float>>().resolved();
+    EXPECT_FLOAT_EQ(sRGBAColor.red, 1.0740442f);
     EXPECT_FLOAT_EQ(sRGBAColor.green, 0.46253282f);
     EXPECT_FLOAT_EQ(sRGBAColor.blue, 0.14912748f);
     EXPECT_FLOAT_EQ(sRGBAColor.alpha, 0.75f);

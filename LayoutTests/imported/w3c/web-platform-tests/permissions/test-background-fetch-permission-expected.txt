@@ -1,3 +1,0 @@
-
-PASS Test Background Fetch Permission.
-

@@ -292,8 +292,10 @@ public:
     // Web notifications.
     static void grantWebNotificationPermission(JSStringRef origin);
     static void denyWebNotificationPermission(JSStringRef origin);
+    static void denyWebNotificationPermissionOnPrompt(JSStringRef origin);
     static void removeAllWebNotificationPermissions();
     static void simulateWebNotificationClick(JSValueRef notification);
+    static void simulateWebNotificationClickForServiceWorkerNotifications();
 
     // Geolocation.
     void setGeolocationPermission(bool);
@@ -350,8 +352,6 @@ public:
 
     // Contextual menu actions
     void setAllowedMenuActions(JSValueRef);
-    void installCustomMenuAction(JSStringRef name, bool dismissesAutomatically, JSValueRef callback);
-    void performCustomMenuAction();
 
     void installDidBeginSwipeCallback(JSValueRef);
     void installWillEndSwipeCallback(JSValueRef);

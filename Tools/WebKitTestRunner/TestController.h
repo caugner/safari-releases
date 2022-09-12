@@ -45,8 +45,14 @@
 #include "InstanceMethodSwizzler.h"
 #endif
 
+#if HAVE(UI_EDIT_MENU_INTERACTION)
+#include "EditMenuInteractionSwizzler.h"
+#endif
+
 OBJC_CLASS NSString;
 OBJC_CLASS UIKeyboardInputMode;
+OBJC_CLASS UIEditMenuInteraction;
+OBJC_CLASS UIPasteboardConsistencyEnforcer;
 OBJC_CLASS WKWebViewConfiguration;
 
 namespace WTR {
@@ -126,6 +132,7 @@ public:
     void setBeforeUnloadReturnValue(bool value) { m_beforeUnloadReturnValue = value; }
 
     void simulateWebNotificationClick(WKDataRef notificationID);
+    void simulateWebNotificationClickForServiceWorkerNotifications();
 
     // Geolocation.
     void setGeolocationPermission(bool);
@@ -336,7 +343,6 @@ public:
 #endif
 
     void setAllowedMenuActions(const Vector<String>&);
-    void installCustomMenuAction(const String& name, bool dismissesAutomatically);
 
     uint64_t serverTrustEvaluationCallbackCallsCount() const { return m_serverTrustEvaluationCallbackCallsCount; }
 
@@ -370,6 +376,19 @@ public:
     void completeMediaKeySystemPermissionCheck(WKMediaKeySystemPermissionCallbackRef);
     void setIsMediaKeySystemPermissionGranted(bool);
     WKRetainPtr<WKStringRef> takeViewPortSnapshot();
+
+    WKPreferencesRef platformPreferences();
+
+    bool grantNotificationPermission(WKStringRef origin);
+    bool denyNotificationPermission(WKStringRef origin);
+    bool denyNotificationPermissionOnPrompt(WKStringRef origin);
+
+    PlatformWebView* createOtherPlatformWebView(PlatformWebView* parentView, WKPageConfigurationRef, WKNavigationActionRef, WKWindowFeaturesRef);
+
+#if HAVE(UI_EDIT_MENU_INTERACTION)
+    void didPresentEditMenuInteraction(UIEditMenuInteraction *);
+    void didDismissEditMenuInteraction(UIEditMenuInteraction *);
+#endif
 
 private:
     WKRetainPtr<WKPageConfigurationRef> generatePageConfiguration(const TestOptions&);
@@ -408,7 +427,6 @@ private:
     void platformRunUntil(bool& done, WTF::Seconds timeout);
     void platformDidCommitLoadForFrame(WKPageRef, WKFrameRef);
     WKContextRef platformContext();
-    WKPreferencesRef platformPreferences();
     void initializeInjectedBundlePath();
     void initializeTestPluginDirectory();
 
@@ -431,6 +449,10 @@ private:
     void decidePolicyForGeolocationPermissionRequestIfPossible();
     void decidePolicyForUserMediaPermissionRequestIfPossible();
 
+#if PLATFORM(IOS_FAMILY)
+    UIPasteboardConsistencyEnforcer *pasteboardConsistencyEnforcer();
+#endif
+
     // WKContextInjectedBundleClient
     static void didReceiveMessageFromInjectedBundle(WKContextRef, WKStringRef messageName, WKTypeRef messageBody, const void*);
     static void didReceiveSynchronousMessageFromInjectedBundleWithListener(WKContextRef, WKStringRef messageName, WKTypeRef messageBody, WKMessageListenerRef, const void*);
@@ -448,12 +470,12 @@ private:
     void didReceiveRawKeyUpMessageFromInjectedBundle(WKDictionaryRef messageBodyDictionary, bool synchronous);
 
     // WKContextClient
-    static void networkProcessDidCrash(WKContextRef, const void*);
-    void networkProcessDidCrash();
-    static void serviceWorkerProcessDidCrash(WKContextRef, WKProcessID, const void*);
-    void serviceWorkerProcessDidCrash(WKProcessID);
-    static void gpuProcessDidCrash(WKContextRef, WKProcessID, const void*);
-    void gpuProcessDidCrash(WKProcessID);
+    static void networkProcessDidCrashWithDetails(WKContextRef, WKProcessID, WKProcessTerminationReason, const void*);
+    void networkProcessDidCrash(WKProcessID, WKProcessTerminationReason);
+    static void serviceWorkerProcessDidCrashWithDetails(WKContextRef, WKProcessID, WKProcessTerminationReason, const void*);
+    void serviceWorkerProcessDidCrash(WKProcessID, WKProcessTerminationReason);
+    static void gpuProcessDidCrashWithDetails(WKContextRef, WKProcessID, WKProcessTerminationReason, const void*);
+    void gpuProcessDidCrash(WKProcessID, WKProcessTerminationReason);
 
     // WKPageNavigationClient
     static void didCommitNavigation(WKPageRef, WKNavigationRef, WKTypeRef userData, const void*);
@@ -566,6 +588,7 @@ private:
     WKRetainPtr<WKStringRef> m_testPluginDirectory;
 
     WebNotificationProvider m_webNotificationProvider;
+    HashSet<String> m_notificationOriginsToDenyOnPrompt;
 
     std::unique_ptr<PlatformWebView> m_mainWebView;
     Vector<UniqueRef<PlatformWebView>> m_auxiliaryWebViews;
@@ -575,8 +598,13 @@ private:
 
 #if PLATFORM(IOS_FAMILY)
     Vector<std::unique_ptr<InstanceMethodSwizzler>> m_inputModeSwizzlers;
+    RetainPtr<UIPasteboardConsistencyEnforcer> m_pasteboardConsistencyEnforcer;
     RetainPtr<UIKeyboardInputMode> m_overriddenKeyboardInputMode;
     Vector<std::unique_ptr<InstanceMethodSwizzler>> m_presentPopoverSwizzlers;
+#endif
+
+#if HAVE(UI_EDIT_MENU_INTERACTION)
+    std::unique_ptr<EditMenuInteractionSwizzler> m_editMenuInteractionSwizzler;
 #endif
 
     enum State {
@@ -591,7 +619,7 @@ private:
     bool m_forceNoTimeout { false };
 
     bool m_didPrintWebProcessCrashedMessage { false };
-    bool m_shouldExitWhenWebProcessCrashes { true };
+    bool m_shouldExitWhenAuxiliaryProcessCrashes { true };
     
     bool m_beforeUnloadReturnValue { true };
 

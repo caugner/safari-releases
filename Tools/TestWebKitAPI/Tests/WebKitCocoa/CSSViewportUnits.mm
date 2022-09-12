@@ -225,8 +225,6 @@ TEST(CSSViewportUnits, AllSame)
 
 #define CocoaEdgeInsetsZero CocoaEdgeInsetsMake(0, 0, 0, 0)
 
-#if PLATFORM(IOS_FAMILY)
-
 TEST(CSSViewportUnits, NegativeMinimumViewportInset)
 {
     auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
@@ -795,6 +793,8 @@ TEST(CSSViewportUnits, MaximumViewportInsetWithBounds)
         EXPECT_FLOAT_EQ(fixedWidth, viewportUnitLength(webView, @"dvi"));
     }
 }
+
+#if PLATFORM(IOS_FAMILY)
 
 TEST(CSSViewportUnits, MinimumViewportInsetWithContentInset)
 {

@@ -20,6 +20,7 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import re
 import six
 
 from webkitscmpy.scm_base import ScmBase
@@ -27,6 +28,8 @@ from webkitscmpy.scm_base import ScmBase
 
 class Scm(ScmBase):
     class PRGenerator(object):
+        SUPPORTS_DRAFTS = False
+
         def __init__(self, repository):
             self.repository = repository
 
@@ -36,10 +39,10 @@ class Scm(ScmBase):
         def find(self, opened=True, head=None, base=None):
             raise NotImplementedError()
 
-        def create(self, head, title, body=None, commits=None, base=None):
+        def create(self, head, title, body=None, commits=None, base=None, draft=None):
             raise NotImplementedError()
 
-        def update(self, pull_request, head=None, title=None, body=None, commits=None, base=None, opened=None):
+        def update(self, pull_request, head=None, title=None, body=None, commits=None, base=None, opened=None, draft=None):
             raise NotImplementedError()
 
         def reviewers(self, pull_request):
@@ -55,6 +58,15 @@ class Scm(ScmBase):
     @classmethod
     def from_url(cls, url, contributors=None):
         from webkitscmpy import remote
+
+        if 'bitbucket' in url or 'stash' in url:
+            match = re.match(r'(?P<protocol>https?)://(?P<host>[^/]+)/(projects/)?(?P<project>[^/]+)/(repos/)?(?P<repo>[^/]+)', url)
+            url = '{}://{}/projects/{}/repos/{}'.format(
+                match.group('protocol'),
+                match.group('host'),
+                match.group('project').upper(),
+                match.group('repo'),
+            )
 
         for candidate in [remote.Svn, remote.GitHub, remote.BitBucket]:
             if candidate.is_webserver(url):

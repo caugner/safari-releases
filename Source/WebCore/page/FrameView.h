@@ -268,6 +268,7 @@ public:
     WEBCORE_EXPORT void setScrollPosition(const ScrollPosition&, const ScrollPositionChangeOptions& = ScrollPositionChangeOptions::createProgrammatic()) final;
     void restoreScrollbar();
     void scheduleScrollToFocusedElement(SelectionRevealMode);
+    void cancelScheduledScrollToFocusedElement();
     void scrollToFocusedElementImmediatelyIfNeeded();
     void updateLayerPositionsAfterScrolling() final;
     void updateCompositingLayersAfterScrolling() final;
@@ -810,6 +811,8 @@ private:
     bool usesCompositedScrolling() const final;
     bool mockScrollbarsControllerEnabled() const final;
     void logMockScrollbarsControllerMessage(const String&) const final;
+
+    bool canShowNonOverlayScrollbars() const final;
 
     bool styleHidesScrollbarWithOrientation(ScrollbarOrientation) const;
     bool horizontalScrollbarHiddenByStyle() const final;

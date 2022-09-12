@@ -43,6 +43,7 @@ RemoteResourceCacheProxy::~RemoteResourceCacheProxy()
 {
     clearNativeImageMap();
     clearImageBufferBackends();
+    clearDecomposedGlyphsMap();
 }
 
 void RemoteResourceCacheProxy::cacheImageBuffer(WebCore::ImageBuffer& imageBuffer)
@@ -71,7 +72,7 @@ inline static RefPtr<ShareableBitmap> createShareableBitmapFromNativeImage(Nativ
 {
     auto imageSize = image.size();
 
-    auto bitmap = ShareableBitmap::createShareable(image.size(), { image.colorSpace() });
+    auto bitmap = ShareableBitmap::create(image.size(), { image.colorSpace() });
     if (!bitmap)
         return nullptr;
 
@@ -132,6 +133,14 @@ void RemoteResourceCacheProxy::recordFontUse(Font& font)
     }
 }
 
+void RemoteResourceCacheProxy::recordDecomposedGlyphsUse(DecomposedGlyphs& decomposedGlyphs)
+{
+    if (m_decomposedGlyphs.add(decomposedGlyphs.renderingResourceIdentifier(), decomposedGlyphs).isNewEntry) {
+        decomposedGlyphs.addObserver(*this);
+        m_remoteRenderingBackendProxy.cacheDecomposedGlyphs(decomposedGlyphs);
+    }
+}
+
 void RemoteResourceCacheProxy::releaseNativeImage(RenderingResourceIdentifier renderingResourceIdentifier)
 {
     auto iterator = m_nativeImages.find(renderingResourceIdentifier);
@@ -145,8 +154,8 @@ void RemoteResourceCacheProxy::releaseNativeImage(RenderingResourceIdentifier re
 
 void RemoteResourceCacheProxy::clearNativeImageMap()
 {
-    for (auto& nativeImageState : m_nativeImages.values())
-        nativeImageState->removeObserver(*this);
+    for (auto& nativeImage : m_nativeImages.values())
+        nativeImage->removeObserver(*this);
     m_nativeImages.clear();
 }
 
@@ -155,10 +164,11 @@ void RemoteResourceCacheProxy::prepareForNextRenderingUpdate()
     m_numberOfFontsUsedInCurrentRenderingUpdate = 0;
 }
 
-void RemoteResourceCacheProxy::releaseAllRemoteFonts()
+void RemoteResourceCacheProxy::releaseDecomposedGlyphs(RenderingResourceIdentifier renderingResourceIdentifier)
 {
-    for (auto& fontState : m_fonts)
-        m_remoteRenderingBackendProxy.releaseRemoteResource(fontState.key);
+    bool removed = m_decomposedGlyphs.remove(renderingResourceIdentifier);
+    RELEASE_ASSERT(removed);
+    m_remoteRenderingBackendProxy.releaseRemoteResource(renderingResourceIdentifier);
 }
 
 void RemoteResourceCacheProxy::clearFontMap()
@@ -176,6 +186,13 @@ void RemoteResourceCacheProxy::clearImageBufferBackends()
             continue;
         imageBuffer->clearBackend();
     }
+}
+
+void RemoteResourceCacheProxy::clearDecomposedGlyphsMap()
+{
+    for (auto& decomposedGlyphs : m_decomposedGlyphs.values())
+        decomposedGlyphs->removeObserver(*this);
+    m_decomposedGlyphs.clear();
 }
 
 void RemoteResourceCacheProxy::finalizeRenderingUpdateForFonts()
@@ -212,6 +229,7 @@ void RemoteResourceCacheProxy::remoteResourceCacheWasDestroyed()
     clearNativeImageMap();
     clearFontMap();
     clearImageBufferBackends();
+    clearDecomposedGlyphsMap();
 
     for (auto& imageBuffer : m_imageBuffers.values()) {
         if (!imageBuffer)
@@ -222,9 +240,10 @@ void RemoteResourceCacheProxy::remoteResourceCacheWasDestroyed()
 
 void RemoteResourceCacheProxy::releaseMemory()
 {
-    releaseAllRemoteFonts();
+    clearNativeImageMap();
     clearFontMap();
-    m_remoteRenderingBackendProxy.deleteAllFonts();
+    clearDecomposedGlyphsMap();
+    m_remoteRenderingBackendProxy.releaseAllRemoteResources();
 }
 
 } // namespace WebKit

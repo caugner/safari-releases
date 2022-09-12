@@ -1,4 +1,4 @@
-# Copyright (C) 2018-2021 Apple Inc. All rights reserved.
+# Copyright (C) 2018-2022 Apple Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -33,7 +33,7 @@ from django.views import View
 from django.views.decorators.clickjacking import xframe_options_exempt
 from ews.common.buildbot import Buildbot
 from ews.models.build import Build
-from ews.models.patch import Patch
+from ews.models.patch import Change
 import ews.config as config
 
 _log = logging.getLogger(__name__)
@@ -44,7 +44,7 @@ class StatusBubble(View):
     # FIXME: Auto-generate this list https://bugs.webkit.org/show_bug.cgi?id=195640
     # Note: This list is sorted in the order of which bubbles appear in bugzilla.
     ALL_QUEUES = ['style', 'ios', 'ios-sim', 'mac', 'mac-debug', 'mac-AS-debug', 'tv', 'tv-sim', 'watch', 'watch-sim', 'gtk', 'wpe', 'wincairo', 'win',
-                  'ios-wk2', 'mac-wk1', 'mac-wk2', 'mac-wk2-stress', 'mac-debug-wk1', 'mac-AS-debug-wk2', 'gtk-wk2', 'api-ios', 'api-mac', 'api-gtk',
+                  'ios-wk2', 'mac-wk1', 'mac-wk2', 'mac-wk2-stress', 'mac-AS-debug-wk2', 'gtk-wk2', 'api-ios', 'api-mac', 'api-gtk',
                   'bindings', 'jsc', 'jsc-armv7', 'jsc-armv7-tests', 'jsc-mips', 'jsc-mips-tests', 'jsc-i386', 'webkitperl', 'webkitpy', 'services']
     # FIXME: Auto-generate the queue's trigger relationship
     QUEUE_TRIGGERS = {
@@ -80,7 +80,7 @@ class StatusBubble(View):
     BUILD_RETRY_MSG = 'retrying build'
     UNKNOWN_QUEUE_POSITION = '?'
 
-    def _build_bubble(self, patch, queue, hide_icons=False):
+    def _build_bubble(self, patch, queue, hide_icons=False, sent_to_buildbot=True):
         bubble = {
             'name': queue,
         }
@@ -97,7 +97,7 @@ class StatusBubble(View):
         if builds:
             build = builds[0]
             builds = builds[:10]  # Limit number of builds to display in status-bubble hover over message
-        if not self._should_show_bubble_for_build(build):
+        if not self._should_show_bubble_for_build(build, sent_to_buildbot):
             return None
 
         if not build:
@@ -280,7 +280,7 @@ class StatusBubble(View):
         return [build for build in patch.build_set.all() if build.builder_display_name == queue]
 
     def find_failed_builds_for_patch(self, patch_id):
-        patch = Patch.get_patch(patch_id)
+        patch = Change.get_patch(patch_id)
         if not patch:
             return []
         failed_builds = []
@@ -292,8 +292,10 @@ class StatusBubble(View):
                 failed_builds.append(build)
         return failed_builds
 
-    def _should_show_bubble_for_build(self, build):
+    def _should_show_bubble_for_build(self, build, sent_to_buildbot=True):
         if build and build.result == Buildbot.SKIPPED and re.search(r'Patch .* doesn\'t have relevant changes', build.state_string):
+            return False
+        if (not build) and (not sent_to_buildbot):
             return False
         return True
 
@@ -314,7 +316,7 @@ class StatusBubble(View):
             return StatusBubble.UNKNOWN_QUEUE_POSITION
 
         sent = 'sent_to_commit_queue' if queue == 'commit' else 'sent_to_buildbot'
-        previously_sent_patches = set(Patch.objects
+        previously_sent_patches = set(Change.objects
                                           .filter(created__gte=from_timestamp)
                                           .filter(**{sent: True})
                                           .filter(obsolete=False)
@@ -342,14 +344,12 @@ class StatusBubble(View):
         if not patch:
             return (None, show_submit_to_ews, failed_to_apply, show_retry)
 
-        if patch.sent_to_buildbot:
-            for queue in StatusBubble.ALL_QUEUES:
-                bubble = self._build_bubble(patch, queue, hide_icons)
-                if bubble:
-                    show_submit_to_ews = False
-                    bubbles.append(bubble)
-                    if bubble['state'] in ('fail', 'error'):
-                        show_retry = True
+        for queue in StatusBubble.ALL_QUEUES:
+            bubble = self._build_bubble(patch, queue, hide_icons, patch.sent_to_buildbot)
+            if bubble:
+                bubbles.append(bubble)
+                if bubble['state'] in ('fail', 'error'):
+                    show_retry = True
 
         if patch.sent_to_commit_queue:
             if not patch.sent_to_buildbot:
@@ -358,13 +358,13 @@ class StatusBubble(View):
             if cq_bubble:
                 bubbles.insert(0, cq_bubble)
 
+        show_submit_to_ews = not patch.sent_to_buildbot
         return (bubbles, show_submit_to_ews, failed_to_apply, show_retry)
 
     @xframe_options_exempt
     def get(self, request, patch_id):
         hide_icons = request.GET.get('hide_icons', False)
-        patch_id = int(patch_id)
-        patch = Patch.get_patch(patch_id)
+        patch = Change.get_patch(patch_id)
         bubbles, show_submit_to_ews, show_failure_to_apply, show_retry = self._build_bubbles_for_patch(patch, hide_icons)
 
         template_values = {

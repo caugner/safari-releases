@@ -92,6 +92,7 @@ static RetainPtr<NSURL> clientRedirectDestinationURL;
 static bool didChangeCaptivePortalMode;
 static bool captivePortalModeBeforeChange;
 static bool captivePortalModeAfterChange;
+static unsigned crashCount = 0;
 
 @interface CaptivePortalModeKVO : NSObject {
 @public
@@ -102,7 +103,7 @@ static bool captivePortalModeAfterChange;
 
 - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary<NSString *, id> *)change context:(void *)context
 {
-    ASSERT([keyPath isEqualToString:@"_captivePortalModeEnabled"]);
+    ASSERT([keyPath isEqualToString:@"lockdownModeEnabled"]);
     ASSERT([[object class] isEqual:[WKWebpagePreferences class]]);
 
     captivePortalModeBeforeChange = [[change objectForKey:NSKeyValueChangeOldKey] boolValue];
@@ -218,6 +219,12 @@ static bool captivePortalModeAfterChange;
     EXPECT_WK_STREQ([clientRedirectDestinationURL absoluteString], [destinationURL absoluteString]);
     clientRedirectSourceURL = sourceURL;
     didPerformClientRedirect = true;
+}
+
+- (void)webViewWebContentProcessDidTerminate:(WKWebView *)webView
+{
+    ++crashCount;
+    [webView reload];
 }
 
 #if PLATFORM(IOS_FAMILY)
@@ -4940,22 +4947,6 @@ TEST(ProcessSwap, APIControlledProcessSwappingThenBackWithoutDelay)
     runAPIControlledProcessSwappingThenBackTest(WithDelay::No);
 }
 
-static const char* navigateToCrossSiteThenBackFromJSBytes = R"PSONRESOURCE(
-<script>
-onpageshow = function(event) {
-    // Location changes need to happen outside the onload handler to generate history entries.
-    setTimeout(function() {
-      window.location.href = "pson://www.apple.com/main.html";
-    }, 0);
-}
-
-</script>
-)PSONRESOURCE";
-
-static const char* navigateBackFromJSBytes = R"PSONRESOURCE(
-<body onload='history.back()'></body>
-)PSONRESOURCE";
-
 TEST(ProcessSwap, NavigateToCrossSiteThenBackFromJS)
 {
     auto processPoolConfiguration = psonProcessPoolConfiguration();
@@ -4965,8 +4956,6 @@ TEST(ProcessSwap, NavigateToCrossSiteThenBackFromJS)
     auto webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [webViewConfiguration setProcessPool:processPool.get()];
     auto handler = adoptNS([[PSONScheme alloc] init]);
-    [handler addMappingFromURLString:@"pson://www.webkit.org/main.html" toData:navigateToCrossSiteThenBackFromJSBytes]; // Navigates to "pson://www.apple.com/main.html".
-    [handler addMappingFromURLString:@"pson://www.apple.com/main.html" toData:navigateBackFromJSBytes];
     [webViewConfiguration setURLSchemeHandler:handler.get() forURLScheme:@"PSON"];
 
     auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
@@ -4979,10 +4968,14 @@ TEST(ProcessSwap, NavigateToCrossSiteThenBackFromJS)
     done = false;
     auto webkitPID = [webView _webProcessIdentifier];
 
+    [webView evaluateJavaScript:@"location.href = 'pson://www.apple.com/main.html';" completionHandler:nil];
+
     TestWebKitAPI::Util::run(&done);
     done = false;
     auto applePID = [webView _webProcessIdentifier];
     EXPECT_NE(webkitPID, applePID); // Should have process-swapped when going from webkit.org to apple.com.
+
+    [webView evaluateJavaScript:@"history.back();" completionHandler:nil];
 
     // Page now calls history.back() to navigate back to webkit.org.
     TestWebKitAPI::Util::run(&done);
@@ -6828,6 +6821,7 @@ TEST(ProcessSwap, GetUserMediaCaptureState)
     preferences._mediaCaptureRequiresSecureConnection = NO;
     webViewConfiguration.get()._mediaCaptureEnabled = YES;
     preferences._mockCaptureDevicesEnabled = YES;
+    preferences._getUserMediaRequiresFocus = NO;
 
     [webViewConfiguration setProcessPool:processPool.get()];
     auto handler = adoptNS([[PSONScheme alloc] init]);
@@ -7294,8 +7288,8 @@ TEST(ProcessSwap, ResponsePolicyDownloadAfterCOOPProcessSwap)
     using namespace TestWebKitAPI;
 
     HTTPServer server({
-        { "/source.html", { "foo" } },
-        { "/destination.html", { { { "Content-Type", "text/html" }, { "Cross-Origin-Opener-Policy", "same-origin" } }, "bar" } },
+        { "/source.html"_s, { "foo"_s } },
+        { "/destination.html"_s, { { { "Content-Type"_s, "text/html"_s }, { "Cross-Origin-Opener-Policy"_s, "same-origin"_s } }, "bar"_s } },
     }, HTTPServer::Protocol::Https);
 
     auto processPoolConfiguration = psonProcessPoolConfiguration();
@@ -7315,7 +7309,7 @@ TEST(ProcessSwap, ResponsePolicyDownloadAfterCOOPProcessSwap)
     [webView setNavigationDelegate:navigationDelegate.get()];
 
     done = false;
-    [webView loadRequest:server.request("/source.html")];
+    [webView loadRequest:server.request("/source.html"_s)];
     Util::run(&done);
     done = false;
 
@@ -7326,7 +7320,7 @@ TEST(ProcessSwap, ResponsePolicyDownloadAfterCOOPProcessSwap)
 
     done = false;
     failed = false;
-    [webView loadRequest:server.request("/destination.html")];
+    [webView loadRequest:server.request("/destination.html"_s)];
     Util::run(&failed);
     failed = false;
     shouldConvertToDownload = false;
@@ -7352,8 +7346,8 @@ TEST(ProcessSwap, NavigateBackAfterNavigatingAwayFromCOOP)
     using namespace TestWebKitAPI;
 
     HTTPServer server({
-        { "/source.html", { { { "Content-Type", "text/html" }, { "Cross-Origin-Opener-Policy", "same-origin" } }, "foo" } },
-        { "/destination.html", { "bar" } },
+        { "/source.html"_s, { { { "Content-Type"_s, "text/html"_s }, { "Cross-Origin-Opener-Policy"_s, "same-origin"_s } }, "foo"_s } },
+        { "/destination.html"_s, { "bar"_s } },
     }, HTTPServer::Protocol::Https);
 
     auto processPoolConfiguration = psonProcessPoolConfiguration();
@@ -7373,11 +7367,11 @@ TEST(ProcessSwap, NavigateBackAfterNavigatingAwayFromCOOP)
     [webView setNavigationDelegate:navigationDelegate.get()];
 
     done = false;
-    [webView loadRequest:server.request("/source.html")];
+    [webView loadRequest:server.request("/source.html"_s)];
     Util::run(&done);
     done = false;
 
-    [webView loadRequest:server.request("/destination.html")];
+    [webView loadRequest:server.request("/destination.html"_s)];
     Util::run(&done);
     done = false;
 
@@ -7386,25 +7380,86 @@ TEST(ProcessSwap, NavigateBackAfterNavigatingAwayFromCOOP)
     done = false;
 }
 
+TEST(ProcessSwap, CommittedURLAfterNavigatingBackToCOOP)
+{
+    using namespace TestWebKitAPI;
+
+    HTTPServer server({
+        { "/source.html"_s, { "foo"_s } },
+        { "/destination1.html"_s, { { { "Content-Type"_s, "text/html"_s }, { "Cross-Origin-Opener-Policy"_s, "same-origin"_s } }, "foo"_s } },
+        { "/destination2.html"_s, { { { "Content-Type"_s, "text/html"_s }, { "Cross-Origin-Opener-Policy"_s, "same-origin"_s } }, "foo"_s } },
+    }, HTTPServer::Protocol::Https);
+
+    auto processPoolConfiguration = psonProcessPoolConfiguration();
+    auto processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
+
+    auto webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    [webViewConfiguration setProcessPool:processPool.get()];
+    for (_WKExperimentalFeature *feature in [WKPreferences _experimentalFeatures]) {
+        if ([feature.key isEqualToString:@"CrossOriginOpenerPolicyEnabled"])
+            [[webViewConfiguration preferences] _setEnabled:YES forExperimentalFeature:feature];
+        else if ([feature.key isEqualToString:@"CrossOriginEmbedderPolicyEnabled"])
+            [[webViewConfiguration preferences] _setEnabled:YES forExperimentalFeature:feature];
+    }
+
+    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    auto navigationDelegate = adoptNS([[PSONNavigationDelegate alloc] init]);
+    [webView setNavigationDelegate:navigationDelegate.get()];
+
+    done = false;
+    [webView loadRequest:server.request("/source.html"_s)];
+    Util::run(&done);
+    done = false;
+
+    auto pid1 = [webView _webProcessIdentifier];
+    EXPECT_WK_STREQ([webView _committedURL].absoluteString, server.request("/source.html"_s).URL.absoluteString);
+
+    done = false;
+    [webView loadRequest:server.request("/destination1.html"_s)];
+    Util::run(&done);
+    done = false;
+
+    // Process swap due to COOP.
+    auto pid2 = [webView _webProcessIdentifier];
+    EXPECT_NE(pid1, pid2);
+    EXPECT_WK_STREQ([webView _committedURL].absoluteString, server.request("/destination1.html"_s).URL.absoluteString);
+
+    done = false;
+    [webView loadRequest:server.request("/destination2.html"_s)];
+    Util::run(&done);
+    done = false;
+
+    EXPECT_EQ([webView _webProcessIdentifier], pid2);
+    EXPECT_WK_STREQ([webView _committedURL].absoluteString, server.request("/destination2.html"_s).URL.absoluteString);
+
+    done = false;
+    [webView goBack];
+    Util::run(&done);
+    done = false;
+
+    EXPECT_EQ([webView _webProcessIdentifier], pid2);
+    EXPECT_WK_STREQ([webView _committedURL].absoluteString, server.request("/destination1.html"_s).URL.absoluteString);
+}
+
 enum class IsSameOrigin : bool { No, Yes };
 enum class DoServerSideRedirect : bool { No, Yes };
-static void runCOOPProcessSwapTest(const char* sourceCOOP, const char* sourceCOEP, const char* destinationCOOP, const char* destinationCOEP, IsSameOrigin isSameOrigin, DoServerSideRedirect doServerSideRedirect, ExpectSwap expectSwap)
+static void runCOOPProcessSwapTest(ASCIILiteral sourceCOOP, ASCIILiteral sourceCOEP, ASCIILiteral destinationCOOP, ASCIILiteral destinationCOEP, IsSameOrigin isSameOrigin, DoServerSideRedirect doServerSideRedirect, ExpectSwap expectSwap)
 {
     using namespace TestWebKitAPI;
 
     HashMap<String, String> sourceHeaders;
     sourceHeaders.add("Content-Type"_s, "text/html"_s);
     if (sourceCOOP)
-        sourceHeaders.add("Cross-Origin-Opener-Policy"_s, String(sourceCOOP));
+        sourceHeaders.add("Cross-Origin-Opener-Policy"_s, sourceCOOP);
     if (sourceCOEP)
-        sourceHeaders.add("Cross-Origin-Embedder-Policy"_s, String(sourceCOEP));
+        sourceHeaders.add("Cross-Origin-Embedder-Policy"_s, sourceCOEP);
 
     HashMap<String, String> destinationHeaders;
     destinationHeaders.add("Content-Type"_s, "text/html"_s);
     if (destinationCOOP)
-        destinationHeaders.add("Cross-Origin-Opener-Policy"_s, String(destinationCOOP));
+        destinationHeaders.add("Cross-Origin-Opener-Policy"_s, destinationCOOP);
     if (destinationCOEP)
-        destinationHeaders.add("Cross-Origin-Embedder-Policy"_s, String(destinationCOEP));
+        destinationHeaders.add("Cross-Origin-Embedder-Policy"_s, destinationCOEP);
     HTTPResponse destinationResponse(WTFMove(destinationHeaders), "popup"_s);
 
     HTTPServer server(std::initializer_list<std::pair<String, HTTPResponse>> { }, HTTPServer::Protocol::Https);
@@ -7426,8 +7481,8 @@ static void runCOOPProcessSwapTest(const char* sourceCOOP, const char* sourceCOE
 
     auto processPoolConfiguration = psonProcessPoolConfiguration();
     auto processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
-    bool sourceShouldBeCrossOriginIsolated = sourceCOOP && !strcmp(sourceCOOP, "same-origin") && sourceCOEP && !strcmp(sourceCOEP, "require-corp");
-    bool destinationShouldBeCrossOriginIsolated = destinationCOOP && !strcmp(destinationCOOP, "same-origin") && destinationCOEP && !strcmp(destinationCOEP, "require-corp");
+    bool sourceShouldBeCrossOriginIsolated = sourceCOOP == "same-origin"_s && sourceCOEP == "require-corp"_s;
+    bool destinationShouldBeCrossOriginIsolated = destinationCOOP == "same-origin"_s && destinationCOEP == "require-corp"_s;
     EXPECT_TRUE(sourceShouldBeCrossOriginIsolated == destinationShouldBeCrossOriginIsolated || expectSwap == ExpectSwap::Yes);
 
     auto webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
@@ -7455,7 +7510,7 @@ static void runCOOPProcessSwapTest(const char* sourceCOOP, const char* sourceCOE
     failed = false;
     serverRedirected = false;
     numberOfDecidePolicyCalls = 0;
-    [webView loadRequest:server.request("/main.html")];
+    [webView loadRequest:server.request("/main.html"_s)];
 
     TestWebKitAPI::Util::run(&done);
     done = false;
@@ -7581,211 +7636,211 @@ static void runCOOPProcessSwapTest(const char* sourceCOOP, const char* sourceCOE
 
 TEST(ProcessSwap, NavigatingSameOriginToCOOPSameOrigin)
 {
-    runCOOPProcessSwapTest(nullptr, nullptr, "same-origin", nullptr, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::Yes);
+    runCOOPProcessSwapTest({ }, { }, "same-origin"_s, { }, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::Yes);
 }
 
 TEST(ProcessSwap, NavigatingSameOriginToCOOPSameOrigin2)
 {
-    runCOOPProcessSwapTest("unsafe-none", nullptr, "same-origin", nullptr, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::Yes);
+    runCOOPProcessSwapTest("unsafe-none"_s, { }, "same-origin"_s, { }, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::Yes);
 }
 
 TEST(ProcessSwap, NavigatingSameOriginToCOOPSameOrigin3)
 {
-    runCOOPProcessSwapTest("unsafe-none", nullptr, "same-origin", "unsafe-none", IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::Yes);
+    runCOOPProcessSwapTest("unsafe-none"_s, { }, "same-origin"_s, "unsafe-none"_s, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::Yes);
 }
 
 TEST(ProcessSwap, NavigatingSameOriginToCOOPSameOrigin4)
 {
-    runCOOPProcessSwapTest("unsafe-none", "unsafe-none", "same-origin", "unsafe-none", IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::Yes);
+    runCOOPProcessSwapTest("unsafe-none"_s, "unsafe-none"_s, "same-origin"_s, "unsafe-none"_s, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::Yes);
 }
 
 TEST(ProcessSwap, NavigatingSameOriginToCOOPAndCOEPSameOrigin)
 {
-    runCOOPProcessSwapTest(nullptr, nullptr, "same-origin", "require-corp", IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::Yes);
+    runCOOPProcessSwapTest({ }, { }, "same-origin"_s, "require-corp"_s, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::Yes);
 }
 
 TEST(ProcessSwap, NavigatingSameOriginFromCOOPSameOrigin)
 {
-    runCOOPProcessSwapTest("same-origin", nullptr, nullptr, nullptr, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::Yes);
+    runCOOPProcessSwapTest("same-origin"_s, { }, { }, { }, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::Yes);
 }
 
 TEST(ProcessSwap, NavigatingSameOriginFromCOOPSameOrigin2)
 {
-    runCOOPProcessSwapTest("same-origin", nullptr, "unsafe-none", nullptr, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::Yes);
+    runCOOPProcessSwapTest("same-origin"_s, { }, "unsafe-none"_s, { }, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::Yes);
 }
 
 TEST(ProcessSwap, NavigatingSameOriginFromCOOPSameOrigin3)
 {
-    runCOOPProcessSwapTest("same-origin", "unsafe-none", "unsafe-none", nullptr, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::Yes);
+    runCOOPProcessSwapTest("same-origin"_s, "unsafe-none"_s, "unsafe-none"_s, { }, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::Yes);
 }
 
 TEST(ProcessSwap, NavigatingSameOriginFromCOOPAndCOEPSameOrigin)
 {
-    runCOOPProcessSwapTest("same-origin", "require-corp", nullptr, nullptr, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::Yes);
+    runCOOPProcessSwapTest("same-origin"_s, "require-corp"_s, { }, { }, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::Yes);
 }
 
 TEST(ProcessSwap, NavigatingSameOriginFromCOOPSameOriginAllowPopup)
 {
-    runCOOPProcessSwapTest("same-origin-allow-popup", nullptr, nullptr, nullptr, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::No);
+    runCOOPProcessSwapTest("same-origin-allow-popup"_s, { }, { }, { }, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::No);
 }
 
 TEST(ProcessSwap, NavigatingSameOriginFromCOOPSameOriginAllowPopup2)
 {
-    runCOOPProcessSwapTest("same-origin-allow-popup", nullptr, "unsafe-none", nullptr, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::No);
+    runCOOPProcessSwapTest("same-origin-allow-popup"_s, { }, "unsafe-none"_s, { }, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::No);
 }
 
 TEST(ProcessSwap, NavigatingSameOriginFromCOOPSameOriginAllowPopup3)
 {
-    runCOOPProcessSwapTest("same-origin-allow-popup", "unsafe-none", "unsafe-none", nullptr, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::No);
+    runCOOPProcessSwapTest("same-origin-allow-popup"_s, "unsafe-none"_s, "unsafe-none"_s, { }, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::No);
 }
 
 TEST(ProcessSwap, NavigatingSameOriginFromCOOPSameOriginAllowPopup4)
 {
-    runCOOPProcessSwapTest("same-origin-allow-popup", "unsafe-none", "unsafe-none", "unsafe-none", IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::No);
+    runCOOPProcessSwapTest("same-origin-allow-popup"_s, "unsafe-none"_s, "unsafe-none"_s, "unsafe-none"_s, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::No);
 }
 
 TEST(ProcessSwap, NavigatingSameOriginFromCOOPAndCOEPSameOriginAllowPopup)
 {
-    runCOOPProcessSwapTest("same-origin-allow-popup", "require-corp", nullptr, nullptr, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::No);
+    runCOOPProcessSwapTest("same-origin-allow-popup"_s, "require-corp"_s, { }, { }, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::No);
 }
 
 TEST(ProcessSwap, NavigatingSameOriginFromCOOPSameOriginToCOOPSameOrigin)
 {
-    runCOOPProcessSwapTest("same-origin", nullptr, "same-origin", nullptr, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::No);
+    runCOOPProcessSwapTest("same-origin"_s, { }, "same-origin"_s, { }, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::No);
 }
 
 TEST(ProcessSwap, NavigatingSameOriginFromCOOPSameOriginToCOOPSameOrigin2)
 {
-    runCOOPProcessSwapTest("same-origin", "unsafe-none", "same-origin", nullptr, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::No);
+    runCOOPProcessSwapTest("same-origin"_s, "unsafe-none"_s, "same-origin"_s, { }, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::No);
 }
 
 TEST(ProcessSwap, NavigatingSameOriginFromCOOPSameOriginToCOOPSameOrigin3)
 {
-    runCOOPProcessSwapTest("same-origin", "unsafe-none", "same-origin", "unsafe-none", IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::No);
+    runCOOPProcessSwapTest("same-origin"_s, "unsafe-none"_s, "same-origin"_s, "unsafe-none"_s, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::No);
 }
 
 TEST(ProcessSwap, NavigatingSameOriginFromCOOPAndCOEPSameOriginToCOOPAndCOEPSameOrigin)
 {
-    runCOOPProcessSwapTest("same-origin", "require-corp", "same-origin", "require-corp", IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::No);
+    runCOOPProcessSwapTest("same-origin"_s, "require-corp"_s, "same-origin"_s, "require-corp"_s, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::No);
 }
 
 TEST(ProcessSwap, NavigatingSameOriginFromCOOPAndCOEPSameOriginToCOOPSameOrigin)
 {
     // Should swap because the destination is missing COEP.
-    runCOOPProcessSwapTest("same-origin", "require-corp", "same-origin", nullptr, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::Yes);
+    runCOOPProcessSwapTest("same-origin"_s, "require-corp"_s, "same-origin"_s, { }, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::Yes);
 }
 
 TEST(ProcessSwap, NavigatingSameOriginFromCOOPSameOriginToCOOPAndCOEPSameOrigin)
 {
     // Should swap because the source is missing COEP.
-    runCOOPProcessSwapTest("same-origin", nullptr, "same-origin", "require-corp", IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::Yes);
+    runCOOPProcessSwapTest("same-origin"_s, { }, "same-origin"_s, "require-corp"_s, IsSameOrigin::Yes, DoServerSideRedirect::No, ExpectSwap::Yes);
 }
 
 TEST(ProcessSwap, NavigatingSameOriginFromCOOPSameOriginToCOOPSameOriginWithRedirect)
 {
     // We expect a swap because the redirect doesn't have COOP=same-origin.
-    runCOOPProcessSwapTest("same-origin", nullptr, "same-origin", nullptr, IsSameOrigin::Yes, DoServerSideRedirect::Yes, ExpectSwap::Yes);
+    runCOOPProcessSwapTest("same-origin"_s, { }, "same-origin"_s, { }, IsSameOrigin::Yes, DoServerSideRedirect::Yes, ExpectSwap::Yes);
 }
 
 TEST(ProcessSwap, NavigatingSameOriginFromCOOPAndCOEPSameOriginToCOOPAndCOEPSameOriginWithRedirect)
 {
     // We expect a swap because the redirect doesn't have COOP=same-origin and COEP=require-corp.
-    runCOOPProcessSwapTest("same-origin", "require-corp", "same-origin", "require-corp", IsSameOrigin::Yes, DoServerSideRedirect::Yes, ExpectSwap::Yes);
+    runCOOPProcessSwapTest("same-origin"_s, "require-corp"_s, "same-origin"_s, "require-corp"_s, IsSameOrigin::Yes, DoServerSideRedirect::Yes, ExpectSwap::Yes);
 }
 
 TEST(ProcessSwap, NavigatingSameOriginWithoutCOOPWithRedirect)
 {
-    runCOOPProcessSwapTest(nullptr, nullptr, nullptr, nullptr, IsSameOrigin::Yes, DoServerSideRedirect::Yes, ExpectSwap::No);
+    runCOOPProcessSwapTest({ }, { }, { }, { }, IsSameOrigin::Yes, DoServerSideRedirect::Yes, ExpectSwap::No);
 }
 
 TEST(ProcessSwap, NavigatingCrossOriginToCOOPSameOrigin)
 {
-    runCOOPProcessSwapTest(nullptr, nullptr, "same-origin", nullptr, IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
+    runCOOPProcessSwapTest({ }, { }, "same-origin"_s, { }, IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
 }
 
 TEST(ProcessSwap, NavigatingCrossOriginToCOOPSameOrigin2)
 {
-    runCOOPProcessSwapTest("unsafe-none", nullptr, "same-origin", nullptr, IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
+    runCOOPProcessSwapTest("unsafe-none"_s, { }, "same-origin"_s, { }, IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
 }
 
 TEST(ProcessSwap, NavigatingCrossOriginToCOOPSameOrigin3)
 {
-    runCOOPProcessSwapTest("unsafe-none", nullptr, "same-origin", "unsafe-none", IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
+    runCOOPProcessSwapTest("unsafe-none"_s, { }, "same-origin"_s, "unsafe-none"_s, IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
 }
 
 TEST(ProcessSwap, NavigatingCrossOriginToCOOPSameOrigin4)
 {
-    runCOOPProcessSwapTest("unsafe-none", "unsafe-none", "same-origin", "unsafe-none", IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
+    runCOOPProcessSwapTest("unsafe-none"_s, "unsafe-none"_s, "same-origin"_s, "unsafe-none"_s, IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
 }
 
 TEST(ProcessSwap, NavigatingCrossOriginToCOOPAndCOEPSameOrigin)
 {
-    runCOOPProcessSwapTest(nullptr, nullptr, "same-origin", "require-corp", IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
+    runCOOPProcessSwapTest({ }, { }, "same-origin"_s, "require-corp"_s, IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
 }
 
 TEST(ProcessSwap, NavigatingCrossOriginFromCOOPSameOrigin)
 {
-    runCOOPProcessSwapTest("same-origin", nullptr, nullptr, nullptr, IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
+    runCOOPProcessSwapTest("same-origin"_s, { }, { }, { }, IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
 }
 
 TEST(ProcessSwap, NavigatingCrossOriginFromCOOPSameOrigin2)
 {
-    runCOOPProcessSwapTest("same-origin", nullptr, "unsafe-none", nullptr, IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
+    runCOOPProcessSwapTest("same-origin"_s, { }, "unsafe-none"_s, { }, IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
 }
 
 TEST(ProcessSwap, NavigatingCrossOriginFromCOOPSameOrigin3)
 {
-    runCOOPProcessSwapTest("same-origin", "unsafe-none", "unsafe-none", nullptr, IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
+    runCOOPProcessSwapTest("same-origin"_s, "unsafe-none"_s, "unsafe-none"_s, { }, IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
 }
 
 TEST(ProcessSwap, NavigatingCrossOriginFromCOOPSameOrigin4)
 {
-    runCOOPProcessSwapTest("same-origin", "unsafe-none", "unsafe-none", "unsafe-none", IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
+    runCOOPProcessSwapTest("same-origin"_s, "unsafe-none"_s, "unsafe-none"_s, "unsafe-none"_s, IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
 }
 
 TEST(ProcessSwap, NavigatingCrossOriginFromCOOPAndCOEPSameOrigin)
 {
-    runCOOPProcessSwapTest("same-origin", "require-corp", nullptr, nullptr, IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
+    runCOOPProcessSwapTest("same-origin"_s, "require-corp"_s, { }, { }, IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
 }
 
 TEST(ProcessSwap, NavigatingCrossOriginFromCOOPSameOriginToCOOPSameOrigin)
 {
-    runCOOPProcessSwapTest("same-origin", nullptr, "same-origin", nullptr, IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
+    runCOOPProcessSwapTest("same-origin"_s, { }, "same-origin"_s, { }, IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
 }
 
 TEST(ProcessSwap, NavigatingCrossOriginFromCOOPAndCOEPSameOriginToCOOPAndCOEPSameOrigin)
 {
-    runCOOPProcessSwapTest("same-origin", "require-corp", "same-origin", "require-corp", IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
+    runCOOPProcessSwapTest("same-origin"_s, "require-corp"_s, "same-origin"_s, "require-corp"_s, IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
 }
 
 TEST(ProcessSwap, NavigatingCrossOriginFromCOOPAndCOEPSameOriginToCOOPSameOrigin)
 {
-    runCOOPProcessSwapTest("same-origin", "require-corp", "same-origin", nullptr, IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
+    runCOOPProcessSwapTest("same-origin"_s, "require-corp"_s, "same-origin"_s, { }, IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
 }
 
 TEST(ProcessSwap, NavigatingCrossOriginFromCOOPSameOriginToCOOPAndCOEPSameOrigin)
 {
-    runCOOPProcessSwapTest("same-origin", nullptr, "same-origin", "require-corp", IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
+    runCOOPProcessSwapTest("same-origin"_s, { }, "same-origin"_s, "require-corp"_s, IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::Yes);
 }
 
 TEST(ProcessSwap, NavigatingCrossOriginFromCOOPSameOriginAllowPopup)
 {
-    runCOOPProcessSwapTest("same-origin-allow-popup", nullptr, nullptr, nullptr, IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::No);
+    runCOOPProcessSwapTest("same-origin-allow-popup"_s, { }, { }, { }, IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::No);
 }
 
 TEST(ProcessSwap, NavigatingCrossOriginFromCOOPSameOriginAllowPopup2)
 {
-    runCOOPProcessSwapTest("same-origin-allow-popup", nullptr, "unsafe-none", nullptr, IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::No);
+    runCOOPProcessSwapTest("same-origin-allow-popup"_s, { }, "unsafe-none"_s, { }, IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::No);
 }
 
 TEST(ProcessSwap, NavigatingCrossOriginFromCOOPSameOriginAllowPopup3)
 {
-    runCOOPProcessSwapTest("same-origin-allow-popup", "unsafe-none", "unsafe-none", nullptr, IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::No);
+    runCOOPProcessSwapTest("same-origin-allow-popup"_s, "unsafe-none"_s, "unsafe-none"_s, { }, IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::No);
 }
 
 TEST(ProcessSwap, NavigatingCrossOriginFromCOOPSameOriginAllowPopup4)
 {
-    runCOOPProcessSwapTest("same-origin-allow-popup", "unsafe-none", "unsafe-none", "unsafe-none", IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::No);
+    runCOOPProcessSwapTest("same-origin-allow-popup"_s, "unsafe-none"_s, "unsafe-none"_s, "unsafe-none"_s, IsSameOrigin::No, DoServerSideRedirect::No, ExpectSwap::No);
 }
 
 static bool isJITEnabled(WKWebView *webView)
@@ -7821,26 +7876,63 @@ static void checkSettingsControlledByCaptivePortalMode(WKWebView *webView, Shoul
     EXPECT_EQ(runJSCheck("!!window.Gamepad"_s), shouldBeEnabled == ShouldBeEnabled::Yes); // Gamepad API.
     EXPECT_EQ(runJSCheck("!!window.RemotePlayback"_s), shouldBeEnabled == ShouldBeEnabled::Yes); // Remote Playback.
     EXPECT_EQ(runJSCheck("!!window.FileSystemHandle"_s), isShowingInitialEmptyDocument != IsShowingInitialEmptyDocument::Yes && shouldBeEnabled == ShouldBeEnabled::Yes); // File System Access.
-    EXPECT_EQ(runJSCheck("!!window.EnterPictureInPictureEvent"_s), shouldBeEnabled == ShouldBeEnabled::Yes); // Picture in Picture API.
+    EXPECT_EQ(runJSCheck("!!window.HTMLModelElement"_s), shouldBeEnabled == ShouldBeEnabled::Yes); // AR (Model)
+    EXPECT_EQ(runJSCheck("!!window.PictureInPictureEvent"_s), shouldBeEnabled == ShouldBeEnabled::Yes); // Picture in Picture API.
     EXPECT_EQ(runJSCheck("!!window.SpeechRecognitionEvent"_s), shouldBeEnabled == ShouldBeEnabled::Yes); // Speech recognition.
+#if ENABLE(NOTIFICATIONS)
     EXPECT_EQ(runJSCheck("!!window.Notification"_s), shouldBeEnabled == ShouldBeEnabled::Yes); // Notification API.
+#endif
     EXPECT_EQ(runJSCheck("!!window.WebXRSystem"_s), false); // WebXR (currently always disabled).
     EXPECT_EQ(runJSCheck("!!window.AudioContext"_s), shouldBeEnabled == ShouldBeEnabled::Yes); // WebAudio.
     EXPECT_EQ(runJSCheck("!!window.RTCPeerConnection"_s), shouldBeEnabled == ShouldBeEnabled::Yes); // WebRTC Peer Connection.
+    EXPECT_EQ(runJSCheck("!!window.RTCRtpScriptTransform"_s), shouldBeEnabled == ShouldBeEnabled::Yes); // WebRTC Script Transform
     EXPECT_EQ(runJSCheck("!!navigator.mediaDevices"_s), shouldBeEnabled == ShouldBeEnabled::Yes); // GetUserMedia (Media Capture).
     EXPECT_EQ(runJSCheck("!!navigator.getUserMedia"_s), false); // Legacy GetUserMedia (currently always disabled).
     EXPECT_EQ(runJSCheck("!!window.MathMLElement"_s), shouldBeEnabled == ShouldBeEnabled::Yes); // MathML.
     EXPECT_EQ(runJSCheck("!!window.MathMLMathElement"_s), shouldBeEnabled == ShouldBeEnabled::Yes); // MathML.
+    EXPECT_EQ(runJSCheck("!!window.PushManager"_s), isShowingInitialEmptyDocument != IsShowingInitialEmptyDocument::Yes && shouldBeEnabled == ShouldBeEnabled::Yes); // Push API.
+    EXPECT_EQ(runJSCheck("!!window.PushSubscription"_s), isShowingInitialEmptyDocument != IsShowingInitialEmptyDocument::Yes && shouldBeEnabled == ShouldBeEnabled::Yes); // Push API.
+    EXPECT_EQ(runJSCheck("!!window.PushSubscriptionOptions"_s), isShowingInitialEmptyDocument != IsShowingInitialEmptyDocument::Yes && shouldBeEnabled == ShouldBeEnabled::Yes); // Push API.
     String mathMLCheck = makeString("document.createElementNS('http://www.w3.org/1998/Math/MathML','mspace').__proto__ == ", shouldBeEnabled == ShouldBeEnabled::Yes ? "MathMLElement" : "Element", ".prototype");
     EXPECT_EQ(runJSCheck(mathMLCheck), true); // MathML.
 }
 
+@interface CaptivePortalMessageHandler : NSObject <WKScriptMessageHandler, WKNavigationDelegate>
+@end
+
+@implementation CaptivePortalMessageHandler
+
+- (void)userContentController:(WKUserContentController *)userContentController didReceiveScriptMessage:(WKScriptMessage *)message
+{
+    receivedScriptMessage = true;
+    scriptMessages.append(message);
+}
+
+@end
+
+static void configureCaptivePortalWKWebViewConfiguration(WKWebViewConfiguration *config)
+{
+    [config.preferences _setMediaDevicesEnabled:YES];
+    config.preferences._mediaCaptureRequiresSecureConnection = NO;
+    [config.preferences _setNotificationsEnabled:YES];
+
+    for (_WKExperimentalFeature *feature in [WKPreferences _experimentalFeatures]) {
+        if ([feature.key isEqualToString:@"ModelElementEnabled"]
+            || [feature.key isEqualToString:@"PushAPIEnabled"]
+            || [feature.key isEqualToString:@"WebRTCEncodedTransformEnabled"]) {
+            [config.preferences _setEnabled:YES forFeature:feature];
+        }
+    }
+}
+
 TEST(ProcessSwap, NavigatingToCaptivePortalMode)
 {
+    auto messageHandler = adoptNS([[CaptivePortalMessageHandler alloc] init]);
+
     auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
-    EXPECT_FALSE(webViewConfiguration.get().defaultWebpagePreferences._captivePortalModeEnabled);
-    [webViewConfiguration.get().preferences _setMediaDevicesEnabled:YES];
-    webViewConfiguration.get().preferences._mediaCaptureRequiresSecureConnection = NO;
+    EXPECT_FALSE(webViewConfiguration.get().defaultWebpagePreferences.lockdownModeEnabled);
+    configureCaptivePortalWKWebViewConfiguration(webViewConfiguration.get());
+    [webViewConfiguration.get().userContentController addScriptMessageHandler:messageHandler.get() name:@"testHandler"];
 
     auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
     auto delegate = adoptNS([TestNavigationDelegate new]);
@@ -7864,9 +7956,18 @@ TEST(ProcessSwap, NavigatingToCaptivePortalMode)
     EXPECT_TRUE(isJITEnabled(webView.get()));
     checkSettingsControlledByCaptivePortalMode(webView.get(), ShouldBeEnabled::Yes);
 
+    finishedNavigation = false;
+    receivedScriptMessage = false;
+    url = [[NSBundle mainBundle] URLForResource:@"CaptivePortalPDF" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"];
+    [webView loadRequest:[NSURLRequest requestWithURL:url]];
+    TestWebKitAPI::Util::run(&finishedNavigation);
+
+    EXPECT_FALSE(receivedScriptMessage);
+    EXPECT_TRUE(scriptMessages.isEmpty());
+
     delegate.get().decidePolicyForNavigationActionWithPreferences = ^(WKNavigationAction *action, WKWebpagePreferences *preferences, void (^completionHandler)(WKNavigationActionPolicy, WKWebpagePreferences *)) {
-        EXPECT_FALSE(preferences._captivePortalModeEnabled);
-        [preferences _setCaptivePortalModeEnabled:YES];
+        EXPECT_FALSE(preferences.lockdownModeEnabled);
+        preferences.lockdownModeEnabled = YES;
         completionHandler(WKNavigationActionPolicyAllow, preferences);
     };
 
@@ -7879,6 +7980,15 @@ TEST(ProcessSwap, NavigatingToCaptivePortalMode)
     EXPECT_NE(pid1, [webView _webProcessIdentifier]);
     EXPECT_FALSE(isJITEnabled(webView.get()));
     checkSettingsControlledByCaptivePortalMode(webView.get(), ShouldBeEnabled::No);
+
+    finishedNavigation = false;
+    receivedScriptMessage = false;
+    url = [[NSBundle mainBundle] URLForResource:@"CaptivePortalPDF" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"];
+    [webView loadRequest:[NSURLRequest requestWithURL:url]];
+    TestWebKitAPI::Util::run(&finishedNavigation);
+
+    EXPECT_TRUE(receivedScriptMessage);
+    EXPECT_WK_STREQ("Error loading PDF", getNextMessage().body);
 }
 
 TEST(ProcessSwap, CaptivePortalModeSystemSettingChange)
@@ -7886,8 +7996,8 @@ TEST(ProcessSwap, CaptivePortalModeSystemSettingChange)
     auto kvo = adoptNS([CaptivePortalModeKVO new]);
 
     auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
-    EXPECT_FALSE(webViewConfiguration.get().defaultWebpagePreferences._captivePortalModeEnabled);
-    [webViewConfiguration.get().defaultWebpagePreferences addObserver:kvo.get() forKeyPath:@"_captivePortalModeEnabled" options:NSKeyValueObservingOptionNew | NSKeyValueObservingOptionOld context:nil];
+    EXPECT_FALSE(webViewConfiguration.get().defaultWebpagePreferences.lockdownModeEnabled);
+    [webViewConfiguration.get().defaultWebpagePreferences addObserver:kvo.get() forKeyPath:@"lockdownModeEnabled" options:NSKeyValueObservingOptionNew | NSKeyValueObservingOptionOld context:nil];
 
     auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
     auto delegate = adoptNS([TestNavigationDelegate new]);
@@ -7918,7 +8028,7 @@ TEST(ProcessSwap, CaptivePortalModeSystemSettingChange)
     TestWebKitAPI::Util::run(&didChangeCaptivePortalMode);
     EXPECT_FALSE(captivePortalModeBeforeChange);
     EXPECT_TRUE(captivePortalModeAfterChange);
-    EXPECT_TRUE(webViewConfiguration.get().defaultWebpagePreferences._captivePortalModeEnabled);
+    EXPECT_TRUE(webViewConfiguration.get().defaultWebpagePreferences.lockdownModeEnabled);
 
     // This should cause the WebView to reload with a WebProcess in captive portal mode.
     TestWebKitAPI::Util::run(&finishedNavigation);
@@ -7935,7 +8045,7 @@ TEST(ProcessSwap, CaptivePortalModeSystemSettingChange)
     TestWebKitAPI::Util::run(&didChangeCaptivePortalMode);
     EXPECT_TRUE(captivePortalModeBeforeChange);
     EXPECT_FALSE(captivePortalModeAfterChange);
-    EXPECT_FALSE(webViewConfiguration.get().defaultWebpagePreferences._captivePortalModeEnabled);
+    EXPECT_FALSE(webViewConfiguration.get().defaultWebpagePreferences.lockdownModeEnabled);
 
     TestWebKitAPI::Util::run(&finishedNavigation);
 
@@ -7950,10 +8060,9 @@ TEST(ProcessSwap, CaptivePortalModeSystemSettingChange)
 TEST(ProcessSwap, CannotDisableCaptivePortalModeWithoutBrowserEntitlement)
 {
     auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
-    EXPECT_FALSE(webViewConfiguration.get().defaultWebpagePreferences._captivePortalModeEnabled);
-    [webViewConfiguration.get().defaultWebpagePreferences _setCaptivePortalModeEnabled:YES];
-    [webViewConfiguration.get().preferences _setMediaDevicesEnabled:YES];
-    webViewConfiguration.get().preferences._mediaCaptureRequiresSecureConnection = NO;
+    EXPECT_FALSE(webViewConfiguration.get().defaultWebpagePreferences.lockdownModeEnabled);
+    configureCaptivePortalWKWebViewConfiguration(webViewConfiguration.get());
+    webViewConfiguration.get().defaultWebpagePreferences.lockdownModeEnabled = YES;
 
     auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
     auto delegate = adoptNS([TestNavigationDelegate new]);
@@ -7969,11 +8078,11 @@ TEST(ProcessSwap, CannotDisableCaptivePortalModeWithoutBrowserEntitlement)
     };
 
     delegate.get().decidePolicyForNavigationActionWithPreferences = ^(WKNavigationAction *action, WKWebpagePreferences *preferences, void (^completionHandler)(WKNavigationActionPolicy, WKWebpagePreferences *)) {
-        EXPECT_TRUE(preferences._captivePortalModeEnabled);
+        EXPECT_TRUE(preferences.lockdownModeEnabled);
         bool didThrowWhenTryingToDisableCaptivePortalMode = false;
         // TestWebKitAPI doesn't have the web browser entitlement and thus shouldn't be able to disable captive portal mode.
         @try {
-            [preferences _setCaptivePortalModeEnabled:NO];
+            preferences.lockdownModeEnabled = NO;
         } @catch (NSException *exception) {
             didThrowWhenTryingToDisableCaptivePortalMode = true;
         }
@@ -7995,10 +8104,9 @@ TEST(ProcessSwap, CannotDisableCaptivePortalModeWithoutBrowserEntitlement)
 TEST(ProcessSwap, CaptivePortalModeEnabledByDefaultThenOptOut)
 {
     auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
-    EXPECT_FALSE(webViewConfiguration.get().defaultWebpagePreferences._captivePortalModeEnabled);
-    [webViewConfiguration.get().defaultWebpagePreferences _setCaptivePortalModeEnabled:YES];
-    [webViewConfiguration.get().preferences _setMediaDevicesEnabled:YES];
-    webViewConfiguration.get().preferences._mediaCaptureRequiresSecureConnection = NO;
+    EXPECT_FALSE(webViewConfiguration.get().defaultWebpagePreferences.lockdownModeEnabled);
+    configureCaptivePortalWKWebViewConfiguration(webViewConfiguration.get());
+    webViewConfiguration.get().defaultWebpagePreferences.lockdownModeEnabled = YES;
 
     auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
     auto delegate = adoptNS([TestNavigationDelegate new]);
@@ -8014,7 +8122,7 @@ TEST(ProcessSwap, CaptivePortalModeEnabledByDefaultThenOptOut)
     };
 
     delegate.get().decidePolicyForNavigationActionWithPreferences = ^(WKNavigationAction *action, WKWebpagePreferences *preferences, void (^completionHandler)(WKNavigationActionPolicy, WKWebpagePreferences *)) {
-        EXPECT_TRUE(preferences._captivePortalModeEnabled);
+        EXPECT_TRUE(preferences.lockdownModeEnabled);
         completionHandler(WKNavigationActionPolicyAllow, preferences);
     };
 
@@ -8036,8 +8144,8 @@ TEST(ProcessSwap, CaptivePortalModeEnabledByDefaultThenOptOut)
     checkSettingsControlledByCaptivePortalMode(webView.get(), ShouldBeEnabled::No);
 
     delegate.get().decidePolicyForNavigationActionWithPreferences = ^(WKNavigationAction *action, WKWebpagePreferences *preferences, void (^completionHandler)(WKNavigationActionPolicy, WKWebpagePreferences *)) {
-        EXPECT_TRUE(preferences._captivePortalModeEnabled);
-        [preferences _setCaptivePortalModeEnabled:NO]; // Opt out of captive portal mode for this load.
+        EXPECT_TRUE(preferences.lockdownModeEnabled);
+        preferences.lockdownModeEnabled = NO; // Opt out of captive portal mode for this load.
         completionHandler(WKNavigationActionPolicyAllow, preferences);
     };
 
@@ -8053,8 +8161,8 @@ TEST(ProcessSwap, CaptivePortalModeEnabledByDefaultThenOptOut)
 
     // captive portal mode should be disabled in new WebViews since it is not enabled globally.
     auto webViewConfiguration2 = adoptNS([WKWebViewConfiguration new]);
-    [webViewConfiguration2.get().preferences _setMediaDevicesEnabled:YES];
-    webViewConfiguration2.get().preferences._mediaCaptureRequiresSecureConnection = NO;
+    configureCaptivePortalWKWebViewConfiguration(webViewConfiguration2.get());
+    EXPECT_TRUE(webViewConfiguration2.get().defaultWebpagePreferences.lockdownModeEnabled == NO);
     auto webView2 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration2.get()]);
     [webView2 setNavigationDelegate:delegate.get()];
     EXPECT_TRUE(isJITEnabled(webView2.get()));
@@ -8077,8 +8185,8 @@ TEST(ProcessSwap, CaptivePortalModeSystemSettingChangeDoesNotReloadViewsWhenMode
     // Captive portal mode is disabled globally and explicitly opted out via defaultWebpagePreferences.
 
     auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
-    EXPECT_FALSE(webViewConfiguration.get().defaultWebpagePreferences._captivePortalModeEnabled);
-    [webViewConfiguration.get().defaultWebpagePreferences _setCaptivePortalModeEnabled:NO]; // Explicitly opt out via default WKWebpagePreferences.
+    EXPECT_FALSE(webViewConfiguration.get().defaultWebpagePreferences.lockdownModeEnabled);
+    webViewConfiguration.get().defaultWebpagePreferences.lockdownModeEnabled = NO; // Explicitly opt out via default WKWebpagePreferences.
 
     auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
     auto delegate = adoptNS([TestNavigationDelegate new]);
@@ -8122,8 +8230,8 @@ TEST(ProcessSwap, CaptivePortalModeSystemSettingChangeDoesNotReloadViewsWhenMode
     [WKProcessPool _setCaptivePortalModeEnabledGloballyForTesting:YES];
 
     auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
-    EXPECT_TRUE(webViewConfiguration.get().defaultWebpagePreferences._captivePortalModeEnabled);
-    [webViewConfiguration.get().defaultWebpagePreferences _setCaptivePortalModeEnabled:NO]; // Explicitly opt out via default WKWebpagePreferences.
+    EXPECT_TRUE(webViewConfiguration.get().defaultWebpagePreferences.lockdownModeEnabled);
+    webViewConfiguration.get().defaultWebpagePreferences.lockdownModeEnabled = NO; // Explicitly opt out via default WKWebpagePreferences.
 
     auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
     auto delegate = adoptNS([TestNavigationDelegate new]);
@@ -8164,7 +8272,7 @@ TEST(ProcessSwap, CaptivePortalModeSystemSettingChangeDoesNotReloadViewsWhenMode
     // Captive portal mode is disabled globally and explicitly opted out for the load.
 
     auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
-    EXPECT_FALSE(webViewConfiguration.get().defaultWebpagePreferences._captivePortalModeEnabled);
+    EXPECT_FALSE(webViewConfiguration.get().defaultWebpagePreferences.lockdownModeEnabled);
 
     auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
     auto delegate = adoptNS([TestNavigationDelegate new]);
@@ -8178,8 +8286,8 @@ TEST(ProcessSwap, CaptivePortalModeSystemSettingChangeDoesNotReloadViewsWhenMode
     };
 
     delegate.get().decidePolicyForNavigationActionWithPreferences = ^(WKNavigationAction *action, WKWebpagePreferences *preferences, void (^completionHandler)(WKNavigationActionPolicy, WKWebpagePreferences *)) {
-        EXPECT_FALSE(preferences._captivePortalModeEnabled);
-        [preferences _setCaptivePortalModeEnabled:NO]; // Explicitly Opt out of captive portal mode for this load.
+        EXPECT_FALSE(preferences.lockdownModeEnabled);
+        preferences.lockdownModeEnabled = NO; // Explicitly Opt out of captive portal mode for this load.
         completionHandler(WKNavigationActionPolicyAllow, preferences);
     };
 
@@ -8214,7 +8322,7 @@ TEST(ProcessSwap, CaptivePortalModeSystemSettingChangeDoesNotReloadViewsWhenMode
     [WKProcessPool _setCaptivePortalModeEnabledGloballyForTesting:YES];
 
     auto webViewConfiguration = adoptNS([WKWebViewConfiguration new]);
-    EXPECT_TRUE(webViewConfiguration.get().defaultWebpagePreferences._captivePortalModeEnabled);
+    EXPECT_TRUE(webViewConfiguration.get().defaultWebpagePreferences.lockdownModeEnabled);
 
     auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
     auto delegate = adoptNS([TestNavigationDelegate new]);
@@ -8228,8 +8336,8 @@ TEST(ProcessSwap, CaptivePortalModeSystemSettingChangeDoesNotReloadViewsWhenMode
     };
 
     delegate.get().decidePolicyForNavigationActionWithPreferences = ^(WKNavigationAction *action, WKWebpagePreferences *preferences, void (^completionHandler)(WKNavigationActionPolicy, WKWebpagePreferences *)) {
-        EXPECT_TRUE(preferences._captivePortalModeEnabled);
-        [preferences _setCaptivePortalModeEnabled:NO]; // Explicitly Opt out of captive portal mode for this load.
+        EXPECT_TRUE(preferences.lockdownModeEnabled);
+        preferences.lockdownModeEnabled = NO; // Explicitly Opt out of captive portal mode for this load.
         completionHandler(WKNavigationActionPolicyAllow, preferences);
     };
 
@@ -8265,8 +8373,8 @@ TEST(ProcessSwap, ContentModeInCaseOfCoopProcessSwap)
     using namespace TestWebKitAPI;
 
     HTTPServer server({
-        { "/source.html", { "foo" } },
-        { "/destination.html", { { { "Content-Type", "text/html" }, { "Cross-Origin-Opener-Policy", "same-origin" } }, "bar" } },
+        { "/source.html"_s, { "foo"_s } },
+        { "/destination.html"_s, { { { "Content-Type"_s, "text/html"_s }, { "Cross-Origin-Opener-Policy"_s, "same-origin"_s } }, "bar"_s } },
     }, HTTPServer::Protocol::Https);
 
     auto processPoolConfiguration = psonProcessPoolConfiguration();
@@ -8284,7 +8392,7 @@ TEST(ProcessSwap, ContentModeInCaseOfCoopProcessSwap)
     [webView setNavigationDelegate:navigationDelegate.get()];
 
     done = false;
-    [webView loadRequest:server.request("/source.html")];
+    [webView loadRequest:server.request("/source.html"_s)];
     Util::run(&done);
     done = false;
 
@@ -8300,7 +8408,7 @@ TEST(ProcessSwap, ContentModeInCaseOfCoopProcessSwap)
 
     auto pid1 = [webView _webProcessIdentifier];
 
-    [webView loadRequest:server.request("/destination.html")];
+    [webView loadRequest:server.request("/destination.html"_s)];
     Util::run(&done);
     done = false;
 
@@ -8337,11 +8445,11 @@ TEST(ProcessSwap, ContentModeInCaseOfPSONThenCoopProcessSwap)
     using namespace TestWebKitAPI;
 
     HTTPServer server1({
-        { "/source.html", { "foo" } },
+        { "/source.html"_s, { "foo"_s } },
     }, HTTPServer::Protocol::Https);
 
     HTTPServer server2({
-        { "/destination.html", { { { "Content-Type", "text/html" }, { "Cross-Origin-Opener-Policy", "same-origin" } }, "bar" } },
+        { "/destination.html"_s, { { { "Content-Type"_s, "text/html"_s }, { "Cross-Origin-Opener-Policy"_s, "same-origin"_s } }, "bar"_s } },
     }, HTTPServer::Protocol::Http);
 
     auto processPoolConfiguration = psonProcessPoolConfiguration();
@@ -8359,7 +8467,7 @@ TEST(ProcessSwap, ContentModeInCaseOfPSONThenCoopProcessSwap)
     [webView setNavigationDelegate:navigationDelegate.get()];
 
     done = false;
-    [webView loadRequest:server1.request("/source.html")];
+    [webView loadRequest:server1.request("/source.html"_s)];
     Util::run(&done);
     done = false;
 
@@ -8375,7 +8483,7 @@ TEST(ProcessSwap, ContentModeInCaseOfPSONThenCoopProcessSwap)
 
     auto pid1 = [webView _webProcessIdentifier];
 
-    [webView loadRequest:server2.request("/destination.html")];
+    [webView loadRequest:server2.request("/destination.html"_s)];
     Util::run(&done);
     done = false;
 
@@ -8407,3 +8515,116 @@ TEST(ProcessSwap, ContentModeInCaseOfPSONThenCoopProcessSwap)
     done = false;
 }
 #endif // PLATFORM(IOS_FAMILY)
+
+// The WebProcess cache cannot be enabled on devices with too little RAM so we need to disable
+// tests relying on it on iOS. The WebProcess cache is disabled by default on iOS anyway.
+#if !PLATFORM(IOS_FAMILY)
+TEST(WebProcessCache, ReusedCrashedCachedWebProcess)
+{
+    auto processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    processPoolConfiguration.get().usesWebProcessCache = YES;
+    processPoolConfiguration.get().processSwapsOnNavigationWithinSameNonHTTPFamilyProtocol = YES;
+    auto processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
+
+    auto webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    [webViewConfiguration setProcessPool:processPool.get()];
+    auto handler = adoptNS([[PSONScheme alloc] init]);
+    [webViewConfiguration setURLSchemeHandler:handler.get() forURLScheme:@"PSON"];
+
+    auto delegate = adoptNS([[PSONNavigationDelegate alloc] init]);
+
+    auto webView1 = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 800) configuration:webViewConfiguration.get()]);
+    [webView1 setNavigationDelegate:delegate.get()];
+    auto webView2 = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 800) configuration:webViewConfiguration.get()]);
+    [webView2 setNavigationDelegate:delegate.get()];
+
+    NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"pson://www.webkit.org/main.html"]];
+
+    done = false;
+    [webView1 loadRequest:request];
+    TestWebKitAPI::Util::run(&done);
+    done = false;
+
+    done = false;
+    [webView2 loadRequest:request];
+    TestWebKitAPI::Util::run(&done);
+    done = false;
+
+    auto cachedProcessPID = [webView1 _webProcessIdentifier];
+    EXPECT_NE([webView1 _webProcessIdentifier], [webView2 _webProcessIdentifier]);
+
+    [webView1 _close];
+    webView1 = nil;
+
+    // There should now be a process for apple.com in the process cache.
+    while ([processPool _processCacheSize] != 1)
+        TestWebKitAPI::Util::sleep(0.1);
+
+    crashCount = 0;
+    done = false;
+    kill([webView2 _webProcessIdentifier], 9);
+    kill(cachedProcessPID, 9);
+
+    // Intentional hang to delay processing of crash notifications.
+    sleep(1);
+
+    // View should reload due to crash.
+    TestWebKitAPI::Util::run(&done);
+
+    EXPECT_EQ(crashCount, 1u);
+}
+#endif
+
+TEST(WebProcessCache, ReusedCrashedBackForwardSuspendedWebProcess)
+{
+    auto processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    processPoolConfiguration.get().usesWebProcessCache = YES;
+    processPoolConfiguration.get().processSwapsOnNavigationWithinSameNonHTTPFamilyProtocol = YES;
+    auto processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
+
+    auto webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    [webViewConfiguration setProcessPool:processPool.get()];
+    auto handler = adoptNS([[PSONScheme alloc] init]);
+    [webViewConfiguration setURLSchemeHandler:handler.get() forURLScheme:@"PSON"];
+
+    auto delegate = adoptNS([[PSONNavigationDelegate alloc] init]);
+
+    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 800) configuration:webViewConfiguration.get()]);
+    [webView setNavigationDelegate:delegate.get()];
+
+    NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"pson://www.webkit.org/main.html"]];
+
+    done = false;
+    [webView loadRequest:request];
+    TestWebKitAPI::Util::run(&done);
+    done = false;
+
+    auto firstWebProcessPID = [webView _webProcessIdentifier];
+
+    // We force a proces-swap via client API.
+    delegate->decidePolicyForNavigationAction = ^(WKNavigationAction *, void (^decisionHandler)(WKNavigationActionPolicy)) {
+        decisionHandler(_WKNavigationActionPolicyAllowInNewProcess);
+    };
+
+    done = false;
+    request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"pson://www.webkit.org/main2.html"]];
+    [webView loadRequest:request];
+    TestWebKitAPI::Util::run(&done);
+    done = false;
+
+    auto secondWebProcessPID = [webView _webProcessIdentifier];
+    EXPECT_NE(firstWebProcessPID, secondWebProcessPID);
+
+    crashCount = 0;
+    done = false;
+    kill(secondWebProcessPID, 9);
+    kill(firstWebProcessPID, 9);
+
+    // Intentional hang to delay processing of crash notifications.
+    sleep(1);
+
+    // View should reload due to crash.
+    TestWebKitAPI::Util::run(&done);
+
+    EXPECT_EQ(crashCount, 1u);
+}

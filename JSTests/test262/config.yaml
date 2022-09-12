@@ -8,6 +8,7 @@ flags:
   String.prototype.at: useAtMethod
   Temporal: useTemporal
   array-find-from-last: useArrayFindLastMethod
+  array-grouping: useArrayGroupByMethod
   Object.hasOwn: useHasOwn
   ShadowRealm: useShadowRealm
 skip:
@@ -15,7 +16,7 @@ skip:
     - Atomics.waitAsync
     # https://bugs.webkit.org/show_bug.cgi?id=174931
     - regexp-lookbehind
-    - cleanupSome
+    - regexp-v-flag
     - resizable-arraybuffer
     - import-assertions
     - json-modules
@@ -23,6 +24,7 @@ skip:
     - callable-boundary-realms
     - FinalizationRegistry.prototype.cleanupSome
     - Intl.DurationFormat
+    - decorators
   paths:
     - test/built-ins/Temporal/Calendar
     - test/built-ins/Temporal/Instant/prototype/toZonedDateTime

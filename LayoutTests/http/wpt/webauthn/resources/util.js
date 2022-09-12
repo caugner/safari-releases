@@ -141,6 +141,8 @@ const testAssertionMessageApduBase64 =
     "Z51VstuQkuHI2eXh0Ct1gPC0gSx3CWLh5I9a2AEAAABQA1hHMEUCIQCSFTuuBWgB" +
     "4/F0VB7DlUVM09IHPmxe1MzHUwRoCRZbCAIgGKov6xoAx2MEf6/6qNs8OutzhP2C" +
     "QoJ1L7Fe64G9uBeQAA==";
+const testCcidNoUidBase64 = "aIE=";
+const testCcidValidUidBase64 = "CH+d1ZAA";
 
 const RESOURCES_DIR = "/WebKit/webauthn/resources/";
 
@@ -355,7 +357,7 @@ function checkPublicKey(publicKey)
     return true;
 }
 
-function checkCtapMakeCredentialResult(credential, isNoneAttestation = true)
+function checkCtapMakeCredentialResult(credential, isNoneAttestation = true, transports = null)
 {
     // Check response
     assert_array_equals(Base64URL.parse(credential.id), Base64URL.parse(testHidCredentialIdBase64));
@@ -388,6 +390,8 @@ function checkCtapMakeCredentialResult(credential, isNoneAttestation = true)
         assert_equals(attestationObject.attStmt.alg, -7);
         assert_equals(attestationObject.attStmt.x5c.length, 1);
     }
+    if (transports)
+        assert_array_equals(transports, credential.response.getTransports());
 }
 
 function checkU2fMakeCredentialResult(credential, isNoneAttestation = true)

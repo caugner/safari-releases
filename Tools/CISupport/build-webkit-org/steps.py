@@ -1,4 +1,4 @@
-# Copyright (C) 2017-2021 Apple Inc. All rights reserved.
+# Copyright (C) 2017-2022 Apple Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -24,7 +24,7 @@ from buildbot.plugins import steps, util
 from buildbot.process import buildstep, factory, logobserver, properties
 from buildbot.process.results import Results, SUCCESS, FAILURE, WARNINGS, SKIPPED, EXCEPTION, RETRY
 from buildbot.steps import master, shell, transfer, trigger
-from buildbot.steps.source.svn import SVN
+from buildbot.steps.source import git
 from twisted.internet import defer
 
 import json
@@ -128,19 +128,23 @@ class ConfigureBuild(buildstep.BuildStep):
         return defer.succeed(None)
 
 
-class CheckOutSource(SVN, object):
+class CheckOutSource(git.Git):
     name = 'clean-and-update-working-directory'
+    CHECKOUT_DELAY_AND_MAX_RETRIES_PAIR = (0, 2)
     haltOnFailure = False
 
-    def __init__(self, **kwargs):
-        kwargs['repourl'] = 'https://svn.webkit.org/repository/webkit/trunk'
-        kwargs['mode'] = 'incremental'
-        kwargs['logEnviron'] = False
-        super(CheckOutSource, self).__init__(**kwargs)
+    def __init__(self, repourl='https://github.com/WebKit/WebKit.git', **kwargs):
+        super(CheckOutSource, self).__init__(repourl=repourl,
+                                             retry=self.CHECKOUT_DELAY_AND_MAX_RETRIES_PAIR,
+                                             timeout=2 * 60 * 60,
+                                             logEnviron=False,
+                                             method='clean',
+                                             progress=True,
+                                             **kwargs)
 
     def getResultSummary(self):
         if self.results == FAILURE:
-            self.build.addStepsAfterCurrentStep([SVNCleanup()])
+            self.build.addStepsAfterCurrentStep([CleanUpGitIndexLock()])
 
         if self.results != SUCCESS:
             return {'step': 'Failed to updated working directory'}
@@ -148,17 +152,44 @@ class CheckOutSource(SVN, object):
             return {'step': 'Cleaned and updated working directory'}
 
 
-class SVNCleanup(shell.ShellCommand):
-    name = 'svn-cleanup'
-    command = ['svn', 'cleanup']
-    descriptionDone = ['Run svn cleanup']
+class CleanUpGitIndexLock(shell.ShellCommand):
+    name = 'clean-git-index-lock'
+    command = ['rm', '-f', '.git/index.lock']
+    descriptionDone = ['Deleted .git/index.lock']
 
     def __init__(self, **kwargs):
-        super(SVNCleanup, self).__init__(timeout=10 * 60, logEnviron=False, **kwargs)
+        super(CleanUpGitIndexLock, self).__init__(timeout=2 * 60, logEnviron=False, **kwargs)
+
+    def start(self):
+        platform = self.getProperty('platform', '*')
+        if platform == 'wincairo':
+            self.command = ['del', r'.git\index.lock']
+
+        return shell.ShellCommand.start(self)
 
     def evaluateCommand(self, cmd):
-        self.build.buildFinished(['svn issue, retrying build'], RETRY)
-        return super(SVNCleanup, self).evaluateCommand(cmd)
+        self.build.buildFinished(['Git issue, retrying build'], RETRY)
+        return super(CleanUpGitIndexLock, self).evaluateCommand(cmd)
+
+
+class CheckOutSpecificRevision(shell.ShellCommand):
+    name = 'checkout-specific-revision'
+    descriptionDone = ['Checked out required revision']
+    flunkOnFailure = True
+    haltOnFailure = True
+
+    def __init__(self, **kwargs):
+        super(CheckOutSpecificRevision, self).__init__(logEnviron=False, **kwargs)
+
+    def doStepIf(self, step):
+        return self.getProperty('user_provided_git_hash', False)
+
+    def hideStepIf(self, results, step):
+        return not self.doStepIf(step)
+
+    def start(self):
+        self.setCommand(['git', 'checkout', self.getProperty('user_provided_git_hash')])
+        return shell.ShellCommand.start(self)
 
 
 class InstallWin32Dependencies(shell.Compile):
@@ -268,6 +299,12 @@ class CompileWebKit(shell.Compile):
     descriptionDone = ["compiled"]
     warningPattern = ".*arning: .*"
 
+    def __init__(self, **kwargs):
+        # https://bugs.webkit.org/show_bug.cgi?id=239455: The timeout needs to be >20 min to
+        # work around log output delays on slower machines.
+        kwargs.setdefault('timeout', 60 * 30)
+        super().__init__(**kwargs)
+
     def start(self):
         platform = self.getProperty('platform')
         buildOnly = self.getProperty('buildOnly')
@@ -279,15 +316,23 @@ class CompileWebKit(shell.Compile):
 
         if additionalArguments:
             self.setCommand(self.command + additionalArguments)
-        if platform in ('mac', 'ios', 'tvos', 'watchos') and architecture:
-            self.setCommand(self.command + ['ARCHS=' + architecture])
-            self.setCommand(self.command + ['ONLY_ACTIVE_ARCH=NO'])
-        if platform in ('mac', 'ios', 'tvos', 'watchos') and buildOnly:
-            # For build-only bots, the expectation is that tests will be run on separate machines,
-            # so we need to package debug info as dSYMs. Only generating line tables makes
-            # this much faster than full debug info, and crash logs still have line numbers.
-            self.setCommand(self.command + ['DEBUG_INFORMATION_FORMAT=dwarf-with-dsym'])
-            self.setCommand(self.command + ['CLANG_DEBUG_INFORMATION_LEVEL=line-tables-only'])
+        if platform in ('mac', 'ios', 'tvos', 'watchos'):
+            # FIXME: Once WK_VALIDATE_DEPENDENCIES is set via xcconfigs, it can
+            # be removed here. We can't have build-webkit pass this by default
+            # without invalidating local builds made by Xcode, and we set it
+            # via xcconfigs until all building of Xcode-based webkit is done in
+            # workspaces (rdar://88135402).
+            self.setCommand(self.command + ['WK_VALIDATE_DEPENDENCIES=YES'])
+            if architecture:
+                self.setCommand(self.command + ['ARCHS=' + architecture])
+                self.setCommand(self.command + ['ONLY_ACTIVE_ARCH=NO'])
+            if buildOnly:
+                # For build-only bots, the expectation is that tests will be run on separate machines,
+                # so we need to package debug info as dSYMs. Only generating line tables makes
+                # this much faster than full debug info, and crash logs still have line numbers.
+                # Some projects (namely lldbWebKitTester) require full debug info, and may override this.
+                self.setCommand(self.command + ['DEBUG_INFORMATION_FORMAT=dwarf-with-dsym'])
+                self.setCommand(self.command + ['CLANG_DEBUG_INFORMATION_LEVEL=$(WK_OVERRIDE_DEBUG_INFORMATION_LEVEL:default=line-tables-only)'])
         if platform == 'gtk':
             prefix = os.path.join("/app", "webkit", "WebKitBuild", self.getProperty("configuration").title(), "install")
             self.setCommand(self.command + [f'--prefix={prefix}'])
@@ -309,6 +354,12 @@ class CompileWebKit(shell.Compile):
         except KeyError:
             log = yield self.addLog(logName)
         log.addStdout(message)
+
+    def evaluateCommand(self, cmd):
+        rc = shell.ShellCommand.evaluateCommand(self, cmd)
+        if rc in (SUCCESS, WARNINGS) and self.getProperty('user_provided_git_hash'):
+            self.build.addStepsAfterCurrentStep([ArchiveMinifiedBuiltProduct(), UploadMinifiedBuiltProduct(), TransferToS3(terminate_build=True)])
+        return rc
 
 
 class CompileLLINTCLoop(CompileWebKit):
@@ -341,6 +392,7 @@ class ArchiveBuiltProduct(shell.ShellCommand):
 
 
 class ArchiveMinifiedBuiltProduct(ArchiveBuiltProduct):
+    name = 'archive-minified-built-product'
     command = ["python3", "Tools/CISupport/built-product-archive",
                WithProperties("--platform=%(fullPlatform)s"), WithProperties("--%(configuration)s"), "archive", "--minify"]
 
@@ -348,7 +400,7 @@ class ArchiveMinifiedBuiltProduct(ArchiveBuiltProduct):
 class GenerateJSCBundle(shell.ShellCommand):
     command = ["Tools/Scripts/generate-bundle", "--builder-name", WithProperties("%(buildername)s"),
                "--bundle=jsc", "--syslibs=bundle-all", WithProperties("--platform=%(fullPlatform)s"),
-               WithProperties("--%(configuration)s"), WithProperties("--revision=%(got_revision)s"),
+               WithProperties("--%(configuration)s"), WithProperties("--revision=%(archive_revision)s"),
                "--remote-config-file", "../../remote-jsc-bundle-upload-config.json"]
     name = "generate-jsc-bundle"
     description = ["generating jsc bundle"]
@@ -359,7 +411,7 @@ class GenerateJSCBundle(shell.ShellCommand):
 class GenerateMiniBrowserBundle(shell.ShellCommand):
     command = ["Tools/Scripts/generate-bundle", "--builder-name", WithProperties("%(buildername)s"),
                "--bundle=MiniBrowser", WithProperties("--platform=%(fullPlatform)s"),
-               WithProperties("--%(configuration)s"), WithProperties("--revision=%(got_revision)s"),
+               WithProperties("--%(configuration)s"), WithProperties("--revision=%(archive_revision)s"),
                "--remote-config-file", "../../remote-minibrowser-bundle-upload-config.json"]
     name = "generate-minibrowser-bundle"
     description = ["generating minibrowser bundle"]
@@ -377,8 +429,9 @@ class ExtractBuiltProduct(shell.ShellCommand):
 
 
 class UploadBuiltProduct(transfer.FileUpload):
+    name = 'upload-built-product'
     workersrc = WithProperties("WebKitBuild/%(configuration)s.zip")
-    masterdest = WithProperties("archives/%(fullPlatform)s-%(architecture)s-%(configuration)s/%(got_revision)s.zip")
+    masterdest = WithProperties("archives/%(fullPlatform)s-%(architecture)s-%(configuration)s/%(archive_revision)s.zip")
     haltOnFailure = True
 
     def __init__(self, **kwargs):
@@ -390,14 +443,15 @@ class UploadBuiltProduct(transfer.FileUpload):
 
 
 class UploadMinifiedBuiltProduct(UploadBuiltProduct):
+    name = 'upload-minified-built-product'
     workersrc = WithProperties("WebKitBuild/minified-%(configuration)s.zip")
-    masterdest = WithProperties("archives/%(fullPlatform)s-%(architecture)s-%(configuration)s/minified-%(got_revision)s.zip")
+    masterdest = WithProperties("archives/%(fullPlatform)s-%(architecture)s-%(configuration)s/minified-%(archive_revision)s.zip")
 
 
 class DownloadBuiltProduct(shell.ShellCommand):
     command = ["python3", "Tools/CISupport/download-built-product",
         WithProperties("--platform=%(platform)s"), WithProperties("--%(configuration)s"),
-        WithProperties(S3URL + "archives.webkit.org/%(fullPlatform)s-%(architecture)s-%(configuration)s/%(got_revision)s.zip")]
+        WithProperties(S3URL + "archives.webkit.org/%(fullPlatform)s-%(architecture)s-%(configuration)s/%(archive_revision)s.zip")]
     name = "download-built-product"
     description = ["downloading built product"]
     descriptionDone = ["downloaded built product"]
@@ -420,7 +474,7 @@ class DownloadBuiltProduct(shell.ShellCommand):
 
 
 class DownloadBuiltProductFromMaster(transfer.FileDownload):
-    mastersrc = WithProperties('archives/%(fullPlatform)s-%(architecture)s-%(configuration)s/%(got_revision)s.zip')
+    mastersrc = WithProperties('archives/%(fullPlatform)s-%(architecture)s-%(configuration)s/%(archive_revision)s.zip')
     workerdest = WithProperties('WebKitBuild/%(configuration)s.zip')
     name = 'download-built-product-from-master'
     description = ['downloading built product from buildbot master']
@@ -459,11 +513,14 @@ class RunJavaScriptCoreTests(TestWithFailureCount):
         "--buildbot-master", CURRENT_HOSTNAME,
         "--report", RESULTS_WEBKIT_URL,
     ]
+    commandExtra = ['--treat-failing-as-flaky=0.7,10,20']
     failedTestsFormatString = "%d JSC test%s failed"
     logfiles = {"json": jsonFileName}
 
     def __init__(self, *args, **kwargs):
         kwargs['logEnviron'] = False
+        if 'sigtermTime' not in kwargs:
+            kwargs['sigtermTime'] = 10
         TestWithFailureCount.__init__(self, *args, **kwargs)
 
     def start(self):
@@ -474,8 +531,12 @@ class RunJavaScriptCoreTests(TestWithFailureCount):
 
         platform = self.getProperty('platform')
         architecture = self.getProperty("architecture")
+        # Ask run-jsc-stress-tests to report flaky (including to the resultsdb)
+        # but do not fail the whole run if the pass rate of the failing tests is
+        # high enough.
+        self.command += self.commandExtra
         # Currently run-javascriptcore-test doesn't support run javascript core test binaries list below remotely
-        if architecture in ['mips', 'armv7', 'aarch64']:
+        if architecture in ['mips', 'aarch64']:
             self.command += ['--no-testmasm', '--no-testair', '--no-testb3', '--no-testdfg', '--no-testapi']
         # Linux bots have currently problems with JSC tests that try to use large amounts of memory.
         # Check: https://bugs.webkit.org/show_bug.cgi?id=175140
@@ -536,7 +597,7 @@ class RunWebKitTests(shell.Test):
     description = ["layout-tests running"]
     descriptionDone = ["layout-tests"]
     resultDirectory = "layout-test-results"
-    command = ["python", "Tools/Scripts/run-webkit-tests",
+    command = ["python3", "Tools/Scripts/run-webkit-tests",
                "--no-build",
                "--no-show-results",
                "--no-new-test-results",
@@ -1075,9 +1136,9 @@ class RunBenchmarkTests(shell.Test):
     name = "benchmark-test"
     description = ["benchmark tests running"]
     descriptionDone = ["benchmark tests"]
-    command = ["python", "Tools/Scripts/browserperfdash-benchmark", "--allplans",
+    command = ["python3", "Tools/Scripts/browserperfdash-benchmark", "--allplans",
                "--config-file", "../../browserperfdash-benchmark-config.txt",
-               "--browser-version", WithProperties("r%(got_revision)s")]
+               "--browser-version", WithProperties("%(archive_revision)s")]
 
     def start(self):
         platform = self.getProperty("platform")
@@ -1106,7 +1167,7 @@ class ArchiveTestResults(shell.ShellCommand):
 
 class UploadTestResults(transfer.FileUpload):
     workersrc = "layout-test-results.zip"
-    masterdest = WithProperties("public_html/results/%(buildername)s/r%(got_revision)s (%(buildnumber)s).zip")
+    masterdest = WithProperties("public_html/results/%(buildername)s/%(archive_revision)s (%(buildnumber)s).zip")
 
     def __init__(self, **kwargs):
         kwargs['workersrc'] = self.workersrc
@@ -1120,23 +1181,27 @@ class TransferToS3(master.MasterShellCommand):
     name = "transfer-to-s3"
     description = ["transferring to s3"]
     descriptionDone = ["transferred to s3"]
-    archive = WithProperties("archives/%(fullPlatform)s-%(architecture)s-%(configuration)s/%(got_revision)s.zip")
-    minifiedArchive = WithProperties("archives/%(fullPlatform)s-%(architecture)s-%(configuration)s/minified-%(got_revision)s.zip")
+    archive = WithProperties("archives/%(fullPlatform)s-%(architecture)s-%(configuration)s/%(archive_revision)s.zip")
+    minifiedArchive = WithProperties("archives/%(fullPlatform)s-%(architecture)s-%(configuration)s/minified-%(archive_revision)s.zip")
     identifier = WithProperties("%(fullPlatform)s-%(architecture)s-%(configuration)s")
-    revision = WithProperties("%(got_revision)s")
+    revision = WithProperties("%(archive_revision)s")
     command = ["python3", "../Shared/transfer-archive-to-s3", "--revision", revision, "--identifier", identifier, "--archive", archive]
     haltOnFailure = True
 
-    def __init__(self, **kwargs):
+    def __init__(self, terminate_build=False, **kwargs):
         kwargs['command'] = self.command
         kwargs['logEnviron'] = False
+        self.terminate_build = terminate_build
         master.MasterShellCommand.__init__(self, **kwargs)
 
     def start(self):
         return master.MasterShellCommand.start(self)
 
     def finished(self, result):
-        return master.MasterShellCommand.finished(self, result)
+        rc = master.MasterShellCommand.finished(self, result)
+        if self.terminate_build and self.getProperty('user_provided_git_hash'):
+            self.build.buildFinished([f"Uploaded archive with hash {self.getProperty('user_provided_git_hash', '')[:8]}"], SUCCESS)
+        return rc
 
     def doStepIf(self, step):
         return CURRENT_HOSTNAME == BUILD_WEBKIT_HOSTNAME
@@ -1150,8 +1215,8 @@ class ExtractTestResults(master.MasterShellCommand):
     def __init__(self, **kwargs):
         kwargs['command'] = ""
         kwargs['logEnviron'] = False
-        self.zipFile = Interpolate('public_html/results/%(prop:buildername)s/r%(prop:got_revision)s (%(prop:buildnumber)s).zip')
-        self.resultDirectory = Interpolate('public_html/results/%(prop:buildername)s/r%(prop:got_revision)s (%(prop:buildnumber)s)')
+        self.zipFile = Interpolate('public_html/results/%(prop:buildername)s/%(prop:archive_revision)s (%(prop:buildnumber)s).zip')
+        self.resultDirectory = Interpolate('public_html/results/%(prop:buildername)s/%(prop:archive_revision)s (%(prop:buildnumber)s)')
         kwargs['command'] = ['unzip', '-q', '-o', self.zipFile, '-d', self.resultDirectory]
         master.MasterShellCommand.__init__(self, **kwargs)
 
@@ -1176,7 +1241,7 @@ class PrintConfiguration(steps.ShellSequence):
     warnOnFailure = False
     logEnviron = False
     command_list_generic = [['hostname']]
-    command_list_apple = [['df', '-hl'], ['date'], ['sw_vers'], ['xcodebuild', '-sdk', '-version'], ['uptime']]
+    command_list_apple = [['df', '-hl'], ['date'], ['sw_vers'], ['system_profiler', 'SPSoftwareDataType', 'SPHardwareDataType'], ['xcodebuild', '-sdk', '-version']]
     command_list_linux = [['df', '-hl'], ['date'], ['uname', '-a'], ['uptime']]
     command_list_win = [['df', '-hl']]
 
@@ -1259,8 +1324,8 @@ class ShowIdentifier(shell.ShellCommand):
     def start(self):
         self.log_observer = logobserver.BufferLogObserver()
         self.addLogObserver('stdio', self.log_observer)
-        revision = self.getProperty('got_revision')
-        self.setCommand(['python3', 'Tools/Scripts/git-webkit', 'find', 'r{}'.format(revision)])
+        revision = self.getProperty('user_provided_git_hash', None) or self.getProperty('got_revision')
+        self.setCommand(['python3', 'Tools/Scripts/git-webkit', 'find', revision])
         return shell.ShellCommand.start(self)
 
     def evaluateCommand(self, cmd):
@@ -1275,13 +1340,20 @@ class ShowIdentifier(shell.ShellCommand):
             if identifier:
                 identifier = identifier.replace('trunk', 'main')
             self.setProperty('identifier', identifier)
-            step = self.getLastBuildStepByName(CheckOutSource.name)
+            self.setProperty('archive_revision', identifier)
+
+            if self.getProperty('user_provided_git_hash'):
+                step = self.getLastBuildStepByName(CheckOutSpecificRevision.name)
+            else:
+                step = self.getLastBuildStepByName(CheckOutSource.name)
+
             if not step:
                 step = self
             step.addURL('Updated to {}'.format(identifier), self.url_for_identifier(identifier))
             self.descriptionDone = 'Identifier: {}'.format(identifier)
         else:
             self.descriptionDone = 'Failed to find identifier'
+            self.setProperty('archive_revision', self.getProperty('got_revision'))
         return rc
 
     def getLastBuildStepByName(self, name):

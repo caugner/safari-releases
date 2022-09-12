@@ -54,14 +54,15 @@ public:
         ASSERT(!result.isValid());
         return result;
     }
-    
-    static ObjectPropertyConditionSet create(Vector<ObjectPropertyCondition>&& vector)
+
+    template<typename Vector>
+    static ObjectPropertyConditionSet create(Vector&& vector)
     {
         if (vector.isEmpty())
             return ObjectPropertyConditionSet();
         
         ObjectPropertyConditionSet result;
-        result.m_data = Conditions::createFromVector(WTFMove(vector));
+        result.m_data = Conditions::createFromVector(std::forward<Vector>(vector));
         ASSERT(result.isValid());
         return result;
     }

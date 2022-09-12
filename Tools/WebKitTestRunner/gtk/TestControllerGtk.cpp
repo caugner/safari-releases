@@ -29,6 +29,7 @@
 
 #include "PlatformWebView.h"
 #include <WebKit/WKTextCheckerGLib.h>
+#include <WebKit/WKViewPrivate.h>
 #include <gtk/gtk.h>
 #include <wtf/Platform.h>
 #include <wtf/RunLoop.h>
@@ -142,13 +143,16 @@ const char* TestController::platformLibraryPathForTesting()
 
 void TestController::platformConfigureViewForTest(const TestInvocation&)
 {
-    WKPageSetApplicationNameForUserAgent(mainWebView()->page(), WKStringCreateWithUTF8CString("WebKitTestRunnerGTK"));
+    WKRetainPtr<WKStringRef> appName = adoptWK(WKStringCreateWithUTF8CString("WebKitTestRunnerGTK"));
+    WKPageSetApplicationNameForUserAgent(mainWebView()->page(), appName.get());
 }
 
 bool TestController::platformResetStateToConsistentValues(const TestOptions&)
 {
-    if (m_mainWebView)
+    if (m_mainWebView) {
         m_mainWebView->dismissAllPopupMenus();
+        WKViewSetEditable(m_mainWebView->platformView(), false);
+    }
 
     WKTextCheckerContinuousSpellCheckingEnabledStateChanged(true);
     return true;

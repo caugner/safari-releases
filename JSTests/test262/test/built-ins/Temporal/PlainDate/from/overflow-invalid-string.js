@@ -22,11 +22,19 @@ info: |
 features: [Temporal]
 ---*/
 
-const validValues = [
+const validItems = [
   new Temporal.PlainDate(2000, 5, 2),
   { year: 2000, month: 5, day: 2 },
   "2000-05-02",
 ];
-validValues.forEach((value) => {
-  assert.throws(RangeError, () => Temporal.PlainDate.from(value, { overflow: "other string" }));
-});
+
+const badOverflows = ["", "CONSTRAIN", "balance", "other string", "constra\u0131n", "reject\0"];
+for (const item of validItems) {
+  for (const overflow of badOverflows) {
+    assert.throws(
+      RangeError,
+      () => Temporal.PlainDate.from(item, { overflow }),
+      `invalid overflow ("${overflow}")`
+    );
+  }
+}

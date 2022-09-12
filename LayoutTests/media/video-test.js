@@ -207,24 +207,38 @@ function waitForEventWithTimeout(element, type, time, message) {
         listener, 
         timeout,
     ]).then(result => {
-        if (result === 'timeout') {
-            Promise.reject(new Error(message));
-            return;
-        }
+        if (result === 'timeout')
+            return Promise.reject(new Error(message));
         
         consoleWrite(`EVENT(${result.type})`);
         return Promise.resolve(result);
     });
 }
 
-function waitFor(element, type, silent) {
+function waitFor(element, type, silent, success) {
     return new Promise(resolve => {
         element.addEventListener(type, event => {
-            if (!silent)
+            if (silent) {
+                resolve(event);
+                return;
+            }
+
+            if (success !== undefined)
+                logResult(success, `EVENT(${event.type})`);
+            else
                 consoleWrite(`EVENT(${event.type})`);
+            
             resolve(event);
         }, { once: true });
     });
+}
+
+function waitForAndSucceed(element, type) {
+    return waitFor(element, type, false, true);
+}
+
+function waitForAndFail(element, type) {
+    return waitFor(element, type, false, false);
 }
 
 function waitForEventOnce(eventName, func, endit)
@@ -269,7 +283,17 @@ function waitForEventAndFail(eventName)
     waitForEventAndTest(eventName, "false", true);
 }
 
+function waitForEventAndFailFor(element, eventName)
+{
+    waitForEventAndTest(element, eventName, "false", true);
+}
+
 function waitForEventAndTest(eventName, testFuncString, endit)
+{
+    waitForEventAndTestFor(mediaElement, eventName, testFuncString, endit)
+}
+
+function waitForEventAndTestFor(element, eventName, testFuncString, endit)
 {
     function _eventCallback(event)
     {
@@ -278,7 +302,7 @@ function waitForEventAndTest(eventName, testFuncString, endit)
             endTest();
     }
 
-    mediaElement.addEventListener(eventName, _eventCallback, true);
+    element.addEventListener(eventName, _eventCallback, true);
 }
 
 function waitForEventOnceOn(element, eventName, func, endit)

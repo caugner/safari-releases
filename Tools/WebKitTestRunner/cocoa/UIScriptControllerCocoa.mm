@@ -63,14 +63,9 @@ void UIScriptControllerCocoa::setMinimumEffectiveWidth(double effectiveWidth)
     webView()._minimumEffectiveDeviceWidth = effectiveWidth;
 }
 
-void UIScriptControllerCocoa::becomeFirstResponder()
+void UIScriptControllerCocoa::setWebViewEditable(bool editable)
 {
-    [webView() becomeFirstResponder];
-}
-
-void UIScriptControllerCocoa::resignFirstResponder()
-{
-    [webView() resignFirstResponder];
+    webView()._editable = editable;
 }
 
 void UIScriptControllerCocoa::doAsyncTask(JSValueRef callback)
@@ -136,7 +131,7 @@ void UIScriptControllerCocoa::addViewToWindow(JSValueRef callback)
 
 void UIScriptControllerCocoa::overridePreference(JSStringRef preferenceRef, JSStringRef valueRef)
 {
-    if (toWTFString(preferenceRef) == "WebKitMinimumFontSize")
+    if (toWTFString(preferenceRef) == "WebKitMinimumFontSize"_s)
         webView().configuration.preferences.minimumFontSize = toWTFString(valueRef).toDouble();
 }
 

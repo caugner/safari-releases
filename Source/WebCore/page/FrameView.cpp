@@ -48,6 +48,7 @@
 #include "FloatRect.h"
 #include "FocusController.h"
 #include "FragmentDirectiveParser.h"
+#include "FragmentDirectiveRangeFinder.h"
 #include "Frame.h"
 #include "FrameFlattening.h"
 #include "FrameLoader.h"
@@ -65,6 +66,7 @@
 #include "HTMLObjectElement.h"
 #include "HTMLParserIdioms.h"
 #include "HTMLPlugInImageElement.h"
+#include "HighlightRegister.h"
 #include "ImageDocument.h"
 #include "InspectorClient.h"
 #include "InspectorController.h"
@@ -97,7 +99,6 @@
 #include "RenderView.h"
 #include "RenderWidget.h"
 #include "ResizeObserver.h"
-#include "RuntimeEnabledFeatures.h"
 #include "SVGDocument.h"
 #include "SVGElementTypeHelpers.h"
 #include "SVGSVGElement.h"
@@ -105,6 +106,7 @@
 #include "ScriptedAnimationController.h"
 #include "ScrollAnimator.h"
 #include "ScrollSnapOffsetsInfo.h"
+#include "ScrollbarTheme.h"
 #include "ScrollingCoordinator.h"
 #include "Settings.h"
 #include "StyleResolver.h"
@@ -142,7 +144,7 @@
 
 #define PAGE_ID valueOrDefault(frame().pageID()).toUInt64()
 #define FRAME_ID valueOrDefault(frame().frameID()).toUInt64()
-#define FRAMEVIEW_RELEASE_LOG(channel, fmt, ...) RELEASE_LOG(channel, "%p - [pageID=%" PRIu64 ", frameID=%" PRIu64 ", main=%d] FrameView::" fmt, this, PAGE_ID, FRAME_ID, frame().isMainFrame(), ##__VA_ARGS__)
+#define FRAMEVIEW_RELEASE_LOG(channel, fmt, ...) RELEASE_LOG(channel, "%p - [pageID=%" PRIu64 ", frameID=%" PRIu64 ", isMainFrame=%d] FrameView::" fmt, this, PAGE_ID, FRAME_ID, frame().isMainFrame(), ##__VA_ARGS__)
 
 namespace WebCore {
 
@@ -361,6 +363,7 @@ void FrameView::willBeDestroyed()
 {
     setHasHorizontalScrollbar(false);
     setHasVerticalScrollbar(false);
+    m_scrollCorner = nullptr;
 }
 
 void FrameView::recalculateScrollbarOverlayStyle()
@@ -1003,7 +1006,7 @@ void FrameView::updateScrollingCoordinatorScrollSnapProperties() const
 bool FrameView::flushCompositingStateForThisFrame(const Frame& rootFrameForFlush)
 {
 #if ENABLE(LAYOUT_FORMATTING_CONTEXT)
-    if (RuntimeEnabledFeatures::sharedFeatures().layoutFormattingContextEnabled()) {
+    if (DeprecatedGlobalSettings::layoutFormattingContextEnabled()) {
         if (auto* view = existingDisplayView())
             view->flushLayers();
         return true;
@@ -1182,7 +1185,7 @@ void FrameView::enterCompositingMode()
 bool FrameView::isEnclosedInCompositingLayer() const
 {
     auto frameOwnerRenderer = frame().ownerRenderer();
-    if (frameOwnerRenderer && frameOwnerRenderer->containerForRepaint())
+    if (frameOwnerRenderer && frameOwnerRenderer->containerForRepaint().renderer)
         return true;
 
     if (FrameView* parentView = parentFrameView())
@@ -1265,6 +1268,9 @@ void FrameView::adjustScrollbarsForLayout(bool isFirstLayout)
     ScrollbarMode hMode;
     ScrollbarMode vMode;
     calculateScrollbarModesForLayout(hMode, vMode);
+
+    LOG_WITH_STREAM(Layout, stream << "FrameView " << this << " adjustScrollbarsForLayout - first layout " << isFirstLayout << " horizontal scrollbar mode:" << hMode << " vertical scrollbar mode:" << vMode);
+
     if (isFirstLayout && !layoutContext().isLayoutNested()) {
         setScrollbarsSuppressed(true);
         // Set the initial vMode to AlwaysOn if we're auto.
@@ -1304,7 +1310,7 @@ void FrameView::willDoLayout(WeakPtr<RenderElement> layoutRoot)
     LayoutSize newSize = layoutSize();
     if (oldSize != newSize) {
         m_size = newSize;
-        LOG(Layout, "  layout size changed from %.3fx%.3f to %.3fx%.3f", oldSize.width().toFloat(), oldSize.height().toFloat(),     newSize.width().toFloat(), newSize.height().toFloat());
+        LOG_WITH_STREAM(Layout, stream << "  layout size changed from " << oldSize << " to " << newSize);
         layoutContext().setNeedsFullRepaint();
         if (!firstLayout)
             markRootOrBodyRendererDirty();
@@ -1403,7 +1409,7 @@ void FrameView::adjustMediaTypeForPrinting(bool printing)
     if (printing) {
         if (m_mediaTypeWhenNotPrinting.isNull())
             m_mediaTypeWhenNotPrinting = mediaType();
-        setMediaType("print");
+        setMediaType("print"_s);
     } else {
         if (!m_mediaTypeWhenNotPrinting.isNull())
             setMediaType(m_mediaTypeWhenNotPrinting);
@@ -1484,6 +1490,19 @@ void FrameView::logMockScrollbarsControllerMessage(const String& message) const
 String FrameView::debugDescription() const
 {
     return makeString("FrameView 0x", hex(reinterpret_cast<uintptr_t>(this), Lowercase), ' ', frame().debugDescription());
+}
+
+bool FrameView::canShowNonOverlayScrollbars() const
+{
+    auto hasCustomScrollbarStyle = [&] {
+        auto element = rootElementForCustomScrollbarPartStyle(PseudoId::Scrollbar);
+        if (!element || !is<RenderBox>(element->renderer()))
+            return false;
+
+        return downcast<RenderBox>(*element->renderer()).style().hasPseudoStyle(PseudoId::Scrollbar);
+    }();
+
+    return canHaveScrollbars() && (hasCustomScrollbarStyle || !ScrollbarTheme::theme().usesOverlayScrollbars());
 }
 
 bool FrameView::styleHidesScrollbarWithOrientation(ScrollbarOrientation orientation) const
@@ -1960,7 +1979,7 @@ LayoutRect FrameView::rectForViewportConstrainedObjects(const LayoutRect& visibl
         scaleOrigin.setX(contentRect.x() + sizeDelta.width() > 0 ? contentRect.width() * (viewportRect.x() - contentRect.x()) / sizeDelta.width() : 0);
         scaleOrigin.setY(contentRect.y() + sizeDelta.height() > 0 ? contentRect.height() * (viewportRect.y() - contentRect.y()) / sizeDelta.height() : 0);
         
-        AffineTransform rescaleTransform = AffineTransform::translation(scaleOrigin.x(), scaleOrigin.y());
+        AffineTransform rescaleTransform = AffineTransform::makeTranslation(toFloatSize(scaleOrigin));
         rescaleTransform.scale(frameScaleFactor / maxPostionedObjectsRectScale, frameScaleFactor / maxPostionedObjectsRectScale);
         rescaleTransform = CGAffineTransformTranslate(rescaleTransform, -scaleOrigin.x(), -scaleOrigin.y());
 
@@ -2251,7 +2270,15 @@ bool FrameView::scrollToFragment(const URL& url)
             document->setFragmentDirective(fragmentDirective);
             
             auto parsedTextDirectives = fragmentDirectiveParser.parsedTextDirectives();
-            // FIXME: Scroll to the range specified by the directive.
+            
+            auto highlightRanges = FragmentDirectiveRangeFinder::rangesForFragments(parsedTextDirectives, document);
+            for (auto range : highlightRanges)
+                document->fragmentHighlightRegister().addAnnotationHighlightWithRange(StaticRange::create(range));
+            
+            if (highlightRanges.size()) {
+                TemporarySelectionChange selectionChange(document, { highlightRanges.first() }, { TemporarySelectionOption::DelegateMainFrameScroll, TemporarySelectionOption::SmoothScroll, TemporarySelectionOption::RevealSelectionBounds });
+                // FIXME: add a textIndicator after the scroll has completed.
+            }
             
         } else
             fragmentIdentifier = fragmentDirectiveParser.remainingURLFragment();
@@ -2296,7 +2323,7 @@ bool FrameView::scrollToFragmentInternal(StringView fragmentIdentifier)
             if (!anchorElement)
                 return false;
         }
-    } else if (!anchorElement && !(fragmentIdentifier.isEmpty() || equalLettersIgnoringASCIICase(fragmentIdentifier, "top"))) {
+    } else if (!anchorElement && !(fragmentIdentifier.isEmpty() || equalLettersIgnoringASCIICase(fragmentIdentifier, "top"_s))) {
         // Implement the rule that "" and "top" both mean top of page as in other browsers.
         return false;
     }
@@ -2326,8 +2353,8 @@ void FrameView::maintainScrollPositionAtAnchor(ContainerNode* anchorNode)
     m_maintainScrollPositionAnchor = anchorNode;
     if (!m_maintainScrollPositionAnchor)
         return;
-    m_shouldScrollToFocusedElement = false;
-    m_delayedScrollToFocusedElementTimer.stop();
+
+    cancelScheduledScrollToFocusedElement();
 
     // We need to update the layout before scrolling, otherwise we could
     // really mess things up if an anchor scroll comes at a bad moment.
@@ -2360,8 +2387,8 @@ void FrameView::setScrollPosition(const ScrollPosition& scrollPosition, const Sc
     setCurrentScrollType(options.type);
 
     m_maintainScrollPositionAnchor = nullptr;
-    m_shouldScrollToFocusedElement = false;
-    m_delayedScrollToFocusedElementTimer.stop();
+    cancelScheduledScrollToFocusedElement();
+
     Page* page = frame().page();
     if (page && page->isMonitoringWheelEvents())
         scrollAnimator().setWheelEventTestMonitor(page->wheelEventTestMonitor());
@@ -2409,6 +2436,12 @@ void FrameView::scheduleScrollToFocusedElement(SelectionRevealMode selectionReve
     m_delayedScrollToFocusedElementTimer.startOneShot(0_s);
 }
 
+void FrameView::cancelScheduledScrollToFocusedElement()
+{
+    m_shouldScrollToFocusedElement = false;
+    m_delayedScrollToFocusedElementTimer.stop();
+}
+
 void FrameView::scrollToFocusedElementImmediatelyIfNeeded()
 {
     if (!m_shouldScrollToFocusedElement)
@@ -2432,8 +2465,9 @@ void FrameView::scrollToFocusedElementInternal()
         return;
 
     document->updateLayoutIgnorePendingStylesheets();
-    if (!m_shouldScrollToFocusedElement)
+    if (!m_shouldScrollToFocusedElement || m_delayedScrollToFocusedElementTimer.isActive())
         return; // Updating the layout may have ran scripts.
+
     m_shouldScrollToFocusedElement = false;
 
     RefPtr focusedElement = document->focusedElement();
@@ -2448,7 +2482,7 @@ void FrameView::scrollToFocusedElementInternal()
         return;
 
     bool insideFixed;
-    LayoutRect absoluteBounds = renderer->absoluteAnchorRect(&insideFixed);
+    LayoutRect absoluteBounds = renderer->absoluteAnchorRectWithScrollMargin(&insideFixed);
     renderer->scrollRectToVisible(absoluteBounds, insideFixed, { m_selectionRevealModeForFocusedElement, ScrollAlignment::alignCenterIfNeeded, ScrollAlignment::alignCenterIfNeeded, ShouldAllowCrossOriginScrolling::No });
 }
 
@@ -2578,7 +2612,7 @@ void FrameView::applyRecursivelyWithVisibleRect(const Function<void(FrameView& f
     apply(*this, visibleRect);
 
     // Recursive call for subframes. We cache the current FrameView's windowClipRect to avoid recomputing it for every subframe.
-    SetForScope<IntRect*> windowClipRectCache(m_cachedWindowClipRect, &windowClipRect);
+    SetForScope windowClipRectCache(m_cachedWindowClipRect, &windowClipRect);
     for (Frame* childFrame = frame().tree().firstChild(); childFrame; childFrame = childFrame->tree().nextSibling()) {
         if (auto* childView = childFrame->view())
             childView->applyRecursivelyWithVisibleRect(apply);
@@ -2636,10 +2670,9 @@ void FrameView::updateLayerPositionsAfterScrolling()
         return;
 
     if (!layoutContext().isLayoutNested() && hasViewportConstrainedObjects()) {
-        if (RenderView* renderView = this->renderView()) {
+        if (auto* renderView = this->renderView()) {
             updateWidgetPositions();
-            if (auto* scrollableArea = renderView->layer()->scrollableArea())
-                scrollableArea->updateLayerPositionsAfterDocumentScroll();
+            renderView->layer()->updateLayerPositionsAfterDocumentScroll();
         }
     }
 }
@@ -3278,8 +3311,7 @@ void FrameView::scrollToAnchor()
     if (!anchorNode->renderer())
         return;
 
-    m_shouldScrollToFocusedElement = false;
-    m_delayedScrollToFocusedElementTimer.stop();
+    cancelScheduledScrollToFocusedElement();
 
     LayoutRect rect;
     bool insideFixed = false;
@@ -3303,8 +3335,7 @@ void FrameView::scrollToAnchor()
     // scrollRectToVisible can call into setScrollPosition(), which resets m_maintainScrollPositionAnchor.
     LOG_WITH_STREAM(Scrolling, stream << " restoring anchor node to " << anchorNode.get());
     m_maintainScrollPositionAnchor = anchorNode;
-    m_shouldScrollToFocusedElement = false;
-    m_delayedScrollToFocusedElementTimer.stop();
+    cancelScheduledScrollToFocusedElement();
 }
 
 void FrameView::updateEmbeddedObject(RenderEmbeddedObject& embeddedObject)
@@ -3334,7 +3365,7 @@ void FrameView::updateEmbeddedObject(RenderEmbeddedObject& embeddedObject)
 
 bool FrameView::updateEmbeddedObjects()
 {
-    SetForScope<bool> inUpdateEmbeddedObjects(m_inUpdateEmbeddedObjects, true);
+    SetForScope inUpdateEmbeddedObjects(m_inUpdateEmbeddedObjects, true);
     if (layoutContext().isLayoutNested() || !m_embeddedObjectsToUpdate || m_embeddedObjectsToUpdate->isEmpty())
         return true;
 
@@ -3539,7 +3570,7 @@ void FrameView::autoSizeIfEnabled()
     if (!firstChild)
         return;
 
-    SetForScope<bool> changeInAutoSize(m_inAutoSize, true);
+    SetForScope changeInAutoSize(m_inAutoSize, true);
     if (layoutContext().subtreeLayoutRoot())
         layoutContext().convertSubtreeLayoutToFullLayout();
 
@@ -4118,7 +4149,7 @@ void FrameView::updateScrollCorner()
         }
     }
 
-    if (!cornerStyle)
+    if (!cornerStyle || !renderer)
         m_scrollCorner = nullptr;
     else {
         if (!m_scrollCorner) {
@@ -4312,8 +4343,7 @@ void FrameView::setWasScrolledByUser(bool wasScrolledByUser)
 {
     LOG(Scrolling, "FrameView::setWasScrolledByUser at %d", wasScrolledByUser);
 
-    m_shouldScrollToFocusedElement = false;
-    m_delayedScrollToFocusedElementTimer.stop();
+    cancelScheduledScrollToFocusedElement();
     if (currentScrollType() == ScrollType::Programmatic)
         return;
     m_maintainScrollPositionAnchor = nullptr;
@@ -4845,7 +4875,7 @@ void FrameView::adjustPageHeightDeprecated(float *newBottom, float oldTop, float
 
     }
     // Use a context with painting disabled.
-    NullGraphicsContext context(NullGraphicsContext::PaintInvalidationReasons::None);
+    NullGraphicsContext context;
     renderView->setTruncatedAt(static_cast<int>(floorf(oldBottom)));
     IntRect dirtyRect(0, static_cast<int>(floorf(oldTop)), renderView->layoutOverflowRect().maxX(), static_cast<int>(ceilf(oldBottom - oldTop)));
     renderView->setPrintRect(dirtyRect);
@@ -5306,9 +5336,17 @@ void FrameView::notifyWidgetsInAllFrames(WidgetNotification notification)
     
 AXObjectCache* FrameView::axObjectCache() const
 {
+    AXObjectCache* cache = nullptr;
     if (frame().document())
-        return frame().document()->existingAXObjectCache();
-    return nullptr;
+        cache = frame().document()->existingAXObjectCache();
+
+    // FIXME: We should generally always be using the main-frame cache rather than
+    // using it as a fallback as we do here.
+    if (!cache && !frame().isMainFrame()) {
+        if (auto* mainFrameDocument = frame().mainFrame().document())
+            cache = mainFrameDocument->existingAXObjectCache();
+    }
+    return cache;
 }
 
 #if PLATFORM(IOS_FAMILY)

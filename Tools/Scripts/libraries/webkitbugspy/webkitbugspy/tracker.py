@@ -1,4 +1,4 @@
-# Copyright (C) 2021 Apple Inc. All rights reserved.
+# Copyright (C) 2021-2022 Apple Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -20,17 +20,53 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import json
 import re
 
 from .user import User
 
-from webkitcorepy import decorators
+from webkitcorepy import decorators, string_utils
 
 
 class Tracker(object):
-    REFERENCE_RE = re.compile(r'((https|http|rdar|radar)://[^\s><,\'\"}{\]\[)(]+[^\s><,\'\"}{\]\[)(\.\?])')
+    REFERENCE_RE = re.compile(r'((https|http|rdar|radar)://[^\s><,\'\"}{\]\[)(]*[^\s><,\'\"}{\]\[)(\.\?])')
 
     _trackers = []
+
+    class Encoder(json.JSONEncoder):
+        def default(self, obj):
+            if isinstance(obj, dict):
+                return {key: self.default(value) for key, value in obj.items()}
+            if isinstance(obj, list):
+                return [self.default(value) for value in obj]
+            if not isinstance(obj, Tracker):
+                return super(Tracker.Encoder, self).default(obj)
+            return obj.Encoder.default(obj)
+
+    @classmethod
+    def from_json(cls, data):
+        from . import bugzilla, github, radar
+
+        data = data if isinstance(data, (dict, list, tuple)) else json.loads(data)
+        if isinstance(data, (list, tuple)):
+            return [cls.from_json(datum) for datum in data]
+        if data.get('type') in ('bugzilla', 'github'):
+            return dict(
+                bugzilla=bugzilla.Tracker,
+                github=github.Tracker
+            )[data['type']](
+                url=data.get('url'),
+                res=[re.compile(r) for r in data.get('res', [])],
+                redact=data.get('redact'),
+            )
+        if data.get('type') == 'radar':
+            return radar.Tracker(
+                project=data.get('project', None),
+                projects=data.get('projects', []),
+                redact=data.get('redact'),
+            )
+        raise TypeError("'{}' is not a recognized tracker type".format(data.get('type')))
+
 
     @classmethod
     def register(cls, tracker):
@@ -45,8 +81,18 @@ class Tracker(object):
             return cls._trackers[0]
         return None
 
-    def __init__(self, users=None):
+    def __init__(self, users=None, redact=None):
         self.users = users or User.Mapping()
+        if redact is None:
+            self._redact = {re.compile('.*'): False}
+        elif isinstance(redact, dict):
+            self._redact = {}
+            for key, value in redact.items():
+                if not isinstance(key, string_utils.basestring):
+                    raise ValueError("'{}' is not a string, only strings allowed in redaction mapping".format(key))
+                self._redact[re.compile(key)] = bool(value)
+        else:
+            raise ValueError("Expected redaction mapping to be of type dict, got '{}'".format(type(redact)))
 
     @decorators.hybridmethod
     def from_string(context, string):
@@ -66,8 +112,25 @@ class Tracker(object):
                 return self.users.get(key)
         return None
 
+    @decorators.Memoize()
+    def me(self):
+        raise NotImplementedError()
+
     def issue(self, id):
         raise NotImplementedError()
 
     def populate(self, issue, member=None):
+        raise NotImplementedError()
+
+    def set(self, issue, **properties):
+        raise NotImplementedError()
+
+    def add_comment(self, issue, text):
+        raise NotImplementedError()
+
+    @property
+    def projects(self):
+        raise NotImplementedError()
+
+    def create(self, title, description, **kwargs):
         raise NotImplementedError()

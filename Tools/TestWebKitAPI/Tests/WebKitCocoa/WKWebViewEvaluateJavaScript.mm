@@ -386,7 +386,7 @@ TEST(WebKit, AllowsContentJavaScript)
     TestWebKitAPI::Util::run(&done);
 
     TestWebKitAPI::HTTPServer server({
-        { "/script", { "var foo = 'bar'" } }
+        { "/script"_s, { "var foo = 'bar'"_s } }
     });
     preferences.get().allowsContentJavaScript = YES;
     [webView synchronouslyLoadHTMLString:[NSString stringWithFormat:@"<script src='http://127.0.0.1:%d/script'></script>", server.port()] preferences:preferences.get()];

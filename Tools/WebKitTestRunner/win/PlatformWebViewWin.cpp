@@ -85,6 +85,7 @@ PlatformWebView::PlatformWebView(WKPageConfigurationRef configuration, const Tes
     RECT viewRect = { };
     m_view = WKViewCreate(viewRect, configuration, m_window);
     WKViewSetIsInWindow(m_view, true);
+    WKViewSetUsesOffscreenRendering(m_view, true);
 
     ShowWindow(m_window, SW_SHOW);
 }
@@ -275,6 +276,11 @@ void PlatformWebView::setDrawsBackground(bool)
 
 void PlatformWebView::setEditable(bool)
 {
+}
+
+bool PlatformWebView::isSecureEventInputEnabled() const
+{
+    return false;
 }
 
 } // namespace WTR

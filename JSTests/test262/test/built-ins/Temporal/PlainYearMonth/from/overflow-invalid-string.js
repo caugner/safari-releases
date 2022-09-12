@@ -27,6 +27,14 @@ const validValues = [
   { year: 2000, month: 5 },
   "2000-05",
 ];
-validValues.forEach((value) => {
-  assert.throws(RangeError, () => Temporal.PlainYearMonth.from(value, { overflow: "other string" }));
-});
+
+const badOverflows = ["", "CONSTRAIN", "balance", "other string", "constra\u0131n", "reject\0"];
+for (const value of validValues) {
+  for (const overflow of badOverflows) {
+    assert.throws(
+      RangeError,
+      () => Temporal.PlainYearMonth.from(value, { overflow }),
+      `invalid overflow ("${overflow}")`
+    );
+  }
+}

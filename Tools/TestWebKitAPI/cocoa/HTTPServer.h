@@ -59,7 +59,7 @@ struct Task {
     struct promise_type {
         Task get_return_object() { return { std::experimental::coroutine_handle<promise_type>::from_promise(*this) }; }
         std::experimental::suspend_never initial_suspend() { return { }; }
-        std::experimental::suspend_never final_suspend() noexcept { return { }; }
+        std::experimental::suspend_always final_suspend() noexcept { return { }; }
         void unhandled_exception() { }
         void return_void() { }
     };
@@ -82,12 +82,15 @@ public:
     HTTPServer(UseCoroutines, Function<Task(Connection)>&&, Protocol = Protocol::Http);
     ~HTTPServer();
     uint16_t port() const;
-    NSURLRequest *request(const String& path = "/"_str) const;
-    NSURLRequest *requestWithLocalhost(const String& path = "/"_str) const;
+    String origin() const;
+    NSURLRequest *request(StringView path = "/"_s) const;
+    NSURLRequest *requestWithLocalhost(StringView path = "/"_s) const;
     size_t totalRequests() const;
     void cancel();
+    void terminateAllConnections(CompletionHandler<void()>&&);
 
     void addResponse(String&& path, HTTPResponse&&);
+    void setResponse(String&& path, HTTPResponse&&);
 
     static void respondWithOK(Connection);
     static void respondWithChallengeThenOK(Connection);
@@ -129,7 +132,7 @@ private:
     RetainPtr<nw_connection_t> m_connection;
 };
 
-class ReceiveOperation : public std::experimental::suspend_never {
+class ReceiveOperation {
 public:
     ReceiveOperation(const Connection& connection)
         : m_connection(connection) { }
@@ -141,13 +144,14 @@ private:
     Vector<char> m_result;
 };
 
-class SendOperation : public std::experimental::suspend_never {
+class SendOperation {
 public:
     SendOperation(RetainPtr<dispatch_data_t>&& data, const Connection& connection)
         : m_data(WTFMove(data))
         , m_connection(connection) { }
     bool await_ready() { return false; }
     void await_suspend(std::experimental::coroutine_handle<>);
+    void await_resume() { }
 private:
     RetainPtr<dispatch_data_t> m_data;
     Connection m_connection;

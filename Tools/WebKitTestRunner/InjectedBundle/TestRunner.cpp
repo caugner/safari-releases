@@ -26,6 +26,7 @@
 #include "config.h"
 #include "TestRunner.h"
 
+#include "ActivateFonts.h"
 #include "DictionaryFunctions.h"
 #include "InjectedBundle.h"
 #include "InjectedBundlePage.h"
@@ -373,7 +374,6 @@ void TestRunner::replaceFindMatchesAtIndices(JSValueRef matchIndicesAsValue, JSS
 
 void TestRunner::clearAllDatabases()
 {
-    WKBundleClearAllDatabases(InjectedBundle::singleton().bundle());
     postSynchronousMessage("DeleteAllIndexedDatabases", true);
 }
 
@@ -866,11 +866,18 @@ void TestRunner::setAsynchronousSpellCheckingEnabled(bool enabled)
 void TestRunner::grantWebNotificationPermission(JSStringRef origin)
 {
     WKBundleSetWebNotificationPermission(InjectedBundle::singleton().bundle(), page(), toWK(origin).get(), true);
+    postSynchronousPageMessageWithReturnValue("GrantNotificationPermission", toWK(origin));
 }
 
 void TestRunner::denyWebNotificationPermission(JSStringRef origin)
 {
     WKBundleSetWebNotificationPermission(InjectedBundle::singleton().bundle(), page(), toWK(origin).get(), false);
+    postSynchronousPageMessageWithReturnValue("DenyNotificationPermission", toWK(origin));
+}
+
+void TestRunner::denyWebNotificationPermissionOnPrompt(JSStringRef origin)
+{
+    postSynchronousPageMessageWithReturnValue("DenyNotificationPermissionOnPrompt", toWK(origin));
 }
 
 void TestRunner::removeAllWebNotificationPermissions()
@@ -884,6 +891,11 @@ void TestRunner::simulateWebNotificationClick(JSValueRef notification)
 
     auto notificationID = adoptWK(WKBundleCopyWebNotificationID(injectedBundle.bundle(), mainFrameJSContext(), notification));
     injectedBundle.postSimulateWebNotificationClick(notificationID.get());
+}
+
+void TestRunner::simulateWebNotificationClickForServiceWorkerNotifications()
+{
+    InjectedBundle::singleton().postSimulateWebNotificationClickForServiceWorkerNotifications();
 }
 
 void TestRunner::setGeolocationPermission(bool enabled)
@@ -1150,15 +1162,6 @@ void TestRunner::setAllowedMenuActions(JSValueRef actions)
         WKArrayAppendItem(messageBody.get(), toWKString(context, value).get());
     }
     postPageMessage("SetAllowedMenuActions", messageBody);
-}
-
-void TestRunner::installCustomMenuAction(JSStringRef name, bool dismissesAutomatically, JSValueRef callback)
-{
-    cacheTestRunnerCallback(CustomMenuActionCallbackID, callback);
-    postPageMessage("InstallCustomMenuAction", createWKDictionary({
-        { "name", toWK(name) },
-        { "dismissesAutomatically", adoptWK(WKBooleanCreate(dismissesAutomatically)).get() },
-    }));
 }
 
 void TestRunner::installDidBeginSwipeCallback(JSValueRef callback)
@@ -1988,9 +1991,9 @@ void TestRunner::didGetApplicationManifest()
     callTestRunnerCallback(GetApplicationManifestCallbackID);
 }
 
-void TestRunner::performCustomMenuAction()
+void TestRunner::installFakeHelvetica(JSStringRef configuration)
 {
-    callTestRunnerCallback(CustomMenuActionCallbackID);
+    WTR::installFakeHelvetica(toWK(configuration).get());
 }
 
 size_t TestRunner::userScriptInjectedCount() const

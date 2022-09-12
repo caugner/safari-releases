@@ -1,4 +1,4 @@
-//@ skip if $architecture != "arm64" and $architecture != "x86-64"
+//@ defaultNoNoLLIntRun if $architecture == "mips" || $architecture == "arm"
 /*
  * Copyright jQuery Foundation and other contributors, https://jquery.org/
  *

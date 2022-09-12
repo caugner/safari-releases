@@ -1,4 +1,4 @@
-# Copyright (C) 2019 Apple Inc. All rights reserved.
+# Copyright (C) 2019-2022 Apple Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -31,7 +31,6 @@ from django.views.decorators.clickjacking import xframe_options_exempt
 
 from ews.common.buildbot import Buildbot
 from ews.models.build import Build
-from ews.models.patch import Patch
 from ews.views.statusbubble import StatusBubble
 
 _log = logging.getLogger(__name__)
@@ -45,7 +44,6 @@ class RetryPatch(View):
     def post(self, request):
         try:
             patch_id = request.POST.get('patch_id')
-            patch_id = int(patch_id)
         except (ValueError, TypeError) as e:
             return HttpResponse('Invalid patch id')
 

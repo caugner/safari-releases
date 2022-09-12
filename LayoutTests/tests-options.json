@@ -1613,6 +1613,9 @@
     "imported/w3c/web-platform-tests/css/css-transitions/transitioncancel-001.html": [
         "slow"
     ],
+    "imported/w3c/web-platform-tests/css/css-values/vh_not_refreshing_on_chrome.html": [
+        "slow"
+    ],
     "imported/w3c/web-platform-tests/css/cssom-view/scroll-behavior-default-css.html": [
         "slow"
     ],
@@ -2405,7 +2408,22 @@
     "imported/w3c/web-platform-tests/geolocation-API/getCurrentPosition_IDL.https.html": [
         "slow"
     ],
+    "imported/w3c/web-platform-tests/html/browsers/browsing-the-web/back-forward-cache/eligibility/inflight-fetch-cors.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/browsers/browsing-the-web/back-forward-cache/eligibility/inflight-fetch-redirects.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/browsers/browsing-the-web/back-forward-cache/eligibility/inflight-fetch.html": [
+        "slow"
+    ],
     "imported/w3c/web-platform-tests/html/browsers/browsing-the-web/back-forward-cache/events.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/browsers/browsing-the-web/back-forward-cache/focus.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/browsers/browsing-the-web/back-forward-cache/timers.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/html/browsers/browsing-the-web/history-traversal/persisted-user-state-restoration/resume-timer-on-history-back.html": [
@@ -2471,6 +2489,9 @@
     "imported/w3c/web-platform-tests/html/browsers/the-window-object/apis-for-creating-and-navigating-browsing-contexts-by-name/creating_browsing_context_test_01.html": [
         "slow"
     ],
+    "imported/w3c/web-platform-tests/html/browsers/the-window-object/apis-for-creating-and-navigating-browsing-contexts-by-name/open-features-is-popup-condition.html": [
+        "slow"
+    ],
     "imported/w3c/web-platform-tests/html/browsers/the-window-object/apis-for-creating-and-navigating-browsing-contexts-by-name/open-features-negative-innerwidth-innerheight.html": [
         "slow"
     ],
@@ -2526,6 +2547,12 @@
         "slow"
     ],
     "imported/w3c/web-platform-tests/html/browsers/the-window-object/window-open-noopener.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/browsers/the-window-object/window-open-popup-behavior.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/browsers/the-window-object/window-open-windowfeatures-values.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/html/browsers/windows/auxiliary-browsing-contexts/opener-setter.html": [
@@ -2894,6 +2921,18 @@
     "imported/w3c/web-platform-tests/html/cross-origin-opener-policy/reporting/access-reporting/reporting-observer.html": [
         "slow"
     ],
+    "imported/w3c/web-platform-tests/html/cross-origin-opener-policy/reporting/document-reporting/report-only-four-reports.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/cross-origin-opener-policy/reporting/document-reporting/report-to-both_coop-ro.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/cross-origin-opener-policy/reporting/document-reporting/reporting-redirect-with-same-origin-allow-popups.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/cross-origin-opener-policy/reporting/document-reporting/reporting-redirect-with-unsafe-none.https.html": [
+        "slow"
+    ],
     "imported/w3c/web-platform-tests/html/cross-origin-opener-policy/reporting/navigation-reporting/report-only-four-reports.https.html": [
         "slow"
     ],
@@ -3113,6 +3152,9 @@
     "imported/w3c/web-platform-tests/html/semantics/embedded-content/the-object-element/object-events.html": [
         "slow"
     ],
+    "imported/w3c/web-platform-tests/html/semantics/forms/beforeinput.tentative.html": [
+        "slow"
+    ],
     "imported/w3c/web-platform-tests/html/semantics/forms/form-submission-0/submit-entity-body.html": [
         "slow"
     ],
@@ -3120,6 +3162,15 @@
         "slow"
     ],
     "imported/w3c/web-platform-tests/html/semantics/forms/textfieldselection/selection.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/semantics/forms/the-input-element/selection-pointer.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/semantics/forms/the-input-element/show-picker-user-gesture.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/semantics/forms/the-input-element/show-picker.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/html/semantics/links/links-created-by-a-and-area-elements/target_blank_implicit_noopener.html": [
@@ -4007,10 +4058,16 @@
     "imported/w3c/web-platform-tests/service-workers/service-worker/local-url-inherit-controller.https.html": [
         "slow"
     ],
+    "imported/w3c/web-platform-tests/service-workers/service-worker/navigation-headers.https.html": [
+        "slow"
+    ],
     "imported/w3c/web-platform-tests/service-workers/service-worker/navigation-preload/samesite-cookies.https.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/service-workers/service-worker/navigation-redirect.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/service-workers/service-worker/navigation-sets-cookie.https.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/service-workers/service-worker/referrer-toplevel-script-fetch.https.html": [
@@ -4026,6 +4083,9 @@
         "slow"
     ],
     "imported/w3c/web-platform-tests/service-workers/service-worker/registration-updateviacache.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/service-workers/service-worker/same-site-cookies.https.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/service-workers/service-worker/sandboxed-iframe-fetch-event.https.html": [
@@ -4058,6 +4118,9 @@
     "imported/w3c/web-platform-tests/service-workers/service-worker/windowclient-navigate.https.html": [
         "slow"
     ],
+    "imported/w3c/web-platform-tests/service-workers/service-worker/worker-interception-redirect.https.html": [
+        "slow"
+    ],
     "imported/w3c/web-platform-tests/service-workers/service-worker/worker-interception.https.html": [
         "slow"
     ],
@@ -4074,6 +4137,21 @@
         "slow"
     ],
     "imported/w3c/web-platform-tests/web-animations/timing-model/timelines/update-and-send-events.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/web-locks/bfcache/abort.tentative.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/web-locks/bfcache/held.tentative.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/web-locks/bfcache/release-across-thread.tentative.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/web-locks/bfcache/release.tentative.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/web-locks/bfcache/sharedworker-multiple.tentative.https.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/webaudio/the-audio-api/the-analysernode-interface/test-analyser-minimum.html": [

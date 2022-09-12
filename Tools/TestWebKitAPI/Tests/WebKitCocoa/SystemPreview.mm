@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 Apple Inc. All rights reserved.
+ * Copyright (C) 2019-2022 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -33,23 +33,24 @@
 #import <WebKit/WKViewPrivate.h>
 #import <WebKit/WKWebViewPrivateForTesting.h>
 #import <WebKit/WebKit.h>
+#import <wtf/text/WTFString.h>
 
 static bool hasTriggerInfo;
 static bool wasTriggered;
 static uint64_t elementID;
-static uint64_t documentID;
 static uint64_t pageID;
 
 @interface TestSystemPreviewTriggeredHandler : NSObject <WKScriptMessageHandler>
 @end
 
 @implementation TestSystemPreviewTriggeredHandler
+String documentID;
 
 - (void)userContentController:(WKUserContentController *)userContentController didReceiveScriptMessage:(WKScriptMessage *)message
 {
     if ([message.body[@"message"] isEqualToString:@"loaded"]) {
         elementID = [message.body[@"elementID"] unsignedIntValue];
-        documentID = [message.body[@"documentID"] unsignedIntValue];
+        documentID = message.body[@"documentID"];
         pageID = [message.body[@"pageID"] unsignedIntValue];
         hasTriggerInfo = true;
     } else if ([message.body[@"message"] isEqualToString:@"triggered"]) {
