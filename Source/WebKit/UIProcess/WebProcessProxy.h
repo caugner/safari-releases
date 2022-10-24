@@ -167,7 +167,7 @@ public:
     void enableRemoteWorkers(RemoteWorkerType, const UserContentControllerIdentifier&);
     void disableRemoteWorkers(RemoteWorkerType);
 
-    WebsiteDataStore* websiteDataStore() const;
+    WebsiteDataStore* websiteDataStore() const { ASSERT(m_websiteDataStore); return m_websiteDataStore.get(); }
     void setWebsiteDataStore(WebsiteDataStore&);
     
     PAL::SessionID sessionID() const;
@@ -222,6 +222,9 @@ public:
     size_t frameCountInPage(WebPageProxy*) const; // Including main frame.
 
     VisibleWebPageToken visiblePageToken() const;
+
+    void addPreviouslyApprovedFileURL(const URL&);
+    bool wasPreviouslyApprovedFileURL(const URL&) const;
 
     void updateTextCheckerState();
 
@@ -587,6 +590,7 @@ private:
 
     bool m_mayHaveUniversalFileReadSandboxExtension; // True if a read extension for "/" was ever granted - we don't track whether WebProcess still has it.
     HashSet<String> m_localPathsWithAssumedReadAccess;
+    HashSet<String> m_previouslyApprovedFilePaths;
 
     WebPageProxyMap m_pageMap;
     WebFrameProxyMap m_frameMap;
@@ -619,7 +623,7 @@ private:
     Vector<CompletionHandler<void(bool webProcessIsResponsive)>> m_isResponsiveCallbacks;
 
     VisibleWebPageCounter m_visiblePageCounter;
-    std::optional<PAL::SessionID> m_sessionID;
+    RefPtr<WebsiteDataStore> m_websiteDataStore;
 
     bool m_isUnderMemoryPressure { false };
 

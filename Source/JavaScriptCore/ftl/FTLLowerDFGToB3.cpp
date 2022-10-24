@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2021 Apple Inc. All rights reserved.
+ * Copyright (C) 2013-2022 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -12340,6 +12340,7 @@ IGNORE_CLANG_WARNINGS_END
     void compileGetMapBucket()
     {
         JSGlobalObject* globalObject = m_graph.globalObjectFor(m_origin.semantic);
+        LBasicBlock indexSetUp = m_out.newBlock();
         LBasicBlock loopStart = m_out.newBlock();
         LBasicBlock loopAround = m_out.newBlock();
         LBasicBlock slowPath = m_out.newBlock();
@@ -12347,8 +12348,6 @@ IGNORE_CLANG_WARNINGS_END
         LBasicBlock notEmptyValue = m_out.newBlock();
         LBasicBlock notDeletedValue = m_out.newBlock();
         LBasicBlock continuation = m_out.newBlock();
-
-        LBasicBlock lastNext = m_out.insertNewBlocksBefore(loopStart);
 
         LValue map;
         if (m_node->child1().useKind() == MapObjectUse)
@@ -12365,8 +12364,11 @@ IGNORE_CLANG_WARNINGS_END
         LValue hash = lowInt32(m_node->child3());
 
         LValue buffer = m_out.loadPtr(map, m_heaps.HashMapImpl_buffer);
-        LValue mask = m_out.sub(m_out.load32(map, m_heaps.HashMapImpl_capacity), m_out.int32One);
 
+        m_out.branch(m_out.isNull(buffer), unsure(notPresentInTable), unsure(indexSetUp));
+
+        LBasicBlock lastNext = m_out.appendTo(indexSetUp, loopStart);
+        LValue mask = m_out.sub(m_out.load32(map, m_heaps.HashMapImpl_capacity), m_out.int32One);
         ValueFromBlock indexStart = m_out.anchor(hash);
         m_out.jump(loopStart);
 
@@ -14614,6 +14616,35 @@ IGNORE_CLANG_WARNINGS_END
     void compileStringReplace()
     {
         JSGlobalObject* globalObject = m_graph.globalObjectFor(m_origin.semantic);
+        if (m_node->op() == StringReplace
+            && m_node->child1().useKind() == StringUse
+            && m_node->child2().useKind() == StringUse
+            && m_node->child3().useKind() == StringUse) {
+            String replacement = m_node->child3()->tryGetString(m_graph);
+            if (!!replacement) {
+                if (!replacement.length()) {
+                    LValue string = lowString(m_node->child1());
+                    LValue search = lowString(m_node->child2());
+                    setJSValue(vmCall(pointerType(), operationStringReplaceStringEmptyString, weakPointer(globalObject), string, search));
+                    return;
+                }
+
+                if (replacement.find('$') == notFound) {
+                    LValue string = lowString(m_node->child1());
+                    LValue search = lowString(m_node->child2());
+                    LValue replace = lowString(m_node->child3());
+                    setJSValue(vmCall(pointerType(), operationStringReplaceStringStringWithoutSubstitution, weakPointer(globalObject), string, search, replace));
+                    return;
+                }
+            }
+
+            LValue string = lowString(m_node->child1());
+            LValue search = lowString(m_node->child2());
+            LValue replace = lowString(m_node->child3());
+            setJSValue(vmCall(pointerType(), operationStringReplaceStringString, weakPointer(globalObject), string, search, replace));
+            return;
+        }
+
         if (m_node->child1().useKind() == StringUse
             && m_node->child2().useKind() == RegExpObjectUse
             && m_node->child3().useKind() == StringUse) {
@@ -15726,7 +15757,7 @@ IGNORE_CLANG_WARNINGS_END
         LValue result;
         // FIXME: Revisit JSGlobalObject.
         // https://bugs.webkit.org/show_bug.cgi?id=203204
-        auto function = CFunctionPtr(signature->functionWithoutTypeCheck);
+        auto function = signature->functionWithoutTypeCheck();
         switch (argumentCountIncludingThis) {
         case 1:
             result = vmCall(Int64, reinterpret_cast<J_JITOperation_GP>(function.get()), weakPointer(globalObject), operands[0]);
@@ -15760,7 +15791,7 @@ IGNORE_CLANG_WARNINGS_END
                     vmCall(Int64, vmEntryCustomGetter, weakPointer(globalObject), lowCell(m_node->child1()), m_out.constIntPtr(m_graph.identifiers()[m_node->callDOMGetterData()->identifierNumber]), m_out.constIntPtr(m_node->callDOMGetterData()->customAccessorGetter.executableAddress())));
             } else {
                 FunctionPtr<CustomAccessorPtrTag> getter = m_node->callDOMGetterData()->customAccessorGetter;
-                FunctionPtr<OperationPtrTag> bypassedFunction = FunctionPtr<OperationPtrTag>(MacroAssemblerCodePtr<OperationPtrTag>(WTF::tagNativeCodePtrImpl<OperationPtrTag>(WTF::untagNativeCodePtrImpl<CustomAccessorPtrTag>(getter.executableAddress()))));
+                FunctionPtr<OperationPtrTag> bypassedFunction = MacroAssemblerCodePtr<OperationPtrTag>(WTF::tagNativeCodePtrImpl<OperationPtrTag>(WTF::untagNativeCodePtrImpl<CustomAccessorPtrTag>(getter.executableAddress()))).toFunctionPtr();
                 setJSValue(vmCall(Int64, bypassedFunction, weakPointer(globalObject), lowCell(m_node->child1()), m_out.constIntPtr(m_graph.identifiers()[m_node->callDOMGetterData()->identifierNumber])));
             }
             return;

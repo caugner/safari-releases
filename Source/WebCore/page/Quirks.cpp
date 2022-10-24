@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2020 Apple Inc. All rights reserved.
+ * Copyright (C) 2018-2022 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -240,7 +240,50 @@ bool Quirks::shouldDisableResolutionMediaQuery() const
     if (!needsQuirks())
         return false;
     auto host = m_document->url().host();
-    return equalLettersIgnoringASCIICase(host, "www.hotels.com"_s);
+
+    if (equalLettersIgnoringASCIICase(host, "www.carrentals.com"_s))
+        return true;
+
+    if (equalLettersIgnoringASCIICase(host, "www.cheaptickets.com"_s))
+        return true;
+
+    if (topPrivatelyControlledDomain(host.toString()).startsWith("ebookers."_s))
+        return true;
+
+    if (topPrivatelyControlledDomain(host.toString()).startsWith("expedia."_s))
+        return true;
+
+    if (host.endsWithIgnoringASCIICase(".hoteis.com"_s))
+        return true;
+
+    if (host.endsWithIgnoringASCIICase(".hoteles.com"_s))
+        return true;
+
+    if (equalLettersIgnoringASCIICase(host, "www.hotels.cn"_s))
+        return true;
+
+    if (host.endsWithIgnoringASCIICase(".hotels.com"_s))
+        return true;
+
+    if (equalLettersIgnoringASCIICase(host, "www.mrjet.se"_s))
+        return true;
+
+    if (equalLettersIgnoringASCIICase(host, "www.orbitz.com"_s))
+        return true;
+
+    if (equalLettersIgnoringASCIICase(host, "www.travelocity.ca"_s))
+        return true;
+
+    if (equalLettersIgnoringASCIICase(host, "www.travelocity.com"_s))
+        return true;
+
+    if (equalLettersIgnoringASCIICase(host, "www.wotif.com"_s))
+        return true;
+
+    if (equalLettersIgnoringASCIICase(host, "www.wotif.co.nz"_s))
+        return true;
+
+    return false;
 }
 
 bool Quirks::needsMillisecondResolutionForHighResTimeStamp() const
@@ -1493,5 +1536,50 @@ bool Quirks::allowLayeredFullscreenVideos() const
     return *m_allowLayeredFullscreenVideos;
 }
 #endif
+
+bool Quirks::shouldEnableApplicationCacheQuirk() const
+{
+    bool shouldEnableBySetting = m_document && m_document->settings().offlineWebApplicationCacheEnabled();
+#if PLATFORM(IOS_FAMILY)
+    if (!needsQuirks())
+        return shouldEnableBySetting;
+
+    if (!m_shouldEnableApplicationCacheQuirk) {
+        auto domain = m_document->securityOrigin().domain().convertToASCIILowercase();
+        if (domain.endsWith("mail.google.com"_s))
+            m_shouldEnableApplicationCacheQuirk = true;
+        else
+            m_shouldEnableApplicationCacheQuirk = shouldEnableBySetting;
+    }
+
+    return m_shouldEnableApplicationCacheQuirk.value();
+#else
+    return shouldEnableBySetting;
+#endif
+}
+
+bool Quirks::hasBrokenPermissionsAPISupportQuirk() const
+{
+    if (!needsQuirks())
+        return false;
+
+    if (!m_hasBrokenPermissionsAPISupportQuirk) {
+        auto domain = m_document->securityOrigin().domain().convertToASCIILowercase();
+        m_hasBrokenPermissionsAPISupportQuirk = domain.endsWith(".nfl.com"_s);
+    }
+
+    return m_hasBrokenPermissionsAPISupportQuirk.value();
+}
+
+bool Quirks::shouldEnableFontLoadingAPIQuirk() const
+{
+    if (!needsQuirks() || m_document->settings().downloadableBinaryFontsEnabled())
+        return false;
+
+    if (!m_shouldEnableFontLoadingAPIQuirk)
+        m_shouldEnableFontLoadingAPIQuirk = equalLettersIgnoringASCIICase(m_document->url().host(), "play.hbomax.com"_s);
+
+    return m_shouldEnableFontLoadingAPIQuirk.value();
+}
 
 }

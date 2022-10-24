@@ -39,6 +39,10 @@
 #import <wtf/Vector.h>
 #import <wtf/cocoa/VectorCocoa.h>
 
+#if HAVE(ACCESSIBILITY_FRAMEWORK)
+#import <Accessibility/Accessibility.h>
+#endif
+
 typedef void (*AXPostedNotificationCallback)(id element, NSString* notification, void* context);
 
 @interface NSObject (UIAccessibilityHidden)
@@ -71,6 +75,7 @@ typedef void (*AXPostedNotificationCallback)(id element, NSString* notification,
 - (CGFloat)_accessibilityMaxValue;
 - (void)_accessibilitySetValue:(NSString *)value;
 - (void)_accessibilitySetFocus:(BOOL)focus;
+- (BOOL)_accessibilityIsFocusedForTesting;
 - (void)_accessibilityActivate;
 - (UIAccessibilityTraits)_axSelectedTrait;
 - (UIAccessibilityTraits)_axTextAreaTrait;
@@ -117,6 +122,10 @@ typedef void (*AXPostedNotificationCallback)(id element, NSString* notification,
 - (NSArray *)accessibilityImageOverlayElements;
 - (NSRange)accessibilityVisibleCharacterRange;
 - (NSString *)_accessibilityWebRoleAsString;
+- (BOOL)accessibilityIsDeletion;
+- (BOOL)accessibilityIsInsertion;
+- (BOOL)accessibilityIsFirstItemInSuggestion;
+- (BOOL)accessibilityIsLastItemInSuggestion;
 
 // TextMarker related
 - (NSArray *)textMarkerRange;
@@ -237,8 +246,10 @@ JSValueRef AccessibilityUIElement::children() const
 void AccessibilityUIElement::getChildren(Vector<RefPtr<AccessibilityUIElement> >& elementVector)
 {
     NSInteger childCount = [m_element accessibilityElementCount];
-    for (NSInteger k = 0; k < childCount; ++k)
-        elementVector.append(AccessibilityUIElement::create([m_element accessibilityElementAtIndex:k]));
+    for (NSInteger k = 0; k < childCount; ++k) {
+        if (id child = [m_element accessibilityElementAtIndex:k])
+            elementVector.append(AccessibilityUIElement::create(child));
+    }
 }
 
 void AccessibilityUIElement::getChildrenWithRange(Vector<RefPtr<AccessibilityUIElement> >& elementVector, unsigned location, unsigned length)
@@ -481,6 +492,18 @@ RefPtr<AccessibilityUIElement> AccessibilityUIElement::uiElementAttributeValue(J
     return nullptr;
 }
 
+JSRetainPtr<JSStringRef> AccessibilityUIElement::customContent() const
+{
+#if HAVE(ACCESSIBILITY_FRAMEWORK)
+    auto customContent = adoptNS([[NSMutableArray alloc] init]);
+    for (AXCustomContent *content in [m_element accessibilityCustomContent])
+        [customContent addObject:[NSString stringWithFormat:@"%@: %@", content.label, content.value]];
+    return [[customContent.get() componentsJoinedByString:@"\n"] createJSStringRef];
+#else
+    return nullptr;
+#endif
+}
+
 bool AccessibilityUIElement::boolAttributeValue(JSStringRef attribute)
 {
     if (JSStringIsEqualToUTF8CString(attribute, "AXHasTouchEventListener"))
@@ -674,7 +697,7 @@ RefPtr<AccessibilityUIElement> AccessibilityUIElement::focusedElement() const
 
 bool AccessibilityUIElement::isFocused() const
 {
-    return false;
+    return [m_element _accessibilityIsFocusedForTesting];
 }
 
 bool AccessibilityUIElement::isSelected() const
@@ -1480,5 +1503,24 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::supportedActions() const
     return nullptr;
 }
 
-} // namespace WTR
+bool AccessibilityUIElement::isInsertion() const
+{
+    return [m_element accessibilityIsInsertion];
+}
 
+bool AccessibilityUIElement::isDeletion() const
+{
+    return [m_element accessibilityIsDeletion];
+}
+
+bool AccessibilityUIElement::isFirstItemInSuggestion() const
+{
+    return [m_element accessibilityIsFirstItemInSuggestion];
+}
+
+bool AccessibilityUIElement::isLastItemInSuggestion() const
+{
+    return [m_element accessibilityIsLastItemInSuggestion];
+}
+
+} // namespace WTR

@@ -292,6 +292,8 @@ void WebsiteDataStore::resolveDirectoriesIfNecessary()
         m_resolvedConfiguration->setIndexedDBDatabaseDirectory(resolveAndCreateReadWriteDirectoryForSandboxExtension(m_configuration->indexedDBDatabaseDirectory()));
     if (!m_configuration->alternativeServicesDirectory().isEmpty())
         m_resolvedConfiguration->setAlternativeServicesDirectory(resolveAndCreateReadWriteDirectoryForSandboxExtension(m_configuration->alternativeServicesDirectory()));
+    if (!m_configuration->localStorageDirectory().isEmpty())
+        m_resolvedConfiguration->setLocalStorageDirectory(resolveAndCreateReadWriteDirectoryForSandboxExtension(m_configuration->localStorageDirectory()));
     if (!m_configuration->deviceIdHashSaltsStorageDirectory().isEmpty())
         m_resolvedConfiguration->setDeviceIdHashSaltsStorageDirectory(resolveAndCreateReadWriteDirectoryForSandboxExtension(m_configuration->deviceIdHashSaltsStorageDirectory()));
     if (!m_configuration->networkCacheDirectory().isEmpty())
@@ -300,13 +302,13 @@ void WebsiteDataStore::resolveDirectoriesIfNecessary()
         m_resolvedConfiguration->setResourceLoadStatisticsDirectory(resolveAndCreateReadWriteDirectoryForSandboxExtension(m_configuration->resourceLoadStatisticsDirectory()));
     if (!m_configuration->privateClickMeasurementStorageDirectory().isEmpty())
         m_resolvedConfiguration->setPrivateClickMeasurementStorageDirectory(resolveAndCreateReadWriteDirectoryForSandboxExtension(m_configuration->privateClickMeasurementStorageDirectory()));
-    if (!m_configuration->serviceWorkerRegistrationDirectory().isEmpty() && m_resolvedConfiguration->serviceWorkerRegistrationDirectory().isEmpty())
+    if (!m_configuration->serviceWorkerRegistrationDirectory().isEmpty())
         m_resolvedConfiguration->setServiceWorkerRegistrationDirectory(resolveAndCreateReadWriteDirectoryForSandboxExtension(m_configuration->serviceWorkerRegistrationDirectory()));
     if (!m_configuration->javaScriptConfigurationDirectory().isEmpty())
         m_resolvedConfiguration->setJavaScriptConfigurationDirectory(resolvePathForSandboxExtension(m_configuration->javaScriptConfigurationDirectory()));
-    if (!m_configuration->cacheStorageDirectory().isEmpty() && m_resolvedConfiguration->cacheStorageDirectory().isEmpty())
+    if (!m_configuration->cacheStorageDirectory().isEmpty())
         m_resolvedConfiguration->setCacheStorageDirectory(resolvePathForSandboxExtension(m_configuration->cacheStorageDirectory()));
-    if (!m_configuration->hstsStorageDirectory().isEmpty() && m_resolvedConfiguration->hstsStorageDirectory().isEmpty())
+    if (!m_configuration->hstsStorageDirectory().isEmpty())
         m_resolvedConfiguration->setHSTSStorageDirectory(resolvePathForSandboxExtension(m_configuration->hstsStorageDirectory()));
     if (!m_configuration->generalStorageDirectory().isEmpty())
         m_resolvedConfiguration->setGeneralStorageDirectory(resolveAndCreateReadWriteDirectoryForSandboxExtension(m_configuration->generalStorageDirectory()));
@@ -584,35 +586,10 @@ static ProcessAccessType computeWebProcessAccessTypeForDataRemoval(OptionSet<Web
     return ProcessAccessType::None;
 }
 
-class RemovalCallbackAggregator : public ThreadSafeRefCounted<RemovalCallbackAggregator, WTF::DestructionThread::MainRunLoop> {
-public:
-    static Ref<RemovalCallbackAggregator> create(WebsiteDataStore& dataStore, CompletionHandler<void()>&& completionHandler)
-    {
-        return adoptRef(*new RemovalCallbackAggregator(dataStore, WTFMove(completionHandler)));
-    }
-
-    ~RemovalCallbackAggregator()
-    {
-        ASSERT(RunLoop::isMain());
-        RunLoop::main().dispatch(WTFMove(m_completionHandler));
-    }
-
-private:
-    RemovalCallbackAggregator(WebsiteDataStore& dataStore, CompletionHandler<void()>&& completionHandler)
-        : m_protectedDataStore(dataStore)
-        , m_completionHandler(WTFMove(completionHandler))
-    {
-        ASSERT(RunLoop::isMain());
-    }
-
-    Ref<WebsiteDataStore> m_protectedDataStore;
-    CompletionHandler<void()> m_completionHandler;
-};
-
 void WebsiteDataStore::removeData(OptionSet<WebsiteDataType> dataTypes, WallTime modifiedSince, Function<void()>&& completionHandler)
 {
     RELEASE_LOG(Storage, "WebsiteDataStore::removeData started to delete data modified since %f for session %" PRIu64, modifiedSince.secondsSinceEpoch().value(), m_sessionID.toUInt64());
-    auto callbackAggregator = RemovalCallbackAggregator::create(*this, [sessionID = m_sessionID, completionHandler = WTFMove(completionHandler)] {
+    auto callbackAggregator = MainRunLoopCallbackAggregator::create([protectedThis = Ref { *this }, sessionID = m_sessionID, completionHandler = WTFMove(completionHandler)] {
         RELEASE_LOG(Storage, "WebsiteDataStore::removeData finished deleting modified data for session %" PRIu64, sessionID.toUInt64());
         completionHandler();
     });
@@ -697,7 +674,7 @@ void WebsiteDataStore::removeData(OptionSet<WebsiteDataType> dataTypes, WallTime
 void WebsiteDataStore::removeData(OptionSet<WebsiteDataType> dataTypes, const Vector<WebsiteDataRecord>& dataRecords, Function<void()>&& completionHandler)
 {
     RELEASE_LOG(Storage, "WebsiteDataStore::removeData started to delete data for session %" PRIu64, m_sessionID.toUInt64());
-    auto callbackAggregator = RemovalCallbackAggregator::create(*this, [sessionID = m_sessionID, completionHandler = WTFMove(completionHandler)] {
+    auto callbackAggregator = MainRunLoopCallbackAggregator::create([protectedThis = Ref { *this }, sessionID = m_sessionID, completionHandler = WTFMove(completionHandler)] {
         RELEASE_LOG(Storage, "WebsiteDataStore::removeData finished deleting data for session %" PRIu64, sessionID.toUInt64());
         completionHandler();
     });
@@ -1186,6 +1163,11 @@ void WebsiteDataStore::setNotifyPagesWhenDataRecordsWereScanned(bool value, Comp
     auto callbackAggregator = CallbackAggregator::create(WTFMove(completionHandler));
 
     networkProcess().setNotifyPagesWhenDataRecordsWereScanned(m_sessionID, value, [callbackAggregator] { });
+}
+
+void WebsiteDataStore::setResourceLoadStatisticsTimeAdvanceForTesting(Seconds time, CompletionHandler<void()>&& completionHandler)
+{
+    networkProcess().setResourceLoadStatisticsTimeAdvanceForTesting(m_sessionID, time, WTFMove(completionHandler));
 }
 
 void WebsiteDataStore::setIsRunningResourceLoadStatisticsTest(bool value, CompletionHandler<void()>&& completionHandler)
@@ -1682,6 +1664,11 @@ void WebsiteDataStore::isResourceLoadStatisticsEphemeral(CompletionHandler<void(
 void WebsiteDataStore::setPrivateClickMeasurementDebugMode(bool enabled)
 {
     networkProcess().setPrivateClickMeasurementDebugMode(sessionID(), enabled);
+}
+
+void WebsiteDataStore::storePrivateClickMeasurement(const WebCore::PrivateClickMeasurement& privateClickMeasurement)
+{
+    networkProcess().send(Messages::NetworkProcess::StorePrivateClickMeasurement(sessionID(), privateClickMeasurement), 0);
 }
 
 void WebsiteDataStore::closeDatabases(CompletionHandler<void()>&& completionHandler)

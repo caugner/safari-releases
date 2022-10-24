@@ -24,6 +24,9 @@ import contextlib
 import io
 import sys
 
+if not sys.platform.startswith('win'):
+    import readline
+
 from webkitcorepy import StringIO, run
 
 if sys.version_info > (3, 0):
@@ -54,11 +57,13 @@ class Terminal(object):
                     ('{}) [{}]' if options[i] == default else '{}) {}').format( i + 1, options[i])
                     for i in range(len(options))
                 ]
-                response = cls.input('{}:\n    {}\n: '.format(prompt, '\n    '.join(numbered_options)))
+                sys.stdout.write('{}:\n    {}\n'.format(prompt, '\n    '.join(numbered_options)))
             else:
-                response = cls.input('{} ({}): '.format(prompt, '/'.join([
+                sys.stdout.write('{} ({})'.format(prompt, '/'.join([
                     '[{}]'.format(option) if option == default else option for option in options
                 ])))
+            sys.stdout.flush()
+            response = cls.input(': ')
 
             if numbered and response.isdigit():
                 index = int(response) - 1

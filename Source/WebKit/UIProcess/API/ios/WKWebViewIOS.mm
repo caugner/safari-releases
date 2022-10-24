@@ -54,6 +54,7 @@
 #import "WKWebViewPrivateForTestingIOS.h"
 #import "WebBackForwardList.h"
 #import "WebIOSEventFactory.h"
+#import "WebPage.h"
 #import "WebPageProxy.h"
 #import "_WKActivatedElementInfoInternal.h"
 #import <WebCore/ColorCocoa.h>
@@ -77,6 +78,7 @@
 #if ENABLE(LOCKDOWN_MODE_API)
 #import "_WKSystemPreferencesInternal.h"
 #import <WebCore/LocalizedStrings.h>
+#import <wtf/spi/cf/CFBundleSPI.h>
 #endif
 
 #if HAVE(UI_EVENT_ATTRIBUTION)
@@ -364,6 +366,14 @@ FOR_EACH_WKCONTENTVIEW_ACTION(FORWARD_ACTION_TO_WKCONTENTVIEW)
 
 #undef FORWARD_CANPERFORMACTION_TO_WKCONTENTVIEW
 
+#if HAVE(UIFINDINTERACTION)
+    if (action == @selector(find:) || action == @selector(findNext:) || action == @selector(findPrevious:))
+        return _findInteractionEnabled;
+
+    if (action == @selector(findAndReplace:))
+        return _findInteractionEnabled && self.supportsTextReplacement;
+#endif
+
     return [super canPerformAction:action withSender:sender];
 }
 
@@ -383,6 +393,30 @@ FOR_EACH_WKCONTENTVIEW_ACTION(FORWARD_ACTION_TO_WKCONTENTVIEW)
 
     return [super targetForAction:action withSender:sender];
 }
+
+#if HAVE(UIFINDINTERACTION)
+
+- (void)find:(id)sender
+{
+    [_findInteraction presentFindNavigatorShowingReplace:NO];
+}
+
+- (void)findNext:(id)sender
+{
+    [_findInteraction findNext];
+}
+
+- (void)findPrevious:(id)sender
+{
+    [_findInteraction findPrevious];
+}
+
+- (void)findAndReplace:(id)sender
+{
+    [_findInteraction presentFindNavigatorShowingReplace:YES];
+}
+
+#endif
 
 - (void)willFinishIgnoringCalloutBarFadeAfterPerformingAction
 {
@@ -404,6 +438,11 @@ static CGSize roundScrollViewContentSize(const WebKit::WebPageProxy& page, CGSiz
 {
     float deviceScaleFactor = page.deviceScaleFactor();
     return CGSizeMake(floorToDevicePixel(contentSize.width, deviceScaleFactor), floorToDevicePixel(contentSize.height, deviceScaleFactor));
+}
+
+- (WKScrollView *)_wkScrollView
+{
+    return _scrollView.get();
 }
 
 - (UIView *)_currentContentView
@@ -575,8 +614,8 @@ static WebCore::Color scrollViewBackgroundColor(WKWebView *webView, AllowPageBac
 {
     auto newScrollViewBackgroundColor = scrollViewBackgroundColor(self, AllowPageBackgroundColorOverride::Yes);
     if (_scrollViewBackgroundColor != newScrollViewBackgroundColor) {
-        _scrollViewBackgroundColor = newScrollViewBackgroundColor;
         [_scrollView _setBackgroundColorInternal:cocoaColor(newScrollViewBackgroundColor).get()];
+        _scrollViewBackgroundColor = newScrollViewBackgroundColor;
     }
 
     [self _updateScrollViewIndicatorStyle];
@@ -918,7 +957,7 @@ static void changeContentOffsetBoundedInValidRange(UIScrollView *scrollView, Web
     bool scrollingEnabled = _page->scrollingCoordinatorProxy()->hasScrollableOrZoomedMainFrame() || hasDockedInputView || isZoomed || scrollingNeededToRevealUI;
     [_scrollView _setScrollEnabledInternal:scrollingEnabled];
 
-    if (!layerTreeTransaction.scaleWasSetByUIProcess() && ![_scrollView isZooming] && ![_scrollView isZoomBouncing] && ![_scrollView _isAnimatingZoom] && !WTF::areEssentiallyEqual<float>([_scrollView zoomScale], layerTreeTransaction.pageScaleFactor())) {
+    if (!layerTreeTransaction.scaleWasSetByUIProcess() && ![_scrollView isZooming] && ![_scrollView isZoomBouncing] && ![_scrollView _isAnimatingZoom] && !WebKit::scalesAreEssentiallyEqual([_scrollView zoomScale], layerTreeTransaction.pageScaleFactor())) {
         LOG_WITH_STREAM(VisibleRects, stream << " updating scroll view with pageScaleFactor " << layerTreeTransaction.pageScaleFactor());
         [_scrollView setZoomScale:layerTreeTransaction.pageScaleFactor()];
     }
@@ -937,7 +976,7 @@ static void changeContentOffsetBoundedInValidRange(UIScrollView *scrollView, Web
         WebCore::FloatPoint scaledScrollOffset = _scrollOffsetToRestore.value();
         _scrollOffsetToRestore = std::nullopt;
 
-        if (WTF::areEssentiallyEqual<float>(contentZoomScale(self), _scaleToRestore)) {
+        if (WebKit::scalesAreEssentiallyEqual(contentZoomScale(self), _scaleToRestore)) {
             scaledScrollOffset.scale(_scaleToRestore);
             WebCore::FloatPoint contentOffsetInScrollViewCoordinates = scaledScrollOffset - WebCore::FloatSize(_obscuredInsetsWhenSaved.left(), _obscuredInsetsWhenSaved.top());
 
@@ -952,7 +991,7 @@ static void changeContentOffsetBoundedInValidRange(UIScrollView *scrollView, Web
         WebCore::FloatPoint unobscuredCenterToRestore = _unobscuredCenterToRestore.value();
         _unobscuredCenterToRestore = std::nullopt;
 
-        if (WTF::areEssentiallyEqual<float>(contentZoomScale(self), _scaleToRestore)) {
+        if (WebKit::scalesAreEssentiallyEqual(contentZoomScale(self), _scaleToRestore)) {
             CGRect unobscuredRect = UIEdgeInsetsInsetRect(self.bounds, _obscuredInsets);
             WebCore::FloatSize unobscuredContentSizeAtNewScale = WebCore::FloatSize(unobscuredRect.size) / _scaleToRestore;
             WebCore::FloatPoint topLeftInDocumentCoordinates = unobscuredCenterToRestore - unobscuredContentSizeAtNewScale / 2;
@@ -1725,7 +1764,7 @@ static WebCore::FloatPoint constrainContentOffset(WebCore::FloatPoint contentOff
     // At this point, we have a page that asked for width = device-width. However,
     // if the content's width and height were large, we might have had to shrink it.
     // We'll enable double tap zoom whenever we're not at the actual initial scale.
-    return !WTF::areEssentiallyEqual<float>(contentZoomScale(self), _initialScaleFactor);
+    return !WebKit::scalesAreEssentiallyEqual(contentZoomScale(self), _initialScaleFactor);
 }
 
 #pragma mark UIScrollViewDelegate
@@ -2725,6 +2764,11 @@ static int32_t activeOrientation(WKWebView *webView)
     if ([_contentView isFocusingElement])
         return YES;
 
+#if HAVE(UIFINDINTERACTION)
+    if ([_findInteraction isFindNavigatorVisible])
+        return YES;
+#endif
+
     NSNumber *isLocalKeyboard = [keyboardInfo valueForKey:UIKeyboardIsLocalUserInfoKey];
     return isLocalKeyboard && !isLocalKeyboard.boolValue;
 }
@@ -2981,7 +3025,15 @@ static WebCore::UserInterfaceLayoutDirection toUserInterfaceLayoutDirection(UISe
     return _contentView.get();
 }
 
-#endif
+- (BOOL)supportsTextReplacement
+{
+    if ([_customContentView respondsToSelector:@selector(supportsTextReplacement)])
+        return [(id<UITextSearching>)_customContentView.get() supportsTextReplacement];
+
+    return [_contentView supportsTextReplacementForWebView];
+}
+
+#endif // HAVE(UIFINDINTERACTION)
 
 #if HAVE(UIKIT_RESIZABLE_WINDOWS)
 
@@ -3028,13 +3080,9 @@ static bool isLockdownModeWarningNeeded()
     if (!lockdownModeWarningNeeded)
         return;
 
-    NSString *appDisplayName = [[NSBundle mainBundle] objectForInfoDictionaryKey:(__bridge NSString *)_kCFBundleDisplayNameKey];
-    if (!appDisplayName)
-        appDisplayName = [[NSBundle mainBundle] objectForInfoDictionaryKey:(__bridge NSString *)kCFBundleNameKey];
-
     auto message = WEB_UI_NSSTRING(@"Certain experiences and features may not function as expected. You can turn off Lockdown Mode for this app in Settings.", "Lockdown Mode alert message");
 
-    auto decisionHandler = makeBlockPtr([appDisplayName, message, protectedSelf = retainPtr(self)](WKDialogResult result) mutable {
+    auto decisionHandler = makeBlockPtr([message, protectedSelf = retainPtr(self)](WKDialogResult result) mutable {
         if (result == WKDialogResultAskAgain) {
             lockdownModeWarningNeeded = true;
             return;
@@ -3046,17 +3094,20 @@ static bool isLockdownModeWarningNeeded()
             [[NSUserDefaults standardUserDefaults] setBool:YES forKey:WebKitCaptivePortalModeAlertShownKey];
             return;
         }
-    
-        UIAlertController *alert = [UIAlertController
-            alertControllerWithTitle:[NSString stringWithFormat:WEB_UI_NSSTRING(@"Lockdown Mode is Turned On For “%@“", "Lockdown Mode alert title"), appDisplayName]
-            message:message
-            preferredStyle:UIAlertControllerStyleAlert];
 
-        [alert addAction:[UIAlertAction actionWithTitle:WEB_UI_NSSTRING(@"OK", "Lockdown Mode alert OK button") style:UIAlertActionStyleDefault handler:nil]];
+        RunLoop::main().dispatch([message = retainPtr(message), protectedSelf = WTFMove(protectedSelf)] {
+            NSString *appDisplayName = [[NSBundle mainBundle] objectForInfoDictionaryKey:(__bridge NSString *)_kCFBundleDisplayNameKey];
+            if (!appDisplayName)
+                appDisplayName = [[NSBundle mainBundle] objectForInfoDictionaryKey:(__bridge NSString *)kCFBundleNameKey];
 
-        UIViewController *presentationViewController = [UIViewController _viewControllerForFullScreenPresentationFromView:protectedSelf.get()];
-        [presentationViewController presentViewController:alert animated:YES completion:nil];
-        [[NSUserDefaults standardUserDefaults] setBool:YES forKey:WebKitCaptivePortalModeAlertShownKey];
+            UIAlertController *alert = [UIAlertController alertControllerWithTitle:[NSString stringWithFormat:WEB_UI_NSSTRING(@"Lockdown Mode is Turned On For “%@“", "Lockdown Mode alert title"), appDisplayName] message:message.get() preferredStyle:UIAlertControllerStyleAlert];
+
+            [alert addAction:[UIAlertAction actionWithTitle:WEB_UI_NSSTRING(@"OK", "Lockdown Mode alert OK button") style:UIAlertActionStyleDefault handler:nil]];
+
+            UIViewController *presentationViewController = [UIViewController _viewControllerForFullScreenPresentationFromView:protectedSelf.get()];
+            [presentationViewController presentViewController:alert animated:YES completion:nil];
+            [[NSUserDefaults standardUserDefaults] setBool:YES forKey:WebKitCaptivePortalModeAlertShownKey];
+        });
     });
     
 #if PLATFORM(IOS)
@@ -3956,7 +4007,7 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
 
 - (void)performTextSearchWithQueryString:(NSString *)string usingOptions:(UITextSearchOptions *)options resultAggregator:(id<UITextSearchAggregator>)aggregator
 {
-    [_contentView performTextSearchWithQueryString:string usingOptions:options resultAggregator:aggregator];
+    [[self _searchableObject] performTextSearchWithQueryString:string usingOptions:options resultAggregator:aggregator];
 }
 
 - (void)replaceFoundTextInRange:(UITextRange *)range inDocument:(UITextSearchDocumentIdentifier)document withText:(NSString *)replacementText

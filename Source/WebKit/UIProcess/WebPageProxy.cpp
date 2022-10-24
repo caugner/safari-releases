@@ -1702,6 +1702,10 @@ void WebPageProxy::loadAlternateHTML(const IPC::DataReference& htmlData, const S
     m_process->markProcessAsRecentlyUsed();
     m_process->assumeReadAccessToBaseURL(*this, baseURL.string());
     m_process->assumeReadAccessToBaseURL(*this, unreachableURL.string());
+    if (baseURL.isLocalFile())
+        m_process->addPreviouslyApprovedFileURL(baseURL);
+    if (unreachableURL.isLocalFile())
+        m_process->addPreviouslyApprovedFileURL(unreachableURL);
     send(Messages::WebPage::LoadAlternateHTML(loadParameters));
     m_process->startResponsivenessTimer();
 }
@@ -2033,6 +2037,8 @@ void WebPageProxy::setTopContentInset(float contentInset)
 
     m_topContentInset = contentInset;
 
+    pageClient().topContentInsetDidChange();
+
     if (!hasRunningProcess())
         return;
 #if PLATFORM(COCOA)
@@ -2171,13 +2177,18 @@ void WebPageProxy::updateActivityState(OptionSet<ActivityState::Flag> flagsToUpd
         m_activityState.add(ActivityState::IsVisibleOrOccluded);
     if (flagsToUpdate & ActivityState::IsInWindow && pageClient().isViewInWindow())
         m_activityState.add(ActivityState::IsInWindow);
-    if (flagsToUpdate & ActivityState::IsVisuallyIdle && pageClient().isVisuallyIdle())
+    bool isVisuallyIdle = pageClient().isVisuallyIdle();
+#if PLATFORM(COCOA) && !HAVE(CGS_FIX_FOR_RADAR_97530095) && ENABLE(MEDIA_USAGE)
+    if (pageClient().isViewVisible() && m_mediaUsageManager && m_mediaUsageManager->isPlayingVideoInViewport())
+        isVisuallyIdle = false;
+#endif
+    if (flagsToUpdate & ActivityState::IsVisuallyIdle && isVisuallyIdle)
         m_activityState.add(ActivityState::IsVisuallyIdle);
     if (flagsToUpdate & ActivityState::IsAudible && m_mediaState.contains(MediaProducerMediaState::IsPlayingAudio) && !(m_mutedState.contains(MediaProducerMutedState::AudioIsMuted)))
         m_activityState.add(ActivityState::IsAudible);
     if (flagsToUpdate & ActivityState::IsLoading && m_pageLoadState.isLoading())
         m_activityState.add(ActivityState::IsLoading);
-    if (flagsToUpdate & ActivityState::IsCapturingMedia && m_mediaState.containsAny({ MediaProducerMediaState::HasActiveAudioCaptureDevice,  MediaProducerMediaState::HasActiveVideoCaptureDevice }))
+    if (flagsToUpdate & ActivityState::IsCapturingMedia && m_mediaState.containsAny(MediaProducer::ActiveCaptureMask))
         m_activityState.add(ActivityState::IsCapturingMedia);
 }
 
@@ -3711,6 +3722,9 @@ void WebPageProxy::continueNavigationInNewProcess(API::Navigation& navigation, s
     RELEASE_ASSERT(!newProcess->isInProcessCache());
     ASSERT(shouldTreatAsContinuingLoad != ShouldTreatAsContinuingLoad::No);
 
+    if (navigation.currentRequest().url().isLocalFile())
+        newProcess->addPreviouslyApprovedFileURL(navigation.currentRequest().url());
+
     if (m_provisionalPage) {
         WEBPAGEPROXY_RELEASE_LOG(ProcessSwapping, "continueNavigationInNewProcess: There is already a pending provisional load, cancelling it (provisonalNavigationID=%llu, navigationID=%llu)", m_provisionalPage->navigationID(), navigation.navigationID());
         if (m_provisionalPage->navigationID() != navigation.navigationID())
@@ -5136,7 +5150,7 @@ void WebPageProxy::didCommitLoadForFrame(FrameIdentifier frameID, FrameInfoData&
             privateClickMeasurement = navigation->privateClickMeasurement();
         if (privateClickMeasurement) {
             if (privateClickMeasurement->destinationSite().matches(frame->url()) || privateClickMeasurement->isSKAdNetworkAttribution())
-                websiteDataStore().networkProcess().send(Messages::NetworkProcess::StorePrivateClickMeasurement(m_websiteDataStore->sessionID(), *privateClickMeasurement), 0);
+                websiteDataStore().storePrivateClickMeasurement(*privateClickMeasurement);
         }
     }
     m_privateClickMeasurement.reset();
@@ -5560,7 +5574,10 @@ void WebPageProxy::decidePolicyForNavigationActionAsyncShared(Ref<WebProcessProx
     auto* frame = process->webFrame(frameID);
     MESSAGE_CHECK(process, frame);
 
-    auto sender = PolicyDecisionSender::create(identifier, [webPageID, frameID, listenerID, process] (const auto& policyDecision) {
+    auto sender = PolicyDecisionSender::create(identifier, [webPageID, frameID, listenerID, process, url = request.url()] (const auto& policyDecision) {
+        if (policyDecision.policyAction == PolicyAction::Use && url.isLocalFile())
+            process->addPreviouslyApprovedFileURL(url);
+
         process->send(Messages::WebPage::DidReceivePolicyDecision(frameID, listenerID, policyDecision
 #if !ENABLE(CONTENT_FILTERING_IN_NETWORKING_PROCESS)
             , createNetworkExtensionsSandboxExtensions(process)
@@ -6223,6 +6240,10 @@ void WebPageProxy::didExitFullscreen(PlaybackSessionContextIdentifier identifier
         m_currentFullscreenVideoSessionIdentifier = std::nullopt;
         updateFullscreenVideoTextRecognition();
     }
+}
+
+void WebPageProxy::failedToEnterFullscreen(PlaybackSessionContextIdentifier identifier)
+{
 }
 
 #else
@@ -6957,6 +6978,15 @@ void WebPageProxy::requestDOMPasteAccess(WebCore::DOMPasteAccessCategory pasteAc
 
 void WebPageProxy::backForwardAddItem(BackForwardListItemState&& itemState)
 {
+    backForwardAddItemShared(m_process.copyRef(), WTFMove(itemState));
+}
+
+void WebPageProxy::backForwardAddItemShared(Ref<WebProcessProxy>&& process, BackForwardListItemState&& itemState)
+{
+    URL itemURL { itemState.pageState.mainFrameState.urlString };
+    ASSERT(!itemURL.isLocalFile() || process->wasPreviouslyApprovedFileURL(itemURL));
+    MESSAGE_CHECK(process, !itemURL.isLocalFile() || process->wasPreviouslyApprovedFileURL(itemURL));
+
     auto item = WebBackForwardListItem::create(WTFMove(itemState), identifier());
     item->setResourceDirectoryURL(currentResourceDirectoryURL());
     m_backForwardList->addItem(WTFMove(item));
@@ -6971,6 +7001,11 @@ void WebPageProxy::backForwardGoToItem(const BackForwardItemIdentifier& itemID, 
         return completionHandler(m_backForwardList->counts());
 
     backForwardGoToItemShared(m_process.copyRef(), itemID, WTFMove(completionHandler));
+}
+
+void WebPageProxy::backForwardListContainsItem(const WebCore::BackForwardItemIdentifier& itemID, CompletionHandler<void(bool)>&& completionHandler)
+{
+    completionHandler(m_backForwardList->itemForID(itemID));
 }
 
 void WebPageProxy::backForwardGoToItemShared(Ref<WebProcessProxy>&& process, const BackForwardItemIdentifier& itemID, CompletionHandler<void(const WebBackForwardListCounts&)>&& completionHandler)
@@ -8829,6 +8864,12 @@ void WebPageProxy::revokeGeolocationAuthorizationToken(const String& authorizati
     m_geolocationPermissionRequestManager.revokeAuthorizationToken(authorizationToken);
 }
 
+static bool isOriginUnique(const SecurityOriginData& origin)
+{
+    ASSERT(!origin.isEmpty());
+    return origin.protocol == emptyString() && origin.host == emptyString() && !origin.port;
+}
+
 void WebPageProxy::queryPermission(const ClientOrigin& clientOrigin, const PermissionDescriptor& descriptor, CompletionHandler<void(std::optional<PermissionState>, bool shouldCache)>&& completionHandler)
 {
     bool canAPISucceed = true;
@@ -8865,8 +8906,7 @@ void WebPageProxy::queryPermission(const ClientOrigin& clientOrigin, const Permi
         return;
     }
 
-    auto origin = API::SecurityOrigin::create(clientOrigin.topOrigin);
-    m_uiClient->queryPermission(name, origin, [clientOrigin, shouldChangeDeniedToPrompt, shouldChangePromptToGrant, completionHandler = WTFMove(completionHandler)](auto result) mutable {
+    CompletionHandler<void(std::optional<WebCore::PermissionState>)> callback = [clientOrigin, shouldChangeDeniedToPrompt, shouldChangePromptToGrant, completionHandler = WTFMove(completionHandler)](auto result) mutable {
         if (!result) {
             completionHandler({ }, false);
             return;
@@ -8876,7 +8916,15 @@ void WebPageProxy::queryPermission(const ClientOrigin& clientOrigin, const Permi
         else if (*result == PermissionState::Prompt && shouldChangePromptToGrant)
             result = PermissionState::Granted;
         completionHandler(*result, false);
-    });
+    };
+
+    if (isOriginUnique(clientOrigin.topOrigin)) {
+        callback(PermissionState::Prompt);
+        return;
+    }
+
+    auto origin = API::SecurityOrigin::create(clientOrigin.topOrigin);
+    m_uiClient->queryPermission(name, origin, WTFMove(callback));
 }
 
 #if ENABLE(MEDIA_STREAM)
@@ -10446,7 +10494,6 @@ void WebPageProxy::writePromisedAttachmentToPasteboard(WebCore::PromisedAttachme
 void WebPageProxy::requestAttachmentIcon(const String& identifier, const String& contentType, const String& fileName, const String& title, const FloatSize& requestedSize)
 {
     MESSAGE_CHECK(m_process, m_preferences->attachmentElementEnabled());
-    MESSAGE_CHECK(m_process, m_process->captivePortalMode() == WebProcessProxy::CaptivePortalMode::Disabled);
 
     FloatSize size = requestedSize;
     ShareableBitmap::Handle handle;
@@ -10507,7 +10554,6 @@ void WebPageProxy::updateAttachmentThumbnail(const String& identifier, const Ref
 void WebPageProxy::registerAttachmentIdentifierFromData(const String& identifier, const String& contentType, const String& preferredFileName, const IPC::SharedBufferReference& data)
 {
     MESSAGE_CHECK(m_process, m_preferences->attachmentElementEnabled());
-    MESSAGE_CHECK(m_process, m_process->captivePortalMode() == WebProcessProxy::CaptivePortalMode::Disabled);
     MESSAGE_CHECK(m_process, IdentifierToAttachmentMap::isValidKey(identifier));
 
     if (attachmentForIdentifier(identifier))
@@ -10523,7 +10569,6 @@ void WebPageProxy::registerAttachmentIdentifierFromData(const String& identifier
 void WebPageProxy::registerAttachmentIdentifierFromFilePath(const String& identifier, const String& contentType, const String& filePath)
 {
     MESSAGE_CHECK(m_process, m_preferences->attachmentElementEnabled());
-    MESSAGE_CHECK(m_process, m_process->captivePortalMode() == WebProcessProxy::CaptivePortalMode::Disabled);
     MESSAGE_CHECK(m_process, IdentifierToAttachmentMap::isValidKey(identifier));
 
     if (attachmentForIdentifier(identifier))
@@ -10542,7 +10587,6 @@ void WebPageProxy::registerAttachmentIdentifierFromFilePath(const String& identi
 void WebPageProxy::registerAttachmentIdentifier(const String& identifier)
 {
     MESSAGE_CHECK(m_process, m_preferences->attachmentElementEnabled());
-    MESSAGE_CHECK(m_process, m_process->captivePortalMode() == WebProcessProxy::CaptivePortalMode::Disabled);
     MESSAGE_CHECK(m_process, IdentifierToAttachmentMap::isValidKey(identifier));
 
     if (!attachmentForIdentifier(identifier))
@@ -10552,7 +10596,6 @@ void WebPageProxy::registerAttachmentIdentifier(const String& identifier)
 void WebPageProxy::registerAttachmentsFromSerializedData(Vector<WebCore::SerializedAttachmentData>&& data)
 {
     MESSAGE_CHECK(m_process, m_preferences->attachmentElementEnabled());
-    MESSAGE_CHECK(m_process, m_process->captivePortalMode() == WebProcessProxy::CaptivePortalMode::Disabled);
 
     for (auto& serializedData : data) {
         auto identifier = WTFMove(serializedData.identifier);
@@ -10569,7 +10612,6 @@ void WebPageProxy::registerAttachmentsFromSerializedData(Vector<WebCore::Seriali
 void WebPageProxy::cloneAttachmentData(const String& fromIdentifier, const String& toIdentifier)
 {
     MESSAGE_CHECK(m_process, m_preferences->attachmentElementEnabled());
-    MESSAGE_CHECK(m_process, m_process->captivePortalMode() == WebProcessProxy::CaptivePortalMode::Disabled);
     MESSAGE_CHECK(m_process, IdentifierToAttachmentMap::isValidKey(fromIdentifier));
     MESSAGE_CHECK(m_process, IdentifierToAttachmentMap::isValidKey(toIdentifier));
 
@@ -10601,7 +10643,6 @@ void WebPageProxy::serializedAttachmentDataForIdentifiers(const Vector<String>& 
     Vector<WebCore::SerializedAttachmentData> serializedData;
 
     MESSAGE_CHECK_COMPLETION(m_process, m_preferences->attachmentElementEnabled(), completionHandler(WTFMove(serializedData)));
-    MESSAGE_CHECK_COMPLETION(m_process, m_process->captivePortalMode() == WebProcessProxy::CaptivePortalMode::Disabled, completionHandler(WTFMove(serializedData)));
 
     for (const auto& identifier : identifiers) {
         auto attachment = attachmentForIdentifier(identifier);
@@ -10646,7 +10687,6 @@ void WebPageProxy::platformCloneAttachment(Ref<API::Attachment>&&, Ref<API::Atta
 void WebPageProxy::didInsertAttachmentWithIdentifier(const String& identifier, const String& source, bool hasEnclosingImage)
 {
     MESSAGE_CHECK(m_process, m_preferences->attachmentElementEnabled());
-    MESSAGE_CHECK(m_process, m_process->captivePortalMode() == WebProcessProxy::CaptivePortalMode::Disabled);
     MESSAGE_CHECK(m_process, IdentifierToAttachmentMap::isValidKey(identifier));
 
     auto attachment = ensureAttachment(identifier);
@@ -10661,7 +10701,6 @@ void WebPageProxy::didInsertAttachmentWithIdentifier(const String& identifier, c
 void WebPageProxy::didRemoveAttachmentWithIdentifier(const String& identifier)
 {
     MESSAGE_CHECK(m_process, m_preferences->attachmentElementEnabled());
-    MESSAGE_CHECK(m_process, m_process->captivePortalMode() == WebProcessProxy::CaptivePortalMode::Disabled);
     MESSAGE_CHECK(m_process, IdentifierToAttachmentMap::isValidKey(identifier));
 
     if (auto attachment = attachmentForIdentifier(identifier))
@@ -10692,6 +10731,11 @@ void WebPageProxy::getApplicationManifest(CompletionHandler<void(const std::opti
     sendWithAsyncReply(Messages::WebPage::GetApplicationManifest(), WTFMove(callback));
 }
 #endif
+
+void WebPageProxy::getTextFragmentMatch(CompletionHandler<void(const String&)>&& callback)
+{
+    sendWithAsyncReply(Messages::WebPage::GetTextFragmentMatch(), WTFMove(callback));
+}
 
 #if ENABLE(APP_HIGHLIGHTS)
 void WebPageProxy::storeAppHighlight(const WebCore::AppHighlight& highlight)
@@ -11209,6 +11253,9 @@ void WebPageProxy::gpuProcessExited(ProcessTerminationReason)
     if (activeAudioCapture || activeVideoCapture) {
         auto& gpuProcess = process().processPool().ensureGPUProcess();
         gpuProcess.updateCaptureAccess(activeAudioCapture, activeVideoCapture, activeDisplayCapture, m_process->coreProcessIdentifier(), [] { });
+#if PLATFORM(IOS_FAMILY)
+        gpuProcess.setOrientationForMediaCapture(m_deviceOrientation);
+#endif
     }
 #endif
 }

@@ -53,7 +53,11 @@ JSClassRef AccessibilityUIElement::wrapperClass()
 
 bool AccessibilityUIElement::isValid() const
 {
-    return m_element;            
+#if PLATFORM(COCOA)
+    return m_element.getAutoreleased();
+#else
+    return m_element;
+#endif
 }
 
 #if !ENABLE(ACCESSIBILITY_ISOLATED_TREE)
@@ -113,6 +117,7 @@ JSValueRef AccessibilityUIElement::mathRootRadicand() const { return { }; }
 
 #if !PLATFORM(COCOA) || !ENABLE(ACCESSIBILITY)
 RefPtr<AccessibilityUIElement> AccessibilityUIElement::focusedElement() const { return nullptr; }
+JSRetainPtr<JSStringRef> AccessibilityUIElement::customContent() const { return nullptr; }
 
 bool AccessibilityUIElement::hasDocumentRoleAncestor() const { return false; }
 bool AccessibilityUIElement::hasWebApplicationAncestor() const { return false; }

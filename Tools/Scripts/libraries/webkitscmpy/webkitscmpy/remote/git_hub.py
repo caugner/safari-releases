@@ -64,6 +64,7 @@ class GitHub(Scm):
                 opened=dict(
                     open=True,
                     closed=False,
+                    merged=False,
                 ).get(data.get('state').lower(), None),
                 generator=self,
                 metadata=dict(
@@ -145,14 +146,11 @@ class GitHub(Scm):
                 ),
             )
             if response.status_code == 422:
-                sys.stderr.write('Validation failed when creating pull request\n')
-                sys.stderr.write('Does a pull request against this branch already exist?\n')
+                sys.stderr.write(self.repository.tracker.parse_error(response.json()))
                 return None
             if response.status_code // 100 != 2:
                 sys.stderr.write("Request to '{}' returned status code '{}'\n".format(url, response.status_code))
-                message = response.json().get('message')
-                if message:
-                    sys.stderr.write('Message: {}\n'.format(message))
+                sys.stderr.write(self.repository.tracker.parse_error(response.json()))
                 sys.stderr.write(Tracker.REFRESH_TOKEN_PROMPT)
                 return None
             result = self.PullRequest(response.json())
@@ -193,13 +191,12 @@ class GitHub(Scm):
                 json=updates,
             )
             if response.status_code == 422:
+                sys.stderr.write(self.repository.tracker.parse_error(response.json()))
                 pull_request._opened = False
                 return pull_request
             if response.status_code // 100 != 2:
                 sys.stderr.write("Request to '{}' returned status code '{}'\n".format(url, response.status_code))
-                message = response.json().get('message')
-                if message:
-                    sys.stderr.write('Message: {}\n'.format(message))
+                sys.stderr.write(self.repository.tracker.parse_error(response.json()))
                 sys.stderr.write(Tracker.REFRESH_TOKEN_PROMPT)
                 return None
             data = response.json()
@@ -214,6 +211,7 @@ class GitHub(Scm):
             pull_request._opened = dict(
                 open=True,
                 closed=False,
+                merged=False,
             ).get(data.get('state'), None)
             pull_request.generator = self
             issue_ref = data.get('_links', {}).get('issue', {}).get('href')
@@ -337,7 +335,7 @@ class GitHub(Scm):
     def is_git(self):
         return True
 
-    def request(self, path=None, params=None, headers=None, authenticated=None, paginate=True):
+    def request(self, path=None, params=None, headers=None, authenticated=None, paginate=True, json=None, method='GET'):
         headers = {key: value for key, value in headers.items()} if headers else dict()
         headers['Accept'] = headers.get('Accept', self.ACCEPT_HEADER)
 
@@ -349,8 +347,11 @@ class GitHub(Scm):
             raise self.Exception('Request requires authentication, none provided')
 
         params = {key: value for key, value in params.items()} if params else dict()
-        params['per_page'] = params.get('per_page', 100)
-        params['page'] = params.get('page', 1)
+        if paginate:
+            params['per_page'] = params.get('per_page', 100)
+            params['page'] = params.get('page', 1)
+
+        json = {key: value for key, value in json.items()} if json else None
 
         url = '{api_url}/repos/{owner}/{name}{path}'.format(
             api_url=self.api_url,
@@ -358,10 +359,10 @@ class GitHub(Scm):
             name=self.name,
             path='/{}'.format(path) if path else '',
         )
-        response = self.session.get(url, params=params, headers=headers, auth=auth)
+        response = self.session.request(method, url, params=params, json=json, headers=headers, auth=auth)
         if authenticated is None and not auth and response.status_code // 100 == 4:
-            return self.request(path=path, params=params, headers=headers, authenticated=True, paginate=paginate)
-        if response.status_code != 200:
+            return self.request(path=path, params=params, headers=headers, authenticated=True, paginate=paginate, json=json, method=method)
+        if response.status_code not in [200, 201]:
             sys.stderr.write("Request to '{}' returned status code '{}'\n".format(url, response.status_code))
             message = response.json().get('message')
             if message:
@@ -698,3 +699,14 @@ class GitHub(Scm):
             for file in self.request('commits/{}'.format(commit.hash)).get('files', [])
             if file.get('filename')
         ]
+
+    def create_release(self, name, tag_name, target_commitish='main', body='', draft=False, prerelease=False):
+        data = {
+            'name': name,
+            'tag_name': tag_name,
+            'target_commitish': target_commitish,
+            'body': body,
+            'draft': draft,
+            'prerelease': prerelease
+        }
+        return self.request('releases', json=data, paginate=False, authenticated=True, method='POST')

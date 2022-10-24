@@ -141,6 +141,7 @@
 #import <pal/spi/cocoa/LaunchServicesSPI.h>
 #import <pal/spi/cocoa/NSAttributedStringSPI.h>
 #import <pal/spi/cocoa/QuartzCoreSPI.h>
+#import <pal/spi/ios/BarcodeSupportSPI.h>
 #import <pal/spi/ios/DataDetectorsUISPI.h>
 #import <pal/spi/ios/GraphicsServicesSPI.h>
 #import <pal/spi/ios/ManagedConfigurationSPI.h>
@@ -1667,7 +1668,26 @@ typedef NS_ENUM(NSInteger, EndEditingReason) {
     }
 
     [self _cancelInteraction];
-    [_textInteractionAssistant deactivateSelection];
+
+    BOOL shouldDeactivateSelection = [&]() -> BOOL {
+#if PLATFORM(MACCATALYST)
+        if (reason == EndEditingReasonResigningFirstResponder) {
+            // This logic is based on a similar check on macOS (in WebViewImpl::resignFirstResponder()) to
+            // maintain the active selection when resigning first responder, if the new responder is in a
+            // modal popover or panel.
+            // FIXME: Ideally, this would additionally check that the new first responder corresponds to
+            // a view underneath this view controller; however, there doesn't seem to be any way of doing
+            // so at the moment. In lieu of this, we can at least check that the web view itself isn't
+            // inside the popover.
+            auto *controller = [UIViewController _viewControllerForFullScreenPresentationFromView:self];
+            return [self isDescendantOfView:controller.viewIfLoaded] || controller.modalPresentationStyle != UIModalPresentationPopover;
+        }
+#endif // PLATFORM(MACCATALYST)
+        return YES;
+    }();
+
+    if (shouldDeactivateSelection)
+        [_textInteractionAssistant deactivateSelection];
 
     [self _resetInputViewDeferral];
 }
@@ -1848,9 +1868,6 @@ typedef NS_ENUM(NSInteger, EndEditingReason) {
 
 #if HAVE(UIKIT_WITH_MOUSE_SUPPORT)
     if (gestureRecognizer != _mouseGestureRecognizer && [_mouseGestureRecognizer mouseTouch] == touch && touch._isPointerTouch)
-        return NO;
-    
-    if (gestureRecognizer != _alternateMouseGestureRecognizer && [_alternateMouseGestureRecognizer mouseTouch] == touch)
         return NO;
 
     if (gestureRecognizer == _doubleTapGestureRecognizer || gestureRecognizer == _nonBlockingDoubleTapGestureRecognizer)
@@ -4102,12 +4119,6 @@ WEBCORE_COMMAND_FOR_WEBVIEW(pasteAndMatchStyle);
 #endif // ENABLE(IMAGE_ANALYSIS)
 
 #if HAVE(UIFINDINTERACTION)
-    if (action == @selector(find:) || action == @selector(findNext:) || action == @selector(findPrevious:))
-        return self.webView._findInteractionEnabled;
-
-    if (action == @selector(findAndReplace:))
-        return self.webView._findInteractionEnabled && self.supportsTextReplacement;
-
     if (action == @selector(useSelectionForFind:) || action == @selector(_findSelected:)) {
         if (!self.webView._findInteractionEnabled)
             return NO;
@@ -5040,8 +5051,6 @@ static void selectionChangedWithTouch(WKContentView *view, const WebCore::IntPoi
         return;
     }
 
-    SetForScope requestAutocorrectionContextScope { _isRequestingAutocorrectionContext, YES };
-
     _pendingAutocorrectionContextHandler = completionHandler;
     _page->requestAutocorrectionContext();
 
@@ -5051,7 +5060,10 @@ static void selectionChangedWithTouch(WKContentView *view, const WebCore::IntPoi
     if (!_page->process().connection()->waitForAndDispatchImmediately<Messages::WebPageProxy::HandleAutocorrectionContext>(_page->webPageID(), 1_s, IPC::WaitForOption::DispatchIncomingSyncMessagesWhileWaiting))
         RELEASE_LOG(TextInput, "Timed out while waiting for autocorrection context.");
 
-    [self _cancelPendingAutocorrectionContextHandler];
+    if (_autocorrectionContextNeedsUpdate)
+        [self _cancelPendingAutocorrectionContextHandler];
+    else
+        [self _invokePendingAutocorrectionContextHandler:[WKAutocorrectionContext autocorrectionContextWithWebContext:_lastAutocorrectionContext]];
 }
 
 - (void)_handleAutocorrectionContext:(const WebKit::WebAutocorrectionContext&)context
@@ -5059,7 +5071,6 @@ static void selectionChangedWithTouch(WKContentView *view, const WebCore::IntPoi
     _lastAutocorrectionContext = context;
     _autocorrectionContextNeedsUpdate = NO;
     [self unsuppressSoftwareKeyboardUsingLastAutocorrectionContextIfNeeded];
-    [self _invokePendingAutocorrectionContextHandler:[WKAutocorrectionContext autocorrectionContextWithWebContext:context]];
 }
 
 - (void)updateSoftwareKeyboardSuppressionStateFromWebView
@@ -6743,14 +6754,6 @@ static RetainPtr<NSObject <WKFormPeripheral>> createInputPeripheralWithView(WebK
 
 - (void)_elementDidFocus:(const WebKit::FocusedElementInformation&)information userIsInteracting:(BOOL)userIsInteracting blurPreviousNode:(BOOL)blurPreviousNode activityStateChanges:(OptionSet<WebCore::ActivityState::Flag>)activityStateChanges userObject:(NSObject <NSSecureCoding> *)userObject
 {
-    if (_isRequestingAutocorrectionContext) {
-        RunLoop::main().dispatch([weakSelf = WeakObjCPtr<WKContentView> { self }, information, userIsInteracting, blurPreviousNode, activityStateChanges, userObject = RetainPtr { userObject } ] {
-            if (auto strongSelf = weakSelf.get())
-                [strongSelf _elementDidFocus:information userIsInteracting:userIsInteracting blurPreviousNode:blurPreviousNode activityStateChanges:activityStateChanges userObject:userObject.get()];
-        });
-        return;
-    }
-
     SetForScope isChangingFocusForScope { _isChangingFocus, self._hasFocusedElement };
     SetForScope isFocusingElementWithKeyboardForScope { _isFocusingElementWithKeyboard, [self _shouldShowKeyboardForElement:information] };
 
@@ -6931,14 +6934,6 @@ static RetainPtr<NSObject <WKFormPeripheral>> createInputPeripheralWithView(WebK
 
 - (void)_elementDidBlur
 {
-    if (_isRequestingAutocorrectionContext) {
-        RunLoop::main().dispatch([weakSelf = WeakObjCPtr<WKContentView> { self }] {
-            if (auto strongSelf = weakSelf.get())
-                [strongSelf _elementDidBlur];
-        });
-        return;
-    }
-
     SetForScope isBlurringFocusedElementForScope { _isBlurringFocusedElement, YES };
 
     [self _endEditing];
@@ -10447,26 +10442,6 @@ static RetainPtr<NSItemProvider> createItemProvider(const WebKit::WebPageProxy& 
 
 #if HAVE(UIFINDINTERACTION)
 
-- (void)findForWebView:(id)sender
-{
-    [self.webView._findInteraction presentFindNavigatorShowingReplace:NO];
-}
-
-- (void)findNextForWebView:(id)sender
-{
-    [self.webView._findInteraction findNext];
-}
-
-- (void)findPreviousForWebView:(id)sender
-{
-    [self.webView._findInteraction findPrevious];
-}
-
-- (void)findAndReplaceForWebView:(id)sender
-{
-    [self.webView._findInteraction presentFindNavigatorShowingReplace:YES];
-}
-
 - (void)useSelectionForFindForWebView:(id)sender
 {
     if (!_page->hasSelectedRange())
@@ -10482,7 +10457,7 @@ static RetainPtr<NSItemProvider> createItemProvider(const WebKit::WebPageProxy& 
 - (void)_findSelectedForWebView:(id)sender
 {
     [self useSelectionForFindForWebView:sender];
-    [self findForWebView:sender];
+    [self.webView find:sender];
 }
 
 - (void)performTextSearchWithQueryString:(NSString *)string usingOptions:(UITextSearchOptions *)options resultAggregator:(id<UITextSearchAggregator>)aggregator
@@ -10563,6 +10538,11 @@ static RetainPtr<NSItemProvider> createItemProvider(const WebKit::WebPageProxy& 
 }
 
 - (BOOL)supportsTextReplacement
+{
+    return self.webView.supportsTextReplacement;
+}
+
+- (BOOL)supportsTextReplacementForWebView
 {
     return self.webView._editable;
 }
@@ -10961,6 +10941,19 @@ static RetainPtr<NSItemProvider> createItemProvider(const WebKit::WebPageProxy& 
     } forRequest:request];
 }
 
+#if ENABLE(IMAGE_ANALYSIS_FOR_MACHINE_READABLE_CODES)
+static BOOL shouldUseMachineReadableCodeMenuFromImageAnalysisResult(CocoaImageAnalysis *result)
+{
+#if HAVE(BCS_LIVE_CAMERA_ONLY_ACTION_SPI)
+    return [result.barcodeActions indexOfObjectPassingTest:^BOOL(BCSAction *action, NSUInteger index, BOOL *stop) {
+        return [action respondsToSelector:@selector(isLiveCameraOnlyAction)] && [(id)action isLiveCameraOnlyAction];
+    }] == NSNotFound;
+#else // not HAVE(BCS_LIVE_CAMERA_ONLY_ACTION_SPI)
+    return YES;
+#endif // HAVE(BCS_LIVE_CAMERA_ONLY_ACTION_SPI)
+}
+#endif // ENABLE(IMAGE_ANALYSIS_FOR_MACHINE_READABLE_CODES)
+
 - (void)_completeImageAnalysisRequestForContextMenu:(CGImageRef)image requestIdentifier:(WebKit::ImageAnalysisRequestIdentifier)requestIdentifier hasTextResults:(BOOL)hasTextResults
 {
     _waitingForDynamicImageAnalysisContextMenuActions = YES;
@@ -10971,7 +10964,7 @@ static RetainPtr<NSItemProvider> createItemProvider(const WebKit::WebPageProxy& 
     data->hasSelectableText = hasTextResults;
 
     auto weakSelf = WeakObjCPtr<WKContentView>(self);
-    auto aggregator = CallbackAggregator::create([weakSelf, data]() mutable {
+    auto aggregator = MainRunLoopCallbackAggregator::create([weakSelf, data]() mutable {
         auto strongSelf = weakSelf.get();
         if (!strongSelf || !strongSelf->_waitingForDynamicImageAnalysisContextMenuActions)
             return;
@@ -11038,7 +11031,8 @@ static RetainPtr<NSItemProvider> createItemProvider(const WebKit::WebPageProxy& 
             return;
 
 #if ENABLE(IMAGE_ANALYSIS_FOR_MACHINE_READABLE_CODES)
-        data->machineReadableCodeMenu = result.mrcMenu;
+        if (shouldUseMachineReadableCodeMenuFromImageAnalysisResult(result))
+            data->machineReadableCodeMenu = result.mrcMenu;
 #endif
 #if USE(QUICK_LOOK)
         data->hasVisualSearchResults = hasVisualSearchResults;
@@ -11095,7 +11089,7 @@ static RetainPtr<NSItemProvider> createItemProvider(const WebKit::WebPageProxy& 
         // making redundant image analysis requests for the same image data.
 
         auto data = Box<WebKit::ImageAnalysisContextMenuActionData>::create();
-        auto aggregator = CallbackAggregator::create([weakSelf, location, data]() mutable {
+        auto aggregator = MainRunLoopCallbackAggregator::create([weakSelf, location, data]() mutable {
             auto strongSelf = weakSelf.get();
             if (!strongSelf)
                 return;

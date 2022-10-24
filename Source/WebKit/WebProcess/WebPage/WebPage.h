@@ -190,6 +190,7 @@ class CachedPage;
 class CaptureDevice;
 class DocumentLoader;
 class DragData;
+class WeakPtrImplWithEventTargetData;
 class FontAttributeChanges;
 class FontChanges;
 class Frame;
@@ -551,6 +552,8 @@ public:
     void findStringMatchesFromInjectedBundle(const String&, OptionSet<FindOptions>);
     void replaceStringMatchesFromInjectedBundle(const Vector<uint32_t>& matchIndices, const String& replacementText, bool selectionOnly);
 
+    void setTextIndicator(const WebCore::TextIndicatorData&);
+
     WebFrame& mainWebFrame() const { return m_mainFrame; }
 
     WebCore::Frame* mainFrame() const; // May return nullptr.
@@ -670,6 +673,7 @@ public:
 #endif
 
     void didUpdateRendering();
+    void didPaintLayers();
 
     // A "platform rendering update" here describes the work done by the system graphics framework before work is submitted to the system compositor.
     // On macOS, this is a CoreAnimation commit.
@@ -857,6 +861,7 @@ public:
 
     void updateSelectionWithDelta(int64_t locationDelta, int64_t lengthDelta, CompletionHandler<void()>&&);
     void requestDocumentEditingContext(WebKit::DocumentEditingContextRequest, CompletionHandler<void(WebKit::DocumentEditingContext)>&&);
+    bool shouldAllowSingleClickToChangeSelection(WebCore::Node& targetNode, const WebCore::VisibleSelection& newSelection);
 #endif
 
     void willChangeSelectionForAccessibility() { m_isChangingSelectionForAccessibility = true; }
@@ -1019,7 +1024,7 @@ public:
 #endif
 
 #if ENABLE(DRAG_SUPPORT) && !PLATFORM(GTK)
-    void performDragControllerAction(DragControllerAction, const WebCore::DragData&, SandboxExtension::Handle&&, Vector<SandboxExtension::Handle>&&);
+    void performDragControllerAction(DragControllerAction, WebCore::DragData&&, SandboxExtension::Handle&&, Vector<SandboxExtension::Handle>&&);
 #endif
 
 #if ENABLE(DRAG_SUPPORT)
@@ -1345,6 +1350,8 @@ public:
 #if ENABLE(APPLICATION_MANIFEST)
     void getApplicationManifest(CompletionHandler<void(const std::optional<WebCore::ApplicationManifest>&)>&&);
 #endif
+
+    void getTextFragmentMatch(CompletionHandler<void(const String&)>&&);
 
 #if USE(WPE_RENDERER)
     int hostFileDescriptor() const { return m_hostFileDescriptor.fd().value(); }
@@ -2315,6 +2322,8 @@ private:
     WebCore::IntPoint m_lastInteractionLocation;
 
     bool m_isShowingInputViewForFocusedElement { false };
+    bool m_wasShowingInputViewForFocusedElementDuringLastPotentialTap { false };
+    bool m_completingSyntheticClick { false };
     bool m_hasHandledSyntheticClick { false };
     
     enum SelectionAnchor { Start, End };
@@ -2488,7 +2497,7 @@ private:
 #endif
 
 #if ENABLE(IMAGE_ANALYSIS)
-    Vector<std::pair<WeakPtr<WebCore::HTMLElement>, Vector<CompletionHandler<void(RefPtr<WebCore::Element>&&)>>>> m_elementsPendingTextRecognition;
+    Vector<std::pair<WeakPtr<WebCore::HTMLElement, WebCore::WeakPtrImplWithEventTargetData>, Vector<CompletionHandler<void(RefPtr<WebCore::Element>&&)>>>> m_elementsPendingTextRecognition;
 #endif
 
 #if ENABLE(WEBXR) && !USE(OPENXR)
@@ -2500,7 +2509,7 @@ private:
 #endif
 
 #if ENABLE(IMAGE_ANALYSIS_ENHANCEMENTS)
-    WeakHashSet<WebCore::HTMLImageElement> m_elementsToExcludeFromRemoveBackground;
+    WeakHashSet<WebCore::HTMLImageElement, WebCore::WeakPtrImplWithEventTargetData> m_elementsToExcludeFromRemoveBackground;
 #endif
 };
 
@@ -2512,6 +2521,10 @@ inline void WebPage::prepareToRunModalJavaScriptDialog() { }
 
 #if !PLATFORM(MAC)
 inline bool WebPage::shouldAvoidComputingPostLayoutDataForEditorState() const { return false; }
+#endif
+
+#if PLATFORM(IOS_FAMILY)
+bool scalesAreEssentiallyEqual(float, float);
 #endif
 
 } // namespace WebKit

@@ -234,7 +234,6 @@ imported/w3c/web-platform-tests/html/semantics/forms/the-textarea-element/placeh
 imported/w3c/web-platform-tests/html/semantics/text-level-semantics/the-b-element/b-usage.html [ Pass ]
 imported/w3c/web-platform-tests/html/semantics/text-level-semantics/the-ruby-element/ruby-usage.html [ Pass ]
 
-imported/w3c/web-platform-tests/html/rendering/non-replaced-elements/form-controls/select-sizing-001.html [ Pass ]
 imported/w3c/web-platform-tests/html/rendering/non-replaced-elements/the-fieldset-and-legend-elements/fieldset-vertical.html [ Pass ]
 
 imported/w3c/web-platform-tests/html/semantics/embedded-content/the-img-element/sizes/sizes-dynamic-002.html [ Pass ]
@@ -356,8 +355,16 @@ accessibility/text-updates-after-dynamic-change.html [ Skip ]
 # Failing since added in https://bugs.webkit.org/show_bug.cgi?id=241428.
 accessibility/aria-multiline.html [ Skip ]
 
+# Failing since added in https://bugs.webkit.org/show_bug.cgi?id=244069.
+accessibility/dynamically-ignored-canvas.html [ Skip ]
+
+# Missing AccessibilityUIElement::takeFocus().
+accessibility/basic-focusability.html [ Skip ]
+
 # Missing AccessibilityUIElement::uiElementForSearchPredicate implementation.
 accessibility/aria-modal-with-text-crash.html [ Skip ]
+accessibility/display-contents-dynamically-added-children.html [ Skip ]
+accessibility/display-contents-object-ordering.html [ Skip ]
 accessibility/display-contents-search-traversal.html [ Skip ]
 accessibility/search-traversal-after-role-change.html [ Skip ]
 accessibility/table-search-traversal.html [ Skip ]
@@ -438,6 +445,9 @@ accessibility/nested-textareas-value-changed-notifications.html [ Skip ]
 
 accessibility/dialog-properties.html [ Skip ]
 accessibility/ignored-aria-role-description.html [ Skip ]
+
+# Failing since added in https://bugs.webkit.org/show_bug.cgi?id=244151.
+accessibility/ignored-textfield-still-accessible.html [ Skip ]
 
 webkit.org/b/229261 accessibility/element-line-rects-and-text.html [ Missing ]
 
@@ -1954,15 +1964,23 @@ http/tests/webrtc [ Skip ]
 # Failing since more testcases were added in https://bugs.webkit.org/show_bug.cgi?id=242092
 accessibility/table-exposure-updates-dynamically.html [ Skip ]
 
+# Failing since added in https://bugs.webkit.org/show_bug.cgi?id=243768.
+accessibility/spinbutton-increment-decrement.html [ Skip ]
+
+# GTK already has its own version of this test (accessibility/gtk/aria-roles-unignored.html).
+accessibility/aria-roles-unignored.html [ Skip ]
+
 # Accessibility tests that should never be run for GTK/WPE due to being
 # written in a platform-specific way. They should either be moved to
 # the right platform or re-written in a more platform-agnostic way.
 webkit.org/b/98348 accessibility/internal-link-anchors2.html [ Skip ]
 # Things specific to AX API (at least at the moment)
 webkit.org/b/98348 accessibility/radio-button-group-members.html [ Skip ]
-webkit.org/b/141074 accessibility/auto-filled-value.html [ Skip ]
 webkit.org/b/156045 accessibility/attachment-element.html [ Skip ]
 webkit.org/b/193623 accessibility/set-selected-editable.html [ Skip ]
+
+# Fails because AccessibilityUIElement holds a strong reference to m_element.
+accessibility/ax-object-destroyed-on-reload.html [ Skip ]
 
 # No support for GPUProcess yet
 fast/mediastream/captureInGPUProcess.html [ Skip ]

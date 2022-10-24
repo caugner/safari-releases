@@ -200,11 +200,12 @@ void WebProcess::platformSetCacheModel(CacheModel)
 #if USE(APPKIT)
 static id NSApplicationAccessibilityFocusedUIElement(NSApplication*, SEL)
 {
-    WebPage* page = WebProcess::singleton().focusedWebPage();
-    if (!page || !page->accessibilityRemoteObject())
-        return 0;
-
-    return [page->accessibilityRemoteObject() accessibilityFocusedUIElement];
+    return Accessibility::retrieveAutoreleasedValueFromMainThread<id>([] () -> RetainPtr<id> {
+        WebPage* page = WebProcess::singleton().focusedWebPage();
+        if (!page || !page->accessibilityRemoteObject())
+            return nil;
+        return [page->accessibilityRemoteObject() accessibilityFocusedUIElement];
+    });
 }
 
 #if ENABLE(SET_WEBCONTENT_PROCESS_INFORMATION_IN_NETWORK_PROCESS)
@@ -268,6 +269,8 @@ void WebProcess::platformInitializeWebProcess(WebProcessCreationParameters& para
     populateMobileGestaltCache(WTFMove(parameters.mobileGestaltExtensionHandle));
 
     m_uiProcessBundleIdentifier = parameters.uiProcessBundleIdentifier;
+
+    WebCore::setPresentingApplicationBundleIdentifier(parameters.presentingApplicationBundleIdentifier);
 
 #if ENABLE(SANDBOX_EXTENSIONS)
     SandboxExtension::consumePermanently(parameters.uiProcessBundleResourcePathExtensionHandle);

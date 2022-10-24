@@ -1,4 +1,8 @@
-ifeq ($(USE_WORKSPACE),YES)
+ifeq ($(MAKECMDGOALS),installsrc)
+USE_WORKSPACE = NO
+endif
+
+ifneq ($(USE_WORKSPACE),NO)
 
 SCHEME = All Modules
 SCRIPTS_PATH = Tools/Scripts

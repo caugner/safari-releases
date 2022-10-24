@@ -8,6 +8,7 @@ accessibility/insert-newline.html [ Pass ]
 accessibility/url-test.html [ Pass ]
 accessibility/keyevents-posted-for-dismiss-action.html [ Pass ]
 accessibility/embedded-image-description.html [ Pass ]
+accessibility/aria-description.html [ Pass ]
 fast/multicol/flexbox-rows.html [ Skip ]
 
 fast/forms/input-text-word-wrap.html [ Skip ]
@@ -133,3 +134,6 @@ model-element/model-element-ready.html [ Skip ]
 webkit.org/b/239990 css3/calc/transitions-dependent.html [ Pass Failure ]
 
 webkit.org/b/227369 [ Release ] http/tests/privateClickMeasurement/store-private-click-measurement-with-source-nonce.html [ Pass Failure ]
+
+# FairPlay is not supported in the iOS Simulator
+http/tests/media/fairplay [ Skip ]
