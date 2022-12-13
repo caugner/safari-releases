@@ -164,6 +164,7 @@ http/tests/referrer-policy-img/unsafe-url/cross-origin-http.https.html [ Skip ]
 
 # Shared workers are only implemented for WebKit2.
 http/tests/navigation/page-cache-shared-worker.html [ Skip ]
+http/tests/workers/shared [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/connect-src/shared-worker-connect-src-allowed.sub.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/connect-src/shared-worker-connect-src-blocked.sub.html [ Skip ]
 imported/w3c/web-platform-tests/content-security-policy/gen/top.http-rp/script-src-self/sharedworker-classic.http.html [ Skip ]
@@ -2201,6 +2202,7 @@ imported/mozilla/svg/svg-effects-area-unzoomed.xhtml
 imported/mozilla/svg/svg-effects-area-zoomed-in.xhtml
 imported/mozilla/svg/svg-effects-area-zoomed-out.xhtml
 svg/filters/feImage-self-and-other-referencing.html
+svg/filters/feDisplacementMap-filterUnits.svg [ ImageOnlyFailure ]
 
 # GCController.collect() issues.
 svg/animations/svglength-element-removed-crash.svg [ Failure ]
@@ -2386,6 +2388,7 @@ webkit.org/b/97026 fast/forms/state-restore-broken-state.html [ Failure ]
 fast/forms/searchfield-heights.html [ Failure ]
 fast/forms/placeholder-content-center.html [ ImageOnlyFailure ]
 fast/forms/placeholder-content-line-height.html [ ImageOnlyFailure ]
+fast/forms/placeholder-content-center-line-height-greater-than-content-height.html [ ImageOnlyFailure ]
 
 # Test uses "required" form element property which currently does not work on Safari
 fast/forms/validation-message-user-modify.html [ Failure ]
@@ -3638,6 +3641,7 @@ editing/selection/character-granularity-rect.html [ Skip ]
 editing/selection/ios [ Skip ]
 fast/canvas/canvas-createPattern-video-loading.html [ Skip ]
 fast/canvas/canvas-createPattern-video-modify.html [ Skip ]
+fast/canvas/canvas-drawImage-hdr-video.html [ Skip ]
 fast/events/before-input-prevent-insert-replacement.html [ Skip ]
 fast/events/input-event-insert-replacement.html [ Skip ]
 fast/forms/scroll-into-view-and-show-validation-message.html [ Skip ]

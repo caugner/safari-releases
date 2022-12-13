@@ -33,6 +33,7 @@
 #include "WebCoreTestSupport.h"
 #include <cmath>
 #include <JavaScriptCore/JSRetainPtr.h>
+#include <JavaScriptCore/RegularExpression.h>
 #include <WebKit/WKArray.h>
 #include <WebKit/WKBundle.h>
 #include <WebKit/WKBundleBackForwardList.h>
@@ -49,6 +50,7 @@
 #include <WebKit/WKURLRequest.h>
 #include <wtf/HashMap.h>
 #include <wtf/RunLoop.h>
+#include <wtf/URL.h>
 #include <wtf/text/CString.h>
 #include <wtf/text/StringBuilder.h>
 #include <wtf/unicode/CharacterNames.h>
@@ -1075,7 +1077,9 @@ WKURLRequestRef InjectedBundlePage::willSendRequestForFrame(WKBundlePageRef page
             }
         }
         if (!mainFrameIsExternal && !isAllowedHost(host.get())) {
-            injectedBundle.outputText(makeString("Blocked access to external URL ", urlString.get(), '\n'));
+            auto blockedURL = makeString(urlString.get());
+            replace(blockedURL, JSC::Yarr::RegularExpression("&key=[^&]+&"_s), "&key=GENERATED_KEY&"_s);
+            injectedBundle.outputText(makeString("Blocked access to external URL ", blockedURL, '\n'));
             return nullptr;
         }
     }
@@ -1715,18 +1719,34 @@ void InjectedBundlePage::exitFullScreenForElement(WKBundleNodeHandleRef elementR
     m_fullscreenState = NotInFullscreen;
 }
 
-void InjectedBundlePage::beganEnterFullScreen(WKBundlePageRef, WKRect, WKRect)
+void InjectedBundlePage::beganEnterFullScreen(WKBundlePageRef, WKRect initialRect, WKRect finalRect)
 {
     auto& injectedBundle = InjectedBundle::singleton();
-    if (injectedBundle.testRunner()->shouldDumpFullScreenCallbacks())
-        injectedBundle.outputText("beganEnterFullScreen()\n"_s);
+    if (!injectedBundle.testRunner()->shouldDumpFullScreenCallbacks())
+        return;
+
+    injectedBundle.outputText(makeString("beganEnterFullScreen() - initialRect.size: {",
+        initialRect.size.width, ", ",
+        initialRect.size.height,
+        "}, finalRect.size: {",
+        finalRect.size.width, ", ",
+        finalRect.size.height,
+        "}\n"));
 }
 
-void InjectedBundlePage::beganExitFullScreen(WKBundlePageRef, WKRect, WKRect)
+void InjectedBundlePage::beganExitFullScreen(WKBundlePageRef, WKRect initialRect, WKRect finalRect)
 {
     auto& injectedBundle = InjectedBundle::singleton();
-    if (injectedBundle.testRunner()->shouldDumpFullScreenCallbacks())
-        injectedBundle.outputText("beganExitFullScreen()\n"_s);
+    if (!injectedBundle.testRunner()->shouldDumpFullScreenCallbacks())
+        return;
+
+    injectedBundle.outputText(makeString("beganExitFullScreen() - initialRect.size: {",
+        initialRect.size.width, ", ",
+        initialRect.size.height,
+        "}, finalRect.size: {",
+        finalRect.size.width, ", ",
+        finalRect.size.height,
+        "}\n"));
 }
 
 void InjectedBundlePage::closeFullScreen(WKBundlePageRef pageRef)

@@ -194,6 +194,16 @@ Ref<WebProcessProxy> WebProcessProxy::createForRemoteWorkers(RemoteWorkerType wo
     return proxy;
 }
 
+#if ENABLE(WEBCONTENT_CRASH_TESTING)
+Ref<WebProcessProxy> WebProcessProxy::createForWebContentCrashy(WebProcessPool& processPool)
+{
+    auto proxy = adoptRef(*new WebProcessProxy(processPool, nullptr, IsPrewarmed::No, CrossOriginMode::Shared, CaptivePortalMode::Disabled));
+    proxy->setIsCrashyProcess();
+    proxy->connect();
+    return proxy;
+}
+#endif
+
 #if PLATFORM(COCOA) && ENABLE(MEDIA_STREAM)
 class UIProxyForCapture final : public UserMediaCaptureManagerProxy::ConnectionProxy {
     WTF_MAKE_FAST_ALLOCATED;
@@ -324,7 +334,6 @@ void WebProcessProxy::setIsInProcessCache(bool value, WillShutDown willShutDown)
         RELEASE_ASSERT(m_pageMap.isEmpty());
         RELEASE_ASSERT(!m_suspendedPageCount);
         RELEASE_ASSERT(m_provisionalPages.isEmpty());
-        m_previouslyApprovedFilePaths.clear();
     }
 
     ASSERT(m_isInProcessCache != value);
@@ -422,6 +431,13 @@ void WebProcessProxy::getLaunchOptions(ProcessLauncher::LaunchOptions& launchOpt
         processPool().setShouldMakeNextWebProcessLaunchFailForTesting(false);
         launchOptions.shouldMakeProcessLaunchFailForTesting = true;
     }
+
+#if ENABLE(WEBCONTENT_CRASH_TESTING)
+    if (isCrashyProcess()) {
+        launchOptions.customWebContentServiceBundleIdentifier = toCString("com.apple.WebKit.WebContent.Crashy");
+        launchOptions.extraInitializationData.add<HashTranslatorASCIILiteral>("is-webcontent-crashy"_s, "1"_s);
+    }
+#endif
 
     if (m_serviceWorkerInformation) {
         launchOptions.extraInitializationData.add<HashTranslatorASCIILiteral>("service-worker-process"_s, "1"_s);
@@ -1117,18 +1133,6 @@ size_t WebProcessProxy::frameCountInPage(WebPageProxy* page) const
 auto WebProcessProxy::visiblePageToken() const -> VisibleWebPageToken
 {
     return m_visiblePageCounter.count();
-}
-
-void WebProcessProxy::addPreviouslyApprovedFileURL(const URL& url)
-{
-    ASSERT(url.isLocalFile());
-    m_previouslyApprovedFilePaths.add(url.fileSystemPath());
-}
-
-bool WebProcessProxy::wasPreviouslyApprovedFileURL(const URL& url) const
-{
-    ASSERT(url.isLocalFile());
-    return m_previouslyApprovedFilePaths.contains(url.fileSystemPath());
 }
 
 RefPtr<API::UserInitiatedAction> WebProcessProxy::userInitiatedActivity(uint64_t identifier)

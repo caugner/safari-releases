@@ -143,6 +143,10 @@ public:
     static Ref<WebProcessProxy> create(WebProcessPool&, WebsiteDataStore*, CaptivePortalMode, IsPrewarmed, WebCore::CrossOriginMode = WebCore::CrossOriginMode::Shared, ShouldLaunchProcess = ShouldLaunchProcess::Yes);
     static Ref<WebProcessProxy> createForRemoteWorkers(RemoteWorkerType, WebProcessPool&, WebCore::RegistrableDomain&&, WebsiteDataStore&);
 
+#if ENABLE(WEBCONTENT_CRASH_TESTING)
+    static Ref<WebProcessProxy> createForWebContentCrashy(WebProcessPool&);
+#endif
+
     ~WebProcessProxy();
 
     static void forWebPagesWithOrigin(PAL::SessionID, const WebCore::SecurityOriginData&, const Function<void(WebPageProxy&)>&);
@@ -203,6 +207,10 @@ public:
 
     bool isDummyProcessProxy() const;
 
+#if ENABLE(WEBCONTENT_CRASH_TESTING)
+    bool isCrashyProcess() const { return m_isWebContentCrashyProcess; }
+#endif
+
     void didCreateWebPageInProcess(WebCore::PageIdentifier);
 
     void addVisitedLinkStoreUser(VisitedLinkStore&, WebPageProxyIdentifier);
@@ -222,9 +230,6 @@ public:
     size_t frameCountInPage(WebPageProxy*) const; // Including main frame.
 
     VisibleWebPageToken visiblePageToken() const;
-
-    void addPreviouslyApprovedFileURL(const URL&);
-    bool wasPreviouslyApprovedFileURL(const URL&) const;
 
     void updateTextCheckerState();
 
@@ -472,6 +477,10 @@ protected:
 
     void validateFreezerStatus();
 
+#if ENABLE(WEBCONTENT_CRASH_TESTING)
+    void setIsCrashyProcess() { m_isWebContentCrashyProcess = true; }
+#endif
+
 private:
     static HashMap<WebCore::ProcessIdentifier, WebProcessProxy*>& allProcesses();
 
@@ -590,7 +599,6 @@ private:
 
     bool m_mayHaveUniversalFileReadSandboxExtension; // True if a read extension for "/" was ever granted - we don't track whether WebProcess still has it.
     HashSet<String> m_localPathsWithAssumedReadAccess;
-    HashSet<String> m_previouslyApprovedFilePaths;
 
     WebPageProxyMap m_pageMap;
     WebFrameProxyMap m_frameMap;
@@ -642,6 +650,10 @@ private:
 #endif
 #if PLATFORM(IOS) && !ENABLE(CONTENT_FILTERING_IN_NETWORKING_PROCESS)
     bool m_hasManagedSessionSandboxAccess { false };
+#endif
+
+#if ENABLE(WEBCONTENT_CRASH_TESTING)
+    bool m_isWebContentCrashyProcess { false };
 #endif
 
 #if PLATFORM(WATCHOS)

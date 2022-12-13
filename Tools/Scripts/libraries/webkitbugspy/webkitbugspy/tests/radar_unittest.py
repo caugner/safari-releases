@@ -60,29 +60,33 @@ class TestRadar(unittest.TestCase):
                 User.Encoder().default(tracker.user(name='Felix Filer')),
                 dict(name='Felix Filer', username=809, emails=['ffiler@example.com']),
             )
+            self.assertEqual(
+                User.Encoder().default(tracker.user(name='Olivia Outsider', email='ooutsider@example.com')),
+                dict(name='Olivia Outsider', emails=['ooutsider@example.com']),
+            )
 
     def test_link(self):
         with mocks.Radar(users=mocks.USERS):
             tracker = radar.Tracker()
-            self.assertEqual(tracker.issue(1234).link, '<rdar://1234>')
+            self.assertEqual(tracker.issue(1234).link, 'rdar://1234')
             self.assertEqual(
                 tracker.from_string('<rdar://problem/1234>').link,
-                '<rdar://1234>',
+                'rdar://1234',
             )
             self.assertEqual(
                 tracker.from_string('<radar://1234>').link,
-                '<rdar://1234>',
+                'rdar://1234',
             )
             self.assertEqual(
                 tracker.from_string('<radar://problem/1234>').link,
-                '<rdar://1234>',
+                'rdar://1234',
             )
 
     def test_title(self):
         with mocks.Radar(issues=mocks.ISSUES):
             tracker = radar.Tracker()
             self.assertEqual(tracker.issue(1).title, 'Example issue 1')
-            self.assertEqual(str(tracker.issue(1)), '<rdar://1> Example issue 1')
+            self.assertEqual(str(tracker.issue(1)), 'rdar://1 Example issue 1')
 
     def test_timestamp(self):
         with mocks.Radar(issues=mocks.ISSUES):

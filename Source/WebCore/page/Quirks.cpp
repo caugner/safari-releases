@@ -247,11 +247,13 @@ bool Quirks::shouldDisableResolutionMediaQuery() const
     if (equalLettersIgnoringASCIICase(host, "www.cheaptickets.com"_s))
         return true;
 
+#if ENABLE(PUBLIC_SUFFIX_LIST)
     if (topPrivatelyControlledDomain(host.toString()).startsWith("ebookers."_s))
         return true;
 
     if (topPrivatelyControlledDomain(host.toString()).startsWith("expedia."_s))
         return true;
+#endif
 
     if (host.endsWithIgnoringASCIICase(".hoteis.com"_s))
         return true;
@@ -1580,6 +1582,20 @@ bool Quirks::shouldEnableFontLoadingAPIQuirk() const
         m_shouldEnableFontLoadingAPIQuirk = equalLettersIgnoringASCIICase(m_document->url().host(), "play.hbomax.com"_s);
 
     return m_shouldEnableFontLoadingAPIQuirk.value();
+}
+
+bool Quirks::needsVideoShouldMaintainAspectRatioQuirk() const
+{
+    if (!needsQuirks())
+        return false;
+
+    if (m_needsVideoShouldMaintainAspectRatioQuirk)
+        return m_needsVideoShouldMaintainAspectRatioQuirk.value();
+
+    auto domain = RegistrableDomain(m_document->url()).string();
+    m_needsVideoShouldMaintainAspectRatioQuirk = domain == "hulu.com"_s;
+
+    return m_needsVideoShouldMaintainAspectRatioQuirk.value();
 }
 
 }

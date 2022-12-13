@@ -328,6 +328,9 @@ public:
     void setCustomUserAgent(const String& customUserAgent) { m_customUserAgent = customUserAgent; }
     const String& customUserAgent() const { return m_customUserAgent; }
 
+    void setAllowPrivacyProxy(bool allow) { m_allowPrivacyProxy = allow; }
+    bool allowPrivacyProxy() const { return m_allowPrivacyProxy; }
+
     void setCustomUserAgentAsSiteSpecificQuirks(const String& customUserAgent) { m_customUserAgentAsSiteSpecificQuirks = customUserAgent; }
     const String& customUserAgentAsSiteSpecificQuirks() const { return m_customUserAgentAsSiteSpecificQuirks; }
 
@@ -502,6 +505,10 @@ private:
     bool maybeCreateArchive();
 #if ENABLE(WEB_ARCHIVE) || ENABLE(MHTML)
     void clearArchiveResources();
+#endif
+
+#if ENABLE(WEB_ARCHIVE) || ENABLE(MHTML)
+    bool isLoadingRemoteArchive() const;
 #endif
 
     void willSendRequest(ResourceRequest&&, const ResourceResponse&, CompletionHandler<void(ResourceRequest&&)>&&);
@@ -720,6 +727,7 @@ private:
 
     bool m_isRequestFromClientOrUserInput { false };
     bool m_lastNavigationWasAppInitiated { true };
+    bool m_allowPrivacyProxy { true };
 };
 
 inline void DocumentLoader::recordMemoryCacheLoadForFutureClientNotification(const ResourceRequest& request)

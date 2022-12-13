@@ -1771,6 +1771,40 @@ TEST(WKAttachmentTests, CloneImageWithAttachment)
     EXPECT_WK_STREQ([attachment uniqueIdentifier], clonedAttachmentIdentifier);
 }
 
+TEST(WKAttachmentTests, DuplicateImageWithAttachment)
+{
+    platformCopyPNG();
+    auto webView = webViewForTestingAttachments();
+
+    RetainPtr originalAttachment = [&] {
+        ObserveAttachmentUpdatesForScope observer(webView.get());
+        [webView _synchronouslyExecuteEditCommand:@"Paste" argument:nil];
+        return observer.observer().inserted.firstObject;
+    }();
+
+    RetainPtr newAttachment = [&] {
+        ObserveAttachmentUpdatesForScope observer(webView.get());
+        [webView stringByEvaluatingJavaScript:@"(function() {"
+            "    const original = document.querySelector('img');"
+            "    const clone = original.cloneNode();"
+            "    clone.id = 'clone';"
+            "    document.body.appendChild(clone);"
+            "})()"];
+        [webView waitForNextPresentationUpdate];
+        return observer.observer().inserted.firstObject;
+    }();
+
+    RetainPtr newAttachmentID = [webView stringByEvaluatingJavaScript:@"document.getElementById('clone').attachmentIdentifier"];
+    EXPECT_WK_STREQ([newAttachment uniqueIdentifier], newAttachmentID.get());
+    EXPECT_FALSE([[originalAttachment uniqueIdentifier] isEqualToString:newAttachmentID.get()]);
+
+    auto originalInfo = [originalAttachment info];
+    auto newInfo = [newAttachment info];
+    EXPECT_TRUE([originalInfo.data isEqualToData:newInfo.data]);
+    EXPECT_WK_STREQ(originalInfo.contentType, newInfo.contentType);
+    EXPECT_WK_STREQ(originalInfo.name, newInfo.name);
+}
+
 TEST(WKAttachmentTests, SetFileWrapperForPDFImageAttachment)
 {
     auto webView = webViewForTestingAttachments();
@@ -1915,6 +1949,25 @@ TEST(WKAttachmentTests, UserDragNonePreventsDragOnAttachmentElement)
 #else
     EXPECT_EQ(0U, [simulator sourceItemProviders].count);
 #endif
+}
+
+TEST(WKAttachmentTests, PasteRawUnnamedPDFData)
+{
+    RetainPtr pdfData = testPDFData();
+#if PLATFORM(MAC)
+    [NSPasteboard.generalPasteboard declareTypes:@[(__bridge NSString *)kUTTypePDF] owner:nil];
+    [NSPasteboard.generalPasteboard setData:pdfData.get() forType:(__bridge NSString *)kUTTypePDF];
+#else
+    [UIPasteboard.generalPasteboard setData:pdfData.get() forPasteboardType:UTTypePDF.identifier];
+#endif
+
+    auto webView = webViewForTestingAttachments();
+    ObserveAttachmentUpdatesForScope observer(webView.get());
+    [webView _synchronouslyExecuteEditCommand:@"Paste" argument:nil];
+    EXPECT_EQ(1U, observer.observer().inserted.count);
+    _WKAttachment *attachment = observer.observer().inserted[0];
+    EXPECT_WK_STREQ("application/pdf", attachment.info.contentType);
+    EXPECT_TRUE([pdfData isEqualToData:attachment.info.data]);
 }
 
 #pragma mark - Platform-specific tests
