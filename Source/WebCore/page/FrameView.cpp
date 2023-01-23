@@ -971,7 +971,7 @@ void FrameView::updateSnapOffsets()
     LayoutRect viewport = LayoutRect(IntPoint(), baseLayoutViewportSize());
     viewport.move(-rootRenderer->marginLeft(), -rootRenderer->marginTop());
 
-    updateSnapOffsetsForScrollableArea(*this, *rootRenderer, *styleToUse, viewport, rootRenderer->style().writingMode(), rootRenderer->style().direction(), frame().document()->focusedElement());
+    updateSnapOffsetsForScrollableArea(*this, *rootRenderer, *styleToUse, viewport, rootRenderer->style().writingMode(), rootRenderer->style().direction());
 }
 
 bool FrameView::isScrollSnapInProgress() const
@@ -3572,11 +3572,13 @@ void FrameView::scrollToTextFragmentRange()
     if (!m_pendingTextFragmentIndicatorRange)
         return;
 
-    auto rangeText = plainText(m_pendingTextFragmentIndicatorRange.value());
-    if (m_pendingTextFragmentIndicatorText != plainText(m_pendingTextFragmentIndicatorRange.value()))
+    if (needsLayout())
         return;
 
-    auto range = m_pendingTextFragmentIndicatorRange.value();
+    auto range = *m_pendingTextFragmentIndicatorRange;
+    auto rangeText = plainText(range);
+    if (m_pendingTextFragmentIndicatorText != plainText(range))
+        return;
 
     LOG_WITH_STREAM(Scrolling, stream << *this << " scrollToTextFragmentRange() " << range);
 
@@ -5472,6 +5474,20 @@ String FrameView::trackedRepaintRectsAsText() const
         ts << ")\n";
     }
     return ts.release();
+}
+
+void FrameView::addScrollableAreaForAnimatedScroll(ScrollableArea* scrollableArea)
+{
+    if (!m_scrollableAreasForAnimatedScroll)
+        m_scrollableAreasForAnimatedScroll = makeUnique<ScrollableAreaSet>();
+    
+    m_scrollableAreasForAnimatedScroll->add(scrollableArea);
+}
+
+void FrameView::removeScrollableAreaForAnimatedScroll(ScrollableArea* scrollableArea)
+{
+    if (m_scrollableAreasForAnimatedScroll)
+        m_scrollableAreasForAnimatedScroll->remove(scrollableArea);
 }
 
 bool FrameView::addScrollableArea(ScrollableArea* scrollableArea)

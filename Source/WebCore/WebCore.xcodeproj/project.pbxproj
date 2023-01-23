@@ -128,6 +128,7 @@
 		0754A5EA215EA3B8002D3A99 /* RealtimeMediaSourceFactory.h in Headers */ = {isa = PBXBuildFile; fileRef = 0754A5E8215EA3B7002D3A99 /* RealtimeMediaSourceFactory.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		0757B13E214AE79900794B0D /* VideoPreset.h in Headers */ = {isa = PBXBuildFile; fileRef = 0757B13C214AE79700794B0D /* VideoPreset.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		07611DC12440E59B00D80704 /* MediaUsageInfo.h in Headers */ = {isa = PBXBuildFile; fileRef = 07611DB8243FB75C00D80704 /* MediaUsageInfo.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		07637267290330610055DDA2 /* MediaDeviceHashSalts.h in Headers */ = {isa = PBXBuildFile; fileRef = 0763726629030BB50055DDA2 /* MediaDeviceHashSalts.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		07638A991884487200E15A1B /* MediaSessionManagerIOS.h in Headers */ = {isa = PBXBuildFile; fileRef = 07638A971884487200E15A1B /* MediaSessionManagerIOS.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		07638A9A1884487200E15A1B /* MediaSessionManagerIOS.mm in Sources */ = {isa = PBXBuildFile; fileRef = 07638A981884487200E15A1B /* MediaSessionManagerIOS.mm */; };
 		076970871463AD8700F502CF /* TextTrackList.h in Headers */ = {isa = PBXBuildFile; fileRef = 076970851463AD8700F502CF /* TextTrackList.h */; };
@@ -6176,6 +6177,7 @@
 		0754A5E8215EA3B7002D3A99 /* RealtimeMediaSourceFactory.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = RealtimeMediaSourceFactory.h; sourceTree = "<group>"; };
 		0757B13C214AE79700794B0D /* VideoPreset.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = VideoPreset.h; sourceTree = "<group>"; };
 		07611DB8243FB75C00D80704 /* MediaUsageInfo.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MediaUsageInfo.h; sourceTree = "<group>"; };
+		0763726629030BB50055DDA2 /* MediaDeviceHashSalts.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MediaDeviceHashSalts.h; sourceTree = "<group>"; };
 		07638A971884487200E15A1B /* MediaSessionManagerIOS.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MediaSessionManagerIOS.h; sourceTree = "<group>"; };
 		07638A981884487200E15A1B /* MediaSessionManagerIOS.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MediaSessionManagerIOS.mm; sourceTree = "<group>"; };
 		076970841463AD8700F502CF /* TextTrackList.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = TextTrackList.cpp; sourceTree = "<group>"; };
@@ -18700,6 +18702,7 @@
 				93A806121E03B51C008A1F26 /* DoubleRange.idl */,
 				93A806131E03B51C008A1F26 /* LongRange.h */,
 				93A806141E03B51C008A1F26 /* LongRange.idl */,
+				0763726629030BB50055DDA2 /* MediaDeviceHashSalts.h */,
 				159AE82A1B3A402F0037478B /* MediaDeviceInfo.cpp */,
 				15145B8F1B3A1B3E00662BF7 /* MediaDeviceInfo.h */,
 				15145B911B3A1D4C00662BF7 /* MediaDeviceInfo.idl */,
@@ -36831,6 +36834,7 @@
 				CD3EEF3825799F73006563BB /* MediaDecodingConfiguration.h in Headers */,
 				CD3EEF3E25799FC7006563BB /* MediaDecodingType.h in Headers */,
 				CDF2B004181F059C00F2B424 /* MediaDescription.h in Headers */,
+				07637267290330610055DDA2 /* MediaDeviceHashSalts.h in Headers */,
 				15145B901B3A1CE000662BF7 /* MediaDeviceInfo.h in Headers */,
 				5EA725D31ACABD4700EAD17B /* MediaDevices.h in Headers */,
 				97205AB81239291000B17380 /* MediaDocument.h in Headers */,

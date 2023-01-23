@@ -961,6 +961,14 @@ WKRetainPtr<WKTypeRef> TestInvocation::didReceiveSynchronousMessageFromInjectedB
         return nullptr;
     }
 
+    if (WKStringIsEqualToUTF8CString(messageName, "SetMockMediaDeviceIsEphemeral")) {
+        auto messageBodyDictionary = dictionaryValue(messageBody);
+        auto persistentID = stringValue(messageBodyDictionary, "PersistentID");
+        bool isEphemeral = booleanValue(messageBodyDictionary, "IsEphemeral");
+        TestController::singleton().setMockMediaDeviceIsEphemeral(persistentID, isEphemeral);
+        return nullptr;
+    }
+
     if (WKStringIsEqualToUTF8CString(messageName, "SetMockCameraOrientation")) {
         TestController::singleton().setMockCameraOrientation(uint64Value(messageBody));
         return nullptr;
@@ -974,6 +982,11 @@ WKRetainPtr<WKTypeRef> TestInvocation::didReceiveSynchronousMessageFromInjectedB
         bool isCameraInterrupted = booleanValue(messageBodyDictionary, "camera");
         bool isMicrophoneInterrupted = booleanValue(messageBodyDictionary, "microphone");
         TestController::singleton().setMockCaptureDevicesInterrupted(isCameraInterrupted, isMicrophoneInterrupted);
+        return nullptr;
+    }
+    
+    if (WKStringIsEqualToUTF8CString(messageName, "TriggerMockMicrophoneConfigurationChange")) {
+        TestController::singleton().triggerMockMicrophoneConfigurationChange();
         return nullptr;
     }
 

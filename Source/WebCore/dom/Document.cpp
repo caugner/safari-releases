@@ -701,7 +701,7 @@ Document::~Document()
     m_scriptRunner = nullptr;
     m_moduleLoader = nullptr;
 
-    removeAllEventListeners();
+    removeAllEventListenersInContext();
 
     // Currently we believe that Document can never outlive the parser.
     // Although the Document may be replaced synchronously, DocumentParsers
@@ -823,14 +823,14 @@ void Document::commonTeardown()
     m_documentFragmentForInnerOuterHTML = nullptr;
 
     auto intersectionObservers = m_intersectionObservers;
-    for (auto& intersectionObserver : intersectionObservers) {
-        if (intersectionObserver)
+    for (auto& weakIntersectionObserver : intersectionObservers) {
+        if (RefPtr intersectionObserver = weakIntersectionObserver.get())
             intersectionObserver->disconnect();
     }
 
     auto resizeObservers = m_resizeObservers;
-    for (auto& resizeObserver : resizeObservers) {
-        if (resizeObserver)
+    for (auto& weakResizeObserver : resizeObservers) {
+        if (RefPtr resizeObserver = weakResizeObserver.get())
             resizeObserver->disconnect();
     }
 
@@ -852,6 +852,13 @@ void Document::commonTeardown()
     m_timeline = nullptr;
     m_associatedFormControls.clear();
     m_didAssociateFormControlsTimer.stop();
+
+#if ENABLE(WEB_RTC)
+    if (m_rtcNetworkManager) {
+        m_rtcNetworkManager->close();
+        m_rtcNetworkManager = nullptr;
+    }
+#endif
 }
 
 Element* Document::elementForAccessKey(const String& key)
@@ -2747,6 +2754,16 @@ void Document::willBeRemovedFromFrame()
     RELEASE_ASSERT(m_backForwardCacheState != Document::InBackForwardCache);
 }
 
+void Document::removeAllEventListenersInContext()
+{
+    ScriptExecutionContext::removeAllEventListenersInContext();
+
+    // Document overrides removeAllEventListeners() and clears other things than listeners.
+    // Therefore, we must call it explicitly here to make sure it gets called even if the
+    // document itself has no listeners.
+    removeAllEventListeners();
+}
+
 void Document::removeAllEventListeners()
 {
     EventTarget::removeAllEventListeners();
@@ -4343,7 +4360,7 @@ void Document::evaluateMediaQueriesAndReportChanges()
     if (!m_mediaQueryMatcher)
         return;
 
-    m_mediaQueryMatcher->evaluateAll();
+    m_mediaQueryMatcher->evaluateAll(MediaQueryMatcher::EventMode::DispatchNow);
 }
 
 void Document::updateViewportUnitsOnResize()
@@ -4421,11 +4438,14 @@ void Document::runScrollSteps()
     if (frameView) {
         MonotonicTime now = MonotonicTime::now();
         bool scrollAnimationsInProgress = serviceScrollAnimationForScrollableArea(frameView.get(), now);
-        if (auto* scrollableAreas = frameView->scrollableAreas()) {
-            for (auto* scrollableArea : *scrollableAreas) {
-                if (serviceScrollAnimationForScrollableArea(scrollableArea, now))
-                    scrollAnimationsInProgress = true;
-            }
+        HashSet<ScrollableArea*> scrollableAreasToUpdate;
+        if (auto userScrollableAreas = frameView->scrollableAreas())
+            scrollableAreasToUpdate.add(userScrollableAreas->begin(), userScrollableAreas->end());
+        if (auto nonUserScrollableAreas = frameView->scrollableAreasForAnimatedScroll())
+            scrollableAreasToUpdate.add(nonUserScrollableAreas->begin(), nonUserScrollableAreas->end());
+        for (auto* scrollableArea : scrollableAreasToUpdate) {
+            if (serviceScrollAnimationForScrollableArea(scrollableArea, now))
+                scrollAnimationsInProgress = true;
         }
         if (scrollAnimationsInProgress)
             page()->scheduleRenderingUpdate({ RenderingUpdateStep::Scroll });
@@ -4747,7 +4767,17 @@ bool Document::setFocusedElement(Element* element, const FocusOptions& options)
             return false;
     }
 
-    if (newFocusedElement && newFocusedElement->isFocusable()) {
+    auto isNewElementFocusable = [&] {
+        if (!newFocusedElement)
+            return false;
+        // Resolving isFocusable() may require matching :focus-within as if the focus was already on the new element.
+        newFocusedElement->setHasTentativeFocus(true);
+        bool isFocusable = newFocusedElement->isFocusable();
+        newFocusedElement->setHasTentativeFocus(false);
+        return isFocusable;
+    }();
+
+    if (isNewElementFocusable) {
         if (&newFocusedElement->document() != this) {
             // Bluring oldFocusedElement may have moved newFocusedElement across documents.
             return false;
@@ -9066,7 +9096,7 @@ void Document::dispatchSystemPreviewActionEvent(const SystemPreviewInfo& systemP
     if (!is<HTMLAnchorElement>(element))
         return;
 
-    if (!element->isConnected() || &element->document() != this)
+    if (&element->document() != this)
         return;
 
     auto event = MessageEvent::create(message, securityOrigin().toString());
@@ -9240,6 +9270,11 @@ bool Document::isSameSiteForCookies(const URL& url) const
 {
     auto domain = isTopDocument() ? RegistrableDomain(securityOrigin().data()) : RegistrableDomain(siteForCookies());
     return domain.matches(url);
+}
+
+bool Document::lazyImageLoadingEnabled() const
+{
+    return m_settings->lazyImageLoadingEnabled() && !m_quirks->shouldDisableLazyImageLoadingQuirk();
 }
 
 } // namespace WebCore

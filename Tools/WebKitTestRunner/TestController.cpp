@@ -3673,6 +3673,11 @@ void TestController::removeMockMediaDevice(WKStringRef persistentID)
     WKRemoveMockMediaDevice(platformContext(), persistentID);
 }
 
+void TestController::setMockMediaDeviceIsEphemeral(WKStringRef persistentID, bool isEphemeral)
+{
+    WKSetMockMediaDeviceIsEphemeral(platformContext(), persistentID, isEphemeral);
+}
+
 void TestController::resetMockMediaDevices()
 {
     WKResetMockMediaDevices(platformContext());
@@ -3691,6 +3696,11 @@ bool TestController::isMockRealtimeMediaSourceCenterEnabled() const
 void TestController::setMockCaptureDevicesInterrupted(bool isCameraInterrupted, bool isMicrophoneInterrupted)
 {
     WKPageSetMockCaptureDevicesInterrupted(m_mainWebView->page(), isCameraInterrupted, isMicrophoneInterrupted);
+}
+
+void TestController::triggerMockMicrophoneConfigurationChange()
+{
+    WKPageTriggerMockMicrophoneConfigurationChange(m_mainWebView->page());
 }
 
 struct InAppBrowserPrivacyCallbackContext {

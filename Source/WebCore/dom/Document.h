@@ -1180,6 +1180,7 @@ public:
 
     void invalidateEventListenerRegions();
 
+    void removeAllEventListenersInContext() final;
     void removeAllEventListeners() final;
 
     WEBCORE_EXPORT const SVGDocumentExtensions* svgExtensions();
@@ -1686,6 +1687,9 @@ public:
     WEBCORE_EXPORT void removeElementWithPendingUserAgentShadowTreeUpdate(Element&);
 
     std::optional<PAL::SessionID> sessionID() const final;
+
+    // This should be used over the settings lazy loading image flag due to a quirk, which may occur causing website images to fail to load properly.
+    bool lazyImageLoadingEnabled() const;
 
 protected:
     enum ConstructionFlags { Synthesized = 1, NonRenderedPlaceholder = 1 << 1 };
