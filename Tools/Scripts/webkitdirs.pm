@@ -29,6 +29,8 @@
 
 # Module to share code to get to WebKit directories.
 
+package webkitdirs;
+
 use strict;
 use version;
 use warnings;
@@ -38,6 +40,7 @@ use Digest::MD5 qw(md5_hex);
 use FindBin;
 use File::Basename;
 use File::Find;
+use File::Glob qw(bsd_glob);
 use File::Path qw(make_path mkpath rmtree);
 use File::Spec;
 use File::Temp qw(tempdir);
@@ -63,42 +66,148 @@ BEGIN {
        &XcodeOptionString
        &XcodeOptionStringNoConfig
        &XcodeOptions
+       &XcodeSDKPath
        &XcodeStaticAnalyzerOption
        &appDisplayNameFromBundle
        &appendToEnvironmentVariableList
        &archCommandLineArgumentsForRestrictedEnvironmentVariables
+       &architecture
+       &architecturesForProducts
+       &argumentsForConfiguration
+       &asanIsEnabled
        &availableXcodeSDKs
        &baseProductDir
+       &buildCMakeProjectOrExit
+       &buildVisualStudioProject
+       &buildXCodeProject
+       &buildXcodeScheme
+       &builtDylibPathForName
+       &canUseNinja
        &chdirWebKit
+       &checkForArgumentAndRemoveFromARGV
+       &checkForArgumentAndRemoveFromARGVGettingValue
+       &checkForArgumentAndRemoveFromArrayRef
+       &checkForArgumentAndRemoveFromArrayRefGettingValue
        &checkFrameworks
+       &checkRequiredSystemConfig
        &cmakeArgsFromFeatures
+       &configuration
+       &configuredXcodeWorkspace
+       &coverageIsEnabled
+       &currentPerlPath
        &currentSVNRevision
+       &debugMiniBrowser
        &debugSafari
+       &debugWebKitTestRunner
+       &determineCurrentSVNRevision
+       &determineCrossTarget
+       &determineIsWin64
+       &determineXcodeSDK
        &executableProductDir
-       &extractNonHostConfiguration
+       &exitStatus
+       &extractNonMacOSHostConfiguration
+       &forceOptimizationLevel
+       &formatBuildTime
+       &generateBuildSystemFromCMakeProject
+       &getCrossTargetName
+       &getJhbuildPath
+       &getJhbuildModulesetName
+       &inCrossTargetEnvironment
+       &inFlatpakSandbox
        &iosVersion
+       &isARM64
+       &isAnyWindows
+       &isAppleCocoaWebKit
+       &isAppleMacWebKit
+       &isAppleWebKit
+       &isAppleWinWebKit
+       &isCMakeBuild
+       &isCygwin
+       &isDebianBased
+       &isFedoraBased
+       &isEmbeddedWebKit
+       &isFTW
+       &isGenerateProjectOnly
+       &isGtk
+       &isIOSWebKit
+       &isInspectorFrontend
+       &isJSCOnly
+       &isLinux
+       &isPlayStation
+       &isWPE
+       &isWinCairo
+       &isWin64
+       &isWindows
+       &isX86_64
+       &jscPath
+       &jscProductDir
+       &launcherName
+       &launcherPath
+       &ltoMode
+       &markBaseProductDirectoryAsCreatedByXcodeBuildSystem
+       &maxCPULoad
+       &nativeArchitecture
        &nmPath
+       &numberOfCPUs
+       &osXVersion
+       &overrideConfiguredXcodeWorkspace
+       &parseAvailableXcodeSDKs
+       &passedArchitecture
        &passedConfiguration
+       &plistPathFromBundle
+       &portName
        &prependToEnvironmentVariableList
        &printHelpAndExitForRunAndDebugWebKitAppIfNeeded
        &productDir
+       &productDirForCMake
+       &prohibitUnknownPort
+       &relativeScriptsDir
+       &removeCMakeCache
+       &runGitUpdate
        &runIOSWebKitApp
+       &runInCrossTargetEnvironment
+       &runInFlatpak
+       &runInFlatpakIfAvailable
        &runMacWebKitApp
+       &runMiniBrowser
+       &runSafari
+       &runSvnUpdateAndResolveChangeLogs
+       &runWebKitTestRunner
        &safariPath
        &sdkDirectory
        &sdkPlatformDirectory
+       &setArchitecture
+       &setBaseProductDir
        &setConfiguration
+       &setConfigurationProductDir
+       &setPathForRunningWebKitApp
+       &setUpGuardMallocIfNeeded
+       &setXcodeSDK
+       &setupAppleWinEnv
        &setupMacWebKitEnvironment
        &setupUnixWebKitEnvironment
        &sharedCommandLineOptions
        &sharedCommandLineOptionsUsage
+       &shouldBuildForCrossTarget
        &shouldUseFlatpak
-       &runInFlatpak
        &sourceDir
+       &splitVersionString
+       &tsanIsEnabled
+       &ubsanIsEnabled
+       &willUseAppleTVDeviceSDK
+       &willUseAppleTVSimulatorSDK
        &willUseIOSDeviceSDK
        &willUseIOSSimulatorSDK
+       &willUseWatchDeviceSDK
+       &willUseWatchSimulatorSDK
+       &winVersion
+       &wrapperPrefixIfNeeded
+       &xcodeSDK
+       &xcodeSDKPlatformName
        DO_NOT_USE_OPEN_COMMAND
+       Mac
        USE_OPEN_COMMAND
+       iOS
    );
    %EXPORT_TAGS = ( );
    @EXPORT_OK   = ();
@@ -167,6 +276,7 @@ my $shouldUseGuardMalloc;
 my $shouldNotUseNinja;
 my $xcodeVersion;
 my $configuredXcodeWorkspace;
+my $crossTarget;
 
 my $unknownPortProhibited = 0;
 my @originalArgv = @ARGV;
@@ -318,6 +428,7 @@ sub determineBaseProductDir
         $baseProductDir =~ s|^~/|$ENV{HOME}/|;
         die "Can't handle Xcode product directory with a ~ in it.\n" if $baseProductDir =~ /~/;
         die "Can't handle Xcode product directory with a variable in it.\n" if $baseProductDir =~ /\$/;
+        $baseProductDir = realpath($baseProductDir);
         @baseProductDirOption = ("SYMROOT=$baseProductDir", "OBJROOT=$baseProductDir");
         push(@baseProductDirOption, "SHARED_PRECOMPS_DIR=${baseProductDir}/PrecompiledHeaders") if $setSharedPrecompsDir;
         push(@baseProductDirOption, "INDEX_ENABLE_DATA_STORE=YES", "INDEX_DATA_STORE_DIR=${indexDataStoreDir}") if $indexDataStoreDir;
@@ -645,8 +756,28 @@ sub parseAvailableXcodeSDKs($)
     return @result;
 }
 
+sub unversionedSDKNameFromSDK($)
+{
+    my $basename = shift;
+    if ($basename =~ /(\D+)(\d+\.[\d\.]+)(\D*)\.sdk/) {
+        if ($3) {
+            return lc "$1.$3";
+        } else {
+            return lc "$1";
+        }
+    }
+}
+
 sub availableXcodeSDKs
 {
+    # Looking for SDKs in known locations is much faster than calling through to xcodebuild.
+    chomp(my $developerDir = `xcode-select -p`);
+    my @availableSDKDirectories = bsd_glob("$developerDir/Platforms/*.platform/Developer/SDKs/*");
+    if (@availableSDKDirectories) {
+        return map { unversionedSDKNameFromSDK(basename $_) || () } @availableSDKDirectories;
+    }
+
+    # As a fallback, parse the SDK list provided by xcodebuild.
     my @output = `xcodebuild -showsdks`;
     return parseAvailableXcodeSDKs(\@output);
 }
@@ -664,6 +795,27 @@ sub isValidXcodeSDKPlatformName($) {
         maccatalyst
     );
     return grep { $_ eq $name } @platforms;
+}
+
+sub determineCrossTarget {
+    return if defined $crossTarget;
+    return if not isLinux();
+
+    my $crossTargetCandidate;
+    if (checkForArgumentAndRemoveFromARGVGettingValue("--cross-target", \$crossTargetCandidate)) {
+        my $crossToolchainHelperPath = File::Spec->catfile(sourceDir(), "Tools", "Scripts", "cross-toolchain-helper");
+        my $availableTargets = `'$crossToolchainHelperPath' --print-available-targets`;
+        die "Failed to get available cross-targets from cross-toolchain-helper: $!" if exitStatus($?);
+        my @targets = split /\n/, $availableTargets;
+        foreach my $target (@targets) {
+            if ($target eq $crossTargetCandidate) {
+                $crossTarget = $crossTargetCandidate;
+                last;
+            }
+        }
+        return if defined $crossTarget;
+        die ("cross-target '" . $crossTargetCandidate . "' not valid. Available cross-targets are: '" . join("', '", @targets) . "'\n");
+    }
 }
 
 sub determineXcodeSDKPlatformName {
@@ -852,7 +1004,7 @@ sub determineConfigurationProductDir
         if (usesPerConfigurationBuildDirectory()) {
             $configurationProductDir = "$baseProductDir";
         } else {
-            if (shouldUseFlatpak()) {
+            if (shouldUseFlatpak() or shouldBuildForCrossTarget() or inCrossTargetEnvironment()) {
                 $configurationProductDir = "$baseProductDir/$portName/$configuration";
             } else {
                 $configurationProductDir = "$baseProductDir/$configuration";
@@ -1055,8 +1207,9 @@ sub XcodeOptions
     my @options;
     push @options, "-UseSanitizedBuildSystemEnvironment=YES";
     push @options, "-ShowBuildOperationDuration=YES";
-    if ($configuredXcodeWorkspace && !checkForArgumentAndRemoveFromARGV("--no-use-workspace")) {
-        push @options, ("-workspace", $configuredXcodeWorkspace);
+    if (!checkForArgumentAndRemoveFromARGV("--no-use-workspace")) {
+        my $workspace = $configuredXcodeWorkspace // sourceDir() . "/WebKit.xcworkspace";
+        push @options, ("-workspace", $workspace) if $workspace;
     }
     push @options, ("-configuration", $configuration);
     if ($asanIsEnabled) {
@@ -1083,7 +1236,7 @@ sub XcodeOptions
     push @options, "ARCHS=$architecture" if $architecture;
     push @options, "SDKROOT=$xcodeSDK" if $xcodeSDK;
 
-    my @features = getFeatureOptionList();
+    my @features = webkitperl::FeatureList::getFeatureOptionList();
     foreach (@features) {
         if (checkForArgumentAndRemoveFromARGV("--no-$_->{option}")) {
             push @options, "$_->{define}=";
@@ -1151,6 +1304,11 @@ sub determinePassedConfiguration
         $passedConfiguration = "Testing";
     } elsif(checkForArgumentAndRemoveFromARGV("--release-and-assert") || checkForArgumentAndRemoveFromARGV("--ra")) {
         $passedConfiguration = "Release+Assert";
+    }
+
+    if (shouldBuildForCrossTarget() or inCrossTargetEnvironment()) {
+        $passedConfiguration = "Release" if not $passedConfiguration;
+        $passedConfiguration .= "_" . getCrossTargetName();
     }
 }
 
@@ -2291,6 +2449,16 @@ sub inFlatpakSandbox()
     return (-f "/.flatpak-info");
 }
 
+
+sub runInCrossTargetEnvironment(@)
+{
+    return if not shouldBuildForCrossTarget();
+    my @prefix = (File::Spec->catfile(sourceDir(), "Tools", "Scripts", "cross-toolchain-helper"),
+                  "--cross-target", getCrossTargetName(), "--cross-toolchain-run-cmd");
+    my @command = @_;
+    exec @prefix, @command, argumentsForConfiguration(), @ARGV or die;
+}
+
 sub runInFlatpak(@)
 {
     if (isGtk() && checkForArgumentAndRemoveFromARGV("--update-gtk")) {
@@ -2357,6 +2525,25 @@ sub jhbuildWrapperPrefix()
     return @prefix;
 }
 
+
+sub inCrossTargetEnvironment()
+{
+    return defined $ENV{'WEBKIT_CROSS_TARGET'};
+}
+
+sub getCrossTargetName()
+{
+    return $crossTarget if shouldBuildForCrossTarget();
+    return $ENV{'WEBKIT_CROSS_TARGET'} if inCrossTargetEnvironment();
+    return;
+}
+
+sub shouldBuildForCrossTarget()
+{
+    determineCrossTarget();
+    return defined $crossTarget;
+}
+
 sub wrapperPrefixIfNeeded()
 {
     if (isAnyWindows() || isJSCOnly() || isPlayStation()) {
@@ -2364,6 +2551,9 @@ sub wrapperPrefixIfNeeded()
     }
     if (isAppleCocoaWebKit()) {
         return ("xcrun");
+    }
+    if (shouldBuildForCrossTarget() or inCrossTargetEnvironment()) {
+        return ();
     }
 
     # Returning () here means either Flatpak or no wrapper will be used.
@@ -2398,18 +2588,22 @@ sub shouldUseFlatpak()
         return 0;
     }
 
+    if (shouldBuildForCrossTarget() or inCrossTargetEnvironment()) {
+        return 0;
+    }
+
     my @prefix = wrapperPrefixIfNeeded();
     return ((! inFlatpakSandbox()) and (@prefix == 0) and -e getUserFlatpakPath());
 }
 
 sub cmakeCachePath()
 {
-    return File::Spec->catdir(baseProductDir(), configuration(), "CMakeCache.txt");
+    return File::Spec->catdir(productDirForCMake(), "CMakeCache.txt");
 }
 
 sub cmakeFilesPath()
 {
-    return File::Spec->catdir(baseProductDir(), configuration(), "CMakeFiles");
+    return File::Spec->catdir(productDirForCMake(), "CMakeFiles");
 }
 
 sub shouldRemoveCMakeCache(@)
@@ -2420,7 +2614,7 @@ sub shouldRemoveCMakeCache(@)
     my (@buildArgs) = grep(/^-/, sort(@_, @originalArgv));
 
     # We check this first, because we always want to create this file for a fresh build.
-    my $productDir = File::Spec->catdir(baseProductDir(), configuration());
+    my $productDir = productDirForCMake();
     my $optionsCache = File::Spec->catdir($productDir, "build-webkit-options.txt");
     my $joinedBuildArgs = join(" ", @buildArgs);
     if (isCachedArgumentfileOutOfDate($optionsCache, $joinedBuildArgs)) {
@@ -2523,11 +2717,11 @@ sub cmakeGeneratedBuildfile(@)
 {
     my ($willUseNinja) = @_;
     if ($willUseNinja) {
-        return File::Spec->catfile(baseProductDir(), configuration(), "build.ninja")
+        return File::Spec->catfile(productDirForCMake(), "build.ninja")
     } elsif (isAnyWindows()) {
-        return File::Spec->catfile(baseProductDir(), configuration(), "WebKit.sln")
+        return File::Spec->catfile(productDirForCMake(), "WebKit.sln")
     } else {
-        return File::Spec->catfile(baseProductDir(), configuration(), "Makefile")
+        return File::Spec->catfile(productDirForCMake(), "Makefile")
     }
 }
 
@@ -2536,7 +2730,7 @@ sub generateBuildSystemFromCMakeProject
     my ($prefixPath, @cmakeArgs) = @_;
     my $config = configuration();
     my $port = cmakeBasedPortName();
-    my $buildPath = File::Spec->catdir(baseProductDir(), $config);
+    my $buildPath = productDirForCMake();
     File::Path::mkpath($buildPath) unless -d $buildPath;
     my $originalWorkingDirectory = getcwd();
     chdir($buildPath) or die;
@@ -2616,11 +2810,18 @@ sub generateBuildSystemFromCMakeProject
     return $returnCode;
 }
 
+sub productDirForCMake() {
+    if (shouldBuildForCrossTarget() or inCrossTargetEnvironment()) {
+        return productDir();
+    }
+    return File::Spec->catdir(baseProductDir(), configuration());
+}
+
 sub buildCMakeGeneratedProject($)
 {
     my (@makeArgs) = @_;
     my $config = configuration();
-    my $buildPath = File::Spec->catdir(baseProductDir(), $config);
+    my $buildPath = productDirForCMake();
     if (! -d $buildPath) {
         die "Must call generateBuildSystemFromCMakeProject() before building CMake project.";
     }
@@ -2650,7 +2851,7 @@ sub buildCMakeGeneratedProject($)
 sub cleanCMakeGeneratedProject()
 {
     my $config = configuration();
-    my $buildPath = File::Spec->catdir(baseProductDir(), $config);
+    my $buildPath = productDirForCMake();
     if (-d $buildPath) {
         return systemVerbose("cmake", "--build", $buildPath, "--config", $config, "--target", "clean");
     }
@@ -2867,6 +3068,11 @@ sub installedMobileSafariBundle()
     return File::Spec->catfile(iosSimulatorApplicationsPath(), "MobileSafari.app");
 }
 
+sub installedMobileMiniBrowserBundle()
+{
+    return File::Spec->catfile(iosSimulatorApplicationsPath(), "MobileMiniBrowser.app");
+}
+
 sub mobileSafariBundle()
 {
     determineConfigurationProductDir();
@@ -2877,6 +3083,17 @@ sub mobileSafariBundle()
     }
     return installedMobileSafariBundle();
 }
+
+sub mobileMiniBrowserBundle()
+{
+    determineConfigurationProductDir();
+
+    if (isIOSWebKit() && -d "$configurationProductDir/MobileMiniBrowser.app") {
+        return "$configurationProductDir/MobileMiniBrowser.app";
+    }
+    return installedMobileMiniBrowserBundle();
+}
+
 
 sub plistPathFromBundle($)
 {
@@ -3004,8 +3221,8 @@ sub findOrCreateSimulatorForIOSDevice($)
         $simulatorName = "iPad Pro " . $simulatorNameSuffix;
         $simulatorDeviceType = "com.apple.CoreSimulator.SimDeviceType.iPad-Pro--9-7-inch-";
     } else {
-        $simulatorName = "iPhone SE " . $simulatorNameSuffix;
-        $simulatorDeviceType = "com.apple.CoreSimulator.SimDeviceType.iPhone-SE";
+        $simulatorName = "iPhone 12 " . $simulatorNameSuffix;
+        $simulatorDeviceType = "com.apple.CoreSimulator.SimDeviceType.iPhone-12";
     }
 
     my $simulatedDevice = iosSimulatorDeviceByName($simulatorName);
@@ -3232,6 +3449,9 @@ sub runMiniBrowser
     if (isAppleWinWebKit() || isFTW()) {
         my $webKitLauncherPath = File::Spec->catfile(executableProductDir(), "MiniBrowser.exe");
         return system { $webKitLauncherPath } $webKitLauncherPath, @ARGV;
+    }
+    if (isIOSWebKit()) {
+        return runIOSWebKitApp(mobileMiniBrowserBundle());
     }
     return 1;
 }

@@ -1,4 +1,4 @@
-# Copyright (C) 2020-2022 Apple Inc. All rights reserved.
+# Copyright (C) 2020-2023 Apple Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -61,6 +61,7 @@ class GitHub(Scm):
                 body=data.get('body'),
                 author=self.repository.contributors.create((data.get('user') or data.get('author'))['login']),
                 head=(data.get('head') or {}).get('ref', data.get('headRefName')),
+                hash=(data.get('head') or {}).get('sha') or ((data.get('headRef') or {}).get('target') or {}).get('oid'),
                 base=(data.get('base') or {}).get('ref', data.get('baseRefName')),
                 opened=dict(
                     open=True,
@@ -104,6 +105,11 @@ class GitHub(Scm):
           }}
           baseRefName
           headRefName
+          headRef {{
+            target {{
+              oid
+            }}
+          }}
           headRepository {{
             nameWithOwner
           }}
@@ -294,12 +300,64 @@ class GitHub(Scm):
                     content=comment.content,
                 )
 
+        def review(self, pull_request, comment=None, approve=None):
+            if not comment and approve is None:
+                raise self.repository.Exception('No review comment or approval provided')
+
+            body = dict(
+                event={
+                    True: 'APPROVE',
+                    False: 'REQUEST_CHANGES',
+                }.get(approve, 'COMMENT')
+            )
+            if comment:
+                body['body'] = comment
+
+            url = '{api_url}/repos/{owner}/{name}/pulls/{number}/reviews'.format(
+                api_url=self.repository.api_url,
+                owner=self.repository.owner,
+                name=self.repository.name,
+                number=pull_request.number,
+            )
+            response = self.repository.session.post(
+                url, auth=HTTPBasicAuth(*self.repository.credentials(required=True)),
+                headers=dict(Accept=self.repository.ACCEPT_HEADER),
+                json=body,
+            )
+
+            if response.status_code // 100 != 2:
+                sys.stderr.write("Request to '{}' returned status code '{}'\n".format(url, response.status_code))
+                sys.stderr.write(self.repository.tracker.parse_error(response.json()))
+                if response.status_code != 422:
+                    sys.stderr.write(Tracker.REFRESH_TOKEN_PROMPT)
+                return None
+
+            me = self._contributor(self.repository.credentials(required=True)[0])
+            if approve and pull_request._approvers:
+                if me in (pull_request._blockers or []):
+                    pull_request._blockers.remove(me)
+                if me not in pull_request._approvers:
+                    pull_request._approvers.append(me)
+            if approve is False and pull_request._blockers:
+                if me in (pull_request._approvers or []):
+                    pull_request._approvers.remove(me)
+                if me not in pull_request._blockers:
+                    pull_request._blockers.append(me)
+            if comment and pull_request._comments:
+                pull_request._comments.append(PullRequest.Comment(
+                    author=me,
+                    timestamp=time.time(),
+                    content=comment,
+                ))
+
+            return pull_request
+
 
     @classmethod
     def is_webserver(cls, url):
         return True if cls.URL_RE.match(url) else False
 
-    def __init__(self, url, dev_branches=None, prod_branches=None, contributors=None, id=None, proxies=None):
+    def __init__(self, url, dev_branches=None, prod_branches=None, contributors=None, id=None, proxies=None, classifier=None):
         match = self.URL_RE.match(url)
         if not match:
             raise self.Exception("'{}' is not a valid GitHub project".format(url))
@@ -320,6 +378,7 @@ class GitHub(Scm):
             dev_branches=dev_branches, prod_branches=prod_branches,
             contributors=contributors,
             id=id or self.name.lower(),
+            classifier=classifier,
         )
 
         self.pull_requests = self.PRGenerator(self)
@@ -698,13 +757,15 @@ class GitHub(Scm):
     def files_changed(self, argument=None):
         if not argument:
             return self.modified()
-        commit = self.find(argument, include_log=False, include_identifier=False)
-        if not commit:
-            raise ValueError("'{}' is not an argument recognized by git".format(argument))
+        if not Commit.HASH_RE.match(argument):
+            commit = self.find(argument, include_log=False, include_identifier=False)
+            if not commit:
+                raise ValueError("'{}' is not an argument recognized by git".format(argument))
+            argument = commit.hash
 
         return [
             file.get('filename')
-            for file in self.request('commits/{}'.format(commit.hash)).get('files', [])
+            for file in self.request('commits/{}'.format(argument)).get('files', [])
             if file.get('filename')
         ]
 

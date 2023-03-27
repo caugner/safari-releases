@@ -44,7 +44,7 @@
 #import <WebKit/WKWebViewPrivate.h>
 #import <WebKit/WKWebViewPrivateForTesting.h>
 #import <WebKit/WKWebsiteDataStorePrivate.h>
-#import <WebKit/_WKExperimentalFeature.h>
+#import <WebKit/_WKFeature.h>
 #import <WebKit/_WKInspector.h>
 #import <WebKit/_WKWebsiteDataStoreConfiguration.h>
 #import <wtf/spi/darwin/XPCSPI.h>
@@ -206,8 +206,8 @@ static void triggerAttributionWithSubresourceRedirect(Connection& connection, co
         auto redirect = makeString("HTTP/1.1 302 Found\r\nLocation: ", location, "\r\nContent-Length: 0\r\n\r\n");
         connection.send(WTFMove(redirect), [connection, location] {
             connection.receiveHTTPRequest([connection, location] (Vector<char>&& request2) {
-                auto expectedHttpGetString = makeString("GET ", location, " HTTP/1.1\r\n").utf8().data();
-                EXPECT_TRUE(strnstr(request2.data(), expectedHttpGetString, request2.size()));
+                auto expectedHttpGetString = makeString("GET ", location, " HTTP/1.1\r\n").utf8();
+                EXPECT_TRUE(strnstr(request2.data(), expectedHttpGetString.data(), request2.size()));
                 constexpr auto response = "HTTP/1.1 200 OK\r\n"
                     "Content-Length: 0\r\n\r\n"_s;
                 connection.send(response);
@@ -407,7 +407,7 @@ TEST(PrivateClickMeasurement, DatabaseLocation)
     pid_t originalNetworkProcessPid = 0;
     @autoreleasepool {
         auto dataStoreConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
-        dataStoreConfiguration.get().privateClickMeasurementStorageDirectory = tempDir;
+        dataStoreConfiguration.get()._resourceLoadStatisticsDirectory = tempDir;
         dataStoreConfiguration.get().pcmMachServiceName = nil;
         auto viewConfiguration = configurationWithoutUsingDaemon();
         auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:dataStoreConfiguration.get()]);
@@ -575,9 +575,9 @@ static void setupSKAdNetworkTest(Vector<String>& consoleMessages, id<WKNavigatio
     viewConfiguration.websiteDataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]).get();
     auto webView = webViewWithOpenInspector(viewConfiguration);
 
-    for (_WKExperimentalFeature *feature in [WKPreferences _experimentalFeatures]) {
+    for (_WKFeature *feature in [WKPreferences _features]) {
         if ([feature.key isEqualToString:@"SKAttributionEnabled"]) {
-            [[viewConfiguration preferences] _setEnabled:YES forExperimentalFeature:feature];
+            [[viewConfiguration preferences] _setEnabled:YES forFeature:feature];
             break;
         }
     }
@@ -619,7 +619,7 @@ TEST(PrivateClickMeasurement, SKAdNetworkWithoutNavigatingToAppStoreLink)
     [delegate allowAnyTLSCertificate];
     delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *navigationAction, void (^decisionHandler)(WKNavigationActionPolicy)) {
         decisionHandler(WKNavigationActionPolicyCancel);
-        Util::sleep(0.1);
+        Util::runFor(0.1_s);
         EXPECT_EQ(0u, consoleMessages.size());
         [navigationAction _storeSKAdNetworkAttribution];
     };

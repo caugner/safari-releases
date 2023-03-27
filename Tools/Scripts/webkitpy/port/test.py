@@ -107,7 +107,7 @@ class TestList(object):
 #
 # These numbers may need to be updated whenever we add or delete tests.
 #
-TOTAL_TESTS = 83
+TOTAL_TESTS = 84
 TOTAL_SKIPS = 11
 TOTAL_RETRIES = 13
 
@@ -283,6 +283,8 @@ layer at (0,0) size 800x34
         expected_text=None, actual_text=None, actual_image=None, actual_checksum=None, crash=True, is_wpt_crash_test=True)
     tests.add('imported/w3c/web-platform-tests/crashtests/dir/test.html',
         expected_text=None, actual_text='ok', actual_image=None, actual_checksum=None, is_wpt_crash_test=True)
+
+    tests.add('variant/variant.any.html')
 
     return tests
 
@@ -474,9 +476,11 @@ class TestPort(Port):
     def webkit_base(self):
         return '/test.checkout'
 
-    def _skipped_tests_for_unsupported_features(self, test_list):
-        return set(['failures/expected/skip_text.html',
-                    'failures/unexpected/skip_pass.html'])
+    def skipped_layout_tests(self, device_type):
+        return super(TestPort, self).skipped_layout_tests(device_type=device_type) | {
+            "failures/expected/skip_text.html",
+            "failures/unexpected/skip_pass.html",
+        }
 
     def name(self):
         return self._name
@@ -517,10 +521,10 @@ class TestPort(Port):
     def web_platform_test_server_doc_root(self):
         return 'imported/w3c/web-platform-tests/'
 
-    def web_platform_test_server_base_http_url(self):
+    def web_platform_test_server_base_http_url(self, localhost_only=False):
         return "http://localhost:8800/"
 
-    def web_platform_test_server_base_https_url(self):
+    def web_platform_test_server_base_https_url(self, localhost_only=False):
         return "https://localhost:8800/"
 
     def _path_to_lighttpd(self):

@@ -1,4 +1,4 @@
-# Copyright (C) 2022 Apple Inc. All rights reserved.
+# Copyright (C) 2022-2023 Apple Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -31,7 +31,7 @@ class TestRadar(unittest.TestCase):
     def test_encoding(self):
         self.assertEqual(
             radar.Tracker.Encoder().default(radar.Tracker(project='WebKit')),
-            dict(type='radar', projects=['WebKit']),
+            dict(hide_title=True, type='radar', projects=['WebKit']),
         )
 
     def test_decoding(self):
@@ -372,3 +372,18 @@ What version of 'WebKit Text' should the bug be associated with?:
                 project='WebKit',
                 redact={'version:Other': True},
             ).issue(1).redacted, radar.Tracker.Redaction(True, "matches 'version:Other'"))
+
+    def test_milestone(self):
+        with mocks.Radar(issues=mocks.ISSUES):
+            tracker = radar.Tracker()
+            self.assertEqual(tracker.issue(1).milestone, 'October')
+
+    def test_keywords(self):
+        with mocks.Radar(issues=mocks.ISSUES):
+            tracker = radar.Tracker()
+            self.assertEqual(tracker.issue(1).keywords, ['Keyword A'])
+
+    def test_classification(self):
+        with mocks.Radar(issues=mocks.ISSUES):
+            tracker = radar.Tracker()
+            self.assertEqual(tracker.issue(1).classification, 'Other Bug')

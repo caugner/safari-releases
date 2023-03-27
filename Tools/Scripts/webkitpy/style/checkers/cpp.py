@@ -230,7 +230,7 @@ def _convert_to_lower_with_underscores(text):
     # (This puts an underscore before A in isA but not A in CBA).
     text = sub(r'(?<=[a-z0-9])([A-Z])(?=\b)', r'_\1', text)
 
-    # Next add underscores when you have a captial letter which is followed by a capital letter
+    # Next add underscores when you have a capital letter which is followed by a capital letter
     # but is not proceeded by one. (This puts an underscore before A in 'WordADay').
     text = sub(r'(?<=[a-z0-9])([A-Z][A-Z_])', r'_\1', text)
 
@@ -3351,8 +3351,8 @@ def check_arguments_for_wk_api_available(clean_lines, line_number, error):
     """
 
     @memoized
-    def max_version_for_platform(platform_name):
-        return VersionNameMap.map().max_public_version(platform=platform_name)
+    def max_major_version_for_platform(platform_name):
+        return VersionNameMap.map().max_public_version(platform=platform_name).major
 
     def check_version_string(version_string, platform_name):
         mapping = {
@@ -3374,9 +3374,9 @@ def check_arguments_for_wk_api_available(clean_lines, line_number, error):
             error(line_number, 'build/wk_api_available', 5, '%s(%s) is invalid; version number should have one decimal' % (platform_name, version_string))
             return
 
-        max_version = max_version_for_platform(platform_name)
-        if version > max_version:
-            error(line_number, 'build/wk_api_available', 5, '%s(%s) is invalid; version number should not exceed %s' % (platform_name, version_string, max_version))
+        max_major_version = max_major_version_for_platform(platform_name)
+        if version.major > max_major_version:
+            error(line_number, 'build/wk_api_available', 5, '%s(%s) is invalid; major version number should not exceed %d' % (platform_name, version_string, max_major_version))
             return
 
     line = clean_lines.elided[line_number]  # Get rid of comments and strings.
@@ -3597,6 +3597,10 @@ def _classify_include(filename, include, is_system, include_state):
     # then we consider it the primary header.
     target_base = FileInfo(filename).base_name()
     include_base = FileInfo(include).base_name()
+
+    # Test .cpp, .mm, .c files do not have primary header files.
+    if any(target_base.endswith(suffix) for suffix in ['Test', 'Tests']):
+        return _OTHER_HEADER
 
     # If we haven't encountered a primary header, then be lenient in checking.
     if not include_state.visited_primary_section():

@@ -24,12 +24,12 @@
  */
 
 #import "config.h"
-#import "Test.h"
 
 #if ENABLE(WEB_AUTHN)
 
 #import "HTTPServer.h"
 #import "PlatformUtilities.h"
+#import "Test.h"
 #import "TestWKWebView.h"
 #import "WKWebViewConfigurationExtras.h"
 #import <LocalAuthentication/LocalAuthentication.h>
@@ -45,7 +45,7 @@
 #import <WebKit/_WKAuthenticatorAssertionResponse.h>
 #import <WebKit/_WKAuthenticatorAttestationResponse.h>
 #import <WebKit/_WKAuthenticatorSelectionCriteria.h>
-#import <WebKit/_WKExperimentalFeature.h>
+#import <WebKit/_WKFeature.h>
 #import <WebKit/_WKPublicKeyCredentialCreationOptions.h>
 #import <WebKit/_WKPublicKeyCredentialDescriptor.h>
 #import <WebKit/_WKPublicKeyCredentialParameters.h>
@@ -56,7 +56,7 @@
 #import <WebKit/_WKWebAuthenticationPanel.h>
 #import <WebKit/_WKWebAuthenticationPanelForTesting.h>
 #import <wtf/BlockPtr.h>
-#import <wtf/RandomNumber.h>
+#import <wtf/WeakRandomNumber.h>
 #import <wtf/spi/cocoa/SecuritySPI.h>
 #import <wtf/text/StringConcatenateNumbers.h>
 
@@ -190,7 +190,7 @@ static bool laContextRequested = false;
         EXPECT_TRUE([[response.userHandle base64EncodedStringWithOptions:0] isEqual:@"MIIBkzCCATigAwIBAjCCAZMwggE4oAMCAQIwggGTMII="] || !response.userHandle);
     }
 
-    auto index = weakRandomUint32() % 2;
+    auto index = weakRandomNumber<uint32_t>() % 2;
     webAuthenticationPanelNullUserHandle = responses[index].userHandle ? NO : YES;
     completionHandler(responses[index]);
 }
@@ -721,8 +721,12 @@ TEST(WebAuthenticationPanel, PanelHidCancel)
 
     [webView loadRequest:[NSURLRequest requestWithURL:testURL.get()]];
     Util::run(&webAuthenticationPanelRan);
+    __block bool done = false;
+    [webView performAfterReceivingMessage:@"This request has been cancelled by the user." action:^{
+        done = true;
+    }];
     [[delegate panel] cancel];
-    [webView waitForMessage:@"This request has been cancelled by the user."];
+    Util::run(&done);
     EXPECT_TRUE(webAuthenticationPanelFailed);
 }
 
@@ -1586,8 +1590,9 @@ TEST(WebAuthenticationPanel, PublicKeyCredentialCreationOptionsMaximum1)
     auto usb = adoptNS([NSNumber numberWithInt:_WKWebAuthenticationTransportUSB]);
     auto nfc = adoptNS([NSNumber numberWithInt:_WKWebAuthenticationTransportNFC]);
     auto internal = adoptNS([NSNumber numberWithInt:_WKWebAuthenticationTransportInternal]);
+    auto hybrid = adoptNS([NSNumber numberWithInt:_WKWebAuthenticationTransportHybrid]);
     auto credential = adoptNS([[_WKPublicKeyCredentialDescriptor alloc] initWithIdentifier:nsIdentifier]);
-    [credential setTransports:@[ usb.get(), nfc.get(), internal.get() ]];
+    [credential setTransports:@[ usb.get(), nfc.get(), internal.get(), hybrid.get() ]];
     [options setExcludeCredentials:@[ credential.get(), credential.get() ]];
 
     auto authenticatorSelection = adoptNS([[_WKAuthenticatorSelectionCriteria alloc] init]);
@@ -1622,10 +1627,11 @@ TEST(WebAuthenticationPanel, PublicKeyCredentialCreationOptionsMaximum1)
     EXPECT_EQ(result.excludeCredentials[0].type, WebCore::PublicKeyCredentialType::PublicKey);
     EXPECT_EQ(result.excludeCredentials[0].id.length(), sizeof(identifier));
     EXPECT_EQ(memcmp(result.excludeCredentials[0].id.data(), identifier, sizeof(identifier)), 0);
-    EXPECT_EQ(result.excludeCredentials[0].transports.size(), 3lu);
+    EXPECT_EQ(result.excludeCredentials[0].transports.size(), 4lu);
     EXPECT_EQ(result.excludeCredentials[0].transports[0], AuthenticatorTransport::Usb);
     EXPECT_EQ(result.excludeCredentials[0].transports[1], AuthenticatorTransport::Nfc);
     EXPECT_EQ(result.excludeCredentials[0].transports[2], AuthenticatorTransport::Internal);
+    EXPECT_EQ(result.excludeCredentials[0].transports[3], AuthenticatorTransport::Hybrid);
 
     EXPECT_EQ(result.authenticatorSelection->authenticatorAttachment, AuthenticatorAttachment::Platform);
     EXPECT_EQ(result.authenticatorSelection->requireResidentKey, true);
@@ -1935,7 +1941,7 @@ TEST(WebAuthenticationPanel, GetAssertionSPITimeout)
 
         EXPECT_NULL(response);
         EXPECT_EQ(error.domain, WKErrorDomain);
-        EXPECT_EQ(error.code, WKErrorUnknown);
+        EXPECT_EQ(error.code, NotAllowedError);
     }];
     Util::run(&webAuthenticationPanelRan);
 }
@@ -2109,7 +2115,7 @@ TEST(WebAuthenticationPanel, GetAssertionCrossPlatform)
 
         EXPECT_NULL(response);
         EXPECT_EQ(error.domain, WKErrorDomain);
-        EXPECT_EQ(error.code, WKErrorUnknown);
+        EXPECT_EQ(error.code, NotAllowedError);
     }];
     Util::run(&webAuthenticationPanelRan);
 }

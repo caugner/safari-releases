@@ -45,10 +45,18 @@ static constexpr bool mediaSourceEnabledValue = false;
 static constexpr bool mediaSourceEnabledValue = true;
 #endif
 
+#if ENABLE(GPU_PROCESS)
 #if PLATFORM(IOS_FAMILY)
 static constexpr bool fullGPUProcessEnabledValue = true;
 #else
 static constexpr bool fullGPUProcessEnabledValue = false;
+#endif
+#endif
+
+#if PLATFORM(MAC)
+static constexpr bool eventHandlerDrivenSmoothKeyboardScrollingEnabledValue = true;
+#else
+static constexpr bool eventHandlerDrivenSmoothKeyboardScrollingEnabledValue = false;
 #endif
 
 const TestFeatures& TestOptions::defaults()
@@ -63,9 +71,6 @@ const TestFeatures& TestOptions::defaults()
             // an experimental feature which gets enabled by default automatically)
             // as it adds a small amount of unnecessary work per-test.
 
-#if !PLATFORM(IOS_SIMULATOR)
-            { "AcceleratedDrawingEnabled", false },
-#endif
             { "AllowFileAccessFromFileURLs", true },
             { "AllowTopNavigationToDataURLs", true },
             { "AllowUniversalAccessFromFileURLs", true },
@@ -82,9 +87,11 @@ const TestFeatures& TestOptions::defaults()
             { "ContentChangeObserverEnabled", false },
             { "CustomPasteboardDataEnabled", true },
             { "DOMPasteAllowed", true },
+            { "DOMTestingAPIsEnabled", true },
             { "DataTransferItemsEnabled", true },
             { "DeveloperExtrasEnabled", true },
             { "DirectoryUploadEnabled", true },
+            { "EventHandlerDrivenSmoothKeyboardScrollingEnabled", eventHandlerDrivenSmoothKeyboardScrollingEnabledValue },
             { "ExposeSpeakersEnabled", true },
             { "FrameFlatteningEnabled", false },
             { "FullScreenEnabled", true },
@@ -110,23 +117,21 @@ const TestFeatures& TestOptions::defaults()
             { "NeedsSiteSpecificQuirks", false },
             { "NeedsStorageAccessFromFileURLsQuirk", false },
             { "OfflineWebApplicationCacheEnabled", true },
-            { "OffscreenCanvasEnabled", true },
-            { "OffscreenCanvasInWorkersEnabled", true },
             { "PageVisibilityBasedProcessSuppressionEnabled", false },
             { "PdfJSViewerEnabled", false },
             { "PluginsEnabled", true },
             { "RequiresUserGestureForAudioPlayback", false },
             { "RequiresUserGestureForMediaPlayback", false },
             { "RequiresUserGestureForVideoPlayback", false },
+            { "ScrollToTextFragmentIndicatorEnabled", false },
+            { "ShowModalDialogEnabled", false },
             { "SpeakerSelectionRequiresUserGesture", false },
-            { "SubpixelAntialiasedLayerTextEnabled", false },
             { "TabsToLinks", false },
             { "TextAutosizingEnabled", false },
             { "TextAutosizingUsesIdempotentMode", false },
             { "UsesBackForwardCache", false },
             { "WebAuthenticationEnabled", true },
             { "WebRTCRemoteVideoFrameEnabled", true },
-            { "WebRTCMDNSICECandidatesEnabled", false },
             { "XSSAuditorEnabled", false },
 #if PLATFORM(IOS_FAMILY_SIMULATOR)
             { "VP9DecoderEnabled", false },
@@ -161,6 +166,7 @@ const TestFeatures& TestOptions::defaults()
             { "ignoresViewportScaleLimits", false },
             { "isAppBoundWebView", false },
             { "isAppInitiated", true },
+            { "networkConnectionIntegrityEnabled", false },
             { "runSingly", false },
             { "shouldHandleRunOpenPanel", true },
             { "shouldPresentPopovers", true },
@@ -218,6 +224,7 @@ const std::unordered_map<std::string, TestHeaderKeyType>& TestOptions::keyTypeMa
         { "ignoresViewportScaleLimits", TestHeaderKeyType::BoolTestRunner },
         { "isAppBoundWebView", TestHeaderKeyType::BoolTestRunner },
         { "isAppInitiated", TestHeaderKeyType::BoolTestRunner },
+        { "networkConnectionIntegrityEnabled", TestHeaderKeyType::BoolTestRunner },
         { "runSingly", TestHeaderKeyType::BoolTestRunner },
         { "shouldHandleRunOpenPanel", TestHeaderKeyType::BoolTestRunner },
         { "shouldPresentPopovers", TestHeaderKeyType::BoolTestRunner },

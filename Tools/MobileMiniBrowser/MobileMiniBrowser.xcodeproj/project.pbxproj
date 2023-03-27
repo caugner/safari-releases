@@ -21,6 +21,9 @@
 /* End PBXAggregateTarget section */
 
 /* Begin PBXBuildFile section */
+		4484520429424D840059B0FE /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CD1DAFC11D70E12D00017CF0 /* WebKit.framework */; };
+		457D0F7A29088D9000AE5914 /* SettingsViewController.h in Headers */ = {isa = PBXBuildFile; fileRef = 457D0F7729088C9500AE5914 /* SettingsViewController.h */; };
+		45BE567C2908C74600FD7A95 /* SettingsViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 457D0F7829088D4000AE5914 /* SettingsViewController.m */; };
 		CD1DAF971D709E3600017CF0 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = CD1DAF961D709E3600017CF0 /* main.m */; };
 		CD1DAFA51D709E3600017CF0 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = CD1DAFA31D709E3600017CF0 /* LaunchScreen.storyboard */; };
 		CD1DAFB01D709E3600017CF0 /* MobileMiniBrowserUITests.m in Sources */ = {isa = PBXBuildFile; fileRef = CD1DAFAF1D709E3600017CF0 /* MobileMiniBrowserUITests.m */; };
@@ -82,7 +85,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		A1B89B97221E028700EB4CEA /* SDKVariant.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; name = SDKVariant.xcconfig; path = Configurations/SDKVariant.xcconfig; sourceTree = "<group>"; };
+		457D0F7729088C9500AE5914 /* SettingsViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SettingsViewController.h; sourceTree = "<group>"; };
+		457D0F7829088D4000AE5914 /* SettingsViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SettingsViewController.m; sourceTree = "<group>"; };
 		CD1DAF921D709E3600017CF0 /* MobileMiniBrowser.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MobileMiniBrowser.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CD1DAF961D709E3600017CF0 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
 		CD1DAF981D709E3600017CF0 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
@@ -118,6 +122,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				CD498B421D76348000681FA7 /* MobileMiniBrowser.framework in Frameworks */,
+				4484520429424D840059B0FE /* WebKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -199,6 +204,8 @@
 				CD498B471D7634C700681FA7 /* Info.plist */,
 				CD1DAF9E1D709E3600017CF0 /* Main.storyboard */,
 				CD498B481D7634C700681FA7 /* MobileMiniBrowser.h */,
+				457D0F7729088C9500AE5914 /* SettingsViewController.h */,
+				457D0F7829088D4000AE5914 /* SettingsViewController.m */,
 				CD1DAFBA1D709EF200017CF0 /* TabViewController.h */,
 				CD1DAFBB1D709EF200017CF0 /* TabViewController.m */,
 				CD1DAFBC1D709EF200017CF0 /* WebViewController.h */,
@@ -214,7 +221,6 @@
 				CD4DEEE21D78C6FF00625986 /* Base.xcconfig */,
 				CD4DEEE31D78C6FF00625986 /* DebugRelease.xcconfig */,
 				CD4DEEE41D78C6FF00625986 /* MobileMiniBrowser.xcconfig */,
-				A1B89B97221E028700EB4CEA /* SDKVariant.xcconfig */,
 			);
 			name = Configurations;
 			sourceTree = "<group>";
@@ -240,6 +246,7 @@
 			files = (
 				CD498B501D763D7600681FA7 /* AppDelegate.h in Headers */,
 				CD498B4A1D763D4800681FA7 /* MobileMiniBrowser.h in Headers */,
+				457D0F7A29088D9000AE5914 /* SettingsViewController.h in Headers */,
 				CD498B4E1D763D7600681FA7 /* TabViewController.h in Headers */,
 				CD498B4F1D763D7600681FA7 /* WebViewController.h in Headers */,
 			);
@@ -403,6 +410,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				CD498B4D1D763D7100681FA7 /* AppDelegate.m in Sources */,
+				45BE567C2908C74600FD7A95 /* SettingsViewController.m in Sources */,
 				CD498B4B1D763D7100681FA7 /* TabViewController.m in Sources */,
 				CD498B4C1D763D7100681FA7 /* WebViewController.m in Sources */,
 			);

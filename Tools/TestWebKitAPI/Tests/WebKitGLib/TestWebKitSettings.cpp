@@ -72,11 +72,6 @@ static void testWebKitSettings(Test*, gconstpointer)
     webkit_settings_set_enable_html5_database(settings, FALSE);
     g_assert_false(webkit_settings_get_enable_html5_database(settings));
 
-    // Frame flattening is disabled by default.
-    g_assert_false(webkit_settings_get_enable_frame_flattening(settings));
-    webkit_settings_set_enable_frame_flattening(settings, TRUE);
-    g_assert_true(webkit_settings_get_enable_frame_flattening(settings));
-
     // By default, JavaScript can open windows automatically is disabled.
     g_assert_false(webkit_settings_get_javascript_can_open_windows_automatically(settings));
     webkit_settings_set_javascript_can_open_windows_automatically(settings, TRUE);
@@ -356,6 +351,7 @@ static void testWebKitSettings(Test*, gconstpointer)
     webkit_settings_set_enable_javascript_markup(settings, FALSE);
     g_assert_false(webkit_settings_get_enable_javascript_markup(settings));
 
+#if !ENABLE(2022_GLIB_API)
 ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     // Accelerated 2D canvas is deprecated and always disabled.
     g_assert_false(webkit_settings_get_enable_accelerated_2d_canvas(settings));
@@ -367,6 +363,11 @@ ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     webkit_settings_set_enable_xss_auditor(settings, TRUE);
     g_assert_false(webkit_settings_get_enable_xss_auditor(settings));
 
+    // Frame flattening is deprecated and always disabled.
+    g_assert_false(webkit_settings_get_enable_frame_flattening(settings));
+    webkit_settings_set_enable_frame_flattening(settings, TRUE);
+    g_assert_false(webkit_settings_get_enable_frame_flattening(settings));
+
     // Java is not supported, and always disabled.
     // Make warnings non-fatal for this test to make it pass.
     Test::removeLogFatalFlag(G_LOG_LEVEL_WARNING);
@@ -375,6 +376,12 @@ ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     g_assert_false(webkit_settings_get_enable_java(settings));
     Test::addLogFatalFlag(G_LOG_LEVEL_WARNING);
 ALLOW_DEPRECATED_DECLARATIONS_END
+#endif
+
+    // WebSecurity is enabled by default.
+    g_assert_false(webkit_settings_get_disable_web_security(settings));
+    webkit_settings_set_disable_web_security(settings, TRUE);
+    g_assert_true(webkit_settings_get_disable_web_security(settings));
 
     g_object_unref(G_OBJECT(settings));
 }

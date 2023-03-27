@@ -36,6 +36,7 @@
 #import "WebCoreTestSupport.h"
 #import <Foundation/Foundation.h>
 #import <Security/SecItem.h>
+#import <WebKit/WKContentRuleListStorePrivate.h>
 #import <WebKit/WKContextConfigurationRef.h>
 #import <WebKit/WKContextPrivate.h>
 #import <WebKit/WKImageCG.h>
@@ -48,12 +49,11 @@
 #import <WebKit/WKWebViewConfigurationPrivate.h>
 #import <WebKit/WKWebViewPrivate.h>
 #import <WebKit/WKWebViewPrivateForTesting.h>
+#import <WebKit/WKWebpagePreferencesPrivate.h>
 #import <WebKit/WKWebsiteDataRecordPrivate.h>
 #import <WebKit/WKWebsiteDataStorePrivate.h>
 #import <WebKit/WKWebsiteDataStoreRef.h>
 #import <WebKit/_WKApplicationManifest.h>
-#import <WebKit/_WKUserContentExtensionStore.h>
-#import <WebKit/_WKUserContentExtensionStorePrivate.h>
 #import <WebKit/_WKWebsiteDataStoreConfiguration.h>
 #import <wtf/MainThread.h>
 #import <wtf/UniqueRef.h>
@@ -196,7 +196,7 @@ void TestController::platformCreateWebView(WKPageConfigurationRef, const TestOpt
             [copiedConfiguration _setContentSecurityPolicyModeForExtension:_WKContentSecurityPolicyModeForExtensionManifestV3];
     }
 
-    configureContentMode(copiedConfiguration.get(), options);
+    configureWebpagePreferences(copiedConfiguration.get(), options);
 
     auto applicationManifest = options.applicationManifest();
     if (applicationManifest.length()) {
@@ -283,11 +283,11 @@ void TestController::setDefaultCalendarType(NSString *identifier, NSString *loca
 void TestController::resetContentExtensions()
 {
     __block bool doneRemoving = false;
-    [[_WKUserContentExtensionStore defaultStore] removeContentExtensionForIdentifier:@"TestContentExtensions" completionHandler:^(NSError *error) {
+    [[WKContentRuleListStore defaultStore] removeContentRuleListForIdentifier:@"TestContentExtensions" completionHandler:^(NSError *error) {
         doneRemoving = true;
     }];
     platformRunUntil(doneRemoving, noTimeout);
-    [[_WKUserContentExtensionStore defaultStore] _removeAllContentExtensions];
+    [[WKContentRuleListStore defaultStore] _removeAllContentRuleLists];
 
     if (auto* webView = mainWebView()) {
         TestRunnerWKWebView *platformView = webView->platformView();
@@ -325,8 +325,6 @@ void TestController::cocoaResetStateToConsistentValues(const TestOptions& option
         [platformView _resetNavigationGestureStateForTesting];
         [platformView.configuration.preferences setTextInteractionEnabled:options.textInteractionEnabled()];
     }
-
-    [globalWebsiteDataStoreDelegateClient() setAllowRaisingQuota:YES];
 
     WebCoreTestSupport::setAdditionalSupportedImageTypesForTesting(String::fromLatin1(options.additionalSupportedImageTypes().c_str()));
 }
@@ -518,6 +516,11 @@ void TestController::setAllowStorageQuotaIncrease(bool value)
     [globalWebsiteDataStoreDelegateClient() setAllowRaisingQuota: value];
 }
 
+void TestController::setQuota(uint64_t quota)
+{
+    [globalWebsiteDataStoreDelegateClient() setQuota:quota];
+}
+
 void TestController::setAllowsAnySSLCertificate(bool allows)
 {
     m_allowsAnySSLCertificate = allows;
@@ -553,13 +556,12 @@ static WKContentMode contentMode(const TestOptions& options)
 
 #endif // PLATFORM(IOS_FAMILY)
 
-void TestController::configureContentMode(WKWebViewConfiguration *configuration, const TestOptions& options)
+void TestController::configureWebpagePreferences(WKWebViewConfiguration *configuration, const TestOptions& options)
 {
     auto webpagePreferences = adoptNS([[WKWebpagePreferences alloc] init]);
+    [webpagePreferences _setNetworkConnectionIntegrityEnabled:options.networkConnectionIntegrityEnabled()];
 #if PLATFORM(IOS_FAMILY)
     [webpagePreferences setPreferredContentMode:contentMode(options)];
-#else
-    UNUSED_PARAM(options);
 #endif
     configuration.defaultWebpagePreferences = webpagePreferences.get();
 }

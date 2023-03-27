@@ -294,6 +294,7 @@
     undefined assistiveTechnologySimulatedFocus();
     readonly attribute boolean isSearchField;
     readonly attribute boolean isTextArea;
+    readonly attribute boolean isMarkAnnotation;
 
     readonly attribute boolean hasDocumentRoleAncestor;
     readonly attribute boolean hasWebApplicationAncestor;
@@ -302,6 +303,9 @@
 
     readonly attribute boolean hasContainedByFieldsetTrait;
     AccessibilityUIElement fieldsetAncestorElement();
+    AccessibilityUIElement focusableAncestor();
+    AccessibilityUIElement editableAncestor();
+    AccessibilityUIElement highestEditableAncestor();
 
     // Notification support.
     boolean addNotificationListener(object callbackFunction);

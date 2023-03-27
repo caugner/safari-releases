@@ -10,7 +10,6 @@ layer at (0,0) size 800x600
       RenderBlock {P} at (0,52) size 784x18
         RenderText {#text} at (0,0) size 725x18
           text run at (0,0) width 725: "Results that match Gecko are like WinIE, but with \"before\" for the attribute in the first two rows and the last row."
-      RenderBlock {HR} at (0,86) size 784x2 [border: (1px inset #000000)]
       RenderBlock {FORM} at (0,96) size 784x337
         RenderTable {TABLE} at (0,0) size 766x337
           RenderTableSection {THEAD} at (0,0) size 766x24
@@ -82,7 +81,7 @@ layer at (0,0) size 800x600
                 RenderText {#text} at (1,1) size 228x18
                   text run at (1,1) width 228: "button with value property changed"
               RenderTableCell {TD} at (395,90) size 241x20 [r=4 c=1 rs=1 cs=1]
-                RenderButton {INPUT} at (1,1) size 41x18 [color=#000000D8] [bgcolor=#C0C0C0]
+                RenderButton {INPUT} at (1,1) size 41x18 [color=#000000D8] [bgcolor=#C0C0C0] [border: none (2px outset #C0C0C0) none (2px outset #C0C0C0)]
                   RenderBlock (anonymous) at (8,2) size 25x13
                     RenderText at (0,0) size 25x13
                       text run at (0,0) width 25: "after"
@@ -194,7 +193,7 @@ layer at (0,0) size 800x600
                   text run at (1,1) width 208: "file with value property changed"
               RenderTableCell {TD} at (395,291) size 241x20 [r=13 c=1 rs=1 cs=1]
                 RenderFileUploadControl {INPUT} at (1,1) size 238x18 "no file selected"
-                  RenderButton {INPUT} at (0,0) size 78x18 [color=#000000D8] [bgcolor=#C0C0C0]
+                  RenderButton {INPUT} at (0,0) size 78x18 [color=#000000D8] [bgcolor=#C0C0C0] [border: none (2px outset #C0C0C0) none (2px outset #C0C0C0)]
                     RenderBlock (anonymous) at (8,2) size 62x13
                       RenderText at (0,0) size 62x13
                         text run at (0,0) width 62: "Choose File"
@@ -202,6 +201,8 @@ layer at (0,0) size 800x600
               RenderTableCell {TD} at (701,291) size 63x20 [r=13 c=3 rs=1 cs=1]
                 RenderText {#text} at (1,1) size 41x18
                   text run at (1,1) width 41: "before"
+layer at (8,94) size 784x2 clip at (0,0) size 0x0
+  RenderBlock {HR} at (0,86) size 784x2 [border: (1px inset #000000)]
 layer at (407,132) size 141x13
   RenderBlock {DIV} at (3,3) size 141x13
     RenderText {#text} at (0,0) size 34x13

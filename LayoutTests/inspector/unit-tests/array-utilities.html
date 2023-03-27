@@ -227,6 +227,18 @@ function test()
     });
 
     suite.addTestCase({
+        name: "Array.prototype.firstValue",
+        test() {
+            let object1 = {};
+            let object2 = {};
+            InspectorTest.expectEqual([object1, object2].firstValue, object1, "firstValue of a nonempty array should be the first value.")
+            InspectorTest.expectEqual([].firstValue, undefined, "firstValue of an empty array should be undefined.")
+
+            return true;
+        }
+    });
+
+    suite.addTestCase({
         name: "Array.prototype.lastValue",
         test() {
             let object1 = {};
@@ -308,6 +320,12 @@ function test()
             let arr4 = [1, 2, 3];
             arr4.toggleIncludes(4, false);
             InspectorTest.expectShallowEqual(arr4, [1, 2, 3], "toggleIncludes of a nonexistent item with force false should have no effect.");
+
+            let arr5 = [1, 2, 3];
+            arr5.toggleIncludes(4);
+            InspectorTest.expectShallowEqual(arr5, [1, 2, 3, 4], "toggleIncludes with no 'force' should add the item if it's not present.");
+            arr5.toggleIncludes(4);
+            InspectorTest.expectShallowEqual(arr5, [1, 2, 3], "toggleIncludes with no 'force' should remove the item if it's present.");
 
             return true;
         }

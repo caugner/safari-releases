@@ -14,40 +14,35 @@ PREFER_RADAR = {{ prefer_radar }}
 
 sys.path.append(SCRIPTS)
 from webkitpy.common.checkout.diff_parser import DiffParser
+from webkitbugspy import radar
 
-def message_from_staged_changelogs():
-    try:
-        diff = subprocess.check_output(['git', 'diff', '--staged'])
-    except subprocess.CalledProcessError:
-        return ''
 
-    modified_files = DiffParser(diff.splitlines()).files
-    message = ''
-    for path, parsed_diff in modified_files.items():
-        if not path.endswith('ChangeLog'):
-            continue
+def get_bugs_string():
+    """Determines what bug URLs to fill or suggest in a WebKit commit message."""
+    env = os.environ
+    need_the_bug_url = 'Need the bug URL (OOPS!).'
+    need_the_radar = 'Include a Radar link (OOPS!).'
+    has_radar = any([bool(regex.match(line))
+                     for line in env.get('COMMIT_MESSAGE_BUG', '').splitlines()
+                     for regex in radar.Tracker.RES])
 
-        # Ignore first line (date, name, email) and second line (empty).
-        diff_lines = parsed_diff.lines[2:]
+    if env.get('COMMIT_MESSAGE_BUG'):
+        if has_radar or not bool(radar.Tracker.radarclient()):
+            return env['COMMIT_MESSAGE_BUG']
+        else:
+            return env['COMMIT_MESSAGE_BUG'] + '\n' + need_the_radar
 
-        # Get added lines and strip leading 8 characters indentation.
-        lines = [line[2][SPACING:] for line in diff_lines if not line[0]]
+    bugs_string = need_the_bug_url
+    if bool(radar.Tracker.radarclient()):
+        bugs_string += '\n' + need_the_radar
+    return bugs_string
 
-        message += '\n'.join(lines)
-
-    return message
-
-def message(source=None, sha=None):
-    msg = message_from_staged_changelogs()
-    if msg:
-        return msg
-
+def parseChanges(command, commit_message):
     dirname = None
-    commit_message = []
 
     try:
         for line in subprocess.check_output(
-            ['perl', os.path.join(SCRIPTS, 'prepare-ChangeLog'), '--no-write', '--only-files', '--delimiters'],
+            command,
             **(dict(encoding='utf-8') if sys.version_info > (3, 0) else dict())
         ).splitlines():
             if line == '~':
@@ -61,21 +56,41 @@ def message(source=None, sha=None):
             if line.endswith(':'):
                 dirname = line.split(':')[0]
                 continue
+    except subprocess.CalledProcessError:
+        commit_message.append('')
+        return
 
-        return '''{title}
+def message(source=None, sha=None):
+    commit_message = []
+    command = ['perl', os.path.join(SCRIPTS, 'prepare-ChangeLog'), '--no-write', '--only-files', '--delimiters', '--git-index']
+
+    if sha:
+        commit_message.append('Amend changes:')
+        parseChanges(command, commit_message)
+        commit_message.append('')
+
+        commit_message.append('Combined changes:')
+        command.append('--git-commit')
+        command.append('HEAD')
+
+    parseChanges(command, commit_message)
+
+    bugs_string = get_bugs_string()
+
+    return '''{title}
 {bugs}
 
 Reviewed by NOBODY (OOPS!).
 
+Explanation of why this fixes the bug (OOPS!).
+
 {content}
 '''.format(
         title=os.environ.get('COMMIT_MESSAGE_TITLE', '') or 'Need a short description (OOPS!).',
-        bugs=os.environ.get('COMMIT_MESSAGE_BUG', '') or 'Need the bug URL (OOPS!).',
+        bugs=bugs_string,
         content='\n'.join(commit_message) + os.environ.get('COMMIT_MESSAGE_CONTENT', ''),
     )
 
-    except subprocess.CalledProcessError:
-        return ''
 
 def cherry_pick(content):
     cherry_picked = os.environ.get('GIT_WEBKIT_CHERRY_PICKED')

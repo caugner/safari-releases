@@ -6,6 +6,7 @@ PASS accent-color
 PASS align-content
 PASS align-items
 PASS align-self
+PASS align-tracks
 PASS alignment-baseline
 PASS alt
 PASS animation-composition
@@ -103,6 +104,7 @@ PASS contain-intrinsic-width
 PASS container-name
 PASS container-type
 PASS content
+PASS content-visibility
 PASS counter-increment
 PASS counter-reset
 PASS cursor
@@ -130,9 +132,12 @@ PASS font-kerning
 PASS font-optical-sizing
 PASS font-palette
 PASS font-size
+PASS font-size-adjust
 PASS font-stretch
 PASS font-style
-PASS font-synthesis
+PASS font-synthesis-small-caps
+PASS font-synthesis-style
+PASS font-synthesis-weight
 PASS font-variant-alternates
 PASS font-variant-caps
 PASS font-variant-east-asian
@@ -167,7 +172,9 @@ PASS isolation
 PASS justify-content
 PASS justify-items
 PASS justify-self
+PASS justify-tracks
 PASS kerning
+PASS leading-trim
 PASS left
 PASS letter-spacing
 PASS lighting-color
@@ -184,6 +191,7 @@ PASS margin-inline-start
 PASS margin-left
 PASS margin-right
 PASS margin-top
+PASS margin-trim
 PASS marker-end
 PASS marker-mid
 PASS marker-start
@@ -195,6 +203,7 @@ PASS mask-origin
 PASS mask-repeat
 PASS mask-size
 PASS mask-type
+PASS masonry-auto-flow
 PASS math-style
 PASS max-block-size
 PASS max-height
@@ -219,6 +228,7 @@ PASS outline-color
 PASS outline-offset
 PASS outline-style
 PASS outline-width
+PASS overflow-anchor
 PASS overflow-wrap
 PASS overflow-x
 PASS overflow-y
@@ -273,7 +283,6 @@ PASS shape-image-threshold
 PASS shape-margin
 PASS shape-outside
 PASS shape-rendering
-PASS size
 PASS speak-as
 PASS stop-color
 PASS stop-opacity
@@ -297,9 +306,11 @@ PASS text-decoration-line
 PASS text-decoration-skip-ink
 PASS text-decoration-style
 PASS text-decoration-thickness
+PASS text-edge
 PASS text-emphasis-color
 PASS text-emphasis-position
 PASS text-emphasis-style
+PASS text-group-align
 PASS text-indent
 PASS text-justify
 PASS text-orientation
@@ -309,6 +320,7 @@ PASS text-shadow
 PASS text-transform
 PASS text-underline-offset
 PASS text-underline-position
+PASS text-wrap
 PASS top
 PASS touch-action
 PASS transform
@@ -335,7 +347,6 @@ PASS x
 PASS y
 PASS z-index
 PASS zoom
-PASS -apple-color-filter
 PASS -apple-pay-button-style
 PASS -apple-pay-button-type
 PASS -webkit-backdrop-filter
@@ -370,7 +381,6 @@ PASS -webkit-line-clamp
 PASS -webkit-line-grid
 PASS -webkit-line-snap
 PASS -webkit-locale
-PASS -webkit-mask-box-image
 PASS -webkit-mask-box-image-outset
 PASS -webkit-mask-box-image-repeat
 PASS -webkit-mask-box-image-slice
@@ -387,7 +397,6 @@ PASS -webkit-ruby-position
 PASS -webkit-text-combine
 PASS -webkit-text-fill-color
 PASS -webkit-text-security
-PASS -webkit-text-size-adjust
 PASS -webkit-text-stroke-color
 PASS -webkit-text-stroke-width
 PASS -webkit-text-zoom

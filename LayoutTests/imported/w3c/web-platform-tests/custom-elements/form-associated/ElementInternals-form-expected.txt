@@ -1,6 +1,4 @@
-CONSOLE MESSAGE: TypeError: this.attachInternals is not a function. (In 'this.attachInternals()', 'this.attachInternals' is undefined)
-CONSOLE MESSAGE: TypeError: this.attachInternals is not a function. (In 'this.attachInternals()', 'this.attachInternals' is undefined)
 
-Harness Error (FAIL), message = TypeError: this.attachInternals is not a function. (In 'this.attachInternals()', 'this.attachInternals' is undefined)
-
+PASS ElementInternals.form should return the target element's form owner
+PASS ElementInternals.form should throws NotSupportedError if the target element is not a form-associated custom element
 

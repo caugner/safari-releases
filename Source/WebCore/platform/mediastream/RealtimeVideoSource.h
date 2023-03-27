@@ -55,6 +55,7 @@ private:
     Ref<RealtimeMediaSource> clone() final;
     void endProducingData() final;
     void stopBeingObserved() final;
+    double facingModeFitnessDistanceAdjustment() const final  { return m_source->facingModeFitnessDistanceAdjustment(); }
 
     const RealtimeMediaSourceCapabilities& capabilities() final { return m_source->capabilities(); }
     const RealtimeMediaSourceSettings& settings() final { return m_currentSettings; }
@@ -75,9 +76,7 @@ private:
     // RealtimeMediaSource::VideoFrameObserver
     void videoFrameAvailable(VideoFrame&, VideoFrameTimeMetadata) final;
 
-#if PLATFORM(COCOA)
     RefPtr<VideoFrame> adaptVideoFrame(VideoFrame&);
-#endif
 
 #if !RELEASE_LOG_DISABLED
     void setLogger(const Logger&, const void*) final;

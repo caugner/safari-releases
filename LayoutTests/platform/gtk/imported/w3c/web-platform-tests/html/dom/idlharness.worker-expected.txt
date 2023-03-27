@@ -1,4 +1,3 @@
-Blocked access to external URL http://invalid/
 
 PASS idl_test setup
 PASS idl_test validation
@@ -556,32 +555,6 @@ PASS WebSocket interface: operation send(USVString)
 PASS WebSocket interface: operation send(Blob)
 PASS WebSocket interface: operation send(ArrayBuffer)
 PASS WebSocket interface: operation send(ArrayBufferView)
-PASS WebSocket must be primary interface of new WebSocket("ws://invalid")
-PASS Stringification of new WebSocket("ws://invalid")
-PASS WebSocket interface: new WebSocket("ws://invalid") must inherit property "url" with the proper type
-PASS WebSocket interface: new WebSocket("ws://invalid") must inherit property "CONNECTING" with the proper type
-PASS WebSocket interface: new WebSocket("ws://invalid") must inherit property "OPEN" with the proper type
-PASS WebSocket interface: new WebSocket("ws://invalid") must inherit property "CLOSING" with the proper type
-PASS WebSocket interface: new WebSocket("ws://invalid") must inherit property "CLOSED" with the proper type
-PASS WebSocket interface: new WebSocket("ws://invalid") must inherit property "readyState" with the proper type
-PASS WebSocket interface: new WebSocket("ws://invalid") must inherit property "bufferedAmount" with the proper type
-PASS WebSocket interface: new WebSocket("ws://invalid") must inherit property "onopen" with the proper type
-PASS WebSocket interface: new WebSocket("ws://invalid") must inherit property "onerror" with the proper type
-PASS WebSocket interface: new WebSocket("ws://invalid") must inherit property "onclose" with the proper type
-PASS WebSocket interface: new WebSocket("ws://invalid") must inherit property "extensions" with the proper type
-PASS WebSocket interface: new WebSocket("ws://invalid") must inherit property "protocol" with the proper type
-PASS WebSocket interface: new WebSocket("ws://invalid") must inherit property "close(optional unsigned short, optional USVString)" with the proper type
-PASS WebSocket interface: calling close(optional unsigned short, optional USVString) on new WebSocket("ws://invalid") with too few arguments must throw TypeError
-PASS WebSocket interface: new WebSocket("ws://invalid") must inherit property "onmessage" with the proper type
-PASS WebSocket interface: new WebSocket("ws://invalid") must inherit property "binaryType" with the proper type
-PASS WebSocket interface: new WebSocket("ws://invalid") must inherit property "send(USVString)" with the proper type
-PASS WebSocket interface: calling send(USVString) on new WebSocket("ws://invalid") with too few arguments must throw TypeError
-PASS WebSocket interface: new WebSocket("ws://invalid") must inherit property "send(Blob)" with the proper type
-PASS WebSocket interface: calling send(Blob) on new WebSocket("ws://invalid") with too few arguments must throw TypeError
-PASS WebSocket interface: new WebSocket("ws://invalid") must inherit property "send(ArrayBuffer)" with the proper type
-PASS WebSocket interface: calling send(ArrayBuffer) on new WebSocket("ws://invalid") with too few arguments must throw TypeError
-PASS WebSocket interface: new WebSocket("ws://invalid") must inherit property "send(ArrayBufferView)" with the proper type
-PASS WebSocket interface: calling send(ArrayBufferView) on new WebSocket("ws://invalid") with too few arguments must throw TypeError
 PASS CloseEvent interface: existence and properties of interface object
 PASS CloseEvent interface object length
 PASS CloseEvent interface object name
@@ -591,11 +564,6 @@ PASS CloseEvent interface: existence and properties of interface prototype objec
 PASS CloseEvent interface: attribute wasClean
 PASS CloseEvent interface: attribute code
 PASS CloseEvent interface: attribute reason
-PASS CloseEvent must be primary interface of new CloseEvent("close")
-PASS Stringification of new CloseEvent("close")
-PASS CloseEvent interface: new CloseEvent("close") must inherit property "wasClean" with the proper type
-PASS CloseEvent interface: new CloseEvent("close") must inherit property "code" with the proper type
-PASS CloseEvent interface: new CloseEvent("close") must inherit property "reason" with the proper type
 PASS MessageChannel interface: existence and properties of interface object
 PASS MessageChannel interface object length
 PASS MessageChannel interface object name
@@ -734,18 +702,18 @@ PASS WorkerGlobalScope interface: calling createImageBitmap(ImageBitmapSource, l
 PASS WorkerGlobalScope interface: self must inherit property "structuredClone(any, optional StructuredSerializeOptions)" with the proper type
 PASS WorkerGlobalScope interface: calling structuredClone(any, optional StructuredSerializeOptions) on self with too few arguments must throw TypeError
 PASS SharedWorkerGlobalScope interface: existence and properties of interface object
-FAIL Worker interface: existence and properties of interface object assert_own_property: self does not have own property "Worker" expected property "Worker" missing
-FAIL Worker interface object length assert_own_property: self does not have own property "Worker" expected property "Worker" missing
-FAIL Worker interface object name assert_own_property: self does not have own property "Worker" expected property "Worker" missing
-FAIL Worker interface: existence and properties of interface prototype object assert_own_property: self does not have own property "Worker" expected property "Worker" missing
-FAIL Worker interface: existence and properties of interface prototype object's "constructor" property assert_own_property: self does not have own property "Worker" expected property "Worker" missing
-FAIL Worker interface: existence and properties of interface prototype object's @@unscopables property assert_own_property: self does not have own property "Worker" expected property "Worker" missing
-FAIL Worker interface: operation terminate() assert_own_property: self does not have own property "Worker" expected property "Worker" missing
-FAIL Worker interface: operation postMessage(any, sequence<object>) assert_own_property: self does not have own property "Worker" expected property "Worker" missing
-FAIL Worker interface: operation postMessage(any, optional StructuredSerializeOptions) assert_own_property: self does not have own property "Worker" expected property "Worker" missing
-FAIL Worker interface: attribute onmessage assert_own_property: self does not have own property "Worker" expected property "Worker" missing
-FAIL Worker interface: attribute onmessageerror assert_own_property: self does not have own property "Worker" expected property "Worker" missing
-FAIL Worker interface: attribute onerror assert_own_property: self does not have own property "Worker" expected property "Worker" missing
+PASS Worker interface: existence and properties of interface object
+PASS Worker interface object length
+PASS Worker interface object name
+PASS Worker interface: existence and properties of interface prototype object
+PASS Worker interface: existence and properties of interface prototype object's "constructor" property
+PASS Worker interface: existence and properties of interface prototype object's @@unscopables property
+PASS Worker interface: operation terminate()
+PASS Worker interface: operation postMessage(any, sequence<object>)
+PASS Worker interface: operation postMessage(any, optional StructuredSerializeOptions)
+PASS Worker interface: attribute onmessage
+FAIL Worker interface: attribute onmessageerror assert_true: The prototype object must have a property "onmessageerror" expected true got false
+PASS Worker interface: attribute onerror
 PASS SharedWorker interface: existence and properties of interface object
 PASS WorkerNavigator interface: existence and properties of interface object
 PASS WorkerNavigator interface object length

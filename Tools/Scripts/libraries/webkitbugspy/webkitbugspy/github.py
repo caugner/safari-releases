@@ -1,4 +1,4 @@
-# Copyright (C) 2021-2022 Apple Inc. All rights reserved.
+# Copyright (C) 2021-2023 Apple Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -66,6 +66,7 @@ class Tracker(GenericTracker):
                 result = dict(
                     type='github',
                     url=obj.url,
+                    hide_title=obj.hide_title,
                 )
                 if obj._res[len(Tracker.RE_TEMPLATES):]:
                     result['res'] = [compiled.pattern for compiled in obj._res[len(Tracker.RE_TEMPLATES):]]
@@ -78,9 +79,9 @@ class Tracker(GenericTracker):
             self, url, users=None, res=None,
             component_color=DEFAULT_COMPONENT_COLOR,
             version_color=DEFAULT_VERSION_COLOR,
-            session=None, redact=None,
+            session=None, redact=None, hide_title=None,
     ):
-        super(Tracker, self).__init__(users=users, redact=redact)
+        super(Tracker, self).__init__(users=users, redact=redact, hide_title=hide_title)
 
         self.session = session or requests.Session()
         self.component_color = component_color
@@ -233,8 +234,10 @@ with 'repo' and 'workflow' access and appropriate 'Expiration' for your {host} u
     def populate(self, issue, member=None):
         issue._link = '{}/issues/{}'.format(self.url, issue.id)
         issue._project = self.name
+        issue._keywords = []  # We don't yet have a defined idiom for "keywords" in GitHub Issues
+        issue._classification = ''  # We don't yet have a defined idiom for "classification" in GitHub issues
 
-        if member in ('title', 'timestamp', 'creator', 'opened', 'assignee', 'description', 'project', 'component', 'version', 'labels'):
+        if member in ('title', 'timestamp', 'creator', 'opened', 'assignee', 'description', 'project', 'component', 'version', 'labels', 'milestone'):
             response = self.request(path='issues/{}'.format(issue.id))
             if response:
                 issue._title = response['title']
@@ -243,6 +246,7 @@ with 'repo' and 'workflow' access and appropriate 'Expiration' for your {host} u
                 issue._description = response['body']
                 issue._opened = response['state'] != 'closed'
                 issue._assignee = self.user(username=response['assignee']['login']) if response.get('assignee') else None
+                issue._milestone = (response.get('milestone') or {}).get('title', '')
 
                 issue._labels = []
                 for label in response.get('labels', []):
@@ -571,6 +575,11 @@ with 'repo' and 'workflow' access and appropriate 'Expiration' for your {host} u
         error_messages = []
         for error in json.get('errors', []):
             error_message = '---\tERROR\t---\n'
+
+            if not isinstance(error, dict):
+                error_message += str(error) + '\n'
+                error_messages.append(error_message)
+                continue
 
             code = error.get('code')
             if code:

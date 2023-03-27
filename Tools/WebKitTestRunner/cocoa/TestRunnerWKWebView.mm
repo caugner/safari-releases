@@ -71,6 +71,7 @@ struct CustomMenuActionInfo {
 #if PLATFORM(IOS_FAMILY)
     RetainPtr<UITapGestureRecognizer> _windowTapGestureRecognizer;
     BlockPtr<void()> _windowTapRecognizedCallback;
+    UIInterfaceOrientationMask _supportedInterfaceOrientations;
 #endif
 }
 
@@ -116,9 +117,11 @@ IGNORE_WARNINGS_END
         ALLOW_DEPRECATED_DECLARATIONS_END
         [center addObserver:self selector:@selector(_willPresentPopover) name:@"UIPopoverControllerWillPresentPopoverNotification" object:nil];
         [center addObserver:self selector:@selector(_didDismissPopover) name:@"UIPopoverControllerDidDismissPopoverNotification" object:nil];
+        self.inspectable = YES;
         self.UIDelegate = self;
         self._inputDelegate = self;
         self.focusStartsInputSessionPolicy = _WKFocusStartsInputSessionPolicyAuto;
+        self.supportedInterfaceOrientations = UIInterfaceOrientationMaskAll;
 #endif
     }
     return self;
@@ -464,6 +467,16 @@ IGNORE_WARNINGS_END
     return _overrideSafeAreaInsets;
 }
 
+- (void)setSupportedInterfaceOrientations:(UIInterfaceOrientationMask)orientations
+{
+    _supportedInterfaceOrientations = orientations;
+}
+
+- (UIInterfaceOrientationMask)supportedInterfaceOrientations
+{
+    return _supportedInterfaceOrientations;
+}
+
 - (UIView *)contentView
 {
     return [self valueForKeyPath:@"_currentContentView"];
@@ -501,6 +514,24 @@ static bool isQuickboardViewController(UIViewController *viewController)
 {
     [self _invokeHideKeyboardCallbackIfNecessary];
 }
+
+#if HAVE(UI_EDIT_MENU_INTERACTION)
+
+- (void)webView:(WKWebView *)webView willPresentEditMenuWithAnimator:(id<UIEditMenuInteractionAnimating>)animator
+{
+    [animator addCompletion:[strongSelf = RetainPtr { self }] {
+        [strongSelf _didShowMenu];
+    }];
+}
+
+- (void)webView:(WKWebView *)webView willDismissEditMenuWithAnimator:(id<UIEditMenuInteractionAnimating>)animator
+{
+    [animator addCompletion:[strongSelf = RetainPtr { self }] {
+        [strongSelf _didHideMenu];
+    }];
+}
+
+#endif // HAVE(UI_EDIT_MENU_INTERACTION)
 
 #pragma mark - _WKInputDelegate
 
@@ -556,27 +587,6 @@ static bool isQuickboardViewController(UIViewController *viewController)
 
 #if HAVE(UI_EDIT_MENU_INTERACTION)
 
-- (UIEditMenuInteraction *)currentEditMenuInteraction
-{
-    for (id<UIInteraction> interaction in self.contentView.interactions) {
-        if (auto *editMenuInteraction = dynamic_objc_cast<UIEditMenuInteraction>(interaction))
-            return editMenuInteraction;
-    }
-    return nil;
-}
-
-- (void)didPresentEditMenuInteraction:(UIEditMenuInteraction *)interaction
-{
-    if (interaction == self.currentEditMenuInteraction)
-        [self _didShowMenu];
-}
-
-- (void)didDismissEditMenuInteraction:(UIEditMenuInteraction *)interaction
-{
-    if (interaction == self.currentEditMenuInteraction)
-        [self _didHideMenu];
-}
-
 - (void)immediatelyDismissEditMenuInteractionIfNeeded
 {
     if (!self.isShowingMenu)
@@ -585,7 +595,10 @@ static bool isQuickboardViewController(UIViewController *viewController)
     self.showingMenu = NO;
 
     [UIView performWithoutAnimation:^{
-        [self.currentEditMenuInteraction dismissMenu];
+        for (id<UIInteraction> interaction in self.contentView.interactions) {
+            if (auto *editMenuInteraction = dynamic_objc_cast<UIEditMenuInteraction>(interaction))
+                [editMenuInteraction dismissMenu];
+        }
     }];
 }
 

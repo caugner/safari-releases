@@ -118,10 +118,16 @@ public:
     void syncPress();
     void asyncIncrement();
     void asyncDecrement();
+    RefPtr<AccessibilityUIElement> focusableAncestor();
+    RefPtr<AccessibilityUIElement> editableAncestor();
+    RefPtr<AccessibilityUIElement> highestEditableAncestor();
 #else
     void syncPress() { press(); }
     void asyncIncrement() { }
     void asyncDecrement() { };
+    RefPtr<AccessibilityUIElement> focusableAncestor() { return nullptr; }
+    RefPtr<AccessibilityUIElement> editableAncestor() { return nullptr; }
+    RefPtr<AccessibilityUIElement> highestEditableAncestor() { return nullptr; }
 #endif
 
     // Attributes - platform-independent implementations
@@ -244,17 +250,19 @@ public:
     RefPtr<AccessibilityUIElement> disclosedRowAtIndex(unsigned);
     RefPtr<AccessibilityUIElement> rowAtIndex(unsigned);
 
-    JSValueRef detailsElements() const;
-    JSValueRef errorMessageElements() const;
     // ARIA specific
     RefPtr<AccessibilityUIElement> ariaOwnsElementAtIndex(unsigned);
     RefPtr<AccessibilityUIElement> ariaFlowToElementAtIndex(unsigned);
     RefPtr<AccessibilityUIElement> ariaControlsElementAtIndex(unsigned);
 #if PLATFORM(COCOA) || USE(ATSPI)
+    JSValueRef detailsElements() const;
     RefPtr<AccessibilityUIElement> ariaDetailsElementAtIndex(unsigned);
+    JSValueRef errorMessageElements() const;
     RefPtr<AccessibilityUIElement> ariaErrorMessageElementAtIndex(unsigned);
 #else
+    JSValueRef detailsElements() const { return { }; }
     RefPtr<AccessibilityUIElement> ariaDetailsElementAtIndex(unsigned) { return nullptr; }
+    JSValueRef errorMessageElements() const { return { }; }
     RefPtr<AccessibilityUIElement> ariaErrorMessageElementAtIndex(unsigned) { return nullptr; }
 #endif
 
@@ -408,6 +416,8 @@ public:
     bool isDeletion() const;
     bool isFirstItemInSuggestion() const;
     bool isLastItemInSuggestion() const;
+    
+    bool isMarkAnnotation() const;
 private:
     AccessibilityUIElement(PlatformUIElement);
     AccessibilityUIElement(const AccessibilityUIElement&);

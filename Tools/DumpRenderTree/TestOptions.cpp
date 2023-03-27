@@ -93,9 +93,9 @@ const TestFeatures& TestOptions::defaults()
             { "RequiresUserGestureForAudioPlayback", false },
             { "RequiresUserGestureForMediaPlayback", false },
             { "RequiresUserGestureForVideoPlayback", false },
+            { "ScrollToTextFragmentIndicatorEnabled", false },
             { "ShouldPrintBackgrounds", true },
             { "ShrinksStandaloneImagesToFit", true },
-            { "SubpixelAntialiasedLayerTextEnabled", false },
             { "TextAreasAreResizable", true },
             { "TextAutosizingEnabled", false },
             { "UsesBackForwardCache", false },
@@ -104,7 +104,7 @@ const TestFeatures& TestOptions::defaults()
             { "XSSAuditorEnabled", false },
 
             // FIXME: These experimental features are currently the only ones not enabled for WebKitLegacy, we
-            // should either enable them or stop exposing them (as we do with with preferences like HTTP3Enabled).
+            // should either enable them or stop exposing them (as we do with with preferences).
             // All other experimental features are automatically enabled regardless of their specified defaults.
             { "AsyncClipboardAPIEnabled", false },
             { "CSSOMViewSmoothScrollingEnabled", false },
@@ -133,7 +133,6 @@ const TestFeatures& TestOptions::defaults()
             { "CSSGradientInterpolationColorSpacesEnabled", true },
             { "CSSGradientPremultipliedAlphaInterpolationEnabled", true },
             { "CSSInputSecurityEnabled", true },
-            { "CSSLogicalEnabled", false },
             { "CSSOMViewSmoothScrollingEnabled", false },
             { "CSSTextAlignLastEnabled", true },
             { "CSSTextJustifyEnabled", true },
@@ -150,7 +149,6 @@ const TestFeatures& TestOptions::defaults()
             { "JavaScriptEnabled", true },
             { "KeygenElementEnabled", false },
             { "LayoutFormattingContextIntegrationEnabled", true },
-            { "LineHeightUnitsEnabled", false },
             { "LoadsImagesAutomatically", true },
             { "MainContentUserGestureOverrideEnabled", false },
             { "MenuItemElementEnabled", false },

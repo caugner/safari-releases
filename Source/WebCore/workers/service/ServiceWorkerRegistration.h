@@ -29,7 +29,7 @@
 
 #include "ActiveDOMObject.h"
 #include "EventTarget.h"
-#include "JSDOMPromiseDeferred.h"
+#include "JSDOMPromiseDeferredForward.h"
 #include "Notification.h"
 #include "NotificationOptions.h"
 #include "PushPermissionState.h"
@@ -114,6 +114,7 @@ private:
 
     // ActiveDOMObject.
     const char* activeDOMObjectName() const final;
+    void stop() final;
     bool virtualHasPendingActivity() const final;
 
     ServiceWorkerRegistrationData m_registrationData;

@@ -1,2 +1,3 @@
 
-PASS Test that the javascript: src is allowed to run
+PASS javascript: navigation using <a href target=_blank> should be allowed
+

@@ -1,4 +1,4 @@
-# Copyright (C) 2020-2022 Apple Inc. All rights reserved.
+# Copyright (C) 2020-2023 Apple Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -253,12 +253,18 @@ nothing to commit, working tree clean
                     returncode=0,
                 ),
             ), mocks.Subprocess.Route(
+                self.executable, 'branch', '-a', '--merged',
+                cwd=self.path,
+                generator=lambda *args, **kwargs: self.branch_merged_to(args[4]),
+            ), mocks.Subprocess.Route(
                 self.executable, 'branch', '-a',
                 cwd=self.path,
                 generator=lambda *args, **kwargs: mocks.ProcessCompletion(
                     returncode=0,
                     stdout='\n'.join(sorted(['* ' + self.branch] + list(({default_branch} | set(self.commits.keys())) - {self.branch}))) +
-                           '\nremotes/origin/HEAD -> origin/{}\n'.format(default_branch) + '\n'.join(['  remotes/{}'.format(name) for name in self.remotes.keys()]) + '\n',
+                           '\nremotes/origin/HEAD -> origin/{}\n'.format(default_branch) + \
+                           '\n'.join(['  remotes/{}'.format(name) for name in self.remotes.keys() if default_branch in name]) + '\n' + \
+                           '\n'.join(['  remotes/{}'.format(name) for name in self.remotes.keys() if default_branch not in name]) + '\n',
                 ),
             ), mocks.Subprocess.Route(
                 self.executable, 'tag',
@@ -598,11 +604,11 @@ nothing to commit, working tree clean
                 self.executable, 'reset', 'HEAD',
                 cwd=self.path,
                 generator=lambda *args, **kwargs: self.reset(int(args[2].split('~')[-1]) if '~' in args[2] else None),
-            ),  mocks.Subprocess.Route(
+            ), mocks.Subprocess.Route(
                 self.executable, 'reset', re.compile(r'.+'),
                 cwd=self.path,
                 generator=lambda *args, **kwargs: self.reset_commit(args[2]),
-            ),  mocks.Subprocess.Route(
+            ), mocks.Subprocess.Route(
                 self.executable, 'show', re.compile(r'.+'), '--pretty=', '--name-only',
                 cwd=self.path,
                 # FIXME: All mock commits have the same set of files changed with this implementation
@@ -610,7 +616,43 @@ nothing to commit, working tree clean
                     returncode=0,
                     stdout='Source/main.cpp\nSource/main.h\n',
                 ),
-            ),  mocks.Subprocess.Route(
+            ), mocks.Subprocess.Route(
+                self.executable, 'show', re.compile(r'.+'),
+                cwd=self.path,
+                generator=lambda *args, **kwargs: mocks.ProcessCompletion(
+                    returncode=0,
+                    stdout='commit {hash}\n'
+                        'Author: {author} <{email}>\n'
+                        'Date:   {date}\n'
+                        '\n{log}\n\n'
+                        'diff --git a/Source/main.cpp b/Source/main.cpp\n'
+                        'index 2deba859a126..7b85f5cecd66 100644\n'
+                        '--- a/Source/main.cpp\n'
+                        '--- b/Source/main.cpp\n'
+                        '@@ -2948,6 +2948,8 @@ Vector<CompositedClipData> RenderLayerCompositor::computeAncestorClippingStack(c\n'
+                        '     auto backgroundClip = clippedLayer.backgroundClipRect(RenderLayer::ClipRectsContext(&clippingRoot, TemporaryClipRects, options));\n'
+                        '     ASSERT(!backgroundClip.affectedByRadius());\n'
+                        '     auto clipRect = backgroundClip.rect();\n'
+                        '+    if (clipRect.isInfinite())\n'
+                        '+        return;\n'
+                        '    auto offset = layer.convertToLayerCoords(&clippingRoot, {{ }}, RenderLayer::AdjustForColumns);\n'
+                        '    clipRect.moveBy(-offset);\n'.format(
+                            hash=self.find(args[2]).hash,
+                            author=self.find(args[2]).author.name,
+                            email=self.find(args[2]).author.email,
+                            date=self.find(args[2]).timestamp if '--date=unix' in args else datetime.utcfromtimestamp(self.find(args[2]).timestamp + time.timezone).strftime('%a %b %d %H:%M:%S %Y +0000'),
+                            log='\n'.join(
+                                [
+                                    ('    ' + line) if line else '' for line in self.find(args[2]).message.splitlines()
+                                ] + (['    git-svn-id: https://svn.{}/repository/{}/trunk@{} 268f45cc-cd09-0410-ab3c-d52691b4dbfc'.format(
+                                    self.remote.split('@')[-1].split(':')[0],
+                                    os.path.basename(path),
+                                    self.find(args[2]).revision,
+                                )] if git_svn else [])
+                            )
+                        )
+                ) if self.find(args[2]) else mocks.ProcessCompletion(returncode=128)
+            ), mocks.Subprocess.Route(
                 self.executable, 'branch', '--set-upstream-to', re.compile(r'.+'), re.compile(r'.+'),
                 cwd=self.path,
                 generator=lambda *args, **kwargs: mocks.ProcessCompletion(
@@ -697,6 +739,7 @@ nothing to commit, working tree clean
                     return all_commits[head_index - difference]
                 return None
 
+        something = str(something).replace('refs/remotes/', '')
         something = str(something).replace('remotes/', '')
         if '..' in something:
             a, b = something.split('..')
@@ -1285,4 +1328,22 @@ nothing to commit, working tree clean
         return mocks.ProcessCompletion(
             returncode=0,
             stdout='{}\n'.format(base.hash),
+        )
+
+    def branch_merged_to(self, ref):
+        obj = self.find(ref)
+        if not obj:
+            return mocks.ProcessCompletion(
+                returncode=128,
+                stderr='fatal: Not a valid object name {}\n'.format(ref),
+            )
+
+        out = ''
+        for branch, commits in self.commits.items():
+            if commits and commits[-1].hash == obj.hash:
+                out += ' {}\n'.format(branch)
+
+        return mocks.ProcessCompletion(
+            returncode=0,
+            stdout=out or '\n',
         )

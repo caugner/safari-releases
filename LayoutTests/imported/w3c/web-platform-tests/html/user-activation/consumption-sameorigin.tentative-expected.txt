@@ -1,6 +1,3 @@
-CONSOLE MESSAGE: TypeError: undefined is not an object (evaluating 'navigator.userActivation.isActive')
-CONSOLE MESSAGE: TypeError: undefined is not an object (evaluating 'navigator.userActivation.isActive')
-CONSOLE MESSAGE: TypeError: undefined is not an object (evaluating 'navigator.userActivation.isActive')
 User activation consumption across same-origin frame boundary
 
 Tests that user activation consumption resets the transient states in all same-origin frames.
@@ -8,7 +5,13 @@ Tests that user activation consumption resets the transient states in all same-o
 Click anywhere on the green area (child frame).
 
 
-Harness Error (TIMEOUT), message = null
-
-NOTRUN Consumption test
+PASS Consumption test
+PASS Child1 frame initial state
+PASS Child2 frame initial state
+PASS Grandchild frame initial state
+PASS Parent frame initial state
+FAIL Child2 frame final state assert_false: expected false got true
+FAIL Child1 frame final state assert_false: expected false got true
+FAIL Grand child frame final state assert_false: expected false got true
+FAIL Parent frame final state assert_false: expected false got true
 

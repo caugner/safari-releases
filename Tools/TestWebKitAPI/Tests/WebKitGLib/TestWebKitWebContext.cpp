@@ -41,6 +41,7 @@ static void testWebContextDefault(Test* test, gconstpointer)
     g_assert_true(webkit_web_context_get_default() != test->m_webContext.get());
 }
 
+#if !ENABLE(2022_GLIB_API)
 static void testWebContextEphemeral(Test* test, gconstpointer)
 {
     // By default web contexts are not ephemeral.
@@ -78,6 +79,7 @@ static void testWebContextEphemeral(Test* test, gconstpointer)
     context = adoptGRef(webkit_web_context_new_with_website_data_manager(ephemeralManager.get()));
     g_assert_true(webkit_web_context_is_ephemeral(context.get()));
 }
+#endif
 
 static const char* kBarHTML = "<html><body>Bar</body></html>";
 static const char* kEchoHTMLFormat = "<html><body>%s</body></html>";
@@ -624,11 +626,12 @@ static void testWebContextSecurityPolicy(SecurityPolicyTest* test, gconstpointer
         | SecurityPolicyTest::CORSEnabled | SecurityPolicyTest::EmptyDocument);
 }
 
-static void consoleMessageReceivedCallback(WebKitUserContentManager*, WebKitJavascriptResult* message, Vector<WebKitJavascriptResult*>* result)
+static void xhrMessageReceivedCallback(WebKitUserContentManager*, WebKitJavascriptResult* message, WebKitJavascriptResult** result)
 {
     g_assert_nonnull(message);
     g_assert_nonnull(result);
-    result->append(webkit_javascript_result_ref(message));
+    g_assert_null(*result);
+    *result = webkit_javascript_result_ref(message);
 }
 
 static void testWebContextSecurityFileXHR(WebViewTest* test, gconstpointer)
@@ -638,35 +641,36 @@ static void testWebContextSecurityFileXHR(WebViewTest* test, gconstpointer)
     test->waitUntilLoadFinished();
 
     GUniquePtr<char> jsonURL(g_strdup_printf("file://%s/simple.json", Test::getResourcesDir().data()));
-    GUniquePtr<char> xhr(g_strdup_printf("var xhr = new XMLHttpRequest; xhr.open(\"GET\", \"%s\"); xhr.send();", jsonURL.get()));
+    GUniquePtr<char> xhr(g_strdup_printf("var xhr = new XMLHttpRequest; xhr.open(\"GET\", \"%s\"); xhr.onreadystatechange = ()=> { if (xhr.readyState == 4) { setTimeout(() => { window.webkit.messageHandlers.xhr.postMessage('DONE'); }, 0)} }; xhr.onerror = () => { window.webkit.messageHandlers.xhr.postMessage('ERROR'); }; xhr.send();", jsonURL.get()));
 
-    Vector<WebKitJavascriptResult*> consoleMessages;
-    webkit_user_content_manager_register_script_message_handler(test->m_userContentManager.get(), "console");
-    g_signal_connect(test->m_userContentManager.get(), "script-message-received::console", G_CALLBACK(consoleMessageReceivedCallback), &consoleMessages);
+    WebKitJavascriptResult* xhrMessage = nullptr;
+    webkit_user_content_manager_register_script_message_handler(test->m_userContentManager.get(), "xhr");
+    g_signal_connect(test->m_userContentManager.get(), "script-message-received::xhr", G_CALLBACK(xhrMessageReceivedCallback), &xhrMessage);
+
+    auto waitUntilXHRDone = [&]() -> bool {
+        bool didFail = false;
+        while (true) {
+            while (!xhrMessage)
+                g_main_context_iteration(nullptr, TRUE);
+
+            GUniquePtr<char> messageString(WebViewTest::javascriptResultToCString(xhrMessage));
+            g_clear_pointer(&xhrMessage, webkit_javascript_result_unref);
+
+            if (!g_strcmp0(messageString.get(), "ERROR"))
+                didFail = true;
+            else if (!g_strcmp0(messageString.get(), "DONE"))
+                break;
+        }
+
+        return !didFail;
+    };
 
     // By default file access is not allowed, this will show a console message with a cross-origin error.
     GUniqueOutPtr<GError> error;
     WebKitJavascriptResult* javascriptResult = test->runJavaScriptAndWaitUntilFinished(xhr.get(), &error.outPtr());
     g_assert_nonnull(javascriptResult);
     g_assert_no_error(error.get());
-    g_assert_cmpuint(consoleMessages.size(), ==, 2);
-    Vector<GUniquePtr<char>, 2> expectedMessages;
-    expectedMessages.append(g_strdup("Cross origin requests are only supported for HTTP."));
-    expectedMessages.append(g_strdup_printf("XMLHttpRequest cannot load %s due to access control checks.", jsonURL.get()));
-    unsigned i = 0;
-    for (auto* consoleMessage : consoleMessages) {
-        g_assert_nonnull(consoleMessage);
-        GUniquePtr<char> messageString(WebViewTest::javascriptResultToCString(consoleMessage));
-        GRefPtr<GVariant> variant = g_variant_parse(G_VARIANT_TYPE("(uusus)"), messageString.get(), nullptr, nullptr, nullptr);
-        g_assert_nonnull(variant.get());
-        unsigned level;
-        const char* messageText;
-        g_variant_get(variant.get(), "(uu&su&s)", nullptr, &level, &messageText, nullptr, nullptr);
-        g_assert_cmpuint(level, ==, 3); // Console error message.
-        g_assert_cmpstr(messageText, ==, expectedMessages[i++].get());
-        webkit_javascript_result_unref(consoleMessage);
-    }
-    consoleMessages.clear();
+    g_assert_false(waitUntilXHRDone());
 
     // Allow file access from file URLs.
     webkit_settings_set_allow_file_access_from_file_urls(webkit_web_view_get_settings(test->m_webView), TRUE);
@@ -675,6 +679,7 @@ static void testWebContextSecurityFileXHR(WebViewTest* test, gconstpointer)
     javascriptResult = test->runJavaScriptAndWaitUntilFinished(xhr.get(), &error.outPtr());
     g_assert_nonnull(javascriptResult);
     g_assert_no_error(error.get());
+    g_assert_true(waitUntilXHRDone());
 
     // It isn't still possible to load file from an HTTP URL.
     test->loadURI(kServer->getURIForPath("/").data());
@@ -682,23 +687,10 @@ static void testWebContextSecurityFileXHR(WebViewTest* test, gconstpointer)
     javascriptResult = test->runJavaScriptAndWaitUntilFinished(xhr.get(), &error.outPtr());
     g_assert_nonnull(javascriptResult);
     g_assert_no_error(error.get());
-    i = 0;
-    for (auto* consoleMessage : consoleMessages) {
-        g_assert_nonnull(consoleMessage);
-        GUniquePtr<char> messageString(WebViewTest::javascriptResultToCString(consoleMessage));
-        GRefPtr<GVariant> variant = g_variant_parse(G_VARIANT_TYPE("(uusus)"), messageString.get(), nullptr, nullptr, nullptr);
-        g_assert_nonnull(variant.get());
-        unsigned level;
-        const char* messageText;
-        g_variant_get(variant.get(), "(uu&su&s)", nullptr, &level, &messageText, nullptr, nullptr);
-        g_assert_cmpuint(level, ==, 3); // Console error message.
-        g_assert_cmpstr(messageText, ==, expectedMessages[i++].get());
-        webkit_javascript_result_unref(consoleMessage);
-    }
-    consoleMessages.clear();
+    g_assert_false(waitUntilXHRDone());
 
-    g_signal_handlers_disconnect_matched(test->m_userContentManager.get(), G_SIGNAL_MATCH_DATA, 0, 0, nullptr, nullptr, &consoleMessages);
-    webkit_user_content_manager_unregister_script_message_handler(test->m_userContentManager.get(), "console");
+    g_signal_handlers_disconnect_matched(test->m_userContentManager.get(), G_SIGNAL_MATCH_DATA, 0, 0, nullptr, nullptr, &xhrMessage);
+    webkit_user_content_manager_unregister_script_message_handler(test->m_userContentManager.get(), "xhr");
 
     webkit_settings_set_allow_file_access_from_file_urls(webkit_web_view_get_settings(test->m_webView), FALSE);
 }
@@ -778,6 +770,7 @@ public:
 #endif
 };
 
+#if !ENABLE(2022_GLIB_API)
 #if SOUP_CHECK_VERSION(2, 61, 90)
 #if USE(SOUP2)
 static void webSocketServerCallback(SoupServer*, SoupWebsocketConnection*, const char*, SoupClientContext*, gpointer userData)
@@ -891,6 +884,7 @@ static void testWebContextProxySettings(ProxyTest* test, gconstpointer)
     kServer->removeWebSocketHandler();
 #endif
 }
+#endif
 
 class MemoryPressureTest : public WebViewTest {
 public:
@@ -1076,7 +1070,9 @@ void beforeAll()
     kServer->run(serverCallback);
 
     Test::add("WebKitWebContext", "default-context", testWebContextDefault);
+#if !ENABLE(2022_GLIB_API)
     Test::add("WebKitWebContext", "ephemeral", testWebContextEphemeral);
+#endif
     URISchemeTest::add("WebKitWebContext", "uri-scheme", testWebContextURIScheme);
     // FIXME: implement spellchecker in WPE.
 #if PLATFORM(GTK)
@@ -1085,7 +1081,9 @@ void beforeAll()
     WebViewTest::add("WebKitWebContext", "languages", testWebContextLanguages);
     SecurityPolicyTest::add("WebKitSecurityManager", "security-policy", testWebContextSecurityPolicy);
     WebViewTest::add("WebKitSecurityManager", "file-xhr", testWebContextSecurityFileXHR);
+#if !ENABLE(2022_GLIB_API)
     ProxyTest::add("WebKitWebContext", "proxy", testWebContextProxySettings);
+#endif
     MemoryPressureTest::add("WebKitWebContext", "memory-pressure", testMemoryPressureSettings);
     WebViewTest::add("WebKitWebContext", "timezone", testWebContextTimeZoneOverride);
     WebViewTest::add("WebKitWebContext", "timezone-worker", testWebContextTimeZoneOverrideInWorker);

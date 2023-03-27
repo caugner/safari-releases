@@ -381,9 +381,11 @@ To do that, turn on the target membership in respective framework as set the mem
 This will ensure the relevant header file is exported from WTF / WebCore to other downstream projects like WebKitLegacy.
 ![Screenshot of exporting a header file](resources/xcode-export-header.png)
 
+Non-cocoa ports, like WPE and GTK, use CMake for building the project. If the header is not platform-specific, you might want to add an entry for it into
+the relevant Headers.cmake. For example, if a WebCore header is included by WebKit, you will need to list the header in Source/WebCore/Headers.cmake.
+
 FIXME: Mention WTF_EXPORT_PRIVATE and WEBCORE_EXPORT.
 
-FIXME: Add instructions on how to add files to CMake.
 
 ### Build Failures with Unified Sources
 
@@ -468,7 +470,13 @@ WebKit uses two primary management strategies when objects in other cases:
 
 ## Garbage collection in WebKit
 
-FIXME: Write this.
+See these blog posts:
+
+* [Understanding Garbage Collection in JavaScriptCore From Scratch](https://webkit.org/blog/12967/understanding-gc-in-jsc-from-scratch/):
+  Summary of how our GC is organized and how it works.
+* [Introducing Riptide: WebKit’s Retreating Wavefront Concurrent Garbage Collector](https://webkit.org/blog/7122/introducing-riptide-webkits-retreating-wavefront-concurrent-garbage-collector/):
+  Focusing on novel algorithms of our GC including how to tackle web browser specific problems (managing DOM objects, concurrency, etc.).
+
 
 ## Reference counting in WebKit
 
@@ -1738,7 +1746,7 @@ FIXME: Write how to investigate a test failure.
 ## Debugging Layout Tests in Xcode
 
 The easiest way to debug a layout test is with WebKitTestRunner or DumpRenderTree.
-In Product > Scheme, select “All Source”.
+In Product > Scheme, select “Everything up to WebKit + Tools”.
 
 In Product > Scheme > Edit Scheme, open “Run” tab.
 Pick WebKitTestRunner or DumpRenderTree, whichever is desired in “Executable”.

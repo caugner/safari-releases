@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2020 Apple Inc. All rights reserved.
+ * Copyright (C) 2010-2022 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -213,10 +213,12 @@ void TestRunner::setWhatToDump(WhatToDump whatToDump)
 
 void TestRunner::setCustomPolicyDelegate(bool enabled, bool permissive)
 {
-    m_policyDelegateEnabled = enabled;
-    m_policyDelegatePermissive = permissive;
-
     InjectedBundle::singleton().setCustomPolicyDelegate(enabled, permissive);
+}
+
+void TestRunner::skipPolicyDelegateNotifyDone()
+{
+    postMessage("SkipPolicyDelegateNotifyDone");
 }
 
 void TestRunner::waitForPolicyDelegate()
@@ -651,6 +653,7 @@ enum {
     ExitFullscreenForElementCallbackID,
     AppBoundRequestContextDataForDomainCallbackID,
     TakeViewPortSnapshotCallbackID,
+    RemoveAllCookiesCallbackID,
     FirstUIScriptCallbackID = 100
 };
 
@@ -790,6 +793,17 @@ void TestRunner::setOnlyAcceptFirstPartyCookies(bool accept)
     postSynchronousMessage("SetOnlyAcceptFirstPartyCookies", accept);
 }
 
+void TestRunner::removeAllCookies(JSValueRef callback)
+{
+    cacheTestRunnerCallback(RemoveAllCookiesCallbackID, callback);
+    postMessage("RemoveAllCookies");
+}
+
+void TestRunner::callRemoveAllCookiesCallback()
+{
+    callTestRunnerCallback(RemoveAllCookiesCallbackID);
+}
+
 void TestRunner::setEnterFullscreenForElementCallback(JSValueRef callback)
 {
     cacheTestRunnerCallback(EnterFullscreenForElementCallbackID, callback);
@@ -903,6 +917,11 @@ void TestRunner::setGeolocationPermission(bool enabled)
 {
     // FIXME: This should be done by frame.
     InjectedBundle::singleton().setGeolocationPermission(enabled);
+}
+
+void TestRunner::setScreenWakeLockPermission(bool enabled)
+{
+    InjectedBundle::singleton().setScreenWakeLockPermission(enabled);
 }
 
 bool TestRunner::isGeolocationProviderActive()
@@ -1341,6 +1360,11 @@ void TestRunner::dumpResourceLoadStatistics()
     postSynchronousPageMessage("dumpResourceLoadStatistics");
 }
 
+void TestRunner::dumpPolicyDelegateCallbacks()
+{
+    postMessage("DumpPolicyDelegateCallbacks");
+}
+
 bool TestRunner::isStatisticsPrevalentResource(JSStringRef hostName)
 {
     return postSynchronousPageMessageReturningBoolean("IsStatisticsPrevalentResource", hostName);
@@ -1774,6 +1798,11 @@ void TestRunner::loadedSubresourceDomains(JSValueRef callback)
     postMessage("LoadedSubresourceDomains");
 }
 
+void TestRunner::reloadFromOrigin()
+{
+    InjectedBundle::singleton().reloadFromOrigin();
+}
+
 void TestRunner::callDidReceiveLoadedSubresourceDomainsCallback(Vector<String>&& domains)
 {
     auto result = makeDomainsValue(domains);
@@ -1862,7 +1891,7 @@ void TestRunner::disconnectMockGamepad(unsigned index)
     postSynchronousMessage("DisconnectMockGamepad", index);
 }
 
-void TestRunner::setMockGamepadDetails(unsigned index, JSStringRef gamepadID, JSStringRef mapping, unsigned axisCount, unsigned buttonCount)
+void TestRunner::setMockGamepadDetails(unsigned index, JSStringRef gamepadID, JSStringRef mapping, unsigned axisCount, unsigned buttonCount, bool supportsDualRumble)
 {
     postSynchronousMessage("SetMockGamepadDetails", createWKDictionary({
         { "GamepadID", toWK(gamepadID) },
@@ -1870,6 +1899,7 @@ void TestRunner::setMockGamepadDetails(unsigned index, JSStringRef gamepadID, JS
         { "GamepadIndex", adoptWK(WKUInt64Create(index)) },
         { "AxisCount", adoptWK(WKUInt64Create(axisCount)) },
         { "ButtonCount", adoptWK(WKUInt64Create(buttonCount)) },
+        { "SupportsDualRumble", adoptWK(WKBooleanCreate(supportsDualRumble)) },
     }));
 }
 
@@ -1901,7 +1931,7 @@ void TestRunner::disconnectMockGamepad(unsigned)
 {
 }
 
-void TestRunner::setMockGamepadDetails(unsigned, JSStringRef, JSStringRef, unsigned, unsigned)
+void TestRunner::setMockGamepadDetails(unsigned, JSStringRef, JSStringRef, unsigned, unsigned, bool)
 {
 }
 
@@ -1992,6 +2022,11 @@ uint64_t TestRunner::domCacheSize(JSStringRef origin)
 void TestRunner::setAllowStorageQuotaIncrease(bool willIncrease)
 {
     postSynchronousPageMessage("SetAllowStorageQuotaIncrease", willIncrease);
+}
+
+void TestRunner::setQuota(uint64_t quota)
+{
+    postSynchronousMessage("SetQuota", quota);
 }
 
 void TestRunner::getApplicationManifestThen(JSValueRef callback)
@@ -2269,6 +2304,11 @@ void TestRunner::viewPortSnapshotTaken(WKStringRef value)
     auto jsValue = JSValueMakeString(mainFrameJSContext(), toJS(value).get());
     callTestRunnerCallback(TakeViewPortSnapshotCallbackID, 1, &jsValue);
     m_takeViewPortSnapshot = false;
+}
+
+void TestRunner::generateTestReport(JSStringRef message, JSStringRef group)
+{
+    _WKBundleFrameGenerateTestReport(mainFrame(), toWK(message).get(), toWK(group).get());
 }
 
 ALLOW_DEPRECATED_DECLARATIONS_END

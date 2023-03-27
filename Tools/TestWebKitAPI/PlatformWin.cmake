@@ -13,7 +13,6 @@ set(test_main_SOURCES
 # TestWTF
 list(APPEND TestWTF_SOURCES
     ${test_main_SOURCES}
-    win/UtilitiesWin.cpp
 )
 
 WEBKIT_WRAP_EXECUTABLE(TestWTF
@@ -27,8 +26,10 @@ set(TestWTF_OUTPUT_NAME TestWTF${DEBUG_SUFFIX})
 list(APPEND TestWebCore_SOURCES
     ${test_main_SOURCES}
 
+    Tests/WebCore/curl/OpenSSLHelperTests.cpp
     Tests/WebCore/win/DIBPixelData.cpp
     Tests/WebCore/win/LinkedFonts.cpp
+    Tests/WebCore/win/WebCoreBundle.cpp
 
     win/TestWebCoreStubs.cpp
 )
@@ -46,14 +47,6 @@ list(APPEND TestWebCore_LIBRARIES
 )
 
 if (${WTF_PLATFORM_WIN_CAIRO})
-    list(APPEND TestWebCore_LIBRARIES
-        Cairo::Cairo
-        MediaFoundation
-        OpenSSL::SSL
-        mfuuid
-        strmiids
-        vcruntime
-    )
     list(APPEND TestWebCore_SOURCES
         Tests/WebCore/CryptoDigest.cpp
 
@@ -63,20 +56,20 @@ if (${WTF_PLATFORM_WIN_CAIRO})
     )
 else ()
     list(APPEND TestWebCore_LIBRARIES
-        ASL${DEBUG_SUFFIX}
-        CFNetwork${DEBUG_SUFFIX}
-        CoreGraphics${DEBUG_SUFFIX}
-        CoreText${DEBUG_SUFFIX}
+        Apple::ApplicationServices
+        Apple::CFNetwork
+        Apple::CoreGraphics
+        Apple::CoreText
+        Apple::QuartzCore
+        Apple::libdispatch
         LibXslt::LibExslt
-        QuartzCore${DEBUG_SUFFIX}
         WebKitQuartzCoreAdditions${DEBUG_SUFFIX}
-        libdispatch${DEBUG_SUFFIX}
     )
 endif ()
 
 if (USE_CF)
     list(APPEND TestWebCore_LIBRARIES
-        ${COREFOUNDATION_LIBRARY}
+        Apple::CoreFoundation
     )
 endif ()
 
@@ -118,7 +111,6 @@ endif ()
 if (ENABLE_WEBKIT)
     target_sources(TestWebKitAPIInjectedBundle PRIVATE
         win/PlatformUtilitiesWin.cpp
-        win/UtilitiesWin.cpp
     )
 
     list(APPEND TestWebKit_SOURCES
@@ -128,7 +120,6 @@ if (ENABLE_WEBKIT)
 
         win/PlatformUtilitiesWin.cpp
         win/PlatformWebViewWin.cpp
-        win/UtilitiesWin.cpp
     )
 
     if (${WTF_PLATFORM_WIN_CAIRO})

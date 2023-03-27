@@ -1,4 +1,4 @@
-# Copyright (C) 2020-2022 Apple Inc. All rights reserved.
+# Copyright (C) 2020-2023 Apple Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -45,8 +45,10 @@ from webkitcorepy.call_by_need import CallByNeed
 from webkitcorepy.editor import Editor
 from webkitcorepy.file_lock import FileLock
 from webkitcorepy.null_context import NullContext
+from webkitcorepy.filtered_call import filtered_call
+from webkitcorepy.partial_proxy import PartialProxy
 
-version = Version(0, 13, 19)
+version = Version(0, 14, 1)
 
 from webkitcorepy.autoinstall import Package, AutoInstall
 if sys.version_info > (3, 0):
@@ -58,7 +60,11 @@ else:
     if platform.system() == 'Windows':
         AutoInstall.register(Package('win_inet_pton', Version(1, 1, 0), pypi_name='win-inet-pton'))
 
-AutoInstall.register(Package('certifi', Version(2020, 6, 20)))
+if sys.version_info >= (3, 6):
+    AutoInstall.register(Package('certifi', Version(2022, 12, 7)))
+else:
+    AutoInstall.register(Package('certifi', Version(2021, 10, 8)))
+
 AutoInstall.register(Package('chardet', Version(3, 0, 4)))
 AutoInstall.register(Package('dateutil', Version(2, 8, 1), pypi_name='python-dateutil'))
 AutoInstall.register(Package('entrypoints', Version(0, 3, 0)))
@@ -89,5 +95,8 @@ if sys.version_info >= (3, 6):
     AutoInstall.register(Package('keyring', Version(23, 2, 1)))
 else:
     AutoInstall.register(Package('keyring', Version(18, 0, 1)))
+
+if sys.version_info < (3, 0):
+    AutoInstall.register(Package('inspect2', Version(0, 1, 2)))
 
 name = 'webkitcorepy'

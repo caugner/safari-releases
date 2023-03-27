@@ -1,4 +1,4 @@
-# Copyright (C) 2020-2022 Apple Inc. All rights reserved.
+# Copyright (C) 2020-2023 Apple Inc. All rights reserved.
 # Copyright (C) 2021 Igalia S.L.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -68,6 +68,7 @@ class TestExpectedBuildSteps(unittest.TestCase):
             'checkout-pull-request',
             'kill-old-processes',
             'jhbuild',
+            'validate-change',
             'compile-webkit',
             'install-built-product'
         ],
@@ -91,7 +92,7 @@ class TestExpectedBuildSteps(unittest.TestCase):
             'layout-tests',
             'set-build-summary'
         ],
-        'iOS-15-Build-EWS': [
+        'iOS-16-Build-EWS': [
             'configure-build',
             'validate-change',
             'configuration',
@@ -103,9 +104,10 @@ class TestExpectedBuildSteps(unittest.TestCase):
             'apply-patch',
             'checkout-pull-request',
             'kill-old-processes',
+            'validate-change',
             'compile-webkit'
         ],
-        'iOS-15-Simulator-Build-EWS': [
+        'iOS-16-Simulator-Build-EWS': [
             'configure-build',
             'validate-change',
             'configuration',
@@ -117,9 +119,10 @@ class TestExpectedBuildSteps(unittest.TestCase):
             'apply-patch',
             'checkout-pull-request',
             'kill-old-processes',
+            'validate-change',
             'compile-webkit'
         ],
-        'iOS-15-Simulator-WK2-Tests-EWS': [
+        'iOS-16-Simulator-WK2-Tests-EWS': [
             'configure-build',
             'validate-change',
             'configuration',
@@ -140,7 +143,7 @@ class TestExpectedBuildSteps(unittest.TestCase):
             'trigger-crash-log-submission',
             'set-build-summary'
         ],
-        'macOS-AppleSilicon-Big-Sur-Debug-Build-EWS': [
+        'macOS-AppleSilicon-Ventura-Debug-Build-EWS': [
             'configure-build',
             'check-change-relevance',
             'validate-change',
@@ -153,9 +156,10 @@ class TestExpectedBuildSteps(unittest.TestCase):
             'apply-patch',
             'checkout-pull-request',
             'kill-old-processes',
+            'validate-change',
             'compile-webkit'
         ],
-        'macOS-AppleSilicon-Big-Sur-Debug-WK2-Tests-EWS': [
+        'macOS-AppleSilicon-Ventura-Debug-WK2-Tests-EWS': [
             'configure-build',
             'validate-change',
             'configuration',
@@ -188,6 +192,7 @@ class TestExpectedBuildSteps(unittest.TestCase):
             'apply-patch',
             'checkout-pull-request',
             'kill-old-processes',
+            'validate-change',
             'compile-webkit'
         ],
         'macOS-BigSur-Release-WK1-Tests-EWS': [
@@ -253,7 +258,7 @@ class TestExpectedBuildSteps(unittest.TestCase):
             'trigger-crash-log-submission',
             'set-build-summary'
         ],
-        'macOS-BigSur-Debug-Build-EWS': [
+        'watchOS-9-Build-EWS': [
             'configure-build',
             'validate-change',
             'configuration',
@@ -265,31 +270,10 @@ class TestExpectedBuildSteps(unittest.TestCase):
             'apply-patch',
             'checkout-pull-request',
             'kill-old-processes',
+            'validate-change',
             'compile-webkit'
         ],
-        'macOS-BigSur-Debug-WK1-Tests-EWS': [
-            'configure-build',
-            'check-change-relevance',
-            'validate-change',
-            'configuration',
-            'clean-up-git-repo',
-            'checkout-source',
-            'fetch-branch-references',
-            'checkout-specific-revision',
-            'show-identifier',
-            'apply-patch',
-            'checkout-pull-request',
-            'download-built-product',
-            'extract-built-product',
-            'wait-for-crash-collection',
-            'kill-old-processes',
-            'find-modified-layout-tests',
-            'run-layout-tests-in-stress-mode',
-            'layout-tests',
-            'trigger-crash-log-submission',
-            'set-build-summary'
-        ],
-        'watchOS-8-Build-EWS': [
+        'watchOS-9-Simulator-Build-EWS': [
             'configure-build',
             'validate-change',
             'configuration',
@@ -301,9 +285,10 @@ class TestExpectedBuildSteps(unittest.TestCase):
             'apply-patch',
             'checkout-pull-request',
             'kill-old-processes',
+            'validate-change',
             'compile-webkit'
         ],
-        'watchOS-8-Simulator-Build-EWS': [
+        'tvOS-16-Build-EWS': [
             'configure-build',
             'validate-change',
             'configuration',
@@ -315,9 +300,10 @@ class TestExpectedBuildSteps(unittest.TestCase):
             'apply-patch',
             'checkout-pull-request',
             'kill-old-processes',
+            'validate-change',
             'compile-webkit'
         ],
-        'tvOS-15-Build-EWS': [
+        'tvOS-16-Simulator-Build-EWS': [
             'configure-build',
             'validate-change',
             'configuration',
@@ -329,20 +315,7 @@ class TestExpectedBuildSteps(unittest.TestCase):
             'apply-patch',
             'checkout-pull-request',
             'kill-old-processes',
-            'compile-webkit'
-        ],
-        'tvOS-15-Simulator-Build-EWS': [
-            'configure-build',
             'validate-change',
-            'configuration',
-            'clean-up-git-repo',
-            'checkout-source',
-            'fetch-branch-references',
-            'checkout-specific-revision',
-            'show-identifier',
-            'apply-patch',
-            'checkout-pull-request',
-            'kill-old-processes',
             'compile-webkit'
         ],
         'Windows-EWS': [
@@ -350,6 +323,7 @@ class TestExpectedBuildSteps(unittest.TestCase):
             'check-change-relevance',
             'validate-change',
             'configuration',
+            'delete-stale-build-files',
             'clean-up-git-repo',
             'checkout-source',
             'fetch-branch-references',
@@ -358,6 +332,7 @@ class TestExpectedBuildSteps(unittest.TestCase):
             'apply-patch',
             'checkout-pull-request',
             'kill-old-processes',
+            'validate-change',
             'compile-webkit',
             'validate-change',
             'layout-tests',
@@ -375,6 +350,7 @@ class TestExpectedBuildSteps(unittest.TestCase):
             'apply-patch',
             'checkout-pull-request',
             'kill-old-processes',
+            'validate-change',
             'compile-webkit'
         ],
         'WPE-EWS': [
@@ -390,7 +366,25 @@ class TestExpectedBuildSteps(unittest.TestCase):
             'checkout-pull-request',
             'kill-old-processes',
             'jhbuild',
+            'validate-change',
             'compile-webkit'
+        ],
+        'JSC-Tests-arm64-EWS': [
+            'configure-build',
+            'check-change-relevance',
+            'validate-change',
+            'configuration',
+            'clean-up-git-repo',
+            'checkout-source',
+            'fetch-branch-references',
+            'checkout-specific-revision',
+            'show-identifier',
+            'apply-patch',
+            'checkout-pull-request',
+            'kill-old-processes',
+            'validate-change',
+            'compile-jsc',
+            'jscore-test'
         ],
         'JSC-Tests-EWS': [
             'configure-build',
@@ -405,6 +399,7 @@ class TestExpectedBuildSteps(unittest.TestCase):
             'apply-patch',
             'checkout-pull-request',
             'kill-old-processes',
+            'validate-change',
             'compile-jsc',
             'jscore-test'
         ],
@@ -421,6 +416,7 @@ class TestExpectedBuildSteps(unittest.TestCase):
             'apply-patch',
             'checkout-pull-request',
             'kill-old-processes',
+            'validate-change',
             'compile-jsc'
         ],
         'JSC-MIPSEL-32bits-Tests-EWS': [
@@ -453,6 +449,7 @@ class TestExpectedBuildSteps(unittest.TestCase):
             'apply-patch',
             'checkout-pull-request',
             'kill-old-processes',
+            'validate-change',
             'compile-jsc'
         ],
         'JSC-ARMv7-32bits-Tests-EWS': [
@@ -485,6 +482,7 @@ class TestExpectedBuildSteps(unittest.TestCase):
             'apply-patch',
             'checkout-pull-request',
             'kill-old-processes',
+            'validate-change',
             'compile-jsc'
         ],
         'Bindings-Tests-EWS': [
@@ -499,6 +497,7 @@ class TestExpectedBuildSteps(unittest.TestCase):
             'show-identifier',
             'apply-patch',
             'checkout-pull-request',
+            'validate-change',
             'bindings-tests'
         ],
         'WebKitPy-Tests-EWS': [
@@ -513,6 +512,7 @@ class TestExpectedBuildSteps(unittest.TestCase):
             'show-identifier',
             'apply-patch',
             'checkout-pull-request',
+            'validate-change',
             'webkitpy-tests-python2',
             'webkitpy-tests-python3',
             'set-build-summary'
@@ -528,6 +528,7 @@ class TestExpectedBuildSteps(unittest.TestCase):
             'show-identifier',
             'apply-patch',
             'checkout-pull-request',
+            'validate-change',
             'webkitperl-tests'
         ],
         'API-Tests-iOS-Simulator-EWS': [
@@ -591,6 +592,7 @@ class TestExpectedBuildSteps(unittest.TestCase):
             'show-identifier',
             'apply-patch',
             'checkout-pull-request',
+            'validate-change',
             'build-webkit-org-unit-tests',
             'buildbot-check-config-for-build-webkit',
             'ews-unit-tests',
@@ -630,9 +632,11 @@ class TestExpectedBuildSteps(unittest.TestCase):
             'clean-up-git-repo',
             'checkout-source',
             'fetch-branch-references',
+            'map-branch-alias',
             'update-working-directory',
             'show-identifier',
             'checkout-pull-request',
+            'validate-remote',
             'validate-squashed',
             'add-reviewer-to-commit-message',
             'validate-commit-message',
@@ -657,9 +661,11 @@ class TestExpectedBuildSteps(unittest.TestCase):
             'clean-up-git-repo',
             'checkout-source',
             'fetch-branch-references',
+            'map-branch-alias',
             'update-working-directory',
             'show-identifier',
             'checkout-pull-request',
+            'validate-remote',
             'validate-squashed',
             'add-reviewer-to-commit-message',
             'validate-commit-message',

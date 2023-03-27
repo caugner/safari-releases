@@ -33,6 +33,7 @@ import re
 import socket
 import sys
 import urllib
+from pathlib import Path
 
 if sys.version_info < (3, 5):
     print('ERROR: Please use Python 3. This code is not compatible with Python 2.')
@@ -205,6 +206,16 @@ class KillOldProcesses(shell.Compile):
     command = ["python3", "Tools/CISupport/kill-old-processes", "buildbot"]
 
 
+class PruneCoreSymbolicationdCacheIfTooLarge(shell.ShellCommand):
+    name = "prune-coresymbolicationd-cache-if-too-large"
+    description = ["pruning coresymbolicationd cache to < 10GB"]
+    descriptionDone = ["pruned coresymbolicationd cache"]
+    flunkOnFailure = False
+    haltOnFailure = False
+    command = ["python3", "Tools/Scripts/delete-if-too-large",
+               "/System/Library/Caches/com.apple.coresymbolicationd"]
+
+
 class TriggerCrashLogSubmission(shell.Compile):
     name = "trigger-crash-log-submission"
     description = ["triggering crash log submission"]
@@ -292,18 +303,12 @@ def appendCustomTestingFlags(step, platform, device_model):
 
 
 class CompileWebKit(shell.Compile):
-    command = ["perl", "Tools/Scripts/build-webkit", WithProperties("--%(configuration)s")]
+    command = ["perl", "Tools/Scripts/build-webkit", "--no-fatal-warnings", WithProperties("--%(configuration)s")]
     env = {'MFLAGS': ''}
     name = "compile-webkit"
     description = ["compiling"]
     descriptionDone = ["compiled"]
     warningPattern = ".*arning: .*"
-
-    def __init__(self, **kwargs):
-        # https://bugs.webkit.org/show_bug.cgi?id=239455: The timeout needs to be >20 min to
-        # work around log output delays on slower machines.
-        kwargs.setdefault('timeout', 60 * 30)
-        super().__init__(**kwargs)
 
     def start(self):
         platform = self.getProperty('platform')
@@ -340,6 +345,17 @@ class CompileWebKit(shell.Compile):
         appendCustomBuildFlags(self, platform, self.getProperty('fullPlatform'))
 
         return shell.Compile.start(self)
+
+    def buildCommandKwargs(self, warnings):
+        kwargs = super(CompileWebKit, self).buildCommandKwargs(warnings)
+        # https://bugs.webkit.org/show_bug.cgi?id=239455: The timeout needs to be >20 min to
+        # work around log output delays on slower machines.
+        # https://bugs.webkit.org/show_bug.cgi?id=247506: Only applies to Xcode 12.x.
+        if self.getProperty('fullPlatform') == 'mac-bigsur':
+            kwargs['timeout'] = 60 * 60
+        else:
+            kwargs['timeout'] = 60 * 30
+        return kwargs
 
     def parseOutputLine(self, line):
         if "arning:" in line:
@@ -536,7 +552,7 @@ class RunJavaScriptCoreTests(TestWithFailureCount):
         # high enough.
         self.command += self.commandExtra
         # Currently run-javascriptcore-test doesn't support run javascript core test binaries list below remotely
-        if architecture in ['mips', 'aarch64']:
+        if architecture in ['mips', 'aarch64'] or platform in ['win']:
             self.command += ['--no-testmasm', '--no-testair', '--no-testb3', '--no-testdfg', '--no-testapi']
         # Linux bots have currently problems with JSC tests that try to use large amounts of memory.
         # Check: https://bugs.webkit.org/show_bug.cgi?id=175140
@@ -713,6 +729,7 @@ class RunDashboardTests(RunWebKitTests):
 
 class RunAPITests(TestWithFailureCount):
     name = "run-api-tests"
+    VALID_ADDITIONAL_ARGUMENTS_LIST = ["--remote-layer-tree", "--use-gpu-process"]
     description = ["api tests running"]
     descriptionDone = ["api-tests"]
     jsonFileName = "api_test_results.json"
@@ -743,6 +760,10 @@ class RunAPITests(TestWithFailureCount):
         self.addLogObserver('stdio', self.log_observer)
         self.failedTestCount = 0
         appendCustomTestingFlags(self, self.getProperty('platform'), self.getProperty('device_model'))
+        additionalArguments = self.getProperty("additionalArguments")
+        for additionalArgument in additionalArguments or []:
+            if additionalArgument in self.VALID_ADDITIONAL_ARGUMENTS_LIST:
+                self.command += [additionalArgument]
         return shell.Test.start(self)
 
     def countFailures(self, cmd):
@@ -788,7 +809,6 @@ class RunWebKitPyTests(RunPythonTests):
     command = [
         "python3",
         "Tools/Scripts/test-webkitpy",
-        "--all",
         "--verbose",
         "--buildbot-master", CURRENT_HOSTNAME,
         "--builder-name", WithProperties("%(buildername)s"),

@@ -42,10 +42,10 @@
 #import <WebKit/WKWebViewConfigurationPrivate.h>
 #import <WebKit/WKWebViewPrivateForTesting.h>
 #import <WebKit/WKWebsiteDataStorePrivate.h>
-#import <WebKit/_WKExperimentalFeature.h>
-#import <WebKit/_WKInternalDebugFeature.h>
+#import <WebKit/_WKFeature.h>
 #import <WebKit/_WKProcessPoolConfiguration.h>
 #import <WebKit/_WKWebsiteDataStoreConfiguration.h>
+#import <pal/spi/mac/MediaRemoteSPI.h>
 #import <wtf/text/StringBuilder.h>
 #import <wtf/text/WTFString.h>
 
@@ -560,19 +560,18 @@ TEST(WebKit, WebAudioAndGetUserMedia)
 #endif
 
 #if ENABLE(GPU_PROCESS)
-// FIXME: https://bugs.webkit.org/show_bug.cgi?id=239315
 TEST(WebKit2, CrashGPUProcessWhileCapturing)
 {
     auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     auto preferences = [configuration preferences];
 
-    for (_WKInternalDebugFeature *feature in [WKPreferences _internalDebugFeatures]) {
+    for (_WKFeature *feature in [WKPreferences _features]) {
         if ([feature.key isEqualToString:@"CaptureAudioInGPUProcessEnabled"])
-            [preferences _setEnabled:YES forInternalDebugFeature:feature];
+            [preferences _setEnabled:YES forFeature:feature];
         if ([feature.key isEqualToString:@"CaptureAudioInUIProcessEnabled"])
-            [preferences _setEnabled:NO forInternalDebugFeature:feature];
+            [preferences _setEnabled:NO forFeature:feature];
         if ([feature.key isEqualToString:@"CaptureVideoInGPUProcessEnabled"])
-            [preferences _setEnabled:YES forInternalDebugFeature:feature];
+            [preferences _setEnabled:YES forFeature:feature];
     }
 
     initializeMediaCaptureConfiguration(configuration.get());
@@ -598,7 +597,7 @@ TEST(WebKit2, CrashGPUProcessWhileCapturing)
     auto* processPool = configuration.get().processPool;
     unsigned timeout = 0;
     while (![processPool _gpuProcessIdentifier] && timeout++ < 100)
-        TestWebKitAPI::Util::sleep(0.1);
+        TestWebKitAPI::Util::runFor(0.1_s);
 
     EXPECT_NE([processPool _gpuProcessIdentifier], 0);
     if (![processPool _gpuProcessIdentifier])
@@ -611,7 +610,7 @@ TEST(WebKit2, CrashGPUProcessWhileCapturing)
     // GPU Process should get relaunched.
     timeout = 0;
     while ((![processPool _gpuProcessIdentifier] || [processPool _gpuProcessIdentifier] == gpuProcessPID) && timeout++ < 100)
-        TestWebKitAPI::Util::sleep(0.1);
+        TestWebKitAPI::Util::runFor(0.1_s);
     EXPECT_NE([processPool _gpuProcessIdentifier], 0);
     EXPECT_NE([processPool _gpuProcessIdentifier], gpuProcessPID);
     gpuProcessPID = [processPool _gpuProcessIdentifier];
@@ -640,13 +639,13 @@ TEST(WebKit2, CrashGPUProcessAfterApplyingConstraints)
     auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     auto preferences = [configuration preferences];
 
-    for (_WKInternalDebugFeature *feature in [WKPreferences _internalDebugFeatures]) {
+    for (_WKFeature *feature in [WKPreferences _features]) {
         if ([feature.key isEqualToString:@"CaptureAudioInGPUProcessEnabled"])
-            [preferences _setEnabled:YES forInternalDebugFeature:feature];
+            [preferences _setEnabled:YES forFeature:feature];
         if ([feature.key isEqualToString:@"CaptureAudioInUIProcessEnabled"])
-            [preferences _setEnabled:NO forInternalDebugFeature:feature];
+            [preferences _setEnabled:NO forFeature:feature];
         if ([feature.key isEqualToString:@"CaptureVideoInGPUProcessEnabled"])
-            [preferences _setEnabled:YES forInternalDebugFeature:feature];
+            [preferences _setEnabled:YES forFeature:feature];
     }
     initializeMediaCaptureConfiguration(configuration.get());
 
@@ -679,7 +678,7 @@ TEST(WebKit2, CrashGPUProcessAfterApplyingConstraints)
     auto* processPool = configuration.get().processPool;
     unsigned timeout = 0;
     while (![processPool _gpuProcessIdentifier] && timeout++ < 100)
-        TestWebKitAPI::Util::sleep(0.1);
+        TestWebKitAPI::Util::runFor(0.1_s);
 
     EXPECT_NE([processPool _gpuProcessIdentifier], 0);
     if (![processPool _gpuProcessIdentifier])
@@ -692,7 +691,7 @@ TEST(WebKit2, CrashGPUProcessAfterApplyingConstraints)
     // GPU Process should get relaunched.
     timeout = 0;
     while ((![processPool _gpuProcessIdentifier] || [processPool _gpuProcessIdentifier] == gpuProcessPID) && timeout++ < 100)
-        TestWebKitAPI::Util::sleep(0.1);
+        TestWebKitAPI::Util::runFor(0.1_s);
     EXPECT_NE([processPool _gpuProcessIdentifier], 0);
     EXPECT_NE([processPool _gpuProcessIdentifier], gpuProcessPID);
     gpuProcessPID = [processPool _gpuProcessIdentifier];
@@ -708,21 +707,18 @@ TEST(WebKit2, CrashGPUProcessAfterApplyingConstraints)
     EXPECT_EQ(webViewPID, [webView _webProcessIdentifier]);
 }
 
-// FIXME: https://bugs.webkit.org/show_bug.cgi?id=239309
 TEST(WebKit2, CrashGPUProcessWhileCapturingAndCalling)
 {
     auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     auto preferences = [configuration preferences];
 
-    for (_WKInternalDebugFeature *feature in [WKPreferences _internalDebugFeatures]) {
+    for (_WKFeature *feature in [WKPreferences _features]) {
         if ([feature.key isEqualToString:@"CaptureAudioInGPUProcessEnabled"])
-            [preferences _setEnabled:YES forInternalDebugFeature:feature];
+            [preferences _setEnabled:YES forFeature:feature];
         if ([feature.key isEqualToString:@"CaptureAudioInUIProcessEnabled"])
-            [preferences _setEnabled:NO forInternalDebugFeature:feature];
+            [preferences _setEnabled:NO forFeature:feature];
         if ([feature.key isEqualToString:@"CaptureVideoInGPUProcessEnabled"])
-            [preferences _setEnabled:YES forInternalDebugFeature:feature];
-    }
-    for (_WKExperimentalFeature *feature in [WKPreferences _experimentalFeatures]) {
+            [preferences _setEnabled:YES forFeature:feature];
         if ([feature.key isEqualToString:@"WebRTCPlatformCodecsInGPUProcessEnabled"])
             [preferences _setEnabled:YES forFeature:feature];
     }
@@ -758,7 +754,7 @@ TEST(WebKit2, CrashGPUProcessWhileCapturingAndCalling)
     auto* processPool = configuration.get().processPool;
     unsigned timeout = 0;
     while (![processPool _gpuProcessIdentifier] && timeout++ < 100)
-        TestWebKitAPI::Util::sleep(0.1);
+        TestWebKitAPI::Util::runFor(0.1_s);
 
     EXPECT_NE([processPool _gpuProcessIdentifier], 0);
     if (![processPool _gpuProcessIdentifier])
@@ -771,7 +767,7 @@ TEST(WebKit2, CrashGPUProcessWhileCapturingAndCalling)
     // GPU Process should get relaunched.
     timeout = 0;
     while ((![processPool _gpuProcessIdentifier] || [processPool _gpuProcessIdentifier] == gpuProcessPID) && timeout++ < 100)
-        TestWebKitAPI::Util::sleep(0.1);
+        TestWebKitAPI::Util::runFor(0.1_s);
     EXPECT_NE([processPool _gpuProcessIdentifier], 0);
     EXPECT_NE([processPool _gpuProcessIdentifier], gpuProcessPID);
     gpuProcessPID = [processPool _gpuProcessIdentifier];
@@ -840,6 +836,17 @@ function doTest()
     });
 }
 
+function hasSleepDisabler()
+{
+    return window.internals ? internals.hasSleepDisabler() : false;
+}
+
+function stop()
+{
+    if (localVideo.srcObject)
+        localVideo.srcObject.getVideoTracks()[0].stop();
+    window.webkit.messageHandlers.gum.postMessage("PASS");
+}
 </script>
 </body></html>
 )DOCDOCDOC"_s;
@@ -866,25 +873,43 @@ TEST(WebKit, AutoplayOnVisibilityChange)
     auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
     webView.get().UIDelegate = delegate.get();
 
+    NSLog(@"AutoplayOnVisibilityChange 1\n");
+
     [webView loadRequest:server.request()];
     TestWebKitAPI::Util::run(&done);
 
+    NSLog(@"AutoplayOnVisibilityChange 2\n");
     done = false;
     auto *hostWindow = [webView hostWindow];
     [hostWindow miniaturize:hostWindow];
     TestWebKitAPI::Util::run(&done);
 
+    NSLog(@"AutoplayOnVisibilityChange 3\n");
     done = false;
     [webView stringByEvaluatingJavaScript:@"capture()"];
     TestWebKitAPI::Util::run(&done);
 
+    bool hasSleepDisabler = [webView stringByEvaluatingJavaScript:@"hasSleepDisabler()"].boolValue;
+    EXPECT_TRUE(hasSleepDisabler);
+
+    NSLog(@"AutoplayOnVisibilityChange 4\n");
     done = false;
     [hostWindow deminiaturize:hostWindow];
     TestWebKitAPI::Util::run(&done);
 
+    NSLog(@"AutoplayOnVisibilityChange 5\n");
     done = false;
     [webView stringByEvaluatingJavaScript:@"doTest()"];
     TestWebKitAPI::Util::run(&done);
+
+    NSLog(@"AutoplayOnVisibilityChange 6\n");
+    done = false;
+    [webView stringByEvaluatingJavaScript:@"stop()"];
+    TestWebKitAPI::Util::run(&done);
+
+    NSLog(@"AutoplayOnVisibilityChange 7\n");
+    hasSleepDisabler = [webView stringByEvaluatingJavaScript:@"hasSleepDisabler()"].boolValue;
+    EXPECT_FALSE(hasSleepDisabler);
 }
 
 static constexpr auto getUserMediaFocusText = R"DOCDOCDOC(
@@ -987,14 +1012,14 @@ TEST(WebKit, InvalidDeviceIdHashSalts)
 }
 
 
-static _WKExperimentalFeature *permissionsAPIEnabledExperimentalFeature()
+static _WKFeature *permissionsAPIEnabledExperimentalFeature()
 {
-    static RetainPtr<_WKExperimentalFeature> theFeature;
+    static RetainPtr<_WKFeature> theFeature;
     if (theFeature)
         return theFeature.get();
 
-    NSArray *features = [WKPreferences _experimentalFeatures];
-    for (_WKExperimentalFeature *feature in features) {
+    NSArray *features = [WKPreferences _features];
+    for (_WKFeature *feature in features) {
         if ([feature.key isEqual:@"PermissionsAPIEnabled"]) {
             theFeature = feature;
             break;
@@ -1008,7 +1033,7 @@ TEST(WebKit2, CapturePermission)
     auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     auto processPoolConfig = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
     initializeMediaCaptureConfiguration(configuration.get());
-    [[configuration preferences] _setEnabled:YES forExperimentalFeature:permissionsAPIEnabledExperimentalFeature()];
+    [[configuration preferences] _setEnabled:YES forFeature:permissionsAPIEnabledExperimentalFeature()];
 
     auto messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
     [[configuration.get() userContentController] addScriptMessageHandler:messageHandler.get() name:@"gum"];
@@ -1097,7 +1122,7 @@ TEST(WebKit2, EnumerateDevicesAfterMuting)
     [webView setMicrophoneCaptureState:WKMediaCaptureStateMuted completionHandler:nil];
 
     // Sleep long enough for the reprompt timer to fire and clear cached state.
-    Util::sleep(1);
+    Util::runFor(1_s);
 
     // Verify enumerateDevices still works fine.
     done = false;
@@ -1115,7 +1140,7 @@ TEST(WebKit2, CapturePermissionWithSystemBlocking)
     preferences._mediaCaptureRequiresSecureConnection = NO;
     preferences._mockCaptureDevicesEnabled = NO;
     preferences._getUserMediaRequiresFocus = NO;
-    [preferences _setEnabled:YES forExperimentalFeature:permissionsAPIEnabledExperimentalFeature()];
+    [preferences _setEnabled:YES forFeature:permissionsAPIEnabledExperimentalFeature()];
 
     auto messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
     [[configuration.get() userContentController] addScriptMessageHandler:messageHandler.get() name:@"gum"];
@@ -1244,6 +1269,83 @@ TEST(WebKit2, DoNotUnmuteWhenTakingAThumbnail)
     EXPECT_TRUE(cameraCaptureState == WKMediaCaptureStateMuted);
 }
 #endif
+
+#if WK_HAVE_C_SPI
+TEST(WebKit2, WebRTCAndRemoteCommands)
+{
+    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    auto context = adoptWK(TestWebKitAPI::Util::createContextForInjectedBundleTest("InternalsInjectedBundleTest"));
+    configuration.get().processPool = (WKProcessPool *)context.get();
+    configuration.get().processPool._configuration.shouldCaptureAudioInUIProcess = NO;
+
+    initializeMediaCaptureConfiguration(configuration.get());
+
+    auto messageHandler = adoptNS([[GUMMessageHandler alloc] init]);
+    [[configuration.get() userContentController] addScriptMessageHandler:messageHandler.get() name:@"gum"];
+
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get()]);
+
+    auto delegate = adoptNS([[UserMediaCaptureUIDelegate alloc] init]);
+    [webView setUIDelegate:delegate.get()];
+    [webView _setMediaCaptureReportingDelayForTesting:0];
+
+    auto observer = adoptNS([[MediaCaptureObserver alloc] init]);
+    [webView addObserver:observer.get() forKeyPath:@"microphoneCaptureState" options:NSKeyValueObservingOptionNew context:nil];
+    [webView addObserver:observer.get() forKeyPath:@"cameraCaptureState" options:NSKeyValueObservingOptionNew context:nil];
+
+    cameraCaptureStateChange = false;
+    microphoneCaptureStateChange = false;
+
+    done = false;
+    [webView loadTestPageNamed:@"webrtc-remote"];
+
+    EXPECT_TRUE(waitUntilCameraState(webView.get(), WKMediaCaptureStateActive));
+    EXPECT_TRUE(waitUntilMicrophoneState(webView.get(), WKMediaCaptureStateActive));
+
+    done = false;
+    [webView stringByEvaluatingJavaScript:@"startTest()"];
+    TestWebKitAPI::Util::run(&done);
+    done = false;
+
+    cameraCaptureStateChange = false;
+    microphoneCaptureStateChange = false;
+    [webView stringByEvaluatingJavaScript:@"sendCommand('pause')"];
+    EXPECT_TRUE(waitUntilCameraState(webView.get(), WKMediaCaptureStateMuted));
+    EXPECT_TRUE(waitUntilMicrophoneState(webView.get(), WKMediaCaptureStateMuted));
+
+    [webView stringByEvaluatingJavaScript:@"sendCommand('play')"];
+    EXPECT_TRUE(waitUntilCameraState(webView.get(), WKMediaCaptureStateActive));
+    EXPECT_TRUE(waitUntilMicrophoneState(webView.get(), WKMediaCaptureStateActive));
+
+    [webView stringByEvaluatingJavaScript:@"sendCommand('toggleplaypause')"];
+    EXPECT_TRUE(waitUntilCameraState(webView.get(), WKMediaCaptureStateMuted));
+    EXPECT_TRUE(waitUntilMicrophoneState(webView.get(), WKMediaCaptureStateMuted));
+
+    [webView stringByEvaluatingJavaScript:@"sendCommand('toggleplaypause')"];
+    EXPECT_TRUE(waitUntilCameraState(webView.get(), WKMediaCaptureStateActive));
+    EXPECT_TRUE(waitUntilMicrophoneState(webView.get(), WKMediaCaptureStateActive));
+
+    done = false;
+    // register handlers will catch commands, so capture should not muted.
+    [webView stringByEvaluatingJavaScript:@"registerHandlers()"];
+    TestWebKitAPI::Util::run(&done);
+    done = false;
+
+    [webView stringByEvaluatingJavaScript:@"sendCommand('pause')"];
+    TestWebKitAPI::Util::run(&done);
+    done = false;
+
+    EXPECT_TRUE(waitUntilCameraState(webView.get(), WKMediaCaptureStateActive));
+    EXPECT_TRUE(waitUntilMicrophoneState(webView.get(), WKMediaCaptureStateActive));
+
+    [webView stringByEvaluatingJavaScript:@"sendCommand('play')"];
+    TestWebKitAPI::Util::run(&done);
+    done = false;
+
+    EXPECT_TRUE(waitUntilCameraState(webView.get(), WKMediaCaptureStateActive));
+    EXPECT_TRUE(waitUntilMicrophoneState(webView.get(), WKMediaCaptureStateActive));
+}
+#endif // WK_HAVE_C_SPI
 
 } // namespace TestWebKitAPI
 

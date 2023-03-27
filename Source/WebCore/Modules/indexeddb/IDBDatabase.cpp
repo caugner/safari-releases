@@ -271,13 +271,13 @@ void IDBDatabase::connectionToServerLost(const IDBError& error)
         transaction->connectionClosedFromServer(error);
 
     auto errorEvent = Event::create(m_eventNames.errorEvent, Event::CanBubble::Yes, Event::IsCancelable::No);
-    errorEvent->setTarget(this);
+    errorEvent->setTarget(Ref { * this });
 
     if (scriptExecutionContext())
         queueTaskToDispatchEvent(*this, TaskSource::DatabaseAccess, WTFMove(errorEvent));
 
     auto closeEvent = Event::create(m_eventNames.closeEvent, Event::CanBubble::Yes, Event::IsCancelable::No);
-    closeEvent->setTarget(this);
+    closeEvent->setTarget(Ref { * this });
 
     if (scriptExecutionContext())
         queueTaskToDispatchEvent(*this, TaskSource::DatabaseAccess, WTFMove(closeEvent));
@@ -313,6 +313,8 @@ void IDBDatabase::stop()
     LOG(IndexedDB, "IDBDatabase::stop - %" PRIu64, m_databaseConnectionIdentifier);
 
     ASSERT(canCurrentThreadAccessThreadLocalData(originThread()));
+
+    removeAllEventListeners();
 
     for (auto& id : copyToVector(m_activeTransactions.keys())) {
         if (auto* transaction = m_activeTransactions.get(id))
@@ -431,7 +433,7 @@ void IDBDatabase::didCommitOrAbortTransaction(IDBTransaction& transaction)
     if (m_abortingTransactions.contains(transaction.info().identifier()))
         ++count;
 
-    ASSERT(count == 1);
+    ASSERT_UNUSED(count, count == 1);
 #endif
 
     m_activeTransactions.remove(transaction.info().identifier());
