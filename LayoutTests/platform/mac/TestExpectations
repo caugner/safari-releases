@@ -2743,6 +2743,10 @@ imported/w3c/web-platform-tests/websockets/unload-a-document/001.html?wpt_flags=
 imported/w3c/web-platform-tests/websockets/unload-a-document/002.html?wpt_flags=h2 [ Skip ]
 imported/w3c/web-platform-tests/websockets/unload-a-document/005.html?wpt_flags=h2 [ Skip ]
 
+
+# rdar://106818567 ([ EWS Mac ] http/wpt/service-workers/service-worker-spinning-activate.https.html (layout-tests) is a flaky failure)
+http/wpt/service-workers/service-worker-spinning-activate.https.html [ Failure ]
+
 # Timing out since its import.
 imported/w3c/web-platform-tests/html/user-activation/activation-trigger-pointerevent.html?touch [ Skip ]
 
@@ -2786,10 +2790,21 @@ imported/w3c/web-platform-tests/websockets/cookies/007.html?wss&wpt_flags=https 
 [ Monterey+ x86_64 ] media/track/track-cues-cuechange.html [ Pass Timeout Failure ]
 [ BigSur+ x86_64 ] js/promises-tests/promises-tests-2-3-3.html [ Pass Timeout ]
 
+webkit.org/b/254637 fast/text/web-font-load-invisible-during-loading.html [ Pass Failure ]
+
 webkit.org/b/242804 media/track/track-forced-subtitles-in-band.html [ Pass Failure ]
 
 webkit.org/b/251051 [ BigSur+ Debug ] storage/indexeddb/modern/deleteindex-4-private.html [ Crash ]
 
+webkit.org/b/245686 [ Ventura+ ] fast/text/system-font-fallback.html [ ImageOnlyFailure ]
+
+webkit.org/b/251099 [ Ventura+ ] fast/images/avif-image-document.html [ Pass Crash ]
+
+#webkit.org/b/251526 [ Ventura EWS ] 2x AVIF tests are constant failures on EWS only
+[ Ventura ] fast/images/avif-as-image.html [ Pass ImageOnlyFailure Crash ]
+[ Ventura ] fast/images/avif-heif-container-as-image.html [ Pass ImageOnlyFailure Crash ]
+
 webkit.org/b/251710 webaudio/AudioBuffer/huge-buffer.html [ Pass Timeout ]
 
+http/wpt/service-workers/basic-fetch-with-contentfilter-allow-after-adding-data.html [ Pass ]
 http/wpt/service-workers/basic-fetch-with-contentfilter.https.html [ Pass ]

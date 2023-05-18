@@ -272,10 +272,14 @@ RegisterID* ResolveNode::emitBytecode(BytecodeGenerator& generator, RegisterID* 
     generator.emitExpressionInfo(divot, m_start, divot);
     RefPtr<RegisterID> scope = generator.emitResolveScope(dst, var);
     RegisterID* finalDest = generator.finalDestination(dst);
-    RefPtr<RegisterID> uncheckedResult = generator.newTemporary();
-    generator.emitGetFromScope(uncheckedResult.get(), scope.get(), var, ThrowIfNotFound);
-    generator.emitTDZCheckIfNecessary(var, uncheckedResult.get(), nullptr);
-    generator.move(finalDest, uncheckedResult.get());
+    if (!generator.needsTDZCheck(var))
+        generator.emitGetFromScope(finalDest, scope.get(), var, ThrowIfNotFound);
+    else {
+        RefPtr<RegisterID> uncheckedResult = generator.newTemporary();
+        generator.emitGetFromScope(uncheckedResult.get(), scope.get(), var, ThrowIfNotFound);
+        generator.emitTDZCheck(uncheckedResult.get());
+        generator.move(finalDest, uncheckedResult.get());
+    }
     generator.emitProfileType(finalDest, var, m_position, m_position + m_ident.length());
     return finalDest;
 }
@@ -1295,9 +1299,12 @@ RegisterID* FunctionCallResolveNode::emitBytecode(BytecodeGenerator& generator, 
     RefPtr<RegisterID> func;
     if (local) {
         generator.emitTDZCheckIfNecessary(var, local.get(), nullptr);
-        func = generator.move(generator.tempDestination(dst), local.get());
+        if (m_args->hasAssignments())
+            func = generator.move(generator.tempDestination(dst), local.get());
+        else
+            func = local;
     } else
-        func = generator.newTemporary();
+        func = generator.tempDestination(dst);
     CallArguments callArguments(generator, m_args);
 
     if (local) {
@@ -5321,15 +5328,14 @@ static void assignDefaultValueIfUndefined(BytecodeGenerator& generator, Register
 
 void ArrayPatternNode::bindValue(BytecodeGenerator& generator, RegisterID* rhs) const
 {
-    RefPtr<RegisterID> iterable = rhs;
     RefPtr<RegisterID> iterator = generator.newTemporary();
-    RefPtr<RegisterID> nextOrIndex = generator.newTemporary();
     {
-        RefPtr<RegisterID> iteratorSymbol = generator.emitGetById(generator.newTemporary(), iterable.get(), generator.propertyNames().iteratorSymbol);
-        CallArguments args(generator, nullptr, 0);
-        generator.move(args.thisRegister(), iterable.get());
-        generator.emitIteratorOpen(iterator.get(), nextOrIndex.get(), iteratorSymbol.get(), args, this);
+        generator.emitGetById(iterator.get(), rhs, generator.propertyNames().iteratorSymbol);
+        CallArguments args(generator, nullptr);
+        generator.move(args.thisRegister(), rhs);
+        generator.emitCall(iterator.get(), iterator.get(), NoExpectedFunction, args, divot(), divotStart(), divotEnd(), DebuggableCall::No);
     }
+    RefPtr<RegisterID> nextMethod = generator.emitGetById(generator.newTemporary(), iterator.get(), generator.propertyNames().next);
 
     if (m_targetPatterns.isEmpty()) {
         generator.emitIteratorGenericClose(iterator.get(), this);
@@ -5348,12 +5354,14 @@ void ArrayPatternNode::bindValue(BytecodeGenerator& generator, RegisterID* rhs) 
                 generator.emitJumpIfTrue(done.get(), iterationSkipped.get());
 
             RefPtr<RegisterID> value = generator.newTemporary();
+            generator.emitIteratorGenericNext(value.get(), nextMethod.get(), iterator.get(), this);
+            generator.emitGetById(done.get(), value.get(), generator.propertyNames().done);
+            generator.emitJumpIfTrue(done.get(), iterationSkipped.get());
+            generator.emitGetById(value.get(), value.get(), generator.propertyNames().value);
+
             {
                 Ref<Label> valueIsSet = generator.newLabel();
-                CallArguments nextArgs(generator, nullptr, 0);
-                generator.move(nextArgs.thisRegister(), iterator.get());
-                generator.emitIteratorNext(done.get(), value.get(), iterable.get(), nextOrIndex.get(), nextArgs, this);
-                generator.emitJumpIfFalse(done.get(), valueIsSet.get());
+                generator.emitJump(valueIsSet.get());
                 generator.emitLabel(iterationSkipped.get());
                 generator.emitLoad(value.get(), jsUndefined());
                 generator.emitLabel(valueIsSet.get());
@@ -5382,12 +5390,10 @@ void ArrayPatternNode::bindValue(BytecodeGenerator& generator, RegisterID* rhs) 
             generator.emitLabel(loopStart.get());
 
             RefPtr<RegisterID> value = generator.newTemporary();
-            {
-                CallArguments nextArgs(generator, nullptr, 0);
-                generator.move(nextArgs.thisRegister(), iterator.get());
-                generator.emitIteratorNext(done.get(), value.get(), iterable.get(), nextOrIndex.get(), nextArgs, this);
-                generator.emitJumpIfTrue(done.get(), iterationDone.get());
-            }
+            generator.emitIteratorGenericNext(value.get(), nextMethod.get(), iterator.get(), this);
+            generator.emitGetById(done.get(), value.get(), generator.propertyNames().done);
+            generator.emitJumpIfTrue(done.get(), iterationDone.get());
+            generator.emitGetById(value.get(), value.get(), generator.propertyNames().value);
 
             generator.emitDirectPutByVal(array.get(), index.get(), value.get());
             generator.emitInc(index.get());

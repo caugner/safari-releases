@@ -394,6 +394,9 @@ void NetworkProcess::createNetworkConnectionToWebProcess(ProcessIdentifier ident
 
 void NetworkProcess::addAllowedFirstPartyForCookies(WebCore::ProcessIdentifier processIdentifier, WebCore::RegistrableDomain&& firstPartyForCookies, LoadedWebArchive loadedWebArchive, CompletionHandler<void()>&& completionHandler)
 {
+    if (!HashSet<WebCore::RegistrableDomain>::isValidValue(firstPartyForCookies))
+        return completionHandler();
+
     auto& pair = m_allowedFirstPartiesForCookies.ensure(processIdentifier, [] {
         return std::make_pair(LoadedWebArchive::No, HashSet<RegistrableDomain> { });
     }).iterator->value;
@@ -429,6 +432,10 @@ bool NetworkProcess::allowsFirstPartyForCookies(WebCore::ProcessIdentifier proce
 
 bool NetworkProcess::allowsFirstPartyForCookies(WebCore::ProcessIdentifier processIdentifier, const RegistrableDomain& firstPartyDomain)
 {
+    // FIXME: This shouldn't be needed but it is hit sometimes at least with PDFs.
+    if (firstPartyDomain.isEmpty())
+        return true;
+
     if (!decltype(m_allowedFirstPartiesForCookies)::isValidKey(processIdentifier)) {
         ASSERT_NOT_REACHED();
         return false;
@@ -1418,6 +1425,12 @@ void NetworkProcess::setPrivateClickMeasurementDebugMode(PAL::SessionID sessionI
 {
     if (auto* session = networkSession(sessionID))
         session->setPrivateClickMeasurementDebugMode(enabled);
+}
+
+void NetworkProcess::setBlobRegistryTopOriginPartitioningEnabled(PAL::SessionID sessionID, bool enabled) const
+{
+    if (auto* session = networkSession(sessionID))
+        session->setBlobRegistryTopOriginPartitioningEnabled(enabled);
 }
 
 void NetworkProcess::preconnectTo(PAL::SessionID sessionID, WebPageProxyIdentifier webPageProxyID, WebCore::PageIdentifier webPageID, const URL& url, const String& userAgent, WebCore::StoredCredentialsPolicy storedCredentialsPolicy, std::optional<NavigatingToAppBoundDomain> isNavigatingToAppBoundDomain, LastNavigationWasAppInitiated lastNavigationWasAppInitiated)
