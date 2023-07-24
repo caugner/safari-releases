@@ -14,6 +14,7 @@ compositing/layer-creation/clipping-scope [ Pass ]
 contact-picker/contacts-select-after-dismissing-picker.html [ Pass ]
 contact-picker/contacts-select-while-presenting-picker.html [ Pass ]
 contact-picker/contacts-select.html [ Pass ]
+css3/scroll-snap/ios [ Pass ]
 fast/device-orientation [ Pass ]
 http/tests/app-privacy-report/ [ Pass ]
 http/tests/device-orientation [ Pass ]
@@ -124,6 +125,8 @@ imported/w3c/web-platform-tests/html/rendering/non-replaced-elements/form-contro
 
 http/tests/security/contentSecurityPolicy/manifest-src-allowed.html [ Pass ]
 http/tests/security/contentSecurityPolicy/manifest-src-blocked.html [ Pass ]
+http/wpt/content-security-policy/sandbox-manifest-blocked.html [ Pass ]
+http/wpt/content-security-policy/sandbox-manifest-blocked-cross-origin.sub.html [ Pass ]
 applicationmanifest/ [ Pass ]
 
 # Skipped because of <rdar://problem/45388584>.
@@ -964,6 +967,9 @@ editing/selection/select-out-of-floated-non-editable-11.html [ Skip ]
 editing/selection/select-out-of-floated-non-editable-12.html [ Skip ]
 css3/scroll-snap/scroll-snap-click-scrollbar-gutter.html [ Skip ]
 css3/scroll-snap/scroll-snap-wheel-event.html [ Skip ]
+css3/scroll-snap/scroll-snap-discrete-wheel-event-in-mainframe.html [ Skip ]
+css3/scroll-snap/scroll-snap-discrete-wheel-events-with-layout.html [ Skip ]
+css3/scroll-snap/resnap-after-layout.html [ Skip ]
 
 webkit.org/b/192088 media/no-fullscreen-when-hidden.html [ Failure Pass ]
 

@@ -22,15 +22,16 @@
 
 import getpass
 import os
-import requests
 import sys
 import time
 
 from .command import Command
 from .install_hooks import InstallHooks
-from requests.auth import HTTPBasicAuth
-from webkitcorepy import arguments, run, Editor, OutputCapture, Terminal
+from webkitcorepy import arguments, run, CallByNeed, Editor, OutputCapture, Terminal
 from webkitscmpy import log, local, remote
+
+requests = CallByNeed(lambda: __import__('requests'))
+HTTPBasicAuth = CallByNeed(lambda: __import__('requests.auth', fromlist=['HTTPBasicAuth']).HTTPBasicAuth)
 
 
 class Setup(Command):
@@ -382,7 +383,7 @@ class Setup(Command):
         http_remote = local.Git.HTTP_REMOTE.match(repository.url())
         can_push = not http_remote
         rmt = repository.remote()
-        if not can_push and rmt and getattr(rmt, 'credentials', None):
+        if rmt and getattr(rmt, 'credentials', None):
             username, password = rmt.credentials()
             if username and password and not run([
                 repository.executable(), 'config',

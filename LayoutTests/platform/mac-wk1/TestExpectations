@@ -1945,8 +1945,6 @@ webkit.org/b/215033 imported/w3c/web-platform-tests/websockets/cookies/third-par
 
 webkit.org/b/215296 media/modern-media-controls/placard/placard-ltr.html [ Pass Timeout ]
 
-webkit.org/b/215299 imported/w3c/web-platform-tests/css/css-logical/parsing/margin-block-inline-computed.html [ Pass Failure ]
-
 webkit.org/b/215336 [ Release ] svg/text/hidpi-text-selection-rect-position.html [ Pass Failure ]
 
 webkit.org/b/215392 webaudio/oscillator-sawtooth.html [ Pass Failure ]
@@ -2464,3 +2462,12 @@ fullscreen/fullscreen-iframe-navigation.html [ Skip ]
 # Timeout on WK1
 fullscreen/fullscreen-restore-scroll-position-overflow-auto.html [ Skip ]
 
+# Discrete wheel events don't trigger scroll snapping on the root in WK1
+webkit.org/b/255498 css3/scroll-snap/scroll-snap-discrete-wheel-event-in-mainframe.html [ Skip ]
+
+# test failing only on mac-wk1 after importing wpt css/css-tables
+imported/w3c/web-platform-tests/css/css-tables/collapsed-border-positioned-tr-td.html [ ImageOnlyFailure ]
+
+#rdar://105804155 ([ WK1 ] 2 http/tests/resourceLoadStatistics/* (layout-tests) are constant failures)
+http/tests/resourceLoadStatistics/website-data-removal-for-site-without-user-interaction-js-cookie-checking.html [ Skip ]
+http/tests/resourceLoadStatistics/website-data-removal-for-site-navigated-to-with-link-decoration-js-cookie-checking.html [ Skip ]

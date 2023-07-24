@@ -9267,6 +9267,8 @@
 		419BE7521BC7F3DB00E1C85B /* WebCoreBuiltinNames.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WebCoreBuiltinNames.h; sourceTree = "<group>"; };
 		419D9305255E842700DA1984 /* CryptoUtilitiesCocoa.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CryptoUtilitiesCocoa.h; sourceTree = "<group>"; };
 		419D9307255E842800DA1984 /* CryptoUtilitiesCocoa.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = CryptoUtilitiesCocoa.cpp; sourceTree = "<group>"; };
+		419E37612A1CD5F30013EFE5 /* TransformStream.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = TransformStream.cpp; sourceTree = "<group>"; };
+		419E37622A1CD5F30013EFE5 /* TransformStream.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = TransformStream.h; sourceTree = "<group>"; };
 		419E6EC42566D211002B5010 /* RTCPeerConnectionIceErrorEvent.idl */ = {isa = PBXFileReference; lastKnownFileType = text; path = RTCPeerConnectionIceErrorEvent.idl; sourceTree = "<group>"; };
 		419E6EC62566D213002B5010 /* RTCPeerConnectionIceErrorEvent.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = RTCPeerConnectionIceErrorEvent.cpp; sourceTree = "<group>"; };
 		419E6EC72566D214002B5010 /* RTCPeerConnectionIceErrorEvent.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RTCPeerConnectionIceErrorEvent.h; sourceTree = "<group>"; };
@@ -9440,7 +9442,6 @@
 		41FB27991F34CE9C00795487 /* CacheQueryOptions.idl */ = {isa = PBXFileReference; lastKnownFileType = text; path = CacheQueryOptions.idl; sourceTree = "<group>"; };
 		41FB279B1F34CEF000795487 /* CacheQueryOptions.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CacheQueryOptions.h; sourceTree = "<group>"; };
 		41FCA5F724EAAF15005E1BA6 /* TransformStream.idl */ = {isa = PBXFileReference; lastKnownFileType = text; path = TransformStream.idl; sourceTree = "<group>"; };
-		41FCA5F924EAAF16005E1BA6 /* TransformStream.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = TransformStream.js; sourceTree = "<group>"; };
 		41FCA5FA24EAAF16005E1BA6 /* TransformStreamDefaultController.idl */ = {isa = PBXFileReference; lastKnownFileType = text; path = TransformStreamDefaultController.idl; sourceTree = "<group>"; };
 		41FCA5FB24EAAF16005E1BA6 /* TransformStreamDefaultController.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = TransformStreamDefaultController.js; sourceTree = "<group>"; };
 		41FCA5FC24EAB780005E1BA6 /* TransformStreamInternals.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = TransformStreamInternals.js; sourceTree = "<group>"; };
@@ -9636,6 +9637,7 @@
 		44EEA0FC274727F400594A83 /* ImageControlsMac.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ImageControlsMac.cpp; sourceTree = "<group>"; };
 		4512502015DCE37D002F84E2 /* SpinButtonElement.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = SpinButtonElement.cpp; sourceTree = "<group>"; };
 		4512502115DCE37D002F84E2 /* SpinButtonElement.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SpinButtonElement.h; sourceTree = "<group>"; };
+		45160A892A09FA22009E39A2 /* JSMediaSessionCustom.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = JSMediaSessionCustom.cpp; sourceTree = "<group>"; };
 		451A49F8F8726BE071518BE2 /* ISOProtectionSystemSpecificHeaderBox.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = ISOProtectionSystemSpecificHeaderBox.cpp; sourceTree = "<group>"; };
 		453EB635159C570400001BB7 /* DateTimeFormat.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DateTimeFormat.h; sourceTree = "<group>"; };
 		457CECE328ECF8C1006FE9FB /* PolicyContainer.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = PolicyContainer.cpp; sourceTree = "<group>"; };
@@ -22370,8 +22372,9 @@
 				418C395B1C8F0A610051C8A3 /* ReadableStreamSource.h */,
 				418C395C1C8F0A610051C8A3 /* ReadableStreamSource.idl */,
 				9908B0F11BCACF9100ED0F55 /* StreamInternals.js */,
+				419E37612A1CD5F30013EFE5 /* TransformStream.cpp */,
+				419E37622A1CD5F30013EFE5 /* TransformStream.h */,
 				41FCA5F724EAAF15005E1BA6 /* TransformStream.idl */,
-				41FCA5F924EAAF16005E1BA6 /* TransformStream.js */,
 				41FCA5FA24EAAF16005E1BA6 /* TransformStreamDefaultController.idl */,
 				41FCA5FB24EAAF16005E1BA6 /* TransformStreamDefaultController.js */,
 				41FCA5FC24EAB780005E1BA6 /* TransformStreamInternals.js */,
@@ -26322,6 +26325,7 @@
 				77C13F042165658A002D9C5F /* JSIntersectionObserverEntryCustom.cpp */,
 				71601718279F2D7E005A25AE /* JSKeyframeEffectCustom.cpp */,
 				AD726FE716D9F204003A4E6D /* JSMediaListCustom.h */,
+				45160A892A09FA22009E39A2 /* JSMediaSessionCustom.cpp */,
 				415CDAF61E6CE0D3004F11EE /* JSMediaStreamTrackCustom.cpp */,
 				E1A5F99A0E7EAA2500AF85EA /* JSMessageChannelCustom.cpp */,
 				E1ADED460E76B8DD004A1A5E /* JSMessagePortCustom.cpp */,
