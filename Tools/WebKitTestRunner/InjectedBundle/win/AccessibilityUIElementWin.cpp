@@ -196,6 +196,12 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::currentStateValue() const
     return nullptr;
 }
 
+JSRetainPtr<JSStringRef> AccessibilityUIElement::sortDirection() const
+{
+    notImplemented();
+    return nullptr;
+}
+
 JSRetainPtr<JSStringRef> AccessibilityUIElement::stringDescriptionOfAttributeValue(JSStringRef)
 {
     notImplemented();
@@ -221,6 +227,12 @@ JSValueRef AccessibilityUIElement::rowHeaders() const
 }
 
 JSValueRef AccessibilityUIElement::columnHeaders() const
+{
+    notImplemented();
+    return nullptr;
+}
+
+JSValueRef AccessibilityUIElement::selectedCells() const
 {
     notImplemented();
     return nullptr;
@@ -650,6 +662,12 @@ bool AccessibilityUIElement::setSelectedTextRange(unsigned, unsigned)
 {
     notImplemented();
     return false;
+}
+
+JSRetainPtr<JSStringRef> AccessibilityUIElement::textInputMarkedRange() const
+{
+    notImplemented();
+    return nullptr;
 }
 
 void AccessibilityUIElement::increment()

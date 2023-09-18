@@ -99,7 +99,7 @@
 
 #endif /* COMPILER(GCC) */
 
-#if COMPILER(GCC_COMPATIBLE) && defined(NDEBUG) && !defined(__OPTIMIZE__) && !defined(RELEASE_WITHOUT_OPTIMIZATIONS)
+#if COMPILER(GCC_COMPATIBLE) && !defined(__clang_tapi__) && defined(NDEBUG) && !defined(__OPTIMIZE__) && !defined(RELEASE_WITHOUT_OPTIMIZATIONS)
 #error "Building release without compiler optimizations: WebKit will be slow. Set -DRELEASE_WITHOUT_OPTIMIZATIONS if this is intended."
 #endif
 
@@ -505,6 +505,9 @@
 
 #define ALLOW_DEPRECATED_IMPLEMENTATIONS_BEGIN IGNORE_WARNINGS_BEGIN("deprecated-implementations")
 #define ALLOW_DEPRECATED_IMPLEMENTATIONS_END IGNORE_WARNINGS_END
+
+#define ALLOW_DEPRECATED_PRAGMA_BEGIN IGNORE_WARNINGS_BEGIN("deprecated-pragma")
+#define ALLOW_DEPRECATED_PRAGMA_END IGNORE_WARNINGS_END
 
 #define ALLOW_NEW_API_WITHOUT_GUARDS_BEGIN IGNORE_CLANG_WARNINGS_BEGIN("unguarded-availability-new")
 #define ALLOW_NEW_API_WITHOUT_GUARDS_END IGNORE_CLANG_WARNINGS_END

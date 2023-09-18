@@ -6,7 +6,7 @@ layer at (0,0) size 800x548
       RenderBlock {P} at (3,3) size 680x64
         RenderText {#text} at (0,7) size 680x49
           text run at (0,7) width 513: "These links are in an element with display table-row, and the li elements "
-          text run at (513,7) width 167: "have display: table-cell."
+          text run at (512,7) width 168: "have display: table-cell."
           text run at (0,39) width 115: "They disappear:"
       RenderTable at (3,67) size 264x18
         RenderTableSection (anonymous) at (0,0) size 264x18
@@ -67,8 +67,8 @@ layer at (0,0) size 800x548
               RenderTableSection (anonymous) at (0,0) size 333x60
                 RenderTableRow {SPAN} at (0,0) size 333x28
                   RenderTableCell (anonymous) at (0,0) size 333x28 [r=0 c=0 rs=1 cs=1]
-                    RenderText {#text} at (0,6) size 91x16
-                      text run at (0,6) width 91: "Email Address"
+                    RenderText {#text} at (0,6) size 93x16
+                      text run at (0,6) width 93: "Email Address"
                 RenderTableRow (anonymous) at (0,28) size 333x32
                   RenderTableCell (anonymous) at (0,28) size 333x32 [r=1 c=0 rs=1 cs=1]
                     RenderTextControl {INPUT} at (0,4) size 333x24 [bgcolor=#FFFFFF] [border: (2px inset #000000)]

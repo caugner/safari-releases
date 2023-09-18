@@ -81,6 +81,14 @@
 #define NSAccessibilitySelectedTextMarkerRangeAttribute @"AXSelectedTextMarkerRange"
 #endif
 
+#ifndef NSAccessibilityTextInputMarkedRangeAttribute
+#define NSAccessibilityTextInputMarkedRangeAttribute @"AXTextInputMarkedRange"
+#endif
+
+#ifndef NSAccessibilityTextInputMarkedTextMarkerRangeAttribute
+#define NSAccessibilityTextInputMarkedTextMarkerRangeAttribute @"AXTextInputMarkedTextMarkerRange"
+#endif
+
 typedef void (*AXPostedNotificationCallback)(id element, NSString* notification, void* context);
 
 @interface NSObject (WebKitAccessibilityAdditions)
@@ -425,6 +433,16 @@ JSValueRef AccessibilityUIElement::rowHeaders() const
     END_AX_OBJC_EXCEPTIONS
 }
 
+JSValueRef AccessibilityUIElement::selectedCells() const
+{
+    BEGIN_AX_OBJC_EXCEPTIONS
+    auto value = attributeValue(NSAccessibilitySelectedCellsAttribute);
+    if ([value isKindOfClass:[NSArray class]])
+        return makeJSArray(makeVector<RefPtr<AccessibilityUIElement>>(value.get()));
+    END_AX_OBJC_EXCEPTIONS
+    return nullptr;
+}
+
 JSValueRef AccessibilityUIElement::columnHeaders() const
 {
     BEGIN_AX_OBJC_EXCEPTIONS
@@ -618,6 +636,12 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::allAttributes()
             continue;
 
         auto value = descriptionOfValue(attributeValue(attribute).get());
+
+        if (!value
+            && ([attribute isEqualToString:NSAccessibilityTextInputMarkedRangeAttribute]
+                || [attribute isEqualToString:NSAccessibilityTextInputMarkedTextMarkerRangeAttribute]))
+            continue;
+
         [values appendFormat:@"%@: %@\n", attribute, value.get()];
     }
 
@@ -1517,6 +1541,16 @@ bool AccessibilityUIElement::setSelectedTextRange(unsigned location, unsigned le
     return true;
 }
 
+JSRetainPtr<JSStringRef> AccessibilityUIElement::textInputMarkedRange() const
+{
+    BEGIN_AX_OBJC_EXCEPTIONS
+    auto value = attributeValue(NSAccessibilityTextInputMarkedRangeAttribute);
+    if (value)
+        return [NSStringFromRange([value rangeValue]) createJSStringRef];
+    END_AX_OBJC_EXCEPTIONS
+    return nullptr;
+}
+
 void AccessibilityUIElement::dismiss()
 {
     performAction(@"AXDismissAction");
@@ -1844,7 +1878,54 @@ RefPtr<AccessibilityTextMarkerRange> AccessibilityUIElement::lineTextMarkerRange
     auto textMarkerRange = attributeValueForParameter(@"AXLineTextMarkerRangeForTextMarker", textMarker->platformTextMarker());
     return AccessibilityTextMarkerRange::create(textMarkerRange.get());
     END_AX_OBJC_EXCEPTIONS
+    return nullptr;
+}
 
+RefPtr<AccessibilityTextMarkerRange> AccessibilityUIElement::rightLineTextMarkerRangeForTextMarker(AccessibilityTextMarker* textMarker)
+{
+    if (!textMarker)
+        return nullptr;
+
+    BEGIN_AX_OBJC_EXCEPTIONS
+    auto textMarkerRange = attributeValueForParameter(@"AXRightLineTextMarkerRangeForTextMarker", textMarker->platformTextMarker());
+    return AccessibilityTextMarkerRange::create(textMarkerRange.get());
+    END_AX_OBJC_EXCEPTIONS
+    return nullptr;
+}
+
+RefPtr<AccessibilityTextMarkerRange> AccessibilityUIElement::leftLineTextMarkerRangeForTextMarker(AccessibilityTextMarker* textMarker)
+{
+    if (!textMarker)
+        return nullptr;
+
+    BEGIN_AX_OBJC_EXCEPTIONS
+    auto textMarkerRange = attributeValueForParameter(@"AXLeftLineTextMarkerRangeForTextMarker", textMarker->platformTextMarker());
+    return AccessibilityTextMarkerRange::create(textMarkerRange.get());
+    END_AX_OBJC_EXCEPTIONS
+    return nullptr;
+}
+
+RefPtr<AccessibilityTextMarker> AccessibilityUIElement::previousLineStartTextMarkerForTextMarker(AccessibilityTextMarker* textMarker)
+{
+    if (!textMarker)
+        return nullptr;
+
+    BEGIN_AX_OBJC_EXCEPTIONS
+    auto marker = attributeValueForParameter(@"AXPreviousLineStartTextMarkerForTextMarker", textMarker->platformTextMarker());
+    return AccessibilityTextMarker::create(marker.get());
+    END_AX_OBJC_EXCEPTIONS
+    return nullptr;
+}
+
+RefPtr<AccessibilityTextMarker> AccessibilityUIElement::nextLineEndTextMarkerForTextMarker(AccessibilityTextMarker* textMarker)
+{
+    if (!textMarker)
+        return nullptr;
+
+    BEGIN_AX_OBJC_EXCEPTIONS
+    auto marker = attributeValueForParameter(@"AXNextLineEndTextMarkerForTextMarker", textMarker->platformTextMarker());
+    return AccessibilityTextMarker::create(marker.get());
+    END_AX_OBJC_EXCEPTIONS
     return nullptr;
 }
 
@@ -1950,6 +2031,17 @@ RefPtr<AccessibilityTextMarkerRange> AccessibilityUIElement::textMarkerRangeForM
     return nullptr;
 }
 
+RefPtr<AccessibilityTextMarkerRange> AccessibilityUIElement::textMarkerRangeForUnorderedMarkers(AccessibilityTextMarker* startMarker, AccessibilityTextMarker* endMarker)
+{
+    BEGIN_AX_OBJC_EXCEPTIONS
+    NSArray *textMarkers = @[startMarker->platformTextMarker(), endMarker->platformTextMarker()];
+    auto textMarkerRange = attributeValueForParameter(@"AXTextMarkerRangeForUnorderedTextMarkers", textMarkers);
+    return AccessibilityTextMarkerRange::create(textMarkerRange.get());
+    END_AX_OBJC_EXCEPTIONS
+
+    return nullptr;
+}
+
 RefPtr<AccessibilityTextMarkerRange> AccessibilityUIElement::textMarkerRangeForRange(unsigned location, unsigned length)
 {
     BEGIN_AX_OBJC_EXCEPTIONS
@@ -1982,6 +2074,16 @@ void AccessibilityUIElement::resetSelectedTextMarkerRange()
         return;
 
     setAttributeValue(m_element.getAutoreleased(), NSAccessibilitySelectedTextMarkerRangeAttribute, textMarkerRange.get(), true);
+}
+
+RefPtr<AccessibilityTextMarkerRange> AccessibilityUIElement::textInputMarkedTextMarkerRange() const
+{
+    BEGIN_AX_OBJC_EXCEPTIONS
+    auto textMarkerRange = attributeValue(NSAccessibilityTextInputMarkedTextMarkerRangeAttribute);
+    return AccessibilityTextMarkerRange::create(textMarkerRange.get());
+    END_AX_OBJC_EXCEPTIONS
+
+    return nullptr;
 }
 
 RefPtr<AccessibilityTextMarker> AccessibilityUIElement::startTextMarkerForTextMarkerRange(AccessibilityTextMarkerRange* range)
@@ -2164,6 +2266,19 @@ int AccessibilityUIElement::indexForTextMarker(AccessibilityTextMarker* marker)
     return -1;
 }
 
+bool AccessibilityUIElement::isTextMarkerNull(AccessibilityTextMarker* textMarker)
+{
+    if (!textMarker)
+        return true;
+
+    BEGIN_AX_OBJC_EXCEPTIONS
+    auto value = attributeValueForParameter(@"AXTextMarkerIsNull", textMarker->platformTextMarker());
+    return [value boolValue];
+    END_AX_OBJC_EXCEPTIONS
+
+    return false;
+}
+
 bool AccessibilityUIElement::isTextMarkerValid(AccessibilityTextMarker* textMarker)
 {
     if (!textMarker)
@@ -2242,7 +2357,6 @@ RefPtr<AccessibilityTextMarker> AccessibilityUIElement::previousWordStartTextMar
     auto previousWordStartMarker = attributeValueForParameter(@"AXPreviousWordStartTextMarkerForTextMarker", textMarker->platformTextMarker());
     return AccessibilityTextMarker::create(previousWordStartMarker.get());
     END_AX_OBJC_EXCEPTIONS
-
     return nullptr;
 }
 
@@ -2255,7 +2369,6 @@ RefPtr<AccessibilityTextMarker> AccessibilityUIElement::nextWordEndTextMarkerFor
     auto nextWordEndMarker = attributeValueForParameter(@"AXNextWordEndTextMarkerForTextMarker", textMarker->platformTextMarker());
     return AccessibilityTextMarker::create(nextWordEndMarker.get());
     END_AX_OBJC_EXCEPTIONS
-
     return nullptr;
 }
 
@@ -2393,17 +2506,16 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::pathDescription() const
         case NSMoveToBezierPathElement:
             [result appendString:@"\tMove to point\n"];
             break;
-
         case NSLineToBezierPathElement:
             [result appendString:@"\tLine to\n"];
             break;
-
         case NSCurveToBezierPathElement:
             [result appendString:@"\tCurve to\n"];
             break;
-
         case NSClosePathBezierPathElement:
             [result appendString:@"\tClose\n"];
+            break;
+        default:
             break;
         }
     }

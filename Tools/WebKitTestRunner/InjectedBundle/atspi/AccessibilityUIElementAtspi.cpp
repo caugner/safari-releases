@@ -456,6 +456,21 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::currentStateValue() const
     return OpaqueJSString::tryCreate(!value.isNull() ? value : "false"_s).leakRef();
 }
 
+JSRetainPtr<JSStringRef> AccessibilityUIElement::sortDirection() const
+{
+    m_element->updateBackingStore();
+    auto sort = m_element->attributes().get("sort"_s);
+
+    if (sort == "ascending"_s)
+        return OpaqueJSString::tryCreate("AXAscendingSortDirection"_s).leakRef();
+    if (sort == "descending"_s)
+        return OpaqueJSString::tryCreate("AXDescendingSortDirection"_s).leakRef();
+    if (sort == "other"_s)
+        return OpaqueJSString::tryCreate("AXUnknownSortDirection"_s).leakRef();
+    
+    return nullptr;
+}
+
 JSRetainPtr<JSStringRef> AccessibilityUIElement::domIdentifier() const
 {
     m_element->updateBackingStore();
@@ -507,6 +522,11 @@ JSValueRef AccessibilityUIElement::columnHeaders() const
         return makeJSArray(elementsVector(m_element->cellColumnHeaders()));
     }
 
+    return makeJSArray({ });
+}
+
+JSValueRef AccessibilityUIElement::selectedCells() const
+{
     return makeJSArray({ });
 }
 
@@ -1417,6 +1437,11 @@ bool AccessibilityUIElement::setSelectedTextRange(unsigned location, unsigned le
     return true;
 }
 
+JSRetainPtr<JSStringRef> AccessibilityUIElement::textInputMarkedRange() const
+{
+    return nullptr;
+}
+
 void AccessibilityUIElement::increment()
 {
     if (!m_element->interfaces().contains(WebCore::AccessibilityObjectAtspi::Interface::Value))
@@ -1510,7 +1535,7 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::url()
         return JSStringCreateWithUTF8CString("AXURL: (null)");
 
     auto stringURL = axURL.string();
-    if (axURL.isLocalFile()) {
+    if (axURL.protocolIsFile()) {
         // Do not expose absolute paths.
         auto index = stringURL.find("LayoutTests"_s);
         if (index != notFound)

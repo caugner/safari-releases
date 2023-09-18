@@ -28,8 +28,11 @@
 #import "DeprecatedGlobalValues.h"
 #import "PlatformUtilities.h"
 #import "TestNavigationDelegate.h"
+#import "TestProtocol.h"
 #import "TestUIDelegate.h"
+#import "TestURLSchemeHandler.h"
 #import "TestWKWebView.h"
+#import "WKWebViewConfigurationExtras.h"
 #import <WebKit/WKContentRuleListStorePrivate.h>
 #import <WebKit/WKMutableDictionary.h>
 #import <WebKit/WKNavigationDelegatePrivate.h>
@@ -832,8 +835,8 @@ TEST(WebpagePreferences, WebsitePoliciesAutoplayQuirks)
 
 TEST(WebpagePreferences, WebsitePoliciesPerDocumentAutoplayBehaviorQuirks)
 {
-    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    auto* configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
 
     auto delegate = adoptNS([[AutoplayPoliciesDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
@@ -888,9 +891,19 @@ TEST(WebpagePreferences, WebsitePoliciesPerDocumentAutoplayBehaviorQuirks)
     [webView mouseUpAtPoint:playButtonClickPoint];
     [webView waitForMessage:@"did-play-video1"];
 
-    // Now video2 should not be allowed to autoplay without a user gesture.
+    // Now video2 should be allowed to autoplay without a user gesture because of transient activation.
     [webView _evaluateJavaScriptWithoutUserGesture:@"playVideo('video2')" completionHandler:nil];
-    [webView waitForMessage:@"did-not-play-video2"];
+    [webView waitForMessage:@"did-play-video2"];
+
+    // Consume the transient activation and video 3 should not be able to play.
+    __block bool ranJS = false;
+    [webView _evaluateJavaScriptWithoutUserGesture:@"window.internals.consumeTransientActivation()" completionHandler:^(id, NSError*) {
+        ranJS = true;
+    }];
+    TestWebKitAPI::Util::run(&ranJS);
+
+    [webView _evaluateJavaScriptWithoutUserGesture:@"playVideo('video3')" completionHandler:nil];
+    [webView waitForMessage:@"did-not-play-video3"];
 }
 #endif
 
@@ -1722,7 +1735,95 @@ TEST(WebpagePreferences, UserExplicitlyPrefersColorSchemeDark)
     [webView waitForMessage:@"dark-detected"];
 }
 
-TEST(WebpagePreferences, ToggleNetworkConnectionIntegrity)
+TEST(WebpagePreferences, UserExplicitlyPrefersColorSchemeDarkForContentThatDoesNotSupportDarkMode)
+{
+    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    [webView synchronouslyLoadTestPageNamed:@"color-scheme"];
+
+    NSString *backgroundColorWithoutPreference = [webView stringByEvaluatingJavaScript:@"getComputedStyle(document.body).backgroundColor"];
+
+    configuration.get().defaultWebpagePreferences._colorSchemePreference = _WKWebsiteColorSchemePreferenceDark;
+    webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    [webView synchronouslyLoadTestPageNamed:@"color-scheme"];
+
+    NSString *backgroundColorWithPreference = [webView stringByEvaluatingJavaScript:@"getComputedStyle(document.body).backgroundColor"];
+
+    EXPECT_WK_STREQ(backgroundColorWithoutPreference, backgroundColorWithPreference);
+}
+
+TEST(WebpagePreferences, ContentRuleListEnablement)
+{
+    [TestProtocol registerWithScheme:@"https"];
+
+    NSString *identifierToDisable = @"org.TestWebKitAPI.Disabled";
+    NSString *identifierToEnable = @"org.TestWebKitAPI.Enabled";
+
+    auto directory = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:@"ContentRuleLists"] isDirectory:YES];
+    auto store = [WKContentRuleListStore storeWithURL:directory];
+
+    auto compileRuleList = [&](NSString *identifier, NSString *source) -> RetainPtr<WKContentRuleList> {
+        __block RetainPtr<WKContentRuleList> result;
+        __block bool done = false;
+        [store compileContentRuleListForIdentifier:identifier encodedContentRuleList:source completionHandler:^(WKContentRuleList *rules, NSError *error) {
+            EXPECT_NULL(error);
+            result = rules;
+            done = true;
+        }];
+        TestWebKitAPI::Util::run(&done);
+        return result;
+    };
+
+    constexpr auto contentRulesToDisable = "[{"
+        "\"trigger\": { \"url-filter\": \"^https://bundle-file/400x400-green.png$\" },"
+        "\"action\": { \"type\": \"block\" }"
+        "}]";
+
+    constexpr auto contentRulesToEnable = "[{"
+        "\"trigger\": { \"url-filter\": \"^https://bundle-file/sunset-in-cupertino-200px.png$\" },"
+        "\"action\": { \"type\": \"block\" }"
+        "}]";
+
+    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    [[configuration defaultWebpagePreferences] _setContentRuleListsEnabled:YES exceptions:[NSSet setWithObject:identifierToDisable]];
+
+    auto rulesToDisable = compileRuleList(identifierToDisable, @(contentRulesToDisable));
+    [[configuration userContentController] addContentRuleList:rulesToDisable.get()];
+
+    auto rulesToEnable = compileRuleList(identifierToEnable, @(contentRulesToEnable));
+    [[configuration userContentController] addContentRuleList:rulesToEnable.get()];
+
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"https://bundle-file/load-image.html"]];
+    [webView synchronouslyLoadRequest:request.get()];
+
+    auto canLoadImage = [webView](NSString *url) {
+        __block BOOL result = false;
+        __block bool done = false;
+        [webView callAsyncJavaScript:@"return canLoadImage(url);" arguments:@{ @"url" : url } inFrame:nil inContentWorld:WKContentWorld.pageWorld completionHandler:^(NSNumber *loaded, NSError *error) {
+            EXPECT_NOT_NULL(loaded);
+            EXPECT_NULL(error);
+            result = loaded.boolValue;
+            done = true;
+        }];
+        TestWebKitAPI::Util::run(&done);
+        return result;
+    };
+
+    EXPECT_TRUE(canLoadImage(@"./400x400-green.png"));
+    EXPECT_FALSE(canLoadImage(@"./sunset-in-cupertino-200px.png"));
+    EXPECT_TRUE(canLoadImage(@"./sunset-in-cupertino-100px.tiff"));
+
+    auto newPreferences = adoptNS([WKWebpagePreferences new]);
+    [newPreferences _setContentRuleListsEnabled:NO exceptions:[NSSet setWithObject:identifierToEnable]];
+    [webView synchronouslyLoadRequest:request.get() preferences:newPreferences.get()];
+
+    EXPECT_TRUE(canLoadImage(@"./400x400-green.png"));
+    EXPECT_FALSE(canLoadImage(@"./sunset-in-cupertino-200px.png"));
+    EXPECT_TRUE(canLoadImage(@"./sunset-in-cupertino-100px.tiff"));
+}
+
+TEST(WebpagePreferences, ToggleAdvancedPrivacyProtections)
 {
     auto preferences = adoptNS([WKWebpagePreferences new]);
     EXPECT_FALSE([preferences _networkConnectionIntegrityEnabled]);
@@ -1732,4 +1833,235 @@ TEST(WebpagePreferences, ToggleNetworkConnectionIntegrity)
     EXPECT_FALSE([preferences _networkConnectionIntegrityEnabled]);
     [preferences _setNetworkConnectionIntegrityEnabled:YES];
     EXPECT_TRUE([preferences _networkConnectionIntegrityEnabled]);
+}
+
+TEST(WebpagePreferences, HttpPageContentBlockers)
+{
+    [[WKContentRuleListStore defaultStore] _removeAllContentRuleLists];
+
+    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    navigationDelegate.get().decidePolicyForNavigationActionWithPreferences = ^(WKNavigationAction *action, WKWebpagePreferences *preferences, void (^decisionHandler)(WKNavigationActionPolicy, WKWebpagePreferences *)) {
+        [preferences _setContentBlockersEnabled:YES];
+        if (action.targetFrame.mainFrame)
+            [preferences _setContentBlockersEnabled:NO];
+
+        decisionHandler(WKNavigationActionPolicyAllow, preferences);
+    };
+
+    TestWebKitAPI::HTTPServer server({
+        { "/index.html"_s, { 
+            R"INDEX(<script>
+                window.results = [];
+                window.addEventListener('message', function(event) {
+                    window.results.push(event.data);
+                    alert();
+                });
+            </script>
+            <script src='test:///script.js'></script>
+            <iframe src='/subframe.html'></iframe>)INDEX"_s } },
+        { "/subframe.html"_s, { "<script src='test:///script_subframe.js'></script>"_s } },
+    }, TestWebKitAPI::HTTPServer::Protocol::Http);
+
+    auto handler = adoptNS([TestURLSchemeHandler new]);
+    [handler setStartURLSchemeTaskHandler:^(WKWebView *, id<WKURLSchemeTask> task) {
+        NSString *path = task.request.URL.path;
+        NSString *type = nil;
+        NSString *result = nil;
+        if ([path hasSuffix:@"script.js"]) {
+            result = @"window.results.push(window.location.href);";
+            type = @"text/javascript";
+        } else if ([path hasSuffix:@"script_subframe.js"]) {
+            result = @"window.parent.postMessage(window.location.href, '*');";
+            type = @"text/javascript";
+        }
+
+        if (!result) {
+            [task didFailWithError:[NSError errorWithDomain:@"TestWebKitAPI" code:1 userInfo:nil]];
+            return;
+        }
+
+        auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:type expectedContentLength:[result length] textEncodingName:nil]);
+        [task didReceiveResponse:response.get()];
+        [task didReceiveData:[result dataUsingEncoding:NSUTF8StringEncoding]];
+        [task didFinish];
+    }];
+
+    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    [configuration setURLSchemeHandler:handler.get() forURLScheme:@"test"];
+
+    doneCompiling = false;
+    NSString* contentBlocker = @"[{\"action\":{\"type\":\"block\"},\"trigger\":{\"url-filter\":\".*\",\"resource-type\":[\"script\"]}}]";
+    [[WKContentRuleListStore defaultStore] compileContentRuleListForIdentifier:@"WebsitePoliciesTest" encodedContentRuleList:contentBlocker completionHandler:^(WKContentRuleList *list, NSError *error) {
+        EXPECT_TRUE(error == nil);
+        [[configuration userContentController] addContentRuleList:list];
+        doneCompiling = true;
+    }];
+    TestWebKitAPI::Util::run(&doneCompiling);
+
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    [webView setNavigationDelegate:navigationDelegate.get()];
+
+    [webView loadRequest:server.requestWithLocalhost("/index.html"_s)];
+    [webView _test_waitForAlert];
+
+    NSArray<NSString *> *results = [webView objectByEvaluatingJavaScript:@"window.results"];
+    NSString *expectedMainFrame = [NSString stringWithFormat:@"http://localhost:%d/index.html", server.port()];
+    NSString *expectedSubFrame = [NSString stringWithFormat:@"http://localhost:%d/subframe.html", server.port()];
+
+    EXPECT_EQ(2U, results.count);
+    EXPECT_WK_STREQ(expectedMainFrame, results[0]);
+    EXPECT_WK_STREQ(expectedSubFrame, results[1]);
+
+    [[WKContentRuleListStore defaultStore] _removeAllContentRuleLists];
+}
+
+TEST(WebpagePreferences, ExtensionPageContentBlockers)
+{
+    [[WKContentRuleListStore defaultStore] _removeAllContentRuleLists];
+
+    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    navigationDelegate.get().decidePolicyForNavigationActionWithPreferences = ^(WKNavigationAction *action, WKWebpagePreferences *preferences, void (^decisionHandler)(WKNavigationActionPolicy, WKWebpagePreferences *)) {
+        [preferences _setContentBlockersEnabled:YES];
+        if (action.targetFrame.mainFrame)
+            [preferences _setContentBlockersEnabled:NO];
+
+        decisionHandler(WKNavigationActionPolicyAllow, preferences);
+    };
+
+    TestWebKitAPI::HTTPServer server({
+        { "/subframe.html"_s, { "<script src='test:///script_subframe.js'></script>"_s } },
+    }, TestWebKitAPI::HTTPServer::Protocol::Http);
+
+    __block auto port = server.port();
+    auto handler = adoptNS([TestURLSchemeHandler new]);
+    [handler setStartURLSchemeTaskHandler:^(WKWebView *, id<WKURLSchemeTask> task) {
+        NSString *path = task.request.URL.path;
+        NSString *type = nil;
+        NSString *result = nil;
+        if ([path hasSuffix:@"index.html"]) {
+            result = [NSString stringWithFormat:@"<!DOCTYPE html>"
+                "<script>"
+                "   window.results = [];"
+                "   window.addEventListener('message', function(event) {"
+                "       window.results.push(event.data);"
+                "   });"
+                "</script>"
+                "<script src='test:///script.js'></script>"
+                "<iframe src='http://localhost:%d/subframe.html'></iframe>", port];
+            type = @"text/html";
+        } else if ([path hasSuffix:@"script.js"]) {
+            result = @"window.results.push(window.location.href);";
+            type = @"text/javascript";
+        } else if ([path hasSuffix:@"script_subframe.js"]) {
+            result = @"window.parent.postMessage(window.location.href, '*');";
+            type = @"text/javascript";
+        }
+
+        if (!result) {
+            [task didFailWithError:[NSError errorWithDomain:@"TestWebKitAPI" code:1 userInfo:nil]];
+            return;
+        }
+
+        auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:type expectedContentLength:[result length] textEncodingName:nil]);
+        [task didReceiveResponse:response.get()];
+        [task didReceiveData:[result dataUsingEncoding:NSUTF8StringEncoding]];
+        [task didFinish];
+    }];
+
+    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    [configuration setURLSchemeHandler:handler.get() forURLScheme:@"test"];
+
+    doneCompiling = false;
+    NSString* contentBlocker = @"[{\"action\":{\"type\":\"block\"},\"trigger\":{\"url-filter\":\".*\",\"resource-type\":[\"script\"]}}]";
+    [[WKContentRuleListStore defaultStore] compileContentRuleListForIdentifier:@"WebsitePoliciesTest" encodedContentRuleList:contentBlocker completionHandler:^(WKContentRuleList *list, NSError *error) {
+        EXPECT_TRUE(error == nil);
+        [[configuration userContentController] addContentRuleList:list];
+        doneCompiling = true;
+    }];
+    TestWebKitAPI::Util::run(&doneCompiling);
+
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    [webView setNavigationDelegate:navigationDelegate.get()];
+
+    auto request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:@"test:///index.html"]];
+    [webView loadRequest:request];
+    [navigationDelegate waitForDidFinishNavigation];
+
+    // Wait for an additional 0.5 seconds in case the content blocker does not block the script, and the postMessage is sent.
+    TestWebKitAPI::Util::runFor(0.5_s);
+
+    NSArray<NSString *> *results = [webView objectByEvaluatingJavaScript:@"window.results"];
+
+    EXPECT_EQ(1U, results.count);
+    EXPECT_WK_STREQ("test:///index.html", results[0]);
+
+    [[WKContentRuleListStore defaultStore] _removeAllContentRuleLists];
+}
+
+TEST(WebpagePreferences, ExtensionPageAdvancedPrivacyProtectionsReferrer)
+{
+    auto *store = WKWebsiteDataStore.nonPersistentDataStore;
+    store._resourceLoadStatisticsEnabled = YES;
+
+    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    navigationDelegate.get().decidePolicyForNavigationActionWithPreferences = ^(WKNavigationAction *action, WKWebpagePreferences *preferences, void (^decisionHandler)(WKNavigationActionPolicy, WKWebpagePreferences *)) {
+        [preferences _setNetworkConnectionIntegrityEnabled:YES];
+        if (action.targetFrame.mainFrame)
+            [preferences _setNetworkConnectionIntegrityEnabled:NO];
+
+        decisionHandler(WKNavigationActionPolicyAllow, preferences);
+    };
+
+    TestWebKitAPI::HTTPServer server({
+        { "/subframe2.html"_s, { "<script>window.top.postMessage(document.referrer, '*');</script>"_s } },
+    }, TestWebKitAPI::HTTPServer::Protocol::Http);
+
+    server.addResponse("/subframe1.html"_s, { "<iframe src='http://127.0.0.1:"_s + server.port() + "/subframe2.html'></iframe>"_s });
+
+    __block auto port = server.port();
+    auto handler = adoptNS([TestURLSchemeHandler new]);
+    [handler setStartURLSchemeTaskHandler:^(WKWebView *, id<WKURLSchemeTask> task) {
+        NSString *path = task.request.URL.path;
+        NSString *type = nil;
+        NSString *result = nil;
+        if ([path hasSuffix:@"index.html"]) {
+            result = [NSString stringWithFormat:@"<!DOCTYPE html>"
+                "<script>"
+                "   window.results = [document.referrer];"
+                "   window.addEventListener('message', function(event) {"
+                "       window.results.push(event.data);"
+                "       alert();"
+                "   });"
+                "</script>"
+                "<iframe src='http://localhost:%d/subframe1.html'></iframe>", port];
+            type = @"text/html";
+        }
+
+        if (!result) {
+            [task didFailWithError:[NSError errorWithDomain:@"TestWebKitAPI" code:1 userInfo:nil]];
+            return;
+        }
+
+        auto response = adoptNS([[NSURLResponse alloc] initWithURL:task.request.URL MIMEType:type expectedContentLength:[result length] textEncodingName:nil]);
+        [task didReceiveResponse:response.get()];
+        [task didReceiveData:[result dataUsingEncoding:NSUTF8StringEncoding]];
+        [task didFinish];
+    }];
+
+    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    [configuration setWebsiteDataStore:store];
+    [configuration setURLSchemeHandler:handler.get() forURLScheme:@"test"];
+
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    [webView setNavigationDelegate:navigationDelegate.get()];
+
+    auto request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:@"test:///index.html"]];
+    [request setValue:@"http://webkit.org" forHTTPHeaderField:@"Referer"];
+    [webView loadRequest:request];
+    [webView _test_waitForAlert];
+
+    NSArray<NSString *> *results = [webView objectByEvaluatingJavaScript:@"window.results"];
+    EXPECT_EQ(2U, results.count);
+    EXPECT_WK_STREQ("http://webkit.org/", results[0]);
+    EXPECT_WK_STREQ("", results[1]);
 }

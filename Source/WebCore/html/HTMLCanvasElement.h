@@ -31,6 +31,7 @@
 #include "CanvasBase.h"
 #include "Document.h"
 #include "FloatRect.h"
+#include "GraphicsTypes.h"
 #include "HTMLElement.h"
 #include <memory>
 #include <wtf/Forward.h>
@@ -105,7 +106,7 @@ public:
 #endif
 
     // Used for rendering
-    void didDraw(const std::optional<FloatRect>&) final;
+    void didDraw(const std::optional<FloatRect>&, ShouldApplyPostProcessingToDirtyRect) final;
 
     void paint(GraphicsContext&, const LayoutRect&);
 
@@ -136,9 +137,6 @@ public:
 
     bool isControlledByOffscreen() const;
 
-#if PLATFORM(COCOA)
-    GraphicsContext* drawingContext() const final;
-#endif
     WEBCORE_EXPORT void setAvoidIOSurfaceSizeCheckInWebProcessForTesting();
 
     void queueTaskKeepingObjectAlive(TaskSource, Function<void()>&&) final;
@@ -159,7 +157,7 @@ private:
     // EventTarget.
     void eventListenersDidChange() final;
 
-    void parseAttribute(const QualifiedName&, const AtomString&) final;
+    void attributeChanged(const QualifiedName&, const AtomString& oldValue, const AtomString& newValue, AttributeModificationReason) final;
     bool hasPresentationalHintsForAttribute(const QualifiedName&) const final;
     void collectPresentationalHintsForAttribute(const QualifiedName&, const AtomString&, MutableStyleProperties&) final;
     RenderPtr<RenderElement> createElementRenderer(RenderStyle&&, const RenderTreePosition&) final;
@@ -203,9 +201,6 @@ private:
     bool m_hasRelevantWebGLEventListener { false };
 #endif
     bool m_isSnapshotting { false };
-#if PLATFORM(COCOA)
-    mutable bool m_mustGuardAgainstUseByPendingLayerTransaction { false };
-#endif
 };
 
 WebCoreOpaqueRoot root(HTMLCanvasElement*);

@@ -178,6 +178,15 @@ window.UIHelper = class UIHelper {
         }
     }
 
+    static async waitForConditionAsync(conditionFunc)
+    {
+        var condition = await conditionFunc();
+        while (!condition) {
+            await UIHelper.animationFrame();
+            condition = await conditionFunc();
+        }
+    }
+
     static sendEventStream(eventStream)
     {
         const eventStreamAsString = JSON.stringify(eventStream);
@@ -588,10 +597,22 @@ window.UIHelper = class UIHelper {
         });
     }
 
-    static activateAndWaitForInputSessionAt(x, y)
+    static async activateAndWaitForInputSessionAt(x, y)
     {
         if (!this.isWebKit2() || !this.isIOSFamily())
             return this.activateAt(x, y);
+
+        if (testRunner.isKeyboardImmediatelyAvailable) {
+            await new Promise(resolve => {
+                testRunner.runUIScript(`
+                    (function() {
+                        uiController.singleTapAtPoint(${x}, ${y}, function() { });
+                        uiController.uiScriptComplete();
+                    })()`, resolve);
+            });
+            await this.ensureStablePresentationUpdate();
+            return;
+        }
 
         return new Promise(resolve => {
             testRunner.runUIScript(`
@@ -828,36 +849,35 @@ window.UIHelper = class UIHelper {
         });
     }
 
-    static getUICaretRect()
+    static scrollbarState(scroller, isVertical)
     {
-        if (!this.isWebKit2() || !this.isIOSFamily())
+        var internalFunctions = scroller ? scroller.ownerDocument.defaultView.internals : internals;
+        if (!this.isWebKit2() || this.isIOSFamily())
             return Promise.resolve();
 
-        return new Promise(resolve => {
-            testRunner.runUIScript(`(function() {
-                uiController.doAfterNextStablePresentationUpdate(function() {
-                    uiController.uiScriptComplete(JSON.stringify(uiController.textSelectionCaretRect));
+        if (internals.isUsingUISideCompositing() && (!scroller || scroller.nodeName != "SELECT")) {
+            return new Promise(resolve => {
+                testRunner.runUIScript(`(function() {
+                    uiController.doAfterNextStablePresentationUpdate(function() {
+                        uiController.uiScriptComplete(uiController.scrollbarStateForScrollingNodeID(${internalFunctions.scrollingNodeIDForNode(scroller)}, ${isVertical}));
+                    });
+                })()`, state => {
+                    resolve(state);
                 });
-            })()`, jsonString => {
-                resolve(JSON.parse(jsonString));
-            });
-        });
+            });    
+        } else {
+            return isVertical ? Promise.resolve(internalFunctions.verticalScrollbarState(scroller)) : Promise.resolve(internalFunctions.horizontalScrollbarState(scroller));
+        }
     }
 
-    static getUISelectionRects()
+    static verticalScrollbarState(scroller)
     {
-        if (!this.isWebKit2() || !this.isIOSFamily())
-            return Promise.resolve();
+        return UIHelper.scrollbarState(scroller, true);
+    }
 
-        return new Promise(resolve => {
-            testRunner.runUIScript(`(function() {
-                uiController.doAfterNextStablePresentationUpdate(function() {
-                    uiController.uiScriptComplete(JSON.stringify(uiController.textSelectionRangeRects));
-                });
-            })()`, jsonString => {
-                resolve(JSON.parse(jsonString));
-            });
-        });
+    static horizontalScrollbarState(scroller)
+    {
+        return UIHelper.scrollbarState(scroller, false);
     }
 
     static getUICaretViewRect()
@@ -869,6 +889,22 @@ window.UIHelper = class UIHelper {
             testRunner.runUIScript(`(function() {
                 uiController.doAfterNextStablePresentationUpdate(function() {
                     uiController.uiScriptComplete(JSON.stringify(uiController.selectionCaretViewRect));
+                });
+            })()`, jsonString => {
+                resolve(JSON.parse(jsonString));
+            });
+        });
+    }
+
+    static getUICaretViewRectInGlobalCoordinates()
+    {
+        if (!this.isWebKit2() || !this.isIOSFamily())
+            return Promise.resolve();
+
+        return new Promise(resolve => {
+            testRunner.runUIScript(`(function() {
+                uiController.doAfterNextStablePresentationUpdate(function() {
+                    uiController.uiScriptComplete(JSON.stringify(uiController.selectionCaretViewRectInGlobalCoordinates));
                 });
             })()`, jsonString => {
                 resolve(JSON.parse(jsonString));
@@ -993,6 +1029,18 @@ window.UIHelper = class UIHelper {
             testRunner.runUIScript(`(() => {
                 uiController.uiScriptComplete(uiController.selectFormPopoverTitle);
             })()`, resolve);
+        });
+    }
+
+    static selectMenuItems()
+    {
+        return new Promise(resolve => {
+            testRunner.runUIScript(`
+            (function() {
+                uiController.didShowContextMenuCallback = function() {
+                    uiController.uiScriptComplete(JSON.stringify(uiController.contentsOfUserInterfaceItem('selectMenu')));
+                };
+            })();`, result => resolve(JSON.parse(result).selectMenu));
         });
     }
 
@@ -1825,6 +1873,16 @@ window.UIHelper = class UIHelper {
                         uiController.uiScriptComplete(uiController.mayContainEditableElementsInRect(${x}, ${y}, ${width}, ${height}));
                     })
                 })();`, result => resolve(result === "true"));
+        });
+    }
+
+    static currentImageAnalysisRequestID()
+    {
+        if (!this.isWebKit2())
+            return Promise.resolve(0);
+
+        return new Promise(resolve => {
+            testRunner.runUIScript("uiController.uiScriptComplete(uiController.currentImageAnalysisRequestID)", result => resolve(result));
         });
     }
 

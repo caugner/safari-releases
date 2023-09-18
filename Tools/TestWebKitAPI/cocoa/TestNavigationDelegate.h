@@ -42,6 +42,7 @@
 @property (nonatomic, copy) void (^webContentProcessDidTerminate)(WKWebView *);
 @property (nonatomic, copy) void (^didReceiveAuthenticationChallenge)(WKWebView *, NSURLAuthenticationChallenge *, void (^)(NSURLSessionAuthChallengeDisposition, NSURLCredential *));
 @property (nonatomic, copy) void (^contentRuleListPerformedAction)(WKWebView *, NSString *, _WKContentRuleListAction *, NSURL *);
+@property (nonatomic, copy) void (^didChangeLookalikeCharactersFromURL)(WKWebView *, NSURL *, NSURL *);
 
 - (void)allowAnyTLSCertificate;
 - (void)waitForDidStartProvisionalNavigation;
@@ -56,6 +57,7 @@
 - (void)_test_waitForDidFinishNavigation;
 - (void)_test_waitForDidFinishNavigationWithPreferences:(WKWebpagePreferences *)preferences;
 - (void)_test_waitForDidFinishNavigationWithoutPresentationUpdate;
+- (void)_test_waitForDidFinishNavigationWhileIgnoringSSLErrors;
 - (void)_test_waitForDidFailProvisionalNavigation;
 - (void)_test_waitForWebContentProcessDidTerminate;
 @end

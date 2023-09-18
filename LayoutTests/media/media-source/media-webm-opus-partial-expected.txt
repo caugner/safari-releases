@@ -5,8 +5,8 @@ RUN(sourceBuffer = source.addSourceBuffer(loader.type()))
 RUN(sourceBuffer.appendBuffer(loader.initSegment()))
 EVENT(update)
 Divide the first media segment in two.
-RUN(partial1 = loader.mediaSegment(0).slice(0, 14006))
-RUN(partial2 = loader.mediaSegment(0).slice(14006))
+RUN(partial1 = loader.mediaSegment(0).slice(0, loader.mediaSegmentSize(0)/2))
+RUN(partial2 = loader.mediaSegment(0).slice(loader.mediaSegmentSize(0)/2))
 Append a partial media segment.
 RUN(sourceBuffer.appendBuffer(partial1))
 EVENT(update)

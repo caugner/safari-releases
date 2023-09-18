@@ -4,7 +4,7 @@
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 2,1 of the License, or (at your option) any later version.
+ * version 2.1 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -631,6 +631,10 @@ static JSCClassVTable moduleVTable = {
     nullptr,
     // padding
     nullptr, nullptr, nullptr, nullptr
+#if ENABLE(2022_GLIB_API)
+    // more padding
+    , nullptr, nullptr, nullptr, nullptr
+#endif
 };
 
 static void testJSCEvaluateInObject()
@@ -1834,6 +1838,10 @@ static JSCClassVTable fooVTable = {
     },
     // padding
     nullptr, nullptr, nullptr, nullptr
+#if ENABLE(2022_GLIB_API)
+    // more padding
+    , nullptr, nullptr, nullptr, nullptr
+#endif
 };
 
 static GFile* createGFile(const char* path)
@@ -3368,6 +3376,10 @@ static JSCClassVTable barVTable = {
     },
     // padding
     nullptr, nullptr, nullptr, nullptr
+#if ENABLE(2022_GLIB_API)
+    // more padding
+    , nullptr, nullptr, nullptr, nullptr
+#endif
 };
 
 static void testJSCPrototypes()

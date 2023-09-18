@@ -1,7 +1,8 @@
 //@ skip if $buildType == "debug"
+//@ skip if $hostOS == "windows"
 
 const startNumberOfParentheses = 1500;
-const endNumberOfParentheses = 2000
+const endNumberOfParentheses = 2000;
 const incNumberOfParentheses = 500;
 
 let numberOfParentheses = startNumberOfParentheses;

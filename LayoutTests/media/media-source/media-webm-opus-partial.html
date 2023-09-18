@@ -39,8 +39,8 @@
             await waitFor(sourceBuffer, 'update');
 
             consoleWrite('Divide the first media segment in two.');
-            run('partial1 = loader.mediaSegment(0).slice(0, 14006)');
-            run('partial2 = loader.mediaSegment(0).slice(14006)');
+            run('partial1 = loader.mediaSegment(0).slice(0, loader.mediaSegmentSize(0)/2)');
+            run('partial2 = loader.mediaSegment(0).slice(loader.mediaSegmentSize(0)/2)');
 
             consoleWrite('Append a partial media segment.')
             run('sourceBuffer.appendBuffer(partial1)');

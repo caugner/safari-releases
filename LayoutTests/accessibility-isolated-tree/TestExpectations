@@ -1,10 +1,16 @@
 # Crashes
 accessibility/mac/resolved-text-editing.html [ Crash ]
+accessibility/mac/rowheader-outside-table-role.html [ Crash ]
 
 # Timeouts
 accessibility/aria-controls-with-tabs.html [ Timeout ]
 accessibility/frame-disconnect-textmarker-cache-crash.html [ Timeout ]
 accessibility/slider-with-lost-renderer.html [ Timeout ]
+accessibility/mac/combobox-activedescendant-notifications.html [ Timeout ]
+accessibility/mac/relationships-in-frames.html [ Timeout ]
+
+# Times out because `innerText` changes on linked <label>s don't update cached AXTitle value.
+accessibility/multiple-label-input.html [ Timeout ]
 
 # Text failures
 accessibility/aria-current.html [ Failure ]
@@ -48,6 +54,16 @@ accessibility/scroll-to-make-visible-nested.html [ Failure ]
 accessibility/scroll-to-make-visible-with-subfocus.html [ Failure ]
 accessibility/slider-with-lost-renderer.html [ Failure ]
 accessibility/textarea-insertion-point-line-number.html [ Failure ]
-accessibility/title-ui-element-correctness.html [ Failure ]
 accessibility/text-alternative-calculation-hidden-nodes.html [ Failure ]
 accessibility/math-multiscript-attributes.html [ Failure ]
+
+# Frames are off by 1px vs. non-ITM mode.
+accessibility/table-cells.html [ Failure ]
+accessibility/mac/document-links.html [ Failure ]
+
+# Fails because aria-labelledby text changes don't update in isolated tree mode
+accessibility/aria-labelledby-on-password-input.html [ Failure ]
+
+accessibility/aria-selected-menu-items.html [ Failure ]
+accessibility/aria-owns-hierarchy-remap.html [ Failure ]
+accessibility/element-reflection-ariaactivedescendant.html [ Failure ]

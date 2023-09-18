@@ -31,7 +31,7 @@
 
 namespace WTF {
 
-template<typename T, typename WeakPtrImpl = DefaultWeakPtrImpl, EnableWeakPtrThreadingAssertions assertionsPolicy = EnableWeakPtrThreadingAssertions::Yes>
+template<typename T, typename WeakPtrImpl, EnableWeakPtrThreadingAssertions assertionsPolicy>
 class WeakHashSet final {
     WTF_MAKE_FAST_ALLOCATED;
 public:
@@ -78,11 +78,6 @@ public:
         bool operator==(const WeakHashSetConstIterator& other) const
         {
             return m_position == other.m_position;
-        }
-
-        bool operator!=(const WeakHashSetConstIterator& other) const
-        {
-            return m_position != other.m_position;
         }
 
     private:

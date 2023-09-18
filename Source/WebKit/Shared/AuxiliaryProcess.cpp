@@ -33,9 +33,11 @@
 #include "SandboxInitializationParameters.h"
 #include "WebPageProxyIdentifier.h"
 #include <WebCore/LogInitialization.h>
+#include <WebCore/RegistrableDomain.h>
 #include <pal/SessionID.h>
 #include <wtf/LogInitialization.h>
 #include <wtf/SetForScope.h>
+#include <wtf/WTFProcess.h>
 
 #if !OS(WINDOWS)
 #include <unistd.h>
@@ -67,7 +69,7 @@ void AuxiliaryProcess::didClose(IPC::Connection&)
 #if PLATFORM(GTK) || PLATFORM(WPE)
     stopRunLoop();
 #else
-    _exit(EXIT_SUCCESS);
+    terminateProcess(EXIT_SUCCESS);
 #endif
 }
 
@@ -248,5 +250,17 @@ void AuxiliaryProcess::didReceiveMemoryPressureEvent(bool isCritical)
 #endif
 
 #endif // !PLATFORM(COCOA)
+
+bool AuxiliaryProcess::allowsFirstPartyForCookies(const WebCore::RegistrableDomain& firstPartyDomain, HashSet<WebCore::RegistrableDomain>& allowedFirstPartiesForCookies)
+{
+    if (!std::remove_reference_t<decltype(allowedFirstPartiesForCookies)>::isValidValue(firstPartyDomain)) {
+        ASSERT_NOT_REACHED();
+        return false;
+    }
+
+    auto result = allowedFirstPartiesForCookies.contains(firstPartyDomain);
+    ASSERT(result);
+    return result;
+}
 
 } // namespace WebKit

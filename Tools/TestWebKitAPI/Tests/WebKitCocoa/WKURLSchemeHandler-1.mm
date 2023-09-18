@@ -416,7 +416,7 @@ enum class Command {
 }
 @end
 
-enum class ShouldRaiseException { No, Yes };
+enum class ShouldRaiseException : bool { No, Yes };
 
 static void checkCallSequence(Vector<Command>&& commands, ShouldRaiseException shouldRaiseException)
 {
@@ -1144,6 +1144,35 @@ TEST(URLSchemeHandler, DisableCORSAndCORP)
     EXPECT_FALSE(corsfailure);
 }
 
+TEST(WebKit, OriginHeaderWithCORSDisablingPatternsInUnrelatedWebView)
+{
+    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    configuration.get()._corsDisablingPatterns = @[ @"*://*/*" ];
+    auto addPatterns = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    [addPatterns synchronouslyLoadHTMLString:@"start network process and add patterns"];
+
+    using namespace TestWebKitAPI;
+    bool done { false };
+    HTTPServer server([&] (Connection connection) {
+        connection.receiveHTTPRequest([&, connection](Vector<char>&& requestBytes) {
+            auto path = HTTPServer::parsePath(requestBytes);
+            if (path == "/"_s) {
+                auto html = "<head><link rel='modulepreload' href='https://webkit.org/module'></head>"_s;
+                connection.send(HTTPResponse(html).serialize());
+            } else if (path == "/module"_s) {
+                EXPECT_TRUE(strnstr(requestBytes.data(), "Origin: https://example.com\r\n", requestBytes.size()));
+                done = true;
+            }
+        });
+    }, HTTPServer::Protocol::HttpsProxy);
+    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    [navigationDelegate allowAnyTLSCertificate];
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:server.httpsProxyConfiguration()]);
+    webView.get().navigationDelegate = navigationDelegate.get();
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/"]]];
+    TestWebKitAPI::Util::run(&done);
+}
+
 TEST(URLSchemeHandler, LoadsFromNetwork)
 {
     using namespace TestWebKitAPI;
@@ -1682,5 +1711,23 @@ TEST(URLSchemeHandler, HandleURLRewrittenByPlugIn)
     [configuration setURLSchemeHandler:handler.get() forURLScheme:@"test+rewritten+scheme"];
     auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://webkit.org/testpath"]]];
+    TestWebKitAPI::Util::run(&done);
+}
+
+TEST(URLSchemeHandler, ModulePreload)
+{
+    __block bool done = false;
+    auto handler = adoptNS([TestURLSchemeHandler new]);
+    [handler setStartURLSchemeTaskHandler:^(WKWebView *, id<WKURLSchemeTask> task) {
+        if ([task.request.URL.path isEqualToString:@"/main.html"])
+            return respond(task, "<link rel=modulepreload href='test://webkit.org/module.js'/><script>import('test://webkit.org/module.js')</script>");
+        EXPECT_WK_STREQ(task.request.URL.path, "/module.js");
+        EXPECT_WK_STREQ(task.request.allHTTPHeaderFields[@"Origin"], "test://webkit.org");
+        done = true;
+    }];
+    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    [configuration setURLSchemeHandler:handler.get() forURLScheme:@"test"];
+    auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"test://webkit.org/main.html"]]];
     TestWebKitAPI::Util::run(&done);
 }

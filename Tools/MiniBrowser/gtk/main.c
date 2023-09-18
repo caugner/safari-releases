@@ -43,6 +43,16 @@
 #include <gst/gst.h>
 #endif
 
+#if !defined(FALLTHROUGH) && defined(__GNUC__) && defined(__has_attribute)
+#if __has_attribute(fallthrough)
+#define FALLTHROUGH __attribute__ ((fallthrough))
+#endif
+#endif
+
+#if !defined(FALLTHROUGH)
+#define FALLTHROUGH
+#endif
+
 #define MINI_BROWSER_ERROR (miniBrowserErrorQuark())
 
 static const gchar **uriArguments = NULL;
@@ -244,6 +254,72 @@ static gboolean isValidParameterType(GType gParamType)
             || gParamType == G_TYPE_FLOAT);
 }
 
+static WebKitFeature* findFeature(WebKitFeatureList *featureList, const char *identifier)
+{
+    for (gsize i = 0; i < webkit_feature_list_get_length(featureList); i++) {
+        WebKitFeature *feature = webkit_feature_list_get(featureList, i);
+        if (!g_ascii_strcasecmp(identifier, webkit_feature_get_identifier(feature)))
+            return feature;
+    }
+    return NULL;
+}
+
+static gboolean parseFeaturesOptionCallback(const gchar *option, const gchar *value, WebKitSettings *webSettings, GError **error)
+{
+    g_autoptr(WebKitFeatureList) featureList = webkit_settings_get_all_features();
+
+    if (!strcmp(value, "help")) {
+        g_print("Multiple feature names may be specified separated by commas. No prefix or '+' enable\n"
+                "features, prefixes '-' and '!' disable features. Names are case-insensitive. Example:\n"
+                "\n    %s --features='!DirPseudo,+WebAnimationsCustomEffects,webgl'\n\n"
+                "Available features (+/- = enabled/disabled by default):\n\n", g_get_prgname());
+        g_autoptr(GEnumClass) statusEnum = g_type_class_ref(WEBKIT_TYPE_FEATURE_STATUS);
+        for (gsize i = 0; i < webkit_feature_list_get_length(featureList); i++) {
+            WebKitFeature *feature = webkit_feature_list_get(featureList, i);
+            g_print("  %c %s (%s)",
+                    webkit_feature_get_default_value(feature) ? '+' : '-',
+                    webkit_feature_get_identifier(feature),
+                    g_enum_get_value(statusEnum, webkit_feature_get_status(feature))->value_nick);
+            if (webkit_feature_get_name(feature))
+                g_print(": %s", webkit_feature_get_name(feature));
+            g_print("\n");
+        }
+        exit(EXIT_SUCCESS);
+    }
+
+    g_auto(GStrv) items = g_strsplit(value, ",", -1);
+    for (gsize i = 0; items[i]; i++) {
+        char *item = g_strchomp(items[i]);
+        gboolean enabled = TRUE;
+        switch (item[0]) {
+        case '!':
+        case '-':
+            enabled = FALSE;
+            FALLTHROUGH;
+        case '+':
+            item++;
+            FALLTHROUGH;
+        default:
+            break;
+        }
+
+        if (item[0] == '\0') {
+            g_set_error_literal(error, G_OPTION_ERROR, G_OPTION_ERROR_FAILED, "Empty feature name specified");
+            return FALSE;
+        }
+
+        WebKitFeature *feature = findFeature(featureList, item);
+        if (!feature) {
+            g_set_error(error, G_OPTION_ERROR, G_OPTION_ERROR_FAILED, "Feature '%s' is not available", item);
+            return FALSE;
+        }
+
+        webkit_settings_set_feature_enabled(webSettings, feature, enabled);
+    }
+
+    return TRUE;
+}
+
 static GOptionEntry* getOptionEntriesFromWebKitSettings(WebKitSettings *webSettings)
 {
     GParamSpec **propertySpecs;
@@ -298,6 +374,20 @@ static gboolean addSettingsGroupToContext(GOptionContext *context, WebKitSetting
                                                         NULL);
     g_option_group_add_entries(webSettingsGroup, optionEntries);
     g_free(optionEntries);
+
+    GOptionEntry featureEntries[] = {
+        {
+            .short_name = 'F',
+            .long_name = "features",
+            .description = "Enable or disable WebKit features (hint: pass 'help' for a list)",
+            .arg = G_OPTION_ARG_CALLBACK,
+            .arg_data = parseFeaturesOptionCallback,
+            .arg_description = "FEATURE-LIST",
+        },
+        { }
+    };
+    memset(&featureEntries[1], 0, sizeof(GOptionEntry));
+    g_option_group_add_entries(webSettingsGroup, featureEntries);
 
     /* Option context takes ownership of the group. */
     g_option_context_add_group(context, webSettingsGroup);
@@ -357,9 +447,13 @@ static void websiteDataClearedCallback(WebKitWebsiteDataManager *manager, GAsync
         webkit_web_view_reload(webkit_uri_scheme_request_get_web_view(dataRequest->request));
 }
 
-static void aboutDataScriptMessageReceivedCallback(WebKitUserContentManager *userContentManager, WebKitJavascriptResult *message, WebKitWebsiteDataManager *manager)
+static void aboutDataScriptMessageReceivedCallback(WebKitUserContentManager *userContentManager, gpointer message, WebKitWebsiteDataManager *manager)
 {
+#if GTK_CHECK_VERSION(3, 98, 0)
+    char *messageString = jsc_value_to_string(message);
+#else
     char *messageString = jsc_value_to_string(webkit_javascript_result_get_js_value(message));
+#endif
     char **tokens = g_strsplit(messageString, ":", 3);
     g_free(messageString);
 
@@ -673,19 +767,30 @@ static void startup(GApplication *application)
 static void activate(GApplication *application, WebKitSettings *webkitSettings)
 {
 #if GTK_CHECK_VERSION(3, 98, 0)
-    WebKitNetworkSession *networkSession = NULL;
-    if (!automationMode) {
-        if (privateMode)
-            networkSession = webkit_network_session_new_ephemeral();
-        else {
-            char *dataDirectory = g_build_filename(g_get_user_data_dir(), "webkitgtk-" WEBKITGTK_API_VERSION, "MiniBrowser", NULL);
-            char *cacheDirectory = g_build_filename(g_get_user_cache_dir(), "webkitgtk-" WEBKITGTK_API_VERSION, "MiniBrowser", NULL);
-            networkSession = webkit_network_session_new(dataDirectory, cacheDirectory);
-            g_free(dataDirectory);
-            g_free(cacheDirectory);
-        }
+    WebKitWebContext *webContext = g_object_new(WEBKIT_TYPE_WEB_CONTEXT, "time-zone-override", timeZone, NULL);
+    webkit_web_context_set_automation_allowed(webContext, automationMode);
+    g_signal_connect(webContext, "automation-started", G_CALLBACK(automationStartedCallback), application);
 
-        webkit_network_session_set_itp_enabled(networkSession, enableITP);
+    WebKitNetworkSession *networkSession;
+    if (automationMode)
+        networkSession = g_object_ref(webkit_web_context_get_network_session_for_automation(webContext));
+    else if (privateMode)
+        networkSession = webkit_network_session_new_ephemeral();
+    else {
+        char *dataDirectory = g_build_filename(g_get_user_data_dir(), "webkitgtk-" WEBKITGTK_API_VERSION, "MiniBrowser", NULL);
+        char *cacheDirectory = g_build_filename(g_get_user_cache_dir(), "webkitgtk-" WEBKITGTK_API_VERSION, "MiniBrowser", NULL);
+        networkSession = webkit_network_session_new(dataDirectory, cacheDirectory);
+        g_free(dataDirectory);
+        g_free(cacheDirectory);
+    }
+
+    webkit_network_session_set_itp_enabled(networkSession, enableITP);
+
+    if (!automationMode) {
+        WebKitWebsiteDataManager *manager;
+
+        manager = webkit_network_session_get_website_data_manager(networkSession);
+        webkit_website_data_manager_set_favicons_enabled(manager, TRUE);
 
         if (proxy) {
             WebKitNetworkProxySettings *webkitProxySettings = webkit_network_proxy_settings_new(proxy, ignoreHosts);
@@ -695,21 +800,21 @@ static void activate(GApplication *application, WebKitSettings *webkitSettings)
 
         if (ignoreTLSErrors)
             webkit_network_session_set_tls_errors_policy(networkSession, WEBKIT_TLS_ERRORS_POLICY_IGNORE);
+    }
 
-        if (cookiesPolicy) {
-            WebKitCookieManager *cookieManager = webkit_network_session_get_cookie_manager(networkSession);
-            GEnumClass *enumClass = g_type_class_ref(WEBKIT_TYPE_COOKIE_ACCEPT_POLICY);
-            GEnumValue *enumValue = g_enum_get_value_by_nick(enumClass, cookiesPolicy);
-            if (enumValue)
-                webkit_cookie_manager_set_accept_policy(cookieManager, enumValue->value);
-            g_type_class_unref(enumClass);
-        }
+    if (cookiesPolicy) {
+        WebKitCookieManager *cookieManager = webkit_network_session_get_cookie_manager(networkSession);
+        GEnumClass *enumClass = g_type_class_ref(WEBKIT_TYPE_COOKIE_ACCEPT_POLICY);
+        GEnumValue *enumValue = g_enum_get_value_by_nick(enumClass, cookiesPolicy);
+        if (enumValue)
+            webkit_cookie_manager_set_accept_policy(cookieManager, enumValue->value);
+        g_type_class_unref(enumClass);
+    }
 
-        if (cookiesFile && !webkit_network_session_is_ephemeral(networkSession)) {
-            WebKitCookieManager *cookieManager = webkit_network_session_get_cookie_manager(networkSession);
-            WebKitCookiePersistentStorage storageType = g_str_has_suffix(cookiesFile, ".txt") ? WEBKIT_COOKIE_PERSISTENT_STORAGE_TEXT : WEBKIT_COOKIE_PERSISTENT_STORAGE_SQLITE;
-            webkit_cookie_manager_set_persistent_storage(cookieManager, cookiesFile, storageType);
-        }
+    if (cookiesFile && !webkit_network_session_is_ephemeral(networkSession)) {
+        WebKitCookieManager *cookieManager = webkit_network_session_get_cookie_manager(networkSession);
+        WebKitCookiePersistentStorage storageType = g_str_has_suffix(cookiesFile, ".txt") ? WEBKIT_COOKIE_PERSISTENT_STORAGE_TEXT : WEBKIT_COOKIE_PERSISTENT_STORAGE_SQLITE;
+        webkit_cookie_manager_set_persistent_storage(cookieManager, cookiesFile, storageType);
     }
 #else
     WebKitWebsiteDataManager *manager;
@@ -733,26 +838,21 @@ static void activate(GApplication *application, WebKitSettings *webkitSettings)
 
     if (ignoreTLSErrors)
         webkit_website_data_manager_set_tls_errors_policy(manager, WEBKIT_TLS_ERRORS_POLICY_IGNORE);
-#endif
 
     WebKitWebContext *webContext = g_object_new(WEBKIT_TYPE_WEB_CONTEXT,
-#if !GTK_CHECK_VERSION(3, 98, 0)
         "website-data-manager", manager,
         "process-swap-on-cross-site-navigation-enabled", TRUE,
         "use-system-appearance-for-scrollbars", FALSE,
-#endif
         "time-zone-override", timeZone,
         NULL);
-#if !GTK_CHECK_VERSION(3, 98, 0)
     g_object_unref(manager);
-#endif
 
-#if !GTK_CHECK_VERSION(3, 98, 0)
+    webkit_web_context_set_automation_allowed(webContext, automationMode);
+    g_signal_connect(webContext, "automation-started", G_CALLBACK(automationStartedCallback), application);
+
     if (enableSandbox)
         webkit_web_context_set_sandbox_enabled(webContext, TRUE);
-#endif
 
-#if !GTK_CHECK_VERSION(3, 98, 0)
     if (cookiesPolicy) {
         WebKitCookieManager *cookieManager = webkit_web_context_get_cookie_manager(webContext);
         GEnumClass *enumClass = g_type_class_ref(WEBKIT_TYPE_COOKIE_ACCEPT_POLICY);
@@ -767,20 +867,22 @@ static void activate(GApplication *application, WebKitSettings *webkitSettings)
         WebKitCookiePersistentStorage storageType = g_str_has_suffix(cookiesFile, ".txt") ? WEBKIT_COOKIE_PERSISTENT_STORAGE_TEXT : WEBKIT_COOKIE_PERSISTENT_STORAGE_SQLITE;
         webkit_cookie_manager_set_persistent_storage(cookieManager, cookiesFile, storageType);
     }
-#endif
 
-    // Enable the favicon database. In GTK4 API they are enabled by default.
-#if !GTK_CHECK_VERSION(3, 98, 0)
+    // Enable the favicon database.
     webkit_web_context_set_favicon_database_directory(webContext, NULL);
 #endif
 
     webkit_web_context_register_uri_scheme(webContext, BROWSER_ABOUT_SCHEME, (WebKitURISchemeRequestCallback)aboutURISchemeRequestCallback, NULL, NULL);
 
     WebKitUserContentManager *userContentManager = webkit_user_content_manager_new();
+#if GTK_CHECK_VERSION(3, 98, 0)
+    webkit_user_content_manager_register_script_message_handler(userContentManager, "aboutData", NULL);
+#else
     webkit_user_content_manager_register_script_message_handler(userContentManager, "aboutData");
+#endif
     WebKitWebsiteDataManager *dataManager;
 #if GTK_CHECK_VERSION(3, 98, 0)
-    dataManager = networkSession ? webkit_network_session_get_website_data_manager(networkSession) : NULL;
+    dataManager = webkit_network_session_get_website_data_manager(networkSession);
 #else
     dataManager = webkit_web_context_get_website_data_manager(webContext);
 #endif
@@ -813,9 +915,6 @@ static void activate(GApplication *application, WebKitSettings *webkitSettings)
         g_main_loop_unref(saveData.mainLoop);
         g_object_unref(contentFilterFile);
     }
-
-    webkit_web_context_set_automation_allowed(webContext, automationMode);
-    g_signal_connect(webContext, "automation-started", G_CALLBACK(automationStartedCallback), application);
 
 #if GTK_CHECK_VERSION(3, 98, 0)
     BrowserWindow *mainWindow = BROWSER_WINDOW(browser_window_new(NULL, webContext, networkSession));

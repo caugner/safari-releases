@@ -64,6 +64,8 @@
 - (void)synchronouslyLoadHTMLString:(NSString *)html baseURL:(NSURL *)url;
 - (void)synchronouslyLoadHTMLString:(NSString *)html preferences:(WKWebpagePreferences *)preferences;
 - (void)synchronouslyLoadRequest:(NSURLRequest *)request;
+- (void)synchronouslyLoadRequest:(NSURLRequest *)request preferences:(WKWebpagePreferences *)preferences;
+- (void)synchronouslyLoadRequestIgnoringSSLErrors:(NSURLRequest *)request;
 - (void)synchronouslyLoadTestPageNamed:(NSString *)pageName;
 - (BOOL)_synchronouslyExecuteEditCommand:(NSString *)command argument:(NSString *)argument;
 - (void)expectElementTagsInOrder:(NSArray<NSString *> *)tagNames;
@@ -107,6 +109,7 @@
 - (void)clickOnElementID:(NSString *)elementID;
 - (void)waitForPendingMouseEvents;
 - (void)focus;
+- (std::optional<CGPoint>)getElementMidpoint:(NSString *)selector;
 @end
 
 #if PLATFORM(IOS_FAMILY)
@@ -121,7 +124,7 @@
 @end
 
 @interface TestWKWebView (IOSOnly)
-@property (nonatomic, readonly) RetainPtr<NSArray> selectionRectsAfterPresentationUpdate;
+@property (nonatomic) UIEdgeInsets overrideSafeAreaInset;
 @property (nonatomic, readonly) CGRect caretViewRectInContentCoordinates;
 @property (nonatomic, readonly) NSArray<NSValue *> *selectionViewRectsInContentCoordinates;
 - (_WKActivatedElementInfo *)activatedElementAtPosition:(CGPoint)position;
@@ -142,12 +145,14 @@
 - (void)mouseMoveToPoint:(NSPoint)pointInWindow withFlags:(NSEventModifierFlags)flags;
 - (void)sendClicksAtPoint:(NSPoint)pointInWindow numberOfClicks:(NSUInteger)numberOfClicks;
 - (void)sendClickAtPoint:(NSPoint)pointInWindow;
+- (void)rightClickAtPoint:(NSPoint)pointInWindow;
 - (void)wheelEventAtPoint:(CGPoint)pointInWindow wheelDelta:(CGSize)delta;
 - (BOOL)acceptsFirstMouseAtPoint:(NSPoint)pointInWindow;
 - (NSWindow *)hostWindow;
 - (void)typeCharacter:(char)character modifiers:(NSEventModifierFlags)modifiers;
 - (void)typeCharacter:(char)character;
 - (void)setEventTimestampOffset:(NSTimeInterval)offset;
+@property (nonatomic, readonly) NSArray<NSString *> *collectLogsForNewConnections;
 @property (nonatomic, readonly) NSTimeInterval eventTimestamp;
 @property (nonatomic) BOOL forceWindowToBecomeKey;
 @end

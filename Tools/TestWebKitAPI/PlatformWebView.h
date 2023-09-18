@@ -39,13 +39,13 @@
 
 #if defined(__APPLE__) && !PLATFORM(GTK)
 #ifdef __OBJC__
-@class WKView;
+@class WKWebView;
 @class NSWindow;
 #else
-class WKView;
+class WKWebView;
 class NSWindow;
 #endif
-typedef WKView *PlatformWKView;
+typedef WKWebView *PlatformWKView;
 typedef NSWindow *PlatformWindow;
 #elif PLATFORM(GTK)
 typedef WKViewRef PlatformWKView;
@@ -89,7 +89,7 @@ public:
     void simulateAltKeyPress();
     void simulateRightClick(unsigned x, unsigned y);
     void simulateMouseMove(unsigned x, unsigned y, WKEventModifiers = 0);
-#if PLATFORM(MAC) || PLATFORM(PLAYSTATION)
+#if PLATFORM(MAC) || PLATFORM(PLAYSTATION) || PLATFORM(WPE)
     void simulateButtonClick(WKEventMouseButton, unsigned x, unsigned y, WKEventModifiers);
 #endif
 

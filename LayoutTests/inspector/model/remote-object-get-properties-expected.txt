@@ -386,12 +386,12 @@ ALL PROPERTIES:
 -----------------------------------------------------
 EXPRESSION: window.unboundFunction
 type: function
-description: function () { console.log(arguments); }
+description: function() { console.log(arguments); }
 
 OWN PROPERTIES:
-    prototype
     length
     name
+    prototype
     __proto__
 
 DISPLAYABLE PROPERTIES:

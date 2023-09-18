@@ -48,14 +48,11 @@
          2. LayoutTests/imported/w3c/resources/ImportExpectations list the test suites or tests to NOT import.
 
     - All files are converted to work in WebKit:
-         1. Paths to testharness.js files are modified to point to Webkit's copy of them in
-            LayoutTests/resources, using the correct relative path from the new location.
-            This is applied to CSS tests but not to WPT tests.
-         2. All CSS properties requiring the -webkit-vendor prefix are prefixed - this current
+         1. All CSS properties requiring the -webkit-vendor prefix are prefixed - this current
             list of what needs prefixes is read from Source/WebCore/CSS/CSSProperties.in
-         3. Each reftest has its own copy of its reference file following the naming conventions
+         2. Each reftest has its own copy of its reference file following the naming conventions
             new-run-webkit-tests expects
-         4. If a reference files lives outside the directory of the test that uses it, it is checked
+         3. If a reference files lives outside the directory of the test that uses it, it is checked
             for paths to support files as it will be imported into a different relative position to the
             test file (in the same directory)
 
@@ -121,8 +118,6 @@ To import a web-platform-tests suite from a specific folder, use 'import-w3c-tes
 
     parser.add_argument('-n', '--no-overwrite', dest='overwrite', action='store_false', default=True,
         help='Flag to prevent duplicate test files from overwriting existing tests. By default, they will be overwritten')
-    parser.add_argument('-l', '--no-links-conversion', dest='convert_test_harness_links', action='store_false', default=True,
-       help='Do not change links (testharness js or css e.g.). This option only applies when providing a source directory, in which case by default, links are converted to point to WebKit testharness files. When tests are downloaded from W3C repository, links are converted for CSS tests and remain unchanged for WPT tests')
 
     parser.add_argument('-t', '--tip-of-tree', dest='use_tip_of_tree', action='store_true', default=False,
         help='Import all tests using the latest repository revision')
@@ -183,11 +178,6 @@ class TestImporter(object):
         self._tests_options = json.loads(self.filesystem.read_text_file(self._tests_options_json_path)) if self.filesystem.exists(self._tests_options_json_path) else None
         self._slow_tests = []
 
-        if self.options.clean_destination_directory and self._test_resource_files:
-            self._test_resource_files["files"] = []
-            if self._tests_options:
-                self.remove_slow_from_w3c_tests_options()
-
         self.globalToSuffixes = {
             'window': ('html',),
             'worker': ('worker.html', 'serviceworker.html', 'sharedworker.html'),
@@ -212,6 +202,12 @@ class TestImporter(object):
         if self.options.clean_destination_directory:
             for test_path in test_paths:
                 self.clean_destination_directory(test_path)
+            if self._test_resource_files:
+                test_paths_tuple = tuple(p.rstrip(self.filesystem.sep) + self.filesystem.sep for p in test_paths)
+                self._test_resource_files["files"] = [t for t in self._test_resource_files["files"]
+                                                      if not t.startswith(test_paths_tuple)]
+                if self._tests_options:
+                    self.remove_slow_from_w3c_tests_options(test_paths_tuple)
 
         self.import_tests()
 
@@ -340,7 +336,7 @@ class TestImporter(object):
                     # Skip it since, the corresponding reference test should have a link to this file
                     continue
 
-                if 'reference' in test_info.keys():
+                if 'match_reference' in test_info.keys() or 'mismatch_reference' in test_info.keys():
                     reftests += 1
                     total_tests += 1
                     test_basename = self.filesystem.basename(test_info['test'])
@@ -350,12 +346,16 @@ class TestImporter(object):
                     # directly rather than relying  on a naming convention.
                     # Using a naming convention creates duplicate copies of the
                     # reference files.
-                    ref_file = self.filesystem.splitext(test_basename)[0] + '-expected'
-                    if 'type' in test_info and test_info['type'] == 'mismatch':
-                        ref_file += '-mismatch'
-                    ref_file += self.filesystem.splitext(test_info['reference'])[1]
+                    if 'match_reference' in test_info.keys():
+                        ref_file = self.filesystem.splitext(test_basename)[0] + '-expected'
+                        ref_file += self.filesystem.splitext(test_info['match_reference'])[1]
+                        copy_list.append({'src': test_info['match_reference'], 'dest': ref_file, 'reference_support_info': test_info['match_reference_support_info']})
 
-                    copy_list.append({'src': test_info['reference'], 'dest': ref_file, 'reference_support_info': test_info['reference_support_info']})
+                    if 'mismatch_reference' in test_info.keys():
+                        ref_file = self.filesystem.splitext(test_basename)[0] + '-expected-mismatch'
+                        ref_file += self.filesystem.splitext(test_info['mismatch_reference'])[1]
+                        copy_list.append({'src': test_info['mismatch_reference'], 'dest': ref_file, 'reference_support_info': test_info['mismatch_reference_support_info']})
+
                     copy_list.append({'src': test_info['test'], 'dest': filename})
 
                 elif 'jstest' in test_info.keys():
@@ -374,14 +374,6 @@ class TestImporter(object):
                 # Only add this directory to the list if there's something to import
                 self.import_list.append({'dirname': root, 'copy_list': copy_list,
                     'reftests': reftests, 'jstests': jstests, 'crashtests': crashtests, 'total_tests': total_tests})
-
-    def should_convert_test_harness_links(self, test):
-        if self._importing_downloaded_tests:
-            for test_repository in self.test_downloader().test_repositories:
-                if test.startswith(test_repository['name']):
-                    return 'convert_test_harness_links' in test_repository['import_options']
-            return True
-        return self.options.convert_test_harness_links
 
     def _webkit_test_runner_options(self, path):
         if not(self.filesystem.isfile(path)):
@@ -541,7 +533,7 @@ class TestImporter(object):
                                         and ('html' in str(mimetype[0]) or 'xml' in str(mimetype[0])  or 'css' in str(mimetype[0]) or 'javascript' in str(mimetype[0])):
                     _log.info("Rewriting: %s" % new_filepath)
                     try:
-                        converted_file = convert_for_webkit(new_path, filename=orig_filepath, reference_support_info=reference_support_info, host=self.host, convert_test_harness_links=self.should_convert_test_harness_links(subpath), webkit_test_runner_options=self._webkit_test_runner_options(new_filepath))
+                        converted_file = convert_for_webkit(new_path, filename=orig_filepath, reference_support_info=reference_support_info, host=self.host, webkit_test_runner_options=self._webkit_test_runner_options(new_filepath))
                     except:
                         _log.warn('Failed converting %s', orig_filepath)
                         failed_conversion_files.append(orig_filepath)
@@ -598,9 +590,9 @@ class TestImporter(object):
         for prefixed_value in sorted(total_prefixed_property_values, key=lambda p: total_prefixed_property_values[p]):
             _log.info('  %s: %s', prefixed_value, total_prefixed_property_values[prefixed_value])
 
-        if self._potential_test_resource_files and self._test_resource_files:
+        if self._test_resource_files:
             # FIXME: We should check that actual tests are not in the test_resource_files list
-            should_update_json_file = False
+            should_update_json_file = self.options.clean_destination_directory
             files = self._test_resource_files["files"]
             for full_path in self._potential_test_resource_files:
                 resource_file_path = self.filesystem.relpath(full_path, self.source_directory)
@@ -643,13 +635,19 @@ class TestImporter(object):
         if should_update:
             self.filesystem.write_text_file(self._tests_options_json_path, json.dumps(self._tests_options, sort_keys=True, indent=4).replace(' \n', '\n'))
 
-    def remove_slow_from_w3c_tests_options(self):
+    def remove_slow_from_w3c_tests_options(self, test_paths):
+        full_test_paths = tuple(self.filesystem.join(self.tests_w3c_relative_path, test_path) for test_path in test_paths)
+
+        to_remove = set()
         for test_path in self._tests_options.keys():
-            if self.tests_w3c_relative_path in test_path:
+            if self.tests_w3c_relative_path in test_path and test_path.startswith(full_test_paths):
                 options = self._tests_options[test_path]
                 options.remove('slow')
                 if not options:
-                    self._tests_options.pop(test_path)
+                    to_remove.add(test_path)
+
+        for old in to_remove:
+            del self._tests_options[old]
 
     def remove_deleted_files(self, import_directory, new_file_list):
         """ Reads an import log in |import_directory|, compares it to the |new_file_list|, and removes files not in the new list."""

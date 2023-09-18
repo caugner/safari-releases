@@ -1,5 +1,5 @@
 /*
-  * Copyright (C) 2017 Apple Inc. All rights reserved.
+  * Copyright (C) 2017-2023 Apple Inc. All rights reserved.
   *
   * Redistribution and use in source and binary forms, with or without
   * modification, are permitted provided that the following conditions
@@ -58,13 +58,13 @@ IGNORE_WARNINGS_BEGIN("deprecated-implementations")
 #import <UIKit/UIWebView_Private.h>
 IGNORE_WARNINGS_END
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS) || PLATFORM(VISION)
 @protocol UIDragSession;
 @class UIDragInteraction;
 @class UIDragItem;
 #import <UIKit/NSItemProvider+UIKitAdditions_Private.h>
 #import <UIKit/UIDragInteraction_Private.h>
-#endif // PLATFORM(IOS)
+#endif // PLATFORM(IOS) || PLATFORM(VISION)
 
 #else // USE(APPLE_INTERNAL_SDK)
 
@@ -74,17 +74,6 @@ IGNORE_WARNINGS_END
 @property (readonly) NSArray<NSString *> *alternativeStrings;
 @property (readonly) BOOL isLowConfidence;
 @end
-
-#if !HAVE(NSTEXTLIST_MARKER_FORMATS)
-@interface NSParagraphStyle ()
-- (NSArray *)textLists;
-@end
-
-@interface NSTextList : NSObject
-@property NSInteger startingItemNumber;
-@property (readonly, copy) NSString *markerFormat;
-@end
-#endif
 
 WTF_EXTERN_C_BEGIN
 
@@ -329,19 +318,20 @@ typedef NS_ENUM(NSInteger, _UITextSearchMatchMethod) {
 
 @interface UIKeyboard ()
 + (BOOL)isInHardwareKeyboardMode;
++ (BOOL)usesInputSystemUI;
 @end
 
 @interface UIKeyboardImpl (UIKitIPI)
 - (BOOL)_shouldSuppressSoftwareKeyboard;
 @end
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS) || PLATFORM(VISION)
 
 @protocol UIDropInteractionDelegate_Private <UIDropInteractionDelegate>
 - (void)_dropInteraction:(UIDropInteraction *)interaction delayedPreviewProviderForDroppingItem:(UIDragItem *)item previewProvider:(void(^)(UITargetedDragPreview *preview))previewProvider;
 @end
 
-#endif // PLATFORM(IOS)
+#endif // PLATFORM(IOS) || PLATFORM(VISION)
 
 typedef NS_ENUM(NSUInteger, _UIClickInteractionEvent) {
     _UIClickInteractionEventBegan = 0,
@@ -398,6 +388,12 @@ typedef NS_ENUM(NSUInteger, _UIClickInteractionEvent) {
 @property (nonatomic, readwrite) NSStringCompareOptions stringCompareOptions;
 @end
 
+#endif
+
+#if HAVE(AUTOCORRECTION_ENHANCEMENTS)
+@interface UIWKDocumentContext (Staging_112795757)
+@property (nonatomic, copy) NSArray<NSValue *> *autocorrectedRanges;
+@end
 #endif
 
 #endif // PLATFORM(IOS_FAMILY)
