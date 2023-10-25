@@ -125,6 +125,7 @@ public:
     WebCore::NetworkStorageSession* networkStorageSession() const;
 
     void registerNetworkDataTask(NetworkDataTask&);
+    void unregisterNetworkDataTask(NetworkDataTask&);
 
     void destroyPrivateClickMeasurementStore(CompletionHandler<void()>&&);
 
@@ -267,12 +268,17 @@ public:
 #endif
 
 #if ENABLE(INSPECTOR_NETWORK_THROTTLING)
+    std::optional<int64_t> bytesPerSecondLimit() const { return m_bytesPerSecondLimit; }
     void setEmulatedConditions(std::optional<int64_t>&& bytesPerSecondLimit);
 #endif
 
 #if HAVE(NW_PROXY_CONFIG)
     virtual void clearProxyConfigData() { }
     virtual void setProxyConfigData(Vector<std::pair<Vector<uint8_t>, WTF::UUID>>&&) { };
+#endif
+
+#if ENABLE(SERVICE_WORKER)
+    void setInspectionForServiceWorkersAllowed(bool);
 #endif
                                     
 protected:
@@ -359,6 +365,7 @@ protected:
     std::optional<ServiceWorkerInfo> m_serviceWorkerInfo;
     std::unique_ptr<WebCore::SWServer> m_swServer;
     RefPtr<BackgroundFetchStoreImpl> m_backgroundFetchStore;
+    bool m_inspectionForServiceWorkersAllowed { true };
 #endif
     std::unique_ptr<WebSharedWorkerServer> m_sharedWorkerServer;
 

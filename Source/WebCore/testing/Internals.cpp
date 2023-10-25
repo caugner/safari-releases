@@ -1776,9 +1776,9 @@ void Internals::setShouldInterruptAudioOnPageVisibilityChange(bool shouldInterru
 #endif // ENABLE(MEDIA_STREAM)
 
 #if ENABLE(MEDIA_RECORDER)
-static ExceptionOr<std::unique_ptr<MediaRecorderPrivate>> createRecorderMockSource(MediaStreamPrivate& stream, const MediaRecorderPrivateOptions&)
+static ExceptionOr<Ref<MediaRecorderPrivate>> createRecorderMockSource(MediaStreamPrivate& stream, const MediaRecorderPrivateOptions&)
 {
-    return std::unique_ptr<MediaRecorderPrivate>(new MediaRecorderPrivateMock(stream));
+    return { MediaRecorderPrivateMock::create(stream) };
 }
 
 void Internals::setCustomPrivateRecorderCreator()
@@ -4427,6 +4427,11 @@ void Internals::setSelectionWithoutValidation(Ref<Node> baseNode, unsigned baseO
         VisiblePosition { makeDeprecatedLegacyPosition(extentNode.get(), extentOffset) });
 }
 
+void Internals::setSelectionFromNone()
+{
+    contextDocument()->frame()->selection().setSelectionFromNone();
+}
+
 ExceptionOr<bool> Internals::isPluginUnavailabilityIndicatorObscured(Element& element)
 {
     if (!is<HTMLPlugInElement>(element))
@@ -6727,7 +6732,7 @@ bool Internals::supportsPictureInPicture()
 
 String Internals::focusRingColor()
 {
-    return serializationForCSS(RenderTheme::singleton().focusRingColor({ }));
+    return serializationForCSS(RenderTheme::singleton().focusRingColor(StyleColorOptions::UseSystemAppearance));
 }
 
 ExceptionOr<unsigned> Internals::createSleepDisabler(const String& reason, bool display)

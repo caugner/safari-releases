@@ -2301,6 +2301,7 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
     case StringFromCharCode:
         switch (node->child1().useKind()) {
         case Int32Use:
+        case KnownInt32Use:
             break;
         case UntypedUse:
             clobberWorld();
@@ -3794,10 +3795,8 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
                     // This thing won't give us a variant that involves prototypes. If it did, we'd
                     // have more work to do here.
                     DFG_ASSERT(m_graph, node, status[i].conditionSet().isEmpty());
-
-                    result.merge(
-                        m_graph.inferredValueForProperty(
-                            value, status[i].offset(), m_state.structureClobberState()));
+                    const auto& variant = status[i];
+                    result.merge(m_graph.inferredValueForProperty(value, *m_graph.addStructureSet(variant.structureSet()), variant.offset(), m_state.structureClobberState()));
                 }
             
                 m_state.setShouldTryConstantFolding(true);

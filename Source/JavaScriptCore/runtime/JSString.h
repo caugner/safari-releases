@@ -594,12 +594,12 @@ public:
     // The rope value will remain a null string in that case.
     JS_EXPORT_PRIVATE const String& resolveRope(JSGlobalObject* nullOrGlobalObjectForOOM) const;
 
-    template<typename Fibers, typename CharacterType>
-    static void resolveToBuffer(Fibers*, CharacterType* buffer, unsigned length);
+    template<typename CharacterType>
+    static void resolveToBuffer(JSString*, JSString*, JSString*, CharacterType* buffer, unsigned length, uint8_t* stackLimit);
 
 private:
-    template<typename Fibers, typename CharacterType>
-    static void resolveToBufferSlow(Fibers*, CharacterType* buffer, unsigned length);
+    template<typename CharacterType>
+    static void resolveToBufferSlow(JSString*, JSString*, JSString*, CharacterType* buffer, unsigned length, uint8_t* stackLimit);
 
     static JSRopeString* create(VM& vm, JSString* s1, JSString* s2)
     {
@@ -632,7 +632,7 @@ private:
     template<typename Function> const String& resolveRopeWithFunction(JSGlobalObject* nullOrGlobalObjectForOOM, Function&&) const;
     JS_EXPORT_PRIVATE AtomString resolveRopeToAtomString(JSGlobalObject*) const;
     JS_EXPORT_PRIVATE RefPtr<AtomStringImpl> resolveRopeToExistingAtomString(JSGlobalObject*) const;
-    template<typename CharacterType> void resolveRopeInternalNoSubstring(CharacterType*) const;
+    template<typename CharacterType> void resolveRopeInternalNoSubstring(CharacterType*, uint8_t* stackLimit) const;
     Identifier toIdentifier(JSGlobalObject*) const;
     void outOfMemory(JSGlobalObject* nullOrGlobalObjectForOOM) const;
     StringView unsafeView(JSGlobalObject*) const;

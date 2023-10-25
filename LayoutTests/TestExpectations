@@ -33,6 +33,7 @@ tiled-drawing [ Skip ]
 fast/attachment/cocoa [ Skip ]
 fast/attachment/mac [ Skip ]
 fast/css/ios [ Skip ]
+fast/css/mac [ Skip ]
 fast/css/watchos [ Skip ]
 fast/dom/Orientation/no-orientation-change-event-when-unparenting-view.html [ Skip ]
 fast/forms/date/date-editable-components [ Skip ]
@@ -236,6 +237,9 @@ imported/w3c/web-platform-tests/html/cross-origin-opener-policy/reporting/docume
 imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/reporting-to-frame-owner.https.html
 imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/reporting-to-worker-owner.https.html
 imported/w3c/web-platform-tests/html/cross-origin-embedder-policy/cache-storage-reporting-document.https.html [ Skip ]
+
+# This test is a bit slow.
+fast/frames/frame-append-body-child-crash.html [ Slow ]
 
 # This test is failing in all major browser engines as of Sept 2022. The reason is that the Reporting-Endpoints header
 # is served on the parent of the reporting frame, not the reporting frame.
@@ -4998,8 +5002,7 @@ webkit.org/b/31278 [ Debug ] fast/multicol/spanner-get-re-added-on-move-crash.ht
 webkit.org/b/225247 [ Debug ] fast/multicol/span/float-becomes-spanner-crash.html [ Skip ]
 
 # Needs display box support.
-[ Debug ] fast/layoutformattingcontext/ [ Skip ]
-[ Release ] fast/layoutformattingcontext/ [ ImageOnlyFailure Pass ]
+fast/layoutformattingcontext/ [ Skip ]
 
 # This webstorage test has crashed since it was imported.
 imported/w3c/web-platform-tests/webstorage/storage_session_setitem_quotaexceedederr.window.html [ Skip ]

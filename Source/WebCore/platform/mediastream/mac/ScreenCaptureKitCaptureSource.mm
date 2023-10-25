@@ -48,6 +48,21 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunguarded-availability-new"
 
+#if HAVE(SC_CONTENT_SHARING_PICKER)
+// FIXME: Remove this once it is in a public header.
+typedef NS_ENUM(NSInteger, SCPresenterOverlayAlertSetting);
+
+typedef NS_ENUM(NSInteger, WK_SCPresenterOverlayAlertSetting) {
+    WK_SCPresenterOverlayAlertSettingSystem,
+    WK_SCPresenterOverlayAlertSettingNever,
+    WK_SCPresenterOverlayAlertSettingAlways
+};
+
+@interface SCStreamConfiguration (SCStreamConfiguration_Pending_Public_API)
+@property (nonatomic, assign) SCPresenterOverlayAlertSetting presenterOverlayPrivacyAlertSetting;
+@end
+#endif
+
 using namespace WebCore;
 @interface WebCoreScreenCaptureKitHelper : NSObject<SCStreamDelegate, SCStreamOutput> {
     WeakPtr<ScreenCaptureKitCaptureSource> _callback;
@@ -136,13 +151,13 @@ bool ScreenCaptureKitCaptureSource::isAvailable()
     return PAL::isScreenCaptureKitFrameworkAvailable();
 }
 
-Expected<UniqueRef<DisplayCaptureSourceCocoa::Capturer>, String> ScreenCaptureKitCaptureSource::create(const CaptureDevice& device, const MediaConstraints*)
+Expected<UniqueRef<DisplayCaptureSourceCocoa::Capturer>, CaptureSourceError> ScreenCaptureKitCaptureSource::create(const CaptureDevice& device, const MediaConstraints*)
 {
     ASSERT(device.type() == CaptureDevice::DeviceType::Screen || device.type() == CaptureDevice::DeviceType::Window);
 
     auto deviceID = parseInteger<uint32_t>(device.persistentId());
     if (!deviceID)
-        return makeUnexpected("Invalid display device ID"_s);
+        return makeUnexpected(CaptureSourceError { "Invalid display device ID"_s, MediaAccessDenialReason::PermissionDenied });
 
     return UniqueRef<DisplayCaptureSourceCocoa::Capturer>(makeUniqueRef<ScreenCaptureKitCaptureSource>(device, deviceID.value()));
 }
@@ -156,6 +171,8 @@ ScreenCaptureKitCaptureSource::ScreenCaptureKitCaptureSource(const CaptureDevice
 
 ScreenCaptureKitCaptureSource::~ScreenCaptureKitCaptureSource()
 {
+    if (!m_sessionSource)
+        ScreenCaptureKitSharingSessionManager::singleton().cancelPendingSessionForDevice(m_captureDevice);
 }
 
 bool ScreenCaptureKitCaptureSource::start()
@@ -274,6 +291,10 @@ RetainPtr<SCStreamConfiguration> ScreenCaptureKitCaptureSource::streamConfigurat
     [m_streamConfiguration setQueueDepth:6];
     [m_streamConfiguration setColorSpaceName:kCGColorSpaceSRGB];
     [m_streamConfiguration setColorMatrix:kCGDisplayStreamYCbCrMatrix_SMPTE_240M_1995];
+#if HAVE(SC_CONTENT_SHARING_PICKER)
+    if ([m_streamConfiguration respondsToSelector:@selector(setPresenterOverlayPrivacyAlertSetting:)])
+        [m_streamConfiguration setPresenterOverlayPrivacyAlertSetting:static_cast<SCPresenterOverlayAlertSetting>(WK_SCPresenterOverlayAlertSettingNever)];
+#endif
 
     if (m_frameRate)
         [m_streamConfiguration setMinimumFrameInterval:PAL::CMTimeMakeWithSeconds(1 / m_frameRate, 1000)];

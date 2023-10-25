@@ -8208,7 +8208,10 @@ IGNORE_CLANG_WARNINGS_END
 
             m_out.appendTo(checkStructure2, genericCase);
             LValue structure = loadStructure(source);
-            m_out.branch(m_out.isZero32(m_out.load32(structure, m_heaps.Structure_propertyHash)), unsure(continuation), unsure(genericCase));
+            if constexpr (sizeof(Structure::SeenProperties) == sizeof(void*))
+                m_out.branch(m_out.isNull(m_out.loadPtr(structure, m_heaps.Structure_seenProperties)), unsure(continuation), unsure(genericCase));
+            else
+                m_out.branch(m_out.isZero32(m_out.load32(structure, m_heaps.Structure_seenProperties)), unsure(continuation), unsure(genericCase));
 
             m_out.appendTo(genericCase, continuation);
             vmCall(Void, operationObjectAssignObject, weakPointer(globalObject), target, source);
@@ -10038,7 +10041,7 @@ IGNORE_CLANG_WARNINGS_END
             return;
         }
 
-        DFG_ASSERT(m_graph, m_node, childEdge.useKind() == Int32Use, childEdge.useKind());
+        DFG_ASSERT(m_graph, m_node, childEdge.useKind() == Int32Use || childEdge.useKind() == KnownInt32Use, childEdge.useKind());
 
         LValue value = lowInt32(childEdge);
         
@@ -17936,7 +17939,7 @@ IGNORE_CLANG_WARNINGS_END
         LValue base = lowDateObject(m_node->child1());
         LValue arg = lowDouble(m_node->child2());
         LValue time = m_out.add(m_out.doubleTrunc(arg), m_out.constDouble(0));
-        LValue result = m_out.select(m_out.doubleGreaterThan(m_out.doubleAbs(arg), m_out.constDouble(WTF::maxECMAScriptTime)), m_out.constDouble(PNaN), time);
+        LValue result = m_out.select(m_out.doubleGreaterThanOrUnordered(m_out.doubleAbs(arg), m_out.constDouble(WTF::maxECMAScriptTime)), m_out.constDouble(PNaN), time);
         m_out.storeDouble(result, base, m_heaps.DateInstance_internalNumber);
         setDouble(result);
     }
@@ -18459,7 +18462,7 @@ IGNORE_CLANG_WARNINGS_END
                 // all of the compiler tiers.
                 jit.emitAllocateWithNonNullAllocator(
                     params[0].gpr(), actualAllocator, allocatorGPR, params.gpScratch(0),
-                    jumpToSlowPath);
+                    jumpToSlowPath, CCallHelpers::SlowAllocationResult::UndefinedBehavior);
                 
                 CCallHelpers::Jump jumpToSuccess;
                 if (!params.fallsThroughToSuccessor(0))

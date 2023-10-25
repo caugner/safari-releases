@@ -1314,10 +1314,14 @@ void GraphicsLayerCA::setContentsToVideoElement(HTMLVideoElement& videoElement, 
 {
 #if HAVE(AVKIT)
     if (auto hostingContextID = videoElement.layerHostingContextID()) {
-        if (hostingContextID != m_layerHostingContextID) {
-            m_contentsLayer = createPlatformVideoLayer(videoElement, this);
-            m_layerHostingContextID = hostingContextID;
+        if (m_contentsLayer && !m_contentsDisplayDelegate
+            && m_layerHostingContextID == hostingContextID
+            && m_contentsLayerPurpose == purpose) {
+                return;
         }
+
+        m_contentsLayer = createPlatformVideoLayer(videoElement, this);
+        m_layerHostingContextID = hostingContextID;
         m_contentsLayerPurpose = purpose;
         m_contentsDisplayDelegate = nullptr;
         updateVideoGravity();
@@ -2725,7 +2729,7 @@ void GraphicsLayerCA::updateCoverage(const CommitState& commitState)
     }
 
 #if ENABLE(INTERACTION_REGIONS_IN_EVENT_REGION)
-    m_layer->setCoverageRect(m_coverageRect);
+    m_layer->setVisibleRect(m_visibleRect);
 #endif
 
     bool requiresBacking = m_intersectsCoverageRect
@@ -2898,7 +2902,7 @@ void GraphicsLayerCA::updateContentsColorLayer()
 void GraphicsLayerCA::updateClippingStrategy(PlatformCALayer& clippingLayer, RefPtr<PlatformCALayer>& shapeMaskLayer, const FloatRoundedRect& roundedRect)
 {
     if (roundedRect.radii().isUniformCornerRadius() && clippingLayer.bounds() == roundedRect.rect()) {
-        clippingLayer.setMask(nullptr);
+        clippingLayer.setMaskLayer(nullptr);
         if (shapeMaskLayer) {
             shapeMaskLayer->setOwner(nullptr);
             shapeMaskLayer = nullptr;
@@ -2928,7 +2932,8 @@ void GraphicsLayerCA::updateClippingStrategy(PlatformCALayer& clippingLayer, Ref
     shapeMaskLayer->setShapeRoundedRect(localRoundedRect);
 
     clippingLayer.setCornerRadius(0);
-    clippingLayer.setMask(shapeMaskLayer.get());
+    RefPtr maskLayer = shapeMaskLayer;
+    clippingLayer.setMaskLayer(WTFMove(maskLayer));
 }
 
 void GraphicsLayerCA::updateContentsRects()
@@ -2967,7 +2972,7 @@ void GraphicsLayerCA::updateContentsRects()
 
             m_contentsClippingLayer->removeFromSuperlayer();
             m_contentsClippingLayer->setOwner(nullptr);
-            m_contentsClippingLayer->setMask(nullptr);
+            m_contentsClippingLayer->setMaskLayer(nullptr);
             m_contentsClippingLayer = nullptr;
             gainedOrLostClippingLayer = true;
         }
@@ -3021,22 +3026,22 @@ void GraphicsLayerCA::updateScrollingNode()
 
 void GraphicsLayerCA::updateMaskLayer()
 {
-    PlatformCALayer* maskCALayer = m_maskLayer ? downcast<GraphicsLayerCA>(*m_maskLayer).primaryLayer() : nullptr;
+    RefPtr<PlatformCALayer> maskCALayer = m_maskLayer ? downcast<GraphicsLayerCA>(*m_maskLayer).primaryLayer() : nullptr;
     
     LayerMap* layerCloneMap;
     if (m_structuralLayer && structuralLayerPurpose() == StructuralLayerForBackdrop) {
-        m_structuralLayer->setMask(maskCALayer);
+        m_structuralLayer->setMaskLayer(WTFMove(maskCALayer));
         layerCloneMap = m_layerClones ? &m_layerClones->structuralLayerClones : nullptr;
     } else {
-        m_layer->setMask(maskCALayer);
+        m_layer->setMaskLayer(WTFMove(maskCALayer));
         layerCloneMap = m_layerClones ? &m_layerClones->primaryLayerClones : nullptr;
     }
 
     LayerMap* maskLayerCloneMap = m_maskLayer ? downcast<GraphicsLayerCA>(*m_maskLayer).primaryLayerClones() : nullptr;
     if (layerCloneMap) {
         for (auto& clone : *layerCloneMap) {
-            PlatformCALayer* maskClone = maskLayerCloneMap ? maskLayerCloneMap->get(clone.key) : nullptr;
-            clone.value->setMask(maskClone);
+            RefPtr<PlatformCALayer> maskClone = maskLayerCloneMap ? maskLayerCloneMap->get(clone.key) : nullptr;
+            clone.value->setMaskLayer(WTFMove(maskClone));
         }
     }
 }
@@ -4673,7 +4678,7 @@ RefPtr<PlatformCALayer> GraphicsLayerCA::fetchCloneLayers(GraphicsLayer* replica
 
     if (m_maskLayer) {
         RefPtr<PlatformCALayer> maskClone = downcast<GraphicsLayerCA>(*m_maskLayer).fetchCloneLayers(replicaRoot, replicaState, IntermediateCloneLevel);
-        primaryLayer->setMask(maskClone.get());
+        primaryLayer->setMaskLayer(WTFMove(maskClone));
     }
 
     if (m_replicatedLayer) {
@@ -4707,16 +4712,16 @@ RefPtr<PlatformCALayer> GraphicsLayerCA::fetchCloneLayers(GraphicsLayer* replica
         contentsClippingLayer->appendSublayer(*contentsLayer);
 
     if (contentsShapeMaskLayer)
-        contentsClippingLayer->setMask(contentsShapeMaskLayer.get());
+        contentsClippingLayer->setMaskLayer(WTFMove(contentsShapeMaskLayer));
 
     if (shapeMaskLayer)
-        primaryLayer->setMask(shapeMaskLayer.get());
+        primaryLayer->setMaskLayer(WTFMove(shapeMaskLayer));
 
     if (replicaLayer || structuralLayer || contentsLayer || contentsClippingLayer || childLayers.size() > 0) {
         if (structuralLayer) {
             if (backdropLayer) {
                 clonalSublayers.append(backdropLayer);
-                backdropLayer->setMask(backdropClippingLayer.get());
+                backdropLayer->setMaskLayer(WTFMove(backdropClippingLayer));
             }
             
             // Replicas render behind the actual layer content.

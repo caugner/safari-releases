@@ -205,6 +205,7 @@ void AXLogger::log(const String& collectionName, const AXObjectCache::DeferredCo
         [&size] (const WeakHashSet<HTMLTableElement, WeakPtrImplWithEventTargetData>& typedCollection) { size = typedCollection.computeSize(); },
         [&size] (const WeakHashSet<AccessibilityTable>& typedCollection) { size = typedCollection.computeSize(); },
         [&size] (const WeakListHashSet<Node, WeakPtrImplWithEventTargetData>& typedCollection) { size = typedCollection.computeSize(); },
+        [&size] (const WeakHashMap<Element, String, WeakPtrImplWithEventTargetData>& typedCollection) { size = typedCollection.computeSize(); },
         [] (auto&) {
             ASSERT_NOT_REACHED();
             return;
@@ -391,6 +392,46 @@ TextStream& operator<<(TextStream& stream, const AccessibilitySearchCriteria& cr
     stream.dumpProperty("visibleOnly", criteria.visibleOnly);
     stream.dumpProperty("immediateDescendantsOnly", criteria.immediateDescendantsOnly);
 
+    return stream;
+}
+
+TextStream& operator<<(TextStream& stream, AccessibilityTextSource source)
+{
+    switch (source) {
+    case AccessibilityTextSource::Alternative:
+        stream << "Alternative";
+        break;
+    case AccessibilityTextSource::Children:
+        stream << "Children";
+        break;
+    case AccessibilityTextSource::Summary:
+        stream << "Summary";
+        break;
+    case AccessibilityTextSource::Help:
+        stream << "Help";
+        break;
+    case AccessibilityTextSource::Visible:
+        stream << "Visible";
+        break;
+    case AccessibilityTextSource::TitleTag:
+        stream << "TitleTag";
+        break;
+    case AccessibilityTextSource::Placeholder:
+        stream << "Placeholder";
+        break;
+    case AccessibilityTextSource::LabelByElement:
+        stream << "LabelByElement";
+        break;
+    case AccessibilityTextSource::Title:
+        stream << "Title";
+        break;
+    case AccessibilityTextSource::Subtitle:
+        stream << "Subtitle";
+        break;
+    case AccessibilityTextSource::Action:
+        stream << "Action";
+        break;
+    }
     return stream;
 }
 

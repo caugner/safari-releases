@@ -177,6 +177,7 @@ SOFT_LINK_CONSTANT_FOR_SOURCE_WITH_EXPORT(PAL, AVFoundation, AVOutOfBandAlternat
 SOFT_LINK_CONSTANT_FOR_SOURCE_WITH_EXPORT(PAL, AVFoundation, AVPlayerItemDidPlayToEndTimeNotification, NSString *, PAL_EXPORT)
 SOFT_LINK_CONSTANT_FOR_SOURCE_WITH_EXPORT(PAL, AVFoundation, AVPlayerItemLegibleOutputTextStylingResolutionSourceAndRulesOnly, NSString *, PAL_EXPORT)
 SOFT_LINK_CONSTANT_FOR_SOURCE_WITH_EXPORT(PAL, AVFoundation, AVSampleBufferDisplayLayerFailedToDecodeNotification, NSString*, PAL_EXPORT)
+SOFT_LINK_CONSTANT_FOR_SOURCE_WITH_EXPORT(PAL, AVFoundation, AVSampleBufferDisplayLayerRequiresFlushToResumeDecodingDidChangeNotification, NSString*, PAL_EXPORT)
 SOFT_LINK_CONSTANT_FOR_SOURCE_WITH_EXPORT(PAL, AVFoundation, AVSampleBufferDisplayLayerFailedToDecodeNotificationErrorKey, NSString*, PAL_EXPORT)
 SOFT_LINK_CONSTANT_FOR_SOURCE_WITH_EXPORT(PAL, AVFoundation, AVSampleBufferAudioRendererWasFlushedAutomaticallyNotification, NSString*, PAL_EXPORT)
 SOFT_LINK_CONSTANT_FOR_SOURCE_WITH_EXPORT(PAL, AVFoundation, AVSampleBufferAudioRendererFlushTimeKey, NSString*, PAL_EXPORT)
@@ -269,6 +270,6 @@ SOFT_LINK_CONSTANT_FOR_SOURCE_WITH_EXPORT(PAL, AVFoundation, AVRouteDetectorMult
 SOFT_LINK_CONSTANT_FOR_SOURCE_WITH_EXPORT(PAL, AVFoundation, AVOutputContextOutputDevicesDidChangeNotification, NSNotificationName, PAL_EXPORT)
 #endif // HAVE(AVROUTEPICKERVIEW)
 
-SOFT_LINK_CONSTANT_MAY_FAIL_FOR_SOURCE_WITH_EXPORT(PAL, AVFoundation, AVURLAssetExtendedMIMETypePlayabilityTreatSupportedPlaylistMIMETypesAsISOBMFFMediaDataContainersKey, NSString *, PAL_EXPORT)
+SOFT_LINK_CONSTANT_MAY_FAIL_FOR_SOURCE_WITH_EXPORT(PAL, AVFoundation, AVURLAssetExtendedMIMETypePlayabilityTreatPlaylistMIMETypesAsISOBMFFMediaDataContainersKey, NSString *, PAL_EXPORT)
 
 #endif // USE(AVFOUNDATION)

@@ -93,6 +93,7 @@ bool AccessibilityUIElement::isInTable() const { return false; }
 bool AccessibilityUIElement::isInLandmark() const { return false; }
 bool AccessibilityUIElement::isInList() const { return false; }
 bool AccessibilityUIElement::isMarkAnnotation() const { return false; }
+bool AccessibilityUIElement::supportsExpanded() const { return false; }
 #endif
     
 // Unsupported methods on various platforms. As they're implemented on other platforms this list should be modified.
@@ -120,7 +121,9 @@ void AccessibilityUIElement::setValue(JSStringRef) { }
 JSValueRef AccessibilityUIElement::searchTextWithCriteria(JSContextRef, JSValueRef, JSStringRef, JSStringRef) { return nullptr; }
 bool AccessibilityUIElement::isOnScreen() const { return true; }
 JSValueRef AccessibilityUIElement::mathRootRadicand() const { return { }; }
-#endif
+unsigned AccessibilityUIElement::numberOfCharacters() const { return 0; }
+JSValueRef AccessibilityUIElement::columns() { return { }; }
+#endif // !PLATFORM(MAC) || !ENABLE(ACCESSIBILITY)
 
 #if !PLATFORM(COCOA) || !ENABLE(ACCESSIBILITY)
 RefPtr<AccessibilityUIElement> AccessibilityUIElement::focusedElement() const { return nullptr; }

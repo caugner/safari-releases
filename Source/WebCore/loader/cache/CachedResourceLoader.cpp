@@ -93,7 +93,7 @@
 #endif
 
 #if PLATFORM(IOS_FAMILY)
-#include "Device.h"
+#import <pal/system/ios/Device.h>
 #endif
 
 #undef CACHEDRESOURCELOADER_RELEASE_LOG
@@ -1102,10 +1102,8 @@ ResourceErrorOr<CachedResourceHandle<CachedResource>> CachedResourceLoader::requ
 
     // See if we can use an existing resource from the cache.
     CachedResourceHandle<CachedResource> resource;
-    if (auto* document = this->document()) {
+    if (auto* document = this->document())
         request.setDomainForCachePartition(*document);
-        request.resourceRequest().setFirstPartyForCookies(document->firstPartyForCookies());
-    }
 
     if (request.allowsCaching())
         resource = memoryCache.resourceForRequest(request.resourceRequest(), page.sessionID());

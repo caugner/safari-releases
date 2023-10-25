@@ -6592,7 +6592,7 @@ void SpeculativeJIT::compileDateSet(Node* node)
     loadDouble(TrustedImmPtr(&max), scratch3FPR);
     loadDouble(TrustedImmPtr(&NaN), scratch4FPR);
     absDouble(timeFPR, scratch2FPR);
-    moveDoubleConditionallyDouble(DoubleGreaterThanAndOrdered, scratch2FPR, scratch3FPR, scratch4FPR, scratch1FPR, scratch1FPR);
+    moveDoubleConditionallyDouble(DoubleGreaterThanOrUnordered, scratch2FPR, scratch3FPR, scratch4FPR, scratch1FPR, scratch1FPR);
 
     storeDouble(scratch1FPR, Address(baseGPR, DateInstance::offsetOfInternalNumber()));
     doubleResult(scratch1FPR, node);
@@ -6831,7 +6831,7 @@ void SpeculativeJIT::compileNewBoundFunction(Node* node)
     JumpList slowPath;
 
     auto butterfly = TrustedImmPtr(nullptr);
-    emitAllocateJSObjectWithKnownSize<JSBoundFunction>(resultGPR, TrustedImmPtr(structure), butterfly, scratch1GPR, scratch2GPR, slowPath, sizeof(JSBoundFunction));
+    emitAllocateJSObjectWithKnownSize<JSBoundFunction>(resultGPR, TrustedImmPtr(structure), butterfly, scratch1GPR, scratch2GPR, slowPath, sizeof(JSBoundFunction), SlowAllocationResult::UndefinedBehavior);
     storeLinkableConstant(LinkableConstant::globalObject(*this, node), Address(resultGPR, JSBoundFunction::offsetOfScopeChain()));
     storeLinkableConstant(LinkableConstant(*this, executable), Address(resultGPR, JSBoundFunction::offsetOfExecutableOrRareData()));
     storeValue(JSValueRegs { targetGPR }, Address(resultGPR, JSBoundFunction::offsetOfTargetFunction()));
@@ -7072,7 +7072,7 @@ void SpeculativeJIT::compileCreateClonedArguments(Node* node)
             emitInitializeOutOfLineStorage(storageGPR, outOfLineCapacity, scratchGPR);
         }
 
-        emitAllocateJSObject<ClonedArguments>(resultGPR, TrustedImmPtr(m_graph.registerStructure(globalObject->clonedArgumentsStructure())), storageGPR, scratchGPR, scratch2GPR, slowCases);
+        emitAllocateJSObject<ClonedArguments>(resultGPR, TrustedImmPtr(m_graph.registerStructure(globalObject->clonedArgumentsStructure())), storageGPR, scratchGPR, scratch2GPR, slowCases, SlowAllocationResult::UndefinedBehavior);
 
         emitGetCallee(node->origin.semantic, scratchGPR);
         storePtr(scratchGPR, Address(resultGPR, ClonedArguments::offsetOfCallee()));

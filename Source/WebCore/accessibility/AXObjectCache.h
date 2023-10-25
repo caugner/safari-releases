@@ -39,6 +39,7 @@
 #include <wtf/HashMap.h>
 #include <wtf/HashSet.h>
 #include <wtf/ListHashSet.h>
+#include <wtf/WeakHashMap.h>
 #include <wtf/WeakHashSet.h>
 
 namespace WTF {
@@ -184,8 +185,6 @@ private:
     void attachWrapper(AccessibilityObject*);
 
 public:
-    enum class CompositionState : uint8_t { Started, InProgress, Ended };
-
     void onPageActivityStateChange(OptionSet<ActivityState>);
     void setPageActivityState(OptionSet<ActivityState> state) { m_pageActivityState = state; }
     OptionSet<ActivityState> pageActivityState() const { return m_pageActivityState; }
@@ -200,7 +199,7 @@ public:
     void onTextSecurityChanged(HTMLInputElement&);
     void onTitleChange(Document&);
     void onValidityChange(Element&);
-    void onTextCompositionChange(Node&, CompositionState, bool);
+    void onTextCompositionChange(Node&, CompositionState, bool, const String&, size_t, bool);
     void valueChanged(Element*);
     void checkedStateChanged(Node*);
     void autofillTypeChanged(Node*);
@@ -216,7 +215,7 @@ public:
     double loadingProgress() const { return m_loadingProgress; }
 
     struct AttributeChange {
-        Element* element { nullptr };
+        WeakPtr<Element, WeakPtrImplWithEventTargetData> element { nullptr };
         QualifiedName attrName;
         AtomString oldValue;
         AtomString newValue;
@@ -230,8 +229,8 @@ public:
         , WeakHashSet<Element, WeakPtrImplWithEventTargetData>
         , WeakHashSet<HTMLTableElement, WeakPtrImplWithEventTargetData>
         , WeakHashSet<AccessibilityTable>
-        , WeakListHashSet<Node, WeakPtrImplWithEventTargetData>>;
-    void deferFocusedUIElementChangeIfNeeded(Node* oldFocusedNode, Node* newFocusedNode);
+        , WeakListHashSet<Node, WeakPtrImplWithEventTargetData>
+        , WeakHashMap<Element, String, WeakPtrImplWithEventTargetData>>;
     void deferModalChange(Element*);
     void deferMenuListValueChange(Element*);
     void deferNodeAddedOrRemoved(Node*);
@@ -442,7 +441,7 @@ public:
 
     AXComputedObjectAttributeCache* computedObjectAttributeCache() { return m_computedObjectAttributeCache.get(); }
 
-    Document& document() const { return m_document; }
+    Document& document() const { return const_cast<Document&>(m_document.get()); }
     constexpr const std::optional<PageIdentifier>& pageID() const { return m_pageID; }
 
 #if PLATFORM(MAC)
@@ -607,14 +606,18 @@ private:
     // Object creation.
     Ref<AccessibilityObject> createObjectFromRenderer(RenderObject*);
 
-    Document& m_document;
+    CheckedRef<Document> m_document;
     const std::optional<PageIdentifier> m_pageID; // constant for object's lifetime.
     OptionSet<ActivityState> m_pageActivityState;
     HashMap<AXID, RefPtr<AccessibilityObject>> m_objects;
+
+    // The pointers in these mapping HashMaps should never be dereferenced.
     HashMap<RenderObject*, AXID> m_renderObjectMapping;
     HashMap<Widget*, AXID> m_widgetObjectMapping;
     HashMap<Node*, AXID> m_nodeObjectMapping;
+    // The pointers in this HashSet should never be dereferenced.
     ListHashSet<Node*> m_textMarkerNodes;
+
     std::unique_ptr<AXComputedObjectAttributeCache> m_computedObjectAttributeCache;
 
 #if ENABLE(ACCESSIBILITY)
@@ -652,14 +655,14 @@ private:
     WeakHashSet<Element, WeakPtrImplWithEventTargetData> m_deferredRecomputeIsIgnoredList;
     WeakHashSet<HTMLTableElement, WeakPtrImplWithEventTargetData> m_deferredRecomputeTableIsExposedList;
     WeakHashSet<AccessibilityTable> m_deferredRecomputeTableCellSlotsList;
-    ListHashSet<Node*> m_deferredTextChangedList;
+    WeakListHashSet<Node, WeakPtrImplWithEventTargetData> m_deferredTextChangedList;
     WeakHashSet<Element, WeakPtrImplWithEventTargetData> m_deferredSelectedChildredChangedList;
     ListHashSet<RefPtr<AccessibilityObject>> m_deferredChildrenChangedList;
     WeakListHashSet<Node, WeakPtrImplWithEventTargetData> m_deferredNodeAddedOrRemovedList;
     WeakHashSet<Element, WeakPtrImplWithEventTargetData> m_deferredModalChangedList;
     WeakHashSet<Element, WeakPtrImplWithEventTargetData> m_deferredMenuListChange;
     WeakHashSet<ScrollView> m_deferredScrollbarUpdateChangeList;
-    HashMap<Element*, String> m_deferredTextFormControlValue;
+    WeakHashMap<Element, String, WeakPtrImplWithEventTargetData> m_deferredTextFormControlValue;
     Vector<AttributeChange> m_deferredAttributeChange;
     std::optional<std::pair<WeakPtr<Node, WeakPtrImplWithEventTargetData>, WeakPtr<Node, WeakPtrImplWithEventTargetData>>> m_deferredFocusedNodeChange;
 
@@ -740,7 +743,7 @@ inline void AXObjectCache::onSelectedChanged(Node*) { }
 inline void AXObjectCache::onTextSecurityChanged(HTMLInputElement&) { }
 inline void AXObjectCache::onTitleChange(Document&) { }
 inline void AXObjectCache::onValidityChange(Element&) { }
-inline void AXObjectCache::onTextCompositionChange(Node&, CompositionState, bool) { }
+inline void AXObjectCache::onTextCompositionChange(Node&, CompositionState, bool, const String&, size_t, bool) { }
 inline void AXObjectCache::valueChanged(Element*) { }
 inline void AXObjectCache::onFocusChange(Node*, Node*) { }
 inline void AXObjectCache::onPageActivityStateChange(OptionSet<ActivityState>) { }
