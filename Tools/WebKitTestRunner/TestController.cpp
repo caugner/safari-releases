@@ -49,7 +49,6 @@
 #include <WebKit/WKIconDatabase.h>
 #include <WebKit/WKMediaKeySystemPermissionCallback.h>
 #include <WebKit/WKMessageListener.h>
-#include <WebKit/WKMockDisplay.h>
 #include <WebKit/WKMockMediaDevice.h>
 #include <WebKit/WKNavigationActionRef.h>
 #include <WebKit/WKNavigationResponseRef.h>
@@ -58,7 +57,6 @@
 #include <WebKit/WKNotificationPermissionRequest.h>
 #include <WebKit/WKNumber.h>
 #include <WebKit/WKOpenPanelResultListener.h>
-#include <WebKit/WKPageGroup.h>
 #include <WebKit/WKPageInjectedBundleClient.h>
 #include <WebKit/WKPagePrivate.h>
 #include <WebKit/WKPluginInformation.h>
@@ -629,8 +627,7 @@ void TestController::initialize(int argc, const char* argv[])
     WebCoreTestSupport::installMockGamepadProvider();
 #endif
 
-    m_pageGroup.adopt(WKPageGroupCreateWithIdentifier(toWK("WebKitTestRunnerPageGroup").get()));
-
+    m_preferences = adoptWK(WKPreferencesCreate());
     m_eventSenderProxy = makeUnique<EventSenderProxy>(this);
 }
 
@@ -677,9 +674,6 @@ void TestController::configureWebsiteDataStoreTemporaryDirectories(WKWebsiteData
         WKWebsiteDataStoreConfigurationSetCookieStorageFile(configuration, toWK(makeString(temporaryFolder, pathSeparator, "cookies", pathSeparator, randomNumber, pathSeparator, "cookiejar.db")).get());
 #endif
         WKWebsiteDataStoreConfigurationSetPerOriginStorageQuota(configuration, 400 * 1024);
-        // Clear quota ratio so WebKit does not calculate quota based on disk space.
-        WKWebsiteDataStoreConfigurationClearOriginQuotaRatio(configuration);
-        WKWebsiteDataStoreConfigurationClearTotalQuotaRatio(configuration);
         WKWebsiteDataStoreConfigurationSetNetworkCacheSpeculativeValidationEnabled(configuration, true);
         WKWebsiteDataStoreConfigurationSetStaleWhileRevalidateEnabled(configuration, true);
         WKWebsiteDataStoreConfigurationSetTestingSessionEnabled(configuration, true);
@@ -777,7 +771,7 @@ WKRetainPtr<WKPageConfigurationRef> TestController::generatePageConfiguration(co
 
     auto pageConfiguration = adoptWK(WKPageConfigurationCreate());
     WKPageConfigurationSetContext(pageConfiguration.get(), m_context.get());
-    WKPageConfigurationSetPageGroup(pageConfiguration.get(), m_pageGroup.get());
+    WKPageConfigurationSetPreferences(pageConfiguration.get(), m_preferences.get());
     
     if (options.useEphemeralSession()) {
         auto ephemeralDataStore = adoptWK(WKWebsiteDataStoreCreateNonPersistentDataStore());
@@ -1215,6 +1209,7 @@ bool TestController::resetStateToConsistentValues(const TestOptions& options, Re
     setPluginSupportedMode({ });
 
     m_shouldLogDownloadSize = false;
+    m_shouldLogDownloadExpectedSize = false;
     m_shouldLogDownloadCallbacks = false;
     m_shouldLogHistoryClientCallbacks = false;
     m_shouldLogCanAuthenticateAgainstProtectionSpace = false;
@@ -1222,6 +1217,7 @@ bool TestController::resetStateToConsistentValues(const TestOptions& options, Re
     setHidden(false);
     setAllowStorageQuotaIncrease(true);
     setQuota(40 * KB);
+    setOriginQuotaRatioEnabled(true);
 
     if (!platformResetStateToConsistentValues(options))
         return false;
@@ -1283,6 +1279,7 @@ bool TestController::resetStateToConsistentValues(const TestOptions& options, Re
     }
 
     m_downloadTotalBytesWritten = { };
+    m_downloadIndex = 0;
     m_dumpPolicyDelegateCallbacks = false;
 
     return m_doneResetting;
@@ -2453,6 +2450,8 @@ WKStringRef TestController::decideDestinationWithSuggestedFilename(WKDownloadRef
         suggestedFilename = "Unknown"_s;
     
     String destination = temporaryFolder + pathSeparator + suggestedFilename;
+    if (auto downloadIndex = m_downloadIndex++)
+        destination = destination + downloadIndex;
     if (FileSystem::fileExists(destination))
         FileSystem::deleteFile(destination);
 
@@ -2463,6 +2462,8 @@ void TestController::downloadDidFinish(WKDownloadRef)
 {
     if (m_shouldLogDownloadSize)
         m_currentInvocation->outputText(makeString("Download size: ", m_downloadTotalBytesWritten.value_or(0), ".\n"));
+    if (m_shouldLogDownloadExpectedSize)
+        m_currentInvocation->outputText(makeString("Download expected size: ", m_downloadTotalBytesExpectedToWrite.value_or(0), ".\n"));
     if (m_shouldLogDownloadCallbacks)
         m_currentInvocation->outputText("Download completed.\n"_s);
     m_currentInvocation->notifyDownloadDone();
@@ -2500,16 +2501,17 @@ void TestController::downloadDidReceiveAuthenticationChallenge(WKDownloadRef, WK
     static_cast<TestController*>(const_cast<void*>(clientInfo))->didReceiveAuthenticationChallenge(nullptr, authenticationChallenge);
 }
 
-void TestController::downloadDidWriteData(long long totalBytesWritten)
+void TestController::downloadDidWriteData(long long totalBytesWritten, long long totalBytesExpectedToWrite)
 {
     if (!m_shouldLogDownloadCallbacks)
         return;
     m_downloadTotalBytesWritten = totalBytesWritten;
+    m_downloadTotalBytesExpectedToWrite = totalBytesExpectedToWrite;
 }
 
 void TestController::downloadDidWriteData(WKDownloadRef download, long long bytesWritten, long long totalBytesWritten, long long totalBytesExpectedToWrite, const void* clientInfo)
 {
-    static_cast<TestController*>(const_cast<void*>(clientInfo))->downloadDidWriteData(totalBytesWritten);
+    static_cast<TestController*>(const_cast<void*>(clientInfo))->downloadDidWriteData(totalBytesWritten, totalBytesExpectedToWrite);
 }
 
 void TestController::webProcessDidTerminate(WKProcessTerminationReason reason)
@@ -3158,7 +3160,7 @@ UniqueRef<PlatformWebView> TestController::platformCreateOtherPage(PlatformWebVi
 
 WKContextRef TestController::platformAdjustContext(WKContextRef context, WKContextConfigurationRef)
 {
-    WKPageGroupSetPreferences(m_pageGroup.get(), adoptWK(WKPreferencesCreate()).get());
+    m_preferences = adoptWK(WKPreferencesCreate());
     return context;
 }
 
@@ -3399,6 +3401,13 @@ void TestController::clearStorage()
     runUntil(context.done, noTimeout);
 }
 
+void TestController::setOriginQuotaRatioEnabled(bool enabled)
+{
+    StorageVoidCallbackContext context(*this);
+    WKWebsiteDataStoreSetOriginQuotaRatioEnabled(websiteDataStore(), enabled, &context, StorageVoidCallback);
+    runUntil(context.done, noTimeout);
+}
+
 struct FetchCacheOriginsCallbackContext {
     FetchCacheOriginsCallbackContext(TestController& controller, WKStringRef origin)
         : testController(controller)
@@ -3479,6 +3488,10 @@ bool TestController::isDoingMediaCapture() const
     return false;
 }
 
+bool TestController::isEnumeratingAudioUnitActive() const
+{
+    return false;
+}
 #endif
 
 struct ResourceStatisticsCallbackContext {
@@ -3988,9 +4001,9 @@ void TestController::setMockCaptureDevicesInterrupted(bool isCameraInterrupted, 
     WKPageSetMockCaptureDevicesInterrupted(m_mainWebView->page(), isCameraInterrupted, isMicrophoneInterrupted);
 }
 
-void TestController::triggerMockMicrophoneConfigurationChange()
+void TestController::triggerMockCaptureConfigurationChange(bool forMicrophone, bool forDisplay)
 {
-    WKPageTriggerMockMicrophoneConfigurationChange(m_mainWebView->page());
+    WKPageTriggerMockCaptureConfigurationChange(m_mainWebView->page(), forMicrophone, forDisplay);
 }
 
 struct InAppBrowserPrivacyCallbackContext {
@@ -4087,11 +4100,6 @@ WKRetainPtr<WKStringRef> TestController::takeViewPortSnapshot()
     return adoptWK(WKStringCreateWithUTF8CString("not implemented"));
 }
 #endif
-
-void TestController::sendDisplayConfigurationChangedMessageForTesting()
-{
-    WKSendDisplayConfigurationChangedMessageForTesting(platformContext());
-}
 
 void TestController::setServiceWorkerFetchTimeoutForTesting(double seconds)
 {

@@ -1494,18 +1494,6 @@ static JSValueRef getAccessibilityValueCallback(JSContextRef context, JSObjectRe
     return JSValueMakeString(context, accessibilityValue.get());
 }
 
-static JSValueRef getDocumentEncodingCallback(JSContextRef context, JSObjectRef thisObject, JSStringRef propertyName, JSValueRef* exception)
-{
-    auto documentEncoding = toAXElement(thisObject)->documentEncoding();
-    return JSValueMakeString(context, documentEncoding.get());
-}
-
-static JSValueRef getDocumentURICallback(JSContextRef context, JSObjectRef thisObject, JSStringRef propertyName, JSValueRef* exception)
-{
-    auto documentURI = toAXElement(thisObject)->documentURI();
-    return JSValueMakeString(context, documentURI.get());
-}
-
 static JSValueRef getURLCallback(JSContextRef context, JSObjectRef thisObject, JSStringRef propertyName, JSValueRef* exception)
 {
     auto url = toAXElement(thisObject)->url();
@@ -1638,6 +1626,11 @@ static JSValueRef getElementTextLengthCallback(JSContextRef context, JSObjectRef
 static JSValueRef hasContainedByFieldsetTraitCallback(JSContextRef context, JSObjectRef thisObject, JSStringRef, JSValueRef*)
 {
     return JSValueMakeBoolean(context, toAXElement(thisObject)->hasContainedByFieldsetTrait());
+}
+
+static JSValueRef hasTextEntryTraitCallback(JSContextRef context, JSObjectRef thisObject, JSStringRef, JSValueRef*)
+{
+    return JSValueMakeBoolean(context, toAXElement(thisObject)->hasTextEntryTrait());
 }
 
 static JSValueRef textMarkerRangeMatchesTextNearMarkersCallback(JSContextRef context, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception)
@@ -2021,8 +2014,6 @@ JSClassRef AccessibilityUIElement::getJSClass()
         { "popupValue", getPopupValueCallback, 0, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "valueDescription", getValueDescriptionCallback, 0, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "hierarchicalLevel", hierarchicalLevelCallback, 0, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
-        { "documentEncoding", getDocumentEncodingCallback, 0, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
-        { "documentURI", getDocumentURICallback, 0, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "url", getURLCallback, 0, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "isValid", getIsValidCallback, 0, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "liveRegionRelevant", getLiveRegionRelevantCallback, 0, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
@@ -2051,6 +2042,7 @@ JSClassRef AccessibilityUIElement::getJSClass()
         { "elementTextLength", getElementTextLengthCallback, 0, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "stringForSelection", stringForSelectionCallback, 0, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "hasContainedByFieldsetTrait", hasContainedByFieldsetTraitCallback, 0, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
+        { "hasTextEntryTrait", hasTextEntryTraitCallback, 0, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "isSearchField", getIsSearchFieldCallback, 0, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "isTextArea", getIsTextAreaCallback, 0, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "isInsertion", getIsInsertionCallback, 0 , kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },

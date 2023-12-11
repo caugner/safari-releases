@@ -570,6 +570,11 @@ void TestInvocation::didReceiveMessageFromInjectedBundle(WKStringRef messageName
         return;
     }
 
+    if (WKStringIsEqualToUTF8CString(messageName, "SetShouldLogDownloadExpectedSize")) {
+        TestController::singleton().setShouldLogDownloadExpectedSize(booleanValue(messageBody));
+        return;
+    }
+
     if (WKStringIsEqualToUTF8CString(messageName, "SetAuthenticationUsername")) {
         WKStringRef username = stringValue(messageBody);
         TestController::singleton().setAuthenticationUsername(toWTFString(username));
@@ -1060,8 +1065,11 @@ WKRetainPtr<WKTypeRef> TestInvocation::didReceiveSynchronousMessageFromInjectedB
         return nullptr;
     }
     
-    if (WKStringIsEqualToUTF8CString(messageName, "TriggerMockMicrophoneConfigurationChange")) {
-        TestController::singleton().triggerMockMicrophoneConfigurationChange();
+    if (WKStringIsEqualToUTF8CString(messageName, "TriggerMockCaptureConfigurationChange")) {
+        auto messageBodyDictionary = dictionaryValue(messageBody);
+        bool forMicrophone = booleanValue(messageBodyDictionary, "microphone");
+        bool forDisplay = booleanValue(messageBodyDictionary, "display");
+        TestController::singleton().triggerMockCaptureConfigurationChange(forMicrophone, forDisplay);
         return nullptr;
     }
 
@@ -1129,7 +1137,10 @@ WKRetainPtr<WKTypeRef> TestInvocation::didReceiveSynchronousMessageFromInjectedB
 
     if (WKStringIsEqualToUTF8CString(messageName, "IsDoingMediaCapture"))
         return adoptWK(WKBooleanCreate(TestController::singleton().isDoingMediaCapture()));
-    
+
+    if (WKStringIsEqualToUTF8CString(messageName, "IsEnumeratingAudioUnitActive"))
+        return adoptWK(WKBooleanCreate(TestController::singleton().isEnumeratingAudioUnitActive()));
+
     if (WKStringIsEqualToUTF8CString(messageName, "ClearStatisticsDataForDomain")) {
         TestController::singleton().clearStatisticsDataForDomain(stringValue(messageBody));
         return nullptr;
@@ -1383,13 +1394,13 @@ WKRetainPtr<WKTypeRef> TestInvocation::didReceiveSynchronousMessageFromInjectedB
         return nullptr;
     }
 
-    if (WKStringIsEqualToUTF8CString(messageName, "InjectUserScript")) {
-        TestController::singleton().injectUserScript(stringValue(messageBody));
+    if (WKStringIsEqualToUTF8CString(messageName, "SetOriginQuotaRatioEnabled")) {
+        TestController::singleton().setOriginQuotaRatioEnabled(booleanValue(messageBody));
         return nullptr;
     }
 
-    if (WKStringIsEqualToUTF8CString(messageName, "SendDisplayConfigurationChangedMessageForTesting")) {
-        TestController::singleton().sendDisplayConfigurationChangedMessageForTesting();
+    if (WKStringIsEqualToUTF8CString(messageName, "InjectUserScript")) {
+        TestController::singleton().injectUserScript(stringValue(messageBody));
         return nullptr;
     }
 

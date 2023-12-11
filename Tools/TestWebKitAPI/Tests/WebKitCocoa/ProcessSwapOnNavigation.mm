@@ -26,6 +26,7 @@
 #import "config.h"
 
 #import "DeprecatedGlobalValues.h"
+#import "FrameTreeChecks.h"
 #import "HTTPServer.h"
 #import "PlatformUtilities.h"
 #import "Test.h"
@@ -7233,6 +7234,15 @@ TEST(ProcessSwap, DISABLED_SameSiteWindowWithOpenerNavigateToFile)
     EXPECT_TRUE(!!pid3);
     EXPECT_NE(pid2, pid3);
 
+    using namespace TestWebKitAPI;
+    checkFrameTreesInProcesses(webView.get(), {
+        { "pson://www.webkit.org"_s }, { RemoteFrame }
+    });
+
+    checkFrameTreesInProcesses(createdWebView.get(), {
+        { RemoteFrame }, { "file://"_s }
+    });
+
     [createdWebView goBack];
     TestWebKitAPI::Util::run(&done);
     done = false;
@@ -8034,16 +8044,14 @@ static void checkSettingsControlledByLockdownMode(WKWebView *webView, ShouldBeEn
     String embedElementCheck = makeString("document.createElement('embed').__proto__ == ", shouldBeEnabled == ShouldBeEnabled::Yes ? "HTMLEmbedElement" : "HTMLUnknownElement", ".prototype");
     EXPECT_EQ(runJSCheck(embedElementCheck), true); // Embed Element.
 
-    EXPECT_EQ(runJSCheck("CSS.supports('content-visibility: visible')"_s), shouldBeEnabled == ShouldBeEnabled::Yes);
     EXPECT_EQ(runJSCheck("CSS.supports('overflow-anchor:none')"_s), shouldBeEnabled == ShouldBeEnabled::Yes);
     EXPECT_EQ(runJSCheck("CSS.supports('text-justify: auto')"_s), shouldBeEnabled == ShouldBeEnabled::Yes);
     EXPECT_EQ(runJSCheck("!!navigator.contacts"_s), isShowingInitialEmptyDocument != IsShowingInitialEmptyDocument::Yes && shouldBeEnabled == ShouldBeEnabled::Yes);
     EXPECT_EQ(runJSCheck("!!window.DeprecationReportBody"_s), shouldBeEnabled == ShouldBeEnabled::Yes);
-    EXPECT_EQ(runJSCheck("!!window.Highlight"_s), shouldBeEnabled == ShouldBeEnabled::Yes);
 
     // Confirm unstable settings are always off in Lockdown Mode.
     EXPECT_EQ(runJSCheck("!!navigator.requestCookieConsent"_s), false);
-    EXPECT_EQ(runJSCheck("!!window.requestIdleCallback"_s), false);
+    EXPECT_EQ(runJSCheck("!!document.undoManager"_s), false);
 }
 
 @interface LockdownMessageHandler : NSObject <WKScriptMessageHandler, WKNavigationDelegate>

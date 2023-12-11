@@ -5,6 +5,8 @@ sources:
   track: 'release/22.08'
   ref: freedesktop-sdk-22.08.13-17-g4cbd1d47a91cfa60269974bf84396dc12ff8df36
 - kind: patch
+  path: patches/fdo-0001-mesa-Bump-to-23.1.5.patch
+- kind: patch
   path: patches/fdo-0001-pipewire-base-Disable-AEC-module.patch
 - kind: patch
   path: patches/fdo-0001-gst-plugins-bad-Add-support-Kate.patch
@@ -15,13 +17,19 @@ sources:
 - kind: patch
   path: patches/fdo-0004-gst-plugins-ugly-Enable-x264-encoder.patch
 - kind: patch
-  path: patches/fdo-0005-GStreamer-Bump-to-1.22.4.patch
+  path: patches/fdo-0005-GStreamer-Bump-to-1.22.5.patch
 - kind: patch
   path: patches/fdo-0006-gst-plugins-bad-Enable-soundtouch.patch
 - kind: patch
   path: patches/fdo-0007-components-Bump-GLib-to-version-2.76.patch
 - kind: patch
   path: patches/fdo-0008-components-Bump-g-i-to-version-1.76.patch
+- kind: patch
+  path: patches/fdo-0009-gst-plugins-bad-Enable-x265-encoder.patch
+- kind: patch
+  path: patches/fdo-0001-gst-plugins-base-Vendor-patch-scheduled-for-1.22.6.patch
+- kind: patch
+  path: patches/fdo-0001-gst-plugins-base-Vendor-patches-scheduled-for-1.22.6.patch
 config:
   options:
     target_arch: '%{arch}'

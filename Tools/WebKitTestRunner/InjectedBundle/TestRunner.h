@@ -180,6 +180,7 @@ public:
     uint64_t domCacheSize(JSStringRef origin);
     void setAllowStorageQuotaIncrease(bool);
     void setQuota(uint64_t);
+    void setOriginQuotaRatioEnabled(bool);
 
     // Failed load condition testing
     void forceImmediateCompletion();
@@ -234,6 +235,7 @@ public:
     void setShouldLogDownloadCallbacks(bool);
     void setShouldLogDownloadSize(bool);
     void setShouldDownloadContentDispositionAttachments(bool);
+    void setShouldLogDownloadExpectedSize(bool);
 
     bool shouldAllowEditing() const { return m_shouldAllowEditing; }
 
@@ -346,6 +348,7 @@ public:
     unsigned userMediaPermissionRequestCountForOrigin(JSStringRef origin, JSStringRef parentOrigin) const;
     void resetUserMediaPermissionRequestCountForOrigin(JSStringRef origin, JSStringRef parentOrigin);
     bool isDoingMediaCapture() const;
+    bool isEnumeratingAudioUnitActive() const;
 
     void setPageVisibility(JSStringRef state);
     void resetPageVisibility();
@@ -537,7 +540,7 @@ public:
     void setMockCameraOrientation(unsigned);
     bool isMockRealtimeMediaSourceCenterEnabled();
     void setMockCaptureDevicesInterrupted(bool isCameraInterrupted, bool isMicrophoneInterrupted);
-    void triggerMockMicrophoneConfigurationChange();
+    void triggerMockCaptureConfigurationChange(bool forMicrophone, bool forDisplay);
 
     bool hasAppBoundSession();
     void clearAppBoundSession();
@@ -552,8 +555,6 @@ public:
 
     size_t userScriptInjectedCount() const;
     void injectUserScript(JSStringRef);
-
-    void sendDisplayConfigurationChangedMessageForTesting();
 
     void setServiceWorkerFetchTimeout(double seconds);
 

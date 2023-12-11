@@ -1137,6 +1137,14 @@
    },
    {
       "emails" : [
+         "ben_schwartz@apple.com"
+      ],
+      "github" : "bls1999",
+      "name" : "Ben Schwartz",
+      "status" : "committer"
+   },
+   {
+      "emails" : [
          "benwells@chromium.org"
       ],
       "name" : "Ben Wells",
@@ -1316,6 +1324,13 @@
          "bweinstein"
       ],
       "status" : "reviewer"
+   },
+   {
+      "emails" : [
+         "bfan2@apple.com"
+      ],
+      "github" : "briannafan",
+      "name" : "Brianna Fan"
    },
    {
       "emails" : [
@@ -1869,6 +1884,17 @@
    },
    {
       "emails" : [
+         "destra@apple.com"
+      ],
+      "github" : "danae404",
+      "name" : "Dana Estra",
+      "nicks" : [
+         "destra"
+      ],
+      "status" : "committer"
+   },
+   {
+      "emails" : [
          "danakj@chromium.org"
       ],
       "name" : "Dana Jansens",
@@ -1919,7 +1945,8 @@
       ],
       "expertise" : "JavaScriptCore",
       "github" : "danlliu",
-      "name" : "Daniel Liu"
+      "name" : "Daniel Liu",
+      "status" : "committer"
    },
    {
       "emails" : [
@@ -1967,6 +1994,18 @@
       "name" : "Dave Tharp",
       "nicks" : [
          "dtharp"
+      ]
+   },
+   {
+      "emails" : [
+         "david_choi5@apple.com",
+         "djchoi@andrew.cmu.edu"
+      ],
+      "expertise" : "WebCore",
+      "github" : "RWDavid",
+      "name" : "David Choi",
+      "nicks" : [
+         "RWDavid"
       ]
    },
    {
@@ -2492,6 +2531,16 @@
    },
    {
       "emails" : [
+         "fantasai.bugs@inkedblade.net",
+         "fantasai@apple.com"
+      ],
+      "name" : "Elika Etemad",
+      "nicks" : [
+         "fantasai"
+      ]
+   },
+   {
+      "emails" : [
          "eepskamphunt@apple.com"
       ],
       "expertise" : "Safari Extensions, Web Extensions",
@@ -2779,6 +2828,17 @@
          "forms-bugs@chromium.org"
       ],
       "name" : "Forms Bugs"
+   },
+   {
+      "emails" : [
+         "frances_c@cox.net"
+      ],
+      "expertise" : "Web Inspector",
+      "github" : "francescorn",
+      "name" : "Frances Cornwall",
+      "nicks" : [
+         "Frances"
+      ]
    },
    {
       "emails" : [
@@ -3265,6 +3325,7 @@
          "hs85jeong@gmail.com"
       ],
       "expertise" : "The EFLWebKit port, Cairo graphics backend",
+      "github" : "hs85jeong",
       "name" : "Hunseop Jeong",
       "nicks" : [
          "hunseop"
@@ -3278,6 +3339,19 @@
       "nicks" : [
          "hyowon"
       ]
+   },
+   {
+      "emails" : [
+         "hysu@apple.com",
+         "hysu.xiong@gmail.com"
+      ],
+      "expertise" : "Performance Testing, Tools",
+      "github" : "xw",
+      "name" : "Hysu Xiong",
+      "nicks" : [
+         "hysu"
+      ],
+      "status" : "committer"
    },
    {
       "emails" : [
@@ -3803,7 +3877,8 @@
       "name" : "Jessica Cheung",
       "nicks" : [
          "jesxilin"
-      ]
+      ],
+      "status" : "committer"
    },
    {
       "emails" : [
@@ -5776,6 +5851,7 @@
       "emails" : [
          "olivier.blin@softathome.com"
       ],
+      "github" : "blino",
       "name" : "Olivier Blin",
       "nicks" : [
          "blino"
@@ -6209,7 +6285,7 @@
       "nicks" : [
          "rr-codes"
       ],
-      "status" : "committer"
+      "status" : "reviewer"
    },
    {
       "emails" : [
@@ -6395,6 +6471,16 @@
    },
    {
       "emails" : [
+         "ryanfuller@apple.com"
+      ],
+      "github" : "rsfuller",
+      "name" : "Ryan Fuller",
+      "nicks" : [
+         "ryanfuller"
+      ]
+   },
+   {
+      "emails" : [
          "ryanhaddad@apple.com"
       ],
       "github" : "ryanhaddad",
@@ -6521,7 +6607,7 @@
          "sgill26",
          "sammy.gill"
       ],
-      "status" : "committer"
+      "status" : "reviewer"
    },
    {
       "emails" : [
@@ -7410,18 +7496,6 @@
       "nicks" : [
          "seumas"
       ]
-   },
-   {
-      "emails" : [
-         "wdx@apple.com",
-         "w_xiong@apple.com"
-      ],
-      "github" : "xw",
-      "name" : "W.D. Xiong",
-      "nicks" : [
-         "wdx"
-      ],
-      "status" : "committer"
    },
    {
       "emails" : [

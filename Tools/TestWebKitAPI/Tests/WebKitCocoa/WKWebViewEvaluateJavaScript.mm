@@ -322,12 +322,40 @@ TEST(WKWebView, EvaluateJavaScriptInWorldsWithGlobalObjectAvailableInCrossOrigin
     
     __block bool done = false;
     [webView _frames:^(_WKFrameTreeNode *mainFrame) {
-        [webView _evaluateJavaScript:@"window.worldName" inFrame:mainFrame.childFrames[0] inContentWorld:[WKContentWorld worldWithName:@"testName"] completionHandler:^(id result, NSError *error) {
+        [webView _evaluateJavaScript:@"window.worldName" inFrame:mainFrame.childFrames[0].info inContentWorld:[WKContentWorld worldWithName:@"testName"] completionHandler:^(id result, NSError *error) {
             EXPECT_WK_STREQ(result, "testName");
             done = true;
         }];
     }];
     TestWebKitAPI::Util::run(&done);
+}
+
+TEST(WebKit, GetFrameInfo_detachedFrame)
+{
+    auto webView = adoptNS([TestWKWebView new]);
+    [webView synchronouslyLoadHTMLString:@"<iframe id='testFrame' src='about:blank'></iframe>"];
+
+    __block bool done = false;
+    [webView _frames:^(_WKFrameTreeNode *mainFrame) {
+        EXPECT_EQ(mainFrame.childFrames.count, 1U);
+        done = true;
+    }];
+    TestWebKitAPI::Util::run(&done);
+    auto pid = [webView _webProcessIdentifier];
+
+    [webView evaluateJavaScript:@"document.getElementById('testFrame').remove();" completionHandler:nil];
+
+    __block bool hasChildFrame = true;
+    do {
+        done = false;
+        [webView _frames:^(_WKFrameTreeNode *mainFrame) {
+            hasChildFrame = mainFrame.childFrames.count > 0;
+            done = true;
+        }];
+        TestWebKitAPI::Util::run(&done);
+    } while (hasChildFrame);
+
+    EXPECT_EQ(pid, [webView _webProcessIdentifier]);
 }
 
 TEST(WebKit, EvaluateJavaScriptInAttachments)

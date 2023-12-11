@@ -101,7 +101,6 @@ enum TreeType {
 };
 
 [Conditional=WEBGL] enum SimulatedWebGLContextEvent {
-    "ContextChange",
     "GPUStatusFailure",
     "Timeout"
 };
@@ -432,6 +431,8 @@ typedef (FetchRequest or FetchResponse) FetchObject;
     // For animations testing, we need a way to get at pseudo elements.
     Element? pseudoElement(Element element, DOMString pseudoId);
 
+    double preferredRenderingUpdateInterval();
+
     DOMString visiblePlaceholder(Element element);
     undefined selectColorInColorChooser(HTMLInputElement element, DOMString colorValue);
     sequence<[AtomString] DOMString> formControlStateOfPreviousHistoryItem();
@@ -657,7 +658,11 @@ typedef (FetchRequest or FetchResponse) FetchObject;
     undefined insertAuthorCSS(DOMString css);
     undefined insertUserCSS(DOMString css);
 
+    readonly attribute boolean isUnderMemoryWarning;
     readonly attribute boolean isUnderMemoryPressure;
+
+    undefined beginSimulatedMemoryWarning();
+    undefined endSimulatedMemoryWarning();
     undefined beginSimulatedMemoryPressure();
     undefined endSimulatedMemoryPressure();
 
@@ -813,6 +818,7 @@ typedef (FetchRequest or FetchResponse) FetchObject;
     undefined enableMockMediaCapabilities();
 
     [Conditional=SPEECH_SYNTHESIS] undefined enableMockSpeechSynthesizer();
+    [Conditional=SPEECH_SYNTHESIS] undefined simulateSpeechSynthesizerVoiceListChange();
     [Conditional=SPEECH_SYNTHESIS] undefined enableMockSpeechSynthesizerForMediaElement(HTMLMediaElement element);
     [Conditional=SPEECH_SYNTHESIS] undefined setSpeechUtteranceDuration(double duration);
     [Conditional=SPEECH_SYNTHESIS] readonly attribute unsigned long minimumExpectedVoiceCount;
@@ -1219,4 +1225,8 @@ typedef (FetchRequest or FetchResponse) FetchObject;
     readonly attribute boolean isVisuallyNonEmpty;
     
     boolean isUsingUISideCompositing();
+
+    boolean readyToRetrieveComputedRoleOrLabel(Element element);
+    DOMString getComputedLabel(Element element);
+    DOMString getComputedRole(Element element);
 };

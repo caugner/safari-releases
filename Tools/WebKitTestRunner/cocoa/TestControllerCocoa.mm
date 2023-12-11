@@ -45,6 +45,7 @@
 #import <WebKit/WKProcessPoolPrivate.h>
 #import <WebKit/WKStringCF.h>
 #import <WebKit/WKUserContentControllerPrivate.h>
+#import <WebKit/WKUserMediaPermissionCheck.h>
 #import <WebKit/WKWebView.h>
 #import <WebKit/WKWebViewConfiguration.h>
 #import <WebKit/WKWebViewConfigurationPrivate.h>
@@ -168,11 +169,6 @@ WKContextRef TestController::platformContext()
     return (__bridge WKContextRef)[globalWebViewConfiguration() processPool];
 }
 
-WKPreferencesRef TestController::platformPreferences()
-{
-    return (__bridge WKPreferencesRef)[globalWebViewConfiguration() preferences];
-}
-
 TestFeatures TestController::platformSpecificFeatureOverridesDefaultsForTest(const TestCommand&) const
 {
     TestFeatures features;
@@ -287,6 +283,7 @@ void TestController::finishCreatingPlatformWebView(PlatformWebView* view, const 
 WKContextRef TestController::platformAdjustContext(WKContextRef context, WKContextConfigurationRef contextConfiguration)
 {
     initializeWebViewConfiguration(libraryPathForTesting(), injectedBundlePath(), context, contextConfiguration);
+    m_preferences = (__bridge WKPreferencesRef)[globalWebViewConfiguration() preferences];
     return (__bridge WKContextRef)[globalWebViewConfiguration() processPool];
 }
 
@@ -584,7 +581,16 @@ void TestController::setAllowedMenuActions(const Vector<String>& actions)
 
 bool TestController::isDoingMediaCapture() const
 {
-    return m_mainWebView->platformView()._mediaCaptureState != _WKMediaCaptureStateDeprecatedNone;
+    return m_mainWebView->platformView().microphoneCaptureState != WKMediaCaptureStateNone || m_mainWebView->platformView().cameraCaptureState != WKMediaCaptureStateNone;
+}
+
+bool TestController::isEnumeratingAudioUnitActive() const
+{
+#if PLATFORM(IOS_FAMILY) && ENABLE(MEDIA_STREAM)
+    return WKUserMediaIsEnumeratingAudioUnitActive();
+#else
+    return m_mainWebView->platformView().microphoneCaptureState == WKMediaCaptureStateActive;
+#endif
 }
 
 #if PLATFORM(IOS_FAMILY)

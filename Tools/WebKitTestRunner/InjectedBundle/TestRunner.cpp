@@ -1021,6 +1021,11 @@ bool TestRunner::isDoingMediaCapture() const
     return postSynchronousPageMessageReturningBoolean("IsDoingMediaCapture");
 }
 
+bool TestRunner::isEnumeratingAudioUnitActive() const
+{
+    return postSynchronousPageMessageReturningBoolean("IsEnumeratingAudioUnitActive");
+}
+
 void TestRunner::setUserMediaPersistentPermissionForOrigin(bool permission, JSStringRef origin, JSStringRef parentOrigin)
 {
     InjectedBundle::singleton().setUserMediaPersistentPermissionForOrigin(permission, toWK(origin).get(), toWK(parentOrigin).get());
@@ -1115,6 +1120,11 @@ void TestRunner::setShouldDownloadContentDispositionAttachments(bool value)
 void TestRunner::setShouldLogDownloadSize(bool value)
 {
     postPageMessage("SetShouldLogDownloadSize", value);
+}
+
+void TestRunner::setShouldLogDownloadExpectedSize(bool value)
+{
+    postPageMessage("SetShouldLogDownloadExpectedSize", value);
 }
 
 void TestRunner::setAuthenticationUsername(JSStringRef username)
@@ -1975,9 +1985,12 @@ void TestRunner::setMockCaptureDevicesInterrupted(bool isCameraInterrupted, bool
     }));
 }
 
-void TestRunner::triggerMockMicrophoneConfigurationChange()
+void TestRunner::triggerMockCaptureConfigurationChange(bool forMicrophone, bool forDisplay)
 {
-    postSynchronousMessage("TriggerMockMicrophoneConfigurationChange");
+    postSynchronousMessage("TriggerMockCaptureConfigurationChange", createWKDictionary({
+        { "microphone", adoptWK(WKBooleanCreate(forMicrophone)) },
+        { "display", adoptWK(WKBooleanCreate(forDisplay)) },
+    }));
 }
 
 #if ENABLE(GAMEPAD)
@@ -2130,6 +2143,11 @@ void TestRunner::setQuota(uint64_t quota)
     postSynchronousMessage("SetQuota", quota);
 }
 
+void TestRunner::setOriginQuotaRatioEnabled(bool enabled)
+{
+    postSynchronousPageMessage("SetOriginQuotaRatioEnabled", enabled);
+}
+
 void TestRunner::getApplicationManifestThen(JSValueRef callback)
 {
     cacheTestRunnerCallback(GetApplicationManifestCallbackID, callback);
@@ -2154,11 +2172,6 @@ size_t TestRunner::userScriptInjectedCount() const
 void TestRunner::injectUserScript(JSStringRef script)
 {
     postSynchronousMessage("InjectUserScript", toWK(script));
-}
-
-void TestRunner::sendDisplayConfigurationChangedMessageForTesting()
-{
-    postSynchronousMessage("SendDisplayConfigurationChangedMessageForTesting");
 }
 
 void TestRunner::setServiceWorkerFetchTimeout(double seconds)

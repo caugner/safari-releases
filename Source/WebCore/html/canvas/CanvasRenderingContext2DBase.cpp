@@ -238,12 +238,12 @@ void CanvasRenderingContext2DBase::unwindStateStack()
     // Ensure that the state stack in the ImageBuffer's context
     // is cleared before destruction, to avoid assertions in the
     // GraphicsContext dtor.
-    if (size_t stackSize = m_stateStack.size()) {
-        if (auto* context = canvasBase().existingDrawingContext()) {
-            while (--stackSize)
-                context->restore();
-        }
-    }
+    size_t stackSize = m_stateStack.size();
+    if (stackSize <= 1)
+        return;
+    // We need to keep the last state because it is tracked by CanvasBase::m_contextStateSaver.
+    if (auto* context = canvasBase().existingDrawingContext())
+        context->unwindStateStack(stackSize - 1);
 }
 
 CanvasRenderingContext2DBase::~CanvasRenderingContext2DBase()
@@ -266,13 +266,21 @@ bool CanvasRenderingContext2DBase::isAccelerated() const
 void CanvasRenderingContext2DBase::reset()
 {
     unwindStateStack();
+
     m_stateStack.resize(1);
     m_stateStack.first() = State();
+
     m_path.clear();
     m_unrealizedSaveCount = 0;
     m_cachedImageData = std::nullopt;
 
     m_recordingContext = nullptr;
+
+    clearAccumulatedDirtyRect();
+    resetTransform();
+
+    canvasBase().resetGraphicsContextState();
+    clearCanvas();
 }
 
 CanvasRenderingContext2DBase::State::State()
@@ -1236,7 +1244,7 @@ void CanvasRenderingContext2DBase::clearRect(double x, double y, double width, d
     if (shouldDrawShadows()) {
         context->save();
         saved = true;
-        context->setShadow(FloatSize(), 0, Color::transparentBlack, ShadowRadiusMode::Legacy);
+        context->setDropShadow({ FloatSize(), 0, Color::transparentBlack, ShadowRadiusMode::Legacy });
     }
     if (state().globalAlpha != 1) {
         if (!saved) {
@@ -1394,9 +1402,9 @@ void CanvasRenderingContext2DBase::applyShadow()
     if (shouldDrawShadows()) {
         float width = state().shadowOffset.width();
         float height = state().shadowOffset.height();
-        c->setShadow(FloatSize(width, -height), state().shadowBlur, state().shadowColor, ShadowRadiusMode::Legacy);
+        c->setDropShadow({ { width, -height }, state().shadowBlur, state().shadowColor, ShadowRadiusMode::Legacy });
     } else
-        c->setShadow(FloatSize(), 0, Color::transparentBlack, ShadowRadiusMode::Legacy);
+        c->setDropShadow({ { }, 0, Color::transparentBlack, ShadowRadiusMode::Legacy });
 }
 
 bool CanvasRenderingContext2DBase::shouldDrawShadows() const
@@ -2075,6 +2083,14 @@ ExceptionOr<RefPtr<CanvasPattern>> CanvasRenderingContext2DBase::createPattern(H
     if (cachedImage->status() == CachedResource::LoadError)
         return Exception { InvalidStateError };
 
+    // Image may have a zero-width or a zero-height.
+    Length intrinsicWidth;
+    Length intrinsicHeight;
+    FloatSize intrinsicRatio;
+    cachedImage->computeIntrinsicDimensions(intrinsicWidth, intrinsicHeight, intrinsicRatio);
+    if (intrinsicWidth.isZero() || intrinsicHeight.isZero())
+        return nullptr;
+
     return createPattern(*cachedImage, imageElement.renderer(), repeatX, repeatY);
 }
 
@@ -2158,10 +2174,13 @@ ExceptionOr<RefPtr<CanvasPattern>> CanvasRenderingContext2DBase::createPattern(W
 }
 #endif
 
-ExceptionOr<RefPtr<CanvasPattern>> CanvasRenderingContext2DBase::createPattern(ImageBitmap&, bool, bool)
+ExceptionOr<RefPtr<CanvasPattern>> CanvasRenderingContext2DBase::createPattern(ImageBitmap& imageBitmap, bool repeatX, bool repeatY)
 {
-    // FIXME: Implement.
-    return Exception { TypeError };
+    RefPtr<ImageBuffer> buffer = imageBitmap.buffer();
+    if (!buffer)
+        return Exception { InvalidStateError };
+
+    return RefPtr<CanvasPattern> { CanvasPattern::create({ buffer.releaseNonNull() }, repeatX, repeatY, imageBitmap.originClean()) };
 }
 
 ExceptionOr<RefPtr<CanvasPattern>> CanvasRenderingContext2DBase::createPattern(CSSStyleImageValue&, bool, bool)
@@ -2689,19 +2708,15 @@ void CanvasRenderingContext2DBase::drawTextUnchecked(const TextRun& textRun, dou
 
             FloatSize offset(0, 2 * maskRect.height());
 
-            FloatSize shadowOffset;
-            float shadowRadius;
-            Color shadowColor;
-            c->getShadow(shadowOffset, shadowRadius, shadowColor);
+            auto shadow = c->dropShadow();
+            ASSERT(shadow);
 
             FloatRect shadowRect(maskRect);
-            shadowRect.inflate(shadowRadius * 1.4);
-            shadowRect.move(shadowOffset * -1);
+            shadowRect.inflate(shadow->radius * 1.4);
+            shadowRect.move(shadow->offset * -1);
             c->clip(shadowRect);
 
-            shadowOffset += offset;
-
-            c->setShadow(shadowOffset, shadowRadius, shadowColor, ShadowRadiusMode::Legacy);
+            c->setDropShadow({ shadow->offset + offset, shadow->radius, shadow->color, ShadowRadiusMode::Legacy });
 
             if (fill)
                 c->setFillColor(Color::black);

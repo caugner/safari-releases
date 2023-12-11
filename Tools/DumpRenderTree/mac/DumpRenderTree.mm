@@ -888,7 +888,6 @@ static void setWebPreferencesForTestOptions(WebPreferences *preferences, const W
 
         preferences.acceleratedDrawingEnabled = useAcceleratedDrawing;
         preferences.editableLinkBehavior = WebKitEditableLinkOnlyLiveWithShiftKey;
-        preferences.frameFlattening = WebKitFrameFlatteningDisabled;
         preferences.cacheModel = WebCacheModelDocumentBrowser;
 
         preferences.privateBrowsingEnabled = options.useEphemeralSession();
@@ -1882,6 +1881,8 @@ static NSURL *computeTestURL(NSString *pathOrURLString, NSString **relativeTestP
 
 static WTR::TestOptions testOptionsForTest(const WTR::TestCommand& command)
 {
+    // hack for cases when useDollarVM will be reset before injectInternalsObject is called in DRT
+    JSC::Options::useDollarVM() = true;
     WTR::TestFeatures features = WTR::TestOptions::defaults();
     WTR::merge(features, WTR::hardcodedFeaturesBasedOnPathForTest(command));
     WTR::merge(features, WTR::featureDefaultsFromTestHeaderForTest(command, WTR::TestOptions::keyTypeMapping()));

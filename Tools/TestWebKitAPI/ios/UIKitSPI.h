@@ -35,7 +35,6 @@
 #import <UIKit/UIAction_Private.h>
 #import <UIKit/UIApplication_Private.h>
 #import <UIKit/UIBarButtonItemGroup_Private.h>
-#import <UIKit/UICalloutBar.h>
 #import <UIKit/UIKeyboardImpl.h>
 #import <UIKit/UIKeyboard_Private.h>
 #import <UIKit/UIResponder_Private.h>
@@ -50,7 +49,6 @@
 #import <UIKit/UIViewController_Private.h>
 #import <UIKit/UIWKTextInteractionAssistant.h>
 #import <UIKit/UIWebFormAccessory.h>
-#import <UIKit/UIWebTouchEventsGestureRecognizer.h>
 #import <UIKit/_UINavigationInteractiveTransition.h>
 
 IGNORE_WARNINGS_BEGIN("deprecated-implementations")
@@ -145,11 +143,6 @@ WTF_EXTERN_C_END
 @interface UIKeyboard : UIView
 @end
 
-@interface UICalloutBar : UIView
-+ (UICalloutBar *)sharedCalloutBar;
-+ (UICalloutBar *)activeCalloutBar;
-@end
-
 @interface _UINavigationInteractiveTransitionBase : UIPercentDrivenInteractiveTransition
 @end
 
@@ -211,7 +204,6 @@ typedef NS_ENUM(NSInteger, UIWKGestureType) {
 - (void)pasteWithCompletionHandler:(void (^)(void))completionHandler;
 - (void)requestAutocorrectionRectsForString:(NSString *)input withCompletionHandler:(void (^)(UIWKAutocorrectionRects *rectsForInput))completionHandler;
 - (void)requestAutocorrectionContextWithCompletionHandler:(void (^)(UIWKAutocorrectionContext *autocorrectionContext))completionHandler;
-- (void)selectWordBackward;
 - (void)selectPositionAtPoint:(CGPoint)point completionHandler:(void (^)(void))completionHandler;
 - (void)selectTextWithGranularity:(UITextGranularity)granularity atPoint:(CGPoint)point completionHandler:(void (^)(void))completionHandler;
 - (void)updateSelectionWithExtentPoint:(CGPoint)point completionHandler:(void (^)(BOOL selectionEndIsMoving))completionHandler;
@@ -309,6 +301,12 @@ typedef NS_ENUM(NSInteger, _UITextSearchMatchMethod) {
 
 #endif // USE(APPLE_INTERNAL_SDK)
 
+// Start of UIKit IPI
+
+@interface UITextInteractionAssistant (IPI)
+@property (nonatomic, readonly) UIView *selectionView;
+@end
+
 @interface UITextAutofillSuggestion ()
 + (instancetype)autofillSuggestionWithUsername:(NSString *)username password:(NSString *)password;
 @end
@@ -359,16 +357,28 @@ typedef NS_ENUM(NSUInteger, _UIClickInteractionEvent) {
 - (void)removeEmojiAlternatives;
 @end
 
+@interface NSTextBlock : NSObject
+@end
+
+@interface NSTextTable : NSTextBlock
+@end
+
+@interface NSTextTableBlock : NSTextBlock
+- (NSTextTable *)table;
+- (NSInteger)startingColumn;
+- (NSInteger)startingRow;
+- (NSUInteger)numberOfColumns;
+- (NSInteger)columnSpan;
+- (NSInteger)rowSpan;
+@end
+
+@interface NSParagraphStyle ()
+- (NSArray<NSTextBlock *> *)textBlocks;
+@end
+
 @interface UIResponder (Internal)
 - (void)_share:(id)sender;
 @property (nonatomic, readonly) BOOL _requiresKeyboardWhenFirstResponder;
-@end
-
-@interface UIWebGeolocationPolicyDecider : NSObject
-@end
-
-@interface UIWebGeolocationPolicyDecider ()
-+ (instancetype)sharedPolicyDecider;
 @end
 
 @protocol UIWKInteractionViewProtocol_Staging_91919121 <UIWKInteractionViewProtocol>

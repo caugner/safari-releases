@@ -82,6 +82,7 @@ typedef void (*AXPostedNotificationCallback)(id element, NSString* notification,
 - (NSString *)accessibilityARIALiveRegionStatus;
 - (NSString *)accessibilityARIARelevantStatus;
 - (UIAccessibilityTraits)_axContainedByFieldsetTrait;
+- (UIAccessibilityTraits)_axTextEntryTrait;
 - (id)_accessibilityFieldsetAncestor;
 - (BOOL)_accessibilityHasTouchEventListener;
 - (NSString *)accessibilityExpandedTextValue;
@@ -187,6 +188,12 @@ bool AccessibilityUIElement::hasContainedByFieldsetTrait()
 {
     UIAccessibilityTraits traits = [m_element accessibilityTraits];
     return (traits & [m_element _axContainedByFieldsetTrait]) == [m_element _axContainedByFieldsetTrait];
+}
+
+bool AccessibilityUIElement::hasTextEntryTrait()
+{
+    UIAccessibilityTraits traits = [m_element accessibilityTraits];
+    return (traits & [m_element _axTextEntryTrait]) == [m_element _axTextEntryTrait];
 }
 
 AccessibilityUIElement AccessibilityUIElement::fieldsetAncestorElement()
@@ -1094,16 +1101,6 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::accessibilityValue() const
 
 void AccessibilityUIElement::clearSelectedChildren() const
 {
-}
-
-JSRetainPtr<JSStringRef> AccessibilityUIElement::documentEncoding()
-{
-    return WTR::createJSString();
-}
-
-JSRetainPtr<JSStringRef> AccessibilityUIElement::documentURI()
-{
-    return WTR::createJSString();
 }
 
 bool AccessibilityUIElement::addNotificationListener(JSObjectRef functionCallback)

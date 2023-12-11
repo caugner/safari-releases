@@ -175,6 +175,7 @@ public:
     double minValue();
     double maxValue();
     JSRetainPtr<JSStringRef> valueDescription();
+    unsigned numberOfCharacters() const;
     int insertionPointLineNumber();
     JSRetainPtr<JSStringRef> selectedTextRange();
     JSRetainPtr<JSStringRef> textInputMarkedRange() const;
@@ -216,8 +217,6 @@ public:
     int hierarchicalLevel() const;
     double clickPointX();
     double clickPointY();
-    JSRetainPtr<JSStringRef> documentEncoding();
-    JSRetainPtr<JSStringRef> documentURI();
     JSRetainPtr<JSStringRef> url();
     JSRetainPtr<JSStringRef> classList() const;
     JSRetainPtr<JSStringRef> embeddedImageDescription() const;
@@ -418,6 +417,7 @@ public:
     bool isInDescriptionListTerm() const;
 
     bool hasContainedByFieldsetTrait();
+    bool hasTextEntryTrait();
     RefPtr<AccessibilityUIElement> fieldsetAncestorElement();
 
     bool isIsolatedObject() const;

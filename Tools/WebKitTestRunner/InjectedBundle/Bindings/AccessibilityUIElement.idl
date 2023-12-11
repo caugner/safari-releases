@@ -30,10 +30,6 @@
     readonly attribute DOMString domIdentifier;
     readonly attribute boolean isIsolatedObject;
 
-    // Document information
-    readonly attribute DOMString documentEncoding;
-    readonly attribute DOMString documentURI;
-
     // Element access.
     AccessibilityUIElement elementAtPoint(long x, long y);
     AccessibilityUIElement childAtIndex(unsigned long index);
@@ -61,6 +57,7 @@
     readonly attribute DOMString liveRegionRelevant;
     readonly attribute DOMString liveRegionStatus;
     readonly attribute DOMString orientation;
+    readonly attribute unsigned long numberOfCharacters;
     readonly attribute long insertionPointLineNumber;
     readonly attribute DOMString selectedTextRange;
     readonly attribute DOMString textInputMarkedRange;
@@ -312,6 +309,7 @@
     readonly attribute boolean isInDescriptionListTerm;
 
     readonly attribute boolean hasContainedByFieldsetTrait;
+    readonly attribute boolean hasTextEntryTrait;
     AccessibilityUIElement fieldsetAncestorElement();
     AccessibilityUIElement focusableAncestor();
     AccessibilityUIElement editableAncestor();

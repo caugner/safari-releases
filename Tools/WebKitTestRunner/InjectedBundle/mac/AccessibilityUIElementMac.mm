@@ -1003,6 +1003,16 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::valueDescription()
     return nullptr;
 }
 
+unsigned AccessibilityUIElement::numberOfCharacters() const
+{
+    BEGIN_AX_OBJC_EXCEPTIONS
+    auto value = attributeValue(NSAccessibilityNumberOfCharactersAttribute);
+    if ([value isKindOfClass:[NSNumber class]])
+        return [(NSNumber *)value unsignedIntValue];
+    END_AX_OBJC_EXCEPTIONS
+    return 0;
+}
+
 int AccessibilityUIElement::insertionPointLineNumber()
 {
     BEGIN_AX_OBJC_EXCEPTIONS
@@ -1509,7 +1519,7 @@ void AccessibilityUIElement::scrollToGlobalPoint(int x, int y)
 {
     NSPoint point = NSMakePoint(x, y);
     BEGIN_AX_OBJC_EXCEPTIONS
-    s_controller->executeOnAXThread([&point, this] {
+    s_controller->executeOnAXThread([point, this] {
         [m_element _accessibilityScrollToGlobalPoint:point];
     });
     END_AX_OBJC_EXCEPTIONS
@@ -1519,7 +1529,7 @@ void AccessibilityUIElement::scrollToMakeVisibleWithSubFocus(int x, int y, int w
 {
     NSRect rect = NSMakeRect(x, y, width, height);
     BEGIN_AX_OBJC_EXCEPTIONS
-    s_controller->executeOnAXThread([&rect, this] {
+    s_controller->executeOnAXThread([rect, this] {
         [m_element _accessibilityScrollToMakeVisibleWithSubFocus:rect];
     });
     END_AX_OBJC_EXCEPTIONS
@@ -1650,22 +1660,6 @@ void AccessibilityUIElement::clearSelectedChildren() const
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::accessibilityValue() const
 {
-    return createJSString();
-}
-
-JSRetainPtr<JSStringRef> AccessibilityUIElement::documentEncoding()
-{
-    if (auto result = stringAttributeValue(@"AXDocumentEncoding"))
-        return result;
-
-    return createJSString();
-}
-
-JSRetainPtr<JSStringRef> AccessibilityUIElement::documentURI()
-{
-    if (auto result = stringAttributeValue(@"AXDocumentURI"))
-        return result;
-
     return createJSString();
 }
 

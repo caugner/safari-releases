@@ -186,14 +186,11 @@ var propertyInfo = [
     ["onreset", "object"],
     ["onresize", "object"],
     ["onscroll", "object"],
-    ["onsearch", "object"],
     ["onselect", "object"],
     ["onsubmit", "object"],
     ["onunload", "object"],
     ["opener", "object"],
 
-    ["defaultStatus", "string"],
-    ["defaultstatus", "string"],
     ["name", "string"],
     ["status", "string"],
 

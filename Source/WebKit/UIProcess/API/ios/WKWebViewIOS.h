@@ -184,6 +184,8 @@ class VisibleContentRectUpdateInfo;
 
 - (UIColor *)_insertionPointColor;
 
+- (BOOL)_tryToHandleKeyEventInCustomContentView:(UIPressesEvent *)event;
+
 @property (nonatomic, readonly) WKPasswordView *_passwordView;
 @property (nonatomic, readonly) WKWebViewContentProviderRegistry *_contentProviderRegistry;
 @property (nonatomic, readonly) WKSelectionGranularity _selectionGranularity;

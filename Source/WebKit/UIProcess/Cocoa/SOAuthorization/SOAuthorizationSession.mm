@@ -28,6 +28,7 @@
 
 #if HAVE(APP_SSO)
 
+#import "APIFrameHandle.h"
 #import "APIHTTPCookieStore.h"
 #import "APINavigation.h"
 #import "APINavigationAction.h"

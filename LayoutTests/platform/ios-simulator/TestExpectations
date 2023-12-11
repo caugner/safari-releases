@@ -72,6 +72,10 @@ imported/w3c/web-platform-tests/html/canvas/offscreen/wide-gamut-canvas/2d.color
 imported/w3c/web-platform-tests/webcodecs/videoFrame-createImageBitmap.any.worker.html [ Failure ]
 imported/w3c/web-platform-tests/webcodecs/videoFrame-drawImage.any.worker.html [ Failure ]
 
+# Missing required low latency H264 support.
+webkit.org/b/263112 imported/w3c/web-platform-tests/webcodecs/temporal-svc-encoding.https.any.worker.html?h264 [ Failure ]
+webkit.org/b/263112 imported/w3c/web-platform-tests/webcodecs/temporal-svc-encoding.https.any.html?h264 [ Failure ]
+
 # Imported css-text test suite from WPT
 webkit.org/b/183258 imported/w3c/web-platform-tests/css/css-text/white-space/textarea-pre-wrap-001.html [ ImageOnlyFailure ]
 webkit.org/b/183258 imported/w3c/web-platform-tests/css/css-text/white-space/textarea-pre-wrap-002.html [ ImageOnlyFailure ]
@@ -136,6 +140,9 @@ http/tests/media/fairplay [ Skip ]
 webkit.org/b/254805 webgl/1.0.x/conformance/rendering/blending.html [ Failure ]
 webkit.org/b/237415 webgl/1.0.x/conformance/rendering/clipping-wide-points.html [ Pass Failure ]
 webkit.org/b/254805 webgl/2.0.y/conformance/rendering/blending.html [ Failure ]
+webkit.org/b/261270 webgl/2.0.y/conformance2/extensions/webgl-stencil-texturing.html [ Failure Pass ]
 
 # Failure for CSS tables
 imported/w3c/web-platform-tests/css/css-tables/subpixel-collapsed-borders-003.html [ ImageOnlyFailure ]
+
+webkit.org/b/259506 imported/blink/fast/text/international/inline-block-with-mixed-direction-words.html [ ImageOnlyFailure ]
