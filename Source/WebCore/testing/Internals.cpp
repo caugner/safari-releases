@@ -2145,6 +2145,14 @@ ExceptionOr<void> Internals::setViewBaseBackgroundColor(const String& colorValue
     return Exception { SyntaxError };
 }
 
+ExceptionOr<String> Internals::documentBackgroundColor()
+{
+    Document* document = contextDocument();
+    if (!document || !document->view())
+        return Exception { InvalidAccessError };
+    return serializationForCSS(document->view()->documentBackgroundColor());
+}
+
 ExceptionOr<void> Internals::setPagination(const String& mode, int gap, int pageLength)
 {
     Document* document = contextDocument();
@@ -3793,6 +3801,16 @@ void Internals::setMockVideoPresentationModeEnabled(bool enabled)
     document->page()->chrome().client().setMockVideoPresentationModeEnabled(enabled);
 }
 #endif
+
+void Internals::setCanvasNoiseInjectionSalt(HTMLCanvasElement& element, unsigned long long salt)
+{
+    return element.setNoiseInjectionSalt(salt);
+}
+
+bool Internals::doesCanvasHavePendingCanvasNoiseInjection(HTMLCanvasElement& element) const
+{
+    return element.havePendingCanvasNoiseInjection();
+}
 
 void Internals::setApplicationCacheOriginQuota(unsigned long long quota)
 {

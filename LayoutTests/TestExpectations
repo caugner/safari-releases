@@ -3426,6 +3426,7 @@ webkit.org/b/172864 imported/blink/storage/indexeddb/blob-delete-objectstore-db.
 webkit.org/b/187183 http/tests/security/pasteboard-file-url.html [ Skip ]
 
 [ Debug ] fast/multicol/crash-in-vertical-writing-mode.html [ Skip ]
+[ Debug ] fast/multicol/last-set-crash.html [ Skip ]
 
 webkit.org/b/202805 [ Debug ] fast/multicol/fragflow-gains-new-in-flow-descendant-crash.html [ Skip ]
 
@@ -5346,6 +5347,9 @@ webkit.org/b/239959 ipc/stream-sync-crash-no-timeout.html [ Skip ]
 # The test invokes random messages, potentially produces random results.
 ipc/start-message-testing.html [ Skip ]
 
+# Test is slow
+ipc/invalid-fullscreen-enum.html [ Pass Timeout ]
+
 # Test is crashing in Debug builds since import.
 webkit.org/b/234977 [ Debug ] imported/w3c/web-platform-tests/dom/events/focus-event-document-move.html [ Skip ]
 
@@ -5453,8 +5457,8 @@ webkit.org/b/245080 fast/text/whitespace/nowrap-clear-float.html [ Failure ]
 webkit.org/b/255255 fast/text/text-underline-vertical-first-line-decoration.html [ ImageOnlyFailure ]
 webkit.org/b/255287 fast/block/lineboxcontain/inline-box-vertical.html [ Failure ]
 
-# This is marked as passing on WK2.
-fast/canvas/large-getImageData.html [ Skip ]
+# This should fail, but it flakey-passes, so skipping now.
+fast/canvas/canvas-noise-injection.html [ Skip ]
 
 webkit.org/b/237108 http/tests/websocket/tests/hybi/extensions.html [ Failure ]
 webkit.org/b/237108 http/tests/websocket/tests/hybi/deflate-frame-parameter.html [ Failure ] # <rdar://33630526>
@@ -6689,3 +6693,5 @@ imported/w3c/web-platform-tests/dom/events/scrolling/overscroll-deltas.html [ Sk
 imported/w3c/web-platform-tests/dom/events/scrolling/scrollend-event-fired-to-document.html [ Skip ]
 imported/w3c/web-platform-tests/dom/events/scrolling/scrollend-event-not-fired-on-no-scroll.html [ Skip ]
 imported/w3c/web-platform-tests/dom/events/scrolling/input-text-scroll-event-when-using-arrow-keys.html [ Skip ]
+
+webkit.org/b/264830 [ Debug ] fast/rendering/render-list-marker-select.html [ Skip ]

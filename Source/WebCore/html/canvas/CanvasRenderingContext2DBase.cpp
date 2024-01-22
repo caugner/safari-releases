@@ -1051,16 +1051,16 @@ void CanvasRenderingContext2DBase::clip(Path2D& path, CanvasFillRule windingRule
     clipInternal(path.path(), windingRule);
 }
 
-static inline IntRect computeImageDataRect(const ImageBuffer& buffer, int width, int height, IntRect& destRect, const IntSize& destOffset)
+static inline IntRect computeImageDataRect(const ImageBuffer& buffer, IntSize sourceSize, IntRect& destRect, IntPoint destOffset)
 {
-    destRect.intersect(IntRect { 0, 0, width, height });
-    destRect.move(destOffset);
+    destRect.intersect(IntRect { { }, sourceSize });
+    destRect.moveBy(destOffset);
     destRect.intersect(IntRect { { }, buffer.truncatedLogicalSize() });
     if (destRect.isEmpty())
         return destRect;
     IntRect sourceRect { destRect };
-    sourceRect.move(-destOffset);
-    sourceRect.intersect(IntRect { 0, 0, width, height });
+    sourceRect.moveBy(-destOffset);
+    sourceRect.intersect(IntRect { { }, sourceSize });
     return sourceRect;
 }
 
@@ -1263,7 +1263,7 @@ void CanvasRenderingContext2DBase::clearRect(double x, double y, double width, d
     context->clearRect(rect);
     if (saved)
         context->restore();
-    didDraw(rect);
+    didDraw(rect, defaultDidDrawOptionsWithoutPostProcessing());
 }
 
 void CanvasRenderingContext2DBase::fillRect(double x, double y, double width, double height)
@@ -1604,6 +1604,7 @@ ExceptionOr<void> CanvasRenderingContext2DBase::drawImage(WebCodecsVideoFrame& f
 
     auto normalizedDstRect = normalizeRect(dstRect);
     bool repaintEntireCanvas = rectContainsCanvas(normalizedDstRect);
+    // FIXME: Can we avoid post-processing in any cases?
     didDraw(repaintEntireCanvas, normalizedDstRect);
 
     return { };
@@ -1646,6 +1647,7 @@ ExceptionOr<void> CanvasRenderingContext2DBase::drawImage(Document& document, Ca
         return { };
 
     auto observer = image->imageObserver();
+    auto shouldPostProcess { true };
 
     if (image->drawsSVGImage()) {
         image->setImageObserver(nullptr);
@@ -1660,6 +1662,7 @@ ExceptionOr<void> CanvasRenderingContext2DBase::drawImage(Document& document, Ca
                 return { };
         }
         downcast<BitmapImage>(*image).updateFromSettings(document.settings());
+        shouldPostProcess = false;
     }
 
     ImagePaintingOptions options = { op, blendMode, orientation };
@@ -1678,7 +1681,7 @@ ExceptionOr<void> CanvasRenderingContext2DBase::drawImage(Document& document, Ca
     } else
         c->drawImage(*image, normalizedDstRect, normalizedSrcRect, options);
 
-    didDraw(repaintEntireCanvas, normalizedDstRect);
+    didDraw(repaintEntireCanvas, normalizedDstRect, shouldPostProcess ? defaultDidDrawOptions() : defaultDidDrawOptionsWithoutPostProcessing());
 
     if (image->drawsSVGImage())
         image->setImageObserver(WTFMove(observer));
@@ -1744,7 +1747,7 @@ ExceptionOr<void> CanvasRenderingContext2DBase::drawImage(CanvasBase& sourceCanv
     } else
         c->drawImageBuffer(*buffer, normalizedDstRect, normalizedSrcRect, { state().globalComposite, state().globalBlend });
 
-    didDraw(repaintEntireCanvas, normalizedDstRect);
+    didDraw(repaintEntireCanvas, normalizedDstRect, defaultDidDrawOptionsWithoutPostProcessing());
 
     return { };
 }
@@ -1785,7 +1788,7 @@ ExceptionOr<void> CanvasRenderingContext2DBase::drawImage(HTMLVideoElement& vide
         if (auto image = video.nativeImageForCurrentTime()) {
             c->drawNativeImage(*image, FloatSize(video.videoWidth(), video.videoHeight()), normalizedDstRect, normalizedSrcRect);
 
-            didDraw(repaintEntireCanvas, normalizedDstRect);
+            didDraw(repaintEntireCanvas, normalizedDstRect, defaultDidDrawOptionsWithoutPostProcessing());
 
             return { };
         }
@@ -1800,7 +1803,7 @@ ExceptionOr<void> CanvasRenderingContext2DBase::drawImage(HTMLVideoElement& vide
     video.paintCurrentFrameInContext(*c, FloatRect(FloatPoint(), size(video)));
     stateSaver.restore();
 
-    didDraw(repaintEntireCanvas, normalizedDstRect);
+    didDraw(repaintEntireCanvas, normalizedDstRect, defaultDidDrawOptionsWithoutPostProcessing());
 
     return { };
 }
@@ -1848,7 +1851,7 @@ ExceptionOr<void> CanvasRenderingContext2DBase::drawImage(ImageBitmap& imageBitm
     } else
         c->drawImageBuffer(*buffer, dstRect, srcRect, { state().globalComposite, state().globalBlend });
 
-    didDraw(repaintEntireCanvas, dstRect);
+    didDraw(repaintEntireCanvas, dstRect, defaultDidDrawOptionsWithoutPostProcessing());
 
     return { };
 }
@@ -2189,9 +2192,9 @@ ExceptionOr<RefPtr<CanvasPattern>> CanvasRenderingContext2DBase::createPattern(C
     return Exception { TypeError };
 }
 
-void CanvasRenderingContext2DBase::didDrawEntireCanvas()
+void CanvasRenderingContext2DBase::didDrawEntireCanvas(OptionSet<DidDrawOption> options)
 {
-    didDraw(backingStoreBounds(), { DidDrawOption::ApplyClip, DidDrawOption::ApplyPostProcessing });
+    didDraw(backingStoreBounds(), options);
 }
 
 void CanvasRenderingContext2DBase::didDraw(std::optional<FloatRect> rect, OptionSet<DidDrawOption> options)
@@ -2202,8 +2205,10 @@ void CanvasRenderingContext2DBase::didDraw(std::optional<FloatRect> rect, Option
     if (!drawingContext())
         return;
 
+    auto shouldApplyPostProcessing = options.contains(DidDrawOption::ApplyPostProcessing) ? ShouldApplyPostProcessingToDirtyRect::Yes : ShouldApplyPostProcessingToDirtyRect::No;
+
     if (!rect) {
-        canvasBase().didDraw(std::nullopt);
+        canvasBase().didDraw(std::nullopt, shouldApplyPostProcessing);
         return;
     }
 
@@ -2226,31 +2231,33 @@ void CanvasRenderingContext2DBase::didDraw(std::optional<FloatRect> rect, Option
     }
 
     // FIXME: This does not apply the clip because we have no way of reading the clip out of the GraphicsContext.
-
     if (m_dirtyRect.contains(dirtyRect))
-        canvasBase().didDraw(std::nullopt);
+        canvasBase().didDraw(std::nullopt, shouldApplyPostProcessing);
     else {
         m_dirtyRect.unite(dirtyRect);
-        canvasBase().didDraw(m_dirtyRect, options.contains(DidDrawOption::ApplyPostProcessing) ? ShouldApplyPostProcessingToDirtyRect::Yes : ShouldApplyPostProcessingToDirtyRect::No);
+        canvasBase().didDraw(m_dirtyRect, shouldApplyPostProcessing);
     }
 }
 
-void CanvasRenderingContext2DBase::didDraw(bool entireCanvas, const FloatRect& rect)
+void CanvasRenderingContext2DBase::didDraw(bool entireCanvas, const FloatRect& rect, OptionSet<DidDrawOption> options)
 {
     return didDraw(entireCanvas, [&] {
         return rect;
-    });
+    }, options);
 }
 
 template<typename RectProvider>
-void CanvasRenderingContext2DBase::didDraw(bool entireCanvas, RectProvider rectProvider)
+void CanvasRenderingContext2DBase::didDraw(bool entireCanvas, RectProvider rectProvider, OptionSet<DidDrawOption> options)
 {
     if (isEntireBackingStoreDirty())
-        didDraw(std::nullopt);
-    else if (entireCanvas)
-        didDrawEntireCanvas();
-    else
-        didDraw(rectProvider());
+        didDraw(std::nullopt, options);
+    else if (entireCanvas) {
+        OptionSet<DidDrawOption> didDrawEntireCanvasOptions { DidDrawOption::ApplyClip };
+        if (options.contains(DidDrawOption::ApplyPostProcessing))
+            didDrawEntireCanvasOptions.add(DidDrawOption::ApplyPostProcessing);
+        didDrawEntireCanvas(didDrawEntireCanvasOptions);
+    } else
+        didDraw(rectProvider(), options);
 }
 
 void CanvasRenderingContext2DBase::clearAccumulatedDirtyRect()
@@ -2335,72 +2342,65 @@ ExceptionOr<Ref<ImageData>> CanvasRenderingContext2DBase::createImageData(int sw
     return imageData;
 }
 
-static void roundTripThroughPremultipliedRepresentationForQuantization(unsigned bytesPerRow, uint8_t* data, const IntSize& size)
-{
-    ConstPixelBufferConversionView source {
-        .format = {
-            .alphaFormat = AlphaPremultiplication::Unpremultiplied,
-            .pixelFormat = PixelFormat::RGBA8,
-            .colorSpace = DestinationColorSpace::SRGB(),
-        },
-        .bytesPerRow = bytesPerRow,
-        .rows = data,
-    };
-    PixelBufferConversionView destination {
-        .format = {
-            .alphaFormat = AlphaPremultiplication::Premultiplied,
-            .pixelFormat = PixelFormat::RGBA8,
-            .colorSpace = DestinationColorSpace::SRGB(),
-        },
-        .bytesPerRow = bytesPerRow,
-        .rows = data,
-    };
-    convertImagePixels(source, destination, size);
-
-    source.format.alphaFormat = AlphaPremultiplication::Premultiplied;
-    destination.format.alphaFormat = AlphaPremultiplication::Unpremultiplied;
-    convertImagePixels(source, destination, size);
-}
-
 void CanvasRenderingContext2DBase::evictCachedImageData()
 {
     if (m_cachedImageData)
-        m_cachedImageData->imageData = nullptr;
+        m_cachedImageData = std::nullopt;
 }
 
-CanvasRenderingContext2DBase::CachedImageData::CachedImageData(CanvasRenderingContext2DBase& context)
-    : evictionTimer(context, &CanvasRenderingContext2DBase::evictCachedImageData, 5_s)
+CanvasRenderingContext2DBase::CachedImageData::CachedImageData(CanvasRenderingContext2DBase& context, Ref<ByteArrayPixelBuffer> imageData)
+    : imageData(WTFMove(imageData))
+    , evictionTimer(context, &CanvasRenderingContext2DBase::evictCachedImageData, 5_s)
 {
 }
 
-static constexpr unsigned minimumConsecutiveCachedImageDataRequestsBeforeCaching = 2;
 static constexpr unsigned imageDataSizeThresholdForCaching = 60 * 60;
 
-bool CanvasRenderingContext2DBase::cacheImageDataIfPossible(ImageData& data, const IntPoint& destinationPosition, const IntRect& sourceRect)
+RefPtr<ByteArrayPixelBuffer> CanvasRenderingContext2DBase::cacheImageDataIfPossible(const ImageData& imageData, const IntRect& sourceRect, const IntPoint& destinationPosition)
 {
-    if (!destinationPosition.isZero() || !sourceRect.location().isZero() || sourceRect.size() != data.size() || sourceRect.size() != canvasBase().size())
-        return false;
+    if (!destinationPosition.isZero() || !sourceRect.location().isZero() || sourceRect.size() != imageData.size() || sourceRect.size() != canvasBase().size())
+        return nullptr;
 
-    if (data.colorSpace() != m_settings.colorSpace)
-        return false;
+    auto size = imageData.size();
+    if (size.area() > imageDataSizeThresholdForCaching)
+        return nullptr;
 
-    if (data.size().area() > imageDataSizeThresholdForCaching)
-        return false;
+    if (imageData.colorSpace() != m_settings.colorSpace)
+        return nullptr;
 
-    if (m_cachedImageData) {
-        if (++m_cachedImageData->requestCount >= minimumConsecutiveCachedImageDataRequestsBeforeCaching) {
-            m_cachedImageData->imageData = data.clone();
-            m_cachedImageData->evictionTimer.restart();
-        }
-    } else
-        m_cachedImageData.emplace(*this);
+    // Consider:
+    //   * Real putImageData needs premultiply step.
+    //   * Retrieve from cache needs to ensure premultiply + unpremultiply was made to simulate the real putImageData.
+    //   * Caching needs at least a memcpy here.
+    // Instead of doing the plain memcpy, copy by doing premultiply here.
+    // This computation can be used for cache retrieval as well as the real putImageData.
+    // We're not doing RGBA -> BGRA swizzle here, as that is not needed for cache retrieval and
+    // the swizzle copy can be made at the putImageData copy site.
+    auto colorSpace = toDestinationColorSpace(imageData.colorSpace());
+    unsigned bytesPerRow = static_cast<unsigned>(size.width()) * 4u;
+    PixelBufferFormat cachedFormat { AlphaPremultiplication::Premultiplied, PixelFormat::RGBA8, colorSpace };
+    auto cachedBuffer = ByteArrayPixelBuffer::tryCreate(cachedFormat, size);
+    if (!cachedBuffer)
+        return nullptr;
+    ConstPixelBufferConversionView source {
+        .format = { AlphaPremultiplication::Unpremultiplied, PixelFormat::RGBA8, colorSpace },
+        .bytesPerRow = bytesPerRow,
+        .rows = imageData.data().data(),
+    };
+    PixelBufferConversionView destination {
+        .format = cachedFormat,
+        .bytesPerRow = bytesPerRow,
+        .rows = cachedBuffer->data().data(),
+    };
+    convertImagePixels(source, destination, size);
 
-    return true;
+    m_cachedImageData.emplace(*this, *cachedBuffer);
+    return cachedBuffer;
 }
 
 RefPtr<ImageData> CanvasRenderingContext2DBase::takeCachedImageDataIfPossible(const IntRect& sourceRect, PredefinedColorSpace colorSpace) const
 {
-    if (!m_cachedImageData || !m_cachedImageData->imageData)
+    if (!m_cachedImageData)
         return nullptr;
 
     if (sourceRect != IntRect { { }, canvasBase().size() })
@@ -2412,14 +2412,23 @@ RefPtr<ImageData> CanvasRenderingContext2DBase::takeCachedImageDataIfPossible(co
     if (colorSpace != m_settings.colorSpace)
         return nullptr;
 
-    ++m_cachedImageData->requestCount;
-
-    RefPtr result = m_cachedImageData->imageData.releaseNonNull();
-
-    if (result)
-        roundTripThroughPremultipliedRepresentationForQuantization(static_cast<unsigned>(result->size().width() * 4), result->data().data(), result->size());
-
-    return result;
+    Ref pixelBuffer = WTFMove(m_cachedImageData->imageData);
+    m_cachedImageData = std::nullopt;
+    auto size = pixelBuffer->size();
+    auto data = pixelBuffer->takeData();
+    unsigned bytesPerRow = static_cast<unsigned>(size.width()) * 4u;
+    ConstPixelBufferConversionView source {
+        .format = pixelBuffer->format(),
+        .bytesPerRow = bytesPerRow,
+        .rows = data->data(),
+    };
+    PixelBufferConversionView destination {
+        .format = { AlphaPremultiplication::Unpremultiplied, PixelFormat::RGBA8, pixelBuffer->format().colorSpace },
+        .bytesPerRow = bytesPerRow,
+        .rows = data->data(),
+    };
+    convertImagePixels(source, destination, size);
+    return ImageData::create(size, WTFMove(data), m_settings.colorSpace);
 }
 
 ExceptionOr<Ref<ImageData>> CanvasRenderingContext2DBase::getImageData(int sx, int sy, int sw, int sh, std::optional<ImageDataSettings> settings) const
@@ -2449,7 +2458,7 @@ ExceptionOr<Ref<ImageData>> CanvasRenderingContext2DBase::getImageData(int sx, i
     if (auto imageData = takeCachedImageDataIfPossible({ sx, sy, sw, sh }, computedColorSpace))
         return imageData.releaseNonNull();
     if (m_cachedImageData)
-        m_cachedImageData->imageData = nullptr;
+        m_cachedImageData = std::nullopt;
 
     canvasBase().makeRenderingResultsAvailable();
     ImageBuffer* buffer = canvasBase().buffer();
@@ -2497,20 +2506,19 @@ void CanvasRenderingContext2DBase::putImageData(ImageData& data, int dx, int dy,
         dirtyHeight = -dirtyHeight;
     }
 
-    IntSize destOffset { dx, dy };
+    IntPoint destOffset { dx, dy };
     IntRect destRect { dirtyX, dirtyY, dirtyWidth, dirtyHeight };
-    // FIXME: computeImageDataRect also updates destRect. Maybe return a tuple? Or move
-    // the calculation of the real destRect to here.
-    IntRect sourceRect = computeImageDataRect(*buffer, data.width(), data.height(), destRect, destOffset);
-
-    if (!sourceRect.isEmpty())
-        buffer->putPixelBuffer(data.pixelBuffer(), sourceRect, IntPoint { destOffset });
+    IntRect sourceRect = computeImageDataRect(*buffer, data.size(), destRect, destOffset);
 
     OptionSet<DidDrawOption> options; // ignore transform, shadow, clip, and post-processing
-
-    if (cacheImageDataIfPossible(data, { dx, dy }, sourceRect))
-        options.add(DidDrawOption::PreserveCachedImageData);
-
+    if (!sourceRect.isEmpty()) {
+        auto pixelBuffer = cacheImageDataIfPossible(data, sourceRect, destOffset);
+        if (pixelBuffer)
+            options.add(DidDrawOption::PreserveCachedImageData);
+        else
+            pixelBuffer = data.pixelBuffer();
+        buffer->putPixelBuffer(*pixelBuffer, sourceRect, destOffset);
+    }
     didDraw(FloatRect { destRect }, options);
 }
 

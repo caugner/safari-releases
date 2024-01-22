@@ -1904,11 +1904,17 @@ Color CaretBase::computeCaretColor(const RenderStyle& elementStyle, const Node* 
     // On iOS, we want to fall back to the tintColor, and only override if CSS has explicitly specified a custom color.
 #if PLATFORM(IOS_FAMILY) && !PLATFORM(MACCATALYST)
     UNUSED_PARAM(node);
-    if (elementStyle.hasAutoCaretColor() && !elementStyle.hasExplicitlySetColor())
+    if (elementStyle.hasAutoCaretColor())
         return { };
     return elementStyle.colorResolvingCurrentColor(elementStyle.caretColor());
 #elif HAVE(REDESIGNED_TEXT_CURSOR)
-    if (elementStyle.hasAutoCaretColor() && !elementStyle.hasExplicitlySetColor()) {
+#if HAVE(APP_ACCENT_COLORS) && PLATFORM(MAC)
+    auto appUsesCustomAccentColor = node && node->document().page() && node->document().page()->appUsesCustomAccentColor();
+#else
+    auto appUsesCustomAccentColor = false;
+#endif
+
+    if (elementStyle.hasAutoCaretColor() && (!elementStyle.hasExplicitlySetColor() || appUsesCustomAccentColor)) {
 #if PLATFORM(MAC)
         auto cssColorValue = CSSValueAppleSystemControlAccent;
 #else

@@ -964,6 +964,9 @@ WebPage::WebPage(PageIdentifier pageID, WebPageCreationParameters&& parameters)
 
 #if HAVE(APP_ACCENT_COLORS)
     setAccentColor(parameters.accentColor);
+#if PLATFORM(MAC)
+    setAppUsesCustomAccentColor(parameters.appUsesCustomAccentColor);
+#endif
 #endif
 
     m_needsFontAttributes = parameters.needsFontAttributes;
@@ -1211,6 +1214,9 @@ void WebPage::reinitializeWebPage(WebPageCreationParameters&& parameters)
 
 #if HAVE(APP_ACCENT_COLORS)
     setAccentColor(parameters.accentColor);
+#if PLATFORM(MAC)
+    setAppUsesCustomAccentColor(parameters.appUsesCustomAccentColor);
+#endif
 #endif
 
     effectiveAppearanceDidChange(parameters.useDarkAppearance, parameters.useElevatedUserInterfaceLevel);
@@ -5490,9 +5496,9 @@ void WebPage::setMockCaptureDevicesInterrupted(bool isCameraInterrupted, bool is
 #endif // ENABLE(MEDIA_STREAM)
 
 #if ENABLE(ENCRYPTED_MEDIA)
-void WebPage::mediaKeySystemWasGranted(MediaKeySystemRequestIdentifier mediaKeySystemID, CompletionHandler<void()>&& completionHandler)
+void WebPage::mediaKeySystemWasGranted(MediaKeySystemRequestIdentifier mediaKeySystemID)
 {
-    m_mediaKeySystemPermissionRequestManager->mediaKeySystemWasGranted(mediaKeySystemID, WTFMove(completionHandler));
+    m_mediaKeySystemPermissionRequestManager->mediaKeySystemWasGranted(mediaKeySystemID);
 }
 
 void WebPage::mediaKeySystemWasDenied(MediaKeySystemRequestIdentifier mediaKeySystemID, String&& message)
@@ -8783,6 +8789,7 @@ void WebPage::generateTestReport(String&& message, String&& group)
 void WebPage::updateImageAnimationEnabled()
 {
     corePage()->setImageAnimationEnabled(WebProcess::singleton().imageAnimationEnabled());
+    corePage()->setSystemAllowsAnimationControls(!WebProcess::singleton().imageAnimationEnabled());
 }
 
 void WebPage::pauseAllAnimations(CompletionHandler<void()>&& completionHandler)

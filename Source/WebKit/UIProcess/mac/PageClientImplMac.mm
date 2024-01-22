@@ -120,9 +120,9 @@ void PageClientImpl::setImpl(WebViewImpl& impl)
     m_impl = impl;
 }
 
-std::unique_ptr<DrawingAreaProxy> PageClientImpl::createDrawingAreaProxy()
+std::unique_ptr<DrawingAreaProxy> PageClientImpl::createDrawingAreaProxy(WebProcessProxy& webProcessProxy)
 {
-    return m_impl->createDrawingAreaProxy();
+    return m_impl->createDrawingAreaProxy(webProcessProxy);
 }
 
 void PageClientImpl::setViewNeedsDisplay(const WebCore::Region&)
@@ -1042,6 +1042,24 @@ void PageClientImpl::makeViewBlank(bool makeBlank)
 WebCore::Color PageClientImpl::accentColor()
 {
     return WebCore::colorFromCocoaColor([NSApp _effectiveAccentColor]);
+}
+
+bool PageClientImpl::appUsesCustomAccentColor()
+{
+    static dispatch_once_t once;
+    static BOOL usesCustomAppAccentColor = NO;
+    dispatch_once(&once, ^{
+        NSBundle *bundleForAccentColor = [NSBundle mainBundle];
+        NSDictionary *info = [bundleForAccentColor infoDictionary];
+        NSString *accentColorName = info[@"NSAccentColorName"];
+        if ([accentColorName length])
+            usesCustomAppAccentColor = !![NSColor colorNamed:accentColorName bundle:bundleForAccentColor];
+
+        if (!usesCustomAppAccentColor && [(accentColorName = info[@"NSAppAccentColorName"]) length])
+            usesCustomAppAccentColor = !![NSColor colorNamed:accentColorName bundle:bundleForAccentColor];
+    });
+
+    return usesCustomAppAccentColor;
 }
 #endif
 

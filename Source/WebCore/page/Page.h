@@ -555,6 +555,8 @@ public:
     WEBCORE_EXPORT void setFullscreenAutoHideDuration(Seconds);
     WEBCORE_EXPORT void setFullscreenControlsHidden(bool);
 
+    Document* outermostFullscreenDocument() const;
+
     bool shouldSuppressScrollbarAnimations() const { return m_suppressScrollbarAnimations; }
     WEBCORE_EXPORT void setShouldSuppressScrollbarAnimations(bool suppressAnimations);
     void lockAllOverlayScrollbarsToHidden(bool lockOverlayScrollbars);
@@ -697,10 +699,12 @@ public:
 #if ENABLE(ACCESSIBILITY_ANIMATION_CONTROL)
     void updatePlayStateForAllAnimations();
     WEBCORE_EXPORT void setImageAnimationEnabled(bool);
+    WEBCORE_EXPORT void setSystemAllowsAnimationControls(bool isAllowed);
     void addIndividuallyPlayingAnimationElement(HTMLImageElement&);
     void removeIndividuallyPlayingAnimationElement(HTMLImageElement&);
 #endif
     bool imageAnimationEnabled() const { return m_imageAnimationEnabled; }
+    bool systemAllowsAnimationControls() const { return m_systemAllowsAnimationControls; }
 
     void userStyleSheetLocationChanged();
     const String& userStyleSheet() const;
@@ -763,6 +767,11 @@ public:
     WEBCORE_EXPORT Color themeColor() const;
     WEBCORE_EXPORT Color pageExtendedBackgroundColor() const;
     WEBCORE_EXPORT Color sampledPageTopColor() const;
+
+#if HAVE(APP_ACCENT_COLORS) && PLATFORM(MAC)
+    WEBCORE_EXPORT void setAppUsesCustomAccentColor(bool);
+    WEBCORE_EXPORT bool appUsesCustomAccentColor() const;
+#endif
 
     Color underPageBackgroundColorOverride() const { return m_underPageBackgroundColorOverride; }
     WEBCORE_EXPORT void setUnderPageBackgroundColorOverride(Color&&);
@@ -1225,6 +1234,7 @@ private:
 
     bool m_canStartMedia { true };
     bool m_imageAnimationEnabled { true };
+    bool m_systemAllowsAnimationControls { false };
     // Elements containing animations that are individually playing (potentially overriding the page-wide m_imageAnimationEnabled state).
     WeakHashSet<HTMLImageElement, WeakPtrImplWithEventTargetData> m_individuallyPlayingAnimationElements;
 
@@ -1431,6 +1441,10 @@ private:
     Ref<BadgeClient> m_badgeClient;
 
     HashMap<RegistrableDomain, uint64_t> m_noiseInjectionHashSalts;
+
+#if HAVE(APP_ACCENT_COLORS) && PLATFORM(MAC)
+    bool m_appUsesCustomAccentColor { false };
+#endif
 };
 
 inline PageGroup& Page::group()

@@ -4414,7 +4414,7 @@ class UploadFileToS3(shell.ShellCommandNewStyle, AddToLogMixin):
     flunkOnFailure = False
 
     def __init__(self, **kwargs):
-        super().__init__(timeout=6 * 60, logEnviron=False, **kwargs)
+        super().__init__(timeout=30 * 60, logEnviron=False, **kwargs)
 
     @defer.inlineCallbacks
     def run(self):
@@ -5907,7 +5907,7 @@ class UpdatePullRequest(shell.ShellCommandNewStyle, GitHubMixin, AddToLogMixin):
     def escape_html(cls, message):
         message = ''.join(cls.ESCAPE_TABLE.get(c, c) for c in message)
         message = re.sub(r'(https?://[^\s<>,:;]+?)(?=[\s<>,:;]|(&gt))', r'<a href="\1">\1</a>', message)
-        return re.sub(r'rdar://([^\s<>,:;]+?)(?=[\s<>,:;]|(&gt))', r'<a href="https://rdar.apple.com/\1">rdar://\1</a>', message)
+        return re.sub(r'rdar://([^\s<>,:;]+?)(?=[\s<>,:;().]|(&gt))', r'<a href="https://rdar.apple.com/\1">rdar://\1</a>', message)
 
     def __init__(self, **kwargs):
         super().__init__(logEnviron=False, timeout=300, **kwargs)

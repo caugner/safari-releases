@@ -53,6 +53,7 @@
 
 namespace WebCore {
 
+class ByteArrayPixelBuffer;
 class CachedImage;
 class CanvasGradient;
 class DOMMatrix;
@@ -327,11 +328,10 @@ protected:
 
 private:
     struct CachedImageData {
-        CachedImageData(CanvasRenderingContext2DBase&);
+        CachedImageData(CanvasRenderingContext2DBase&, Ref<ByteArrayPixelBuffer>);
 
-        RefPtr<ImageData> imageData;
+        Ref<ByteArrayPixelBuffer> imageData;
         DeferrableOneShotTimer evictionTimer;
-        unsigned requestCount = 0;
     };
 
     void applyLineDash() const;
@@ -346,10 +346,30 @@ private:
         ApplyPostProcessing = 1 << 3,
         PreserveCachedImageData = 1 << 4,
     };
-    void didDraw(std::optional<FloatRect>, OptionSet<DidDrawOption> = { DidDrawOption::ApplyTransform, DidDrawOption::ApplyShadow, DidDrawOption::ApplyClip, DidDrawOption::ApplyPostProcessing });
-    void didDrawEntireCanvas();
-    void didDraw(bool entireCanvas, const FloatRect&);
-    template<typename RectProvider> void didDraw(bool entireCanvas, RectProvider);
+
+    static constexpr OptionSet<DidDrawOption> defaultDidDrawOptions()
+    {
+        return {
+            DidDrawOption::ApplyTransform,
+            DidDrawOption::ApplyShadow,
+            DidDrawOption::ApplyClip,
+            DidDrawOption::ApplyPostProcessing,
+        };
+    }
+
+    static constexpr OptionSet<DidDrawOption> defaultDidDrawOptionsWithoutPostProcessing()
+    {
+        return {
+            DidDrawOption::ApplyTransform,
+            DidDrawOption::ApplyShadow,
+            DidDrawOption::ApplyClip,
+        };
+    }
+
+    void didDraw(std::optional<FloatRect>, OptionSet<DidDrawOption> = defaultDidDrawOptions());
+    void didDrawEntireCanvas(OptionSet<DidDrawOption> options = defaultDidDrawOptions());
+    void didDraw(bool entireCanvas, const FloatRect&, OptionSet<DidDrawOption> options = defaultDidDrawOptions());
+    template<typename RectProvider> void didDraw(bool entireCanvas, RectProvider, OptionSet<DidDrawOption> options = defaultDidDrawOptions());
 
     bool is2dBase() const final { return true; }
     void paintRenderingResultsToCanvas() override;
@@ -428,7 +448,7 @@ private:
 
     FloatPoint textOffset(float width, TextDirection);
 
-    bool cacheImageDataIfPossible(ImageData&, const IntPoint& destinationPosition, const IntRect& sourceRect);
+    RefPtr<ByteArrayPixelBuffer> cacheImageDataIfPossible(const ImageData&, const IntRect& sourceRect, const IntPoint& destinationPosition);
     RefPtr<ImageData> takeCachedImageDataIfPossible(const IntRect& sourceRect, PredefinedColorSpace) const;
     void evictCachedImageData();
 

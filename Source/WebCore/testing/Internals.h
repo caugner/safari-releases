@@ -349,6 +349,8 @@ public:
     ExceptionOr<String> viewBaseBackgroundColor();
     ExceptionOr<void> setViewBaseBackgroundColor(const String& colorValue);
 
+    ExceptionOr<String> documentBackgroundColor();
+
     ExceptionOr<void> setPagination(const String& mode, int gap, int pageLength);
     ExceptionOr<uint64_t> lineIndexAfterPageBreak(Element&);
     ExceptionOr<String> configurationForViewport(float devicePixelRatio, int deviceWidth, int deviceHeight, int availableWidth, int availableHeight);
@@ -616,6 +618,9 @@ public:
 #if ENABLE(VIDEO_PRESENTATION_MODE)
     void setMockVideoPresentationModeEnabled(bool);
 #endif
+
+    void setCanvasNoiseInjectionSalt(HTMLCanvasElement&, unsigned long long salt);
+    bool doesCanvasHavePendingCanvasNoiseInjection(HTMLCanvasElement&) const;
 
     WEBCORE_TESTSUPPORT_EXPORT void setApplicationCacheOriginQuota(unsigned long long);
 

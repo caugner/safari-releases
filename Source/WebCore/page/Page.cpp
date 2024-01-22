@@ -509,10 +509,31 @@ OptionSet<DisabledAdaptations> Page::disabledAdaptations() const
     return { };
 }
 
+static Document* viewportDocumentForFrame(const Frame& frame)
+{
+    auto* localFrame = dynamicDowncast<LocalFrame>(frame);
+    if (!localFrame)
+        return nullptr;
+
+    auto* document = localFrame->document();
+    if (!document)
+        return nullptr;
+
+    Page* page = localFrame->page();
+    if (!page)
+        return nullptr;
+
+    if (auto* fullscreenDocument = page->outermostFullscreenDocument())
+        return fullscreenDocument;
+
+    return document;
+}
+
 ViewportArguments Page::viewportArguments() const
 {
-    auto* localMainFrame = dynamicDowncast<LocalFrame>(mainFrame());
-    return localMainFrame && localMainFrame->document() ? localMainFrame->document()->viewportArguments() : ViewportArguments();
+    if (auto* document = viewportDocumentForFrame(mainFrame()))
+        return document->viewportArguments();
+    return ViewportArguments();
 }
 
 void Page::setOverrideViewportArguments(const std::optional<ViewportArguments>& viewportArguments)
@@ -2179,7 +2200,12 @@ void Page::setImageAnimationEnabled(bool enabled)
     updatePlayStateForAllAnimations();
     chrome().client().isAnyAnimationAllowedToPlayDidChange(enabled);
 }
-#endif
+
+void Page::setSystemAllowsAnimationControls(bool isAllowed)
+{
+    m_systemAllowsAnimationControls = isAllowed;
+}
+#endif // ENABLE(ACCESSIBILITY_ANIMATION_CONTROL)
 
 void Page::suspendScriptedAnimations()
 {
@@ -3061,6 +3087,18 @@ Color Page::sampledPageTopColor() const
     return valueOrDefault(m_sampledPageTopColor);
 }
 
+#if HAVE(APP_ACCENT_COLORS) && PLATFORM(MAC)
+void Page::setAppUsesCustomAccentColor(bool appUsesCustomAccentColor)
+{
+    m_appUsesCustomAccentColor = appUsesCustomAccentColor;
+}
+
+bool Page::appUsesCustomAccentColor() const
+{
+    return m_appUsesCustomAccentColor;
+}
+#endif
+
 void Page::setUnderPageBackgroundColorOverride(Color&& underPageBackgroundColorOverride)
 {
     if (underPageBackgroundColorOverride == m_underPageBackgroundColorOverride)
@@ -3782,6 +3820,33 @@ void Page::setFullscreenControlsHidden(bool hidden)
     });
 #else
     UNUSED_PARAM(hidden);
+#endif
+}
+
+Document* Page::outermostFullscreenDocument() const
+{
+#if ENABLE(FULLSCREEN_API)
+    auto localMainFrame = dynamicDowncast<LocalFrame>(m_mainFrame.get());
+    if (!localMainFrame)
+        return nullptr;
+
+    CheckedPtr<Document> outermostFullscreenDocument = nullptr;
+    CheckedPtr currentDocument = localMainFrame->document();
+    while (currentDocument) {
+        auto* fullscreenElement = currentDocument->fullscreenManager().fullscreenElement();
+        if (!fullscreenElement)
+            break;
+
+        outermostFullscreenDocument = currentDocument;
+        auto* fullscreenFrame = dynamicDowncast<HTMLFrameOwnerElement>(fullscreenElement);
+        if (!fullscreenFrame)
+            break;
+
+        currentDocument = fullscreenFrame->contentDocument();
+    }
+    return outermostFullscreenDocument.get();
+#else
+    return nullptr;
 #endif
 }
 
@@ -4541,7 +4606,7 @@ void Page::opportunisticallyRunIdleCallbacks()
 
 void Page::willChangeLocationInCompletelyLoadedSubframe()
 {
-    commonVM().heap.scheduleOpportunisticFullCollectionIfNeeded();
+    commonVM().heap.scheduleOpportunisticFullCollection();
 }
 
 void Page::performOpportunisticallyScheduledTasks(MonotonicTime deadline)
