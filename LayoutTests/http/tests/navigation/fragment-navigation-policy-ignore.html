@@ -5,18 +5,22 @@
 </head>
 <body>
 <script>
-description("Checks that the client can prevent a fragment navigation via the decidePolicyForNavigationAction delegate.");
+description("Checks that the client does not prevent a fragment navigation on modern WebKit via the decidePolicyForNavigationAction delegate when activated via JavaScript. The opposite it true for legacy WebKit.");
 jsTestIsAsync = true;
 
 if (window.testRunner) {
     testRunner.setCustomPolicyDelegate(true, false);
-    if (testRunner.skipPolicyDelegateNotifyDone) { testRunner.skipPolicyDelegateNotifyDone() }
+    if (testRunner.skipPolicyDelegateNotifyDone)
+        testRunner.skipPolicyDelegateNotifyDone()
 }
 
 onload = function() {
     location = "#test";
     setTimeout(function() {
-        shouldBeEqualToString("window.location.href", "http://127.0.0.1:8000/navigation/fragment-navigation-policy-ignore.html");
+        if (testRunner.isWebKit2)
+            shouldBeEqualToString("window.location.href", "http://127.0.0.1:8000/navigation/fragment-navigation-policy-ignore.html#test");
+        else
+            shouldBeEqualToString("window.location.href", "http://127.0.0.1:8000/navigation/fragment-navigation-policy-ignore.html");
         finishJSTest();
     }, 0);
 }

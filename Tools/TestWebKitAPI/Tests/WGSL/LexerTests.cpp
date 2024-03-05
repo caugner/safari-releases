@@ -28,9 +28,30 @@
 
 namespace TestWGSLAPI {
 
+class TestLexer : public WGSL::Lexer<LChar> {
+    using Base = WGSL::Lexer<LChar>;
+
+public:
+    TestLexer(const String& input)
+        : Base(input)
+        , m_tokens(Base::lex())
+    {
+    }
+
+    WGSL::Token lex()
+    {
+        return m_tokens[m_index++];
+    }
+
+private:
+    Vector<WGSL::Token> m_tokens;
+    unsigned m_index { 0 };
+};
+
+
 static WGSL::Token checkSingleToken(const String& string, WGSL::TokenType type)
 {
-    WGSL::Lexer<LChar> lexer(string);
+    TestLexer lexer(string);
     WGSL::Token result = lexer.lex();
     ASSERT(result.type == type);
     EXPECT_EQ(result.type, type);
@@ -43,8 +64,7 @@ static void checkSingleLiteral(const String& string, WGSL::TokenType type, doubl
     EXPECT_EQ(result.literalValue, literalValue);
 }
 
-template<typename T>
-static WGSL::Token checkNextTokenIs(WGSL::Lexer<T>& lexer, WGSL::TokenType type, unsigned lineNumber)
+static WGSL::Token checkNextTokenIs(TestLexer& lexer, WGSL::TokenType type, unsigned lineNumber)
 {
     WGSL::Token result = lexer.lex();
     EXPECT_EQ(result.type, type);
@@ -52,22 +72,19 @@ static WGSL::Token checkNextTokenIs(WGSL::Lexer<T>& lexer, WGSL::TokenType type,
     return result;
 }
 
-template<typename T>
-static void checkNextTokenIsIdentifier(WGSL::Lexer<T>& lexer, const String& ident, unsigned lineNumber)
+static void checkNextTokenIsIdentifier(TestLexer& lexer, const String& ident, unsigned lineNumber)
 {
     WGSL::Token result = checkNextTokenIs(lexer, WGSL::TokenType::Identifier, lineNumber);
     EXPECT_EQ(result.ident, ident);
 }
 
-template<typename T>
-static void checkNextTokenIsLiteral(WGSL::Lexer<T>& lexer, WGSL::TokenType type, double literalValue, unsigned lineNumber)
+static void checkNextTokenIsLiteral(TestLexer& lexer, WGSL::TokenType type, double literalValue, unsigned lineNumber)
 {
     WGSL::Token result = checkNextTokenIs(lexer, type, lineNumber);
     EXPECT_EQ(result.literalValue, literalValue);
 }
 
-template<typename T>
-static void checkNextTokensAreBuiltinAttr(WGSL::Lexer<T>& lexer, const String& attr, unsigned lineNumber)
+static void checkNextTokensAreBuiltinAttr(TestLexer& lexer, const String& attr, unsigned lineNumber)
 {
     checkNextTokenIs(lexer, WGSL::TokenType::Attribute, lineNumber);
     checkNextTokenIsIdentifier(lexer, "builtin"_s, lineNumber);
@@ -110,10 +127,9 @@ TEST(WGSLLexerTests, SingleTokens)
     checkSingleLiteral("042e0f"_s, TokenType::FloatLiteral, 42);
     checkSingleToken("042f"_s, TokenType::Invalid);
     checkSingleLiteral("0123.f"_s, TokenType::FloatLiteral, 123);
-    checkSingleLiteral(".456f"_s, TokenType::FloatLiteral, 0.456);
+    checkSingleLiteral(".456f"_s, TokenType::FloatLiteral, 0.456f);
     checkSingleLiteral("42e-3"_s, TokenType::AbstractFloatLiteral, 42e-3);
-    checkSingleLiteral("42e-3f"_s, TokenType::FloatLiteral, 42e-3);
-    checkSingleLiteral("42e-a"_s, TokenType::IntegerLiteral, 42);
+    checkSingleLiteral("42e-3f"_s, TokenType::FloatLiteral, 42e-3f);
 }
 
 TEST(WGSLLexerTests, KeywordTokens)
@@ -201,7 +217,7 @@ TEST(WGSLLexerTests, SpecialTokens)
 
 TEST(WGSLLexerTests, ComputeShader)
 {
-    WGSL::Lexer<LChar> lexer(
+    TestLexer lexer(
         "@block struct B {\n"
         "    a: i32,\n"
         "}\n"
@@ -289,7 +305,7 @@ TEST(WGSLLexerTests, ComputeShader)
 
 TEST(WGSLLexerTests, GraphicsShader)
 {
-    WGSL::Lexer<LChar> lexer(
+    TestLexer lexer(
         "@vertex\n"
         "fn vertexShader(@location(0) x: vec4<f32>) -> @builtin(position) vec4<f32> {\n"
         "    return x;\n"
@@ -394,7 +410,7 @@ TEST(WGSLLexerTests, GraphicsShader)
 
 TEST(WGSLLexerTests, TriangleVert)
 {
-    WGSL::Lexer<LChar> lexer(
+    TestLexer lexer(
         "@vertex\n"
         "fn main(\n"
         "    @builtin(vertex_index) VertexIndex : u32\n"

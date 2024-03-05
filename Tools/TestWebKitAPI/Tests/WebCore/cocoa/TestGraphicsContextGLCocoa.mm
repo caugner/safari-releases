@@ -129,7 +129,6 @@ static const int expectedDisplayBufferPoolSize = 3;
 
 static ::testing::AssertionResult changeContextContents(TestedGraphicsContextGLCocoa& context, int iteration)
 {
-    context.markContextChanged();
     WebCore::Color expected { iteration % 2 ? WebCore::Color::green : WebCore::Color::yellow };
     auto [r, g, b, a] = expected.toColorTypeLossy<WebCore::SRGBA<float>>().resolved();
     context.clearColor(r, g, b, a);
@@ -402,6 +401,7 @@ TEST_P(AnyContextAttributeTest, PrepareFailureWorks)
     auto context = createTestContext({ 20, 20 });
     ASSERT_NE(context, nullptr);
     context->setClient(&client);
+    EXPECT_TRUE(context->getErrors().isEmpty());
     ASSERT_TRUE(changeContextContents(*context, 0));
     EXPECT_TRUE(context->getErrors().isEmpty());
     context->simulateEventForTesting(WebCore::GraphicsContextGLSimulatedEventForTesting::DisplayBufferAllocationFailure);
@@ -439,7 +439,6 @@ TEST_P(AnyContextAttributeTest, FinishIsSignaled)
 {
     auto context = createTestContext({ 2048, 2048 });
     ASSERT_NE(context, nullptr);
-    context->markContextChanged();
     context->clearColor(0.f, 1.f, 0.f, 1.f);
     context->clear(WebCore::GraphicsContextGL::COLOR_BUFFER_BIT);
     std::atomic<bool> signalled = false;

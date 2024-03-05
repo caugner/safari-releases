@@ -75,6 +75,7 @@ typedef void (*AXPostedNotificationCallback)(id element, NSString* notification,
 - (void)_accessibilitySetValue:(NSString *)value;
 - (void)_accessibilitySetFocus:(BOOL)focus;
 - (BOOL)_accessibilityIsFocusedForTesting;
+- (BOOL)_accessibilityIsSwitch;
 - (void)_accessibilityActivate;
 - (UIAccessibilityTraits)_axSelectedTrait;
 - (UIAccessibilityTraits)_axTextAreaTrait;
@@ -129,6 +130,7 @@ typedef void (*AXPostedNotificationCallback)(id element, NSString* notification,
 - (BOOL)accessibilityIsFirstItemInSuggestion;
 - (BOOL)accessibilityIsLastItemInSuggestion;
 - (BOOL)accessibilityIsMarkAnnotation;
+- (BOOL)accessibilityIsInNonNativeTextControl;
 
 // TextMarker related
 - (NSArray *)textMarkerRange;
@@ -902,6 +904,11 @@ bool AccessibilityUIElement::isSearchField() const
     return ([m_element accessibilityTraits] & [m_element _axSearchFieldTrait]) == [m_element _axSearchFieldTrait];
 }
 
+bool AccessibilityUIElement::isSwitch() const
+{
+    return [m_element _accessibilityIsSwitch];
+}
+
 int AccessibilityUIElement::rowCount()
 {
     return [m_element accessibilityRowCount];
@@ -983,6 +990,11 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::selectedTextRange()
     NSRange range = [m_element _accessibilitySelectedTextRange];
     NSMutableString *rangeDescription = [NSMutableString stringWithFormat:@"{%lu, %lu}", static_cast<unsigned long>(range.location), static_cast<unsigned long>(range.length)];
     return [rangeDescription createJSStringRef];
+}
+
+JSRetainPtr<JSStringRef> AccessibilityUIElement::intersectionWithSelectionRange()
+{
+    return nullptr;
 }
 
 bool AccessibilityUIElement::setSelectedTextMarkerRange(AccessibilityTextMarkerRange*)
@@ -1517,6 +1529,11 @@ bool AccessibilityUIElement::isLastItemInSuggestion() const
 bool AccessibilityUIElement::isMarkAnnotation() const
 {
     return [m_element accessibilityIsMarkAnnotation];
+}
+
+bool AccessibilityUIElement::isInNonNativeTextControl() const
+{
+    return [m_element accessibilityIsInNonNativeTextControl];
 }
 
 } // namespace WTR

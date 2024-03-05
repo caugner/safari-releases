@@ -33,7 +33,7 @@
 #import "TestInvocation.h"
 #import "TestRunnerWKWebView.h"
 #import "TextInputSPI.h"
-#import "UIKitSPI.h"
+#import "UIKitSPIForTesting.h"
 #import "UIPasteboardConsistencyEnforcer.h"
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
@@ -348,11 +348,14 @@ bool TestController::platformResetStateToConsistentValues(const TestOptions& opt
         webView.usesSafariLikeRotation = NO;
         webView.overrideSafeAreaInsets = UIEdgeInsetsZero;
         [webView _clearOverrideLayoutParameters];
+        [webView _resetObscuredInsetsForTesting];
         [webView _clearInterfaceOrientationOverride];
         [webView setAllowedMenuActions:nil];
         webView._dragInteractionPolicy = dragInteractionPolicy(options);
         webView.focusStartsInputSessionPolicy = focusStartsInputSessionPolicy(options);
         webView.suppressInputAccessoryView = options.suppressInputAccessoryView();
+        webView.scrollView.showsVerticalScrollIndicator = options.showsScrollIndicators();
+        webView.scrollView.showsHorizontalScrollIndicator = options.showsScrollIndicators();
 
 #if HAVE(UIFINDINTERACTION)
         webView.findInteractionEnabled = options.findInteractionEnabled();
@@ -527,9 +530,9 @@ void TestController::setKeyboardInputModeIdentifier(const String& identifier)
 
     auto controllerClass = UIKeyboardInputModeController.class;
     m_inputModeSwizzlers.reserveCapacity(3);
-    m_inputModeSwizzlers.uncheckedAppend(makeUnique<InstanceMethodSwizzler>(controllerClass, @selector(currentInputMode), reinterpret_cast<IMP>(swizzleCurrentInputMode)));
-    m_inputModeSwizzlers.uncheckedAppend(makeUnique<InstanceMethodSwizzler>(controllerClass, @selector(currentInputModeInPreference), reinterpret_cast<IMP>(swizzleCurrentInputMode)));
-    m_inputModeSwizzlers.uncheckedAppend(makeUnique<InstanceMethodSwizzler>(controllerClass, @selector(activeInputModes), reinterpret_cast<IMP>(swizzleActiveInputModes)));
+    m_inputModeSwizzlers.append(makeUnique<InstanceMethodSwizzler>(controllerClass, @selector(currentInputMode), reinterpret_cast<IMP>(swizzleCurrentInputMode)));
+    m_inputModeSwizzlers.append(makeUnique<InstanceMethodSwizzler>(controllerClass, @selector(currentInputModeInPreference), reinterpret_cast<IMP>(swizzleCurrentInputMode)));
+    m_inputModeSwizzlers.append(makeUnique<InstanceMethodSwizzler>(controllerClass, @selector(activeInputModes), reinterpret_cast<IMP>(swizzleActiveInputModes)));
     [UIKeyboardImpl.sharedInstance prepareKeyboardInputModeFromPreferences:nil];
 }
 

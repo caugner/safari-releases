@@ -60,13 +60,6 @@ bool AccessibilityUIElement::isValid() const
 #endif
 }
 
-#if !ENABLE(ACCESSIBILITY_ISOLATED_TREE)
-bool AccessibilityUIElement::isIsolatedObject() const
-{
-    return false;
-}
-#endif
-
 // iOS specific methods
 #if !PLATFORM(IOS_FAMILY)
 JSRetainPtr<JSStringRef> AccessibilityUIElement::identifier() { return nullptr; }
@@ -87,6 +80,7 @@ bool AccessibilityUIElement::hasContainedByFieldsetTrait() { return false; }
 bool AccessibilityUIElement::hasTextEntryTrait() { return false; }
 RefPtr<AccessibilityUIElement> AccessibilityUIElement::fieldsetAncestorElement() { return nullptr; }
 bool AccessibilityUIElement::isSearchField() const { return false; }
+bool AccessibilityUIElement::isSwitch() const { return false; }
 bool AccessibilityUIElement::isTextArea() const { return false; }
 RefPtr<AccessibilityTextMarkerRange> AccessibilityUIElement::textMarkerRangeMatchesTextNearMarkers(JSStringRef, AccessibilityTextMarker*, AccessibilityTextMarker*) { return nullptr; }
 JSRetainPtr<JSStringRef> AccessibilityUIElement::attributedStringForElement() { return nullptr; }

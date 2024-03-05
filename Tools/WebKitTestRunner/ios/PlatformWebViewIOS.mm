@@ -28,7 +28,7 @@
 
 #import "TestController.h"
 #import "TestRunnerWKWebView.h"
-#import "UIKitSPI.h"
+#import "UIKitSPIForTesting.h"
 #import <WebKit/WKImageCG.h>
 #import <WebKit/WKPreferencesPrivate.h>
 #import <WebKit/WKSnapshotConfiguration.h>
@@ -176,7 +176,7 @@ static CGRect viewRectForWindowRect(CGRect, PlatformWebView::WebViewSizingMode);
         if (webView.usesSafariLikeRotation) {
             [webView _beginAnimatedResizeWithUpdates:^{
                 webView.frame = viewRectForWindowRect(self.view.bounds, WTR::PlatformWebView::WebViewSizingMode::HeightRespectsStatusBar);
-                [webView _overrideLayoutParametersWithMinimumLayoutSize:webView.frame.size maximumUnobscuredSizeOverride:webView.frame.size];
+                [webView _overrideLayoutParametersWithMinimumLayoutSize:webView.frame.size minimumUnobscuredSizeOverride:webView.frame.size maximumUnobscuredSizeOverride:webView.frame.size];
                 [webView _setInterfaceOrientationOverride:[[UIApplication sharedApplication] statusBarOrientation]];
             }];
         } else
@@ -407,17 +407,17 @@ RetainPtr<CGImageRef> PlatformWebView::windowSnapshotImage()
     Vector<WeakObjCPtr<UIView>, 3> viewsToUnhide;
     if (![selectionView isHidden]) {
         [selectionView setHidden:YES];
-        viewsToUnhide.uncheckedAppend(selectionView);
+        viewsToUnhide.append(selectionView);
     }
 
     if (![startGrabberView isHidden]) {
         [startGrabberView setHidden:YES];
-        viewsToUnhide.uncheckedAppend(startGrabberView);
+        viewsToUnhide.append(startGrabberView);
     }
 
     if (![endGrabberView isHidden]) {
         [endGrabberView setHidden:YES];
-        viewsToUnhide.uncheckedAppend(endGrabberView);
+        viewsToUnhide.append(endGrabberView);
     }
 #else
     UITextSelectionDisplayInteraction *interaction = [platformView().contentView valueForKeyPath:@"interactionAssistant._selectionViewManager"];

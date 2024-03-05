@@ -48,7 +48,7 @@ from webkitcorepy.null_context import NullContext
 from webkitcorepy.filtered_call import filtered_call
 from webkitcorepy.partial_proxy import PartialProxy
 
-version = Version(0, 16, 7)
+version = Version(0, 16, 8)
 
 from webkitcorepy.autoinstall import Package, AutoInstall
 if sys.version_info > (3, 0):
@@ -105,7 +105,11 @@ if sys.version_info > (3, 0):
     # Since this dep is not really needed for the current arm-32 bots we skip it instead of
     # adding the overhead of a cargo/rust toolchain into the yocto-based image the bots run.
     if not (platform.machine().startswith('arm') and platform.architecture()[0] == '32bit'):
-        AutoInstall.register(Package('cryptography', Version(36, 0, 2), wheel=True, implicit_deps=['cffi']))
+        # This is synced with the logic for installing pyOpenSSL at Tools/Scripts/webkitpy/autoinstalled/twisted.py
+        if sys.version_info >= (3, 11):
+            AutoInstall.register(Package('cryptography', Version(40, 0, 2), wheel=True, implicit_deps=['cffi']))
+        else:
+            AutoInstall.register(Package('cryptography', Version(36, 0, 2), wheel=True, implicit_deps=['cffi']))
 
 if sys.version_info >= (3, 6):
     if sys.platform == 'linux':

@@ -52,11 +52,13 @@
       "emails" : [
          "abigail_fox@apple.com"
       ],
+      "github" : "abigailfox",
       "name" : "Abigail Fox",
       "nicks" : [
          "abigailf",
          "abigailfox"
-      ]
+      ],
+      "status" : "committer"
    },
    {
       "emails" : [
@@ -247,6 +249,13 @@
          "ahmadsaleem"
       ],
       "status" : "committer"
+   },
+   {
+      "emails" : [
+         "ajeet@apple.com"
+      ],
+      "github" : "ajjeet",
+      "name" : "Ajeet Dyondi"
    },
    {
       "emails" : [
@@ -1330,7 +1339,8 @@
          "bfan2@apple.com"
       ],
       "github" : "briannafan",
-      "name" : "Brianna Fan"
+      "name" : "Brianna Fan",
+      "status" : "committer"
    },
    {
       "emails" : [
@@ -1366,10 +1376,12 @@
          "sun.shin@lge.com"
       ],
       "expertise" : "WebRTC, WTF, GPU Accelerated Rendering and Compositing",
+      "github" : "xingri",
       "name" : "Byungseon(Sun) Shin",
       "nicks" : [
          "xingri"
-      ]
+      ],
+      "status" : "committer"
    },
    {
       "emails" : [
@@ -2265,6 +2277,13 @@
    },
    {
       "emails" : [
+         "dfourny@apple.com"
+      ],
+      "github" : "dfourny-apple",
+      "name" : "Dimitri Fourny"
+   },
+   {
+      "emails" : [
          "dglazkov@chromium.org"
       ],
       "expertise" : "The Chromium Port, Shadow DOM, DOM, HTML Forms, Shadow DOM, Web Components, V8 Bindings, InspectorController, garden-o-matic",
@@ -2357,13 +2376,16 @@
    },
    {
       "emails" : [
+         "dm_mazzoni@apple.com",
          "dmazzoni@google.com",
          "dmazzoni@chromium.org"
       ],
+      "github" : "minorninth",
       "name" : "Dominic Mazzoni",
       "nicks" : [
          "dmazzoni"
-      ]
+      ],
+      "status" : "committer"
    },
    {
       "emails" : [
@@ -2534,6 +2556,7 @@
          "fantasai.bugs@inkedblade.net",
          "fantasai@apple.com"
       ],
+      "github" : "fantasai",
       "name" : "Elika Etemad",
       "nicks" : [
          "fantasai"
@@ -2684,6 +2707,13 @@
       "nicks" : [
          "ericu"
       ]
+   },
+   {
+      "emails" : [
+         "lerica@apple.com"
+      ],
+      "github" : "lericaa",
+      "name" : "Erica Li"
    },
    {
       "emails" : [
@@ -3032,6 +3062,17 @@
    },
    {
       "emails" : [
+         "ggabrielli@suse.de",
+         "crazybyte@protonmail.com"
+      ],
+      "github" : "staypirate",
+      "name" : "Gianluca Gabrielli",
+      "nicks" : [
+         "crazybyte"
+      ]
+   },
+   {
+      "emails" : [
          "girish@forwardbias.in",
          "ramakrishnan.girish@gmail.com"
       ],
@@ -3321,15 +3362,16 @@
    },
    {
       "emails" : [
-         "hs85.jeong@samsung.com",
-         "hs85jeong@gmail.com"
+         "hs85jeong@gmail.com",
+         "hs85.jeong@samsung.com"
       ],
-      "expertise" : "The EFLWebKit port, Cairo graphics backend",
+      "expertise" : "Accessibility",
       "github" : "hs85jeong",
       "name" : "Hunseop Jeong",
       "nicks" : [
          "hunseop"
-      ]
+      ],
+      "status" : "committer"
    },
    {
       "emails" : [
@@ -3373,6 +3415,13 @@
       "nicks" : [
          "iana"
       ]
+   },
+   {
+      "emails" : [
+         "ian.grunert@gmail.com"
+      ],
+      "github" : "iangrunert",
+      "name" : "Ian Grunert"
    },
    {
       "emails" : [
@@ -3474,17 +3523,6 @@
          "ike@apple.com"
       ],
       "name" : "Ivan Ivan Krsti\u0107"
-   },
-   {
-      "emails" : [
-         "j_pascoe@apple.com"
-      ],
-      "github" : "pascoej",
-      "name" : "J Pascoe",
-      "nicks" : [
-         "j_pascoe"
-      ],
-      "status" : "reviewer"
    },
    {
       "emails" : [
@@ -3623,6 +3661,13 @@
       ],
       "github" : "jameshilliard",
       "name" : "James Hilliard"
+   },
+   {
+      "emails" : [
+         "james_e_kim@apple.com"
+      ],
+      "github" : "james-e-kim",
+      "name" : "James Kim"
    },
    {
       "emails" : [
@@ -4201,10 +4246,12 @@
          "joone.hur@collabora.co.uk"
       ],
       "expertise" : "The WebKitGTK port",
+      "github" : "joone",
       "name" : "Joone Hur",
       "nicks" : [
          "joone"
-      ]
+      ],
+      "status" : "committer"
    },
    {
       "emails" : [
@@ -4268,6 +4315,17 @@
    },
    {
       "emails" : [
+         "jhoffman23@apple.com"
+      ],
+      "github" : "hoffmanjoshua",
+      "name" : "Joshua Hoffman",
+      "nicks" : [
+         "hoffmanjoshua"
+      ],
+      "status" : "committer"
+   },
+   {
+      "emails" : [
          "jberta.u-szeged@partner.samsung.com",
          "jberta@inf.u-szeged.hu"
       ],
@@ -4290,7 +4348,6 @@
       "emails" : [
          "jc_hanson@apple.com"
       ],
-      "github" : "julia-c-hanson",
       "name" : "Julia Hanson"
    },
    {
@@ -4474,6 +4531,16 @@
       "name" : "Keishi Hattori",
       "nicks" : [
          "keishi"
+      ]
+   },
+   {
+      "emails" : [
+         "webkit@keithcirkel.co.uk"
+      ],
+      "github" : "keithamus",
+      "name" : "Keith Cirkel",
+      "nicks" : [
+         "keithamus"
       ]
    },
    {
@@ -4714,6 +4781,13 @@
    },
    {
       "emails" : [
+         "kohei.ueno119@gmail.com"
+      ],
+      "github" : "cola119",
+      "name" : "Kohei Ueno"
+   },
+   {
+      "emails" : [
          "kojih@chromium.org"
       ],
       "name" : "Koji Hara",
@@ -4936,6 +5010,16 @@
    },
    {
       "emails" : [
+         "lindseywild@github.com"
+      ],
+      "github" : "lindseywild",
+      "name" : "Lindsey Wild",
+      "nicks" : [
+         "lindseywild"
+      ]
+   },
+   {
+      "emails" : [
          "lingho@apple.com",
          "ling@aliko.com"
       ],
@@ -5004,10 +5088,12 @@
    },
    {
       "emails" : [
-         "luke@warlow.dev"
+         "luke@warlow.dev",
+         "lwarlow@igalia.com"
       ],
       "github" : "lukewarlow",
-      "name" : "Luke Warlow"
+      "name" : "Luke Warlow",
+      "status" : "committer"
    },
    {
       "emails" : [
@@ -5168,6 +5254,14 @@
    },
    {
       "emails" : [
+         "darbinyan@apple.com"
+      ],
+      "github" : "martadarbinyan",
+      "name" : "Marta Darbinyan",
+      "status" : "committer"
+   },
+   {
+      "emails" : [
          "mhock@apple.com"
       ],
       "name" : "Martin Hock",
@@ -5208,6 +5302,13 @@
       "nicks" : [
          "marywu"
       ]
+   },
+   {
+      "emails" : [
+         "krzywix@apple.com"
+      ],
+      "github" : "mkrzywix",
+      "name" : "Mateusz Krzywicki"
    },
    {
       "emails" : [
@@ -5429,6 +5530,17 @@
    },
    {
       "emails" : [
+         "mike@w3.org",
+         "sideshowbarker@gmail.com"
+      ],
+      "github" : "sideshowbarker",
+      "name" : "Michael[tm] Smith",
+      "nicks" : [
+         "sideshowbarker"
+      ]
+   },
+   {
+      "emails" : [
          "mpakulavelrutka@gmail.com",
          "m.pakula@samsung.com"
       ],
@@ -5615,6 +5727,15 @@
    },
    {
       "emails" : [
+         "moe@sigmaos.com",
+         "bazzimoe3@gmail.com"
+      ],
+      "expertise" : "WebKit on macOS",
+      "github" : "MoeBazziGIT",
+      "name" : "Moe Bazzi"
+   },
+   {
+      "emails" : [
          "Ms2ger@igalia.com",
          "Ms2ger@gmail.com"
       ],
@@ -5742,6 +5863,13 @@
    },
    {
       "emails" : [
+         "nicole_rosario@apple.com"
+      ],
+      "github" : "NKRosario",
+      "name" : "Nicole Rosario"
+   },
+   {
+      "emails" : [
          "nvasilyev@apple.com",
          "me@elv1s.ru"
       ],
@@ -5801,6 +5929,13 @@
       "nicks" : [
          "nghanavatian"
       ]
+   },
+   {
+      "emails" : [
+         "nisha_jain@apple.com"
+      ],
+      "github" : "nishajain61",
+      "name" : "Nisha Jain"
    },
    {
       "emails" : [
@@ -5899,6 +6034,17 @@
       "nicks" : [
          "pamg"
       ]
+   },
+   {
+      "emails" : [
+         "pascoe@apple.com"
+      ],
+      "github" : "pascoej",
+      "name" : "Pascoe",
+      "nicks" : [
+         "pascoe"
+      ],
+      "status" : "reviewer"
    },
    {
       "emails" : [
@@ -6644,6 +6790,13 @@
    },
    {
       "emails" : [
+         "mscott@apple.com"
+      ],
+      "github" : "mscottapple",
+      "name" : "Scott Marcy"
+   },
+   {
+      "emails" : [
          "sky@chromium.org"
       ],
       "expertise" : "The Chromium Port",
@@ -6810,6 +6963,19 @@
       "nicks" : [
          "tronical"
       ]
+   },
+   {
+      "emails" : [
+         "simon.lewis@apple.com"
+      ],
+      "expertise" : "Security",
+      "github" : "sheeparegreat",
+      "name" : "Simon Lewis",
+      "nicks" : [
+         "sheeparegreat",
+         "simon.lewis"
+      ],
+      "status" : "committer"
    },
    {
       "emails" : [

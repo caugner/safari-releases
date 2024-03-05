@@ -684,6 +684,7 @@ enum {
     AppBoundRequestContextDataForDomainCallbackID,
     TakeViewPortSnapshotCallbackID,
     RemoveAllCookiesCallbackID,
+    GetAndClearReportedWindowProxyAccessDomainsCallbackID,
     FirstUIScriptCallbackID = 100
 };
 
@@ -1019,11 +1020,6 @@ void TestRunner::resetUserMediaPermission()
 bool TestRunner::isDoingMediaCapture() const
 {
     return postSynchronousPageMessageReturningBoolean("IsDoingMediaCapture");
-}
-
-bool TestRunner::isEnumeratingAudioUnitActive() const
-{
-    return postSynchronousPageMessageReturningBoolean("IsEnumeratingAudioUnitActive");
 }
 
 void TestRunner::setUserMediaPersistentPermissionForOrigin(bool permission, JSStringRef origin, JSStringRef parentOrigin)
@@ -1635,6 +1631,11 @@ void TestRunner::statisticsCallDidSetBlockCookiesForHostCallback()
 void TestRunner::setStatisticsNotifyPagesWhenDataRecordsWereScanned(bool value)
 {
     postSynchronousMessage("StatisticsNotifyPagesWhenDataRecordsWereScanned", value);
+}
+
+void TestRunner::setStatisticsTimeAdvanceForTesting(double value)
+{
+    postSynchronousMessage("StatisticsSetTimeAdvanceForTesting", value);
 }
 
 void TestRunner::setStatisticsIsRunningTest(bool value)
@@ -2423,6 +2424,18 @@ void TestRunner::viewPortSnapshotTaken(WKStringRef value)
 void TestRunner::generateTestReport(JSStringRef message, JSStringRef group)
 {
     _WKBundleFrameGenerateTestReport(mainFrame(), toWK(message).get(), toWK(group).get());
+}
+
+void TestRunner::getAndClearReportedWindowProxyAccessDomains(JSValueRef callback)
+{
+    cacheTestRunnerCallback(GetAndClearReportedWindowProxyAccessDomainsCallbackID, callback);
+    postMessage("GetAndClearReportedWindowProxyAccessDomains");
+}
+
+void TestRunner::didGetAndClearReportedWindowProxyAccessDomains(WKArrayRef value)
+{
+    auto jsValue = stringArrayToJS(mainFrameJSContext(), value);
+    callTestRunnerCallback(GetAndClearReportedWindowProxyAccessDomainsCallbackID, 1, &jsValue);
 }
 
 ALLOW_DEPRECATED_DECLARATIONS_END

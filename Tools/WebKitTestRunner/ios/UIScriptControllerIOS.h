@@ -28,12 +28,14 @@
 #if PLATFORM(IOS_FAMILY)
 
 #import "UIScriptControllerCocoa.h"
+#import "WKSEDefinitions.h"
 #import <wtf/BlockPtr.h>
 
 typedef struct CGRect CGRect;
 OBJC_CLASS UITextSelectionDisplayInteraction;
 
 @protocol UICoordinateSpace;
+@protocol WKSETextInput;
 
 namespace WebCore {
 class FloatPoint;
@@ -128,8 +130,10 @@ private:
     void simulateRotation(DeviceOrientation*, JSValueRef) override;
     void simulateRotationLikeSafari(DeviceOrientation*, JSValueRef) override;
     bool isShowingPopover() const override;
+    bool isShowingFormValidationBubble() const override;
     JSObjectRef rectForMenuAction(JSStringRef) const override;
     JSObjectRef contextMenuRect() const override;
+    JSObjectRef contextMenuPreviewRect() const final;
     JSObjectRef menuRect() const override;
     bool isDismissingMenu() const override;
     void chooseMenuAction(JSStringRef, JSValueRef) override;
@@ -171,6 +175,10 @@ private:
     void setDidEndScrollingCallback(JSValueRef) override;
     void clearAllCallbacks() override;
 
+    void beginInteractiveObscuredInsetsChange() final;
+    void endInteractiveObscuredInsetsChange() final;
+    void setObscuredInsets(double top, double right, double bottom, double left) final;
+
     bool suppressSoftwareKeyboard() const final;
     void setSuppressSoftwareKeyboard(bool) final;
 
@@ -188,7 +196,18 @@ private:
     void becomeFirstResponder() override;
     void resignFirstResponder() override;
 
+    void setInlinePrediction(JSStringRef) final;
+    void acceptInlinePrediction() final;
+
     void simulateRotation(DeviceOrientation, JSValueRef callback);
+
+    int64_t pasteboardChangeCount() const final;
+
+    void clipSelectionViewRectToContentView(CGRect&) const;
+
+#if HAVE(UI_ASYNC_TEXT_INTERACTION)
+    id<WKSETextInput> asyncTextInput() const;
+#endif
 
 #if HAVE(UI_TEXT_SELECTION_DISPLAY_INTERACTION)
     UITextSelectionDisplayInteraction *textSelectionDisplayInteraction() const;

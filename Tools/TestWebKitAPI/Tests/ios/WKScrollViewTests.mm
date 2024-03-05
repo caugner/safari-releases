@@ -29,8 +29,14 @@
 
 #import "PlatformUtilities.h"
 #import "TestWKWebView.h"
-#import "UIKitSPI.h"
+#import "UIKitSPIForTesting.h"
+#import "WKSEDefinitions.h"
+#import <WebCore/WebEvent.h>
 #import <WebKit/WKWebViewPrivate.h>
+
+#if USE(APPLE_INTERNAL_SDK)
+#import <WebKitAdditions/WKScrollViewTestsAdditions.mm>
+#endif
 
 constexpr CGFloat blackColorComponents[4] = { 0, 0, 0, 1 };
 constexpr CGFloat whiteColorComponents[4] = { 1, 1, 1, 1 };
@@ -76,6 +82,48 @@ constexpr CGFloat whiteColorComponents[4] = { 1, 1, 1, 1 };
     return _delta;
 }
 
+@end
+
+#if SERVICE_EXTENSIONS_SCROLL_VIEW_IS_AVAILABLE
+
+@interface WKSEScrollViewScrollUpdate (Internal)
+- (instancetype)initWithScrollEvent:(UIScrollEvent *)scrollEvent phase:(WKSEScrollViewScrollUpdatePhase)phase;
+@end
+
+#endif
+
+inline static UIScrollPhase legacyScrollPhase(WKSEScrollViewScrollUpdatePhase phase)
+{
+#if SERVICE_EXTENSIONS_SCROLL_VIEW_IS_AVAILABLE
+    switch (phase) {
+    case WKSEScrollViewScrollUpdatePhaseBegan:
+        return UIScrollPhaseBegan;
+    case WKSEScrollViewScrollUpdatePhaseChanged:
+        return UIScrollPhaseChanged;
+    case WKSEScrollViewScrollUpdatePhaseEnded:
+        return UIScrollPhaseEnded;
+    case WKSEScrollViewScrollUpdatePhaseCancelled:
+        return UIScrollPhaseCancelled;
+    }
+    ASSERT_NOT_REACHED();
+    return UIScrollPhaseCancelled;
+#else
+    return phase;
+#endif
+}
+
+inline static RetainPtr<WKSEScrollViewScrollUpdate> createScrollUpdate(WKSEScrollViewScrollUpdatePhase phase, CGPoint location, CGVector delta)
+{
+    auto event = adoptNS([[WKUIScrollEvent alloc] initWithPhase:legacyScrollPhase(phase) location:location delta:delta]);
+#if SERVICE_EXTENSIONS_SCROLL_VIEW_IS_AVAILABLE
+    return adoptNS([[WKSEScrollViewScrollUpdate alloc] initWithScrollEvent:event.get() phase:phase]);
+#else
+    return event;
+#endif
+}
+
+@interface WKWebView (WKSEScrollViewDelegate)
+- (void)scrollView:(UIScrollView *)scrollView handleScrollUpdate:(WKSEScrollViewScrollUpdate *)update completion:(void (^)(BOOL handled))completion;
 @end
 #endif // HAVE(UISCROLLVIEW_ASYNCHRONOUS_SCROLL_EVENT_HANDLING)
 
@@ -138,10 +186,10 @@ TEST(WKScrollViewTests, AsynchronousWheelEventHandling)
     __block bool done;
     __block bool wasHandled;
 
-    auto synchronouslyHandleScrollEvent = ^(UIScrollPhase phase, CGPoint location, CGVector delta) {
+    auto synchronouslyHandleScrollEvent = ^(WKSEScrollViewScrollUpdatePhase phase, CGPoint location, CGVector delta) {
         done = false;
-        auto event = adoptNS([[WKUIScrollEvent alloc] initWithPhase:phase location:location delta:delta]);
-        [webView _scrollView:[webView scrollView] asynchronouslyHandleScrollEvent:event.get() completion:^(BOOL handled) {
+        auto update = createScrollUpdate(phase, location, delta);
+        [webView scrollView:[webView scrollView] handleScrollUpdate:update.get() completion:^(BOOL handled) {
             wasHandled = handled;
             done = true;
         }];
@@ -149,73 +197,83 @@ TEST(WKScrollViewTests, AsynchronousWheelEventHandling)
     };
 
     // Don't preventDefault() at all.
+#if !SERVICE_EXTENSIONS_SCROLL_VIEW_IS_AVAILABLE
     synchronouslyHandleScrollEvent(UIScrollPhaseMayBegin, CGPointMake(100, 100), CGVectorMake(0, 0));
     EXPECT_FALSE(wasHandled);
-    synchronouslyHandleScrollEvent(UIScrollPhaseBegan, CGPointMake(100, 100), CGVectorMake(0, 10));
+#endif
+    synchronouslyHandleScrollEvent(WKSEScrollViewScrollUpdatePhaseBegan, CGPointMake(100, 100), CGVectorMake(0, 10));
     EXPECT_FALSE(wasHandled);
     EXPECT_TRUE([[webView objectByEvaluatingJavaScript:@"window.lastWheelEvent.cancelable"] intValue]);
     EXPECT_EQ(-10, [[webView objectByEvaluatingJavaScript:@"window.lastWheelEvent.deltaY"] intValue]);
     EXPECT_EQ(30, [[webView objectByEvaluatingJavaScript:@"window.lastWheelEvent.wheelDeltaY"] intValue]);
-    synchronouslyHandleScrollEvent(UIScrollPhaseChanged, CGPointMake(100, 100), CGVectorMake(0, 10));
+    synchronouslyHandleScrollEvent(WKSEScrollViewScrollUpdatePhaseChanged, CGPointMake(100, 100), CGVectorMake(0, 10));
     EXPECT_FALSE(wasHandled);
-    synchronouslyHandleScrollEvent(UIScrollPhaseEnded, CGPointMake(100, 100), CGVectorMake(0, 0));
+    synchronouslyHandleScrollEvent(WKSEScrollViewScrollUpdatePhaseEnded, CGPointMake(100, 100), CGVectorMake(0, 0));
     EXPECT_FALSE(wasHandled);
 
     // preventDefault() on all events.
     [webView stringByEvaluatingJavaScript:@"window.preventDefaultOnScrollEvents = true;"];
+#if !SERVICE_EXTENSIONS_SCROLL_VIEW_IS_AVAILABLE
     synchronouslyHandleScrollEvent(UIScrollPhaseMayBegin, CGPointMake(100, 100), CGVectorMake(0, 0));
     EXPECT_FALSE(wasHandled);
-    synchronouslyHandleScrollEvent(UIScrollPhaseBegan, CGPointMake(100, 100), CGVectorMake(0, 10));
+#endif
+    synchronouslyHandleScrollEvent(WKSEScrollViewScrollUpdatePhaseBegan, CGPointMake(100, 100), CGVectorMake(0, 10));
     EXPECT_TRUE(wasHandled);
-    synchronouslyHandleScrollEvent(UIScrollPhaseChanged, CGPointMake(100, 100), CGVectorMake(0, 10));
+    synchronouslyHandleScrollEvent(WKSEScrollViewScrollUpdatePhaseChanged, CGPointMake(100, 100), CGVectorMake(0, 10));
     EXPECT_TRUE(wasHandled);
-    synchronouslyHandleScrollEvent(UIScrollPhaseEnded, CGPointMake(100, 100), CGVectorMake(0, 0));
+    synchronouslyHandleScrollEvent(WKSEScrollViewScrollUpdatePhaseEnded, CGPointMake(100, 100), CGVectorMake(0, 0));
     EXPECT_FALSE(wasHandled);
 
     // preventDefault() on all but the begin event; it will be ignored.
     [webView stringByEvaluatingJavaScript:@"window.preventDefaultOnScrollEvents = false;"];
+#if !SERVICE_EXTENSIONS_SCROLL_VIEW_IS_AVAILABLE
     synchronouslyHandleScrollEvent(UIScrollPhaseMayBegin, CGPointMake(100, 100), CGVectorMake(0, 0));
     EXPECT_FALSE(wasHandled);
-    synchronouslyHandleScrollEvent(UIScrollPhaseBegan, CGPointMake(100, 100), CGVectorMake(0, 10));
+#endif
+    synchronouslyHandleScrollEvent(WKSEScrollViewScrollUpdatePhaseBegan, CGPointMake(100, 100), CGVectorMake(0, 10));
     EXPECT_TRUE([[webView objectByEvaluatingJavaScript:@"window.lastWheelEvent.cancelable"] intValue]);
     EXPECT_FALSE(wasHandled);
     [webView stringByEvaluatingJavaScript:@"window.preventDefaultOnScrollEvents = true;"];
-    synchronouslyHandleScrollEvent(UIScrollPhaseChanged, CGPointMake(100, 100), CGVectorMake(0, 10));
+    synchronouslyHandleScrollEvent(WKSEScrollViewScrollUpdatePhaseChanged, CGPointMake(100, 100), CGVectorMake(0, 10));
     EXPECT_FALSE(wasHandled);
     EXPECT_FALSE([[webView objectByEvaluatingJavaScript:@"window.lastWheelEvent.cancelable"] intValue]);
-    synchronouslyHandleScrollEvent(UIScrollPhaseEnded, CGPointMake(100, 100), CGVectorMake(0, 0));
+    synchronouslyHandleScrollEvent(WKSEScrollViewScrollUpdatePhaseEnded, CGPointMake(100, 100), CGVectorMake(0, 0));
     EXPECT_FALSE(wasHandled);
 
     // preventDefault() on the begin event, and some subsequent events.
     [webView stringByEvaluatingJavaScript:@"window.preventDefaultOnScrollEvents = true;"];
+#if !SERVICE_EXTENSIONS_SCROLL_VIEW_IS_AVAILABLE
     synchronouslyHandleScrollEvent(UIScrollPhaseMayBegin, CGPointMake(100, 100), CGVectorMake(0, 0));
     EXPECT_FALSE(wasHandled);
-    synchronouslyHandleScrollEvent(UIScrollPhaseBegan, CGPointMake(100, 100), CGVectorMake(0, 10));
+#endif
+    synchronouslyHandleScrollEvent(WKSEScrollViewScrollUpdatePhaseBegan, CGPointMake(100, 100), CGVectorMake(0, 10));
     EXPECT_TRUE(wasHandled);
-    synchronouslyHandleScrollEvent(UIScrollPhaseChanged, CGPointMake(100, 100), CGVectorMake(0, 10));
+    synchronouslyHandleScrollEvent(WKSEScrollViewScrollUpdatePhaseChanged, CGPointMake(100, 100), CGVectorMake(0, 10));
     EXPECT_TRUE(wasHandled);
     [webView stringByEvaluatingJavaScript:@"window.preventDefaultOnScrollEvents = false;"];
-    synchronouslyHandleScrollEvent(UIScrollPhaseChanged, CGPointMake(100, 100), CGVectorMake(0, 10));
+    synchronouslyHandleScrollEvent(WKSEScrollViewScrollUpdatePhaseChanged, CGPointMake(100, 100), CGVectorMake(0, 10));
     EXPECT_FALSE(wasHandled);
-    synchronouslyHandleScrollEvent(UIScrollPhaseEnded, CGPointMake(100, 100), CGVectorMake(0, 0));
+    synchronouslyHandleScrollEvent(WKSEScrollViewScrollUpdatePhaseEnded, CGPointMake(100, 100), CGVectorMake(0, 0));
     EXPECT_FALSE(wasHandled);
 
     // preventDefault() on the first event with non-zero deltas, and some subsequent events.
     // In this case, the begin event has zero delta, and is not dispatched to the page, so the
     // first non-zero scroll event is actually the first preventable one.
     [webView stringByEvaluatingJavaScript:@"window.preventDefaultOnScrollEvents = true;"];
+#if !SERVICE_EXTENSIONS_SCROLL_VIEW_IS_AVAILABLE
     synchronouslyHandleScrollEvent(UIScrollPhaseMayBegin, CGPointMake(100, 100), CGVectorMake(0, 0));
     EXPECT_FALSE(wasHandled);
-    synchronouslyHandleScrollEvent(UIScrollPhaseBegan, CGPointMake(100, 100), CGVectorMake(0, 0));
+#endif
+    synchronouslyHandleScrollEvent(WKSEScrollViewScrollUpdatePhaseBegan, CGPointMake(100, 100), CGVectorMake(0, 0));
     EXPECT_FALSE(wasHandled);
-    synchronouslyHandleScrollEvent(UIScrollPhaseChanged, CGPointMake(100, 100), CGVectorMake(0, 10));
+    synchronouslyHandleScrollEvent(WKSEScrollViewScrollUpdatePhaseChanged, CGPointMake(100, 100), CGVectorMake(0, 10));
     EXPECT_TRUE(wasHandled);
-    synchronouslyHandleScrollEvent(UIScrollPhaseChanged, CGPointMake(100, 100), CGVectorMake(0, 10));
+    synchronouslyHandleScrollEvent(WKSEScrollViewScrollUpdatePhaseChanged, CGPointMake(100, 100), CGVectorMake(0, 10));
     EXPECT_TRUE(wasHandled);
     [webView stringByEvaluatingJavaScript:@"window.preventDefaultOnScrollEvents = false;"];
-    synchronouslyHandleScrollEvent(UIScrollPhaseChanged, CGPointMake(100, 100), CGVectorMake(0, 10));
+    synchronouslyHandleScrollEvent(WKSEScrollViewScrollUpdatePhaseChanged, CGPointMake(100, 100), CGVectorMake(0, 10));
     EXPECT_FALSE(wasHandled);
-    synchronouslyHandleScrollEvent(UIScrollPhaseEnded, CGPointMake(100, 100), CGVectorMake(0, 0));
+    synchronouslyHandleScrollEvent(WKSEScrollViewScrollUpdatePhaseEnded, CGPointMake(100, 100), CGVectorMake(0, 0));
     EXPECT_FALSE(wasHandled);
 }
 #endif // HAVE(UISCROLLVIEW_ASYNCHRONOUS_SCROLL_EVENT_HANDLING)
@@ -295,5 +353,53 @@ TEST(WKScrollViewTests, DecelerationSetByClient)
     [webView synchronouslyLoadHTMLStringAndWaitUntilAllImmediateChildFramesPaint:@"second"];
     EXPECT_FLOAT_EQ([webView scrollView].decelerationRate, UIScrollViewDecelerationRateFast);
 }
+
+#if HAVE(UISCROLLVIEW_ALLOWS_KEYBOARD_SCROLLING)
+TEST(WKScrollViewTests, AllowsKeyboardScrolling)
+{
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 300, 300)]);
+
+    [webView synchronouslyLoadTestPageNamed:@"simple-tall"];
+    [webView waitForNextPresentationUpdate];
+
+    auto pressSpacebar = ^(void(^completionHandler)(void)) {
+        auto firstWebEvent = adoptNS([[WebEvent alloc] initWithKeyEventType:WebEventKeyDown timeStamp:CFAbsoluteTimeGetCurrent() characters:@" " charactersIgnoringModifiers:@" " modifiers:0 isRepeating:NO withFlags:0 withInputManagerHint:nil keyCode:0 isTabKey:NO]);
+
+        auto secondWebEvent = adoptNS([[WebEvent alloc] initWithKeyEventType:WebEventKeyUp timeStamp:CFAbsoluteTimeGetCurrent() characters:@" " charactersIgnoringModifiers:@" " modifiers:0 isRepeating:NO withFlags:0 withInputManagerHint:nil keyCode:0 isTabKey:NO]);
+
+        [webView handleKeyEvent:firstWebEvent.get() completion:^(WebEvent *theEvent, BOOL wasHandled) {
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                [webView handleKeyEvent:secondWebEvent.get() completion:^(WebEvent *theEvent, BOOL wasHandled) {
+                    completionHandler();
+                }];
+            });
+        }];
+    };
+
+    __block bool doneWaiting = false;
+
+    [webView scrollView].allowsKeyboardScrolling = NO;
+
+    pressSpacebar(^{
+        NSInteger scrollY = [[webView stringByEvaluatingJavaScript:@"window.scrollY"] integerValue];
+        EXPECT_EQ(scrollY, 0);
+        doneWaiting = true;
+    });
+
+    TestWebKitAPI::Util::run(&doneWaiting);
+
+    doneWaiting = false;
+
+    [webView scrollView].allowsKeyboardScrolling = YES;
+
+    pressSpacebar(^{
+        NSInteger scrollY = [[webView stringByEvaluatingJavaScript:@"window.scrollY"] integerValue];
+        EXPECT_GT(scrollY, 0);
+        doneWaiting = true;
+    });
+
+    TestWebKitAPI::Util::run(&doneWaiting);
+}
+#endif
 
 #endif // PLATFORM(IOS_FAMILY)

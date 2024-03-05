@@ -521,7 +521,7 @@ PlatformWebView* TestController::createOtherPlatformWebView(PlatformWebView* par
         decidePolicyForPluginLoad,
         nullptr, // didStartProvisionalNavigation
         didReceiveServerRedirectForProvisionalNavigation,
-        nullptr, // didFailProvisionalNavigation
+        didFailProvisionalNavigation,
         nullptr, // didCommitNavigation
         nullptr, // didFinishNavigation
         nullptr, // didFailNavigation
@@ -609,6 +609,9 @@ void TestController::initialize(int argc, const char* argv[])
     m_allowAnyHTTPSCertificateForAllowedHosts = options.allowAnyHTTPSCertificateForAllowedHosts;
     m_enableAllExperimentalFeatures = options.enableAllExperimentalFeatures;
     m_globalFeatures = std::move(options.features);
+#if PLATFORM(WPE)
+    m_useWPEPlatformAPI = options.useWPEPlatformAPI;
+#endif
 
     /* localhost is implicitly allowed and so should aliases to it. */
     for (const auto& alias : m_localhostAliases)
@@ -961,7 +964,6 @@ void TestController::createWebViewWithOptions(const TestOptions& options)
         runWebAuthenticationPanel,
         0,
         decidePolicyForMediaKeySystemPermissionRequest,
-        nullptr, // requestWebAuthenticationNoGesture
         queryPermission,
 #if PLATFORM(IOS) || PLATFORM(VISION)
         lockScreenOrientationCallback,
@@ -980,7 +982,7 @@ void TestController::createWebViewWithOptions(const TestOptions& options)
         decidePolicyForPluginLoad,
         nullptr, // didStartProvisionalNavigation
         didReceiveServerRedirectForProvisionalNavigation,
-        nullptr, // didFailProvisionalNavigation
+        didFailProvisionalNavigation,
         didCommitNavigation,
         didFinishNavigation,
         nullptr, // didFailNavigation
@@ -1067,8 +1069,8 @@ void TestController::resetPreferencesToConsistentValues(const TestOptions& optio
 
         if (enableAllExperimentalFeatures) {
             WKPreferencesEnableAllExperimentalFeatures(preferences);
-            WKPreferencesSetExperimentalFeatureForKey(preferences, false, toWK("AlternateWebMPlayerEnabled").get());
             WKPreferencesSetExperimentalFeatureForKey(preferences, false, toWK("SiteIsolationEnabled").get());
+            WKPreferencesSetExperimentalFeatureForKey(preferences, false, toWK("CFNetworkNetworkLoaderEnabled").get());
         }
 
         WKPreferencesResetAllInternalDebugFeatures(preferences);
@@ -1280,6 +1282,7 @@ bool TestController::resetStateToConsistentValues(const TestOptions& options, Re
 
     m_downloadTotalBytesWritten = { };
     m_downloadIndex = 0;
+    m_shouldDownloadContentDispositionAttachments = true;
     m_dumpPolicyDelegateCallbacks = false;
 
     return m_doneResetting;
@@ -1434,7 +1437,6 @@ const char* TestController::gpuProcessName()
 void TestController::setAllowsAnySSLCertificate(bool allows)
 {
     m_allowsAnySSLCertificate = allows;
-    WKWebsiteDataStoreSetAllowsAnySSLCertificateForWebSocketTesting(websiteDataStore(), allows);
 }
 
 void TestController::setBackgroundFetchPermission(bool)
@@ -1465,17 +1467,26 @@ WKRetainPtr<WKStringRef> TestController::backgroundFetchState(WKStringRef)
 
 WKURLRef TestController::createTestURL(const char* pathOrURL)
 {
-    if (strstr(pathOrURL, "http://") || strstr(pathOrURL, "https://") || strstr(pathOrURL, "file://"))
+    if (strstr(pathOrURL, "http://") || strstr(pathOrURL, "https://"))
         return WKURLCreateWithUTF8CString(pathOrURL);
 
-    // Creating from filesytem path.
     size_t length = strlen(pathOrURL);
     if (!length)
         return 0;
 
+    if (length >= 7 && strstr(pathOrURL, "file://")) {
+        if (!m_usingServerMode && !WTF::FileSystemImpl::fileExists(String(pathOrURL + 7, length - 7))) {
+            printf("Failed: File for URL ‘%s’ was not found or is inaccessible\n", pathOrURL);
+            return 0;
+        }
+        return WKURLCreateWithUTF8CString(pathOrURL);
+    }
+
+    // Creating from filesytem path.
+
 #if PLATFORM(WIN)
     bool isAbsolutePath = false;
-    if (strlen(pathOrURL) >= 3 && pathOrURL[1] == ':' && pathOrURL[2] == pathSeparator)
+    if (length >= 3 && pathOrURL[1] == ':' && pathOrURL[2] == pathSeparator)
         isAbsolutePath = true;
 #else
     bool isAbsolutePath = pathOrURL[0] == pathSeparator;
@@ -1498,7 +1509,12 @@ WKURLRef TestController::createTestURL(const char* pathOrURL)
         strcpy(buffer.get() + numCharacters + 1, pathOrURL);
     }
 
-    return WKURLCreateWithUTF8CString(buffer.get());
+    auto cPath = buffer.get();
+    if (!m_usingServerMode && !WTF::FileSystemImpl::fileExists(String(cPath + 7, strlen(cPath) - 7))) {
+        printf("Failed: File ‘%s’ was not found or is inaccessible\n", pathOrURL);
+        return 0;
+    }
+    return WKURLCreateWithUTF8CString(cPath);
 }
 
 TestOptions TestController::testOptionsForTest(const TestCommand& command) const
@@ -1667,7 +1683,11 @@ bool TestController::runTest(const char* inputLine)
     
     TestOptions options = testOptionsForTest(command);
 
-    m_currentInvocation = makeUnique<TestInvocation>(adoptWK(createTestURL(command.pathOrURL.c_str())).get(), options);
+    m_mainResourceURL = adoptWK(createTestURL(command.pathOrURL.c_str()));
+    if (!m_mainResourceURL)
+        return false;
+
+    m_currentInvocation = makeUnique<TestInvocation>(m_mainResourceURL.get(), options);
 
     if (command.shouldDumpPixels || m_shouldDumpPixelsForAllTests)
         m_currentInvocation->setIsPixelTest(command.expectedPixelHash);
@@ -1684,6 +1704,7 @@ bool TestController::runTest(const char* inputLine)
 
     m_currentInvocation->invoke();
     m_currentInvocation = nullptr;
+    m_mainResourceURL = nullptr;
 
     return true;
 }
@@ -2071,6 +2092,13 @@ void TestController::didReceiveSynchronousMessageFromInjectedBundle(WKStringRef 
         }
 #endif
 
+#if PLATFORM(MAC)
+        if (WKStringIsEqualToUTF8CString(subMessageName, "SmartMagnify")) {
+            m_eventSenderProxy->smartMagnify();
+            return completionHandler(nullptr);
+        }
+#endif
+
 #if ENABLE(MAC_GESTURE_EVENTS)
         if (WKStringIsEqualToUTF8CString(subMessageName, "ScaleGestureStart")) {
             auto scale = doubleValue(dictionary, "Scale");
@@ -2180,6 +2208,11 @@ void TestController::didCommitNavigation(WKPageRef page, WKNavigationRef navigat
 void TestController::didFinishNavigation(WKPageRef page, WKNavigationRef navigation, WKTypeRef, const void* clientInfo)
 {
     static_cast<TestController*>(const_cast<void*>(clientInfo))->didFinishNavigation(page, navigation);
+}
+
+void TestController::didFailProvisionalNavigation(WKPageRef page, WKNavigationRef navigation, WKErrorRef error, WKTypeRef userData, const void* clientInfo)
+{
+    static_cast<TestController*>(const_cast<void*>(clientInfo))->didFailProvisionalNavigation(page, error);
 }
 
 void TestController::didReceiveServerRedirectForProvisionalNavigation(WKPageRef page, WKNavigationRef navigation, WKTypeRef userData, const void* clientInfo)
@@ -2353,6 +2386,23 @@ void TestController::didFinishNavigation(WKPageRef page, WKNavigationRef navigat
 
     m_doneResetting = true;
     singleton().notifyDone();
+}
+
+void TestController::didFailProvisionalNavigation(WKPageRef page, WKErrorRef error)
+{
+    if (m_usingServerMode)
+        return;
+
+    auto failingURL = adoptWK(WKErrorCopyFailingURL(error));
+    if (!m_mainResourceURL || !failingURL || !WKURLIsEqual(failingURL.get(), m_mainResourceURL.get()))
+        return;
+
+    auto failingURLString = toWTFString(adoptWK(WKURLCopyString(failingURL.get())));
+    auto errorDomain = toWTFString(adoptWK(WKErrorCopyDomain(error)));
+    auto errorDescription = toWTFString(adoptWK(WKErrorCopyLocalizedDescription(error)));
+    int errorCode = WKErrorGetErrorCode(error);
+    auto errorMessage = makeString("Failed: ", errorDescription, " (errorDomain=", errorDomain, ", code=", errorCode, ") for URL ", failingURLString);
+    printf("%s\n", errorMessage.utf8().data());
 }
 
 void TestController::didReceiveAuthenticationChallenge(WKPageRef page, WKAuthenticationChallengeRef authenticationChallenge)
@@ -2699,7 +2749,9 @@ String TestController::saltForOrigin(WKFrameRef frame, String originHash)
     auto& settings = settingsForOrigin(originHash);
     auto& ephemeralSalts = settings.ephemeralSalts();
     auto frameHandle = adoptWK(WKFrameCreateFrameHandle(frame));
+ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     uint64_t frameIdentifier = WKFrameHandleGetFrameID(frameHandle.get());
+ALLOW_DEPRECATED_DECLARATIONS_END
     String frameSalt = ephemeralSalts.get(frameIdentifier);
 
     if (settings.persistentPermission()) {
@@ -2897,7 +2949,7 @@ WTF::String pathSuitableForTestResult(WKURLRef fileURL, WKPageRef page)
     String pathString = toWTFString(adoptWK(WKURLCopyPath(fileURL)));
     String mainFrameURLPathString = mainFrameURL ? toWTFString(adoptWK(WKURLCopyPath(mainFrameURL.get()))) : ""_s;
     auto basePath = StringView(mainFrameURLPathString).left(mainFrameURLPathString.reverseFind('/') + 1);
-    
+
     if (!basePath.isEmpty() && pathString.startsWith(basePath))
         return pathString.substring(basePath.length());
     return toWTFString(adoptWK(WKURLCopyLastPathComponent(fileURL))); // We lose some information here, but it's better than exposing a full path, which is always machine specific.
@@ -3249,7 +3301,7 @@ static void loadedSubresourceDomainsCallback(WKArrayRef domains, void* userData)
         auto size = WKArrayGetSize(domains);
         context->result.reserveInitialCapacity(size);
         for (size_t index = 0; index < size; ++index)
-            context->result.uncheckedAppend(toWTFString(static_cast<WKStringRef>(WKArrayGetItemAtIndex(domains, index))));
+            context->result.append(toWTFString(static_cast<WKStringRef>(WKArrayGetItemAtIndex(domains, index))));
     }
 
     context->testController.notifyDone();
@@ -3484,11 +3536,6 @@ void TestController::setQuota(uint64_t)
 }
 
 bool TestController::isDoingMediaCapture() const
-{
-    return false;
-}
-
-bool TestController::isEnumeratingAudioUnitActive() const
 {
     return false;
 }
@@ -3761,6 +3808,13 @@ void TestController::statisticsUpdateCookieBlocking()
 void TestController::setStatisticsNotifyPagesWhenDataRecordsWereScanned(bool value)
 {
     WKWebsiteDataStoreSetStatisticsNotifyPagesWhenDataRecordsWereScanned(websiteDataStore(), value);
+}
+
+void TestController::setStatisticsTimeAdvanceForTesting(double value)
+{
+    ResourceStatisticsCallbackContext context(*this);
+    WKWebsiteDataStoreSetResourceLoadStatisticsTimeAdvanceForTesting(websiteDataStore(), value, &context, resourceStatisticsVoidResultCallback);
+    runUntil(context.done, noTimeout);
 }
 
 void TestController::setStatisticsIsRunningTest(bool value)
@@ -4098,6 +4152,13 @@ void TestController::setAllowedMenuActions(const Vector<String>&)
 WKRetainPtr<WKStringRef> TestController::takeViewPortSnapshot()
 {
     return adoptWK(WKStringCreateWithUTF8CString("not implemented"));
+}
+#endif
+
+#if !PLATFORM(COCOA)
+WKRetainPtr<WKArrayRef> TestController::getAndClearReportedWindowProxyAccessDomains()
+{
+    return nullptr;
 }
 #endif
 

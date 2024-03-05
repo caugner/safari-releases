@@ -42,8 +42,8 @@ interface TestRunner {
     undefined waitUntilDownloadFinished();
     undefined setShouldLogDownloadCallbacks(boolean value);
     undefined setShouldLogDownloadSize(boolean value);
-    undefined setShouldDownloadContentDispositionAttachments(boolean value);
     undefined setShouldLogDownloadExpectedSize(boolean value);
+    undefined setShouldDownloadContentDispositionAttachments(boolean value);
 
     const unsigned short RENDER_TREE_SHOW_ALL_LAYERS            = 1;
     const unsigned short RENDER_TREE_SHOW_LAYER_NESTING         = 2;
@@ -249,7 +249,6 @@ interface TestRunner {
     unsigned long userMediaPermissionRequestCountForOrigin(DOMString origin, DOMString parentOrigin);
     undefined resetUserMediaPermissionRequestCountForOrigin(DOMString origin, DOMString parentOrigin);
     readonly attribute boolean isDoingMediaCapture;
-    readonly attribute boolean isEnumeratingAudioUnitActive;
 
     // Audio testing.
     [PassContext] undefined setAudioResult(object data);
@@ -350,6 +349,7 @@ interface TestRunner {
     boolean statisticsNotifyObserver();
     undefined statisticsProcessStatisticsAndDataRecords();
     undefined statisticsUpdateCookieBlocking(object completionHandler);
+    undefined setStatisticsTimeAdvanceForTesting(double value);
     undefined setStatisticsIsRunningTest(boolean value);
     undefined setStatisticsShouldClassifyResourcesBeforeDataRecordsRemoval(boolean value);
     undefined setStatisticsMinimumTimeBetweenDataRecordsRemoval(double seconds);
@@ -463,4 +463,6 @@ interface TestRunner {
 
     // Reporting API
     undefined generateTestReport(DOMString message, DOMString group);
+
+    undefined getAndClearReportedWindowProxyAccessDomains(object callback);
 };

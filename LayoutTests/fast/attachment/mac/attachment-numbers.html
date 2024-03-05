@@ -1,24 +1,10 @@
 <!DOCTYPE html><!-- webkit-test-runner [ AttachmentElementEnabled=true ] -->
-<html>
-<head>
-    <style>
-.wrapper {
-    position: relative;
-}
-
-.cover {
-    position: absolute;
-    right: 0;
-    bottom: 0;
-    left: 0;
-    height: 2em;
-    background-color: white;
-}
-    </style>
+<html class="reftest-wait">
 <body>
-    <div class="wrapper">
-        <attachment title="test.numbers"></attachment>
-        <div class="cover"></div>
-    </div>
+<attachment title="test-file.numbers"></attachment>
+<script src="../resources/attachment-test-utils.js"></script>
+<script>
+takeActualScreenshotWhenAttachmentsSettled();
+</script>
 </body>
 </html>

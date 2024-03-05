@@ -234,8 +234,8 @@ public:
     bool shouldFinishAfterDownload() const { return m_shouldFinishAfterDownload; }
     void setShouldLogDownloadCallbacks(bool);
     void setShouldLogDownloadSize(bool);
-    void setShouldDownloadContentDispositionAttachments(bool);
     void setShouldLogDownloadExpectedSize(bool);
+    void setShouldDownloadContentDispositionAttachments(bool);
 
     bool shouldAllowEditing() const { return m_shouldAllowEditing; }
 
@@ -348,7 +348,6 @@ public:
     unsigned userMediaPermissionRequestCountForOrigin(JSStringRef origin, JSStringRef parentOrigin) const;
     void resetUserMediaPermissionRequestCountForOrigin(JSStringRef origin, JSStringRef parentOrigin);
     bool isDoingMediaCapture() const;
-    bool isEnumeratingAudioUnitActive() const;
 
     void setPageVisibility(JSStringRef state);
     void resetPageVisibility();
@@ -462,6 +461,7 @@ public:
     void setStatisticsCrossSiteLoadWithLinkDecoration(JSStringRef fromHost, JSStringRef toHost);
     void setStatisticsTimeToLiveUserInteraction(double seconds);
     void setStatisticsNotifyPagesWhenDataRecordsWereScanned(bool);
+    void setStatisticsTimeAdvanceForTesting(double);
     void setStatisticsIsRunningTest(bool);
     void setStatisticsShouldClassifyResourcesBeforeDataRecordsRemoval(bool);
     void setStatisticsMinimumTimeBetweenDataRecordsRemoval(double);
@@ -591,6 +591,9 @@ public:
 
     // Reporting API
     void generateTestReport(JSStringRef message, JSStringRef group);
+
+    void getAndClearReportedWindowProxyAccessDomains(JSValueRef);
+    void didGetAndClearReportedWindowProxyAccessDomains(WKArrayRef);
 
 private:
     TestRunner();

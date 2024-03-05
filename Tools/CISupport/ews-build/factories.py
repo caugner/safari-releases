@@ -26,16 +26,15 @@ from buildbot.steps import trigger
 
 from .steps import (AddReviewerToCommitMessage, ApplyPatch, ApplyWatchList, Canonicalize, CommitPatch,
                    CheckOutPullRequest, CheckOutSource, CheckOutSpecificRevision, CheckChangeRelevance,
-                   CheckStatusOnEWSQueues, CheckStyle, CleanGitRepo, CompileJSC, CompileWebKit, ConfigureBuild,
-                   DownloadBuiltProduct, ExtractBuiltProduct, FetchBranches, FindModifiedLayoutTests,
+                   CheckStatusOnEWSQueues, CheckStyle, CleanGitRepo, CompileJSC, CompileWebKit, ConfigureBuild, DetermineLabelOwner,
+                   DownloadBuiltProduct, ExtractBuiltProduct, FetchBranches, FindModifiedLayoutTests, GitHub,
                    InstallGtkDependencies, InstallHooks, InstallWpeDependencies, KillOldProcesses, PrintConfiguration, PushCommitToWebKitRepo, PushPullRequestBranch,
-                   MapBranchAlias, RunAPITests, RunBindingsTests, RunBuildWebKitOrgUnitTests, RunBuildbotCheckConfigForBuildWebKit, RunBuildbotCheckConfigForEWS,
+                   MapBranchAlias, RemoveAndAddLabels, RetrievePRDataFromLabel, RunAPITests, RunBindingsTests, RunBuildWebKitOrgUnitTests, RunBuildbotCheckConfigForBuildWebKit, RunBuildbotCheckConfigForEWS,
                    RunEWSUnitTests, RunResultsdbpyTests, RunJavaScriptCoreTests, RunWebKit1Tests, RunWebKitPerlTests, RunWebKitPyPython2Tests,
                    RunWebKitPyPython3Tests, RunWebKitTests, RunWebKitTestsRedTree, RunWebKitTestsInStressMode, RunWebKitTestsInStressGuardmallocMode,
                    SetBuildSummary, ShowIdentifier, TriggerCrashLogSubmission, UpdateWorkingDirectory, UpdatePullRequest,
                    ValidateCommitMessage, ValidateChange, ValidateCommitterAndReviewer, WaitForCrashCollection,
-                   InstallBuiltProduct, ValidateRemote, ValidateSquashed)
-
+                   InstallBuiltProduct, ValidateRemote, ValidateSquashed, GITHUB_PROJECTS)
 
 class Factory(factory.BuildFactory):
     findModifiedLayoutTests = False
@@ -154,7 +153,7 @@ class TestFactory(Factory):
         self.addStep(KillOldProcesses())
         if self.LayoutTestClass:
             self.addStep(FindModifiedLayoutTests(skipBuildIfNoResult=False))
-            self.addStep(RunWebKitTestsInStressMode(num_iterations=10))
+            self.addStep(RunWebKitTestsInStressMode(num_iterations=10, layout_test_class=self.LayoutTestClass))
             self.addStep(self.LayoutTestClass())
         if self.APITestClass:
             self.addStep(self.APITestClass())
@@ -328,6 +327,7 @@ class MergeQueueFactoryBase(factory.BuildFactory):
         super(MergeQueueFactoryBase, self).__init__()
         self.addStep(ConfigureBuild(platform=platform, configuration=configuration, architectures=architectures, buildOnly=False, triggers=None, remotes=None, additionalArguments=additionalArguments))
         self.addStep(ValidateChange(verifyMergeQueue=True, verifyNoDraftForMergeQueue=True, enableSkipEWSLabel=False))
+        self.addStep(DetermineLabelOwner())
         self.addStep(ValidateCommitterAndReviewer())
         self.addStep(PrintConfiguration())
         self.addStep(CleanGitRepo())
@@ -374,3 +374,10 @@ class UnsafeMergeQueueFactory(MergeQueueFactoryBase):
         self.addStep(UpdatePullRequest())
         self.addStep(PushCommitToWebKitRepo())
         self.addStep(SetBuildSummary())
+
+
+class SafeMergeQueueFactory(factory.BuildFactory):
+    def __init__(self, platform, configuration=None, architectures=None, additionalArguments=None, **kwargs):
+        super().__init__()
+        for project in GITHUB_PROJECTS:
+            self.addStep(RetrievePRDataFromLabel(project, label=GitHub.SAFE_MERGE_QUEUE_LABEL))

@@ -1,10 +1,6 @@
 # WebKit
 
-WebKit is a cross-platform web browser engine. On iOS and macOS, it powers Safari, Mail, iBooks, and many other applications.
-
-## Feature Status
-
-Visit [WebKit Feature Status](https://webkit.org/status/) page to see which Web API has been implemented, in development, or under consideration.
+WebKit is a cross-platform web browser engine. On iOS and macOS, it powers Safari, Mail, iBooks, and many other applications. For more information about WebKit, see the [WebKit project website](https://webkit.org/).
 
 ## Trying the Latest
 
@@ -72,7 +68,7 @@ Tools/Scripts/build-webkit --debug --<platform>-device
 
 where `platform` is `ios`, `tvos` or `watchos`.
 
-### Building the GTK+ Port
+### Building the GTK Port
 
 For production builds:
 
@@ -90,7 +86,7 @@ Tools/Scripts/update-webkitgtk-libs
 Tools/Scripts/build-webkit --gtk --debug
 ```
 
-For more information on building WebKitGTK+, see the [wiki page](https://trac.webkit.org/wiki/BuildingGtk).
+For more information on building WebKitGTK, see the [wiki page](https://trac.webkit.org/wiki/BuildingGtk).
 
 ### Building the WPE Port
 

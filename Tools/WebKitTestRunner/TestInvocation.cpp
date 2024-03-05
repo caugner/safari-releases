@@ -145,6 +145,9 @@ WKRetainPtr<WKMutableDictionaryRef> TestInvocation::createTestSettingsDictionary
     for (auto& host : TestController::singleton().allowedHosts())
         WKArrayAppendItem(allowedHostsValue.get(), toWK(host.c_str()).get());
     setValue(beginTestMessageBody, "AllowedHosts", allowedHostsValue);
+#if ENABLE(VIDEO)
+    setValue(beginTestMessageBody, "CaptionDisplayMode", options().captionDisplayMode().c_str());
+#endif
     return beginTestMessageBody;
 }
 
@@ -172,7 +175,12 @@ void TestInvocation::invoke()
     if (m_error)
         goto end;
 
-    WKPageLoadURLWithShouldOpenExternalURLsPolicy(TestController::singleton().mainWebView()->page(), m_url.get(), shouldOpenExternalURLs);
+    if (m_options.runInCrossOriginIFrame()) {
+        WKRetainPtr<WKURLRef> baseURL = adoptWK(WKURLCreateWithUTF8CString("http://www.webkit.org"));
+        WKRetainPtr<WKStringRef> htmlString = toWK(makeString("<iframe src=\"", m_urlString.utf8().data(), "\" style=\"position:absolute; top:0; left:0; width:100%; height:100%; border:0\">"));
+        WKPageLoadHTMLString(TestController::singleton().mainWebView()->page(), htmlString.get(), baseURL.get());
+    } else
+        WKPageLoadURLWithShouldOpenExternalURLsPolicy(TestController::singleton().mainWebView()->page(), m_url.get(), shouldOpenExternalURLs);
 
     TestController::singleton().runUntil(m_gotFinalMessage, TestController::noTimeout);
     if (m_error)
@@ -873,6 +881,12 @@ void TestInvocation::didReceiveMessageFromInjectedBundle(WKStringRef messageName
         return;
     }
 
+    if (WKStringIsEqualToUTF8CString(messageName, "GetAndClearReportedWindowProxyAccessDomains")) {
+        auto value = TestController::singleton().getAndClearReportedWindowProxyAccessDomains();
+        postPageMessage("DidGetAndClearReportedWindowProxyAccessDomains", value.get());
+        return;
+    }
+
     ASSERT_NOT_REACHED();
 }
 
@@ -1138,9 +1152,6 @@ WKRetainPtr<WKTypeRef> TestInvocation::didReceiveSynchronousMessageFromInjectedB
     if (WKStringIsEqualToUTF8CString(messageName, "IsDoingMediaCapture"))
         return adoptWK(WKBooleanCreate(TestController::singleton().isDoingMediaCapture()));
 
-    if (WKStringIsEqualToUTF8CString(messageName, "IsEnumeratingAudioUnitActive"))
-        return adoptWK(WKBooleanCreate(TestController::singleton().isEnumeratingAudioUnitActive()));
-
     if (WKStringIsEqualToUTF8CString(messageName, "ClearStatisticsDataForDomain")) {
         TestController::singleton().clearStatisticsDataForDomain(stringValue(messageBody));
         return nullptr;
@@ -1301,6 +1312,11 @@ WKRetainPtr<WKTypeRef> TestInvocation::didReceiveSynchronousMessageFromInjectedB
 
     if (WKStringIsEqualToUTF8CString(messageName, "StatisticsNotifyPagesWhenDataRecordsWereScanned")) {
         TestController::singleton().setStatisticsNotifyPagesWhenDataRecordsWereScanned(booleanValue(messageBody));
+        return nullptr;
+    }
+
+    if (WKStringIsEqualToUTF8CString(messageName, "StatisticsSetTimeAdvanceForTesting")) {
+        TestController::singleton().setStatisticsTimeAdvanceForTesting(doubleValue(messageBody));
         return nullptr;
     }
 

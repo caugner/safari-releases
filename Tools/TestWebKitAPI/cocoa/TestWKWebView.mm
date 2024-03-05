@@ -49,18 +49,31 @@
 #import <Carbon/Carbon.h>
 #endif
 
+#if USE(APPLE_INTERNAL_SDK)
+#import <WebKitAdditions/ServiceExtensionsAdditions.h>
+#endif
+
 #if PLATFORM(IOS_FAMILY)
-#import "UIKitSPI.h"
+#import "UIKitSPIForTesting.h"
 #import <MobileCoreServices/MobileCoreServices.h>
 #import <wtf/SoftLinking.h>
 SOFT_LINK_FRAMEWORK(UIKit)
 SOFT_LINK_CLASS(UIKit, UIWindow)
+
+#if HAVE(UI_ASYNC_TEXT_INTERACTION)
+// FIXME: This workaround can be removed once the fix for rdar://120390585 lands in the SDK.
+SOFT_LINK_CLASS(UIKit, UIKeyEvent)
+#endif
 
 static NSString *overrideBundleIdentifier(id, SEL)
 {
     return @"com.apple.TestWebKitAPI";
 }
 #endif // PLATFORM(IOS_FAMILY)
+
+@interface WKWebView (TextServices)
+- (void)_lookup:(id)sender;
+@end
 
 @implementation WKWebView (TestWebKitAPI)
 
@@ -152,6 +165,299 @@ static NSString *overrideBundleIdentifier(id, SEL)
     }];
     TestWebKitAPI::Util::run(&finished);
     return result.autorelease();
+}
+
+- (void)defineSelection
+{
+#if HAVE(UI_ASYNC_TEXT_INTERACTION)
+    if (self.hasAsyncTextInput)
+        return [self define:nil];
+#endif
+    [self _lookup:nil];
+}
+
+- (void)shareSelection
+{
+#if HAVE(UI_ASYNC_TEXT_INTERACTION)
+    if (self.hasAsyncTextInput)
+        return [self share:nil];
+#endif
+    [self _share:nil];
+}
+
+- (BOOL)hasAsyncTextInput
+{
+#if HAVE(UI_ASYNC_TEXT_INTERACTION)
+    return !!self.asyncTextInput;
+#else
+    return NO;
+#endif
+}
+
+- (CGRect)selectionClipRect
+{
+#if HAVE(UI_ASYNC_TEXT_INTERACTION)
+    if (id<WKSETextInput> asyncTextInput = self.asyncTextInput)
+        return asyncTextInput.selectionClipRect;
+#endif
+    return self.textInputContentView._selectionClipRect;
+}
+
+- (void)moveSelectionToStartOfParagraph
+{
+#if HAVE(UI_ASYNC_TEXT_INTERACTION)
+    if (id<WKSETextInput> asyncTextInput = self.asyncTextInput) {
+#if SERVICE_EXTENSIONS_TEXT_INPUT_IS_AVAILABLE
+        [asyncTextInput moveInStorageDirection:UITextStorageDirectionBackward byGranularity:UITextGranularityParagraph];
+#else
+        [asyncTextInput moveInDirection:UITextStorageDirectionBackward byGranularity:UITextGranularityParagraph];
+#endif
+        return;
+    }
+#endif // HAVE(UI_ASYNC_TEXT_INTERACTION)
+    [self.textInputContentView _moveToStartOfParagraph:NO withHistory:nil];
+}
+
+- (void)extendSelectionToStartOfParagraph
+{
+#if HAVE(UI_ASYNC_TEXT_INTERACTION)
+    if (id<WKSETextInput> asyncTextInput = self.asyncTextInput) {
+#if SERVICE_EXTENSIONS_TEXT_INPUT_IS_AVAILABLE
+        [asyncTextInput extendInStorageDirection:UITextStorageDirectionBackward byGranularity:UITextGranularityParagraph];
+#else
+        [asyncTextInput extendInDirection:UITextStorageDirectionBackward byGranularity:UITextGranularityParagraph];
+#endif
+        return;
+    }
+#endif // HAVE(UI_ASYNC_TEXT_INTERACTION)
+    [self.textInputContentView _moveToStartOfParagraph:YES withHistory:nil];
+}
+
+- (void)moveSelectionToEndOfParagraph
+{
+#if HAVE(UI_ASYNC_TEXT_INTERACTION)
+    if (id<WKSETextInput> asyncTextInput = self.asyncTextInput) {
+#if SERVICE_EXTENSIONS_TEXT_INPUT_IS_AVAILABLE
+        [asyncTextInput moveInStorageDirection:UITextStorageDirectionForward byGranularity:UITextGranularityParagraph];
+#else
+        [asyncTextInput moveInDirection:UITextStorageDirectionForward byGranularity:UITextGranularityParagraph];
+#endif
+        return;
+    }
+#endif // HAVE(UI_ASYNC_TEXT_INTERACTION)
+    [self.textInputContentView _moveToEndOfParagraph:NO withHistory:nil];
+}
+
+- (void)extendSelectionToEndOfParagraph
+{
+#if HAVE(UI_ASYNC_TEXT_INTERACTION)
+    if (id<WKSETextInput> asyncTextInput = self.asyncTextInput) {
+#if SERVICE_EXTENSIONS_TEXT_INPUT_IS_AVAILABLE
+        [asyncTextInput extendInStorageDirection:UITextStorageDirectionForward byGranularity:UITextGranularityParagraph];
+#else
+        [asyncTextInput extendInDirection:UITextStorageDirectionForward byGranularity:UITextGranularityParagraph];
+#endif
+        return;
+    }
+#endif // HAVE(UI_ASYNC_TEXT_INTERACTION)
+    [self.textInputContentView _moveToEndOfParagraph:YES withHistory:nil];
+}
+
+#if HAVE(UI_ASYNC_TEXT_INTERACTION)
+
+- (id<WKSETextInput>)asyncTextInput
+{
+    static BOOL conformsToAsyncTextInput = class_conformsToProtocol(NSClassFromString(@"WKContentView"), @protocol(WKSETextInput));
+    if (!conformsToAsyncTextInput)
+        return nil;
+
+    return (id<WKSETextInput>)self.textInputContentView;
+}
+
+- (id<WKSEExtendedTextInputTraits>)extendedTextInputTraits
+{
+#if SERVICE_EXTENSIONS_TEXT_INPUT_IS_AVAILABLE
+    return self.asyncTextInput.extendedTextInputTraits;
+#else
+    return self.asyncTextInput.extendedTraitsDelegate;
+#endif
+}
+
+#endif // HAVE(UI_ASYNC_TEXT_INTERACTION)
+
+- (std::pair<CGRect, CGRect>)autocorrectionRectsForString:(NSString *)string
+{
+    std::pair<CGRect, CGRect> result;
+    bool done = false;
+#if HAVE(UI_ASYNC_TEXT_INTERACTION)
+    if (auto asyncTextInput = self.asyncTextInput) {
+        [asyncTextInput requestTextRectsForString:string withCompletionHandler:[&](NSArray<UITextSelectionRect *> *rects) {
+            result = { rects.firstObject.rect, rects.lastObject.rect };
+            done = true;
+        }];
+    } else
+#endif
+    {
+        [self.textInputContentView requestAutocorrectionRectsForString:string withCompletionHandler:[&](UIWKAutocorrectionRects *rects) {
+            result = { rects.firstRect, rects.lastRect };
+            done = true;
+        }];
+    }
+    TestWebKitAPI::Util::run(&done);
+    return result;
+}
+
+- (TestWebKitAPI::AutocorrectionContext)autocorrectionContext
+{
+    TestWebKitAPI::AutocorrectionContext result;
+    bool done = false;
+#if HAVE(UI_ASYNC_TEXT_INTERACTION)
+    if (auto asyncTextInput = self.asyncTextInput) {
+        [asyncTextInput requestTextContextForAutocorrectionWithCompletionHandler:[&](WKSETextDocumentContext *context) {
+            auto uiContext = dynamic_objc_cast<UIWKDocumentContext>(context);
+#if SERVICE_EXTENSIONS_TEXT_INPUT_IS_AVAILABLE
+            if (auto seContext = dynamic_objc_cast<WKSETextDocumentContext>(context))
+                uiContext = seContext._uikitDocumentContext;
+#endif
+            result = {
+                dynamic_objc_cast<NSString>(uiContext.contextBefore),
+                dynamic_objc_cast<NSString>(uiContext.selectedText),
+                dynamic_objc_cast<NSString>(uiContext.contextAfter),
+                dynamic_objc_cast<NSString>(uiContext.markedText),
+                uiContext.selectedRangeInMarkedText,
+            };
+            done = true;
+        }];
+    } else
+#endif // HAVE(UI_ASYNC_TEXT_INTERACTION)
+    {
+        [self.textInputContentView requestAutocorrectionContextWithCompletionHandler:[&](UIWKAutocorrectionContext *context) {
+            result = { context.contextBeforeSelection, context.selectedText, context.contextAfterSelection, context.markedText, context.rangeInMarkedText };
+            done = true;
+        }];
+    }
+    TestWebKitAPI::Util::run(&done);
+    return result;
+}
+
+- (id<UITextInputTraits_Private>)effectiveTextInputTraits
+{
+#if HAVE(UI_ASYNC_TEXT_INTERACTION)
+    if (self.hasAsyncTextInput)
+        return static_cast<id<UITextInputTraits_Private>>(self.extendedTextInputTraits);
+#endif
+    return static_cast<id<UITextInputTraits_Private>>(self.textInputContentView.textInputTraits);
+}
+
+- (void)replaceText:(NSString *)input withText:(NSString *)correction shouldUnderline:(BOOL)shouldUnderline completion:(void(^)())completion
+{
+#if HAVE(UI_ASYNC_TEXT_INTERACTION)
+    if (self.hasAsyncTextInput) {
+        auto options = shouldUnderline ? WKSETextReplacementOptionsAddUnderline : WKSETextReplacementOptionsNone;
+        auto completionWrapper = [completion = makeBlockPtr(completion)](NSArray<UITextSelectionRect *> *) {
+            completion();
+        };
+#if SERVICE_EXTENSIONS_TEXT_INPUT_IS_AVAILABLE
+        [self.asyncTextInput replaceText:input withText:correction options:options completionHandler:completionWrapper];
+#else
+        [self.asyncTextInput replaceText:input withText:correction options:options withCompletionHandler:completionWrapper];
+#endif
+        return;
+    }
+#endif // HAVE(UI_ASYNC_TEXT_INTERACTION)
+
+    [self.textInputContentView applyAutocorrection:correction toString:input shouldUnderline:shouldUnderline withCompletionHandler:[completion = makeBlockPtr(completion)](UIWKAutocorrectionRects *) {
+        completion();
+    }];
+}
+
+#if HAVE(UI_ASYNC_TEXT_INTERACTION)
+
+static RetainPtr<WKSEKeyEntry> wrap(WebEvent *webEvent)
+{
+    auto uiKeyEvent = adoptNS([allocUIKeyEventInstance() initWithWebEvent:webEvent]);
+#if SERVICE_EXTENSIONS_TEXT_INPUT_IS_AVAILABLE
+    return adoptNS([[WKSEKeyEntry alloc] _initWithUIKitKeyEvent:uiKeyEvent.get()]);
+#else
+    return uiKeyEvent;
+#endif
+}
+
+static WebEvent *unwrap(WKSEKeyEntry *event)
+{
+#if SERVICE_EXTENSIONS_TEXT_INPUT_IS_AVAILABLE
+    auto uiEvent = retainPtr(event._uikitKeyEvent);
+#else
+    RetainPtr uiEvent = event;
+#endif
+    return [uiEvent webEvent];
+}
+
+#endif // HAVE(UI_ASYNC_TEXT_INTERACTION)
+
+#if HAVE(UI_WK_DOCUMENT_CONTEXT)
+
+- (void)synchronouslyAdjustSelectionWithDelta:(NSRange)range
+{
+    __block bool finished = false;
+    auto completion = ^{
+        finished = true;
+    };
+#if HAVE(UI_ASYNC_TEXT_INTERACTION)
+    if (self.hasAsyncTextInput) {
+        WKSEDirectionalTextRange directionalRange {
+            static_cast<NSInteger>(range.location),
+            static_cast<NSInteger>(range.length)
+        };
+#if SERVICE_EXTENSIONS_TEXT_INPUT_IS_AVAILABLE
+        [self.asyncTextInput adjustSelectionByRange:directionalRange completionHandler:completion];
+#else
+        [self.asyncTextInput adjustSelection:directionalRange completionHandler:completion];
+#endif
+    } else
+#endif // HAVE(UI_ASYNC_TEXT_INTERACTION)
+        [self.textInputContentView adjustSelectionWithDelta:range completionHandler:completion];
+    TestWebKitAPI::Util::run(&finished);
+}
+
+#endif // HAVE(UI_WK_DOCUMENT_CONTEXT)
+
+- (void)selectTextForContextMenuWithLocationInView:(CGPoint)locationInView completion:(void(^)(BOOL shouldPresent))completion
+{
+#if HAVE(UI_ASYNC_TEXT_INTERACTION)
+    if (self.hasAsyncTextInput) {
+        auto completionWrapper = [completion = makeBlockPtr(completion)](BOOL shouldPresent, NSString *, NSRange) {
+            completion(shouldPresent);
+        };
+#if SERVICE_EXTENSIONS_TEXT_INPUT_IS_AVAILABLE
+        [self.asyncTextInput selectTextForEditMenuWithLocationInView:locationInView completionHandler:completionWrapper];
+#else
+        [self.asyncTextInput selectTextForContextMenuWithLocationInView:locationInView completionHandler:completionWrapper];
+#endif
+        return;
+    }
+#endif // HAVE(UI_ASYNC_TEXT_INTERACTION)
+    [self.textInputContentView prepareSelectionForContextMenuWithLocationInView:locationInView completionHandler:[completion = makeBlockPtr(completion)](BOOL shouldPresent, RVItem *) {
+        completion(shouldPresent);
+    }];
+}
+
+- (void)handleKeyEvent:(WebEvent *)event completion:(void (^)(WebEvent *theEvent, BOOL handled))completion
+{
+#if HAVE(UI_ASYNC_TEXT_INTERACTION)
+    if (self.hasAsyncTextInput) {
+        auto completionWrapper = [completion = makeBlockPtr(completion)](WKSEKeyEntry *event, BOOL handled) {
+            completion(unwrap(event), handled);
+        };
+#if SERVICE_EXTENSIONS_TEXT_INPUT_IS_AVAILABLE
+        [self.asyncTextInput handleKeyEntry:wrap(event).get() withCompletionHandler:completionWrapper];
+#else
+        [self.asyncTextInput handleAsyncKeyEvent:wrap(event).get() withCompletionHandler:completionWrapper];
+#endif
+        return;
+    }
+#endif
+    [self.textInputContentView handleKeyWebEvent:event withCompletionHandler:completion];
 }
 
 #endif // PLATFORM(IOS_FAMILY)
@@ -796,8 +1102,6 @@ static InputSessionChangeCount nextInputSessionChangeCount()
 #if HAVE(UI_TEXT_SELECTION_DISPLAY_INTERACTION)
     if (auto view = self.textSelectionDisplayInteraction.cursorView; !view.hidden)
         caretView = view;
-#else
-    caretView = [self.textInputContentView valueForKeyPath:@"interactionAssistant.selectionView.caretView"];
 #endif
 
     return [caretView convertRect:caretView.bounds toView:self.textInputContentView];
@@ -810,8 +1114,6 @@ static InputSessionChangeCount nextInputSessionChangeCount()
 #if HAVE(UI_TEXT_SELECTION_DISPLAY_INTERACTION)
     if (auto view = self.textSelectionDisplayInteraction.highlightView; !view.hidden)
         rects = view.selectionRects;
-#else
-    rects = [self.textInputContentView valueForKeyPath:@"interactionAssistant.selectionView.rangeView.rects"];
 #endif
 
     for (UITextSelectionRect *rect in rects)

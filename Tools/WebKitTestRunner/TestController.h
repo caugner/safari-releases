@@ -95,8 +95,6 @@ public:
     static void configureWebsiteDataStoreTemporaryDirectories(WKWebsiteDataStoreConfigurationRef);
     static WKWebsiteDataStoreRef defaultWebsiteDataStore();
 
-    static WKURLRef createTestURL(const char* pathOrURL);
-
     static const WTF::Seconds defaultShortTimeout;
     static const WTF::Seconds noTimeout;
 
@@ -203,8 +201,8 @@ public:
     void setShouldLogCanAuthenticateAgainstProtectionSpace(bool shouldLog) { m_shouldLogCanAuthenticateAgainstProtectionSpace = shouldLog; }
     void setShouldLogDownloadCallbacks(bool shouldLog) { m_shouldLogDownloadCallbacks = shouldLog; }
     void setShouldLogDownloadSize(bool shouldLog) { m_shouldLogDownloadSize = shouldLog; }
-    void setShouldDownloadContentDispositionAttachments(bool shouldDownload) { m_shouldDownloadContentDispositionAttachments = shouldDownload; }
     void setShouldLogDownloadExpectedSize(bool shouldLog) { m_shouldLogDownloadExpectedSize = shouldLog; }
+    void setShouldDownloadContentDispositionAttachments(bool shouldDownload) { m_shouldDownloadContentDispositionAttachments = shouldDownload; }
 
     bool isCurrentInvocation(TestInvocation* invocation) const { return invocation == m_currentInvocation.get(); }
 
@@ -250,6 +248,7 @@ public:
     void statisticsProcessStatisticsAndDataRecords();
     void statisticsUpdateCookieBlocking();
     void setStatisticsNotifyPagesWhenDataRecordsWereScanned(bool);
+    void setStatisticsTimeAdvanceForTesting(double);
     void setStatisticsIsRunningTest(bool);
     void setStatisticsShouldClassifyResourcesBeforeDataRecordsRemoval(bool);
     void setStatisticsMinimumTimeBetweenDataRecordsRemoval(double);
@@ -367,7 +366,6 @@ public:
     void abortModal();
 
     bool isDoingMediaCapture() const;
-    bool isEnumeratingAudioUnitActive() const;
 
     String dumpPrivateClickMeasurement();
     void clearPrivateClickMeasurement();
@@ -394,6 +392,8 @@ public:
     void completeMediaKeySystemPermissionCheck(WKMediaKeySystemPermissionCallbackRef);
     void setIsMediaKeySystemPermissionGranted(bool);
     WKRetainPtr<WKStringRef> takeViewPortSnapshot();
+
+    WKRetainPtr<WKArrayRef> getAndClearReportedWindowProxyAccessDomains();
 
     WKPreferencesRef platformPreferences() { return m_preferences.get(); }
 
@@ -425,6 +425,12 @@ public:
 
 #if ENABLE(IMAGE_ANALYSIS)
     static uint64_t currentImageAnalysisRequestID();
+    void installFakeMachineReadableCodeResultsForImageAnalysis();
+    bool shouldUseFakeMachineReadableCodeResultsForImageAnalysis() const;
+#endif
+
+#if PLATFORM(WPE)
+    bool useWPEPlatformAPI() const { return m_useWPEPlatformAPI; }
 #endif
 
 private:
@@ -436,7 +442,9 @@ private:
 
     void runTestingServerLoop();
     bool runTest(const char* pathOrURL);
-    
+
+    WKURLRef createTestURL(const char* pathOrURL);
+
     // Returns false if timed out.
     bool waitForCompletion(const WTF::Function<void ()>&, WTF::Seconds timeout);
 
@@ -522,6 +530,9 @@ private:
     static void didFinishNavigation(WKPageRef, WKNavigationRef, WKTypeRef userData, const void*);
     void didFinishNavigation(WKPageRef, WKNavigationRef);
 
+    static void didFailProvisionalNavigation(WKPageRef, WKNavigationRef, WKErrorRef, WKTypeRef, const void*);
+    void didFailProvisionalNavigation(WKPageRef, WKErrorRef);
+
     // WKDownloadClient
     static void navigationActionDidBecomeDownload(WKPageRef, WKNavigationActionRef, WKDownloadRef, const void*);
     static void navigationResponseDidBecomeDownload(WKPageRef, WKNavigationResponseRef, WKDownloadRef, const void*);
@@ -606,6 +617,7 @@ private:
     static const char* libraryPathForTesting();
     static const char* platformLibraryPathForTesting();
 
+    WKRetainPtr<WKURLRef> m_mainResourceURL;
     std::unique_ptr<TestInvocation> m_currentInvocation;
 #if PLATFORM(COCOA)
     std::unique_ptr<ClassMethodSwizzler> m_calendarSwizzler;
@@ -616,6 +628,9 @@ private:
 #endif
 #if HAVE(UIKIT_RESIZABLE_WINDOWS)
     std::unique_ptr<InstanceMethodSwizzler> m_enhancedWindowingEnabledSwizzler;
+#endif
+#if ENABLE(DATA_DETECTION)
+    std::unique_ptr<InstanceMethodSwizzler> m_appStoreURLSwizzler;
 #endif
     bool m_verbose { false };
     bool m_printSeparators { false };
@@ -648,6 +663,10 @@ private:
     RetainPtr<UIPasteboardConsistencyEnforcer> m_pasteboardConsistencyEnforcer;
     RetainPtr<UIKeyboardInputMode> m_overriddenKeyboardInputMode;
     Vector<std::unique_ptr<InstanceMethodSwizzler>> m_presentPopoverSwizzlers;
+#endif
+
+#if ENABLE(IMAGE_ANALYSIS)
+    bool m_useFakeMachineReadableCodeResultsForImageAnalysis { false };
 #endif
 
     enum State {
@@ -751,11 +770,15 @@ private:
 
     std::optional<long long> m_downloadTotalBytesWritten;
     std::optional<uint64_t> m_downloadTotalBytesExpectedToWrite;
-    size_t m_downloadIndex { 0 };
     bool m_shouldLogDownloadSize { false };
     bool m_shouldLogDownloadExpectedSize { false };
+    size_t m_downloadIndex { 0 };
     bool m_shouldDownloadContentDispositionAttachments { true };
     bool m_dumpPolicyDelegateCallbacks { false };
+
+#if PLATFORM(WPE)
+    bool m_useWPEPlatformAPI { false };
+#endif
 };
 
 } // namespace WTR
