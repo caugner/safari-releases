@@ -520,6 +520,7 @@ accessibility/table-search-traversal.html [ Skip ]
 accessibility/tree-update-with-dirty-layout.html [ Skip ]
 accessibility/dynamically-changing-iframe-remains-accessible.html [ Skip ]
 accessibility/ignore-modals-without-any-content.html [ Skip ]
+accessibility/iframe-tree-update-with-dirty-layout.html [ Skip ]
 accessibility/iframe-with-role.html [ Skip ]
 
 accessibility/editable-webpage-focused-ui-element.html [ Skip ]
@@ -614,6 +615,12 @@ webkit.org/b/232256 accessibility/auto-fill-crash.html [ Timeout ]
 
 # Times out due to missing AccessibilityUIElement::takeFocus
 http/tests/accessibility/focus-text-field-in-iframe.html [ Skip ]
+
+# Fails due to missing AccessibilityUIElement::indexInTable() implementation.
+accessibility/table-insert-second-thead.html [ Skip ]
+
+# Fails due to missing AccessibilityUIElement::columns() implementation.
+accessibility/dynamic-table-row-column-indices.html [ Skip ]
 
 #////////////////////////////////////////////////////////////////////////////////////////
 # End of Accessibility-related bugs
@@ -1784,6 +1791,7 @@ webkit.org/b/215945 webanimations/accelerated-css-animation-with-easing.html [ I
 
 webkit.org/b/216539 webanimations/accelerated-animation-easing-and-direction-update.html [ ImageOnlyFailure ]
 
+webkit.org/b/221021 webanimations/accelerated-animation-immediate-prevetion-direction-reverse.html [ Skip ]
 webkit.org/b/221021 webanimations/combining-transform-animations-with-different-acceleration-capabilities-2.html [ Skip ]
 webkit.org/b/221021 webanimations/combining-transform-animations-with-different-acceleration-capabilities-3.html [ Skip ]
 webkit.org/b/221021 webanimations/combining-transform-animations-with-different-acceleration-capabilities-4.html [ Skip ]
@@ -3771,6 +3779,9 @@ webkit.org/b/266708 imported/w3c/web-platform-tests/html/semantics/embedded-cont
 webkit.org/b/266719 fast/canvas/offscreen-giant.html [ ImageOnlyFailure ]
 
 webkit.org/b/266713 webrtc/processIceTransportStateChange-gc.html [ Skip ]
+
+# This test hits some infinite-loop condition inside Cairo
+fast/css/repeating-conic-gradient-small-range.html [ Skip ]
 
 # End: Common failures between GTK and WPE.
 

@@ -1134,6 +1134,56 @@ TEST(KeyboardInputTests, MarkedTextSegmentsWithUnderlines)
     EXPECT_GT(numberOfDifferentPixels, 0U);
 }
 
+TEST(KeyboardInputTests, HasTextAfterFocusingTextField)
+{
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 600)]);
+
+    enum class HasText : bool { No, Yes };
+    __block Vector<std::pair<WKInputType, HasText>, 3> results;
+    __block bool doneWaitingForInputSession = false;
+
+    auto inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+    [inputDelegate setDidStartInputSessionHandler:^(WKWebView *webView, id<_WKFormInputSession> session) {
+        results.append({
+            session.focusedElementInfo.type,
+            webView.textInputContentView.hasText ? HasText::Yes : HasText::No
+        });
+        doneWaitingForInputSession = true;
+    }];
+
+    [inputDelegate setFocusStartsInputSessionPolicyHandler:^(WKWebView *, id<_WKFocusedElementInfo>) {
+        return _WKFocusStartsInputSessionPolicyAllow;
+    }];
+    [webView _setInputDelegate:inputDelegate.get()];
+    [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html>"
+        "<html>"
+        "<meta name='viewport' content='width=device-width'>"
+        "<body>"
+        "  <input id='emailField' type='email' value='foo@bar.com'>"
+        "  <input id='passwordField' type='password'>"
+        "  <div id='richTextEditor' contentEditable='true'><span>Hello world</span></div>"
+        "</body>"
+        "</html>"];
+
+    auto waitForInputSessionAfterFocusing = ^(NSString *elementID) {
+        doneWaitingForInputSession = false;
+        [webView objectByEvaluatingJavaScript:[NSString stringWithFormat:@"%@.focus()", elementID]];
+        Util::run(&doneWaitingForInputSession);
+    };
+
+    waitForInputSessionAfterFocusing(@"emailField");
+    waitForInputSessionAfterFocusing(@"passwordField");
+    waitForInputSessionAfterFocusing(@"richTextEditor");
+
+    EXPECT_EQ(results.size(), 3U);
+    EXPECT_EQ(results[0].first, WKInputTypeEmail);
+    EXPECT_EQ(results[0].second, HasText::Yes);
+    EXPECT_EQ(results[1].first, WKInputTypePassword);
+    EXPECT_EQ(results[1].second, HasText::No);
+    EXPECT_EQ(results[2].first, WKInputTypeContentEditable);
+    EXPECT_EQ(results[2].second, HasText::Yes);
+}
+
 #if HAVE(AUTOCORRECTION_ENHANCEMENTS)
 TEST(KeyboardInputTests, AutocorrectionIndicatorColorNotAffectedByAuthorDefinedAncestorColorProperty)
 {
@@ -1216,21 +1266,18 @@ TEST(KeyboardInputTests, AutocorrectionIndicatorColorNotAffectedByAuthorDefinedA
 
 #if HAVE(ESIM_AUTOFILL_SYSTEM_SUPPORT)
 
-static BOOL allowESIMAutoFillForWebKitDomains(id, SEL, NSString *domain, NSError **)
+static BOOL allowESIMAutoFillForWebKit(id, SEL, NSString *host, NSError **)
 {
-    return [domain isEqualToString:@"webkit.org"];
+    return [host isEqualToString:@"login.webkit.org"];
 }
 
 TEST(KeyboardInputTests, DeviceEIDAndIMEIAutoFill)
 {
-    auto clientClass = PAL::getCoreTelephonyClientClass();
-    auto autoFillAllowedSelector = @selector(isAutofilleSIMIdAllowedForDomain:error:);
-    if (![clientClass instancesRespondToSelector:autoFillAllowedSelector]) {
-        // Skip this test altogether if system support is missing.
-        return;
-    }
-
-    InstanceMethodSwizzler swizzler { clientClass, autoFillAllowedSelector, reinterpret_cast<IMP>(allowESIMAutoFillForWebKitDomains) };
+    InstanceMethodSwizzler swizzler {
+        PAL::getCoreTelephonyClientClass(),
+        @selector(isAutofilleSIMIdAllowedForDomain:error:),
+        reinterpret_cast<IMP>(allowESIMAutoFillForWebKit)
+    };
     [WKWebView _setApplicationBundleIdentifier:@"org.webkit.SomeTelephonyApp"];
 
     auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
@@ -1266,7 +1313,7 @@ TEST(KeyboardInputTests, DeviceEIDAndIMEIAutoFill)
         didStartInputSession = false;
     };
 
-    loadSimulatedRequest(@"https://webkit.org"); // AutoFill is allowed here.
+    loadSimulatedRequest(@"https://login.webkit.org"); // AutoFill is allowed here.
     focusElementWithID(@"imei");
     EXPECT_WK_STREQ(UITextContentTypeCellularIMEI, [webView effectiveTextInputTraits].textContentType);
 

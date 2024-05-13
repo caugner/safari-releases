@@ -235,6 +235,7 @@ imported/w3c/web-platform-tests/pointerlock [ Skip ]
 http/tests/media
 imported/w3c/web-platform-tests/html/semantics/embedded-content/media-elements
 http/tests/cache/disk-cache/disk-cache-media-small.html
+http/tests/media/audio-load-loadeddata.html [ Pass ]
 
 # No touch events
 fast/events/touch [ Skip ]
@@ -2213,12 +2214,14 @@ accessibility/display-contents/element-roles.html [ Pass ]
 accessibility/display-contents/object-ordering.html [ Pass ]
 accessibility/display-contents/table.html [ Pass ]
 accessibility/display-flex-shadow-dom-accname.html [ Pass ]
+accessibility/dynamic-text.html [ Pass ]
 accessibility/dynamically-ignored-canvas.html [ Pass ]
 accessibility/editable-webpage-focused-ui-element.html [ Pass ]
 accessibility/element-haspopup.html [ Pass ]
 accessibility/empty-text-under-element-cached.html [ Pass ]
 accessibility/heading-level.html [ Pass ]
 accessibility/html5-required-attribute.html [ Pass ]
+accessibility/iframe-tree-update-with-dirty-layout.html [ Pass ]
 accessibility/iframe-with-role.html [ Pass ]
 accessibility/input-type-hidden-in-aria-hidden-false.html [ Pass ]
 accessibility/invalid-inputs.html [ Pass ]
@@ -3374,8 +3377,7 @@ http/tests/websocket/tests/hybi/workers/worker-reload.html [ Pass Crash ]
 http/tests/workers/service/service-worker-download-async-delegates.https.html [ Pass Crash ]
 
 # rdar://80396393 ([ iOS15 ] http/wpt/mediarecorder/mute-tracks.html is a flaky failure)
-# webkit.org/b/238774 [ iOS ] http/wpt/mediarecorder/mute-tracks.html is a flaky crash
-http/wpt/mediarecorder/mute-tracks.html [ Pass Failure Crash ]
+http/wpt/mediarecorder/mute-tracks.html [ Pass Failure ]
 
 # rdar://80396502 ([ iOS15 ] http/wpt/mediarecorder/pause-recording.html is a flaky crash)
 http/wpt/mediarecorder/pause-recording.html [ Pass Crash ]
@@ -4675,6 +4677,7 @@ imported/w3c/web-platform-tests/css/css-ruby/ruby-text-combine-upright-002a.html
 imported/w3c/web-platform-tests/css/css-ruby/ruby-text-combine-upright-002b.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-ruby/line-break-around-ruby-001.html [ Failure ]
 fast/ruby/annotation-with-line-gap.html [ ImageOnlyFailure ]
+fast/ruby/tight-line-spacing-with-line-height.html [ ImageOnlyFailure ]
 
 webkit.org/b/264001 [ Debug ] imported/w3c/web-platform-tests/requestidlecallback/callback-multiple-calls.html [ Pass Failure ]
 
@@ -4702,3 +4705,4 @@ webkit.org/b/259132 imported/w3c/web-platform-tests/html/semantics/disabled-elem
 webkit.org/b/266665 imported/w3c/web-platform-tests/html/semantics/invokers/invoketarget-button-event-dispatch.tentative.html [ Failure ]
 
 webkit.org/b/266669 imported/w3c/web-platform-tests/webrtc-extensions/RTCRtpSynchronizationSource-captureTimestamp.html [ Pass Failure ]
+webkit.org/b/271764 fast/scrolling/ios/video-atop-overflow-scroll.html [ Pass Failure ]

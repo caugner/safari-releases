@@ -848,6 +848,9 @@ accessibility/text-marker/text-marker-range-with-unordered-markers.html
 # New API not supported in WK1
 accessibility/mac/intersection-with-selection-range.html [ Skip ]
 
+# Skipping because AccessibilityUIElement::columns() is not supported on WK1.
+accessibility/dynamic-table-row-column-indices.html [ Skip ]
+
 # DOM paste access requests are not implemented in WebKit1.
 editing/async-clipboard/clipboard-change-data-while-reading.html [ Skip ]
 editing/async-clipboard/clipboard-do-not-read-text-from-platform-if-text-changes.html [ Skip ]
@@ -1021,6 +1024,8 @@ media/now-playing-status-without-media.html [ Skip ]
 # WebM not supported in WK1 on macOS.
 http/tests/media/cross-origin-webm-video.html [ Skip ]
 http/tests/media/video-webm-stall.html
+http/tests/media/video-src-webm-blob.html [ Failure ]
+http/tests/media/video-srcobject-webm-blob.html [ Failure ]
 media/W3C/video/canPlayType/canPlayType_codecs_order_1.html [ Failure ]
 media/W3C/video/canPlayType/canPlayType_supported_but_no_codecs_parameter_1.html [ Failure ]
 media/W3C/video/canPlayType/canPlayType_two_implies_one_1.html [ Failure ]
@@ -1035,7 +1040,10 @@ media/media-sources-selection.html [ ImageOnlyFailure ]
 media/media-source/media-source-webm-configuration-change.html [ Failure ]
 media/media-source/media-source-webm-configuration-framerate.html [ Failure ]
 media/media-source/media-source-webm-configuration-vp9-header-color.html [ Failure ]
-media/media-source/media-managedmse-multipletracks-bufferedchange.html [ Failure ]
+
+# Managed MediaSource isn't enabled on WK1
+media/media-source/media-managedmse-multipletracks-bufferedchange.html [ Skip ]
+media/media-source/media-managedmse-poster.html [ Skip ]
 
 # CRABS WebM isn't supported in WK1
 media/media-webm-opus-buffered.html [ Failure ]
