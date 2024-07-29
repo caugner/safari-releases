@@ -1959,8 +1959,6 @@ webkit.org/b/221491 animations/keyframe-pseudo-shadow.html [ Pass ImageOnlyFailu
 
 webkit.org/b/221973 [ Monterey+ ] media/media-webm-no-duration.html [ Failure ]
 
-webkit.org/b/221935 media/webaudio-background-playback.html [ Pass Failure ]
-
 webkit.org/b/221218 [ Monterey+ ] imported/w3c/web-platform-tests/media-source/mediasource-config-change-webm-v-framesize.html [ Pass Failure ]
 
 webkit.org/b/221100 imported/w3c/web-platform-tests/webaudio/the-audio-api/the-audioworklet-interface/audioworkletnode-channel-count.https.html [ Pass Failure ]
@@ -2589,3 +2587,19 @@ webkit.org/b/268947 [ Ventura+ ] imported/w3c/web-platform-tests/mathml/relation
 
 # Enable after rdar://120859525 is available on bots
 http/tests/media/fairplay/fps-mse-unmuxed-mpts.html [ Skip ]
+
+# rdar://127759603 (Mark expectations for bugs that are failing on branch, but fixed on main.
+[ Sonoma ] fast/url/idna2008.html [ Failure ]
+[ Sonoma ] fast/url/url-hostname-encoding.html [ Failure ]
+
+# rdar://127763127 (Mark expectations on the 7618-branch for test failures occurring on main with existing bugs
+http/wpt/webauthn/public-key-credential-create-failure-local.https.html [ Failure ]
+http/wpt/webauthn/public-key-credential-create-failure-local-silent.https.html [ Failure ]
+http/wpt/webauthn/public-key-credential-get-failure-local.https.html [ Failure ]
+http/tests/security/clipboard/copy-paste-html-across-origin-sanitizes-html.html [ Pass Failure ]
+http/tests/security/clipboard/copy-paste-html-across-origin-strips-mso-list.html [ Pass Failure ]
+imported/w3c/web-platform-tests/css/css-ruby/line-spacing.html [ Pass Failure ]
+
+webkit.org/b/273900 compositing/repaint/needs-no-display-volatile-repaint.html [ Skip ]
+
+webkit.org/b/273911 [ Debug ] fast/block/crash-when-style-and-renderer-invalidated-for-floating-object-element.html [ Skip ]

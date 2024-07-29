@@ -1576,7 +1576,6 @@ accessibility/focusable-ancestor.html [ Skip ]
 
 # Missing AccessibilityUIElement::{editableAncestor, highestEditableAncestor} implementations.
 accessibility/editable-ancestor.html [ Skip ]
-accessibility/content-editable-property-change.html [ Skip ]
 
 # <rdar://problem/26050923> The result is probably still a pass, but we don't have a way
 # to have platform specific results that are different between WK1 and WK2.
@@ -2768,4 +2767,12 @@ imported/w3c/web-platform-tests/pointerevents/pointerevent_touch-action-mouse.ht
 #test uses test helper functions not implemented on WK1
 fast/dom/no-scroll-when-command-click-fragment-URL.html [ Skip ]
 
+# rdar://127759603 (Mark expectations for bugs that are failing on branch, but fixed on main.
+fast/hidpi/filters-drop-shadow.html [ ImageOnlyFailure ] 
+media/track/track-in-band-layout.html [ Skip ]
+media/track/track-paint-on-captions.html [ Skip ]
 
+# rdar://127763127 (Mark expectations on the 7618-branch for test failures occurring on main with existing bugs
+[ Ventura ] imported/w3c/web-platform-tests/accname/name/comp_host_language_label.html [ Failure ]
+
+webkit.org/b/273279 fonts/font-fallback-prefers-pictographs.html [ Skip ]

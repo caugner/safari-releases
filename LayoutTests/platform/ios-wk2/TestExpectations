@@ -2358,6 +2358,30 @@ imported/w3c/web-platform-tests/css/css-view-transitions/input-targets-root-whil
 
 # WindowProxy property access delegate callbacks are only implemented on Mac and iOS WK2.
 http/wpt/opener/child-access-parent-via-windowproxy.html [ Pass ]
+http/wpt/opener/cross-site-child-access-parent-iframe-via-windowproxy.html [ Pass ]
 http/wpt/opener/iframe-access-top-via-windowproxy.html [ Pass ]
 http/wpt/opener/parent-access-child-via-windowproxy.html [ Pass ]
+http/wpt/opener/same-site-child-access-parent-iframe-via-windowproxy.html [ Pass ]
 
+# rdar://127759603 (Mark expectations for bugs that are failing on branch, but fixed on main.
+editing/async-clipboard/clipboard-write-basic.html [ Failure ] 
+editing/async-clipboard/sanitize-when-reading-markup.html [ Failure ]
+editing/pasteboard/data-transfer-set-data-sanitize-url-when-copying-in-null-origin.html [ Failure ]
+editing/pasteboard/data-transfer-set-data-sanitizes-html-when-copying.html [ Failure ]
+
+# rdar://127763127 (Mark expectations on the 7618-branch for test failures occurring on main with existing bugs
+http/wpt/webauthn/public-key-credential-create-failure-local.https.html [ Failure ]
+http/wpt/webauthn/public-key-credential-get-failure-local.https.html [ Failure ]
+http/tests/security/clipboard/copy-paste-html-across-origin-sanitizes-html.html [ Failure ]
+http/tests/security/clipboard/copy-paste-html-across-origin-strips-mso-list.html [ Failure ]
+imported/w3c/web-platform-tests/css/css-ruby/line-spacing.html [ Failure ]
+
+webkit.org/b/273900 compositing/repaint/needs-no-display-volatile-repaint.html [ Skip ]
+
+webkit.org/b/273905 svg/filters/filter-on-root-tile-boundary.html [ Pass ImageOnlyFailure ]
+
+#rdar://127771298 (Mark more tests fixed on main, but still broken on. iOS for 7618-branch (273909))
+fast/images/async-image-intersect-different-size-for-drawing.html [ Failure ]
+imported/w3c/web-platform-tests/mathml/relations/css-styling/floats/not-floating-001.html [ Failure ]
+
+webkit.org/b/273911 [ Debug ] fast/block/crash-when-style-and-renderer-invalidated-for-floating-object-element.html [ Skip ]

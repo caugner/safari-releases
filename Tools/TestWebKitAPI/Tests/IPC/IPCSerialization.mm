@@ -214,6 +214,21 @@ inline bool isEqual(WKDDActionContext *a, WKDDActionContext* b)
 }
 #endif
 
+#if USE(PASSKIT) && !PLATFORM(WATCHOS)
+static bool CNPostalAddressTesting_isEqual(CNPostalAddress *a, CNPostalAddress *b)
+{
+    // CNPostalAddress treats a nil formattedAddress and empty formattedAddress the same for equality.
+    // But, there's other behavior with CNPostalAddress where nil-vs-empty makes a critical difference.
+    // To regression test our IPC of the object, we explicitly make sure that "nil goes in, nil comes out"
+    if (a.formattedAddress && !b.formattedAddress)
+        return false;
+    if (!a.formattedAddress && b.formattedAddress)
+        return false;
+
+    return [a isEqual:b];
+}
+#endif
+
 inline bool operator==(const ObjCHolderForTesting& a, const ObjCHolderForTesting& b)
 {
     id aObject = a.valueAsID();
@@ -226,6 +241,10 @@ inline bool operator==(const ObjCHolderForTesting& a, const ObjCHolderForTesting
     // DDActionContext doesn't have an isEqual: reliable for our unit testing, so do it ourselves.
     if ([aObject isKindOfClass:PAL::getWKDDActionContextClass()] && [bObject isKindOfClass:PAL::getWKDDActionContextClass()])
         return isEqual(aObject, bObject);
+#endif
+#if USE(PASSKIT) && !PLATFORM(WATCHOS)
+    if ([aObject isKindOfClass:PAL::getCNPostalAddressClass()])
+        return CNPostalAddressTesting_isEqual(aObject, bObject);
 #endif
 
     return [aObject isEqual:bObject];
@@ -591,9 +610,22 @@ TEST(IPCSerialization, Basic)
     auto components = personNameComponentsForTesting();
     runTestNS({ components.get().phoneticRepresentation });
     runTestNS({ components.get() });
+    components.get().namePrefix = nil;
+    runTestNS({ components.get() });
+    components.get().givenName = nil;
+    runTestNS({ components.get() });
+    components.get().middleName = nil;
+    runTestNS({ components.get() });
+    components.get().familyName = nil;
+    runTestNS({ components.get() });
+    components.get().nickname = nil;
+    runTestNS({ components.get() });
 
 #if USE(PASSKIT) && !PLATFORM(WATCHOS)
     // CNPhoneNumber
+    // Digits must be non-null at init-time, but countryCode can be null.
+    // However, Contacts will calculate a default country code if you pass in a null one,
+    // so testing encode/decode of such an instance is pointless.
     RetainPtr<CNPhoneNumber> phoneNumber = [PAL::getCNPhoneNumberClass() phoneNumberWithDigits:@"4085551234" countryCode:@"us"];
     runTestNS({ phoneNumber.get() });
 
@@ -609,6 +641,8 @@ TEST(IPCSerialization, Basic)
     address.get().ISOCountryCode = @"US";
     address.get().formattedAddress = @"Hello world";
     runTestNS({ address.get() });
+    address.get().formattedAddress = nil;
+    runTestNS({ address.get() });
 
     // PKContact
     RetainPtr<PKContact> contact = adoptNS([PAL::getPKContactClass() new]);
@@ -619,6 +653,16 @@ TEST(IPCSerialization, Basic)
 ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     contact.get().supplementarySubLocality = @"City 17";
 ALLOW_DEPRECATED_DECLARATIONS_END
+    runTestNS({ contact.get() });
+    contact.get().name = nil;
+    runTestNS({ contact.get() });
+    contact.get().postalAddress = nil;
+    runTestNS({ contact.get() });
+    contact.get().phoneNumber = nil;
+    runTestNS({ contact.get() });
+    contact.get().emailAddress = nil;
+    runTestNS({ contact.get() });
+    contact.get().supplementarySubLocality = nil;
     runTestNS({ contact.get() });
 #endif // USE(PASSKIT) && !PLATFORM(WATCHOS)
 
