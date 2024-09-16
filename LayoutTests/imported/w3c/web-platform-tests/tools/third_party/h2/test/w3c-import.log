@@ -14,8 +14,10 @@ Property values requiring vendor prefixes:
 None
 ------------------------------------------------------------------------
 List of files:
+/LayoutTests/imported/w3c/web-platform-tests/tools/third_party/h2/test/__init__.py
 /LayoutTests/imported/w3c/web-platform-tests/tools/third_party/h2/test/conftest.py
 /LayoutTests/imported/w3c/web-platform-tests/tools/third_party/h2/test/coroutine_tests.py
+/LayoutTests/imported/w3c/web-platform-tests/tools/third_party/h2/test/h2spectest.sh
 /LayoutTests/imported/w3c/web-platform-tests/tools/third_party/h2/test/helpers.py
 /LayoutTests/imported/w3c/web-platform-tests/tools/third_party/h2/test/test_basic_logic.py
 /LayoutTests/imported/w3c/web-platform-tests/tools/third_party/h2/test/test_closed_streams.py
@@ -35,6 +37,7 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/tools/third_party/h2/test/test_priority.py
 /LayoutTests/imported/w3c/web-platform-tests/tools/third_party/h2/test/test_related_events.py
 /LayoutTests/imported/w3c/web-platform-tests/tools/third_party/h2/test/test_rfc7838.py
+/LayoutTests/imported/w3c/web-platform-tests/tools/third_party/h2/test/test_rfc8441.py
 /LayoutTests/imported/w3c/web-platform-tests/tools/third_party/h2/test/test_settings.py
 /LayoutTests/imported/w3c/web-platform-tests/tools/third_party/h2/test/test_state_machines.py
 /LayoutTests/imported/w3c/web-platform-tests/tools/third_party/h2/test/test_stream_reset.py

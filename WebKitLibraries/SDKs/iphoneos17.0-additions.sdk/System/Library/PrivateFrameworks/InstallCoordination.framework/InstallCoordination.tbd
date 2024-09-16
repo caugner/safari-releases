@@ -2,5 +2,8 @@
 tbd-version: 4
 targets: [armv7-ios, armv7s-ios, arm64-ios, arm64e-ios]
 install-name: /System/Library/PrivateFrameworks/InstallCoordination.framework/InstallCoordination
-exports: []
+exports:
+-       targets: [armv7-ios, armv7s-ios, arm64-ios, arm64e-ios]
+        objc-classes: [IXAppInstallCoordinator, IXPlaceholder, IXPlaceholderAttributes, IXPromisedInMemoryDictionary, IXPromisedOutOfBandTransfer,
+                IXRestoringDemotedAppInstallCoordinator]
 ...

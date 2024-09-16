@@ -25,7 +25,7 @@
 
 #import "config.h"
 
-#if PLATFORM(IOS_FAMILY) && HAVE(UI_WK_DOCUMENT_CONTEXT)
+#if HAVE(UI_WK_DOCUMENT_CONTEXT)
 
 #import "PlatformUtilities.h"
 #import "TestCocoa.h"
@@ -34,18 +34,16 @@
 #import "UIKitSPIForTesting.h"
 #import <WebKit/WKWebViewPrivateForTesting.h>
 #import <WebKit/_WKTextInputContext.h>
+#import <pal/spi/ios/BrowserEngineKitSPI.h>
 #import <wtf/RetainPtr.h>
 #import <wtf/Vector.h>
-
-#if USE(APPLE_INTERNAL_SDK)
-#import <WebKitAdditions/ServiceExtensionsAdditions.h>
-#endif
+#import <wtf/text/MakeString.h>
 
 static constexpr auto longTextString = "Here's to the crazy ones. The misfits. The rebels. The troublemakers. The round pegs in the square holes. "
     "The ones who see things differently. They're not fond of rules. And they have no respect for the status quo. "
     "You can quote them, disagree with them, glorify or vilify them. About the only thing you can't do is ignore them. "
     "Because they change things. They push the human race forward. And while some may see them as the crazy ones, we see genius. "
-    "Because the people who are crazy enough to think they can change the world, are the ones who do.";
+    "Because the people who are crazy enough to think they can change the world, are the ones who do."_s;
 
 #define EXPECT_NSSTRING_EQ(expected, actual) \
     EXPECT_TRUE([actual isKindOfClass:[NSString class]]); \
@@ -1656,4 +1654,4 @@ TEST(DocumentEditingContext, RequestAnnotationsForTextChecking)
 
 #endif // ENABLE(PLATFORM_DRIVEN_TEXT_CHECKING)
 
-#endif // PLATFORM(IOS_FAMILY) && HAVE(UI_WK_DOCUMENT_CONTEXT)
+#endif // HAVE(UI_WK_DOCUMENT_CONTEXT)

@@ -27,7 +27,9 @@
 
 #import "HTTPServer.h"
 #import "PlatformUtilities.h"
+#import "Test.h"
 #import "TestNavigationDelegate.h"
+#import "TestUIDelegate.h"
 #import "TestWKWebView.h"
 #import <WebKit/WKFoundation.h>
 #import <WebKit/WKHTTPCookieStorePrivate.h>
@@ -39,6 +41,7 @@
 #import <wtf/ProcessPrivilege.h>
 #import <wtf/RetainPtr.h>
 #import <wtf/Seconds.h>
+#import <wtf/text/MakeString.h>
 #import <wtf/text/WTFString.h>
 
 static bool gotFlag;
@@ -57,6 +60,12 @@ static RetainPtr<WKHTTPCookieStore> globalCookieStore;
     ++observerCallbacks;
 }
 
+@end
+
+@interface EmptyCookieObserver : NSObject<WKHTTPCookieStoreObserver>
+@end
+
+@implementation EmptyCookieObserver
 @end
 
 static void runTestWithWebsiteDataStore(WKWebsiteDataStore* dataStore)
@@ -480,6 +489,12 @@ TEST(WKHTTPCookieStore, ObserveCookiesReceivedFromHTTP)
         globalCookieStore = webView.get().configuration.websiteDataStore.httpCookieStore;
         clearCookies(dataStore);
         [globalCookieStore addObserver:observer.get()];
+
+        // Also observing with an EmptyCookieObserver tests whether or
+        // not WebKit makes an unrecognized selector call
+        auto emptyCookieObserver = adoptNS([EmptyCookieObserver new]);
+        [globalCookieStore addObserver:emptyCookieObserver.get()];
+
         observerCallbacks = 0;
         [webView loadRequest:server.request()];
         [webView _test_waitForDidFinishNavigation];
@@ -863,21 +878,23 @@ TEST(WKHTTPCookieStore, WebSocketCookiesFromRedirect)
         request.append(0);
         if (path == "/redirect"_s) {
             co_await connection.awaitableSend(
-                "HTTP/1.1 302 Found\r\n"
-                "Location: http://localhost:"_s + serverPort + "/com\r\n"
-                "Content-Length: 0\r\n"
-                "\r\n"_s);
+                makeString(
+                    "HTTP/1.1 302 Found\r\n"
+                    "Location: http://localhost:"_s, serverPort, "/com\r\n"
+                    "Content-Length: 0\r\n"
+                    "\r\n"_s));
         } else if (path == "/com"_s) {
             co_await connection.awaitableSend(
-                "HTTP/1.1 302 Found\r\n"
-                "Location: http://127.0.0.1:"_s + serverPort + "/destination\r\n"_s
-                "Set-Cookie: Default=1\r\n"
-                "Set-Cookie: SameSite_None=1; SameSite=None\r\n"
-                "Set-Cookie: SameSite_None_Secure=1; secure; SameSite=None\r\n"
-                "Set-Cookie: SameSite_Lax=1; SameSite=Lax\r\n"
-                "Set-Cookie: SameSite_Strict=1; SameSite=Strict\r\n"
-                "Content-Length: 0\r\n"
-                "\r\n"_s);
+                makeString(
+                    "HTTP/1.1 302 Found\r\n"
+                    "Location: http://127.0.0.1:"_s, serverPort, "/destination\r\n"
+                    "Set-Cookie: Default=1\r\n"
+                    "Set-Cookie: SameSite_None=1; SameSite=None\r\n"
+                    "Set-Cookie: SameSite_None_Secure=1; secure; SameSite=None\r\n"
+                    "Set-Cookie: SameSite_Lax=1; SameSite=Lax\r\n"
+                    "Set-Cookie: SameSite_Strict=1; SameSite=Strict\r\n"
+                    "Content-Length: 0\r\n"
+                    "\r\n"_s));
         } else if (path == "/destination"_s) {
             EXPECT_TRUE(strnstr(request.data(), "Host: 127.0.0.1:", request.size()));
             EXPECT_FALSE(strnstr(request.data(), "Cookie:", request.size()));
@@ -918,21 +935,23 @@ TEST(WKHTTPCookieStore, WebSocketCookiesThroughRedirect)
         request.append(0);
         if (path == "/redirect"_s) {
             co_await connection.awaitableSend(
-                "HTTP/1.1 302 Found\r\n"
-                "Location: http://localhost:"_s + serverPort + "/com\r\n"
-                "Content-Length: 0\r\n"
-                "\r\n"_s);
+                makeString(
+                    "HTTP/1.1 302 Found\r\n"
+                    "Location: http://localhost:"_s, serverPort, "/com\r\n"
+                    "Content-Length: 0\r\n"
+                    "\r\n"_s));
         } else if (path == "/com"_s) {
             co_await connection.awaitableSend(
-                "HTTP/1.1 302 Found\r\n"
-                "Location: http://127.0.0.1:"_s + serverPort + "/ninja\r\n"_s
-                "Set-Cookie: Default=1\r\n"
-                "Set-Cookie: SameSite_None=1; SameSite=None\r\n"
-                "Set-Cookie: SameSite_None_Secure=1; secure; SameSite=None\r\n"
-                "Set-Cookie: SameSite_Lax=1; SameSite=Lax\r\n"
-                "Set-Cookie: SameSite_Strict=1; SameSite=Strict\r\n"
-                "Content-Length: 0\r\n"
-                "\r\n"_s);
+                makeString(
+                    "HTTP/1.1 302 Found\r\n"
+                    "Location: http://127.0.0.1:"_s, serverPort, "/ninja\r\n"
+                    "Set-Cookie: Default=1\r\n"
+                    "Set-Cookie: SameSite_None=1; SameSite=None\r\n"
+                    "Set-Cookie: SameSite_None_Secure=1; secure; SameSite=None\r\n"
+                    "Set-Cookie: SameSite_Lax=1; SameSite=Lax\r\n"
+                    "Set-Cookie: SameSite_Strict=1; SameSite=Strict\r\n"
+                    "Content-Length: 0\r\n"
+                    "\r\n"_s));
         } else if (path == "/websocket"_s) {
             EXPECT_TRUE(strnstr(request.data(), "Host: localhost:", request.size()));
             EXPECT_FALSE(strnstr(request.data(), "Cookie:", request.size()));
@@ -965,15 +984,16 @@ TEST(WKHTTPCookieStore, WebSocketSetCookiesThroughFirstPartyRedirect)
         request.append(0);
         if (path == "/redirect"_s) {
             co_await connection.awaitableSend(
-                "HTTP/1.1 302 Found\r\n"
-                "Location: ws://localhost:"_s + serverPort + "/websocket\r\n"
-                "Set-Cookie: Default=1\r\n"
-                "Set-Cookie: SameSite_None=1; SameSite=None\r\n"
-                "Set-Cookie: SameSite_None_Secure=1; secure; SameSite=None\r\n"
-                "Set-Cookie: SameSite_Lax=1; SameSite=Lax\r\n"
-                "Set-Cookie: SameSite_Strict=1; SameSite=Strict\r\n"
-                "Content-Length: 0\r\n"
-                "\r\n"_s);
+                makeString(
+                    "HTTP/1.1 302 Found\r\n"
+                    "Location: ws://localhost:"_s, serverPort, "/websocket\r\n"
+                    "Set-Cookie: Default=1\r\n"
+                    "Set-Cookie: SameSite_None=1; SameSite=None\r\n"
+                    "Set-Cookie: SameSite_None_Secure=1; secure; SameSite=None\r\n"
+                    "Set-Cookie: SameSite_Lax=1; SameSite=Lax\r\n"
+                    "Set-Cookie: SameSite_Strict=1; SameSite=Strict\r\n"
+                    "Content-Length: 0\r\n"
+                    "\r\n"_s));
         } else if (path == "/websocket"_s) {
             EXPECT_TRUE(strnstr(request.data(), "Host: localhost:", request.size()));
             EXPECT_FALSE(strnstr(request.data(), "Cookie:", request.size()));
@@ -1006,27 +1026,30 @@ TEST(WKHTTPCookieStore, WebSocketSetCookiesThroughRedirectToThirdParty)
         request.append(0);
         if (path == "/redirect"_s) {
             co_await connection.awaitableSend(
-                "HTTP/1.1 302 Found\r\n"
-                "Location: ws://localhost:"_s + serverPort + "/com\r\n"
-                "Content-Length: 0\r\n"
-                "\r\n"_s);
+                makeString(
+                    "HTTP/1.1 302 Found\r\n"
+                    "Location: ws://localhost:"_s, serverPort, "/com\r\n"
+                    "Content-Length: 0\r\n"
+                    "\r\n"_s));
         } else if (path == "/com"_s) {
             co_await connection.awaitableSend(
-                "HTTP/1.1 302 Found\r\n"
-                "Location: ws://127.0.0.1:"_s + serverPort + "/redirect2\r\n"_s
-                "Set-Cookie: Default=1\r\n"
-                "Set-Cookie: SameSite_None=1; SameSite=None\r\n"
-                "Set-Cookie: SameSite_None_Secure=1; secure; SameSite=None\r\n"
-                "Set-Cookie: SameSite_Lax=1; SameSite=Lax\r\n"
-                "Set-Cookie: SameSite_Strict=1; SameSite=Strict\r\n"
-                "Content-Length: 0\r\n"
-                "\r\n"_s);
+                makeString(
+                    "HTTP/1.1 302 Found\r\n"
+                    "Location: ws://127.0.0.1:"_s, serverPort, "/redirect2\r\n"
+                    "Set-Cookie: Default=1\r\n"
+                    "Set-Cookie: SameSite_None=1; SameSite=None\r\n"
+                    "Set-Cookie: SameSite_None_Secure=1; secure; SameSite=None\r\n"
+                    "Set-Cookie: SameSite_Lax=1; SameSite=Lax\r\n"
+                    "Set-Cookie: SameSite_Strict=1; SameSite=Strict\r\n"
+                    "Content-Length: 0\r\n"
+                    "\r\n"_s));
         } else if (path == "/redirect2"_s) {
             co_await connection.awaitableSend(
-                "HTTP/1.1 302 Found\r\n"
-                "Location: ws://localhost:"_s + serverPort + "/websocket\r\n"
-                "Content-Length: 0\r\n"
-                "\r\n"_s);
+                makeString(
+                    "HTTP/1.1 302 Found\r\n"
+                    "Location: ws://localhost:"_s, serverPort, "/websocket\r\n"
+                    "Content-Length: 0\r\n"
+                    "\r\n"_s));
         } else if (path == "/websocket"_s) {
             EXPECT_TRUE(strnstr(request.data(), "Host: localhost:", request.size()));
             EXPECT_FALSE(strnstr(request.data(), "Cookie:", request.size()));
@@ -1045,4 +1068,68 @@ TEST(WKHTTPCookieStore, WebSocketSetCookiesThroughRedirectToThirdParty)
     [[[webView configuration] websiteDataStore] _setResourceLoadStatisticsEnabled:YES];
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:[NSString stringWithFormat:@"http://127.0.0.1:%d/ninja", serverPort]]]];
     Util::run(&receivedWebSocket);
+}
+
+TEST(WKHTTPCookieStore, SameSiteWithPatternMatch)
+{
+    using namespace TestWebKitAPI;
+    HTTPServer httpServer { HTTPServer::UseCoroutines::Yes, [&] (Connection connection) -> Task {
+        while (true) {
+            auto request = co_await connection.awaitableReceiveHTTPRequest();
+            auto path = HTTPServer::parsePath(request);
+            request.append(0);
+            if (path == "http://site1.example/set-cookie"_s || path == "http://site2.example/set-cookie"_s) {
+                co_await connection.awaitableSend(HTTPResponse({ { { "Set-Cookie"_s, "exists=1;samesite=strict"_s } }, "<body></body>"_s }).serialize());
+                continue;
+            }
+            StringView requestView(request.span());
+            if (path == "http://site1.example/get-cookie"_s)
+                EXPECT_EQ(requestView.find("Cookie: exists=1"_s), notFound);
+            else if (path == "http://site2.example/get-cookie"_s)
+                EXPECT_NE(requestView.find("Cookie: exists=1"_s), notFound);
+            else
+                EXPECT_WK_STREQ(@"SHOULD NOT BE REACH", path);
+            co_await connection.awaitableSend(HTTPResponse("<body></body>"_s).serialize());
+        }
+    }, HTTPServer::Protocol::Http };
+
+    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
+    [storeConfiguration setProxyConfiguration:@{
+        (NSString *)kCFStreamPropertyHTTPProxyHost: @"127.0.0.1",
+        (NSString *)kCFStreamPropertyHTTPProxyPort: @(httpServer.port()),
+    }];
+
+    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    [configuration.get() setWebsiteDataStore:dataStore.get()];
+    [configuration.get() _setCORSDisablingPatterns:@[@"http://site2.example/*"]];
+    configuration.get()._shouldRelaxThirdPartyCookieBlocking = YES;
+
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"http://site1.example/set-cookie"]]];
+    [webView _test_waitForDidFinishNavigation];
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"http://site2.example/set-cookie"]]];
+    [webView _test_waitForDidFinishNavigation];
+
+    [webView loadHTMLString:@"<body>body</body>" baseURL:[NSURL URLWithString:@"http://site3.example"]];
+    [webView _test_waitForDidFinishNavigation];
+
+    __block bool doneEvaluatingJavaScript { false };
+    [webView evaluateJavaScript:@"fetch(\"http://site1.example/get-cookie\").then(() => alert(\"Fetched\")).catch(() => alert(\"Failed\")); true" completionHandler:^(id value, NSError *error) {
+        EXPECT_NULL(error);
+        EXPECT_WK_STREQ(error.description, @"");
+        doneEvaluatingJavaScript = true;
+    }];
+    Util::run(&doneEvaluatingJavaScript);
+    EXPECT_WK_STREQ([webView _test_waitForAlert], @"Failed");
+    doneEvaluatingJavaScript = false;
+
+    [webView evaluateJavaScript:@"fetch(\"http://site2.example/get-cookie\").then(() => alert(\"Fetched\")).catch(() => alert(\"Failed\")); true" completionHandler:^(id value, NSError *error) {
+        EXPECT_NULL(error);
+        EXPECT_WK_STREQ(error.description, @"");
+        doneEvaluatingJavaScript = true;
+    }];
+    Util::run(&doneEvaluatingJavaScript);
+    EXPECT_WK_STREQ([webView _test_waitForAlert], @"Fetched");
+    doneEvaluatingJavaScript = false;
 }

@@ -55,6 +55,7 @@
 #import <wtf/HashMap.h>
 #import <wtf/MainThread.h>
 #import <wtf/RetainPtr.h>
+#import <wtf/text/MakeString.h>
 #import <wtf/text/StringHash.h>
 #import <wtf/text/WTFString.h>
 
@@ -1135,6 +1136,8 @@ static unsigned loadCount;
 
 @end
 
+constexpr const char* customUserAgent = "Foo Custom UserAgent";
+
 @interface CustomUserAgentDelegate : NSObject <WKNavigationDelegate> {
 }
 @end
@@ -1145,7 +1148,7 @@ static unsigned loadCount;
 {
     auto websitePolicies = adoptNS([[WKWebpagePreferences alloc] init]);
     if (navigationAction.targetFrame.mainFrame)
-        [websitePolicies _setCustomUserAgent:@"Foo Custom UserAgent"];
+        [websitePolicies _setCustomUserAgent:[NSString stringWithUTF8String:customUserAgent]];
 
     decisionHandler(WKNavigationActionPolicyAllow, websitePolicies.get());
 }
@@ -1195,7 +1198,7 @@ TEST(WebpagePreferences, WebsitePoliciesCustomUserAgent)
     [schemeHandler addMappingFromURLString:@"test://www.webkit.org/main.html" toData:customUserAgentMainFrameTestBytes];
     [schemeHandler addMappingFromURLString:@"test://www.apple.com/subframe.html" toData:customUserAgentSubFrameTestBytes];
     [schemeHandler setTaskHandler:[](id <WKURLSchemeTask> task) {
-        EXPECT_STREQ("Foo Custom UserAgent", [[task.request valueForHTTPHeaderField:@"User-Agent"] UTF8String]);
+        EXPECT_STREQ(customUserAgent, [[task.request valueForHTTPHeaderField:@"User-Agent"] UTF8String]);
     }];
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"test"];
 
@@ -1225,6 +1228,8 @@ TEST(WebpagePreferences, WebsitePoliciesCustomUserAgent)
     loadCount = 0;
 }
 
+constexpr const char* customUserAgentAsSiteSpecificQuirk = "Foo Site Specific Quriks UserAgent";
+
 @interface CustomJavaScriptUserAgentDelegate : NSObject <WKNavigationDelegate>
 @property (nonatomic) BOOL setCustomUserAgent;
 @end
@@ -1235,9 +1240,9 @@ TEST(WebpagePreferences, WebsitePoliciesCustomUserAgent)
 {
     auto websitePolicies = adoptNS([[WKWebpagePreferences alloc] init]);
     if (navigationAction.targetFrame.mainFrame) {
-        [websitePolicies _setCustomUserAgentAsSiteSpecificQuirks:@"Foo Site Specific Quriks UserAgent"];
+        [websitePolicies _setCustomUserAgentAsSiteSpecificQuirks:[NSString stringWithUTF8String:customUserAgentAsSiteSpecificQuirk]];
         if (_setCustomUserAgent)
-            [websitePolicies _setCustomUserAgent:@"Foo Custom Request UserAgent"];
+            [websitePolicies _setCustomUserAgent:[NSString stringWithUTF8String:customUserAgent]];
     }
 
     decisionHandler(WKNavigationActionPolicyAllow, websitePolicies.get());
@@ -1297,7 +1302,7 @@ TEST(WebpagePreferences, WebsitePoliciesCustomUserAgentAsSiteSpecificQuirks)
     [schemeHandler addMappingFromURLString:@"test://www.webkit.org/main.html" toData:customUserAgentMainFrameTestBytes];
     [schemeHandler addMappingFromURLString:@"test://www.apple.com/subframe.html" toData:customUserAgentSubFrameTestBytes];
     [schemeHandler setTaskHandler:[](id <WKURLSchemeTask> task) {
-        EXPECT_STREQ("Foo Site Specific Quriks UserAgent", [[task.request valueForHTTPHeaderField:@"User-Agent"] UTF8String]);
+        EXPECT_STREQ(customUserAgentAsSiteSpecificQuirk, [[task.request valueForHTTPHeaderField:@"User-Agent"] UTF8String]);
     }];
     [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"test"];
     [configuration preferences].siteSpecificQuirksModeEnabled = YES;
@@ -1318,8 +1323,38 @@ TEST(WebpagePreferences, WebsitePoliciesCustomUserAgentAsSiteSpecificQuirks)
     while (loadCount != 9U)
         TestWebKitAPI::Util::spinRunLoop();
 
-    EXPECT_STREQ("Foo Site Specific Quriks UserAgent", [[webView stringByEvaluatingJavaScript:@"navigator.userAgent"] UTF8String]);
-    EXPECT_STREQ("Foo Site Specific Quriks UserAgent", [[webView stringByEvaluatingJavaScript:@"subframeUserAgent"] UTF8String]);
+    EXPECT_STREQ(customUserAgentAsSiteSpecificQuirk, [[webView stringByEvaluatingJavaScript:@"navigator.userAgent"] UTF8String]);
+    EXPECT_STREQ(customUserAgentAsSiteSpecificQuirk, [[webView stringByEvaluatingJavaScript:@"subframeUserAgent"] UTF8String]);
+}
+
+TEST(WebpagePreferences, WebViewCustomUserAgentOverridesWebsitePoliciesCustomUserAgentAsSiteSpecificQuirks)
+{
+    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+
+    auto schemeHandler = adoptNS([[DataMappingSchemeHandler alloc] init]);
+    [schemeHandler setTaskHandler:[](id<WKURLSchemeTask> task) {
+        EXPECT_STREQ(customUserAgentAsSiteSpecificQuirk, [[task.request valueForHTTPHeaderField:@"User-Agent"] UTF8String]);
+    }];
+    [configuration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"test"];
+    [configuration preferences].siteSpecificQuirksModeEnabled = YES;
+
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+
+    auto delegate = adoptNS([[CustomJavaScriptUserAgentDelegate alloc] init]);
+    delegate.get().setCustomUserAgent = YES;
+    [webView setNavigationDelegate:delegate.get()];
+
+    NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"test://www.apple.com"]];
+    [webView loadRequest:request];
+
+    TestWebKitAPI::Util::run(&finishedNavigation);
+    finishedNavigation = false;
+
+    EXPECT_STREQ(customUserAgentAsSiteSpecificQuirk, [[webView stringByEvaluatingJavaScript:@"navigator.userAgent"] UTF8String]);
+
+    NSString *customUserAgentOverride = @"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/71.0.3578.98 Safari/537.36";
+    [webView setCustomUserAgent:customUserAgentOverride];
+    EXPECT_STREQ([customUserAgentOverride UTF8String], [[webView stringByEvaluatingJavaScript:@"navigator.userAgent"] UTF8String]);
 }
 
 @interface CustomNavigatorPlatformDelegate : NSObject <WKNavigationDelegate> {
@@ -2014,7 +2049,7 @@ TEST(WebpagePreferences, ExtensionPageAdvancedPrivacyProtectionsReferrer)
         { "/subframe2.html"_s, { "<script>window.top.postMessage(document.referrer, '*');</script>"_s } },
     }, TestWebKitAPI::HTTPServer::Protocol::Http);
 
-    server.addResponse("/subframe1.html"_s, { "<iframe src='http://127.0.0.1:"_s + server.port() + "/subframe2.html'></iframe>"_s });
+    server.addResponse("/subframe1.html"_s, { makeString("<iframe src='http://127.0.0.1:"_s, server.port(), "/subframe2.html'></iframe>"_s) });
 
     __block auto port = server.port();
     auto handler = adoptNS([TestURLSchemeHandler new]);

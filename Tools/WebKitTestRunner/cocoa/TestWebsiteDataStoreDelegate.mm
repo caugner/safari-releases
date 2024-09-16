@@ -87,7 +87,9 @@
 
 - (void)websiteDataStore:(WKWebsiteDataStore *)dataStore openWindow:(NSURL *)url fromServiceWorkerOrigin:(WKSecurityOrigin *)serviceWorkerOrigin completionHandler:(void (^)(WKWebView *newWebView))completionHandler
 {
-    auto* newView = WTR::TestController::singleton().createOtherPlatformWebView(nullptr, nullptr, nullptr, nullptr);
+    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    [configuration setWebsiteDataStore:dataStore];
+    auto* newView = WTR::TestController::singleton().createOtherPlatformWebView(nullptr, (__bridge WKPageConfigurationRef)configuration.get(), nullptr, nullptr);
     WKWebView *webView = newView->platformView();
     
     ASSERT(webView.configuration.websiteDataStore == dataStore);
@@ -151,4 +153,11 @@
     [_windowProxyAccessDomains removeAllObjects];
 }
 
+- (void)webCryptoMasterKey:(void (^)(NSData *))completionHandler
+{
+    // Not so random key
+    constexpr size_t keyLength = 16;
+    uint8_t keyBytes[16] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf };
+    completionHandler([NSData dataWithBytes:keyBytes length:(keyLength)]);
+}
 @end

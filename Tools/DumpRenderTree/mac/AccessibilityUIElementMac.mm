@@ -1134,12 +1134,19 @@ unsigned AccessibilityUIElement::uiElementCountForSearchPredicate(JSContextRef c
 AccessibilityUIElement AccessibilityUIElement::uiElementForSearchPredicate(JSContextRef context, AccessibilityUIElement *startElement, bool isDirectionNext, JSValueRef searchKey, JSStringRef searchText, bool visibleOnly, bool immediateDescendantsOnly)
 {
     BEGIN_AX_OBJC_EXCEPTIONS
-    NSDictionary *parameterizedAttribute = searchPredicateParameterizedAttributeForSearchCriteria(context, startElement, isDirectionNext, 1, searchKey, searchText, visibleOnly, immediateDescendantsOnly);
-    id value = [m_element accessibilityAttributeValue:@"AXUIElementsForSearchPredicate" forParameter:parameterizedAttribute];
-    if ([value isKindOfClass:[NSArray class]])
-        return AccessibilityUIElement([value lastObject]);
+    NSDictionary *parameter = searchPredicateParameterizedAttributeForSearchCriteria(context, startElement, isDirectionNext, 1, searchKey, searchText, visibleOnly, immediateDescendantsOnly);
+    id value = [m_element accessibilityAttributeValue:@"AXUIElementsForSearchPredicate" forParameter:parameter];
+    if (![value isKindOfClass:[NSArray class]] || ![value count])
+        return nullptr;
+
+    id result = [value firstObject];
+    if ([result isKindOfClass:NSDictionary.class]) {
+        RELEASE_ASSERT([result objectForKey:@"AXSearchResultElement"]);
+        return AccessibilityUIElement([result objectForKey:@"AXSearchResultElement"]);
+    }
+    return AccessibilityUIElement(result);
     END_AX_OBJC_EXCEPTIONS
-    
+
     return nullptr;
 }
 
@@ -1910,7 +1917,7 @@ AccessibilityTextMarkerRange AccessibilityUIElement::textMarkerRangeForMarkers(A
 AccessibilityTextMarker AccessibilityUIElement::startTextMarkerForTextMarkerRange(AccessibilityTextMarkerRange* range)
 {
     BEGIN_AX_OBJC_EXCEPTIONS
-    id textMarker = [m_element accessibilityAttributeValue:@"AXStartTextMarkerForTextMarkerRange" forParameter:range->platformTextMarkerRange()];
+    id textMarker = [m_element accessibilityAttributeValue:@"_AXStartTextMarkerForTextMarkerRange" forParameter:range->platformTextMarkerRange()];
     return AccessibilityTextMarker(textMarker);
     END_AX_OBJC_EXCEPTIONS
     
@@ -1920,7 +1927,7 @@ AccessibilityTextMarker AccessibilityUIElement::startTextMarkerForTextMarkerRang
 AccessibilityTextMarker AccessibilityUIElement::endTextMarkerForTextMarkerRange(AccessibilityTextMarkerRange* range)
 {
     BEGIN_AX_OBJC_EXCEPTIONS
-    id textMarker = [m_element accessibilityAttributeValue:@"AXEndTextMarkerForTextMarkerRange" forParameter:range->platformTextMarkerRange()];
+    id textMarker = [m_element accessibilityAttributeValue:@"_AXEndTextMarkerForTextMarkerRange" forParameter:range->platformTextMarkerRange()];
     return AccessibilityTextMarker(textMarker);
     END_AX_OBJC_EXCEPTIONS
     

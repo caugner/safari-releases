@@ -9,25 +9,10 @@ Do NOT modify or remove this file.
 
 ------------------------------------------------------------------------
 Properties requiring vendor prefixes:
-user-select
+None
 Property values requiring vendor prefixes:
 None
 ------------------------------------------------------------------------
 List of files:
-/LayoutTests/imported/w3c/web-platform-tests/tools/third_party/websockets/example/basic_auth_client.py
-/LayoutTests/imported/w3c/web-platform-tests/tools/third_party/websockets/example/basic_auth_server.py
-/LayoutTests/imported/w3c/web-platform-tests/tools/third_party/websockets/example/client.py
-/LayoutTests/imported/w3c/web-platform-tests/tools/third_party/websockets/example/counter.html
-/LayoutTests/imported/w3c/web-platform-tests/tools/third_party/websockets/example/counter.py
 /LayoutTests/imported/w3c/web-platform-tests/tools/third_party/websockets/example/echo.py
-/LayoutTests/imported/w3c/web-platform-tests/tools/third_party/websockets/example/health_check_server.py
 /LayoutTests/imported/w3c/web-platform-tests/tools/third_party/websockets/example/hello.py
-/LayoutTests/imported/w3c/web-platform-tests/tools/third_party/websockets/example/localhost.pem
-/LayoutTests/imported/w3c/web-platform-tests/tools/third_party/websockets/example/secure_client.py
-/LayoutTests/imported/w3c/web-platform-tests/tools/third_party/websockets/example/secure_server.py
-/LayoutTests/imported/w3c/web-platform-tests/tools/third_party/websockets/example/server.py
-/LayoutTests/imported/w3c/web-platform-tests/tools/third_party/websockets/example/show_time.html
-/LayoutTests/imported/w3c/web-platform-tests/tools/third_party/websockets/example/show_time.py
-/LayoutTests/imported/w3c/web-platform-tests/tools/third_party/websockets/example/shutdown.py
-/LayoutTests/imported/w3c/web-platform-tests/tools/third_party/websockets/example/unix_client.py
-/LayoutTests/imported/w3c/web-platform-tests/tools/third_party/websockets/example/unix_server.py

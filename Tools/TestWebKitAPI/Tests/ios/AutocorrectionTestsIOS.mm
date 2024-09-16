@@ -28,6 +28,7 @@
 
 #if PLATFORM(IOS_FAMILY)
 
+#import "ClassMethodSwizzler.h"
 #import "PlatformUtilities.h"
 #import "TestInputDelegate.h"
 #import "TestWKWebView.h"
@@ -36,10 +37,7 @@
 #import <WebKit/WKWebViewPrivate.h>
 #import <WebKit/WKWebViewPrivateForTesting.h>
 #import <WebKit/_WKProcessPoolConfiguration.h>
-
-#if USE(APPLE_INTERNAL_SDK)
-#import <WebKitAdditions/ServiceExtensionsAdditions.h>
-#endif
+#import <pal/spi/ios/BrowserEngineKitSPI.h>
 
 @implementation UIFont (TestWebKitAPI)
 
@@ -58,6 +56,11 @@ static void checkCGRectIsNotEmpty(CGRect rect)
     EXPECT_FALSE(isEmpty);
     if (isEmpty)
         NSLog(@"Expected %@ to be non-empty", NSStringFromCGRect(rect));
+}
+
+static UIFont *returnNil(Class, SEL)
+{
+    return nil;
 }
 
 TEST(AutocorrectionTests, FontAtCaretWhenUsingUICTFontTextStyle)
@@ -93,6 +96,13 @@ TEST(AutocorrectionTests, FontAtCaretWhenUsingUICTFontTextStyle)
     auto traitsBeforeScaling = fontBeforeScaling.fontDescriptor.symbolicTraits;
     EXPECT_TRUE(traitsBeforeScaling & UIFontDescriptorTraitBold);
     EXPECT_TRUE(traitsBeforeScaling & UIFontDescriptorTraitItalic);
+
+    {
+        // Verify that -textStylingAtPosition:inDirection: is robust in the case where +fontWithDescriptor:size: is nil.
+        ClassMethodSwizzler swizzler { UIFont.class, @selector(fontWithDescriptor:size:), reinterpret_cast<IMP>(returnNil) };
+        NSDictionary *result = [contentView textStylingAtPosition:contentView.selectedTextRange.start inDirection:UITextStorageDirectionForward];
+        EXPECT_TRUE(!!result[NSFontAttributeName]);
+    }
 
     [webView scrollView].zoomScale = 2;
     auto selectedTextRangeAfterScaling = contentView.selectedTextRange;
@@ -143,6 +153,29 @@ TEST(AutocorrectionTests, AutocorrectionContextDoesNotIncludeNewlineInTextField)
     EXPECT_TRUE(contextAfterTyping.contextAfterSelection.isEmpty());
 }
 
+TEST(AutocorrectionTests, MultiWordAutocorrectionFromStartOfText)
+{
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 568)]);
+    auto inputDelegate = adoptNS([TestInputDelegate new]);
+    bool startedInputSession = false;
+    [inputDelegate setFocusStartsInputSessionPolicyHandler:[&] (WKWebView *, id<_WKFocusedElementInfo>) -> _WKFocusStartsInputSessionPolicy {
+        startedInputSession = true;
+        return _WKFocusStartsInputSessionPolicyAllow;
+    }];
+    [webView _setInputDelegate:inputDelegate.get()];
+    [webView synchronouslyLoadHTMLString:@"<input id='input' value='Helol wordl'></input>"];
+    [webView objectByEvaluatingJavaScript:@"input.focus(); input.setSelectionRange(0, 0)"];
+    TestWebKitAPI::Util::run(&startedInputSession);
+
+    __block bool done = false;
+    [webView replaceText:@"Helol wordl" withText:@"Hello world" shouldUnderline:NO completion:^{
+        done = true;
+    }];
+    TestWebKitAPI::Util::run(&done);
+
+    EXPECT_WK_STREQ("Hello world", [webView stringByEvaluatingJavaScript:@"input.value"]);
+}
+
 TEST(AutocorrectionTests, DoNotLearnCorrectionsAfterChangingInputTypeFromPassword)
 {
     auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 568)]);
@@ -159,16 +192,10 @@ TEST(AutocorrectionTests, DoNotLearnCorrectionsAfterChangingInputTypeFromPasswor
     TestWebKitAPI::Util::run(&startedInputSession);
 
     auto learnsCorrections = [&]() -> BOOL {
-#if HAVE(UI_ASYNC_TEXT_INTERACTION)
-        if ([webView hasAsyncTextInput]) {
-            auto traits = [webView extendedTextInputTraits];
-#if SERVICE_EXTENSIONS_TEXT_INPUT_IS_AVAILABLE
-            return traits.typingAdaptationEnabled;
-#else
-            return !traits.typingAdaptationDisabled;
+#if USE(BROWSERENGINEKIT)
+        if ([webView hasAsyncTextInput])
+            return [webView extendedTextInputTraits].typingAdaptationEnabled;
 #endif
-        }
-#endif // HAVE(UI_ASYNC_TEXT_INTERACTION)
         return [webView effectiveTextInputTraits].learnsCorrections;
     };
     EXPECT_FALSE(learnsCorrections());

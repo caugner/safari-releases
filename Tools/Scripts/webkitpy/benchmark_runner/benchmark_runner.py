@@ -79,6 +79,12 @@ class BenchmarkRunner(object):
             with open(plan_file, 'r') as fp:
                 plan_name = os.path.split(os.path.splitext(plan_file)[0])[1]
                 plan = json.load(fp)
+                if 'import_plan_file' in plan:
+                    imported_plan_file = BenchmarkRunner._find_plan_file(plan.pop('import_plan_file'))
+                    with open(imported_plan_file, 'r') as ifp:
+                        imported_plan = json.load(ifp)
+                    imported_plan.update(plan)
+                    plan = imported_plan
                 return plan_name, plan
         except IOError as error:
             _log.error('Can not open plan file: {plan_file} - Error {error}'.format(plan_file=plan_file, error=error))
@@ -177,14 +183,17 @@ class BenchmarkRunner(object):
                         results.append(run_result)
                     else:
                         raise Exception('Plan does not contain entry_point or test_files')
-
-                finally:
+                except Exception as error:
+                    raise error
+                else:
                     self._browser_driver.restore_env()
                 if self._pgo_profile_output_dir:
                     shutil.copytree(self._pgo_profile_output_dir, self._diagnose_dir, dirs_exist_ok=True)
 
                 _log.info('End the iteration {current_iteration} of {iterations} for current benchmark'.format(current_iteration=iteration, iterations=count))
-        finally:
+        except Exception as error:
+            raise error
+        else:
             self._browser_driver.restore_env_after_all_testing()
 
         results = self._wrap(results)

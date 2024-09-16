@@ -19,10 +19,10 @@
     </style>
     <script src="../../../../resources/js-test.js"></script>
     <script src="../../../../resources/ui-helper.js"></script>
-
+    
     <script>
         jsTestIsAsync = true;
-
+        
         if (window.internals)
             internals.setUsesOverlayScrollbars(true);
 
@@ -33,7 +33,7 @@
                 finishJSTest();
                 return;
             }
-
+            
             const scroller = document.querySelector('.scroller');
             const scrollerBounds = scroller.getBoundingClientRect();
             const x = scrollerBounds.left + 10;

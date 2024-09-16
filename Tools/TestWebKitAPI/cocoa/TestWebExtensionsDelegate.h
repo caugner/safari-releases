@@ -40,6 +40,7 @@
 #import <WebKit/_WKWebExtensionTab.h>
 #import <WebKit/_WKWebExtensionTabCreationOptions.h>
 #import <WebKit/_WKWebExtensionWindow.h>
+#import <WebKit/_WKWebExtensionWindowCreationOptions.h>
 
 @interface TestWebExtensionsDelegate : NSObject <_WKWebExtensionControllerDelegate>
 
@@ -50,8 +51,9 @@
 @property (nonatomic, copy) void (^openNewTab)(_WKWebExtensionTabCreationOptions *, _WKWebExtensionContext *, void (^)(id<_WKWebExtensionTab>, NSError *));
 @property (nonatomic, copy) void (^openOptionsPage)(_WKWebExtensionContext *, void (^)(NSError *));
 
-@property (nonatomic, copy) void (^promptForPermissions)(id <_WKWebExtensionTab>, NSSet<NSString *> *, void (^)(NSSet<_WKWebExtensionPermission> *));
-@property (nonatomic, copy) void (^promptForPermissionMatchPatterns)(id <_WKWebExtensionTab>, NSSet<_WKWebExtensionMatchPattern *> *, void (^)(NSSet<_WKWebExtensionMatchPattern *> *));
+@property (nonatomic, copy) void (^promptForPermissions)(id <_WKWebExtensionTab>, NSSet<NSString *> *, void (^)(NSSet<_WKWebExtensionPermission> *, NSDate *));
+@property (nonatomic, copy) void (^promptForPermissionMatchPatterns)(id <_WKWebExtensionTab>, NSSet<_WKWebExtensionMatchPattern *> *, void (^)(NSSet<_WKWebExtensionMatchPattern *> *, NSDate *));
+@property (nonatomic, copy) void (^promptForPermissionToAccessURLs)(id <_WKWebExtensionTab>, NSSet<NSURL *> *, void (^)(NSSet<NSURL *> *, NSDate *));
 
 @property (nonatomic, copy) void (^sendMessage)(id message, NSString *applicationIdentifier, void (^)(id replyMessage, NSError *));
 @property (nonatomic, copy) void (^connectUsingMessagePort)(_WKWebExtensionMessagePort *);

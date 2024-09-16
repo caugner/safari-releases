@@ -20,6 +20,7 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/tools/wptserve/tests/functional/docroot/foo.any.html
 /LayoutTests/imported/w3c/web-platform-tests/tools/wptserve/tests/functional/docroot/foo.any.serviceworker.html
 /LayoutTests/imported/w3c/web-platform-tests/tools/wptserve/tests/functional/docroot/foo.any.sharedworker.html
+/LayoutTests/imported/w3c/web-platform-tests/tools/wptserve/tests/functional/docroot/foo.any.window-module.html
 /LayoutTests/imported/w3c/web-platform-tests/tools/wptserve/tests/functional/docroot/foo.any.worker.html
 /LayoutTests/imported/w3c/web-platform-tests/tools/wptserve/tests/functional/docroot/foo.window.html
 /LayoutTests/imported/w3c/web-platform-tests/tools/wptserve/tests/functional/docroot/foo.worker.html

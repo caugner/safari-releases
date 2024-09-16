@@ -14,8 +14,9 @@ Property values requiring vendor prefixes:
 None
 ------------------------------------------------------------------------
 List of files:
-/LayoutTests/imported/w3c/web-platform-tests/tools/third_party/pywebsocket3/CONTRIBUTING
 /LayoutTests/imported/w3c/web-platform-tests/tools/third_party/pywebsocket3/LICENSE
 /LayoutTests/imported/w3c/web-platform-tests/tools/third_party/pywebsocket3/MANIFEST.in
+/LayoutTests/imported/w3c/web-platform-tests/tools/third_party/pywebsocket3/PKG-INFO
 /LayoutTests/imported/w3c/web-platform-tests/tools/third_party/pywebsocket3/README.md
+/LayoutTests/imported/w3c/web-platform-tests/tools/third_party/pywebsocket3/setup.cfg
 /LayoutTests/imported/w3c/web-platform-tests/tools/third_party/pywebsocket3/setup.py

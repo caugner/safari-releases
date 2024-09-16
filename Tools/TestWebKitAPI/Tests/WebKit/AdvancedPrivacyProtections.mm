@@ -47,6 +47,7 @@
 #import <wtf/BlockPtr.h>
 #import <wtf/RetainPtr.h>
 #import <wtf/RunLoop.h>
+#import <wtf/text/MakeString.h>
 
 #if PLATFORM(IOS_FAMILY)
 #import "UIKitSPIForTesting.h"
@@ -444,6 +445,46 @@ TEST(AdvancedPrivacyProtections, RemoveTrackingQueryParametersForMainResourcesOn
     }
 }
 
+TEST(AdvancedPrivacyProtections, ApplyNavigationalProtectionsAfterMultiplePSON)
+{
+    QueryParameterRequestSwizzler swizzler { @[ @"foo", @"bar", @"baz" ], @[ @"", @"", @"" ], @[ @"", @"", @"" ] };
+    HTTPServer server({
+        { "/landing"_s, { "<script>window.result = document.referrer;</script>"_s } },
+    }, HTTPServer::Protocol::Http);
+
+    auto refreshHeaderContent = makeString("1;URL=http://127.0.0.1:"_s, server.port(), "/landing?foo=10&garply=20&bar=30&baz=40"_s);
+    server.addResponse("/"_s, { { { "Cross-Origin-Opener-Policy"_s, "same-origin"_s }, { "Refresh"_s, refreshHeaderContent } }, "body"_s });
+
+    auto webView = createWebViewWithAdvancedPrivacyProtections(NO);
+    __block bool didCallDecisionHandler { false };
+    __block bool finishedSuccessfully { false };
+    __block RetainPtr<NSURL> targetURL;
+
+    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    navigationDelegate.get().decidePolicyForNavigationActionWithPreferences = ^(WKNavigationAction *action, WKWebpagePreferences *preferences, void (^completionHandler)(WKNavigationActionPolicy, WKWebpagePreferences *)) {
+        if ([action.request.URL.host isEqualToString:@"127.0.0.1"])
+            didCallDecisionHandler = true;
+        targetURL = action.request.URL;
+        preferences._networkConnectionIntegrityPolicy = _WKWebsiteNetworkConnectionIntegrityPolicyEnabled | _WKWebsiteNetworkConnectionIntegrityPolicySanitizeLookalikeCharacters;
+        completionHandler(WKNavigationActionPolicyAllow, preferences);
+    };
+    navigationDelegate.get().didFinishNavigation = ^(WKWebView *, WKNavigation *) {
+        finishedSuccessfully = true;
+    };
+    [webView setNavigationDelegate:navigationDelegate.get()];
+
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:makeString("http://localhost:"_s, server.port(), "/"_s)]]];
+    Util::run(&didCallDecisionHandler);
+    finishedSuccessfully = false;
+    Util::run(&finishedSuccessfully);
+
+    NSString *result = [webView objectByEvaluatingJavaScript:@"location.href"];
+    EXPECT_WK_STREQ(result, makeString("http://127.0.0.1:"_s, server.port(), "/landing?garply=20"_s));
+
+    result = [webView objectByEvaluatingJavaScript:@"window.result"];
+    EXPECT_WK_STREQ(@"", result);
+}
+
 static RetainPtr<TestWKWebView> setUpWebViewForTestingQueryParameterHiding(NSString *pageSource, NSString *requestURLString, NSString *referrer = @"https://webkit.org")
 {
     auto *store = WKWebsiteDataStore.nonPersistentDataStore;
@@ -614,7 +655,12 @@ TEST(AdvancedPrivacyProtections, LinkPreconnectUsesEnhancedPrivacy)
 
 #if PLATFORM(MAC)
     auto logMessages = [webView collectLogsForNewConnections];
-    EXPECT_EQ([logMessages count], 2U);
+    if ([logMessages.firstObject containsString:@"CFNetwork"]) {
+        // The old HTTP stack in CFNetwork creates one connection per TCP/QUIC connection, but the new HTTP stack creates one connection per task.
+        // This path can be removed when this test stops running on macOS 14 / iOS 17 or below.
+        EXPECT_EQ([logMessages count], 2U);
+    } else
+        EXPECT_EQ([logMessages count], 4U);
     for (NSString *message : logMessages)
         EXPECT_TRUE([message containsString:@"enhanced privacy"]);
 #endif
@@ -639,7 +685,7 @@ static RetainPtr<TestWKWebView> webViewAfterCrossSiteNavigationWithReducedPrivac
     [navigationDelegate waitForDidFinishNavigation];
 
     [navigationDelegate setDecidePolicyForNavigationActionWithPreferences:[&](WKNavigationAction *action, WKWebpagePreferences *preferences, void (^decisionHandler)(WKNavigationActionPolicy, WKWebpagePreferences *)) {
-        [preferences _setNetworkConnectionIntegrityPolicy:_WKWebsiteNetworkConnectionIntegrityPolicyEnabled | _WKWebsiteNetworkConnectionIntegrityPolicySanitizeLookalikeCharacters];
+        [preferences _setNetworkConnectionIntegrityPolicy:_WKWebsiteNetworkConnectionIntegrityPolicyEnabled | _WKWebsiteNetworkConnectionIntegrityPolicySanitizeLookalikeCharacters | _WKWebsiteNetworkConnectionIntegrityPolicyEnhancedTelemetry];
         decisionHandler(WKNavigationActionPolicyAllow, preferences);
     }];
 
@@ -657,7 +703,7 @@ TEST(AdvancedPrivacyProtections, DoNotHideReferrerAfterReducingPrivacyProtection
         { "/index2.html"_s, { "<script>window.result = document.referrer;</script>"_s } },
     }, HTTPServer::Protocol::Http);
 
-    server.addResponse("/index1.html"_s, { "<a href='http://127.0.0.1:"_s + server.port() + "/index2.html'>Link</a>"_s });
+    server.addResponse("/index1.html"_s, { makeString("<a href='http://127.0.0.1:"_s, server.port(), "/index2.html'>Link</a>"_s) });
 
     auto webView = webViewAfterCrossSiteNavigationWithReducedPrivacy(makeString("http://localhost:"_s, server.port(), "/index1.html"_s));
 
@@ -772,6 +818,7 @@ TEST(AdvancedPrivacyProtections, HideScreenMetricsFromBindings)
 #endif
 
     auto webView = createWebViewWithAdvancedPrivacyProtections();
+
     [webView setUIDelegate:uiDelegate.get()];
     [webView synchronouslyLoadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://bundle-file/simple-responsive-page.html"]]];
 
@@ -878,6 +925,85 @@ TEST(AdvancedPrivacyProtections, AddNoiseToWebAudioAPIs)
     checkFingerprintForNoise(@"testOscillatorCompressorWorklet");
     checkFingerprintForNoise(@"testOscillatorCompressorAnalyzer");
     checkFingerprintForNoise(@"testLoopingOscillatorCompressorBiquadFilter");
+}
+
+TEST(AdvancedPrivacyProtections, AddNoiseToWebAudioAPIsAfterMultiplePSON)
+{
+    [TestProtocol registerWithScheme:@"https"];
+
+    HTTPServer server({
+        { "/landing"_s, { "<script>window.result = document.referrer;</script>"_s } },
+    }, HTTPServer::Protocol::Http);
+
+    server.addResponse("/"_s, { { { "Cross-Origin-Opener-Policy"_s, "same-origin"_s }, { "Refresh"_s, "1;URL=https://bundle-file/audio-fingerprinting.html"_s } }, "body"_s });
+
+    auto webView = createWebViewWithAdvancedPrivacyProtections(NO);
+    __block bool didCallDecisionHandler { false };
+    __block bool finishedSuccessfully { false };
+
+    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    navigationDelegate.get().decidePolicyForNavigationActionWithPreferences = ^(WKNavigationAction *action, WKWebpagePreferences *preferences, void (^completionHandler)(WKNavigationActionPolicy, WKWebpagePreferences *)) {
+        if ([action.request.URL.host isEqualToString:@"bundle-file"])
+            didCallDecisionHandler = true;
+        preferences._networkConnectionIntegrityPolicy = _WKWebsiteNetworkConnectionIntegrityPolicyEnhancedTelemetry | _WKWebsiteNetworkConnectionIntegrityPolicyEnabled | _WKWebsiteNetworkConnectionIntegrityPolicyRequestValidation | _WKWebsiteNetworkConnectionIntegrityPolicySanitizeLookalikeCharacters;
+        completionHandler(WKNavigationActionPolicyAllow, preferences);
+    };
+    navigationDelegate.get().didFinishNavigation = ^(WKWebView *, WKNavigation *) {
+        finishedSuccessfully = true;
+    };
+    [webView setNavigationDelegate:navigationDelegate.get()];
+
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:makeString("http://localhost:"_s, server.port(), "/"_s)]]];
+    Util::run(&didCallDecisionHandler);
+    finishedSuccessfully = false;
+    Util::run(&finishedSuccessfully);
+
+    auto checkFingerprintForNoise = [&](NSString *functionName) {
+        auto scriptToRun = [NSString stringWithFormat:@"return %@()", functionName];
+        auto values = std::pair {
+            [[webView callAsyncJavaScriptAndWait:scriptToRun] floatValue],
+            [[webView callAsyncJavaScriptAndWait:scriptToRun] floatValue]
+        };
+        EXPECT_NE(values.first, values.second);
+    };
+
+    checkFingerprintForNoise(@"testOscillatorCompressor");
+    checkFingerprintForNoise(@"testOscillatorCompressorWorklet");
+    checkFingerprintForNoise(@"testOscillatorCompressorAnalyzer");
+    checkFingerprintForNoise(@"testLoopingOscillatorCompressorBiquadFilter");
+}
+
+TEST(AdvancedPrivacyProtections, AddNoiseToWebAudioAPIsAfterReducingPrivacyProtectionsAndMultiplePSON)
+{
+    [TestProtocol registerWithScheme:@"https"];
+
+    HTTPServer server({
+        { "/index2.html"_s, { { { "Cross-Origin-Opener-Policy"_s, "same-origin"_s }, { "Refresh"_s, "1;URL=https://bundle-file/audio-fingerprinting.html"_s } }, "body"_s } },
+    }, HTTPServer::Protocol::Http);
+
+    server.addResponse("/index1.html"_s, { makeString("<a href='http://127.0.0.1:"_s, server.port(), "/index2.html'>Link</a>"_s) });
+
+    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    [navigationDelegate setDecidePolicyForNavigationActionWithPreferences:[&](WKNavigationAction *action, WKWebpagePreferences *preferences, void (^decisionHandler)(WKNavigationActionPolicy, WKWebpagePreferences *)) {
+        [preferences _setNetworkConnectionIntegrityPolicy:_WKWebsiteNetworkConnectionIntegrityPolicyEnabled | _WKWebsiteNetworkConnectionIntegrityPolicySanitizeLookalikeCharacters | _WKWebsiteNetworkConnectionIntegrityPolicyEnhancedTelemetry];
+        decisionHandler(WKNavigationActionPolicyAllow, preferences);
+    }];
+
+    auto webView = webViewAfterCrossSiteNavigationWithReducedPrivacy(makeString("http://localhost:"_s, server.port(), "/index1.html"_s));
+
+    [webView setNavigationDelegate:navigationDelegate.get()];
+    [navigationDelegate waitForDidFinishNavigation];
+
+    auto checkFingerprintForNoise = [&](NSString *functionName) {
+        auto scriptToRun = [NSString stringWithFormat:@"return %@()", functionName];
+        auto values = std::pair {
+            [[webView callAsyncJavaScriptAndWait:scriptToRun] floatValue],
+            [[webView callAsyncJavaScriptAndWait:scriptToRun] floatValue]
+        };
+        EXPECT_NE(values.first, values.second);
+    };
+
+    checkFingerprintForNoise(@"testOscillatorCompressor");
 }
 
 // FIXME when rdar://115137641 is resolved.
@@ -1176,7 +1302,7 @@ inline static String sharedWorkerMainBytes()
 
 inline static String sharedWorkerBytes()
 {
-    return R"TESTRESOURCE(
+    return String::fromUTF8(R"TESTRESOURCE(
         onconnect = (event) => {
             const port = event.ports[0];
             port.onmessage = function(event) {
@@ -1211,7 +1337,7 @@ inline static String sharedWorkerBytes()
                 });
             };
         };
-        )TESTRESOURCE"_s;
+        )TESTRESOURCE");
 }
 
 TEST(AdvancedPrivacyProtections, NoiseInjectionForOffscreenCanvasInSharedWorker)

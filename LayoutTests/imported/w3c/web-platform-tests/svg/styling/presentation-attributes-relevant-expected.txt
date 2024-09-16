@@ -11,6 +11,7 @@ PASS cx presentation attribute supported on a relevant element
 PASS cy presentation attribute supported on a relevant element
 PASS direction presentation attribute supported on a relevant element
 PASS display presentation attribute supported on a relevant element
+PASS d presentation attribute supported on a relevant element
 PASS dominant-baseline presentation attribute supported on a relevant element
 PASS fill presentation attribute supported on a relevant element
 PASS fill-opacity presentation attribute supported on a relevant element

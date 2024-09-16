@@ -42,6 +42,10 @@ INDEX_TEMPLATE = """
 </html>
 """
 PROJECT_TEMPLATE = '<li><a href="{project_file_url}">{project_name}</a> ({project_issue_count})</li>'
+CATEGORY_TEMPLATE = '<div>{category_name}<ul>{checker_links}</ul></div>'
+STATIC_ANALYZER = 'StaticAnalyzer'
+STATIC_ANALYZER_REGRESSIONS = 'StaticAnalyzerRegressions'
+STATIC_ANALYZER_UNEXPECTED = 'StaticAnalyzerUnexpectedRegressions'
 
 
 def parse_command_line(args):
@@ -54,72 +58,109 @@ def parse_command_line(args):
     return parser.parse_args(args)
 
 
-def get_project_name(output_root, analysis_dir):
-    static_analyzer_dir = os.path.join(output_root, analysis_dir, 'StaticAnalyzer')
-    if os.path.exists(static_analyzer_dir):
-        subdirs = filter(lambda x: x[0] != '.' and x != 'PAL', os.listdir(static_analyzer_dir))
-        return os.path.basename(subdirs[0])
+def generate_unexpected_results_links(output_root, static_analysis_dir, project_name):
+    results_links = ''
+    for category, category_formatted in {'UnexpectedPasses': 'Unexpected Passes', 'UnexpectedFailures': 'Unexpected Failures'}.items():
+        command = 'find {} -name {}\\* -print'.format(os.path.abspath(os.path.join(static_analysis_dir, project_name)), category)
+        try:
+            result_files = subprocess.check_output(command, shell=True, text=True)
+        except subprocess.CalledProcessError as e:
+            sys.stderr.write(f'{e.output}')
+            sys.stderr.write(f'Could not find results for {project_name}\n')
+            return -1
+
+        unexpected_results_files = result_files.splitlines()
+        checker_links = ''
+        for file_path in unexpected_results_files:
+            file_name = file_path.split('/')[-1].removeprefix(category).removesuffix('.txt')
+            relative_file_path = os.path.relpath(file_path, output_root)
+            with open(os.path.abspath(os.path.join(output_root, file_path))) as f:
+                count = len(f.read().splitlines())
+            if count:
+                checker_links += PROJECT_TEMPLATE.format(project_file_url=relative_file_path, project_name=file_name, project_issue_count=count)
+        if checker_links:
+            results_links += CATEGORY_TEMPLATE.format(category_name=category_formatted, checker_links=checker_links)
+
+    return results_links
 
 
-def generate_results_page(project_dict, id_string, output_root):
+def generate_results_page(project_dirs, id_string, output_root, static_analysis_dir, result_type=None):
     project_list = ''
-    for project_name in sorted(project_dict.keys()):
-        if project_name:
-            project_path = project_dict[project_name]
-            static_analyzer_index_path = os.path.join(output_root, project_path, INDEX_HTML)
+    for project_name in sorted(project_dirs):
+        static_analyzer_index_path = os.path.join(static_analysis_dir, project_name, INDEX_HTML)
+        project_count = get_project_issue_count_as_string(static_analyzer_index_path)
+        if int(project_count) != 0:
             project_list = project_list + PROJECT_TEMPLATE.format(
-                    project_file_url=project_path + '/' + INDEX_HTML,
-                    project_issue_count=get_project_issue_count_as_string(static_analyzer_index_path),
-                    project_name=project_name)
+                        project_file_url=os.path.relpath(static_analyzer_index_path, output_root),
+                        project_issue_count=project_count,
+                        project_name=project_name)
+        if result_type == 'unexpected':
+            project_list += generate_unexpected_results_links(output_root, static_analysis_dir, project_name)
+
+    if result_type:
+        heading = f'{result_type.capitalize()} results for {id_string}'
+    else:
+        heading = f'Results for {id_string}'
 
     return INDEX_TEMPLATE.format(
-        heading='Results for {}'.format(id_string),
+        heading=heading,
         project_list=project_list,
         title='Static Analysis Results'
     )
 
 
-def get_total_issue_count(project_dict, output_root):
+def create_results_file(options, output_root, static_analysis_dir, result_type=None):
+    project_dirs = list(filter(lambda x: x[0] != '.' and os.path.isdir(os.path.join(static_analysis_dir, x)),
+                                         os.listdir(static_analysis_dir)))
+
+    if options.id_string:
+        results_page = generate_results_page(project_dirs, options.id_string, output_root, static_analysis_dir, result_type)
+        if result_type:
+            f = open(output_root + f'/{result_type}-results.html', 'w')
+        else:
+            f = open(output_root + '/results.html', 'w')
+        f.write(results_page)
+        f.close()
+
+
+def get_total_issue_count(project_dirs, static_analysis_dir):
     total_issue_count = 0
-    for project_name in sorted(project_dict.keys()):
-        if project_name:
-            project_path = project_dict[project_name]
-            static_analyzer_index_path = os.path.join(output_root, project_path, INDEX_HTML)
-            try:
-                issue_count = int(get_project_issue_count_as_string(static_analyzer_index_path))
-                total_issue_count = total_issue_count + issue_count
-            except ValueError:
-                pass
+    for project_name in sorted(project_dirs):
+        static_analyzer_index_path = os.path.join(static_analysis_dir, project_name, INDEX_HTML)
+        try:
+            issue_count = int(get_project_issue_count_as_string(static_analyzer_index_path))
+            total_issue_count = total_issue_count + issue_count
+        except ValueError:
+            pass
     return total_issue_count
 
 
 def main(options):
     output_root = options.output_root
-    project_dict = {}
-    subdirs = []
+    static_analysis_dir = output_root
 
-    if os.path.isdir(os.path.join(output_root, 'StaticAnalyzer')):
-        # Current: scan-build was not used to build & analyze.
-        subdirs = ['.']
-        project_dict = {'Everything': '.'}
-    else:
-        # Legacy: scan-build was used to build & analyze.
-        subdirs = filter(lambda x: x[0] != '.', os.listdir(output_root))
-        project_dict = dict(map(lambda x: (get_project_name(output_root, x), x), subdirs))
+    if os.path.isdir(os.path.join(static_analysis_dir, STATIC_ANALYZER)):
+        static_analysis_dir = os.path.join(static_analysis_dir, STATIC_ANALYZER)
 
-    if options.id_string:
-        results_page = generate_results_page(project_dict, options.id_string, output_root)
-        f = open(output_root + '/results.html', 'w')
-        f.write(results_page)
-        f.close()
+    create_results_file(options, output_root, static_analysis_dir)
+
+    if os.path.isdir(os.path.join(output_root, STATIC_ANALYZER_REGRESSIONS)):
+        static_analysis_new_dir = os.path.join(output_root, STATIC_ANALYZER_REGRESSIONS)
+        create_results_file(options, output_root, static_analysis_new_dir, result_type='new')
+
+    if os.path.isdir(os.path.join(output_root, STATIC_ANALYZER_UNEXPECTED)):
+        static_analysis_new_dir = os.path.join(output_root, STATIC_ANALYZER_UNEXPECTED)
+        create_results_file(options, output_root, static_analysis_new_dir, result_type='unexpected')
 
     if options.destination:
         if os.path.isfile(options.destination):
             subprocess.check_call(['/bin/rm', options.destination])
-        subprocess.check_call(['/usr/bin/zip', '-r', options.destination, output_root])
+        subprocess.check_call(['/usr/bin/zip', '-9', '-r', options.destination, output_root, '-x', '*.d'])
 
     if options.count:
-        total_issue_count = get_total_issue_count(project_dict, output_root)
+        project_dirs = list(filter(lambda x: x[0] != '.' and os.path.isdir(os.path.join(static_analysis_dir, x)),
+                                             os.listdir(static_analysis_dir)))
+        total_issue_count = get_total_issue_count(project_dirs, static_analysis_dir)
         print('Total issue count: {}'.format(total_issue_count))
 
     return 0

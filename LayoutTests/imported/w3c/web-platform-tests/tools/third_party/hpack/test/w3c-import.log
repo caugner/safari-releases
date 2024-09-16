@@ -14,6 +14,7 @@ Property values requiring vendor prefixes:
 None
 ------------------------------------------------------------------------
 List of files:
+/LayoutTests/imported/w3c/web-platform-tests/tools/third_party/hpack/test/conftest.py
 /LayoutTests/imported/w3c/web-platform-tests/tools/third_party/hpack/test/test_encode_decode.py
 /LayoutTests/imported/w3c/web-platform-tests/tools/third_party/hpack/test/test_hpack.py
 /LayoutTests/imported/w3c/web-platform-tests/tools/third_party/hpack/test/test_hpack_integration.py

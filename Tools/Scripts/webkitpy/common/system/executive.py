@@ -202,7 +202,7 @@ class Executive(AbstractExecutive):
         # According to http://docs.python.org/library/os.html
         # os.kill isn't available on Windows. python 2.5.5 os.kill appears
         # to work in cygwin, however it occasionally raises EAGAIN.
-        retries_left = 10 if self._is_cygwin else 2
+        retries_left = 10 if self._is_cygwin else 5
         current_signal = signal.SIGTERM
         while retries_left > 0 and self.check_running_pid(pid):
             try:
@@ -227,8 +227,13 @@ class Executive(AbstractExecutive):
                 else:
                     raise
 
-            # Give processes one chance to clean up quickly before exiting.
-            current_signal = signal.SIGKILL
+            # Fallback to SIGKILL before exiting.
+            if retries_left <= 0 and current_signal != signal.SIGKILL:
+                _log.error('Couldn\'t quit {} with SIGTERM, sending SIGKILL.'.format(pid))
+                current_signal = signal.SIGKILL
+                retries_left = 1
+            else:
+                time.sleep(0.05)  # give the process a chance to finish
 
     def _win32_check_running_pid(self, pid):
         # importing ctypes at the top-level seems to cause weird crashes at
@@ -398,7 +403,8 @@ class Executive(AbstractExecutive):
                     ignore_errors=False,
                     return_exit_code=False,
                     return_stderr=True,
-                    decode_output=True):
+                    decode_output=True,
+                    pass_fds=()):
         """Popen wrapper for convenience and to work around python bugs."""
         assert(isinstance(args, list) or isinstance(args, tuple))
         start_time = time.time()
@@ -412,7 +418,8 @@ class Executive(AbstractExecutive):
                              stderr=stderr,
                              cwd=cwd,
                              env=env,
-                             close_fds=self._should_close_fds())
+                             close_fds=self._should_close_fds(),
+                             pass_fds=pass_fds)
         with process:
             if not string_to_communicate:
                 output = process.communicate()[0]

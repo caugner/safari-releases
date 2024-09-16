@@ -14,5 +14,6 @@ Property values requiring vendor prefixes:
 None
 ------------------------------------------------------------------------
 List of files:
+/LayoutTests/imported/w3c/web-platform-tests/tools/third_party/websockets/docs/_static/favicon.ico
 /LayoutTests/imported/w3c/web-platform-tests/tools/third_party/websockets/docs/_static/tidelift.png
 /LayoutTests/imported/w3c/web-platform-tests/tools/third_party/websockets/docs/_static/websockets.svg

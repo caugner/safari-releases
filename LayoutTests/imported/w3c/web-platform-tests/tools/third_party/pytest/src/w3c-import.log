@@ -14,4 +14,4 @@ Property values requiring vendor prefixes:
 None
 ------------------------------------------------------------------------
 List of files:
-/LayoutTests/imported/w3c/web-platform-tests/tools/third_party/pytest/src/pytest.py
+/LayoutTests/imported/w3c/web-platform-tests/tools/third_party/pytest/src/py.py

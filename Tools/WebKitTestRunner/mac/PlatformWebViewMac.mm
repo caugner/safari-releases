@@ -58,7 +58,7 @@ enum {
 
 namespace WTR {
 
-PlatformWebView::PlatformWebView(WKWebViewConfiguration* configuration, const TestOptions& options)
+PlatformWebView::PlatformWebView(WKPageConfigurationRef configuration, const TestOptions& options)
     : m_windowIsKey(true)
     , m_options(options)
 {
@@ -68,17 +68,17 @@ PlatformWebView::PlatformWebView(WKWebViewConfiguration* configuration, const Te
     if (m_options.noUseRemoteLayerTree())
         [[NSUserDefaults standardUserDefaults] setValue:@NO forKey:@"WebKit2UseRemoteLayerTreeDrawingArea"];
 
-    auto copiedConfiguration = adoptNS([configuration copy]);
-    WKPreferencesSetThreadedScrollingEnabled((__bridge WKPreferencesRef)[copiedConfiguration preferences], m_options.useThreadedScrolling());
+    WKPreferencesSetThreadedScrollingEnabled((__bridge WKPreferencesRef)[(__bridge WKWebViewConfiguration *)configuration preferences], m_options.useThreadedScrolling());
 
     NSRect rect = NSMakeRect(0, 0, options.viewWidth(), options.viewHeight());
-    m_view = [[TestRunnerWKWebView alloc] initWithFrame:rect configuration:copiedConfiguration.get()];
+    m_view = [[TestRunnerWKWebView alloc] initWithFrame:rect configuration:(__bridge WKWebViewConfiguration *)configuration];
     [m_view _setWindowOcclusionDetectionEnabled:NO];
 
     NSScreen *firstScreen = [[NSScreen screens] objectAtIndex:0];
     NSRect windowRect = m_options.shouldShowWindow() ? NSOffsetRect(rect, 100, 100) : NSOffsetRect(rect, -10000, [firstScreen frame].size.height - rect.size.height + 10000);
     m_window = [[WebKitTestRunnerWindow alloc] initWithContentRect:windowRect styleMask:NSWindowStyleMaskBorderless backing:(NSBackingStoreType)_NSBackingStoreUnbuffered defer:YES];
     m_window.platformWebView = this;
+    [m_window setHasShadow:NO];
     [m_window setColorSpace:[firstScreen colorSpace]];
     [m_window setAppearance:[NSAppearance appearanceNamed:NSAppearanceNameAqua]];
     [m_window setCollectionBehavior:NSWindowCollectionBehaviorStationary];

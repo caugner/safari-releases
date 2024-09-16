@@ -14,5 +14,7 @@ Property values requiring vendor prefixes:
 None
 ------------------------------------------------------------------------
 List of files:
+/LayoutTests/imported/w3c/web-platform-tests/tools/third_party/hyperframe/test/__init__.py
+/LayoutTests/imported/w3c/web-platform-tests/tools/third_party/hyperframe/test/test_external_collection.py
 /LayoutTests/imported/w3c/web-platform-tests/tools/third_party/hyperframe/test/test_flags.py
 /LayoutTests/imported/w3c/web-platform-tests/tools/third_party/hyperframe/test/test_frames.py

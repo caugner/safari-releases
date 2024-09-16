@@ -34,8 +34,7 @@ class TestServer {
 
     start()
     {
-        let testConfigContent = this.testConfig();
-        fs.writeFileSync(this._testConfigPath, JSON.stringify(testConfigContent, null, '    '));
+        this.writeTestConfig();
 
         this._ensureTestDatabase();
         this._ensureDataDirectory();
@@ -92,6 +91,18 @@ class TestServer {
         }
     }
 
+    writeTestConfig(testConfigContent = null)
+    {
+        testConfigContent = testConfigContent || this.testConfig();
+        fs.writeFileSync(this._testConfigPath, JSON.stringify(testConfigContent, null, '    '));
+    }
+
+    overwriteTestConfig(override)
+    {
+        const testConfigContent = {...this.testConfig(), ...override};
+        this.writeTestConfig(testConfigContent);
+    }
+
     _ensureDataDirectory()
     {
         let backupPath = path.resolve(this._dataDirectory, '../original-data');
@@ -131,6 +142,7 @@ class TestServer {
         } catch (error) { }
         this._executePgsqlCommand('createdb');
         this._executePgsqlCommand('psql', ['--command', `grant all privileges on database "${this._databaseName}" to "${this._databaseUser}";`]);
+        this._executePgsqlCommand('psql', ['--command', `grant all on schema public to "${this._databaseUser}";`]);
         this.initDatabase();
     }
 
@@ -253,6 +265,7 @@ class TestServer {
             this.timeout(10000);
             self.initDatabase();
             self.cleanDataDirectory();
+            self.writeTestConfig();
             originalRemote = global.RemoteAPI;
             global.RemoteAPI = self._remote;
             self._remote.clearCookies();

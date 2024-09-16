@@ -89,6 +89,26 @@
 
 @end
 
+@interface WKWebView (MacEditingTests)
+- (std::pair<NSRect, NSRange>)_firstRectForCharacterRange:(NSRange)characterRange;
+@end
+
+@implementation WKWebView (MacEditingTests)
+
+- (std::pair<NSRect, NSRange>)_firstRectForCharacterRange:(NSRange)characterRange
+{
+    __block bool done = false;
+    __block std::pair<NSRect, NSRange> result;
+    [static_cast<id<NSTextInputClient_Async>>(self) firstRectForCharacterRange:characterRange completionHandler:^(NSRect firstRect, NSRange actualRange) {
+        result = { firstRect, actualRange };
+        done = true;
+    }];
+    TestWebKitAPI::Util::run(&done);
+    return result;
+}
+
+@end
+
 TEST(WKWebViewMacEditingTests, DoubleClickDoesNotSelectTrailingSpace)
 {
     RetainPtr<TestWKWebView> webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)]);
@@ -219,6 +239,136 @@ TEST(WKWebViewMacEditingTests, InlinePredictionsShouldSurpressAutocorrection)
     NSString *hasSpellingMarker = [webView stringByEvaluatingJavaScript:@"internals.hasSpellingMarker(6, 9) ? 'true' : 'false'"];
     EXPECT_STREQ("false", hasSpellingMarker.UTF8String);
 }
+
+
+@interface SetMarkedTextWithNoAttributedStringTestCandidate : NSTextCheckingResult
+@end
+
+@implementation SetMarkedTextWithNoAttributedStringTestCandidate {
+    RetainPtr<NSString> _string;
+    NSRange _range;
+}
+
+- (instancetype)initWithReplacementString:(NSString *)string inRange:(NSRange)range
+{
+    if (self = [super init]) {
+        _string = string;
+        _range = range;
+    }
+    return self;
+}
+
+- (NSString *)replacementString
+{
+    return _string.get();
+}
+
+- (NSTextCheckingType)resultType
+{
+    return NSTextCheckingTypeReplacement;
+}
+
+- (NSRange)range
+{
+    return _range;
+}
+
+@end
+
+TEST(WKWebViewMacEditingTests, SetMarkedTextWithNoAttributedString)
+{
+    auto configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
+    auto webView = adoptNS([[TestWKWebView<NSTextInputClient, NSTextInputClient_Async> alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
+    [webView _setContinuousSpellCheckingEnabledForTesting:YES];
+    [webView synchronouslyLoadHTMLString:@"<body id='p' contenteditable>Is it &nbsp;</body>"];
+    [webView stringByEvaluatingJavaScript:@"document.body.focus()"];
+    [webView _setEditable:YES];
+    [webView waitForNextPresentationUpdate];
+
+    NSString *modifySelectionJavascript = @""
+    "(() => {"
+    "  const node = document.getElementById('p').firstChild;"
+    "  const range = document.createRange();"
+    "  range.setStart(node, 7);"
+    "  range.setEnd(node, 7);"
+    "  "
+    "  var selection = window.getSelection();"
+    "  selection.removeAllRanges();"
+    "  selection.addRange(range);"
+    "})();";
+
+    [webView stringByEvaluatingJavaScript:modifySelectionJavascript];
+
+    [webView _handleAcceptedCandidate:adoptNS([[SetMarkedTextWithNoAttributedStringTestCandidate alloc] initWithReplacementString:@"test" inRange:NSMakeRange(0, 0)]).get()];
+
+    [webView setMarkedText:@"hello" selectedRange:NSMakeRange(4, 0) replacementRange:NSMakeRange(6, 4)];
+}
 #endif
+
+TEST(WKWebViewMacEditingTests, FirstRectForCharacterRange)
+{
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+
+    [webView synchronouslyLoadHTMLString:@"<body id='p' contenteditable>First Line<br>Second Line<br>Third Line<br></body>"];
+    [webView stringByEvaluatingJavaScript:@"document.body.focus()"];
+    [webView _setEditable:YES];
+    [webView waitForNextPresentationUpdate];
+    {
+        auto [firstRect, actualRange] = [webView _firstRectForCharacterRange:NSMakeRange(0, 31)];
+        EXPECT_EQ(8, firstRect.origin.x);
+        EXPECT_EQ(574, firstRect.origin.y);
+        EXPECT_EQ(62, firstRect.size.width);
+        EXPECT_EQ(18, firstRect.size.height);
+
+        EXPECT_EQ(0U, actualRange.location);
+        EXPECT_EQ(10U, actualRange.length);
+    }
+    {
+        auto [firstRect, actualRange] = [webView _firstRectForCharacterRange:NSMakeRange(0, 5)];
+        EXPECT_EQ(8, firstRect.origin.x);
+        EXPECT_EQ(574, firstRect.origin.y);
+        EXPECT_EQ(30, firstRect.size.width);
+        EXPECT_EQ(18, firstRect.size.height);
+
+        EXPECT_EQ(0U, actualRange.location);
+        EXPECT_EQ(5U, actualRange.length);
+    }
+    {
+        auto [firstRect, actualRange] = [webView _firstRectForCharacterRange:NSMakeRange(17, 4)];
+        EXPECT_EQ(55, firstRect.origin.x);
+        EXPECT_EQ(556, firstRect.origin.y);
+        EXPECT_EQ(27, firstRect.size.width);
+        EXPECT_EQ(18, firstRect.size.height);
+
+        EXPECT_EQ(17U, actualRange.location);
+        EXPECT_EQ(4U, actualRange.length);
+    }
+}
+
+TEST(WKWebViewMacEditingTests, FirstRectForCharacterRangeInTextArea)
+{
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+
+    [webView synchronouslyLoadHTMLString:@"<textarea></textarea>"];
+    [webView stringByEvaluatingJavaScript:@"document.querySelector('textarea').focus()"];
+    [webView waitForNextPresentationUpdate];
+
+    auto [rectBeforeTyping, rangeBeforeTyping] = [webView _firstRectForCharacterRange:NSMakeRange(0, 0)];
+    EXPECT_GT(rectBeforeTyping.origin.x, 0);
+    EXPECT_GT(rectBeforeTyping.origin.y, 0);
+    EXPECT_GT(rectBeforeTyping.size.height, 0);
+    EXPECT_EQ(rangeBeforeTyping.location, 0U);
+    EXPECT_EQ(rangeBeforeTyping.length, 0U);
+
+    [webView insertText:@"a"];
+    [webView waitForNextPresentationUpdate];
+
+    auto [rectAfterTyping, rangeAfterTyping] = [webView _firstRectForCharacterRange:NSMakeRange(1, 0)];
+    EXPECT_GT(rectAfterTyping.origin.x, rectBeforeTyping.origin.x);
+    EXPECT_GT(rectAfterTyping.origin.y, 0);
+    EXPECT_GT(rectAfterTyping.size.height, 0);
+    EXPECT_EQ(rangeAfterTyping.location, 1U);
+    EXPECT_EQ(rangeAfterTyping.length, 0U);
+}
 
 #endif // PLATFORM(MAC)

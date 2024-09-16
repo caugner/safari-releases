@@ -904,6 +904,49 @@ TEST(KeyboardInputTests, DoNotRegisterActionsInOverriddenUndoManager)
     EXPECT_FALSE([overrideUndoManager canUndo]);
 }
 
+TEST(KeyboardInputTests, NewUndoGroupClosesPreviousTypingCommand)
+{
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 400)]);
+    auto inputDelegate = adoptNS([TestInputDelegate new]);
+    [inputDelegate setFocusStartsInputSessionPolicyHandler:[](WKWebView *, id<_WKFocusedElementInfo>) {
+        return _WKFocusStartsInputSessionPolicyAllow;
+    }];
+    __block bool didStartInputSession = false;
+    [inputDelegate setDidStartInputSessionHandler:^(WKWebView *, id<_WKFormInputSession>) {
+        didStartInputSession = true;
+    }];
+    [webView _setInputDelegate:inputDelegate.get()];
+    [webView synchronouslyLoadHTMLString:@"<body contenteditable>"];
+    [webView objectByEvaluatingJavaScript:@"document.body.focus()"];
+    Util::run(&didStartInputSession);
+
+    RetainPtr contentView = [webView textInputContentView];
+    auto insertText = ^(NSString *text) {
+        [contentView insertText:text];
+        [webView waitForNextPresentationUpdate];
+    };
+
+    insertText(@"Foo");
+
+    [[contentView undoManager] beginUndoGrouping];
+    [webView waitForNextPresentationUpdate];
+
+    insertText(@" ");
+    insertText(@"bar");
+
+    [[contentView undoManager] endUndoGrouping];
+    [webView waitForNextPresentationUpdate];
+    EXPECT_WK_STREQ("Foo bar", [webView contentsAsString]);
+
+    [[contentView undoManager] undo];
+    [webView waitForNextPresentationUpdate];
+    EXPECT_WK_STREQ("Foo", [webView contentsAsString]);
+
+    [[contentView undoManager] undo];
+    [webView waitForNextPresentationUpdate];
+    EXPECT_WK_STREQ("", [webView contentsAsString]);
+}
+
 static UIView * nilResizableSnapshotViewFromRect(id, SEL, CGRect, BOOL, UIEdgeInsets)
 {
     return nil;
@@ -925,8 +968,19 @@ TEST(KeyboardInputTests, DoNotCrashWhenFocusingSelectWithoutViewSnapshot)
     [webView waitForNextPresentationUpdate];
 }
 
+static BOOL overrideHardwareKeyboardAttached(id, SEL)
+{
+    return NO;
+}
+
 TEST(KeyboardInputTests, EditableWebViewRequiresKeyboardWhenFirstResponder)
 {
+    InstanceMethodSwizzler swizzler {
+        UIKeyboardImpl.class,
+        @selector(hardwareKeyboardAttached),
+        reinterpret_cast<IMP>(overrideHardwareKeyboardAttached)
+    };
+
     auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
     auto delegate = adoptNS([TestInputDelegate new]);
     [webView _setInputDelegate:delegate.get()];
@@ -1032,6 +1086,34 @@ TEST(KeyboardInputTests, NoCrashWhenDiscardingMarkedText)
     [webView _close];
 
     Util::runFor(100_ms);
+}
+
+TEST(KeyboardInputTests, NoCrashWithEmptyAttributedMarkedText)
+{
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    [webView _setEditable:YES];
+    [webView synchronouslyLoadHTMLString:@"<meta name='viewport' content='width=device-width'><meta charset='utf-8'><body></body>"];
+    [webView selectAll:nil];
+
+    RetainPtr attributes = @{
+        NSMarkedClauseSegmentAttributeName: @(0),
+        NSUnderlineStyleAttributeName: @(NSUnderlineStyleSingle),
+        NSUnderlineColorAttributeName: UIColor.tintColor
+    };
+
+    RetainPtr composition = adoptNS([[NSAttributedString alloc] initWithString:@"あ" attributes:attributes.get()]);
+    [[webView textInputContentView] setAttributedMarkedText:composition.get() selectedRange:NSMakeRange(0, 1)];
+
+    RetainPtr finalComposition = adoptNS([[NSMutableAttributedString alloc] initWithString:@"あs" attributes:attributes.get()]);
+    [[webView textInputContentView] setAttributedMarkedText:finalComposition.get() selectedRange:NSMakeRange(0, 2)];
+
+    [finalComposition setAttributes:nil range:NSMakeRange(0, 2)];
+    [finalComposition replaceCharactersInRange:NSMakeRange(0, 2) withString:@"明日"];
+
+    [[webView textInputContentView] setAttributedMarkedText:finalComposition.get() selectedRange:NSMakeRange(0, 2)];
+
+    [finalComposition deleteCharactersInRange:NSMakeRange(0, 2)];
+    [[webView textInputContentView] setAttributedMarkedText:finalComposition.get() selectedRange:NSMakeRange(0, 0)];
 }
 
 TEST(KeyboardInputTests, CharactersAroundCaretSelection)
@@ -1255,8 +1337,10 @@ TEST(KeyboardInputTests, AutocorrectionIndicatorColorNotAffectedByAuthorDefinedA
     CGImagePixelReader snapshotReaderExpected { expected.get() };
     CGImagePixelReader snapshotReaderActual { actual.get() };
 
-    for (int x = 0; x < frame.size.width * 3; ++x) {
-        for (int y = 0; y < frame.size.height * 3; ++y)
+    auto scale = UIScreen.mainScreen.scale;
+
+    for (int x = 0; x < frame.size.width * scale; ++x) {
+        for (int y = 0; y < frame.size.height * scale; ++y)
             EXPECT_EQ(snapshotReaderExpected.at(x, y), snapshotReaderActual.at(x, y));
     }
 }
@@ -1274,7 +1358,11 @@ static BOOL allowESIMAutoFillForWebKit(id, SEL, NSString *host, NSError **)
 TEST(KeyboardInputTests, DeviceEIDAndIMEIAutoFill)
 {
     InstanceMethodSwizzler swizzler {
+#if HAVE(DELAY_INIT_LINKING)
+        CoreTelephonyClient.class,
+#else
         PAL::getCoreTelephonyClientClass(),
+#endif
         @selector(isAutofilleSIMIdAllowedForDomain:error:),
         reinterpret_cast<IMP>(allowESIMAutoFillForWebKit)
     };

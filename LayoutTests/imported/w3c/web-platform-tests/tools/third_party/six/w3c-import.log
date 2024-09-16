@@ -15,6 +15,7 @@ None
 ------------------------------------------------------------------------
 List of files:
 /LayoutTests/imported/w3c/web-platform-tests/tools/third_party/six/CHANGES
+/LayoutTests/imported/w3c/web-platform-tests/tools/third_party/six/CONTRIBUTORS
 /LayoutTests/imported/w3c/web-platform-tests/tools/third_party/six/LICENSE
 /LayoutTests/imported/w3c/web-platform-tests/tools/third_party/six/MANIFEST.in
 /LayoutTests/imported/w3c/web-platform-tests/tools/third_party/six/README.rst
@@ -22,3 +23,4 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/tools/third_party/six/setup.py
 /LayoutTests/imported/w3c/web-platform-tests/tools/third_party/six/six.py
 /LayoutTests/imported/w3c/web-platform-tests/tools/third_party/six/test_six.py
+/LayoutTests/imported/w3c/web-platform-tests/tools/third_party/six/tox.ini

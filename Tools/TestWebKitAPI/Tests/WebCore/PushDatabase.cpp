@@ -24,12 +24,14 @@
  */
 
 #include "config.h"
+
 #include "Utilities.h"
 #include <WebCore/PushDatabase.h>
 #include <WebCore/SQLiteDatabase.h>
 #include <algorithm>
 #include <iterator>
 #include <wtf/FileSystem.h>
+#include <wtf/text/MakeString.h>
 
 using namespace WebCore;
 
@@ -80,10 +82,7 @@ static HashSet<String> getTopicsFromRecords(const T& records) {
 
 static String makeTemporaryDatabasePath()
 {
-    FileSystem::PlatformFileHandle handle;
-    auto path = FileSystem::openTemporaryFile("PushDatabase"_s, handle, ".db"_s);
-    FileSystem::closeFile(handle);
-    return path;
+    return FileSystem::createTemporaryFile("PushDatabase"_s, ".db"_s);
 }
 
 static std::unique_ptr<PushDatabase> createDatabaseSync(const String& path)

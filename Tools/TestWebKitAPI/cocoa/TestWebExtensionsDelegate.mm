@@ -51,6 +51,7 @@
     return nil;
 }
 
+#if PLATFORM(MAC)
 - (void)webExtensionController:(_WKWebExtensionController *)controller openNewWindowWithOptions:(_WKWebExtensionWindowCreationOptions *)options forExtensionContext:(_WKWebExtensionContext *)extensionContext completionHandler:(void (^)(id<_WKWebExtensionWindow> newWindow, NSError *error))completionHandler
 {
     if (_openNewWindow)
@@ -58,6 +59,7 @@
 
     completionHandler(nil, nil);
 }
+#endif
 
 - (void)webExtensionController:(_WKWebExtensionController *)controller openNewTabWithOptions:(_WKWebExtensionTabCreationOptions *)options forExtensionContext:(_WKWebExtensionContext *)extensionContext completionHandler:(void (^)(id<_WKWebExtensionTab> newTab, NSError *error))completionHandler
 {
@@ -85,23 +87,31 @@
     if (_openOptionsPage)
         _openOptionsPage(extensionContext, completionHandler);
     else
-        completionHandler([NSError errorWithDomain:NSCocoaErrorDomain code:0 userInfo:@{ NSDebugDescriptionErrorKey: @"runtime.openOptionsPage() not implemneted" }]);
+        completionHandler([NSError errorWithDomain:NSCocoaErrorDomain code:0 userInfo:@{ NSDebugDescriptionErrorKey: @"runtime.openOptionsPage() not implemented" }]);
 }
 
-- (void)webExtensionController:(_WKWebExtensionController *)controller promptForPermissions:(NSSet<_WKWebExtensionPermission> *)permissions inTab:(id<_WKWebExtensionTab>)tab forExtensionContext:(_WKWebExtensionContext *)extensionContext completionHandler:(void (^)(NSSet<_WKWebExtensionPermission> *allowedPermissions))completionHandler
+- (void)webExtensionController:(_WKWebExtensionController *)controller promptForPermissions:(NSSet<_WKWebExtensionPermission> *)permissions inTab:(id<_WKWebExtensionTab>)tab forExtensionContext:(_WKWebExtensionContext *)extensionContext completionHandler:(void (^)(NSSet<_WKWebExtensionPermission> *allowedPermissions, NSDate *expirationDate))completionHandler
 {
     if (_promptForPermissions)
         _promptForPermissions(tab, permissions, completionHandler);
     else
-        completionHandler(permissions);
+        completionHandler(permissions, nil);
 }
 
-- (void)webExtensionController:(_WKWebExtensionController *)controller promptForPermissionMatchPatterns:(NSSet<_WKWebExtensionMatchPattern *> *)matchPatterns inTab:(id<_WKWebExtensionTab>)tab forExtensionContext:(_WKWebExtensionContext *)extensionContext completionHandler:(void (^)(NSSet<_WKWebExtensionMatchPattern *> *allowedMatchPatterns))completionHandler
+- (void)webExtensionController:(_WKWebExtensionController *)controller promptForPermissionMatchPatterns:(NSSet<_WKWebExtensionMatchPattern *> *)matchPatterns inTab:(id<_WKWebExtensionTab>)tab forExtensionContext:(_WKWebExtensionContext *)extensionContext completionHandler:(void (^)(NSSet<_WKWebExtensionMatchPattern *> *allowedMatchPatterns, NSDate *expirationDate))completionHandler
 {
     if (_promptForPermissionMatchPatterns)
         _promptForPermissionMatchPatterns(tab, matchPatterns, completionHandler);
     else
-        completionHandler(matchPatterns);
+        completionHandler(matchPatterns, nil);
+}
+
+- (void)webExtensionController:(_WKWebExtensionController *)controller promptForPermissionToAccessURLs:(NSSet<NSURL *> *)urls inTab:(id<_WKWebExtensionTab>)tab forExtensionContext:(_WKWebExtensionContext *)extensionContext completionHandler:(void (^)(NSSet<NSURL *> *allowedURLs, NSDate *expirationDate))completionHandler
+{
+    if (_promptForPermissionToAccessURLs)
+        _promptForPermissionToAccessURLs(tab, urls, completionHandler);
+    else
+        completionHandler(urls, nil);
 }
 
 - (void)webExtensionController:(_WKWebExtensionController *)controller sendMessage:(id)message toApplicationIdentifier:(NSString *)applicationIdentifier forExtensionContext:(_WKWebExtensionContext *)extensionContext replyHandler:(void (^)(id, NSError *))replyHandler
@@ -109,7 +119,7 @@
     if (_sendMessage)
         _sendMessage(message, applicationIdentifier, replyHandler);
     else
-        replyHandler(nil, [NSError errorWithDomain:NSCocoaErrorDomain code:0 userInfo:@{ NSDebugDescriptionErrorKey: @"runtime.sendNativeMessage() not implemneted" }]);
+        replyHandler(nil, [NSError errorWithDomain:NSCocoaErrorDomain code:0 userInfo:@{ NSDebugDescriptionErrorKey: @"runtime.sendNativeMessage() not implemented" }]);
 }
 
 - (void)webExtensionController:(_WKWebExtensionController *)controller connectUsingMessagePort:(_WKWebExtensionMessagePort *)port forExtensionContext:(_WKWebExtensionContext *)extensionContext completionHandler:(void (^)(NSError *error))completionHandler
@@ -118,7 +128,7 @@
         _connectUsingMessagePort(port);
         completionHandler(nil);
     } else
-        completionHandler([NSError errorWithDomain:NSCocoaErrorDomain code:0 userInfo:@{ NSDebugDescriptionErrorKey: @"runtime.connectNative() not implemneted" }]);
+        completionHandler([NSError errorWithDomain:NSCocoaErrorDomain code:0 userInfo:@{ NSDebugDescriptionErrorKey: @"runtime.connectNative() not implemented" }]);
 }
 
 - (void)webExtensionController:(_WKWebExtensionController *)controller presentPopupForAction:(_WKWebExtensionAction *)action forExtensionContext:(_WKWebExtensionContext *)context completionHandler:(void (^)(NSError *))completionHandler
@@ -127,7 +137,7 @@
         _presentPopupForAction(action);
         completionHandler(nil);
     } else
-        completionHandler([NSError errorWithDomain:NSCocoaErrorDomain code:0 userInfo:@{ NSDebugDescriptionErrorKey: @"action.showPopup() not implemneted" }]);
+        completionHandler([NSError errorWithDomain:NSCocoaErrorDomain code:0 userInfo:@{ NSDebugDescriptionErrorKey: @"action.showPopup() not implemented" }]);
 }
 
 @end

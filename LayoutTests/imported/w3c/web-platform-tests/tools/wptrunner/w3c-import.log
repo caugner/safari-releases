@@ -18,9 +18,7 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/tools/wptrunner/README.rst
 /LayoutTests/imported/w3c/web-platform-tests/tools/wptrunner/requirements.txt
 /LayoutTests/imported/w3c/web-platform-tests/tools/wptrunner/requirements_chromium.txt
-/LayoutTests/imported/w3c/web-platform-tests/tools/wptrunner/requirements_edge.txt
 /LayoutTests/imported/w3c/web-platform-tests/tools/wptrunner/requirements_firefox.txt
-/LayoutTests/imported/w3c/web-platform-tests/tools/wptrunner/requirements_ie.txt
 /LayoutTests/imported/w3c/web-platform-tests/tools/wptrunner/requirements_opera.txt
 /LayoutTests/imported/w3c/web-platform-tests/tools/wptrunner/requirements_safari.txt
 /LayoutTests/imported/w3c/web-platform-tests/tools/wptrunner/requirements_sauce.txt

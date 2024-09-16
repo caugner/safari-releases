@@ -16,4 +16,5 @@ None
 List of files:
 /LayoutTests/imported/w3c/web-platform-tests/tools/lint/tests/dummy/css/css-unique/a-ref.html
 /LayoutTests/imported/w3c/web-platform-tests/tools/lint/tests/dummy/css/css-unique/a.html
+/LayoutTests/imported/w3c/web-platform-tests/tools/lint/tests/dummy/css/css-unique/relative-testharness-interact.html
 /LayoutTests/imported/w3c/web-platform-tests/tools/lint/tests/dummy/css/css-unique/relative-testharness.html

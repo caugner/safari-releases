@@ -31,10 +31,12 @@
 import os
 import logging
 import shlex
+import webbrowser
 
 import webkitpy
 from webkitpy.common.system import path
 from webkitpy.common.memoized import memoized
+from webkitpy.common.system.executive import ScriptError
 from webkitpy.layout_tests.models.test_configuration import TestConfiguration
 from webkitpy.port.glib import GLibPort
 from webkitpy.port.xvfbdriver import XvfbDriver
@@ -143,7 +145,12 @@ class GtkPort(GLibPort):
         self._leakdetector.parse_and_print_leaks_detail(leaks_files)
 
     def show_results_html_file(self, results_filename):
-        self.run_minibrowser([path.abspath_to_uri(self.host.platform, results_filename)])
+        uri = path.abspath_to_uri(self.host.platform, results_filename)
+        try:
+            self.run_minibrowser([uri, ])
+        except ScriptError:
+            print('Failed to run Minibrowser, falling back to default browser')
+            webbrowser.open_new(uri)
 
     def check_sys_deps(self):
         return super(GtkPort, self).check_sys_deps() and self._driver_class().check_driver(self)
@@ -174,9 +181,21 @@ class GtkPort(GLibPort):
         if os.environ.get("WEBKIT_MINI_BROWSER_PREFIX"):
             command = shlex.split(os.environ["WEBKIT_MINI_BROWSER_PREFIX"]) + command
 
+        env = self.setup_environ_for_minibrowser()
+        pass_fds = ()
+        if os.environ.get("SYSPROF_CONTROL_FD"):
+            try:
+                control_fd = int(os.environ.get("SYSPROF_CONTROL_FD"))
+                copy_fd = os.dup(control_fd)
+                pass_fds += (copy_fd, )
+                env["SYSPROF_CONTROL_FD"] = str(copy_fd)
+
+            except (ValueError):
+                pass
+
         if self._should_use_jhbuild():
             command = self._jhbuild_wrapper + command
-        return self._executive.run_command(command + args, cwd=self.webkit_base(), stdout=None, return_stderr=False, decode_output=False, env=self.setup_environ_for_minibrowser())
+        return self._executive.run_command(command + args, cwd=self.webkit_base(), stdout=None, return_stderr=False, decode_output=False, env=env, pass_fds=pass_fds)
 
     @memoized
     def _is_gtk4_build(self):

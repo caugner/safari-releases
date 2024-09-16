@@ -14,11 +14,13 @@ Property values requiring vendor prefixes:
 None
 ------------------------------------------------------------------------
 List of files:
+/LayoutTests/imported/w3c/web-platform-tests/tools/third_party/hpack/CHANGELOG.rst
 /LayoutTests/imported/w3c/web-platform-tests/tools/third_party/hpack/CONTRIBUTORS.rst
-/LayoutTests/imported/w3c/web-platform-tests/tools/third_party/hpack/HISTORY.rst
 /LayoutTests/imported/w3c/web-platform-tests/tools/third_party/hpack/LICENSE
 /LayoutTests/imported/w3c/web-platform-tests/tools/third_party/hpack/MANIFEST.in
-/LayoutTests/imported/w3c/web-platform-tests/tools/third_party/hpack/PKG-INFO
+/LayoutTests/imported/w3c/web-platform-tests/tools/third_party/hpack/Makefile
 /LayoutTests/imported/w3c/web-platform-tests/tools/third_party/hpack/README.rst
 /LayoutTests/imported/w3c/web-platform-tests/tools/third_party/hpack/setup.cfg
 /LayoutTests/imported/w3c/web-platform-tests/tools/third_party/hpack/setup.py
+/LayoutTests/imported/w3c/web-platform-tests/tools/third_party/hpack/tasks.py
+/LayoutTests/imported/w3c/web-platform-tests/tools/third_party/hpack/tox.ini

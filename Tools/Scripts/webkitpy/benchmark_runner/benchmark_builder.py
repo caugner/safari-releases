@@ -55,6 +55,8 @@ class BenchmarkBuilder(object):
                     self._apply_patch(self._plan['signpost_patch'])
                 else:
                     _log.warning('Signposts are enabled but a signpost patch was not found in the test plan. Skipping.')
+            for extra_patch in self._plan.get('extra_patches', []):
+                self._apply_patch(extra_patch)
             return self._web_root
         except Exception:
             self._clean()
@@ -139,8 +141,17 @@ class BenchmarkBuilder(object):
             subprocess.check_call(['tar', 'zxvf', output, '-C', temp_extract_path])
             shutil.copytree(os.path.join(temp_extract_path, relpath_in_repo), self._dest)
 
-    def _clone_git_repository(self, repository_url):
-        subprocess.check_call(['git', 'clone', repository_url, self._dest])
+    def _clone_git_repository(self, repository):
+        if isinstance(repository, str):
+            repository_url = repository
+            branch_args = []
+        else:
+            assert isinstance(repository, dict), 'repository must be a dictionary if it\'s not a string'
+            assert 'url' in repository, '"url" must be specified in "git_repository" dictionary'
+            repository_url = repository['url']
+            branch_args = ['--branch', repository['branch']] if 'branch' in repository else []
+        command = ['git', 'clone'] + branch_args + [repository_url, self._dest]
+        subprocess.check_call(command)
         git_hash = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=self._dest).strip().decode()
         _log.info('Latest commit is {}'.format(git_hash))
 

@@ -150,7 +150,6 @@ TEST(Printing, PrintPageBorders)
 }
 
 @interface TestPDFPrintDelegate : NSObject <WKUIDelegatePrivate>
-- (bool)printFrameCalled;
 - (void)waitForPrintFrameCall;
 @end
 
@@ -164,11 +163,6 @@ TEST(Printing, PrintPageBorders)
     _printFrameCalled = true;
 }
 
-- (bool)printFrameCalled
-{
-    return _printFrameCalled;
-}
-
 - (void)waitForPrintFrameCall
 {
     while (!_printFrameCalled)
@@ -180,24 +174,6 @@ TEST(Printing, PrintPageBorders)
 class PrintWithJSExecutionOptionTests : public ::testing::TestWithParam<bool> {
 public:
     bool allowsContentJavascript() const { return GetParam(); }
-
-    void assertPrintObservation(TestWKWebView *webView, TestPDFPrintDelegate *delegate) const
-    {
-        // If JS evaluation is allowed, then we just wait for the
-        // UI delegate to observe a printFrame call.
-        if (allowsContentJavascript())
-            return [delegate waitForPrintFrameCall];
-
-        // If JS evaluation is disallowed, we want a web content process
-        // round trip before asserting that the UI delegate has not
-        // observed a printFrame call.
-        __block bool done = false;
-        [webView _doAfterNextPresentationUpdate:^{
-            ASSERT_FALSE([delegate printFrameCalled]);
-            done = true;
-        }];
-        TestWebKitAPI::Util::run(&done);
-    }
 
     static NSURLRequest *pdfRequest()
     {
@@ -216,7 +192,7 @@ TEST_P(PrintWithJSExecutionOptionTests, PDFWithWindowPrintEmbeddedJS)
 
     [webView synchronouslyLoadRequest:pdfRequest() preferences:preferences.get()];
 
-    assertPrintObservation(webView.get(), delegate.get());
+    [delegate waitForPrintFrameCall];
 }
 
 INSTANTIATE_TEST_SUITE_P(Printing,

@@ -48,18 +48,14 @@ _log = logging.getLogger(__name__)
 
 
 try:
-    import _winreg
-    import win32com.client
+    import winreg
 except ImportError:
-    try:
-        import winreg as _winreg
-        import win32com.client
-    except ImportError:
-        _log.debug("Not running on native Windows.")
+    _log.debug("Not running on native Windows.")
 
 
 class WinPort(ApplePort):
     port_name = "win"
+    supports_localhost_aliases = True
 
     VERSION_MIN = Version(5, 1)
     VERSION_MAX = Version(10)
@@ -76,10 +72,10 @@ class WinPort(ApplePort):
         WINDOWS_ERROR_REPORTING_KEY = r'SOFTWARE\Microsoft\Windows\Windows Error Reporting'
         WOW64_WINDOWS_ERROR_REPORTING_KEY = r'SOFTWARE\Wow6432Node\Microsoft\Windows\Windows Error Reporting'
         FILE_SYSTEM_KEY = r'SYSTEM\CurrentControlSet\Control\FileSystem'
-        _HKLM = _winreg.HKEY_LOCAL_MACHINE
-        _HKCU = _winreg.HKEY_CURRENT_USER
-        _REG_DWORD = _winreg.REG_DWORD
-        _REG_SZ = _winreg.REG_SZ
+        _HKLM = winreg.HKEY_LOCAL_MACHINE
+        _HKCU = winreg.HKEY_CURRENT_USER
+        _REG_DWORD = winreg.REG_DWORD
+        _REG_SZ = winreg.REG_SZ
     else:
         POST_MORTEM_DEBUGGER_KEY = "/%s/SOFTWARE/Microsoft/Windows NT/CurrentVersion/AeDebug/%s"
         WOW64_POST_MORTEM_DEBUGGER_KEY = "/%s/SOFTWARE/Wow6432Node/Microsoft/Windows NT/CurrentVersion/AeDebug/%s"
@@ -103,8 +99,11 @@ class WinPort(ApplePort):
         ApplePort.__init__(self, host, port_name, **kwargs)
         if len(port_name.split('-')) > 1:
             self._os_version = VersionNameMap.map(host.platform).from_name(port_name.split('-')[1])[1]
-        else:
+        elif self.host.platform.is_win():
             self._os_version = self.host.platform.os_version
+
+        if not self._os_version:
+            self._os_version = WinPort.VERSION_MAX
 
     def do_text_results_differ(self, expected_text, actual_text):
         # Sanity was restored in WebKitTestRunner, so we don't need this hack there.
@@ -115,29 +114,6 @@ class WinPort(ApplePort):
             expected_text = delegate_regexp.sub("", expected_text)
             actual_text = delegate_regexp.sub("", actual_text)
         return ApplePort.do_text_results_differ(self, expected_text, actual_text)
-
-    def default_baseline_search_path(self, **kwargs):
-        version_name_map = VersionNameMap.map(self.host.platform)
-        if self._os_version < self.VERSION_MIN or self._os_version > self.VERSION_MAX:
-            fallback_versions = [self._os_version] if self._os_version else []
-        else:
-            sorted_versions = sorted(version_name_map.mapping_for_platform(platform=self.port_name).values())
-            fallback_versions = sorted_versions[sorted_versions.index(self._os_version):]
-
-        fallback_names = ['win-' + version_name_map.to_name(version, platform=self.port_name).lower().replace(' ', '') for version in fallback_versions]
-        fallback_names.append('win')
-
-        # FIXME: The AppleWin port falls back to AppleMac for some results.  Eventually we'll have a shared 'apple' port.
-        if self.get_option('webkit_test_runner'):
-            fallback_names.insert(0, 'win-wk2')
-            fallback_names.append('mac-wk2')
-            # Note we do not add 'wk2' here, even though it's included in _skipped_search_paths().
-        # FIXME: Perhaps we should get this list from MacPort?
-        fallback_names.append('mac')
-        result = list(map(self._webkit_baseline_path, fallback_names))
-        if apple_additions() and getattr(apple_additions(), "layout_tests_path", None):
-            result.insert(0, self._filesystem.join(apple_additions().layout_tests_path(), self.port_name))
-        return result
 
     def setup_environ_for_server(self, server_name=None):
         env = super(WinPort, self).setup_environ_for_server(server_name)
@@ -163,6 +139,9 @@ class WinPort(ApplePort):
             self._copy_value_from_environ_if_set(env, variable)
         return env
 
+    def driver_name(self):
+        return "WebKitTestRunnerWS"
+
     def run_minibrowser(self, args):
         miniBrowser = self._build_path('MiniBrowser.exe')
         return self._executive.run_command([miniBrowser] + args, stdout=None, cwd=self.webkit_base(), return_stderr=False, decode_output=False, ignore_errors=True, env=self.setup_environ_for_server())
@@ -170,19 +149,12 @@ class WinPort(ApplePort):
     def operating_system(self):
         return 'win'
 
-    def _port_flag_for_scripts(self):
-        if self.architecture() == 'x86_64':
-            return '--64-bit'
-        return None
-
     def _build_path(self, *comps):
         """Returns the full path to the test driver (DumpRenderTree)."""
         root_directory = self.get_option('_cached_root') or self.get_option('root')
         if not root_directory:
             ApplePort._build_path(self, *comps)  # Sets option _cached_root
-            binary_directory = 'bin32'
-            if self.architecture() == 'x86_64':
-                binary_directory = 'bin64'
+            binary_directory = 'bin64'
             root_directory = self._filesystem.join(self.get_option('_cached_root'), binary_directory)
             self.set_option('_cached_root', root_directory)
 
@@ -256,9 +228,9 @@ class WinPort(ApplePort):
         if sys.platform.startswith('win'):
             _log.debug("Trying to read %s\\%s" % (reg_path, key))
             try:
-                registry_key = _winreg.OpenKey(root, reg_path)
-                value = _winreg.QueryValueEx(registry_key, key)
-                _winreg.CloseKey(registry_key)
+                registry_key = winreg.OpenKey(root, reg_path)
+                value = winreg.QueryValueEx(registry_key, key)
+                winreg.CloseKey(registry_key)
             except WindowsError as ex:
                 _log.debug("Unable to read %s\\%s: %s" % (reg_path, key, str(ex)))
                 return ['', self._REG_SZ]
@@ -284,19 +256,19 @@ class WinPort(ApplePort):
         if sys.platform.startswith('win'):
             _log.debug("Trying to write %s\\%s = %s" % (reg_path, key, value))
             try:
-                registry_key = _winreg.OpenKey(root, reg_path, 0, _winreg.KEY_WRITE)
+                registry_key = winreg.OpenKey(root, reg_path, 0, winreg.KEY_WRITE)
             except WindowsError:
                 try:
                     _log.debug("Key doesn't exist -- must create it.")
-                    registry_key = _winreg.CreateKeyEx(root, reg_path, 0, _winreg.KEY_WRITE)
+                    registry_key = winreg.CreateKeyEx(root, reg_path, 0, winreg.KEY_WRITE)
                 except WindowsError as ex:
                     _log.error(r"Error setting (%s) %s\key: %s to value: %s.  Error=%s." % (arch, root, key, value, str(ex)))
                     _log.error("You many need to adjust permissions on the %s\\%s key." % (reg_path, key))
                     return False
 
             _log.debug("Writing {0} of type {1} to {2}\\{3}".format(value, regType, registry_key, key))
-            _winreg.SetValueEx(registry_key, key, 0, regType, value)
-            _winreg.CloseKey(registry_key)
+            winreg.SetValueEx(registry_key, key, 0, regType, value)
+            winreg.CloseKey(registry_key)
         else:
             registry_key = reg_path % (root, key)
             _log.debug("Writing to %s" % registry_key)
@@ -477,12 +449,6 @@ class WinPort(ApplePort):
 
         return True
 
-
-class WinCairoPort(WinPort):
-    port_name = "wincairo"
-
-    DEFAULT_ARCHITECTURE = 'x86_64'
-
     def default_baseline_search_path(self, **kwargs):
         return list(map(self._webkit_baseline_path, self._search_paths()))
 
@@ -504,7 +470,10 @@ class WinCairoPort(WinPort):
         wk_version = 'wk2' if self.get_option('webkit_test_runner') else 'wk1'
 
         for version in versions:
-            name = self.port_name + '-' + normalize(to_name(version))
+            version_name = to_name(version)
+            if not version_name:
+                continue
+            name = self.port_name + '-' + normalize(version_name)
             paths.append(name + '-' + wk_version)
             paths.append(name)
 
@@ -517,6 +486,6 @@ class WinCairoPort(WinPort):
         return paths
 
     def configuration_for_upload(self, host=None):
-        configuration = super(WinCairoPort, self).configuration_for_upload(host=host)
-        configuration['platform'] = self.port_name
+        configuration = super(WinPort, self).configuration_for_upload(host=host)
+        configuration['platform'] = 'wincairo'
         return configuration

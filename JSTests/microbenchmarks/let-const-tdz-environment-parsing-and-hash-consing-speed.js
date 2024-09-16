@@ -1,4 +1,4 @@
-//@ defaultNoNoLLIntRun if $architecture == "mips" || $architecture == "arm"
+//@ defaultNoNoLLIntRun if $architecture == "arm"
 /*
  * Copyright jQuery Foundation and other contributors, https://jquery.org/
  *

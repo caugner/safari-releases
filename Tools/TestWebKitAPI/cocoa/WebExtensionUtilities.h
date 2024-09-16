@@ -72,7 +72,9 @@
 
 - (instancetype)initWithWindow:(TestWebExtensionWindow *)window extensionController:(_WKWebExtensionController *)extensionController NS_DESIGNATED_INITIALIZER;
 
-@property (nonatomic, weak) TestWebExtensionWindow * window;
+- (void)assignWindow:(TestWebExtensionWindow *)window;
+
+@property (nonatomic, weak) TestWebExtensionWindow *window;
 @property (nonatomic, strong) WKWebView *mainWebView;
 
 - (void)changeWebViewIfNeededForURL:(NSURL *)url forExtensionContext:(_WKWebExtensionContext *)context;
@@ -104,6 +106,9 @@
 
 - (TestWebExtensionTab *)openNewTab;
 - (TestWebExtensionTab *)openNewTabAtIndex:(NSUInteger)index;
+
+- (NSUInteger)removeTab:(TestWebExtensionTab *)tab;
+- (void)insertTab:(TestWebExtensionTab *)tab atIndex:(NSUInteger)index;
 
 - (void)closeTab:(TestWebExtensionTab *)tab;
 - (void)closeTab:(TestWebExtensionTab *)tab windowIsClosing:(BOOL)windowIsClosing;
@@ -140,6 +145,8 @@ inline NSString *constructScript(NSArray *lines) { return [lines componentsJoine
 inline NSString *constructJSArrayOfStrings(NSArray *elements) { return [NSString stringWithFormat:@"['%@']", [elements componentsJoinedByString:@"', '"]]; }
 
 NSData *makePNGData(CGSize, SEL colorSelector);
+
+void runScriptWithUserGesture(const String&, WKWebView *);
 
 #endif
 
