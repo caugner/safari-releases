@@ -31,6 +31,7 @@
 #import "PlatformUtilities.h"
 #import "Test.h"
 #import "TestInputDelegate.h"
+#import "TestNavigationDelegate.h"
 #import "TestUIDelegate.h"
 #import "TestWKWebView.h"
 #import "UIKitSPIForTesting.h"
@@ -50,6 +51,11 @@
 #import <wtf/RetainPtr.h>
 #import <wtf/RunLoop.h>
 #import <wtf/unicode/CharacterNames.h>
+
+#if PLATFORM(MAC)
+#import <pal/spi/mac/NSTextInputContextSPI.h>
+#endif
+
 #import <pal/cocoa/WritingToolsUISoftLink.h>
 
 #if PLATFORM(MAC)
@@ -119,6 +125,12 @@
 - (PlatformWritingToolsResultOptions)allowedWritingToolsResultOptions;
 
 @end
+#endif
+
+#if PLATFORM(IOS_FAMILY)
+using PlatformTextPlaceholder = UITextPlaceholder;
+#else
+using PlatformTextPlaceholder = NSTextPlaceholder;
 #endif
 
 @interface WritingToolsWKWebView : TestWKWebView
@@ -716,10 +728,12 @@ TEST(WritingTools, CompositionWithAttemptedEditing)
 
         auto longerAttributedText = adoptNS([[NSAttributedString alloc] initWithString:result]);
 
-        [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:longerAttributedText.get() replacementRange:NSMakeRange(0, 910) inContext:contexts.firstObject finished:YES];
-
+        [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:longerAttributedText.get() replacementRange:NSMakeRange(0, 910) inContext:contexts.firstObject finished:NO];
 
         [webView waitForContentValue:result];
+
+        [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:longerAttributedText.get() replacementRange:NSMakeRange(0, 910) inContext:contexts.firstObject finished:YES];
+
         EXPECT_WK_STREQ(result, [webView contentsAsStringWithoutNBSP]);
 
         [webView attemptEditingForTesting];
@@ -769,6 +783,71 @@ TEST(WritingTools, CompositionWithUndoAfterEnding)
 
         [webView _synchronouslyExecuteEditCommand:@"Undo" argument:@""];
         EXPECT_WK_STREQ(@"Hey do you wanna go see a movie this weekend", [webView contentsAsStringWithoutNBSP]);
+
+        finished = true;
+    }];
+
+    TestWebKitAPI::Util::run(&finished);
+}
+
+TEST(WritingTools, CompositionWithMultipleUndoAfterEndingAfterShowOriginalAndRewritten)
+{
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
+
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body id='p' contenteditable><p style='height: 12px' id='first'></p></body>"]);
+    [webView focusDocumentBodyAndSelectAll];
+
+    [webView waitForNextPresentationUpdate];
+
+    __auto_type modifySelection = ^{
+        NSString *modifySelectionJavascript = [NSString stringWithFormat:@""
+            "(() => {"
+            "  getSelection().setPosition(document.querySelector('p'));"
+            "})();"];
+
+        [webView stringByEvaluatingJavaScript:modifySelectionJavascript];
+        [webView waitForNextPresentationUpdate];
+    };
+
+    modifySelection();
+
+    [webView _synchronouslyExecuteEditCommand:@"InsertText" argument:@"Hey do you wanna go see a movie this weekend"];
+
+    EXPECT_WK_STREQ(@"Hey do you wanna go see a movie this weekend", [webView contentsAsStringWithoutNBSP]);
+
+    __block bool finished = false;
+
+    [[webView writingToolsDelegate] willBeginWritingToolsSession:session.get() requestContexts:^(NSArray<WTContext *> *contexts) {
+        EXPECT_EQ(1UL, contexts.count);
+
+        EXPECT_WK_STREQ(@"Hey do you wanna go see a movie this weekend", contexts.firstObject.attributedText.string);
+
+        __auto_type rewrite = ^(NSString *rewrittenText) {
+            [[webView writingToolsDelegate] writingToolsSession:session.get() didReceiveAction:WTActionCompositionRestart];
+
+            RetainPtr attributedText = adoptNS([[NSAttributedString alloc] initWithString:rewrittenText]);
+
+            [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(0, 44) inContext:contexts.firstObject finished:NO];
+            TestWebKitAPI::Util::runFor(0.1_s);
+
+            [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(0, 44) inContext:contexts.firstObject finished:YES];
+
+            [webView waitForContentValue:rewrittenText];
+            EXPECT_WK_STREQ(rewrittenText, [webView contentsAsStringWithoutNBSP]);
+        };
+
+        rewrite(@"A");
+
+        [[webView writingToolsDelegate] writingToolsSession:session.get() didReceiveAction:WTActionShowOriginal];
+        [[webView writingToolsDelegate] writingToolsSession:session.get() didReceiveAction:WTActionShowRewritten];
+
+        [[webView writingToolsDelegate] didEndWritingToolsSession:session.get() accepted:YES];
+
+        [webView _synchronouslyExecuteEditCommand:@"Undo" argument:@""];
+        EXPECT_WK_STREQ(@"Hey do you wanna go see a movie this weekend", [webView contentsAsStringWithoutNBSP]);
+
+        [webView _synchronouslyExecuteEditCommand:@"Undo" argument:@""];
+        EXPECT_WK_STREQ(@"", [webView contentsAsStringWithoutNBSP]);
 
         finished = true;
     }];
@@ -980,9 +1059,14 @@ TEST(WritingTools, Composition)
 
         auto longerAttributedText = adoptNS([[NSAttributedString alloc] initWithString:@"ZZZZX YYY"]);
 
-        [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:longerAttributedText.get() replacementRange:NSMakeRange(5, 9) inContext:contexts.firstObject finished:YES];
+        [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:longerAttributedText.get() replacementRange:NSMakeRange(5, 9) inContext:contexts.firstObject finished:NO];
 
         [webView waitForContentValue:@"AAAA ZZZZX YYY"];
+
+        [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:longerAttributedText.get() replacementRange:NSMakeRange(5, 9) inContext:contexts.firstObject finished:YES];
+
+        [webView waitForNextPresentationUpdate];
+
         EXPECT_WK_STREQ(@"AAAA ZZZZX YYY", [webView contentsAsStringWithoutNBSP]);
 
         [[webView writingToolsDelegate] writingToolsSession:session.get() didReceiveAction:WTActionShowOriginal];
@@ -1024,9 +1108,14 @@ TEST(WritingTools, CompositionRevert)
 
         auto attributedText = adoptNS([[NSAttributedString alloc] initWithString:@"ZZZZ"]);
 
-        [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(5, 4) inContext:contexts.firstObject finished:YES];
+        [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(5, 4) inContext:contexts.firstObject finished:NO];
 
         [webView waitForContentValue:@"AAAA ZZZZ CCCC"];
+
+        [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(5, 4) inContext:contexts.firstObject finished:YES];
+
+        [webView waitForNextPresentationUpdate];
+
         EXPECT_WK_STREQ(@"AAAA ZZZZ CCCC", [webView contentsAsStringWithoutNBSP]);
 
         [webView _synchronouslyExecuteEditCommand:@"Undo" argument:@""];
@@ -1123,8 +1212,10 @@ TEST(WritingTools, CompositionWithAttributedStringAttributes)
 
         auto attributedText = adoptNS([[NSAttributedString alloc] initWithString:@"ZZZZ" attributes:@{ NSForegroundColorAttributeName : [WebCore::CocoaColor greenColor] }]);
 
-        [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(5, 4) inContext:contexts.firstObject finished:YES];
+        [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(5, 4) inContext:contexts.firstObject finished:NO];
         TestWebKitAPI::Util::runFor(0.1_s);
+
+        [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(5, 4) inContext:contexts.firstObject finished:YES];
 
         [webView _getContentsAsAttributedStringWithCompletionHandler:^(NSAttributedString *string, NSDictionary<NSAttributedStringDocumentAttributeKey, id> *attributes, NSError *error) {
             EXPECT_NULL(error);
@@ -1171,6 +1262,33 @@ TEST(WritingTools, CompositionWithAttributedStringAttributes)
     TestWebKitAPI::Util::run(&finished);
 }
 
+TEST(WritingTools, CompositionWithTabCharacters)
+{
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable><p style='height: 12px'></p></body>"]);
+    [webView focusDocumentBodyAndSelectAll];
+
+    [webView stringByEvaluatingJavaScript:@"getSelection().setPosition(document.querySelector('p'));"];
+    [webView waitForNextPresentationUpdate];
+
+    [webView _synchronouslyExecuteEditCommand:@"InsertText" argument:@"Hello"];
+    [webView _synchronouslyExecuteEditCommand:@"InsertTab" argument:@""];
+    [webView _synchronouslyExecuteEditCommand:@"InsertText" argument:@"World"];
+
+    __block bool finished = false;
+    [[webView writingToolsDelegate] willBeginWritingToolsSession:session.get() requestContexts:^(NSArray<WTContext *> *contexts) {
+        EXPECT_EQ(1UL, contexts.count);
+
+        [contexts.firstObject.attributedText enumerateAttribute:WTWritingToolsPreservedAttributeName inRange:NSMakeRange(0, [contexts.firstObject.attributedText length]) options:0 usingBlock:^(id value, NSRange attributeRange, BOOL *stop) {
+            EXPECT_EQ(0, [value integerValue]);
+        }];
+
+        finished = true;
+    }];
+
+    TestWebKitAPI::Util::run(&finished);
+}
+
 TEST(WritingTools, CompositionWithUnderline)
 {
     auto session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
@@ -1198,6 +1316,92 @@ TEST(WritingTools, CompositionWithUnderline)
     TestWebKitAPI::Util::run(&finished);
 }
 
+#if PLATFORM(MAC)
+static RetainPtr<NSAttributedString> makeTableAttributedString(NSArray<NSArray<NSString *> *> *rawTable)
+{
+    if (!rawTable.count)
+        return nil;
+
+    RetainPtr textTable = adoptNS([[NSTextTable alloc] init]);
+    [textTable setNumberOfColumns:rawTable.firstObject.count];
+
+    RetainPtr result = adoptNS([[NSMutableAttributedString alloc] init]);
+
+    for (NSUInteger row = 0; row < rawTable.count; row++) {
+        for (NSUInteger column = 0; column < rawTable[row].count; column++) {
+            RetainPtr textTableBlock = adoptNS([[NSTextTableBlock alloc] initWithTable:textTable.get() startingRow:row rowSpan:1 startingColumn:column columnSpan:1]);
+
+            RetainPtr paragraphStyle = adoptNS([[NSMutableParagraphStyle alloc] init]);
+            [paragraphStyle setTextBlocks:@[ textTableBlock.get() ]];
+
+            RetainPtr attributedString = adoptNS([[NSAttributedString alloc] initWithString:[rawTable[row][column] stringByAppendingString:@"\n"] attributes:@{
+                NSParagraphStyleAttributeName : paragraphStyle.get()
+            }]);
+
+            [result appendAttributedString:attributedString.get()];
+        }
+    }
+
+    return result;
+}
+
+TEST(WritingTools, CompositionWithTable)
+{
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
+
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@""
+        "<body contenteditable>"
+        "   <div>Task Name, Start Date, End Date, Status</div>"
+        "   <div>Task A, 2024-01-01, 2024-01-10, In Progress</div>"
+        "   <div>Task B, 2024-01-05, 2024-01-15, Completed</div>"
+        "</body>"
+    ]);
+
+    [webView focusDocumentBodyAndSelectAll];
+
+    __block bool finished = false;
+    [[webView writingToolsDelegate] willBeginWritingToolsSession:session.get() requestContexts:^(NSArray<WTContext *> *contexts) {
+        [[webView writingToolsDelegate] writingToolsSession:session.get() didReceiveAction:WTActionCompositionRestart];
+
+        RetainPtr attributedText = makeTableAttributedString(@[
+            @[ @"Task Name", @"Start Date", @"End Date", @"Status" ],
+            @[ @"Task A", @"2024-01-01", @"2024-01-10", @"In Progress" ],
+            @[ @"Task B", @"2024-01-05", @"2024-01-15", @"Completed" ],
+        ]);
+
+        // Invoke `didReceiveText` multiple times to ensure multiple tables are *not* created.
+
+        [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(0, 27) inContext:contexts.firstObject finished:NO];
+        TestWebKitAPI::Util::runFor(0.1_s);
+
+        [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(0, 27) inContext:contexts.firstObject finished:YES];
+        TestWebKitAPI::Util::runFor(0.1_s);
+
+        EXPECT_EQ([webView stringByEvaluatingJavaScript:@"document.getElementsByTagName('table').length"].intValue, 1);
+        EXPECT_EQ([webView stringByEvaluatingJavaScript:@"document.getElementsByTagName('tr').length"].intValue, 3);
+        EXPECT_EQ([webView stringByEvaluatingJavaScript:@"document.getElementsByTagName('td').length"].intValue, 12);
+
+        [[webView writingToolsDelegate] writingToolsSession:session.get() didReceiveAction:WTActionShowOriginal];
+
+        EXPECT_EQ([webView stringByEvaluatingJavaScript:@"document.getElementsByTagName('table').length"].intValue, 0);
+        EXPECT_EQ([webView stringByEvaluatingJavaScript:@"document.getElementsByTagName('tr').length"].intValue, 0);
+        EXPECT_EQ([webView stringByEvaluatingJavaScript:@"document.getElementsByTagName('td').length"].intValue, 0);
+
+        [[webView writingToolsDelegate] writingToolsSession:session.get() didReceiveAction:WTActionShowRewritten];
+
+        EXPECT_EQ([webView stringByEvaluatingJavaScript:@"document.getElementsByTagName('table').length"].intValue, 1);
+        EXPECT_EQ([webView stringByEvaluatingJavaScript:@"document.getElementsByTagName('tr').length"].intValue, 3);
+        EXPECT_EQ([webView stringByEvaluatingJavaScript:@"document.getElementsByTagName('td').length"].intValue, 12);
+
+        [[webView writingToolsDelegate] didEndWritingToolsSession:session.get() accepted:YES];
+
+        finished = true;
+    }];
+
+    TestWebKitAPI::Util::run(&finished);
+}
+#endif
+
 TEST(WritingTools, CompositionWithList)
 {
     auto session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
@@ -1215,6 +1419,10 @@ TEST(WritingTools, CompositionWithList)
 
         RetainPtr attributes = [NSDictionary dictionaryWithObjectsAndKeys:paragraph.get(), NSParagraphStyleAttributeName, nil];
         RetainPtr attributedText = adoptNS([[NSAttributedString alloc] initWithString:@"\tBroccoli\n\tPeas\n\tCarrots\n" attributes:attributes.get()]);
+
+        [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(0, 27) inContext:contexts.firstObject finished:NO];
+
+        TestWebKitAPI::Util::runFor(0.1_s);
 
         [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(0, 27) inContext:contexts.firstObject finished:YES];
         [webView waitForNextPresentationUpdate];
@@ -1264,6 +1472,8 @@ TEST(WritingTools, CompositionWithTextAttachment)
         RetainPtr attachment = adoptNS([[NSTextAttachment alloc] initWithData:pngData.get() ofType:UTTypePNG.identifier]);
 
         RetainPtr attributedText = [NSAttributedString attributedStringWithAttachment:attachment.get()];
+
+        [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(0, 19) inContext:contexts.firstObject finished:NO];
 
         [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(0, 19) inContext:contexts.firstObject finished:YES];
         TestWebKitAPI::Util::runFor(0.1_s); // this is needed to let the information load at least a bit or we can fail on a javascript issue.
@@ -1403,6 +1613,10 @@ TEST(WritingTools, CompositionWithNonImageAttachmentRoundTrip)
         [[webView writingToolsDelegate] writingToolsSession:session.get() didReceiveAction:WTActionCompositionRestart];
         TestWebKitAPI::Util::runFor(0.1_s);
 
+        [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:contexts.firstObject.attributedText replacementRange:NSMakeRange(0, contexts.firstObject.attributedText.length) inContext:contexts.firstObject finished:NO];
+
+        TestWebKitAPI::Util::runFor(0.1_s);
+
         [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:contexts.firstObject.attributedText replacementRange:NSMakeRange(0, contexts.firstObject.attributedText.length) inContext:contexts.firstObject finished:YES];
         [webView waitForNextPresentationUpdate];
 
@@ -1471,9 +1685,12 @@ TEST(WritingTools, CompositionWithMultipleChunks)
 
         auto longerAttributedText = adoptNS([[NSAttributedString alloc] initWithString:result]);
 
-        [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:longerAttributedText.get() replacementRange:NSMakeRange(0, 910) inContext:contexts.firstObject finished:YES];
+        [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:longerAttributedText.get() replacementRange:NSMakeRange(0, 910) inContext:contexts.firstObject finished:NO];
 
         [webView waitForContentValue:result];
+
+        [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:longerAttributedText.get() replacementRange:NSMakeRange(0, 910) inContext:contexts.firstObject finished:YES];
+
         EXPECT_WK_STREQ(result, [webView contentsAsStringWithoutNBSP]);
 
         [[webView writingToolsDelegate] writingToolsSession:session.get() didReceiveAction:WTActionShowOriginal];
@@ -1491,6 +1708,63 @@ TEST(WritingTools, CompositionWithMultipleChunks)
 
         [webView waitForContentValue:result];
         EXPECT_WK_STREQ(result, [webView contentsAsStringWithoutNBSP]);
+
+        finished = true;
+    }];
+
+    TestWebKitAPI::Util::run(&finished);
+}
+
+TEST(WritingTools, CompositionShowOriginalHasNoTransparentMarkers)
+{
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
+
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body id='p' contenteditable><div id='first'><b>Dream interpretation is a skill that anyone can learn</b>. It’s like a treasure hunt into our subconscious minds.</div></body>"]);
+    [webView focusDocumentBodyAndSelectAll];
+
+    RetainPtr originalText = @"Dream interpretation is a skill that anyone can learn. It’s like a treasure hunt into our subconscious minds.";
+
+    __block bool finished = false;
+
+    [[webView writingToolsDelegate] willBeginWritingToolsSession:session.get() requestContexts:^(NSArray<WTContext *> *contexts) {
+        EXPECT_EQ(1UL, contexts.count);
+
+        EXPECT_WK_STREQ(originalText.get(), contexts.firstObject.attributedText.string);
+
+        [[webView writingToolsDelegate] writingToolsSession:session.get() didReceiveAction:WTActionCompositionRestart];
+
+        EXPECT_WK_STREQ(originalText.get(), [webView contentsAsStringWithoutNBSP]);
+
+#if PLATFORM(MAC)
+        RetainPtr fontManager = [NSFontManager sharedFontManager];
+        RetainPtr boldFont = [fontManager fontWithFamily:@"Helvetica" traits:NSBoldFontMask weight:0 size:14];
+#else
+        RetainPtr boldFont = [UIFont boldSystemFontOfSize:14.0];
+#endif
+
+        RetainPtr boldText = adoptNS([[NSAttributedString alloc] initWithString:@"Dream interpretation is a skill that anyone can acquire" attributes: @{
+            NSFontAttributeName: boldFont.get()
+        }]);
+
+        RetainPtr normalText = adoptNS([[NSAttributedString alloc] initWithString:@". It’s akin to embarking on a treasure hunt into our subconscious minds."]);
+
+        RetainPtr attributedText = adoptNS([[NSMutableAttributedString alloc] init]);
+        [attributedText appendAttributedString:boldText.get()];
+        [attributedText appendAttributedString:normalText.get()];
+
+        [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(0, 109) inContext:contexts.firstObject finished:NO];
+
+        [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(0, 109) inContext:contexts.firstObject finished:YES];
+
+        // FIXME: Remove this, and all other delays, once there is testing infrastructure in place to be able to wait for animations to finish.
+        TestWebKitAPI::Util::runFor(2.0_s);
+
+        [[webView writingToolsDelegate] writingToolsSession:session.get() didReceiveAction:WTActionShowOriginal];
+
+        TestWebKitAPI::Util::runFor(0.1_s);
+
+        NSString *hasAnyTransparentMarker = [webView stringByEvaluatingJavaScript:@"internals.hasTransparentContentMarker(0, 0);"];
+        EXPECT_WK_STREQ("0", hasAnyTransparentMarker);
 
         finished = true;
     }];
@@ -1540,9 +1814,12 @@ TEST(WritingTools, CompositionWithTrailingNewlines)
 
         auto attributedText = adoptNS([[NSAttributedString alloc] initWithString:@"Hey, wanna catch a flick this weekend?"]);
 
-        [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(0, 39) inContext:contexts.firstObject finished:YES];
+        [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(0, 39) inContext:contexts.firstObject finished:NO];
 
         [webView waitForContentValue:@"Hey, wanna catch a flick this weekend?\n\nA"];
+
+        [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(0, 39) inContext:contexts.firstObject finished:YES];
+
         EXPECT_WK_STREQ(@"Hey, wanna catch a flick this weekend?\n\nA", [webView contentsAsStringWithoutNBSP]);
 
         finished = true;
@@ -1568,9 +1845,12 @@ TEST(WritingTools, CompositionWithTrailingBreaks)
 
         auto attributedText = adoptNS([[NSAttributedString alloc] initWithString:@"On March 5, 224, Bob wrote:\nA\n\n"]);
 
-        [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(0, 26) inContext:contexts.firstObject finished:YES];
+        [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(0, 26) inContext:contexts.firstObject finished:NO];
 
         [webView waitForContentValue:@"On March 5, 224, Bob wrote:\nA\n\nA\n\n"];
+
+        [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(0, 26) inContext:contexts.firstObject finished:YES];
+
         EXPECT_WK_STREQ(@"On March 5, 224, Bob wrote:\nA\n\nA\n\n", [webView contentsAsStringWithoutNBSP]);
 
         finished = true;
@@ -1963,13 +2243,11 @@ TEST(WritingTools, EphemeralSession)
     TestWebKitAPI::Util::run(&finished);
 }
 
-#if ENABLE(WRITING_TOOLS_UI)
-
 TEST(WritingTools, TransparencyMarkersForInlineEditing)
 {
-    auto session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
 
-    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable>Early morning in Cupertino</body>"]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable>Early morning in Cupertino</body>"]);
     [webView focusDocumentBodyAndSelectAll];
 
     auto waitForValue = [webView](NSUInteger expectedValue) {
@@ -1992,6 +2270,14 @@ TEST(WritingTools, TransparencyMarkersForInlineEditing)
 
         waitForValue(1U);
         EXPECT_EQ(1U, [webView transparentContentMarkerCount:@"document.body.childNodes[0]"]);
+
+        RetainPtr attributedText = adoptNS([[NSAttributedString alloc] initWithString:@"Cupertino at the crack of dawn"]);
+
+        [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(0, 26) inContext:contexts.firstObject finished:NO];
+        [webView waitForContentValue:@"Cupertino at the crack of dawn"];
+
+        [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(0, 26) inContext:contexts.firstObject finished:YES];
+        [webView waitForNextPresentationUpdate];
 
         [[webView writingToolsDelegate] didEndWritingToolsSession:session.get() accepted:YES];
 
@@ -2019,16 +2305,56 @@ TEST(WritingTools, TransparencyMarkersUsingWKWebViewSPI)
 
     EXPECT_EQ(0U, [webView transparentContentMarkerCount:@"document.getElementById('content').childNodes[0]"]);
 
-    RetainPtr identifier = [webView _enableTextIndicatorStylingAfterElementWithID:@"title"];
+    RetainPtr identifier = [webView _enableSourceTextAnimationAfterElementWithID:@"title"];
     waitForValue(1U);
     EXPECT_EQ(1U, [webView transparentContentMarkerCount:@"document.getElementById('content').childNodes[0]"]);
 
-    [webView _disableTextIndicatorStylingWithUUID:identifier.get()];
+    [webView _disableTextAnimationWithUUID:identifier.get()];
     waitForValue(0U);
     EXPECT_EQ(0U, [webView transparentContentMarkerCount:@"document.getElementById('content').childNodes[0]"]);
 }
 
-#endif
+TEST(WritingTools, NoCrashWhenWebProcessTerminates)
+{
+    auto session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
+
+    auto webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable>Early morning in Cupertino</body>"]);
+    [webView focusDocumentBodyAndSelectAll];
+
+    auto waitForValue = [webView](NSUInteger expectedValue) {
+        do {
+            if ([webView transparentContentMarkerCount:@"document.body.childNodes[0]"] == expectedValue)
+                break;
+
+            TestWebKitAPI::Util::runFor(0.1_s);
+        } while (true);
+    };
+
+    [webView waitForNextPresentationUpdate];
+
+    __block bool finished = false;
+    [[webView writingToolsDelegate] willBeginWritingToolsSession:session.get() requestContexts:^(NSArray<WTContext *> *contexts) {
+
+        [[webView writingToolsDelegate] writingToolsSession:session.get() didReceiveAction:WTActionCompositionRestart];
+
+        waitForValue(1U);
+        [webView _killWebContentProcess];
+
+        finished = true;
+    }];
+
+    TestWebKitAPI::Util::run(&finished);
+
+    __block bool webProcessTerminated = false;
+    auto navigationDelegate = adoptNS([[TestNavigationDelegate alloc] init]);
+    [webView setNavigationDelegate:navigationDelegate.get()];
+    [navigationDelegate setWebContentProcessDidTerminate:^(WKWebView *) {
+        webProcessTerminated = true;
+    }];
+
+    [webView _killWebContentProcess];
+    TestWebKitAPI::Util::run(&webProcessTerminated);
+}
 
 #if PLATFORM(MAC)
 
@@ -2278,7 +2604,42 @@ TEST(WritingTools, IsWritingToolsActiveAPIWithNoInlineEditing)
     TestWebKitAPI::Util::run(&finished);
 }
 
+#if PLATFORM(IOS_FAMILY)
+
+TEST(WritingTools, PanelHidesInputAccessoryView)
+{
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    RetainPtr delegate = adoptNS([TestInputDelegate new]);
+    [webView _setInputDelegate:delegate.get()];
+
+    bool focused = false;
+    [delegate setFocusStartsInputSessionPolicyHandler:[&](WKWebView *, id<_WKFocusedElementInfo>) {
+        focused = true;
+        return _WKFocusStartsInputSessionPolicyAllow;
+    }];
+
+    [webView synchronouslyLoadHTMLString:@"<input autofocus value='foo bar' type='text'>"];
+    TestWebKitAPI::Util::run(&focused);
+
+    [webView selectAll:nil];
+
+    RetainPtr contentView = [webView textInputContentView];
+
+    EXPECT_NOT_NULL([contentView inputAccessoryView]);
+
+    [contentView willPresentWritingTools];
+
+    EXPECT_NULL([contentView inputAccessoryView]);
+
+    [contentView didDismissWritingTools];
+
+    EXPECT_NOT_NULL([contentView inputAccessoryView]);
+}
+
+#endif
+
 #if PLATFORM(MAC)
+
 TEST(WritingTools, ShowAffordance)
 {
     InstanceMethodSwizzler swizzler(PAL::getWTWritingToolsClass(), @selector(scheduleShowAffordanceForSelectionRect:ofView:forDelegate:), imp_implementationWithBlock(^(id object, NSRect rect, NSView *view, id delegate) {
@@ -2334,7 +2695,129 @@ TEST(WritingTools, ShowAffordanceForMultipleLines)
 
     expectScheduleShowAffordanceForSelectionRectCalled(true);
 }
-#endif
+
+TEST(WritingTools, ShowPanelWithNoSelection)
+{
+    __block bool done = false;
+    __block NSRect selectionRect = NSZeroRect;
+
+    InstanceMethodSwizzler swizzler(PAL::getWTWritingToolsClass(), @selector(showPanelForSelectionRect:ofView:forDelegate:), imp_implementationWithBlock(^(id object, NSRect rect, NSView *view, id delegate) {
+        selectionRect = rect;
+        done = true;
+    }));
+
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable><p id='text'>This is some content that should be rewritten.</p></body>" writingToolsBehavior:PlatformWritingToolsBehaviorComplete]);
+
+    [webView _showWritingTools];
+
+    TestWebKitAPI::Util::run(&done);
+
+    EXPECT_TRUE(NSIsEmptyRect(selectionRect));
+}
+
+TEST(WritingTools, ShowPanelWithCaretSelection)
+{
+    __block bool done = false;
+    __block NSRect selectionRect = NSZeroRect;
+
+    InstanceMethodSwizzler swizzler(PAL::getWTWritingToolsClass(), @selector(showPanelForSelectionRect:ofView:forDelegate:), imp_implementationWithBlock(^(id object, NSRect rect, NSView *view, id delegate) {
+        selectionRect = rect;
+        done = true;
+    }));
+
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable><p id='text'>This is some content that should be rewritten.</p></body>" writingToolsBehavior:PlatformWritingToolsBehaviorComplete]);
+    [webView focusDocumentBodyAndSelectAll];
+
+    NSString *setSelectionJavaScript = @""
+        "(() => {"
+        "  const text = document.getElementById('text').childNodes[0];"
+        "  const range = document.createRange();"
+        "  range.setStart(text, 0);"
+        "  range.setEnd(text, 0);"
+        "  "
+        "  var selection = window.getSelection();"
+        "  selection.removeAllRanges();"
+        "  selection.addRange(range);"
+        "})();";
+
+    [webView stringByEvaluatingJavaScript:setSelectionJavaScript];
+    [webView waitForNextPresentationUpdate];
+
+    [webView _showWritingTools];
+
+    TestWebKitAPI::Util::run(&done);
+
+    EXPECT_TRUE(NSIsEmptyRect(selectionRect));
+}
+
+TEST(WritingTools, ShowPanelWithRangedSelection)
+{
+    __block bool done = false;
+    __block NSRect selectionRect = NSZeroRect;
+
+    InstanceMethodSwizzler swizzler(PAL::getWTWritingToolsClass(), @selector(showPanelForSelectionRect:ofView:forDelegate:), imp_implementationWithBlock(^(id object, NSRect rect, NSView *view, id delegate) {
+        selectionRect = rect;
+        done = true;
+    }));
+
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable><p id='text'>This is some content that should be rewritten.</p></body>" writingToolsBehavior:PlatformWritingToolsBehaviorComplete]);
+    [webView focusDocumentBodyAndSelectAll];
+
+    [webView _showWritingTools];
+
+    TestWebKitAPI::Util::run(&done);
+
+    NSRect expectedRect = NSMakeRect(8, 8, 292, 18);
+    EXPECT_TRUE(NSEqualRects(expectedRect, selectionRect));
+}
+
+TEST(WritingTools, FocusWebViewAfterAnimation)
+{
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
+
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body id='p' contenteditable><p id='first'>AAAA BBBB CCCC</p></body>"]);
+    [webView focusDocumentBodyAndSelectAll];
+
+    __block bool writingToolsFinished = false;
+
+    [[webView writingToolsDelegate] willBeginWritingToolsSession:session.get() requestContexts:^(NSArray<WTContext *> *contexts) {
+        EXPECT_EQ(1UL, contexts.count);
+
+        EXPECT_WK_STREQ(@"AAAA BBBB CCCC", contexts.firstObject.attributedText.string);
+
+        [[webView writingToolsDelegate] writingToolsSession:session.get() didReceiveAction:WTActionCompositionRestart];
+
+        EXPECT_WK_STREQ(@"AAAA BBBB CCCC", [webView contentsAsStringWithoutNBSP]);
+
+        auto attributedText = adoptNS([[NSAttributedString alloc] initWithString:@"ZZZZ"]);
+
+        [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(0, 14) inContext:contexts.firstObject finished:NO];
+
+        [webView waitForContentValue:@"ZZZZ"];
+        EXPECT_WK_STREQ(@"ZZZZ", [webView contentsAsStringWithoutNBSP]);
+
+        [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(0, 14) inContext:contexts.firstObject finished:YES];
+
+        [webView waitForContentValue:@"ZZZZ"];
+        EXPECT_WK_STREQ(@"ZZZZ", [webView contentsAsStringWithoutNBSP]);
+
+        [[webView writingToolsDelegate] didEndWritingToolsSession:session.get() accepted:YES];
+
+        writingToolsFinished = true;
+    }];
+
+    TestWebKitAPI::Util::run(&writingToolsFinished);
+
+    // FIXME: Remove the additional wait for the animations to finish.
+    TestWebKitAPI::Util::runFor(2_s);
+
+    [[webView window] makeFirstResponder:nil];
+    [webView sendClickAtPoint:NSMakePoint(50, 50)];
+
+    EXPECT_EQ([[webView window] firstResponder], webView.get());
+}
+
+#endif // PLATFORM(MAC)
 
 TEST(WritingTools, SmartRepliesMatchStyle)
 {
@@ -2366,6 +2849,44 @@ TEST(WritingTools, SmartRepliesMatchStyle)
         [webView waitForNextPresentationUpdate];
 
         EXPECT_TRUE([webView stringByEvaluatingJavaScript:@"!document.body.innerHTML.includes('font-size: 12px')"].boolValue);
+
+        finished = true;
+    }];
+
+    TestWebKitAPI::Util::run(&finished);
+}
+
+TEST(WritingTools, ContextRangeWithNoSelection)
+{
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
+
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:@"<body contenteditable id='p'><p>AAAA BBBB CCCC</p><p>XXXX YYYY ZZZZ</p></body>"]);
+
+    __block bool finished = false;
+    [[webView writingToolsDelegate] willBeginWritingToolsSession:session.get() requestContexts:^(NSArray<WTContext *> *contexts) {
+        EXPECT_EQ(1UL, contexts.count);
+
+        EXPECT_WK_STREQ(@"AAAA BBBB CCCC\n\nXXXX YYYY ZZZZ", contexts.firstObject.attributedText.string);
+
+        [[webView writingToolsDelegate] writingToolsSession:session.get() didReceiveAction:WTActionCompositionRestart];
+        TestWebKitAPI::Util::runFor(0.1_s);
+
+        RetainPtr attributedText = adoptNS([[NSAttributedString alloc] initWithString:@"DD"]);
+
+        [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(0, 5) inContext:contexts.firstObject finished:NO];
+
+        [webView waitForContentValue:@"DDBBBB CCCC\n\nXXXX YYYY ZZZZ"];
+
+        [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(0, 5) inContext:contexts.firstObject finished:YES];
+
+        [webView waitForSelectionValue:@"DD"];
+        auto selectionAfterDidReceiveText = [webView stringByEvaluatingJavaScript:@"window.getSelection().toString()"];
+        EXPECT_WK_STREQ(@"DD", selectionAfterDidReceiveText);
+
+        [[webView writingToolsDelegate] didEndWritingToolsSession:session.get() accepted:YES];
+
+        auto selectionAfterEnd = [webView stringByEvaluatingJavaScript:@"window.getSelection().toString()"];
+        EXPECT_WK_STREQ(@"DD", selectionAfterEnd);
 
         finished = true;
     }];
@@ -2405,9 +2926,14 @@ TEST(WritingTools, ContextRangeFromCaretSelection)
 
         RetainPtr attributedText = adoptNS([[NSAttributedString alloc] initWithString:@"DD"]);
 
+        [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(0, 5) inContext:contexts.firstObject finished:NO];
+
+        [webView waitForContentValue:@"DDBBBB CCCC\n\nXXXX YYYY ZZZZ"];
+
         [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(0, 5) inContext:contexts.firstObject finished:YES];
 
         [webView waitForSelectionValue:@"DD"];
+
         auto selectionAfterDidReceiveText = [webView stringByEvaluatingJavaScript:@"window.getSelection().toString()"];
         EXPECT_WK_STREQ(@"DD", selectionAfterDidReceiveText);
 
@@ -2453,6 +2979,10 @@ TEST(WritingTools, ContextRangeFromRangeSelection)
         TestWebKitAPI::Util::runFor(0.1_s);
 
         RetainPtr attributedText = adoptNS([[NSAttributedString alloc] initWithString:@"DD"]);
+
+        [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(0, 5) inContext:contexts.firstObject finished:NO];
+
+        [webView waitForContentValue:@"DDBBBB CCCC\n\nXXXX YYYY ZZZZ"];
 
         [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(0, 5) inContext:contexts.firstObject finished:YES];
 
@@ -2508,21 +3038,34 @@ TEST(WritingTools, SuggestedTextIsSelectedAfterSmartReply)
     [[webView writingToolsDelegate] willBeginWritingToolsSession:session.get() requestContexts:^(NSArray<WTContext *> *contexts) {
         EXPECT_EQ(1UL, contexts.count);
 
-        EXPECT_WK_STREQ(@"", contexts.firstObject.attributedText.string);
+        [[webView writingToolsDelegate] writingToolsSession:session.get() didReceiveAction:WTActionCompositionRestart];
 
-        RetainPtr attributedText = adoptNS([[NSAttributedString alloc] initWithString:@"Z"]);
+#if PLATFORM(MAC)
+        id<NSTextInputClient_Async> contentView = (id<NSTextInputClient_Async>)webView.get();
+#else
+        id<BETextInput> contentView = [webView asyncTextInput];
+#endif
 
-        [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(0, 0) inContext:contexts.firstObject finished:YES];
-        TestWebKitAPI::Util::runFor(0.1_s);
+        [contentView insertTextPlaceholderWithSize:CGSizeMake(50, 100) completionHandler:^(PlatformTextPlaceholder *placeholder) {
+            TestWebKitAPI::Util::runFor(0.1_s);
+            EXPECT_WK_STREQ(@"", contexts.firstObject.attributedText.string);
+            RetainPtr attributedText = adoptNS([[NSAttributedString alloc] initWithString:@"Z"]);
 
-        [[webView writingToolsDelegate] didEndWritingToolsSession:session.get() accepted:YES];
+            [contentView removeTextPlaceholder:placeholder willInsertText:YES completionHandler:^{
+                [[webView writingToolsDelegate] compositionSession:session.get() didReceiveText:attributedText.get() replacementRange:NSMakeRange(0, 0) inContext:contexts.firstObject finished:YES];
 
-        auto selectionAfterEnd = [webView stringByEvaluatingJavaScript:@"window.getSelection().toString()"];
-        EXPECT_WK_STREQ(@"Z", selectionAfterEnd);
+                [webView waitForSelectionValue:@"Z"];
 
-        EXPECT_WK_STREQ(@"ZAAAA\n\nBBBB", [webView contentsAsString]);
+                [[webView writingToolsDelegate] didEndWritingToolsSession:session.get() accepted:YES];
 
-        finished = true;
+                auto selectionAfterEnd = [webView stringByEvaluatingJavaScript:@"window.getSelection().toString()"];
+                EXPECT_WK_STREQ(@"Z", selectionAfterEnd);
+
+                EXPECT_WK_STREQ(@"ZAAAA\n\nBBBB", [webView contentsAsString]);
+
+                finished = true;
+            }];
+        }];
     }];
 
     TestWebKitAPI::Util::run(&finished);
@@ -2567,6 +3110,38 @@ TEST(WritingTools, BlockquoteAndPreContentsAreIgnored)
 
             ++i;
         }];
+
+        finished = true;
+    }];
+
+    TestWebKitAPI::Util::run(&finished);
+}
+
+TEST(WritingTools, CompositionWithOmittedTrailingWhitespaceContent)
+{
+    NSString *htmlString = @""
+    "<style>\n"
+    ".container {\n"
+    "   display:flex;\n"
+    "}\n"
+    "\n"
+    "img {\n"
+    "   display:block;\n"
+    "   width: 50px;\n"
+    "   height: 5px;\n"
+    "}\n"
+    "</style>\n"
+    "some<span class=container><span><img> </span>\n"
+    "</span>text\n"
+    "";
+
+    RetainPtr session = adoptNS([[WTSession alloc] initWithType:WTSessionTypeComposition textViewDelegate:nil]);
+    RetainPtr webView = adoptNS([[WritingToolsWKWebView alloc] initWithHTMLString:htmlString]);
+    [webView focusDocumentBodyAndSelectAll];
+
+    __block bool finished = false;
+    [[webView writingToolsDelegate] willBeginWritingToolsSession:session.get() requestContexts:^(NSArray<WTContext *> *contexts) {
+        EXPECT_EQ(1UL, contexts.count);
 
         finished = true;
     }];
