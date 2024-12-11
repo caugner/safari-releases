@@ -104,7 +104,7 @@
                   { "name": "gtk-linux-bot-14", "platform": "gtk" },
                   { "name": "gtk-linux-bot-15", "platform": "gtk" },
                   { "name": "gtk-linux-bot-17", "platform": "gtk" },
-                  { "name": "gtk-linux-bot-18", "platform": "gtk-4" },
+                  { "name": "gtk-linux-bot-18", "platform": "gtk-3" },
                   { "name": "gtk-linux-bot-19", "platform": "gtk" },
                   { "name": "gtk-linux-bot-20", "platform": "gtk" },
                   { "name": "gtk-linux-bot-21", "platform": "gtk" },
@@ -184,6 +184,11 @@
                   "additionalArguments": ["--no-retry-failures"],
                   "workernames": ["bot611"]
                   },
+                  {
+                    "name": "Apple-Sonoma-Safer-CPP-Checks", "factory": "SaferCPPStaticAnalyzerFactory",
+                    "platform": "mac-sonoma", "configuration": "release", "architectures": ["arm64"],
+                    "workernames": ["bot600"]
+                  },
                   { "name": "Apple-Sonoma-AppleSilicon-Release-Test262-Tests", "factory": "Test262Factory",
                   "platform": "mac-sonoma", "configuration": "release", "architectures": ["x86_64", "arm64"],
                   "workernames": ["bot165"]
@@ -233,11 +238,6 @@
                   { "name": "Apple-Sonoma-LLINT-CLoop-BuildAndTest", "factory": "BuildAndTestLLINTCLoopFactory",
                   "platform": "mac-sonoma", "configuration": "debug", "architectures": ["x86_64"],
                   "workernames": ["bot178"]
-                  },
-                  {
-                  "name": "Apple-Sonoma-Smart-Pointer-Static-Analyzer-Build", "factory": "SmartPointerStaticAnalyzerFactory",
-                  "platform": "mac-sonoma", "configuration": "debug", "architectures": ["arm64"],
-                  "workernames": ["bot600"]
                   },
                   { "name": "Apple-Ventura-Release-Build", "factory": "BuildFactory",
                   "platform": "mac-ventura", "configuration": "release", "architectures": ["x86_64", "arm64"],
@@ -495,8 +495,9 @@
                     "workernames": ["gtk-linux-bot-23"]
                   },
                   {
-                    "name": "GTK-Linux-64-bit-Release-GTK4-Tests", "factory": "BuildAndTestAndArchiveAllButJSCFactory",
-                    "platform": "gtk-4", "configuration": "release", "architectures": ["x86_64"],
+                    "name": "GTK-Linux-64-bit-Release-GTK3-Tests", "factory": "BuildAndTestAndArchiveAllButJSCFactory",
+                    "platform": "gtk-3", "configuration": "release", "architectures": ["x86_64"],
+                    "additionalArguments": ["--cmakeargs=-DUSE_GTK4=OFF"],
                     "workernames": ["gtk-linux-bot-18"]
                   },
                   {
@@ -700,7 +701,7 @@
                                      "GTK-Linux-64-bit-Release-Debian-Stable-Build",
                                      "GTK-Linux-64-bit-Release-Ubuntu-2204-Build",
                                      "GTK-Linux-64-bit-Release-Ubuntu-LTS-Build",
-                                     "GTK-Linux-64-bit-Release-GTK4-Tests",
+                                     "GTK-Linux-64-bit-Release-GTK3-Tests",
                                      "WPE-Linux-64-bit-Release-Ubuntu-2204-Build",
                                      "WPE-Linux-64-bit-Release-Ubuntu-LTS-Build",
                                      "WPE-Linux-RPi4-32bits-Mesa-Release-Perf-Build",
@@ -718,7 +719,7 @@
                   },
 
                   { "type": "PlatformSpecificScheduler", "platform": "mac-sonoma", "branch": "main", "treeStableTimer": 45.0,
-                  "builderNames": ["Apple-Sonoma-Release-Build", "Apple-Sonoma-Debug-Build", "Apple-Sonoma-LLINT-CLoop-BuildAndTest", "Apple-Sonoma-Smart-Pointer-Static-Analyzer-Build"]
+                  "builderNames": ["Apple-Sonoma-Release-Build", "Apple-Sonoma-Debug-Build", "Apple-Sonoma-LLINT-CLoop-BuildAndTest", "Apple-Sonoma-Safer-CPP-Checks"]
                   },
                   { "type": "Triggerable", "name": "sonoma-release-tests-wk1",
                   "builderNames": ["Apple-Sonoma-Release-WK1-Tests"]

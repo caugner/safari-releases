@@ -43,13 +43,14 @@
 #include <WebCore/ScrollingThread.h>
 #include <WebCore/WheelEventDeltaFilter.h>
 #include <wtf/SystemTracing.h>
+#include <wtf/TZoneMallocInlines.h>
 
 namespace WebKit {
 using namespace WebCore;
 
 class RemoteLayerTreeEventDispatcherDisplayLinkClient final : public DisplayLink::Client {
 public:
-    WTF_MAKE_FAST_ALLOCATED;
+    WTF_MAKE_TZONE_ALLOCATED_INLINE(RemoteLayerTreeEventDispatcherDisplayLinkClient);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(RemoteLayerTreeEventDispatcherDisplayLinkClient);
 public:
     explicit RemoteLayerTreeEventDispatcherDisplayLinkClient(RemoteLayerTreeEventDispatcher& eventDispatcher)
@@ -95,6 +96,8 @@ Ref<RemoteLayerTreeEventDispatcher> RemoteLayerTreeEventDispatcher::create(Remot
 }
 
 static constexpr Seconds wheelEventHysteresisDuration { 500_ms };
+
+WTF_MAKE_TZONE_ALLOCATED_IMPL(RemoteLayerTreeEventDispatcher);
 
 RemoteLayerTreeEventDispatcher::RemoteLayerTreeEventDispatcher(RemoteScrollingCoordinatorProxyMac& scrollingCoordinator, PageIdentifier pageIdentifier)
     : m_scrollingCoordinator(WeakPtr { scrollingCoordinator })
@@ -190,7 +193,7 @@ void RemoteLayerTreeEventDispatcher::handleWheelEvent(const WebWheelEvent& wheel
     ASSERT(isMainRunLoop());
 
     auto scrollingTree = this->scrollingTree();
-    if (scrollingTree->scrollingPerformanceTestingEnabled()) {
+    if (scrollingTree && scrollingTree->scrollingPerformanceTestingEnabled()) {
         if (wheelEvent.phase() == WebWheelEvent::PhaseBegan)
             startFingerDownSignpostInterval();
 
@@ -697,7 +700,7 @@ void RemoteLayerTreeEventDispatcher::handleSyntheticWheelEvent(PageIdentifier pa
     ASSERT_UNUSED(pageID, m_pageIdentifier == pageID);
 
     auto scrollingTree = this->scrollingTree();
-    if (scrollingTree->scrollingPerformanceTestingEnabled()) {
+    if (scrollingTree && scrollingTree->scrollingPerformanceTestingEnabled()) {
         if (event.momentumPhase() == WebWheelEvent::PhaseBegan)
             startMomentumSignpostInterval();
 

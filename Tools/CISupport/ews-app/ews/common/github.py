@@ -1,4 +1,4 @@
-# Copyright (C) 2022-2023 Apple Inc. All rights reserved.
+# Copyright (C) 2022-2024 Apple Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -38,7 +38,7 @@ GITHUB_URL = 'https://github.com/'
 GITHUB_PROJECTS = ['WebKit/WebKit', 'apple/WebKit', 'WebKit/WebKit-security']
 
 is_test_mode_enabled = util.load_password('EWS_PRODUCTION') is None
-is_dev_instance = (util.load_password('DEV_INSTANCE', default='').lower() == 'true')
+is_dev_instance = (util.get_custom_suffix() != '')
 
 
 class GitHub(object):
@@ -212,8 +212,8 @@ class GitHubEWS(GitHub):
                           ['jsc', 'api-ios', 'mac-wk2', 'gtk', ''],
                           ['jsc-arm64', 'vision', 'mac-AS-debug-wk2', 'gtk-wk2', ''],
                           ['services', 'vision-sim', 'mac-wk2-stress', 'api-gtk', ''],
-                          ['merge', 'vision-wk2', '', 'jsc-armv7', ''],
-                          ['unsafe-merge', 'tv', '', 'jsc-armv7-tests', ''],
+                          ['merge', 'vision-wk2', 'mac-intel-wk2', 'jsc-armv7', ''],
+                          ['unsafe-merge', 'tv', 'mac-safer-cpp', 'jsc-armv7-tests', ''],
                           ['', 'tv-sim', '', '', ''],
                           ['', 'watch', '', '', ''],
                           ['', 'watch-sim', '', '', '']]

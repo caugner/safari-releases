@@ -39,6 +39,7 @@
 #import <WebCore/FontCocoa.h>
 #import <WebCore/IOSurface.h>
 #import <limits.h>
+#import <pal/spi/cf/CFNetworkSPI.h>
 #import <pal/spi/cocoa/ContactsSPI.h>
 #import <wtf/RetainPtr.h>
 #import <wtf/cocoa/TypeCastsCocoa.h>
@@ -433,6 +434,7 @@ struct ObjCHolderForTesting {
         RetainPtr<NSPersonNameComponents>,
         RetainPtr<NSPresentationIntent>,
         RetainPtr<NSURLProtectionSpace>,
+        RetainPtr<NSURLRequest>,
         RetainPtr<NSURLCredential>,
 #if USE(PASSKIT)
         RetainPtr<CNContact>,
@@ -1331,6 +1333,32 @@ TEST(IPCSerialization, NSShadow)
 
     RetainPtr<PlatformColor> platformColor = cocoaColor(WebCore::Color::blue);
     runTestNSShadow({ 10.5, 5.7 }, 0.79, platformColor.get());
+}
+
+TEST(IPCSerialization, NSURLRequest)
+{
+    RetainPtr url = [NSURL URLWithString:@"https://webkit.org/"];
+    RetainPtr urlRequest = [NSURLRequest requestWithURL:url.get()];
+    runTestNS({ urlRequest });
+
+    NSDictionary *jsonDict = @{
+        @"a" : @1,
+        @"b" : @2
+    };
+    RetainPtr postData = [NSJSONSerialization dataWithJSONObject:jsonDict options:0 error:Nil];
+    RetainPtr postRequest = [[NSMutableURLRequest alloc] initWithURL:url.get()];
+
+    [postRequest setValue:@"application/json" forHTTPHeaderField:@"Accept"];
+    [postRequest setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
+    [postRequest setHTTPMethod:@"POST"];
+    [postRequest setHTTPBody:postData.get()];
+    [postRequest _setPrivacyProxyFailClosed:YES];
+
+    runTestNS({ postRequest.get() });
+
+    url = nil;
+    urlRequest = [NSURLRequest requestWithURL:url.get()];
+    runTestNS({ urlRequest });
 }
 
 #if PLATFORM(MAC)

@@ -213,6 +213,13 @@ static gboolean wpeViewEventCallback(WPEView* view, WPEEvent* event, WebKitWebVi
                 return TRUE;
             }
         }
+
+        if (keyval == WPE_KEY_Down) {
+            if (auto* toplevel = wpe_view_get_toplevel(view)) {
+                wpe_toplevel_minimize(toplevel);
+                return TRUE;
+            }
+        }
     }
 
     if (keyval == WPE_KEY_F11) {
@@ -325,7 +332,19 @@ static WebKitWebView* createWebView(WebKitWebView* webView, WebKitNavigationActi
 static WebKitWebView* createWebViewForAutomationCallback(WebKitAutomationSession*, WebKitWebView* view)
 {
 #if ENABLE_WPE_PLATFORM
-    // Creating new views in the old API is not supported by WPE's MiniBrowser, so we just return the same view as before
+
+    // The original view might have been closed, so we need to find a valid view to clone
+    if (!g_hash_table_lookup(openViews, view)) {
+        GHashTableIter iter;
+        gpointer key, value;
+        g_hash_table_iter_init(&iter, openViews);
+        if (!g_hash_table_iter_next(&iter, &key, &value))
+            return nullptr;
+        view = WEBKIT_WEB_VIEW(value);
+    }
+
+    // Creating new views in the old API through automation is not supported by WPE's MiniBrowser,
+    // so we just return the same view as before
     if (!useWPEPlatformAPI)
         return view;
 

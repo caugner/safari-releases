@@ -28,6 +28,7 @@
 #import "FrameTreeChecks.h"
 #import "HTTPServer.h"
 #import "PlatformUtilities.h"
+#import "TestCocoa.h"
 #import "TestNavigationDelegate.h"
 #import "TestUIDelegate.h"
 #import "TestURLSchemeHandler.h"
@@ -40,6 +41,7 @@
 #import <WebKit/WKPreferencesPrivate.h>
 #import <WebKit/WKProcessPoolPrivate.h>
 #import <WebKit/WKURLSchemeTaskPrivate.h>
+#import <WebKit/WKWebViewPrivate.h>
 #import <WebKit/WKWebViewPrivateForTesting.h>
 #import <WebKit/WKWebpagePreferencesPrivate.h>
 #import <WebKit/WKWebsiteDataStorePrivate.h>
@@ -48,6 +50,21 @@
 #import <WebKit/_WKWebsiteDataStoreConfiguration.h>
 #import <wtf/BlockPtr.h>
 #import <wtf/text/MakeString.h>
+
+@interface TestObserver : NSObject
+
+@property (nonatomic, copy) void (^observeValueForKeyPath)(NSString *, id);
+
+@end
+
+@implementation TestObserver
+
+- (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context
+{
+    _observeValueForKeyPath(keyPath, object);
+}
+
+@end
 
 namespace TestWebKitAPI {
 
@@ -440,6 +457,18 @@ TEST(SiteIsolation, NavigationAfterWindowOpen)
 
     while (processStillRunning(webKitPid))
         Util::spinRunLoop();
+}
+
+TEST(SiteIsolation, OpenWithNoopener)
+{
+    HTTPServer server({
+        { "/example"_s, { "<script>w = window.open('https://webkit.org/webkit', '_blank', 'noopener')</script>"_s } },
+        { "/webkit"_s, { "hi"_s } },
+    }, HTTPServer::Protocol::HttpsProxy);
+
+    auto [opener, opened] = openerAndOpenedViews(server);
+    checkFrameTreesInProcesses(opener.webView.get(), { { "https://example.com"_s } });
+    checkFrameTreesInProcesses(opened.webView.get(), { { "https://webkit.org"_s } });
 }
 
 TEST(SiteIsolation, PreferencesUpdatesToAllProcesses)
@@ -1395,7 +1424,7 @@ TEST(SiteIsolation, RunOpenPanel)
     [webView waitForPendingMouseEvents];
     Util::run(&fileSelected);
 
-    EXPECT_WK_STREQ("test", [[webView objectByEvaluatingJavaScript:@"document.getElementsByTagName('input')[0].files[0].name" inFrame:[[webView firstChildFrame] info]] stringValue]);
+    EXPECT_WK_STREQ("test", [webView objectByEvaluatingJavaScript:@"document.getElementsByTagName('input')[0].files[0].name" inFrame:[[webView firstChildFrame] info]]);
 }
 
 TEST(SiteIsolation, CancelOpenPanel)
@@ -1595,6 +1624,50 @@ TEST(SiteIsolation, OpenerProcessSharing)
     EXPECT_EQ(openerIframePid, openedIframePid);
     EXPECT_NE(openerIframePid, 0);
 }
+
+#if PLATFORM(MAC)
+TEST(SiteIsolation, AppKitText)
+{
+    HTTPServer server({
+        { "/mainframe"_s, { "<iframe id='iframe' src='https://domain2.com/subframe'></iframe>"_s } },
+        { "/subframe"_s, { "<html><body><input id='input' value='test'></input></body></html>"_s } }
+    }, HTTPServer::Protocol::HttpsProxy);
+    auto configuration = server.httpsProxyConfiguration();
+    enableSiteIsolation(configuration);
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
+    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    [navigationDelegate allowAnyTLSCertificate];
+    webView.get().navigationDelegate = navigationDelegate.get();
+
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://domain1.com/mainframe"]]];
+    [navigationDelegate waitForDidFinishNavigation];
+    __block RetainPtr<WKFrameInfo> childFrameInfo;
+    [webView _frames:^(_WKFrameTreeNode *mainFrame) {
+        childFrameInfo = mainFrame.childFrames.firstObject.info;
+    }];
+    while (!childFrameInfo)
+        Util::spinRunLoop();
+    auto textLocation = NSMakePoint(23, 564);
+    while ("TEST"_s != String([webView stringByEvaluatingJavaScript:@"input.value" inFrame:childFrameInfo.get()])) {
+        [webView sendClickAtPoint:textLocation];
+        Util::runFor(10_ms);
+        [webView uppercaseWord:nil];
+        Util::runFor(10_ms);
+    }
+    while ("test"_s != String([webView stringByEvaluatingJavaScript:@"input.value" inFrame:childFrameInfo.get()])) {
+        [webView sendClickAtPoint:textLocation];
+        Util::runFor(10_ms);
+        [webView lowercaseWord:nil];
+        Util::runFor(10_ms);
+    }
+    while ("Test"_s != String([webView stringByEvaluatingJavaScript:@"input.value" inFrame:childFrameInfo.get()])) {
+        [webView sendClickAtPoint:textLocation];
+        Util::runFor(10_ms);
+        [webView capitalizeWord:nil];
+        Util::runFor(10_ms);
+    }
+}
+#endif
 
 TEST(SiteIsolation, SetFocusedFrame)
 {
@@ -2623,7 +2696,7 @@ TEST(SiteIsolation, WebsitePoliciesCustomNavigatorPlatform)
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/example"]]];
     [navigationDelegate waitForDidFinishNavigation];
 
-    EXPECT_WK_STREQ("Custom Navigator Platform", [[webView objectByEvaluatingJavaScript:@"navigator.platform" inFrame:[[webView firstChildFrame] info]] stringValue]);
+    EXPECT_WK_STREQ("Custom Navigator Platform", [webView objectByEvaluatingJavaScript:@"navigator.platform" inFrame:[[webView firstChildFrame] info]]);
 }
 
 TEST(SiteIsolation, LoadHTMLString)
@@ -3069,6 +3142,35 @@ TEST(SiteIsolation, URLSchemeTask)
             { { "customscheme://webkit.org"_s } }
         },
     });
+}
+
+TEST(SiteIsolation, ThemeColor)
+{
+    HTTPServer server({
+        { "/example"_s, { "<meta name='theme-color' content='red'><iframe src='https://webkit.org/webkit'></iframe>"_s } },
+        { "/webkit"_s, { "<meta name='theme-color' content='blue'>"_s } }
+    }, HTTPServer::Protocol::HttpsProxy);
+
+    auto [webView, delegate] = siteIsolatedViewAndDelegate(server);
+    EXPECT_FALSE([webView themeColor]);
+
+    __block bool observed { false };
+    auto observer = adoptNS([TestObserver new]);
+    observer.get().observeValueForKeyPath = ^(NSString *path, id view) {
+        EXPECT_WK_STREQ(path, "themeColor");
+
+        auto sRGBColorSpace = adoptCF(CGColorSpaceCreateWithName(kCGColorSpaceSRGB));
+        auto redColor = adoptCF(CGColorCreate(sRGBColorSpace.get(), redColorComponents));
+        EXPECT_TRUE(CGColorEqualToColor([[view themeColor] CGColor], redColor.get()));
+        observed = true;
+    };
+    [webView.get() addObserver:observer.get() forKeyPath:@"themeColor" options:NSKeyValueObservingOptionNew context:nil];
+
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/example"]]];
+    [delegate waitForDidFinishNavigation];
+    [webView waitForNextPresentationUpdate];
+    Util::run(&observed);
+    Util::runFor(0.1_s);
 }
 
 }

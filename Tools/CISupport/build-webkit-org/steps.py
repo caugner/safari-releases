@@ -26,6 +26,7 @@ from buildbot.process.results import Results, SUCCESS, FAILURE, CANCELLED, WARNI
 from buildbot.steps import master, shell, transfer, trigger
 from buildbot.steps.source import git
 from twisted.internet import defer
+from shlex import quote
 
 import json
 import os
@@ -291,12 +292,6 @@ class CheckOutSpecificRevision(shell.ShellCommandNewStyle):
         return super().run()
 
 
-class InstallWin32Dependencies(shell.Compile):
-    description = ["installing dependencies"]
-    descriptionDone = ["installed dependencies"]
-    command = ["perl", "Tools/Scripts/update-webkit-auxiliary-libs"]
-
-
 class KillOldProcesses(shell.Compile):
     name = "kill-old-processes"
     description = ["killing old processes"]
@@ -358,7 +353,7 @@ class InstallWinCairoDependencies(shell.ShellCommandNewStyle):
     name = 'wincairo-requirements'
     description = ['updating wincairo dependencies']
     descriptionDone = ['updated wincairo dependencies']
-    command = ['python3', './Tools/Scripts/update-webkit-wincairo-libs.py']
+    command = ['python3', './Tools/Scripts/update-webkit-win-libs.py']
     haltOnFailure = True
 
 
@@ -763,7 +758,7 @@ class RunJavaScriptCoreTests(TestWithFailureCount, CustomFlagsMixin):
         # high enough.
         self.command += self.commandExtra
         # Currently run-javascriptcore-test doesn't support run javascript core test binaries list below remotely
-        if architecture in ['aarch64'] or platform in ['win']:
+        if architecture in ['aarch64']:
             self.command += ['--no-testmasm', '--no-testair', '--no-testb3', '--no-testdfg', '--no-testapi']
         # Linux bots have currently problems with JSC tests that try to use large amounts of memory.
         # Check: https://bugs.webkit.org/show_bug.cgi?id=175140
@@ -774,7 +769,7 @@ class RunJavaScriptCoreTests(TestWithFailureCount, CustomFlagsMixin):
             self.command += ['--test-writer=ruby']
 
         self.appendCustomBuildFlags(platform, self.getProperty('fullPlatform'))
-        self.command = ['/bin/sh', '-c', ' '.join(self.command) + ' 2>&1 | python3 Tools/Scripts/filter-test-logs jsc']
+        self.command = ['/bin/sh', '-c', ' '.join(quote(str(c)) for c in self.command) + ' 2>&1 | python3 Tools/Scripts/filter-test-logs jsc']
 
         steps_to_add = [
             GenerateS3URL(
@@ -887,9 +882,6 @@ class RunWebKitTests(shell.TestNewStyle, CustomFlagsMixin):
 
         self.command += ["--results-directory", self.resultDirectory]
         self.command += ['--debug-rwt-logging']
-
-        if platform == "win":
-            self.command += ['--batch-size', '100', '--root=' + os.path.join("WebKitBuild", self.getProperty('configuration'), "bin64")]
 
         if platform in ['gtk', 'wpe']:
             self.command += ['--enable-core-dumps-nolimit']
@@ -1053,10 +1045,6 @@ class RunPythonTests(TestWithFailureCount):
         # Python tests are flaky on the GTK builders, running them serially
         # helps and does not significantly prolong the cycle time.
         if platform == 'gtk':
-            self.command += ['--child-processes', '1']
-        # Python tests fail on windows bots when running more than one child process
-        # https://bugs.webkit.org/show_bug.cgi?id=97465
-        if platform == 'win':
             self.command += ['--child-processes', '1']
         return super().run()
 
@@ -1613,8 +1601,8 @@ class UploadStaticAnalyzerResults(UploadTestResults):
     haltOnFailure = True
 
 
-class ScanBuildSmartPointer(steps.ShellSequence, ShellMixin):
-    name = "scan-build-smart-pointer"
+class ScanBuild(steps.ShellSequence, ShellMixin):
+    name = "scan-build"
     description = ["scanning with static analyzer"]
     descriptionDone = ["scanned with static analyzer"]
     flunkOnFailure = True
@@ -1629,7 +1617,7 @@ class ScanBuildSmartPointer(steps.ShellSequence, ShellMixin):
     @defer.inlineCallbacks
     def run(self):
         self.commands = []
-        build_command = f"Tools/Scripts/build-and-analyze --output-dir {os.path.join(self.getProperty('builddir'), f'build/{SCAN_BUILD_OUTPUT_DIR}')} "
+        build_command = f"Tools/Scripts/build-and-analyze --output-dir {os.path.join(self.getProperty('builddir'), f'build/{SCAN_BUILD_OUTPUT_DIR}')} --configuration {self.build.getProperty('configuration')} "
         build_command += f"--only-smart-pointers --analyzer-path={os.path.join(self.getProperty('builddir'), 'llvm-project/build/bin/clang')} "
         build_command += '--scan-build-path=../llvm-project/clang/tools/scan-build/bin/scan-build --sdkroot=macosx --preprocessor-additions=CLANG_WEBKIT_BRANCH=1 '
         build_command += '2>&1 | python3 Tools/Scripts/filter-test-logs scan-build --output build-log.txt'
@@ -1671,7 +1659,7 @@ class ScanBuildSmartPointer(steps.ShellSequence, ShellMixin):
         ]
 
         if rc == SUCCESS:
-            steps_to_add += [ParseStaticAnalyzerResults(), CompareStaticAnalyzerResults(), ArchiveStaticAnalyzerResults(), UploadStaticAnalyzerResults(), ExtractStaticAnalyzerTestResults()]
+            steps_to_add += [ParseStaticAnalyzerResults(), FindUnexpectedStaticAnalyzerResults(), ArchiveStaticAnalyzerResults(), UploadStaticAnalyzerResults(), ExtractStaticAnalyzerTestResults(), DisplaySaferCPPResults()]
         self.build.addStepsAfterCurrentStep(steps_to_add)
 
         defer.returnValue(rc)
@@ -1736,10 +1724,10 @@ class ParseStaticAnalyzerResults(shell.ShellCommandNewStyle):
         return {u'step': status}
 
 
-class CompareStaticAnalyzerResults(shell.ShellCommandNewStyle):
-    name = 'compare-static-analyzer-results'
-    description = ['comparing static analyzer results']
-    descriptionDone = ['compared static analyzer results']
+class FindUnexpectedStaticAnalyzerResults(shell.ShellCommandNewStyle):
+    name = 'find-unexpected-static-analyzer-results'
+    description = ['finding unexpected static analyzer results']
+    descriptionDone = ['found unexpected static analyzer results']
     resultMsg = ''
 
     @defer.inlineCallbacks
@@ -1788,44 +1776,75 @@ class CompareStaticAnalyzerResults(shell.ShellCommandNewStyle):
         return {u'step': status}
 
 
-class DisplayUnexpectedResults(buildstep.BuildStep, AddToLogMixin):
-    name = 'display-unexpected-results'
+class DisplaySaferCPPResults(buildstep.BuildStep, AddToLogMixin):
+    name = 'display-safer-cpp-results'
 
     @defer.inlineCallbacks
     def run(self):
-        result_directory = f"public_html/results/{self.getProperty('buildername')}/{self.getProperty('archive_revision')} ({self.getProperty('buildnumber')})"
-        unexpected_results_json = os.path.join(result_directory, SCAN_BUILD_OUTPUT_DIR, 'unexpected_results.json')
-        with open(unexpected_results_json) as f:
-            unexpected_results_data = json.load(f)
-        yield self.getFilesPerProject(unexpected_results_data, 'passes')
-        yield self.getFilesPerProject(unexpected_results_data, 'failures')
+        self.resultDirectory = f"public_html/results/{self.getProperty('buildername')}/{self.getProperty('archive_revision')} ({self.getProperty('buildnumber')})"
+        self.zipFile = self.resultDirectory + '.zip'
+
+        unexpected_results_data = self.loadResultsData(os.path.join(self.resultDirectory, SCAN_BUILD_OUTPUT_DIR, 'unexpected_results.json'))
+        is_log = yield self.getFilesPerProject(unexpected_results_data, 'passes')
+        is_log += yield self.getFilesPerProject(unexpected_results_data, 'failures')
+        if not is_log:
+            yield self._addToLog('stdio', 'No unexpected results.\n')
+
+        self.addURL("View full static analyzer results", self.resultDirectoryURL() + SCAN_BUILD_OUTPUT_DIR + "/results.html")
+        self.addURL("Download full static analyzer results", self.resultDownloadURL())
         if self.getProperty('unexpected_failing_files', 0) or self.getProperty('unexpected_passing_files', 0):
+            self.addURL("View unexpected static analyzer results", self.resultDirectoryURL() + SCAN_BUILD_OUTPUT_DIR + "/unexpected-results.html")
+        if self.getProperty('unexpected_failing_files', 0):
             return defer.returnValue(FAILURE)
+        elif self.getProperty('unexpected_passing_files', 0):
+            return defer.returnValue(WARNINGS)
         return defer.returnValue(SUCCESS)
+
+    def loadResultsData(self, unexpected_results_path):
+        with open(unexpected_results_path) as f:
+            unexpected_results_data = json.load(f)
+        return unexpected_results_data
 
     @defer.inlineCallbacks
     def getFilesPerProject(self, unexpected_results_data, type):
+        is_log = 0
         for project, data in unexpected_results_data[type].items():
             log_content = ''
             for checker, files in data.items():
                 if files:
-                    log_content += f'\n\n=> {checker}\n\n'
-                    log_content += '\n'.join(files)
+                    file_list = '\n'.join((sorted(files)))
+                    log_content += f'\n\n=> {checker}\n\n{file_list}\n\n'
             if log_content:
                 yield self._addToLog(f'{project}-unexpected-{type}', log_content)
+                is_log += 1
+        return defer.returnValue(is_log)
 
     def getResultSummary(self):
-        if self.results != SUCCESS:
-            return super().getResultSummary()
-        num_failures = self.getProperty('unexpected_failing_files', 0)
-        num_passes = self.getProperty('unexpected_passing_files', 0)
-        return {'step': f'Unexpected failing files: {num_failures} Unexpected passing files: {num_passes}'}
+        summary = ''
+        if self.results == SUCCESS:
+            summary = 'No unexpected results'
+        else:
+            num_failures = self.getProperty('unexpected_failing_files', 0)
+            num_passes = self.getProperty('unexpected_passing_files', 0)
+            if num_failures:
+                summary += f'Unexpected failing files: {num_failures} '
+            if num_passes:
+                summary += f'Unexpected passing files: {num_passes}'
+        self.build.buildFinished([summary], self.results)
+        return {'step': summary}
+
+    def resultDirectoryURL(self):
+        self.setProperty('result_directory', self.resultDirectory)
+        return self.resultDirectory.replace('public_html/', '/') + '/'
+
+    def resultDownloadURL(self):
+        return self.zipFile.replace('public_html/', '')
 
 
-class UpdateSmartPointerBaseline(steps.ShellSequence, ShellMixin):
-    name = 'update-smart-pointer-baseline'
-    description = ['updating smart pointer baseline']
-    descriptionDone = ['updated smart pointer baseline']
+class UpdateSaferCPPBaseline(steps.ShellSequence, ShellMixin):
+    name = 'update-safer-cpp-baseline'
+    description = ['updating safer cpp baseline']
+    descriptionDone = ['updated safer cpp baseline']
 
     def run(self):
         new_dir = f"smart-pointer-result-archive/{self.getProperty('buildnumber')}"
@@ -1916,7 +1935,7 @@ class ExtractStaticAnalyzerTestResults(ExtractTestResults):
         return None
 
     def addCustomURLs(self):
-        step = self.getLastBuildStepByName(CompareStaticAnalyzerResults.name)
+        step = self.getLastBuildStepByName(FindUnexpectedStaticAnalyzerResults.name)
         step.addURL("View full static analyzer results", self.resultDirectoryURL() + SCAN_BUILD_OUTPUT_DIR + "/results.html")
         step.addURL("View unexpected static analyzer results", self.resultDirectoryURL() + SCAN_BUILD_OUTPUT_DIR + "/unexpected-results.html")
         step.addURL("Download full static analyzer results", self.resultDownloadURL())
@@ -1932,7 +1951,6 @@ class PrintConfiguration(steps.ShellSequence):
     command_list_generic = [['hostname']]
     command_list_apple = [['df', '-hl'], ['date'], ['sw_vers'], ['system_profiler', 'SPSoftwareDataType', 'SPHardwareDataType'], ['/bin/sh', '-c', 'echo TimezoneVers: $(cat /usr/share/zoneinfo/+VERSION)'], ['xcodebuild', '-sdk', '-version']]
     command_list_linux = [['df', '-hl', '--exclude-type=fuse.portal'], ['date'], ['uname', '-a'], ['uptime']]
-    command_list_win = [['df', '-hl']]
 
     def __init__(self, **kwargs):
         super(PrintConfiguration, self).__init__(timeout=60, **kwargs)
@@ -1949,8 +1967,6 @@ class PrintConfiguration(steps.ShellSequence):
             command_list.extend(self.command_list_apple)
         elif platform in ('gtk', 'wpe', 'jsc-only'):
             command_list.extend(self.command_list_linux)
-        elif platform in ('win'):
-            command_list.extend(self.command_list_win)
 
         for command in command_list:
             self.commands.append(util.ShellArg(command=command, logname='stdio'))

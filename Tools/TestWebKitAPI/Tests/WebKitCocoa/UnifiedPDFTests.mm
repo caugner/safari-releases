@@ -25,20 +25,72 @@
 
 #import "config.h"
 
-#if ENABLE(UNIFIED_PDF_BY_DEFAULT)
+#if ENABLE(UNIFIED_PDF)
 
 #import "CGImagePixelReader.h"
 #import "PlatformUtilities.h"
 #import "TestWKWebView.h"
+#import "UISideCompositingScope.h"
 #import "WKWebViewConfigurationExtras.h"
 #import <WebCore/ColorSerialization.h>
+#import <WebKit/WKNavigationDelegatePrivate.h>
 #import <WebKit/WKPreferencesPrivate.h>
 #import <WebKit/_WKFeature.h>
 #import <wtf/RetainPtr.h>
 
+@interface ObserveWebContentCrashNavigationDelegate : NSObject <WKNavigationDelegate>
+@end
+
+@implementation ObserveWebContentCrashNavigationDelegate {
+    bool _webProcessCrashed;
+    bool _navigationFinished;
+}
+
+- (void)_webView:(WKWebView *)webView webContentProcessDidTerminateWithReason:(_WKProcessTerminationReason)reason
+{
+    _webProcessCrashed = true;
+}
+
+- (void)webView:(WKWebView *)webView didFinishNavigation:(WKNavigation *)navigation
+{
+    _navigationFinished = true;
+}
+
+- (bool)webProcessCrashed
+{
+    return _webProcessCrashed;
+}
+
+- (bool)navigationFinished
+{
+    return _navigationFinished;
+}
+
+@end
+
 namespace TestWebKitAPI {
 
 #if PLATFORM(MAC)
+
+#if ENABLE(UNIFIED_PDF_FOR_TESTING)
+#define UNIFIED_PDF_TEST(name) TEST(UnifiedPDF, name)
+#else
+#define UNIFIED_PDF_TEST(name) TEST(UnifiedPDF, DISABLED_##name)
+#endif
+
+static RetainPtr<WKWebViewConfiguration> configurationForWebViewTestingUnifiedPDF()
+{
+    RetainPtr configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
+
+    for (_WKFeature *feature in [WKPreferences _features]) {
+        if ([feature.key isEqualToString:@"UnifiedPDFEnabled"])
+            [[configuration preferences] _setEnabled:YES forFeature:feature];
+        if ([feature.key isEqualToString:@"PDFPluginHUDEnabled"])
+            [[configuration preferences] _setEnabled:NO forFeature:feature];
+    }
+
+    return configuration;
+}
 
 static constexpr auto defaultSamplingInterval = 100;
 static Vector<WebCore::Color> sampleColorsInWebView(TestWKWebView *webView, unsigned interval = defaultSamplingInterval)
@@ -54,10 +106,9 @@ static Vector<WebCore::Color> sampleColorsInWebView(TestWKWebView *webView, unsi
     return samples;
 }
 
-TEST(UnifiedPDF, KeyboardScrollingInSinglePageMode)
+UNIFIED_PDF_TEST(KeyboardScrollingInSinglePageMode)
 {
-    RetainPtr configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 600, 600) configuration:configuration.get() addToWindow:YES]);
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 600, 600) configuration:configurationForWebViewTestingUnifiedPDF().get() addToWindow:YES]);
     [webView setForceWindowToBecomeKey:YES];
 
     RetainPtr request = [NSURLRequest requestWithURL:[[NSBundle mainBundle] URLForResource:@"multiple-pages" withExtension:@"pdf" subdirectory:@"TestWebKitAPI.resources"]];
@@ -93,17 +144,50 @@ TEST(UnifiedPDF, KeyboardScrollingInSinglePageMode)
     }
 }
 
-#endif // PLATFORM(MAC)
-
-TEST(UnifiedPDF, CopyEditingCommandOnEmptySelectionShouldNotCrash)
+UNIFIED_PDF_TEST(SnapshotsPaintPageContent)
 {
-    RetainPtr configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"WebProcessPlugInWithInternals" configureJSCForTesting:YES];
-    for (_WKFeature *feature in [WKPreferences _features]) {
-        if ([feature.key isEqualToString:@"UnifiedPDFEnabled"])
-            [[configuration preferences] _setEnabled:YES forFeature:feature];
-    }
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 600, 600) configuration:configurationForWebViewTestingUnifiedPDF().get() addToWindow:YES]);
+    [webView setForceWindowToBecomeKey:YES];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 600, 600) configuration:configuration.get() addToWindow:YES]);
+    [webView synchronouslyLoadHTMLString:@"<embed src='multiple-pages.pdf' width='600' height='600'>"];
+    [[webView window] makeFirstResponder:webView.get()];
+    [[webView window] makeKeyAndOrderFront:nil];
+    [[webView window] orderFrontRegardless];
+    [webView waitForNextPresentationUpdate];
+
+    __block bool done = false;
+
+    RetainPtr<WKSnapshotConfiguration> snapshotConfiguration = adoptNS([[WKSnapshotConfiguration alloc] init]);
+    [snapshotConfiguration setRect:NSMakeRect(100, 100, 100, 100)];
+
+    [webView takeSnapshotWithConfiguration:snapshotConfiguration.get() completionHandler:^(Util::PlatformImage *snapshotImage, NSError *error) {
+        EXPECT_NULL(error);
+        RetainPtr cgImage = Util::convertToCGImage(snapshotImage);
+
+        CGImagePixelReader reader { cgImage.get() };
+
+        bool foundNonWhitePixel = false;
+
+        for (unsigned x = 0; x < reader.width(); x++) {
+            for (unsigned y = 0; y < reader.height(); y++) {
+                if (reader.at(x, y) != WebCore::Color::white) {
+                    foundNonWhitePixel = true;
+                    break;
+                }
+            }
+        }
+
+        EXPECT_TRUE(foundNonWhitePixel);
+
+        done = true;
+    }];
+
+    Util::run(&done);
+}
+
+UNIFIED_PDF_TEST(CopyEditingCommandOnEmptySelectionShouldNotCrash)
+{
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 600, 600) configuration:configurationForWebViewTestingUnifiedPDF().get() addToWindow:YES]);
     [webView setForceWindowToBecomeKey:YES];
 
     RetainPtr request = [NSURLRequest requestWithURL:[[NSBundle mainBundle] URLForResource:@"multiple-pages" withExtension:@"pdf" subdirectory:@"TestWebKitAPI.resources"]];
@@ -116,6 +200,25 @@ TEST(UnifiedPDF, CopyEditingCommandOnEmptySelectionShouldNotCrash)
     [webView objectByEvaluatingJavaScript:@"internals.sendEditingCommandToPDFForTesting(document.querySelector('embed'), 'copy')"];
 }
 
+UNIFIED_PDF_TEST(WebProcessShouldNotCrashWithUISideCompositingDisabled)
+{
+    UISideCompositingScope scope { UISideCompositingState::Disabled };
+
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 600, 600) configuration:configurationForWebViewTestingUnifiedPDF().get() addToWindow:YES]);
+    RetainPtr delegate = adoptNS([[ObserveWebContentCrashNavigationDelegate alloc] init]);
+    [webView setNavigationDelegate:delegate.get()];
+
+    RetainPtr request = [NSURLRequest requestWithURL:[[NSBundle mainBundle] URLForResource:@"multiple-pages" withExtension:@"pdf" subdirectory:@"TestWebKitAPI.resources"]];
+    [webView loadRequest:request.get()];
+
+    Util::waitFor([delegate] {
+        return [delegate webProcessCrashed] || [delegate navigationFinished];
+    });
+    EXPECT_FALSE([delegate webProcessCrashed]);
+}
+
+#endif // PLATFORM(MAC)
+
 } // namespace TestWebKitAPI
 
-#endif // ENABLE(UNIFIED_PDF_BY_DEFAULT)
+#endif // ENABLE(UNIFIED_PDF)

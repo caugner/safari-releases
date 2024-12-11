@@ -138,12 +138,12 @@ TEST(WKWebExtensionAPIStorage, SetAccessLevelTrustedContexts)
         @"setTimeout(() => browser.runtime.sendMessage('Ready'), 1000)"
     ]);
 
-    auto extension = adoptNS([[_WKWebExtension alloc] _initWithManifestDictionary:storageManifest resources:@{ @"background.js": backgroundScript, @"content.js": contentScript }]);
+    auto extension = adoptNS([[WKWebExtension alloc] _initWithManifestDictionary:storageManifest resources:@{ @"background.js": backgroundScript, @"content.js": contentScript }]);
     auto manager = adoptNS([[TestWebExtensionManager alloc] initForExtension:extension.get()]);
 
     auto *urlRequest = server.requestWithLocalhost();
-    [manager.get().context setPermissionStatus:_WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequest.URL];
-    [manager.get().defaultTab.mainWebView loadRequest:urlRequest];
+    [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequest.URL];
+    [manager.get().defaultTab.webView loadRequest:urlRequest];
 
     [manager loadAndRun];
 }
@@ -180,12 +180,12 @@ TEST(WKWebExtensionAPIStorage, SetAccessLevelTrustedAndUntrustedContexts)
         @"setTimeout(() => browser.runtime.sendMessage('Ready'), 1000)"
     ]);
 
-    auto extension = adoptNS([[_WKWebExtension alloc] _initWithManifestDictionary:storageManifest resources:@{ @"background.js": backgroundScript, @"content.js": contentScript }]);
+    auto extension = adoptNS([[WKWebExtension alloc] _initWithManifestDictionary:storageManifest resources:@{ @"background.js": backgroundScript, @"content.js": contentScript }]);
     auto manager = adoptNS([[TestWebExtensionManager alloc] initForExtension:extension.get()]);
 
     auto *urlRequest = server.requestWithLocalhost();
-    [manager.get().context setPermissionStatus:_WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequest.URL];
-    [manager.get().defaultTab.mainWebView loadRequest:urlRequest];
+    [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequest.URL];
+    [manager.get().defaultTab.webView loadRequest:urlRequest];
 
     [manager loadAndRun];
 }
@@ -292,6 +292,25 @@ TEST(WKWebExtensionAPIStorage, Get)
     Util::loadAndRunExtension(storageManifest, @{ @"background.js": backgroundScript });
 }
 
+TEST(WKWebExtensionAPIStorage, GetWithDefaultValue)
+{
+    auto *backgroundScript = Util::constructScript(@[
+        @"const data = { 'abc': 123 }",
+        @"await browser.storage.local.set(data)",
+
+        @"var result = await browser.storage.local.get()",
+        @"browser.test.assertDeepEq(data, result, 'Should retrieve the data that was set')",
+
+        @"result = await browser.storage.local.get({ 'abc': null, 'unrecognized_key': 'default_value' })",
+        @"browser.test.assertEq(result?.abc, 123, 'Should return the stored value when the key exists, even if default value is null')",
+        @"browser.test.assertEq(result?.unrecognized_key, 'default_value', 'Should return the default value for unrecognized keys')",
+
+        @"browser.test.notifyPass()",
+    ]);
+
+    Util::loadAndRunExtension(storageManifest, @{ @"background.js": backgroundScript });
+}
+
 TEST(WKWebExtensionAPIStorage, GetBytesInUse)
 {
     auto *backgroundScript = Util::constructScript(@[
@@ -367,11 +386,70 @@ TEST(WKWebExtensionAPIStorage, Clear)
 TEST(WKWebExtensionAPIStorage, StorageOnChanged)
 {
     auto *backgroundScript = Util::constructScript(@[
-        @"function listener() { browser.test.notifyPass() }",
-        @"await browser?.storage?.onChanged?.addListener(listener)",
+        @"let changeCount = 0",
 
-        @"const data = { 'string': 'string', 'number': 1, 'boolean': true, 'dictionary': {'key': 'value'}, 'array': [1, true, 'string'] }",
-        @"await browser?.storage?.local?.set(data)",
+        @"browser.storage.onChanged.addListener((changes, areaName) => {",
+        @"  browser.test.assertEq(areaName, 'local', 'The storage area should be local')",
+
+        @"  if (changeCount === 0) {",
+        @"    browser.test.assertEq(changes?.string?.newValue, 'newString', 'The new value of string should be correct')",
+        @"    browser.test.assertEq(changes?.string?.oldValue, undefined, 'The old value of string should be null')",
+
+        @"    browser.test.assertEq(changes?.number?.newValue, 2, 'The new value of number should be correct')",
+        @"    browser.test.assertEq(changes?.number?.oldValue, undefined, 'The old value of number should be null')",
+
+        @"    browser.test.assertEq(changes?.boolean?.newValue, false, 'The new value of boolean should be correct')",
+        @"    browser.test.assertEq(changes?.boolean?.oldValue, undefined, 'The old value of boolean should be null')",
+
+        @"    browser.test.assertEq(changes?.dictionary?.newValue?.key, 'newValue', 'The new value of dictionary should be correct')",
+        @"    browser.test.assertEq(changes?.dictionary?.oldValue, undefined, 'The old value of dictionary should be null')",
+
+        @"    browser.test.assertEq(changes?.array?.newValue[0], 2, 'The new value of array[0] should be correct')",
+        @"    browser.test.assertEq(changes?.array?.oldValue, undefined, 'The old value of array should be null')",
+        @"  } else if (changeCount === 1) {",
+        @"    browser.test.assertEq(changes?.string?.newValue, 'finalString', 'The new value of string should be correct')",
+        @"    browser.test.assertEq(changes?.string?.oldValue, 'newString', 'The old value of string should be correct')",
+
+        @"    browser.test.assertEq(changes?.number?.newValue, 3, 'The new value of number should be correct')",
+        @"    browser.test.assertEq(changes?.number?.oldValue, 2, 'The old value of number should be correct')",
+
+        @"    browser.test.assertEq(changes?.boolean?.newValue, true, 'The new value of boolean should be correct')",
+        @"    browser.test.assertEq(changes?.boolean?.oldValue, false, 'The old value of boolean should be correct')",
+
+        @"    browser.test.assertEq(changes?.dictionary?.newValue?.key, 'finalValue', 'The new value of dictionary should be correct')",
+        @"    browser.test.assertEq(changes?.dictionary?.oldValue?.key, 'newValue', 'The old value of dictionary should be correct')",
+
+        @"    browser.test.assertEq(changes?.array?.newValue[0], 3, 'The new value of array[0] should be correct')",
+        @"    browser.test.assertEq(changes?.array?.oldValue[0], 2, 'The old value of array[0] should be correct')",
+        @"  } else if (changeCount === 2) {",
+        @"    browser.test.assertEq(changes?.string?.newValue, undefined, 'The string should be removed')",
+        @"    browser.test.assertEq(changes?.string?.oldValue, 'finalString', 'The old value of string should be correct')",
+
+        @"    browser.test.assertEq(changes?.number?.newValue, undefined, 'The number should be removed')",
+        @"    browser.test.assertEq(changes?.number?.oldValue, 3, 'The old value of number should be correct')",
+
+        @"    browser.test.assertEq(changes?.boolean?.newValue, undefined, 'The boolean should be removed')",
+        @"    browser.test.assertEq(changes?.boolean?.oldValue, true, 'The old value of boolean should be correct')",
+
+        @"    browser.test.assertEq(changes?.dictionary?.newValue, undefined, 'The dictionary should be removed')",
+        @"    browser.test.assertEq(changes?.dictionary?.oldValue?.key, 'finalValue', 'The old value of dictionary should be correct')",
+
+        @"    browser.test.assertEq(changes?.array?.newValue, undefined, 'The array should be removed')",
+        @"    browser.test.assertEq(changes?.array?.oldValue[0], 3, 'The old value of array[0] should be correct')",
+
+        @"    browser.test.notifyPass()",
+        @"  }",
+
+        @"  changeCount++",
+        @"})",
+
+        @"const initialData = { 'string': 'newString', 'number': 2, 'boolean': false, 'dictionary': { 'key': 'newValue' }, 'array': [ 2, false, 'newString' ] }",
+        @"await browser.storage.local.set(initialData)",
+
+        @"const updatedData = { 'string': 'finalString', 'number': 3, 'boolean': true, 'dictionary': { 'key': 'finalValue' }, 'array': [ 3, true, 'finalString' ] }",
+        @"await browser.storage.local.set(updatedData)",
+
+        @"await browser.storage.local.remove([ 'string', 'number', 'boolean', 'dictionary', 'array' ])"
     ]);
 
     Util::loadAndRunExtension(storageManifest, @{ @"background.js": backgroundScript });
@@ -380,11 +458,71 @@ TEST(WKWebExtensionAPIStorage, StorageOnChanged)
 TEST(WKWebExtensionAPIStorage, StorageAreaOnChanged)
 {
     auto *backgroundScript = Util::constructScript(@[
-        @"function listener() { browser.test.notifyPass() }",
-        @"await browser?.storage?.local?.onChanged?.addListener(listener)",
+        @"let changeCount = 0",
 
-        @"const data = { 'string': 'string', 'number': 1, 'boolean': true, 'dictionary': {'key': 'value'}, 'array': [1, true, 'string'] }",
-        @"await browser?.storage?.local?.set(data)",
+        @"browser.storage.local.onChanged.addListener((changes, areaName) => {",
+        @"  browser.test.assertEq(areaName, 'local', 'The storage area should be local')",
+
+        @"  if (changeCount === 0) {",
+        @"    browser.test.assertEq(changes?.string?.newValue, 'newString', 'The new value of string should be correct')",
+        @"    browser.test.assertEq(changes?.string?.oldValue, undefined, 'The old value of string should be null')",
+
+        @"    browser.test.assertEq(changes?.number?.newValue, 2, 'The new value of number should be correct')",
+        @"    browser.test.assertEq(changes?.number?.oldValue, undefined, 'The old value of number should be null')",
+
+        @"    browser.test.assertEq(changes?.boolean?.newValue, false, 'The new value of boolean should be correct')",
+        @"    browser.test.assertEq(changes?.boolean?.oldValue, undefined, 'The old value of boolean should be null')",
+
+        @"    browser.test.assertEq(changes?.dictionary?.newValue?.key, 'newValue', 'The new value of dictionary should be correct')",
+        @"    browser.test.assertEq(changes?.dictionary?.oldValue, undefined, 'The old value of dictionary should be null')",
+
+        @"    browser.test.assertEq(changes?.array?.newValue[0], 2, 'The new value of array[0] should be correct')",
+        @"    browser.test.assertEq(changes?.array?.oldValue, undefined, 'The old value of array should be null')",
+        @"  } else if (changeCount === 1) {",
+        @"    browser.test.assertEq(changes?.string?.newValue, 'finalString', 'The new value of string should be correct')",
+        @"    browser.test.assertEq(changes?.string?.oldValue, 'newString', 'The old value of string should be correct')",
+
+        @"    browser.test.assertEq(changes?.number?.newValue, 3, 'The new value of number should be correct')",
+        @"    browser.test.assertEq(changes?.number?.oldValue, 2, 'The old value of number should be correct')",
+
+        @"    browser.test.assertEq(changes?.boolean?.newValue, true, 'The new value of boolean should be correct')",
+        @"    browser.test.assertEq(changes?.boolean?.oldValue, false, 'The old value of boolean should be correct')",
+
+        @"    browser.test.assertEq(changes?.dictionary?.newValue?.key, 'finalValue', 'The new value of dictionary should be correct')",
+        @"    browser.test.assertEq(changes?.dictionary?.oldValue?.key, 'newValue', 'The old value of dictionary should be correct')",
+
+        @"    browser.test.assertEq(changes?.array?.newValue[0], 3, 'The new value of array[0] should be correct')",
+        @"    browser.test.assertEq(changes?.array?.oldValue[0], 2, 'The old value of array[0] should be correct')",
+
+        @"  } else if (changeCount === 2) {",
+        @"    browser.test.assertEq(changes?.string?.newValue, undefined, 'The string should be removed')",
+        @"    browser.test.assertEq(changes?.string?.oldValue, 'finalString', 'The old value of string should be correct')",
+
+        @"    browser.test.assertEq(changes?.number?.newValue, undefined, 'The number should be removed')",
+        @"    browser.test.assertEq(changes?.number?.oldValue, 3, 'The old value of number should be correct')",
+
+        @"    browser.test.assertEq(changes?.boolean?.newValue, undefined, 'The boolean should be removed')",
+        @"    browser.test.assertEq(changes?.boolean?.oldValue, true, 'The old value of boolean should be correct')",
+
+        @"    browser.test.assertEq(changes?.dictionary?.newValue, undefined, 'The dictionary should be removed')",
+        @"    browser.test.assertEq(changes?.dictionary?.oldValue?.key, 'finalValue', 'The old value of dictionary should be correct')",
+
+        @"    browser.test.assertEq(changes?.array?.newValue, undefined, 'The array should be removed')",
+        @"    browser.test.assertEq(changes?.array?.oldValue[0], 3, 'The old value of array[0] should be correct')",
+
+        @"    browser.test.notifyPass()",
+        @"  }",
+
+        @"  changeCount++",
+        @"})",
+
+        @"const initialData = { 'string': 'newString', 'number': 2, 'boolean': false, 'dictionary': { 'key': 'newValue' }, 'array': [ 2, false, 'newString' ] }",
+        @"await browser.storage.local.set(initialData)",
+
+        @"const updatedData = { 'string': 'finalString', 'number': 3, 'boolean': true, 'dictionary': { 'key': 'finalValue' }, 'array': [ 3, true, 'finalString' ] }",
+        @"await browser.storage.local.set(updatedData)",
+
+        @"await browser.storage.local.remove([ 'string', 'number', 'boolean', 'dictionary', 'array' ])"
     ]);
 
     Util::loadAndRunExtension(storageManifest, @{ @"background.js": backgroundScript });
@@ -434,12 +572,12 @@ TEST(WKWebExtensionAPIStorage, StorageFromSubframe)
         @"content.js": contentScript
     };
 
-    auto extension = adoptNS([[_WKWebExtension alloc] _initWithManifestDictionary:manifest resources:resources]);
+    auto extension = adoptNS([[WKWebExtension alloc] _initWithManifestDictionary:manifest resources:resources]);
     auto manager = adoptNS([[TestWebExtensionManager alloc] initForExtension:extension.get()]);
 
-    [manager.get().context setPermissionStatus:_WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequestSubframe.URL];
+    [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:urlRequestSubframe.URL];
 
-    [manager.get().defaultTab.mainWebView loadRequest:urlRequestMain];
+    [manager.get().defaultTab.webView loadRequest:urlRequestMain];
 
     [manager loadAndRun];
 }

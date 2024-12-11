@@ -349,7 +349,7 @@ class TestExpectedBuildSteps(unittest.TestCase):
             'extract-test-results',
             'set-permissions',
         ],
-        'Apple-Sonoma-Smart-Pointer-Static-Analyzer-Build': [
+        'Apple-Sonoma-Safer-CPP-Checks': [
             'configure-build',
             'configuration',
             'clean-and-update-working-directory',
@@ -360,7 +360,7 @@ class TestExpectedBuildSteps(unittest.TestCase):
             'delete-stale-build-files',
             'prune-coresymbolicationd-cache-if-too-large',
             'print-clang-version',
-            'scan-build-smart-pointer'
+            'scan-build'
         ],
         'Apple-Ventura-Release-Build': [
             'configure-build',
@@ -1180,7 +1180,7 @@ class TestExpectedBuildSteps(unittest.TestCase):
             'compile-webkit',
             'generate-minibrowser-bundle'
         ],
-        'GTK-Linux-64-bit-Release-GTK4-Tests': [
+        'GTK-Linux-64-bit-Release-GTK3-Tests': [
             'configure-build',
             'configuration',
             'clean-and-update-working-directory',
@@ -1204,7 +1204,8 @@ class TestExpectedBuildSteps(unittest.TestCase):
             'API-tests',
             'install-built-product',
             'archive-built-product',
-            'upload-built-product'
+            'upload-built-product',
+            'webdriver-test'
         ],
         'GTK-Linux-64-bit-Release-Skip-Failing-Tests': [
             'configure-build',

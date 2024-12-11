@@ -690,9 +690,6 @@ void TestInvocation::didReceiveMessageFromInjectedBundle(WKStringRef messageName
         return;
     }
 
-    if (WKStringIsEqualToUTF8CString(messageName, "DumpBackForwardList"))
-        return postPageMessage("DumpBackForwardList");
-
     if (WKStringIsEqualToUTF8CString(messageName, "StopLoading"))
         return WKPageStopLoading(TestController::singleton().mainWebView()->page());
 
@@ -893,6 +890,15 @@ WKRetainPtr<WKTypeRef> TestInvocation::didReceiveSynchronousMessageFromInjectedB
         bool forMicrophone = booleanValue(messageBodyDictionary, "microphone");
         bool forDisplay = booleanValue(messageBodyDictionary, "display");
         TestController::singleton().triggerMockCaptureConfigurationChange(forMicrophone, forDisplay);
+        return nullptr;
+    }
+ 
+    if (WKStringIsEqualToUTF8CString(messageName, "SetCaptureState")) {
+        auto messageBodyDictionary = dictionaryValue(messageBody);
+        bool camera = booleanValue(messageBodyDictionary, "camera");
+        bool microphone = booleanValue(messageBodyDictionary, "microphone");
+        bool display = booleanValue(messageBodyDictionary, "display");
+        TestController::singleton().setCaptureState(camera, microphone, display);
         return nullptr;
     }
 
@@ -1118,16 +1124,6 @@ WKRetainPtr<WKTypeRef> TestInvocation::didReceiveSynchronousMessageFromInjectedB
         TestController::singleton().setStatisticsTimeToLiveUserInteraction(doubleValue(messageBody));
         return nullptr;
     }
-    
-    if (WKStringIsEqualToUTF8CString(messageName, "StatisticsProcessStatisticsAndDataRecords")) {
-        TestController::singleton().statisticsProcessStatisticsAndDataRecords();
-        return nullptr;
-    }
-
-    if (WKStringIsEqualToUTF8CString(messageName, "StatisticsNotifyPagesWhenDataRecordsWereScanned")) {
-        TestController::singleton().setStatisticsNotifyPagesWhenDataRecordsWereScanned(booleanValue(messageBody));
-        return nullptr;
-    }
 
     if (WKStringIsEqualToUTF8CString(messageName, "StatisticsSetTimeAdvanceForTesting")) {
         TestController::singleton().setStatisticsTimeAdvanceForTesting(doubleValue(messageBody));
@@ -1161,14 +1157,6 @@ WKRetainPtr<WKTypeRef> TestInvocation::didReceiveSynchronousMessageFromInjectedB
     
     if (WKStringIsEqualToUTF8CString(messageName, "SetPruneEntriesDownTo")) {
         TestController::singleton().setStatisticsPruneEntriesDownTo(uint64Value(messageBody));
-        return nullptr;
-    }
-
-    if (WKStringIsEqualToUTF8CString(messageName, "StatisticsDeleteCookiesForHost")) {
-        auto messageBodyDictionary = dictionaryValue(messageBody);
-        auto hostName = stringValue(messageBodyDictionary, "HostName");
-        auto includeHttpOnlyCookies = booleanValue(messageBodyDictionary, "IncludeHttpOnlyCookies");
-        TestController::singleton().statisticsDeleteCookiesForHost(hostName, includeHttpOnlyCookies);
         return nullptr;
     }
 
@@ -1415,6 +1403,14 @@ WKRetainPtr<WKTypeRef> TestInvocation::didReceiveSynchronousMessageFromInjectedB
 
     if (WKStringIsEqualToUTF8CString(messageName, "IsCommandEnabled"))
         return adoptWK(WKBooleanCreate(WKPageIsEditingCommandEnabledForTesting(TestController::singleton().mainWebView()->page(), stringValue(messageBody))));
+
+    if (WKStringIsEqualToUTF8CString(messageName, "DumpBackForwardList")) {
+        m_shouldDumpBackForwardListsForAllWindows = true;
+        return nullptr;
+    }
+
+    if (WKStringIsEqualToUTF8CString(messageName, "ShouldDumpBackForwardListsForAllWindows"))
+        return adoptWK(WKBooleanCreate(m_shouldDumpBackForwardListsForAllWindows));
 
     ASSERT_NOT_REACHED();
     return nullptr;

@@ -23,12 +23,12 @@
 
 DeprecatedGlobalValues.mm
 EditingTestHarness.mm
+NetworkConnection.mm
 WKWebViewConfigurationExtras.mm
 
 cocoa/CGImagePixelReader.cpp
 cocoa/DaemonTestUtilities.mm
 cocoa/DragAndDropSimulator.mm
-cocoa/EnableUISideCompositingScope.mm
 cocoa/ImageAnalysisTestingUtilities.mm
 cocoa/NSItemProviderAdditions.mm
 cocoa/PlatformUtilitiesCocoa.mm
@@ -43,6 +43,7 @@ cocoa/TestUIDelegate.mm
 cocoa/TestWebExtensionsDelegate.mm
 cocoa/TestWKWebView.mm
 cocoa/TestWKWebViewConfiguration.mm
+cocoa/UISideCompositingScope.mm
 cocoa/UserMediaCaptureUIDelegate.mm
 
 Tests/WebKitCocoa/AVFoundationPreference.mm
@@ -241,6 +242,7 @@ Tests/WebKitCocoa/SessionStorage.mm
 Tests/WebKitCocoa/ShouldGoToBackForwardListItem.mm
 Tests/WebKitCocoa/ShouldOpenExternalURLsInNewWindowActions.mm
 Tests/WebKitCocoa/ShrinkToFit.mm
+Tests/WebKitCocoa/SimulateClickOverText.mm
 Tests/WebKitCocoa/SiteIsolation.mm
 Tests/WebKitCocoa/SnapshotStore.mm
 Tests/WebKitCocoa/SpeechRecognition.mm
@@ -313,6 +315,7 @@ Tests/WebKitCocoa/WKWebExtensionAPIPermissions.mm
 Tests/WebKitCocoa/WKWebExtensionAPIScripting.mm
 Tests/WebKitCocoa/WKWebExtensionAPIStorage.mm
 Tests/WebKitCocoa/WKWebExtensionAPIRuntime.mm
+Tests/WebKitCocoa/WKWebExtensionAPISidebar.mm
 Tests/WebKitCocoa/WKWebExtensionAPITabs.mm
 Tests/WebKitCocoa/WKWebExtensionAPIWebNavigation.mm
 Tests/WebKitCocoa/WKWebExtensionAPIWebRequest.mm
@@ -357,6 +360,7 @@ Tests/WebKitCocoa/WebProcessTerminate.mm
 Tests/WebKitCocoa/WebPushDaemon.mm
 Tests/WebKitCocoa/WebSQLBasics.mm
 Tests/WebKitCocoa/WebSocket.mm
+Tests/WebKitCocoa/WebTransport.mm
 Tests/WebKitCocoa/WebsiteDataStoreCustomPaths.mm
 Tests/WebKitCocoa/WebsitePolicies.mm
 Tests/WebKitCocoa/WritingSuggestions.mm

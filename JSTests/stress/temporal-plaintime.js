@@ -115,7 +115,6 @@ shouldBe(String(Temporal.PlainTime.from('1995-12-07t03:24:30')), `03:24:30`);
 shouldBe(String(Temporal.PlainTime.from('1995-12-07 03:24:30')), `03:24:30`);
 shouldBe(String(Temporal.PlainTime.from('1995-12-07T03:24:30+20:20:59')), `03:24:30`);
 shouldBe(String(Temporal.PlainTime.from('1995-12-07T03:24:30-20:20:59')), `03:24:30`);
-shouldBe(String(Temporal.PlainTime.from('1995-12-07T03:24:30\u221220:20:59')), `03:24:30`);
 shouldBe(String(Temporal.PlainTime.from('1995-12-07T03:24:30+10')), `03:24:30`);
 shouldBe(String(Temporal.PlainTime.from('1995-12-07T03:24:30+1020')), `03:24:30`);
 shouldBe(String(Temporal.PlainTime.from('1995-12-07T03:24:30+102030')), `03:24:30`);
@@ -135,13 +134,7 @@ shouldBe(String(Temporal.PlainTime.from('1995-12-07T03:24:30+01:00[Etc/GMT+20]')
 shouldBe(String(Temporal.PlainTime.from('1995-12-07T03:24:30+01:00[Etc/GMT-20]')), `03:24:30`); // TimeZone error should be ignored.
 shouldBe(String(Temporal.PlainTime.from('1995-12-07 03:24:30+01:00[+01]')), `03:24:30`);
 shouldBe(String(Temporal.PlainTime.from('1995-12-07 03:24:30+01:00[+01:00]')), `03:24:30`);
-shouldBe(String(Temporal.PlainTime.from('1995-12-07 03:24:30+01:00[+01:00:00]')), `03:24:30`);
-shouldBe(String(Temporal.PlainTime.from('1995-12-07 03:24:30+01:00[+01:00:00.123]')), `03:24:30`);
-shouldBe(String(Temporal.PlainTime.from('1995-12-07 03:24:30+01:00[+01:00:00.12345]')), `03:24:30`);
-shouldBe(String(Temporal.PlainTime.from('1995-12-07 03:24:30+01:00[+01:00:00.12345678]')), `03:24:30`);
-shouldBe(String(Temporal.PlainTime.from('1995-12-07 03:24:30+01:00[+01:00:00.123456789]')), `03:24:30`);
 shouldBe(String(Temporal.PlainTime.from('1995-12-07 03:24:30+01:00[-01:00]')), `03:24:30`);
-shouldBe(String(Temporal.PlainTime.from('1995-12-07 03:24:30+01:00[\u221201:00]')), `03:24:30`);
 shouldBe(String(Temporal.PlainTime.from('2007-01-09 03:24:30+01:00[u-ca=japanese]')), `03:24:30`);
 shouldBe(String(Temporal.PlainTime.from('2007-01-09 03:24:30+01:00[Europe/Brussels][u-ca=japanese]')), `03:24:30`);
 shouldBe(String(Temporal.PlainTime.from('2007-01-09 03:24:30[u-ca=japanese]')), `03:24:30`);
@@ -265,6 +258,13 @@ let failures = [
     "1995-12-07T03:24:30Z", // UTCDesignator
     "2007-01-09 03:24:30[u-ca=japanese][Europe/Brussels]",
     "2007-01-09 03:24:30+01:00[u-ca=japanese][Europe/Brussels]",
+    "1995-12-07T03:24:30\u221220:20:59",
+    "1995-12-07 03:24:30+01:00[\u221201:00]",
+    "1995-12-07 03:24:30+01:00[+01:00:00]",
+    "1995-12-07 03:24:30+01:00[+01:00:00.123]",
+    "1995-12-07 03:24:30+01:00[+01:00:00.12345]",
+    "1995-12-07 03:24:30+01:00[+01:00:00.12345678]",
+    "1995-12-07 03:24:30+01:00[+01:00:00.123456789]",
 ];
 
 for (let text of failures) {

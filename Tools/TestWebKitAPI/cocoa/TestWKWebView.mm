@@ -135,6 +135,11 @@ static NSString *overrideBundleIdentifier(id, SEL)
     [self _test_waitForDidFinishNavigation];
 }
 
+- (void)synchronouslyLoadTestPageNamed:(NSString *)pageName asStringWithBaseURL:(NSURL *)url
+{
+    [self synchronouslyLoadHTMLString:[NSString stringWithContentsOfURL:[[NSBundle mainBundle] URLForResource:pageName withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"] encoding:NSUTF8StringEncoding error:nil] baseURL:url];
+}
+
 - (void)synchronouslyLoadTestPageNamed:(NSString *)pageName preferences:(WKWebpagePreferences *)preferences
 {
     [self loadTestPageNamed:pageName];
@@ -593,6 +598,11 @@ static WebEvent *unwrap(BEKeyEntry *event)
     return evalResult.autorelease();
 }
 
+- (NSString *)stringByEvaluatingJavaScript:(NSString *)script inFrame:(WKFrameInfo *)frame
+{
+    return [NSString stringWithFormat:@"%@", [self objectByEvaluatingJavaScript:script inFrame:frame]];
+}
+
 - (NSString *)stringByEvaluatingJavaScript:(NSString *)script
 {
     return [NSString stringWithFormat:@"%@", [self objectByEvaluatingJavaScript:script]];
@@ -906,6 +916,12 @@ static InputSessionChangeCount nextInputSessionChangeCount()
 #else
     [_hostWindow addSubview:self];
 #endif
+}
+
+- (void)removeFromTestWindow
+{
+    if (_hostWindow)
+        [self removeFromSuperview];
 }
 
 - (void)clearMessageHandlers:(NSArray *)messageNames

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2022 Apple Inc. All rights reserved.
+ * Copyright (C) 2005-2024 Apple Inc. All rights reserved.
  *           (C) 2007 Graham Dennis (graham.dennis@gmail.com)
  *
  * Redistribution and use in source and binary forms, with or without
@@ -63,7 +63,6 @@
 #import <JavaScriptCore/InitializeThreading.h>
 #import <JavaScriptCore/JSCConfig.h>
 #import <JavaScriptCore/Options.h>
-#import <JavaScriptCore/RegisterTZoneTypes.h>
 #import <JavaScriptCore/TestRunnerUtils.h>
 #import <WebCore/LogInitialization.h>
 #import <WebCore/NetworkStorageSession.h>
@@ -102,7 +101,6 @@
 #import <wtf/OSObjectPtr.h>
 #import <wtf/ProcessPrivilege.h>
 #import <wtf/RetainPtr.h>
-#import <wtf/TZoneMallocInitialization.h>
 #import <wtf/Threading.h>
 #import <wtf/UniqueArray.h>
 #import <wtf/WTFProcess.h>
@@ -1190,6 +1188,7 @@ void dumpRenderTree(int argc, const char *argv[])
     prepareConsistentTestingEnvironment();
     addTestPluginsToPluginSearchPath(argv[0]);
 
+    JSC::Options::machExceptionHandlerSandboxPolicy = JSC::Options::SandboxPolicy::Allow;
     JSC::initialize();
     WTF::initializeMainThread();
     WebCoreTestSupport::populateJITOperations();
@@ -1315,12 +1314,6 @@ void atexitFunction()
 
 int DumpRenderTreeMain(int argc, const char *argv[])
 {
-#if USE(TZONE_MALLOC)
-    WTF_TZONE_INIT(nullptr);
-    JSC::registerTZoneTypes();
-    WTF_TZONE_REGISTRATION_DONE();
-#endif
-
     atexit(atexitFunction);
 
     WTF::setProcessPrivileges(allPrivileges());

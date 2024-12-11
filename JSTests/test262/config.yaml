@@ -3,25 +3,22 @@
 flags:
   SharedArrayBuffer: useSharedArrayBuffer
   Atomics: useSharedArrayBuffer
-  Intl.DurationFormat: useIntlDurationFormat
+  iterator-helpers: useIteratorHelpers
   Temporal: useTemporal
-  array-grouping: useArrayGroupMethod
   ShadowRealm: useShadowRealm
-  resizable-arraybuffer: useResizableArrayBuffer
-  arraybuffer-transfer: useArrayBufferTransfer
-  import-assertions: useImportAttributes
-  json-modules: useImportAttributes
-  promise-with-resolvers: usePromiseWithResolversMethod
   promise-try: usePromiseTryMethod
+  uint8array-base64: useUint8ArrayBase64Methods
+  RegExp.escape: useRegExpEscape
 skip:
   features:
     - callable-boundary-realms
     - FinalizationRegistry.prototype.cleanupSome
     - decorators
-    - iterator-helpers
-    - Float16Array
     - explicit-resource-management
     - regexp-modifiers
+    - source-phase-imports
+    - Atomics.pause
+    - Math.sumPrecise
   paths:
     - test/built-ins/Temporal/Calendar
     - test/built-ins/Temporal/Instant/prototype/toZonedDateTime

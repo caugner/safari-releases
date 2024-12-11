@@ -117,26 +117,27 @@ class WinPort(ApplePort):
 
     def setup_environ_for_server(self, server_name=None):
         env = super(WinPort, self).setup_environ_for_server(server_name)
-        if 'WEBKIT_TESTFONTS' not in env:
-            env['WEBKIT_TESTFONTS'] = self.path_from_webkit_base('Tools', 'WebKitTestRunner', 'fonts')
-        if 'WEBKIT_LIBRARIES' in env:
-            lib = self._filesystem.join(env['WEBKIT_LIBRARIES'], 'bin64')
-        else:
-            lib = self.path_from_webkit_base('WebKitLibraries', 'win', 'bin64')
-        env['PATH'] = lib + ';' + env['PATH']
-        env['PYTHONUTF8'] = '1'
-        env['XML_CATALOG_FILES'] = ''  # work around missing /etc/catalog <rdar://problem/4292995>
-        return env
-
-    def environment_for_api_tests(self):
-        env = super(WinPort, self).environment_for_api_tests()
         variables_to_copy = [
+            'COMSPEC',
+            'HOMEDRIVE',
+            'HOMEPATH',
+            'SYSTEMDRIVE',
             'SYSTEMROOT',
             'TEMP',
             'TMP',
+            'WEBKIT_LIBRARIES',
         ]
         for variable in variables_to_copy:
             self._copy_value_from_environ_if_set(env, variable)
+        if 'WEBKIT_TESTFONTS' not in env:
+            env['WEBKIT_TESTFONTS'] = self.path_from_webkit_base('Tools', 'WebKitTestRunner', 'fonts')
+        if 'WEBKIT_LIBRARIES' in env:
+            lib = self._filesystem.join(env['WEBKIT_LIBRARIES'], 'bin')
+        else:
+            lib = self.path_from_webkit_base('WebKitLibraries', 'win', 'bin')
+        env['PATH'] = lib + ';' + env['PATH']
+        env['PYTHONUTF8'] = '1'
+        env['XML_CATALOG_FILES'] = ''  # work around missing /etc/catalog <rdar://problem/4292995>
         return env
 
     def driver_name(self):
@@ -154,8 +155,7 @@ class WinPort(ApplePort):
         root_directory = self.get_option('_cached_root') or self.get_option('root')
         if not root_directory:
             ApplePort._build_path(self, *comps)  # Sets option _cached_root
-            binary_directory = 'bin64'
-            root_directory = self._filesystem.join(self.get_option('_cached_root'), binary_directory)
+            root_directory = self._filesystem.join(self.get_option('_cached_root'), 'bin')
             self.set_option('_cached_root', root_directory)
 
         return self._filesystem.join(root_directory, *comps)
@@ -298,13 +298,6 @@ class WinPort(ApplePort):
         return True
 
     def setup_crash_log_saving(self):
-        if '_NT_SYMBOL_PATH' not in os.environ:
-            _log.warning("The _NT_SYMBOL_PATH environment variable is not set. Using Microsoft Symbol Server.")
-            os.environ['_NT_SYMBOL_PATH'] = 'SRV*http://msdl.microsoft.com/download/symbols'
-
-        # Add build path to symbol path
-        os.environ['_NT_SYMBOL_PATH'] += ";" + str(self._build_path())
-
         ntsd_path = self._ntsd_location()
         if not ntsd_path:
             _log.warning("Can't find ntsd.exe. Crash logs will not be saved.")
@@ -487,5 +480,5 @@ class WinPort(ApplePort):
 
     def configuration_for_upload(self, host=None):
         configuration = super(WinPort, self).configuration_for_upload(host=host)
-        configuration['platform'] = 'wincairo'
+        configuration['platform'] = self.port_name
         return configuration

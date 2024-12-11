@@ -198,7 +198,7 @@ TEST(WebKit, LoadHTMLStringWithInvalidBaseURL)
     [webView setNavigationDelegate:navigationDelegate.get()];
 
     __block bool didCrash = false;
-    navigationDelegate.get().webContentProcessDidTerminate = ^(WKWebView *view) {
+    navigationDelegate.get().webContentProcessDidTerminate = ^(WKWebView *view, _WKProcessTerminationReason) {
         didCrash = true;
     };
 

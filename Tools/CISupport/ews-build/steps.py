@@ -28,6 +28,7 @@ from buildbot.steps import master, shell, transfer, trigger
 from buildbot.steps.source import git
 from buildbot.steps.worker import CompositeStepMixin
 from datetime import date
+from shlex import quote
 
 from twisted.internet import defer, reactor, task
 
@@ -45,8 +46,8 @@ import socket
 import sys
 import time
 
-if sys.version_info < (3, 5):
-    print('ERROR: Please use Python 3. This code is not compatible with Python 2.')
+if sys.version_info < (3, 9):
+    print('ERROR: Minimum supported Python version for this code is Python 3.9')
     sys.exit(1)
 
 custom_suffix = get_custom_suffix()
@@ -74,6 +75,10 @@ MAX_COMMITS_IN_PR_SERIES = 50
 QUEUES_WITH_PUSH_ACCESS = ('commit-queue', 'merge-queue', 'unsafe-merge-queue')
 THRESHOLD_FOR_EXCESSIVE_LOGS_DEFAULT = 1000000
 MSG_FOR_EXCESSIVE_LOGS = f'Stopped due to excessive logging, limit: {THRESHOLD_FOR_EXCESSIVE_LOGS_DEFAULT}'
+SCAN_BUILD_OUTPUT_DIR = 'scan-build-output'
+LLVM_DIR = 'llvm-project'
+STATIC_ANALYSIS_ARCHIVE_PATH = '/tmp/static-analysis.zip'
+LLVM_REVISION = '9d9287b4d5a2554b195074ae93e48fcd87178554'
 
 if CURRENT_HOSTNAME in EWS_BUILD_HOSTNAMES:
     CURRENT_HOSTNAME = 'ews-build.webkit.org'
@@ -1249,13 +1254,14 @@ class CheckChangeRelevance(AnalyzeChange):
     ]
 
     jsc_path_regexes = [
-        re.compile(rb'.*jsc.*', re.IGNORECASE),
         re.compile(rb'.*javascriptcore.*', re.IGNORECASE),
         re.compile(rb'JSTests/', re.IGNORECASE),
+        re.compile(rb'LayoutTests/js.*', re.IGNORECASE),  # This catches both js/ and jsc-layout-tests.yaml
         re.compile(rb'Source/WTF/', re.IGNORECASE),
         re.compile(rb'Source/bmalloc/', re.IGNORECASE),
         re.compile(rb'Source/cmake/', re.IGNORECASE),
         re.compile(rb'.*Makefile.*', re.IGNORECASE),
+        re.compile(rb'Tools/.*jsc.*', re.IGNORECASE),
         re.compile(rb'Tools/Scripts/build-webkit', re.IGNORECASE),
         re.compile(rb'Tools/Scripts/webkitdirs.pm', re.IGNORECASE),
     ]
@@ -1419,7 +1425,7 @@ class FindModifiedLayoutTests(shell.ShellCommandNewStyle, AnalyzeChange):
 
     def __init__(self, skipBuildIfNoResult=True):
         self.skipBuildIfNoResult = skipBuildIfNoResult
-        super().__init__()
+        super().__init__(logEnviron=False)
 
     @defer.inlineCallbacks
     def run(self):
@@ -1929,7 +1935,7 @@ class ValidateChange(buildstep.BuildStep, BugzillaMixin, GitHubMixin):
         pr_json = yield self.get_pr_json(pr_number, repository_url, retry=3)
 
         if pr_json:
-            # Only track acionable labels, since bug category labels may reveal information about security bugs
+            # Only track actionable labels, since bug category labels may reveal information about security bugs
             self.setProperty('github_labels', [
                 data.get('name')
                 for data in pr_json.get('labels', [])
@@ -2011,7 +2017,7 @@ class ValidateChange(buildstep.BuildStep, BugzillaMixin, GitHubMixin):
 
 
 class ValidateCommitterAndReviewer(buildstep.BuildStep, GitHubMixin, AddToLogMixin):
-    name = 'validate-commiter-and-reviewer'
+    name = 'validate-committer-and-reviewer'
     descriptionDone = ['Validated committer and reviewer']
     VALIDATORS_FOR = {
         # FIXME: Remove manual validators once bot is finished
@@ -2144,24 +2150,25 @@ class ValidateCommitterAndReviewer(buildstep.BuildStep, GitHubMixin, AddToLogMix
             return self.is_reviewer(candidate)
         reviewers = list(filter(filter_out_non_reviewer_validators, reviewers))
 
-        if any([self.is_reviewer(reviewer) for reviewer in reviewers]):
-            reviewers = list(filter(self.is_reviewer, reviewers))
-        reviewers = set(reviewers)
-
-        if not reviewers:
-            # Change has not been reviewed in bug tracker. This is acceptable, since the ChangeLog might have 'Reviewed by' in it.
-            yield self._addToLog('stdio', f'Reviewer not found. Commit message  will be checked for reviewer name in later steps\n')
-            self.descriptionDone = 'Validated committer, reviewer not found'
-            defer.returnValue(SUCCESS)
-            return
-
+        valid_reviewers = set()
+        invalid_reviewers = set()
         for reviewer in reviewers:
             if not self.is_reviewer(reviewer):
-                rc = yield self.fail_build_due_to_invalid_status(reviewer, 'reviewer')
-                defer.returnValue(rc)
-                return
-            yield self._addToLog('stdio', f'{reviewer} is a valid reviewer.\n')
-        self.setProperty('reviewers_full_names', [self.full_name_from_email(reviewer) for reviewer in reviewers])
+                invalid_reviewers.add(reviewer)
+                yield self._addToLog('stdio', f'{reviewer} is not a valid reviewer, ignoring their review.\n')
+            else:
+                valid_reviewers.add(reviewer)
+                yield self._addToLog('stdio', f'{reviewer} is a valid reviewer.\n')
+
+        self.setProperty('valid_reviewers', [self.full_name_from_email(reviewer) for reviewer in valid_reviewers])
+        self.setProperty('invalid_reviewers', [self.full_name_from_email(reviewer) for reviewer in invalid_reviewers])
+
+        if not valid_reviewers:
+            # Change has not been reviewed in bug tracker. This is acceptable, since the ChangeLog might have 'Reviewed by' in it.
+            yield self._addToLog('stdio', f'Valid reviewer not found. Commit message will be checked for reviewer name in later steps\n')
+            self.descriptionDone = 'Validated committer, valid reviewer not found'
+            defer.returnValue(SUCCESS)
+            return
 
         defer.returnValue(SUCCESS)
 
@@ -2515,9 +2522,9 @@ class CheckStatusOfPR(buildstep.BuildStep, GitHubMixin, AddToLogMixin):
     flunkOnFailure = False
     haltOnFailure = False
     EMBEDDED_CHECKS = ['ios', 'ios-sim', 'ios-wk2', 'ios-wk2-wpt', 'api-ios', 'vision', 'vision-sim', 'vision-wk2', 'tv', 'tv-sim', 'watch', 'watch-sim']
-    MACOS_CHECKS = ['mac', 'mac-AS-debug', 'api-mac', 'mac-wk1', 'mac-wk2', 'mac-AS-debug-wk2', 'mac-wk2-stress', 'jsc', 'jsc-arm64']
-    LINUX_CHECKS = ['gtk', 'gtk-wk2', 'api-gtk', 'wpe', 'wpe-cairo', 'wpe-wk2', 'api-wpe', 'jsc-armv7', 'jsc-armv7-tests']
-    WINDOWS_CHECKS = ['wincairo']
+    MACOS_CHECKS = ['mac', 'mac-AS-debug', 'api-mac', 'mac-wk1', 'mac-wk2', 'mac-AS-debug-wk2', 'mac-wk2-stress', 'mac-safer-cpp', 'jsc', 'jsc-arm64']
+    LINUX_CHECKS = ['gtk', 'gtk-wk2', 'api-gtk', 'wpe', 'wpe-cairo', 'wpe-wk2', 'api-wpe']
+    WINDOWS_CHECKS = ['win']
     EWS_WEBKIT_FAILED = 0
     EWS_WEBKIT_PASSED = 1
     EWS_WEBKIT_PENDING = 2
@@ -2773,13 +2780,17 @@ class RevertAppliedChanges(steps.ShellSequence):
     flunkOnFailure = True
     haltOnFailure = True
 
-    def __init__(self, **kwargs):
+    def __init__(self, exclude=None, **kwargs):
         super().__init__(timeout=5 * 60, logEnviron=False, **kwargs)
+        self.exclude = exclude or []  # Pattern(s) to ignore for git clean
 
     def run(self):
         self.commands = []
+        exclude_patterns = []
+        for pattern in self.exclude:
+            exclude_patterns.extend(('-e', pattern))
         for command in [
-            ['git', 'clean', '-f', '-d'],
+            ['git', 'clean', '-f', '-d'] + exclude_patterns,
             ['git', 'checkout', self.getProperty('ews_revision') or self.getProperty('got_revision')],
         ]:
             self.commands.append(util.ShellArg(command=command, logname='stdio'))
@@ -3121,7 +3132,7 @@ class InstallWinDependencies(shell.ShellCommandNewStyle):
     name = 'win-deps'
     description = ['Updating Win dependencies']
     descriptionDone = ['Updated Win dependencies']
-    command = ['python3', 'Tools/Scripts/update-webkit-wincairo-libs.py']
+    command = ['python3', 'Tools/Scripts/update-webkit-win-libs.py']
     haltOnFailure = True
 
     def __init__(self, **kwargs):
@@ -3615,7 +3626,7 @@ class RunJavaScriptCoreTests(shell.Test, AddToLogMixin, ShellMixin):
 
         self.setCommand(self.command + customBuildFlag(self.getProperty('platform'), self.getProperty('fullPlatform')))
         self.command.extend(self.command_extra)
-        self.command = self.shell_command(' '.join(self.command) + ' 2>&1 | Tools/Scripts/filter-test-logs jsc')
+        self.command = self.shell_command(' '.join(quote(str(c)) for c in self.command) + ' 2>&1 | Tools/Scripts/filter-test-logs jsc')
         return super().start()
 
     def evaluateCommand(self, cmd):
@@ -3991,7 +4002,7 @@ class RunWebKitTests(shell.Test, AddToLogMixin, ShellMixin):
         self.log_observer_json = logobserver.BufferLogObserver()
         self.addLogObserver('json', self.log_observer_json)
         self.setLayoutTestCommand()
-        self.command = self.shell_command(' '.join(str(c) for c in self.command) + ' 2>&1 | Tools/Scripts/filter-test-logs layout')
+        self.command = self.shell_command(' '.join(quote(str(c)) for c in self.command) + ' 2>&1 | Tools/Scripts/filter-test-logs layout')
         return super().start()
 
     # FIXME: This will break if run-webkit-tests changes its default log formatter.
@@ -5251,7 +5262,6 @@ class GenerateS3URL(master.MasterShellCommandNewStyle):
         build_url = f'{self.master.config.buildbotURL}#/builders/{self.build._builderid}/builds/{self.build.number}'
         if match:
             self.build.s3url = match.group('url')
-            print(f'build: {build_url}, url for GenerateS3URL: {self.build.s3url}')
             self.build.s3_archives.append(S3URL + f"{S3_BUCKET}/{self.identifier}/{self.getProperty('change_id')}.{self.extension}")
             defer.returnValue(rc)
         else:
@@ -5446,6 +5456,12 @@ class RunAPITests(shell.TestNewStyle, AddToLogMixin, ShellMixin):
 
         if rc in [SUCCESS, WARNINGS]:
             message = 'Passed API tests'
+            if self.name == ReRunAPITests.name:
+                first_results_failing_tests = self.getProperty('first_run_failures', [])
+                flaky_failures_string = ', '.join(first_results_failing_tests)
+                pluralSuffix = 's' if len(first_results_failing_tests) > 1 else ''
+                message = f'Found flaky test{pluralSuffix}: {flaky_failures_string}'
+
             self.descriptionDone = message
             if self.name != RunAPITestsWithoutChange.name:
                 self.build.results = SUCCESS
@@ -5889,9 +5905,10 @@ class PrintConfiguration(steps.ShellSequence):
         self.setProperty('xcode_version', xcode_version)
         os_version_builder = self.getProperty('os_version_builder', '')
         xcode_version_builder = self.getProperty('xcode_version_builder', '')
+        os_major_version_mismatch = os_version and os_version_builder and (os_version.split('.')[:2] != os_version_builder.split('.')[:2])
+        xcode_version_mismatch = xcode_version and xcode_version_builder and (xcode_version != xcode_version_builder)
 
-        if ((os_version and os_version_builder and os_version != os_version_builder) or
-                (xcode_version and xcode_version_builder and xcode_version != xcode_version_builder)):
+        if os_major_version_mismatch or xcode_version_mismatch:
             message = f'Error: OS/SDK version mismatch, please inform an admin.'
             detailed_message = message + f' Builder: OS={os_version_builder}, Xcode={xcode_version_builder}; Tester: OS={os_version}, Xcode={xcode_version}'
             print(f'\n{detailed_message}')
@@ -5912,6 +5929,147 @@ class PrintConfiguration(steps.ShellSequence):
         if xcode_version:
             configuration += ', Xcode: {}'.format(xcode_version)
         return {'step': configuration}
+
+
+class CheckOutLLVMProject(git.Git, AddToLogMixin):
+    name = 'checkout-llvm-project'
+    directory = 'llvm-project'
+    branch = 'webkit'
+    CHECKOUT_DELAY_AND_MAX_RETRIES_PAIR = (0, 2)
+    GIT_HASH_LENGTH = 40
+    haltOnFailure = False
+
+    def __init__(self, **kwargs):
+        repourl = f'{GITHUB_URL}rniwa/llvm-project.git'
+        super().__init__(
+            repourl=repourl,
+            workdir=self.directory,
+            retry=self.CHECKOUT_DELAY_AND_MAX_RETRIES_PAIR,
+            timeout=5 * 60,
+            branch=self.branch,
+            alwaysUseLatest=False,
+            logEnviron=False,
+            progress=True,
+            **kwargs
+        )
+
+    @defer.inlineCallbacks
+    def run_vc(self, branch, revision, patch):
+        rc = yield super().run_vc(self.branch, LLVM_REVISION, None)
+        return rc
+
+    @defer.inlineCallbacks
+    def parseGotRevision(self, _=None):
+        stdout = yield self._dovccmd(['rev-parse', 'HEAD'], collectStdout=True)
+        revision = stdout.strip()
+        if len(revision) != self.GIT_HASH_LENGTH:
+            raise buildstep.BuildStepFailed()
+        return SUCCESS
+
+    def doStepIf(self, step):
+        return self.build.getProperty('llvm_revision', '') != LLVM_REVISION
+
+    def getResultSummary(self):
+        if self.results == SKIPPED:
+            return {'step': 'llvm-project is already up to date'}
+        elif self.results != SUCCESS:
+            return {'step': 'Failed to update llvm-project directory'}
+        else:
+            return {'step': 'Cleaned and updated llvm-project directory'}
+
+
+class UpdateClang(steps.ShellSequence, ShellMixin):
+    name = 'update-clang'
+    description = 'updating clang'
+    descriptionDone = 'Successfully updated clang'
+    flunkOnFailure = False
+    warnOnFailure = False
+
+    def __init__(self, **kwargs):
+        super().__init__(logEnviron=True, workdir=LLVM_DIR, **kwargs)
+        self.commands = []
+        self.summary = ''
+
+    @defer.inlineCallbacks
+    def run(self):
+        self.env['PATH'] = f"/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/Applications/CMake.app/Contents/bin/:{self.getProperty('builddir')}"
+        self.commands = [
+            util.ShellArg(command=self.shell_command('rm -r build-new; mkdir build-new'), logname='stdio', flunkOnFailure=False),
+            util.ShellArg(command=self.shell_command('cd build-new; xcrun cmake -DLLVM_ENABLE_PROJECTS=clang -DCMAKE_BUILD_TYPE=Release -G Ninja ../llvm -DCMAKE_MAKE_PROGRAM=$(xcrun --sdk macosx --find ninja)'), logname='stdio', haltOnFailure=True),
+            util.ShellArg(command=self.shell_command('cd build-new; ninja clang'), logname='stdio', haltOnFailure=True),
+            util.ShellArg(command=['rm', '-r', '../build/WebKitBuild'], logname='stdio', flunkOnFailure=False),  # Need a clean build after complier update
+        ]
+
+        rc = yield super().runShellSequence(self.commands)
+        if rc != SUCCESS:
+            if self.getProperty('llvm_revision', ''):
+                self.summary = 'Failed to update clang, using previous build'
+                return WARNINGS
+            self.summary = 'Failed to update clang'
+            self.build.buildFinished(['Failed to set up analyzer, retrying build'], RETRY)
+            return defer.returnValue(rc)
+
+        self.summary = 'Successfully updated clang'
+        self.build.addStepsAfterCurrentStep([PrintClangVersionAfterUpdate()])
+        defer.returnValue(rc)
+
+    def doStepIf(self, step):
+        return self.build.getProperty('llvm_revision', '') != LLVM_REVISION
+
+    def getResultSummary(self):
+        if self.results == SKIPPED:
+            return {'step': 'Clang is already up to date'}
+        return {'step': self.summary}
+
+
+class PrintClangVersion(shell.ShellCommandNewStyle):
+    name = 'print-clang-version'
+    haltOnFailure = False
+    flunkOnFailure = False
+    warnOnFailure = False
+    CLANG_VERSION_RE = '(.*clang version.+) \\((.+?)\\)'
+    summary = ''
+
+    def __init__(self, **kwargs):
+        super().__init__(logEnviron=False, workdir=LLVM_DIR, timeout=60, **kwargs)
+        self.command = ['./build/bin/clang', '--version']
+
+    @defer.inlineCallbacks
+    def run(self):
+        self.log_observer = logobserver.BufferLogObserver(wantStderr=True)
+        self.addLogObserver('stdio', self.log_observer)
+        rc = yield super().run()
+        log_text = self.log_observer.getStdout() + self.log_observer.getStderr()
+        match = re.search(self.CLANG_VERSION_RE, log_text)
+        if match:
+            self.build.setProperty('llvm_revision', match.group(2).split()[1])
+            self.summary = match.group(0)
+        elif 'No such file or directory' in log_text:
+            self.summary = 'Clang executable does not exist'
+            rc = SUCCESS
+        return defer.returnValue(rc)
+
+    def getResultSummary(self):
+        if self.results != SUCCESS:
+            return {'step': 'Failed to print clang version'}
+        return {'step': self.summary}
+
+
+class PrintClangVersionAfterUpdate(PrintClangVersion, ShellMixin):
+    name = 'print-clang-version-after-update'
+    haltOnFailure = True
+
+    @defer.inlineCallbacks
+    def run(self):
+        command = './build-new/bin/clang --version; rm -r build; mv build-new build'
+        self.command = self.shell_command(command)
+        rc = yield super().run()
+        return defer.returnValue(rc)
+
+    def getResultSummary(self):
+        if self.results != SUCCESS:
+            self.build.buildFinished(['Failed to set up analyzer, retrying build'], RETRY)
+        return super().getResultSummary()
 
 
 # FIXME: We should be able to remove this step once abandoning patch workflows
@@ -6460,11 +6618,12 @@ class AddReviewerMixin(object):
         )
 
     def reviewers(self):
-        reviewers = self.getProperty('reviewers_full_names', [])
+        reviewers = self.getProperty('valid_reviewers', [])
         if len(reviewers) == 1:
             return reviewers[0]
         if reviewers:
-            return f'{", ".join(reviewers[:-1])} and {reviewers[-1]}'
+            conjunction = f'{"," if len(reviewers) > 2 else ""} and '
+            return f'{", ".join(reviewers[:-1])}{conjunction}{reviewers[-1]}'
         return 'NOBODY (OOPS!)'
 
 
@@ -6507,7 +6666,7 @@ class AddReviewerToCommitMessage(shell.ShellCommand, AddReviewerMixin):
         classification = self.getProperty('classification', [])
         if not isinstance(classification, list):
             classification = []
-        return self.getProperty('reviewers_full_names') and ['Cherry-pick'] != classification
+        return self.getProperty('valid_reviewers') and ['Cherry-pick'] != classification
 
     def hideStepIf(self, results, step):
         return not self.doStepIf(step)
@@ -6527,7 +6686,7 @@ class ValidateCommitMessage(steps.ShellSequence, ShellMixin, AddToLogMixin):
     )
     RE_CHANGELOG = br'^(\+\+\+)\s+(.*/ChangeLog.*)'
     BY_RE = re.compile(r'.+\s+by\s+(.+)$')
-    SPLIT_RE = re.compile(r'(,\s*)|( and )')
+    SPLIT_RE = re.compile(r'\s+and\s+|,\s*and\s*|,\s*')
 
     def __init__(self, **kwargs):
         super().__init__(logEnviron=False, timeout=60, **kwargs)
@@ -6568,8 +6727,12 @@ class ValidateCommitMessage(steps.ShellSequence, ShellMixin, AddToLogMixin):
     def run(self, BufferLogObserverClass=logobserver.BufferLogObserver):
         base_ref = self.getProperty('github.base.ref', f'{DEFAULT_REMOTE}/{DEFAULT_BRANCH}')
         head_ref = self.getProperty('github.head.ref', 'HEAD')
-        reviewers = self.getProperty('reviewers_full_names', None)
-        reviewer_error_msg = '' if reviewers else ' and no reviewer found'
+        valid_reviewers = self.getProperty('valid_reviewers', [])
+        invalid_reviewers = self.getProperty('invalid_reviewers', [])
+        reviewer_error_msg = '' if valid_reviewers else ' and no valid reviewer found'
+        invalid_msg = ' and {} are not reviewers' if len(invalid_reviewers) > 1 else ' and {} is not a reviewer'
+        if invalid_reviewers:
+            reviewer_error_msg = invalid_msg.format(', '.join(invalid_reviewers))
 
         self.commands = []
         commands = [
@@ -6631,7 +6794,9 @@ class ValidateCommitMessage(steps.ShellSequence, ShellMixin, AddToLogMixin):
             rc = FAILURE
 
         if rc == FAILURE:
-            self.setProperty('comment_text', f"{self.summary}, blocking PR #{self.getProperty('github.number')}")
+            build_url = f'{self.master.config.buildbotURL}#/builders/{self.build._builderid}/builds/{self.build.number}'
+            url_to_show = f'[Build #{self.getProperty("buildnumber", "")}]({build_url})'
+            self.setProperty('comment_text', f"{self.summary}, blocking PR #{self.getProperty('github.number')}. Details: {url_to_show}")
             self.setProperty('build_finish_summary', 'Commit message validation failed')
             self.build.addStepsAfterCurrentStep([LeaveComment(), SetCommitQueueMinusFlagOnPatch(), BlockPullRequest()])
         defer.returnValue(rc)
@@ -6765,8 +6930,8 @@ class UpdatePullRequest(shell.ShellCommandNewStyle, GitHubMixin, AddToLogMixin):
         re.compile(r'\Awebkit.org/b/(?P<id>\d+)\Z'),
         re.compile(r'\Ahttps?://webkit.org/b/(?P<id>\d+)\Z'),
         re.compile(r'\Awebkit.org/b/(?P<id>\d+)\Z'),
-        re.compile(r'\Abugs.webkit.org/show_bug.cgi\?id=(?P<id>\d+)\Z'),
-        re.compile(r'\Ahttps?://bugs.webkit.org/show_bug.cgi\?id=(?P<id>\d+)\Z'),
+        re.compile(r'\A<?bugs.webkit.org/show_bug.cgi\?id=(?P<id>\d+)>?\Z'),
+        re.compile(r'\A<?https?://bugs.webkit.org/show_bug.cgi\?id=(?P<id>\d+)>?\Z'),
     ]
 
     @classmethod
@@ -6858,3 +7023,419 @@ class UpdatePullRequest(shell.ShellCommandNewStyle, GitHubMixin, AddToLogMixin):
 
     def hideStepIf(self, results, step):
         return not self.doStepIf(step)
+
+
+class InstallCMake(shell.ShellCommandNewStyle):
+    name = 'install-cmake'
+    haltOnFailure = True
+    summary = 'Successfully installed CMake'
+
+    def __init__(self, **kwargs):
+        super().__init__(logEnviron=True, **kwargs)
+
+    @defer.inlineCallbacks
+    def run(self):
+        self.env['PATH'] = f'/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/Applications/CMake.app/Contents/bin/'
+        self.command = ['python3', 'Tools/CISupport/Shared/download-and-install-build-tools', 'cmake']
+
+        self.log_observer = logobserver.BufferLogObserver()
+        self.addLogObserver('stdio', self.log_observer)
+
+        rc = yield super().run()
+        if rc != SUCCESS:
+            return defer.returnValue(rc)
+
+        log_text = self.log_observer.getStdout()
+        index_skipped = log_text.rfind('skipping download and installation')
+        if index_skipped != -1:
+            self.summary = 'CMake is already installed'
+        return defer.returnValue(rc)
+
+    def evaluateCommand(self, cmd):
+        if cmd.rc != 0:
+            self.commandFailed = True
+            return FAILURE
+        return SUCCESS
+
+    def getResultSummary(self):
+        if self.results != SUCCESS:
+            self.summary = f'Failed to install CMake'
+        return {u'step': self.summary}
+
+
+class InstallNinja(shell.ShellCommandNewStyle, ShellMixin):
+    name = 'install-ninja'
+    haltOnFailure = True
+    summary = 'Successfully installed Ninja'
+
+    def __init__(self, **kwargs):
+        super().__init__(logEnviron=True, **kwargs)
+
+    @defer.inlineCallbacks
+    def run(self):
+        self.env['PATH'] = f"/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:{self.getProperty('builddir')}"
+        self.command = self.shell_command('cd ../; python3 Tools/CISupport/Shared/download-and-install-build-tools ninja')
+
+        self.log_observer = logobserver.BufferLogObserver()
+        self.addLogObserver('stdio', self.log_observer)
+
+        rc = yield super().run()
+        if rc != SUCCESS:
+            return defer.returnValue(rc)
+
+        log_text = self.log_observer.getStdout()
+        index_skipped = log_text.rfind('skipping download and installation')
+        if index_skipped != -1:
+            self.summary = 'Ninja is already installed'
+        return defer.returnValue(rc)
+
+    def evaluateCommand(self, cmd):
+        if cmd.rc != 0:
+            self.commandFailed = True
+            return FAILURE
+        return SUCCESS
+
+    def getResultSummary(self):
+        if self.results != SUCCESS:
+            self.summary = f'Failed to install Ninja'
+        return {u'step': self.summary}
+
+
+# FIXME: Share static analyzer steps with build-webkit-org since they have a lot of similarities
+class ScanBuild(steps.ShellSequence, ShellMixin):
+    name = "scan-build"
+    description = ["scanning with static analyzer"]
+    descriptionDone = ["scanned with static analyzer"]
+    flunkOnFailure = True
+    analyzeFailed = False
+    bugs = 0
+    output_directory = SCAN_BUILD_OUTPUT_DIR
+
+    def __init__(self, **kwargs):
+        super().__init__(logEnviron=False, timeout=2 * 60 * 60, **kwargs)
+        self.commandFailed = False
+
+    @defer.inlineCallbacks
+    def run(self):
+        self.commands = []
+        build_command = f"Tools/Scripts/build-and-analyze --output-dir {os.path.join(self.getProperty('builddir'), f'build/{self.output_directory}')} --configuration {self.build.getProperty('configuration')} "
+        build_command += f"--only-smart-pointers --analyzer-path={os.path.join(self.getProperty('builddir'), 'llvm-project/build/bin/clang')} "
+        build_command += '--scan-build-path=../llvm-project/clang/tools/scan-build/bin/scan-build --sdkroot=macosx --preprocessor-additions=CLANG_WEBKIT_BRANCH=1 '
+        build_command += '2>&1 | python3 Tools/Scripts/filter-test-logs scan-build --output build-log.txt'
+
+        for command in [
+            self.shell_command(f"/bin/rm -rf {os.path.join(self.getProperty('builddir'), f'build/{self.output_directory}')}"),
+            self.shell_command(build_command)
+        ]:
+            self.commands.append(util.ShellArg(command=command, logname='stdio'))
+
+        self.log_observer = logobserver.BufferLogObserver()
+        self.addLogObserver('stdio', self.log_observer)
+
+        rc = yield super().run()
+
+        log_text = self.log_observer.getStdout()
+        index = log_text.rfind('Total issue count:')
+        if index != -1:
+            total_issue_count_regex = re.compile(r'^Total issue count: (\d+)$', re.MULTILINE)
+            match = total_issue_count_regex.search(log_text[index:])
+            if match:
+                self.bugs += int(match.group(1))
+
+        f_index = log_text.rfind('ANALYZE SUCCEEDED')
+        if f_index == -1:
+            self.analyzeFailed = True
+            rc = FAILURE
+
+        steps_to_add = [
+            GenerateS3URL(
+                f"{self.getProperty('fullPlatform')}-{self.getProperty('architecture')}-{self.getProperty('configuration')}-{self.name}",
+                extension='txt',
+                content_type='text/plain',
+            ), UploadFileToS3(
+                'build-log.txt',
+                links={self.name: 'Full build log'},
+                content_type='text/plain',
+            )
+        ]
+
+        if rc == SUCCESS:
+            steps_to_add += self.addResultsSteps()
+        self.build.addStepsAfterCurrentStep(steps_to_add)
+
+        defer.returnValue(rc)
+
+    def addResultsSteps(self):
+        return [ParseStaticAnalyzerResults(), FindUnexpectedStaticAnalyzerResults(expectations=True)]
+
+    def getResultSummary(self):
+        status = ''
+        if self.analyzeFailed or self.commandFailed:
+            status += 'Failed to build and analyze WebKit'
+        if self.results == SUCCESS:
+            status += f'Found {self.bugs} issues'
+        return {'step': status}
+
+
+class ScanBuildWithoutChange(ScanBuild):
+    name = 'scan-build-without-change'
+    output_directory = SCAN_BUILD_OUTPUT_DIR + '-baseline'
+
+    def addResultsSteps(self):
+        return [ParseStaticAnalyzerResultsWithoutChange(), FindUnexpectedStaticAnalyzerResults(expectations=False)]
+
+
+class ParseStaticAnalyzerResults(shell.ShellCommandNewStyle):
+    name = 'parse-static-analyzer-results'
+    description = ['parsing static analyzer results']
+    descriptionDone = ['parsed static analyzer results']
+    haltOnFailure = True
+    result_message = ''
+    output_dir = 'new'
+    scan_build_output = SCAN_BUILD_OUTPUT_DIR
+
+    def __init__(self, baseline=False, **kwargs):
+        self.baseline = baseline  # True if built without PR changes applied
+        super().__init__(logEnviron=False, **kwargs)
+
+    @defer.inlineCallbacks
+    def run(self):
+        self.command = ['python3', 'Tools/Scripts/generate-dirty-files']
+        self.command += [os.path.join(self.getProperty('builddir'), f'build/{self.scan_build_output}')]
+        self.command += ['--output-dir', os.path.join(self.getProperty('builddir'), f'build/{self.output_dir}')]
+        self.command += ['--build-dir', os.path.join(self.getProperty('builddir'), 'build')]
+
+        self.log_observer = logobserver.BufferLogObserver()
+        self.addLogObserver('stdio', self.log_observer)
+
+        rc = yield super().run()
+        if rc != SUCCESS:
+            return defer.returnValue(rc)
+
+        log_text = self.log_observer.getStdout()
+        index = log_text.rfind('Total')
+        self.result_message = log_text[index:]
+
+        return defer.returnValue(rc)
+
+    def evaluateCommand(self, cmd):
+        if cmd.rc != 0:
+            self.commandFailed = True
+            return FAILURE
+        return SUCCESS
+
+    def getResultSummary(self):
+        status = ''
+        if self.result_message:
+            status += f' Issues: {self.result_message}'
+        if self.results != SUCCESS:
+            status += f' ({Results[self.results]})'
+
+        return {u'step': status}
+
+
+class ParseStaticAnalyzerResultsWithoutChange(ParseStaticAnalyzerResults):
+    name = 'parse-static-analyzer-results-without-change'
+    output_dir = 'baseline'
+    scan_build_output = SCAN_BUILD_OUTPUT_DIR + '-baseline'
+
+
+class FindUnexpectedStaticAnalyzerResults(shell.ShellCommandNewStyle):
+    name = 'find-unexpected-static-analyzer-results'
+    description = ['finding unexpected static analyzer results']
+    descriptionDone = ['found unexpected static analyzer results']
+    result_message = ''
+
+    def __init__(self, expectations=False, **kwargs):
+        self.expectations = expectations  # If true, results will be compared against checked-in expectations. Otherwise, they're compared against a previous run.
+        super().__init__(logEnviron=False, **kwargs)
+
+    @defer.inlineCallbacks
+    def run(self):
+        self.command = ['python3', 'Tools/Scripts/compare-static-analysis-results', os.path.join(self.getProperty('builddir'), 'build/new')]
+        self.command += ['--build-output', SCAN_BUILD_OUTPUT_DIR]
+        if not self.expectations:
+            self.command += ['--archived-dir', os.path.join(self.getProperty('builddir'), 'build/baseline')]
+            self.command += ['--scan-build-path', '../llvm-project/clang/tools/scan-build/bin/scan-build']  # Only generate results page on the second comparison
+            self.command += ['--delete-results']
+        else:
+            self.command += ['--check-expectations']
+
+        self.log_observer = logobserver.BufferLogObserver()
+        self.addLogObserver('stdio', self.log_observer)
+
+        rc = yield super().run()
+        if rc != SUCCESS:
+            return defer.returnValue(rc)
+
+        self.createResultMessage()
+
+        unexpected_results = self.getProperty('unexpected_failing_files', 0) or self.getProperty('unexpected_new_issues', 0) or self.getProperty('unexpected_passing_files', 0)
+        if self.expectations and unexpected_results:
+            # If there are unexpected results, rebuild without changes to verify causation
+            self.build.addStepsAfterCurrentStep([RevertAppliedChanges(exclude=['new*', 'scan-build-output*']), ScanBuildWithoutChange()])
+        elif unexpected_results:
+            # Only save the results if there are failures and it is not the first run
+            self.build.addStepsAfterCurrentStep([ArchiveStaticAnalyzerResults(), UploadStaticAnalyzerResults(), ExtractStaticAnalyzerTestResults(), DisplaySaferCPPResults()])
+        return defer.returnValue(rc)
+
+    def createResultMessage(self):
+        log_text = self.log_observer.getStdout()
+        match = re.search(r'^Total (new issues|unexpected issues): (\d+)', log_text, re.MULTILINE)
+        if match:
+            self.result_message += f"{match.group(2)} new issue{'s' if int(match.group(2)) > 1 else ''} "
+            self.setProperty('unexpected_new_issues', int(match.group(2)))
+        else:
+            self.setProperty('unexpected_new_issues', 0)
+
+        match = re.search(r'^Total (new files|unexpected failing files): (\d+)', log_text, re.MULTILINE)
+        if match:
+            self.result_message += f"{match.group(2)} failing file{'s' if int(match.group(2)) > 1 else ''} "
+            self.setProperty('unexpected_failing_files', int(match.group(2)))
+        else:
+            self.setProperty('unexpected_failing_files', 0)
+
+        match = re.search(r'^Total (fixed files|unexpected passing files): (\d+)', log_text, re.MULTILINE)
+        if match:
+            self.result_message += f"{match.group(2)} fixed file{'s' if int(match.group(2)) > 1 else ''}"
+            self.setProperty('unexpected_passing_files', int(match.group(2)))
+        else:
+            self.setProperty('unexpected_passing_files', 0)
+
+    def getResultSummary(self):
+        status = ''
+        if self.result_message:
+            status = f'{self.result_message}'
+        elif self.results == SUCCESS:
+            status = 'Found no unexpected results'
+        if self.results != SUCCESS:
+            status += f' ({Results[self.results]})'
+
+        return {u'step': status}
+
+
+class DisplaySaferCPPResults(buildstep.BuildStep, AddToLogMixin):
+    name = 'display-safer-cpp-results'
+    resultDirectory = ''
+    NUM_TO_DISPLAY = 10
+
+    def __init___(self, **kwargs):
+        super().__init__(logEnviron=False, **kwargs)
+
+    @defer.inlineCallbacks
+    def run(self):
+        num_issues = self.getProperty('unexpected_new_issues', 0)
+        self.resultDirectory = f"public_html/results/{self.getProperty('buildername')}/{self.getProperty('change_id')}-{self.getProperty('buildnumber')}"
+        unexpected_results_data = self.loadResultsData(os.path.join(self.resultDirectory, SCAN_BUILD_OUTPUT_DIR, 'unexpected_results.json'))
+        is_log = yield self.getFilesPerProject(unexpected_results_data, 'passes')
+        is_log += yield self.getFilesPerProject(unexpected_results_data, 'failures')
+        if not is_log and num_issues:
+            pluralSuffix = 's' if num_issues > 1 else ''
+            yield self._addToLog('stdio', f'Ignored {num_issues} pre-existing failure{pluralSuffix}')
+        if num_issues:
+            self.addURL("View failures", self.resultDirectoryURL() + SCAN_BUILD_OUTPUT_DIR + "/new-results.html")
+        if self.getProperty('unexpected_failing_files', 0):
+            return defer.returnValue(FAILURE)
+        return defer.returnValue(SUCCESS)
+
+    def loadResultsData(self, unexpected_results_path):
+        with open(unexpected_results_path) as f:
+            unexpected_results_data = json.load(f)
+        return unexpected_results_data
+
+    @defer.inlineCallbacks
+    def getFilesPerProject(self, unexpected_results_data, type):
+        total_file_list = set()
+        is_log = 0
+        for project, data in unexpected_results_data[type].items():
+            log_content = ''
+            for checker, files in data.items():
+                if files:
+                    total_file_list.update(files)
+                    file_str = '\n'.join(files)
+                    log_content += f'=> {checker}\n\n{file_str}\n\n'
+            if log_content:
+                yield self._addToLog(f'{project}-unexpected-{type}', log_content)
+                is_log += 1
+        self.setProperty(f'{type}', list(total_file_list))
+        return defer.returnValue(is_log)
+
+    def doStepIf(self, step):
+        return self.getProperty('unexpected_failing_files', 0) or self.getProperty('unexpected_passing_files', 0) or self.getProperty('unexpected_new_issues', 0)
+
+    def hideStepIf(self, results, step):
+        return not self.doStepIf(step)
+
+    def resultDirectoryURL(self):
+        return f"{S3_RESULTS_URL}{self.resultDirectory.replace('public_html/results/', '') + '/'}"
+
+    def getResultSummary(self):
+        num_failures = self.getProperty('unexpected_failing_files', 0)
+        num_passes = self.getProperty('unexpected_passing_files', 0)
+        num_issues = self.getProperty('unexpected_new_issues', 0)
+        failing_files = (", ").join(self.getProperty('failures', [])[:self.NUM_TO_DISPLAY])
+        passing_files = (", ").join(self.getProperty('passes', [])[:self.NUM_TO_DISPLAY])
+        results_summary = ''
+
+        results_link = self.resultDirectoryURL() + SCAN_BUILD_OUTPUT_DIR + "/new-results.html"
+        build_link = f'{self.master.config.buildbotURL}#/builders/{self.build._builderid}/builds/{self.build.number}'
+        formatted_build_link = f'[#{self.getProperty("buildnumber", "")}]({build_link})'
+
+        if num_failures:
+            pluralSuffix = 's' if num_issues > 1 else ''
+            comment = f"Safer CPP Build {formatted_build_link}: Found [{num_issues} new failure{pluralSuffix}]({results_link}), blocking PR #{self.getProperty('github.number')}.\n"
+            comment += 'Please address these issues before landing. See [WebKit Guidelines for Safer C++ Programming](https://github.com/WebKit/WebKit/wiki/Safer-CPP-Guidelines).\n(cc @rniwa)'
+            self.setProperty('comment_text', comment)
+            self.build.addStepsAfterCurrentStep([LeaveComment(), SetCommitQueueMinusFlagOnPatch(), BlockPullRequest()])
+            results_summary = f'Found {num_issues} new failure{pluralSuffix} in {failing_files}'
+            if num_failures > self.NUM_TO_DISPLAY:
+                results_summary += ' ...'
+            self.setProperty('build_finish_summary', results_summary)
+        elif num_issues:
+            pluralSuffix = 's' if num_issues > 1 else ''
+            # FIXME: Display which files are being ignored
+            results_summary = f'Ignored {num_issues} pre-existing failure{pluralSuffix}'
+            self.setProperty('build_summary', results_summary)
+        elif num_passes:
+            # FIXME: Add link to unexpected passes file
+            pluralSuffix = 's' if num_passes > 1 else ''
+            comment = f'Safer CPP Build {formatted_build_link}: Found {num_passes} fixed file{pluralSuffix}!\n'
+            comment += 'Please update expectations using `update-safer-cpp-expectations --remove-expected-failures` before landing.'
+            self.setProperty('comment_text', comment)
+            results_summary = f'Found {num_passes} fixed file{pluralSuffix}: {passing_files}'
+            if num_passes > self.NUM_TO_DISPLAY:
+                results_summary += ' ...'
+            self.setProperty('build_summary', results_summary)
+            self.build.addStepsAfterCurrentStep([LeaveComment(), SetBuildSummary()])
+
+        if num_passes and num_failures:
+            pluralSuffix = 's' if num_passes > 1 else ''
+            results_summary += f' and found {num_passes} fixed file{pluralSuffix}: {passing_files}'
+            if num_passes > self.NUM_TO_DISPLAY:
+                results_summary += ' ...'
+
+        return {'step': results_summary}
+
+
+class ArchiveStaticAnalyzerResults(shell.ShellCommandNewStyle):
+    command = ["Tools/Scripts/generate-static-analysis-archive", "--id-string", WithProperties("Build #%(buildnumber)s"), "--output-root", SCAN_BUILD_OUTPUT_DIR, "--destination", STATIC_ANALYSIS_ARCHIVE_PATH]
+    name = "archive-static-analyzer-results"
+    description = ["archiving static analyzer results"]
+    descriptionDone = ["archived static analyzer results"]
+    haltOnFailure = True
+
+    def __init__(self, **kwargs):
+        super().__init__(logEnviron=False, **kwargs)
+
+
+class UploadStaticAnalyzerResults(UploadTestResults):
+    name = "upload-static-analyzer-results"
+    workersrc = STATIC_ANALYSIS_ARCHIVE_PATH
+    haltOnFailure = True
+
+
+class ExtractStaticAnalyzerTestResults(ExtractTestResults):
+    name = 'extract-static-analyzer-test-results'
+
+    def addCustomURLs(self):
+        pass

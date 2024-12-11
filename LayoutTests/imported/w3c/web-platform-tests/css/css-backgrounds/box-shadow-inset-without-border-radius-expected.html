@@ -1,24 +1,23 @@
 <!DOCTYPE html>
-<html>
-<head>
-    <title>Reference File</title>
-    <link rel="author" title="Zhang Xiaochong" href="mailto:joy.xczhang@gmail.com">
-    <style type="text/css">
-        .container {
-            position: relative;
-        }
-        .ref {
-            background-color: green;
-            height: 150px;
-            position: absolute;
-            width: 150px;
-        }
-    </style>
-</head>
-<body>
-    <p>The test passes if there is a filled green square and no red.</p>
-    <div class="container">
-        <div class="ref"></div>
-    </div>
-</body>
-</html>
+
+  <meta charset="UTF-8">
+
+  <title>CSS Reftest reference</title>
+
+  <link rel="author" title="Gérard Talbot" href="http://www.gtalbot.org/BrowserBugsSection/css21testsuite/">
+
+  <style>
+  div
+    {
+      border-color: black;
+      border-style: solid;
+      display: inline-block;
+      margin: 8px 8px 16px 16px;
+      vertical-align: top;
+    }
+
+  </style>
+
+  <div id="first-subtest" style="border-width: 10px 0px 0px 10px; height: 54px; width: 54px; margin-left: 8px;"></div><div id="second-subtest" style="border-width: 25px 5px 5px 25px; height: 34px; width: 34px;"></div><div id="third-subtest" style="border-width: 0px 0px 10px 10px; height: 54px; width: 54px;"></div><div id="fourth-subtest" style="border-width: 5px 5px 25px 25px; height: 34px; width: 34px;"></div><br>
+
+  <div id="fifth-subtest" style="border-width: 10px 10px 0px 0px; height: 54px; width: 54px; margin-left: 8px;"></div><div id="sixth-subtest" style="border-width: 25px 25px 5px 5px; height: 34px; width: 34px;"></div><div id="seventh-subtest" style="border-width: 0px 10px 10px 0px; height: 54px; width: 54px;"></div><div id="eighth-subtest" style="border-width: 5px 25px 25px 5px; height: 34px; width: 34px;"></div>

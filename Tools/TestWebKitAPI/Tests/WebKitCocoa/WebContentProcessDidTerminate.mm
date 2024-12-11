@@ -354,7 +354,9 @@ TEST(WKNavigation, ReloadRelatedViewsInProcessDidTerminate)
     Vector<RetainPtr<WKWebView>> webViews;
     webViews.append(webView1);
 
+    ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     configuration.get()._relatedWebView = webView1.get();
+    ALLOW_DEPRECATED_DECLARATIONS_END
     for (unsigned i = 0; i < numberOfViews - 1; ++i) {
         auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
         webViews.append(webView);
@@ -407,7 +409,7 @@ TEST(WKNavigation, WebViewURLInProcessDidTerminate)
     [webView setNavigationDelegate:navigationDelegate.get()];
 
     __block bool done = false;
-    navigationDelegate.get().webContentProcessDidTerminate = ^(WKWebView *view) {
+    navigationDelegate.get().webContentProcessDidTerminate = ^(WKWebView *view, _WKProcessTerminationReason) {
         EXPECT_EQ(view, webView.get());
         EXPECT_WK_STREQ(view.URL.absoluteString, viewURL);
         done = true;
@@ -435,7 +437,7 @@ TEST(WKNavigation, WebProcessLimit)
         return webView;
     };
 
-    [navigationDelegate setWebContentProcessDidTerminate:^(WKWebView *) {
+    [navigationDelegate setWebContentProcessDidTerminate:^(WKWebView *, _WKProcessTerminationReason) {
         didCrash = true;
     }];
 
@@ -448,7 +450,7 @@ TEST(WKNavigation, WebProcessLimit)
 
     // We have now reached the WebProcess cap, let's try and launch a new one.
     __block unsigned crashCount = 0;
-    [navigationDelegate setWebContentProcessDidTerminate:^(WKWebView * view) {
+    [navigationDelegate setWebContentProcessDidTerminate:^(WKWebView * view, _WKProcessTerminationReason) {
         EXPECT_EQ(views[0], view);
         ++crashCount;
     }];
@@ -463,7 +465,7 @@ TEST(WKNavigation, WebProcessLimit)
     }
 
     crashCount = 0;
-    [navigationDelegate setWebContentProcessDidTerminate:^(WKWebView * view) {
+    [navigationDelegate setWebContentProcessDidTerminate:^(WKWebView * view, _WKProcessTerminationReason) {
         EXPECT_EQ(views[1], view);
         ++crashCount;
     }];
@@ -497,7 +499,9 @@ TEST(WKNavigation, MultipleProcessCrashesRelatedWebViews)
     [webView1 loadRequest:[NSURLRequest requestWithURL:[[NSBundle mainBundle] URLForResource:@"simple" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"]]];
     TestWebKitAPI::Util::run(&webview1FinishedLoad);
 
+    ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     configuration.get()._relatedWebView = webView1.get();
+    ALLOW_DEPRECATED_DECLARATIONS_END
     auto webView2 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configuration:configuration.get()]);
     [webView2 setNavigationDelegate:navigationDelegate.get()];
 
@@ -529,7 +533,7 @@ TEST(WKNavigation, MultipleProcessCrashesRelatedWebViews)
     // Kill both WebContent processes and make sure that both WebView's get notified of a single crash.
     __block unsigned webView1CrashCount = 0;
     __block unsigned webView2CrashCount = 0;
-    [navigationDelegate setWebContentProcessDidTerminate:^(WKWebView * view) {
+    [navigationDelegate setWebContentProcessDidTerminate:^(WKWebView * view, _WKProcessTerminationReason) {
         if (view == webView1)
             ++webView1CrashCount;
         else

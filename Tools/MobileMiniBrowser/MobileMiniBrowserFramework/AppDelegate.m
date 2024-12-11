@@ -26,6 +26,9 @@
 #import "AppDelegate.h"
 
 #import "WebViewController.h"
+#import <WebKit/WKWebsiteDataStorePrivate.h>
+
+#import <WebKit/WebKit.h>
 
 @interface AppDelegate ()
 @end
@@ -42,6 +45,15 @@
     if (!viewController)
         return NO;
 
+    WKWebsiteDataStore *dataStore = viewController.dataStore;
+    [WKWebsiteDataStore _setWebPushActionHandler:^(_WKWebPushAction *action) {
+        return dataStore;
+    }];
+
+    NSURL *url = launchOptions[UIApplicationLaunchOptionsURLKey];
+    if (url)
+        viewController.initialURL = url;
+
     if (!self.window)
         self.window = [[UIWindow alloc] init];
     self.window.rootViewController = viewController;
@@ -50,6 +62,12 @@
     return YES;
 }
 
+- (BOOL)application:(UIApplication *)app openURL:(NSURL *)url options:(NSDictionary<UIApplicationOpenURLOptionsKey, id> *)options
+{
+    WebViewController *controller = (WebViewController *)self.window.rootViewController;
+    [controller.currentWebView loadRequest:[NSURLRequest requestWithURL:url]];
+    return YES;
+}
 
 - (void)applicationWillResignActive:(UIApplication *)application
 {

@@ -400,6 +400,7 @@ TEST(ElementTargeting, RequestElementsFromSelectors)
     EXPECT_EQ(1U, [targets count]);
     EXPECT_WK_STREQ("DIV.absolute.bottom-right", [target selectorsIncludingShadowHosts].firstObject.firstObject);
     EXPECT_TRUE([target isInVisibilityAdjustmentSubtree]);
+    EXPECT_WK_STREQ("Bottom Right", [target renderedText]);
 
     didAdjustVisibility = false;
 
@@ -434,6 +435,22 @@ TEST(ElementTargeting, SnapshotElementWithVisibilityAdjustment)
     checkPixelColor(reader.width() - 10, 10);
     checkPixelColor(reader.width() - 10, reader.height() - 10);
     checkPixelColor(10, reader.height() - 10);
+}
+
+TEST(ElementTargeting, SkipSnapshotForNonReplacedElementWithoutChildren)
+{
+    auto webViewFrame = CGRectMake(0, 0, 800, 600);
+
+    auto viewAndWindow = setUpWebViewForSnapshotting(webViewFrame);
+    auto [webView, window] = viewAndWindow;
+    [webView synchronouslyLoadTestPageNamed:@"element-targeting-10"];
+
+    RetainPtr targets = [webView targetedElementInfoWithSelectors:@[ [NSSet setWithObject:@"DIV.fixed"] ]];
+
+    EXPECT_EQ([targets count], 1U);
+    [webView adjustVisibilityForTargets:targets.get()];
+
+    EXPECT_NULL([[targets firstObject] takeSnapshot]);
 }
 
 TEST(ElementTargeting, AdjustVisibilityFromPseudoSelectors)
@@ -580,6 +597,9 @@ TEST(ElementTargeting, RequestTargetedElementsBySearchableText)
     RetainPtr targetFromSearchText = [[webView targetedElementInfoWithText:searchableText] firstObject];
     EXPECT_TRUE([targetFromSearchText isSameElement:targetFromHitTest.get()]);
     EXPECT_WK_STREQ("sunset-in-cupertino-200px.png", [[[targetFromSearchText mediaAndLinkURLs] anyObject] lastPathComponent]);
+
+    [webView adjustVisibilityForTargets:@[ targetFromSearchText.get() ]];
+    EXPECT_TRUE([targetFromSearchText isSameElement:[[webView targetedElementInfoWithText:searchableText] firstObject]]);
 }
 
 TEST(ElementTargeting, AdjustVisibilityAfterRecreatingElement)

@@ -250,9 +250,8 @@ public:
     void platformSetStatisticsCrossSiteLoadWithLinkDecoration(WKStringRef fromHost, WKStringRef toHost, bool wasFiltered, void* context, SetStatisticsCrossSiteLoadWithLinkDecorationCallBack);
 #endif
     void setStatisticsTimeToLiveUserInteraction(double seconds);
-    void statisticsProcessStatisticsAndDataRecords();
+    void statisticsProcessStatisticsAndDataRecords(CompletionHandler<void(WKTypeRef)>&&);
     void statisticsUpdateCookieBlocking(CompletionHandler<void(WKTypeRef)>&&);
-    void setStatisticsNotifyPagesWhenDataRecordsWereScanned(bool);
     void setStatisticsTimeAdvanceForTesting(double);
     void setStatisticsIsRunningTest(bool);
     void setStatisticsShouldClassifyResourcesBeforeDataRecordsRemoval(bool);
@@ -263,7 +262,7 @@ public:
     void statisticsClearInMemoryAndPersistentStore(CompletionHandler<void(WKTypeRef)>&&);
     void statisticsClearInMemoryAndPersistentStoreModifiedSinceHours(unsigned hours, CompletionHandler<void(WKTypeRef)>&&);
     void statisticsClearThroughWebsiteDataRemoval(CompletionHandler<void(WKTypeRef)>&&);
-    void statisticsDeleteCookiesForHost(WKStringRef host, bool includeHttpOnlyCookies);
+    void statisticsDeleteCookiesForHost(WKStringRef host, bool includeHttpOnlyCookies, CompletionHandler<void(WKTypeRef)>&&);
     bool isStatisticsHasLocalStorage(WKStringRef hostName);
     void setStatisticsCacheMaxAgeCap(double seconds);
     bool hasStatisticsIsolatedSession(WKStringRef hostName);
@@ -288,6 +287,8 @@ public:
     void clearAppPrivacyReportTestingData();
     bool didLoadAppInitiatedRequest();
     bool didLoadNonAppInitiatedRequest();
+
+    void setPageScaleFactor(float scaleFactor, int x, int y, CompletionHandler<void(WKTypeRef)>&&);
 
     void reloadFromOrigin();
 
@@ -342,6 +343,7 @@ public:
     bool isMockRealtimeMediaSourceCenterEnabled() const;
     void setMockCaptureDevicesInterrupted(bool isCameraInterrupted, bool isMicrophoneInterrupted);
     void triggerMockCaptureConfigurationChange(bool forMicrophone, bool forDisplay);
+    void setCaptureState(bool cameraState, bool microphoneState, bool displayState);
     bool hasAppBoundSession();
 
     void injectUserScript(WKStringRef);

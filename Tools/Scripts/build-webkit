@@ -289,7 +289,7 @@ if (isAppleCocoaWebKit()) {
     }
 
 } elsif (isWin() && !$skipLibraryUpdate) {
-    (system("python Tools/Scripts/update-webkit-wincairo-libs.py") == 0) or die;
+    (system("python Tools/Scripts/update-webkit-win-libs.py") == 0) or die;
 }
 
 # If asked to build just the WebKit project, overwrite the projects
@@ -431,7 +431,7 @@ exit 0;
 
 sub writeCongrats()
 {
-    my $launcherPath = launcherPath();
+    my $launcherCommand = launcherPath() . ' ' . join(' ', argumentsForConfiguration());
     my $launcherName = launcherName();
     my $endTime = time();
     my $buildTime = formatBuildTime($endTime - $startTime);
@@ -439,9 +439,9 @@ sub writeCongrats()
     print "\n";
     print "====================================================================\n";
     print " WebKit is now built ($buildTime). \n";
-    if ($launcherPath && $launcherName) {
-        print " To run $launcherName with this newly-built code, use the\n";
-        print " \"$launcherPath\" script.\n";
+    if ($launcherCommand && $launcherName) {
+        print " To run $launcherName with this newly-built code, use\n";
+        print " the command \"$launcherCommand\".\n";
     }
     print "====================================================================\n";
 }

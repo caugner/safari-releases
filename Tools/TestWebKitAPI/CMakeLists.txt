@@ -190,7 +190,7 @@ if (ENABLE_WEBCORE)
 
         Tests/WebCore/AffineTransform.cpp
         Tests/WebCore/CSSParser.cpp
-        Tests/WebCore/CalculationValue.cpp
+        Tests/WebCore/CSSTokenizerTests.cpp
         Tests/WebCore/ColorTests.cpp
         Tests/WebCore/ComplexTextController.cpp
         Tests/WebCore/ContextMenuAction.cpp
@@ -212,7 +212,9 @@ if (ENABLE_WEBCORE)
         Tests/WebCore/MonospaceFontTests.cpp
         Tests/WebCore/NowPlayingInfoTests.cpp
         Tests/WebCore/ParsedContentRange.cpp
+        Tests/WebCore/PathTests.cpp
         Tests/WebCore/PublicSuffix.cpp
+        Tests/WebCore/RegionTests.cpp
         Tests/WebCore/RenderStyleChange.cpp
         Tests/WebCore/SecurityOrigin.cpp
         Tests/WebCore/SharedBuffer.cpp
