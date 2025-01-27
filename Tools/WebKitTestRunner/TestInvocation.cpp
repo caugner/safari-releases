@@ -693,6 +693,11 @@ void TestInvocation::didReceiveMessageFromInjectedBundle(WKStringRef messageName
     if (WKStringIsEqualToUTF8CString(messageName, "StopLoading"))
         return WKPageStopLoading(TestController::singleton().mainWebView()->page());
 
+    if (WKStringIsEqualToUTF8CString(messageName, "ShowWebInspector")) {
+        WKPageShowWebInspectorForTesting(TestController::singleton().mainWebView()->page());
+        return;
+    }
+
     ASSERT_NOT_REACHED();
 }
 

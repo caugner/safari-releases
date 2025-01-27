@@ -78,6 +78,9 @@ imported/w3c/web-platform-tests/payment-request/payment-request-hasenrolledinstr
 imported/w3c/web-platform-tests/css/css-pseudo/selection-over-highlight-001.html [ Pass ]
 imported/w3c/web-platform-tests/css/css-pseudo/highlight-custom-properties-dynamic-001.html [ Pass ]
 
+# Tests that require wheel events
+compositing/repaint/sticky-repaint-on-scroll.html [ Pass ]
+
 # These tests are checking that WebContent is terminated when performing an invalid IPC operation for WK2.
 # They crash in debug (as expected) so we skip them there. <rdar://problem/117742950>
 [ Debug ] ipc/restrictedendpoints/mac/deny-access-modelElement.html [ Skip ]
@@ -1618,6 +1621,7 @@ webkit.org/b/263396 css3/color/text.html [ Skip ]
 
 # pixel differences on Intel Macs
 [ x86_64 ] fast/webgpu/regression/repro_275345.html [ ImageOnlyFailure ]
+[ x86_64 ] media/media-video-videorange.html [ Failure ]
 
 # skipped due to debug crashes - https://bugs.webkit.org/show_bug.cgi?id=274972
 http/tests/webgpu/webgpu/api/validation/render_pass/render_pass_descriptor.html [ Skip ]
@@ -1738,8 +1742,6 @@ webkit.org/b/274766 http/wpt/webauthn/public-key-credential-get-success-u2f.http
 
 webkit.org/b/258228 [ Sonoma+ Debug ] accessibility/mac/text-input-session-notifications.html [ Skip ]
 
-webkit.org/b/274852 imported/w3c/web-platform-tests/css/css-view-transitions/new-content-flat-transform-ancestor.html [ ImageOnlyFailure ]
-
 # rdar://129424261 (REGRESSION (279443@main): [ Sonoma Release ] WindowServer watchdog timeout on Intel machine)
 [ Release x86_64 ] http/tests/webgpu/webgpu/idl/constructable.html [ Skip ]
 [ Release x86_64 ] http/tests/webgpu/webgpu/idl/constants/flags.html [ Skip ]
@@ -1835,9 +1837,6 @@ imported/w3c/web-platform-tests/navigation-api/navigate-event/signal-abort-windo
 # webkit.org/b/278801 REGRESSION (280449@main): [ macOS wk2 ] imported/w3c/web-platform-tests/navigation-api/navigation-methods/return-value/navigate-intercept-interrupted.html is a flaky crash 
 imported/w3c/web-platform-tests/navigation-api/navigation-methods/return-value/navigate-intercept-interrupted.html [ Pass Crash ]
 
-# webkit.org/b/278833 REGRESSION (282704@main): [ macOS wk2 ] media/media-vp8-hiddenframes.html is a flaky image only failure. 
-media/media-vp8-hiddenframes.html [ Pass ImageOnlyFailure ]
-
 # webkit.org/b/278881 [ Sonoma F wk2 ] fast/scrolling/rubber-band-shows-background.html is a flaky image only failure. 
 [ Sonoma ] fast/scrolling/rubber-band-shows-background.html [ Pass ImageOnlyFailure ]
 
@@ -1853,3 +1852,6 @@ fast/scrolling/mac/scrollbars/scrollbar-state.html [ Failure ]
 # webkit.org/b/279359 http/wpt/mediastream/mediastreamtrackprocessor-videoframe-timestamp.html  is asserting on debug
 [ Sonoma+ Debug ] http/wpt/mediastream/mediastreamtrackprocessor-videoframe-timestamp.html  [ Skip ]
 [ Sonoma+ Debug ] http/wpt/mediasession/voiceActivityDetection.html [ Skip ]
+
+# rdar://139687069 (REGRESSION(283286.476@safari-7620-branch): [EWS Sequoia] ASSERTION FAILED: !m_messageReceiverMapCount in http/tests/navigation/page-cache-mediastream.html)
+[ Debug ] http/tests/navigation/page-cache-mediastream.html [ Crash ]

@@ -1262,6 +1262,23 @@ TEST_F(WebPushDTest, SubscribeTest)
     ASSERT_EQ(ignored.size(), 0u);
 }
 
+TEST_F(WebPushDTest, SubscribeWithBadIPCVersionRaisesExceptionTest)
+{
+    auto utilityConnection = createAndConfigureConnectionToService("org.webkit.webpushtestdaemon.service");
+    auto sender = WebPushXPCConnectionMessageSender { utilityConnection.get() };
+    bool done = false;
+    sender.sendWithAsyncReplyWithoutUsingIPCConnection(Messages::PushClientConnection::SetProtocolVersionForTesting(WebKit::WebPushD::protocolVersionValue + 1), [&done]() {
+        done = true;
+    });
+    TestWebKitAPI::Util::run(&done);
+
+    for (auto& v : webViews()) {
+        ASSERT_FALSE(v->hasPushSubscription());
+        id obj = v->subscribe();
+        ASSERT_TRUE([obj isEqual:@"Error: AbortError: Connection to web push daemon failed"]);
+    }
+}
+
 #if ENABLE(DECLARATIVE_WEB_PUSH)
 TEST_F(WebPushDNavigatorTest, SubscribeTest)
 {

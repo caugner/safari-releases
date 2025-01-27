@@ -108,6 +108,108 @@ TEST(WKWebExtension, DisplayStringParsing)
     EXPECT_NS_EQUAL(testExtension.errors, @[ ]);
 }
 
+TEST(WKWebExtension, DisplayStringParsingWithLocalization)
+{
+    NSMutableDictionary *testManifestDictionary = [@{
+        @"manifest_version": @2,
+        @"default_locale": @"en_US",
+
+        @"name": @"__MSG_default_name__",
+        @"short_name": @"__MSG_regional_name__",
+        @"version": @"1.0",
+        @"description": @"__MSG_default_description__"
+    } mutableCopy];
+
+    auto *defaultMessages = @{
+        @"default_name": @{
+            @"message": @"Default String",
+            @"description": @"The test name."
+        },
+        @"default_description": @{
+            @"message": @"Default Description",
+            @"description": @"The test description."
+        }
+    };
+
+    auto *regionalMessages = @{
+        @"regional_name": @{
+            @"message": @"Regional String",
+            @"description": @"The regional name."
+        }
+    };
+
+    auto *resources = @{
+        @"_locales/en/messages.json": defaultMessages,
+        @"_locales/en_US/messages.json": regionalMessages,
+    };
+
+    auto *extension = [[WKWebExtension alloc] _initWithManifestDictionary:testManifestDictionary resources:resources];
+
+    EXPECT_NS_EQUAL(extension.displayName, @"Default String");
+    EXPECT_NS_EQUAL(extension.displayShortName, @"Regional String");
+    EXPECT_NS_EQUAL(extension.displayVersion, @"1.0");
+    EXPECT_NS_EQUAL(extension.version, @"1.0");
+    EXPECT_NS_EQUAL(extension.displayDescription, @"Default Description");
+    EXPECT_NS_EQUAL(extension.errors, @[ ]);
+
+    testManifestDictionary[@"short_name"] = @"__MSG_default_name__";
+    extension = [[WKWebExtension alloc] _initWithManifestDictionary:testManifestDictionary resources:resources];
+
+    EXPECT_NS_EQUAL(extension.displayShortName, @"Default String");
+    EXPECT_NS_EQUAL(extension.errors, @[ ]);
+}
+
+TEST(WKWebExtension, DefaultLocaleParsing)
+{
+    // Test no default locale.
+    NSMutableDictionary *testManifestDictionary = [@{ @"manifest_version": @3, @"name": @"Test", @"version": @"1.0", @"description": @"Test" } mutableCopy];
+    auto *testExtension = [[WKWebExtension alloc] _initWithManifestDictionary:testManifestDictionary];
+
+    EXPECT_NULL(testExtension.defaultLocale);
+    EXPECT_NS_EQUAL(testExtension.errors, @[ ]);
+
+    // Test English without a region.
+    testManifestDictionary[@"default_locale"] = @"en";
+    testExtension = [[WKWebExtension alloc] _initWithManifestDictionary:testManifestDictionary resources:@{ @"_locales/en/messages.json": @"{}" }];
+    EXPECT_NS_EQUAL(testExtension.errors, @[ ]);
+
+    auto *defaultLocale = testExtension.defaultLocale;
+    EXPECT_NOT_NULL(defaultLocale);
+    EXPECT_NS_EQUAL(defaultLocale.localeIdentifier, @"en");
+    EXPECT_NS_EQUAL(defaultLocale.languageCode, @"en");
+    EXPECT_NULL(defaultLocale.countryCode);
+
+    // Test English with US region.
+    testManifestDictionary[@"default_locale"] = @"en_US";
+    testExtension = [[WKWebExtension alloc] _initWithManifestDictionary:testManifestDictionary resources:@{ @"_locales/en_US/messages.json": @"{}" }];
+    EXPECT_NS_EQUAL(testExtension.errors, @[ ]);
+
+    defaultLocale = testExtension.defaultLocale;
+    EXPECT_NOT_NULL(defaultLocale);
+    EXPECT_NS_EQUAL(defaultLocale.localeIdentifier, @"en_US");
+    EXPECT_NS_EQUAL(defaultLocale.languageCode, @"en");
+    EXPECT_NS_EQUAL(defaultLocale.countryCode, @"US");
+
+    // Test Simplified Chinese.
+    testManifestDictionary[@"default_locale"] = @"zh_CN";
+    testExtension = [[WKWebExtension alloc] _initWithManifestDictionary:testManifestDictionary resources:@{ @"_locales/zh_CN/messages.json": @"{}" }];
+    EXPECT_NS_EQUAL(testExtension.errors, @[ ]);
+
+    defaultLocale = testExtension.defaultLocale;
+    EXPECT_NOT_NULL(defaultLocale);
+    EXPECT_NS_EQUAL(defaultLocale.localeIdentifier, @"zh_CN");
+    EXPECT_NS_EQUAL(defaultLocale.languageCode, @"zh");
+    EXPECT_NS_EQUAL(defaultLocale.countryCode, @"CN");
+
+    // Test invalid locale.
+    testManifestDictionary[@"default_locale"] = @"invalid";
+    testExtension = [[WKWebExtension alloc] _initWithManifestDictionary:testManifestDictionary];
+
+    EXPECT_NULL(testExtension.defaultLocale);
+    EXPECT_EQ(testExtension.errors.count, 1ul);
+    EXPECT_NOT_NULL(matchingError(testExtension.errors, WKWebExtensionErrorInvalidManifestEntry));
+}
+
 #if ENABLE(WK_WEB_EXTENSIONS_ICON_VARIANTS)
 TEST(WKWebExtension, MultipleIconVariants)
 {

@@ -593,6 +593,7 @@ accessibility/button-inside-label-ax-text.html [ Skip ]
 accessibility/display-contents/dynamically-added-children.html [ Skip ]
 accessibility/display-contents/object-ordering.html [ Skip ]
 accessibility/display-contents/search-traversal.html [ Skip ]
+accessibility/display-none-descendant-of-relation.html [ Skip ]
 accessibility/empty-text-under-element-cached.html [ Skip ]
 accessibility/menuitem-is-selected.html [ Skip ]
 accessibility/search-traversal-after-role-change.html [ Skip ]
@@ -1104,6 +1105,9 @@ webkit.org/b/218317 media/media-source/media-source-trackid-change.html [ Failur
 webkit.org/b/238201 media/media-source/media-mp4-hevc-bframes.html [ Failure ]
 webkit.org/b/270622 media/media-source/media-managedmse-noresumeafterpause.html [ Timeout ]
 webkit.org/b/271631 media/media-source/media-managedmse-stall-endofstream.html [ Failure ]
+webkit.org/b/282791 media/media-source/media-source-vp8-hiddenframes.html [ ImageOnlyFailure ]
+webkit.org/b/282791 media/media-vp8-hiddenframes.html [ ImageOnlyFailure ]
+webkit.org/b/282827 media/media-video-videorange.html [ Failure ]
 
 # GStreamer (< 1.24) doesn't set the track's id to the container's value.
 webkit.org/b/265919 media/track/media-audio-track.html [ Failure ]
@@ -2392,6 +2396,9 @@ http/wpt/mediasession/setCaptureState-audio-category.html [ Skip ]
 
 # Lack of voice activity detection mock
 http/wpt/mediasession/voiceActivityDetection.html [ Skip ]
+
+# Crashing since introduced
+fast/mediastream/mediastreamtrack-clone-muted.html [ Skip ]
 
 #////////////////////////////////////////////////////////////////////////////////////////
 # End of WebRTC-related bugs
@@ -4067,6 +4074,7 @@ imported/w3c/web-platform-tests/css/css-view-transitions/navigation/pageswap-tra
 imported/w3c/web-platform-tests/css/css-view-transitions/navigation/with-types/at-rule-opt-in-auto-with-types-mutable.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-view-transitions/navigation/with-types/at-rule-opt-in-auto-with-types-no-cascade.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-view-transitions/navigation/with-types/at-rule-opt-in-auto-with-types.html [ ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-view-transitions/navigation/auto-name-from-id.html [ ImageOnlyFailure ]
 http/wpt/css/css-view-transitions/navigation/old_vt_promises_bfcache.html [ Failure ]
 
 imported/w3c/web-platform-tests/svg/text/reftests/transform-dynamic-change.html [ ImageOnlyFailure ]

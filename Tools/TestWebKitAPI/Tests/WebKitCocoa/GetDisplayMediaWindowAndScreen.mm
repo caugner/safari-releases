@@ -31,12 +31,17 @@
 #import "Test.h"
 #import "TestWKWebView.h"
 #import "UserMediaCaptureUIDelegate.h"
+#import <WebKit/WKPagePrivate.h>
 #import <WebKit/WKPreferencesPrivate.h>
 #import <WebKit/WKUIDelegatePrivate.h>
 #import <WebKit/WKWebViewConfiguration.h>
 #import <WebKit/WKWebViewConfigurationPrivate.h>
 #import <WebKit/WKWebViewPrivate.h>
 #import <WebKit/WKWebViewPrivateForTesting.h>
+
+@interface WKWebView ()
+- (WKPageRef)_pageForTesting;
+@end
 
 @interface WindowAndScreenCaptureTestView : TestWKWebView
 - (BOOL)haveStream:(BOOL)expected;
@@ -225,7 +230,7 @@ TEST(WebKit2, GetDisplayMediaWindowAndScreenPrompt)
     EXPECT_TRUE([webView _displayCaptureSurfaces] == WKDisplayCaptureSurfaceWindow);
     EXPECT_TRUE([observer displayCaptureSurfaces] == WKDisplayCaptureSurfaceWindow);
 
-    // Mute and unmute
+    // Mute and unmute with ObjC SPI
     completionCalled = false;
     [webView _setDisplayCaptureState:WKDisplayCaptureStateMuted completionHandler:^() {
         completionCalled = true;
@@ -245,6 +250,12 @@ TEST(WebKit2, GetDisplayMediaWindowAndScreenPrompt)
     EXPECT_TRUE([observer displayCaptureState] == WKDisplayCaptureStateActive);
     EXPECT_TRUE([webView _displayCaptureSurfaces] == WKDisplayCaptureSurfaceWindow);
     EXPECT_TRUE([observer displayCaptureSurfaces] == WKDisplayCaptureSurfaceWindow);
+
+    // Mute and unmute with C SPI
+    WKPageSetMuted([webView _pageForTesting], kWKMediaScreenCaptureMuted);
+    EXPECT_TRUE([observer waitForDisplayCaptureState:WKDisplayCaptureStateMuted]);
+    WKPageSetMuted([webView _pageForTesting], kWKMediaScreenCaptureUnmuted);
+    EXPECT_TRUE([observer waitForDisplayCaptureState:WKDisplayCaptureStateActive]);
 
     [webView stringByEvaluatingJavaScript:@"stop()"];
     [webView _setIndexOfGetDisplayMediaDeviceSelectedForTesting:nil];

@@ -141,6 +141,10 @@ media/media-source/media-managedmse-video-with-poster.html [ Pass ]
 
 webkit.org/b/269897 media/media-source/media-managedmse-poster.html [ Skip ]
 
+webkit.org/b/282969 media/media-video-fullrange.html [ Timeout Pass ]
+webkit.org/b/282969 media/media-video-videorange.html [ Timeout Pass ]
+webkit.org/b/282968 media/media-vp8-hiddenframes.html [ ImageOnlyFailure Pass ]
+
 fast/images/text-recognition [ Pass ]
 fast/images/text-recognition/ios [ Pass ]
 fast/images/text-recognition/mac [ Skip ]
@@ -2277,6 +2281,7 @@ accessibility/display-contents/object-ordering.html [ Pass ]
 accessibility/display-contents/table.html [ Pass ]
 accessibility/display-contents/table-section-elements.html [ Pass ]
 accessibility/display-flex-shadow-dom-accname.html [ Pass ]
+accessibility/display-none-descendant-of-relation.html [ Pass ]
 accessibility/dynamic-aria-describedby-subtree.html [ Pass ]
 accessibility/dynamic-aria-describedby-text.html [ Pass ]
 accessibility/dynamic-text.html [ Pass ]
@@ -2313,6 +2318,7 @@ accessibility/out-of-bounds-rowspan-aria-hidden.html [ Pass ]
 accessibility/out-of-bounds-rowspan-presentational-row.html [ Pass ]
 accessibility/out-of-bounds-rowspan-orphan-rows.html [ Pass ]
 accessibility/page-reload-deadlock.html [ Pass ]
+accessibility/password-selected-text-range.html [ Pass ]
 accessibility/placeholder.html [ Pass ]
 accessibility/progress-indeterminate-value.html [ Pass ]
 accessibility/range-input-increment-decrement-fires-input-event.html [ Pass ]
@@ -7452,3 +7458,5 @@ imported/w3c/web-platform-tests/css/css-view-transitions/new-content-intrinsic-a
 
 # off by 1 pixel (rounding)
 imported/w3c/web-platform-tests/css/css-inline/text-box-trim/text-box-on-non-root-inline-box.html [ Failure ]
+
+webkit.org/b/284761 imported/w3c/web-platform-tests/screen-orientation/orientation-reading.html [ Skip ]
