@@ -56,12 +56,12 @@ IDBConnectionProxy::IDBConnectionProxy(IDBConnectionToServer& connection)
 
 void IDBConnectionProxy::ref()
 {
-    m_connectionToServer.ref();
+    m_connectionToServer->ref();
 }
 
 void IDBConnectionProxy::deref()
 {
-    m_connectionToServer.deref();
+    m_connectionToServer->deref();
 }
 
 Ref<IDBOpenDBRequest> IDBConnectionProxy::openDatabase(ScriptExecutionContext& context, const IDBDatabaseIdentifier& databaseIdentifier, uint64_t version)
@@ -275,36 +275,24 @@ void IDBConnectionProxy::abortOpenAndUpgradeNeeded(IDBDatabaseConnectionIdentifi
     callConnectionOnMainThread(&IDBConnectionToServer::abortOpenAndUpgradeNeeded, databaseConnectionIdentifier, transactionIdentifier);
 }
 
-std::pair<RefPtr<IDBDatabase>, std::optional<ScriptExecutionContextIdentifier>> IDBConnectionProxy::databaseFromConnectionIdentifier(IDBDatabaseConnectionIdentifier connectionIdentifier)
-{
-    Locker locker { m_databaseConnectionMapLock };
-    auto it = m_databaseConnectionMap.find(connectionIdentifier);
-    if (it == m_databaseConnectionMap.end())
-        return { };
-
-    RefPtr database = it->value.database.get();
-    if (!database) {
-        m_databaseConnectionMap.remove(it);
-        return { };
-    }
-
-    return { database, it->value.contextIdentifier };
-}
-
 void IDBConnectionProxy::fireVersionChangeEvent(IDBDatabaseConnectionIdentifier databaseConnectionIdentifier, const IDBResourceIdentifier& requestIdentifier, uint64_t requestedVersion)
 {
-    auto [database, contextIdentifier] = databaseFromConnectionIdentifier(databaseConnectionIdentifier);
+    RefPtr<IDBDatabase> database;
+    {
+        Locker locker { m_databaseConnectionMapLock };
+        database = m_databaseConnectionMap.get(databaseConnectionIdentifier);
+    }
+
     if (!database)
         return;
 
-    ASSERT(contextIdentifier);
     if (database->isContextSuspended()) {
         didFireVersionChangeEvent(databaseConnectionIdentifier, requestIdentifier, IndexedDB::ConnectionClosedOnBehalfOfServer::Yes);
-        ScriptExecutionContext::ensureOnContextThreadForCrossThreadTask(*contextIdentifier, createCrossThreadTask(*database,  &IDBDatabase::connectionToServerLost, IDBError { ExceptionCode::UnknownError, "Connection on cached page closed to unblock other connections"_s }));
+        database->performCallbackOnOriginThread(*database, &IDBDatabase::connectionToServerLost, IDBError { ExceptionCode::UnknownError, "Connection on cached page closed to unblock other connections"_s });
         return;
     }
 
-    ScriptExecutionContext::ensureOnContextThreadForCrossThreadTask(*contextIdentifier, createCrossThreadTask(*database,  &IDBDatabase::fireVersionChangeEvent, requestIdentifier, requestedVersion));
+    database->performCallbackOnOriginThread(*database, &IDBDatabase::fireVersionChangeEvent, requestIdentifier, requestedVersion);
 }
 
 void IDBConnectionProxy::didFireVersionChangeEvent(IDBDatabaseConnectionIdentifier databaseConnectionIdentifier, const IDBResourceIdentifier& requestIdentifier, IndexedDB::ConnectionClosedOnBehalfOfServer connectionClosed)
@@ -433,11 +421,16 @@ void IDBConnectionProxy::databaseConnectionClosed(IDBDatabase& database)
 
 void IDBConnectionProxy::didCloseFromServer(IDBDatabaseConnectionIdentifier databaseConnectionIdentifier, const IDBError& error)
 {
-    auto [database, contextIdentifier] = databaseFromConnectionIdentifier(databaseConnectionIdentifier);
+    RefPtr<IDBDatabase> database;
+    {
+        Locker locker { m_databaseConnectionMapLock };
+        database = m_databaseConnectionMap.get(databaseConnectionIdentifier);
+    }
+
     if (!database)
         return;
 
-    ScriptExecutionContext::ensureOnContextThreadForCrossThreadTask(*contextIdentifier, createCrossThreadTask(*database,  &IDBDatabase::didCloseFromServer, error));
+    database->performCallbackOnOriginThread(*database, &IDBDatabase::didCloseFromServer, error);
 }
 
 void IDBConnectionProxy::connectionToServerLost(const IDBError& error)
@@ -449,11 +442,16 @@ void IDBConnectionProxy::connectionToServerLost(const IDBError& error)
     }
 
     for (auto connectionIdentifier : databaseConnectionIdentifiers) {
-        auto [database, contextIdentifier] = databaseFromConnectionIdentifier(connectionIdentifier);
+        RefPtr<IDBDatabase> database;
+        {
+            Locker locker { m_databaseConnectionMapLock };
+            database = m_databaseConnectionMap.get(connectionIdentifier);
+        }
+
         if (!database)
             continue;
 
-        ScriptExecutionContext::ensureOnContextThreadForCrossThreadTask(*contextIdentifier, createCrossThreadTask(*database,  &IDBDatabase::connectionToServerLost, error));
+        database->performCallbackOnOriginThread(*database, &IDBDatabase::connectionToServerLost, error);
     }
 
     Vector<IDBResourceIdentifier> openDBRequestIdentifiers;
@@ -492,7 +490,7 @@ void IDBConnectionProxy::scheduleMainThreadTasks()
     if (m_mainThreadProtector)
         return;
 
-    m_mainThreadProtector = &m_connectionToServer;
+    m_mainThreadProtector = m_connectionToServer.ptr();
     callOnMainThread([this] {
         handleMainThreadTasks();
     });
@@ -540,18 +538,19 @@ void IDBConnectionProxy::didGetAllDatabaseNamesAndVersions(const IDBResourceIden
     request->performCallbackOnOriginThread(*request, &IDBDatabaseNameAndVersionRequest::complete, WTFMove(databases));
 }
 
-void IDBConnectionProxy::registerDatabaseConnection(IDBDatabase& database, ScriptExecutionContextIdentifier identifier)
+void IDBConnectionProxy::registerDatabaseConnection(IDBDatabase& database)
 {
     Locker locker { m_databaseConnectionMapLock };
 
     ASSERT(!m_databaseConnectionMap.contains(database.databaseConnectionIdentifier()));
-    m_databaseConnectionMap.set(database.databaseConnectionIdentifier(), WeakIDBDatabase { &database, identifier });
+    m_databaseConnectionMap.set(database.databaseConnectionIdentifier(), &database);
 }
 
 void IDBConnectionProxy::unregisterDatabaseConnection(IDBDatabase& database)
 {
     Locker locker { m_databaseConnectionMapLock };
 
+    ASSERT(!m_databaseConnectionMap.contains(database.databaseConnectionIdentifier()) || m_databaseConnectionMap.get(database.databaseConnectionIdentifier()) == &database);
     m_databaseConnectionMap.remove(database.databaseConnectionIdentifier());
 }
 
@@ -650,17 +649,9 @@ void IDBConnectionProxy::abortActivitiesForCurrentThread()
 void IDBConnectionProxy::setContextSuspended(ScriptExecutionContext& currentContext, bool isContextSuspended)
 {
     {
-        auto currentContextIdentifier = currentContext.identifier();
         Locker locker { m_databaseConnectionMapLock };
-        for (auto weakDatabase : m_databaseConnectionMap.values()) {
-            if (RefPtr database = weakDatabase.database.get()) {
-                auto contextIdentifier = weakDatabase.contextIdentifier;
-                if (contextIdentifier && contextIdentifier == currentContextIdentifier)
-                    database->setIsContextSuspended(isContextSuspended);
-            }
-        }
+        setMatchingItemsContextSuspended(currentContext, m_databaseConnectionMap, isContextSuspended);
     }
-
     {
         Locker locker { m_openDBRequestMapLock };
         setMatchingItemsContextSuspended(currentContext, m_openDBRequestMap, isContextSuspended);

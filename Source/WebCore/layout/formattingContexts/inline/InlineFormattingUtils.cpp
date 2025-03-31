@@ -205,7 +205,7 @@ FloatingContext::Constraints InlineFormattingUtils::floatConstraintsForLine(Inli
 
 InlineLayoutUnit InlineFormattingUtils::horizontalAlignmentOffset(const RenderStyle& rootStyle, InlineLayoutUnit contentLogicalRight, InlineLayoutUnit lineLogicalWidth, InlineLayoutUnit hangingTrailingWidth, const Line::RunList& runs, bool isLastLine, std::optional<TextDirection> inlineBaseDirectionOverride)
 {
-    // Depending on the line's alignment/justification, the hanging glyph can be placed outside the line box.
+    // Depending on the line’s alignment/justification, the hanging glyph can be placed outside the line box.
     if (hangingTrailingWidth) {
         // If white-space is set to pre-wrap, the UA must (unconditionally) hang this sequence, unless the sequence is followed
         // by a forced line break, in which case it must conditionally hang the sequence is instead.
@@ -540,7 +540,7 @@ size_t InlineFormattingUtils::nextWrapOpportunity(size_t startIndex, const Inlin
             // Soft wrap opportunity is at the first inline box that encloses the trailing content.
             for (auto candidateIndex = start + 1; candidateIndex < end; ++candidateIndex) {
                 auto& inlineItem = inlineItemList[candidateIndex];
-                ASSERT(inlineItem.isInlineBoxStart() || inlineItem.isInlineBoxEnd() || inlineItem.isOpaque());
+                ASSERT(inlineItem.isInlineBoxStartOrEnd() || inlineItem.isOpaque());
                 if (inlineItem.isInlineBoxStart())
                     inlineBoxStack.append({ &inlineItem.layoutBox(), candidateIndex });
                 else if (inlineItem.isInlineBoxEnd() && !inlineBoxStack.isEmpty())
@@ -563,7 +563,7 @@ std::pair<InlineLayoutUnit, InlineLayoutUnit> InlineFormattingUtils::textEmphasi
     if (!hasTextEmphasis)
         return { };
     auto emphasisPosition = style.textEmphasisPosition();
-    // Normally we resolve visual -> logical values at pre-layout time, but emphasis values are not part of the general box geometry.
+    // Normally we resolve visual -> logical values at pre-layout time, but emphaisis values are not part of the general box geometry.
     auto hasAboveTextEmphasis = false;
     auto hasUnderTextEmphasis = false;
     if (style.isVerticalWritingMode()) {
@@ -597,14 +597,10 @@ std::pair<InlineLayoutUnit, InlineLayoutUnit> InlineFormattingUtils::textEmphasi
     return { hasAboveTextEmphasis ? annotationSize : 0.f, hasAboveTextEmphasis ? 0.f : annotationSize };
 }
 
-LineEndingTruncationPolicy InlineFormattingUtils::lineEndingTruncationPolicy(const RenderStyle& rootStyle, size_t numberOfLinesWithInlineContent, std::optional<size_t> numberOfVisibleLinesAllowed, bool currentLineHasInlineContent)
+LineEndingTruncationPolicy InlineFormattingUtils::lineEndingTruncationPolicy(const RenderStyle& rootStyle, size_t numberOfLinesWithInlineContent, std::optional<size_t> numberOfVisibleLinesAllowed)
 {
     if (numberOfVisibleLinesAllowed) {
         // text-overflow: ellipsis should not apply inside clamping content.
-        if (!currentLineHasInlineContent) {
-            // Content with no inline should never ever receive ellipsis.
-            return LineEndingTruncationPolicy::NoTruncation;
-        }
         return *numberOfVisibleLinesAllowed == numberOfLinesWithInlineContent ? LineEndingTruncationPolicy::WhenContentOverflowsInBlockDirection : LineEndingTruncationPolicy::NoTruncation;
     }
 

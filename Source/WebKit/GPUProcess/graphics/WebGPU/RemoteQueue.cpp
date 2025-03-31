@@ -54,7 +54,7 @@ RemoteQueue::~RemoteQueue() = default;
 
 void RemoteQueue::destruct()
 {
-    protectedObjectHeap()->removeObject(m_identifier);
+    m_objectHeap->removeObject(m_identifier);
 }
 
 void RemoteQueue::stopListeningForIPC()
@@ -67,18 +67,18 @@ void RemoteQueue::submit(Vector<WebGPUIdentifier>&& commandBuffers)
     Vector<std::reference_wrapper<WebCore::WebGPU::CommandBuffer>> convertedCommandBuffers;
     convertedCommandBuffers.reserveInitialCapacity(commandBuffers.size());
     for (WebGPUIdentifier identifier : commandBuffers) {
-        auto convertedCommandBuffer = protectedObjectHeap()->convertCommandBufferFromBacking(identifier);
+        auto convertedCommandBuffer = m_objectHeap->convertCommandBufferFromBacking(identifier);
         ASSERT(convertedCommandBuffer);
         if (!convertedCommandBuffer)
             return;
         convertedCommandBuffers.append(*convertedCommandBuffer);
     }
-    protectedBacking()->submit(WTFMove(convertedCommandBuffers));
+    m_backing->submit(WTFMove(convertedCommandBuffers));
 }
 
 void RemoteQueue::onSubmittedWorkDone(CompletionHandler<void()>&& callback)
 {
-    protectedBacking()->onSubmittedWorkDone([callback = WTFMove(callback)] () mutable {
+    m_backing->onSubmittedWorkDone([callback = WTFMove(callback)] () mutable {
         callback();
     });
 }
@@ -90,14 +90,14 @@ void RemoteQueue::writeBuffer(
     CompletionHandler<void(bool)>&& completionHandler)
 {
     auto data = dataHandle ? WebCore::SharedMemory::map(WTFMove(*dataHandle), WebCore::SharedMemory::Protection::ReadOnly) : nullptr;
-    auto convertedBuffer = protectedObjectHeap()->convertBufferFromBacking(buffer);
+    auto convertedBuffer = m_objectHeap->convertBufferFromBacking(buffer);
     ASSERT(convertedBuffer);
     if (!convertedBuffer) {
         completionHandler(false);
         return;
     }
 
-    protectedBacking()->writeBufferNoCopy(*convertedBuffer, bufferOffset, data ? data->mutableSpan() : std::span<uint8_t> { }, 0, std::nullopt);
+    m_backing->writeBufferNoCopy(*convertedBuffer, bufferOffset, data ? data->mutableSpan() : std::span<uint8_t> { }, 0, std::nullopt);
     completionHandler(true);
 }
 
@@ -109,19 +109,18 @@ void RemoteQueue::writeTexture(
     CompletionHandler<void(bool)>&& completionHandler)
 {
     auto data = dataHandle ? WebCore::SharedMemory::map(WTFMove(*dataHandle), WebCore::SharedMemory::Protection::ReadOnly) : nullptr;
-    Ref objectHeap = m_objectHeap.get();
-    auto convertedDestination = objectHeap->convertFromBacking(destination);
+    auto convertedDestination = m_objectHeap->convertFromBacking(destination);
     ASSERT(convertedDestination);
-    auto convertedDataLayout = objectHeap->convertFromBacking(dataLayout);
+    auto convertedDataLayout = m_objectHeap->convertFromBacking(dataLayout);
     ASSERT(convertedDestination);
-    auto convertedSize = objectHeap->convertFromBacking(size);
+    auto convertedSize = m_objectHeap->convertFromBacking(size);
     ASSERT(convertedSize);
     if (!convertedDestination || !convertedDestination || !convertedSize) {
         completionHandler(false);
         return;
     }
 
-    protectedBacking()->writeTexture(*convertedDestination, data ? data->mutableSpan() : std::span<uint8_t> { }, *convertedDataLayout, *convertedSize);
+    m_backing->writeTexture(*convertedDestination, data ? data->mutableSpan() : std::span<uint8_t> { }, *convertedDataLayout, *convertedSize);
     completionHandler(true);
 }
 
@@ -130,32 +129,21 @@ void RemoteQueue::copyExternalImageToTexture(
     const WebGPU::ImageCopyTextureTagged& destination,
     const WebGPU::Extent3D& copySize)
 {
-    Ref objectHeap = m_objectHeap.get();
-    auto convertedSource = objectHeap->convertFromBacking(source);
+    auto convertedSource = m_objectHeap->convertFromBacking(source);
     ASSERT(convertedSource);
-    auto convertedDestination = objectHeap->convertFromBacking(destination);
+    auto convertedDestination = m_objectHeap->convertFromBacking(destination);
     ASSERT(convertedDestination);
-    auto convertedCopySize = objectHeap->convertFromBacking(copySize);
+    auto convertedCopySize = m_objectHeap->convertFromBacking(copySize);
     ASSERT(convertedCopySize);
     if (!convertedDestination || !convertedDestination || !convertedCopySize)
         return;
 
-    protectedBacking()->copyExternalImageToTexture(*convertedSource, *convertedDestination, *convertedCopySize);
+    m_backing->copyExternalImageToTexture(*convertedSource, *convertedDestination, *convertedCopySize);
 }
 
 void RemoteQueue::setLabel(String&& label)
 {
-    protectedBacking()->setLabel(WTFMove(label));
-}
-
-Ref<WebCore::WebGPU::Queue> RemoteQueue::protectedBacking()
-{
-    return m_backing;
-}
-
-Ref<WebGPU::ObjectHeap> RemoteQueue::protectedObjectHeap() const
-{
-    return m_objectHeap.get();
+    m_backing->setLabel(WTFMove(label));
 }
 
 } // namespace WebKit

@@ -155,6 +155,12 @@ public:
     ~NetworkProcess();
     static constexpr WebCore::AuxiliaryProcessType processType = WebCore::AuxiliaryProcessType::Network;
 
+    // CheckedPtr interface
+    uint32_t ptrCount() const final { return CanMakeCheckedPtr::ptrCount(); }
+    uint32_t ptrCountWithoutThreadCheck() const final { return CanMakeCheckedPtr::ptrCountWithoutThreadCheck(); }
+    void incrementPtrCount() const final { CanMakeCheckedPtr::incrementPtrCount(); }
+    void decrementPtrCount() const final { CanMakeCheckedPtr::decrementPtrCount(); }
+
     template <typename T>
     T* supplement()
     {
@@ -389,6 +395,7 @@ public:
 
 #if ENABLE(WEB_RTC)
     RTCDataChannelRemoteManagerProxy& rtcDataChannelProxy();
+    Ref<RTCDataChannelRemoteManagerProxy> protectedRTCDataChannelProxy();
 #endif
 
     bool ftpEnabled() const { return m_ftpEnabled; }
@@ -417,10 +424,10 @@ public:
     void deleteWebsiteDataForOrigin(PAL::SessionID, OptionSet<WebsiteDataType>, const WebCore::ClientOrigin&, CompletionHandler<void()>&&);
     void deleteWebsiteDataForOrigins(PAL::SessionID, OptionSet<WebsiteDataType>, const Vector<WebCore::SecurityOriginData>& origins, const Vector<String>& cookieHostNames, const Vector<String>& HSTSCacheHostnames, const Vector<RegistrableDomain>&, CompletionHandler<void()>&&);
 
-    enum class AllowCookieAccess : uint8_t { Disallow, Allow, Terminate };
-    AllowCookieAccess allowsFirstPartyForCookies(WebCore::ProcessIdentifier, const URL&);
-    AllowCookieAccess allowsFirstPartyForCookies(WebCore::ProcessIdentifier, const RegistrableDomain&);
+    bool allowsFirstPartyForCookies(WebCore::ProcessIdentifier, const URL&);
+    bool allowsFirstPartyForCookies(WebCore::ProcessIdentifier, const RegistrableDomain&);
     void addAllowedFirstPartyForCookies(WebCore::ProcessIdentifier, WebCore::RegistrableDomain&&, LoadedWebArchive, CompletionHandler<void()>&&);
+    void webProcessWillLoadWebArchive(WebCore::ProcessIdentifier);
 
     void requestBackgroundFetchPermission(PAL::SessionID, const WebCore::ClientOrigin&, CompletionHandler<void(bool)>&&);
     void setInspectionForServiceWorkersAllowed(PAL::SessionID, bool);
@@ -434,15 +441,7 @@ public:
 
     bool enableModernDownloadProgress() const { return m_enableModernDownloadProgress; }
 
-    WebCore::ShouldRelaxThirdPartyCookieBlocking shouldRelaxThirdPartyCookieBlockingForPage(std::optional<WebPageProxyIdentifier>) const;
-
 private:
-    // CheckedPtr interface
-    uint32_t ptrCount() const final { return CanMakeCheckedPtr::ptrCount(); }
-    uint32_t ptrCountWithoutThreadCheck() const final { return CanMakeCheckedPtr::ptrCountWithoutThreadCheck(); }
-    void incrementPtrCount() const final { CanMakeCheckedPtr::incrementPtrCount(); }
-    void decrementPtrCount() const final { CanMakeCheckedPtr::decrementPtrCount(); }
-
     void platformInitializeNetworkProcess(const NetworkProcessCreationParameters&);
 
     void didReceiveNetworkProcessMessage(IPC::Connection&, IPC::Decoder&);
@@ -463,6 +462,7 @@ private:
     void didReceiveMessage(IPC::Connection&, IPC::Decoder&) override;
     bool didReceiveSyncMessage(IPC::Connection&, IPC::Decoder&, UniqueRef<IPC::Encoder>&) override;
     void didClose(IPC::Connection&) override;
+    bool dispatchMessage(IPC::Connection&, IPC::Decoder&);
 
     // DownloadManager::Client
     void didCreateDownload() override;
@@ -493,7 +493,7 @@ private:
     void publishDownloadProgress(DownloadID, const URL&, SandboxExtensionHandle&&);
 #endif
 #endif
-    void dataTaskWithRequest(WebPageProxyIdentifier, PAL::SessionID, WebCore::ResourceRequest&&, const std::optional<WebCore::SecurityOriginData>& topOrigin, IPC::FormDataReference&&, CompletionHandler<void(DataTaskIdentifier)>&&);
+    void dataTaskWithRequest(WebPageProxyIdentifier, PAL::SessionID, WebCore::ResourceRequest&&, const std::optional<WebCore::SecurityOriginData>& topOrigin, IPC::FormDataReference&&, CompletionHandler<void(std::optional<DataTaskIdentifier>)>&&);
     void cancelDataTask(DataTaskIdentifier, PAL::SessionID, CompletionHandler<void()>&&);
     void applicationDidEnterBackground();
     void applicationWillEnterForeground();
@@ -544,8 +544,6 @@ private:
 #endif
     void stopRunLoopIfNecessary();
 
-    void setShouldRelaxThirdPartyCookieBlockingForPage(WebPageProxyIdentifier);
-
     // Connections to WebProcesses.
     HashMap<WebCore::ProcessIdentifier, Ref<NetworkConnectionToWebProcess>> m_webProcessConnections;
 
@@ -595,7 +593,6 @@ private:
     HashMap<WebCore::PageIdentifier, Vector<WebCore::UserContentURLPattern>> m_extensionCORSDisablingPatterns;
     HashSet<RefPtr<NetworkStorageManager>> m_closingStorageManagers;
     HashSet<String> m_localhostAliasesForTesting;
-    HashSet<WebPageProxyIdentifier> m_pagesWithRelaxedThirdPartyCookieBlocking;
 
     bool m_privateClickMeasurementEnabled { true };
     bool m_ftpEnabled { false };

@@ -1820,31 +1820,24 @@ bool RenderObject::isSelectionBorder() const
         || view().selection().end() == this;
 }
 
-bool RenderObject::setCapturedInViewTransition(bool captured)
+void RenderObject::setCapturedInViewTransition(bool captured)
 {
-    if (capturedInViewTransition() == captured)
-        return false;
+    if (capturedInViewTransition() != captured) {
+        m_stateBitfields.setFlag(StateFlag::CapturedInViewTransition, captured);
 
-    m_stateBitfields.setFlag(StateFlag::CapturedInViewTransition, captured);
+        CheckedPtr<RenderLayer> layerToInvalidate;
+        if (isDocumentElementRenderer())
+            layerToInvalidate = view().layer();
+        else if (hasLayer())
+            layerToInvalidate = downcast<RenderLayerModelObject>(*this).layer();
 
-    CheckedPtr<RenderLayer> layerToInvalidate;
-    if (isDocumentElementRenderer()) {
-        layerToInvalidate = view().layer();
-        view().compositor().setRootElementCapturedInViewTransition(captured);
-    } else if (hasLayer())
-        layerToInvalidate = downcast<RenderLayerModelObject>(*this).layer();
+        if (layerToInvalidate) {
+            layerToInvalidate->setNeedsPostLayoutCompositingUpdate();
 
-    if (layerToInvalidate) {
-        layerToInvalidate->setNeedsPostLayoutCompositingUpdate();
-
-        // Invalidate transform applied by `RenderLayerBacking::updateTransform`.
-        layerToInvalidate->setNeedsCompositingGeometryUpdate();
+            // Invalidate transform applied by `RenderLayerBacking::updateTransform`.
+            layerToInvalidate->setNeedsCompositingGeometryUpdate();
+        }
     }
-
-    if (CheckedPtr renderBox = dynamicDowncast<RenderBox>(*this))
-        renderBox->invalidateAncestorBackgroundObscurationStatus();
-
-    return true;
 }
 
 void RenderObject::willBeDestroyed()

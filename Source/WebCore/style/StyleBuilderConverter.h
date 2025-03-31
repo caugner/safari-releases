@@ -64,7 +64,6 @@
 #include "GridPositionsResolver.h"
 #include "LineClampValue.h"
 #include "LocalFrame.h"
-#include "Quirks.h"
 #include "QuotesData.h"
 #include "RenderStyleInlines.h"
 #include "SVGElementTypeHelpers.h"
@@ -153,8 +152,6 @@ public:
     static ScrollSnapStop convertScrollSnapStop(BuilderState&, const CSSValue&);
     static std::optional<ScrollbarColor> convertScrollbarColor(BuilderState&, const CSSValue&);
     static ScrollbarGutter convertScrollbarGutter(BuilderState&, const CSSValue&);
-    // scrollbar-width converter is only needed for quirking.
-    static ScrollbarWidth convertScrollbarWidth(const BuilderState&, const CSSValue&);
     static GridTrackSize convertGridTrackSize(BuilderState&, const CSSValue&);
     static Vector<GridTrackSize> convertGridTrackSizeList(BuilderState&, const CSSValue&);
     static std::optional<GridTrackList> convertGridTrackList(BuilderState&, const CSSValue&);
@@ -225,7 +222,7 @@ public:
     static std::optional<Length> convertBlockStepSize(BuilderState&, const CSSValue&);
 
     static Vector<Style::ScopedName> convertViewTransitionClass(BuilderState&, const CSSValue&);
-    static Style::ViewTransitionName convertViewTransitionName(BuilderState&, const CSSValue&);
+    static std::optional<Style::ScopedName> convertViewTransitionName(BuilderState&, const CSSValue&);
     static RefPtr<WillChangeData> convertWillChange(BuilderState&, const CSSValue&);
     
     static Vector<AtomString> convertScrollTimelineName(BuilderState&, const CSSValue&);
@@ -240,6 +237,8 @@ public:
     static LineClampValue convertLineClamp(BuilderState&, const CSSValue&);
 
     static RefPtr<TimingFunction> convertTimingFunction(BuilderState&, const CSSValue&);
+
+    static TimelineScope convertTimelineScope(BuilderState&, const CSSValue&);
 
 private:
     friend class BuilderCustom;
@@ -1193,15 +1192,6 @@ inline ScrollbarGutter BuilderConverter::convertScrollbarGutter(BuilderState&, c
     return gutter;
 }
 
-inline ScrollbarWidth BuilderConverter::convertScrollbarWidth(const BuilderState& builderState, const CSSValue& value)
-{
-    ScrollbarWidth scrollbarWidth = fromCSSValueDeducingType(builderState, value);
-    if (scrollbarWidth == ScrollbarWidth::Thin && builderState.document().quirks().needsScrollbarWidthThinDisabledQuirk())
-        return ScrollbarWidth::Auto;
-
-    return scrollbarWidth;
-}
-
 inline GridLength BuilderConverter::createGridTrackBreadth(BuilderState& builderState, const CSSPrimitiveValue& primitiveValue)
 {
     if (primitiveValue.valueID() == CSSValueMinContent || primitiveValue.valueID() == CSSValueWebkitMinContent)
@@ -1353,7 +1343,7 @@ inline GridPosition BuilderConverter::createGridPosition(BuilderState& builderSt
     auto gridLineName = uncheckedGridLineName && uncheckedGridLineName->isCustomIdent() ? uncheckedGridLineName->stringValue() : String();
 
     if (uncheckedSpanValue && uncheckedSpanValue->valueID() == CSSValueSpan)
-        position.setSpanPosition(gridLineNumber > 0 ? gridLineNumber : 1, gridLineName);
+        position.setSpanPosition(gridLineNumber ? gridLineNumber : 1, gridLineName);
     else
         position.setExplicitPosition(gridLineNumber, gridLineName);
 
@@ -2035,19 +2025,16 @@ inline Vector<Style::ScopedName> BuilderConverter::convertViewTransitionClass(Bu
     });
 }
 
-inline Style::ViewTransitionName BuilderConverter::convertViewTransitionName(BuilderState& state, const CSSValue& value)
+inline std::optional<Style::ScopedName> BuilderConverter::convertViewTransitionName(BuilderState& state, const CSSValue& value)
 {
     auto* primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value);
     if (!primitiveValue)
-        return Style::ViewTransitionName::createWithNone();
+        return { };
 
     if (value.valueID() == CSSValueNone)
-        return Style::ViewTransitionName::createWithNone();
+        return std::nullopt;
 
-    if (value.valueID() == CSSValueAuto)
-        return Style::ViewTransitionName::createWithAuto(state.styleScopeOrdinal());
-
-    return Style::ViewTransitionName::createWithCustomIdent(state.styleScopeOrdinal(), AtomString { primitiveValue->stringValue() });
+    return Style::ScopedName { AtomString { primitiveValue->stringValue() }, state.styleScopeOrdinal() };
 }
 
 inline RefPtr<WillChangeData> BuilderConverter::convertWillChange(BuilderState& builderState, const CSSValue& value)
@@ -2180,6 +2167,29 @@ inline RefPtr<TimingFunction> BuilderConverter::convertTimingFunction(BuilderSta
 {
     return createTimingFunction(value);
 }
+
+inline TimelineScope BuilderConverter::convertTimelineScope(BuilderState&, const CSSValue& value)
+{
+    if (auto* primitiveValue = dynamicDowncast<CSSPrimitiveValue>(value)) {
+        switch (primitiveValue->valueID()) {
+        case CSSValueNone:
+            return { };
+        case CSSValueAll:
+            return { TimelineScope::Type::All, { } };
+        default:
+            return { TimelineScope::Type::Ident, { AtomString { primitiveValue->stringValue() } } };
+        }
+    }
+
+    auto* list = dynamicDowncast<CSSValueList>(value);
+    if (!list)
+        return { };
+
+    return { TimelineScope::Type::Ident, WTF::map(*list, [&](auto& item) {
+        return AtomString { downcast<CSSPrimitiveValue>(item).stringValue() };
+    }) };
+}
+
 
 } // namespace Style
 } // namespace WebCore

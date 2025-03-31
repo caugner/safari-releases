@@ -58,6 +58,7 @@
 #include "SWContextManager.h"
 #include "ScriptController.h"
 #include "ScriptDisallowedScope.h"
+#include "ScriptTelemetryCategory.h"
 #include "ServiceWorker.h"
 #include "ServiceWorkerGlobalScope.h"
 #include "ServiceWorkerProvider.h"
@@ -78,6 +79,7 @@
 #include <JavaScriptCore/Exception.h>
 #include <JavaScriptCore/JSPromise.h>
 #include <JavaScriptCore/ScriptCallStack.h>
+#include <JavaScriptCore/SourceTaintedOrigin.h>
 #include <JavaScriptCore/StackVisitor.h>
 #include <JavaScriptCore/StrongInlines.h>
 #include <JavaScriptCore/VM.h>
@@ -772,27 +774,6 @@ bool ScriptExecutionContext::ensureOnContextThread(ScriptExecutionContextIdentif
     return true;
 }
 
-bool ScriptExecutionContext::ensureOnContextThreadForCrossThreadTask(ScriptExecutionContextIdentifier identifier, CrossThreadTask&& crossThreadTask)
-{
-    {
-        Locker locker { allScriptExecutionContextsMapLock };
-        auto context = allScriptExecutionContextsMap().get(identifier);
-
-        if (!context)
-            return false;
-
-        if (!context->isContextThread()) {
-            context->postTask([crossThreadTask = WTFMove(crossThreadTask)](ScriptExecutionContext&) mutable {
-                crossThreadTask.performTask();
-            });
-            return true;
-        }
-    }
-
-    crossThreadTask.performTask();
-    return true;
-}
-
 void ScriptExecutionContext::postTaskToResponsibleDocument(Function<void(Document&)>&& callback)
 {
     if (auto* document = dynamicDowncast<Document>(*this)) {
@@ -978,13 +959,38 @@ RefCountedSerialFunctionDispatcher& ScriptExecutionContext::nativePromiseDispatc
     return *m_nativePromiseDispatcher;
 }
 
-bool ScriptExecutionContext::isAlwaysOnLoggingAllowed() const
+bool ScriptExecutionContext::requiresScriptExecutionTelemetry(ScriptTelemetryCategory category)
 {
-    auto sessionID = this->sessionID();
-    if (!sessionID)
+    Ref vm = this->vm();
+    if (!vm->topCallFrame)
         return false;
 
-    return sessionID->isAlwaysOnLoggingAllowed() || settingsValues().allowPrivacySensitiveOperationsInNonPersistentDataStores;
+    auto [taintedness, taintedURL] = JSC::sourceTaintedOriginFromStack(vm, vm->topCallFrame);
+    switch (taintedness) {
+    case JSC::SourceTaintedOrigin::Untainted:
+    case JSC::SourceTaintedOrigin::IndirectlyTaintedByHistory:
+        return false;
+    case JSC::SourceTaintedOrigin::IndirectlyTainted:
+    case JSC::SourceTaintedOrigin::KnownTainted:
+        break;
+    }
+
+    RefPtr document = dynamicDowncast<Document>(*this);
+    if (!document)
+        return true;
+
+    RefPtr page = document->page();
+    if (!page)
+        return true;
+
+    if (!page->settings().scriptTelemetryLoggingEnabled())
+        return true;
+
+    if (!page->reportScriptTelemetry(taintedURL, category))
+        return true;
+
+    addConsoleMessage(MessageSource::JS, MessageLevel::Info, makeString(taintedURL.string(), " tried to access "_s, description(category)));
+    return true;
 }
 
 WebCoreOpaqueRoot root(ScriptExecutionContext* context)

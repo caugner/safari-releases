@@ -87,7 +87,7 @@ public:
     const BitVector& tailCallSuccessors() const { return m_tailCallSuccessors; }
     bool tailCallClobbersInstance() const { return m_tailCallClobbersInstance ; }
     void setTailCall(uint32_t, bool);
-    void setTailCallClobbersInstance() { m_tailCallClobbersInstance = true; }
+    void setTailCallClobbersInstance(bool value) { m_tailCallClobbersInstance  = value; }
 
     void setNumVars(unsigned numVars) { m_numVars = numVars; }
     void setNumCalleeLocals(unsigned numCalleeLocals) { m_numCalleeLocals = numCalleeLocals; }

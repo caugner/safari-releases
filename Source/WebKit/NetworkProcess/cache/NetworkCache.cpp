@@ -111,21 +111,17 @@ Cache::Cache(NetworkProcess& networkProcess, const String& storageDirectory, Ref
 {
 #if ENABLE(NETWORK_CACHE_SPECULATIVE_REVALIDATION)
     if (options.contains(CacheOption::SpeculativeRevalidation)) {
-        m_lowPowerModeNotifier = makeUnique<WebCore::LowPowerModeNotifier>([weakThis = WeakPtr { *this }](bool isLowPowerModeEnabled) {
+        m_lowPowerModeNotifier = makeUnique<WebCore::LowPowerModeNotifier>([this](bool isLowPowerModeEnabled) {
             ASSERT(WTF::RunLoop::isMain());
-            RefPtr protectedThis = weakThis.get();
-            if (!protectedThis)
-                return;
-
             if (isLowPowerModeEnabled)
-                protectedThis->m_speculativeLoadManager = nullptr;
+                m_speculativeLoadManager = nullptr;
             else {
-                ASSERT(!protectedThis->m_speculativeLoadManager);
-                protectedThis->m_speculativeLoadManager = makeUnique<SpeculativeLoadManager>(*protectedThis, protectedThis->protectedStorage());
+                ASSERT(!m_speculativeLoadManager);
+                m_speculativeLoadManager = makeUnique<SpeculativeLoadManager>(*this, m_storage.get());
             }
         });
         if (!m_lowPowerModeNotifier->isLowPowerModeEnabled())
-            m_speculativeLoadManager = makeUnique<SpeculativeLoadManager>(*this, protectedStorage());
+            m_speculativeLoadManager = makeUnique<SpeculativeLoadManager>(*this, m_storage.get());
     }
 #endif
 

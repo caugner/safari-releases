@@ -392,9 +392,8 @@ enum class WebCore::StorageBlockingPolicy : uint8_t {
 
 enum class WebCore::HTTPSByDefaultMode : uint8_t {
     Disabled,
-    UpgradeWithAutomaticFallback,
-    UpgradeWithUserMediatedFallback
-    UpgradeAndNoFallback
+    UpgradeWithHTTPFallback,
+    UpgradeAndFailClosed
 };
 
 #if HAVE(TRANSLATION_UI_SERVICES) && ENABLE(CONTEXT_MENUS)
@@ -2700,7 +2699,7 @@ struct WebCore::EventTrackingRegions {
 enum class WebCore::HasInsecureContent : bool
 
 struct WebCore::TextManipulationItem {
-    WebCore::FrameIdentifier frameID;
+    Markable<WebCore::FrameIdentifier> frameID;
     bool isSubframe;
     bool isCrossSiteSubframe;
     WebCore::TextManipulationItemIdentifier identifier;
@@ -2814,6 +2813,7 @@ header: <WebCore/ScrollingCoordinatorTypes.h>
     bool allowsVerticalScrolling;
     WebCore::NativeScrollbarVisibility horizontalNativeScrollbarVisibility;
     WebCore::NativeScrollbarVisibility verticalNativeScrollbarVisibility;
+    bool useDarkAppearanceForScrollbars;
     WebCore::ScrollbarWidth scrollbarWidthStyle;
 };
 
@@ -3039,10 +3039,7 @@ class WebCore::SVGPathByteStream {
 }
 
 header: <WebCore/BasicShapes.h>
-[Nested, CustomHeader] enum class WebCore::BasicShapeCenterCoordinate::Direction : bool
-
 [CustomHeader] class WebCore::BasicShapeCenterCoordinate {
-    WebCore::BasicShapeCenterCoordinate::Direction direction();
     WebCore::Length length();
 }
 
@@ -3158,8 +3155,8 @@ header: <WebCore/PathOperation.h>
 
 header: <WebCore/LengthPoint.h>
 struct WebCore::LengthPoint {
-    WebCore::Length x();
-    WebCore::Length y();
+    WebCore::Length x;
+    WebCore::Length y;
 }
 
 [RefCounted, CustomHeader] class WebCore::RayPathOperation {
@@ -4150,7 +4147,6 @@ header: <WebCore/ScrollingStateNode.h>
     ScrollbarEnabledState
     ScrollbarLayoutDirection
     ScrollbarWidth
-    UseDarkAppearanceForScrollbars
     FrameScaleFactor
     EventTrackingRegion
     RootContentsLayer
@@ -5728,6 +5724,7 @@ enum class WebCore::AllowsContentJavaScript : bool
     FingerprintingProtections,
     EnhancedNetworkPrivacy,
     LinkDecorationFiltering,
+    ScriptTelemetry,
 };
 
 enum class WebCore::ViolationReportType : uint8_t {
@@ -6047,11 +6044,12 @@ struct WebCore::InteractionRegion {
 
 [Nested, AdditionalEncoder=StreamConnectionEncoder] class WebCore::Region::Shape {
     Vector<int, 32> m_segments;
-    [Validator='WebCore::Region::Shape::isValidShape(m_segments->span(), m_spans->span())'] Vector<WebCore::Region::Span, 16> m_spans;
+    Vector<WebCore::Region::Span, 16> m_spans;
 };
 
 [AdditionalEncoder=StreamConnectionEncoder] class WebCore::Region {
-    WebCore::Region::Shape data();
+    WebCore::IntRect bounds();
+    [Validator='!*copyShape || (*copyShape)->isValid()'] std::unique_ptr<WebCore::Region::Shape> copyShape();
 }
 
 header: <WebCore/ISOVTTCue.h>
@@ -6110,6 +6108,8 @@ header: <WebCore/ISOVTTCue.h>
     bool expectCancel;
     bool supportClientPin;
     bool supportInternalUV;
+    long maxCredentialCountInList;
+    long maxCredentialIdLength;
 };
 
 [Nested] enum class WebCore::MockWebAuthenticationConfiguration::NfcError : uint8_t {
@@ -7922,8 +7922,6 @@ header: <WebCore/TextAttachmentForSerialization.h>
 [CustomHeader] struct WebCore::MultiRepresentationHEICAttachmentData {
     String identifier;
     String description;
-    String credit;
-    String digitalSourceType;
     Vector<WebCore::MultiRepresentationHEICAttachmentSingleImage> images;
     [NotSerialized] RetainPtr<CFDataRef> data;
 }

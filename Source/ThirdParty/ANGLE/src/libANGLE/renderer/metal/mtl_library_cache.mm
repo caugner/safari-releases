@@ -110,11 +110,7 @@ AutoObjCPtr<id<MTLLibrary>> NewMetalLibraryFromMetallib(id<MTLDevice> metalDevic
                                              DISPATCH_DATA_DESTRUCTOR_DEFAULT);
 
         NSError *nsError = nil;
-        auto library = adoptObjCObj([metalDevice newLibraryWithData:mtl_data error:&nsError]);
-
-        dispatch_release(mtl_data);
-
-        return library;
+        return [metalDevice newLibraryWithData:mtl_data error:&nsError];
     }
 }
 

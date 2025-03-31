@@ -207,7 +207,6 @@ void PolicyChecker::checkNavigationPolicy(ResourceRequest&& request, const Resou
     bool isInitialEmptyDocumentLoad = !frameLoader->stateMachine().committedFirstRealDocumentLoad() && request.url().protocolIsAbout() && !substituteData.isValid();
     m_delegateIsDecidingNavigationPolicy = true;
     String suggestedFilename = action.downloadAttribute().isEmpty() ? nullAtom() : action.downloadAttribute();
-    FromDownloadAttribute fromDownloadAttribute = action.downloadAttribute().isNull() ? FromDownloadAttribute::No : FromDownloadAttribute::Yes;
     if (!action.downloadAttribute().isNull()) {
         RefPtr document = frame->document();
         if (document && document->settings().navigationAPIEnabled()) {
@@ -226,8 +225,7 @@ void PolicyChecker::checkNavigationPolicy(ResourceRequest&& request, const Resou
         formState = std::exchange(formState, nullptr),
         suggestedFilename = WTFMove(suggestedFilename),
         blobURLLifetimeExtension = WTFMove(blobURLLifetimeExtension),
-        isInitialEmptyDocumentLoad,
-        fromDownloadAttribute
+        isInitialEmptyDocumentLoad
     ] (PolicyAction policyAction) mutable {
         if (!weakThis)
             return function({ }, nullptr, NavigationPolicyDecision::IgnoreLoad);
@@ -238,9 +236,9 @@ void PolicyChecker::checkNavigationPolicy(ResourceRequest&& request, const Resou
         CheckedRef frameLoader = frame->loader();
         switch (policyAction) {
         case PolicyAction::Download:
-            if (!frameLoader->effectiveSandboxFlags().contains(SandboxFlag::Downloads)) {
+            if (!frame->effectiveSandboxFlags().contains(SandboxFlag::Downloads)) {
                 frameLoader->setOriginalURLForDownloadRequest(request);
-                frameLoader->client().startDownload(request, suggestedFilename, fromDownloadAttribute);
+                frameLoader->client().startDownload(request, suggestedFilename);
             } else if (RefPtr document = frame->document())
                 document->addConsoleMessage(MessageSource::Security, MessageLevel::Error, "Not allowed to download due to sandboxing"_s);
             FALLTHROUGH;
@@ -290,7 +288,7 @@ void PolicyChecker::checkNavigationPolicy(ResourceRequest&& request, const Resou
     auto clientRedirectSourceForHistory = documentLoader ? documentLoader->clientRedirectSourceForHistory() : String();
     auto navigationID = documentLoader ? documentLoader->navigationID() : std::nullopt;
     bool hasOpener = !!frame->opener();
-    auto sandboxFlags = frameLoader->effectiveSandboxFlags();
+    auto sandboxFlags = frame->effectiveSandboxFlags();
     auto isPerformingHTTPFallback = frameLoader->isHTTPFallbackInProgress() ? IsPerformingHTTPFallback::Yes : IsPerformingHTTPFallback::No;
 
     if (isInitialEmptyDocumentLoad) {
@@ -331,7 +329,7 @@ void PolicyChecker::checkNewWindowPolicy(NavigationAction&& navigationAction, Re
 
         switch (policyAction) {
         case PolicyAction::Download:
-            if (!frame->loader().effectiveSandboxFlags().contains(SandboxFlag::Downloads))
+            if (!frame->effectiveSandboxFlags().contains(SandboxFlag::Downloads))
                 frame->checkedLoader()->client().startDownload(request);
             else if (RefPtr document = frame->document())
                 document->addConsoleMessage(MessageSource::Security, MessageLevel::Error, "Not allowed to download due to sandboxing"_s);

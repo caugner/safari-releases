@@ -67,13 +67,9 @@ public:
     LayoutPoint oldLayerToLayoutOffset;
     LayoutSize oldSize;
     RefPtr<MutableStyleProperties> oldProperties;
-    bool initiallyIntersectsViewport { false };
-
     WeakStyleable newElement;
-    LayoutRect newOverflowRect;
-    LayoutSize newSize;
-
     Vector<AtomString> classList;
+
     RefPtr<MutableStyleProperties> groupStyleProperties;
 };
 
@@ -159,14 +155,12 @@ public:
 class ViewTransition : public RefCounted<ViewTransition>, public VisibilityChangeClient, public ActiveDOMObject {
     WTF_MAKE_TZONE_ALLOCATED(ViewTransition);
 public:
+    DEFINE_VIRTUAL_REFCOUNTED;
+
     static Ref<ViewTransition> createSamePage(Document&, RefPtr<ViewTransitionUpdateCallback>&&, Vector<AtomString>&&);
     static RefPtr<ViewTransition> resolveInboundCrossDocumentViewTransition(Document&, std::unique_ptr<ViewTransitionParams>);
     static Ref<ViewTransition> setupCrossDocumentViewTransition(Document&);
     ~ViewTransition();
-
-    // ActiveDOMObject.
-    void ref() const final { RefCounted::ref(); }
-    void deref() const final { RefCounted::deref(); }
 
     void skipTransition();
     void skipViewTransition(ExceptionOr<JSC::JSValue>&&);
@@ -200,8 +194,7 @@ private:
     ViewTransition(Document&, RefPtr<ViewTransitionUpdateCallback>&&, Vector<AtomString>&&);
     ViewTransition(Document&, Vector<AtomString>&&);
 
-    Ref<MutableStyleProperties> copyElementBaseProperties(RenderLayerModelObject&, LayoutSize&, LayoutRect& overflowRect, bool& intersectsViewport);
-    bool updatePropertiesForRenderer(CapturedElement&, RenderBoxModelObject*, const AtomString&);
+    Ref<MutableStyleProperties> copyElementBaseProperties(RenderLayerModelObject&, LayoutSize&);
 
     // Setup view transition sub-algorithms.
     ExceptionOr<void> captureOldState();
@@ -211,8 +204,7 @@ private:
 
     void callUpdateCallback();
 
-    void updatePseudoElementStyles();
-    ExceptionOr<void> updatePseudoElementSizes();
+    ExceptionOr<void> updatePseudoElementStyles();
     ExceptionOr<void> checkForViewportSizeChange();
 
     void clearViewTransition();
@@ -222,9 +214,6 @@ private:
 
     // ActiveDOMObject.
     void stop() final;
-    bool virtualHasPendingActivity() const final;
-
-    bool isCrossDocument() { return m_isCrossDocument; }
 
     OrderedNamedElementsMap m_namedElements;
     ViewTransitionPhase m_phase { ViewTransitionPhase::PendingCapture };
@@ -232,7 +221,7 @@ private:
     float m_initialPageZoom;
 
     RefPtr<ViewTransitionUpdateCallback>  m_updateCallback;
-    bool m_isCrossDocument { false };
+    bool m_shouldCallUpdateCallback { false };
 
     using PromiseAndWrapper = std::pair<Ref<DOMPromise>, Ref<DeferredPromise>>;
     PromiseAndWrapper m_ready;

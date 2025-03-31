@@ -1,4 +1,3 @@
 
-PASS @scope with external stylesheet through link element
-PASS @scope with external stylesheet through @import
+PASS @scope with external stylesheet
 

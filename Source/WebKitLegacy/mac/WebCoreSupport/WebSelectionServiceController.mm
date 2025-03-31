@@ -31,7 +31,6 @@
 #import <WebCore/FrameSelection.h>
 #import <WebCore/HTMLConverter.h>
 #import <WebCore/Range.h>
-#import <WebCore/markup.h>
 #import <pal/spi/mac/NSSharingServiceSPI.h>
 #import <wtf/TZoneMallocInlines.h>
 
@@ -54,7 +53,7 @@ void WebSelectionServiceController::handleSelectionServiceClick(WebCore::FrameSe
     if (!range)
         return;
 
-    auto attributedSelection = attributedString(*range, WebCore::IgnoreUserSelectNone::Yes).nsAttributedString();
+    auto attributedSelection = attributedString(*range).nsAttributedString();
     if (!attributedSelection)
         return;
 

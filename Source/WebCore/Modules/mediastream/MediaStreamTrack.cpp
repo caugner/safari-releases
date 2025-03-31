@@ -635,14 +635,7 @@ Ref<MediaStreamTrack> MediaStreamTrack::create(ScriptExecutionContext& context, 
         });
     });
 
-    bool isEnded = privateTrack->ended();
-    Ref track = MediaStreamTrack::create(context, WTFMove(privateTrack), RegisterCaptureTrackToOwner::No);
-    if (isEnded) {
-        track->m_ended = true;
-        track->m_readyState = State::Ended;
-    }
-
-    return track;
+    return MediaStreamTrack::create(context, WTFMove(privateTrack), RegisterCaptureTrackToOwner::No);
 }
 
 #if !RELEASE_LOG_DISABLED

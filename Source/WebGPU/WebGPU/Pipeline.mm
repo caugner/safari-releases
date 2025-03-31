@@ -30,12 +30,10 @@
 
 namespace WebGPU {
 
-std::optional<LibraryCreationResult> createLibrary(id<MTLDevice> device, const ShaderModule& shaderModule, PipelineLayout* pipelineLayout, const String& untransformedEntryPoint, NSString *label, uint32_t constantCount, const WGPUConstantEntry* constants, BufferBindingSizesForPipeline& mininumBufferSizes, NSError **error)
+std::optional<LibraryCreationResult> createLibrary(id<MTLDevice> device, const ShaderModule& shaderModule, PipelineLayout* pipelineLayout, const String& entryPoint, NSString *label, uint32_t constantCount, const WGPUConstantEntry* constants, BufferBindingSizesForPipeline& mininumBufferSizes, NSError **error)
 {
-    // FIXME: Remove below line when https://bugs.webkit.org/show_bug.cgi?id=266774 is completed
     HashMap<String, WGSL::ConstantValue> wgslConstantValues;
 
-    auto entryPoint = shaderModule.transformedEntryPoint(untransformedEntryPoint);
     if (!entryPoint.length() || !shaderModule.isValid())
         return std::nullopt;
 
@@ -88,19 +86,9 @@ std::optional<LibraryCreationResult> createLibrary(id<MTLDevice> device, const S
         const auto& entry = constants[i];
         auto keyEntry = fromAPI(entry.key);
         auto indexIterator = entryPointInformation.specializationConstants.find(keyEntry);
-        // FIXME: Remove code inside the following conditional statement when https://bugs.webkit.org/show_bug.cgi?id=266774 is completed
-        if (indexIterator == entryPointInformation.specializationConstants.end()) {
-            if (!shaderModule.hasOverride(keyEntry))
-                return { };
+        if (indexIterator == entryPointInformation.specializationConstants.end())
+            return { };
 
-            NSString *nsConstant = [NSString stringWithUTF8String:keyEntry.utf8().data()];
-            nsConstant = [nsConstant stringByApplyingTransform:NSStringTransformToLatin reverse:NO];
-            nsConstant = [nsConstant stringByFoldingWithOptions:NSDiacriticInsensitiveSearch locale:NSLocale.currentLocale];
-            keyEntry = nsConstant;
-            indexIterator = entryPointInformation.specializationConstants.find(keyEntry);
-            if (indexIterator == entryPointInformation.specializationConstants.end())
-                return { };
-        }
         const auto& specializationConstant = indexIterator->value;
         switch (specializationConstant.type) {
         case WGSL::Reflection::SpecializationConstantType::Boolean: {
@@ -155,13 +143,7 @@ std::optional<LibraryCreationResult> createLibrary(id<MTLDevice> device, const S
         }
     }
 
-    auto generationResult = WGSL::generate(*ast, result, wgslConstantValues);
-    if (auto* generationError = std::get_if<WGSL::Error>(&generationResult)) {
-        *error = [NSError errorWithDomain:@"WebGPU" code:1 userInfo:@{ NSLocalizedDescriptionKey: generationError->message() }];
-        return std::nullopt;
-    }
-    auto& msl = std::get<String>(generationResult);
-
+    auto msl = WGSL::generate(*ast, result, wgslConstantValues);
     auto library = ShaderModule::createLibrary(device, msl, label, error);
     if (error && *error)
         return { };
@@ -202,19 +184,16 @@ NSString* errorValidatingBindGroup(const BindGroup& bindGroup, const BufferBindi
             uint64_t bufferSize = 0;
             if (auto* bufferBinding = get_if<WGPUBufferBindingLayout>(&it->value.bindingLayout))
                 bufferSize = bufferBinding->minBindingSize;
-            if (mininumBufferSizes) {
-                if (auto bufferSizeIt = mininumBufferSizes->find(it->value.binding); bufferSizeIt != mininumBufferSizes->end()) {
-                    if (bufferSize && bufferSizeIt->value > bufferSize)
-                        return [NSString stringWithFormat:@"buffer size from WGSL shader(%llu) is less than the binding buffer size(%llu)", bufferSizeIt->value, bufferSize];
-                    bufferSize = std::max(bufferSize, bufferSizeIt->value);
-                }
+            if (!bufferSize && mininumBufferSizes) {
+                if (auto bufferSizeIt = mininumBufferSizes->find(it->value.binding); bufferSizeIt != mininumBufferSizes->end())
+                    bufferSize = bufferSizeIt->value;
             }
 
             if (bufferSize && buffer->get()) {
                 auto dynamicOffset = bindGroup.dynamicOffset(bindingIndex, dynamicOffsets);
                 auto totalOffset = resource.entryOffset + dynamicOffset;
                 auto mtlBufferLength = buffer->get()->buffer().length;
-                if (totalOffset > mtlBufferLength || (mtlBufferLength - totalOffset) < bufferSize || bufferSize > resource.entrySize)
+                if (totalOffset > mtlBufferLength || (mtlBufferLength - totalOffset) < bufferSize)
                     return [NSString stringWithFormat:@"buffer length(%zu) minus offset(%llu), (resourceOffset(%llu) + dynamicOffset(%u)), is less than required bufferSize(%llu)", mtlBufferLength, totalOffset, resource.entryOffset, dynamicOffset, bufferSize];
             }
         }

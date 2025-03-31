@@ -378,12 +378,12 @@ static bool pseudoStyleCacheIsInvalid(RenderElement* renderer, RenderStyle* newS
     if (!pseudoStyleCache)
         return false;
 
-    for (auto& [key, value] : pseudoStyleCache->styles) {
-        Style::PseudoElementIdentifier pseudoElementIdentifier { value->pseudoElementType(), value->pseudoElementNameArgument() };
+    for (auto& cache : pseudoStyleCache->styles) {
+        Style::PseudoElementIdentifier pseudoElementIdentifier { cache->pseudoElementType(), cache->pseudoElementNameArgument() };
         auto newPseudoStyle = renderer->getUncachedPseudoStyle(pseudoElementIdentifier, newStyle, newStyle);
         if (!newPseudoStyle)
             return true;
-        if (*newPseudoStyle != *value) {
+        if (*newPseudoStyle != *cache) {
             newStyle->addCachedPseudoStyle(WTFMove(newPseudoStyle));
             return true;
         }

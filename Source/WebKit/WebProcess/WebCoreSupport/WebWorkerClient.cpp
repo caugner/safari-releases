@@ -34,7 +34,6 @@
 #include "WebPage.h"
 #include "WebProcess.h"
 #include <WebCore/Page.h>
-#include <WebCore/WorkerOrWorkletThread.h>
 #include <wtf/TZoneMallocInlines.h>
 
 #if ENABLE(WEBGL) && ENABLE(GPU_PROCESS)
@@ -53,7 +52,7 @@ class GPUProcessWebWorkerClient final : public WebWorkerClient {
     WTF_MAKE_TZONE_ALLOCATED_INLINE(GPUProcessWebWorkerClient);
 public:
     using WebWorkerClient::WebWorkerClient;
-    UniqueRef<WorkerClient> createNestedWorkerClient(WebCore::WorkerOrWorkletThread&) final;
+    UniqueRef<WorkerClient> createNestedWorkerClient(SerialFunctionDispatcher&) final;
     RefPtr<WebCore::ImageBuffer> sinkIntoImageBuffer(std::unique_ptr<WebCore::SerializedImageBuffer>) final;
     RefPtr<WebCore::ImageBuffer> createImageBuffer(const WebCore::FloatSize&, WebCore::RenderingPurpose, float resolutionScale, const WebCore::DestinationColorSpace&, WebCore::ImageBufferPixelFormat, OptionSet<WebCore::ImageBufferOptions>) const final;
 #if ENABLE(WEBGL)
@@ -68,7 +67,8 @@ private:
     mutable std::unique_ptr<RemoteRenderingBackendProxy> m_remoteRenderingBackendProxy;
 };
 
-UniqueRef<WorkerClient> GPUProcessWebWorkerClient::createNestedWorkerClient(WorkerOrWorkletThread& dispatcher)
+
+UniqueRef<WorkerClient> GPUProcessWebWorkerClient::createNestedWorkerClient(SerialFunctionDispatcher& dispatcher)
 {
     assertIsCurrent(m_dispatcher);
     return UniqueRef<WorkerClient> { *new GPUProcessWebWorkerClient { dispatcher, m_displayID } };
@@ -119,7 +119,7 @@ RefPtr<WebCore::WebGPU::GPU> GPUProcessWebWorkerClient::createGPUForWebGPU() con
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(WebWorkerClient);
 
-UniqueRef<WebWorkerClient> WebWorkerClient::create(Page& page, WorkerOrWorkletThread& dispatcher)
+UniqueRef<WebWorkerClient> WebWorkerClient::create(Page& page, SerialFunctionDispatcher& dispatcher)
 {
     ASSERT(isMainRunLoop());
 #if ENABLE(GPU_PROCESS)
@@ -129,7 +129,7 @@ UniqueRef<WebWorkerClient> WebWorkerClient::create(Page& page, WorkerOrWorkletTh
 #endif
 }
 
-WebWorkerClient::WebWorkerClient(WorkerOrWorkletThread& dispatcher, WebCore::PlatformDisplayID displayID)
+WebWorkerClient::WebWorkerClient(SerialFunctionDispatcher& dispatcher, WebCore::PlatformDisplayID displayID)
     : m_dispatcher(dispatcher)
     , m_displayID(displayID)
 {
@@ -137,7 +137,7 @@ WebWorkerClient::WebWorkerClient(WorkerOrWorkletThread& dispatcher, WebCore::Pla
 
 WebWorkerClient::~WebWorkerClient() = default;
 
-UniqueRef<WorkerClient> WebWorkerClient::createNestedWorkerClient(WorkerOrWorkletThread& dispatcher)
+UniqueRef<WorkerClient> WebWorkerClient::createNestedWorkerClient(SerialFunctionDispatcher& dispatcher)
 {
     assertIsCurrent(m_dispatcher);
     return UniqueRef<WorkerClient> { *new WebWorkerClient { dispatcher, m_displayID } };

@@ -49,7 +49,6 @@
 #include "RenderListMarker.h"
 #include "RenderStyleInlines.h"
 #include "RenderView.h"
-#include "RenderViewTransitionRoot.h"
 #include "StyleCustomPropertyData.h"
 #include "StyleOriginatedAnimation.h"
 #include "StylePropertyShorthand.h"
@@ -147,13 +146,21 @@ RenderElement* Styleable::renderer() const
             return nullptr;
 
         // Find the right ::view-transition-group().
-        CheckedPtr correctGroup = viewTransitionRoot->childGroupForName(pseudoElementIdentifier->nameArgument);
+        RenderBlockFlow* correctGroup = nullptr;
+        for (auto& group : childrenOfType<RenderBlockFlow>(*viewTransitionRoot.get())) {
+            if (group.style().pseudoElementNameArgument() == pseudoElementIdentifier->nameArgument) {
+                correctGroup = &group;
+                break;
+            }
+        }
+
+        // If we can't find the correct group, return nullptr.
         if (!correctGroup)
             return nullptr;
 
         // Return early if we're looking for ::view-transition-group().
         if (pseudoElementIdentifier->pseudoId == PseudoId::ViewTransitionGroup)
-            return correctGroup.get();
+            return correctGroup;
 
         // Go through all descendants until we find the relevant pseudo element otherwise.
         for (auto& descendant : descendantsOfType<RenderBox>(*correctGroup)) {
@@ -552,7 +559,7 @@ static void updateCSSTransitionsForStyleableAndProperty(const Styleable& styleab
             if (transitionMatchesProperty(backingAnimation.get(), property, newStyle)) {
                 hasMatchingTransitionProperty = true;
                 matchingBackingAnimation = backingAnimation.ptr();
-                matchingTransitionDuration = std::max(0.0, matchingBackingAnimation->duration()) + matchingBackingAnimation->delay();
+                matchingTransitionDuration = std::max(0.0, matchingBackingAnimation->duration().value_or(0)) + matchingBackingAnimation->delay();
             }
         }
     } else if (!document.quirks().needsResettingTransitionCancelsRunningTransitionQuirk()) {
@@ -641,7 +648,7 @@ static void updateCSSTransitionsForStyleableAndProperty(const Styleable& styleab
         //   - reversing shortening factor is 1.
         ASSERT(matchingBackingAnimation);
         auto delay = Seconds(matchingBackingAnimation->delay());
-        auto duration = Seconds(matchingBackingAnimation->duration());
+        auto duration = Seconds(matchingBackingAnimation->duration().value_or(0));
         auto& reversingAdjustedStartStyle = beforeChangeStyle;
         auto reversingShorteningFactor = 1;
         createCSSTransition(beforeChangeStyle, delay, duration, reversingAdjustedStartStyle, reversingShorteningFactor);
@@ -700,7 +707,7 @@ static void updateCSSTransitionsForStyleableAndProperty(const Styleable& styleab
             }
             auto reversingShorteningFactor = std::max(std::min(((transformedProgress * previouslyRunningTransition->reversingShorteningFactor()) + (1 - previouslyRunningTransition->reversingShorteningFactor())), 1.0), 0.0);
             auto delay = matchingBackingAnimation->delay() < 0 ? Seconds(matchingBackingAnimation->delay()) * reversingShorteningFactor : Seconds(matchingBackingAnimation->delay());
-            auto duration = Seconds(matchingBackingAnimation->duration()) * reversingShorteningFactor;
+            auto duration = Seconds(matchingBackingAnimation->duration().value_or(0)) * reversingShorteningFactor;
 
             previouslyRunningTransition->cancelFromStyle();
             createCSSTransition(beforeChangeStyle, delay, duration, reversingAdjustedStartStyle, reversingShorteningFactor);
@@ -714,7 +721,7 @@ static void updateCSSTransitionsForStyleableAndProperty(const Styleable& styleab
             //   - reversing shortening factor is 1.
             ASSERT(matchingBackingAnimation);
             auto delay = Seconds(matchingBackingAnimation->delay());
-            auto duration = Seconds(matchingBackingAnimation->duration());
+            auto duration = Seconds(matchingBackingAnimation->duration().value_or(0));
             auto& reversingAdjustedStartStyle = currentStyle;
             auto reversingShorteningFactor = 1;
             previouslyRunningTransition->cancelFromStyle();
@@ -862,18 +869,18 @@ void Styleable::queryContainerDidChange() const
 
 bool Styleable::capturedInViewTransition() const
 {
-    return !element.viewTransitionCapturedName(pseudoElementIdentifier).isNull();
-}
+    RefPtr activeViewTransition = element.document().activeViewTransition();
+    if (!activeViewTransition || activeViewTransition->phase() != ViewTransitionPhase::Animating)
+        return false;
 
-void Styleable::setCapturedInViewTransition(AtomString captureName)
-{
-    element.setViewTransitionCapturedName(pseudoElementIdentifier, captureName);
-    if (CheckedPtr renderer = this->renderer()) {
-        bool changed = renderer->setCapturedInViewTransition(!captureName.isNull());
-        if (changed)
-            element.invalidateStyleAndLayerComposition();
+    for (auto& [name, capturedElement] : activeViewTransition->namedElements().map()) {
+        if (auto newStyleable = capturedElement->newElement.styleable()) {
+            if (*newStyleable == *this)
+                return true;
+        }
     }
-}
 
+    return false;
+}
 
 } // namespace WebCore

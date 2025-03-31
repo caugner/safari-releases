@@ -24,6 +24,7 @@
 #include "AdvancedPrivacyProtections.h"
 #include "AlternativeTextClient.h"
 #include "AnimationFrameRate.h"
+#include "AnimationTimelinesController.h"
 #include "AppHighlightStorage.h"
 #include "ApplicationCacheStorage.h"
 #include "ArchiveResource.h"
@@ -59,7 +60,6 @@
 #include "DocumentInlines.h"
 #include "DocumentLoader.h"
 #include "DocumentMarkerController.h"
-#include "DocumentTimelinesController.h"
 #include "DragController.h"
 #include "Editing.h"
 #include "Editor.h"
@@ -94,7 +94,6 @@
 #include "InspectorClient.h"
 #include "InspectorController.h"
 #include "InspectorInstrumentation.h"
-#include "IntelligenceTextEffectsSupport.h"
 #include "LayoutDisallowedScope.h"
 #include "LegacySchemeRegistry.h"
 #include "LoaderStrategy.h"
@@ -315,11 +314,11 @@ static constexpr OptionSet<ActivityState> pageInitialActivityState()
 #define GCC_MAYBE_NO_INLINE
 #endif
 
-GCC_MAYBE_NO_INLINE static Ref<Frame> createMainFrame(Page& page, PageConfiguration::ClientCreatorForMainFrame&& clientCreator, RefPtr<Frame> mainFrameOpener, FrameIdentifier identifier)
+GCC_MAYBE_NO_INLINE static Ref<Frame> createMainFrame(Page& page, PageConfiguration::MainFrameCreationParameters&& clientCreator, RefPtr<Frame> mainFrameOpener, FrameIdentifier identifier)
 {
     page.relaxAdoptionRequirement();
-    return switchOn(WTFMove(clientCreator), [&] (CompletionHandler<UniqueRef<LocalFrameLoaderClient>(LocalFrame&)>&& localFrameClientCreator) -> Ref<Frame> {
-        return LocalFrame::createMainFrame(page, WTFMove(localFrameClientCreator), identifier, mainFrameOpener.get());
+    return switchOn(WTFMove(clientCreator), [&] (PageConfiguration::LocalMainFrameCreationParameters&& creationParameters) -> Ref<Frame> {
+        return LocalFrame::createMainFrame(page, WTFMove(creationParameters.clientCreator), identifier, creationParameters.effectiveSandboxFlags, mainFrameOpener.get());
     }, [&] (CompletionHandler<UniqueRef<RemoteFrameClient>(RemoteFrame&)>&& remoteFrameClientCreator) -> Ref<Frame> {
         return RemoteFrame::createMainFrame(page, WTFMove(remoteFrameClientCreator), identifier, mainFrameOpener.get());
     });
@@ -352,7 +351,7 @@ Page::Page(PageConfiguration&& pageConfiguration)
     , m_progress(makeUniqueRef<ProgressTracker>(*this, WTFMove(pageConfiguration.progressTrackerClient)))
     , m_backForwardController(makeUniqueRef<BackForwardController>(*this, WTFMove(pageConfiguration.backForwardClient)))
     , m_editorClient(WTFMove(pageConfiguration.editorClient))
-    , m_mainFrame(createMainFrame(*this, WTFMove(pageConfiguration.clientCreatorForMainFrame), WTFMove(pageConfiguration.mainFrameOpener), pageConfiguration.mainFrameIdentifier))
+    , m_mainFrame(createMainFrame(*this, WTFMove(pageConfiguration.mainFrameCreationParameters), WTFMove(pageConfiguration.mainFrameOpener), pageConfiguration.mainFrameIdentifier))
     , m_validationMessageClient(WTFMove(pageConfiguration.validationMessageClient))
     , m_diagnosticLoggingClient(WTFMove(pageConfiguration.diagnosticLoggingClient))
     , m_performanceLoggingClient(WTFMove(pageConfiguration.performanceLoggingClient))
@@ -372,7 +371,7 @@ Page::Page(PageConfiguration&& pageConfiguration)
     , m_alternativeTextClient(WTFMove(pageConfiguration.alternativeTextClient))
     , m_consoleClient(makeUniqueRef<PageConsoleClient>(*this))
 #if ENABLE(REMOTE_INSPECTOR)
-    , m_inspectorDebuggable(PageDebuggable::create(*this))
+    , m_inspectorDebuggable(makeUniqueRef<PageDebuggable>(*this))
 #endif
     , m_socketProvider(WTFMove(pageConfiguration.socketProvider))
     , m_cookieJar(WTFMove(pageConfiguration.cookieJar))
@@ -502,9 +501,6 @@ Page::~Page()
     }
 
     m_inspectorController->inspectedPageDestroyed();
-#if ENABLE(REMOTE_INSPECTOR)
-    m_inspectorDebuggable->detachFromPage();
-#endif
 
     forEachLocalFrame([] (LocalFrame& frame) {
         frame.willDetachPage();
@@ -514,9 +510,6 @@ Page::~Page()
 
     if (RefPtr scrollingCoordinator = m_scrollingCoordinator)
         scrollingCoordinator->pageDestroyed();
-
-    if (m_resourceUsageOverlay)
-        m_resourceUsageOverlay->detachFromPage();
 
     checkedBackForward()->close();
     if (!isUtilityPage())
@@ -1630,6 +1623,8 @@ void Page::didCommitLoad()
 
     m_elementTargetingController->reset();
 
+    m_reportedScriptsWithTelemetry.clear();
+
     m_isWaitingForLoadToFinish = true;
 }
 
@@ -2376,7 +2371,7 @@ void Page::resumeScriptedAnimations()
     });
 }
 
-void Page::timelineControllerMaximumAnimationFrameRateDidChange(DocumentTimelinesController&)
+void Page::timelineControllerMaximumAnimationFrameRateDidChange(AnimationTimelinesController&)
 {
     if (CheckedPtr scheduler = existingRenderingUpdateScheduler())
         scheduler->adjustRenderingUpdateFrequency();
@@ -2387,7 +2382,7 @@ std::optional<FramesPerSecond> Page::preferredRenderingUpdateFramesPerSecond(Opt
 {
     // Unless the call site specifies an explicit set of options, this method will account for both
     // throttling reasons and the frame rate of animations to determine its return value. The only
-    // place where we specify an explicit set of options is DocumentTimelinesController::updateAnimationsAndSendEvents()
+    // place where we specify an explicit set of options is AnimationTimelinesController::updateAnimationsAndSendEvents()
     // where we need to identify what the update frame rate would be _not_ accounting for animations.
 
     auto throttlingReasons = m_throttlingReasons;
@@ -3168,9 +3163,20 @@ void Page::setCurrentKeyboardScrollingAnimator(KeyboardScrollingAnimator* animat
     m_currentKeyboardScrollingAnimator = animator;
 }
 
-bool Page::fingerprintingProtectionsEnabled() const
+bool Page::shouldApplyScreenFingerprintingProtections(Document& document) const
 {
-    return protectedMainFrame()->advancedPrivacyProtections().contains(AdvancedPrivacyProtections::FingerprintingProtections);
+    if (advancedPrivacyProtections().contains(AdvancedPrivacyProtections::FingerprintingProtections))
+        return true;
+
+    if (advancedPrivacyProtections().contains(AdvancedPrivacyProtections::ScriptTelemetry))
+        return document.requiresScriptExecutionTelemetry(ScriptTelemetryCategory::ScreenOrViewport);
+
+    return false;
+}
+
+OptionSet<AdvancedPrivacyProtections> Page::advancedPrivacyProtections() const
+{
+    return protectedMainFrame()->advancedPrivacyProtections();
 }
 
 #if ENABLE(REMOTE_INSPECTOR)
@@ -3838,7 +3844,7 @@ void Page::setResourceUsageOverlayVisible(bool visible)
     }
 
     if (!m_resourceUsageOverlay && m_settings->acceleratedCompositingEnabled())
-        m_resourceUsageOverlay = ResourceUsageOverlay::create(*this);
+        m_resourceUsageOverlay = makeUnique<ResourceUsageOverlay>(*this);
 }
 #endif
 
@@ -4336,7 +4342,7 @@ void Page::configureLoggingChannel(const String& channelName, WTFLogChannelState
 
 #if USE(LIBWEBRTC)
         RefPtr localMainFrame = dynamicDowncast<LocalFrame>(m_mainFrame.get());
-        if (channel == &LogWebRTC && localMainFrame && localMainFrame->document() && isAlwaysOnLoggingAllowed())
+        if (channel == &LogWebRTC && localMainFrame && localMainFrame->document() && !sessionID().isEphemeral())
             webRTCProvider().setLoggingLevel(LogWebRTC.level);
 #endif
     }
@@ -4977,19 +4983,14 @@ void Page::didBeginWritingToolsSession(const WritingTools::Session& session, con
     m_writingToolsController->didBeginWritingToolsSession(session, contexts);
 }
 
-void Page::proofreadingSessionDidReceiveSuggestions(const WritingTools::Session& session, const Vector<WritingTools::TextSuggestion>& suggestions, const CharacterRange& processedRange, const WritingTools::Context& context, bool finished)
+void Page::proofreadingSessionDidReceiveSuggestions(const WritingTools::Session& session, const Vector<WritingTools::TextSuggestion>& suggestions, const WritingTools::Context& context, bool finished)
 {
-    m_writingToolsController->proofreadingSessionDidReceiveSuggestions(session, suggestions, processedRange, context, finished);
+    m_writingToolsController->proofreadingSessionDidReceiveSuggestions(session, suggestions, context, finished);
 }
 
 void Page::proofreadingSessionDidUpdateStateForSuggestion(const WritingTools::Session& session, WritingTools::TextSuggestion::State state, const WritingTools::TextSuggestion& suggestion, const WritingTools::Context& context)
 {
     m_writingToolsController->proofreadingSessionDidUpdateStateForSuggestion(session, state, suggestion, context);
-}
-
-void Page::willEndWritingToolsSession(const WritingTools::Session& session, bool accepted)
-{
-    m_writingToolsController->willEndWritingToolsSession(session, accepted);
 }
 
 void Page::didEndWritingToolsSession(const WritingTools::Session& session, bool accepted)
@@ -5020,101 +5021,6 @@ void Page::respondToUnappliedWritingToolsEditing(EditCommandComposition* command
 void Page::respondToReappliedWritingToolsEditing(EditCommandComposition* command)
 {
     m_writingToolsController->respondToReappliedEditing(command);
-}
-
-Vector<FloatRect> Page::proofreadingSessionSuggestionTextRectsInRootViewCoordinates(const CharacterRange& enclosingRangeRelativeToSessionRange) const
-{
-    RefPtr localMainFrame = dynamicDowncast<LocalFrame>(mainFrame());
-    RefPtr document = localMainFrame ? localMainFrame->document() : nullptr;
-    if (!document) {
-        ASSERT_NOT_REACHED();
-        return { };
-    }
-
-    auto scope = m_writingToolsController->activeSessionRange();
-    if (!scope) {
-        ASSERT_NOT_REACHED();
-        return { };
-    }
-
-    return IntelligenceTextEffectsSupport::writingToolsTextSuggestionRectsInRootViewCoordinates(*document, *scope, enclosingRangeRelativeToSessionRange);
-}
-
-void Page::updateTextVisibilityForActiveWritingToolsSession(const CharacterRange& rangeRelativeToSessionRange, bool visible, const WTF::UUID& identifier)
-{
-    RefPtr localMainFrame = dynamicDowncast<LocalFrame>(mainFrame());
-    RefPtr document = localMainFrame ? localMainFrame->document() : nullptr;
-    if (!document) {
-        ASSERT_NOT_REACHED();
-        return;
-    }
-
-    auto scope = m_writingToolsController->activeSessionRange();
-    if (!scope) {
-        ASSERT_NOT_REACHED();
-        return;
-    }
-
-    IntelligenceTextEffectsSupport::updateTextVisibility(*document, *scope, rangeRelativeToSessionRange, visible, identifier);
-}
-
-std::optional<TextIndicatorData> Page::textPreviewDataForActiveWritingToolsSession(const CharacterRange& rangeRelativeToSessionRange)
-{
-    RefPtr localMainFrame = dynamicDowncast<LocalFrame>(mainFrame());
-    RefPtr document = localMainFrame ? localMainFrame->document() : nullptr;
-    if (!document) {
-        ASSERT_NOT_REACHED();
-        return std::nullopt;
-    }
-
-    auto scope = m_writingToolsController->activeSessionRange();
-    if (!scope) {
-        ASSERT_NOT_REACHED();
-        return std::nullopt;
-    }
-
-    return IntelligenceTextEffectsSupport::textPreviewDataForRange(*document, *scope, rangeRelativeToSessionRange);
-}
-
-void Page::decorateTextReplacementsForActiveWritingToolsSession(const CharacterRange& rangeRelativeToSessionRange)
-{
-    RefPtr localMainFrame = dynamicDowncast<LocalFrame>(mainFrame());
-    RefPtr document = localMainFrame ? localMainFrame->document() : nullptr;
-    if (!document) {
-        ASSERT_NOT_REACHED();
-        return;
-    }
-
-    auto scope = m_writingToolsController->activeSessionRange();
-    if (!scope) {
-        ASSERT_NOT_REACHED();
-        return;
-    }
-
-    IntelligenceTextEffectsSupport::decorateWritingToolsTextReplacements(*document, *scope, rangeRelativeToSessionRange);
-}
-
-void Page::setSelectionForActiveWritingToolsSession(const CharacterRange& rangeRelativeToSessionRange)
-{
-    RefPtr localMainFrame = dynamicDowncast<LocalFrame>(mainFrame());
-    RefPtr document = localMainFrame ? localMainFrame->document() : nullptr;
-    if (!document) {
-        ASSERT_NOT_REACHED();
-        return;
-    }
-
-    auto scope = m_writingToolsController->activeSessionRange();
-    if (!scope) {
-        ASSERT_NOT_REACHED();
-        return;
-    }
-
-    auto resolvedRange = resolveCharacterRange(*scope, rangeRelativeToSessionRange);
-    auto visibleSelection = VisibleSelection { resolvedRange };
-    if (visibleSelection.isNoneOrOrphaned())
-        return;
-
-    document->selection().setSelection(visibleSelection);
 }
 
 std::optional<SimpleRange> Page::contextRangeForActiveWritingToolsSession() const
@@ -5159,35 +5065,18 @@ bool Page::isFullscreenManagerEnabled() const
     return settings->fullScreenEnabled() || settings->videoFullscreenRequiresElementFullscreen();
 }
 #endif
-void Page::startDeferringResizeEvents()
+
+bool Page::reportScriptTelemetry(const URL& url, ScriptTelemetryCategory category)
 {
-    m_shouldDeferResizeEvents = true;
+    return !url.isEmpty() && m_reportedScriptsWithTelemetry.add({ url, category }).isNewEntry;
 }
 
-void Page::flushDeferredResizeEvents()
+bool Page::requiresScriptTelemetryForURL(const URL& scriptURL) const
 {
-    m_shouldDeferResizeEvents = false;
-    forEachDocument([&] (Document& document) {
-        document.flushDeferredResizeEvents();
-    });
-}
+    if (!advancedPrivacyProtections().contains(AdvancedPrivacyProtections::ScriptTelemetry))
+        return false;
 
-void Page::startDeferringScrollEvents()
-{
-    m_shouldDeferScrollEvents = true;
-}
-
-void Page::flushDeferredScrollEvents()
-{
-    m_shouldDeferScrollEvents = false;
-    forEachDocument([&] (Document& document) {
-        document.flushDeferredScrollEvents();
-    });
-}
-
-bool Page::isAlwaysOnLoggingAllowed() const
-{
-    return m_sessionID.isAlwaysOnLoggingAllowed() || protectedSettings()->allowPrivacySensitiveOperationsInNonPersistentDataStores();
+    return chrome().client().requiresScriptTelemetryForURL(scriptURL, mainFrameOrigin());
 }
 
 } // namespace WebCore

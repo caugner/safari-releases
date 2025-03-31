@@ -46,8 +46,9 @@ namespace NetworkCache {
 
 class IOChannel;
 
-class Storage : public ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr<Storage, WTF::DestructionThread::MainRunLoop> {
+class Storage : public ThreadSafeRefCounted<Storage, WTF::DestructionThread::Main>, public CanMakeThreadSafeCheckedPtr<Storage> {
     WTF_MAKE_FAST_ALLOCATED;
+    WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(Storage);
 public:
     enum class Mode { Normal, AvoidRandomness };
     static RefPtr<Storage> open(const String& cachePath, Mode, size_t capacity);

@@ -52,7 +52,6 @@
 #import "RemoteLayerTreeDrawingAreaProxyMac.h"
 #import "RemoteObjectRegistry.h"
 #import "RemoteObjectRegistryMessages.h"
-#import "Site.h"
 #import "TextChecker.h"
 #import "TextCheckerState.h"
 #import "TiledCoreAnimationDrawingAreaProxy.h"
@@ -117,6 +116,7 @@
 #import <WebCore/PlaybackSessionInterfaceMac.h>
 #import <WebCore/PromisedAttachmentInfo.h>
 #import <WebCore/ShareableBitmap.h>
+#import <WebCore/Site.h>
 #import <WebCore/TextAlternativeWithRange.h>
 #import <WebCore/TextRecognitionResult.h>
 #import <WebCore/TextUndoInsertionMarkupMac.h>
@@ -1308,8 +1308,9 @@ WebViewImpl::WebViewImpl(NSView <WebViewImplDelegate> *view, WKWebView *outerWeb
 
     m_page->setAddsVisitedLinks(processPool.historyClient().addsVisitedLinks());
 
-    auto& openerInfo = m_page->configuration().openerInfo();
-    m_page->initializeWebPage(openerInfo ? openerInfo->site : Site(aboutBlankURL()));
+    auto& pageConfiguration = m_page->configuration();
+    auto& openerInfo = pageConfiguration.openerInfo();
+    m_page->initializeWebPage(openerInfo ? openerInfo->site : WebCore::Site(aboutBlankURL()), pageConfiguration.initialSandboxFlags());
 
     registerDraggedTypes();
 
@@ -2290,8 +2291,6 @@ void WebViewImpl::viewDidMoveToWindow()
             cancelImmediateActionAnimation();
             [m_view removeGestureRecognizer:m_immediateActionGestureRecognizer.get()];
         }
-
-        removeFlagsChangedEventMonitor();
     }
 
     m_page->setIntrinsicDeviceScaleFactor(intrinsicDeviceScaleFactor());
@@ -2938,20 +2937,20 @@ bool WebViewImpl::validateUserInterfaceItem(id <NSValidatedUserInterfaceItem> it
 
     if (action == @selector(toggleContinuousSpellChecking:)) {
         bool enabled = TextChecker::isContinuousSpellCheckingAllowed();
-        bool checked = enabled && TextChecker::state().contains(TextCheckerState::ContinuousSpellCheckingEnabled);
+        bool checked = enabled && TextChecker::state().isContinuousSpellCheckingEnabled;
         [menuItem(item) setState:checked ? NSControlStateValueOn : NSControlStateValueOff];
         return enabled;
     }
 
     if (action == @selector(toggleGrammarChecking:)) {
-        bool checked = TextChecker::state().contains(TextCheckerState::GrammarCheckingEnabled);
+        bool checked = TextChecker::state().isGrammarCheckingEnabled;
         [menuItem(item) setState:checked ? NSControlStateValueOn : NSControlStateValueOff];
         return true;
     }
 
     if (action == @selector(toggleAutomaticSpellingCorrection:)) {
         bool enable = m_page->editorState().canEnableAutomaticSpellingCorrection;
-        menuItem(item).state = TextChecker::state().contains(TextCheckerState::AutomaticSpellingCorrectionEnabled) && enable ? NSControlStateValueOn : NSControlStateValueOff;
+        menuItem(item).state = TextChecker::state().isAutomaticSpellingCorrectionEnabled && enable ? NSControlStateValueOn : NSControlStateValueOff;
         return enable;
     }
 
@@ -2968,25 +2967,25 @@ bool WebViewImpl::validateUserInterfaceItem(id <NSValidatedUserInterfaceItem> it
     }
 
     if (action == @selector(toggleAutomaticQuoteSubstitution:)) {
-        bool checked = TextChecker::state().contains(TextCheckerState::AutomaticQuoteSubstitutionEnabled);
+        bool checked = TextChecker::state().isAutomaticQuoteSubstitutionEnabled;
         [menuItem(item) setState:checked ? NSControlStateValueOn : NSControlStateValueOff];
         return m_page->editorState().isContentEditable;
     }
 
     if (action == @selector(toggleAutomaticDashSubstitution:)) {
-        bool checked = TextChecker::state().contains(TextCheckerState::AutomaticDashSubstitutionEnabled);
+        bool checked = TextChecker::state().isAutomaticDashSubstitutionEnabled;
         [menuItem(item) setState:checked ? NSControlStateValueOn : NSControlStateValueOff];
         return m_page->editorState().isContentEditable;
     }
 
     if (action == @selector(toggleAutomaticLinkDetection:)) {
-        bool checked = TextChecker::state().contains(TextCheckerState::AutomaticLinkDetectionEnabled);
+        bool checked = TextChecker::state().isAutomaticLinkDetectionEnabled;
         [menuItem(item) setState:checked ? NSControlStateValueOn : NSControlStateValueOff];
         return m_page->editorState().isContentEditable;
     }
 
     if (action == @selector(toggleAutomaticTextReplacement:)) {
-        bool checked = TextChecker::state().contains(TextCheckerState::AutomaticTextReplacementEnabled);
+        bool checked = TextChecker::state().isAutomaticTextReplacementEnabled;
         [menuItem(item) setState:checked ? NSControlStateValueOn : NSControlStateValueOff];
         return m_page->editorState().isContentEditable;
     }
@@ -3088,7 +3087,7 @@ void WebViewImpl::changeSpelling(id sender)
 
 void WebViewImpl::setContinuousSpellCheckingEnabled(bool enabled)
 {
-    if (TextChecker::state().contains(TextCheckerState::ContinuousSpellCheckingEnabled) == enabled)
+    if (TextChecker::state().isContinuousSpellCheckingEnabled == enabled)
         return;
 
     TextChecker::setContinuousSpellCheckingEnabled(enabled);
@@ -3097,7 +3096,7 @@ void WebViewImpl::setContinuousSpellCheckingEnabled(bool enabled)
 
 void WebViewImpl::toggleContinuousSpellChecking()
 {
-    bool spellCheckingEnabled = !TextChecker::state().contains(TextCheckerState::ContinuousSpellCheckingEnabled);
+    bool spellCheckingEnabled = !TextChecker::state().isContinuousSpellCheckingEnabled;
     TextChecker::setContinuousSpellCheckingEnabled(spellCheckingEnabled);
 
     m_page->legacyMainFrameProcess().updateTextCheckerState();
@@ -3105,12 +3104,12 @@ void WebViewImpl::toggleContinuousSpellChecking()
 
 bool WebViewImpl::isGrammarCheckingEnabled()
 {
-    return TextChecker::state().contains(TextCheckerState::GrammarCheckingEnabled);
+    return TextChecker::state().isGrammarCheckingEnabled;
 }
 
 void WebViewImpl::setGrammarCheckingEnabled(bool flag)
 {
-    if (static_cast<bool>(flag) == TextChecker::state().contains(TextCheckerState::GrammarCheckingEnabled))
+    if (static_cast<bool>(flag) == TextChecker::state().isGrammarCheckingEnabled)
         return;
 
     TextChecker::setGrammarCheckingEnabled(flag);
@@ -3119,7 +3118,7 @@ void WebViewImpl::setGrammarCheckingEnabled(bool flag)
 
 void WebViewImpl::toggleGrammarChecking()
 {
-    bool grammarCheckingEnabled = !TextChecker::state().contains(TextCheckerState::GrammarCheckingEnabled);
+    bool grammarCheckingEnabled = !TextChecker::state().isGrammarCheckingEnabled;
     TextChecker::setGrammarCheckingEnabled(grammarCheckingEnabled);
 
     m_page->legacyMainFrameProcess().updateTextCheckerState();
@@ -3127,7 +3126,7 @@ void WebViewImpl::toggleGrammarChecking()
 
 void WebViewImpl::toggleAutomaticSpellingCorrection()
 {
-    TextChecker::setAutomaticSpellingCorrectionEnabled(!TextChecker::state().contains(TextCheckerState::AutomaticSpellingCorrectionEnabled));
+    TextChecker::setAutomaticSpellingCorrectionEnabled(!TextChecker::state().isAutomaticSpellingCorrectionEnabled);
 
     m_page->legacyMainFrameProcess().updateTextCheckerState();
 }
@@ -3155,12 +3154,12 @@ void WebViewImpl::toggleSmartInsertDelete()
 
 bool WebViewImpl::isAutomaticQuoteSubstitutionEnabled()
 {
-    return TextChecker::state().contains(TextCheckerState::AutomaticQuoteSubstitutionEnabled);
+    return TextChecker::state().isAutomaticQuoteSubstitutionEnabled;
 }
 
 void WebViewImpl::setAutomaticQuoteSubstitutionEnabled(bool flag)
 {
-    if (static_cast<bool>(flag) == TextChecker::state().contains(TextCheckerState::AutomaticQuoteSubstitutionEnabled))
+    if (static_cast<bool>(flag) == TextChecker::state().isAutomaticQuoteSubstitutionEnabled)
         return;
 
     TextChecker::setAutomaticQuoteSubstitutionEnabled(flag);
@@ -3169,18 +3168,18 @@ void WebViewImpl::setAutomaticQuoteSubstitutionEnabled(bool flag)
 
 void WebViewImpl::toggleAutomaticQuoteSubstitution()
 {
-    TextChecker::setAutomaticQuoteSubstitutionEnabled(!TextChecker::state().contains(TextCheckerState::AutomaticQuoteSubstitutionEnabled));
+    TextChecker::setAutomaticQuoteSubstitutionEnabled(!TextChecker::state().isAutomaticQuoteSubstitutionEnabled);
     m_page->legacyMainFrameProcess().updateTextCheckerState();
 }
 
 bool WebViewImpl::isAutomaticDashSubstitutionEnabled()
 {
-    return TextChecker::state().contains(TextCheckerState::AutomaticDashSubstitutionEnabled);
+    return TextChecker::state().isAutomaticDashSubstitutionEnabled;
 }
 
 void WebViewImpl::setAutomaticDashSubstitutionEnabled(bool flag)
 {
-    if (static_cast<bool>(flag) == TextChecker::state().contains(TextCheckerState::AutomaticDashSubstitutionEnabled))
+    if (static_cast<bool>(flag) == TextChecker::state().isAutomaticDashSubstitutionEnabled)
         return;
 
     TextChecker::setAutomaticDashSubstitutionEnabled(flag);
@@ -3189,18 +3188,18 @@ void WebViewImpl::setAutomaticDashSubstitutionEnabled(bool flag)
 
 void WebViewImpl::toggleAutomaticDashSubstitution()
 {
-    TextChecker::setAutomaticDashSubstitutionEnabled(!TextChecker::state().contains(TextCheckerState::AutomaticDashSubstitutionEnabled));
+    TextChecker::setAutomaticDashSubstitutionEnabled(!TextChecker::state().isAutomaticDashSubstitutionEnabled);
     m_page->legacyMainFrameProcess().updateTextCheckerState();
 }
 
 bool WebViewImpl::isAutomaticLinkDetectionEnabled()
 {
-    return TextChecker::state().contains(TextCheckerState::AutomaticLinkDetectionEnabled);
+    return TextChecker::state().isAutomaticLinkDetectionEnabled;
 }
 
 void WebViewImpl::setAutomaticLinkDetectionEnabled(bool flag)
 {
-    if (static_cast<bool>(flag) == TextChecker::state().contains(TextCheckerState::AutomaticLinkDetectionEnabled))
+    if (static_cast<bool>(flag) == TextChecker::state().isAutomaticLinkDetectionEnabled)
         return;
 
     TextChecker::setAutomaticLinkDetectionEnabled(flag);
@@ -3209,18 +3208,18 @@ void WebViewImpl::setAutomaticLinkDetectionEnabled(bool flag)
 
 void WebViewImpl::toggleAutomaticLinkDetection()
 {
-    TextChecker::setAutomaticLinkDetectionEnabled(!TextChecker::state().contains(TextCheckerState::AutomaticLinkDetectionEnabled));
+    TextChecker::setAutomaticLinkDetectionEnabled(!TextChecker::state().isAutomaticLinkDetectionEnabled);
     m_page->legacyMainFrameProcess().updateTextCheckerState();
 }
 
 bool WebViewImpl::isAutomaticTextReplacementEnabled()
 {
-    return TextChecker::state().contains(TextCheckerState::AutomaticTextReplacementEnabled);
+    return TextChecker::state().isAutomaticTextReplacementEnabled;
 }
 
 void WebViewImpl::setAutomaticTextReplacementEnabled(bool flag)
 {
-    if (static_cast<bool>(flag) == TextChecker::state().contains(TextCheckerState::AutomaticTextReplacementEnabled))
+    if (static_cast<bool>(flag) == TextChecker::state().isAutomaticTextReplacementEnabled)
         return;
 
     TextChecker::setAutomaticTextReplacementEnabled(flag);
@@ -3229,7 +3228,7 @@ void WebViewImpl::setAutomaticTextReplacementEnabled(bool flag)
 
 void WebViewImpl::toggleAutomaticTextReplacement()
 {
-    TextChecker::setAutomaticTextReplacementEnabled(!TextChecker::state().contains(TextCheckerState::AutomaticTextReplacementEnabled));
+    TextChecker::setAutomaticTextReplacementEnabled(!TextChecker::state().isAutomaticTextReplacementEnabled);
     m_page->legacyMainFrameProcess().updateTextCheckerState();
 }
 
@@ -3450,7 +3449,7 @@ void WebViewImpl::dismissContentRelativeChildWindowsFromViewOnly()
 bool WebViewImpl::hasContentRelativeChildViews() const
 {
 #if ENABLE(WRITING_TOOLS)
-    return [m_view _web_hasActiveIntelligenceTextEffects] || [m_textAnimationTypeManager hasActiveTextAnimationType];
+    return [m_textAnimationTypeManager hasActiveTextAnimationType];
 #else
     return false;
 #endif
@@ -3487,7 +3486,6 @@ void WebViewImpl::contentRelativeViewsHysteresisTimerFired(PAL::HysteresisState 
 void WebViewImpl::suppressContentRelativeChildViews()
 {
 #if ENABLE(WRITING_TOOLS)
-    [m_view _web_suppressContentRelativeChildViews];
     [m_textAnimationTypeManager suppressTextAnimationType];
 #endif
 }
@@ -3495,7 +3493,6 @@ void WebViewImpl::suppressContentRelativeChildViews()
 void WebViewImpl::restoreContentRelativeChildViews()
 {
 #if ENABLE(WRITING_TOOLS)
-    [m_view _web_restoreContentRelativeChildViews];
     [m_textAnimationTypeManager restoreTextAnimationType];
 #endif
 }
@@ -3613,7 +3610,7 @@ void WebViewImpl::setIgnoresMouseDraggedEvents(bool ignoresMouseDraggedEvents)
     m_ignoresMouseDraggedEvents = ignoresMouseDraggedEvents;
 }
 
-void WebViewImpl::setAccessibilityWebProcessToken(NSData *data, WebCore::FrameIdentifier frameID, pid_t pid)
+void WebViewImpl::setAccessibilityWebProcessToken(NSData *data, pid_t pid)
 {
     if (pid == m_page->legacyMainFrameProcess().processID()) {
         m_remoteAccessibilityChild = data.length ? adoptNS([[NSAccessibilityRemoteUIElement alloc] initWithRemoteToken:data]) : nil;
@@ -4652,9 +4649,8 @@ void WebViewImpl::showWritingTools()
     auto& editorState = m_page->editorState();
     if (editorState.selectionIsRange && editorState.hasPostLayoutData())
         selectionRect = editorState.postLayoutData->selectionBoundingRect;
-ALLOW_DEPRECATED_DECLARATIONS_BEGIN
+
     [[PAL::getWTWritingToolsClass() sharedInstance] showPanelForSelectionRect:selectionRect ofView:m_view.getAutoreleased() forDelegate:(NSObject<WTWritingToolsDelegate> *)m_view.getAutoreleased()];
-ALLOW_DEPRECATED_DECLARATIONS_END
 }
 
 void WebViewImpl::addTextAnimationForAnimationID(WTF::UUID uuid, const WebCore::TextAnimationData& data)
@@ -5701,11 +5697,6 @@ void WebViewImpl::removeFlagsChangedEventMonitor()
     m_flagsChangedEventMonitor = nil;
 }
 
-bool WebViewImpl::hasFlagsChangedEventMonitor()
-{
-    return m_flagsChangedEventMonitor;
-}
-
 void WebViewImpl::mouseEntered(NSEvent *event)
 {
     if (m_ignoresMouseMoveEvents)
@@ -6444,7 +6435,7 @@ void WebViewImpl::updateCursorAccessoryPlacement()
     }
 
     // Otherwise, the cursor accessory should be hidden if it will not show up in the correct position.
-    context.showsCursorAccessories = !postLayoutData.selectionIsTransparentOrFullyClipped;
+    context.showsCursorAccessories = !postLayoutData.editableRootIsTransparentOrFullyClipped;
 }
 #endif
 
@@ -6529,7 +6520,7 @@ void WebViewImpl::handleContextMenuTranslation(const WebCore::TranslationContext
 
 bool WebViewImpl::canHandleContextMenuWritingTools() const
 {
-    return PAL::isWritingToolsUIFrameworkAvailable() && [PAL::getWTWritingToolsViewControllerClass() isAvailable] && m_page->writingToolsBehavior() != WebCore::WritingTools::Behavior::None;
+    return [PAL::getWTWritingToolsViewControllerClass() isAvailable] && m_page->writingToolsBehavior() != WebCore::WritingTools::Behavior::None;
 }
 
 #endif

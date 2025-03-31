@@ -121,10 +121,7 @@ static RefPtr<ShaderModule> earlyCompileShaderModule(Device& device, std::varian
         return nullptr;
     auto& result = std::get<WGSL::PrepareResult>(prepareResult);
     HashMap<String, WGSL::ConstantValue> wgslConstantValues;
-    auto generationResult = WGSL::generate(shaderModule, result, wgslConstantValues);
-    if (std::holds_alternative<WGSL::Error>(generationResult))
-        return nullptr;
-    auto& msl = std::get<String>(generationResult);
+    auto msl = WGSL::generate(shaderModule, result, wgslConstantValues);
     NSError *error = nil;
     auto library = ShaderModule::createLibrary(device.device(), msl, WTFMove(label), &error);
     if (!library)
@@ -901,7 +898,6 @@ static auto wgslViewDimension(WGPUTextureViewDimension viewDimension)
 {
     switch (viewDimension) {
     case WGPUTextureViewDimension_Cube:
-        return WGSL::TextureViewDimension::Cube;
     case WGPUTextureViewDimension_1D:
         return WGSL::TextureViewDimension::OneDimensional;
     case WGPUTextureViewDimension_2D:
@@ -1099,18 +1095,6 @@ const String& ShaderModule::defaultFragmentEntryPoint() const
 const String& ShaderModule::defaultComputeEntryPoint() const
 {
     return m_defaultComputeEntryPoint;
-}
-
-const String& ShaderModule::transformedEntryPoint(const String& entryPoint) const
-{
-    if (!entryPoint.length())
-        return entryPoint;
-
-    auto transformed = m_originalFunctionNames.find(entryPoint);
-    if (transformed != m_originalFunctionNames.end())
-        return transformed->value;
-
-    return entryPoint;
 }
 
 } // namespace WebGPU

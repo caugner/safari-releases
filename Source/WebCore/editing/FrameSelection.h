@@ -142,7 +142,6 @@ public:
         ForceCenterScroll = 1 << 12,
         ForBindings = 1 << 13,
         DoNotNotifyEditorClients = 1 << 14,
-        MaintainLiveRange = 1 << 15,
     };
     static constexpr OptionSet<SetSelectionOption> defaultSetSelectionOptions(UserTriggered = UserTriggered::No);
 
@@ -351,6 +350,7 @@ private:
     std::optional<SimpleRange> rangeByAlteringCurrentSelection(Alteration, int amount) const;
 #endif
 
+    void updateAssociatedLiveRange();
     LayoutRect localCaretRect() const final { return localCaretRectWithoutUpdate(); }
 
     WeakPtr<Document, WeakPtrImplWithEventTargetData> m_document;

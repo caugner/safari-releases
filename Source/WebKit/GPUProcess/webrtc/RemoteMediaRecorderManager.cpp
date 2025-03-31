@@ -31,7 +31,6 @@
 #include "Decoder.h"
 #include "GPUConnectionToWebProcess.h"
 #include "GPUProcess.h"
-#include "Logging.h"
 #include "RemoteMediaRecorder.h"
 #include <WebCore/ExceptionData.h>
 #include <wtf/TZoneMallocInlines.h>
@@ -52,7 +51,6 @@ RemoteMediaRecorderManager::~RemoteMediaRecorderManager()
 
 void RemoteMediaRecorderManager::didReceiveRemoteMediaRecorderMessage(IPC::Connection& connection, IPC::Decoder& decoder)
 {
-    MESSAGE_CHECK_BASE(LegacyNullableObjectIdentifier<MediaRecorderIdentifierType>::isValidIdentifier(decoder.destinationID()), connection);
     if (auto* recorder = m_recorders.get(LegacyNullableObjectIdentifier<MediaRecorderIdentifierType>(decoder.destinationID())))
         recorder->didReceiveMessage(connection, decoder);
 }
@@ -83,6 +81,14 @@ void RemoteMediaRecorderManager::releaseRecorder(MediaRecorderIdentifier identif
 bool RemoteMediaRecorderManager::allowsExitUnderMemoryPressure() const
 {
     return m_recorders.isEmpty();
+}
+
+const SharedPreferencesForWebProcess& RemoteMediaRecorderManager::sharedPreferencesForWebProcess() const
+{
+    RefPtr gpuConnectionToWebProcess = m_gpuConnectionToWebProcess.get();
+    RELEASE_ASSERT(gpuConnectionToWebProcess);
+
+    return gpuConnectionToWebProcess->sharedPreferencesForWebProcess();
 }
 
 }

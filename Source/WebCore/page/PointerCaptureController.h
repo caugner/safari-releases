@@ -77,7 +77,6 @@ private:
             return adoptRef(*new CapturingData(pointerType));
         }
 
-        WeakPtr<Document, WeakPtrImplWithEventTargetData> activeDocument;
         RefPtr<Element> pendingTargetOverride;
         RefPtr<Element> targetOverride;
 #if ENABLE(TOUCH_EVENTS) && (PLATFORM(IOS_FAMILY) || PLATFORM(WPE))

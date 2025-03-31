@@ -2157,11 +2157,10 @@ NSUInteger Texture::bytesPerRow(WGPUTextureFormat format, uint32_t textureWidth,
         return 0;
     }
     NSUInteger blocksInWidth = textureWidth / blockWidth;
-    auto product = checkedProduct<NSUInteger>(Texture::texelBlockSize(format), blocksInWidth, sampleCount);
-    return product.hasOverflowed() ? NSUIntegerMax : product.value();
+    return Texture::texelBlockSize(format) * blocksInWidth * sampleCount;
 }
 
-Checked<uint32_t> Texture::texelBlockSize(WGPUTextureFormat format) // Bytes
+uint32_t Texture::texelBlockSize(WGPUTextureFormat format) // Bytes
 {
     // For depth-stencil textures, the input value to this function
     // needs to be the output of aspectSpecificFormat().
@@ -2782,7 +2781,7 @@ uint32_t Texture::arrayLayerCount() const
 
 NSString* Texture::errorValidatingTextureViewCreation(const WGPUTextureViewDescriptor& descriptor) const
 {
-#define ERROR_STRING(x) (@"GPUTexture.createView: " x)
+#define ERROR_STRING(...) ([NSString stringWithFormat:@"GPUTexture.createView: %@", __VA_ARGS__])
     if (!isValid())
         return ERROR_STRING(@"texture is not valid");
 
@@ -2806,7 +2805,7 @@ NSString* Texture::errorValidatingTextureViewCreation(const WGPUTextureViewDescr
 
     auto endArrayLayer = checkedSum<uint32_t>(descriptor.baseArrayLayer, descriptor.arrayLayerCount);
     if (endArrayLayer.hasOverflowed() || endArrayLayer.value() > arrayLayerCount())
-        return ERROR_STRING(@"endArrayLayer is not valid");
+        return ERROR_STRING([NSString stringWithFormat:@"endArrayLayer(%u) is not valid. Base texture array count is %u", endArrayLayer.value(), arrayLayerCount()]);
 
     if (m_sampleCount > 1) {
         if (descriptor.dimension != WGPUTextureViewDimension_2D)
@@ -3005,7 +3004,7 @@ bool Texture::waitForCommandBufferCompletion()
 void Texture::setCommandEncoder(CommandEncoder& commandEncoder) const
 {
     m_commandEncoders.add(commandEncoder);
-    commandEncoder.addTexture(m_texture);
+    commandEncoder.addTexture(*this);
     if (!m_canvasBacking && isDestroyed())
         commandEncoder.makeSubmitInvalid();
 }
@@ -3717,9 +3716,25 @@ void Texture::setPreviouslyCleared(uint32_t mipLevel, uint32_t slice, bool setCl
     m_clearedToZero.add(mipLevel, set);
 }
 
+id<MTLSharedEvent> Texture::sharedEvent() const
+{
+    return m_sharedEvent;
+}
+
+uint64_t Texture::sharedEventSignalValue() const
+{
+    return m_sharedEventSignalValue;
+}
+
 bool Texture::isDestroyed() const
 {
     return m_destroyed;
+}
+
+void Texture::updateCompletionEvent(const std::pair<id<MTLSharedEvent>, uint64_t>& completionEvent)
+{
+    m_sharedEvent = completionEvent.first;
+    m_sharedEventSignalValue = completionEvent.second;
 }
 
 } // namespace WebGPU

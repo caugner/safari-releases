@@ -159,17 +159,10 @@ void UserMediaRequest::allow(CaptureDevice&& audioDevice, CaptureDevice&& videoD
             auto scopeExit = makeScopeExit([completionHandler = WTFMove(m_allowCompletionHandler)]() mutable {
                 completionHandler();
             });
-            if (isContextStopped()) {
-                if (!!privateStreamOrError) {
-                    RELEASE_LOG(MediaStream, "UserMediaRequest::allow, context is stopped");
-                    privateStreamOrError.value()->forEachTrack([](auto& track) {
-                        track.endTrack();
-                    });
-                }
+            if (isContextStopped())
                 return;
-            }
 
-            if (!privateStreamOrError) {
+            if (!privateStreamOrError.has_value()) {
                 RELEASE_LOG(MediaStream, "UserMediaRequest::allow failed to create media stream!");
                 auto error = privateStreamOrError.error();
                 scriptExecutionContext()->addConsoleMessage(MessageSource::JS, MessageLevel::Error, error.errorMessage);

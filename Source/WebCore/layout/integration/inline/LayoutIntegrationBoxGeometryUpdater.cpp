@@ -88,6 +88,7 @@ void BoxGeometryUpdater::updateListMarkerDimensions(const RenderListMarker& list
                     offset -= (ancestor->borderStart() + ancestor->paddingStart());
                 if (is<RenderListItem>(*ancestor))
                     break;
+                offset -= (ancestor->marginStart());
                 if (ancestor->isFlexItem()) {
                     offset -= ancestor->logicalLeft();
                     hasAccountedForBorderAndPadding = true;
@@ -387,6 +388,7 @@ Layout::ConstraintsForInlineContent BoxGeometryUpdater::updateInlineContentConst
     auto isLeftToRightInlineDirection = rootRenderer.style().isLeftToRightDirection();
     auto writingMode = rootRenderer.style().writingMode();
     auto blockFlowDirection = writingModeToBlockFlowDirection(writingMode);
+
     auto padding = logicalPadding(rootRenderer, isLeftToRightInlineDirection, blockFlowDirection, UseComputedValues::No, IsPartOfFormattingContext::No);
     auto border = logicalBorder(rootRenderer, isLeftToRightInlineDirection, blockFlowDirection, UseComputedValues::No, IsPartOfFormattingContext::No);
     auto scrollbarSize = scrollbarLogicalSize(rootRenderer);
@@ -407,8 +409,8 @@ Layout::ConstraintsForInlineContent BoxGeometryUpdater::updateInlineContentConst
         rootGeometry.setBorder(border);
         rootGeometry.setHorizontalSpaceForScrollbar(scrollbarSize.width());
         rootGeometry.setVerticalSpaceForScrollbar(scrollbarSize.height());
-        rootGeometry.setHorizontalMargin({ });
-        rootGeometry.setVerticalMargin({ });
+        rootGeometry.setHorizontalMargin(horizontalLogicalMargin(rootRenderer, isLeftToRightInlineDirection, WebCore::isHorizontalWritingMode(writingMode), UseComputedValues::No));
+        rootGeometry.setVerticalMargin(verticalLogicalMargin(rootRenderer, blockFlowDirection));
     };
     createRootGeometryIfNeeded();
 

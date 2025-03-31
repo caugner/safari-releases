@@ -429,7 +429,7 @@ void RenderStyle::copyPseudoElementsFrom(const RenderStyle& other)
     if (!other.m_cachedPseudoStyles)
         return;
 
-    for (auto& [key, pseudoElementStyle] : other.m_cachedPseudoStyles->styles)
+    for (auto& pseudoElementStyle : other.m_cachedPseudoStyles->styles)
         addCachedPseudoStyle(makeUnique<RenderStyle>(cloneIncludingPseudoElements(*pseudoElementStyle)));
 }
 
@@ -454,7 +454,7 @@ bool RenderStyle::hasUniquePseudoStyle() const
     if (!m_cachedPseudoStyles || pseudoElementType() != PseudoId::None)
         return false;
 
-    for (auto& [key, pseudoStyle] : m_cachedPseudoStyles->styles) {
+    for (auto& pseudoStyle : m_cachedPseudoStyles->styles) {
         if (pseudoStyle->unique())
             return true;
     }
@@ -467,7 +467,12 @@ RenderStyle* RenderStyle::getCachedPseudoStyle(const Style::PseudoElementIdentif
     if (!m_cachedPseudoStyles)
         return nullptr;
 
-    return m_cachedPseudoStyles->styles.get(pseudoElementIdentifier);
+    for (auto& pseudoStyle : m_cachedPseudoStyles->styles) {
+        if (pseudoStyle->pseudoElementType() == pseudoElementIdentifier.pseudoId && pseudoStyle->pseudoElementNameArgument() == pseudoElementIdentifier.nameArgument)
+            return pseudoStyle.get();
+    }
+
+    return nullptr;
 }
 
 RenderStyle* RenderStyle::addCachedPseudoStyle(std::unique_ptr<RenderStyle> pseudo)
@@ -482,7 +487,7 @@ RenderStyle* RenderStyle::addCachedPseudoStyle(std::unique_ptr<RenderStyle> pseu
     if (!m_cachedPseudoStyles)
         m_cachedPseudoStyles = makeUnique<PseudoStyleCache>();
 
-    m_cachedPseudoStyles->styles.add(Style::PseudoElementIdentifier { result->pseudoElementType(), result->pseudoElementNameArgument() }, WTFMove(pseudo));
+    m_cachedPseudoStyles->styles.append(WTFMove(pseudo));
 
     return result;
 }
@@ -873,6 +878,9 @@ static bool rareDataChangeRequiresLayout(const StyleRareNonInheritedData& first,
     if (first.textBoxTrim != second.textBoxTrim)
         return true;
 
+    if (first.textBoxEdge != second.textBoxEdge)
+        return true;
+
     if (first.maxLines != second.maxLines)
         return true;
 
@@ -890,7 +898,6 @@ static bool rareInheritedDataChangeRequiresLayout(const StyleRareInheritedData& 
         || first.textAlignLast != second.textAlignLast
         || first.textJustify != second.textJustify
         || first.textIndentLine != second.textIndentLine
-        || first.textBoxEdge != second.textBoxEdge
         || first.lineFitEdge != second.lineFitEdge
         || first.usedZoom != second.usedZoom
         || first.textZoom != second.textZoom
@@ -1939,6 +1946,8 @@ void RenderStyle::conservativelyCollectChangedAnimatableProperties(const RenderS
             changingProperties.m_properties.set(CSSPropertyScrollSnapStop);
         if (first.scrollSnapType != second.scrollSnapType)
             changingProperties.m_properties.set(CSSPropertyScrollSnapType);
+        if (first.textBoxEdge != second.textBoxEdge)
+            changingProperties.m_properties.set(CSSPropertyTextBoxEdge);
         if (first.maxLines != second.maxLines)
             changingProperties.m_properties.set(CSSPropertyMaxLines);
         if (first.overflowContinue != second.overflowContinue)
@@ -2072,8 +2081,6 @@ void RenderStyle::conservativelyCollectChangedAnimatableProperties(const RenderS
             changingProperties.m_properties.set(CSSPropertyImageRendering);
         if (first.textAlignLast != second.textAlignLast)
             changingProperties.m_properties.set(CSSPropertyTextAlignLast);
-        if (first.textBoxEdge != second.textBoxEdge)
-            changingProperties.m_properties.set(CSSPropertyTextBoxEdge);
         if (first.lineFitEdge != second.lineFitEdge)
             changingProperties.m_properties.set(CSSPropertyLineFitEdge);
         if (first.textJustify != second.textJustify)
@@ -3168,9 +3175,9 @@ Color RenderStyle::usedScrollbarTrackColor() const
     return colorResolvingCurrentColor(scrollbarColor().value().trackColor);
 }
 
-const BorderValue& RenderStyle::borderBefore() const
+const BorderValue& RenderStyle::borderBefore(const RenderStyle& styleForFlow) const
 {
-    switch (blockFlowDirection()) {
+    switch (styleForFlow.blockFlowDirection()) {
     case FlowDirection::TopToBottom:
         return borderTop();
     case FlowDirection::BottomToTop:
@@ -3184,9 +3191,9 @@ const BorderValue& RenderStyle::borderBefore() const
     return borderTop();
 }
 
-const BorderValue& RenderStyle::borderAfter() const
+const BorderValue& RenderStyle::borderAfter(const RenderStyle& styleForFlow) const
 {
-    switch (blockFlowDirection()) {
+    switch (styleForFlow.blockFlowDirection()) {
     case FlowDirection::TopToBottom:
         return borderBottom();
     case FlowDirection::BottomToTop:
@@ -3200,18 +3207,18 @@ const BorderValue& RenderStyle::borderAfter() const
     return borderBottom();
 }
 
-const BorderValue& RenderStyle::borderStart() const
+const BorderValue& RenderStyle::borderStart(const RenderStyle& styleForFlow) const
 {
-    if (isHorizontalWritingMode())
-        return isLeftToRightDirection() ? borderLeft() : borderRight();
-    return isLeftToRightDirection() ? borderTop() : borderBottom();
+    if (styleForFlow.isHorizontalWritingMode())
+        return styleForFlow.isLeftToRightDirection() ? borderLeft() : borderRight();
+    return styleForFlow.isLeftToRightDirection() ? borderTop() : borderBottom();
 }
 
-const BorderValue& RenderStyle::borderEnd() const
+const BorderValue& RenderStyle::borderEnd(const RenderStyle& styleForFlow) const
 {
-    if (isHorizontalWritingMode())
-        return isLeftToRightDirection() ? borderRight() : borderLeft();
-    return isLeftToRightDirection() ? borderBottom() : borderTop();
+    if (styleForFlow.isHorizontalWritingMode())
+        return styleForFlow.isLeftToRightDirection() ? borderRight() : borderLeft();
+    return styleForFlow.isLeftToRightDirection() ? borderBottom() : borderTop();
 }
 
 float RenderStyle::borderBeforeWidth() const
@@ -3759,12 +3766,12 @@ bool RenderStyle::hasSnapPosition() const
 
 TextEdge RenderStyle::textBoxEdge() const
 {
-    return m_rareInheritedData->textBoxEdge;
+    return m_nonInheritedData->rareData->textBoxEdge;
 }
 
-void RenderStyle::setTextBoxEdge(TextEdge value)
+void RenderStyle::setTextBoxEdge(TextEdge textBoxEdgeValue)
 {
-    SET_VAR(m_rareInheritedData, textBoxEdge, value);
+    SET_NESTED_VAR(m_nonInheritedData, rareData, textBoxEdge, textBoxEdgeValue);
 }
 
 TextEdge RenderStyle::initialTextBoxEdge()
@@ -3777,9 +3784,9 @@ TextEdge RenderStyle::lineFitEdge() const
     return m_rareInheritedData->lineFitEdge;
 }
 
-void RenderStyle::setLineFitEdge(TextEdge value)
+void RenderStyle::setLineFitEdge(TextEdge lineFitEdgeValue)
 {
-    SET_VAR(m_rareInheritedData, lineFitEdge, value);
+    SET_VAR(m_rareInheritedData, lineFitEdge, lineFitEdgeValue);
 }
 
 TextEdge RenderStyle::initialLineFitEdge()

@@ -30,6 +30,7 @@
 #include "AXObjectCache.h"
 #include "AddEventListenerOptions.h"
 #include "AnimationTimeline.h"
+#include "AnimationTimelinesController.h"
 #include "ApplicationCacheStorage.h"
 #include "AudioSession.h"
 #include "AudioTrackPrivateMediaStream.h"
@@ -42,7 +43,6 @@
 #include "CSSMediaRule.h"
 #include "CSSParser.h"
 #include "CSSPropertyParser.h"
-#include "CSSPropertyParserConsumer+Color.h"
 #include "CSSStyleRule.h"
 #include "CSSSupportsRule.h"
 #include "CacheStorageConnection.h"
@@ -73,7 +73,6 @@
 #include "DocumentLoader.h"
 #include "DocumentMarkerController.h"
 #include "DocumentTimeline.h"
-#include "DocumentTimelinesController.h"
 #include "Editor.h"
 #include "Element.h"
 #include "ElementRareData.h"
@@ -2258,28 +2257,6 @@ ExceptionOr<void> Internals::setViewBaseBackgroundColor(const String& colorValue
     return Exception { ExceptionCode::SyntaxError };
 }
 
-using LazySlowPathColorParsingParameters = std::tuple<
-    CSSPropertyParserHelpers::CSSColorParsingOptions,
-    CSSUnresolvedColorResolutionState,
-    std::optional<CSSUnresolvedColorResolutionDelegate>
->;
-
-ExceptionOr<void> Internals::setUnderPageBackgroundColorOverride(const String& colorValue)
-{
-    Document* document = contextDocument();
-    if (!document || !document->page())
-        return Exception { ExceptionCode::InvalidAccessError };
-
-    auto color = CSSPropertyParserHelpers::parseColorRaw(colorValue, document->cssParserContext(), [] {
-        return LazySlowPathColorParsingParameters { { }, { }, std::nullopt };
-    });
-    if (!color.isValid())
-        return Exception { ExceptionCode::SyntaxError };
-
-    document->page()->setUnderPageBackgroundColorOverride(WTFMove(color));
-    return { };
-}
-
 ExceptionOr<String> Internals::documentBackgroundColor()
 {
     Document* document = contextDocument();
@@ -2817,22 +2794,6 @@ bool Internals::hasMarkerFor(DocumentMarker::Type type, int from, int length)
     updateEditorUINowIfScheduled();
 
     return document->editor().selectionStartHasMarkerFor(type, from, length);
-}
-
-ExceptionOr<void> Internals::setMarkerFor(const String& markerTypeString, int from, int length, const String& data)
-{
-    DocumentMarker::Type markerType;
-    if (!markerTypeFrom(markerTypeString, markerType))
-        return Exception { ExceptionCode::SyntaxError };
-
-    Document* document = contextDocument();
-    if (!document || !document->frame())
-        return { };
-
-    updateEditorUINowIfScheduled();
-
-    document->editor().selectionStartSetMarkerForTesting(markerType, from, length, data);
-    return { };
 }
 
 bool Internals::hasSpellingMarker(int from, int length)
@@ -4733,6 +4694,10 @@ bool Internals::isPluginSnapshotted(Element&)
 
 void Internals::initializeMockMediaSource()
 {
+    RefPtr document = contextDocument();
+    if (!document || (!document->settings().mediaSourceEnabled() && !document->settings().managedMediaSourceEnabled()))
+        return;
+
     platformStrategies()->mediaStrategy().enableMockMediaSource();
 }
 
@@ -7377,7 +7342,7 @@ String Internals::treeOrder(Node& a, Node& b, TreeType type)
 
 String Internals::treeOrderBoundaryPoints(Node& containerA, unsigned offsetA, Node& containerB, unsigned offsetB, TreeType type)
 {
-    return string(treeOrderForTesting(convertType(type), BoundaryPoint( containerA, offsetA ), BoundaryPoint(containerB, offsetB)));
+    return string(treeOrderForTesting(convertType(type), { containerA, offsetA }, { containerB, offsetB }));
 }
 
 bool Internals::rangeContainsNode(const AbstractRange& range, Node& node, TreeType type)
@@ -7621,19 +7586,6 @@ Vector<Internals::PDFAnnotationRect> Internals::pdfAnnotationRectsForTesting(Ele
         }
     }
     return annotationRects;
-}
-
-void Internals::setPDFTextAnnotationValueForTesting(Element& element, unsigned pageIndex, unsigned annotationIndex, const String& value)
-{
-    RefPtr pluginElement = dynamicDowncast<HTMLPlugInElement>(element);
-    if (!pluginElement)
-        return;
-
-    RefPtr pluginView = pluginElement->pluginWidget();
-    if (!pluginView)
-        return;
-
-    pluginView->setPDFTextAnnotationValueForTesting(pageIndex, annotationIndex, value);
 }
 
 void Internals::registerPDFTest(Ref<VoidCallback>&& callback, Element& element)

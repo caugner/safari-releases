@@ -1222,7 +1222,6 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
         [tempArray addObject:NSAccessibilityRequiredAttribute];
         [tempArray addObject:NSAccessibilityInvalidAttribute];
         [tempArray addObject:NSAccessibilityPlaceholderValueAttribute];
-        [tempArray addObject:NSAccessibilitySelectedTextRangeAttribute];
         return tempArray;
     }();
     static NeverDestroyed tabListAttrs = [] {

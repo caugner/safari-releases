@@ -112,10 +112,11 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(MediaPlayerFactory);
 
 class NullMediaPlayerPrivate final : public MediaPlayerPrivateInterface, public RefCounted<NullMediaPlayerPrivate> {
 public:
+    DEFINE_VIRTUAL_REFCOUNTED;
+
     static Ref<NullMediaPlayerPrivate> create(MediaPlayer& player) { return adoptRef(*new NullMediaPlayerPrivate(player)); }
 
-    void ref() final { RefCounted<NullMediaPlayerPrivate>::ref(); }
-    void deref() final { RefCounted<NullMediaPlayerPrivate>::deref(); }
+    constexpr MediaPlayerType mediaPlayerType() const final { return MediaPlayerType::Null; }
 
     void load(const String&) final { }
 #if ENABLE(MEDIA_SOURCE)
@@ -1172,15 +1173,6 @@ void MediaPlayer::paintCurrentFrameInContext(GraphicsContext& context, const Flo
     m_private->paintCurrentFrameInContext(context, destination);
 }
 
-#if !USE(AVFOUNDATION)
-
-bool MediaPlayer::copyVideoTextureToPlatformTexture(GraphicsContextGL* context, PlatformGLObject texture, GCGLenum target, GCGLint level, GCGLenum internalFormat, GCGLenum format, GCGLenum type, bool premultiplyAlpha, bool flipY)
-{
-    return m_private->copyVideoTextureToPlatformTexture(context, texture, target, level, internalFormat, format, type, premultiplyAlpha, flipY);
-}
-
-#endif
-
 RefPtr<VideoFrame> MediaPlayer::videoFrameForCurrentTime()
 {
     return m_private->videoFrameForCurrentTime();
@@ -1602,9 +1594,12 @@ CachedResourceLoader* MediaPlayer::cachedResourceLoader()
     return client().mediaPlayerCachedResourceLoader();
 }
 
-Ref<PlatformMediaResourceLoader> MediaPlayer::createResourceLoader()
+Ref<PlatformMediaResourceLoader> MediaPlayer::mediaResourceLoader()
 {
-    return client().mediaPlayerCreateResourceLoader();
+    if (!m_mediaResourceLoader)
+        m_mediaResourceLoader = client().mediaPlayerCreateResourceLoader();
+
+    return *m_mediaResourceLoader;
 }
 
 void MediaPlayer::addAudioTrack(AudioTrackPrivate& track)

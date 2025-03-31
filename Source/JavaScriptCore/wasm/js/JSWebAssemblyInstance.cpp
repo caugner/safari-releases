@@ -31,7 +31,6 @@
 #include "AbstractModuleRecord.h"
 #include "JSCInlines.h"
 #include "JSModuleNamespaceObject.h"
-#include "JSWebAssemblyArray.h"
 #include "JSWebAssemblyCompileError.h"
 #include "JSWebAssemblyHelpers.h"
 #include "JSWebAssemblyLinkError.h"
@@ -42,6 +41,7 @@
 #include "WasmModuleInformation.h"
 #include "WasmTag.h"
 #include "WasmTypeDefinitionInlines.h"
+#include "WebAssemblyFunctionBase.h"
 #include "WebAssemblyModuleRecord.h"
 #include <wtf/CheckedArithmetic.h>
 #include <wtf/StdLibExtras.h>
@@ -116,10 +116,6 @@ JSWebAssemblyInstance::~JSWebAssemblyInstance()
     clearJSCallICs(*m_vm);
     for (unsigned i = 0; i < m_numImportFunctions; ++i)
         importFunctionInfo(i)->~ImportFunctionInfo();
-    for (unsigned i = 0; i < m_module->moduleInformation().tableCount(); ++i) {
-        if (Table* table = this->table(i))
-            table->deref();
-    }
 }
 
 void JSWebAssemblyInstance::destroy(JSCell* cell)
@@ -527,7 +523,7 @@ void JSWebAssemblyInstance::initElementSegment(uint32_t tableIndex, const Elemen
     }
 }
 
-bool JSWebAssemblyInstance::copyDataSegment(JSWebAssemblyArray* array, uint32_t segmentIndex, uint32_t offset, uint32_t lengthInBytes, uint8_t* values)
+bool JSWebAssemblyInstance::copyDataSegment(uint32_t segmentIndex, uint32_t offset, uint32_t lengthInBytes, uint8_t* values)
 {
     // Fail if the data segment index is out of bounds
     RELEASE_ASSERT(segmentIndex < module().moduleInformation().dataSegmentsCount());
@@ -547,27 +543,17 @@ bool JSWebAssemblyInstance::copyDataSegment(JSWebAssemblyArray* array, uint32_t 
     const uint8_t* segmentData = &segment->byte(offset);
 
     // Copy the data from the segment into the out param vector
-    if (array->elementsAreRefTypes()) {
-        gcSafeMemcpy(std::bit_cast<uint64_t*>(values), std::bit_cast<const uint64_t*>(segmentData), lengthInBytes);
-        m_vm->writeBarrier(array);
-    } else
-        memcpy(values, segmentData, lengthInBytes);
+    memcpy(values, segmentData, lengthInBytes);
 
     return true;
 }
 
-void JSWebAssemblyInstance::copyElementSegment(JSWebAssemblyArray* array, const Element& segment, uint32_t srcOffset, uint32_t length, uint64_t* values)
+void JSWebAssemblyInstance::copyElementSegment(const Element& segment, uint32_t srcOffset, uint32_t length, uint64_t* values)
 {
     // Caller should have already checked that the (offset + length) calculation doesn't overflow int32,
     // and that the (offset + length) doesn't overflow the element segment
     ASSERT(!sumOverflows<uint32_t>(srcOffset, length));
     ASSERT((srcOffset + length) <= segment.length());
-
-    auto set = [&](size_t index, uint64_t value) {
-        values[index] = value;
-        if (array->elementsAreRefTypes())
-            m_vm->writeBarrier(array);
-    };
 
     for (uint32_t i = 0; i < length; i++) {
         uint32_t srcIndex = srcOffset + i;
@@ -576,7 +562,7 @@ void JSWebAssemblyInstance::copyElementSegment(JSWebAssemblyArray* array, const 
 
         // Represent the null function as the null JS value
         if (initType == Element::InitializationType::FromRefNull) {
-            set(i, static_cast<uint64_t>(JSValue::encode(jsNull())));
+            values[i] = static_cast<uint64_t>(JSValue::encode(jsNull()));
             continue;
         }
 
@@ -588,12 +574,12 @@ void JSWebAssemblyInstance::copyElementSegment(JSWebAssemblyArray* array, const 
             // and create them here dynamically instead.
             JSValue value = getFunctionWrapper(functionIndex);
             ASSERT(value.isCallable());
-            set(i, static_cast<uint64_t>(JSValue::encode(value)));
+            values[i] = static_cast<uint64_t>(JSValue::encode(value));
             continue;
         }
 
         if (initType == Element::InitializationType::FromGlobal) {
-            set(i, loadI64Global(initialBitsOrIndex));
+            values[i] = loadI64Global(initialBitsOrIndex);
             continue;
         }
 
@@ -603,7 +589,7 @@ void JSWebAssemblyInstance::copyElementSegment(JSWebAssemblyArray* array, const 
         // FIXME: https://bugs.webkit.org/show_bug.cgi?id=264454
         // Currently this should never fail, as the parse phase already validated it.
         RELEASE_ASSERT(success);
-        set(i, result);
+        values[i] = result;
     }
 }
 

@@ -32,13 +32,13 @@
 namespace WebKit {
 
 class WebPageProxy;
-enum class TextCheckerState : uint8_t;
+struct TextCheckerState;
 
 using SpellDocumentTag = int64_t;
     
 class TextChecker {
 public:
-    static OptionSet<TextCheckerState> state();
+    static const TextCheckerState& state();
     static bool isContinuousSpellCheckingAllowed();
 
     static bool setContinuousSpellCheckingEnabled(bool);

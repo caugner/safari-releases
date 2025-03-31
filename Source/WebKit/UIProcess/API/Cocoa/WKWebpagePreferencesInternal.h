@@ -38,8 +38,6 @@ WKContentMode contentMode(WebContentMode);
 WebContentMode webContentMode(WKContentMode);
 #endif
 
-WKWebpagePreferencesUpgradeToHTTPSPolicy upgradeToHTTPSPolicy(WebCore::HTTPSByDefaultMode);
-WebCore::HTTPSByDefaultMode httpsByDefaultMode(WKWebpagePreferencesUpgradeToHTTPSPolicy);
 }
 
 @interface WKWebpagePreferences () <WKObject> {

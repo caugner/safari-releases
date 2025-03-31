@@ -166,10 +166,6 @@ enum class ReplacementBehavior : uint8_t;
 - (void)_didHandleAcceptedCandidate;
 - (void)_didUpdateCandidateListVisibility:(BOOL)visible;
 
-- (BOOL)_web_hasActiveIntelligenceTextEffects;
-- (void)_web_suppressContentRelativeChildViews;
-- (void)_web_restoreContentRelativeChildViews;
-
 @end
 
 namespace WebCore {
@@ -214,6 +210,8 @@ public:
     NSWindow *window();
 
     WebPageProxy& page() { return m_page.get(); }
+    Ref<WebPageProxy> protectedPage() const;
+
     NSView *view() const { return m_view.getAutoreleased(); }
 
     void processWillSwap();
@@ -473,7 +471,7 @@ public:
     void setIgnoresMouseDraggedEvents(bool);
     bool ignoresMouseDraggedEvents() const { return m_ignoresMouseDraggedEvents; }
 
-    void setAccessibilityWebProcessToken(NSData *, WebCore::FrameIdentifier, pid_t);
+    void setAccessibilityWebProcessToken(NSData *, pid_t);
     void accessibilityRegisterUIProcessTokens();
     void updateRemoteAccessibilityRegistration(bool registerProcess);
     id accessibilityFocusedUIElement();
@@ -622,7 +620,6 @@ public:
 
     void createFlagsChangedEventMonitor();
     void removeFlagsChangedEventMonitor();
-    bool hasFlagsChangedEventMonitor();
 
     void mouseMoved(NSEvent *);
     void mouseDown(NSEvent *);
@@ -860,8 +857,6 @@ private:
 #endif
 
     std::optional<EditorState::PostLayoutData> postLayoutDataForContentEditable();
-
-    Ref<WebPageProxy> protectedPage() const;
 
     WeakObjCPtr<NSView<WebViewImplDelegate>> m_view;
     std::unique_ptr<PageClient> m_pageClient;

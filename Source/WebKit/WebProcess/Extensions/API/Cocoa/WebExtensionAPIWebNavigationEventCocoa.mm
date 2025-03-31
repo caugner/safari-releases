@@ -45,11 +45,8 @@ void WebExtensionAPIWebNavigationEvent::invokeListenersWithArgument(id argument,
     if (m_listeners.isEmpty())
         return;
 
-    // Copy the listeners since call() can trigger a mutation of the listeners.
-    auto listenersCopy = m_listeners;
-
-    for (auto& listener : listenersCopy) {
-        auto *filter = listener.second.get();
+    for (auto& listener : m_listeners) {
+        _WKWebExtensionWebNavigationURLFilter *filter = listener.second.get();
         if (filter && ![filter matchesURL:targetURL])
             continue;
 

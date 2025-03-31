@@ -39,13 +39,19 @@
 namespace WebKit {
 using namespace WebCore;
 
-OptionSet<TextCheckerState>& checkerState()
+TextCheckerState& checkerState()
 {
-    static OptionSet<TextCheckerState> textCheckerState;
+    static TextCheckerState textCheckerState;
+    static std::once_flag onceFlag;
+    std::call_once(onceFlag, [] {
+        textCheckerState.isContinuousSpellCheckingEnabled = false;
+        textCheckerState.isGrammarCheckingEnabled = false;
+    });
+
     return textCheckerState;
 }
 
-OptionSet<TextCheckerState> TextChecker::state()
+const TextCheckerState& TextChecker::state()
 {
     return checkerState();
 }
@@ -82,9 +88,9 @@ bool TextChecker::isContinuousSpellCheckingAllowed()
 bool TextChecker::setContinuousSpellCheckingEnabled(bool isContinuousSpellCheckingEnabled)
 {
 #if ENABLE(SPELLCHECK)
-    if (checkerState().contains(TextCheckerState::ContinuousSpellCheckingEnabled) == isContinuousSpellCheckingEnabled)
+    if (checkerState().isContinuousSpellCheckingEnabled == isContinuousSpellCheckingEnabled)
         return false;
-    checkerState().set(TextCheckerState::ContinuousSpellCheckingEnabled, isContinuousSpellCheckingEnabled);
+    checkerState().isContinuousSpellCheckingEnabled = isContinuousSpellCheckingEnabled;
     updateStateForAllProcessPools();
 #else
     UNUSED_PARAM(isContinuousSpellCheckingEnabled);
@@ -95,9 +101,9 @@ bool TextChecker::setContinuousSpellCheckingEnabled(bool isContinuousSpellChecki
 void TextChecker::setGrammarCheckingEnabled(bool isGrammarCheckingEnabled)
 {
 #if ENABLE(SPELLCHECK)
-    if (checkerState().contains(TextCheckerState::GrammarCheckingEnabled) == isGrammarCheckingEnabled)
+    if (checkerState().isGrammarCheckingEnabled == isGrammarCheckingEnabled)
         return;
-    checkerState().set(TextCheckerState::GrammarCheckingEnabled, isGrammarCheckingEnabled);
+    checkerState().isGrammarCheckingEnabled = isGrammarCheckingEnabled;
     updateStateForAllProcessPools();
 #else
     UNUSED_PARAM(isGrammarCheckingEnabled);
@@ -107,7 +113,7 @@ void TextChecker::setGrammarCheckingEnabled(bool isGrammarCheckingEnabled)
 void TextChecker::continuousSpellCheckingEnabledStateChanged(bool enabled)
 {
 #if ENABLE(SPELLCHECK)
-    checkerState().set(TextCheckerState::ContinuousSpellCheckingEnabled, enabled);
+    checkerState().isContinuousSpellCheckingEnabled = enabled;
 #else
     UNUSED_PARAM(enabled);
 #endif
@@ -116,7 +122,7 @@ void TextChecker::continuousSpellCheckingEnabledStateChanged(bool enabled)
 void TextChecker::grammarCheckingEnabledStateChanged(bool enabled)
 {
 #if ENABLE(SPELLCHECK)
-    checkerState().set(TextCheckerState::GrammarCheckingEnabled, enabled);
+    checkerState().isGrammarCheckingEnabled = enabled;
 #else
     UNUSED_PARAM(enabled);
 #endif

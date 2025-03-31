@@ -33,16 +33,8 @@
     void attachShader(uint32_t program, uint32_t shader)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(program))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (program)
             program = m_objectNames.get(program);
-        if (UNLIKELY(!m_objectNames.isValidKey(shader))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (shader)
             shader = m_objectNames.get(shader);
         m_context->attachShader(program, shader);
@@ -50,10 +42,6 @@
     void bindAttribLocation(uint32_t arg0, uint32_t index, String&& name)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(arg0))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (arg0)
             arg0 = m_objectNames.get(arg0);
         m_context->bindAttribLocation(arg0, index, name);
@@ -61,10 +49,6 @@
     void bindBuffer(uint32_t target, uint32_t arg1)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(arg1))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (arg1)
             arg1 = m_objectNames.get(arg1);
         m_context->bindBuffer(target, arg1);
@@ -72,10 +56,6 @@
     void bindFramebuffer(uint32_t target, uint32_t arg1)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(arg1))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (arg1)
             arg1 = m_objectNames.get(arg1);
         m_context->bindFramebuffer(target, arg1);
@@ -83,10 +63,6 @@
     void bindRenderbuffer(uint32_t target, uint32_t arg1)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(arg1))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (arg1)
             arg1 = m_objectNames.get(arg1);
         m_context->bindRenderbuffer(target, arg1);
@@ -94,10 +70,6 @@
     void bindTexture(uint32_t target, uint32_t arg1)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(arg1))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (arg1)
             arg1 = m_objectNames.get(arg1);
         m_context->bindTexture(target, arg1);
@@ -162,10 +134,6 @@
     void compileShader(uint32_t arg0)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(arg0))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (arg0)
             arg0 = m_objectNames.get(arg0);
         m_context->compileShader(arg0);
@@ -183,10 +151,6 @@
     void createBuffer(uint32_t name)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(name))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         auto result = m_context->createBuffer();
         if (result)
             m_objectNames.add(name, result);
@@ -194,10 +158,6 @@
     void createFramebuffer(uint32_t name)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(name))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         auto result = m_context->createFramebuffer();
         if (result)
             m_objectNames.add(name, result);
@@ -205,10 +165,6 @@
     void createProgram(uint32_t name)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(name))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         auto result = m_context->createProgram();
         if (result)
             m_objectNames.add(name, result);
@@ -216,10 +172,6 @@
     void createRenderbuffer(uint32_t name)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(name))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         auto result = m_context->createRenderbuffer();
         if (result)
             m_objectNames.add(name, result);
@@ -227,10 +179,6 @@
     void createShader(uint32_t name, uint32_t arg0)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(name))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         auto result = m_context->createShader(arg0);
         if (result)
             m_objectNames.add(name, result);
@@ -238,10 +186,6 @@
     void createTexture(uint32_t name)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(name))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         auto result = m_context->createTexture();
         if (result)
             m_objectNames.add(name, result);
@@ -254,10 +198,6 @@
     void deleteBuffer(uint32_t arg0)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(arg0))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (UNLIKELY(!arg0))
             return;
         arg0 = m_objectNames.take(arg0);
@@ -266,10 +206,6 @@
     void deleteFramebuffer(uint32_t arg0)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(arg0))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (UNLIKELY(!arg0))
             return;
         arg0 = m_objectNames.take(arg0);
@@ -278,10 +214,6 @@
     void deleteProgram(uint32_t arg0)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(arg0))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (UNLIKELY(!arg0))
             return;
         arg0 = m_objectNames.take(arg0);
@@ -290,10 +222,6 @@
     void deleteRenderbuffer(uint32_t arg0)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(arg0))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (UNLIKELY(!arg0))
             return;
         arg0 = m_objectNames.take(arg0);
@@ -302,10 +230,6 @@
     void deleteShader(uint32_t arg0)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(arg0))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (UNLIKELY(!arg0))
             return;
         arg0 = m_objectNames.take(arg0);
@@ -314,10 +238,6 @@
     void deleteTexture(uint32_t arg0)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(arg0))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (UNLIKELY(!arg0))
             return;
         arg0 = m_objectNames.take(arg0);
@@ -341,16 +261,8 @@
     void detachShader(uint32_t arg0, uint32_t arg1)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(arg0))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (arg0)
             arg0 = m_objectNames.get(arg0);
-        if (UNLIKELY(!m_objectNames.isValidKey(arg1))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (arg1)
             arg1 = m_objectNames.get(arg1);
         m_context->detachShader(arg0, arg1);
@@ -398,10 +310,6 @@
     void framebufferRenderbuffer(uint32_t target, uint32_t attachment, uint32_t renderbuffertarget, uint32_t arg3)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(arg3))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (arg3)
             arg3 = m_objectNames.get(arg3);
         m_context->framebufferRenderbuffer(target, attachment, renderbuffertarget, arg3);
@@ -409,10 +317,6 @@
     void framebufferTexture2D(uint32_t target, uint32_t attachment, uint32_t textarget, uint32_t arg3, int32_t level)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(arg3))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (arg3)
             arg3 = m_objectNames.get(arg3);
         m_context->framebufferTexture2D(target, attachment, textarget, arg3, level);
@@ -431,10 +335,6 @@
     {
         assertIsCurrent(workQueue());
         bool returnValue = { };
-        if (UNLIKELY(!m_objectNames.isValidKey(program))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (program)
             program = m_objectNames.get(program);
         struct WebCore::GraphicsContextGLActiveInfo arg2 { };
@@ -445,10 +345,6 @@
     {
         assertIsCurrent(workQueue());
         bool returnValue = { };
-        if (UNLIKELY(!m_objectNames.isValidKey(program))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (program)
             program = m_objectNames.get(program);
         struct WebCore::GraphicsContextGLActiveInfo arg2 { };
@@ -459,10 +355,6 @@
     {
         assertIsCurrent(workQueue());
         GCGLint returnValue = { };
-        if (UNLIKELY(!m_objectNames.isValidKey(arg0))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (arg0)
             arg0 = m_objectNames.get(arg0);
         returnValue = m_context->getAttribLocation(arg0, name);
@@ -521,10 +413,6 @@
     {
         assertIsCurrent(workQueue());
         GCGLint returnValue = { };
-        if (UNLIKELY(!m_objectNames.isValidKey(program))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (program)
             program = m_objectNames.get(program);
         returnValue = m_context->getProgrami(program, pname);
@@ -548,10 +436,6 @@
     {
         assertIsCurrent(workQueue());
         String returnValue = { };
-        if (UNLIKELY(!m_objectNames.isValidKey(arg0))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (arg0)
             arg0 = m_objectNames.get(arg0);
         returnValue = m_context->getProgramInfoLog(arg0);
@@ -568,10 +452,6 @@
     {
         assertIsCurrent(workQueue());
         GCGLint returnValue = { };
-        if (UNLIKELY(!m_objectNames.isValidKey(arg0))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (arg0)
             arg0 = m_objectNames.get(arg0);
         returnValue = m_context->getShaderi(arg0, pname);
@@ -581,10 +461,6 @@
     {
         assertIsCurrent(workQueue());
         String returnValue = { };
-        if (UNLIKELY(!m_objectNames.isValidKey(arg0))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (arg0)
             arg0 = m_objectNames.get(arg0);
         returnValue = m_context->getShaderInfoLog(arg0);
@@ -602,10 +478,6 @@
     {
         assertIsCurrent(workQueue());
         String returnValue = { };
-        if (UNLIKELY(!m_objectNames.isValidKey(arg0))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (arg0)
             arg0 = m_objectNames.get(arg0);
         returnValue = m_context->getShaderSource(arg0);
@@ -628,10 +500,6 @@
     void getUniformfv(uint32_t program, int32_t location, size_t valueSize, CompletionHandler<void(std::span<const float>)>&& completionHandler)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(program))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (program)
             program = m_objectNames.get(program);
         Vector<GCGLfloat, 16> value(valueSize, 0);
@@ -641,10 +509,6 @@
     void getUniformiv(uint32_t program, int32_t location, size_t valueSize, CompletionHandler<void(std::span<const int32_t>)>&& completionHandler)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(program))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (program)
             program = m_objectNames.get(program);
         Vector<GCGLint, 4> value(valueSize, 0);
@@ -654,10 +518,6 @@
     void getUniformuiv(uint32_t program, int32_t location, size_t valueSize, CompletionHandler<void(std::span<const uint32_t>)>&& completionHandler)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(program))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (program)
             program = m_objectNames.get(program);
         Vector<GCGLuint, 4> value(valueSize, 0);
@@ -668,10 +528,6 @@
     {
         assertIsCurrent(workQueue());
         GCGLint returnValue = { };
-        if (UNLIKELY(!m_objectNames.isValidKey(arg0))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (arg0)
             arg0 = m_objectNames.get(arg0);
         returnValue = m_context->getUniformLocation(arg0, name);
@@ -693,10 +549,6 @@
     {
         assertIsCurrent(workQueue());
         GCGLboolean returnValue = { };
-        if (UNLIKELY(!m_objectNames.isValidKey(arg0))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (arg0)
             arg0 = m_objectNames.get(arg0);
         returnValue = m_context->isBuffer(arg0);
@@ -713,10 +565,6 @@
     {
         assertIsCurrent(workQueue());
         GCGLboolean returnValue = { };
-        if (UNLIKELY(!m_objectNames.isValidKey(arg0))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (arg0)
             arg0 = m_objectNames.get(arg0);
         returnValue = m_context->isFramebuffer(arg0);
@@ -726,10 +574,6 @@
     {
         assertIsCurrent(workQueue());
         GCGLboolean returnValue = { };
-        if (UNLIKELY(!m_objectNames.isValidKey(arg0))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (arg0)
             arg0 = m_objectNames.get(arg0);
         returnValue = m_context->isProgram(arg0);
@@ -739,10 +583,6 @@
     {
         assertIsCurrent(workQueue());
         GCGLboolean returnValue = { };
-        if (UNLIKELY(!m_objectNames.isValidKey(arg0))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (arg0)
             arg0 = m_objectNames.get(arg0);
         returnValue = m_context->isRenderbuffer(arg0);
@@ -752,10 +592,6 @@
     {
         assertIsCurrent(workQueue());
         GCGLboolean returnValue = { };
-        if (UNLIKELY(!m_objectNames.isValidKey(arg0))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (arg0)
             arg0 = m_objectNames.get(arg0);
         returnValue = m_context->isShader(arg0);
@@ -765,10 +601,6 @@
     {
         assertIsCurrent(workQueue());
         GCGLboolean returnValue = { };
-        if (UNLIKELY(!m_objectNames.isValidKey(arg0))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (arg0)
             arg0 = m_objectNames.get(arg0);
         returnValue = m_context->isTexture(arg0);
@@ -782,10 +614,6 @@
     void linkProgram(uint32_t arg0)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(arg0))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (arg0)
             arg0 = m_objectNames.get(arg0);
         m_context->linkProgram(arg0);
@@ -818,10 +646,6 @@
     void shaderSource(uint32_t arg0, String&& arg1)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(arg0))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (arg0)
             arg0 = m_objectNames.get(arg0);
         m_context->shaderSource(arg0, arg1);
@@ -964,10 +788,6 @@
     void useProgram(uint32_t arg0)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(arg0))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (arg0)
             arg0 = m_objectNames.get(arg0);
         m_context->useProgram(arg0);
@@ -975,10 +795,6 @@
     void validateProgram(uint32_t arg0)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(arg0))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (arg0)
             arg0 = m_objectNames.get(arg0);
         m_context->validateProgram(arg0);
@@ -1111,10 +927,6 @@
     void createVertexArray(uint32_t name)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(name))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         auto result = m_context->createVertexArray();
         if (result)
             m_objectNames.add(name, result);
@@ -1122,10 +934,6 @@
     void deleteVertexArray(uint32_t arg0)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(arg0))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (UNLIKELY(!arg0))
             return;
         arg0 = m_objectNames.take(arg0);
@@ -1135,10 +943,6 @@
     {
         assertIsCurrent(workQueue());
         GCGLboolean returnValue = { };
-        if (UNLIKELY(!m_objectNames.isValidKey(arg0))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (arg0)
             arg0 = m_objectNames.get(arg0);
         returnValue = m_context->isVertexArray(arg0);
@@ -1147,10 +951,6 @@
     void bindVertexArray(uint32_t arg0)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(arg0))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (arg0)
             arg0 = m_objectNames.get(arg0);
         m_context->bindVertexArray(arg0);
@@ -1168,10 +968,6 @@
     void framebufferTextureLayer(uint32_t target, uint32_t attachment, uint32_t texture, int32_t level, int32_t layer)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(texture))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (texture)
             texture = m_objectNames.get(texture);
         m_context->framebufferTextureLayer(target, attachment, texture, level, layer);
@@ -1255,10 +1051,6 @@
     {
         assertIsCurrent(workQueue());
         GCGLint returnValue = { };
-        if (UNLIKELY(!m_objectNames.isValidKey(program))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (program)
             program = m_objectNames.get(program);
         returnValue = m_context->getFragDataLocation(program, name);
@@ -1392,10 +1184,6 @@
     void createQuery(uint32_t name)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(name))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         auto result = m_context->createQuery();
         if (result)
             m_objectNames.add(name, result);
@@ -1403,10 +1191,6 @@
     void deleteQuery(uint32_t query)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(query))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (UNLIKELY(!query))
             return;
         query = m_objectNames.take(query);
@@ -1416,10 +1200,6 @@
     {
         assertIsCurrent(workQueue());
         GCGLboolean returnValue = { };
-        if (UNLIKELY(!m_objectNames.isValidKey(query))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (query)
             query = m_objectNames.get(query);
         returnValue = m_context->isQuery(query);
@@ -1428,10 +1208,6 @@
     void beginQuery(uint32_t target, uint32_t query)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(query))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (query)
             query = m_objectNames.get(query);
         m_context->beginQuery(target, query);
@@ -1452,10 +1228,6 @@
     {
         assertIsCurrent(workQueue());
         GCGLuint returnValue = { };
-        if (UNLIKELY(!m_objectNames.isValidKey(query))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (query)
             query = m_objectNames.get(query);
         returnValue = m_context->getQueryObjectui(query, pname);
@@ -1464,10 +1236,6 @@
     void createSampler(uint32_t name)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(name))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         auto result = m_context->createSampler();
         if (result)
             m_objectNames.add(name, result);
@@ -1475,10 +1243,6 @@
     void deleteSampler(uint32_t sampler)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(sampler))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (UNLIKELY(!sampler))
             return;
         sampler = m_objectNames.take(sampler);
@@ -1488,10 +1252,6 @@
     {
         assertIsCurrent(workQueue());
         GCGLboolean returnValue = { };
-        if (UNLIKELY(!m_objectNames.isValidKey(sampler))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (sampler)
             sampler = m_objectNames.get(sampler);
         returnValue = m_context->isSampler(sampler);
@@ -1500,10 +1260,6 @@
     void bindSampler(uint32_t unit, uint32_t sampler)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(sampler))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (sampler)
             sampler = m_objectNames.get(sampler);
         m_context->bindSampler(unit, sampler);
@@ -1511,10 +1267,6 @@
     void samplerParameteri(uint32_t sampler, uint32_t pname, int32_t param)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(sampler))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (sampler)
             sampler = m_objectNames.get(sampler);
         m_context->samplerParameteri(sampler, pname, param);
@@ -1522,10 +1274,6 @@
     void samplerParameterf(uint32_t sampler, uint32_t pname, float param)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(sampler))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (sampler)
             sampler = m_objectNames.get(sampler);
         m_context->samplerParameterf(sampler, pname, param);
@@ -1534,10 +1282,6 @@
     {
         assertIsCurrent(workQueue());
         GCGLfloat returnValue = { };
-        if (UNLIKELY(!m_objectNames.isValidKey(sampler))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (sampler)
             sampler = m_objectNames.get(sampler);
         returnValue = m_context->getSamplerParameterf(sampler, pname);
@@ -1547,10 +1291,6 @@
     {
         assertIsCurrent(workQueue());
         GCGLint returnValue = { };
-        if (UNLIKELY(!m_objectNames.isValidKey(sampler))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (sampler)
             sampler = m_objectNames.get(sampler);
         returnValue = m_context->getSamplerParameteri(sampler, pname);
@@ -1597,10 +1337,6 @@
     void createTransformFeedback(uint32_t name)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(name))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         auto result = m_context->createTransformFeedback();
         if (result)
             m_objectNames.add(name, result);
@@ -1608,10 +1344,6 @@
     void deleteTransformFeedback(uint32_t id)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(id))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (UNLIKELY(!id))
             return;
         id = m_objectNames.take(id);
@@ -1621,10 +1353,6 @@
     {
         assertIsCurrent(workQueue());
         GCGLboolean returnValue = { };
-        if (UNLIKELY(!m_objectNames.isValidKey(id))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (id)
             id = m_objectNames.get(id);
         returnValue = m_context->isTransformFeedback(id);
@@ -1633,10 +1361,6 @@
     void bindTransformFeedback(uint32_t target, uint32_t id)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(id))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (id)
             id = m_objectNames.get(id);
         m_context->bindTransformFeedback(target, id);
@@ -1654,10 +1378,6 @@
     void transformFeedbackVaryings(uint32_t program, Vector<String>&& varyings, uint32_t bufferMode)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(program))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (program)
             program = m_objectNames.get(program);
         m_context->transformFeedbackVaryings(program, varyings, bufferMode);
@@ -1665,10 +1385,6 @@
     void getTransformFeedbackVarying(uint32_t program, uint32_t index, CompletionHandler<void(struct WebCore::GraphicsContextGLActiveInfo&&)>&& completionHandler)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(program))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (program)
             program = m_objectNames.get(program);
         struct WebCore::GraphicsContextGLActiveInfo arg2 { };
@@ -1688,10 +1404,6 @@
     void bindBufferBase(uint32_t target, uint32_t index, uint32_t buffer)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(buffer))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (buffer)
             buffer = m_objectNames.get(buffer);
         m_context->bindBufferBase(target, index, buffer);
@@ -1699,10 +1411,6 @@
     void bindBufferRange(uint32_t target, uint32_t index, uint32_t buffer, uint64_t offset, uint64_t arg4)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(buffer))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (buffer)
             buffer = m_objectNames.get(buffer);
         m_context->bindBufferRange(target, index, buffer, static_cast<GCGLintptr>(offset), static_cast<GCGLsizeiptr>(arg4));
@@ -1711,10 +1419,6 @@
     {
         assertIsCurrent(workQueue());
         Vector<GCGLuint> returnValue = { };
-        if (UNLIKELY(!m_objectNames.isValidKey(program))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (program)
             program = m_objectNames.get(program);
         returnValue = m_context->getUniformIndices(program, uniformNames);
@@ -1724,10 +1428,6 @@
     {
         assertIsCurrent(workQueue());
         Vector<GCGLint> returnValue = { };
-        if (UNLIKELY(!m_objectNames.isValidKey(program))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (program)
             program = m_objectNames.get(program);
         returnValue = m_context->getActiveUniforms(program, uniformIndices, pname);
@@ -1737,10 +1437,6 @@
     {
         assertIsCurrent(workQueue());
         GCGLuint returnValue = { };
-        if (UNLIKELY(!m_objectNames.isValidKey(program))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (program)
             program = m_objectNames.get(program);
         returnValue = m_context->getUniformBlockIndex(program, uniformBlockName);
@@ -1750,10 +1446,6 @@
     {
         assertIsCurrent(workQueue());
         String returnValue = { };
-        if (UNLIKELY(!m_objectNames.isValidKey(program))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (program)
             program = m_objectNames.get(program);
         returnValue = m_context->getActiveUniformBlockName(program, uniformBlockIndex);
@@ -1762,10 +1454,6 @@
     void uniformBlockBinding(uint32_t program, uint32_t uniformBlockIndex, uint32_t uniformBlockBinding)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(program))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (program)
             program = m_objectNames.get(program);
         m_context->uniformBlockBinding(program, uniformBlockIndex, uniformBlockBinding);
@@ -1773,10 +1461,6 @@
     void getActiveUniformBlockiv(uint32_t program, uint32_t uniformBlockIndex, uint32_t pname, size_t paramsSize, CompletionHandler<void(std::span<const int32_t>)>&& completionHandler)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(program))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (program)
             program = m_objectNames.get(program);
         Vector<GCGLint, 4> params(paramsSize, 0);
@@ -1787,10 +1471,6 @@
     {
         assertIsCurrent(workQueue());
         String returnValue = { };
-        if (UNLIKELY(!m_objectNames.isValidKey(arg0))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (arg0)
             arg0 = m_objectNames.get(arg0);
         returnValue = m_context->getTranslatedShaderSourceANGLE(arg0);
@@ -1804,10 +1484,6 @@
     void createQueryEXT(uint32_t name)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(name))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         auto result = m_context->createQueryEXT();
         if (result)
             m_objectNames.add(name, result);
@@ -1815,10 +1491,6 @@
     void deleteQueryEXT(uint32_t query)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(query))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (UNLIKELY(!query))
             return;
         query = m_objectNames.take(query);
@@ -1828,10 +1500,6 @@
     {
         assertIsCurrent(workQueue());
         GCGLboolean returnValue = { };
-        if (UNLIKELY(!m_objectNames.isValidKey(query))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (query)
             query = m_objectNames.get(query);
         returnValue = m_context->isQueryEXT(query);
@@ -1840,10 +1508,6 @@
     void beginQueryEXT(uint32_t target, uint32_t query)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(query))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (query)
             query = m_objectNames.get(query);
         m_context->beginQueryEXT(target, query);
@@ -1856,10 +1520,6 @@
     void queryCounterEXT(uint32_t query, uint32_t target)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(query))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (query)
             query = m_objectNames.get(query);
         m_context->queryCounterEXT(query, target);
@@ -1875,10 +1535,6 @@
     {
         assertIsCurrent(workQueue());
         GCGLint returnValue = { };
-        if (UNLIKELY(!m_objectNames.isValidKey(query))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (query)
             query = m_objectNames.get(query);
         returnValue = m_context->getQueryObjectiEXT(query, pname);
@@ -1888,10 +1544,6 @@
     {
         assertIsCurrent(workQueue());
         GCGLuint64 returnValue = { };
-        if (UNLIKELY(!m_objectNames.isValidKey(query))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (query)
             query = m_objectNames.get(query);
         returnValue = m_context->getQueryObjectui64EXT(query, pname);
@@ -1990,10 +1642,6 @@
     void createExternalImage(uint32_t name, WebCore::GraphicsContextGL::ExternalImageSource&& arg0, uint32_t internalFormat, int32_t layer)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(name))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         auto result = m_context->createExternalImage(WTFMove(arg0), internalFormat, layer);
         if (result)
             m_objectNames.add(name, result);
@@ -2001,10 +1649,6 @@
     void deleteExternalImage(uint32_t handle)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(handle))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (UNLIKELY(!handle))
             return;
         handle = m_objectNames.take(handle);
@@ -2013,10 +1657,6 @@
     void bindExternalImage(uint32_t target, uint32_t arg1)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(arg1))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (arg1)
             arg1 = m_objectNames.get(arg1);
         m_context->bindExternalImage(target, arg1);
@@ -2024,10 +1664,6 @@
     void createExternalSync(uint32_t name, WebCore::GraphicsContextGL::ExternalSyncSource&& arg0)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(name))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         auto result = m_context->createExternalSync(WTFMove(arg0));
         if (result)
             m_objectNames.add(name, result);
@@ -2036,10 +1672,6 @@
     void deleteExternalSync(uint32_t arg0)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(arg0))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (UNLIKELY(!arg0))
             return;
         arg0 = m_objectNames.take(arg0);
@@ -2063,10 +1695,6 @@
     void enableFoveation(uint32_t arg0)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(arg0))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (arg0)
             arg0 = m_objectNames.get(arg0);
         m_context->enableFoveation(arg0);
@@ -2084,10 +1712,6 @@
     void framebufferResolveRenderbuffer(uint32_t target, uint32_t attachment, uint32_t renderbuffertarget, uint32_t arg3)
     {
         assertIsCurrent(workQueue());
-        if (UNLIKELY(!m_objectNames.isValidKey(arg3))) {
-            ASSERT_IS_TESTING_IPC();
-            return;
-        }
         if (arg3)
             arg3 = m_objectNames.get(arg3);
         m_context->framebufferResolveRenderbuffer(target, attachment, renderbuffertarget, arg3);

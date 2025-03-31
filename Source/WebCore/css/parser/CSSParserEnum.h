@@ -28,17 +28,11 @@
 
 #pragma once
 
-#include <cstdint>
 namespace WebCore {
 
 namespace CSSParserEnum {
 
-enum class NestedContextType : bool {
-    Style,
-    Scope,
-};
-
-using NestedContext = std::optional<NestedContextType>;
+enum class IsNestedContext : bool { No, Yes };
 
 enum class IsForgiving : bool { No, Yes };
 

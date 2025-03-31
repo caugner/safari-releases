@@ -1667,24 +1667,6 @@ static WebCore::EditableLinkBehavior toEditableLinkBehavior(_WKEditableLinkBehav
     return _preferences->videoFullscreenRequiresElementFullscreen();
 }
 
-- (void)_setSpatialVideoEnabled:(BOOL)enabled
-{
-#if ENABLE(LINEAR_MEDIA_PLAYER)
-    _preferences->setSpatialVideoEnabled(enabled);
-#else
-    UNUSED_PARAM(enabled);
-#endif
-}
-
-- (BOOL)_spatialVideoEnabled
-{
-#if ENABLE(LINEAR_MEDIA_PLAYER)
-    return _preferences->spatialVideoEnabled();
-#else
-    return NO;
-#endif
-}
-
 @end
 
 @implementation WKPreferences (WKDeprecated)

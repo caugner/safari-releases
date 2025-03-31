@@ -238,7 +238,7 @@ public:
     enum class InMotion : bool { No, Yes };
     void updateTouchLastGlobalPositionAndDelta(PointerID, const IntPoint&, InTouchEventHandling, InMotion);
     bool dispatchTouchEvent(const PlatformTouchEvent&, const AtomString&, const EventTargetTouchArrayMap&, float, float);
-    WEBCORE_EXPORT bool dispatchSimulatedTouchEvent(IntPoint location);
+    bool dispatchSimulatedTouchEvent(IntPoint location);
     Frame* touchEventTargetSubframe() const { return m_touchEventTargetSubframe.get(); }
     const TouchArray& touches() const { return m_touches; }
 #endif
@@ -384,8 +384,6 @@ private:
 #if ENABLE(DRAG_SUPPORT)
     static DragState& dragState();
     static const Seconds TextDragDelay;
-    SimpleRange createSimpleRangeFromDragStartSelection() const;
-    std::optional<WeakSimpleRange> getWeakSimpleRangeFromSelection(const VisibleSelection&) const;
 #endif
 
     bool eventActivatedView(const PlatformMouseEvent&) const;
@@ -482,9 +480,9 @@ private:
     
     bool mouseMovementExceedsThreshold(const FloatPoint&, int pointsThreshold) const;
 
-    bool passMousePressEventToSubframe(MouseEventWithHitTestResults&, LocalFrame&);
-    bool passMouseMoveEventToSubframe(MouseEventWithHitTestResults&, LocalFrame&, HitTestResult* = nullptr);
-    bool passMouseReleaseEventToSubframe(MouseEventWithHitTestResults&, LocalFrame&);
+    HandleUserInputEventResult passMousePressEventToSubframe(MouseEventWithHitTestResults&, LocalFrame&);
+    HandleUserInputEventResult passMouseMoveEventToSubframe(MouseEventWithHitTestResults&, LocalFrame&, HitTestResult* = nullptr);
+    HandleUserInputEventResult passMouseReleaseEventToSubframe(MouseEventWithHitTestResults&, LocalFrame&);
 
     bool passSubframeEventToSubframe(MouseEventWithHitTestResults&, LocalFrame&, HitTestResult* = nullptr);
 
@@ -674,7 +672,7 @@ private:
 
 #if ENABLE(DRAG_SUPPORT)
     LayoutPoint m_dragStartPosition;
-    std::optional<WeakSimpleRange> m_dragStartSelection;
+    std::optional<SimpleRange> m_dragStartSelection;
     RefPtr<Element> m_dragTarget;
     bool m_mouseDownMayStartDrag { false };
     bool m_dragMayStartSelectionInstead { false };

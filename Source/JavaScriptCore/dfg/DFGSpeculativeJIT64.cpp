@@ -1065,7 +1065,7 @@ void SpeculativeJIT::emitCall(Node* node)
         if (isTail) {
             RELEASE_ASSERT(node->op() == DirectTailCall);
 
-            SuppressRegisterAllocationValidation suppressScope(*this);
+            SuppressRegisetrAllocationValidation suppressScope(*this);
             Label mainPath = label();
             emitStoreCallSiteIndex(callSite);
             auto slowCases = callLinkInfo->emitDirectTailCallFastPath(*this, scopedLambda<void()>([&] {
@@ -1083,7 +1083,7 @@ void SpeculativeJIT::emitCall(Node* node)
             return;
         }
 
-        SuppressRegisterAllocationValidation suppressScope(*this);
+        SuppressRegisetrAllocationValidation suppressScope(*this);
         Label mainPath = label();
         emitStoreCallSiteIndex(callSite);
         auto slowCases = callLinkInfo->emitDirectFastPath(*this);
@@ -2876,8 +2876,7 @@ void SpeculativeJIT::compileGetByVal(Node* node, const ScopedLambda<std::tuple<J
                 auto done = jump();
                 slowCases.link(this);
                 speculationCheck(NegativeIndex, JSValueRegs(), nullptr, branch32(LessThan, propertyReg, TrustedImm32(0)));
-                static const double NaN = PNaN;
-                loadDouble(TrustedImmPtr(&NaN), tempReg);
+                move64ToDouble(TrustedImm64(bitwise_cast<uint64_t>(PNaN)), tempReg);
                 done.link(this);
                 ASSERT(!resultRegs);
                 doubleResult(tempReg, node);
@@ -3929,7 +3928,7 @@ void SpeculativeJIT::compile(Node* node)
         if (!ok)
             break;
 
-        SuppressRegisterAllocationValidation suppressScope(*this);
+        SuppressRegisetrAllocationValidation suppressScope(*this);
 
         StorageOperand storage(this, storageEdge);
         GPRTemporary oldValue(this);
@@ -4471,7 +4470,12 @@ void SpeculativeJIT::compile(Node* node)
         compileNewArrayWithSpecies(node);
         break;
     }
-        
+
+    case NewArrayWithSizeAndStructure: {
+        compileNewArrayWithSizeAndStructure(node);
+        break;
+    }
+
     case NewArrayBuffer: {
         compileNewArrayBuffer(node);
         break;
@@ -6697,8 +6701,7 @@ void SpeculativeJIT::compileDateGet(Node* node)
         loadDouble(Address(baseGPR, DateInstance::offsetOfInternalNumber()), temp1FPR);
         auto isNaN = branchIfNaN(temp1FPR);
 
-        static const double msPerSecondConstant = msPerSecond;
-        loadDouble(TrustedImmPtr(&msPerSecondConstant), temp2FPR);
+        move64ToDouble(TrustedImm64(bitwise_cast<uint64_t>(static_cast<double>(msPerSecond))), temp2FPR);
         divDouble(temp1FPR, temp2FPR, temp3FPR);
         floorDouble(temp3FPR, temp3FPR);
         mulDouble(temp3FPR, temp2FPR, temp3FPR);
@@ -6796,10 +6799,8 @@ void SpeculativeJIT::compileDateSet(Node* node)
     moveZeroToDouble(scratch2FPR);
     addDouble(scratch2FPR, scratch1FPR);
 
-    static const double NaN = PNaN;
-    static const double max = WTF::maxECMAScriptTime;
-    loadDouble(TrustedImmPtr(&max), scratch3FPR);
-    loadDouble(TrustedImmPtr(&NaN), scratch4FPR);
+    move64ToDouble(TrustedImm64(bitwise_cast<uint64_t>(static_cast<double>(WTF::maxECMAScriptTime))), scratch3FPR);
+    move64ToDouble(TrustedImm64(bitwise_cast<uint64_t>(PNaN)), scratch4FPR);
     absDouble(timeFPR, scratch2FPR);
     moveDoubleConditionallyDouble(DoubleGreaterThanOrUnordered, scratch2FPR, scratch3FPR, scratch4FPR, scratch1FPR, scratch1FPR);
 

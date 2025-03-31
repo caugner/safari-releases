@@ -90,10 +90,6 @@ class InbandMetadataTextTrackPrivateGStreamer;
 class InbandTextTrackPrivateGStreamer;
 class VideoTrackPrivateGStreamer;
 
-#if USE(TEXTURE_MAPPER_DMABUF)
-class GBMBufferSwapchain;
-#endif
-
 enum class TextureMapperFlags : uint16_t;
 
 void registerWebKitGStreamerElements();
@@ -111,8 +107,10 @@ public:
     MediaPlayerPrivateGStreamer(MediaPlayer*);
     virtual ~MediaPlayerPrivateGStreamer();
 
-    void ref() final { ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr::ref(); }
-    void deref() final { ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr::deref(); }
+    constexpr MediaPlayerType mediaPlayerType() const override { return MediaPlayerType::GStreamer; }
+
+    void ref() const final { ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr::ref(); }
+    void deref() const final { ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr::deref(); }
 
     static void registerMediaEngine(MediaEngineRegistrar);
     static bool supportsKeySystem(const String& keySystem, const String& mimeType);
@@ -264,18 +262,10 @@ protected:
     void pushNextHolePunchBuffer();
     bool shouldIgnoreIntrinsicSize() final;
 
-#if USE(TEXTURE_MAPPER_DMABUF)
-    GstElement* createVideoSinkDMABuf();
-#endif
-
     GstElement* createVideoSinkGL();
 
 #if USE(TEXTURE_MAPPER)
     void pushTextureToCompositor();
-#endif
-
-#if USE(TEXTURE_MAPPER_DMABUF)
-    void pushDMABufToCompositor();
 #endif
 
     GstElement* videoSink() const { return m_videoSink.get(); }
@@ -597,11 +587,6 @@ private:
 
     String m_errorMessage;
 
-#if USE(TEXTURE_MAPPER_DMABUF)
-    HashSet<GRefPtr<GstMemory>> m_dmabufMemory;
-    RefPtr<GBMBufferSwapchain> m_swapchain;
-#endif
-
     GRefPtr<GstStreamCollection> m_streamCollection;
 
     AbortableTaskQueue m_sinkTaskQueue;
@@ -626,5 +611,10 @@ private:
     RefPtr<GStreamerQuirksManager> m_quirksManagerForTesting;
 };
 
-}
+} // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::MediaPlayerPrivateGStreamer)
+static bool isType(const WebCore::MediaPlayerPrivateInterface& player) { return player.mediaPlayerType() == WebCore::MediaPlayerType::GStreamer; }
+SPECIALIZE_TYPE_TRAITS_END()
+
 #endif // ENABLE(VIDEO) && USE(GSTREAMER)

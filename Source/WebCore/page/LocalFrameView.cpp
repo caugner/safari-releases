@@ -6242,7 +6242,7 @@ void LocalFrameView::scrollbarStyleDidChange()
     scrollbarsController().updateScrollbarStyle();
 }
 
-FrameIdentifier LocalFrameView::rootFrameID() const
+std::optional<FrameIdentifier> LocalFrameView::rootFrameID() const
 {
     return m_frame->rootFrame().frameID();
 }

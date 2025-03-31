@@ -48,9 +48,7 @@
 #include "RenderHighlight.h"
 #include "RenderImage.h"
 #include "RenderLayer.h"
-#include "RenderLayoutState.h"
 #include "RenderStyleInlines.h"
-#include "RenderStyleSetters.h"
 #include "RenderTheme.h"
 #include "RenderVideo.h"
 #include "RenderView.h"
@@ -515,8 +513,8 @@ LayoutRect RenderReplaced::replacedContentRect(const LayoutSize& intrinsicSize) 
 
     LengthPoint objectPosition = style().objectPosition();
 
-    LayoutUnit xOffset = minimumValueForLength(objectPosition.x(), contentRect.width() - finalRect.width());
-    LayoutUnit yOffset = minimumValueForLength(objectPosition.y(), contentRect.height() - finalRect.height());
+    LayoutUnit xOffset = minimumValueForLength(objectPosition.x, contentRect.width() - finalRect.width());
+    LayoutUnit yOffset = minimumValueForLength(objectPosition.y, contentRect.height() - finalRect.height());
 
     finalRect.move(xOffset, yOffset);
 
@@ -593,9 +591,9 @@ static inline bool hasIntrinsicSize(RenderBox*contentRenderer, bool hasIntrinsic
 LayoutUnit RenderReplaced::computeReplacedLogicalWidth(ShouldComputePreferred shouldComputePreferred) const
 {
     if (style().logicalWidth().isSpecified())
-        return computeReplacedLogicalWidthRespectingMinMaxWidth(computeReplacedLogicalWidthUsing(MainOrPreferredSize, style().logicalWidth()), shouldComputePreferred);
+        return computeReplacedLogicalWidthRespectingMinMaxWidth(computeReplacedLogicalWidthUsing(RenderBox::SizeType::MainOrPreferredSize, style().logicalWidth()), shouldComputePreferred);
     if (style().logicalWidth().isIntrinsic())
-        return computeReplacedLogicalWidthRespectingMinMaxWidth(computeReplacedLogicalWidthUsing(MainOrPreferredSize, style().logicalWidth()), shouldComputePreferred);
+        return computeReplacedLogicalWidthRespectingMinMaxWidth(computeReplacedLogicalWidthUsing(RenderBox::SizeType::MainOrPreferredSize, style().logicalWidth()), shouldComputePreferred);
 
     RenderBox* contentRenderer = embeddedContentBox();
 
@@ -655,11 +653,18 @@ LayoutUnit RenderReplaced::computeReplacedLogicalWidth(ShouldComputePreferred sh
     return computeReplacedLogicalWidthRespectingMinMaxWidth(intrinsicLogicalWidth(), shouldComputePreferred);
 }
 
+static inline LayoutUnit resolveHeightForRatio(LayoutUnit borderAndPaddingLogicalWidth, LayoutUnit borderAndPaddingLogicalHeight, LayoutUnit logicalWidth, double aspectRatio, BoxSizing boxSizing)
+{
+    if (boxSizing == BoxSizing::BorderBox)
+        return LayoutUnit((logicalWidth + borderAndPaddingLogicalWidth) * aspectRatio) - borderAndPaddingLogicalHeight;
+    return LayoutUnit(logicalWidth * aspectRatio);
+}
+
 LayoutUnit RenderReplaced::computeReplacedLogicalHeight(std::optional<LayoutUnit> estimatedUsedWidth) const
 {
     // 10.5 Content height: the 'height' property: http://www.w3.org/TR/CSS21/visudet.html#propdef-height
     if (hasReplacedLogicalHeight())
-        return computeReplacedLogicalHeightRespectingMinMaxHeight(computeReplacedLogicalHeightUsing(MainOrPreferredSize, style().logicalHeight()));
+        return computeReplacedLogicalHeightRespectingMinMaxHeight(computeReplacedLogicalHeightUsing(RenderBox::SizeType::MainOrPreferredSize, style().logicalHeight()));
 
     RenderBox* contentRenderer = embeddedContentBox();
 
@@ -863,47 +868,6 @@ LayoutSize RenderReplaced::intrinsicSize() const
     if (isHorizontalWritingMode() ? shouldApplySizeContainment() : shouldApplySizeOrInlineSizeContainment())
         size.setHeight(explicitIntrinsicInnerHeight().value_or(0));
     return size;
-}
-
-void RenderReplaced::layoutShadowContent(const LayoutSize& oldSize)
-{
-    for (auto& renderBox : childrenOfType<RenderBox>(*this)) {
-        auto newSize = contentBoxRect().size();
-
-        if (is<RenderImage>(this)) {
-            bool childNeedsLayout = renderBox.needsLayout();
-            // If the region chain has changed we also need to relayout the children to update the region box info.
-            // FIXME: We can do better once we compute region box info for RenderReplaced, not only for RenderBlock.
-            auto* fragmentedFlow = enclosingFragmentedFlow();
-            if (fragmentedFlow && !childNeedsLayout) {
-                if (fragmentedFlow->pageLogicalSizeChanged())
-                    childNeedsLayout = true;
-            }
-
-            if (newSize == oldSize && !childNeedsLayout)
-                continue;
-        }
-
-        // When calling layout() on a child node, a parent must either push a LayoutStateMaintainer, or
-        // instantiate LayoutStateDisabler. Since using a LayoutStateMaintainer is slightly more efficient,
-        // and this method might be called many times per second during video playback, use a LayoutStateMaintainer:
-        LayoutStateMaintainer statePusher(*this, locationOffset(), isTransformed() || hasReflection() || style().isFlippedBlocksWritingMode());
-        renderBox.setLocation(LayoutPoint(borderLeft(), borderTop()) + LayoutSize(paddingLeft(), paddingTop()));
-        renderBox.mutableStyle().setHeight(Length(newSize.height(), LengthType::Fixed));
-        renderBox.mutableStyle().setWidth(Length(newSize.width(), LengthType::Fixed));
-        renderBox.setNeedsLayout(MarkOnlyThis);
-        renderBox.layout();
-    }
-
-    clearChildNeedsLayout();
-}
-
-FloatSize RenderReplaced::intrinsicRatio() const
-{
-    FloatSize intrinsicRatio;
-    FloatSize constrainedSize;
-    computeAspectRatioInformationForRenderBox(embeddedContentBox(), constrainedSize, intrinsicRatio);
-    return intrinsicRatio;
 }
 
 }

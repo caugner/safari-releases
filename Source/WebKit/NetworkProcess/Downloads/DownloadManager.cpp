@@ -47,17 +47,13 @@ DownloadManager::DownloadManager(Client& client)
 
 DownloadManager::~DownloadManager() = default;
 
-void DownloadManager::startDownload(PAL::SessionID sessionID, DownloadID downloadID, const ResourceRequest& request, const std::optional<WebCore::SecurityOriginData>& topOrigin, std::optional<NavigatingToAppBoundDomain> isNavigatingToAppBoundDomain, const String& suggestedName, FromDownloadAttribute fromDownloadAttribute, std::optional<WebCore::FrameIdentifier> frameID, std::optional<WebCore::PageIdentifier> pageID, std::optional<WebCore::ProcessIdentifier> webProcessID)
+void DownloadManager::startDownload(PAL::SessionID sessionID, DownloadID downloadID, const ResourceRequest& request, const std::optional<WebCore::SecurityOriginData>& topOrigin, std::optional<NavigatingToAppBoundDomain> isNavigatingToAppBoundDomain, const String& suggestedName)
 {
     auto* networkSession = client().networkSession(sessionID);
     if (!networkSession)
         return;
 
     NetworkLoadParameters parameters;
-    if (frameID)
-        parameters.webFrameID = *frameID;
-    if (pageID)
-        parameters.webPageID = *pageID;
     parameters.request = request;
     parameters.clientCredentialPolicy = ClientCredentialPolicy::MayAskClientForCredentials;
     parameters.isNavigatingToAppBoundDomain = isNavigatingToAppBoundDomain;
@@ -67,13 +63,13 @@ void DownloadManager::startDownload(PAL::SessionID sessionID, DownloadID downloa
     }
     parameters.storedCredentialsPolicy = sessionID.isEphemeral() ? StoredCredentialsPolicy::DoNotUse : StoredCredentialsPolicy::Use;
 
-    m_pendingDownloads.add(downloadID, makeUnique<PendingDownload>(m_client->parentProcessConnectionForDownloads(), WTFMove(parameters), downloadID, *networkSession, suggestedName, fromDownloadAttribute, webProcessID));
+    m_pendingDownloads.add(downloadID, PendingDownload::create(m_client->parentProcessConnectionForDownloads(), WTFMove(parameters), downloadID, *networkSession, suggestedName));
 }
 
 void DownloadManager::dataTaskBecameDownloadTask(DownloadID downloadID, std::unique_ptr<Download>&& download)
 {
     ASSERT(m_pendingDownloads.contains(downloadID));
-    if (auto pendingDownload = m_pendingDownloads.take(downloadID)) {
+    if (RefPtr pendingDownload = m_pendingDownloads.take(downloadID)) {
 #if PLATFORM(COCOA)
         pendingDownload->didBecomeDownload(download);
 #endif
@@ -86,7 +82,7 @@ void DownloadManager::dataTaskBecameDownloadTask(DownloadID downloadID, std::uni
 void DownloadManager::convertNetworkLoadToDownload(DownloadID downloadID, std::unique_ptr<NetworkLoad>&& networkLoad, ResponseCompletionHandler&& completionHandler, Vector<RefPtr<WebCore::BlobDataFileReference>>&& blobFileReferences, const ResourceRequest& request, const ResourceResponse& response)
 {
     ASSERT(!m_pendingDownloads.contains(downloadID));
-    m_pendingDownloads.add(downloadID, makeUnique<PendingDownload>(m_client->parentProcessConnectionForDownloads(), WTFMove(networkLoad), WTFMove(completionHandler), downloadID, request, response));
+    m_pendingDownloads.add(downloadID, PendingDownload::create(m_client->parentProcessConnectionForDownloads(), WTFMove(networkLoad), WTFMove(completionHandler), downloadID, request, response));
 }
 
 void DownloadManager::downloadDestinationDecided(DownloadID downloadID, Ref<NetworkDataTask>&& networkDataTask)
@@ -123,7 +119,7 @@ void DownloadManager::cancelDownload(DownloadID downloadID, CompletionHandler<vo
         download->cancel(WTFMove(completionHandler), Download::IgnoreDidFailCallback::Yes);
         return;
     }
-    if (auto pendingDownload = m_pendingDownloads.take(downloadID)) {
+    if (RefPtr pendingDownload = m_pendingDownloads.take(downloadID)) {
         pendingDownload->cancel(WTFMove(completionHandler));
         return;
     }
@@ -137,7 +133,7 @@ void DownloadManager::publishDownloadProgress(DownloadID downloadID, const URL& 
 {
     if (auto* download = m_downloads.get(downloadID))
         download->publishProgress(url, bookmarkData, useDownloadPlaceholder, activityAccessToken);
-    else if (auto* pendingDownload = m_pendingDownloads.get(downloadID))
+    else if (RefPtr pendingDownload = m_pendingDownloads.get(downloadID))
         pendingDownload->publishProgress(url, bookmarkData, useDownloadPlaceholder, activityAccessToken);
 }
 #else
@@ -145,7 +141,7 @@ void DownloadManager::publishDownloadProgress(DownloadID downloadID, const URL& 
 {
     if (auto* download = m_downloads.get(downloadID))
         download->publishProgress(url, WTFMove(sandboxExtensionHandle));
-    else if (auto* pendingDownload = m_pendingDownloads.get(downloadID))
+    else if (RefPtr pendingDownload = m_pendingDownloads.get(downloadID))
         pendingDownload->publishProgress(url, WTFMove(sandboxExtensionHandle));
 }
 #endif

@@ -127,7 +127,7 @@ public:
     void generateAnOutOfMemoryError(String&& message);
     void generateAnInternalError(String&& message);
 
-    RefPtr<Instance> instance() const { return m_instance.get(); }
+    RefPtr<Instance> instance() const { return m_adapter->instance(); }
     bool hasUnifiedMemory() const { return m_device.hasUnifiedMemory; }
 
     uint32_t maxBuffersPlusVertexBuffersForVertexStage() const;
@@ -164,7 +164,7 @@ public:
         simd::float4x3 colorSpaceConversionMatrix;
     };
     ExternalTextureData createExternalTextureFromPixelBuffer(CVPixelBufferRef, WGPUColorSpace) const;
-    RefPtr<XRSubImage> getXRViewSubImage(WGPUXREye);
+    RefPtr<XRSubImage> getXRViewSubImage(XRProjectionLayer&);
     const std::optional<const MachSendRight> webProcessID() const;
 #if CPU(X86_64)
     bool isIntel() const { return [m_device.name localizedCaseInsensitiveContainsString:@"intel"]; }
@@ -203,7 +203,7 @@ private:
 
     Function<void(WGPUErrorType, String&&)> m_uncapturedErrorCallback;
     Vector<ErrorScope> m_errorScopeStack;
-    Vector<RefPtr<XRSubImage>> m_xrSubImages;
+    RefPtr<XRSubImage> m_xrSubImage;
 
     Function<void(WGPUDeviceLostReason, String&&)> m_deviceLostCallback;
     bool m_isLost { false };
@@ -238,7 +238,6 @@ private:
     id<MTLRenderPipelineState> m_copyIndexedIndirectArgsPSOMS { nil };
 
     const Ref<Adapter> m_adapter;
-    const ThreadSafeWeakPtr<Instance> m_instance;
 #if HAVE(COREVIDEO_METAL_SUPPORT)
     RetainPtr<CVMetalTextureCacheRef> m_coreVideoTextureCache;
 #endif

@@ -263,7 +263,7 @@ private:
     RefPtr<WebCore::ImageBuffer> createImageBuffer(const WebCore::FloatSize&, WebCore::RenderingPurpose, float resolutionScale, const WebCore::DestinationColorSpace&, WebCore::ImageBufferPixelFormat, OptionSet<WebCore::ImageBufferOptions>) const final;
     RefPtr<WebCore::ImageBuffer> sinkIntoImageBuffer(std::unique_ptr<WebCore::SerializedImageBuffer>) final;
 #endif
-    std::unique_ptr<WebCore::WorkerClient> createWorkerClient(WebCore::WorkerOrWorkletThread&) final;
+    std::unique_ptr<WebCore::WorkerClient> createWorkerClient(SerialFunctionDispatcher&) final;
 
 #if ENABLE(WEBGL)
     RefPtr<WebCore::GraphicsContextGL> createGraphicsContextGL(const WebCore::GraphicsContextGLAttributes&) const final;
@@ -533,6 +533,8 @@ private:
     void clearAnimationsForActiveWritingToolsSession() final;
 #endif
 
+    bool requiresScriptTelemetryForURL(const URL&, const WebCore::SecurityOrigin& topOrigin) const final;
+
     void setIsInRedo(bool) final;
 
     void hasActiveNowPlayingSessionChanged(bool) final;
@@ -540,8 +542,6 @@ private:
 #if ENABLE(GPU_PROCESS)
     void getImageBufferResourceLimitsForTesting(CompletionHandler<void(std::optional<WebCore::ImageBufferResourceLimits>)>&&) const final;
 #endif
-
-    void didSwallowClickEvent(const WebCore::PlatformMouseEvent&, WebCore::Node&) final;
 
     mutable bool m_cachedMainFrameHasHorizontalScrollbar { false };
     mutable bool m_cachedMainFrameHasVerticalScrollbar { false };

@@ -119,7 +119,7 @@ private:
     Ref<Page> m_page;
     Ref<Document> m_document;
 #if ENABLE(REMOTE_INSPECTOR)
-    Ref<ServiceWorkerDebuggable> m_remoteDebuggable;
+    std::unique_ptr<ServiceWorkerDebuggable> m_remoteDebuggable;
 #endif
     Ref<ServiceWorkerThread> m_serviceWorkerThread;
     CacheStorageProvider& m_cacheStorageProvider;

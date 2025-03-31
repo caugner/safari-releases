@@ -132,7 +132,6 @@
 #import "_WKTextManipulationExclusionRule.h"
 #import "_WKTextManipulationItem.h"
 #import "_WKTextManipulationToken.h"
-#import "_WKTextPreview.h"
 #import "_WKVisitedLinkStoreInternal.h"
 #import "_WKWarningView.h"
 #import <WebCore/AppHighlight.h>
@@ -185,8 +184,6 @@
 #import "WKWebExtensionControllerInternal.h"
 #endif
 
-#import "WebKitSwiftSoftLink.h"
-
 #if PLATFORM(IOS_FAMILY)
 #import "RemoteLayerTreeDrawingAreaProxy.h"
 #import "RemoteScrollingCoordinatorProxy.h"
@@ -227,12 +224,12 @@ SOFT_LINK_LIBRARY_OPTIONAL(libAccessibility)
 SOFT_LINK_OPTIONAL(libAccessibility, _AXSReduceMotionAutoplayAnimatedImagesEnabled, Boolean, (), ());
 #endif
 
+#if ENABLE(GAMEPAD) && PLATFORM(VISION) && __has_include(<GameController/GCEventInteraction.h>)
+#import <WebCore/GameControllerSoftLink.h>
+#endif
+
 #define THROW_IF_SUSPENDED if (UNLIKELY(_page && _page->isSuspended())) \
     [NSException raise:NSInternalInconsistencyException format:@"The WKWebView is suspended"]
-
-#if USE(APPLE_INTERNAL_SDK)
-#import <WebKitAdditions/WKWebViewAdditionsBefore.mm>
-#endif
 
 RetainPtr<NSError> nsErrorFromExceptionDetails(const WebCore::ExceptionDetails& details)
 {
@@ -591,13 +588,6 @@ static uint32_t convertSystemLayoutDirection(NSUserInterfaceLayoutDirection dire
     pageConfiguration->preferences().setUsesSingleWebProcess(pool.usesSingleWebProcess());
 
     pageConfiguration->preferences().endBatchingUpdates();
-
-#if PLATFORM(APPLETV)
-    if (RefPtr dataStore = pageConfiguration->websiteDataStoreIfExists(); !dataStore || dataStore->isPersistent()) {
-        RELEASE_LOG_ERROR(API, "Created web view with persistent data store");
-        WTFReportBacktraceWithStackDepth(7);
-    }
-#endif
 }
 
 - (instancetype)initWithFrame:(CGRect)frame configuration:(WKWebViewConfiguration *)configuration
@@ -1843,10 +1833,8 @@ inline OptionSet<WebKit::FindOptions> toFindOptions(WKFindConfiguration *configu
 - (void)createPDFWithConfiguration:(WKPDFConfiguration *)pdfConfiguration completionHandler:(void (^)(NSData *pdfDocumentData, NSError *error))completionHandler
 {
     THROW_IF_SUSPENDED;
-    WebCore::FrameIdentifier frameID;
-    if (auto mainFrame = _page->mainFrame())
-        frameID = mainFrame->frameID();
-    else {
+    auto frameID = _page->mainFrame() ? std::optional { _page->mainFrame()->frameID() } : std::nullopt;
+    if (!frameID) {
         completionHandler(nil, createNSError(WKErrorUnknown).get());
         return;
     }
@@ -1857,7 +1845,7 @@ inline OptionSet<WebKit::FindOptions> toFindOptions(WKFindConfiguration *configu
 
     bool allowTransparentBackground = pdfConfiguration && pdfConfiguration.allowTransparentBackground;
 
-    _page->drawToPDF(frameID, floatRect, allowTransparentBackground, [handler = makeBlockPtr(completionHandler)](RefPtr<WebCore::SharedBuffer>&& pdfData) {
+    _page->drawToPDF(*frameID, floatRect, allowTransparentBackground, [handler = makeBlockPtr(completionHandler)](RefPtr<WebCore::SharedBuffer>&& pdfData) {
         if (!pdfData || pdfData->isEmpty()) {
             handler(nil, createNSError(WKErrorUnknown).get());
             return;
@@ -2133,11 +2121,6 @@ static _WKSelectionAttributes selectionAttributes(const WebKit::EditorState& edi
     }
 
     _page->didBeginWritingToolsSession(*webSession, contextData);
-
-    if (session.type == WTSessionTypeProofreading) {
-        _intelligenceTextEffectCoordinator = adoptNS([WebKit::allocWKIntelligenceTextEffectCoordinatorInstance() initWithDelegate:(id<WKIntelligenceTextEffectCoordinatorDelegate>)self]);
-        [_intelligenceTextEffectCoordinator startAnimationForRange:contexts.firstObject.range completion:^{ }];
-    }
 }
 
 - (void)proofreadingSession:(WTSession *)session didReceiveSuggestions:(NSArray<WTTextSuggestion *> *)suggestions processedRange:(NSRange)range inContext:(WTContext *)context finished:(BOOL)finished
@@ -2167,21 +2150,7 @@ static _WKSelectionAttributes selectionAttributes(const WebKit::EditorState& edi
         [_writingToolsTextSuggestions setObject:suggestion forKey:suggestion.uuid];
     }
 
-    NSInteger delta = [WebKit::getWKIntelligenceTextEffectCoordinatorClass() characterDeltaForReceivedSuggestions:suggestions];
-
-    auto operation = makeBlockPtr([webSession, replacementData, range, webContext, finished, weakSelf = WeakObjCPtr<WKWebView>(self)](void (^completion)(void)) {
-        auto strongSelf = weakSelf.get();
-        if (!strongSelf) {
-            completion();
-            return;
-        }
-
-        strongSelf->_page->proofreadingSessionDidReceiveSuggestions(*webSession, replacementData, range, *webContext, finished, [completion = makeBlockPtr(completion)] {
-            completion();
-        });
-    });
-
-    [_intelligenceTextEffectCoordinator requestReplacementWithProcessedRange:range finished:finished characterDelta:delta operation:operation.get() completion:^{ }];
+    _page->proofreadingSessionDidReceiveSuggestions(*webSession, replacementData, *webContext, finished);
 }
 
 - (void)proofreadingSession:(WTSession *)session didUpdateState:(WTTextSuggestionState)state forSuggestionWithUUID:(NSUUID *)suggestionUUID inContext:(WTContext *)context
@@ -2226,31 +2195,9 @@ static _WKSelectionAttributes selectionAttributes(const WebKit::EditorState& edi
     _activeWritingToolsSession = nil;
     [_writingToolsTextSuggestions removeAllObjects];
 
-    if (session.type != WTSessionTypeProofreading) {
-        _page->setWritingToolsActive(false);
-        _page->didEndWritingToolsSession(*webSession, accepted);
-        return;
-    }
+    _page->setWritingToolsActive(false);
 
-    // Flush and invoke all replacement operations, then dismiss the markers (and revert the text if not accepted),
-    // then set the selection to the updated context range, and finally clear the state in the web process.
-    //
-    // It's possible that the selection has already been restored by this point if the entire animation has already
-    // finished, but this is not guaranteed.
-
-    [_intelligenceTextEffectCoordinator flushReplacementsWithCompletion:makeBlockPtr([webSession, accepted, weakSelf = WeakObjCPtr<WKWebView>(self)] {
-        auto strongSelf = weakSelf.get();
-        if (!strongSelf)
-            return;
-
-        strongSelf->_page->setWritingToolsActive(false);
-
-        strongSelf->_page->willEndWritingToolsSession(*webSession, accepted, [webSession, accepted, weakSelf] {
-            [weakSelf.get()->_intelligenceTextEffectCoordinator restoreSelectionAcceptedReplacements:accepted completion:makeBlockPtr([webSession, accepted, weakSelf] {
-                weakSelf.get()->_page->didEndWritingToolsSession(*webSession, accepted);
-            }).get()];
-        });
-    }).get()];
+    _page->didEndWritingToolsSession(*webSession, accepted);
 }
 
 - (void)compositionSession:(WTSession *)session didReceiveText:(NSAttributedString *)attributedText replacementRange:(NSRange)range inContext:(WTContext *)context finished:(BOOL)finished
@@ -2290,137 +2237,6 @@ static _WKSelectionAttributes selectionAttributes(const WebKit::EditorState& edi
 
     _page->writingToolsSessionDidReceiveAction(*webSession, webAction);
 }
-
-#pragma mark - WKIntelligenceTextEffectCoordinatorDelegate conformance
-
-#if !PLATFORM(APPLETV) && !PLATFORM(WATCHOS)
-
-#if PLATFORM(IOS_FAMILY)
-- (UIView *)viewForIntelligenceTextEffectCoordinator:(WKIntelligenceTextEffectCoordinator *)coordinator
-{
-    return _contentView.get();
-}
-#else
-- (NSView *)viewForIntelligenceTextEffectCoordinator:(WKIntelligenceTextEffectCoordinator *)coordinator
-{
-    return self;
-}
-#endif
-
-- (void)intelligenceTextEffectCoordinator:(WKIntelligenceTextEffectCoordinator *)coordinator rectsForProofreadingSuggestionsInRange:(NSRange)range completion:(void (^)(NSArray<NSValue *> *))completion
-{
-    _page->proofreadingSessionSuggestionTextRectsInRootViewCoordinates(range, [completion = makeBlockPtr(completion)](auto&& rects) {
-        RetainPtr nsArray = createNSArray(rects, [](auto& rect) {
-            return [NSValue valueWithRect:rect];
-        });
-
-        completion(nsArray.get());
-    });
-}
-
-- (void)intelligenceTextEffectCoordinator:(WKIntelligenceTextEffectCoordinator *)coordinator updateTextVisibilityForRange:(NSRange)range visible:(BOOL)visible identifier:(NSUUID *)identifier completion:(void (^)(void))completion
-{
-    auto convertedIdentifier = WTF::UUID::fromNSUUID(identifier);
-    if (!convertedIdentifier) {
-        ASSERT_NOT_REACHED();
-        completion();
-        return;
-    }
-
-    _page->updateTextVisibilityForActiveWritingToolsSession(range, visible, *convertedIdentifier, [completion = makeBlockPtr(completion), weakSelf = WeakObjCPtr<WKWebView>(self)] {
-        auto strongSelf = weakSelf.get();
-        if (!strongSelf) {
-            completion();
-            return;
-        }
-
-        // Ensure the rendering of the visibility has actually taken effect.
-        [strongSelf _doAfterNextPresentationUpdate:completion.get()];
-    });
-}
-
-#if PLATFORM(IOS_FAMILY)
-- (void)intelligenceTextEffectCoordinator:(WKIntelligenceTextEffectCoordinator *)coordinator textPreviewsForRange:(NSRange)range completion:(void (^)(UITargetedPreview *))completion
-{
-    _page->textPreviewDataForActiveWritingToolsSession(range, [completion = makeBlockPtr(completion), weakSelf = WeakObjCPtr<WKWebView>(self)](auto&& textIndicatorData) {
-        auto strongSelf = weakSelf.get();
-        if (!strongSelf) {
-            completion(nil);
-            return;
-        }
-
-        if (!textIndicatorData) {
-            completion(nil);
-            return;
-        }
-
-        RetainPtr preview = [strongSelf->_contentView _createTargetedPreviewFromTextIndicator:*textIndicatorData previewContainer:strongSelf.get()];
-        completion(preview.get());
-    });
-}
-#else
-- (void)intelligenceTextEffectCoordinator:(WKIntelligenceTextEffectCoordinator *)coordinator textPreviewsForRange:(NSRange)range completion:(void (^)(NSArray<_WKTextPreview *> *))completion
-{
-    // FIXME: This logic is currently duplicated in a bunch of places; it should be unified.
-    _page->textPreviewDataForActiveWritingToolsSession(range, [completion = makeBlockPtr(completion)](auto&& textIndicatorData) {
-        if (!textIndicatorData) {
-            completion(@[ ]);
-            return;
-        }
-
-        RefPtr contentImage = textIndicatorData->contentImage;
-        if (!contentImage) {
-            ASSERT_NOT_REACHED();
-            completion(@[ ]);
-            return;
-        }
-
-        RefPtr nativeImage = contentImage->nativeImage();
-        if (!nativeImage) {
-            ASSERT_NOT_REACHED();
-            completion(@[ ]);
-            return;
-        }
-
-        RetainPtr platformImage = nativeImage->platformImage();
-
-        auto textBoundingRectInRootViewCoordinates = textIndicatorData->textBoundingRectInRootViewCoordinates;
-        auto textRectsInBoundingRectCoordinates = textIndicatorData->textRectsInBoundingRectCoordinates;
-        auto contentImageScaleFactor = textIndicatorData->contentImageScaleFactor;
-
-        RetainPtr previews = createNSArray(textRectsInBoundingRectCoordinates, [platformImage, textBoundingRectInRootViewCoordinates, contentImageScaleFactor](auto& textRectInBoundingRectCoordinates) -> _WKTextPreview * {
-
-            auto croppedTextRectInImageCoordinates = textRectInBoundingRectCoordinates;
-            croppedTextRectInImageCoordinates.scale(contentImageScaleFactor);
-
-            RetainPtr textImage = adoptCF(CGImageCreateWithImageInRect(platformImage.get(), croppedTextRectInImageCoordinates));
-
-            auto presentationFrame = CGRectOffset(textRectInBoundingRectCoordinates, textBoundingRectInRootViewCoordinates.x(), textBoundingRectInRootViewCoordinates.y());
-
-            RetainPtr textPreview = adoptNS([[_WKTextPreview alloc] initWithSnapshotImage:textImage.get() presentationFrame:presentationFrame]);
-            return textPreview.autorelease();
-        });
-
-        completion(previews.get());
-    });
-}
-#endif
-
-- (void)intelligenceTextEffectCoordinator:(WKIntelligenceTextEffectCoordinator *)coordinator decorateReplacementsForRange:(NSRange)range completion:(void (^)(void))completion
-{
-    _page->decorateTextReplacementsForActiveWritingToolsSession(range, [completion = makeBlockPtr(completion)] {
-        completion();
-    });
-}
-
-- (void)intelligenceTextEffectCoordinator:(WKIntelligenceTextEffectCoordinator *)coordinator setSelectionForRange:(NSRange)range completion:(void (^)(void))completion
-{
-    _page->setSelectionForActiveWritingToolsSession(range, [completion = makeBlockPtr(completion)] {
-        completion();
-    });
-}
-
-#endif
 
 #pragma mark - WTTextViewDelegate invoking methods
 
@@ -2505,16 +2321,16 @@ static _WKSelectionAttributes selectionAttributes(const WebKit::EditorState& edi
 
 #endif
 
-#if USE(APPLE_INTERNAL_SDK)
-#import <WebKitAdditions/WKWebViewAdditionsAfter.mm>
-#endif
-
 #if ENABLE(GAMEPAD)
-#if !__has_include(<WebKitAdditions/WKWebViewAdditionsAfter+Gamepad.mm>)
+
 - (void)_setGamepadsRecentlyAccessed:(BOOL)gamepadsRecentlyAccessed
 {
-}
+#if PLATFORM(VISION)
+    id<WKUIDelegatePrivate> uiDelegate = (id<WKUIDelegatePrivate>)self.UIDelegate;
+    if ([uiDelegate respondsToSelector:@selector(_webView:setRecentlyAccessedGamepads:)])
+        [uiDelegate _webView:self setRecentlyAccessedGamepads:gamepadsRecentlyAccessed];
 #endif
+}
 
 #if PLATFORM(VISION)
 - (BOOL)_gamepadsConnected
@@ -2534,11 +2350,23 @@ static _WKSelectionAttributes selectionAttributes(const WebKit::EditorState& edi
     _page->allowGamepadAccess();
 }
 
-#if !__has_include(<WebKitAdditions/WKWebViewAdditionsAfter+Gamepad.mm>)
 - (void)_setAllowGamepadsInput:(BOOL)allowGamepadsInput
 {
+#if __has_include(<GameController/GCEventInteraction.h>)
+    if (allowGamepadsInput == !!_gamepadsRecentlyAccessedState)
+        return;
+
+    if (allowGamepadsInput) {
+        _gamepadsRecentlyAccessedState = adoptNS([[WebCore::getGCEventInteractionClass() alloc] init]);
+        ((GCEventInteraction *)_gamepadsRecentlyAccessedState.get()).handledEventTypes = GCUIEventTypeGamepad;
+        [self addInteraction:(id<UIInteraction>)_gamepadsRecentlyAccessedState.get()];
+    } else {
+        [self removeInteraction:(id<UIInteraction>)_gamepadsRecentlyAccessedState.get()];
+        _gamepadsRecentlyAccessedState = nil;
+    }
+#endif // __has_include(<GameController/GCEventInteraction.h>)
 }
-#endif
+
 #endif // PLATFORM(VISION)
 #endif // ENABLE(GAMEPAD)
 
@@ -2823,7 +2651,7 @@ static RetainPtr<NSDictionary<NSString *, id>> createUserInfo(const std::optiona
                 [wkToken setUserInfo:createUserInfo(token.info).get()];
                 return wkToken;
             });
-            auto identifier = makeString(item.frameID.processIdentifier(), '-', item.frameID.object(), '-', item.identifier);
+            auto identifier = makeString(item.frameID ? item.frameID->processIdentifier().toUInt64() : 0, '-', item.frameID ? item.frameID->object().toUInt64() : 0, '-', item.identifier);
             return adoptNS([[_WKTextManipulationItem alloc] initWithIdentifier:identifier tokens:tokens.get() isSubframe:item.isSubframe isCrossSiteSubframe:item.isCrossSiteSubframe]);
         };
 
@@ -2869,7 +2697,7 @@ static std::optional<ItemIdentifiers> coreTextManipulationItemIdentifierFromStri
     if (!processID || !*processID || !frameID || !*frameID || !itemID || !*itemID)
         return std::nullopt;
 
-    return ItemIdentifiers { WebCore::ProcessQualified(LegacyNullableObjectIdentifier<WebCore::FrameIdentifierType>(*frameID),
+    return ItemIdentifiers { WebCore::ProcessQualified(ObjectIdentifier<WebCore::FrameIdentifierType>(*frameID),
         LegacyNullableObjectIdentifier<WebCore::ProcessIdentifierType>(*processID)),
         LegacyNullableObjectIdentifier<WebCore::TextManipulationItemIdentifierType>(*itemID) };
 }
@@ -2962,7 +2790,7 @@ static RetainPtr<NSArray> wkTextManipulationErrors(NSArray<_WKTextManipulationIt
             return WebCore::TextManipulationToken { coreTextManipulationTokenIdentifierFromString(wkToken.identifier), wkToken.content, std::nullopt };
         });
         auto identifiers = coreTextManipulationItemIdentifierFromString(wkItem.identifier);
-        WebCore::FrameIdentifier frameID;
+        std::optional<WebCore::FrameIdentifier> frameID;
         WebCore::TextManipulationItemIdentifier itemID;
         if (identifiers) {
             frameID = identifiers->frameID;
@@ -3626,7 +3454,10 @@ static void convertAndAddHighlight(Vector<Ref<WebCore::SharedMemory>>& buffers, 
 - (void)_getPDFFirstPageSizeInFrame:(_WKFrameHandle *)frame completionHandler:(void(^)(CGSize))completionHandler
 {
     THROW_IF_SUSPENDED;
-    _page->getPDFFirstPageSize(frame->_frameHandle->frameID(), [completionHandler = makeBlockPtr(completionHandler)](WebCore::FloatSize size) {
+    auto frameID = frame->_frameHandle->frameID();
+    if (!frameID)
+        return completionHandler({ });
+    _page->getPDFFirstPageSize(*frameID, [completionHandler = makeBlockPtr(completionHandler)](WebCore::FloatSize size) {
         completionHandler(static_cast<CGSize>(size));
     });
 }
@@ -4698,11 +4529,8 @@ static inline OptionSet<WebKit::FindOptions> toFindOptions(_WKFindOptions wkFind
         coreState.add(WebCore::MediaProducerMutedState::AudioIsMuted);
     if (mutedState & _WKMediaCaptureDevicesMuted)
         coreState.add(WebCore::MediaProducer::AudioAndVideoCaptureIsMuted);
-    if (mutedState & _WKMediaScreenCaptureMuted) {
+    if (mutedState & _WKMediaScreenCaptureMuted)
         coreState.add(WebCore::MediaProducerMutedState::ScreenCaptureIsMuted);
-        coreState.add(WebCore::MediaProducerMutedState::WindowCaptureIsMuted);
-        coreState.add(WebCore::MediaProducerMutedState::SystemAudioCaptureIsMuted);
-    }
 
     _page->setMuted(coreState);
 }
@@ -4920,71 +4748,6 @@ static Vector<Ref<API::TargetedElementInfo>> elementsFromWKElements(NSArray<_WKT
 {
     _dontResetTransientActivationAfterRunJavaScript = value;
 }
-
-#if USE(UICONTEXTMENU)
-- (void)_targetedPreviewForElementWithID:(NSString *)elementID completionHandler:(void (^)(UITargetedPreview *))completionHandler
-{
-    _page->createTextIndicatorForElementWithID(elementID, [completionHandler = makeBlockPtr(completionHandler), weakSelf = WeakObjCPtr<WKWebView>(self)](auto&& textIndicatorData) {
-        auto strongSelf = weakSelf.get();
-        if (!strongSelf) {
-            completionHandler(nil);
-            return;
-        }
-
-        if (!textIndicatorData) {
-            completionHandler(nil);
-            return;
-        }
-
-        RetainPtr preview = [strongSelf->_contentView _createTargetedPreviewFromTextIndicator:*textIndicatorData previewContainer:[strongSelf scrollView]];
-        completionHandler(preview.get());
-    });
-}
-#elif PLATFORM(MAC)
-- (void)_textPreviewsForElementWithID:(NSString *)elementID completionHandler:(void (^)(NSArray<_WKTextPreview *> *))completionHandler
-{
-    _page->createTextIndicatorForElementWithID(elementID, [completionHandler = makeBlockPtr(completionHandler)](auto&& textIndicatorData) {
-        if (!textIndicatorData) {
-            completionHandler(@[ ]);
-            return;
-        }
-
-        RefPtr contentImage = textIndicatorData->contentImage;
-        if (!contentImage) {
-            ASSERT_NOT_REACHED();
-            completionHandler(@[ ]);
-            return;
-        }
-
-        RefPtr nativeImage = contentImage->nativeImage();
-        if (!nativeImage) {
-            ASSERT_NOT_REACHED();
-            completionHandler(@[ ]);
-            return;
-        }
-
-        RetainPtr platformImage = nativeImage->platformImage();
-
-        auto textBoundingRectInRootViewCoordinates = textIndicatorData->textBoundingRectInRootViewCoordinates;
-        auto textRectsInBoundingRectCoordinates = textIndicatorData->textRectsInBoundingRectCoordinates;
-        auto contentImageScaleFactor = textIndicatorData->contentImageScaleFactor;
-
-        RetainPtr previews = createNSArray(textRectsInBoundingRectCoordinates, [platformImage, textBoundingRectInRootViewCoordinates, contentImageScaleFactor](auto textRectInBoundingRectCoordinates) -> _WKTextPreview * {
-            auto croppedTextRectInImageCoordinates = textRectInBoundingRectCoordinates;
-            croppedTextRectInImageCoordinates.scale(contentImageScaleFactor);
-
-            RetainPtr textImage = adoptCF(CGImageCreateWithImageInRect(platformImage.get(), croppedTextRectInImageCoordinates));
-
-            auto presentationFrame = CGRectOffset(textRectInBoundingRectCoordinates, textBoundingRectInRootViewCoordinates.x(), textBoundingRectInRootViewCoordinates.y());
-
-            RetainPtr textPreview = adoptNS([[_WKTextPreview alloc] initWithSnapshotImage:textImage.get() presentationFrame:presentationFrame]);
-            return textPreview.autorelease();
-        });
-
-        completionHandler(previews.get());
-    });
-}
-#endif
 
 - (NSUUID *)_enableSourceTextAnimationAfterElementWithID:(NSString *)elementID
 {

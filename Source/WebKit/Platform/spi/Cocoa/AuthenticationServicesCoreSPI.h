@@ -29,7 +29,6 @@
 
 @interface ASCWebKitSPISupport : NSObject
 @property (class, nonatomic) BOOL shouldUseAlternateCredentialStore;
-@property (class, nonatomic, readonly) BOOL shouldUseAlternateKeychainAttribute;
 + (void)getArePasskeysDisallowedForRelyingParty:(nonnull NSString *)relyingParty withCompletionHandler:(void (^ _Nonnull)(BOOL))completionHandler NS_REFINED_FOR_SWIFT;
 + (void)getCanCurrentProcessAccessPasskeysForRelyingParty:(nonnull NSString *)relyingParty withCompletionHandler:(void (^ _Nonnull)(BOOL))completionHandler;
 + (void)getClientCapabilitiesForRelyingParty:(nonnull NSString *)relyingParty withCompletionHandler:(void (^ _Nonnull)(NSDictionary<NSString *, NSNumber *> * _Nonnull))completionHandler;

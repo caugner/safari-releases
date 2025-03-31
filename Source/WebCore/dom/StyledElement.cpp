@@ -165,7 +165,7 @@ void StyledElement::dirtyStyleAttribute()
 {
     elementData()->setStyleAttributeIsDirty(true);
 
-    if (styleResolver().ruleSets().selectorsForStyleAttribute() != Style::SelectorsForStyleAttribute::None) {
+    if (styleResolver().ruleSets().hasSelectorsForStyleAttribute()) {
         if (auto* inlineStyle = this->inlineStyle()) {
             elementData()->setStyleAttributeIsDirty(false);
             auto newValue = inlineStyle->asTextAtom();
@@ -184,15 +184,10 @@ void StyledElement::invalidateStyleAttribute()
 
     elementData()->setStyleAttributeIsDirty(true);
 
-    // Inline style invalidation optimization does not work if there are selectors targeting the style attribute
-    // as some rule may start or stop matching.
-    auto selectorsForStyleAttribute = styleResolver().ruleSets().selectorsForStyleAttribute();
-    auto validity = selectorsForStyleAttribute == Style::SelectorsForStyleAttribute::None ? Style::Validity::InlineStyleInvalid : Style::Validity::ElementInvalid;
-
-    Node::invalidateStyle(validity);
+    Node::invalidateStyle(Style::Validity::InlineStyleInvalid);
 
     // In the rare case of selectors like "[style] ~ div" we need to synchronize immediately to invalidate.
-    if (selectorsForStyleAttribute == Style::SelectorsForStyleAttribute::NonSubjectPosition) {
+    if (styleResolver().ruleSets().hasComplexSelectorsForStyleAttribute()) {
         if (auto* inlineStyle = this->inlineStyle()) {
             elementData()->setStyleAttributeIsDirty(false);
             auto newValue = inlineStyle->asTextAtom();

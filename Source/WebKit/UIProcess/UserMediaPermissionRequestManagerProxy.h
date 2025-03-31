@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2014 Igalia S.L.
- * Copyright (C) 2016-2024 Apple Inc. All rights reserved.
+ * Copyright (C) 2016-2022 Apple Inc. All rights reserved.
  *
  *  This library is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU Lesser General Public
@@ -29,7 +29,6 @@
 #include <WebCore/SecurityOrigin.h>
 #include <wtf/CompletionHandler.h>
 #include <wtf/Deque.h>
-#include <wtf/HashCountedSet.h>
 #include <wtf/HashMap.h>
 #include <wtf/LoggerHelper.h>
 #include <wtf/RunLoop.h>
@@ -59,9 +58,6 @@ struct MediaConstraints;
 struct MediaStreamRequest;
 };
 
-OBJC_CLASS AVCaptureDeviceRotationCoordinator;
-OBJC_CLASS WKRotationCoordinatorObserver;
-
 namespace WebKit {
 
 class WebPageProxy;
@@ -85,11 +81,6 @@ public:
 
 #if ENABLE(MEDIA_STREAM)
     static void forEach(const WTF::Function<void(UserMediaPermissionRequestManagerProxy&)>&);
-#if HAVE(AVCAPTUREDEVICEROTATIONCOORDINATOR)
-    void startMonitoringCaptureDeviceRotation(const String&);
-    void stopMonitoringCaptureDeviceRotation(const String&);
-    void rotationAngleForCaptureDeviceChanged(const String&, WebCore::VideoFrameRotation);
-#endif // HAVE(AVCAPTUREDEVICEROTATIONCOORDINATOR)
 #endif
     static bool permittedToCaptureAudio();
     static bool permittedToCaptureVideo();
@@ -162,7 +153,7 @@ private:
 #if ENABLE(MEDIA_STREAM)
     void finishGrantingRequest(UserMediaPermissionRequestProxy&);
 
-    const UserMediaPermissionRequestProxy* searchForGrantedRequest(WebCore::FrameIdentifier, const WebCore::SecurityOrigin& userMediaDocumentOrigin, const WebCore::SecurityOrigin& topLevelDocumentOrigin, bool needsAudio, bool needsVideo) const;
+    const UserMediaPermissionRequestProxy* searchForGrantedRequest(std::optional<WebCore::FrameIdentifier>, const WebCore::SecurityOrigin& userMediaDocumentOrigin, const WebCore::SecurityOrigin& topLevelDocumentOrigin, bool needsAudio, bool needsVideo) const;
     bool wasRequestDenied(const UserMediaPermissionRequestProxy&, bool needsAudio, bool needsVideo, bool needsScreenCapture);
 
     using PermissionInfo = UserMediaPermissionCheckProxy::PermissionInfo;
@@ -225,10 +216,6 @@ private:
     uint64_t m_hasPendingCapture { 0 };
     std::optional<bool> m_mockDevicesEnabledOverride;
     HashSet<WebCore::FrameIdentifier> m_grantedFrames;
-#if PLATFORM(COCOA)
-    HashCountedSet<String> m_monitoredDeviceIds;
-    RetainPtr<WKRotationCoordinatorObserver> m_objcObserver;
-#endif
 };
 
 String convertEnumerationToString(UserMediaPermissionRequestManagerProxy::RequestAction);

@@ -557,7 +557,7 @@ RefPtr<ImageBuffer> Chrome::sinkIntoImageBuffer(std::unique_ptr<SerializedImageB
     return m_client->sinkIntoImageBuffer(WTFMove(imageBuffer));
 }
 
-std::unique_ptr<WorkerClient> Chrome::createWorkerClient(WorkerOrWorkletThread& dispatcher)
+std::unique_ptr<WorkerClient> Chrome::createWorkerClient(SerialFunctionDispatcher& dispatcher)
 {
     return m_client->createWorkerClient(dispatcher);
 }

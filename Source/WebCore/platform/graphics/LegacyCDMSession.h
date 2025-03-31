@@ -79,7 +79,6 @@ enum LegacyCDMSessionType {
 class WEBCORE_EXPORT LegacyCDMSession {
 public:
     virtual ~LegacyCDMSession() = default;
-    virtual void invalidate() { }
 
     virtual LegacyCDMSessionType type() { return CDMSessionTypeUnknown; }
     virtual const String& sessionId() const = 0;

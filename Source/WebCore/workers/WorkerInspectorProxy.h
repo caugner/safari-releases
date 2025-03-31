@@ -25,9 +25,6 @@
 
 #pragma once
 
-#include <wtf/CheckedPtr.h>
-#include <wtf/CheckedRef.h>
-#include <wtf/FastMalloc.h>
 #include <wtf/RefCounted.h>
 #include <wtf/RefPtr.h>
 #include <wtf/TZoneMalloc.h>
@@ -57,15 +54,9 @@ public:
     ~WorkerInspectorProxy();
 
     // A Worker's inspector messages come in and go out through the Page's WorkerAgent.
-    class PageChannel : public CanMakeThreadSafeCheckedPtr<PageChannel> {
-        WTF_MAKE_TZONE_ALLOCATED_INLINE(PageChannel);
-        WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(PageChannel);
-
+    class PageChannel {
     public:
         virtual ~PageChannel() = default;
-
-        virtual void ref() const = 0;
-        virtual void deref() const = 0;
         virtual void sendMessageFromWorkerToFrontend(WorkerInspectorProxy&, String&&) = 0;
     };
 
@@ -94,7 +85,7 @@ private:
     String m_identifier;
     URL m_url;
     String m_name;
-    CheckedPtr<PageChannel> m_pageChannel;
+    PageChannel* m_pageChannel { nullptr };
 };
 
 } // namespace WebCore

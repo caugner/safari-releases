@@ -100,7 +100,6 @@
 #import <WebCore/TextIterator.h>
 #import <WebCore/VisibleUnits.h>
 #import <WebCore/WindowsKeyboardCodes.h>
-#import <WebCore/markup.h>
 #import <pal/spi/cocoa/LaunchServicesSPI.h>
 #import <pal/spi/cocoa/NSAccessibilitySPI.h>
 #import <pal/spi/mac/NSApplicationSPI.h>
@@ -131,7 +130,7 @@ void WebPage::platformInitializeAccessibility()
     createMockAccessibilityElement(pid);
     RefPtr localMainFrame = dynamicDowncast<LocalFrame>(m_page->mainFrame());
     if (localMainFrame)
-        accessibilityTransferRemoteToken(accessibilityRemoteTokenData(), localMainFrame->frameID());
+        accessibilityTransferRemoteToken(accessibilityRemoteTokenData());
 
     // Close Mach connection to Launch Services.
 #if HAVE(LS_SERVER_CONNECTION_STATUS_RELEASE_NOTIFICATIONS_MASK)
@@ -158,7 +157,7 @@ void WebPage::platformReinitialize()
     RefPtr frame = m_page->focusController().focusedOrMainFrame();
     if (!frame)
         return;
-    accessibilityTransferRemoteToken(accessibilityRemoteTokenData(), frame->frameID());
+    accessibilityTransferRemoteToken(accessibilityRemoteTokenData());
 }
 
 RetainPtr<NSData> WebPage::accessibilityRemoteTokenData() const
@@ -763,7 +762,7 @@ void WebPage::handleSelectionServiceClick(FrameSelection& selection, const Vecto
     if (!range)
         return;
 
-    auto selectionString = attributedString(*range, IgnoreUserSelectNone::Yes);
+    auto selectionString = attributedString(*range);
     if (selectionString.isNull())
         return;
 

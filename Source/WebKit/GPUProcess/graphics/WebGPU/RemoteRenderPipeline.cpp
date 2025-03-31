@@ -47,25 +47,25 @@ RemoteRenderPipeline::RemoteRenderPipeline(WebCore::WebGPU::RenderPipeline& rend
     , m_gpu(gpu)
     , m_identifier(identifier)
 {
-    protectedStreamConnection()->startReceivingMessages(*this, Messages::RemoteRenderPipeline::messageReceiverName(), m_identifier.toUInt64());
+    m_streamConnection->startReceivingMessages(*this, Messages::RemoteRenderPipeline::messageReceiverName(), m_identifier.toUInt64());
 }
 
 RemoteRenderPipeline::~RemoteRenderPipeline() = default;
 
 void RemoteRenderPipeline::destruct()
 {
-    Ref { m_objectHeap.get() }->removeObject(m_identifier);
+    m_objectHeap->removeObject(m_identifier);
 }
 
 void RemoteRenderPipeline::stopListeningForIPC()
 {
-    protectedStreamConnection()->stopReceivingMessages(Messages::RemoteRenderPipeline::messageReceiverName(), m_identifier.toUInt64());
+    m_streamConnection->stopReceivingMessages(Messages::RemoteRenderPipeline::messageReceiverName(), m_identifier.toUInt64());
 }
 
 void RemoteRenderPipeline::getBindGroupLayout(uint32_t index, WebGPUIdentifier identifier)
 {
     // "A new GPUBindGroupLayout wrapper is returned each time"
-    auto bindGroupLayout = protectedBacking()->getBindGroupLayout(index);
+    auto bindGroupLayout = m_backing->getBindGroupLayout(index);
     Ref objectHeap = m_objectHeap.get();
     auto remoteBindGroupLayout = RemoteBindGroupLayout::create(bindGroupLayout, objectHeap, m_streamConnection.copyRef(), protectedGPU(), identifier);
     objectHeap->addObject(identifier, remoteBindGroupLayout);
@@ -73,17 +73,7 @@ void RemoteRenderPipeline::getBindGroupLayout(uint32_t index, WebGPUIdentifier i
 
 void RemoteRenderPipeline::setLabel(String&& label)
 {
-    protectedBacking()->setLabel(WTFMove(label));
-}
-
-Ref<WebCore::WebGPU::RenderPipeline> RemoteRenderPipeline::protectedBacking()
-{
-    return m_backing;
-}
-
-Ref<IPC::StreamServerConnection> RemoteRenderPipeline::protectedStreamConnection() const
-{
-    return m_streamConnection;
+    m_backing->setLabel(WTFMove(label));
 }
 
 } // namespace WebKit

@@ -67,6 +67,7 @@ public:
     constexpr MediaPlatformType platformType() const final { return MediaPlatformType::AVFObjC; }
 
     RefPtr<MediaPlayerPrivateInterface> player() const final;
+    void setPlayer(MediaPlayerPrivateInterface*) final;
 
     AddStatus addSourceBuffer(const ContentType&, bool webMParserEnabled, RefPtr<SourceBufferPrivate>&) final;
     void durationChanged(const MediaTime&) final;
@@ -112,10 +113,6 @@ public:
     bool needsVideoLayer() const;
 
     void setResourceOwner(const ProcessIdentity& resourceOwner) { m_resourceOwner = resourceOwner; }
-
-#if ENABLE(LEGACY_ENCRYPTED_MEDIA)
-    void keyAdded();
-#endif
 
 private:
     friend class SourceBufferPrivateAVFObjC;

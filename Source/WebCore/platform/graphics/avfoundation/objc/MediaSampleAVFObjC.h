@@ -58,8 +58,6 @@ public:
     void offsetTimestampsBy(const MediaTime&) override;
     void setTimestamps(const MediaTime&, const MediaTime&) override;
     WEBCORE_EXPORT bool isDivisable() const override;
-    Vector<Ref<MediaSampleAVFObjC>> divide();
-
     WEBCORE_EXPORT std::pair<RefPtr<MediaSample>, RefPtr<MediaSample>> divide(const MediaTime& presentationTime, UseEndTime) override;
     WEBCORE_EXPORT Ref<MediaSample> createNonDisplayingCopy() const override;
 
@@ -74,8 +72,6 @@ public:
     const KeyIDs& keyIDs() const { return m_keyIDs; }
     KeyIDs& keyIDs() { return m_keyIDs; }
 #endif
-
-    static bool isCMSampleBufferNonDisplaying(CMSampleBufferRef);
 
 protected:
     WEBCORE_EXPORT MediaSampleAVFObjC(RetainPtr<CMSampleBufferRef>&&);

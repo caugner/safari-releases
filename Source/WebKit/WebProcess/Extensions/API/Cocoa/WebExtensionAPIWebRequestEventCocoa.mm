@@ -48,14 +48,11 @@ void WebExtensionAPIWebRequestEvent::invokeListenersWithArgument(NSDictionary *a
     if (m_listeners.isEmpty())
         return;
 
-    auto resourceType = toWebExtensionWebRequestResourceType(resourceLoadInfo);
+    _WKWebExtensionWebRequestResourceType resourceType = _WKWebExtensionWebRequestResourceTypeFromResourceLoadInfo(resourceLoadInfo);
     auto resourceURL = resourceLoadInfo.originalURL;
 
-    // Copy the listeners since call() can trigger a mutation of the listeners.
-    auto listenersCopy = m_listeners;
-
-    for (auto& listener : listenersCopy) {
-        auto *filter = listener.second.get();
+    for (auto& listener : m_listeners) {
+        _WKWebExtensionWebRequestFilter *filter = listener.second.get();
         if (filter && ![filter matchesRequestForResourceOfType:resourceType URL:resourceURL tabID:toWebAPI(tabIdentifier) windowID:toWebAPI(windowIdentifier)])
             continue;
 

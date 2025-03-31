@@ -107,17 +107,16 @@ WebExtensionAPIEvent& WebExtensionAPIStorage::onChanged()
     return *m_onChanged;
 }
 
-void WebExtensionContextProxy::dispatchStorageChangedEvent(const String& changesJSON, WebExtensionDataType dataType, WebExtensionContentWorldType contentWorldType)
+void WebExtensionContextProxy::dispatchStorageChangedEvent(const String& onChangedJSON, WebExtensionDataType dataType, WebExtensionContentWorldType contentWorldType)
 {
     if (!hasDOMWrapperWorld(contentWorldType))
         return;
 
-    id changes = parseJSON(changesJSON);
-    auto areaName = toAPIString(dataType);
+    NSDictionary *onChangedData = parseJSON(onChangedJSON);
 
     enumerateFramesAndNamespaceObjects([&](WebFrame&, auto& namespaceObject) {
-        namespaceObject.storage().onChanged().invokeListenersWithArgument(changes, areaName);
-        namespaceObject.storage().storageAreaForType(dataType).onChanged().invokeListenersWithArgument(changes, areaName);
+        namespaceObject.storage().onChanged().invokeListenersWithArgument(onChangedData);
+        namespaceObject.storage().storageAreaForType(dataType).onChanged().invokeListenersWithArgument(onChangedData);
     }, toDOMWrapperWorld(contentWorldType));
 }
 

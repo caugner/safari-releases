@@ -193,7 +193,7 @@ void RemoteLayerTreeEventDispatcher::handleWheelEvent(const WebWheelEvent& wheel
     ASSERT(isMainRunLoop());
 
     auto scrollingTree = this->scrollingTree();
-    if (scrollingTree && scrollingTree->scrollingPerformanceTestingEnabled()) {
+    if (scrollingTree->scrollingPerformanceTestingEnabled()) {
         if (wheelEvent.phase() == WebWheelEvent::PhaseBegan)
             startFingerDownSignpostInterval();
 
@@ -484,11 +484,7 @@ void RemoteLayerTreeEventDispatcher::scheduleDelayedRenderingUpdateDetectionTime
     ASSERT(ScrollingThread::isCurrentThread());
 
     if (!m_delayedRenderingUpdateDetectionTimer)
-        m_delayedRenderingUpdateDetectionTimer = makeUnique<RunLoop::Timer>(RunLoop::current(), [weakThis = ThreadSafeWeakPtr { *this }] {
-            auto strongThis = weakThis.get();
-            if (strongThis)
-                strongThis->delayedRenderingUpdateDetectionTimerFired();
-        });
+        m_delayedRenderingUpdateDetectionTimer = makeUnique<RunLoop::Timer>(RunLoop::current(), this, &RemoteLayerTreeEventDispatcher::delayedRenderingUpdateDetectionTimerFired);
 
     m_delayedRenderingUpdateDetectionTimer->startOneShot(delay);
 }
@@ -700,7 +696,7 @@ void RemoteLayerTreeEventDispatcher::handleSyntheticWheelEvent(PageIdentifier pa
     ASSERT_UNUSED(pageID, m_pageIdentifier == pageID);
 
     auto scrollingTree = this->scrollingTree();
-    if (scrollingTree && scrollingTree->scrollingPerformanceTestingEnabled()) {
+    if (scrollingTree->scrollingPerformanceTestingEnabled()) {
         if (event.momentumPhase() == WebWheelEvent::PhaseBegan)
             startMomentumSignpostInterval();
 

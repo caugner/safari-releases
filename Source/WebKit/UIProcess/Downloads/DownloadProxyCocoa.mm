@@ -55,7 +55,7 @@ void DownloadProxy::publishProgress(const URL& url)
     if (!handle)
         return;
 
-    m_dataStore->networkProcess().send(Messages::NetworkProcess::PublishDownloadProgress(m_downloadID, url, WTFMove(*handle)), 0);
+    protectedDataStore()->protectedNetworkProcess()->send(Messages::NetworkProcess::PublishDownloadProgress(m_downloadID, url, WTFMove(*handle)), 0);
 #endif
 }
 

@@ -116,9 +116,6 @@ namespace WebKit {
 
 class LockdownModeObserver;
 class PerActivityStateCPUUsageSampler;
-#if ENABLE(ADVANCED_PRIVACY_PROTECTIONS)
-class StorageAccessUserAgentStringQuirkObserver;
-#endif
 class SuspendedPageProxy;
 class UIGamepad;
 class WebAutomationSession;
@@ -132,6 +129,10 @@ struct GPUProcessCreationParameters;
 struct NetworkProcessCreationParameters;
 struct WebProcessCreationParameters;
 struct WebProcessDataStoreParameters;
+
+#if ENABLE(ADVANCED_PRIVACY_PROTECTIONS)
+class ListDataObserver;
+#endif
 
 #if PLATFORM(COCOA)
 int networkProcessLatencyQOS();
@@ -177,6 +178,12 @@ public:
     T* supplement()
     {
         return static_cast<T*>(m_supplements.get(T::supplementName()));
+    }
+
+    template <typename T>
+    RefPtr<T> protectedSupplement()
+    {
+        return supplement<T>();
     }
 
     template <typename T>
@@ -389,6 +396,7 @@ public:
     GPUProcessProxy& ensureGPUProcess();
     Ref<GPUProcessProxy> ensureProtectedGPUProcess();
     GPUProcessProxy* gpuProcess() const { return m_gpuProcess.get(); }
+    RefPtr<GPUProcessProxy> protectedGPUProcess() const { return gpuProcess(); }
 #endif
 
 #if ENABLE(MODEL_PROCESS)
@@ -486,7 +494,7 @@ public:
     bool hasForegroundWebProcesses() const { return m_foregroundWebProcessCounter.value(); }
     bool hasBackgroundWebProcesses() const { return m_backgroundWebProcessCounter.value(); }
 
-    void processForNavigation(WebPageProxy&, WebFrameProxy&, const API::Navigation&, const URL& sourceURL, ProcessSwapRequestedByClient, WebProcessProxy::LockdownMode, LoadedWebArchive, const FrameInfoData&, Ref<WebsiteDataStore>&&, CompletionHandler<void(Ref<WebProcessProxy>&&, SuspendedPageProxy*, ASCIILiteral)>&&);
+    void processForNavigation(WebPageProxy&, WebFrameProxy&, const API::Navigation&, const URL& sourceURL, ProcessSwapRequestedByClient, WebProcessProxy::LockdownMode, const FrameInfoData&, Ref<WebsiteDataStore>&&, CompletionHandler<void(Ref<WebProcessProxy>&&, SuspendedPageProxy*, ASCIILiteral)>&&);
 
     void didReachGoodTimeToPrewarm();
     bool hasPrewarmedProcess() const { return m_prewarmedProcess.get(); }
@@ -593,7 +601,7 @@ private:
     void platformInvalidateContext();
 
     std::tuple<Ref<WebProcessProxy>, SuspendedPageProxy*, ASCIILiteral> processForNavigationInternal(WebPageProxy&, const API::Navigation&, Ref<WebProcessProxy>&& sourceProcess, const URL& sourceURL, ProcessSwapRequestedByClient, WebProcessProxy::LockdownMode, const FrameInfoData&, Ref<WebsiteDataStore>&&);
-    void prepareProcessForNavigation(Ref<WebProcessProxy>&&, WebPageProxy&, SuspendedPageProxy*, ASCIILiteral reason, const WebCore::RegistrableDomain&, const API::Navigation&, WebProcessProxy::LockdownMode, LoadedWebArchive, Ref<WebsiteDataStore>&&, CompletionHandler<void(Ref<WebProcessProxy>&&, SuspendedPageProxy*, ASCIILiteral)>&&, unsigned previousAttemptsCount = 0);
+    void prepareProcessForNavigation(Ref<WebProcessProxy>&&, WebPageProxy&, SuspendedPageProxy*, ASCIILiteral reason, const WebCore::RegistrableDomain&, const API::Navigation&, WebProcessProxy::LockdownMode, Ref<WebsiteDataStore>&&, CompletionHandler<void(Ref<WebProcessProxy>&&, SuspendedPageProxy*, ASCIILiteral)>&&, unsigned previousAttemptsCount = 0);
 
     RefPtr<WebProcessProxy> tryTakePrewarmedProcess(WebsiteDataStore&, WebProcessProxy::LockdownMode, const API::PageConfiguration&);
 
@@ -910,8 +918,9 @@ private:
 #endif
 
 #if ENABLE(ADVANCED_PRIVACY_PROTECTIONS)
-    RefPtr<StorageAccessUserAgentStringQuirkObserver> m_storageAccessUserAgentStringQuirksDataUpdateObserver;
-    RefPtr<StorageAccessPromptQuirkObserver> m_storageAccessPromptQuirksDataUpdateObserver;
+    RefPtr<ListDataObserver> m_storageAccessUserAgentStringQuirksDataUpdateObserver;
+    RefPtr<ListDataObserver> m_storageAccessPromptQuirksDataUpdateObserver;
+    RefPtr<ListDataObserver> m_scriptTelemetryDataUpdateObserver;
 #endif
 };
 
@@ -940,12 +949,12 @@ void WebProcessPool::sendToAllProcessesForSession(const T& message, PAL::Session
 template<typename T>
 void WebProcessPool::sendToAllRemoteWorkerProcesses(const T& message, ShouldSkipSuspendedProcesses shouldSkipSuspendedProcesses)
 {
-    for (auto& process : remoteWorkerProcesses()) {
-        if (!process.canSendMessage())
+    for (Ref process : remoteWorkerProcesses()) {
+        if (!process->canSendMessage())
             continue;
-        if (shouldSkipSuspendedProcesses == ShouldSkipSuspendedProcesses::Yes && process.throttler().isSuspended())
+        if (shouldSkipSuspendedProcesses == ShouldSkipSuspendedProcesses::Yes && process->throttler().isSuspended())
             continue;
-        process.send(T(message), 0);
+        process->send(T(message), 0);
     }
 }
 

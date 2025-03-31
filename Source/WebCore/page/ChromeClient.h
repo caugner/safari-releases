@@ -300,7 +300,7 @@ public:
     // the new cache.
     virtual void reachedApplicationCacheOriginQuota(SecurityOrigin&, int64_t) { }
 
-    virtual std::unique_ptr<WorkerClient> createWorkerClient(WorkerOrWorkletThread&) { return nullptr; }
+    virtual std::unique_ptr<WorkerClient> createWorkerClient(SerialFunctionDispatcher&) { return nullptr; }
 
 #if ENABLE(IOS_TOUCH_EVENTS)
     virtual void didPreventDefaultForEvent() = 0;
@@ -617,6 +617,8 @@ public:
     virtual void setMockWebAuthenticationConfiguration(const MockWebAuthenticationConfiguration&) { }
 #endif
 
+    virtual bool requiresScriptTelemetryForURL(const URL&, const SecurityOrigin& /* topOrigin */) const { return false; }
+
     virtual void animationDidFinishForElement(const Element&) { }
 
 #if PLATFORM(MAC)
@@ -698,7 +700,6 @@ public:
 
     virtual void getImageBufferResourceLimitsForTesting(CompletionHandler<void(std::optional<ImageBufferResourceLimits>)>&& callback) const { callback(std::nullopt); }
 
-    virtual void didSwallowClickEvent(const PlatformMouseEvent&, Node&) { }
     WEBCORE_EXPORT virtual ~ChromeClient();
 
 protected:

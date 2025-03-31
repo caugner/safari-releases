@@ -38,6 +38,7 @@
 #include "FetchLoaderClient.h"
 #include "ResourceError.h"
 #include "SharedBuffer.h"
+#include <wtf/TZoneMalloc.h>
 
 namespace WebCore {
 
@@ -46,6 +47,8 @@ DECLARE_ALLOCATOR_WITH_HEAP_IDENTIFIER(FetchBodyOwner);
 class FetchBodyOwner : public RefCounted<FetchBodyOwner>, public ActiveDOMObject, public CanMakeWeakPtr<FetchBodyOwner> {
     WTF_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(FetchBodyOwner);
 public:
+    DEFINE_VIRTUAL_REFCOUNTED;
+
     ~FetchBodyOwner();
 
     bool bodyUsed() const { return isDisturbed(); }
@@ -75,10 +78,6 @@ public:
     std::optional<Exception> loadingException() const;
 
     String contentType() const { return m_headers->fastGet(HTTPHeaderName::ContentType); }
-
-    // ActiveDOMObject.
-    void ref() const final { RefCounted::ref(); }
-    void deref() const final { RefCounted::deref(); }
 
 protected:
     FetchBodyOwner(ScriptExecutionContext*, std::optional<FetchBody>&&, Ref<FetchHeaders>&&);
@@ -117,6 +116,9 @@ private:
     bool virtualHasPendingActivity() const final;
 
     struct BlobLoader final : FetchLoaderClient {
+        WTF_MAKE_TZONE_ALLOCATED(BlobLoader);
+        WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(BlobLoader);
+    public:
         BlobLoader(FetchBodyOwner&);
 
         // FetchLoaderClient API

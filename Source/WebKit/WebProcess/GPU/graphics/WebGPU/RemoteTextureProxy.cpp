@@ -38,10 +38,10 @@ namespace WebKit::WebGPU {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(RemoteTextureProxy);
 
-RemoteTextureProxy::RemoteTextureProxy(RemoteGPUProxy& root, ConvertToBackingContext& convertToBackingContext, WebGPUIdentifier identifier)
+RemoteTextureProxy::RemoteTextureProxy(Ref<RemoteGPUProxy>&& root, ConvertToBackingContext& convertToBackingContext, WebGPUIdentifier identifier)
     : m_backing(identifier)
     , m_convertToBackingContext(convertToBackingContext)
-    , m_root(root)
+    , m_root(WTFMove(root))
 {
 }
 
@@ -54,10 +54,8 @@ RemoteTextureProxy::~RemoteTextureProxy()
 RefPtr<WebCore::WebGPU::TextureView> RemoteTextureProxy::createView(const std::optional<WebCore::WebGPU::TextureViewDescriptor>& descriptor)
 {
     std::optional<TextureViewDescriptor> convertedDescriptor;
-    Ref convertToBackingContext = m_convertToBackingContext;
-
     if (descriptor) {
-        convertedDescriptor = convertToBackingContext->convertToBacking(*descriptor);
+        convertedDescriptor = m_convertToBackingContext->convertToBacking(*descriptor);
         if (!convertedDescriptor)
             return nullptr;
     }
@@ -67,7 +65,7 @@ RefPtr<WebCore::WebGPU::TextureView> RemoteTextureProxy::createView(const std::o
     if (sendResult != IPC::Error::NoError)
         return nullptr;
 
-    auto result = RemoteTextureViewProxy::create(*this, convertToBackingContext, identifier);
+    auto result = RemoteTextureViewProxy::create(*this, m_convertToBackingContext, identifier);
     result->setLabel(WTFMove(convertedDescriptor->label));
     return result;
 }

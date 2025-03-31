@@ -176,8 +176,7 @@ void Font::platformGlyphInit()
 
 Font::~Font()
 {
-    if (auto* cache = SystemFallbackFontCache::forCurrentThreadIfExists())
-        cache->remove(this);
+    SystemFallbackFontCache::forCurrentThread().remove(this);
 }
 
 RenderingResourceIdentifier Font::renderingResourceIdentifier() const

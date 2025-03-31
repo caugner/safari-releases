@@ -67,7 +67,6 @@ public:
     bool isXRCompatible() const;
 
     RefPtr<Instance> instance() const { return m_instance.get(); }
-    ThreadSafeWeakPtr<Instance> weakInstance() const { return m_instance; }
 
 
 private:

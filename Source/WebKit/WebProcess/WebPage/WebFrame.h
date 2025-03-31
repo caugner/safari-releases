@@ -131,7 +131,7 @@ public:
     FrameInfoData info() const;
     FrameTreeNodeData frameTreeData() const;
 
-    WebCore::FrameIdentifier frameID() const;
+    WebCore::FrameIdentifier frameID() const { return m_frameID; }
 
     enum class ForNavigationAction : bool { No, Yes };
     uint64_t setUpPolicyListener(WebCore::FramePolicyFunction&&, ForNavigationAction);
@@ -141,7 +141,7 @@ public:
     void didFinishLoadInAnotherProcess();
     void removeFromTree();
 
-    void startDownload(const WebCore::ResourceRequest&, const String& suggestedName = { }, WebCore::FromDownloadAttribute = WebCore::FromDownloadAttribute::No);
+    void startDownload(const WebCore::ResourceRequest&, const String& suggestedName = { });
     void convertMainResourceLoadToDownload(WebCore::DocumentLoader*, const WebCore::ResourceRequest&, const WebCore::ResourceResponse&);
 
     void addConsoleMessage(MessageSource, MessageLevel, const String&, uint64_t requestID = 0);

@@ -566,6 +566,7 @@ HTMLMediaElement::HTMLMediaElement(const QualifiedName& tagName, Document& docum
     , m_autoplaying(true)
     , m_muted(false)
     , m_explicitlyMuted(false)
+    , m_initiallyMuted(false)
     , m_paused(true)
     , m_seeking(false)
     , m_seekRequested(false)
@@ -1881,6 +1882,11 @@ void HTMLMediaElement::loadResource(const URL& initialURL, const ContentType& in
 
         if (m_mediaSource) {
             ALWAYS_LOG(LOGIDENTIFIER, "loading MSE blob");
+            if (url.protocolIs(mediaSourceBlobProtocol) && m_mediaSource->detachable()) {
+                document().addConsoleMessage(MessageSource::MediaSource, MessageLevel::Error, makeString("Unable to attach detachable MediaSource via blob URL, use srcObject attribute"_s));
+                return mediaLoadingFailed(MediaPlayer::NetworkState::FormatError);
+            }
+
             if (!m_mediaSource->attachToElement(*this)) {
                 // Forget our reference to the MediaSource, so we leave it alone
                 // while processing remainder of load failure.
@@ -3154,6 +3160,7 @@ void HTMLMediaElement::setReadyState(MediaPlayer::ReadyState state)
             if (hasEnabledTargetAvailabilityListeners())
                 enqueuePlaybackTargetAvailabilityChangedEvent(EnqueueBehavior::OnlyWhenChanged);
 #endif
+            m_initiallyMuted = m_volume < 0.05 || muted();
 
             updateRenderer();
 
@@ -4565,9 +4572,6 @@ void HTMLMediaElement::setControls(bool controls)
 
 double HTMLMediaElement::volume() const
 {
-    if (implicitlyMuted())
-        return 0;
-
     return m_volume;
 }
 
@@ -4578,20 +4582,8 @@ ExceptionOr<void> HTMLMediaElement::setVolume(double volume)
     if (!(volume >= 0 && volume <= 1))
         return Exception { ExceptionCode::IndexSizeError };
 
-    auto quirkVolumeZero = document().quirks().implicitMuteWhenVolumeSetToZero();
-    auto muteImplicitly = quirkVolumeZero && !volume;
-
-    if (m_volume == volume && (!m_implicitlyMuted || *m_implicitlyMuted == muteImplicitly))
+    if (m_volume == volume)
         return { };
-
-    if (quirkVolumeZero) {
-        if (implicitlyMuted() != muteImplicitly) {
-            m_implicitlyMuted = muteImplicitly;
-            setMutedInternal(m_muted, ForceMuteChange::True);
-            if (volume)
-                m_implicitlyMuted = std::nullopt;
-        }
-    }
 
 #if HAVE(MEDIA_VOLUME_PER_ELEMENT)
     if (volume && processingUserGestureForMedia())
@@ -4625,29 +4617,15 @@ ExceptionOr<void> HTMLMediaElement::setVolume(double volume)
 
 bool HTMLMediaElement::muted() const
 {
-    if (implicitlyMuted())
-        return true;
-
-    if (m_explicitlyMuted)
-        return m_muted;
-
-    return hasAttributeWithoutSynchronization(mutedAttr);
+    return m_explicitlyMuted ? m_muted : hasAttributeWithoutSynchronization(mutedAttr);
 }
 
 void HTMLMediaElement::setMuted(bool muted)
 {
-    auto muteIsImplicit = implicitlyMuted();
-    m_implicitlyMuted = std::nullopt;
-    setMutedInternal(muted, muteIsImplicit ? ForceMuteChange::True : ForceMuteChange::False);
-}
-
-void HTMLMediaElement::setMutedInternal(bool muted, ForceMuteChange forceChange)
-{
     ALWAYS_LOG(LOGIDENTIFIER, muted);
 
-    bool mutedStateChanged = m_muted != muted || forceChange == ForceMuteChange::True;
+    bool mutedStateChanged = m_muted != muted;
     if (mutedStateChanged || !m_explicitlyMuted) {
-
         if (processingUserGestureForMedia()) {
             removeBehaviorRestrictionsAfterFirstUserGesture(MediaElementSession::AllRestrictions & ~MediaElementSession::RequireUserGestureToControlControlsManager);
 
@@ -4656,8 +4634,7 @@ void HTMLMediaElement::setMutedInternal(bool muted, ForceMuteChange forceChange)
         }
         Style::PseudoClassChangeInvalidation styleInvalidation(*this, CSSSelector::PseudoClass::Muted, muted);
         m_muted = muted;
-        if (!m_explicitlyMuted && !implicitlyMuted())
-            m_explicitlyMuted = !m_explicitlyMuted && !implicitlyMuted();
+        m_explicitlyMuted = true;
 
         // Avoid recursion when the player reports volume changes.
         if (!processingMediaPlayerCallback()) {
@@ -7148,15 +7125,6 @@ void HTMLMediaElement::dispatchEvent(Event& event)
 
     HTMLElement::dispatchEvent(event);
 
-    // Forward the fullscreenchange event to the UserAgentShadowRoot so that
-    // the media controls code can add "fullscreenchange" listeners without
-    // changing the behavior of existing clients listening for the prefixed
-    // "webkitfullscreenchange" event.
-    if (event.type() == eventNames().fullscreenchangeEvent) {
-        if (RefPtr root = userAgentShadowRoot())
-            root->dispatchEvent(Event::create(eventNames().fullscreenchangeEvent, Event::CanBubble::No, Event::IsCancelable::No));
-    }
-
     // Some pages may change the position/size of an inline video element
     // when/after the video element enters fullscreen (rdar://problem/55814988).
     // We need to fire the end fullscreen event to notify the page
@@ -7338,9 +7306,7 @@ void HTMLMediaElement::enterFullscreen(VideoFullscreenMode mode)
     if (videoUsesElementFullscreen() && page->isFullscreenManagerEnabled() && isInWindowOrStandardFullscreen(mode)) {
         m_temporarilyAllowingInlinePlaybackAfterFullscreen = false;
         m_waitingToEnterFullscreen = true;
-        FullscreenManager::FullscreenCheckType fullscreenCheckType = m_ignoreFullscreenPermissionsPolicy ? FullscreenManager::ExemptIFrameAllowFullscreenRequirement : FullscreenManager::EnforceIFrameAllowFullscreenRequirement;
-        m_ignoreFullscreenPermissionsPolicy = false;
-        protectedDocument()->checkedFullscreenManager()->requestFullscreenForElement(*this, nullptr, fullscreenCheckType, [weakThis = WeakPtr { *this }](bool success) {
+        protectedDocument()->checkedFullscreenManager()->requestFullscreenForElement(*this, nullptr, { }, [weakThis = WeakPtr { *this }](bool success) {
             RefPtr protectedThis = weakThis.get();
             if (!protectedThis || success)
                 return;
@@ -8327,9 +8293,7 @@ CachedResourceLoader* HTMLMediaElement::mediaPlayerCachedResourceLoader()
 Ref<PlatformMediaResourceLoader> HTMLMediaElement::mediaPlayerCreateResourceLoader()
 {
     auto destination = isVideo() ? FetchOptions::Destination::Video : FetchOptions::Destination::Audio;
-
-    // FIXME: This should be using a create() static function on MediaResourceLoader.
-    Ref mediaResourceLoader = adoptRef(*new MediaResourceLoader(document(), *this, crossOrigin(), destination));
+    Ref mediaResourceLoader = MediaResourceLoader::create(document(), *this, crossOrigin(), destination);
 
     m_lastMediaResourceLoaderForTesting = mediaResourceLoader.get();
 

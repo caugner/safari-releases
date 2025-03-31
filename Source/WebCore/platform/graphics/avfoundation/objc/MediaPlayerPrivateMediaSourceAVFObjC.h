@@ -54,7 +54,7 @@ typedef struct OpaqueFigVideoTarget *FigVideoTargetRef;
 namespace WebCore {
 
 class AudioTrackPrivate;
-class CDMSessionAVContentKeySession;
+class CDMSessionMediaSourceAVFObjC;
 class EffectiveRateChangedListener;
 class InbandTextTrackPrivate;
 class MediaSourcePrivateAVFObjC;
@@ -70,11 +70,12 @@ class MediaPlayerPrivateMediaSourceAVFObjC
     , private LoggerHelper
 {
 public:
+    DEFINE_VIRTUAL_REFCOUNTED;
+
     explicit MediaPlayerPrivateMediaSourceAVFObjC(MediaPlayer*);
     virtual ~MediaPlayerPrivateMediaSourceAVFObjC();
 
-    void ref() final { RefCounted::ref(); }
-    void deref() final { RefCounted::deref(); }
+    constexpr MediaPlayerType mediaPlayerType() const final { return MediaPlayerType::AVFObjCMSE; }
 
     static void registerMediaEngine(MediaEngineRegistrar);
 
@@ -132,8 +133,7 @@ ALLOW_NEW_API_WITHOUT_GUARDS_END
 
 #if ENABLE(LEGACY_ENCRYPTED_MEDIA)
     void setCDMSession(LegacyCDMSession*) override;
-    CDMSessionAVContentKeySession* cdmSession() const;
-    void keyAdded() final;
+    CDMSessionMediaSourceAVFObjC* cdmSession() const;
 #endif
 
 #if ENABLE(ENCRYPTED_MEDIA)
@@ -371,7 +371,7 @@ ALLOW_NEW_API_WITHOUT_GUARDS_END
     Deque<RetainPtr<id>> m_sizeChangeObservers;
     Timer m_seekTimer;
 #if ENABLE(LEGACY_ENCRYPTED_MEDIA)
-    WeakPtr<CDMSessionAVContentKeySession> m_session;
+    WeakPtr<CDMSessionMediaSourceAVFObjC> m_session;
 #endif
     MediaPlayer::NetworkState m_networkState;
     MediaPlayer::ReadyState m_readyState;
@@ -436,5 +436,9 @@ struct LogArgument<WebCore::MediaPlayerPrivateMediaSourceAVFObjC::SeekState> {
 };
 
 } // namespace WTF
+
+SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::MediaPlayerPrivateMediaSourceAVFObjC)
+static bool isType(const WebCore::MediaPlayerPrivateInterface& player) { return player.mediaPlayerType() == WebCore::MediaPlayerType::AVFObjCMSE; }
+SPECIALIZE_TYPE_TRAITS_END()
 
 #endif // ENABLE(MEDIA_SOURCE) && USE(AVFOUNDATION)

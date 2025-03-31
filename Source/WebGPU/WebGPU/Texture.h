@@ -72,7 +72,7 @@ public:
 
     // For depth-stencil textures, the input value to texelBlockSize()
     // needs to be the output of aspectSpecificFormat().
-    static Checked<uint32_t> texelBlockSize(WGPUTextureFormat); // Bytes
+    static uint32_t texelBlockSize(WGPUTextureFormat); // Bytes
     static bool containsDepthAspect(WGPUTextureFormat);
     static bool containsStencilAspect(WGPUTextureFormat);
     static bool isDepthOrStencilFormat(WGPUTextureFormat);
@@ -125,6 +125,9 @@ public:
     static ASCIILiteral formatToString(WGPUTextureFormat);
     bool isCanvasBacking() const;
     bool waitForCommandBufferCompletion();
+    void updateCompletionEvent(const std::pair<id<MTLSharedEvent>, uint64_t>&);
+    id<MTLSharedEvent> sharedEvent() const;
+    uint64_t sharedEventSignalValue() const;
 
 private:
     Texture(id<MTLTexture>, const WGPUTextureDescriptor&, Vector<WGPUTextureFormat>&& viewFormats, Device&);
@@ -155,6 +158,8 @@ private:
     bool m_destroyed { false };
     bool m_canvasBacking { false };
     mutable WeakHashSet<CommandEncoder> m_commandEncoders;
+    id<MTLSharedEvent> m_sharedEvent { nil };
+    uint64_t m_sharedEventSignalValue { 0 };
 };
 
 } // namespace WebGPU

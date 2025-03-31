@@ -116,7 +116,19 @@ static inline ResourceErrorOr<CachedResourceHandle<T>> castCachedResourceTo(Reso
     return makeUnexpected(cachedResource.error());
 }
 
-static CachedResourceHandle<CachedResource> createResource(CachedResource::Type type, CachedResourceRequest&& request, PAL::SessionID sessionID, const CookieJar* cookieJar, const Settings& settings)
+static ScriptRequiresTelemetry scriptRequiresTelemetry(const Document* document, const ResourceRequest& request)
+{
+    if (UNLIKELY(!document))
+        return ScriptRequiresTelemetry::No;
+
+    RefPtr page = document->page();
+    if (UNLIKELY(!page))
+        return ScriptRequiresTelemetry::No;
+
+    return page->requiresScriptTelemetryForURL(request.url()) ? ScriptRequiresTelemetry::Yes : ScriptRequiresTelemetry::No;
+}
+
+static CachedResourceHandle<CachedResource> createResource(CachedResource::Type type, CachedResourceRequest&& request, PAL::SessionID sessionID, const CookieJar* cookieJar, const Settings& settings, const Document* document)
 {
     switch (type) {
     case CachedResource::Type::ImageResource:
@@ -124,7 +136,7 @@ static CachedResourceHandle<CachedResource> createResource(CachedResource::Type 
     case CachedResource::Type::CSSStyleSheet:
         return new CachedCSSStyleSheet(WTFMove(request), sessionID, cookieJar);
     case CachedResource::Type::Script:
-        return new CachedScript(WTFMove(request), sessionID, cookieJar);
+        return new CachedScript(WTFMove(request), sessionID, cookieJar, scriptRequiresTelemetry(document, request.resourceRequest()));
     case CachedResource::Type::SVGDocumentResource:
         return new CachedSVGDocument(WTFMove(request), sessionID, cookieJar, settings);
     case CachedResource::Type::SVGFontResource:
@@ -158,7 +170,7 @@ static CachedResourceHandle<CachedResource> createResource(CachedResource::Type 
     return nullptr;
 }
 
-static CachedResourceHandle<CachedResource> createResource(CachedResourceRequest&& request, CachedResource& resource)
+static CachedResourceHandle<CachedResource> createResource(CachedResourceRequest&& request, CachedResource& resource, const Document* document)
 {
     switch (resource.type()) {
     case CachedResource::Type::ImageResource:
@@ -166,7 +178,7 @@ static CachedResourceHandle<CachedResource> createResource(CachedResourceRequest
     case CachedResource::Type::CSSStyleSheet:
         return new CachedCSSStyleSheet(WTFMove(request), resource.sessionID(), resource.cookieJar());
     case CachedResource::Type::Script:
-        return new CachedScript(WTFMove(request), resource.sessionID(), resource.cookieJar());
+        return new CachedScript(WTFMove(request), resource.sessionID(), resource.cookieJar(), scriptRequiresTelemetry(document, request.resourceRequest()));
     case CachedResource::Type::SVGDocumentResource:
         return new CachedSVGDocument(WTFMove(request), downcast<CachedSVGDocument>(resource));
     case CachedResource::Type::SVGFontResource:
@@ -941,7 +953,7 @@ CachedResourceHandle<CachedResource> CachedResourceLoader::updateCachedResourceW
         return loadResource(resource.type(), sessionID, WTFMove(request), cookieJar, settings, MayAddToMemoryCache::Yes);
     }
 
-    CachedResourceHandle resourceHandle = createResource(resource.type(), WTFMove(request), sessionID, &cookieJar, settings);
+    CachedResourceHandle resourceHandle = createResource(resource.type(), WTFMove(request), sessionID, &cookieJar, settings, protectedDocument().get());
     resourceHandle->loadFrom(resource);
     return resourceHandle;
 }
@@ -1140,7 +1152,7 @@ ResourceErrorOr<CachedResourceHandle<CachedResource>> CachedResourceLoader::requ
             if (blockedLoad) {
                 CACHEDRESOURCELOADER_RELEASE_LOG_WITH_FRAME("requestResource: Resource blocked by content blocker", frame.get());
                 if (type == CachedResource::Type::MainResource) {
-                    auto resource = createResource(type, WTFMove(request), page->sessionID(), page->protectedCookieJar().ptr(), page->protectedSettings());
+                    auto resource = createResource(type, WTFMove(request), page->sessionID(), page->protectedCookieJar().ptr(), page->protectedSettings(), protectedDocument().get());
                     ASSERT(resource);
                     resource->error(CachedResource::Status::LoadError);
                     resource->setResourceError(ResourceError(ContentExtensions::WebKitContentBlockerDomain, 0, resourceRequest.url(), WEB_UI_STRING("The URL was blocked by a content blocker", "WebKitErrorBlockedByContentBlocker description")));
@@ -1158,12 +1170,11 @@ ResourceErrorOr<CachedResourceHandle<CachedResource>> CachedResourceLoader::requ
             }
         }
 #endif
-        // FIXME: Propagate a better error code
-        bool isHTTPSOnlyActive = (m_documentLoader->httpsByDefaultMode() == HTTPSByDefaultMode::UpgradeWithUserMediatedFallback || m_documentLoader->httpsByDefaultMode() == HTTPSByDefaultMode::UpgradeAndNoFallback)
+        bool isHTTPSOnlyActive = m_documentLoader->httpsByDefaultMode() == HTTPSByDefaultMode::UpgradeAndFailClosed
             && !m_documentLoader->advancedPrivacyProtections().contains(AdvancedPrivacyProtections::HTTPSOnlyExplicitlyBypassedForDomain)
             && !frame->loader().isHTTPFallbackInProgress()
             && !(committedDocumentURL.protocolIs("http"_s) && request.resourceRequest().isSameSite());
-        if (!madeHTTPS && !LegacySchemeRegistry::shouldTreatURLSchemeAsSecure(request.resourceRequest().url().protocol()) && type == CachedResource::Type::MainResource && isHTTPSOnlyActive)
+        if (!madeHTTPS && !request.resourceRequest().url().protocolIs("https"_s) && type == CachedResource::Type::MainResource && isHTTPSOnlyActive)
             return makeUnexpected(protectedDocumentLoader()->checkedFrameLoader()->client().httpNavigationWithHTTPSOnlyError(request.resourceRequest()));
 
         if (madeHTTPS
@@ -1211,10 +1222,8 @@ ResourceErrorOr<CachedResourceHandle<CachedResource>> CachedResourceLoader::requ
 
     // See if we can use an existing resource from the cache.
     CachedResourceHandle<CachedResource> resource;
-    if (RefPtr document = this->document()) {
+    if (RefPtr document = this->document())
         request.setDomainForCachePartition(*document);
-        request.resourceRequest().setFirstPartyForCookies(document->firstPartyForCookies());
-    }
 
     if (request.allowsCaching())
         resource = memoryCache.resourceForRequest(request.resourceRequest(), page->sessionID());
@@ -1224,7 +1233,7 @@ ResourceErrorOr<CachedResourceHandle<CachedResource>> CachedResourceLoader::requ
 
     Ref cookieJar = page->cookieJar();
 
-    FrameLoader::addSameSiteInfoToRequestIfNeeded(request.resourceRequest(), document());
+    FrameLoader::addSameSiteInfoToRequestIfNeeded(request.resourceRequest(), document(), frame->page());
 
     auto mayAddToMemoryCache = computeMayAddToMemoryCache(request, resource.get()) ? MayAddToMemoryCache::Yes : MayAddToMemoryCache::No;
     RevalidationPolicy policy = determineRevalidationPolicy(type, request, resource.get(), forPreload, imageLoading);
@@ -1355,7 +1364,7 @@ CachedResourceHandle<CachedResource> CachedResourceLoader::revalidateResource(Ca
     ASSERT(!resource.resourceToRevalidate());
     ASSERT(resource.allowsCaching());
 
-    CachedResourceHandle newResource = createResource(WTFMove(request), resource);
+    CachedResourceHandle newResource = createResource(WTFMove(request), resource, protectedDocument().get());
 
     LOG(ResourceLoading, "Resource %p created to revalidate %p", newResource.get(), &resource);
     newResource->setResourceToRevalidate(&resource);
@@ -1376,7 +1385,7 @@ CachedResourceHandle<CachedResource> CachedResourceLoader::loadResource(CachedRe
 
     LOG(ResourceLoading, "Loading CachedResource for '%s'.", request.resourceRequest().url().stringCenterEllipsizedToLength().latin1().data());
 
-    CachedResourceHandle resource = createResource(type, WTFMove(request), sessionID, &cookieJar, settings);
+    CachedResourceHandle resource = createResource(type, WTFMove(request), sessionID, &cookieJar, settings, protectedDocument().get());
 
     if (resource->allowsCaching() && mayAddToMemoryCache == MayAddToMemoryCache::Yes)
         memoryCache.add(*resource);

@@ -797,7 +797,7 @@ void WebExtensionAction::setPopupPath(String path)
 NSString *WebExtensionAction::popupWebViewInspectionName()
 {
     if (m_popupWebViewInspectionName.isEmpty())
-        m_popupWebViewInspectionName = WEB_UI_FORMAT_CFSTRING("%@ — Extension Popup Page", "Label for an inspectable Web Extension popup page", (__bridge CFStringRef)extensionContext()->extension().displayShortName());
+        m_popupWebViewInspectionName = WEB_UI_FORMAT_CFSTRING("%@ — Extension Popup Page", "Label for an inspectable Web Extension popup page", extensionContext()->extension().displayShortName().createCFString().get());
 
     return m_popupWebViewInspectionName;
 }
@@ -1086,6 +1086,9 @@ void WebExtensionAction::popupSizeDidChange()
 
 void WebExtensionAction::closePopup()
 {
+    if (!popupPresented())
+        return;
+
     ASSERT(hasPopupWebView());
 
     RELEASE_LOG_DEBUG(Extensions, "Popup closed");

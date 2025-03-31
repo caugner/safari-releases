@@ -2006,21 +2006,22 @@ JSC_DEFINE_HOST_FUNCTION(functionReadFile, (JSGlobalObject* globalObject, CallFr
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
 
-    String fileName = callFrame->argument(0).toWTFString(globalObject);
-    RETURN_IF_EXCEPTION(scope, encodedJSValue());
-
     bool isBinary = false;
     if (callFrame->argumentCount() > 1) {
         String type = callFrame->argument(1).toWTFString(globalObject);
         RETURN_IF_EXCEPTION(scope, encodedJSValue());
-        if (type != "binary"_s)
-            return throwVMError(globalObject, scope, "Expected 'binary' as second argument."_s);
-        isBinary = true;
+        if (type == "binary"_s)
+            isBinary = true;
+        else if (type != "caller relative"_s)
+            return throwVMError(globalObject, scope, "Expected 'binary' or 'caller relative' as second argument."_s);
     }
 
-    RefPtr<Uint8Array> content = fillBufferWithContentsOfFile(fileName);
+    URL filePath = computeFilePath(vm, globalObject, callFrame);
+    RETURN_IF_EXCEPTION(scope, encodedJSValue());
+
+    RefPtr<Uint8Array> content = fillBufferWithContentsOfFile(filePath.fileSystemPath());
     if (!content)
-        return throwVMError(globalObject, scope, "Could not open file."_s);
+        return throwVMError(globalObject, scope, makeString("Could not open file: "_s, filePath.fileSystemPath()));
 
     if (!isBinary)
         return JSValue::encode(jsString(vm, String::fromUTF8WithLatin1Fallback(content->span())));
@@ -2304,13 +2305,7 @@ JSC_DEFINE_HOST_FUNCTION(functionCallerIsBBQOrOMGCompiled, (JSGlobalObject* glob
     ASSERT(wasmToJSFrame.callerFrame()->callee().isNativeCallee());
     CallerFunctor wasmFrame;
     StackVisitor::visit(wasmToJSFrame.callerFrame(), vm, wasmFrame);
-    if (!wasmFrame.callerFrame()->callee().isNativeCallee()) {
-        // This can happen if FTL directly calls wasm which tail calls this function, which fuzzers can produce, just bail out.
-        ASSERT(wasmFrame.callerFrame()->codeBlock()->jitType() == JITType::FTLJIT);
-        return throwVMError(globalObject, scope, "caller isn't a wasm function"_s);
-    }
     ASSERT(wasmFrame.callerFrame()->callee().isNativeCallee());
-    ASSERT(wasmFrame.callerFrame()->callee().asNativeCallee()->category() == NativeCallee::Category::Wasm);
 #if ENABLE(WEBASSEMBLY)
     auto mode = static_cast<Wasm::Callee*>(wasmFrame.callerFrame()->callee().asNativeCallee())->compilationMode();
     return JSValue::encode(jsBoolean(isAnyBBQ(mode) || isAnyOMG(mode)));

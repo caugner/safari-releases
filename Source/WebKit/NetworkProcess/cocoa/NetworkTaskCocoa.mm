@@ -48,9 +48,10 @@ static inline bool computeIsAlwaysOnLoggingAllowed(NetworkSession& session)
     return session.sessionID().isAlwaysOnLoggingAllowed();
 }
 
-NetworkTaskCocoa::NetworkTaskCocoa(NetworkSession& session)
+NetworkTaskCocoa::NetworkTaskCocoa(NetworkSession& session, ShouldRelaxThirdPartyCookieBlocking shouldRelaxThirdPartyCookieBlocking)
     : m_networkSession(session)
     , m_isAlwaysOnLoggingAllowed(computeIsAlwaysOnLoggingAllowed(session))
+    , m_shouldRelaxThirdPartyCookieBlocking(shouldRelaxThirdPartyCookieBlocking)
 {
 }
 
@@ -259,7 +260,7 @@ void NetworkTaskCocoa::willPerformHTTPRedirection(WebCore::ResourceResponse&& re
     applyCookiePolicyForThirdPartyCloaking(request);
     if (!m_hasBeenSetToUseStatelessCookieStorage) {
         if (storedCredentialsPolicy() == WebCore::StoredCredentialsPolicy::EphemeralStateless
-            || (m_networkSession->networkStorageSession() && m_networkSession->networkStorageSession()->shouldBlockCookies(request, frameID(), pageID(), shouldRelaxThirdPartyCookieBlocking())))
+            || (m_networkSession->networkStorageSession() && m_networkSession->networkStorageSession()->shouldBlockCookies(request, frameID(), pageID(), m_shouldRelaxThirdPartyCookieBlocking)))
             blockCookies();
     } else if (storedCredentialsPolicy() != WebCore::StoredCredentialsPolicy::EphemeralStateless && needsFirstPartyCookieBlockingLatchModeQuirk(request.firstPartyForCookies(), request.url(), redirectResponse.url()))
         unblockCookies();
@@ -272,11 +273,6 @@ void NetworkTaskCocoa::willPerformHTTPRedirection(WebCore::ResourceResponse&& re
 
     updateTaskWithFirstPartyForSameSiteCookies(task(), request);
     completionHandler(WTFMove(request));
-}
-
-ShouldRelaxThirdPartyCookieBlocking NetworkTaskCocoa::shouldRelaxThirdPartyCookieBlocking() const
-{
-    return m_networkSession->networkProcess().shouldRelaxThirdPartyCookieBlockingForPage(webPageProxyID());
 }
 
 } // namespace WebKit

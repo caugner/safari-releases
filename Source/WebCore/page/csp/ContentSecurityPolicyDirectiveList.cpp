@@ -615,10 +615,8 @@ void ContentSecurityPolicyDirectiveList::parseRequireTrustedTypesFor(ParsedDirec
             auto begin = buffer.position();
             if (skipExactlyIgnoringASCIICase(buffer, "'script'"_s))
                 m_requireTrustedTypesForScript = true;
-            else {
+            else
                 policy().reportInvalidTrustedTypesSinkGroup(String({ begin, buffer.position() }));
-                return;
-            }
 
             ASSERT(buffer.atEnd() || isUnicodeCompatibleASCIIWhitespace(*buffer));
         }

@@ -708,12 +708,8 @@ bool SelectorChecker::checkOne(CheckingContext& checkingContext, LocalContext& c
         // :host doesn't combine with anything except pseudo elements.
         bool isHostPseudoClass = selector.match() == CSSSelector::Match::PseudoClass && selector.pseudoClass() == CSSSelector::PseudoClass::Host;
         bool isPseudoElement = selector.match() == CSSSelector::Match::PseudoElement;
-        // FIXME: We do not support combining :host with :not() functional pseudoclass. Combination with functional pseudoclass has been allowed for the useful :is(:host) ; but combining with :not() doesn't sound useful like :host():not(:not(:host))
-        // https://bugs.webkit.org/show_bug.cgi?id=283062
-        bool isNotPseudoClass = selector.match() == CSSSelector::Match::PseudoClass && selector.pseudoClass() == CSSSelector::PseudoClass::Not;
-
-        // We can early return when we know it's neither :host, a compound :is(:host) , a pseudo-element.
-        if (!isHostPseudoClass && !isPseudoElement && (!selector.selectorList() || isNotPseudoClass))
+        // We can early return when we know it's neither :host, a compound like :is(:host), a pseudo-element.
+        if (!isHostPseudoClass && !isPseudoElement && !selector.selectorList())
             return false;
     }
 
@@ -1077,8 +1073,8 @@ bool SelectorChecker::checkOne(CheckingContext& checkingContext, LocalContext& c
                 return true;
             break;
         case CSSSelector::PseudoClass::Lang:
-            ASSERT(selector.argumentList() && !selector.argumentList()->isEmpty());
-            return matchesLangPseudoClass(element, *selector.argumentList());
+            ASSERT(selector.langList() && !selector.langList()->isEmpty());
+            return matchesLangPseudoClass(element, *selector.langList());
 #if ENABLE(FULLSCREEN_API)
         case CSSSelector::PseudoClass::Fullscreen:
             return matchesFullscreenPseudoClass(element);
@@ -1251,6 +1247,8 @@ bool SelectorChecker::checkOne(CheckingContext& checkingContext, LocalContext& c
             for (auto& partName : element.partNames())
                 appendTranslatedPartNameToRuleScope(translatedPartNames, partName);
 
+            ASSERT(selector.argumentList());
+
             for (auto& part : *selector.argumentList()) {
                 if (!translatedPartNames.contains(part))
                     return false;
@@ -1285,8 +1283,8 @@ bool SelectorChecker::checkOne(CheckingContext& checkingContext, LocalContext& c
                 return true;
 
             return std::ranges::all_of(list.begin() + 1, list.end(),
-                [&](const PossiblyQuotedIdentifier& classSelector) {
-                    return checkingContext.classList.contains(classSelector.identifier);
+                [&](const AtomString& classSelector) {
+                    return checkingContext.classList.contains(classSelector);
                 }
             );
         }

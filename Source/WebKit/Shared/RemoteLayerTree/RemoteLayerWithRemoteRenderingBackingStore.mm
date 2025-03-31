@@ -110,9 +110,9 @@ void RemoteLayerWithRemoteRenderingBackingStore::ensureBackingStore(const Parame
         return;
 
     m_parameters = parameters;
-    m_cleared = true;
+    clearBackingStore();
     if (m_bufferSet)
-        m_bufferSet->setConfiguration(size(), scale(), colorSpace(), pixelFormat(), type() == RemoteLayerBackingStore::Type::IOSurface ? RenderingMode::Accelerated : RenderingMode::Unaccelerated, m_layer.containsBitmapOnly() ? WebCore::RenderingPurpose::BitmapOnlyLayerBacking : WebCore::RenderingPurpose::LayerBacking);
+        m_bufferSet->setConfiguration(size(), scale(), colorSpace(), pixelFormat(), type() == RemoteLayerBackingStore::Type::IOSurface ? RenderingMode::Accelerated : RenderingMode::Unaccelerated, m_layer->containsBitmapOnly() ? WebCore::RenderingPurpose::BitmapOnlyLayerBacking : WebCore::RenderingPurpose::LayerBacking);
 }
 
 void RemoteLayerWithRemoteRenderingBackingStore::encodeBufferAndBackendInfos(IPC::Encoder& encoder) const

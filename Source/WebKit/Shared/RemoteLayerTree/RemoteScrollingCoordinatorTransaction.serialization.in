@@ -25,7 +25,7 @@ headers: <WebCore/ScrollingStateTree.h> <WebCore/ScrollingStateFrameScrollingNod
 class WebKit::RemoteScrollingCoordinatorTransaction {
     std::unique_ptr<WebCore::ScrollingStateTree> scrollingStateTree()
     bool clearScrollLatching()
-    WebCore::FrameIdentifier rootFrameIdentifier()
+    std::optional<WebCore::FrameIdentifier> rootFrameIdentifier()
 }
 
 [CreateUsing=createAfterReconstruction] class WebCore::ScrollingStateTree {
@@ -94,7 +94,6 @@ header: <WebCore/ScrollingStatePositionedNode.h>
     [OptionalTupleBit=WebCore::ScrollingStateNode::Property::ScrollbarEnabledState] WebCore::ScrollbarEnabledState scrollbarEnabledState();
     [OptionalTupleBit=WebCore::ScrollingStateNode::Property::ScrollbarLayoutDirection] WebCore::UserInterfaceLayoutDirection scrollbarLayoutDirection();
     [OptionalTupleBit=WebCore::ScrollingStateNode::Property::ScrollbarWidth] WebCore::ScrollbarWidth scrollbarWidth();
-    [OptionalTupleBit=WebCore::ScrollingStateNode::Property::UseDarkAppearanceForScrollbars] bool useDarkAppearanceForScrollbars();
     [OptionalTupleBit=WebCore::ScrollingStateNode::Property::KeyboardScrollData] WebCore::RequestedKeyboardScrollData keyboardScrollData()
     [OptionalTupleBit=WebCore::ScrollingStateNode::Property::FrameScaleFactor] float frameScaleFactor()
     [OptionalTupleBit=WebCore::ScrollingStateNode::Property::EventTrackingRegion] WebCore::EventTrackingRegions eventTrackingRegions()
@@ -148,7 +147,6 @@ header: <WebCore/ScrollingStatePositionedNode.h>
     [OptionalTupleBit=WebCore::ScrollingStateNode::Property::ScrollbarEnabledState] WebCore::ScrollbarEnabledState scrollbarEnabledState();
     [OptionalTupleBit=WebCore::ScrollingStateNode::Property::ScrollbarLayoutDirection] WebCore::UserInterfaceLayoutDirection scrollbarLayoutDirection();
     [OptionalTupleBit=WebCore::ScrollingStateNode::Property::ScrollbarWidth] WebCore::ScrollbarWidth scrollbarWidth();
-    [OptionalTupleBit=WebCore::ScrollingStateNode::Property::UseDarkAppearanceForScrollbars] bool useDarkAppearanceForScrollbars();
     [OptionalTupleBit=WebCore::ScrollingStateNode::Property::KeyboardScrollData] WebCore::RequestedKeyboardScrollData keyboardScrollData()
 };
 
@@ -189,7 +187,6 @@ header: <WebCore/ScrollingStatePositionedNode.h>
     [OptionalTupleBit=WebCore::ScrollingStateNode::Property::ScrollbarEnabledState] WebCore::ScrollbarEnabledState scrollbarEnabledState();
     [OptionalTupleBit=WebCore::ScrollingStateNode::Property::ScrollbarLayoutDirection] WebCore::UserInterfaceLayoutDirection scrollbarLayoutDirection();
     [OptionalTupleBit=WebCore::ScrollingStateNode::Property::ScrollbarWidth] WebCore::ScrollbarWidth scrollbarWidth();
-    [OptionalTupleBit=WebCore::ScrollingStateNode::Property::UseDarkAppearanceForScrollbars] bool useDarkAppearanceForScrollbars();
     [OptionalTupleBit=WebCore::ScrollingStateNode::Property::KeyboardScrollData] WebCore::RequestedKeyboardScrollData keyboardScrollData()
 }
 

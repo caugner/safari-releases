@@ -631,35 +631,24 @@ void Options::setAllJITCodeValidations(bool value)
     Options::useJITAsserts() = value;
 }
 
-static inline void disableAllWasmJITOptions()
-{
-    Options::useLLInt() = true;
-    Options::useWasmJIT() = false;
-    Options::useBBQJIT() = false;
-    Options::useOMGJIT() = false;
-
-    Options::useWasmSIMD() = false;
-
-    Options::dumpWasmDisassembly() = false;
-    Options::dumpBBQDisassembly() = false;
-    Options::dumpOMGDisassembly() = false;
-}
-
 static inline void disableAllWasmOptions()
 {
-    disableAllWasmJITOptions();
-
     Options::useWasm() = false;
     Options::useWasmIPInt() = false;
     Options::useWasmLLInt() = false;
+    Options::useBBQJIT() = false;
+    Options::useOMGJIT() = false;
+    Options::dumpWasmDisassembly() = false;
+    Options::dumpBBQDisassembly() = false;
+    Options::dumpOMGDisassembly() = false;
     Options::failToCompileWasmCode() = true;
 
     Options::useWasmFastMemory() = false;
     Options::useWasmFaultSignalHandler() = false;
     Options::numberOfWasmCompilerThreads() = 0;
 
-    // SIMD is already disabled by JITOptions
     Options::useWasmGC() = false;
+    Options::useWasmSIMD() = false;
     Options::useWasmRelaxedSIMD() = false;
     Options::useWasmTailCalls() = false;
 }
@@ -668,16 +657,18 @@ static inline void disableAllJITOptions()
 {
     Options::useLLInt() = true;
     Options::useJIT() = false;
-    Options::useWasmJIT() = false;
-    disableAllWasmJITOptions();
-
     Options::useBaselineJIT() = false;
     Options::useDFGJIT() = false;
     Options::useFTLJIT() = false;
+    Options::useBBQJIT() = false;
+    Options::useOMGJIT() = false;
     Options::useDOMJIT() = false;
     Options::useRegExpJIT() = false;
     Options::useJITCage() = false;
     Options::useConcurrentJIT() = false;
+
+    Options::useWasmSIMD() = false;
+
     Options::usePollingTraps() = true;
 
     Options::dumpDisassembly() = false;
@@ -686,6 +677,9 @@ static inline void disableAllJITOptions()
     Options::dumpDFGDisassembly() = false;
     Options::dumpFTLDisassembly() = false;
     Options::dumpRegExpDisassembly() = false;
+    Options::dumpWasmDisassembly() = false;
+    Options::dumpBBQDisassembly() = false;
+    Options::dumpOMGDisassembly() = false;
     Options::needDisassemblySupport() = false;
 }
 
@@ -738,7 +732,6 @@ void Options::notifyOptionsChanged()
 
 #if !ENABLE(JIT)
     Options::useJIT() = false;
-    Options::useWasmJIT() = false;
 #endif
 #if !ENABLE(CONCURRENT_JS)
     Options::useConcurrentJIT() = false;
@@ -784,17 +777,8 @@ void Options::notifyOptionsChanged()
     if (!Options::allowDoubleShape())
         Options::useJIT() = false; // We don't support JIT with !allowDoubleShape. So disable it.
 
-    // When reenabling JITLess wasm we should unskip the tests disabled in https://bugs.webkit.org/show_bug.cgi?id=281857
-    if (!Options::useWasm() || !Options::useJIT())
+    if (!Options::useWasm())
         disableAllWasmOptions();
-
-    if (!Options::useJIT())
-        Options::useWasmJIT() = false;
-    if (!Options::useWasmJIT())
-        disableAllWasmJITOptions();
-
-    if (!Options::useWasmLLInt() && !Options::useWasmIPInt())
-        Options::thresholdForBBQOptimizeAfterWarmUp() = 0; // Trigger immediate BBQ tier up.
 
     // At initialization time, we may decide that useJIT should be false for any
     // number of reasons (including failing to allocate JIT memory), and therefore,
@@ -982,7 +966,7 @@ void Options::notifyOptionsChanged()
     if (!Options::useWasmFaultSignalHandler())
         Options::useWasmFastMemory() = false;
 
-#if CPU(ADDRESS32)
+#if CPU(ADDRESS32) || PLATFORM(PLAYSTATION)
     Options::useWasmFastMemory() = false;
 #endif
 

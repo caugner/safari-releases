@@ -29,7 +29,6 @@
 #if PLATFORM(COCOA) && ENABLE(MEDIA_STREAM)
 
 #include "Connection.h"
-#include "GPUProcessProxy.h"
 #include "RemoteCaptureSampleManagerMessages.h"
 #include "RemoteVideoFrameObjectHeap.h"
 #include "SharedCARingBuffer.h"
@@ -56,27 +55,26 @@
 #define MESSAGE_CHECK_COMPLETION(assertion, completion) MESSAGE_CHECK_COMPLETION_BASE(assertion, m_connectionProxy->connection(), completion)
 
 namespace WebKit {
-class UserMediaCaptureManagerProxySourceProxy;
-}
-
-namespace WTF {
-template<typename T> struct IsDeprecatedWeakRefSmartPointerException;
-template<> struct IsDeprecatedWeakRefSmartPointerException<WebKit::UserMediaCaptureManagerProxySourceProxy> : std::true_type { };
-}
-
-namespace WebKit {
 using namespace WebCore;
 
 class UserMediaCaptureManagerProxySourceProxy final
-    : public RefCounted<UserMediaCaptureManagerProxySourceProxy>
-    , public RealtimeMediaSourceObserver
+    : public RealtimeMediaSourceObserver
     , private RealtimeMediaSource::AudioSampleObserver
     , private RealtimeMediaSource::VideoFrameObserver
     , public CanMakeCheckedPtr<UserMediaCaptureManagerProxySourceProxy> {
     WTF_MAKE_TZONE_ALLOCATED_INLINE(UserMediaCaptureManagerProxySourceProxy);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(UserMediaCaptureManagerProxySourceProxy);
 public:
-    static Ref<UserMediaCaptureManagerProxySourceProxy> create(RealtimeMediaSourceIdentifier id, Ref<IPC::Connection>&& connection, ProcessIdentity&& resourceOwner, Ref<RealtimeMediaSource>&& source, RefPtr<RemoteVideoFrameObjectHeap>&& videoFrameObjectHeap) { return adoptRef(*new UserMediaCaptureManagerProxySourceProxy(id, WTFMove(connection), WTFMove(resourceOwner), WTFMove(source), WTFMove(videoFrameObjectHeap))); }
+    UserMediaCaptureManagerProxySourceProxy(RealtimeMediaSourceIdentifier id, Ref<IPC::Connection>&& connection, ProcessIdentity&& resourceOwner, Ref<RealtimeMediaSource>&& source, RefPtr<RemoteVideoFrameObjectHeap>&& videoFrameObjectHeap)
+        : m_id(id)
+        , m_connection(WTFMove(connection))
+        , m_resourceOwner(WTFMove(resourceOwner))
+        , m_source(WTFMove(source))
+        , m_videoFrameObjectHeap(WTFMove(videoFrameObjectHeap))
+    {
+        m_source->addObserver(*this);
+    }
+
     ~UserMediaCaptureManagerProxySourceProxy()
     {
         switch (m_source->type()) {
@@ -105,9 +103,8 @@ public:
         }
     }
 
-    bool isUsingSource(const RealtimeMediaSource& source) const { return m_source.ptr() == &source; }
-
-    Ref<RealtimeMediaSource> protectedSource() { return m_source; }
+    RealtimeMediaSource& source() { return m_source; }
+    Ref<RealtimeMediaSource> protectedSource() { return source(); }
 
     void audioUnitWillStart() final
     {
@@ -180,14 +177,15 @@ public:
     {
         ASSERT(isMainRunLoop());
 
-        m_pendingAction = m_pendingAction->isResolved() ? action() : m_pendingAction->whenSettled(RunLoop::main(), WTFMove(action));
+        Ref pendingAction = WTFMove(m_pendingAction);
+        m_pendingAction = pendingAction->isResolved() ? action() : pendingAction->whenSettled(RunLoop::protectedMain(), WTFMove(action));
     }
 
     void applyConstraints(WebCore::MediaConstraints&& constraints, CompletionHandler<void(std::optional<RealtimeMediaSource::ApplyConstraintsError>&&)> callback)
     {
-        queueAndProcessSerialAction([this, weakThis = WeakPtr { *this }, constraints = WTFMove(constraints), callback = WTFMove(callback)]() mutable {
-            auto protectedThis = weakThis.get();
-            if (!protectedThis) {
+        queueAndProcessSerialAction([this, weakThis = WeakPtr { this }, constraints = WTFMove(constraints), callback = WTFMove(callback)]() mutable {
+
+            if (!weakThis) {
                 callback(RealtimeMediaSource::ApplyConstraintsError { { }, { } });
                 return GenericPromise::createAndResolve();
             }
@@ -200,8 +198,7 @@ public:
             m_source->removeVideoFrameObserver(*this);
 
             m_source->applyConstraints(WTFMove(constraints), [this, weakThis = WTFMove(weakThis), &constraints, callback = WTFMove(callback)](auto&& error) mutable {
-                auto protectedThis = weakThis.get();
-                if (!protectedThis) {
+                if (!weakThis) {
                     callback(RealtimeMediaSource::ApplyConstraintsError { { }, { } });
                     return;
                 }
@@ -228,9 +225,10 @@ public:
         if (!m_settings) {
             m_settings = m_source->settings();
             if (m_widthConstraint || m_heightConstraint) {
-                auto desiredSize = m_source->computeResizedVideoFrameSize({ m_widthConstraint, m_heightConstraint }, m_source->intrinsicSize());
+                Ref source = m_source;
+                auto desiredSize = source->computeResizedVideoFrameSize({ m_widthConstraint, m_heightConstraint }, source->intrinsicSize());
 
-                auto videoFrameRotation = m_source->videoFrameRotation();
+                auto videoFrameRotation = source->videoFrameRotation();
                 if (videoFrameRotation == VideoFrameRotation::Left || videoFrameRotation == VideoFrameRotation::Right)
                     desiredSize = desiredSize.transposedSize();
 
@@ -259,14 +257,14 @@ public:
         RealtimeMediaSource::TakePhotoNativePromise::Producer takePhotoProducer;
         Ref<RealtimeMediaSource::TakePhotoNativePromise> takePhotoPromise = takePhotoProducer;
 
-        queueAndProcessSerialAction([this, weakThis = WeakPtr { *this }, photoSettings = WTFMove(photoSettings), takePhotoProducer = WTFMove(takePhotoProducer)]() mutable -> Ref<GenericPromise> {
-            auto protectedThis = weakThis.get();
-            if (!protectedThis) {
+        queueAndProcessSerialAction([this, weakThis = WeakPtr { this }, photoSettings = WTFMove(photoSettings), takePhotoProducer = WTFMove(takePhotoProducer)]() mutable -> Ref<GenericPromise> {
+
+            if (!weakThis) {
                 takePhotoProducer.reject("Track has ended"_s);
                 return GenericPromise::createAndResolve();
             }
 
-            return m_source->takePhoto(WTFMove(photoSettings))->whenSettled(RunLoop::main(), [takePhotoProducer = WTFMove(takePhotoProducer)] (auto&& result) mutable {
+            return protectedSource()->takePhoto(WTFMove(photoSettings))->whenSettled(RunLoop::protectedMain(), [takePhotoProducer = WTFMove(takePhotoProducer)] (auto&& result) mutable {
                 ASSERT(isMainRunLoop());
 
                 takePhotoProducer.settle(WTFMove(result));
@@ -288,15 +286,6 @@ public:
     }
 
 private:
-    UserMediaCaptureManagerProxySourceProxy(RealtimeMediaSourceIdentifier id, Ref<IPC::Connection>&& connection, ProcessIdentity&& resourceOwner, Ref<RealtimeMediaSource>&& source, RefPtr<RemoteVideoFrameObjectHeap>&& videoFrameObjectHeap)
-        : m_id(id)
-        , m_connection(WTFMove(connection))
-        , m_resourceOwner(WTFMove(resourceOwner))
-        , m_source(WTFMove(source))
-        , m_videoFrameObjectHeap(WTFMove(videoFrameObjectHeap))
-    {
-        m_source->addObserver(*this);
-    }
 
     // CheckedPtr interface
     uint32_t ptrCount() const final { return CanMakeCheckedPtr::ptrCount(); }
@@ -304,18 +293,15 @@ private:
     void incrementPtrCount() const final { CanMakeCheckedPtr::incrementPtrCount(); }
     void decrementPtrCount() const final { CanMakeCheckedPtr::decrementPtrCount(); }
 
-    void sourceStopped() final
-    {
+    void sourceStopped() final {
         m_connection->send(Messages::UserMediaCaptureManager::SourceStopped(m_id, m_source->captureDidFail()), 0);
     }
 
-    void sourceMutedChanged() final
-    {
+    void sourceMutedChanged() final {
         m_connection->send(Messages::UserMediaCaptureManager::SourceMutedChanged(m_id, m_source->muted(), m_source->interrupted()), 0);
     }
 
-    void sourceSettingsChanged() final
-    {
+    void sourceSettingsChanged() final {
         m_settings = { };
         m_connection->send(Messages::UserMediaCaptureManager::SourceSettingsChanged(m_id, settings()), 0);
     }
@@ -421,7 +407,7 @@ private:
     RealtimeMediaSourceIdentifier m_id;
     Ref<IPC::Connection> m_connection;
     ProcessIdentity m_resourceOwner;
-    const Ref<RealtimeMediaSource> m_source;
+    Ref<RealtimeMediaSource> m_source;
     std::unique_ptr<ProducerSharedCARingBuffer> m_ringBuffer;
     std::optional<CAAudioStreamDescription> m_description;
     bool m_isStopped { false };
@@ -492,11 +478,11 @@ static bool canCaptureFromMultipleCameras()
 CaptureSourceOrError UserMediaCaptureManagerProxy::createCameraSource(const CaptureDevice& device, MediaDeviceHashSalts&& hashSalts, PageIdentifier pageIdentifier)
 {
     auto& perPageSources = m_pageSources.ensure(pageIdentifier, [] { return PageSources { }; }).iterator->value;
-    for (auto& cameraSource : perPageSources.cameraSources) {
+    for (Ref cameraSource : perPageSources.cameraSources) {
         // FIXME: Optimize multiple concurrent cameras.
-        if (cameraSource.persistentID() == device.persistentId() && !cameraSource.isEnded()) {
+        if (cameraSource->persistentID() == device.persistentId() && !cameraSource->isEnded()) {
             // We can reuse the source, let's do it.
-            auto source = cameraSource.clone();
+            auto source = cameraSource->clone();
             perPageSources.cameraSources.add(source.get());
             return source;
         }
@@ -516,7 +502,6 @@ CaptureSourceOrError UserMediaCaptureManagerProxy::createCameraSource(const Capt
 
     auto source = sourceOrError.source();
     source->monitorOrientation(m_orientationNotifier);
-    m_connectionProxy->startMonitoringCaptureDeviceRotation(pageIdentifier, device.persistentId());
     perPageSources.cameraSources.add(source.get());
     return source;
 }
@@ -556,22 +541,27 @@ void UserMediaCaptureManagerProxy::createMediaSourceForCaptureDeviceWithConstrai
 
     auto source = sourceOrError.source();
 #if !RELEASE_LOG_DISABLED
-    source->setLogger(m_connectionProxy->logger(), LoggerHelper::uniqueLogIdentifier());
+    source->setLogger(m_connectionProxy->protectedLogger(), LoggerHelper::uniqueLogIdentifier());
 #endif
 
     ASSERT(!m_proxies.contains(id));
     Ref connection = m_connectionProxy->connection();
     RefPtr remoteVideoFrameObjectHeap = shouldUseGPUProcessRemoteFrames ? m_connectionProxy->remoteVideoFrameObjectHeap() : nullptr;
-    auto proxy = UserMediaCaptureManagerProxySourceProxy::create(id, WTFMove(connection), ProcessIdentity { m_connectionProxy->resourceOwner() }, WTFMove(source), WTFMove(remoteVideoFrameObjectHeap));
+    auto proxy = makeUnique<UserMediaCaptureManagerProxySourceProxy>(id, WTFMove(connection), ProcessIdentity { m_connectionProxy->resourceOwner() }, WTFMove(source), WTFMove(remoteVideoFrameObjectHeap));
     proxy->observeMedia();
 
-    auto completeSetup = [](UserMediaCaptureManagerProxySourceProxy& proxy, CreateSourceCallback&& completionHandler) mutable {
-        completionHandler({ }, proxy.settings(), proxy.protectedSource()->capabilities());
+    auto completeSetup = [weakThis = WeakPtr { *this }, this](std::unique_ptr<UserMediaCaptureManagerProxySourceProxy>&& proxy, RealtimeMediaSourceIdentifier id, CreateSourceCallback&& completionHandler) mutable {
+        if (!weakThis) {
+            completionHandler({ "Capture proxy disappeared"_s, WebCore::MediaAccessDenialReason::OtherFailure }, { }, { });
+            return;
+        }
+
+        completionHandler({ }, proxy->settings(), proxy->protectedSource()->capabilities());
+        m_proxies.add(id, WTFMove(proxy));
     };
 
-    if (!constraints || proxy->protectedSource()->type() != RealtimeMediaSource::Type::Video) {
-        completeSetup(proxy, WTFMove(completionHandler));
-        m_proxies.add(id, WTFMove(proxy));
+    if (!constraints || proxy->source().type() != RealtimeMediaSource::Type::Video) {
+        completeSetup(WTFMove(proxy), id, WTFMove(completionHandler));
         return;
     }
 
@@ -579,22 +569,19 @@ void UserMediaCaptureManagerProxy::createMediaSourceForCaptureDeviceWithConstrai
     for (const auto& advancedConstraint : constraints->advancedConstraints)
         MESSAGE_CHECK_COMPLETION(advancedConstraint.isValid(), completionHandler({ "Invalid advancedConstraints"_s, WebCore::MediaAccessDenialReason::InvalidConstraint }, { }, { }));
 
-    proxy->applyConstraints(WTFMove(mediaConstraints), [weakProxy = WeakPtr { proxy }, completionHandler = WTFMove(completionHandler), completeSetup = WTFMove(completeSetup)](auto&& error) mutable {
-        RefPtr protectedProxy = weakProxy.get();
-        if (error || !protectedProxy) {
+    proxy->applyConstraints(WTFMove(mediaConstraints), [proxy = WTFMove(proxy), id, completionHandler = WTFMove(completionHandler), completeSetup = WTFMove(completeSetup)](auto&& error) mutable {
+        if (error) {
             completionHandler(CaptureSourceError { error->invalidConstraint }, { }, { });
             return;
         }
 
-        completeSetup(*protectedProxy, WTFMove(completionHandler));
+        completeSetup(WTFMove(proxy), id, WTFMove(completionHandler));
     });
-
-    m_proxies.add(id, WTFMove(proxy));
 }
 
 void UserMediaCaptureManagerProxy::startProducingData(RealtimeMediaSourceIdentifier id, WebCore::PageIdentifier pageIdentifier)
 {
-    RefPtr proxy = m_proxies.get(id);
+    auto* proxy = m_proxies.get(id);
     if (!proxy)
         return;
 
@@ -603,78 +590,46 @@ void UserMediaCaptureManagerProxy::startProducingData(RealtimeMediaSourceIdentif
         return;
     }
 
-    Ref source = proxy->protectedSource();
-
 #if ENABLE(APP_PRIVACY_REPORT)
     m_connectionProxy->setTCCIdentity();
 #endif
 #if ENABLE(EXTENSION_CAPABILITIES) && !PLATFORM(IOS_FAMILY_SIMULATOR)
     bool hasValidMediaEnvironmentOrIdentity = m_connectionProxy->setCurrentMediaEnvironment(pageIdentifier) || RealtimeMediaSourceCenter::singleton().hasIdentity();
-    if (!hasValidMediaEnvironmentOrIdentity && source->deviceType() == CaptureDevice::DeviceType::Camera
+    if (!hasValidMediaEnvironmentOrIdentity && proxy->source().deviceType() == CaptureDevice::DeviceType::Camera
         && WTF::processHasEntitlement("com.apple.developer.web-browser-engine.rendering"_s)) {
         RELEASE_LOG_ERROR(WebRTC, "Unable to set media environment, failing capture.");
-        source->captureFailed();
+        proxy->source().captureFailed();
         return;
     }
 #endif // ENABLE(EXTENSION_CAPABILITIES) && !PLATFORM(IOS_FAMILY_SIMULATOR)
-    m_connectionProxy->startProducingData(source->deviceType());
+    m_connectionProxy->startProducingData(proxy->source().deviceType());
     proxy->start();
 }
 
 void UserMediaCaptureManagerProxy::stopProducingData(RealtimeMediaSourceIdentifier id)
 {
-    if (RefPtr proxy = m_proxies.get(id))
+    if (auto* proxy = m_proxies.get(id))
         proxy->stop();
 }
 
 void UserMediaCaptureManagerProxy::removeSource(RealtimeMediaSourceIdentifier id)
 {
-    auto iterator = m_proxies.find(id);
-    if (iterator == m_proxies.end())
-        return;
-
-    Ref source = iterator->value->protectedSource();
-    m_proxies.remove(iterator);
-
-    for (Ref proxy : m_proxies.values()) {
-        if (proxy->isUsingSource(source))
-            return;
-    }
-
-    if (auto pageIdentifier = source->pageIdentifier()) {
-        auto iterator = m_pageSources.find(*pageIdentifier);
-        if (iterator != m_pageSources.end()) {
-            auto& pageSources = iterator->value;
-            if (source->deviceType() == WebCore::CaptureDevice::DeviceType::Camera) {
-                if (pageSources.cameraSources.remove(source.get())) {
-                    bool shouldContinueMonitoring = false;
-                    pageSources.cameraSources.forEach([&] (auto& cameraSource) {
-                        shouldContinueMonitoring |= cameraSource.persistentID() == source->persistentID() && !cameraSource.isEnded();
-                    });
-                    if (!shouldContinueMonitoring)
-                        m_connectionProxy->stopMonitoringCaptureDeviceRotation(*pageIdentifier, source->persistentID());
-                }
-            } else if (source->deviceType() == WebCore::CaptureDevice::DeviceType::Microphone) {
-                if (source.ptr() == pageSources.microphoneSource.get().get())
-                    iterator->value.microphoneSource = nullptr;
-            }
-        }
-    }
+    m_proxies.remove(id);
 }
 
 void UserMediaCaptureManagerProxy::capabilities(RealtimeMediaSourceIdentifier id, CompletionHandler<void(RealtimeMediaSourceCapabilities&&)>&& completionHandler)
 {
     RealtimeMediaSourceCapabilities capabilities;
-    if (RefPtr proxy = m_proxies.get(id))
+    if (auto* proxy = m_proxies.get(id))
         capabilities = proxy->protectedSource()->capabilities();
     completionHandler(WTFMove(capabilities));
 }
 
 void UserMediaCaptureManagerProxy::applyConstraints(RealtimeMediaSourceIdentifier id, WebCore::MediaConstraints&& constraints)
 {
-    RefPtr proxy = m_proxies.get(id);
+    auto* proxy = m_proxies.get(id);
     if (!proxy) {
-        m_connectionProxy->connection().send(Messages::UserMediaCaptureManager::ApplyConstraintsFailed(id, { }, "Unknown source"_s), 0);
+        m_connectionProxy->protectedConnection()->send(Messages::UserMediaCaptureManager::ApplyConstraintsFailed(id, { }, "Unknown source"_s), 0);
         return;
     }
 
@@ -682,13 +637,17 @@ void UserMediaCaptureManagerProxy::applyConstraints(RealtimeMediaSourceIdentifie
     for (const auto& advancedConstraint : constraints.advancedConstraints)
         MESSAGE_CHECK(advancedConstraint.isValid());
 
-    proxy->applyConstraints(WTFMove(constraints), [id, proxy, connection = Ref { m_connectionProxy->connection() }](auto&& result) {
+    proxy->applyConstraints(WTFMove(constraints), [this, weakThis = WeakPtr { *this }, id, proxy](auto&& result) {
+
+        if (!weakThis)
+            return;
+
         if (result) {
-            connection->send(Messages::UserMediaCaptureManager::ApplyConstraintsFailed(id, result->invalidConstraint, result->message), 0);
+            m_connectionProxy->protectedConnection()->send(Messages::UserMediaCaptureManager::ApplyConstraintsFailed(id, result->invalidConstraint, result->message), 0);
             return;
         }
 
-        connection->send(Messages::UserMediaCaptureManager::ApplyConstraintsSucceeded(id, proxy->settings()), 0);
+        m_connectionProxy->protectedConnection()->send(Messages::UserMediaCaptureManager::ApplyConstraintsSucceeded(id, proxy->settings()), 0);
     });
 }
 
@@ -696,14 +655,14 @@ void UserMediaCaptureManagerProxy::clone(RealtimeMediaSourceIdentifier clonedID,
 {
     MESSAGE_CHECK(m_proxies.contains(clonedID));
     MESSAGE_CHECK(!m_proxies.contains(newSourceID));
-    if (RefPtr proxy = m_proxies.get(clonedID)) {
+    if (auto* proxy = m_proxies.get(clonedID)) {
         auto sourceClone = proxy->protectedSource()->clone();
         if (sourceClone->deviceType() == WebCore::CaptureDevice::DeviceType::Camera)
             m_pageSources.ensure(pageIdentifier, [] { return PageSources { }; }).iterator->value.cameraSources.add(sourceClone.get());
 
         Ref connection = m_connectionProxy->connection();
         RefPtr remoteVideoFrameObjectHeap = m_connectionProxy->remoteVideoFrameObjectHeap();
-        auto cloneProxy = UserMediaCaptureManagerProxySourceProxy::create(newSourceID, WTFMove(connection), ProcessIdentity { m_connectionProxy->resourceOwner() }, WTFMove(sourceClone), WTFMove(remoteVideoFrameObjectHeap));
+        auto cloneProxy = makeUnique<UserMediaCaptureManagerProxySourceProxy>(newSourceID, WTFMove(connection), ProcessIdentity { m_connectionProxy->resourceOwner() }, WTFMove(sourceClone), WTFMove(remoteVideoFrameObjectHeap));
         cloneProxy->copySettings(*proxy);
         cloneProxy->observeMedia();
         m_proxies.add(newSourceID, WTFMove(cloneProxy));
@@ -712,62 +671,62 @@ void UserMediaCaptureManagerProxy::clone(RealtimeMediaSourceIdentifier clonedID,
 
 void UserMediaCaptureManagerProxy::takePhoto(RealtimeMediaSourceIdentifier sourceID, WebCore::PhotoSettings&& settings, TakePhotoCallback&& handler)
 {
-    RefPtr proxy = m_proxies.get(sourceID);
+    auto* proxy = m_proxies.get(sourceID);
     if (!proxy) {
         handler(Unexpected<String>("Device not available"_s));
         return;
     }
 
-    proxy->takePhoto(WTFMove(settings))->whenSettled(RunLoop::main(), WTFMove(handler));
+    proxy->takePhoto(WTFMove(settings))->whenSettled(RunLoop::protectedMain(), WTFMove(handler));
 }
 
 
 
 void UserMediaCaptureManagerProxy::getPhotoCapabilities(RealtimeMediaSourceIdentifier sourceID, GetPhotoCapabilitiesCallback&& handler)
 {
-    RefPtr proxy = m_proxies.get(sourceID);
+    auto* proxy = m_proxies.get(sourceID);
     if (!proxy) {
         handler(Unexpected<String>("Device not available"_s));
         return;
     }
 
-    proxy->getPhotoCapabilities()->whenSettled(RunLoop::main(), WTFMove(handler));
+    proxy->getPhotoCapabilities()->whenSettled(RunLoop::protectedMain(), WTFMove(handler));
 }
 
 void UserMediaCaptureManagerProxy::getPhotoSettings(RealtimeMediaSourceIdentifier sourceID, GetPhotoSettingsCallback&& handler)
 {
-    RefPtr proxy = m_proxies.get(sourceID);
+    auto* proxy = m_proxies.get(sourceID);
     if (!proxy) {
         handler(Unexpected<String>("Device not available"_s));
         return;
     }
 
-    proxy->getPhotoSettings()->whenSettled(RunLoop::main(), [handler = WTFMove(handler)] (auto&& result) mutable {
+    proxy->getPhotoSettings()->whenSettled(RunLoop::protectedMain(), [handler = WTFMove(handler)] (auto&& result) mutable {
         handler(WTFMove(result));
     });
 }
 
 void UserMediaCaptureManagerProxy::endProducingData(RealtimeMediaSourceIdentifier sourceID)
 {
-    if (RefPtr proxy = m_proxies.get(sourceID))
+    if (auto* proxy = m_proxies.get(sourceID))
         proxy->end();
 }
 
 void UserMediaCaptureManagerProxy::setShouldApplyRotation(RealtimeMediaSourceIdentifier sourceID, bool shouldApplyRotation)
 {
-    if (RefPtr proxy = m_proxies.get(sourceID))
+    if (auto* proxy = m_proxies.get(sourceID))
         proxy->setShouldApplyRotation(shouldApplyRotation);
 }
 
 void UserMediaCaptureManagerProxy::setIsInBackground(RealtimeMediaSourceIdentifier sourceID, bool isInBackground)
 {
-    if (RefPtr proxy = m_proxies.get(sourceID))
+    if (auto* proxy = m_proxies.get(sourceID))
         proxy->setIsInBackground(isInBackground);
 }
 
 void UserMediaCaptureManagerProxy::isPowerEfficient(WebCore::RealtimeMediaSourceIdentifier sourceID, CompletionHandler<void(bool)>&& callback)
 {
-    RefPtr proxy = m_proxies.get(sourceID);
+    auto* proxy = m_proxies.get(sourceID);
     callback(proxy ? proxy->isPowerEfficient() : false);
 }
 
@@ -786,11 +745,6 @@ void UserMediaCaptureManagerProxy::close()
 void UserMediaCaptureManagerProxy::setOrientation(WebCore::IntDegrees orientation)
 {
     m_orientationNotifier.orientationChanged(orientation);
-}
-
-void UserMediaCaptureManagerProxy::rotationAngleForCaptureDeviceChanged(const String& persistentId, WebCore::VideoFrameRotation rotation)
-{
-    m_orientationNotifier.rotationAngleForCaptureDeviceChanged(persistentId, rotation);
 }
 
 bool UserMediaCaptureManagerProxy::hasSourceProxies() const

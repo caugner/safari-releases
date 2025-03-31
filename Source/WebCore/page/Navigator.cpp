@@ -389,14 +389,13 @@ GPU* Navigator::gpu()
 
 Document* Navigator::document()
 {
-    RefPtr frame = this->frame();
+    auto* frame = this->frame();
     return frame ? frame->document() : nullptr;
 }
 
-const Document* Navigator::document() const
+RefPtr<Document> Navigator::protectedDocument()
 {
-    RefPtr frame = this->frame();
-    return frame ? frame->document() : nullptr;
+    return document();
 }
 
 void Navigator::setAppBadge(std::optional<unsigned long long> badge, Ref<DeferredPromise>&& promise)
@@ -524,16 +523,5 @@ void Navigator::getPushPermissionState(DOMPromiseDeferred<IDLEnumeration<PushPer
 }
 
 #endif // #if ENABLE(DECLARATIVE_WEB_PUSH)
-
-int Navigator::maxTouchPoints() const
-{
-#if ENABLE(IOS_TOUCH_EVENTS) && !PLATFORM(MACCATALYST)
-    RefPtr document = this->document();
-    if (!document || !document->quirks().needsZeroMaxTouchPointsQuirk())
-        return 5;
-#endif
-
-    return 0;
-}
 
 } // namespace WebCore

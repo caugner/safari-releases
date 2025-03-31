@@ -1465,7 +1465,6 @@ void InspectorDebuggerAgent::didCreateNativeExecutable(JSC::NativeExecutable& na
     if (m_symbolicBreakpoints.isEmpty())
         return;
 
-    JSC::JSLockHolder apiLocker(vm);
     auto symbol = functionName(nativeExecutable);
     if (symbol.isEmpty())
         return;

@@ -848,7 +848,7 @@ NSString* CommandEncoder::errorValidatingCopyBufferToTexture(const WGPUImageCopy
 
     if (!Texture::isDepthOrStencilFormat(destinationTexture.format())) {
         auto texelBlockSize = Texture::texelBlockSize(destinationTexture.format());
-        if (source.layout.offset % texelBlockSize.value())
+        if (source.layout.offset % texelBlockSize)
             return ERROR_STRING(@"source.layout.offset is not a multiple of texelBlockSize");
     }
 
@@ -902,15 +902,13 @@ void CommandEncoder::copyBufferToTexture(const WGPUImageCopyBuffer& source, cons
     auto aspectSpecificFormat = Texture::aspectSpecificFormat(destinationTexture.format(), destination.aspect);
     auto blockSize = Texture::texelBlockSize(aspectSpecificFormat);
     switch (destinationTexture.dimension()) {
-    case WGPUTextureDimension_1D: {
-        auto checkedBlockSizeTimesTextureDimension = checkedProduct<uint32_t>(blockSize, m_device->limits().maxTextureDimension1D);
-        sourceBytesPerRow = checkedBlockSizeTimesTextureDimension.hasOverflowed() ? sourceBytesPerRow : std::min<uint32_t>(sourceBytesPerRow, checkedBlockSizeTimesTextureDimension.value());
-    } break;
+    case WGPUTextureDimension_1D:
+        sourceBytesPerRow = std::min<uint32_t>(sourceBytesPerRow, blockSize * m_device->limits().maxTextureDimension1D);
+        break;
     case WGPUTextureDimension_2D:
-    case WGPUTextureDimension_3D: {
-        auto checkedBlockSizeTimesTextureDimension = checkedProduct<uint32_t>(blockSize * m_device->limits().maxTextureDimension2D);
-        sourceBytesPerRow = checkedBlockSizeTimesTextureDimension.hasOverflowed() ? sourceBytesPerRow : std::min<uint32_t>(sourceBytesPerRow, checkedBlockSizeTimesTextureDimension.value());
-    } break;
+    case WGPUTextureDimension_3D:
+        sourceBytesPerRow = std::min<uint32_t>(sourceBytesPerRow, blockSize * m_device->limits().maxTextureDimension2D);
+        break;
     case WGPUTextureDimension_Force32:
         break;
     }
@@ -941,20 +939,14 @@ void CommandEncoder::copyBufferToTexture(const WGPUImageCopyBuffer& source, cons
     if (rowsPerImage == WGPU_COPY_STRIDE_UNDEFINED)
         rowsPerImage = heightForMetal ?: 1;
 
-    auto checkedSourceBytesPerImage = checkedProduct<NSUInteger>(rowsPerImage, sourceBytesPerRow);
-    if (checkedSourceBytesPerImage.hasOverflowed())
-        return;
-    NSUInteger sourceBytesPerImage = checkedSourceBytesPerImage.value();
+    NSUInteger sourceBytesPerImage = rowsPerImage * sourceBytesPerRow;
 
     id<MTLTexture> mtlDestinationTexture = destinationTexture.texture();
 
     auto textureDimension = destinationTexture.dimension();
     uint32_t sliceCount = textureDimension == WGPUTextureDimension_3D ? 1 : copySize.depthOrArrayLayers;
     for (uint32_t layer = 0; layer < sliceCount; ++layer) {
-        auto originPlusLayer = checkedSum<NSUInteger>(destination.origin.z, layer);
-        if (originPlusLayer.hasOverflowed())
-            return;
-        NSUInteger destinationSlice = destinationTexture.dimension() == WGPUTextureDimension_3D ? 0 : originPlusLayer.value();
+        NSUInteger destinationSlice = destinationTexture.dimension() == WGPUTextureDimension_3D ? 0 : (destination.origin.z + layer);
         RELEASE_ASSERT(mtlDestinationTexture.parentTexture == nil);
         if (Queue::writeWillCompletelyClear(textureDimension, widthForMetal, logicalSize.width, heightForMetal, logicalSize.height, depthForMetal, logicalSize.depthOrArrayLayers))
             destinationTexture.setPreviouslyCleared(destination.mipLevel, destinationSlice);
@@ -962,42 +954,29 @@ void CommandEncoder::copyBufferToTexture(const WGPUImageCopyBuffer& source, cons
             clearTextureIfNeeded(destination, destinationSlice);
     }
 
-    NSUInteger maxSourceBytesPerRow = textureDimension == WGPUTextureDimension_3D ? (2048 * blockSize.value()) : sourceBytesPerRow;
+    NSUInteger maxSourceBytesPerRow = textureDimension == WGPUTextureDimension_3D ? (2048 * blockSize) : sourceBytesPerRow;
 
     if (textureDimension == WGPUTextureDimension_3D && copySize.depthOrArrayLayers <= 1 && copySize.height <= 1)
         sourceBytesPerRow = 0;
 
     if (sourceBytesPerRow > maxSourceBytesPerRow) {
         for (uint32_t z = 0; z < copySize.depthOrArrayLayers; ++z) {
-            auto destinationOriginPlusZ = checkedSum<uint32_t>(destination.origin.z, z);
-            auto zTimesSourceBytesPerImage = checkedProduct<uint32_t>(z, sourceBytesPerImage);
-            if (zTimesSourceBytesPerImage.hasOverflowed())
-                return;
             for (uint32_t y = 0; y < copySize.height; ++y) {
-                auto yTimesSourceBytesPerImage = checkedProduct<uint32_t>(y, sourceBytesPerRow);
-                if (yTimesSourceBytesPerImage.hasOverflowed())
-                    return;
-                auto tripleSum = checkedSum<uint32_t>(zTimesSourceBytesPerImage.value(), yTimesSourceBytesPerImage.value(), source.layout.offset);
-                if (tripleSum.hasOverflowed())
-                    return;
                 WGPUImageCopyBuffer newSource {
                     .nextInChain = nullptr,
                     .layout = WGPUTextureDataLayout {
                         .nextInChain = nullptr,
-                        .offset = tripleSum.value(),
+                        .offset = z * sourceBytesPerImage + y * sourceBytesPerRow + source.layout.offset,
                         .bytesPerRow = WGPU_COPY_STRIDE_UNDEFINED,
                         .rowsPerImage = WGPU_COPY_STRIDE_UNDEFINED,
                     },
                     .buffer = source.buffer
                 };
-                auto destinationOriginPlusY = checkedSum<uint32_t>(destination.origin.y, y);
-                if (destinationOriginPlusY.hasOverflowed())
-                    return;
                 WGPUImageCopyTexture newDestination {
                     .nextInChain = nullptr,
                     .texture = destination.texture,
                     .mipLevel = destination.mipLevel,
-                    .origin = { .x = destination.origin.x, .y = destinationOriginPlusY.value(), .z = destinationOriginPlusZ.value() },
+                    .origin = { .x = destination.origin.x, .y = destination.origin.y + y, .z = destination.origin.z + z },
                     .aspect = destination.aspect
                 };
 
@@ -1023,25 +1002,11 @@ void CommandEncoder::copyBufferToTexture(const WGPUImageCopyBuffer& source, cons
             return;
 
         auto destinationOrigin = MTLOriginMake(destination.origin.x, 0, 0);
-        auto widthTimesBlockSize = checkedProduct<uint32_t>(widthForMetal, blockSize);
-        if (widthTimesBlockSize.hasOverflowed())
-            return;
-        sourceBytesPerRow = std::min<NSUInteger>(sourceBytesPerRow, widthTimesBlockSize.value());
+        sourceBytesPerRow = std::min<NSUInteger>(sourceBytesPerRow, widthForMetal * blockSize);
         for (uint32_t layer = 0; layer < copySize.depthOrArrayLayers; ++layer) {
-            auto layerTimesSourceBytesPerImage = checkedProduct<NSUInteger>(layer, sourceBytesPerImage);
-            if (layerTimesSourceBytesPerImage.hasOverflowed())
-                return;
-
-            auto checkedSourceOffset = checkedSum<NSUInteger>(source.layout.offset, layerTimesSourceBytesPerImage.value());
-            auto checkedDestinationSlice = checkedSum<NSUInteger>(destination.origin.z, layer);
-            if (checkedSourceOffset.hasOverflowed() || checkedDestinationSlice.hasOverflowed())
-                return;
-            auto sourceOffset = checkedSourceOffset.value();
-            NSUInteger destinationSlice = checkedDestinationSlice.value();
-            auto sourceOffsetPlusSourceBytesPerRow = checkedSum<NSUInteger>(sourceOffset, sourceBytesPerRow);
-            if (sourceOffsetPlusSourceBytesPerRow.hasOverflowed())
-                return;
-            if (sourceOffsetPlusSourceBytesPerRow.value() > sourceBuffer.length)
+            auto sourceOffset = static_cast<NSUInteger>(source.layout.offset + layer * sourceBytesPerImage);
+            NSUInteger destinationSlice = destination.origin.z + layer;
+            if (sourceOffset + sourceBytesPerRow > sourceBuffer.length)
                 continue;
             [m_blitCommandEncoder
                 copyFromBuffer:sourceBuffer
@@ -1066,18 +1031,9 @@ void CommandEncoder::copyBufferToTexture(const WGPUImageCopyBuffer& source, cons
 
         auto destinationOrigin = MTLOriginMake(destination.origin.x, destination.origin.y, 0);
         for (uint32_t layer = 0; layer < copySize.depthOrArrayLayers; ++layer) {
-            auto layerTimesSourceBytesPerImage = checkedProduct<NSUInteger>(layer, sourceBytesPerImage);
-            if (layerTimesSourceBytesPerImage.hasOverflowed())
-                return;
-            auto checkedSourceOffset = checkedSum<NSUInteger>(source.layout.offset, layerTimesSourceBytesPerImage.value());
-            if (checkedSourceOffset.hasOverflowed())
-                return;
-            auto sourceOffset = checkedSourceOffset;
+            auto sourceOffset = static_cast<NSUInteger>(source.layout.offset + layer * sourceBytesPerImage);
 
-            auto checkedDestinationSlice = checkedSum<NSUInteger>(destination.origin.z, layer);
-            if (checkedDestinationSlice.hasOverflowed())
-                return;
-            NSUInteger destinationSlice = checkedDestinationSlice.value();
+            NSUInteger destinationSlice = destination.origin.z + layer;
             [m_blitCommandEncoder
                 copyFromBuffer:sourceBuffer
                 sourceOffset:sourceOffset
@@ -1158,7 +1114,7 @@ NSString* CommandEncoder::errorValidatingCopyTextureToBuffer(const WGPUImageCopy
 
     if (!Texture::isDepthOrStencilFormat(sourceTexture.format())) {
         auto texelBlockSize = Texture::texelBlockSize(sourceTexture.format());
-        if (destination.layout.offset % texelBlockSize.value())
+        if (destination.layout.offset % texelBlockSize)
             return ERROR_STRING(@"destination.layout.offset is not a multiple of texelBlockSize");
     }
 
@@ -1187,8 +1143,8 @@ void CommandEncoder::clearTextureIfNeeded(const WGPUImageCopyTexture& destinatio
 
 bool CommandEncoder::waitForCommandBufferCompletion()
 {
-    if (RefPtr cachedCommandBuffer = m_cachedCommandBuffer.get())
-        return cachedCommandBuffer->waitForCompletion();
+    if (m_cachedCommandBuffer)
+        return m_cachedCommandBuffer.get()->waitForCompletion();
 
     return true;
 }
@@ -1222,14 +1178,8 @@ void CommandEncoder::clearTextureIfNeeded(Texture& texture, NSUInteger mipLevel,
     auto physicalExtent = Texture::physicalTextureExtent(texture.dimension(), textureFormat, logicalExtent);
     NSUInteger sourceBytesPerRow = Texture::bytesPerRow(textureFormat, physicalExtent.width, texture.sampleCount());
     NSUInteger depth = texture.dimension() == WGPUTextureDimension_3D ? physicalExtent.depthOrArrayLayers : 1;
-    auto checkedBytesPerImage = checkedProduct<NSUInteger>(sourceBytesPerRow, physicalExtent.height);
-    if (checkedBytesPerImage.hasOverflowed())
-        return;
-    NSUInteger bytesPerImage = checkedBytesPerImage.value();
-    auto checkedBufferLength = checkedProduct<NSUInteger>(bytesPerImage, depth);
-    if (checkedBufferLength.hasOverflowed())
-        return;
-    NSUInteger bufferLength = checkedBufferLength.value();
+    NSUInteger bytesPerImage = sourceBytesPerRow * physicalExtent.height;
+    NSUInteger bufferLength = bytesPerImage * depth;
     if (!bufferLength)
         return;
     id<MTLBuffer> temporaryBuffer = device.safeCreateBuffer(bufferLength);
@@ -1318,8 +1268,9 @@ void CommandEncoder::addBuffer(id<MTLBuffer> buffer)
     if (buffer.storageMode == MTLStorageModeManaged)
         [m_managedBuffers addObject:buffer];
 }
-void CommandEncoder::addTexture(id<MTLTexture> texture)
+void CommandEncoder::addTexture(const Texture& baseTexture)
 {
+    id<MTLTexture> texture = baseTexture.texture();
     if (texture.storageMode == MTLStorageModeManaged)
         [m_managedTextures addObject:texture];
 }
@@ -1327,8 +1278,12 @@ void CommandEncoder::addTexture(id<MTLTexture> texture)
 void CommandEncoder::addBuffer(id<MTLBuffer>)
 {
 }
-void CommandEncoder::addTexture(id<MTLTexture>)
+void CommandEncoder::addTexture(const Texture& baseTexture)
 {
+    if (id<MTLSharedEvent> event = baseTexture.sharedEvent()) {
+        m_sharedEvent = event;
+        m_sharedEventSignalValue = baseTexture.sharedEventSignalValue();
+    }
 }
 #endif
 
@@ -1409,15 +1364,13 @@ void CommandEncoder::copyTextureToBuffer(const WGPUImageCopyTexture& source, con
     auto blockSize = Texture::texelBlockSize(aspectSpecificFormat);
     auto textureDimension = sourceTexture.dimension();
     switch (textureDimension) {
-    case WGPUTextureDimension_1D: {
-        auto product = checkedProduct<uint32_t>(blockSize, m_device->limits().maxTextureDimension1D);
-        destinationBytesPerRow = product.hasOverflowed() ? destinationBytesPerRow : std::min<uint32_t>(destinationBytesPerRow, product.value());
-    } break;
+    case WGPUTextureDimension_1D:
+        destinationBytesPerRow = std::min<uint32_t>(destinationBytesPerRow, blockSize * m_device->limits().maxTextureDimension1D);
+        break;
     case WGPUTextureDimension_2D:
-    case WGPUTextureDimension_3D: {
-        auto product = checkedProduct<uint32_t>(blockSize, m_device->limits().maxTextureDimension2D);
-        destinationBytesPerRow = product.hasOverflowed() ? destinationBytesPerRow : std::min<uint32_t>(destinationBytesPerRow, product.value());
-    } break;
+    case WGPUTextureDimension_3D:
+        destinationBytesPerRow = std::min<uint32_t>(destinationBytesPerRow, blockSize * m_device->limits().maxTextureDimension2D);
+        break;
     case WGPUTextureDimension_Force32:
         break;
     }
@@ -1429,38 +1382,24 @@ void CommandEncoder::copyTextureToBuffer(const WGPUImageCopyTexture& source, con
     auto rowsPerImage = destination.layout.rowsPerImage;
     if (rowsPerImage == WGPU_COPY_STRIDE_UNDEFINED)
         rowsPerImage = heightForMetal ?: 1;
-    auto checkedDestinationBytesPerImage = checkedProduct<NSUInteger>(rowsPerImage, destinationBytesPerRow);
-    if (checkedDestinationBytesPerImage.hasOverflowed())
-        return;
-    NSUInteger destinationBytesPerImage = checkedDestinationBytesPerImage.value();
+    NSUInteger destinationBytesPerImage = rowsPerImage * destinationBytesPerRow;
 
-    NSUInteger maxDestinationBytesPerRow = textureDimension == WGPUTextureDimension_3D ? (2048 * blockSize.value()) : destinationBytesPerRow;
+    NSUInteger maxDestinationBytesPerRow = textureDimension == WGPUTextureDimension_3D ? (2048 * blockSize) : destinationBytesPerRow;
     if (destinationBytesPerRow > maxDestinationBytesPerRow) {
         for (uint32_t z = 0; z < copySize.depthOrArrayLayers; ++z) {
-            auto zPlusOriginZ = checkedSum<uint32_t>(source.origin.z, z);
-            auto zTimesDestinationBytesPerImage = checkedProduct<uint32_t>(z, destinationBytesPerImage);
-            if (zPlusOriginZ.hasOverflowed() || zTimesDestinationBytesPerImage.hasOverflowed())
-                return;
             for (uint32_t y = 0; y < copySize.height; ++y) {
-                auto yPlusOriginY = checkedSum<uint32_t>(source.origin.y, y);
-                auto yTimesDestinationBytesPerImage = checkedProduct<uint32_t>(y, destinationBytesPerRow);
-                if (yPlusOriginY.hasOverflowed() || yTimesDestinationBytesPerImage.hasOverflowed())
-                    return;
                 WGPUImageCopyTexture newSource {
                     .nextInChain = nullptr,
                     .texture = source.texture,
                     .mipLevel = source.mipLevel,
-                    .origin = { .x = source.origin.x, .y = yPlusOriginY, .z = zPlusOriginZ },
+                    .origin = { .x = source.origin.x, .y = source.origin.y + y, .z = source.origin.z + z },
                     .aspect = source.aspect
                 };
-                auto tripleSum = checkedSum<uint32_t>(zTimesDestinationBytesPerImage.value(), yTimesDestinationBytesPerImage.value(), destination.layout.offset);
-                if (tripleSum.hasOverflowed())
-                    return;
                 WGPUImageCopyBuffer newDestination {
                     .nextInChain = nullptr,
                     .layout = WGPUTextureDataLayout {
                         .nextInChain = nullptr,
-                        .offset = tripleSum.value(),
+                        .offset = z * destinationBytesPerImage + y * destinationBytesPerRow + destination.layout.offset,
                         .bytesPerRow = WGPU_COPY_STRIDE_UNDEFINED,
                         .rowsPerImage = WGPU_COPY_STRIDE_UNDEFINED,
                     },
@@ -1479,10 +1418,7 @@ void CommandEncoder::copyTextureToBuffer(const WGPUImageCopyTexture& source, con
     ensureBlitCommandEncoder();
 
     for (uint32_t layer = 0; layer < copySize.depthOrArrayLayers; ++layer) {
-        auto originZPlusLayer = checkedSum<NSUInteger>(source.origin.z, layer);
-        if (originZPlusLayer.hasOverflowed())
-            return;
-        NSUInteger sourceSlice = sourceTexture.dimension() == WGPUTextureDimension_3D ? 0 : originZPlusLayer.value();
+        NSUInteger sourceSlice = sourceTexture.dimension() == WGPUTextureDimension_3D ? 0 : (source.origin.z + layer);
         if (!sourceTexture.previouslyCleared(source.mipLevel, sourceSlice))
             clearTextureIfNeeded(source, sourceSlice);
     }
@@ -1500,23 +1436,9 @@ void CommandEncoder::copyTextureToBuffer(const WGPUImageCopyTexture& source, con
         auto sourceSize = MTLSizeMake(widthForMetal, 1, 1);
         auto sourceOrigin = MTLOriginMake(source.origin.x, 0, 0);
         for (uint32_t layer = 0; layer < copySize.depthOrArrayLayers; ++layer) {
-            auto layerTimesDestinatinBytesPerImage = checkedProduct<NSUInteger>(layer, destinationBytesPerImage);
-            if (layerTimesDestinatinBytesPerImage.hasOverflowed())
-                return;
-            auto checkedDestinationOffset = checkedSum<NSUInteger>(destination.layout.offset, layerTimesDestinatinBytesPerImage.value());
-            if (checkedDestinationOffset.hasOverflowed())
-                return;
-            auto destinationOffset = checkedDestinationOffset.value();
-            auto checkedSourceSlice = checkedSum<NSUInteger>(source.origin.z, layer);
-            if (checkedSourceSlice.hasOverflowed())
-                return;
-            NSUInteger sourceSlice = checkedSourceSlice.value();
-            auto widthTimesBlockSize = checkedProduct<NSUInteger>(widthForMetal, blockSize);
-            if (widthTimesBlockSize.hasOverflowed())
-                return;
-
-            auto sum = checkedSum<NSUInteger>(destinationOffset, widthTimesBlockSize);
-            if (sum.value() > destinationBuffer.length)
+            auto destinationOffset = static_cast<NSUInteger>(destination.layout.offset + layer * destinationBytesPerImage);
+            NSUInteger sourceSlice = source.origin.z + layer;
+            if (destinationOffset + widthForMetal * blockSize > destinationBuffer.length)
                 continue;
             [m_blitCommandEncoder
                 copyFromTexture:sourceTexture.texture()
@@ -1538,18 +1460,8 @@ void CommandEncoder::copyTextureToBuffer(const WGPUImageCopyTexture& source, con
         auto sourceSize = MTLSizeMake(widthForMetal, heightForMetal, 1);
         auto sourceOrigin = MTLOriginMake(source.origin.x, source.origin.y, 0);
         for (uint32_t layer = 0; layer < copySize.depthOrArrayLayers; ++layer) {
-            auto layerTimesBytesPerImage = checkedProduct<NSUInteger>(layer, destinationBytesPerImage);
-            if (layerTimesBytesPerImage.hasOverflowed())
-                return;
-
-            auto checkedDestinationOffset = checkedSum<NSUInteger>(destination.layout.offset, layerTimesBytesPerImage.value());
-            if (checkedDestinationOffset.hasOverflowed())
-                return;
-            auto destinationOffset = checkedDestinationOffset.value();
-            auto checkedSourceSlice = checkedSum<NSUInteger>(source.origin.z, layer);
-            if (checkedSourceSlice.hasOverflowed())
-                return;
-            NSUInteger sourceSlice = checkedSourceSlice.value();
+            auto destinationOffset = static_cast<NSUInteger>(destination.layout.offset + layer * destinationBytesPerImage);
+            NSUInteger sourceSlice = source.origin.z + layer;
             [m_blitCommandEncoder
                 copyFromTexture:sourceTexture.texture()
                 sourceSlice:sourceSlice
@@ -1706,16 +1618,10 @@ void CommandEncoder::copyTextureToTexture(const WGPUImageCopyTexture& source, co
     uint32_t sliceCount = destinationTextureDimension == WGPUTextureDimension_3D ? 1 : copySize.depthOrArrayLayers;
     auto destinationLogicalSize = destinationTexture.logicalMiplevelSpecificTextureExtent(destination.mipLevel);
     for (uint32_t layer = 0; layer < sliceCount; ++layer) {
-        auto sourceOriginPlusLayer = checkedSum<NSUInteger>(source.origin.z, layer);
-        if (sourceOriginPlusLayer.hasOverflowed())
-            return;
-        NSUInteger sourceSlice = sourceTexture.dimension() == WGPUTextureDimension_3D ? 0 : sourceOriginPlusLayer.value();
+        NSUInteger sourceSlice = sourceTexture.dimension() == WGPUTextureDimension_3D ? 0 : (source.origin.z + layer);
         clearTextureIfNeeded(source, sourceSlice);
 
-        auto destinationOriginPlusLayer = checkedSum<NSUInteger>(destination.origin.z, layer);
-        if (destinationOriginPlusLayer.hasOverflowed())
-            return;
-        NSUInteger destinationSlice = destinationTexture.dimension() == WGPUTextureDimension_3D ? 0 : destinationOriginPlusLayer.value();
+        NSUInteger destinationSlice = destinationTexture.dimension() == WGPUTextureDimension_3D ? 0 : (destination.origin.z + layer);
         if (Queue::writeWillCompletelyClear(destinationTextureDimension, copySize.width, destinationLogicalSize.width, copySize.height, destinationLogicalSize.height, copySize.depthOrArrayLayers, destinationLogicalSize.depthOrArrayLayers))
             destinationTexture.setPreviouslyCleared(destination.mipLevel, destinationSlice);
         else
@@ -1739,14 +1645,8 @@ void CommandEncoder::copyTextureToTexture(const WGPUImageCopyTexture& source, co
         auto destinationOrigin = MTLOriginMake(destination.origin.x, 0, 0);
 
         for (uint32_t layer = 0; layer < copySize.depthOrArrayLayers; ++layer) {
-            auto sourceOriginPlusLayer = checkedSum<NSUInteger>(source.origin.z, layer);
-            if (sourceOriginPlusLayer.hasOverflowed())
-                return;
-            NSUInteger sourceSlice = sourceOriginPlusLayer.value();
-            auto destinationOriginPlusLayer = checkedSum<NSUInteger>(destination.origin.z, layer);
-            if (destinationOriginPlusLayer.hasOverflowed())
-                return;
-            NSUInteger destinationSlice = destinationOriginPlusLayer.value();
+            NSUInteger sourceSlice = source.origin.z + layer;
+            NSUInteger destinationSlice = destination.origin.z + layer;
             if (destinationSlice >= mtlDestinationTexture.arrayLength || sourceSlice >= mtlSourceTexture.arrayLength)
                 continue;
             [m_blitCommandEncoder
@@ -1773,14 +1673,8 @@ void CommandEncoder::copyTextureToTexture(const WGPUImageCopyTexture& source, co
         auto destinationOrigin = MTLOriginMake(destination.origin.x, destination.origin.y, 0);
 
         for (uint32_t layer = 0; layer < copySize.depthOrArrayLayers; ++layer) {
-            auto sourceOriginPlusLayer = checkedSum<NSUInteger>(source.origin.z, layer);
-            if (sourceOriginPlusLayer.hasOverflowed())
-                return;
-            NSUInteger sourceSlice = sourceOriginPlusLayer.value();
-            auto checkedDestinationSlice = checkedSum<NSUInteger>(destination.origin.z, layer);
-            if (checkedDestinationSlice.hasOverflowed())
-                return;
-            NSUInteger destinationSlice = checkedDestinationSlice.value();
+            NSUInteger sourceSlice = source.origin.z + layer;
+            NSUInteger destinationSlice = destination.origin.z + layer;
             if (destinationSlice >= mtlDestinationTexture.arrayLength || sourceSlice >= mtlSourceTexture.arrayLength)
                 continue;
             [m_blitCommandEncoder
@@ -1801,10 +1695,7 @@ void CommandEncoder::copyTextureToTexture(const WGPUImageCopyTexture& source, co
         if (!sourceSize.width || !sourceSize.height || !sourceSize.depth)
             return;
 
-        auto originPlusSourceSize = checkedSum<uint32_t>(destination.origin.z, sourceSize.depth);
-        if (originPlusSourceSize.hasOverflowed())
-            return;
-        if (originPlusSourceSize.value() > std::min<uint32_t>(destinationLogicalSize.depthOrArrayLayers, mtlDestinationTexture.depth)) {
+        if (destination.origin.z + sourceSize.depth > std::min<uint32_t>(destinationLogicalSize.depthOrArrayLayers, mtlDestinationTexture.depth)) {
             makeInvalid(@"GPUCommandEncoder.copyTextureToTexture: destination.origin.z + sourceSize.depth > destinationLogicalSize.depthOrArrayLayers");
             return;
         }
@@ -1947,7 +1838,8 @@ Ref<CommandBuffer> CommandEncoder::finish(const WGPUCommandBufferDescriptor& des
     }
 #endif
 
-    auto result = CommandBuffer::create(commandBuffer, m_device);
+    auto result = CommandBuffer::create(commandBuffer, m_device, m_sharedEvent, m_sharedEventSignalValue);
+    m_sharedEvent = nil;
     m_cachedCommandBuffer = result;
     m_cachedCommandBuffer->setBufferMapCount(m_bufferMapCount);
     if (m_makeSubmitInvalid)
@@ -2034,10 +1926,7 @@ static bool validateResolveQuerySet(const QuerySet& querySet, uint32_t firstQuer
     if (destinationOffset % 256)
         return false;
 
-    auto queryCountTimes8 = checkedProduct<uint64_t>(8, static_cast<uint64_t>(queryCount));
-    if (queryCountTimes8.hasOverflowed())
-        return false;
-    auto countTimes8PlusOffset = checkedSum<uint64_t>(destinationOffset, queryCountTimes8);
+    auto countTimes8PlusOffset = checkedSum<uint64_t>(destinationOffset, 8 * static_cast<uint64_t>(queryCount));
     if (countTimes8PlusOffset.hasOverflowed() || countTimes8PlusOffset.value() > destination.initialSize())
         return false;
 

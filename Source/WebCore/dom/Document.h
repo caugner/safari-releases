@@ -129,7 +129,7 @@ class DocumentMarkerController;
 class DocumentParser;
 class DocumentSharedObjectPool;
 class DocumentTimeline;
-class DocumentTimelinesController;
+class AnimationTimelinesController;
 class DocumentType;
 class EditingBehavior;
 class Editor;
@@ -597,7 +597,6 @@ public:
     bool isTimerThrottlingEnabled() const { return m_isTimerThrottlingEnabled; }
 
     void setVisibilityHiddenDueToDismissal(bool);
-    void clearRevealForReactivation();
 
     WEBCORE_EXPORT ExceptionOr<Ref<Node>> adoptNode(Node& source);
 
@@ -690,7 +689,7 @@ public:
     const CSSCounterStyleRegistry& counterStyleRegistry() const;
     CSSCounterStyleRegistry& counterStyleRegistry();
 
-    WEBCORE_EXPORT CSSParserContext cssParserContext() const;
+    CSSParserContext cssParserContext() const;
     void invalidateCachedCSSParserContext();
 
     bool gotoAnchorNeededAfterStylesheetsLoad() { return m_gotoAnchorNeededAfterStylesheetsLoad; }
@@ -836,7 +835,7 @@ public:
 
     const URL& url() const final { return m_url; }
     void setURL(const URL&);
-    WEBCORE_EXPORT const URL& urlForBindings() const;
+    WEBCORE_EXPORT const URL& urlForBindings();
 
     URL adjustedURL() const;
 
@@ -1158,7 +1157,7 @@ public:
     //    document inherits the security context of another document, it
     //    inherits its cookieURL but not its URL.
     //
-    const URL& cookieURL() const { return m_cookieURL; }
+    const URL& cookieURL() const final { return m_cookieURL; }
     void setCookieURL(const URL&);
 
     // The firstPartyForCookies is used to compute whether this document
@@ -1492,7 +1491,7 @@ public:
     WEBCORE_EXPORT unsigned styleRecalcCount() const;
 
 #if ENABLE(TOUCH_EVENTS)
-    bool hasTouchEventHandlers() const { return m_touchEventTargets && !m_touchEventTargets->isEmptyIgnoringNullReferences(); }
+    bool hasTouchEventHandlers() const { return m_touchEventTargets && m_touchEventTargets->computeSize(); }
     bool touchEventTargetsContain(Node& node) const { return m_touchEventTargets && m_touchEventTargets->contains(node); }
 #else
     bool hasTouchEventHandlers() const { return false; }
@@ -1527,7 +1526,7 @@ public:
 #endif
     }
 
-    bool hasWheelEventHandlers() const { return m_wheelEventTargets && !m_wheelEventTargets->isEmptyIgnoringNullReferences(); }
+    bool hasWheelEventHandlers() const { return m_wheelEventTargets && m_wheelEventTargets->computeSize(); }
     const EventTargetSet* wheelEventTargets() const { return m_wheelEventTargets.get(); }
 
     using RegionFixedPair = std::pair<Region, bool>;
@@ -1638,12 +1637,10 @@ public:
     WEBCORE_EXPORT void setNeedsDOMWindowResizeEvent();
     void setNeedsVisualViewportResize();
     void runResizeSteps();
-    void flushDeferredResizeEvents();
 
     void addPendingScrollEventTarget(ContainerNode&);
     void setNeedsVisualViewportScrollEvent();
     void runScrollSteps();
-    void flushDeferredScrollEvents();
 
     void invalidateScrollbars();
 
@@ -1731,7 +1728,6 @@ public:
 
     bool renderingIsSuppressedForViewTransition() const;
     void setRenderingIsSuppressedForViewTransitionAfterUpdateRendering();
-    void setRenderingIsSuppressedForViewTransitionImmediately();
     void clearRenderingIsSuppressedForViewTransition();
     void flushDeferredRenderingIsSuppressedForViewTransitionChanges();
 
@@ -1806,8 +1802,8 @@ public:
     DocumentTimeline* existingTimeline() const { return m_timeline.get(); }
     Vector<RefPtr<WebAnimation>> getAnimations();
     Vector<RefPtr<WebAnimation>> matchingAnimations(const Function<bool(Element&)>&);
-    DocumentTimelinesController* timelinesController() const { return m_timelinesController.get(); }
-    WEBCORE_EXPORT DocumentTimelinesController& ensureTimelinesController();
+    AnimationTimelinesController* timelinesController() const { return m_timelinesController.get(); }
+    WEBCORE_EXPORT AnimationTimelinesController& ensureTimelinesController();
     void keyframesRuleDidChange(const String& name);
 
 #if ENABLE(THREADED_ANIMATION_RESOLUTION)
@@ -1827,7 +1823,6 @@ public:
 
     void hideAllPopoversUntil(HTMLElement*, FocusPreviousElement, FireEvents);
     void handlePopoverLightDismiss(const PointerEvent&, Node&);
-    bool needsPointerEventHandlingForPopover() const { return !m_autoPopoverList.isEmpty(); }
 
 #if ENABLE(ATTACHMENT_ELEMENT)
     void registerAttachmentIdentifier(const String&, const AttachmentAssociatedElement&);
@@ -2432,7 +2427,7 @@ private:
     RefPtr<StringCallback> m_consoleMessageListener;
 
     RefPtr<DocumentTimeline> m_timeline;
-    std::unique_ptr<DocumentTimelinesController> m_timelinesController;
+    std::unique_ptr<AnimationTimelinesController> m_timelinesController;
 
     RefPtr<WindowEventLoop> m_eventLoop;
     std::unique_ptr<EventLoopTaskGroup> m_documentTaskGroup;
@@ -2619,9 +2614,7 @@ private:
 
     bool m_hasStyleWithViewportUnits { false };
     bool m_needsDOMWindowResizeEvent { false };
-    bool m_hasDeferredDOMWindowResizeEvent { false };
     bool m_needsVisualViewportResizeEvent { false };
-    bool m_hasDeferredVisualViewportResizeEvent { false };
     bool m_needsVisualViewportScrollEvent { false };
     bool m_isTimerThrottlingEnabled { false };
     bool m_isSuspended { false };

@@ -29,6 +29,7 @@
 #include "CacheModel.h"
 #include "EventDispatcher.h"
 #include "IdentifierTypes.h"
+#include "ScriptTelemetry.h"
 #include "StorageAreaMapIdentifier.h"
 #include "TextCheckerState.h"
 #include "WebInspectorInterruptDispatcher.h"
@@ -42,7 +43,6 @@
 #include <WebCore/RegistrableDomain.h>
 #include <WebCore/ServiceWorkerTypes.h>
 #include <WebCore/Timer.h>
-#include <WebCore/UserGestureTokenIdentifier.h>
 #include <pal/HysteresisActivity.h>
 #include <pal/SessionID.h>
 #include <wtf/Forward.h>
@@ -64,6 +64,7 @@
 #endif
 
 #if PLATFORM(COCOA)
+#include <WebCore/ScreenProperties.h>
 #include <dispatch/dispatch.h>
 #include <wtf/MachSendRight.h>
 
@@ -100,7 +101,6 @@ class UserGestureToken;
 
 enum class EventMakesGamepadsVisible : bool;
 enum class RenderAsTextFlag : uint16_t;
-enum class RenderingPurpose : uint8_t;
 
 struct ClientOrigin;
 struct DisplayUpdate;
@@ -108,7 +108,6 @@ struct MessagePortIdentifier;
 struct MessageWithMessagePorts;
 struct MockMediaDevice;
 struct PrewarmInformation;
-struct ScreenProperties;
 struct ServiceWorkerContextData;
 }
 
@@ -168,7 +167,7 @@ class LayerHostingContext;
 class SpeechRecognitionRealtimeMediaSourceManager;
 #endif
 
-class WebProcess : public AuxiliaryProcess
+class WebProcess final : public AuxiliaryProcess
 {
     WTF_MAKE_TZONE_ALLOCATED(WebProcess);
 public:
@@ -222,17 +221,17 @@ public:
 
     void updateStorageAccessUserAgentStringQuirks(HashMap<WebCore::RegistrableDomain, String>&&);
 
-    WebFrame* webFrame(WebCore::FrameIdentifier) const;
+    WebFrame* webFrame(std::optional<WebCore::FrameIdentifier>) const;
     void addWebFrame(WebCore::FrameIdentifier, WebFrame*);
     void removeWebFrame(WebCore::FrameIdentifier, std::optional<WebPageProxyIdentifier>);
 
     WebPageGroupProxy* webPageGroup(const WebPageGroupData&);
 
-    std::optional<WebCore::UserGestureTokenIdentifier> userGestureTokenIdentifier(std::optional<WebCore::PageIdentifier>, RefPtr<WebCore::UserGestureToken>);
+    uint64_t userGestureTokenIdentifier(std::optional<WebCore::PageIdentifier>, RefPtr<WebCore::UserGestureToken>);
     void userGestureTokenDestroyed(WebCore::PageIdentifier, WebCore::UserGestureToken&);
     
-    OptionSet<TextCheckerState> textCheckerState() const { return m_textCheckerState; }
-    void setTextCheckerState(OptionSet<TextCheckerState>);
+    const TextCheckerState& textCheckerState() const { return m_textCheckerState; }
+    void setTextCheckerState(const TextCheckerState&);
 
     EventDispatcher& eventDispatcher() { return m_eventDispatcher; }
 
@@ -257,6 +256,7 @@ public:
 
 #if PLATFORM(COCOA) && USE(LIBWEBRTC)
     LibWebRTCCodecs& libWebRTCCodecs();
+    Ref<LibWebRTCCodecs> protectedLibWebRTCCodecs();
 #endif
 #if ENABLE(MEDIA_STREAM) && PLATFORM(COCOA)
     AudioMediaStreamTrackRendererInternalUnitManager& audioMediaStreamTrackRendererInternalUnitManager();
@@ -339,6 +339,7 @@ public:
     WebBadgeClient& badgeClient() { return m_badgeClient.get(); }
 #if ENABLE(GPU_PROCESS) && ENABLE(VIDEO)
     RemoteMediaPlayerManager& remoteMediaPlayerManager() { return m_remoteMediaPlayerManager.get(); }
+    Ref<RemoteMediaPlayerManager> protectedRemoteMediaPlayerManager();
 #endif
 #if ENABLE(GPU_PROCESS) && HAVE(AVASSETREADER)
     RemoteImageDecoderAVFManager& remoteImageDecoderAVFManager() { return m_remoteImageDecoderAVFManager.get(); }
@@ -409,6 +410,8 @@ public:
 #if ENABLE(MEDIA_STREAM)
     SpeechRecognitionRealtimeMediaSourceManager& ensureSpeechRecognitionRealtimeMediaSourceManager();
 #endif
+
+    bool requiresScriptTelemetryForURL(const URL&, const WebCore::SecurityOrigin& topOrigin) const;
 
     bool isLockdownModeEnabled() const { return m_isLockdownModeEnabled.value(); }
     bool imageAnimationEnabled() const { return m_imageAnimationEnabled; }
@@ -582,6 +585,8 @@ private:
 
     void updateDomainsWithStorageAccessQuirks(HashSet<WebCore::RegistrableDomain>&&);
 
+    void updateScriptTelemetryFilter(ScriptTelemetryRules&&);
+
 #if HAVE(DISPLAY_LINK)
     void displayDidRefresh(uint32_t displayID, const WebCore::DisplayUpdate&);
 #endif
@@ -596,11 +601,8 @@ private:
 
     // IPC::Connection::Client
     void didReceiveMessage(IPC::Connection&, IPC::Decoder&) override;
-    bool didReceiveSyncMessage(IPC::Connection&, IPC::Decoder&, UniqueRef<IPC::Encoder>&) override;
     void didClose(IPC::Connection&) final;
-
-    // Implemented in generated WebProcessMessageReceiver.cpp
-    void didReceiveWebProcessMessage(IPC::Connection&, IPC::Decoder&);
+    bool dispatchMessage(IPC::Connection&, IPC::Decoder&);
 
 #if PLATFORM(MAC)
     void scrollerStylePreferenceChanged(bool useOverlayScrollbars);
@@ -693,7 +695,7 @@ private:
     using WebProcessSupplementMap = HashMap<ASCIILiteral, std::unique_ptr<WebProcessSupplement>>;
     WebProcessSupplementMap m_supplements;
 
-    OptionSet<TextCheckerState> m_textCheckerState;
+    TextCheckerState m_textCheckerState;
 
     String m_uiProcessBundleIdentifier;
     RefPtr<NetworkProcessConnection> m_networkProcessConnection;
@@ -773,7 +775,7 @@ private:
     ProcessType m_processType { ProcessType::WebContent };
 #endif
 
-    WeakHashMap<WebCore::UserGestureToken, WebCore::UserGestureTokenIdentifier> m_userGestureTokens;
+    WeakHashMap<WebCore::UserGestureToken, uint64_t> m_userGestureTokens;
 
 #if PLATFORM(GTK) || PLATFORM(WPE)
     OptionSet<DMABufRendererBufferMode> m_dmaBufRendererBufferMode;
@@ -840,6 +842,7 @@ private:
 
     HashMap<WebTransportSessionIdentifier, WeakPtr<WebTransportSession>> m_webTransportSessions;
     HashSet<WebCore::RegistrableDomain> m_domainsWithStorageAccessQuirks;
+    std::unique_ptr<ScriptTelemetryFilter> m_scriptTelemetryFilter;
 };
 
 } // namespace WebKit

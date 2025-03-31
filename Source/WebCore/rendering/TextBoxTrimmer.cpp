@@ -121,33 +121,28 @@ void TextBoxTrimmer::adjustTextBoxTrimStatusBeforeLayout(const RenderBlockFlow* 
 {
     auto textBoxTrimValue = textBoxTrim(*m_blockContainer);
     if (textBoxTrimValue == TextBoxTrim::None)
-        return handleTextBoxTrimNoneBeforeLayout();
+        return handlePropagatedTextBoxTrimBeforeLayout();
 
     // This block container starts setting up trimming for its subtree.
-    // 1. Let's save the current trimming status, merge (and restore after layout).
+    // 1. Let's save the current trimming status (and restore after layout)
     // 2. Figure out which side(s) of the content is going to get trimmed.
     auto& layoutState = *m_blockContainer->view().frameView().layoutContext().layoutState();
     m_previousTextBoxTrimStatus = layoutState.textBoxTrim();
     m_shouldRestoreTextBoxTrimStatus = true;
 
-    auto shouldTrimFirstFormattedLineStart = (textBoxTrimValue == TextBoxTrim::TrimStart || textBoxTrimValue == TextBoxTrim::TrimBoth) || (m_previousTextBoxTrimStatus && m_previousTextBoxTrimStatus->trimFirstFormattedLine);
-    auto shouldTrimmingLastFormattedLineEnd = textBoxTrimValue == TextBoxTrim::TrimEnd || textBoxTrimValue == TextBoxTrim::TrimBoth;
-
-    if (shouldTrimmingLastFormattedLineEnd) {
+    auto shouldTrimFirstFormattedLine = textBoxTrimValue == TextBoxTrim::TrimStart || textBoxTrimValue == TextBoxTrim::TrimBoth;
+    if (textBoxTrimValue == TextBoxTrim::TrimEnd || textBoxTrimValue == TextBoxTrim::TrimBoth) {
         if (!lastFormattedLineRoot && m_blockContainer->childrenInline()) {
-            // Last line end trimming is explicitly set on this inline formatting context. Let's assume last line is part of this block container.
+            // Trimming is explicitly set on this inline formatting context. Let's assume last line part of this block container.
             lastFormattedLineRoot = m_blockContainer.get();
         } else if (lastFormattedLineRoot) {
-            // This is the dedicated "last line" layout on the last inline formatting context, where we should not trim the first line
+            // This is the dedicated "last line" layout on the last formatting context, where we should not trim the first line
             // unless this IFC includes it too.
-            if (shouldTrimFirstFormattedLineStart)
-                shouldTrimFirstFormattedLineStart = firstFormattedLineRoot(*m_blockContainer) == lastFormattedLineRoot;
+            if (shouldTrimFirstFormattedLine)
+                shouldTrimFirstFormattedLine = firstFormattedLineRoot(*m_blockContainer) == lastFormattedLineRoot;
         }
     }
-    if (!lastFormattedLineRoot && m_previousTextBoxTrimStatus)
-        lastFormattedLineRoot =  m_previousTextBoxTrimStatus->lastFormattedLineRoot.get();
-
-    layoutState.setTextBoxTrim(RenderLayoutState::TextBoxTrim { shouldTrimFirstFormattedLineStart, lastFormattedLineRoot });
+    layoutState.setTextBoxTrim(RenderLayoutState::TextBoxTrim { shouldTrimFirstFormattedLine, m_blockContainer->style().textBoxEdge(), lastFormattedLineRoot });
 }
 
 void TextBoxTrimmer::adjustTextBoxTrimStatusAfterLayout()
@@ -163,11 +158,11 @@ void TextBoxTrimmer::adjustTextBoxTrimStatusAfterLayout()
     }
 }
 
-void TextBoxTrimmer::handleTextBoxTrimNoneBeforeLayout()
+void TextBoxTrimmer::handlePropagatedTextBoxTrimBeforeLayout()
 {
     auto& layoutState = *m_blockContainer->view().frameView().layoutContext().layoutState();
     // This is when the block container does not have text-box-trim set.
-    // 1. trimming from ancestors does not get propagated into formatting contexts e.g inside inline-block.
+    // 1. trimming does not get propagated into formatting contexts e.g inside inline-block.
     // 2. border and padding (start) prevent trim start.
     if (m_blockContainer->createsNewFormattingContext()) {
         m_previousTextBoxTrimStatus = layoutState.textBoxTrim();

@@ -832,55 +832,6 @@ TEST(WKWebExtensionAPITabs, QueryWithCurrentWindow)
     [manager loadAndRun];
 }
 
-TEST(WKWebExtensionAPITabs, QueryWithPermissionBypass)
-{
-    TestWebKitAPI::HTTPServer server({
-        { "/"_s, { { { "Content-Type"_s, "text/html"_s } }, ""_s } },
-    }, TestWebKitAPI::HTTPServer::Protocol::Http);
-
-    auto *backgroundScript = Util::constructScript(@[
-        @"const allWindows = await browser.windows.getAll({ populate: true })",
-        @"const windowIdOne = allWindows?.[0]?.id",
-
-        @"const tabIdOne = allWindows?.[0]?.tabs?.[0]?.id",
-        @"const tabIdTwo = allWindows?.[0]?.tabs?.[1]?.id",
-
-        @"browser.test.assertTrue(allWindows?.[0]?.tabs?.[0]?.url.startsWith('http://localhost'), 'First tab URL should be localhost')",
-        @"browser.test.assertEq(allWindows?.[0]?.tabs?.[1]?.url, '', 'Second tab URL should be empty')",
-
-        @"const tabsInWindowOne = await browser.tabs.query({ windowId: windowIdOne })",
-
-        @"browser.test.assertTrue(tabsInWindowOne.length >= 2, 'There should be at least 2 tabs in window one')",
-        @"browser.test.assertTrue(tabsInWindowOne[0].url.startsWith('http://localhost'), 'First tab URL should be localhost')",
-        @"browser.test.assertEq(tabsInWindowOne[1].url, '', 'Second tab URL should be empty')",
-
-        @"browser.test.notifyPass()"
-    ]);
-
-    auto extension = adoptNS([[WKWebExtension alloc] _initWithManifestDictionary:tabsManifest resources:@{ @"background.js": backgroundScript }]);
-    auto manager = adoptNS([[TestWebExtensionManager alloc] initForExtension:extension.get()]);
-
-    [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forPermission:WKWebExtensionPermissionTabs];
-
-    manager.get().internalDelegate.promptForPermissionToAccessURLs = ^(id<WKWebExtensionTab>, NSSet<NSURL *> *requestedURLs, void (^completionHandler)(NSSet<NSURL *> *allowedURLs, NSDate *)) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            completionHandler(NSSet.set, nil);
-        });
-    };
-
-    auto *windowOne = manager.get().defaultWindow;
-    [windowOne openNewTab];
-    windowOne.tabs.firstObject.shouldBypassPermissions = YES;
-
-    [windowOne.tabs.firstObject.webView loadRequest:server.requestWithLocalhost()];
-    [windowOne.tabs.lastObject.webView loadRequest:server.request()];
-
-    EXPECT_EQ(manager.get().windows.count, 1lu);
-    EXPECT_EQ(windowOne.tabs.count, 2lu);
-
-    [manager loadAndRun];
-}
-
 TEST(WKWebExtensionAPITabs, Zoom)
 {
     auto *backgroundScript = Util::constructScript(@[
@@ -2323,72 +2274,6 @@ TEST(WKWebExtensionAPITabs, ExecuteScript)
     EXPECT_NS_EQUAL(manager.get().yieldMessage, @"Load Tab");
 
     [manager.get().defaultTab.webView loadRequest:urlRequest];
-
-    [manager run];
-}
-
-TEST(WKWebExtensionAPITabs, ExecuteScriptWithFrameId)
-{
-    TestWebKitAPI::HTTPServer server({
-        { "/"_s, { { { "Content-Type"_s, "text/html"_s } }, "<iframe src='/frame.html'></iframe>"_s } },
-        { "/frame.html"_s, { { { "Content-Type"_s, "text/html"_s } }, " "_s } },
-    }, TestWebKitAPI::HTTPServer::Protocol::Http);
-
-    auto *backgroundScript = Util::constructScript(@[
-        @"browser.runtime.onMessage.addListener(async (message, sender) => {",
-        @"  browser.test.assertEq(message, 'Hello from frame')",
-
-        @"  const frameId = sender.frameId",
-        @"  browser.test.assertTrue(frameId !== 0, 'frameId should not be 0 for an iframe')",
-
-        @"  const results = await browser.tabs.executeScript(sender.tab.id, { frameId, code: 'location.pathname' })",
-        @"  browser.test.assertEq(results[0], '/frame.html', 'Should execute in the iframe and return the correct path')",
-
-        @"  browser.test.notifyPass()",
-        @"})",
-
-        @"browser.test.yield('Load Tab')"
-    ]);
-
-    auto *contentScript = Util::constructScript(@[
-        @"browser.runtime.sendMessage('Hello from frame')",
-    ]);
-
-    static auto *manifest = @{
-        @"manifest_version": @2,
-
-        @"name": @"Tabs Test",
-        @"description": @"Tabs Test",
-        @"version": @"1",
-
-        @"background": @{
-            @"scripts": @[ @"background.js" ],
-            @"type": @"module",
-            @"persistent": @NO,
-        },
-
-        @"content_scripts": @[ @{
-            @"js": @[ @"content.js" ],
-            @"matches": @[ @"*://localhost/frame.html" ],
-            @"all_frames": @YES
-        } ],
-    };
-
-    auto *resources = @{
-        @"background.js": backgroundScript,
-        @"content.js": contentScript,
-    };
-
-    auto extension = adoptNS([[WKWebExtension alloc] _initWithManifestDictionary:manifest resources:resources]);
-    auto manager = adoptNS([[TestWebExtensionManager alloc] initForExtension:extension.get()]);
-
-    [manager.get().context setPermissionStatus:WKWebExtensionContextPermissionStatusGrantedExplicitly forURL:server.requestWithLocalhost("/frame.html"_s).URL];
-
-    [manager loadAndRun];
-
-    EXPECT_NS_EQUAL(manager.get().yieldMessage, @"Load Tab");
-
-    [manager.get().defaultTab.webView loadRequest:server.requestWithLocalhost()];
 
     [manager run];
 }

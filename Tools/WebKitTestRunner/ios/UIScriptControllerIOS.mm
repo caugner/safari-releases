@@ -75,16 +75,6 @@ static bool isHiddenOrHasHiddenAncestor(UIView *view)
 
 #endif // HAVE(UI_TEXT_SELECTION_DISPLAY_INTERACTION)
 
-static BOOL returnYes()
-{
-    return YES;
-}
-
-static BOOL returnNo()
-{
-    return NO;
-}
-
 static NSDictionary *toNSDictionary(CGRect rect)
 {
     return @{
@@ -831,20 +821,7 @@ bool UIScriptControllerIOS::hasInputSession() const
     return webView().isInteractingWithFormControl;
 }
 
-void UIScriptControllerIOS::selectWordForReplacement()
-{
-#if USE(BROWSERENGINEKIT)
-    if (auto asyncInput = asyncTextInput()) {
-        [asyncInput selectWordForReplacement];
-        return;
-    }
-#endif // USE(BROWSERENGINEKIT)
-
-    auto contentView = static_cast<id<UIWKInteractionViewProtocol>>(platformContentView());
-    [contentView selectWordForReplacement];
-}
-
-void UIScriptControllerIOS::applyAutocorrection(JSStringRef newString, JSStringRef oldString, JSValueRef callback, bool underline)
+void UIScriptControllerIOS::applyAutocorrection(JSStringRef newString, JSStringRef oldString, JSValueRef callback)
 {
     unsigned callbackID = m_context->prepareForAsyncTask(callback, CallbackTypeNonPersistent);
 
@@ -856,14 +833,13 @@ void UIScriptControllerIOS::applyAutocorrection(JSStringRef newString, JSStringR
                     m_context->asyncTaskComplete(callbackID);
             }).get());
         });
-        auto options = underline ? BETextReplacementOptionsAddUnderline : BETextReplacementOptionsNone;
-        [asyncInput replaceText:toWTFString(oldString) withText:toWTFString(newString) options:options completionHandler:completionWrapper.get()];
+        [asyncInput replaceText:toWTFString(oldString) withText:toWTFString(newString) options:0 completionHandler:completionWrapper.get()];
         return;
     }
 #endif // USE(BROWSERENGINEKIT)
 
     auto contentView = static_cast<id<UIWKInteractionViewProtocol>>(platformContentView());
-    [contentView applyAutocorrection:toWTFString(newString) toString:toWTFString(oldString) shouldUnderline:underline withCompletionHandler:makeBlockPtr([this, protectedThis = Ref { *this }, callbackID](UIWKAutocorrectionRects *) {
+    [contentView applyAutocorrection:toWTFString(newString) toString:toWTFString(oldString) shouldUnderline:NO withCompletionHandler:makeBlockPtr([this, protectedThis = Ref { *this }, callbackID](UIWKAutocorrectionRects *) {
         dispatch_async(dispatch_get_main_queue(), makeBlockPtr([this, protectedThis = Ref { *this }, callbackID] {
             // applyAutocorrection can call its completion handler synchronously,
             // which makes UIScriptController unhappy (see bug 172884).
@@ -1477,7 +1453,7 @@ JSObjectRef UIScriptControllerIOS::calendarType() const
 void UIScriptControllerIOS::setHardwareKeyboardAttached(bool attached)
 {
     GSEventSetHardwareKeyboardAttached(attached, 0);
-    method_setImplementation(class_getClassMethod([UIKeyboard class], @selector(isInHardwareKeyboardMode)), reinterpret_cast<IMP>(attached ? returnYes : returnNo));
+    TestController::singleton().setIsInHardwareKeyboardMode(attached);
 }
 
 void UIScriptControllerIOS::setAllowsViewportShrinkToFit(bool allows)

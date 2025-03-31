@@ -62,11 +62,9 @@
 #include <unistd.h>
 #endif
 
+namespace WTR {
 using namespace JSC;
 using namespace WebKit;
-using namespace std;
-
-namespace WTR {
 
 static void postPageMessage(const char* name, const WKRetainPtr<WKTypeRef>& body)
 {
@@ -692,11 +690,6 @@ void TestInvocation::didReceiveMessageFromInjectedBundle(WKStringRef messageName
 
     if (WKStringIsEqualToUTF8CString(messageName, "StopLoading"))
         return WKPageStopLoading(TestController::singleton().mainWebView()->page());
-
-    if (WKStringIsEqualToUTF8CString(messageName, "ShowWebInspector")) {
-        WKPageShowWebInspectorForTesting(TestController::singleton().mainWebView()->page());
-        return;
-    }
 
     ASSERT_NOT_REACHED();
 }

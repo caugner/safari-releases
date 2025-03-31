@@ -67,7 +67,8 @@ ExceptionOr<unsigned> CSSGroupingRule::insertRule(const String& ruleString, unsi
     }
 
     CSSStyleSheet* styleSheet = parentStyleSheet();
-    RefPtr newRule = CSSParser::parseRule(parserContext(), styleSheet ? &styleSheet->contents() : nullptr, ruleString, nestedContext());
+    auto isNestedContext = hasStyleRuleAncestor() ? CSSParserEnum::IsNestedContext::Yes : CSSParserEnum::IsNestedContext::No;
+    RefPtr<StyleRuleBase> newRule = CSSParser::parseRule(parserContext(), styleSheet ? &styleSheet->contents() : nullptr, ruleString, isNestedContext);
     if (!newRule) {
         if (!hasStyleRuleAncestor())
             return Exception { ExceptionCode::SyntaxError };

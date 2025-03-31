@@ -88,7 +88,7 @@ bool WebEditorClient::isSelectTrailingWhitespaceEnabled() const
 
 bool WebEditorClient::isContinuousSpellCheckingEnabled()
 {
-    return WebProcess::singleton().textCheckerState().contains(TextCheckerState::ContinuousSpellCheckingEnabled);
+    return WebProcess::singleton().textCheckerState().isContinuousSpellCheckingEnabled;
 }
 
 void WebEditorClient::toggleContinuousSpellChecking()
@@ -98,7 +98,7 @@ void WebEditorClient::toggleContinuousSpellChecking()
 
 bool WebEditorClient::isGrammarCheckingEnabled()
 {
-    return WebProcess::singleton().textCheckerState().contains(TextCheckerState::GrammarCheckingEnabled);
+    return WebProcess::singleton().textCheckerState().isGrammarCheckingEnabled;
 }
 
 void WebEditorClient::toggleGrammarChecking()

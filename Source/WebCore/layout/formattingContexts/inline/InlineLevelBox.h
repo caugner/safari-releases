@@ -82,8 +82,6 @@ public:
     const FontMetrics& primarymetricsOfPrimaryFont() const { return m_style.primaryFontMetrics; }
     InlineLayoutUnit fontSize() const { return m_style.primaryFontSize; }
 
-    TextBoxTrim textBoxTrim() const { return m_style.textBoxTrim; }
-    TextEdge textBoxEdge() const { return m_style.textBoxEdge; }
     TextEdge lineFitEdge() const { return m_style.lineFitEdge; }
     InlineLayoutUnit inlineBoxContentOffsetForTextBoxTrim() const { return m_inlineBoxContentOffsetForTextBoxTrim; }
 
@@ -166,8 +164,6 @@ private:
     struct Style {
         const FontMetrics& primaryFontMetrics;
         const Length& lineHeight;
-        TextBoxTrim textBoxTrim;
-        TextEdge textBoxEdge;
         TextEdge lineFitEdge;
         OptionSet<LineBoxContain> lineBoxContain;
         InlineLayoutUnit primaryFontSize { 0 };

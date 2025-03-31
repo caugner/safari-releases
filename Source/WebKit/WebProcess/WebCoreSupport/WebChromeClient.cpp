@@ -345,7 +345,7 @@ Page* WebChromeClient::createWindow(LocalFrame& frame, const WindowFeatures& win
         WebCore::LockHistory::No,
         WebCore::LockBackForwardList::No,
         { }, /* clientRedirectSourceForHistory */
-        { }, /* effectiveSandboxFlags */
+        frame.effectiveSandboxFlags(),
         std::nullopt, /* ownerPermissionsPolicy */
         navigationAction.privateClickMeasurement(),
         { }, /* advancedPrivacyProtections */
@@ -989,7 +989,7 @@ RefPtr<ImageBuffer> WebChromeClient::sinkIntoImageBuffer(std::unique_ptr<Seriali
 }
 #endif
 
-std::unique_ptr<WebCore::WorkerClient> WebChromeClient::createWorkerClient(WorkerOrWorkletThread& dispatcher)
+std::unique_ptr<WebCore::WorkerClient> WebChromeClient::createWorkerClient(SerialFunctionDispatcher& dispatcher)
 {
     return WebWorkerClient::create(*protectedPage()->corePage(), dispatcher).moveToUniquePtr();
 }
@@ -1931,9 +1931,9 @@ void WebChromeClient::getImageBufferResourceLimitsForTesting(CompletionHandler<v
 }
 #endif
 
-void WebChromeClient::didSwallowClickEvent(const PlatformMouseEvent& event, Node& node)
+bool WebChromeClient::requiresScriptTelemetryForURL(const URL& url, const SecurityOrigin& topOrigin) const
 {
-    protectedPage()->didSwallowClickEvent(event, node);
+    return WebProcess::singleton().requiresScriptTelemetryForURL(url, topOrigin);
 }
 
 } // namespace WebKit

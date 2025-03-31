@@ -199,7 +199,7 @@ TEST(WKWebView, AttributedStringAccessibilityLabel)
 {
     auto webView = adoptNS([TestWKWebView new]);
 
-    NSString *imagePath = [[NSBundle mainBundle] pathForResource:@"icon" ofType:@"png" inDirectory:@"TestWebKitAPI.resources"];
+    NSString *imagePath = [NSBundle.test_resourcesBundle pathForResource:@"icon" ofType:@"png"];
     [webView synchronouslyLoadHTMLString:[NSString stringWithFormat:@"<html><body><b>Hello</b> <img src='file://%@' width='100' height='100' alt='alt text'> <img src='file://%@' width='100' height='100' alt='aria label text'></body></html>", imagePath, imagePath]];
 
     __block bool finished = false;
@@ -511,7 +511,7 @@ TEST(WKWebView, AttributedStringWithSourceApplicationBundleID)
 
 TEST(WKWebView, TextWithWebFontAsAttributedString)
 {
-    auto archiveURL = [NSBundle.mainBundle URLForResource:@"text-with-web-font" withExtension:@"webarchive" subdirectory:@"TestWebKitAPI.resources"];
+    auto archiveURL = [NSBundle.test_resourcesBundle URLForResource:@"text-with-web-font" withExtension:@"webarchive"];
     auto archiveData = adoptNS([[NSData alloc] initWithContentsOfURL:archiveURL]);
 
     RetainPtr<NSAttributedString> result;
@@ -561,13 +561,4 @@ TEST(WKWebView, AttributedStringAndCDATASection)
     }];
 
     TestWebKitAPI::Util::run(&finished);
-}
-
-TEST(WKWebView, AttributedStringIncludesUserSelectNoneContent)
-{
-    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 300)]);
-    [webView synchronouslyLoadHTMLString:@"<body><p style='-webkit-user-select: none;'>Hello</p></body>"];
-
-    RetainPtr string = [[webView _contentsAsAttributedString] string];
-    EXPECT_WK_STREQ("Hello", [string stringByTrimmingCharactersInSet:NSCharacterSet.newlineCharacterSet]);
 }

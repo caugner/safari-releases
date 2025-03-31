@@ -29,6 +29,7 @@
 #include "Document.h"
 
 #include "AXObjectCache.h"
+#include "AnimationTimelinesController.h"
 #include "ApplicationManifest.h"
 #include "Attr.h"
 #include "BeforeUnloadEvent.h"
@@ -74,7 +75,6 @@
 #include "DocumentMarkerController.h"
 #include "DocumentSharedObjectPool.h"
 #include "DocumentTimeline.h"
-#include "DocumentTimelinesController.h"
 #include "DocumentType.h"
 #include "DragEvent.h"
 #include "Editing.h"
@@ -241,6 +241,7 @@
 #include "ScriptModuleLoader.h"
 #include "ScriptRunner.h"
 #include "ScriptSourceCode.h"
+#include "ScriptTelemetryCategory.h"
 #include "ScriptedAnimationController.h"
 #include "ScrollAnimator.h"
 #include "ScrollbarTheme.h"
@@ -399,8 +400,8 @@
 #include "AcceleratedTimeline.h"
 #endif
 
-#define DOCUMENT_RELEASE_LOG(channel, fmt, ...) RELEASE_LOG(channel, "%p - [pageID=%" PRIu64 ", frameID=%" PRIu64 ", isMainFrame=%d] Document::" fmt, this, pageID() ? pageID()->toUInt64() : 0, valueOrDefault(frameID()).object().toUInt64(), this == &topDocument(), ##__VA_ARGS__)
-#define DOCUMENT_RELEASE_LOG_ERROR(channel, fmt, ...) RELEASE_LOG_ERROR(channel, "%p - [pageID=%" PRIu64 ", frameID=%" PRIu64 ", isMainFrame=%d] Document::" fmt, this, pageID() ? pageID()->toUInt64() : 0, valueOrDefault(frameID()).object().toUInt64(), this == &topDocument(), ##__VA_ARGS__)
+#define DOCUMENT_RELEASE_LOG(channel, fmt, ...) RELEASE_LOG(channel, "%p - [pageID=%" PRIu64 ", frameID=%" PRIu64 ", isMainFrame=%d] Document::" fmt, this, pageID() ? pageID()->toUInt64() : 0, frameID() ? frameID()->object().toUInt64() : 0, this == &topDocument(), ##__VA_ARGS__)
+#define DOCUMENT_RELEASE_LOG_ERROR(channel, fmt, ...) RELEASE_LOG_ERROR(channel, "%p - [pageID=%" PRIu64 ", frameID=%" PRIu64 ", isMainFrame=%d] Document::" fmt, this, pageID() ? pageID()->toUInt64() : 0, frameID() ? frameID()->object().toUInt64() : 0, this == &topDocument(), ##__VA_ARGS__)
 
 namespace WebCore {
 
@@ -557,7 +558,8 @@ void Document::configureSharedLogger()
         return;
 
     bool alwaysOnLoggingAllowed = !allDocumentsMap().isEmpty() && WTF::allOf(allDocumentsMap().values(), [](auto& document) {
-        return document->isAlwaysOnLoggingAllowed();
+        RefPtr page = document->page();
+        return !page || page->sessionID().isAlwaysOnLoggingAllowed();
     });
     logger->setEnabled(sharedLoggerOwner(), alwaysOnLoggingAllowed);
 }
@@ -1016,7 +1018,7 @@ DocumentFontLoader& Document::ensureFontLoader()
 {
     ASSERT(m_constructionDidFinish);
     ASSERT(!m_fontLoader);
-    m_fontLoader = makeUniqueWithoutRefCountedCheck<DocumentFontLoader>(*this);
+    m_fontLoader = makeUnique<DocumentFontLoader>(*this);
     return *m_fontLoader;
 }
 
@@ -2344,7 +2346,7 @@ void Document::visibilityStateChanged()
     // https://w3c.github.io/page-visibility/#reacting-to-visibilitychange-changes
     queueTaskToDispatchEvent(TaskSource::UserInteraction, Event::create(eventNames().visibilitychangeEvent, Event::CanBubble::Yes, Event::IsCancelable::No));
     m_visibilityStateCallbackClients.forEach([](auto& client) {
-        Ref { client }->visibilityStateChanged();
+        client.visibilityStateChanged();
     });
 
 #if ENABLE(MEDIA_STREAM) && PLATFORM(IOS_FAMILY)
@@ -2412,7 +2414,7 @@ String Document::nodeName() const
 WakeLockManager& Document::wakeLockManager()
 {
     if (!m_wakeLockManager)
-        m_wakeLockManager = makeUniqueWithoutRefCountedCheck<WakeLockManager>(*this);
+        m_wakeLockManager = makeUnique<WakeLockManager>(*this);
     return *m_wakeLockManager;
 }
 
@@ -2890,7 +2892,7 @@ bool Document::updateLayoutIfDimensionsOutOfDate(Element& element, OptionSet<Dim
             // If a box needs layout for itself or if a box has changed children and sizes its width to
             // its content, then require a full layout.
             if (currentBox->selfNeedsLayout() ||
-                (checkingLogicalWidth && currentRenderer->needsLayout() && currentBox->sizesLogicalWidthToFitContent(MainOrPreferredSize))) {
+                (checkingLogicalWidth && currentRenderer->needsLayout() && currentBox->sizesLogicalWidthToFitContent(RenderBox::SizeType::MainOrPreferredSize))) {
                 requireFullLayout = true;
                 break;
             }
@@ -3230,11 +3232,11 @@ void Document::willBeRemovedFromFrame()
     commonTeardown();
 
 #if ENABLE(TOUCH_EVENTS)
-    if (m_touchEventTargets && !m_touchEventTargets->isEmptyIgnoringNullReferences() && parentDocument())
+    if (m_touchEventTargets && m_touchEventTargets->computeSize() && parentDocument())
         protectedParentDocument()->didRemoveEventTargetNode(*this);
 #endif
 
-    if (m_wheelEventTargets && !m_wheelEventTargets->isEmptyIgnoringNullReferences() && parentDocument())
+    if (m_wheelEventTargets && m_wheelEventTargets->computeSize() && parentDocument())
         protectedParentDocument()->didRemoveEventTargetNode(*this);
 
     if (RefPtr mediaQueryMatcher = m_mediaQueryMatcher)
@@ -4035,12 +4037,6 @@ void Document::setTimerThrottlingEnabled(bool shouldThrottle)
     didChangeTimerAlignmentInterval();
 }
 
-// https://html.spec.whatwg.org/#updating-the-document:fire-a-page-transition-event
-void Document::clearRevealForReactivation()
-{
-    m_hasBeenRevealed = false;
-}
-
 void Document::setVisibilityHiddenDueToDismissal(bool hiddenDueToDismissal)
 {
     if (m_visibilityHiddenDueToDismissal == hiddenDueToDismissal)
@@ -4112,7 +4108,7 @@ void Document::setURL(const URL& url)
     updateBaseURL();
 }
 
-const URL& Document::urlForBindings() const
+const URL& Document::urlForBindings()
 {
     auto shouldAdjustURL = [this] {
         if (m_url.url().isEmpty() || !loader() || !isTopDocument() || !frame())
@@ -4122,12 +4118,18 @@ const URL& Document::urlForBindings() const
         if (policySourceLoader && !policySourceLoader->request().url().hasSpecialScheme() && url().protocolIsInHTTPFamily())
             policySourceLoader = loader();
 
-        if (!policySourceLoader || !policySourceLoader->navigationalAdvancedPrivacyProtections().contains(AdvancedPrivacyProtections::BaselineProtections))
+        if (!policySourceLoader)
+            return false;
+
+        auto navigationalProtections = policySourceLoader->navigationalAdvancedPrivacyProtections();
+        if (navigationalProtections.isEmpty())
             return false;
 
         auto preNavigationURL = URL { loader()->originalRequest().httpReferrer() };
-        if (preNavigationURL.isEmpty() || RegistrableDomain { preNavigationURL }.matches(securityOrigin().data()))
+        if (preNavigationURL.isEmpty() || RegistrableDomain { preNavigationURL }.matches(securityOrigin().data())) {
+            // Only apply the protections below following a cross-origin navigation.
             return false;
+        }
 
         auto areSameSiteIgnoringPublicSuffix = [](StringView domain, StringView otherDomain) {
             auto& publicSuffixStore = PublicSuffixStore::singleton();
@@ -4143,22 +4145,39 @@ const URL& Document::urlForBindings() const
             return !firstSubstring.isEmpty() && firstSubstring == substringToSeparator(otherDomainString);
         };
 
-        auto currentHost = securityOrigin().data().host();
-        if (areSameSiteIgnoringPublicSuffix(preNavigationURL.host(), currentHost))
-            return false;
-
-        if (!m_hasLoadedThirdPartyScript)
-            return false;
-
-        if (auto sourceURL = currentSourceURL(); !sourceURL.isEmpty()) {
-            if (RegistrableDomain { sourceURL }.matches(securityOrigin().data()))
+        auto shouldApplyBaselineProtections = [&] {
+            if (!navigationalProtections.contains(AdvancedPrivacyProtections::BaselineProtections))
                 return false;
 
-            if (areSameSiteIgnoringPublicSuffix(sourceURL.host(), currentHost))
+            auto currentHost = securityOrigin().data().host();
+            if (areSameSiteIgnoringPublicSuffix(preNavigationURL.host(), currentHost))
                 return false;
-        }
 
-        return true;
+            if (!m_hasLoadedThirdPartyScript)
+                return false;
+
+            if (auto sourceURL = currentSourceURL(); !sourceURL.isEmpty()) {
+                if (RegistrableDomain { sourceURL }.matches(securityOrigin().data()))
+                    return false;
+
+                if (areSameSiteIgnoringPublicSuffix(sourceURL.host(), currentHost))
+                    return false;
+            }
+
+            return true;
+        };
+
+        auto shouldApplyEnhancedProtections = [&] {
+            if (!navigationalProtections.contains(AdvancedPrivacyProtections::ScriptTelemetry))
+                return false;
+
+            if (!requiresScriptExecutionTelemetry(ScriptTelemetryCategory::QueryParameters))
+                return false;
+
+            return true;
+        };
+
+        return shouldApplyBaselineProtections() || shouldApplyEnhancedProtections();
     }();
 
     if (shouldAdjustURL)
@@ -5107,12 +5126,26 @@ void Document::updateViewportUnitsOnResize()
 
 void Document::setNeedsDOMWindowResizeEvent()
 {
+#if ENABLE(FULLSCREEN_API)
+    if (CheckedPtr fullscreenManager = fullscreenManagerIfExists(); fullscreenManager && fullscreenManager->isAnimatingFullscreen()) {
+        fullscreenManager->addPendingScheduledResize(FullscreenManager::ResizeType::DOMWindow);
+        return;
+    }
+#endif
+
     m_needsDOMWindowResizeEvent = true;
     scheduleRenderingUpdate(RenderingUpdateStep::Resize);
 }
 
 void Document::setNeedsVisualViewportResize()
 {
+#if ENABLE(FULLSCREEN_API)
+    if (CheckedPtr fullscreenManager = fullscreenManagerIfExists(); fullscreenManager && fullscreenManager->isAnimatingFullscreen()) {
+        fullscreenManager->addPendingScheduledResize(FullscreenManager::ResizeType::VisualViewport);
+        return;
+    }
+#endif
+
     m_needsVisualViewportResizeEvent = true;
     scheduleRenderingUpdate(RenderingUpdateStep::Resize);
 }
@@ -5120,9 +5153,6 @@ void Document::setNeedsVisualViewportResize()
 // https://drafts.csswg.org/cssom-view/#run-the-resize-steps
 void Document::runResizeSteps()
 {
-    if (auto page = this->page(); page && page->shouldDeferResizeEvents())
-        return;
-
     // FIXME: The order of dispatching is not specified: https://github.com/WICG/visual-viewport/issues/65.
     if (m_needsDOMWindowResizeEvent) {
         LOG_WITH_STREAM(Events, stream << "Document " << this << " sending resize events to window");
@@ -5135,11 +5165,6 @@ void Document::runResizeSteps()
         if (RefPtr window = domWindow())
             window->visualViewport().dispatchEvent(Event::create(eventNames().resizeEvent, Event::CanBubble::No, Event::IsCancelable::No));
     }
-}
-
-void Document::flushDeferredResizeEvents()
-{
-    runResizeSteps();
 }
 
 void Document::addPendingScrollEventTarget(ContainerNode& target)
@@ -5178,9 +5203,6 @@ static bool serviceScrollAnimationForScrollableArea(const ScrollableArea* scroll
 // https://drafts.csswg.org/cssom-view/#run-the-scroll-steps
 void Document::runScrollSteps()
 {
-    if (auto page = this->page(); page && page->shouldDeferScrollEvents())
-        return;
-
     // Service user scroll animations before scroll event dispatch.
     if (RefPtr frameView = view()) {
         MonotonicTime now = MonotonicTime::now();
@@ -5221,11 +5243,6 @@ void Document::runScrollSteps()
         if (RefPtr window = domWindow())
             window->visualViewport().dispatchEvent(Event::create(eventNames().scrollEvent, Event::CanBubble::No, Event::IsCancelable::No));
     }
-}
-
-void Document::flushDeferredScrollEvents()
-{
-    runScrollSteps();
 }
 
 void Document::invalidateScrollbars()
@@ -6535,9 +6552,15 @@ String Document::referrerForBindings()
     if (!policySourceLoader->request().url().hasSpecialScheme() && url().protocolIsInHTTPFamily())
         policySourceLoader = loader();
 
-    if (policySourceLoader && policySourceLoader->navigationalAdvancedPrivacyProtections().contains(AdvancedPrivacyProtections::BaselineProtections)
-        && !RegistrableDomain { URL { frame()->loader().referrer() } }.matches(securityOrigin().data()))
-        return String();
+    if (policySourceLoader && !RegistrableDomain { URL { frame()->loader().referrer() } }.matches(securityOrigin().data())) {
+        auto policies = policySourceLoader->navigationalAdvancedPrivacyProtections();
+        if (policies.contains(AdvancedPrivacyProtections::BaselineProtections))
+            return { };
+
+        if (policies.contains(AdvancedPrivacyProtections::ScriptTelemetry) && requiresScriptExecutionTelemetry(ScriptTelemetryCategory::Referrer))
+            return { };
+    }
+
     return referrer();
 }
 
@@ -6905,9 +6928,6 @@ void Document::suspend(ReasonForSuspension reason)
     m_didDispatchViewportPropertiesChanged = false;
 #endif
 
-    if (auto viewTransition = m_activeViewTransition)
-        viewTransition->skipTransition();
-
     if (RefPtr page = this->page())
         page->lockAllOverlayScrollbarsToHidden(true);
 
@@ -7023,7 +7043,7 @@ void Document::storageBlockingStateDidChange()
 void Document::privateBrowsingStateDidChange(PAL::SessionID sessionID)
 {
     if (RefPtr logger = m_logger)
-        logger->setEnabled(this, isAlwaysOnLoggingAllowed());
+        logger->setEnabled(this, sessionID.isAlwaysOnLoggingAllowed());
 
 #if ENABLE(VIDEO)
     forEachMediaElement([sessionID] (HTMLMediaElement& element) {
@@ -7558,7 +7578,10 @@ void Document::initSecurityContext()
     // In the common case, create the security context from the currently
     // loading URL with a fresh content security policy.
     setCookieURL(m_url);
-    enforceSandboxFlags(m_frame->loader().effectiveSandboxFlags());
+
+    // Flags from CSP will be added when the response is received, but should not be carried over to the frame's next document.
+    enforceSandboxFlags(m_frame->sandboxFlagsFromSandboxAttributeNotCSP());
+
     setReferrerPolicy(m_frame->loader().effectiveReferrerPolicy());
 
     if (shouldEnforceContentDispositionAttachmentSandbox())
@@ -9804,7 +9827,7 @@ Logger& Document::logger()
         Ref logger = Logger::create(this);
         m_logger = logger.copyRef();
         RefPtr page = this->page();
-        logger->setEnabled(this, isAlwaysOnLoggingAllowed());
+        logger->setEnabled(this, page && page->sessionID().isAlwaysOnLoggingAllowed());
         logger->addObserver(*this);
     }
 
@@ -9925,10 +9948,10 @@ void Document::setConsoleMessageListener(RefPtr<StringCallback>&& listener)
     m_consoleMessageListener = listener;
 }
 
-DocumentTimelinesController& Document::ensureTimelinesController()
+AnimationTimelinesController& Document::ensureTimelinesController()
 {
     if (!m_timelinesController)
-        m_timelinesController = makeUnique<DocumentTimelinesController>(*this);
+        m_timelinesController = makeUnique<AnimationTimelinesController>(*this);
     return *m_timelinesController.get();
 }
 
@@ -10032,14 +10055,7 @@ void Document::addTopLayerElement(Element& element)
         auto* dialogElement = dynamicDowncast<HTMLDialogElement>(*candidatePopover);
         if (dialogElement && dialogElement->isModal())
             return;
-#if PLATFORM(IOS_FAMILY) && ENABLE(TOUCH_EVENTS)
-        bool neededEventHandling = needsPointerEventHandlingForPopover();
-#endif
         auto result = m_autoPopoverList.add(*candidatePopover);
-#if PLATFORM(IOS_FAMILY) && ENABLE(TOUCH_EVENTS)
-        if (!neededEventHandling)
-            invalidateRenderingDependentRegions();
-#endif
         RELEASE_ASSERT(result.isNewEntry);
     }
 }
@@ -10052,18 +10068,14 @@ void Document::removeTopLayerElement(Element& element)
     if (auto* candidatePopover = dynamicDowncast<HTMLElement>(element); candidatePopover && candidatePopover->isPopoverShowing() && candidatePopover->popoverState() == PopoverState::Auto) {
         auto didRemove = m_autoPopoverList.remove(*candidatePopover);
         RELEASE_ASSERT(didRemove);
-#if PLATFORM(IOS_FAMILY) && ENABLE(TOUCH_EVENTS)
-        if (!needsPointerEventHandlingForPopover())
-            invalidateRenderingDependentRegions();
-#endif
     }
 }
 
 HTMLDialogElement* Document::activeModalDialog() const
 {
     for (auto& element : makeReversedRange(m_topLayerElements)) {
-        if (RefPtr dialog = dynamicDowncast<HTMLDialogElement>(element.get()); dialog && dialog->isModal())
-            return dialog.get();
+        if (auto* dialogElement = dynamicDowncast<HTMLDialogElement>(element.get()))
+            return dialogElement;
     }
 
     return nullptr;
@@ -10282,7 +10294,7 @@ void Document::didLogMessage(const WTFLogChannel& channel, WTFLogLevel level, Ve
     if (!page)
         return;
 
-    ASSERT(isAlwaysOnLoggingAllowed());
+    ASSERT(page->sessionID().isAlwaysOnLoggingAllowed());
 
     auto messageSource = messageSourceForWTFLogChannel(channel);
     if (messageSource == MessageSource::Other)
@@ -10783,6 +10795,8 @@ OptionSet<NoiseInjectionPolicy> Document::noiseInjectionPolicies() const
     OptionSet<NoiseInjectionPolicy> policies;
     if (advancedPrivacyProtections().contains(AdvancedPrivacyProtections::FingerprintingProtections))
         policies.add(NoiseInjectionPolicy::Minimal);
+    if (advancedPrivacyProtections().contains(AdvancedPrivacyProtections::ScriptTelemetry))
+        policies.add(NoiseInjectionPolicy::Enhanced);
     return policies;
 }
 
@@ -10881,14 +10895,6 @@ void Document::setRenderingIsSuppressedForViewTransitionAfterUpdateRendering()
     m_enableRenderingIsSuppressedForViewTransitionAfterUpdateRendering = true;
 }
 
-// FIXME: Remove this once cross-document view transitions capture old state on the subsequent rendering update instead of immediately.
-void Document::setRenderingIsSuppressedForViewTransitionImmediately()
-{
-    m_renderingIsSuppressedForViewTransition = true;
-    if (CheckedPtr view = renderView())
-        view->compositor().setRenderingIsSuppressed(true);
-}
-
 void Document::clearRenderingIsSuppressedForViewTransition()
 {
     m_enableRenderingIsSuppressedForViewTransitionAfterUpdateRendering = false;
@@ -10900,8 +10906,11 @@ void Document::clearRenderingIsSuppressedForViewTransition()
 
 void Document::flushDeferredRenderingIsSuppressedForViewTransitionChanges()
 {
-    if (std::exchange(m_enableRenderingIsSuppressedForViewTransitionAfterUpdateRendering, false))
-        setRenderingIsSuppressedForViewTransitionImmediately();
+    if (std::exchange(m_enableRenderingIsSuppressedForViewTransitionAfterUpdateRendering, false)) {
+        m_renderingIsSuppressedForViewTransition = true;
+        if (CheckedPtr view = renderView())
+            view->compositor().setRenderingIsSuppressed(true);
+    }
 }
 
 // https://drafts.csswg.org/css-view-transitions/#ViewTransition-prepare

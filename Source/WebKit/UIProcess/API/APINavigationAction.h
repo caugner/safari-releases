@@ -77,10 +77,9 @@ public:
 #endif
 
     const WebKit::NavigationActionData& data() const { return m_navigationActionData; }
-    std::optional<WebCore::FrameIdentifier> mainFrameIDBeforeNavigationActionDecision() { return m_mainFrameIDBeforeNavigationDecision; }
     
 private:
-    NavigationAction(WebKit::NavigationActionData&& navigationActionData, API::FrameInfo* sourceFrame, API::FrameInfo* targetFrame, const WTF::String& targetFrameName, WebCore::ResourceRequest&& request, const WTF::URL& originalURL, bool shouldOpenAppLinks, RefPtr<UserInitiatedAction>&& userInitiatedAction, API::Navigation* mainFrameNavigation, std::optional<WebCore::FrameIdentifier> mainFrameIDBeforeNavigationActionDecision)
+    NavigationAction(WebKit::NavigationActionData&& navigationActionData, API::FrameInfo* sourceFrame, API::FrameInfo* targetFrame, const WTF::String& targetFrameName, WebCore::ResourceRequest&& request, const WTF::URL& originalURL, bool shouldOpenAppLinks, RefPtr<UserInitiatedAction>&& userInitiatedAction, API::Navigation* mainFrameNavigation)
         : m_sourceFrame(sourceFrame)
         , m_targetFrame(targetFrame)
         , m_targetFrameName(targetFrameName)
@@ -90,12 +89,11 @@ private:
         , m_userInitiatedAction(WTFMove(userInitiatedAction))
         , m_navigationActionData(WTFMove(navigationActionData))
         , m_mainFrameNavigation(mainFrameNavigation)
-        , m_mainFrameIDBeforeNavigationDecision(mainFrameIDBeforeNavigationActionDecision)
     {
     }
 
     NavigationAction(WebKit::NavigationActionData&& navigationActionData, API::FrameInfo* sourceFrame, API::FrameInfo* targetFrame, const WTF::String& targetFrameName, WebCore::ResourceRequest&& request, const WTF::URL& originalURL, bool shouldOpenAppLinks, RefPtr<UserInitiatedAction>&& userInitiatedAction)
-        : NavigationAction(WTFMove(navigationActionData), sourceFrame, targetFrame, targetFrameName, WTFMove(request), originalURL, shouldOpenAppLinks, WTFMove(userInitiatedAction), nullptr, std::nullopt)
+        : NavigationAction(WTFMove(navigationActionData), sourceFrame, targetFrame, targetFrameName, WTFMove(request), originalURL, shouldOpenAppLinks, WTFMove(userInitiatedAction), nullptr)
     {
     }
 
@@ -115,7 +113,6 @@ private:
 
     WebKit::NavigationActionData m_navigationActionData;
     RefPtr<Navigation> m_mainFrameNavigation;
-    std::optional<WebCore::FrameIdentifier> m_mainFrameIDBeforeNavigationDecision;
 };
 
 } // namespace API

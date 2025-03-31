@@ -198,6 +198,10 @@ class DocumentLoader
     WTF_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(DocumentLoader);
     friend class ContentFilter;
 public:
+#if ENABLE(CONTENT_FILTERING)
+    DEFINE_VIRTUAL_REFCOUNTED;
+#endif
+
     static Ref<DocumentLoader> create(const ResourceRequest& request, const SubstituteData& data)
     {
         return adoptRef(*new DocumentLoader(request, data));
@@ -344,8 +348,6 @@ public:
     bool isLoadingMainResource() const { return m_loadingMainResource; }
     bool isLoadingMultipartContent() const { return m_isLoadingMultipartContent; }
 
-    bool fingerprintingProtectionsEnabled() const;
-
     void stopLoadingPlugIns();
     void stopLoadingSubresources();
     WEBCORE_EXPORT void stopLoadingAfterXFrameOptionsOrContentSecurityPolicyDenied(ResourceLoaderIdentifier, const ResourceResponse&);
@@ -397,7 +399,7 @@ public:
     LegacyOverflowScrollingTouchPolicy legacyOverflowScrollingTouchPolicy() const { return m_legacyOverflowScrollingTouchPolicy; }
     void setLegacyOverflowScrollingTouchPolicy(LegacyOverflowScrollingTouchPolicy policy) { m_legacyOverflowScrollingTouchPolicy = policy; }
 
-    WEBCORE_EXPORT MouseEventPolicy mouseEventPolicy() const;
+    MouseEventPolicy mouseEventPolicy() const { return m_mouseEventPolicy; }
     void setMouseEventPolicy(MouseEventPolicy policy) { m_mouseEventPolicy = policy; }
 
     ModalContainerObservationPolicy modalContainerObservationPolicy() const { return m_modalContainerObservationPolicy; }
@@ -461,8 +463,6 @@ public:
     void setBlockedPageURL(const URL& blockedPageURL) { m_blockedPageURL = blockedPageURL; }
     void setSubstituteDataFromContentFilter(SubstituteData&& substituteDataFromContentFilter) { m_substituteDataFromContentFilter = WTFMove(substituteDataFromContentFilter); }
     ContentFilter* contentFilter() const { return m_contentFilter.get(); }
-    void ref() const final { RefCounted<DocumentLoader>::ref(); }
-    void deref() const final { RefCounted<DocumentLoader>::deref(); }
 
     WEBCORE_EXPORT ResourceError handleContentFilterDidBlock(ContentFilterUnblockHandler, String&& unblockRequestDeniedScript);
 #endif
@@ -525,7 +525,7 @@ public:
 
     bool isInitialAboutBlank() const { return m_isInitialAboutBlank; }
 
-    bool navigationCanTriggerCrossDocumentViewTransition(Document& oldDocument, bool fromBackForwardCache);
+    bool navigationCanTriggerCrossDocumentViewTransition(Document& oldDocument);
     WEBCORE_EXPORT void whenDocumentIsCreated(Function<void(Document*)>&&);
 
 protected:
@@ -619,8 +619,6 @@ private:
 
     bool disallowWebArchive() const;
     bool disallowDataRequest() const;
-
-    void updateAdditionalSettingsIfNeeded();
 
     Ref<CachedResourceLoader> m_cachedResourceLoader;
 

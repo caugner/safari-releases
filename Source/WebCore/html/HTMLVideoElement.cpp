@@ -690,7 +690,7 @@ void HTMLVideoElement::cancelVideoFrameCallback(unsigned identifier)
     // Search first the requests currently being serviced, and mark them as cancelled if found.
     auto index = m_servicedVideoFrameRequests.findIf([identifier](auto& request) { return request->identifier == identifier; });
     if (index != notFound) {
-        m_servicedVideoFrameRequests[index]->callback = nullptr;
+        m_servicedVideoFrameRequests[index]->cancelled = true;
         return;
     }
 
@@ -708,10 +708,7 @@ void HTMLVideoElement::cancelVideoFrameCallback(unsigned identifier)
 void HTMLVideoElement::stop()
 {
     m_videoFrameRequests.clear();
-
-    for (auto& request : m_servicedVideoFrameRequests)
-        request->callback = nullptr;
-
+    m_servicedVideoFrameRequests.clear();
     HTMLMediaElement::stop();
 }
 
@@ -746,8 +743,10 @@ void HTMLVideoElement::serviceRequestVideoFrameCallbacks(ReducedResolutionSecond
 
     m_videoFrameRequests.swap(m_servicedVideoFrameRequests);
     for (auto& request : m_servicedVideoFrameRequests) {
-        if (RefPtr callback = std::exchange(request->callback, { }))
-            callback->handleEvent(std::round(now.milliseconds()), *videoFrameMetadata);
+        if (!request->cancelled) {
+            Ref { request->callback }->handleEvent(std::round(now.milliseconds()), *videoFrameMetadata);
+            request->cancelled = true;
+        }
     }
     m_servicedVideoFrameRequests.clear();
 
@@ -797,20 +796,6 @@ void HTMLVideoElement::setVideoFullscreenStandby(bool value)
         });
     }
 }
-
-ExceptionOr<void> HTMLVideoElement::enterFullscreenIgnoringPermissionsPolicy()
-{
-    ignoreFullscreenPermissionPolicyOnNextCallToEnterFullscreen();
-    return webkitEnterFullscreen();
-}
-
-#if ENABLE(VIDEO_PRESENTATION_MODE)
-void HTMLVideoElement::setPresentationModeIgnoringPermissionsPolicy(VideoPresentationMode mode)
-{
-    ignoreFullscreenPermissionPolicyOnNextCallToEnterFullscreen();
-    setPresentationMode(mode);
-}
-#endif
 
 } // namespace WebCore
 

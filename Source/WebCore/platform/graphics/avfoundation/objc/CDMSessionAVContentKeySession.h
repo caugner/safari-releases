@@ -42,15 +42,6 @@ class WorkQueue;
 }
 
 namespace WebCore {
-class CDMSessionAVContentKeySession;
-}
-
-namespace WTF {
-template<typename T> struct IsDeprecatedWeakRefSmartPointerException;
-template<> struct IsDeprecatedWeakRefSmartPointerException<WebCore::CDMSessionAVContentKeySession> : std::true_type { };
-}
-
-namespace WebCore {
 
 class CDMPrivateMediaSourceAVFObjC;
 
@@ -77,14 +68,14 @@ public:
 
     void didProvideContentKeyRequest(AVContentKeyRequest *);
 
+protected:
+    RefPtr<Uint8Array> generateKeyReleaseMessage(unsigned short& errorCode, uint32_t& systemCode);
+
     bool hasContentKeySession() const { return m_contentKeySession; }
     AVContentKeySession* contentKeySession();
 
     bool hasContentKeyRequest() const;
     RetainPtr<AVContentKeyRequest> contentKeyRequest() const;
-
-protected:
-    RefPtr<Uint8Array> generateKeyReleaseMessage(unsigned short& errorCode, uint32_t& systemCode);
 
 #if !RELEASE_LOG_DISABLED
     ASCIILiteral logClassName() const { return "CDMSessionAVContentKeySession"_s; }

@@ -75,9 +75,9 @@ WebPage* WebInspector::page() const
     return m_page.get();
 }
 
-void WebInspector::openLocalInspectorFrontend()
+void WebInspector::openLocalInspectorFrontend(bool underTest)
 {
-    WebProcess::singleton().parentProcessConnection()->send(Messages::WebInspectorUIProxy::RequestOpenLocalInspectorFrontend(), m_page->identifier());
+    WebProcess::singleton().parentProcessConnection()->send(Messages::WebInspectorUIProxy::OpenLocalInspectorFrontend(canAttachWindow(), underTest), m_page->identifier());
 }
 
 void WebInspector::setFrontendConnection(IPC::Connection::Handle&& connectionHandle)
@@ -132,13 +132,12 @@ void WebInspector::whenFrontendConnectionEstablished(Function<void()>&& callback
 }
 
 // Called by WebInspector messages
-void WebInspector::show(CompletionHandler<void()>&& completionHandler)
+void WebInspector::show()
 {
     if (!m_page->corePage())
         return;
 
     m_page->corePage()->inspectorController().show();
-    completionHandler();
 }
 
 void WebInspector::close()
@@ -166,6 +165,8 @@ void WebInspector::showConsole()
     if (!m_page->corePage())
         return;
 
+    m_page->corePage()->inspectorController().show();
+
     whenFrontendConnectionEstablished([=, this] {
         m_frontendConnection->send(Messages::WebInspectorUI::ShowConsole(), 0);
     });
@@ -175,6 +176,8 @@ void WebInspector::showResources()
 {
     if (!m_page->corePage())
         return;
+
+    m_page->corePage()->inspectorController().show();
 
     whenFrontendConnectionEstablished([=, this] {
         m_frontendConnection->send(Messages::WebInspectorUI::ShowResources(), 0);
@@ -190,6 +193,8 @@ void WebInspector::showMainResourceForFrame(WebCore::FrameIdentifier frameIdenti
     if (!m_page->corePage())
         return;
 
+    m_page->corePage()->inspectorController().show();
+
     String inspectorFrameIdentifier = m_page->corePage()->inspectorController().ensurePageAgent().frameId(frame->coreLocalFrame());
 
     whenFrontendConnectionEstablished([=, this] {
@@ -202,6 +207,8 @@ void WebInspector::startPageProfiling()
     if (!m_page->corePage())
         return;
 
+    m_page->corePage()->inspectorController().show();
+
     whenFrontendConnectionEstablished([=, this] {
         m_frontendConnection->send(Messages::WebInspectorUI::StartPageProfiling(), 0);
     });
@@ -211,6 +218,8 @@ void WebInspector::stopPageProfiling()
 {
     if (!m_page->corePage())
         return;
+
+    m_page->corePage()->inspectorController().show();
 
     whenFrontendConnectionEstablished([=, this] {
         m_frontendConnection->send(Messages::WebInspectorUI::StopPageProfiling(), 0);
@@ -261,8 +270,6 @@ void WebInspector::setEmulatedConditions(std::optional<int64_t>&& bytesPerSecond
 
 #endif // ENABLE(INSPECTOR_NETWORK_THROTTLING)
 
-// FIXME <https://webkit.org/b/283435>: Remove this unused canAttachWindow function. Its return value is no longer used
-// or respected by the UI process.
 bool WebInspector::canAttachWindow()
 {
     if (!m_page->corePage())

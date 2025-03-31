@@ -1256,29 +1256,6 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 {
 }
 
-- (BOOL)_web_hasActiveIntelligenceTextEffects
-{
-#if ENABLE(WRITING_TOOLS)
-    return [_intelligenceTextEffectCoordinator hasActiveEffects];
-#else
-    return NO;
-#endif
-}
-
-- (void)_web_suppressContentRelativeChildViews
-{
-#if ENABLE(WRITING_TOOLS)
-    [_intelligenceTextEffectCoordinator hideEffectsWithCompletion:^{ }];
-#endif
-}
-
-- (void)_web_restoreContentRelativeChildViews
-{
-#if ENABLE(WRITING_TOOLS)
-    [_intelligenceTextEffectCoordinator showEffectsWithCompletion:^{ }];
-#endif
-}
-
 #if ENABLE(DRAG_SUPPORT)
 
 - (WKDragDestinationAction)_web_dragDestinationActionForDraggingInfo:(id <NSDraggingInfo>)draggingInfo
@@ -1661,7 +1638,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 
 - (BOOL)_canChangeFrameLayout:(_WKFrameHandle *)frameHandle
 {
-    if (auto* webFrameProxy = WebKit::WebFrameProxy::webFrame(frameHandle->_frameHandle->frameID()))
+    if (RefPtr webFrameProxy = WebKit::WebFrameProxy::webFrame(frameHandle->_frameHandle->frameID()))
         return _impl->canChangeFrameLayout(*webFrameProxy);
     return false;
 }
@@ -1753,7 +1730,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 
 - (NSPrintOperation *)_printOperationWithPrintInfo:(NSPrintInfo *)printInfo forFrame:(_WKFrameHandle *)frameHandle
 {
-    if (auto* webFrameProxy = WebKit::WebFrameProxy::webFrame(frameHandle->_frameHandle->frameID()))
+    if (RefPtr webFrameProxy = WebKit::WebFrameProxy::webFrame(frameHandle->_frameHandle->frameID()))
         return _impl->printOperationWithPrintInfo(printInfo, *webFrameProxy);
     return nil;
 }

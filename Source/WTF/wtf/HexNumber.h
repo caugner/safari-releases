@@ -52,7 +52,8 @@ struct HexNumberBuffer {
     std::array<LChar, 16> buffer;
     unsigned length;
 
-    std::span<const LChar> span() const LIFETIME_BOUND { return std::span { buffer }.last(length); }
+    const LChar* characters() const { return &*(buffer.end() - length); }
+    std::span<const LChar> span() const { return { characters(), length }; }
 };
 
 template<typename NumberType> HexNumberBuffer hex(NumberType number, unsigned minimumDigits = 0, HexConversionMode mode = Uppercase)
@@ -82,6 +83,8 @@ public:
     template<typename CharacterType> void writeTo(CharacterType* destination) const { StringImpl::copyCharacters(destination, m_buffer.span()); }
 
 private:
+    const LChar* characters() const { return m_buffer.characters(); }
+
     const HexNumberBuffer& m_buffer;
 };
 

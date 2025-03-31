@@ -1,4 +1,3 @@
-//@ requireOptions("--useWasmSIMD=1")
 //@ skip unless $isSIMDPlatform
 (async function () {
   let bytes0 = readFile('./resources/call-returns-v128.wasm', 'binary');

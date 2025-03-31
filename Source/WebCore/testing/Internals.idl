@@ -590,7 +590,6 @@ enum RenderingMode {
 
     DOMString viewBaseBackgroundColor();
     undefined setViewBaseBackgroundColor(DOMString colorValue);
-    undefined setUnderPageBackgroundColorOverride(DOMString colorValue);
 
     DOMString documentBackgroundColor();
 
@@ -686,10 +685,7 @@ enum RenderingMode {
     undefined setAutomaticTextReplacementEnabled(boolean enabled);
     undefined setAutomaticSpellingCorrectionEnabled(boolean enabled);
 
-    undefined setMarkerFor(DOMString markerTypeString, long from, long length, DOMString data);
-
     undefined handleAcceptedCandidate(DOMString candidate, unsigned long location, unsigned long length);
-
     undefined changeSelectionListType();
     undefined changeBackToReplacedString(DOMString replacedString);
 
@@ -1401,7 +1397,6 @@ enum RenderingMode {
     readonly attribute boolean hasScopeBreakingHasSelectors;
 
     sequence<PDFAnnotationRect> pdfAnnotationRectsForTesting(Element element);
-    undefined setPDFTextAnnotationValueForTesting(Element element, unsigned long pageIndex, unsigned long annotationIndex, DOMString value);
     undefined registerPDFTest(VoidCallback callback, Element element);
     undefined setPDFDisplayModeForTesting(Element element, DOMString mode);
     boolean sendEditingCommandToPDFForTesting(Element element, DOMString commandName, optional DOMString argument = "");

@@ -48,6 +48,7 @@ class RenderLayoutState {
 public:
     struct TextBoxTrim {
         bool trimFirstFormattedLine { false };
+        TextEdge propagatedTextBoxEdge { };
         SingleThreadWeakPtr<const RenderBlockFlow> lastFormattedLineRoot;
     };
 

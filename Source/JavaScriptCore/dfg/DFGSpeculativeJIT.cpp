@@ -950,7 +950,7 @@ void SpeculativeJIT::silentFillImpl(const SilentRegisterSavePlan& plan)
         move(valueOfJSConstantAsImm64(plan.node()), plan.gpr());
         break;
     case SetDoubleConstant:
-        moveDouble(Imm64(reinterpretDoubleToInt64(plan.node()->asNumber())), plan.fpr());
+        move64ToDouble(Imm64(reinterpretDoubleToInt64(plan.node()->asNumber())), plan.fpr());
         break;
     case Load32PayloadBoxInt:
         load32(payloadFor(plan.node()->virtualRegister()), plan.gpr());
@@ -2340,14 +2340,7 @@ void SpeculativeJIT::compileContiguousPutByVal(Node* node)
     StorageOperand storage(this, m_graph.varArgChild(node, 3));
     GPRReg storageReg = storage.gpr();
 
-    ArrayMode arrayMode = node->arrayMode();
     if (node->op() == PutByValAlias) {
-        ASSERT(arrayMode.isInBounds());
-#if ASSERT_ENABLED
-        Jump inBounds = branch32(Below, propertyReg, Address(storageReg, Butterfly::offsetOfPublicLength()));
-        breakpoint();
-        inBounds.link(this);
-#endif
         // Store the value to the array.
         GPRReg propertyReg = property.gpr();
         storeValue(valueRegs, BaseIndex(storageReg, propertyReg, TimesEight));
@@ -2360,6 +2353,7 @@ void SpeculativeJIT::compileContiguousPutByVal(Node* node)
 
     Jump slowCase;
 
+    ArrayMode arrayMode = node->arrayMode();
     if (arrayMode.isInBounds()) {
         speculationCheck(
             OutOfBounds, JSValueRegs(), nullptr,
@@ -2420,13 +2414,6 @@ void SpeculativeJIT::compileDoublePutByVal(Node* node)
     GPRReg storageReg = storage.gpr();
 
     if (node->op() == PutByValAlias) {
-        ASSERT(arrayMode.isInBounds());
-#if ASSERT_ENABLED
-        Jump inBounds = branch32(Below, propertyReg, Address(storageReg, Butterfly::offsetOfPublicLength()));
-        breakpoint();
-        inBounds.link(this);
-#endif
-
         // Store the value to the array.
         GPRReg propertyReg = property.gpr();
         FPRReg valueReg = value.fpr();
@@ -2975,14 +2962,12 @@ void SpeculativeJIT::compileDoubleRep(Node* node)
                 branchTest64(Zero, op1GPR, TrustedImm32(JSValue::BoolTag)));
 
             Jump isFalse = branch64(Equal, op1GPR, TrustedImm64(JSValue::ValueFalse));
-            static constexpr double one = 1;
-            loadDouble(TrustedImmPtr(&one), resultFPR);
+            move64ToDouble(TrustedImm64(bitwise_cast<uint64_t>(1.0)), resultFPR);
             done.append(jump());
             done.append(isFalse);
 
             isUndefined.link(this);
-            static const double NaN = PNaN;
-            loadDouble(TrustedImmPtr(&NaN), resultFPR);
+            move64ToDouble(TrustedImm64(bitwise_cast<uint64_t>(PNaN)), resultFPR);
             done.append(jump());
 
             isNumber.link(this);
@@ -3018,14 +3003,12 @@ void SpeculativeJIT::compileDoubleRep(Node* node)
             DFG_TYPE_CHECK(JSValueRegs(op1TagGPR, op1PayloadGPR), node->child1(), ~SpecCell, branchIfNotBoolean(op1TagGPR, InvalidGPRReg));
 
             Jump isFalse = branchTest32(Zero, op1PayloadGPR, TrustedImm32(1));
-            static constexpr double one = 1;
-            loadDouble(TrustedImmPtr(&one), resultFPR);
+            move64ToDouble(TrustedImm64(bitwise_cast<uint64_t>(1.0)), resultFPR);
             done.append(jump());
             done.append(isFalse);
 
             isUndefined.link(this);
-            static const double NaN = PNaN;
-            loadDouble(TrustedImmPtr(&NaN), resultFPR);
+            move64ToDouble(TrustedImm64(bitwise_cast<uint64_t>(PNaN)), resultFPR);
             done.append(jump());
 
             isNumber.link(this);
@@ -3144,10 +3127,9 @@ static void compileClampIntegerToByte(JITCompiler& jit, GPRReg resultGPR, GPRReg
 static void compileClampDoubleToByte(JITCompiler& jit, GPRReg result, FPRReg source, FPRReg scratch)
 {
     // Unordered compare so we pick up NaN
-    static constexpr double byteMax = 255;
     jit.moveZeroToDouble(scratch);
     MacroAssembler::Jump tooSmall = jit.branchDouble(MacroAssembler::DoubleLessThanOrEqualOrUnordered, source, scratch);
-    jit.loadDouble(SpeculativeJIT::TrustedImmPtr(&byteMax), scratch);
+    jit.move64ToDouble(CCallHelpers::TrustedImm64(bitwise_cast<uint64_t>(255.0)), scratch);
     MacroAssembler::Jump tooBig = jit.branchDouble(MacroAssembler::DoubleGreaterThanAndOrdered, source, scratch);
     
     jit.roundTowardNearestIntDouble(source, scratch);
@@ -3168,27 +3150,9 @@ static void compileClampDoubleToByte(JITCompiler& jit, GPRReg result, FPRReg sou
 
 JITCompiler::Jump SpeculativeJIT::jumpForTypedArrayOutOfBounds(Node* node, GPRReg baseGPR, GPRReg indexGPR, GPRReg scratchGPR, GPRReg scratch2GPR)
 {
-    Edge& edge = m_graph.child(node, 0);
-    if (node->op() == PutByValAlias) {
-        ASSERT(node->arrayMode().isInBounds());
-        ASSERT(!node->arrayMode().mayBeResizableOrGrowableSharedTypedArray());
-        ASSERT(m_graph.isNeverResizableOrGrowableSharedTypedArrayIncludingDataView(m_state.forNode(edge)));
-#if ASSERT_ENABLED
-#if USE(LARGE_TYPED_ARRAYS)
-        signExtend32ToPtr(indexGPR, scratchGPR);
-        Jump inBounds = branch64(
-            Below, scratchGPR,
-            Address(baseGPR, JSArrayBufferView::offsetOfLength()));
-#else
-        Jump inBounds = branch32(
-            Below, indexGPR,
-            Address(baseGPR, JSArrayBufferView::offsetOfLength()));
-#endif
-        breakpoint();
-        inBounds.link(this);
-#endif
+    if (node->op() == PutByValAlias)
         return Jump();
-    }
+    Edge& edge = m_graph.child(node, 0);
     JSArrayBufferView* view = m_graph.tryGetFoldableView(m_state.forNode(edge).m_value, node->arrayMode());
     if (view && !view->isResizableOrGrowableShared()) {
         size_t length = view->length();
@@ -3559,14 +3523,6 @@ void SpeculativeJIT::compilePutByValForIntTypedArray(Node* node, TypedArrayType 
         }
     }
 
-    GPRReg scratch2GPR = InvalidGPRReg;
-#if USE(JSVALUE64)
-    if (node->arrayMode().mayBeResizableOrGrowableSharedTypedArray()) {
-        scratch2.emplace(this);
-        scratch2GPR = scratch2->gpr();
-    }
-#endif
-
     bool result = getIntTypedArrayStoreOperand(
         value, propertyReg,
 #if USE(JSVALUE32_64)
@@ -3577,6 +3533,14 @@ void SpeculativeJIT::compilePutByValForIntTypedArray(Node* node, TypedArrayType 
         noResult(node);
         return;
     }
+
+    GPRReg scratch2GPR = InvalidGPRReg;
+#if USE(JSVALUE64)
+    if (node->arrayMode().mayBeResizableOrGrowableSharedTypedArray()) {
+        scratch2.emplace(this);
+        scratch2GPR = scratch2->gpr();
+    }
+#endif
 
     GPRReg valueGPR = value.gpr();
     GPRReg scratchGPR = scratch.gpr();
@@ -4796,7 +4760,6 @@ void SpeculativeJIT::compileInstanceOfCustom(Node* node)
 {
     // We could do something smarter here but this case is currently super rare and unless
     // Symbol.hasInstance becomes popular will likely remain that way.
-    SuppressRegisterAllocationValidation suppressScope(*this);
 
     JSValueOperand value(this, node->child1());
     SpeculateCellOperand constructor(this, node->child2());
@@ -6277,8 +6240,7 @@ void SpeculativeJIT::compileArithRounding(Node* node)
                 FPRTemporary result(this);
                 FPRReg resultFPR = result.fpr();
                 if (producesInteger(node->arithRoundingMode()) && !shouldCheckNegativeZero(node->arithRoundingMode())) {
-                    static constexpr double halfConstant = 0.5;
-                    loadDouble(TrustedImmPtr(&halfConstant), resultFPR);
+                    move64ToDouble(TrustedImm64(bitwise_cast<uint64_t>(0.5)), resultFPR);
                     addDouble(valueFPR, resultFPR);
                     floorDouble(resultFPR, resultFPR);
                 } else {
@@ -6286,13 +6248,11 @@ void SpeculativeJIT::compileArithRounding(Node* node)
 
                     FPRTemporary scratch(this);
                     FPRReg scratchFPR = scratch.fpr();
-                    static constexpr double halfConstant = -0.5;
-                    loadDouble(TrustedImmPtr(&halfConstant), scratchFPR);
+                    move64ToDouble(TrustedImm64(bitwise_cast<uint64_t>(-0.5)), scratchFPR);
                     addDouble(resultFPR, scratchFPR);
 
                     Jump shouldUseCeiled = branchDouble(DoubleLessThanOrEqualAndOrdered, scratchFPR, valueFPR);
-                    static constexpr double oneConstant = -1.0;
-                    loadDouble(TrustedImmPtr(&oneConstant), scratchFPR);
+                    move64ToDouble(TrustedImm64(bitwise_cast<uint64_t>(-1.0)), scratchFPR);
                     addDouble(scratchFPR, resultFPR);
                     shouldUseCeiled.link(this);
                 }
@@ -6565,8 +6525,7 @@ static MacroAssembler::Jump compileArithPowIntegerFastPath(JITCompiler& assemble
     MacroAssembler::JumpList skipFastPath;
     skipFastPath.append(assembler.branch32(MacroAssembler::Above, yOperand, MacroAssembler::TrustedImm32(maxExponentForIntegerMathPow)));
 
-    static constexpr double oneConstant = 1.0;
-    assembler.loadDouble(SpeculativeJIT::TrustedImmPtr(&oneConstant), result);
+    assembler.move64ToDouble(CCallHelpers::TrustedImm64(bitwise_cast<uint64_t>(1.0)), result);
 
     MacroAssembler::Label startLoop(assembler.label());
     MacroAssembler::Jump exponentIsEven = assembler.branchTest32(MacroAssembler::Zero, yOperand, MacroAssembler::TrustedImm32(1));
@@ -6657,8 +6616,6 @@ void SpeculativeJIT::compileArithPow(Node* node)
 
     if (node->child2()->isDoubleConstant()) {
         double exponent = node->child2()->asNumber();
-        static constexpr double infinityConstant = std::numeric_limits<double>::infinity();
-        static constexpr double minusInfinityConstant = -std::numeric_limits<double>::infinity();
         if (exponent == 0.5) {
             SpeculateDoubleOperand xOperand(this, node->child1());
             FPRTemporary result(this);
@@ -6668,14 +6625,14 @@ void SpeculativeJIT::compileArithPow(Node* node)
             moveZeroToDouble(resultFpr);
             Jump xIsZeroOrNegativeZero = branchDouble(DoubleEqualAndOrdered, xOperandFpr, resultFpr);
 
-            loadDouble(TrustedImmPtr(&minusInfinityConstant), resultFpr);
+            move64ToDouble(TrustedImm64(bitwise_cast<uint64_t>(-std::numeric_limits<double>::infinity())), resultFpr);
             Jump xIsMinusInfinity = branchDouble(DoubleEqualAndOrdered, xOperandFpr, resultFpr);
             sqrtDouble(xOperandFpr, resultFpr);
             Jump doneWithSqrt = jump();
 
             xIsMinusInfinity.link(this);
             if (isX86())
-                loadDouble(TrustedImmPtr(&infinityConstant), resultFpr);
+                move64ToDouble(TrustedImm64(bitwise_cast<uint64_t>(std::numeric_limits<double>::infinity())), resultFpr);
             else
                 absDouble(resultFpr, resultFpr);
 
@@ -6695,17 +6652,16 @@ void SpeculativeJIT::compileArithPow(Node* node)
             moveZeroToDouble(resultFpr);
             Jump xIsZeroOrNegativeZero = branchDouble(DoubleEqualAndOrdered, xOperandFpr, resultFpr);
 
-            loadDouble(TrustedImmPtr(&minusInfinityConstant), resultFpr);
+            move64ToDouble(TrustedImm64(bitwise_cast<uint64_t>(-std::numeric_limits<double>::infinity())), resultFpr);
             Jump xIsMinusInfinity = branchDouble(DoubleEqualAndOrdered, xOperandFpr, resultFpr);
 
-            static constexpr double oneConstant = 1.;
-            loadDouble(TrustedImmPtr(&oneConstant), resultFpr);
+            move64ToDouble(TrustedImm64(bitwise_cast<uint64_t>(1.0)), resultFpr);
             sqrtDouble(xOperandFpr, scratchFPR);
             divDouble(resultFpr, scratchFPR, resultFpr);
             Jump doneWithSqrt = jump();
 
             xIsZeroOrNegativeZero.link(this);
-            loadDouble(TrustedImmPtr(&infinityConstant), resultFpr);
+            move64ToDouble(TrustedImm64(bitwise_cast<uint64_t>(std::numeric_limits<double>::infinity())), resultFpr);
             Jump doneWithBaseZero = jump();
 
             xIsMinusInfinity.link(this);
@@ -12344,9 +12300,10 @@ void SpeculativeJIT::emitSwitchStringOnString(Node* node, SwitchData* data, GPRR
     GPRReg lengthGPR = length.gpr();
     GPRReg tempGPR = temp.gpr();
     
+    JumpList isRopeCases;
     JumpList slowCases;
     loadPtr(Address(string, JSString::offsetOfValue()), tempGPR);
-    slowCases.append(branchIfRopeStringImpl(tempGPR));
+    isRopeCases.append(branchIfRopeStringImpl(tempGPR));
     load32(Address(tempGPR, StringImpl::lengthMemoryOffset()), lengthGPR);
     
     slowCases.append(branchTest32(
@@ -12364,8 +12321,12 @@ void SpeculativeJIT::emitSwitchStringOnString(Node* node, SwitchData* data, GPRR
     
     std::sort(cases.begin(), cases.end());
     
-    emitBinarySwitchStringRecurse(
-        data, cases, 0, 0, cases.size(), string, lengthGPR, tempGPR, 0, false);
+    emitBinarySwitchStringRecurse(data, cases, 0, 0, cases.size(), string, lengthGPR, tempGPR, 0, false);
+
+    isRopeCases.link(this);
+    load32(Address(string, JSRopeString::offsetOfLength()), tempGPR);
+    sub32(TrustedImm32(unlinkedTable.minLength()), tempGPR);
+    branch32(Above, tempGPR, TrustedImm32(unlinkedTable.maxLength() - unlinkedTable.minLength()), data->fallThrough.block);
     
     slowCases.link(this);
     callOperationWithSilentSpill(operationSwitchString, string, LinkableConstant::globalObject(*this, node), static_cast<size_t>(data->switchTableIndex), TrustedImmPtr(&unlinkedTable), string);
@@ -13618,7 +13579,6 @@ void SpeculativeJIT::compileEnumeratorNextUpdateIndexAndMode(Node* node)
 
         Label incrementLoop;
         Jump done;
-        constexpr bool preserveIndexReg = true;
         compileHasIndexedProperty(node, operationHasEnumerableIndexedProperty, scopedLambda<std::tuple<GPRReg, GPRReg>()>([&] {
             GPRReg newIndexGPR = newIndex.gpr();
             GPRReg scratchGPR = scratch.gpr();
@@ -13633,7 +13593,7 @@ void SpeculativeJIT::compileEnumeratorNextUpdateIndexAndMode(Node* node)
             initMode.link(this);
             done = branch32(AboveOrEqual, newIndexGPR, Address(enumeratorGPR, JSPropertyNameEnumerator::indexedLengthOffset()));
             return std::make_pair(newIndexGPR, scratchGPR);
-        }), preserveIndexReg);
+        }));
         branchTest32(Zero, scratch.gpr()).linkTo(incrementLoop, this);
 
         done.link(this);
@@ -14176,6 +14136,21 @@ void SpeculativeJIT::compileNewArrayWithSpecies(Node* node)
     cellResult(resultGPR, node);
 }
 
+void SpeculativeJIT::compileNewArrayWithSizeAndStructure(Node* node)
+{
+    SpeculateStrictInt32Operand size(this, node->child1());
+    GPRTemporary result(this);
+
+    GPRReg sizeGPR = size.gpr();
+    GPRReg resultGPR = result.gpr();
+
+    speculationCheck(OutOfBounds, JSValueRegs(), nullptr, branch32(AboveOrEqual, sizeGPR, TrustedImm32(MIN_ARRAY_STORAGE_CONSTRUCTION_LENGTH)));
+    constexpr bool shouldConvertLargeSizeToArrayStorage = false;
+    compileAllocateNewArrayWithSize(node, resultGPR, sizeGPR, node->structure(), shouldConvertLargeSizeToArrayStorage);
+    cellResult(resultGPR, node);
+    return;
+}
+
 void SpeculativeJIT::compileNewTypedArray(Node* node)
 {
     switch (node->child1().useKind()) {
@@ -14649,7 +14624,6 @@ void SpeculativeJIT::compileNewObject(Node* node)
 template<typename JSClass, typename Operation>
 void SpeculativeJIT::compileNewInternalFieldObjectImpl(Node* node, Operation operation)
 {
-    SuppressRegisterAllocationValidation suppressScope(*this);
     GPRTemporary result(this);
     GPRTemporary scratch1(this);
     GPRTemporary scratch2(this);
@@ -15326,7 +15300,7 @@ void SpeculativeJIT::emitInitializeButterfly(GPRReg storageGPR, GPRReg sizeGPR, 
     done.link(this);
 }
 
-void SpeculativeJIT::compileAllocateNewArrayWithSize(Node* node, GPRReg resultGPR, GPRReg sizeGPR, IndexingType indexingType, bool shouldConvertLargeSizeToArrayStorage)
+void SpeculativeJIT::compileAllocateNewArrayWithSize(Node* node, GPRReg resultGPR, GPRReg sizeGPR, RegisteredStructure structure, bool shouldConvertLargeSizeToArrayStorage)
 {
     JSGlobalObject* globalObject = m_graph.globalObjectFor(node->origin.semantic);
 
@@ -15357,20 +15331,18 @@ void SpeculativeJIT::compileAllocateNewArrayWithSize(Node* node, GPRReg resultGP
 
 #if USE(JSVALUE64)
     JSValueRegs emptyValueRegs(scratchGPR);
-    if (hasDouble(indexingType))
+    if (hasDouble(structure->indexingType()))
         move(TrustedImm64(bitwise_cast<int64_t>(PNaN)), emptyValueRegs.gpr());
     else
         move(TrustedImm64(JSValue::encode(JSValue())), emptyValueRegs.gpr());
 #else
     JSValueRegs emptyValueRegs(scratchGPR, scratch2GPR);
-    if (hasDouble(indexingType))
+    if (hasDouble(structure->indexingType()))
         moveValue(JSValue(JSValue::EncodeAsDouble, PNaN), emptyValueRegs);
     else
         moveValue(JSValue(), emptyValueRegs);
 #endif
     emitInitializeButterfly(storageGPR, sizeGPR, emptyValueRegs, resultGPR);
-
-    RegisteredStructure structure = m_graph.registerStructure(globalObject->arrayStructureForIndexingTypeDuringAllocation(indexingType));
 
     emitAllocateJSObject<JSArray>(resultGPR, TrustedImmPtr(structure), storageGPR, scratchGPR, scratch2GPR, slowCases, SlowAllocationResult::UndefinedBehavior);
 
@@ -15384,7 +15356,13 @@ void SpeculativeJIT::compileAllocateNewArrayWithSize(Node* node, GPRReg resultGP
         sizeGPR, storageGPR));
 }
 
-void SpeculativeJIT::compileHasIndexedProperty(Node* node, S_JITOperation_GCZ slowPathOperation, const ScopedLambda<std::tuple<GPRReg, GPRReg>()>& prefix, bool preserveIndexReg)
+void SpeculativeJIT::compileAllocateNewArrayWithSize(Node* node, GPRReg resultGPR, GPRReg sizeGPR, IndexingType indexingType, bool shouldConvertLargeSizeToArrayStorage)
+{
+    JSGlobalObject* globalObject = m_graph.globalObjectFor(node->origin.semantic);
+    compileAllocateNewArrayWithSize(node, resultGPR, sizeGPR, m_graph.registerStructure(globalObject->arrayStructureForIndexingTypeDuringAllocation(indexingType)), shouldConvertLargeSizeToArrayStorage);
+}
+
+void SpeculativeJIT::compileHasIndexedProperty(Node* node, S_JITOperation_GCZ slowPathOperation, const ScopedLambda<std::tuple<GPRReg, GPRReg>()>& prefix)
 {
     auto baseEdge = m_graph.varArgChild(node, 0);
     SpeculateCellOperand base(this, baseEdge);
@@ -15511,34 +15489,7 @@ void SpeculativeJIT::compileHasIndexedProperty(Node* node, S_JITOperation_GCZ sl
     }
     }
 
-    Vector<SilentRegisterSavePlan> savePlans;
-    silentSpillAllRegistersImpl(false, savePlans, resultGPR);
-    Label doneOperationCall = label();
-    addSlowPathGeneratorLambda([=, this, savePlans = WTFMove(savePlans), slowCases = WTFMove(slowCases)]() {
-        slowCases.link(this);
-
-        if (preserveIndexReg)
-            pushToSave(indexGPR);
-        silentSpill(savePlans);
-
-        setupArguments<S_JITOperation_GCZ>(LinkableConstant::globalObject(*this, node), baseGPR, indexGPR);
-        appendCall(slowPathOperation);
-        std::optional<GPRReg> exceptionReg;
-        if (preserveIndexReg)
-            exceptionReg = tryHandleOrGetExceptionUnderSilentSpill<S_JITOperation_GCZ>(savePlans, resultGPR, indexGPR);
-        else
-            exceptionReg = tryHandleOrGetExceptionUnderSilentSpill<S_JITOperation_GCZ>(savePlans, resultGPR);
-        setupResults(resultGPR);
-
-        silentFill(savePlans);
-        if (preserveIndexReg)
-            popToRestore(indexGPR);
-
-        if (exceptionReg)
-            exceptionCheck(*exceptionReg);
-
-        jump().linkTo(doneOperationCall, this);
-    });
+    addSlowPathGenerator(slowPathCall(slowCases, this, slowPathOperation, resultGPR, LinkableConstant::globalObject(*this, node), baseGPR, indexGPR));
 }
 
 void SpeculativeJIT::compileExtractCatchLocal(Node* node)

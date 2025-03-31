@@ -29,27 +29,17 @@
 #include "WorkerInspectorProxy.h"
 #include <JavaScriptCore/InspectorBackendDispatchers.h>
 #include <JavaScriptCore/InspectorFrontendDispatchers.h>
-#include <wtf/CheckedPtr.h>
-#include <wtf/CheckedRef.h>
-#include <wtf/FastMalloc.h>
-#include <wtf/Lock.h>
 #include <wtf/RobinHoodHashMap.h>
 #include <wtf/TZoneMalloc.h>
-#include <wtf/ThreadSafeRefCounted.h>
-#include <wtf/UniqueRef.h>
 #include <wtf/WeakPtr.h>
 
 namespace WebCore {
 
-class InspectorWorkerAgent : public InspectorAgentBase, public Inspector::WorkerBackendDispatcherHandler, public CanMakeThreadSafeCheckedPtr<InspectorWorkerAgent> {
+class InspectorWorkerAgent : public InspectorAgentBase, public Inspector::WorkerBackendDispatcherHandler, public WorkerInspectorProxy::PageChannel {
     WTF_MAKE_NONCOPYABLE(InspectorWorkerAgent);
     WTF_MAKE_TZONE_ALLOCATED(InspectorWorkerAgent);
-    WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(InspectorWorkerAgent);
-
 public:
     ~InspectorWorkerAgent();
-
-    Inspector::WorkerFrontendDispatcher& frontendDispatcher() { return *m_frontendDispatcher; }
 
     // InspectorAgentBase
     void didCreateFrontendAndBackend(Inspector::FrontendRouter*, Inspector::BackendDispatcher*);
@@ -60,6 +50,9 @@ public:
     Inspector::Protocol::ErrorStringOr<void> disable();
     Inspector::Protocol::ErrorStringOr<void> initialized(const String& workerId);
     Inspector::Protocol::ErrorStringOr<void> sendMessageToWorker(const String& workerId, const String& message);
+
+    // WorkerInspectorProxy::PageChannel
+    void sendMessageFromWorkerToFrontend(WorkerInspectorProxy&, String&& message);
 
     // InspectorInstrumentation
     bool shouldWaitForDebuggerOnStart() const;
@@ -74,32 +67,10 @@ protected:
     void connectToWorkerInspectorProxy(WorkerInspectorProxy&);
 
 private:
-    class PageChannel final : public WorkerInspectorProxy::PageChannel, public ThreadSafeRefCounted<PageChannel> {
-        WTF_MAKE_TZONE_ALLOCATED_INLINE(PageChannel);
-        WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(PageChannel);
-
-    public:
-        static Ref<PageChannel> create(InspectorWorkerAgent&);
-
-        void ref() const final { ThreadSafeRefCounted::ref(); }
-        void deref() const final { ThreadSafeRefCounted::deref(); }
-
-        void detachFromParentAgent();
-        void sendMessageFromWorkerToFrontend(WorkerInspectorProxy&, String&&);
-
-    private:
-        explicit PageChannel(InspectorWorkerAgent&);
-
-        Lock m_parentAgentLock;
-        CheckedPtr<InspectorWorkerAgent> m_parentAgent WTF_GUARDED_BY_LOCK(m_parentAgentLock);
-    };
-
     void disconnectFromAllWorkerInspectorProxies();
     void disconnectFromWorkerInspectorProxy(WorkerInspectorProxy&);
 
-    const Ref<PageChannel> m_pageChannel;
-
-    UniqueRef<Inspector::WorkerFrontendDispatcher> m_frontendDispatcher;
+    std::unique_ptr<Inspector::WorkerFrontendDispatcher> m_frontendDispatcher;
     RefPtr<Inspector::WorkerBackendDispatcher> m_backendDispatcher;
 
     MemoryCompactRobinHoodHashMap<String, WeakPtr<WorkerInspectorProxy>> m_connectedProxies;

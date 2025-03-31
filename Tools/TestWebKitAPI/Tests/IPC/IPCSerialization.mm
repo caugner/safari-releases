@@ -27,7 +27,6 @@
 
 #import "ArgumentCodersCocoa.h"
 #import "CoreIPCError.h"
-#import "CoreIPCPlistDictionary.h"
 #import "Encoder.h"
 #import "MessageSenderInlines.h"
 #import "test.h"
@@ -550,8 +549,10 @@ static BOOL wkDDActionContext_isEqual(WKDDActionContext *a, SEL, WKDDActionConte
 
 static bool wkNSURLProtectionSpace_isEqual(NSURLProtectionSpace *a, SEL, NSURLProtectionSpace* b)
 {
-    if (![a.host isEqual: b.host])
-        return false;
+    if (![a.host isEqual: b.host]) {
+        if (!(a.host == nil && b.host == nil))
+            return false;
+    }
     if (!(a.port == b.port))
         return false;
     if (![a.protocol isEqual:b.protocol])
@@ -930,26 +931,6 @@ static void runTestCF(const CFHolderForTesting& holderArg)
 {
     runTestCFWithExpectedResult(holderArg, holderArg);
 };
-
-TEST(IPCSerialization, Plist)
-{
-    NSDictionary *plist = @{
-        @"key1": @"A String",
-        @"key2": @1.0,
-        @"key3": @[
-            @{
-                @"date": NSDate.now,
-                @"number": @2.0,
-                @"string": @"A String"
-            },
-        ],
-        @"key4": [NSData dataWithBytes:"Data test" length:strlen("Data test")]
-    };
-
-    auto p = WebKit::CoreIPCPlistDictionary(plist);
-    auto d = p.toID();
-    EXPECT_TRUE([d.get() isEqual:plist]);
-}
 
 TEST(IPCSerialization, Basic)
 {
@@ -1331,6 +1312,12 @@ TEST(IPCSerialization, Basic)
     [protectionSpace2.get() _setServerTrust:trustRef];
     [protectionSpace2.get() _setDistinguishedNames:distinguishedNames];
     runTestNS({ protectionSpace2.get() });
+
+    NSString* nilString = nil;
+    RetainPtr<NSURLProtectionSpace> protectionSpace3 = adoptNS([[NSURLProtectionSpace alloc] initWithHost:nilString port:443 protocol:NSURLProtectionSpaceHTTPS realm:nil authenticationMethod:NSURLAuthenticationMethodServerTrust]);
+    [protectionSpace3.get() _setServerTrust:nil];
+    [protectionSpace3.get() _setDistinguishedNames:nil];
+    runTestNS({ protectionSpace3.get() });
 
     runTestNS({ [NSURLCredential credentialForTrust:trust.get()] });
 #if HAVE(DICTIONARY_SERIALIZABLE_NSURLCREDENTIAL)

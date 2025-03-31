@@ -2137,16 +2137,15 @@ int vp9_calc_pframe_target_size_one_pass_cbr(const VP9_COMP *cpi) {
   const int64_t one_pct_bits = 1 + rc->optimal_buffer_level / 100;
   int min_frame_target =
       VPXMAX(rc->avg_frame_bandwidth >> 4, FRAME_OVERHEAD_BITS);
-  int64_t target;
+  int target;
 
   if (oxcf->gf_cbr_boost_pct) {
     const int af_ratio_pct = oxcf->gf_cbr_boost_pct + 100;
     target = cpi->refresh_golden_frame
-                 ? ((int64_t)rc->avg_frame_bandwidth *
-                    rc->baseline_gf_interval * af_ratio_pct) /
+                 ? (rc->avg_frame_bandwidth * rc->baseline_gf_interval *
+                    af_ratio_pct) /
                        (rc->baseline_gf_interval * 100 + af_ratio_pct - 100)
-                 : ((int64_t)rc->avg_frame_bandwidth *
-                    rc->baseline_gf_interval * 100) /
+                 : (rc->avg_frame_bandwidth * rc->baseline_gf_interval * 100) /
                        (rc->baseline_gf_interval * 100 + af_ratio_pct - 100);
   } else {
     target = rc->avg_frame_bandwidth;
@@ -2164,29 +2163,30 @@ int vp9_calc_pframe_target_size_one_pass_cbr(const VP9_COMP *cpi) {
   if (diff > 0) {
     // Lower the target bandwidth for this frame.
     const int pct_low = (int)VPXMIN(diff / one_pct_bits, oxcf->under_shoot_pct);
-    target -= (target * pct_low) / 200;
+    target -= (int)(((int64_t)target * pct_low) / 200);
   } else if (diff < 0) {
     // Increase the target bandwidth for this frame.
     const int pct_high =
         (int)VPXMIN(-diff / one_pct_bits, oxcf->over_shoot_pct);
-    target += (target * pct_high) / 200;
+    target += (int)(((int64_t)target * pct_high) / 200);
   }
   if (oxcf->rc_max_inter_bitrate_pct) {
-    const int64_t max_rate =
-        (int64_t)rc->avg_frame_bandwidth * oxcf->rc_max_inter_bitrate_pct / 100;
+    const int max_rate =
+        rc->avg_frame_bandwidth * oxcf->rc_max_inter_bitrate_pct / 100;
     target = VPXMIN(target, max_rate);
   }
-  if (target > INT_MAX) target = INT_MAX;
-  return VPXMAX(min_frame_target, (int)target);
+  return VPXMAX(min_frame_target, target);
 }
 
 int vp9_calc_iframe_target_size_one_pass_cbr(const VP9_COMP *cpi) {
   const RATE_CONTROL *rc = &cpi->rc;
   const VP9EncoderConfig *oxcf = &cpi->oxcf;
   const SVC *const svc = &cpi->svc;
-  int64_t target;
+  int target;
   if (cpi->common.current_video_frame == 0) {
-    target = rc->starting_buffer_level / 2;
+    target = ((rc->starting_buffer_level / 2) > INT_MAX)
+                 ? INT_MAX
+                 : (int)(rc->starting_buffer_level / 2);
   } else {
     int kf_boost = 32;
     double framerate = cpi->framerate;
@@ -2204,8 +2204,7 @@ int vp9_calc_iframe_target_size_one_pass_cbr(const VP9_COMP *cpi) {
     }
     target = (int)(((int64_t)(16 + kf_boost) * rc->avg_frame_bandwidth) >> 4);
   }
-  target = VPXMIN(INT_MAX, target);
-  return vp9_rc_clamp_iframe_target_size(cpi, (int)target);
+  return vp9_rc_clamp_iframe_target_size(cpi, target);
 }
 
 static void set_intra_only_frame(VP9_COMP *cpi) {

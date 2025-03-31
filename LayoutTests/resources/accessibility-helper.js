@@ -197,8 +197,7 @@ async function waitForElementById(id) {
 
 // Executes the operation and waits until an accessibility notification of the provided
 // `notificationName` is received. A notification listener is added to the AccessibilityUIElement
-// passed in; before the operation is executed. The `operation` is expected to be a function,
-// which can optionally be async.
+// passed in; before the operation is executed. The `operation` is expected to be a function.
 async function waitForNotification(accessibilityElement, notificationName, operation) {
     var reached = false;
     function listener(receivedNotification) {
@@ -209,7 +208,7 @@ async function waitForNotification(accessibilityElement, notificationName, opera
     }
 
     accessibilityElement.addNotificationListener(listener);
-    await operation();
+    operation();
     await waitFor(() => { return reached; });
 }
 
@@ -287,7 +286,6 @@ async function waitForFocus(id) {
 // Selects text within the element with the given ID, and returns the global selected `TextMarkerRange` after doing so.
 // Optionally takes the AccessibilityUIElement associated with the web area as an argument. If not passed, we'll
 // retrieve it in the function.
-// NOTE: Only available for WK2.
 async function selectElementTextById(id, axWebArea) {
     const webArea = axWebArea ? axWebArea : accessibilityController.rootElement.childAtIndex(0);
     const selection = window.getSelection();
@@ -295,7 +293,7 @@ async function selectElementTextById(id, axWebArea) {
 
     await waitFor(() => {
         const selectedRange = webArea.selectedTextMarkerRange();
-        return !webArea.isTextMarkerRangeValid(selectedRange);
+        return webArea.textMarkerRangeLength(selectedRange) == 0;
     });
 
     const range = document.createRange();
@@ -305,7 +303,7 @@ async function selectElementTextById(id, axWebArea) {
     let selectedRange;
     await waitFor(() => {
         selectedRange = webArea.selectedTextMarkerRange();
-        return webArea.isTextMarkerRangeValid(selectedRange);
+        return webArea.textMarkerRangeLength(selectedRange) > 0;
     });
     return selectedRange;
 }
@@ -313,7 +311,6 @@ async function selectElementTextById(id, axWebArea) {
 // Selects a range of text delimited by the `startIndex` and `endIndex` within the element with the given ID,
 // and returns the global selected `TextMarkerRange` after doing so. Optionally takes the AccessibilityUIElement
 // associated with the web area as an argument. If not passed, we'll retrieve it in the function.
-// NOTE: Only available for WK2.
 async function selectPartialElementTextById(id, startIndex, endIndex, axWebArea) {
     const webArea = axWebArea ? axWebArea : accessibilityController.rootElement.childAtIndex(0);
     const selection = window.getSelection();
@@ -321,25 +318,19 @@ async function selectPartialElementTextById(id, startIndex, endIndex, axWebArea)
 
     await waitFor(() => {
         const selectedRange = webArea.selectedTextMarkerRange();
-        return !webArea.isTextMarkerRangeValid(selectedRange);
+        return webArea.textMarkerRangeLength(selectedRange) == 0;
     });
 
+    const range = document.createRange();
     const element = document.getElementById(id);
-    if (element.setSelectionRange) {
-        // For textarea and input elements.
-        element.setSelectionRange(startIndex, endIndex);
-    } else {
-        // For contenteditable elements.
-        const range = document.createRange();
-        range.setStart(element.firstChild, startIndex);
-        range.setEnd(element.firstChild, endIndex);
-        selection.addRange(range);
-    }
+    range.setStart(element.firstChild, startIndex);
+    range.setEnd(element.firstChild, endIndex);
+    selection.addRange(range);
 
     let selectedRange;
     await waitFor(() => {
         selectedRange = webArea.selectedTextMarkerRange();
-        return webArea.isTextMarkerRangeValid(selectedRange);
+        return webArea.textMarkerRangeLength(selectedRange) > 0;
     });
 
     return selectedRange;

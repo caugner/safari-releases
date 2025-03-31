@@ -1,4 +1,0 @@
-
-EVENT(playing)
-EVENT(seeked)
-

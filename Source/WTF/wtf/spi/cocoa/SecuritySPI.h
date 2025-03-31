@@ -89,8 +89,6 @@ OSStatus SecTrustedApplicationCreateFromPath(const char* path, SecTrustedApplica
 SecSignatureHashAlgorithm SecCertificateGetSignatureHashAlgorithm(SecCertificateRef);
 extern const CFStringRef kSecAttrNoLegacy;
 
-extern const CFStringRef kSecAttrAlias;
-
 WTF_EXTERN_C_END
 
 #endif // USE(APPLE_INTERNAL_SDK)

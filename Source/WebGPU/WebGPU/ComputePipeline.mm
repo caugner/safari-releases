@@ -38,10 +38,6 @@ namespace WebGPU {
 static id<MTLComputePipelineState> createComputePipelineState(id<MTLDevice> device, id<MTLFunction> function, const PipelineLayout& pipelineLayout, const MTLSize& size, NSString *label)
 {
     auto computePipelineDescriptor = [MTLComputePipelineDescriptor new];
-#if ENABLE(WEBGPU_BY_DEFAULT)
-    computePipelineDescriptor.shaderValidation = MTLShaderValidationEnabled;
-#endif
-
     computePipelineDescriptor.computeFunction = function;
     computePipelineDescriptor.maxTotalThreadsPerThreadgroup = size.width * size.height * size.depth;
     for (size_t i = 0; i < pipelineLayout.numberOfBindGroupLayouts(); ++i)
@@ -82,7 +78,7 @@ std::pair<Ref<ComputePipeline>, NSString*> Device::createComputePipeline(const W
         return returnInvalidComputePipeline(*this, isAsync);
 
     ShaderModule& shaderModule = WebGPU::fromAPI(descriptor.compute.module);
-    if (!shaderModule.isValid() || &shaderModule.device() != this || !descriptor.layout)
+    if (!shaderModule.isValid() || &shaderModule.device() != this)
         return returnInvalidComputePipeline(*this, isAsync);
 
     PipelineLayout& pipelineLayout = WebGPU::fromAPI(descriptor.layout);

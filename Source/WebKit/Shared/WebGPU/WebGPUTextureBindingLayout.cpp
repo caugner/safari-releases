@@ -36,20 +36,12 @@ namespace WebKit::WebGPU {
 
 std::optional<TextureBindingLayout> ConvertToBackingContext::convertToBacking(const WebCore::WebGPU::TextureBindingLayout& textureBindingLayout)
 {
-    return { TextureBindingLayout {
-        .sampleType = textureBindingLayout.sampleType,
-        .viewDimension = textureBindingLayout.viewDimension,
-        .multisampled = textureBindingLayout.multisampled
-    } };
+    return { { textureBindingLayout.sampleType, textureBindingLayout.viewDimension, textureBindingLayout.multisampled } };
 }
 
 std::optional<WebCore::WebGPU::TextureBindingLayout> ConvertFromBackingContext::convertFromBacking(const TextureBindingLayout& textureBindingLayout)
 {
-    return { WebCore::WebGPU::TextureBindingLayout {
-        .sampleType = textureBindingLayout.sampleType,
-        .viewDimension = textureBindingLayout.viewDimension,
-        .multisampled = textureBindingLayout.multisampled
-    } };
+    return { { textureBindingLayout.sampleType, textureBindingLayout.viewDimension, textureBindingLayout.multisampled } };
 }
 
 } // namespace WebKit

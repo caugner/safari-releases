@@ -588,9 +588,9 @@ void PageClientImpl::setTextIndicatorAnimationProgress(float progress)
     m_impl->setTextIndicatorAnimationProgress(progress);
 }
 
-void PageClientImpl::accessibilityWebProcessTokenReceived(std::span<const uint8_t> data, WebCore::FrameIdentifier frameID, pid_t pid)
+void PageClientImpl::accessibilityWebProcessTokenReceived(std::span<const uint8_t> data, pid_t pid)
 {
-    m_impl->setAccessibilityWebProcessToken(toNSData(data).get(), frameID, pid);
+    m_impl->setAccessibilityWebProcessToken(toNSData(data).get(), pid);
 }
     
 void PageClientImpl::enterAcceleratedCompositingMode(const LayerTreeContext& layerTreeContext)
@@ -1114,9 +1114,7 @@ bool PageClientImpl::canHandleContextMenuWritingTools() const
 void PageClientImpl::handleContextMenuWritingTools(WebCore::WritingTools::RequestedTool tool, WebCore::IntRect selectionRect)
 {
     RetainPtr webView = this->webView();
-ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     [[PAL::getWTWritingToolsClass() sharedInstance] showTool:WebKit::convertToPlatformRequestedTool(tool) forSelectionRect:selectionRect ofView:m_view forDelegate:webView.get() smartReplyConfiguration:nil];
-ALLOW_DEPRECATED_DECLARATIONS_END
 }
 
 #endif

@@ -48,9 +48,6 @@ struct GPUProcessConnectionParameters {
 #if HAVE(AUDIT_TOKEN)
     std::optional<CoreIPCAuditToken> presentingApplicationAuditToken;
 #endif
-#if PLATFORM(COCOA)
-    String applicationBundleIdentifier;
-#endif
 #if ENABLE(VP9)
     std::optional<bool> hasVP9HardwareDecoder;
 #endif

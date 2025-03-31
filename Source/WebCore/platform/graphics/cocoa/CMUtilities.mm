@@ -99,7 +99,6 @@ static CFStringRef convertToCMColorPrimaries(PlatformVideoColorPrimaries primari
 static CFStringRef convertToCMTransferFunction(PlatformVideoTransferCharacteristics characteristics)
 {
     switch (characteristics) {
-    case PlatformVideoTransferCharacteristics::Smpte170m:
     case PlatformVideoTransferCharacteristics::Bt709:
         return kCVImageBufferTransferFunction_ITU_R_709_2;
     case PlatformVideoTransferCharacteristics::Smpte240m:
@@ -201,18 +200,6 @@ RetainPtr<CMFormatDescriptionRef> createFormatDescriptionFromTrackInfo(const Tra
         }
     }
 
-    RetainPtr<NSDictionary> pixelAspectRatioValues;
-    if (videoInfo.size != videoInfo.displaySize) {
-        double horizontalRatio = videoInfo.displaySize.width() / videoInfo.size.width();
-        double verticalRatio = videoInfo.displaySize.height() / videoInfo.size.height();
-        extensionsKeys.append(PAL::get_CoreMedia_kCMFormatDescriptionExtension_PixelAspectRatio());
-        pixelAspectRatioValues = @{
-            (__bridge NSString*)PAL::get_CoreMedia_kCMFormatDescriptionKey_PixelAspectRatioHorizontalSpacing() : @(horizontalRatio),
-            (__bridge NSString*)PAL::get_CoreMedia_kCMFormatDescriptionKey_PixelAspectRatioVerticalSpacing() : @(verticalRatio)
-        };
-        extensionsValues.append(pixelAspectRatioValues.get());
-    }
-
     auto extensions = adoptCF(CFDictionaryCreate(kCFAllocatorDefault, extensionsKeys.data(), extensionsValues.data(), extensionsKeys.size(), &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks));
 
     CMVideoFormatDescriptionRef formatDescription = nullptr;
@@ -295,21 +282,6 @@ Expected<RetainPtr<CMSampleBufferRef>, CString> toCMSampleBuffer(MediaSamplesBlo
     }
 
     return adoptCF(rawSampleBuffer);
-}
-
-void attachColorSpaceToPixelBuffer(const PlatformVideoColorSpace& colorSpace, CVPixelBufferRef pixelBuffer)
-{
-    ASSERT(pixelBuffer);
-    if (!pixelBuffer)
-        return;
-
-    CVBufferRemoveAttachment(pixelBuffer, kCVImageBufferCGColorSpaceKey);
-    if (colorSpace.primaries)
-        CVBufferSetAttachment(pixelBuffer, kCVImageBufferColorPrimariesKey, convertToCMColorPrimaries(*colorSpace.primaries), kCVAttachmentMode_ShouldPropagate);
-    if (colorSpace.transfer)
-        CVBufferSetAttachment(pixelBuffer, kCVImageBufferTransferFunctionKey, convertToCMTransferFunction(*colorSpace.transfer), kCVAttachmentMode_ShouldPropagate);
-    if (colorSpace.matrix)
-        CVBufferSetAttachment(pixelBuffer, kCVImageBufferYCbCrMatrixKey, convertToCMYCbCRMatrix(*colorSpace.matrix), kCVAttachmentMode_ShouldPropagate);
 }
 
 PacketDurationParser::PacketDurationParser(const AudioInfo& info)

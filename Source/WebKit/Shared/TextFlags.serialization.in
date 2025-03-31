@@ -117,15 +117,16 @@ enum class WebCore::FontSmoothingMode : uint8_t {
     SubpixelAntialiased
 };
 
-[OptionSet] enum class WebKit::TextCheckerState : uint8_t {
-    ContinuousSpellCheckingEnabled,
-    GrammarCheckingEnabled,
+struct WebKit::TextCheckerState {
+    bool isContinuousSpellCheckingEnabled
+    bool isGrammarCheckingEnabled
+
 #if USE(APPKIT)
-    AutomaticTextReplacementEnabled,
-    AutomaticSpellingCorrectionEnabled,
-    AutomaticQuoteSubstitutionEnabled,
-    AutomaticDashSubstitutionEnabled,
-    AutomaticLinkDetectionEnabled
+    bool isAutomaticSpellingCorrectionEnabled
+    bool isAutomaticQuoteSubstitutionEnabled
+    bool isAutomaticDashSubstitutionEnabled
+    bool isAutomaticLinkDetectionEnabled
+    bool isAutomaticTextReplacementEnabled
 #endif
 };
 

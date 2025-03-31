@@ -115,7 +115,7 @@ static bool isLineFitEdgeLeading(const InlineLevelBox& inlineBox)
     return lineFitEdge.over == TextEdgeType::Leading;
 }
 
-static InlineLevelBox::AscentAndDescent layoutBoundstWithEdgeAdjustmentForInlineBox(const InlineLevelBox& inlineBox, const FontMetrics& fontMetrics, FontBaseline fontBaseline)
+static InlineLevelBox::AscentAndDescent ascentAndDescentWithTextBoxEdgeForInlineBox(const InlineLevelBox& inlineBox, const FontMetrics& fontMetrics, FontBaseline fontBaseline)
 {
     ASSERT(inlineBox.isInlineBox());
 
@@ -162,56 +162,6 @@ static InlineLevelBox::AscentAndDescent layoutBoundstWithEdgeAdjustmentForInline
     return { ascent(), descent() };
 }
 
-static InlineLevelBox::AscentAndDescent textBoxAdjustedInlineBoxHeight(const InlineLevelBox& inlineBox, const FontMetrics& fontMetrics, FontBaseline fontBaseline)
-{
-    ASSERT(inlineBox.isInlineBox());
-
-    if (inlineBox.isRootInlineBox())
-        return { InlineLayoutUnit(fontMetrics.intAscent(fontBaseline)), InlineLayoutUnit(fontMetrics.intDescent(fontBaseline)) };
-
-    auto inlineBoxTextBoxTrim = inlineBox.textBoxTrim();
-    auto ascent = [&]() -> InlineLayoutUnit {
-        auto over = inlineBoxTextBoxTrim == TextBoxTrim::TrimStart || inlineBoxTextBoxTrim == TextBoxTrim::TrimBoth ? inlineBox.textBoxEdge().over : TextEdgeType::Auto;
-        switch (over) {
-        case TextEdgeType::Auto:
-        case TextEdgeType::Text:
-            return fontMetrics.intAscent(fontBaseline);
-        case TextEdgeType::CapHeight:
-            return fontMetrics.intCapHeight();
-        case TextEdgeType::ExHeight:
-            return roundf(fontMetrics.xHeight().value_or(0.f));
-        case TextEdgeType::CJKIdeographic:
-            return fontMetrics.intAscent(IdeographicBaseline);
-        case TextEdgeType::CJKIdeographicInk:
-            ASSERT_NOT_IMPLEMENTED_YET();
-            return fontMetrics.intAscent(IdeographicBaseline);
-        default:
-            ASSERT_NOT_REACHED();
-            return fontMetrics.intAscent(fontBaseline);
-        }
-    };
-
-    auto descent = [&]() -> InlineLayoutUnit {
-        auto under = inlineBoxTextBoxTrim == TextBoxTrim::TrimEnd || inlineBoxTextBoxTrim == TextBoxTrim::TrimBoth ? inlineBox.textBoxEdge().under : TextEdgeType::Auto;
-        switch (under) {
-        case TextEdgeType::Auto:
-        case TextEdgeType::Text:
-            return fontMetrics.intDescent(fontBaseline);
-        case TextEdgeType::Alphabetic:
-            return 0.f;
-        case TextEdgeType::CJKIdeographic:
-            return fontMetrics.intDescent(IdeographicBaseline);
-        case TextEdgeType::CJKIdeographicInk:
-            ASSERT_NOT_IMPLEMENTED_YET();
-            return fontMetrics.intDescent(IdeographicBaseline);
-        default:
-            ASSERT_NOT_REACHED();
-            return fontMetrics.intDescent(fontBaseline);
-        }
-    };
-    return { ascent(), descent() };
-}
-
 InlineLevelBox::AscentAndDescent LineBoxBuilder::enclosingAscentDescentWithFallbackFonts(const InlineLevelBox& inlineBox, const TextUtil::FallbackFontList& fallbackFontsForContent, FontBaseline fontBaseline) const
 {
     ASSERT(!fallbackFontsForContent.isEmptyIgnoringNullReferences());
@@ -221,12 +171,12 @@ InlineLevelBox::AscentAndDescent LineBoxBuilder::enclosingAscentDescentWithFallb
     // When the computed line-height is normal, the layout bounds of an inline box encloses all its glyphs, going from the highest A to the deepest D. 
     auto maxAscent = InlineLayoutUnit { };
     auto maxDescent = InlineLayoutUnit { };
-    // If line-height computes to normal and either line-fit-edge is leading or this is the root inline box,
+    // If line-height computes to normal and either text-box-edge is leading or this is the root inline box,
     // the font's line gap metric may also be incorporated into A and D by adding half to each side as half-leading.
     auto shouldUseLineGapToAdjustAscentDescent = (inlineBox.isRootInlineBox() || isLineFitEdgeLeading(inlineBox)) && !rootBox().isRubyAnnotationBox();
     for (auto& font : fallbackFontsForContent) {
         auto& fontMetrics = font.fontMetrics();
-        auto [ascent, descent] = textBoxAdjustedInlineBoxHeight(inlineBox, fontMetrics, fontBaseline);
+        auto [ascent, descent] = ascentAndDescentWithTextBoxEdgeForInlineBox(inlineBox, fontMetrics, fontBaseline);
         if (shouldUseLineGapToAdjustAscentDescent) {
             auto halfLeading = (fontMetrics.intLineSpacing() - (ascent + descent)) / 2;
             ascent += halfLeading;
@@ -244,7 +194,7 @@ void LineBoxBuilder::setLayoutBoundsForInlineBox(InlineLevelBox& inlineBox, Font
     ASSERT(inlineBox.isInlineBox());
 
     auto layoutBounds = [&]() -> InlineLevelBox::AscentAndDescent {
-        auto [ascent, descent] = layoutBoundstWithEdgeAdjustmentForInlineBox(inlineBox, inlineBox.primarymetricsOfPrimaryFont(), fontBaseline);
+        auto [ascent, descent] = ascentAndDescentWithTextBoxEdgeForInlineBox(inlineBox, inlineBox.primarymetricsOfPrimaryFont(), fontBaseline);
 
         // FIXME: Annotation root should not have any impact here with the proper annotation box handling (dedicated IFC line for annotations and line-height is 1).
         if (rootBox().isRubyAnnotationBox())
@@ -264,7 +214,7 @@ void LineBoxBuilder::setLayoutBoundsForInlineBox(InlineLevelBox& inlineBox, Font
             descent += halfLeading;
         } else {
             // https://www.w3.org/TR/css-inline-3/#inline-height
-            // If line-height computes to normal and either line-fit-edge is leading or this is the root inline box,
+            // If line-height computes to normal and either text-box-edge is leading or this is the root inline box,
             // the font’s line gap metric may also be incorporated into A and D by adding half to each side as half-leading.
             auto shouldIncorporateHalfLeading = inlineBox.isRootInlineBox() || isLineFitEdgeLeading(inlineBox);
             if (shouldIncorporateHalfLeading) {
@@ -277,17 +227,17 @@ void LineBoxBuilder::setLayoutBoundsForInlineBox(InlineLevelBox& inlineBox, Font
         return { ascent, descent };
     }();
 
-    auto inflateWithMarginBorderAndPaddingIfApplicable = [&] {
+    auto applyTextBoxEdgeAdjustment = [&] {
         if (isLineFitEdgeLeading(inlineBox) || inlineBox.isRootInlineBox())
             return;
-        // Additionally, when line-fit-edge is not leading, the layout bounds are inflated by the sum of the margin,
+        // Additionally, when text-box-edge is not leading, the layout bounds are inflated by the sum of the margin,
         // border, and padding on each side.
         ASSERT(!inlineBox.isRootInlineBox());
         auto& inlineBoxGeometry = formattingContext().geometryForBox(inlineBox.layoutBox());
         layoutBounds.ascent += inlineBoxGeometry.marginBorderAndPaddingBefore();
         layoutBounds.descent += inlineBoxGeometry.marginBorderAndPaddingAfter();
     };
-    inflateWithMarginBorderAndPaddingIfApplicable();
+    applyTextBoxEdgeAdjustment();
 
     layoutBounds.round();
     inlineBox.setLayoutBounds(layoutBounds);
@@ -310,7 +260,7 @@ void LineBoxBuilder::setVerticalPropertiesForInlineLevelBox(const LineBox& lineB
                 return primaryFontMetricsForInlineBox(inlineLevelBox, fontBaseline);
 
             auto& fontMetrics = inlineLevelBox.primarymetricsOfPrimaryFont();
-            auto [ascent, descent] = textBoxAdjustedInlineBoxHeight(inlineLevelBox, fontMetrics, fontBaseline);
+            auto [ascent, descent] = ascentAndDescentWithTextBoxEdgeForInlineBox(inlineLevelBox, fontMetrics, fontBaseline);
             return { ascent, descent };
         }();
 
@@ -693,7 +643,7 @@ static TextEdge effectiveTextBoxEdge(const InlineLevelBox& rootInlineBox, const 
     return lineFitEdge;
 }
 
-InlineLayoutUnit LineBoxBuilder::applyTextBoxTrimOnLineBoxIfNeeded(InlineLayoutUnit lineBoxLogicalHeight, InlineLevelBox& rootInlineBox) const
+InlineLayoutUnit LineBoxBuilder::applyTextBoxTrimIfNeeded(InlineLayoutUnit lineBoxLogicalHeight, InlineLevelBox& rootInlineBox) const
 {
     auto textBoxTrim = blockLayoutState().textBoxTrim();
     auto textBoxEdge = effectiveTextBoxEdge(rootInlineBox, blockLayoutState());
@@ -753,7 +703,7 @@ InlineLayoutUnit LineBoxBuilder::applyTextBoxTrimOnLineBoxIfNeeded(InlineLayoutU
 
 void LineBoxBuilder::computeLineBoxGeometry(LineBox& lineBox) const
 {
-    auto lineBoxLogicalHeight = applyTextBoxTrimOnLineBoxIfNeeded(LineBoxVerticalAligner { formattingContext() }.computeLogicalHeightAndAlign(lineBox), lineBox.rootInlineBox());
+    auto lineBoxLogicalHeight = applyTextBoxTrimIfNeeded(LineBoxVerticalAligner { formattingContext() }.computeLogicalHeightAndAlign(lineBox), lineBox.rootInlineBox());
     lineBox.setLogicalRect({ lineLayoutResult().lineGeometry.logicalTopLeft, lineLayoutResult().lineGeometry.logicalWidth, lineBoxLogicalHeight });
 }
 

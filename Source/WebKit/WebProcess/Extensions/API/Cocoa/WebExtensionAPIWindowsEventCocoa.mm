@@ -47,10 +47,7 @@ void WebExtensionAPIWindowsEvent::invokeListenersWithArgument(id argument, Optio
     if (m_listeners.isEmpty())
         return;
 
-    // Copy the listeners since call() can trigger a mutation of the listeners.
-    auto listenersCopy = m_listeners;
-
-    for (auto& listener : listenersCopy) {
+    for (auto& listener : m_listeners) {
         if (!listener.second.containsAny(windowTypeFilter))
             continue;
 

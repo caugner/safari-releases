@@ -592,7 +592,7 @@ bool RenderLayer::shouldBeNormalFlowOnly() const
 
 bool RenderLayer::shouldBeCSSStackingContext() const
 {
-    return !renderer().style().hasAutoUsedZIndex() || renderer().shouldApplyLayoutOrPaintContainment() || renderer().requiresRenderingConsolidationForViewTransition() || renderer().isRenderViewTransitionCapture() || renderer().isViewTransitionRoot() || isRenderViewLayer();
+    return !renderer().style().hasAutoUsedZIndex() || renderer().shouldApplyLayoutOrPaintContainment() || renderer().requiresRenderingConsolidationForViewTransition() || renderer().isRenderViewTransitionCapture() || isRenderViewLayer();
 }
 
 bool RenderLayer::computeCanBeBackdropRoot() const
@@ -1059,7 +1059,7 @@ void RenderLayer::recursiveUpdateLayerPositions(RenderElement::LayoutIdentifier 
     }
 
     auto repaintIfNecessary = [&](bool checkForRepaint) {
-        if (isVisibilityHiddenOrOpacityZero() || !isSelfPaintingLayer()) {
+        if (!m_hasVisibleContent || !isSelfPaintingLayer()) {
             clearRepaintRects();
             return;
         }
@@ -1211,7 +1211,7 @@ void RenderLayer::computeRepaintRects(const RenderLayerModelObject* repaintConta
 {
     ASSERT(!m_visibleContentStatusDirty);
 
-    if (isVisibilityHiddenOrOpacityZero() || !isSelfPaintingLayer())
+    if (!isSelfPaintingLayer())
         clearRepaintRects();
     else
         setRepaintRects(renderer().rectsForRepaintingAfterLayout(repaintContainer, RepaintOutlineBounds::Yes));
@@ -3052,7 +3052,7 @@ void RenderLayer::paintLayerWithEffects(GraphicsContext& context, const LayerPai
         GraphicsContextStateSaver stateSaver(context, false);
         RegionContextStateSaver regionContextStateSaver(paintingInfo.regionContext);
         if (parent()) {
-            auto options = paintFlags.contains(PaintLayerFlag::PaintingOverflowContents) ? clipRectOptionsForPaintingOverflowContents : clipRectDefaultOptions;
+            auto options = paintFlags.contains(PaintLayerFlag::PaintingOverflowContents) ? clipRectOptionsForPaintingOverflowControls : clipRectDefaultOptions;
             auto clipRectsContext = ClipRectsContext(paintingInfo.rootLayer, (paintFlags & PaintLayerFlag::TemporaryClipRects) ? TemporaryClipRects : PaintingClipRects, options);
             clipRect = backgroundClipRect(clipRectsContext);
             clipRect.intersect(paintingInfo.paintDirtyRect);
@@ -3424,7 +3424,7 @@ void RenderLayer::paintLayerContents(GraphicsContext& context, const LayerPainti
             // Now we need to compute the backgroundRect uncontaminated by filters, in order to clip the filtered result.
             // Note that we also use paintingInfo here, not localPaintingInfo which filters also contaminated.
             LayerFragments layerFragments;
-            auto clipRectOptions = isPaintingOverflowContents ? clipRectOptionsForPaintingOverflowContents : clipRectDefaultOptions;
+            auto clipRectOptions = isPaintingOverflowContents ? clipRectOptionsForPaintingOverflowControls : clipRectDefaultOptions;
             collectFragments(layerFragments, paintingInfo.rootLayer, paintingInfo.paintDirtyRect, ExcludeCompositedPaginatedLayers,
                 (localPaintFlags & PaintLayerFlag::TemporaryClipRects) ? TemporaryClipRects : PaintingClipRects, clipRectOptions, offsetFromRoot);
             updatePaintingInfoForFragments(layerFragments, paintingInfo, localPaintFlags, shouldPaintContent, offsetFromRoot);
@@ -3465,7 +3465,7 @@ void RenderLayer::paintLayerContents(GraphicsContext& context, const LayerPainti
                 paintDirtyRect = clipRectRelativeToAncestor(localPaintingInfo.rootLayer, offsetFromRoot, LayoutRect::infiniteRect(), !!(localPaintFlags & PaintLayerFlag::TemporaryClipRects));
             }
 
-            auto clipRectOptions = isPaintingOverflowContents ? clipRectOptionsForPaintingOverflowContents : clipRectDefaultOptions;
+            auto clipRectOptions = isPaintingOverflowContents ? clipRectOptionsForPaintingOverflowControls : clipRectDefaultOptions;
             collectFragments(layerFragments, localPaintingInfo.rootLayer, paintDirtyRect, ExcludeCompositedPaginatedLayers,
                 (localPaintFlags & PaintLayerFlag::TemporaryClipRects) ? TemporaryClipRects : PaintingClipRects, clipRectOptions, offsetFromRoot);
             updatePaintingInfoForFragments(layerFragments, localPaintingInfo, localPaintFlags, shouldPaintContent, offsetFromRoot);
@@ -3586,9 +3586,6 @@ void RenderLayer::paintLayerByApplyingTransform(GraphicsContext& context, const 
     transformedPaintingInfo.rootLayer = this;
     if (!transformedPaintingInfo.paintDirtyRect.isInfinite())
         transformedPaintingInfo.paintDirtyRect = LayoutRect(encloseRectToDevicePixels(valueOrDefault(transform.inverse()).mapRect(paintingInfo.paintDirtyRect), deviceScaleFactor));
-
-    paintFlags.remove(PaintLayerFlag::PaintingOverflowContents);
-
     transformedPaintingInfo.subpixelOffset = adjustedSubpixelOffset;
     paintLayerContentsAndReflection(context, transformedPaintingInfo, paintFlags);
 
@@ -3793,7 +3790,7 @@ void RenderLayer::paintTransformedLayerIntoFragments(GraphicsContext& context, c
     RenderLayer* paginatedLayer = enclosingPaginationLayer(ExcludeCompositedPaginatedLayers);
     LayoutRect transformedExtent = transparencyClipBox(*this, paginatedLayer, PaintingTransparencyClipBox, RootOfTransparencyClipBox, paintingInfo.paintBehavior);
 
-    auto clipRectOptions = paintFlags.contains(PaintLayerFlag::PaintingOverflowContents) ? clipRectOptionsForPaintingOverflowContents : clipRectDefaultOptions;
+    auto clipRectOptions = paintFlags.contains(PaintLayerFlag::PaintingOverflowContents) ? clipRectOptionsForPaintingOverflowControls : clipRectDefaultOptions;
     paginatedLayer->collectFragments(enclosingPaginationFragments, paintingInfo.rootLayer, paintingInfo.paintDirtyRect, ExcludeCompositedPaginatedLayers,
         (paintFlags & PaintLayerFlag::TemporaryClipRects) ? TemporaryClipRects : PaintingClipRects, clipRectOptions, offsetOfPaginationLayerFromRoot, &transformedExtent);
     
@@ -5518,11 +5515,6 @@ bool RenderLayer::hasVisibleBoxDecorations() const
     return hasVisibleBoxDecorationsOrBackground() || (m_scrollableArea && m_scrollableArea->hasOverflowControls());
 }
 
-bool RenderLayer::isVisibilityHiddenOrOpacityZero() const
-{
-    return !hasVisibleContent() || !renderer().style().opacity();
-}
-
 bool RenderLayer::isVisuallyNonEmpty(PaintedContentRequest* request) const
 {
     ASSERT(!m_visibleDescendantStatusDirty);
@@ -5588,6 +5580,8 @@ void RenderLayer::styleChanged(StyleDifference diff, const RenderStyle* oldStyle
 
         // Visibility and scrollability are input to canUseCompositedScrolling().
         if (m_scrollableArea) {
+            if (oldStyle->direction() != renderer().style().direction())
+                m_scrollableArea->invalidateScrollCornerRect({ });
             if (visibilityChanged || oldStyle->isOverflowVisible() != renderer().style().isOverflowVisible())
                 m_scrollableArea->computeHasCompositedScrollableOverflow(diff <= StyleDifference::RepaintLayer ? LayoutUpToDate::Yes : LayoutUpToDate::No);
         }

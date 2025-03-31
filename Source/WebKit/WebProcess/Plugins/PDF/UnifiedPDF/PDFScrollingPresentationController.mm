@@ -28,6 +28,7 @@
 
 #if ENABLE(UNIFIED_PDF)
 
+#include "AsyncPDFRenderer.h"
 #include "Logging.h"
 #include "UnifiedPDFPlugin.h"
 #include "WebKeyboardEvent.h"
@@ -107,7 +108,9 @@ PDFPageCoverage PDFScrollingPresentationController::pageCoverageForContentsRect(
     if (m_plugin->visibleOrDocumentSizeIsEmpty())
         return { };
 
-    auto rectInPDFLayoutCoordinates = m_plugin->convertDown(UnifiedPDFPlugin::CoordinateSpace::Contents, UnifiedPDFPlugin::CoordinateSpace::PDFDocumentLayout, contentsRect);
+    auto drawingRect = IntRect { { }, m_plugin->documentSize() };
+    drawingRect.intersect(enclosingIntRect(contentsRect));
+    auto rectInPDFLayoutCoordinates = m_plugin->convertDown(UnifiedPDFPlugin::CoordinateSpace::Contents, UnifiedPDFPlugin::CoordinateSpace::PDFDocumentLayout, FloatRect { drawingRect });
 
     auto& documentLayout = m_plugin->documentLayout();
     auto pageCoverage = PDFPageCoverage { };
@@ -120,7 +123,7 @@ PDFPageCoverage PDFScrollingPresentationController::pageCoverageForContentsRect(
         if (!pageBounds.intersects(rectInPDFLayoutCoordinates))
             continue;
 
-        pageCoverage.append(PerPageInfo { i, pageBounds, rectInPDFLayoutCoordinates });
+        pageCoverage.append(PerPageInfo { i, pageBounds });
     }
 
     return pageCoverage;
@@ -326,7 +329,7 @@ void PDFScrollingPresentationController::setNeedsRepaintInDocumentRect(OptionSet
     auto contentsRect = m_plugin->convertUp(UnifiedPDFPlugin::CoordinateSpace::PDFDocumentLayout, UnifiedPDFPlugin::CoordinateSpace::Contents, rectInDocumentCoordinates);
     if (repaintRequirements.contains(RepaintRequirement::PDFContent)) {
         if (RefPtr asyncRenderer = asyncRendererIfExists())
-            asyncRenderer->pdfContentChangedInRect(m_contentsLayer.get(), contentsRect, layoutRow);
+            asyncRenderer->pdfContentChangedInRect(m_contentsLayer.get(), m_plugin->nonNormalizedScaleFactor(), contentsRect, layoutRow);
     }
 
 #if ENABLE(UNIFIED_PDF_SELECTION_LAYER)

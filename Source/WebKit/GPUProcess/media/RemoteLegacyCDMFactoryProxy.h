@@ -38,24 +38,19 @@
 #include <wtf/WeakPtr.h>
 
 namespace WebKit {
-class RemoteLegacyCDMFactoryProxy;
-}
-
-namespace WTF {
-template<typename T> struct IsDeprecatedWeakRefSmartPointerException;
-template<> struct IsDeprecatedWeakRefSmartPointerException<WebKit::RemoteLegacyCDMFactoryProxy> : std::true_type { };
-}
-
-namespace WebKit {
 
 class RemoteLegacyCDMSessionProxy;
 class RemoteLegacyCDMProxy;
 struct RemoteLegacyCDMConfiguration;
 
-class RemoteLegacyCDMFactoryProxy final : public IPC::MessageReceiver {
+class RemoteLegacyCDMFactoryProxy final : public RefCounted<RemoteLegacyCDMFactoryProxy>, public IPC::MessageReceiver {
     WTF_MAKE_TZONE_ALLOCATED(RemoteLegacyCDMFactoryProxy);
 public:
-    RemoteLegacyCDMFactoryProxy(GPUConnectionToWebProcess&);
+    static Ref<RemoteLegacyCDMFactoryProxy> create(GPUConnectionToWebProcess& gpuConnectionToWebProcess)
+    {
+        return adoptRef(*new RemoteLegacyCDMFactoryProxy(gpuConnectionToWebProcess));
+    }
+
     virtual ~RemoteLegacyCDMFactoryProxy();
 
     void clear();
@@ -71,18 +66,21 @@ public:
     void removeProxy(RemoteLegacyCDMIdentifier);
 
     void addSession(RemoteLegacyCDMSessionIdentifier, std::unique_ptr<RemoteLegacyCDMSessionProxy>&&);
-    void removeSession(RemoteLegacyCDMSessionIdentifier, CompletionHandler<void()>&&);
+    void removeSession(RemoteLegacyCDMSessionIdentifier);
     RemoteLegacyCDMSessionProxy* getSession(const RemoteLegacyCDMSessionIdentifier&) const;
 
     RefPtr<GPUConnectionToWebProcess> gpuConnectionToWebProcess() { return m_gpuConnectionToWebProcess.get(); }
 
     bool allowsExitUnderMemoryPressure() const;
+    const SharedPreferencesForWebProcess& sharedPreferencesForWebProcess() const;
 
 #if !RELEASE_LOG_DISABLED
     const Logger& logger() const;
 #endif
 
 private:
+    RemoteLegacyCDMFactoryProxy(GPUConnectionToWebProcess&);
+
     friend class GPUProcessConnection;
     // IPC::MessageReceiver
     void didReceiveMessage(IPC::Connection&, IPC::Decoder&) final;

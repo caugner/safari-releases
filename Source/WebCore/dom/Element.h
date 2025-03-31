@@ -398,7 +398,7 @@ public:
     WEBCORE_EXPORT ExceptionOr<ShadowRoot&> attachShadow(const ShadowRootInit&);
     ExceptionOr<ShadowRoot&> attachDeclarativeShadow(ShadowRootMode, ShadowRootDelegatesFocus, ShadowRootClonable, ShadowRootSerializable);
 
-    WEBCORE_EXPORT ShadowRoot* userAgentShadowRoot() const;
+    ShadowRoot* userAgentShadowRoot() const;
     RefPtr<ShadowRoot> protectedUserAgentShadowRoot() const;
     WEBCORE_EXPORT ShadowRoot& ensureUserAgentShadowRoot();
     WEBCORE_EXPORT ShadowRoot& createUserAgentShadowRoot();
@@ -821,10 +821,6 @@ public:
     bool hasAutoTextDirectionState() const;
 
     void updateEffectiveTextDirection();
-    void updateEffectiveTextDirectionIfNeeded();
-
-    AtomString viewTransitionCapturedName(const std::optional<Style::PseudoElementIdentifier>&) const;
-    void setViewTransitionCapturedName(const std::optional<Style::PseudoElementIdentifier>&, AtomString);
 
 protected:
     Element(const QualifiedName&, Document&, OptionSet<TypeFlag>);

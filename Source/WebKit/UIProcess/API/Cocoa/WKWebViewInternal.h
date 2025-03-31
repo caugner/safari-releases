@@ -24,7 +24,6 @@
  */
 
 #import "PDFPluginIdentifier.h"
-#import "WKIntelligenceTextEffectCoordinator.h"
 #import "WKTextAnimationType.h"
 #import <WebKit/WKShareSheet.h>
 #import <WebKit/WKWebViewConfiguration.h>
@@ -251,8 +250,6 @@ struct PerWebProcessState {
 #if ENABLE(WRITING_TOOLS)
     RetainPtr<NSMapTable<NSUUID *, WTTextSuggestion *>> _writingToolsTextSuggestions;
     RetainPtr<WTSession> _activeWritingToolsSession;
-
-    RetainPtr<WKIntelligenceTextEffectCoordinator> _intelligenceTextEffectCoordinator;
 
     NSUInteger _partialIntelligenceTextAnimationCount;
     BOOL _writingToolsTextReplacementsFinished;

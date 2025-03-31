@@ -79,7 +79,6 @@ void ModelProcessModelPlayerManagerProxy::deleteModelPlayer(WebCore::ModelPlayer
 void ModelProcessModelPlayerManagerProxy::didReceivePlayerMessage(IPC::Connection& connection, IPC::Decoder& decoder)
 {
     ASSERT(RunLoop::isMain());
-    MESSAGE_CHECK_BASE(WebCore::ModelPlayerIdentifier::isValidIdentifier(decoder.destinationID()), connection);
     if (auto* player = m_proxies.get(WebCore::ModelPlayerIdentifier(decoder.destinationID())))
         player->didReceiveMessage(connection, decoder);
 }

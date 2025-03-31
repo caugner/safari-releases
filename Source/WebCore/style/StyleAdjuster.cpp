@@ -699,7 +699,7 @@ void Adjuster::adjust(RenderStyle& style, const RenderStyle* userAgentAppearance
             || style.hasMask()
             || style.hasBackdropFilter()
             || style.hasBlendMode()
-            || !style.viewTransitionName().isNone();
+            || style.viewTransitionName();
         if (m_element) {
             auto styleable = Styleable::fromElement(*m_element);
             forceToFlat |= styleable.capturedInViewTransition();
@@ -922,11 +922,6 @@ void Adjuster::adjustForSiteSpecificQuirks(RenderStyle& style) const
     if (!m_element)
         return;
 
-    if (is<HTMLBodyElement>(m_element) && m_document->quirks().needsBodyScrollbarWidthNoneDisabledQuirk()) {
-        if (style.scrollbarWidth() == ScrollbarWidth::None)
-            style.setScrollbarWidth(ScrollbarWidth::Auto);
-    }
-
     if (m_document->quirks().needsGMailOverflowScrollQuirk()) {
         // This turns sidebar scrollable without mouse move event.
         static MainThreadNeverDestroyed<const AtomString> roleValue("navigation"_s);
@@ -966,20 +961,6 @@ void Adjuster::adjustForSiteSpecificQuirks(RenderStyle& style) const
             && const_cast<Element*>(m_element)->classList().contains(class2))
             style.setMinHeight(Length(0, LengthType::Fixed));
     }
-    if (m_document->quirks().needsPrimeVideoUserSelectNoneQuirk()) {
-        static MainThreadNeverDestroyed<const AtomString> className("webPlayerSDKUiContainer"_s);
-        if (m_element->hasClassName(className))
-            style.setUserSelect(UserSelect::None);
-    }
-
-#if PLATFORM(IOS_FAMILY)
-    if (m_document->quirks().needsGoogleMapsScrollingQuirk()) {
-        static MainThreadNeverDestroyed<const AtomString> className("PUtLdf"_s);
-        if (is<HTMLBodyElement>(*m_element) && m_element->hasClassName(className))
-            style.setUsedTouchActions({ TouchAction::Auto });
-    }
-#endif
-
 #if ENABLE(VIDEO)
     if (m_document->quirks().needsFullscreenDisplayNoneQuirk()) {
         if (RefPtr div = dynamicDowncast<HTMLDivElement>(m_element); div && style.display() == DisplayType::None) {
@@ -1002,6 +983,17 @@ void Adjuster::adjustForSiteSpecificQuirks(RenderStyle& style) const
             style.setObjectFit(ObjectFit::Contain);
     }
 #endif
+#endif
+
+#if ENABLE(DARK_MODE_CSS)
+    if (m_document->quirks().needsYouTubeDarkModeQuirk()) {
+        // Sets color-scheme to dark if dark attribute is applied to root element.
+        if (m_element && m_element == m_document->documentElement()) {
+            static MainThreadNeverDestroyed<const AtomString> darkMode("dark"_s);
+            if (m_element->hasAttribute(darkMode))
+                style.setColorScheme(StyleColorScheme(ColorScheme::Dark, true));
+        }
+    }
 #endif
 }
 

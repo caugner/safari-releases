@@ -525,7 +525,9 @@ bool WebExtensionAPITabs::parseScriptOptions(NSDictionary *options, WebExtension
         }
 
         parameters.frameIDs = { frameIdentifier.value() };
-    } else if (!boolForKey(options, allFramesKey, false))
+    }
+
+    if (!boolForKey(options, allFramesKey, false))
         parameters.frameIDs = { WebExtensionFrameConstants::MainFrameIdentifier };
 
     if (NSString *origin = options[cssOriginKey]) {

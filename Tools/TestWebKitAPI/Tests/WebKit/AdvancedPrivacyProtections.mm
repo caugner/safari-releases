@@ -450,6 +450,7 @@ TEST(AdvancedPrivacyProtections, ApplyNavigationalProtectionsAfterMultiplePSON)
     QueryParameterRequestSwizzler swizzler { @[ @"foo", @"bar", @"baz" ], @[ @"", @"", @"" ], @[ @"", @"", @"" ] };
     HTTPServer server({
         { "/landing"_s, { "<script>window.result = document.referrer;</script>"_s } },
+        { "/landing?garply=20"_s, { } }
     }, HTTPServer::Protocol::Http);
 
     auto refreshHeaderContent = makeString("1;URL=http://127.0.0.1:"_s, server.port(), "/landing?foo=10&garply=20&bar=30&baz=40"_s);
@@ -905,8 +906,8 @@ TEST(AdvancedPrivacyProtections, ClampScreenSizeToFixedValues)
 
 TEST(AdvancedPrivacyProtections, AddNoiseToWebAudioAPIs)
 {
-    auto testURL = [NSBundle.mainBundle URLForResource:@"audio-fingerprinting" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"];
-    auto resourcesURL = [NSBundle.mainBundle.bundleURL URLByAppendingPathComponent:@"TestWebKitAPI.resources"];
+    auto testURL = [NSBundle.test_resourcesBundle URLForResource:@"audio-fingerprinting" withExtension:@"html"];
+    auto resourcesURL = NSBundle.test_resourcesBundle.resourceURL;
 
     auto webView = createWebViewWithAdvancedPrivacyProtections();
     [webView loadFileRequest:[NSURLRequest requestWithURL:testURL] allowingReadAccessToURL:resourcesURL];
@@ -1006,15 +1007,10 @@ TEST(AdvancedPrivacyProtections, AddNoiseToWebAudioAPIsAfterReducingPrivacyProte
     checkFingerprintForNoise(@"testOscillatorCompressor");
 }
 
-// FIXME when rdar://115137641 is resolved.
-#if PLATFORM(MAC)
-TEST(AdvancedPrivacyProtections, DISABLED_VerifyHashFromNoisyCanvas2DAPI)
-#else
 TEST(AdvancedPrivacyProtections, VerifyHashFromNoisyCanvas2DAPI)
-#endif
 {
-    auto testURL = [NSBundle.mainBundle URLForResource:@"canvas-fingerprinting" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"];
-    auto resourcesURL = [NSBundle.mainBundle.bundleURL URLByAppendingPathComponent:@"TestWebKitAPI.resources"];
+    auto testURL = [NSBundle.test_resourcesBundle URLForResource:@"canvas-fingerprinting" withExtension:@"html"];
+    auto resourcesURL = NSBundle.test_resourcesBundle.resourceURL;
 
     auto webView1 = createWebViewWithAdvancedPrivacyProtections(NO);
     auto webView2 = createWebViewWithAdvancedPrivacyProtections(NO);
@@ -1035,7 +1031,10 @@ TEST(AdvancedPrivacyProtections, VerifyHashFromNoisyCanvas2DAPI)
         [webView1 callAsyncJavaScriptAndWait:scriptToRun],
         [webView2 callAsyncJavaScriptAndWait:scriptToRun]
     };
+#if !CPU(X86_64)
+    // FIXME: Enable this check on x86_64 when rdar://115137641 is resolved.
     EXPECT_TRUE([values.first isEqualToString:values.second]);
+#endif
 
     values = std::pair {
         [webView1 callAsyncJavaScriptAndWait:scriptToRun],
@@ -1055,8 +1054,8 @@ TEST(AdvancedPrivacyProtections, VerifyPixelsFromNoisyCanvas2DAPI)
     constexpr auto zeroPrefix = 380;
     constexpr auto channelsPerPixel = 4;
 
-    auto testURL = [NSBundle.mainBundle URLForResource:@"canvas-fingerprinting" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"];
-    auto resourcesURL = [NSBundle.mainBundle.bundleURL URLByAppendingPathComponent:@"TestWebKitAPI.resources"];
+    auto testURL = [NSBundle.test_resourcesBundle URLForResource:@"canvas-fingerprinting" withExtension:@"html"];
+    auto resourcesURL = NSBundle.test_resourcesBundle.resourceURL;
 
     auto webView1 = createWebViewWithAdvancedPrivacyProtections(NO);
     auto webView2 = createWebViewWithAdvancedPrivacyProtections(NO);
@@ -1161,8 +1160,8 @@ TEST(AdvancedPrivacyProtections, VerifyPixelsFromNoisyCanvas2DAPI)
 
 TEST(AdvancedPrivacyProtections, VerifyDataURLFromNoisyWebGLAPI)
 {
-    auto testURL = [NSBundle.mainBundle URLForResource:@"canvas-fingerprinting" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"];
-    auto resourcesURL = [NSBundle.mainBundle.bundleURL URLByAppendingPathComponent:@"TestWebKitAPI.resources"];
+    auto testURL = [NSBundle.test_resourcesBundle URLForResource:@"canvas-fingerprinting" withExtension:@"html"];
+    auto resourcesURL = NSBundle.test_resourcesBundle.resourceURL;
 
     auto webView1 = createWebViewWithAdvancedPrivacyProtections(NO);
     auto webView2 = createWebViewWithAdvancedPrivacyProtections(NO);

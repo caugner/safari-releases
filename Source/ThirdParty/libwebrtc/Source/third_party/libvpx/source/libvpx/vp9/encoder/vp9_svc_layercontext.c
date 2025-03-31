@@ -791,6 +791,9 @@ int vp9_one_pass_svc_start_layer(VP9_COMP *const cpi) {
     svc->use_partition_reuse = 1;
   }
   svc->force_zero_mode_spatial_ref = 1;
+  svc->mi_stride[svc->spatial_layer_id] = cpi->common.mi_stride;
+  svc->mi_rows[svc->spatial_layer_id] = cpi->common.mi_rows;
+  svc->mi_cols[svc->spatial_layer_id] = cpi->common.mi_cols;
 
   // For constrained_from_above drop mode: before encoding superframe (i.e.,
   // at SL0 frame) check all spatial layers (starting from top) for possible
@@ -992,9 +995,6 @@ int vp9_one_pass_svc_start_layer(VP9_COMP *const cpi) {
   if (vp9_set_size_literal(cpi, width, height) != 0)
     return VPX_CODEC_INVALID_PARAM;
 
-  svc->mi_stride[svc->spatial_layer_id] = cpi->common.mi_stride;
-  svc->mi_rows[svc->spatial_layer_id] = cpi->common.mi_rows;
-  svc->mi_cols[svc->spatial_layer_id] = cpi->common.mi_cols;
   return 0;
 }
 
@@ -1062,7 +1062,7 @@ void vp9_svc_check_reset_layer_rc_flag(VP9_COMP *const cpi) {
         sl, svc->number_temporal_layers - 1, svc->number_temporal_layers);
     LAYER_CONTEXT *lc = &svc->layer_context[spatial_layer_idx];
     RATE_CONTROL *lrc = &lc->rc;
-    if (lrc->avg_frame_bandwidth / 3 > (lrc->last_avg_frame_bandwidth >> 1) ||
+    if (lrc->avg_frame_bandwidth > (3 * lrc->last_avg_frame_bandwidth >> 1) ||
         lrc->avg_frame_bandwidth < (lrc->last_avg_frame_bandwidth >> 1)) {
       // Reset for all temporal layers with spatial layer sl.
       for (tl = 0; tl < svc->number_temporal_layers; ++tl) {

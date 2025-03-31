@@ -25,7 +25,6 @@
 
 #pragma once
 
-#include "PseudoElementIdentifier.h"
 #include <unicode/utypes.h>
 #include <wtf/CheckedRef.h>
 #include <wtf/DataRef.h>
@@ -268,6 +267,7 @@ struct ScrollSnapAlign;
 struct ScrollSnapType;
 struct ScrollbarGutter;
 struct ScrollbarColor;
+struct TimelineScope;
 struct ViewTimelineInsets;
 
 struct TabSize;
@@ -286,7 +286,7 @@ using LayoutBoxExtent = RectEdges<LayoutUnit>;
 
 namespace Style {
 class CustomPropertyRegistry;
-class ViewTransitionName;
+struct PseudoElementIdentifier;
 struct ScopedName;
 }
 
@@ -298,7 +298,7 @@ constexpr auto PseudoElementTypeBits = 5;
 DECLARE_ALLOCATOR_WITH_HEAP_IDENTIFIER(PseudoStyleCache);
 struct PseudoStyleCache {
     WTF_MAKE_STRUCT_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(PseudoStyleCache);
-    HashMap<Style::PseudoElementIdentifier, std::unique_ptr<RenderStyle>> styles;
+    Vector<std::unique_ptr<RenderStyle>, 4> styles;
 };
 
 DECLARE_ALLOCATOR_WITH_HEAP_IDENTIFIER(RenderStyle);
@@ -470,10 +470,15 @@ public:
     inline const BorderValue& borderTop() const;
     inline const BorderValue& borderBottom() const;
 
-    const BorderValue& borderBefore() const;
-    const BorderValue& borderAfter() const;
-    const BorderValue& borderStart() const;
-    const BorderValue& borderEnd() const;
+
+    inline const BorderValue& borderBefore() const;
+    inline const BorderValue& borderAfter() const;
+    inline const BorderValue& borderStart() const;
+    inline const BorderValue& borderEnd() const;
+    const BorderValue& borderBefore(const RenderStyle& styleForFlow) const;
+    const BorderValue& borderAfter(const RenderStyle& styleForFlow) const;
+    const BorderValue& borderStart(const RenderStyle& styleForFlow) const;
+    const BorderValue& borderEnd(const RenderStyle& styleForFlow) const;
 
     inline const NinePieceImage& borderImage() const;
     inline StyleImage* borderImageSource() const;
@@ -987,6 +992,10 @@ public:
     inline void setViewTimelineInsets(const Vector<ViewTimelineInsets>&);
     inline void setViewTimelineNames(const Vector<AtomString>&);
 
+    static inline const TimelineScope initialTimelineScope();
+    inline const TimelineScope& timelineScope() const;
+    inline void setTimelineScope(const TimelineScope&);
+
     inline const AnimationList* animations() const;
     inline const AnimationList* transitions() const;
 
@@ -1131,7 +1140,7 @@ public:
     inline MathStyle mathStyle() const;
 
     inline const Vector<Style::ScopedName>& viewTransitionClasses() const;
-    inline Style::ViewTransitionName viewTransitionName() const;
+    inline std::optional<Style::ScopedName> viewTransitionName() const;
 
     void setDisplay(DisplayType value)
     {
@@ -1785,7 +1794,7 @@ public:
     void setQuotes(RefPtr<QuotesData>&&);
 
     inline void setViewTransitionClasses(const Vector<Style::ScopedName>&);
-    inline void setViewTransitionName(Style::ViewTransitionName);
+    inline void setViewTransitionName(std::optional<Style::ScopedName>);
 
     inline WillChangeData* willChange() const;
     void setWillChange(RefPtr<WillChangeData>&&);
@@ -1892,7 +1901,7 @@ public:
     static inline ListStyleType initialListStyleType();
     static constexpr OptionSet<TextTransform> initialTextTransform();
     static inline Vector<Style::ScopedName> initialViewTransitionClasses();
-    static inline Style::ViewTransitionName initialViewTransitionName();
+    static inline std::optional<Style::ScopedName> initialViewTransitionName();
     static constexpr Visibility initialVisibility();
     static constexpr WhiteSpaceCollapse initialWhiteSpaceCollapse();
     static float initialHorizontalBorderSpacing() { return 0; }

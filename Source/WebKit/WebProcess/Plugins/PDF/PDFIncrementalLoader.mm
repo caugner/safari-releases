@@ -139,10 +139,11 @@ void ByteRangeRequest::completeUnconditionally(PDFIncrementalLoader& loader)
 
     auto availableRequestBytes = std::min<uint64_t>(m_count, availableBytes - m_position);
 
-    loader.dataSpanForRange(m_position, availableRequestBytes, CheckValidRanges::No, [this, &loader](std::span<const uint8_t> data) {
-        if (data.data())
-            completeWithBytes(data, loader);
-    });
+    auto data = loader.dataSpanForRange(m_position, availableRequestBytes, CheckValidRanges::No);
+    if (!data.data())
+        return;
+
+    completeWithBytes(data, loader);
 }
 
 #pragma mark -
@@ -319,7 +320,7 @@ void PDFIncrementalLoader::receivedNonLinearizedPDFSentinel()
 
     for (auto iterator = m_requestData->streamLoaderMap.begin(); iterator != m_requestData->streamLoaderMap.end(); iterator = m_requestData->streamLoaderMap.begin()) {
         removeOutstandingByteRangeRequest(iterator->value);
-        cancelAndForgetStreamLoader(*iterator->key);
+        cancelAndForgetStreamLoader(Ref { *iterator->key.get() });
     }
 }
 
@@ -354,13 +355,13 @@ uint64_t PDFIncrementalLoader::availableDataSize() const
     return plugin->streamedBytes();
 }
 
-void PDFIncrementalLoader::dataSpanForRange(uint64_t position, size_t count, CheckValidRanges checkValidRanges, CompletionHandler<void(std::span<const uint8_t>)>&& completionHandler) const
+std::span<const uint8_t> PDFIncrementalLoader::dataSpanForRange(uint64_t position, size_t count, CheckValidRanges checkValidRanges) const
 {
     RefPtr plugin = m_plugin.get();
     if (!plugin)
-        return completionHandler({ });
+        return { };
 
-    plugin->dataSpanForRange(position, count, checkValidRanges, WTFMove(completionHandler));
+    return plugin->dataSpanForRange(position, count, checkValidRanges);
 }
 
 void PDFIncrementalLoader::incrementalPDFStreamDidFinishLoading()
@@ -396,8 +397,8 @@ void PDFIncrementalLoader::incrementalPDFStreamDidReceiveData(const SharedBuffer
 
     for (auto identifier : handledRequests) {
         auto request = m_requestData->outstandingByteRangeRequests.take(identifier);
-        if (request.streamLoader())
-            cancelAndForgetStreamLoader(*request.streamLoader());
+        if (RefPtr streamLoader = request.streamLoader())
+            cancelAndForgetStreamLoader(*streamLoader);
     }
 }
 
@@ -536,15 +537,12 @@ bool PDFIncrementalLoader::requestCompleteIfPossible(ByteRangeRequest& request)
     if (!plugin)
         return false;
 
-    bool requestCompleted = false;
-    plugin->dataSpanForRange(request.position(), request.count(), CheckValidRanges::Yes, [protectedLoader = Ref { *this }, &request, &requestCompleted](std::span<const uint8_t> data) {
-        if (!data.data())
-            return;
-        request.completeWithBytes(data, protectedLoader.get());
-        requestCompleted = true;
-    });
+    auto data = plugin->dataSpanForRange(request.position(), request.count(), CheckValidRanges::Yes);
+    if (!data.data())
+        return false;
 
-    return requestCompleted;
+    request.completeWithBytes(data, *this);
+    return true;
 }
 
 void PDFIncrementalLoader::requestDidCompleteWithBytes(ByteRangeRequest& request, size_t byteCount)
@@ -624,27 +622,22 @@ size_t PDFIncrementalLoader::dataProviderGetBytesAtPosition(std::span<uint8_t> b
         return 0;
     }
 
-    std::optional<size_t> bytesProvided;
-    plugin->dataSpanForRange(position, buffer.size(), CheckValidRanges::Yes, [&buffer, &bytesProvided](std::span<const uint8_t> data) {
-        if (!data.data() || !buffer.data())
-            return;
+    if (auto data = plugin->dataSpanForRange(position, buffer.size(), CheckValidRanges::Yes); data.data()) {
         memcpySpan(buffer, data);
-        bytesProvided = data.size();
-    });
-
-    if (bytesProvided) {
 #if !LOG_DISABLED
         decrementThreadsWaitingOnCallback();
-        incrementalLoaderLog(makeString("Satisfied range request for "_s, *bytesProvided, " bytes at position "_s, position, " synchronously"_s));
+        incrementalLoaderLog(makeString("Satisfied range request for "_s, data.size(), " bytes at position "_s, position, " synchronously"_s));
 #endif
-        return *bytesProvided;
+        return data.size();
     }
 
     RefPtr dataSemaphore = createDataSemaphore();
     if (!dataSemaphore)
         return 0;
 
-    RunLoop::main().dispatch([protectedLoader = Ref { *this }, dataSemaphore, position, buffer, &bytesProvided] {
+    size_t bytesProvided = 0;
+
+    RunLoop::protectedMain()->dispatch([protectedLoader = Ref { *this }, dataSemaphore, position, buffer, &bytesProvided] {
         if (dataSemaphore->wasSignaled())
             return;
         protectedLoader->getResourceBytesAtPosition(buffer.size(), position, [buffer, dataSemaphore, &bytesProvided](std::span<const uint8_t> bytes) {
@@ -661,10 +654,10 @@ size_t PDFIncrementalLoader::dataProviderGetBytesAtPosition(std::span<uint8_t> b
 
 #if !LOG_DISABLED
     decrementThreadsWaitingOnCallback();
-    incrementalLoaderLog(makeString("PDF data provider received "_s, bytesProvided.value_or(0), " bytes of requested "_s, buffer.size()));
+    incrementalLoaderLog(makeString("PDF data provider received "_s, bytesProvided, " bytes of requested "_s, buffer.size()));
 #endif
 
-    return bytesProvided.value_or(0);
+    return bytesProvided;
 }
 
 auto PDFIncrementalLoader::createDataSemaphore() -> RefPtr<SemaphoreWrapper>
@@ -716,7 +709,7 @@ void PDFIncrementalLoader::dataProviderGetByteRanges(CFMutableArrayRef buffers, 
     Vector<RetainPtr<CFDataRef>> dataResults(count);
 
     // FIXME: Once we support multi-range requests, make a single request for all ranges instead of <count> individual requests.
-    RunLoop::main().dispatch([protectedLoader = Ref { *this }, &dataResults, ranges, count, dataSemaphore]() mutable {
+    RunLoop::protectedMain()->dispatch([protectedLoader = Ref { *this }, &dataResults, ranges, count, dataSemaphore]() mutable {
         if (dataSemaphore->wasSignaled())
             return;
         Ref callbackAggregator = CallbackAggregator::create([dataSemaphore] {

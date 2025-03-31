@@ -409,7 +409,7 @@ void ContextMenuController::contextMenuItemSelected(ContextMenuAction action, co
     case ContextMenuItemTagCopy:
         frame->checkedEditor()->copy();
         break;
-    case ContextMenuItemTagCopyLinkWithHighlight:
+    case ContextMenuItemTagCopyLinkToHighlight:
         if (Page* page = frame->page()) {
             auto url = page->fragmentDirectiveURLForSelectedText();
             if (url.isValid())
@@ -973,7 +973,7 @@ void ContextMenuController::populate()
     ContextMenuItem AddHighlightItem(ContextMenuItemType::Action, ContextMenuItemTagAddHighlightToCurrentQuickNote, contextMenuItemTagAddHighlightToCurrentQuickNote());
     ContextMenuItem AddHighlightToNewQuickNoteItem(ContextMenuItemType::Action, ContextMenuItemTagAddHighlightToNewQuickNote, contextMenuItemTagAddHighlightToNewQuickNote());
 #endif
-    ContextMenuItem CopyLinkWithHighlightItem(ContextMenuItemType::Action, ContextMenuItemTagCopyLinkWithHighlight, contextMenuItemTagCopyLinkWithHighlight());
+    ContextMenuItem CopyLinkToHighlightItem(ContextMenuItemType::Action, ContextMenuItemTagCopyLinkToHighlight, contextMenuItemTagCopyLinkToHighlight());
 #if !PLATFORM(GTK)
     ContextMenuItem SearchWebItem(ContextMenuItemType::Action, ContextMenuItemTagSearchWeb, contextMenuItemTagSearchWeb());
 #endif
@@ -1171,7 +1171,7 @@ void ContextMenuController::populate()
 
                 appendItem(CopyItem, m_contextMenu.get());
                 if (!selectionIsInsideImageOverlay && isMainFrame && page && page->settings().scrollToTextFragmentGenerationEnabled())
-                    appendItem(CopyLinkWithHighlightItem, m_contextMenu.get());
+                    appendItem(CopyLinkToHighlightItem, m_contextMenu.get());
 #if PLATFORM(COCOA)
                 appendItem(*separatorItem(), m_contextMenu.get());
 
@@ -1458,7 +1458,7 @@ void ContextMenuController::addDebuggingItems()
 #endif // ENABLE(VIDEO)
 }
 
-bool ContextMenuController::shouldEnableCopyLinkWithHighlight() const
+bool ContextMenuController::shouldEnableCopyLinkToHighlight() const
 {
     Ref document = m_context.hitTestResult().innerNonSharedNode()->document();
     RefPtr frame = document->frame();
@@ -1538,8 +1538,8 @@ void ContextMenuController::checkOrEnableIfNeeded(ContextMenuItem& item) const
         case ContextMenuItemTagPaste:
             shouldEnable = frame->editor().canDHTMLPaste() || frame->editor().canEdit();
             break;
-        case ContextMenuItemTagCopyLinkWithHighlight:
-            shouldEnable = shouldEnableCopyLinkWithHighlight();
+        case ContextMenuItemTagCopyLinkToHighlight:
+            shouldEnable = shouldEnableCopyLinkToHighlight();
             break;
 #if PLATFORM(GTK)
         case ContextMenuItemTagPasteAsPlainText:

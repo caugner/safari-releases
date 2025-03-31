@@ -20,7 +20,7 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-messages -> NetworkProcess LegacyReceiver {
+messages -> NetworkProcess : AuxiliaryProcess WantsAsyncDispatchMessage {
     InitializeNetworkProcess(struct WebKit::NetworkProcessCreationParameters processCreationParameters) -> ()
 
     CreateNetworkConnectionToWebProcess(WebCore::ProcessIdentifier processIdentifier, PAL::SessionID sessionID, struct WebKit::NetworkProcessConnectionParameters parameters) -> (std::optional<IPC::ConnectionHandle> connectionHandle, enum:uint8_t WebCore::HTTPCookieAcceptPolicy cookieAcceptPolicy) AllowedWhenWaitingForSyncReply
@@ -60,7 +60,7 @@ messages -> NetworkProcess LegacyReceiver {
     PublishDownloadProgress(WebKit::DownloadID downloadID, URL url, WebKit::SandboxExtensionHandle sandboxExtensionHandle)
 #endif
 #endif
-    DataTaskWithRequest(WebKit::WebPageProxyIdentifier pageID, PAL::SessionID sessionID, WebCore::ResourceRequest request, std::optional<WebCore::SecurityOriginData> topOrigin, IPC::FormDataReference requestBody) -> (WebKit::DataTaskIdentifier taskIdentifier)
+    DataTaskWithRequest(WebKit::WebPageProxyIdentifier pageID, PAL::SessionID sessionID, WebCore::ResourceRequest request, std::optional<WebCore::SecurityOriginData> topOrigin, IPC::FormDataReference requestBody) -> (std::optional<WebKit::DataTaskIdentifier> taskIdentifier)
     CancelDataTask(WebKit::DataTaskIdentifier taskIdentifier, PAL::SessionID sessionID) -> ()
     ApplicationDidEnterBackground()
     ApplicationWillEnterForeground()
@@ -253,6 +253,4 @@ messages -> NetworkProcess LegacyReceiver {
     SetPersistedDomains(PAL::SessionID sessionsID, HashSet<WebCore::RegistrableDomain> domains)
 
     GetAppBadgeForTesting(PAL::SessionID sessionID) -> (std::optional<uint64_t> badge)
-
-    SetShouldRelaxThirdPartyCookieBlockingForPage(WebKit::WebPageProxyIdentifier pageID)
 }

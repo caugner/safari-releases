@@ -31,6 +31,7 @@
 #include "JSCJSValueInlines.h"
 #include "JSWebAssemblyArray.h"
 #include "JSWebAssemblyStruct.h"
+#include "WasmCallee.h"
 #include "WasmFormat.h"
 #include "WasmTypeDefinitionInlines.h"
 #include "WebAssemblyFunctionBase.h"
@@ -92,6 +93,16 @@ void FunctionSignature::dump(PrintStream& out) const
             out.print(comma, makeString(returnType(ret).kind));
         out.print("]"_s);
     }
+}
+
+FunctionSignature::FunctionSignature(Type* payload, FunctionArgCount argumentCount, FunctionArgCount returnCount)
+    : m_payload(payload)
+    , m_argCount(argumentCount)
+    , m_retCount(returnCount)
+{ }
+
+FunctionSignature::~FunctionSignature()
+{
 }
 
 String StructType::toString() const
@@ -207,7 +218,7 @@ void StorageType::dump(PrintStream& out) const
     }
 }
 
-bool TypeDefinition::cleanup()
+void TypeDefinition::cleanup()
 {
     // Only compound type definitions need to be cleaned up, not, e.g., function types.
     if (is<Subtype>())
@@ -216,31 +227,25 @@ bool TypeDefinition::cleanup()
         return as<Projection>()->cleanup();
     if (is<RecursionGroup>())
         return as<RecursionGroup>()->cleanup();
-    return false;
 }
 
-bool Subtype::cleanup()
+void Subtype::cleanup()
 {
     if (supertypeCount() > 0)
         TypeInformation::get(firstSuperType()).deref();
     TypeInformation::get(underlyingType()).deref();
-    return true;
 }
 
-bool Projection::cleanup()
+void Projection::cleanup()
 {
-    if (recursionGroup() != TypeDefinition::invalidIndex) {
+    if (recursionGroup() != TypeDefinition::invalidIndex)
         TypeInformation::get(recursionGroup()).deref();
-        return true;
-    }
-    return false;
 }
 
-bool RecursionGroup::cleanup()
+void RecursionGroup::cleanup()
 {
     for (RecursionGroupCount i = 0; i < typeCount(); i++)
         TypeInformation::get(type(i)).deref();
-    return true;
 }
 
 static unsigned computeSignatureHash(size_t returnCount, const Type* returnTypes, size_t argumentCount, const Type* argumentTypes)
@@ -416,8 +421,6 @@ Type TypeDefinition::substitute(Type type, TypeIndex projectee)
         if (projection->isPlaceholder()) {
             RefPtr<TypeDefinition> newProjection = TypeInformation::typeDefinitionForProjection(projectee, projection->index());
             TypeKind kind = type.isNullable() ? TypeKind::RefNull : TypeKind::Ref;
-            // Calling module must have already taken ownership of all projections.
-            RELEASE_ASSERT(newProjection->refCount() > 2); // TypeInformation registry + RefPtr + owning module(s)
             return Type { kind, newProjection->index() };
         }
     }
@@ -430,12 +433,8 @@ static TypeIndex substituteParent(TypeIndex parent, TypeIndex projectee)
 {
     if (TypeInformation::get(parent).is<Projection>()) {
         const Projection* projection = TypeInformation::get(parent).as<Projection>();
-        if (projection->isPlaceholder()) {
-            RefPtr<TypeDefinition> newProjection = TypeInformation::typeDefinitionForProjection(projectee, projection->index());
-            // Caller module must have already taken ownership of all its projections.
-            RELEASE_ASSERT(newProjection->refCount() > 2); // tbl + RefPtr + owning module(s)
-            return newProjection->index();
-        }
+        if (projection->isPlaceholder())
+            return TypeInformation::typeDefinitionForProjection(projectee, projection->index())->index();
     }
 
     return parent;
@@ -443,7 +442,7 @@ static TypeIndex substituteParent(TypeIndex parent, TypeIndex projectee)
 
 // This operation is a helper for expand() that calls substitute() in order
 // to replace placeholder recursive references in structural types.
-Ref<const TypeDefinition> TypeDefinition::replacePlaceholders(TypeIndex projectee) const
+const TypeDefinition& TypeDefinition::replacePlaceholders(TypeIndex projectee) const
 {
     if (is<FunctionSignature>()) {
         const FunctionSignature* func = as<FunctionSignature>();
@@ -455,7 +454,7 @@ Ref<const TypeDefinition> TypeDefinition::replacePlaceholders(TypeIndex projecte
         });
 
         RefPtr<TypeDefinition> def = TypeInformation::typeDefinitionForFunction(newReturns, newArguments);
-        return def.releaseNonNull();
+        return *def;
     }
 
     if (is<StructType>()) {
@@ -467,7 +466,7 @@ Ref<const TypeDefinition> TypeDefinition::replacePlaceholders(TypeIndex projecte
         });
 
         RefPtr<TypeDefinition> def = TypeInformation::typeDefinitionForStruct(newFields);
-        return def.releaseNonNull();
+        return *def;
     }
 
     if (is<ArrayType>()) {
@@ -475,21 +474,20 @@ Ref<const TypeDefinition> TypeDefinition::replacePlaceholders(TypeIndex projecte
         FieldType field = arrayType->elementType();
         StorageType substituted = field.type.is<PackedType>() ? field.type : StorageType(substitute(field.type.as<Type>(), projectee));
         RefPtr<TypeDefinition> def = TypeInformation::typeDefinitionForArray(FieldType { substituted, field.mutability });
-        return def.releaseNonNull();
+        return *def;
     }
 
     if (is<Subtype>()) {
         const Subtype* subtype = as<Subtype>();
-        Ref newUnderlyingType = TypeInformation::get(subtype->underlyingType()).replacePlaceholders(projectee);
+        const TypeDefinition& newUnderlyingType = TypeInformation::get(subtype->underlyingType()).replacePlaceholders(projectee);
         Vector<TypeIndex> supertypes(subtype->supertypeCount(), [&](size_t i) {
             return substituteParent(subtype->superType(i), projectee);
         });
-        // Subtype takes ownership of newUnderlyingType.
-        RefPtr<TypeDefinition> def = TypeInformation::typeDefinitionForSubtype(supertypes, newUnderlyingType->index(), subtype->isFinal());
-        return def.releaseNonNull();
+        RefPtr<TypeDefinition> def = TypeInformation::typeDefinitionForSubtype(supertypes, newUnderlyingType.index(), subtype->isFinal());
+        return *def;
     }
 
-    return Ref { *this };
+    return *this;
 }
 
 // This function corresponds to the unroll metafunction from the spec:
@@ -510,15 +508,14 @@ const TypeDefinition& TypeDefinition::unroll() const
             if (std::optional<TypeIndex> cachedUnrolling = TypeInformation::tryGetCachedUnrolling(index()))
                 return TypeInformation::get(*cachedUnrolling);
 
-            Ref unrolled = underlyingType.replacePlaceholders(projectee.index());
-            TypeInformation::addCachedUnrolling(index(), unrolled);
-            RELEASE_ASSERT(unrolled->refCount() > 2); // TypeInformation registry + Ref + owner (unrolling cache).
-            return unrolled; // TypeInformation unrolling cache now owns, with lifetime tied to 'this'.
+            const TypeDefinition& unrolled = underlyingType.replacePlaceholders(projectee.index());
+            TypeInformation::addCachedUnrolling(index(), &unrolled);
+            return unrolled;
         }
-        RELEASE_ASSERT(underlyingType.refCount() > 1); // TypeInformation registry + owner(s).
+
         return underlyingType;
     }
-    ASSERT(refCount() > 1); // TypeInformation registry + owner(s).
+
     return *this;
 }
 
@@ -573,7 +570,7 @@ RefPtr<RTT> RTT::tryCreateRTT(RTTKind kind, DisplayCount displaySize)
     void* memory = nullptr;
     if (!result.getValue(memory))
         return nullptr;
-    return adoptRef(new (NotNull, memory) RTT(kind, displaySize));
+    return new (NotNull, memory) RTT(kind, displaySize);
 }
 
 bool RTT::isSubRTT(const RTT& parent) const
@@ -996,12 +993,12 @@ RefPtr<TypeDefinition> TypeInformation::getPlaceholderProjection(ProjectionIndex
     return projection;
 }
 
-void TypeInformation::addCachedUnrolling(TypeIndex type, const TypeDefinition& unrolled)
+void TypeInformation::addCachedUnrolling(TypeIndex type, const TypeDefinition* unrolled)
 {
     TypeInformation& info = singleton();
     Locker locker { info.m_lock };
 
-    info.m_unrollingCache.add(type, RefPtr { &unrolled });
+    info.m_unrollingCache.add(type, RefPtr { unrolled });
 }
 
 std::optional<TypeIndex> TypeInformation::tryGetCachedUnrolling(TypeIndex type)
@@ -1152,21 +1149,23 @@ void TypeInformation::tryCleanup()
     TypeInformation& info = singleton();
     Locker locker { info.m_lock };
 
-    bool changed;
-    do {
-        changed = false;
-        info.m_typeSet.removeIf([&] (auto& hash) {
-            const auto& signature = hash.key;
-            if (signature->refCount() == 1) {
-                TypeIndex index = signature->unownedIndex();
-                info.m_unrollingCache.remove(index);
-                info.m_rttMap.remove(index);
-                changed |= signature->cleanup();
-                return true;
-            }
-            return false;
-        });
-    } while (changed);
+    info.m_unrollingCache.removeIf([&] (auto& keyValuePair) {
+        const TypeDefinition& type = TypeInformation::get(keyValuePair.key);
+        return type.refCount() == 1;
+    });
+
+    info.m_rttMap.removeIf([&] (auto& keyValuePair) {
+        const TypeDefinition& type = TypeInformation::get(keyValuePair.key);
+        return type.refCount() == 1;
+    });
+
+    info.m_typeSet.removeIf([&] (auto& hash) {
+        const auto& signature = hash.key;
+        const bool shouldRemove = signature->refCount() == 1;
+        if (shouldRemove)
+            signature->cleanup();
+        return shouldRemove;
+    });
 }
 
 } } // namespace JSC::Wasm

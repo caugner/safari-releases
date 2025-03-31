@@ -507,7 +507,7 @@ void TestRunner::makeWindowObject(JSContextRef context)
 
 void TestRunner::showWebInspector()
 {
-    postMessage("ShowWebInspector");
+    WKBundlePageShowInspectorForTest(page());
 }
 
 void TestRunner::closeWebInspector()

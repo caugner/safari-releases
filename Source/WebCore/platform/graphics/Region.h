@@ -73,6 +73,10 @@ public:
 
     unsigned gridSize() const { return m_shape ? m_shape->gridSize() : 0; }
 
+#ifndef NDEBUG
+    void dump() const;
+#endif
+    
     struct Span {
         int y { 0 };
         size_t segmentIndex { 0 };
@@ -84,7 +88,7 @@ public:
         WTF_MAKE_TZONE_ALLOCATED_EXPORT(Shape, WEBCORE_EXPORT);
     public:
         Shape() = default;
-        WEBCORE_EXPORT Shape(const IntRect&);
+        Shape(const IntRect&);
 
         IntRect bounds() const;
         bool isEmpty() const { return m_spans.isEmpty(); }
@@ -94,7 +98,7 @@ public:
         typedef const Span* SpanIterator;
         SpanIterator spans_begin() const;
         SpanIterator spans_end() const;
-
+        
         typedef const int* SegmentIterator;
         SegmentIterator segments_begin(SpanIterator) const;
         SegmentIterator segments_end(SpanIterator) const;
@@ -111,19 +115,25 @@ public:
         template<typename CompareOperation>
         static bool compareShapes(const Shape& shape1, const Shape& shape2);
 
-        WEBCORE_EXPORT static bool isValidShape(std::span<const int> segments, std::span<const Span> spans);
+        WEBCORE_EXPORT bool isValid() const;
 
-        static Shape createForTesting(Vector<int, 32>&& segments, Vector<Span, 16>&& spans) { return Shape { WTFMove(segments), WTFMove(spans) }; }
-        std::pair<Vector<int, 32>, Vector<Span, 16>> dataForTesting() const { return { m_segments, m_spans }; }
+#ifndef NDEBUG
+        void dump() const;
+#endif
+
+        friend bool operator==(const Shape&, const Shape&) = default;
+
     private:
+        friend struct IPC::ArgumentCoder<WebCore::Region::Shape, void>;
         WEBCORE_EXPORT Shape(Vector<int, 32>&&, Vector<Span, 16>&&);
         struct UnionOperation;
         struct IntersectOperation;
         struct SubtractOperation;
-
+        
         template<typename Operation>
         static Shape shapeOperation(const Shape& shape1, const Shape& shape2);
 
+        void appendSegment(int x);
         void appendSpan(int y);
         void appendSpan(int y, SegmentIterator begin, SegmentIterator end);
         void appendSpans(const Shape&, SpanIterator begin, SpanIterator end);
@@ -132,32 +142,21 @@ public:
 
         Vector<int, 32> m_segments;
         Vector<Span, 16> m_spans;
-        friend struct IPC::ArgumentCoder<WebCore::Region::Shape, void>;
-        friend bool operator==(const Shape&, const Shape&) = default;
-        friend WTF::TextStream& operator<<(WTF::TextStream&, const Shape&);
     };
-    static Region createForTesting(Shape&& shape) { return Region { WTFMove(shape) }; }
-    Shape dataForTesting() const { return data(); }
+
 private:
     friend struct IPC::ArgumentCoder<WebCore::Region, void>;
-    explicit Region(Shape&& shape) { setShape(WTFMove(shape)); }
-    Shape data() const;
+
+    WEBCORE_EXPORT Region(IntRect&&, std::unique_ptr<Region::Shape>&&);
 
     std::unique_ptr<Shape> copyShape() const { return m_shape ? makeUnique<Shape>(*m_shape) : nullptr; }
-    WEBCORE_EXPORT void setShape(Shape&&);
+    void setShape(Shape&&);
 
     IntRect m_bounds;
     std::unique_ptr<Shape> m_shape;
 
     friend bool operator==(const Region&, const Region&);
 };
-
-inline Region::Shape Region::data() const
-{
-    if (m_shape)
-        return *m_shape;
-    return m_bounds;
-}
 
 static inline Region intersect(const Region& a, const Region& b)
 {
@@ -189,7 +188,6 @@ inline bool operator==(const Region& a, const Region& b)
 }
 
 WEBCORE_EXPORT WTF::TextStream& operator<<(WTF::TextStream&, const Region&);
-WEBCORE_EXPORT WTF::TextStream& operator<<(WTF::TextStream&, const Region::Shape&);
 
 } // namespace WebCore
 

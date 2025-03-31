@@ -237,7 +237,7 @@ static bool isValidContextMenuAction(WebCore::ContextMenuAction action)
     case ContextMenuAction::ContextMenuItemTagTextDirectionRightToLeft:
     case ContextMenuAction::ContextMenuItemTagAddHighlightToCurrentQuickNote:
     case ContextMenuAction::ContextMenuItemTagAddHighlightToNewQuickNote:
-    case ContextMenuAction::ContextMenuItemTagCopyLinkWithHighlight:
+    case ContextMenuAction::ContextMenuItemTagCopyLinkToHighlight:
 #if PLATFORM(COCOA)
     case ContextMenuAction::ContextMenuItemTagCorrectSpellingAutomatically:
     case ContextMenuAction::ContextMenuItemTagSubstitutionsMenu:

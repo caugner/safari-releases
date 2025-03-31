@@ -31,7 +31,7 @@
 #import "AVAssetMIMETypeCache.h"
 #import "AVAssetTrackUtilities.h"
 #import "AVStreamDataParserMIMETypeCache.h"
-#import "CDMSessionAVContentKeySession.h"
+#import "CDMSessionMediaSourceAVFObjC.h"
 #import "ContentTypeUtilities.h"
 #import "GraphicsContext.h"
 #import "IOSurface.h"
@@ -310,7 +310,12 @@ void MediaPlayerPrivateMediaSourceAVFObjC::load(const URL&, const ContentType&, 
 {
     ALWAYS_LOG(LOGIDENTIFIER);
 
-    m_mediaSourcePrivate = MediaSourcePrivateAVFObjC::create(*this, client);
+    if (RefPtr mediaSourcePrivate = downcast<MediaSourcePrivateAVFObjC>(client.mediaSourcePrivate())) {
+        mediaSourcePrivate->setPlayer(this);
+        m_mediaSourcePrivate = WTFMove(mediaSourcePrivate);
+        client.reOpen();
+    } else
+        m_mediaSourcePrivate = MediaSourcePrivateAVFObjC::create(*this, client);
     m_mediaSourcePrivate->setResourceOwner(m_resourceOwner);
     m_mediaSourcePrivate->setVideoRenderer(layerOrVideoRenderer());
     m_mediaSourcePrivate->setDecompressionSession(m_decompressionSession.get());
@@ -1341,7 +1346,7 @@ void MediaPlayerPrivateMediaSourceAVFObjC::flushPendingSizeChanges()
 }
 
 #if ENABLE(LEGACY_ENCRYPTED_MEDIA)
-CDMSessionAVContentKeySession* MediaPlayerPrivateMediaSourceAVFObjC::cdmSession() const
+CDMSessionMediaSourceAVFObjC* MediaPlayerPrivateMediaSourceAVFObjC::cdmSession() const
 {
     return m_session.get();
 }
@@ -1353,20 +1358,13 @@ void MediaPlayerPrivateMediaSourceAVFObjC::setCDMSession(LegacyCDMSession* sessi
 
     ALWAYS_LOG(LOGIDENTIFIER);
 
-    m_session = toCDMSessionAVContentKeySession(session);
+    m_session = toCDMSessionMediaSourceAVFObjC(session);
 
     if (!m_mediaSourcePrivate)
         return;
 
     m_mediaSourcePrivate->setCDMSession(session);
 }
-
-void MediaPlayerPrivateMediaSourceAVFObjC::keyAdded()
-{
-    if (m_mediaSourcePrivate)
-        m_mediaSourcePrivate->keyAdded();
-}
-
 #endif // ENABLE(LEGACY_ENCRYPTED_MEDIA)
 
 #if ENABLE(LEGACY_ENCRYPTED_MEDIA) || ENABLE(ENCRYPTED_MEDIA)

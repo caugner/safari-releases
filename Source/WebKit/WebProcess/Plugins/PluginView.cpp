@@ -1053,11 +1053,6 @@ Vector<WebCore::FloatRect> PluginView::pdfAnnotationRectsForTesting() const
     return protectedPlugin()->annotationRectsForTesting();
 }
 
-void PluginView::setPDFTextAnnotationValueForTesting(unsigned pageIndex, unsigned annotationIndex, const String& value)
-{
-    return protectedPlugin()->setTextAnnotationValueForTesting(pageIndex, annotationIndex, value);
-}
-
 void PluginView::registerPDFTestCallback(RefPtr<VoidCallback>&& callback)
 {
     protectedPlugin()->registerPDFTest(WTFMove(callback));

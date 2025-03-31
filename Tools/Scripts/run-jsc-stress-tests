@@ -162,7 +162,6 @@ $architecture = nil
 $forceArchitecture = nil
 $hostOS = nil
 $model = nil
-$runJITlessWasm = false
 $filter = nil
 $envVars = []
 $mode = "full"
@@ -227,7 +226,6 @@ def usage
     puts "                            no-cjit-validate-phases, no-cjit-collect-continuously, dfg-eager"
     puts "                            and for FTL platforms: no-ftl, ftl-eager-no-cjit and"
     puts "                            ftl-no-cjit-small-pool."
-    puts "--jitless-wasm              Run the no-wasm-jit mode"
     puts "--no-retry                  Disable auto retry"
     exit 1
 end
@@ -271,7 +269,6 @@ GetoptLong.new(['--help', '-h', GetoptLong::NO_ARGUMENT],
                ['--release', GetoptLong::NO_ARGUMENT],
                ['--quick', '-q', GetoptLong::NO_ARGUMENT],
                ['--basic', GetoptLong::NO_ARGUMENT],
-               ['--jitless-wasm', GetoptLong::NO_ARGUMENT],
                ['--no-retry', GetoptLong::NO_ARGUMENT]).each {
     | opt, arg |
     case opt
@@ -376,8 +373,6 @@ GetoptLong.new(['--help', '-h', GetoptLong::NO_ARGUMENT],
         $mode = "quick"
     when '--basic'
         $mode = "basic"
-    when '--jitless-wasm'
-        $runJITlessWasm = true
     when '--debug'
         $buildType = "debug"
     when '--release'
@@ -1866,7 +1861,7 @@ end
 def runWebAssemblySuite(*optionalTestSpecificOptions)
     return unless $isWasmPlatform
     modules = Dir[WASMTESTS_PATH + "*.js"].map { |f| File.basename(f) }
-    prepareExtraAbsoluteFiles(WASMTESTS_PATH, ["wasm.json"])
+    modules << "wasm.json"
     prepareExtraRelativeFiles(modules.map { |f| "../" + f }, $collection)
     if optionalTestSpecificOptions[0] == :no_module
       optionalTestSpecificOptions.shift
@@ -1881,10 +1876,6 @@ def runWebAssemblySuite(*optionalTestSpecificOptions)
         run("wasm-slow-memory", "--useWasmFastMemory=false", *(FTL_OPTIONS + optionalTestSpecificOptions))
         run("wasm-collect-continuously", "--collectContinuously=true", "--verifyGC=true", *(FTL_OPTIONS + optionalTestSpecificOptions)) if shouldCollectContinuously?
         run("wasm-bbq", "--useWasmLLInt=false", *(FTL_OPTIONS + optionalTestSpecificOptions))
-        # FIXME: this is a hacky way to check if we use SIMD rdar://138436830
-        if $runJITlessWasm and not $testSpecificRequiredOptions.include? "--useWasmSIMD=1"
-          run("wasm-no-wasm-jit", "--useWasmJIT=false", *(FTL_OPTIONS + optionalTestSpecificOptions))
-        end
         if $isOMGPlatform
             run("wasm-omg", "--useWasmLLInt=true", "--useBBQJIT=false", "--thresholdForOMGOptimizeAfterWarmUp=0", "--thresholdForOMGOptimizeSoon=0", *(FTL_OPTIONS + optionalTestSpecificOptions))
         end
@@ -1998,9 +1989,9 @@ def runWebAssemblySpecTestBase(mode, specHarnessPath, postfix, *optionalTestSpec
         return
     end
     return unless $isWasmPlatform
-    prepareExtraAbsoluteFiles(WASMTESTS_PATH, ["wasm.json"])
 
     modules = Dir[WASMTESTS_PATH + "*.js"].map { |f| File.basename(f) }
+    modules << "wasm.json"
     prepareExtraRelativeFiles(modules.map { |f| "../" + f }, $collection)
 
     harness = Dir[WASMTESTS_PATH + (specHarnessPath + "/") + "*.js"].map { |f| File.basename(f) }
@@ -2051,7 +2042,7 @@ end
 def runWebAssemblyLowExecutableMemory(*optionalTestSpecificOptions)
     return unless $isWasmPlatform
     modules = Dir[WASMTESTS_PATH + "*.js"].map { |f| File.basename(f) }
-    prepareExtraAbsoluteFiles(WASMTESTS_PATH, ["wasm.json"])
+    modules << "wasm.json"
     prepareExtraRelativeFiles(modules.map { |f| "../" + f }, $collection)
     # Only let WebAssembly get executable memory.
     run("default-wasm", "--useConcurrentGC=0" , "--useConcurrentJIT=0", "--jitMemoryReservationSize=80000", "--useBaselineJIT=0", "--useDFGJIT=0", "--useFTLJIT=0", "-m")

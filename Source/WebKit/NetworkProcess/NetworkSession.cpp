@@ -92,6 +92,11 @@ std::unique_ptr<NetworkSession> NetworkSession::create(NetworkProcess& networkPr
 #endif
 }
 
+Ref<NetworkProcess> NetworkSession::protectedNetworkProcess()
+{
+    return networkProcess();
+}
+
 NetworkStorageSession* NetworkSession::networkStorageSession() const
 {
     // FIXME: https://bugs.webkit.org/show_bug.cgi?id=194926 NetworkSession should own NetworkStorageSession
@@ -126,7 +131,7 @@ static Ref<NetworkStorageManager> createNetworkStorageManager(NetworkProcess& ne
 #if ENABLE(WEB_PUSH_NOTIFICATIONS)
 static WebPushD::WebPushDaemonConnectionConfiguration configurationWithHostAuditToken(NetworkProcess& networkProcess, WebPushD::WebPushDaemonConnectionConfiguration configuration)
 {
-#if PLATFORM(COCOA)
+#if !USE(EXTENSIONKIT)
     auto token = networkProcess.parentProcessConnection()->getAuditToken();
     if (token) {
         Vector<uint8_t> auditTokenData(sizeof(*token));
@@ -586,7 +591,7 @@ void NetworkSession::removeLoaderWaitingWebProcessTransfer(NetworkResourceLoadId
         cachedResourceLoader->takeLoader()->abort();
 }
 
-std::unique_ptr<WebSocketTask> NetworkSession::createWebSocketTask(WebPageProxyIdentifier, std::optional<WebCore::FrameIdentifier>, std::optional<WebCore::PageIdentifier>, NetworkSocketChannel&, const WebCore::ResourceRequest&, const String& protocol, const WebCore::ClientOrigin&, bool, bool, OptionSet<WebCore::AdvancedPrivacyProtections>, WebCore::StoredCredentialsPolicy)
+std::unique_ptr<WebSocketTask> NetworkSession::createWebSocketTask(WebPageProxyIdentifier, std::optional<WebCore::FrameIdentifier>, std::optional<WebCore::PageIdentifier>, NetworkSocketChannel&, const WebCore::ResourceRequest&, const String& protocol, const WebCore::ClientOrigin&, bool, bool, OptionSet<WebCore::AdvancedPrivacyProtections>, WebCore::ShouldRelaxThirdPartyCookieBlocking, WebCore::StoredCredentialsPolicy)
 {
     return nullptr;
 }
@@ -783,7 +788,7 @@ void NetworkSession::appBoundDomains(CompletionHandler<void(HashSet<WebCore::Reg
 
 void NetworkSession::addAllowedFirstPartyForCookies(WebCore::ProcessIdentifier webProcessIdentifier, std::optional<WebCore::ProcessIdentifier> requestingProcessIdentifier, WebCore::RegistrableDomain&& firstPartyForCookies)
 {
-    if (requestingProcessIdentifier && (requestingProcessIdentifier != webProcessIdentifier) && m_networkProcess->allowsFirstPartyForCookies(requestingProcessIdentifier.value(), firstPartyForCookies) != NetworkProcess::AllowCookieAccess::Allow) {
+    if (requestingProcessIdentifier && (requestingProcessIdentifier != webProcessIdentifier) && !m_networkProcess->allowsFirstPartyForCookies(requestingProcessIdentifier.value(), firstPartyForCookies)) {
         ASSERT_NOT_REACHED();
         return;
     }

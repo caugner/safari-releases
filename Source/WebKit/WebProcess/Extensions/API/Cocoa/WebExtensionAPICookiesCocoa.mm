@@ -132,7 +132,7 @@ static inline NSDictionary *toWebAPI(const WebExtensionCookieParameters& cookieP
     } mutableCopy];
 
     if (cookie.expires)
-        result[expirationDateKey] = @(Seconds::fromMilliseconds(cookie.expires.value()).seconds());
+        result[expirationDateKey] = @(cookie.expires.value());
 
     return [result copy];
 }
@@ -317,7 +317,7 @@ void WebExtensionAPICookies::set(NSDictionary *details, Ref<WebExtensionCallback
     cookie.created = WallTime::now().secondsSinceEpoch().milliseconds();
 
     if (auto *expirationNumber = objectForKey<NSNumber>(details, expirationDateKey); expirationNumber.doubleValue > 0)
-        cookie.expires = WallTime::fromRawSeconds(expirationNumber.doubleValue).secondsSinceEpoch().milliseconds();
+        cookie.expires = expirationNumber.doubleValue;
     else
         cookie.session = true;
 

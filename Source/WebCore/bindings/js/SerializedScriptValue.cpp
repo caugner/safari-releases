@@ -1948,7 +1948,11 @@ private:
                 if (arrayBuffer->isResizableOrGrowableShared()) {
                     appendObjectPoolTag(ResizableArrayBufferTag);
                     write(ResizableArrayBufferTag);
-                    writeResizableArrayBuffer(arrayBuffer->span(), arrayBuffer->maxByteLength().value_or(0));
+                    uint64_t byteLength = arrayBuffer->byteLength();
+                    write(byteLength);
+                    uint64_t maxByteLength = arrayBuffer->maxByteLength().value_or(0);
+                    write(maxByteLength);
+                    write(arrayBuffer->span());
                     return true;
                 }
 
@@ -2023,10 +2027,8 @@ private:
                 rawKeySerializer.write(key);
 
                 auto wrappedKey = wrapCryptoKey(m_lexicalGlobalObject, serializedKey);
-                if (!wrappedKey) {
-                    code = SerializationReturnCode::DataCloneError;
-                    return true;
-                }
+                if (!wrappedKey)
+                    return false;
 
                 write(*wrappedKey);
                 return true;
@@ -2625,13 +2627,6 @@ private:
     void write(std::span<const uint8_t> data)
     {
         m_buffer.append(data);
-    }
-
-    void writeResizableArrayBuffer(std::span<const uint8_t> data, size_t maxByteLength)
-    {
-        write(static_cast<uint64_t>(data.size()));
-        write(static_cast<uint64_t>(maxByteLength));
-        write(data);
     }
 
     Vector<uint8_t>& m_buffer;
@@ -4520,11 +4515,8 @@ private:
             return JSValue();
 
         Vector<RTCCertificate::DtlsFingerprint> fingerprints;
-        if (!fingerprints.tryReserveInitialCapacity(size)) {
-            SERIALIZE_TRACE("FAIL deserialize");
-            fail();
+        if (!fingerprints.tryReserveInitialCapacity(size))
             return JSValue();
-        }
         for (unsigned i = 0; i < size; i++) {
             CachedStringRef algorithm;
             if (!readStringData(algorithm))
@@ -4817,11 +4809,8 @@ private:
 
     JSValue readTerminal()
     {
-        if (!isSafeToRecurse()) {
-            SERIALIZE_TRACE("FAIL deserialize");
-            fail();
+        if (!isSafeToRecurse())
             return JSValue();
-        }
         SerializationTag tag = readTag();
         if (!isTypeExposedToGlobalObject(*m_globalObject, tag)) {
             SERIALIZE_TRACE("FAIL deserialize");

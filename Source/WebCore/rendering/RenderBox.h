@@ -39,7 +39,6 @@ class RenderFragmentContainer;
 class RoundedRectRadii;
 struct PaintInfo;
 
-enum SizeType { MainOrPreferredSize, MinSize, MaxSize };
 enum AvailableLogicalHeightType { ExcludeMarginBorderPadding, IncludeMarginBorderPadding };
 enum OverlayScrollbarSizeRelevancy { IgnoreOverlayScrollbarSize, IncludeOverlayScrollbarSize };
 
@@ -278,6 +277,7 @@ public:
 
     LayoutUnit minPreferredLogicalWidth() const override;
     LayoutUnit maxPreferredLogicalWidth() const override;
+    virtual void computeIntrinsicLogicalWidths(LayoutUnit& minLogicalWidth, LayoutUnit& maxLogicalWidth) const;
 
     std::optional<LayoutUnit> overridingLogicalWidth() const;
     std::optional<LayoutUnit> overridingLogicalHeight() const;
@@ -396,6 +396,11 @@ public:
 
     // Whether or not the element shrinks to its intrinsic width (rather than filling the width
     // of a containing block).  HTML4 buttons, <select>s, <input>s, legends, and floating/compact elements do this.
+    enum class SizeType : uint8_t {
+        MainOrPreferredSize,
+        MinSize,
+        MaxSize
+    };
     bool sizesLogicalWidthToFitContent(SizeType) const;
 
     bool hasStretchedLogicalHeight() const;
@@ -640,11 +645,6 @@ public:
 
     ShapeOutsideInfo* shapeOutsideInfo() const;
 
-    bool includeVerticalScrollbarSize() const;
-    bool includeHorizontalScrollbarSize() const;
-
-    void invalidateAncestorBackgroundObscurationStatus();
-
 protected:
     RenderBox(Type, Element&, RenderStyle&&, OptionSet<TypeFlag> = { }, TypeSpecificFlags = { });
     RenderBox(Type, Document&, RenderStyle&&, OptionSet<TypeFlag> = { }, TypeSpecificFlags = { });
@@ -712,7 +712,7 @@ protected:
         return LayoutUnit((inlineSize - borderPaddingInlineSum) / aspectRatio) + borderPaddingBlockSum;
     }
 
-    void computePreferredLogicalWidths(const Length& minLogicalWidth, const Length& maxLogicalWidth, LayoutUnit borderAndPaddingLogicalWidth);
+    void computePreferredLogicalWidths(const Length& minWidth, const Length& maxWidth, LayoutUnit borderAndPadding);
     
     bool isAspectRatioDegenerate(double aspectRatio) const { return !aspectRatio || isnan(aspectRatio); }
     
@@ -728,6 +728,9 @@ private:
     bool fixedElementLaysOutRelativeToFrame(const LocalFrameView&) const;
 
     template<typename Function> LayoutUnit computeOrTrimInlineMargin(const RenderBlock& containingBlock, MarginTrimType marginSide, const Function& computeInlineMargin) const;
+
+    bool includeVerticalScrollbarSize() const;
+    bool includeHorizontalScrollbarSize() const;
 
     bool isScrollableOrRubberbandableBox() const override;
 
@@ -750,7 +753,6 @@ private:
     LayoutUnit fillAvailableMeasure(LayoutUnit availableLogicalWidth) const;
     LayoutUnit fillAvailableMeasure(LayoutUnit availableLogicalWidth, LayoutUnit& marginStart, LayoutUnit& marginEnd) const;
 
-    virtual void computeIntrinsicLogicalWidths(LayoutUnit& minLogicalWidth, LayoutUnit& maxLogicalWidth) const;
     virtual void computeIntrinsicKeywordLogicalWidths(LayoutUnit& minLogicalWidth, LayoutUnit& maxLogicalWidth) const
     {
         computeIntrinsicLogicalWidths(minLogicalWidth, maxLogicalWidth);
@@ -760,7 +762,6 @@ private:
     // These values are used in shrink-to-fit layout systems.
     // These include tables, positioned objects, floats and flexible boxes.
     virtual void computePreferredLogicalWidths();
-    bool shouldComputePreferredLogicalWidthsFromStyle() const;
 
     LayoutRect frameRectForStickyPositioning() const override { return frameRect(); }
 

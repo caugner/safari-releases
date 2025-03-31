@@ -43,6 +43,7 @@
 #import "Sampler.h"
 #import "ShaderModule.h"
 #import "Texture.h"
+#import "XRSubImage.h"
 #import <algorithm>
 #import <notify.h>
 #import <wtf/StdLibExtras.h>
@@ -155,9 +156,9 @@ Ref<Device> Device::create(id<MTLDevice> device, String&& deviceLabel, HardwareC
 Device::Device(id<MTLDevice> device, id<MTLCommandQueue> defaultQueue, HardwareCapabilities&& capabilities, Adapter& adapter)
     : m_device(device)
     , m_defaultQueue(Queue::create(defaultQueue, *this))
+    , m_xrSubImage(XRSubImage::create(*this))
     , m_capabilities(WTFMove(capabilities))
     , m_adapter(adapter)
-    , m_instance(adapter.weakInstance())
 {
 #if PLATFORM(MAC)
     auto devices = MTLCopyAllDevicesWithObserver(&m_deviceObserver, [weakThis = ThreadSafeWeakPtr { *this }](id<MTLDevice> device, MTLDeviceNotificationName) {
@@ -217,7 +218,6 @@ Device::Device(id<MTLDevice> device, id<MTLCommandQueue> defaultQueue, HardwareC
 Device::Device(Adapter& adapter)
     : m_defaultQueue(Queue::createInvalid(*this))
     , m_adapter(adapter)
-    , m_instance(adapter.weakInstance())
 {
     if (!m_adapter->isValid())
         makeInvalid();
@@ -239,12 +239,10 @@ Device::~Device()
     }
 }
 
-RefPtr<XRSubImage> Device::getXRViewSubImage(WGPUXREye eye)
+RefPtr<XRSubImage> Device::getXRViewSubImage(XRProjectionLayer& projectionLayer)
 {
-    if (m_xrSubImages.size() < 2)
-        return nullptr;
-
-    return eye == WGPUXREye_Right ? m_xrSubImages[1] : m_xrSubImages[0];
+    m_xrSubImage->update(projectionLayer.colorTexture(), projectionLayer.depthTexture(), projectionLayer.reusableTextureIndex(), projectionLayer.completionEvent());
+    return m_xrSubImage;
 }
 
 void Device::makeInvalid()
@@ -350,7 +348,6 @@ void Device::generateAValidationError(String&& message)
 {
     // https://gpuweb.github.io/gpuweb/#abstract-opdef-generate-a-validation-error
     auto* scope = currentErrorScope(WGPUErrorFilter_Validation);
-
     if (scope) {
         if (!scope->error)
             scope->error = Error { WGPUErrorType_Validation, WTFMove(message) };

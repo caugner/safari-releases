@@ -359,8 +359,6 @@ public:
     void updateSizeAndPositionForOverhangAreaLayer();
 #endif // HAVE(RUBBER_BANDING)
 
-    void updateRootContentsLayerBackgroundColor();
-
     // FIXME: make the coordinated/async terminology consistent.
     bool isViewportConstrainedFixedOrStickyLayer(const RenderLayer&) const;
     bool useCoordinatedScrollingForLayer(const RenderLayer&) const;
@@ -391,8 +389,6 @@ public:
     const Color& rootExtendedBackgroundColor() const { return m_rootExtendedBackgroundColor; }
 
     void updateRootContentLayerClipping();
-
-    void setRootElementCapturedInViewTransition(bool);
 
     void updateScrollSnapPropertiesWithFrameView(const LocalFrameView&) const;
 
@@ -473,8 +469,6 @@ private:
 
     bool layerHas3DContent(const RenderLayer&) const;
     bool isRunningTransformAnimation(RenderLayerModelObject&) const;
-
-    bool allowBackingStoreDetachingForFixedPosition(RenderLayer&, const LayoutRect& absoluteBounds);
 
     void appendDocumentOverlayLayers(Vector<Ref<GraphicsLayer>>&);
 
@@ -619,7 +613,6 @@ private:
     bool m_flushingLayers { false };
     bool m_shouldFlushOnReattach { false };
     bool m_forceCompositingMode { false };
-    bool m_rootElementCapturedInViewTransition { false };
 
     bool m_isTrackingRepaints { false }; // Used for testing.
 

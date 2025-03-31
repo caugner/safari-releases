@@ -28,9 +28,7 @@
 
 namespace WebCore {
 
-enum class IgnoreUserSelectNone : bool;
-
-WEBCORE_EXPORT AttributedString attributedString(const SimpleRange&, IgnoreUserSelectNone);
+WEBCORE_EXPORT AttributedString attributedString(const SimpleRange&);
 
 // This alternate implementation of HTML conversion doesn't handle as many advanced features,
 // such as tables, and doesn't produce document attributes, but it does use TextIterator so

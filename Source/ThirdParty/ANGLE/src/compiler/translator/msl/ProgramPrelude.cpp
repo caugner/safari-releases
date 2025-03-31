@@ -127,15 +127,6 @@ class ProgramPrelude : public TIntermTraverser
     void degrees();
     void radians();
     void mod();
-    void div();
-    void imod();
-    void imul();
-    void iadd();
-    void isub();
-    void ilshift();
-    void ulshift();
-    void rshift();
-    void ftoi();
     void mixBool();
     void postIncrementMatrix();
     void preIncrementMatrix();
@@ -509,136 +500,6 @@ template <typename X, typename Y>
 ANGLE_ALWAYS_INLINE X ANGLE_mod(X x, Y y)
 {
     return x - y * metal::floor(x / y);
-}
-)")
-
-// Avoid undefined behavior when:
-// - the divisor is 0
-// - the dividend is INT_MIN and the divisor is -1 (integer overflow)
-// When the behavior would be undefined the result is `x`.
-// FIXME: This function should also handle INT_MIN / -1, but currently this hits a bug in the metal
-// compiler
-PROGRAM_PRELUDE_DECLARE(div,
-                        R"(
-template<typename X, typename Y, typename Z = metal::conditional_t<metal::is_scalar_v<Y>, X, Y>>
-ANGLE_ALWAYS_INLINE Z ANGLE_div(X x, Y y)
-{
-    Z zx = Z(x);
-    Z zy = Z(y);
-    auto predicate = zy == Z(0);
-    return zx / metal::select(zy, Z(1), predicate);
-}
-)")
-
-// Avoid undefined behavior when:
-// - the divisor is 0
-// - the dividend is INT_MIN and the divisor is -1 (integer overflow)
-// - either of the operands is negative (undefined behavior in Metal)
-// When the behavior would be undefined the result is 0.
-// FIXME: This function should also handle INT_MIN % -1, but currently this hits a bug in the metal
-// compiler
-PROGRAM_PRELUDE_DECLARE(imod,
-                        R"(
-template<typename X, typename Y, typename Z = metal::conditional_t<metal::is_scalar_v<Y>, X, Y>>
-ANGLE_ALWAYS_INLINE Z ANGLE_imod(X x, Y y)
-{
-    if constexpr (metal::is_signed_v<Z>) {
-        Z y_or_one = metal::select(Z(y), Z(1), Z(y) == Z(0));
-        if (metal::any(((Z(x) | y_or_one) & Z(2147483648u)) != Z(0u)))
-        {
-            return as_type<Z>(
-                metal::make_unsigned_t<Z>(x) - metal::make_unsigned_t<Z>(x / y_or_one) * metal::make_unsigned_t<Z>(y_or_one)
-            );
-        }
-        else
-        {
-            return x % y_or_one;
-        }
-    }
-    else
-    {
-        return x % metal::select(Z(y), Z(1u), Z(y) == Z(0u));
-    }
-}
-)")
-
-// Avoid undefined behavior when the operand is outside the range of values that can be represented.
-// When the behavior would be undefined the value is clamped to fit the target type.
-PROGRAM_PRELUDE_DECLARE(ftoi,
-                        R"(
-template <typename X, typename Y>
-ANGLE_ALWAYS_INLINE X ANGLE_ftoi(Y y)
-{
-    auto min = metal::numeric_limits<X>::min();
-    auto max = metal::numeric_limits<X>::max();
-    return X(metal::clamp(y, Y(min), Y(max)));
-}
-)")
-
-// Avoid undefined behavior due to integer overflow
-PROGRAM_PRELUDE_DECLARE(imul,
-                        R"(
-template<typename X, typename Y, typename Z = metal::conditional_t<metal::is_scalar_v<Y>, X, Y>>
-ANGLE_ALWAYS_INLINE Z ANGLE_imul(X x, Y y)
-{
-    return as_type<Z>(metal::make_unsigned_t<Z>(x) * metal::make_unsigned_t<Z>(y));
-}
-)")
-
-// Avoid undefined behavior due to integer overflow
-PROGRAM_PRELUDE_DECLARE(iadd,
-                        R"(
-template<typename X, typename Y, typename Z = metal::conditional_t<metal::is_scalar_v<Y>, X, Y>>
-ANGLE_ALWAYS_INLINE Z ANGLE_iadd(X x, Y y)
-{
-    return as_type<Z>(metal::make_unsigned_t<Z>(x) + metal::make_unsigned_t<Z>(y));
-}
-)")
-
-// Avoid undefined behavior due to integer underflow
-PROGRAM_PRELUDE_DECLARE(isub,
-                        R"(
-template<typename X, typename Y, typename Z = metal::conditional_t<metal::is_scalar_v<Y>, X, Y>>
-ANGLE_ALWAYS_INLINE Z ANGLE_isub(X x, Y y)
-{
-    return as_type<Z>(metal::make_unsigned_t<Z>(x) - metal::make_unsigned_t<Z>(y));
-}
-)")
-
-// Avoid undefined behavior in e1 << e2 when:
-// 1) e2 is larger than the bit width of the type
-// 2) e2 is a negative value.
-// 3) e1 is a negative value
-PROGRAM_PRELUDE_DECLARE(ilshift,
-                        R"(
-template <typename X, typename Y>
-ANGLE_ALWAYS_INLINE X ANGLE_ilshift(X x, Y y)
-{
-    return as_type<X>(metal::select(metal::make_unsigned_t<X>(0), metal::make_unsigned_t<X>(x) << (y & Y(31)), metal::make_unsigned_t<Y>(y) < metal::make_unsigned_t<Y>(32)));
-}
-)")
-
-// Avoid undefined behavior in e1 << e2 when:
-// 1) e2 is larger than the bit width of the type
-// 2) e2 is a negative value.
-PROGRAM_PRELUDE_DECLARE(ulshift,
-                        R"(
-template <typename X, typename Y>
-ANGLE_ALWAYS_INLINE X ANGLE_ulshift(X x, Y y)
-{
-    return metal::select(X(0), x << (y & Y(31)), metal::make_unsigned_t<Y>(y) < metal::make_unsigned_t<Y>(32));
-}
-)")
-
-// Avoid undefined behavior in e1 >> e2 when:
-// 1) e2 is larger than the bit width of the type
-// 2) e2 is a negative value.
-PROGRAM_PRELUDE_DECLARE(rshift,
-                        R"(
-template <typename X, typename Y>
-ANGLE_ALWAYS_INLINE X ANGLE_rshift(X x, Y y)
-{
-    return metal::select(X(0), x >> (y & Y(31)), metal::make_unsigned_t<Y>(y) < metal::make_unsigned_t<Y>(32));
 }
 )")
 
@@ -2690,6 +2551,29 @@ ANGLE_ALWAYS_INLINE auto ANGLE_textureProj_impl(
 {
     return texture.sample(sampler, coord.xyz/coord.w, metal::bias(bias));
 }
+
+template <typename T>
+ANGLE_ALWAYS_INLINE auto ANGLE_textureProj_impl(
+    thread metal::depth2d<T> &texture,
+    thread metal::sampler const &sampler,
+    metal::float4 const coord)
+{
+    return texture.sample_compare(sampler, coord.xy/coord.w, coord.z/coord.w);
+}
+
+template <typename T>
+ANGLE_ALWAYS_INLINE auto ANGLE_textureProj_impl(
+    thread metal::depth2d<T> &texture,
+    thread metal::sampler const &sampler,
+    metal::float4 const coord,
+    float bias)
+{
+#if defined(__METAL_IOS__) || (__METAL_VERSION__ >= 230)
+    return texture.sample_compare(sampler, coord.xy/coord.w, coord.z/coord.w, metal::bias(bias));
+#else
+    return texture.sample_compare(sampler, coord.xy/coord.w, coord.z/coord.w);
+#endif
+}
 )",
                         textureEnv())
 
@@ -3008,6 +2892,31 @@ ANGLE_ALWAYS_INLINE auto ANGLE_textureProjOffset_impl(
     float bias = 0)
 {
     return texture.sample(sampler, coord.xyz/coord.w, metal::bias(bias), offset);
+}
+
+template <typename T>
+ANGLE_ALWAYS_INLINE auto ANGLE_textureProjOffset_impl(
+    thread metal::depth2d<T> &texture,
+    thread metal::sampler const &sampler,
+    metal::float4 const coord,
+    int2 const offset)
+{
+    return texture.sample_compare(sampler, coord.xy/coord.w, coord.z/coord.w, offset);
+}
+
+template <typename T>
+ANGLE_ALWAYS_INLINE auto ANGLE_textureProjOffset_impl(
+    thread metal::depth2d<T> &texture,
+    thread metal::sampler const &sampler,
+    metal::float4 const coord,
+    int2 const offset,
+    float bias)
+{
+#if defined(__METAL_IOS__) || (__METAL_VERSION__ >= 230)
+    return texture.sample_compare(sampler, coord.xy/coord.w, coord.z/coord.w, metal::bias(bias), offset);
+#else
+    return texture.sample_compare(sampler, coord.xy/coord.w, coord.z/coord.w, offset);
+#endif
 }
 )",
                         textureEnv())
@@ -3574,10 +3483,6 @@ void ProgramPrelude::visitOperator(TOperator op,
         case TOperator::EOpMod:
             mod();
             break;
-        case TOperator::EOpIModAssign:
-        case TOperator::EOpIMod:
-            imod();
-            break;
         case TOperator::EOpRefract:
             if (argType0->isScalar())
             {
@@ -3721,7 +3626,6 @@ void ProgramPrelude::visitOperator(TOperator op,
             break;
 
         case TOperator::EOpAdd:
-        case TOperator::EOpAddAssign:
             if (argType0->isMatrix() && argType1->isScalar())
             {
                 addMatrixScalar();
@@ -3730,14 +3634,16 @@ void ProgramPrelude::visitOperator(TOperator op,
             {
                 addScalarMatrix();
             }
-            if (argType0->isSignedInt())
+            break;
+
+        case TOperator::EOpAddAssign:
+            if (argType0->isMatrix() && argType1->isScalar())
             {
-                iadd();
+                addMatrixScalarAssign();
             }
             break;
 
         case TOperator::EOpSub:
-        case TOperator::EOpSubAssign:
             if (argType0->isMatrix() && argType1->isScalar())
             {
                 subMatrixScalar();
@@ -3746,24 +3652,16 @@ void ProgramPrelude::visitOperator(TOperator op,
             {
                 subScalarMatrix();
             }
-            if (argType0->isSignedInt())
-            {
-                isub();
-            }
             break;
 
-        case TOperator::EOpMul:
-        case TOperator::EOpMulAssign:
-        case TOperator::EOpVectorTimesScalar:
-        case TOperator::EOpVectorTimesScalarAssign:
-            if (argType0->isSignedInt())
+        case TOperator::EOpSubAssign:
+            if (argType0->isMatrix() && argType1->isScalar())
             {
-                imul();
+                subMatrixScalarAssign();
             }
             break;
 
         case TOperator::EOpDiv:
-        case TOperator::EOpDivAssign:
             if (argType0->isMatrix())
             {
                 if (argType1->isMatrix())
@@ -3775,13 +3673,23 @@ void ProgramPrelude::visitOperator(TOperator op,
                     divMatrixScalar();
                 }
             }
-            else if (op == TOperator::EOpDiv && argType0->isScalar() && argType1->isMatrix())
+            if (argType0->isScalar() && argType1->isMatrix())
             {
                 divScalarMatrix();
             }
-            else
+            break;
+
+        case TOperator::EOpDivAssign:
+            if (argType0->isMatrix())
             {
-                div();
+                if (argType1->isMatrix())
+                {
+                    componentWiseDivideAssign();
+                }
+                else if (argType1->isScalar())
+                {
+                    divMatrixScalarAssign();
+                }
             }
             break;
 
@@ -3852,31 +3760,20 @@ void ProgramPrelude::visitOperator(TOperator op,
             }
             break;
 
-        case TOperator::EOpBitShiftLeft:
-        case TOperator::EOpBitShiftLeftAssign:
-        {
-            if (argType0->isSignedInt())
-            {
-                ilshift();
-            }
-            else
-            {
-                ulshift();
-            }
-            break;
-        }
-
-        case TOperator::EOpBitShiftRight:
-        case TOperator::EOpBitShiftRightAssign:
-            rshift();
-            break;
-
         case TOperator::EOpComma:
         case TOperator::EOpAssign:
         case TOperator::EOpInitialize:
+        case TOperator::EOpMulAssign:
+        case TOperator::EOpIModAssign:
+        case TOperator::EOpBitShiftLeftAssign:
+        case TOperator::EOpBitShiftRightAssign:
         case TOperator::EOpBitwiseAndAssign:
         case TOperator::EOpBitwiseXorAssign:
         case TOperator::EOpBitwiseOrAssign:
+        case TOperator::EOpMul:
+        case TOperator::EOpIMod:
+        case TOperator::EOpBitShiftLeft:
+        case TOperator::EOpBitShiftRight:
         case TOperator::EOpBitwiseAnd:
         case TOperator::EOpBitwiseXor:
         case TOperator::EOpBitwiseOr:
@@ -3895,8 +3792,10 @@ void ProgramPrelude::visitOperator(TOperator op,
         case TOperator::EOpLogicalNot:
         case TOperator::EOpNotComponentWise:
         case TOperator::EOpBitwiseNot:
+        case TOperator::EOpVectorTimesScalarAssign:
         case TOperator::EOpVectorTimesMatrixAssign:
         case TOperator::EOpMatrixTimesScalarAssign:
+        case TOperator::EOpVectorTimesScalar:
         case TOperator::EOpVectorTimesMatrix:
         case TOperator::EOpMatrixTimesVector:
         case TOperator::EOpMatrixTimesScalar:
@@ -4066,17 +3965,6 @@ bool ProgramPrelude::visitAggregate(Visit visit, TIntermAggregate *node)
     };
 
     const TFunction *func = node->getFunction();
-
-    if (node->isConstructor() && argCount == 1)
-    {
-        const TType &retType = node->getType();
-        const TType &argType = getArgType(0);
-        if (((retType.isScalar() || retType.isVector()) && IsInteger(retType.getBasicType())) &&
-            ((argType.isScalar() || argType.isVector()) && argType.getBasicType() == EbtFloat))
-        {
-            ftoi();
-        }
-    }
 
     switch (node->getChildCount())
     {

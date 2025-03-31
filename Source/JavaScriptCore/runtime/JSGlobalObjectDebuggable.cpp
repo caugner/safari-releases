@@ -35,7 +35,6 @@
 #include "JSLock.h"
 #include "RemoteInspector.h"
 #include <wtf/TZoneMallocInlines.h>
-#include <wtf/threads/BinarySemaphore.h>
 
 using namespace Inspector;
 
@@ -43,63 +42,42 @@ namespace JSC {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(JSGlobalObjectDebuggable);
 
-Ref<JSGlobalObjectDebuggable> JSGlobalObjectDebuggable::create(JSGlobalObject& globalObject)
-{
-    return adoptRef(*new JSGlobalObjectDebuggable(globalObject));
-}
-
 JSGlobalObjectDebuggable::JSGlobalObjectDebuggable(JSGlobalObject& globalObject)
-    : m_globalObject(&globalObject)
+    : m_globalObject(globalObject)
 {
 }
 
 String JSGlobalObjectDebuggable::name() const
 {
-    String name = m_globalObject->name();
+    String name = m_globalObject.name();
     return name.isEmpty() ? "JSContext"_s : name;
 }
 
 void JSGlobalObjectDebuggable::connect(FrontendChannel& frontendChannel, bool automaticInspection, bool immediatelyPause)
 {
-    if (!m_globalObject)
-        return;
+    JSLockHolder locker(&m_globalObject.vm());
 
-    JSLockHolder locker(&m_globalObject->vm());
-    m_globalObject->inspectorController().connectFrontend(frontendChannel, automaticInspection, immediatelyPause);
+    m_globalObject.inspectorController().connectFrontend(frontendChannel, automaticInspection, immediatelyPause);
 }
 
 void JSGlobalObjectDebuggable::disconnect(FrontendChannel& frontendChannel)
 {
-    if (!m_globalObject)
-        return;
+    JSLockHolder locker(&m_globalObject.vm());
 
-    JSLockHolder locker(&m_globalObject->vm());
-
-    m_globalObject->inspectorController().disconnectFrontend(frontendChannel);
+    m_globalObject.inspectorController().disconnectFrontend(frontendChannel);
 }
 
 void JSGlobalObjectDebuggable::dispatchMessageFromRemote(String&& message)
 {
-    if (!m_globalObject)
-        return;
+    JSLockHolder locker(&m_globalObject.vm());
 
-    JSLockHolder locker(&m_globalObject->vm());
-
-    m_globalObject->inspectorController().dispatchMessageFromFrontend(WTFMove(message));
+    m_globalObject.inspectorController().dispatchMessageFromFrontend(WTFMove(message));
 }
 
 void JSGlobalObjectDebuggable::pauseWaitingForAutomaticInspection()
 {
-    if (!m_globalObject)
-        return;
-
-    JSC::JSLock::DropAllLocks dropAllLocks(&m_globalObject->vm());
+    JSC::JSLock::DropAllLocks dropAllLocks(&m_globalObject.vm());
     RemoteInspectionTarget::pauseWaitingForAutomaticInspection();
-}
-
-void JSGlobalObjectDebuggable::globalObjectDestroyed()
-{
-    m_globalObject = nullptr;
 }
 
 } // namespace JSC

@@ -33,7 +33,6 @@
 #if PLATFORM(MAC)
 
 #import "MessageSenderInlines.h"
-#import "TextCheckerState.h"
 #import "WebPage.h"
 #import "WebPageProxyMessages.h"
 #import "WebProcess.h"
@@ -125,7 +124,7 @@ bool WebEditorClient::isAutomaticQuoteSubstitutionEnabled()
     if (Ref { *m_page }->isControlledByAutomation())
         return false;
 
-    return WebProcess::singleton().textCheckerState().contains(TextCheckerState::AutomaticQuoteSubstitutionEnabled);
+    return WebProcess::singleton().textCheckerState().isAutomaticQuoteSubstitutionEnabled;
 }
 
 void WebEditorClient::toggleAutomaticQuoteSubstitution()
@@ -135,7 +134,7 @@ void WebEditorClient::toggleAutomaticQuoteSubstitution()
 
 bool WebEditorClient::isAutomaticLinkDetectionEnabled()
 {
-    return WebProcess::singleton().textCheckerState().contains(TextCheckerState::AutomaticLinkDetectionEnabled);
+    return WebProcess::singleton().textCheckerState().isAutomaticLinkDetectionEnabled;
 }
 
 void WebEditorClient::toggleAutomaticLinkDetection()
@@ -148,7 +147,7 @@ bool WebEditorClient::isAutomaticDashSubstitutionEnabled()
     if (m_page->isControlledByAutomation())
         return false;
 
-    return WebProcess::singleton().textCheckerState().contains(TextCheckerState::AutomaticDashSubstitutionEnabled);
+    return WebProcess::singleton().textCheckerState().isAutomaticDashSubstitutionEnabled;
 }
 
 void WebEditorClient::toggleAutomaticDashSubstitution()
@@ -161,7 +160,7 @@ bool WebEditorClient::isAutomaticTextReplacementEnabled()
     if (m_page->isControlledByAutomation())
         return false;
 
-    return WebProcess::singleton().textCheckerState().contains(TextCheckerState::AutomaticTextReplacementEnabled);
+    return WebProcess::singleton().textCheckerState().isAutomaticTextReplacementEnabled;
 }
 
 void WebEditorClient::toggleAutomaticTextReplacement()
@@ -174,7 +173,7 @@ bool WebEditorClient::isAutomaticSpellingCorrectionEnabled()
     if (m_page->isControlledByAutomation())
         return false;
 
-    return WebProcess::singleton().textCheckerState().contains(TextCheckerState::AutomaticSpellingCorrectionEnabled);
+    return WebProcess::singleton().textCheckerState().isAutomaticSpellingCorrectionEnabled;
 }
 
 void WebEditorClient::toggleAutomaticSpellingCorrection()

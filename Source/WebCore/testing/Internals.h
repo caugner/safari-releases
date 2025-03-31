@@ -377,7 +377,6 @@ public:
 
     ExceptionOr<String> viewBaseBackgroundColor();
     ExceptionOr<void> setViewBaseBackgroundColor(const String& colorValue);
-    ExceptionOr<void> setUnderPageBackgroundColorOverride(const String& colorValue);
 
     ExceptionOr<String> documentBackgroundColor();
 
@@ -471,8 +470,6 @@ public:
     void setAutomaticSpellingCorrectionEnabled(bool);
 
     bool isSpellcheckDisabledExceptTextReplacement(const HTMLInputElement&) const;
-
-    ExceptionOr<void> setMarkerFor(const String& markerTypeString, int from, int length, const String&);
 
     void handleAcceptedCandidate(const String& candidate, unsigned location, unsigned length);
     void changeSelectionListType();
@@ -1494,7 +1491,6 @@ public:
     };
 
     Vector<PDFAnnotationRect> pdfAnnotationRectsForTesting(Element& pluginElement) const;
-    void setPDFTextAnnotationValueForTesting(Element& pluginElement, unsigned pageIndex, unsigned annotationIndex, const String& value);
     void setPDFDisplayModeForTesting(Element&, const String&) const;
     bool sendEditingCommandToPDFForTesting(Element&, const String& commandName, const String& argument) const;
     void registerPDFTest(Ref<VoidCallback>&&, Element&);

@@ -87,7 +87,6 @@ StyleRareInheritedData::StyleRareInheritedData()
     , indent(RenderStyle::initialTextIndent())
     , usedZoom(RenderStyle::initialZoom())
     , textUnderlineOffset(RenderStyle::initialTextUnderlineOffset())
-    , textBoxEdge(RenderStyle::initialTextBoxEdge())
     , lineFitEdge(RenderStyle::initialLineFitEdge())
     , miterLimit(RenderStyle::initialStrokeMiterLimit())
     , customProperties(StyleCustomPropertyData::create())
@@ -183,7 +182,6 @@ inline StyleRareInheritedData::StyleRareInheritedData(const StyleRareInheritedDa
     , indent(o.indent)
     , usedZoom(o.usedZoom)
     , textUnderlineOffset(o.textUnderlineOffset)
-    , textBoxEdge(o.textBoxEdge)
     , lineFitEdge(o.lineFitEdge)
     , miterLimit(o.miterLimit)
     , customProperties(o.customProperties)
@@ -297,7 +295,6 @@ bool StyleRareInheritedData::operator==(const StyleRareInheritedData& o) const
         && indent == o.indent
         && usedZoom == o.usedZoom
         && textUnderlineOffset == o.textUnderlineOffset
-        && textBoxEdge == o.textBoxEdge
         && lineFitEdge == o.lineFitEdge
         && wordSpacing == o.wordSpacing
         && miterLimit == o.miterLimit

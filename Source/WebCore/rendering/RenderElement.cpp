@@ -2113,7 +2113,7 @@ bool RenderElement::hasSelfPaintingLayer() const
 
 bool RenderElement::hasViewTransitionName() const
 {
-    return !style().viewTransitionName().isNone();
+    return !!style().viewTransitionName();
 }
 
 bool RenderElement::requiresRenderingConsolidationForViewTransition() const

@@ -41,22 +41,22 @@
 namespace WebKit {
 using namespace WebCore;
 
-static OptionSet<TextCheckerState>& mutableState()
+static TextCheckerState& mutableState()
 {
-    static OptionSet<TextCheckerState> state;
-    static std::once_flag onceFlag;
-    std::call_once(onceFlag, [&] {
-        if (TextChecker::isContinuousSpellCheckingAllowed())
-            state.add(TextCheckerState::ContinuousSpellCheckingEnabled);
+    static NeverDestroyed state = [] {
+        TextCheckerState initialState;
+        initialState.isContinuousSpellCheckingEnabled = TextChecker::isContinuousSpellCheckingAllowed();
 #if ENABLE(POST_EDITING_GRAMMAR_CHECKING)
-        if ([UITextChecker respondsToSelector:@selector(grammarCheckingEnabled)] && [UITextChecker grammarCheckingEnabled])
-            state.add(TextCheckerState::GrammarCheckingEnabled);
+        initialState.isGrammarCheckingEnabled = [UITextChecker respondsToSelector:@selector(grammarCheckingEnabled)] && [UITextChecker grammarCheckingEnabled];
+#else
+        initialState.isGrammarCheckingEnabled = false;
 #endif
-    });
+        return initialState;
+    }();
     return state;
 }
 
-OptionSet<TextCheckerState> TextChecker::state()
+const TextCheckerState& TextChecker::state()
 {
     return mutableState();
 }
@@ -72,20 +72,20 @@ bool TextChecker::isContinuousSpellCheckingAllowed()
 
 bool TextChecker::setContinuousSpellCheckingEnabled(bool enabled)
 {
-    if (state().contains(TextCheckerState::ContinuousSpellCheckingEnabled) == enabled)
+    if (state().isContinuousSpellCheckingEnabled == enabled)
         return false;
 
-    mutableState().set(TextCheckerState::ContinuousSpellCheckingEnabled, enabled);
+    mutableState().isContinuousSpellCheckingEnabled = enabled;
     return true;
 }
 
 void TextChecker::setGrammarCheckingEnabled(bool isGrammarCheckingEnabled)
 {
 #if ENABLE(POST_EDITING_GRAMMAR_CHECKING)
-    if (state().contains(TextCheckerState::GrammarCheckingEnabled) == isGrammarCheckingEnabled)
+    if (state().isGrammarCheckingEnabled == isGrammarCheckingEnabled)
         return;
 
-    mutableState().set(TextCheckerState::GrammarCheckingEnabled, isGrammarCheckingEnabled);
+    mutableState().isGrammarCheckingEnabled = isGrammarCheckingEnabled;
 #else
     UNUSED_PARAM(isGrammarCheckingEnabled);
 #endif
@@ -151,7 +151,7 @@ void TextChecker::toggleSubstitutionsPanelIsShowing()
 
 void TextChecker::continuousSpellCheckingEnabledStateChanged(bool enabled)
 {
-    mutableState().set(TextCheckerState::ContinuousSpellCheckingEnabled, enabled);
+    mutableState().isContinuousSpellCheckingEnabled = enabled;
 }
 
 void TextChecker::grammarCheckingEnabledStateChanged(bool)

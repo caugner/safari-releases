@@ -49,7 +49,6 @@
 #include <WebCore/ProcessIdentity.h>
 #include <WebCore/RegistrableDomain.h>
 #include <WebCore/SharedStringHash.h>
-#include <WebCore/UserGestureTokenIdentifier.h>
 #include <pal/SessionID.h>
 #include <wtf/Forward.h>
 #include <wtf/HashMap.h>
@@ -72,15 +71,6 @@
 #include "DisplayLinkObserverID.h"
 #include "DisplayLinkProcessProxyClient.h"
 #endif
-
-namespace WebKit {
-class WebProcessProxy;
-}
-
-namespace WTF {
-template<typename T> struct IsDeprecatedWeakRefSmartPointerException;
-template<> struct IsDeprecatedWeakRefSmartPointerException<WebKit::WebProcessProxy> : std::true_type { };
-}
 
 namespace API {
 class Navigation;
@@ -160,13 +150,13 @@ using WebProcessWithMediaStreamingCounter = RefCounter<WebProcessWithMediaStream
 using WebProcessWithMediaStreamingToken = WebProcessWithMediaStreamingCounter::Token;
 enum class CheckBackForwardList : bool { No, Yes };
 
-class WebProcessProxy : public AuxiliaryProcessProxy {
+class WebProcessProxy final : public AuxiliaryProcessProxy {
     WTF_MAKE_TZONE_ALLOCATED(WebProcessProxy);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(WebProcessProxy);
 public:
     using WebPageProxyMap = HashMap<WebPageProxyIdentifier, WeakRef<WebPageProxy>>;
     using UserInitiatedActionByAuthorizationTokenMap = HashMap<WTF::UUID, RefPtr<API::UserInitiatedAction>>;
-    typedef HashMap<WebCore::UserGestureTokenIdentifier, RefPtr<API::UserInitiatedAction>> UserInitiatedActionMap;
+    typedef HashMap<uint64_t, RefPtr<API::UserInitiatedAction>> UserInitiatedActionMap;
 
     enum class IsPrewarmed : bool { No, Yes };
 
@@ -221,7 +211,6 @@ public:
 
     static RefPtr<WebProcessProxy> processForIdentifier(WebCore::ProcessIdentifier);
     static RefPtr<WebPageProxy> webPage(WebPageProxyIdentifier);
-    static RefPtr<WebPageProxy> webPage(WebCore::PageIdentifier);
     static RefPtr<WebPageProxy> audioCapturingWebPage();
 #if ENABLE(WEBXR) && !USE(OPENXR)
     static RefPtr<WebPageProxy> webPageWithActiveXRSession();
@@ -266,8 +255,8 @@ public:
     void didDestroyWebUserContentControllerProxy(WebUserContentControllerProxy&);
 
     void recordUserGestureAuthorizationToken(WebCore::PageIdentifier, WTF::UUID);
-    RefPtr<API::UserInitiatedAction> userInitiatedActivity(std::optional<WebCore::UserGestureTokenIdentifier>);
-    RefPtr<API::UserInitiatedAction> userInitiatedActivity(WebCore::PageIdentifier, std::optional<WTF::UUID>, std::optional<WebCore::UserGestureTokenIdentifier>);
+    RefPtr<API::UserInitiatedAction> userInitiatedActivity(uint64_t);
+    RefPtr<API::UserInitiatedAction> userInitiatedActivity(WebCore::PageIdentifier, std::optional<WTF::UUID>, uint64_t);
 
     void consumeIfNotVerifiablyFromUIProcess(WebCore::PageIdentifier, API::UserInitiatedAction&, std::optional<WTF::UUID>);
 
@@ -515,7 +504,7 @@ public:
     const WebCore::ProcessIdentity& processIdentity();
 #endif
 
-    bool isAlwaysOnLoggingAllowed() const;
+    void markAsUsedForSiteIsolation() { m_usedForSiteIsolation = true; }
 
 private:
     Type type() const final { return Type::WebContent; }
@@ -563,7 +552,7 @@ private:
     // IPC message handlers.
     void updateBackForwardItem(const BackForwardListItemState&);
     void didDestroyFrame(IPC::Connection&, WebCore::FrameIdentifier, WebPageProxyIdentifier);
-    void didDestroyUserGestureToken(WebCore::PageIdentifier, WebCore::UserGestureTokenIdentifier);
+    void didDestroyUserGestureToken(WebCore::PageIdentifier, uint64_t);
 
     bool canBeAddedToWebProcessCache() const;
     void shouldTerminate(CompletionHandler<void(bool)>&&);
@@ -595,17 +584,14 @@ private:
     bool didReceiveSyncMessage(IPC::Connection&, IPC::Decoder&, UniqueRef<IPC::Encoder>&) override;
     void didClose(IPC::Connection&) final;
     void didReceiveInvalidMessage(IPC::Connection&, IPC::MessageName, int32_t indexOfObjectFailingDecoding) override;
+    bool dispatchMessage(IPC::Connection&, IPC::Decoder&);
+    bool dispatchSyncMessage(IPC::Connection&, IPC::Decoder&, UniqueRef<IPC::Encoder>&);
 
     // ResponsivenessTimer::Client
     void didBecomeUnresponsive() override;
     void didBecomeResponsive() override;
     void willChangeIsResponsive() override;
     void didChangeIsResponsive() override;
-
-    // Implemented in generated WebProcessProxyMessageReceiver.cpp
-    void didReceiveWebProcessProxyMessage(IPC::Connection&, IPC::Decoder&);
-    bool didReceiveSyncWebProcessProxyMessage(IPC::Connection&, IPC::Decoder&, UniqueRef<IPC::Encoder>&);
-
     bool canTerminateAuxiliaryProcess();
 
     void didCollectPrewarmInformation(const WebCore::RegistrableDomain&, const WebCore::PrewarmInformation&);
@@ -706,6 +692,7 @@ private:
 
     std::optional<WebCore::RegistrableDomain> m_registrableDomain;
     bool m_isInProcessCache { false };
+    bool m_usedForSiteIsolation { false };
 
     enum class NoOrMaybe { No, Maybe } m_isResponsive;
     Vector<CompletionHandler<void(bool webProcessIsResponsive)>> m_isResponsiveCallbacks;

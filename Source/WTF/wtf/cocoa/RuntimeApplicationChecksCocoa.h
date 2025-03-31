@@ -124,8 +124,6 @@ enum class SDKAlignedBehavior {
     LaxCookieSameSiteAttribute,
     BlockOptionallyBlockableMixedContent,
     UseCFNetworkNetworkLoader,
-    BlobFileAccessEnforcement,
-    BlockCrossOriginRedirectDownloads,
 
     NumberOfBehaviors
 };

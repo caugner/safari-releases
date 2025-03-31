@@ -61,7 +61,6 @@
 #include "RenderSVGRoot.h"
 #include "RenderStyleInlines.h"
 #include "RenderTreeBuilder.h"
-#include "RenderViewTransitionRoot.h"
 #include "RenderWidget.h"
 #include "SVGElementTypeHelpers.h"
 #include "SVGImage.h"
@@ -81,7 +80,7 @@ RenderView::RenderView(Document& document, RenderStyle&& style)
     : RenderBlockFlow(Type::View, document, WTFMove(style))
     , m_frameView(*document.view())
     , m_initialContainingBlock(makeUniqueRef<Layout::InitialContainingBlock>(RenderStyle::clone(this->style())))
-    , m_layoutState(makeUniqueRef<Layout::LayoutState>(document, *m_initialContainingBlock, Layout::LayoutState::Type::Primary, LayoutIntegration::layoutWithFormattingContextForBox, LayoutIntegration::preferredLogicalWidths))
+    , m_layoutState(makeUniqueRef<Layout::LayoutState>(document, *m_initialContainingBlock, Layout::LayoutState::Type::Primary, LayoutIntegration::layoutWithFormattingContextForBox, LayoutIntegration::formattingContextRootLogicalWidthForType))
     , m_selection(*this)
 {
     // FIXME: We should find a way to enforce this at compile time.
@@ -1118,12 +1117,12 @@ SingleThreadWeakHashSet<RenderCounter> RenderView::takeCountersNeedingUpdate()
     return std::exchange(m_countersNeedingUpdate, { });
 }
 
-SingleThreadWeakPtr<RenderViewTransitionRoot> RenderView::viewTransitionRoot() const
+SingleThreadWeakPtr<RenderElement> RenderView::viewTransitionRoot() const
 {
     return m_viewTransitionRoot;
 }
 
-void RenderView::setViewTransitionRoot(RenderViewTransitionRoot& renderer)
+void RenderView::setViewTransitionRoot(RenderElement& renderer)
 {
     m_viewTransitionRoot = renderer;
 }

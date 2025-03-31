@@ -106,7 +106,6 @@ private:
 
     void initialize();
     IPC::StreamConnectionWorkQueue& workQueue() const { return m_workQueue; }
-    Ref<IPC::StreamConnectionWorkQueue> protectedWorkQueue() const { return m_workQueue; }
     void workQueueInitialize();
     void workQueueUninitialize();
 

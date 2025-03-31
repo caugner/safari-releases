@@ -81,7 +81,6 @@ class PopupMenuClient;
 class PopupOpeningObserver;
 class SearchPopupMenu;
 class WorkerClient;
-class WorkerOrWorkletThread;
 
 struct AppHighlight;
 struct ContactInfo;
@@ -205,7 +204,7 @@ public:
     std::unique_ptr<DateTimeChooser> createDateTimeChooser(DateTimeChooserClient&);
 #endif
 
-    std::unique_ptr<WorkerClient> createWorkerClient(WorkerOrWorkletThread&);
+    std::unique_ptr<WorkerClient> createWorkerClient(SerialFunctionDispatcher&);
 
     void runOpenPanel(LocalFrame&, FileChooser&);
     void showShareSheet(ShareDataWithParsedURL&, CompletionHandler<void(bool)>&&);

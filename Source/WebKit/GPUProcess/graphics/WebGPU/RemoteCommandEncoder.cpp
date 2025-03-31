@@ -37,6 +37,7 @@
 #include "StreamServerConnection.h"
 #include "WebGPUComputePassDescriptor.h"
 #include "WebGPUObjectHeap.h"
+#include <WebCore/WebGPUBuffer.h>
 #include <WebCore/WebGPUCommandEncoder.h>
 #include <wtf/TZoneMallocInlines.h>
 
@@ -83,7 +84,7 @@ void RemoteCommandEncoder::beginRenderPass(const WebGPU::RenderPassDescriptor& d
     auto convertedDescriptor = objectHeap->convertFromBacking(descriptor);
     MESSAGE_CHECK(convertedDescriptor);
 
-    auto renderPassEncoder = protectedBacking()->beginRenderPass(*convertedDescriptor);
+    auto renderPassEncoder = m_backing->beginRenderPass(*convertedDescriptor);
     MESSAGE_CHECK(renderPassEncoder);
     auto remoteRenderPassEncoder = RemoteRenderPassEncoder::create(*renderPassEncoder, objectHeap, m_streamConnection.copyRef(), protectedGPU(), identifier);
     objectHeap->addObject(identifier, remoteRenderPassEncoder);
@@ -99,7 +100,7 @@ void RemoteCommandEncoder::beginComputePass(const std::optional<WebGPU::ComputeP
         convertedDescriptor = WTFMove(resultDescriptor);
     }
 
-    auto computePassEncoder = protectedBacking()->beginComputePass(convertedDescriptor);
+    auto computePassEncoder = m_backing->beginComputePass(convertedDescriptor);
     MESSAGE_CHECK(computePassEncoder);
     auto computeRenderPassEncoder = RemoteComputePassEncoder::create(*computePassEncoder, objectHeap, m_streamConnection.copyRef(), protectedGPU(), identifier);
     objectHeap->addObject(identifier, computeRenderPassEncoder);
@@ -120,7 +121,7 @@ void RemoteCommandEncoder::copyBufferToBuffer(
     if (!convertedSource || !convertedDestination)
         return;
 
-    protectedBacking()->copyBufferToBuffer(*convertedSource, sourceOffset, *convertedDestination, destinationOffset, size);
+    m_backing->copyBufferToBuffer(*convertedSource, sourceOffset, *convertedDestination, destinationOffset, size);
 }
 
 void RemoteCommandEncoder::copyBufferToTexture(
@@ -137,7 +138,7 @@ void RemoteCommandEncoder::copyBufferToTexture(
     if (!convertedSource || !convertedDestination || !convertedCopySize)
         return;
 
-    protectedBacking()->copyBufferToTexture(*convertedSource, *convertedDestination, *convertedCopySize);
+    m_backing->copyBufferToTexture(*convertedSource, *convertedDestination, *convertedCopySize);
 }
 
 void RemoteCommandEncoder::copyTextureToBuffer(
@@ -154,7 +155,7 @@ void RemoteCommandEncoder::copyTextureToBuffer(
     if (!convertedSource || !convertedDestination || !convertedCopySize)
         return;
 
-    protectedBacking()->copyTextureToBuffer(*convertedSource, *convertedDestination, *convertedCopySize);
+    m_backing->copyTextureToBuffer(*convertedSource, *convertedDestination, *convertedCopySize);
 }
 
 void RemoteCommandEncoder::copyTextureToTexture(
@@ -171,7 +172,7 @@ void RemoteCommandEncoder::copyTextureToTexture(
     if (!convertedSource || !convertedDestination || !convertedCopySize)
         return;
 
-    protectedBacking()->copyTextureToTexture(*convertedSource, *convertedDestination, *convertedCopySize);
+    m_backing->copyTextureToTexture(*convertedSource, *convertedDestination, *convertedCopySize);
 }
 
 void RemoteCommandEncoder::clearBuffer(
@@ -184,22 +185,22 @@ void RemoteCommandEncoder::clearBuffer(
     if (!convertedBuffer)
         return;
 
-    protectedBacking()->clearBuffer(*convertedBuffer, offset, size);
+    m_backing->clearBuffer(*convertedBuffer, offset, size);
 }
 
 void RemoteCommandEncoder::pushDebugGroup(String&& groupLabel)
 {
-    protectedBacking()->pushDebugGroup(WTFMove(groupLabel));
+    m_backing->pushDebugGroup(WTFMove(groupLabel));
 }
 
 void RemoteCommandEncoder::popDebugGroup()
 {
-    protectedBacking()->popDebugGroup();
+    m_backing->popDebugGroup();
 }
 
 void RemoteCommandEncoder::insertDebugMarker(String&& markerLabel)
 {
-    protectedBacking()->insertDebugMarker(WTFMove(markerLabel));
+    m_backing->insertDebugMarker(WTFMove(markerLabel));
 }
 
 void RemoteCommandEncoder::writeTimestamp(WebGPUIdentifier querySet, WebCore::WebGPU::Size32 queryIndex)
@@ -209,7 +210,7 @@ void RemoteCommandEncoder::writeTimestamp(WebGPUIdentifier querySet, WebCore::We
     if (!convertedQuerySet)
         return;
 
-    protectedBacking()->writeTimestamp(*convertedQuerySet, queryIndex);
+    m_backing->writeTimestamp(*convertedQuerySet, queryIndex);
 }
 
 void RemoteCommandEncoder::resolveQuerySet(
@@ -227,7 +228,7 @@ void RemoteCommandEncoder::resolveQuerySet(
     if (!convertedQuerySet || !convertedDestination)
         return;
 
-    protectedBacking()->resolveQuerySet(*convertedQuerySet, firstQuery, queryCount, *convertedDestination, destinationOffset);
+    m_backing->resolveQuerySet(*convertedQuerySet, firstQuery, queryCount, *convertedDestination, destinationOffset);
 }
 
 void RemoteCommandEncoder::finish(const WebGPU::CommandBufferDescriptor& descriptor, WebGPUIdentifier identifier)
@@ -236,7 +237,7 @@ void RemoteCommandEncoder::finish(const WebGPU::CommandBufferDescriptor& descrip
     auto convertedDescriptor = objectHeap->convertFromBacking(descriptor);
     MESSAGE_CHECK(convertedDescriptor);
 
-    auto commandBuffer = protectedBacking()->finish(*convertedDescriptor);
+    auto commandBuffer = m_backing->finish(*convertedDescriptor);
     MESSAGE_CHECK(commandBuffer);
     auto remoteCommandBuffer = RemoteCommandBuffer::create(*commandBuffer, objectHeap, m_streamConnection.copyRef(), protectedGPU(), identifier);
     objectHeap->addObject(identifier, remoteCommandBuffer);
@@ -244,12 +245,7 @@ void RemoteCommandEncoder::finish(const WebGPU::CommandBufferDescriptor& descrip
 
 void RemoteCommandEncoder::setLabel(String&& label)
 {
-    protectedBacking()->setLabel(WTFMove(label));
-}
-
-Ref<WebCore::WebGPU::CommandEncoder> RemoteCommandEncoder::protectedBacking()
-{
-    return m_backing;
+    m_backing->setLabel(WTFMove(label));
 }
 
 } // namespace WebKit

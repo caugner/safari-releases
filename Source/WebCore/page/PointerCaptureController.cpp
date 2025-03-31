@@ -81,13 +81,10 @@ ExceptionOr<void> PointerCaptureController::setPointerCapture(Element* capturing
     }
 #endif
 
-    // 4. If the pointer is not in the active buttons state or the element's node document is not the active document of the pointer,
-    // then terminate these steps.
-    if (!capturingData->pointerIsPressed || &capturingTarget->document() != capturingData->activeDocument)
-        return { };
-
+    // 4. If the pointer is not in the active buttons state, then terminate these steps.
     // 5. For the specified pointerId, set the pending pointer capture target override to the Element on which this method was invoked.
-    capturingData->pendingTargetOverride = capturingTarget;
+    if (capturingData->pointerIsPressed)
+        capturingData->pendingTargetOverride = capturingTarget;
 
     updateHaveAnyCapturingElement();
     return { };
@@ -413,24 +410,16 @@ void PointerCaptureController::pointerEventWillBeDispatched(const PointerEvent& 
 
     bool isPointerdown = event.type() == eventNames().pointerdownEvent;
     bool isPointerup = event.type() == eventNames().pointerupEvent;
-    bool isPointermove = event.type() == eventNames().pointermoveEvent;
-
-    if (!isPointerdown && !isPointerup && !isPointermove)
+    if (!isPointerdown && !isPointerup)
         return;
+
+    auto pointerId = event.pointerId();
 
     auto& element = downcast<Element>(*target);
-
-    // Let targetDocument be target's node document.
-    // If the event is pointerdown, pointermove, or pointerup set active document for the event's pointerId to targetDocument.
-    auto capturingData = ensureCapturingDataForPointerEvent(event);
-    capturingData->activeDocument = &element.document();
-
-    if (isPointermove)
-        return;
-
-    capturingData->pointerIsPressed = isPointerdown;
-
-    if (event.pointerType() == touchPointerEventType() && isPointerdown) {
+    if (event.pointerType() != touchPointerEventType()) {
+        if (RefPtr capturingData = m_activePointerIdsToCapturingData.get(pointerId))
+            capturingData->pointerIsPressed = isPointerdown;
+    } else if (isPointerdown) {
         // https://w3c.github.io/pointerevents/#implicit-pointer-capture
 
         // Some input devices (such as touchscreens) implement a "direct manipulation" metaphor where a pointer is intended to act primarily on the UI
@@ -442,7 +431,10 @@ void PointerCaptureController::pointerEventWillBeDispatched(const PointerEvent& 
         // pointerdown listeners. The hasPointerCapture API may be used (eg. within any pointerdown listener) to determine whether this has occurred. If
         // releasePointerCapture is not called for the pointer before the next pointer event is fired, then a gotpointercapture event will be dispatched
         // to the target (as normal) indicating that capture is active.
-        setPointerCapture(&element, event.pointerId());
+
+        auto capturingData = ensureCapturingDataForPointerEvent(event);
+        capturingData->pointerIsPressed = true;
+        setPointerCapture(&element, pointerId);
     }
     element.document().handlePopoverLightDismiss(event, element);
 }

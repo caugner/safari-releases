@@ -40,6 +40,7 @@
 #include "WasmCallee.h"
 #include "WasmCallingConvention.h"
 #include "WasmFunctionCodeBlockGenerator.h"
+#include "WasmFunctionParser.h"
 #include "WasmLLIntBuiltin.h"
 #include "WasmLLIntGenerator.h"
 #include "WasmModuleInformation.h"
@@ -469,10 +470,10 @@ WASM_SLOW_PATH_DECL(array_new)
         if (Wasm::isRefType(elementType))
             value = JSValue::encode(jsNull());
         else if (elementType.unpacked().isV128()) {
-            JSValue result = Wasm::arrayNew(instance, instruction.m_typeIndex, size, vectorAllZeros());
-            if (UNLIKELY(result.isNull()))
+            EncodedJSValue result = Wasm::arrayNew(instance, instruction.m_typeIndex, size, vectorAllZeros());
+            if (JSValue::decode(result).isNull())
                 WASM_THROW(Wasm::ExceptionType::BadArrayNew);
-            WASM_RETURN(JSValue::encode(result));
+            WASM_RETURN(result);
         }
         break;
     }
@@ -480,17 +481,14 @@ WASM_SLOW_PATH_DECL(array_new)
         // In this case, m_value must refer to a possibly-empty array of arguments,
         // so m_value being constant would be a bug.
         ASSERT(!instruction.m_value.isConstant());
-        JSValue result = Wasm::arrayNewFixed(instance, instruction.m_typeIndex, size, reinterpret_cast<uint64_t*>(&callFrame->r(instruction.m_value)));
-        if (UNLIKELY(result.isNull()))
-            WASM_THROW(Wasm::ExceptionType::BadArrayNew);
-        WASM_RETURN(JSValue::encode(result));
+        WASM_RETURN(Wasm::arrayNewFixed(instance, instruction.m_typeIndex, size, reinterpret_cast<uint64_t*>(&callFrame->r(instruction.m_value))));
     }
     }
     ASSERT(!elementType.unpacked().isV128());
-    JSValue result = Wasm::arrayNew(instance, instruction.m_typeIndex, size, value);
-    if (UNLIKELY(result.isNull()))
+    EncodedJSValue result = Wasm::arrayNew(instance, instruction.m_typeIndex, size, value);
+    if (JSValue::decode(result).isNull())
         WASM_THROW(Wasm::ExceptionType::BadArrayNew);
-    WASM_RETURN(JSValue::encode(result));
+    WASM_RETURN(result);
 }
 
 WASM_SLOW_PATH_DECL(array_get)
@@ -1090,6 +1088,29 @@ WASM_SLOW_PATH_DECL(rethrow)
     WASM_RETURN_TWO(vm.targetMachinePCForThrow, nullptr);
 }
 
+WASM_SLOW_PATH_DECL(throw_ref)
+{
+    SlowPathFrameTracer tracer(instance->vm(), callFrame);
+
+    JSGlobalObject* globalObject = instance->globalObject();
+    VM& vm = globalObject->vm();
+    auto throwScope = DECLARE_THROW_SCOPE(vm);
+
+    auto instruction = pc->as<WasmThrowRef>();
+    auto exceptionPtr = READ(instruction.m_exception).pointer();
+    EncodedJSValue exception = EncodedJSValue(exceptionPtr);
+
+    if (JSValue::decode(exception) == jsNull())
+        WASM_THROW(Wasm::ExceptionType::NullExnReference);
+
+    throwException(globalObject, throwScope, reinterpret_cast<JSWebAssemblyException*>(exceptionPtr));
+
+    genericUnwind(vm, callFrame);
+    ASSERT(!!vm.callFrameForCatch);
+    ASSERT(!!vm.targetMachinePCForThrow);
+    WASM_RETURN_TWO(vm.targetMachinePCForThrow, exceptionPtr);
+}
+
 WASM_SLOW_PATH_DECL(retrieve_and_clear_exception)
 {
     UNUSED_PARAM(callFrame);
@@ -1118,8 +1139,12 @@ WASM_SLOW_PATH_DECL(retrieve_and_clear_exception)
         handleCatch(pc->as<WasmCatch>());
     else if (pc->is<WasmCatchAll>())
         handleCatchAll(pc->as<WasmCatchAll>());
-    else
-        RELEASE_ASSERT_NOT_REACHED();
+    else if (pc->is<WasmTryTableCatch>()) {
+        payload = bitwise_cast<void*>(jsDynamicCast<JSWebAssemblyException*>(thrownValue)->payload().span().data());
+        auto instr = pc->as<WasmTryTableCatch>();
+        if (instr.m_kind == static_cast<unsigned>(Wasm::CatchKind::CatchRef) || instr.m_kind == static_cast<unsigned>(Wasm::CatchKind::CatchAllRef))
+            callFrame->uncheckedR(pc->as<WasmTryTableCatch>().m_exception) = thrownValue;
+    }
 
     // We want to clear the exception here rather than in the catch prologue
     // JIT code because clearing it also entails clearing a bit in an Atomic

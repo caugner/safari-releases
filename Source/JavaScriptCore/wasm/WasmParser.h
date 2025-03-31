@@ -36,6 +36,7 @@
 #include "WasmModuleInformation.h"
 #include "WasmOps.h"
 #include "WasmSections.h"
+#include "WasmTypeDefinitionInlines.h"
 #include "Width.h"
 #include <type_traits>
 #include <wtf/Expected.h>
@@ -385,8 +386,7 @@ ALWAYS_INLINE bool ParserBase::parseValueType(const ModuleInformation& info, Typ
                 ASSERT(static_cast<uint32_t>(heapType) >= info.typeCount() && static_cast<uint32_t>(heapType) < m_recursionGroupInformation.end);
                 ProjectionIndex groupIndex = static_cast<ProjectionIndex>(heapType - m_recursionGroupInformation.start);
                 RefPtr<TypeDefinition> def = TypeInformation::getPlaceholderProjection(groupIndex);
-                RELEASE_ASSERT(def->refCount() > 2); // tbl + RefPtr + owner
-                typeIndex = def->index(); // Owned by TypeInformation placeholder projections singleton.
+                typeIndex = def->index();
             } else {
                 ASSERT(static_cast<uint32_t>(heapType) < info.typeCount());
                 typeIndex = TypeInformation::get(info.typeSignatures[heapType].get());

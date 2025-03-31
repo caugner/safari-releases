@@ -871,17 +871,7 @@ std::optional<SimpleRange> AccessibilityObject::visibleCharacterRangeInternal(co
 
     // Origin isn't contained in visible rect, start moving forward by line.
     while (!contentRect.contains(elementRect.location())) {
-        auto currentPosition = VisiblePosition(makeContainerOffsetPosition(startBoundary));
-        auto nextLinePosition = nextLineEndPosition(currentPosition);
-        if (nextLinePosition == currentPosition) {
-            // We tried to move to the next line end, but got the same position back. Break to avoid
-            // looping infinitely. It would be better if we understood *why* nextLineEndPosition
-            // is returning the same position, but do this for now. If you hit this assert, please
-            // file a bug with steps to reproduce.
-            ASSERT_NOT_REACHED();
-            break;
-        }
-
+        auto nextLinePosition = nextLineEndPosition(VisiblePosition(makeContainerOffsetPosition(startBoundary)));
         auto testStartBoundary = makeBoundaryPoint(nextLinePosition);
         if (!testStartBoundary || !contains(*range, *testStartBoundary))
             break;
@@ -1028,36 +1018,9 @@ Vector<SimpleRange> AccessibilityObject::findTextRanges(const AccessibilitySearc
     return result;
 }
 
-struct TextOperationRange {
-    SimpleRange scope;
-    CharacterRange characterRange;
-};
-
-static std::optional<TextOperationRange> textOperationRangeFromRange(const SimpleRange& range)
-{
-    RefPtr rootEditableElement = range.start.container->rootEditableElement();
-    if (!rootEditableElement)
-        return std::nullopt;
-
-    std::optional<SimpleRange> scope = makeRangeSelectingNode(*rootEditableElement);
-    if (!scope)
-        return std::nullopt;
-
-    return TextOperationRange { *scope, characterRange(*scope, range, { }) };
-}
-
-static SimpleRange rangeFromTextOperationRange(const TextOperationRange& textOperationRange)
-{
-    return resolveCharacterRange(textOperationRange.scope, textOperationRange.characterRange, { });
-}
-
 Vector<String> AccessibilityObject::performTextOperation(const AccessibilityTextOperation& operation)
 {
-    Vector<TextOperationRange> textOperationRanges;
-    textOperationRanges.reserveInitialCapacity(operation.textRanges.size());
-
     Vector<String> result;
-    result.reserveInitialCapacity(operation.textRanges.size());
 
     if (operation.textRanges.isEmpty())
         return result;
@@ -1069,22 +1032,8 @@ Vector<String> AccessibilityObject::performTextOperation(const AccessibilityText
     size_t replacementStringsCount = operation.replacementStrings.size();
     bool useFirstReplacementStringForAllReplacements = (replacementStringsCount == 1);
 
-    // Precompute character ranges with respect to their root editable element because
-    // the SimpleRanges stored in AccessibilityTextOperation may be invalidated after
-    // performing a replacement in the same editable element.
-    for (const auto& range : operation.textRanges) {
-        auto textOperationRange = textOperationRangeFromRange(range);
-        if (!textOperationRange) {
-            ASSERT_NOT_REACHED();
-            return result;
-        }
-
-        textOperationRanges.append(*textOperationRange);
-    }
-
-    for (size_t i = 0; i < textOperationRanges.size(); ++i) {
-        const auto& textOperationRange = textOperationRanges[i];
-        auto textRange = rangeFromTextOperationRange(textOperationRange);
+    for (size_t i = 0; i < operation.textRanges.size(); ++i) {
+        auto textRange = operation.textRanges[i];
 
         String replacementString;
         if (useFirstReplacementStringForAllReplacements)
@@ -1134,14 +1083,7 @@ Vector<String> AccessibilityObject::performTextOperation(const AccessibilityText
         // A bit obvious, but worth noting the API contract for this method is that we should
         // return the replacement string when replacing, but the selected string if not.
         if (replaceSelection) {
-            // Insert text instead of replacing when the selection length is zero, because replacements
-            // aren't performed correctly in certain edge cases like at the the boundary between nodes
-            // separated by spaces <p> foo <i>bar</i>[insert here] baz </p>.
-            if (textOperationRange.characterRange.length)
-                frame->editor().replaceSelectionWithText(replacementString, Editor::SelectReplacement::Yes, operation.smartReplace == AccessibilityTextOperationSmartReplace::No ? Editor::SmartReplace::No : Editor::SmartReplace::Yes);
-            else
-                frame->editor().insertText(replacementString, /* triggeringEvent */ nullptr);
-
+            frame->editor().replaceSelectionWithText(replacementString, Editor::SelectReplacement::Yes, operation.smartReplace == AccessibilityTextOperationSmartReplace::No ? Editor::SmartReplace::No : Editor::SmartReplace::Yes);
             result.append(replacementString);
         } else
             result.append(text);
@@ -3060,17 +3002,9 @@ const RenderStyle* AccessibilityObject::style() const
     if (auto* renderer = this->renderer())
         return &renderer->style();
 
-    auto* element = this->element();
-    return element ? element->computedStyle() : nullptr;
-}
-
-const RenderStyle* AccessibilityObject::existingStyle() const
-{
-    if (auto* renderer = this->renderer())
-        return &renderer->style();
-
-    auto* element = this->element();
-    return element ? element->existingComputedStyle() : nullptr;
+    if (auto* element = this->element())
+        return element->computedStyle();
+    return nullptr;
 }
 
 bool AccessibilityObject::isValueAutofillAvailable() const
@@ -4030,9 +3964,9 @@ bool AccessibilityObject::isAXHidden() const
     }) != nullptr;
 }
 
-bool AccessibilityObject::isRenderHidden() const
+bool AccessibilityObject::isDOMHidden() const
 {
-    return WebCore::isRenderHidden(style());
+    return WebCore::isDOMHidden(style());
 }
 
 bool AccessibilityObject::isShowingValidationMessage() const
@@ -4076,10 +4010,6 @@ AccessibilityObjectInclusion AccessibilityObject::defaultObjectInclusion() const
 
     bool ignoreARIAHidden = isFocused();
     if (Accessibility::findAncestor<AccessibilityObject>(*this, false, [&] (const auto& object) {
-        const auto* style = object.existingStyle();
-        if (style && WebCore::isRenderHidden(*style))
-            return true;
-
         return (!ignoreARIAHidden && object.isARIAHidden()) || object.ariaRoleHasPresentationalChildren() || !object.canHaveChildren();
     }))
         return AccessibilityObjectInclusion::IgnoreObject;
@@ -4147,17 +4077,11 @@ bool AccessibilityObject::isIgnoredWithoutCache(AXObjectCache* cache) const
     auto previousLastKnownIsIgnoredValue = m_lastKnownIsIgnoredValue;
     const_cast<AccessibilityObject*>(this)->setLastKnownIsIgnoredValue(ignored);
 
-    if (cache) {
-        bool becameUnignored = previousLastKnownIsIgnoredValue == AccessibilityObjectInclusion::IgnoreObject && !ignored;
-        bool becameIgnored = !becameUnignored && previousLastKnownIsIgnoredValue == AccessibilityObjectInclusion::IncludeObject && ignored;
+    if (cache
+        && ((previousLastKnownIsIgnoredValue == AccessibilityObjectInclusion::IgnoreObject && !ignored)
+        || (previousLastKnownIsIgnoredValue == AccessibilityObjectInclusion::IncludeObject && ignored)))
+        cache->childrenChanged(parentObject());
 
-#if !ENABLE(INCLUDE_IGNORED_IN_CORE_AX_TREE) && ENABLE(ACCESSIBILITY_ISOLATED_TREE)
-        if (becameIgnored)
-            cache->objectBecameIgnored(objectID());
-#endif // !ENABLE(INCLUDE_IGNORED_IN_CORE_AX_TREE) && ENABLE(ACCESSIBILITY_ISOLATED_TREE)
-        if (becameUnignored || becameIgnored)
-            cache->childrenChanged(parentObject());
-    }
     return ignored;
 }
 

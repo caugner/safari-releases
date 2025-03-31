@@ -30,13 +30,13 @@
 #include "AuxiliaryProcessCreationParameters.h"
 #include "CacheModel.h"
 #include "SandboxExtension.h"
+#include "ScriptTelemetry.h"
 #include "TextCheckerState.h"
 #include "UserData.h"
 
 #include "WebProcessDataStoreParameters.h"
 #include <WebCore/CrossOriginMode.h>
 #include <wtf/HashMap.h>
-#include <wtf/OptionSet.h>
 #include <wtf/ProcessID.h>
 #include <wtf/RetainPtr.h>
 #include <wtf/Vector.h>
@@ -133,7 +133,7 @@ struct WebProcessCreationParameters {
     bool hasRichContentServices { false };
 #endif
 
-    OptionSet<TextCheckerState> textCheckerState;
+    TextCheckerState textCheckerState;
 
 #if PLATFORM(COCOA)
     String uiProcessBundleIdentifier;
@@ -276,6 +276,7 @@ struct WebProcessCreationParameters {
 
     HashMap<WebCore::RegistrableDomain, String> storageAccessUserAgentStringQuirksData;
     HashSet<WebCore::RegistrableDomain> storageAccessPromptQuirksDomains;
+    ScriptTelemetryRules scriptTelemetryRules;
 
     Seconds memoryFootprintPollIntervalForTesting;
     Vector<size_t> memoryFootprintNotificationThresholds;

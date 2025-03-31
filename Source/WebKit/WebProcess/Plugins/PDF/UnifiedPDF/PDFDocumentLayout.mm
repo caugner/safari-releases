@@ -81,11 +81,11 @@ RetainPtr<PDFPage> PDFDocumentLayout::pageAtIndex(PageIndex index) const
 
 auto PDFDocumentLayout::indexForPage(RetainPtr<PDFPage> page) const -> std::optional<PageIndex>
 {
-
-    auto pageIndex = [m_pdfDocument indexForPage:page.get()];
-    if (pageIndex == NSNotFound)
-        return { };
-    return pageIndex;
+    for (PageIndex pageIndex = 0; pageIndex < [m_pdfDocument pageCount]; ++pageIndex) {
+        if (page == [m_pdfDocument pageAtIndex:pageIndex])
+            return pageIndex;
+    }
+    return std::nullopt;
 }
 
 PDFDocumentLayout::PageIndex PDFDocumentLayout::nearestPageIndexForDocumentPoint(FloatPoint documentSpacePoint, const std::optional<PDFLayoutRow>& visibleRow) const
@@ -275,7 +275,6 @@ auto PDFDocumentLayout::pageIndexAndPagePointForDocumentYOffset(float documentYO
             // Handle side by side pages with different sizes.
             std::optional<PageIndex> targetPageIndex = [&](PageIndex index) -> std::optional<PageIndex> {
                 auto leftPageBounds = layoutBoundsForPageAtIndex(index);
-                leftPageBounds.inflate(PDFDocumentLayout::documentMargin);
                 if (documentYOffset >= leftPageBounds.y() && documentYOffset < leftPageBounds.maxY())
                     return index;
 
@@ -284,7 +283,6 @@ auto PDFDocumentLayout::pageIndexAndPagePointForDocumentYOffset(float documentYO
                     return { };
 
                 auto rightPageBounds = layoutBoundsForPageAtIndex(rightPageIndex);
-                rightPageBounds.inflate(PDFDocumentLayout::documentMargin);
                 if (documentYOffset >= rightPageBounds.y() && documentYOffset < rightPageBounds.maxY())
                     return rightPageIndex;
 

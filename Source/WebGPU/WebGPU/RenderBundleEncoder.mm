@@ -291,21 +291,8 @@ bool RenderBundleEncoder::addResource(RenderBundle::ResourcesContainer* resource
     return addResource(resources, mtlResource, [[ResourceUsageAndRenderStage alloc] initWithUsage:MTLResourceUsageRead renderStages:stage entryUsage:BindGroupEntryUsage::Input binding:BindGroupEntryUsageData::invalidBindingIndex resource:resource]);
 }
 
-template<typename T>
-static std::span<T> makeSpanFromBuffer(id<MTLBuffer> buffer, size_t byteOffset = 0)
-{
-    auto bufferLength = buffer.length;
-    if (UNLIKELY(bufferLength < byteOffset || (bufferLength - byteOffset < sizeof(T))))
-        return std::span { static_cast<T*>(nullptr), 0 };
-
-    return std::span { static_cast<T*>(buffer.contents), (bufferLength - byteOffset) / sizeof(T) };
-}
-
 bool RenderBundleEncoder::executePreDrawCommands(bool passWasSplit)
 {
-    if (!isValid())
-        return false;
-
     auto vertexDynamicOffset = m_vertexDynamicOffset;
     auto fragmentDynamicOffset = m_fragmentDynamicOffset;
     if (!m_pipeline) {
@@ -398,7 +385,8 @@ bool RenderBundleEncoder::executePreDrawCommands(bool passWasSplit)
             auto bindGroupIndex = kvp.key;
 
             if (m_dynamicOffsetsVertexBuffer) {
-                auto dynamicOffsetsVertexBuffer = makeSpanFromBuffer<uint8_t>(m_dynamicOffsetsVertexBuffer);
+                auto maxBufferLength = m_dynamicOffsetsVertexBuffer.length;
+                auto dynamicOffsetsVertexBuffer = std::span { static_cast<uint8_t*>(m_dynamicOffsetsVertexBuffer.contents), maxBufferLength };
 
                 auto bufferOffset = vertexDynamicOffset;
                 auto vertexBufferContentsSpan = dynamicOffsetsVertexBuffer.subspan(bufferOffset);
@@ -417,7 +405,8 @@ bool RenderBundleEncoder::executePreDrawCommands(bool passWasSplit)
             }
 
             if (m_dynamicOffsetsFragmentBuffer) {
-                auto dynamicOffsetsFragmentBuffer = makeSpanFromBuffer<uint8_t>(m_dynamicOffsetsFragmentBuffer);
+                auto maxBufferLength = m_dynamicOffsetsFragmentBuffer.length;
+                auto dynamicOffsetsFragmentBuffer = std::span { static_cast<uint8_t*>(m_dynamicOffsetsFragmentBuffer.contents), maxBufferLength };
                 auto bufferOffset = fragmentDynamicOffset;
                 auto fragmentBufferContents = dynamicOffsetsFragmentBuffer.subspan(bufferOffset + RenderBundleEncoder::startIndexForFragmentDynamicOffsets * sizeof(float));
                 auto* pfragmentOffsets = pipelineLayout.fragmentOffsets(bindGroupIndex, kvp.value);
@@ -529,12 +518,6 @@ RenderBundleEncoder::FinalizeRenderCommand RenderBundleEncoder::finalizeRenderCo
 {
     m_currentCommand = nil;
     ++m_currentCommandIndex;
-
-    constexpr auto approximateCommandSize = 512;
-    static const auto maxCommandCount = std::max<uint32_t>(100000, m_device->limits().maxBufferSize / approximateCommandSize);
-    if (isValid() && m_currentCommandIndex >= maxCommandCount && !m_renderPassEncoder && !m_indirectCommandBuffer)
-        endCurrentICB();
-
     return FinalizeRenderCommand { };
 }
 
@@ -767,7 +750,7 @@ RenderBundleEncoder::FinalizeRenderCommand RenderBundleEncoder::drawIndexedIndir
             if (!indirectBuffer.isDestroyed() && indexBuffer.length && mtlIndirectBuffer)
                 [m_renderPassEncoder->renderCommandEncoder() drawIndexedPrimitives:m_primitiveType indexType:m_indexType indexBuffer:indexBuffer indexBufferOffset:m_indexBufferOffset indirectBuffer:mtlIndirectBuffer indirectBufferOffset:modifiedIndirectOffset];
         } else {
-            auto contents = makeSpanFromBuffer<MTLDrawIndexedPrimitivesIndirectArguments>(indirectBuffer.buffer(), indirectOffset).data();
+            auto contents = (MTLDrawIndexedPrimitivesIndirectArguments*)indirectBuffer.buffer().contents;
             if (!contents || !contents->indexCount || !contents->instanceCount)
                 return finalizeRenderCommand();
 
@@ -825,7 +808,7 @@ RenderBundleEncoder::FinalizeRenderCommand RenderBundleEncoder::drawIndirect(Buf
             if (!indirectBuffer.isDestroyed() && clampedIndirectBuffer)
                 [m_renderPassEncoder->renderCommandEncoder() drawPrimitives:m_primitiveType indirectBuffer:clampedIndirectBuffer indirectBufferOffset:0];
         } else {
-            auto contents = makeSpanFromBuffer<MTLDrawPrimitivesIndirectArguments>(indirectBuffer.buffer(), indirectOffset).data();
+            auto contents = (MTLDrawPrimitivesIndirectArguments*)indirectBuffer.buffer().contents;
             if (!contents || !contents->instanceCount || !contents->vertexCount)
                 return finalizeRenderCommand();
 
@@ -865,7 +848,6 @@ void RenderBundleEncoder::endCurrentICB()
     RELEASE_ASSERT(!commandCount || !!m_icbDescriptor.commandTypes);
 
     m_icbDescriptor.maxVertexBufferBindCount = m_device->maxBuffersPlusVertexBuffersForVertexStage() + 1;
-    m_icbDescriptor.maxFragmentBufferBindCount = m_device->maxBuffersForFragmentStage() + 1;
     if (m_vertexBuffers.size() < m_icbDescriptor.maxVertexBufferBindCount)
         m_vertexBuffers.grow(m_icbDescriptor.maxVertexBufferBindCount);
     if (m_fragmentBuffers.size() < m_icbDescriptor.maxFragmentBufferBindCount)
@@ -879,13 +861,12 @@ void RenderBundleEncoder::endCurrentICB()
 
     if (!m_dynamicOffsetsFragmentBuffer) {
         m_dynamicOffsetsFragmentBuffer = m_device->safeCreateBuffer(m_fragmentDynamicOffset + RenderBundleEncoder::startIndexForFragmentDynamicOffsets * sizeof(float));
-        auto fragmentBufferSpan = makeSpanFromBuffer<float>(m_dynamicOffsetsFragmentBuffer);
-        auto fragmentBufferIntSpan = makeSpanFromBuffer<uint32_t>(m_dynamicOffsetsFragmentBuffer);
-        RELEASE_ASSERT(fragmentBufferSpan.size());
+        auto* fragmentBufferPtr = m_dynamicOffsetsFragmentBuffer.contents;
+        RELEASE_ASSERT(fragmentBufferPtr);
         static_assert(sizeof(float) == sizeof(uint32_t));
-        fragmentBufferSpan[0] = 0.f;
-        fragmentBufferSpan[1] = 1.f;
-        fragmentBufferIntSpan[2] = m_sampleMask;
+        static_cast<float*>(fragmentBufferPtr)[0] = 0.f;
+        static_cast<float*>(fragmentBufferPtr)[1] = 1.f;
+        static_cast<uint32_t*>(fragmentBufferPtr)[2] = m_sampleMask;
         if (!addResource(m_resources, m_dynamicOffsetsFragmentBuffer, MTLRenderStageFragment))
             return;
     }
@@ -893,7 +874,7 @@ void RenderBundleEncoder::endCurrentICB()
 
     if (!m_renderPassEncoder) {
         m_indirectCommandBuffer = [m_device->device() newIndirectCommandBufferWithDescriptor:m_icbDescriptor maxCommandCount:commandCount options:0];
-        if (!m_indirectCommandBuffer || m_indirectCommandBuffer.size != commandCount) {
+        if (!m_indirectCommandBuffer) {
             makeInvalid(@"MTLIndirectCommandBuffer allocation failed, likely tried to encode too many commands");
             return;
         }
@@ -1122,11 +1103,6 @@ void RenderBundleEncoder::setIndexBuffer(Buffer& buffer, WGPUIndexFormat format,
     if (m_renderPassEncoder && !setCommandEncoder(buffer, m_renderPassEncoder))
         return;
 
-    if (!isValidToUseWith(buffer, *this)) {
-        makeInvalid(@"setIndexBuffer: invalid index buffer");
-        return;
-    }
-
     id<MTLBuffer> indexBuffer = m_indexBuffer->buffer();
 
     if (!currentRenderCommand()) {
@@ -1199,9 +1175,6 @@ bool RenderBundleEncoder::icbNeedsToBeSplit(const RenderPipeline& a, const Rende
 
 void RenderBundleEncoder::recordCommand(WTF::Function<bool(void)>&& function)
 {
-    if (!isValid())
-        return;
-
     ASSERT(!m_renderPassEncoder || m_renderPassEncoder->renderCommandEncoder());
     m_recordedCommands.append(WTFMove(function));
 }
@@ -1209,12 +1182,6 @@ void RenderBundleEncoder::recordCommand(WTF::Function<bool(void)>&& function)
 void RenderBundleEncoder::setPipeline(const RenderPipeline& pipeline)
 {
     RETURN_IF_FINISHED();
-
-    if (!isValidToUseWith(pipeline, *this)) {
-        makeInvalid(@"setPipeline: invalid index buffer");
-        return;
-    }
-
     if (id<MTLIndirectRenderCommand> icbCommand = currentRenderCommand()) {
         id<MTLRenderPipelineState> previousRenderPipelineState = m_currentPipelineState;
         id<MTLDepthStencilState> previousDepthStencilState = m_depthStencilState;
@@ -1293,12 +1260,6 @@ void RenderBundleEncoder::setVertexBuffer(uint32_t slot, Buffer* optionalBuffer,
 {
     RETURN_IF_FINISHED();
     m_maxVertexBufferSlot = std::max(m_maxVertexBufferSlot, slot);
-
-    if (optionalBuffer && !isValidToUseWith(*optionalBuffer, *this)) {
-        makeInvalid(@"setVertexBuffer: invalid index buffer");
-        return;
-    }
-
     if (id<MTLIndirectRenderCommand> icbCommand = currentRenderCommand()) {
         if (!optionalBuffer) {
             if (slot < m_device->limits().maxVertexBuffers)

@@ -172,7 +172,6 @@ ResourceError::ErrorRecoveryMethod ResourceError::errorRecoveryMethod() const
         case NSURLErrorNetworkConnectionLost:
         case NSURLErrorHTTPTooManyRedirects:
         case NSURLErrorResourceUnavailable:
-        case NSURLErrorNotConnectedToInternet:
         case NSURLErrorRedirectToNonExistentLocation:
         case NSURLErrorBadServerResponse:
         case NSURLErrorZeroByteResource:

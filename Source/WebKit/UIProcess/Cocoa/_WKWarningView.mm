@@ -40,13 +40,13 @@
 #import "PepperUICoreSPI.h"
 #endif
 
+constexpr CGFloat exclamationPointSize = 30;
 constexpr CGFloat boxCornerRadius = 6;
 #if HAVE(SAFE_BROWSING)
 #if PLATFORM(WATCHOS)
 constexpr CGFloat marginSize = 9;
 #else
 constexpr CGFloat marginSize = 20;
-constexpr CGFloat warningSymbolPointSize = 30;
 #endif
 constexpr CGFloat maxWidth = 675;
 #if PLATFORM(WATCHOS) || PLATFORM(APPLETV)
@@ -55,8 +55,6 @@ constexpr CGFloat topToBottomMarginMultiplier = 0.2;
 constexpr CGFloat topToBottomMarginMultiplier = 0.5;
 #endif
 #endif
-
-constexpr CGFloat imageIconPointSizeMultiplier = 0.9;
 
 #if PLATFORM(MAC)
 using TextViewType = NSTextView;
@@ -73,7 +71,7 @@ using SizeType = CGSize;
 enum class WarningItem : uint8_t {
     BrowsingWarningBackground,
     BoxBackground,
-    WarningSymbol,
+    ExclamationPoint,
     TitleText,
     MessageText,
     ShowDetailsButton,
@@ -140,11 +138,11 @@ static WebCore::CocoaColor *colorForItem(WarningItem item, ViewType *warning)
             return colorNamed(@"WKHTTPSWarningBoxBackground");
         });
     case WarningItem::TitleText:
-    case WarningItem::WarningSymbol:
+    case WarningItem::ExclamationPoint:
         return WTF::switchOn(warningView.warning->data(), [&colorNamed] (const WebKit::BrowsingWarning::SafeBrowsingWarningData&) {
             return colorNamed(@"WKSafeBrowsingWarningTitle");
         }, [&] (const WebKit::BrowsingWarning::HTTPSNavigationFailureData&) {
-            return item == WarningItem::WarningSymbol ? NSColor.redColor : colorNamed(@"WKHTTPSWarningTitle");
+            return item == WarningItem::ExclamationPoint ? NSColor.redColor : colorNamed(@"WKHTTPSWarningTitle");
         });
     case WarningItem::MessageText:
         return WTF::switchOn(warningView.warning->data(), [&colorNamed] (const WebKit::BrowsingWarning::SafeBrowsingWarningData&) {
@@ -161,7 +159,8 @@ static WebCore::CocoaColor *colorForItem(WarningItem item, ViewType *warning)
 #else
     UIColor *red = [UIColor colorWithRed:0.998 green:0.239 blue:0.233 alpha:1.0];
     UIColor *darkGray = [UIColor colorWithRed:0.118 green:0.118 blue:0.118 alpha:1.0];
-    UIColor *lighterGray = [UIColor colorWithRed:0.937 green:0.937 blue:0.937 alpha:1.0];
+    UIColor *lighterGray = [UIColor colorWithRed:0.220 green:0.224 blue:0.231 alpha:1.0];
+    UIColor *mediumGray = [UIColor colorWithRed:0.729 green:0.733 blue:0.741 alpha:1.0];
     UIColor *white = [UIColor whiteColor];
 
     bool narrow = warning.traitCollection.horizontalSizeClass == UIUserInterfaceSizeClassCompact;
@@ -171,7 +170,7 @@ static WebCore::CocoaColor *colorForItem(WarningItem item, ViewType *warning)
         return WTF::switchOn(warningView.warning->data(), [&] (const WebKit::BrowsingWarning::SafeBrowsingWarningData&) {
             return red;
         }, [&] (const WebKit::BrowsingWarning::HTTPSNavigationFailureData&) {
-            return lighterGray;
+            return darkGray;
         });
     case WarningItem::BoxBackground:
         return WTF::switchOn(warningView.warning->data(), [&] (const WebKit::BrowsingWarning::SafeBrowsingWarningData&) {
@@ -180,11 +179,11 @@ static WebCore::CocoaColor *colorForItem(WarningItem item, ViewType *warning)
             return lighterGray;
         });
     case WarningItem::TitleText:
-    case WarningItem::WarningSymbol:
+    case WarningItem::ExclamationPoint:
         return WTF::switchOn(warningView.warning->data(), [&] (const WebKit::BrowsingWarning::SafeBrowsingWarningData&) {
             return narrow ? white : red;
         }, [&] (const WebKit::BrowsingWarning::HTTPSNavigationFailureData&) {
-            return item == WarningItem::TitleText ? darkGray : red;
+            return !narrow && item == WarningItem::TitleText ? white : red;
         });
     case WarningItem::MessageText:
     case WarningItem::ShowDetailsButton:
@@ -192,13 +191,13 @@ static WebCore::CocoaColor *colorForItem(WarningItem item, ViewType *warning)
         return WTF::switchOn(warningView.warning->data(), [&] (const WebKit::BrowsingWarning::SafeBrowsingWarningData&) {
             return narrow ? white : [UIColor darkTextColor];
         }, [&] (const WebKit::BrowsingWarning::HTTPSNavigationFailureData&) {
-            return darkGray;
+            return item == WarningItem::MessageText ? mediumGray : white;
         });
     case WarningItem::GoBackButton:
         return WTF::switchOn(warningView.warning->data(), [&] (const WebKit::BrowsingWarning::SafeBrowsingWarningData&) {
             return narrow ? white : warning.tintColor;
         }, [&] (const WebKit::BrowsingWarning::HTTPSNavigationFailureData&) {
-            return narrow ? darkGray : warning.tintColor;
+            return white;
         });
     }
 #endif
@@ -206,31 +205,61 @@ static WebCore::CocoaColor *colorForItem(WarningItem item, ViewType *warning)
     return nil;
 }
 
-static RetainPtr<ViewType> viewForIconImage(_WKWarningView *warningView)
+@interface WKSafeBrowsingExclamationPoint : ViewType
+@end
+
+@implementation WKSafeBrowsingExclamationPoint
+
+- (void)drawRect:(RectType)rect
 {
-    NSString *symbolName;
-    WebCore::CocoaColor *color = colorForItem(WarningItem::WarningSymbol, warningView);
-    BOOL shouldSetTint = NO;
-    CGFloat imagePointSize = fontOfSize(WarningTextSize::Title).pointSize * imageIconPointSizeMultiplier;
-    WTF::switchOn(warningView.warning->data(), [&] (const WebKit::BrowsingWarning::SafeBrowsingWarningData&) {
-        symbolName = @"exclamationmark.circle.fill";
-    }, [&] (const WebKit::BrowsingWarning::HTTPSNavigationFailureData&) {
-        symbolName = @"lock.slash.fill";
-        shouldSetTint = YES;
-    });
+    constexpr CGFloat centerX = exclamationPointSize / 2;
+    constexpr CGFloat pointCenterY = exclamationPointSize * 7 / 30;
+    constexpr CGFloat pointRadius = 2.25 * exclamationPointSize / 30;
+    constexpr CGFloat lineBottomCenterY = exclamationPointSize * 13 / 30;
+    constexpr CGFloat lineTopCenterY = exclamationPointSize * 23 / 30;
+    constexpr CGFloat lineRadius = 1.75 * exclamationPointSize / 30;
+    ViewType *warning = self.superview.superview;
 #if PLATFORM(MAC)
-    RetainPtr view = [NSImageView imageViewWithImage:[NSImage imageWithSystemSymbolName:symbolName accessibilityDescription:nil]];
-    [view setSymbolConfiguration:[NSImageSymbolConfiguration configurationWithPointSize:imagePointSize weight:NSFontWeightRegular scale:NSImageSymbolScaleLarge]];
-    if (shouldSetTint)
-        [view setContentTintColor:color];
+    [colorForItem(WarningItem::ExclamationPoint, warning) set];
+    NSBezierPath *exclamationPoint = [NSBezierPath bezierPathWithOvalInRect:NSMakeRect(0, 0, exclamationPointSize, exclamationPointSize)];
+    [exclamationPoint appendBezierPathWithArcWithCenter: { centerX, lineBottomCenterY } radius:lineRadius startAngle:0 endAngle:180 clockwise:YES];
+    [exclamationPoint appendBezierPathWithArcWithCenter: { centerX, lineTopCenterY } radius:lineRadius startAngle:180 endAngle:360 clockwise:YES];
+    [exclamationPoint lineToPoint: { centerX + lineRadius, lineBottomCenterY }];
+    [exclamationPoint appendBezierPathWithArcWithCenter: { centerX, pointCenterY } radius:pointRadius startAngle:0 endAngle:180 clockwise:YES];
+    [exclamationPoint appendBezierPathWithArcWithCenter: { centerX, pointCenterY } radius:pointRadius startAngle:180 endAngle:360 clockwise:YES];
 #else
-    RetainPtr view = adoptNS([[UIImageView alloc] initWithImage:[UIImage systemImageNamed:symbolName]]);
-    [view setTintColor:color];
-    [view setPreferredSymbolConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:imagePointSize]];
-    [view setContentMode:UIViewContentModeScaleAspectFit];
+    auto flip = [] (auto y) {
+        return exclamationPointSize - y;
+    };
+    [colorForItem(WarningItem::BoxBackground, warning) set];
+    auto square = CGRectMake(0, 0, exclamationPointSize, exclamationPointSize);
+    [[UIBezierPath bezierPathWithRect:square] fill];
+
+    [colorForItem(WarningItem::ExclamationPoint, warning) set];
+    UIBezierPath *exclamationPoint = [UIBezierPath bezierPathWithOvalInRect:square];
+    [exclamationPoint addArcWithCenter: { centerX, flip(lineTopCenterY) } radius:lineRadius startAngle:2 * piDouble endAngle:piDouble clockwise:NO];
+    [exclamationPoint addArcWithCenter: { centerX, flip(lineBottomCenterY) } radius:lineRadius startAngle:piDouble endAngle:0 clockwise:NO];
+    [exclamationPoint addArcWithCenter: { centerX, flip(pointCenterY) } radius:pointRadius startAngle:0 endAngle:piDouble clockwise:NO];
+    [exclamationPoint addArcWithCenter: { centerX, flip(pointCenterY) } radius:pointRadius startAngle:piDouble endAngle:piDouble * 2 clockwise:NO];
+    [exclamationPoint addLineToPoint: { centerX + lineRadius, flip(lineBottomCenterY) }];
+    [exclamationPoint addLineToPoint: { centerX + lineRadius, flip(lineTopCenterY) }];
 #endif
-    return view;
+    [exclamationPoint fill];
 }
+
+#if PLATFORM(MAC)
+- (void)viewDidChangeEffectiveAppearance
+{
+    [self setNeedsDisplay:YES];
+}
+#endif
+
+- (NSSize)intrinsicContentSize
+{
+    return { exclamationPointSize, exclamationPointSize };
+}
+
+@end
 
 static ButtonType *makeButton(WarningItem item, _WKWarningView *warning, SEL action)
 {
@@ -341,7 +370,7 @@ static RetainPtr<ViewType> makeLabel(NSAttributedString *attributedString)
 
 - (void)addContent
 {
-    RetainPtr warningViewIcon = viewForIconImage(self);
+    auto exclamationPoint = adoptNS([WKSafeBrowsingExclamationPoint new]);
     auto title = makeLabel(adoptNS([[NSAttributedString alloc] initWithString:_warning->title() attributes:@{
         NSFontAttributeName:fontOfSize(WarningTextSize::Title),
         NSForegroundColorAttributeName:colorForItem(WarningItem::TitleText, self)
@@ -368,7 +397,7 @@ static RetainPtr<ViewType> makeLabel(NSAttributedString *attributedString)
     [box setWarningViewBackgroundColor:colorForItem(WarningItem::BoxBackground, self)];
     [box layer].cornerRadius = boxCornerRadius;
 
-    for (ViewType *view in @[ warningViewIcon.get(), title.get(), warning.get(), goBack, primaryButton ]) {
+    for (ViewType *view in @[exclamationPoint.get(), title.get(), warning.get(), goBack, primaryButton]) {
         view.translatesAutoresizingMaskIntoConstraints = NO;
         [box addSubview:view];
     }
@@ -378,14 +407,14 @@ static RetainPtr<ViewType> makeLabel(NSAttributedString *attributedString)
     [NSLayoutConstraint activateConstraints:@[
 #if HAVE(SAFE_BROWSING)
 #if PLATFORM(WATCHOS)
-        [[[box leadingAnchor] anchorWithOffsetToAnchor:[warningViewIcon leadingAnchor]] constraintEqualToAnchor:[[warningViewIcon trailingAnchor] anchorWithOffsetToAnchor:[box trailingAnchor]]],
+        [[[box leadingAnchor] anchorWithOffsetToAnchor:[exclamationPoint leadingAnchor]] constraintEqualToAnchor:[[exclamationPoint trailingAnchor] anchorWithOffsetToAnchor:[box trailingAnchor]]],
         [[[box leadingAnchor] anchorWithOffsetToAnchor:[title leadingAnchor]] constraintEqualToConstant:marginSize],
-        [[[warningViewIcon bottomAnchor] anchorWithOffsetToAnchor:[title topAnchor]] constraintEqualToConstant:marginSize],
-        [[[box topAnchor] anchorWithOffsetToAnchor:[warningViewIcon topAnchor]] constraintEqualToConstant:marginSize + self.frame.size.height / 2],
+        [[[exclamationPoint bottomAnchor] anchorWithOffsetToAnchor:[title topAnchor]] constraintEqualToConstant:marginSize],
+        [[[box topAnchor] anchorWithOffsetToAnchor:[exclamationPoint topAnchor]] constraintEqualToConstant:marginSize + self.frame.size.height / 2],
 #else
-        [[[box leadingAnchor] anchorWithOffsetToAnchor:[warningViewIcon leadingAnchor]] constraintEqualToConstant:marginSize],
-        [[[box leadingAnchor] anchorWithOffsetToAnchor:[title leadingAnchor]] constraintEqualToConstant:marginSize * 1.5 + warningSymbolPointSize],
-        [[[title topAnchor] anchorWithOffsetToAnchor:[warningViewIcon topAnchor]] constraintEqualToAnchor:[[warningViewIcon bottomAnchor] anchorWithOffsetToAnchor:[title bottomAnchor]]],
+        [[[box leadingAnchor] anchorWithOffsetToAnchor:[exclamationPoint leadingAnchor]] constraintEqualToConstant:marginSize],
+        [[[box leadingAnchor] anchorWithOffsetToAnchor:[title leadingAnchor]] constraintEqualToConstant:marginSize * 1.5 + exclamationPointSize],
+        [[[title topAnchor] anchorWithOffsetToAnchor:[exclamationPoint topAnchor]] constraintEqualToAnchor:[[exclamationPoint bottomAnchor] anchorWithOffsetToAnchor:[title bottomAnchor]]],
         [[[box topAnchor] anchorWithOffsetToAnchor:[title topAnchor]] constraintEqualToConstant:marginSize],
 #endif
         [[[title bottomAnchor] anchorWithOffsetToAnchor:[warning topAnchor]] constraintEqualToConstant:marginSize],
@@ -440,7 +469,7 @@ static RetainPtr<ViewType> makeLabel(NSAttributedString *attributedString)
     ButtonType *showDetails = box.subviews.lastObject;
     [showDetails removeFromSuperview];
 
-    auto text = adoptNS([_warning->details() mutableCopy]);
+    auto text = adoptNS([self._protectedWarning->details() mutableCopy]);
     [text addAttributes:@{ NSFontAttributeName:fontOfSize(WarningTextSize::Body) } range:NSMakeRange(0, [text length])];
     auto details = adoptNS([[_WKWarningViewTextView alloc] initWithAttributedString:text.get() forWarning:self]);
     _details = details.get();
@@ -595,6 +624,11 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 - (BOOL)forMainFrameNavigation
 {
     return _warning->forMainFrameNavigation();
+}
+
+- (RefPtr<const WebKit::BrowsingWarning>)_protectedWarning
+{
+    return _warning;
 }
 
 @end

@@ -46,40 +46,30 @@ RemoteBindGroup::RemoteBindGroup(WebCore::WebGPU::BindGroup& bindGroup, WebGPU::
     , m_gpu(gpu)
     , m_identifier(identifier)
 {
-    protectedStreamConnection()->startReceivingMessages(*this, Messages::RemoteBindGroup::messageReceiverName(), m_identifier.toUInt64());
+    m_streamConnection->startReceivingMessages(*this, Messages::RemoteBindGroup::messageReceiverName(), m_identifier.toUInt64());
 }
 
 RemoteBindGroup::~RemoteBindGroup() = default;
 
 void RemoteBindGroup::destruct()
 {
-    protectedObjectHeap()->removeObject(m_identifier);
+    Ref { m_objectHeap.get() }->removeObject(m_identifier);
 }
 
 void RemoteBindGroup::updateExternalTextures(WebGPUIdentifier externalTextureIdentifier)
 {
     if (auto externalTexture = protectedObjectHeap()->convertExternalTextureFromBacking(externalTextureIdentifier); externalTexture.get())
-        protectedBacking()->updateExternalTextures(*externalTexture.get());
+        m_backing->updateExternalTextures(*externalTexture.get());
 }
 
 void RemoteBindGroup::stopListeningForIPC()
 {
-    protectedStreamConnection()->stopReceivingMessages(Messages::RemoteBindGroup::messageReceiverName(), m_identifier.toUInt64());
+    m_streamConnection->stopReceivingMessages(Messages::RemoteBindGroup::messageReceiverName(), m_identifier.toUInt64());
 }
 
 void RemoteBindGroup::setLabel(String&& label)
 {
-    protectedBacking()->setLabel(WTFMove(label));
-}
-
-Ref<WebCore::WebGPU::BindGroup> RemoteBindGroup::protectedBacking()
-{
-    return m_backing;
-}
-
-Ref<IPC::StreamServerConnection> RemoteBindGroup::protectedStreamConnection() const
-{
-    return m_streamConnection;
+    m_backing->setLabel(WTFMove(label));
 }
 
 } // namespace WebKit

@@ -22,12 +22,9 @@
 #include "config.h"
 #include "CSSRule.h"
 
-#include "CSSScopeRule.h"
-#include "CSSStyleRule.h"
 #include "CSSStyleSheet.h"
 #include "StyleRule.h"
 #include "StyleSheetContents.h"
-#include "css/parser/CSSParserEnum.h"
 
 namespace WebCore {
 
@@ -57,7 +54,7 @@ ExceptionOr<void> CSSRule::setCssText(const String&)
 
 const CSSParserContext& CSSRule::parserContext() const
 {
-    RefPtr styleSheet = parentStyleSheet();
+    CSSStyleSheet* styleSheet = parentStyleSheet();
     return styleSheet ? styleSheet->contents().parserContext() : strictCSSParserContext();
 }
 
@@ -71,18 +68,6 @@ bool CSSRule::hasStyleRuleAncestor() const
         current = current->parentRule();
     }
     return false;
-}
-
-CSSParserEnum::NestedContext CSSRule::nestedContext() const
-{
-    for (RefPtr parentRule = this->parentRule(); parentRule; parentRule = parentRule->parentRule()) {
-        if (is<CSSStyleRule>(*parentRule))
-            return CSSParserEnum::NestedContextType::Style;
-        if (is<CSSScopeRule>(*parentRule))
-            return CSSParserEnum::NestedContextType::Scope;
-    }
-
-    return { };
 }
 
 RefPtr<StyleRuleWithNesting> CSSRule::prepareChildStyleRuleForNesting(StyleRule&)

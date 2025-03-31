@@ -28,7 +28,6 @@
 
 #if ENABLE(LINEAR_MEDIA_PLAYER)
 
-#import "LinearMediaKitExtras.h"
 #import "LinearMediaKitSPI.h"
 #import "PlaybackSessionInterfaceLMK.h"
 #import "WKSLinearMediaPlayer.h"
@@ -100,10 +99,6 @@ void VideoPresentationInterfaceLMK::setSpatialImmersive(bool immersive)
 void VideoPresentationInterfaceLMK::setupFullscreen(UIView& videoView, const WebCore::FloatRect& initialRect, const WebCore::FloatSize& videoDimensions, UIView* parentView, WebCore::HTMLMediaElementEnums::VideoFullscreenMode mode, bool allowsPictureInPicturePlayback, bool standby, bool blocksReturnToFullscreenFromPictureInPicture)
 {
     linearMediaPlayer().contentDimensions = videoDimensions;
-    if (!linearMediaPlayer().enteredFromInline && playerViewController()) {
-        playableViewController().wks_automaticallyDockOnFullScreenPresentation = NO;
-        playableViewController().wks_dismissFullScreenOnExitingDocking = NO;
-    }
     VideoPresentationInterfaceIOS::setupFullscreen(videoView, initialRect, videoDimensions, parentView, mode, allowsPictureInPicturePlayback, standby, blocksReturnToFullscreenFromPictureInPicture);
 }
 

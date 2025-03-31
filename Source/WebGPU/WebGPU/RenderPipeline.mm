@@ -584,18 +584,13 @@ static MTLVertexDescriptor *createVertexDescriptor(WGPUVertexState vertexState, 
         for (size_t i = 0; i < buffer.attributeCount; ++i) {
             auto& attribute = buffer.attributes[i];
             auto formatSize = vertexFormatSize(attribute.format);
-            auto offsetPlusFormatSize = checkedSum<uint64_t>(attribute.offset, formatSize);
-            if (offsetPlusFormatSize.hasOverflowed()) {
-                *error = @"attribute.offset + formatSize > uint64::max()";
-                return nil;
-            }
-            lastStride = std::max<uint64_t>(lastStride, offsetPlusFormatSize.value());
+            lastStride = std::max<uint64_t>(lastStride, attribute.offset + formatSize);
             if (!buffer.arrayStride) {
-                if (offsetPlusFormatSize.value() > limits.maxVertexBufferArrayStride) {
+                if (attribute.offset + formatSize > limits.maxVertexBufferArrayStride) {
                     *error = @"attribute.offset + formatSize > limits.maxVertexBufferArrayStride";
                     return nil;
                 }
-            } else if (offsetPlusFormatSize.value() > buffer.arrayStride) {
+            } else if (attribute.offset + formatSize > buffer.arrayStride) {
                 *error = @"attribute.offset + formatSize > buffer.arrayStride";
                 return nil;
             }
@@ -1313,10 +1308,6 @@ std::pair<Ref<RenderPipeline>, NSString*> Device::createRenderPipeline(const WGP
         return returnInvalidRenderPipeline(*this, isAsync, "device or descriptor is not valid"_s);
 
     MTLRenderPipelineDescriptor* mtlRenderPipelineDescriptor = [MTLRenderPipelineDescriptor new];
-#if ENABLE(WEBGPU_BY_DEFAULT)
-    mtlRenderPipelineDescriptor.shaderValidation = MTLShaderValidationEnabled;
-#endif
-
     auto label = fromAPI(descriptor.label);
     // FIXME: https://bugs.webkit.org/show_bug.cgi?id=249345 don't unconditionally set this to YES
     mtlRenderPipelineDescriptor.supportIndirectCommandBuffers = YES;

@@ -39,11 +39,11 @@
 #include "Document.h"
 #include "DocumentInlines.h"
 #include "MediaQueryEvaluator.h"
-#include "MutableCSSSelector.h"
 #include "StyleResolver.h"
 #include "StyleRuleImport.h"
 #include "StyleScope.h"
 #include "StyleSheetContents.h"
+#include "css/CSSSelectorList.h"
 #include <wtf/CryptographicallyRandomNumber.h>
 
 namespace WebCore {
@@ -149,9 +149,7 @@ void RuleSetBuilder::addChildRule(Ref<StyleRuleBase> rule)
         // If <scope-start> is empty, it doesn't create a nesting context (the nesting selector might eventually be replaced by :scope)
         if (!scopeStart.isEmpty())
             m_selectorListStack.append(&scopeStart);
-        m_ancestorStack.append(CSSParserEnum::NestedContextType::Scope);
         addChildRules(scopeRule->childRules());
-        m_ancestorStack.removeLast();
         if (!scopeStart.isEmpty())
             m_selectorListStack.removeLast();
 
@@ -204,7 +202,7 @@ void RuleSetBuilder::addChildRule(Ref<StyleRuleBase> rule)
     }
 
     case StyleRuleType::StartingStyle: {
-        SetForScope startingStyleScope { m_isStartingStyle, IsStartingStyle::Yes };
+        SetForScope startingStyleScope { m_atRuleTypes, m_atRuleTypes | AtRuleType::StartingStyle };
         auto startingStyleRule = uncheckedDowncast<StyleRuleStartingStyle>(WTFMove(rule));
         addChildRules(startingStyleRule->childRules());
         return;
@@ -226,6 +224,13 @@ void RuleSetBuilder::addChildRule(Ref<StyleRuleBase> rule)
         auto supportsRule = uncheckedDowncast<StyleRuleSupports>(WTFMove(rule));
         if (supportsRule->conditionIsSupported())
             addChildRules(supportsRule->childRules());
+        return;
+    }
+
+    case StyleRuleType::InternalBaseAppearance: {
+        SetForScope scope { m_atRuleTypes, m_atRuleTypes | AtRuleType::BaseAppearance };
+        auto internalBaseAppearanceRule = uncheckedDowncast<StyleRuleInternalBaseAppearance>(WTFMove(rule));
+        addChildRules(internalBaseAppearanceRule->childRules());
         return;
     }
 
@@ -277,7 +282,7 @@ void RuleSetBuilder::resolveSelectorListWithNesting(StyleRuleWithNesting& rule)
 {
     const CSSSelectorList* parentResolvedSelectorList = nullptr;
     if (m_selectorListStack.size())
-        parentResolvedSelectorList = m_selectorListStack.last();
+        parentResolvedSelectorList =  m_selectorListStack.last();
 
     // If it's a top-level rule without a nesting parent selector, keep the selector list as is.
     if (!rule.originalSelectorList().hasExplicitNestingParent() && !parentResolvedSelectorList)
@@ -292,7 +297,7 @@ void RuleSetBuilder::addStyleRuleWithSelectorList(const CSSSelectorList& selecto
     if (!selectorList.isEmpty()) {
         unsigned selectorListIndex = 0;
         for (size_t selectorIndex = 0; selectorIndex != notFound; selectorIndex = selectorList.indexOfNextSelectorAfter(selectorIndex)) {
-            RuleData ruleData(rule, selectorIndex, selectorListIndex, m_ruleSet->ruleCount(), m_isStartingStyle);
+            RuleData ruleData(rule, selectorIndex, selectorListIndex, m_ruleSet->ruleCount(), m_atRuleTypes);
             m_mediaQueryCollector.addRuleIfNeeded(ruleData);
             m_ruleSet->addRule(WTFMove(ruleData), m_currentCascadeLayerIdentifier, m_currentContainerQueryIdentifier, m_currentScopeIdentifier);
             ++selectorListIndex;
@@ -305,15 +310,13 @@ void RuleSetBuilder::addStyleRule(StyleRuleWithNesting& rule)
     if (m_shouldResolveNesting == ShouldResolveNesting::Yes)
         resolveSelectorListWithNesting(rule);
 
-    const auto& selectorList = rule.selectorList();
+    auto& selectorList = rule.selectorList();
     addStyleRuleWithSelectorList(selectorList, rule);
 
     // Process nested rules
     m_selectorListStack.append(&selectorList);
-    m_ancestorStack.append(CSSParserEnum::NestedContextType::Style);
     for (auto& nestedRule : rule.nestedRules())
         addChildRule(nestedRule);
-    m_ancestorStack.removeLast();
     m_selectorListStack.removeLast();
 }
 
@@ -324,26 +327,8 @@ void RuleSetBuilder::addStyleRule(const StyleRule& rule)
 
 void RuleSetBuilder::addStyleRule(StyleRuleNestedDeclarations& rule)
 {
-    auto whereScopeSelector = [] {
-        auto scopeSelector = makeUnique<MutableCSSSelector>();
-        scopeSelector->setMatch(CSSSelector::Match::PseudoClass);
-        scopeSelector->setPseudoClass(CSSSelector::PseudoClass::Scope);
-        auto whereSelector = makeUnique<MutableCSSSelector>();
-        whereSelector->setMatch(CSSSelector::Match::PseudoClass);
-        whereSelector->setPseudoClass(CSSSelector::PseudoClass::Where);
-        whereSelector->setSelectorList(makeUnique<CSSSelectorList>(MutableCSSSelectorList::from(WTFMove(scopeSelector))));
-        return whereSelector;
-    };
-
-    auto selectorList = [&] {
-        ASSERT(m_selectorListStack.size());
-        ASSERT(m_ancestorStack.size());
-        if (m_ancestorStack.last() == CSSParserEnum::NestedContextType::Style)
-            return *m_selectorListStack.last();
-        ASSERT(m_ancestorStack.last() == CSSParserEnum::NestedContextType::Scope);
-        return CSSSelectorList { MutableCSSSelectorList::from(whereScopeSelector()) };
-    }();
-
+    ASSERT(m_selectorListStack.size());
+    auto selectorList =  *m_selectorListStack.last();
     rule.wrapperAdoptSelectorList(WTFMove(selectorList));
     addStyleRuleWithSelectorList(rule.selectorList(), rule);
 }

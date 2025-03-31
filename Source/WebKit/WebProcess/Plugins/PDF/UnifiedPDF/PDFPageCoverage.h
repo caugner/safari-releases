@@ -37,8 +37,7 @@ namespace WebKit {
 
 struct PerPageInfo {
     PDFDocumentLayout::PageIndex pageIndex { 0 };
-    WebCore::FloatRect pageBounds; // These are in "PDFDocumentLayout" coordinates.
-    WebCore::FloatRect rectInPageLayoutCoordinates; // Some arbirary rect converted into "PDFDocumentLayout" coordinates.
+    WebCore::FloatRect pageBounds;
 
     bool operator==(const PerPageInfo&) const = default;
 };

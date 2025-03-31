@@ -33,7 +33,6 @@
 #include "CSSLayerStatementRule.h"
 #include "CSSMediaRule.h"
 #include "CSSParser.h"
-#include "CSSParserEnum.h"
 #include "CSSParserImpl.h"
 #include "CSSParserObserver.h"
 #include "CSSPropertyNames.h"
@@ -95,6 +94,7 @@ static RuleFlatteningStrategy flatteningStrategyForStyleRuleType(StyleRuleType s
     case StyleRuleType::LayerBlock:
     case StyleRuleType::Container:
     case StyleRuleType::StartingStyle:
+    case StyleRuleType::InternalBaseAppearance:
         // These rules MUST be handled by the static `isValidRuleHeaderText`, `protocolGroupingTypeForStyleRuleType`,
         // and `asCSSRuleList` in order to provide functionality in Web Inspector. Additionally, they MUST have a CSSOM
         // representation created in `StyleRuleBase::createCSSOMWrapper`, otherwise we will end up with a mismatched
@@ -152,7 +152,7 @@ static ASCIILiteral atRuleIdentifierForType(StyleRuleType styleRuleType)
     }
 }
 
-static bool isValidRuleHeaderText(const String& headerText, StyleRuleType styleRuleType, Document* document, CSSParserEnum::NestedContext nestedContext = { })
+static bool isValidRuleHeaderText(const String& headerText, StyleRuleType styleRuleType, Document* document, CSSParserEnum::IsNestedContext isNestedContext)
 {
     auto isValidAtRuleHeaderText = [&] (const String& atRuleIdentifier) {
         if (headerText.isEmpty())
@@ -187,7 +187,7 @@ static bool isValidRuleHeaderText(const String& headerText, StyleRuleType styleR
     switch (styleRuleType) {
     case StyleRuleType::Style: {
         CSSParser parser(parserContextForDocument(document));
-        return !!parser.parseSelectorList(headerText, nullptr, nestedContext);
+        return !!parser.parseSelectorList(headerText, nullptr, isNestedContext);
     }
     case StyleRuleType::Media:
     case StyleRuleType::Supports:
@@ -1088,6 +1088,16 @@ ExceptionOr<String> InspectorStyleSheet::ruleHeaderText(const InspectorCSSId& id
     return sheetText.substring(sourceData->ruleHeaderRange.start, sourceData->ruleHeaderRange.length());
 }
 
+static CSSParserEnum::IsNestedContext isNestedContext(CSSRule* rule)
+{
+    for (CSSRule *parentRule = rule->parentRule(); parentRule; parentRule = parentRule->parentRule()) {
+        if (is<CSSStyleRule>(parentRule))
+            return CSSParserEnum::IsNestedContext::Yes;
+    }
+
+    return CSSParserEnum::IsNestedContext::No;
+}
+
 ExceptionOr<void> InspectorStyleSheet::setRuleHeaderText(const InspectorCSSId& id, const String& newHeaderText)
 {
     if (!m_pageStyleSheet)
@@ -1097,7 +1107,7 @@ ExceptionOr<void> InspectorStyleSheet::setRuleHeaderText(const InspectorCSSId& i
     if (!rule)
         return Exception { ExceptionCode::NotFoundError };
 
-    if (!isValidRuleHeaderText(newHeaderText, rule->styleRuleType(), m_pageStyleSheet->ownerDocument(), rule->nestedContext()))
+    if (!isValidRuleHeaderText(newHeaderText, rule->styleRuleType(), m_pageStyleSheet->ownerDocument(), isNestedContext(rule)))
         return Exception { ExceptionCode::SyntaxError };
 
     CSSStyleSheet* styleSheet = rule->parentStyleSheet();
@@ -1149,7 +1159,7 @@ ExceptionOr<CSSStyleRule*> InspectorStyleSheet::addRule(const String& selector)
     if (!m_pageStyleSheet)
         return Exception { ExceptionCode::NotSupportedError };
 
-    if (!isValidRuleHeaderText(selector, StyleRuleType::Style, m_pageStyleSheet->ownerDocument()))
+    if (!isValidRuleHeaderText(selector, StyleRuleType::Style, m_pageStyleSheet->ownerDocument(), CSSParserEnum::IsNestedContext::No))
         return Exception { ExceptionCode::SyntaxError };
 
     auto text = this->text();
@@ -1474,7 +1484,7 @@ static inline bool isNotSpaceOrTab(UChar character)
 //
 // Canonicalizing is useful for generating the new style sheet text after some style edit;
 // it'd be hard to compute the replacement text if property declarations were scattered.
-static String computeCanonicalRuleText(const String& styleSheetText, const String& ruleStyleDeclarationText, const CSSRuleSourceData& logicalContainingRuleSourceData)
+static StringView computeCanonicalRuleText(const String& styleSheetText, const String& ruleStyleDeclarationText, const CSSRuleSourceData& logicalContainingRuleSourceData)
 {
     auto indentation = emptyString();
     auto startOfSecondLine = ruleStyleDeclarationText.find('\n');
@@ -1511,7 +1521,7 @@ static String computeCanonicalRuleText(const String& styleSheetText, const Strin
     if (closingIndentationLineStart != notFound)
         canonicalRuleText.appendSubstring(ruleStyleDeclarationText, closingIndentationLineStart);
 
-    return canonicalRuleText.toString();
+    return canonicalRuleText;
 }
 
 // This function updates the style declaration text of the rule given by `id`.
@@ -1552,7 +1562,7 @@ ExceptionOr<void> InspectorStyleSheet::setRuleStyleText(const InspectorCSSId& id
     cssStyleDeclaration->setCssText(newStyleDeclarationText);
 
     // Don't canonicalize the rule text if a `newRuleText` is provided, to allow for faithful undoing.
-    String replacementBodyText = newRuleText ? *newRuleText : computeCanonicalRuleText(styleSheetText, newStyleDeclarationText, *logicalContainingRuleSourceData);
+    StringView replacementBodyText = newRuleText ? *newRuleText : computeCanonicalRuleText(styleSheetText, newStyleDeclarationText, *logicalContainingRuleSourceData);
 
     m_parsedStyleSheet->setText(makeStringByReplacing(styleSheetText, bodyStart, bodyEnd - bodyStart, replacementBodyText));
     m_pageStyleSheet->clearHadRulesMutation();

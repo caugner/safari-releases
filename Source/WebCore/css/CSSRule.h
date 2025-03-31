@@ -22,7 +22,6 @@
 
 #pragma once
 
-#include "CSSParserEnum.h"
 #include "ExceptionOr.h"
 #include "StyleRuleType.h"
 #include <wtf/TypeCasts.h>
@@ -53,7 +52,6 @@ public:
     CSSStyleSheet* parentStyleSheet() const;
     CSSRule* parentRule() const { return m_parentIsRule ? m_parentRule : nullptr; }
     bool hasStyleRuleAncestor() const;
-    CSSParserEnum::NestedContext nestedContext() const;
     virtual RefPtr<StyleRuleWithNesting> prepareChildStyleRuleForNesting(StyleRule&);
     virtual void getChildStyleSheets(HashSet<RefPtr<CSSStyleSheet>>&) { }
 

@@ -32,7 +32,6 @@
 #include "PolicyDecision.h"
 #include "SandboxExtension.h"
 #include "UseDownloadPlaceholder.h"
-#include <WebCore/LocalFrameLoaderClient.h>
 #include <WebCore/NotImplemented.h>
 #include <wtf/CheckedRef.h>
 #include <wtf/Forward.h>
@@ -47,8 +46,6 @@ namespace WebCore {
 class BlobDataFileReference;
 class ResourceRequest;
 class ResourceResponse;
-
-enum class FromDownloadAttribute : bool;
 }
 
 namespace IPC {
@@ -72,6 +69,8 @@ class DownloadManager : public CanMakeCheckedPtr<DownloadManager> {
 public:
     class Client {
     public:
+        DECLARE_VIRTUAL_REFCOUNTED;
+
         virtual ~Client() { }
 
         // CheckedPtr interface
@@ -86,16 +85,12 @@ public:
         virtual IPC::Connection* parentProcessConnectionForDownloads() = 0;
         virtual AuthenticationManager& downloadsAuthenticationManager() = 0;
         virtual NetworkSession* networkSession(PAL::SessionID) const = 0;
-
-        // RefPtr interface
-        virtual void ref() const = 0;
-        virtual void deref() const = 0;
     };
 
     explicit DownloadManager(Client&);
     ~DownloadManager();
 
-    void startDownload(PAL::SessionID, DownloadID, const WebCore::ResourceRequest&, const std::optional<WebCore::SecurityOriginData>& topOrigin, std::optional<NavigatingToAppBoundDomain>, const String& suggestedName = { }, WebCore::FromDownloadAttribute = WebCore::FromDownloadAttribute::No, std::optional<WebCore::FrameIdentifier> frameID = std::nullopt, std::optional<WebCore::PageIdentifier> = std::nullopt, std::optional<WebCore::ProcessIdentifier> = std::nullopt);
+    void startDownload(PAL::SessionID, DownloadID, const WebCore::ResourceRequest&, const std::optional<WebCore::SecurityOriginData>& topOrigin, std::optional<NavigatingToAppBoundDomain>, const String& suggestedName = { });
     void dataTaskBecameDownloadTask(DownloadID, std::unique_ptr<Download>&&);
     void convertNetworkLoadToDownload(DownloadID, std::unique_ptr<NetworkLoad>&&, ResponseCompletionHandler&&,  Vector<RefPtr<WebCore::BlobDataFileReference>>&&, const WebCore::ResourceRequest&, const WebCore::ResourceResponse&);
     void downloadDestinationDecided(DownloadID, Ref<NetworkDataTask>&&);
@@ -129,7 +124,7 @@ public:
 
 private:
     CheckedRef<Client> m_client;
-    HashMap<DownloadID, std::unique_ptr<PendingDownload>> m_pendingDownloads;
+    HashMap<DownloadID, Ref<PendingDownload>> m_pendingDownloads;
     HashMap<DownloadID, RefPtr<NetworkDataTask>> m_downloadsAfterDestinationDecided;
     DownloadMap m_downloads;
 };

@@ -219,7 +219,6 @@ private:
     bool sendEditingCommandToPDFForTesting(const String& commandName, const String& argument) final;
     void setPDFDisplayModeForTesting(const String&) final;
     Vector<WebCore::FloatRect> pdfAnnotationRectsForTesting() const override;
-    void setPDFTextAnnotationValueForTesting(unsigned pageIndex, unsigned annotationIndex, const String& value) final;
     void registerPDFTestCallback(RefPtr<WebCore::VoidCallback> &&) final;
 };
 

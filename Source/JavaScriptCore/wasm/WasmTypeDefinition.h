@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2023 Apple Inc. All rights reserved.
+ * Copyright (C) 2016-2024 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -29,6 +29,7 @@
 
 #if ENABLE(WEBASSEMBLY)
 
+#include "JITCompilation.h"
 #include "SIMDInfo.h"
 #include "WasmLLIntBuiltin.h"
 #include "WasmOps.h"
@@ -59,6 +60,8 @@
 namespace JSC {
 
 namespace Wasm {
+
+class JSToWasmICCallee;
 
 #define CREATE_ENUM_VALUE(name, id, ...) name = id,
 enum class ExtSIMDOpType : uint32_t {
@@ -234,18 +237,6 @@ constexpr void dumpOpType(PrintStream& out, OpType op)
 
 MAKE_PRINT_ADAPTOR(OpTypeDump, OpType, dumpOpType);
 
-inline bool isCompareOpType(OpType op)
-{
-    switch (op) {
-#define CREATE_CASE(name, ...) case name: return true;
-    FOR_EACH_WASM_COMPARE_UNARY_OP(CREATE_CASE)
-    FOR_EACH_WASM_COMPARE_BINARY_OP(CREATE_CASE)
-#undef CREATE_CASE
-    default:
-        return false;
-    }
-}
-
 constexpr Type simdScalarType(SIMDLane lane)
 {
     switch (lane) {
@@ -313,6 +304,7 @@ constexpr size_t typeKindSizeInBytes(TypeKind kind)
     case TypeKind::Arrayref:
     case TypeKind::Structref:
     case TypeKind::Funcref:
+    case TypeKind::Exn:
     case TypeKind::Externref:
     case TypeKind::Ref:
     case TypeKind::RefNull: {
@@ -341,12 +333,8 @@ constexpr size_t typeKindSizeInBytes(TypeKind kind)
 
 class FunctionSignature {
 public:
-    FunctionSignature(Type* payload, FunctionArgCount argumentCount, FunctionArgCount returnCount)
-        : m_payload(payload)
-        , m_argCount(argumentCount)
-        , m_retCount(returnCount)
-    {
-    }
+    FunctionSignature(Type* payload, FunctionArgCount argumentCount, FunctionArgCount returnCount);
+    ~FunctionSignature();
 
     FunctionArgCount argumentCount() const { return m_argCount; }
     FunctionArgCount returnCount() const { return m_retCount; }
@@ -404,12 +392,25 @@ public:
     Type* storage(FunctionArgCount i) { return i + m_payload; }
     const Type* storage(FunctionArgCount i) const { return const_cast<FunctionSignature*>(this)->storage(i); }
 
+#if ENABLE(JIT)
+    // This is const because we generally think of FunctionSignatures as immutable.
+    // Conceptually this more like using the `const FunctionSignature*` as a global HashMap
+    // key to the JIT code though.
+    CodePtr<JSEntryPtrTag> jsToWasmICEntrypoint() const;
+#endif
+
 private:
     friend class TypeInformation;
 
     Type* m_payload;
     FunctionArgCount m_argCount;
     FunctionArgCount m_retCount;
+#if ENABLE(JIT)
+    mutable RefPtr<JSToWasmICCallee> m_jsToWasmICCallee;
+    // FIXME: We should have a WTF::Once that uses ParkingLot and the low bits of a pointer as a lock and use that here.
+    mutable Lock m_jitCodeLock;
+    // FIXME: Support caching wasmToJSEntrypoints too.
+#endif
     bool m_hasRecursiveReference { false };
     bool m_argumentsOrResultsIncludeV128 { false };
 };
@@ -602,7 +603,7 @@ public:
     {
     }
 
-    bool cleanup();
+    void cleanup();
 
     RecursionGroupCount typeCount() const { return m_typeCount; }
     TypeIndex type(RecursionGroupCount i) const { return const_cast<RecursionGroup*>(this)->getType(i); }
@@ -638,7 +639,7 @@ public:
     {
     }
 
-    bool cleanup();
+    void cleanup();
 
     TypeIndex recursionGroup() const { return const_cast<Projection*>(this)->getRecursionGroup(); }
     ProjectionIndex index() const { return const_cast<Projection*>(this)->getIndex(); }
@@ -674,7 +675,7 @@ public:
     {
     }
 
-    bool cleanup();
+    void cleanup();
 
     SupertypeCount supertypeCount() const { return m_supertypeCount; }
     bool isFinal() const { return m_final; }
@@ -754,12 +755,13 @@ enum class TypeDefinitionKind : uint8_t {
 
 class TypeDefinition : public ThreadSafeRefCounted<TypeDefinition> {
     WTF_MAKE_TZONE_ALLOCATED(TypeDefinition);
+    WTF_MAKE_NONCOPYABLE(TypeDefinition);
 
     TypeDefinition() = delete;
-    TypeDefinition(const TypeDefinition&) = delete;
 
     TypeDefinition(TypeDefinitionKind kind, FunctionArgCount retCount, FunctionArgCount argCount)
-        : m_typeHeader { FunctionSignature { static_cast<Type*>(payload()), argCount, retCount } }
+        // FunctionSignature is not moveable.
+        : m_typeHeader(std::in_place_index<0>, static_cast<Type*>(payload()), argCount, retCount)
     {
         RELEASE_ASSERT(kind == TypeDefinitionKind::FunctionSignature);
     }
@@ -786,7 +788,7 @@ class TypeDefinition : public ThreadSafeRefCounted<TypeDefinition> {
         : m_typeHeader { ArrayType { static_cast<FieldType*>(payload()) } }
     {
         if (kind == TypeDefinitionKind::Projection)
-            m_typeHeader = { Projection { static_cast<TypeIndex*>(payload()) } };
+            m_typeHeader = Projection { static_cast<TypeIndex*>(payload()) };
         else
             RELEASE_ASSERT(kind == TypeDefinitionKind::ArrayType);
     }
@@ -811,14 +813,14 @@ public:
     template <typename T>
     const T* as() const { return const_cast<TypeDefinition*>(this)->as<T>(); }
 
-    TypeIndex index() const;
+    TypeIndex index() const { return bitwise_cast<TypeIndex>(this); }
 
     WTF::String toString() const;
     void dump(WTF::PrintStream& out) const;
     bool operator==(const TypeDefinition& rhs) const { return this == &rhs; }
     unsigned hash() const;
 
-    Ref<const TypeDefinition> replacePlaceholders(TypeIndex) const;
+    const TypeDefinition& replacePlaceholders(TypeIndex) const;
     const TypeDefinition& unroll() const;
     const TypeDefinition& expand() const;
     bool hasRecursiveReference() const;
@@ -827,17 +829,13 @@ public:
     // Type definitions that are compound and contain references to other definitions
     // via a type index should ref() the other definition when new unique instances are
     // constructed, and need to be cleaned up and have deref() called through this cleanup()
-    // method when the containing module is destroyed. Returns true if any ref counts may
-    // have changed.
-    bool cleanup();
+    // method when the containing module is destroyed.
+    void cleanup();
 
     // Type definitions are uniqued and, for call_indirect, validated at runtime. Tables can create invalid TypeIndex values which cause call_indirect to fail. We use 0 as the invalidIndex so that the codegen can easily test for it and trap, and we add a token invalid entry in TypeInformation.
     static const constexpr TypeIndex invalidIndex = 0;
 
 private:
-    // Returns the TypeIndex of a potentially unowned (other than TypeInformation::m_typeSet) TypeDefinition.
-    TypeIndex unownedIndex() const { return bitwise_cast<TypeIndex>(this); }
-
     friend class TypeInformation;
     friend struct FunctionParameterTypes;
     friend struct StructParameterTypes;
@@ -938,7 +936,7 @@ public:
     static RefPtr<TypeDefinition> getPlaceholderProjection(ProjectionIndex);
     ALWAYS_INLINE const FunctionSignature* thunkFor(Type type) const { return thunkTypes[linearizeType(type.kind)]; }
 
-    static void addCachedUnrolling(TypeIndex, const TypeDefinition&);
+    static void addCachedUnrolling(TypeIndex, const TypeDefinition*);
     static std::optional<TypeIndex> tryGetCachedUnrolling(TypeIndex);
 
     // Every type definition that is in a module's signature list should have a canonical RTT registered for subtyping checks.
@@ -954,7 +952,6 @@ public:
     static TypeIndex get(const TypeDefinition&);
 
     inline static const FunctionSignature& getFunctionSignature(TypeIndex);
-    inline static std::optional<const FunctionSignature*> tryGetFunctionSignature(TypeIndex);
 
     static void tryCleanup();
 private:

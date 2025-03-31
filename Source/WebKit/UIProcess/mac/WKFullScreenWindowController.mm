@@ -248,8 +248,6 @@ ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     [[self window] setAutodisplay:NO];
 ALLOW_DEPRECATED_DECLARATIONS_END
 
-    _page->startDeferringResizeEvents();
-    _page->startDeferringScrollEvents();
     [self _manager]->saveScrollPosition();
     _savedTopContentInset = _page->topContentInset();
     _page->setTopContentInset(0);
@@ -275,7 +273,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     _webView.frame = NSInsetRect(contentView.bounds, 0, -_page->topContentInset());
 
     _savedScale = _page->pageScaleFactor();
-    _page->scalePageRelativeToScrollPosition(1, { });
+    _page->scalePage(1, WebCore::IntPoint());
     [self _manager]->setAnimatingFullScreen(true);
     [self _manager]->willEnterFullScreen();
 }
@@ -366,7 +364,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
         makeResponderFirstResponderIfDescendantOfView(_webView.window, firstResponder, _webView);
         [[_webView window] makeKeyAndOrderFront:self];
 
-        _page->scalePageRelativeToScrollPosition(_savedScale, { });
+        _page->scalePage(_savedScale, WebCore::IntPoint());
         [self _manager]->restoreScrollPosition();
         _page->setTopContentInset(_savedTopContentInset);
         [self _manager]->setAnimatingFullScreen(false);
@@ -385,8 +383,6 @@ ALLOW_DEPRECATED_DECLARATIONS_END
         WebKit::NativeWebMouseEvent webEvent(fakeEvent, nil, _webView);
         _page->handleMouseEvent(webEvent);
     }
-    _page->flushDeferredResizeEvents();
-    _page->flushDeferredScrollEvents();
 
     if (_requestedExitFullScreen) {
         _requestedExitFullScreen = NO;
@@ -423,8 +419,6 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     // See the related comment in enterFullScreen:
     // We will resume the normal behavior in _startExitFullScreenAnimationWithDuration:
     _page->setSuppressVisibilityUpdates(true);
-    _page->startDeferringResizeEvents();
-    _page->startDeferringScrollEvents();
     [_webViewPlaceholder setTarget:nil];
 
     [self _manager]->setAnimatingFullScreen(true);
@@ -542,11 +536,9 @@ static RetainPtr<CGImageRef> takeWindowSnapshot(CGSWindowID windowID, bool captu
     // These messages must be sent after the swap or flashing will occur during forceRepaint:
     [self _manager]->setAnimatingFullScreen(false);
     [self _manager]->didExitFullScreen();
-    _page->scalePageRelativeToScrollPosition(_savedScale, { });
+    _page->scalePage(_savedScale, WebCore::IntPoint());
     [self _manager]->restoreScrollPosition();
     _page->setTopContentInset(_savedTopContentInset);
-    _page->flushDeferredResizeEvents();
-    _page->flushDeferredScrollEvents();
 
     [CATransaction commit];
     [CATransaction flush];

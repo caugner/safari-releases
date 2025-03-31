@@ -28,6 +28,7 @@
 
 #if ENABLE(GPU_PROCESS)
 
+#include "Logging.h"
 #include "RemoteBindGroup.h"
 #include "RemoteBindGroupLayout.h"
 #include "RemoteBuffer.h"
@@ -143,7 +144,7 @@ void RemoteDevice::createXRBinding(WebGPUIdentifier identifier)
 {
     Ref objectHeap = m_objectHeap.get();
     auto binding = m_backing->createXRBinding();
-    auto remoteBinding = RemoteXRBinding::create(*binding, objectHeap, protectedGPU(), m_streamConnection.copyRef(), identifier);
+    auto remoteBinding = RemoteXRBinding::create(*m_gpuConnectionToWebProcess.get(), *binding, objectHeap, protectedGPU(), m_streamConnection.copyRef(), identifier);
     objectHeap->addObject(identifier, remoteBinding);
 }
 

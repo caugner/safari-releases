@@ -58,7 +58,8 @@
 @property (nonatomic, readonly) BOOL _secureEventInputEnabledForTesting;
 
 - (void)_createFlagsChangedEventMonitorForTesting;
-- (BOOL)_hasFlagsChangedEventMonitorForTesting;
+
+- (void)_removeFlagsChangedEventMonitorForTesting;
 
 @end
 

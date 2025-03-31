@@ -208,46 +208,15 @@ bool NetworkProcess::shouldTerminate()
     return false;
 }
 
-void NetworkProcess::didReceiveMessage(IPC::Connection& connection, IPC::Decoder& decoder)
+bool NetworkProcess::dispatchMessage(IPC::Connection& connection, IPC::Decoder& decoder)
 {
-    ASSERT(parentProcessConnection() == &connection);
-    if (parentProcessConnection() != &connection) {
-        WTFLogAlways("Ignored message '%s' because it did not come from the UIProcess (destination=%" PRIu64 ")", description(decoder.messageName()).characters(), decoder.destinationID());
-        ASSERT_NOT_REACHED();
-        return;
-    }
-
-    if (messageReceiverMap().dispatchMessage(connection, decoder))
-        return;
-
-    if (decoder.messageReceiverName() == Messages::AuxiliaryProcess::messageReceiverName()) {
-        AuxiliaryProcess::didReceiveMessage(connection, decoder);
-        return;
-    }
-
 #if ENABLE(CONTENT_EXTENSIONS)
     if (decoder.messageReceiverName() == Messages::NetworkContentRuleListManager::messageReceiverName()) {
         m_networkContentRuleListManager.didReceiveMessage(connection, decoder);
-        return;
+        return true;
     }
 #endif
-
-    didReceiveNetworkProcessMessage(connection, decoder);
-}
-
-bool NetworkProcess::didReceiveSyncMessage(IPC::Connection& connection, IPC::Decoder& decoder, UniqueRef<IPC::Encoder>& replyEncoder)
-{
-    ASSERT(parentProcessConnection() == &connection);
-    if (parentProcessConnection() != &connection) {
-        WTFLogAlways("Ignored message '%s' because it did not come from the UIProcess (destination=%" PRIu64 ")", description(decoder.messageName()).characters(), decoder.destinationID());
-        ASSERT_NOT_REACHED();
-        return false;
-    }
-
-    if (messageReceiverMap().dispatchSyncMessage(connection, decoder, replyEncoder))
-        return true;
-
-    return didReceiveSyncNetworkProcessMessage(connection, decoder, replyEncoder);
+    return false;
 }
 
 void NetworkProcess::stopRunLoopIfNecessary()
@@ -408,9 +377,6 @@ void NetworkProcess::createNetworkConnectionToWebProcess(ProcessIdentifier ident
         connection->connection().setIgnoreInvalidMessageForTesting();
 #endif
 
-    for (auto pageID : parameters.pagesWithRelaxedThirdPartyCookieBlocking)
-        m_pagesWithRelaxedThirdPartyCookieBlocking.add(pageID);
-
     if (auto* session = networkSession(sessionID)) {
         Vector<WebCore::RegistrableDomain> allowedSites;
         auto iter = m_allowedFirstPartiesForCookies.find(identifier);
@@ -454,49 +420,55 @@ void NetworkProcess::addAllowedFirstPartyForCookies(WebCore::ProcessIdentifier p
     completionHandler();
 }
 
-auto NetworkProcess::allowsFirstPartyForCookies(WebCore::ProcessIdentifier processIdentifier, const URL& firstParty) -> AllowCookieAccess
+void NetworkProcess::webProcessWillLoadWebArchive(WebCore::ProcessIdentifier processIdentifier)
 {
-    auto allowCookieAccess = allowsFirstPartyForCookies(processIdentifier, RegistrableDomain { firstParty });
-    if (allowCookieAccess == NetworkProcess::AllowCookieAccess::Terminate) {
-        // FIXME: This should probably not be necessary. If about:blank is the first party for cookies,
-        // we should set it to be the inherited origin then remove this exception.
-        if (firstParty.isAboutBlank())
-            return AllowCookieAccess::Disallow;
-
-        if (firstParty.isNull())
-            return AllowCookieAccess::Disallow; // FIXME: This shouldn't be allowed.
-    }
-
-    return allowCookieAccess;
+    m_allowedFirstPartiesForCookies.ensure(processIdentifier, [] {
+        return std::make_pair(LoadedWebArchive::Yes, HashSet<RegistrableDomain> { });
+    }).iterator->value.first = LoadedWebArchive::Yes;
 }
 
-auto NetworkProcess::allowsFirstPartyForCookies(WebCore::ProcessIdentifier processIdentifier, const RegistrableDomain& firstPartyDomain) -> AllowCookieAccess
+bool NetworkProcess::allowsFirstPartyForCookies(WebCore::ProcessIdentifier processIdentifier, const URL& firstParty)
+{
+    // FIXME: This should probably not be necessary. If about:blank is the first party for cookies,
+    // we should set it to be the inherited origin then remove this exception.
+    if (firstParty.isAboutBlank())
+        return true;
+
+    if (firstParty.isNull())
+        return true; // FIXME: This shouldn't be allowed.
+
+    return allowsFirstPartyForCookies(processIdentifier, RegistrableDomain { firstParty });
+}
+
+bool NetworkProcess::allowsFirstPartyForCookies(WebCore::ProcessIdentifier processIdentifier, const RegistrableDomain& firstPartyDomain)
 {
     // FIXME: This shouldn't be needed but it is hit sometimes at least with PDFs.
-    auto terminateOrDisallow = firstPartyDomain.isEmpty() ? AllowCookieAccess::Disallow : AllowCookieAccess::Terminate;
+    if (firstPartyDomain.isEmpty())
+        return true;
+
     if (!decltype(m_allowedFirstPartiesForCookies)::isValidKey(processIdentifier)) {
         ASSERT_NOT_REACHED();
-        return terminateOrDisallow;
+        return false;
     }
 
     auto iterator = m_allowedFirstPartiesForCookies.find(processIdentifier);
     if (iterator == m_allowedFirstPartiesForCookies.end()) {
         ASSERT_NOT_REACHED();
-        return terminateOrDisallow;
+        return false;
     }
 
     if (iterator->value.first == LoadedWebArchive::Yes)
-        return AllowCookieAccess::Allow;
+        return true;
 
     auto& set = iterator->value.second;
     if (!std::remove_reference_t<decltype(set)>::isValidValue(firstPartyDomain)) {
         ASSERT_NOT_REACHED();
-        return terminateOrDisallow;
+        return false;
     }
 
     auto result = set.contains(firstPartyDomain);
-    ASSERT(result || terminateOrDisallow == AllowCookieAccess::Disallow);
-    return result ? AllowCookieAccess::Allow : terminateOrDisallow;
+    ASSERT(result);
+    return result;
 }
 
 void NetworkProcess::addStorageSession(PAL::SessionID sessionID, const WebsiteDataStoreParameters& parameters)
@@ -2163,6 +2135,9 @@ void NetworkProcess::findPendingDownloadLocation(NetworkDataTask& networkDataTas
         if (destination.isEmpty())
             return completionHandler(PolicyAction::Ignore);
         networkDataTask->setPendingDownloadLocation(destination, WTFMove(sandboxExtensionHandle), allowOverwrite == AllowOverwrite::Yes);
+        completionHandler(PolicyAction::Download);
+        if (networkDataTask->state() == NetworkDataTask::State::Canceling || networkDataTask->state() == NetworkDataTask::State::Completed)
+            return;
 
 #if PLATFORM(COCOA)
         URL publishURL;
@@ -2177,11 +2152,6 @@ void NetworkProcess::findPendingDownloadLocation(NetworkDataTask& networkDataTas
             publishDownloadProgress(downloadID, publishURL, WTFMove(placeholderSandboxExtensionHandle));
 #endif // HAVE(MODERN_DOWNLOADPROGRESS)
 #endif // PLATFORM(COCOA)
-
-        completionHandler(PolicyAction::Download);
-        if (networkDataTask->state() == NetworkDataTask::State::Canceling || networkDataTask->state() == NetworkDataTask::State::Completed)
-            return;
-
         if (downloadManager().download(downloadID)) {
             // The completion handler already called dataTaskBecameDownloadTask().
             return;
@@ -2191,10 +2161,12 @@ void NetworkProcess::findPendingDownloadLocation(NetworkDataTask& networkDataTas
     }, *networkDataTask.pendingDownloadID());
 }
 
-void NetworkProcess::dataTaskWithRequest(WebPageProxyIdentifier pageID, PAL::SessionID sessionID, WebCore::ResourceRequest&& request, const std::optional<WebCore::SecurityOriginData>& topOrigin, IPC::FormDataReference&& httpBody, CompletionHandler<void(DataTaskIdentifier)>&& completionHandler)
+void NetworkProcess::dataTaskWithRequest(WebPageProxyIdentifier pageID, PAL::SessionID sessionID, WebCore::ResourceRequest&& request, const std::optional<WebCore::SecurityOriginData>& topOrigin, IPC::FormDataReference&& httpBody, CompletionHandler<void(std::optional<DataTaskIdentifier>)>&& completionHandler)
 {
     request.setHTTPBody(httpBody.takeData());
-    networkSession(sessionID)->dataTaskWithRequest(pageID, WTFMove(request), topOrigin, WTFMove(completionHandler));
+    networkSession(sessionID)->dataTaskWithRequest(pageID, WTFMove(request), topOrigin, [completionHandler = WTFMove(completionHandler)](auto dataTaskIdentifier) mutable {
+        completionHandler(dataTaskIdentifier);
+    });
 }
 
 void NetworkProcess::cancelDataTask(DataTaskIdentifier identifier, PAL::SessionID sessionID, CompletionHandler<void()>&& completionHandler)
@@ -3004,6 +2976,11 @@ RTCDataChannelRemoteManagerProxy& NetworkProcess::rtcDataChannelProxy()
         m_rtcDataChannelProxy = RTCDataChannelRemoteManagerProxy::create();
     return *m_rtcDataChannelProxy;
 }
+
+Ref<RTCDataChannelRemoteManagerProxy> NetworkProcess::protectedRTCDataChannelProxy()
+{
+    return rtcDataChannelProxy();
+}
 #endif
 
 void NetworkProcess::addWebPageNetworkParameters(PAL::SessionID sessionID, WebPageProxyIdentifier pageID, WebPageNetworkParameters&& parameters)
@@ -3023,8 +3000,6 @@ void NetworkProcess::removeWebPageNetworkParameters(PAL::SessionID sessionID, We
 
     if (auto* resourceLoadStatistics = session->resourceLoadStatistics())
         resourceLoadStatistics->clearFrameLoadRecordsForStorageAccess(pageID);
-
-    m_pagesWithRelaxedThirdPartyCookieBlocking.remove(pageID);
 }
 
 void NetworkProcess::countNonDefaultSessionSets(PAL::SessionID sessionID, CompletionHandler<void(size_t)>&& completionHandler)
@@ -3092,16 +3067,6 @@ void NetworkProcess::setPersistedDomains(PAL::SessionID sessionID, HashSet<Regis
 {
     if (auto* session = networkSession(sessionID))
         session->setPersistedDomains(WTFMove(domains));
-}
-
-void NetworkProcess::setShouldRelaxThirdPartyCookieBlockingForPage(WebPageProxyIdentifier pageID)
-{
-    m_pagesWithRelaxedThirdPartyCookieBlocking.add(pageID);
-}
-
-ShouldRelaxThirdPartyCookieBlocking NetworkProcess::shouldRelaxThirdPartyCookieBlockingForPage(std::optional<WebPageProxyIdentifier> pageID) const
-{
-    return pageID && m_pagesWithRelaxedThirdPartyCookieBlocking.contains(*pageID) ? ShouldRelaxThirdPartyCookieBlocking::Yes : ShouldRelaxThirdPartyCookieBlocking::No;
 }
 
 } // namespace WebKit

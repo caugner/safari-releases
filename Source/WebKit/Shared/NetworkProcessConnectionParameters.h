@@ -26,7 +26,6 @@
 #pragma once
 
 #include "SharedPreferencesForWebProcess.h"
-#include "WebPageProxyIdentifier.h"
 
 namespace WebKit {
 
@@ -35,7 +34,6 @@ struct NetworkProcessConnectionParameters {
 #if ENABLE(IPC_TESTING_API)
     bool ignoreInvalidMessageForTesting { false };
 #endif
-    Vector<WebPageProxyIdentifier> pagesWithRelaxedThirdPartyCookieBlocking;
 };
 
 } // namespace WebKit

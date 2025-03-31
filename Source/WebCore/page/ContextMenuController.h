@@ -91,7 +91,7 @@ private:
     void createAndAppendTextDirectionSubMenu(ContextMenuItem&);
     void createAndAppendSubstitutionsSubMenu(ContextMenuItem&);
     void createAndAppendTransformationsSubMenu(ContextMenuItem&);
-    bool shouldEnableCopyLinkWithHighlight() const;
+    bool shouldEnableCopyLinkToHighlight() const;
 #if PLATFORM(GTK)
     void createAndAppendUnicodeSubMenu(ContextMenuItem&);
 #endif

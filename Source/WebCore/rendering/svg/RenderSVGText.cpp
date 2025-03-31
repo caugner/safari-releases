@@ -142,7 +142,7 @@ static inline bool findPreviousAndNextAttributes(RenderElement& start, RenderSVG
 
 inline bool RenderSVGText::shouldHandleSubtreeMutations() const
 {
-    if (beingDestroyed() || !m_hasPerformedLayout) {
+    if (beingDestroyed() || !everHadLayout()) {
         ASSERT(m_layoutAttributes.isEmpty());
         ASSERT(!m_layoutAttributesBuilder.numberOfTextPositioningElements());
         return false;
@@ -271,7 +271,7 @@ void RenderSVGText::subtreeTextDidChange(RenderSVGInlineText* text)
 {
     ASSERT(text);
     ASSERT(!beingDestroyed());
-    if (!m_hasPerformedLayout) {
+    if (!everHadLayout()) {
         ASSERT(m_layoutAttributes.isEmpty());
         ASSERT(!m_layoutAttributesBuilder.numberOfTextPositioningElements());
         return;
@@ -324,7 +324,7 @@ void RenderSVGText::layout()
         updateCachedBoundariesInParents = true;
     }
 
-    if (!m_hasPerformedLayout) {
+    if (!everHadLayout()) {
         // When laying out initially, collect all layout attributes, build the character data map,
         // and propogate resulting SVGLayoutAttributes to all RenderSVGInlineText children in the subtree.
         ASSERT(m_layoutAttributes.isEmpty());
@@ -382,7 +382,7 @@ void RenderSVGText::layout()
     }
 
     // FIXME: We need to find a way to only layout the child boxes, if needed.
-    auto layoutChanged = m_hasPerformedLayout && selfNeedsLayout();
+    auto layoutChanged = everHadLayout() && selfNeedsLayout();
     auto oldBoundaries = objectBoundingBox();
 
     if (!firstChild()) {
@@ -427,7 +427,6 @@ void RenderSVGText::layout()
 
     repainter.repaintAfterLayout();
     clearNeedsLayout();
-    m_hasPerformedLayout = true;
 }
 
 bool RenderSVGText::nodeAtFloatPoint(const HitTestRequest& request, HitTestResult& result, const FloatPoint& pointInParent, HitTestAction hitTestAction)

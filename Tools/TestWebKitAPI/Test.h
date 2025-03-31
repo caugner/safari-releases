@@ -88,9 +88,4 @@ inline std::ostream& operator<<(std::ostream& os, const String& string)
     return os << string.utf8().data();
 }
 
-inline std::ostream& operator<<(std::ostream& os, const ASCIILiteral& string)
-{
-    return os << string.characters();
-}
-
 }

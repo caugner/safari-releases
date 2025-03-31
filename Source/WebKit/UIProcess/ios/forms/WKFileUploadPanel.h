@@ -37,7 +37,6 @@ class OpenPanelParameters;
 namespace WebKit {
 class WebOpenPanelResultListenerProxy;
 enum class PickerDismissalReason : uint8_t;
-enum class KeyboardIsDismissing : bool { No, Yes };
 }
 
 @interface WKFileUploadPanel : UIViewController
@@ -48,7 +47,7 @@ enum class KeyboardIsDismissing : bool { No, Yes };
 - (BOOL)dismissIfNeededWithReason:(WebKit::PickerDismissalReason)reason;
 
 #if USE(UICONTEXTMENU)
-- (void)repositionContextMenuIfNeeded:(WebKit::KeyboardIsDismissing)isKeyboardBeingDismissed;
+- (void)repositionContextMenuIfNeeded;
 #endif
 
 - (NSArray<NSString *> *)currentAvailableActionTitles;

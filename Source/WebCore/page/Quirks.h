@@ -41,7 +41,6 @@ class HTMLElement;
 class HTMLVideoElement;
 class LayoutUnit;
 class LocalFrame;
-class Node;
 class PlatformMouseEvent;
 class RegistrableDomain;
 class SecurityOriginData;
@@ -70,19 +69,13 @@ public:
 #if ENABLE(TOUCH_EVENTS)
     bool shouldDispatchSimulatedMouseEvents(const EventTarget*) const;
     bool shouldDispatchedSimulatedMouseEventsAssumeDefaultPrevented(EventTarget*) const;
-    std::optional<Event::IsCancelable> simulatedMouseEventTypeForTarget(EventTarget*) const;
-    bool shouldPreventPointerMediaQueryFromEvaluatingToCoarse() const;
     bool shouldPreventDispatchOfTouchEvent(const AtomString&, EventTarget*) const;
-#endif
-#if ENABLE(IOS_TOUCH_EVENTS)
-    WEBCORE_EXPORT bool shouldSynthesizeTouchEvents() const;
 #endif
     bool shouldDisablePointerEventsQuirk() const;
     bool needsDeferKeyDownAndKeyPressTimersUntilNextEditingCommand() const;
     bool shouldHideSearchFieldResultsButton() const;
     bool shouldExposeShowModalDialog() const;
     bool shouldNavigatorPluginsBeEmpty() const;
-    bool shouldDisableNavigatorStandaloneQuirk() const;
 
     bool shouldPreventOrientationMediaQueryFromEvaluatingToLandscape() const;
     bool shouldFlipScreenDimensions() const;
@@ -117,11 +110,8 @@ public:
     bool needsFullscreenDisplayNoneQuirk() const;
     bool needsFullscreenObjectFitQuirk() const;
     bool needsWeChatScrollingQuirk() const;
-    bool needsGoogleMapsScrollingQuirk() const;
 
-    bool needsScrollbarWidthThinDisabledQuirk() const;
-    bool needsPrimeVideoUserSelectNoneQuirk() const;
-    bool needsBodyScrollbarWidthNoneDisabledQuirk() const;
+    bool needsYouTubeDarkModeQuirk() const;
 
     bool shouldOpenAsAboutBlank(const String&) const;
 
@@ -162,10 +152,6 @@ public:
     static bool isMicrosoftTeamsRedirectURL(const URL&);
     static bool hasStorageAccessForAllLoginDomains(const HashSet<RegistrableDomain>&, const RegistrableDomain&);
     StorageAccessResult requestStorageAccessAndHandleClick(CompletionHandler<void(ShouldDispatchClick)>&&) const;
-
-#if ENABLE(TOUCH_EVENTS)
-    WEBCORE_EXPORT static bool shouldOmitTouchEventDOMAttributesForDesktopWebsite(const URL&);
-#endif
 
     static bool shouldOmitHTMLDocumentSupportedPropertyNames();
 
@@ -216,25 +202,16 @@ public:
 
     String scriptToEvaluateBeforeRunningScriptFromURL(const URL&);
 
-    bool shouldHideCoarsePointerCharacteristics() const;
-    bool needsZeroMaxTouchPointsQuirk() const;
-    bool implicitMuteWhenVolumeSetToZero() const;
-
-#if PLATFORM(IOS_FAMILY)
-    WEBCORE_EXPORT bool shouldIgnoreContentObservationForClick(const Node&) const;
-    WEBCORE_EXPORT bool shouldSynthesizeTouchEventsAfterNonSyntheticClick(const Node&) const;
-#endif
-
-    bool needsBingGestureEventQuirk(EventTarget*) const;
-
 private:
     bool needsQuirks() const;
     bool isDomain(const String&) const;
     bool isEmbedDomain(const String&) const;
     bool isYoutubeEmbedDomain() const;
 
+#if ENABLE(TOUCH_EVENTS)
     bool isAmazon() const;
     bool isGoogleMaps() const;
+#endif
 
     RefPtr<Document> protectedDocument() const;
 
@@ -250,8 +227,6 @@ private:
     mutable std::optional<bool> m_needsFullscreenDisplayNoneQuirk;
     mutable std::optional<bool> m_needsFullscreenObjectFitQuirk;
     mutable std::optional<bool> m_shouldAvoidPastingImagesAsWebContent;
-    mutable std::optional<bool> m_needsGoogleMapsScrollingQuirk;
-    mutable std::optional<bool> m_mayNeedToIgnoreContentObservation;
 #endif
 #if ENABLE(TOUCH_EVENTS)
     enum class ShouldDispatchSimulatedMouseEvents : uint8_t {
@@ -261,9 +236,6 @@ private:
         Yes,
     };
     mutable ShouldDispatchSimulatedMouseEvents m_shouldDispatchSimulatedMouseEventsQuirk { ShouldDispatchSimulatedMouseEvents::Unknown };
-#endif
-#if ENABLE(IOS_TOUCH_EVENTS)
-    mutable std::optional<bool> m_shouldSynthesizeTouchEventsQuirk;
 #endif
     mutable std::optional<bool> m_needsCanPlayAfterSeekedQuirk;
     mutable std::optional<bool> m_shouldBypassAsyncScriptDeferring;
@@ -300,16 +272,7 @@ private:
     mutable std::optional<bool> m_shouldDisableElementFullscreen;
     mutable std::optional<bool> m_shouldIgnorePlaysInlineRequirementQuirk;
     mutable std::optional<bool> m_needsRelaxedCorsMixedContentCheckQuirk;
-    mutable std::optional<bool> m_needsScrollbarWidthThinDisabledQuirk;
-    mutable std::optional<bool> m_needsBodyScrollbarWidthNoneDisabledQuirk;
-#if ENABLE(DESKTOP_CONTENT_MODE_QUIRKS)
-    mutable std::optional<bool> m_needsZeroMaxTouchPointsQuirk;
-#endif
-    mutable std::optional<bool> m_needsPrimeVideoUserSelectNoneQuirk;
-
-#if HAVE(MEDIA_VOLUME_PER_ELEMENT)
-    mutable std::optional<bool> m_implicitMuteWhenVolumeSetToZero;
-#endif
+    mutable std::optional<bool> m_needsYouTubeDarkModeQuirk;
 
     Vector<RegistrableDomain> m_subFrameDomainsForStorageAccessQuirk;
 };

@@ -91,7 +91,7 @@ private:
 
     void appendAccumulatedDataToDataBuffer(ByteRangeRequest&);
 
-    void dataSpanForRange(uint64_t position, size_t count, CheckValidRanges, CompletionHandler<void(std::span<const uint8_t>)>&&) const;
+    std::span<const uint8_t> dataSpanForRange(uint64_t position, size_t count, CheckValidRanges) const;
     uint64_t availableDataSize() const;
 
     void getResourceBytesAtPosition(size_t count, off_t position, DataRequestCompletionHandler&&);

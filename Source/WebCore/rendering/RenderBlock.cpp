@@ -334,26 +334,19 @@ void RenderBlock::styleWillChange(StyleDifference diff, const RenderStyle& newSt
     RenderBox::styleWillChange(diff, newStyle);
 }
 
-bool RenderBlock::scrollbarWidthDidChange(const RenderStyle& oldStyle, const RenderStyle& newStyle, ScrollbarOrientation orientation)
-{
-    return (orientation == ScrollbarOrientation::Vertical ? includeVerticalScrollbarSize() : includeHorizontalScrollbarSize()) && oldStyle.scrollbarWidth() != newStyle.scrollbarWidth();
-}
-
-bool RenderBlock::contentBoxLogicalWidthChanged(const RenderStyle& oldStyle, const RenderStyle& newStyle)
+static bool borderOrPaddingLogicalWidthChanged(const RenderStyle& oldStyle, const RenderStyle& newStyle)
 {
     if (newStyle.isHorizontalWritingMode()) {
         return oldStyle.borderLeftWidth() != newStyle.borderLeftWidth()
             || oldStyle.borderRightWidth() != newStyle.borderRightWidth()
             || oldStyle.paddingLeft() != newStyle.paddingLeft()
-            || oldStyle.paddingRight() != newStyle.paddingRight()
-            || scrollbarWidthDidChange(oldStyle, newStyle, ScrollbarOrientation::Vertical);
+            || oldStyle.paddingRight() != newStyle.paddingRight();
     }
 
     return oldStyle.borderTopWidth() != newStyle.borderTopWidth()
         || oldStyle.borderBottomWidth() != newStyle.borderBottomWidth()
         || oldStyle.paddingTop() != newStyle.paddingTop()
-        || oldStyle.paddingBottom() != newStyle.paddingBottom()
-        || scrollbarWidthDidChange(oldStyle, newStyle, ScrollbarOrientation::Horizontal);
+        || oldStyle.paddingBottom() != newStyle.paddingBottom();
 }
 
 void RenderBlock::styleDidChange(StyleDifference diff, const RenderStyle* oldStyle)
@@ -367,7 +360,7 @@ void RenderBlock::styleDidChange(StyleDifference diff, const RenderStyle* oldSty
 
     // It's possible for our border/padding to change, but for the overall logical width of the block to
     // end up being the same. We keep track of this change so in layoutBlock, we can know to set relayoutChildren=true.
-    setShouldForceRelayoutChildren(oldStyle && diff == StyleDifference::Layout && needsLayout() && contentBoxLogicalWidthChanged(*oldStyle, style()));
+    setShouldForceRelayoutChildren(oldStyle && diff == StyleDifference::Layout && needsLayout() && borderOrPaddingLogicalWidthChanged(*oldStyle, style()));
 }
 
 RenderPtr<RenderBlock> RenderBlock::clone() const
@@ -1142,6 +1135,28 @@ void RenderBlock::paintCaret(PaintInfo& paintInfo, const LayoutPoint& paintOffse
     }
 }
 
+void RenderBlock::paintDebugBoxShadowIfApplicable(GraphicsContext& context, const LayoutRect& paintRect) const
+{
+    // FIXME: Use a more generic, modern-layout wide setting instead.
+    if (!settings().legacyLineLayoutVisualCoverageEnabled())
+        return;
+
+    auto* flexBox = dynamicDowncast<RenderFlexibleBox>(this);
+    if (!flexBox)
+        return;
+
+    constexpr size_t shadowExtent = 3;
+    GraphicsContextStateSaver stateSaver(context);
+
+    auto shadowRect = paintRect;
+    shadowRect.inflate(shadowExtent);
+    context.clip(shadowRect);
+    context.setDropShadow({ { -shadowRect.width(), 0 }, 30, flexBox->hasModernLayout() ? SRGBA<uint8_t> { 0, 180, 230, 200 } : SRGBA<uint8_t> { 200, 100, 100, 200 }, ShadowRadiusMode::Default });
+    context.clipOut(paintRect);
+    shadowRect.move(shadowRect.width(), 0);
+    context.fillRect(shadowRect, Color::black);
+}
+
 void RenderBlock::paintObject(PaintInfo& paintInfo, const LayoutPoint& paintOffset)
 {
     PaintPhase paintPhase = paintInfo.phase;
@@ -1150,6 +1165,7 @@ void RenderBlock::paintObject(PaintInfo& paintInfo, const LayoutPoint& paintOffs
     if ((paintPhase == PaintPhase::BlockBackground || paintPhase == PaintPhase::ChildBlockBackground) && style().usedVisibility() == Visibility::Visible) {
         if (hasVisibleBoxDecorations())
             paintBoxDecorations(paintInfo, paintOffset);
+        paintDebugBoxShadowIfApplicable(paintInfo.context(), { paintOffset, size() });
     }
     
     // Paint legends just above the border before we scroll or clip.
@@ -2783,7 +2799,7 @@ void RenderBlock::addFocusRingRects(Vector<LayoutRect>& rects, const LayoutPoint
             addFocusRingRectsForInlineChildren(rects, additionalOffset, paintContainer);
     
         for (auto& box : childrenOfType<RenderBox>(*this)) {
-            if (is<RenderListMarker>(box) || box.isOutOfFlowPositioned())
+            if (is<RenderListMarker>(box))
                 continue;
 
             FloatPoint pos;

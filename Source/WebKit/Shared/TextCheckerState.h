@@ -25,17 +25,20 @@
 
 #pragma once
 
+#include "ArgumentCoders.h"
+
 namespace WebKit {
 
-enum class TextCheckerState : uint8_t {
-    ContinuousSpellCheckingEnabled = 1 << 0,
-    GrammarCheckingEnabled = 1 << 1,
+struct TextCheckerState {
+    bool isContinuousSpellCheckingEnabled { false };
+    bool isGrammarCheckingEnabled { false };
+
 #if USE(APPKIT)
-    AutomaticTextReplacementEnabled = 1 << 2,
-    AutomaticSpellingCorrectionEnabled = 1 << 3,
-    AutomaticQuoteSubstitutionEnabled = 1 << 4,
-    AutomaticDashSubstitutionEnabled = 1 << 5,
-    AutomaticLinkDetectionEnabled = 1 << 6,
+    bool isAutomaticSpellingCorrectionEnabled { false };
+    bool isAutomaticQuoteSubstitutionEnabled { false };
+    bool isAutomaticDashSubstitutionEnabled { false };
+    bool isAutomaticLinkDetectionEnabled { false };
+    bool isAutomaticTextReplacementEnabled { false };
 #endif
 };
 

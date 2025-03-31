@@ -301,7 +301,6 @@ UIProcess/API/Cocoa/_WKTextManipulationConfiguration.mm
 UIProcess/API/Cocoa/_WKTextManipulationExclusionRule.mm
 UIProcess/API/Cocoa/_WKTextManipulationItem.mm
 UIProcess/API/Cocoa/_WKTextManipulationToken.mm
-UIProcess/API/Cocoa/_WKTextPreview.mm
 UIProcess/API/Cocoa/_WKThumbnailView.mm
 UIProcess/API/Cocoa/_WKUserContentExtensionStore.mm
 UIProcess/API/Cocoa/_WKUserContentFilter.mm
@@ -701,6 +700,7 @@ WebProcess/Model/ARKitInlinePreviewModelPlayer.mm
 WebProcess/Model/ios/ARKitInlinePreviewModelPlayerIOS.mm
 WebProcess/Model/mac/ARKitInlinePreviewModelPlayerMac.mm
 
+WebProcess/Plugins/PDF/PDFAnnotationTypeHelpers.mm
 WebProcess/Plugins/PDF/PDFIncrementalLoader.mm
 WebProcess/Plugins/PDF/PDFPlugin.mm
 WebProcess/Plugins/PDF/PDFPluginBase.mm
@@ -709,7 +709,7 @@ WebProcess/Plugins/PDF/PDFPluginChoiceAnnotation.mm
 WebProcess/Plugins/PDF/PDFPluginPasswordField.mm
 WebProcess/Plugins/PDF/PDFPluginPasswordForm.mm
 WebProcess/Plugins/PDF/PDFPluginTextAnnotation.mm
-WebProcess/Plugins/PDF/PDFScriptEvaluation.mm
+WebProcess/Plugins/PDF/PDFScriptEvaluator.mm
 WebProcess/Plugins/PDF/WKAccessibilityPDFDocumentObject.mm
 WebProcess/Plugins/PDF/UnifiedPDF/AsyncPDFRenderer.mm
 WebProcess/Plugins/PDF/UnifiedPDF/PDFDataDetectorItem.mm

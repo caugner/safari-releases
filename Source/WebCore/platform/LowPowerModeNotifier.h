@@ -25,7 +25,6 @@
 
 #pragma once
 
-#include <wtf/CheckedPtr.h>
 #include <wtf/Function.h>
 #include <wtf/TZoneMalloc.h>
 
@@ -41,9 +40,8 @@ typedef struct _GPowerProfileMonitor GPowerProfileMonitor;
 
 namespace WebCore {
 
-class LowPowerModeNotifier : public CanMakeCheckedPtr<LowPowerModeNotifier> {
+class LowPowerModeNotifier {
     WTF_MAKE_TZONE_ALLOCATED_EXPORT(LowPowerModeNotifier, WEBCORE_EXPORT);
-    WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(LowPowerModeNotifier);
 public:
     using LowPowerModeChangeCallback = Function<void(bool isLowPowerModeEnabled)>;
     WEBCORE_EXPORT explicit LowPowerModeNotifier(LowPowerModeChangeCallback&&);

@@ -531,9 +531,9 @@ void TextBoxPainter<TextBoxPath>::paintForeground(const StyledMarkedText& marked
     updateGraphicsContext(context, markedText.style.textStyles);
 
     if constexpr (std::is_same_v<TextBoxPath, InlineIterator::BoxLegacyPath>)
-        textPainter.setGlyphDisplayListIfNeeded(downcast<LegacyInlineTextBox>(*textBox().legacyInlineBox()), m_paintInfo, m_style, m_paintTextRun);
+        textPainter.setGlyphDisplayListIfNeeded(downcast<LegacyInlineTextBox>(*textBox().legacyInlineBox()), m_paintInfo, m_paintTextRun);
     else
-        textPainter.setGlyphDisplayListIfNeeded(textBox().box(), m_paintInfo, m_style, m_paintTextRun);
+        textPainter.setGlyphDisplayListIfNeeded(textBox().box(), m_paintInfo, m_paintTextRun);
 
     // TextPainter wants the box rectangle and text origin of the entire line box.
     textPainter.paintRange(m_paintTextRun, m_paintRect, textOriginFromPaintRect(m_paintRect), markedText.startOffset, markedText.endOffset);
@@ -1053,25 +1053,8 @@ void TextBoxPainter<TextBoxPath>::paintPlatformDocumentMarkers()
         });
     }
 
-    auto transparentContentMarkedTexts = MarkedText::collectForDraggedAndTransparentContent(DocumentMarker::Type::TransparentContent, m_renderer, m_selectableRange);
-
-    // Ensure the transparent content marked texts go first in the vector, so that they take precedence over
-    // the other marked texts when being subdivided so that they do not get painted.
-    Vector<MarkedText> allMarkedTexts;
-    allMarkedTexts.appendVector(transparentContentMarkedTexts);
-    allMarkedTexts.appendVector(markedTexts);
-
-    for (auto& markedText : MarkedText::subdivide(allMarkedTexts, MarkedText::OverlapStrategy::Frontmost)) {
-        switch (markedText.type) {
-        case MarkedText::Type::DraggedContent:
-        case MarkedText::Type::TransparentContent:
-            continue;
-
-        default:
-            paintPlatformDocumentMarker(markedText);
-            break;
-        }
-    }
+    for (auto& markedText : MarkedText::subdivide(markedTexts, MarkedText::OverlapStrategy::Frontmost))
+        paintPlatformDocumentMarker(markedText);
 }
 
 FloatRect LegacyTextBoxPainter::calculateUnionOfAllDocumentMarkerBounds(const LegacyInlineTextBox& textBox)

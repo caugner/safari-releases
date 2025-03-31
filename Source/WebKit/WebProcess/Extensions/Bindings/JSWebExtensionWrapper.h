@@ -176,7 +176,7 @@ RefPtr<WebExtensionCallbackHandler> toJSCallbackHandler(JSContextRef, JSValueRef
 
 #ifdef __OBJC__
 
-id toNSObject(JSContextRef, JSValueRef, Class containingObjectsOfClass = Nil, NullValuePolicy = NullValuePolicy::NotAllowed, ValuePolicy = ValuePolicy::Recursive);
+id toNSObject(JSContextRef, JSValueRef, Class containingObjectsOfClass = Nil);
 NSString *toNSString(JSContextRef, JSValueRef, NullStringPolicy = NullStringPolicy::NullAndUndefinedAsNullString);
 NSDictionary *toNSDictionary(JSContextRef, JSValueRef, NullValuePolicy = NullValuePolicy::NotAllowed, ValuePolicy = ValuePolicy::Recursive);
 

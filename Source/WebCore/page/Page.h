@@ -41,6 +41,7 @@
 #include "RTCController.h"
 #include "Region.h"
 #include "RegistrableDomain.h"
+#include "ScriptTelemetryCategory.h"
 #include "ScrollTypes.h"
 #include "ShouldRelaxThirdPartyCookieBlocking.h"
 #include "Supplementable.h"
@@ -59,6 +60,7 @@
 #include <wtf/Ref.h>
 #include <wtf/RobinHoodHashSet.h>
 #include <wtf/TZoneMalloc.h>
+#include <wtf/URLHash.h>
 #include <wtf/UniqueRef.h>
 #include <wtf/WeakHashMap.h>
 #include <wtf/WeakHashSet.h>
@@ -226,6 +228,7 @@ enum class MediaPlaybackTargetContextMockState : uint8_t;
 enum class MediaProducerMediaState : uint32_t;
 enum class MediaProducerMediaCaptureKind : uint8_t;
 enum class MediaProducerMutedState : uint8_t;
+enum class ScriptTelemetryCategory : uint8_t;
 enum class VisibilityState : bool;
 
 using MediaProducerMediaStateFlags = OptionSet<MediaProducerMediaState>;
@@ -398,7 +401,9 @@ public:
     void setCurrentKeyboardScrollingAnimator(KeyboardScrollingAnimator*);
     KeyboardScrollingAnimator* currentKeyboardScrollingAnimator() const { return m_currentKeyboardScrollingAnimator.get(); }
 
-    bool fingerprintingProtectionsEnabled() const;
+    bool shouldApplyScreenFingerprintingProtections(Document&) const;
+
+    OptionSet<AdvancedPrivacyProtections> advancedPrivacyProtections() const;
 
 #if ENABLE(REMOTE_INSPECTOR)
     WEBCORE_EXPORT bool inspectable() const;
@@ -898,7 +903,7 @@ public:
     SocketProvider& socketProvider() { return m_socketProvider; }
     MediaRecorderProvider& mediaRecorderProvider() { return m_mediaRecorderProvider; }
     CookieJar& cookieJar() { return m_cookieJar.get(); }
-    Ref<CookieJar> protectedCookieJar() const;
+    WEBCORE_EXPORT Ref<CookieJar> protectedCookieJar() const;
 
     StorageNamespaceProvider& storageNamespaceProvider() { return m_storageNamespaceProvider.get(); }
     WEBCORE_EXPORT Ref<StorageNamespaceProvider> protectedStorageNamespaceProvider() const;
@@ -1115,7 +1120,7 @@ public:
     void setAccessibilityRootObject(AccessibilityRootAtspi*);
 #endif
 
-    void timelineControllerMaximumAnimationFrameRateDidChange(DocumentTimelinesController&);
+    void timelineControllerMaximumAnimationFrameRateDidChange(AnimationTimelinesController&);
 
     ContentSecurityPolicyModeForExtension contentSecurityPolicyModeForExtension() const { return m_contentSecurityPolicyModeForExtension; }
 
@@ -1175,11 +1180,9 @@ public:
 
     WEBCORE_EXPORT void didBeginWritingToolsSession(const WritingTools::Session&, const Vector<WritingTools::Context>&);
 
-    WEBCORE_EXPORT void proofreadingSessionDidReceiveSuggestions(const WritingTools::Session&, const Vector<WritingTools::TextSuggestion>&, const CharacterRange&, const WritingTools::Context&, bool finished);
+    WEBCORE_EXPORT void proofreadingSessionDidReceiveSuggestions(const WritingTools::Session&, const Vector<WritingTools::TextSuggestion>&, const WritingTools::Context&, bool finished);
 
     WEBCORE_EXPORT void proofreadingSessionDidUpdateStateForSuggestion(const WritingTools::Session&, WritingTools::TextSuggestionState, const WritingTools::TextSuggestion&, const WritingTools::Context&);
-
-    WEBCORE_EXPORT void willEndWritingToolsSession(const WritingTools::Session&, bool accepted);
 
     WEBCORE_EXPORT void didEndWritingToolsSession(const WritingTools::Session&, bool accepted);
 
@@ -1191,12 +1194,6 @@ public:
 
     void respondToUnappliedWritingToolsEditing(EditCommandComposition*);
     void respondToReappliedWritingToolsEditing(EditCommandComposition*);
-
-    WEBCORE_EXPORT Vector<FloatRect> proofreadingSessionSuggestionTextRectsInRootViewCoordinates(const CharacterRange&) const;
-    WEBCORE_EXPORT void updateTextVisibilityForActiveWritingToolsSession(const CharacterRange&, bool, const WTF::UUID&);
-    WEBCORE_EXPORT std::optional<TextIndicatorData> textPreviewDataForActiveWritingToolsSession(const CharacterRange&);
-    WEBCORE_EXPORT void decorateTextReplacementsForActiveWritingToolsSession(const CharacterRange&);
-    WEBCORE_EXPORT void setSelectionForActiveWritingToolsSession(const CharacterRange&);
 
     WEBCORE_EXPORT std::optional<SimpleRange> contextRangeForActiveWritingToolsSession() const;
     WEBCORE_EXPORT void intelligenceTextAnimationsDidComplete();
@@ -1217,15 +1214,8 @@ public:
     WEBCORE_EXPORT bool isFullscreenManagerEnabled() const;
 #endif
 
-    bool shouldDeferResizeEvents() const { return m_shouldDeferResizeEvents; }
-    WEBCORE_EXPORT void startDeferringResizeEvents();
-    WEBCORE_EXPORT void flushDeferredResizeEvents();
-
-    bool shouldDeferScrollEvents() const { return m_shouldDeferScrollEvents; }
-    WEBCORE_EXPORT void startDeferringScrollEvents();
-    WEBCORE_EXPORT void flushDeferredScrollEvents();
-
-    WEBCORE_EXPORT bool isAlwaysOnLoggingAllowed() const;
+    bool reportScriptTelemetry(const URL&, ScriptTelemetryCategory);
+    bool requiresScriptTelemetryForURL(const URL&) const;
 
 private:
     explicit Page(PageConfiguration&&);
@@ -1443,7 +1433,7 @@ private:
     UniqueRef<PageConsoleClient> m_consoleClient;
 
 #if ENABLE(REMOTE_INSPECTOR)
-    Ref<PageDebuggable> m_inspectorDebuggable;
+    UniqueRef<PageDebuggable> m_inspectorDebuggable;
 #endif
 
     RefPtr<IDBClient::IDBConnectionToServer> m_idbConnectionToServer;
@@ -1471,7 +1461,7 @@ private:
     WeakPtr<ServiceWorkerGlobalScope, WeakPtrImplWithEventTargetData> m_serviceWorkerGlobalScope;
 
 #if ENABLE(RESOURCE_USAGE)
-    RefPtr<ResourceUsageOverlay> m_resourceUsageOverlay;
+    std::unique_ptr<ResourceUsageOverlay> m_resourceUsageOverlay;
 #endif
 
     PAL::SessionID m_sessionID;
@@ -1645,13 +1635,12 @@ private:
     UniqueRef<WritingToolsController> m_writingToolsController;
 #endif
 
+    HashSet<std::pair<URL, ScriptTelemetryCategory>> m_reportedScriptsWithTelemetry;
+
     bool m_hasActiveNowPlayingSession { false };
     Timer m_activeNowPlayingSessionUpdateTimer;
 
     std::optional<LoginStatus> m_lastAuthentication;
-
-    bool m_shouldDeferResizeEvents { false };
-    bool m_shouldDeferScrollEvents { false };
 }; // class Page
 
 inline Page* Frame::page() const

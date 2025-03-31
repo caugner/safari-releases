@@ -380,8 +380,6 @@ static NSString * firstUTIThatConformsTo(NSArray<NSString *> *typeIdentifiers, U
     RetainPtr<NSSet<NSString *>> _acceptedUTIs;
     OptionSet<WKFileUploadPanelImagePickerType> _allowedImagePickerTypes;
     CGPoint _interactionPoint;
-    CGPoint _interactionPointInWindow;
-    BOOL _isMenuPreviouslyRepositioned;
     BOOL _allowMultipleFiles;
     BOOL _usingCamera;
 #if ENABLE(TRANSCODE_UIIMAGEPICKERCONTROLLER_VIDEO)
@@ -496,9 +494,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 
     _listener = listener;
     _allowMultipleFiles = parameters->allowMultipleFiles();
-    _isMenuPreviouslyRepositioned = NO;
     _interactionPoint = [_view lastInteractionLocation];
-    _interactionPointInWindow = [_view convertPoint:_interactionPoint toView:[_view webView].window];
 
     Ref<API::Array> acceptMimeTypes = parameters->acceptMIMETypes();
     NSMutableArray *mimeTypes = [NSMutableArray arrayWithCapacity:acceptMimeTypes->size()];
@@ -792,7 +788,7 @@ static NSSet<NSString *> *UTIsForMIMETypes(NSArray *mimeTypes)
     return *_menuPresenter;
 }
 
-- (void)repositionContextMenuIfNeeded:(WebKit::KeyboardIsDismissing)isKeyboardBeingDismissed
+- (void)repositionContextMenuIfNeeded
 {
     if (!_menuPresenter)
         return;
@@ -801,20 +797,15 @@ static NSSet<NSString *> *UTIsForMIMETypes(NSArray *mimeTypes)
     if (!webView)
         return;
 
-    if (!_isMenuPreviouslyRepositioned && isKeyboardBeingDismissed == WebKit::KeyboardIsDismissing::Yes)
-        return;
-
     auto inputViewBoundsInWindow = webView->_inputViewBoundsInWindow;
-    if (!_isMenuPreviouslyRepositioned && CGRectIsEmpty(inputViewBoundsInWindow))
+    if (CGRectIsEmpty(inputViewBoundsInWindow))
         return;
 
     // The exact bounds of the context menu container itself isn't exposed through any UIKit API or SPI,
     // and would require traversing the view hierarchy in search of internal UIKit views. For now, just
     // reposition the context menu if its presentation location is covered by the input view.
-    if (!_isMenuPreviouslyRepositioned && !CGRectContainsPoint(inputViewBoundsInWindow, _interactionPointInWindow))
+    if (!CGRectContainsPoint(inputViewBoundsInWindow, [_view convertPoint:_interactionPoint toView:webView.window]))
         return;
-
-    _isMenuPreviouslyRepositioned = !_isMenuPreviouslyRepositioned;
 
     SetForScope repositioningContextMenuScope { _isRepositioningContextMenu, YES };
     [UIView performWithoutAnimation:^{
@@ -889,8 +880,6 @@ static NSSet<NSString *> *UTIsForMIMETypes(NSArray *mimeTypes)
     [_cameraPicker setSourceType:UIImagePickerControllerSourceTypeCamera];
     [_cameraPicker setMediaTypes:[self _mediaTypesForPickerSourceType:UIImagePickerControllerSourceTypeCamera]];
     [_cameraPicker setDelegate:self];
-    // Modal presentation style must be set before accessing the presentation controller.
-    [_cameraPicker setModalPresentationStyle:UIModalPresentationOverFullScreen];
     [_cameraPicker presentationController].delegate = self;
     [_cameraPicker setAllowsEditing:NO];
     [_cameraPicker _setAllowsMultipleSelection:_allowMultipleFiles];

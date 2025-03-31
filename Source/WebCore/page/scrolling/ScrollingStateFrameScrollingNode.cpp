@@ -66,7 +66,6 @@ ScrollingStateFrameScrollingNode::ScrollingStateFrameScrollingNode(
     ScrollbarEnabledState&& scrollbarEnabledState,
     UserInterfaceLayoutDirection scrollbarLayoutDirection,
     ScrollbarWidth scrollbarWidth,
-    bool useDarkAppearanceForScrollbars,
     RequestedKeyboardScrollData&& keyboardScrollData,
     float frameScaleFactor,
     EventTrackingRegions&& eventTrackingRegions,
@@ -118,7 +117,6 @@ ScrollingStateFrameScrollingNode::ScrollingStateFrameScrollingNode(
     WTFMove(scrollbarEnabledState),
     scrollbarLayoutDirection,
     scrollbarWidth,
-    useDarkAppearanceForScrollbars,
     WTFMove(keyboardScrollData))
     , m_rootContentsLayer(rootContentsLayer)
     , m_counterScrollingLayer(counterScrollingLayer)

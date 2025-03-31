@@ -43,9 +43,11 @@ enum LocationKind {
     CheckTypeInfoFlagsLoc,
     OverridesHasInstanceLoc,
     ClosureVariableLoc,
+    ClosureVariableDoubleLoc,
     DirectArgumentsLoc,
     GetterLoc,
     GlobalVariableLoc,
+    GlobalVariableDoubleLoc,
     EnumeratorNextUpdateIndexAndModeLoc,
     HasIndexedPropertyLoc,
     IndexedPropertyDoubleLoc,
@@ -55,9 +57,8 @@ enum LocationKind {
     IndexedPropertyInt32Loc,
     IndexedPropertyInt32OutOfBoundsSaneChainLoc,
     IndexedPropertyInt52Loc,
-    IndexedPropertyInt52OutOfBoundsSaneChainLoc,
-    IndexedPropertyJSLoc,
     IndexedPropertyJSOutOfBoundsSaneChainLoc,
+    IndexedPropertyJSLoc,
     IndexedPropertyStorageLoc,
     InvalidationPointLoc,
     IsCallableLoc,
@@ -65,6 +66,7 @@ enum LocationKind {
     TypeOfIsObjectLoc,
     TypeOfIsFunctionLoc,
     NamedPropertyLoc,
+    NamedPropertyDoubleLoc,
     RegExpObjectLastIndexLoc,
     SetterLoc,
     StructureLoc,
@@ -184,6 +186,8 @@ struct HeapLocationHash {
     static constexpr bool safeToCompareToEmptyOrDeleted = true;
 };
 
+LocationKind indexedPropertyLocForResultType(NodeFlags);
+
 inline LocationKind indexedPropertyLocForResultType(NodeFlags canonicalResultRepresentation)
 {
     if (!canonicalResultRepresentation)
@@ -207,25 +211,11 @@ inline LocationKind indexedPropertyLocForResultType(NodeFlags canonicalResultRep
     RELEASE_ASSERT_NOT_REACHED();
 }
 
-inline LocationKind indexedPropertyLocToOutOfBoundsSaneChain(LocationKind location)
-{
-    switch (location) {
-    case IndexedPropertyInt32Loc:
-        return IndexedPropertyInt32OutOfBoundsSaneChainLoc;
-    case IndexedPropertyInt52Loc:
-        return IndexedPropertyInt52OutOfBoundsSaneChainLoc;
-    case IndexedPropertyDoubleLoc:
-        return IndexedPropertyDoubleOutOfBoundsSaneChainLoc;
-    case IndexedPropertyJSLoc:
-        return IndexedPropertyJSOutOfBoundsSaneChainLoc;
-    default:
-        RELEASE_ASSERT_NOT_REACHED();
-    }
-}
-
 } } // namespace JSC::DFG
 
 namespace WTF {
+
+void printInternal(PrintStream&, JSC::DFG::LocationKind);
 
 template<typename T> struct DefaultHash;
 template<> struct DefaultHash<JSC::DFG::HeapLocation> : JSC::DFG::HeapLocationHash { };

@@ -132,6 +132,7 @@
 #import <WebCore/PlatformKeyboardEvent.h>
 #import <WebCore/PlatformMediaSessionManager.h>
 #import <WebCore/PlatformMouseEvent.h>
+#import <WebCore/PluginDocument.h>
 #import <WebCore/PointerCaptureController.h>
 #import <WebCore/PointerCharacteristics.h>
 #import <WebCore/PrintContext.h>
@@ -249,7 +250,7 @@ void WebPage::platformInitializeAccessibility()
 
     RefPtr localMainFrame = dynamicDowncast<LocalFrame>(m_page->mainFrame());
     if (localMainFrame)
-        accessibilityTransferRemoteToken(accessibilityRemoteTokenData(), localMainFrame->frameID());
+        accessibilityTransferRemoteToken(accessibilityRemoteTokenData());
 }
 
 void WebPage::platformReinitialize()
@@ -258,7 +259,7 @@ void WebPage::platformReinitialize()
     if (!frame)
         return;
 
-    accessibilityTransferRemoteToken(accessibilityRemoteTokenData(), frame->frameID());
+    accessibilityTransferRemoteToken(accessibilityRemoteTokenData());
 }
 
 RetainPtr<NSData> WebPage::accessibilityRemoteTokenData() const
@@ -822,7 +823,7 @@ void WebPage::handleSyntheticClick(Node& nodeRespondingToClick, const WebCore::F
     auto& respondingDocument = nodeRespondingToClick.document();
     m_hasHandledSyntheticClick = true;
 
-    if (!respondingDocument.settings().contentChangeObserverEnabled() || respondingDocument.quirks().shouldIgnoreContentObservationForClick(nodeRespondingToClick)) {
+    if (!respondingDocument.settings().contentChangeObserverEnabled()) {
         completeSyntheticClick(nodeRespondingToClick, location, modifiers, WebCore::SyntheticClickType::OneFingerTap, pointerId);
         return;
     }
@@ -881,7 +882,7 @@ void WebPage::handleSyntheticClick(Node& nodeRespondingToClick, const WebCore::F
         auto shouldStayAtHoverState = observedContentChange == WKContentVisibilityChange;
         if (shouldStayAtHoverState) {
             // The move event caused new contents to appear. Don't send synthetic click event, but just ensure that the mouse is on the most recent content.
-            if (RefPtr localMainFrame = dynamicDowncast<WebCore::LocalFrame>(protectedThis->corePage()->mainFrame()))
+            if (auto* localMainFrame = dynamicDowncast<WebCore::LocalFrame>(protectedThis->corePage()->mainFrame()))
                 dispatchSyntheticMouseMove(*localMainFrame, location, modifiers, pointerId);
             LOG(ContentObservation, "handleSyntheticClick: Observed meaningful visible change -> hover.");
             protectedThis->send(Messages::WebPageProxy::DidHandleTapAsHover());
@@ -1890,32 +1891,6 @@ void WebPage::dispatchSyntheticMouseEventsForSelectionGesture(SelectionTouch tou
     }
 }
 
-void WebPage::clearSelectionAfterTappingSelectionHighlightIfNeeded(WebCore::FloatPoint location)
-{
-    RefPtr localMainFrame = dynamicDowncast<LocalFrame>(m_page->mainFrame());
-    if (!localMainFrame)
-        return;
-
-    auto result = localMainFrame->checkedEventHandler()->hitTestResultAtPoint(LayoutPoint { location }, {
-        HitTestRequest::Type::ReadOnly,
-        HitTestRequest::Type::AllowVisibleChildFrameContentOnly,
-        HitTestRequest::Type::IncludeAllElementsUnderPoint,
-        HitTestRequest::Type::CollectMultipleElements,
-    });
-
-    bool tappedVideo = false;
-    bool tappedLiveText = false;
-    for (Ref node : result.listBasedTestResult()) {
-        if (is<HTMLVideoElement>(node))
-            tappedVideo = true;
-        else if (ImageOverlay::isOverlayText(node))
-            tappedLiveText = true;
-    }
-
-    if (tappedVideo && !tappedLiveText)
-        clearSelection();
-}
-
 void WebPage::updateSelectionWithTouches(const IntPoint& point, SelectionTouch selectionTouch, bool baseIsStart, CompletionHandler<void(const WebCore::IntPoint&, SelectionTouch, OptionSet<SelectionFlags>)>&& completionHandler)
 {
     RefPtr frame = m_page->checkedFocusController()->focusedOrMainFrame();
@@ -2025,38 +2000,7 @@ void WebPage::extendSelectionForReplacement(CompletionHandler<void()>&& completi
     if (!rangeToSelect)
         return;
 
-    if (auto lastRange = std::exchange(m_lastSelectedReplacementRange, { }); lastRange && makeSimpleRange(*lastRange) == rangeToSelect)
-        return;
-
     setSelectedRangeDispatchingSyntheticMouseEventsIfNeeded(*rangeToSelect, position.affinity());
-    m_lastSelectedReplacementRange = rangeToSelect->makeWeakSimpleRange();
-}
-
-void WebPage::resetLastSelectedReplacementRangeIfNeeded()
-{
-    if (!m_lastSelectedReplacementRange)
-        return;
-
-    auto replacementRange = makeSimpleRange(*m_lastSelectedReplacementRange);
-    if (!replacementRange) {
-        m_lastSelectedReplacementRange = { };
-        return;
-    }
-
-    RefPtr frame = m_page->checkedFocusController()->focusedOrMainFrame();
-    if (!frame) {
-        m_lastSelectedReplacementRange = { };
-        return;
-    }
-
-    auto selectedRange = frame->selection().selection().toNormalizedRange();
-    if (!selectedRange) {
-        m_lastSelectedReplacementRange = { };
-        return;
-    }
-
-    if (!contains(ComposedTree, *replacementRange, *selectedRange))
-        m_lastSelectedReplacementRange = { };
 }
 
 void WebPage::extendSelection(WebCore::TextGranularity granularity, CompletionHandler<void()>&& completionHandler)
@@ -4677,7 +4621,13 @@ void WebPage::updateVisibleContentRects(const VisibleContentRectUpdateInfo& visi
 
             m_dynamicSizeUpdateHistory.clear();
 
-            m_page->setPageScaleFactor(scaleFromUIProcess.value(), scrollPosition, m_isInStableState);
+#if ENABLE(PDF_PLUGIN)
+            if (RefPtr pluginView = mainFramePlugIn())
+                pluginView->setPageScaleFactor(scaleFromUIProcess.value(), scrollPosition);
+            else
+#endif
+                m_page->setPageScaleFactor(scaleFromUIProcess.value(), scrollPosition, m_isInStableState);
+
             hasSetPageScale = true;
             send(Messages::WebPageProxy::PageScaleFactorDidChange(scaleFromUIProcess.value()));
         }
@@ -4845,8 +4795,23 @@ void WebPage::updateLayoutViewportHeightExpansionTimerFired()
 
 void WebPage::willStartUserTriggeredZooming()
 {
+#if ENABLE(PDF_PLUGIN)
+    if (RefPtr pluginView = mainFramePlugIn()) {
+        pluginView->didBeginMagnificationGesture();
+        return;
+    }
+#endif
+
     m_page->diagnosticLoggingClient().logDiagnosticMessage(DiagnosticLoggingKeys::webViewKey(), DiagnosticLoggingKeys::userZoomActionKey(), ShouldSample::No);
     m_userHasChangedPageScaleFactor = true;
+}
+
+void WebPage::didEndUserTriggeredZooming()
+{
+#if ENABLE(PDF_PLUGIN)
+    if (RefPtr pluginView = mainFramePlugIn())
+        pluginView->didEndMagnificationGesture();
+#endif
 }
 
 #if ENABLE(IOS_TOUCH_EVENTS)
@@ -5582,40 +5547,6 @@ void WebPage::shouldDismissKeyboardAfterTapAtPoint(FloatPoint point, CompletionH
     FloatSize targetSize = target->absoluteBoundingRect(&isReplaced).size();
     completion(targetSize.width() >= minimumSizeForDismissal.width() && targetSize.height() >= minimumSizeForDismissal.height());
 }
-
-#if ENABLE(IOS_TOUCH_EVENTS)
-
-void WebPage::didSwallowClickEvent(const PlatformMouseEvent& event, Node& node)
-{
-    if (!m_userIsInteracting)
-        return;
-
-    if (event.type() != PlatformEventType::MouseReleased)
-        return;
-
-    if (event.syntheticClickType() != SyntheticClickType::NoTap)
-        return;
-
-    RefPtr element = dynamicDowncast<Element>(node);
-    if (!element)
-        return;
-
-    Ref document = node.document();
-    if (!document->quirks().shouldSynthesizeTouchEventsAfterNonSyntheticClick(node))
-        return;
-
-    bool isReplaced = false;
-    auto bounds = node.absoluteBoundingRect(&isReplaced);
-    if (bounds.isEmpty())
-        return;
-
-    callOnMainRunLoop([bounds, document = WTFMove(document)] mutable {
-        if (RefPtr frame = document->frame())
-            frame->checkedEventHandler()->dispatchSimulatedTouchEvent(roundedIntPoint(bounds.center()));
-    });
-}
-
-#endif // ENABLE(IOS_TOUCH_EVENTS)
 
 } // namespace WebKit
 

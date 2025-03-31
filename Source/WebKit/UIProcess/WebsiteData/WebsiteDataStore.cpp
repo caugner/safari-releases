@@ -1351,7 +1351,7 @@ void WebsiteDataStore::setStorageAccessPromptQuirkForTesting(String&& topFrameDo
     } };
 
 #if ENABLE(ADVANCED_PRIVACY_PROTECTIONS)
-    StorageAccessPromptQuirkController::shared().setCachedQuirksForTesting(WTFMove(quirk));
+    StorageAccessPromptQuirkController::sharedSingleton().setCachedListDataForTesting(WTFMove(quirk));
 #else
     protectedNetworkProcess()->send(Messages::NetworkProcess::UpdateStorageAccessPromptQuirks(WTFMove(quirk)), 0);
 #endif
@@ -1876,7 +1876,7 @@ void WebsiteDataStore::didAllowPrivateTokenUsageByThirdPartyForTesting(bool wasA
 void WebsiteDataStore::setUserAgentStringQuirkForTesting(const String& domain, const String& userAgentString, CompletionHandler<void()>&& completionHandler)
 {
 #if ENABLE(ADVANCED_PRIVACY_PROTECTIONS)
-    StorageAccessUserAgentStringQuirkController::shared().setCachedQuirksForTesting({ { WebCore::RegistrableDomain::uncheckedCreateFromHost(domain), userAgentString } });
+    StorageAccessUserAgentStringQuirkController::sharedSingleton().setCachedListDataForTesting({ { WebCore::RegistrableDomain::uncheckedCreateFromHost(domain), userAgentString } });
 #endif
     completionHandler();
 }
@@ -2103,6 +2103,11 @@ API::HTTPCookieStore& WebsiteDataStore::cookieStore()
     return *m_cookieStore;
 }
 
+Ref<API::HTTPCookieStore> WebsiteDataStore::protectedCookieStore()
+{
+    return cookieStore();
+}
+
 void WebsiteDataStore::resetQuota(CompletionHandler<void()>&& completionHandler)
 {
     protectedNetworkProcess()->resetQuota(m_sessionID, WTFMove(completionHandler));
@@ -2284,6 +2289,11 @@ std::optional<double> WebsiteDataStore::defaultTotalQuotaRatio()
 }
 
 #endif // !PLATFORM(COCOA)
+
+Ref<WebCore::LocalWebLockRegistry> WebsiteDataStore::protectedWebLockRegistry()
+{
+    return m_webLockRegistry;
+}
 
 void WebsiteDataStore::renameOriginInWebsiteData(WebCore::SecurityOriginData&& oldOrigin, WebCore::SecurityOriginData&& newOrigin, OptionSet<WebsiteDataType> dataTypes, CompletionHandler<void()>&& completionHandler)
 {

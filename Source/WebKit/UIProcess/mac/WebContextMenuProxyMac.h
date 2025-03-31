@@ -61,8 +61,6 @@ public:
     void handleContextMenuWritingTools(WebCore::WritingTools::RequestedTool);
 #endif
 
-    void handleShareMenuItem();
-
 #if ENABLE(SERVICE_CONTROLS)
     void clearServicesMenu();
     void removeBackgroundFromControlledImage();
@@ -87,9 +85,7 @@ private:
     void getContextMenuFromItems(const Vector<WebContextMenuItemData>&, CompletionHandler<void(NSMenu *)>&&);
 
 #if ENABLE(SERVICE_CONTROLS)
-    enum class ShareMenuItemType : uint8_t { Placeholder, Popover };
-    RetainPtr<NSMenuItem> createShareMenuItem(ShareMenuItemType);
-
+    void getShareMenuItem(CompletionHandler<void(NSMenuItem *)>&&);
     void showServicesMenu();
     void setupServicesMenu();
     void appendRemoveBackgroundItemToControlledImageMenuIfNeeded();

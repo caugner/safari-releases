@@ -34,7 +34,6 @@
 #import "Logging.h"
 #import "WKWebExtensionInternal.h"
 #import "WebExtension.h"
-#import <wtf/Language.h>
 
 #if PLATFORM(IOS_FAMILY)
 #import <UIKit/UIKit.h>
@@ -85,40 +84,43 @@ using namespace WebKit;
 
 - (instancetype)initWithWebExtension:(WebExtension&)webExtension
 {
-    auto defaultLocaleString = webExtension.defaultLocale();
-    if (defaultLocaleString.isEmpty()) {
+    NSString *defaultLocaleString = webExtension.defaultLocale().localeIdentifier;
+
+    if (!defaultLocaleString.length) {
         RELEASE_LOG_DEBUG(Extensions, "No default locale provided");
         return [self initWithRegionalLocalization:nil languageLocalization:nil defaultLocalization:nil withBestLocale:nil uniqueIdentifier:nil];
     }
 
-    auto *defaultLocaleDictionary = [self _localizationDictionaryForWebExtension:webExtension withLocale:defaultLocaleString];
-    if (!defaultLocaleDictionary) {
-        RELEASE_LOG_DEBUG(Extensions, "No localization found for default locale %{public}@", static_cast<NSString *>(defaultLocaleString));
-        return [self initWithRegionalLocalization:nil languageLocalization:nil defaultLocalization:nil withBestLocale:nil uniqueIdentifier:nil];
+    NSLocale *currentLocale = NSLocale.autoupdatingCurrentLocale;
+    NSString *languageCode = currentLocale.languageCode;
+    NSString *countryCode = currentLocale.countryCode;
+
+    NSString *regionalLocaleString = [NSString stringWithFormat:@"%@_%@", languageCode, countryCode];
+    NSString *bestLocaleString;
+
+    LocalizationDictionary *defaultLocaleDictionary = [self _localizationDictionaryForWebExtension:webExtension withLocale:defaultLocaleString];
+    if (defaultLocaleDictionary) {
+        RELEASE_LOG_DEBUG(Extensions, "Default locale available for %{public}@", defaultLocaleString);
+        bestLocaleString = defaultLocaleString;
     }
 
-    RELEASE_LOG_DEBUG(Extensions, "Loaded default locale %{public}@", static_cast<NSString *>(defaultLocaleString));
-
-    auto bestLocaleString = webExtension.bestMatchLocale();
-    auto defaultLocaleComponents = parseLocale(defaultLocaleString);
-    auto bestLocaleComponents = parseLocale(bestLocaleString);
-    auto bestLocaleLanguageOnlyString = bestLocaleComponents.languageCode;
-
-    RELEASE_LOG_DEBUG(Extensions, "Best locale is %{public}@", static_cast<NSString *>(bestLocaleString));
-
     LocalizationDictionary *languageDictionary;
-    if (!bestLocaleLanguageOnlyString.isEmpty() && bestLocaleLanguageOnlyString != defaultLocaleString) {
-        languageDictionary = [self _localizationDictionaryForWebExtension:webExtension withLocale:bestLocaleLanguageOnlyString];
-        if (languageDictionary)
-            RELEASE_LOG_DEBUG(Extensions, "Loaded language-only locale %{public}@", static_cast<NSString *>(bestLocaleLanguageOnlyString));
+    if (![languageCode isEqualToString:defaultLocaleString]) {
+        if ((languageDictionary = [self _localizationDictionaryForWebExtension:webExtension withLocale:languageCode])) {
+            RELEASE_LOG_DEBUG(Extensions, "Language locale available for %{public}@", languageCode);
+            bestLocaleString = languageCode;
+        }
     }
 
     LocalizationDictionary *regionalDictionary;
-    if (bestLocaleString != bestLocaleLanguageOnlyString && bestLocaleString != defaultLocaleString) {
-        regionalDictionary = [self _localizationDictionaryForWebExtension:webExtension withLocale:bestLocaleString];
-        if (regionalDictionary)
-            RELEASE_LOG_DEBUG(Extensions, "Loaded regional locale %{public}@", static_cast<NSString *>(bestLocaleString));
+    if (![regionalLocaleString isEqualToString:defaultLocaleString]) {
+        if ((regionalDictionary = [self _localizationDictionaryForWebExtension:webExtension withLocale:regionalLocaleString])) {
+            RELEASE_LOG_DEBUG(Extensions, "Regional locale available for %{public}@", regionalLocaleString);
+            bestLocaleString = regionalLocaleString;
+        }
     }
+
+    RELEASE_LOG_DEBUG(Extensions, "Best locale is %{public}@", bestLocaleString ?: @"undefined");
 
     return [self initWithRegionalLocalization:regionalDictionary languageLocalization:languageDictionary defaultLocalization:defaultLocaleDictionary withBestLocale:bestLocaleString uniqueIdentifier:nil];
 }

@@ -33,6 +33,7 @@
 #import "MessageSenderInlines.h"
 #import "PDFPlugin.h"
 #import "PluginView.h"
+#import "TextAnimationController.h"
 #import "UserMediaCaptureManager.h"
 #import "WKAccessibilityWebPageObjectBase.h"
 #import "WebFrame.h"
@@ -77,7 +78,6 @@
 #import <WebCore/TextIterator.h>
 #import <WebCore/UTIRegistry.h>
 #import <WebCore/UTIUtilities.h>
-#import <WebCore/markup.h>
 #import <pal/spi/cocoa/LaunchServicesSPI.h>
 #import <pal/spi/cocoa/NSAccessibilitySPI.h>
 #import <pal/spi/cocoa/QuartzCoreSPI.h>
@@ -435,9 +435,9 @@ void WebPage::clearDictationAlternatives(Vector<DictationContext>&& contexts)
     }, DocumentMarker::Type::DictationAlternatives);
 }
 
-void WebPage::accessibilityTransferRemoteToken(RetainPtr<NSData> remoteToken, FrameIdentifier frameID)
+void WebPage::accessibilityTransferRemoteToken(RetainPtr<NSData> remoteToken)
 {
-    send(Messages::WebPageProxy::RegisterWebProcessAccessibilityToken(span(remoteToken.get()), frameID));
+    send(Messages::WebPageProxy::RegisterWebProcessAccessibilityToken(span(remoteToken.get())));
 }
 
 void WebPage::accessibilityManageRemoteElementStatus(bool registerStatus, int processIdentifier)
@@ -490,8 +490,8 @@ WebPaymentCoordinator* WebPage::paymentCoordinator()
 
 void WebPage::getContentsAsAttributedString(CompletionHandler<void(const WebCore::AttributedString&)>&& completionHandler)
 {
-    RefPtr localFrame = dynamicDowncast<LocalFrame>(m_page->mainFrame());
-    completionHandler(localFrame ? attributedString(makeRangeSelectingNodeContents(Ref { *localFrame->document() }), IgnoreUserSelectNone::No) : AttributedString { });
+    auto* localFrame = dynamicDowncast<LocalFrame>(m_page->mainFrame());
+    completionHandler(localFrame ? attributedString(makeRangeSelectingNodeContents(Ref { *localFrame->document() })) : AttributedString());
 }
 
 void WebPage::setRemoteObjectRegistry(WebRemoteObjectRegistry* registry)
@@ -575,9 +575,9 @@ void WebPage::getProcessDisplayName(CompletionHandler<void(String&&)>&& completi
 #endif
 }
 
-bool WebPage::isTransparentOrFullyClipped(const Node& node) const
+bool WebPage::isTransparentOrFullyClipped(const Element& element) const
 {
-    CheckedPtr renderer = node.renderer();
+    auto* renderer = element.renderer();
     if (!renderer)
         return false;
 
@@ -665,16 +665,12 @@ void WebPage::getPlatformEditorStateCommon(const LocalFrame& frame, EditorState&
         }();
     }
 
-    RefPtr enclosingFormControl = enclosingTextFormControl(selection.start());
-    if (RefPtr editableRootOrFormControl = enclosingFormControl.get() ?: selection.rootEditableElement()) {
-        postLayoutData.selectionIsTransparentOrFullyClipped = result.isContentEditable && isTransparentOrFullyClipped(*editableRootOrFormControl);
+    if (RefPtr editableRootOrFormControl = enclosingTextFormControl(selection.start()) ?: selection.rootEditableElement()) {
 #if PLATFORM(IOS_FAMILY)
         auto& visualData = *result.visualData;
         visualData.selectionClipRect = rootViewInteractionBounds(*editableRootOrFormControl);
 #endif
-    } else if (result.selectionIsRange) {
-        if (RefPtr ancestorContainer = commonInclusiveAncestor(selection.start(), selection.end()))
-            postLayoutData.selectionIsTransparentOrFullyClipped = isTransparentOrFullyClipped(*ancestorContainer);
+        postLayoutData.editableRootIsTransparentOrFullyClipped = result.isContentEditable && isTransparentOrFullyClipped(*editableRootOrFormControl);
     }
 }
 
@@ -938,21 +934,14 @@ void WebPage::didBeginWritingToolsSession(const WebCore::WritingTools::Session& 
     corePage()->didBeginWritingToolsSession(session, contexts);
 }
 
-void WebPage::proofreadingSessionDidReceiveSuggestions(const WebCore::WritingTools::Session& session, const Vector<WebCore::WritingTools::TextSuggestion>& suggestions, const WebCore::CharacterRange& processedRange, const WebCore::WritingTools::Context& context, bool finished, CompletionHandler<void()>&& completionHandler)
+void WebPage::proofreadingSessionDidReceiveSuggestions(const WebCore::WritingTools::Session& session, const Vector<WebCore::WritingTools::TextSuggestion>& suggestions, const WebCore::WritingTools::Context& context, bool finished)
 {
-    corePage()->proofreadingSessionDidReceiveSuggestions(session, suggestions, processedRange, context, finished);
-    completionHandler();
+    corePage()->proofreadingSessionDidReceiveSuggestions(session, suggestions, context, finished);
 }
 
 void WebPage::proofreadingSessionDidUpdateStateForSuggestion(const WebCore::WritingTools::Session& session, WebCore::WritingTools::TextSuggestion::State state, const WebCore::WritingTools::TextSuggestion& suggestion, const WebCore::WritingTools::Context& context)
 {
     corePage()->proofreadingSessionDidUpdateStateForSuggestion(session, state, suggestion, context);
-}
-
-void WebPage::willEndWritingToolsSession(const WebCore::WritingTools::Session& session, bool accepted, CompletionHandler<void()>&& completionHandler)
-{
-    corePage()->willEndWritingToolsSession(session, accepted);
-    completionHandler();
 }
 
 void WebPage::didEndWritingToolsSession(const WebCore::WritingTools::Session& session, bool accepted)
@@ -1043,36 +1032,6 @@ void WebPage::enableTextAnimationTypeForElementWithID(const String& elementID)
     m_textAnimationController->enableTextAnimationTypeForElementWithID(elementID);
 }
 
-void WebPage::proofreadingSessionSuggestionTextRectsInRootViewCoordinates(const WebCore::CharacterRange& enclosingRangeRelativeToSessionRange, CompletionHandler<void(Vector<FloatRect>&&)>&& completionHandler) const
-{
-    auto rects = corePage()->proofreadingSessionSuggestionTextRectsInRootViewCoordinates(enclosingRangeRelativeToSessionRange);
-    completionHandler(WTFMove(rects));
-}
-
-void WebPage::updateTextVisibilityForActiveWritingToolsSession(const WebCore::CharacterRange& rangeRelativeToSessionRange, bool visible, const WTF::UUID& identifier, CompletionHandler<void()>&& completionHandler)
-{
-    corePage()->updateTextVisibilityForActiveWritingToolsSession(rangeRelativeToSessionRange, visible, identifier);
-    completionHandler();
-}
-
-void WebPage::textPreviewDataForActiveWritingToolsSession(const WebCore::CharacterRange& rangeRelativeToSessionRange, CompletionHandler<void(std::optional<WebCore::TextIndicatorData>&&)>&& completionHandler)
-{
-    auto data = corePage()->textPreviewDataForActiveWritingToolsSession(rangeRelativeToSessionRange);
-    completionHandler(WTFMove(data));
-}
-
-void WebPage::decorateTextReplacementsForActiveWritingToolsSession(const WebCore::CharacterRange& rangeRelativeToSessionRange, CompletionHandler<void(void)>&& completionHandler)
-{
-    corePage()->decorateTextReplacementsForActiveWritingToolsSession(rangeRelativeToSessionRange);
-    completionHandler();
-}
-
-void WebPage::setSelectionForActiveWritingToolsSession(const WebCore::CharacterRange& rangeRelativeToSessionRange, CompletionHandler<void(void)>&& completionHandler)
-{
-    corePage()->setSelectionForActiveWritingToolsSession(rangeRelativeToSessionRange);
-    completionHandler();
-}
-
 void WebPage::intelligenceTextAnimationsDidComplete()
 {
     corePage()->intelligenceTextAnimationsDidComplete();
@@ -1084,82 +1043,6 @@ void WebPage::didEndPartialIntelligenceTextAnimation()
 }
 
 #endif
-
-static std::optional<bool> elementHasHiddenVisibility(StyledElement* styledElement)
-{
-    auto* inlineStyle = styledElement->inlineStyle();
-    if (!inlineStyle)
-        return std::nullopt;
-
-    RefPtr value = inlineStyle->getPropertyCSSValue(CSSPropertyVisibility);
-    if (!value)
-        return false;
-
-    return value->valueID() == CSSValueHidden;
-}
-
-void WebPage::createTextIndicatorForElementWithID(const String& elementID, CompletionHandler<void(std::optional<WebCore::TextIndicatorData>&&)>&& completionHandler)
-{
-    RefPtr frame = m_page->checkedFocusController()->focusedOrMainFrame();
-    if (!frame) {
-        ASSERT_NOT_REACHED();
-        completionHandler(std::nullopt);
-        return;
-    }
-
-    RefPtr document = frame->document();
-    if (!document) {
-        ASSERT_NOT_REACHED();
-        completionHandler(std::nullopt);
-        return;
-    }
-
-    RefPtr element = document->getElementById(elementID);
-    if (!element) {
-        ASSERT_NOT_REACHED();
-        completionHandler(std::nullopt);
-        return;
-    }
-
-    RefPtr styledElement = dynamicDowncast<StyledElement>(element.get());
-    if (!styledElement) {
-        ASSERT_NOT_REACHED();
-        completionHandler(std::nullopt);
-        return;
-    }
-
-    // Temporarily force the content to be visible so that it can be snapshotted.
-
-    auto isHiddenInitially = elementHasHiddenVisibility(styledElement.get());
-
-    styledElement->setInlineStyleProperty(CSSPropertyVisibility, CSSValueVisible, IsImportant::Yes);
-
-    auto elementRange = WebCore::makeRangeSelectingNodeContents(*styledElement);
-
-    std::optional<WebCore::TextIndicatorData> textIndicatorData;
-    constexpr OptionSet textIndicatorOptions {
-        WebCore::TextIndicatorOption::IncludeSnapshotOfAllVisibleContentWithoutSelection,
-        WebCore::TextIndicatorOption::ExpandClipBeyondVisibleRect,
-        WebCore::TextIndicatorOption::SkipReplacedContent,
-        WebCore::TextIndicatorOption::RespectTextColor
-    };
-
-    RefPtr textIndicator = WebCore::TextIndicator::createWithRange(elementRange, textIndicatorOptions, WebCore::TextIndicatorPresentationTransition::None, { });
-    if (!textIndicator) {
-        completionHandler(std::nullopt);
-        return;
-    }
-
-    // If `initialVisibility` is an empty optional, this means there was no initial inline style.
-    // Ensure the state is idempotent after by removing the inline style if this is the case.
-
-    if (isHiddenInitially.has_value())
-        styledElement->setInlineStyleProperty(CSSPropertyVisibility, *isHiddenInitially ? CSSValueHidden : CSSValueVisible, IsImportant::Yes);
-    else
-        styledElement->removeInlineStyleProperty(CSSPropertyVisibility);
-
-    completionHandler(textIndicator->data());
-}
 
 } // namespace WebKit
 

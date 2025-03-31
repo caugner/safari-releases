@@ -32,9 +32,10 @@
 #import "FrameInfoData.h"
 #import "Logging.h"
 #import "MessageSenderInlines.h"
-#import "PDFAnnotationTextWidgetDetails.h"
+#import "PDFAnnotationTypeHelpers.h"
 #import "PDFContextMenu.h"
 #import "PDFIncrementalLoader.h"
+#import "PDFKitSPI.h"
 #import "PDFLayerControllerSPI.h"
 #import "PDFPluginAnnotation.h"
 #import "PDFPluginPasswordField.h"
@@ -425,11 +426,7 @@ static WebCore::Cursor::Type toWebCoreCursorType(PDFLayerControllerCursorType cu
 
 - (void)writeItemsToPasteboard:(NSArray *)items withTypes:(NSArray *)types
 {
-    Vector<WebKit::PDFPluginPasteboardItem> pasteboardItems;
-    ASSERT(items.count >= types.count);
-    for (NSUInteger i = 0, count = items.count; i < count; ++i)
-        pasteboardItems.append({ [items objectAtIndex:i], [types objectAtIndex:i] });
-    _pdfPlugin->writeItemsToPasteboard(NSPasteboardNameGeneral, WTFMove(pasteboardItems));
+    _pdfPlugin->writeItemsToPasteboard(NSPasteboardNameGeneral, items, types);
 }
 
 - (void)showDefinitionForAttributedString:(NSAttributedString *)string atPoint:(CGPoint)point
@@ -509,6 +506,7 @@ static WebCore::Cursor::Type toWebCoreCursorType(PDFLayerControllerCursorType cu
 namespace WebKit {
 using namespace WebCore;
 using namespace HTMLNames;
+using namespace WebKit::PDFAnnotationTypeHelpers;
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(PDFPlugin);
 
@@ -549,7 +547,7 @@ PDFPlugin::PDFPlugin(HTMLPlugInElement& element)
         m_annotationContainer->setAttributeWithoutSynchronization(idAttr, "annotationContainer"_s);
 
         auto annotationStyleElement = document->createElement(styleTag, false);
-        annotationStyleElement->setTextContent(annotationStyle());
+        annotationStyleElement->setTextContent(annotationStyle);
 
         m_annotationContainer->appendChild(annotationStyleElement);
         RefPtr { document->bodyOrFrameset() }->appendChild(*m_annotationContainer);
@@ -674,11 +672,6 @@ void PDFPlugin::createPasswordEntryForm()
     auto passwordField = PDFPluginPasswordField::create(this);
     m_passwordField = passwordField.ptr();
     passwordField->attach(m_annotationContainer.get());
-}
-
-void PDFPlugin::teardownPasswordEntryForm()
-{
-    m_passwordField = nullptr;
 }
 
 void PDFPlugin::attemptToUnlockPDF(const String& password)
@@ -1165,7 +1158,7 @@ bool PDFPlugin::handleEditingCommand(const String& commandName, const String&)
     else if (commandName == "takeFindStringFromSelection"_s) {
         NSString *string = [m_pdfLayerController currentSelection].string;
         if (string.length)
-            writeItemsToPasteboard(NSPasteboardNameFind, { { [string dataUsingEncoding:NSUTF8StringEncoding], NSPasteboardTypeString } });
+            writeItemsToPasteboard(NSPasteboardNameFind, @[ [string dataUsingEncoding:NSUTF8StringEncoding] ], @[ NSPasteboardTypeString ]);
     }
 
     return true;
@@ -1217,12 +1210,10 @@ void PDFPlugin::setActiveAnnotation(SetActiveAnnotationParams&& setActiveAnnotat
             m_activeAnnotation->commit();
 
         if (annotation) {
-            ALLOW_DEPRECATED_DECLARATIONS_BEGIN
-            if ([annotation isKindOfClass:getPDFAnnotationTextWidgetClass()] && static_cast<PDFAnnotationTextWidget *>(annotation).isReadOnly) {
+            if (annotationIsWidgetOfType(annotation.get(), WidgetType::Text) && [annotation isReadOnly]) {
                 m_activeAnnotation = nullptr;
                 return;
             }
-            ALLOW_DEPRECATED_DECLARATIONS_END
 
             auto activeAnnotation = PDFPluginAnnotation::create(annotation.get(), this);
             m_activeAnnotation = activeAnnotation.get();

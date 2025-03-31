@@ -671,14 +671,14 @@ TEST(ProcessSwap, NoProcessSwappingWithinSameNonHTTPFamilyProtocol)
     EXPECT_EQ(pid1, [webView _webProcessIdentifier]);
 
     // Switch to the file protocol.
-    [webView loadRequest:[NSURLRequest requestWithURL:[[NSBundle mainBundle] URLForResource:@"simple" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"]]];
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"]]];
     TestWebKitAPI::Util::run(&done);
     done = false;
 
     auto pid2 = [webView _webProcessIdentifier];
     EXPECT_NE(pid1, pid2);
 
-    [webView loadRequest:[NSURLRequest requestWithURL:[[NSBundle mainBundle] URLForResource:@"simple2" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"]]];
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"simple2" withExtension:@"html"]]];
     TestWebKitAPI::Util::run(&done);
     done = false;
 
@@ -2281,7 +2281,7 @@ TEST(ProcessSwap, CrossSiteClientSideRedirectFromFileURL)
     willPerformClientRedirect = false;
     didPerformClientRedirect = false;
 
-    NSURLRequest *request = [NSURLRequest requestWithURL:[[NSBundle mainBundle] URLForResource:@"client-side-redirect" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"]];
+    NSURLRequest *request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"client-side-redirect" withExtension:@"html"]];
     [webView loadRequest:request];
 
     TestWebKitAPI::Util::run(&done);
@@ -4802,68 +4802,6 @@ TEST(ProcessSwap, ConcurrentHistoryNavigations)
     EXPECT_WK_STREQ(@"pson://www.apple.com/main.html", [backForwardList.forwardItem.URL absoluteString]);
 }
 
-TEST(ProcessSwap, CookieAccessAfterMultipleRedirects)
-{
-    using namespace TestWebKitAPI;
-    HTTPServer httpServer({
-        { "http://site2.example/prewarm"_s, { "Done."_s  } }, // Process 1
-        { "http://site1.example/start"_s, { "<script> function load() { window.location = 'http://site1.example/redirect'; } </script>"_s  } }, // Process 2
-        { "http://site1.example/redirect"_s, { 302, {{ "Location"_s, "http://site2.example/redirect"_s }}, "redirecting..."_s } }, // Process 2
-        { "http://site2.example/redirect"_s, { 302, {{ "Location"_s, "http://site1.example/end"_s }}, "redirecting..."_s } }, // Process 1
-        { "http://site1.example/end"_s, { "Done."_s  } }, // Process 3
-    }, HTTPServer::Protocol::Http);
-    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
-    [storeConfiguration setProxyConfiguration:@{
-        (NSString *)kCFStreamPropertyHTTPProxyHost: @"127.0.0.1",
-        (NSString *)kCFStreamPropertyHTTPProxyPort: @(httpServer.port()),
-    }];
-    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
-    auto configuration = adoptNS([WKWebViewConfiguration new]);
-    [configuration setWebsiteDataStore:dataStore.get()];
-    auto processPoolConfiguration = psonProcessPoolConfiguration();
-    auto processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
-    [configuration setProcessPool:processPool.get()];
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
-    auto delegate = adoptNS([TestNavigationDelegate new]);
-
-    __block bool navigationFailed = false;
-    delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
-        completionHandler(WKNavigationActionPolicyAllow);
-    };
-    delegate.get().didFailProvisionalNavigation = ^(WKWebView *, WKNavigation *, NSError *error) {
-        navigationFailed = true;
-        done = true;
-    };
-    delegate.get().didFinishNavigation = ^(WKWebView *, WKNavigation *) {
-        done = true;
-    };
-
-    done = false;
-    [webView setNavigationDelegate:delegate.get()];
-    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"http://site2.example/prewarm"]]];
-    TestWebKitAPI::Util::run(&done);
-    EXPECT_FALSE(navigationFailed);
-
-    done = false;
-    [webView setNavigationDelegate:delegate.get()];
-    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"http://site1.example/start"]]];
-    TestWebKitAPI::Util::run(&done);
-    EXPECT_FALSE(navigationFailed);
-
-    done = false;
-    [webView evaluateJavaScript:@"load()" completionHandler:nil];
-    TestWebKitAPI::Util::run(&done);
-    EXPECT_FALSE(navigationFailed);
-
-    done = false;
-    [webView evaluateJavaScript:@"navigator.cookieEnabled" completionHandler:^(id result, NSError *error) {
-        EXPECT_TRUE(!!result);
-        EXPECT_NULL(error);
-        done = true;
-    }];
-    TestWebKitAPI::Util::run(&done);
-}
-
 TEST(ProcessSwap, NavigateToInvalidURL)
 {
     auto processPoolConfiguration = psonProcessPoolConfiguration();
@@ -5214,7 +5152,7 @@ TEST(ProcessSwap, ClosePageAfterCrossSiteProvisionalLoad)
     done = false;
 
     didStartProvisionalLoad = false;
-    [webView loadRequest:[NSURLRequest requestWithURL:[[NSBundle mainBundle] URLForResource:@"simple" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"]]];
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"]]];
 
     navigationDelegate->decidePolicyForNavigationAction = ^(WKNavigationAction *, void (^decisionHandler)(WKNavigationActionPolicy)) {
         decisionHandler(WKNavigationActionPolicyAllow);
@@ -5912,7 +5850,7 @@ TEST(ProcessSwap, UsePrewarmedProcessAfterTerminatingNetworkProcess)
     auto delegate = adoptNS([[PSONNavigationDelegate alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
 
-    NSURLRequest *request = [NSURLRequest requestWithURL:[[NSBundle mainBundle] URLForResource:@"simple" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"]];
+    NSURLRequest *request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"]];
     [webView loadRequest:request];
 
     TestWebKitAPI::Util::run(&done);
@@ -5924,7 +5862,7 @@ TEST(ProcessSwap, UsePrewarmedProcessAfterTerminatingNetworkProcess)
 
     auto webView2 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
     [webView2 setNavigationDelegate:delegate.get()];
-    request = [NSURLRequest requestWithURL:[[NSBundle mainBundle] URLForResource:@"simple2" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"]];
+    request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"simple2" withExtension:@"html"]];
     [webView2 loadRequest:request];
 
     TestWebKitAPI::Util::run(&done);
@@ -5959,7 +5897,7 @@ TEST(ProcessSwap, UseSessionCookiesAfterProcessSwapInPrivateBrowsing)
     }];
     TestWebKitAPI::Util::run(&setPolicy);
 
-    NSURLRequest *request = [NSURLRequest requestWithURL:[[NSBundle mainBundle] URLForResource:@"SetSessionCookie" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"]];
+    NSURLRequest *request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"SetSessionCookie" withExtension:@"html"]];
     [webView loadRequest:request];
 
     TestWebKitAPI::Util::run(&done);
@@ -5978,7 +5916,7 @@ TEST(ProcessSwap, UseSessionCookiesAfterProcessSwapInPrivateBrowsing)
     EXPECT_NE(pid1, pid2);
 
     // Should process-swap.
-    request = [NSURLRequest requestWithURL:[[NSBundle mainBundle] URLForResource:@"GetSessionCookie" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"]];
+    request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"GetSessionCookie" withExtension:@"html"]];
     [webView loadRequest:request];
 
     TestWebKitAPI::Util::run(&done);
@@ -6037,7 +5975,7 @@ TEST(ProcessSwap, UseSessionCookiesAfterProcessSwapInNonDefaultPersistentSession
     }];
     TestWebKitAPI::Util::run(&setPolicy);
 
-    NSURLRequest *request = [NSURLRequest requestWithURL:[[NSBundle mainBundle] URLForResource:@"SetSessionCookie" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"]];
+    NSURLRequest *request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"SetSessionCookie" withExtension:@"html"]];
     [webView loadRequest:request];
 
     TestWebKitAPI::Util::run(&done);
@@ -6056,7 +5994,7 @@ TEST(ProcessSwap, UseSessionCookiesAfterProcessSwapInNonDefaultPersistentSession
     EXPECT_NE(pid1, pid2);
 
     // Should process-swap.
-    request = [NSURLRequest requestWithURL:[[NSBundle mainBundle] URLForResource:@"GetSessionCookie" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"]];
+    request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"GetSessionCookie" withExtension:@"html"]];
     [webView loadRequest:request];
 
     TestWebKitAPI::Util::run(&done);
@@ -7348,7 +7286,7 @@ TEST(ProcessSwap, QuickLookRequestsPasswordAfterSwap)
     TestWebKitAPI::Util::run(&done);
     done = false;
 
-    request = [NSURLRequest requestWithURL:[[NSBundle mainBundle] URLForResource:@"password-protected" withExtension:@"pages" subdirectory:@"TestWebKitAPI.resources"]];
+    request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"password-protected" withExtension:@"pages"]];
     [webView loadRequest:request];
 
     TestWebKitAPI::Util::run(&didStartQuickLookLoad);
@@ -7470,7 +7408,7 @@ TEST(ProcessSwap, PassSandboxExtension)
     TestWebKitAPI::Util::run(&done);
     done = false;
 
-    NSURL *file = [[NSBundle mainBundle] URLForResource:@"autoplay-with-controls" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"];
+    NSURL *file = [NSBundle.test_resourcesBundle URLForResource:@"autoplay-with-controls" withExtension:@"html"];
     [webView loadFileURL:file allowingReadAccessToURL:file.URLByDeletingLastPathComponent];
     [webView waitForMessage:@"loaded"];
 
@@ -7530,7 +7468,7 @@ TEST(ProcessSwap, SameSiteWindowWithOpenerNavigateToFile)
 
     EXPECT_EQ(pid1, pid2);
 
-    NSURL *url = [[NSBundle mainBundle] URLForResource:@"blinking-div" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"];
+    NSURL *url = [NSBundle.test_resourcesBundle URLForResource:@"blinking-div" withExtension:@"html"];
     EXPECT_TRUE([url.scheme isEqualToString:@"file"]);
 
     [createdWebView loadRequest:[NSURLRequest requestWithURL:url]];
@@ -7891,68 +7829,6 @@ TEST(ProcessSwap, NavigateBackAfterNavigatingAwayFromCrossOriginOpenerPolicyUsin
 
     EXPECT_EQ(pid1, [webView _webProcessIdentifier]);
     EXPECT_WK_STREQ([webView _committedURL].absoluteString, server.request("/"_s).URL.absoluteString);
-
-    [webView _evaluateJavaScriptWithoutUserGesture:@"document.body.innerHTML" completionHandler:^(id result, NSError* error) {
-        NSString* resultString = result;
-        EXPECT_TRUE(!error);
-        EXPECT_WK_STREQ(resultString, @"foo");
-        done = true;
-    }];
-    Util::run(&done);
-    done = false;
-}
-
-TEST(ProcessSwap, NavigateBackAfterNavigatingAwayFromCrossOriginOpenerPolicyUsingBackForwardCache2)
-{
-    using namespace TestWebKitAPI;
-
-    auto processPoolConfiguration = psonProcessPoolConfiguration();
-    auto processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
-
-    auto webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
-    [webViewConfiguration setProcessPool:processPool.get()];
-    auto handler = adoptNS([[PSONScheme alloc] init]);
-    [handler addMappingFromURLString:@"pson://www.webkit.org" toData:"<script>function navigateToApple() { window.location = 'pson://www.apple.com'; }</script>foo"];
-    [webViewConfiguration setURLSchemeHandler:handler.get() forURLScheme:@"PSON"];
-
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
-    auto navigationDelegate = adoptNS([[PSONNavigationDelegate alloc] init]);
-    navigationDelegate->didSameDocumentNavigationHandler = ^{
-        done = true;
-    };
-    [webView setNavigationDelegate:navigationDelegate.get()];
-
-    done = false;
-    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"pson://www.webkit.org"]]];
-    Util::run(&done);
-    done = false;
-
-    auto pid1 = [webView _webProcessIdentifier];
-
-    [webView _evaluateJavaScriptWithoutUserGesture:@"window.history.pushState({}, null, '/foo')" completionHandler:nil];
-    Util::run(&done);
-    done = false;
-
-    [webView goBack];
-    Util::run(&done);
-    done = false;
-
-    [webView _evaluateJavaScriptWithoutUserGesture:@"window.navigateToApple()" completionHandler:nil];
-    Util::run(&done);
-    done = false;
-
-    auto pid2 = [webView _webProcessIdentifier];
-    EXPECT_NE(pid1, pid2);
-
-    EXPECT_TRUE([webView canGoBack]);
-    EXPECT_FALSE([webView canGoForward]);
-
-    [webView goBack];
-    Util::run(&done);
-    done = false;
-
-    EXPECT_EQ(pid1, [webView _webProcessIdentifier]);
-    EXPECT_WK_STREQ([webView _committedURL].absoluteString, "pson://www.webkit.org");
 
     [webView _evaluateJavaScriptWithoutUserGesture:@"document.body.innerHTML" completionHandler:^(id result, NSError* error) {
         NSString* resultString = result;
@@ -8649,7 +8525,7 @@ TEST(ProcessSwap, NavigatingToLockdownMode)
         finishedNavigation = true;
     };
 
-    NSURL *url = [[NSBundle mainBundle] URLForResource:@"simple" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"];
+    NSURL *url = [NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"];
     [webView loadRequest:[NSURLRequest requestWithURL:url]];
     TestWebKitAPI::Util::run(&finishedNavigation);
 
@@ -8661,7 +8537,7 @@ TEST(ProcessSwap, NavigatingToLockdownMode)
 
     finishedNavigation = false;
     receivedScriptMessage = false;
-    url = [[NSBundle mainBundle] URLForResource:@"LockdownModePDF" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"];
+    url = [NSBundle.test_resourcesBundle URLForResource:@"LockdownModePDF" withExtension:@"html"];
     [webView loadRequest:[NSURLRequest requestWithURL:url]];
     TestWebKitAPI::Util::run(&finishedNavigation);
 
@@ -8675,7 +8551,7 @@ TEST(ProcessSwap, NavigatingToLockdownMode)
     };
 
     finishedNavigation = false;
-    url = [[NSBundle mainBundle] URLForResource:@"simple2" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"];
+    url = [NSBundle.test_resourcesBundle URLForResource:@"simple2" withExtension:@"html"];
     [webView loadRequest:[NSURLRequest requestWithURL:url]];
     TestWebKitAPI::Util::run(&finishedNavigation);
 
@@ -8686,7 +8562,7 @@ TEST(ProcessSwap, NavigatingToLockdownMode)
 
     finishedNavigation = false;
     receivedScriptMessage = false;
-    url = [[NSBundle mainBundle] URLForResource:@"LockdownModePDF" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"];
+    url = [NSBundle.test_resourcesBundle URLForResource:@"LockdownModePDF" withExtension:@"html"];
     [webView loadRequest:[NSURLRequest requestWithURL:url]];
     TestWebKitAPI::Util::run(&finishedNavigation);
 
@@ -8713,7 +8589,7 @@ TEST(ProcessSwap, LockdownModeSystemSettingChange)
         finishedNavigation = true;
     };
 
-    NSURL *url = [[NSBundle mainBundle] URLForResource:@"simple" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"];
+    NSURL *url = [NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"];
     [webView loadRequest:[NSURLRequest requestWithURL:url]];
     TestWebKitAPI::Util::run(&finishedNavigation);
 
@@ -8873,7 +8749,7 @@ TEST(ProcessSwap, CannotDisableLockdownModeWithoutBrowserEntitlement)
         completionHandler(WKNavigationActionPolicyAllow, preferences);
     };
 
-    NSURL *url = [[NSBundle mainBundle] URLForResource:@"simple" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"];
+    NSURL *url = [NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"];
     [webView loadRequest:[NSURLRequest requestWithURL:url]];
     TestWebKitAPI::Util::run(&finishedNavigation);
 
@@ -8909,7 +8785,7 @@ TEST(ProcessSwap, LockdownModeEnabledByDefaultThenOptOut)
         completionHandler(WKNavigationActionPolicyAllow, preferences);
     };
 
-    NSURL *url = [[NSBundle mainBundle] URLForResource:@"simple" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"];
+    NSURL *url = [NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"];
     [webView loadRequest:[NSURLRequest requestWithURL:url]];
     TestWebKitAPI::Util::run(&finishedNavigation);
 
@@ -8918,7 +8794,7 @@ TEST(ProcessSwap, LockdownModeEnabledByDefaultThenOptOut)
     EXPECT_EQ(pid1, [webView _webProcessIdentifier]);
 
     finishedNavigation = false;
-    url = [[NSBundle mainBundle] URLForResource:@"simple2" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"];
+    url = [NSBundle.test_resourcesBundle URLForResource:@"simple2" withExtension:@"html"];
     [webView loadRequest:[NSURLRequest requestWithURL:url]];
     TestWebKitAPI::Util::run(&finishedNavigation);
 
@@ -8933,7 +8809,7 @@ TEST(ProcessSwap, LockdownModeEnabledByDefaultThenOptOut)
     };
 
     finishedNavigation = false;
-    url = [[NSBundle mainBundle] URLForResource:@"simple3" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"];
+    url = [NSBundle.test_resourcesBundle URLForResource:@"simple3" withExtension:@"html"];
     [webView loadRequest:[NSURLRequest requestWithURL:url]];
     TestWebKitAPI::Util::run(&finishedNavigation);
 
@@ -8955,7 +8831,7 @@ TEST(ProcessSwap, LockdownModeEnabledByDefaultThenOptOut)
     delegate.get().decidePolicyForNavigationActionWithPreferences = nil;
 
     finishedNavigation = false;
-    url = [[NSBundle mainBundle] URLForResource:@"simple" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"];
+    url = [NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"];
     [webView2 loadRequest:[NSURLRequest requestWithURL:url]];
     TestWebKitAPI::Util::run(&finishedNavigation);
     EXPECT_TRUE(isJITEnabled(webView2.get()));
@@ -8982,7 +8858,7 @@ TEST(ProcessSwap, LockdownModeSystemSettingChangeDoesNotReloadViewsWhenModeIsSet
         finishedNavigation = true;
     };
 
-    NSURL *url = [[NSBundle mainBundle] URLForResource:@"simple" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"];
+    NSURL *url = [NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"];
     [webView loadRequest:[NSURLRequest requestWithURL:url]];
     TestWebKitAPI::Util::run(&finishedNavigation);
 
@@ -9027,7 +8903,7 @@ TEST(ProcessSwap, LockdownModeSystemSettingChangeDoesNotReloadViewsWhenModeIsSet
         finishedNavigation = true;
     };
 
-    NSURL *url = [[NSBundle mainBundle] URLForResource:@"simple" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"];
+    NSURL *url = [NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"];
     [webView loadRequest:[NSURLRequest requestWithURL:url]];
     TestWebKitAPI::Util::run(&finishedNavigation);
 
@@ -9074,7 +8950,7 @@ TEST(ProcessSwap, LockdownModeSystemSettingChangeDoesNotReloadViewsWhenModeIsSet
         completionHandler(WKNavigationActionPolicyAllow, preferences);
     };
 
-    NSURL *url = [[NSBundle mainBundle] URLForResource:@"simple" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"];
+    NSURL *url = [NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"];
     [webView loadRequest:[NSURLRequest requestWithURL:url]];
     TestWebKitAPI::Util::run(&finishedNavigation);
 
@@ -9124,7 +9000,7 @@ TEST(ProcessSwap, LockdownModeSystemSettingChangeDoesNotReloadViewsWhenModeIsSet
         completionHandler(WKNavigationActionPolicyAllow, preferences);
     };
 
-    NSURL *url = [[NSBundle mainBundle] URLForResource:@"simple" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"];
+    NSURL *url = [NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"];
     [webView loadRequest:[NSURLRequest requestWithURL:url]];
     TestWebKitAPI::Util::run(&finishedNavigation);
 

@@ -116,7 +116,7 @@ private:
     bool getTileIndexRangeForRect(const IntRect&, TileIndex& topLeft, TileIndex& bottomRight) const;
 
     enum class CoverageType { PrimaryTiles, SecondaryTiles };
-    IntRect ensureTilesForRect(const FloatRect&, HashSet<TileIndex>& tilesNeedingDisplay, CoverageType);
+    IntRect ensureTilesForRect(const FloatRect&, CoverageType);
 
     struct TileCohortInfo {
         TileCohort cohort;
@@ -175,7 +175,6 @@ private:
     IntSize m_tileSize;
 
     float m_scale { 1 };
-    std::optional<float> m_scaleAtLastRevalidation;
 };
 
 }

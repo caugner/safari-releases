@@ -100,7 +100,6 @@ struct ContactInfo;
 struct ContactsRequestData;
 struct PromisedAttachmentInfo;
 struct ShareDataWithParsedURL;
-struct TextIndicatorData;
 struct TextRecognitionResult;
 enum class DOMPasteAccessCategory : uint8_t;
 enum class DOMPasteAccessResponse : uint8_t;
@@ -235,7 +234,7 @@ typedef std::pair<WebKit::InteractionInformationRequest, InteractionInformationC
 namespace WebKit {
 
 enum SuppressSelectionAssistantReason : uint8_t {
-    SelectionIsTransparentOrFullyClipped = 1 << 0,
+    EditableRootIsTransparentOrFullyClipped = 1 << 0,
     FocusedElementIsTooSmall = 1 << 1,
     InteractionIsHappening = 1 << 2,
     ShowingFullscreenVideo = 1 << 3,
@@ -860,9 +859,7 @@ FOR_EACH_PRIVATE_WKCONTENTVIEW_ACTION(DECLARE_WKCONTENTVIEW_ACTION_FOR_WEB_VIEW)
 - (void)updateSoftwareKeyboardSuppressionStateFromWebView;
 
 #if USE(UICONTEXTMENU)
-- (UIView *)containerForContextMenuHintPreviews;
 - (UIView *)textEffectsWindow;
-- (UITargetedPreview *)_createTargetedPreviewFromTextIndicator:(WebCore::TextIndicatorData)textIndicatorData previewContainer:(UIView *)previewContainer;
 - (UITargetedPreview *)_createTargetedContextMenuHintPreviewForFocusedElement:(WebKit::TargetedPreviewPositioning)positioning;
 - (UITargetedPreview *)_createTargetedContextMenuHintPreviewIfPossible;
 - (void)_removeContextMenuHintContainerIfPossible;

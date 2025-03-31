@@ -1496,12 +1496,7 @@ NetworkSessionCocoa::NetworkSessionCocoa(NetworkProcess& networkProcess, const N
     } else
         cookieStorage = storageSession->nsCookieStorage();
 
-#if HAVE(CFNETWORK_OVERRIDE_SESSION_COOKIE_ACCEPT_POLICY)
-    // We still need to check the selector since CFNetwork updates and WebKit updates are separate
-    // on older macOS.
-    if ([cookieStorage respondsToSelector:@selector(_overrideSessionCookieAcceptPolicy)])
-        cookieStorage.get()._overrideSessionCookieAcceptPolicy = YES;
-#endif
+    cookieStorage.get()._overrideSessionCookieAcceptPolicy = YES;
 
     initializeNSURLSessionsInSet(m_defaultSessionSet.get(), configuration);
 
@@ -1835,7 +1830,7 @@ void NetworkSessionCocoa::continueDidReceiveChallenge(SessionWrapper& sessionWra
     if (!networkDataTask) {
         if (auto webSocketTask = sessionWrapper.webSocketDataTaskMap.get(taskIdentifier).get()) {
             auto challengeCompletionHandler = createChallengeCompletionHandler(networkProcess(), sessionID(), challenge, webSocketTask->partition(), 0, WTFMove(completionHandler));
-            networkProcess().authenticationManager().didReceiveAuthenticationChallenge(sessionID(), webSocketTask->webPageProxyID(), !webSocketTask->topOrigin().isNull() ? &webSocketTask->topOrigin() : nullptr, challenge, negotiatedLegacyTLS, WTFMove(challengeCompletionHandler));
+            networkProcess().authenticationManager().didReceiveAuthenticationChallenge(sessionID(), webSocketTask->webProxyPageID(), !webSocketTask->topOrigin().isNull() ? &webSocketTask->topOrigin() : nullptr, challenge, negotiatedLegacyTLS, WTFMove(challengeCompletionHandler));
             return;
         }
         if (auto downloadID = sessionWrapper.downloadMap.getOptional(taskIdentifier)) {
@@ -1873,7 +1868,7 @@ DMFWebsitePolicyMonitor *NetworkSessionCocoa::deviceManagementPolicyMonitor()
 #endif
 }
 
-std::unique_ptr<WebSocketTask> NetworkSessionCocoa::createWebSocketTask(WebPageProxyIdentifier webPageProxyID, std::optional<WebCore::FrameIdentifier> frameID, std::optional<WebCore::PageIdentifier> pageID, NetworkSocketChannel& channel, const WebCore::ResourceRequest& request, const String& protocol, const WebCore::ClientOrigin& clientOrigin, bool hadMainFrameMainResourcePrivateRelayed, bool allowPrivacyProxy, OptionSet<WebCore::AdvancedPrivacyProtections> advancedPrivacyProtections, WebCore::StoredCredentialsPolicy storedCredentialsPolicy)
+std::unique_ptr<WebSocketTask> NetworkSessionCocoa::createWebSocketTask(WebPageProxyIdentifier webPageProxyID, std::optional<WebCore::FrameIdentifier> frameID, std::optional<WebCore::PageIdentifier> pageID, NetworkSocketChannel& channel, const WebCore::ResourceRequest& request, const String& protocol, const WebCore::ClientOrigin& clientOrigin, bool hadMainFrameMainResourcePrivateRelayed, bool allowPrivacyProxy, OptionSet<WebCore::AdvancedPrivacyProtections> advancedPrivacyProtections, WebCore::ShouldRelaxThirdPartyCookieBlocking shouldRelaxThirdPartyCookieBlocking, WebCore::StoredCredentialsPolicy storedCredentialsPolicy)
 {
     ASSERT(!request.hasHTTPHeaderField(WebCore::HTTPHeaderName::SecWebSocketProtocol));
     RetainPtr nsRequest = request.nsURLRequest(WebCore::HTTPBodyUpdatePolicy::DoNotUpdateHTTPBody);
@@ -1919,7 +1914,7 @@ std::unique_ptr<WebSocketTask> NetworkSessionCocoa::createWebSocketTask(WebPageP
     // Use NSIntegerMax instead of 2^63 - 1 for 32-bit systems.
     task.get().maximumMessageSize = NSIntegerMax;
 
-    return makeUnique<WebSocketTask>(channel, webPageProxyID, frameID, pageID, sessionSet, request, clientOrigin, WTFMove(task), storedCredentialsPolicy);
+    return makeUnique<WebSocketTask>(channel, webPageProxyID, frameID, pageID, sessionSet, request, clientOrigin, WTFMove(task), shouldRelaxThirdPartyCookieBlocking, storedCredentialsPolicy);
 }
 
 void NetworkSessionCocoa::addWebSocketTask(WebPageProxyIdentifier webPageProxyID, WebSocketTask& task)
@@ -1949,9 +1944,8 @@ void NetworkSessionCocoa::addWebPageNetworkParameters(WebPageProxyIdentifier pag
     auto addResult2 = m_perPageSessionSets.add(pageID, SessionSet::create());
     ASSERT(addResult2.isNewEntry);
     RetainPtr<NSURLSessionConfiguration> configuration = adoptNS([m_defaultSessionSet->sessionWithCredentialStorage.session.get().configuration copy]);
-#if HAVE(CFNETWORK_NSURLSESSION_ATTRIBUTED_BUNDLE_IDENTIFIER) && USE(APPLE_INTERNAL_SDK)
-    if ([configuration respondsToSelector:@selector(_attributedBundleIdentifier)])
-        configuration.get()._attributedBundleIdentifier = parameters.attributedBundleIdentifier();
+#if USE(APPLE_INTERNAL_SDK)
+    configuration.get()._attributedBundleIdentifier = parameters.attributedBundleIdentifier();
 #endif
     initializeNSURLSessionsInSet(addResult2.iterator->value.get(), configuration.get());
     addResult1.iterator->value = addResult2.iterator->value.get();

@@ -177,8 +177,7 @@ private:
 #endif
 #if ENABLE(LINEAR_MEDIA_PLAYER)
     RetainPtr<UIViewController> _environmentPickerButtonViewController;
-    RetainPtr<UIStackView> _centeredStackView;
-    RetainPtr<UIButton> _enterVideoFullscreenButton;
+    RetainPtr<WKExtrinsicButton> _enterVideoFullscreenButton;
     enum ButtonState {
         EnvironmentPicker = 1 << 0,
         FullscreenVideo = 1 << 1
@@ -233,8 +232,6 @@ ALLOW_DEPRECATED_DECLARATIONS_END
         return;
 
     _valid = NO;
-
-    [self _pauseIfNeeded];
 
     [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(hideUI) object:nil];
 #if ENABLE(FULLSCREEN_DISMISSAL_GESTURES)
@@ -303,10 +300,6 @@ ALLOW_DEPRECATED_DECLARATIONS_END
             [NSLayoutConstraint deactivateConstraints:@[_topConstraint.get()]];
         _topConstraint = [[_topGuide topAnchor] constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor];
         [_topConstraint setActive:YES];
-#if ENABLE(LINEAR_MEDIA_PLAYER)
-        [_centeredStackView setHidden:NO];
-        [_centeredStackView setAlpha:1];
-#endif
     }];
 }
 
@@ -332,17 +325,11 @@ ALLOW_DEPRECATED_DECLARATIONS_END
         [_stackView setAlpha:0];
         self.prefersStatusBarHidden = YES;
         self.prefersHomeIndicatorAutoHidden = YES;
-#if ENABLE(LINEAR_MEDIA_PLAYER)
-        [_centeredStackView setAlpha:0];
-#endif
     } completion:^(BOOL finished) {
         if (!finished)
             return;
 
         [_stackView setHidden:YES];
-#if ENABLE(LINEAR_MEDIA_PLAYER)
-        [_centeredStackView setHidden:YES];
-#endif
     }];
 }
 
@@ -445,23 +432,23 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     }
 
     if (RetainPtr mediaPlayer = playbackSessionInterface->linearMediaPlayer(); [mediaPlayer spatialVideoMetadata]) {
-        if (!_buttonState.contains(FullscreenVideo)) {
-            [_centeredStackView addArrangedSubview:_enterVideoFullscreenButton.get()];
-            _buttonState.add(FullscreenVideo);
+        if (_buttonState.contains(FullscreenVideo)) {
+            ASSERT(!_buttonState.contains(EnvironmentPicker) && [[_stackView arrangedSubviews] containsObject:_enterVideoFullscreenButton.get()]);
+            return;
         }
-    } else
-        [self _removeEnvironmentFullscreenVideoButtonView];
+        [self _removeEnvironmentPickerButtonView];
+        [_stackView insertArrangedSubview:_enterVideoFullscreenButton.get() atIndex:1];
+        _buttonState.add(FullscreenVideo);
+        return;
+    }
+
+    [self _removeEnvironmentFullscreenVideoButtonView];
 
     RefPtr videoPresentationManager = page->videoPresentationManager();
     RefPtr videoPresentationInterface = videoPresentationManager ? videoPresentationManager->controlsManagerInterface() : nullptr;
 
     LMPlayableViewController *playableViewController = videoPresentationInterface ? videoPresentationInterface->playableViewController() : nil;
     UIViewController *environmentPickerButtonViewController = playableViewController.wks_environmentPickerButtonViewController;
-
-    if (environmentPickerButtonViewController) {
-        playableViewController.wks_automaticallyDockOnFullScreenPresentation = YES;
-        playableViewController.wks_dismissFullScreenOnExitingDocking = YES;
-    }
 
     if (_environmentPickerButtonViewController == environmentPickerButtonViewController) {
         ASSERT(!environmentPickerButtonViewController || [[_stackView arrangedSubviews] containsObject:environmentPickerButtonViewController.view]);
@@ -471,6 +458,9 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     [self _removeEnvironmentPickerButtonView];
     if (!environmentPickerButtonViewController)
         return;
+
+    playableViewController.wks_automaticallyDockOnFullScreenPresentation = YES;
+    playableViewController.wks_dismissFullScreenOnExitingDocking = YES;
 
     [self addChildViewController:environmentPickerButtonViewController];
     [_stackView insertArrangedSubview:environmentPickerButtonViewController.view atIndex:1];
@@ -500,7 +490,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     if (!_buttonState.contains(FullscreenVideo))
         return;
 
-    [_centeredStackView removeArrangedSubview:_enterVideoFullscreenButton.get()];
+    [_stackView removeArrangedSubview:_enterVideoFullscreenButton.get()];
     [_enterVideoFullscreenButton removeFromSuperview];
     _buttonState.remove(FullscreenVideo);
 }
@@ -715,35 +705,11 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 #endif
 
 #if ENABLE(LINEAR_MEDIA_PLAYER)
-        _enterVideoFullscreenButton = [UIButton buttonWithType:UIButtonTypeSystem];
-        [self _setupButton:_enterVideoFullscreenButton.get()];
-
-        UIButtonConfiguration *fullscreenButtonConfiguration = [UIButtonConfiguration filledButtonConfiguration];
-        fullscreenButtonConfiguration.imagePadding = 9;
-        fullscreenButtonConfiguration.contentInsets = NSDirectionalEdgeInsetsMake(12, 18, 12, 22);
-        fullscreenButtonConfiguration.titleLineBreakMode = NSLineBreakByClipping;
-
-        RetainPtr imageConfiguration = [[UIImageSymbolConfiguration configurationWithTextStyle:UIFontTextStyleBody] configurationByApplyingConfiguration:[UIImageSymbolConfiguration configurationWithWeight:UIImageSymbolWeightMedium]];
-
-        fullscreenButtonConfiguration.image = [[UIImage systemImageNamed:@"cube" withConfiguration:imageConfiguration.get()] imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
-
-        RetainPtr descriptor = [UIFontDescriptor preferredFontDescriptorWithTextStyle:UIFontTextStyleBody];
-        descriptor = [descriptor fontDescriptorByAddingAttributes:@{
-            UIFontWeightTrait : [NSNumber numberWithDouble:UIFontWeightMedium]
-        }];
-        fullscreenButtonConfiguration.attributedTitle = [[NSMutableAttributedString alloc] initWithString:WebCore::fullscreenControllerViewSpatial() attributes:@{
-            NSFontAttributeName : [UIFont fontWithDescriptor:descriptor.get() size:0]
-        }];
-
-        [_enterVideoFullscreenButton setConfiguration:fullscreenButtonConfiguration];
-        [_enterVideoFullscreenButton setContentHorizontalAlignment:UIControlContentHorizontalAlignmentLeft];
-
+        _enterVideoFullscreenButton = [self _createButtonWithExtrinsicContentSize:buttonSize];
+        [_enterVideoFullscreenButton setConfiguration:cancelButtonConfiguration];
+        [_enterVideoFullscreenButton setImage:[[UIImage systemImageNamed:@"video"] imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate] forState:UIControlStateNormal];
         [_enterVideoFullscreenButton sizeToFit];
-
         [_enterVideoFullscreenButton addTarget:self action:@selector(_enterVideoFullscreenAction:) forControlEvents:UIControlEventTouchUpInside];
-
-        _centeredStackView = adoptNS([[UIStackView alloc] init]);
-        [_centeredStackView setSpacing:24.0];
 #endif
 
         _stackView = adoptNS([[UIStackView alloc] init]);
@@ -759,7 +725,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
         [_pipButton setImage:[stopPiPImage imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate] forState:UIControlStateSelected];
         [_pipButton sizeToFit];
         [_pipButton addTarget:self action:@selector(_togglePiPAction:) forControlEvents:UIControlEventTouchUpInside];
-
+        
         RetainPtr<WKFullscreenStackView> stackView = adoptNS([[WKFullscreenStackView alloc] init]);
 #if PLATFORM(APPLETV)
         [stackView addArrangedSubview:_cancelButton.get()];
@@ -772,11 +738,6 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 
     [_stackView setTranslatesAutoresizingMaskIntoConstraints:NO];
     [_animatingView addSubview:_stackView.get()];
-
-#if ENABLE(LINEAR_MEDIA_PLAYER)
-    [_centeredStackView setTranslatesAutoresizingMaskIntoConstraints:NO];
-    [_animatingView addSubview:_centeredStackView.get()];
-#endif
 
 #if ENABLE(FULLSCREEN_DISMISSAL_GESTURES)
     _bannerLabel = adoptNS([[_WKInsetLabel alloc] initWithFrame:CGRectMake(0, 0, 100, 100)]);
@@ -820,19 +781,10 @@ ALLOW_DEPRECATED_DECLARATIONS_END
         [[_banner centerXAnchor] constraintEqualToAnchor:self.view.centerXAnchor],
 #endif
         [[_stackView leadingAnchor] constraintEqualToAnchor:margins.leadingAnchor],
-#if ENABLE(LINEAR_MEDIA_PLAYER)
-        // Align stack view's top anchor to the other stack view and to the middle of its superview.
-        [[_centeredStackView topAnchor] constraintEqualToAnchor:[_stackView topAnchor]],
-        [[_centeredStackView centerXAnchor] constraintEqualToAnchor:[_animatingView centerXAnchor]],
-#endif
     ]];
 
     [_stackView setAlpha:0];
     [_stackView setHidden:YES];
-#if ENABLE(LINEAR_MEDIA_PLAYER)
-    [_centeredStackView setAlpha:0];
-    [_centeredStackView setHidden:YES];
-#endif
     [self videoControlsManagerDidChange];
 
 #if ENABLE(FULLSCREEN_DISMISSAL_GESTURES)
@@ -953,30 +905,6 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     return playbackSessionManager->controlsManagerInterface();
 }
 
-- (void)_pauseIfNeeded
-{
-    RefPtr page = self._webView._page.get();
-    if (!page)
-        return;
-
-    if (page->preferences().fullScreenEnabled())
-        return;
-
-    // When only VideoFullscreenRequiresElementFullscreen is enabled,
-    // mimic AVPlayerViewController's behavior by pausing playback when exiting fullscreen.
-    ASSERT(page->preferences().videoFullscreenRequiresElementFullscreen());
-
-    RefPtr interface = [self _playbackSessionInterface];
-    if (!interface)
-        return;
-
-    auto model = interface->playbackSessionModel();
-    if (!model)
-        return;
-
-    model->pause();
-}
-
 - (void)_cancelAction:(id)sender
 {
     ASSERT(_valid);
@@ -1081,19 +1009,14 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 - (WKExtrinsicButton *)_createButtonWithExtrinsicContentSize:(CGSize)size
 {
     WKExtrinsicButton *button = [WKExtrinsicButton buttonWithType:UIButtonTypeSystem];
-    [self _setupButton:button];
     [button setDelegate:self];
-    [button setExtrinsicContentSize:size];
-    return button;
-}
-
-- (void)_setupButton:(UIButton *)button
-{
     [button setTranslatesAutoresizingMaskIntoConstraints:NO];
 ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     [button setAdjustsImageWhenHighlighted:NO];
 ALLOW_DEPRECATED_DECLARATIONS_END
+    [button setExtrinsicContentSize:size];
     [button setTintColor:[UIColor whiteColor]];
+    return button;
 }
 
 - (void)wkExtrinsicButtonWillDisplayMenu:(WKExtrinsicButton *)button

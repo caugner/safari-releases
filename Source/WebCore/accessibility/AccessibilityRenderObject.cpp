@@ -1418,6 +1418,9 @@ CharacterRange AccessibilityRenderObject::selectedTextRange() const
 {
     ASSERT(isTextControl());
 
+    if (shouldReturnEmptySelectedText())
+        return { };
+
     // Use the text control native range if it's a native object.
     if (isNativeTextControl()) {
         auto& textControl = uncheckedDowncast<RenderTextControl>(*m_renderer).textFormControlElement();

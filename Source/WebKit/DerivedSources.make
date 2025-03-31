@@ -624,6 +624,7 @@ SERIALIZATION_DESCRIPTION_FILES = \
 	Shared/Extensions/WebExtensionMenuItem.serialization.in \
 	Shared/Extensions/WebExtensionMessageSenderParameters.serialization.in \
 	Shared/Extensions/WebExtensionSidebarParameters.serialization.in \
+	Shared/Extensions/WebExtensionActionClickBehavior.serialization.in \
 	Shared/Extensions/WebExtensionStorage.serialization.in \
 	Shared/Extensions/WebExtensionTab.serialization.in \
 	Shared/Extensions/WebExtensionWindow.serialization.in \
@@ -670,6 +671,7 @@ SERIALIZATION_DESCRIPTION_FILES = \
 	Shared/ResourceLoadStatisticsParameters.serialization.in \
 	Shared/SameDocumentNavigationType.serialization.in \
 	Shared/SandboxExtension.serialization.in \
+	Shared/ScriptTelemetry.serialization.in \
 	Shared/ScrollingAccelerationCurve.serialization.in \
 	Shared/SessionState.serialization.in \
 	Shared/SyntheticEditingCommandType.serialization.in \

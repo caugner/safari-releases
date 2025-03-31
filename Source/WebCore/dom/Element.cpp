@@ -2753,35 +2753,10 @@ void Element::updateEffectiveTextDirection()
     updateEffectiveTextDirectionState(*this, textDirectionState);
 }
 
-void Element::updateEffectiveTextDirectionIfNeeded()
-{
-    if (UNLIKELY(selfOrPrecedingNodesAffectDirAuto())) {
-        updateEffectiveTextDirection();
-        return;
-    }
-
-    RefPtr parent = parentOrShadowHostElement();
-    if (!(parent && parent->usesEffectiveTextDirection()))
-        return;
-
-    if (hasAttributeWithoutSynchronization(HTMLNames::dirAttr) || shadowRoot() || firstChild()) {
-        updateEffectiveTextDirection();
-        return;
-    }
-
-    if (auto* input = dynamicDowncast<HTMLInputElement>(*this); input && input->isTelephoneField()) {
-        updateEffectiveTextDirection();
-        return;
-    }
-
-    setUsesEffectiveTextDirection(parent->usesEffectiveTextDirection());
-    setEffectiveTextDirection(parent->effectiveTextDirection());
-}
-
 void Element::dirAttributeChanged(const AtomString& newValue)
 {
     auto textDirectionState = parseTextDirectionState(newValue);
-    textDirectionStateChanged(*this, textDirectionState);
+    updateEffectiveTextDirectionState(*this, textDirectionState);
 }
 
 void Element::updateEffectiveLangStateFromParent()
@@ -2920,8 +2895,11 @@ Node::InsertedIntoAncestorResult Element::insertedIntoAncestor(InsertionType ins
     } else if (!hasLanguageAttribute())
         updateEffectiveLangStateFromParent();
 
-    if (!is<HTMLSlotElement>(*this))
-        updateEffectiveTextDirectionIfNeeded();
+    if (!is<HTMLSlotElement>(*this)) {
+        RefPtr parent = parentOrShadowHostElement();
+        if (UNLIKELY(selfOrPrecedingNodesAffectDirAuto() || (parent && parent->usesEffectiveTextDirection())))
+            updateEffectiveTextDirection();
+    }
 
     return InsertedIntoAncestorResult::Done;
 }
@@ -4825,16 +4803,6 @@ ElementAnimationRareData* Element::animationRareData(const std::optional<Style::
 ElementAnimationRareData& Element::ensureAnimationRareData(const std::optional<Style::PseudoElementIdentifier>& pseudoElementIdentifier)
 {
     return ensureElementRareData().ensureAnimationRareData(pseudoElementIdentifier);
-}
-
-AtomString Element::viewTransitionCapturedName(const std::optional<Style::PseudoElementIdentifier>& pseudoElementIdentifier) const
-{
-    return hasRareData() ? elementRareData()->viewTransitionCapturedName(pseudoElementIdentifier) : nullAtom();
-}
-
-void Element::setViewTransitionCapturedName(const std::optional<Style::PseudoElementIdentifier>& pseudoElementIdentifier, AtomString captureName)
-{
-    return ensureElementRareData().setViewTransitionCapturedName(pseudoElementIdentifier, captureName);
 }
 
 KeyframeEffectStack* Element::keyframeEffectStack(const std::optional<Style::PseudoElementIdentifier>& pseudoElementIdentifier) const

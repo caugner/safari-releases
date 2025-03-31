@@ -376,8 +376,7 @@ void RenderEmbeddedObject::layout()
     updateLogicalWidth();
     updateLogicalHeight();
 
-    LayoutSize oldSize = contentBoxRect().size();
-    RenderReplaced::layout();
+    RenderWidget::layout();
 
     clearOverflow();
     addVisualEffectOverflow();
@@ -388,9 +387,6 @@ void RenderEmbeddedObject::layout()
         view().frameView().addEmbeddedObjectToUpdate(*this);
 
     clearNeedsLayout();
-
-    if (m_hasShadowContent)
-        layoutShadowContent(oldSize);
 }
 
 bool RenderEmbeddedObject::nodeAtPoint(const HitTestRequest& request, HitTestResult& result, const HitTestLocation& locationInContainer, const LayoutPoint& accumulatedOffset, HitTestAction hitTestAction)
@@ -491,11 +487,6 @@ CursorDirective RenderEmbeddedObject::getCursor(const LayoutPoint& point, Cursor
         return DoNotSetCursor;
     }
     return RenderWidget::getCursor(point, cursor);
-}
-
-bool RenderEmbeddedObject::paintsContent() const
-{
-    return !requiresAcceleratedCompositing();
 }
 
 }

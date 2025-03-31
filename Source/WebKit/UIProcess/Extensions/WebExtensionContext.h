@@ -32,7 +32,6 @@
 #include "APIUserScript.h"
 #include "APIUserStyleSheet.h"
 #include "MessageReceiver.h"
-#include "ProcessThrottler.h"
 #include "WebExtension.h"
 #include "WebExtensionAction.h"
 #include "WebExtensionAlarm.h"
@@ -82,6 +81,7 @@
 #endif
 
 #if ENABLE(WK_WEB_EXTENSIONS_SIDEBAR)
+#include "WebExtensionActionClickBehavior.h"
 #include "WebExtensionSidebar.h"
 #include "WebExtensionSidebarParameters.h"
 #endif
@@ -220,6 +220,7 @@ public:
 
 #if ENABLE(INSPECTOR_EXTENSIONS)
     using InspectorTabVector = Vector<std::pair<Ref<WebInspectorUIProxy>, RefPtr<WebExtensionTab>>>;
+    using TabIdentifierWebViewPair = std::pair<WebExtensionTabIdentifier, RetainPtr<WKWebView>>;
 #endif
 
     using ReloadFromOrigin = WebExtensionTab::ReloadFromOrigin;
@@ -269,14 +270,6 @@ public:
         Tab,
     };
 
-#if ENABLE(INSPECTOR_EXTENSIONS)
-    struct InspectorContext {
-        std::optional<WebExtensionTabIdentifier> tabIdentifier;
-        RefPtr<API::InspectorExtension> extension;
-        RetainPtr<WKWebView> backgroundWebView;
-    };
-#endif
-
     WebExtensionContextParameters parameters() const;
 
     bool operator==(const WebExtensionContext& other) const { return (this == &other); }
@@ -302,6 +295,7 @@ public:
     bool isLoaded() const { return !!m_extensionController; }
 
     WebExtension& extension() const { return *m_extension; }
+    Ref<WebExtension> protectedExtension() const { return extension(); }
     WebExtensionController* extensionController() const { return m_extensionController.get(); }
 
     const URL& baseURL() const { return m_baseURL; }
@@ -315,9 +309,6 @@ public:
     void setUniqueIdentifier(String&&);
 
     _WKWebExtensionLocalization *localization();
-
-    RefPtr<API::Data> localizedResourceData(const RefPtr<API::Data>&, const String& mimeType);
-    String localizedResourceString(const String&, const String& mimeType);
 
     bool isInspectable() const { return m_inspectable; }
     void setInspectable(bool);
@@ -455,6 +446,7 @@ public:
 #endif
 
     WebExtensionAction& defaultAction();
+    Ref<WebExtensionAction> protectedDefaultAction() { return defaultAction(); }
     Ref<WebExtensionAction> getAction(WebExtensionWindow*);
     Ref<WebExtensionAction> getAction(WebExtensionTab*);
     Ref<WebExtensionAction> getOrCreateAction(WebExtensionWindow*);
@@ -468,8 +460,10 @@ public:
     std::optional<Ref<WebExtensionSidebar>> getOrCreateSidebar(WebExtensionWindow&);
     std::optional<Ref<WebExtensionSidebar>> getOrCreateSidebar(WebExtensionTab&);
     RefPtr<WebExtensionSidebar> getOrCreateSidebar(RefPtr<WebExtensionTab>);
-    void openSidebarForTab(WebExtensionTab&, UserTriggered = UserTriggered::No);
-    void closeSidebarForTab(WebExtensionTab&, UserTriggered = UserTriggered::No);
+    void openSidebar(WebExtensionSidebar&);
+    void closeSidebar(WebExtensionSidebar&);
+    bool canProgrammaticallyOpenSidebar();
+    bool canProgrammaticallyCloseSidebar();
 #endif // ENABLE(WK_WEB_EXTENSIONS_SIDEBAR)
 
     const CommandsVector& commands();
@@ -520,6 +514,8 @@ public:
 #if PLATFORM(MAC)
     void runOpenPanel(WKWebView *, WKOpenPanelParameters *, void (^)(NSArray *));
 #endif
+
+    void sendNativeMessage(const String& applicationID, id message, CompletionHandler<void(Expected<RetainPtr<id>, WebExtensionError>&&)>&&);
 
     void addInjectedContent(WebUserContentControllerProxy&);
     void removeInjectedContent(WebUserContentControllerProxy&);
@@ -854,6 +850,8 @@ private:
     void sidebarGetTitle(const std::optional<WebExtensionWindowIdentifier>, const std::optional<WebExtensionTabIdentifier>, CompletionHandler<void(Expected<String, WebExtensionError>&&)>&&);
     void sidebarSetTitle(const std::optional<WebExtensionWindowIdentifier>, const std::optional<WebExtensionTabIdentifier>, const std::optional<String>& title, CompletionHandler<void(Expected<void, WebExtensionError>&&)>&&);
     void sidebarSetIcon(const std::optional<WebExtensionWindowIdentifier>, const std::optional<WebExtensionTabIdentifier>, const String& iconJSON, CompletionHandler<void(Expected<void, WebExtensionError>&&)>&&);
+    void sidebarSetActionClickBehavior(WebExtensionActionClickBehavior, CompletionHandler<void(Expected<void, WebExtensionError>&&)>&&);
+    void sidebarGetActionClickBehavior(CompletionHandler<void(Expected<WebExtensionActionClickBehavior, WebExtensionError>&&)>&&);
 #endif
 
     // Storage APIs
@@ -968,7 +966,6 @@ private:
     String m_previousVersion;
 
     RetainPtr<WKWebView> m_backgroundWebView;
-    std::unique_ptr<ProcessThrottlerActivity> m_backgroundWebViewActivity;
     RetainPtr<NSError> m_backgroundContentLoadError;
     RetainPtr<_WKWebExtensionContextDelegate> m_delegate;
 
@@ -980,7 +977,8 @@ private:
     bool m_safeToLoadBackgroundContent { false };
 
 #if ENABLE(INSPECTOR_EXTENSIONS)
-    WeakHashMap<WebInspectorUIProxy, InspectorContext> m_inspectorContextMap;
+    WeakHashMap<WebInspectorUIProxy, TabIdentifierWebViewPair> m_inspectorBackgroundPageMap;
+    WeakHashMap<WebInspectorUIProxy, Ref<API::InspectorExtension>> m_inspectorExtensionMap;
 #endif
 
     HashMap<Ref<WebExtensionMatchPattern>, UserScriptVector> m_injectedScriptsPerPatternMap;
@@ -1000,6 +998,7 @@ private:
     WeakHashMap<WebExtensionWindow, Ref<WebExtensionSidebar>> m_sidebarWindowMap;
     WeakHashMap<WebExtensionTab, Ref<WebExtensionSidebar>> m_sidebarTabMap;
     RefPtr<WebExtensionSidebar> m_defaultSidebar;
+    WebExtensionActionClickBehavior m_actionClickBehavior { WebExtensionActionClickBehavior::OpenPopup };
 #endif // ENABLE(WK_WEB_EXTENSIONS_SIDEBAR)
 
     PortCountedSet m_ports;

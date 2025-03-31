@@ -471,7 +471,8 @@ void SWServer::scheduleJob(ServiceWorkerJobData&& jobData)
 {
     ASSERT(m_connections.contains(jobData.connectionIdentifier()) || jobData.connectionIdentifier() == Process::identifier());
 
-    validateRegistrationDomain(WebCore::RegistrableDomain(jobData.topOrigin), jobData.type, m_scopeToRegistrationMap.contains(jobData.registrationKey()), [weakThis = WeakPtr { *this }, jobData = WTFMove(jobData)] (bool isValid) mutable {
+    auto registrationKey = jobData.registrationKey();
+    validateRegistrationDomain(WebCore::RegistrableDomain(jobData.topOrigin), jobData.type, m_scopeToRegistrationMap.contains(registrationKey), [weakThis = WeakPtr { *this }, jobData = WTFMove(jobData)] (bool isValid) mutable {
         RefPtr protectedThis = weakThis.get();
         if (!protectedThis)
             return;
@@ -561,7 +562,7 @@ ResourceRequest SWServer::createScriptRequest(const URL& url, const ServiceWorke
 
     request.setDomainForCachePartition(jobData.domainForCachePartition);
     request.setAllowCookies(true);
-    request.setFirstPartyForCookies(topOrigin->toURL());
+    request.setFirstPartyForCookies(originURL(topOrigin));
 
     request.setHTTPHeaderField(HTTPHeaderName::Origin, origin->toString());
     request.setHTTPReferrer(originURL(origin).string());

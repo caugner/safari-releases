@@ -52,14 +52,13 @@ public:
     static std::unique_ptr<RemoteLegacyCDMSessionProxy> create(RemoteLegacyCDMFactoryProxy&, uint64_t logIdentifier, RemoteLegacyCDMSessionIdentifier, WebCore::LegacyCDM&);
     ~RemoteLegacyCDMSessionProxy();
 
-    void invalidate();
-
     RemoteLegacyCDMFactoryProxy* factory() const { return m_factory.get(); }
     WebCore::LegacyCDMSession* session() const { return m_session.get(); }
 
     void setPlayer(WeakPtr<RemoteMediaPlayerProxy>);
 
     RefPtr<ArrayBuffer> getCachedKeyForKeyId(const String&);
+    const SharedPreferencesForWebProcess& sharedPreferencesForWebProcess() const;
 
 private:
     friend class RemoteLegacyCDMFactoryProxy;

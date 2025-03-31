@@ -265,6 +265,10 @@ static bool shouldInsertAsSeparateMarker(const DocumentMarker& marker)
         return true;
 #endif
 
+#if ENABLE(WRITING_TOOLS)
+    case DocumentMarker::Type::WritingToolsTextSuggestion:
+        return true;
+#endif
     case DocumentMarker::Type::TransparentContent:
         return is<RenderReplaced>(std::get<DocumentMarker::TransparentContentData>(marker.data()).node->renderer());
 
@@ -274,22 +278,6 @@ static bool shouldInsertAsSeparateMarker(const DocumentMarker& marker)
     default:
         return false;
     }
-}
-
-static bool canMergeMarkers(const DocumentMarker& marker, const DocumentMarker& other)
-{
-    ASSERT(!shouldInsertAsSeparateMarker(marker));
-    ASSERT(!shouldInsertAsSeparateMarker(other));
-
-    if (marker.type() != other.type())
-        return false;
-
-#if ENABLE(WRITING_TOOLS)
-    if (marker.type() == DocumentMarker::Type::WritingToolsTextSuggestion)
-        return std::get<DocumentMarker::WritingToolsTextSuggestionData>(marker.data()).suggestionID == std::get<DocumentMarker::WritingToolsTextSuggestionData>(other.data()).suggestionID;
-#endif
-
-    return true;
 }
 
 // Markers are stored in order sorted by their start offset.
@@ -329,7 +317,7 @@ void DocumentMarkerController::addMarker(Node& node, DocumentMarker&& newMarker)
             DocumentMarker marker = list->at(i);
             if (marker.startOffset() > toInsert.startOffset())
                 break;
-            if (canMergeMarkers(marker, toInsert) && marker.endOffset() >= toInsert.startOffset()) {
+            if (marker.type() == toInsert.type() && marker.endOffset() >= toInsert.startOffset()) {
                 toInsert.setStartOffset(marker.startOffset());
                 list->remove(i);
                 numMarkers--;
@@ -344,7 +332,7 @@ void DocumentMarkerController::addMarker(Node& node, DocumentMarker&& newMarker)
             DocumentMarker marker = list->at(j);
             if (marker.startOffset() > toInsert.endOffset())
                 break;
-            if (canMergeMarkers(marker, toInsert)) {
+            if (marker.type() == toInsert.type()) {
                 list->remove(j);
                 if (toInsert.endOffset() <= marker.endOffset()) {
                     toInsert.setEndOffset(marker.endOffset());

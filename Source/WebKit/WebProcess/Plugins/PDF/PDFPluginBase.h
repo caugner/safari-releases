@@ -29,6 +29,7 @@
 
 #include "FrameInfoData.h"
 #include "PDFPluginIdentifier.h"
+#include "PDFScriptEvaluator.h"
 #include "WebMouseEvent.h"
 #include <WebCore/AffineTransform.h>
 #include <WebCore/FindOptions.h>
@@ -49,9 +50,7 @@
 #include <wtf/TypeTraits.h>
 #include <wtf/WeakPtr.h>
 
-OBJC_CLASS NSData;
 OBJC_CLASS NSDictionary;
-OBJC_CLASS NSString;
 OBJC_CLASS PDFAnnotation;
 OBJC_CLASS PDFDocument;
 OBJC_CLASS PDFSelection;
@@ -89,12 +88,7 @@ using ByteRangeRequestIdentifier = LegacyNullableObjectIdentifier<ByteRangeReque
 
 enum class CheckValidRanges : bool { No, Yes };
 
-struct PDFPluginPasteboardItem {
-    RetainPtr<NSData> data;
-    RetainPtr<NSString> type;
-};
-
-class PDFPluginBase : public ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr<PDFPluginBase>, public CanMakeThreadSafeCheckedPtr<PDFPluginBase>, public WebCore::ScrollableArea, public Identified<PDFPluginIdentifier> {
+class PDFPluginBase : public ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr<PDFPluginBase>, public CanMakeThreadSafeCheckedPtr<PDFPluginBase>, public WebCore::ScrollableArea, public PDFScriptEvaluatorClient, public Identified<PDFPluginIdentifier> {
     WTF_MAKE_NONCOPYABLE(PDFPluginBase);
     WTF_MAKE_TZONE_ALLOCATED(PDFPluginBase);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(PDFPluginBase);
@@ -111,6 +105,10 @@ public:
     uint32_t ptrCountWithoutThreadCheck() const final { return CanMakeThreadSafeCheckedPtr::ptrCountWithoutThreadCheck(); }
     void incrementPtrCount() const final { CanMakeThreadSafeCheckedPtr::incrementPtrCount(); }
     void decrementPtrCount() const final { CanMakeThreadSafeCheckedPtr::decrementPtrCount(); }
+
+    using WebKit::PDFScriptEvaluatorClient::weakPtrFactory;
+    using WebKit::PDFScriptEvaluatorClient::WeakValueType;
+    using WebKit::PDFScriptEvaluatorClient::WeakPtrImplType;
 
     void startLoading();
     void destroy();
@@ -248,7 +246,6 @@ public:
     virtual void focusPreviousAnnotation() = 0;
 
     virtual Vector<WebCore::FloatRect> annotationRectsForTesting() const { return { }; }
-    virtual void setTextAnnotationValueForTesting(unsigned pageIndex, unsigned annotationIndex, const String& value) { }
     virtual void setPDFDisplayModeForTesting(const String&) { }
     void registerPDFTest(RefPtr<WebCore::VoidCallback>&&);
 
@@ -272,13 +269,12 @@ public:
 
     virtual void didSameDocumentNavigationForFrame(WebFrame&) { }
 
-    using PasteboardItem = PDFPluginPasteboardItem;
 #if PLATFORM(MAC)
-    void writeItemsToPasteboard(NSString *pasteboardName, Vector<PasteboardItem>&&) const;
+    void writeItemsToPasteboard(NSString *pasteboardName, NSArray *items, NSArray *types) const;
 #endif
 
     uint64_t streamedBytes() const;
-    WebCore::FrameIdentifier rootFrameID() const final;
+    std::optional<WebCore::FrameIdentifier> rootFrameID() const final;
 
 protected:
     virtual double contentScaleFactor() const = 0;
@@ -295,14 +291,9 @@ private:
     // Returns the number of bytes copied.
     size_t copyDataAtPosition(std::span<uint8_t> buffer, uint64_t sourcePosition) const;
     // FIXME: It would be nice to avoid having both the "copy into a buffer" and "return a pointer" ways of getting data.
-    void dataSpanForRange(uint64_t sourcePosition, size_t count, CheckValidRanges, CompletionHandler<void(std::span<const uint8_t>)>&&) const;
+    std::span<const uint8_t> dataSpanForRange(uint64_t sourcePosition, size_t count, CheckValidRanges) const;
     // Returns true only if we can satisfy all of the requests.
     bool getByteRanges(CFMutableArrayRef, const CFRange*, size_t count) const;
-
-#if !LOG_DISABLED
-    uint64_t streamedBytesForDebugLogging() const;
-    void incrementalLoaderLogWithBytes(const String&, uint64_t streamedBytes);
-#endif
 
 protected:
     explicit PDFPluginBase(WebCore::HTMLPlugInElement&);
@@ -311,7 +302,7 @@ protected:
 
     virtual void teardown();
 
-    bool supportsForms() const;
+    bool supportsForms();
 
     void createPDFDocument();
     virtual void installPDFDocument() = 0;
@@ -326,7 +317,7 @@ protected:
 
     void invalidateRect(const WebCore::IntRect&);
 
-    void print();
+    void print() override;
 
     // ScrollableArea functions.
     WebCore::IntRect scrollCornerRect() const final;
@@ -385,10 +376,6 @@ protected:
     void incrementalLoaderLog(const String&);
 #endif
 
-    virtual void teardownPasswordEntryForm() = 0;
-
-    String annotationStyle() const;
-
     SingleThreadWeakPtr<PluginView> m_view;
     WeakPtr<WebFrame> m_frame;
     WeakPtr<WebCore::HTMLPlugInElement, WebCore::WeakPtrImplWithEventTargetData> m_element;
@@ -441,6 +428,66 @@ protected:
     CompletionHandler<void(const String&, const URL&, std::span<const uint8_t>)> m_pendingSaveCompletionHandler;
     CompletionHandler<void(const String&, FrameInfoData&&, std::span<const uint8_t>, const String&)> m_pendingOpenCompletionHandler;
 #endif
+
+    // Set overflow: hidden on the annotation container so <input> elements scrolled out of view don't show
+    // scrollbars on the body. We can't add annotations directly to the body, because overflow: hidden on the body
+    // will break rubber-banding.
+    static constexpr auto annotationStyle =
+    "#annotationContainer {"
+    "    overflow: hidden;"
+    "    position: absolute;"
+    "    pointer-events: none;"
+    "    top: 0;"
+    "    left: 0;"
+    "    right: 0;"
+    "    bottom: 0;"
+    "    display: flex;"
+    "    flex-direction: column;"
+    "    justify-content: center;"
+    "    align-items: center;"
+    "}"
+    ""
+    ".annotation {"
+    "    position: absolute;"
+    "    pointer-events: auto;"
+    "}"
+    ""
+    "textarea.annotation { "
+    "    resize: none;"
+    "}"
+    ""
+    "input.annotation[type='password'] {"
+    "    position: static;"
+    "    width: 238px;"
+    "    margin-top: 110px;"
+    "    font-size: 15px;"
+    "}"
+    ""
+    ".lock-icon {"
+    "    width: 64px;"
+    "    height: 64px;"
+    "    margin-bottom: 12px;"
+    "}"
+    ""
+    ".password-form {"
+    "    position: static;"
+    "    display: block;"
+    "    text-align: center;"
+    "    font-family: system-ui;"
+    "    font-size: 15px;"
+    "}"
+    ""
+    ".password-form p {"
+    "    margin: 4pt;"
+    "}"
+    ""
+    ".password-form .subtitle {"
+    "    font-size: 12px;"
+    "}"
+    ""
+    ".password-form + input.annotation[type='password'] {"
+    "    margin-top: 16px;"
+    "}"_s;
 };
 
 } // namespace WebKit

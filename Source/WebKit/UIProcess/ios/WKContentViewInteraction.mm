@@ -322,12 +322,6 @@ static bool canAttemptTextRecognitionForNonImageElements(const WebKit::Interacti
 namespace WebKit {
 using namespace WebCore;
 
-enum class IgnoreTapGestureReason : uint8_t {
-    None,
-    ToggleEditMenu,
-    DeferToScrollView,
-};
-
 static NSArray<NSString *> *supportedPlainTextPasteboardTypes()
 {
     static NeverDestroyed supportedTypes = [] {
@@ -2769,7 +2763,7 @@ static inline WebCore::FloatSize tapHighlightBorderRadius(WebCore::FloatSize bor
     });
 
 #if USE(UICONTEXTMENU)
-    [_fileUploadPanel repositionContextMenuIfNeeded:WebKit::KeyboardIsDismissing::No];
+    [_fileUploadPanel repositionContextMenuIfNeeded];
 #endif
 }
 
@@ -3126,19 +3120,15 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     if (!_page->hasRunningProcess())
         return NO;
 
-    Ref process = _page->legacyMainFrameProcess();
-    if (!process->hasConnection())
-        return NO;
+    Ref connection = _page->legacyMainFrameProcess().connection();
 
     if (_isWaitingOnPositionInformation)
         return NO;
-
+    
     _isWaitingOnPositionInformation = YES;
-
     if (![self _hasValidOutstandingPositionInformationRequest:request])
         [self requestAsynchronousPositionInformationUpdate:request];
-
-    bool receivedResponse = process->protectedConnection()->waitForAndDispatchImmediately<Messages::WebPageProxy::DidReceivePositionInformation>(_page->webPageIDInMainFrameProcess(), 1_s, IPC::WaitForOption::InterruptWaitingIfSyncMessageArrives) == IPC::Error::NoError;
+    bool receivedResponse = connection->waitForAndDispatchImmediately<Messages::WebPageProxy::DidReceivePositionInformation>(_page->webPageIDInMainFrameProcess(), 1_s, IPC::WaitForOption::InterruptWaitingIfSyncMessageArrives) == IPC::Error::NoError;
     _hasValidPositionInformation = receivedResponse && _positionInformation.canBeValid;
     return _hasValidPositionInformation;
 }
@@ -3221,7 +3211,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     return pointIsInSelectionRect;
 }
 
-- (BOOL)_shouldToggleEditMenuAfterTapAt:(CGPoint)point
+- (BOOL)_shouldToggleSelectionCommandsAfterTapAt:(CGPoint)point
 {
     if (_lastSelectionDrawingInfo.selectionGeometries.isEmpty())
         return NO;
@@ -3272,34 +3262,21 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 {
     CGPoint point = [gestureRecognizer locationInView:self];
 
-    auto ignoreTapGestureReason = [&](WKScrollViewTrackingTapGestureRecognizer *tapGesture) -> WebKit::IgnoreTapGestureReason {
-        if ([self _shouldToggleEditMenuAfterTapAt:point])
-            return WebKit::IgnoreTapGestureReason::ToggleEditMenu;
-
-        RetainPtr scrollView = [tapGesture lastTouchedScrollView];
-        if ([self _isPanningScrollViewOrAncestor:scrollView.get()] || [self _isInterruptingDecelerationForScrollViewOrAncestor:scrollView.get()])
-            return WebKit::IgnoreTapGestureReason::DeferToScrollView;
-
-        return WebKit::IgnoreTapGestureReason::None;
+    auto shouldAcknowledgeTap = [&](WKScrollViewTrackingTapGestureRecognizer *tapGesture) -> BOOL {
+        if ([self _shouldToggleSelectionCommandsAfterTapAt:point])
+            return NO;
+        auto scrollView = tapGesture.lastTouchedScrollView;
+        return ![self _isPanningScrollViewOrAncestor:scrollView] && ![self _isInterruptingDecelerationForScrollViewOrAncestor:scrollView];
     };
 
-    if (gestureRecognizer == _singleTapGestureRecognizer) {
-        switch (ignoreTapGestureReason(_singleTapGestureRecognizer.get())) {
-        case WebKit::IgnoreTapGestureReason::ToggleEditMenu:
-            _page->clearSelectionAfterTappingSelectionHighlightIfNeeded(point);
-            FALLTHROUGH;
-        case WebKit::IgnoreTapGestureReason::DeferToScrollView:
-            return NO;
-        case WebKit::IgnoreTapGestureReason::None:
-            return YES;
-        }
-    }
+    if (gestureRecognizer == _singleTapGestureRecognizer)
+        return shouldAcknowledgeTap(_singleTapGestureRecognizer.get());
 
     if (gestureRecognizer == _keyboardDismissalGestureRecognizer) {
         return self._hasFocusedElement
             && !self.hasHiddenContentEditable
             && !CGRectContainsPoint(self.selectionClipRect, point)
-            && ignoreTapGestureReason(_keyboardDismissalGestureRecognizer.get()) == WebKit::IgnoreTapGestureReason::None;
+            && shouldAcknowledgeTap(_keyboardDismissalGestureRecognizer.get());
     }
 
     if (gestureRecognizer == _doubleTapGestureRecognizerForDoubleClick) {
@@ -4718,10 +4695,6 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 {
     if (_isEditable && [self isFirstResponder])
         _keyboardDidRequestDismissal = YES;
-
-#if USE(UICONTEXTMENU)
-    [_fileUploadPanel repositionContextMenuIfNeeded:WebKit::KeyboardIsDismissing::Yes];
-#endif
 }
 
 - (void)copyForWebView:(id)sender
@@ -6716,7 +6689,8 @@ static WebKit::WritingDirection coreWritingDirection(NSWritingDirection directio
 #else
             platformReplacement = nsReplacement;
 #endif
-            page->pageClient().replaceDictationAlternatives(platformReplacement.get(), context);
+            if (RefPtr pageClient = page->pageClient())
+                pageClient->replaceDictationAlternatives(platformReplacement.get(), context);
         }
         page->clearDictationAlternatives(WTFMove(contextsToRemove));
     });
@@ -8826,13 +8800,13 @@ static bool canUseQuickboardControllerFor(UITextContentType type)
     if (!editorState.hasPostLayoutAndVisualData())
         return;
 
-    BOOL selectionIsTransparentOrFullyClipped = NO;
+    BOOL editableRootIsTransparentOrFullyClipped = NO;
     BOOL focusedElementIsTooSmall = NO;
     if (!editorState.selectionIsNone) {
         auto& postLayoutData = *editorState.postLayoutData;
         auto& visualData = *editorState.visualData;
-        if (postLayoutData.selectionIsTransparentOrFullyClipped)
-            selectionIsTransparentOrFullyClipped = YES;
+        if (postLayoutData.editableRootIsTransparentOrFullyClipped)
+            editableRootIsTransparentOrFullyClipped = YES;
 
         if (self._hasFocusedElement) {
             auto elementArea = visualData.selectionClipRect.area<RecordOverflow>();
@@ -8841,10 +8815,10 @@ static bool canUseQuickboardControllerFor(UITextContentType type)
         }
     }
 
-    if (selectionIsTransparentOrFullyClipped)
-        [self _startSuppressingSelectionAssistantForReason:WebKit::SelectionIsTransparentOrFullyClipped];
+    if (editableRootIsTransparentOrFullyClipped)
+        [self _startSuppressingSelectionAssistantForReason:WebKit::EditableRootIsTransparentOrFullyClipped];
     else
-        [self _stopSuppressingSelectionAssistantForReason:WebKit::SelectionIsTransparentOrFullyClipped];
+        [self _stopSuppressingSelectionAssistantForReason:WebKit::EditableRootIsTransparentOrFullyClipped];
 
     if (focusedElementIsTooSmall)
         [self _startSuppressingSelectionAssistantForReason:WebKit::FocusedElementIsTooSmall];
@@ -9023,7 +8997,7 @@ static bool canUseQuickboardControllerFor(UITextContentType type)
 
 - (BOOL)hasHiddenContentEditable
 {
-    return _suppressSelectionAssistantReasons.containsAny({ WebKit::SelectionIsTransparentOrFullyClipped, WebKit::FocusedElementIsTooSmall });
+    return _suppressSelectionAssistantReasons.containsAny({ WebKit::EditableRootIsTransparentOrFullyClipped, WebKit::FocusedElementIsTooSmall });
 }
 
 - (BOOL)_shouldSuppressSelectionCommands
@@ -10714,21 +10688,14 @@ static Vector<WebCore::IntSize> sizesOfPlaceholderElementsToInsertWhenDroppingIt
 {
     _isAnimatingDragCancel = YES;
     RELEASE_LOG(DragAndDrop, "Drag interaction willAnimateCancelWithAnimator");
-    auto previewViews = _dragDropInteractionState.takePreviewViewsForDragCancel();
-    for (auto& previewView : previewViews)
-        [previewView setAlpha:0];
-
-    [animator addCompletion:[protectedSelf = retainPtr(self), previewViews = WTFMove(previewViews), page = _page] (UIViewAnimatingPosition finalPosition) {
+    auto previewView = _dragDropInteractionState.takePreviewViewForDragCancel();
+    [previewView setAlpha:0];
+    [animator addCompletion:[protectedSelf = retainPtr(self), previewView = WTFMove(previewView), page = _page] (UIViewAnimatingPosition finalPosition) {
         RELEASE_LOG(DragAndDrop, "Drag interaction willAnimateCancelWithAnimator (animation completion block fired)");
-        for (auto& previewView : previewViews)
-            [previewView setAlpha:1];
-
+        [previewView setAlpha:1];
         page->dragCancelled();
-
-        page->callAfterNextPresentationUpdate([previewViews = WTFMove(previewViews), protectedSelf = WTFMove(protectedSelf)] {
-            for (auto& previewView : previewViews)
-                [previewView removeFromSuperview];
-
+        page->callAfterNextPresentationUpdate([previewView = WTFMove(previewView), protectedSelf = WTFMove(protectedSelf)] {
+            [previewView removeFromSuperview];
             protectedSelf->_isAnimatingDragCancel = NO;
         });
     }];
@@ -10969,7 +10936,7 @@ static Vector<WebCore::IntSize> sizesOfPlaceholderElementsToInsertWhenDroppingIt
 
     if (_focusedElementInformation.nonAutofillCredentialType == WebCore::NonAutofillCredentialType::WebAuthn) {
         context.get()[@"_page_id"] = [NSNumber numberWithUnsignedLong:_page->webPageIDInMainFrameProcess().toUInt64()];
-        context.get()[@"_frame_id"] = [NSNumber numberWithUnsignedLong:_focusedElementInformation.frameID.object().toUInt64()];
+        context.get()[@"_frame_id"] = [NSNumber numberWithUnsignedLong:_focusedElementInformation.frameID ? _focusedElementInformation.frameID->object().toUInt64() : 0];
         context.get()[@"_credential_type"] = WebCore::nonAutofillCredentialTypeString(_focusedElementInformation.nonAutofillCredentialType);
     }
     return context.autorelease();
@@ -11019,23 +10986,6 @@ static RetainPtr<UITargetedPreview> createTargetedPreview(UIImage *image, UIView
     auto imageView = adoptNS([[UIImageView alloc] initWithImage:image]);
     [imageView setFrame:frameInContainerCoordinates];
     return adoptNS([[UITargetedPreview alloc] initWithView:imageView.get() parameters:parameters.get() target:target.get()]);
-}
-
-- (UITargetedPreview *)_createTargetedPreviewFromTextIndicator:(WebCore::TextIndicatorData)textIndicatorData previewContainer:(UIView *)previewContainer
-{
-    RetainPtr textIndicatorImage = uiImageForImage(textIndicatorData.contentImage.get());
-
-    RetainPtr preview = createTargetedPreview(textIndicatorImage.get(), self, previewContainer, textIndicatorData.textBoundingRectInRootViewCoordinates, textIndicatorData.textRectsInBoundingRectCoordinates, ^{
-        if (textIndicatorData.estimatedBackgroundColor != WebCore::Color::transparentBlack)
-            return cocoaColor(textIndicatorData.estimatedBackgroundColor).autorelease();
-
-        // In the case where background color estimation fails, it doesn't make sense to
-        // show a text indicator preview with a clear background in light mode. Default
-        // to the system background color instead.
-        return UIColor.systemBackgroundColor;
-    }());
-
-    return preview.autorelease();
 }
 
 static RetainPtr<UITargetedPreview> createFallbackTargetedPreview(UIView *rootView, UIView *containerView, const WebCore::FloatRect& frameInRootViewCoordinates, UIColor *backgroundColor)
@@ -11140,8 +11090,15 @@ static RetainPtr<UITargetedPreview> createFallbackTargetedPreview(UIView *rootVi
     if (_positionInformation.isLink && _positionInformation.linkIndicator.contentImage) {
         auto indicator = _positionInformation.linkIndicator;
         _positionInformationLinkIndicator = indicator;
-
-        targetedPreview = [self _createTargetedPreviewFromTextIndicator:indicator previewContainer:self.containerForContextMenuHintPreviews];
+        auto textIndicatorImage = uiImageForImage(indicator.contentImage.get());
+        targetedPreview = createTargetedPreview(textIndicatorImage.get(), self, self.containerForContextMenuHintPreviews, indicator.textBoundingRectInRootViewCoordinates, indicator.textRectsInBoundingRectCoordinates, ^{
+            if (indicator.estimatedBackgroundColor != WebCore::Color::transparentBlack)
+                return cocoaColor(indicator.estimatedBackgroundColor).autorelease();
+            // In the case where background color estimation fails, it doesn't make sense to
+            // show a text indicator preview with a clear background in light mode. Default
+            // to the system background color instead.
+            return UIColor.systemBackgroundColor;
+        }());
     } else if ((_positionInformation.isAttachment || _positionInformation.isImage) && _positionInformation.image) {
         auto cgImage = _positionInformation.image->makeCGImageCopy();
         auto image = adoptNS([[UIImage alloc] initWithCGImage:cgImage.get()]);
@@ -11496,8 +11453,8 @@ static WebKit::DocumentEditingContextRequest toWebRequest(id request)
     if (!_page->preferences().scrollToTextFragmentGenerationEnabled() || !self.shouldAllowHighlightLinkCreation)
         return nil;
 
-    return [self menuWithInlineAction:WebCore::contextMenuItemTagCopyLinkWithHighlight() image:nil identifier:@"WKActionScrollToTextFragmentGeneration" handler:[](WKContentView *view) mutable {
-        view->_page->copyLinkWithHighlight();
+    return [self menuWithInlineAction:WebCore::contextMenuItemTagCopyLinkToHighlight() image:nil identifier:@"WKActionScrollToTextFragmentGeneration" handler:[](WKContentView *view) mutable {
+        view->_page->copyLinkToHighlight();
     }];
 }
 
@@ -11509,7 +11466,7 @@ static WebKit::DocumentEditingContextRequest toWebRequest(id request)
 
 - (void)setGrammarCheckingEnabled:(BOOL)enabled
 {
-    if (static_cast<bool>(enabled) == WebKit::TextChecker::state().contains(WebKit::TextCheckerState::GrammarCheckingEnabled))
+    if (static_cast<bool>(enabled) == WebKit::TextChecker::state().isGrammarCheckingEnabled)
         return;
 
     WebKit::TextChecker::setGrammarCheckingEnabled(enabled);
@@ -12692,11 +12649,9 @@ static BOOL shouldUseMachineReadableCodeMenuFromImageAnalysisResult(CocoaImageAn
 - (CGRect)contentsRectForImageAnalysisInteraction:(VKCImageAnalysisInteraction *)interaction
 {
     auto unitInteractionRect = _imageAnalysisInteractionBounds;
-    WebCore::FloatRect contentViewBounds = self.bounds;
-    auto obscuredInset = self.webView._computedObscuredInset;
-    unitInteractionRect.move(obscuredInset.left, obscuredInset.top);
-    unitInteractionRect.moveBy(-contentViewBounds.location());
-    unitInteractionRect.scale(1 / contentViewBounds.size());
+    WebCore::FloatRect unobscuredRect = self.bounds;
+    unitInteractionRect.moveBy(-unobscuredRect.location());
+    unitInteractionRect.scale(1 / unobscuredRect.size());
     return unitInteractionRect;
 }
 
@@ -13340,15 +13295,30 @@ inline static NSString *extendSelectionCommand(UITextLayoutDirection direction)
 #if ENABLE(WRITING_TOOLS)
 - (void)targetedPreviewForID:(NSUUID *)uuid completionHandler:(void (^)(UITargetedPreview *))completionHandler
 {
-    auto animationID = WTF::UUID::fromNSUUID(uuid);
+    auto textUUID = WTF::UUID::fromNSUUID(uuid);
+    _page->getTextIndicatorForID(*textUUID, [protectedSelf = retainPtr(self), completionHandler = makeBlockPtr(completionHandler)] (std::optional<WebCore::TextIndicatorData> indicatorData) {
 
-    _page->getTextIndicatorForID(*animationID, [protectedSelf = retainPtr(self), completionHandler = makeBlockPtr(completionHandler)] (auto&& indicatorData) {
         if (!indicatorData) {
             completionHandler(nil);
             return;
         }
 
-        RetainPtr targetedPreview = [protectedSelf _createTargetedPreviewFromTextIndicator:*indicatorData previewContainer:[protectedSelf containerForContextMenuHintPreviews]];
+        auto snapshot = indicatorData->contentImage;
+        if (!snapshot) {
+            completionHandler(nil);
+            return;
+        }
+
+        auto snapshotImage = snapshot->nativeImage();
+        if (!snapshotImage) {
+            completionHandler(nil);
+            return;
+        }
+
+        RetainPtr image = adoptNS([[UIImage alloc] initWithCGImage:snapshotImage->platformImage().get() scale:protectedSelf->_page->deviceScaleFactor() orientation:UIImageOrientationUp]);
+
+        RetainPtr targetedPreview = createTargetedPreview(image.get(), protectedSelf.get(), [protectedSelf containerForContextMenuHintPreviews], indicatorData->textBoundingRectInRootViewCoordinates, indicatorData->textRectsInBoundingRectCoordinates, nil);
+
         completionHandler(targetedPreview.get());
     });
 }
@@ -13388,17 +13358,33 @@ inline static NSString *extendSelectionCommand(UITextLayoutDirection direction)
     // Store this completion handler so that it can be called after the execution of the next
     // call to replace the text and eventually use this completion handler to pass the
     // text indicator to UIKit.
-    _page->storeDestinationCompletionHandlerForAnimationID(*animationUUID, [protectedSelf = retainPtr(self), completionHandler = makeBlockPtr(completionHandler)] (auto&& indicatorData) {
-        if (!indicatorData) {
+    _page->storeDestinationCompletionHandlerForAnimationID(*animationUUID, [protectedSelf = retainPtr(self),  completionHandler = makeBlockPtr(completionHandler)] (std::optional<WebCore::TextIndicatorData> textIndicatorData) {
+        if (!textIndicatorData) {
             completionHandler(nil);
             return;
         }
 
-        RetainPtr targetedPreview = [protectedSelf _createTargetedPreviewFromTextIndicator:*indicatorData previewContainer:[protectedSelf containerForContextMenuHintPreviews]];
+        auto snapshot = textIndicatorData->contentImage;
+        if (!snapshot) {
+            completionHandler(nil);
+            return;
+        }
+
+        auto snapshotImage = snapshot->nativeImage();
+        if (!snapshotImage) {
+            completionHandler(nil);
+            return;
+        }
+
+        RetainPtr image = adoptNS([[UIImage alloc] initWithCGImage:snapshotImage->platformImage().get() scale:protectedSelf->_page->deviceScaleFactor() orientation:UIImageOrientationUp]);
+
+        RetainPtr targetedPreview = createTargetedPreview(image.get(), protectedSelf.get(), [protectedSelf containerForContextMenuHintPreviews], textIndicatorData->textBoundingRectInRootViewCoordinates, textIndicatorData->textRectsInBoundingRectCoordinates, nil);
+
         completionHandler(targetedPreview.get());
     });
 
     _page->callCompletionHandlerForAnimationID(*animationUUID, WebCore::TextAnimationRunMode::RunAnimation);
+
 }
 
 - (void)replacementEffectDidComplete

@@ -98,7 +98,7 @@ public:
                 value = Hooks::unlockHook(value);
                 return true;
             },
-            std::memory_order_release);
+            std::memory_order_relaxed);
     }
     
     static void unlock(Atomic<LockType>& lock)

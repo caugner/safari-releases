@@ -143,9 +143,9 @@ ScrollingStateTree& AsyncScrollingCoordinator::ensureScrollingStateTreeForRootFr
     });
 }
 
-const ScrollingStateTree* AsyncScrollingCoordinator::existingScrollingStateTreeForRootFrameID(FrameIdentifier rootFrameID) const
+const ScrollingStateTree* AsyncScrollingCoordinator::existingScrollingStateTreeForRootFrameID(std::optional<FrameIdentifier> rootFrameID) const
 {
-    auto* result = m_scrollingStateTrees.get(rootFrameID);
+    auto* result = rootFrameID ? m_scrollingStateTrees.get(*rootFrameID) : nullptr;
     if (!result)
         return nullptr;
     return &result->get();
@@ -1050,8 +1050,6 @@ void AsyncScrollingCoordinator::setScrollingNodeScrollableAreaGeometry(Scrolling
     scrollingNode->setReachableContentsSize(scrollableArea.reachableTotalContentsSize());
     scrollingNode->setScrollableAreaSize(scrollableArea.visibleSize());
 
-    scrollingNode->setUseDarkAppearanceForScrollbars(scrollableArea.useDarkAppearanceForScrollbars());
-
     ScrollableAreaParameters scrollParameters;
     scrollParameters.horizontalScrollElasticity = scrollableArea.horizontalOverscrollBehavior() == OverscrollBehavior::None ? ScrollElasticity::None : scrollableArea.horizontalScrollElasticity();
     scrollParameters.verticalScrollElasticity = scrollableArea.verticalOverscrollBehavior() == OverscrollBehavior::None ? ScrollElasticity::None : scrollableArea.verticalScrollElasticity();
@@ -1063,6 +1061,7 @@ void AsyncScrollingCoordinator::setScrollingNodeScrollableAreaGeometry(Scrolling
     scrollParameters.verticalScrollbarMode = scrollableArea.verticalScrollbarMode();
     scrollParameters.horizontalNativeScrollbarVisibility = scrollableArea.horizontalNativeScrollbarVisibility();
     scrollParameters.verticalNativeScrollbarVisibility = scrollableArea.verticalNativeScrollbarVisibility();
+    scrollParameters.useDarkAppearanceForScrollbars = scrollableArea.useDarkAppearanceForScrollbars();
     scrollParameters.scrollbarWidthStyle = scrollableArea.scrollbarWidthStyle();
 
     scrollingNode->setScrollableAreaParameters(scrollParameters);
