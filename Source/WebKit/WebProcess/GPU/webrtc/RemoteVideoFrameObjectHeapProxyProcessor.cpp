@@ -32,7 +32,6 @@
 #include "RemoteVideoFrameObjectHeapMessages.h"
 #include "RemoteVideoFrameObjectHeapProxyProcessorMessages.h"
 #include "RemoteVideoFrameProxy.h"
-#include "WebCoreArgumentCoders.h"
 #include "WebProcess.h"
 #include <WebCore/NativeImage.h>
 #include <WebCore/PixelBufferConformerCV.h>
@@ -68,7 +67,8 @@ void RemoteVideoFrameObjectHeapProxyProcessor::initialize()
         Locker lock(m_connectionLock);
         connection = m_connection;
     }
-    connection->addWorkQueueMessageReceiver(Messages::RemoteVideoFrameObjectHeapProxyProcessor::messageReceiverName(), m_queue, *this);
+
+    connection->addWorkQueueMessageReceiver(Messages::RemoteVideoFrameObjectHeapProxyProcessor::messageReceiverName(), protectedQueue(), *this);
 }
 
 void RemoteVideoFrameObjectHeapProxyProcessor::gpuProcessConnectionDidClose(GPUProcessConnection& connection)
@@ -90,7 +90,7 @@ void RemoteVideoFrameObjectHeapProxyProcessor::clearCallbacks()
         callbacks = std::exchange(m_callbacks, { });
     }
 
-    m_queue->dispatch([queue = m_queue, callbacks = WTFMove(callbacks)]() mutable {
+    protectedQueue()->dispatch([queue = m_queue, callbacks = WTFMove(callbacks)]() mutable {
         for (auto& callback : callbacks.values())
             callback({ });
     });

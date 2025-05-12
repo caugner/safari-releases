@@ -1,7 +1,7 @@
 /*
  * (C) 1999-2003 Lars Knoll (knoll@kde.org)
  * (C) 2002-2003 Dirk Mueller (mueller@kde.org)
- * Copyright (C) 2002, 2006, 2012 Apple Inc.
+ * Copyright (C) 2002-2024 Apple Inc.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include <wtf/AbstractRefCounted.h>
 #include <wtf/RefCounted.h>
 #include <wtf/RefPtr.h>
 #include <wtf/TZoneMallocInlines.h>
@@ -31,12 +32,10 @@ namespace WebCore {
 class CSSRule;
 class CSSStyleSheet;
 
-class CSSRuleList {
+class CSSRuleList : public AbstractRefCounted {
     WTF_MAKE_NONCOPYABLE(CSSRuleList);
 public:
     virtual ~CSSRuleList();
-
-    DECLARE_VIRTUAL_REFCOUNTED;
 
     virtual unsigned length() const = 0;
     virtual CSSRule* item(unsigned index) const = 0;
@@ -50,7 +49,8 @@ protected:
 
 class StaticCSSRuleList final : public CSSRuleList, public RefCounted<StaticCSSRuleList> {
 public:
-    DEFINE_VIRTUAL_REFCOUNTED;
+    void ref() const final { RefCounted::ref(); }
+    void deref() const final { RefCounted::deref(); }
 
     static Ref<StaticCSSRuleList> create() { return adoptRef(*new StaticCSSRuleList); }
 
@@ -71,7 +71,7 @@ private:
 // The rule owns the live list.
 template <class Rule>
 class LiveCSSRuleList final : public CSSRuleList {
-    WTF_MAKE_TZONE_ALLOCATED_INLINE(LiveCSSRuleList);
+    WTF_MAKE_TZONE_ALLOCATED_TEMPLATE(LiveCSSRuleList);
 public:
     LiveCSSRuleList(Rule& rule)
         : m_rule(rule)
@@ -88,5 +88,7 @@ private:
     
     Rule& m_rule;
 };
+
+WTF_MAKE_TZONE_ALLOCATED_TEMPLATE_IMPL(template<class Rule>, LiveCSSRuleList<Rule>);
 
 } // namespace WebCore

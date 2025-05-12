@@ -32,6 +32,8 @@
 
 #if ENABLE(WEBASSEMBLY)
 
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
+
 namespace JSC {
 
 namespace Wasm {
@@ -45,9 +47,11 @@ unsigned FunctionIPIntMetadataGenerator::addSignature(const TypeDefinition& sign
     return index;
 }
 
-void FunctionIPIntMetadataGenerator::addBlankSpace(size_t size)
+void FunctionIPIntMetadataGenerator::setTailCall(uint32_t functionIndex, bool isImportedFunctionFromFunctionIndexSpace)
 {
-    m_metadata.grow(m_metadata.size() + size);
+    m_tailCallSuccessors.set(functionIndex);
+    if (isImportedFunctionFromFunctionIndexSpace)
+        setTailCallClobbersInstance();
 }
 
 void FunctionIPIntMetadataGenerator::addLength(size_t length)
@@ -120,30 +124,47 @@ void FunctionIPIntMetadataGenerator::addLEB128V128Constant(v128_t value, size_t 
     WRITE_TO_METADATA(m_metadata.data() + size, mdConst, IPInt::Const128Metadata);
 }
 
-void FunctionIPIntMetadataGenerator::addReturnData(const Vector<Type, 16>& types)
+void FunctionIPIntMetadataGenerator::addReturnData(const FunctionSignature& sig)
 {
-    const int returnGPRs = 2;
-    const int returnFPRs = 1;
+    CallInformation returnCC = wasmCallingConvention().callInformationFor(sig, CallRole::Callee);
+    m_uINTBytecode.reserveInitialCapacity(sig.returnCount() + 1);
     // uINT: the interpreter smaller than mINT
-    // 0x00: r0
-    // 0x01: r1
-    // 0x02: fr0
-    // 0x03: stack (TODO)
-    // 0x04: return
-    int gprsUsed = 0;
-    int fprsUsed = 0;
-    for (size_t i = 0; i < types.size(); ++i) {
-        auto type = types[i];
-        if ((type.isF32() || type.isF64()) && fprsUsed != returnFPRs)
-            m_uINTBytecode.append(2 + fprsUsed++);
-        else if (gprsUsed != returnGPRs)
-            m_uINTBytecode.append(gprsUsed++);
-        else
-            m_uINTBytecode.append(0x03);
+    // 0x00-0x07: r0 - r7
+    // 0x08-0x0f: f0 - f7
+    // 0x10: stack
+    // 0x11: return
+
+    constexpr static int NUM_UINT_GPRS = 8;
+    constexpr static int NUM_UINT_FPRS = 8;
+    ASSERT_UNUSED(NUM_UINT_GPRS, wasmCallingConvention().jsrArgs.size() <= NUM_UINT_GPRS);
+    ASSERT_UNUSED(NUM_UINT_FPRS, wasmCallingConvention().fprArgs.size() <= NUM_UINT_FPRS);
+
+    for (size_t i = 0; i < sig.returnCount(); ++i) {
+        auto loc = returnCC.results[i].location;
+
+        if (loc.isGPR()) {
+#if USE(JSVALUE64)
+            ASSERT_UNUSED(NUM_UINT_GPRS, GPRInfo::toArgumentIndex(loc.jsr().gpr()) < NUM_UINT_GPRS);
+            m_uINTBytecode.append(static_cast<uint8_t>(IPInt::UIntBytecode::RetGPR) + GPRInfo::toArgumentIndex(loc.jsr().gpr()));
+#elif USE(JSVALUE32_64)
+            ASSERT_UNUSED(NUM_UINT_GPRS, GPRInfo::toArgumentIndex(loc.jsr().payloadGPR()) < NUM_UINT_GPRS);
+            ASSERT_UNUSED(NUM_UINT_GPRS, GPRInfo::toArgumentIndex(loc.jsr().tagGPR()) < NUM_UINT_GPRS);
+            m_uINTBytecode.append(static_cast<uint8_t>(IPInt::UIntBytecode::RetGPR) + GPRInfo::toArgumentIndex(loc.jsr().gpr(WhichValueWord::PayloadWord)));
+#endif
+        } else if (loc.isFPR()) {
+            ASSERT_UNUSED(NUM_UINT_FPRS, FPRInfo::toArgumentIndex(loc.fpr()) < NUM_UINT_FPRS);
+            m_uINTBytecode.append(static_cast<uint8_t>(IPInt::UIntBytecode::RetFPR) + FPRInfo::toArgumentIndex(loc.fpr()));
+        } else if (loc.isStack()) {
+            m_highestReturnStackOffset = loc.offsetFromFP();
+            m_uINTBytecode.append(static_cast<uint8_t>(IPInt::UIntBytecode::Stack));
+        }
     }
-    m_uINTBytecode.append(0x04);
+    m_uINTBytecode.reverse();
+    m_uINTBytecode.append(static_cast<uint8_t>(IPInt::UIntBytecode::End));
 }
 
 } }
+
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
 #endif // ENABLE(WEBASSEMBLY)

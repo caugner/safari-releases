@@ -154,7 +154,7 @@ angle::Result DisplayMtl::initializeImpl(egl::Display *display)
         ANGLE_TRY(mFormatTable.initialize(this));
         ANGLE_TRY(initializeShaderLibrary());
 
-        mUtils = std::make_unique<mtl::RenderUtils>(this);
+        mUtils = std::make_unique<mtl::RenderUtils>();
 
         return angle::Result::Continue;
     }
@@ -453,11 +453,6 @@ gl::Version DisplayMtl::getMaxConformantESVersion() const
     return std::min(getMaxSupportedESVersion(), gl::Version(3, 0));
 }
 
-Optional<gl::Version> DisplayMtl::getMaxSupportedDesktopVersion() const
-{
-    return Optional<gl::Version>::Invalid();
-}
-
 EGLSyncImpl *DisplayMtl::createSync()
 {
     return new EGLSyncMtl();
@@ -736,6 +731,10 @@ void DisplayMtl::ensureCapsInitialized() const
     // On macOS exclude [[position]] from maxVaryingVectors.
     mNativeCaps.maxVaryingVectors         = 31 - 1;
     mNativeCaps.maxVertexOutputComponents = mNativeCaps.maxFragmentInputComponents = 124 - 4;
+#elif TARGET_OS_SIMULATOR
+    mNativeCaps.max2DTextureSize          = 8192;
+    mNativeCaps.maxVaryingVectors         = 31 - 1;
+    mNativeCaps.maxVertexOutputComponents = mNativeCaps.maxFragmentInputComponents = 124 - 4;
 #else
     if (supportsAppleGPUFamily(3))
     {
@@ -811,10 +810,10 @@ void DisplayMtl::ensureCapsInitialized() const
 
     // MSAA
     mNativeCaps.maxSamples             = mFormatTable.getMaxSamples();
-    mNativeCaps.maxSampleMaskWords     = 0;
+    mNativeCaps.maxSampleMaskWords     = 1;
     mNativeCaps.maxColorTextureSamples = mNativeCaps.maxSamples;
     mNativeCaps.maxDepthTextureSamples = mNativeCaps.maxSamples;
-    mNativeCaps.maxIntegerSamples      = 1;
+    mNativeCaps.maxIntegerSamples      = mNativeCaps.maxSamples;
 
     mNativeCaps.maxVertexAttributes           = mtl::kMaxVertexAttribs;
     mNativeCaps.maxVertexAttribBindings       = mtl::kMaxVertexAttribs;
@@ -1005,29 +1004,32 @@ void DisplayMtl::initializeExtensions() const
 
     mNativeExtensions.texture3DOES = true;
 
+    mNativeExtensions.textureShadowLodEXT = true;
+
+    if ([mMetalDevice areProgrammableSamplePositionsSupported])
+    {
+        mNativeExtensions.textureMultisampleANGLE = true;
+    }
+
     mNativeExtensions.sampleVariablesOES = true;
 
-    if (@available(macOS 11.0, *))
+    if ([mMetalDevice supportsPullModelInterpolation])
     {
-        mNativeExtensions.shaderMultisampleInterpolationOES =
-            [mMetalDevice supportsPullModelInterpolation];
-        if (mNativeExtensions.shaderMultisampleInterpolationOES)
+        mNativeExtensions.shaderMultisampleInterpolationOES = true;
+        mNativeCaps.subPixelInterpolationOffsetBits         = 4;
+        if (supportsAppleGPUFamily(1))
         {
-            mNativeCaps.subPixelInterpolationOffsetBits = 4;
-            if (supportsAppleGPUFamily(1))
-            {
-                mNativeCaps.minInterpolationOffset = -0.5f;
-                mNativeCaps.maxInterpolationOffset = +0.5f;
-            }
-            else
-            {
-                // On non-Apple GPUs, the actual range is usually
-                // [-0.5, +0.4375] but due to framebuffer Y-flip
-                // the effective range for the Y direction will be
-                // [-0.4375, +0.5] when the default FBO is bound.
-                mNativeCaps.minInterpolationOffset = -0.4375f;  // -0.5 + (2 ^ -4)
-                mNativeCaps.maxInterpolationOffset = +0.4375f;  // +0.5 - (2 ^ -4)
-            }
+            mNativeCaps.minInterpolationOffset = -0.5f;
+            mNativeCaps.maxInterpolationOffset = +0.5f;
+        }
+        else
+        {
+            // On non-Apple GPUs, the actual range is usually
+            // [-0.5, +0.4375] but due to framebuffer Y-flip
+            // the effective range for the Y direction will be
+            // [-0.4375, +0.5] when the default FBO is bound.
+            mNativeCaps.minInterpolationOffset = -0.4375f;  // -0.5 + (2 ^ -4)
+            mNativeCaps.maxInterpolationOffset = +0.4375f;  // +0.5 - (2 ^ -4)
         }
     }
 
@@ -1231,12 +1233,12 @@ void DisplayMtl::initializeFeatures()
     ANGLE_FEATURE_CONDITION((&mFeatures), allowMultisampleStoreAndResolve,
                             supportsEitherGPUFamily(3, 1));
 
+    // Apple2 does not support comparison functions in MTLSamplerState
     ANGLE_FEATURE_CONDITION((&mFeatures), allowRuntimeSamplerCompareMode,
                             supportsEitherGPUFamily(3, 1));
-    // AMD does not support sample_compare_grad
-    ANGLE_FEATURE_CONDITION((&mFeatures), allowSamplerCompareGradient,
-                            supportsEitherGPUFamily(3, 1) && !isAMD());
-    ANGLE_FEATURE_CONDITION((&mFeatures), allowSamplerCompareLod, supportsEitherGPUFamily(3, 1));
+
+    // AMD does not support sample_compare with gradients
+    ANGLE_FEATURE_CONDITION((&mFeatures), allowSamplerCompareGradient, !isAMD());
 
     // http://anglebug.com/40644746
     // Stencil blit shader is not compiled on Intel & NVIDIA, need investigation.
@@ -1334,6 +1336,11 @@ void DisplayMtl::initializeFeatures()
     ANGLE_FEATURE_CONDITION((&mFeatures), preTransformTextureCubeGradDerivatives,
                             supportsAppleGPUFamily(1));
 
+    // Apple-specific cubemap derivative transformation is not compatible with
+    // the textureGrad shadow sampler emulation. The latter is used only on AMD.
+    ASSERT(!mFeatures.preTransformTextureCubeGradDerivatives.enabled ||
+           mFeatures.allowSamplerCompareGradient.enabled);
+
     // Metal compiler optimizations may remove infinite loops causing crashes later in shader
     // execution. http://crbug.com/1513738
     // Disabled on Mac11 due to test failures. http://crbug.com/1522730
@@ -1345,11 +1352,13 @@ angle::Result DisplayMtl::initializeShaderLibrary()
 {
     mtl::AutoObjCPtr<NSError *> err = nil;
 #if ANGLE_METAL_XCODE_BUILDS_SHADERS || ANGLE_METAL_HAS_PREBUILT_INTERNAL_SHADERS
-    mDefaultShaders = mtl::CreateShaderLibraryFromBinary(getMetalDevice(), gDefaultMetallib,
-                                                         std::size(gDefaultMetallib), &err);
+    mDefaultShaders = mtl::CreateShaderLibraryFromStaticBinary(getMetalDevice(), gDefaultMetallib,
+                                                               std::size(gDefaultMetallib), &err);
 #else
-    mDefaultShaders = mtl::CreateShaderLibrary(getMetalDevice(), gDefaultMetallibSrc,
-                                               std::size(gDefaultMetallibSrc), &err);
+    const bool disableFastMath = false;
+    const bool usesInvariance  = true;
+    mDefaultShaders            = mtl::CreateShaderLibrary(getMetalDevice(), gDefaultMetallibSrc, {},
+                                                          disableFastMath, usesInvariance, &err);
 #endif
 
     if (err)
@@ -1384,11 +1393,7 @@ bool DisplayMtl::supportsEitherGPUFamily(uint8_t iOSFamily, uint8_t macFamily) c
 bool DisplayMtl::supports32BitFloatFiltering() const
 {
 #if !TARGET_OS_WATCH
-    if (@available(macOS 11.0, *))
-    {
-        return [mMetalDevice supports32BitFloatFiltering];
-    }
-    return true;  // Always true on old macOS
+    return [mMetalDevice supports32BitFloatFiltering];
 #else
     return false;
 #endif
@@ -1396,14 +1401,14 @@ bool DisplayMtl::supports32BitFloatFiltering() const
 
 bool DisplayMtl::supportsBCTextureCompression() const
 {
-    if (@available(macOS 11.0, macCatalyst 16.4, iOS 16.4, *))
+    if (@available(macCatalyst 16.4, iOS 16.4, *))
     {
         return [mMetalDevice supportsBCTextureCompression];
     }
-#if TARGET_OS_OSX || TARGET_OS_MACCATALYST
-    return true;  // Always true on old macOS
+#if TARGET_OS_MACCATALYST
+    return true;  // Always true on old Catalyst
 #else
-    return false;  // Always false everywhere else
+    return false;  // Always false on old iOS
 #endif
 }
 

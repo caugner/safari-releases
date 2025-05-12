@@ -79,17 +79,16 @@ class MediaSource
 {
     WTF_MAKE_TZONE_OR_ISO_ALLOCATED(MediaSource);
 public:
-    DEFINE_VIRTUAL_REFCOUNTED;
+    void ref() const final { RefCounted::ref(); }
+    void deref() const final { RefCounted::deref(); }
+
+    USING_CAN_MAKE_WEAKPTR(CanMakeWeakPtr<MediaSource>);
 
     static void setRegistry(URLRegistry*);
-    static MediaSource* lookup(const String& url) { return s_registry ? static_cast<MediaSource*>(s_registry->lookup(url)) : nullptr; }
+    static MediaSource* lookup(const String& url) { return s_registry ? downcast<MediaSource>(s_registry->lookup(url)) : nullptr; }
 
     static Ref<MediaSource> create(ScriptExecutionContext&, MediaSourceInit&&);
     virtual ~MediaSource();
-
-    using CanMakeWeakPtr<MediaSource>::weakPtrFactory;
-    using CanMakeWeakPtr<MediaSource>::WeakValueType;
-    using CanMakeWeakPtr<MediaSource>::WeakPtrImplType;
 
     static bool enabledForContext(ScriptExecutionContext&);
 
@@ -109,6 +108,7 @@ public:
     void streamEndedWithError(std::optional<EndOfStreamError>);
 
     bool attachToElement(WeakPtr<HTMLMediaElement>&&);
+    void elementIsShuttingDown();
     void detachFromElement();
     bool isSeeking() const { return !!m_pendingSeekTarget; }
     Ref<TimeRanges> seekable();
@@ -143,10 +143,10 @@ public:
 
 #if !RELEASE_LOG_DISABLED
     const Logger& logger() const final { return m_logger.get(); }
-    const void* logIdentifier() const final { return m_logIdentifier; }
+    uint64_t logIdentifier() const final { return m_logIdentifier; }
     ASCIILiteral logClassName() const final { return "MediaSource"_s; }
     WTFLogChannel& logChannel() const final;
-    void setLogIdentifier(const void*);
+    void setLogIdentifier(uint64_t);
 
     Ref<Logger> logger(ScriptExecutionContext&);
     void didLogMessage(const WTFLogChannel&, WTFLogLevel, Vector<JSONLogValue>&&) final;
@@ -184,7 +184,8 @@ protected:
 
     virtual void elementDetached() { }
 
-    RefPtr<MediaSourcePrivate> m_private;
+    RefPtr<MediaSourcePrivate> protectedPrivate() const;
+
     WeakPtr<HTMLMediaElement> m_mediaElement;
     bool m_detachable { false };
 
@@ -213,7 +214,9 @@ private:
     void derefEventTarget() final { deref(); }
     enum EventTargetInterfaceType eventTargetInterface() const final;
 
+    // URLRegistrable.
     URLRegistry& registry() const final;
+    RegistrableType registrableType() const final { return RegistrableType::MediaSource; }
 
     void setReadyState(ReadyState);
     void onReadyStateChange(ReadyState oldState, ReadyState newState);
@@ -247,9 +250,10 @@ private:
 
 #if !RELEASE_LOG_DISABLED
     Ref<const Logger> m_logger;
-    const void* m_logIdentifier { nullptr };
+    uint64_t m_logIdentifier { 0 };
 #endif
     std::atomic<uint64_t> m_associatedRegistryCount { 0 };
+    RefPtr<MediaSourcePrivate> m_private;
     Ref<MediaSourceClientImpl> m_client;
 };
 
@@ -280,5 +284,9 @@ struct LogArgument<WebCore::MediaSource::ReadyState> {
 };
 
 } // namespace WTF
+
+SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::MediaSource)
+    static bool isType(const WebCore::URLRegistrable& registrable) { return registrable.registrableType() == WebCore::URLRegistrable::RegistrableType::MediaSource; }
+SPECIALIZE_TYPE_TRAITS_END()
 
 #endif

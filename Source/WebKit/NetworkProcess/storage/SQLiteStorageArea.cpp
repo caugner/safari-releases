@@ -33,8 +33,10 @@
 #include <WebCore/SQLiteStatementAutoResetScope.h>
 #include <WebCore/SQLiteTransaction.h>
 #include <WebCore/StorageMap.h>
+#include <wtf/Assertions.h>
 #include <wtf/FileSystem.h>
 #include <wtf/TZoneMallocInlines.h>
+#include <wtf/Vector.h>
 
 namespace WebKit {
 
@@ -66,6 +68,11 @@ ASCIILiteral SQLiteStorageArea::statementString(StatementType type) const
 
     ASSERT_NOT_REACHED();
     return ""_s;
+}
+
+Ref<SQLiteStorageArea> SQLiteStorageArea::create(unsigned quota, const WebCore::ClientOrigin& origin, const String& path, Ref<WorkQueue>&& workQueue)
+{
+    return adoptRef(*new SQLiteStorageArea(quota, origin, path, WTFMove(workQueue)));
 }
 
 SQLiteStorageArea::SQLiteStorageArea(unsigned quota, const WebCore::ClientOrigin& origin, const String& path, Ref<WorkQueue>&& workQueue)
@@ -256,15 +263,20 @@ Expected<String, StorageError> SQLiteStorageArea::getItemFromDatabase(const Stri
     if (!m_database)
         return makeUnexpected(StorageError::ItemNotFound);
 
-    auto statement = cachedStatement(StatementType::GetItem);
-    if (!statement || statement->bindText(1, key)) {
-        RELEASE_LOG_ERROR(Storage, "SQLiteStorageArea::getItemFromDatabase failed on creating statement (%d) - %" PUBLIC_LOG_STRING, m_database->lastError(), m_database->lastErrorMsg());
-        return makeUnexpected(StorageError::Database);
+    int result = SQLITE_OK;
+    // Ensure that statement goes out of scope before handleDatabaseErrorIfNeeded(). Otherwise, we may get a CheckedPtr verification failure.
+    {
+        auto statement = cachedStatement(StatementType::GetItem);
+        if (!statement || statement->bindText(1, key)) {
+            RELEASE_LOG_ERROR(Storage, "SQLiteStorageArea::getItemFromDatabase failed on creating statement (%d) - %" PUBLIC_LOG_STRING, m_database->lastError(), m_database->lastErrorMsg());
+            return makeUnexpected(StorageError::Database);
+        }
+
+        result = statement->step();
+        if (result == SQLITE_ROW)
+            return statement->columnBlobAsString(0);
     }
 
-    const auto result = statement->step();
-    if (result == SQLITE_ROW)
-        return statement->columnBlobAsString(0);
     if (result != SQLITE_DONE) {
         RELEASE_LOG_ERROR(Storage, "SQLiteStorageArea::getItemFromDatabase failed on stepping statement (%d) - %" PUBLIC_LOG_STRING, m_database->lastError(), m_database->lastErrorMsg());
         handleDatabaseErrorIfNeeded(result);
@@ -285,38 +297,55 @@ HashMap<String, String> SQLiteStorageArea::allItems()
     HashMap<String, String> items;
     if (m_cache) {
         items.reserveInitialCapacity(m_cache->size());
-        for (auto& [key, value] : *m_cache) {
-            if (auto* valueString = std::get_if<String>(&value)) {
+        for (auto& key : copyToVector(m_cache->keys())) {
+            if (!m_cache) {
+                RELEASE_LOG_ERROR(Storage, "SQLiteStorageArea::allItems cache deleted during read from cache");
+                return { };
+            }
+
+            auto iterator = m_cache->find(key);
+            RELEASE_ASSERT(iterator != m_cache->end());
+
+            if (auto* valueString = std::get_if<String>(&iterator->value)) {
                 ASSERT(!valueString->isNull());
                 items.add(key, *valueString);
                 continue;
             }
 
-            if (auto result = getItemFromDatabase(key))
+            auto result = getItemFromDatabase(key);
+            if (result.has_value())
                 items.add(key, result.value());
+            else {
+                RELEASE_LOG_ERROR(Storage, "SQLiteStorageArea::allItems failed during read from cache (%hhu)" PUBLIC_LOG_STRING, result.error());
+                return { };
+            }
         }
         return items;
     }
 
     // Import from database.
-    auto statement = cachedStatement(StatementType::GetAllItems);
-    if (!statement) {
-        RELEASE_LOG_ERROR(Storage, "SQLiteStorageArea::allItems failed on creating statement (%d) - %" PUBLIC_LOG_STRING, m_database->lastError(), m_database->lastErrorMsg());
-        return { };
-    }
-
-    m_cache = HashMap<String, Value> { };
-    m_cacheSize = 0;
-    auto result = statement->step();
-    while (result == SQLITE_ROW) {
-        String key = statement->columnText(0);
-        String value = statement->columnBlobAsString(1);
-        if (!key.isNull() && !value.isNull()) {
-            items.add(key, value);
-            updateCacheIfNeeded(WTFMove(key), WTFMove(value));
+    int result = SQLITE_OK;
+    // Ensure that statement goes out of scope before handleDatabaseErrorIfNeeded(). Otherwise, we may get a CheckedPtr verification failure.
+    {
+        auto statement = cachedStatement(StatementType::GetAllItems);
+        if (!statement) {
+            RELEASE_LOG_ERROR(Storage, "SQLiteStorageArea::allItems failed on creating statement (%d) - %" PUBLIC_LOG_STRING, m_database->lastError(), m_database->lastErrorMsg());
+            return { };
         }
 
+        m_cache = HashMap<String, Value> { };
+        m_cacheSize = 0;
         result = statement->step();
+        while (result == SQLITE_ROW) {
+            String key = statement->columnText(0);
+            String value = statement->columnBlobAsString(1);
+            if (!key.isNull() && !value.isNull()) {
+                items.add(key, value);
+                updateCacheIfNeeded(WTFMove(key), WTFMove(value));
+            }
+
+            result = statement->step();
+        }
     }
 
     if (result != SQLITE_DONE) {
@@ -327,7 +356,7 @@ HashMap<String, String> SQLiteStorageArea::allItems()
     return items;
 }
 
-Expected<void, StorageError> SQLiteStorageArea::setItem(IPC::Connection::UniqueID connection, StorageAreaImplIdentifier storageAreaImplID, String&& key, String&& value, const String& urlString)
+Expected<void, StorageError> SQLiteStorageArea::setItem(std::optional<IPC::Connection::UniqueID> connection, std::optional<StorageAreaImplIdentifier> storageAreaImplID, String&& key, String&& value, const String& urlString)
 {
     ASSERT(!isMainRunLoop());
 
@@ -347,20 +376,26 @@ Expected<void, StorageError> SQLiteStorageArea::setItem(IPC::Connection::UniqueI
     } else if (getItemResult.error() != StorageError::ItemNotFound)
         return makeUnexpected(getItemResult.error()); // Database error.
 
-    auto statement = cachedStatement(StatementType::SetItem);
-    if (!statement || statement->bindText(1, key) || statement->bindBlob(2, value)) {
-        RELEASE_LOG_ERROR(Storage, "SQLiteStorageArea::setItem failed on creating statement (%d) - %" PUBLIC_LOG_STRING, m_database->lastError(), m_database->lastErrorMsg());
-        return makeUnexpected(StorageError::Database);
+    int result = SQLITE_OK;
+    // Ensure that statement goes out of scope before handleDatabaseErrorIfNeeded(). Otherwise, we may get a CheckedPtr verification failure.
+    {
+        auto statement = cachedStatement(StatementType::SetItem);
+        if (!statement || statement->bindText(1, key) || statement->bindBlob(2, value)) {
+            RELEASE_LOG_ERROR(Storage, "SQLiteStorageArea::setItem failed on creating statement (%d) - %" PUBLIC_LOG_STRING, m_database->lastError(), m_database->lastErrorMsg());
+            return makeUnexpected(StorageError::Database);
+        }
+
+        result = statement->step();
     }
 
-    const auto result = statement->step();
     if (result != SQLITE_DONE) {
         RELEASE_LOG_ERROR(Storage, "SQLiteStorageArea::setItem failed on stepping statement (%d) - %" PUBLIC_LOG_STRING, m_database->lastError(), m_database->lastErrorMsg());
         handleDatabaseErrorIfNeeded(result);
         return makeUnexpected(StorageError::Database);
     }
 
-    dispatchEvents(connection, storageAreaImplID, key, oldValue, value, urlString);
+    if (connection && storageAreaImplID)
+        dispatchEvents(*connection, *storageAreaImplID, key, oldValue, value, urlString);
     updateCacheIfNeeded(key, value);
 
     return { };
@@ -383,13 +418,18 @@ Expected<void, StorageError> SQLiteStorageArea::removeItem(IPC::Connection::Uniq
     else
         return makeUnexpected(StorageError::ItemNotFound);
 
-    auto statement = cachedStatement(StatementType::DeleteItem);
-    if (!statement || statement->bindText(1, key)) {
-        RELEASE_LOG_ERROR(Storage, "SQLiteStorageArea::removeItem failed on creating statement (%d) - %" PUBLIC_LOG_STRING, m_database->lastError(), m_database->lastErrorMsg());
-        return makeUnexpected(StorageError::Database);
+    int result = SQLITE_OK;
+    // Ensure that statement goes out of scope before handleDatabaseErrorIfNeeded(). Otherwise, we may get a CheckedPtr verification failure.
+    {
+        auto statement = cachedStatement(StatementType::DeleteItem);
+        if (!statement || statement->bindText(1, key)) {
+            RELEASE_LOG_ERROR(Storage, "SQLiteStorageArea::removeItem failed on creating statement (%d) - %" PUBLIC_LOG_STRING, m_database->lastError(), m_database->lastErrorMsg());
+            return makeUnexpected(StorageError::Database);
+        }
+
+        result = statement->step();
     }
 
-    const auto result = statement->step();
     if (result != SQLITE_DONE) {
         RELEASE_LOG_ERROR(Storage, "SQLiteStorageArea::removeItem failed on executing statement (%d) - %" PUBLIC_LOG_STRING, m_database->lastError(), m_database->lastErrorMsg());
         handleDatabaseErrorIfNeeded(result);
@@ -422,13 +462,19 @@ Expected<void, StorageError> SQLiteStorageArea::clear(IPC::Connection::UniqueID 
         return makeUnexpected(StorageError::ItemNotFound);
 
     startTransactionIfNecessary();
-    auto statement = cachedStatement(StatementType::DeleteAllItems);
-    if (!statement) {
-        RELEASE_LOG_ERROR(Storage, "SQLiteStorageArea::clear failed on creating statement (%d) - %" PUBLIC_LOG_STRING, m_database->lastError(), m_database->lastErrorMsg());
-        return makeUnexpected(StorageError::Database);
+
+    int result = SQLITE_OK;
+    // Ensure that statement goes out of scope before handleDatabaseErrorIfNeeded(). Otherwise, we may get a CheckedPtr verification failure.
+    {
+        auto statement = cachedStatement(StatementType::DeleteAllItems);
+        if (!statement) {
+            RELEASE_LOG_ERROR(Storage, "SQLiteStorageArea::clear failed on creating statement (%d) - %" PUBLIC_LOG_STRING, m_database->lastError(), m_database->lastErrorMsg());
+            return makeUnexpected(StorageError::Database);
+        }
+
+        result = statement->step();
     }
 
-    const auto result = statement->step();
     if (result != SQLITE_DONE) {
         RELEASE_LOG_ERROR(Storage, "SQLiteStorageArea::clear failed on executing statement (%d) - %" PUBLIC_LOG_STRING, m_database->lastError(), m_database->lastErrorMsg());
         handleDatabaseErrorIfNeeded(result);

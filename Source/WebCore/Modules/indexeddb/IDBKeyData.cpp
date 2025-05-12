@@ -151,7 +151,7 @@ void IDBKeyData::encode(KeyedEncoder& encoder) const
         return;
     case IndexedDB::KeyType::Array: {
         auto& array = std::get<Vector<IDBKeyData>>(m_value);
-        encoder.encodeObjects("array"_s, array.begin(), array.end(), [](KeyedEncoder& encoder, const IDBKeyData& key) {
+        encoder.encodeObjects("array"_s, array, [](KeyedEncoder& encoder, const IDBKeyData& key) {
             key.encode(encoder);
         });
         return;
@@ -409,6 +409,22 @@ bool IDBKeyData::isValid() const
     }
 
     return true;
+}
+
+// See NOTE in https://www.w3.org/TR/IndexedDB/#key-construct.
+bool IDBKeyData::isValidValue(const ValueVariant& variant)
+{
+    return WTF::switchOn(variant, [&](double value) {
+        return !std::isnan(value);
+    }, [&](const Date& date) {
+        return !std::isnan(date.value);
+    }, [&](const Vector<IDBKeyData>& keys) {
+        return WTF::allOf(keys, [](auto& key) {
+            return IDBKeyData::isValidValue(key.value());
+        });
+    }, [&](const auto&) {
+        return true;
+    });
 }
 
 bool IDBKeyData::operator<(const IDBKeyData& rhs) const

@@ -67,12 +67,12 @@ public:
 
     void run()
     {
-        HashSet<BasicBlock*> blocks;
-        HashSet<Value*> valueInProc;
-        HashMap<Value*, unsigned> valueInBlock;
-        HashMap<Value*, BasicBlock*> valueOwner;
-        HashMap<Value*, unsigned> valueIndex;
-        HashMap<Value*, Vector<std::optional<Type>>> extractions;
+        UncheckedKeyHashSet<BasicBlock*> blocks;
+        UncheckedKeyHashSet<Value*> valueInProc;
+        UncheckedKeyHashMap<Value*, unsigned> valueInBlock;
+        UncheckedKeyHashMap<Value*, BasicBlock*> valueOwner;
+        UncheckedKeyHashMap<Value*, unsigned> valueIndex;
+        UncheckedKeyHashMap<Value*, Vector<std::optional<Type>>> extractions;
 
         for (unsigned tuple = 0; tuple < m_procedure.tuples().size(); ++tuple) {
             VALIDATE(m_procedure.tuples()[tuple].size(), ("In tuple ", tuple));
@@ -114,7 +114,7 @@ public:
             }
         }
 
-        HashMap<BasicBlock*, HashSet<BasicBlock*>> allPredecessors;
+        UncheckedKeyHashMap<BasicBlock*, UncheckedKeyHashSet<BasicBlock*>> allPredecessors;
         for (BasicBlock* block : blocks) {
             VALIDATE(block->size() >= 1, ("At ", *block));
             for (unsigned i = 0; i < block->size() - 1; ++i)
@@ -122,7 +122,7 @@ public:
             VALIDATE(block->last()->effects().terminal, ("At ", *block->last()));
             
             for (BasicBlock* successor : block->successorBlocks()) {
-                allPredecessors.add(successor, HashSet<BasicBlock*>()).iterator->value.add(block);
+                allPredecessors.add(successor, UncheckedKeyHashSet<BasicBlock*>()).iterator->value.add(block);
                 VALIDATE(
                     blocks.contains(successor), ("At ", *block, "->", pointerDump(successor)));
             }
@@ -131,7 +131,7 @@ public:
         // Note that this totally allows dead code.
         for (auto& entry : allPredecessors) {
             BasicBlock* successor = entry.key;
-            HashSet<BasicBlock*>& predecessors = entry.value;
+            UncheckedKeyHashSet<BasicBlock*>& predecessors = entry.value;
             VALIDATE(predecessors == successor->predecessors(), ("At ", *successor));
         }
 
@@ -708,6 +708,20 @@ public:
                 VALIDATE(value->asSIMDValue()->signMode() == SIMDSignMode::None, ("At ", *value));
                 break;
 
+            case VectorRelaxedLaneSelect:
+                VALIDATE(!value->kind().hasExtraBits(), ("At ", *value));
+                VALIDATE(value->numChildren() == 3, ("At ", *value));
+                VALIDATE(value->type() == V128, ("At ", *value));
+                VALIDATE(value->child(0)->type() == V128, ("At ", *value));
+                VALIDATE(value->child(1)->type() == V128, ("At ", *value));
+                VALIDATE(value->child(2)->type() == V128, ("At ", *value));
+                VALIDATE((value->asSIMDValue()->simdLane() == SIMDLane::i8x16)
+                    || (value->asSIMDValue()->simdLane() == SIMDLane::i16x8)
+                    || (value->asSIMDValue()->simdLane() == SIMDLane::i32x4)
+                    || (value->asSIMDValue()->simdLane() == SIMDLane::i64x2), ("At ", *value));
+                VALIDATE(value->asSIMDValue()->signMode() == SIMDSignMode::None, ("At ", *value));
+                break;
+
             case CCall:
                 VALIDATE(!value->kind().hasExtraBits(), ("At ", *value));
                 VALIDATE(value->numChildren() >= 1, ("At ", *value));
@@ -856,7 +870,7 @@ public:
 
         for (BasicBlock* block : m_procedure) {
             // We expect the predecessor list to be de-duplicated.
-            HashSet<BasicBlock*> predecessors;
+            UncheckedKeyHashSet<BasicBlock*> predecessors;
             for (BasicBlock* predecessor : block->predecessors())
                 predecessors.add(predecessor);
             VALIDATE(block->numPredecessors() == predecessors.size(), ("At ", *block));
@@ -915,6 +929,9 @@ private:
                     VALIDATE(value.value()->type().isFloat() || value.value()->type().isVector(), ("At ", *context, ": ", value));
             }
             break;
+#if USE(JSVALUE32_64)
+        case ValueRep::RegisterPair:
+#endif
         case ValueRep::Constant:
         case ValueRep::Stack:
             VALIDATE(false, ("At ", *context, ": ", value));
@@ -952,7 +969,7 @@ private:
     {
         bool changed = true;
         BitVector blocksToVisit;
-        IndexMap<BasicBlock*, HashSet<Value*>> undominatedPhisAtTail(m_procedure.size());
+        IndexMap<BasicBlock*, UncheckedKeyHashSet<Value*>> undominatedPhisAtTail(m_procedure.size());
         for (BasicBlock* block : m_procedure)
             blocksToVisit.set(block->index());
         while (changed) {
@@ -960,7 +977,7 @@ private:
             for (BasicBlock* block : m_procedure.blocksInPostOrder()) {
                 if (!blocksToVisit.quickClear(block->index()))
                     continue;
-                HashSet<Value*> undominatedPhis = undominatedPhisAtTail[block];
+                UncheckedKeyHashSet<Value*> undominatedPhis = undominatedPhisAtTail[block];
                 for (unsigned index = block->size()-1; index--;) {
                     Value* value = block->at(index);
                     switch (value->opcode()) {

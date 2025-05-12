@@ -75,14 +75,14 @@ RemoteImageBuffer::~RemoteImageBuffer()
 
 void RemoteImageBuffer::startListeningForIPC()
 {
-    m_backend->streamConnection().startReceivingMessages(*this, Messages::RemoteImageBuffer::messageReceiverName(), identifier().toUInt64());
+    m_backend->protectedStreamConnection()->startReceivingMessages(*this, Messages::RemoteImageBuffer::messageReceiverName(), identifier().toUInt64());
 }
 
 void RemoteImageBuffer::stopListeningForIPC()
 {
     if (auto backend = std::exchange(m_backend, { })) {
         backend->protectedSharedResourceCache()->didReleaseImageBuffer(m_imageBuffer->renderingPurpose(), m_imageBuffer->renderingMode());
-        backend->streamConnection().stopReceivingMessages(Messages::RemoteImageBuffer::messageReceiverName(), identifier().toUInt64());
+        backend->protectedStreamConnection()->stopReceivingMessages(Messages::RemoteImageBuffer::messageReceiverName(), identifier().toUInt64());
     }
 }
 
@@ -97,7 +97,7 @@ void RemoteImageBuffer::getPixelBuffer(WebCore::PixelBufferFormat destinationFor
         MESSAGE_CHECK(pixelBuffer->bytes().size() <= memory->size(), "Shmem for return of getPixelBuffer is too small");
         memcpySpan(memory->mutableSpan(), pixelBuffer->bytes());
     } else
-        memsetSpan(memory->mutableSpan(), 0);
+        zeroSpan(memory->mutableSpan());
     completionHandler();
 }
 
@@ -115,7 +115,7 @@ void RemoteImageBuffer::putPixelBuffer(Ref<WebCore::PixelBuffer> pixelBuffer, We
 {
     assertIsCurrent(workQueue());
     WebCore::IntRect srcRect(srcPoint, srcSize);
-    m_imageBuffer->putPixelBuffer(pixelBuffer, srcRect, destPoint, destFormat);
+    imageBuffer()->putPixelBuffer(pixelBuffer, srcRect, destPoint, destFormat);
 }
 
 void RemoteImageBuffer::getShareableBitmap(WebCore::PreserveResolution preserveResolution, CompletionHandler<void(std::optional<WebCore::ShareableBitmap::Handle>&&)>&& completionHandler)
@@ -148,11 +148,12 @@ void RemoteImageBuffer::filteredNativeImage(Ref<WebCore::Filter> filter, Complet
 {
     assertIsCurrent(workQueue());
     std::optional<WebCore::ShareableBitmap::Handle> handle = [&]() -> std::optional<WebCore::ShareableBitmap::Handle> {
-        auto image = m_imageBuffer->filteredNativeImage(filter);
+        Ref imageBuffer = m_imageBuffer;
+        auto image = imageBuffer->filteredNativeImage(filter);
         if (!image)
             return std::nullopt;
         auto imageSize = image->size();
-        auto bitmap = WebCore::ShareableBitmap::create({ imageSize, m_imageBuffer->colorSpace() });
+        auto bitmap = WebCore::ShareableBitmap::create({ imageSize, imageBuffer->colorSpace() });
         if (!bitmap)
             return std::nullopt;
         auto handle = bitmap->createHandle();
@@ -170,25 +171,25 @@ void RemoteImageBuffer::filteredNativeImage(Ref<WebCore::Filter> filter, Complet
 void RemoteImageBuffer::convertToLuminanceMask()
 {
     assertIsCurrent(workQueue());
-    m_imageBuffer->convertToLuminanceMask();
+    imageBuffer()->convertToLuminanceMask();
 }
 
 void RemoteImageBuffer::transformToColorSpace(const WebCore::DestinationColorSpace& colorSpace)
 {
     assertIsCurrent(workQueue());
-    m_imageBuffer->transformToColorSpace(colorSpace);
+    imageBuffer()->transformToColorSpace(colorSpace);
 }
 
 void RemoteImageBuffer::flushContext()
 {
     assertIsCurrent(workQueue());
-    m_imageBuffer->flushDrawingContext();
+    imageBuffer()->flushDrawingContext();
 }
 
 void RemoteImageBuffer::flushContextSync(CompletionHandler<void()>&& completionHandler)
 {
     assertIsCurrent(workQueue());
-    m_imageBuffer->flushDrawingContext();
+    imageBuffer()->flushDrawingContext();
     completionHandler();
 }
 
@@ -196,7 +197,7 @@ void RemoteImageBuffer::flushContextSync(CompletionHandler<void()>&& completionH
 void RemoteImageBuffer::dynamicContentScalingDisplayList(CompletionHandler<void(std::optional<WebCore::DynamicContentScalingDisplayList>&&)>&& completionHandler)
 {
     assertIsCurrent(workQueue());
-    auto displayList = m_imageBuffer->dynamicContentScalingDisplayList();
+    auto displayList = imageBuffer()->dynamicContentScalingDisplayList();
     completionHandler({ WTFMove(displayList) });
 }
 #endif

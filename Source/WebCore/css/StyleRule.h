@@ -56,23 +56,22 @@ class StyleRuleBase : public RefCounted<StyleRuleBase> {
     WTF_MAKE_STRUCT_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(StyleRuleBase);
 public:
     StyleRuleType type() const { return static_cast<StyleRuleType>(m_type); }
-    
+
     bool isCharsetRule() const { return type() == StyleRuleType::Charset; }
     bool isCounterStyleRule() const { return type() == StyleRuleType::CounterStyle; }
     bool isFontFaceRule() const { return type() == StyleRuleType::FontFace; }
     bool isFontPaletteValuesRule() const { return type() == StyleRuleType::FontPaletteValues; }
     bool isFontFeatureValuesRule() const { return type() == StyleRuleType::FontFeatureValues; }
     bool isFontFeatureValuesBlockRule() const { return type() == StyleRuleType::FontFeatureValuesBlock; }
-    bool isInternalBaseAppearanceRule() const { return type() == StyleRuleType::InternalBaseAppearance; }
     bool isKeyframesRule() const { return type() == StyleRuleType::Keyframes; }
     bool isKeyframeRule() const { return type() == StyleRuleType::Keyframe; }
     bool isNamespaceRule() const { return type() == StyleRuleType::Namespace; }
     bool isMediaRule() const { return type() == StyleRuleType::Media; }
     bool isPageRule() const { return type() == StyleRuleType::Page; }
-    bool isStyleRule() const { return type() == StyleRuleType::Style || type() == StyleRuleType::StyleWithNesting; }
+    bool isStyleRule() const { return type() == StyleRuleType::Style || type() == StyleRuleType::StyleWithNesting || type() == StyleRuleType::NestedDeclarations; }
     bool isStyleRuleWithNesting() const { return type() == StyleRuleType::StyleWithNesting; }
     bool isNestedDeclarationsRule() const { return type() == StyleRuleType::NestedDeclarations; }
-    bool isGroupRule() const { return type() == StyleRuleType::Media || type() == StyleRuleType::Supports || type() == StyleRuleType::LayerBlock || type() == StyleRuleType::Container || type() == StyleRuleType::Scope || type() == StyleRuleType::StartingStyle || type() == StyleRuleType::InternalBaseAppearance; }
+    bool isGroupRule() const { return type() == StyleRuleType::Media || type() == StyleRuleType::Supports || type() == StyleRuleType::LayerBlock || type() == StyleRuleType::Container || type() == StyleRuleType::Scope || type() == StyleRuleType::StartingStyle; }
     bool isSupportsRule() const { return type() == StyleRuleType::Supports; }
     bool isImportRule() const { return type() == StyleRuleType::Import; }
     bool isLayerRule() const { return type() == StyleRuleType::LayerBlock || type() == StyleRuleType::LayerStatement; }
@@ -81,6 +80,7 @@ public:
     bool isScopeRule() const { return type() == StyleRuleType::Scope; }
     bool isStartingStyleRule() const { return type() == StyleRuleType::StartingStyle; }
     bool isViewTransitionRule() const { return type() == StyleRuleType::ViewTransition; }
+    bool isPositionTryRule() const { return type() == StyleRuleType::PositionTry; }
 
     Ref<StyleRuleBase> copy() const;
 
@@ -318,7 +318,7 @@ public:
 protected:
     StyleRuleGroup(StyleRuleType, Vector<Ref<StyleRuleBase>>&&);
     StyleRuleGroup(const StyleRuleGroup&);
-    
+
 private:
     mutable Vector<Ref<StyleRuleBase>> m_childRules;
 };
@@ -445,16 +445,6 @@ public:
 private:
     StyleRuleStartingStyle(Vector<Ref<StyleRuleBase>>&&);
     StyleRuleStartingStyle(const StyleRuleStartingStyle&) = default;
-};
-
-class StyleRuleInternalBaseAppearance final : public StyleRuleGroup {
-public:
-    static Ref<StyleRuleInternalBaseAppearance> create(Vector<Ref<StyleRuleBase>>&&);
-    Ref<StyleRuleInternalBaseAppearance> copy() const { return adoptRef(*new StyleRuleInternalBaseAppearance(*this)); }
-
-private:
-    StyleRuleInternalBaseAppearance(Vector<Ref<StyleRuleBase>>&&);
-    StyleRuleInternalBaseAppearance(const StyleRuleInternalBaseAppearance&) = default;
 };
 
 // This is only used by the CSS parser.
@@ -606,8 +596,4 @@ SPECIALIZE_TYPE_TRAITS_END()
 
 SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::StyleRuleStartingStyle)
     static bool isType(const WebCore::StyleRuleBase& rule) { return rule.isStartingStyleRule(); }
-SPECIALIZE_TYPE_TRAITS_END()
-
-SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::StyleRuleInternalBaseAppearance)
-    static bool isType(const WebCore::StyleRuleBase& rule) { return rule.isInternalBaseAppearanceRule(); }
 SPECIALIZE_TYPE_TRAITS_END()

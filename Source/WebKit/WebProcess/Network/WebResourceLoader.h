@@ -61,12 +61,12 @@ class WebResourceLoader : public RefCounted<WebResourceLoader>, public IPC::Mess
 public:
     struct TrackingParameters {
         WebPageProxyIdentifier webPageProxyID;
-        Markable<WebCore::PageIdentifier> pageID;
-        Markable<WebCore::FrameIdentifier> frameID;
+        WebCore::PageIdentifier pageID;
+        WebCore::FrameIdentifier frameID;
         WebCore::ResourceLoaderIdentifier resourceID;
     };
 
-    static Ref<WebResourceLoader> create(Ref<WebCore::ResourceLoader>&&, const TrackingParameters&);
+    static Ref<WebResourceLoader> create(Ref<WebCore::ResourceLoader>&&, const std::optional<TrackingParameters>&);
 
     ~WebResourceLoader();
 
@@ -77,7 +77,7 @@ public:
     void detachFromCoreLoader();
 
 private:
-    WebResourceLoader(Ref<WebCore::ResourceLoader>&&, const TrackingParameters&);
+    WebResourceLoader(Ref<WebCore::ResourceLoader>&&, const std::optional<TrackingParameters>&);
 
     // IPC::MessageSender
     IPC::Connection* messageSenderConnection() const override;
@@ -107,7 +107,7 @@ private:
 #endif
     
     RefPtr<WebCore::ResourceLoader> m_coreLoader;
-    TrackingParameters m_trackingParameters;
+    const std::optional<TrackingParameters> m_trackingParameters;
     WebResourceInterceptController m_interceptController;
     size_t m_numBytesReceived { 0 };
 
@@ -117,7 +117,7 @@ private:
 
     Seconds timeSinceLoadStart() const { return MonotonicTime::now() - m_loadStart; }
 
-    MonotonicTime m_loadStart;
+    const MonotonicTime m_loadStart;
     MonotonicTime m_workerStart;
 };
 

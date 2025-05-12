@@ -26,7 +26,7 @@
 #pragma once
 
 #include <WebCore/Site.h>
-#include <wtf/RefCounted.h>
+#include <wtf/RefCountedAndCanMakeWeakPtr.h>
 #include <wtf/WeakHashMap.h>
 #include <wtf/WeakListHashSet.h>
 
@@ -43,7 +43,7 @@ class WebPageProxy;
 class WebPreferences;
 class WebProcessProxy;
 
-class BrowsingContextGroup : public RefCounted<BrowsingContextGroup>, public CanMakeWeakPtr<BrowsingContextGroup> {
+class BrowsingContextGroup : public RefCountedAndCanMakeWeakPtr<BrowsingContextGroup> {
 public:
     static Ref<BrowsingContextGroup> create() { return adoptRef(*new BrowsingContextGroup()); }
     ~BrowsingContextGroup();
@@ -53,6 +53,7 @@ public:
     FrameProcess* processForSite(const WebCore::Site&);
     void addFrameProcess(FrameProcess&);
     void removeFrameProcess(FrameProcess&);
+    void processDidTerminate(WebPageProxy&, WebProcessProxy&);
 
     void addPage(WebPageProxy&);
     void removePage(WebPageProxy&);
@@ -60,7 +61,7 @@ public:
 
     RemotePageProxy* remotePageInProcess(const WebPageProxy&, const WebProcessProxy&);
 
-    std::unique_ptr<RemotePageProxy> takeRemotePageInProcessForProvisionalPage(const WebPageProxy&, const WebProcessProxy&);
+    RefPtr<RemotePageProxy> takeRemotePageInProcessForProvisionalPage(const WebPageProxy&, const WebProcessProxy&);
     void transitionPageToRemotePage(WebPageProxy&, const WebCore::Site& openerSite);
     void transitionProvisionalPageToRemotePage(ProvisionalPageProxy&, const WebCore::Site& provisionalNavigationFailureSite);
 
@@ -71,7 +72,7 @@ private:
 
     HashMap<WebCore::Site, WeakPtr<FrameProcess>> m_processMap;
     WeakListHashSet<WebPageProxy> m_pages;
-    WeakHashMap<WebPageProxy, HashSet<std::unique_ptr<RemotePageProxy>>> m_remotePages;
+    WeakHashMap<WebPageProxy, HashSet<Ref<RemotePageProxy>>> m_remotePages;
 };
 
 }

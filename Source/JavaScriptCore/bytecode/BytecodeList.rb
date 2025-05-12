@@ -224,6 +224,26 @@ op :iterator_open,
         getNext: nil,
     }
 
+# Semantically, this is dst = value instanceof constructor.
+op :instanceof,
+    args: {
+        dst: VirtualRegister,
+        value: VirtualRegister,
+        constructor: VirtualRegister,
+        hasInstanceOrPrototype: VirtualRegister,
+        hasInstanceValueProfile: unsigned,
+        prototypeValueProfile: unsigned,
+    },
+    metadata: {
+        hasInstanceModeMetadata: GetByIdModeMetadata,
+        prototypeModeMetadata: GetByIdModeMetadata,
+    },
+    checkpoints: {
+        getHasInstance: nil,
+        getPrototype: nil,
+        instanceof: nil,
+    }
+
 # Opcodes with metadata come next, in decreasing order of metadata alignment requirements
 # Alignment: 8
 op :set_private_brand, args: {
@@ -1007,7 +1027,6 @@ op_group :SwitchValue,
     ],
     args: {
         tableIndex: unsigned,
-        defaultOffset: BoundLabel,
         scrutinee: VirtualRegister,
     }
 
@@ -1370,21 +1389,6 @@ op :overrides_has_instance,
         hasInstanceValue: VirtualRegister,
     }
 
-op :instanceof,
-    args: {
-        dst: VirtualRegister,
-        value: VirtualRegister,
-        prototype: VirtualRegister,
-    }
-
-op :instanceof_custom,
-    args: {
-        dst: VirtualRegister,
-        value: VirtualRegister,
-        constructor: VirtualRegister,
-        hasInstanceValue: VirtualRegister,
-    }
-
 op :typeof,
     args: {
         dst: VirtualRegister,
@@ -1489,8 +1493,12 @@ op :wasm_function_prologue_simd_trampoline
 op :wasm_function_prologue_simd
 op :js_to_wasm_wrapper_entry
 op :wasm_to_wasm_wrapper_entry
+op :wasm_to_wasm_ipint_wrapper_entry
 op :wasm_to_js_wrapper_entry
 op :ipint_trampoline
+op :ipint_entry
+op :ipint_function_prologue_simd_trampoline
+op :ipint_function_prologue_simd
 
 op :js_trampoline_op_call
 op :js_trampoline_op_call_ignore_result
@@ -1512,6 +1520,8 @@ op :wasm_trampoline_wasm_call_ref
 op :wasm_trampoline_wasm_tail_call
 op :wasm_trampoline_wasm_tail_call_indirect
 op :wasm_trampoline_wasm_tail_call_ref
+op :wasm_trampoline_wasm_ipint_call
+op :wasm_trampoline_wasm_ipint_tail_call
 
 end_section :NativeHelpers
 
@@ -1570,6 +1580,7 @@ op :throw_from_fault_handler_trampoline_reg_instance
 op :call_return_location
 op :call_indirect_return_location
 op :call_ref_return_location
+op :ipint_call_return_location
 
 # FIXME: Wasm and JS LLInt should share common opcodes
 # https://bugs.webkit.org/show_bug.cgi?id=203656

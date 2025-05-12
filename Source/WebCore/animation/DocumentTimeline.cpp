@@ -49,7 +49,7 @@
 #include "WebAnimationTypes.h"
 
 #if ENABLE(THREADED_ANIMATION_RESOLUTION)
-#include "AcceleratedTimeline.h"
+#include "AcceleratedEffectStackUpdater.h"
 #endif
 
 namespace WebCore {
@@ -125,7 +125,7 @@ unsigned DocumentTimeline::numberOfActiveAnimationsForTesting() const
     return count;
 }
 
-std::optional<Seconds> DocumentTimeline::currentTime()
+std::optional<WebAnimationTime> DocumentTimeline::currentTime()
 {
     if (auto* controller = this->controller()) {
         if (auto currentTime = controller->currentTime())
@@ -241,11 +241,11 @@ IGNORE_GCC_WARNINGS_END
 
     auto resolvedProperty = [&] (AnimatableCSSProperty property) -> AnimatableCSSProperty {
         if (std::holds_alternative<CSSPropertyID>(property))
-            return CSSProperty::resolveDirectionAwareProperty(std::get<CSSPropertyID>(property), style.direction(), style.writingMode());
+            return CSSProperty::resolveDirectionAwareProperty(std::get<CSSPropertyID>(property), style.writingMode());
         return property;
     };
 
-    HashSet<AnimatableCSSProperty> propertiesToMatch;
+    UncheckedKeyHashSet<AnimatableCSSProperty> propertiesToMatch;
     for (auto property : keyframeEffect->animatedProperties())
         propertiesToMatch.add(resolvedProperty(property));
 
@@ -300,12 +300,19 @@ void DocumentTimeline::removeReplacedAnimations()
         if (animation->hasEventListeners(eventNames.removeEvent)) {
             auto scheduledTime = [&]() -> std::optional<Seconds> {
                 if (auto* documentTimeline = dynamicDowncast<DocumentTimeline>(animation->timeline())) {
-                    if (auto currentTime = documentTimeline->currentTime())
-                        return documentTimeline->convertTimelineTimeToOriginRelativeTime(*currentTime);
+                    if (auto currentTime = documentTimeline->currentTime()) {
+                        ASSERT(currentTime->time());
+                        return documentTimeline->convertTimelineTimeToOriginRelativeTime(*currentTime->time());
+                    }
                 }
                 return std::nullopt;
             }();
-            animation->enqueueAnimationPlaybackEvent(eventNames.removeEvent, animation->currentTime(), scheduledTime);
+            auto animationCurrentTime = [&]() -> std::optional<Seconds> {
+                if (auto animationTime = animation->currentTime())
+                    return animationTime->time();
+                return std::nullopt;
+            }();
+            animation->enqueueAnimationPlaybackEvent(eventNames.removeEvent, animationCurrentTime, scheduledTime);
         }
 
         animationsToRemove.append(animation.get());
@@ -405,15 +412,17 @@ void DocumentTimeline::applyPendingAcceleratedAnimations()
 #if ENABLE(THREADED_ANIMATION_RESOLUTION)
     if (m_document && m_document->settings().threadedAnimationResolutionEnabled()) {
         m_acceleratedAnimationsPendingRunningStateChange.clear();
-        if (auto* acceleratedTimeline = m_document->existingAcceleratedTimeline())
-            acceleratedTimeline->updateEffectStacks();
+        if (CheckedPtr timelinesController = m_document->timelinesController()) {
+            if (auto* acceleratedEffectStackUpdater = timelinesController->existingAcceleratedEffectStackUpdater())
+                acceleratedEffectStackUpdater->updateEffectStacks();
+        }
         return;
     }
 #endif
 
     auto acceleratedAnimationsPendingRunningStateChange = std::exchange(m_acceleratedAnimationsPendingRunningStateChange, { });
 
-    HashSet<KeyframeEffectStack*> keyframeEffectStacksToUpdate;
+    UncheckedKeyHashSet<KeyframeEffectStack*> keyframeEffectStacksToUpdate;
 
     bool hasForcedLayout = false;
     for (auto& animation : acceleratedAnimationsPendingRunningStateChange) {

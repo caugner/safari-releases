@@ -40,33 +40,15 @@ AnimationPlaybackEvent::AnimationPlaybackEvent(const AtomString& type, const Ani
 {
 }
 
-AnimationPlaybackEvent::AnimationPlaybackEvent(const AtomString& type, WebAnimation* animation, std::optional<Seconds> scheduledTime, std::optional<Seconds> timelineTime, std::optional<Seconds> currentTime)
+AnimationPlaybackEvent::AnimationPlaybackEvent(const AtomString& type, WebAnimation* animation, std::optional<WebAnimationTime> scheduledTime, std::optional<WebAnimationTime> timelineTime, std::optional<WebAnimationTime> currentTime)
     : AnimationEventBase(EventInterfaceType::AnimationPlaybackEvent, type, animation, scheduledTime)
 {
     if (timelineTime)
-        m_timelineTime = timelineTime->milliseconds();
+        m_timelineTime = *timelineTime;
     if (currentTime)
-        m_currentTime = currentTime->milliseconds();
+        m_currentTime = *currentTime;
 }
 
 AnimationPlaybackEvent::~AnimationPlaybackEvent() = default;
-
-std::optional<CSSNumberishTime> AnimationPlaybackEvent::bindingsCurrentTime() const
-{
-    if (m_currentTime) {
-        ASSERT(m_currentTime->time());
-        return secondsToWebAnimationsAPITime(*m_currentTime->time());
-    }
-    return std::nullopt;
-}
-
-std::optional<CSSNumberishTime> AnimationPlaybackEvent::bindingsTimelineTime() const
-{
-    if (m_timelineTime) {
-        ASSERT(m_timelineTime->time());
-        return secondsToWebAnimationsAPITime(*m_timelineTime->time());
-    }
-    return std::nullopt;
-}
 
 } // namespace WebCore

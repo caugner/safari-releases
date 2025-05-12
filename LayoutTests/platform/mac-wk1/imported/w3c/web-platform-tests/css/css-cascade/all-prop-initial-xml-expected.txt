@@ -16,6 +16,8 @@ PASS animation-fill-mode
 PASS animation-iteration-count
 PASS animation-name
 PASS animation-play-state
+PASS animation-range-end
+PASS animation-range-start
 PASS animation-timeline
 PASS animation-timing-function
 PASS appearance
@@ -34,7 +36,9 @@ PASS background-size
 PASS baseline-shift
 PASS block-ellipsis
 PASS block-size
+PASS block-step-align
 PASS block-step-insert
+PASS block-step-round
 PASS block-step-size
 PASS border-block-end-color
 PASS border-block-end-style
@@ -140,7 +144,6 @@ PASS font-optical-sizing
 PASS font-palette
 PASS font-size
 PASS font-size-adjust
-PASS font-stretch
 PASS font-style
 PASS font-synthesis-small-caps
 PASS font-synthesis-style
@@ -154,6 +157,7 @@ PASS font-variant-numeric
 PASS font-variant-position
 PASS font-variation-settings
 PASS font-weight
+PASS font-width
 PASS glyph-orientation-horizontal
 PASS glyph-orientation-vertical
 PASS grid-auto-columns
@@ -186,7 +190,6 @@ PASS left
 PASS letter-spacing
 PASS lighting-color
 PASS line-break
-PASS line-fit-edge
 PASS line-height
 PASS list-style-image
 PASS list-style-position
@@ -264,6 +267,8 @@ PASS perspective-origin
 PASS pointer-events
 PASS position
 PASS position-anchor
+PASS position-try-fallbacks
+PASS position-try-order
 PASS print-color-adjust
 PASS quotes
 PASS r
@@ -414,7 +419,6 @@ PASS -webkit-mask-position-x
 PASS -webkit-mask-position-y
 PASS -webkit-nbsp-mode
 PASS -webkit-rtl-ordering
-PASS -webkit-ruby-position
 PASS -webkit-text-fill-color
 PASS -webkit-text-security
 PASS -webkit-text-stroke-color

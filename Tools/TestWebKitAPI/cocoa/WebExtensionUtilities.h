@@ -68,12 +68,18 @@ using CocoaColor = UIColor;
 - (void)focusWindow:(TestWebExtensionWindow *)window;
 - (void)closeWindow:(TestWebExtensionWindow *)window;
 
-@property (nonatomic, readonly, strong) NSString *yieldMessage;
+- (void)sendTestMessage:(NSString *)message;
+- (void)sendTestMessage:(NSString *)message withArgument:(id)argument;
+
+- (void)loadAndRun;
 
 - (void)load;
+- (void)unload;
+
 - (void)run;
 - (void)runForTimeInterval:(NSTimeInterval)interval;
-- (void)loadAndRun;
+- (id)runUntilTestMessage:(NSString *)message;
+
 - (void)done;
 
 @end
@@ -91,6 +97,7 @@ using CocoaColor = UIColor;
 
 @property (nonatomic, weak) TestWebExtensionTab *parentTab;
 
+@property (nonatomic) bool shouldBypassPermissions;
 @property (nonatomic, getter=isPinned) bool pinned;
 @property (nonatomic, getter=isMuted) bool muted;
 @property (nonatomic, getter=isSelected) bool selected;
@@ -111,7 +118,7 @@ using CocoaColor = UIColor;
 - (instancetype)initWithExtensionController:(WKWebExtensionController *)extensionController usesPrivateBrowsing:(BOOL)usesPrivateBrowsing NS_DESIGNATED_INITIALIZER;
 
 @property (nonatomic, copy) NSArray<TestWebExtensionTab *> *tabs;
-@property (nonatomic, strong) TestWebExtensionTab * activeTab;
+@property (nonatomic, strong) TestWebExtensionTab *activeTab;
 
 - (TestWebExtensionTab *)openNewTab;
 - (TestWebExtensionTab *)openNewTabAtIndex:(NSUInteger)index;
@@ -167,10 +174,9 @@ bool compareColors(CocoaColor *, CocoaColor *);
 
 #endif
 
-RetainPtr<TestWebExtensionManager> loadAndRunExtension(WKWebExtension *, WKWebExtensionControllerConfiguration * = nil);
-RetainPtr<TestWebExtensionManager> loadAndRunExtension(NSDictionary *manifest, NSDictionary *resources, WKWebExtensionControllerConfiguration * = nil);
-RetainPtr<TestWebExtensionManager> loadAndRunExtension(NSDictionary *resources, WKWebExtensionControllerConfiguration * = nil);
-RetainPtr<TestWebExtensionManager> loadAndRunExtension(NSURL *baseURL, WKWebExtensionControllerConfiguration * = nil);
+RetainPtr<TestWebExtensionManager> parseExtension(NSDictionary *manifest, NSDictionary *resources, WKWebExtensionControllerConfiguration * = nil);
+RetainPtr<TestWebExtensionManager> loadExtension(NSDictionary *manifest, NSDictionary *resources, WKWebExtensionControllerConfiguration * = nil);
+void loadAndRunExtension(NSDictionary *manifest, NSDictionary *resources, WKWebExtensionControllerConfiguration * = nil);
 
 } // namespace TestWebKitAPI::Util
 

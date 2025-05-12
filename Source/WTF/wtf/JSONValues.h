@@ -174,7 +174,7 @@ private:
 class SUPPRESS_REFCOUNTED_WITHOUT_VIRTUAL_DESTRUCTOR ObjectBase : public Value {
 private:
     friend class Value;
-    using DataStorage = HashMap<String, Ref<Value>>;
+    using DataStorage = UncheckedKeyHashMap<String, Ref<Value>>;
     using OrderStorage = Vector<String>;
 
 public:
@@ -210,6 +210,8 @@ protected:
     iterator end() { return m_map.end(); }
     const_iterator begin() const { return m_map.begin(); }
     const_iterator end() const { return m_map.end(); }
+
+    OrderStorage keys() const { return m_order; }
 
     unsigned size() const { return m_map.size(); }
 
@@ -257,6 +259,8 @@ public:
 
     using ObjectBase::begin;
     using ObjectBase::end;
+
+    using ObjectBase::keys;
 
     using ObjectBase::size;
 };

@@ -26,6 +26,7 @@
 #import "config.h"
 #import "TestWKWebView.h"
 
+#import "CGImagePixelReader.h"
 #import "ClassMethodSwizzler.h"
 #import "InstanceMethodSwizzler.h"
 #import "PlatformUtilities.h"
@@ -33,6 +34,7 @@
 #import "TestNavigationDelegate.h"
 #import "Utilities.h"
 
+#import <WebCore/Color.h>
 #import <WebKit/WKContentWorld.h>
 #import <WebKit/WKUIDelegate.h>
 #import <WebKit/WKWebViewConfigurationPrivate.h>
@@ -45,7 +47,10 @@
 #import <objc/runtime.h>
 #import <pal/spi/ios/BrowserEngineKitSPI.h>
 #import <wtf/BlockPtr.h>
+#import <wtf/Deque.h>
 #import <wtf/RetainPtr.h>
+#import <wtf/Vector.h>
+#import <wtf/cocoa/TypeCastsCocoa.h>
 
 #if PLATFORM(MAC)
 #import <AppKit/AppKit.h>
@@ -104,6 +109,12 @@ static NSString *overrideBundleIdentifier(id, SEL)
 {
     [self loadRequest:request];
     [self _test_waitForDidFinishNavigationWithPreferences:preferences];
+}
+
+- (void)synchronouslyLoadSimulatedRequest:(NSURLRequest *)request responseHTMLString:(NSString *)htmlString
+{
+    [self loadSimulatedRequest:request responseHTMLString:htmlString];
+    [self _test_waitForDidFinishNavigation];
 }
 
 - (void)synchronouslyLoadRequestIgnoringSSLErrors:(NSURLRequest *)request
@@ -273,6 +284,31 @@ static NSString *overrideBundleIdentifier(id, SEL)
     [self.textInputContentView insertTextSuggestion:textSuggestion];
 }
 
+#if HAVE(UI_WK_DOCUMENT_CONTEXT)
+
+- (UIWKDocumentContext *)synchronouslyRequestDocumentContext:(UIWKDocumentRequest *)request
+{
+    __block bool finished = false;
+    __block RetainPtr<id> result;
+    [self.textInputContentView requestDocumentContext:request completionHandler:^(UIWKDocumentContext *context) {
+        result = context;
+        finished = true;
+    }];
+    TestWebKitAPI::Util::run(&finished);
+
+#if USE(BROWSERENGINEKIT)
+    if (RetainPtr context = dynamic_objc_cast<BETextDocumentContext>(result.get()))
+        return [context _uikitDocumentContext];
+#endif
+
+    if (RetainPtr context = dynamic_objc_cast<UIWKDocumentContext>(result.get()))
+        return context.autorelease();
+
+    return nil;
+}
+
+#endif // HAVE(UI_WK_DOCUMENT_CONTEXT)
+
 #if USE(BROWSERENGINEKIT)
 
 - (id<BETextInput>)asyncTextInput
@@ -438,6 +474,23 @@ static WebEvent *unwrap(BEKeyEntry *event)
     [self.textInputContentView prepareSelectionForContextMenuWithLocationInView:locationInView completionHandler:[completion = makeBlockPtr(completion)](BOOL shouldPresent, RVItem *) {
         completion(shouldPresent);
     }];
+}
+
+- (void)selectTextInGranularity:(UITextGranularity)granularity atPoint:(CGPoint)pointInRootView
+{
+    bool done = false;
+    auto completion = makeBlockPtr([&] {
+        done = true;
+    });
+
+#if USE(BROWSERENGINEKIT)
+    if (self.hasAsyncTextInput)
+        [self.asyncTextInput selectTextInGranularity:granularity atPoint:pointInRootView completionHandler:completion.get()];
+    else
+#endif
+        [self.textInputContentView selectTextWithGranularity:granularity atPoint:pointInRootView completionHandler:completion.get()];
+
+    TestWebKitAPI::Util::run(&done);
 }
 
 - (void)handleKeyEvent:(WebEvent *)event completion:(void (^)(WebEvent *theEvent, BOOL handled))completion
@@ -665,7 +718,6 @@ static WebEvent *unwrap(BEKeyEntry *event)
 
 @implementation TestMessageHandler {
     NSMutableDictionary<NSString *, dispatch_block_t> *_messageHandlers;
-    BlockPtr<void(NSString *)> _wildcardMessageHandler;
 }
 
 - (void)addMessage:(NSString *)message withHandler:(dispatch_block_t)handler
@@ -673,12 +725,7 @@ static WebEvent *unwrap(BEKeyEntry *event)
     if (!_messageHandlers)
         _messageHandlers = [NSMutableDictionary dictionary];
 
-    _messageHandlers[message] = [handler copy];
-}
-
-- (void)setWildcardMessageHandler:(void (^)(NSString *))handler
-{
-    _wildcardMessageHandler = handler;
+    _messageHandlers[message] = adoptNS([handler copy]).autorelease();
 }
 
 - (void)removeMessage:(NSString *)message
@@ -688,12 +735,10 @@ static WebEvent *unwrap(BEKeyEntry *event)
 
 - (void)userContentController:(WKUserContentController *)userContentController didReceiveScriptMessage:(WKScriptMessage *)message
 {
-    dispatch_block_t handler = _messageHandlers[message.body];
-    if (handler)
+    if (dispatch_block_t handler = _messageHandlers[message.body])
         handler();
-
-    if (_wildcardMessageHandler)
-        _wildcardMessageHandler(message.body);
+    if (_didReceiveScriptMessage)
+        _didReceiveScriptMessage(message.body);
 }
 
 @end
@@ -844,6 +889,8 @@ static InputSessionChangeCount nextInputSessionChangeCount()
 #if PLATFORM(IOS_FAMILY)
     InputSessionChangeCount _inputSessionChangeCount;
     UIEdgeInsets _overrideSafeAreaInset;
+    RetainPtr<NSString> _textForSpeakSelection;
+    bool _doneWaitingForSpeakSelectionContent;
 #endif
 #if PLATFORM(MAC)
     BOOL _forceWindowToBecomeKey;
@@ -918,6 +965,12 @@ static InputSessionChangeCount nextInputSessionChangeCount()
 #endif
 }
 
+- (void)removeFromTestWindow
+{
+    if (_hostWindow)
+        [self removeFromSuperview];
+}
+
 - (void)clearMessageHandlers:(NSArray *)messageNames
 {
     for (NSString *messageName in messageNames)
@@ -940,7 +993,7 @@ static InputSessionChangeCount nextInputSessionChangeCount()
         _testHandler = adoptNS([[TestMessageHandler alloc] init]);
         [[[self configuration] userContentController] addScriptMessageHandler:_testHandler.get() name:@"testHandler"];
     }
-    [_testHandler setWildcardMessageHandler:action];
+    [_testHandler setDidReceiveScriptMessage:action];
 }
 
 - (void)synchronouslyLoadHTMLStringAndWaitUntilAllImmediateChildFramesPaint:(NSString *)html
@@ -960,6 +1013,22 @@ static InputSessionChangeCount nextInputSessionChangeCount()
         isDoneWaiting = true;
     }];
     TestWebKitAPI::Util::run(&isDoneWaiting);
+}
+
+- (void)waitForMessages:(NSArray<NSString *> *)expectedMessages
+{
+    __block Deque<RetainPtr<NSString>> receivedMessages;
+    RetainPtr messageHandler = adoptNS([TestMessageHandler new]);
+    [messageHandler setDidReceiveScriptMessage:^(NSString *message) {
+        receivedMessages.append(message);
+    }];
+    [self.configuration.userContentController addScriptMessageHandler:messageHandler.get() name:@"testHandler"];
+    for (NSString *expectedMessage in expectedMessages) {
+        while (receivedMessages.isEmpty())
+            TestWebKitAPI::Util::spinRunLoop();
+        EXPECT_WK_STREQ(receivedMessages.takeFirst().get(), expectedMessage);
+    }
+    [self.configuration.userContentController removeScriptMessageHandlerForName:@"testHandler"];
 }
 
 - (void)performAfterLoading:(dispatch_block_t)actions
@@ -1004,12 +1073,10 @@ static InputSessionChangeCount nextInputSessionChangeCount()
 
 - (void)forceDarkMode
 {
-#if HAVE(OS_DARK_MODE_SUPPORT)
 #if USE(APPKIT)
     [self setAppearance:[NSAppearance appearanceNamed:NSAppearanceNameDarkAqua]];
 #else
     [self setOverrideUserInterfaceStyle:UIUserInterfaceStyleDark];
-#endif
 #endif
 }
 
@@ -1108,7 +1175,40 @@ static InputSessionChangeCount nextInputSessionChangeCount()
     return CGPointMake(midpoint.firstObject.doubleValue, midpoint.lastObject.doubleValue);
 }
 
+- (Vector<WebCore::Color>)sampleColors
+{
+    return [self sampleColorsWithInterval:TestWebKitAPI::CGImagePixelReader::defaultWebViewSamplingInterval];
+}
+
+- (Vector<WebCore::Color>)sampleColorsWithInterval:(unsigned)interval
+{
+    [self waitForNextPresentationUpdate];
+    Vector<WebCore::Color> samples;
+    TestWebKitAPI::CGImagePixelReader reader { [self snapshotAfterScreenUpdates] };
+    for (unsigned x = interval; x < reader.width() - interval; x += interval) {
+        for (unsigned y = interval; y < reader.height() - interval; y += interval)
+            samples.append(reader.at(x, y));
+    }
+    return samples;
+}
+
 #if PLATFORM(IOS_FAMILY)
+
+- (NSString *)textForSpeakSelection
+{
+    _textForSpeakSelection = { };
+    _doneWaitingForSpeakSelectionContent = false;
+    [self _accessibilityRetrieveSpeakSelectionContent];
+
+    TestWebKitAPI::Util::run(&_doneWaitingForSpeakSelectionContent);
+    return _textForSpeakSelection.get();
+}
+
+- (void)_accessibilityDidGetSpeakSelectionContent:(NSString *)content
+{
+    _textForSpeakSelection = adoptNS(content.copy);
+    _doneWaitingForSpeakSelectionContent = true;
+}
 
 - (void)didStartFormControlInteraction
 {
@@ -1176,16 +1276,19 @@ static InputSessionChangeCount nextInputSessionChangeCount()
 
 - (NSArray<NSValue *> *)selectionViewRectsInContentCoordinates
 {
-    NSMutableArray *selectionRects = [NSMutableArray array];
-    NSArray<UITextSelectionRect *> *rects = nil;
 #if HAVE(UI_TEXT_SELECTION_DISPLAY_INTERACTION)
-    if (auto view = self.textSelectionDisplayInteraction.highlightView; !view.hidden)
-        rects = view.selectionRects;
+    RetainPtr contentView = [self textInputContentView];
+    if (auto view = self.textSelectionDisplayInteraction.highlightView; !view.hidden) {
+        RetainPtr uiTextSelectionRects = [view selectionRects];
+        NSMutableArray *selectionRects = [NSMutableArray arrayWithCapacity:[uiTextSelectionRects count]];
+        for (UITextSelectionRect *rect in uiTextSelectionRects.get()) {
+            CGRect rectInContentView = [view convertRect:rect.rect toView:contentView.get()];
+            [selectionRects addObject:[NSValue valueWithCGRect:rectInContentView]];
+        }
+        return selectionRects;
+    }
 #endif
-
-    for (UITextSelectionRect *rect in rects)
-        [selectionRects addObject:[NSValue valueWithCGRect:rect.rect]];
-    return selectionRects;
+    return @[ ];
 }
 
 - (_WKActivatedElementInfo *)activatedElementAtPosition:(CGPoint)position
@@ -1461,6 +1564,11 @@ static WKContentView *recursiveFindWKContentView(UIView *view)
 - (WKFrameInfo *)firstChildFrame
 {
     return [self mainFrame].childFrames.firstObject.info;
+}
+
+- (WKFrameInfo *)secondChildFrame
+{
+    return [self mainFrame].childFrames[1].info;
 }
 
 - (void)evaluateJavaScript:(NSString *)string inFrame:(WKFrameInfo *)frame completionHandler:(void(^)(id, NSError *))completionHandler

@@ -62,6 +62,7 @@
 
 #ifdef __cplusplus
 #include <cstdlib>
+#include <span>
 #include <type_traits>
 #endif
 
@@ -223,9 +224,9 @@ WTF_EXPORT_PRIVATE void WTFReportBacktraceWithPrefixAndStackDepth(const char*, i
 WTF_EXPORT_PRIVATE void WTFReportBacktrace(void);
 #ifdef __cplusplus
 WTF_EXPORT_PRIVATE void WTFReportBacktraceWithPrefixAndPrintStream(WTF::PrintStream&, const char*);
-WTF_EXPORT_PRIVATE void WTFPrintBacktraceWithPrefixAndPrintStream(WTF::PrintStream&, void** stack, int size, const char* prefix);
+WTF_EXPORT_PRIVATE void WTFPrintBacktraceWithPrefixAndPrintStream(WTF::PrintStream&, std::span<void* const> stack, const char* prefix);
+WTF_EXPORT_PRIVATE void WTFPrintBacktrace(std::span<void* const> stack);
 #endif
-WTF_EXPORT_PRIVATE void WTFPrintBacktrace(void** stack, int size);
 
 WTF_EXPORT_PRIVATE bool WTFIsDebuggerAttached(void);
 
@@ -584,19 +585,37 @@ static constexpr bool unreachableForValue = false;
 
 #if ERROR_DISABLED
 #define LOG_ERROR(...) ((void)0)
+#define LOG_ERROR_ONCE(...) ((void)0)
 #else
 #define LOG_ERROR(...) WTFReportError(__FILE__, __LINE__, WTF_PRETTY_FUNCTION, __VA_ARGS__)
+#define LOG_ERROR_ONCE(...) do { \
+    static std::once_flag onceFlag; \
+    std::call_once( \
+        onceFlag, \
+        [&] { \
+            LOG_ERROR(__VA_ARGS__); \
+        }); \
+} while (0)
 #endif
 
 /* LOG */
 
 #if LOG_DISABLED
 #define LOG(channel, ...) ((void)0)
+#define LOG_ONCE(channel, ...) ((void)0)
 #else
 #define LOG(channel, ...) do { \
         if (LOG_CHANNEL(channel).state != logChannelStateOff) \
             WTFLog(&LOG_CHANNEL(channel), __VA_ARGS__); \
     } while (0)
+#define LOG_ONCE(channel, ...) do { \
+    static std::once_flag onceFlag; \
+    std::call_once( \
+        onceFlag, \
+        [&] { \
+            LOG(channel, __VA_ARGS__); \
+        }); \
+} while (0)
 #endif
 
 /* LOG_VERBOSE */
@@ -769,6 +788,11 @@ static constexpr bool unreachableForValue = false;
         CRASH_UNDER_CONSTEXPR_CONTEXT(); \
     } \
 } while (0)
+#define RELEASE_ASSERT_IMPLIES(condition, assertion) do { \
+    if (UNLIKELY((condition) && !(assertion))) { \
+        CRASH(); \
+    } \
+} while (0)
 
 #else /* ASSERT_ENABLED */
 
@@ -778,6 +802,7 @@ static constexpr bool unreachableForValue = false;
 #define RELEASE_ASSERT_NOT_REACHED(...) ASSERT_NOT_REACHED(__VA_ARGS__)
 #define RELEASE_ASSERT_NOT_REACHED_UNDER_CONSTEXPR_CONTEXT() ASSERT_NOT_REACHED_UNDER_CONSTEXPR_CONTEXT()
 #define RELEASE_ASSERT_UNDER_CONSTEXPR_CONTEXT(assertion) ASSERT_UNDER_CONSTEXPR_CONTEXT(assertion)
+#define RELEASE_ASSERT_IMPLIES(condition, assertion) ASSERT_IMPLIES(condition, assertion)
 
 #endif /* ASSERT_ENABLED */
 
@@ -805,8 +830,13 @@ static constexpr bool unreachableForValue = false;
         if (UNLIKELY(wtfConjectureAssertIsEnabled && !(assertion))) \
             WTFCrashDueToConjectureAssert(__FILE__, __LINE__, WTF_PRETTY_FUNCTION, #assertion); \
     } while (false)
+#define CONJECTURE_ASSERT_IMPLIES(condition, assertion)  do { \
+        if (UNLIKELY(wtfConjectureAssertIsEnabled && (condition) && !(assertion))) \
+            WTFCrashDueToConjectureAssert(__FILE__, __LINE__, WTF_PRETTY_FUNCTION, #assertion); \
+    } while (false)
 #else
 #define CONJECTURE_ASSERT(assertion, ...)
+#define CONJECTURE_ASSERT_IMPLIES(condition, assertion)
 #endif
 
 #ifdef __cplusplus
@@ -909,7 +939,7 @@ inline void isIntegralOrPointerType() { }
 template<typename T, typename... Types>
 void isIntegralOrPointerType(T, Types... types)
 {
-    static_assert(std::is_integral<T>::value || std::is_enum<T>::value || std::is_pointer<T>::value, "All types need to be bitwise_cast-able to integral type for logging");
+    static_assert(std::is_integral<T>::value || std::is_enum<T>::value || std::is_pointer<T>::value, "All types need to be std::bit_cast-able to integral type for logging");
     isIntegralOrPointerType(types...);
 }
 

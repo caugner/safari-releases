@@ -66,7 +66,7 @@ public:
         explicit operator bool() const { return newFontSize || newLineHeight || newStatus; }
     };
     static AdjustmentForTextAutosizing adjustmentForTextAutosizing(const RenderStyle&, const Element&);
-    static bool adjustForTextAutosizing(RenderStyle&, const Element&, AdjustmentForTextAutosizing);
+    static bool adjustForTextAutosizing(RenderStyle&, AdjustmentForTextAutosizing);
     static bool adjustForTextAutosizing(RenderStyle&, const Element&);
 #endif
 
@@ -81,7 +81,7 @@ private:
     CheckedRef<const Document> m_document;
     const RenderStyle& m_parentStyle;
     const RenderStyle& m_parentBoxStyle;
-    Element* m_element;
+    RefPtr<Element> m_element;
 };
 
 }

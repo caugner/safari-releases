@@ -80,7 +80,7 @@ public:
 private:
     std::unique_ptr<ContextMenu> maybeCreateContextMenu(Event&, OptionSet<HitTestRequest::Type> hitType, ContextMenuContext::Type);
     void showContextMenu(Event&);
-    
+
     void appendItem(ContextMenuItem&, ContextMenu* parentMenu);
 
     void createAndAppendFontSubMenu(ContextMenuItem&);
@@ -91,7 +91,7 @@ private:
     void createAndAppendTextDirectionSubMenu(ContextMenuItem&);
     void createAndAppendSubstitutionsSubMenu(ContextMenuItem&);
     void createAndAppendTransformationsSubMenu(ContextMenuItem&);
-    bool shouldEnableCopyLinkToHighlight() const;
+    bool shouldEnableCopyLinkWithHighlight() const;
 #if PLATFORM(GTK)
     void createAndAppendUnicodeSubMenu(ContextMenuItem&);
 #endif

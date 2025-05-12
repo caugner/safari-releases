@@ -53,7 +53,7 @@ TEST(DisplayListTests, ReplayWithMissingResource)
     auto cgContext = adoptCF(CGBitmapContextCreate(nullptr, contextWidth, contextHeight, 8, 4 * contextWidth, colorSpace.platformColorSpace(), kCGImageAlphaPremultipliedLast));
     GraphicsContextCG context { cgContext.get() };
 
-    auto imageBuffer = ImageBuffer::create({ 100, 100 }, RenderingPurpose::Unspecified, 1, colorSpace, ImageBufferPixelFormat::BGRA8);
+    auto imageBuffer = ImageBuffer::create({ 100, 100 }, RenderingMode::Unaccelerated, RenderingPurpose::Unspecified, 1, colorSpace, ImageBufferPixelFormat::BGRA8);
     auto imageBufferIdentifier = imageBuffer->renderingResourceIdentifier();
 
     DisplayList list;
@@ -88,8 +88,8 @@ TEST(DisplayListTests, ItemValidationFailure)
     auto cgContext = adoptCF(CGBitmapContextCreate(nullptr, contextWidth, contextHeight, 8, 4 * contextWidth, colorSpace.get(), kCGImageAlphaPremultipliedLast));
     GraphicsContextCG context { cgContext.get() };
 
-    auto runTestWithInvalidIdentifier = [&](RenderingResourceIdentifier identifier) {
-        EXPECT_FALSE(identifier.isValid());
+    auto runTestWithInvalidIdentifier = [&](std::optional<RenderingResourceIdentifier> identifier) {
+        EXPECT_TRUE(!identifier);
 
         DisplayList list;
         list.append(ClipToImageBuffer(identifier, FloatRect { }));
@@ -100,8 +100,7 @@ TEST(DisplayListTests, ItemValidationFailure)
         EXPECT_EQ(result.reasonForStopping, StopReplayReason::InvalidItemOrExtent);
     };
 
-    runTestWithInvalidIdentifier(RenderingResourceIdentifier { });
-    runTestWithInvalidIdentifier(RenderingResourceIdentifier { WTF::HashTableDeletedValue });
+    runTestWithInvalidIdentifier(std::nullopt);
 }
 
 } // namespace TestWebKitAPI

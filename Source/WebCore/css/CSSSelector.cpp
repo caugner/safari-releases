@@ -358,6 +358,7 @@ std::optional<CSSSelector::PseudoElement> CSSSelector::parsePseudoElementName(St
     return *type;
 }
 
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 const CSSSelector* CSSSelector::firstInCompound() const
 {
     auto* selector = this;
@@ -369,6 +370,7 @@ const CSSSelector* CSSSelector::firstInCompound() const
     }
     return selector;
 }
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
 static void appendPseudoClassFunctionTail(StringBuilder& builder, const CSSSelector* selector)
 {
@@ -868,6 +870,9 @@ void CSSSelector::replaceNestingParentByPseudoClassScope()
             // Replace by :scope
             selector.setMatch(Match::PseudoClass);
             selector.setPseudoClass(PseudoClass::Scope);
+            // Top-level nesting parent selector acts like :scope with zero specificity.
+            // https://github.com/w3c/csswg-drafts/issues/10196#issuecomment-2161119978
+            selector.setImplicit();
         }
         return false;
     };

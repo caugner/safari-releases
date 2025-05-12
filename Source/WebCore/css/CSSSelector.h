@@ -131,7 +131,10 @@ public:
 
     // Selectors are kept in an array by CSSSelectorList.
     // The next component of the selector is the next item in the array.
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
     const CSSSelector* tagHistory() const { return m_isLastInTagHistory ? nullptr : this + 1; }
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
+
     const CSSSelector* firstInCompound() const;
 
     const QualifiedName& tagQName() const;
@@ -180,6 +183,10 @@ public:
     // Implicit means that this selector is not author/UA written.
     bool isImplicit() const { return m_isImplicit; }
 
+#if !ASSERT_WITH_SECURITY_IMPLICATION_DISABLED
+    bool destructorHasBeenCalled() const { return m_destructorHasBeenCalled; }
+#endif
+
 private:
     friend class MutableCSSSelector;
 
@@ -203,7 +210,10 @@ private:
     void setImplicit() { m_isImplicit = true; }
 
     unsigned simpleSelectorSpecificityForPage() const;
+
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
     CSSSelector* tagHistory() { return m_isLastInTagHistory ? nullptr : this + 1; }
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
     unsigned m_relation : 4 { enumToUnderlyingType(Relation::DescendantSpace) };
     mutable unsigned m_match : 5 { enumToUnderlyingType(Match::Unknown) };

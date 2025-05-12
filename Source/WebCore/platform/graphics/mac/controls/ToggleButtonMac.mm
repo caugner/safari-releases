@@ -81,19 +81,19 @@ IntSize ToggleButtonMac::cellSize(NSControlSize controlSize, const ControlStyle&
 
 IntOutsets ToggleButtonMac::cellOutsets(NSControlSize controlSize, const ControlStyle&) const
 {
-    static const IntOutsets checkboxOutsets[] = {
+    static const std::array checkboxOutsets {
         // top right bottom left
-        { 2, 2, 2, 2 },
-        { 2, 1, 2, 1 },
-        { 0, 0, 1, 0 },
-        { 2, 2, 2, 2 },
+        IntOutsets { 2, 2, 2, 2 },
+        IntOutsets { 2, 1, 2, 1 },
+        IntOutsets { 0, 0, 1, 0 },
+        IntOutsets { 2, 2, 2, 2 },
     };
-    static const IntOutsets radioOutsets[] = {
+    static const std::array radioOutsets {
         // top right bottom left
-        { 1, 0, 1, 2 },
-        { 1, 1, 2, 1 },
-        { 0, 0, 1, 1 },
-        { 1, 0, 1, 2 },
+        IntOutsets { 1, 0, 1, 2 },
+        IntOutsets { 1, 1, 2, 1 },
+        IntOutsets { 0, 0, 1, 1 },
+        IntOutsets { 1, 0, 1, 2 },
     };
     return (m_owningPart.type() == StyleAppearance::Checkbox ? checkboxOutsets : radioOutsets)[controlSize];
 }

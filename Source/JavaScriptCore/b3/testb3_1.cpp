@@ -26,6 +26,8 @@
 #include "config.h"
 #include "testb3.h"
 
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
+
 #if ENABLE(B3_JIT)
 
 Lock crashLock;
@@ -343,11 +345,15 @@ void run(const TestConfig* config)
     RUN_UNARY(testIToF32Imm, int32Operands());
     RUN(testIToDReducedToIToF64Arg());
     RUN(testIToDReducedToIToF32Arg());
+    RUN_UNARY(testInt52RoundTripUnary, int32Operands());
+    RUN(testInt52RoundTripBinary());
 
+#if !CPU(ARM)
     RUN_UNARY(testCheckAddRemoveCheckWithSExt8, int8Operands());
     RUN_UNARY(testCheckAddRemoveCheckWithSExt16, int16Operands());
     RUN_UNARY(testCheckAddRemoveCheckWithSExt32, int32Operands());
     RUN_UNARY(testCheckAddRemoveCheckWithZExt32, int32Operands());
+#endif
 
     RUN(testStoreZeroReg());
     RUN(testStore32(44));
@@ -499,6 +505,7 @@ void run(const TestConfig* config)
     RUN(testCheckTrickyMegaCombo());
     RUN(testCheckTwoMegaCombos());
     RUN(testCheckTwoNonRedundantMegaCombos());
+#if !CPU(ARM)
     RUN(testCheckAddImm());
     RUN(testCheckAddImmCommute());
     RUN(testCheckAddImmSomeRegister());
@@ -528,6 +535,7 @@ void run(const TestConfig* config)
     RUN(testCheckMulFoldFail(2147483647, 100));
     RUN(testCheckMulArgumentAliasing64());
     RUN(testCheckMulArgumentAliasing32());
+#endif
 
     RUN_BINARY([](int32_t a, int32_t b) { testCompare(Equal, a, b); }, int64Operands(), int64Operands());
     RUN_BINARY([](int32_t a, int32_t b) { testCompare(NotEqual, a, b); }, int64Operands(), int64Operands());
@@ -845,8 +853,8 @@ void run(const TestConfig* config)
     RUN(testFastTLSLoad());
     RUN(testFastTLSStore());
 
-    RUN(testDoubleLiteralComparison(bitwise_cast<double>(0x8000000000000001ull), bitwise_cast<double>(0x0000000000000000ull)));
-    RUN(testDoubleLiteralComparison(bitwise_cast<double>(0x0000000000000000ull), bitwise_cast<double>(0x8000000000000001ull)));
+    RUN(testDoubleLiteralComparison(std::bit_cast<double>(0x8000000000000001ull), std::bit_cast<double>(0x0000000000000000ull)));
+    RUN(testDoubleLiteralComparison(std::bit_cast<double>(0x0000000000000000ull), std::bit_cast<double>(0x8000000000000001ull)));
     RUN(testDoubleLiteralComparison(125.3144446948241, 125.3144446948242));
     RUN(testDoubleLiteralComparison(125.3144446948242, 125.3144446948241));
 
@@ -1011,3 +1019,5 @@ int main(int, char**)
 }
 
 #endif // ENABLE(B3_JIT)
+
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_END

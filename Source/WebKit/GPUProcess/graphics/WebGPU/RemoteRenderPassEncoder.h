@@ -62,7 +62,8 @@ public:
 
     ~RemoteRenderPassEncoder();
 
-    const SharedPreferencesForWebProcess& sharedPreferencesForWebProcess() const { return m_gpu->sharedPreferencesForWebProcess(); }
+    // FIXME: Remove SUPPRESS_UNCOUNTED_ARG once https://github.com/llvm/llvm-project/pull/111198 lands.
+    SUPPRESS_UNCOUNTED_ARG std::optional<SharedPreferencesForWebProcess> sharedPreferencesForWebProcess() const { return m_gpu->sharedPreferencesForWebProcess(); }
 
     void stopListeningForIPC();
 
@@ -77,7 +78,9 @@ private:
     RemoteRenderPassEncoder& operator=(RemoteRenderPassEncoder&&) = delete;
 
     WebCore::WebGPU::RenderPassEncoder& backing() { return m_backing; }
-    Ref<WebGPU::ObjectHeap> protectedObjectHeap() const { return m_objectHeap.get(); }
+    Ref<WebCore::WebGPU::RenderPassEncoder> protectedBacking();
+
+    Ref<WebGPU::ObjectHeap> protectedObjectHeap() const;
     Ref<RemoteGPU> protectedGPU() const { return m_gpu.get(); }
 
     void didReceiveStreamMessage(IPC::StreamServerConnection&, IPC::Decoder&) final;
@@ -126,7 +129,7 @@ private:
 
     Ref<WebCore::WebGPU::RenderPassEncoder> m_backing;
     WeakRef<WebGPU::ObjectHeap> m_objectHeap;
-    Ref<IPC::StreamServerConnection> m_streamConnection;
+    const Ref<IPC::StreamServerConnection> m_streamConnection;
     WeakRef<RemoteGPU> m_gpu;
     WebGPUIdentifier m_identifier;
 };

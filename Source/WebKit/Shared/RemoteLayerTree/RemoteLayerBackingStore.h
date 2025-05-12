@@ -41,15 +41,7 @@
 #include <wtf/WeakRef.h>
 
 OBJC_CLASS CALayer;
-
-namespace WebKit {
-class RemoteLayerBackingStore;
-}
-
-namespace WTF {
-template<typename T> struct IsDeprecatedWeakRefSmartPointerException;
-template<> struct IsDeprecatedWeakRefSmartPointerException<WebKit::RemoteLayerBackingStore> : std::true_type { };
-}
+OBJC_CLASS UIView;
 
 // FIXME: Make PlatformCALayerRemote.cpp Objective-C so we can include WebLayer.h here and share the typedef.
 namespace WebCore {
@@ -83,9 +75,10 @@ enum class LayerContentsType : uint8_t {
     CachedIOSurface,
 };
 
-class RemoteLayerBackingStore : public CanMakeWeakPtr<RemoteLayerBackingStore> {
+class RemoteLayerBackingStore : public CanMakeWeakPtr<RemoteLayerBackingStore>, public CanMakeCheckedPtr<RemoteLayerBackingStore> {
     WTF_MAKE_TZONE_ALLOCATED(RemoteLayerBackingStore);
     WTF_MAKE_NONCOPYABLE(RemoteLayerBackingStore);
+    WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(RemoteLayerBackingStore);
 public:
     RemoteLayerBackingStore(PlatformCALayerRemote&);
     virtual ~RemoteLayerBackingStore();
@@ -112,8 +105,8 @@ public:
         Type type { Type::Bitmap };
         WebCore::FloatSize size;
         WebCore::DestinationColorSpace colorSpace { WebCore::DestinationColorSpace::SRGB() };
+        WebCore::ContentsFormat contentsFormat { WebCore::ContentsFormat::RGBA8 };
         float scale { 1.0f };
-        bool deepColor { false };
         bool isOpaque { false };
 
 #if ENABLE(RE_DYNAMIC_CONTENT_SCALING)
@@ -145,7 +138,7 @@ public:
 
     WebCore::FloatSize size() const { return m_parameters.size; }
     float scale() const { return m_parameters.scale; }
-    bool usesDeepColorBackingStore() const;
+    WebCore::ContentsFormat contentsFormat() const { return m_parameters.contentsFormat; }
     WebCore::DestinationColorSpace colorSpace() const { return m_parameters.colorSpace; }
     WebCore::ImageBufferPixelFormat pixelFormat() const;
     Type type() const { return m_parameters.type; }
@@ -230,7 +223,7 @@ public:
     RemoteLayerBackingStoreProperties() = default;
     RemoteLayerBackingStoreProperties(RemoteLayerBackingStoreProperties&&) = default;
 
-    void applyBackingStoreToLayer(CALayer *, LayerContentsType, std::optional<WebCore::RenderingResourceIdentifier>, bool replayDynamicContentScalingDisplayListsIntoBackingStore);
+    void applyBackingStoreToLayer(CALayer *, LayerContentsType, std::optional<WebCore::RenderingResourceIdentifier>, bool replayDynamicContentScalingDisplayListsIntoBackingStore, UIView * hostingView);
 
     void updateCachedBuffers(RemoteLayerTreeNode&, LayerContentsType);
 

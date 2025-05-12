@@ -106,9 +106,9 @@ HashMap<String, bool> WebNotificationManagerProxy::notificationPermissions()
     return m_provider->notificationPermissions();
 }
 
-static WebPageProxyIdentifier identifierForPagePointer(WebPageProxy* webPage)
+static std::optional<WebPageProxyIdentifier> identifierForPagePointer(WebPageProxy* webPage)
 {
-    return webPage ? webPage->identifier() : WebPageProxyIdentifier();
+    return webPage ? std::optional { webPage->identifier() } : std::nullopt;
 }
 
 void WebNotificationManagerProxy::show(WebPageProxy* webPage, IPC::Connection& connection, const WebCore::NotificationData& notificationData, RefPtr<WebCore::NotificationResources>&& notificationResources)
@@ -176,9 +176,9 @@ void WebNotificationManagerProxy::clearNotifications(WebPageProxy* webPage, cons
         globalNotificationIDs.append(globalNotificationID);
     }
 
-    for (auto it = globalNotificationIDs.begin(), end = globalNotificationIDs.end(); it != end; ++it) {
-        auto pageNotification = m_globalNotificationMap.take(*it);
-        m_notifications.remove(pageNotification);
+    for (auto globalNotificationID : globalNotificationIDs) {
+        if (auto pageNotification = m_globalNotificationMap.takeOptional(globalNotificationID))
+            m_notifications.remove(*pageNotification);
     }
 
     m_provider->clearNotifications(globalNotificationIDs);

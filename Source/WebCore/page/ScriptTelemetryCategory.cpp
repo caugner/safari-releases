@@ -26,6 +26,11 @@
 #include "config.h"
 #include "ScriptTelemetryCategory.h"
 
+#if !(USE(APPLE_INTERNAL_SDK) && __has_include(<WebKitAdditions/ScriptTelemetryCategoryAdditions.cpp>))
+#include <wtf/URL.h>
+#include <wtf/text/MakeString.h>
+#endif
+
 namespace WebCore {
 
 ASCIILiteral description(ScriptTelemetryCategory category)
@@ -62,9 +67,20 @@ ASCIILiteral description(ScriptTelemetryCategory category)
         return "ScreenOrViewport"_s;
     case ScriptTelemetryCategory::Speech:
         return "Speech"_s;
+    case ScriptTelemetryCategory::FormControls:
+        return "FormControls"_s;
     }
     ASSERT_NOT_REACHED();
     return { };
 }
+
+#if USE(APPLE_INTERNAL_SDK) && __has_include(<WebKitAdditions/ScriptTelemetryCategoryAdditions.cpp>)
+#import <WebKitAdditions/ScriptTelemetryCategoryAdditions.cpp>
+#else
+String makeLogMessage(const URL& url, ScriptTelemetryCategory category)
+{
+    return makeString(url.string(), " tried to access "_s, description(category));
+}
+#endif
 
 } // namespace WebCore

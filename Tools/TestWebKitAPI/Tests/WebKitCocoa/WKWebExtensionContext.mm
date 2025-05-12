@@ -35,6 +35,7 @@
 #import <WebKit/WKWebExtensionMatchPatternPrivate.h>
 #import <WebKit/WKWebExtensionPermission.h>
 #import <WebKit/WKWebExtensionPrivate.h>
+#import <wtf/cocoa/TypeCastsCocoa.h>
 
 #if PLATFORM(IOS_FAMILY)
 #import <UIKit/UIKit.h>
@@ -945,8 +946,7 @@ TEST(WKWebExtensionContext, LoadNonExistentImage)
         @"}",
     ]);
 
-    auto extension = adoptNS([[WKWebExtension alloc] _initWithManifestDictionary:manifest resources:@{ @"background.js": backgroundScript }]);
-    auto manager = adoptNS([[TestWebExtensionManager alloc] initForExtension:extension.get()]);
+    auto manager = Util::loadExtension(manifest, @{ @"background.js": backgroundScript });
 
     EXPECT_NS_EQUAL(manager.get().context.errors, @[ ]);
 

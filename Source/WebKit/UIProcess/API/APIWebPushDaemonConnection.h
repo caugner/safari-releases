@@ -27,6 +27,7 @@
 
 #include "APIObject.h"
 #include "WebPushDaemonConnection.h"
+#include <optional>
 
 namespace WebCore {
 enum class PushPermissionState : uint8_t;
@@ -63,7 +64,9 @@ public:
 
 private:
 #if ENABLE(WEB_PUSH_NOTIFICATIONS)
-    UniqueRef<WebKit::WebPushD::Connection> m_connection;
+    Ref<WebKit::WebPushD::Connection> protectedConnection() const;
+
+    Ref<WebKit::WebPushD::Connection> m_connection;
 #endif
 };
 

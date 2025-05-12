@@ -30,6 +30,7 @@
 #import "Test.h"
 #import "TestNavigationDelegate.h"
 #import "TestUIDelegate.h"
+#import "TestWKWebView.h"
 #import <WebKit/WKBackForwardListItemPrivate.h>
 #import <WebKit/WKBackForwardListPrivate.h>
 #import <WebKit/WKNavigationDelegatePrivate.h>
@@ -888,4 +889,42 @@ TEST(WKBackForwardList, SessionStateTitleTruncation)
     _WKSessionState *sessionState = webView.get()._sessionState;
     NSData *stateData = sessionState.data;
     EXPECT_LT(stateData.length, 2000u);
+}
+
+TEST(WKBackForwardList, RestoreSessionStateResetProvisionalItem)
+{
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] init]);
+    [webView synchronouslyLoadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:loadableURL1]]];
+    [webView synchronouslyLoadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:loadableURL2]]];
+    [webView synchronouslyGoBack];
+    [webView synchronouslyGoForward];
+
+    RetainPtr sessionState = [webView _sessionStateWithFilter:^BOOL(WKBackForwardListItem *item) {
+        return [item.URL isEqual:[NSURL URLWithString:loadableURL1]];
+    }];
+    [webView _restoreSessionState:sessionState.get() andNavigate:NO];
+    [[webView backForwardList] currentItem];
+}
+
+TEST(WKBackForwardList, GoBackToPageAfterNavigatingIframeAndRestoringSession)
+{
+    TestWebKitAPI::HTTPServer server({
+        { "/example"_s, { "<iframe src='/a'></iframe>"_s } },
+        { "/a"_s, { "<script>alert('a');</script>"_s } },
+        { "/b"_s, { "<script>alert('b');</script>"_s } },
+    });
+    RetainPtr webView = adoptNS([[WKWebView alloc] init]);
+    [webView loadRequest:server.request("/example"_s)];
+    EXPECT_WK_STREQ([webView _test_waitForAlert], "a");
+
+    [webView evaluateJavaScript:@"document.querySelector('iframe').src = '/b';" completionHandler:nil];
+    EXPECT_WK_STREQ([webView _test_waitForAlert], "b");
+
+    [webView loadRequest:server.requestWithLocalhost("/example"_s)];
+    EXPECT_WK_STREQ([webView _test_waitForAlert], "a");
+
+    [webView _restoreSessionState:[webView _sessionState] andNavigate:NO];
+    [webView goBack];
+    EXPECT_WK_STREQ([webView _test_waitForAlert], "b");
+    EXPECT_WK_STREQ([webView URL].absoluteString, server.request("/example"_s).URL.absoluteString.UTF8String);
 }

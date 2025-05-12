@@ -32,19 +32,18 @@
 #include "RemoteCDMInstanceConfiguration.h"
 #include "RemoteCDMInstanceMessages.h"
 #include "RemoteCDMInstanceSessionProxy.h"
-#include "WebCoreArgumentCoders.h"
 #include <WebCore/CDMInstance.h>
 
 namespace WebKit {
 
 using namespace WebCore;
 
-std::unique_ptr<RemoteCDMInstanceProxy> RemoteCDMInstanceProxy::create(RemoteCDMProxy& cdm, Ref<CDMInstance>&& priv, RemoteCDMInstanceIdentifier identifier)
+Ref<RemoteCDMInstanceProxy> RemoteCDMInstanceProxy::create(RemoteCDMProxy& cdm, Ref<CDMInstance>&& priv, RemoteCDMInstanceIdentifier identifier)
 {
     auto configuration = makeUniqueRefWithoutFastMallocCheck<RemoteCDMInstanceConfiguration, RemoteCDMInstanceConfiguration&&>({
         priv->keySystem(),
     });
-    return std::unique_ptr<RemoteCDMInstanceProxy>(new RemoteCDMInstanceProxy(cdm, WTFMove(priv), WTFMove(configuration), identifier));
+    return adoptRef(*new RemoteCDMInstanceProxy(cdm, WTFMove(priv), WTFMove(configuration), identifier));
 }
 
 RemoteCDMInstanceProxy::RemoteCDMInstanceProxy(RemoteCDMProxy& cdm, Ref<CDMInstance>&& priv, UniqueRef<RemoteCDMInstanceConfiguration>&& configuration, RemoteCDMInstanceIdentifier identifier)
@@ -57,12 +56,12 @@ RemoteCDMInstanceProxy::RemoteCDMInstanceProxy(RemoteCDMProxy& cdm, Ref<CDMInsta
     , m_logIdentifier(cdm.logIdentifier())
 #endif
 {
-    m_instance->setClient(*this);
+    protectedInstance()->setClient(*this);
 }
 
 RemoteCDMInstanceProxy::~RemoteCDMInstanceProxy()
 {
-    m_instance->clearClient();
+    protectedInstance()->clearClient();
 }
 
 void RemoteCDMInstanceProxy::unrequestedInitializationDataReceived(const String& type, Ref<SharedBuffer>&& initData)
@@ -83,12 +82,12 @@ void RemoteCDMInstanceProxy::unrequestedInitializationDataReceived(const String&
 
 void RemoteCDMInstanceProxy::initializeWithConfiguration(const WebCore::CDMKeySystemConfiguration& configuration, AllowDistinctiveIdentifiers allowDistinctiveIdentifiers, AllowPersistentState allowPersistentState, CompletionHandler<void(SuccessValue)>&& completion)
 {
-    m_instance->initializeWithConfiguration(configuration, allowDistinctiveIdentifiers, allowPersistentState, WTFMove(completion));
+    protectedInstance()->initializeWithConfiguration(configuration, allowDistinctiveIdentifiers, allowPersistentState, WTFMove(completion));
 }
 
 void RemoteCDMInstanceProxy::setServerCertificate(Ref<SharedBuffer>&& certificate, CompletionHandler<void(SuccessValue)>&& completion)
 {
-    m_instance->setServerCertificate(WTFMove(certificate), WTFMove(completion));
+    protectedInstance()->setServerCertificate(WTFMove(certificate), WTFMove(completion));
 }
 
 void RemoteCDMInstanceProxy::setStorageDirectory(const String& directory)
@@ -105,14 +104,14 @@ void RemoteCDMInstanceProxy::setStorageDirectory(const String& directory)
         return;
 
     if (directory.startsWith(mediaKeysStorageDirectory))
-        m_instance->setStorageDirectory(directory);
+        protectedInstance()->setStorageDirectory(directory);
 }
 
-void RemoteCDMInstanceProxy::createSession(uint64_t logIdentifier, CompletionHandler<void(const RemoteCDMInstanceSessionIdentifier&)>&& completion)
+void RemoteCDMInstanceProxy::createSession(uint64_t logIdentifier, CompletionHandler<void(std::optional<RemoteCDMInstanceSessionIdentifier>)>&& completion)
 {
-    auto privSession = m_instance->createSession();
+    auto privSession = protectedInstance()->createSession();
     if (!privSession || !m_cdm || !m_cdm->factory()) {
-        completion({ });
+        completion(std::nullopt);
         return;
     }
 
@@ -131,9 +130,13 @@ Ref<WebCore::CDMInstance> RemoteCDMInstanceProxy::protectedInstance() const
     return m_instance;
 }
 
-const SharedPreferencesForWebProcess& RemoteCDMInstanceProxy::sharedPreferencesForWebProcess() const
+std::optional<SharedPreferencesForWebProcess> RemoteCDMInstanceProxy::sharedPreferencesForWebProcess() const
 {
-    return protectedCdm()->sharedPreferencesForWebProcess();
+    if (!m_cdm)
+        return std::nullopt;
+
+    // FIXME: Remove SUPPRESS_UNCOUNTED_ARG once https://github.com/llvm/llvm-project/pull/111198 lands.
+    SUPPRESS_UNCOUNTED_ARG return m_cdm->sharedPreferencesForWebProcess();
 }
 
 RefPtr<RemoteCDMProxy> RemoteCDMInstanceProxy::protectedCdm() const

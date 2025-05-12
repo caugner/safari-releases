@@ -27,8 +27,7 @@
 
 #pragma once
 
-#include "CSSPropertyParserConsumer+RawTypes.h"
-#include "CSSPropertyParserConsumer+UnevaluatedCalc.h"
+#include "CSSPrimitiveNumericTypes.h"
 #include "CSSValueKeywords.h"
 #include "SystemFontDatabase.h"
 #include <optional>
@@ -60,25 +59,25 @@ namespace CSSPropertyParserHelpers {
 // MARK: - Font
 
 // normal | italic | oblique <angle [-90deg,90deg]>?
-using UnresolvedFontStyleAngle = std::variant<AngleRaw, UnevaluatedCalc<AngleRaw>>;
-using UnresolvedFontStyle = std::variant<CSSValueID, AngleRaw, UnevaluatedCalc<AngleRaw>>;
+using UnresolvedFontStyleObliqueAngle = CSS::Angle<CSS::Range{-90, 90}>;
+using UnresolvedFontStyle = std::variant<CSSValueID, UnresolvedFontStyleObliqueAngle>;
 
 // normal | small-caps
 using UnresolvedFontVariantCaps = CSSValueID;
 
 // normal | bold | bolder | lighter | <number [1,1000]>
-using UnresolvedFontWeightNumber = std::variant<NumberRaw, UnevaluatedCalc<NumberRaw>>;
-using UnresolvedFontWeight = std::variant<CSSValueID, NumberRaw, UnevaluatedCalc<NumberRaw>>;
+using UnresolvedFontWeightNumber = CSS::Number<CSS::Range{1, 1000}>;
+using UnresolvedFontWeight = std::variant<CSSValueID, UnresolvedFontWeightNumber>;
 
 // normal | <percentage [0,∞]> | ultra-condensed | extra-condensed | condensed | semi-condensed | semi-expanded | expanded | extra-expanded | ultra-expanded
-using UnresolvedFontStretchPercentage = std::variant<PercentageRaw, UnevaluatedCalc<PercentageRaw>>;
-using UnresolvedFontStretch = std::variant<CSSValueID, PercentageRaw, UnevaluatedCalc<PercentageRaw>>;
+using UnresolvedFontStretchPercentage = CSS::Percentage<CSS::Nonnegative>;
+using UnresolvedFontStretch = std::variant<CSSValueID, UnresolvedFontStretchPercentage>;
 
 // <absolute-size> | <relative-size> | <length-percentage [0,∞]>
-using UnresolvedFontSize = std::variant<CSSValueID, LengthPercentageRaw, UnevaluatedCalc<LengthPercentageRaw>>;
+using UnresolvedFontSize = std::variant<CSSValueID, CSS::LengthPercentage<CSS::Nonnegative>>;
 
 // normal | <number [0,∞]> | <length-percentage [0,∞]>
-using UnresolvedFontLineHeight = std::variant<CSSValueID, NumberRaw, UnevaluatedCalc<NumberRaw>, LengthPercentageRaw, UnevaluatedCalc<LengthPercentageRaw>>;
+using UnresolvedFontLineHeight = std::variant<CSSValueID, CSS::Number<CSS::Nonnegative>, CSS::LengthPercentage<CSS::Nonnegative>>;
 
 // [ <family-name> | <generic-family> ]#
 using UnresolvedFontFamilyName = std::variant<CSSValueID, AtomString>;
@@ -186,8 +185,8 @@ RefPtr<CSSValue> consumeVariationTagValue(CSSParserTokenRange&, const CSSParserC
 
 // MARK: @font-face 'font-stretch'
 // https://drafts.csswg.org/css-fonts-4/#font-stretch-desc
-RefPtr<CSSValue> parseFontFaceFontStretch(const String&, ScriptExecutionContext&);
-RefPtr<CSSValue> consumeFontFaceFontStretch(CSSParserTokenRange&, const CSSParserContext&);
+RefPtr<CSSValue> parseFontFaceFontWidth(const String&, ScriptExecutionContext&);
+RefPtr<CSSValue> consumeFontFaceFontWidth(CSSParserTokenRange&, const CSSParserContext&);
 
 // MARK: @font-face 'font-weight'
 // https://drafts.csswg.org/css-fonts-4/#descdef-font-face-font-weight

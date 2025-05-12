@@ -32,6 +32,7 @@
 #include "DocumentLoader.h"
 #include "OriginAccessPatterns.h"
 #include "Page.h"
+#include "Quirks.h"
 #include "Settings.h"
 #include <wtf/NeverDestroyed.h>
 
@@ -57,15 +58,12 @@ CSSParserContext::CSSParserContext(CSSParserMode mode, const URL& baseURL)
     if (isUASheetBehavior(mode)) {
         cssAppearanceBaseEnabled = true;
         cssTextUnderlinePositionLeftRightEnabled = true;
-        lightDarkEnabled = true;
+        lightDarkColorEnabled = true;
         popoverAttributeEnabled = true;
         propertySettings.cssInputSecurityEnabled = true;
         propertySettings.cssCounterStyleAtRulesEnabled = true;
         propertySettings.viewTransitionsEnabled = true;
         thumbAndTrackPseudoElementsEnabled = true;
-#if ENABLE(CSS_TRANSFORM_STYLE_OPTIMIZED_3D)
-        transformStyleOptimized3DEnabled = true;
-#endif
     }
 
     StaticCSSValuePool::init();
@@ -76,17 +74,17 @@ CSSParserContext::CSSParserContext(const Document& document)
     *this = document.cssParserContext();
 }
 
-CSSParserContext::CSSParserContext(const Document& document, const URL& sheetBaseURL, const String& charset)
+CSSParserContext::CSSParserContext(const Document& document, const URL& sheetBaseURL, ASCIILiteral charset)
     : baseURL { sheetBaseURL.isNull() ? document.baseURL() : sheetBaseURL }
     , charset { charset }
     , mode { document.inQuirksMode() ? HTMLQuirksMode : HTMLStandardMode }
     , isHTMLDocument { document.isHTMLDocument() }
     , hasDocumentSecurityOrigin { sheetBaseURL.isNull() || document.protectedSecurityOrigin()->canRequest(baseURL, OriginAccessPatternsForWebProcess::singleton()) }
-    , useSystemAppearance { document.page() ? document.page()->useSystemAppearance() : false }
+    , useSystemAppearance { document.settings().useSystemAppearance() }
     , counterStyleAtRuleImageSymbolsEnabled { document.settings().cssCounterStyleAtRuleImageSymbolsEnabled() }
     , springTimingFunctionEnabled { document.settings().springTimingFunctionEnabled() }
-#if ENABLE(CSS_TRANSFORM_STYLE_OPTIMIZED_3D)
-    , transformStyleOptimized3DEnabled { document.settings().cssTransformStyleOptimized3DEnabled() }
+#if HAVE(CORE_ANIMATION_SEPARATED_LAYERS)
+    , cssTransformStyleSeparatedEnabled { document.settings().cssTransformStyleSeparatedEnabled() }
 #endif
     , masonryEnabled { document.settings().masonryEnabled() }
     , cssAppearanceBaseEnabled { document.settings().cssAppearanceBaseEnabled() }
@@ -102,18 +100,20 @@ CSSParserContext::CSSParserContext(const Document& document, const URL& sheetBas
     , popoverAttributeEnabled { document.settings().popoverAttributeEnabled() }
     , sidewaysWritingModesEnabled { document.settings().sidewaysWritingModesEnabled() }
     , cssTextWrapPrettyEnabled { document.settings().cssTextWrapPrettyEnabled() }
-    , highlightAPIEnabled { document.settings().highlightAPIEnabled() }
-    , grammarAndSpellingPseudoElementsEnabled { document.settings().grammarAndSpellingPseudoElementsEnabled() }
-    , customStateSetEnabled { document.settings().customStateSetEnabled() }
     , thumbAndTrackPseudoElementsEnabled { document.settings().thumbAndTrackPseudoElementsEnabled() }
 #if ENABLE(SERVICE_CONTROLS)
     , imageControlsEnabled { document.settings().imageControlsEnabled() }
 #endif
     , colorLayersEnabled { document.settings().cssColorLayersEnabled() }
-    , lightDarkEnabled { document.settings().cssLightDarkEnabled() }
+    , lightDarkColorEnabled { document.settings().cssLightDarkEnabled() }
     , contrastColorEnabled { document.settings().cssContrastColorEnabled() }
     , targetTextPseudoElementEnabled { document.settings().targetTextPseudoElementEnabled() }
     , viewTransitionTypesEnabled { document.settings().viewTransitionsEnabled() && document.settings().viewTransitionTypesEnabled() }
+    , cssProgressFunctionEnabled { document.settings().cssProgressFunctionEnabled() }
+    , cssMediaProgressFunctionEnabled { document.settings().cssMediaProgressFunctionEnabled() }
+    , cssContainerProgressFunctionEnabled { document.settings().cssContainerProgressFunctionEnabled() }
+    , cssRandomFunctionEnabled { document.settings().cssRandomFunctionEnabled() }
+    , webkitMediaTextTrackDisplayQuirkEnabled { document.quirks().needsWebKitMediaTextTrackDisplayQuirk() }
     , propertySettings { CSSPropertySettings { document.settings() } }
 {
 }
@@ -125,8 +125,8 @@ void add(Hasher& hasher, const CSSParserContext& context)
         | context.isContentOpaque                           << 2
         | context.useSystemAppearance                       << 3
         | context.springTimingFunctionEnabled               << 4
-#if ENABLE(CSS_TRANSFORM_STYLE_OPTIMIZED_3D)
-        | context.transformStyleOptimized3DEnabled          << 5
+#if HAVE(CORE_ANIMATION_SEPARATED_LAYERS)
+        | context.cssTransformStyleSeparatedEnabled         << 5
 #endif
         | context.masonryEnabled                            << 6
         | context.cssAppearanceBaseEnabled                  << 7
@@ -140,19 +140,20 @@ void add(Hasher& hasher, const CSSParserContext& context)
         | context.popoverAttributeEnabled                   << 15
         | context.sidewaysWritingModesEnabled               << 16
         | context.cssTextWrapPrettyEnabled                  << 17
-        | context.highlightAPIEnabled                       << 18
-        | context.grammarAndSpellingPseudoElementsEnabled   << 19
-        | context.customStateSetEnabled                     << 20
-        | context.thumbAndTrackPseudoElementsEnabled        << 21
+        | context.thumbAndTrackPseudoElementsEnabled        << 18
 #if ENABLE(SERVICE_CONTROLS)
-        | context.imageControlsEnabled                      << 22
+        | context.imageControlsEnabled                      << 19
 #endif
-        | context.colorLayersEnabled                        << 23
-        | context.lightDarkEnabled                          << 24
-        | context.contrastColorEnabled                      << 25
-        | context.targetTextPseudoElementEnabled            << 26
-        | context.viewTransitionTypesEnabled                << 27
-        | (uint32_t)context.mode                            << 28; // This is multiple bits, so keep it last.
+        | context.colorLayersEnabled                        << 20
+        | context.lightDarkColorEnabled                     << 21
+        | context.contrastColorEnabled                      << 22
+        | context.targetTextPseudoElementEnabled            << 23
+        | context.viewTransitionTypesEnabled                << 24
+        | context.cssProgressFunctionEnabled                << 25
+        | context.cssMediaProgressFunctionEnabled           << 26
+        | context.cssContainerProgressFunctionEnabled       << 27
+        | context.cssRandomFunctionEnabled                  << 28
+        | (uint32_t)context.mode                            << 29; // This is multiple bits, so keep it last.
     add(hasher, context.baseURL, context.charset, context.propertySettings, bits);
 }
 

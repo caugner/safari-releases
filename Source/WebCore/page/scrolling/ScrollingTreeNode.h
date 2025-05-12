@@ -60,10 +60,10 @@ public:
     bool isPositionedNodeCocoa() const { return isPositionedNode(); }
     bool isOverflowScrollProxyNodeCocoa() const { return isOverflowScrollProxyNode(); }
 #endif
-#if USE(NICOSIA)
-    bool isFixedNodeNicosia() const { return isFixedNode(); }
-    bool isPositionedNodeNicosia() const { return isPositionedNode(); }
-    bool isOverflowScrollProxyNodeNicosia() const { return isOverflowScrollProxyNode(); }
+#if USE(COORDINATED_GRAPHICS)
+    bool isFixedNodeCoordinated() const { return isFixedNode(); }
+    bool isPositionedNodeCoordinated() const { return isPositionedNode(); }
+    bool isOverflowScrollProxyNodeCoordinated() const { return isOverflowScrollProxyNode(); }
 #endif
     bool isScrollingNode() const { return isFrameScrollingNode() || isOverflowScrollingNode() || isPluginScrollingNode(); }
     bool isFrameScrollingNode() const { return nodeType() == ScrollingNodeType::MainFrame || nodeType() == ScrollingNodeType::Subframe; }
@@ -102,7 +102,7 @@ public:
 
 protected:
     ScrollingTreeNode(ScrollingTree&, ScrollingNodeType, ScrollingNodeID);
-    ScrollingTree& scrollingTree() const { return m_scrollingTree; }
+    RefPtr<ScrollingTree> scrollingTree() const { return m_scrollingTree.get(); }
 
     virtual void applyLayerPositions() = 0;
 
@@ -111,7 +111,7 @@ protected:
     Vector<Ref<ScrollingTreeNode>> m_children;
 
 private:
-    ScrollingTree& m_scrollingTree;
+    ThreadSafeWeakPtr<ScrollingTree> m_scrollingTree;
 
     const ScrollingNodeType m_nodeType;
     const ScrollingNodeID m_nodeID;

@@ -58,8 +58,11 @@ class RemoteMediaSourceProxy final
     , private IPC::MessageReceiver {
     WTF_MAKE_TZONE_ALLOCATED(RemoteMediaSourceProxy);
 public:
-    RemoteMediaSourceProxy(RemoteMediaPlayerManagerProxy&, RemoteMediaSourceIdentifier, bool webMParserEnabled, RemoteMediaPlayerProxy&);
+    RemoteMediaSourceProxy(RemoteMediaPlayerManagerProxy&, RemoteMediaSourceIdentifier, RemoteMediaPlayerProxy&);
     virtual ~RemoteMediaSourceProxy();
+
+    void ref() const final { WebCore::MediaSourcePrivateClient::ref(); }
+    void deref() const final { WebCore::MediaSourcePrivateClient::deref(); }
 
     void setMediaPlayers(RemoteMediaPlayerProxy&, WebCore::MediaPlayerPrivateInterface*);
 
@@ -71,12 +74,12 @@ public:
     RefPtr<WebCore::MediaSourcePrivate> mediaSourcePrivate() const final { return m_private; }
 
 #if !RELEASE_LOG_DISABLED
-    void setLogIdentifier(const void*) final;
+    void setLogIdentifier(uint64_t) final;
 #endif
 
     void failedToCreateRenderer(RendererType) final;
 
-    const SharedPreferencesForWebProcess& sharedPreferencesForWebProcess() const;
+    std::optional<SharedPreferencesForWebProcess> sharedPreferencesForWebProcess() const;
 
 private:
     // IPC::MessageReceiver
@@ -99,7 +102,6 @@ private:
 
     WeakPtr<RemoteMediaPlayerManagerProxy> m_manager;
     RemoteMediaSourceIdentifier m_identifier;
-    bool m_webMParserEnabled { false };
     RefPtr<WebCore::MediaSourcePrivate> m_private;
     WeakPtr<RemoteMediaPlayerProxy> m_remoteMediaPlayerProxy;
 

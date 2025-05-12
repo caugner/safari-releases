@@ -72,13 +72,13 @@ RemoteImageBufferSet::~RemoteImageBufferSet()
 
 void RemoteImageBufferSet::startListeningForIPC()
 {
-    m_backend->streamConnection().startReceivingMessages(*this, Messages::RemoteImageBufferSet::messageReceiverName(), m_identifier.toUInt64());
+    m_backend->protectedStreamConnection()->startReceivingMessages(*this, Messages::RemoteImageBufferSet::messageReceiverName(), m_identifier.toUInt64());
 }
 
 void RemoteImageBufferSet::stopListeningForIPC()
 {
     if (auto backend = std::exchange(m_backend, { }))
-        backend->streamConnection().stopReceivingMessages(Messages::RemoteImageBufferSet::messageReceiverName(), m_identifier.toUInt64());
+        backend->protectedStreamConnection()->stopReceivingMessages(Messages::RemoteImageBufferSet::messageReceiverName(), m_identifier.toUInt64());
 }
 
 IPC::StreamConnectionWorkQueue& RemoteImageBufferSet::workQueue() const
@@ -86,10 +86,11 @@ IPC::StreamConnectionWorkQueue& RemoteImageBufferSet::workQueue() const
     return m_backend->workQueue();
 }
 
-void RemoteImageBufferSet::updateConfiguration(const WebCore::FloatSize& logicalSize, WebCore::RenderingMode renderingMode, float resolutionScale, const WebCore::DestinationColorSpace& colorSpace, WebCore::ImageBufferPixelFormat pixelFormat)
+void RemoteImageBufferSet::updateConfiguration(const WebCore::FloatSize& logicalSize, WebCore::RenderingMode renderingMode, WebCore::RenderingPurpose renderingPurpose, float resolutionScale, const WebCore::DestinationColorSpace& colorSpace, WebCore::ImageBufferPixelFormat pixelFormat)
 {
     m_logicalSize = logicalSize;
     m_renderingMode = renderingMode;
+    m_renderingPurpose = renderingPurpose;
     m_resolutionScale = resolutionScale;
     m_colorSpace = colorSpace;
     m_pixelFormat = pixelFormat;
@@ -98,12 +99,15 @@ void RemoteImageBufferSet::updateConfiguration(const WebCore::FloatSize& logical
 
 void RemoteImageBufferSet::endPrepareForDisplay(RenderingUpdateID renderingUpdateID)
 {
+    RefPtr backend = m_backend;
     if (m_displayListCreated) {
-        m_backend->releaseDisplayListRecorder(m_displayListIdentifier);
+        backend->releaseDisplayListRecorder(m_displayListIdentifier);
         m_displayListCreated = false;
     }
-    if (m_frontBuffer)
-        m_frontBuffer->flushDrawingContext();
+
+    RefPtr frontBuffer = m_frontBuffer;
+    if (frontBuffer)
+        frontBuffer->flushDrawingContext();
 
 #if PLATFORM(COCOA)
     auto bufferIdentifier = [](RefPtr<WebCore::ImageBuffer> buffer) -> std::optional<WebCore::RenderingResourceIdentifier> {
@@ -113,13 +117,13 @@ void RemoteImageBufferSet::endPrepareForDisplay(RenderingUpdateID renderingUpdat
     };
 
     ImageBufferSetPrepareBufferForDisplayOutputData outputData;
-    if (m_frontBuffer) {
-        auto* sharing = m_frontBuffer->toBackendSharing();
+    if (frontBuffer) {
+        auto* sharing = frontBuffer->toBackendSharing();
         outputData.backendHandle = downcast<ImageBufferBackendHandleSharing>(*sharing).createBackendHandle();
     }
 
-    outputData.bufferCacheIdentifiers = BufferIdentifierSet { bufferIdentifier(m_frontBuffer), bufferIdentifier(m_backBuffer), bufferIdentifier(m_secondaryBackBuffer) };
-    m_backend->streamConnection().send(Messages::RemoteImageBufferSetProxy::DidPrepareForDisplay(WTFMove(outputData), renderingUpdateID), m_identifier);
+    outputData.bufferCacheIdentifiers = BufferIdentifierSet { bufferIdentifier(frontBuffer), bufferIdentifier(m_backBuffer), bufferIdentifier(m_secondaryBackBuffer) };
+    backend->protectedStreamConnection()->send(Messages::RemoteImageBufferSetProxy::DidPrepareForDisplay(WTFMove(outputData), renderingUpdateID), m_identifier);
 #endif
 }
 
@@ -139,13 +143,15 @@ void RemoteImageBufferSet::ensureBufferForDisplay(ImageBufferSetPrepareBufferFor
         inputData.dirtyRegion = layerBounds;
     }
 
+    RefPtr backend = m_backend;
+
     if (!m_frontBuffer) {
         WebCore::ImageBufferCreationContext creationContext;
 #if ENABLE(RE_DYNAMIC_CONTENT_SCALING)
-        creationContext.dynamicContentScalingResourceCache = ensureDynamicContentScalingResourceCache();
+        if (m_renderingPurpose == RenderingPurpose::LayerBacking || m_renderingPurpose == RenderingPurpose::DOM)
+            creationContext.dynamicContentScalingResourceCache = ensureDynamicContentScalingResourceCache();
 #endif
-
-        m_frontBuffer = m_backend->allocateImageBuffer(m_logicalSize, m_renderingMode, WebCore::RenderingPurpose::LayerBacking, m_resolutionScale, m_colorSpace, m_pixelFormat, WTFMove(creationContext), WebCore::RenderingResourceIdentifier::generate());
+        m_frontBuffer = backend->allocateImageBuffer(m_logicalSize, m_renderingMode, m_renderingPurpose, m_resolutionScale, m_colorSpace, m_pixelFormat, WTFMove(creationContext), WebCore::RenderingResourceIdentifier::generate());
         m_frontBufferIsCleared = true;
     }
 
@@ -153,7 +159,7 @@ void RemoteImageBufferSet::ensureBufferForDisplay(ImageBufferSetPrepareBufferFor
         << m_frontBuffer << ", " << m_backBuffer << ", " << m_secondaryBackBuffer << "]");
 
     if (displayRequirement != SwapBuffersDisplayRequirement::NeedsNoDisplay) {
-        m_backend->createDisplayListRecorder(m_frontBuffer, m_displayListIdentifier);
+        backend->createDisplayListRecorder(m_frontBuffer, m_displayListIdentifier);
         m_displayListCreated = true;
     }
 }

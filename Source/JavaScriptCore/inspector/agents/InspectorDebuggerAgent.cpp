@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2023 Apple Inc. All rights reserved.
+ * Copyright (C) 2010-2024 Apple Inc. All rights reserved.
  * Copyright (C) 2010, 2011 Google Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -31,7 +31,6 @@
 #include "InspectorDebuggerAgent.h"
 
 #include "AsyncStackTrace.h"
-#include "ContentSearchUtilities.h"
 #include "Debugger.h"
 #include "DebuggerScope.h"
 #include "DeferGC.h"
@@ -64,7 +63,7 @@ namespace Inspector {
 const ASCIILiteral InspectorDebuggerAgent::backtraceObjectGroup = "backtrace"_s;
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(InspectorDebuggerAgent);
-WTF_MAKE_TZONE_ALLOCATED_IMPL_NESTED(InspectorDebuggerAgentProtocolBreakpoint, InspectorDebuggerAgent::ProtocolBreakpoint);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(InspectorDebuggerAgent::ProtocolBreakpoint);
 
 // Objects created and retained by evaluating breakpoint actions are put into object groups
 // according to the breakpoint action identifier assigned by the frontend. A breakpoint may
@@ -1309,7 +1308,7 @@ Protocol::ErrorStringOr<void> InspectorDebuggerAgent::setShouldBlackboxURL(const
         return makeUnexpected("Blackboxing of internal scripts is controlled by 'Debugger.setPauseForInternalScripts'"_s);
 
     if (shouldBlackbox) {
-        HashSet<JSC::Debugger::BlackboxRange> blackboxRanges;
+        UncheckedKeyHashSet<JSC::Debugger::BlackboxRange> blackboxRanges;
         if (protocolSourceRanges) {
             if (protocolSourceRanges->length() % 4)
                 return makeUnexpected("Unexpected format for given sourceRanges"_s);
@@ -1385,9 +1384,10 @@ void InspectorDebuggerAgent::setBlackboxConfiguration(JSC::SourceID sourceID, co
     for (const auto& [blackboxParameters, blackboxRanges] : m_blackboxedURLs) {
         const auto& [url, caseSensitive, isRegex] = blackboxParameters;
 
-        auto searchStringType = isRegex ? ContentSearchUtilities::SearchStringType::Regex : ContentSearchUtilities::SearchStringType::ExactString;
-        auto regex = ContentSearchUtilities::createRegularExpressionForSearchString(url, caseSensitive, searchStringType);
-        if ((script.sourceURL.isEmpty() || regex.match(script.sourceURL) == -1) && (script.url.isEmpty() || regex.match(script.url) == -1))
+        auto searchType = isRegex ? ContentSearchUtilities::SearchType::Regex : ContentSearchUtilities::SearchType::ExactString;
+        auto searchCaseSensitive = caseSensitive ? ContentSearchUtilities::SearchCaseSensitive::Yes : ContentSearchUtilities::SearchCaseSensitive::No;
+        auto searcher = ContentSearchUtilities::createSearcherForString(url, searchType, searchCaseSensitive);
+        if ((script.sourceURL.isEmpty() || !ContentSearchUtilities::searcherMatchesText(searcher, script.sourceURL)) && (script.url.isEmpty() || !ContentSearchUtilities::searcherMatchesText(searcher, script.url)))
             continue;
 
         if (blackboxRanges.isEmpty()) {
@@ -1465,6 +1465,7 @@ void InspectorDebuggerAgent::didCreateNativeExecutable(JSC::NativeExecutable& na
     if (m_symbolicBreakpoints.isEmpty())
         return;
 
+    JSC::JSLockHolder apiLocker(vm);
     auto symbol = functionName(nativeExecutable);
     if (symbol.isEmpty())
         return;
@@ -1968,11 +1969,12 @@ bool InspectorDebuggerAgent::SymbolicBreakpoint::matches(const String& symbol)
     if (knownMatchingSymbols.contains(symbol))
         return true;
 
-    if (!m_symbolMatchRegex) {
-        auto searchStringType = isRegex ? ContentSearchUtilities::SearchStringType::Regex : ContentSearchUtilities::SearchStringType::ExactString;
-        m_symbolMatchRegex = ContentSearchUtilities::createRegularExpressionForSearchString(this->symbol, caseSensitive, searchStringType);
+    if (!m_symbolSearcher) {
+        auto searchType = isRegex ? ContentSearchUtilities::SearchType::Regex : ContentSearchUtilities::SearchType::ExactString;
+        auto searchCaseSensitive = caseSensitive ? ContentSearchUtilities::SearchCaseSensitive::Yes : ContentSearchUtilities::SearchCaseSensitive::No;
+        m_symbolSearcher = ContentSearchUtilities::createSearcherForString(this->symbol, searchType, searchCaseSensitive);
     }
-    if (m_symbolMatchRegex->match(symbol) == -1)
+    if (!ContentSearchUtilities::searcherMatchesText(*m_symbolSearcher, symbol))
         return false;
 
     knownMatchingSymbols.add(symbol);

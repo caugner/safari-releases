@@ -35,6 +35,7 @@
 #include "RemoteAudioSessionProxyManager.h"
 #include "RemoteAudioSessionProxyMessages.h"
 #include <WebCore/AudioSession.h>
+#include <WebCore/AVAudioSessionCaptureDeviceManager.h>
 #include <wtf/TZoneMalloc.h>
 
 #define MESSAGE_CHECK(assertion) MESSAGE_CHECK_BASE(assertion, protectedConnection().get())
@@ -46,7 +47,7 @@ using namespace WebCore;
 WTF_MAKE_TZONE_ALLOCATED_IMPL(RemoteAudioSessionProxy);
 
 RemoteAudioSessionProxy::RemoteAudioSessionProxy(GPUConnectionToWebProcess& gpuConnection)
-    : m_gpuConnection(gpuConnection)
+: m_gpuConnection(gpuConnection)
 {
 }
 
@@ -64,15 +65,16 @@ WebCore::ProcessIdentifier RemoteAudioSessionProxy::processIdentifier()
 
 RemoteAudioSessionConfiguration RemoteAudioSessionProxy::configuration()
 {
-    auto& session = protectedAudioSessionManager()->session();
+    Ref session = protectedAudioSessionManager()->session();
     return {
-        session.routingContextUID(),
-        session.sampleRate(),
-        session.bufferSize(),
-        session.numberOfOutputChannels(),
-        session.maximumNumberOfOutputChannels(),
-        session.preferredBufferSize(),
-        session.isMuted(),
+        session->routingContextUID(),
+        session->sampleRate(),
+        session->bufferSize(),
+        session->numberOfOutputChannels(),
+        session->maximumNumberOfOutputChannels(),
+        session->preferredBufferSize(),
+        session->outputLatency(),
+        session->isMuted(),
         m_active,
         m_sceneIdentifier,
         m_soundStageSize,
@@ -106,6 +108,11 @@ void RemoteAudioSessionProxy::tryToSetActive(bool active, SetActiveCompletion&& 
         m_active = active;
         if (m_active)
             m_isInterrupted = false;
+
+#if ENABLE(MEDIA_STREAM) && PLATFORM(IOS_FAMILY)
+        if (m_active)
+            AVAudioSessionCaptureDeviceManager::singleton().setPreferredSpeakerID(m_speakerID);
+#endif
     }
 
     completion(success);
@@ -120,7 +127,7 @@ void RemoteAudioSessionProxy::tryToSetActive(bool active, SetActiveCompletion&& 
 void RemoteAudioSessionProxy::setIsPlayingToBluetoothOverride(std::optional<bool>&& value)
 {
     m_isPlayingToBluetoothOverrideChanged = true;
-    protectedAudioSessionManager()->session().setIsPlayingToBluetoothOverride(WTFMove(value));
+    protectedAudioSessionManager()->protectedSession()->setIsPlayingToBluetoothOverride(WTFMove(value));
 }
 
 void RemoteAudioSessionProxy::configurationChanged()
@@ -164,14 +171,7 @@ void RemoteAudioSessionProxy::setSoundStageSize(AudioSession::SoundStageSize siz
 
 RemoteAudioSessionProxyManager& RemoteAudioSessionProxy::audioSessionManager()
 {
-    return m_gpuConnection.get()->gpuProcess().audioSessionManager();
-}
-
-bool RemoteAudioSessionProxy::allowTestOnlyIPC()
-{
-    if (auto connection = m_gpuConnection.get())
-        return connection->allowTestOnlyIPC();
-    return false;
+    return m_gpuConnection.get()->protectedGPUProcess()->audioSessionManager();
 }
 
 Ref<RemoteAudioSessionProxyManager> RemoteAudioSessionProxy::protectedAudioSessionManager()
@@ -186,15 +186,37 @@ Ref<IPC::Connection> RemoteAudioSessionProxy::protectedConnection() const
 
 void RemoteAudioSessionProxy::triggerBeginInterruptionForTesting()
 {
-    MESSAGE_CHECK(m_gpuConnection.get()->allowTestOnlyIPC());
-    AudioSession::sharedSession().beginInterruptionForTesting();
+    AudioSession::protectedSharedSession()->beginInterruptionForTesting();
 }
 
 void RemoteAudioSessionProxy::triggerEndInterruptionForTesting()
 {
-    MESSAGE_CHECK(m_gpuConnection.get()->allowTestOnlyIPC());
-    AudioSession::sharedSession().endInterruptionForTesting();
+    AudioSession::protectedSharedSession()->endInterruptionForTesting();
 }
+
+std::optional<SharedPreferencesForWebProcess> RemoteAudioSessionProxy::sharedPreferencesForWebProcess() const
+{
+    if (RefPtr gpuConnectionToWebProcess = m_gpuConnection.get())
+        return gpuConnectionToWebProcess->sharedPreferencesForWebProcess();
+
+    return std::nullopt;
+}
+
+#if PLATFORM(IOS_FAMILY)
+void RemoteAudioSessionProxy::setPreferredSpeakerID(const String& speakerID)
+{
+    if (m_speakerID == speakerID)
+        return;
+    
+    m_speakerID = speakerID;
+    if (!m_active)
+        return;
+
+#if ENABLE(MEDIA_STREAM)
+    AVAudioSessionCaptureDeviceManager::singleton().setPreferredSpeakerID(m_speakerID);
+#endif
+}
+#endif
 
 } // namespace WebKit
 

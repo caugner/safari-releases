@@ -8,15 +8,20 @@
 // This test checks that if the user right clicks on selected text,
 // the selected text doesn't change or get deselected.
 var input = document.getElementById("text");
+input.focus();
 input.selectionStart = 5;
 input.selectionEnd = 15;
 
-if (window.testRunner) {
-    var x, y;
-    x = input.offsetParent.offsetLeft + input.offsetLeft + input.offsetWidth / 2;
-    y = input.offsetParent.offsetTop + input.offsetTop + input.offsetHeight / 2;
-    eventSender.mouseMoveTo(x, y);
-    eventSender.contextClick();
-}
+onload = async () => {
+    if (window.testRunner) {
+        testRunner.waitUntilDone();
+        var x, y;
+        x = input.offsetParent.offsetLeft + input.offsetLeft + input.offsetWidth / 2;
+        y = input.offsetParent.offsetTop + input.offsetTop + input.offsetHeight / 2;
+        await eventSender.asyncMouseMoveTo(x, y);
+        eventSender.contextClick();
+        testRunner.notifyDone();
+    }
+} 
 
 </script>

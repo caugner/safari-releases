@@ -30,8 +30,9 @@ DMA_BUF_TARGET = "//src/libANGLE/renderer/vulkan:angle_android_vulkan_dma_buf"
 
 BLUEPRINT_COMMENT_PROPERTY = '__android_bp_comment'
 
+CURRENT_SDK_VERSION = 'current'
 MIN_SDK_VERSION = '28'
-TARGET_SDK_VERSION = '33'
+TARGET_SDK_VERSION = '35'
 STL = 'libc++_static'
 
 ABI_ARM = 'arm'
@@ -82,6 +83,8 @@ def write_blueprint_key_value(output, name, value, indent=1):
 
     if isinstance(value, set) or isinstance(value, list):
         value = list(sorted(set(value)))
+        if name == 'cflags':
+            fix_fortify_source_cflags(value)
 
     if isinstance(value, list):
         output.append(tabs(indent) + '%s: [' % name)
@@ -309,9 +312,9 @@ def gn_deps_to_blueprint_deps(abi, target, build_info):
             shared_libs.append('libz')
             static_libs.extend(['zlib_google_compression_utils_portable', 'cpufeatures'])
         elif dep == '//testing/gtest:gtest':
-            static_libs.append('libgtest')
+            static_libs.append('libgtest_ndk_c++')
         elif dep == '//testing/gmock:gmock':
-            static_libs.append('libgmock')
+            static_libs.append('libgmock_ndk')
 
     return static_libs, shared_libs, defaults, generated_headers, header_libs
 
@@ -430,6 +433,8 @@ def library_target_to_blueprint(target, build_info):
         bp['cflags'] = gn_cflags_to_blueprint_cflags(target_info)
 
         bp['defaults'].append('angle_common_library_cflags')
+
+        bp['sdk_version'] = CURRENT_SDK_VERSION
 
         bp['stl'] = STL
         if target in ROOT_TARGETS:
@@ -569,6 +574,8 @@ def action_target_to_blueprint(abi, target, build_info):
 
     bp['cmd'] = ' '.join(cmd)
 
+    bp['sdk_version'] = CURRENT_SDK_VERSION
+
     return blueprint_type, bp
 
 
@@ -689,6 +696,7 @@ def get_blueprint_targets_from_build_info(build_info: BuildInfo) -> List[Tuple[s
     targets_to_write = collections.OrderedDict()
     for abi in ABI_TARGETS:
         for root_target in ROOT_TARGETS + [END2END_TEST_TARGET, DMA_BUF_TARGET]:
+
             targets_to_write.update(get_gn_target_dependencies(abi, root_target, build_info))
 
     generated_targets = []
@@ -704,6 +712,44 @@ def get_blueprint_targets_from_build_info(build_info: BuildInfo) -> List[Tuple[s
         generated_targets.append(gn_target_to_blueprint(target, build_info))
 
     return generated_targets
+
+
+def handle_angle_non_conformant_extensions_and_versions(
+    generated_targets: List[Tuple[str, dict]],
+    blueprint_targets: List[dict],
+):
+    """Replace the non conformant cflags with a separate cc_defaults.
+
+    The downstream can custom the cflags easier.
+    """
+    non_conform_cflag = '-DANGLE_EXPOSE_NON_CONFORMANT_EXTENSIONS_AND_VERSIONS'
+    non_conform_defaults = 'angle_non_conformant_extensions_and_versions_cflags'
+
+    blueprint_targets.append(('cc_defaults', {
+        'name': non_conform_defaults,
+        'cflags': [non_conform_cflag],
+    }))
+
+    for _, bp in generated_targets:
+        if 'cflags' in bp and non_conform_cflag in bp['cflags']:
+            bp['cflags'] = list(set(bp['cflags']) - {non_conform_cflag})
+            bp['defaults'].append(non_conform_defaults)
+
+
+def fix_fortify_source_cflags(cflags):
+    # search if there is any cflag starts with '-D_FORTIFY_SOURCE'
+    d_fortify_source_flag = [cflag for cflag in cflags if '-D_FORTIFY_SOURCE' in cflag]
+    # Insert -U_FORTIFY_SOURCE before the first -D_FORTIFY_SOURCE flag.
+    # In case a default mode for FORTIFY_SOURCE is predefined for a compiler,
+    # and the -D_FORTIFY_SOURCE mode we set is different from the default mode,
+    # the compiler will warn about "redefining FORTIFY_SOURCE macro".
+    # To fix this compiler warning, we unset the default mode with
+    # -U_FORTIFY_SOURCE before setting the desired FORTIFY_SOURCE mode in our
+    # cflags.
+    # reference:
+    # https://best.openssf.org/Compiler-Hardening-Guides/Compiler-Options-Hardening-Guide-for-C-and-C++#tldr-what-compiler-options-should-i-use
+    if d_fortify_source_flag:
+        cflags.insert(cflags.index(d_fortify_source_flag[0]), '-U_FORTIFY_SOURCE')
 
 
 def main():
@@ -751,6 +797,10 @@ def main():
         }))
 
     generated_targets = get_blueprint_targets_from_build_info(build_info)
+
+    # Will modify generated_targets and blueprint_targets in-place to handle the
+    # angle_expose_non_conformant_extensions_and_versions gn argument.
+    handle_angle_non_conformant_extensions_and_versions(generated_targets, blueprint_targets)
 
     # Move cflags that are repeated in each target to cc_defaults
     all_cflags = [set(bp['cflags']) for _, bp in generated_targets if 'cflags' in bp]

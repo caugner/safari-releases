@@ -59,6 +59,8 @@ public:
 
     WEBCORE_EXPORT bool supportsOutput() const;
 
+    bool usesExtendedRange() const;
+
 private:
     PlatformColorSpace m_platformColorSpace;
 };

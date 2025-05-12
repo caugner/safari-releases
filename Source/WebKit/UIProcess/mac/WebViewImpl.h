@@ -43,6 +43,7 @@
 #include <WebKit/WKDragDestinationAction.h>
 #include <WebKit/_WKOverlayScrollbarStyle.h>
 #include <pal/spi/cocoa/AVKitSPI.h>
+#include <pal/spi/cocoa/WritingToolsSPI.h>
 #include <wtf/BlockPtr.h>
 #include <wtf/CheckedPtr.h>
 #include <wtf/CompletionHandler.h>
@@ -166,6 +167,10 @@ enum class ReplacementBehavior : uint8_t;
 - (void)_didHandleAcceptedCandidate;
 - (void)_didUpdateCandidateListVisibility:(BOOL)visible;
 
+- (BOOL)_web_hasActiveIntelligenceTextEffects;
+- (void)_web_suppressContentRelativeChildViews;
+- (void)_web_restoreContentRelativeChildViews;
+
 @end
 
 namespace WebCore {
@@ -252,7 +257,7 @@ public:
     void setFixedLayoutSize(CGSize);
     CGSize fixedLayoutSize() const;
 
-    std::unique_ptr<DrawingAreaProxy> createDrawingAreaProxy(WebProcessProxy&);
+    Ref<DrawingAreaProxy> createDrawingAreaProxy(WebProcessProxy&);
     bool isUsingUISideCompositing() const;
     void setDrawingAreaSize(CGSize);
     void updateLayer();
@@ -263,10 +268,11 @@ public:
     NSPrintOperation *printOperationWithPrintInfo(NSPrintInfo *, WebFrameProxy&);
 
     void setAutomaticallyAdjustsContentInsets(bool);
-    bool automaticallyAdjustsContentInsets() const { return m_automaticallyAdjustsContentInsets; }
+    bool automaticallyAdjustsContentInsets() const;
     void updateContentInsetsIfAutomatic();
     void setTopContentInset(CGFloat);
     CGFloat topContentInset() const;
+    void flushPendingTopContentInset();
 
     void prepareContentInRect(CGRect);
     void updateViewExposedRect();
@@ -459,7 +465,6 @@ public:
     void cancelImmediateActionAnimation();
     void completeImmediateActionAnimation();
     void didChangeContentSize(CGSize);
-    void didHandleAcceptedCandidate();
     void videoControlsManagerDidChange();
 
     void setIgnoresNonWheelEvents(bool);
@@ -484,9 +489,9 @@ public:
 
     NSTrackingRectTag addTrackingRect(CGRect, id owner, void* userData, bool assumeInside);
     NSTrackingRectTag addTrackingRectWithTrackingNum(CGRect, id owner, void* userData, bool assumeInside, int tag);
-    void addTrackingRectsWithTrackingNums(CGRect*, id owner, void** userDataList, bool assumeInside, NSTrackingRectTag *trackingNums, int count);
+    void addTrackingRectsWithTrackingNums(Vector<CGRect>, id owner, void** userDataList, bool assumeInside, NSTrackingRectTag *trackingNums);
     void removeTrackingRect(NSTrackingRectTag);
-    void removeTrackingRects(NSTrackingRectTag *, int count);
+    void removeTrackingRects(std::span<NSTrackingRectTag>);
     NSString *stringForToolTip(NSToolTipTag tag);
     void toolTipChanged(const String& oldToolTip, const String& newToolTip);
 
@@ -620,6 +625,7 @@ public:
 
     void createFlagsChangedEventMonitor();
     void removeFlagsChangedEventMonitor();
+    bool hasFlagsChangedEventMonitor();
 
     void mouseMoved(NSEvent *);
     void mouseDown(NSEvent *);
@@ -694,9 +700,6 @@ public:
 
     bool beginBackSwipeForTesting();
     bool completeBackSwipeForTesting();
-    
-    void setUseSystemAppearance(bool);
-    bool useSystemAppearance();
 
     bool useFormSemanticContext() const;
     void semanticContextDidChange();
@@ -744,7 +747,7 @@ public:
 #endif
 
 #if ENABLE(WRITING_TOOLS)
-    void showWritingTools();
+    void showWritingTools(WTRequestedTool = WTRequestedToolIndex);
 
     void addTextAnimationForAnimationID(WTF::UUID, const WebCore::TextAnimationData&);
     void removeTextAnimationForAnimationID(WTF::UUID);
@@ -766,8 +769,10 @@ private:
     bool isRichlyEditableForTouchBar() const;
 
 #if ENABLE(IMAGE_ANALYSIS_ENHANCEMENTS)
-    void installImageAnalysisOverlayView(VKCImageAnalysis *);
+    void installImageAnalysisOverlayView(RetainPtr<VKCImageAnalysis>&&);
     void uninstallImageAnalysisOverlayView();
+    void performOrDeferImageAnalysisOverlayViewHierarchyTask(std::function<void()>&&);
+    void fulfillDeferredImageAnalysisOverlayViewHierarchyTask();
 #endif
 
     bool hasContentRelativeChildViews() const;
@@ -800,9 +805,6 @@ private:
 
     bool supportsArbitraryLayoutModes() const;
     float intrinsicDeviceScaleFactor() const;
-
-    void scheduleSetTopContentInsetDispatch();
-    void dispatchSetTopContentInset();
 
     void sendToolTipMouseExited();
     void sendToolTipMouseEntered();
@@ -853,7 +855,7 @@ private:
 
 #if ENABLE(IMAGE_ANALYSIS)
     CocoaImageAnalyzer *ensureImageAnalyzer();
-    int32_t processImageAnalyzerRequest(CocoaImageAnalyzerRequest *, CompletionHandler<void(CocoaImageAnalysis *, NSError *)>&&);
+    int32_t processImageAnalyzerRequest(CocoaImageAnalyzerRequest *, CompletionHandler<void(RetainPtr<CocoaImageAnalysis>&&, NSError *)>&&);
 #endif
 
     std::optional<EditorState::PostLayoutData> postLayoutDataForContentEditable();
@@ -875,10 +877,6 @@ private:
     bool m_didScheduleWindowAndViewFrameUpdate { false };
     bool m_windowOcclusionDetectionEnabled { true };
 
-    bool m_automaticallyAdjustsContentInsets { false };
-    std::optional<CGFloat> m_pendingTopContentInset;
-    bool m_didScheduleSetTopContentInsetDispatch { false };
-    
     CGSize m_scrollOffsetAdjustment { 0, 0 };
 
     CGSize m_intrinsicContentSize { 0, 0 };
@@ -954,7 +952,7 @@ ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     RetainPtr<WKBrowsingContextController> m_browsingContextController;
 ALLOW_DEPRECATED_DECLARATIONS_END
 
-    std::unique_ptr<ViewGestureController> m_gestureController;
+    RefPtr<ViewGestureController> m_gestureController;
     bool m_allowsBackForwardNavigationGestures { false };
     bool m_allowsMagnification { false };
 
@@ -1019,6 +1017,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     RetainPtr<WKImageAnalysisOverlayViewDelegate> m_imageAnalysisOverlayViewDelegate;
     uint32_t m_currentImageAnalysisRequestID { 0 };
     WebCore::FloatRect m_imageAnalysisInteractionBounds;
+    std::function<void()> m_imageAnalysisOverlayViewHierarchyDeferredTask;
 #endif
 
 #if HAVE(TRANSLATION_UI_SERVICES) && ENABLE(CONTEXT_MENUS)

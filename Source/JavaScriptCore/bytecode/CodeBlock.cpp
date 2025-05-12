@@ -91,6 +91,8 @@
 #include "FTLJITCode.h"
 #endif
 
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
+
 namespace JSC {
 
 DEFINE_ALLOCATOR_WITH_HEAP_IDENTIFIER(CodeBlockRareData);
@@ -210,7 +212,7 @@ void CodeBlock::dumpSource(PrintStream& out)
 {
     ScriptExecutable* executable = ownerExecutable();
     if (executable->isFunctionExecutable()) {
-        FunctionExecutable* functionExecutable = reinterpret_cast<FunctionExecutable*>(executable);
+        auto functionExecutable = static_cast<FunctionExecutable*>(executable);
         StringView source = functionExecutable->source().provider()->getRange(
             functionExecutable->parametersStartOffset(),
             functionExecutable->functionEnd() + 1); // Type profiling end offset is the character before the '}'.
@@ -315,8 +317,6 @@ CodeBlock::CodeBlock(VM& vm, Structure* structure, CopyParsedBlockTag, CodeBlock
 void CodeBlock::finishCreation(VM& vm, CopyParsedBlockTag, CodeBlock& other)
 {
     Base::finishCreation(vm);
-
-    optimizeAfterWarmUp();
 
     if (other.m_rareData) {
         createRareDataIfNecessary();
@@ -436,7 +436,7 @@ bool CodeBlock::finishCreation(VM& vm, ScriptExecutable* ownerExecutable, Unlink
     }
 
     // Bookkeep the strongly referenced module environments.
-    HashSet<JSModuleEnvironment*> stronglyReferencedModuleEnvironments;
+    UncheckedKeyHashSet<JSModuleEnvironment*> stronglyReferencedModuleEnvironments;
 
     auto link_objectAllocationProfile = [&](const auto& /*instruction*/, auto bytecode, auto& metadata) {
         metadata.m_objectAllocationProfile.initializeProfile(vm, m_globalObject.get(), this, m_globalObject->objectPrototype(), bytecode.m_inlineCapacity);
@@ -740,11 +740,6 @@ bool CodeBlock::finishCreation(VM& vm, ScriptExecutable* ownerExecutable, Unlink
     if (m_unlinkedCode->wasCompiledWithControlFlowProfilerOpcodes())
         insertBasicBlockBoundariesForControlFlowProfiler();
 
-    // Set optimization thresholds only after instructions is initialized, since these
-    // rely on the instruction count (and are in theory permitted to also inspect the
-    // instruction stream to more accurate assess the cost of tier-up).
-    optimizeAfterWarmUp();
-
     // If the concurrent thread will want the code block's hash, then compute it here
     // synchronously.
     if (Options::alwaysComputeHash())
@@ -790,18 +785,23 @@ void CodeBlock::setupWithUnlinkedBaselineCode(Ref<BaselineJITCode> jitCode)
             auto entry = jitCode->m_constantPool.at(i);
             switch (entry.type()) {
             case JITConstantPool::Type::FunctionDecl: {
-                unsigned index = bitwise_cast<uintptr_t>(entry.pointer());
+                unsigned index = std::bit_cast<uintptr_t>(entry.pointer());
                 baselineJITData->trailingSpan()[i] = functionDecl(index);
                 break;
             }
             case JITConstantPool::Type::FunctionExpr: {
-                unsigned index = bitwise_cast<uintptr_t>(entry.pointer());
+                unsigned index = std::bit_cast<uintptr_t>(entry.pointer());
                 baselineJITData->trailingSpan()[i] = functionExpr(index);
                 break;
             }
             }
         }
         setBaselineJITData(WTFMove(baselineJITData));
+
+        // Set optimization thresholds only after instructions is initialized and JITData is initialized, since these
+        // rely on the instruction count (and are in theory permitted to also inspect the instruction stream to more accurate assess the cost of tier-up).
+        // And the data is stored in JITData.
+        optimizeAfterWarmUp();
     }
 
     switch (codeType()) {
@@ -1388,6 +1388,11 @@ void CodeBlock::finalizeLLIntInlineCaches()
             clearIfNeeded(metadata.m_valueModeMetadata, "iterator next"_s);
         });
 
+        m_metadata->forEach<OpInstanceof>([&] (auto& metadata) {
+            clearIfNeeded(metadata.m_hasInstanceModeMetadata, "instanceof"_s);
+            clearIfNeeded(metadata.m_prototypeModeMetadata, "instanceof"_s);
+        });
+
         m_metadata->forEach<OpGetById>([&] (auto& metadata) {
             clearIfNeeded(metadata.m_modeMetadata, "get by id"_s);
         });
@@ -1585,6 +1590,13 @@ void CodeBlock::finalizeLLIntInlineCaches()
                 LLIntPrototypeLoadAdaptiveStructureWatchpoint::clearLLIntGetByIdCache(metadata.m_valueModeMetadata);
                 break;
             }
+            case op_instanceof: {
+                dataLogLnIf(Options::verboseOSR(), "Clearing LLInt instanceof property access.");
+                auto& metadata = instruction->as<OpInstanceof>().metadata(this);
+                LLIntPrototypeLoadAdaptiveStructureWatchpoint::clearLLIntGetByIdCache(metadata.m_hasInstanceModeMetadata);
+                LLIntPrototypeLoadAdaptiveStructureWatchpoint::clearLLIntGetByIdCache(metadata.m_prototypeModeMetadata);
+                break;
+            }
             default:
                 break;
             }
@@ -1674,11 +1686,15 @@ void CodeBlock::finalizeUnconditionally(VM& vm, CollectionScope)
             count = m_unlinkedCode->llintExecuteCounter().count();
             break;
         case JITType::BaselineJIT:
-            count = m_jitExecuteCounter.count();
+#if ENABLE(JIT)
+            if (auto* jitData = baselineJITData())
+                count = jitData->executeCounter().count();
+#endif
             break;
         case JITType::DFGJIT:
 #if ENABLE(FTL_JIT)
-            count = static_cast<DFG::JITCode*>(jitCode)->tierUpCounter.count();
+            if (auto* jitData = dfgJITData())
+                count = jitData->tierUpCounter().count();
 #else
             alwaysActive = true;
 #endif
@@ -2153,6 +2169,15 @@ void CodeBlock::jettison(Profiler::JettisonReason reason, ReoptimizationMode mod
     CODEBLOCK_LOG_EVENT(codeBlock, "jettison", ("due to ", reason, ", counting = ", mode == CountReoptimization, ", detail = ", pointerDump(detail)));
 
     RELEASE_ASSERT(reason != Profiler::NotJettisoned);
+
+#if ENABLE(JIT)
+    ConcurrentJSLocker locker(m_lock);
+    forEachStructureStubInfo([&](StructureStubInfo& stubInfo) {
+        stubInfo.reset(locker, this);
+        return IterationStatus::Continue;
+    });
+#endif
+
     
 #if ENABLE(DFG_JIT)
     if (DFG::shouldDumpDisassembly()) {
@@ -2424,6 +2449,14 @@ unsigned CodeBlock::numberOfDFGCompiles()
     return ((replacement && JSC::JITCode::isOptimizingJIT(replacement->jitType())) ? 1 : 0) + m_reoptimizationRetryCounter;
 }
 
+const BaselineExecutionCounter& CodeBlock::baselineExecuteCounter()
+{
+    if (auto* jitData = baselineJITData())
+        return jitData->executeCounter();
+    static BaselineExecutionCounter dummy { };
+    return dummy;
+}
+
 int32_t CodeBlock::codeTypeThresholdMultiplier() const
 {
     if (codeType() == EvalCode)
@@ -2533,34 +2566,38 @@ bool CodeBlock::checkIfOptimizationThresholdReached()
 {
 #if ENABLE(DFG_JIT)
     if (JITWorklist* worklist = JITWorklist::existingGlobalWorklistOrNull()) {
-        if (worklist->compilationState(JITCompilationKey(this, JITCompilationMode::DFG)) == JITWorklist::Compiled) {
+        if (worklist->compilationState(*m_vm, JITCompilationKey(this, JITCompilationMode::DFG)) == JITWorklist::Compiled) {
             optimizeNextInvocation();
             return true;
         }
     }
 #endif
-    
-    return m_jitExecuteCounter.checkIfThresholdCrossedAndSet(this);
+
+    if (auto* jitData = baselineJITData())
+        return jitData->executeCounter().checkIfThresholdCrossedAndSet(this);
+    return false;
 }
 
 void CodeBlock::optimizeNextInvocation()
 {
     dataLogLnIf(Options::verboseOSR(), *this, ": Optimizing next invocation.");
-    m_jitExecuteCounter.setNewThreshold(0, this);
+    if (auto* jitData = baselineJITData())
+        jitData->executeCounter().setNewThreshold(0, this);
 }
 
 void CodeBlock::dontOptimizeAnytimeSoon()
 {
     dataLogLnIf(Options::verboseOSR(), *this, ": Not optimizing anytime soon.");
-    m_jitExecuteCounter.deferIndefinitely();
+    if (auto* jitData = baselineJITData())
+        jitData->executeCounter().deferIndefinitely();
 }
 
 void CodeBlock::optimizeAfterWarmUp()
 {
     dataLogLnIf(Options::verboseOSR(), *this, ": Optimizing after warm-up.");
 #if ENABLE(DFG_JIT)
-    m_jitExecuteCounter.setNewThreshold(
-        adjustedCounterValue(Options::thresholdForOptimizeAfterWarmUp()), this);
+    if (auto* jitData = baselineJITData())
+        jitData->executeCounter().setNewThreshold(adjustedCounterValue(Options::thresholdForOptimizeAfterWarmUp()), this);
 #endif
 }
 
@@ -2568,8 +2605,8 @@ void CodeBlock::optimizeAfterLongWarmUp()
 {
     dataLogLnIf(Options::verboseOSR(), *this, ": Optimizing after long warm-up.");
 #if ENABLE(DFG_JIT)
-    m_jitExecuteCounter.setNewThreshold(
-        adjustedCounterValue(Options::thresholdForOptimizeAfterLongWarmUp()), this);
+    if (auto* jitData = baselineJITData())
+        jitData->executeCounter().setNewThreshold(adjustedCounterValue(Options::thresholdForOptimizeAfterLongWarmUp()), this);
 #endif
 }
 
@@ -2577,15 +2614,16 @@ void CodeBlock::optimizeSoon()
 {
     dataLogLnIf(Options::verboseOSR(), *this, ": Optimizing soon.");
 #if ENABLE(DFG_JIT)
-    m_jitExecuteCounter.setNewThreshold(
-        adjustedCounterValue(Options::thresholdForOptimizeSoon()), this);
+    if (auto* jitData = baselineJITData())
+        jitData->executeCounter().setNewThreshold(adjustedCounterValue(Options::thresholdForOptimizeSoon()), this);
 #endif
 }
 
 void CodeBlock::forceOptimizationSlowPathConcurrently()
 {
     dataLogLnIf(Options::verboseOSR(), *this, ": Forcing slow path concurrently.");
-    m_jitExecuteCounter.forceSlowPathConcurrently();
+    if (auto* jitData = baselineJITData())
+        jitData->executeCounter().forceSlowPathConcurrently();
 }
 
 #if ENABLE(DFG_JIT)
@@ -2594,7 +2632,7 @@ void CodeBlock::setOptimizationThresholdBasedOnCompilationResult(CompilationResu
     JITType type = jitType();
     if (type != JITType::BaselineJIT) {
         dataLogLn(*this, ": expected to have baseline code but have ", type);
-        CRASH_WITH_INFO(bitwise_cast<uintptr_t>(jitCode().get()), static_cast<uint8_t>(type));
+        CRASH_WITH_INFO(std::bit_cast<uintptr_t>(jitCode().get()), static_cast<uint8_t>(type));
     }
     
     CodeBlock* replacement = this->replacement();
@@ -2737,7 +2775,7 @@ bool CodeBlock::hasIdentifier(UniquedStringImpl* uid)
         if (m_cachedIdentifierUids.size() != numberOfIdentifiers) {
             Locker locker(m_cachedIdentifierUidsLock);
             createRareDataIfNecessary();
-            HashSet<UniquedStringImpl*> cachedIdentifierUids;
+            UncheckedKeyHashSet<UniquedStringImpl*> cachedIdentifierUids;
             cachedIdentifierUids.reserveInitialCapacity(numberOfIdentifiers);
             for (unsigned index = 0; index < unlinkedIdentifiers; ++index) {
                 const Identifier& identifier = unlinkedCode->identifier(index);
@@ -3119,6 +3157,8 @@ ValueProfile* CodeBlock::tryGetValueProfileForBytecodeIndex(BytecodeIndex byteco
         return &m_metadata->valueProfilesEnd()[-static_cast<ptrdiff_t>(valueProfileOffsetFor(instruction->as<OpIteratorOpen>(), bytecodeIndex.checkpoint()))];
     case op_iterator_next:
         return &m_metadata->valueProfilesEnd()[-static_cast<ptrdiff_t>(valueProfileOffsetFor(instruction->as<OpIteratorNext>(), bytecodeIndex.checkpoint()))];
+    case op_instanceof:
+        return &m_metadata->valueProfilesEnd()[-static_cast<ptrdiff_t>(valueProfileOffsetFor(instruction->as<OpInstanceof>(), bytecodeIndex.checkpoint()))];
 
     default:
         return nullptr;
@@ -3449,6 +3489,17 @@ CodePtr<JSEntryPtrTag> CodeBlock::addressForCallConcurrently(const ConcurrentJSL
     return m_jitCode->addressForCall(arityCheck);
 }
 
+unsigned CodeBlock::bytecodeCost() const
+{
+#if ENABLE(FTL_JIT)
+    if (jitType() == JITType::FTLJIT) {
+        if (auto* jitCode = static_cast<FTL::JITCode*>(m_jitCode.get()))
+            return std::min(static_cast<unsigned>(jitCode->numberOfCompiledDFGNodes() * Options::ratioFTLNodesToBytecodeCost()), m_bytecodeCost);
+    }
+#endif
+    return m_bytecodeCost;
+}
+
 bool CodeBlock::hasInstalledVMTrapsBreakpoints() const
 {
 #if ENABLE(SIGNAL_BASED_VM_TRAPS)
@@ -3552,3 +3603,5 @@ void printInternal(PrintStream& out, JSC::CodeBlock* codeBlock)
 }
     
 } // namespace WTF
+
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_END

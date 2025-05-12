@@ -32,8 +32,10 @@
 
 #import "CocoaHelpers.h"
 #import "CocoaImage.h"
+#import "WKNSError.h"
 #import "WKWebExtensionMatchPatternInternal.h"
 #import "WebExtension.h"
+#import <wtf/cocoa/VectorCocoa.h>
 
 NSErrorDomain const WKWebExtensionErrorDomain = @"WKWebExtensionErrorDomain";
 
@@ -51,11 +53,11 @@ WK_OBJECT_DEALLOC_IMPL_ON_MAIN_THREAD(WKWebExtension, WebExtension, _webExtensio
     // Use an async dispatch in the meantime to prevent clients from expecting synchronous results.
 
     dispatch_async(dispatch_get_main_queue(), ^{
-        NSError * __autoreleasing error;
-        Ref result = WebKit::WebExtension::create(appExtensionBundle, &error);
+        RefPtr<API::Error> error;
+        Ref result = WebKit::WebExtension::create(appExtensionBundle, nil, error);
 
         if (error) {
-            completionHandler(nil, error);
+            completionHandler(nil, wrapper(error));
             return;
         }
 
@@ -66,18 +68,17 @@ WK_OBJECT_DEALLOC_IMPL_ON_MAIN_THREAD(WKWebExtension, WebExtension, _webExtensio
 + (void)extensionWithResourceBaseURL:(NSURL *)resourceBaseURL completionHandler:(void (^)(WKWebExtension *extension, NSError *error))completionHandler
 {
     NSParameterAssert([resourceBaseURL isKindOfClass:NSURL.class]);
-    NSParameterAssert([resourceBaseURL isFileURL]);
-    NSParameterAssert([resourceBaseURL hasDirectoryPath]);
+    NSParameterAssert(resourceBaseURL.isFileURL);
 
     // FIXME: <https://webkit.org/b/276194> Make the WebExtension class load data on a background thread.
     // Use an async dispatch in the meantime to prevent clients from expecting synchronous results.
 
     dispatch_async(dispatch_get_main_queue(), ^{
-        NSError * __autoreleasing error;
-        Ref result = WebKit::WebExtension::create(resourceBaseURL, &error);
+        RefPtr<API::Error> error;
+        Ref result = WebKit::WebExtension::create(nil, resourceBaseURL, error);
 
         if (error) {
-            completionHandler(nil, error);
+            completionHandler(nil, wrapper(error));
             return;
         }
 
@@ -85,45 +86,57 @@ WK_OBJECT_DEALLOC_IMPL_ON_MAIN_THREAD(WKWebExtension, WebExtension, _webExtensio
     });
 }
 
-// FIXME: Remove after Safari has adopted new methods.
-- (instancetype)initWithAppExtensionBundle:(NSBundle *)appExtensionBundle error:(NSError **)error
-{
-    return [self _initWithAppExtensionBundle:appExtensionBundle error:error];
-}
-
 - (instancetype)_initWithAppExtensionBundle:(NSBundle *)appExtensionBundle error:(NSError **)error
 {
-    NSParameterAssert([appExtensionBundle isKindOfClass:NSBundle.class]);
-
-    if (error)
-        *error = nil;
-
-    if (!(self = [super init]))
-        return nil;
-
-    NSError * __autoreleasing internalError;
-    API::Object::constructInWrapper<WebKit::WebExtension>(self, appExtensionBundle, &internalError);
-
-    if (internalError) {
-        if (error)
-            *error = internalError;
-        return nil;
-    }
-
-    return self;
-}
-
-// FIXME: Remove after Safari has adopted new methods.
-- (instancetype)initWithResourceBaseURL:(NSURL *)resourceBaseURL error:(NSError **)error
-{
-    return [self _initWithResourceBaseURL:resourceBaseURL error:error];
+    return [self initWithAppExtensionBundle:appExtensionBundle resourceBaseURL:nil error:error];
 }
 
 - (instancetype)_initWithResourceBaseURL:(NSURL *)resourceBaseURL error:(NSError **)error
 {
-    NSParameterAssert([resourceBaseURL isKindOfClass:NSURL.class]);
-    NSParameterAssert([resourceBaseURL isFileURL]);
-    NSParameterAssert([resourceBaseURL hasDirectoryPath]);
+    return [self initWithAppExtensionBundle:nil resourceBaseURL:resourceBaseURL error:error];
+}
+
+- (instancetype)_initWithAppExtensionBundle:(NSBundle *)appExtensionBundle resourceBaseURL:(NSURL *)resourceBaseURL error:(NSError **)error
+{
+    return [self initWithAppExtensionBundle:appExtensionBundle resourceBaseURL:resourceBaseURL error:error];
+}
+
+- (instancetype)_initWithManifestDictionary:(NSDictionary<NSString *, id> *)manifest
+{
+    return [self initWithManifestDictionary:manifest resources:nil];
+}
+
+- (instancetype)_initWithManifestDictionary:(NSDictionary<NSString *, id> *)manifest resources:(NSDictionary<NSString *, id> *)resources
+{
+    return [self initWithManifestDictionary:manifest resources:resources];
+}
+
+- (instancetype)_initWithResources:(NSDictionary<NSString *, id> *)resources
+{
+    return [self initWithResources:resources];
+}
+
+- (instancetype)initWithAppExtensionBundle:(NSBundle *)appExtensionBundle error:(NSError **)error
+{
+    return [self initWithAppExtensionBundle:appExtensionBundle resourceBaseURL:nil error:error];
+}
+
+- (instancetype)initWithResourceBaseURL:(NSURL *)resourceBaseURL error:(NSError **)error
+{
+    return [self initWithAppExtensionBundle:nil resourceBaseURL:resourceBaseURL error:error];
+}
+
+- (instancetype)initWithAppExtensionBundle:(nullable NSBundle *)appExtensionBundle resourceBaseURL:(nullable NSURL *)resourceBaseURL error:(NSError **)error
+{
+    NSParameterAssert(appExtensionBundle || resourceBaseURL);
+
+    if (appExtensionBundle)
+        NSParameterAssert([appExtensionBundle isKindOfClass:NSBundle.class]);
+
+    if (resourceBaseURL) {
+        NSParameterAssert([resourceBaseURL isKindOfClass:NSURL.class]);
+        NSParameterAssert(resourceBaseURL.isFileURL);
+    }
 
     if (error)
         *error = nil;
@@ -131,52 +144,52 @@ WK_OBJECT_DEALLOC_IMPL_ON_MAIN_THREAD(WKWebExtension, WebExtension, _webExtensio
     if (!(self = [super init]))
         return nil;
 
-    NSError * __autoreleasing internalError;
-    API::Object::constructInWrapper<WebKit::WebExtension>(self, resourceBaseURL, &internalError);
+    RefPtr<API::Error> internalError;
+    API::Object::constructInWrapper<WebKit::WebExtension>(self, appExtensionBundle, resourceBaseURL, internalError);
 
     if (internalError) {
         if (error)
-            *error = internalError;
+            *error = wrapper(internalError);
         return nil;
     }
 
     return self;
 }
 
-- (instancetype)_initWithManifestDictionary:(NSDictionary<NSString *, id> *)manifest
+- (instancetype)initWithManifestDictionary:(NSDictionary<NSString *, id> *)manifest
 {
     NSParameterAssert([manifest isKindOfClass:NSDictionary.class]);
 
-    return [self _initWithManifestDictionary:manifest resources:nil];
+    return [self initWithManifestDictionary:manifest resources:nil];
 }
 
-- (instancetype)_initWithManifestDictionary:(NSDictionary<NSString *, id> *)manifest resources:(NSDictionary<NSString *, id> *)resources
+- (instancetype)initWithManifestDictionary:(NSDictionary<NSString *, id> *)manifest resources:(NSDictionary<NSString *, id> *)resources
 {
     NSParameterAssert([manifest isKindOfClass:NSDictionary.class]);
 
     if (!(self = [super init]))
         return nil;
 
-    API::Object::constructInWrapper<WebKit::WebExtension>(self, manifest, resources);
+    API::Object::constructInWrapper<WebKit::WebExtension>(self, manifest, WebKit::toDataMap(resources));
 
     return self;
 }
 
-- (instancetype)_initWithResources:(NSDictionary<NSString *, id> *)resources
+- (instancetype)initWithResources:(NSDictionary<NSString *, id> *)resources
 {
     NSParameterAssert([resources isKindOfClass:NSDictionary.class]);
 
     if (!(self = [super init]))
         return nil;
 
-    API::Object::constructInWrapper<WebKit::WebExtension>(self, resources);
+    API::Object::constructInWrapper<WebKit::WebExtension>(self, WebKit::toDataMap(resources));
 
     return self;
 }
 
 - (NSDictionary<NSString *, id> *)manifest
 {
-    return self._protectedWebExtension->manifest();
+    return self._protectedWebExtension->manifestDictionary();
 }
 
 - (double)manifestVersion
@@ -191,7 +204,9 @@ WK_OBJECT_DEALLOC_IMPL_ON_MAIN_THREAD(WKWebExtension, WebExtension, _webExtensio
 
 - (NSLocale *)defaultLocale
 {
-    return self._protectedWebExtension->defaultLocale();
+    if (auto *defaultLocale = nsStringNilIfEmpty(self._protectedWebExtension->defaultLocale()))
+        return [NSLocale localeWithLocaleIdentifier:defaultLocale];
+    return nil;
 }
 
 - (NSString *)displayName
@@ -216,7 +231,7 @@ WK_OBJECT_DEALLOC_IMPL_ON_MAIN_THREAD(WKWebExtension, WebExtension, _webExtensio
 
 - (NSString *)displayActionLabel
 {
-    return self._protectedWebExtension->displayActionLabel();
+    return nsStringNilIfEmpty(self._protectedWebExtension->displayActionLabel());
 }
 
 - (NSString *)version
@@ -226,12 +241,12 @@ WK_OBJECT_DEALLOC_IMPL_ON_MAIN_THREAD(WKWebExtension, WebExtension, _webExtensio
 
 - (CocoaImage *)iconForSize:(CGSize)size
 {
-    return self._protectedWebExtension->icon(size);
+    return WebKit::toCocoaImage(self._protectedWebExtension->icon(WebCore::FloatSize(size)));
 }
 
 - (CocoaImage *)actionIconForSize:(CGSize)size
 {
-    return self._protectedWebExtension->actionIcon(size);
+    return WebKit::toCocoaImage(self._protectedWebExtension->actionIcon(WebCore::FloatSize(size)));
 }
 
 - (NSSet<WKWebExtensionPermission> *)requestedPermissions
@@ -261,7 +276,9 @@ WK_OBJECT_DEALLOC_IMPL_ON_MAIN_THREAD(WKWebExtension, WebExtension, _webExtensio
 
 - (NSArray<NSError *> *)errors
 {
-    return self._protectedWebExtension->errors();
+    return createNSArray(self._protectedWebExtension->errors(), [](auto&& child) -> id {
+        return wrapper(child);
+    }).autorelease();
 }
 
 - (BOOL)hasBackgroundContent
@@ -350,41 +367,64 @@ WK_OBJECT_DEALLOC_IMPL_ON_MAIN_THREAD(WKWebExtension, WebExtension, _webExtensio
     completionHandler(nil, [NSError errorWithDomain:NSCocoaErrorDomain code:NSFeatureUnsupportedError userInfo:nil]);
 }
 
-- (instancetype)initWithAppExtensionBundle:(NSBundle *)bundle error:(NSError **)error
+- (instancetype)_initWithAppExtensionBundle:(NSBundle *)appExtensionBundle error:(NSError **)error
 {
-    return [self _initWithAppExtensionBundle:bundle error:error];
-}
-
-- (instancetype)_initWithAppExtensionBundle:(NSBundle *)bundle error:(NSError **)error
-{
-    if (error)
-        *error = [NSError errorWithDomain:NSCocoaErrorDomain code:NSFeatureUnsupportedError userInfo:nil];
-    return nil;
-}
-
-- (instancetype)initWithResourceBaseURL:(NSURL *)resourceBaseURL error:(NSError **)error
-{
-    return [self _initWithResourceBaseURL:resourceBaseURL error:error];
+    return [self initWithAppExtensionBundle:appExtensionBundle resourceBaseURL:nil error:error];
 }
 
 - (instancetype)_initWithResourceBaseURL:(NSURL *)resourceBaseURL error:(NSError **)error
 {
+    return [self initWithAppExtensionBundle:nil resourceBaseURL:resourceBaseURL error:error];
+}
+
+- (instancetype)_initWithAppExtensionBundle:(NSBundle *)appExtensionBundle resourceBaseURL:(NSURL *)resourceBaseURL error:(NSError **)error
+{
+    return [self initWithAppExtensionBundle:appExtensionBundle resourceBaseURL:resourceBaseURL error:error];
+}
+
+- (instancetype)_initWithManifestDictionary:(NSDictionary<NSString *, id> *)manifest
+{
+    return [self initWithManifestDictionary:manifest resources:nil];
+}
+
+- (instancetype)_initWithManifestDictionary:(NSDictionary<NSString *, id> *)manifest resources:(NSDictionary<NSString *, id> *)resources
+{
+    return [self initWithManifestDictionary:manifest resources:resources];
+}
+
+- (instancetype)_initWithResources:(NSDictionary<NSString *, id> *)resources
+{
+    return [self initWithResources:resources];
+}
+
+- (instancetype)initWithAppExtensionBundle:(NSBundle *)bundle error:(NSError **)error
+{
+    return [self initWithAppExtensionBundle:bundle resourceBaseURL:nil error:error];
+}
+
+- (instancetype)initWithResourceBaseURL:(NSURL *)resourceBaseURL error:(NSError **)error
+{
+    return [self initWithAppExtensionBundle:nil resourceBaseURL:resourceBaseURL error:error];
+}
+
+- (instancetype)initWithAppExtensionBundle:(nullable NSBundle *)bundle resourceBaseURL:(nullable NSURL *)resourceBaseURL error:(NSError **)error
+{
     if (error)
         *error = [NSError errorWithDomain:NSCocoaErrorDomain code:NSFeatureUnsupportedError userInfo:nil];
     return nil;
 }
 
-- (instancetype)_initWithManifestDictionary:(NSDictionary<NSString *, id> *)manifest
+- (instancetype)initWithManifestDictionary:(NSDictionary<NSString *, id> *)manifest
 {
-    return [self _initWithManifestDictionary:manifest resources:nil];
+    return [self initWithManifestDictionary:manifest resources:nil];
 }
 
-- (instancetype)_initWithManifestDictionary:(NSDictionary<NSString *, id> *)manifest resources:(NSDictionary<NSString *, id> *)resources
+- (instancetype)initWithManifestDictionary:(NSDictionary<NSString *, id> *)manifest resources:(NSDictionary<NSString *, id> *)resources
 {
     return nil;
 }
 
-- (instancetype)_initWithResources:(NSDictionary<NSString *, id> *)resources
+- (instancetype)initWithResources:(NSDictionary<NSString *, id> *)resources
 {
     return nil;
 }

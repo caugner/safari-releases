@@ -47,9 +47,10 @@
 #include "NetworkRTCUDPSocketCocoa.h"
 #include "NetworkSessionCocoa.h"
 #else // PLATFORM(COCOA)
-ALLOW_COMMA_BEGIN
+
+WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_BEGIN
 #include <webrtc/rtc_base/async_packet_socket.h>
-ALLOW_COMMA_END
+WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_END
 #endif // PLATFORM(COCOA)
 
 namespace WebKit {
@@ -70,7 +71,7 @@ NetworkRTCProvider::NetworkRTCProvider(NetworkConnectionToWebProcess& connection
 #endif
 {
 #if PLATFORM(COCOA)
-    if (auto* session = static_cast<NetworkSessionCocoa*>(connection.networkSession()))
+    if (auto* session = downcast<NetworkSessionCocoa>(connection.networkSession()))
         m_applicationBundleIdentifier = session->sourceApplicationBundleIdentifier().utf8();
 #endif
 #if !RELEASE_LOG_DISABLED
@@ -181,7 +182,7 @@ void NetworkRTCProvider::createResolver(LibWebRTCResolverIdentifier identifier, 
     }
 
     RefPtr connection = m_connection.get();
-    if (connection && connection->mdnsRegister().hasRegisteredName(address)) {
+    if (connection && connection->protectedMDNSRegister()->hasRegisteredName(address)) {
         Vector<WebKit::RTC::Network::IPAddress> ipAddresses;
         Ref rtcMonitor = m_rtcMonitor;
         if (!rtcMonitor->ipv4().isUnspecified())
@@ -234,11 +235,11 @@ void NetworkRTCProvider::stopResolver(LibWebRTCResolverIdentifier identifier)
 #if PLATFORM(COCOA)
 const String& NetworkRTCProvider::attributedBundleIdentifierFromPageIdentifier(WebPageProxyIdentifier pageIdentifier)
 {
-    return m_attributedBundleIdentifiers.ensure(pageIdentifier, [&]() -> String {
+    return m_attributedBundleIdentifiers.ensure(pageIdentifier, [protectedThis = Ref { *this }, pageIdentifier]() -> String {
         String value;
-        callOnMainRunLoopAndWait([&] {
-            auto* session = m_connection ? m_connection->networkSession() : nullptr;
-            if (session)
+        callOnMainRunLoopAndWait([protectedThis, &value, pageIdentifier] {
+            RefPtr connection = protectedThis->m_connection.get();
+            if (auto* session = connection ? connection->networkSession() : nullptr)
                 value = session->attributedBundleIdentifierFromPageIdentifier(pageIdentifier).isolatedCopy();
         });
         return value;

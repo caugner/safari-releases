@@ -30,6 +30,7 @@
 #pragma once
 
 #include "Breakpoint.h"
+#include "ContentSearchUtilities.h"
 #include "Debugger.h"
 #include "DebuggerPrimitives.h"
 #include "InspectorAgentBase.h"
@@ -250,18 +251,18 @@ private:
 
     JSC::Debugger& m_debugger;
     InjectedScriptManager& m_injectedScriptManager;
-    HashMap<JSC::SourceID, JSC::Debugger::Script> m_scripts;
+    UncheckedKeyHashMap<JSC::SourceID, JSC::Debugger::Script> m_scripts;
 
     using BlackboxParameters = std::tuple<String /* url */, bool /* caseSensitive */, bool /* isRegex */>;
-    HashMap<BlackboxParameters, HashSet<JSC::Debugger::BlackboxRange>> m_blackboxedURLs;
+    UncheckedKeyHashMap<BlackboxParameters, UncheckedKeyHashSet<JSC::Debugger::BlackboxRange>> m_blackboxedURLs;
 
-    HashSet<Listener*> m_listeners;
+    UncheckedKeyHashSet<Listener*> m_listeners;
 
     JSC::JSGlobalObject* m_pausedGlobalObject { nullptr };
     JSC::Strong<JSC::Unknown> m_currentCallStack;
 
-    HashMap<Protocol::Debugger::BreakpointId, ProtocolBreakpoint> m_protocolBreakpointForProtocolBreakpointID;
-    HashMap<Protocol::Debugger::BreakpointId, JSC::BreakpointsVector> m_debuggerBreakpointsForProtocolBreakpointID;
+    UncheckedKeyHashMap<Protocol::Debugger::BreakpointId, ProtocolBreakpoint> m_protocolBreakpointForProtocolBreakpointID;
+    UncheckedKeyHashMap<Protocol::Debugger::BreakpointId, JSC::BreakpointsVector> m_debuggerBreakpointsForProtocolBreakpointID;
     JSC::BreakpointID m_nextDebuggerBreakpointID { JSC::noBreakpointID + 1 };
 
     RefPtr<JSC::Breakpoint> m_continueToLocationDebuggerBreakpoint;
@@ -274,7 +275,7 @@ private:
     DebuggerFrontendDispatcher::Reason m_preBlackboxPauseReason;
     RefPtr<JSON::Object> m_preBlackboxPauseData;
 
-    HashMap<AsyncCallIdentifier, RefPtr<AsyncStackTrace>> m_pendingAsyncCalls;
+    UncheckedKeyHashMap<AsyncCallIdentifier, RefPtr<AsyncStackTrace>> m_pendingAsyncCalls;
     Vector<AsyncCallIdentifier> m_currentAsyncCallIdentifierStack;
     int m_asyncStackTraceDepth { 0 };
 
@@ -289,8 +290,8 @@ private:
         // This is only used for the breakpoint configuration (i.e. it's irrelevant when comparing).
         RefPtr<JSC::Breakpoint> specialBreakpoint;
 
-        // Avoid having to (re)match the regex each time a function as called.
-        HashSet<String> knownMatchingSymbols;
+        // Avoid having to (re)match the searcher each time a function as called.
+        UncheckedKeyHashSet<String> knownMatchingSymbols;
 
         inline bool operator==(const SymbolicBreakpoint& other) const
         {
@@ -302,7 +303,7 @@ private:
         bool matches(const String&);
 
     private:
-        std::optional<JSC::Yarr::RegularExpression> m_symbolMatchRegex;
+        std::optional<ContentSearchUtilities::Searcher> m_symbolSearcher;
     };
     Vector<SymbolicBreakpoint> m_symbolicBreakpoints;
 

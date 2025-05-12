@@ -39,6 +39,7 @@
 #include <WebCore/AudioSession.h>
 #include <WebCore/PlatformMediaSession.h>
 #include <WebCore/SharedMemory.h>
+#include <wtf/AbstractThreadSafeRefCountedAndCanMakeWeakPtr.h>
 #include <wtf/Forward.h>
 #include <wtf/RefCounted.h>
 #include <wtf/ThreadSafeWeakHashSet.h>
@@ -77,6 +78,9 @@ public:
     ~GPUProcessConnection();
     GPUProcessConnectionIdentifier identifier() const { return m_identifier; }
 
+    void ref() const final { ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr::ref(); }
+    void deref() const final { ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr::deref(); }
+
     IPC::Connection& connection() { return m_connection.get(); }
     Ref<IPC::Connection> protectedConnection() { return m_connection; }
     IPC::MessageReceiverMap& messageReceiverMap() { return m_messageReceiverMap; }
@@ -88,6 +92,7 @@ public:
     Ref<RemoteSharedResourceCacheProxy> sharedResourceCache();
 #if PLATFORM(COCOA) && ENABLE(MEDIA_STREAM)
     SampleBufferDisplayLayerManager& sampleBufferDisplayLayerManager();
+    Ref<SampleBufferDisplayLayerManager> protectedSampleBufferDisplayLayerManager();
     void resetAudioMediaStreamTrackRendererInternalUnit(AudioMediaStreamTrackRendererInternalUnitIdentifier);
 #endif
 #if ENABLE(VIDEO)
@@ -122,13 +127,9 @@ public:
     void createGPU(WebGPUIdentifier, RenderingBackendIdentifier, IPC::StreamServerConnection::Handle&&);
     void releaseGPU(WebGPUIdentifier);
 
-    class Client {
+    class Client : public AbstractThreadSafeRefCountedAndCanMakeWeakPtr {
     public:
-        DECLARE_VIRTUAL_REFCOUNTED;
-
         virtual ~Client() = default;
-
-        virtual ThreadSafeWeakPtrControlBlock& controlBlock() const = 0;
 
         virtual void gpuProcessConnectionDidClose(GPUProcessConnection&) { }
     };

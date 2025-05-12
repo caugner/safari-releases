@@ -44,12 +44,21 @@
 #include <wtf/text/CString.h>
 #endif
 
+#if USE(SKIA)
+WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_BEGIN // GLib/Win port
+#include <skia/core/SkImage.h>
+#include <skia/core/SkPixmap.h>
+WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_END
+#endif
+
 #if OS(DARWIN)
 #define GL_UNSIGNED_INT_8_8_8_8_REV 0x8367
 static const GLenum s_pixelDataType = GL_UNSIGNED_INT_8_8_8_8_REV;
 #else
 static const GLenum s_pixelDataType = GL_UNSIGNED_BYTE;
 #endif
+
+constexpr GLenum textureFormat = GL_RGBA;
 
 // On GLES3, the format we want for packed depth stencil is GL_DEPTH24_STENCIL8, but when added through
 // the extension this format is called GL_DEPTH24_STENCIL8_OES. In any case they hold the same value 0x88F0
@@ -74,7 +83,6 @@ GLenum depthBufferFormat()
 BitmapTexture::BitmapTexture(const IntSize& size, OptionSet<Flags> flags)
     : m_flags(flags)
     , m_size(size)
-    , m_textureFormat(GL_RGBA)
     , m_pixelFormat(PixelFormat::RGBA8)
 {
     GLint boundTexture = 0;
@@ -86,9 +94,24 @@ BitmapTexture::BitmapTexture(const IntSize& size, OptionSet<Flags> flags)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, m_size.width(), m_size.height(), 0, m_textureFormat, s_pixelDataType, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, m_size.width(), m_size.height(), 0, textureFormat, s_pixelDataType, nullptr);
 
     glBindTexture(GL_TEXTURE_2D, boundTexture);
+}
+
+void BitmapTexture::swapTexture(BitmapTexture& other)
+{
+    RELEASE_ASSERT(m_size == other.m_size);
+    RELEASE_ASSERT(!m_flags.contains(Flags::DepthBuffer));
+    RELEASE_ASSERT(!other.m_flags.contains(Flags::DepthBuffer));
+
+    std::swap(m_id, other.m_id);
+
+    // This texture needs to be in the same pixel format as the 'other'
+    // texture, before the reset above. The 'other' texture should be
+    // reset to RGBA default pixel format.
+    m_pixelFormat = other.m_pixelFormat;
+    other.m_pixelFormat = PixelFormat::RGBA8;
 }
 
 void BitmapTexture::reset(const IntSize& size, OptionSet<Flags> flags)
@@ -97,10 +120,31 @@ void BitmapTexture::reset(const IntSize& size, OptionSet<Flags> flags)
     m_shouldClear = true;
     m_pixelFormat = PixelFormat::RGBA8;
     m_filterOperation = nullptr;
+
+    if (!flags.contains(Flags::DepthBuffer)) {
+        if (m_fbo) {
+            glDeleteFramebuffers(1, &m_fbo);
+            m_fbo = 0;
+        }
+
+        if (m_depthBufferObject) {
+            glDeleteRenderbuffers(1, &m_depthBufferObject);
+            m_depthBufferObject = 0;
+        }
+
+        if (m_stencilBufferObject) {
+            glDeleteRenderbuffers(1, &m_stencilBufferObject);
+            m_stencilBufferObject = 0;
+        }
+
+        m_stencilBound = false;
+        m_clipStack = { };
+    }
+
     if (m_size != size) {
         m_size = size;
         glBindTexture(GL_TEXTURE_2D, m_id);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, m_size.width(), m_size.height(), 0, m_textureFormat, s_pixelDataType, nullptr);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, m_size.width(), m_size.height(), 0, textureFormat, s_pixelDataType, nullptr);
     }
 }
 
@@ -127,6 +171,7 @@ void BitmapTexture::updateContents(const void* srcData, const IntRect& targetRec
 
     // prepare temporaryData if necessary
     if (requireSubImageBuffer) {
+        WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN // GLib/Win port
         temporaryData.resize(targetRect.width() * targetRect.height() * bytesPerPixel);
         auto dst = temporaryData.data();
         data = dst;
@@ -138,6 +183,7 @@ void BitmapTexture::updateContents(const void* srcData, const IntRect& targetRec
             src += bytesPerLine;
             dst += targetBytesPerLine;
         }
+        WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
         bytesPerLine = targetBytesPerLine;
         adjustedSourceOffset = IntPoint(0, 0);
@@ -152,7 +198,7 @@ void BitmapTexture::updateContents(const void* srcData, const IntRect& targetRec
         glPixelStorei(GL_UNPACK_SKIP_PIXELS, adjustedSourceOffset.x());
     }
 
-    glTexSubImage2D(GL_TEXTURE_2D, 0, targetRect.x(), targetRect.y(), targetRect.width(), targetRect.height(), m_textureFormat, s_pixelDataType, data);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, targetRect.x(), targetRect.y(), targetRect.width(), targetRect.height(), textureFormat, s_pixelDataType, data);
 
     if (supportsUnpackSubimage) {
         glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
@@ -172,6 +218,11 @@ void BitmapTexture::updateContents(NativeImage* frameImage, const IntRect& targe
     int bytesPerLine = cairo_image_surface_get_stride(surface);
 
     updateContents(imageData, targetRect, offset, bytesPerLine, PixelFormat::BGRA8);
+#elif USE(SKIA)
+    sk_sp<SkImage> surface = frameImage->platformImage();
+    SkPixmap pixmap;
+    if (surface->peekPixels(&pixmap))
+        updateContents(pixmap.addr(), targetRect, offset, pixmap.rowBytes(), PixelFormat::BGRA8);
 #else
     UNUSED_PARAM(targetRect);
     UNUSED_PARAM(offset);
@@ -183,7 +234,7 @@ void BitmapTexture::updateContents(GraphicsLayer* sourceLayer, const IntRect& ta
 {
     // Making an unconditionally unaccelerated buffer here is OK because this code
     // isn't used by any platforms that respect the accelerated bit.
-    auto imageBuffer = ImageBuffer::create(targetRect.size(), RenderingPurpose::Unspecified, 1, DestinationColorSpace::SRGB(), ImageBufferPixelFormat::BGRA8);
+    auto imageBuffer = ImageBuffer::create(targetRect.size(), RenderingMode::Unaccelerated, RenderingPurpose::Unspecified, 1, DestinationColorSpace::SRGB(), ImageBufferPixelFormat::BGRA8);
     if (!imageBuffer)
         return;
 

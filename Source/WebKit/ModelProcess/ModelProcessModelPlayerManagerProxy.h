@@ -30,6 +30,7 @@
 #include "Connection.h"
 #include "MessageReceiver.h"
 #include "ModelConnectionToWebProcess.h"
+#include "SharedPreferencesForWebProcess.h"
 #include <WebCore/ModelPlayerIdentifier.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/WeakPtr.h>
@@ -49,6 +50,11 @@ public:
     }
 
     ~ModelProcessModelPlayerManagerProxy();
+
+    void ref() const final { RefCounted::ref(); }
+    void deref() const final { RefCounted::deref(); }
+
+    std::optional<SharedPreferencesForWebProcess> sharedPreferencesForWebProcess() const;
 
     ModelConnectionToWebProcess* modelConnectionToWebProcess() { return m_modelConnectionToWebProcess.get(); }
     void clear();

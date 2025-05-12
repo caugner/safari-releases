@@ -11,6 +11,7 @@
 
 #include "common/platform.h"
 #include "libANGLE/Display.h"
+#include "libANGLE/ErrorStrings.h"
 #include "libANGLE/Surface.h"
 #include "libANGLE/renderer/metal/ContextMtl.h"
 #include "libANGLE/renderer/metal/DisplayMtl.h"
@@ -203,7 +204,7 @@ egl::Error SurfaceMtl::getMscRate(EGLint *numerator, EGLint *denominator)
     return egl::EglBadAccess();
 }
 
-void SurfaceMtl::setSwapInterval(EGLint interval) {}
+void SurfaceMtl::setSwapInterval(const egl::Display *display, EGLint interval) {}
 
 void SurfaceMtl::setFixedWidth(EGLint width)
 {
@@ -504,7 +505,7 @@ egl::Error WindowSurfaceMtl::swap(const gl::Context *context)
     return egl::NoError();
 }
 
-void WindowSurfaceMtl::setSwapInterval(EGLint interval)
+void WindowSurfaceMtl::setSwapInterval(const egl::Display *display, EGLint interval)
 {
 #if TARGET_OS_OSX || TARGET_OS_MACCATALYST
     mMetalLayer.get().displaySyncEnabled = interval != 0;
@@ -661,8 +662,7 @@ angle::Result WindowSurfaceMtl::obtainNextDrawable(const gl::Context *context)
     ANGLE_MTL_OBJC_SCOPE
     {
         ContextMtl *contextMtl = mtl::GetImpl(context);
-
-        ANGLE_MTL_TRY(contextMtl, mMetalLayer);
+        ANGLE_CHECK(contextMtl, mMetalLayer, gl::err::kInternalError, GL_INVALID_OPERATION);
 
         // Check if layer was resized
         if (checkIfLayerResized(context))

@@ -31,6 +31,7 @@
 #include "WebGPUIdentifier.h"
 #include <WebCore/WebGPUIntegralTypes.h>
 #include <WebCore/WebGPUPresentationContext.h>
+#include <array>
 #include <wtf/TZoneMalloc.h>
 
 namespace WebCore {
@@ -56,7 +57,7 @@ public:
     RemoteGPUProxy& root() { return m_parent->root(); }
     Ref<RemoteGPUProxy> protectedRoot() { return m_parent->root(); }
 
-    void present(bool = false) final;
+    void present(uint32_t frameIndex, bool = false) final;
 
 private:
     friend class DowncastConvertToBackingContext;
@@ -69,6 +70,8 @@ private:
     RemotePresentationContextProxy& operator=(RemotePresentationContextProxy&&) = delete;
 
     WebGPUIdentifier backing() const { return m_backing; }
+    Ref<ConvertToBackingContext> protectedConvertToBackingContext() const;
+
     RefPtr<WebCore::NativeImage> getMetalTextureAsNativeImage(uint32_t, bool& isIOSurfaceSupportedFormat) final;
 
     template<typename T>
@@ -80,12 +83,13 @@ private:
     bool configure(const WebCore::WebGPU::CanvasConfiguration&) final;
     void unconfigure() final;
 
-    RefPtr<WebCore::WebGPU::Texture> getCurrentTexture() final;
+    RefPtr<WebCore::WebGPU::Texture> getCurrentTexture(uint32_t) final;
 
     WebGPUIdentifier m_backing;
     Ref<ConvertToBackingContext> m_convertToBackingContext;
     Ref<RemoteGPUProxy> m_parent;
-    RefPtr<RemoteTextureProxy> m_currentTexture;
+    static constexpr size_t textureCount = 3;
+    std::array<RefPtr<RemoteTextureProxy>, textureCount> m_currentTexture;
 };
 
 } // namespace WebKit::WebGPU

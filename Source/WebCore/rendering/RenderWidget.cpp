@@ -34,6 +34,7 @@
 #include "RemoteFrameView.h"
 #include "RenderBoxInlines.h"
 #include "RenderElementInlines.h"
+#include "RenderEmbeddedObject.h"
 #include "RenderLayer.h"
 #include "RenderLayerBacking.h"
 #include "RenderLayerScrollableArea.h"
@@ -47,9 +48,9 @@ namespace WebCore {
 
 WTF_MAKE_TZONE_OR_ISO_ALLOCATED_IMPL(RenderWidget);
 
-static HashMap<SingleThreadWeakRef<const Widget>, SingleThreadWeakRef<RenderWidget>>& widgetRendererMap()
+static UncheckedKeyHashMap<SingleThreadWeakRef<const Widget>, SingleThreadWeakRef<RenderWidget>>& widgetRendererMap()
 {
-    static NeverDestroyed<HashMap<SingleThreadWeakRef<const Widget>, SingleThreadWeakRef<RenderWidget>>> staticWidgetRendererMap;
+    static NeverDestroyed<UncheckedKeyHashMap<SingleThreadWeakRef<const Widget>, SingleThreadWeakRef<RenderWidget>>> staticWidgetRendererMap;
     return staticWidgetRendererMap;
 }
 
@@ -162,7 +163,7 @@ bool RenderWidget::updateWidgetGeometry()
 
     LayoutRect contentBox = contentBoxRect();
     LayoutRect absoluteContentBox(localToAbsoluteQuad(FloatQuad(contentBox)).boundingBox());
-    if (m_widget->isLocalFrameView()) {
+    if (is<FrameView>(m_widget)) {
         contentBox.setLocation(absoluteContentBox.location());
         return setWidgetGeometry(contentBox);
     }
@@ -333,7 +334,7 @@ void RenderWidget::paint(PaintInfo& paintInfo, const LayoutPoint& paintOffset)
         clipToContentBoxShape(paintInfo.context(), adjustedPaintOffset, document().deviceScaleFactor());
     }
 
-    if (m_widget && !isSkippedContentRoot())
+    if (m_widget && !isSkippedContentRoot(*this))
         paintContents(paintInfo, paintOffset);
 
     if (style().hasBorderRadius())

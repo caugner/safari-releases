@@ -61,6 +61,8 @@ static NSString * const actionCountIncrementKey = @"increment";
 static NSString * const getMatchedRulesTabIDKey = @"tabId";
 static NSString * const getMatchedRulesMinTimeStampKey = @"minTimeStamp";
 
+static NSString * const getDynamicOrSessionRulesRuleIDsKey = @"ruleIds";
+
 static NSString * const addRulesKey = @"addRules";
 static NSString * const removeRulesKey = @"removeRuleIds";
 
@@ -111,7 +113,7 @@ void WebExtensionAPIDeclarativeNetRequest::updateDynamicRules(NSDictionary *opti
     for (NSDictionary *ruleDictionary in rulesToAdd) {
         if (![[_WKWebExtensionDeclarativeNetRequestRule  alloc] initWithDictionary:ruleDictionary errorString:&ruleErrorString]) {
             ASSERT(ruleErrorString);
-            *outExceptionString = toErrorString(nil, addRulesKey, @"an error with rule at index %lu: %@", index, ruleErrorString);
+            *outExceptionString = toErrorString(nullString(), addRulesKey, @"an error with rule at index %lu: %@", index, ruleErrorString);
             return;
         }
 
@@ -138,9 +140,24 @@ void WebExtensionAPIDeclarativeNetRequest::updateDynamicRules(NSDictionary *opti
     }, extensionContext().identifier());
 }
 
-void WebExtensionAPIDeclarativeNetRequest::getDynamicRules(Ref<WebExtensionCallbackHandler>&& callback)
+void WebExtensionAPIDeclarativeNetRequest::getDynamicRules(NSDictionary *filter, Ref<WebExtensionCallbackHandler>&& callback)
 {
-    WebProcess::singleton().sendWithAsyncReply(Messages::WebExtensionContext::DeclarativeNetRequestGetDynamicRules(), [protectedThis = Ref { *this }, callback = WTFMove(callback)](Expected<String, WebExtensionError>&& result) {
+    NSString *outExceptionString;
+
+    static NSDictionary<NSString *, id> *keyTypes = @{
+        getDynamicOrSessionRulesRuleIDsKey: @[ NSNumber.class ]
+    };
+
+    if (!validateDictionary(filter, nil, nil, keyTypes, &outExceptionString)) {
+        callback->reportError(outExceptionString);
+        return;
+    }
+
+    Vector<double> ruleIDs;
+    for (NSNumber *ruleID in filter[getDynamicOrSessionRulesRuleIDsKey])
+        ruleIDs.append(ruleID.doubleValue);
+
+    WebProcess::singleton().sendWithAsyncReply(Messages::WebExtensionContext::DeclarativeNetRequestGetDynamicRules(WTFMove(ruleIDs)), [protectedThis = Ref { *this }, callback = WTFMove(callback)](Expected<String, WebExtensionError>&& result) {
         if (!result) {
             callback->reportError(result.error());
             return;
@@ -167,7 +184,7 @@ void WebExtensionAPIDeclarativeNetRequest::updateSessionRules(NSDictionary *opti
     for (NSDictionary *ruleDictionary in rulesToAdd) {
         if (![[_WKWebExtensionDeclarativeNetRequestRule  alloc] initWithDictionary:ruleDictionary errorString:&ruleErrorString]) {
             ASSERT(ruleErrorString);
-            *outExceptionString = toErrorString(nil, addRulesKey, @"an error with rule at index %lu: %@", index, ruleErrorString);
+            *outExceptionString = toErrorString(nullString(), addRulesKey, @"an error with rule at index %lu: %@", index, ruleErrorString);
             return;
         }
 
@@ -194,9 +211,24 @@ void WebExtensionAPIDeclarativeNetRequest::updateSessionRules(NSDictionary *opti
     }, extensionContext().identifier());
 }
 
-void WebExtensionAPIDeclarativeNetRequest::getSessionRules(Ref<WebExtensionCallbackHandler>&& callback)
+void WebExtensionAPIDeclarativeNetRequest::getSessionRules(NSDictionary *filter, Ref<WebExtensionCallbackHandler>&& callback)
 {
-    WebProcess::singleton().sendWithAsyncReply(Messages::WebExtensionContext::DeclarativeNetRequestGetSessionRules(), [protectedThis = Ref { *this }, callback = WTFMove(callback)](Expected<String, WebExtensionError>&& result) {
+    NSString *outExceptionString;
+
+    static NSDictionary<NSString *, id> *keyTypes = @{
+        getDynamicOrSessionRulesRuleIDsKey: @[ NSNumber.class ]
+    };
+
+    if (!validateDictionary(filter, nil, nil, keyTypes, &outExceptionString)) {
+        callback->reportError(outExceptionString);
+        return;
+    }
+
+    Vector<double> ruleIDs;
+    for (NSNumber *ruleID in filter[getDynamicOrSessionRulesRuleIDsKey])
+        ruleIDs.append(ruleID.doubleValue);
+
+    WebProcess::singleton().sendWithAsyncReply(Messages::WebExtensionContext::DeclarativeNetRequestGetSessionRules(WTFMove(ruleIDs)), [protectedThis = Ref { *this }, callback = WTFMove(callback)](Expected<String, WebExtensionError>&& result) {
         if (!result) {
             callback->reportError(result.error());
             return;
@@ -227,7 +259,7 @@ void WebExtensionAPIDeclarativeNetRequest::getMatchedRules(NSDictionary *filter,
     bool hasActiveTabPermission = extensionContext().hasPermission("activeTab"_s);
 
     if (!hasFeedbackPermission && !hasActiveTabPermission) {
-        *outExceptionString = toErrorString(nil, nil, @"either the 'declarativeNetRequestFeedback' or 'activeTab' permission is required");
+        *outExceptionString = toErrorString(nullString(), nullString(), @"either the 'declarativeNetRequestFeedback' or 'activeTab' permission is required");
         return;
     }
 
@@ -247,7 +279,7 @@ void WebExtensionAPIDeclarativeNetRequest::getMatchedRules(NSDictionary *filter,
     NSNumber *tabID = objectForKey<NSNumber>(filter, getMatchedRulesTabIDKey);
     auto optionalTabIdentifier = tabID ? toWebExtensionTabIdentifier(tabID.doubleValue) : std::nullopt;
     if (tabID && !isValid(optionalTabIdentifier)) {
-        *outExceptionString = toErrorString(nil, getMatchedRulesTabIDKey, @"%@ is not a valid tab identifier", tabID);
+        *outExceptionString = toErrorString(nullString(), getMatchedRulesTabIDKey, @"%@ is not a valid tab identifier", tabID);
         return;
     }
 
@@ -306,7 +338,7 @@ void WebExtensionAPIDeclarativeNetRequest::setExtensionActionOptions(NSDictionar
         NSNumber *tabID = objectForKey<NSNumber>(tabUpdateDictionary, actionCountTabIDKey);
         auto tabIdentifier = toWebExtensionTabIdentifier(tabID.doubleValue);
         if (!isValid(tabIdentifier)) {
-            *outExceptionString = toErrorString(nil, actionCountTabIDKey, @"%@ is not a valid tab identifier", tabID);
+            *outExceptionString = toErrorString(nullString(), actionCountTabIDKey, @"%@ is not a valid tab identifier", tabID);
             return;
         }
 

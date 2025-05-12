@@ -85,6 +85,8 @@ inline CharacterClassWidths& operator|=(CharacterClassWidths& lhs, CharacterClas
 struct CharacterClass {
     WTF_MAKE_TZONE_ALLOCATED(CharacterClass);
 public:
+    using Table = const char*;
+
     // All CharacterClass instances have to have the full set of matches and ranges,
     // they may have an optional m_table for faster lookups (which must match the
     // specified matches and ranges)
@@ -95,7 +97,7 @@ public:
     {
     }
 
-    CharacterClass(const char* table, bool inverted)
+    CharacterClass(Table table, bool inverted)
         : m_table(table)
         , m_characterWidths(CharacterClassWidths::Unknown)
         , m_tableInverted(inverted)
@@ -129,6 +131,8 @@ public:
     {
     }
 
+    void copyOnly8BitCharacterData(const CharacterClass& other);
+
     bool hasNonBMPCharacters() const { return m_characterWidths & CharacterClassWidths::HasNonBMPChars; }
 
     bool hasOneCharacterSize() const { return m_characterWidths == CharacterClassWidths::HasBMPChars || m_characterWidths == CharacterClassWidths::HasNonBMPChars; }
@@ -142,7 +146,7 @@ public:
     Vector<char32_t> m_matchesUnicode;
     Vector<CharacterRange> m_rangesUnicode;
 
-    const char* m_table;
+    Table m_table;
     CharacterClassWidths m_characterWidths;
     bool m_tableInverted : 1;
     bool m_anyCharacter : 1;
@@ -229,6 +233,8 @@ struct PatternTerm {
             unsigned lastSubpatternId;
             bool isCopy : 1;
             bool isTerminal : 1;
+            bool isStringList : 1;
+            bool isEOLStringList: 1;
         } parentheses;
         struct {
             bool bolAnchor : 1;
@@ -270,6 +276,8 @@ struct PatternTerm {
         parentheses.subpatternId = subpatternId;
         parentheses.isCopy = false;
         parentheses.isTerminal = false;
+        parentheses.isStringList = false;
+        parentheses.isEOLStringList = false;
         quantityType = QuantifierType::FixedCount;
         quantityMinCount = quantityMaxCount = 1;
     }
@@ -400,6 +408,7 @@ public:
         , m_hasFixedSize(false)
         , m_startsWithBOL(false)
         , m_containsBOL(false)
+        , m_isLastAlternative(false)
     {
     }
 
@@ -465,6 +474,7 @@ public:
     bool m_hasFixedSize : 1;
     bool m_startsWithBOL : 1;
     bool m_containsBOL : 1;
+    bool m_isLastAlternative : 1;
 };
 
 struct PatternDisjunction {
@@ -705,6 +715,7 @@ struct YarrPattern {
     bool m_hasNamedCaptureGroups : 1;
     bool m_saveInitialStartValue : 1;
     OptionSet<Flags> m_flags;
+    SpecificPattern m_specificPattern { SpecificPattern::None };
     unsigned m_numSubpatterns { 0 };
     unsigned m_initialStartValueFrameLocation { 0 };
     unsigned m_numDuplicateNamedCaptureGroups { 0 };
@@ -718,8 +729,9 @@ struct YarrPattern {
     // is the subpatterenId for a non-duplicate named group.
     // For a duplicate named group, the size will be greater than 2. The first vector entry it is the
     // duplicateNamedGroupId. Subsequent vector entries are the subpatternId's for that duplicateNamedGroupId.
-    HashMap<String, Vector<unsigned>> m_namedGroupToParenIndices;
+    UncheckedKeyHashMap<String, Vector<unsigned>> m_namedGroupToParenIndices;
     Vector<unsigned> m_duplicateNamedGroupForSubpatternId;
+    String m_atom;
 
 private:
     ErrorCode compile(StringView patternString);
@@ -734,7 +746,7 @@ private:
     CharacterClass* nonspacesCached { nullptr };
     CharacterClass* nonwordcharCached { nullptr };
     CharacterClass* nonwordUnicodeIgnoreCasecharCached { nullptr };
-    HashMap<unsigned, CharacterClass*> unicodePropertiesCached;
+    UncheckedKeyHashMap<unsigned, CharacterClass*> unicodePropertiesCached;
 };
 
     void indentForNestingLevel(PrintStream&, unsigned);

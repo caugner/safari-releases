@@ -41,6 +41,7 @@
 #import <WebKit/_WKFormInputSession.h>
 #import <wtf/RetainPtr.h>
 #import <wtf/SoftLinking.h>
+#import <wtf/cocoa/TypeCastsCocoa.h>
 
 #if USE(BROWSERENGINEKIT)
 #import <BrowserEngineKit/BrowserEngineKit.h>
@@ -108,11 +109,6 @@ InteractionType *findInteractionOfType(UIView *view)
     return (id<BEDragInteractionDelegate>)self._dragDropInteractionView;
 }
 
-- (BEDragInteraction *)dragInteraction
-{
-    return findInteractionOfType<BEDragInteraction>(self._dragDropInteractionView);
-}
-
 #else
 
 - (id<UIDragInteractionDelegate>)dragInteractionDelegate
@@ -120,16 +116,16 @@ InteractionType *findInteractionOfType(UIView *view)
     return (id<UIDragInteractionDelegate>)self._dragDropInteractionView;
 }
 
-- (UIDragInteraction *)dragInteraction
-{
-    return findInteractionOfType<UIDragInteraction>(self._dragDropInteractionView);
-}
-
 #endif
 
 - (UIDropInteraction *)dropInteraction
 {
     return findInteractionOfType<UIDropInteraction>(self._dragDropInteractionView);
+}
+
+- (id)dragInteraction
+{
+    return findInteractionOfType<UIDragInteraction>(self._dragDropInteractionView);
 }
 
 @end

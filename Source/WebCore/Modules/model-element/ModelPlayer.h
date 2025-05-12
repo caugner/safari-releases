@@ -44,6 +44,7 @@ namespace WebCore {
 
 class Color;
 class Model;
+class SharedBuffer;
 class TransformationMatrix;
 
 class WEBCORE_EXPORT ModelPlayer : public RefCounted<ModelPlayer> {
@@ -84,6 +85,18 @@ public:
     virtual String inlinePreviewUUIDForTesting() const;
 #if PLATFORM(COCOA)
     virtual Vector<RetainPtr<id>> accessibilityChildren() = 0;
+#endif
+#if ENABLE(MODEL_PROCESS)
+    virtual void setAutoplay(bool);
+    virtual void setLoop(bool);
+    virtual void setPlaybackRate(double, CompletionHandler<void(double effectivePlaybackRate)>&&);
+    virtual double duration() const;
+    virtual bool paused() const;
+    virtual void setPaused(bool, CompletionHandler<void(bool succeeded)>&&);
+    virtual Seconds currentTime() const;
+    virtual void setCurrentTime(Seconds, CompletionHandler<void()>&&);
+    virtual void setEnvironmentMap(Ref<SharedBuffer>&& data);
+    virtual void setHasPortal(bool);
 #endif
 };
 

@@ -27,6 +27,8 @@
 #include "config.h"
 #include "WebPageProxy.h"
 
+#include "DrawingAreaMessages.h"
+#include "DrawingAreaProxy.h"
 #include "InputMethodState.h"
 #include "MessageSenderInlines.h"
 #include "PageClientImpl.h"
@@ -38,6 +40,7 @@
 #include "WebProcessProxy.h"
 #include <WebCore/PlatformDisplay.h>
 #include <WebCore/PlatformEvent.h>
+#include <wtf/CallbackAggregator.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/glib/Sandbox.h>
 
@@ -56,8 +59,7 @@ GtkWidget* WebPageProxy::viewWidget()
 void WebPageProxy::bindAccessibilityTree(const String& plugID)
 {
 #if USE(GTK4)
-    // FIXME(273245): Make a11y work under Flatpak.
-    if (!isInsideFlatpak())
+    if (!isInsideFlatpak() || checkFlatpakPortalVersion(7))
         webkitWebViewBaseSetPlugID(WEBKIT_WEB_VIEW_BASE(viewWidget()), plugID);
 #else
     auto* accessible = gtk_widget_get_accessible(viewWidget());
@@ -153,7 +155,16 @@ void WebPageProxy::callAfterNextPresentationUpdate(CompletionHandler<void()>&& c
         return;
     }
 
-    webkitWebViewBaseCallAfterNextPresentationUpdate(WEBKIT_WEB_VIEW_BASE(viewWidget()), WTFMove(callback));
+    Ref aggregator = CallbackAggregator::create([weakThis = WeakPtr { *this }, callback = WTFMove(callback)]() mutable {
+        RefPtr protectedThis = weakThis.get();
+        if (!protectedThis)
+            return callback();
+        webkitWebViewBaseCallAfterNextPresentationUpdate(WEBKIT_WEB_VIEW_BASE(protectedThis->viewWidget()), WTFMove(callback));
+    });
+    auto drawingAreaIdentifier = m_drawingArea->identifier();
+    forEachWebContentProcess([&] (auto& process, auto) {
+        process.sendWithAsyncReply(Messages::DrawingArea::DispatchAfterEnsuringDrawing(), [aggregator] { }, drawingAreaIdentifier);
+    });
 }
 
 } // namespace WebKit

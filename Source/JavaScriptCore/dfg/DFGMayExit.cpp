@@ -92,6 +92,7 @@ ExitMode mayExitImpl(Graph& graph, Node* node, StateType& state)
     case DoubleRep:
     case Int52Rep:
     case ValueRep:
+    case PurifyNaN:
     case ExtractOSREntryLocal:
     case ExtractCatchLocal:
     case ClearCatchLocals:
@@ -308,6 +309,14 @@ ExitMode mayExitImpl(Graph& graph, Node* node, StateType& state)
             return Exits;
         }
         break;
+
+    case StringReplaceString: {
+        if (node->child3().useKind() == StringUse) {
+            result = ExitsForExceptions;
+            break;
+        }
+        return Exits;
+    }
 
     default:
         // If in doubt, return true.

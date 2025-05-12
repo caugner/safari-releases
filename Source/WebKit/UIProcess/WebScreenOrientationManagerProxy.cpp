@@ -28,7 +28,6 @@
 
 #include "APIUIClient.h"
 #include "MessageSenderInlines.h"
-#include "WebCoreArgumentCoders.h"
 #include "WebFullScreenManagerProxy.h"
 #include "WebPageProxy.h"
 #include "WebProcessProxy.h"
@@ -40,6 +39,11 @@
 namespace WebKit {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(WebScreenOrientationManagerProxy);
+
+Ref<WebScreenOrientationManagerProxy> WebScreenOrientationManagerProxy::create(WebPageProxy& page, WebCore::ScreenOrientationType orientation)
+{
+    return adoptRef(*new WebScreenOrientationManagerProxy(page, orientation));
+}
 
 WebScreenOrientationManagerProxy::WebScreenOrientationManagerProxy(WebPageProxy& page, WebCore::ScreenOrientationType orientation)
     : m_page(page)
@@ -55,9 +59,10 @@ WebScreenOrientationManagerProxy::~WebScreenOrientationManagerProxy()
     protectedPage()->protectedLegacyMainFrameProcess()->removeMessageReceiver(Messages::WebScreenOrientationManagerProxy::messageReceiverName(), m_page->webPageIDInMainFrameProcess());
 }
 
-const SharedPreferencesForWebProcess& WebScreenOrientationManagerProxy::sharedPreferencesForWebProcess() const
+std::optional<SharedPreferencesForWebProcess> WebScreenOrientationManagerProxy::sharedPreferencesForWebProcess() const
 {
-    return m_page->legacyMainFrameProcess().sharedPreferencesForWebProcess();
+    // FIXME: Remove SUPPRESS_UNCOUNTED_ARG once https://github.com/llvm/llvm-project/pull/111198 lands.
+    SUPPRESS_UNCOUNTED_ARG return m_page->legacyMainFrameProcess().sharedPreferencesForWebProcess();
 }
 
 void WebScreenOrientationManagerProxy::currentOrientation(CompletionHandler<void(WebCore::ScreenOrientationType)>&& completionHandler)

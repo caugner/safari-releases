@@ -28,6 +28,7 @@
 #if ENABLE(GPU_PROCESS)
 
 #include "RemoteAdapterProxy.h"
+#include "RemoteVideoFrameObjectHeapProxy.h"
 #include "WebGPUIdentifier.h"
 #include <WebCore/WebGPUQueue.h>
 #include <wtf/TZoneMalloc.h>
@@ -48,6 +49,7 @@ public:
 
     RemoteAdapterProxy& parent() { return m_parent; }
     RemoteGPUProxy& root() { return m_parent->root(); }
+    void submit(Vector<Ref<WebCore::WebGPU::CommandBuffer>>&&) final;
 
 private:
     friend class DowncastConvertToBackingContext;
@@ -60,6 +62,8 @@ private:
     RemoteQueueProxy& operator=(RemoteQueueProxy&&) = delete;
 
     WebGPUIdentifier backing() const { return m_backing; }
+
+    Ref<ConvertToBackingContext> protectedConvertToBackingContext() const;
     
     template<typename T>
     WARN_UNUSED_RETURN IPC::Error send(T&& message)
@@ -71,8 +75,6 @@ private:
     {
         return root().protectedStreamClientConnection()->sendWithAsyncReply(WTFMove(message), completionHandler, backing());
     }
-
-    void submit(Vector<std::reference_wrapper<WebCore::WebGPU::CommandBuffer>>&&) final;
 
     void onSubmittedWorkDone(CompletionHandler<void()>&&) final;
 
@@ -108,10 +110,17 @@ private:
         const WebCore::WebGPU::Extent3D& copySize) final;
 
     void setLabelInternal(const String&) final;
+#if ENABLE(VIDEO)
+    RefPtr<RemoteVideoFrameObjectHeapProxy> protectedVideoFrameObjectHeapProxy() const;
+#endif
+    RefPtr<WebCore::NativeImage> getNativeImage(WebCore::VideoFrame&) final;
 
     WebGPUIdentifier m_backing;
     Ref<ConvertToBackingContext> m_convertToBackingContext;
     Ref<RemoteAdapterProxy> m_parent;
+#if ENABLE(VIDEO)
+    RefPtr<RemoteVideoFrameObjectHeapProxy> m_videoFrameObjectHeapProxy;
+#endif
 };
 
 } // namespace WebKit::WebGPU

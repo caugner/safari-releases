@@ -215,7 +215,7 @@ void EntryPlan::compileFunctions(CompilationEffort effort)
         }
 
         for (uint32_t index = functionIndex; index < functionIndexEnd; ++index)
-            compileFunction(index);
+            compileFunction(FunctionCodeIndex(index));
 
         if (!areWasmToWasmStubsCompiled) {
             if (UNLIKELY(!generateWasmToWasmStubs())) {
@@ -293,7 +293,7 @@ bool EntryPlan::generateWasmToWasmStubs()
             continue;
         dataLogLnIf(WasmEntryPlanInternal::verbose, "Processing import function number "_s, importFunctionIndex, ": "_s, makeString(import->module), ": "_s, makeString(import->field));
 #if ENABLE(JIT)
-        if (Options::useJIT()) {
+        if (Options::useWasmJIT()) {
             auto binding = wasmToWasm(importFunctionIndex);
             if (UNLIKELY(!binding))
                 return false;
@@ -302,8 +302,12 @@ bool EntryPlan::generateWasmToWasmStubs()
 #else
         if (false);
 #endif // ENABLE(JIT)
-        else
-            m_wasmToWasmExitStubs[importFunctionIndex++] = LLInt::getCodeRef<WasmEntryPtrTag>(wasm_to_wasm_wrapper_entry);
+        else {
+            if (Options::useWasmIPInt())
+                m_wasmToWasmExitStubs[importFunctionIndex++] = LLInt::getCodeRef<WasmEntryPtrTag>(wasm_to_wasm_ipint_wrapper_entry);
+            else
+                m_wasmToWasmExitStubs[importFunctionIndex++] = LLInt::getCodeRef<WasmEntryPtrTag>(wasm_to_wasm_wrapper_entry);
+        }
     }
     ASSERT(importFunctionIndex == m_wasmToWasmExitStubs.size());
     return true;
@@ -316,7 +320,7 @@ bool EntryPlan::generateWasmToJSStubs()
     for (unsigned importIndex = 0; importIndex < m_moduleInformation->importFunctionCount(); ++importIndex) {
 #if ENABLE(JIT)
         Wasm::TypeIndex typeIndex = m_moduleInformation->importFunctionTypeIndices.at(importIndex);
-        if (Options::useJIT()) {
+        if (Options::useWasmJIT()) {
             auto binding = wasmToJS(typeIndex, importIndex);
             if (UNLIKELY(!binding))
                 return false;

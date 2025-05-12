@@ -48,6 +48,7 @@
 #import "PasteboardTypes.h"
 #import "PickerDismissalReason.h"
 #import "PlatformFontInfo.h"
+#import "PlatformWritingToolsUtilities.h"
 #import "PlaybackSessionManagerProxy.h"
 #import "RemoteLayerTreeDrawingAreaProxyMac.h"
 #import "RemoteObjectRegistry.h"
@@ -1309,8 +1310,7 @@ WebViewImpl::WebViewImpl(NSView <WebViewImplDelegate> *view, WKWebView *outerWeb
     m_page->setAddsVisitedLinks(processPool.historyClient().addsVisitedLinks());
 
     auto& pageConfiguration = m_page->configuration();
-    auto& openerInfo = pageConfiguration.openerInfo();
-    m_page->initializeWebPage(openerInfo ? openerInfo->site : WebCore::Site(aboutBlankURL()), pageConfiguration.initialSandboxFlags());
+    m_page->initializeWebPage(pageConfiguration.openedSite(), pageConfiguration.initialSandboxFlags());
 
     registerDraggedTypes();
 
@@ -1765,17 +1765,17 @@ CGSize WebViewImpl::fixedLayoutSize() const
     return m_page->fixedLayoutSize();
 }
 
-std::unique_ptr<WebKit::DrawingAreaProxy> WebViewImpl::createDrawingAreaProxy(WebProcessProxy& webProcessProxy)
+Ref<WebKit::DrawingAreaProxy> WebViewImpl::createDrawingAreaProxy(WebProcessProxy& webProcessProxy)
 {
     switch (m_drawingAreaType) {
     case DrawingAreaType::TiledCoreAnimation:
-        return makeUnique<TiledCoreAnimationDrawingAreaProxy>(m_page, webProcessProxy);
+        return TiledCoreAnimationDrawingAreaProxy::create(m_page, webProcessProxy);
     case DrawingAreaType::RemoteLayerTree:
-        return makeUnique<RemoteLayerTreeDrawingAreaProxyMac>(m_page, webProcessProxy);
+        return RemoteLayerTreeDrawingAreaProxyMac::create(m_page, webProcessProxy);
     }
 
     ASSERT_NOT_REACHED();
-    return nullptr;
+    return RemoteLayerTreeDrawingAreaProxyMac::create(m_page, webProcessProxy);
 }
 
 bool WebViewImpl::isUsingUISideCompositing() const
@@ -1826,68 +1826,32 @@ NSPrintOperation *WebViewImpl::printOperationWithPrintInfo(NSPrintInfo *printInf
 
 void WebViewImpl::setAutomaticallyAdjustsContentInsets(bool automaticallyAdjustsContentInsets)
 {
-    m_automaticallyAdjustsContentInsets = automaticallyAdjustsContentInsets;
-    updateContentInsetsIfAutomatic();
+    m_page->setAutomaticallyAdjustsContentInsets(automaticallyAdjustsContentInsets);
+}
+
+bool WebViewImpl::automaticallyAdjustsContentInsets() const
+{
+    return m_page->automaticallyAdjustsContentInsets();
 }
 
 void WebViewImpl::updateContentInsetsIfAutomatic()
 {
-    if (!m_automaticallyAdjustsContentInsets)
-        return;
-
-    m_pendingTopContentInset = std::nullopt;
-
-    scheduleSetTopContentInsetDispatch();
+    m_page->updateContentInsetsIfAutomatic();
 }
 
 CGFloat WebViewImpl::topContentInset() const
 {
-    return m_pendingTopContentInset.value_or(m_page->topContentInset());
+    return m_page->pendingOrActualTopContentInset();
 }
 
 void WebViewImpl::setTopContentInset(CGFloat contentInset)
 {
-    m_pendingTopContentInset = contentInset;
-
-    scheduleSetTopContentInsetDispatch();
+    m_page->setTopContentInsetAsync(contentInset);
 }
 
-void WebViewImpl::scheduleSetTopContentInsetDispatch()
+void WebViewImpl::flushPendingTopContentInset()
 {
-    if (m_didScheduleSetTopContentInsetDispatch)
-        return;
-
-    m_didScheduleSetTopContentInsetDispatch = true;
-
-    RunLoop::main().dispatch([weakThis = WeakPtr { *this }] {
-        if (!weakThis)
-            return;
-        weakThis->dispatchSetTopContentInset();
-    });
-}
-
-void WebViewImpl::dispatchSetTopContentInset()
-{
-    if (!m_didScheduleSetTopContentInsetDispatch)
-        return;
-
-    m_didScheduleSetTopContentInsetDispatch = false;
-
-    if (!m_pendingTopContentInset) {
-        if (!m_automaticallyAdjustsContentInsets)
-            return;
-
-        NSWindow *window = [m_view window];
-        if ((window.styleMask & NSWindowStyleMaskFullSizeContentView) && !window.titlebarAppearsTransparent && ![m_view enclosingScrollView]) {
-            NSRect contentLayoutRectInWebViewCoordinates = [m_view convertRect:window.contentLayoutRect fromView:nil];
-            m_pendingTopContentInset = std::max<CGFloat>(contentLayoutRectInWebViewCoordinates.origin.y, 0);
-        } else
-            m_pendingTopContentInset = 0;
-    }
-
-    m_page->setTopContentInset(*m_pendingTopContentInset);
-
-    m_pendingTopContentInset = std::nullopt;
+    m_page->dispatchSetTopContentInset();
 }
 
 void WebViewImpl::prepareContentInRect(CGRect rect)
@@ -2209,6 +2173,15 @@ bool WebViewImpl::shouldDelayWindowOrderingForEvent(NSEvent *event)
     if (![m_view hitTest:event.locationInWindow])
         return false;
 
+    if (!protectedPage()->legacyMainFrameProcess().isResponsive())
+        return false;
+
+    if (protectedPage()->editorState().hasPostLayoutData()) {
+        auto locationInView = [m_view convertPoint:event.locationInWindow fromView:nil];
+        if (!protectedPage()->selectionBoundingRectInRootViewCoordinates().contains(roundedIntPoint(locationInView)))
+            return false;
+    }
+
     auto previousEvent = setLastMouseDownEvent(event);
     bool result = m_page->shouldDelayWindowOrderingForEvent(WebEventFactory::createWebMouseEvent(event, m_lastPressureEvent.get(), m_view.getAutoreleased()));
     setLastMouseDownEvent(previousEvent.get());
@@ -2291,6 +2264,8 @@ void WebViewImpl::viewDidMoveToWindow()
             cancelImmediateActionAnimation();
             [m_view removeGestureRecognizer:m_immediateActionGestureRecognizer.get()];
         }
+
+        removeFlagsChangedEventMonitor();
     }
 
     m_page->setIntrinsicDeviceScaleFactor(intrinsicDeviceScaleFactor());
@@ -2466,7 +2441,7 @@ void WebViewImpl::endDeferringViewInWindowChanges()
     m_shouldDeferViewInWindowChanges = false;
 
     if (m_viewInWindowChangeWasDeferred) {
-        dispatchSetTopContentInset();
+        flushPendingTopContentInset();
         m_page->activityStateDidChange(WebCore::ActivityState::IsInWindow);
         m_viewInWindowChangeWasDeferred = false;
     }
@@ -2482,7 +2457,7 @@ void WebViewImpl::endDeferringViewInWindowChangesSync()
     m_shouldDeferViewInWindowChanges = false;
 
     if (m_viewInWindowChangeWasDeferred) {
-        dispatchSetTopContentInset();
+        flushPendingTopContentInset();
         m_page->activityStateDidChange(WebCore::ActivityState::IsInWindow);
         m_viewInWindowChangeWasDeferred = false;
     }
@@ -2501,7 +2476,7 @@ void WebViewImpl::prepareForMoveToWindow(NSWindow *targetWindow, WTF::Function<v
     WeakPtr weakThis { *this };
     m_page->installActivityStateChangeCompletionHandler(WTFMove(completionHandler));
 
-    dispatchSetTopContentInset();
+    flushPendingTopContentInset();
     m_page->activityStateDidChange(WebCore::ActivityState::IsInWindow, WebPageProxy::ActivityStateChangeDispatchMode::Immediate);
     m_viewInWindowChangeWasDeferred = false;
 }
@@ -2691,11 +2666,10 @@ static String commandNameForSelector(SEL selector)
     // Remove the trailing colon.
     // No need to capitalize the command name since Editor command names are
     // not case sensitive.
-    const char* selectorName = sel_getName(selector);
-    size_t selectorNameLength = strlen(selectorName);
-    if (selectorNameLength < 2 || selectorName[selectorNameLength - 1] != ':')
+    auto selectorName = unsafeSpan(sel_getName(selector));
+    if (selectorName.size() < 2 || selectorName[selectorName.size() - 1] != ':')
         return String();
-    return String({ selectorName, selectorNameLength - 1 });
+    return String(selectorName.first(selectorName.size() - 1));
 }
 
 bool WebViewImpl::executeSavedCommandBySelector(SEL selector)
@@ -2937,20 +2911,20 @@ bool WebViewImpl::validateUserInterfaceItem(id <NSValidatedUserInterfaceItem> it
 
     if (action == @selector(toggleContinuousSpellChecking:)) {
         bool enabled = TextChecker::isContinuousSpellCheckingAllowed();
-        bool checked = enabled && TextChecker::state().isContinuousSpellCheckingEnabled;
+        bool checked = enabled && TextChecker::state().contains(TextCheckerState::ContinuousSpellCheckingEnabled);
         [menuItem(item) setState:checked ? NSControlStateValueOn : NSControlStateValueOff];
         return enabled;
     }
 
     if (action == @selector(toggleGrammarChecking:)) {
-        bool checked = TextChecker::state().isGrammarCheckingEnabled;
+        bool checked = TextChecker::state().contains(TextCheckerState::GrammarCheckingEnabled);
         [menuItem(item) setState:checked ? NSControlStateValueOn : NSControlStateValueOff];
         return true;
     }
 
     if (action == @selector(toggleAutomaticSpellingCorrection:)) {
         bool enable = m_page->editorState().canEnableAutomaticSpellingCorrection;
-        menuItem(item).state = TextChecker::state().isAutomaticSpellingCorrectionEnabled && enable ? NSControlStateValueOn : NSControlStateValueOff;
+        menuItem(item).state = TextChecker::state().contains(TextCheckerState::AutomaticSpellingCorrectionEnabled) && enable ? NSControlStateValueOn : NSControlStateValueOff;
         return enable;
     }
 
@@ -2967,25 +2941,25 @@ bool WebViewImpl::validateUserInterfaceItem(id <NSValidatedUserInterfaceItem> it
     }
 
     if (action == @selector(toggleAutomaticQuoteSubstitution:)) {
-        bool checked = TextChecker::state().isAutomaticQuoteSubstitutionEnabled;
+        bool checked = TextChecker::state().contains(TextCheckerState::AutomaticQuoteSubstitutionEnabled);
         [menuItem(item) setState:checked ? NSControlStateValueOn : NSControlStateValueOff];
         return m_page->editorState().isContentEditable;
     }
 
     if (action == @selector(toggleAutomaticDashSubstitution:)) {
-        bool checked = TextChecker::state().isAutomaticDashSubstitutionEnabled;
+        bool checked = TextChecker::state().contains(TextCheckerState::AutomaticDashSubstitutionEnabled);
         [menuItem(item) setState:checked ? NSControlStateValueOn : NSControlStateValueOff];
         return m_page->editorState().isContentEditable;
     }
 
     if (action == @selector(toggleAutomaticLinkDetection:)) {
-        bool checked = TextChecker::state().isAutomaticLinkDetectionEnabled;
+        bool checked = TextChecker::state().contains(TextCheckerState::AutomaticLinkDetectionEnabled);
         [menuItem(item) setState:checked ? NSControlStateValueOn : NSControlStateValueOff];
         return m_page->editorState().isContentEditable;
     }
 
     if (action == @selector(toggleAutomaticTextReplacement:)) {
-        bool checked = TextChecker::state().isAutomaticTextReplacementEnabled;
+        bool checked = TextChecker::state().contains(TextCheckerState::AutomaticTextReplacementEnabled);
         [menuItem(item) setState:checked ? NSControlStateValueOn : NSControlStateValueOff];
         return m_page->editorState().isContentEditable;
     }
@@ -2999,6 +2973,11 @@ bool WebViewImpl::validateUserInterfaceItem(id <NSValidatedUserInterfaceItem> it
     // The centerSelectionInVisibleArea: selector is enabled if there's a selection range or if there's an insertion point in an editable area.
     if (action == @selector(centerSelectionInVisibleArea:))
         return m_page->editorState().selectionIsRange || (m_page->editorState().isContentEditable && !m_page->editorState().selectionIsNone);
+
+#if ENABLE(WRITING_TOOLS) && HAVE(NSRESPONDER_WRITING_TOOLS_SUPPORT)
+    if (action == @selector(showWritingTools:))
+        return m_page->shouldEnableWritingToolsRequestedTool(convertToWebRequestedTool((WTRequestedTool)[item tag]));
+#endif
 
     // Next, handle editor commands. Start by returning true for anything that is not an editor command.
     // Returning true is the default thing to do in an AppKit validate method for any selector that is not recognized.
@@ -3087,7 +3066,7 @@ void WebViewImpl::changeSpelling(id sender)
 
 void WebViewImpl::setContinuousSpellCheckingEnabled(bool enabled)
 {
-    if (TextChecker::state().isContinuousSpellCheckingEnabled == enabled)
+    if (TextChecker::state().contains(TextCheckerState::ContinuousSpellCheckingEnabled) == enabled)
         return;
 
     TextChecker::setContinuousSpellCheckingEnabled(enabled);
@@ -3096,7 +3075,7 @@ void WebViewImpl::setContinuousSpellCheckingEnabled(bool enabled)
 
 void WebViewImpl::toggleContinuousSpellChecking()
 {
-    bool spellCheckingEnabled = !TextChecker::state().isContinuousSpellCheckingEnabled;
+    bool spellCheckingEnabled = !TextChecker::state().contains(TextCheckerState::ContinuousSpellCheckingEnabled);
     TextChecker::setContinuousSpellCheckingEnabled(spellCheckingEnabled);
 
     m_page->legacyMainFrameProcess().updateTextCheckerState();
@@ -3104,12 +3083,12 @@ void WebViewImpl::toggleContinuousSpellChecking()
 
 bool WebViewImpl::isGrammarCheckingEnabled()
 {
-    return TextChecker::state().isGrammarCheckingEnabled;
+    return TextChecker::state().contains(TextCheckerState::GrammarCheckingEnabled);
 }
 
 void WebViewImpl::setGrammarCheckingEnabled(bool flag)
 {
-    if (static_cast<bool>(flag) == TextChecker::state().isGrammarCheckingEnabled)
+    if (static_cast<bool>(flag) == TextChecker::state().contains(TextCheckerState::GrammarCheckingEnabled))
         return;
 
     TextChecker::setGrammarCheckingEnabled(flag);
@@ -3118,7 +3097,7 @@ void WebViewImpl::setGrammarCheckingEnabled(bool flag)
 
 void WebViewImpl::toggleGrammarChecking()
 {
-    bool grammarCheckingEnabled = !TextChecker::state().isGrammarCheckingEnabled;
+    bool grammarCheckingEnabled = !TextChecker::state().contains(TextCheckerState::GrammarCheckingEnabled);
     TextChecker::setGrammarCheckingEnabled(grammarCheckingEnabled);
 
     m_page->legacyMainFrameProcess().updateTextCheckerState();
@@ -3126,7 +3105,7 @@ void WebViewImpl::toggleGrammarChecking()
 
 void WebViewImpl::toggleAutomaticSpellingCorrection()
 {
-    TextChecker::setAutomaticSpellingCorrectionEnabled(!TextChecker::state().isAutomaticSpellingCorrectionEnabled);
+    TextChecker::setAutomaticSpellingCorrectionEnabled(!TextChecker::state().contains(TextCheckerState::AutomaticSpellingCorrectionEnabled));
 
     m_page->legacyMainFrameProcess().updateTextCheckerState();
 }
@@ -3154,12 +3133,12 @@ void WebViewImpl::toggleSmartInsertDelete()
 
 bool WebViewImpl::isAutomaticQuoteSubstitutionEnabled()
 {
-    return TextChecker::state().isAutomaticQuoteSubstitutionEnabled;
+    return TextChecker::state().contains(TextCheckerState::AutomaticQuoteSubstitutionEnabled);
 }
 
 void WebViewImpl::setAutomaticQuoteSubstitutionEnabled(bool flag)
 {
-    if (static_cast<bool>(flag) == TextChecker::state().isAutomaticQuoteSubstitutionEnabled)
+    if (static_cast<bool>(flag) == TextChecker::state().contains(TextCheckerState::AutomaticQuoteSubstitutionEnabled))
         return;
 
     TextChecker::setAutomaticQuoteSubstitutionEnabled(flag);
@@ -3168,18 +3147,18 @@ void WebViewImpl::setAutomaticQuoteSubstitutionEnabled(bool flag)
 
 void WebViewImpl::toggleAutomaticQuoteSubstitution()
 {
-    TextChecker::setAutomaticQuoteSubstitutionEnabled(!TextChecker::state().isAutomaticQuoteSubstitutionEnabled);
+    TextChecker::setAutomaticQuoteSubstitutionEnabled(!TextChecker::state().contains(TextCheckerState::AutomaticQuoteSubstitutionEnabled));
     m_page->legacyMainFrameProcess().updateTextCheckerState();
 }
 
 bool WebViewImpl::isAutomaticDashSubstitutionEnabled()
 {
-    return TextChecker::state().isAutomaticDashSubstitutionEnabled;
+    return TextChecker::state().contains(TextCheckerState::AutomaticDashSubstitutionEnabled);
 }
 
 void WebViewImpl::setAutomaticDashSubstitutionEnabled(bool flag)
 {
-    if (static_cast<bool>(flag) == TextChecker::state().isAutomaticDashSubstitutionEnabled)
+    if (static_cast<bool>(flag) == TextChecker::state().contains(TextCheckerState::AutomaticDashSubstitutionEnabled))
         return;
 
     TextChecker::setAutomaticDashSubstitutionEnabled(flag);
@@ -3188,18 +3167,18 @@ void WebViewImpl::setAutomaticDashSubstitutionEnabled(bool flag)
 
 void WebViewImpl::toggleAutomaticDashSubstitution()
 {
-    TextChecker::setAutomaticDashSubstitutionEnabled(!TextChecker::state().isAutomaticDashSubstitutionEnabled);
+    TextChecker::setAutomaticDashSubstitutionEnabled(!TextChecker::state().contains(TextCheckerState::AutomaticDashSubstitutionEnabled));
     m_page->legacyMainFrameProcess().updateTextCheckerState();
 }
 
 bool WebViewImpl::isAutomaticLinkDetectionEnabled()
 {
-    return TextChecker::state().isAutomaticLinkDetectionEnabled;
+    return TextChecker::state().contains(TextCheckerState::AutomaticLinkDetectionEnabled);
 }
 
 void WebViewImpl::setAutomaticLinkDetectionEnabled(bool flag)
 {
-    if (static_cast<bool>(flag) == TextChecker::state().isAutomaticLinkDetectionEnabled)
+    if (static_cast<bool>(flag) == TextChecker::state().contains(TextCheckerState::AutomaticLinkDetectionEnabled))
         return;
 
     TextChecker::setAutomaticLinkDetectionEnabled(flag);
@@ -3208,18 +3187,18 @@ void WebViewImpl::setAutomaticLinkDetectionEnabled(bool flag)
 
 void WebViewImpl::toggleAutomaticLinkDetection()
 {
-    TextChecker::setAutomaticLinkDetectionEnabled(!TextChecker::state().isAutomaticLinkDetectionEnabled);
+    TextChecker::setAutomaticLinkDetectionEnabled(!TextChecker::state().contains(TextCheckerState::AutomaticLinkDetectionEnabled));
     m_page->legacyMainFrameProcess().updateTextCheckerState();
 }
 
 bool WebViewImpl::isAutomaticTextReplacementEnabled()
 {
-    return TextChecker::state().isAutomaticTextReplacementEnabled;
+    return TextChecker::state().contains(TextCheckerState::AutomaticTextReplacementEnabled);
 }
 
 void WebViewImpl::setAutomaticTextReplacementEnabled(bool flag)
 {
-    if (static_cast<bool>(flag) == TextChecker::state().isAutomaticTextReplacementEnabled)
+    if (static_cast<bool>(flag) == TextChecker::state().contains(TextCheckerState::AutomaticTextReplacementEnabled))
         return;
 
     TextChecker::setAutomaticTextReplacementEnabled(flag);
@@ -3228,7 +3207,7 @@ void WebViewImpl::setAutomaticTextReplacementEnabled(bool flag)
 
 void WebViewImpl::toggleAutomaticTextReplacement()
 {
-    TextChecker::setAutomaticTextReplacementEnabled(!TextChecker::state().isAutomaticTextReplacementEnabled);
+    TextChecker::setAutomaticTextReplacementEnabled(!TextChecker::state().contains(TextCheckerState::AutomaticTextReplacementEnabled));
     m_page->legacyMainFrameProcess().updateTextCheckerState();
 }
 
@@ -3372,6 +3351,13 @@ void WebViewImpl::handleAcceptedCandidate(NSTextCheckingResult *acceptedCandidat
     }
 
     m_page->handleAcceptedCandidate(textCheckingResultFromNSTextCheckingResult(acceptedCandidate));
+    m_page->callAfterNextPresentationUpdate([viewImpl = WeakPtr { *this }] {
+        if (!viewImpl)
+            return;
+
+        viewImpl->m_isHandlingAcceptedCandidate = false;
+        [viewImpl->m_view _didHandleAcceptedCandidate];
+    });
 }
 
 void WebViewImpl::preferencesDidChange()
@@ -3449,7 +3435,7 @@ void WebViewImpl::dismissContentRelativeChildWindowsFromViewOnly()
 bool WebViewImpl::hasContentRelativeChildViews() const
 {
 #if ENABLE(WRITING_TOOLS)
-    return [m_textAnimationTypeManager hasActiveTextAnimationType];
+    return [m_view _web_hasActiveIntelligenceTextEffects] || [m_textAnimationTypeManager hasActiveTextAnimationType];
 #else
     return false;
 #endif
@@ -3486,6 +3472,7 @@ void WebViewImpl::contentRelativeViewsHysteresisTimerFired(PAL::HysteresisState 
 void WebViewImpl::suppressContentRelativeChildViews()
 {
 #if ENABLE(WRITING_TOOLS)
+    [m_view _web_suppressContentRelativeChildViews];
     [m_textAnimationTypeManager suppressTextAnimationType];
 #endif
 }
@@ -3493,6 +3480,7 @@ void WebViewImpl::suppressContentRelativeChildViews()
 void WebViewImpl::restoreContentRelativeChildViews()
 {
 #if ENABLE(WRITING_TOOLS)
+    [m_view _web_restoreContentRelativeChildViews];
     [m_textAnimationTypeManager restoreTextAnimationType];
 #endif
 }
@@ -3562,13 +3550,6 @@ void WebViewImpl::completeImmediateActionAnimation()
 void WebViewImpl::didChangeContentSize(CGSize newSize)
 {
     [m_view _web_didChangeContentSize:NSSizeFromCGSize(newSize)];
-}
-
-void WebViewImpl::didHandleAcceptedCandidate()
-{
-    m_isHandlingAcceptedCandidate = false;
-
-    [m_view _didHandleAcceptedCandidate];
 }
 
 void WebViewImpl::videoControlsManagerDidChange()
@@ -3678,8 +3659,12 @@ id WebViewImpl::accessibilityAttributeValue(NSString *attribute, id parameter)
         id child = nil;
         if (m_warningView)
             child = m_warningView.get();
-        else if (m_remoteAccessibilityChild)
+        else if (m_remoteAccessibilityChild) {
+#if ENABLE(WEB_PROCESS_SUSPENSION_DELAY)
+            m_page->takeAccessibilityActivityWhenInWindow();
+#endif
             child = m_remoteAccessibilityChild.get();
+        }
 
         if (!child)
             return nil;
@@ -3733,9 +3718,9 @@ NSTrackingRectTag WebViewImpl::addTrackingRectWithTrackingNum(CGRect, id owner, 
     return TRACKING_RECT_TAG;
 }
 
-void WebViewImpl::addTrackingRectsWithTrackingNums(CGRect*, id owner, void** userDataList, bool assumeInside, NSTrackingRectTag *trackingNums, int count)
+void WebViewImpl::addTrackingRectsWithTrackingNums(Vector<CGRect> cgRects, id owner, void** userDataList, bool assumeInside, NSTrackingRectTag *trackingNums)
 {
-    ASSERT(count == 1);
+    ASSERT_UNUSED(cgRects, cgRects.size() == 1);
     ASSERT(trackingNums[0] == 0 || trackingNums[0] == TRACKING_RECT_TAG);
     ASSERT(!m_trackingRectOwner);
     m_trackingRectOwner = owner;
@@ -3764,10 +3749,9 @@ void WebViewImpl::removeTrackingRect(NSTrackingRectTag tag)
     ASSERT_NOT_REACHED();
 }
 
-void WebViewImpl::removeTrackingRects(NSTrackingRectTag *tags, int count)
+void WebViewImpl::removeTrackingRects(std::span<NSTrackingRectTag> tags)
 {
-    for (int i = 0; i < count; ++i) {
-        int tag = tags[i];
+    for (auto& tag : tags) {
         if (tag == 0)
             continue;
         ASSERT(tag == TRACKING_RECT_TAG);
@@ -4551,7 +4535,7 @@ static RetainPtr<CGImageRef> takeWindowSnapshot(CGSWindowID windowID, bool captu
     CGWindowImageOption imageOptions = kCGWindowImageBoundsIgnoreFraming | kCGWindowImageShouldBeOpaque;
     if (captureAtNominalResolution)
         imageOptions |= kCGWindowImageNominalResolution;
-    return adoptCF(WebCore::cgWindowListCreateImage(CGRectNull, kCGWindowListOptionIncludingWindow, windowID, imageOptions));
+    return WebCore::cgWindowListCreateImage(CGRectNull, kCGWindowListOptionIncludingWindow, windowID, imageOptions);
 }
 
 RefPtr<ViewSnapshot> WebViewImpl::takeViewSnapshot()
@@ -4642,15 +4626,17 @@ void WebViewImpl::removeTextPlaceholder(NSTextPlaceholder *placeholder, bool wil
 
 #if ENABLE(WRITING_TOOLS)
 
-void WebViewImpl::showWritingTools()
+void WebViewImpl::showWritingTools(WTRequestedTool tool)
 {
-    IntRect selectionRect;
+    FloatRect selectionRect;
 
     auto& editorState = m_page->editorState();
-    if (editorState.selectionIsRange && editorState.hasPostLayoutData())
-        selectionRect = editorState.postLayoutData->selectionBoundingRect;
+    if (editorState.selectionIsRange)
+        selectionRect = protectedPage()->selectionBoundingRectInRootViewCoordinates();
 
-    [[PAL::getWTWritingToolsClass() sharedInstance] showPanelForSelectionRect:selectionRect ofView:m_view.getAutoreleased() forDelegate:(NSObject<WTWritingToolsDelegate> *)m_view.getAutoreleased()];
+ALLOW_DEPRECATED_DECLARATIONS_BEGIN
+    [[PAL::getWTWritingToolsClass() sharedInstance] showTool:tool forSelectionRect:selectionRect ofView:m_view.getAutoreleased() forDelegate:(NSObject<WTWritingToolsDelegate> *)m_view.getAutoreleased()];
+ALLOW_DEPRECATED_DECLARATIONS_END
 }
 
 void WebViewImpl::addTextAnimationForAnimationID(WTF::UUID uuid, const WebCore::TextAnimationData& data)
@@ -4682,7 +4668,7 @@ void WebViewImpl::hideTextAnimationView()
 ViewGestureController& WebViewImpl::ensureGestureController()
 {
     if (!m_gestureController)
-        m_gestureController = makeUnique<ViewGestureController>(m_page);
+        m_gestureController = ViewGestureController::create(m_page);
     return *m_gestureController;
 }
 
@@ -5697,6 +5683,11 @@ void WebViewImpl::removeFlagsChangedEventMonitor()
     m_flagsChangedEventMonitor = nil;
 }
 
+bool WebViewImpl::hasFlagsChangedEventMonitor()
+{
+    return m_flagsChangedEventMonitor;
+}
+
 void WebViewImpl::mouseEntered(NSEvent *event)
 {
     if (m_ignoresMouseMoveEvents)
@@ -5810,10 +5801,10 @@ static _WKRectEdge toWKRectEdge(WebCore::RectEdges<bool> edges)
 static WebCore::RectEdges<bool> toRectEdges(_WKRectEdge edges)
 {
     return {
-        edges & _WKRectEdgeTop,
-        edges & _WKRectEdgeRight,
-        edges & _WKRectEdgeBottom,
-        edges & _WKRectEdgeLeft
+        static_cast<bool>(edges & _WKRectEdgeTop),
+        static_cast<bool>(edges & _WKRectEdgeRight),
+        static_cast<bool>(edges & _WKRectEdgeBottom),
+        static_cast<bool>(edges & _WKRectEdgeLeft),
     };
 }
 
@@ -5854,6 +5845,10 @@ void WebViewImpl::mouseUp(NSEvent *event)
         return;
 
     setLastMouseDownEvent(nil);
+
+#if ENABLE(IMAGE_ANALYSIS_ENHANCEMENTS)
+    fulfillDeferredImageAnalysisOverlayViewHierarchyTask();
+#endif
 
     for (auto& hud : _pdfHUDViews.values()) {
         if ([hud handleMouseUp:event])
@@ -5918,16 +5913,6 @@ bool WebViewImpl::completeBackSwipeForTesting()
     return m_gestureController->completeSimulatedSwipeInDirectionForTesting(ViewGestureController::SwipeDirection::Back);
 }
 
-void WebViewImpl::setUseSystemAppearance(bool useSystemAppearance)
-{
-    m_page->setUseSystemAppearance(useSystemAppearance);
-}
-
-bool WebViewImpl::useSystemAppearance()
-{
-    return m_page->useSystemAppearance();
-}
-
 void WebViewImpl::effectiveAppearanceDidChange()
 {
     m_page->effectiveAppearanceDidChange();
@@ -5980,7 +5965,7 @@ void WebViewImpl::updateTouchBar()
         return;
 
     NSTouchBar *touchBar = nil;
-    bool userActionRequirementsHaveBeenMet = !requiresUserActionForEditingControlsManager() || m_page->hasHadSelectionChangesFromUserInteraction();
+    bool userActionRequirementsHaveBeenMet = !requiresUserActionForEditingControlsManager() || m_page->hasFocusedElementWithUserInteraction();
     if (m_page->editorState().isContentEditable && !m_page->isTouchBarUpdateSuppressedForHiddenContentEditable()) {
         updateTextTouchBar();
         if (userActionRequirementsHaveBeenMet)
@@ -6435,7 +6420,7 @@ void WebViewImpl::updateCursorAccessoryPlacement()
     }
 
     // Otherwise, the cursor accessory should be hidden if it will not show up in the correct position.
-    context.showsCursorAccessories = !postLayoutData.editableRootIsTransparentOrFullyClipped;
+    context.showsCursorAccessories = !postLayoutData.selectionIsTransparentOrFullyClipped;
 }
 #endif
 
@@ -6520,7 +6505,7 @@ void WebViewImpl::handleContextMenuTranslation(const WebCore::TranslationContext
 
 bool WebViewImpl::canHandleContextMenuWritingTools() const
 {
-    return [PAL::getWTWritingToolsViewControllerClass() isAvailable] && m_page->writingToolsBehavior() != WebCore::WritingTools::Behavior::None;
+    return PAL::isWritingToolsUIFrameworkAvailable() && [PAL::getWTWritingToolsViewControllerClass() isAvailable] && m_page->writingToolsBehavior() != WebCore::WritingTools::Behavior::None;
 }
 
 #endif
@@ -6583,11 +6568,11 @@ CocoaImageAnalyzer *WebViewImpl::ensureImageAnalyzer()
     return m_imageAnalyzer.get();
 }
 
-int32_t WebViewImpl::processImageAnalyzerRequest(CocoaImageAnalyzerRequest *request, CompletionHandler<void(CocoaImageAnalysis *, NSError *)>&& completion)
+int32_t WebViewImpl::processImageAnalyzerRequest(CocoaImageAnalyzerRequest *request, CompletionHandler<void(RetainPtr<CocoaImageAnalysis>&&, NSError *)>&& completion)
 {
-    return [ensureImageAnalyzer() processRequest:request progressHandler:nil completionHandler:makeBlockPtr([completion = WTFMove(completion)] (CocoaImageAnalysis *result, NSError *error) mutable {
-        callOnMainRunLoop([completion = WTFMove(completion), result = RetainPtr { result }, error = RetainPtr { error }] () mutable {
-            completion(result.get(), error.get());
+    return [ensureImageAnalyzer() processRequest:request progressHandler:nil completionHandler:makeBlockPtr([completion = WTFMove(completion)](CocoaImageAnalysis *result, NSError *error) mutable {
+        callOnMainRunLoop([completion = WTFMove(completion), result = RetainPtr { result }, error = RetainPtr { error }] mutable {
+            completion(WTFMove(result), error.get());
         });
     }).get()];
 }
@@ -6625,8 +6610,8 @@ void WebViewImpl::requestTextRecognition(const URL& imageURL, ShareableBitmap::H
 
     auto request = createImageAnalyzerRequest(cgImage.get(), imageURL, [NSURL _web_URLWithWTFString:m_page->currentURL()], VKAnalysisTypeText);
     auto startTime = MonotonicTime::now();
-    processImageAnalyzerRequest(request.get(), [completion = WTFMove(completion), startTime] (CocoaImageAnalysis *analysis, NSError *) mutable {
-        auto result = makeTextRecognitionResult(analysis);
+    processImageAnalyzerRequest(request.get(), [completion = WTFMove(completion), startTime](RetainPtr<CocoaImageAnalysis>&& analysis, NSError *) mutable {
+        auto result = makeTextRecognitionResult(analysis.get());
         RELEASE_LOG(ImageAnalysis, "Image analysis completed in %.0f ms (found text? %d)", (MonotonicTime::now() - startTime).milliseconds(), !result.isEmpty());
         completion(WTFMove(result));
     });
@@ -6676,7 +6661,7 @@ void WebViewImpl::beginTextRecognitionForVideoInElementFullscreen(ShareableBitma
         return;
 
     auto request = WebKit::createImageAnalyzerRequest(image.get(), VKAnalysisTypeText);
-    m_currentImageAnalysisRequestID = processImageAnalyzerRequest(request.get(), [this, weakThis = WeakPtr { *this }, bounds](CocoaImageAnalysis *result, NSError *error) {
+    m_currentImageAnalysisRequestID = processImageAnalyzerRequest(request.get(), [this, weakThis = WeakPtr { *this }, bounds](RetainPtr<CocoaImageAnalysis>&& result, NSError *error) {
         if (!weakThis || !m_currentImageAnalysisRequestID)
             return;
 
@@ -6685,7 +6670,7 @@ void WebViewImpl::beginTextRecognitionForVideoInElementFullscreen(ShareableBitma
             return;
 
         m_imageAnalysisInteractionBounds = bounds;
-        installImageAnalysisOverlayView(result);
+        installImageAnalysisOverlayView(WTFMove(result));
     });
 #else
     UNUSED_PARAM(bitmapHandle);
@@ -6704,31 +6689,56 @@ void WebViewImpl::cancelTextRecognitionForVideoInElementFullscreen()
 
 #if ENABLE(IMAGE_ANALYSIS_ENHANCEMENTS)
 
-void WebViewImpl::installImageAnalysisOverlayView(VKCImageAnalysis *analysis)
+void WebViewImpl::installImageAnalysisOverlayView(RetainPtr<VKCImageAnalysis>&& analysis)
 {
-    if (!m_imageAnalysisOverlayView) {
-        m_imageAnalysisOverlayView = adoptNS([PAL::allocVKCImageAnalysisOverlayViewInstance() initWithFrame:[m_view bounds]]);
-        m_imageAnalysisOverlayViewDelegate = adoptNS([[WKImageAnalysisOverlayViewDelegate alloc] initWithWebViewImpl:*this]);
-        [m_imageAnalysisOverlayView setDelegate:m_imageAnalysisOverlayViewDelegate.get()];
-        prepareImageAnalysisForOverlayView(m_imageAnalysisOverlayView.get());
-        RELEASE_LOG(ImageAnalysis, "Installing image analysis overlay view at {{ %.0f, %.0f }, { %.0f, %.0f }}",
-            m_imageAnalysisInteractionBounds.x(), m_imageAnalysisInteractionBounds.y(), m_imageAnalysisInteractionBounds.width(), m_imageAnalysisInteractionBounds.height());
-    }
+    auto installTask = [this, weakThis = WeakPtr { *this }, analysis = WTFMove(analysis)] {
+        if (!weakThis)
+            return;
 
-    [m_imageAnalysisOverlayView setAnalysis:analysis];
-    [m_view addSubview:m_imageAnalysisOverlayView.get()];
+        if (!m_imageAnalysisOverlayView) {
+            m_imageAnalysisOverlayView = adoptNS([PAL::allocVKCImageAnalysisOverlayViewInstance() initWithFrame:[m_view bounds]]);
+            m_imageAnalysisOverlayViewDelegate = adoptNS([[WKImageAnalysisOverlayViewDelegate alloc] initWithWebViewImpl:*this]);
+            [m_imageAnalysisOverlayView setDelegate:m_imageAnalysisOverlayViewDelegate.get()];
+            prepareImageAnalysisForOverlayView(m_imageAnalysisOverlayView.get());
+            RELEASE_LOG(ImageAnalysis, "Installing image analysis overlay view at {{ %.0f, %.0f }, { %.0f, %.0f }}",
+                m_imageAnalysisInteractionBounds.x(), m_imageAnalysisInteractionBounds.y(), m_imageAnalysisInteractionBounds.width(), m_imageAnalysisInteractionBounds.height());
+        }
+
+        [m_imageAnalysisOverlayView setAnalysis:analysis.get()];
+        [m_view addSubview:m_imageAnalysisOverlayView.get()];
+    };
+
+    performOrDeferImageAnalysisOverlayViewHierarchyTask(WTFMove(installTask));
 }
 
 void WebViewImpl::uninstallImageAnalysisOverlayView()
 {
-    if (!m_imageAnalysisOverlayView)
-        return;
+    auto uninstallTask = [this, weakThis = WeakPtr { *this }] {
+        if (!m_imageAnalysisOverlayView)
+            return;
 
-    RELEASE_LOG(ImageAnalysis, "Uninstalling image analysis overlay view");
-    [m_imageAnalysisOverlayView removeFromSuperview];
-    m_imageAnalysisOverlayViewDelegate = nil;
-    m_imageAnalysisOverlayView = nil;
-    m_imageAnalysisInteractionBounds = { };
+        RELEASE_LOG(ImageAnalysis, "Uninstalling image analysis overlay view");
+        [m_imageAnalysisOverlayView removeFromSuperview];
+        m_imageAnalysisOverlayViewDelegate = nil;
+        m_imageAnalysisOverlayView = nil;
+        m_imageAnalysisInteractionBounds = { };
+    };
+
+    performOrDeferImageAnalysisOverlayViewHierarchyTask(WTFMove(uninstallTask));
+}
+
+void WebViewImpl::performOrDeferImageAnalysisOverlayViewHierarchyTask(std::function<void()>&& task)
+{
+    if (m_lastMouseDownEvent)
+        m_imageAnalysisOverlayViewHierarchyDeferredTask = WTFMove(task);
+    else
+        task();
+}
+
+void WebViewImpl::fulfillDeferredImageAnalysisOverlayViewHierarchyTask()
+{
+    if (auto&& task = std::exchange(m_imageAnalysisOverlayViewHierarchyDeferredTask, nullptr))
+        task();
 }
 
 #endif // ENABLE(IMAGE_ANALYSIS_ENHANCEMENTS)

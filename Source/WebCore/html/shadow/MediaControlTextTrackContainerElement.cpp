@@ -379,12 +379,9 @@ bool MediaControlTextTrackContainerElement::updateVideoDisplaySize()
         return false;
 
     IntRect videoBox;
-    if (m_textTrackRepresentation) {
+    if (m_textTrackRepresentation)
         videoBox = m_textTrackRepresentation->bounds();
-        float deviceScaleFactor = document().page()->deviceScaleFactor();
-        videoBox.setWidth(videoBox.width() * deviceScaleFactor);
-        videoBox.setHeight(videoBox.height() * deviceScaleFactor);
-    } else {
+    else {
         if (auto* renderVideo = dynamicDowncast<RenderVideo>(m_mediaElement->renderer()))
             videoBox = renderVideo->videoBox();
         else
@@ -446,7 +443,7 @@ RefPtr<NativeImage> MediaControlTextTrackContainerElement::createTextTrackRepres
     IntRect paintingRect = IntRect(IntPoint(), layer->size());
 
     // FIXME (149422): This buffer should not be unconditionally unaccelerated.
-    auto buffer = ImageBuffer::create(paintingRect.size(), RenderingPurpose::Unspecified, deviceScaleFactor, DestinationColorSpace::SRGB(), ImageBufferPixelFormat::BGRA8);
+    auto buffer = ImageBuffer::create(paintingRect.size(), RenderingMode::Unaccelerated, RenderingPurpose::Unspecified, deviceScaleFactor, DestinationColorSpace::SRGB(), ImageBufferPixelFormat::BGRA8);
     if (!buffer)
         return nullptr;
 
@@ -492,7 +489,7 @@ const Logger& MediaControlTextTrackContainerElement::logger() const
     return *m_logger;
 }
 
-const void* MediaControlTextTrackContainerElement::logIdentifier() const
+uint64_t MediaControlTextTrackContainerElement::logIdentifier() const
 {
     if (!m_logIdentifier && m_mediaElement)
         m_logIdentifier = m_mediaElement->logIdentifier();

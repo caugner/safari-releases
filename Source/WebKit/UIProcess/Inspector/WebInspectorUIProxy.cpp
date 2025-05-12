@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2021 Apple Inc. All rights reserved.
+ * Copyright (C) 2010-2024 Apple Inc. All rights reserved.
  * Portions Copyright (c) 2011 Motorola Mobility, Inc.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -156,7 +156,12 @@ void WebInspectorUIProxy::connect()
 
     Ref legacyMainFrameProcess = inspectedPage->legacyMainFrameProcess();
     legacyMainFrameProcess->send(Messages::WebInspectorInterruptDispatcher::NotifyNeedDebuggerBreak(), 0);
-    legacyMainFrameProcess->send(Messages::WebInspector::Show(), m_inspectedPage->webPageIDInMainFrameProcess());
+    legacyMainFrameProcess->sendWithAsyncReply(
+        Messages::WebInspector::Show(),
+        [this, protectedThis = Ref { *this }] {
+            openLocalInspectorFrontend();
+        },
+        m_inspectedPage->webPageIDInMainFrameProcess());
 }
 
 void WebInspectorUIProxy::show()
@@ -265,7 +270,7 @@ void WebInspectorUIProxy::showConsole()
     if (!inspectedPage)
         return;
 
-    createFrontendPage();
+    show();
 
     inspectedPage->protectedLegacyMainFrameProcess()->send(Messages::WebInspector::ShowConsole(), inspectedPage->webPageIDInMainFrameProcess());
 }
@@ -276,7 +281,7 @@ void WebInspectorUIProxy::showResources()
     if (!inspectedPage)
         return;
 
-    createFrontendPage();
+    show();
 
     inspectedPage->protectedLegacyMainFrameProcess()->send(Messages::WebInspector::ShowResources(), inspectedPage->webPageIDInMainFrameProcess());
 }
@@ -287,7 +292,7 @@ void WebInspectorUIProxy::showMainResourceForFrame(WebCore::FrameIdentifier fram
     if (!inspectedPage)
         return;
 
-    createFrontendPage();
+    show();
 
     inspectedPage->sendToProcessContainingFrame(frameID, Messages::WebInspector::ShowMainResourceForFrame(frameID));
 }
@@ -392,6 +397,8 @@ void WebInspectorUIProxy::togglePageProfiling()
     if (!m_inspectedPage)
         return;
 
+    show();
+
     RefPtr inspectedPage = m_inspectedPage.get();
     if (m_isProfilingPage)
         inspectedPage->protectedLegacyMainFrameProcess()->send(Messages::WebInspector::StopPageProfiling(), inspectedPage->webPageIDInMainFrameProcess());
@@ -453,7 +460,16 @@ void WebInspectorUIProxy::createFrontendPage()
 #endif
 }
 
-void WebInspectorUIProxy::openLocalInspectorFrontend(bool canAttach, bool underTest)
+void WebInspectorUIProxy::requestOpenLocalInspectorFrontend()
+{
+    // Prevent a compromised malicious web page from opening Web Inspector at will.
+    if (!m_underTest && inspectionLevel() < 2)
+        return;
+
+    openLocalInspectorFrontend();
+}
+
+void WebInspectorUIProxy::openLocalInspectorFrontend()
 {
     RefPtr inspectedPage = m_inspectedPage.get();
     if (!inspectedPage)
@@ -467,7 +483,6 @@ void WebInspectorUIProxy::openLocalInspectorFrontend(bool canAttach, bool underT
         return;
     }
 
-    m_underTest = underTest;
     createFrontendPage();
 
     RefPtr inspectorPage = m_inspectorPage.get();
@@ -482,7 +497,10 @@ void WebInspectorUIProxy::openLocalInspectorFrontend(bool canAttach, bool underT
     inspectedPage->inspectorController().connectFrontend(*this);
 
     if (!m_underTest) {
-        m_canAttach = platformCanAttach(canAttach);
+        // FIXME <https://webkit.org/b/283435>: Remove the webProcessCanAttach argument from platformCanAttach.
+        // The value canAttach in the web process is no longer used or respected.
+        const bool webProcessCanAttach = false;
+        m_canAttach = platformCanAttach(webProcessCanAttach);
         m_isAttached = shouldOpenAttached();
         m_attachmentSide = static_cast<AttachmentSide>(protectedInspectorPagePreferences()->inspectorAttachmentSide());
 
@@ -598,7 +616,7 @@ void WebInspectorUIProxy::closeFrontendPageAndWindow()
 #if ENABLE(INSPECTOR_EXTENSIONS)
     // This extension controller may be kept alive by the IPC dispatcher beyond the point
     // when m_inspectorPage is cleared below. Notify the controller so it can clean up before then.
-    m_extensionController->inspectorFrontendWillClose();
+    protectedExtensionController()->inspectorFrontendWillClose();
     m_extensionController = nullptr;
 #endif
     
@@ -607,7 +625,6 @@ void WebInspectorUIProxy::closeFrontendPageAndWindow()
 
     m_isAttached = false;
     m_canAttach = false;
-    m_underTest = false;
 
     platformCloseFrontendPageAndWindow();
 }
@@ -631,8 +648,8 @@ void WebInspectorUIProxy::frontendLoaded()
         automationSession->inspectorFrontendLoaded(*inspectedPage);
 
 #if ENABLE(INSPECTOR_EXTENSIONS)
-    if (m_extensionController)
-        m_extensionController->inspectorFrontendLoaded();
+    if (RefPtr extensionController = m_extensionController)
+        extensionController->inspectorFrontendLoaded();
 #endif
 
     if (m_inspectorClient)
@@ -684,7 +701,7 @@ void WebInspectorUIProxy::effectiveAppearanceDidChange(InspectorFrontendClient::
     ASSERT(appearance == WebCore::InspectorFrontendClient::Appearance::Dark || appearance == WebCore::InspectorFrontendClient::Appearance::Light);
     auto extensionAppearance = appearance == WebCore::InspectorFrontendClient::Appearance::Dark ? Inspector::ExtensionAppearance::Dark : Inspector::ExtensionAppearance::Light;
 
-    m_extensionController->effectiveAppearanceDidChange(extensionAppearance);
+    protectedExtensionController()->effectiveAppearanceDidChange(extensionAppearance);
 #endif
 }
 
@@ -758,6 +775,11 @@ void WebInspectorUIProxy::setDeveloperPreferenceOverride(WebCore::InspectorClien
         if (RefPtr inspectedPage = m_inspectedPage.get())
             inspectedPage->setMockCaptureDevicesEnabledOverride(overrideValue);
 #endif // ENABLE(MEDIA_STREAM)
+        return;
+
+    case InspectorClient::DeveloperPreference::NeedsSiteSpecificQuirks:
+        if (RefPtr inspectedPage = m_inspectedPage.get())
+            inspectedPage->protectedPreferences()->setNeedsSiteSpecificQuirksInspectorOverride(overrideValue);
         return;
     }
 

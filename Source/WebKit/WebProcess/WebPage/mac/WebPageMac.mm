@@ -35,19 +35,18 @@
 #import "InjectedBundleHitTestResult.h"
 #import "InjectedBundlePageContextMenuClient.h"
 #import "LaunchServicesDatabaseManager.h"
-#import "PDFPlugin.h"
+#import "PDFPluginBase.h"
 #import "PageBanner.h"
 #import "PlatformFontInfo.h"
 #import "PluginView.h"
 #import "PrintInfo.h"
 #import "UserData.h"
 #import "WKAccessibilityWebPageObjectMac.h"
-#import "WebCoreArgumentCoders.h"
 #import "WebEventConversion.h"
 #import "WebFrame.h"
 #import "WebHitTestResultData.h"
 #import "WebImage.h"
-#import "WebInspector.h"
+#import "WebInspectorInternal.h"
 #import "WebKeyboardEvent.h"
 #import "WebMouseEvent.h"
 #import "WebPageOverlay.h"
@@ -94,15 +93,16 @@
 #import <WebCore/RenderObject.h>
 #import <WebCore/RenderStyle.h>
 #import <WebCore/RenderView.h>
-#import <WebCore/RuntimeApplicationChecks.h>
 #import <WebCore/ScrollView.h>
 #import <WebCore/StyleInheritedData.h>
 #import <WebCore/TextIterator.h>
 #import <WebCore/VisibleUnits.h>
 #import <WebCore/WindowsKeyboardCodes.h>
+#import <WebCore/markup.h>
 #import <pal/spi/cocoa/LaunchServicesSPI.h>
 #import <pal/spi/cocoa/NSAccessibilitySPI.h>
 #import <pal/spi/mac/NSApplicationSPI.h>
+#import <wtf/RuntimeApplicationChecks.h>
 #import <wtf/SetForScope.h>
 #import <wtf/SortedArrayMap.h>
 #import <wtf/cocoa/VectorCocoa.h>
@@ -126,10 +126,9 @@ void WebPage::platformInitializeAccessibility()
     [NSApplication _accessibilityInitialize];
 
     // Get the pid for the starting process.
-    pid_t pid = WebCore::presentingApplicationPID();
+    pid_t pid = legacyPresentingApplicationPID();
     createMockAccessibilityElement(pid);
-    RefPtr localMainFrame = dynamicDowncast<LocalFrame>(m_page->mainFrame());
-    if (localMainFrame)
+    if (m_page->localMainFrame())
         accessibilityTransferRemoteToken(accessibilityRemoteTokenData());
 
     // Close Mach connection to Launch Services.
@@ -217,7 +216,6 @@ void WebPage::handleAcceptedCandidate(WebCore::TextCheckingResult acceptedCandid
         return;
 
     frame->editor().handleAcceptedCandidate(acceptedCandidate);
-    send(Messages::WebPageProxy::DidHandleAcceptedCandidate());
 }
 
 NSObject *WebPage::accessibilityObjectForMainFramePlugin()
@@ -236,13 +234,13 @@ static String commandNameForSelectorName(const String& selectorName)
     // Map selectors into Editor command names.
     // This is not needed for any selectors that have the same name as the Editor command.
     static constexpr std::pair<ComparableASCIILiteral, ASCIILiteral> selectorExceptions[] = {
-        { "insertNewlineIgnoringFieldEditor:", "InsertNewline"_s },
-        { "insertParagraphSeparator:", "InsertNewline"_s },
-        { "insertTabIgnoringFieldEditor:", "InsertTab"_s },
-        { "pageDown:", "MovePageDown"_s },
-        { "pageDownAndModifySelection:", "MovePageDownAndModifySelection"_s },
-        { "pageUp:", "MovePageUp"_s },
-        { "pageUpAndModifySelection:", "MovePageUpAndModifySelection"_s },
+        { "insertNewlineIgnoringFieldEditor:"_s, "InsertNewline"_s },
+        { "insertParagraphSeparator:"_s, "InsertNewline"_s },
+        { "insertTabIgnoringFieldEditor:"_s, "InsertTab"_s },
+        { "pageDown:"_s, "MovePageDown"_s },
+        { "pageDownAndModifySelection:"_s, "MovePageDownAndModifySelection"_s },
+        { "pageUp:"_s, "MovePageUp"_s },
+        { "pageUpAndModifySelection:"_s, "MovePageUpAndModifySelection"_s },
     };
     static constexpr SortedArrayMap map { selectorExceptions };
     if (auto commandName = map.tryGet(selectorName))
@@ -439,13 +437,14 @@ void WebPage::updateRemotePageAccessibilityOffset(WebCore::FrameIdentifier frame
     [accessibilityRemoteObject() setRemoteFrameOffset:offset];
 }
 
-void WebPage::registerRemoteFrameAccessibilityTokens(pid_t pid, std::span<const uint8_t> elementToken)
+void WebPage::registerRemoteFrameAccessibilityTokens(pid_t pid, std::span<const uint8_t> elementToken, WebCore::FrameIdentifier frameID)
 {
     RetainPtr elementTokenData = toNSData(elementToken);
     auto remoteElement = [elementTokenData length] ? adoptNS([[NSAccessibilityRemoteUIElement alloc] initWithRemoteToken:elementTokenData.get()]) : nil;
 
     createMockAccessibilityElement(pid);
     [accessibilityRemoteObject() setRemoteParent:remoteElement.get()];
+    [accessibilityRemoteObject() setFrameIdentifier:frameID];
 }
 
 void WebPage::registerUIProcessAccessibilityTokens(std::span<const uint8_t> elementToken, std::span<const uint8_t> windowToken)
@@ -457,7 +456,7 @@ void WebPage::registerUIProcessAccessibilityTokens(std::span<const uint8_t> elem
 
     [remoteElement setWindowUIElement:remoteWindow.get()];
     [remoteElement setTopLevelUIElement:remoteWindow.get()];
-
+    [accessibilityRemoteObject() setWindow:remoteWindow.get()];
     [accessibilityRemoteObject() setRemoteParent:remoteElement.get()];
 }
 
@@ -696,17 +695,14 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     CGAffineTransform transform = CGContextGetCTM(context);
 
     for (PDFAnnotation *annotation in [pdfPage annotations]) {
-        if (![annotation isKindOfClass:getPDFAnnotationLinkClass()])
+        if (![[annotation valueForAnnotationKey:get_PDFKit_PDFAnnotationKeySubtype()] isEqualToString:get_PDFKit_PDFAnnotationSubtypeLink()])
             continue;
 
-ALLOW_DEPRECATED_DECLARATIONS_BEGIN
-        PDFAnnotationLink *linkAnnotation = (PDFAnnotationLink *)annotation;
-ALLOW_DEPRECATED_DECLARATIONS_END
-        NSURL *url = [linkAnnotation URL];
+        NSURL *url = annotation.URL;
         if (!url)
             continue;
 
-        CGRect urlRect = NSRectToCGRect([linkAnnotation bounds]);
+        CGRect urlRect = NSRectToCGRect(annotation.bounds);
         CGRect transformedRect = CGRectApplyAffineTransform(urlRect, transform);
         CGPDFContextSetURLForRect(context, (CFURLRef)url, transformedRect);
     }
@@ -762,7 +758,7 @@ void WebPage::handleSelectionServiceClick(FrameSelection& selection, const Vecto
     if (!range)
         return;
 
-    auto selectionString = attributedString(*range);
+    auto selectionString = attributedString(*range, IgnoreUserSelectNone::Yes);
     if (selectionString.isNull())
         return;
 
@@ -969,13 +965,13 @@ std::optional<WebCore::SimpleRange> WebPage::lookupTextAtLocation(FrameIdentifie
 
 void WebPage::immediateActionDidUpdate()
 {
-    if (RefPtr localMainFrame = dynamicDowncast<LocalFrame>(m_page->mainFrame()))
+    if (RefPtr localMainFrame = m_page->localMainFrame())
         localMainFrame->eventHandler().setImmediateActionStage(ImmediateActionStage::ActionUpdated);
 }
 
 void WebPage::immediateActionDidCancel()
 {
-    RefPtr localMainFrame = dynamicDowncast<LocalFrame>(m_page->mainFrame());
+    RefPtr localMainFrame = m_page->localMainFrame();
     if (!localMainFrame)
         return;
     ImmediateActionStage lastStage = localMainFrame->eventHandler().immediateActionStage();
@@ -987,7 +983,7 @@ void WebPage::immediateActionDidCancel()
 
 void WebPage::immediateActionDidComplete()
 {
-    if (RefPtr localMainFrame = dynamicDowncast<LocalFrame>(m_page->mainFrame()))
+    if (RefPtr localMainFrame = m_page->localMainFrame())
         localMainFrame->eventHandler().setImmediateActionStage(ImmediateActionStage::ActionCompleted);
 }
 
@@ -1069,7 +1065,7 @@ void WebPage::didBeginMagnificationGesture()
 void WebPage::didEndMagnificationGesture()
 {
 #if ENABLE(MAC_GESTURE_EVENTS)
-    if (RefPtr localMainFrame = dynamicDowncast<LocalFrame>(m_page->mainFrame()))
+    if (RefPtr localMainFrame = m_page->localMainFrame())
         localMainFrame->eventHandler().didEndMagnificationGesture();
 #endif
 #if ENABLE(PDF_PLUGIN)
@@ -1085,7 +1081,7 @@ bool WebPage::shouldAvoidComputingPostLayoutDataForEditorState() const
         return false;
     }
 
-    if (!m_requiresUserActionForEditingControlsManager || m_hasEverFocusedElementDueToUserInteractionSincePageTransition) {
+    if (!m_requiresUserActionForEditingControlsManager || !m_userInteractionsSincePageTransition.isEmpty()) {
         // Text editing controls on the touch bar depend on having post-layout editor state data.
         return false;
     }

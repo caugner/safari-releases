@@ -37,10 +37,12 @@
 #include <wtf/LoggingAccumulator.h>
 #include <wtf/PrintStream.h>
 #include <wtf/StackTrace.h>
+#include <wtf/StdLibExtras.h>
 #include <wtf/WTFConfig.h>
 #include <wtf/text/CString.h>
 #include <wtf/text/MakeString.h>
 #include <wtf/text/StringBuilder.h>
+#include <wtf/text/StringCommon.h>
 #include <wtf/text/WTFString.h>
 
 #if USE(CF)
@@ -65,6 +67,8 @@
 #import <wtf/spi/cocoa/OSLogSPI.h>
 #endif
 
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
+
 namespace WTF {
 
 WTF_ATTRIBUTE_PRINTF(1, 0)
@@ -76,7 +80,7 @@ static String createWithFormatAndArguments(const char* format, va_list args)
 ALLOW_NONLITERAL_FORMAT_BEGIN
 
 #if USE(CF)
-    if (strstr(format, "%@")) {
+    if (contains(unsafeSpan(format), "%@"_span)) {
         auto cfFormat = adoptCF(CFStringCreateWithCStringNoCopy(kCFAllocatorDefault, format, kCFStringEncodingUTF8, kCFAllocatorNull));
         auto result = adoptCF(CFStringCreateWithFormatAndArguments(kCFAllocatorDefault, nullptr, cfFormat.get(), args));
         va_end(argsCopy);
@@ -148,7 +152,7 @@ WTF_ATTRIBUTE_PRINTF(2, 0)
 static void vprintf_stderr_common([[maybe_unused]] WTFLogChannel* channel, const char* format, va_list args)
 {
 #if USE(CF)
-    if (strstr(format, "%@")) {
+    if (contains(unsafeSpan(format), "%@"_span)) {
         auto cfFormat = adoptCF(CFStringCreateWithCStringNoCopy(nullptr, format, kCFStringEncodingUTF8, kCFAllocatorNull));
 
 ALLOW_NONLITERAL_FORMAT_BEGIN
@@ -194,14 +198,14 @@ ALLOW_NONLITERAL_FORMAT_END
 }
 
 WTF_ATTRIBUTE_PRINTF(2, 0)
-static void vprintf_stderr_with_prefix(const char* prefix, const char* format, va_list args)
+static void vprintf_stderr_with_prefix(const char* rawPrefix, const char* rawFormat, va_list args)
 {
-    size_t prefixLength = strlen(prefix);
-    size_t formatLength = strlen(format);
-    Vector<char> formatWithPrefix(prefixLength + formatLength + 1);
-    memcpy(formatWithPrefix.data(), prefix, prefixLength);
-    memcpy(formatWithPrefix.data() + prefixLength, format, formatLength);
-    formatWithPrefix[prefixLength + formatLength] = 0;
+    auto prefix = unsafeSpan(rawPrefix);
+    auto format = unsafeSpan(rawFormat);
+    Vector<char> formatWithPrefix(prefix.size() + format.size() + 1);
+    memcpySpan(formatWithPrefix.mutableSpan(), prefix);
+    memcpySpan(formatWithPrefix.mutableSpan().subspan(prefix.size()), format);
+    formatWithPrefix[prefix.size() + format.size()] = 0;
 
 ALLOW_NONLITERAL_FORMAT_BEGIN
     vprintf_stderr_common(nullptr, formatWithPrefix.data(), args);
@@ -209,18 +213,18 @@ ALLOW_NONLITERAL_FORMAT_END
 }
 
 WTF_ATTRIBUTE_PRINTF(2, 0)
-static void vprintf_stderr_with_trailing_newline(WTFLogChannel* channel, const char* format, va_list args)
+static void vprintf_stderr_with_trailing_newline(WTFLogChannel* channel, const char* rawFormat, va_list args)
 {
-    size_t formatLength = strlen(format);
-    if (formatLength && format[formatLength - 1] == '\n') {
-        vprintf_stderr_common(channel, format, args);
+    auto format = unsafeSpan(rawFormat);
+    if (!format.empty() && format.back() == '\n') {
+        vprintf_stderr_common(channel, rawFormat, args);
         return;
     }
 
-    Vector<char> formatWithNewline(formatLength + 2);
-    memcpy(formatWithNewline.data(), format, formatLength);
-    formatWithNewline[formatLength] = '\n';
-    formatWithNewline[formatLength + 1] = 0;
+    Vector<char> formatWithNewline(format.size() + 2);
+    memcpySpan(formatWithNewline.mutableSpan(), format);
+    formatWithNewline[format.size()] = '\n';
+    formatWithNewline[format.size() + 1] = 0;
 
 ALLOW_NONLITERAL_FORMAT_BEGIN
     vprintf_stderr_common(channel, formatWithNewline.data(), args);
@@ -306,49 +310,49 @@ void WTFReportBacktraceWithPrefixAndStackDepth(const char* prefix, int framesToS
 {
     int frames = framesToShow + kDefaultFramesToSkip;
     Vector<void*> samples;
-    samples.reserveInitialCapacity(frames);
+    samples.resize(frames);
 
     WTFGetBacktrace(samples.data(), &frames);
     CrashLogPrintStream out;
     if (frames > kDefaultFramesToSkip)
-        WTFPrintBacktraceWithPrefixAndPrintStream(out, samples.data() + kDefaultFramesToSkip, framesToShow, prefix);
+        WTFPrintBacktraceWithPrefixAndPrintStream(out, samples.subspan(kDefaultFramesToSkip, framesToShow), prefix);
     else
         out.print("%sno stacktrace available", prefix);
 }
 
 void WTFReportBacktraceWithPrefixAndPrintStream(PrintStream& out, const char* prefix)
 {
-    void* samples[kDefaultFramesToShow + kDefaultFramesToSkip];
-    int frames = kDefaultFramesToShow + kDefaultFramesToSkip;
+    std::array<void*, kDefaultFramesToShow + kDefaultFramesToSkip> samples;
+    int frames = samples.size();
 
-    WTFGetBacktrace(samples, &frames);
+    WTFGetBacktrace(samples.data(), &frames);
     if (frames > kDefaultFramesToSkip)
-        WTFPrintBacktraceWithPrefixAndPrintStream(out, samples + kDefaultFramesToSkip, frames - kDefaultFramesToSkip, prefix);
+        WTFPrintBacktraceWithPrefixAndPrintStream(out, std::span { samples }.subspan(kDefaultFramesToSkip, frames - kDefaultFramesToSkip), prefix);
     else
         out.print("%sno stacktrace available", prefix);
 }
 
 void WTFReportBacktrace()
 {
-    void* samples[kDefaultFramesToShow + kDefaultFramesToSkip];
+    std::array<void*, kDefaultFramesToShow + kDefaultFramesToSkip> samples;
     int frames = kDefaultFramesToShow + kDefaultFramesToSkip;
 
-    WTFGetBacktrace(samples, &frames);
+    WTFGetBacktrace(samples.data(), &frames);
     if (frames > kDefaultFramesToSkip)
-        WTFPrintBacktrace(samples + kDefaultFramesToSkip, frames - kDefaultFramesToSkip);
+        WTFPrintBacktrace(std::span { samples }.subspan(kDefaultFramesToSkip, frames - kDefaultFramesToSkip));
     else
         CrashLogPrintStream { }.print("no stacktrace available");
 }
 
-void WTFPrintBacktraceWithPrefixAndPrintStream(PrintStream& out, void** stack, int size, const char* prefix)
+void WTFPrintBacktraceWithPrefixAndPrintStream(PrintStream& out, std::span<void* const> stack, const char* prefix)
 {
-    out.print(StackTracePrinter { { stack, static_cast<size_t>(std::max(0, size)) }, prefix });
+    out.print(StackTracePrinter { stack, prefix });
 }
 
-void WTFPrintBacktrace(void** stack, int size)
+void WTFPrintBacktrace(std::span<void* const> stack)
 {
     CrashLogPrintStream out;
-    WTFPrintBacktraceWithPrefixAndPrintStream(out, stack, size, "");
+    WTFPrintBacktraceWithPrefixAndPrintStream(out, stack, "");
 }
 
 #if !defined(NDEBUG) || !(OS(DARWIN) || PLATFORM(PLAYSTATION))
@@ -738,3 +742,5 @@ String getAndResetAccumulatedLogs()
 }
 
 } // namespace WTF
+
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_END

@@ -91,7 +91,8 @@ class RTCPeerConnection final
 {
     WTF_MAKE_TZONE_OR_ISO_ALLOCATED_EXPORT(RTCPeerConnection, WEBCORE_EXPORT);
 public:
-    DEFINE_VIRTUAL_REFCOUNTED;
+    void ref() const final { RefCounted::ref(); }
+    void deref() const final { RefCounted::deref(); }
 
     static ExceptionOr<Ref<RTCPeerConnection>> create(Document&, RTCConfiguration&&);
     WEBCORE_EXPORT virtual ~RTCPeerConnection();
@@ -133,7 +134,7 @@ public:
     RTCPeerConnectionState connectionState() const { return m_connectionState; }
     std::optional<bool> canTrickleIceCandidates() const;
 
-    void restartIce() { m_backend->restartIce(); }
+    void restartIce() { protectedBackend()->restartIce(); }
     const RTCConfiguration& getConfiguration() const { return m_configuration; }
     ExceptionOr<void> setConfiguration(RTCConfiguration&&);
     void close();
@@ -180,8 +181,8 @@ public:
 
     void scheduleEvent(Ref<Event>&&);
 
-    void disableICECandidateFiltering() { m_backend->disableICECandidateFiltering(); }
-    void enableICECandidateFiltering() { m_backend->enableICECandidateFiltering(); }
+    void disableICECandidateFiltering() { protectedBackend()->disableICECandidateFiltering(); }
+    void enableICECandidateFiltering() { protectedBackend()->enableICECandidateFiltering(); }
 
     void clearController() { m_controller = nullptr; }
 
@@ -200,9 +201,11 @@ public:
     // EventTarget implementation.
     void dispatchEvent(Event&) final;
 
+    void dispatchDataChannelEvent(UniqueRef<RTCDataChannelHandler>&&, String&& label, RTCDataChannelInit&&);
+
 #if !RELEASE_LOG_DISABLED
     const Logger& logger() const final { return m_logger.get(); }
-    const void* logIdentifier() const final { return m_logIdentifier; }
+    uint64_t logIdentifier() const final { return m_logIdentifier; }
     ASCIILiteral logClassName() const final { return "RTCPeerConnection"_s; }
     WTFLogChannel& logChannel() const final;
 #endif
@@ -221,7 +224,7 @@ private:
     void unregisterFromController();
 
     friend class Internals;
-    void applyRotationForOutgoingVideoSources() { m_backend->applyRotationForOutgoingVideoSources(); }
+    void applyRotationForOutgoingVideoSources() { protectedBackend()->applyRotationForOutgoingVideoSources(); }
 
     // EventTarget implementation.
     void refEventTarget() final { ref(); }
@@ -240,7 +243,7 @@ private:
     bool doClose();
     void doStop();
 
-    void getStats(RTCRtpSender& sender, Ref<DeferredPromise>&& promise) { m_backend->getStats(sender, WTFMove(promise)); }
+    void getStats(RTCRtpSender& sender, Ref<DeferredPromise>&& promise) { protectedBackend()->getStats(sender, WTFMove(promise)); }
 
     ExceptionOr<Vector<MediaEndpointConfiguration::CertificatePEM>> certificatesFromConfiguration(const RTCConfiguration&);
     void chainOperation(Ref<DeferredPromise>&&, Function<void(Ref<DeferredPromise>&&)>&&);
@@ -254,6 +257,8 @@ private:
 
     void setSignalingState(RTCSignalingState);
 
+    WEBCORE_EXPORT RefPtr<PeerConnectionBackend> protectedBackend() const;
+
     bool m_isStopped { false };
     RTCSignalingState m_signalingState { RTCSignalingState::Stable };
     RTCIceGatheringState m_iceGatheringState { RTCIceGatheringState::New };
@@ -262,7 +267,7 @@ private:
 
 #if !RELEASE_LOG_DISABLED
     Ref<const Logger> m_logger;
-    const void* m_logIdentifier;
+    const uint64_t m_logIdentifier;
 #endif
 
     RtpTransceiverSet m_transceiverSet;

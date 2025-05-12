@@ -185,10 +185,13 @@ endif ()
 # TestWebCore definitions
 if (ENABLE_WEBCORE)
     set(TestWebCore_SOURCES
+        GraphicsTestUtilities.cpp
         TestsController.cpp
         Utilities.cpp
+        WebCoreTestUtilities.cpp
 
         Tests/WebCore/AffineTransform.cpp
+        Tests/WebCore/AudioSampleFormat.cpp
         Tests/WebCore/CSSParser.cpp
         Tests/WebCore/CSSTokenizerTests.cpp
         Tests/WebCore/ColorTests.cpp
@@ -202,6 +205,7 @@ if (ENABLE_WEBCORE)
         Tests/WebCore/GridPosition.cpp
         Tests/WebCore/HTMLParserIdioms.cpp
         Tests/WebCore/HTTPParsers.cpp
+        Tests/WebCore/ImageBufferTests.cpp
         Tests/WebCore/IntPointTests.cpp
         Tests/WebCore/IntRectTests.cpp
         Tests/WebCore/IntSizeTests.cpp
@@ -209,15 +213,20 @@ if (ENABLE_WEBCORE)
         Tests/WebCore/LayoutUnitTests.cpp
         Tests/WebCore/MIMESniffer.cpp
         Tests/WebCore/MIMETypeRegistry.cpp
+        Tests/WebCore/MixedContentChecker.cpp
         Tests/WebCore/MonospaceFontTests.cpp
         Tests/WebCore/NowPlayingInfoTests.cpp
         Tests/WebCore/ParsedContentRange.cpp
         Tests/WebCore/PathTests.cpp
+        Tests/WebCore/PixelBufferConversionTests.cpp
         Tests/WebCore/PublicSuffix.cpp
+        Tests/WebCore/RegionTests.cpp
         Tests/WebCore/RenderStyleChange.cpp
+        Tests/WebCore/ResourceMonitor.cpp
         Tests/WebCore/SecurityOrigin.cpp
         Tests/WebCore/SharedBuffer.cpp
         Tests/WebCore/SharedBufferTest.cpp
+        Tests/WebCore/StyleGradient.cpp
         Tests/WebCore/TimeRanges.cpp
         Tests/WebCore/TransformationMatrix.cpp
         Tests/WebCore/URLParserTextEncoding.cpp

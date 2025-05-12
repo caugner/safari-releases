@@ -41,7 +41,7 @@ namespace JSC {
     const JSC::Identifier& name##Symbol() const { return m_##name##Symbol; }
 #define DECLARE_BUILTIN_IDENTIFIER_ACCESSOR_IN_JSC(name) \
     const JSC::Identifier& name##PublicName() const { return m_##name; } \
-    JSC::Identifier name##PrivateName() const { return JSC::Identifier::fromUid(*bitwise_cast<SymbolImpl*>(&JSC::Symbols::name##PrivateName)); }
+    JSC::Identifier name##PrivateName() const { return JSC::Identifier::fromUid(*std::bit_cast<SymbolImpl*>(&JSC::Symbols::name##PrivateName)); }
 
 
 #define JSC_COMMON_PRIVATE_IDENTIFIERS_EACH_PROPERTY_NAME(macro) \
@@ -91,6 +91,7 @@ namespace JSC {
     macro(set) \
     macro(clear) \
     macro(context) \
+    macro(defer) \
     macro(delete) \
     macro(size) \
     macro(shift) \
@@ -118,7 +119,6 @@ namespace JSC {
     macro(this) \
     macro(toIntegerOrInfinity) \
     macro(toLength) \
-    macro(importMapStatus) \
     macro(importInRealm) \
     macro(evalFunction) \
     macro(evalInRealm) \
@@ -135,7 +135,6 @@ namespace JSC {
     macro(instanceOf) \
     macro(isArraySlow) \
     macro(sameValue) \
-    macro(concatMemcpy) \
     macro(appendMemcpy) \
     macro(regExpCreate) \
     macro(isRegExp) \
@@ -202,8 +201,8 @@ namespace JSC {
     macro(sentinelString) \
     macro(createRemoteFunction) \
     macro(isRemoteFunction) \
-    macro(arrayFromFast) \
-    macro(arraySort) \
+    macro(arrayFromFastFillWithUndefined) \
+    macro(arrayFromFastFillWithEmpty) \
     macro(jsonParse) \
     macro(jsonStringify) \
     macro(String) \
@@ -218,6 +217,7 @@ namespace JSC {
     macro(wrapForValidIteratorCreate) \
     macro(asyncFromSyncIteratorCreate) \
     macro(regExpStringIteratorCreate) \
+    macro(iteratorHelperCreate) \
 
 
 namespace Symbols {

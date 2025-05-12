@@ -28,6 +28,10 @@
 
 #pragma once
 
+#include <wtf/Compiler.h>
+
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
+
 #include "CalleeBits.h"
 #include "CodeSpecializationKind.h"
 #include "ConcurrentJSLock.h"
@@ -46,7 +50,7 @@
 #include "JSLock.h"
 #include "JSONAtomStringCache.h"
 #include "KeyAtomStringCache.h"
-#include "Microtask.h"
+#include "MicrotaskQueue.h"
 #include "NativeFunction.h"
 #include "NumericStrings.h"
 #include "SlotVisitorMacros.h"
@@ -63,18 +67,18 @@
 #include <variant>
 #include <wtf/BumpPointerAllocator.h>
 #include <wtf/CheckedArithmetic.h>
-#include <wtf/Deque.h>
 #include <wtf/DoublyLinkedList.h>
 #include <wtf/Forward.h>
 #include <wtf/Gigacage.h>
 #include <wtf/HashMap.h>
 #include <wtf/LazyRef.h>
 #include <wtf/LazyUniqueRef.h>
+#include <wtf/MallocPtr.h>
 #include <wtf/SetForScope.h>
 #include <wtf/StackPointer.h>
 #include <wtf/Stopwatch.h>
 #include <wtf/TZoneMalloc.h>
-#include <wtf/ThreadSafeRefCounted.h>
+#include <wtf/ThreadSafeRefCountedWithSuppressingSaferCPPChecking.h>
 #include <wtf/ThreadSafeWeakHashSet.h>
 #include <wtf/UniqueArray.h>
 #include <wtf/text/AdaptiveStringSearcher.h>
@@ -173,71 +177,6 @@ class Signature;
 
 struct EntryFrame;
 
-class MicrotaskQueue;
-class QueuedTask {
-    WTF_MAKE_TZONE_ALLOCATED(QueuedTask);
-    friend class MicrotaskQueue;
-public:
-    static constexpr unsigned maxArguments = 4;
-
-    QueuedTask(MicrotaskIdentifier identifier, JSValue job, JSValue argument0, JSValue argument1, JSValue argument2, JSValue argument3)
-        : m_identifier(identifier)
-        , m_job(job)
-        , m_arguments { argument0, argument1, argument2, argument3 }
-    {
-    }
-
-    void run();
-
-    MicrotaskIdentifier identifier() const { return m_identifier; }
-
-private:
-    MicrotaskIdentifier m_identifier;
-    JSValue m_job;
-    JSValue m_arguments[maxArguments];
-};
-
-class MicrotaskQueue {
-    WTF_MAKE_TZONE_ALLOCATED(MicrotaskQueue);
-    WTF_MAKE_NONCOPYABLE(MicrotaskQueue);
-public:
-    MicrotaskQueue() = default;
-
-    QueuedTask dequeue()
-    {
-        if (m_markedBefore)
-            --m_markedBefore;
-        return m_queue.takeFirst();
-    }
-
-    void enqueue(QueuedTask&& task)
-    {
-        m_queue.append(WTFMove(task));
-    }
-
-    bool isEmpty() const
-    {
-        return m_queue.isEmpty();
-    }
-
-    void clear()
-    {
-        m_queue.clear();
-        m_markedBefore = 0;
-    }
-
-    void beginMarking()
-    {
-        m_markedBefore = 0;
-    }
-
-    DECLARE_VISIT_AGGREGATE;
-
-private:
-    Deque<QueuedTask> m_queue;
-    unsigned m_markedBefore { 0 };
-};
-
 DECLARE_ALLOCATOR_WITH_HEAP_IDENTIFIER(VM);
 
 struct ScratchBuffer {
@@ -254,7 +193,7 @@ struct ScratchBuffer {
 
     static ScratchBuffer* fromData(void* buffer)
     {
-        return bitwise_cast<ScratchBuffer*>(static_cast<char*>(buffer) - OBJECT_OFFSETOF(ScratchBuffer, m_buffer));
+        return std::bit_cast<ScratchBuffer*>(static_cast<char*>(buffer) - OBJECT_OFFSETOF(ScratchBuffer, m_buffer));
     }
 
     static size_t allocationSize(Checked<size_t> bufferSize) { return sizeof(ScratchBuffer) + bufferSize; }
@@ -280,20 +219,16 @@ private:
 };
 
 enum VMIdentifierType { };
-using VMIdentifier = LegacyNullableAtomicObjectIdentifier<VMIdentifierType>;
+using VMIdentifier = AtomicObjectIdentifier<VMIdentifierType>;
 
-class VM : public ThreadSafeRefCounted<VM>, public DoublyLinkedListNode<VM> {
+class VM : public ThreadSafeRefCountedWithSuppressingSaferCPPChecking<VM>, public DoublyLinkedListNode<VM> {
     WTF_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(VM);
 public:
     // WebCore has a one-to-one mapping of threads to VMs;
     // create() should only be called once
     // on a thread, this is the 'default' VM (it uses the
     // thread's default string uniquing table from Thread::current()).
-    // API contexts created using the new context group aware interface
-    // create APIContextGroup objects which require less locking of JSC
-    // than the old singleton APIShared VM created for use by
-    // the original API.
-    enum VMType { Default, APIContextGroup, APIShared };
+    enum class VMType { Default, APIContextGroup };
 
     struct ClientData {
         JS_EXPORT_PRIVATE virtual ~ClientData() { };
@@ -301,10 +236,7 @@ public:
         JS_EXPORT_PRIVATE virtual String overrideSourceURL(const StackFrame&, const String& originalSourceURL) const = 0;
     };
 
-    bool isSharedInstance() { return vmType == APIShared; }
-    bool usingAPI() { return vmType != Default; }
-    JS_EXPORT_PRIVATE static bool sharedInstanceExists();
-    JS_EXPORT_PRIVATE static VM& sharedInstance();
+    bool usingAPI() { return vmType != VMType::Default; }
 
     JS_EXPORT_PRIVATE static Ref<VM> create(HeapType = HeapType::Small, WTF::RunLoop* = nullptr);
     JS_EXPORT_PRIVATE static RefPtr<VM> tryCreate(HeapType = HeapType::Small, WTF::RunLoop* = nullptr);
@@ -473,6 +405,10 @@ public:
     ALWAYS_INLINE CompleteSubspace& cellSpace() { return heap.cellSpace; }
     ALWAYS_INLINE CompleteSubspace& variableSizedCellSpace() { return heap.variableSizedCellSpace; }
     ALWAYS_INLINE CompleteSubspace& destructibleObjectSpace() { return heap.destructibleObjectSpace; }
+#if ENABLE(WEBASSEMBLY)
+    template<SubspaceAccess mode>
+    ALWAYS_INLINE GCClient::PreciseSubspace* webAssemblyInstanceSpace() { return heap.webAssemblyInstanceSpace<mode>(); }
+#endif
 
 #define DEFINE_ISO_SUBSPACE_ACCESSOR(name, heapCellType, type) \
     ALWAYS_INLINE GCClient::IsoSubspace& name() { return clientHeap.name; }
@@ -664,7 +600,7 @@ public:
     SourceProviderCache* addSourceProviderCache(SourceProvider*);
     void clearSourceProviderCaches();
 
-    typedef HashMap<RefPtr<SourceProvider>, RefPtr<SourceProviderCache>> SourceProviderCacheMap;
+    typedef UncheckedKeyHashMap<RefPtr<SourceProvider>, RefPtr<SourceProviderCache>> SourceProviderCacheMap;
     SourceProviderCacheMap sourceProviderCacheMap;
 #if ENABLE(JIT)
     std::unique_ptr<JITThunks> jitStubs;
@@ -817,7 +753,7 @@ public:
     VMEntryScope* entryScope { nullptr };
 
     JSObject* stringRecursionCheckFirstObject { nullptr };
-    HashSet<JSObject*> stringRecursionCheckVisitedObjects;
+    UncheckedKeyHashSet<JSObject*> stringRecursionCheckVisitedObjects;
 
     DateCache dateCache;
 
@@ -928,6 +864,11 @@ public:
     void queueMicrotask(QueuedTask&&);
     JS_EXPORT_PRIVATE void drainMicrotasks();
     void setOnEachMicrotaskTick(WTF::Function<void(VM&)>&& func) { m_onEachMicrotaskTick = WTFMove(func); }
+    void callOnEachMicrotaskTick()
+    {
+        if (m_onEachMicrotaskTick)
+            m_onEachMicrotaskTick(*this);
+    }
     void finalizeSynchronousJSExecution()
     {
         ASSERT(currentThreadIsHoldingAPILock());
@@ -1009,6 +950,13 @@ public:
     template<typename Func>
     void forEachDebugger(const Func&);
 
+    void changeNumberOfActiveJITPlans(int64_t value)
+    {
+        m_numberOfActiveJITPlans.fetch_add(value, std::memory_order_relaxed);
+    }
+
+    int64_t numberOfActiveJITPlans() const { return m_numberOfActiveJITPlans.load(std::memory_order_relaxed); }
+
     Ref<Waiter> syncWaiter();
 
     void notifyDebuggerHookInjected() { m_isDebuggerHookInjected = true; }
@@ -1039,7 +987,17 @@ private:
         return m_exception;
     }
 
-    JS_EXPORT_PRIVATE void clearException();
+    void clearException()
+    {
+#if ENABLE(EXCEPTION_SCOPE_VERIFICATION)
+        m_needExceptionCheck = false;
+        m_nativeStackTraceOfLastThrow = nullptr;
+        m_throwingThread = nullptr;
+#endif
+        m_exception = nullptr;
+        traps().clearTrapBit(VMTraps::NeedExceptionHandling);
+    }
+
     JS_EXPORT_PRIVATE void setException(Exception*);
 
 #if ENABLE(C_LOOP)
@@ -1084,6 +1042,7 @@ private:
 #endif
 
 public:
+    SentinelLinkedList<MicrotaskQueue, BasicRawSentinelNode<MicrotaskQueue>> m_microtaskQueues;
     bool didEnterVM { false };
 private:
     bool m_failNextNewCodeBlock { false };
@@ -1094,7 +1053,7 @@ private:
     std::unique_ptr<CodeCache> m_codeCache;
     std::unique_ptr<IntlCache> m_intlCache;
     std::unique_ptr<BuiltinExecutables> m_builtinExecutables;
-    HashMap<RefPtr<UniquedStringImpl>, RefPtr<WatchpointSet>> m_impurePropertyWatchpointSets;
+    UncheckedKeyHashMap<RefPtr<UniquedStringImpl>, RefPtr<WatchpointSet>> m_impurePropertyWatchpointSets;
     std::unique_ptr<TypeProfiler> m_typeProfiler;
     std::unique_ptr<TypeProfilerLog> m_typeProfilerLog;
     unsigned m_typeProfilerEnabledCount { 0 };
@@ -1107,7 +1066,6 @@ private:
     FunctionHasExecutedCache m_functionHasExecutedCache;
     std::unique_ptr<ControlFlowProfiler> m_controlFlowProfiler;
     unsigned m_controlFlowProfilerEnabledCount { 0 };
-    MicrotaskQueue m_microtaskQueue;
     MallocPtr<EncodedJSValue, VMMalloc> m_exceptionFuzzBuffer;
     LazyRef<VM, Watchdog> m_watchdog;
     LazyUniqueRef<VM, HeapProfiler> m_heapProfiler;
@@ -1133,9 +1091,12 @@ private:
     bool m_isDebuggerHookInjected { false };
 
     Lock m_loopHintExecutionCountLock;
-    HashMap<const JSInstruction*, std::pair<unsigned, std::unique_ptr<uintptr_t>>> m_loopHintExecutionCounts;
+    UncheckedKeyHashMap<const JSInstruction*, std::pair<unsigned, std::unique_ptr<uintptr_t>>> m_loopHintExecutionCounts;
 
+    MicrotaskQueue m_defaultMicrotaskQueue;
     Ref<Waiter> m_syncWaiter;
+
+    std::atomic<int64_t> m_numberOfActiveJITPlans { 0 };
 
     Vector<Function<void()>> m_didPopListeners;
 
@@ -1183,3 +1144,36 @@ extern "C" void SYSV_ABI sanitizeStackForVMImpl(VM*);
 JS_EXPORT_PRIVATE void sanitizeStackForVM(VM&);
 
 } // namespace JSC
+
+
+namespace WTF {
+
+// Unfortunately we have a lot of code that uses JSC::VM without locally
+// verifying its lifetime. Safer CPP checker needs to understand JSC::VM's
+// lifetime threaded from JSC entrance. Until that, we explicitly suppress
+// Ref<VM> lifetime checking by using ThreadSafeRefCountedWithSuppressingSaferCPPChecking.
+template<> struct DefaultRefDerefTraits<JSC::VM> {
+    static ALWAYS_INLINE JSC::VM* refIfNotNull(JSC::VM* ptr)
+    {
+        if (LIKELY(ptr))
+            ptr->refSuppressingSaferCPPChecking();
+        return ptr;
+    }
+
+    static ALWAYS_INLINE JSC::VM& ref(JSC::VM& ref)
+    {
+        ref.refSuppressingSaferCPPChecking();
+        return ref;
+    }
+
+    static ALWAYS_INLINE void derefIfNotNull(JSC::VM* ptr)
+    {
+        if (LIKELY(ptr))
+            ptr->derefSuppressingSaferCPPChecking();
+    }
+};
+
+} // namespace WTF
+
+
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_END

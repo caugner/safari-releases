@@ -24,15 +24,12 @@
 
 #pragma once
 
-#include "CSSPropertyParserConsumer+Primitives.h"
-#include <optional>
-#include <wtf/RefPtr.h>
+#include <wtf/Forward.h>
 
 namespace WebCore {
 
 class CSSPrimitiveValue;
 class CSSParserTokenRange;
-
 struct CSSParserContext;
 
 namespace CSSPropertyParserHelpers {

@@ -42,6 +42,8 @@
 #include <wtf/TZoneMalloc.h>
 #include <wtf/UniqueRef.h>
 
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
+
 namespace JSC {
 
     enum OpcodeID : unsigned;
@@ -151,7 +153,7 @@ namespace JSC {
     };
 
     class JIT final : public JSInterfaceJIT {
-        WTF_MAKE_TZONE_ALLOCATED(JIT);
+        WTF_MAKE_TZONE_NON_HEAP_ALLOCATABLE(JIT);
 
         friend class JITSlowPathCall;
         friend class JITStubCall;
@@ -181,7 +183,7 @@ namespace JSC {
         static int stackPointerOffsetFor(UnlinkedCodeBlock*);
         static int stackPointerOffsetFor(CodeBlock*);
 
-        JS_EXPORT_PRIVATE static HashMap<CString, Seconds> compileTimeStats();
+        JS_EXPORT_PRIVATE static UncheckedKeyHashMap<CString, Seconds> compileTimeStats();
         JS_EXPORT_PRIVATE static Seconds totalCompileTime();
 
     private:
@@ -805,12 +807,6 @@ namespace JSC {
 
         int jumpTarget(const JSInstruction*, int target);
 
-#if ENABLE(DFG_JIT)
-        void emitEnterOptimizationCheck();
-#else
-        void emitEnterOptimizationCheck() { }
-#endif
-
 #ifndef NDEBUG
         void printBytecodeOperandTypes(VirtualRegister src1, VirtualRegister src2);
 #endif
@@ -856,8 +852,8 @@ namespace JSC {
         BaselineJITPlan& m_plan;
         Vector<FarCallRecord> m_farCalls;
         Vector<Label> m_labels;
-        HashMap<BytecodeIndex, Label> m_checkpointLabels;
-        HashMap<BytecodeIndex, Label> m_fastPathResumeLabels;
+        UncheckedKeyHashMap<BytecodeIndex, Label> m_checkpointLabels;
+        UncheckedKeyHashMap<BytecodeIndex, Label> m_fastPathResumeLabels;
         Vector<JITGetByIdGenerator> m_getByIds;
         Vector<JITGetByValGenerator> m_getByVals;
         Vector<JITGetByIdWithThisGenerator> m_getByIdsWithThis;
@@ -903,8 +899,8 @@ namespace JSC {
 
         PCToCodeOriginMapBuilder m_pcToCodeOriginMapBuilder;
 
-        HashMap<const JSInstruction*, void*> m_instructionToMathIC;
-        HashMap<const JSInstruction*, UniqueRef<MathICGenerationState>> m_instructionToMathICGenerationState;
+        UncheckedKeyHashMap<const JSInstruction*, void*> m_instructionToMathIC;
+        UncheckedKeyHashMap<const JSInstruction*, UniqueRef<MathICGenerationState>> m_instructionToMathICGenerationState;
 
         bool m_canBeOptimized;
         bool m_shouldEmitProfiling;
@@ -927,5 +923,6 @@ namespace JSC {
 
 } // namespace JSC
 
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
 #endif // ENABLE(JIT)

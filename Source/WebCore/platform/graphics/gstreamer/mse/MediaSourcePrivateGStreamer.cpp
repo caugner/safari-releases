@@ -50,8 +50,8 @@
 #include <wtf/RefPtr.h>
 #include <wtf/glib/GRefPtr.h>
 
-GST_DEBUG_CATEGORY_EXTERN(webkit_mse_debug);
-#define GST_CAT_DEFAULT webkit_mse_debug
+GST_DEBUG_CATEGORY_STATIC(webkit_mse_private_debug);
+#define GST_CAT_DEFAULT webkit_mse_private_debug
 
 namespace WebCore {
 
@@ -70,6 +70,10 @@ MediaSourcePrivateGStreamer::MediaSourcePrivateGStreamer(MediaSourcePrivateClien
     , m_logIdentifier(playerPrivate.mediaPlayerLogIdentifier())
 #endif
 {
+    static std::once_flag debugRegisteredFlag;
+    std::call_once(debugRegisteredFlag, [] {
+        GST_DEBUG_CATEGORY_INIT(webkit_mse_private_debug, "webkitmseprivate", 0, "WebKit MSE Private");
+    });
 }
 
 MediaSourcePrivateGStreamer::~MediaSourcePrivateGStreamer()
@@ -77,7 +81,7 @@ MediaSourcePrivateGStreamer::~MediaSourcePrivateGStreamer()
     ALWAYS_LOG(LOGIDENTIFIER);
 }
 
-MediaSourcePrivateGStreamer::AddStatus MediaSourcePrivateGStreamer::addSourceBuffer(const ContentType& contentType, bool, RefPtr<SourceBufferPrivate>& sourceBufferPrivate)
+MediaSourcePrivateGStreamer::AddStatus MediaSourcePrivateGStreamer::addSourceBuffer(const ContentType& contentType, RefPtr<SourceBufferPrivate>& sourceBufferPrivate)
 {
     DEBUG_LOG(LOGIDENTIFIER, contentType);
 
@@ -210,6 +214,45 @@ void MediaSourcePrivateGStreamer::startPlaybackIfHasAllTracks()
             tracks.append(track);
     }
     player->startSource(tracks);
+}
+
+TrackID MediaSourcePrivateGStreamer::registerTrackId(TrackID preferredId)
+{
+    ASSERT(isMainThread());
+    RefPtr player = platformPlayer();
+
+    if (m_trackIdRegistry.add(preferredId).isNewEntry) {
+        if (player)
+            GST_DEBUG_OBJECT(player->pipeline(), "Registered new Track ID: %" PRIu64 "", preferredId);
+        return preferredId;
+    }
+
+    // If the ID is already known, assign one starting at 100 - this helps avoid a snowball effect
+    // where each following ID would now need to be offset by 1.
+    auto maxRegisteredId = std::max_element(m_trackIdRegistry.begin(), m_trackIdRegistry.end());
+    auto assignedId = std::max((TrackID) 100, *maxRegisteredId + 1);
+
+    ASSERT(m_trackIdRegistry.add(assignedId).isNewEntry);
+    if (player)
+        GST_DEBUG_OBJECT(player->pipeline(), "Registered new Track ID: %" PRIu64 " (preferred ID would have been %" PRIu64 ")", assignedId, preferredId);
+
+    return assignedId;
+}
+
+bool MediaSourcePrivateGStreamer::unregisterTrackId(TrackID trackId)
+{
+    ASSERT(isMainThread());
+
+    bool res = m_trackIdRegistry.remove(trackId);
+
+    if (RefPtr player = this->platformPlayer()) {
+        if (res)
+            GST_DEBUG_OBJECT(player->pipeline(), "Unregistered Track ID: %" PRIu64 "", trackId);
+        else
+            GST_WARNING_OBJECT(player->pipeline(), "Failed to unregister unknown Track ID: %" PRIu64 "", trackId);
+    }
+
+    return res;
 }
 
 void MediaSourcePrivateGStreamer::notifyActiveSourceBuffersChanged()

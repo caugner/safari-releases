@@ -47,7 +47,7 @@ enum class FeatureToAnimate {
 };
 
 @interface WebScrollbarPartAnimationMac : NSAnimation {
-    WebCore::ScrollerMac* _scroller;
+    CheckedPtr<WebCore::ScrollerMac> _scroller;
     FeatureToAnimate _featureToAnimate;
     CGFloat _startValue;
     CGFloat _endValue;
@@ -127,7 +127,7 @@ enum class FeatureToAnimate {
 @end
 
 @interface WebScrollerImpDelegateMac : NSObject<NSAnimationDelegate, NSScrollerImpDelegate> {
-    WebCore::ScrollerMac* _scroller;
+    CheckedPtr<WebCore::ScrollerMac> _scroller;
 
     RetainPtr<WebScrollbarPartAnimationMac> _knobAlphaAnimation;
     RetainPtr<WebScrollbarPartAnimationMac> _trackAlphaAnimation;
@@ -217,7 +217,7 @@ enum class FeatureToAnimate {
         scrollbarPartAnimation = nil;
     }
 
-    scrollbarPartAnimation = adoptNS([[WebScrollbarPartAnimationMac alloc] initWithScroller:_scroller
+    scrollbarPartAnimation = adoptNS([[WebScrollbarPartAnimationMac alloc] initWithScroller:_scroller.get()
         featureToAnimate:featureToAnimate
         animateFrom:featureToAnimate == FeatureToAnimate::KnobAlpha ? [_scroller->scrollerImp() knobAlpha] : [_scroller->scrollerImp() trackAlpha]
         animateTo:newAlpha
@@ -255,7 +255,7 @@ enum class FeatureToAnimate {
     [scrollerImp setUiStateTransitionProgress:1 - [scrollerImp uiStateTransitionProgress]];
 
     if (!_uiStateTransitionAnimation) {
-        _uiStateTransitionAnimation = adoptNS([[WebScrollbarPartAnimationMac alloc] initWithScroller:_scroller
+        _uiStateTransitionAnimation = adoptNS([[WebScrollbarPartAnimationMac alloc] initWithScroller:_scroller.get()
             featureToAnimate:FeatureToAnimate::UIStateTransition
             animateFrom:[scrollerImp uiStateTransitionProgress]
             animateTo:1.0
@@ -280,7 +280,7 @@ enum class FeatureToAnimate {
     [scrollerImp setExpansionTransitionProgress:1 - [scrollerImp expansionTransitionProgress]];
 
     if (!_expansionTransitionAnimation) {
-        _expansionTransitionAnimation = adoptNS([[WebScrollbarPartAnimationMac alloc] initWithScroller:_scroller
+        _expansionTransitionAnimation = adoptNS([[WebScrollbarPartAnimationMac alloc] initWithScroller:_scroller.get()
             featureToAnimate:FeatureToAnimate::ExpansionTransition
             animateFrom:[scrollerImp expansionTransitionProgress]
             animateTo:1.0
@@ -327,6 +327,7 @@ ScrollerMac::~ScrollerMac()
 
 void ScrollerMac::attach()
 {
+    [m_scrollerImpDelegate invalidate];
     m_scrollerImpDelegate = adoptNS([[WebScrollerImpDelegateMac alloc] initWithScroller:this]);
     setScrollerImp([NSScrollerImp scrollerImpWithStyle:nsScrollerStyle(m_pair.scrollbarStyle()) controlSize:nsControlSizeFromScrollbarWidth(m_pair.scrollbarWidthStyle()) horizontal:m_orientation == ScrollbarOrientation::Horizontal replacingScrollerImp:nil]);
     [m_scrollerImp setDelegate:m_scrollerImpDelegate.get()];
@@ -350,6 +351,20 @@ void ScrollerMac::setHostLayer(CALayer *layer)
     updatePairScrollerImps();
 }
 
+void ScrollerMac::setHiddenByStyle(NativeScrollbarVisibility visibility)
+{
+    m_isHiddenByStyle = visibility != NativeScrollbarVisibility::Visible;
+    if (m_isHiddenByStyle) {
+        detach();
+        setScrollerImp(nullptr);
+    } else {
+        attach();
+        [m_scrollerImp setLayer:m_hostLayer.get()];
+        updateValues();
+    }
+    updatePairScrollerImps();
+}
+
 void ScrollerMac::updateValues()
 {
     auto values = m_pair.valuesForOrientation(m_orientation);
@@ -366,13 +381,18 @@ void ScrollerMac::updateValues()
 
 void ScrollerMac::updateScrollbarStyle()
 {
-    setScrollerImp([NSScrollerImp scrollerImpWithStyle:nsScrollerStyle(m_pair.scrollbarStyle()) controlSize:nsControlSizeFromScrollbarWidth(m_pair.scrollbarWidthStyle()) horizontal:m_orientation == ScrollbarOrientation::Horizontal replacingScrollerImp:takeScrollerImp().get()]);
+    setScrollerImp([NSScrollerImp scrollerImpWithStyle:nsScrollerStyle(m_pair.scrollbarStyle()) controlSize:nsControlSizeFromScrollbarWidth(m_pair.scrollbarWidthStyle()) horizontal:m_orientation == ScrollbarOrientation::Horizontal replacingScrollerImp:nil]);
+    [m_scrollerImp setDelegate:m_scrollerImpDelegate.get()];
+
+    [m_scrollerImp setLayer:m_hostLayer.get()];
+
     updatePairScrollerImps();
+    updateValues();
 }
 
 void ScrollerMac::updatePairScrollerImps()
 {
-    NSScrollerImp *scrollerImp = m_hostLayer ? m_scrollerImp.get() : nil;
+    NSScrollerImp *scrollerImp = m_scrollerImp.get();
     if (m_orientation == ScrollbarOrientation::Vertical)
         m_pair.setVerticalScrollerImp(scrollerImp);
     else
@@ -438,6 +458,8 @@ void ScrollerMac::updateMinimumKnobLength(int minimumKnobLength)
 
 void ScrollerMac::setScrollerImp(NSScrollerImp *imp)
 {
+    if (m_isHiddenByStyle && imp)
+        return;
     m_scrollerImp = imp;
     updateMinimumKnobLength([m_scrollerImp knobMinLength]);
 }
@@ -445,6 +467,11 @@ void ScrollerMac::setScrollerImp(NSScrollerImp *imp)
 void ScrollerMac::setScrollbarLayoutDirection(UserInterfaceLayoutDirection scrollbarLayoutDirection)
 {
     [m_scrollerImp setUserInterfaceLayoutDirection: scrollbarLayoutDirection == UserInterfaceLayoutDirection::RTL ? NSUserInterfaceLayoutDirectionRightToLeft : NSUserInterfaceLayoutDirectionLeftToRight];
+}
+
+void ScrollerMac::setNeedsDisplay()
+{
+    [m_scrollerImp setNeedsDisplay:YES];
 }
 
 String ScrollerMac::scrollbarState() const

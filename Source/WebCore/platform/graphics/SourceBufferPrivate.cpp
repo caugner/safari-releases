@@ -64,7 +64,7 @@ SourceBufferPrivate::SourceBufferPrivate(MediaSourcePrivate& parent)
 {
 }
 
-SourceBufferPrivate::SourceBufferPrivate(MediaSourcePrivate& parent, RefCountedSerialFunctionDispatcher& dispatcher)
+SourceBufferPrivate::SourceBufferPrivate(MediaSourcePrivate& parent, GuaranteedSerialFunctionDispatcher& dispatcher)
     : m_mediaSource(&parent)
     , m_dispatcher(dispatcher)
 {
@@ -347,7 +347,10 @@ void SourceBufferPrivate::reenqueueMediaForTime(TrackBuffer& trackBuffer, TrackI
 {
     if (needsFlush == NeedsFlush::Yes)
         flush(trackID);
-    if (trackBuffer.reenqueueMediaForTime(time, timeFudgeFactor()))
+    bool isEnded = false;
+    if (RefPtr mediaSource = m_mediaSource.get())
+        isEnded = mediaSource->isEnded();
+    if (trackBuffer.reenqueueMediaForTime(time, timeFudgeFactor(), isEnded))
         provideMediaData(trackBuffer, trackID);
 }
 

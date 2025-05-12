@@ -32,6 +32,8 @@
 #include "WasmFunctionParser.h"
 #include "WasmLimits.h"
 
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
+
 namespace JSC { namespace Wasm {
 
 namespace BBQJITImpl {
@@ -666,7 +668,7 @@ public:
             CatchKind type;
             uint32_t tag;
             const TypeDefinition* exceptionSignature;
-            ControlData* target;
+            ControlRef target;
         };
         using TargetList = Vector<TryTableTarget>;
 
@@ -863,8 +865,9 @@ public:
     static constexpr bool shouldFuseBranchCompare = is64Bit();
 
     static constexpr bool tierSupportsSIMD = true;
+    static constexpr bool validateFunctionBodySize = true;
 
-    BBQJIT(CCallHelpers& jit, const TypeDefinition& signature, BBQCallee& callee, const FunctionData& function, uint32_t functionIndex, const ModuleInformation& info, Vector<UnlinkedWasmToWasmCall>& unlinkedWasmToWasmCalls, MemoryMode mode, InternalFunction* compilation, std::optional<bool> hasExceptionHandlers, unsigned loopIndexForOSREntry, TierUpCount* tierUp);
+    BBQJIT(CCallHelpers& jit, const TypeDefinition& signature, BBQCallee& callee, const FunctionData& function, FunctionCodeIndex functionIndex, const ModuleInformation& info, Vector<UnlinkedWasmToWasmCall>& unlinkedWasmToWasmCalls, MemoryMode mode, InternalFunction* compilation, std::optional<bool> hasExceptionHandlers, unsigned loopIndexForOSREntry);
 
     ALWAYS_INLINE static Value emptyExpression()
     {
@@ -1449,22 +1452,22 @@ public:
 
     inline float floatCopySign(float lhs, float rhs)
     {
-        uint32_t lhsAsInt32 = bitwise_cast<uint32_t>(lhs);
-        uint32_t rhsAsInt32 = bitwise_cast<uint32_t>(rhs);
+        uint32_t lhsAsInt32 = std::bit_cast<uint32_t>(lhs);
+        uint32_t rhsAsInt32 = std::bit_cast<uint32_t>(rhs);
         lhsAsInt32 &= 0x7fffffffu;
         rhsAsInt32 &= 0x80000000u;
         lhsAsInt32 |= rhsAsInt32;
-        return bitwise_cast<float>(lhsAsInt32);
+        return std::bit_cast<float>(lhsAsInt32);
     }
 
     inline double doubleCopySign(double lhs, double rhs)
     {
-        uint64_t lhsAsInt64 = bitwise_cast<uint64_t>(lhs);
-        uint64_t rhsAsInt64 = bitwise_cast<uint64_t>(rhs);
+        uint64_t lhsAsInt64 = std::bit_cast<uint64_t>(lhs);
+        uint64_t rhsAsInt64 = std::bit_cast<uint64_t>(rhs);
         lhsAsInt64 &= 0x7fffffffffffffffu;
         rhsAsInt64 &= 0x8000000000000000u;
         lhsAsInt64 |= rhsAsInt64;
-        return bitwise_cast<double>(lhsAsInt64);
+        return std::bit_cast<double>(lhsAsInt64);
     }
 
     PartialResult WARN_UNUSED_RETURN addI32And(Value lhs, Value rhs, Value& result);
@@ -1690,7 +1693,7 @@ public:
 
     PartialResult WARN_UNUSED_RETURN addRefEq(Value ref0, Value ref1, Value& result);
 
-    PartialResult WARN_UNUSED_RETURN addRefFunc(uint32_t index, Value& result);
+    PartialResult WARN_UNUSED_RETURN addRefFunc(FunctionSpaceIndex index, Value& result);
 
     void emitEntryTierUpCheck();
 
@@ -1814,8 +1817,8 @@ public:
     template<typename Func, size_t N>
     void emitCCall(Func function, const Vector<Value, N>& arguments, Value& result);
 
-    void emitTailCall(unsigned functionIndex, const TypeDefinition& signature, ArgumentList& arguments);
-    PartialResult WARN_UNUSED_RETURN addCall(unsigned functionIndex, const TypeDefinition& signature, ArgumentList& arguments, ResultList& results, CallType = CallType::Call);
+    void emitTailCall(FunctionSpaceIndex functionIndex, const TypeDefinition& signature, ArgumentList& arguments);
+    PartialResult WARN_UNUSED_RETURN addCall(FunctionSpaceIndex functionIndex, const TypeDefinition& signature, ArgumentList& arguments, ResultList& results, CallType = CallType::Call);
 
     void emitIndirectCall(const char* opcode, const Value& callee, GPRReg calleeInstance, GPRReg calleeCode, const TypeDefinition& signature, ArgumentList& arguments, ResultList& results);
     void emitIndirectTailCall(const char* opcode, const Value& callee, GPRReg calleeInstance, GPRReg calleeCode, const TypeDefinition& signature, ArgumentList& arguments);
@@ -1895,9 +1898,8 @@ public:
     void finalize();
 
     Vector<UnlinkedHandlerInfo>&& takeExceptionHandlers();
-
+    FixedBitVector&& takeDirectCallees();
     Vector<CCallHelpers::Label>&& takeCatchEntrypoints();
-
     Box<PCToCodeOriginMapBuilder> takePCToCodeOriginMapBuilder();
 
     std::unique_ptr<BBQDisassembler> takeDisassembler();
@@ -1970,6 +1972,8 @@ private:
     Location bind(Value value, Location loc);
 
     void unbind(Value value, Location loc);
+
+    void unbindAllRegisters();
 
     template<typename Register>
     static Register fromJSCReg(Reg reg)
@@ -2173,7 +2177,7 @@ private:
             RegisterBinding& binding = m_generator.m_gprBindings[reg];
             m_generator.m_gprLRU.unlock(reg);
             if (UNLIKELY(Options::verboseBBQJITAllocation()))
-                dataLogLn("BBQ\tReleasing GPR ", MacroAssembler::gprName(reg));
+                dataLogLn("BBQ\tReleasing GPR ", MacroAssembler::gprName(reg), " preserved? ", m_preserved.contains(reg, IgnoreVectors), " binding: ", binding);
             if (m_preserved.contains(reg, IgnoreVectors) && !binding.isScratch())
                 return; // It's okay if the register isn't bound to a scratch if we meant to preserve it - maybe it was just already bound to something.
             ASSERT(binding.isScratch());
@@ -2188,7 +2192,7 @@ private:
             RegisterBinding& binding = m_generator.m_fprBindings[reg];
             m_generator.m_fprLRU.unlock(reg);
             if (UNLIKELY(Options::verboseBBQJITAllocation()))
-                dataLogLn("BBQ\tReleasing FPR ", MacroAssembler::fprName(reg));
+                dataLogLn("BBQ\tReleasing FPR ", MacroAssembler::fprName(reg), " preserved? ", m_preserved.contains(reg, Width::Width128), " binding: ", binding);
             if (m_preserved.contains(reg, Width::Width128) && !binding.isScratch())
                 return; // It's okay if the register isn't bound to a scratch if we meant to preserve it - maybe it was just already bound to something.
             ASSERT(binding.isScratch());
@@ -2254,16 +2258,18 @@ private:
 
     void F64CopysignHelper(Location lhsLocation, Location rhsLocation, Location resultLocation);
 
+    bool canTierUpToOMG() const;
+
     CCallHelpers& m_jit;
     BBQCallee& m_callee;
     const FunctionData& m_function;
     const FunctionSignature* m_functionSignature;
-    uint32_t m_functionIndex;
+    FunctionCodeIndex m_functionIndex;
     const ModuleInformation& m_info;
     MemoryMode m_mode;
     Vector<UnlinkedWasmToWasmCall>& m_unlinkedWasmToWasmCalls;
+    FixedBitVector m_directCallees;
     std::optional<bool> m_hasExceptionHandlers;
-    TierUpCount* m_tierUp;
     FunctionParser<BBQJIT>* m_parser;
     Vector<uint32_t, 4> m_arguments;
     ControlData m_topLevel;
@@ -2308,6 +2314,11 @@ private:
 
     PCToCodeOriginMapBuilder m_pcToCodeOriginMapBuilder;
     std::unique_ptr<BBQDisassembler> m_disassembler;
+
+#if ASSERT_ENABLED
+    Vector<Value, 8> m_justPoppedStack;
+    OpType m_prevOpcode;
+#endif
 };
 
 using LocalOrTempIndex = BBQJIT::LocalOrTempIndex;
@@ -2327,8 +2338,10 @@ using MinOrMax = BBQJIT::MinOrMax;
 class BBQCallee;
 
 using BBQJIT = BBQJITImpl::BBQJIT;
-Expected<std::unique_ptr<InternalFunction>, String> parseAndCompileBBQ(CompilationContext&, BBQCallee&, const FunctionData&, const TypeDefinition&, Vector<UnlinkedWasmToWasmCall>&, const ModuleInformation&, MemoryMode, uint32_t functionIndex, std::optional<bool> hasExceptionHandlers, unsigned, TierUpCount* = nullptr);
+Expected<std::unique_ptr<InternalFunction>, String> parseAndCompileBBQ(CompilationContext&, BBQCallee&, const FunctionData&, const TypeDefinition&, Vector<UnlinkedWasmToWasmCall>&, const ModuleInformation&, MemoryMode, FunctionCodeIndex functionIndex, std::optional<bool> hasExceptionHandlers, unsigned);
 
 } } // namespace JSC::Wasm
 
-#endif // ENABLE(WEBASSEMBLY_OMGJIT)
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
+
+#endif // ENABLE(WEBASSEMBLY_BBQJIT)

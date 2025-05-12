@@ -65,12 +65,12 @@ public:
 
     WebCore::AudioSession& session() { return WebCore::AudioSession::sharedSession(); }
     const WebCore::AudioSession& session() const { return WebCore::AudioSession::sharedSession(); }
+    Ref<WebCore::AudioSession> protectedSession() { return WebCore::AudioSession::sharedSession(); }
+    Ref<const WebCore::AudioSession> protectedSession() const { return WebCore::AudioSession::sharedSession(); }
 
     void updatePresentingProcesses();
 
-    using WebCore::AudioSessionInterruptionObserver::weakPtrFactory;
-    using WebCore::AudioSessionInterruptionObserver::WeakValueType;
-    using WebCore::AudioSessionInterruptionObserver::WeakPtrImplType;
+    USING_CAN_MAKE_WEAKPTR(WebCore::AudioSessionInterruptionObserver);
 
 private:
     RemoteAudioSessionProxyManager(GPUProcess&);

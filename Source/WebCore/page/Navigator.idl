@@ -25,7 +25,7 @@
     // Non-standard.
     [Conditional=NAVIGATOR_STANDALONE] readonly attribute boolean standalone;
 
-    readonly attribute unsigned long long hardwareConcurrency;
+    [CallWith=CurrentScriptExecutionContext] readonly attribute unsigned long long hardwareConcurrency;
 };
 
 Navigator includes NavigatorBadge;
@@ -36,7 +36,6 @@ Navigator includes NavigatorMaxTouchPoints;
 Navigator includes NavigatorOnLine;
 Navigator includes NavigatorCookies;
 Navigator includes NavigatorPlugins;
-Navigator includes NavigatorPush;
 Navigator includes NavigatorServiceWorker;
 Navigator includes NavigatorShare;
 Navigator includes NavigatorStorage;

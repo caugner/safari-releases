@@ -80,14 +80,14 @@ public:
     EventTarget* errorEventTarget() final { return nullptr; };
 
     std::optional<Vector<uint8_t>> wrapCryptoKey(const Vector<uint8_t>&) final { return std::nullopt; }
+    std::optional<Vector<uint8_t>> serializeAndWrapCryptoKey(CryptoKeyData&&) final { return std::nullopt; }
     std::optional<Vector<uint8_t>> unwrapCryptoKey(const Vector<uint8_t>&) final { return std::nullopt; }
 
     JSC::VM& vm() final { return m_vm; }
+    JSC::VM* vmIfExists() const final { return m_vm.ptr(); }
 
     using RefCounted::ref;
     using RefCounted::deref;
-    using RefCounted::refAllowingPartiallyDestroyed;
-    using RefCounted::derefAllowingPartiallyDestroyed;
 
 private:
     EmptyScriptExecutionContext(JSC::VM& vm)

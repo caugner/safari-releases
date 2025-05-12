@@ -39,7 +39,9 @@ namespace WebCore {
 class FloatPoint;
 class ScrollerPairMac;
 
-class ScrollerMac {
+class ScrollerMac final : public CanMakeCheckedPtr<ScrollerMac> {
+    WTF_MAKE_FAST_ALLOCATED;
+    WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(ScrollerMac);
     friend class ScrollerPairMac;
 public:
     ScrollerMac(ScrollerPairMac&, ScrollbarOrientation);
@@ -61,6 +63,8 @@ public:
     void updateScrollbarStyle();
     void updatePairScrollerImps();
 
+    void setHiddenByStyle(NativeScrollbarVisibility);
+
     void updateValues();
     
     String scrollbarState() const;
@@ -75,11 +79,14 @@ public:
     void setEnabled(bool flag) { m_isEnabled = flag; }
     void setScrollbarLayoutDirection(UserInterfaceLayoutDirection);
 
+    void setNeedsDisplay();
+
 private:
     int m_minimumKnobLength { 0 };
 
     bool m_isEnabled { false };
     bool m_isVisible { false };
+    bool m_isHiddenByStyle { false };
 
     ScrollerPairMac& m_pair;
     const ScrollbarOrientation m_orientation;

@@ -70,7 +70,7 @@ private:
     void didReceiveStreamMessage(IPC::StreamServerConnection&, IPC::Decoder&) final;
 
     // Messages
-    void updateConfiguration(const WebCore::FloatSize&, WebCore::RenderingMode, float resolutionScale, const WebCore::DestinationColorSpace&, WebCore::ImageBufferPixelFormat);
+    void updateConfiguration(const WebCore::FloatSize&, WebCore::RenderingMode, WebCore::RenderingPurpose, float resolutionScale, const WebCore::DestinationColorSpace&, WebCore::ImageBufferPixelFormat);
     void endPrepareForDisplay(RenderingUpdateID);
 
 #if ENABLE(RE_DYNAMIC_CONTENT_SCALING)
@@ -80,7 +80,11 @@ private:
 
     bool isOpaque() const
     {
-        return m_pixelFormat == WebCore::ImageBufferPixelFormat::RGB10 || m_pixelFormat == WebCore::ImageBufferPixelFormat::BGRX8;
+#if HAVE(IOSURFACE_RGB10)
+        if (m_pixelFormat == WebCore::ImageBufferPixelFormat::RGB10)
+            return true;
+#endif
+        return m_pixelFormat == WebCore::ImageBufferPixelFormat::BGRX8;
     }
 
     const RemoteImageBufferSetIdentifier m_identifier;
@@ -89,6 +93,7 @@ private:
 
     WebCore::FloatSize m_logicalSize;
     WebCore::RenderingMode m_renderingMode;
+    WebCore::RenderingPurpose m_renderingPurpose;
     float m_resolutionScale { 1.0f };
     WebCore::DestinationColorSpace m_colorSpace { WebCore::DestinationColorSpace::SRGB() };
     WebCore::ImageBufferPixelFormat m_pixelFormat;

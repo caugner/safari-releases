@@ -27,20 +27,14 @@
 #import "NetworkConnection.h"
 
 #import "HTTPServer.h"
+#import <pal/spi/cocoa/NetworkSPI.h>
 #import <wtf/BlockPtr.h>
 #import <wtf/SHA1.h>
+#import <wtf/cocoa/VectorCocoa.h>
 #import <wtf/text/Base64.h>
+#import <wtf/text/StringToIntegerConversion.h>
 
 namespace TestWebKitAPI {
-
-RetainPtr<dispatch_data_t> dataFromVector(Vector<uint8_t>&& v)
-{
-    auto bufferSize = v.size();
-    auto rawPointer = v.releaseBuffer().leakPtr();
-    return adoptNS(dispatch_data_create(rawPointer, bufferSize, dispatch_get_main_queue(), ^{
-        fastFree(rawPointer);
-    }));
-}
 
 static Vector<uint8_t> vectorFromData(dispatch_data_t content)
 {
@@ -78,7 +72,7 @@ void Connection::receiveHTTPRequest(CompletionHandler<void(Vector<char>&&)>&& co
         buffer.appendVector(WTFMove(bytes));
         if (auto* doubleNewline = strnstr(buffer.data(), "\r\n\r\n", buffer.size())) {
             if (auto* contentLengthBegin = strnstr(buffer.data(), "Content-Length", buffer.size())) {
-                size_t contentLength = atoi(contentLengthBegin + strlen("Content-Length: "));
+                size_t contentLength = parseIntegerAllowingTrailingJunk<int>(buffer.span().subspan(contentLengthBegin - buffer.data() + strlen("Content-Length: "))).value_or(0);
                 size_t headerLength = doubleNewline - buffer.data() + strlen("\r\n\r\n");
                 if (buffer.size() - headerLength < contentLength)
                     return connection.receiveHTTPRequest(WTFMove(completionHandler), WTFMove(buffer));
@@ -124,7 +118,7 @@ void SendOperation::await_suspend(std::coroutine_handle<> handle)
 
 SendOperation Connection::awaitableSend(Vector<uint8_t>&& message)
 {
-    return { dataFromVector(WTFMove(message)), *this };
+    return { makeDispatchData(WTFMove(message)), *this };
 }
 
 SendOperation Connection::awaitableSend(String&& message)
@@ -147,7 +141,7 @@ void Connection::send(String&& message, CompletionHandler<void()>&& completionHa
 
 void Connection::send(Vector<uint8_t>&& message, CompletionHandler<void()>&& completionHandler) const
 {
-    send(dataFromVector(WTFMove(message)), [completionHandler = WTFMove(completionHandler)] (bool) mutable {
+    send(makeDispatchData(WTFMove(message)), [completionHandler = WTFMove(completionHandler)] (bool) mutable {
         if (completionHandler)
             completionHandler();
     });
@@ -155,7 +149,7 @@ void Connection::send(Vector<uint8_t>&& message, CompletionHandler<void()>&& com
 
 void Connection::sendAndReportError(Vector<uint8_t>&& message, CompletionHandler<void(bool)>&& completionHandler) const
 {
-    send(dataFromVector(WTFMove(message)), WTFMove(completionHandler));
+    send(makeDispatchData(WTFMove(message)), WTFMove(completionHandler));
 }
 
 void Connection::send(RetainPtr<dispatch_data_t>&& message, CompletionHandler<void(bool)>&& completionHandler) const
@@ -203,5 +197,70 @@ void Connection::terminate(CompletionHandler<void()>&& completionHandler)
     }).get());
     nw_connection_cancel(m_connection.get());
 }
+
+#if HAVE(WEB_TRANSPORT)
+
+struct ConnectionGroup::Data : public RefCounted<ConnectionGroup::Data> {
+    static Ref<Data> create(nw_connection_group_t group) { return adoptRef(*new Data(group)); }
+    Data(nw_connection_group_t group)
+        : group(group) { }
+
+    RetainPtr<nw_connection_group_t> group;
+    CompletionHandler<void(Connection)> connectionHandler;
+    Vector<Connection> connections;
+};
+
+ConnectionGroup::ConnectionGroup(nw_connection_group_t group)
+    : m_data(Data::create(group)) { }
+
+ConnectionGroup::~ConnectionGroup() = default;
+
+ConnectionGroup::ConnectionGroup(const ConnectionGroup&) = default;
+
+Connection ConnectionGroup::createWebTransportConnection(ConnectionType type) const
+{
+    RetainPtr webtransportOptions = adoptNS(nw_webtransport_create_options());
+    ASSERT(webtransportOptions);
+    nw_webtransport_options_set_is_unidirectional(webtransportOptions.get(), type == ConnectionType::Unidirectional);
+    nw_webtransport_options_set_is_datagram(webtransportOptions.get(), type == ConnectionType::Datagram);
+
+    RetainPtr connection = adoptNS(nw_connection_group_extract_connection(m_data->group.get(), nil, webtransportOptions.get()));
+    ASSERT(connection);
+    nw_connection_set_queue(connection.get(), dispatch_get_main_queue());
+    nw_connection_start(connection.get());
+    return Connection(connection.get());
+}
+
+void ReceiveIncomingConnectionOperation::await_suspend(std::coroutine_handle<> handle)
+{
+    m_group.receiveIncomingConnection([this, handle](Connection result) mutable {
+        m_result = WTFMove(result);
+        handle();
+    });
+}
+
+ReceiveIncomingConnectionOperation ConnectionGroup::receiveIncomingConnection() const
+{
+    return { *this };
+}
+
+void ConnectionGroup::receiveIncomingConnection(CompletionHandler<void(Connection)>&& connectionHandler)
+{
+    m_data->connectionHandler = WTFMove(connectionHandler);
+}
+
+void ConnectionGroup::receiveIncomingConnection(Connection connection)
+{
+    m_data->connections.append(connection);
+    nw_connection_set_state_changed_handler(connection.m_connection.get(), [connection, data = m_data] (nw_connection_state_t state, nw_error_t error) mutable {
+        if (state != nw_connection_state_ready)
+            return;
+        data->connectionHandler(connection);
+    });
+    nw_connection_set_queue(connection.m_connection.get(), dispatch_get_main_queue());
+    nw_connection_start(connection.m_connection.get());
+}
+
+#endif // HAVE(WEB_TRANSPORT)
 
 } // namespace TestWebKitAPI

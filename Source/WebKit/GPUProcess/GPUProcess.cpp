@@ -48,7 +48,6 @@
 #include <WebCore/LogInitialization.h>
 #include <WebCore/MemoryRelease.h>
 #include <WebCore/NowPlayingManager.h>
-#include <WebCore/RuntimeApplicationChecks.h>
 #include <wtf/Algorithms.h>
 #include <wtf/CallbackAggregator.h>
 #include <wtf/Language.h>
@@ -57,6 +56,7 @@
 #include <wtf/OptionSet.h>
 #include <wtf/ProcessPrivilege.h>
 #include <wtf/RunLoop.h>
+#include <wtf/RuntimeApplicationChecks.h>
 #include <wtf/Scope.h>
 #include <wtf/UniqueRef.h>
 #include <wtf/text/AtomString.h>
@@ -220,12 +220,12 @@ void GPUProcess::initializeGPUProcess(GPUProcessCreationParameters&& parameters,
     WTF::Thread::setCurrentThreadIsUserInitiated();
     WebCore::initializeCommonAtomStrings();
 
-    auto& memoryPressureHandler = MemoryPressureHandler::singleton();
-    memoryPressureHandler.setLowMemoryHandler([weakThis = WeakPtr { *this }] (Critical critical, Synchronous synchronous) {
+    Ref memoryPressureHandler = MemoryPressureHandler::singleton();
+    memoryPressureHandler->setLowMemoryHandler([weakThis = WeakPtr { *this }] (Critical critical, Synchronous synchronous) {
         if (RefPtr process = weakThis.get())
             process->lowMemoryHandler(critical, synchronous);
     });
-    memoryPressureHandler.install();
+    memoryPressureHandler->install();
 
 #if PLATFORM(IOS_FAMILY) || ENABLE(ROUTING_ARBITRATION)
     DeprecatedGlobalSettings::setShouldManageAudioSessionCategory(true);
@@ -237,7 +237,7 @@ void GPUProcess::initializeGPUProcess(GPUProcessCreationParameters&& parameters,
     SandboxExtension::consumePermanently(parameters.microphoneSandboxExtensionHandle);
 #endif
 #if PLATFORM(IOS_FAMILY)
-    CoreAudioSharedUnit::unit().setStatusBarWasTappedCallback([weakProcess = WeakPtr { *this }] (auto completionHandler) {
+    CoreAudioSharedUnit::singleton().setStatusBarWasTappedCallback([weakProcess = WeakPtr { *this }] (auto completionHandler) {
         if (RefPtr process = weakProcess.get())
             process->parentProcessConnection()->sendWithAsyncReply(Messages::GPUProcessProxy::StatusBarWasTapped(), [] { }, 0);
         completionHandler();
@@ -269,8 +269,6 @@ void GPUProcess::initializeGPUProcess(GPUProcessCreationParameters&& parameters,
     // Match the QoS of the UIProcess since the GPU process is doing rendering on its behalf.
     WTF::Thread::setCurrentThreadIsUserInteractive(0);
 
-    WebCore::setPresentingApplicationPID(parameters.parentPID);
-
     if (!parameters.overrideLanguages.isEmpty())
         overrideUserPreferredLanguages(parameters.overrideLanguages);
 
@@ -283,26 +281,6 @@ void GPUProcess::initializeGPUProcess(GPUProcessCreationParameters&& parameters,
 
 void GPUProcess::updateGPUProcessPreferences(GPUProcessPreferences&& preferences)
 {
-#if ENABLE(MEDIA_SOURCE) && ENABLE(VP9)
-    if (updatePreference(m_preferences.webMParserEnabled, preferences.webMParserEnabled))
-        DeprecatedGlobalSettings::setWebMParserEnabled(*m_preferences.webMParserEnabled);
-#endif
-
-#if ENABLE(OPUS)
-    if (updatePreference(m_preferences.opusDecoderEnabled, preferences.opusDecoderEnabled))
-        PlatformMediaSessionManager::setOpusDecoderEnabled(*m_preferences.opusDecoderEnabled);
-#endif
-
-#if ENABLE(VORBIS)
-    if (updatePreference(m_preferences.vorbisDecoderEnabled, preferences.vorbisDecoderEnabled))
-        PlatformMediaSessionManager::setVorbisDecoderEnabled(*m_preferences.vorbisDecoderEnabled);
-#endif
-    
-#if ENABLE(MEDIA_SOURCE) && HAVE(AVSAMPLEBUFFERVIDEOOUTPUT)
-    if (updatePreference(m_preferences.mediaSourceInlinePaintingEnabled, preferences.mediaSourceInlinePaintingEnabled))
-        DeprecatedGlobalSettings::setMediaSourceInlinePaintingEnabled(*m_preferences.mediaSourceInlinePaintingEnabled);
-#endif
-
 #if USE(MODERN_AVCONTENTKEYSESSION)
     if (updatePreference(m_preferences.shouldUseModernAVContentKeySession, preferences.shouldUseModernAVContentKeySession))
         MediaSessionManagerCocoa::setShouldUseModernAVContentKeySession(*m_preferences.shouldUseModernAVContentKeySession);
@@ -324,15 +302,6 @@ void GPUProcess::updateGPUProcessPreferences(GPUProcessPreferences&& preferences
 #endif
 
 #if ENABLE(VP9)
-    if (updatePreference(m_preferences.vp8DecoderEnabled, preferences.vp8DecoderEnabled)) {
-        PlatformMediaSessionManager::setShouldEnableVP8Decoder(*m_preferences.vp8DecoderEnabled);
-#if PLATFORM(COCOA)
-        if (!m_haveEnabledVP8Decoder && *m_preferences.vp8DecoderEnabled) {
-            m_haveEnabledVP8Decoder = true;
-            WebCore::registerWebKitVP8Decoder();
-        }
-#endif
-    }
     if (updatePreference(m_preferences.vp9DecoderEnabled, preferences.vp9DecoderEnabled)) {
         PlatformMediaSessionManager::setShouldEnableVP9Decoder(*m_preferences.vp9DecoderEnabled);
 #if PLATFORM(COCOA)
@@ -342,22 +311,14 @@ void GPUProcess::updateGPUProcessPreferences(GPUProcessPreferences&& preferences
         }
 #endif
     }
-    if (preferences.swVPDecodersAlwaysEnabled != std::exchange(m_preferences.swVPDecodersAlwaysEnabled, preferences.swVPDecodersAlwaysEnabled)) {
+    if (preferences.swVPDecodersAlwaysEnabled != std::exchange(m_preferences.swVPDecodersAlwaysEnabled, preferences.swVPDecodersAlwaysEnabled))
         PlatformMediaSessionManager::setSWVPDecodersAlwaysEnabled(m_preferences.swVPDecodersAlwaysEnabled);
 #if PLATFORM(COCOA)
-        if (!m_haveEnabledSWVPDecoders && m_preferences.swVPDecodersAlwaysEnabled) {
-            m_haveEnabledSWVPDecoders = true;
-            if (!m_haveEnabledVP9Decoder) {
-                WebCore::registerWebKitVP9Decoder();
-                m_haveEnabledVP9Decoder = true;
-            }
-            if (!m_haveEnabledVP8Decoder) {
-                WebCore::registerWebKitVP8Decoder();
-                m_haveEnabledVP8Decoder = true;
-            }
-        }
-#endif
+    if (!m_haveEnabledSWVP9Decoder && WebCore::shouldEnableSWVP9Decoder()) {
+        WebCore::registerWebKitVP9Decoder();
+        m_haveEnabledSWVP9Decoder = true;
     }
+#endif
 #endif
 }
 
@@ -411,6 +372,13 @@ void GPUProcess::updateSandboxAccess(const Vector<SandboxExtension::Handle>& ext
         SandboxExtension::consumePermanently(extension);
 }
 
+#if PLATFORM(COCOA)
+void GPUProcess::didDrawRemoteToPDF(PageIdentifier pageID, RefPtr<SharedBuffer>&& data, SnapshotIdentifier snapshotIdentifier)
+{
+    protectedParentProcessConnection()->send(Messages::GPUProcessProxy::DidDrawRemoteToPDF(pageID, WTFMove(data), snapshotIdentifier), 0);
+}
+#endif
+
 #if ENABLE(MEDIA_STREAM)
 void GPUProcess::setMockCaptureDevicesEnabled(bool isEnabled)
 {
@@ -431,6 +399,22 @@ void GPUProcess::setOrientationForMediaCapture(WebCore::IntDegrees orientation)
     m_orientation = orientation;
     for (auto& connection : m_webProcessConnections.values())
         connection->setOrientationForMediaCapture(orientation);
+}
+
+void GPUProcess::enableMicrophoneMuteStatusAPI()
+{
+#if PLATFORM(COCOA)
+    CoreAudioSharedUnit::singleton().setMuteStatusChangedCallback([weakProcess = WeakPtr { *this }] (bool isMuting) {
+        if (RefPtr process = weakProcess.get())
+            process->protectedParentProcessConnection()->send(Messages::GPUProcessProxy::MicrophoneMuteStatusChanged(isMuting), 0);
+    });
+#endif
+}
+
+void GPUProcess::rotationAngleForCaptureDeviceChanged(const String& persistentId, WebCore::VideoFrameRotation rotation)
+{
+    for (auto& connection : m_webProcessConnections.values())
+        connection->rotationAngleForCaptureDeviceChanged(persistentId, rotation);
 }
 
 void GPUProcess::updateCaptureAccess(bool allowAudioCapture, bool allowVideoCapture, bool allowDisplayCapture, WebCore::ProcessIdentifier processID, CompletionHandler<void()>&& completionHandler)
@@ -646,6 +630,14 @@ void GPUProcess::webXRPromptAccepted(std::optional<WebCore::ProcessIdentity> pro
 {
     m_processIdentity = processIdentity;
     completionHandler(true);
+}
+#endif
+
+#if HAVE(AUDIT_TOKEN)
+void GPUProcess::setPresentingApplicationAuditToken(WebCore::ProcessIdentifier processIdentifier, WebCore::PageIdentifier pageIdentifier, std::optional<WebKit::CoreIPCAuditToken>&& auditToken)
+{
+    if (RefPtr connection = m_webProcessConnections.get(processIdentifier))
+        connection->setPresentingApplicationAuditToken(pageIdentifier, WTFMove(auditToken));
 }
 #endif
 

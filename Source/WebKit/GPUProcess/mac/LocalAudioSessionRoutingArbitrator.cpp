@@ -41,9 +41,9 @@ using namespace WebCore;
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(LocalAudioSessionRoutingArbitrator);
 
-UniqueRef<LocalAudioSessionRoutingArbitrator> LocalAudioSessionRoutingArbitrator::create(GPUConnectionToWebProcess& gpuConnectionToWebProcess)
+std::unique_ptr<LocalAudioSessionRoutingArbitrator> LocalAudioSessionRoutingArbitrator::create(GPUConnectionToWebProcess& gpuConnectionToWebProcess)
 {
-    return makeUniqueRef<LocalAudioSessionRoutingArbitrator>(gpuConnectionToWebProcess);
+    return makeUnique<LocalAudioSessionRoutingArbitrator>(gpuConnectionToWebProcess);
 }
 
 LocalAudioSessionRoutingArbitrator::LocalAudioSessionRoutingArbitrator(GPUConnectionToWebProcess& gpuConnectionToWebProcess)
@@ -88,10 +88,9 @@ WTFLogChannel& LocalAudioSessionRoutingArbitrator::logChannel() const
 
 bool LocalAudioSessionRoutingArbitrator::canLog() const
 {
-    RefPtr connection = m_connectionToWebProcess.get();
-    if (!connection)
-        return false;
-    return connection->sessionID().isAlwaysOnLoggingAllowed();
+    if (RefPtr connection = m_connectionToWebProcess.get())
+        return connection->isAlwaysOnLoggingAllowed();
+    return false;
 }
 
 }

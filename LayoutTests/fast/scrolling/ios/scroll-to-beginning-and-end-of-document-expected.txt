@@ -3,9 +3,6 @@ Test key commands to scroll to the end of the document and then to the beginning
 On success, you will see a series of "PASS" messages, followed by "TEST COMPLETE".
 
 
-PASS window.scrollY is INITIAL_Y_OFFSET
-PASS window.scrollY is >= INITIAL_Y_OFFSET + 1
-PASS window.scrollY is 0
 PASS successfullyParsed is true
 
 TEST COMPLETE

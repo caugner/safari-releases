@@ -72,6 +72,7 @@ class FormState;
 class FormSubmission;
 class FrameLoadRequest;
 class FrameNetworkingContext;
+class HistoryController;
 class HistoryItem;
 class LocalDOMWindow;
 class LocalFrameLoaderClient;
@@ -102,14 +103,16 @@ WEBCORE_EXPORT bool isReload(FrameLoadType);
 
 using ContentPolicyDecisionFunction = CompletionHandler<void(PolicyAction)>;
 
-class FrameLoader final : public CanMakeCheckedPtr<FrameLoader> {
+class FrameLoader final : public CanMakeWeakPtr<FrameLoader> {
     WTF_MAKE_NONCOPYABLE(FrameLoader);
     WTF_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(Loader);
-    WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(FrameLoader);
     friend class PolicyChecker;
 public:
-    FrameLoader(LocalFrame&, UniqueRef<LocalFrameLoaderClient>&&);
+    FrameLoader(LocalFrame&, CompletionHandler<UniqueRef<LocalFrameLoaderClient>(LocalFrame&, FrameLoader&)>&& clientCreator);
     ~FrameLoader();
+
+    WEBCORE_EXPORT void ref() const;
+    WEBCORE_EXPORT void deref() const;
 
     WEBCORE_EXPORT void init();
     void initForSynthesizedDocument(const URL&);
@@ -118,6 +121,9 @@ public:
     WEBCORE_EXPORT Ref<LocalFrame> protectedFrame() const;
 
     PolicyChecker& policyChecker() const { return *m_policyChecker; }
+
+    HistoryController& history() const { return m_history; }
+    WEBCORE_EXPORT CheckedRef<HistoryController> checkedHistory() const;
 
     ResourceLoadNotifier& notifier() const { return m_notifier; }
 
@@ -141,7 +147,7 @@ public:
     void changeLocation(FrameLoadRequest&&, Event* = nullptr, std::optional<PrivateClickMeasurement>&& = std::nullopt);
     void submitForm(Ref<FormSubmission>&&);
 
-    WEBCORE_EXPORT void reload(OptionSet<ReloadOption> = { });
+    WEBCORE_EXPORT void reload(OptionSet<ReloadOption> = { }, bool isRequestFromClientOrUserInput = false);
     WEBCORE_EXPORT void reloadWithOverrideEncoding(const String& overrideEncoding);
 
     void open(CachedFrameBase&);
@@ -194,11 +200,11 @@ public:
 
     bool willLoadMediaElementURL(URL&, Node&);
 
-    WEBCORE_EXPORT ResourceError cancelledError(const ResourceRequest&) const;
-    WEBCORE_EXPORT ResourceError blockedByContentBlockerError(const ResourceRequest&) const;
-    ResourceError blockedError(const ResourceRequest&) const;
+    WEBCORE_EXPORT static ResourceError cancelledError(const ResourceRequest&);
+    WEBCORE_EXPORT static ResourceError blockedByContentBlockerError(const ResourceRequest&);
+    static ResourceError blockedError(const ResourceRequest&);
 #if ENABLE(CONTENT_FILTERING)
-    ResourceError blockedByContentFilterError(const ResourceRequest&) const;
+    static ResourceError blockedByContentFilterError(const ResourceRequest&);
 #endif
 
     bool isReplacing() const;
@@ -227,10 +233,12 @@ public:
     void detachViewsAndDocumentLoader();
 
     static void addHTTPOriginIfNeeded(ResourceRequest&, const String& origin);
-    static void addSameSiteInfoToRequestIfNeeded(ResourceRequest&, const Document* initiator = nullptr, const Page* = nullptr);
+    static void addSameSiteInfoToRequestIfNeeded(ResourceRequest&, const Document* initiator = nullptr);
 
     const LocalFrameLoaderClient& client() const { return m_client.get(); }
     LocalFrameLoaderClient& client() { return m_client.get(); }
+    WEBCORE_EXPORT Ref<const LocalFrameLoaderClient> protectedClient() const;
+    WEBCORE_EXPORT Ref<LocalFrameLoaderClient> protectedClient();
 
     WEBCORE_EXPORT FrameIdentifier frameID() const;
 
@@ -313,6 +321,7 @@ public:
     bool shouldSkipHTTPSUpgradeForSameSiteNavigation() const { return m_shouldSkipHTTPSUpgradeForSameSiteNavigation; }
 
     WEBCORE_EXPORT void completePageTransitionIfNeeded();
+    WEBCORE_EXPORT void setDocumentVisualUpdatesAllowed(bool);
 
     void setOverrideCachePolicyForTesting(ResourceRequestCachePolicy policy) { m_overrideCachePolicyForTesting = policy; }
     void setOverrideResourceLoadPriorityForTesting(ResourceLoadPriority priority) { m_overrideResourceLoadPriorityForTesting = priority; }
@@ -348,6 +357,8 @@ public:
     HistoryItem* requestedHistoryItem() const { return m_requestedHistoryItem.get(); }
 
     void updateURLAndHistory(const URL&, RefPtr<SerializedScriptValue>&& stateObject, NavigationHistoryBehavior = NavigationHistoryBehavior::Replace);
+
+    WEBCORE_EXPORT void prefetchDNSIfNeeded(const URL&);
 
 private:
     enum FormSubmissionCacheLoadPolicy {
@@ -418,7 +429,7 @@ private:
 
     bool shouldReload(const URL& currentURL, const URL& destinationURL);
 
-    void requestFromDelegate(ResourceRequest&, IsMainResourceLoad, ResourceLoaderIdentifier&, ResourceError&);
+    ResourceLoaderIdentifier requestFromDelegate(ResourceRequest&, IsMainResourceLoad, ResourceError&);
 
     WEBCORE_EXPORT void detachChildren();
     void closeAndRemoveChild(LocalFrame&);
@@ -445,7 +456,7 @@ private:
     bool shouldTreatCurrentLoadAsContinuingLoad() const { return m_currentLoadContinuingState != LoadContinuingState::NotContinuing; }
 
     // SubframeLoader specific.
-    void loadURLIntoChildFrame(const URL&, const String& referer, LocalFrame*);
+    void loadURLIntoChildFrame(const URL&, const String& referer, LocalFrame&);
     void started();
 
     // PolicyChecker specific.
@@ -460,6 +471,7 @@ private:
     UniqueRef<LocalFrameLoaderClient> m_client;
 
     const std::unique_ptr<PolicyChecker> m_policyChecker;
+    const UniqueRef<HistoryController> m_history;
     mutable ResourceLoadNotifier m_notifier;
     const std::unique_ptr<SubframeLoader> m_subframeLoader;
     mutable FrameLoaderStateMachine m_stateMachine;
@@ -532,6 +544,7 @@ private:
     bool m_shouldRestoreScrollPositionAndViewState { false };
 
     bool m_errorOccurredInLoading { false };
+    bool m_doNotAbortNavigationAPI { false };
 };
 
 // This function is called by createWindow() in JSDOMWindowBase.cpp, for example, for
@@ -541,6 +554,7 @@ private:
 //
 // FIXME: Consider making this function part of an appropriate class (not FrameLoader)
 // and moving it to a more appropriate location.
-RefPtr<Frame> createWindow(LocalFrame& openerFrame, FrameLoadRequest&&, WindowFeatures&, bool& created);
+enum class CreatedNewPage : bool { No, Yes };
+std::pair<RefPtr<Frame>, CreatedNewPage> createWindow(LocalFrame& openerFrame, FrameLoadRequest&&, WindowFeatures&&);
 
 } // namespace WebCore

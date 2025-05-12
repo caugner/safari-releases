@@ -107,6 +107,7 @@ void printInternal(PrintStream& out, JSC::JSType type)
     CASE(JSAsyncGeneratorType)
     CASE(JSArrayIteratorType)
     CASE(JSIteratorType)
+    CASE(JSIteratorHelperType)
     CASE(JSMapIteratorType)
     CASE(JSSetIteratorType)
     CASE(JSStringIteratorType)
@@ -123,6 +124,7 @@ void printInternal(PrintStream& out, JSC::JSType type)
     CASE(MaxJSType)
     CASE(JSWrapForValidIteratorType)
     CASE(JSRegExpStringIteratorType)
+    CASE(JSAsyncFromSyncIteratorType)
     }
 }
 

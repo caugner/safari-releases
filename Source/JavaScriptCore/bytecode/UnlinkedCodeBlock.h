@@ -88,12 +88,13 @@ struct UnlinkedStringJumpTable {
     StringOffsetTable m_offsetTable;
     unsigned m_minLength { StringImpl::MaxLength };
     unsigned m_maxLength { 0 };
+    int32_t m_defaultOffset { 0 };
 
-    inline int32_t offsetForValue(StringImpl* value, int32_t defaultOffset) const
+    inline int32_t offsetForValue(StringImpl* value) const
     {
         auto loc = m_offsetTable.find(value);
         if (loc == m_offsetTable.end())
-            return defaultOffset;
+            return m_defaultOffset;
         return loc->value.m_branchOffset;
     }
 
@@ -107,20 +108,22 @@ struct UnlinkedStringJumpTable {
 
     unsigned minLength() const { return m_minLength; }
     unsigned maxLength() const { return m_maxLength; }
+    int32_t defaultOffset() const { return m_defaultOffset; }
 };
 
 struct UnlinkedSimpleJumpTable {
     FixedVector<int32_t> m_branchOffsets;
-    int32_t m_min;
+    int32_t m_min { 0 };
+    int32_t m_defaultOffset { 0 };
 
-    inline int32_t offsetForValue(int32_t value, int32_t defaultOffset) const
+    inline int32_t offsetForValue(int32_t value) const
     {
         if (value >= m_min && static_cast<uint32_t>(value - m_min) < m_branchOffsets.size()) {
             int32_t offset = m_branchOffsets[value - m_min];
             if (offset)
                 return offset;
         }
-        return defaultOffset;
+        return m_defaultOffset;
     }
 
     void add(int32_t key, int32_t offset)
@@ -128,6 +131,8 @@ struct UnlinkedSimpleJumpTable {
         if (!m_branchOffsets[key])
             m_branchOffsets[key] = offset;
     }
+
+    int32_t defaultOffset() const { return m_defaultOffset; }
 };
 
 class UnlinkedCodeBlock : public JSCell {
@@ -135,7 +140,7 @@ public:
     typedef JSCell Base;
     static constexpr unsigned StructureFlags = Base::StructureFlags;
 
-    static constexpr bool needsDestruction = true;
+    static constexpr DestructionMode needsDestruction = NeedsDestruction;
 
     template<typename, SubspaceAccess>
     static void subspaceFor(VM&)
@@ -467,7 +472,7 @@ public:
             unsigned m_startDivot;
             unsigned m_endDivot;
         };
-        HashMap<unsigned, TypeProfilerExpressionRange> m_typeProfilerInfoMap;
+        UncheckedKeyHashMap<unsigned, TypeProfilerExpressionRange> m_typeProfilerInfoMap;
         FixedVector<JSInstructionStream::Offset> m_opProfileControlFlowBytecodeOffsets;
         FixedVector<BitVector> m_bitVectors;
         FixedVector<IdentifierSet> m_constantIdentifierSets;
@@ -493,7 +498,7 @@ public:
     BaselineExecutionCounter& llintExecuteCounter() { return m_llintExecuteCounter; }
 
 private:
-    using OutOfLineJumpTargets = HashMap<JSInstructionStream::Offset, int>;
+    using OutOfLineJumpTargets = UncheckedKeyHashMap<JSInstructionStream::Offset, int>;
 
     OutOfLineJumpTargets m_outOfLineJumpTargets;
     std::unique_ptr<RareData> m_rareData;
@@ -506,7 +511,7 @@ private:
 
 #if ASSERT_ENABLED
     Lock m_cachedIdentifierUidsLock;
-    HashSet<UniquedStringImpl*> m_cachedIdentifierUids;
+    UncheckedKeyHashSet<UniquedStringImpl*> m_cachedIdentifierUids;
 #endif
 
 protected:

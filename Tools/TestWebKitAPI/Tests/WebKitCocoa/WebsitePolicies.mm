@@ -796,9 +796,9 @@ TEST(WebpagePreferences, WebsitePoliciesAutoplayQuirks)
     [delegate setAutoplayPolicyForURL:^(NSURL *) {
         return _WKWebsiteAutoplayPolicyDeny;
     }];
+
     [webView loadRequest:requestWithAudio];
-    [webView waitForMessage:@"did-not-play"];
-    [webView waitForMessage:@"on-pause"];
+    [webView waitForMessages:@[@"did-not-play", @"on-pause"]];
 
     receivedAutoplayEvent = std::nullopt;
     [webView loadHTMLString:@"" baseURL:nil];
@@ -815,8 +815,7 @@ TEST(WebpagePreferences, WebsitePoliciesAutoplayQuirks)
         return _WKWebsiteAutoplayPolicyDeny;
     }];
     [webView loadRequest:requestWithAudioInFrame];
-    [webView waitForMessage:@"did-not-play"];
-    [webView waitForMessage:@"on-pause"];
+    [webView waitForMessages:@[@"did-not-play", @"on-pause"]];
 
     receivedAutoplayEvent = std::nullopt;
     [webView loadHTMLString:@"" baseURL:nil];
@@ -906,8 +905,7 @@ TEST(WebpagePreferences, WebsitePoliciesPerDocumentAutoplayBehaviorQuirks)
 }
 #endif
 
-// FIXME: Re-enable this test once webkit.org/b/230494 is resolved.
-TEST(WebpagePreferences, DISABLED_WebsitePoliciesAutoplayQuirksAsyncPolicyDelegate)
+TEST(WebpagePreferences, WebsitePoliciesAutoplayQuirksAsyncPolicyDelegate)
 {
     auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
 #if PLATFORM(IOS_FAMILY)
@@ -929,8 +927,8 @@ TEST(WebpagePreferences, DISABLED_WebsitePoliciesAutoplayQuirksAsyncPolicyDelega
         return _WKWebsiteAutoplayPolicyDeny;
     }];
     [webView loadRequest:requestWithAudio];
-    [webView waitForMessage:@"did-not-play"];
-    [webView waitForMessage:@"on-pause"];
+
+    [webView waitForMessages:@[@"did-not-play", @"on-pause"]];
 
     receivedAutoplayEvent = std::nullopt;
     [webView loadHTMLString:@"" baseURL:nil];
@@ -947,8 +945,7 @@ TEST(WebpagePreferences, DISABLED_WebsitePoliciesAutoplayQuirksAsyncPolicyDelega
         return _WKWebsiteAutoplayPolicyDeny;
     }];
     [webView loadRequest:requestWithAudioInFrame];
-    [webView waitForMessage:@"did-not-play"];
-    [webView waitForMessage:@"on-pause"];
+    [webView waitForMessages:@[@"did-not-play", @"on-pause"]];
 }
 
 TEST(WebpagePreferences, InvalidCustomHeaders)
@@ -1751,6 +1748,7 @@ TEST(WebpagePreferences, UserExplicitlyPrefersColorSchemeLight)
     configuration.get().defaultWebpagePreferences._colorSchemePreference = _WKWebsiteColorSchemePreferenceLight;
 
     auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    [webView forceDarkMode];
 
     [webView loadTestPageNamed:@"color-scheme"];
     [webView waitForMessage:@"light-detected"];

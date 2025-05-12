@@ -640,6 +640,14 @@ private:
             }
             break;
         }
+
+        case StringAt: {
+            if (node->arrayMode().isOutOfBounds())
+                changed |= mergePrediction(SpecString | SpecOther);
+            else
+                changed |= mergePrediction(SpecString);
+            break;
+        }
             
         case ToThis: {
             // ToThis in methods for primitive types should speculate primitive types in strict mode.
@@ -1004,7 +1012,7 @@ private:
         case GetByValMegamorphic:
         case ArrayPop:
         case ArrayPush:
-        case ArraySpliceExtract:
+        case ArraySplice:
         case RegExpExec:
         case RegExpExecNonGlobalOrSticky:
         case RegExpTest:
@@ -1127,6 +1135,7 @@ private:
             break;
 
         case MapStorage:
+        case MapStorageOrSentinel:
         case MapIterationNext:
             setPrediction(SpecCellOther);
             break;
@@ -1137,6 +1146,7 @@ private:
             break;
         }
 
+        case DataViewGetByteLength:
         case GetTypedArrayByteOffset:
         case GetArrayLength:
         case GetUndetachedTypeArrayLength:
@@ -1145,6 +1155,7 @@ private:
             break;
         }
 
+        case DataViewGetByteLengthAsInt52:
         case GetTypedArrayLengthAsInt52:
         case GetTypedArrayByteOffsetAsInt52: {
             setPrediction(SpecInt52Any);
@@ -1518,7 +1529,8 @@ private:
         case AtomicsOr:
         case AtomicsStore:
         case AtomicsSub:
-        case AtomicsXor: {
+        case AtomicsXor:
+        case StringAt: {
             m_dependentNodes.append(m_currentNode);
             break;
         }
@@ -1551,6 +1563,7 @@ private:
         case DoubleRep:
         case ValueRep:
         case Int52Rep:
+        case PurifyNaN:
         case Int52Constant:
         case Identity:
         case BooleanToNumber:

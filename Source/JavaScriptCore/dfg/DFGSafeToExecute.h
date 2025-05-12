@@ -304,6 +304,7 @@ bool safeToExecute(AbstractStateType& state, Graph& graph, Node* node, bool igno
     case CheckVarargs:
     case ValueRep:
     case DoubleRep:
+    case PurifyNaN:
     case Int52Rep:
     case BooleanToNumber:
     case FiatInt52:
@@ -321,6 +322,7 @@ bool safeToExecute(AbstractStateType& state, Graph& graph, Node* node, bool igno
     case MapGet:
     case LoadMapValue:
     case MapStorage:
+    case MapStorageOrSentinel:
     case MapIterationNext:
     case MapIterationEntry:
     case MapIterationEntryKey:
@@ -402,6 +404,7 @@ bool safeToExecute(AbstractStateType& state, Graph& graph, Node* node, bool igno
     case GetTypedArrayLengthAsInt52:
     case GetVectorLength:
     case ArrayPop:
+    case StringAt:
     case StringCharAt:
     case StringCharCodeAt:
     case StringCodePointAt:
@@ -410,7 +413,13 @@ bool safeToExecute(AbstractStateType& state, Graph& graph, Node* node, bool igno
     case ArrayPush:
         return node->arrayMode().alreadyChecked(graph, node, state.forNode(graph.varArgChild(node, 1)));
 
+    case DataViewGetByteLength:
+    case DataViewGetByteLengthAsInt52:
+        return !(state.forNode(node->child1()).m_type & ~(SpecDataViewObject));
+
     case CheckDetached:
+        return !(state.forNode(node->child1()).m_type & ~(SpecTypedArrayView | SpecDataViewObject));
+
     case GetTypedArrayByteOffset:
     case GetTypedArrayByteOffsetAsInt52:
         return !(state.forNode(node->child1()).m_type & ~(SpecTypedArrayView));
@@ -763,7 +772,7 @@ bool safeToExecute(AbstractStateType& state, Graph& graph, Node* node, bool igno
     case StringLocaleCompare:
     case FunctionBind:
     case DateSetTime:
-    case ArraySpliceExtract:
+    case ArraySplice:
         return false;
 
     case StringReplaceString:

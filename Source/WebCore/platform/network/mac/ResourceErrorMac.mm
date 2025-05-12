@@ -32,6 +32,7 @@
 #import <wtf/BlockObjCExceptions.h>
 #import <wtf/NeverDestroyed.h>
 #import <wtf/URL.h>
+#import <wtf/cocoa/TypeCastsCocoa.h>
 #import <wtf/text/WTFString.h>
 
 @interface NSError (WebExtras)
@@ -172,6 +173,7 @@ ResourceError::ErrorRecoveryMethod ResourceError::errorRecoveryMethod() const
         case NSURLErrorNetworkConnectionLost:
         case NSURLErrorHTTPTooManyRedirects:
         case NSURLErrorResourceUnavailable:
+        case NSURLErrorNotConnectedToInternet:
         case NSURLErrorRedirectToNonExistentLocation:
         case NSURLErrorBadServerResponse:
         case NSURLErrorZeroByteResource:
@@ -310,5 +312,22 @@ String ResourceError::blockedTrackerHostName() const
 }
 
 #endif // ENABLE(ADVANCED_PRIVACY_PROTECTIONS)
+
+bool ResourceError::hasMatchingFailingURLKeys() const
+{
+    if (id nsErrorFailingURL = [nsError().userInfo objectForKey:@"NSErrorFailingURLKey"]) {
+        auto *failingURL = dynamic_objc_cast<NSURL>(nsErrorFailingURL);
+        if (!failingURL)
+            return false;
+        if (id nsErrorFailingURLString = [nsError().userInfo objectForKey:@"NSErrorFailingURLStringKey"]) {
+            auto *failingURLString = dynamic_objc_cast<NSString>(nsErrorFailingURLString);
+            if (!failingURLString)
+                return false;
+            if (![failingURL isEqual:URL(failingURLString)])
+                return false;
+        }
+    }
+    return true;
+}
 
 } // namespace WebCore

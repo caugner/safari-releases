@@ -725,6 +725,11 @@ class Port(object):
         if name in os.environ:
             clean_env[name] = os.environ[name]
 
+    def _copy_values_from_environ_with_prefix(self, clean_env, prefix):
+        for name in os.environ:
+            if name.startswith(prefix):
+                clean_env[name] = os.environ[name]
+
     def port_adjust_environment_for_test_driver(self, env):
         return env
 
@@ -738,6 +743,7 @@ class Port(object):
             # For Linux:
             'ALSA_CARD',
             'DBUS_SESSION_BUS_ADDRESS',
+            'GI_TYPELIB_PATH',
             'LANG',
             'LD_LIBRARY_PATH',
             'TERM',
@@ -755,13 +761,12 @@ class Port(object):
 
             # Most ports (?):
             'HOME',
-            'PATH',
-            'WEBKIT_TESTFONTS',
-            'WEBKIT_OUTPUTDIR',
-
+            'PATH'
         ]
+
         for variable in variables_to_copy:
             self._copy_value_from_environ_if_set(clean_env, variable)
+        self._copy_values_from_environ_with_prefix(clean_env, 'WEBKIT')
 
         for string_variable in self.get_option('additional_env_var', []):
             [name, value] = string_variable.split('=', 1)
@@ -1209,6 +1214,9 @@ class Port(object):
         args.append(self._config.flag_for_configuration(self.get_option('configuration')))
         args.append("--%s" % self.get_option('platform'))
         return self._executive.run_command([miniBrowser] + args, stdout=None, cwd=self.webkit_base(), return_stderr=False, decode_output=False, ignore_errors=True)
+
+    def run_webdriver(self, args):
+        raise NotImplementedError('Port.run_webdriver')
 
     @decorators.Memoize()
     def _path_to_image_diff(self):

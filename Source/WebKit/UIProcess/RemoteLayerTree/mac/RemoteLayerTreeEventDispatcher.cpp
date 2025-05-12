@@ -193,7 +193,7 @@ void RemoteLayerTreeEventDispatcher::handleWheelEvent(const WebWheelEvent& wheel
     ASSERT(isMainRunLoop());
 
     auto scrollingTree = this->scrollingTree();
-    if (scrollingTree->scrollingPerformanceTestingEnabled()) {
+    if (scrollingTree && scrollingTree->scrollingPerformanceTestingEnabled()) {
         if (wheelEvent.phase() == WebWheelEvent::PhaseBegan)
             startFingerDownSignpostInterval();
 
@@ -327,9 +327,7 @@ PlatformWheelEvent RemoteLayerTreeEventDispatcher::filteredWheelEvent(const Plat
 
 RemoteLayerTreeDrawingAreaProxyMac& RemoteLayerTreeEventDispatcher::drawingAreaMac() const
 {
-    auto* drawingArea = dynamicDowncast<RemoteLayerTreeDrawingAreaProxy>(m_scrollingCoordinator->webPageProxy().drawingArea());
-    ASSERT(drawingArea && drawingArea->isRemoteLayerTreeDrawingAreaProxyMac());
-    return *static_cast<RemoteLayerTreeDrawingAreaProxyMac*>(drawingArea);
+    return *downcast<RemoteLayerTreeDrawingAreaProxyMac>(m_scrollingCoordinator->webPageProxy().drawingArea());
 }
 
 DisplayLink* RemoteLayerTreeEventDispatcher::displayLink() const
@@ -484,7 +482,11 @@ void RemoteLayerTreeEventDispatcher::scheduleDelayedRenderingUpdateDetectionTime
     ASSERT(ScrollingThread::isCurrentThread());
 
     if (!m_delayedRenderingUpdateDetectionTimer)
-        m_delayedRenderingUpdateDetectionTimer = makeUnique<RunLoop::Timer>(RunLoop::current(), this, &RemoteLayerTreeEventDispatcher::delayedRenderingUpdateDetectionTimerFired);
+        m_delayedRenderingUpdateDetectionTimer = makeUnique<RunLoop::Timer>(RunLoop::current(), [weakThis = ThreadSafeWeakPtr { *this }] {
+            auto strongThis = weakThis.get();
+            if (strongThis)
+                strongThis->delayedRenderingUpdateDetectionTimerFired();
+        });
 
     m_delayedRenderingUpdateDetectionTimer->startOneShot(delay);
 }
@@ -696,7 +698,7 @@ void RemoteLayerTreeEventDispatcher::handleSyntheticWheelEvent(PageIdentifier pa
     ASSERT_UNUSED(pageID, m_pageIdentifier == pageID);
 
     auto scrollingTree = this->scrollingTree();
-    if (scrollingTree->scrollingPerformanceTestingEnabled()) {
+    if (scrollingTree && scrollingTree->scrollingPerformanceTestingEnabled()) {
         if (event.momentumPhase() == WebWheelEvent::PhaseBegan)
             startMomentumSignpostInterval();
 

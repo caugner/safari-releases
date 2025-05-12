@@ -2,7 +2,7 @@ This directory contains a copy of libsysprof-capture from the
 official Sysprof repository.
 
   - URL: https://gitlab.gnome.org/GNOME/sysprof
-  - Commit: 594a3037c0e7cc1bf97f162a392aa4f8989c9dce (tag: 46.0)
+  - Commit: 5513868c49b54151b1df3f752a210709322e630c (tag: 47.0)
 
 The simplest way of updating its contents is to re-create the directory
 from scratch, and restoring the needed files with Git. Example commands:
@@ -13,6 +13,7 @@ from scratch, and restoring the needed files with Git. Example commands:
       Source/ThirdParty/libsysprof-capture/README.WebKit \
       Source/ThirdParty/libsysprof-capture/CMakeLists.txt \
       Source/ThirdParty/libsysprof-capture/include/config.h
+  git rm -r Source/ThirdParty/libsysprof-capture/tests
   git add -A Source/ThirdParty/libsysprof-capture
 
 The sysprof-version.h file has to be generated to be included in this

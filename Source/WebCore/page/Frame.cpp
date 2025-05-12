@@ -29,7 +29,6 @@
 #include "FrameLoaderClient.h"
 #include "HTMLFrameOwnerElement.h"
 #include "HTMLIFrameElement.h"
-#include "HistoryController.h"
 #include "LocalDOMWindow.h"
 #include "NavigationScheduler.h"
 #include "Page.h"
@@ -99,7 +98,7 @@ public:
         return it->value.first && it->value.first->isRootFrame();
     }
 private:
-    HashMap<FrameIdentifier, std::pair<WeakPtr<LocalFrame>, WeakPtr<RemoteFrame>>> m_map;
+    UncheckedKeyHashMap<FrameIdentifier, std::pair<WeakPtr<LocalFrame>, WeakPtr<RemoteFrame>>> m_map;
 };
 #endif
 
@@ -112,9 +111,8 @@ Frame::Frame(Page& page, FrameIdentifier frameID, FrameType frameType, HTMLFrame
     , m_mainFrame(parent ? page.mainFrame() : *this)
     , m_settings(page.settings())
     , m_frameType(frameType)
-    , m_navigationScheduler(makeUniqueRef<NavigationScheduler>(*this))
+    , m_navigationScheduler(makeUniqueRefWithoutRefCountedCheck<NavigationScheduler>(*this))
     , m_opener(opener)
-    , m_history(makeUniqueRef<HistoryController>(*this))
 {
     if (parent)
         parent->tree().appendChild(*this);
@@ -183,12 +181,12 @@ void Frame::takeWindowProxyAndOpenerFrom(Frame& frame)
     frame.resetWindowProxy();
     m_windowProxy->replaceFrame(*this);
 
-    // FIXME: We ought to be able to assert that there is no existing opener here,
-    // but WKBundleFrameClearOpener is used to clear state between tests and it
-    // only clears in one process.
+    ASSERT(!m_opener);
     m_opener = frame.m_opener;
-    for (auto& opened : frame.m_openedFrames)
+    for (auto& opened : frame.m_openedFrames) {
+        ASSERT(opened.m_opener.get() == &frame);
         opened.m_opener = *this;
+    }
 }
 
 Ref<WindowProxy> Frame::protectedWindowProxy() const
@@ -196,7 +194,7 @@ Ref<WindowProxy> Frame::protectedWindowProxy() const
     return m_windowProxy;
 }
 
-CheckedRef<NavigationScheduler> Frame::checkedNavigationScheduler() const
+Ref<NavigationScheduler> Frame::protectedNavigationScheduler() const
 {
     return m_navigationScheduler.get();
 }
@@ -225,9 +223,10 @@ bool Frame::isRootFrameIdentifier(FrameIdentifier identifier)
 }
 #endif
 
-void Frame::updateOpener(Frame& newOpener)
+void Frame::updateOpener(Frame& newOpener, NotifyUIProcess notifyUIProcess)
 {
-    // FIXME: rdar://134621844 Make this work with site isolation.
+    if (notifyUIProcess == NotifyUIProcess::Yes)
+        loaderClient().updateOpener(newOpener);
     if (m_opener)
         m_opener->m_openedFrames.remove(*this);
     newOpener.m_openedFrames.add(*this);
@@ -267,11 +266,6 @@ bool Frame::hasOpenedFrames() const
     return !m_openedFrames.isEmptyIgnoringNullReferences();
 }
 
-CheckedRef<HistoryController> Frame::checkedHistory() const
-{
-    return m_history.get();
-}
-
 void Frame::setOwnerElement(HTMLFrameOwnerElement* element)
 {
     m_ownerElement = element;
@@ -279,6 +273,7 @@ void Frame::setOwnerElement(HTMLFrameOwnerElement* element)
         element->clearContentFrame();
         element->setContentFrame(*this);
     }
+    updateScrollingMode();
 }
 
 void Frame::setOwnerPermissionsPolicy(OwnerPermissionsPolicyData&& ownerPermissionsPolicy)

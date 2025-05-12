@@ -155,7 +155,7 @@ bool SVGTextLayoutEngine::parentDefinesTextLength(RenderObject* parent) const
     return false;
 }
 
-void SVGTextLayoutEngine::beginTextPathLayout(RenderSVGTextPath& textPath, SVGTextLayoutEngine& lineLayout)
+void SVGTextLayoutEngine::beginTextPathLayout(const RenderSVGTextPath& textPath, SVGTextLayoutEngine& lineLayout)
 {
     m_inPathLayout = true;
 
@@ -223,7 +223,7 @@ void SVGTextLayoutEngine::layoutInlineTextBox(InlineIterator::SVGTextBoxIterator
 
     const RenderStyle& style = text.style();
 
-    m_isVerticalText = style.isVerticalWritingMode();
+    m_isVerticalText = style.writingMode().isVertical();
     layoutTextOnLineOrPath(textBox, text, style);
 
     if (m_inPathLayout) {
@@ -418,7 +418,7 @@ void SVGTextLayoutEngine::layoutTextOnLineOrPath(InlineIterator::SVGTextBoxItera
     ASSERT(!visualMetricsValues.isEmpty());
 
     auto upconvertedCharacters = StringView(text.text()).upconvertedCharacters();
-    const UChar* characters = upconvertedCharacters;
+    auto characters = upconvertedCharacters.span();
     const FontCascade& font = style.fontCascade();
 
     SVGTextLayoutEngineSpacing spacingLayout(font);
@@ -460,7 +460,9 @@ void SVGTextLayoutEngine::layoutTextOnLineOrPath(InlineIterator::SVGTextBoxItera
 
         float x = data.x;
         float y = data.y;
-        auto previousBoxOnLine = textBox->previousOnLine();
+        auto previousBoxOnLine = textBox->nextLineLeftwardOnLine();
+
+        bool hasXOrY = !SVGTextLayoutAttributes::isEmptyValue(x) || !SVGTextLayoutAttributes::isEmptyValue(y);
 
         // If we start a new chunk following an chunk that had a textLength set, use that
         // textLength to determine the chunk start position, instead of glyph advance values.
@@ -521,7 +523,7 @@ void SVGTextLayoutEngine::layoutTextOnLineOrPath(InlineIterator::SVGTextBoxItera
         float angle = SVGTextLayoutAttributes::isEmptyValue(data.rotate) ? 0 : data.rotate;
 
         // Calculate glyph orientation angle.
-        const UChar* currentCharacter = characters + m_visualCharacterOffset;
+        const UChar* currentCharacter = characters.subspan(m_visualCharacterOffset).data();
         float orientationAngle = baselineLayout.calculateGlyphOrientationAngle(m_isVerticalText, svgStyle, *currentCharacter);
 
         // Calculate glyph advance & x/y orientation shifts.
@@ -613,7 +615,7 @@ void SVGTextLayoutEngine::layoutTextOnLineOrPath(InlineIterator::SVGTextBoxItera
         }
 
         // Determine whether we have to start a new fragment.
-        bool shouldStartNewFragment = m_dx || m_dy || m_isVerticalText || m_inPathLayout || angle || angle != lastAngle
+        bool shouldStartNewFragment = hasXOrY || m_dx || m_dy || m_isVerticalText || m_inPathLayout || angle || angle != lastAngle
             || orientationAngle || applySpacingToNextCharacter || definesTextLength;
 
         // If we already started a fragment, close it now.

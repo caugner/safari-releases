@@ -1,7 +1,7 @@
 X
 
-FAIL Element can be anchor positioned assert_equals: expected "50px" but got "11.5625px"
-FAIL Element can use <length> fallback if present assert_equals: expected "42px" but got "11.5625px"
+PASS Element can be anchor positioned
+PASS Element can use <length> fallback if present
 PASS Invalid anchor function, left
 PASS Invalid anchor function, right
 PASS Invalid anchor function, bottom
@@ -16,7 +16,6 @@ PASS Invalid anchor function, --unknown left
 PASS Invalid anchor function, --unknown width
 PASS Invalid anchor function, cross-axis query (vertical)
 PASS Invalid anchor function,  cross-axis query (horizontal)
-PASS Invalid anchor function, anchor-size() in inset
 PASS Invalid anchor function, anchor() in sizing property
 PASS Invalid anchor function, nested left
 PASS Invalid anchor function, nested right

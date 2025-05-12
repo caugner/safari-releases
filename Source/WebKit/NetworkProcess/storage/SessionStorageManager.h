@@ -55,11 +55,14 @@ public:
     void disconnectFromStorageArea(IPC::Connection::UniqueID, StorageAreaIdentifier);
     void cloneStorageArea(StorageNamespaceIdentifier, StorageNamespaceIdentifier);
 
+    HashMap<String, String> fetchStorageMap(StorageNamespaceIdentifier);
+    bool setStorageMap(StorageNamespaceIdentifier, WebCore::ClientOrigin, HashMap<String, String>&&);
+
 private:
-    StorageAreaIdentifier addStorageArea(std::unique_ptr<MemoryStorageArea>, StorageNamespaceIdentifier);
+    StorageAreaIdentifier addStorageArea(Ref<MemoryStorageArea>&&, StorageNamespaceIdentifier);
 
     CheckedRef<StorageAreaRegistry> m_registry;
-    HashMap<StorageAreaIdentifier, std::unique_ptr<MemoryStorageArea>> m_storageAreas;
+    HashMap<StorageAreaIdentifier, Ref<MemoryStorageArea>> m_storageAreas;
     HashMap<StorageNamespaceIdentifier, StorageAreaIdentifier> m_storageAreasByNamespace;
 };
 

@@ -24,8 +24,8 @@
 #include "include/core/SkSpan.h"
 #include "include/effects/SkRuntimeEffect.h"
 #include "include/gpu/GpuTypes.h"
-#include "include/gpu/GrRecordingContext.h"
-#include "include/gpu/GrTypes.h"
+#include "include/gpu/ganesh/GrRecordingContext.h"
+#include "include/gpu/ganesh/GrTypes.h"
 #include "include/gpu/ganesh/SkSurfaceGanesh.h"
 #include "include/private/SkColorData.h"
 #include "include/private/base/SkAssert.h"
@@ -1031,8 +1031,8 @@ static std::unique_ptr<GrFragmentProcessor> make_gradient_fp(const SkRadialGradi
                                                              const SkShaders::MatrixRec& mRec) {
     static const SkRuntimeEffect* effect = SkMakeRuntimeEffect(
             SkRuntimeEffect::MakeForShader,
-            "half4 main(float2 coord) {"
-                "return half4(half(length(coord)), 1, 0, 0);"  // y = 1 for always valid
+            "float4 main(float2 coord) {"
+                "return float4(length(coord), 1, 0, 0);"  // y = 1 for always valid
             "}");
     // The radial gradient never rejects a pixel so it doesn't change opacity
     auto fp = GrSkSLFP::Make(

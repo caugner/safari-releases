@@ -25,7 +25,8 @@
 #pragma once
 
 #include "CSSCalcSymbolsAllowed.h"
-#include "CSSPropertyParserConsumer+Primitives.h"
+#include "CSSPrimitiveNumericRange.h"
+#include "CSSPropertyParserOptions.h"
 #include <optional>
 
 namespace WebCore {
@@ -48,11 +49,14 @@ struct ParserOptions {
     // `category` represents the context in which the parse is taking place.
     Calculation::Category category;
 
+    // `range` represents the allowed numeric range for the calculated result.
+    CSS::Range range;
+
     // `allowedSymbols` contains additional symbols that can be used in the calculation. These will need to be resolved before the calculation can be resolved.
     CSSCalcSymbolsAllowed allowedSymbols;
 
     // `propertyOptions` contains options about the specific property the calc() is intended to be used with.
-    CSSPropertyParserHelpers::CSSPropertyParserOptions propertyOptions;
+    CSSPropertyParserOptions propertyOptions;
 };
 
 // Parses and simplifies the provided `CSSParserTokenRange` into a CSSCalc::Tree. Returns `std::nullopt` on failure.

@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2019 Apple Inc. All rights reserved.
+ * Copyright (C) 2025 Samuel Weinig <sam@webkit.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -33,6 +34,7 @@
 #include "CSSCalcSymbolTable.h"
 #include "CSSCalcTree+Parser.h"
 #include "CSSCalcTree+Simplification.h"
+#include "CSSCalcTree.h"
 #include "CSSMathClamp.h"
 #include "CSSMathInvert.h"
 #include "CSSMathMax.h"
@@ -43,14 +45,15 @@
 #include "CSSNumericArray.h"
 #include "CSSNumericFactory.h"
 #include "CSSNumericType.h"
+#include "CSSParserContext.h"
 #include "CSSParserTokenRange.h"
-#include "CSSPropertyParserHelpers.h"
 #include "CSSTokenizer.h"
 #include "CSSUnitValue.h"
 #include "CalculationCategory.h"
 #include "ExceptionOr.h"
 #include <wtf/Algorithms.h>
 #include <wtf/FixedVector.h>
+#include <wtf/StdLibExtras.h>
 #include <wtf/TZoneMallocInlines.h>
 
 namespace WebCore {
@@ -161,7 +164,7 @@ ExceptionOr<Ref<CSSNumericValue>> CSSNumericValue::reifyMathExpression(const CSS
 {
     return WTF::switchOn(root,
         [](const CSSCalc::Child& child) -> ExceptionOr<Ref<CSSNumericValue>> { return CSSNumericValue::reifyMathExpression(child); },
-        [](const NoneRaw&) -> ExceptionOr<Ref<CSSNumericValue>> { return Exception { ExceptionCode::UnknownError }; }
+        [](const CSS::Keyword::None&) -> ExceptionOr<Ref<CSSNumericValue>> { return Exception { ExceptionCode::UnknownError }; }
     );
 }
 
@@ -402,7 +405,7 @@ ExceptionOr<Ref<CSSMathSum>> CSSNumericValue::toSum(FixedVector<String>&& units)
 
     if (parsedUnits.isEmpty()) {
         std::sort(values.begin(), values.end(), [](auto& a, auto& b) {
-            return strcmp(downcast<CSSUnitValue>(a)->unitSerialization().characters(), downcast<CSSUnitValue>(b)->unitSerialization().characters()) < 0;
+            return compareSpans(downcast<CSSUnitValue>(a)->unitSerialization().span(), downcast<CSSUnitValue>(b)->unitSerialization().span()) < 0;
         });
         return CSSMathSum::create(WTFMove(values));
     }
@@ -462,16 +465,16 @@ ExceptionOr<Ref<CSSNumericValue>> CSSNumericValue::parse(Document& document, Str
             auto parserContext = CSSParserContext { document };
             auto parserOptions = CSSCalc::ParserOptions {
                 .category = Calculation::Category::LengthPercentage,
+                .range = CSS::All,
                 .allowedSymbols = { },
                 .propertyOptions = { },
             };
             auto simplificationOptions = CSSCalc::SimplificationOptions {
                 .category = Calculation::Category::LengthPercentage,
+                .range = CSS::All,
                 .conversionData = std::nullopt,
                 .symbolTable = { },
                 .allowZeroValueLengthRemovalFromSum = false,
-                .allowUnresolvedUnits = false,
-                .allowNonMatchingUnits = false
             };
             auto tree = CSSCalc::parseAndSimplify(componentValueRange, parserContext, parserOptions, simplificationOptions);
             if (!tree)

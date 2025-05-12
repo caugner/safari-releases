@@ -43,7 +43,6 @@
 #import "RemoteLayerWithInProcessRenderingBackingStore.h"
 #import "RemoteLayerWithRemoteRenderingBackingStore.h"
 #import "SwapBuffersDisplayRequirement.h"
-#import "WebCoreArgumentCoders.h"
 #import "WebPageProxy.h"
 #import "WebProcess.h"
 #import "WebProcessPool.h"
@@ -64,6 +63,10 @@
 #import <wtf/TZoneMalloc.h>
 #import <wtf/cocoa/TypeCastsCocoa.h>
 #import <wtf/text/TextStream.h>
+
+#if HAVE(CORE_ANIMATION_SEPARATED_LAYERS)
+#import "WKSeparatedImageView.h"
+#endif
 
 
 namespace WebKit {
@@ -114,13 +117,13 @@ RemoteLayerBackingStore::RemoteLayerBackingStore(PlatformCALayerRemote& layer)
     : m_layer(layer)
     , m_lastDisplayTime(-MonotonicTime::infinity())
 {
-    if (auto* collection = backingStoreCollection())
+    if (RefPtr collection = backingStoreCollection())
         collection->backingStoreWasCreated(*this);
 }
 
 RemoteLayerBackingStore::~RemoteLayerBackingStore()
 {
-    if (auto* collection = backingStoreCollection())
+    if (RefPtr collection = backingStoreCollection())
         collection->backingStoreWillBeDestroyed(*this);
 }
 
@@ -223,7 +226,7 @@ void RemoteLayerBackingStoreProperties::dump(TextStream& ts) const
 
 bool RemoteLayerBackingStore::layerWillBeDisplayed()
 {
-    auto* collection = backingStoreCollection();
+    RefPtr collection = backingStoreCollection();
     if (!collection) {
         ASSERT_NOT_REACHED();
         return false;
@@ -234,7 +237,7 @@ bool RemoteLayerBackingStore::layerWillBeDisplayed()
 
 bool RemoteLayerBackingStore::layerWillBeDisplayedWithRenderingSuppression()
 {
-    auto* collection = backingStoreCollection();
+    RefPtr collection = backingStoreCollection();
     if (!collection) {
         ASSERT_NOT_REACHED();
         return false;
@@ -258,21 +261,21 @@ WebCore::IntRect RemoteLayerBackingStore::layerBounds() const
     return IntRect { { }, expandedIntSize(m_parameters.size) };
 }
 
-bool RemoteLayerBackingStore::usesDeepColorBackingStore() const
-{
-#if HAVE(IOSURFACE_RGB10)
-    if (m_parameters.type == Type::IOSurface && m_parameters.deepColor)
-        return true;
-#endif
-    return false;
-}
-
 ImageBufferPixelFormat RemoteLayerBackingStore::pixelFormat() const
 {
-    if (usesDeepColorBackingStore())
-        return m_parameters.isOpaque ? ImageBufferPixelFormat::RGB10 : ImageBufferPixelFormat::RGB10A8;
+    switch (contentsFormat()) {
+    case ContentsFormat::RGBA8:
+        return m_parameters.isOpaque ? ImageBufferPixelFormat::BGRX8 : ImageBufferPixelFormat::BGRA8;
 
-    return m_parameters.isOpaque ? ImageBufferPixelFormat::BGRX8 : ImageBufferPixelFormat::BGRA8;
+#if HAVE(IOSURFACE_RGB10)
+    case ContentsFormat::RGBA10:
+        return m_parameters.isOpaque ? ImageBufferPixelFormat::RGB10 : ImageBufferPixelFormat::RGB10A8;
+#endif
+#if HAVE(HDR_SUPPORT)
+    case ContentsFormat::RGBA16F:
+        return ImageBufferPixelFormat::RGBA16F;
+#endif
+    }
 }
 
 unsigned RemoteLayerBackingStore::bytesPerPixel() const
@@ -280,8 +283,13 @@ unsigned RemoteLayerBackingStore::bytesPerPixel() const
     switch (pixelFormat()) {
     case ImageBufferPixelFormat::BGRX8: return 4;
     case ImageBufferPixelFormat::BGRA8: return 4;
+#if HAVE(IOSURFACE_RGB10)
     case ImageBufferPixelFormat::RGB10: return 4;
     case ImageBufferPixelFormat::RGB10A8: return 5;
+#endif
+#if HAVE(HDR_SUPPORT)
+    case ImageBufferPixelFormat::RGBA16F: return 8;
+#endif
     }
     return 4;
 }
@@ -328,7 +336,7 @@ void RemoteLayerBackingStore::setDelegatedContents(const PlatformCALayerRemoteDe
 
 bool RemoteLayerBackingStore::needsDisplay() const
 {
-    auto* collection = backingStoreCollection();
+    RefPtr collection = backingStoreCollection();
     if (!collection) {
         ASSERT_NOT_REACHED();
         return false;
@@ -412,11 +420,17 @@ void RemoteLayerBackingStore::drawInContext(GraphicsContext& context)
     // FIXME: This should be moved to PlatformCALayerRemote for better layering.
     switch (m_layer->layerType()) {
     case PlatformCALayer::LayerType::LayerTypeSimpleLayer:
+#if HAVE(CORE_ANIMATION_SEPARATED_LAYERS)
+    case PlatformCALayer::LayerType::LayerTypeSeparatedImageLayer:
+#endif
     case PlatformCALayer::LayerType::LayerTypeTiledBackingTileLayer:
         m_layer->owner()->platformCALayerPaintContents(m_layer.ptr(), context, dirtyBounds, paintBehavior);
         break;
     case PlatformCALayer::LayerType::LayerTypeWebLayer:
     case PlatformCALayer::LayerType::LayerTypeBackdropLayer:
+#if HAVE(CORE_MATERIAL)
+    case PlatformCALayer::LayerType::LayerTypeMaterialLayer:
+#endif
         PlatformCALayer::drawLayerContents(context, m_layer.ptr(), m_paintingRects, paintBehavior);
         break;
     case PlatformCALayer::LayerType::LayerTypeLayer:
@@ -498,12 +512,24 @@ RetainPtr<id> RemoteLayerBackingStoreProperties::layerContentsBufferFromBackendH
     return contents;
 }
 
-void RemoteLayerBackingStoreProperties::applyBackingStoreToLayer(CALayer *layer, LayerContentsType contentsType, std::optional<WebCore::RenderingResourceIdentifier> asyncContentsIdentifier, bool replayDynamicContentScalingDisplayListsIntoBackingStore)
+void RemoteLayerBackingStoreProperties::applyBackingStoreToLayer(CALayer *layer, LayerContentsType contentsType, std::optional<WebCore::RenderingResourceIdentifier> asyncContentsIdentifier, bool replayDynamicContentScalingDisplayListsIntoBackingStore, UIView *hostingView)
 {
     if (asyncContentsIdentifier && m_contentsRenderingResourceIdentifier && *asyncContentsIdentifier >= m_contentsRenderingResourceIdentifier)
         return;
 
     layer.contentsOpaque = m_isOpaque;
+
+#if HAVE(CORE_ANIMATION_SEPARATED_LAYERS)
+    if (hostingView && [hostingView isKindOfClass:[WKSeparatedImageView class]] && contentsType == LayerContentsType::CachedIOSurface) {
+        auto machSendRight = std::get<MachSendRight>(WTFMove(*m_bufferHandle));
+        auto surface = WebCore::IOSurface::createFromSendRight(WTFMove(machSendRight));
+        if (surface)
+            [(WKSeparatedImageView *)hostingView setSurface:surface->surface()];
+        else
+            [(WKSeparatedImageView *)hostingView setSurface:nil];
+        return;
+    }
+#endif
 
     RetainPtr<id> contents;
     // m_bufferHandle can be unset here if IPC with the GPU process timed out.
@@ -608,19 +634,19 @@ Vector<std::unique_ptr<ThreadSafeImageBufferSetFlusher>> RemoteLayerBackingStore
 
 void RemoteLayerBackingStore::purgeFrontBufferForTesting()
 {
-    if (auto* collection = backingStoreCollection())
+    if (RefPtr collection = backingStoreCollection())
         collection->purgeFrontBufferForTesting(*this);
 }
 
 void RemoteLayerBackingStore::purgeBackBufferForTesting()
 {
-    if (auto* collection = backingStoreCollection())
+    if (RefPtr collection = backingStoreCollection())
         collection->purgeBackBufferForTesting(*this);
 }
 
 void RemoteLayerBackingStore::markFrontBufferVolatileForTesting()
 {
-    if (auto* collection = backingStoreCollection())
+    if (RefPtr collection = backingStoreCollection())
         collection->markFrontBufferVolatileForTesting(*this);
 }
 

@@ -38,6 +38,8 @@
 #include "StructureInlines.h"
 #include "TypedArrayType.h"
 
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
+
 namespace JSC {
 
 inline Structure* JSObject::createStructure(VM& vm, JSGlobalObject* globalObject, JSValue prototype)
@@ -58,7 +60,7 @@ inline Structure* JSFinalObject::createStructure(VM& vm, JSGlobalObject* globalO
 template<typename CellType, SubspaceAccess>
 CompleteSubspace* JSFinalObject::subspaceFor(VM& vm)
 {
-    static_assert(!CellType::needsDestruction);
+    static_assert(CellType::needsDestruction == DoesNotNeedDestruction);
     return &vm.cellSpace();
 }
 
@@ -965,3 +967,5 @@ ALWAYS_INLINE JSFinalObject* JSFinalObject::createDefaultEmptyObject(JSGlobalObj
 }
 
 } // namespace JSC
+
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_END

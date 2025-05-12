@@ -63,7 +63,8 @@ class MediaStreamTrack
 {
     WTF_MAKE_TZONE_OR_ISO_ALLOCATED(MediaStreamTrack);
 public:
-    DEFINE_VIRTUAL_REFCOUNTED;
+    void ref() const final { RefCounted::ref(); }
+    void deref() const final { RefCounted::deref(); }
 
     class Observer {
     public:
@@ -164,7 +165,7 @@ public:
 
 #if !RELEASE_LOG_DISABLED
     const Logger& logger() const final { return m_private->logger(); }
-    const void* logIdentifier() const final { return m_private->logIdentifier(); }
+    uint64_t logIdentifier() const final { return m_private->logIdentifier(); }
 #endif
 
     void setShouldFireMuteEventImmediately(bool value) { m_shouldFireMuteEventImmediately = value; }
@@ -180,6 +181,9 @@ public:
 
     bool isDetached() const { return m_isDetached; }
     UniqueRef<MediaStreamTrackDataHolder> detach();
+
+    void setMediaStreamId(const String& id) { m_mediaStreamId = id; }
+    const String& mediaStreamId() const { return m_mediaStreamId; }
 
 protected:
     MediaStreamTrack(ScriptExecutionContext&, Ref<MediaStreamTrackPrivate>&&);
@@ -224,7 +228,7 @@ private:
 
     MediaTrackConstraints m_constraints;
 
-    String m_groupId;
+    String m_mediaStreamId;
     State m_readyState { State::Live };
     bool m_muted { false };
     bool m_ended { false };

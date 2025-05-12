@@ -43,10 +43,10 @@ enum CSSAtRuleID {
     CSSAtRuleMedia,
     CSSAtRuleNamespace,
     CSSAtRulePage,
+    CSSAtRulePositionTry,
     CSSAtRuleSupports,
     CSSAtRuleViewTransition,
 
-    CSSAtRuleInternalBaseAppearance,
     CSSAtRuleWebkitKeyframes,
     CSSAtRuleCounterStyle,
     CSSAtRuleLayer,

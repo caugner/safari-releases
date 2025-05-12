@@ -65,7 +65,8 @@ public:
         InlineLayoutUnit ascent { 0.f };
         InlineLayoutUnit descent { 0.f };
     };
-    static EnclosingAscentDescent enclosingGlyphBoundsForText(StringView, const RenderStyle&);
+    enum class ShouldUseSimpleGlyphOverflowCodePath : bool { No, Yes };
+    static EnclosingAscentDescent enclosingGlyphBoundsForText(StringView, const RenderStyle&, ShouldUseSimpleGlyphOverflowCodePath);
 
     struct WordBreakLeft {
         size_t length { 0 };
@@ -75,6 +76,8 @@ public:
     static WordBreakLeft breakWord(const InlineTextItem&, const FontCascade&, InlineLayoutUnit textWidth, InlineLayoutUnit availableWidth, InlineLayoutUnit contentLogicalLeft);
 
     static bool mayBreakInBetween(const InlineTextItem& previousInlineItem, const InlineTextItem& nextInlineItem);
+    // FIXME: Remove when computeInlinePreferredLogicalWidths is all IFC.
+    static bool mayBreakInBetween(String previousContent, const RenderStyle& previousContentStyle, String nextContent, const RenderStyle& nextContentStyle);
     static unsigned findNextBreakablePosition(CachedLineBreakIteratorFactory&, unsigned startPosition, const RenderStyle&);
     static TextBreakIterator::LineMode::Behavior lineBreakIteratorMode(LineBreak);
     static TextBreakIterator::ContentAnalysis contentAnalysis(WordBreak);
@@ -106,6 +109,10 @@ public:
 
     static bool canUseSimplifiedTextMeasuring(StringView, const FontCascade&, bool whitespaceIsCollapsed, const RenderStyle* firstLineStyle);
     static bool hasPositionDependentContentWidth(StringView);
+
+
+    static char32_t baseCharacterFromGraphemeCluster(StringView graphemeCluster);
+    static char32_t lastBaseCharacterFromText(StringView);
 };
 
 } // namespace Layout

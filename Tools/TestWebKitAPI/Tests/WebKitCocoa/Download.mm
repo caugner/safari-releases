@@ -34,6 +34,7 @@
 #import "TestLegacyDownloadDelegate.h"
 #import "TestNavigationDelegate.h"
 #import "TestProtocol.h"
+#import "TestUIDelegate.h"
 #import "TestWKWebView.h"
 #import <Foundation/NSURLResponse.h>
 #import <WebKit/WKDownload.h>
@@ -1540,6 +1541,9 @@ TEST(WKDownload, FinishSuccessfully)
         DownloadCallback::NavigationResponse,
         DownloadCallback::NavigationResponseBecameDownload,
         DownloadCallback::DecideDestination,
+#if HAVE(MODERN_DOWNLOADPROGRESS)
+        DownloadCallback::DecidePlaceholderPolicy,
+#endif
         DownloadCallback::DidFinish
     });
 }
@@ -1651,6 +1655,9 @@ TEST(WKDownload, CancelAndResume)
         DownloadCallback::NavigationResponse,
         DownloadCallback::NavigationResponseBecameDownload,
         DownloadCallback::DecideDestination,
+#if HAVE(MODERN_DOWNLOADPROGRESS)
+        DownloadCallback::DecidePlaceholderPolicy,
+#endif
     });
 }
 
@@ -1691,6 +1698,9 @@ TEST(WKDownload, FailAndResume)
         DownloadCallback::NavigationResponse,
         DownloadCallback::NavigationResponseBecameDownload,
         DownloadCallback::DecideDestination,
+#if HAVE(MODERN_DOWNLOADPROGRESS)
+        DownloadCallback::DecidePlaceholderPolicy,
+#endif
         DownloadCallback::DidFailWithError,
     });
 }
@@ -1726,6 +1736,9 @@ TEST(WKDownload, CancelNoResumeData)
         DownloadCallback::NavigationResponse,
         DownloadCallback::NavigationResponseBecameDownload,
         DownloadCallback::DecideDestination,
+#if HAVE(MODERN_DOWNLOADPROGRESS)
+        DownloadCallback::DecidePlaceholderPolicy,
+#endif
     });
 }
 
@@ -1763,6 +1776,9 @@ TEST(WKDownload, FailNoResumeData)
         DownloadCallback::NavigationResponse,
         DownloadCallback::NavigationResponseBecameDownload,
         DownloadCallback::DecideDestination,
+#if HAVE(MODERN_DOWNLOADPROGRESS)
+        DownloadCallback::DecidePlaceholderPolicy,
+#endif
         DownloadCallback::DidFailWithError
     });
 }
@@ -1892,6 +1908,9 @@ void testResumeAfterMutatingDisk(NSURLRequest *serverRequest, NSURL *expectedDow
         DownloadCallback::NavigationResponse,
         DownloadCallback::NavigationResponseBecameDownload,
         DownloadCallback::DecideDestination,
+#if HAVE(MODERN_DOWNLOADPROGRESS)
+        DownloadCallback::DecidePlaceholderPolicy,
+#endif
         DownloadCallback::DidFinish
     });
 }
@@ -2053,6 +2072,9 @@ TEST(WKDownload, ResumeCantReconnect)
         DownloadCallback::NavigationResponse,
         DownloadCallback::NavigationResponseBecameDownload,
         DownloadCallback::DecideDestination,
+#if HAVE(MODERN_DOWNLOADPROGRESS)
+        DownloadCallback::DecidePlaceholderPolicy,
+#endif
         DownloadCallback::DidFailWithError
     });
 }
@@ -2096,6 +2118,9 @@ TEST(WKDownload, UnknownContentLength)
         DownloadCallback::NavigationResponse,
         DownloadCallback::NavigationResponseBecameDownload,
         DownloadCallback::DecideDestination,
+#if HAVE(MODERN_DOWNLOADPROGRESS)
+        DownloadCallback::DecidePlaceholderPolicy,
+#endif
     });
 }
 
@@ -2119,6 +2144,9 @@ TEST(WKDownload, InvalidArguments)
     Util::run(&caughtException);
     checkCallbackRecord(delegate.get(), {
         DownloadCallback::DecideDestination,
+#if HAVE(MODERN_DOWNLOADPROGRESS)
+        DownloadCallback::DecidePlaceholderPolicy,
+#endif
     });
 }
 
@@ -2172,6 +2200,9 @@ TEST(WKDownload, RedirectAllow)
     checkCallbackRecord(delegate.get(), {
         DownloadCallback::WillRedirect,
         DownloadCallback::DecideDestination,
+#if HAVE(MODERN_DOWNLOADPROGRESS)
+        DownloadCallback::DecidePlaceholderPolicy,
+#endif
         DownloadCallback::DidFinish
     });
 }
@@ -2275,6 +2306,9 @@ TEST(WKDownload, DownloadRequest404)
 
     checkCallbackRecord(delegate.get(), {
         DownloadCallback::DecideDestination,
+#if HAVE(MODERN_DOWNLOADPROGRESS)
+        DownloadCallback::DecidePlaceholderPolicy,
+#endif
         DownloadCallback::DidFinish,
     });
 }
@@ -2311,10 +2345,8 @@ TEST(WKDownload, DecidePlaceholderPolicy)
     });
 }
 
-TEST(WKDownload, PlaceholderPolicyEnableWithModernDownloadProgressEnabled)
+TEST(WKDownload, PlaceholderPolicyEnable)
 {
-    CFPreferencesSetAppValue(CFSTR("EnableModernDownloadProgress"), kCFBooleanTrue, kCFPreferencesAnyApplication);
-
     HTTPServer server({
         { "/"_s, { 404, { }, "http body"_s } }
     });
@@ -2343,52 +2375,16 @@ TEST(WKDownload, PlaceholderPolicyEnableWithModernDownloadProgressEnabled)
     checkCallbackRecord(delegate.get(), {
         DownloadCallback::DecideDestination,
         DownloadCallback::DecidePlaceholderPolicy,
+#if !PLATFORM(IOS_SIMULATOR)
         DownloadCallback::DidReceivePlaceholderURL,
         DownloadCallback::DidReceiveFinalURL,
-        DownloadCallback::DidFinish,
-    });
-}
-
-TEST(WKDownload, PlaceholderPolicyEnableWithModernDownloadProgressDisabled)
-{
-    CFPreferencesSetAppValue(CFSTR("EnableModernDownloadProgress"), kCFBooleanFalse, kCFPreferencesAnyApplication);
-
-    HTTPServer server({
-        { "/"_s, { 404, { }, "http body"_s } }
-    });
-    NSURL *expectedDownloadFile = tempFileThatDoesNotExist();
-    auto delegate = adoptNS([TestDownloadDelegate new]);
-    auto webView = adoptNS([WKWebView new]);
-    [webView setNavigationDelegate:delegate.get()];
-
-    __block bool didFinish = false;
-    [webView startDownloadUsingRequest:server.request() completionHandler:^(WKDownload *download) {
-        download.delegate = delegate.get();
-        delegate.get().decideDestinationUsingResponse = ^(WKDownload *, NSURLResponse *, NSString *, void (^completionHandler)(NSURL *)) {
-            completionHandler(expectedDownloadFile);
-        };
-        delegate.get().decidePlaceholderPolicy = ^(WKDownload *, void (^completionHandler)(_WKPlaceholderPolicy, NSURL *)) {
-            completionHandler(_WKPlaceholderPolicyEnable, nil);
-        };
-        delegate.get().downloadDidFinish = ^(WKDownload *download) {
-            didFinish = true;
-        };
-    }];
-    Util::run(&didFinish);
-
-    checkFileContents(expectedDownloadFile, "http body"_s);
-
-    checkCallbackRecord(delegate.get(), {
-        DownloadCallback::DecideDestination,
-        DownloadCallback::DecidePlaceholderPolicy,
+#endif
         DownloadCallback::DidFinish,
     });
 }
 
 TEST(WKDownload, PlaceholderPolicyDisable)
 {
-    CFPreferencesSetAppValue(CFSTR("EnableModernDownloadProgress"), kCFBooleanTrue, kCFPreferencesAnyApplication);
-
     HTTPServer server({
         { "/"_s, { 404, { }, "http body"_s } }
     });
@@ -2466,6 +2462,9 @@ TEST(WKDownload, NetworkProcessCrash)
         DownloadCallback::NavigationResponse,
         DownloadCallback::NavigationResponseBecameDownload,
         DownloadCallback::DecideDestination,
+#if HAVE(MODERN_DOWNLOADPROGRESS)
+        DownloadCallback::DecidePlaceholderPolicy,
+#endif
         DownloadCallback::DidFailWithError
     });
 }
@@ -2497,6 +2496,9 @@ TEST(WKDownload, SuggestedFilenameFromHost)
         DownloadCallback::NavigationResponse,
         DownloadCallback::NavigationResponseBecameDownload,
         DownloadCallback::DecideDestination,
+#if HAVE(MODERN_DOWNLOADPROGRESS)
+        DownloadCallback::DecidePlaceholderPolicy,
+#endif
         DownloadCallback::DidFinish
     });
 }
@@ -2534,7 +2536,7 @@ TEST(WKDownload, PathMustExist)
         };
         delegate.get().didFailWithError = ^(WKDownload *, NSError *error, NSData *) {
             EXPECT_WK_STREQ(error.domain, NSURLErrorDomain);
-            EXPECT_EQ(error.code, NSURLErrorCannotCreateFile);
+            EXPECT_EQ(error.code, NSURLErrorCancelled);
             failed = true;
         };
     };
@@ -2545,6 +2547,9 @@ TEST(WKDownload, PathMustExist)
         DownloadCallback::NavigationResponse,
         DownloadCallback::NavigationResponseBecameDownload,
         DownloadCallback::DecideDestination,
+#if HAVE(MODERN_DOWNLOADPROGRESS)
+        DownloadCallback::DecidePlaceholderPolicy,
+#endif
         DownloadCallback::DidFailWithError
     });
 }
@@ -2569,7 +2574,7 @@ TEST(WKDownload, FileMustNotExist)
 
             retainedDelegate.get().didFailWithError = ^(WKDownload *, NSError *error, NSData *) {
                 EXPECT_WK_STREQ(error.domain, NSURLErrorDomain);
-                EXPECT_EQ(error.code, NSURLErrorCannotCreateFile);
+                EXPECT_EQ(error.code, NSURLErrorCancelled);
                 failed = true;
             };
 
@@ -2580,6 +2585,9 @@ TEST(WKDownload, FileMustNotExist)
     Util::run(&failed);
 
     checkCallbackRecord(retainedDelegate.get(), {
+#if HAVE(MODERN_DOWNLOADPROGRESS)
+        DownloadCallback::DecidePlaceholderPolicy,
+#endif
         DownloadCallback::DidFailWithError,
     });
 }
@@ -2610,6 +2618,9 @@ TEST(WKDownload, DestinationNullString)
         DownloadCallback::NavigationResponse,
         DownloadCallback::NavigationResponseBecameDownload,
         DownloadCallback::DecideDestination,
+#if HAVE(MODERN_DOWNLOADPROGRESS)
+        DownloadCallback::DecidePlaceholderPolicy,
+#endif
         DownloadCallback::DidFailWithError
     });
 }
@@ -2642,6 +2653,9 @@ TEST(WKDownload, ChallengeSuccess)
     checkCallbackRecord(delegate.get(), {
         DownloadCallback::AuthenticationChallenge,
         DownloadCallback::DecideDestination,
+#if HAVE(MODERN_DOWNLOADPROGRESS)
+        DownloadCallback::DecidePlaceholderPolicy,
+#endif
         DownloadCallback::DidFinish
     });
 }
@@ -2736,6 +2750,9 @@ TEST(WKDownload, BlobResponse)
         DownloadCallback::NavigationResponse,
         DownloadCallback::NavigationResponseBecameDownload,
         DownloadCallback::DecideDestination,
+#if HAVE(MODERN_DOWNLOADPROGRESS)
+        DownloadCallback::DecidePlaceholderPolicy,
+#endif
         DownloadCallback::DidFinish
     });
 
@@ -2744,6 +2761,9 @@ TEST(WKDownload, BlobResponse)
         DownloadCallback::NavigationAction,
         DownloadCallback::NavigationActionBecameDownload,
         DownloadCallback::DecideDestination,
+#if HAVE(MODERN_DOWNLOADPROGRESS)
+        DownloadCallback::DecidePlaceholderPolicy,
+#endif
         DownloadCallback::DidFinish
     });
 }
@@ -2784,7 +2804,10 @@ TEST(WKDownload, BlobResponseNoFilename)
         DownloadCallback::NavigationAction,
         DownloadCallback::NavigationResponse,
         DownloadCallback::NavigationResponseBecameDownload,
-        DownloadCallback::DecideDestination
+        DownloadCallback::DecideDestination,
+#if HAVE(MODERN_DOWNLOADPROGRESS)
+        DownloadCallback::DecidePlaceholderPolicy,
+#endif
     });
 }
 
@@ -2900,7 +2923,10 @@ TEST(WKDownload, SubframeOriginator)
         DownloadCallback::NavigationAction,
         DownloadCallback::NavigationResponse,
         DownloadCallback::NavigationResponseBecameDownload,
-        DownloadCallback::DecideDestination
+        DownloadCallback::DecideDestination,
+#if HAVE(MODERN_DOWNLOADPROGRESS)
+        DownloadCallback::DecidePlaceholderPolicy,
+#endif
     });
 }
 
@@ -2953,6 +2979,9 @@ TEST(WKDownload, LockdownModePDF)
         DownloadCallback::NavigationResponse,
         DownloadCallback::NavigationResponseBecameDownload,
         DownloadCallback::DecideDestination,
+#if HAVE(MODERN_DOWNLOADPROGRESS)
+        DownloadCallback::DecidePlaceholderPolicy,
+#endif
         DownloadCallback::DidFinish
     });
 }
@@ -3001,6 +3030,9 @@ TEST(WKDownload, LockdownModeUSDZ)
         DownloadCallback::NavigationResponse,
         DownloadCallback::NavigationResponseBecameDownload,
         DownloadCallback::DecideDestination,
+#if HAVE(MODERN_DOWNLOADPROGRESS)
+        DownloadCallback::DecidePlaceholderPolicy,
+#endif
         DownloadCallback::DidFinish
     });
 }
@@ -3143,6 +3175,151 @@ TEST(WKDownload, OriginatingFrameAndUserGesture)
         checkedDownload = true;
     }];
     Util::run(&checkedDownload);
+}
+
+TEST(WKDownload, DestinationFileAlreadyExists)
+{
+    HTTPServer server { { { "/"_s, { "hi"_s } } } };
+    auto webView = adoptNS([WKWebView new]);
+    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    auto downloadDelegate = adoptNS([TestDownloadDelegate new]);
+    NSURL *expectedDownloadFile = tempFileThatDoesNotExist();
+    [[NSData data] writeToURL:expectedDownloadFile atomically:YES];
+
+    __block bool failed { false };
+    downloadDelegate.get().didFailWithError = ^(WKDownload *download, NSError *error, NSData *resumeData) {
+        EXPECT_WK_STREQ(error.domain, NSURLErrorDomain);
+        EXPECT_EQ(error.code, NSURLErrorCancelled);
+        failed = true;
+    };
+    downloadDelegate.get().decideDestinationUsingResponse = ^(WKDownload *, NSURLResponse *, NSString *, void (^completionHandler)(NSURL *)) {
+        completionHandler(expectedDownloadFile);
+    };
+    navigationDelegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
+        completionHandler(WKNavigationActionPolicyDownload);
+    };
+    navigationDelegate.get().navigationActionDidBecomeDownload = ^(WKNavigationAction *action, WKDownload *download) {
+        download.delegate = downloadDelegate.get();
+    };
+    [webView setNavigationDelegate:navigationDelegate.get()];
+    [webView loadRequest:server.request()];
+    Util::run(&failed);
+}
+
+static void frameInfoShouldBeEqual(WKFrameInfo *a, WKFrameInfo *b)
+{
+    EXPECT_EQ(a.isMainFrame, b.isMainFrame);
+    EXPECT_WK_STREQ(a.request.URL.absoluteString, b.request.URL.absoluteString);
+    EXPECT_WK_STREQ(a.securityOrigin.protocol, b.securityOrigin.protocol);
+    EXPECT_WK_STREQ(a.securityOrigin.host, b.securityOrigin.host);
+    EXPECT_EQ(a.securityOrigin.port, b.securityOrigin.port);
+    EXPECT_EQ(a.webView, b.webView);
+}
+
+TEST(WKDownload, OriginatingFrameWhenConvertingNavigationInNewWindow)
+{
+    HTTPServer server { {
+        { "/example"_s, { "hi"_s } },
+        { "/download"_s, { "hi"_s } }
+    }, HTTPServer::Protocol::HttpsProxy };
+
+    auto configuration = server.httpsProxyConfiguration();
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
+    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    [navigationDelegate allowAnyTLSCertificate];
+    [webView setNavigationDelegate:navigationDelegate.get()];
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/example"]]];
+    [navigationDelegate waitForDidFinishNavigation];
+
+    RetainPtr<WKFrameInfo> openerMainFrame = [webView mainFrame].info;
+
+    auto uiDelegate = adoptNS([TestUIDelegate new]);
+    [webView setUIDelegate:uiDelegate.get()];
+    __block RetainPtr<WKWebView> openedWebView;
+    uiDelegate.get().createWebViewWithConfiguration = ^WKWebView *(WKWebViewConfiguration *configuration, WKNavigationAction *, WKWindowFeatures *) {
+        openedWebView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
+        [openedWebView setNavigationDelegate:navigationDelegate.get()];
+        return openedWebView.get();
+    };
+
+    __block bool checkedDownload { false };
+    auto tryOpenerInitiatedDownloads = ^{
+        checkedDownload = false;
+        [webView evaluateJavaScript:@"a = document.createElement('a'); a.href = 'https://webkit.org/download'; a.target = '_blank'; document.body.appendChild(a); a.click()" completionHandler:nil];
+        Util::run(&checkedDownload);
+
+        checkedDownload = false;
+        [webView evaluateJavaScript:@"w = window.open('https://webkit.org/download')" completionHandler:nil];
+        Util::run(&checkedDownload);
+
+        checkedDownload = false;
+        [webView evaluateJavaScript:@"w.location.href = 'https://apple.com/download'" completionHandler:nil];
+        Util::run(&checkedDownload);
+    };
+
+    navigationDelegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
+        frameInfoShouldBeEqual(action.sourceFrame, openerMainFrame.get());
+        completionHandler(WKNavigationActionPolicyAllow);
+    };
+    navigationDelegate.get().decidePolicyForNavigationResponse = ^(WKNavigationResponse *response, void (^completionHandler)(WKNavigationResponsePolicy)) {
+        frameInfoShouldBeEqual(response._navigationInitiatingFrame, openerMainFrame.get());
+        completionHandler(WKNavigationResponsePolicyDownload);
+    };
+    navigationDelegate.get().navigationResponseDidBecomeDownload = ^(WKNavigationResponse *response, WKDownload *download) {
+        frameInfoShouldBeEqual(response._navigationInitiatingFrame, openerMainFrame.get());
+        frameInfoShouldBeEqual(download.originatingFrame, openerMainFrame.get());
+        checkedDownload = true;
+    };
+    tryOpenerInitiatedDownloads();
+
+    navigationDelegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
+        frameInfoShouldBeEqual(action.sourceFrame, openerMainFrame.get());
+        completionHandler(WKNavigationActionPolicyDownload);
+    };
+    navigationDelegate.get().navigationActionDidBecomeDownload = ^(WKNavigationAction *action, WKDownload *download) {
+        frameInfoShouldBeEqual(action.sourceFrame, openerMainFrame.get());
+        frameInfoShouldBeEqual(download.originatingFrame, openerMainFrame.get());
+        checkedDownload = true;
+    };
+    tryOpenerInitiatedDownloads();
+}
+
+TEST(WKDownload, OriginatingFrameWhenNavigatingToNewDomainWithRedirect)
+{
+    TestWebKitAPI::HTTPServer server({
+        { "/original_page"_s, { "hi"_s } },
+        { "/redirect"_s, { 301, { { "Location"_s, "/redirectTarget"_s } } } },
+        { "/redirectTarget"_s, { "hi"_s } },
+    }, HTTPServer::Protocol::HttpsProxy);
+
+    auto configuration = server.httpsProxyConfiguration();
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
+    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    [navigationDelegate allowAnyTLSCertificate];
+    [webView setNavigationDelegate:navigationDelegate.get()];
+    auto request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/original_page"]];
+    [webView loadRequest:request];
+    [navigationDelegate waitForDidFinishNavigation];
+
+    RetainPtr<WKFrameInfo> mainFrame = [webView mainFrame].info;
+    __block bool checkedDownload = false;
+    navigationDelegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
+        frameInfoShouldBeEqual(action.sourceFrame, mainFrame.get());
+        EXPECT_EQ(action.sourceFrame, action.targetFrame);
+        completionHandler(WKNavigationActionPolicyAllow);
+    };
+    navigationDelegate.get().decidePolicyForNavigationResponse = ^(WKNavigationResponse *response, void (^handler)(WKNavigationResponsePolicy)) {
+        frameInfoShouldBeEqual(response._navigationInitiatingFrame, mainFrame.get());
+        handler(WKNavigationResponsePolicyDownload);
+    };
+    navigationDelegate.get().navigationResponseDidBecomeDownload = ^(WKNavigationResponse *response, WKDownload *download) {
+        frameInfoShouldBeEqual(response._navigationInitiatingFrame, mainFrame.get());
+        frameInfoShouldBeEqual(download.originatingFrame, mainFrame.get());
+        checkedDownload = true;
+    };
+
+    [webView evaluateJavaScript:@"window.location.href = 'https://webkit.org/redirect'" completionHandler:nil];
+    TestWebKitAPI::Util::run(&checkedDownload);
 }
 
 }

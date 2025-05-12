@@ -44,6 +44,7 @@
 #include <WebKit/WKBundleNodeHandlePrivate.h>
 #include <WebKit/WKBundlePagePrivate.h>
 #include <WebKit/WKBundlePrivate.h>
+#include <WebKit/WKBundleRangeHandlePrivate.h>
 #include <WebKit/WKSecurityOriginRef.h>
 #include <WebKit/WKURLRequest.h>
 #include <wtf/HashMap.h>
@@ -57,6 +58,7 @@
 
 #if USE(CF)
 #include "WebArchiveDumpSupport.h"
+#include <wtf/cf/VectorCF.h>
 #include <wtf/text/cf/StringConcatenateCF.h>
 #endif
 
@@ -67,7 +69,7 @@ public:
     StringTypeAdapter(WKStringRef);
     unsigned length() const { return m_string ? WKStringGetLength(m_string) : 0; }
     bool is8Bit() const { return !m_string; }
-    template<typename CharacterType> void writeTo(CharacterType*) const;
+    template<typename CharacterType> void writeTo(std::span<CharacterType>) const;
 
 private:
     WKStringRef m_string;
@@ -78,14 +80,14 @@ inline StringTypeAdapter<WKStringRef>::StringTypeAdapter(WKStringRef string)
 {
 }
 
-template<> inline void StringTypeAdapter<WKStringRef>::writeTo<LChar>(LChar*) const
+template<> inline void StringTypeAdapter<WKStringRef>::writeTo<LChar>(std::span<LChar>) const
 {
 }
 
-template<> inline void StringTypeAdapter<WKStringRef>::writeTo<UChar>(UChar* destination) const
+template<> inline void StringTypeAdapter<WKStringRef>::writeTo<UChar>(std::span<UChar> destination) const
 {
     if (m_string)
-        WKStringGetCharacters(m_string, reinterpret_cast<WKChar*>(destination), WKStringGetLength(m_string));
+        WKStringGetCharacters(m_string, reinterpret_cast<WKChar*>(destination.data()), WKStringGetLength(m_string));
 }
 
 }
@@ -106,33 +108,28 @@ static WTF::String dumpPath(JSGlobalContextRef context, JSObjectRef nodeValue)
     return name;
 }
 
-static WTF::String dumpPath(WKBundlePageRef page, WKBundleScriptWorldRef world, WKBundleNodeHandleRef node)
+static WTF::String dumpPath(WKBundleScriptWorldRef world, WKBundleNodeHandleRef node)
 {
     if (!node)
         return "(null)"_s;
 
-    ALLOW_DEPRECATED_DECLARATIONS_BEGIN
-    WKBundleFrameRef frame = WKBundlePageGetMainFrame(page);
-    ALLOW_DEPRECATED_DECLARATIONS_END
-
-    JSGlobalContextRef context = WKBundleFrameGetJavaScriptContextForWorld(frame, world);
-    JSValueRef nodeValue = WKBundleFrameGetJavaScriptWrapperForNodeForWorld(frame, node, world);
+    auto frame = adoptWK(WKBundleNodeHandleCopyOwningDocumentFrame(node));
+    JSGlobalContextRef context = WKBundleFrameGetJavaScriptContextForWorld(frame.get(), world);
+    JSValueRef nodeValue = WKBundleFrameGetJavaScriptWrapperForNodeForWorld(frame.get(), node, world);
     ASSERT(JSValueIsObject(context, nodeValue));
     JSObjectRef nodeObject = (JSObjectRef)nodeValue;
 
     return dumpPath(context, nodeObject);
 }
 
-static WTF::String string(WKBundlePageRef page, WKBundleScriptWorldRef world, WKBundleRangeHandleRef rangeRef)
+static WTF::String string(WKBundleScriptWorldRef world, WKBundleRangeHandleRef rangeRef)
 {
     if (!rangeRef)
         return "(null)"_s;
 
-    ALLOW_DEPRECATED_DECLARATIONS_BEGIN
-    auto frame = WKBundlePageGetMainFrame(page);
-    ALLOW_DEPRECATED_DECLARATIONS_END
-    auto context = WKBundleFrameGetJavaScriptContextForWorld(frame, world);
-    auto rangeValue = WKBundleFrameGetJavaScriptWrapperForRangeForWorld(frame, rangeRef, world);
+    auto frame = adoptWK(WKBundleRangeHandleCopyDocumentFrame(rangeRef));
+    auto context = WKBundleFrameGetJavaScriptContextForWorld(frame.get(), world);
+    auto rangeValue = WKBundleFrameGetJavaScriptWrapperForRangeForWorld(frame.get(), rangeRef, world);
     ASSERT(JSValueIsObject(context, rangeValue));
     auto rangeObject = (JSObjectRef)rangeValue;
 
@@ -327,45 +324,12 @@ InjectedBundlePage::InjectedBundlePage(WKBundlePageRef page)
         0, /* performTwoStepDrop */
     };
     WKBundlePageSetEditorClient(m_page, &editorClient.base);
-
-#if ENABLE(FULLSCREEN_API)
-    WKBundlePageFullScreenClientV1 fullScreenClient = {
-        { 1, this },
-        supportsFullScreen,
-        enterFullScreenForElement,
-        exitFullScreenForElement,
-        beganEnterFullScreen,
-        beganExitFullScreen,
-        closeFullScreen,
-    };
-    WKBundlePageSetFullScreenClient(m_page, &fullScreenClient.base);
-#endif
 }
 
 InjectedBundlePage::~InjectedBundlePage()
 {
     ASSERT(bundlePageMap().contains(m_page));
     bundlePageMap().remove(m_page);
-}
-
-void InjectedBundlePage::prepare()
-{
-    WKBundlePageClearMainFrameName(m_page);
-
-    WKPoint origin = { 0, 0 };
-    WKBundlePageSetScaleAtOrigin(m_page, 1, origin);
-    
-    WKBundleClearHistoryForTesting(m_page);
-
-    ALLOW_DEPRECATED_DECLARATIONS_BEGIN
-    WKBundleFrameClearOpener(WKBundlePageGetMainFrame(m_page));
-    ALLOW_DEPRECATED_DECLARATIONS_END
-
-    WKBundlePageSetTracksRepaints(m_page, false);
-    
-    // Force consistent "responsive" behavior for WebPage::eventThrottlingDelay() for testing. Tests can override via internals.
-    WKEventThrottlingBehavior behavior = kWKEventThrottlingBehaviorResponsive;
-    WKBundlePageSetEventThrottlingBehaviorOverride(m_page, &behavior);
 }
 
 void InjectedBundlePage::resetAfterTest()
@@ -709,7 +673,7 @@ void InjectedBundlePage::dumpDOMAsWebArchive(WKBundleFrameRef frame, StringBuild
 {
 #if USE(CF)
     auto wkData = adoptWK(WKBundleFrameCopyWebArchive(frame));
-    auto cfData = adoptCF(CFDataCreate(0, WKDataGetBytes(wkData.get()), WKDataGetSize(wkData.get())));
+    RetainPtr cfData = toCFData(WKDataGetSpan(wkData.get()));
     stringBuilder.append(WebCoreTestSupport::createXMLStringFromWebArchiveData(cfData.get()).get());
 #endif
 }
@@ -852,6 +816,8 @@ void InjectedBundlePage::didClearWindowForFrame(WKBundleFrameRef frame, WKBundle
         return;
 
     auto context = WKBundleFrameGetJavaScriptContextForWorld(frame, world);
+    if (!context)
+        return;
 
     if (WKBundleScriptWorldNormalWorld() != world) {
         setGlobalObjectProperty(context, "__worldID", TestRunner::worldIDForWorld(world));
@@ -1359,7 +1325,7 @@ bool InjectedBundlePage::shouldBeginEditing(WKBundleRangeHandleRef range)
         return true;
 
     if (testRunner->shouldDumpEditingCallbacks())
-        injectedBundle.outputText(makeString("EDITING DELEGATE: shouldBeginEditingInDOMRange:"_s, string(m_page, m_world.get(), range), '\n'));
+        injectedBundle.outputText(makeString("EDITING DELEGATE: shouldBeginEditingInDOMRange:"_s, string(m_world.get(), range), '\n'));
     return testRunner->shouldAllowEditing();
 }
 
@@ -1371,7 +1337,7 @@ bool InjectedBundlePage::shouldEndEditing(WKBundleRangeHandleRef range)
         return true;
 
     if (testRunner->shouldDumpEditingCallbacks())
-        injectedBundle.outputText(makeString("EDITING DELEGATE: shouldEndEditingInDOMRange:"_s, string(m_page, m_world.get(), range), '\n'));
+        injectedBundle.outputText(makeString("EDITING DELEGATE: shouldEndEditingInDOMRange:"_s, string(m_world.get(), range), '\n'));
     return testRunner->shouldAllowEditing();
 }
 
@@ -1390,8 +1356,8 @@ bool InjectedBundlePage::shouldInsertNode(WKBundleNodeHandleRef node, WKBundleRa
 
     if (testRunner->shouldDumpEditingCallbacks()) {
         injectedBundle.outputText(makeString("EDITING DELEGATE:"_s
-            " shouldInsertNode:"_s, dumpPath(m_page, m_world.get(), node),
-            " replacingDOMRange:"_s, string(m_page, m_world.get(), rangeToReplace),
+            " shouldInsertNode:"_s, dumpPath(m_world.get(), node),
+            " replacingDOMRange:"_s, string(m_world.get(), rangeToReplace),
             " givenAction:"_s, insertactionstring[action], '\n'));
     }
     return testRunner->shouldAllowEditing();
@@ -1413,7 +1379,7 @@ bool InjectedBundlePage::shouldInsertText(WKStringRef text, WKBundleRangeHandleR
     if (testRunner->shouldDumpEditingCallbacks()) {
         injectedBundle.outputText(makeString("EDITING DELEGATE:"_s
             " shouldInsertText:"_s, text,
-            " replacingDOMRange:"_s, string(m_page, m_world.get(), rangeToReplace),
+            " replacingDOMRange:"_s, string(m_world.get(), rangeToReplace),
             " givenAction:"_s, insertactionstring[action], '\n'));
     }
     return testRunner->shouldAllowEditing();
@@ -1427,7 +1393,7 @@ bool InjectedBundlePage::shouldDeleteRange(WKBundleRangeHandleRef range)
         return true;
 
     if (testRunner->shouldDumpEditingCallbacks())
-        injectedBundle.outputText(makeString("EDITING DELEGATE: shouldDeleteDOMRange:"_s, string(m_page, m_world.get(), range), '\n'));
+        injectedBundle.outputText(makeString("EDITING DELEGATE: shouldDeleteDOMRange:"_s, string(m_world.get(), range), '\n'));
     return testRunner->shouldAllowEditing();
 }
 
@@ -1445,8 +1411,8 @@ bool InjectedBundlePage::shouldChangeSelectedRange(WKBundleRangeHandleRef fromRa
 
     if (testRunner->shouldDumpEditingCallbacks()) {
         injectedBundle.outputText(makeString("EDITING DELEGATE:"_s
-            " shouldChangeSelectedDOMRange:"_s, string(m_page, m_world.get(), fromRange),
-            " toDOMRange:"_s, string(m_page, m_world.get(), toRange),
+            " shouldChangeSelectedDOMRange:"_s, string(m_world.get(), fromRange),
+            " toDOMRange:"_s, string(m_world.get(), toRange),
             " affinity:"_s, affinitystring[affinity],
             " stillSelecting:"_s, stillSelecting ? "TRUE"_s : "FALSE"_s, '\n'));
     }
@@ -1463,7 +1429,7 @@ bool InjectedBundlePage::shouldApplyStyle(WKBundleCSSStyleDeclarationRef style, 
     if (testRunner->shouldDumpEditingCallbacks()) {
         injectedBundle.outputText(makeString("EDITING DELEGATE:"
             " shouldApplyStyle:"_s, styleDecToStr(style),
-            " toElementsInDOMRange:"_s, string(m_page, m_world.get(), range), '\n'));
+            " toElementsInDOMRange:"_s, string(m_world.get(), range), '\n'));
     }
     return testRunner->shouldAllowEditing();
 }
@@ -1519,143 +1485,6 @@ void InjectedBundlePage::didChangeSelection(WKStringRef notificationName)
 
     injectedBundle.outputText(makeString("EDITING DELEGATE: webViewDidChangeSelection:"_s, notificationName, '\n'));
 }
-
-#if ENABLE(FULLSCREEN_API)
-bool InjectedBundlePage::supportsFullScreen(WKBundlePageRef pageRef, WKFullScreenKeyboardRequestType requestType)
-{
-    auto& injectedBundle = InjectedBundle::singleton();
-    RefPtr testRunner = injectedBundle.testRunner();
-    if (!testRunner)
-        return true;
-    if (testRunner->shouldDumpFullScreenCallbacks())
-        injectedBundle.outputText("supportsFullScreen() == true\n"_s);
-    return true;
-}
-
-void InjectedBundlePage::enterFullScreenForElement(WKBundlePageRef pageRef, WKBundleNodeHandleRef elementRef)
-{
-    ASSERT(bundlePageMap().contains(pageRef));
-    if (auto* injectedBundlePage = bundlePageMap().get(pageRef))
-        injectedBundlePage->enterFullScreenForElement(elementRef);
-}
-
-void InjectedBundlePage::enterFullScreenForElement(WKBundleNodeHandleRef elementRef)
-{
-    auto& injectedBundle = InjectedBundle::singleton();
-    RefPtr testRunner = injectedBundle.testRunner();
-    if (!testRunner)
-        return;
-
-    if (testRunner->shouldDumpFullScreenCallbacks())
-        injectedBundle.outputText("enterFullScreenForElement()\n"_s);
-
-    if (m_fullscreenState == EnteringFullscreen)
-        return;
-    m_fullscreenState = EnteringFullscreen;
-
-    if (!testRunner->hasCustomFullScreenBehavior()) {
-        WKBundlePageWillEnterFullScreen(m_page);
-        if (m_fullscreenState != EnteringFullscreen)
-            return;
-
-        WKBundlePageDidEnterFullScreen(m_page);
-        if (m_fullscreenState != EnteringFullscreen)
-            return;
-
-    } else
-        testRunner->callEnterFullscreenForElementCallback();
-
-    m_fullscreenState = InFullscreen;
-}
-
-void InjectedBundlePage::exitFullScreenForElement(WKBundlePageRef pageRef, WKBundleNodeHandleRef elementRef)
-{
-    ASSERT(bundlePageMap().contains(pageRef));
-    if (auto* injectedBundlePage = bundlePageMap().get(pageRef))
-        injectedBundlePage->exitFullScreenForElement(elementRef);
-}
-
-void InjectedBundlePage::exitFullScreenForElement(WKBundleNodeHandleRef elementRef)
-{
-    auto& injectedBundle = InjectedBundle::singleton();
-    RefPtr testRunner = injectedBundle.testRunner();
-    if (!testRunner)
-        return;
-
-    if (testRunner->shouldDumpFullScreenCallbacks())
-        injectedBundle.outputText("exitFullScreenForElement()\n"_s);
-
-    if (m_fullscreenState == ExitingFullscreen)
-        return;
-    m_fullscreenState = ExitingFullscreen;
-
-    if (!testRunner->hasCustomFullScreenBehavior()) {
-        WKBundlePageWillExitFullScreen(m_page);
-        if (m_fullscreenState != ExitingFullscreen)
-            return;
-
-        WKBundlePageDidExitFullScreen(m_page);
-        if (m_fullscreenState != ExitingFullscreen)
-            return;
-    } else
-        testRunner->callExitFullscreenForElementCallback();
-
-    m_fullscreenState = NotInFullscreen;
-}
-
-void InjectedBundlePage::beganEnterFullScreen(WKBundlePageRef, WKRect initialRect, WKRect finalRect)
-{
-    auto& injectedBundle = InjectedBundle::singleton();
-    RefPtr testRunner = injectedBundle.testRunner();
-    if (!testRunner)
-        return;
-
-    if (!testRunner->shouldDumpFullScreenCallbacks())
-        return;
-
-    injectedBundle.outputText(makeString("beganEnterFullScreen() - initialRect.size: {"_s,
-        initialRect.size.width, ", "_s,
-        initialRect.size.height,
-        "}, finalRect.size: {"_s,
-        finalRect.size.width, ", "_s,
-        finalRect.size.height,
-        "}\n"_s));
-}
-
-void InjectedBundlePage::beganExitFullScreen(WKBundlePageRef, WKRect initialRect, WKRect finalRect)
-{
-    auto& injectedBundle = InjectedBundle::singleton();
-    RefPtr testRunner = injectedBundle.testRunner();
-    if (!testRunner)
-        return;
-    if (!testRunner->shouldDumpFullScreenCallbacks())
-        return;
-
-    injectedBundle.outputText(makeString("beganExitFullScreen() - initialRect.size: {"_s,
-        initialRect.size.width, ", "_s,
-        initialRect.size.height,
-        "}, finalRect.size: {"_s,
-        finalRect.size.width, ", "_s,
-        finalRect.size.height,
-        "}\n"_s));
-}
-
-void InjectedBundlePage::closeFullScreen(WKBundlePageRef pageRef)
-{
-    auto& injectedBundle = InjectedBundle::singleton();
-    RefPtr testRunner = injectedBundle.testRunner();
-    if (!testRunner)
-        return;
-
-    if (testRunner->shouldDumpFullScreenCallbacks())
-        injectedBundle.outputText("closeFullScreen()\n"_s);
-
-    if (!testRunner->hasCustomFullScreenBehavior()) {
-        WKBundlePageWillExitFullScreen(pageRef);
-        WKBundlePageDidExitFullScreen(pageRef);
-    }
-}
-#endif
 
 String InjectedBundlePage::dumpHistory()
 {
@@ -1746,6 +1575,21 @@ void InjectedBundlePage::frameDidChangeLocation(WKBundleFrameRef frame)
         sendTestRenderedEvent(WKBundleFrameGetJavaScriptContext(frame));
     ALLOW_DEPRECATED_DECLARATIONS_END
     dumpAfterWaitAttributeIsRemoved(page->page());
+}
+
+void InjectedBundlePage::notifyDone()
+{
+    if (InjectedBundle::singleton().topLoadingFrame())
+        return;
+    forceImmediateCompletion();
+}
+
+void InjectedBundlePage::forceImmediateCompletion()
+{
+    RefPtr testRunner = InjectedBundle::singleton().testRunner();
+    if (!testRunner)
+        return;
+    dump(testRunner->shouldForceRepaint());
 }
 
 } // namespace WTR

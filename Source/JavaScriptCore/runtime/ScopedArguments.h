@@ -29,6 +29,8 @@
 #include "JSLexicalEnvironment.h"
 #include "Watchpoint.h"
 
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
+
 namespace JSC {
 
 // This is an Arguments-class object that we create when you say "arguments" inside a function,
@@ -46,7 +48,7 @@ public:
     template<typename CellType, SubspaceAccess>
     static GCClient::IsoSubspace* subspaceFor(VM& vm)
     {
-        static_assert(!CellType::needsDestruction);
+        static_assert(CellType::needsDestruction == DoesNotNeedDestruction);
         return &vm.scopedArgumentsSpace();
     }
 
@@ -183,3 +185,5 @@ private:
 };
 
 } // namespace JSC
+
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_END

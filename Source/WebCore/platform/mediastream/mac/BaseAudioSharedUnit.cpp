@@ -40,7 +40,7 @@ namespace WebCore {
 constexpr Seconds voiceActivityThrottlingDuration = 5_s;
 
 BaseAudioSharedUnit::BaseAudioSharedUnit()
-    : m_sampleRate(AudioSession::sharedSession().sampleRate())
+    : m_sampleRate(AudioSession::protectedSharedSession()->sampleRate())
     , m_voiceActivityThrottleTimer([] { })
 {
     RealtimeMediaSourceCenter::singleton().addDevicesChangedObserver(*this);
@@ -165,13 +165,14 @@ void BaseAudioSharedUnit::prepareForNewCapture()
     captureFailed();
 }
 
-void BaseAudioSharedUnit::setCaptureDevice(String&& persistentID, uint32_t captureDeviceID)
+void BaseAudioSharedUnit::setCaptureDevice(String&& persistentID, uint32_t captureDeviceID, bool isDefault)
 {
-    bool hasChanged = this->persistentID() != persistentID || this->captureDeviceID() != captureDeviceID;
-    m_capturingDevice = { WTFMove(persistentID), captureDeviceID };
+    bool hasChanged = this->persistentID() != persistentID || this->captureDeviceID() != captureDeviceID || m_isCapturingWithDefaultMicrophone != isDefault;
+    if (hasChanged)
+        willChangeCaptureDevice();
 
-    auto devices = RealtimeMediaSourceCenter::singleton().audioCaptureFactory().audioCaptureDeviceManager().captureDevices();
-    m_isCapturingWithDefaultMicrophone = devices.size() && devices[0].persistentId() == m_capturingDevice->first;
+    m_capturingDevice = { WTFMove(persistentID), captureDeviceID };
+    m_isCapturingWithDefaultMicrophone = isDefault;
 
     if (hasChanged)
         captureDeviceChanged();
@@ -180,6 +181,9 @@ void BaseAudioSharedUnit::setCaptureDevice(String&& persistentID, uint32_t captu
 void BaseAudioSharedUnit::devicesChanged()
 {
     Ref protectedThis { *this };
+
+    if (!hasAudioUnit())
+        return;
 
     auto devices = RealtimeMediaSourceCenter::singleton().audioCaptureFactory().audioCaptureDeviceManager().captureDevices();
     auto persistentID = this->persistentID();
@@ -247,10 +251,6 @@ void BaseAudioSharedUnit::stopRunning()
 {
     stopInternal();
     cleanupAudioUnit();
-
-    auto callbacks = std::exchange(m_whenNotRunningCallbacks, { });
-    for (auto& callback : callbacks)
-        callback();
 }
 
 void BaseAudioSharedUnit::reconfigure()
@@ -332,15 +332,6 @@ void BaseAudioSharedUnit::audioSamplesAvailable(const MediaTime& time, const Pla
     }
 }
 
-void BaseAudioSharedUnit::whenAudioCaptureUnitIsNotRunning(Function<void()>&& callback)
-{
-    if (!isProducingData()) {
-        callback();
-        return;
-    }
-    m_whenNotRunningCallbacks.append(WTFMove(callback));
-}
-
 void BaseAudioSharedUnit::handleNewCurrentMicrophoneDevice(CaptureDevice&& device)
 {
     forEachClient([&device](auto& client) {
@@ -352,6 +343,8 @@ void BaseAudioSharedUnit::voiceActivityDetected()
 {
     if (m_voiceActivityThrottleTimer.isActive() || !m_voiceActivityCallback)
         return;
+
+    RELEASE_LOG_INFO(WebRTC, "BaseAudioSharedUnit::voiceActivityDetected");
 
     m_voiceActivityCallback();
     m_voiceActivityThrottleTimer.startOneShot(voiceActivityThrottlingDuration);

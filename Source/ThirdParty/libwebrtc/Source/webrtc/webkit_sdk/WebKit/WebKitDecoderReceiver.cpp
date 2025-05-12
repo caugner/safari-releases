@@ -184,7 +184,7 @@ int32_t WebKitDecoderReceiver::Decoded(VideoFrame& frame, int64_t)
     return 0;
 }
 
-void WebKitDecoderReceiver::Decoded(VideoFrame& frame, absl::optional<int32_t>, absl::optional<uint8_t>)
+void WebKitDecoderReceiver::Decoded(VideoFrame& frame, std::optional<int32_t>, std::optional<uint8_t>)
 {
     Decoded(frame);
 }

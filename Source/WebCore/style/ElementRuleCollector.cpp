@@ -157,12 +157,19 @@ inline void ElementRuleCollector::addElementStyleProperties(const StylePropertie
     addMatchedProperties(WTFMove(matchedProperty), DeclarationOrigin::Author);
 }
 
+bool ElementRuleCollector::isFirstMatchModeAndHasMatchedAnyRules() const
+{
+    return m_firstMatchMode && !m_matchedRules.isEmpty();
+}
+
 void ElementRuleCollector::collectMatchingRules(CascadeLevel level)
 {
     switch (level) {
     case CascadeLevel::Author: {
         MatchRequest matchRequest(m_authorStyle);
         collectMatchingRules(matchRequest);
+        if (isFirstMatchModeAndHasMatchedAnyRules())
+            return;
         break;
     }
 
@@ -170,6 +177,8 @@ void ElementRuleCollector::collectMatchingRules(CascadeLevel level)
         if (m_userStyle) {
             MatchRequest matchRequest(*m_userStyle);
             collectMatchingRules(matchRequest);
+            if (isFirstMatchModeAndHasMatchedAnyRules())
+                return;
         }
         break;
 
@@ -179,14 +188,22 @@ void ElementRuleCollector::collectMatchingRules(CascadeLevel level)
     }
 
     auto* parent = element().parentElement();
-    if (parent && parent->shadowRoot())
+    if (parent && parent->shadowRoot()) {
         matchSlottedPseudoElementRules(level);
+        if (isFirstMatchModeAndHasMatchedAnyRules())
+            return;
+    }
 
-    if (element().shadowRoot())
+    if (element().shadowRoot()) {
         matchHostPseudoClassRules(level);
+        if (isFirstMatchModeAndHasMatchedAnyRules())
+            return;
+    }
 
     if (element().isInShadowTree()) {
         matchUserAgentPartRules(level);
+        if (isFirstMatchModeAndHasMatchedAnyRules())
+            return;
         matchPartPseudoElementRules(level);
     }
 }
@@ -213,7 +230,7 @@ void ElementRuleCollector::collectMatchingRules(const MatchRequest& matchRequest
     }
     if (element.hasAttributesWithoutUpdate() && matchRequest.ruleSet.hasAttributeRules()) {
         Vector<const RuleSet::RuleDataVector*, 4> ruleVectors;
-        for (auto& attribute : element.attributesIterator()) {
+        for (auto& attribute : element.attributes()) {
             if (auto* rules = matchRequest.ruleSet.attributeRules(attribute.localName(), isHTML))
                 ruleVectors.append(rules);
         }
@@ -276,7 +293,7 @@ void ElementRuleCollector::transferMatchedRules(DeclarationOrigin declarationOri
             matchedRule.styleScopeOrdinal,
             FromStyleAttribute::No,
             matchedRule.cascadeLayerPriority,
-            matchedRule.ruleData->atRuleTypes(),
+            matchedRule.ruleData->isStartingStyle()
         }, declarationOrigin);
     }
 }
@@ -293,8 +310,8 @@ void ElementRuleCollector::matchAuthorRules()
 bool ElementRuleCollector::matchesAnyAuthorRules()
 {
     clearMatchedRules();
+    SetForScope scope { m_firstMatchMode, true };
 
-    // FIXME: This should bail out on first match.
     collectMatchingRules(CascadeLevel::Author);
 
     return !m_matchedRules.isEmpty();
@@ -562,9 +579,7 @@ void ElementRuleCollector::collectMatchingRulesForList(const RuleSet::RuleDataVe
     if (!rules)
         return;
 
-    for (unsigned i = 0, size = rules->size(); i < size; ++i) {
-        const auto& ruleData = rules->data()[i];
-
+    for (auto& ruleData : *rules) {
         if (UNLIKELY(!ruleData.isEnabled()))
             continue;
 
@@ -604,6 +619,8 @@ void ElementRuleCollector::collectMatchingRulesForList(const RuleSet::RuleDataVe
         }
 
         addRuleIfMatches();
+        if (isFirstMatchModeAndHasMatchedAnyRules())
+            return;
     }
 }
 
@@ -864,10 +881,11 @@ void ElementRuleCollector::addElementInlineStyleProperties(bool includeSMILPrope
     }
 }
 
-bool ElementRuleCollector::hasAnyMatchingRules(const RuleSet& ruleSet)
+bool ElementRuleCollector::matchesAnyRules(const RuleSet& ruleSet)
 {
     clearMatchedRules();
 
+    SetForScope scope { m_firstMatchMode , true };
     m_mode = SelectorChecker::Mode::CollectingRulesIgnoringVirtualPseudoElements;
     collectMatchingRules(MatchRequest(ruleSet));
 
@@ -881,11 +899,8 @@ void ElementRuleCollector::addMatchedProperties(MatchedProperties&& matchedPrope
         // It might also be beneficial to overwrite the previous declaration (insteading of appending) if it affects the same exact properties.
         return;
     }
-    if (matchedProperties.atRuleTypes.contains(AtRuleType::StartingStyle))
-        m_result->atRuleTypes.add(AtRuleType::StartingStyle);
-
-    if (matchedProperties.atRuleTypes.contains(AtRuleType::BaseAppearance))
-        m_result->atRuleTypes.add(AtRuleType::BaseAppearance);
+    if (matchedProperties.isStartingStyle == IsStartingStyle::Yes)
+        m_result->hasStartingStyle = true;
 
     if (matchedProperties.isCacheable == IsCacheable::Partially && !m_result->isCompletelyNonCacheable) {
         for (auto property : matchedProperties.properties.get())

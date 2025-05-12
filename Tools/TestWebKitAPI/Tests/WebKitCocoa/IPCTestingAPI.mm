@@ -227,7 +227,7 @@ TEST(IPCTestingAPI, CanSendInvalidSyncMessageToUIProcessWithoutTermination)
         "</script>"];
     TestWebKitAPI::Util::run(&done);
 
-    EXPECT_STREQ([alertMessage UTF8String], "Failed to successfully deserialize the message");
+    EXPECT_STREQ([alertMessage UTF8String], "Receiver cancelled the reply due to invalid destination or deserialization error");
 }
 
 #if ENABLE(GPU_PROCESS)
@@ -374,6 +374,68 @@ TEST(IPCTestingAPI, DecodesReplyArgumentsForAsyncMessage)
     TestWebKitAPI::Util::run(&done);
 
     EXPECT_STREQ([alertMessage UTF8String], "[{\"type\":\"bool\",\"value\":false}]");
+}
+
+TEST(IPCTestingAPI, EmptyFirstPartyForCookiesCookieRequestHeaderFieldValue)
+{
+    RetainPtr webView = createWebViewWithIPCTestingAPI();
+    RetainPtr delegate = adoptNS([[IPCTestingAPIDelegate alloc] init]);
+    [webView setUIDelegate:delegate.get()];
+
+    [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html><script>document.cookie='a=b';</script>" baseURL:[NSURL URLWithString:@"https://webkit.org/"]];
+    auto sendMessage = @"const connection = IPC.connectionForProcessTarget('Networking');"
+        "const result = connection.sendSyncMessage("
+        "    0,"
+        "    IPC.messages.NetworkConnectionToWebProcess_CookieRequestHeaderFieldValue.name,"
+        "    1000,"
+        "    ["
+        "        {type: 'String', value: null},"
+        "        {type: 'uint8_t', value: 1},"
+        "        {type: 'uint8_t', value: 1},"
+        "        {type: 'uint8_t', value: 1},"
+        "        {type: 'String', value: location.href},"
+        "        {type: 'uint8_t', value: 1},"
+        "        {type: 'FrameID', value: IPC.frameID},"
+        "        {type: 'uint8_t', value: 1},"
+        "        {type: 'uint64_t', value: IPC.pageID},"
+        "        {type: 'uint8_t', value: 1},"
+        "        {type: 'uint64_t', value: IPC.webPageProxyID},"
+        "    ]"
+        ");";
+    [webView evaluateJavaScript:sendMessage completionHandler:nil];
+    while (![webView objectByEvaluatingJavaScript:@"result"])
+        TestWebKitAPI::Util::spinRunLoop();
+    EXPECT_STREQ([[webView stringByEvaluatingJavaScript:@"result.arguments[0].value"] UTF8String], "<null>");
+}
+
+TEST(IPCTestingAPI, InvalidSameSiteInfoCookieRequestHeaderFieldValue)
+{
+    RetainPtr webView = createWebViewWithIPCTestingAPI();
+    [webView synchronouslyLoadHTMLString:@"<!DOCTYPE html><script>document.cookie='a=b';</script>" baseURL:[NSURL URLWithString:@"https://webkit.org/"]];
+    [webView synchronouslyLoadHTMLString:@"" baseURL:[NSURL URLWithString:@"https://apple.com/"]];
+    auto sendMessage = @"const connection = IPC.connectionForProcessTarget('Networking');"
+        "const result = connection.sendSyncMessage("
+        "    0,"
+        "    IPC.messages.NetworkConnectionToWebProcess_CookieRequestHeaderFieldValue.name,"
+        "    1000,"
+        "    ["
+        "        {type: 'String', value: location.href},"
+        "        {type: 'uint8_t', value: 1},"
+        "        {type: 'uint8_t', value: 1},"
+        "        {type: 'uint8_t', value: 1},"
+        "        {type: 'String', value: 'https://webkit.org'},"
+        "        {type: 'uint8_t', value: 1},"
+        "        {type: 'FrameID', value: IPC.frameID},"
+        "        {type: 'uint8_t', value: 1},"
+        "        {type: 'uint64_t', value: IPC.pageID},"
+        "        {type: 'uint8_t', value: 1},"
+        "        {type: 'uint64_t', value: IPC.webPageProxyID},"
+        "    ]"
+        ");";
+    [webView evaluateJavaScript:sendMessage completionHandler:nil];
+    while (![webView objectByEvaluatingJavaScript:@"result"])
+        TestWebKitAPI::Util::spinRunLoop();
+    EXPECT_STREQ([[webView stringByEvaluatingJavaScript:@"result.arguments[0].value"] UTF8String], "<null>");
 }
 
 TEST(IPCTestingAPI, DescribesArguments)
@@ -549,8 +611,10 @@ static NSMutableSet<NSString *> *extractTypesFromContainers(NSSet<NSString *> *i
             @"KeyValuePair",
             @"Markable",
             @"RetainPtr",
-            @"HashCountedSet",
-            @"IPC::CoreIPCRetainPtr"
+            @"HashCountedSet"
+#if !HAVE(WK_SECURE_CODING_NSURLREQUEST)
+            , @"IPC::CoreIPCRetainPtr"
+#endif
         ];
         for (NSString *container in containerTypes) {
             if ([input hasPrefix:[container stringByAppendingString:@"<"]]
@@ -667,6 +731,7 @@ TEST(IPCTestingAPI, SerializedTypeInfo)
         @"uint32_t",
         @"int16_t",
         @"uint64_t",
+        @"uintptr_t",
         @"int",
         @"long long",
         @"GCGLint",
@@ -674,20 +739,21 @@ TEST(IPCTestingAPI, SerializedTypeInfo)
         @"OSStatus",
         @"GCGLErrorCodeSet",
         @"CGBitmapInfo",
+        @"uintptr_t",
     ]];
 
     [typesNeedingDescriptions minusSet:typesHavingDescriptions];
     [typesNeedingDescriptions minusSet:fundamentalTypes];
 
+    // Note: This set should only be shrinking. If you need to add to this set to fix the test,
+    // add IPC metadata in a *.serialization.in file instead.
     NSSet<NSString *> *expectedTypesNeedingDescriptions = [NSSet setWithArray:@[
         @"CTFontDescriptorOptions",
-        @"NSObject<NSSecureCoding>",
-        @"PKSecureElementPass",
 #if !HAVE(WK_SECURE_CODING_NSURLREQUEST)
+        @"NSObject<NSSecureCoding>",
         @"NSURLRequest",
 #endif
         @"MachSendRight",
-        @"NSParagraphStyle",
 #if ENABLE(DATA_DETECTION) && !HAVE(WK_SECURE_CODING_DATA_DETECTORS)
         @"DDScannerResult",
 #endif
@@ -695,7 +761,7 @@ TEST(IPCTestingAPI, SerializedTypeInfo)
 #if !HAVE(WK_SECURE_CODING_DATA_DETECTORS)
         @"WKDDActionContext",
 #endif
-        @"WebCore::ContextMenuAction"
+        @"WebCore::ContextMenuAction",
 #endif
     ]];
     if (![expectedTypesNeedingDescriptions isEqual:typesNeedingDescriptions]) {
@@ -706,6 +772,7 @@ TEST(IPCTestingAPI, SerializedTypeInfo)
 
 #endif
 
+#if !HAVE(WK_SECURE_CODING_NSURLREQUEST)
 TEST(IPCTestingAPI, CGColorInNSSecureCoding)
 {
     auto archiver = adoptNS([[NSKeyedArchiver alloc] initRequiringSecureCoding:YES]);
@@ -791,3 +858,4 @@ TEST(IPCTestingAPI, NSURLWithBaseURLInNSSecureCoding)
     [unarchiver finishDecoding];
     unarchiver.get().delegate = nil;
 }
+#endif // !HAVE(WK_SECURE_CODING_NSURLREQUEST)

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2021 Apple Inc. All rights reserved.
+ * Copyright (C) 2013-2024 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -80,9 +80,67 @@ public:
     }
 
 private:
+    static bool foldPurifyNaN(Edge& edge)
+    {
+        if (edge->op() == PurifyNaN) {
+            edge = edge->child1();
+            return true;
+        }
+        return false;
+    }
+
+    static bool foldPurifyNaNOnBinary(Node* node)
+    {
+        bool result = false;
+        if (node->isBinaryUseKind(DoubleRepUse)) {
+            result |= foldPurifyNaN(node->child1());
+            result |= foldPurifyNaN(node->child2());
+        }
+        return result;
+    }
+
+    static bool foldPurifyNaNOnUnary(Node* node)
+    {
+        if (node->child1().useKind() == DoubleRepUse)
+            return foldPurifyNaN(node->child1());
+        return false;
+    }
+
     void handleNode()
     {
         switch (m_node->op()) {
+        case Branch:
+        case PurifyNaN:
+        case DoubleAsInt32:
+        case ValueToInt32:
+        case GlobalIsNaN:
+        case NumberIsNaN:
+        case ParseInt:
+        case ToIntegerOrInfinity:
+        case ToLength:
+        case ArithAbs:
+        case ArithNegate:
+        case ArithFRound:
+        case ArithF16Round:
+        case ArithRound:
+        case ArithFloor:
+        case ArithCeil:
+        case ArithTrunc:
+        case ArithSqrt:
+        case ArithUnary: {
+            if (foldPurifyNaNOnUnary(m_node))
+                m_changed = true;
+            break;
+        }
+
+        case NumberToStringWithRadix: {
+            if (m_node->child1().useKind() == DoubleRepUse) {
+                if (foldPurifyNaN(m_node->child1()))
+                    m_changed = true;
+            }
+            break;
+        }
+
         case ArithBitOr:
             handleCommutativity();
 
@@ -124,6 +182,8 @@ private:
             
         case ArithAdd:
             handleCommutativity();
+            if (foldPurifyNaNOnBinary(m_node))
+                m_changed = true;
             
             if (m_node->child2()->isInt32Constant() && !m_node->child2()->asInt32()) {
                 convertToIdentityOverChild1();
@@ -143,6 +203,9 @@ private:
 
         case ArithMul: {
             handleCommutativity();
+            if (foldPurifyNaNOnBinary(m_node))
+                m_changed = true;
+
             Edge& child2 = m_node->child2();
             if (child2->isNumberConstant() && child2->asNumber() == 2) {
                 switch (m_node->binaryUseKind()) {
@@ -171,7 +234,10 @@ private:
             }
             break;
         }
-        case ArithSub:
+        case ArithSub: {
+            if (foldPurifyNaNOnBinary(m_node))
+                m_changed = true;
+
             if (m_node->child2()->isInt32Constant()
                 && m_node->isBinaryUseKind(Int32Use)) {
                 int32_t value = m_node->child2()->asInt32();
@@ -185,8 +251,14 @@ private:
                 }
             }
             break;
+        }
 
         case ArithPow:
+            if (m_node->child1().useKind() == DoubleRepUse) {
+                if (foldPurifyNaN(m_node->child1()))
+                    m_changed = true;
+            }
+
             if (m_node->child2()->isNumberConstant()) {
                 double yOperandValue = m_node->child2()->asNumber();
                 if (yOperandValue == 1) {
@@ -200,7 +272,10 @@ private:
             }
             break;
 
-        case ArithMod:
+        case ArithMod: {
+            if (foldPurifyNaNOnBinary(m_node))
+                m_changed = true;
+
             // On Integers
             // In: ArithMod(ArithMod(x, const1), const2)
             // Out: Identity(ArithMod(x, const1))
@@ -221,8 +296,12 @@ private:
                     convertToIdentityOverChild1();
             }
             break;
+        }
 
-        case ArithDiv:
+        case ArithDiv: {
+            if (foldPurifyNaNOnBinary(m_node))
+                m_changed = true;
+
             // Transform
             //    ArithDiv(x, constant)
             // Into
@@ -240,10 +319,16 @@ private:
                 }
             }
             break;
+        }
 
         case ValueRep:
         case Int52Rep: {
             // This short-circuits circuitous conversions, like ValueRep(Int52Rep(value)).
+
+            if (m_node->op() == ValueRep) {
+                if (foldPurifyNaNOnUnary(m_node))
+                    m_changed = true;
+            }
             
             // The only speculation that we would do beyond validating that we have a type that
             // can be represented a certain way is an Int32 check that would appear on Int52Rep
@@ -1107,7 +1192,7 @@ private:
 
             size_t dollarSignPosition = replace.find('$');
             if (dollarSignPosition != WTF::notFound) {
-                StringBuilder builder(StringBuilder::OverflowHandler::RecordOverflow);
+                StringBuilder builder(OverflowPolicy::RecordOverflow);
                 int ovector[2] = { static_cast<int>(matchStart),  static_cast<int>(matchEnd) };
                 substituteBackreferencesSlow(builder, replace, string, ovector, nullptr, dollarSignPosition);
                 if (UNLIKELY(builder.hasOverflowed()))
@@ -1219,6 +1304,42 @@ private:
             break;
         }
 
+        case CompareStrictEq:
+        case SameValue:
+        case CompareEq:
+        case CompareLess:
+        case CompareLessEq:
+        case CompareGreater:
+        case CompareGreaterEq: {
+            if (m_node->child1().useKind() == UntypedUse && m_node->child2().useKind() == UntypedUse) {
+                if (m_node->op() == CompareEq || m_node->op() == CompareStrictEq || m_node->op() == SameValue) {
+                    if (Node::shouldSpeculateBoolean(m_node->child1().node(), m_node->child2().node())) {
+                        m_node->child1().setUseKind(BooleanUse);
+                        m_node->child2().setUseKind(BooleanUse);
+                        if (m_node->op() == SameValue)
+                            m_node->setOpAndDefaultFlags(CompareStrictEq);
+                        m_node->clearFlags(NodeMustGenerate);
+                        m_changed = true;
+                        break;
+                    }
+                }
+
+                if (Node::shouldSpeculateInt32(m_node->child1().node(), m_node->child2().node())) {
+                    m_node->child1().setUseKind(Int32Use);
+                    m_node->child2().setUseKind(Int32Use);
+                    if (m_node->op() == SameValue)
+                        m_node->setOpAndDefaultFlags(CompareStrictEq);
+                    m_node->clearFlags(NodeMustGenerate);
+                    m_changed = true;
+                    break;
+                }
+            }
+
+            if (foldPurifyNaNOnBinary(m_node))
+                m_changed = true;
+            break;
+        }
+
         case Call:
         case Construct:
         case TailCallInlinedCaller:
@@ -1261,7 +1382,7 @@ private:
                 const auto& signature = Wasm::TypeInformation::getFunctionSignature(wasmFunction->typeIndex());
                 const Wasm::WasmCallingConvention& wasmCC = Wasm::wasmCallingConvention();
                 Wasm::CallInformation wasmCallInfo = wasmCC.callInformationFor(signature);
-                if (wasmCallInfo.argumentsOrResultsIncludeV128)
+                if (wasmCallInfo.argumentsOrResultsIncludeV128 || wasmCallInfo.argumentsOrResultsIncludeExnref)
                     break;
 
                 unsigned numPassedArgs = m_node->numChildren() - /* |callee| and |this| */ 2;

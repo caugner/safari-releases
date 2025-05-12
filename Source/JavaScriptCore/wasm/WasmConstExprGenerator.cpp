@@ -180,6 +180,7 @@ public:
 
     static constexpr bool shouldFuseBranchCompare = false;
     static constexpr bool tierSupportsSIMD = true;
+    static constexpr bool validateFunctionBodySize = false;
     static ExpressionType emptyExpression() { return 0; };
 
 protected:
@@ -212,7 +213,7 @@ public:
     }
 
     ExpressionType result() const { return m_result; }
-    const Vector<uint32_t>& declaredFunctions() const { return m_declaredFunctions; }
+    const Vector<FunctionSpaceIndex>& declaredFunctions() const { return m_declaredFunctions; }
     void setParser(FunctionParser<ConstExprGenerator>* parser) { m_parser = parser; };
 
     bool addArguments(const TypeDefinition&) { RELEASE_ASSERT_NOT_REACHED(); }
@@ -234,6 +235,7 @@ public:
         case TypeKind::Externref:
         case TypeKind::Eqref:
         case TypeKind::Anyref:
+        case TypeKind::Nullexn:
         case TypeKind::Nullref:
         case TypeKind::Nullfuncref:
         case TypeKind::Nullexternref:
@@ -263,8 +265,6 @@ public:
     {
         // Note that this check works for table initializers too, because no globals are registered when the table section is read and the count is 0.
         WASM_COMPILE_FAIL_IF(index >= m_info.globals.size(), "get_global's index ", index, " exceeds the number of globals ", m_info.globals.size());
-        if (!Options::useWasmGC())
-            WASM_COMPILE_FAIL_IF(index >= m_info.firstInternalGlobal, "get_global import kind index ", index, " exceeds the first internal global ", m_info.firstInternalGlobal);
         WASM_COMPILE_FAIL_IF(m_info.globals[index].mutability != Mutability::Immutable, "get_global import kind index ", index, " is mutable ");
 
         if (m_mode == Mode::Evaluate)
@@ -308,20 +308,18 @@ public:
     ExpressionType createNewArray(uint32_t typeIndex, uint32_t size, ExpressionType value)
     {
         VM& vm = m_instance->vm();
-        EncodedJSValue obj;
+        JSValue result;
         if (value.type() == ConstExprValue::Vector)
-            obj = arrayNew(m_instance, typeIndex, size, value.getVector());
+            result = arrayNew(m_instance, typeIndex, size, value.getVector());
         else
-            obj = arrayNew(m_instance, typeIndex, size, value.getValue());
-        if (UNLIKELY(!obj))
+            result = arrayNew(m_instance, typeIndex, size, value.getValue());
+        if (UNLIKELY(result.isNull()))
             return ConstExprValue(InvalidConstExpr);
-        return ConstExprValue(Strong<JSObject>(vm, JSValue::decode(obj).getObject()));
+        return ConstExprValue(Strong<JSObject>(vm, asObject(result)));
     }
 
     PartialResult WARN_UNUSED_RETURN addArrayNew(uint32_t typeIndex, ExpressionType size, ExpressionType value, ExpressionType& result)
     {
-        WASM_PARSER_FAIL_IF(!Options::useWasmGC(), "Wasm GC is not enabled"_s);
-
         if (m_mode == Mode::Evaluate) {
             result = createNewArray(typeIndex, static_cast<uint32_t>(size.getValue()), value);
             WASM_PARSER_FAIL_IF(result.isInvalid(), "Failed to allocate new array"_s);
@@ -332,8 +330,6 @@ public:
 
     PartialResult WARN_UNUSED_RETURN addArrayNewDefault(uint32_t typeIndex, ExpressionType size, ExpressionType& result)
     {
-        WASM_PARSER_FAIL_IF(!Options::useWasmGC(), "Wasm GC is not enabled"_s);
-
         if (m_mode == Mode::Evaluate) {
             Ref<TypeDefinition> typeDef = m_info.typeSignatures[typeIndex];
             const TypeDefinition& arraySignature = typeDef->expand();
@@ -352,8 +348,6 @@ public:
 
     PartialResult WARN_UNUSED_RETURN addArrayNewFixed(uint32_t typeIndex, ArgumentList& args, ExpressionType& result)
     {
-        WASM_PARSER_FAIL_IF(!Options::useWasmGC(), "Wasm GC is not enabled"_s);
-
         if (m_mode == Mode::Evaluate) {
             auto* arrayType = m_info.typeSignatures[typeIndex]->expand().as<ArrayType>();
             if (arrayType->elementType().type.unpacked().isV128()) {
@@ -396,8 +390,6 @@ public:
 
     PartialResult WARN_UNUSED_RETURN addStructNewDefault(uint32_t typeIndex, ExpressionType& result)
     {
-        WASM_PARSER_FAIL_IF(!Options::useWasmGC(), "Wasm GC is not enabled"_s);
-
         if (m_mode == Mode::Evaluate) {
             result = createNewStruct(typeIndex);
             WASM_PARSER_FAIL_IF(result.isInvalid(), "Failed to allocate new struct"_s);
@@ -408,8 +400,6 @@ public:
 
     PartialResult WARN_UNUSED_RETURN addStructNew(uint32_t typeIndex, ArgumentList& args, ExpressionType& result)
     {
-        WASM_PARSER_FAIL_IF(!Options::useWasmGC(), "Wasm GC is not enabled"_s);
-
         if (m_mode == Mode::Evaluate) {
             result = createNewStruct(typeIndex);
             WASM_PARSER_FAIL_IF(result.isInvalid(), "Failed to allocate new struct"_s);
@@ -432,7 +422,6 @@ public:
 
     PartialResult WARN_UNUSED_RETURN addAnyConvertExtern(ExpressionType reference, ExpressionType& result)
     {
-        WASM_PARSER_FAIL_IF(!Options::useWasmGC(), "Wasm GC is not enabled"_s);
         if (m_mode == Mode::Evaluate) {
             if (reference.type() == ConstExprValue::Numeric)
                 result = ConstExprValue(externInternalize(reference.getValue()));
@@ -447,7 +436,6 @@ public:
 
     PartialResult WARN_UNUSED_RETURN addExternConvertAny(ExpressionType reference, ExpressionType& result)
     {
-        WASM_PARSER_FAIL_IF(!Options::useWasmGC(), "Wasm GC is not enabled"_s);
         result = reference;
         return { };
     }
@@ -623,7 +611,7 @@ public:
     PartialResult WARN_UNUSED_RETURN addRefAsNonNull(ExpressionType, ExpressionType&) CONST_EXPR_STUB
     PartialResult WARN_UNUSED_RETURN addRefEq(ExpressionType, ExpressionType, ExpressionType&) CONST_EXPR_STUB
 
-    PartialResult WARN_UNUSED_RETURN addRefFunc(uint32_t index, ExpressionType& result)
+    PartialResult WARN_UNUSED_RETURN addRefFunc(FunctionSpaceIndex index, ExpressionType& result)
     {
         if (m_mode == Mode::Evaluate) {
             VM& vm = m_instance->vm();
@@ -740,7 +728,7 @@ private:
     const ModuleInformation& m_info;
     JSWebAssemblyInstance* m_instance { nullptr };
     bool m_shouldError = false;
-    Vector<uint32_t> m_declaredFunctions;
+    Vector<FunctionSpaceIndex> m_declaredFunctions;
 };
 
 Expected<void, String> parseExtendedConstExpr(std::span<const uint8_t> source, size_t offsetInSource, size_t& offset, ModuleInformation& info, Type expectedType)

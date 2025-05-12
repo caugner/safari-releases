@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2011 Google Inc. All rights reserved.
- * Copyright (C) 2015-2019 Apple Inc. All rights reserved.
+ * Copyright (C) 2015-2024 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -75,7 +75,6 @@
 #include "WebCorePersistentCoders.h"
 #include "WebSocket.h"
 #include "WebSocketFrame.h"
-#include <JavaScriptCore/ContentSearchUtilities.h>
 #include <JavaScriptCore/IdentifiersFactory.h>
 #include <JavaScriptCore/InjectedScript.h>
 #include <JavaScriptCore/InjectedScriptManager.h>
@@ -102,8 +101,8 @@ namespace WebCore {
 using namespace Inspector;
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(InspectorNetworkAgent);
-WTF_MAKE_TZONE_ALLOCATED_IMPL_NESTED(InspectorNetworkAgentPendingInterceptRequest, InspectorNetworkAgent::PendingInterceptRequest);
-WTF_MAKE_TZONE_ALLOCATED_IMPL_NESTED(InspectorNetworkAgentPendingInterceptResponse, InspectorNetworkAgent::PendingInterceptResponse);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(InspectorNetworkAgent::PendingInterceptRequest);
+WTF_MAKE_TZONE_ALLOCATED_IMPL(InspectorNetworkAgent::PendingInterceptResponse);
 
 namespace {
 
@@ -119,7 +118,7 @@ public:
 
     ~InspectorThreadableLoaderClient() override = default;
 
-    void didReceiveResponse(ScriptExecutionContextIdentifier, ResourceLoaderIdentifier, const ResourceResponse& response) override
+    void didReceiveResponse(ScriptExecutionContextIdentifier, std::optional<ResourceLoaderIdentifier>, const ResourceResponse& response) override
     {
         m_mimeType = response.mimeType();
         m_statusCode = response.httpStatusCode();
@@ -143,7 +142,7 @@ public:
         m_responseText.append(m_decoder->decode(buffer.span()));
     }
 
-    void didFinishLoading(ScriptExecutionContextIdentifier, ResourceLoaderIdentifier, const NetworkLoadMetrics&) override
+    void didFinishLoading(ScriptExecutionContextIdentifier, std::optional<ResourceLoaderIdentifier>, const NetworkLoadMetrics&) override
     {
         if (m_decoder)
             m_responseText.append(m_decoder->flush());
@@ -152,7 +151,7 @@ public:
         dispose();
     }
 
-    void didFail(ScriptExecutionContextIdentifier, const ResourceError& error) override
+    void didFail(std::optional<ScriptExecutionContextIdentifier>, const ResourceError& error) override
     {
         m_callback->sendFailure(error.isAccessControl() ? "Loading resource for inspector failed access control check"_s : "Loading resource for inspector failed"_s);
         dispose();
@@ -656,7 +655,7 @@ void InspectorNetworkAgent::didFinishLoading(ResourceLoaderIdentifier identifier
         elapsedFinishTime = timestamp();
 
     String requestId = IdentifiersFactory::requestId(identifier.toUInt64());
-    if (loader && m_resourcesData->resourceType(requestId) == InspectorPageAgent::DocumentResource)
+    if (loader && loader->frameLoader() && m_resourcesData->resourceType(requestId) == InspectorPageAgent::DocumentResource)
         m_resourcesData->addResourceSharedBuffer(requestId, loader->frameLoader()->documentLoader()->mainResourceData(), loader->frame()->document()->encoding());
 
     m_resourcesData->maybeDecodeDataToContent(requestId);
@@ -936,14 +935,7 @@ bool InspectorNetworkAgent::shouldIntercept(URL url, Inspector::Protocol::Networ
         return false;
 
     for (auto& intercept : m_intercepts) {
-        if (intercept.networkStage != networkStage)
-            continue;
-        if (intercept.url.isEmpty())
-            return true;
-
-        auto searchStringType = intercept.isRegex ? ContentSearchUtilities::SearchStringType::Regex : ContentSearchUtilities::SearchStringType::ExactString;
-        auto regex = ContentSearchUtilities::createRegularExpressionForSearchString(intercept.url, intercept.caseSensitive, searchStringType);
-        if (regex.match(urlString) != -1)
+        if (intercept.matches(urlString, networkStage))
             return true;
     }
 
@@ -1185,7 +1177,7 @@ void InspectorNetworkAgent::interceptRequest(ResourceLoader& loader, Function<vo
     ASSERT(m_enabled);
     ASSERT(m_interceptionEnabled);
 
-    String requestId = IdentifiersFactory::requestId(loader.identifier().toUInt64());
+    String requestId = IdentifiersFactory::requestId(loader.identifier()->toUInt64());
     if (m_pendingInterceptRequests.contains(requestId)) {
         handler(loader.request());
         return;
@@ -1388,7 +1380,7 @@ Inspector::Protocol::ErrorStringOr<void> InspectorNetworkAgent::interceptRequest
     if (loader.reachedTerminalState())
         return makeUnexpected("Unable to abort request, it has already been processed"_s);
 
-    addConsoleMessage(makeUnique<Inspector::ConsoleMessage>(MessageSource::Network, MessageType::Log, MessageLevel::Info, makeString("Web Inspector blocked "_s, loader.url().string(), " from loading"_s), loader.identifier().toUInt64()));
+    addConsoleMessage(makeUnique<Inspector::ConsoleMessage>(MessageSource::Network, MessageType::Log, MessageLevel::Info, makeString("Web Inspector blocked "_s, loader.url().string(), " from loading"_s), loader.identifier() ? loader.identifier()->toUInt64() : 0));
 
     loader.didFail(ResourceError(InspectorNetworkAgent::errorDomain(), 0, loader.url(), "Blocked by Web Inspector"_s, toResourceErrorType(errorType)));
     return { };
@@ -1424,7 +1416,7 @@ Ref<TextResourceDecoder> InspectorNetworkAgent::createTextDecoder(const String& 
         return TextResourceDecoder::create("text/plain"_s, textEncodingName);
 
     if (MIMETypeRegistry::isTextMIMEType(mimeType))
-        return TextResourceDecoder::create(mimeType, "UTF-8");
+        return TextResourceDecoder::create(mimeType, "UTF-8"_s);
 
     if (MIMETypeRegistry::isXMLMIMEType(mimeType)) {
         auto decoder = TextResourceDecoder::create("application/xml"_s);
@@ -1432,7 +1424,7 @@ Ref<TextResourceDecoder> InspectorNetworkAgent::createTextDecoder(const String& 
         return decoder;
     }
 
-    return TextResourceDecoder::create("text/plain"_s, "UTF-8");
+    return TextResourceDecoder::create("text/plain"_s, "UTF-8"_s);
 }
 
 std::optional<String> InspectorNetworkAgent::textContentForCachedResource(CachedResource& cachedResource)
@@ -1542,6 +1534,29 @@ void InspectorNetworkAgent::searchInRequest(Inspector::Protocol::ErrorString& er
 void InspectorNetworkAgent::mainFrameNavigated(DocumentLoader& loader)
 {
     m_resourcesData->clear(loaderIdentifier(&loader));
+}
+
+bool InspectorNetworkAgent::Intercept::matches(const String& url, Inspector::Protocol::Network::NetworkStage networkStage)
+{
+    if (this->networkStage != networkStage)
+        return false;
+
+    if (this->url.isEmpty())
+        return true;
+
+    if (m_knownMatchingURLs.contains(url))
+        return true;
+
+    if (!m_urlSearcher) {
+        auto searchType = isRegex ? ContentSearchUtilities::SearchType::Regex : ContentSearchUtilities::SearchType::ExactString;
+        auto searchCaseSensitive = caseSensitive ? ContentSearchUtilities::SearchCaseSensitive::Yes : ContentSearchUtilities::SearchCaseSensitive::No;
+        m_urlSearcher = ContentSearchUtilities::createSearcherForString(this->url, searchType, searchCaseSensitive);
+    }
+    if (!ContentSearchUtilities::searcherMatchesText(*m_urlSearcher, url))
+        return false;
+
+    m_knownMatchingURLs.add(url);
+    return true;
 }
 
 } // namespace WebCore

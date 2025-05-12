@@ -338,10 +338,10 @@ public:
 
     virtual PlatformVideoTarget mediaPlayerVideoTarget() const { return nullptr; }
 
-    virtual MediaPlayerClientIdentifier mediaPlayerClientIdentifier() const { return { }; }
+    virtual MediaPlayerClientIdentifier mediaPlayerClientIdentifier() const = 0;
 
 #if !RELEASE_LOG_DISABLED
-    virtual const void* mediaPlayerLogIdentifier() { return nullptr; }
+    virtual uint64_t mediaPlayerLogIdentifier() { return 0; }
     virtual const Logger& mediaPlayerLogger() = 0;
 #endif
 
@@ -443,7 +443,7 @@ public:
     // This is different from the asynchronous MediaKeyError.
     enum MediaKeyException { NoError, InvalidPlayerState, KeySystemNotSupported };
 
-    std::unique_ptr<LegacyCDMSession> createSession(const String& keySystem, LegacyCDMSessionClient&);
+    RefPtr<LegacyCDMSession> createSession(const String& keySystem, LegacyCDMSessionClient&);
     void setCDM(LegacyCDM*);
     void setCDMSession(LegacyCDMSession*);
     void keyAdded();
@@ -526,10 +526,6 @@ public:
     void paint(GraphicsContext&, const FloatRect& destination);
     void paintCurrentFrameInContext(GraphicsContext&, const FloatRect& destination);
 
-#if PLATFORM(COCOA) && !HAVE(AVSAMPLEBUFFERDISPLAYLAYER_COPYDISPLAYEDPIXELBUFFER)
-    void willBeAskedToPaintGL();
-#endif
-
     RefPtr<VideoFrame> videoFrameForCurrentTime();
     RefPtr<NativeImage> nativeImageForCurrentTime();
     DestinationColorSpace colorSpace();
@@ -598,8 +594,6 @@ public:
     bool isCrossOrigin(const SecurityOrigin&) const;
 
     MediaTime mediaTimeForTimeValue(const MediaTime&) const;
-
-    double maximumDurationToCacheMediaTime() const;
 
     unsigned decodedFrameCount() const;
     unsigned droppedFrameCount() const;
@@ -703,7 +697,7 @@ public:
 
 #if !RELEASE_LOG_DISABLED
     const Logger& mediaPlayerLogger();
-    const void* mediaPlayerLogIdentifier() { return client().mediaPlayerLogIdentifier(); }
+    uint64_t mediaPlayerLogIdentifier() { return client().mediaPlayerLogIdentifier(); }
 #endif
 
     void applicationWillResignActive();
@@ -711,6 +705,7 @@ public:
 
 #if USE(AVFOUNDATION)
     AVPlayer *objCAVFoundationAVPlayer() const;
+    void setDecompressionSessionPreferences(bool, bool);
 #endif
 
     bool performTaskAtTime(Function<void()>&&, const MediaTime&);
@@ -736,6 +731,7 @@ public:
 
     const MediaPlayerPrivateInterface* playerPrivate() const;
     MediaPlayerPrivateInterface* playerPrivate();
+    RefPtr<MediaPlayerPrivateInterface> protectedPlayerPrivate();
 
     DynamicRangeMode preferredDynamicRangeMode() const { return m_preferredDynamicRangeMode; }
     void setPreferredDynamicRangeMode(DynamicRangeMode);
@@ -744,7 +740,7 @@ public:
     String audioOutputDeviceIdOverride() const;
     void audioOutputDeviceChanged();
 
-    MediaPlayerIdentifier identifier() const;
+    std::optional<MediaPlayerIdentifier> identifier() const;
     bool hasMediaEngine() const;
 
     std::optional<VideoFrameMetadata> videoFrameMetadata();
@@ -848,6 +844,10 @@ private:
 
     String m_lastErrorMessage;
     ProcessIdentity m_processIdentity;
+#if USE(AVFOUNDATION)
+    bool m_preferDecompressionSession { false };
+    bool m_canFallbackToDecompressionSession { false };
+#endif
 };
 
 class MediaPlayerFactory : public CanMakeWeakPtr<MediaPlayerFactory> {

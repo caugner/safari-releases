@@ -912,7 +912,7 @@ void SpeculativeJIT::emitCall(Node* node)
         if (isTail) {
             RELEASE_ASSERT(node->op() == DirectTailCall);
 
-            SuppressRegisetrAllocationValidation suppressScope(*this);
+            SuppressRegisterAllocationValidation suppressScope(*this);
             Label mainPath = label();
             emitStoreCallSiteIndex(callSite);
             auto slowCases = callLinkInfo->emitDirectTailCallFastPath(*this, scopedLambda<void()>([&] {
@@ -934,7 +934,7 @@ void SpeculativeJIT::emitCall(Node* node)
             return;
         }
 
-        SuppressRegisetrAllocationValidation suppressScope(*this);
+        SuppressRegisterAllocationValidation suppressScope(*this);
         Label mainPath = label();
         emitStoreCallSiteIndex(callSite);
         auto slowCases = callLinkInfo->emitDirectFastPath(*this);
@@ -2567,8 +2567,9 @@ void SpeculativeJIT::compile(Node* node)
         break;
     }
 
+    case StringAt:
     case StringCharAt: {
-        // Relies on StringCharAt node having same basic layout as GetByVal
+        // Relies on StringCharAt and StringAt node having same basic layout as GetByVal
         JSValueRegsTemporary result;
         compileGetByValOnString(node, scopedLambda<std::tuple<JSValueRegs, DataFormat>(DataFormat preferredFormat, bool needsFlush)>([&](DataFormat preferredFormat, bool needsFlush) {
             result = JSValueRegsTemporary(this);
@@ -2921,8 +2922,8 @@ void SpeculativeJIT::compile(Node* node)
         break;
     }
 
-    case ArraySpliceExtract: {
-        compileArraySpliceExtract(node);
+    case ArraySplice: {
+        compileArraySplice(node);
         break;
     }
 
@@ -3418,6 +3419,11 @@ void SpeculativeJIT::compile(Node* node)
         compileGetArrayLength(node);
         break;
 
+    case DataViewGetByteLength:
+        compileDataViewGetByteLength(node);
+        break;
+
+    case DataViewGetByteLengthAsInt52:
     case GetTypedArrayLengthAsInt52:
         // We do not support typed arrays larger than 2GB on 32-bit platforms.
         RELEASE_ASSERT_NOT_REACHED();
@@ -3869,6 +3875,10 @@ void SpeculativeJIT::compile(Node* node)
         compileMapStorage(node);
         break;
 
+    case MapStorageOrSentinel:
+        compileMapStorageOrSentinel(node);
+        break;
+
     case MapIteratorNext:
         compileMapIteratorNext(node);
         break;
@@ -4224,11 +4234,11 @@ void SpeculativeJIT::compile(Node* node)
         break;
 
     case SuperSamplerBegin:
-        add32(TrustedImm32(1), AbsoluteAddress(bitwise_cast<void*>(&g_superSamplerCount)));
+        add32(TrustedImm32(1), AbsoluteAddress(std::bit_cast<void*>(&g_superSamplerCount)));
         break;
 
     case SuperSamplerEnd:
-        sub32(TrustedImm32(1), AbsoluteAddress(bitwise_cast<void*>(&g_superSamplerCount)));
+        sub32(TrustedImm32(1), AbsoluteAddress(std::bit_cast<void*>(&g_superSamplerCount)));
         break;
 
     case Phantom:
@@ -4394,6 +4404,7 @@ void SpeculativeJIT::compile(Node* node)
     case PutByValMegamorphic:
     case InByIdMegamorphic:
     case InByValMegamorphic:
+    case PurifyNaN:
         DFG_CRASH(m_graph, node, "unexpected node in DFG backend");
         break;
     }

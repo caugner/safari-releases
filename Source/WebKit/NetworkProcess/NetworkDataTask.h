@@ -35,18 +35,10 @@
 #include <WebCore/ResourceRequest.h>
 #include <WebCore/StoredCredentialsPolicy.h>
 #include <pal/SessionID.h>
+#include <wtf/AbstractRefCountedAndCanMakeWeakPtr.h>
 #include <wtf/CompletionHandler.h>
 #include <wtf/ThreadSafeWeakPtr.h>
 #include <wtf/text/WTFString.h>
-
-namespace WebKit {
-class NetworkDataTaskClient;
-}
-
-namespace WTF {
-template<typename T> struct IsDeprecatedWeakRefSmartPointerException;
-template<> struct IsDeprecatedWeakRefSmartPointerException<WebKit::NetworkDataTaskClient> : std::true_type { };
-}
 
 namespace WebCore {
 class AuthenticationChallenge;
@@ -58,18 +50,20 @@ class SharedBuffer;
 
 namespace WebKit {
 
-class NetworkLoadParameters;
 class NetworkSession;
 class PendingDownload;
+
 enum class AuthenticationChallengeDisposition : uint8_t;
 enum class NegotiatedLegacyTLS : bool;
 enum class PrivateRelayed : bool;
+
+struct NetworkLoadParameters;
 
 using RedirectCompletionHandler = CompletionHandler<void(WebCore::ResourceRequest&&)>;
 using ChallengeCompletionHandler = CompletionHandler<void(AuthenticationChallengeDisposition, const WebCore::Credential&)>;
 using ResponseCompletionHandler = CompletionHandler<void(WebCore::PolicyAction)>;
 
-class NetworkDataTaskClient : public CanMakeWeakPtr<NetworkDataTaskClient> {
+class NetworkDataTaskClient : public AbstractRefCountedAndCanMakeWeakPtr<NetworkDataTaskClient> {
 public:
     virtual void willPerformHTTPRedirection(WebCore::ResourceResponse&&, WebCore::ResourceRequest&&, RedirectCompletionHandler&&) = 0;
     virtual void didReceiveChallenge(WebCore::AuthenticationChallenge&&, NegotiatedLegacyTLS, ChallengeCompletionHandler&&) = 0;

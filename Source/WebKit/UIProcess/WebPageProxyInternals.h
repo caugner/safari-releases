@@ -35,6 +35,7 @@
 #include "ScrollingAccelerationCurve.h"
 #include "VisibleWebPageCounter.h"
 #include "WebColorPicker.h"
+#include "WebDataListSuggestionsDropdown.h"
 #include "WebFrameProxy.h"
 #include "WebNotificationManagerMessageHandler.h"
 #include "WebPageProxy.h"
@@ -51,10 +52,6 @@
 
 #if ENABLE(APPLE_PAY)
 #include "WebPaymentCoordinatorProxy.h"
-#endif
-
-#if ENABLE(DATALIST_ELEMENT)
-#include "WebDataListSuggestionsDropdown.h"
 #endif
 
 #if ENABLE(DRAG_SUPPORT)
@@ -95,6 +92,10 @@
 #include "CocoaWindow.h"
 #endif
 
+#if PLATFORM(IOS_FAMILY) && ENABLE(MODEL_PROCESS)
+#include "ModelPresentationManagerProxy.h"
+#endif
+
 namespace WebKit {
 
 #if ENABLE(WINDOW_PROXY_PROPERTY_ACCESS_NOTIFICATION)
@@ -104,8 +105,11 @@ class WebPageProxyFrameLoadStateObserver final : public FrameLoadStateObserver {
 public:
     static constexpr size_t maxVisitedDomainsSize = 6;
 
-    WebPageProxyFrameLoadStateObserver();
+    explicit WebPageProxyFrameLoadStateObserver(const WebPageProxy&);
     virtual ~WebPageProxyFrameLoadStateObserver();
+
+    void ref() const final;
+    void deref() const final;
 
     void didReceiveProvisionalURL(const URL& url) override
     {
@@ -140,6 +144,7 @@ private:
             m_visitedDomains.removeLast();
     }
 
+    WeakRef<WebPageProxy> m_page;
     Vector<URL> m_provisionalURLs;
     ListHashSet<WebCore::RegistrableDomain> m_visitedDomains;
 };
@@ -147,6 +152,14 @@ private:
 
 class PageLoadTimingFrameLoadStateObserver final : public FrameLoadStateObserver {
 public:
+    explicit PageLoadTimingFrameLoadStateObserver(const WebPageProxy&page)
+        : m_page(page)
+    {
+    }
+
+    void ref() const final;
+    void deref() const final;
+
     bool hasLoadingFrame() const { return !!m_loadingFrameCount; }
 
 private:
@@ -182,6 +195,7 @@ private:
         // FIXME: Assert that m_loadingFrameCount is zero if this is a main frame.
     }
 
+    WeakRef<WebPageProxy> m_page;
     size_t m_loadingFrameCount { 0 };
 };
 
@@ -240,9 +254,7 @@ struct WebPageProxy::Internals final : WebPopupMenuProxy::Client
 #if ENABLE(APPLE_PAY)
     , WebPaymentCoordinatorProxy::Client
 #endif
-#if ENABLE(INPUT_TYPE_COLOR)
     , WebColorPickerClient
-#endif
 #if PLATFORM(MACCATALYST)
     , EndowmentStateTrackerClient
 #endif
@@ -255,9 +267,24 @@ struct WebPageProxy::Internals final : WebPopupMenuProxy::Client
 #endif
 {
     WTF_MAKE_STRUCT_FAST_ALLOCATED;
+    WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(Internals);
 
 public:
     virtual ~Internals();
+
+    uint32_t checkedPtrCount() const { return WebPopupMenuProxy::Client::checkedPtrCount(); }
+    uint32_t checkedPtrCountWithoutThreadCheck() const { return WebPopupMenuProxy::Client::checkedPtrCountWithoutThreadCheck(); }
+    void incrementCheckedPtrCount() const { WebPopupMenuProxy::Client::incrementCheckedPtrCount(); }
+    void decrementCheckedPtrCount() const { WebPopupMenuProxy::Client::decrementCheckedPtrCount(); }
+
+#if PLATFORM(MACCATALYST)
+    // EndowmentStateTrackerClient
+    void ref() const final { page->ref(); }
+    void deref() const final { page->deref(); }
+#else
+    void ref() const { page->ref(); }
+    void deref() const { page->deref(); }
+#endif
 
     WeakRef<WebPageProxy> page;
     OptionSet<WebCore::ActivityState> activityState;
@@ -309,8 +336,8 @@ public:
     VisibleWebPageToken visiblePageToken;
     WebCore::IntRect visibleScrollerThumbRect;
     WindowKind windowKind { WindowKind::Unparented };
-    std::unique_ptr<ProcessThrottlerActivity> pageAllowedToRunInTheBackgroundActivityDueToTitleChanges;
-    std::unique_ptr<ProcessThrottlerActivity> pageAllowedToRunInTheBackgroundActivityDueToNotifications;
+    RefPtr<ProcessThrottlerActivity> pageAllowedToRunInTheBackgroundActivityDueToTitleChanges;
+    RefPtr<ProcessThrottlerActivity> pageAllowedToRunInTheBackgroundActivityDueToNotifications;
 
     WebPageProxyMessageReceiverRegistration messageReceiverRegistration;
 
@@ -318,7 +345,7 @@ public:
     HashMap<WebCore::SleepDisablerIdentifier, std::unique_ptr<WebCore::SleepDisabler>> sleepDisablers;
 
 #if ENABLE(APPLE_PAY)
-    std::unique_ptr<WebPaymentCoordinatorProxy> paymentCoordinator;
+    RefPtr<WebPaymentCoordinatorProxy> paymentCoordinator;
 #endif
 
 #if PLATFORM(COCOA)
@@ -334,9 +361,7 @@ public:
     PAL::HysteresisActivity wheelEventActivityHysteresis;
 #endif
 
-#if ENABLE(DATALIST_ELEMENT)
     RefPtr<WebDataListSuggestionsDropdown> dataListSuggestionsDropdown;
-#endif
 
 #if ENABLE(DRAG_SUPPORT)
     WebCore::IntRect currentDragCaretEditableElementRect;
@@ -344,9 +369,7 @@ public:
     WebCore::DragHandlingMethod currentDragHandlingMethod { WebCore::DragHandlingMethod::None };
 #endif
 
-#if ENABLE(INPUT_TYPE_COLOR)
     RefPtr<WebColorPicker> colorPicker;
-#endif
 
 #if ENABLE(MAC_GESTURE_EVENTS)
     Deque<NativeWebGestureEvent> gestureEventQueue;
@@ -401,11 +424,11 @@ public:
 #endif
 
 #if ENABLE(WEBXR) && !USE(OPENXR)
-    std::unique_ptr<PlatformXRSystem> xrSystem;
+    RefPtr<PlatformXRSystem> xrSystem;
 #endif
 
 #if ENABLE(EXTENSION_CAPABILITIES)
-    std::optional<MediaCapability> mediaCapability;
+    RefPtr<MediaCapability> mediaCapability;
 #endif
 
 #if ENABLE(WINDOW_PROXY_PROPERTY_ACCESS_NOTIFICATION)
@@ -416,6 +439,14 @@ public:
 
 #if PLATFORM(GTK) || PLATFORM(WPE)
     RunLoop::Timer activityStateChangeTimer;
+#endif
+
+#if PLATFORM(MAC)
+    WebCore::FloatPoint scrollPositionDuringLastEditorStateUpdate;
+#endif
+
+#if PLATFORM(IOS_FAMILY) && ENABLE(MODEL_PROCESS)
+    RefPtr<ModelPresentationManagerProxy> modelPresentationManagerProxy;
 #endif
 
     bool allowsLayoutViewportHeightExpansion { true };
@@ -443,11 +474,12 @@ public:
     void paymentCoordinatorAddMessageReceiver(WebPaymentCoordinatorProxy&, IPC::ReceiverName, IPC::MessageReceiver&) final;
     void paymentCoordinatorRemoveMessageReceiver(WebPaymentCoordinatorProxy&, IPC::ReceiverName) final;
     void getPaymentCoordinatorEmbeddingUserAgent(WebPageProxyIdentifier, CompletionHandler<void(const String&)>&&) final;
+    std::optional<SharedPreferencesForWebProcess> sharedPreferencesForWebPaymentMessages() const final;
 #endif
 #if ENABLE(APPLE_PAY) && PLATFORM(IOS_FAMILY)
     UIViewController *paymentCoordinatorPresentingViewController(const WebPaymentCoordinatorProxy&) final;
     const String& paymentCoordinatorCTDataConnectionServiceType(const WebPaymentCoordinatorProxy&) final;
-    std::unique_ptr<PaymentAuthorizationPresenter> paymentCoordinatorAuthorizationPresenter(WebPaymentCoordinatorProxy&, PKPaymentRequest *) final;
+    Ref<PaymentAuthorizationPresenter> paymentCoordinatorAuthorizationPresenter(WebPaymentCoordinatorProxy&, PKPaymentRequest *) final;
 #endif
 #if ENABLE(APPLE_PAY) && PLATFORM(IOS_FAMILY) && ENABLE(APPLE_PAY_REMOTE_UI_USES_SCENE)
     void getWindowSceneAndBundleIdentifierForPaymentPresentation(WebPageProxyIdentifier, CompletionHandler<void(const String&, const String&)>&&) final;
@@ -456,11 +488,9 @@ public:
     CocoaWindow *paymentCoordinatorPresentingWindow(const WebPaymentCoordinatorProxy&) const final;
 #endif
 
-#if ENABLE(INPUT_TYPE_COLOR)
     // WebColorPickerClient
     void didChooseColor(const WebCore::Color&) final;
     void didEndColorPicker() final;
-#endif
 
 #if PLATFORM(MACCATALYST)
     // EndowmentStateTrackerClient
@@ -486,8 +516,15 @@ public:
     void externalOutputDeviceAvailableDidChange(WebCore::PlaybackTargetClientContextIdentifier, bool) final;
     void setShouldPlayToPlaybackTarget(WebCore::PlaybackTargetClientContextIdentifier, bool) final;
     void playbackTargetPickerWasDismissed(WebCore::PlaybackTargetClientContextIdentifier) final;
-    bool alwaysOnLoggingAllowed() const final { return protectedPage()->sessionID().isAlwaysOnLoggingAllowed(); }
+    bool alwaysOnLoggingAllowed() const final { return protectedPage()->isAlwaysOnLoggingAllowed(); }
     RetainPtr<PlatformView> platformView() const final;
+#endif
+
+    Ref<PageLoadState> protectedPageLoadState() { return pageLoadState; }
+    Ref<WebNotificationManagerMessageHandler> protectedNotificationManagerMessageHandler() { return notificationManagerMessageHandler; }
+    Ref<PageLoadTimingFrameLoadStateObserver> protectedPageLoadTimingFrameLoadStateObserver() { return pageLoadTimingFrameLoadStateObserver; }
+#if ENABLE(WINDOW_PROXY_PROPERTY_ACCESS_NOTIFICATION)
+    RefPtr<WebPageProxyFrameLoadStateObserver> protectedFrameLoadStateObserver() { return frameLoadStateObserver.get(); }
 #endif
 };
 

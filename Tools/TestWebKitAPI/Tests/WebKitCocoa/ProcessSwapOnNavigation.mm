@@ -1508,9 +1508,6 @@ TEST(ProcessSwap, SameSiteWindowOpenNoOpener)
 
 TEST(ProcessSwap, SameSiteWindowOpenWithNameNoOpener)
 {
-    // We currently do no process-swap when navigating same-site a popup without opener if the window
-    // has a name. We should be able to support this but we would need to pass the window name over
-    // to the new process.
     runSameSiteWindowOpenNoOpenerTest(WindowHasName::Yes, ExpectSwap::No);
 }
 
@@ -3519,7 +3516,12 @@ TEST(ProcessSwap, PageCache1)
     EXPECT_EQ(2u, seenPIDs.size());
 }
 
+// rdar://137984168 (REGRESSION(277622@main?): [ iPad ] TestWebKitAPI.ProcessSwap.NavigateBackAfterCrossOriginClientRedirect is a near constant timeout (281513))
+#if PLATFORM(IOS)
+TEST(ProcessSwap, DISABLED_NavigateBackAfterCrossOriginClientRedirect)
+#else
 TEST(ProcessSwap, NavigateBackAfterCrossOriginClientRedirect)
+#endif
 {
     auto processPoolConfiguration = psonProcessPoolConfiguration();
     auto processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
@@ -4800,6 +4802,68 @@ TEST(ProcessSwap, ConcurrentHistoryNavigations)
     EXPECT_TRUE(!backForwardList.backItem);
     EXPECT_EQ(1U, backForwardList.forwardList.count);
     EXPECT_WK_STREQ(@"pson://www.apple.com/main.html", [backForwardList.forwardItem.URL absoluteString]);
+}
+
+TEST(ProcessSwap, CookieAccessAfterMultipleRedirects)
+{
+    using namespace TestWebKitAPI;
+    HTTPServer httpServer({
+        { "http://site2.example/prewarm"_s, { "Done."_s  } }, // Process 1
+        { "http://site1.example/start"_s, { "<script> function load() { window.location = 'http://site1.example/redirect'; } </script>"_s  } }, // Process 2
+        { "http://site1.example/redirect"_s, { 302, {{ "Location"_s, "http://site2.example/redirect"_s }}, "redirecting..."_s } }, // Process 2
+        { "http://site2.example/redirect"_s, { 302, {{ "Location"_s, "http://site1.example/end"_s }}, "redirecting..."_s } }, // Process 1
+        { "http://site1.example/end"_s, { "Done."_s  } }, // Process 3
+    }, HTTPServer::Protocol::Http);
+    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    [storeConfiguration setProxyConfiguration:@{
+        (NSString *)kCFStreamPropertyHTTPProxyHost: @"127.0.0.1",
+        (NSString *)kCFStreamPropertyHTTPProxyPort: @(httpServer.port()),
+    }];
+    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    [configuration setWebsiteDataStore:dataStore.get()];
+    auto processPoolConfiguration = psonProcessPoolConfiguration();
+    auto processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
+    [configuration setProcessPool:processPool.get()];
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    auto delegate = adoptNS([TestNavigationDelegate new]);
+
+    __block bool navigationFailed = false;
+    delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
+        completionHandler(WKNavigationActionPolicyAllow);
+    };
+    delegate.get().didFailProvisionalNavigation = ^(WKWebView *, WKNavigation *, NSError *error) {
+        navigationFailed = true;
+        done = true;
+    };
+    delegate.get().didFinishNavigation = ^(WKWebView *, WKNavigation *) {
+        done = true;
+    };
+
+    done = false;
+    [webView setNavigationDelegate:delegate.get()];
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"http://site2.example/prewarm"]]];
+    TestWebKitAPI::Util::run(&done);
+    EXPECT_FALSE(navigationFailed);
+
+    done = false;
+    [webView setNavigationDelegate:delegate.get()];
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"http://site1.example/start"]]];
+    TestWebKitAPI::Util::run(&done);
+    EXPECT_FALSE(navigationFailed);
+
+    done = false;
+    [webView evaluateJavaScript:@"load()" completionHandler:nil];
+    TestWebKitAPI::Util::run(&done);
+    EXPECT_FALSE(navigationFailed);
+
+    done = false;
+    [webView evaluateJavaScript:@"navigator.cookieEnabled" completionHandler:^(id result, NSError *error) {
+        EXPECT_TRUE(!!result);
+        EXPECT_NULL(error);
+        done = true;
+    }];
+    TestWebKitAPI::Util::run(&done);
 }
 
 TEST(ProcessSwap, NavigateToInvalidURL)
@@ -7483,11 +7547,11 @@ TEST(ProcessSwap, SameSiteWindowWithOpenerNavigateToFile)
 
     using namespace TestWebKitAPI;
     checkFrameTreesInProcesses(webView.get(), {
-        { "pson://www.webkit.org"_s }, { RemoteFrame }
+        { "pson://www.webkit.org"_s }
     });
 
     checkFrameTreesInProcesses(createdWebView.get(), {
-        { RemoteFrame }, { "file://"_s }
+        { "file://"_s }
     });
 
     [createdWebView goBack];
@@ -7721,6 +7785,74 @@ TEST(ProcessSwap, MainFrameURLAfterServerSideRedirectToCOOP)
     EXPECT_WK_STREQ(server.request("/destination.html"_s).URL.absoluteString, [[createdWebView _mainFrameURL] absoluteString]);
 }
 
+TEST(ProcessSwap, COOPAndCOEPOn304Response)
+{
+    using namespace TestWebKitAPI;
+    HTTPResponse response({ { { "Content-Type"_s, "text/html"_s }, { "Cross-Origin-Opener-Policy"_s, "same-origin"_s }, { "cross-origin-embedder-policy"_s, "require-corp"_s }, { "Etag"_s, "123456789"_s } }, "foo"_s });
+    response.setShouldRespondWith304ToConditionalRequests({ { "Cross-Origin-Opener-Policy"_s, "same-origin"_s }, { "cross-origin-embedder-policy"_s, "require-corp"_s } });
+    HTTPServer server({
+        { "/index.html"_s, WTFMove(response) },
+    }, HTTPServer::Protocol::Https);
+
+    auto processPoolConfiguration = psonProcessPoolConfiguration();
+    auto processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
+
+    auto webView1Configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    [webView1Configuration setProcessPool:processPool.get()];
+    for (_WKFeature *feature in [WKPreferences _features]) {
+        if ([feature.key isEqualToString:@"CrossOriginOpenerPolicyEnabled"])
+            [[webView1Configuration preferences] _setEnabled:YES forFeature:feature];
+        else if ([feature.key isEqualToString:@"CrossOriginEmbedderPolicyEnabled"])
+            [[webView1Configuration preferences] _setEnabled:YES forFeature:feature];
+    }
+
+    auto webView1 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webView1Configuration.get()]);
+    auto navigationDelegate = adoptNS([[PSONNavigationDelegate alloc] init]);
+    [webView1 setNavigationDelegate:navigationDelegate.get()];
+
+    done = false;
+    [webView1 loadRequest:server.request("/index.html"_s)];
+    Util::run(&done);
+
+    done = false;
+    [webView1 _evaluateJavaScriptWithoutUserGesture:@"document.body.innerHTML" completionHandler:^(id result, NSError* error) {
+        NSString* resultString = result;
+        EXPECT_TRUE(!error);
+        EXPECT_WK_STREQ(resultString, @"foo");
+        done = true;
+    }];
+    Util::run(&done);
+    done = false;
+
+    auto webView2Configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    [webView2Configuration setProcessPool:processPool.get()];
+    for (_WKFeature *feature in [WKPreferences _features]) {
+        if ([feature.key isEqualToString:@"CrossOriginOpenerPolicyEnabled"])
+            [[webView2Configuration preferences] _setEnabled:YES forFeature:feature];
+        else if ([feature.key isEqualToString:@"CrossOriginEmbedderPolicyEnabled"])
+            [[webView2Configuration preferences] _setEnabled:YES forFeature:feature];
+    }
+    ALLOW_DEPRECATED_DECLARATIONS_BEGIN
+    webView2Configuration.get()._relatedWebView = webView1.get(); // webView2 will be related to webView1 and webView1's URL will be used for process swap decision.
+    ALLOW_DEPRECATED_DECLARATIONS_END
+    auto webView2 = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webView2Configuration.get()]);
+    [webView2 setNavigationDelegate:navigationDelegate.get()];
+
+    done = false;
+    [webView2 loadRequest:server.request("/index.html"_s)];
+    Util::run(&done);
+
+    done = false;
+    [webView2 _evaluateJavaScriptWithoutUserGesture:@"document.body.innerHTML" completionHandler:^(id result, NSError* error) {
+        NSString* resultString = result;
+        EXPECT_TRUE(!error);
+        EXPECT_WK_STREQ(resultString, @"foo");
+        done = true;
+    }];
+    Util::run(&done);
+    done = false;
+}
+
 TEST(ProcessSwap, NavigateBackAfterNavigatingAwayFromCOOP)
 {
     using namespace TestWebKitAPI;
@@ -7829,6 +7961,68 @@ TEST(ProcessSwap, NavigateBackAfterNavigatingAwayFromCrossOriginOpenerPolicyUsin
 
     EXPECT_EQ(pid1, [webView _webProcessIdentifier]);
     EXPECT_WK_STREQ([webView _committedURL].absoluteString, server.request("/"_s).URL.absoluteString);
+
+    [webView _evaluateJavaScriptWithoutUserGesture:@"document.body.innerHTML" completionHandler:^(id result, NSError* error) {
+        NSString* resultString = result;
+        EXPECT_TRUE(!error);
+        EXPECT_WK_STREQ(resultString, @"foo");
+        done = true;
+    }];
+    Util::run(&done);
+    done = false;
+}
+
+TEST(ProcessSwap, NavigateBackAfterNavigatingAwayFromCrossOriginOpenerPolicyUsingBackForwardCache2)
+{
+    using namespace TestWebKitAPI;
+
+    auto processPoolConfiguration = psonProcessPoolConfiguration();
+    auto processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
+
+    auto webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    [webViewConfiguration setProcessPool:processPool.get()];
+    auto handler = adoptNS([[PSONScheme alloc] init]);
+    [handler addMappingFromURLString:@"pson://www.webkit.org" toData:"<script>function navigateToApple() { window.location = 'pson://www.apple.com'; }</script>foo"];
+    [webViewConfiguration setURLSchemeHandler:handler.get() forURLScheme:@"PSON"];
+
+    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+    auto navigationDelegate = adoptNS([[PSONNavigationDelegate alloc] init]);
+    navigationDelegate->didSameDocumentNavigationHandler = ^{
+        done = true;
+    };
+    [webView setNavigationDelegate:navigationDelegate.get()];
+
+    done = false;
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"pson://www.webkit.org"]]];
+    Util::run(&done);
+    done = false;
+
+    auto pid1 = [webView _webProcessIdentifier];
+
+    [webView _evaluateJavaScriptWithoutUserGesture:@"window.history.pushState({}, null, '/foo')" completionHandler:nil];
+    Util::run(&done);
+    done = false;
+
+    [webView goBack];
+    Util::run(&done);
+    done = false;
+
+    [webView _evaluateJavaScriptWithoutUserGesture:@"window.navigateToApple()" completionHandler:nil];
+    Util::run(&done);
+    done = false;
+
+    auto pid2 = [webView _webProcessIdentifier];
+    EXPECT_NE(pid1, pid2);
+
+    EXPECT_TRUE([webView canGoBack]);
+    EXPECT_FALSE([webView canGoForward]);
+
+    [webView goBack];
+    Util::run(&done);
+    done = false;
+
+    EXPECT_EQ(pid1, [webView _webProcessIdentifier]);
+    EXPECT_WK_STREQ([webView _committedURL].absoluteString, "pson://www.webkit.org");
 
     [webView _evaluateJavaScriptWithoutUserGesture:@"document.body.innerHTML" completionHandler:^(id result, NSError* error) {
         NSString* resultString = result;

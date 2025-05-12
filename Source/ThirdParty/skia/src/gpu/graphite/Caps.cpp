@@ -37,7 +37,7 @@ void Caps::finishInitialization(const ContextOptions& options) {
         fShaderErrorHandler = DefaultShaderErrorHandler();
     }
 
-#if defined(GRAPHITE_TEST_UTILS)
+#if defined(GPU_TEST_UTILS)
     if (options.fOptionsPriv) {
         fMaxTextureSize = std::min(fMaxTextureSize, options.fOptionsPriv->fMaxTextureSizeOverride);
         fMaxTextureAtlasSize = options.fOptionsPriv->fMaxTextureAtlasSize;
@@ -50,9 +50,7 @@ void Caps::finishInitialization(const ContextOptions& options) {
     fMaxPathAtlasTextureSize = options.fMaxPathAtlasTextureSize;
     fAllowMultipleAtlasTextures = options.fAllowMultipleAtlasTextures;
     fSupportBilerpFromGlyphAtlas = options.fSupportBilerpFromGlyphAtlas;
-    if (options.fDisableCachedGlyphUploads) {
-        fRequireOrderedRecordings = true;
-    }
+    fRequireOrderedRecordings = options.fRequireOrderedRecordings;
     fSetBackendLabels = options.fSetBackendLabels;
 }
 
@@ -105,6 +103,8 @@ static inline SkColorType color_type_fallback(SkColorType ct) {
         case kA16_float_SkColorType:
             return kRGBA_F16_SkColorType;
         case kGray_8_SkColorType:
+        case kRGB_F16F16F16x_SkColorType:
+        case kRGB_101010x_SkColorType:
             return kRGB_888x_SkColorType;
         default:
             return kUnknown_SkColorType;

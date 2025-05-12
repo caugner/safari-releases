@@ -21,8 +21,6 @@
 
 #include "LocalDOMWindowProperty.h"
 #include "NavigatorBase.h"
-#include "PushManager.h"
-#include "PushSubscriptionOwner.h"
 #include "ScriptWrappable.h"
 #include "ShareData.h"
 #include "Supplementable.h"
@@ -35,6 +33,7 @@ class Blob;
 class DeferredPromise;
 class DOMMimeTypeArray;
 class DOMPluginArray;
+class Page;
 class ShareDataReader;
 
 class Navigator final
@@ -42,17 +41,10 @@ class Navigator final
     , public ScriptWrappable
     , public LocalDOMWindowProperty
     , public Supplementable<Navigator>
-#if ENABLE(DECLARATIVE_WEB_PUSH)
-    , public PushSubscriptionOwner
-#endif
 {
     WTF_MAKE_TZONE_OR_ISO_ALLOCATED(Navigator);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(Navigator);
 public:
-#if ENABLE(DECLARATIVE_WEB_PUSH)
-    DEFINE_VIRTUAL_REFCOUNTED;
-#endif
-
     static Ref<Navigator> create(ScriptExecutionContext* context, LocalDOMWindow& window) { return adoptRef(*new Navigator(context, window)); }
     virtual ~Navigator();
 
@@ -73,14 +65,14 @@ public:
     bool standalone() const;
 #endif
 
-#if ENABLE(IOS_TOUCH_EVENTS) && !PLATFORM(MACCATALYST)
-    int maxTouchPoints() const { return 5; }
-#else
-    int maxTouchPoints() const { return 0; }
-#endif
+    int maxTouchPoints() const;
 
     GPU* gpu();
 
+    Page* page();
+    RefPtr<Page> protectedPage();
+
+    const Document* document() const;
     Document* document();
     RefPtr<Document> protectedDocument();
 
@@ -89,10 +81,6 @@ public:
 
     void setClientBadge(std::optional<unsigned long long>, Ref<DeferredPromise>&&);
     void clearClientBadge(Ref<DeferredPromise>&&);
-
-#if ENABLE(DECLARATIVE_WEB_PUSH)
-    PushManager& pushManager();
-#endif
 
 private:
     void showShareData(ExceptionOr<ShareDataWithParsedURL&>, Ref<DeferredPromise>&&);
@@ -108,16 +96,5 @@ private:
     mutable String m_userAgent;
     mutable String m_platform;
     RefPtr<GPU> m_gpuForWebGPU;
-
-#if ENABLE(DECLARATIVE_WEB_PUSH)
-    bool isActive() const final { return true; }
-
-    void subscribeToPushService(const Vector<uint8_t>& applicationServerKey, DOMPromiseDeferred<IDLInterface<PushSubscription>>&&) final;
-    void unsubscribeFromPushService(PushSubscriptionIdentifier, DOMPromiseDeferred<IDLBoolean>&&) final;
-    void getPushSubscription(DOMPromiseDeferred<IDLNullable<IDLInterface<PushSubscription>>>&&) final;
-    void getPushPermissionState(DOMPromiseDeferred<IDLEnumeration<PushPermissionState>>&&) final;
-
-    PushManager m_pushManager;
-#endif
 };
 }

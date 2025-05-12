@@ -30,6 +30,7 @@
 #import "Test.h"
 #import "TestNavigationDelegate.h"
 #import "TestWKWebView.h"
+#import "UnifiedPDFTestHelpers.h"
 #import "WKWebViewConfigurationExtras.h"
 #import <WebKit/WKWebViewPrivate.h>
 #import <WebKit/_WKFindDelegate.h>
@@ -350,6 +351,11 @@ TEST(WebKit, FindTextInImageOverlay)
 
 #if HAVE(UIFINDINTERACTION)
 
+static BOOL swizzledIsEmbeddedScreen(id, SEL, UIScreen *)
+{
+    return NO;
+}
+
 // FIXME: (rdar://95125552) Remove conformance to _UITextSearching.
 @interface WKWebView () <UITextSearching>
 - (void)didBeginTextSearchOperation;
@@ -358,6 +364,8 @@ TEST(WebKit, FindTextInImageOverlay)
 
 @interface TestScrollViewDelegate : NSObject<UIScrollViewDelegate>  {
     @public bool _finishedScrolling;
+
+    std::unique_ptr<InstanceMethodSwizzler> _isEmbeddedScreenSwizzler;
 }
 @end
 
@@ -369,6 +377,16 @@ TEST(WebKit, FindTextInImageOverlay)
         return nil;
 
     _finishedScrolling = false;
+
+    // Force UIKit to use a `CADisplayLink` rather than its own update cycle for `UIAnimation`s.
+    // UIKit's own update cycle does not work in TestWebKitAPIApp, as it is started in
+    // UIApplicationMain(), and TestWebKitAPIApp is not a real UIApplication. Without this,
+    // scroll view animations would not be completed.
+    _isEmbeddedScreenSwizzler = WTF::makeUnique<InstanceMethodSwizzler>(
+        UIScreen.class,
+        @selector(_isEmbeddedScreen),
+        reinterpret_cast<IMP>(swizzledIsEmbeddedScreen)
+    );
 
     return self;
 }
@@ -872,6 +890,20 @@ TEST(WebKit, ScrollToFoundRangeAtTopWithObscuredContentInsets)
     EXPECT_TRUE(CGPointEqualToPoint([webView scrollView].contentOffset, initialContentOffset));
 }
 
+TEST(WebKit, ScrollToFoundRangeInNonScrollableIframe)
+{
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 300, 400)]);
+    [webView synchronouslyLoadHTMLString:@"<meta name='viewport' content='width=device-width,initial-scale=1'><iframe id='frame' scrolling='no' srcdoc='<style> p { margin-bottom: 800px; } </style><p>Top</p><p>Bottom</p>'></iframe>"];
+
+    EXPECT_WK_STREQ("0", [webView stringByEvaluatingJavaScript:@"document.getElementById('frame').contentWindow.scrollY"]);
+
+    RetainPtr ranges = textRangesForQueryString(webView.get(), @"Bottom");
+    [webView scrollRangeToVisible:[ranges firstObject] inDocument:nil];
+
+    TestWebKitAPI::Util::runFor(500_ms);
+    EXPECT_WK_STREQ("771", [webView stringByEvaluatingJavaScript:@"document.getElementById('frame').contentWindow.scrollY"]);
+}
+
 TEST(WebKit, CannotHaveMultipleFindOverlays)
 {
     auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 200, 200)]);
@@ -1045,6 +1077,73 @@ TEST(WebKit, FindInPDFAfterFindInPage)
     [findInteraction dismissFindNavigator];
     [webView waitForNextPresentationUpdate];
 }
+
+#if ENABLE(UNIFIED_PDF)
+
+TEST(WebKit, FindInUnifiedPDF)
+{
+    RetainPtr webView = adoptNS([[FindInPageTestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:TestWebKitAPI::configurationForWebViewTestingUnifiedPDF().get()]);
+
+    RetainPtr request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"test" withExtension:@"pdf"]];
+    [webView loadRequest:request.get()];
+    [webView _test_waitForDidFinishNavigation];
+
+    RetainPtr searchOptions = adoptNS([[UITextSearchOptions alloc] init]);
+    testPerformTextSearchWithQueryStringInWebView(webView.get(), @"555", searchOptions.get(), 2UL);
+
+    hasPerformedTextSearchWithQueryString = false;
+}
+
+TEST(WebKit, FindInUnifiedPDFAfterReload)
+{
+    RetainPtr webView = adoptNS([[FindInPageTestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:TestWebKitAPI::configurationForWebViewTestingUnifiedPDF().get()]);
+
+    auto searchForText = [&] {
+        RetainPtr request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"test" withExtension:@"pdf"]];
+        [webView loadRequest:request.get()];
+        [webView _test_waitForDidFinishNavigation];
+
+        RetainPtr findInteraction = [webView findInteraction];
+        [findInteraction presentFindNavigatorShowingReplace:NO];
+        [webView waitForNextPresentationUpdate];
+
+        RetainPtr searchOptions = adoptNS([[UITextSearchOptions alloc] init]);
+        testPerformTextSearchWithQueryStringInWebView(webView.get(), @"555", searchOptions.get(), 2UL);
+
+        [findInteraction dismissFindNavigator];
+        [webView waitForNextPresentationUpdate];
+
+        hasPerformedTextSearchWithQueryString = false;
+    };
+
+    searchForText();
+    searchForText();
+}
+
+TEST(WebKit, FindInUnifiedPDFAfterFindInPage)
+{
+    RetainPtr webView = adoptNS([[FindInPageTestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 200, 200) configuration:TestWebKitAPI::configurationForWebViewTestingUnifiedPDF().get()]);
+    [webView synchronouslyLoadTestPageNamed:@"lots-of-text"];
+
+    RetainPtr findInteraction = [webView findInteraction];
+    [findInteraction presentFindNavigatorShowingReplace:NO];
+    [webView waitForNextPresentationUpdate];
+
+    [findInteraction dismissFindNavigator];
+    [webView waitForNextPresentationUpdate];
+
+    RetainPtr request = [NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"test" withExtension:@"pdf"]];
+    [webView loadRequest:request.get()];
+    [webView _test_waitForDidFinishNavigation];
+
+    [findInteraction presentFindNavigatorShowingReplace:NO];
+    [webView waitForNextPresentationUpdate];
+
+    [findInteraction dismissFindNavigator];
+    [webView waitForNextPresentationUpdate];
+}
+
+#endif
 
 TEST(WebKit, FindInteractionSupportsTextReplacement)
 {

@@ -32,7 +32,6 @@
 
 #include "CSSParserImpl.h"
 #include "CSSPropertyParserConsumer+Font.h"
-#include "CSSPropertyParserHelpers.h"
 #include "CSSSelectorParser.h"
 #include "CSSTokenizer.h"
 #include "FontCustomPlatformData.h"
@@ -40,12 +39,12 @@
 
 namespace WebCore {
 
-CSSSupportsParser::SupportsResult CSSSupportsParser::supportsCondition(CSSParserTokenRange range, CSSParserImpl& parser, ParsingMode mode, CSSParserEnum::IsNestedContext isNestedContext)
+CSSSupportsParser::SupportsResult CSSSupportsParser::supportsCondition(CSSParserTokenRange range, CSSParserImpl& parser, ParsingMode mode)
 {
     // FIXME: The spec allows leading whitespace in @supports but not CSS.supports,
     // but major browser vendors allow it in CSS.supports also.
     range.consumeWhitespace();
-    CSSSupportsParser supportsParser(parser, isNestedContext);
+    CSSSupportsParser supportsParser(parser);
 
     auto result = supportsParser.consumeCondition(range);
     if (mode != ParsingMode::AllowBareDeclarationAndGeneralEnclosed || result != Invalid)

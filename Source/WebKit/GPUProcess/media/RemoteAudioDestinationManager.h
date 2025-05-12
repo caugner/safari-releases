@@ -42,14 +42,12 @@
 #include "SharedCARingBuffer.h"
 #endif
 
-
 namespace WebCore {
 #if PLATFORM(COCOA)
 class CAAudioStreamDescription;
 #endif
 class SharedMemoryHandle;
 }
-
 
 namespace WebKit {
 
@@ -64,17 +62,20 @@ public:
     RemoteAudioDestinationManager(GPUConnectionToWebProcess&);
     ~RemoteAudioDestinationManager();
 
+    void ref() const final;
+    void deref() const final;
+
     void didReceiveMessageFromWebProcess(IPC::Connection& connection, IPC::Decoder& decoder) { didReceiveMessage(connection, decoder); }
 
     bool allowsExitUnderMemoryPressure() const;
-    const SharedPreferencesForWebProcess& sharedPreferencesForWebProcess() const;
+    std::optional<SharedPreferencesForWebProcess> sharedPreferencesForWebProcess() const;
 
 private:
     void didReceiveMessage(IPC::Connection&, IPC::Decoder&);
 
-    void createAudioDestination(RemoteAudioDestinationIdentifier, const String& inputDeviceId, uint32_t numberOfInputChannels, uint32_t numberOfOutputChannels, float sampleRate, float hardwareSampleRate, IPC::Semaphore&& renderSemaphore, WebCore::SharedMemoryHandle&&);
+    void createAudioDestination(RemoteAudioDestinationIdentifier, const String& inputDeviceId, uint32_t numberOfInputChannels, uint32_t numberOfOutputChannels, float sampleRate, float hardwareSampleRate, IPC::Semaphore&& renderSemaphore, WebCore::SharedMemoryHandle&&, CompletionHandler<void(size_t)>&&);
     void deleteAudioDestination(RemoteAudioDestinationIdentifier);
-    void startAudioDestination(RemoteAudioDestinationIdentifier, CompletionHandler<void(bool)>&&);
+    void startAudioDestination(RemoteAudioDestinationIdentifier, CompletionHandler<void(bool, size_t)>&&);
     void stopAudioDestination(RemoteAudioDestinationIdentifier, CompletionHandler<void(bool)>&&);
 #if PLATFORM(COCOA)
     void audioSamplesStorageChanged(RemoteAudioDestinationIdentifier, ConsumerSharedCARingBuffer::Handle&&);

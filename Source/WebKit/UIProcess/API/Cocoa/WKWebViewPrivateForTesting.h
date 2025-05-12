@@ -80,7 +80,6 @@ struct WKAppPrivacyReportTestingData {
 - (BOOL)_beginBackSwipeForTesting;
 - (BOOL)_completeBackSwipeForTesting;
 - (void)_resetNavigationGestureStateForTesting;
-- (void)_setDefersLoadingForTesting:(BOOL)defersLoading;
 
 - (void)_setShareSheetCompletesImmediatelyWithResolutionForTesting:(BOOL)resolved;
 
@@ -144,6 +143,13 @@ struct WKAppPrivacyReportTestingData {
 
 - (void)_setSystemPreviewCompletionHandlerForLoadTesting:(void(^)(bool))completionHandler;
 
+@property (nonatomic, readonly) BOOL _isLoggerEnabledForTesting;
+
+- (void)_terminateIdleServiceWorkersForTesting;
+
+- (void)_getNotifyStateForTesting:(NSString *)notificationName completionHandler:(void(^)(NSNumber * _Nullable))completionHandler WK_API_AVAILABLE(macos(WK_MAC_TBA), ios(WK_IOS_TBA), visionos(WK_XROS_TBA));
+
+@property (nonatomic, readonly) BOOL _hasAccessibilityActivityForTesting;
 @end
 
 typedef NS_ENUM(NSInteger, _WKMediaSessionReadyState) {

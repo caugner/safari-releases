@@ -175,8 +175,8 @@ void initializeWebViewConfiguration(const char* libraryPath, WKStringRef injecte
         [configuration _setAllowTopNavigationToDataURLs:YES];
         [configuration _setApplePayEnabled:YES];
 
-#if ENABLE(OVERLAY_REGIONS_IN_EVENT_REGION)
-        [configuration _setOverlayRegionsEnabled:YES];
+#if HAVE(CORE_ANIMATION_SEPARATED_LAYERS)
+        [configuration _setCSSTransformStyleSeparatedEnabled:YES];
 #endif
 
         globalWebsiteDataStoreDelegateClient() = adoptNS([[TestWebsiteDataStoreDelegate alloc] init]);
@@ -286,6 +286,26 @@ void TestController::platformInitializeDataStore(WKPageConfigurationRef, const T
         [store set_delegate:globalWebsiteDataStoreDelegateClient().get()];
     } else
         m_websiteDataStore = (__bridge WKWebsiteDataStoreRef)[globalWebViewConfiguration() websiteDataStore];
+}
+
+static bool currentGPUProcessConfigurationCompatibleWithOptions(const TestOptions& options)
+{
+    if ([WKProcessPool _isMetalDebugDeviceEnabledInGPUProcessForTesting] != options.enableMetalDebugDevice())
+        return false;
+
+    if ([WKProcessPool _isMetalShaderValidationEnabledInGPUProcessForTesting] != options.enableMetalShaderValidation())
+        return false;
+
+    return true;
+}
+
+void TestController::platformEnsureGPUProcessConfiguredForOptions(const TestOptions& options)
+{
+    [WKProcessPool _setEnableMetalDebugDeviceInNewGPUProcessesForTesting:options.enableMetalDebugDevice()];
+    [WKProcessPool _setEnableMetalShaderValidationInNewGPUProcessesForTesting:options.enableMetalShaderValidation()];
+
+    if (!currentGPUProcessConfigurationCompatibleWithOptions(options))
+        terminateGPUProcess();
 }
 
 void TestController::platformCreateWebView(WKPageConfigurationRef, const TestOptions& options)
@@ -604,22 +624,37 @@ void TestController::cleanUpKeychain(const String& attrLabel, const String& appl
     [deleteQuery setObject:(id)kSecClassKey forKey:(id)kSecClass];
     [deleteQuery setObject:attrLabel forKey:(id)kSecAttrLabel];
     [deleteQuery setObject:@YES forKey:(id)kSecUseDataProtectionKeychain];
-    if (!!applicationLabelBase64)
-        [deleteQuery setObject:adoptNS([[NSData alloc] initWithBase64EncodedString:applicationLabelBase64 options:NSDataBase64DecodingIgnoreUnknownCharacters]).get() forKey:(id)kSecAttrApplicationLabel];
 
-    SecItemDelete((__bridge CFDictionaryRef)deleteQuery.get());
+    auto credentialID = adoptNS([[NSData alloc] initWithBase64EncodedString:applicationLabelBase64 options:NSDataBase64DecodingIgnoreUnknownCharacters]);
+    if (!!applicationLabelBase64)
+        [deleteQuery setObject:credentialID.get() forKey:(id)kSecAttrAlias];
+
+    OSStatus status = SecItemDelete((__bridge CFDictionaryRef)deleteQuery.get());
+    if (status == errSecItemNotFound) {
+        [deleteQuery removeObjectForKey:(id)kSecAttrAlias];
+        [deleteQuery setObject:credentialID.get() forKey:(id)kSecAttrApplicationLabel];
+        SecItemDelete((__bridge CFDictionaryRef)deleteQuery.get());
+    }
 }
 
 bool TestController::keyExistsInKeychain(const String& attrLabel, const String& applicationLabelBase64)
 {
-    NSDictionary *query = @{
+    auto credentialID = adoptNS([[NSData alloc] initWithBase64EncodedString:applicationLabelBase64 options:NSDataBase64DecodingIgnoreUnknownCharacters]);
+    auto query = adoptNS([[NSMutableDictionary alloc] init]);
+    [query setDictionary:@{
         (id)kSecClass: (id)kSecClassKey,
         (id)kSecAttrKeyClass: (id)kSecAttrKeyClassPrivate,
         (id)kSecAttrLabel: attrLabel,
-        (id)kSecAttrApplicationLabel: adoptNS([[NSData alloc] initWithBase64EncodedString:applicationLabelBase64 options:NSDataBase64DecodingIgnoreUnknownCharacters]).get(),
+        (id)kSecAttrAlias: credentialID.get(),
         (id)kSecUseDataProtectionKeychain: @YES
-    };
-    OSStatus status = SecItemCopyMatching((__bridge CFDictionaryRef)query, NULL);
+    }];
+    OSStatus status = SecItemCopyMatching((__bridge CFDictionaryRef)query.get(), NULL);
+    if (status == errSecItemNotFound) {
+        [query removeObjectForKey:(id)kSecAttrAlias];
+        [query setObject:credentialID.get() forKey:(id)kSecAttrApplicationLabel];
+        status = SecItemCopyMatching((__bridge CFDictionaryRef)query.get(), NULL);
+    }
+
     if (!status)
         return true;
     ASSERT(status == errSecItemNotFound);
@@ -793,6 +828,13 @@ WKRetainPtr<WKStringRef> TestController::backgroundFetchState(WKStringRef identi
     }];
     platformRunUntil(isDone, noTimeout);
     return toWK(backgroundFetchState);
+}
+
+void TestController::updatePresentation(CompletionHandler<void(WKTypeRef)>&& completionHandler)
+{
+    [m_mainWebView->platformView() _doAfterNextPresentationUpdate:makeBlockPtr([completionHandler = WTFMove(completionHandler)] mutable {
+        completionHandler(nullptr);
+    }).get()];
 }
 
 } // namespace WTR

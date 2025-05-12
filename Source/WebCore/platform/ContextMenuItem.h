@@ -164,8 +164,8 @@ enum ContextMenuAction {
     ContextMenuItemPDFTwoPages,
     ContextMenuItemPDFTwoPagesContinuous,
     ContextMenuItemTagShowMediaStats,
-    ContextMenuItemTagCopyLinkToHighlight,
-    ContextMenuItemLastNonCustomTag = ContextMenuItemTagCopyLinkToHighlight,
+    ContextMenuItemTagCopyLinkWithHighlight,
+    ContextMenuItemLastNonCustomTag = ContextMenuItemTagCopyLinkWithHighlight,
     ContextMenuItemBaseCustomTag = 5000,
     ContextMenuItemLastCustomTag = 5999,
     ContextMenuItemBaseApplicationTag = 10000
@@ -226,6 +226,6 @@ private:
 
 namespace WTF {
 
-template<> WEBCORE_EXPORT bool isValidEnum<WebCore::ContextMenuAction, void>(std::underlying_type_t<WebCore::ContextMenuAction>);
+template<> WEBCORE_EXPORT bool isValidEnum<WebCore::ContextMenuAction>(std::underlying_type_t<WebCore::ContextMenuAction>);
 
 } // namespace WTF

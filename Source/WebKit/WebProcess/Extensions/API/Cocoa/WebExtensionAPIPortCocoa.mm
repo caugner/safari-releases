@@ -91,7 +91,7 @@ void WebExtensionAPIPort::remove()
     if (entry == webExtensionPorts().end())
         return;
 
-    WebProcess::singleton().send(Messages::WebExtensionContext::PortRemoved(contentWorldType(), targetContentWorldType(), owningPageProxyIdentifier(), channelIdentifier()), extensionContext().identifier());
+    WebProcess::singleton().send(Messages::WebExtensionContext::PortRemoved(contentWorldType(), targetContentWorldType(), *owningPageProxyIdentifier(), channelIdentifier()), extensionContext().identifier());
 
     entry->value.remove(*this);
 
@@ -126,12 +126,12 @@ void WebExtensionAPIPort::postMessage(WebFrame& frame, NSString *message, NSStri
     // Documentation: https://developer.mozilla.org/docs/Mozilla/Add-ons/WebExtensions/API/runtime/Port#postmessage
 
     if (isDisconnected()) {
-        *outExceptionString = toErrorString(nil, nil, @"the port is disconnected");
+        *outExceptionString = toErrorString(nullString(), nullString(), @"the port is disconnected");
         return;
     }
 
     if (message.length > webExtensionMaxMessageLength) {
-        *outExceptionString = toErrorString(nil, @"message", @"it exceeded the maximum allowed length");
+        *outExceptionString = toErrorString(nullString(), @"message", @"it exceeded the maximum allowed length");
         return;
     }
 

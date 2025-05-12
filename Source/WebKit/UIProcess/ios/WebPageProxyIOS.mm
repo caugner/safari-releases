@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2023 Apple Inc. All rights reserved.
+ * Copyright (C) 2012-2024 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -57,9 +57,9 @@
 #import "VideoPresentationManagerProxy.h"
 #import "ViewUpdateDispatcherMessages.h"
 #import "WKBrowsingContextControllerInternal.h"
+#import "WebAuthenticatorCoordinatorProxy.h"
 #import "WebAutocorrectionContext.h"
 #import "WebAutocorrectionData.h"
-#import "WebCoreArgumentCoders.h"
 #import "WebPage.h"
 #import "WebPageMessages.h"
 #import "WebPageProxyInternals.h"
@@ -72,13 +72,13 @@
 #import <WebCore/NotImplemented.h>
 #import <WebCore/PlatformScreen.h>
 #import <WebCore/Quirks.h>
-#import <WebCore/RuntimeApplicationChecks.h>
 #import <WebCore/ShareableResource.h>
 #import <WebCore/SharedBuffer.h>
 #import <WebCore/UserAgent.h>
 #import <WebCore/ValidationBubble.h>
 #import <pal/spi/ios/MobileGestaltSPI.h>
 #import <pal/system/ios/UserInterfaceIdiom.h>
+#import <wtf/RuntimeApplicationChecks.h>
 #import <wtf/cocoa/RuntimeApplicationChecksCocoa.h>
 #import <wtf/cocoa/SpanCocoa.h>
 #import <wtf/text/TextStream.h>
@@ -268,13 +268,13 @@ void WebPageProxy::scrollingNodeScrollViewWillStartPanGesture(ScrollingNodeID no
 void WebPageProxy::scrollingNodeScrollWillStartScroll(std::optional<ScrollingNodeID> nodeID)
 {
     if (RefPtr pageClient = this->pageClient())
-        pageClient->scrollingNodeScrollWillStartScroll(nodeID.value_or(ScrollingNodeID { }));
+        pageClient->scrollingNodeScrollWillStartScroll(nodeID);
 }
 
 void WebPageProxy::scrollingNodeScrollDidEndScroll(std::optional<ScrollingNodeID> nodeID)
 {
     if (RefPtr pageClient = this->pageClient())
-        pageClient->scrollingNodeScrollDidEndScroll(nodeID.value_or(ScrollingNodeID { }));
+        pageClient->scrollingNodeScrollDidEndScroll(nodeID);
 }
 
 void WebPageProxy::dynamicViewportSizeUpdate(const DynamicViewportSizeUpdate& target)
@@ -478,9 +478,9 @@ void WebPageProxy::updateSelectionWithExtentPoint(const WebCore::IntPoint point,
     legacyMainFrameProcess().sendWithAsyncReply(Messages::WebPage::UpdateSelectionWithExtentPoint(point, isInteractingWithFocusedElement, respectSelectionAnchor), WTFMove(callback), webPageIDInMainFrameProcess());
 }
 
-void WebPageProxy::updateSelectionWithExtentPointAndBoundary(const WebCore::IntPoint point, WebCore::TextGranularity granularity, bool isInteractingWithFocusedElement, CompletionHandler<void(bool)>&& callback)
+void WebPageProxy::updateSelectionWithExtentPointAndBoundary(const WebCore::IntPoint point, WebCore::TextGranularity granularity, bool isInteractingWithFocusedElement, TextInteractionSource source, CompletionHandler<void(bool)>&& callback)
 {
-    legacyMainFrameProcess().sendWithAsyncReply(Messages::WebPage::UpdateSelectionWithExtentPointAndBoundary(point, granularity, isInteractingWithFocusedElement), WTFMove(callback), webPageIDInMainFrameProcess());
+    legacyMainFrameProcess().sendWithAsyncReply(Messages::WebPage::UpdateSelectionWithExtentPointAndBoundary(point, granularity, isInteractingWithFocusedElement, source), WTFMove(callback), webPageIDInMainFrameProcess());
 }
 
 #if ENABLE(REVEAL)
@@ -517,6 +517,12 @@ void WebPageProxy::handleAutocorrectionContext(const WebAutocorrectionContext& c
 {
     if (RefPtr pageClient = this->pageClient())
         pageClient->handleAutocorrectionContext(context);
+}
+
+void WebPageProxy::clearSelectionAfterTappingSelectionHighlightIfNeeded(WebCore::FloatPoint location)
+{
+    if (hasRunningProcess())
+        legacyMainFrameProcess().send(Messages::WebPage::ClearSelectionAfterTappingSelectionHighlightIfNeeded(location), webPageIDInMainFrameProcess());
 }
 
 void WebPageProxy::getSelectionContext(CompletionHandler<void(const String&, const String&, const String&)>&& callbackFunction)
@@ -732,9 +738,9 @@ void WebPageProxy::moveSelectionByOffset(int32_t offset, CompletionHandler<void(
     }, webPageIDInMainFrameProcess());
 }
 
-void WebPageProxy::interpretKeyEvent(const EditorState& state, bool isCharEvent, CompletionHandler<void(bool)>&& completionHandler)
+void WebPageProxy::interpretKeyEvent(EditorState&& state, bool isCharEvent, CompletionHandler<void(bool)>&& completionHandler)
 {
-    updateEditorState(state);
+    updateEditorState(WTFMove(state));
     if (!hasQueuedKeyEvent())
         return completionHandler(false);
     RefPtr pageClient = this->pageClient();
@@ -750,7 +756,7 @@ void WebPageProxy::registerWebProcessAccessibilityToken(std::span<const uint8_t>
 {
     // Note: The WebFrameProxy with this FrameIdentifier might not exist in the UI process. See rdar://130998804.
     if (RefPtr pageClient = this->pageClient())
-        pageClient->accessibilityWebProcessTokenReceived(data, legacyMainFrameProcess().connection().remoteProcessID());
+        pageClient->accessibilityWebProcessTokenReceived(data, protectedLegacyMainFrameProcess()->protectedConnection()->remoteProcessID());
 }
 
 void WebPageProxy::relayAccessibilityNotification(const String& notificationName, std::span<const uint8_t> data)
@@ -933,6 +939,12 @@ void WebPageProxy::updateInputContextAfterBlurringAndRefocusingElement()
         pageClient->updateInputContextAfterBlurringAndRefocusingElement();
 }
 
+void WebPageProxy::didProgrammaticallyClearFocusedElement(WebCore::ElementContext&& context)
+{
+    if (RefPtr client = pageClient())
+        client->didProgrammaticallyClearFocusedElement(WTFMove(context));
+}
+
 void WebPageProxy::elementDidFocus(const FocusedElementInformation& information, bool userIsInteracting, bool blurPreviousNode, OptionSet<WebCore::ActivityState> activityStateChanges, const UserData& userData)
 {
     m_pendingInputModeChange = std::nullopt;
@@ -973,6 +985,8 @@ void WebPageProxy::focusedElementDidChangeInputMode(WebCore::InputMode mode)
 
 void WebPageProxy::didReleaseAllTouchPoints()
 {
+    legacyMainFrameProcess().send(Messages::WebPage::DidReleaseAllTouchPoints(), webPageIDInMainFrameProcess());
+
     if (!m_pendingInputModeChange)
         return;
 
@@ -983,6 +997,9 @@ void WebPageProxy::didReleaseAllTouchPoints()
 
 void WebPageProxy::autofillLoginCredentials(const String& username, const String& password)
 {
+#if HAVE(WEB_AUTHN_AS_MODERN)
+    m_webAuthnCredentialsMessenger->recordAutofill(username, URL { currentURL() });
+#endif
     m_legacyMainFrameProcess->send(Messages::WebPage::AutofillLoginCredentials(username, password), webPageIDInMainFrameProcess());
 }
 
@@ -1353,9 +1370,9 @@ void WebPageProxy::requestPasswordForQuickLookDocumentInMainFrameShared(const St
 
 #if ENABLE(APPLE_PAY)
 
-std::unique_ptr<PaymentAuthorizationPresenter> WebPageProxy::Internals::paymentCoordinatorAuthorizationPresenter(WebPaymentCoordinatorProxy& paymentCoordinatorProxy, PKPaymentRequest *paymentRequest)
+Ref<PaymentAuthorizationPresenter> WebPageProxy::Internals::paymentCoordinatorAuthorizationPresenter(WebPaymentCoordinatorProxy& paymentCoordinatorProxy, PKPaymentRequest *paymentRequest)
 {
-    return makeUnique<PaymentAuthorizationController>(paymentCoordinatorProxy, paymentRequest);
+    return PaymentAuthorizationController::create(paymentCoordinatorProxy, paymentRequest);
 }
 
 UIViewController *WebPageProxy::Internals::paymentCoordinatorPresentingViewController(const WebPaymentCoordinatorProxy&)
@@ -1422,7 +1439,7 @@ static RecommendDesktopClassBrowsingForRequest desktopClassBrowsingRecommendedFo
 
 bool WebPageProxy::isDesktopClassBrowsingRecommended(const WebCore::ResourceRequest& request) const
 {
-    auto desktopClassBrowsingRecommendation = desktopClassBrowsingRecommendedForRequest(request);
+    auto desktopClassBrowsingRecommendation = m_preferences->needsSiteSpecificQuirks() ? desktopClassBrowsingRecommendedForRequest(request) : RecommendDesktopClassBrowsingForRequest::Auto;
     if (desktopClassBrowsingRecommendation == RecommendDesktopClassBrowsingForRequest::Yes)
         return true;
 
@@ -1532,6 +1549,13 @@ WebContentMode WebPageProxy::effectiveContentModeAfterAdjustingPolicies(API::Web
         policies.setLegacyOverflowScrollingTouchPolicy(WebsiteLegacyOverflowScrollingTouchPolicy::Disable);
         m_preferFasterClickOverDoubleTap = true;
     }
+
+#if ENABLE(TOUCH_EVENTS)
+    if (m_preferences->needsSiteSpecificQuirks() && Quirks::shouldOmitTouchEventDOMAttributesForDesktopWebsite(request.url()))
+        policies.setOverrideTouchEventDOMAttributesEnabled(false);
+#endif
+
+    policies.setInlineMediaPlaybackPolicy(WebsiteInlineMediaPlaybackPolicy::DoesNotRequirePlaysInlineAttribute);
 
     return WebContentMode::Desktop;
 }
@@ -1720,6 +1744,29 @@ void WebPageProxy::setPromisedDataForImage(IPC::Connection&, const String&, Shar
     notImplemented();
 }
 
+#endif
+
+#if ENABLE(PDF_PLUGIN)
+void WebPageProxy::pluginDidInstallPDFDocument(double initialScale)
+{
+    protectedPageClient()->pluginDidInstallPDFDocument(initialScale);
+}
+#endif
+
+#if PLATFORM(IOS_FAMILY)
+
+void WebPageProxy::isPotentialTapInProgress(CompletionHandler<void(bool)>&& completion)
+{
+    completion(protectedPageClient()->isPotentialTapInProgress());
+}
+
+#endif // PLATFORM(IOS_FAMILY)
+
+#if PLATFORM(IOS_FAMILY) && ENABLE(MODEL_PROCESS)
+RefPtr<ModelPresentationManagerProxy> WebPageProxy::modelPresentationManagerProxy() const
+{
+    return internals().modelPresentationManagerProxy;
+}
 #endif
 
 } // namespace WebKit

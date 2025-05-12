@@ -29,10 +29,12 @@
 
 #include "RenderingUpdateID.h"
 #include <WebCore/RenderingResource.h>
+#include <wtf/CheckedRef.h>
 #include <wtf/HashMap.h>
 
 namespace WebCore {
 class DecomposedGlyphs;
+class DestinationColorSpace;
 class Filter;
 class Font;
 class Gradient;
@@ -57,7 +59,7 @@ public:
 
     WebCore::NativeImage* cachedNativeImage(WebCore::RenderingResourceIdentifier) const;
 
-    void recordNativeImageUse(WebCore::NativeImage&);
+    void recordNativeImageUse(WebCore::NativeImage&, const WebCore::DestinationColorSpace&);
     void recordFontUse(WebCore::Font&);
     void recordImageBufferUse(WebCore::ImageBuffer&);
     void recordDecomposedGlyphsUse(WebCore::DecomposedGlyphs&);
@@ -98,7 +100,7 @@ private:
     unsigned m_numberOfFontsUsedInCurrentRenderingUpdate { 0 };
     unsigned m_numberOfFontCustomPlatformDatasUsedInCurrentRenderingUpdate { 0 };
 
-    RemoteRenderingBackendProxy& m_remoteRenderingBackendProxy;
+    CheckedRef<RemoteRenderingBackendProxy> m_remoteRenderingBackendProxy;
     uint64_t m_renderingUpdateID;
 };
 

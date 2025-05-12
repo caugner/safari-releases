@@ -15,6 +15,7 @@
 #include "util/EGLWindow.h"
 #include "util/OSWindow.h"
 #include "util/shader_utils.h"
+#include "util/test_utils.h"
 
 #if defined(ANGLE_PLATFORM_ANDROID)
 #    include "util/android/AndroidWindow.h"
@@ -237,13 +238,8 @@ class CaptureReplayTests
 
         if (!mEGLWindow)
         {
-            // TODO: to support desktop OpenGL traces, capture the client api and profile mask in
-            // TraceInfo
-            const EGLenum testClientAPI  = EGL_OPENGL_ES_API;
-            const EGLint testProfileMask = 0;
-
-            mEGLWindow = EGLWindow::New(testClientAPI, traceInfo.contextClientMajorVersion,
-                                        traceInfo.contextClientMinorVersion, testProfileMask);
+            mEGLWindow = EGLWindow::New(traceInfo.contextClientMajorVersion,
+                                        traceInfo.contextClientMinorVersion);
         }
 
         ConfigParameters configParams;
@@ -449,6 +445,9 @@ int main(int argc, char **argv)
         printf("Usage: capture_replay_tests {trace_label}\n");
         return -1;
     }
+    angle::CrashCallback crashCallback = []() {};
+    angle::InitCrashHandler(&crashCallback);
+
     CaptureReplayTests app;
     return app.run(argv[1]);
 }

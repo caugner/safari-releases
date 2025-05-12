@@ -35,8 +35,8 @@
 #import "WebProcessPool.h"
 #import "WebProcessProxy.h"
 #import "XPCEndpoint.h"
-#import <WebCore/RuntimeApplicationChecks.h>
 #import <wtf/EnumTraits.h>
+#import <wtf/RuntimeApplicationChecks.h>
 
 #if PLATFORM(IOS_FAMILY)
 #import <UIKit/UIKit.h>
@@ -62,11 +62,11 @@ bool NetworkProcessProxy::XPCEventHandler::handleXPCEvent(xpc_object_t event) co
     if (!event || xpc_get_type(event) == XPC_TYPE_ERROR)
         return false;
 
-    auto* messageName = xpc_dictionary_get_string(event, XPCEndpoint::xpcMessageNameKey);
-    if (!messageName || !*messageName)
+    auto messageName = xpc_dictionary_get_wtfstring(event, XPCEndpoint::xpcMessageNameKey);
+    if (messageName.isEmpty())
         return false;
 
-    if (LaunchServicesDatabaseXPCConstants::xpcLaunchServicesDatabaseXPCEndpointMessageName == messageName) {
+    if (messageName == LaunchServicesDatabaseXPCConstants::xpcLaunchServicesDatabaseXPCEndpointMessageName) {
         networkProcess->m_endpointMessage = event;
         for (auto& processPool : WebProcessPool::allProcessPools()) {
             for (Ref process : processPool->processes())
@@ -134,7 +134,7 @@ void NetworkProcessProxy::setBackupExclusionPeriodForTesting(PAL::SessionID sess
 void NetworkProcessProxy::getWindowSceneAndBundleIdentifierForPaymentPresentation(WebPageProxyIdentifier webPageProxyIdentifier, CompletionHandler<void(const String&, const String&)>&& completionHandler)
 {
     auto sceneIdentifier = nullString();
-    auto bundleIdentifier = WebCore::applicationBundleIdentifier();
+    auto bundleIdentifier = applicationBundleIdentifier();
     auto page = WebProcessProxy::webPage(webPageProxyIdentifier);
     if (!page || !page->pageClient()) {
         completionHandler(sceneIdentifier, bundleIdentifier);

@@ -27,10 +27,10 @@
 
 #include <WebCore/ProcessIdentifier.h>
 #include <pal/SessionID.h>
-#include <wtf/CheckedRef.h>
 #include <wtf/Forward.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/WeakListHashSet.h>
+#include <wtf/WeakPtr.h>
 
 namespace WebKit {
 
@@ -41,12 +41,14 @@ class WebPageProxy;
 class WebProcessPool;
 class WebProcessProxy;
 
-class WebBackForwardCache final : public CanMakeCheckedPtr<WebBackForwardCache> {
+class WebBackForwardCache final : public CanMakeWeakPtr<WebBackForwardCache> {
     WTF_MAKE_TZONE_ALLOCATED(WebBackForwardCache);
-    WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(WebBackForwardCache);
 public:
-    explicit WebBackForwardCache();
+    explicit WebBackForwardCache(WebProcessPool&);
     ~WebBackForwardCache();
+
+    void ref() const;
+    void deref() const;
 
     void setCapacity(WebProcessPool&, unsigned);
     unsigned capacity() const { return m_capacity; }
@@ -59,19 +61,20 @@ public:
     void removeEntriesForPageAndProcess(WebPageProxy&, WebProcessProxy&);
     void removeEntriesForSession(PAL::SessionID);
 
-    void addEntry(WebBackForwardListItem&, std::unique_ptr<SuspendedPageProxy>&&);
+    void addEntry(WebBackForwardListItem&, Ref<SuspendedPageProxy>&&);
     void addEntry(WebBackForwardListItem&, WebCore::ProcessIdentifier);
     void removeEntry(WebBackForwardListItem&);
     void removeEntry(SuspendedPageProxy&);
-    std::unique_ptr<SuspendedPageProxy> takeSuspendedPage(WebBackForwardListItem&);
+    Ref<SuspendedPageProxy> takeSuspendedPage(WebBackForwardListItem&);
 
 private:
     Ref<WebProcessPool> protectedProcessPool() const;
 
     void removeOldestEntry();
     void removeEntriesMatching(const Function<bool(WebBackForwardListItem&)>&);
-    void addEntry(WebBackForwardListItem&, std::unique_ptr<WebBackForwardCacheEntry>&&);
+    void addEntry(WebBackForwardListItem&, Ref<WebBackForwardCacheEntry>&&);
 
+    WeakRef<WebProcessPool> m_processPool;
     unsigned m_capacity { 0 };
     WeakListHashSet<WebBackForwardListItem> m_itemsWithCachedPage;
 };

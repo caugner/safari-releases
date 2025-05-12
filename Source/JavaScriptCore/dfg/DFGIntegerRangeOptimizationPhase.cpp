@@ -1006,7 +1006,7 @@ private:
     int m_offset; // This offset can be arbitrarily large.
 };
 
-typedef HashMap<NodeFlowProjection, Vector<Relationship>> RelationshipMap;
+typedef UncheckedKeyHashMap<NodeFlowProjection, Vector<Relationship>> RelationshipMap;
 
 class IntegerRangeOptimizationPhase : public Phase {
 public:
@@ -1525,7 +1525,8 @@ private:
             }
             break;
         }
-            
+
+        case DataViewGetByteLength:
         case GetArrayLength:
         case GetVectorLength:
         case GetUndetachedTypeArrayLength: {

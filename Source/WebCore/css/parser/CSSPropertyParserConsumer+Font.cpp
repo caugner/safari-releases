@@ -59,14 +59,15 @@
 #include "CSSPropertyParserConsumer+Percentage.h"
 #include "CSSPropertyParserConsumer+PercentageDefinitions.h"
 #include "CSSPropertyParserConsumer+URL.h"
+#include "CSSPropertyParserOptions.h"
 #include "CSSPropertyParsing.h"
 #include "CSSUnicodeRangeValue.h"
 #include "CSSValuePair.h"
 #include "Document.h"
 #include "FontCustomPlatformData.h"
 #include "FontFace.h"
-#include "ParsingUtilities.h"
 #include "WebKitFontFamilyNames.h"
+#include <wtf/text/ParsingUtilities.h>
 
 #if ENABLE(VARIATION_FONTS)
 #include "CSSFontStyleRangeValue.h"
@@ -81,17 +82,10 @@ template<typename Result, typename... Ts> static Result forwardVariantTo(std::va
     return WTF::switchOn(WTFMove(variant), [](auto&& alternative) -> Result { return { WTFMove(alternative) }; });
 }
 
-template<typename... Ts> static Ref<CSSPrimitiveValue> resolveVariantToCSSPrimitiveValue(std::variant<Ts...>&& variant)
+static Ref<CSSPrimitiveValue> resolveToCSSPrimitiveValue(CSS::Numeric auto&& primitive)
 {
-    return WTF::switchOn(WTFMove(variant), [](auto&& alternative) { return CSSPrimitiveValueResolverBase::resolve(WTFMove(alternative), { }, { }); }).releaseNonNull();
+    return WTF::switchOn(WTFMove(primitive), [](auto&& alternative) { return CSSPrimitiveValueResolverBase::resolve(WTFMove(alternative), { }); }).releaseNonNull();
 }
-
-#if ENABLE(VARIATION_FONTS)
-static bool isFontStyleAngleInRange(double angleInDegrees)
-{
-    return angleInDegrees >= -90 && angleInDegrees <= 90;
-}
-#endif
 
 static CSSParserMode parserMode(ScriptExecutionContext& context)
 {
@@ -122,40 +116,41 @@ static bool isIntegerAndDivisibleBy100(double value)
     ASSERT(value <= 1000);
     return static_cast<int>(value / 100) * 100 == value;
 }
-#endif
 
-static std::optional<NumberRaw> validateFontWeightNumber(NumberRaw number)
+static std::optional<UnresolvedFontWeightNumber::Raw> validateFontWeightNumber(UnresolvedFontWeightNumber::Raw number)
 {
-    if (!(number.value >= 1 && number.value <= 1000))
-        return std::nullopt;
-#if !ENABLE(VARIATION_FONTS)
     if (!isIntegerAndDivisibleBy100(number.value))
         return std::nullopt;
-#endif
     return number;
 }
+#endif
 
 static std::optional<UnresolvedFontWeightNumber> consumeFontWeightNumberUnresolved(CSSParserTokenRange& range, const CSSParserContext& context)
 {
     auto rangeCopy = range;
 
     auto options = CSSPropertyParserOptions { };
-    auto number = MetaConsumer<NumberRaw>::consume(rangeCopy, context, { }, options);
+    auto number = MetaConsumer<UnresolvedFontWeightNumber>::consume(rangeCopy, context, { }, options);
     if (!number)
         return std::nullopt;
 
+#if !ENABLE(VARIATION_FONTS)
+    // Additional validation is needed for the legacy path.
     auto result = WTF::switchOn(WTFMove(*number),
-        [](NumberRaw&& number) -> std::optional<UnresolvedFontWeightNumber> {
+        [](UnresolvedFontWeightNumber::Raw&& number) -> std::optional<UnresolvedFontWeightNumber> {
             if (auto validated = validateFontWeightNumber(WTFMove(number)))
                 return { { WTFMove(*validated) } };
             return std::nullopt;
         },
-        [](UnevaluatedCalc<NumberRaw>&& calc) -> std::optional<UnresolvedFontWeightNumber> {
+        [](UnresolvedFontWeightNumber::Calc&& calc) -> std::optional<UnresolvedFontWeightNumber> {
             return { { WTFMove(calc) } };
         }
     );
-    if (!result)
+    if (!number)
         return std::nullopt;
+#else
+    auto result = WTFMove(number);
+#endif
 
     range = rangeCopy;
     return result;
@@ -169,7 +164,7 @@ static std::optional<UnresolvedFontWeight> consumeFontWeightUnresolved(CSSParser
     if (auto keyword = consumeIdentRaw<CSSValueNormal, CSSValueBold, CSSValueBolder, CSSValueLighter>(range))
         return { *keyword };
     if (auto fontWeightNumber = consumeFontWeightNumberUnresolved(range, context))
-        return forwardVariantTo<UnresolvedFontWeight>(WTFMove(*fontWeightNumber));
+        return { WTFMove(*fontWeightNumber) };
     return std::nullopt;
 }
 
@@ -178,7 +173,7 @@ RefPtr<CSSValue> consumeFontWeight(CSSParserTokenRange& range, const CSSParserCo
     if (auto keyword = consumeIdentRaw<CSSValueNormal, CSSValueBold, CSSValueBolder, CSSValueLighter>(range))
         return CSSPrimitiveValue::create(*keyword);
     if (auto fontWeightNumber = consumeFontWeightNumberUnresolved(range, context))
-        return resolveVariantToCSSPrimitiveValue(WTFMove(*fontWeightNumber));
+        return resolveToCSSPrimitiveValue(WTFMove(*fontWeightNumber));
     return nullptr;
 }
 
@@ -186,37 +181,17 @@ RefPtr<CSSValue> consumeFontWeight(CSSParserTokenRange& range, const CSSParserCo
 
 #if ENABLE(VARIATION_FONTS)
 
-static std::optional<AngleRaw> validateStyleAngle(AngleRaw styleAngle)
-{
-    if (!isFontStyleAngleInRange(CSSPrimitiveValue::computeDegrees(styleAngle.type, styleAngle.value)))
-        return std::nullopt;
-    return styleAngle;
-}
-
-static std::optional<UnresolvedFontStyleAngle> consumeFontStyleAngleUnresolved(CSSParserTokenRange& range, const CSSParserContext& context)
+static std::optional<UnresolvedFontStyleObliqueAngle> consumeFontStyleAngleUnresolved(CSSParserTokenRange& range, const CSSParserContext& context)
 {
     auto rangeCopy = range;
 
     auto options = CSSPropertyParserOptions { .parserMode = context.mode };
-    auto angle = MetaConsumer<AngleRaw>::consume(rangeCopy, context, { }, options);
+    auto angle = MetaConsumer<UnresolvedFontStyleObliqueAngle>::consume(rangeCopy, context, { }, options);
     if (!angle)
         return std::nullopt;
 
-    auto result = WTF::switchOn(WTFMove(*angle),
-        [](AngleRaw&& angle) -> std::optional<UnresolvedFontStyleAngle> {
-            if (auto validated = validateStyleAngle(WTFMove(angle)))
-                return { { WTFMove(*validated) } };
-            return std::nullopt;
-        },
-        [](UnevaluatedCalc<AngleRaw>&& calc) -> std::optional<UnresolvedFontStyleAngle> {
-            return { { WTFMove(calc) } };
-        }
-    );
-    if (!result)
-        return std::nullopt;
-
     range = rangeCopy;
-    return result;
+    return angle;
 }
 
 #endif
@@ -231,7 +206,7 @@ static std::optional<UnresolvedFontStyle> consumeFontStyleUnresolved(CSSParserTo
 #if ENABLE(VARIATION_FONTS)
     if (*keyword == CSSValueOblique && !range.atEnd()) {
         if (auto angle = consumeFontStyleAngleUnresolved(range, context))
-            return forwardVariantTo<UnresolvedFontStyle>(WTFMove(*angle));
+            return { { WTFMove(*angle) } };
     }
 #endif
 
@@ -248,7 +223,7 @@ RefPtr<CSSValue> consumeFontStyle(CSSParserTokenRange& range, const CSSParserCon
 #if ENABLE(VARIATION_FONTS)
     if (*keyword == CSSValueOblique && !range.atEnd()) {
         if (auto angle = consumeFontStyleAngleUnresolved(range, context))
-            return CSSFontStyleWithAngleValue::create(resolveVariantToCSSPrimitiveValue(WTFMove(*angle)));
+            return CSSFontStyleWithAngleValue::create(resolveToCSSPrimitiveValue(WTFMove(*angle)));
     }
 #endif
 
@@ -413,13 +388,13 @@ static std::optional<UnresolvedFontSize> consumeFontSizeUnresolved(CSSParserToke
 
     auto rangeCopy = range;
 
-    auto options = CSSPropertyParserOptions { .parserMode = context.mode, .valueRange = ValueRange::NonNegative };
-    auto lengthPercentage = MetaConsumer<LengthPercentageRaw>::consume(rangeCopy, context, { }, options);
+    auto options = CSSPropertyParserOptions { .parserMode = context.mode };
+    auto lengthPercentage = MetaConsumer<CSS::LengthPercentage<CSS::Nonnegative>>::consume(rangeCopy, context, { }, options);
     if (!lengthPercentage)
         return std::nullopt;
 
     range = rangeCopy;
-    return forwardVariantTo<UnresolvedFontSize>(WTFMove(*lengthPercentage));
+    return { WTFMove(*lengthPercentage) };
 }
 
 // MARK: - 'line-height'
@@ -429,21 +404,16 @@ static std::optional<UnresolvedFontLineHeight> consumeLineHeightUnresolved(CSSPa
     // <'line-height'> = normal | <number [0,∞]> | <length-percentage [0,∞]>
     // https://www.w3.org/TR/css-inline-3/#line-height-property
 
-    if (range.peek().id() == CSSValueNormal) {
-        if (auto ident = consumeIdentRaw(range))
-            return { { *ident } };
-        return std::nullopt;
-    }
+    using Consumer = MetaConsumer<
+        CSS::Keyword::Normal,
+        CSS::Number<CSS::Nonnegative>,
+        CSS::LengthPercentage<CSS::Nonnegative>
+    >;
 
-    auto rangeCopy = range;
-
-    auto options = CSSPropertyParserOptions { .parserMode = context.mode, .valueRange = ValueRange::NonNegative };
-    auto lineHeight = MetaConsumer<NumberRaw, LengthPercentageRaw>::consume(rangeCopy, context, { }, options);
-    if (!lineHeight)
-        return std::nullopt;
-
-    range = rangeCopy;
-    return forwardVariantTo<UnresolvedFontLineHeight>(WTFMove(*lineHeight));
+    return Consumer::consume(range, context, { }, { .parserMode = context.mode },
+        [&](CSS::Keyword::Normal) { return UnresolvedFontLineHeight { CSSValueNormal }; },
+        [&](auto&& value) { return UnresolvedFontLineHeight { WTFMove(value) }; }
+    );
 }
 
 // MARK: 'font' (shorthand)
@@ -1188,7 +1158,7 @@ RefPtr<CSSValue> consumeFontFaceFontStyle(CSSParserTokenRange& range, const CSSP
         return CSSFontStyleRangeValue::create(
             CSSPrimitiveValue::create(*keyword),
             CSSValueList::createSpaceSeparated(
-                resolveVariantToCSSPrimitiveValue(WTFMove(*firstAngle))
+                resolveToCSSPrimitiveValue(WTFMove(*firstAngle))
             )
         );
     }
@@ -1201,8 +1171,8 @@ RefPtr<CSSValue> consumeFontFaceFontStyle(CSSParserTokenRange& range, const CSSP
     return CSSFontStyleRangeValue::create(
         CSSPrimitiveValue::create(*keyword),
         CSSValueList::createSpaceSeparated(
-            resolveVariantToCSSPrimitiveValue(WTFMove(*firstAngle)),
-            resolveVariantToCSSPrimitiveValue(WTFMove(*secondAngle))
+            resolveToCSSPrimitiveValue(WTFMove(*firstAngle)),
+            resolveToCSSPrimitiveValue(WTFMove(*secondAngle))
         )
     );
 }
@@ -1322,7 +1292,7 @@ RefPtr<CSSValue> consumeVariationTagValue(CSSParserTokenRange& range, const CSSP
 // MARK: @font-face 'font-stretch'
 // FIXME: Rename to 'font-width' to match spec. 'font-stretch' is now a legacy alias.
 
-RefPtr<CSSValue> parseFontFaceFontStretch(const String& string, ScriptExecutionContext& context)
+RefPtr<CSSValue> parseFontFaceFontWidth(const String& string, ScriptExecutionContext& context)
 {
     // <font-stretch> = auto | <'font-stretch'>{1,2}
     // https://drafts.csswg.org/css-fonts-4/#descdef-font-face-font-width
@@ -1336,7 +1306,7 @@ RefPtr<CSSValue> parseFontFaceFontStretch(const String& string, ScriptExecutionC
     if (range.atEnd())
         return nullptr;
 
-    RefPtr parsedValue = consumeFontFaceFontStretch(range, parserContext);
+    RefPtr parsedValue = consumeFontFaceFontWidth(range, parserContext);
     if (!parsedValue || !range.atEnd())
         return nullptr;
 
@@ -1345,7 +1315,7 @@ RefPtr<CSSValue> parseFontFaceFontStretch(const String& string, ScriptExecutionC
 
 #if ENABLE(VARIATION_FONTS)
 
-RefPtr<CSSValue> consumeFontFaceFontStretch(CSSParserTokenRange& range, const CSSParserContext& context)
+RefPtr<CSSValue> consumeFontFaceFontWidth(CSSParserTokenRange& range, const CSSParserContext& context)
 {
     // <font-stretch> = auto | <'font-stretch'>{1,2}
     // https://drafts.csswg.org/css-fonts-4/#descdef-font-face-font-width
@@ -1353,7 +1323,7 @@ RefPtr<CSSValue> consumeFontFaceFontStretch(CSSParserTokenRange& range, const CS
     // FIXME: Missing support for "auto" identifier.
     // FIXME: Both stretch values should allow keyword identifiers, not just the first.
 
-    if (RefPtr result = CSSPropertyParsing::consumeFontStretchAbsolute(range))
+    if (RefPtr result = CSSPropertyParsing::consumeFontWidthAbsolute(range))
         return result;
 
     RefPtr firstPercent = consumePercentage(range, context, ValueRange::NonNegative);
@@ -1375,12 +1345,12 @@ RefPtr<CSSValue> consumeFontFaceFontStretch(CSSParserTokenRange& range, const CS
 
 #else
 
-RefPtr<CSSValue> consumeFontFaceFontStretch(CSSParserTokenRange& range, const CSSParserContext& context)
+RefPtr<CSSValue> consumeFontFaceFontWidth(CSSParserTokenRange& range, const CSSParserContext& context)
 {
     // <font-stretch> = auto | <'font-stretch'>
     // NOTE: This is the pre-variation fonts definition.
 
-    if (RefPtr result = CSSPropertyParsing::consumeFontStretchAbsolute(range))
+    if (RefPtr result = CSSPropertyParsing::consumeFontWidthAbsolute(range))
         return result;
     if (RefPtr percent = consumePercentage(range, context, ValueRange::NonNegative))
         return percent;
@@ -1430,15 +1400,15 @@ RefPtr<CSSValue> consumeFontFaceFontWeight(CSSParserTokenRange& range, const CSS
         return nullptr;
 
     if (range.atEnd())
-        return resolveVariantToCSSPrimitiveValue(WTFMove(*firstNumber));
+        return resolveToCSSPrimitiveValue(WTFMove(*firstNumber));
 
     auto secondNumber = consumeFontWeightNumberUnresolved(range, context);
     if (!secondNumber)
         return nullptr;
 
     return CSSValueList::createSpaceSeparated(
-        resolveVariantToCSSPrimitiveValue(WTFMove(*firstNumber)),
-        resolveVariantToCSSPrimitiveValue(WTFMove(*secondNumber))
+        resolveToCSSPrimitiveValue(WTFMove(*firstNumber)),
+        resolveToCSSPrimitiveValue(WTFMove(*secondNumber))
     );
 }
 
@@ -1452,7 +1422,7 @@ RefPtr<CSSValue> consumeFontFaceFontWeight(CSSParserTokenRange& range, const CSS
     if (auto keyword = consumeIdentRaw<CSSValueNormal, CSSValueBold>(range))
         return CSSPrimitiveValue::create(*keyword);
     if (auto fontWeightNumber = consumeFontWeightNumberUnresolved(range, context))
-        return resolveVariantToCSSPrimitiveValue(WTFMove(*fontWeightNumber));
+        return resolveToCSSPrimitiveValue(WTFMove(*fontWeightNumber));
     return nullptr;
 }
 
@@ -1483,7 +1453,7 @@ RefPtr<CSSValue> consumeFontPaletteValuesOverrideColors(CSSParserTokenRange& ran
         auto key = consumeNonNegativeInteger(range, context);
         if (!key)
             return nullptr;
-        auto color = consumeColor(range, context, { .allowedColorTypes = StyleColor::CSSColorType::Absolute });
+        auto color = consumeColor(range, context, { .allowedColorTypes = CSS::ColorType::Absolute });
         if (!color)
             return nullptr;
         return CSSFontPaletteValuesOverrideColorsValue::create(key.releaseNonNull(), color.releaseNonNull());

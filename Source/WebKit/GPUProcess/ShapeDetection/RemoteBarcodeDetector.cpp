@@ -32,6 +32,7 @@
 #include "RemoteRenderingBackend.h"
 #include "RemoteResourceCache.h"
 #include "ShapeDetectionObjectHeap.h"
+#include "SharedPreferencesForWebProcess.h"
 #include <WebCore/BarcodeDetectorInterface.h>
 #include <WebCore/DetectedBarcodeInterface.h>
 #include <WebCore/ImageBuffer.h>
@@ -52,7 +53,7 @@ RemoteBarcodeDetector::RemoteBarcodeDetector(Ref<WebCore::ShapeDetection::Barcod
 
 RemoteBarcodeDetector::~RemoteBarcodeDetector() = default;
 
-const SharedPreferencesForWebProcess& RemoteBarcodeDetector::sharedPreferencesForWebProcess() const
+std::optional<SharedPreferencesForWebProcess> RemoteBarcodeDetector::sharedPreferencesForWebProcess() const
 {
     return protectedBackend()->sharedPreferencesForWebProcess();
 }

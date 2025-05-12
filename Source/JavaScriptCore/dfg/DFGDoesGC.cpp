@@ -175,7 +175,7 @@ bool doesGC(Graph& graph, Node* node)
     case MapIteratorNext:
     case MapIteratorKey:
     case MapIteratorValue:
-    case MapStorage:
+    case MapStorageOrSentinel:
     case MapIterationNext:
     case MapIterationEntry:
     case MapIterationEntryKey:
@@ -202,6 +202,7 @@ bool doesGC(Graph& graph, Node* node)
     case MultiDeleteByOffset:
     case ValueRep:
     case DoubleRep:
+    case PurifyNaN:
     case Int52Rep:
     case GetGetter:
     case GetSetter:
@@ -278,7 +279,7 @@ bool doesGC(Graph& graph, Node* node)
 #if ASSERT_ENABLED
     case ArrayPush:
     case ArrayPop:
-    case ArraySpliceExtract:
+    case ArraySplice:
     case PushWithScope:
     case CreateActivation:
     case CreateDirectArguments:
@@ -295,6 +296,8 @@ bool doesGC(Graph& graph, Node* node)
     case Construct:
     case ConstructForwardVarargs:
     case ConstructVarargs:
+    case DataViewGetByteLength:
+    case DataViewGetByteLengthAsInt52:
     case DefineDataProperty:
     case DefineAccessorProperty:
     case DeleteById:
@@ -364,6 +367,7 @@ bool doesGC(Graph& graph, Node* node)
     case ResolveScope:
     case ResolveScopeForHoistingFuncDeclInEval:
     case Return:
+    case StringAt:
     case StringCharAt:
     case StringLocaleCompare:
     case TailCall:
@@ -448,6 +452,7 @@ bool doesGC(Graph& graph, Node* node)
     case SetAdd:
     case MapSet:
     case MapOrSetDelete:
+    case MapStorage:
     case ValueBitAnd:
     case ValueBitOr:
     case ValueBitXor:

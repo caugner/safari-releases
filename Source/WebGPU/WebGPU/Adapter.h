@@ -26,6 +26,7 @@
 #pragma once
 
 #import "HardwareCapabilities.h"
+#import <Metal/Metal.h>
 #import <wtf/CompletionHandler.h>
 #import <wtf/FastMalloc.h>
 #import <wtf/Ref.h>
@@ -67,7 +68,7 @@ public:
     bool isXRCompatible() const;
 
     RefPtr<Instance> instance() const { return m_instance.get(); }
-
+    ThreadSafeWeakPtr<Instance> weakInstance() const { return m_instance; }
 
 private:
     Adapter(id<MTLDevice>, Instance&, bool xrCompatible, HardwareCapabilities&&);

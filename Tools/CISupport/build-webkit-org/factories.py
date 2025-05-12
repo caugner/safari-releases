@@ -24,6 +24,7 @@ from buildbot.process import factory
 from buildbot.steps import trigger
 
 from .steps import *
+from Shared.steps import *
 
 
 class Factory(factory.BuildFactory):
@@ -70,8 +71,6 @@ class BuildFactory(Factory):
             self.addStep(GenerateMiniBrowserBundle())
 
         if triggers:
-            if platform.startswith("gtk"):
-                self.addStep(InstallBuiltProduct())
             self.addStep(trigger.Trigger(schedulerNames=triggers))
 
 
@@ -113,7 +112,7 @@ class TestFactory(Factory):
             self.addStep(ExtractTestResults())
             self.addStep(SetPermissions())
 
-        if platform.startswith(('win', 'mac', 'ios-simulator')):
+        if platform.startswith(('win', 'mac', 'ios-simulator')) and self.LayoutTestClass != RunWorldLeaksTests:
             self.addStep(RunAPITests())
 
         # FIXME: Re-enable these tests for Monterey once webkit.org/b/239463 is resolved.
@@ -184,7 +183,6 @@ class BuildAndTestAndArchiveAllButJSCFactory(BuildAndTestFactory):
         BuildAndTestFactory.__init__(self, platform, configuration, architectures, triggers, additionalArguments, device_model, **kwargs)
         # The parent class will already archive if triggered
         if not triggers:
-            self.addStep(InstallBuiltProduct())
             self.addStep(ArchiveBuiltProduct())
             self.addStep(UploadBuiltProduct())
         if platform == "gtk-3":
@@ -202,6 +200,14 @@ class BuildAndGenerateMiniBrowserBundleFactory(BuildFactory):
 class BuildAndGenerateMiniBrowserJSCBundleFactory(BuildFactory):
     shouldRunJSCBundleStep = True
     shouldRunMiniBrowserBundleStep = True
+
+
+class BuildAndUploadBuiltProductviaSftpFactory(BuildFactory):
+    def __init__(self, platform, configuration, architectures, triggers=None, additionalArguments=None, device_model=None):
+        BuildFactory.__init__(self, platform, configuration, architectures, triggers, additionalArguments, device_model)
+        self.addStep(InstallBuiltProduct())
+        self.addStep(ArchiveBuiltProduct())
+        self.addStep(UploadBuiltProductViaSftp())
 
 
 class TestJSCFactory(Factory):
@@ -253,12 +259,24 @@ class TestWebDriverFactory(Factory):
         self.addStep(RunWebDriverTests())
 
 
+class TestMVTFactory(Factory):
+    def __init__(self, platform, configuration, architectures, additionalArguments=None, device_model=None):
+        Factory.__init__(self, platform, configuration, architectures, False, additionalArguments, device_model)
+        self.addStep(DownloadBuiltProduct())
+        self.addStep(ExtractBuiltProduct())
+        self.addStep(RunMVTTests())
+
 class TestWebKit1Factory(TestFactory):
     LayoutTestClass = RunWebKit1Tests
 
 
 class TestWebKit1AllButJSCFactory(TestWebKit1Factory):
     JSCTestClass = None
+
+
+class TestWorldLeaksFactory(TestFactory):
+    JSCTestClass = None
+    LayoutTestClass = RunWorldLeaksTests
 
 
 class BuildAndPerfTestFactory(Factory):
@@ -283,11 +301,15 @@ class DownloadAndPerfTestFactory(Factory):
             self.addStep(RunBenchmarkTests(timeout=2000))
 
 
-class SmartPointerStaticAnalyzerFactory(Factory):
+class SaferCPPStaticAnalyzerFactory(Factory):
     def __init__(self, platform, configuration, architectures, additionalArguments=None, device_model=None, **kwargs):
         Factory.__init__(self, platform, configuration, architectures, False, additionalArguments, device_model, **kwargs)
+        self.addStep(InstallCMake())
+        self.addStep(InstallNinja())
         self.addStep(PrintClangVersion())
-        self.addStep(ScanBuildSmartPointer())
+        self.addStep(CheckOutLLVMProject())
+        self.addStep(UpdateClang())
+        self.addStep(ScanBuild())
 
 
 class CrossTargetDownloadAndPerfTestFactory(DownloadAndPerfTestFactory):

@@ -8,7 +8,7 @@ function end() {
     document.documentElement.removeAttribute("class");
 }
 
-window.onload = () => {
+window.onload = async () => {
     if (UIHelper.isIOSFamily()) {
         const eventStreamData = new UIHelper.EventStreamBuilder()
             .begin(10, 10)
@@ -16,8 +16,8 @@ window.onload = () => {
         UIHelper.sendEventStream(eventStreamData).then(() => end());
         return;
     }
-    window.eventSender.mouseMoveTo(10, 10);
-    window.eventSender.mouseDown();
+    await eventSender.asyncMouseMoveTo(10, 10);
+    await eventSender.asyncMouseDown();
     end();
 }
 </script>

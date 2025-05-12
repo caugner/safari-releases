@@ -36,7 +36,6 @@
 #include "WebBroadcastChannelRegistryMessages.h"
 #include "WebCacheStorageProvider.h"
 #include "WebCookieJar.h"
-#include "WebCoreArgumentCoders.h"
 #include "WebFileSystemStorageConnection.h"
 #include "WebFileSystemStorageConnectionMessages.h"
 #include "WebFrame.h"
@@ -68,6 +67,7 @@
 #include <WebCore/InspectorInstrumentationWebKit.h>
 #include <WebCore/MemoryCache.h>
 #include <WebCore/MessagePort.h>
+#include <WebCore/NavigationScheduler.h>
 #include <WebCore/Page.h>
 #include <WebCore/SharedBuffer.h>
 #include <pal/SessionID.h>
@@ -79,8 +79,8 @@
 namespace WebKit {
 using namespace WebCore;
 
-NetworkProcessConnection::NetworkProcessConnection(IPC::Connection::Identifier connectionIdentifier, HTTPCookieAcceptPolicy cookieAcceptPolicy)
-    : m_connection(IPC::Connection::createClientConnection(connectionIdentifier))
+NetworkProcessConnection::NetworkProcessConnection(IPC::Connection::Identifier&& connectionIdentifier, HTTPCookieAcceptPolicy cookieAcceptPolicy)
+    : m_connection(IPC::Connection::createClientConnection(WTFMove(connectionIdentifier)))
     , m_cookieAcceptPolicy(cookieAcceptPolicy)
 {
     m_connection->open(*this);
@@ -97,7 +97,7 @@ NetworkProcessConnection::~NetworkProcessConnection()
 bool NetworkProcessConnection::dispatchMessage(IPC::Connection& connection, IPC::Decoder& decoder)
 {
     if (decoder.messageReceiverName() == Messages::WebResourceLoader::messageReceiverName()) {
-        if (auto* webResourceLoader = WebProcess::singleton().webLoaderStrategy().webResourceLoaderForIdentifier(LegacyNullableAtomicObjectIdentifier<WebCore::ResourceLoader>(decoder.destinationID())))
+        if (auto* webResourceLoader = WebProcess::singleton().webLoaderStrategy().webResourceLoaderForIdentifier(AtomicObjectIdentifier<WebCore::ResourceLoader>(decoder.destinationID())))
             webResourceLoader->didReceiveMessage(connection, decoder);
         return true;
     }
@@ -115,7 +115,7 @@ bool NetworkProcessConnection::dispatchMessage(IPC::Connection& connection, IPC:
         return true;
     }
     if (decoder.messageReceiverName() == Messages::StorageAreaMap::messageReceiverName()) {
-        if (auto storageAreaMap = WebProcess::singleton().storageAreaMap(LegacyNullableObjectIdentifier<StorageAreaMapIdentifierType>(decoder.destinationID())))
+        if (auto storageAreaMap = WebProcess::singleton().storageAreaMap(ObjectIdentifier<StorageAreaMapIdentifierType>(decoder.destinationID())))
             storageAreaMap->didReceiveMessage(connection, decoder);
         return true;
     }
@@ -124,7 +124,7 @@ bool NetworkProcessConnection::dispatchMessage(IPC::Connection& connection, IPC:
         return true;
     }
     if (decoder.messageReceiverName() == Messages::WebTransportSession::messageReceiverName() && WebProcess::singleton().isWebTransportEnabled()) {
-        if (auto* webTransportSession = WebProcess::singleton().webTransportSession(WebTransportSessionIdentifier(decoder.destinationID())))
+        if (RefPtr webTransportSession = WebProcess::singleton().webTransportSession(WebTransportSessionIdentifier(decoder.destinationID())))
             webTransportSession->didReceiveMessage(connection, decoder);
         return true;
     }
@@ -141,7 +141,7 @@ bool NetworkProcessConnection::dispatchMessage(IPC::Connection& connection, IPC:
     if (decoder.messageReceiverName() == Messages::WebRTCResolver::messageReceiverName()) {
         auto& network = WebProcess::singleton().libWebRTCNetwork();
         if (network.isActive())
-            network.resolver(LegacyNullableAtomicObjectIdentifier<LibWebRTCResolverIdentifierType>(decoder.destinationID())).didReceiveMessage(connection, decoder);
+            network.resolver(AtomicObjectIdentifier<LibWebRTCResolverIdentifierType>(decoder.destinationID()))->didReceiveMessage(connection, decoder);
         else
             RELEASE_LOG_ERROR(WebRTC, "Received WebRTCResolver message while libWebRTCNetwork is not active");
         return true;
@@ -297,7 +297,8 @@ void NetworkProcessConnection::didCacheResource(const ResourceRequest& request, 
 WebIDBConnectionToServer& NetworkProcessConnection::idbConnectionToServer()
 {
     if (!m_webIDBConnection)
-        m_webIDBConnection = WebIDBConnectionToServer::create();
+        m_webIDBConnection = WebIDBConnectionToServer::create(WebProcess::singleton().sessionID());
+
     return *m_webIDBConnection;
 }
 
@@ -325,16 +326,26 @@ void NetworkProcessConnection::broadcastConsoleMessage(MessageSource source, Mes
     FAST_RETURN_IF_NO_FRONTENDS(void());
 
     Page::forEachPage([&] (auto& page) {
-        if (auto* localMainFrame = dynamicDowncast<LocalFrame>(page.mainFrame()))
-            if (auto* document = localMainFrame->document())
-                document->addConsoleMessage(source, level, message);
+        if (RefPtr localTopDocument = page.localTopDocument())
+            localTopDocument->addConsoleMessage(source, level, message);
     });
+}
+
+void NetworkProcessConnection::loadCancelledDownloadRedirectRequestInFrame(WebCore::ResourceRequest&& request, WebCore::FrameIdentifier frameID, WebCore::PageIdentifier pageID)
+{
+    if (RefPtr webPage = WebProcess::singleton().webPage(pageID); webPage && WebProcess::singleton().webFrame(frameID)) {
+        LoadParameters loadParameters;
+        loadParameters.frameIdentifier = frameID;
+        loadParameters.request = request;
+        webPage->loadRequest(WTFMove(loadParameters));
+    } else
+        RELEASE_LOG_ERROR(Process, "Trying to load Invalid page or frame for %s", request.url().string().utf8().data());
 }
 
 #if ENABLE(WEB_RTC)
 void NetworkProcessConnection::connectToRTCDataChannelRemoteSource(WebCore::RTCDataChannelIdentifier localIdentifier, WebCore::RTCDataChannelIdentifier remoteIdentifier, CompletionHandler<void(std::optional<bool>)>&& callback)
 {
-    callback(RTCDataChannelRemoteManager::sharedManager().connectToRemoteSource(localIdentifier, remoteIdentifier));
+    callback(RTCDataChannelRemoteManager::singleton().connectToRemoteSource(localIdentifier, remoteIdentifier));
 }
 #endif
 

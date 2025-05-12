@@ -29,7 +29,6 @@
 #if PLATFORM(IOS_FAMILY)
 
 #import "APIPageConfiguration.h"
-#import "AccessibilityIOS.h"
 #import "Connection.h"
 #import "FrameProcess.h"
 #import "FullscreenClient.h"
@@ -61,13 +60,14 @@
 #import "_WKFrameHandleInternal.h"
 #import "_WKWebViewPrintFormatterInternal.h"
 #import <CoreGraphics/CoreGraphics.h>
+#import <WebCore/AccessibilityObject.h>
+#import <WebCore/FloatConversion.h>
 #import <WebCore/FloatQuad.h>
 #import <WebCore/InspectorOverlay.h>
 #import <WebCore/LocalFrameView.h>
 #import <WebCore/NotImplemented.h>
 #import <WebCore/PlatformScreen.h>
 #import <WebCore/Quirks.h>
-#import <WebCore/RuntimeApplicationChecks.h>
 #import <WebCore/Site.h>
 #import <WebCore/VelocityData.h>
 #import <objc/message.h>
@@ -75,9 +75,11 @@
 #import <pal/spi/cocoa/QuartzCoreSPI.h>
 #import <wtf/Condition.h>
 #import <wtf/RetainPtr.h>
+#import <wtf/RuntimeApplicationChecks.h>
 #import <wtf/UUID.h>
 #import <wtf/cocoa/RuntimeApplicationChecksCocoa.h>
 #import <wtf/cocoa/SpanCocoa.h>
+#import <wtf/cocoa/VectorCocoa.h>
 #import <wtf/text/MakeString.h>
 #import <wtf/text/TextStream.h>
 #import <wtf/threads/BinarySemaphore.h>
@@ -265,8 +267,7 @@ static NSArray *keyCommandsPlaceholderHackForEvernote(id self, SEL _cmd)
 
     _page = processPool.createWebPage(*_pageClient, WTFMove(configuration));
     auto& pageConfiguration = _page->configuration();
-    auto& openerInfo = pageConfiguration.openerInfo();
-    _page->initializeWebPage(openerInfo ? openerInfo->site : WebCore::Site(aboutBlankURL()), pageConfiguration.initialSandboxFlags());
+    _page->initializeWebPage(pageConfiguration.openedSite(), pageConfiguration.initialSandboxFlags());
 
     [self _updateRuntimeProtocolConformanceIfNeeded];
 
@@ -333,7 +334,7 @@ ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_screenCapturedDidChange:) name:UIScreenCapturedDidChangeNotification object:[UIScreen mainScreen]];
 ALLOW_DEPRECATED_DECLARATIONS_END
 
-    if (WebCore::IOSApplication::isEvernote() && !linkedOnOrAfterSDKWithBehavior(SDKAlignedBehavior::WKContentViewDoesNotOverrideKeyCommands))
+    if (WTF::IOSApplication::isEvernote() && !linkedOnOrAfterSDKWithBehavior(SDKAlignedBehavior::WKContentViewDoesNotOverrideKeyCommands))
         class_addMethod(self.class, @selector(keyCommands), reinterpret_cast<IMP>(&keyCommandsPlaceholderHackForEvernote), method_getTypeEncoding(class_getInstanceMethod(self.class, @selector(keyCommands))));
 
     return self;
@@ -660,7 +661,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 
 - (void)_didExitStableState
 {
-    _needsDeferredEndScrollingSelectionUpdate = self.shouldHideSelectionWhenScrolling;
+    _needsDeferredEndScrollingSelectionUpdate = self.shouldHideSelectionInFixedPositionWhenScrolling;
     if (!_needsDeferredEndScrollingSelectionUpdate)
         return;
 
@@ -669,7 +670,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 
 static WebCore::FloatBoxExtent floatBoxExtent(UIEdgeInsets insets)
 {
-    return WebCore::FloatBoxExtent(insets.top, insets.right, insets.bottom, insets.left);
+    return { WebCore::narrowPrecisionToFloatFromCGFloat(insets.top), WebCore::narrowPrecisionToFloatFromCGFloat(insets.right), WebCore::narrowPrecisionToFloatFromCGFloat(insets.bottom), WebCore::narrowPrecisionToFloatFromCGFloat(insets.left) };
 }
 
 - (CGRect)_computeUnobscuredContentRectRespectingInputViewBounds:(CGRect)unobscuredContentRect inputViewBounds:(CGRect)inputViewBounds
@@ -725,7 +726,7 @@ static WebCore::FloatBoxExtent floatBoxExtent(UIEdgeInsets insets)
         !!self.webView._allowsViewportShrinkToFit,
         !!enclosedInScrollableAncestorView,
         velocityData,
-        downcast<WebKit::RemoteLayerTreeDrawingAreaProxy>(*drawingArea).lastCommittedLayerTreeTransactionID());
+        downcast<WebKit::RemoteLayerTreeDrawingAreaProxy>(*drawingArea).lastCommittedMainFrameLayerTreeTransactionID());
 
     LOG_WITH_STREAM(VisibleRects, stream << "-[WKContentView didUpdateVisibleRect]" << visibleContentRectUpdateInfo.dump());
 
@@ -869,15 +870,16 @@ static void storeAccessibilityRemoteConnectionInformation(id element, pid_t pid,
 - (void)_accessibilityRegisterUIProcessTokens
 {
     auto uuid = [NSUUID UUID];
-    NSData *remoteElementToken = WebKit::newAccessibilityRemoteToken(uuid);
+    if (RetainPtr remoteElementToken = WebCore::Accessibility::newAccessibilityRemoteToken(uuid.UUIDString)) {
+        // Store information about the WebProcess that can later be retrieved by the iOS Accessibility runtime.
+        if (_page->legacyMainFrameProcess().state() == WebKit::WebProcessProxy::State::Running) {
+            [self _updateRemoteAccessibilityRegistration:YES];
+            storeAccessibilityRemoteConnectionInformation(self, _page->legacyMainFrameProcess().processID(), uuid);
 
-    // Store information about the WebProcess that can later be retrieved by the iOS Accessibility runtime.
-    if (_page->legacyMainFrameProcess().state() == WebKit::WebProcessProxy::State::Running) {
-        [self _updateRemoteAccessibilityRegistration:YES];
-        storeAccessibilityRemoteConnectionInformation(self, _page->legacyMainFrameProcess().processID(), uuid);
+            auto elementToken = makeVector(remoteElementToken.get());
+            _page->registerUIProcessAccessibilityTokens(elementToken, elementToken);
+        }
 
-        auto elementToken = span(remoteElementToken);
-        _page->registerUIProcessAccessibilityTokens(elementToken, elementToken);
     }
 }
 
@@ -898,9 +900,9 @@ static void storeAccessibilityRemoteConnectionInformation(id element, pid_t pid,
 
 #pragma mark PageClientImpl methods
 
-- (std::unique_ptr<WebKit::DrawingAreaProxy>)_createDrawingAreaProxy:(WebKit::WebProcessProxy&)webProcessProxy
+- (Ref<WebKit::DrawingAreaProxy>)_createDrawingAreaProxy:(WebKit::WebProcessProxy&)webProcessProxy
 {
-    return makeUnique<WebKit::RemoteLayerTreeDrawingAreaProxyIOS>(*_page, webProcessProxy);
+    return WebKit::RemoteLayerTreeDrawingAreaProxyIOS::create(*_page, webProcessProxy);
 }
 
 - (void)_processDidExit

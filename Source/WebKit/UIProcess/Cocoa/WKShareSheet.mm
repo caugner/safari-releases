@@ -33,11 +33,11 @@
 #import "WebPageProxy.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import <WebCore/NSURLUtilities.h>
-#import <WebCore/RuntimeApplicationChecks.h>
 #import <WebCore/ShareData.h>
 #import <pal/spi/mac/QuarantineSPI.h>
 #import <wtf/RetainPtr.h>
 #import <wtf/RunLoop.h>
+#import <wtf/RuntimeApplicationChecks.h>
 #import <wtf/Scope.h>
 #import <wtf/SoftLinking.h>
 #import <wtf/UUID.h>
@@ -371,11 +371,7 @@ static void appendFilesAsShareableURLs(RetainPtr<NSMutableArray>&& shareDataArra
         presentationRect = [webView convertRect:mouseLocationInWindow fromView:nil];
     }
 
-#if HAVE(SHARING_SERVICE_PICKER_POPOVER_SPI)
     [_sharingServicePicker.get() showPopoverRelativeToRect:presentationRect ofView:webView preferredEdge:NSMinYEdge completion:^(NSSharingService *sharingService) { }];
-#else
-    [_sharingServicePicker showRelativeToRect:presentationRect ofView:webView preferredEdge:NSMinYEdge];
-#endif
 #else
     _shareSheetViewController = adoptNS([[UIActivityViewController alloc] initWithActivityItems:sharingItems applicationActivities:nil]);
 
@@ -507,7 +503,7 @@ static void appendFilesAsShareableURLs(RetainPtr<NSMutableArray>&& shareDataArra
 {
     auto quarantineProperties = @{
         (__bridge NSString *)kLSQuarantineTypeKey: (__bridge NSString *)kLSQuarantineTypeWebDownload,
-        (__bridge NSString *)kLSQuarantineAgentBundleIdentifierKey: WebCore::applicationBundleIdentifier()
+        (__bridge NSString *)kLSQuarantineAgentBundleIdentifierKey: applicationBundleIdentifier()
     };
 
     if (![fileURL setResourceValue:quarantineProperties forKey:NSURLQuarantinePropertiesKey error:nil])

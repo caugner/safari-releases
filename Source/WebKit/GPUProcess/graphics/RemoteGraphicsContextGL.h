@@ -80,7 +80,7 @@ namespace WebKit {
 class RemoteVideoFrameObjectHeap;
 #endif
 
-IPC::StreamConnectionWorkQueue& remoteGraphicsContextGLStreamWorkQueue();
+IPC::StreamConnectionWorkQueue& remoteGraphicsContextGLStreamWorkQueueSingleton();
 
 
 // GPU process side implementation of that receives messages about GraphicsContextGL calls
@@ -93,7 +93,7 @@ public:
     ~RemoteGraphicsContextGL() override;
     void stopListeningForIPC(Ref<RemoteGraphicsContextGL>&& refFromConnection);
 
-    const SharedPreferencesForWebProcess& sharedPreferencesForWebProcess() const { return m_sharedPreferencesForWebProcess; }
+    std::optional<SharedPreferencesForWebProcess> sharedPreferencesForWebProcess() const { return m_sharedPreferencesForWebProcess; }
 
     void didReceiveStreamMessage(IPC::StreamServerConnection&, IPC::Decoder&) final;
 
@@ -106,7 +106,13 @@ protected:
     virtual void platformWorkQueueInitialize(WebCore::GraphicsContextGLAttributes&&) { };
     void workQueueUninitialize();
     template<typename T>
-    IPC::Error send(T&& message) const { return m_streamConnection->send(std::forward<T>(message), m_graphicsContextGLIdentifier); }
+    IPC::Error send(T&& message) const
+    {
+        // FIXME: Remove this suppression once https://github.com/llvm/llvm-project/pull/119336 is merged.
+IGNORE_CLANG_STATIC_ANALYZER_WARNINGS_BEGIN("alpha.webkit.UncountedCallArgsChecker")
+        return Ref { *m_streamConnection }->send(std::forward<T>(message), m_graphicsContextGLIdentifier);
+IGNORE_CLANG_STATIC_ANALYZER_WARNINGS_END
+    }
 
     // GraphicsContextGL::Client overrides.
     void forceContextLost() final;
@@ -146,6 +152,10 @@ protected:
     void multiDrawArraysInstancedBaseInstanceANGLE(uint32_t mode, IPC::ArrayReferenceTuple<int32_t, int32_t, int32_t, uint32_t>&& firstsCountsInstanceCountsAndBaseInstances);
     void multiDrawElementsInstancedBaseVertexBaseInstanceANGLE(uint32_t mode, IPC::ArrayReferenceTuple<int32_t, int32_t, int32_t, int32_t, uint32_t>&& countsOffsetsInstanceCountsBaseVerticesAndBaseInstances, uint32_t type);
 
+#if ENABLE(VIDEO)
+    Ref<RemoteVideoFrameObjectHeap> protectedVideoFrameObjectHeap() const;
+#endif
+
 #if PLATFORM(COCOA)
     using GCGLContext = WebCore::GraphicsContextGLCocoa;
 #elif USE(GBM)
@@ -162,6 +172,7 @@ private:
     bool webXRPromptAccepted() const;
     Ref<IPC::StreamConnectionWorkQueue> protectedWorkQueue() const { return m_workQueue; }
     RefPtr<GCGLContext> protectedContext();
+    void messageCheck(bool);
 
 protected:
     ThreadSafeWeakPtr<GPUConnectionToWebProcess> m_gpuConnectionToWebProcess;

@@ -80,7 +80,7 @@
 namespace WebCore {
 namespace SelectorCompiler {
 
-using PseudoClassesSet = HashSet<CSSSelector::PseudoClass, IntHash<CSSSelector::PseudoClass>, WTF::StrongEnumHashTraits<CSSSelector::PseudoClass>>;
+using PseudoClassesSet = UncheckedKeyHashSet<CSSSelector::PseudoClass, IntHash<CSSSelector::PseudoClass>, WTF::StrongEnumHashTraits<CSSSelector::PseudoClass>>;
 
 #if ENABLE(SELECTOR_OPERATION_STATS)
 
@@ -914,13 +914,11 @@ JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationMatchesAnimatingFullscreenTransitionP
     return matchesAnimatingFullscreenTransitionPseudoClass(element);
 }
 
-#if ENABLE(VIDEO)
 JSC_DEFINE_NOEXCEPT_JIT_OPERATION(operationMatchesInWindowFullscreenPseudoClass, bool, (const Element& element))
 {
     COUNT_SELECTOR_OPERATION(operationMatchesInWindowFullscreenPseudoClass);
     return matchesInWindowFullscreenPseudoClass(element);
 }
-#endif
 
 #endif
 
@@ -1126,11 +1124,9 @@ static inline FunctionType addPseudoClassType(const CSSSelector& selector, Selec
     case CSSSelector::PseudoClass::InternalAnimatingFullscreenTransition:
         fragment.unoptimizedPseudoClasses.append(CodePtr<JSC::OperationPtrTag>(operationMatchesAnimatingFullscreenTransitionPseudoClass));
         return FunctionType::SimpleSelectorChecker;
-#if ENABLE(VIDEO)
     case CSSSelector::PseudoClass::InternalInWindowFullscreen:
         fragment.unoptimizedPseudoClasses.append(CodePtr<JSC::OperationPtrTag>(operationMatchesInWindowFullscreenPseudoClass));
         return FunctionType::SimpleSelectorChecker;
-#endif
 #endif
 
 #if ENABLE(PICTURE_IN_PICTURE_API)
@@ -2652,7 +2648,6 @@ inline void SelectorCodeGenerator::generateWalkToPreviousAdjacentElement(Assembl
 {
     Assembler::Label loopStart = m_assembler.label();
     m_assembler.loadPtr(Assembler::Address(workRegister, Node::previousSiblingMemoryOffset()), workRegister);
-    m_assembler.andPtr(Assembler::TrustedImmPtr(Node::previousSiblingPointerMask()), workRegister);
     failureCases.append(m_assembler.branchTestPtr(Assembler::Zero, workRegister));
     DOMJIT::branchTestIsElementFlagOnNode(m_assembler, Assembler::Zero, workRegister).linkTo(loopStart, &m_assembler);
 }
@@ -3315,7 +3310,7 @@ void SelectorCodeGenerator::generateElementAttributesMatching(Assembler::JumpLis
 
 static inline Assembler::Jump testIsHTMLClassOnDocument(Assembler::ResultCondition condition, Assembler& assembler, Assembler::RegisterID documentAddress)
 {
-    static_assert(sizeof(Document::DocumentClass) == 2, "Document::DocumentClass must be a 16-bit value for branchTest16");
+    static_assert(sizeof(DocumentClass) == 2, "DocumentClass must be a 16-bit value for branchTest16");
     return assembler.branchTest16(condition, Assembler::Address(documentAddress, Document::documentClassesMemoryOffset()), Assembler::TrustedImm32(Document::isHTMLDocumentClassFlag()));
 }
 

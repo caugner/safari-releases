@@ -26,12 +26,15 @@
 #include "config.h"
 #include "WebPageProxy.h"
 
+#include "DrawingAreaMessages.h"
+#include "DrawingAreaProxy.h"
 #include "EditorState.h"
 #include "InputMethodState.h"
 #include "PageClientImpl.h"
 #include "UserMessage.h"
 #include "WebProcessProxy.h"
 #include <WebCore/PlatformEvent.h>
+#include <wtf/CallbackAggregator.h>
 
 #if USE(ATK)
 #include <atk/atk.h>
@@ -149,7 +152,9 @@ Vector<DMABufRendererBufferFormat> WebPageProxy::preferredBufferFormats() const
             auto* modifiers = wpe_buffer_dma_buf_formats_get_format_modifiers(formats, i, j);
             format.modifiers.reserveInitialCapacity(modifiers->len);
             for (unsigned k = 0; k < modifiers->len; ++k) {
+                WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN // WPE port
                 auto* modifier = &g_array_index(modifiers, guint64, k);
+                WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
                 format.modifiers.append(*modifier);
             }
             dmabufFormat.formats.append(WTFMove(format));
@@ -163,7 +168,7 @@ Vector<DMABufRendererBufferFormat> WebPageProxy::preferredBufferFormats() const
 #endif
 }
 
-#if ENABLE(WPE_PLATFORM)
+#if USE(GBM) && ENABLE(WPE_PLATFORM)
 void WebPageProxy::preferredBufferFormatsDidChange()
 {
     auto* view = wpeView();
@@ -212,13 +217,21 @@ void WebPageProxy::callAfterNextPresentationUpdate(CompletionHandler<void()>&& c
     }
 
 #if USE(COORDINATED_GRAPHICS)
-    if (RefPtr pageClient = this->pageClient()) {
-        static_cast<PageClientImpl&>(*pageClient).callAfterNextPresentationUpdate(WTFMove(callback));
-        return;
-    }
-#endif
+    Ref aggregator = CallbackAggregator::create([weakThis = WeakPtr { *this }, callback = WTFMove(callback)]() mutable {
+        RefPtr protectedThis = weakThis.get();
+        if (!protectedThis)
+            return callback();
 
+        if (RefPtr pageClient = protectedThis->pageClient())
+            static_cast<PageClientImpl&>(*pageClient).callAfterNextPresentationUpdate(WTFMove(callback));
+    });
+    auto drawingAreaIdentifier = m_drawingArea->identifier();
+    forEachWebContentProcess([&] (auto& process, auto) {
+        process.sendWithAsyncReply(Messages::DrawingArea::DispatchAfterEnsuringDrawing(), [aggregator] { }, drawingAreaIdentifier);
+    });
+#else
     callback();
+#endif
 }
 
 } // namespace WebKit

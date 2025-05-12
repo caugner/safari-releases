@@ -104,11 +104,16 @@ IDBError IndexValueStore::addRecord(const IDBKeyData& indexKey, const IDBKeyData
 void IndexValueStore::removeRecord(const IDBKeyData& indexKey, const IDBKeyData& valueKey)
 {
     auto iterator = m_records.find(indexKey);
+    if (iterator == m_records.end())
+        return;
+
     if (!iterator->value)
         return;
 
-    if (iterator->value->removeKey(valueKey))
+    if (iterator->value->removeKey(valueKey) && !iterator->value->getCount()) {
         m_records.remove(iterator);
+        m_orderedKeys.erase(indexKey);
+    }
 }
 
 void IndexValueStore::removeEntriesWithValueKey(MemoryIndex& index, const IDBKeyData& valueKey)

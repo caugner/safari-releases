@@ -50,7 +50,8 @@ class MediaRecorder final
     , private MediaStreamTrackPrivateObserver {
     WTF_MAKE_TZONE_OR_ISO_ALLOCATED(MediaRecorder);
 public:
-    DEFINE_VIRTUAL_REFCOUNTED;
+    void ref() const final { RefCounted::ref(); }
+    void deref() const final { RefCounted::deref(); }
 
     enum class RecordingState { Inactive, Recording, Paused };
     
@@ -79,14 +80,12 @@ public:
 
     MediaStream& stream() { return m_stream.get(); }
 
-    using EventTarget::weakPtrFactory;
-    using EventTarget::WeakValueType;
-    using EventTarget::WeakPtrImplType;
+    USING_CAN_MAKE_WEAKPTR(EventTarget);
 
 private:
     MediaRecorder(Document&, Ref<MediaStream>&&, Options&&);
 
-    static ExceptionOr<std::unique_ptr<MediaRecorderPrivate>> createMediaRecorderPrivate(Document&, MediaStreamPrivate&, const Options&);
+    static ExceptionOr<std::unique_ptr<MediaRecorderPrivate>> createMediaRecorderPrivate(MediaStreamPrivate&, const Options&);
     
     Document* document() const;
 
@@ -107,6 +106,8 @@ private:
     enum class TakePrivateRecorder : bool { No, Yes };
     using FetchDataCallback = Function<void(RefPtr<FragmentedSharedBuffer>&&, const String& mimeType, double)>;
     void fetchData(FetchDataCallback&&, TakePrivateRecorder);
+    enum class ReturnDataIfEmpty : bool { No, Yes };
+    ExceptionOr<void> requestDataInternal(ReturnDataIfEmpty);
 
     // MediaStream::Observer
     void didAddTrack(MediaStreamTrackPrivate&) final { handleTrackChange(); }
@@ -131,9 +132,10 @@ private:
     std::unique_ptr<MediaRecorderPrivate> m_private;
     RecordingState m_state { RecordingState::Inactive };
     Vector<Ref<MediaStreamTrackPrivate>> m_tracks;
+    static constexpr unsigned m_mimimumTimeSlice { 100 };
     std::optional<unsigned> m_timeSlice;
     Timer m_timeSliceTimer;
-    
+
     bool m_isActive { true };
     bool m_isFetchingData { false };
     Deque<FetchDataCallback> m_pendingFetchDataTasks;

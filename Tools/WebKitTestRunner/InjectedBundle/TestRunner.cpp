@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2022 Apple Inc. All rights reserved.
+ * Copyright (C) 2010-2024 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -79,9 +79,7 @@ TestRunner::TestRunner()
     platformInitialize();
 }
 
-TestRunner::~TestRunner()
-{
-}
+TestRunner::~TestRunner() = default;
 
 JSClassRef TestRunner::wrapperClass()
 {
@@ -98,12 +96,9 @@ void TestRunner::display()
     WKBundlePageForceRepaint(page());
 }
 
-void TestRunner::displayAndTrackRepaints()
+void TestRunner::displayAndTrackRepaints(JSContextRef context, JSValueRef callback)
 {
-    auto page = WTR::page();
-    WKBundlePageForceRepaint(page);
-    WKBundlePageSetTracksRepaints(page, true);
-    WKBundlePageResetTrackedRepaints(page);
+    postMessageWithAsyncReply(context, "DisplayAndTrackRepaints", callback);
 }
 
 static WKRetainPtr<WKDoubleRef> toWK(double value)
@@ -250,22 +245,11 @@ void TestRunner::notifyDone()
     auto& injectedBundle = InjectedBundle::singleton();
     if (!injectedBundle.isTestRunning())
         return;
-
-    ALLOW_DEPRECATED_DECLARATIONS_BEGIN
-    bool mainFrameIsRemote = WKBundleFrameIsRemote(WKBundlePageGetMainFrame(injectedBundle.pageRef()));
-    ALLOW_DEPRECATED_DECLARATIONS_END
-    if (mainFrameIsRemote) {
-        setWaitUntilDone(false);
-        return postPageMessage("NotifyDone");
-    }
-    if (shouldWaitUntilDone() && !injectedBundle.topLoadingFrame())
-        injectedBundle.page()->dump(m_forceRepaint);
-
-    // We don't call invalidateWaitToDumpWatchdogTimer() here, even if we continue to wait for a load to finish.
-    // The test is still subject to timeout checking - it is better to detect an async timeout inside WebKitTestRunner
-    // than to let webkitpy do that, because WebKitTestRunner will dump partial results.
-
-    setWaitUntilDone(false);
+    if (!postSynchronousMessageReturningBoolean("ResolveNotifyDone"))
+        return;
+    if (!injectedBundle.page())
+        return;
+    injectedBundle.page()->notifyDone();
 }
 
 void TestRunner::forceImmediateCompletion()
@@ -273,11 +257,11 @@ void TestRunner::forceImmediateCompletion()
     auto& injectedBundle = InjectedBundle::singleton();
     if (!injectedBundle.isTestRunning())
         return;
-
-    if (shouldWaitUntilDone() && injectedBundle.page())
-        injectedBundle.page()->dump(m_forceRepaint);
-
-    setWaitUntilDone(false);
+    if (!postSynchronousMessageReturningBoolean("ResolveForceImmediateCompletion"))
+        return;
+    if (!injectedBundle.page())
+        return;
+    injectedBundle.page()->forceImmediateCompletion();
 }
 
 void TestRunner::setShouldDumpFrameLoadCallbacks(bool value)
@@ -495,9 +479,9 @@ unsigned TestRunner::windowCount()
     return InjectedBundle::singleton().pageCount();
 }
 
-void TestRunner::clearBackForwardList()
+void TestRunner::clearBackForwardList(JSContextRef context, JSValueRef callback)
 {
-    WKBundleClearHistoryForTesting(page());
+    postMessageWithAsyncReply(context, "ClearBackForwardList", callback);
 }
 
 void TestRunner::makeWindowObject(JSContextRef context)
@@ -507,7 +491,7 @@ void TestRunner::makeWindowObject(JSContextRef context)
 
 void TestRunner::showWebInspector()
 {
-    WKBundlePageShowInspectorForTest(page());
+    postMessage("ShowWebInspector");
 }
 
 void TestRunner::closeWebInspector()
@@ -616,8 +600,6 @@ enum {
     TextDidChangeInTextFieldCallbackID,
     TextFieldDidBeginEditingCallbackID,
     TextFieldDidEndEditingCallbackID,
-    EnterFullscreenForElementCallbackID,
-    ExitFullscreenForElementCallbackID,
     FirstUIScriptCallbackID = 100
 };
 
@@ -727,26 +709,6 @@ void TestRunner::setOnlyAcceptFirstPartyCookies(bool accept)
 void TestRunner::removeAllCookies(JSContextRef context, JSValueRef callback)
 {
     postMessageWithAsyncReply(context, "RemoveAllCookies", callback);
-}
-
-void TestRunner::setEnterFullscreenForElementCallback(JSContextRef context, JSValueRef callback)
-{
-    cacheTestRunnerCallback(context, EnterFullscreenForElementCallbackID, callback);
-}
-
-void TestRunner::callEnterFullscreenForElementCallback()
-{
-    callTestRunnerCallback(EnterFullscreenForElementCallbackID);
-}
-
-void TestRunner::setExitFullscreenForElementCallback(JSContextRef context, JSValueRef callback)
-{
-    cacheTestRunnerCallback(context, ExitFullscreenForElementCallbackID, callback);
-}
-
-void TestRunner::callExitFullscreenForElementCallback()
-{
-    callTestRunnerCallback(ExitFullscreenForElementCallbackID);
 }
 
 double TestRunner::preciseTime()
@@ -962,6 +924,11 @@ void TestRunner::stopLoading()
     postPageMessage("StopLoading");
 }
 
+void TestRunner::dumpFullScreenCallbacks()
+{
+    postPageMessage("DumpFullScreenCallbacks");
+}
+
 void TestRunner::queueReload()
 {
     InjectedBundle::singleton().queueReload();
@@ -1072,6 +1039,11 @@ void TestRunner::setNavigationGesturesEnabled(bool value)
 void TestRunner::setIgnoresViewportScaleLimits(bool value)
 {
     postPageMessage("SetIgnoresViewportScaleLimits", value);
+}
+
+void TestRunner::setUseDarkAppearanceForTesting(bool useDarkAppearance)
+{
+    postPageMessage("SetUseDarkAppearanceForTesting", useDarkAppearance);
 }
 
 void TestRunner::setShouldDownloadUndisplayableMIMETypes(bool value)
@@ -1511,11 +1483,13 @@ void TestRunner::setStatisticsShouldDowngradeReferrer(JSContextRef context, bool
     postMessageWithAsyncReply(context, "SetStatisticsShouldDowngradeReferrer", adoptWK(WKBooleanCreate(value)), completionHandler);
 }
 
-void TestRunner::setStatisticsShouldBlockThirdPartyCookies(JSContextRef context, bool value, JSValueRef completionHandler, bool onlyOnSitesWithoutUserInteraction)
+void TestRunner::setStatisticsShouldBlockThirdPartyCookies(JSContextRef context, bool value, JSValueRef completionHandler, bool onlyOnSitesWithoutUserInteraction, bool onlyUnpartitionedCookies)
 {
     auto messageName = "SetStatisticsShouldBlockThirdPartyCookies";
     if (onlyOnSitesWithoutUserInteraction)
         messageName = "SetStatisticsShouldBlockThirdPartyCookiesOnSitesWithoutUserInteraction";
+    else if (onlyUnpartitionedCookies)
+        messageName = "SetStatisticsShouldBlockThirdPartyCookiesExceptPartitioned";
     postMessageWithAsyncReply(context, messageName, adoptWK(WKBooleanCreate(value)), completionHandler);
 }
 
@@ -1676,9 +1650,12 @@ void TestRunner::resetMockMediaDevices()
     postSynchronousMessage("ResetMockMediaDevices");
 }
 
-void TestRunner::setMockCameraOrientation(unsigned orientation)
+void TestRunner::setMockCameraOrientation(unsigned rotation, JSStringRef persistentId)
 {
-    postSynchronousMessage("SetMockCameraOrientation", orientation);
+    postSynchronousMessage("SetMockCameraRotation", createWKDictionary({
+        { "Rotation", adoptWK(WKUInt64Create(rotation)) },
+        { "PersistentID", toWK(persistentId) },
+    }));
 }
 
 bool TestRunner::isMockRealtimeMediaSourceCenterEnabled()
@@ -2113,6 +2090,26 @@ void TestRunner::flushConsoleLogs(JSContextRef context, JSValueRef callback)
     postMessageWithAsyncReply(context, "FlushConsoleLogs", callback);
 }
 
+void TestRunner::updatePresentation(JSContextRef context, JSValueRef callback)
+{
+    postMessageWithAsyncReply(context, "UpdatePresentation", callback);
+}
+
+void TestRunner::waitBeforeFinishingFullscreenExit()
+{
+    postPageMessage("WaitBeforeFinishingFullscreenExit");
+}
+
+void TestRunner::finishFullscreenExit()
+{
+    postPageMessage("FinishFullscreenExit");
+}
+
+void TestRunner::requestExitFullscreenFromUIProcess()
+{
+    postPageMessage("RequestExitFullscreenFromUIProcess");
+}
+
 void TestRunner::setPageScaleFactor(JSContextRef context, double scaleFactor, long x, long y, JSValueRef callback)
 {
     postMessageWithAsyncReply(context, "SetPageScaleFactor", createWKDictionary({
@@ -2146,6 +2143,11 @@ bool TestRunner::shouldDumpBackForwardListsForAllWindows() const
 void TestRunner::setTopContentInset(JSContextRef context, double contentInset, JSValueRef callback)
 {
     postMessageWithAsyncReply(context, "SetTopContentInset", adoptWK(WKDoubleCreate(contentInset)), callback);
+}
+
+void TestRunner::setResourceMonitorList(JSContextRef context, JSStringRef rulesText, JSValueRef callback)
+{
+    postMessageWithAsyncReply(context, "SetResourceMonitorList", toWK(rulesText), callback);
 }
 
 ALLOW_DEPRECATED_DECLARATIONS_END

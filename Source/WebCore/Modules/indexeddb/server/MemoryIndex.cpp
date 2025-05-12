@@ -65,12 +65,12 @@ RefPtr<MemoryObjectStore> MemoryIndex::protectedObjectStore()
 
 void MemoryIndex::cursorDidBecomeClean(MemoryIndexCursor& cursor)
 {
-    m_cleanCursors.add(&cursor);
+    m_cleanCursors.add(cursor);
 }
 
 void MemoryIndex::cursorDidBecomeDirty(MemoryIndexCursor& cursor)
 {
-    m_cleanCursors.remove(&cursor);
+    m_cleanCursors.remove(cursor);
 }
 
 void MemoryIndex::objectStoreCleared()
@@ -85,16 +85,20 @@ void MemoryIndex::objectStoreCleared()
 
 void MemoryIndex::notifyCursorsOfValueChange(const IDBKeyData& indexKey, const IDBKeyData& primaryKey)
 {
-    for (auto* cursor : copyToVector(m_cleanCursors))
-        cursor->indexValueChanged(indexKey, primaryKey);
+    for (WeakPtr cursor : copyToVector(m_cleanCursors)) {
+        if (RefPtr protectedCusor = cursor.get())
+            protectedCusor->indexValueChanged(indexKey, primaryKey);
+    }
 }
 
 void MemoryIndex::notifyCursorsOfAllRecordsChanged()
 {
-    for (auto* cursor : copyToVector(m_cleanCursors))
-        cursor->indexRecordsAllChanged();
+    for (WeakPtr cursor : copyToVector(m_cleanCursors)) {
+        if (RefPtr protectedCusor = cursor.get())
+            protectedCusor->indexRecordsAllChanged();
+    }
 
-    ASSERT(m_cleanCursors.isEmpty());
+    ASSERT(!m_cleanCursors.computeSize());
 }
 
 void MemoryIndex::clearIndexValueStore()
@@ -261,14 +265,40 @@ void MemoryIndex::removeEntriesWithValueKey(const IDBKeyData& valueKey)
     m_records->removeEntriesWithValueKey(*this, valueKey);
 }
 
-MemoryIndexCursor* MemoryIndex::maybeOpenCursor(const IDBCursorInfo& info)
+MemoryIndexCursor* MemoryIndex::maybeOpenCursor(const IDBCursorInfo& info, MemoryBackingStoreTransaction& transaction)
 {
+    if (transaction.isWriting()) {
+        RefPtr objectStore = m_objectStore.get();
+        if (!objectStore)
+            return nullptr;
+
+        if (objectStore->writeTransaction() != &transaction)
+            return nullptr;
+    }
+
     auto result = m_cursors.add(info.identifier(), nullptr);
     if (!result.isNewEntry)
         return nullptr;
 
-    result.iterator->value = makeUnique<MemoryIndexCursor>(*this, info);
+    result.iterator->value = MemoryIndexCursor::create(*this, info, transaction);
     return result.iterator->value.get();
+}
+
+void MemoryIndex::transactionFinished(MemoryBackingStoreTransaction& transaction)
+{
+    auto cleanCursors = std::exchange(m_cleanCursors, { });
+    for (WeakPtr cursor : cleanCursors) {
+        if (RefPtr protectedCusor = cursor.get()) {
+            if (protectedCusor->transaction() != &transaction)
+                m_cleanCursors.add(*protectedCusor);
+        }
+    }
+
+    auto cursors = std::exchange(m_cursors, { });
+    for (auto [identifier, cursor] : cursors) {
+        if (cursor->transaction() != &transaction)
+            m_cursors.add(identifier, cursor);
+    }
 }
 
 } // namespace IDBServer

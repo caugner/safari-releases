@@ -33,7 +33,6 @@
 #include "NetworkProcessConnection.h"
 #include "NetworkProcessMessages.h"
 #include "SharedBufferReference.h"
-#include "WebCoreArgumentCoders.h"
 #include "WebMessagePortChannelProvider.h"
 #include "WebPage.h"
 #include "WebPageProxyMessages.h"
@@ -300,6 +299,7 @@ void WebSWClientConnection::getPushPermissionState(WebCore::ServiceWorkerRegistr
     });
 }
 
+#if ENABLE(NOTIFICATION_EVENT)
 void WebSWClientConnection::getNotifications(const URL& registrationURL, const String& tag, GetNotificationsCallback&& callback)
 {
 #if ENABLE(WEB_PUSH_NOTIFICATIONS)
@@ -317,6 +317,7 @@ void WebSWClientConnection::getNotifications(const URL& registrationURL, const S
 
     WebProcess::singleton().parentProcessConnection()->sendWithAsyncReply(Messages::WebProcessProxy::GetNotifications { registrationURL, tag }, WTFMove(callback));
 }
+#endif
 
 void WebSWClientConnection::enableNavigationPreload(WebCore::ServiceWorkerRegistrationIdentifier registrationIdentifier, ExceptionOrVoidCallback&& callback)
 {

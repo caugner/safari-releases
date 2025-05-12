@@ -1,11 +1,9 @@
 
-Harness Error (TIMEOUT), message = null
-
-TIMEOUT View timeline with px based inset. Test timed out
-NOTRUN View timeline with percent based inset.
-NOTRUN view timeline with inset auto.
-NOTRUN view timeline with font relative inset.
-NOTRUN view timeline with viewport relative insets.
-NOTRUN view timeline inset as string
-NOTRUN view timeline with invalid inset
+PASS View timeline with px based inset.
+PASS View timeline with percent based inset.
+PASS view timeline with inset auto.
+PASS view timeline with font relative inset.
+PASS view timeline with viewport relative insets.
+PASS view timeline inset as string
+PASS view timeline with invalid inset
 

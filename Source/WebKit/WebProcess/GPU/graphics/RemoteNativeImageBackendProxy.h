@@ -35,13 +35,14 @@ class RemoteResourceCacheProxy;
 
 class RemoteNativeImageBackendProxy final : public WebCore::NativeImageBackend {
 public:
-    static std::unique_ptr<RemoteNativeImageBackendProxy> create(WebCore::NativeImage&);
+    static std::unique_ptr<RemoteNativeImageBackendProxy> create(WebCore::NativeImage&, const WebCore::DestinationColorSpace&);
     ~RemoteNativeImageBackendProxy() final;
 
     const WebCore::PlatformImagePtr& platformImage() const final;
     WebCore::IntSize size() const final;
     bool hasAlpha() const final;
     WebCore::DestinationColorSpace colorSpace() const final;
+    WebCore::Headroom headroom() const final;
     bool isRemoteNativeImageBackendProxy() const final;
 
     std::optional<WebCore::ShareableBitmap::Handle> createHandle();

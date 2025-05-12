@@ -39,6 +39,7 @@ typedef struct opaqueCMSampleBuffer* CMSampleBufferRef;
 OBJC_CLASS AVCaptureConnection;
 OBJC_CLASS AVCaptureDevice;
 OBJC_CLASS AVCaptureDeviceFormat;
+OBJC_CLASS AVCaptureDeviceRotationCoordinator;
 OBJC_CLASS AVCapturePhoto;
 OBJC_CLASS AVCapturePhotoOutput;
 OBJC_CLASS AVCapturePhotoSettings;
@@ -64,6 +65,7 @@ public:
     static NSMutableArray* cameraCaptureDeviceTypes();
 
     WEBCORE_EXPORT static VideoCaptureFactory& factory();
+    WEBCORE_EXPORT static void setUseAVCaptureDeviceRotationCoordinatorAPI(bool);
 
     void captureSessionBeginInterruption(RetainPtr<NSNotification>);
     void captureSessionEndInterruption(RetainPtr<NSNotification>);
@@ -76,6 +78,8 @@ public:
     void captureOutputDidOutputSampleBufferFromConnection(AVCaptureOutput*, CMSampleBufferRef, AVCaptureConnection*);
     void captureDeviceSuspendedDidChange();
     void captureOutputDidFinishProcessingPhoto(RetainPtr<AVCapturePhotoOutput>, RetainPtr<AVCapturePhoto>, RetainPtr<NSError>);
+
+    void configurationChanged();
 
 private:
     AVVideoCaptureSource(AVCaptureDevice*, const CaptureDevice&, MediaDeviceHashSalts&&, std::optional<PageIdentifier>);
@@ -116,6 +120,8 @@ private:
 
     // OrientationNotifier::Observer API
     void orientationChanged(IntDegrees orientation) final;
+    void rotationAngleForHorizonLevelDisplayChanged(const String&, VideoFrameRotation) final;
+
 
     bool setFrameRateConstraint(double minFrameRate, double maxFrameRate);
     bool areSettingsMatching() const;
@@ -191,12 +197,14 @@ private:
 
 #if PLATFORM(IOS_FAMILY)
     bool m_shouldCallNotifyMutedChange { false };
-    Timer m_startupTimer;
+    std::unique_ptr<Timer> m_startupTimer;
 #endif
-    Timer m_verifyCapturingTimer;
+    std::unique_ptr<Timer> m_verifyCapturingTimer;
     uint64_t m_framesCount { 0 };
     uint64_t m_lastFramesCount { 0 };
     int64_t m_defaultTorchMode { 0 };
+    OptionSet<RealtimeMediaSourceSettings::Flag> m_pendingSettingsChanges;
+    bool m_useSensorAndDeviceOrientation { true };
 };
 
 } // namespace WebCore

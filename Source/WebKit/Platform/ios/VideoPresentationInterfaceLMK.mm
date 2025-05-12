@@ -28,6 +28,7 @@
 
 #if ENABLE(LINEAR_MEDIA_PLAYER)
 
+#import "LinearMediaKitExtras.h"
 #import "LinearMediaKitSPI.h"
 #import "PlaybackSessionInterfaceLMK.h"
 #import "WKSLinearMediaPlayer.h"
@@ -40,6 +41,7 @@
 #import <WebCore/WebAVPlayerLayerView.h>
 #import <pal/spi/cocoa/QuartzCoreSPI.h>
 #import <wtf/BlockPtr.h>
+#import <wtf/TZoneMallocInlines.h>
 #import <wtf/UUID.h>
 #import <wtf/text/MakeString.h>
 
@@ -72,6 +74,8 @@
 
 namespace WebKit {
 
+WTF_MAKE_TZONE_ALLOCATED_IMPL(VideoPresentationInterfaceLMK);
+
 VideoPresentationInterfaceLMK::~VideoPresentationInterfaceLMK()
 {
 }
@@ -96,10 +100,14 @@ void VideoPresentationInterfaceLMK::setSpatialImmersive(bool immersive)
     linearMediaPlayer().spatialImmersive = immersive;
 }
 
-void VideoPresentationInterfaceLMK::setupFullscreen(UIView& videoView, const WebCore::FloatRect& initialRect, const WebCore::FloatSize& videoDimensions, UIView* parentView, WebCore::HTMLMediaElementEnums::VideoFullscreenMode mode, bool allowsPictureInPicturePlayback, bool standby, bool blocksReturnToFullscreenFromPictureInPicture)
+void VideoPresentationInterfaceLMK::setupFullscreen(const WebCore::FloatRect& initialRect, const WebCore::FloatSize& videoDimensions, UIView* parentView, WebCore::HTMLMediaElementEnums::VideoFullscreenMode mode, bool allowsPictureInPicturePlayback, bool standby, bool blocksReturnToFullscreenFromPictureInPicture)
 {
     linearMediaPlayer().contentDimensions = videoDimensions;
-    VideoPresentationInterfaceIOS::setupFullscreen(videoView, initialRect, videoDimensions, parentView, mode, allowsPictureInPicturePlayback, standby, blocksReturnToFullscreenFromPictureInPicture);
+    if (!linearMediaPlayer().enteredFromInline && playerViewController()) {
+        playableViewController().wks_automaticallyDockOnFullScreenPresentation = NO;
+        playableViewController().wks_dismissFullScreenOnExitingDocking = NO;
+    }
+    VideoPresentationInterfaceIOS::setupFullscreen(initialRect, videoDimensions, parentView, mode, allowsPictureInPicturePlayback, standby, blocksReturnToFullscreenFromPictureInPicture);
 }
 
 void VideoPresentationInterfaceLMK::finalizeSetup()
@@ -215,6 +223,18 @@ void VideoPresentationInterfaceLMK::ensurePlayableViewController()
     ALWAYS_LOG_IF_POSSIBLE(LOGIDENTIFIER);
     m_playerViewController = [linearMediaPlayer() makeViewController];
     [m_playerViewController view].alpha = 0;
+}
+
+void VideoPresentationInterfaceLMK::swapFullscreenModesWith(VideoPresentationInterfaceIOS& otherInterfaceIOS)
+{
+    auto& otherInterface = static_cast<VideoPresentationInterfaceLMK&>(otherInterfaceIOS);
+    std::swap(m_playerViewController, otherInterface.m_playerViewController);
+
+    auto currentMode = mode();
+    auto previousMode = otherInterface.mode();
+
+    setMode(previousMode, true);
+    otherInterface.setMode(currentMode, true);
 }
 
 } // namespace WebKit

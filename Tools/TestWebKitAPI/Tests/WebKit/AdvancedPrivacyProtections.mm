@@ -39,14 +39,18 @@
 #import "UserInterfaceSwizzler.h"
 #import <WebCore/LinkDecorationFilteringData.h>
 #import <WebKit/WKErrorPrivate.h>
+#import <WebKit/WKPreferencesPrivate.h>
+#import <WebKit/WKWebViewConfigurationPrivate.h>
 #import <WebKit/WKWebViewPrivateForTesting.h>
 #import <WebKit/WKWebpagePreferencesPrivate.h>
 #import <WebKit/WKWebsiteDataStorePrivate.h>
+#import <WebKit/_WKFeature.h>
 #import <WebKit/_WKWebsiteDataStoreConfiguration.h>
 #import <pal/spi/cf/CFNetworkSPI.h>
 #import <wtf/BlockPtr.h>
 #import <wtf/RetainPtr.h>
 #import <wtf/RunLoop.h>
+#import <wtf/cocoa/TypeCastsCocoa.h>
 #import <wtf/text/MakeString.h>
 
 #if PLATFORM(IOS_FAMILY)
@@ -172,10 +176,10 @@ private:
 };
 #endif // HAVE(SYSTEM_SUPPORT_FOR_ADVANCED_PRIVACY_PROTECTIONS)
 
-static RetainPtr<TestWKWebView> createWebViewWithAdvancedPrivacyProtections(BOOL enabled = YES, RetainPtr<WKWebpagePreferences>&& preferences = { }, WKWebsiteDataStore *dataStore = nil)
+static RetainPtr<TestWKWebView> createWebViewWithAdvancedPrivacyProtections(BOOL enabled = YES, RetainPtr<WKWebpagePreferences>&& preferences = { }, WKWebsiteDataStore *dataStore = nil, bool enableResourceLoadStatistics = YES)
 {
     auto store = dataStore ?: WKWebsiteDataStore.nonPersistentDataStore;
-    store._resourceLoadStatisticsEnabled = YES;
+    store._resourceLoadStatisticsEnabled = enableResourceLoadStatistics;
 
     auto policies = enabled
         ? _WKWebsiteNetworkConnectionIntegrityPolicyEnhancedTelemetry | _WKWebsiteNetworkConnectionIntegrityPolicyEnabled | _WKWebsiteNetworkConnectionIntegrityPolicyRequestValidation | _WKWebsiteNetworkConnectionIntegrityPolicySanitizeLookalikeCharacters
@@ -188,18 +192,37 @@ static RetainPtr<TestWKWebView> createWebViewWithAdvancedPrivacyProtections(BOOL
     [configuration setWebsiteDataStore:store];
     [configuration setMediaTypesRequiringUserActionForPlayback:WKAudiovisualMediaTypeNone];
     [configuration setDefaultWebpagePreferences:preferences.get()];
+    if (!enabled) {
+        for (_WKFeature *feature in [WKPreferences _features]) {
+            if ([feature.key isEqualToString:@"FilterLinkDecorationByDefaultEnabled"]) {
+                [[configuration preferences] _setEnabled:YES forFeature:feature];
+                break;
+            }
+        }
+    }
 
     return adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
 }
 
 #if HAVE(SYSTEM_SUPPORT_FOR_ADVANCED_PRIVACY_PROTECTIONS)
 
-TEST(AdvancedPrivacyProtections, DoNotRemoveTrackingQueryParametersWhenPrivacyProtectionsAreDisabled)
+TEST(AdvancedPrivacyProtections, RemoveTrackingQueryParametersWhenPrivacyProtectionsAreDisabled)
 {
     [TestProtocol registerWithScheme:@"https"];
     QueryParameterRequestSwizzler swizzler { @[ @"foo", @"bar", @"baz" ], @[ @"", @"", @"" ], @[ @"", @"", @"" ] };
 
     auto webView = createWebViewWithAdvancedPrivacyProtections(NO);
+    auto url = [NSURL URLWithString:@"https://bundle-file/simple.html?foo=10&garply=20&bar=30&baz=40"];
+    [webView synchronouslyLoadRequest:[NSURLRequest requestWithURL:url]];
+    EXPECT_WK_STREQ("https://bundle-file/simple.html?garply=20", [webView URL].absoluteString);
+}
+
+TEST(AdvancedPrivacyProtections, DoNotRemoveTrackingQueryParametersWhenResourceLoadStatisticsAreDisabled)
+{
+    [TestProtocol registerWithScheme:@"https"];
+    QueryParameterRequestSwizzler swizzler { @[ @"foo", @"bar", @"baz" ], @[ @"", @"", @"" ], @[ @"", @"", @"" ] };
+
+    auto webView = createWebViewWithAdvancedPrivacyProtections(NO, { }, nil, NO);
     auto url = [NSURL URLWithString:@"https://bundle-file/simple.html?foo=10&garply=20&bar=30&baz=40"];
     [webView synchronouslyLoadRequest:[NSURLRequest requestWithURL:url]];
     EXPECT_WK_STREQ("https://bundle-file/simple.html?foo=10&garply=20&bar=30&baz=40", [webView URL].absoluteString);
@@ -486,6 +509,46 @@ TEST(AdvancedPrivacyProtections, ApplyNavigationalProtectionsAfterMultiplePSON)
     EXPECT_WK_STREQ(@"", result);
 }
 
+TEST(AdvancedPrivacyProtections, DoNotHideReferrerInPopupWindow)
+{
+    HTTPServer server({ { "/popup"_s, { "<body><h1>popup</h1></body>"_s } } }, HTTPServer::Protocol::Http);
+    server.addResponse("/main"_s, { makeString("<body><h1>main</h1><script src='http://localhost:"_s, server.port(), "/show-popup.js'></script></body>"_s) });
+    server.addResponse("/show-popup.js"_s, { makeString("open('http://localhost:"_s, server.port(), "/popup', 'Popup', 'width=400,height=300')"_s) });
+
+    bool popupDidFinishNavigation = false;
+    RetainPtr popupNavigationDelegate = adoptNS([TestNavigationDelegate new]);
+    [popupNavigationDelegate setDidFinishNavigation:[&](WKWebView *, WKNavigation *) {
+        popupDidFinishNavigation = true;
+    }];
+
+    RetainPtr<TestWKWebView> popupWebView;
+    RetainPtr uiDelegate = adoptNS([TestUIDelegate new]);
+    [uiDelegate setCreateWebViewWithConfiguration:[&](WKWebViewConfiguration *configuration, WKNavigationAction *action, WKWindowFeatures *) -> WKWebView * {
+        popupWebView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 300) configuration:configuration]);
+        [popupWebView setNavigationDelegate:popupNavigationDelegate.get()];
+        return popupWebView.get();
+    }];
+
+    RetainPtr preferences = adoptNS([WKWebpagePreferences new]);
+    [preferences _setPopUpPolicy:_WKWebsitePopUpPolicyAllow];
+
+    RetainPtr webView = createWebViewWithAdvancedPrivacyProtections(YES, WTFMove(preferences));
+    [webView setUIDelegate:uiDelegate.get()];
+
+    // Load the main page on 127.0.0.1, which opens a cross-origin popup window on localhost.
+    auto mainURLPrefix = "http://127.0.0.1:"_s;
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:makeString(mainURLPrefix, server.port(), "/main"_s)]]];
+
+    // Wait for the popup window to finish loading.
+    Util::waitForConditionWithLogging([&] {
+        return popupDidFinishNavigation;
+    }, 5, @"Timed out while waiting for popup window to load");
+
+    // Confirm that the popup window has access to the document referrer.
+    String referrerFromPopup = [popupWebView stringByEvaluatingJavaScript:@"document.referrer"];
+    EXPECT_TRUE(referrerFromPopup.startsWith(mainURLPrefix));
+}
+
 static RetainPtr<TestWKWebView> setUpWebViewForTestingQueryParameterHiding(NSString *pageSource, NSString *requestURLString, NSString *referrer = @"https://webkit.org")
 {
     auto *store = WKWebsiteDataStore.nonPersistentDataStore;
@@ -630,6 +693,180 @@ TEST(AdvancedPrivacyProtections, DoNotHideQueryParametersAfterEffectiveSameSiteN
     EXPECT_WK_STREQ("thirdparty: custom://firstparty.co.uk/index.html?hello=123", results[0]);
 }
 
+static RetainPtr<TestWKWebView> setUpWebViewForTestingTrackerDomainBlocking(String nonTrackerFramePageSource, String subFramePageSource, NSString *requestURLString)
+{
+    HTTPServer httpsServer({
+        { "/"_s, { { }, nonTrackerFramePageSource } },
+        { "/subframe"_s, { { }, subFramePageSource } },
+        { "/initialize"_s, { { }, "initialize"_s } },
+    }, HTTPServer::Protocol::HttpsProxy);
+
+    auto storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    [storeConfiguration setProxyConfiguration:@{
+        (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
+        (NSString *)kCFStreamPropertyHTTPSProxyPort: @(httpsServer.port())
+    }];
+    auto store = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);;
+    store.get()._resourceLoadStatisticsEnabled = YES;
+
+    auto configuration = adoptNS([WKWebViewConfiguration new]);
+    [configuration setWebsiteDataStore:store.get()];
+
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    [navigationDelegate allowAnyTLSCertificate];
+    [webView setNavigationDelegate:navigationDelegate.get()];
+
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://webkit.org/initialize"]]];
+    [navigationDelegate waitForDidFinishNavigation];
+
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:requestURLString]]];
+    [navigationDelegate waitForDidFinishNavigation];
+
+    [webView callAsyncJavaScriptAndWait:@"return new Promise(resolve => setTimeout(resolve, 0))"];
+
+    return webView;
+}
+
+TEST(AdvancedPrivacyProtections, DoNotBlockFirstPartyPartitionedCookiesFromTrackerDomain)
+{
+    auto webView = setUpWebViewForTestingTrackerDomainBlocking("<!DOCTYPE html>"
+        "<html>"
+        "    <head>"
+        "    <script>"
+        "        window.result = '';"
+        "        window.receivedMessage = 'no';"
+        "        window.addEventListener('message', (e) => {"
+        "            window.result = e.data;"
+        "            window.receivedMessage = 'yes';"
+        "        });"
+        "    </script>"
+        "    </head>"
+        "    <body>"
+        "    <iframe sandbox=\"allow-scripts allow-same-origin\" src=\"https://tracker.example/subframe\">"
+        "    </body>"
+        "</html>"_s,
+
+        "<!DOCTYPE html>"
+        "<html>"
+        "    <head>"
+        "        <script>"
+        "        document.cookie = `test=value;Secure;SameSite=None;Partitioned`;"
+        "        window.top.postMessage(document.cookie, '*');"
+        "        </script>"
+        "    </head>"
+        "    <body>Hello world</body>"
+        "</html>"_s,
+
+        @"https://tracker.example/");
+
+    NSString *receivedMessage = [webView objectByEvaluatingJavaScript:@"window.receivedMessage"];
+    while ([receivedMessage isEqualToString:@"no"]) {
+        TestWebKitAPI::Util::spinRunLoop(5000);
+        receivedMessage = [webView objectByEvaluatingJavaScript:@"window.receivedMessage"];
+    }
+
+    NSString *result = [webView objectByEvaluatingJavaScript:@"window.result"];
+
+    EXPECT_WK_STREQ(@"yes", receivedMessage);
+
+    EXPECT_NE(0U, result.length);
+    EXPECT_WK_STREQ(@"test=value", result);
+}
+
+TEST(AdvancedPrivacyProtections, DoNotBlockThirdPartyPartitionedCookiesFromSameSiteDomain)
+{
+    auto webView = setUpWebViewForTestingTrackerDomainBlocking("<!DOCTYPE html>"
+        "<html>"
+        "    <head>"
+        "    <script>"
+        "        window.result = '';"
+        "        window.receivedMessage = 'no';"
+        "        window.addEventListener('message', (e) => {"
+        "            window.result = e.data;"
+        "            window.receivedMessage = 'yes';"
+        "        });"
+        "    </script>"
+        "    </head>"
+        "    <body>"
+        "    <iframe sandbox=\"allow-scripts allow-same-origin\" src=\"https://subdomain.website.example/subframe\">"
+        "    </body>"
+        "</html>"_s,
+
+        "<!DOCTYPE html>"
+        "<html>"
+        "    <head>"
+        "        <script>"
+        "        document.cookie = `test=value;Secure;SameSite=None;Partitioned`;"
+        "        window.top.postMessage(document.cookie, '*');"
+        "        </script>"
+        "    </head>"
+        "    <body>Hello world</body>"
+        "</html>"_s,
+
+        @"https://website.example/");
+
+    NSString *receivedMessage = [webView objectByEvaluatingJavaScript:@"window.receivedMessage"];
+    while ([receivedMessage isEqualToString:@"no"]) {
+        TestWebKitAPI::Util::spinRunLoop(5000);
+        receivedMessage = [webView objectByEvaluatingJavaScript:@"window.receivedMessage"];
+    }
+
+    NSString *result = [webView objectByEvaluatingJavaScript:@"window.result"];
+
+    EXPECT_WK_STREQ(@"yes", receivedMessage);
+    EXPECT_NE(0U, result.length);
+    EXPECT_WK_STREQ(@"test=value", result);
+}
+
+#if HAVE(ALLOW_ONLY_PARTITIONED_COOKIES)
+TEST(AdvancedPrivacyProtections, DoNotBlockThirdPartyPartitionedCookies)
+{
+    auto webView = setUpWebViewForTestingTrackerDomainBlocking("<!DOCTYPE html>"
+        "<html>"
+        "    <head>"
+        "    <script>"
+        "        window.result = '';"
+        "        window.receivedMessage = 'no';"
+        "        window.addEventListener('message', (e) => {"
+        "            window.result = e.data;"
+        "            window.receivedMessage = 'yes';"
+        "        });"
+        "    </script>"
+        "    </head>"
+        "    <body>"
+        "    <iframe sandbox=\"allow-scripts allow-same-origin\" src=\"https://websiteB.example/subframe\">"
+        "    </body>"
+        "</html>"_s,
+
+        "<!DOCTYPE html>"
+        "<html>"
+        "    <head>"
+        "        <script>"
+        "        document.cookie = `test=value;Secure;SameSite=None;Partitioned`;"
+        "        window.parent.postMessage(document.cookie, '*');"
+        "        </script>"
+        "    </head>"
+        "    <body>Hello world</body>"
+        "</html>"_s,
+
+        @"https://website.example/");
+
+    NSString *receivedMessage = [webView objectByEvaluatingJavaScript:@"window.receivedMessage"];
+    while ([receivedMessage isEqualToString:@"no"]) {
+        TestWebKitAPI::Util::spinRunLoop(5000);
+        receivedMessage = [webView objectByEvaluatingJavaScript:@"window.receivedMessage"];
+    }
+
+    NSString *result = [webView objectByEvaluatingJavaScript:@"window.result"];
+
+    EXPECT_WK_STREQ(@"yes", receivedMessage);
+    EXPECT_NE(0U, result.length);
+    EXPECT_WK_STREQ(@"test=value", result);
+}
+#endif
+
 TEST(AdvancedPrivacyProtections, LinkPreconnectUsesEnhancedPrivacy)
 {
     auto createMarkupString = [](unsigned serverPort) {
@@ -744,63 +981,6 @@ TEST(AdvancedPrivacyProtections, DoNotHideReferrerAfterReducingPrivacyProtection
     NSString *expectedReferrer = [NSString stringWithFormat:@"http://localhost:%d/", server.port()];
     EXPECT_WK_STREQ(expectedReferrer, result);
 }
-
-#if HAVE(SYSTEM_SUPPORT_FOR_ADVANCED_PRIVACY_PROTECTIONS)
-
-TEST(AdvancedPrivacyProtections, DoNotRemoveTrackingParametersAfterReducingPrivacyProtections)
-{
-    QueryParameterRequestSwizzler blockListSwizzler { @[ @"someID" ], @[ @"" ], @[ @"" ] };
-
-    auto pathAndQuery = "/index2.html?someID=123"_s;
-    HTTPServer server({
-        { pathAndQuery, { "<body>Destination</body>"_s } },
-    }, HTTPServer::Protocol::Http);
-
-    server.addResponse("/index1.html"_s, makeString("<a href='http://127.0.0.1:"_s, server.port(), pathAndQuery, "'>Link</a>"_s));
-
-    auto webView = webViewAfterCrossSiteNavigationWithReducedPrivacy(makeString("http://localhost:"_s, server.port(), "/index1.html"_s));
-
-    auto checkForExpectedQueryParameters = [](NSURL *url) {
-        auto parameters = [NSURLComponents componentsWithURL:url resolvingAgainstBaseURL:NO].queryItems;
-        EXPECT_EQ(1U, parameters.count);
-        EXPECT_WK_STREQ("someID", parameters.firstObject.name);
-        EXPECT_WK_STREQ("123", parameters.firstObject.value);
-    };
-
-    auto documentURLString = [webView stringByEvaluatingJavaScript:@"document.URL"];
-
-    checkForExpectedQueryParameters([NSURL URLWithString:documentURLString]);
-    checkForExpectedQueryParameters([webView URL]);
-}
-
-TEST(AdvancedPrivacyProtections, DoNotRemoveTrackingParametersAfterReducingPrivacyProtectionsWithJSRedirect)
-{
-    QueryParameterRequestSwizzler blockListSwizzler { @[ @"someID" ], @[ @"" ], @[ @"" ] };
-
-    auto pathAndQuery = "/destination.html?someID=123"_s;
-    HTTPServer server({
-        { pathAndQuery, { "<body>Destination</body>"_s } },
-    }, HTTPServer::Protocol::Http);
-
-    server.addResponse("/source.html"_s, { makeString("<a href='http://127.0.0.1:"_s, server.port(), "/redirect.html'>Link</a>"_s) });
-    server.addResponse("/redirect.html"_s, { makeString("<script>window.location = 'http://localhost:"_s, server.port(), pathAndQuery, "';</script>"_s) });
-
-    auto webView = webViewAfterCrossSiteNavigationWithReducedPrivacy(makeString("http://localhost:"_s, server.port(), "/source.html"_s), true);
-
-    auto checkForExpectedQueryParameters = [](NSURL *url) {
-        auto parameters = [NSURLComponents componentsWithURL:url resolvingAgainstBaseURL:NO].queryItems;
-        EXPECT_EQ(1U, parameters.count);
-        EXPECT_WK_STREQ("someID", parameters.firstObject.name);
-        EXPECT_WK_STREQ("123", parameters.firstObject.value);
-    };
-
-    auto documentURLString = [webView stringByEvaluatingJavaScript:@"document.URL"];
-
-    checkForExpectedQueryParameters([NSURL URLWithString:documentURLString]);
-    checkForExpectedQueryParameters([webView URL]);
-}
-
-#endif // HAVE(SYSTEM_SUPPORT_FOR_ADVANCED_PRIVACY_PROTECTIONS)
 
 TEST(AdvancedPrivacyProtections, HideScreenMetricsFromBindings)
 {
@@ -1199,7 +1379,6 @@ TEST(AdvancedPrivacyProtections, VerifyDataURLFromNoisyWebGLAPI)
 
 TEST(AdvancedPrivacyProtections, Canvas2DQuirks)
 {
-    using namespace TestWebKitAPI;
     auto *script = @"let canvas = document.createElement(\"canvas\"); canvas.width = 280; canvas.height = 60; let ctx = canvas.getContext(\"2d\"); ctx.fillText(\"<@nv45. F1n63r,Pr1n71n6!\", 10, 40); canvas.toDataURL();";
     auto *paddedScript = [script stringByPaddingToLength:212053 withString:@" " startingAtIndex:0];
     EXPECT_NOT_NULL(paddedScript);

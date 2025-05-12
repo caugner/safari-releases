@@ -30,6 +30,11 @@
 namespace WebCore {
 
 class WEBCORE_EXPORT EmptyFrameLoaderClient : public LocalFrameLoaderClient {
+public:
+    explicit EmptyFrameLoaderClient(FrameLoader& frameLoader)
+        : LocalFrameLoaderClient(frameLoader)
+    { }
+
 private:
     Ref<DocumentLoader> createDocumentLoader(const ResourceRequest&, const SubstituteData&) override;
 
@@ -97,7 +102,7 @@ private:
     void dispatchDecidePolicyForNewWindowAction(const NavigationAction&, const ResourceRequest&, FormState*, const String&, std::optional<HitTestResult>&&, FramePolicyFunction&&) final;
     void dispatchDecidePolicyForNavigationAction(const NavigationAction&, const ResourceRequest&, const ResourceResponse& redirectResponse, FormState*, const String&, std::optional<NavigationIdentifier>, std::optional<HitTestResult>&&, bool, IsPerformingHTTPFallback, SandboxFlags, PolicyDecisionMode, FramePolicyFunction&&) final;
     void updateSandboxFlags(SandboxFlags) final;
-    void broadcastMainFrameURLChangeToOtherProcesses(const URL&) final;
+    void updateOpener(const Frame&) final;
     void cancelPolicyCheck() final;
 
     void dispatchUnableToImplementPolicy(const ResourceError&) final;
@@ -110,7 +115,7 @@ private:
 
     void setMainFrameDocumentReady(bool) final;
 
-    void startDownload(const ResourceRequest&, const String&) final;
+    void startDownload(const ResourceRequest&, const String&, FromDownloadAttribute = FromDownloadAttribute::No) final;
 
     void willChangeTitle(DocumentLoader*) final;
     void didChangeTitle(DocumentLoader*) final;
@@ -120,21 +125,6 @@ private:
 
     void committedLoad(DocumentLoader*, const SharedBuffer&) final;
     void finishedLoading(DocumentLoader*) final;
-
-    ResourceError cancelledError(const ResourceRequest&) const final;
-    ResourceError blockedError(const ResourceRequest&) const final;
-    ResourceError blockedByContentBlockerError(const ResourceRequest&) const final;
-    ResourceError cannotShowURLError(const ResourceRequest&) const final;
-    ResourceError interruptedForPolicyChangeError(const ResourceRequest&) const final;
-#if ENABLE(CONTENT_FILTERING)
-    ResourceError blockedByContentFilterError(const ResourceRequest&) const final;
-#endif
-
-    ResourceError cannotShowMIMETypeError(const ResourceResponse&) const final;
-    ResourceError fileDoesNotExistError(const ResourceResponse&) const final;
-    ResourceError httpsUpgradeRedirectLoopError(const ResourceRequest&) const final;
-    ResourceError httpNavigationWithHTTPSOnlyError(const ResourceRequest&) const final;
-    ResourceError pluginWillHandleLoadError(const ResourceResponse&) const final;
 
     void loadStorageAccessQuirksIfNeeded() final;
 
@@ -168,7 +158,8 @@ private:
 
     void updateGlobalHistory() final;
     void updateGlobalHistoryRedirectLinks() final;
-    bool shouldGoToHistoryItem(HistoryItem&) const final;
+    bool shouldGoToHistoryItem(HistoryItem&, IsSameDocumentNavigation) const final;
+
     void saveViewStateToItem(HistoryItem&) final;
     bool canCachePage() const final;
     void didDisplayInsecureContent() final;
@@ -204,6 +195,8 @@ private:
     bool hasFrameSpecificStorageAccess() final;
 
     void dispatchLoadEventToOwnerElementInAnotherProcess() final;
+
+    RefPtr<HistoryItem> createHistoryItemTree(bool, BackForwardItemIdentifier) const final;
 };
 
 } // namespace WebCore

@@ -30,6 +30,7 @@
 #include <WebCore/PlatformMediaResourceLoader.h>
 #include <WebCore/ResourceRequest.h>
 #include <wtf/NeverDestroyed.h>
+#include <wtf/TZoneMalloc.h>
 #include <wtf/WeakPtr.h>
 #include <wtf/WorkQueue.h>
 
@@ -39,6 +40,7 @@ class RemoteMediaPlayerProxy;
 
 class RemoteMediaResourceLoader final
     : public WebCore::PlatformMediaResourceLoader {
+    WTF_MAKE_TZONE_ALLOCATED(RemoteMediaResourceLoader);
 public:
     static Ref<RemoteMediaResourceLoader> create(RemoteMediaPlayerProxy& proxy) { return adoptRef(*new RemoteMediaResourceLoader(proxy)); }
     ~RemoteMediaResourceLoader();
@@ -58,7 +60,7 @@ private:
 
     RefPtr<WebCore::PlatformMediaResource> requestResource(WebCore::ResourceRequest&&, LoadOptions) final;
     void sendH2Ping(const URL&, CompletionHandler<void(Expected<WTF::Seconds, WebCore::ResourceError>&&)>&&) final;
-    Ref<RefCountedSerialFunctionDispatcher> targetDispatcher() final { return defaultQueue(); }
+    Ref<GuaranteedSerialFunctionDispatcher> targetDispatcher() final { return defaultQueue(); }
 
     WeakPtr<RemoteMediaPlayerProxy> m_remoteMediaPlayerProxy;
 };

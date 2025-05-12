@@ -72,18 +72,18 @@ JSC_DEFINE_HOST_FUNCTION(callWebAssemblyFunction, (JSGlobalObject* globalObject,
     // For wasm, we setup |codeBlock| and |this| differently.
     //     |codeBlock| : JS entry wrapper expects a JSWebAssemblyInstance* as the |codeBlock| value argument.
     ProtoCallFrame protoCallFrame;
-    protoCallFrame.init(nullptr, globalObject, wasmFunction, JSValue(), callFrame->argumentCountIncludingThis(), bitwise_cast<EncodedJSValue*>(callFrame->addressOfArgumentsStart()));
+    protoCallFrame.init(nullptr, globalObject, wasmFunction, JSValue(), callFrame->argumentCountIncludingThis(), std::bit_cast<EncodedJSValue*>(callFrame->addressOfArgumentsStart()));
     protoCallFrame.setWasmInstance(wasmFunction->instance());
 
     return vmEntryToWasm(wasmFunction->jsEntrypoint(MustCheckArity).taggedPtr(), &vm, &protoCallFrame);
 }
 
-WebAssemblyFunction* WebAssemblyFunction::create(VM& vm, JSGlobalObject* globalObject, Structure* structure, unsigned length, const String& name, JSWebAssemblyInstance* instance, Wasm::JSEntrypointCallee& jsEntrypoint, Wasm::Callee* wasmCallee, Wasm::WasmToWasmImportableFunction::LoadLocation wasmToWasmEntrypointLoadLocation, Wasm::TypeIndex typeIndex, RefPtr<const Wasm::RTT> rtt)
+WebAssemblyFunction* WebAssemblyFunction::create(VM& vm, JSGlobalObject* globalObject, Structure* structure, unsigned length, const String& name, JSWebAssemblyInstance* instance, Wasm::JSEntrypointCallee& jsEntrypoint, Wasm::Callee& wasmCallee, Wasm::WasmToWasmImportableFunction::LoadLocation wasmToWasmEntrypointLoadLocation, Wasm::TypeIndex typeIndex, RefPtr<const Wasm::RTT>&& rtt)
 {
     NativeExecutable* base = vm.getHostFunction(callWebAssemblyFunction, ImplementationVisibility::Public, WasmFunctionIntrinsic, callHostFunctionAsConstructor, nullptr, String());
     // Since ClosureCall uses this executable as an identity for Wasm CallIC thunk, we need to make it diversified.
     NativeExecutable* executable = NativeExecutable::create(vm, base->generatedJITCodeForCall(), callWebAssemblyFunction, base->generatedJITCodeForConstruct(), callHostFunctionAsConstructor, ImplementationVisibility::Public, name);
-    WebAssemblyFunction* function = new (NotNull, allocateCell<WebAssemblyFunction>(vm)) WebAssemblyFunction(vm, executable, globalObject, structure, instance, jsEntrypoint, wasmCallee, wasmToWasmEntrypointLoadLocation, typeIndex, rtt);
+    WebAssemblyFunction* function = new (NotNull, allocateCell<WebAssemblyFunction>(vm)) WebAssemblyFunction(vm, executable, globalObject, structure, instance, jsEntrypoint, wasmCallee, wasmToWasmEntrypointLoadLocation, typeIndex, WTFMove(rtt));
     function->finishCreation(vm, executable, length, name);
     return function;
 }
@@ -94,10 +94,11 @@ Structure* WebAssemblyFunction::createStructure(VM& vm, JSGlobalObject* globalOb
     return Structure::create(vm, globalObject, prototype, TypeInfo(JSFunctionType, StructureFlags), info());
 }
 
-WebAssemblyFunction::WebAssemblyFunction(VM& vm, NativeExecutable* executable, JSGlobalObject* globalObject, Structure* structure, JSWebAssemblyInstance* instance, Wasm::JSEntrypointCallee& jsEntrypoint, Wasm::Callee* wasmCallee, Wasm::WasmToWasmImportableFunction::LoadLocation wasmToWasmEntrypointLoadLocation, Wasm::TypeIndex typeIndex, RefPtr<const Wasm::RTT> rtt)
-    : Base { vm, executable, globalObject, structure, instance, Wasm::WasmToWasmImportableFunction { typeIndex, wasmToWasmEntrypointLoadLocation, &m_boxedWasmCallee, rtt.get() } }
-    , m_boxedWasmCallee(reinterpret_cast<uint64_t>(CalleeBits::boxNativeCalleeIfExists(wasmCallee)))
-    , m_jsToWasmCallee { jsEntrypoint }
+WebAssemblyFunction::WebAssemblyFunction(VM& vm, NativeExecutable* executable, JSGlobalObject* globalObject, Structure* structure, JSWebAssemblyInstance* instance, Wasm::JSEntrypointCallee& jsEntrypoint, Wasm::Callee& wasmCallee, Wasm::WasmToWasmImportableFunction::LoadLocation wasmToWasmEntrypointLoadLocation, Wasm::TypeIndex typeIndex, RefPtr<const Wasm::RTT>&& rtt)
+    : Base { vm, executable, globalObject, structure, instance, Wasm::WasmOrJSImportableFunction { { { reinterpret_cast<uintptr_t*>(&m_boxedWasmCallee), { vm, globalObject, instance }, wasmToWasmEntrypointLoadLocation }, typeIndex, rtt.get() }, { }, { } }, nullptr }
+    , m_boxedWasmCallee(wasmCallee)
+    , m_boxedJSToWasmCallee(jsEntrypoint)
+    , m_frameSize(jsEntrypoint.frameSize())
 { }
 
 template<typename Visitor>

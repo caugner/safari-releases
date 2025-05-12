@@ -31,6 +31,8 @@
 #include <wtf/DataLog.h>
 #include <wtf/TZoneMalloc.h>
 
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
+
 namespace JSC { namespace ARM64Disassembler {
 
 class A64DOpcode {
@@ -550,6 +552,23 @@ public:
     unsigned opNum() { return (m_opcode >> 12) & 0xf; }
 };
 
+class A64DOpcodeFloatingPointDataProcessing4Source : public A64DOpcodeFloatingPointOps {
+private:
+    static const char* const s_opNames[4];
+
+public:
+    static constexpr uint32_t mask    = 0b1'1'1'11111'10'1'1111'00'11111'00000'00000;
+    static constexpr uint32_t pattern = 0b0'0'0'11110'00'1'0100'00'10000'00000'00000;
+
+    DEFINE_STATIC_FORMAT(A64DOpcodeFloatingPointDataProcessing4Source, thisObj);
+
+    const char* format();
+
+    const char* opName() { return s_opNames[opNum()]; }
+
+    unsigned opNum() { return (m_opcode >> 15) & 0b11; }
+};
+
 class A64DOpcodeFloatingFixedPointConversions : public A64DOpcodeFloatingPointOps {
 private:
     static const char* const s_opNames[4];
@@ -1030,3 +1049,5 @@ public:
 } } // namespace JSC::ARM64Disassembler
 
 using JSC::ARM64Disassembler::A64DOpcode;
+
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_END

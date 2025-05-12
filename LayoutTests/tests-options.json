@@ -815,255 +815,6 @@
     "imported/w3c/web-platform-tests/IndexedDB/writer-starvation.htm": [
         "slow"
     ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/derive_bits_keys/test_ecdh_bits.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/derive_bits_keys/test_ecdh_bits.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/derive_bits_keys/test_ecdh_keys.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/derive_bits_keys/test_ecdh_keys.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/derive_bits_keys/test_hkdf.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/derive_bits_keys/test_hkdf.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/derive_bits_keys/test_pbkdf2.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/derive_bits_keys/test_pbkdf2_empty_empty.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/derive_bits_keys/test_pbkdf2_empty_long.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/derive_bits_keys/test_pbkdf2_empty_short.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/derive_bits_keys/test_pbkdf2_long_empty.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/derive_bits_keys/test_pbkdf2_long_long.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/derive_bits_keys/test_pbkdf2_long_short.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/derive_bits_keys/test_pbkdf2_short_empty.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/derive_bits_keys/test_pbkdf2_short_long.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/derive_bits_keys/test_pbkdf2_short_short.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/digest/test_digest.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/digest/test_digest.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/encrypt_decrypt/test_aes_cbc.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/encrypt_decrypt/test_aes_cbc.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/encrypt_decrypt/test_aes_ctr.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/encrypt_decrypt/test_aes_ctr.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/encrypt_decrypt/test_aes_gcm.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/encrypt_decrypt/test_aes_gcm.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/encrypt_decrypt/test_rsa_oaep.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/encrypt_decrypt/test_rsa_oaep.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_aes-cbc.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_aes-cbc.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_aes-ctr.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_aes-ctr.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_failures.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_failures.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_failures_AES-CBC.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_failures_AES-CBC.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_failures_AES-CTR.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_failures_AES-CTR.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_failures_AES-GCM.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_failures_AES-GCM.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_failures_AES-KW.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_failures_AES-KW.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_failures_ECDH.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_failures_ECDH.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_failures_ECDSA.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_failures_ECDSA.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_failures_HMAC.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_failures_HMAC.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_failures_RSA-OAEP.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_failures_RSA-OAEP.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_failures_RSA-PSS.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_failures_RSA-PSS.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_failures_RSASSA-PKCS1-v1_5.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_failures_RSASSA-PKCS1-v1_5.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_successes.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_successes_AES-CBC.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_successes_AES-CBC.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_successes_AES-CTR.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_successes_AES-CTR.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_successes_AES-GCM.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_successes_AES-GCM.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_successes_AES-KW.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_successes_AES-KW.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_successes_ECDH.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_successes_ECDH.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_successes_ECDSA.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_successes_ECDSA.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_successes_HMAC.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_successes_HMAC.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_successes_RSA-OAEP.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_successes_RSA-OAEP.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_successes_RSA-PSS.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_successes_RSA-PSS.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_successes_RSASSA-PKCS1-v1_5.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/test_successes_RSASSA-PKCS1-v1_5.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/sign_verify/test_ecdsa.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/sign_verify/test_ecdsa.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/sign_verify/test_hmac.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/sign_verify/test_hmac.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/sign_verify/test_rsa_pkcs.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/sign_verify/test_rsa_pkcs.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/sign_verify/test_rsa_pss.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/sign_verify/test_rsa_pss.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/wrapKey_unwrapKey/test_wrapKey_unwrapKey.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/WebCryptoAPI/wrapKey_unwrapKey/test_wrapKey_unwrapKey.https.html": [
-        "slow"
-    ],
     "imported/w3c/web-platform-tests/XMLHttpRequest/progress-events-response-data-gzip.htm": [
         "slow"
     ],
@@ -1970,10 +1721,16 @@
     "imported/w3c/web-platform-tests/content-security-policy/object-src/object-src-2_2.html": [
         "slow"
     ],
+    "imported/w3c/web-platform-tests/content-security-policy/report-hash/multiple-policies.https.sub.html": [
+        "slow"
+    ],
     "imported/w3c/web-platform-tests/content-security-policy/reporting-api/reporting-api-report-to-overrides-report-uri-2.https.sub.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/content-security-policy/reporting/report-cross-origin-no-cookies.sub.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/content-security-policy/reporting/report-frame-ancestors-no-parent-cookies.sub.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/content-security-policy/reporting/report-only-in-meta.sub.html": [
@@ -2312,6 +2069,18 @@
     "imported/w3c/web-platform-tests/css/selectors/media/media-loading-state.html": [
         "slow"
     ],
+    "imported/w3c/web-platform-tests/custom-elements/form-associated/ElementInternals-target-element-is-held-strongly.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/custom-elements/state/custom-state-set-strong-ref.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/custom-elements/state/state-css-selector-shadow-dom.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/custom-elements/state/state-css-selector.html": [
+        "slow"
+    ],
     "imported/w3c/web-platform-tests/custom-state-pseudo-class/custom-state-set-strong-ref.tentative.html": [
         "slow"
     ],
@@ -2448,6 +2217,9 @@
         "slow"
     ],
     "imported/w3c/web-platform-tests/dom/traversal/TreeWalker.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/editing/crashtests/insertparagraph-in-listitem-in-svg-followed-by-collapsible-spaces.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/editing/run/backcolor.html": [
@@ -4121,6 +3893,15 @@
     "imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/show-picker-user-gesture.html": [
         "slow"
     ],
+    "imported/w3c/web-platform-tests/html/semantics/interactive-elements/the-dialog-element/dialog-closedby.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/semantics/interactive-elements/the-dialog-element/dialog-popover-closedby-complex.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/semantics/interactive-elements/the-dialog-element/dialog-popover-closedby-simple.html": [
+        "slow"
+    ],
     "imported/w3c/web-platform-tests/html/semantics/invokers/invoketarget-button-event-dispatch.tentative.html": [
         "slow"
     ],
@@ -4166,16 +3947,10 @@
     "imported/w3c/web-platform-tests/html/semantics/popovers/popover-attribute-basic.html": [
         "slow"
     ],
-    "imported/w3c/web-platform-tests/html/semantics/popovers/popover-attribute-basic.tentative.html": [
-        "slow"
-    ],
     "imported/w3c/web-platform-tests/html/semantics/popovers/popover-focus-2.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/html/semantics/popovers/popover-focus.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/html/semantics/popovers/popover-focus.tentative.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/html/semantics/popovers/popover-hover-hide-hide.tentative.html": [
@@ -4196,22 +3971,13 @@
     "imported/w3c/web-platform-tests/html/semantics/popovers/popover-invoking-attribute.html": [
         "slow"
     ],
-    "imported/w3c/web-platform-tests/html/semantics/popovers/popover-invoking-attribute.tentative.html": [
-        "slow"
-    ],
     "imported/w3c/web-platform-tests/html/semantics/popovers/popover-light-dismiss-hint.tentative.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/html/semantics/popovers/popover-light-dismiss-with-anchor.tentative.html": [
         "slow"
     ],
-    "imported/w3c/web-platform-tests/html/semantics/popovers/popover-light-dismiss-with-anchor.tentative.tentative.html": [
-        "slow"
-    ],
     "imported/w3c/web-platform-tests/html/semantics/popovers/popover-light-dismiss.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/html/semantics/popovers/popover-light-dismiss.tentative.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/html/semantics/popovers/popover-target-action-hover.tentative.html": [
@@ -4419,6 +4185,39 @@
         "slow"
     ],
     "imported/w3c/web-platform-tests/html/semantics/tabular-data/processing-model-1/span-limits.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/semantics/the-button-element/command-and-commandfor/button-event-dispatch.tentative.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/semantics/the-button-element/command-and-commandfor/fullscreen-behavior.tentative.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/semantics/the-button-element/command-and-commandfor/on-audio-behavior.tentative.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/semantics/the-button-element/command-and-commandfor/on-audio-invalid-behavior.tentative.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/semantics/the-button-element/command-and-commandfor/on-details-behavior.tentative.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/semantics/the-button-element/command-and-commandfor/on-details-invalid-behavior.tentative.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/semantics/the-button-element/command-and-commandfor/on-dialog-behavior.tentative.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/semantics/the-button-element/command-and-commandfor/on-dialog-invalid-behavior.tentative.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/semantics/the-button-element/command-and-commandfor/on-popover-behavior.tentative.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/semantics/the-button-element/command-and-commandfor/on-popover-invalid-behavior.tentative.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/semantics/the-button-element/command-and-commandfor/on-video-behavior.tentative.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/html/syntax/parsing/html5lib_adoption01.html": [
@@ -4782,6 +4581,9 @@
         "slow"
     ],
     "imported/w3c/web-platform-tests/mathml/relations/html5-tree/tabindex-002.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/mathml/relations/html5-tree/tabindex-002.tentative.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/media-capabilities/decodingInfoEncryptedMedia.https.html": [
@@ -5378,6 +5180,21 @@
     "imported/w3c/web-platform-tests/pointerevents/pointerlock/pointerevent_movementxy.html": [
         "slow"
     ],
+    "imported/w3c/web-platform-tests/pointerlock/movementX_Y_basic.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/pointerlock/pointerlock_promise.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/pointerlock/pointerlock_remove_target.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/pointerlock/pointerlock_shadow.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/pointerlock/pointerlock_without_gesture.html": [
+        "slow"
+    ],
     "imported/w3c/web-platform-tests/quirks/hashless-hex-color/limited-quirks.html": [
         "slow"
     ],
@@ -5475,6 +5292,24 @@
         "slow"
     ],
     "imported/w3c/web-platform-tests/scroll-to-text-fragment/find-range-from-text-directive.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/scroll-to-text-fragment/force-load-at-top.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/scroll-to-text-fragment/iframes.sub.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/scroll-to-text-fragment/non-html-documents.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/scroll-to-text-fragment/redirects.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/scroll-to-text-fragment/scroll-to-text-fragment-after-DOMContentLoaded.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/scroll-to-text-fragment/scroll-to-text-fragment-scroll-to-center.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/scroll-to-text-fragment/scroll-to-text-fragment.html": [
@@ -5789,7 +5624,22 @@
     "imported/w3c/web-platform-tests/svg/animations/svglengthlist-animation-3.html": [
         "slow"
     ],
-    "imported/w3c/web-platform-tests/trusted-types/TrustedTypePolicyFactory-metadata.html": [
+    "imported/w3c/web-platform-tests/svg/interact/scripted/async-01.svg": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/svg/interact/scripted/async-02.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/svg/interact/scripted/async-03.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/svg/interact/scripted/defer-02.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/svg/interact/scripted/module-02.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/trusted-types/TrustedTypePolicyFactory-getAttributeType-event-handler-content-attributes.tentative.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/trusted-types/TrustedTypePolicyFactory-metadata.tentative.html": [
@@ -6428,6 +6278,123 @@
     "imported/w3c/web-platform-tests/webaudio/the-audio-api/the-audiocontext-interface/suspend-with-navigation.html": [
         "slow"
     ],
+    "imported/w3c/web-platform-tests/webauthn/createcredential-abort.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webauthn/createcredential-attachment.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webauthn/createcredential-badargs-authnrselection.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webauthn/createcredential-badargs-challenge.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webauthn/createcredential-badargs-rp.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webauthn/createcredential-badargs-user.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webauthn/createcredential-cross-origin-iframe.https.sub.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webauthn/createcredential-excludecredentials.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webauthn/createcredential-extensions.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webauthn/createcredential-getpublickey.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webauthn/createcredential-hints.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webauthn/createcredential-large-blob-not-supported.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webauthn/createcredential-large-blob-supported.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webauthn/createcredential-minpinlength.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webauthn/createcredential-passing.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webauthn/createcredential-prf.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webauthn/createcredential-pubkeycredparams.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webauthn/createcredential-resident-key.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webauthn/createcredential-timeout.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webauthn/credblob-not-supported.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webauthn/credblob-supported.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webauthn/getcredential-abort.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webauthn/getcredential-allowcredentials.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webauthn/getcredential-attachment.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webauthn/getcredential-badargs-rpid.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webauthn/getcredential-badargs-userverification.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webauthn/getcredential-extensions.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webauthn/getcredential-hints.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webauthn/getcredential-large-blob-not-supported.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webauthn/getcredential-large-blob-supported.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webauthn/getcredential-passing.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webauthn/getcredential-prf.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webauthn/getcredential-rk-passing.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webauthn/getcredential-timeout.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webauthn/remote-desktop-client-override.tentative.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webauthn/signal-all-accepted-credentials.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webauthn/signal-current-user-details.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webauthn/signal-unknown-credential.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webauthn/storecredential.https.html": [
+        "slow"
+    ],
     "imported/w3c/web-platform-tests/webmessaging/broadcastchannel/cross-partition.https.tentative.html": [
         "slow"
     ],
@@ -6681,6 +6648,9 @@
         "slow"
     ],
     "imported/w3c/web-platform-tests/websockets/opening-handshake/003.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/websockets/opening-handshake/006.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/websockets/unload-a-document/002.html": [

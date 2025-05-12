@@ -46,8 +46,10 @@ enum class ScriptTelemetryCategory : uint8_t {
     Referrer,
     ScreenOrViewport,
     Speech,
+    FormControls,
 };
 
+String makeLogMessage(const URL&, ScriptTelemetryCategory);
 ASCIILiteral description(ScriptTelemetryCategory);
 
 } // namespace WebCore

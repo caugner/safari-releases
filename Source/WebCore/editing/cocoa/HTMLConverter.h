@@ -28,7 +28,10 @@
 
 namespace WebCore {
 
-WEBCORE_EXPORT AttributedString attributedString(const SimpleRange&);
+enum class IgnoreUserSelectNone : bool;
+enum class TextIteratorBehavior : uint16_t;
+
+WEBCORE_EXPORT AttributedString attributedString(const SimpleRange&, IgnoreUserSelectNone);
 
 // This alternate implementation of HTML conversion doesn't handle as many advanced features,
 // such as tables, and doesn't produce document attributes, but it does use TextIterator so
@@ -43,5 +46,6 @@ enum class IncludedElement : uint8_t {
 };
 
 WEBCORE_EXPORT AttributedString editingAttributedString(const SimpleRange&, OptionSet<IncludedElement> = { IncludedElement::Images });
+WEBCORE_EXPORT AttributedString editingAttributedStringReplacingNoBreakSpace(const SimpleRange&, OptionSet<TextIteratorBehavior>, OptionSet<IncludedElement>);
 
 } // namespace WebCore

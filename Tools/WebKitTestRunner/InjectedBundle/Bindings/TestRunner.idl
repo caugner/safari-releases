@@ -102,11 +102,12 @@ interface TestRunner {
     undefined setShouldDecideResponsePolicyAfterDelay(boolean value);
     undefined setNavigationGesturesEnabled(boolean value);
     undefined setIgnoresViewportScaleLimits(boolean value);
+    undefined setUseDarkAppearanceForTesting(boolean useDarkAppearance);
     undefined setShouldDownloadUndisplayableMIMETypes(boolean value);
     undefined stopLoading();
 
     // Special DOM functions.
-    undefined clearBackForwardList();
+    Promise<undefined> clearBackForwardList();
     undefined execCommand(DOMString name, DOMString showUI, DOMString value);
     boolean isCommandEnabled(DOMString name);
     unsigned long windowCount();
@@ -121,7 +122,7 @@ interface TestRunner {
     undefined testRepaint();
     undefined repaintSweepHorizontally();
     undefined display();
-    undefined displayAndTrackRepaints();
+    Promise<undefined> displayAndTrackRepaints();
     undefined displayOnLoadFinish();
     undefined dontForceRepaint();
 
@@ -199,11 +200,6 @@ interface TestRunner {
     // Page Visibility API
     undefined setPageVisibility(DOMString state);
     undefined resetPageVisibility();
-
-    // Control full screen behavior.
-    undefined setHasCustomFullScreenBehavior(boolean value);
-    undefined setEnterFullscreenForElementCallback(object callback);
-    undefined setExitFullscreenForElementCallback(object callback);
 
     // Web notifications support
     undefined grantWebNotificationPermission(DOMString origin);
@@ -357,7 +353,7 @@ interface TestRunner {
     undefined statisticsResetToConsistentState(object completionHandler);
     boolean hasStatisticsIsolatedSession(DOMString hostName);
     undefined setStatisticsShouldDowngradeReferrer(boolean value, object callback);
-    undefined setStatisticsShouldBlockThirdPartyCookies(boolean value, object callback, optional boolean onlyOnSitesWithoutUserInteraction);
+    undefined setStatisticsShouldBlockThirdPartyCookies(boolean value, object callback, optional boolean onlyOnSitesWithoutUserInteraction, optional boolean onlyUnpartitionedCookies);
     undefined setStatisticsFirstPartyWebsiteDataRemovalMode(boolean value, object callback);
     undefined statisticsSetToSameSiteStrictCookies(DOMString hostName, object callback);
     undefined statisticsSetFirstPartyHostCNAMEDomain(DOMString firstPartyURLString, DOMString cnameURLString, object callback);
@@ -407,7 +403,7 @@ interface TestRunner {
     undefined removeMockMediaDevice(DOMString persistentId);
     undefined setMockMediaDeviceIsEphemeral(DOMString persistentId, boolean isEphemeral);
     undefined resetMockMediaDevices();
-    undefined setMockCameraOrientation(unsigned long orientation);
+    undefined setMockCameraOrientation(unsigned long orientation, DOMString persistentId);
     boolean isMockRealtimeMediaSourceCenterEnabled();
     undefined setMockCaptureDevicesInterrupted(boolean isCameraInterrupted, boolean isMicrophoneInterrupted);
     undefined triggerMockCaptureConfigurationChange(boolean forMicrophone, boolean forDisplay);
@@ -461,7 +457,16 @@ interface TestRunner {
 
     undefined getAndClearReportedWindowProxyAccessDomains(object callback);
     Promise<undefined> flushConsoleLogs();
+    Promise<undefined> updatePresentation();
+
+    undefined waitBeforeFinishingFullscreenExit();
+    undefined finishFullscreenExit();
+    undefined requestExitFullscreenFromUIProcess();
 
     Promise<undefined> setTopContentInset(double contentInset);
     Promise<undefined> setPageScaleFactor(unrestricted double scaleFactor, long x, long y);
+
+    // ResourceMonitor
+    readonly attribute boolean canModifyResourceMonitorList;
+    Promise<undefined> setResourceMonitorList(DOMString rulesText);
 };

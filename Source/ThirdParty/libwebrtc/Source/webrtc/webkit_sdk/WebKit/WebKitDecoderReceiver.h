@@ -45,7 +45,7 @@ public:
 private:
     int32_t Decoded(VideoFrame&) final;
     int32_t Decoded(VideoFrame&, int64_t decode_time_ms) final;
-    void Decoded(VideoFrame&, absl::optional<int32_t> decode_time_ms, absl::optional<uint8_t> qp) final;
+    void Decoded(VideoFrame&, std::optional<int32_t> decode_time_ms, std::optional<uint8_t> qp) final;
 
     CVPixelBufferPoolRef pixelBufferPool(size_t pixelBufferWidth, size_t pixelBufferHeight, bool is10bit);
 

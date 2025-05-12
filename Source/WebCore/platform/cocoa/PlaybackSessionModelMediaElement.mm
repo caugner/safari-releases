@@ -134,6 +134,11 @@ void PlaybackSessionModelMediaElement::handleEvent(WebCore::ScriptExecutionConte
     updateForEventName(event.type());
 }
 
+void PlaybackSessionModelMediaElement::updateAll()
+{
+    updateForEventName(eventNameAll());
+}
+
 void PlaybackSessionModelMediaElement::updateForEventName(const WTF::AtomString& eventName)
 {
     if (m_clients.isEmpty())
@@ -377,7 +382,7 @@ void PlaybackSessionModelMediaElement::enterInWindowFullscreen()
     UserGestureIndicator indicator { IsProcessingUserGesture::Yes, &element->document() };
 
     if (element->fullscreenMode() != MediaPlayerEnums::VideoFullscreenModeInWindow)
-        element->setPresentationMode(HTMLVideoElement::VideoPresentationMode::InWindow);
+        element->setPresentationModeIgnoringPermissionsPolicy(HTMLVideoElement::VideoPresentationMode::InWindow);
 #endif
 }
 
@@ -404,7 +409,7 @@ void PlaybackSessionModelMediaElement::enterFullscreen()
         return;
 
     UserGestureIndicator indicator { IsProcessingUserGesture::Yes, &element->document() };
-    element->webkitEnterFullscreen();
+    element->enterFullscreenIgnoringPermissionsPolicy();
 }
 
 void PlaybackSessionModelMediaElement::exitFullscreen()
@@ -778,11 +783,11 @@ bool PlaybackSessionModelMediaElement::isInWindowFullscreenActive() const
 }
 
 #if !RELEASE_LOG_DISABLED
-const void* PlaybackSessionModelMediaElement::logIdentifier() const
+uint64_t PlaybackSessionModelMediaElement::logIdentifier() const
 {
     if (RefPtr mediaElement = m_mediaElement)
         return mediaElement->logIdentifier();
-    return nullptr;
+    return 0;
 }
 
 const Logger* PlaybackSessionModelMediaElement::loggerPtr() const

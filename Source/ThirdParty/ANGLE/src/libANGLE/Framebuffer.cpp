@@ -388,11 +388,6 @@ bool HasSupportedStencilBitCount(const Framebuffer *framebuffer)
 
 }  // anonymous namespace
 
-bool FramebufferStatus::isComplete() const
-{
-    return status == GL_FRAMEBUFFER_COMPLETE;
-}
-
 FramebufferStatus FramebufferStatus::Complete()
 {
     FramebufferStatus result;
@@ -808,25 +803,30 @@ bool FramebufferState::colorAttachmentsAreUniqueImages() const
 
 bool FramebufferState::hasDepth() const
 {
-    return (mDepthAttachment.isAttached() && mDepthAttachment.getDepthSize() > 0);
+    return mDepthAttachment.isAttached() && mDepthAttachment.getDepthSize() > 0;
 }
 
 bool FramebufferState::hasStencil() const
 {
-    return (mStencilAttachment.isAttached() && mStencilAttachment.getStencilSize() > 0);
+    return mStencilAttachment.isAttached() && mStencilAttachment.getStencilSize() > 0;
+}
+
+GLuint FramebufferState::getStencilBitCount() const
+{
+    return mStencilAttachment.isAttached() ? mStencilAttachment.getStencilSize() : 0;
 }
 
 bool FramebufferState::hasExternalTextureAttachment() const
 {
     // External textures can only be bound to color attachment 0
-    return (mColorAttachments[0].isAttached() && mColorAttachments[0].isExternalTexture());
+    return mColorAttachments[0].isAttached() && mColorAttachments[0].isExternalTexture();
 }
 
 bool FramebufferState::hasYUVAttachment() const
 {
     // The only attachments that can be YUV are external textures and surfaces, both are attached at
     // color attachment 0.
-    return (mColorAttachments[0].isAttached() && mColorAttachments[0].isYUV());
+    return mColorAttachments[0].isAttached() && mColorAttachments[0].isYUV();
 }
 
 bool FramebufferState::isMultiview() const
@@ -865,11 +865,6 @@ Extents FramebufferState::getExtents() const
         return getAttachmentExtentsIntersection();
     }
     return Extents(getDefaultWidth(), getDefaultHeight(), 0);
-}
-
-bool FramebufferState::isDefault() const
-{
-    return mId == Framebuffer::kDefaultDrawFramebufferHandle;
 }
 
 bool FramebufferState::isBoundAsDrawFramebuffer(const Context *context) const
@@ -1166,7 +1161,7 @@ bool Framebuffer::detachMatchingAttachment(Context *context,
             // currently bound draw framebuffer object, and pixel local storage is active, then it
             // is as if EndPixelLocalStorageANGLE() had been called with
             // <n>=PIXEL_LOCAL_STORAGE_ACTIVE_PLANES_ANGLE and <storeops> of STORE_OP_STORE_ANGLE.
-            context->endPixelLocalStorageWithStoreOpsStore();
+            context->endPixelLocalStorageImplicit();
         }
         // We go through resetAttachment to make sure that all the required bookkeeping will be done
         // such as updating enabled draw buffer state.
@@ -1311,11 +1306,6 @@ ComponentTypeMask Framebuffer::getDrawBufferTypeMask() const
     return mState.mDrawBufferTypeMask;
 }
 
-DrawBufferMask Framebuffer::getDrawBufferMask() const
-{
-    return mState.mEnabledDrawBuffers;
-}
-
 bool Framebuffer::hasEnabledDrawBuffer() const
 {
     for (size_t drawbufferIdx = 0; drawbufferIdx < mState.mDrawBufferStates.size(); ++drawbufferIdx)
@@ -1344,44 +1334,6 @@ void Framebuffer::setReadBuffer(GLenum buffer)
         mState.mReadBufferState = buffer;
         mDirtyBits.set(DIRTY_BIT_READ_BUFFER);
     }
-}
-
-size_t Framebuffer::getNumColorAttachments() const
-{
-    return mState.mColorAttachments.size();
-}
-
-bool Framebuffer::hasDepth() const
-{
-    return mState.hasDepth();
-}
-
-bool Framebuffer::hasStencil() const
-{
-    return mState.hasStencil();
-}
-
-bool Framebuffer::hasExternalTextureAttachment() const
-{
-    return mState.hasExternalTextureAttachment();
-}
-
-bool Framebuffer::hasYUVAttachment() const
-{
-    return mState.hasYUVAttachment();
-}
-
-bool Framebuffer::usingExtendedDrawBuffers() const
-{
-    for (size_t drawbufferIdx = 1; drawbufferIdx < mState.mDrawBufferStates.size(); ++drawbufferIdx)
-    {
-        if (getDrawBuffer(drawbufferIdx) != nullptr)
-        {
-            return true;
-        }
-    }
-
-    return false;
 }
 
 void Framebuffer::invalidateCompletenessCache()
@@ -1832,8 +1784,6 @@ angle::Result Framebuffer::discard(const Context *context, size_t count, const G
     // Back-ends might make the contents of the FBO undefined. In WebGL 2.0, invalidate operations
     // can be no-ops, so we should probably do that to ensure consistency.
     // TODO(jmadill): WebGL behaviour, and robust resource init behaviour without WebGL.
-    if (context->isRobustResourceInitEnabled())
-        markDrawAttachmentsNeedInit(count, attachments);
 
     return mImpl->discard(context, count, attachments);
 }
@@ -1845,8 +1795,6 @@ angle::Result Framebuffer::invalidate(const Context *context,
     // Back-ends might make the contents of the FBO undefined. In WebGL 2.0, invalidate operations
     // can be no-ops, so we should probably do that to ensure consistency.
     // TODO(jmadill): WebGL behaviour, and robust resource init behaviour without WebGL.
-    if (context->isRobustResourceInitEnabled())
-        markDrawAttachmentsNeedInit(count, attachments);
 
     return mImpl->invalidate(context, count, attachments);
 }
@@ -2746,7 +2694,8 @@ angle::Result Framebuffer::ensureClearAttachmentsInitialized(const Context *cont
 
     bool color = (mask & GL_COLOR_BUFFER_BIT) != 0 && !glState.allActiveDrawBufferChannelsMasked();
     bool depth = (mask & GL_DEPTH_BUFFER_BIT) != 0 && !depthStencil.isDepthMaskedOut();
-    bool stencil = (mask & GL_STENCIL_BUFFER_BIT) != 0 && !depthStencil.isStencilMaskedOut();
+    bool stencil = (mask & GL_STENCIL_BUFFER_BIT) != 0 &&
+                   !depthStencil.isStencilMaskedOut(getStencilBitCount());
 
     if (!color && !depth && !stencil)
     {
@@ -2774,7 +2723,8 @@ angle::Result Framebuffer::ensureClearBufferAttachmentsInitialized(const Context
 {
     if (!context->isRobustResourceInitEnabled() ||
         context->getState().isRasterizerDiscardEnabled() ||
-        context->isClearBufferMaskedOut(buffer, drawbuffer) || mState.mResourceNeedsInit.none())
+        context->isClearBufferMaskedOut(buffer, drawbuffer, getStencilBitCount()) ||
+        mState.mResourceNeedsInit.none())
     {
         return angle::Result::Continue;
     }
@@ -2966,11 +2916,6 @@ Extents Framebuffer::getExtents() const
     return mState.getExtents();
 }
 
-bool Framebuffer::isFoveationEnabled() const
-{
-    return (mState.mFoveationState.getFoveatedFeatureBits() & GL_FOVEATION_ENABLE_BIT_QCOM);
-}
-
 GLuint Framebuffer::getFoveatedFeatureBits() const
 {
     return mState.mFoveationState.getFoveatedFeatureBits();
@@ -3096,55 +3041,4 @@ angle::Result Framebuffer::syncAttachmentState(const Context *context,
     return angle::Result::Continue;
 }
 
-void Framebuffer::markDrawAttachmentsNeedInit(size_t count, const GLenum *attachments)
-{
-    bool stateChanged = false;
-    for (size_t attachmentIdx = 0; attachmentIdx < count; attachmentIdx++)
-    {
-        GLenum attachmentBindPoint = attachments[attachmentIdx];
-        switch (attachmentBindPoint)
-        {
-            case GL_DEPTH_ATTACHMENT:
-            case GL_DEPTH_EXT:
-                if (mState.mDepthAttachment.isAttached())
-                {
-                    mDirtyBits.set(DIRTY_BIT_DEPTH_ATTACHMENT);
-                    mState.mResourceNeedsInit.set(DIRTY_BIT_DEPTH_ATTACHMENT);
-                    mState.mDepthAttachment.setInitState(InitState::MayNeedInit);
-                    stateChanged = true;
-                }
-                break;
-            case GL_STENCIL_ATTACHMENT:
-            case GL_STENCIL_EXT:
-                if (mState.mStencilAttachment.isAttached())
-                {
-                    mDirtyBits.set(DIRTY_BIT_STENCIL_ATTACHMENT);
-                    mState.mResourceNeedsInit.set(DIRTY_BIT_STENCIL_ATTACHMENT);
-                    mState.mStencilAttachment.setInitState(InitState::MayNeedInit);
-                    stateChanged = true;
-                }
-                break;
-            default:
-                if (attachmentBindPoint == GL_COLOR_EXT)
-                {
-                    attachmentBindPoint = GL_COLOR_ATTACHMENT0;
-                }
-                int colorDirtyBit = attachmentBindPoint - GL_COLOR_ATTACHMENT0;
-                if (colorDirtyBit >= 0 && colorDirtyBit < IMPLEMENTATION_MAX_DRAW_BUFFERS &&
-                    mState.mColorAttachments[colorDirtyBit].isAttached())
-                {
-                    mDirtyBits.set(colorDirtyBit);
-                    mState.mResourceNeedsInit.set(colorDirtyBit);
-                    mState.mColorAttachments[colorDirtyBit].setInitState(InitState::MayNeedInit);
-                    stateChanged = true;
-                }
-                break;
-        }
-    }
-
-    if (stateChanged)
-    {
-        onStateChange(angle::SubjectMessage::DirtyBitsFlagged);
-    }
-}
 }  // namespace gl

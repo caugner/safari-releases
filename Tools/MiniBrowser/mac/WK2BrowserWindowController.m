@@ -43,6 +43,7 @@
 #import <WebKit/WKWebpagePreferencesPrivate.h>
 #import <WebKit/WKWebsiteDataStorePrivate.h>
 #import <WebKit/WebNSURLExtras.h>
+#import <WebKit/_WKArchiveConfiguration.h>
 #import <WebKit/_WKIconLoadingDelegate.h>
 #import <WebKit/_WKInspector.h>
 #import <WebKit/_WKLinkIconParameters.h>
@@ -281,6 +282,8 @@ static BOOL areEssentiallyEqual(double a, double b)
     if (action == @selector(saveAsImage:))
         return YES;
     if (action == @selector(saveAsWebArchive:))
+        return YES;
+    if (action == @selector(saveAsCompleteWebPage:))
         return YES;
 
     if (action == @selector(zoomIn:))
@@ -543,6 +546,7 @@ static BOOL areEssentiallyEqual(double a, double b)
     preferences._largeImageAsyncDecodingEnabled = settings.largeImageAsyncDecodingEnabled;
     preferences._animatedImageAsyncDecodingEnabled = settings.animatedImageAsyncDecodingEnabled;
     preferences._colorFilterEnabled = settings.appleColorFilterEnabled;
+    preferences.siteSpecificQuirksModeEnabled = settings.siteSpecificQuirksModeEnabled;
     preferences._punchOutWhiteBackgroundsInDarkMode = settings.punchOutWhiteBackgroundsInDarkMode;
     preferences._mockCaptureDevicesEnabled = settings.useMockCaptureDevices;
 
@@ -669,7 +673,6 @@ static BOOL areEssentiallyEqual(double a, double b)
 - (nullable WKWebView *)webView:(WKWebView *)webView createWebViewWithConfiguration:(WKWebViewConfiguration *)configuration forNavigationAction:(WKNavigationAction *)navigationAction windowFeatures:(WKWindowFeatures *)windowFeatures
 {
     WK2BrowserWindowController *controller = [[WK2BrowserWindowController alloc] initWithConfiguration:configuration];
-    [controller awakeFromNib];
     [controller.window makeKeyAndOrderFront:self];
     
     [[[NSApplication sharedApplication] browserAppDelegate] didCreateBrowserWindowController:controller];
@@ -1053,6 +1056,26 @@ static BOOL isJavaScriptURL(NSURL *url)
             return;
         [self->_webView createWebArchiveDataWithCompletionHandler:^(NSData *archiveData, NSError *error) {
             [archiveData writeToURL:[panel URL] options:0 error:nil];
+        }];
+    }];
+}
+
+- (IBAction)saveAsCompleteWebPage:(id)sender
+{
+    NSSavePanel *panel = [NSSavePanel savePanel];
+    panel.allowedContentTypes = @[ UTTypeDirectory ];
+
+    [panel beginSheetModalForWindow:self.window completionHandler:^(NSInteger result) {
+        if (result != NSModalResponseOK)
+            return;
+
+        _WKArchiveConfiguration *archiveConfiguration = [[_WKArchiveConfiguration alloc] init];
+        archiveConfiguration.directory = [panel URL];
+        archiveConfiguration.suggestedFileName = @"index.html";
+
+        [self->_webView _archiveWithConfiguration:archiveConfiguration completionHandler:^(NSError *error) {
+            if (error)
+                NSLog(@"Saving complete web page to '%@' failed", [[panel URL] absoluteString]);
         }];
     }];
 }

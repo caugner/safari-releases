@@ -51,7 +51,7 @@ class ConversionBuffer
 
     bool valid() const { return mData && mData->valid(); }
     vk::BufferHelper *getBuffer() const { return mData.get(); }
-    void release(vk::Renderer *renderer) { mData->release(renderer); }
+    void release(vk::Context *context) { mData->release(context); }
     void destroy(vk::Renderer *renderer) { mData->destroy(renderer); }
 
   private:
@@ -263,6 +263,10 @@ class BufferVk : public BufferImpl
                                              VkDeviceSize offset,
                                              VkDeviceSize size,
                                              uint8_t **mapPtr);
+    angle::Result mapHostVisibleBuffer(ContextVk *contextVk,
+                                       VkDeviceSize offset,
+                                       GLbitfield access,
+                                       uint8_t **mapPtr);
     angle::Result setDataImpl(ContextVk *contextVk,
                               size_t bufferSize,
                               const BufferDataSource &dataSource,
@@ -289,7 +293,7 @@ class BufferVk : public BufferImpl
                                VkMemoryPropertyFlags memoryPropertyFlags,
                                size_t size) const;
 
-    void releaseConversionBuffers(vk::Renderer *renderer);
+    void releaseConversionBuffers(vk::Context *context);
 
     vk::BufferHelper mBuffer;
 

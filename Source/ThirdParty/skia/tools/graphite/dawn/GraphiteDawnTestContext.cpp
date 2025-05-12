@@ -30,16 +30,22 @@ DawnTestContext::~DawnTestContext() {
     tick();
 }
 
-std::unique_ptr<GraphiteTestContext> DawnTestContext::Make(wgpu::BackendType backend) {
+std::unique_ptr<GraphiteTestContext> DawnTestContext::Make(wgpu::BackendType backend,
+                                                           bool useTintIR) {
     static std::unique_ptr<dawn::native::Instance> sInstance;
     static SkOnce sOnce;
 
     static constexpr const char* kToggles[] = {
         "allow_unsafe_apis",  // Needed for dual-source blending.
         "use_user_defined_labels_in_backend",
+        // Robustness impacts performance and is always disabled when running Graphite in Chrome,
+        // so this keeps Skia's tests operating closer to real-use behavior.
+        "disable_robustness",
+        // Must be last to correctly respond to `useTintIR` parameter.
+        "use_tint_ir",
     };
     wgpu::DawnTogglesDescriptor togglesDesc;
-    togglesDesc.enabledToggleCount  = std::size(kToggles);
+    togglesDesc.enabledToggleCount  = std::size(kToggles) - (useTintIR ? 0 : 1);
     togglesDesc.enabledToggles      = kToggles;
 
     // Creation of Instance is cheap but calling EnumerateAdapters can be expensive the first time,
@@ -57,8 +63,10 @@ std::unique_ptr<GraphiteTestContext> DawnTestContext::Make(wgpu::BackendType bac
     dawn::native::Adapter matchedAdaptor;
 
     wgpu::RequestAdapterOptions options;
-    options.compatibilityMode =
-            backend == wgpu::BackendType::OpenGL || backend == wgpu::BackendType::OpenGLES;
+    options.featureLevel =
+            backend == wgpu::BackendType::OpenGL || backend == wgpu::BackendType::OpenGLES
+                    ? wgpu::FeatureLevel::Compatibility
+                    : wgpu::FeatureLevel::Core;
     options.nextInChain = &togglesDesc;
     std::vector<dawn::native::Adapter> adapters = sInstance->EnumerateAdapters(&options);
     SkASSERT(!adapters.empty());
@@ -66,17 +74,20 @@ std::unique_ptr<GraphiteTestContext> DawnTestContext::Make(wgpu::BackendType bac
     // backendType(WebGPU, D3D11, D3D12, Metal, Vulkan, OpenGL, OpenGLES).
     std::sort(
             adapters.begin(), adapters.end(), [](dawn::native::Adapter a, dawn::native::Adapter b) {
+                wgpu::Adapter wgpuA = a.Get();
+                wgpu::Adapter wgpuB = b.Get();
                 wgpu::AdapterInfo infoA;
                 wgpu::AdapterInfo infoB;
-                a.GetInfo(&infoA);
-                b.GetInfo(&infoB);
+                wgpuA.GetInfo(&infoA);
+                wgpuB.GetInfo(&infoB);
                 return std::tuple(infoA.adapterType, infoA.backendType) <
                        std::tuple(infoB.adapterType, infoB.backendType);
             });
 
     for (const auto& adapter : adapters) {
+        wgpu::Adapter wgpuAdapter = adapter.Get();
         wgpu::AdapterInfo props;
-        adapter.GetInfo(&props);
+        wgpuAdapter.GetInfo(&props);
         if (backend == props.backendType) {
             matchedAdaptor = adapter;
             break;
@@ -127,6 +138,12 @@ std::unique_ptr<GraphiteTestContext> DawnTestContext::Make(wgpu::BackendType bac
     }
     if (adapter.HasFeature(wgpu::FeatureName::DawnPartialLoadResolveTexture)) {
         features.push_back(wgpu::FeatureName::DawnPartialLoadResolveTexture);
+    }
+    if (adapter.HasFeature(wgpu::FeatureName::TimestampQuery)) {
+        features.push_back(wgpu::FeatureName::TimestampQuery);
+    }
+    if (adapter.HasFeature(wgpu::FeatureName::DawnTexelCopyBufferRowAlignment)) {
+        features.push_back(wgpu::FeatureName::DawnTexelCopyBufferRowAlignment);
     }
 
     wgpu::DeviceDescriptor desc;

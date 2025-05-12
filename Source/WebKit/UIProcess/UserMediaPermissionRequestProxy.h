@@ -39,9 +39,9 @@ class UserMediaPermissionRequestManagerProxy;
 
 class UserMediaPermissionRequestProxy : public API::ObjectImpl<API::Object::Type::UserMediaPermissionRequest> {
 public:
-    static Ref<UserMediaPermissionRequestProxy> create(UserMediaPermissionRequestManagerProxy&, WebCore::UserMediaRequestIdentifier, WebCore::FrameIdentifier, WebCore::FrameIdentifier, Ref<WebCore::SecurityOrigin>&&, Ref<WebCore::SecurityOrigin>&&, Vector<WebCore::CaptureDevice>&&, Vector<WebCore::CaptureDevice>&&, WebCore::MediaStreamRequest&&, CompletionHandler<void(bool)>&& = { });
+    static Ref<UserMediaPermissionRequestProxy> create(UserMediaPermissionRequestManagerProxy&, std::optional<WebCore::UserMediaRequestIdentifier>, WebCore::FrameIdentifier, WebCore::FrameIdentifier, Ref<WebCore::SecurityOrigin>&&, Ref<WebCore::SecurityOrigin>&&, Vector<WebCore::CaptureDevice>&&, Vector<WebCore::CaptureDevice>&&, WebCore::MediaStreamRequest&&, CompletionHandler<void(bool)>&& = { });
 
-    ~UserMediaPermissionRequestProxy() = default;
+    ~UserMediaPermissionRequestProxy();
 
     void allow(const String& audioDeviceUID, const String& videoDeviceUID);
     void allow();
@@ -56,7 +56,7 @@ public:
     void deny(UserMediaAccessDenialReason = UserMediaAccessDenialReason::UserMediaDisabled);
 
     virtual void invalidate();
-    bool isPending() const { return m_manager; }
+    bool isPending() const;
 
     bool requiresAudioCapture() const { return m_eligibleAudioDevices.size(); }
     bool requiresVideoCapture() const { return !requiresDisplayCapture() && m_eligibleVideoDevices.size(); }
@@ -74,7 +74,7 @@ public:
     bool hasPersistentAccess() const { return m_hasPersistentAccess; }
     void setHasPersistentAccess() { m_hasPersistentAccess = true; }
 
-    WebCore::UserMediaRequestIdentifier userMediaID() const { return m_userMediaID; }
+    std::optional<WebCore::UserMediaRequestIdentifier> userMediaID() const { return m_userMediaID; }
     WebCore::FrameIdentifier mainFrameID() const { return m_mainFrameID; }
     WebCore::FrameIdentifier frameID() const { return m_frameID; }
 
@@ -104,13 +104,14 @@ public:
     Function<void()> beforeStartingCaptureCallback() { return std::exchange(m_beforeStartingCaptureCallback, { }); }
 
 protected:
-    UserMediaPermissionRequestProxy(UserMediaPermissionRequestManagerProxy&, WebCore::UserMediaRequestIdentifier, WebCore::FrameIdentifier mainFrameID, WebCore::FrameIdentifier, Ref<WebCore::SecurityOrigin>&& userMediaDocumentOrigin, Ref<WebCore::SecurityOrigin>&& topLevelDocumentOrigin, Vector<WebCore::CaptureDevice>&& audioDevices, Vector<WebCore::CaptureDevice>&& videoDevices, WebCore::MediaStreamRequest&&, CompletionHandler<void(bool)>&&);
+    UserMediaPermissionRequestProxy(UserMediaPermissionRequestManagerProxy&, std::optional<WebCore::UserMediaRequestIdentifier>, WebCore::FrameIdentifier mainFrameID, WebCore::FrameIdentifier, Ref<WebCore::SecurityOrigin>&& userMediaDocumentOrigin, Ref<WebCore::SecurityOrigin>&& topLevelDocumentOrigin, Vector<WebCore::CaptureDevice>&& audioDevices, Vector<WebCore::CaptureDevice>&& videoDevices, WebCore::MediaStreamRequest&&, CompletionHandler<void(bool)>&&);
 
-    UserMediaPermissionRequestManagerProxy* manager() const { return m_manager; }
+    UserMediaPermissionRequestManagerProxy* manager() const;
+    RefPtr<UserMediaPermissionRequestManagerProxy> protectedManager() const;
 
 private:
-    UserMediaPermissionRequestManagerProxy* m_manager;
-    WebCore::UserMediaRequestIdentifier m_userMediaID;
+    WeakPtr<UserMediaPermissionRequestManagerProxy> m_manager;
+    Markable<WebCore::UserMediaRequestIdentifier> m_userMediaID;
     WebCore::FrameIdentifier m_mainFrameID;
     WebCore::FrameIdentifier m_frameID;
     Ref<WebCore::SecurityOrigin> m_userMediaDocumentSecurityOrigin;
