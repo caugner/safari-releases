@@ -26,6 +26,7 @@
 #import "config.h"
 
 #import "PlatformUtilities.h"
+#import "Test.h"
 #import "TestNavigationDelegate.h"
 #import "TestURLSchemeHandler.h"
 #import <WebKit/WKNavigationPrivate.h>
@@ -33,6 +34,7 @@
 #import <pal/spi/cf/CFNetworkSPI.h>
 #import <wtf/RetainPtr.h>
 #import <wtf/cocoa/NSURLExtras.h>
+#import <wtf/cocoa/TypeCastsCocoa.h>
 
 static bool didFinishTest;
 static bool didFailProvisionalLoad;
@@ -57,7 +59,7 @@ static NSURL *literalURL(const char* literal)
 {
     EXPECT_WK_STREQ(error.domain, @"WebKitErrorDomain");
     EXPECT_EQ(error.code, 101);
-    EXPECT_TRUE([error.userInfo[@"NSErrorFailingURLKey"] isEqual:literalURL(literal)]);
+    EXPECT_NULL(error.userInfo[NSURLErrorFailingURLErrorKey]);
 
     didFailProvisionalLoad = true;
     didFinishTest = true;
@@ -111,17 +113,13 @@ TEST(WebKit, LoadInvalidURLRequestNonASCII)
     delegate.get().didFailProvisionalNavigation = ^(WKWebView *, WKNavigation *, NSError *error) {
         EXPECT_WK_STREQ(error.domain, @"WebKitErrorDomain");
         EXPECT_EQ(error.code, WebKitErrorCannotShowURL);
-#if HAVE(WK_SECURE_CODING_NSURLREQUEST)
-        EXPECT_WK_STREQ([error.userInfo[@"NSErrorFailingURLKey"] absoluteString], "http://%C3%83%C2%A2%C3%82%C2%80%C3%82%C2%80");
-#else
-        EXPECT_WK_STREQ([error.userInfo[@"NSErrorFailingURLKey"] absoluteString], "http://%C3%A2%C2%80%C2%80");
-#endif
+        EXPECT_WK_STREQ([error.userInfo[NSURLErrorFailingURLErrorKey] absoluteString], "");
         done = true;
     };
     auto webView = adoptNS([WKWebView new]);
     [webView setNavigationDelegate:delegate.get()];
     const UInt8 bytes[10] = { 'h', 't', 't', 'p', ':', '/', '/', 0xE2, 0x80, 0x80 };
-    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:(NSURL *)adoptCF(CFURLCreateAbsoluteURLWithBytes(nullptr, bytes, 10, kCFStringEncodingUTF8, nullptr, true)).get()];
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:bridge_cast(adoptCF(CFURLCreateAbsoluteURLWithBytes(nullptr, bytes, 10, kCFStringEncodingUTF8, nullptr, true))).get()];
     [request _setProperty:request.URL forKey:@"_kCFHTTPCookiePolicyPropertySiteForCookies"];
     [webView loadRequest:request];
     Util::run(&done);
@@ -152,6 +150,23 @@ TEST(WebKit, LoadNSURLRequestWithMutablePropertiesAndKeys)
     auto response = adoptNS([[NSURLResponse alloc] initWithURL:request.URL MIMEType:nil expectedContentLength:0 textEncodingName:nil]);
     [webView loadSimulatedRequest:request response:response.get() responseData:[NSData data]];
     [webView _test_waitForDidFinishNavigation];
+}
+
+TEST(WebKit, NavigateToInvalidURL)
+{
+    auto webView = adoptNS([WKWebView new]);
+    auto delegate = adoptNS([TestNavigationDelegate new]);
+    webView.get().navigationDelegate = delegate.get();
+    __block bool finished { false };
+    delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^decisionHandler)(WKNavigationActionPolicy)) {
+        if ([action.request.URL.absoluteString isEqualToString:@"https://webkit.org/"])
+            return decisionHandler(WKNavigationActionPolicyAllow);
+        EXPECT_WK_STREQ(action.request.URL.absoluteString, "customscheme://Help%20Central/123456");
+        decisionHandler(WKNavigationActionPolicyCancel);
+        finished = true;
+    };
+    [webView loadHTMLString:@"<a id='link' href='customscheme://Help Central/123456'</a><script>link.click()</script>" baseURL:[NSURL URLWithString:@"https://webkit.org/"]];
+    Util::run(&finished);
 }
 
 } // namespace TestWebKitAPI

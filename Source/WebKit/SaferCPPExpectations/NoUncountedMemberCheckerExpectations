@@ -1,2 +1,3 @@
 AutomationFrontendDispatchers.h
-UIProcess/Inspector/WebPageInspectorAgentBase.h
+Shared/Cocoa/WKObject.h
+WebDriverBidiFrontendDispatchers.h

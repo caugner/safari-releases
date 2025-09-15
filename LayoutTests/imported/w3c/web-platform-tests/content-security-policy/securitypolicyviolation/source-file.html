@@ -1,4 +1,3 @@
-<!-- webkit-test-runner [ jscOptions=--useTrustedTypes=true ] -->
 <meta http-equiv="Content-Security-Policy" content="require-trusted-types-for 'script';" />
 <script src="/resources/testharness.js"></script>
 <script src="/resources/testharnessreport.js"></script>
@@ -23,11 +22,7 @@ const testSourceFile = (description, input, output) => {
       eval('');
       //# sourceURL=${input}
     `)
-    try {
-      eval(trusted_script);
-      assert_unreached();
-    } catch (e) {}
-
+    assert_throws_js(EvalError, _ => eval(trusted_script));
     assert_equals((await violation).sourceFile, output);
   }, description);
 };

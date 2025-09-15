@@ -37,7 +37,7 @@ func (b *taskBuilder) nanobenchFlags(doUpload bool) {
 		}
 
 		if b.model("Nexus7") {
-			args = append(args, "--purgeBetweenBenches") // Debugging skia:8929
+			args = append(args, "--purgeBetweenBenches") // Debugging skbug.com/40040209
 		}
 
 	} else if b.gpu() {
@@ -48,14 +48,14 @@ func (b *taskBuilder) nanobenchFlags(doUpload bool) {
 		if b.matchOs("Android") || b.os("iOS") {
 			sampleCount = 4
 			glPrefix = "gles"
-			// iOS crashes with MSAA (skia:6399)
+			// iOS crashes with MSAA (skbug.com/40037602)
 			// Nexus7 (Tegra3) does not support MSAA.
 			// MSAA is disabled on Pixel3a (https://b.corp.google.com/issues/143074513).
-			// MSAA is disabled on Pixel5 (https://skbug.com/11152).
+			// MSAA is disabled on Pixel5 (https://skbug.com/40042528).
 			if b.os("iOS") || b.model("Nexus7", "Pixel3a", "Pixel5") {
 				sampleCount = 0
 			}
-		} else if b.matchGpu("AppleM1") {
+		} else if b.matchGpu("AppleM") {
 			sampleCount = 4
 		} else if b.matchGpu("Intel") {
 			// MSAA doesn't work well on Intel GPUs chromium:527565, chromium:983926
@@ -75,12 +75,12 @@ func (b *taskBuilder) nanobenchFlags(doUpload bool) {
 			configs = append(configs, glPrefix+"reducedshaders")
 		}
 		// narrow-gl/gles tests the case of color converting *all* content
-		// It hangs on the AndroidOne (Mali400)  skia:10669
+		// It hangs on the AndroidOne (Mali400)  skbug.com/40042015
 		if !b.gpu("Mali400MP2") {
 			configs = append(configs, "narrow-"+glPrefix)
 		}
 
-		// skia:10644 The fake ES2 config is used to compare highest available ES version to
+		// skbug.com/40041990 The fake ES2 config is used to compare highest available ES version to
 		// when we're limited to ES2. We could consider adding a MSAA fake config as well.
 		if b.matchOs("Android") && glPrefix == "gles" {
 			// These only support ES2. No point in running twice.
@@ -91,7 +91,7 @@ func (b *taskBuilder) nanobenchFlags(doUpload bool) {
 
 		if sampleCount > 0 {
 			configs = append(configs, fmt.Sprintf("%smsaa%d", glPrefix, sampleCount))
-			if b.gpu("QuadroP400", "MaliG77", "AppleM1") {
+			if b.matchGpu("QuadroP400", "MaliG77", "AppleM") {
 				configs = append(configs, fmt.Sprintf("%sdmsaa", glPrefix))
 			}
 		}
@@ -104,13 +104,8 @@ func (b *taskBuilder) nanobenchFlags(doUpload bool) {
 
 		if b.extraConfig("Vulkan") {
 			configs = []string{"vk"}
-			if b.matchOs("Android") {
-				// skbug.com/9274
-				if !b.model("Pixel2XL") {
-					configs = append(configs, "vkmsaa4")
-				}
-			} else {
-				// MSAA doesn't work well on Intel GPUs chromium:527565, chromium:983926, skia:9023
+			if !b.matchOs("Android") {
+				// MSAA doesn't work well on Intel GPUs chromium:527565, chromium:983926, skbug.com/40040308
 				if !b.matchGpu("Intel") {
 					configs = append(configs, "vkmsaa8")
 				}
@@ -121,7 +116,7 @@ func (b *taskBuilder) nanobenchFlags(doUpload bool) {
 		}
 		if b.extraConfig("Metal") && !b.extraConfig("Graphite") {
 			configs = []string{"mtl"}
-			if b.os("iOS") {
+			if b.os("iOS") || b.gpu("AppleM3") {
 				configs = append(configs, "mtlmsaa4")
 			} else {
 				configs = append(configs, "mtlmsaa8")
@@ -139,7 +134,7 @@ func (b *taskBuilder) nanobenchFlags(doUpload bool) {
 				configs = append(configs, fmt.Sprintf("angle_d3d11_es3_msaa%d", sampleCount))
 			}
 			if b.gpu("QuadroP400") {
-				// See skia:7823 and chromium:693090.
+				// See skbug.com/40039078 and chromium:693090.
 				configs = append(configs, "angle_gl_es2")
 				configs = append(configs, "angle_gl_es3")
 				if sampleCount > 0 {
@@ -196,9 +191,9 @@ func (b *taskBuilder) nanobenchFlags(doUpload bool) {
 	args = append(args, "--config")
 	args = append(args, configs...)
 
-	// Use 4 internal msaa samples on mobile and AppleM1, otherwise 8.
+	// Use 4 internal msaa samples on mobile, AppleM*, and with Graphite, otherwise 8.
 	args = append(args, "--internalSamples")
-	if b.matchOs("Android") || b.os("iOS") || b.matchGpu("AppleM1") {
+	if b.matchOs("Android") || b.os("iOS") || b.matchGpu("AppleM") || b.extraConfig("Graphite") {
 		args = append(args, "4")
 	} else {
 		args = append(args, "8")
@@ -224,19 +219,19 @@ func (b *taskBuilder) nanobenchFlags(doUpload bool) {
 	if b.matchOs("Android") {
 		// Segfaults when run as GPU bench. Very large texture?
 		match = append(match, "~blurroundrect")
-		match = append(match, "~patch_grid") // skia:2847
+		match = append(match, "~patch_grid") // skbug.com/40033959
 		match = append(match, "~desk_carsvg")
 	}
 	if b.os("iOS") {
 		match = append(match, "~blurroundrect")
-		match = append(match, "~patch_grid") // skia:2847
+		match = append(match, "~patch_grid") // skbug.com/40033959
 		match = append(match, "~desk_carsvg")
 		match = append(match, "~keymobi")
 		match = append(match, "~path_hairline")
-		match = append(match, "~GLInstancedArraysBench") // skia:4714
+		match = append(match, "~GLInstancedArraysBench") // skbug.com/40035868
 	}
 	if b.os("iOS") && b.extraConfig("Metal") && !b.extraConfig("Graphite") {
-		// skia:9799
+		// skbug.com/40041128
 		match = append(match, "~compositing_images_tile_size")
 	}
 	if b.matchGpu("Intel") && b.isLinux() && !b.extraConfig("Vulkan") {
@@ -244,7 +239,7 @@ func (b *taskBuilder) nanobenchFlags(doUpload bool) {
 		verbose = true
 	}
 	if b.gpu("IntelHD405") && b.isLinux() && b.extraConfig("Vulkan") {
-		// skia:7322
+		// skbug.com/40038567
 		match = append(match, "~desk_carsvg.skp_1")
 		match = append(match, "~desk_googlehome.skp")
 		match = append(match, "~desk_tiger8svg.skp_1")
@@ -270,21 +265,17 @@ func (b *taskBuilder) nanobenchFlags(doUpload bool) {
 		match = append(match, "~GM_matrixconvolution_bigger")
 		match = append(match, "~GM_matrixconvolution_biggest")
 	}
-	if b.extraConfig("Vulkan") && b.gpu("GTX660") {
-		// skia:8523 skia:9271
-		match = append(match, "~compositing_images")
-	}
 	if b.extraConfig("ASAN") && b.cpu() {
 		// floor2int_undef benches undefined behavior, so ASAN correctly complains.
 		match = append(match, "~^floor2int_undef$")
 	}
 	if b.model("Pixel3a") {
-		// skia:9413
+		// skbug.com/40040735
 		match = append(match, "~^path_text$")
 		match = append(match, "~^path_text_clipped_uncached$")
 	}
 	if b.model("Pixel4XL") && b.extraConfig("Vulkan") {
-		// skia:9413?
+		// skbug.com/40040735?
 		match = append(match, "~^path_text_clipped_uncached$")
 	}
 
@@ -306,7 +297,7 @@ func (b *taskBuilder) nanobenchFlags(doUpload bool) {
 		args = append(args, "--dontReduceOpsTaskSplitting", "true")
 	}
 	if !b.isLinux() && b.extraConfig("Vulkan") && b.gpu("QuadroP400") {
-		// skia:14302 (desk_carsvg.skp hangs indefinitely on Windows QuadroP400 vkdmsaa configs)
+		// skbug.com/40045386 (desk_carsvg.skp hangs indefinitely on Windows QuadroP400 vkdmsaa configs)
 		match = append(match, "~desk_carsvg.skp")
 	}
 

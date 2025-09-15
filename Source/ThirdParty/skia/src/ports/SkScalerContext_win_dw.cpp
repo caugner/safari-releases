@@ -28,6 +28,7 @@
 #include "include/private/base/SkTo.h"
 #include "src/base/SkEndian.h"
 #include "src/base/SkScopeExit.h"
+#include "src/base/SkSharedMutex.h"
 #include "src/core/SkDraw.h"
 #include "src/core/SkGlyph.h"
 #include "src/core/SkMaskGamma.h"
@@ -49,8 +50,6 @@
 #include <dwrite_1.h>
 #include <dwrite_3.h>
 
-#include <shared_mutex>
-
 namespace {
 static inline const constexpr bool kSkShowTextBlitCoverage = false;
 
@@ -59,47 +58,48 @@ static inline const constexpr bool kSkShowTextBlitCoverage = false;
  * The mutex returned from maybe_dw_mutex protects the calls that are
  * problematic.
  */
-static std::shared_mutex* maybe_dw_mutex(DWriteFontTypeface& typeface) {
-    static std::shared_mutex mutex;
+static SkSharedMutex* maybe_dw_mutex(DWriteFontTypeface& typeface) {
+    static SkSharedMutex mutex;
     return typeface.fDWriteFontFace4 ? nullptr : &mutex;
 }
 
-// Wrappers around a possibly null shared mutex that acquire the lock for
-// as long as the object is in scope.
-class Exclusive {
+class SK_SCOPED_CAPABILITY Exclusive {
 public:
-    explicit Exclusive(std::shared_mutex* maybe_lock)
+    explicit Exclusive(SkSharedMutex* maybe_lock) SK_ACQUIRE(*maybe_lock)
         : fLock(maybe_lock) {
         if (fLock) {
-            fLock->lock();
+            fLock->acquire();
         }
     }
-    ~Exclusive() {
+    ~Exclusive() SK_RELEASE_CAPABILITY() {
         if (fLock) {
-            fLock->unlock();
+            fLock->release();
         }
     }
 
 private:
-    std::shared_mutex* fLock;
+    SkSharedMutex* fLock;
 };
-class Shared {
+class SK_SCOPED_CAPABILITY Shared {
 public:
-    explicit Shared(std::shared_mutex* maybe_lock)
+    explicit Shared(SkSharedMutex* maybe_lock) SK_ACQUIRE_SHARED(*maybe_lock)
         : fLock(maybe_lock)  {
         if (fLock) {
-            fLock->lock_shared();
+            fLock->acquireShared();
         }
     }
 
-    ~Shared() {
+    // You would think this should be SK_RELEASE_SHARED_CAPABILITY, but SK_SCOPED_CAPABILITY
+    // doesn't fully understand the difference between shared and exclusive.
+    // Please review https://reviews.llvm.org/D52578 for more information.
+    ~Shared() SK_RELEASE_CAPABILITY() {
         if (fLock) {
-            fLock->unlock_shared();
+            fLock->releaseShared();
         }
     }
 
 private:
-    std::shared_mutex* fLock;
+    SkSharedMutex* fLock;
 };
 
 static bool isLCD(const SkScalerContextRec& rec) {
@@ -265,10 +265,10 @@ static bool is_axis_aligned(const SkScalerContextRec& rec) {
 
 }  //namespace
 
-SkScalerContext_DW::SkScalerContext_DW(sk_sp<DWriteFontTypeface> typefaceRef,
+SkScalerContext_DW::SkScalerContext_DW(DWriteFontTypeface& typefaceRef,
                                        const SkScalerContextEffects& effects,
                                        const SkDescriptor* desc)
-        : SkScalerContext(std::move(typefaceRef), effects, desc)
+        : SkScalerContext(typefaceRef, effects, desc)
 {
     DWriteFontTypeface* typeface = this->getDWriteTypeface();
     fGlyphCount = typeface->fDWriteFontFace->GetGlyphCount();
@@ -1476,7 +1476,7 @@ bool SkScalerContext_DW::drawColorV1Image(const SkGlyph&, SkCanvas&) { return fa
 
 bool SkScalerContext_DW::setAdvance(const SkGlyph& glyph, SkVector* advance) {
     *advance = {0, 0};
-    uint16_t glyphId = glyph.getGlyphID();
+    UINT16 glyphId = glyph.getGlyphID();
     DWriteFontTypeface* typeface = this->getDWriteTypeface();
 
     // DirectWrite treats all out of bounds glyph ids as having the same data as glyph 0.
@@ -1907,7 +1907,7 @@ void SkScalerContext_DW::generateFontMetrics(SkFontMetrics* metrics) {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-#include "include/private/SkColorData.h"
+#include "src/core/SkColorData.h"
 
 void SkScalerContext_DW::BilevelToBW(const uint8_t* SK_RESTRICT src,
                                      const SkGlyph& glyph, void* imageBuffer) {
@@ -2394,16 +2394,7 @@ void SkScalerContext_DW::generateImage(const SkGlyph& glyph, void* imageBuffer) 
     } else if (format == ScalerContextBits::PNG) {
         this->generatePngImage(glyph, imageBuffer);
     } else if (format == ScalerContextBits::PATH) {
-        const SkPath* devPath = glyph.path();
-        SkASSERT_RELEASE(devPath);
-        SkMaskBuilder mask(static_cast<uint8_t*>(imageBuffer),
-                           glyph.iRect(), glyph.rowBytes(), glyph.maskFormat());
-        SkASSERT(SkMask::kARGB32_Format != mask.fFormat);
-        const bool doBGR = SkToBool(fRec.fFlags & SkScalerContext::kLCD_BGROrder_Flag);
-        const bool doVert = SkToBool(fRec.fFlags & SkScalerContext::kLCD_Vertical_Flag);
-        const bool a8LCD = SkToBool(fRec.fFlags & SkScalerContext::kGenA8FromLCD_Flag);
-        const bool hairline = glyph.pathIsHairline();
-        GenerateImageFromPath(mask, *devPath, fPreBlend, doBGR, doVert, a8LCD, hairline);
+        this->generateImageFromPath(glyph, imageBuffer);
     } else {
         SK_ABORT("Bad format");
     }

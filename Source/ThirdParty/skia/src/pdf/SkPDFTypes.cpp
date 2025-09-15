@@ -391,6 +391,14 @@ void SkPDFArray::emitObject(SkWStream* stream) const {
     stream->writeText("]");
 }
 
+void SkPDFOptionalArray::emitObject(SkWStream* stream) const {
+    if (this->size() == 1) {
+        this->values()[0].emitObject(stream);
+    } else {
+        this->SkPDFArray::emitObject(stream);
+    }
+}
+
 void SkPDFArray::append(SkPDFUnion&& value) {
     fValues.emplace_back(std::move(value));
 }
@@ -401,6 +409,10 @@ void SkPDFArray::appendInt(int32_t value) {
 
 void SkPDFArray::appendColorComponent(uint8_t value) {
     this->append(SkPDFUnion::ColorComponent(value));
+}
+
+void SkPDFArray::appendColorComponentF(float value) {
+    this->append(SkPDFUnion::ColorComponentF(value));
 }
 
 void SkPDFArray::appendBool(bool value) {

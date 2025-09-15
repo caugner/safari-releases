@@ -1,3 +1,4 @@
+<script src="../../../resources/js-test-pre.js"></script>
 <script>
 function gc() {
   if (globalThis.GCController) {
@@ -35,9 +36,13 @@ async function run() {
     gc();
     renderPass.executeBundles([renderBundle]);
     await device.queue.onSubmittedWorkDone();
+    debug('Pass')
     globalThis.testRunner?.notifyDone();
 }
 
+globalThis.testRunner?.dumpAsText();
 globalThis.testRunner?.waitUntilDone();
+
 run();
 </script>
+

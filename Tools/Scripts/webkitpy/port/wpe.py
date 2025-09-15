@@ -63,6 +63,11 @@ class WPEPort(GLibPort):
     def setup_environ_for_server(self, server_name=None):
         environment = super(WPEPort, self).setup_environ_for_server(server_name)
         environment['LIBGL_ALWAYS_SOFTWARE'] = '1'
+        # Run WPE tests with Skia CPU (usual configuration on embedded)
+        # to help catching issues/crashes <https://webkit.org/b/287632>
+        if 'WEBKIT_SKIA_ENABLE_CPU_RENDERING' in environment:
+            _log.warning('Ignoring "WEBKIT_SKIA_ENABLE_CPU_RENDERING" variable from environment. Defaulting to value "1".')
+        environment['WEBKIT_SKIA_ENABLE_CPU_RENDERING'] = '1'
         self._copy_value_from_environ_if_set(environment, 'XR_RUNTIME_JSON')
         self._copy_value_from_environ_if_set(environment, 'BREAKPAD_MINIDUMP_DIR')
         return environment
@@ -106,6 +111,9 @@ class WPEPort(GLibPort):
     def cog_path_to(self, *components):
         return self._build_path('Tools', 'cog-prefix', 'src', 'cog-build', *components)
 
+    def get_browser_path(self, browser_name):
+        return self.cog_path_to('launcher', browser_name) if browser_name == 'cog' else self._build_path('bin', browser_name)
+
     def browser_name(self):
         """Returns the lower case name of the browser to be used (Cog or MiniBrowser)
 
@@ -116,10 +124,8 @@ class WPEPort(GLibPort):
             return browser
 
         if browser:
-            _log.warning("Unknown browser {}. Defaulting to Cog and MiniBrowser selection".format(browser))
+            _log.warning("Unknown browser {}. Defaulting to MiniBrowser".format(browser))
 
-        if self._filesystem.isfile(self.cog_path_to('launcher', 'cog')):
-            return "cog"
         return "minibrowser"
 
     def setup_environ_for_minibrowser(self):
@@ -142,9 +148,9 @@ class WPEPort(GLibPort):
         miniBrowser = None
 
         if self.browser_name() == "cog":
-            miniBrowser = self.cog_path_to('launcher', 'cog')
+            miniBrowser = self.get_browser_path("cog")
             if not self._filesystem.isfile(miniBrowser):
-                _log.warning("Cog not found 😢. If you wish to enable it, rebuild with `-DENABLE_COG=ON`. Falling back to good old MiniBrowser")
+                _log.warning("Cog not found 😢. If you wish to enable it, rebuild with `-DENABLE_COG=ON`. Falling back to MiniBrowser")
                 miniBrowser = None
             else:
                 print("Using Cog as MiniBrowser")
@@ -154,7 +160,7 @@ class WPEPort(GLibPort):
 
         if not miniBrowser:
             print("Using default MiniBrowser")
-            miniBrowser = self._build_path('bin', 'MiniBrowser')
+            miniBrowser = self.get_browser_path("MiniBrowser")
             if not self._filesystem.isfile(miniBrowser):
                 _log.warning("%s not found... Did you run build-webkit?" % miniBrowser)
                 return 1

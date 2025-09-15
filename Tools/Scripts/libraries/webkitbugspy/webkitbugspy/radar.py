@@ -113,6 +113,8 @@ class Tracker(GenericTracker):
             except self.radarclient().exceptions.RadarAccessDeniedResponseException as e:
                 sys.stderr.write(f'{e.code} Permission Denied\n')
                 sys.stderr.write(f'{e.reason}\n')
+            except self.radarclient().exceptions.UnsuccessfulResponseException as e:
+                sys.stderr.write(f'{e.reason}\n')
                 sys.exit(1)
         return try_func
 
@@ -135,17 +137,20 @@ class Tracker(GenericTracker):
             self.client = None
 
     def authentication(self):
+        identity = Environment.instance().get('RADAR_IDENTITY')
         username = Environment.instance().get('RADAR_USERNAME')
         password = Environment.instance().get('RADAR_PASSWORD')
         totp_secret = Environment.instance().get('RADAR_TOTP_SECRET')
         totp_id = Environment.instance().get('RADAR_TOTP_ID') or 1
 
         try:
+            if identity and os.path.isdir(identity):
+                return AuthenticationStrategyNarrative(identity)
             if username and password and totp_secret and totp_id:
-                return self.library.AuthenticationStrategySystemAccount(
+                return self.library.AuthenticationStrategySystemAccountOAuth(
                     username, password, totp_secret, totp_id,
                 )
-            return self.library.AuthenticationStrategySPNego()
+            return self.library.AuthenticationStrategyAppleConnect()
         except Exception:
             sys.stderr.write('No valid authentication session for Radar\n')
             return None
@@ -191,8 +196,15 @@ class Tracker(GenericTracker):
 
     @decorators.Memoize()
     def me(self):
-        username = self.authentication().username()
-        return self.user(username=username)
+        if self.client:
+            user = self.client.current_user()
+            if user:
+                return self.users.create(
+                    name='{} {}'.format(user.firstName, user.lastName),
+                    username=user.dsid,
+                    emails=[user.email],
+                )
+        return None
 
     def issue(self, id):
         return Issue(id=int(id), tracker=self)
@@ -201,6 +213,7 @@ class Tracker(GenericTracker):
     def populate(self, issue, member=None):
         issue._link = 'rdar://{}'.format(issue.id)
         issue._labels = []
+        issue._related_links = []  # We don't yet have a defined idiom for "related links" in radar
         if (not self.client or not self.library) and member:
             sys.stderr.write('radarclient inaccessible on this machine\n')
             return issue
@@ -226,6 +239,8 @@ class Tracker(GenericTracker):
         )
         issue._description = '\n'.join([desc.text for desc in radar.description.items()])
         issue._opened = False if radar.state in ('Verify', 'Closed') else True
+        issue._state = radar.state
+        issue._substate = radar.substate
         if radar.duplicateOfProblemID is not None:
             issue._original = self.issue(radar.duplicateOfProblemID)
         issue._creator = self.user(
@@ -311,7 +326,7 @@ class Tracker(GenericTracker):
         return issue
 
     @handle_access_exception
-    def set(self, issue, assignee=None, opened=None, why=None, project=None, component=None, version=None, original=None, keywords=None, source_changes=None, **properties):
+    def set(self, issue, assignee=None, opened=None, why=None, project=None, component=None, version=None, original=None, keywords=None, source_changes=None, state=None, substate=None, resolution=None, see_also=None, **properties):
         if not self.client or not self.library:
             sys.stderr.write('radarclient inaccessible on this machine\n')
             return None
@@ -352,6 +367,20 @@ class Tracker(GenericTracker):
                     issue._original = original
                 else:
                     radar.resolution = 'Software Changed'
+            issue._state = radar.state
+            issue._substate = radar.substate
+            did_change = True
+
+        if state is not None:
+            if radar.state == 'Analyze' and state != 'Analyze':
+                radar.resolution = resolution or 'Software Changed'
+            radar.state = state
+            issue._state = state
+            did_change = True
+
+        if substate is not None:
+            radar.substate = substate
+            issue._substate = substate
             did_change = True
 
         if project or component or version:
@@ -417,6 +446,10 @@ class Tracker(GenericTracker):
         if source_changes:
             did_change = True
             radar.sourceChanges = '\n'.join(source_changes)
+
+        if see_also:
+            sys.stderr.write('Radar does not support the see_also field at this time\n')
+            return None
 
         if did_change:
             radar.commit_changes()

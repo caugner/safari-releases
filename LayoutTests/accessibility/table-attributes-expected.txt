@@ -1,5 +1,3 @@
-AXHasDocumentRoleAncestor: 0
-AXHasWebApplicationAncestor: 0
 AXRole: AXCell
 AXSubrole: (null)
 AXRoleDescription: cell
@@ -40,8 +38,6 @@ AXRequired: 0
 AXSortDirection: AXUnknownSortDirection
 
 ------------
-AXHasDocumentRoleAncestor: 0
-AXHasWebApplicationAncestor: 0
 AXRole: AXCell
 AXSubrole: (null)
 AXRoleDescription: cell
@@ -82,8 +78,6 @@ AXRequired: 0
 AXSortDirection: AXUnknownSortDirection
 
 ------------
-AXHasDocumentRoleAncestor: 0
-AXHasWebApplicationAncestor: 0
 AXRole: AXCell
 AXSubrole: (null)
 AXRoleDescription: cell
@@ -124,8 +118,6 @@ AXRequired: 0
 AXSortDirection: AXUnknownSortDirection
 
 ------------
-AXHasDocumentRoleAncestor: 0
-AXHasWebApplicationAncestor: 0
 AXRole: AXCell
 AXSubrole: (null)
 AXRoleDescription: cell
@@ -166,8 +158,6 @@ AXRequired: 0
 AXSortDirection: AXUnknownSortDirection
 
 ------------
-AXHasDocumentRoleAncestor: 0
-AXHasWebApplicationAncestor: 0
 AXRole: AXCell
 AXSubrole: (null)
 AXRoleDescription: cell
@@ -209,8 +199,6 @@ AXSortDirection: AXUnknownSortDirection
 
 ------------
 
-AXHasDocumentRoleAncestor: 0
-AXHasWebApplicationAncestor: 0
 AXRole: AXCell
 AXSubrole: (null)
 AXRoleDescription: cell
@@ -251,8 +239,6 @@ AXRequired: 0
 AXSortDirection: AXUnknownSortDirection
 
 ------------
-AXHasDocumentRoleAncestor: 0
-AXHasWebApplicationAncestor: 0
 AXRole: AXCell
 AXSubrole: (null)
 AXRoleDescription: cell
@@ -293,8 +279,6 @@ AXRequired: 0
 
 ------------
 
-AXHasDocumentRoleAncestor: 0
-AXHasWebApplicationAncestor: 0
 AXRole: AXColumn
 AXSubrole: (null)
 AXRoleDescription: column
@@ -323,7 +307,6 @@ AXDOMClassList: <array of size 0>
 AXFocusableAncestor: <AXColumn>
 AXEditableAncestor: (null)
 AXHighestEditableAncestor: (null)
-AXVisibleCharacterRange: NSRange: {9223372036854775807, 0}
 AXElementBusy: 0
 AXIndex: 0
 AXHeader: <AXColumn>
@@ -331,8 +314,6 @@ AXRows: <array of size 2>
 AXVisibleRows: <array of size 2>
 
 ------------
-AXHasDocumentRoleAncestor: 0
-AXHasWebApplicationAncestor: 0
 AXRole: AXColumn
 AXSubrole: (null)
 AXRoleDescription: column
@@ -361,7 +342,6 @@ AXDOMClassList: <array of size 0>
 AXFocusableAncestor: <AXColumn>
 AXEditableAncestor: (null)
 AXHighestEditableAncestor: (null)
-AXVisibleCharacterRange: NSRange: {9223372036854775807, 0}
 AXElementBusy: 0
 AXIndex: 1
 AXHeader: <AXColumn>
@@ -369,8 +349,6 @@ AXRows: <array of size 3>
 AXVisibleRows: <array of size 3>
 
 ------------
-AXHasDocumentRoleAncestor: 0
-AXHasWebApplicationAncestor: 0
 AXRole: AXColumn
 AXSubrole: (null)
 AXRoleDescription: column
@@ -399,7 +377,6 @@ AXDOMClassList: <array of size 0>
 AXFocusableAncestor: <AXColumn>
 AXEditableAncestor: (null)
 AXHighestEditableAncestor: (null)
-AXVisibleCharacterRange: NSRange: {9223372036854775807, 0}
 AXElementBusy: 0
 AXIndex: 2
 AXHeader: <AXColumn>
@@ -407,8 +384,6 @@ AXRows: <array of size 3>
 AXVisibleRows: <array of size 3>
 
 ------------
-AXHasDocumentRoleAncestor: 0
-AXHasWebApplicationAncestor: 0
 AXRole: AXColumn
 AXSubrole: (null)
 AXRoleDescription: column
@@ -437,7 +412,6 @@ AXDOMClassList: <array of size 0>
 AXFocusableAncestor: <AXColumn>
 AXEditableAncestor: (null)
 AXHighestEditableAncestor: (null)
-AXVisibleCharacterRange: NSRange: {9223372036854775807, 0}
 AXElementBusy: 0
 AXIndex: 3
 AXHeader: <AXColumn>
@@ -445,8 +419,6 @@ AXRows: <array of size 4>
 AXVisibleRows: <array of size 4>
 
 ------------
-AXHasDocumentRoleAncestor: 0
-AXHasWebApplicationAncestor: 0
 AXRole: AXColumn
 AXSubrole: (null)
 AXRoleDescription: column
@@ -475,7 +447,6 @@ AXDOMClassList: <array of size 0>
 AXFocusableAncestor: <AXColumn>
 AXEditableAncestor: (null)
 AXHighestEditableAncestor: (null)
-AXVisibleCharacterRange: NSRange: {9223372036854775807, 0}
 AXElementBusy: 0
 AXIndex: 4
 AXHeader: <AXColumn>
@@ -484,8 +455,6 @@ AXVisibleRows: <array of size 4>
 
 ------------
 
-AXHasDocumentRoleAncestor: 0
-AXHasWebApplicationAncestor: 0
 AXRole: AXRow
 AXSubrole: (null)
 AXRoleDescription: row
@@ -514,13 +483,10 @@ AXDOMClassList: <array of size 0>
 AXFocusableAncestor: <AXRow>
 AXEditableAncestor: (null)
 AXHighestEditableAncestor: (null)
-AXVisibleCharacterRange: NSRange: {0, 50}
 AXElementBusy: 0
 AXIndex: 0
 
 ------------
-AXHasDocumentRoleAncestor: 0
-AXHasWebApplicationAncestor: 0
 AXRole: AXRow
 AXSubrole: (null)
 AXRoleDescription: row
@@ -549,13 +515,10 @@ AXDOMClassList: <array of size 0>
 AXFocusableAncestor: <AXRow>
 AXEditableAncestor: (null)
 AXHighestEditableAncestor: (null)
-AXVisibleCharacterRange: NSRange: {0, 13}
 AXElementBusy: 0
 AXIndex: 1
 
 ------------
-AXHasDocumentRoleAncestor: 0
-AXHasWebApplicationAncestor: 0
 AXRole: AXRow
 AXSubrole: (null)
 AXRoleDescription: row
@@ -584,13 +547,10 @@ AXDOMClassList: <array of size 0>
 AXFocusableAncestor: <AXRow>
 AXEditableAncestor: (null)
 AXHighestEditableAncestor: (null)
-AXVisibleCharacterRange: NSRange: {0, 32}
 AXElementBusy: 0
 AXIndex: 2
 
 ------------
-AXHasDocumentRoleAncestor: 0
-AXHasWebApplicationAncestor: 0
 AXRole: AXRow
 AXSubrole: (null)
 AXRoleDescription: row
@@ -619,14 +579,11 @@ AXDOMClassList: <array of size 0>
 AXFocusableAncestor: <AXRow>
 AXEditableAncestor: (null)
 AXHighestEditableAncestor: (null)
-AXVisibleCharacterRange: NSRange: {0, 20}
 AXElementBusy: 0
 AXIndex: 3
 
 ------------
 
-AXHasDocumentRoleAncestor: 0
-AXHasWebApplicationAncestor: 0
 AXRole: AXCell
 AXSubrole: (null)
 AXRoleDescription: cell
@@ -667,8 +624,6 @@ AXRequired: 0
 AXSortDirection: AXUnknownSortDirection
 
 ------------
-AXHasDocumentRoleAncestor: 0
-AXHasWebApplicationAncestor: 0
 AXRole: AXCell
 AXSubrole: (null)
 AXRoleDescription: cell
@@ -709,8 +664,6 @@ AXRequired: 0
 AXSortDirection: AXUnknownSortDirection
 
 ------------
-AXHasDocumentRoleAncestor: 0
-AXHasWebApplicationAncestor: 0
 AXRole: AXCell
 AXSubrole: (null)
 AXRoleDescription: cell
@@ -751,8 +704,6 @@ AXRequired: 0
 AXSortDirection: AXUnknownSortDirection
 
 ------------
-AXHasDocumentRoleAncestor: 0
-AXHasWebApplicationAncestor: 0
 AXRole: AXCell
 AXSubrole: (null)
 AXRoleDescription: cell
@@ -792,8 +743,6 @@ AXARIARowIndex: -1
 AXRequired: 0
 
 ------------
-AXHasDocumentRoleAncestor: 0
-AXHasWebApplicationAncestor: 0
 AXRole: AXCell
 AXSubrole: (null)
 AXRoleDescription: cell
@@ -833,8 +782,6 @@ AXARIARowIndex: -1
 AXRequired: 0
 
 ------------
-AXHasDocumentRoleAncestor: 0
-AXHasWebApplicationAncestor: 0
 AXRole: AXCell
 AXSubrole: (null)
 AXRoleDescription: cell
@@ -875,8 +822,6 @@ AXRequired: 0
 AXSortDirection: AXUnknownSortDirection
 
 ------------
-AXHasDocumentRoleAncestor: 0
-AXHasWebApplicationAncestor: 0
 AXRole: AXCell
 AXSubrole: (null)
 AXRoleDescription: cell
@@ -916,8 +861,6 @@ AXARIARowIndex: -1
 AXRequired: 0
 
 ------------
-AXHasDocumentRoleAncestor: 0
-AXHasWebApplicationAncestor: 0
 AXRole: AXCell
 AXSubrole: (null)
 AXRoleDescription: cell
@@ -957,8 +900,6 @@ AXARIARowIndex: -1
 AXRequired: 0
 
 ------------
-AXHasDocumentRoleAncestor: 0
-AXHasWebApplicationAncestor: 0
 AXRole: AXCell
 AXSubrole: (null)
 AXRoleDescription: cell
@@ -998,8 +939,6 @@ AXARIARowIndex: -1
 AXRequired: 0
 
 ------------
-AXHasDocumentRoleAncestor: 0
-AXHasWebApplicationAncestor: 0
 AXRole: AXCell
 AXSubrole: (null)
 AXRoleDescription: cell
@@ -1039,8 +978,6 @@ AXARIARowIndex: -1
 AXRequired: 0
 
 ------------
-AXHasDocumentRoleAncestor: 0
-AXHasWebApplicationAncestor: 0
 AXRole: AXCell
 AXSubrole: (null)
 AXRoleDescription: cell
@@ -1080,8 +1017,6 @@ AXARIARowIndex: -1
 AXRequired: 0
 
 ------------
-AXHasDocumentRoleAncestor: 0
-AXHasWebApplicationAncestor: 0
 AXRole: AXCell
 AXSubrole: (null)
 AXRoleDescription: cell
@@ -1121,8 +1056,6 @@ AXARIARowIndex: -1
 AXRequired: 0
 
 ------------
-AXHasDocumentRoleAncestor: 0
-AXHasWebApplicationAncestor: 0
 AXRole: AXCell
 AXSubrole: (null)
 AXRoleDescription: cell
@@ -1162,8 +1095,6 @@ AXARIARowIndex: -1
 AXRequired: 0
 
 ------------
-AXHasDocumentRoleAncestor: 0
-AXHasWebApplicationAncestor: 0
 AXRole: AXCell
 AXSubrole: (null)
 AXRoleDescription: cell
@@ -1204,8 +1135,6 @@ AXRequired: 0
 
 ------------
 
-AXHasDocumentRoleAncestor: 0
-AXHasWebApplicationAncestor: 0
 AXRole: AXGroup
 AXSubrole: (null)
 AXRoleDescription: group
@@ -1234,7 +1163,6 @@ AXDOMClassList: <array of size 0>
 AXFocusableAncestor: <AXGroup>
 AXEditableAncestor: (null)
 AXHighestEditableAncestor: (null)
-AXVisibleCharacterRange: NSRange: {9223372036854775807, 0}
 AXElementBusy: 0
 
 ------------

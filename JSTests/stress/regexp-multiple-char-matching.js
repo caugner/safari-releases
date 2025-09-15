@@ -179,11 +179,9 @@ testRegExp(/c.lef/u, "c\u{1C345}lef", ["c\u{1C345}lef"]);
 testRegExp(/\sbrown\s/, "The quick brown fox jumped.", [" brown "]);
 
 // Tests 6-8
-/*
 testRegExp(/h(?i:e)l(?i:l)o world/, "hello world", ["hello world"]);
 testRegExp(/h(?i:e)l(?i:l)o world/, "Hello world", null);
 testRegExp(/h(?i:e)l(?i:l)o world/, "hElLo world", ["hElLo world"]);
-*/
 
 // Tests 9-41
 let re = /^(?:break|case|catch|continue|debugger|default|do|else|finally|for|function|if|return|switch|throw|try|var|while|with|null|true|false|instanceof|typeof|void|delete|new|in|this)/;

@@ -2,8 +2,11 @@
 <style>
   :root { background: #102030e0; color: #99ddbbcc; font-size: 15px; }
 </style>
+<script src="../../../resources/js-test-pre.js"></script>
 <script>
+globalThis.testRunner?.dumpAsText();
 globalThis.testRunner?.waitUntilDone();
+
 const log = globalThis.$vm?.print ?? console.log;
 
 function gc() {
@@ -10812,6 +10815,8 @@ videoFrame8.close();
       
     }
   }
-  globalThis.testRunner?.notifyDone();
+  debug('Pass')
+    globalThis.testRunner?.notifyDone();
 };
 </script>
+

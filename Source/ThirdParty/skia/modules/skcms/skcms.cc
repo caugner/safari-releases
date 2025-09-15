@@ -161,6 +161,16 @@ static skcms_TFType classify(const skcms_TransferFunction& tf, TF_PQish*   pq = 
                     memcpy(hlg, &tf.a, sizeof(*hlg));
                 }
                 return skcms_TFType_HLGinvish;
+            case skcms_TFType_PQ:
+                if (tf.b != 0.f || tf.c != 0.f || tf.d != 0.f || tf.e != 0.f || tf.f != 0.f) {
+                    return skcms_TFType_Invalid;
+                }
+                return skcms_TFType_PQ;
+            case skcms_TFType_HLG:
+                if (tf.d != 0.f || tf.e != 0.f || tf.f != 0.f) {
+                    return skcms_TFType_Invalid;
+                }
+                return skcms_TFType_HLG;
         }
         return skcms_TFType_Invalid;
     }
@@ -192,6 +202,12 @@ bool skcms_TransferFunction_isPQish(const skcms_TransferFunction* tf) {
 bool skcms_TransferFunction_isHLGish(const skcms_TransferFunction* tf) {
     return classify(*tf) == skcms_TFType_HLGish;
 }
+bool skcms_TransferFunction_isPQ(const skcms_TransferFunction* tf) {
+    return classify(*tf) == skcms_TFType_PQ;
+}
+bool skcms_TransferFunction_isHLG(const skcms_TransferFunction* tf) {
+    return classify(*tf) == skcms_TFType_HLG;
+}
 
 bool skcms_TransferFunction_makePQish(skcms_TransferFunction* tf,
                                       float A, float B, float C,
@@ -209,6 +225,28 @@ bool skcms_TransferFunction_makeScaledHLGish(skcms_TransferFunction* tf,
     return true;
 }
 
+void skcms_TransferFunction_makePQ(
+    skcms_TransferFunction* tf,
+    float hdr_reference_white_luminance) {
+    *tf = { TFKind_marker(skcms_TFType_PQ),
+            hdr_reference_white_luminance,
+            0.f,0.f,0.f,0.f,0.f };
+    assert(skcms_TransferFunction_isPQ(tf));
+}
+
+void skcms_TransferFunction_makeHLG(
+    skcms_TransferFunction* tf,
+    float hdr_reference_white_luminance,
+    float peak_luminance,
+    float system_gamma) {
+    *tf = { TFKind_marker(skcms_TFType_HLG),
+            hdr_reference_white_luminance,
+            peak_luminance,
+            system_gamma,
+            0.f, 0.f, 0.f };
+    assert(skcms_TransferFunction_isHLG(tf));
+}
+
 float skcms_TransferFunction_eval(const skcms_TransferFunction* tf, float x) {
     float sign = x < 0 ? -1.0f : 1.0f;
     x *= sign;
@@ -217,6 +255,13 @@ float skcms_TransferFunction_eval(const skcms_TransferFunction* tf, float x) {
     TF_HLGish hlg;
     switch (classify(*tf, &pq, &hlg)) {
         case skcms_TFType_Invalid: break;
+
+        case skcms_TFType_HLG: {
+            const float a = 0.17883277f;
+            const float b = 0.28466892f;
+            const float c = 0.55991073f;
+            return sign * (x <= 0.5f ? x*x/3.f : (expf_((x-c)/a) + b) / 12.f);
+        }
 
         case skcms_TFType_HLGish: {
             const float K = hlg.K_minus_1 + 1.0f;
@@ -235,6 +280,16 @@ float skcms_TransferFunction_eval(const skcms_TransferFunction* tf, float x) {
         case skcms_TFType_sRGBish:
             return sign * (x < tf->d ?       tf->c * x + tf->f
                                      : powf_(tf->a * x + tf->b, tf->g) + tf->e);
+
+        case skcms_TFType_PQ: {
+            const float c1 =  107 / 128.f;
+            const float c2 = 2413 / 128.f;
+            const float c3 = 2392 / 128.f;
+            const float m1 = 1305 / 8192.f;
+            const float m2 = 2523 / 32.f;
+            const float p = powf_(x, 1.f / m2);
+            return powf_((p - c1) / (c2 - c3 * p), 1.f / m1);
+        }
 
         case skcms_TFType_PQish:
             return sign *
@@ -1930,6 +1985,8 @@ bool skcms_TransferFunction_invert(const skcms_TransferFunction* src, skcms_Tran
     TF_HLGish hlg;
     switch (classify(*src, &pq, &hlg)) {
         case skcms_TFType_Invalid: return false;
+        case skcms_TFType_PQ:      return false;
+        case skcms_TFType_HLG:     return false;
         case skcms_TFType_sRGBish: break;  // handled below
 
         case skcms_TFType_PQish:
@@ -2458,6 +2515,11 @@ static OpAndArg select_curve_op(const skcms_Curve* curve, int channel) {
 
         switch (classify(tf)) {
             case skcms_TFType_Invalid:    return noop;
+            // TODO(https://issues.skia.org/issues/420956739): Consider adding
+            // support for PQ and HLG. Generally any code that goes through this
+            // path would also want tone mapping too.
+            case skcms_TFType_PQ:         return noop;
+            case skcms_TFType_HLG:        return noop;
             case skcms_TFType_sRGBish:    return OpAndArg{op.sRGBish,   &tf};
             case skcms_TFType_PQish:      return OpAndArg{op.PQish,     &tf};
             case skcms_TFType_HLGish:     return OpAndArg{op.HLGish,    &tf};
@@ -2830,25 +2892,26 @@ bool skcms_Transform(const void*             src,
     }
     switch (dstFmt >> 1) {
         default: return false;
-        case skcms_PixelFormat_A_8             >> 1: add_op(Op::store_a8);         break;
-        case skcms_PixelFormat_G_8             >> 1: add_op(Op::store_g8);         break;
-        case skcms_PixelFormat_GA_88           >> 1: add_op(Op::store_ga88);       break;
-        case skcms_PixelFormat_ABGR_4444       >> 1: add_op(Op::store_4444);       break;
-        case skcms_PixelFormat_RGB_565         >> 1: add_op(Op::store_565);        break;
-        case skcms_PixelFormat_RGB_888         >> 1: add_op(Op::store_888);        break;
-        case skcms_PixelFormat_RGBA_8888       >> 1: add_op(Op::store_8888);       break;
-        case skcms_PixelFormat_RGBA_1010102    >> 1: add_op(Op::store_1010102);    break;
-        case skcms_PixelFormat_RGB_161616LE    >> 1: add_op(Op::store_161616LE);   break;
-        case skcms_PixelFormat_RGBA_16161616LE >> 1: add_op(Op::store_16161616LE); break;
-        case skcms_PixelFormat_RGB_161616BE    >> 1: add_op(Op::store_161616BE);   break;
-        case skcms_PixelFormat_RGBA_16161616BE >> 1: add_op(Op::store_16161616BE); break;
-        case skcms_PixelFormat_RGB_hhh_Norm    >> 1: add_op(Op::store_hhh);        break;
-        case skcms_PixelFormat_RGBA_hhhh_Norm  >> 1: add_op(Op::store_hhhh);       break;
-        case skcms_PixelFormat_RGB_101010x_XR  >> 1: add_op(Op::store_101010x_XR); break;
-        case skcms_PixelFormat_RGB_hhh         >> 1: add_op(Op::store_hhh);        break;
-        case skcms_PixelFormat_RGBA_hhhh       >> 1: add_op(Op::store_hhhh);       break;
-        case skcms_PixelFormat_RGB_fff         >> 1: add_op(Op::store_fff);        break;
-        case skcms_PixelFormat_RGBA_ffff       >> 1: add_op(Op::store_ffff);       break;
+        case skcms_PixelFormat_A_8              >> 1: add_op(Op::store_a8);          break;
+        case skcms_PixelFormat_G_8              >> 1: add_op(Op::store_g8);          break;
+        case skcms_PixelFormat_GA_88            >> 1: add_op(Op::store_ga88);        break;
+        case skcms_PixelFormat_ABGR_4444        >> 1: add_op(Op::store_4444);        break;
+        case skcms_PixelFormat_RGB_565          >> 1: add_op(Op::store_565);         break;
+        case skcms_PixelFormat_RGB_888          >> 1: add_op(Op::store_888);         break;
+        case skcms_PixelFormat_RGBA_8888        >> 1: add_op(Op::store_8888);        break;
+        case skcms_PixelFormat_RGBA_1010102     >> 1: add_op(Op::store_1010102);     break;
+        case skcms_PixelFormat_RGB_161616LE     >> 1: add_op(Op::store_161616LE);    break;
+        case skcms_PixelFormat_RGBA_16161616LE  >> 1: add_op(Op::store_16161616LE);  break;
+        case skcms_PixelFormat_RGB_161616BE     >> 1: add_op(Op::store_161616BE);    break;
+        case skcms_PixelFormat_RGBA_16161616BE  >> 1: add_op(Op::store_16161616BE);  break;
+        case skcms_PixelFormat_RGB_hhh_Norm     >> 1: add_op(Op::store_hhh);         break;
+        case skcms_PixelFormat_RGBA_hhhh_Norm   >> 1: add_op(Op::store_hhhh);        break;
+        case skcms_PixelFormat_RGB_101010x_XR   >> 1: add_op(Op::store_101010x_XR);  break;
+        case skcms_PixelFormat_RGBA_10101010_XR >> 1: add_op(Op::store_10101010_XR); break;
+        case skcms_PixelFormat_RGB_hhh          >> 1: add_op(Op::store_hhh);         break;
+        case skcms_PixelFormat_RGBA_hhhh        >> 1: add_op(Op::store_hhhh);        break;
+        case skcms_PixelFormat_RGB_fff          >> 1: add_op(Op::store_fff);         break;
+        case skcms_PixelFormat_RGBA_ffff        >> 1: add_op(Op::store_ffff);        break;
 
         case skcms_PixelFormat_RGBA_8888_sRGB >> 1:
             add_op_ctx(Op::tf_rgb, skcms_sRGB_Inverse_TransferFunction());

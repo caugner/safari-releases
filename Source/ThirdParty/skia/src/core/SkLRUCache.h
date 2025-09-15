@@ -14,7 +14,7 @@
 
 struct SkNoOpPurge {
     template <typename K, typename V>
-    void operator()(const K& /* k */, const V* /* v */) const {}
+    void operator()(void* /* context */, const K& /* k */, const V* /* v */) const {}
 };
 
 /**
@@ -35,7 +35,9 @@ private:
     };
 
 public:
-    explicit SkLRUCache(int maxCount) : fMaxCount(maxCount) {}
+    explicit SkLRUCache(int maxCount, void* context = nullptr)
+            : fMaxCount(maxCount)
+            , fContext(context) {}
     SkLRUCache() = delete;
 
     ~SkLRUCache() {
@@ -106,6 +108,17 @@ public:
         }
     }
 
+    void remove(const K& key) {
+        Entry** value = fMap.find(key);
+        SkASSERT(value);
+        Entry* entry = *value;
+        SkASSERT(key == entry->fKey);
+        PurgeCB()(fContext, key, &entry->fValue);
+        fMap.remove(key);
+        fLRU.remove(entry);
+        delete entry;
+    }
+
 private:
     struct Traits {
         static const K& GetKey(Entry* e) {
@@ -117,20 +130,10 @@ private:
         }
     };
 
-    void remove(const K& key) {
-        Entry** value = fMap.find(key);
-        SkASSERT(value);
-        Entry* entry = *value;
-        SkASSERT(key == entry->fKey);
-        PurgeCB()(key, &entry->fValue);
-        fMap.remove(key);
-        fLRU.remove(entry);
-        delete entry;
-    }
-
     int                                         fMaxCount;
     skia_private::THashTable<Entry*, K, Traits> fMap;
     SkTInternalLList<Entry>                     fLRU;
+    void*                                       fContext;
 };
 
 #endif

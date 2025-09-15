@@ -252,6 +252,7 @@ PASS HTMLElement interface: attribute oncanplaythrough
 PASS HTMLElement interface: attribute onchange
 PASS HTMLElement interface: attribute onclick
 PASS HTMLElement interface: attribute onclose
+PASS HTMLElement interface: attribute oncommand
 FAIL HTMLElement interface: attribute oncontextlost assert_true: The prototype object must have a property "oncontextlost" expected true got false
 PASS HTMLElement interface: attribute oncontextmenu
 FAIL HTMLElement interface: attribute oncontextrestored assert_true: The prototype object must have a property "oncontextrestored" expected true got false
@@ -351,6 +352,7 @@ PASS HTMLElement interface: document.createElement("noscript") must inherit prop
 PASS HTMLElement interface: document.createElement("noscript") must inherit property "onchange" with the proper type
 PASS HTMLElement interface: document.createElement("noscript") must inherit property "onclick" with the proper type
 PASS HTMLElement interface: document.createElement("noscript") must inherit property "onclose" with the proper type
+PASS HTMLElement interface: document.createElement("noscript") must inherit property "oncommand" with the proper type
 FAIL HTMLElement interface: document.createElement("noscript") must inherit property "oncontextlost" with the proper type assert_inherits: property "oncontextlost" not found in prototype chain
 PASS HTMLElement interface: document.createElement("noscript") must inherit property "oncontextmenu" with the proper type
 FAIL HTMLElement interface: document.createElement("noscript") must inherit property "oncontextrestored" with the proper type assert_inherits: property "oncontextrestored" not found in prototype chain
@@ -968,7 +970,7 @@ PASS HTMLIFrameElement interface: attribute allowFullscreen
 PASS HTMLIFrameElement interface: attribute width
 PASS HTMLIFrameElement interface: attribute height
 PASS HTMLIFrameElement interface: attribute referrerPolicy
-PASS HTMLIFrameElement interface: attribute loading
+FAIL HTMLIFrameElement interface: attribute loading assert_true: The prototype object must have a property "loading" expected true got false
 PASS HTMLIFrameElement interface: attribute contentDocument
 PASS HTMLIFrameElement interface: attribute contentWindow
 PASS HTMLIFrameElement interface: operation getSVGDocument()
@@ -989,7 +991,7 @@ PASS HTMLIFrameElement interface: document.createElement("iframe") must inherit 
 PASS HTMLIFrameElement interface: document.createElement("iframe") must inherit property "width" with the proper type
 PASS HTMLIFrameElement interface: document.createElement("iframe") must inherit property "height" with the proper type
 PASS HTMLIFrameElement interface: document.createElement("iframe") must inherit property "referrerPolicy" with the proper type
-PASS HTMLIFrameElement interface: document.createElement("iframe") must inherit property "loading" with the proper type
+FAIL HTMLIFrameElement interface: document.createElement("iframe") must inherit property "loading" with the proper type assert_inherits: property "loading" not found in prototype chain
 PASS HTMLIFrameElement interface: document.createElement("iframe") must inherit property "contentDocument" with the proper type
 PASS HTMLIFrameElement interface: document.createElement("iframe") must inherit property "contentWindow" with the proper type
 PASS HTMLIFrameElement interface: document.createElement("iframe") must inherit property "getSVGDocument()" with the proper type

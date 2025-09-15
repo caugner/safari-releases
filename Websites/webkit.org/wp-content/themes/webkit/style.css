@@ -824,7 +824,7 @@ footer .menu {
 }
 
 .tile .background-image svg {
-    position: relative;
+    position: absolute;
     top: -12%;
     width: 209%;
     height: auto;
@@ -906,7 +906,6 @@ footer .menu {
 
 .tile .background-image.loaded {
     background: none;
-    border-bottom: 1px solid hsla(0, 0%, 0%, 0.1);
     border-color: var(--tile-border-color);
     -webkit-filter: saturate(1);
             filter: saturate(1);
@@ -2764,6 +2763,11 @@ header .search-input:not([value=""]) {
 }
 
 @media only screen and (max-width: 415px) {
+    header,
+    .home header {
+        padding-top: env(safe-area-inset-top);
+    }
+
     .nextrouter-copy {
         font-size: 1.7rem;
         letter-spacing: -0.016rem;

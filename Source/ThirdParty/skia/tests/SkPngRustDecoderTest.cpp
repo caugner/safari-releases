@@ -640,3 +640,32 @@ DEF_TEST(RustPngCodec_png_cicp, r) {
 
     REPORTER_ASSERT(r, skcms_TransferFunction_isPQish(&profile->trc[0].parametric));
 }
+
+DEF_TEST(RustPngCodec_green15x15, r) {
+    std::unique_ptr<SkCodec> codec = SkPngRustDecoderDecode(r, "images/green15x15.png");
+    if (!codec) {
+        return;
+    }
+
+    SkImageInfo dstInfo = codec->getInfo();
+    dstInfo = dstInfo.makeColorSpace(SkColorSpace::MakeSRGB());
+    auto [image, result] = codec->getImage(dstInfo);
+    REPORTER_ASSERT_SUCCESSFUL_CODEC_RESULT(r, result);
+    if (result != SkCodec::kSuccess) {
+        return;
+    }
+
+    SkPixmap pixmap;
+    REPORTER_ASSERT(r, image->peekPixels(&pixmap));
+    const SkColor kExpectedColor = SkColorSetARGB(0xFF, 0x00, 0x80, 0x00);
+    AssertPixelColor(r, pixmap, 0, 0, kExpectedColor, "Expecting a dark green pixel");
+}
+
+DEF_TEST(RustPngCodec_exif_orientation, r) {
+    std::unique_ptr<SkCodec> codec = SkPngRustDecoderDecode(r, "images/F-exif-chunk-early.png");
+    if (!codec) {
+        return;
+    }
+
+    REPORTER_ASSERT(r, codec->getOrigin() == kRightTop_SkEncodedOrigin);
+}

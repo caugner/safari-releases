@@ -8,15 +8,21 @@ defines: [assert.deepEqual]
 
 assert.deepEqual = function(actual, expected, message) {
   var format = assert.deepEqual.format;
-  assert(
-    assert.deepEqual._compare(actual, expected),
-    `Expected ${format(actual)} to be structurally equal to ${format(expected)}. ${(message || '')}`
-  );
+  var mustBeTrue = assert.deepEqual._compare(actual, expected);
+
+  // format can be slow when `actual` or `expected` are large objects, like for
+  // example the global object, so only call it when the assertion will fail.
+  if (mustBeTrue !== true) {
+    message = `Expected ${format(actual)} to be structurally equal to ${format(expected)}. ${(message || '')}`;
+  }
+
+  assert(mustBeTrue, message);
 };
 
+(function() {
 let getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
 let join = arr => arr.join(', ');
-function stringFromTemplate(strings, ...subs) {
+function stringFromTemplate(strings, subs) {
   let parts = strings.map((str, i) => `${i === 0 ? '' : subs[i - 1]}${str}`);
   return parts.join('');
 }
@@ -79,7 +85,7 @@ assert.deepEqual.format = function(value, seen) {
     function acceptMappers(...mappers) {
       function toString() {
         let renderings = subs.map((sub, i) => (mappers[i] || String)(sub));
-        let rendered = stringFromTemplate(strings, ...renderings);
+        let rendered = stringFromTemplate(strings, renderings);
         if (usage.used) rendered += ` as #${usage.id}`;
         return rendered;
       }
@@ -93,7 +99,7 @@ assert.deepEqual.format = function(value, seen) {
 
   let format = assert.deepEqual.format;
   function lazyString(strings, ...subs) {
-    return { toString: () => stringFromTemplate(strings, ...subs) };
+    return { toString: () => stringFromTemplate(strings, subs) };
   }
 
   if (typeof value === 'function') {
@@ -131,6 +137,7 @@ assert.deepEqual.format = function(value, seen) {
   let contents = keys.map(key => lazyString`${escapeKey(key)}: ${format(value[key], seen)}`);
   return lazyResult`${tag ? `${tag} ` : ''}{${contents}}`(String, join);
 };
+})();
 
 assert.deepEqual._compare = (function () {
   var EQUAL = 1;
@@ -209,7 +216,7 @@ assert.deepEqual._compare = (function () {
   }
 
   function isObjectEquatable(value) {
-    return typeof value === 'object';
+    return typeof value === 'object' || typeof value === 'function';
   }
 
   function compareObjectEquality(a, b, cache) {

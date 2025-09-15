@@ -1,11 +1,15 @@
 <style>
   :root { background: #102030e0; color: #99ddbbcc; font-size: 15px; }
 </style>
+<script src="../../../resources/js-test-pre.js"></script>
 <script id="shared">
 const log = console.log;
 </script>
+
 <script>
+globalThis.testRunner?.dumpAsText();
 globalThis.testRunner?.waitUntilDone();
+
 
 async function window0() {
 // START
@@ -200,6 +204,8 @@ onload = async () => {
       
     }
   }
-  globalThis.testRunner?.notifyDone();
+  debug('Pass')
+    globalThis.testRunner?.notifyDone();
 };
 </script>
+

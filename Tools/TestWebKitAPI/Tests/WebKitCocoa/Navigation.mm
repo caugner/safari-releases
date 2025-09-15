@@ -42,6 +42,7 @@
 #import <WebKit/WKNavigationPrivate.h>
 #import <WebKit/WKPreferencesPrivate.h>
 #import <WebKit/WKProcessPoolPrivate.h>
+#import <WebKit/WKURLRequest.h>
 #import <WebKit/WKWebView.h>
 #import <WebKit/WKWebViewConfigurationPrivate.h>
 #import <WebKit/WKWebpagePreferencesPrivate.h>
@@ -800,17 +801,14 @@ TEST(WKNavigation, ShouldGoToBackForwardListItem)
     auto delegate = adoptNS([[BackForwardDelegateWithShouldGo alloc] init]);
     [webView setNavigationDelegate:delegate.get()];
     [webView loadRequest:[NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"simple" withExtension:@"html"]]];
-
     TestWebKitAPI::Util::run(&navigationComplete);
     navigationComplete = false;
     [webView loadRequest:[NSURLRequest requestWithURL:[NSBundle.test_resourcesBundle URLForResource:@"simple2" withExtension:@"html"]]];
-
     TestWebKitAPI::Util::run(&navigationComplete);
     navigationComplete = false;
     delegate.get().targetItem = webView.get().backForwardList.backItem;
     delegate.get().allowNavigation = YES;
     [webView goBack];
-
     TestWebKitAPI::Util::run(&navigationComplete);
 
     EXPECT_FALSE(didRejectNavigation);
@@ -818,7 +816,6 @@ TEST(WKNavigation, ShouldGoToBackForwardListItem)
     delegate.get().targetItem = webView.get().backForwardList.forwardItem;
     delegate.get().allowNavigation = NO;
     [webView goForward];
-
     TestWebKitAPI::Util::run(&didRejectNavigation);
 
     navigationComplete = false;
@@ -1795,29 +1792,29 @@ TEST(WKNavigation, HTTPSFirstLocalHostIPAddress)
         finishedSuccessfully = true;
     };
     [webView setNavigationDelegate:delegate.get()];
-    auto url = makeString("http://localhost:"_s, httpServer.port(), "/notsecure"_s);
-    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:url]]];
+    RetainPtr url = makeString("http://localhost:"_s, httpServer.port(), "/notsecure"_s).createNSString();
+    [webView loadRequest:adoptNS([[NSURLRequest alloc] initWithURL:adoptNS([[NSURL alloc] initWithString:url.get()]).get()]).get()];
     TestWebKitAPI::Util::run(&finishedSuccessfully);
 
     EXPECT_EQ(errorCode, 0);
     EXPECT_TRUE(finishedSuccessfully);
     EXPECT_FALSE(didReceiveAuthenticationChallenge);
     EXPECT_EQ(loadCount, 1);
-    EXPECT_WK_STREQ(url, [webView URL].absoluteString);
+    EXPECT_WK_STREQ(url.get(), [webView URL].absoluteString);
 
     errorCode = 0;
     finishedSuccessfully = false;
     didReceiveAuthenticationChallenge = false;
     loadCount = 0;
-    url = makeString("http://127.0.0.1:"_s, httpServer.port(), "/notsecure"_s);
-    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:url]]];
+    url = makeString("http://127.0.0.1:"_s, httpServer.port(), "/notsecure"_s).createNSString();
+    [webView loadRequest:adoptNS([[NSURLRequest alloc] initWithURL:adoptNS([[NSURL alloc] initWithString:url.get()]).get()]).get()];
     TestWebKitAPI::Util::run(&finishedSuccessfully);
 
     EXPECT_EQ(errorCode, 0);
     EXPECT_TRUE(finishedSuccessfully);
     EXPECT_FALSE(didReceiveAuthenticationChallenge);
     EXPECT_EQ(loadCount, 1);
-    EXPECT_WK_STREQ(url, [webView URL].absoluteString);
+    EXPECT_WK_STREQ(url.get(), [webView URL].absoluteString);
 }
 
 TEST(WKNavigation, HTTPSOnlyInitialLoad)
@@ -2276,8 +2273,8 @@ TEST(WKNavigation, HTTPSOnlyWithSameSiteBypass)
 
     delegate.get().didFailProvisionalNavigation = ^(WKWebView *, WKNavigation *, NSError *error) {
         EXPECT_NOT_NULL(error);
-        EXPECT_NOT_NULL(error.userInfo[@"NSErrorFailingURLKey"]);
-        EXPECT_WK_STREQ(@"https://site.example/secure", ((NSURL *)error.userInfo[@"NSErrorFailingURLKey"]).absoluteString);
+        EXPECT_NOT_NULL(error.userInfo[NSURLErrorFailingURLErrorKey]);
+        EXPECT_WK_STREQ(@"https://site.example/secure", ((NSURL *)error.userInfo[NSURLErrorFailingURLErrorKey]).absoluteString);
         errorCode = error.code;
         didFailNavigation = true;
     };
@@ -2365,8 +2362,8 @@ TEST(WKNavigation, HTTPSOnlyWithSameSiteBypass)
     // Step 4: Attempt cross-site http load with HTTPS-bypass enabled
     delegate.get().didFailProvisionalNavigation = ^(WKWebView *, WKNavigation *, NSError *error) {
         EXPECT_NOT_NULL(error);
-        EXPECT_NOT_NULL(error.userInfo[@"NSErrorFailingURLKey"]);
-        EXPECT_WK_STREQ(@"https://site2.example/secure", ((NSURL *)error.userInfo[@"NSErrorFailingURLKey"]).absoluteString);
+        EXPECT_NOT_NULL(error.userInfo[NSURLErrorFailingURLErrorKey]);
+        EXPECT_WK_STREQ(@"https://site2.example/secure", ((NSURL *)error.userInfo[NSURLErrorFailingURLErrorKey]).absoluteString);
         errorCode = error.code;
         didFailNavigation = true;
     };
@@ -2452,8 +2449,8 @@ TEST(WKNavigation, HTTPSOnlyWithHTTPRedirect)
 
     delegate.get().didFailProvisionalNavigation = ^(WKWebView *, WKNavigation *, NSError *error) {
         EXPECT_NOT_NULL(error);
-        EXPECT_NOT_NULL(error.userInfo[@"NSErrorFailingURLKey"]);
-        EXPECT_WK_STREQ(@"https://site.example/secure", ((NSURL *)error.userInfo[@"NSErrorFailingURLKey"]).absoluteString);
+        EXPECT_NOT_NULL(error.userInfo[NSURLErrorFailingURLErrorKey]);
+        EXPECT_WK_STREQ(@"https://site.example/secure", ((NSURL *)error.userInfo[NSURLErrorFailingURLErrorKey]).absoluteString);
         errorCode = error.code;
         didFailNavigation = true;
     };
@@ -2478,8 +2475,8 @@ TEST(WKNavigation, HTTPSOnlyWithHTTPRedirect)
 
     delegate.get().didFailProvisionalNavigation = ^(WKWebView *, WKNavigation *, NSError *error) {
         EXPECT_NOT_NULL(error);
-        EXPECT_NOT_NULL(error.userInfo[@"NSErrorFailingURLKey"]);
-        EXPECT_WK_STREQ(@"https://site2.example/secure2", ((NSURL *)error.userInfo[@"NSErrorFailingURLKey"]).absoluteString);
+        EXPECT_NOT_NULL(error.userInfo[NSURLErrorFailingURLErrorKey]);
+        EXPECT_WK_STREQ(@"https://site2.example/secure2", ((NSURL *)error.userInfo[NSURLErrorFailingURLErrorKey]).absoluteString);
         errorCode = error.code;
         didFailNavigation = true;
     };
@@ -2635,6 +2632,79 @@ TEST(WKNavigation, HTTPSFirstWithHTTPRedirect)
     EXPECT_FALSE(didFailNavigation);
     EXPECT_EQ(loadCount, 23);
     EXPECT_WK_STREQ(@"http://site2.example/secure3", [webView URL].absoluteString);
+}
+
+TEST(WKNavigation, DISABLED_PreferredHTTPSPolicyAutomaticHTTPFallbackRedirectNo3SecondTimeout)
+{
+    using namespace TestWebKitAPI;
+
+    WKURLRequestSetDefaultTimeoutInterval((60_s).value());
+
+    auto httpsServer = HTTPServer(HTTPServer::UseCoroutines::Yes, [&](Connection connection) -> ConnectionTask {
+        while (1) {
+            auto request = co_await connection.awaitableReceiveHTTPRequest();
+            auto path = HTTPServer::parsePath(request);
+
+            if (path == "/redirect"_s) {
+                co_await connection.awaitableSend(HTTPResponse(302, { { "Content-Type"_s, "text/html"_s }, { "Location"_s, "https://bar.com/finalTarget"_s } }, "redirecting..."_s).serialize());
+
+                continue;
+            }
+
+            if (path == "/finalTarget"_s) {
+                TestWebKitAPI::Util::runFor(4_s);
+
+                co_await connection.awaitableSend(HTTPResponse({ { "Content-Type"_s, "text/html"_s } }, "hello"_s).serialize());
+
+                continue;
+            }
+
+            EXPECT_FALSE(true);
+        }
+    }, HTTPServer::Protocol::HttpsProxy);
+
+    RetainPtr storeConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] initNonPersistentConfiguration]);
+    [storeConfiguration setProxyConfiguration:@{
+        (NSString *)kCFStreamPropertyHTTPSProxyHost: @"127.0.0.1",
+        (NSString *)kCFStreamPropertyHTTPSProxyPort: @(httpsServer.port())
+    }];
+
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:storeConfiguration.get()]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
+    [configuration setWebsiteDataStore:dataStore.get()];
+    configuration.get().defaultWebpagePreferences.preferredHTTPSNavigationPolicy = WKWebpagePreferencesUpgradeToHTTPSPolicyAutomaticFallbackToHTTP;
+
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration.get()]);
+
+    __block int loadCount = 0;
+    __block int errorCode = 0;
+    __block bool finished = false;
+
+    RetainPtr delegate = adoptNS([TestNavigationDelegate new]);
+    [delegate allowAnyTLSCertificate];
+
+    delegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
+        loadCount++;
+        completionHandler(WKNavigationActionPolicyAllow);
+    };
+
+    delegate.get().didFailProvisionalNavigation = ^(WKWebView *, WKNavigation *, NSError *error) {
+        errorCode = error.code;
+        finished = true;
+    };
+
+    delegate.get().didFinishNavigation = ^(WKWebView *, WKNavigation *) {
+        finished = true;
+    };
+
+    [webView setNavigationDelegate:delegate.get()];
+
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"http://foo.com/redirect"]]];
+
+    Util::run(&finished);
+
+    EXPECT_EQ(errorCode, 0);
+    EXPECT_EQ(loadCount, 2);
 }
 
 TEST(WKNavigation, PreferredHTTPSPolicyAutomaticHTTPFallbackHTTPDowngrade)
@@ -3127,7 +3197,7 @@ TEST(WKNavigation, PreferredHTTPSPolicyAutomaticHTTPFallbackLocalHostIPAddress)
     };
     [webView setNavigationDelegate:delegate.get()];
     auto url = makeString("http://localhost:"_s, httpServer.port(), "/notsecure"_s);
-    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:url]]];
+    [webView loadRequest:adoptNS([[NSURLRequest alloc] initWithURL:adoptNS([[NSURL alloc] initWithString:url.createNSString().get()]).get()]).get()];
     TestWebKitAPI::Util::run(&finishedSuccessfully);
 
     EXPECT_EQ(errorCode, 0);
@@ -3141,7 +3211,7 @@ TEST(WKNavigation, PreferredHTTPSPolicyAutomaticHTTPFallbackLocalHostIPAddress)
     didReceiveAuthenticationChallenge = false;
     loadCount = 0;
     url = makeString("http://127.0.0.1:"_s, httpServer.port(), "/notsecure"_s);
-    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:url]]];
+    [webView loadRequest:adoptNS([[NSURLRequest alloc] initWithURL:adoptNS([[NSURL alloc] initWithString:url.createNSString().get()]).get()]).get()];
     TestWebKitAPI::Util::run(&finishedSuccessfully);
 
     EXPECT_EQ(errorCode, 0);
@@ -3471,8 +3541,8 @@ TEST(WKNavigation, PreferredHTTPSPolicyUserMediatedHTTPFallbackWithHTTPRedirect)
 
     delegate.get().didFailProvisionalNavigation = ^(WKWebView *, WKNavigation *, NSError *error) {
         EXPECT_NOT_NULL(error);
-        EXPECT_NOT_NULL(error.userInfo[@"NSErrorFailingURLKey"]);
-        EXPECT_WK_STREQ(@"https://site.example/secure", ((NSURL *)error.userInfo[@"NSErrorFailingURLKey"]).absoluteString);
+        EXPECT_NOT_NULL(error.userInfo[NSURLErrorFailingURLErrorKey]);
+        EXPECT_WK_STREQ(@"https://site.example/secure", ((NSURL *)error.userInfo[NSURLErrorFailingURLErrorKey]).absoluteString);
         errorCode = error.code;
         didFailNavigation = true;
     };
@@ -3497,8 +3567,8 @@ TEST(WKNavigation, PreferredHTTPSPolicyUserMediatedHTTPFallbackWithHTTPRedirect)
 
     delegate.get().didFailProvisionalNavigation = ^(WKWebView *, WKNavigation *, NSError *error) {
         EXPECT_NOT_NULL(error);
-        EXPECT_NOT_NULL(error.userInfo[@"NSErrorFailingURLKey"]);
-        EXPECT_WK_STREQ(@"https://site2.example/secure2", ((NSURL *)error.userInfo[@"NSErrorFailingURLKey"]).absoluteString);
+        EXPECT_NOT_NULL(error.userInfo[NSURLErrorFailingURLErrorKey]);
+        EXPECT_WK_STREQ(@"https://site2.example/secure2", ((NSURL *)error.userInfo[NSURLErrorFailingURLErrorKey]).absoluteString);
         errorCode = error.code;
         didFailNavigation = true;
     };
@@ -4060,7 +4130,7 @@ PrivateTokenTestSetupState setupWebViewForPrivateTokenTests(bool& didDecideServi
         return requestView.substring(headerValueStart, headerEnd - headerValueStart).toStringWithoutCopying();
     };
 
-    auto server = makeUnique<HTTPServer>(HTTPServer::UseCoroutines::Yes, [&](Connection connection) -> Task {
+    auto server = makeUnique<HTTPServer>(HTTPServer::UseCoroutines::Yes, [&](Connection connection) -> ConnectionTask {
         while (1) {
             auto request = co_await connection.awaitableReceiveHTTPRequest();
 

@@ -34,7 +34,10 @@
 #if PLATFORM(MAC)
 @property (nonatomic, copy) void (^getContextMenuFromProposedMenu)(NSMenu *, _WKContextMenuElementInfo *, id <NSSecureCoding>, void (^)(NSMenu *));
 @property (nonatomic, copy) void (^getWindowFrameWithCompletionHandler)(WKWebView *, void(^)(CGRect));
+#if ENABLE(CONTENT_INSET_BACKGROUND_FILL)
+@property (nonatomic, copy) NSColor *(^adjustedColorForTopContentInsetColor)(WKWebView *webView, NSColor *proposedColor);
 #endif
+#endif // PLATFORM(MAC)
 @property (nonatomic, copy) void (^requestStorageAccessPanelForDomain)(WKWebView *, NSString *, NSString *, void  (^completionHandler)(BOOL));
 @property (nonatomic, copy) void (^requestStorageAccessPanelForQuirksForDomain)(WKWebView *, NSString *, NSString *, NSDictionary<NSString *, NSArray<NSString *> *> *, void  (^completionHandler)(BOOL));
 @property (nonatomic, copy) void (^saveDataToFile)(WKWebView *, NSData *, NSString *, NSString *, NSURL *);
@@ -43,6 +46,9 @@
 @property (nonatomic, copy) void (^webViewDidClose)(WKWebView *);
 @property (nonatomic, copy) void (^webViewDidAdjustVisibilityWithSelectors)(WKWebView *, NSArray<NSString *> *);
 @property (nonatomic, copy) void (^runOpenPanelWithParameters)(WKWebView *, WKOpenPanelParameters *, WKFrameInfo *, void (^)(NSArray<NSURL *> *));
+#if HAVE(UI_CONVERSATION_CONTEXT)
+@property (nonatomic, copy) void (^insertInputSuggestion)(WKWebView *, UIInputSuggestion *);
+#endif
 
 - (NSString *)waitForAlert;
 - (NSString *)waitForConfirm;

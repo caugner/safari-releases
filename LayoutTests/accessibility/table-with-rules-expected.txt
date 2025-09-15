@@ -5,8 +5,6 @@ asdf	asdf
 asdf	asdf
 
 ------------------------------------
-AXHasDocumentRoleAncestor: 0
-AXHasWebApplicationAncestor: 0
 AXRole: AXTable
 AXSubrole: (null)
 AXRoleDescription: table
@@ -35,7 +33,6 @@ AXDOMClassList: <array of size 0>
 AXFocusableAncestor: <AXTable>
 AXEditableAncestor: (null)
 AXHighestEditableAncestor: (null)
-AXVisibleCharacterRange: NSRange: {0, 10}
 AXElementBusy: 0
 AXRows: <array of size 1>
 AXVisibleRows: <array of size 1>
@@ -54,8 +51,6 @@ AXSelectedChildren: (null)
 AXTableLevel: 1
 
 
-AXHasDocumentRoleAncestor: 0
-AXHasWebApplicationAncestor: 0
 AXRole: AXTable
 AXSubrole: (null)
 AXRoleDescription: table
@@ -84,7 +79,6 @@ AXDOMClassList: <array of size 0>
 AXFocusableAncestor: <AXTable>
 AXEditableAncestor: (null)
 AXHighestEditableAncestor: (null)
-AXVisibleCharacterRange: NSRange: {0, 10}
 AXElementBusy: 0
 AXRows: <array of size 1>
 AXVisibleRows: <array of size 1>
@@ -103,8 +97,6 @@ AXSelectedChildren: (null)
 AXTableLevel: 1
 
 
-AXHasDocumentRoleAncestor: 0
-AXHasWebApplicationAncestor: 0
 AXRole: AXTable
 AXSubrole: (null)
 AXRoleDescription: table
@@ -133,7 +125,6 @@ AXDOMClassList: <array of size 0>
 AXFocusableAncestor: <AXTable>
 AXEditableAncestor: (null)
 AXHighestEditableAncestor: (null)
-AXVisibleCharacterRange: NSRange: {0, 10}
 AXElementBusy: 0
 AXRows: <array of size 1>
 AXVisibleRows: <array of size 1>
@@ -152,8 +143,6 @@ AXSelectedChildren: (null)
 AXTableLevel: 1
 
 
-AXHasDocumentRoleAncestor: 0
-AXHasWebApplicationAncestor: 0
 AXRole: AXGroup
 AXSubrole: (null)
 AXRoleDescription: group
@@ -182,13 +171,10 @@ AXDOMClassList: <array of size 0>
 AXFocusableAncestor: <AXGroup>
 AXEditableAncestor: (null)
 AXHighestEditableAncestor: (null)
-AXVisibleCharacterRange: NSRange: {0, 4}
 AXElementBusy: 0
 AXInlineText: 0
 
 
-AXHasDocumentRoleAncestor: 0
-AXHasWebApplicationAncestor: 0
 AXRole: AXGroup
 AXSubrole: (null)
 AXRoleDescription: group
@@ -217,7 +203,6 @@ AXDOMClassList: <array of size 0>
 AXFocusableAncestor: <AXGroup>
 AXEditableAncestor: (null)
 AXHighestEditableAncestor: (null)
-AXVisibleCharacterRange: NSRange: {0, 4}
 AXElementBusy: 0
 AXInlineText: 0
 

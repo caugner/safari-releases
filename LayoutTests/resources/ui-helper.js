@@ -165,6 +165,20 @@ window.UIHelper = class UIHelper {
         });
     }
 
+    static async scrollDown()
+    {
+        const midX = innerWidth / 2;
+        const midY = innerHeight / 2;
+        if (!this.isIOSFamily())
+            return await this.mouseWheelScrollAt(midX, midY, 0, -1, 0, -100);
+
+        await this.sendEventStream(new this.EventStreamBuilder()
+            .begin(midX, midY + 180)
+            .move(midX, midY - 180, 0.3)
+            .end()
+            .takeResult());
+    }
+
     static async animationFrame()
     {
         return new Promise(requestAnimationFrame);
@@ -322,6 +336,11 @@ window.UIHelper = class UIHelper {
                 };
                 uiController.doubleTapAtPoint(${x}, ${y}, 0.12, () => { });`, resolve);
         });
+    }
+
+    static selectionHitTestOffset()
+    {
+        return this.isIOSFamily() ? 40 : 0;
     }
 
     static zoomByDoubleTappingAt(x, y)
@@ -788,7 +807,7 @@ window.UIHelper = class UIHelper {
     {
         do {
             await this.ensureStablePresentationUpdate();
-        } while (await this.isZoomingOrScrolling());
+        } while (this.isIOSFamily() && await this.isZoomingOrScrolling());
     }
 
     static deactivateFormControl(element)
@@ -1036,8 +1055,8 @@ window.UIHelper = class UIHelper {
         for (const rect of rects) {
             minTop = Math.min(minTop, rect.top);
             minLeft = Math.min(minLeft, rect.left);
-            maxTop = Math.max(maxTop, rect.left + rect.width);
-            maxLeft = Math.max(maxLeft, rect.top + rect.height);
+            maxTop = Math.max(maxTop, rect.top + rect.height);
+            maxLeft = Math.max(maxLeft, rect.left + rect.width);
         }
 
         return { left: minLeft, top: minTop, width: maxLeft - minLeft, height: maxTop - minTop };
@@ -1093,6 +1112,31 @@ window.UIHelper = class UIHelper {
 
     static midPointOfRect(rect) {
         return { x: rect.left + (rect.width / 2), y: rect.top + (rect.height / 2) };
+    }
+
+    static rectContainsOtherRect(rect, otherRect) {
+        return rect.left <= otherRect.left
+            && rect.top <= otherRect.top
+            && (rect.left + rect.width) >= (otherRect.left + otherRect.width)
+            && (rect.top + rect.height) >= (otherRect.top + otherRect.height);
+    }
+
+    static computeLineBounds(element, firstRunIndex, lastRunIndex = undefined) {
+        const range = document.createRange();
+        range.selectNodeContents(element);
+        const clientRects = range.getClientRects();
+        const firstRect = clientRects[firstRunIndex];
+        const secondRect = clientRects[lastRunIndex || firstRunIndex];
+        const x = Math.min(firstRect.left, secondRect.left);
+        const y = Math.min(firstRect.top, secondRect.top);
+        const maxX = Math.max(firstRect.left + firstRect.width, secondRect.left + secondRect.width);
+        const maxY = Math.max(firstRect.top + firstRect.height, secondRect.top + secondRect.height);
+        return {
+            top: Math.round(y),
+            left: Math.round(x),
+            width: Math.round(maxX - x),
+            height: Math.round(maxY - y)
+        };
     }
 
     static selectionCaretBackgroundColor()
@@ -1437,6 +1481,22 @@ window.UIHelper = class UIHelper {
         return new Promise(resolve => testRunner.runUIScript(`uiController.setScrollViewKeyboardAvoidanceEnabled(${enabled})`, resolve));
     }
 
+    static async setAlwaysBounceVertical(enabled)
+    {
+        if (!this.isWebKit2())
+            return Promise.resolve();
+
+        return new Promise(resolve => testRunner.runUIScript(`uiController.setAlwaysBounceVertical(${enabled})`, resolve));
+    }
+
+    static async setAlwaysBounceHorizontal(enabled)
+    {
+        if (!this.isWebKit2())
+            return Promise.resolve();
+
+        return new Promise(resolve => testRunner.runUIScript(`uiController.setAlwaysBounceHorizontal(${enabled})`, resolve));
+    }
+
     static presentFindNavigator() {
         if (!this.isWebKit2() || !this.isIOSFamily())
             return Promise.resolve();
@@ -1476,7 +1536,11 @@ window.UIHelper = class UIHelper {
         if (!this.isWebKit2())
             return Promise.resolve();
 
-        return new Promise(resolve => testRunner.runUIScript(`uiController.removeViewFromWindow()`, resolve));
+        const scriptToRun = `(function() {
+            uiController.removeViewFromWindow();
+            uiController.uiScriptComplete();
+        })()`;
+        return new Promise(resolve => testRunner.runUIScript(scriptToRun, resolve));
     }
 
     static addViewToWindow()
@@ -1484,7 +1548,11 @@ window.UIHelper = class UIHelper {
         if (!this.isWebKit2())
             return Promise.resolve();
 
-        return new Promise(resolve => testRunner.runUIScript(`uiController.addViewToWindow()`, resolve));
+        const scriptToRun = `(function() {
+            uiController.addViewToWindow();
+            uiController.uiScriptComplete();
+        })()`;
+        return new Promise(resolve => testRunner.runUIScript(scriptToRun, resolve));
     }
 
     static minimumZoomScale()
@@ -1807,14 +1875,18 @@ window.UIHelper = class UIHelper {
         });
     }
 
-    static setObscuredInsets(top, right, bottom, left)
+    static async setObscuredInsets(top, right, bottom, left)
     {
-        if (!this.isWebKit2() || !this.isIOSFamily())
+        if (!window.testRunner)
             return Promise.resolve();
 
-        return new Promise(resolve => {
-            testRunner.runUIScript(`uiController.setObscuredInsets(${top}, ${right}, ${bottom}, ${left})`, resolve);
-        });
+        if (this.isWebKit2() && this.isIOSFamily()) {
+            const scriptToRun = `uiController.setObscuredInsets(${top}, ${right}, ${bottom}, ${left})`;
+            await new Promise(resolve => testRunner.runUIScript(scriptToRun, resolve));
+            await this.ensureVisibleContentRectUpdate();
+        } else
+            testRunner.setObscuredContentInsets(top, right, bottom, left);
+        await this.ensurePresentationUpdate();
     }
 
     static rotateDevice(orientationName, animatedResize = false)
@@ -1858,9 +1930,20 @@ window.UIHelper = class UIHelper {
         });
     }
 
+    static propertiesOfLayerWithID(layerID)
+    {
+        if (!this.isWebKit2())
+            return Promise.resolve();
+
+        const script = `uiController.uiScriptComplete(JSON.stringify(uiController.propertiesOfLayerWithID(${layerID})))`;
+        return new Promise(resolve => {
+            testRunner.runUIScript(script, properties => resolve(JSON.parse(properties)));
+        });
+    }
+
     static getCALayerTree()
     {
-        if (!this.isWebKit2() || !this.isIOSFamily())
+        if (!this.isWebKit2())
             return Promise.resolve();
 
         return new Promise(resolve => {
@@ -2211,6 +2294,39 @@ window.UIHelper = class UIHelper {
         });
     }
 
+    static cancelFixedColorExtensionFadeAnimations()
+    {
+        if (!this.isWebKit2())
+            return Promise.resolve();
+
+        const script = "uiController.cancelFixedColorExtensionFadeAnimations()";
+        return new Promise(resolve => testRunner.runUIScript(script, resolve));
+    }
+
+    static fixedContainerEdgeColors()
+    {
+        if (!this.isWebKit2())
+            return { };
+
+        const script = "JSON.stringify(uiController.fixedContainerEdgeColors)";
+        return new Promise(resolve => testRunner.runUIScript(script, colors => {
+            resolve(JSON.parse(colors));
+        }));
+    }
+
+    static async waitForFixedContainerEdgeColors(expectedColors)
+    {
+        while (true) {
+            await this.renderingUpdate();
+            const colors = await this.fixedContainerEdgeColors();
+            for (const edge of ["top", "left", "right", "bottom"]) {
+                if (colors[edge] !== expectedColors[edge])
+                    continue;
+            }
+            break;
+        }
+    }
+
     static addChromeInputField()
     {
         return new Promise(resolve => testRunner.addChromeInputField(resolve));
@@ -2312,6 +2428,16 @@ window.UIHelper = class UIHelper {
         return new Promise(resolve => {
             testRunner.runUIScript("uiController.keyboardUpdateForChangedSelectionCount", resolve);
         });
+    }
+
+    static async typeCharacters(stringToType, waitForEvent = "input", eventTarget = null) {
+        for (let character of [...stringToType]) {
+            await UIHelper.callFunctionAndWaitForEvent(async () => {
+                if (window.testRunner)
+                    await UIHelper.typeCharacter(character);
+                await UIHelper.ensurePresentationUpdate();
+            }, eventTarget || document.activeElement, waitForEvent);
+        }
     }
 }
 

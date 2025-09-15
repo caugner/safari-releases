@@ -1,4 +1,4 @@
-//@ defaultNoNoLLIntRun if $architecture == "arm"
+//@ $skipModes << "no-llint".to_sym if $architecture == "arm"
 /*
  * Copyright jQuery Foundation and other contributors, https://jquery.org/
  *

@@ -23,7 +23,8 @@
 
 import SwiftUI
 import UniformTypeIdentifiers
-@_spi(Private) import WebKit
+import WebKit
+import _WebKit_SwiftUI
 
 private struct ToolbarBackForwardMenuView: View {
     struct LabelConfiguration {
@@ -32,9 +33,9 @@ private struct ToolbarBackForwardMenuView: View {
         let key: KeyEquivalent
     }
 
-    let list: [WebPage_v0.BackForwardList.Item]
+    let list: [WebPage.BackForwardList.Item]
     let label: LabelConfiguration
-    let navigateToItem: (WebPage_v0.BackForwardList.Item) -> Void
+    let navigateToItem: (WebPage.BackForwardList.Item) -> Void
 
     var body: some View {
         Menu {
@@ -210,10 +211,12 @@ struct ContentView: View {
     let initialRequest: URLRequest
 
     @State private var findNavigatorIsPresented = false
-    @State private var downloadsSheetPresented = false
 
     @Environment(\.openWindow) private var openWindow
     @Environment(BrowserViewModel.self) private var viewModel
+
+    @AppStorage(AppStorageKeys.scrollBounceBehaviorBasedOnSize) private var scrollBounceBehaviorBasedOnSize: Bool?
+    @AppStorage(AppStorageKeys.backgroundHidden) private var backgroundHidden: Bool?
 
     #if os(iOS)
     private static let navigationToolbarItemPlacement = ToolbarItemPlacement.bottomBar
@@ -225,19 +228,19 @@ struct ContentView: View {
         NavigationStack {
             @Bindable var viewModel = viewModel
 
-            WebView_v0(viewModel.page)
-                .webViewAllowsBackForwardNavigationGestures()
-                .webViewAllowsTabFocusingLinks()
-                .webViewAllowsElementFullscreen()
-                .webViewFindNavigator(isPresented: $findNavigatorIsPresented)
+            WebView(viewModel.page)
+                .webViewBackForwardNavigationGestures(.enabled)
+                .webViewLinkPreviews(.enabled)
+                .webViewTextSelection(.enabled)
+                .webViewElementFullscreenBehavior(.enabled)
+                .findNavigator(isPresented: $findNavigatorIsPresented)
                 .task {
-                    for await event in viewModel.page.navigations {
-                        viewModel.didReceiveNavigationEvent(event)
-                    }
-                }
-                .task {
-                    for await event in viewModel.page.downloads {
-                        viewModel.downloadCoordinator.didReceiveDownloadEvent(event)
+                    do {
+                        for try await event in viewModel.page.navigations {
+                            print(event)
+                        }
+                    } catch {
+                        print(error)
                     }
                 }
                 .onAppear {
@@ -268,33 +271,25 @@ struct ContentView: View {
                 } message: { dialog in
                     DialogMessageView(dialog: dialog)
                 }
-                .sheet(isPresented: $downloadsSheetPresented) {
-                    DownloadsList(downloads: viewModel.downloadCoordinator.downloads)
-                        .presentationDetents([.medium, .large])
-                }
+                .scrollBounceBehavior(scrollBounceBehaviorBasedOnSize == true ? .basedOnSize : .automatic)
+                .webViewContentBackground(backgroundHidden == true ? .hidden : .automatic)
+#if os(macOS)
                 .webViewContextMenu { element in
                     if let url = element.linkURL {
                         Button("Open Link in New Window") {
                             let request = URLRequest(url: url)
                             openWindow(value: CodableURLRequest(request))
                         }
-
-                        Button("Download Linked File") {
-                            let request = URLRequest(url: url)
-                            Task {
-                                await viewModel.page.startDownload(using: request)
-                            }
-                        }
                     } else {
                         if let previousItem = viewModel.page.backForwardList.backList.last {
                             Button("Back") {
-                                viewModel.page.load(backForwardItem: previousItem)
+                                viewModel.page.load(previousItem)
                             }
                         }
 
                         if let nextItem = viewModel.page.backForwardList.forwardList.first {
                             Button("Forward") {
-                                viewModel.page.load(backForwardItem: nextItem)
+                                viewModel.page.load(nextItem)
                             }
                         }
 
@@ -303,13 +298,14 @@ struct ContentView: View {
                         }
                     }
                 }
+#endif
                 .toolbar {
                     ToolbarItemGroup(placement: Self.navigationToolbarItemPlacement) {
                         ToolbarBackForwardMenuView(
                             list: viewModel.page.backForwardList.backList.reversed(),
                             label: .init(text: "Backward", systemImage: "chevron.backward", key: "[")
                         ) {
-                            viewModel.page.load(backForwardItem: $0)
+                            viewModel.page.load($0)
                         }
 
                         #if os(iOS)
@@ -320,21 +316,8 @@ struct ContentView: View {
                             list: viewModel.page.backForwardList.forwardList,
                             label: .init(text: "Forward", systemImage: "chevron.forward", key: "]")
                         ) {
-                            viewModel.page.load(backForwardItem: $0)
+                            viewModel.page.load($0)
                         }
-
-                        #if os(iOS)
-
-                        Spacer()
-
-                        Button {
-                            downloadsSheetPresented.toggle()
-                        } label: {
-                            Label("Downloads", systemImage: "square.and.arrow.down")
-                                .labelStyle(.iconOnly)
-                        }
-
-                        #endif
 
                         Spacer()
 

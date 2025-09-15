@@ -16,8 +16,7 @@
 #include "include/gpu/graphite/Recording.h"
 #include "include/gpu/graphite/Surface.h"
 #include "include/gpu/graphite/dawn/DawnBackendContext.h"
-#include "include/gpu/graphite/dawn/DawnTypes.h"
-#include "include/gpu/graphite/dawn/DawnUtils.h"
+#include "include/gpu/graphite/dawn/DawnGraphiteTypes.h"
 #include "src/gpu/graphite/ContextOptionsPriv.h"
 #include "tools/ToolUtils.h"
 #include "tools/graphite/GraphiteToolUtils.h"
@@ -31,9 +30,9 @@ namespace skwindow::internal {
 GraphiteDawnWindowContext::GraphiteDawnWindowContext(std::unique_ptr<const DisplayParams> params,
                                                      wgpu::TextureFormat surfaceFormat)
         : WindowContext(std::move(params)), fSurfaceFormat(surfaceFormat) {
-    WGPUInstanceDescriptor desc{};
+    wgpu::InstanceDescriptor desc{};
     // need for WaitAny with timeout > 0
-    desc.features.timedWaitAnyEnable = true;
+    desc.capabilities.timedWaitAnyEnable = true;
     fInstance = std::make_unique<dawn::native::Instance>(&desc);
 }
 
@@ -126,13 +125,19 @@ wgpu::Device GraphiteDawnWindowContext::createDevice(wgpu::BackendType type) {
     dawnProcSetProcs(&backendProcs);
 
     static constexpr const char* kToggles[] = {
-        "allow_unsafe_apis",  // Needed for dual-source blending, BufferMapExtendedUsages.
-        "use_user_defined_labels_in_backend",
-        // Robustness impacts performance and is always disabled when running Graphite in Chrome,
-        // so this keeps Skia's tests operating closer to real-use behavior.
-        "disable_robustness",
-        // Must be last to correctly respond to `fUseTintIR` option.
-        "use_tint_ir",
+#if defined(SK_DEBUG)
+            // Setting labels on backend objects has performance overhead.
+            "use_user_defined_labels_in_backend",
+#else
+            "skip_validation",
+#endif
+            "disable_lazy_clear_for_mapped_at_creation_buffer",  // matches Chromes toggles
+            "allow_unsafe_apis",  // Needed for dual-source blending, BufferMapExtendedUsages.
+            // Robustness impacts performance and is always disabled when running Graphite in
+            // Chrome, so this keeps Skia's tests operating closer to real-use behavior.
+            "disable_robustness",
+            // Must be last to correctly respond to `fUseTintIR` option.
+            "use_tint_ir",
     };
     wgpu::DawnTogglesDescriptor togglesDesc;
     togglesDesc.enabledToggleCount =
@@ -202,15 +207,15 @@ wgpu::Device GraphiteDawnWindowContext::createDevice(wgpu::BackendType type) {
     deviceDescriptor.nextInChain = &togglesDesc;
     deviceDescriptor.SetDeviceLostCallback(
             wgpu::CallbackMode::AllowSpontaneous,
-            [](const wgpu::Device&, wgpu::DeviceLostReason reason, const char* message) {
-                if (reason != wgpu::DeviceLostReason::Destroyed &&
-                    reason != wgpu::DeviceLostReason::InstanceDropped) {
-                    SK_ABORT("Device lost: %s\n", message);
+            [](const wgpu::Device&, wgpu::DeviceLostReason reason, wgpu::StringView message) {
+                if (reason == wgpu::DeviceLostReason::Unknown ||
+                    reason == wgpu::DeviceLostReason::FailedCreation) {
+                    SK_ABORT("Device lost: %.*s\n", static_cast<int>(message.length), message.data);
                 }
             });
     deviceDescriptor.SetUncapturedErrorCallback(
-            [](const wgpu::Device&, wgpu::ErrorType, const char* message) {
-                SkDebugf("Device error: %s\n", message);
+            [](const wgpu::Device&, wgpu::ErrorType, wgpu::StringView message) {
+                SkDebugf("Device error: %.*s\n", static_cast<int>(message.length), message.data);
                 SkASSERT(false);
             });
 

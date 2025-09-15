@@ -139,6 +139,7 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/css/css-tables/colspan-003.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-tables/colspan-004-expected.xht
 /LayoutTests/imported/w3c/web-platform-tests/css/css-tables/colspan-004.html
+/LayoutTests/imported/w3c/web-platform-tests/css/css-tables/colspan-zero-crash.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-tables/column-track-merging.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-tables/dynamic-rowspan-change.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-tables/dynamic-table-cell-height-expected.xht
@@ -184,11 +185,18 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/css/css-tables/multicol-table-collapsed-border-crash.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-tables/multicol-table-crash.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-tables/no-overflow-with-table-cell-margins.html
+/LayoutTests/imported/w3c/web-platform-tests/css/css-tables/out-of-order-elements-collapsed-border-expected.html
+/LayoutTests/imported/w3c/web-platform-tests/css/css-tables/out-of-order-elements-collapsed-border-ref.html
+/LayoutTests/imported/w3c/web-platform-tests/css/css-tables/out-of-order-elements-collapsed-border.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-tables/percent-height-overflow-auto-in-restricted-block-size-cell.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-tables/percent-height-overflow-auto-in-unrestricted-block-size-cell.tentative-expected.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-tables/percent-height-overflow-auto-in-unrestricted-block-size-cell.tentative.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-tables/percent-height-replaced-in-percent-cell-002-expected.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-tables/percent-height-replaced-in-percent-cell-002.html
+/LayoutTests/imported/w3c/web-platform-tests/css/css-tables/percent-height-replaced-in-percent-cell-003-expected.html
+/LayoutTests/imported/w3c/web-platform-tests/css/css-tables/percent-height-replaced-in-percent-cell-003.html
+/LayoutTests/imported/w3c/web-platform-tests/css/css-tables/percent-height-replaced-in-percent-cell-004-expected.html
+/LayoutTests/imported/w3c/web-platform-tests/css/css-tables/percent-height-replaced-in-percent-cell-004.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-tables/percent-height-replaced-in-percent-cell.tentative-expected.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-tables/percent-height-replaced-in-percent-cell.tentative.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-tables/percent-height-table-cell-child-expected.xht

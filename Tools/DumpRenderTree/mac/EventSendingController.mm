@@ -39,7 +39,7 @@
 #import "DumpRenderTreePasteboard.h"
 #import "ModifierKeys.h"
 #import "WebCoreTestSupport.h"
-#import <WebCore/PlatformMouseEvent.h>
+#import <WebCore/MouseEventTypes.h>
 #import <WebKit/DOMPrivate.h>
 #import <WebKit/WebViewPrivate.h>
 #import <functional>
@@ -789,7 +789,7 @@ static NSUInteger swizzledEventPressedMouseButtons()
                                                       location:lastMousePosition]);
 #endif // !PLATFORM(IOS_FAMILY)
 
-    NSView *subView = [[mainFrame webView] hitTest:[event locationInWindow]];
+    NSView *subView = [[mainFrame webView] hitTest:lastMousePosition];
     if (subView) {
 #if !PLATFORM(IOS_FAMILY)
         [NSApp _setCurrentEvent:event.get()];

@@ -52,20 +52,37 @@ bool should_dither(const PaintParams& p, SkColorType dstCT) {
 
 PaintParams::PaintParams(const SkPaint& paint,
                          sk_sp<SkBlender> primitiveBlender,
-                         const CircularRRectClip& analyticClip,
+                         const NonMSAAClip& nonMSAAClip,
                          sk_sp<SkShader> clipShader,
-                         DstReadRequirement dstReadReq,
+                         bool dstReadRequired,
                          bool skipColorXform)
         : fColor(paint.getColor4f())
         , fFinalBlender(paint.refBlender())
         , fShader(paint.refShader())
         , fColorFilter(paint.refColorFilter())
         , fPrimitiveBlender(std::move(primitiveBlender))
-        , fAnalyticClip(analyticClip)
+        , fNonMSAAClip(nonMSAAClip)
         , fClipShader(std::move(clipShader))
-        , fDstReadReq(dstReadReq)
+        , fDstReadRequired(dstReadRequired)
         , fSkipColorXform(skipColorXform)
-        , fDither(paint.isDither()) {}
+        , fDither(paint.isDither()) {
+    if (!fPrimitiveBlender) {
+        SkColor4f constantColor;   // if filled in, will be un-premul sRGB
+        // fColor is un-premul sRGB
+        if (fShader && as_SB(fShader)->isConstant(&constantColor)) {
+            float origA = fColor.fA;
+            fColor = constantColor;
+            fColor.fA *= origA;
+            fShader = nullptr;
+        }
+        if (!fShader && fColorFilter) {
+            fColor = fColorFilter->filterColor4f(fColor,
+                                                 sk_srgb_singleton(),
+                                                 sk_srgb_singleton());
+            fColorFilter = nullptr;
+        }
+    }
+}
 
 PaintParams::PaintParams(const PaintParams& other) = default;
 PaintParams::~PaintParams() = default;
@@ -92,37 +109,6 @@ SkColor4f PaintParams::Color4fPrepForDst(SkColor4f srcColor, const SkColorInfo& 
     SkColor4f result = srcColor;
     steps.apply(result.vec());
     return result;
-}
-
-void Blend(const KeyContext& keyContext,
-           PaintParamsKeyBuilder* keyBuilder,
-           PipelineDataGatherer* gatherer,
-           AddToKeyFn addBlendToKey,
-           AddToKeyFn addSrcToKey,
-           AddToKeyFn addDstToKey) {
-    BlendComposeBlock::BeginBlock(keyContext, keyBuilder, gatherer);
-
-        addSrcToKey();
-
-        addDstToKey();
-
-        addBlendToKey();
-
-    keyBuilder->endBlock();  // BlendComposeBlock
-}
-
-void Compose(const KeyContext& keyContext,
-             PaintParamsKeyBuilder* keyBuilder,
-             PipelineDataGatherer* gatherer,
-             AddToKeyFn addInnerToKey,
-             AddToKeyFn addOuterToKey) {
-    ComposeBlock::BeginBlock(keyContext, keyBuilder, gatherer);
-
-        addInnerToKey();
-
-        addOuterToKey();
-
-    keyBuilder->endBlock();  // ComposeBlock
 }
 
 void AddFixedBlendMode(const KeyContext& keyContext,
@@ -200,7 +186,17 @@ void PaintParams::handlePrimitiveColor(const KeyContext& keyContext,
                   this->addPaintColorToKey(keyContext, keyBuilder, gatherer);
               },
               /* addDstToKey= */ [&]() -> void {
-                  PrimitiveColorBlock::AddBlock(keyContext, keyBuilder, gatherer);
+                  // When fSkipColorXform is true, it's assumed that the primitive color is
+                  // already in the dst color space. We could change the paint key to not have
+                  // any colorspace block wrapping the primitive color block, but for now just
+                  // use the dst color space as the src color space to produce an identity CS
+                  // transform.
+                  //
+                  // When fSkipColorXform is false (most cases), it's assumed to be in sRGB.
+                  const SkColorSpace* primitiveCS =
+                        fSkipColorXform ? keyContext.dstColorInfo().colorSpace()
+                                        : sk_srgb_singleton();
+                  AddPrimitiveColor(keyContext, keyBuilder, gatherer, primitiveCS);
               });
     } else {
         this->addPaintColorToKey(keyContext, keyBuilder, gatherer);
@@ -277,16 +273,39 @@ void PaintParams::handleDithering(const KeyContext& keyContext,
 void PaintParams::handleClipping(const KeyContext& keyContext,
                                  PaintParamsKeyBuilder* builder,
                                  PipelineDataGatherer* gatherer) const {
-    if (!fAnalyticClip.isEmpty()) {
-        float radius = fAnalyticClip.fRadius + 0.5f;
-        // N.B.: Because the clip data is normally used with depth-based clipping,
-        // the shape is inverted from its usual state. We re-invert here to
-        // match what the shader snippet expects.
-        SkPoint radiusPair = {(fAnalyticClip.fInverted) ? radius : -radius, 1.0f/radius};
-        CircularRRectClipBlock::CircularRRectClipData data(
-                fAnalyticClip.fBounds.makeOutset(0.5f).asSkRect(),
+    if (!fNonMSAAClip.isEmpty()) {
+        const AnalyticClip& analyticClip = fNonMSAAClip.fAnalyticClip;
+        SkPoint radiusPair;
+        SkRect analyticBounds;
+        if (!analyticClip.isEmpty()) {
+            float radius = analyticClip.fRadius + 0.5f;
+            // N.B.: Because the clip data is normally used with depth-based clipping,
+            // the shape is inverted from its usual state. We re-invert here to
+            // match what the shader snippet expects.
+            radiusPair = {(analyticClip.fInverted) ? radius : -radius, 1.0f/radius};
+            analyticBounds = analyticClip.fBounds.makeOutset(0.5f).asSkRect();
+        } else {
+            // This will generate no analytic clip.
+            radiusPair = { -0.5f, 1.f };
+            analyticBounds = { 0, 0, 0, 0 };
+        }
+
+        const AtlasClip& atlasClip = fNonMSAAClip.fAtlasClip;
+        SkISize maskSize = atlasClip.fMaskBounds.size();
+        SkRect texMaskBounds = SkRect::MakeXYWH(atlasClip.fOutPos.x(), atlasClip.fOutPos.y(),
+                                                maskSize.width(), maskSize.height());
+        // Outset bounds to capture some of the padding (necessary for inverse clip)
+        texMaskBounds.outset(0.5f, 0.5f);
+        SkPoint texCoordOffset = SkPoint::Make(atlasClip.fOutPos.x() - atlasClip.fMaskBounds.left(),
+                                               atlasClip.fOutPos.y() - atlasClip.fMaskBounds.top());
+
+        NonMSAAClipBlock::NonMSAAClipData data(
+                analyticBounds,
                 radiusPair,
-                fAnalyticClip.edgeSelectRect());
+                analyticClip.edgeSelectRect(),
+                texCoordOffset,
+                texMaskBounds,
+                atlasClip.fAtlasTexture);
         if (fClipShader) {
             // For both an analytic clip and clip shader, we need to compose them together into
             // a single clipping root node.
@@ -295,14 +314,14 @@ void PaintParams::handleClipping(const KeyContext& keyContext,
                       AddFixedBlendMode(keyContext, builder, gatherer, SkBlendMode::kModulate);
                   },
                   /* addSrcToKey= */ [&]() -> void {
-                      CircularRRectClipBlock::AddBlock(keyContext, builder, gatherer, data);
+                      NonMSAAClipBlock::AddBlock(keyContext, builder, gatherer, data);
                   },
                   /* addDstToKey= */ [&]() -> void {
                       AddToKey(keyContext, builder, gatherer, fClipShader.get());
                   });
         } else {
             // Without a clip shader, the analytic clip can be the clipping root node.
-            CircularRRectClipBlock::AddBlock(keyContext, builder, gatherer, data);
+            NonMSAAClipBlock::AddBlock(keyContext, builder, gatherer, data);
         }
     } else if (fClipShader) {
         // Since there's no analytic clip, the clipping root node can be fClipShader directly.
@@ -319,7 +338,7 @@ void PaintParams::toKey(const KeyContext& keyContext,
     // Root Node 1 is the final blender
     std::optional<SkBlendMode> finalBlendMode = this->asFinalBlendMode();
     if (finalBlendMode) {
-        if (fDstReadReq == DstReadRequirement::kNone) {
+        if (!fDstReadRequired) {
             // With no shader blending, be as explicit as possible about the final blend
             AddFixedBlendMode(keyContext, builder, gatherer, *finalBlendMode);
         } else {

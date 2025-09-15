@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!DOCTYPE html><!-- webkit-test-runner [ dumpJSConsoleLogInStdErr=true ] -->
 <html>
 <head>
     <meta charset="utf-8">
@@ -7,10 +7,6 @@
     <script>
     
     promise_test(async (test) => {
-    
-        if (window.testRunner)
-            testRunner.setUserMediaPermission(true);
-
         let devices1 = await navigator.mediaDevices.enumerateDevices();
 
         let eventCount = 0;

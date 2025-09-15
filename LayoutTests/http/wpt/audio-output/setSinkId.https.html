@@ -20,9 +20,10 @@ promise_test(t => {
     return promise_rejects_dom(t, "NotAllowedError", audio.setSinkId(""));
 }, "setSinkId requires user gesture");
 
-
 promise_test(async t => {
-    await navigator.mediaDevices.getUserMedia({ audio : true });
+    const stream = await navigator.mediaDevices.getUserMedia({ audio : true });
+    t.add_cleanup(() => stream.getTracks()[0].stop());
+
     const list = await navigator.mediaDevices.enumerateDevices();
     const outputDevicesList = list.filter(({kind}) => kind == "audiooutput");
     assert_not_equals(outputDevicesList.length, 0, "media device list includes at least one audio output device");
@@ -33,4 +34,25 @@ promise_test(async t => {
     await promise;
     assert_equals(audio.sinkId, outputDevicesList[0].deviceId);
 }, "setSinkId and sinkId");
+
+promise_test(async t => {
+    if (!window.internals)
+        return;
+    internals.settings.setSpeakerSelectionRequiresUserGesture(true);
+    t.add_cleanup(() => { internals.settings.setSpeakerSelectionRequiresUserGesture(false); });
+
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+    t.add_cleanup(() => stream.getTracks().forEach(track => track.stop()));
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    window.testRunner.addMockMicrophoneDevice('NewMicrophone', 'new microphone', { });
+    await new Promise(resolve => navigator.mediaDevices.ondevicechange = resolve);
+
+    const list = await navigator.mediaDevices.enumerateDevices();
+    const outputDevicesList = list.filter(({kind}) => kind == "audiooutput");
+    assert_not_equals(outputDevicesList.length, 0, "media device list includes at least one audio output device");
+
+    return audio.setSinkId(outputDevicesList[0].deviceId);
+}, "setSinkid can be called close to a devicechange event");
+
 </script>

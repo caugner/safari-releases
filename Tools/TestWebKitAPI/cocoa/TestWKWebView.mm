@@ -28,9 +28,11 @@
 
 #import "CGImagePixelReader.h"
 #import "ClassMethodSwizzler.h"
+#import "HostWindowManager.h"
 #import "InstanceMethodSwizzler.h"
 #import "PlatformUtilities.h"
 #import "Test.h"
+#import "TestCocoa.h"
 #import "TestNavigationDelegate.h"
 #import "Utilities.h"
 
@@ -50,6 +52,7 @@
 #import <wtf/Deque.h>
 #import <wtf/RetainPtr.h>
 #import <wtf/Vector.h>
+#import <wtf/WeakObjCPtr.h>
 #import <wtf/cocoa/TypeCastsCocoa.h>
 
 #if PLATFORM(MAC)
@@ -78,6 +81,13 @@ static NSString *overrideBundleIdentifier(id, SEL)
 @interface WKWebView (TextServices)
 - (void)_lookup:(id)sender;
 @end
+
+#if PLATFORM(IOS_FAMILY)
+@interface WKWebView (UIScrollViewDelegate)
+- (UIView *)viewForZoomingInScrollView:(UIScrollView *)scrollView;
+- (void)scrollViewWillBeginZooming:(UIScrollView *)scrollView withView:(UIView *)view;
+@end
+#endif
 
 @implementation WKWebView (TestWebKitAPI)
 
@@ -520,6 +530,18 @@ static WebEvent *unwrap(BEKeyEntry *event)
     return count;
 }
 
+- (NSUInteger)modelProcessModelPlayerCount
+{
+    __block bool done = false;
+    __block NSUInteger count = 0;
+    [self _modelProcessModelPlayerCountForTesting:^(NSUInteger result) {
+        done = true;
+        count = result;
+    }];
+    TestWebKitAPI::Util::run(&done);
+    return count;
+}
+
 - (NSString *)contentsAsString
 {
     __block bool done = false;
@@ -700,6 +722,37 @@ static WebEvent *unwrap(BEKeyEntry *event)
     return CGPointMake(CGRectGetMidX(rect), CGRectGetMidY(rect));
 }
 
+static IterationStatus forEachCALayer(CALayer *layer, IterationStatus(^visitor)(CALayer *))
+{
+    if (visitor(layer) == IterationStatus::Done)
+        return IterationStatus::Done;
+
+    for (CALayer *sublayer in layer.sublayers) {
+        if (forEachCALayer(sublayer, visitor) == IterationStatus::Done)
+            return IterationStatus::Done;
+    }
+
+    return IterationStatus::Continue;
+}
+
+- (void)forEachCALayer:(IterationStatus(^)(CALayer *))visitor
+{
+    forEachCALayer(self.layer, visitor);
+}
+
+- (CALayer *)firstLayerWithName:(NSString *)layerName
+{
+    __block RetainPtr<CALayer> result;
+    [self forEachCALayer:^(CALayer *layer) {
+        if (![layer.name isEqualToString:@"Gesture Swipe Snapshot Layer"])
+            return IterationStatus::Continue;
+
+        result = layer;
+        return IterationStatus::Done;
+    }];
+    return result.autorelease();
+}
+
 - (CGImageRef)snapshotAfterScreenUpdates
 {
     __block RetainPtr<CGImage> result;
@@ -824,8 +877,7 @@ static void setOverriddenApplicationKeyWindow(UIWindow *window)
 
     if (!UIApplication.sharedApplication) {
         InstanceMethodSwizzler bundleIdentifierSwizzler(NSBundle.class, @selector(bundleIdentifier), reinterpret_cast<IMP>(overrideBundleIdentifier));
-        UIApplicationInitialize();
-        UIApplicationInstantiateSingleton(UIApplication.class);
+        TestWebKitAPI::Util::instantiateUIApplicationIfNeeded();
     }
 
     static dispatch_once_t onceToken;
@@ -883,7 +935,7 @@ static InputSessionChangeCount nextInputSessionChangeCount()
 #endif
 
 @implementation TestWKWebView {
-    RetainPtr<TestWKWebViewHostWindow> _hostWindow;
+    WeakObjCPtr<TestWKWebViewHostWindow> _hostWindow;
     RetainPtr<TestMessageHandler> _testHandler;
     RetainPtr<WKUserScript> _onloadScript;
 #if PLATFORM(IOS_FAMILY)
@@ -928,6 +980,17 @@ static InputSessionChangeCount nextInputSessionChangeCount()
     return self;
 }
 
+#if PLATFORM(IOS_FAMILY)
+static UIWindowScene *windowScene()
+{
+    for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
+        if ([scene isKindOfClass:UIWindowScene.class])
+            return (UIWindowScene *)scene;
+    }
+    return nil;
+}
+#endif
+
 - (instancetype)initWithFrame:(CGRect)frame configuration:(WKWebViewConfiguration *)configuration processPoolConfiguration:(_WKProcessPoolConfiguration *)processPoolConfiguration
 {
     [configuration setProcessPool:adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration]).get()];
@@ -936,19 +999,26 @@ static InputSessionChangeCount nextInputSessionChangeCount()
 
 - (void)_setUpTestWindow:(NSRect)frame
 {
+    RetainPtr<TestWKWebViewHostWindow> hostWindow;
 #if PLATFORM(MAC)
-    _hostWindow = adoptNS([[TestWKWebViewHostWindow alloc] initWithWebView:self contentRect:frame styleMask:(NSWindowStyleMaskBorderless | NSWindowStyleMaskMiniaturizable) backing:NSBackingStoreBuffered defer:NO]);
-    [_hostWindow setHasShadow:NO];
-    [_hostWindow setFrameOrigin:frame.origin];
-    [_hostWindow setIsVisible:YES];
-    [_hostWindow contentView].wantsLayer = YES;
-    [[_hostWindow contentView] addSubview:self];
-    [_hostWindow makeKeyAndOrderFront:self];
+    hostWindow = adoptNS([[TestWKWebViewHostWindow alloc] initWithWebView:self contentRect:frame styleMask:(NSWindowStyleMaskBorderless | NSWindowStyleMaskMiniaturizable) backing:NSBackingStoreBuffered defer:NO]);
+    [hostWindow setHasShadow:NO];
+    [hostWindow setFrameOrigin:frame.origin];
+    [hostWindow setIsVisible:YES];
+    [hostWindow setReleasedWhenClosed:NO];
+    [hostWindow contentView].wantsLayer = YES;
+    [[hostWindow contentView] addSubview:self];
+    [hostWindow makeKeyAndOrderFront:self];
 #else
-    _hostWindow = adoptNS([[TestWKWebViewHostWindow alloc] initWithWebView:self frame:frame]);
-    [_hostWindow setHidden:NO];
-    [_hostWindow addSubview:self];
+    hostWindow = adoptNS([[TestWKWebViewHostWindow alloc] initWithWebView:self frame:frame]);
+    if (UIWindowScene *windowScene = ::windowScene())
+        [hostWindow setWindowScene:windowScene];
+    [hostWindow setHidden:NO];
+    [hostWindow addSubview:self];
 #endif
+    _hostWindow = hostWindow.get();
+
+    TestWebKitAPI::HostWindowManager::singleton().closeHostWindowOnTestEnd(hostWindow.get());
 }
 
 - (void)addToTestWindow
@@ -1332,6 +1402,21 @@ static WKContentView *recursiveFindWKContentView(UIView *view)
     return recursiveFindWKContentView(self);
 }
 
+- (void)setZoomScaleSimulatingUserTriggeredZoom:(CGFloat)zoomScale
+{
+    InstanceMethodSwizzler gestureSwizzler {
+        [UIPinchGestureRecognizer class],
+        @selector(state),
+        imp_implementationWithBlock(^UIGestureRecognizerState {
+            return UIGestureRecognizerStateBegan;
+        })
+    };
+
+    RetainPtr scrollView = [self scrollView];
+    [self scrollViewWillBeginZooming:scrollView.get() withView:[self viewForZoomingInScrollView:scrollView.get()]];
+    [scrollView setZoomScale:zoomScale];
+}
+
 @end
 
 #endif // PLATFORM(IOS_FAMILY)
@@ -1449,7 +1534,7 @@ static WKContentView *recursiveFindWKContentView(UIView *view)
 
 - (NSWindow *)hostWindow
 {
-    return _hostWindow.get();
+    return _hostWindow.getAutoreleased();
 }
 
 - (void)typeCharacter:(char)character

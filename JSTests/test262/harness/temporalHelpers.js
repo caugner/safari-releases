@@ -133,7 +133,7 @@ var TemporalHelpers = {
       assert.sameValue(eraName, undefined);
       return undefined;
     }
-    assert(Object.hasOwn(TemporalHelpers.CalendarEras, calendarId));
+    assert(Object.prototype.hasOwnProperty.call(TemporalHelpers.CalendarEras, calendarId));
 
     if (eraName === undefined) {
       return undefined;
@@ -369,7 +369,7 @@ var TemporalHelpers = {
     assert(expected instanceof Temporal.ZonedDateTime, `${prefix}expected value should be a Temporal.ZonedDateTime`);
     assert(actual instanceof Temporal.ZonedDateTime, `${prefix}instanceof`);
     assert(actual.equals(expected), `${prefix}equals method`);
-    assert.sameValue(actual.timeZone, expected.timeZone, `${prefix}time zone same value:`);
+    assert.sameValue(actual.timeZoneId, expected.timeZoneId, `${prefix}time zone same value:`);
     assert.sameValue(
       actual.calendarId,
       expected.calendarId,
@@ -1105,6 +1105,10 @@ var TemporalHelpers = {
         "11-18[U-CA=iso8601]",
         "11-18[u-CA=iso8601]",
         "11-18[FOO=bar]",
+        "-999999-01-01[u-ca=gregory]",
+        "-999999-01-01[u-ca=chinese]",
+        "+999999-01-01[u-ca=gregory]",
+        "+999999-01-01[u-ca=chinese]",
       ];
     },
 
@@ -1136,6 +1140,10 @@ var TemporalHelpers = {
         "1976-10-01",
         "--10-01",
         "--1001",
+        "-999999-10-01",
+        "-999999-10-01[u-ca=iso8601]",
+        "+999999-10-01",
+        "+999999-10-01[u-ca=iso8601]",
       ];
     },
 
@@ -1197,6 +1205,8 @@ var TemporalHelpers = {
         "1976-11[U-CA=iso8601]",
         "1976-11[u-CA=iso8601]",
         "1976-11[FOO=bar]",
+        "+999999-01",
+        "-999999-01",
       ];
     },
 

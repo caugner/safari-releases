@@ -3,8 +3,6 @@ This test passes if all four links on the page are found.
 On success, you will see a series of "PASS" messages, followed by "TEST COMPLETE".
 
 
-AXHasDocumentRoleAncestor: 0
-AXHasWebApplicationAncestor: 0
 AXRole: AXLink
 AXSubrole: (null)
 AXRoleDescription: link
@@ -33,7 +31,6 @@ AXDOMClassList: <array of size 0>
 AXFocusableAncestor: <AXLink>
 AXEditableAncestor: (null)
 AXHighestEditableAncestor: (null)
-AXVisibleCharacterRange: NSRange: {0, 0}
 AXElementBusy: 0
 AXURL: LayoutTests/accessibility/mac/document-links.html#Link1
 AXAccessKey: (null)
@@ -41,8 +38,6 @@ AXLinkRelationshipType:
 AXPath: <AXLink>
 
 ------------
-AXHasDocumentRoleAncestor: 0
-AXHasWebApplicationAncestor: 0
 AXRole: AXLink
 AXSubrole: (null)
 AXRoleDescription: link
@@ -71,7 +66,6 @@ AXDOMClassList: <array of size 0>
 AXFocusableAncestor: <AXLink>
 AXEditableAncestor: (null)
 AXHighestEditableAncestor: (null)
-AXVisibleCharacterRange: NSRange: {0, 0}
 AXElementBusy: 0
 AXURL: LayoutTests/accessibility/mac/document-links.html#Link2
 AXAccessKey: (null)
@@ -79,8 +73,6 @@ AXLinkRelationshipType:
 AXPath: <AXLink>
 
 ------------
-AXHasDocumentRoleAncestor: 0
-AXHasWebApplicationAncestor: 0
 AXRole: AXLink
 AXSubrole: (null)
 AXRoleDescription: link
@@ -109,15 +101,12 @@ AXDOMClassList: <array of size 0>
 AXFocusableAncestor: <AXLink: 'Link3'>
 AXEditableAncestor: (null)
 AXHighestEditableAncestor: (null)
-AXVisibleCharacterRange: NSRange: {0, 5}
 AXElementBusy: 0
 AXURL: LayoutTests/accessibility/mac/document-links.html#Link3
 AXAccessKey: (null)
 AXLinkRelationshipType:
 
 ------------
-AXHasDocumentRoleAncestor: 0
-AXHasWebApplicationAncestor: 0
 AXRole: AXLink
 AXSubrole: (null)
 AXRoleDescription: link
@@ -146,7 +135,6 @@ AXDOMClassList: <array of size 0>
 AXFocusableAncestor: <AXLink: 'Link4'>
 AXEditableAncestor: (null)
 AXHighestEditableAncestor: (null)
-AXVisibleCharacterRange: NSRange: {0, 5}
 AXElementBusy: 0
 AXURL: LayoutTests/accessibility/mac/document-links.html#Link4
 AXAccessKey: (null)

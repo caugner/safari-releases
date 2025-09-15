@@ -33,7 +33,7 @@ namespace WTR {
 
 void TestController::notifyDone()
 {
-    RunLoop::main().stop();
+    RunLoop::mainSingleton().stop();
 }
 
 void TestController::platformInitialize(const Options&)
@@ -46,28 +46,24 @@ void TestController::platformDestroy()
 
 void TestController::platformRunUntil(bool& done, WTF::Seconds timeout)
 {
-    struct TimeoutTimer {
-        TimeoutTimer()
-            : timer(RunLoop::main(), this, &TimeoutTimer::fired)
-        { }
-
-        void fired()
+    bool timedOut = false;
+    class TimeoutTimer {
+    public:
+        TimeoutTimer(WTF::Seconds timeout, bool& timedOut)
+            : m_timer(RunLoop::mainSingleton(), [&timedOut] {
+                timedOut = true;
+                RunLoop::mainSingleton().stop();
+            })
         {
-            timedOut = true;
-            RunLoop::main().stop();
+            if (timeout >= 0_s)
+                m_timer.startOneShot(timeout);
         }
+    private:
+        RunLoop::Timer m_timer;
+    } timeoutTimer(timeout, timedOut);
 
-        RunLoop::Timer timer;
-        bool timedOut { false };
-    } timeoutTimer;
-
-    if (timeout >= 0_s)
-        timeoutTimer.timer.startOneShot(timeout);
-
-    while (!done && !timeoutTimer.timedOut)
-        RunLoop::main().run();
-
-    timeoutTimer.timer.stop();
+    while (!done && !timedOut)
+        RunLoop::mainSingleton().run();
 }
 
 void TestController::initializeInjectedBundlePath()

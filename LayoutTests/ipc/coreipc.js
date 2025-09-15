@@ -212,9 +212,6 @@ const aliases = {
     'size_t': 'uint64_t',
     'pid_t': 'uint32_t',
     'unsigned short': 'uint16_t',
-    'const bool': 'bool',
-    'const uint8_t': 'uint8_t',
-    'const char': 'uint8_t',
     'unsigned long': 'uint64_t',
     'long': 'uint64_t',
     'unsigned char': 'uint8_t',
@@ -222,9 +219,6 @@ const aliases = {
     'long long': 'int64_t',
     'unsigned long long': 'uint64_t',
     'short': 'int16_t',
-    'const float': 'float',
-    'const int32_t': 'int32_t',
-    'const uint32_t': 'uint32_t',
     'NSInteger': 'int64_t',
     'NSUInteger': 'uint64_t',
     'WebCore::ContextMenuAction': 'uint32_t',
@@ -263,6 +257,12 @@ export function resolveAlias(argumentType) {
     if(argumentType in aliases) {
         return resolveAlias(aliases[argumentType]);
     }
+
+    // remove any 'const ' prefix
+    if(argumentType.startsWith("const ")) {
+        argumentType = argumentType.slice("const ".length);
+    }
+
     return argumentType;
 }
 
@@ -366,7 +366,7 @@ export class ArgumentSerializer {
         }
     }
 
-    static serializeVector(innerType, argument) {
+    static serializeVector(innerType, argument, isStdSpan) {
         const splitType = ArgumentSerializer.splitTemplateType(innerType);
         innerType = splitType[0];
         if(Array.isArray(argument)) {
@@ -379,6 +379,13 @@ export class ArgumentSerializer {
                 argumentDefinition.name = `element#${ count }`;
                 count += 1;
                 result.push([ ArgumentSerializer.serializeArgument(argumentDefinition, element) ]);
+            }
+            if(isStdSpan && splitType.length > 1) {
+                const size = Number.parseInt(splitType[1]);
+                if(argument.length != size) {
+                    throw new SerializationError('argument array of std::span with non-dynamic extent has unexpected length');
+                }
+                return result;
             }
             return [{value: result, type: 'Vector'}];
         }
@@ -446,7 +453,7 @@ export class ArgumentSerializer {
     static serializeStdArray(innerType, argument) {
         const splitType = ArgumentSerializer.splitTemplateType(innerType);
         if(splitType.length != 2) {
-            throw new SerializationError('std::pair does not have a fixed cardinality')
+            throw new SerializationError('std::array does not have a fixed cardinality')
         }
         const size = Number(splitType[1]);
         innerType = splitType[0];
@@ -484,32 +491,56 @@ export class ArgumentSerializer {
     }
 
     static serializeKeyValuePair(innerType, argument) {
-        const splitTemplateType = ArgumentSerializer.splitTemplateType(innerType);
-        if(argument['key'] === undefined)
-            throw new SerializationError('argument of key value type is missing the key attribute');
-        if(argument['value'] === undefined)
-            throw new SerializationError('argument of key value type is missing the key attribute');
-        const result = [];
-        let argumentDefinition = {type: splitTemplateType[0], name: "key"};
-        result.push(ArgumentSerializer.serializeArgument(argumentDefinition, argument['key']));
-        argumentDefinition = {type: splitTemplateType[1], name: "value"};
-        result.push(ArgumentSerializer.serializeArgument(argumentDefinition, argument['value']));
-        return result;
+        // we handle both [key, value] and {key, value} formats
+
+        if(Array.isArray(argument) && argument.length == 2) {
+            return ArgumentSerializer.serializePair(innerType, argument);
+        }
+
+        if(argument['key'] !== undefined && argument['value'] !== undefined) {
+            const splitTemplateType = ArgumentSerializer.splitTemplateType(innerType);
+            const result = [];
+            let argumentDefinition = {type: splitTemplateType[0], name: "key"};
+            result.push(ArgumentSerializer.serializeArgument(argumentDefinition, argument['key']));
+            argumentDefinition = {type: splitTemplateType[1], name: "value"};
+            result.push(ArgumentSerializer.serializeArgument(argumentDefinition, argument['value']));
+            return result;
+        }
+
+        throw new SerializationError('argument of KeyValuePair is not an array with two elements or an object with {key, value} properties');
     }
 
     static serializeVariant(innerType, argument) {
         const variantTypes = ArgumentSerializer.splitTemplateType(innerType);
-        if(!Object.hasOwn(argument, 'variantType')) {
-            throw new SerializationError('missing field \'variantType\' when serializing variant');
+        let variantType = undefined;
+        let variantIndex = undefined;
+
+        if(Object.hasOwn(argument, 'variantType')) {
+            variantType = argument.variantType;
+            variantIndex = variantTypes.indexOf(argument.variantType);
+
+            if(variantIndex == -1) {
+                throw new SerializationError(`type '${ variantType }' is not valid for variant (${ variantTypes })`);
+            }
         }
-        const variantType = argument.variantType;
-        const variantIndex = variantTypes.indexOf(variantType);
-        if(variantIndex == -1) {
-            throw new SerializationError(`type '${ variantType }' is not valid for variant (${ variantTypes })`);
+
+        if(Object.hasOwn(argument, 'variantIndex')) {
+            variantIndex = argument.variantIndex;
+            variantType = variantTypes[variantIndex];
+
+            if(variantIndex < 0 || variantIndex >= variantTypes.length) {
+                throw new SerializationError(`type index '${ variantIndex }' is not valid for variant (${ variantTypes })`);
+            }
         }
+
+        if(variantType == undefined || variantIndex == undefined) {
+            throw new SerializationError(`missing field 'variantType' or 'variantIndex' when serializing variant (${ variantTypes })`);
+        }
+
         if(!Object.hasOwn(argument, 'variant')) {
             throw new SerializationError('missing field \'variant\' when serializing variant');
         }
+
         const argumentDefinition = {
             name: 'variant',
             type: variantType
@@ -530,10 +561,11 @@ export class ArgumentSerializer {
                     return ArgumentSerializer.serializeOptional(innerType, argument);
                 case 'Vector':
                 case 'std::vector':
-                case 'std::span':
                 case 'ArrayReference':
                 case 'Span':
-                    return ArgumentSerializer.serializeVector(innerType, argument);
+                    return ArgumentSerializer.serializeVector(innerType, argument, false);
+                case 'std::span':
+                    return ArgumentSerializer.serializeVector(innerType, argument, true);
                 case 'IPC::ArrayReferenceTuple':
                     return ArgumentSerializer.serializeArrayReferenceTuple(innerType, argument);
                 case 'std::array':
@@ -541,6 +573,7 @@ export class ArgumentSerializer {
                 case 'HashSet':
                     return ArgumentSerializer.serializeHashSet(innerType, argument);
                 case 'std::variant':
+                case 'Variant':
                     return ArgumentSerializer.serializeVariant(innerType, argument);
                 case 'std::pair':
                     return ArgumentSerializer.serializePair(innerType, argument);
@@ -686,11 +719,21 @@ export class ArgumentSerializer {
                 }
                 return {value: argument, type: argumentDefinition.type};
             case 'float':
-            case 'double':
-                if(typeof argument != "number") {
-                    throw new SerializationError(`Primitive value of type ${ argumentDefinition.type } is not a number`);
+                if(typeof argument == "number") {
+                    return {value: argument, type: argumentDefinition.type};
                 }
-                return {value: argument, type: argumentDefinition.type};
+                if(typeof argument == "bigint") {
+                    return {value: Number(argument), type: 'uint32_t'};
+                }
+                throw new SerializationError(`Primitive value of type ${ argumentDefinition.type } is neither a number nor a bigint`);
+            case 'double':
+                if(typeof argument == "number") {
+                    return {value: argument, type: argumentDefinition.type};
+                }
+                if(typeof argument == "bigint") {
+                    return {value: argument, type: 'uint64_t'};
+                }
+                throw new SerializationError(`Primitive value of type ${ argumentDefinition.type } is neither a number nor a bigint`);
             case 'String':
                 if(typeof argument != 'string') {
                     throw new SerializationError(`Primitive value is not a string`);
@@ -856,11 +899,39 @@ export class ArgumentParser {
         return undefined;
     }
 
-    static parseVector(buffer, position, innerType) {
+    static parseVector(buffer, position, innerType, isStdSpan) {
         position = ArgumentParser.align(position, 8);
         ArgumentParser.checkOutOfBounds(buffer, position, 8);
-        const elementCount = buffer.getBigUint64(position, true);
-        position += 8;
+        const innerTypes = ArgumentSerializer.splitTemplateType(innerType);
+        let elementCount = 0;
+        innerType = innerTypes[0];
+        if(isStdSpan && innerTypes.length > 1) {
+            elementCount = Number.parseInt(innerTypes[1]);
+        } else {
+            elementCount = buffer.getBigUint64(position, true);
+            position += 8;
+        }
+        const values = [];
+        let element;
+        const argumentDefinition = {type: innerType};
+        for(let index = 0; index < elementCount; index++) {
+            argumentDefinition.name = `element#${ index }`;
+            try {
+                [position, element] = ArgumentParser.parseArgument(buffer, position, argumentDefinition);
+            } catch (error) {
+                throw new ParserError(`when parsing element #${ index } of array: ${ error.message }`);
+            }
+            values.push(element);
+        }
+        return [position, values];
+    }
+
+    static parseHashSet(buffer, position, innerType) {
+        position = ArgumentParser.align(position, 4);
+        ArgumentParser.checkOutOfBounds(buffer, position, 4);
+        const innerTypes = ArgumentSerializer.splitTemplateType(innerType);
+        let elementCount = buffer.getUint32(position, true);
+        position += 4;
         const values = [];
         let element;
         const argumentDefinition = {type: innerType};
@@ -900,7 +971,7 @@ export class ArgumentParser {
         let element;
         for(let index = 0; index < elementCount; index++) {
             try {
-                [position, element] = ArgumentParser.parsePair(buffer, position, innerType);
+                [position, element] = ArgumentParser.parseKeyValuePair(buffer, position, innerType);
             } catch (error) {
                 throw new ParserError(`when parsing element #${ index } of HashMap: ${ error.message }`);
             }
@@ -908,6 +979,53 @@ export class ArgumentParser {
         }
         return [position, values];
     }
+    /*
+    static serializeStdArray(innerType, argument) {
+        const splitType = ArgumentSerializer.splitTemplateType(innerType);
+        if(splitType.length != 2) {
+            throw new SerializationError('std::array does not have a fixed cardinality')
+        }
+        const size = Number(splitType[1]);
+        innerType = splitType[0];
+        if(Array.isArray(argument) || argument.length != size) {
+            const result = [];
+            const argumentDefinition = {
+                type: innerType,
+            };
+            let count = 0;
+            for(const element of argument) {
+                argumentDefinition.name = `element#${ count }`;
+                count += 1;
+                result.push([ ArgumentSerializer.serializeArgument(argumentDefinition, element) ]);
+            }
+            return result;
+        }
+        throw new SerializationError('argument of std::pair type is not an array');
+    }
+    */
+
+    static parseStdArray(buffer, position, innerType) {
+        const splitType = ArgumentSerializer.splitTemplateType(innerType);
+        if(splitType.length != 2) {
+            throw new SerializationError('std::array does not have a fixed cardinality')
+        }
+        const size = Number(splitType[1]);
+        innerType = splitType[0];
+        const values = [];
+        let element;
+        const argumentDefinition = {type: innerType};
+        for(let index = 0; index < size; index++) {
+            argumentDefinition.name = `element#${ index }`;
+            try {
+                [position, element] = ArgumentParser.parseArgument(buffer, position, argumentDefinition);
+            } catch (error) {
+                throw new ParserError(`when parsing element #${ index } of std::array: ${ error.message }`);
+            }
+            values.push(element);
+        }
+        return [position, values];
+    }
+
 
     static parseOptional(buffer, position, innerType) {
         ArgumentParser.checkOutOfBounds(buffer, position, 1);
@@ -948,6 +1066,16 @@ export class ArgumentParser {
         return [newPosition, {variantType: variantType, variant: value}];
     }
 
+    static parseKeyValuePair(buffer, position, innerType) {
+        const splitTemplateType = ArgumentSerializer.splitTemplateType(innerType);
+        const keyDefintion = {name: 'key', type: splitTemplateType[0]};
+        const [newPosition, keyValue] = ArgumentParser.parseArgument(buffer, position, keyDefintion);
+        const valueDefintion = {name: 'value', type: splitTemplateType[1]};
+        let valueValue;
+        [newPosition, valueValue] = ArgumentParser.parseArgument(buffer, position, valueDefintion);
+        return [newPosition, {key: keyValue, value: valueValue}];
+    }
+
     static parseTemplate(buffer, position, argumentDefinition) {
         const argumentType = argumentDefinition.type;
         if(argumentType.includes("<")) {
@@ -961,13 +1089,31 @@ export class ArgumentParser {
                     const [newPosition, value] = ArgumentParser.parseOptional(buffer, position, innerType);
                     return [newPosition, {parsedType: argumentDefinition.type, parsedValue: value}]
                 }
-                case 'std::span':
-                case 'Vector': {
-                    const [newPosition, values] = ArgumentParser.parseVector(buffer, position, innerType);
-                    return [newPosition, {parsedType: argumentDefinition.type, value: values}];
+                case 'std::span': {
+                    const [newPosition, values] = ArgumentParser.parseVector(buffer, position, innerType, true);
+                    return [newPosition, {parsedType: argumentDefinition.type, parsedValue: values}];
                 }
-                // TODO: HashSet and std::array and KeyValuePair and HashMap
-                case 'std::variant': {
+                case 'std::vector':
+                case 'ArrayReference':
+                case 'Span':
+                case 'Vector': {
+                    const [newPosition, values] = ArgumentParser.parseVector(buffer, position, innerType, false);
+                    return [newPosition, {parsedType: argumentDefinition.type, parsedValue: values}];
+                }
+                case 'HashSet': {
+                    const [newPosition, values] = ArgumentParser.parseHashSet(buffer, position, innerType);
+                    return [newPosition, {parsedType: argumentDefinition.type, parsedValue: values}];
+                }
+                case 'std::array': {
+                    const [newPosition, values] = ArgumentParser.parseStdArray(buffer, position, innerType);
+                    return [newPosition, {parsedType: argumentDefinition.type, parsedValue: values}];
+                }
+                case 'KeyValuePair': {
+                    const [newPosition, value] = ArgumentParser.parseKeyValuePair(buffer, position, innerType);
+                    return [newPosition, {parsedType: argumentDefinition.type, parsedValue: value}];
+                }
+                case 'std::variant':
+                case 'Variant': {
                     const [newPosition, variant] = ArgumentParser.parseVariant(buffer, position, innerType);
                     return [newPosition, {parsedType: argumentDefinition.type, parsedValue: variant}];
                 }
@@ -988,7 +1134,8 @@ export class ArgumentParser {
                 case 'UniqueRef': {
                     return ArgumentParser.parseArgument(buffer, position, {type: innerType, name: argumentDefinition.name});
                 }
-                case 'HashMap': {
+                case 'HashMap':
+                case 'MemoryCompactRobinHoodHashMap': {
                     return ArgumentParser.parseHashMap(buffer, position, innerType);
                 }
                 default:

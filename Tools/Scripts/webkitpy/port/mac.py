@@ -48,7 +48,6 @@ _log = logging.getLogger(__name__)
 class MacPort(DarwinPort):
     port_name = "mac"
 
-    CURRENT_VERSION = Version(15, 0)
     LAST_MACOSX = Version(10, 15)
 
     SDK = 'macosx'
@@ -350,6 +349,8 @@ class MacPort(DarwinPort):
             _log.debug('Warming up the runner ...')
             warmup_driver = self.create_driver(0)
             warmup_driver.run_test(DriverInput('file:///warmup-does-not-exist', 60000., None, should_run_pixel_test=False), stop_when_done=True)
+        # rdar://132098879, ensure webarchive is quarantined.
+        self.host.executive.run_command(['/usr/bin/xattr', self.layout_tests_dir() + '/webarchive/loading/resources/quarantined_top.webarchive']).rstrip()
 
 
 class MacCatalystPort(MacPort):

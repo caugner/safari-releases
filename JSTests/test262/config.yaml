@@ -3,23 +3,18 @@
 flags:
   SharedArrayBuffer: useSharedArrayBuffer
   Atomics: useSharedArrayBuffer
-  Atomics.pause: useAtomicsPause
-  iterator-helpers: useIteratorHelpers
   Temporal: useTemporal
   ShadowRealm: useShadowRealm
-  promise-try: usePromiseTryMethod
-  uint8array-base64: useUint8ArrayBase64Methods
-  RegExp.escape: useRegExpEscape
   Math.sumPrecise: useMathSumPreciseMethod
-  Error.isError: useErrorIsError
   json-parse-with-source: useJSONSourceTextAccess
+  iterator-sequencing: useIteratorSequencing
+  explicit-resource-management: useExplicitResourceManagement
+  upsert: useMapGetOrInsert
 skip:
   features:
     - callable-boundary-realms
     - FinalizationRegistry.prototype.cleanupSome
     - decorators
-    - explicit-resource-management
-    - regexp-modifiers
     - source-phase-imports
     - import-defer
   paths:
@@ -50,11 +45,87 @@ skip:
     - test/staging/Intl402
     - test/staging/JSON
     - test/staging/Temporal
+    - test/staging/sm/Temporal
+    # Explicit Resource Management
+    - test/staging/explicit-resource-management
+    - test/language/statements/using
+    - test/language/statements/await-using
   files:
     # https://github.com/claudepache/es-legacy-function-reflection
     - test/built-ins/ThrowTypeError/unique-per-realm-function-proto.js
     - test/built-ins/Function/prototype/restricted-property-arguments.js
     - test/built-ins/Function/prototype/restricted-property-caller.js
+
+    # test262 hasn't been updated to the new UCD
+    - test/built-ins/RegExp/property-escapes/generated/Alphabetic.js
+    - test/built-ins/RegExp/property-escapes/generated/Assigned.js
+    - test/built-ins/RegExp/property-escapes/generated/Case_Ignorable.js
+    - test/built-ins/RegExp/property-escapes/generated/Cased.js
+    - test/built-ins/RegExp/property-escapes/generated/Changes_When_Casefolded.js
+    - test/built-ins/RegExp/property-escapes/generated/Changes_When_Casemapped.js
+    - test/built-ins/RegExp/property-escapes/generated/Changes_When_Lowercased.js
+    - test/built-ins/RegExp/property-escapes/generated/Changes_When_NFKC_Casefolded.js
+    - test/built-ins/RegExp/property-escapes/generated/Changes_When_Titlecased.js
+    - test/built-ins/RegExp/property-escapes/generated/Changes_When_Uppercased.js
+    - test/built-ins/RegExp/property-escapes/generated/Diacritic.js
+    - test/built-ins/RegExp/property-escapes/generated/Emoji.js
+    - test/built-ins/RegExp/property-escapes/generated/Emoji_Presentation.js
+    - test/built-ins/RegExp/property-escapes/generated/Extended_Pictographic.js
+    - test/built-ins/RegExp/property-escapes/generated/Extender.js
+    - test/built-ins/RegExp/property-escapes/generated/General_Category_-_Cased_Letter.js
+    - test/built-ins/RegExp/property-escapes/generated/General_Category_-_Currency_Symbol.js
+    - test/built-ins/RegExp/property-escapes/generated/General_Category_-_Decimal_Number.js
+    - test/built-ins/RegExp/property-escapes/generated/General_Category_-_Letter.js
+    - test/built-ins/RegExp/property-escapes/generated/General_Category_-_Letter_Number.js
+    - test/built-ins/RegExp/property-escapes/generated/General_Category_-_Lowercase_Letter.js
+    - test/built-ins/RegExp/property-escapes/generated/General_Category_-_Mark.js
+    - test/built-ins/RegExp/property-escapes/generated/General_Category_-_Math_Symbol.js
+    - test/built-ins/RegExp/property-escapes/generated/General_Category_-_Modifier_Letter.js
+    - test/built-ins/RegExp/property-escapes/generated/General_Category_-_Nonspacing_Mark.js
+    - test/built-ins/RegExp/property-escapes/generated/General_Category_-_Number.js
+    - test/built-ins/RegExp/property-escapes/generated/General_Category_-_Other.js
+    - test/built-ins/RegExp/property-escapes/generated/General_Category_-_Other_Letter.js
+    - test/built-ins/RegExp/property-escapes/generated/General_Category_-_Other_Punctuation.js
+    - test/built-ins/RegExp/property-escapes/generated/General_Category_-_Other_Symbol.js
+    - test/built-ins/RegExp/property-escapes/generated/General_Category_-_Punctuation.js
+    - test/built-ins/RegExp/property-escapes/generated/General_Category_-_Spacing_Mark.js
+    - test/built-ins/RegExp/property-escapes/generated/General_Category_-_Symbol.js
+    - test/built-ins/RegExp/property-escapes/generated/General_Category_-_Unassigned.js
+    - test/built-ins/RegExp/property-escapes/generated/General_Category_-_Uppercase_Letter.js
+    - test/built-ins/RegExp/property-escapes/generated/Grapheme_Base.js
+    - test/built-ins/RegExp/property-escapes/generated/Grapheme_Extend.js
+    - test/built-ins/RegExp/property-escapes/generated/ID_Continue.js
+    - test/built-ins/RegExp/property-escapes/generated/ID_Start.js
+    - test/built-ins/RegExp/property-escapes/generated/Ideographic.js
+    - test/built-ins/RegExp/property-escapes/generated/Lowercase.js
+    - test/built-ins/RegExp/property-escapes/generated/Math.js
+    - test/built-ins/RegExp/property-escapes/generated/Script_-_Arabic.js
+    - test/built-ins/RegExp/property-escapes/generated/Script_-_Bengali.js
+    - test/built-ins/RegExp/property-escapes/generated/Script_-_Common.js
+    - test/built-ins/RegExp/property-escapes/generated/Script_-_Han.js
+    - test/built-ins/RegExp/property-escapes/generated/Script_-_Inherited.js
+    - test/built-ins/RegExp/property-escapes/generated/Script_-_Kannada.js
+    - test/built-ins/RegExp/property-escapes/generated/Script_-_Latin.js
+    - test/built-ins/RegExp/property-escapes/generated/Script_-_Oriya.js
+    - test/built-ins/RegExp/property-escapes/generated/Script_-_Sharada.js
+    - test/built-ins/RegExp/property-escapes/generated/Script_-_Tangut.js
+    - test/built-ins/RegExp/property-escapes/generated/Script_-_Telugu.js
+    - test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Arabic.js
+    - test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Bengali.js
+    - test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Common.js
+    - test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Han.js
+    - test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Inherited.js
+    - test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Kannada.js
+    - test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Latin.js
+    - test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Oriya.js
+    - test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Sharada.js
+    - test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Tangut.js
+    - test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Telugu.js
+    - test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Tifinagh.js
+    - test/built-ins/RegExp/property-escapes/generated/Unified_Ideograph.js
+    - test/built-ins/RegExp/property-escapes/generated/Uppercase.js
+    - test/built-ins/RegExp/property-escapes/generated/XID_Continue.js
+    - test/built-ins/RegExp/property-escapes/generated/XID_Start.js
 
     # New ICU (66~) raises a different failure
     - test/intl402/Locale/constructor-apply-options-canonicalizes-twice.js
@@ -75,6 +146,10 @@ skip:
     - test/intl402/Locale/constructor-options-region-valid.js
     - test/intl402/Locale/getters-grandfathered.js
     - test/intl402/Locale/likely-subtags-grandfathered.js
+
+    # Skipping temporarily due to a bug with handling case-insensitive \p escapes
+    - test/built-ins/RegExp/regexp-modifiers/add-ignoreCase-affects-slash-upper-p.js
+    - test/built-ins/RegExp/regexp-modifiers/add-ignoreCase-affects-slash-lower-p.js
 
     # Depends on Temporal.Duration relativeTo option
     - test/built-ins/Temporal/Duration/compare/basic.js
@@ -214,6 +289,7 @@ skip:
     - test/built-ins/Temporal/PlainDate/compare/argument-propertybag-calendar-leap-second.js
     - test/built-ins/Temporal/PlainDate/compare/argument-propertybag-calendar-number.js
     - test/built-ins/Temporal/PlainDate/compare/argument-propertybag-calendar-wrong-type.js
+    - test/built-ins/Temporal/PlainDate/compare/argument-string-calendar-annotation.js
     - test/built-ins/Temporal/PlainDate/compare/argument-string-invalid.js
     - test/built-ins/Temporal/PlainDate/compare/calendar-temporal-object.js
     - test/built-ins/Temporal/PlainDate/from/argument-plaindate.js
@@ -223,13 +299,16 @@ skip:
     - test/built-ins/Temporal/PlainDate/from/argument-propertybag-calendar-number.js
     - test/built-ins/Temporal/PlainDate/from/argument-propertybag-calendar-wrong-type.js
     - test/built-ins/Temporal/PlainDate/from/argument-propertybag-calendar.js
+    - test/built-ins/Temporal/PlainDate/from/argument-string-calendar-annotation.js
     - test/built-ins/Temporal/PlainDate/from/argument-string-invalid.js
+    - test/built-ins/Temporal/PlainDate/from/argument-string-unknown-annotation.js
     - test/built-ins/Temporal/PlainDate/from/calendar-temporal-object.js
     - test/built-ins/Temporal/PlainDate/prototype/add/balance-smaller-units.js
     - test/built-ins/Temporal/PlainDate/prototype/equals/argument-propertybag-calendar-case-insensitive.js
     - test/built-ins/Temporal/PlainDate/prototype/equals/argument-propertybag-calendar-leap-second.js
     - test/built-ins/Temporal/PlainDate/prototype/equals/argument-propertybag-calendar-number.js
     - test/built-ins/Temporal/PlainDate/prototype/equals/argument-propertybag-calendar-wrong-type.js
+    - test/built-ins/Temporal/PlainDate/prototype/equals/argument-string-calendar-annotation.js
     - test/built-ins/Temporal/PlainDate/prototype/equals/argument-string-invalid.js
     - test/built-ins/Temporal/PlainDate/prototype/equals/argument-string.js
     - test/built-ins/Temporal/PlainDate/prototype/equals/calendar-temporal-object.js
@@ -237,12 +316,16 @@ skip:
     - test/built-ins/Temporal/PlainDate/prototype/since/argument-propertybag-calendar-leap-second.js
     - test/built-ins/Temporal/PlainDate/prototype/since/argument-propertybag-calendar-number.js
     - test/built-ins/Temporal/PlainDate/prototype/since/argument-propertybag-calendar-wrong-type.js
+    - test/built-ins/Temporal/PlainDate/prototype/since/argument-string-calendar-annotation.js
     - test/built-ins/Temporal/PlainDate/prototype/since/argument-string-invalid.js
     - test/built-ins/Temporal/PlainDate/prototype/since/calendar-temporal-object.js
     - test/built-ins/Temporal/PlainDate/prototype/since/order-of-operations.js
     - test/built-ins/Temporal/PlainDate/prototype/subtract/balance-smaller-units.js
     - test/built-ins/Temporal/PlainDate/prototype/toPlainDateTime/argument-object.js
+    - test/built-ins/Temporal/PlainDate/prototype/toPlainDateTime/argument-string-calendar-annotation.js
     - test/built-ins/Temporal/PlainDate/prototype/toPlainDateTime/argument-string-time-designator-required-for-disambiguation.js
+    - test/built-ins/Temporal/PlainDate/prototype/toPlainDateTime/argument-string-time-zone-annotation.js
+    - test/built-ins/Temporal/PlainDate/prototype/toPlainDateTime/argument-string-unknown-annotation.js
     - test/built-ins/Temporal/PlainDate/prototype/toPlainDateTime/basic.js
     - test/built-ins/Temporal/PlainDate/prototype/toString/calendarname-always.js
     - test/built-ins/Temporal/PlainDate/prototype/toString/calendarname-auto.js
@@ -254,6 +337,7 @@ skip:
     - test/built-ins/Temporal/PlainDate/prototype/until/argument-propertybag-calendar-leap-second.js
     - test/built-ins/Temporal/PlainDate/prototype/until/argument-propertybag-calendar-number.js
     - test/built-ins/Temporal/PlainDate/prototype/until/argument-propertybag-calendar-wrong-type.js
+    - test/built-ins/Temporal/PlainDate/prototype/until/argument-string-calendar-annotation.js
     - test/built-ins/Temporal/PlainDate/prototype/until/argument-string-invalid.js
     - test/built-ins/Temporal/PlainDate/prototype/until/calendar-temporal-object.js
     - test/built-ins/Temporal/PlainDate/prototype/until/order-of-operations.js
@@ -262,9 +346,6 @@ skip:
     - test/built-ins/Temporal/PlainDateTime/compare/argument-propertybag-calendar-leap-second.js
     - test/built-ins/Temporal/PlainDateTime/compare/argument-propertybag-calendar-number.js
     - test/built-ins/Temporal/PlainDateTime/compare/argument-propertybag-calendar-wrong-type.js
-    - test/built-ins/Temporal/PlainDateTime/compare/argument-string-calendar-annotation.js
-    - test/built-ins/Temporal/PlainDateTime/compare/argument-string-time-zone-annotation.js
-    - test/built-ins/Temporal/PlainDateTime/compare/argument-string-unknown-annotation.js
     - test/built-ins/Temporal/PlainDateTime/compare/calendar-temporal-object.js
     - test/built-ins/Temporal/PlainDateTime/constructor-full.js
     - test/built-ins/Temporal/PlainDateTime/from/argument-plaindate.js
@@ -284,6 +365,8 @@ skip:
     - test/built-ins/Temporal/PlainDateTime/prototype/equals/argument-propertybag-calendar-leap-second.js
     - test/built-ins/Temporal/PlainDateTime/prototype/equals/argument-propertybag-calendar-number.js
     - test/built-ins/Temporal/PlainDateTime/prototype/equals/argument-propertybag-calendar-wrong-type.js
+    - test/built-ins/Temporal/PlainDateTime/prototype/equals/argument-string-calendar-annotation.js
+    - test/built-ins/Temporal/PlainDateTime/prototype/equals/argument-string-time-zone-annotation.js
     - test/built-ins/Temporal/PlainDateTime/prototype/equals/calendar-temporal-object.js
     - test/built-ins/Temporal/PlainDateTime/prototype/round/smallestunit-plurals-accepted.js
     - test/built-ins/Temporal/PlainDateTime/prototype/round/smallestunit-string-shorthand.js
@@ -295,7 +378,10 @@ skip:
     - test/built-ins/Temporal/PlainDateTime/prototype/toString/calendarname-undefined.js
     - test/built-ins/Temporal/PlainDateTime/prototype/toString/calendarname-wrong-type.js
     - test/built-ins/Temporal/PlainDateTime/prototype/with/calendar-temporal-object-throws.js
+    - test/built-ins/Temporal/PlainDateTime/prototype/withPlainTime/argument-string-calendar-annotation.js
     - test/built-ins/Temporal/PlainDateTime/prototype/withPlainTime/argument-string-time-designator-required-for-disambiguation.js
+    - test/built-ins/Temporal/PlainDateTime/prototype/withPlainTime/argument-string-time-zone-annotation.js
+    - test/built-ins/Temporal/PlainDateTime/prototype/withPlainTime/argument-string-unknown-annotation.js
     - test/built-ins/Temporal/PlainTime/compare/argument-string-time-designator-required-for-disambiguation.js
     - test/built-ins/Temporal/PlainTime/from/argument-string-time-designator-required-for-disambiguation.js
     - test/built-ins/Temporal/PlainTime/prototype/equals/argument-string-time-designator-required-for-disambiguation.js
@@ -329,60 +415,11 @@ skip:
     - test/intl402/Temporal/Instant/prototype/toString/timezone-string-datetime.js
 
     # Depends on annotations in datetime strings
-    - test/built-ins/Temporal/Instant/compare/argument-string-calendar-annotation.js
-    - test/built-ins/Temporal/Instant/compare/argument-string-time-zone-annotation.js
-    - test/built-ins/Temporal/Instant/compare/argument-string-unknown-annotation.js
-    - test/built-ins/Temporal/Instant/from/argument-string-calendar-annotation.js
-    - test/built-ins/Temporal/Instant/from/argument-string-time-zone-annotation.js
-    - test/built-ins/Temporal/Instant/from/argument-string-unknown-annotation.js
-    - test/built-ins/Temporal/Instant/prototype/equals/argument-string-calendar-annotation.js
-    - test/built-ins/Temporal/Instant/prototype/equals/argument-string-time-zone-annotation.js
-    - test/built-ins/Temporal/Instant/prototype/equals/argument-string-unknown-annotation.js
-    - test/built-ins/Temporal/Instant/prototype/since/argument-string-calendar-annotation.js
-    - test/built-ins/Temporal/Instant/prototype/since/argument-string-time-zone-annotation.js
-    - test/built-ins/Temporal/Instant/prototype/since/argument-string-unknown-annotation.js
-    - test/built-ins/Temporal/Instant/prototype/until/argument-string-calendar-annotation.js
-    - test/built-ins/Temporal/Instant/prototype/until/argument-string-time-zone-annotation.js
-    - test/built-ins/Temporal/Instant/prototype/until/argument-string-unknown-annotation.js
-    - test/built-ins/Temporal/PlainDate/compare/argument-string-calendar-annotation.js
     - test/built-ins/Temporal/PlainDate/compare/argument-string-time-zone-annotation.js
-    - test/built-ins/Temporal/PlainDate/compare/argument-string-unknown-annotation.js
-    - test/built-ins/Temporal/PlainDate/from/argument-string-calendar-annotation.js
     - test/built-ins/Temporal/PlainDate/from/argument-string-time-zone-annotation.js
-    - test/built-ins/Temporal/PlainDate/from/argument-string-unknown-annotation.js
-    - test/built-ins/Temporal/PlainDate/prototype/equals/argument-string-calendar-annotation.js
     - test/built-ins/Temporal/PlainDate/prototype/equals/argument-string-time-zone-annotation.js
-    - test/built-ins/Temporal/PlainDate/prototype/equals/argument-string-unknown-annotation.js
-    - test/built-ins/Temporal/PlainDate/prototype/since/argument-string-calendar-annotation.js
     - test/built-ins/Temporal/PlainDate/prototype/since/argument-string-time-zone-annotation.js
-    - test/built-ins/Temporal/PlainDate/prototype/since/argument-string-unknown-annotation.js
-    - test/built-ins/Temporal/PlainDate/prototype/toPlainDateTime/argument-string-calendar-annotation.js
-    - test/built-ins/Temporal/PlainDate/prototype/toPlainDateTime/argument-string-time-zone-annotation.js
-    - test/built-ins/Temporal/PlainDate/prototype/toPlainDateTime/argument-string-unknown-annotation.js
-    - test/built-ins/Temporal/PlainDate/prototype/until/argument-string-calendar-annotation.js
     - test/built-ins/Temporal/PlainDate/prototype/until/argument-string-time-zone-annotation.js
-    - test/built-ins/Temporal/PlainDate/prototype/until/argument-string-unknown-annotation.js
-    - test/built-ins/Temporal/PlainDateTime/prototype/equals/argument-string-calendar-annotation.js
-    - test/built-ins/Temporal/PlainDateTime/prototype/equals/argument-string-time-zone-annotation.js
-    - test/built-ins/Temporal/PlainDateTime/prototype/equals/argument-string-unknown-annotation.js
-    - test/built-ins/Temporal/PlainDateTime/prototype/withPlainTime/argument-string-calendar-annotation.js
-    - test/built-ins/Temporal/PlainDateTime/prototype/withPlainTime/argument-string-time-zone-annotation.js
-    - test/built-ins/Temporal/PlainDateTime/prototype/withPlainTime/argument-string-unknown-annotation.js
-    - test/built-ins/Temporal/PlainTime/compare/argument-string-calendar-annotation.js
-    - test/built-ins/Temporal/PlainTime/compare/argument-string-time-zone-annotation.js
-    - test/built-ins/Temporal/PlainTime/compare/argument-string-unknown-annotation.js
-    - test/built-ins/Temporal/PlainTime/from/argument-string-calendar-annotation.js
-    - test/built-ins/Temporal/PlainTime/from/argument-string-time-zone-annotation.js
-    - test/built-ins/Temporal/PlainTime/from/argument-string-unknown-annotation.js
-    - test/built-ins/Temporal/PlainTime/prototype/equals/argument-string-calendar-annotation.js
-    - test/built-ins/Temporal/PlainTime/prototype/equals/argument-string-time-zone-annotation.js
-    - test/built-ins/Temporal/PlainTime/prototype/equals/argument-string-unknown-annotation.js
-    - test/built-ins/Temporal/PlainTime/prototype/since/argument-string-calendar-annotation.js
-    - test/built-ins/Temporal/PlainTime/prototype/since/argument-string-time-zone-annotation.js
-    - test/built-ins/Temporal/PlainTime/prototype/since/argument-string-unknown-annotation.js
-    - test/built-ins/Temporal/PlainTime/prototype/until/argument-string-calendar-annotation.js
-    - test/built-ins/Temporal/PlainTime/prototype/until/argument-string-time-zone-annotation.js
-    - test/built-ins/Temporal/PlainTime/prototype/until/argument-string-unknown-annotation.js
 
     # Depends on Temporal.ZonedDateTime
     - test/built-ins/Temporal/Duration/compare/relativeto-zoneddatetime-negative-epochnanoseconds.js

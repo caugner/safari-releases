@@ -11,7 +11,6 @@
 #include "include/codec/SkPixmapUtils.h"
 #include "include/core/SkAlphaType.h"
 #include "include/core/SkBitmap.h"
-#include "include/core/SkColorPriv.h"
 #include "include/core/SkColorSpace.h"
 #include "include/core/SkColorType.h"
 #include "include/core/SkData.h"
@@ -26,6 +25,7 @@
 #include "src/codec/SkFrameHolder.h"
 #include "src/codec/SkPixmapUtilsPriv.h"
 #include "src/codec/SkSampler.h"
+#include "src/core/SkColorPriv.h"
 
 #include <string>
 #include <string_view>
@@ -79,10 +79,6 @@
 #endif
 #endif // !defined(SK_DISABLE_LEGACY_INIT_DECODERS)
 
-#if defined(SK_BUILD_FOR_ANDROID_FRAMEWORK)
-#include "cutils/properties.h"
-#endif // defined(SK_BUILD_FOR_ANDROID_FRAMEWORK)
-
 namespace SkCodecs {
 // A static variable inside a function avoids a static initializer.
 // https://chromium.googlesource.com/chromium/src/+/HEAD/docs/static_initializers.md#removing-static-initializers
@@ -115,14 +111,7 @@ static std::vector<Decoder>* get_decoders_for_editing() {
 #endif
 #if defined(SK_CODEC_DECODES_AVIF)
 #if defined(SK_BUILD_FOR_ANDROID_FRAMEWORK)
-            // Register CrabbyAvif based SkAvifDecoder on the Android framework
-            // if it is allowed. Otherwise Android framework will use
-            // SkHeifDecoder for decoding AVIF.
-            // TODO: Codec registration for the Android framework has to be
-            // moved outside of skia and this logic has to be moved there.
-            if (property_get_int32("media.avif.crabbyavif", 0) != 0) {
-                decoders->push_back(SkAvifDecoder::CrabbyAvif::Decoder());
-            }
+            decoders->push_back(SkAvifDecoder::CrabbyAvif::Decoder());
 #else
             decoders->push_back(SkAvifDecoder::LibAvif::Decoder());
 #endif
@@ -532,7 +521,7 @@ SkCodec::Result SkCodec::getPixels(const SkImageInfo& info, void* pixels, size_t
     // their own.  They indicate that all of the memory has been filled by
     // setting rowsDecoded equal to the height.
     if ((kIncompleteInput == result || kErrorInInput == result) && rowsDecoded != info.height()) {
-        // FIXME: (skbug.com/5772) fillIncompleteImage will fill using the swizzler's width, unless
+        // FIXME: (skbug.com/40036982) fillIncompleteImage will fill using the swizzler's width, unless
         // there is a subset. In that case, it will use the width of the subset. From here, the
         // subset will only be non-null in the case of SkWebpCodec, but it treats the subset
         // differenty from the other codecs, and it needs to use the width specified by the info.

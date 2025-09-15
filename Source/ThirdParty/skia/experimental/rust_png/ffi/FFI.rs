@@ -7,16 +7,14 @@
 //! The public API of this crate is the C++ API declared by the `#[cxx::bridge]`
 //! macro below and exposed through the auto-generated `FFI.rs.h` header.
 
-use std::io::{ErrorKind, Read, Write};
+use std::borrow::Cow;
+use std::io::{BufReader, ErrorKind, Read, Seek, SeekFrom, Write};
 use std::pin::Pin;
 
 // No `use png::...` nor `use ffi::...` because we want the code to explicitly
 // spell out if it means `ffi::ColorType` vs `png::ColorType` (or `Reader`
 // vs `png::Reader`).
 
-// TODO(https://crbug.com/383521545): Remove `allow(unused_unsafe)` if/when
-// `cxx`-generated code is clean of warnings.
-#[allow(unused_unsafe)]
 #[cxx::bridge(namespace = "rust_png")]
 mod ffi {
     /// FFI-friendly equivalent of `png::ColorType`.
@@ -37,11 +35,8 @@ mod ffi {
         /// `IncompleteInput` is equivalent to `png::DecodingError::IoError(
         /// std::io::ErrorKind::UnexpectedEof.into())`.  It is named after
         /// `SkCodec::Result::kIncompleteInput`.
-        ///
-        /// `ReadTrait` is infallible and therefore we provide no generic
-        /// equivalent of the `png::DecodingError::IoError` variant
-        /// (other than the special case of `IncompleteInput`).
         IncompleteInput,
+        OtherIoError,
     }
 
     /// FFI-friendly equivalent of `png::DisposeOp`.
@@ -57,11 +52,12 @@ mod ffi {
         Over,
     }
 
-    /// FFI-friendly simplification of `png::CompressionLevel`.
+    /// FFI-friendly simplification of `png::Compression`.
     enum Compression {
-        Default,
+        Fastest,
         Fast,
-        Best,
+        Balanced,
+        High,
     }
 
     /// FFI-friendly simplification of `Option<png::EncodingError>`.
@@ -76,8 +72,23 @@ mod ffi {
     unsafe extern "C++" {
         include!("experimental/rust_png/ffi/FFI.h");
 
-        type ReadTrait;
-        fn read(self: Pin<&mut ReadTrait>, buffer: &mut [u8]) -> usize;
+        type ReadAndSeekTraits;
+        fn read(self: Pin<&mut ReadAndSeekTraits>, buffer: &mut [u8]) -> usize;
+        fn seek_from_start(
+            self: Pin<&mut ReadAndSeekTraits>,
+            requested_pos: u64,
+            final_pos: &mut u64,
+        ) -> bool;
+        fn seek_from_end(
+            self: Pin<&mut ReadAndSeekTraits>,
+            requested_offset: i64,
+            final_pos: &mut u64,
+        ) -> bool;
+        fn seek_relative(
+            self: Pin<&mut ReadAndSeekTraits>,
+            requested_offset: i64,
+            final_pos: &mut u64,
+        ) -> bool;
 
         type WriteTrait;
         fn write(self: Pin<&mut WriteTrait>, buffer: &[u8]) -> bool;
@@ -90,7 +101,7 @@ mod ffi {
     // section. The doc comments of these items can instead be found in the
     // actual Rust code, outside of the `#[cxx::bridge]` manifest.
     extern "Rust" {
-        fn new_reader(input: UniquePtr<ReadTrait>) -> Box<ResultOfReader>;
+        fn new_reader(input: UniquePtr<ReadAndSeekTraits>) -> Box<ResultOfReader>;
 
         type ResultOfReader;
         fn err(self: &ResultOfReader) -> DecodingResult;
@@ -120,6 +131,8 @@ mod ffi {
             is_full_range: &mut bool,
         ) -> bool;
         fn try_get_gama(self: &Reader, gamma: &mut f32) -> bool;
+        fn has_exif_chunk(self: &Reader) -> bool;
+        fn get_exif_chunk(self: &Reader) -> &[u8];
         fn has_iccp_chunk(self: &Reader) -> bool;
         fn get_iccp_chunk(self: &Reader) -> &[u8];
         fn has_trns_chunk(self: &Reader) -> bool;
@@ -163,6 +176,7 @@ mod ffi {
             color: ColorType,
             bits_per_component: u8,
             compression: Compression,
+            icc_profile: &[u8],
         ) -> Box<ResultOfWriter>;
 
         type ResultOfWriter;
@@ -237,9 +251,7 @@ impl From<Option<&png::DecodingError>> for ffi::DecodingResult {
                     if e.kind() == ErrorKind::UnexpectedEof {
                         Self::IncompleteInput
                     } else {
-                        // `ReadTrait` is infallible => we expect no other kind of
-                        // `png::DecodingError::IoError`.
-                        unreachable!()
+                        Self::OtherIoError
                     }
                 }
                 png::DecodingError::Format(_) => Self::FormatError,
@@ -250,12 +262,13 @@ impl From<Option<&png::DecodingError>> for ffi::DecodingResult {
     }
 }
 
-impl Into<png::Compression> for ffi::Compression {
-    fn into(self) -> png::Compression {
+impl ffi::Compression {
+    fn apply<'a, W: Write>(&self, encoder: &mut png::Encoder<'a, W>) {
         match self {
-            Self::Default => png::Compression::Default,
-            Self::Fast => png::Compression::Fast,
-            Self::Best => png::Compression::Best,
+            &Self::Fastest => encoder.set_compression(png::Compression::Fastest),
+            &Self::Fast => encoder.set_compression(png::Compression::Fast),
+            &Self::Balanced => encoder.set_compression(png::Compression::Balanced),
+            &Self::High => encoder.set_compression(png::Compression::High),
             _ => unreachable!(),
         }
     }
@@ -275,9 +288,25 @@ impl From<Option<&png::EncodingError>> for ffi::EncodingResult {
     }
 }
 
-impl<'a> Read for Pin<&'a mut ffi::ReadTrait> {
+impl<'a> Read for Pin<&'a mut ffi::ReadAndSeekTraits> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         Ok(self.as_mut().read(buf))
+    }
+}
+
+impl<'a> Seek for Pin<&'a mut ffi::ReadAndSeekTraits> {
+    fn seek(&mut self, pos: SeekFrom) -> std::io::Result<u64> {
+        let mut new_pos = 0;
+        let success = match pos {
+            SeekFrom::Start(pos) => self.as_mut().seek_from_start(pos, &mut new_pos),
+            SeekFrom::End(offset) => self.as_mut().seek_from_end(offset, &mut new_pos),
+            SeekFrom::Current(offset) => self.as_mut().seek_relative(offset, &mut new_pos),
+        };
+        if success {
+            Ok(new_pos)
+        } else {
+            Err(ErrorKind::Other.into())
+        }
     }
 }
 
@@ -360,15 +389,30 @@ fn compute_transformations(info: &png::Info) -> png::Transformations {
 /// generics, so we manually monomorphize here, but still expose a minimal,
 /// somewhat tweaked API of the original type).
 struct Reader {
-    reader: png::Reader<cxx::UniquePtr<ffi::ReadTrait>>,
+    reader: png::Reader<BufReader<cxx::UniquePtr<ffi::ReadAndSeekTraits>>>,
     last_interlace_info: Option<png::InterlaceInfo>,
 }
 
 impl Reader {
-    fn new(input: cxx::UniquePtr<ffi::ReadTrait>) -> Result<Self, png::DecodingError> {
-        // By default, the decoder is limited to using 64 Mib. If we ever need to change
-        // that, we can use `png::Decoder::new_with_limits`.
-        let mut decoder = png::Decoder::new(input);
+    fn new(input: cxx::UniquePtr<ffi::ReadAndSeekTraits>) -> Result<Self, png::DecodingError> {
+        // The magic value of `BUF_CAPACITY` is based on `CHUNK_BUFFER_SIZE` which was
+        // used in `BufReader::with_capacity` calls by `png` crate up to version
+        // 0.17.16 - see: https://github.com/image-rs/image-png/pull/558/files#diff-c28833b65510e37441203b4256b74068f191d29ea34b6e753442e644d3a316b8L28
+        // and
+        // https://github.com/image-rs/image-png/blob/eb9b5d7f371b88f15aaca6a8d21c58b86c400d76/src/decoder/stream.rs#L21
+        const BUF_CAPACITY: usize = 32 * 1024;
+        // TODO(https://crbug.com/399894620): Consider instead implementing `BufRead` on top of
+        // `SkStream` API when/if possible in the future.
+        let input = BufReader::with_capacity(BUF_CAPACITY, input);
+
+        let mut decoder = {
+            // By default, `DecodeOptions` cap the memory usage at using 64 Mib.
+            let mut options = png::DecodeOptions::default();
+            if cfg!(FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION) {
+                options.set_ignore_checksums(true);
+            }
+            png::Decoder::new_with_options(input, options)
+        };
 
         let info = decoder.read_header_info()?;
         let transformations = compute_transformations(info);
@@ -410,8 +454,8 @@ impl Reader {
         by: &mut f32,
     ) -> bool {
         fn copy_channel(channel: &(png::ScaledFloat, png::ScaledFloat), x: &mut f32, y: &mut f32) {
-            *x = channel.0.into_value();
-            *y = channel.1.into_value();
+            *x = png_u32_into_f32(channel.0);
+            *y = png_u32_into_f32(channel.1);
         }
 
         match self.reader.info().chrm_chunk.as_ref() {
@@ -454,11 +498,22 @@ impl Reader {
     fn try_get_gama(&self, gamma: &mut f32) -> bool {
         match self.reader.info().gama_chunk.as_ref() {
             None => false,
-            Some(scaled_float) => {
-                *gamma = scaled_float.into_value();
+            Some(&scaled_float) => {
+                *gamma = png_u32_into_f32(scaled_float);
                 true
             }
         }
+    }
+
+    /// Returns whether the `eXIf` chunk exists.
+    fn has_exif_chunk(&self) -> bool {
+        self.reader.info().exif_metadata.is_some()
+    }
+
+    /// Returns contents of the `eXIf` chunk.  Panics if there is no `eXIf`
+    /// chunk.
+    fn get_exif_chunk(&self) -> &[u8] {
+        self.reader.info().exif_metadata.as_ref().unwrap().as_ref()
     }
 
     /// Returns whether the `iCCP` chunk exists.
@@ -582,8 +637,7 @@ impl Reader {
     /// Decodes the next row - see
     /// https://docs.rs/png/latest/png/struct.Reader.html#method.next_interlaced_row
     ///
-    /// TODO(https://crbug.com/357876243): Consider using `read_row` to avoid an extra copy.
-    /// See also https://github.com/image-rs/image-png/pull/493
+    /// TODO(https://crbug.com/399891492): Consider using `read_row` to avoid an extra copy.
     fn next_interlaced_row<'a>(&'a mut self, row: &mut &'a [u8]) -> ffi::DecodingResult {
         let result = self.reader.next_interlaced_row();
         if let Ok(maybe_row) = result.as_ref() {
@@ -610,8 +664,16 @@ impl Reader {
     }
 }
 
+fn png_u32_into_f32(v: png::ScaledFloat) -> f32 {
+    // This uses `0.00001_f32 * (v.into_scaled() as f32)` instead of just
+    // `v.into_value()` for compatibility with the legacy implementation
+    // of `ReadColorProfile` in
+    // `.../blink/renderer/platform/image-decoders/png/png_image_decoder.cc`.
+    0.00001_f32 * (v.into_scaled() as f32)
+}
+
 /// This provides a public C++ API for decoding a PNG image.
-fn new_reader(input: cxx::UniquePtr<ffi::ReadTrait>) -> Box<ResultOfReader> {
+fn new_reader(input: cxx::UniquePtr<ffi::ReadAndSeekTraits>) -> Box<ResultOfReader> {
     Box::new(ResultOfReader(Reader::new(input)))
 }
 
@@ -647,22 +709,22 @@ impl Writer {
         color: ffi::ColorType,
         bits_per_component: u8,
         compression: ffi::Compression,
+        icc_profile: &[u8],
     ) -> Result<Self, png::EncodingError> {
-        let mut encoder = png::Encoder::new(output, width, height);
-        encoder.set_color(color.into());
-        encoder.set_depth(match bits_per_component {
+        let mut info = png::Info::with_size(width, height);
+        info.color_type = color.into();
+        info.bit_depth = match bits_per_component {
             8 => png::BitDepth::Eight,
             16 => png::BitDepth::Sixteen,
 
             // `SkPngRustEncoderImpl` only encodes 8-bit or 16-bit images.
             _ => unreachable!(),
-        });
-        encoder.set_compression(compression.into());
-        encoder.set_adaptive_filter(match compression {
-            ffi::Compression::Fast => png::AdaptiveFilterType::NonAdaptive,
-            ffi::Compression::Default | ffi::Compression::Best => png::AdaptiveFilterType::Adaptive,
-            _ => unreachable!(),
-        });
+        };
+        if !icc_profile.is_empty() {
+            info.icc_profile = Some(Cow::Owned(icc_profile.to_owned()));
+        }
+        let mut encoder = png::Encoder::with_info(output, info)?;
+        compression.apply(&mut encoder);
 
         let writer = encoder.write_header()?;
         Ok(Self(writer))
@@ -753,6 +815,8 @@ impl StreamWriter {
 }
 
 /// This provides a public C++ API for encoding a PNG image.
+///
+/// `icc_profile` set to an empty slice acts as null / `None`.
 fn new_writer(
     output: cxx::UniquePtr<ffi::WriteTrait>,
     width: u32,
@@ -760,6 +824,7 @@ fn new_writer(
     color: ffi::ColorType,
     bits_per_component: u8,
     compression: ffi::Compression,
+    icc_profile: &[u8],
 ) -> Box<ResultOfWriter> {
     Box::new(ResultOfWriter(Writer::new(
         output,
@@ -768,6 +833,7 @@ fn new_writer(
         color,
         bits_per_component,
         compression,
+        icc_profile,
     )))
 }
 

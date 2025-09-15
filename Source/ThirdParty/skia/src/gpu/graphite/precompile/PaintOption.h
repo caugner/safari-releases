@@ -30,17 +30,8 @@ public:
                 const std::pair<sk_sp<PrecompileColorFilter>, int>& colorFilter,
                 bool hasPrimitiveBlender,
                 const std::pair<sk_sp<PrecompileShader>, int>& clipShader,
-                DstReadRequirement dstReadReq,
-                bool dither)
-        : fOpaquePaintColor(opaquePaintColor)
-        , fFinalBlender(finalBlender)
-        , fShader(shader)
-        , fColorFilter(colorFilter)
-        , fHasPrimitiveBlender(hasPrimitiveBlender)
-        , fClipShader(clipShader)
-        , fDstReadReq(dstReadReq)
-        , fDither(dither) {
-    }
+                bool dstReadRequired,
+                bool dither);
 
     const PrecompileBlender* finalBlender() const { return fFinalBlender.first.get(); }
 
@@ -62,7 +53,7 @@ private:
     std::pair<sk_sp<PrecompileColorFilter>, int> fColorFilter;
     bool fHasPrimitiveBlender;
     std::pair<sk_sp<PrecompileShader>, int> fClipShader;
-    DstReadRequirement fDstReadReq;
+    bool fDstReadRequired;
     bool fDither;
 };
 

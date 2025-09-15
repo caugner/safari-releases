@@ -21,8 +21,6 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/css/css-fonts/support/fonts/FontWithFancyFeatures.otf
 /LayoutTests/imported/w3c/web-platform-tests/css/css-fonts/support/fonts/FontWithFeatures2.otf
 /LayoutTests/imported/w3c/web-platform-tests/css/css-fonts/support/fonts/Inter-VF.subset.ttf
-/LayoutTests/imported/w3c/web-platform-tests/css/css-fonts/support/fonts/Lato-Medium-Liga.ttf
-/LayoutTests/imported/w3c/web-platform-tests/css/css-fonts/support/fonts/Lato-Medium.ttf
 /LayoutTests/imported/w3c/web-platform-tests/css/css-fonts/support/fonts/LigatureSymbolsWithSpaces.woff
 /LayoutTests/imported/w3c/web-platform-tests/css/css-fonts/support/fonts/LinLibertine_Re-4.7.5.woff
 /LayoutTests/imported/w3c/web-platform-tests/css/css-fonts/support/fonts/RobotoExtremo-VF.subset.ttf
@@ -36,3 +34,4 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/css/css-fonts/support/fonts/makegsubfonts.py
 /LayoutTests/imported/w3c/web-platform-tests/css/css-fonts/support/fonts/pass.woff
 /LayoutTests/imported/w3c/web-platform-tests/css/css-fonts/support/fonts/roboto_var_light_range.ttf
+/LayoutTests/imported/w3c/web-platform-tests/css/css-fonts/support/fonts/w3c-import.log

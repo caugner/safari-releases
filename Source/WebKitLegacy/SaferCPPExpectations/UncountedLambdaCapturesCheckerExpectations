@@ -1,3 +1,4 @@
 Storage/StorageAreaImpl.cpp
-WebCoreSupport/SocketStreamHandleImplCFNet.cpp
+Storage/StorageThread.cpp
+WebCoreSupport/WebResourceLoadScheduler.cpp
 mac/WebCoreSupport/WebFrameLoaderClient.mm

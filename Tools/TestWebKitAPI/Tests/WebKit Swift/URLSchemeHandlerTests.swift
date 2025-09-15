@@ -24,15 +24,32 @@
 #if ENABLE_SWIFTUI && canImport(Testing) && compiler(>=6.0)
 
 import Testing
-@_spi(Private) import WebKit
+import WebKit
 
-fileprivate struct TestURLSchemeHandler: URLSchemeHandler_v0, Sendable {
+struct TestURLSchemeHandler: URLSchemeHandler, Sendable {
     struct Failure: Error {
     }
 
-    init(data: Data, mimeType: String) {
+    struct Delays: Hashable, Sendable {
+        let beforeYield: Duration
+        let beforeFinish: Duration
+    }
+
+    enum Execution: String, CaseIterable, Hashable, RawRepresentable, Sendable {
+        case sync
+        case async
+    }
+
+    init(
+        data: Data,
+        mimeType: String,
+        delays: Delays = .init(beforeYield: .zero, beforeFinish: .zero),
+        execution: Execution = .sync
+    ) {
         self.data = data
         self.mimeType = mimeType
+        self.delays = delays
+        self.execution = execution
 
         (self.replyStream, self.replyContinuation) = AsyncStream.makeStream(of: URL.self)
     }
@@ -42,23 +59,50 @@ fileprivate struct TestURLSchemeHandler: URLSchemeHandler_v0, Sendable {
     private let data: Data
     private let mimeType: String
     private let replyContinuation: AsyncStream<URL>.Continuation
+    private let delays: Delays
+    private let execution: Execution
 
-    func reply(for request: URLRequest) -> AsyncThrowingStream<URLSchemeTaskResult_v0, any Error> {
+    func reply(for request: URLRequest) -> AsyncThrowingStream<URLSchemeTaskResult, any Error> {
         AsyncThrowingStream { continuation in
-            defer {
-                replyContinuation.yield(request.url!)
+            guard let url = request.url else {
+                fatalError()
             }
 
-            guard request.url!.absoluteString != "testing:image" else {
+            guard url.absoluteString != "testing:image" else {
                 continuation.finish(throwing: Failure())
+                replyContinuation.yield(url)
                 return
             }
 
-            let response = URLResponse(url: request.url!, mimeType: mimeType, expectedContentLength: 2, textEncodingName: nil)
-            continuation.yield(.response(response))
-            continuation.yield(.data(data))
+            let yieldResponse = {
+                let response = URLResponse(url: url, mimeType: mimeType, expectedContentLength: 2, textEncodingName: nil)
+                continuation.yield(.response(response))
+            }
 
-            continuation.finish()
+            let yieldDataAndFinish = {
+                continuation.yield(.data(data))
+
+                continuation.finish()
+                replyContinuation.yield(url)
+            }
+
+            switch execution {
+            case .sync:
+                sleep(UInt32(delays.beforeYield.components.seconds))
+                yieldResponse()
+
+                sleep(UInt32(delays.beforeYield.components.seconds))
+                yieldDataAndFinish()
+
+            case .async:
+                Task {
+                    try await Task.sleep(for: delays.beforeYield)
+                    yieldResponse()
+
+                    try await Task.sleep(for: delays.beforeFinish)
+                    yieldDataAndFinish()
+                }
+            }
         }
     }
 }
@@ -69,14 +113,65 @@ fileprivate struct TestURLSchemeHandler: URLSchemeHandler_v0, Sendable {
 struct URLSchemeHandlerTests {
     @Test
     func basicSchemeValidation() async throws {
-        let customScheme = URLScheme_v0("my-custom-scheme")
+        let customScheme = URLScheme("my-custom-scheme")
         #expect(customScheme != nil)
 
-        let httpsScheme = URLScheme_v0("https")
+        let httpsScheme = URLScheme("https")
         #expect(httpsScheme == nil)
 
-        let invalidScheme = URLScheme_v0("invalid scheme")
+        let invalidScheme = URLScheme("invalid scheme")
         #expect(invalidScheme == nil)
+    }
+
+    @Test(
+        .bug("https://bugs.webkit.org/show_bug.cgi?id=295741"),
+        arguments: [
+            TestURLSchemeHandler.Delays(beforeYield: .seconds(2), beforeFinish: .zero),
+            TestURLSchemeHandler.Delays(beforeYield: .zero, beforeFinish: .seconds(2)),
+        ],
+        TestURLSchemeHandler.Execution.allCases
+    )
+    func navigatingToNewResourceWhileSchemeHandlerIsStillProcessingDoesNotFail(
+        delays: TestURLSchemeHandler.Delays,
+        execution: TestURLSchemeHandler.Execution
+    ) async throws {
+        let html = try #require("<html></html>".data(using: .utf8))
+
+        let handler = TestURLSchemeHandler(data: html, mimeType: "text/html", delays: delays, execution: execution)
+
+        var configuration = WebPage.Configuration()
+        configuration.urlSchemeHandlers[URLScheme("testing")!] = handler
+
+        let page = WebPage(configuration: configuration)
+
+        var firstEvents: [WebPage.NavigationEvent] = []
+        var secondEvents: [WebPage.NavigationEvent] = []
+
+        do {
+            for try await firstEvent in page.load(URL(string: "testing://main")) {
+                firstEvents.append(firstEvent)
+
+                if firstEvent == .startedProvisionalNavigation {
+                    do {
+                        for try await secondEvent in page.load(URL(string: "testing://main2")) {
+                            secondEvents.append(secondEvent)
+                        }
+                    } catch {
+                        Issue.record("Second navigation unexpectedly threw an error")
+                    }
+                }
+            }
+        } catch let error as WebPage.NavigationError {
+            guard case .failedProvisionalNavigation = error else {
+                Issue.record("Thrown error was expected to be failedProvisionalNavigation")
+                return
+            }
+        }
+
+        // In the failing case, the test will also crash and/or hang and not even reach this point.
+
+        #expect(firstEvents == [.startedProvisionalNavigation])
+        #expect(secondEvents == [.startedProvisionalNavigation, .committed, .finished])
     }
 
     @Test
@@ -88,10 +183,10 @@ struct URLSchemeHandlerTests {
         """.data(using: .utf8)!
 
         let handler = TestURLSchemeHandler(data: html, mimeType: "text/html")
-        var configuration = WebPage_v0.Configuration()
-        configuration.urlSchemeHandlers[URLScheme_v0("testing")!] = handler
+        var configuration = WebPage.Configuration()
+        configuration.urlSchemeHandlers[URLScheme("testing")!] = handler
 
-        let page = WebPage_v0(configuration: configuration)
+        let page = WebPage(configuration: configuration)
 
         let url = URL(string: "testing:main")!
         let request = URLRequest(url: url)

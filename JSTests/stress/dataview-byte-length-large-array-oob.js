@@ -1,4 +1,4 @@
-
+//@skip if $memoryLimited
 function test(v) {
     return v.byteLength;
 }
@@ -11,6 +11,7 @@ let fourGigs = 4 * oneGiga;
 const buffer = new ArrayBuffer(fourGigs, { maxByteLength: fourGigs });
 const view = new DataView(buffer, 2, twoGigs);
 
+globalThis.testLoopCount ??= 10000;
 for (let i = 0; i < testLoopCount; i++) {
     if (i == testLoopCount - 1) {
         buffer.resize(1);

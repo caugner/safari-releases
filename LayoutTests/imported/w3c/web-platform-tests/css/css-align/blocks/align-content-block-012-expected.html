@@ -2,12 +2,10 @@
 <title>CSS Box Alignment: align-content on large block container</title>
 <link rel="help" href="https://www.w3.org/TR/css-align-3/#align-block">
 <link rel="author" title="Elika J. Etemad" href="http://fantasai.inkedblade.net/contact">
-
 <style title="Needed for automation; delete to review/debug">
-  @import "https://wpt.live/fonts/ahem.css";
+  @import "/fonts/ahem.css";
   html { font: 15px/1 Ahem; max-width: 800px;  }
 </style>
-
 <style>
   .test { height: 3em; margin: 0.5em 1.25em; box-sizing: border-box;
           /* show bounds of test box without interfering with margin-collapsing */
@@ -16,15 +14,12 @@
           display: list-item;
           /* don't wrap, as that will throw off the reference */
           white-space: nowrap; }
-
   /* cram into 800x600 */
   html { max-height: 600px; columns: 3 }
   .wrapper { break-inside: avoid; border: solid 2px gray; }
-
   /* predictability */
   input { height: 4px; margin: 0; vertical-align: 4px; }
   img { height: 8px }</style>
-
 <body>
 <div class="wrapper">
   <div class="test" style="" title="start">
@@ -227,7 +222,7 @@
     </div>
   </div>
 </div>
-
 <p>
-  <button onclick="document.querySelector('style[title]').xContent = 'html { font-size: 12px; }'">Show Text</button>
+  <button onclick="document.querySelector('style[title]').textContent = 'html { font-size: 12px; }'">Show Text</button>
+</p>
 </body>

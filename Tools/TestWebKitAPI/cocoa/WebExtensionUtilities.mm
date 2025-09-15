@@ -40,12 +40,16 @@
 #import <WebKit/WKWebViewPrivate.h>
 #import <wtf/cocoa/TypeCastsCocoa.h>
 
+// Enable this to test all web extension tests with site isolation.
+static constexpr BOOL shouldEnableSiteIsolation = NO;
+
 @interface TestWebExtensionManager () <WKWebExtensionControllerDelegatePrivate>
 @end
 
 @implementation TestWebExtensionManager {
     bool _done;
     bool _receivedMessage;
+    bool _runningTestFromQueue;
     NSMutableDictionary *_messages;
     NSMutableArray *_windows;
 }
@@ -60,9 +64,14 @@
     if (!(self = [super init]))
         return nil;
 
+    if (!configuration)
+        configuration = WKWebExtensionControllerConfiguration.nonPersistentConfiguration;
+
+    configuration.webViewConfiguration.preferences._siteIsolationEnabled = shouldEnableSiteIsolation;
+
     _extension = extension;
     _context = [[WKWebExtensionContext alloc] initForExtension:extension];
-    _controller = [[WKWebExtensionController alloc] initWithConfiguration:configuration ?: WKWebExtensionControllerConfiguration.nonPersistentConfiguration];
+    _controller = [[WKWebExtensionController alloc] initWithConfiguration:configuration];
 
     // Grant all requested API permissions.
     for (WKWebExtensionPermission permission in _extension.requestedPermissions)
@@ -155,6 +164,9 @@
     _defaultWindow = window;
     _defaultTab = window.tabs.firstObject;
     _controllerDelegate = _internalDelegate;
+    _testsAdded = [NSArray array];
+    _testsStarted = [NSArray array];
+    _testResults = [NSDictionary dictionary];
 
     return self;
 }
@@ -232,6 +244,16 @@
     [_context _sendTestMessage:message withArgument:argument];
 }
 
+- (void)sendTestStartedWithArgument:(id)argument
+{
+    [_context _sendTestStartedWithArgument:argument];
+}
+
+- (void)sendTestFinishedWithArgument:(id)argument
+{
+    [_context _sendTestFinishedWithArgument:argument];
+}
+
 - (void)load
 {
     NSError *error;
@@ -303,7 +325,7 @@
 
 - (void)_webExtensionController:(WKWebExtensionController *)controller recordTestAssertionResult:(BOOL)result withMessage:(NSString *)message andSourceURL:(NSString *)sourceURL lineNumber:(unsigned)lineNumber
 {
-    if (result)
+    if (result || _runningTestFromQueue)
         return;
 
     if (!message.length)
@@ -314,7 +336,7 @@
 
 - (void)_webExtensionController:(WKWebExtensionController *)controller recordTestEqualityResult:(BOOL)result expectedValue:(NSString *)expectedValue actualValue:(NSString *)actualValue withMessage:(NSString *)message andSourceURL:(NSString *)sourceURL lineNumber:(unsigned)lineNumber
 {
-    if (result)
+    if (result || _runningTestFromQueue)
         return;
 
     if (!message.length)
@@ -347,8 +369,29 @@
     [messagesArray addObject:argument ?: NSNull.null];
 }
 
-- (void)_webExtensionController:(WKWebExtensionController *)controller recordTestFinishedWithResult:(BOOL)result message:(NSString *)message andSourceURL:(NSString *)sourceURL lineNumber:(unsigned)lineNumber
+- (void)_webExtensionController:(WKWebExtensionController *)controller recordTestAddedWithName:(NSString *)testName andSourceURL:(NSString *)sourceURL lineNumber:(unsigned)lineNumber
 {
+    _testsAdded = [_testsAdded arrayByAddingObject:testName];
+}
+
+- (void)_webExtensionController:(WKWebExtensionController *)controller recordTestStartedWithName:(NSString *)testName andSourceURL:(NSString *)sourceURL lineNumber:(unsigned)lineNumber
+{
+    _runningTestFromQueue = YES;
+    _testsStarted = [_testsStarted arrayByAddingObject:testName];
+}
+
+- (void)_webExtensionController:(WKWebExtensionController *)controller recordTestFinishedWithName:(NSString *)testName result:(BOOL)result message:(NSString *)message andSourceURL:(NSString *)sourceURL lineNumber:(unsigned)lineNumber
+{
+    if (_runningTestFromQueue) {
+        _runningTestFromQueue = NO;
+
+        NSMutableDictionary<NSString *, id> *testResults = [_testResults mutableCopy];
+        testResults[testName] = @(result);
+        _testResults = [NSDictionary dictionaryWithDictionary:testResults];
+
+        return;
+    }
+
     _done = true;
 
     if (result)
@@ -391,11 +434,14 @@ static WKUserContentController *userContentController(BOOL usingPrivateBrowsing)
     if (extensionController) {
         BOOL usingPrivateBrowsing = _window.usingPrivateBrowsing;
 
-        WKWebViewConfiguration *configuration = [[WKWebViewConfiguration alloc] init];
+        auto *configuration = [[WKWebViewConfiguration alloc] init];
         configuration.webExtensionController = extensionController;
         configuration.websiteDataStore = usingPrivateBrowsing ? WKWebsiteDataStore.nonPersistentDataStore : WKWebsiteDataStore.defaultDataStore;
         configuration.userContentController = userContentController(usingPrivateBrowsing);
-        configuration.preferences._developerExtrasEnabled = YES;
+
+        auto *preferences = configuration.preferences;
+        preferences._siteIsolationEnabled = shouldEnableSiteIsolation;
+        preferences._developerExtrasEnabled = YES;
 
         _webView = [[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration];
         _webView.navigationDelegate = self;
@@ -441,10 +487,14 @@ static WKUserContentController *userContentController(BOOL usingPrivateBrowsing)
     if ([_webView.URL.scheme isEqualToString:url.scheme])
         return;
 
-    WKWebViewConfiguration *configuration = [url.scheme hasPrefix:@"http"] ? [[WKWebViewConfiguration alloc] init] : context.webViewConfiguration;
+    auto *configuration = [url.scheme hasPrefix:@"http"] ? [[WKWebViewConfiguration alloc] init] : context.webViewConfiguration;
     configuration.webExtensionController = _extensionController;
     configuration.websiteDataStore = usingPrivateBrowsing ? WKWebsiteDataStore.nonPersistentDataStore : WKWebsiteDataStore.defaultDataStore;
     configuration.userContentController = userContentController(usingPrivateBrowsing);
+
+    auto *preferences = configuration.preferences;
+    preferences._siteIsolationEnabled = shouldEnableSiteIsolation;
+    preferences._developerExtrasEnabled = YES;
 
     _webView = [[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration];
     _webView.navigationDelegate = self;
@@ -746,7 +796,8 @@ static WKUserContentController *userContentController(BOOL usingPrivateBrowsing)
 
 - (TestWebExtensionTab *)openNewTabAtIndex:(NSUInteger)index
 {
-    ASSERT(index <= _tabs.count);
+    index = MIN(index, _tabs.count);
+
 
     auto *newTab = [[TestWebExtensionTab alloc] initWithWindow:self extensionController:_extensionController];
 
@@ -768,6 +819,7 @@ static WKUserContentController *userContentController(BOOL usingPrivateBrowsing)
 
     if (!_activeTab)
         _activeTab = newTab;
+
 
     [_tabs insertObject:newTab atIndex:index];
     [_extensionController didOpenTab:newTab];
@@ -976,26 +1028,6 @@ NSData *makePNGData(CGSize size, SEL colorSelector)
 #endif
 }
 
-void runScriptWithUserGesture(const String& script, WKWebView *webView)
-{
-    ASSERT(webView);
-
-    bool callbackComplete = false;
-    id evalResult;
-
-    [webView callAsyncJavaScript:script arguments:nil inFrame:nil inContentWorld:WKContentWorld.pageWorld completionHandler:[&](id result, NSError *error) {
-        evalResult = result;
-        callbackComplete = true;
-
-        EXPECT_NULL(error);
-
-        if (error)
-            NSLog(@"Encountered error: %@ while evaluating script: %@", error, static_cast<NSString *>(script));
-    }];
-
-    TestWebKitAPI::Util::run(&callbackComplete);
-}
-
 void performWithAppearance(Appearance appearance, void (^block)(void))
 {
 #if USE(APPKIT)
@@ -1006,63 +1038,6 @@ void performWithAppearance(Appearance appearance, void (^block)(void))
         : [UITraitCollection traitCollectionWithUserInterfaceStyle:UIUserInterfaceStyleLight];
     [traitCollection performAsCurrentTraitCollection:block];
 #endif
-}
-
-CocoaColor *pixelColor(CocoaImage *image, CGPoint point)
-{
-#if USE(APPKIT)
-    auto imageRef = [image CGImageForProposedRect:nullptr context:nil hints:nil];
-    auto *bitmap = [[NSBitmapImageRep alloc] initWithCGImage:imageRef];
-    auto *color = [bitmap colorAtX:point.x y:point.y];
-    return color;
-#else
-    image = [image.imageAsset imageWithTraitCollection:UITraitCollection.currentTraitCollection];
-
-    UIGraphicsBeginImageContext(image.size);
-
-    [image drawAtPoint:CGPointZero];
-
-    auto context = UIGraphicsGetCurrentContext();
-    auto *data = (unsigned char *)CGBitmapContextGetData(context);
-    if (!data)
-        return nil;
-
-    unsigned offset = ((image.size.width * point.y) + point.x) * 4;
-    auto *color = [UIColor colorWithRed:data[offset] / 255.0 green:data[offset + 1] / 255.0 blue:data[offset + 2] / 255.0 alpha:data[offset + 3] / 255.0];
-
-    UIGraphicsEndImageContext();
-
-    return color;
-#endif
-}
-
-CocoaColor *toSRGBColor(CocoaColor *color)
-{
-#if USE(APPKIT)
-    return [color colorUsingColorSpace:NSColorSpace.sRGBColorSpace];
-#else
-    return color;
-#endif
-}
-
-bool compareColors(CocoaColor *color1, CocoaColor *color2)
-{
-    if (color1 == color2 || [color1 isEqual:color2])
-        return true;
-
-    if (!color1 || !color2)
-        return false;
-
-    color1 = toSRGBColor(color1);
-    color2 = toSRGBColor(color2);
-
-    CGFloat red1, green1, blue1, alpha1;
-    [color1 getRed:&red1 green:&green1 blue:&blue1 alpha:&alpha1];
-
-    CGFloat red2, green2, blue2, alpha2;
-    [color2 getRed:&red2 green:&green2 blue:&blue2 alpha:&alpha2];
-
-    return fabs(red1 - red2) < 0.01 && fabs(green1 - green2) < 0.01 && fabs(blue1 - blue2) < 0.01 && fabs(alpha1 - alpha2) < 0.01;
 }
 
 } // namespace Util

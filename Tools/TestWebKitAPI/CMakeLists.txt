@@ -85,6 +85,7 @@ set(TestWTF_SOURCES
     Tests/WTF/PackedRef.cpp
     Tests/WTF/PackedRefPtr.cpp
     Tests/WTF/ParkingLot.cpp
+    Tests/WTF/PreciseSum.cpp
     Tests/WTF/PriorityQueue.cpp
     Tests/WTF/RedBlackTree.cpp
     Tests/WTF/Ref.cpp
@@ -201,6 +202,7 @@ if (ENABLE_WEBCORE)
         Tests/WebCore/FileMonitor.cpp
         Tests/WebCore/FloatPointTests.cpp
         Tests/WebCore/FloatRectTests.cpp
+        Tests/WebCore/FloatSegmentTest.cpp
         Tests/WebCore/FloatSizeTests.cpp
         Tests/WebCore/GridPosition.cpp
         Tests/WebCore/HTMLParserIdioms.cpp
@@ -210,19 +212,21 @@ if (ENABLE_WEBCORE)
         Tests/WebCore/IntRectTests.cpp
         Tests/WebCore/IntSizeTests.cpp
         Tests/WebCore/KeyedCoding.cpp
+        Tests/WebCore/LayoutRoundedRectTests.cpp
         Tests/WebCore/LayoutUnitTests.cpp
         Tests/WebCore/MIMESniffer.cpp
         Tests/WebCore/MIMETypeRegistry.cpp
+        Tests/WebCore/MediaReorderQueue.cpp
         Tests/WebCore/MixedContentChecker.cpp
         Tests/WebCore/MonospaceFontTests.cpp
         Tests/WebCore/NowPlayingInfoTests.cpp
         Tests/WebCore/ParsedContentRange.cpp
         Tests/WebCore/PathTests.cpp
         Tests/WebCore/PixelBufferConversionTests.cpp
+        Tests/WebCore/PlatformDynamicRangeLimitTests.cpp
         Tests/WebCore/PublicSuffix.cpp
         Tests/WebCore/RegionTests.cpp
         Tests/WebCore/RenderStyleChange.cpp
-        Tests/WebCore/ResourceMonitor.cpp
         Tests/WebCore/SecurityOrigin.cpp
         Tests/WebCore/SharedBuffer.cpp
         Tests/WebCore/SharedBufferTest.cpp
@@ -302,7 +306,6 @@ if (ENABLE_WEBKIT)
         Tests/WebKit/DidNotHandleKeyDown.cpp
         Tests/WebKit/DocumentStartUserScriptAlertCrash.cpp
         Tests/WebKit/DownloadDecideDestinationCrash.cpp
-        Tests/WebKit/EnumerateMediaDevices.cpp
         Tests/WebKit/EvaluateJavaScript.cpp
         Tests/WebKit/FailedLoad.cpp
         Tests/WebKit/Find.cpp
@@ -326,6 +329,7 @@ if (ENABLE_WEBKIT)
         Tests/WebKit/NewFirstVisuallyNonEmptyLayoutFrames.cpp
         Tests/WebKit/PageLoadBasic.cpp
         Tests/WebKit/PageLoadDidChangeLocationWithinPageForFrame.cpp
+        Tests/WebKit/PageLoadEmptyURL.cpp
         Tests/WebKit/PageLoadState.cpp
         Tests/WebKit/ParentFrame.cpp
         Tests/WebKit/PendingAPIRequestURL.cpp
