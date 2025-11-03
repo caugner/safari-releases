@@ -799,6 +799,7 @@ public:
     void updateTopScrollPocketCaptureColor();
     void updateTopScrollPocketStyle();
     void updatePrefersSolidColorHardPocket();
+    void setCanInstallScrollPocket();
 #endif
 
 private:
@@ -852,7 +853,8 @@ private:
     void sendToolTipMouseEntered();
 
     void reparentLayerTreeInThumbnailView();
-    void updateThumbnailViewLayer();
+    // Returns true if the thumbnail view consumed the layer.
+    bool updateThumbnailViewLayer();
 
     void setUserInterfaceItemState(NSString *commandName, bool enabled, int state);
 
@@ -1079,6 +1081,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 #if ENABLE(CONTENT_INSET_BACKGROUND_FILL)
     RetainPtr<NSScrollPocket> m_topScrollPocket;
     RetainPtr<NSHashTable<NSView *>> m_viewsAboveScrollPocket;
+    bool m_canInstallScrollPocket { false };
 #endif
 
 #if HAVE(INLINE_PREDICTIONS)

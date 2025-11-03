@@ -1,0 +1,147 @@
+<html>
+<head>
+    <script src="/js-test-resources/js-test.js"></script>
+    <script>
+        description("Tests that cookies are blocked from sandboxed iframe.");
+        jsTestIsAsync = true;
+
+        const iframeUrls = {
+            echoCookies : "https://127.0.0.1:8443/cookies/resources/echo-http-and-dom-cookies-and-notify-done.py?skipNotifyDone=False",
+            resetCookies : "https://127.0.0.1:8443/cookies/resources/reset-cookies.html"
+        };
+
+        function injectIframe(url, shouldSandbox) {
+            let iframeElement = document.createElement("iframe");
+            iframeElement.src = url;
+            iframeElement.onload = () => { setTimeout(runNextTestOrFinish, 10); };
+            if (shouldSandbox)
+                iframeElement.sandbox = "allow-scripts";
+            document.body.appendChild(iframeElement);
+        }
+
+        function runNextTestOrFinish() {
+            if (!window.testRunner) {
+                testFailed("No testRunner.");
+                finishJSTest();
+            }
+
+            switch (document.location.hash) {
+                case "":
+                    internals.setTrackingPreventionEnabled(true);
+                    testRunner.setStatisticsIsRunningTest(true);
+                    testRunner.setOnlyAcceptFirstPartyCookies(false);
+                    testRunner.dumpChildFramesAsText();
+                    document.location.hash = "1";
+                    testRunner.setStatisticsShouldBlockThirdPartyCookies(false, runNextTestOrFinish, true);
+                    break;
+                case "#1":
+                    document.location.hash = "2";
+                    // Frame 1: Should not set a cookie.
+                    injectIframe(`https://127.0.0.1:8443/cookies/resources/set-cookie-and-redirect-back.py?isPartitioned=True&redirectBackTo=${iframeUrls.echoCookies}`, true);
+                    break;
+                case "#2":
+                    document.location.hash = "3";
+                    testRunner.setOnlyAcceptFirstPartyCookies(true);
+                    // Frame 2: Should not set a cookie.
+                    injectIframe(`https://127.0.0.1:8443/cookies/resources/set-cookie-and-redirect-back.py?isPartitioned=True&redirectBackTo=${iframeUrls.echoCookies}`, true);
+                    break;
+                case "#3":
+                    document.location.hash = "4";
+                    testRunner.setStatisticsShouldBlockThirdPartyCookies(true, () => {
+                        // Frame 3: Should not have cookies.
+                        injectIframe(iframeUrls.echoCookies, true);
+                    }, true);
+                    break;
+                case "#4":
+                    document.location.hash = "5";
+                    testRunner.setStatisticsHasHadUserInteraction("https://127.0.0.1:8443", true, () => {
+                        // Frame 4: Should not have cookies.
+                        injectIframe(iframeUrls.echoCookies, true);
+                    });
+                    break;
+                case "#5":
+                    document.location.hash = "6";
+                    // Frame 5: Should not set a cookie.
+                    injectIframe(`https://127.0.0.1:8443/cookies/resources/set-cookie-and-redirect-back.py?isPartitioned=True&redirectBackTo=${iframeUrls.echoCookies}`, true);
+                    break;
+                case "#6":
+                    document.location.hash = "7";
+                    testRunner.setStatisticsShouldBlockThirdPartyCookies(false, () => {
+                        // Frame 6: Should not have cookies.
+                        injectIframe(iframeUrls.echoCookies, true);
+                    }, true);
+                    break;
+                case "#7":
+                    document.location.hash = "8";
+                    // Frame 7: Should not set a cookie.
+                    injectIframe(`https://127.0.0.1:8443/cookies/resources/set-cookie-and-redirect-back.py?isPartitioned=False&redirectBackTo=${iframeUrls.echoCookies}`, true);
+                    break;
+                case "#8":
+                    document.location.hash = "9";
+                    // Frame 8: Should not set a cookie.
+                    injectIframe(`https://127.0.0.1:8443/cookies/resources/set-cookie-and-redirect-back.py?isPartitioned=True&redirectBackTo=${iframeUrls.echoCookies}`, true);
+                    break;
+                case "#9":
+                    document.location.hash = "10";
+                    // Frame 9: Should set a cookie.
+                    injectIframe(`https://127.0.0.1:8443/cookies/resources/set-cookie-and-redirect-back.py?isPartitioned=True&redirectBackTo=${iframeUrls.echoCookies}`, false);
+                    break;
+                case "#10":
+                    document.location.hash = "11";
+                    testRunner.setOnlyAcceptFirstPartyCookies(true);
+                    // Frame 10: Should set a cookie.
+                    injectIframe(`https://127.0.0.1:8443/cookies/resources/set-cookie-and-redirect-back.py?isPartitioned=True&redirectBackTo=${iframeUrls.echoCookies}`, false);
+                    break;
+                case "#11":
+                    document.location.hash = "12";
+                    testRunner.setStatisticsShouldBlockThirdPartyCookies(true, () => {
+                        // Frame 11: Should have cookies.
+                        injectIframe(iframeUrls.echoCookies, false);
+                    }, true);
+                    break;
+                case "#12":
+                    document.location.hash = "13";
+                    testRunner.setStatisticsHasHadUserInteraction("https://127.0.0.1:8443", true, () => {
+                        // Frame 12: Should have cookies.
+                        injectIframe(iframeUrls.echoCookies, false);
+                    });
+                    break;
+                case "#13":
+                    document.location.hash = "14";
+                    // Frame 13: Should set a cookie.
+                    injectIframe(`https://127.0.0.1:8443/cookies/resources/set-cookie-and-redirect-back.py?isPartitioned=True&redirectBackTo=${iframeUrls.echoCookies}`, false);
+                    break;
+                case "#14":
+                    document.location.hash = "15";
+                    testRunner.setStatisticsShouldBlockThirdPartyCookies(false, () => {
+                        // Frame 14: Should have cookies.
+                        injectIframe(iframeUrls.echoCookies, false);
+                    }, true);
+                    break;
+                case "#15":
+                    document.location.hash = "16";
+                    // Frame 15: Should set a cookie.
+                    injectIframe(`https://127.0.0.1:8443/cookies/resources/set-cookie-and-redirect-back.py?isPartitioned=False&redirectBackTo=${iframeUrls.echoCookies}`, false);
+                    break;
+                case "#16":
+                    document.location.hash = "17";
+                    // Frame 16: Should set a cookie.
+                    injectIframe(`https://127.0.0.1:8443/cookies/resources/set-cookie-and-redirect-back.py?isPartitioned=True&redirectBackTo=${iframeUrls.echoCookies}`, false);
+                    break;
+                case "#17":
+                    internals.setTrackingPreventionEnabled(false);
+                    testRunner.setStatisticsIsRunningTest(false);
+                    finishJSTest();
+                    break;
+                default:
+                    internals.setTrackingPreventionEnabled(false);
+                    testRunner.setStatisticsIsRunningTest(false);
+                    testFailed("Unknown location hash value.");
+                    finishJSTest();
+            }
+        }
+    </script>
+</head>
+<body onload="runNextTestOrFinish()">
+</body>
+</html>

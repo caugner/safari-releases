@@ -33,11 +33,14 @@
 #import "UIKitSPIForTesting.h"
 #import "UserInterfaceSwizzler.h"
 #import "WKBrowserEngineDefinitions.h"
+#import <WebCore/ColorCocoa.h>
+#import <WebCore/ColorSerialization.h>
 #import <WebCore/WebEvent.h>
 #import <WebKit/WKPreferencesPrivate.h>
 #import <WebKit/WKWebViewPrivate.h>
 #import <WebKit/WKWebViewPrivateForTesting.h>
 #import <WebKit/_WKFeature.h>
+#import <wtf/BlockPtr.h>
 
 constexpr CGFloat blackColorComponents[4] = { 0, 0, 0, 1 };
 constexpr CGFloat whiteColorComponents[4] = { 1, 1, 1, 1 };
@@ -58,6 +61,46 @@ constexpr CGFloat whiteColorComponents[4] = { 1, 1, 1, 1 };
 }
 
 @end
+
+#if HAVE(LIQUID_GLASS)
+
+@interface ScrollEdgeEffectIsHiddenObserver : NSObject
+@end
+
+@implementation ScrollEdgeEffectIsHiddenObserver {
+    __weak UIScrollEdgeEffect *_effect;
+    BlockPtr<void()> _callback;
+}
+
+void *scrollEdgeEffectObservationContext = &scrollEdgeEffectObservationContext;
+
+- (instancetype)initWithScrollEdgeEffect:(UIScrollEdgeEffect *)effect callback:(void(^)())callback
+{
+    if (!(self = [super init]))
+        return nil;
+
+    _effect = effect;
+    _callback = makeBlockPtr(callback);
+    [effect addObserver:self forKeyPath:NSStringFromSelector(@selector(isHidden)) options:NSKeyValueObservingOptionNew context:scrollEdgeEffectObservationContext];
+    return self;
+}
+
+- (void)dealloc
+{
+    [_effect removeObserver:self forKeyPath:NSStringFromSelector(@selector(isHidden))];
+
+    [super dealloc];
+}
+
+- (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context
+{
+    if (context == scrollEdgeEffectObservationContext)
+        _callback();
+}
+
+@end
+
+#endif // HAVE(LIQUID_GLASS)
 
 #if HAVE(UISCROLLVIEW_ASYNCHRONOUS_SCROLL_EVENT_HANDLING)
 
@@ -696,6 +739,38 @@ TEST(WKScrollViewTests, ShouldSuppressTopColorExtensionView)
     }, 5, @"Color extension view failed to hide");
 }
 
+TEST(WKScrollViewTests, TopScrollEdgeEffectIsHiddenKVO)
+{
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 800)]);
+
+    auto insets = UIEdgeInsetsMake(50, 0, 0, 0);
+    [webView setObscuredContentInsets:insets];
+
+    RetainPtr scrollView = [webView scrollView];
+    [scrollView setContentInsetAdjustmentBehavior:UIScrollViewContentInsetAdjustmentNever];
+    [scrollView setContentInset:insets];
+
+    RetainPtr topScrollEdgeEffect = [scrollView topEdgeEffect];
+
+    __block bool isHiddenChanged = false;
+    RetainPtr observer = adoptNS([[ScrollEdgeEffectIsHiddenObserver alloc] initWithScrollEdgeEffect:topScrollEdgeEffect.get() callback:^{
+        isHiddenChanged = true;
+    }]);
+
+    [webView synchronouslyLoadTestPageNamed:@"top-fixed-element"];
+    [webView waitForNextPresentationUpdate];
+
+    Util::run(&isHiddenChanged);
+    EXPECT_TRUE([topScrollEdgeEffect isHidden]);
+    isHiddenChanged = false;
+
+    [webView synchronouslyLoadTestPageNamed:@"simple"];
+    [webView waitForNextPresentationUpdate];
+
+    Util::run(&isHiddenChanged);
+    EXPECT_FALSE([topScrollEdgeEffect isHidden]);
+}
+
 TEST(WKScrollViewTests, TopColorExtensionViewAfterRemovingRefreshControl)
 {
     RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 800)]);
@@ -724,6 +799,33 @@ TEST(WKScrollViewTests, TopColorExtensionViewAfterRemovingRefreshControl)
     [scrollView setContentOffset:CGPointMake(0, 100)];
     [webView waitForNextVisibleContentRectUpdate];
     EXPECT_TRUE([contentView _appearsBeforeViewInSubviewOrder:topColorExtension.get()]);
+}
+
+TEST(WKScrollViewTests, TopScrollPocketCaptureColorAfterSettingHardStyle)
+{
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 600, 400)]);
+    RetainPtr scrollView = [webView scrollView];
+
+    [scrollView topEdgeEffect].style = UIScrollEdgeEffectStyle.softStyle;
+
+    auto insets = UIEdgeInsetsMake(50, 0, 0, 0);
+    [webView setObscuredContentInsets:insets];
+
+    [scrollView setContentInsetAdjustmentBehavior:UIScrollViewContentInsetAdjustmentNever];
+    [scrollView setContentInset:insets];
+
+    [webView synchronouslyLoadTestPageNamed:@"top-fixed-element"];
+    [webView waitForNextPresentationUpdate];
+
+    EXPECT_NULL([scrollView _pocketColorForEdge:UIRectEdgeTop]);
+    EXPECT_FALSE([scrollView _prefersSolidColorHardPocketForEdge:UIRectEdgeTop]);
+
+    [scrollView topEdgeEffect].style = UIScrollEdgeEffectStyle.hardStyle;
+    [webView waitForNextPresentationUpdate];
+
+    auto topPocketColor = WebCore::colorFromCocoaColor([scrollView _pocketColorForEdge:UIRectEdgeTop]);
+    EXPECT_WK_STREQ("rgb(255, 99, 71)", WebCore::serializationForCSS(topPocketColor));
+    EXPECT_TRUE([scrollView _prefersSolidColorHardPocketForEdge:UIRectEdgeTop]);
 }
 
 #endif // HAVE(LIQUID_GLASS)

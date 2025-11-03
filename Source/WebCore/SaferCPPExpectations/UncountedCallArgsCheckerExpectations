@@ -473,8 +473,9 @@ editing/VisiblePosition.h
 editing/VisibleSelection.cpp
 editing/VisibleUnits.cpp
 editing/cocoa/AutofillElements.cpp
+editing/cocoa/EditingHTMLConverter.mm
 editing/cocoa/EditorCocoa.mm
-editing/cocoa/HTMLConverter.mm
+editing/cocoa/NodeHTMLConverter.mm
 editing/cocoa/WebContentReaderCocoa.mm
 editing/mac/EditorMac.mm
 editing/mac/FrameSelectionMac.mm
@@ -1015,6 +1016,7 @@ svg/SVGAElement.cpp
 svg/SVGAElement.h
 svg/SVGAltGlyphElement.cpp
 svg/SVGCircleElement.h
+svg/SVGCircleElement.cpp
 svg/SVGClipPathElement.cpp
 svg/SVGClipPathElement.h
 svg/SVGComponentTransferFunctionElement.cpp

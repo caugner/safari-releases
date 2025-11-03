@@ -87,6 +87,8 @@ public:
 
     bool shouldPreventOrientationMediaQueryFromEvaluatingToLandscape() const;
     bool shouldFlipScreenDimensions() const;
+    bool shouldAllowDownloadsInSpiteOfCSP() const;
+    bool requirePageVisibilityToPlayAudioQuirk() const;
 
     WEBCORE_EXPORT bool shouldDispatchSyntheticMouseEventsWhenModifyingSelection() const;
     WEBCORE_EXPORT bool shouldSuppressAutocorrectionAndAutocapitalizationInHiddenEditableAreas() const;
@@ -115,6 +117,8 @@ public:
     WEBCORE_EXPORT static bool needsPartitionedCookies(const ResourceRequest&);
 
     WEBCORE_EXPORT static std::optional<Vector<HashSet<String>>> defaultVisibilityAdjustmentSelectors(const URL&);
+
+    WEBCORE_EXPORT bool static shouldDisableBlobFileAccessEnforcement();
 
     bool needsGMailOverflowScrollQuirk() const;
     bool needsIPadSkypeOverflowScrollQuirk() const;
@@ -259,9 +263,14 @@ public:
 
     bool needsLimitedMatroskaSupport() const;
 
+    bool needsCustomUserAgentData() const;
+    bool needsNavigatorUserAgentDataQuirk() const;
+
     WEBCORE_EXPORT bool needsNowPlayingFullscreenSwapQuirk() const;
 
     bool needsWebKitMediaTextTrackDisplayQuirk() const;
+
+    bool needsTextInputBoxSizingBorderBoxQuirk() const;
 
     bool shouldSupportHoverMediaQueries() const;
 
@@ -274,14 +283,14 @@ public:
 
     bool shouldDisableDOMAudioSessionQuirk() const;
 
+    void determineRelevantQuirks();
+
 private:
     bool needsQuirks() const;
     bool isDomain(const String&) const;
     bool domainStartsWith(const String&) const;
     bool isEmbedDomain(const String&) const;
     bool isYoutubeEmbedDomain() const;
-
-    void determineRelevantQuirks();
 
     static bool domainNeedsAvoidResizingWhenInputViewBoundsChangeQuirk(const URL&, QuirksData&);
     static bool domainNeedsScrollbarWidthThinDisabledQuirk(const URL&, QuirksData&);

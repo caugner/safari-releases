@@ -1151,7 +1151,7 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
     if (!_page->preferences().contentInsetBackgroundFillEnabled())
         return NO;
 
-    return _page->obscuredContentInsets().top() > 0;
+    return _page->obscuredContentInsets().top() > 0 || _page->overflowHeightForTopScrollEdgeEffect() > 0;
 }
 
 - (void)registerPocketContainer:(NSView *)container onEdge:(NSScrollPocketEdge)edge
@@ -1566,9 +1566,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 
 - (void)_setTopContentInset:(CGFloat)inset
 {
-    auto insets = _impl->obscuredContentInsets();
-    insets.setTop(static_cast<float>(inset));
-    _impl->setObscuredContentInsets(insets);
+    [self _setTopContentInset:inset immediate:NO];
 }
 
 - (CGFloat)_topContentInset
@@ -1592,6 +1590,10 @@ ALLOW_DEPRECATED_DECLARATIONS_END
         return;
     }
 
+#if ENABLE(CONTENT_INSET_BACKGROUND_FILL)
+    _impl->setCanInstallScrollPocket();
+#endif
+
     _impl->setObscuredContentInsets(coreBoxExtentsFromEdgeInsets(insets));
 
     if (immediate)
@@ -1609,6 +1611,30 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     );
 }
 
+- (CGFloat)_overflowHeightForTopScrollEdgeEffect
+{
+    return _page->overflowHeightForTopScrollEdgeEffect();
+}
+
+- (void)_setOverflowHeightForTopScrollEdgeEffect:(CGFloat)height
+{
+#if ENABLE(CONTENT_INSET_BACKGROUND_FILL)
+    _impl->setCanInstallScrollPocket();
+#endif
+
+    if (_page->overflowHeightForTopScrollEdgeEffect() == height)
+        return;
+
+    _page->setOverflowHeightForTopScrollEdgeEffect(height);
+
+#if ENABLE(CONTENT_INSET_BACKGROUND_FILL)
+    _impl->updateScrollPocket();
+#endif
+
+    if (RetainPtr attachedInspectorWebView = [self _horizontallyAttachedInspectorWebView])
+        [attachedInspectorWebView _setOverflowHeightForTopScrollEdgeEffect:height];
+}
+
 - (NSColor *)_overrideTopScrollEdgeEffectColor
 {
     return _overrideTopScrollEdgeEffectColor.get();
@@ -1616,6 +1642,10 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 
 - (void)_setOverrideTopScrollEdgeEffectColor:(NSColor *)color
 {
+#if ENABLE(CONTENT_INSET_BACKGROUND_FILL)
+    _impl->setCanInstallScrollPocket();
+#endif
+
     if (_overrideTopScrollEdgeEffectColor == color || [_overrideTopScrollEdgeEffectColor isEqual:color])
         return;
 
@@ -1639,6 +1669,10 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 
 - (void)_setUsesAutomaticContentInsetBackgroundFill:(BOOL)value
 {
+#if ENABLE(CONTENT_INSET_BACKGROUND_FILL)
+    _impl->setCanInstallScrollPocket();
+#endif
+
     if (_usesAutomaticContentInsetBackgroundFill == value)
         return;
 

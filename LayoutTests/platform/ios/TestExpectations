@@ -2303,6 +2303,7 @@ fast/dom/linkify-phone-numbers.html [ Pass ]
 
 accessibility/table-exposure-updates-dynamically.html [ Pass ]
 accessibility/accessibility-node-reparent.html [ Pass ]
+accessibility/area-element-bounding-box.html [ Pass ]
 accessibility/aria-braillelabel.html [ Pass ]
 accessibility/aria-brailleroledescription.html [ Pass ]
 accessibility/aria-checked-mixed-value.html [ Pass ]
@@ -7924,8 +7925,6 @@ fast/snapshot/positioned-abs-relative-body.html [ Skip ]
 
 webkit.org/b/295432 imported/w3c/web-platform-tests/css/filter-effects/backdrop-filter-clip-rect-zoom.html [ Pass ImageOnlyFailure ]
 
-webkit.org/b/295527 fast/animation/css-animation-resuming-when-visible-with-style-change2.html [ Pass Failure ]
-
 webkit.org/b/295557 fast/dom/Range/scale-page-bounding-client-rect.html [ Pass Failure ]
 
 webkit.org/b/295559 [ Release ] media/video-unmuted-after-play-holds-sleep-assertion.html [ Pass Failure ]
@@ -7934,13 +7933,6 @@ webkit.org/b/295604 http/tests/blink/sendbeacon/beacon-cookie.html [ Pass Failur
 
 # rdar://148125924 (REGRESSION(291405@Main?): [ OS 26 ] apple-visual-effects/apple-visual-effect-parsing.html is a constant text failure)
 apple-visual-effects/apple-visual-effect-parsing.html [ Failure ]
-
-# rdar://154886047 (REGRESSION(Liquid Glass): Rebaseline? [ OS 26 ] 5X imported/w3c/web-platform-tests/css/css-view-transitions/ (Layout-Tests) are constant ImageOnlyFailures)
-imported/w3c/web-platform-tests/css/css-view-transitions/massive-element-below-and-on-top-of-viewport-partially-onscreen-new.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-view-transitions/massive-element-left-of-viewport-offscreen-new.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-view-transitions/massive-element-on-top-of-viewport-offscreen-new.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-view-transitions/massive-element-right-and-left-of-viewport-partially-onscreen-new.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-view-transitions/new-content-transform-position-fixed.html [ ImageOnlyFailure ]
 
 # rdar://154889639 (REGRESSION (Liquid Glass): fast/forms/datalist/datalist-fallback-content.html is a constant ImageOnlyFailure)
 fast/forms/datalist/datalist-fallback-content.html [ ImageOnlyFailure ]
@@ -8185,7 +8177,13 @@ fast/css/accent-color/button.html [ ImageOnlyFailure ]
 fast/css/accent-color/date.html [ ImageOnlyFailure ]
 fast/css/accent-color/select.html [ ImageOnlyFailure ]
 fast/forms/form-control-refresh/submit-button-appearance-matches-button-window-inactive.html [ ImageOnlyFailure ]
-fast/forms/ios/form-control-refresh/button/button-type-submit.html [ ImageOnlyFailure ]
-fast/forms/ios/form-control-refresh/color/paint-within-box.html [ ImageOnlyFailure ]
 fast/forms/ios/form-control-refresh/select/decoration-color.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-view-transitions/fractional-translation-from-position.html [ ImageOnlyFailure ]
+
+# <rdar://156470462> RTL inputs with type=password have larger logical width than RTL inputs with type number, url, tel, & text
+fast/forms/input-password-logical-widths.html [ Failure ]
+
+# Inactive window appearance for form controls is not supported on iOS.
+fast/forms/form-control-refresh/accent-color-contrast-does-not-affect-inactive-window-light-mode.html [ Skip ]
+fast/forms/form-control-refresh/accent-color-contrast-does-not-affect-inactive-window-dark-mode.html [ Skip ]
+webkit.org/b/289010 imported/w3c/web-platform-tests/html/semantics/disabled-elements/event-propagate-disabled-keyboard.tentative.html [ Failure ]

@@ -986,6 +986,8 @@ accessibility/mac/bounds-for-range-centered.html [ Skip ]
 # Skipping because different hierarchy on WK1
 accessibility/youtube-embed-accessibility-hierarchy.html [ Skip ]
 
+accessibility/mac/iframe-hit-testing.html [ Skip ]
+
 # DOM paste access requests are not implemented in WebKit1.
 editing/async-clipboard/clipboard-change-data-while-reading.html [ Skip ]
 editing/async-clipboard/clipboard-do-not-read-text-from-platform-if-text-changes.html [ Skip ]
@@ -2722,6 +2724,8 @@ imported/w3c/web-platform-tests/css/css-tables/collapsed-border-positioned-tr-td
 #rdar://105804155 ([ WK1 ] 2 http/tests/resourceLoadStatistics/* (layout-tests) are constant failures)
 http/tests/resourceLoadStatistics/website-data-removal-for-site-without-user-interaction-js-cookie-checking.html [ Skip ]
 http/tests/resourceLoadStatistics/website-data-removal-for-site-navigated-to-with-link-decoration-js-cookie-checking.html [ Skip ]
+http/tests/cookies/block-cookies-when-loading-document-in-sandboxed-iframe.https.html [ Skip ]
+http/tests/websocket/tests/hybi/websocket-in-sandboxed-iframe.https.html [ Skip ]
 
 # Site-isolation isn't supported in WK1
 http/tests/site-isolation [ Skip ]
@@ -3149,7 +3153,9 @@ http/tests/websocket/tests/hybi/websocket-allowed-setting-cookie-as-third-party-
 
 webkit.org/b/294301 http/tests/media/hls/hls-audio-tracks-language.html [ Pass Failure ]
 
+# Lockdown Mode does not apply
 http/tests/lockdown-mode [ Skip ]
+fast/speechsynthesis/lockdown-mode [ Skip ]
 
 imported/w3c/web-platform-tests/css/css-transforms/individual-transform/individual-transform-3.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-images/gradient/conic-gradient-001.html [ ImageOnlyFailure ]

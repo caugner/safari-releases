@@ -2936,7 +2936,7 @@ void WebViewImpl::didBecomeEditable()
 void WebViewImpl::updateFontManagerIfNeeded()
 {
     BOOL fontPanelIsVisible = NSFontPanel.sharedFontPanelExists && NSFontPanel.sharedFontPanel.visible;
-    if (!fontPanelIsVisible && !m_page->editorState().isContentRichlyEditable)
+    if (!fontPanelIsVisible && !(m_page->isEditable() && m_page->editorState().isContentRichlyEditable))
         return;
 
     m_page->requestFontAttributesAtSelectionStart([] (auto& attributes) {
@@ -3985,10 +3985,8 @@ void WebViewImpl::setAcceleratedCompositingRootLayer(CALayer *rootLayer)
     m_rootLayer = rootLayer;
     rootLayer.hidden = NO;
 
-    if (m_thumbnailView) {
-        updateThumbnailViewLayer();
+    if (m_thumbnailView && updateThumbnailViewLayer())
         return;
-    }
 
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
@@ -4051,13 +4049,17 @@ void WebViewImpl::reparentLayerTreeInThumbnailView()
     [m_thumbnailView.get() _setThumbnailLayer: m_rootLayer.get()];
 }
 
-void WebViewImpl::updateThumbnailViewLayer()
+bool WebViewImpl::updateThumbnailViewLayer()
 {
     RetainPtr thumbnailView = m_thumbnailView.get();
     ASSERT(thumbnailView);
 
-    if ([thumbnailView _waitingForSnapshot] && [m_view window])
+    if ([thumbnailView _waitingForSnapshot] && [m_view window]) {
         reparentLayerTreeInThumbnailView();
+        return true;
+    }
+
+    return false;
 }
 
 void WebViewImpl::setInspectorAttachmentView(NSView *newView)
@@ -7034,6 +7036,15 @@ void WebViewImpl::fulfillDeferredImageAnalysisOverlayViewHierarchyTask()
 
 #if ENABLE(CONTENT_INSET_BACKGROUND_FILL)
 
+void WebViewImpl::setCanInstallScrollPocket()
+{
+    if (m_canInstallScrollPocket)
+        return;
+
+    m_canInstallScrollPocket = true;
+    updateScrollPocket();
+}
+
 void WebViewImpl::updatePrefersSolidColorHardPocket()
 {
     static bool canSetPrefersSolidColorHardPocket = [NSScrollPocket instancesRespondToSelector:@selector(setPrefersSolidColorHardPocket:)];
@@ -7063,12 +7074,17 @@ void WebViewImpl::updateScrollPocket()
     if (m_windowIsEnteringOrExitingFullScreen)
         return;
 
+    Ref page = m_page.get();
+    if (!m_canInstallScrollPocket)
+        return;
+
     RetainPtr view = m_view.get();
     CGFloat topContentInset = obscuredContentInsets().top();
-    bool needsTopView = m_page->preferences().contentInsetBackgroundFillEnabled()
+    CGFloat additionalHeight = page->overflowHeightForTopScrollEdgeEffect();
+    bool needsTopView = page->preferences().contentInsetBackgroundFillEnabled()
         && view
         && !view->_reasonsToHideTopScrollPocket
-        && topContentInset > 0;
+        && (topContentInset > 0 || additionalHeight > 0);
 
     RetainPtr topScrollPocketSelector = NSStringFromSelector(@selector(_topScrollPocket));
     if (!needsTopView) {
@@ -7105,7 +7121,7 @@ void WebViewImpl::updateScrollPocket()
     if (RetainPtr attachedInspectorView = [view _horizontallyAttachedInspectorWebView])
         bounds = NSUnionRect(bounds, [attachedInspectorView convertRect:[attachedInspectorView bounds] toView:view.get()]);
 
-    auto topInsetFrame = NSMakeRect(NSMinX(bounds), NSMinY(bounds), NSWidth(bounds), std::min<CGFloat>(topContentInset, NSHeight(bounds)));
+    auto topInsetFrame = NSMakeRect(NSMinX(bounds), NSMinY(bounds) - additionalHeight, NSWidth(bounds), additionalHeight + std::min<CGFloat>(topContentInset, NSHeight(bounds)));
 
     if ([m_view _usesAutomaticContentInsetBackgroundFill]) {
         for (NSView *pocketContainer in m_viewsAboveScrollPocket.get())

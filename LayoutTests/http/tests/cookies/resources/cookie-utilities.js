@@ -148,13 +148,15 @@ function _setCachedCookiesJSON(cookies)
     g_cachedCookies = JSON.parse(cookies);
 }
 
-async function getCookies()
+async function getCookies(allowCrossOrigin=false)
 {
     if (g_cachedCookies)
         return g_cachedCookies;
 
     let promise = new Promise((resolved, rejected) => {
         let xhr = new XMLHttpRequest;
+        if (allowCrossOrigin)
+            xhr.withCredentials = true;
         xhr.open("GET", `${g_baseURLWhenFetchingCookies}/cookies/resources/echo-json.py`);
         xhr.onload = () => resolved(xhr.responseText ? JSON.parse(xhr.responseText) : {});
         xhr.onerror = () => rejected({});
@@ -164,9 +166,9 @@ async function getCookies()
     return g_cachedCookies;
 }
 
-async function shouldNotHaveCookie(name)
+async function shouldNotHaveCookie(name, allowCrossOrigin=false)
 {
-    let cookies = await getCookies();
+    let cookies = await getCookies(allowCrossOrigin);
     let value = cookies[name];
     if (value === undefined || value === null)
         testPassed(`Do not have cookie "${name}".`);
@@ -174,9 +176,9 @@ async function shouldNotHaveCookie(name)
         testFailed(`Should not have cookie "${name}". But do with value ${value}.`);
 }
 
-async function shouldHaveCookie(name)
+async function shouldHaveCookie(name, allowCrossOrigin=false)
 {
-    let cookies = await getCookies();
+    let cookies = await getCookies(allowCrossOrigin);
     let value = cookies[name];
     if (value === undefined || value === null)
         testFailed(`Should have cookie "${name}". But do not.`);
@@ -184,10 +186,10 @@ async function shouldHaveCookie(name)
         testPassed(`Has cookie "${name}".`);
 }
 
-async function shouldHaveCookieWithValue(name, expectedValue)
+async function shouldHaveCookieWithValue(name, expectedValue, allowCrossOrigin=false)
 {
     console.assert(expectedValue !== undefined);
-    let cookies = await getCookies();
+    let cookies = await getCookies(allowCrossOrigin);
     let value = cookies[name];
     if (value === undefined || value === null)
         testFailed(`Should have cookie "${name}". But do not.`);

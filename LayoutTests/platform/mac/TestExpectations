@@ -2462,13 +2462,6 @@ webkit.org/b/295435 compositing/layer-creation/overlap-animation-container.html 
 # The padding for native select controls is overridden on macOS Sequoia and earlier.
 imported/w3c/web-platform-tests/css/css-ui/select-author-level-padding-applies.html [ Skip ]
 
-# rdar://154886047 (REGRESSION(Liquid Glass): Rebaseline? [ OS 26 ] 5X imported/w3c/web-platform-tests/css/css-view-transitions/ (Layout-Tests) are constant ImageOnlyFailures)
-imported/w3c/web-platform-tests/css/css-view-transitions/massive-element-below-and-on-top-of-viewport-partially-onscreen-new.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-view-transitions/massive-element-left-of-viewport-offscreen-new.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-view-transitions/massive-element-on-top-of-viewport-offscreen-new.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-view-transitions/massive-element-right-and-left-of-viewport-partially-onscreen-new.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-view-transitions/new-content-transform-position-fixed.html [ ImageOnlyFailure ]
-
 # rdar://154889639 (REGRESSION(Liquid Glass): [ OS 26 ] fast/forms/datalist/datalist-fallback-content.html is a constant ImageOnlyFailure)
 fast/forms/datalist/datalist-fallback-content.html [ ImageOnlyFailure ]
 
@@ -2490,3 +2483,23 @@ imported/w3c/web-platform-tests/css/css-ui/button-author-level-padding-applies.h
 webkit.org/b/295810 [ Debug ] fast/dynamic/disappearing-content-on-size-change-crash.html [ Timeout ]
 
 webkit.org/b/294931 ipc/LocalSampleBufferDisplayLayer-LogIdentifier-data-race-uaf.html [ Skip ]
+
+webkit.org/b/296010 fast/frames/frame-append-body-child-crash.html [ Pass Failure ]
+
+webkit.org/b/296138 compositing/transforms/transformed-replaced-with-shadow-children.html [ Pass ImageOnlyFailure ]
+
+# Test seems to pass on WPT dashboard but fails on macOS
+imported/w3c/web-platform-tests/css/css-tables/paint/table-border-paint-caption-change.html [ Skip ]
+
+webkit.org/b/296017 [ Release ] imported/w3c/web-platform-tests/css/css-shapes/shape-outside/shape-image/shape-image-022.html [ Pass ImageOnlyFailure ]
+
+[ x86_64 ] imported/w3c/web-platform-tests/svg/text/reftests/dominant-baseline-central-large-font-size.svg [ Skip ]
+
+webkit.org/b/296724 imported/w3c/web-platform-tests/css/css-ui/compute-kind-widget-generated/kind-of-widget-fallback-select-dropdown-box-border-block-end-color-001.html [ Failure ]
+webkit.org/b/296724 imported/w3c/web-platform-tests/css/css-ui/compute-kind-widget-generated/kind-of-widget-fallback-select-dropdown-box-border-block-start-color-001.html [ Failure ]
+webkit.org/b/296724 imported/w3c/web-platform-tests/css/css-ui/compute-kind-widget-generated/kind-of-widget-fallback-select-dropdown-box-border-bottom-color-001.html [ Failure ]
+webkit.org/b/296724 imported/w3c/web-platform-tests/css/css-ui/compute-kind-widget-generated/kind-of-widget-fallback-select-dropdown-box-border-inline-end-color-001.html [ Failure ]
+webkit.org/b/296724 imported/w3c/web-platform-tests/css/css-ui/compute-kind-widget-generated/kind-of-widget-fallback-select-dropdown-box-border-inline-start-color-001.html [ Failure ]
+webkit.org/b/296724 imported/w3c/web-platform-tests/css/css-ui/compute-kind-widget-generated/kind-of-widget-fallback-select-dropdown-box-border-left-color-001.html [ Failure ]
+webkit.org/b/296724 imported/w3c/web-platform-tests/css/css-ui/compute-kind-widget-generated-kind-of-widget-fallback-select-dropdown-box-border-right-color-001.html [ Failure ]
+webkit.org/b/296724 imported/w3c/web-platform-tests/css/css-ui/compute-kind-widget-generated/kind-of-widget-fallback-select-dropdown-box-border-top-color-001.html [ Failure ]

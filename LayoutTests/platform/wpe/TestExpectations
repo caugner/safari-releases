@@ -487,7 +487,9 @@ imported/w3c/web-platform-tests/pointerevents/pointerevent_attributes.html?pen-r
 imported/w3c/web-platform-tests/pointerevents/pointerevent_attributes.html?pen-right-nonstandard [ Skip ]
 imported/w3c/web-platform-tests/pointerevents/pointerevent_attributes.html?touch-nonstandard [ Skip ]
 
+# Lockdown Mode does not apply
 http/tests/lockdown-mode [ Skip ]
+fast/speechsynthesis/lockdown-mode [ Skip ]
 
 css3/scroll-snap/resnap-after-layout.html [ Skip ] # Timeout.
 
@@ -1355,3 +1357,5 @@ webkit.org/b/292841 fullscreen/exit-full-screen-video-crash.html [ Timeout ]
 webkit.org/b/254518 imported/w3c/web-platform-tests/html/semantics/embedded-content/media-elements/autoplay-allowed-by-feature-policy.https.sub.html [ Crash Failure Pass ]
 
 webkit.org/b/267992 imported/w3c/web-platform-tests/html/anonymous-iframe/initial-empty-document.tentative.https.window.html [ Crash Pass ]
+
+media/adopt-node-after-showing-picker-crash.html [ Skip ]

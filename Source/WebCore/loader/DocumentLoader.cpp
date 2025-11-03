@@ -1177,7 +1177,9 @@ void DocumentLoader::continueAfterContentPolicy(PolicyAction policy)
         if (RefPtr mainResourceLoader = this->mainResourceLoader())
             InspectorInstrumentation::continueWithPolicyDownload(*frame, *mainResourceLoader->identifier(), *this, m_response);
 
-        if (!frame->effectiveSandboxFlags().contains(SandboxFlag::Downloads)) {
+        RefPtr document = frame->document();
+        bool shouldIgnoreSandboxFlags = frame->isMainFrame() && document && document->quirks().shouldAllowDownloadsInSpiteOfCSP();
+        if (!frame->effectiveSandboxFlags().contains(SandboxFlag::Downloads) || shouldIgnoreSandboxFlags) {
             // When starting the request, we didn't know that it would result in download and not navigation. Now we know that main document URL didn't change.
             // Download may use this knowledge for purposes unrelated to cookies, notably for setting file quarantine data.
             protectedFrameLoader()->setOriginalURLForDownloadRequest(m_request);
@@ -1187,8 +1189,8 @@ void DocumentLoader::continueAfterContentPolicy(PolicyAction policy)
                 protectedFrameLoader()->protectedClient()->startDownload(m_request);
             } else
                 protectedFrameLoader()->protectedClient()->convertMainResourceLoadToDownload(this, m_request, m_response);
-        } else if (frame->document())
-            frame->protectedDocument()->addConsoleMessage(MessageSource::Security, MessageLevel::Error, "Not allowed to download due to sandboxing"_s);
+        } else if (document)
+            document->addConsoleMessage(MessageSource::Security, MessageLevel::Error, "Not allowed to download due to sandboxing"_s);
 
         // The main resource might be loading from the memory cache, or its loader might have gone missing.
         if (RefPtr loader = mainResourceLoader()) {
@@ -2298,8 +2300,9 @@ void DocumentLoader::loadMainResource(ResourceRequest&& request)
         return !(flags.contains(SandboxFlag::Origin)) && !(flags.contains(SandboxFlag::Scripts));
     };
 
+    auto effectiveSandboxFlags = m_frame->effectiveSandboxFlags();
     RefPtr frame = m_frame.get();
-    if (!m_canUseServiceWorkers || !isSandboxingAllowingServiceWorkerFetchHandling(frame->effectiveSandboxFlags()))
+    if (!m_canUseServiceWorkers || !isSandboxingAllowingServiceWorkerFetchHandling(effectiveSandboxFlags))
         mainResourceLoadOptions.serviceWorkersMode = ServiceWorkersMode::None;
     else {
         // The main navigation load will trigger the registration of the client.
@@ -2313,6 +2316,8 @@ void DocumentLoader::loadMainResource(ResourceRequest&& request)
         scriptExecutionContextIdentifierToLoaderMap().add(*m_resultingClientId, this);
         mainResourceLoadOptions.resultingClientIdentifier = m_resultingClientId->object();
     }
+
+    request.setAllowCookies(!effectiveSandboxFlags.contains(SandboxFlag::Origin));
 
     CachedResourceRequest mainResourceRequest(WTFMove(request), mainResourceLoadOptions);
     if (!frame->isMainFrame() && frame->document()) {

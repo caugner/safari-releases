@@ -1455,6 +1455,25 @@ TEST(SOAuthorizationRedirect, AuthorizationOptions)
     EXPECT_TRUE(policyForAppSSOPerformed);
 }
 
+TEST(SOAuthorizationRedirect, AuthorizationOptionsAboutBlank)
+{
+    resetState();
+    SWIZZLE_SOAUTH(PAL::getSOAuthorizationClass());
+
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    auto delegate = adoptNS([[TestSOAuthorizationDelegate alloc] init]);
+    configureSOAuthorizationWebView(webView.get(), delegate.get());
+
+    [webView loadHTMLString:@"" baseURL:[NSURL URLWithString:@"about:blank"]];
+    Util::run(&navigationCompleted);
+
+    [delegate setShouldOpenExternalSchemes:true];
+    [webView evaluateJavaScript: @"location = 'http://www.example.com'" completionHandler:nil];
+    Util::run(&authorizationPerformed);
+    checkAuthorizationOptions(true, ""_s, 0);
+    EXPECT_TRUE(policyForAppSSOPerformed);
+}
+
 TEST(SOAuthorizationRedirect, InterceptionDidNotHandleTwice)
 {
     resetState();

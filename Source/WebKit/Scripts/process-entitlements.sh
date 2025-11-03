@@ -200,6 +200,7 @@ function webcontent_sandbox_entitlements()
     plistbuddy Add :com.apple.private.security.mutable-state-flags:9 string BlockFontServiceInWebContentSandbox
     plistbuddy Add :com.apple.private.security.mutable-state-flags:10 string UnifiedPDFEnabled
     plistbuddy Add :com.apple.private.security.mutable-state-flags:11 string WebProcessDidNotInjectStoreBundle
+    plistbuddy Add :com.apple.private.security.mutable-state-flags:12 string BlockUserInstalledFonts
     plistbuddy Add :com.apple.private.security.enable-state-flags array
     plistbuddy Add :com.apple.private.security.enable-state-flags:0 string EnableExperimentalSandbox
     plistbuddy Add :com.apple.private.security.enable-state-flags:1 string BlockIOKitInWebContentSandbox
@@ -212,6 +213,7 @@ function webcontent_sandbox_entitlements()
     plistbuddy Add :com.apple.private.security.enable-state-flags:8 string BlockFontServiceInWebContentSandbox
     plistbuddy Add :com.apple.private.security.enable-state-flags:9 string UnifiedPDFEnabled
     plistbuddy Add :com.apple.private.security.enable-state-flags:10 string WebProcessDidNotInjectStoreBundle
+    plistbuddy Add :com.apple.private.security.enable-state-flags:11 string BlockUserInstalledFonts
 }
 
 function extract_notification_names() {
@@ -644,6 +646,11 @@ fi
     plistbuddy Add :com.apple.private.assets.accessible-asset-types array
     plistbuddy Add :com.apple.private.assets.accessible-asset-types:0 string com.apple.MobileAsset.WebContentRestrictions
     plistbuddy Add :com.apple.developer.hardened-process bool YES
+
+    plistbuddy Add :com.apple.private.security.mutable-state-flags array
+    plistbuddy Add :com.apple.private.security.mutable-state-flags:0 string BlockNetworkAccess
+    plistbuddy Add :com.apple.private.security.enable-state-flags array
+    plistbuddy Add :com.apple.private.security.enable-state-flags:0 string BlockNetworkAccess
 }
 
 rm -f "${WK_PROCESSED_XCENT_FILE}"

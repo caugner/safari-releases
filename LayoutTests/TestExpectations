@@ -2270,6 +2270,7 @@ fast/webgpu [ Pass ]
 
 fast/webgpu/regression/repro_275108.html [ Pass Failure Timeout ]
 [ Debug ] fast/webgpu/regression/repro_275624.html [ Skip ]
+fast/webgpu/regression/webkit.svg [ Skip ]
 
 # FIXME: https://bugs.webkit.org/show_bug.cgi?id=292024
 [ Debug ] fast/webgpu/regression/repro_281491.html [ Pass Crash ]
@@ -7719,13 +7720,10 @@ webkit.org/b/289743 imported/w3c/web-platform-tests/css/css-anchor-position/anch
 webkit.org/b/289743 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-position-multicol-008.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-scroll-chained-003.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-scroll-chained-004.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-anchor-position/anchor-scroll-chained-fallback.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-scroll-position-try-012.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-scroll-to-sticky-003.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/anchor-scroll-to-sticky-004.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-anchor-position/position-area-inline-container.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/position-area-scroll-adjust.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-anchor-position/position-try-switch-to-fixed-anchor.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/position-visibility-add-no-overflow.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/position-visibility-anchors-visible-with-position.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-anchor-position/position-visibility-anchors-valid.tentative.html [ ImageOnlyFailure ]
@@ -7814,6 +7812,7 @@ webkit.org/b/287313 [ Debug ] fast/inline/list-marker-float-crash.html [ Skip ]
 media/webkit-media-controls-not-visible-after-exiting-fullscreen.html [ Skip ]
 
 webkit.org/b/279297 fast/block/float/float-avoider-with-negative-margin.html [ ImageOnlyFailure ]
+webkit.org/b/298061 fast/block/crash-with-percent-padding.html [ Skip ]
 
 # imported/w3c/web-platform-tests/css/selectors/featureless-004/5.html are failures.
 webkit.org/b/280685 imported/w3c/web-platform-tests/css/selectors/featureless-004.html [ ImageOnlyFailure ]

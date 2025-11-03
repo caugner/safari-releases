@@ -1,0 +1,177 @@
+CONSOLE MESSAGE: SecurityError: The operation is insecure.
+CONSOLE MESSAGE: SecurityError: The operation is insecure.
+CONSOLE MESSAGE: SecurityError: The operation is insecure.
+CONSOLE MESSAGE: SecurityError: The operation is insecure.
+CONSOLE MESSAGE: SecurityError: The operation is insecure.
+CONSOLE MESSAGE: SecurityError: The operation is insecure.
+CONSOLE MESSAGE: SecurityError: The operation is insecure.
+CONSOLE MESSAGE: SecurityError: The operation is insecure.
+Tests that cookies are blocked from sandboxed iframe.
+
+On success, you will see a series of "PASS" messages, followed by "TEST COMPLETE".
+
+
+PASS successfullyParsed is true
+
+TEST COMPLETE
+
+
+--------
+Frame: '<!--frame1-->'
+--------
+HTTP sent cookies:
+
+DOM cookies:
+
+
+
+--------
+Frame: '<!--frame2-->'
+--------
+HTTP sent cookies:
+
+DOM cookies:
+
+
+
+--------
+Frame: '<!--frame3-->'
+--------
+HTTP sent cookies:
+
+DOM cookies:
+
+
+
+--------
+Frame: '<!--frame4-->'
+--------
+HTTP sent cookies:
+
+DOM cookies:
+
+
+
+--------
+Frame: '<!--frame5-->'
+--------
+HTTP sent cookies:
+
+DOM cookies:
+
+
+
+--------
+Frame: '<!--frame6-->'
+--------
+HTTP sent cookies:
+
+DOM cookies:
+
+
+
+--------
+Frame: '<!--frame7-->'
+--------
+HTTP sent cookies:
+
+DOM cookies:
+
+
+
+--------
+Frame: '<!--frame8-->'
+--------
+HTTP sent cookies:
+
+DOM cookies:
+
+
+
+--------
+Frame: '<!--frame9-->'
+--------
+HTTP sent cookies:
+
+test_cookie = 1
+DOM cookies:
+
+test_cookie = 1
+
+
+--------
+Frame: '<!--frame10-->'
+--------
+HTTP sent cookies:
+
+test_cookie = 1
+DOM cookies:
+
+test_cookie = 1
+
+
+--------
+Frame: '<!--frame11-->'
+--------
+HTTP sent cookies:
+
+test_cookie = 1
+DOM cookies:
+
+test_cookie = 1
+
+
+--------
+Frame: '<!--frame12-->'
+--------
+HTTP sent cookies:
+
+test_cookie = 1
+DOM cookies:
+
+test_cookie = 1
+
+
+--------
+Frame: '<!--frame13-->'
+--------
+HTTP sent cookies:
+
+test_cookie = 1
+DOM cookies:
+
+test_cookie = 1
+
+
+--------
+Frame: '<!--frame14-->'
+--------
+HTTP sent cookies:
+
+test_cookie = 1
+DOM cookies:
+
+test_cookie = 1
+
+
+--------
+Frame: '<!--frame15-->'
+--------
+HTTP sent cookies:
+
+test_cookie = 1
+DOM cookies:
+
+test_cookie = 1
+
+
+--------
+Frame: '<!--frame16-->'
+--------
+HTTP sent cookies:
+
+test_cookie = 1
+DOM cookies:
+
+test_cookie = 1
+

@@ -1141,6 +1141,15 @@ static UIWindowScene *windowScene()
     TestWebKitAPI::Util::run(&done);
 }
 
+- (void)forceLightMode
+{
+#if USE(APPKIT)
+    [self setAppearance:[NSAppearance appearanceNamed:NSAppearanceNameAqua]];
+#else
+    [self setOverrideUserInterfaceStyle:UIUserInterfaceStyleLight];
+#endif
+}
+
 - (void)forceDarkMode
 {
 #if USE(APPKIT)

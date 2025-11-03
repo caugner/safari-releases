@@ -17,7 +17,8 @@ crypto/cocoa/SerializedCryptoKeyWrapMac.mm
 editing/cocoa/AlternativeTextUIController.mm
 editing/cocoa/AttributedString.mm
 editing/cocoa/DataDetection.mm
-editing/cocoa/HTMLConverter.mm
+editing/cocoa/EditingHTMLConverter.mm
+editing/cocoa/NodeHTMLConverter.mm
 loader/ContentFilter.cpp
 loader/archive/cf/LegacyWebArchive.cpp
 loader/archive/cf/LegacyWebArchiveMac.mm
@@ -102,7 +103,6 @@ platform/graphics/cv/VideoFrameCV.mm
 platform/graphics/mac/GraphicsChecksMac.cpp
 platform/graphics/mac/controls/ControlMac.mm
 platform/graphics/mac/controls/ImageControlsButtonMac.mm
-platform/graphics/mac/controls/MenuListButtonMac.mm
 platform/graphics/mac/controls/ProgressBarMac.mm
 platform/graphics/mac/controls/SliderTrackMac.mm
 platform/graphics/mac/controls/SwitchMacUtilities.mm

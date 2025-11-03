@@ -4553,8 +4553,13 @@ void SpeculativeJIT::compile(Node* node)
         break;
     }
 
-    case NewArrayWithConstantSize: {
-        compileNewArrayWithConstantSize(node);
+    case NewButterflyWithSize: {
+        compileNewButterflyWithSize(node);
+        break;
+    }
+
+    case NewArrayWithButterfly: {
+        compileNewArrayWithButterfly(node);
         break;
     }
 
@@ -6004,10 +6009,6 @@ void SpeculativeJIT::compile(Node* node)
         compileMaterializeNewObject(node);
         break;
 
-    case MaterializeNewArrayWithConstantSize:
-        compileMaterializeNewArrayWithConstantSize(node);
-        break;
-
     case CallDOM:
         compileCallDOM(node);
         break;
@@ -6577,7 +6578,8 @@ void SpeculativeJIT::compile(Node* node)
     case CheckBadValue:
     case BottomValue:
     case PhantomNewObject:
-    case PhantomNewArrayWithConstantSize:
+    case PhantomNewArrayWithButterfly:
+    case PhantomNewButterflyWithSize:
     case PhantomNewFunction:
     case PhantomNewGeneratorFunction:
     case PhantomNewAsyncFunction:
@@ -6590,6 +6592,7 @@ void SpeculativeJIT::compile(Node* node)
     case GetVectorLength:
     case PutHint:
     case CheckStructureImmediate:
+    case MaterializeNewArrayWithButterfly:
     case MaterializeCreateActivation:
     case MaterializeNewInternalFieldObject:
     case PutStack:
@@ -8469,6 +8472,28 @@ void SpeculativeJIT::compileCreateClonedArguments(Node* node)
     setupResults(resultGPR);
 
     cellResult(resultGPR, node);
+}
+
+void SpeculativeJIT::unboxRealNumberDouble(Node* node, FPRReg boxedFPR, FPRReg resultFPR, GPRReg scratchGPR)
+{
+    ASSERT(boxedFPR != resultFPR);
+
+    move64ToDouble(TrustedImm64(std::bit_cast<uint64_t>(JSValue::DoubleEncodeOffset)), resultFPR);
+    sub64(boxedFPR, resultFPR, resultFPR);
+    auto doneCase = branchIfNotNaN(resultFPR);
+
+    moveDoubleTo64(boxedFPR, scratchGPR);
+    speculationCheck(BadType, JSValueRegs { }, node, branchIfNotInt32(scratchGPR));
+    convertInt32ToDouble(scratchGPR, resultFPR);
+
+    doneCase.link(this);
+}
+
+void SpeculativeJIT::boxDoubleAsDouble(FPRReg inputFPR, FPRReg resultFPR)
+{
+    ASSERT(inputFPR != resultFPR);
+    move64ToDouble(TrustedImm64(std::bit_cast<uint64_t>(JSValue::DoubleEncodeOffset)), resultFPR);
+    add64(inputFPR, resultFPR, resultFPR);
 }
 
 #endif

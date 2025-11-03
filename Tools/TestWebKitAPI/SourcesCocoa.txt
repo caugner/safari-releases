@@ -28,6 +28,7 @@ WKWebViewConfigurationExtras.mm
 
 cocoa/CGImagePixelReader.cpp
 cocoa/DaemonTestUtilities.mm
+cocoa/DecomposedAttributedText.mm
 cocoa/DragAndDropSimulator.mm
 cocoa/HostWindowManager.mm
 cocoa/ImageAnalysisTestingUtilities.mm
@@ -177,6 +178,7 @@ Tests/WebKitCocoa/LoadDataWithNilMIMEType.mm
 Tests/WebKitCocoa/LoadFileThenReload.mm
 Tests/WebKitCocoa/LoadFileURL.mm
 Tests/WebKitCocoa/LoadInvalidURLRequest.mm
+Tests/WebKitCocoa/Loading.mm
 Tests/WebKitCocoa/LocalStorageClear.mm
 Tests/WebKitCocoa/LocalStorageDatabaseTracker.mm
 Tests/WebKitCocoa/LocalStorageNullEntries.mm
@@ -237,6 +239,7 @@ Tests/WebKitCocoa/PushAPI.mm
 Tests/WebKitCocoa/QuickLook.mm
 Tests/WebKitCocoa/ReloadWithDifferingInitialScale.mm
 Tests/WebKitCocoa/RemoteObjectRegistry.mm
+Tests/WebKitCocoa/RemoveFullscreenElementFromDOM.mm
 Tests/WebKitCocoa/RenderedImageWithOptions.mm
 Tests/WebKitCocoa/RenderingProgress.mm
 Tests/WebKitCocoa/ReparentWebViewTimeout.mm

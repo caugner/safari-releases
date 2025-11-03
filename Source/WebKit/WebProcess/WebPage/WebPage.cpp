@@ -650,6 +650,9 @@ WebPage::WebPage(PageIdentifier pageID, WebPageCreationParameters&& parameters)
 #if HAVE(UIKIT_RESIZABLE_WINDOWS)
     , m_isWindowResizingEnabled(parameters.hasResizableWindows)
 #endif
+#if PLATFORM(MAC)
+    , m_overflowHeightForTopScrollEdgeEffect(parameters.overflowHeightForTopScrollEdgeEffect)
+#endif
 #if ENABLE(META_VIEWPORT)
     , m_forceAlwaysUserScalable(parameters.ignoresViewportScaleLimits)
 #endif
@@ -720,6 +723,9 @@ WebPage::WebPage(PageIdentifier pageID, WebPageCreationParameters&& parameters)
     if (unifiedPDFEnabled)
         sandbox_enable_state_flag("UnifiedPDFEnabled", *auditToken);
 #if PLATFORM(MAC)
+    auto shouldAllowInstalledFonts = parameters.store.getBoolValueForKey(WebPreferencesKey::shouldAllowUserInstalledFontsKey());
+    if (!shouldAllowInstalledFonts || !WTF::MacApplication::isAppleMail())
+        sandbox_enable_state_flag("BlockUserInstalledFonts", *auditToken);
     auto shouldBlockFontService = parameters.store.getBoolValueForKey(WebPreferencesKey::blockFontServiceInWebContentSandboxKey());
     if (shouldBlockFontService)
         sandbox_enable_state_flag("BlockFontServiceInWebContentSandbox", *auditToken);
@@ -1619,9 +1625,6 @@ EditorState WebPage::editorState(ShouldPerformLayout shouldPerformLayout) const
 
         if (!result.visualData)
             result.visualData = std::optional<EditorState::VisualData> { EditorState::VisualData { } };
-
-        if (m_needsFontAttributes)
-            result.postLayoutData->fontAttributes = editor->fontAttributesAtSelectionStart();
     }
 
     getPlatformEditorState(*frame, result);
@@ -2732,9 +2735,9 @@ void WebPage::enableAccessibility()
         WebCore::AXObjectCache::enableAccessibility();
 }
 
-void WebPage::screenPropertiesDidChange()
+void WebPage::screenPropertiesDidChange(bool affectsStyle)
 {
-    protectedCorePage()->screenPropertiesDidChange();
+    protectedCorePage()->screenPropertiesDidChange(affectsStyle);
 }
 
 void WebPage::setUseFixedLayout(bool fixed)

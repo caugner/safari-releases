@@ -831,7 +831,7 @@ public:
 #endif
 #endif // PLATFORM(MAC)
 
-    void screenPropertiesDidChange();
+    void screenPropertiesDidChange(bool affectsStyle = true);
 
     // FIXME(site-isolation): Calls to these should be removed in favour of setting via WebPageProxy.
     void scalePage(double scale, const WebCore::IntPoint& origin);
@@ -1235,6 +1235,7 @@ public:
     void setIsolatedTree(Ref<WebCore::AXIsolatedTree>&&);
 #endif
     NSObject *accessibilityObjectForMainFramePlugin();
+    bool shouldFallbackToWebContentAXObjectForMainFramePlugin() const;
     const WebCore::FloatPoint& accessibilityPosition() const { return m_accessibilityPosition; }
 
     void setTextAsync(const String&);
@@ -2028,6 +2029,10 @@ public:
 #endif
 
     std::unique_ptr<FrameInfoData> takeMainFrameNavigationInitiator();
+
+#if PLATFORM(MAC)
+    void setOverflowHeightForTopScrollEdgeEffect(double value) { m_overflowHeightForTopScrollEdgeEffect = value; }
+#endif
 
 private:
     WebPage(WebCore::PageIdentifier, WebPageCreationParameters&&);
@@ -2852,6 +2857,10 @@ private:
 
 #if HAVE(UIKIT_RESIZABLE_WINDOWS)
     bool m_isWindowResizingEnabled { false };
+#endif
+
+#if PLATFORM(MAC)
+    double m_overflowHeightForTopScrollEdgeEffect { 0 };
 #endif
 
     bool m_needsScrollGeometryUpdates { false };
