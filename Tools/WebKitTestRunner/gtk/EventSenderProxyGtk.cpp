@@ -36,8 +36,7 @@
 #include "PlatformWebView.h"
 #include "StringFunctions.h"
 #include "TestController.h"
-#include <WebCore/GtkUtilities.h>
-#include <WebCore/GtkVersioning.h>
+#include <WebKit/GtkVersioning.h>
 #include <gdk/gdk.h>
 #include <gdk/gdkkeysyms.h>
 #include <webkit/WebKitWebViewBaseInternal.h>
@@ -75,9 +74,7 @@ static inline WebKitWebViewBase* toWebKitGLibAPI(PlatformWKView view)
     return const_cast<WebKitWebViewBase*>(reinterpret_cast<const WebKitWebViewBase*>(view));
 }
 
-EventSenderProxy::~EventSenderProxy()
-{
-}
+EventSenderProxy::~EventSenderProxy() = default;
 
 static unsigned eventSenderButtonToGDKButton(unsigned button)
 {
@@ -237,25 +234,37 @@ static int getGDKKeySymForKeyRef(WKStringRef keyRef, unsigned location, guint* m
     return gdk_unicode_to_keyval(static_cast<guint32>(buffer.get()[0]));
 }
 
-void EventSenderProxy::keyDown(WKStringRef keyRef, WKEventModifiers wkModifiers, unsigned location)
+static inline void processKeyEvent(WebKitWebViewBase* webViewBase, WKStringRef keyRef, WKEventModifiers wkModifiers, unsigned location, KeyEventType type)
 {
     guint modifiers = webkitModifiersToGDKModifiers(wkModifiers);
     int gdkKeySym = getGDKKeySymForKeyRef(keyRef, location, &modifiers);
-    webkitWebViewBaseSynthesizeKeyEvent(toWebKitGLibAPI(m_testController->mainWebView()->platformView()), KeyEventType::Insert, gdkKeySym, modifiers, ShouldTranslateKeyboardState::No);
+    webkitWebViewBaseSynthesizeKeyEvent(webViewBase, type, gdkKeySym, modifiers, ShouldTranslateKeyboardState::No);
 }
 
-void EventSenderProxy::rawKeyDown(WKStringRef key, WKEventModifiers modifiers, unsigned keyLocation)
+void EventSenderProxy::keyDown(WKStringRef keyRef, WKEventModifiers wkModifiers, unsigned location)
 {
+    processKeyEvent(toWebKitGLibAPI(m_testController->mainWebView()->platformView()), keyRef, wkModifiers, location, KeyEventType::Insert);
 }
 
-void EventSenderProxy::rawKeyUp(WKStringRef key, WKEventModifiers modifiers, unsigned keyLocation)
+void EventSenderProxy::rawKeyDown(WKStringRef key, WKEventModifiers wkModifiers, unsigned keyLocation)
 {
+    processKeyEvent(toWebKitGLibAPI(m_testController->mainWebView()->platformView()), key, wkModifiers, keyLocation, KeyEventType::Press);
+}
+
+void EventSenderProxy::rawKeyUp(WKStringRef key, WKEventModifiers wkModifiers, unsigned keyLocation)
+{
+    processKeyEvent(toWebKitGLibAPI(m_testController->mainWebView()->platformView()), key, wkModifiers, keyLocation, KeyEventType::Release);
+}
+
+static inline unsigned stateModifierForGdkButton(unsigned button)
+{
+    return 1 << (8 + button - 1);
 }
 
 void EventSenderProxy::mouseDown(unsigned button, WKEventModifiers wkModifiers, WKStringRef pointerType)
 {
     unsigned gdkButton = eventSenderButtonToGDKButton(button);
-    auto modifier = WebCore::stateModifierForGdkButton(gdkButton);
+    auto modifier = stateModifierForGdkButton(gdkButton);
 
     // If the same mouse button is already in the down position don't
     // send another event as it may confuse Xvfb.
@@ -272,7 +281,7 @@ void EventSenderProxy::mouseDown(unsigned button, WKEventModifiers wkModifiers, 
 void EventSenderProxy::mouseUp(unsigned button, WKEventModifiers wkModifiers, WKStringRef pointerType)
 {
     unsigned gdkButton = eventSenderButtonToGDKButton(button);
-    auto modifier = WebCore::stateModifierForGdkButton(gdkButton);
+    auto modifier = stateModifierForGdkButton(gdkButton);
     m_mouseButtonsCurrentlyDown &= ~modifier;
     webkitWebViewBaseSynthesizeMouseEvent(toWebKitGLibAPI(m_testController->mainWebView()->platformView()),
         MouseEventType::Release, gdkButton, m_mouseButtonsCurrentlyDown, m_position.x, m_position.y, webkitModifiersToGDKModifiers(wkModifiers), 0, toWTFString(pointerType));

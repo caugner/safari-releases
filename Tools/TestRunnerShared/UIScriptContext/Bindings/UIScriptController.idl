@@ -42,9 +42,21 @@ dictionary ScrollToOptions {
     boolean unconstrained = false;
 };
 
-dictionary TextExtractionOptions {
+dictionary TextExtractionTestOptions {
+    unsigned long wordLimit = 0;
     boolean clipToBounds = false;
     boolean includeRects = false;
+    boolean includeURLs = false;
+    boolean mergeParagraphs = false;
+    boolean skipNearlyTransparentContent = false;
+};
+
+dictionary TextExtractionInteractionOptions {
+    DOMString nodeIdentifier;
+    DOMString text;
+    double x = -1;
+    double y = -1;
+    boolean replaceAll = false;
 };
 
 interface UIScriptController {
@@ -286,6 +298,8 @@ interface UIScriptController {
     attribute object willPresentPopoverCallback;
     attribute object didDismissPopoverCallback;
 
+    attribute object didPresentViewControllerCallback;
+
     attribute object willBeginZoomingCallback;
     attribute object didEndZoomingCallback;
 
@@ -353,6 +367,7 @@ interface UIScriptController {
     readonly attribute object inputViewBounds;
 
     undefined setKeyboardInputModeIdentifier(DOMString identifier);
+    undefined setFocusStartsInputSessionPolicy(DOMString policy);
 
     undefined replaceTextAtRange(DOMString text, long location, long length);
 
@@ -427,11 +442,16 @@ interface UIScriptController {
     undefined setInlinePrediction(DOMString text, unsigned long startIndex);
     undefined acceptInlinePrediction();
 
-    undefined requestTextExtraction(object callback, TextExtractionOptions options);
+    undefined requestTextExtraction(object callback, TextExtractionTestOptions options);
+    undefined requestDebugText(object callback, TextExtractionTestOptions options);
+    undefined performTextExtractionInteraction(DOMString action, TextExtractionInteractionOptions options, object callback);
 
     undefined requestRenderedTextForFrontmostTarget(long x, long y, object callback);
     undefined adjustVisibilityForFrontmostTarget(long x, long y, object callback);
     undefined resetVisibilityAdjustments(object callback);
 
     DOMString frontmostViewAtPoint(long x, long y);
+
+    readonly attribute boolean didCallEnsurePositionInformationIsUpToDateSinceLastCheck;
+    undefined clearEnsurePositionInformationIsUpToDateTracking();
 };

@@ -57,9 +57,7 @@ EventSenderProxy::EventSenderProxy(TestController* testController)
 #endif
 }
 
-EventSenderProxy::~EventSenderProxy()
-{
-}
+EventSenderProxy::~EventSenderProxy() = default;
 
 void EventSenderProxy::updateClickCountForButton(int button)
 {
@@ -123,12 +121,14 @@ void EventSenderProxy::keyDown(WKStringRef keyRef, WKEventModifiers wkModifiers,
     m_client->keyDown(keyRef, m_time, wkModifiers, location);
 }
 
-void EventSenderProxy::rawKeyDown(WKStringRef key, WKEventModifiers modifiers, unsigned keyLocation)
+void EventSenderProxy::rawKeyDown(WKStringRef keyRef, WKEventModifiers wkModifiers, unsigned location)
 {
+    m_client->rawKeyDown(keyRef, wkModifiers, location);
 }
 
-void EventSenderProxy::rawKeyUp(WKStringRef key, WKEventModifiers modifiers, unsigned keyLocation)
+void EventSenderProxy::rawKeyUp(WKStringRef keyRef, WKEventModifiers wkModifiers, unsigned location)
 {
+    m_client->rawKeyUp(keyRef, wkModifiers, location);
 }
 
 #if ENABLE(TOUCH_EVENTS)

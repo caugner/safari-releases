@@ -299,7 +299,7 @@ static void testModelPreviewPrompt(void(^loadModel)(TestWKWebView *)) {
         return nil;
     });
 
-    Class qlItemClass = PAL::getQLItemClass();
+    Class qlItemClass = PAL::getQLItemClassSingleton();
     SEL targetSelector = @selector(initWithDataProvider:contentType:previewTitle:);
 
     InstanceMethodSwizzler qlItemSwizzler { qlItemClass, targetSelector, imp_implementationWithBlock(swizzledQLItemBlock.get()) };
@@ -358,7 +358,7 @@ static void testRelARPrompt(void(^loadModel)(TestWKWebView *)) {
             completion(nil);
     });
 
-    Class asvLaunchPreviewClass = getASVLaunchPreviewClass();
+    Class asvLaunchPreviewClass = getASVLaunchPreviewClassSingleton();
     SEL beginSelector = NSSelectorFromString(@"beginPreviewApplicationWithURLs:is3DContent:websiteURL:completion:");
     InstanceMethodSwizzler asvSwizzler { asvLaunchPreviewClass, beginSelector, imp_implementationWithBlock(swizzledASVBeginBlock.get()) };
 #else
@@ -366,13 +366,13 @@ static void testRelARPrompt(void(^loadModel)(TestWKWebView *)) {
         arInvoked = true;
     });
 
-    Class qlPreviewControllerClass = PAL::getQLPreviewControllerClass();
+    Class qlPreviewControllerClass = PAL::getQLPreviewControllerClassSingleton();
     InstanceMethodSwizzler methodSwizzler { qlPreviewControllerClass, @selector(setDataSource:), imp_implementationWithBlock(swizzledSetDataSourceBlock.get()) };
 #endif
 
     auto swizzledPresentBlock = makeBlockPtr([&](id self, UIViewController *controllerToPresent, BOOL animated, void (^completion)()) {
 #if !PLATFORM(VISION)
-        if ([controllerToPresent isKindOfClass:PAL::getQLPreviewControllerClass()])
+        if ([controllerToPresent isKindOfClass:PAL::getQLPreviewControllerClassSingleton()])
             return;
 #endif
 

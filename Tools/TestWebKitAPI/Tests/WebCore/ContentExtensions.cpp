@@ -1473,7 +1473,7 @@ TEST_F(ContentExtensionTest, MatchesEverything)
     testRequest(backend6, subResourceRequest("http://example.com/"_s, "http://example.com/"_s, ResourceType::Script), { });
     testRequest(backend6, subResourceRequest("http://example.com/ignore"_s, "http://example.com/"_s, ResourceType::Script), { });
 }
-    
+
 TEST_F(ContentExtensionTest, InvalidJSON)
 {
     checkCompilerError("["_s, ContentExtensionError::JSONInvalid);
@@ -1622,6 +1622,12 @@ TEST_F(ContentExtensionTest, InvalidJSON)
     checkCompilerError("[{\"action\":{\"type\":\"modify-headers\",\"priority\":2,\"request-headers\":[{\"operation\":\"invalid\",\"header\":\"testheader\"}]},\"trigger\":{\"url-filter\":\"webkit.org\"}}]"_s, ContentExtensionError::JSONModifyHeadersInvalidOperation);
     checkCompilerError("[{\"action\":{\"type\":\"modify-headers\",\"priority\":\"\",\"request-headers\":[{\"operation\":\"remove\",\"header\":\"testheader\"}]},\"trigger\":{\"url-filter\":\"webkit.org\"}}]"_s, ContentExtensionError::JSONModifyHeadersInvalidPriority);
     checkCompilerError("[{\"action\":{\"type\":\"modify-headers\",\"priority\":-1,\"request-headers\":[{\"operation\":\"remove\",\"header\":\"testheader\"}]},\"trigger\":{\"url-filter\":\"webkit.org\"}}]"_s, ContentExtensionError::JSONModifyHeadersInvalidPriority);
+
+    checkCompilerError("[{\"action\":{\"type\":\"block\"},\"trigger\":{\"url-filter\":\".*\"},\"_identifier\":\"foo\"}]"_s, ContentExtensionError::JSONInvalidRuleIdentifier);
+    checkCompilerError("[{\"action\":{\"type\":\"block\"},\"trigger\":{\"url-filter\":\".*\"},\"_identifier\":null}]"_s, ContentExtensionError::JSONInvalidRuleIdentifier);
+    checkCompilerError("[{\"action\":{\"type\":\"block\"},\"trigger\":{\"url-filter\":\".*\"},\"_identifier\":false}]"_s, ContentExtensionError::JSONInvalidRuleIdentifier);
+    checkCompilerError("[{\"action\":{\"type\":\"block\"},\"trigger\":{\"url-filter\":\".*\"},\"_identifier\":[]}]"_s, ContentExtensionError::JSONInvalidRuleIdentifier);
+    checkCompilerError("[{\"action\":{\"type\":\"block\"},\"trigger\":{\"url-filter\":\".*\"},\"_identifier\":{}}]"_s, ContentExtensionError::JSONInvalidRuleIdentifier);
 }
 
 TEST_F(ContentExtensionTest, StrictPrefixSeparatedMachines1)
@@ -3422,6 +3428,97 @@ TEST_F(ContentExtensionTest, IgnoreFollowingRules)
     testRequest(backend, mainDocumentRequest("https://www.webkit.org/"_s), { variantIndex<ContentExtensions::BlockLoadAction> });
     testRequest(backend, mainDocumentRequest("https://www.apple.com/"_s), { variantIndex<ContentExtensions::BlockLoadAction>, variantIndex<ContentExtensions::BlockLoadAction> });
     testRequest(backend, mainDocumentRequest("https://www.w3.org/"_s), { variantIndex<ContentExtensions::BlockLoadAction> });
+}
+
+TEST_F(ContentExtensionTest, ReportIdentifierAction)
+{
+    // Different identifiers
+    auto backend = makeBackend("["_s
+        "{\"action\":{\"type\":\"block\"},\"trigger\":{\"url-filter\":\"https://www.example.com/first\"},\"_identifier\":1,\"_rulesetIdentifier\":\"Test Ruleset 1\"},"_s
+        "{\"action\":{\"type\":\"block\"},\"trigger\":{\"url-filter\":\"https://www.example.com/second\"},\"_identifier\":2,\"_rulesetIdentifier\":\"Test Ruleset 2\"}"_s
+    "]"_s);
+
+    ASSERT_TRUE(actionsEqual(allActionsForResourceLoad(backend, mainDocumentRequest("https://www.example.com/first"_s)), Vector<Action>::from(Action { ContentExtensions::BlockLoadAction() }, Action { ContentExtensions::ReportIdentifierAction { "Test Ruleset 1"_s, 1 } })));
+    ASSERT_TRUE(actionsEqual(allActionsForResourceLoad(backend, mainDocumentRequest("https://www.example.com/second"_s)), Vector<Action>::from(Action { ContentExtensions::BlockLoadAction() }, Action { ContentExtensions::ReportIdentifierAction { "Test Ruleset 2"_s, 2 } })));
+
+    // Different action types and identifiers
+    backend = makeBackend("["_s
+        "{\"action\":{\"type\":\"block-cookies\"},\"trigger\":{\"url-filter\":\"cookies\"},\"_identifier\":1,\"_rulesetIdentifier\":\"Test Ruleset\"},"_s
+        "{\"action\":{\"type\":\"css-display-none\",\"selector\":\".hidden\"},\"trigger\":{\"url-filter\":\"css\"},\"_identifier\":2,\"_rulesetIdentifier\":\"Test Ruleset\"},"_s
+        "{\"action\":{\"type\":\"notify\",\"notification\":\"test\"},\"trigger\":{\"url-filter\":\"notify\"},\"_identifier\":3,\"_rulesetIdentifier\":\"Test Ruleset\"}"_s
+    "]"_s);
+
+    ASSERT_TRUE(actionsEqual(allActionsForResourceLoad(backend, mainDocumentRequest("https://example.com/cookies"_s)), Vector<Action>::from(Action { ContentExtensions::BlockCookiesAction() }, Action { ContentExtensions::ReportIdentifierAction { "Test Ruleset"_s, 1 } })));
+    ASSERT_TRUE(actionsEqual(allActionsForResourceLoad(backend, mainDocumentRequest("https://example.com/css"_s)), Vector<Action>::from(Action { ContentExtensions::ReportIdentifierAction { "Test Ruleset"_s, 2 } }, Action { ContentExtensions::CSSDisplayNoneSelectorAction { { ".hidden"_s } } })));
+    ASSERT_TRUE(actionsEqual(allActionsForResourceLoad(backend, mainDocumentRequest("https://example.com/notify"_s)), Vector<Action>::from(Action { ContentExtensions::NotifyAction { { "test"_s } } }, Action { ContentExtensions::ReportIdentifierAction { "Test Ruleset"_s, 3 } })));
+
+    // With and without identifiers
+    backend = makeBackend("["_s
+        "{\"action\":{\"type\":\"block\"},\"trigger\":{\"url-filter\":\"with-id\"},\"_identifier\":1},"_s
+        "{\"action\":{\"type\":\"block\"},\"trigger\":{\"url-filter\":\"without-id\"}}"_s
+    "]"_s);
+
+    ASSERT_TRUE(actionsEqual(allActionsForResourceLoad(backend, mainDocumentRequest("https://example.com/with-id"_s)), Vector<Action>::from(Action { ContentExtensions::BlockLoadAction() }, Action { ContentExtensions::ReportIdentifierAction { ""_s, 1 } })));
+    ASSERT_TRUE(actionsEqual(allActionsForResourceLoad(backend, mainDocumentRequest("https://example.com/without-id"_s)), Vector<Action>::from(Action { ContentExtensions::BlockLoadAction() })));
+
+    // Multiple matches with one request
+    backend = makeBackend("["_s
+        "{\"action\":{\"type\":\"block\"},\"trigger\":{\"url-filter\":\"test\"},\"_identifier\":1,\"_rulesetIdentifier\":\"Test Ruleset\"},"_s
+        "{\"action\":{\"type\":\"block-cookies\"},\"trigger\":{\"url-filter\":\"multi\"},\"_identifier\":2,\"_rulesetIdentifier\":\"Test Ruleset\"},"_s
+        "{\"action\":{\"type\":\"css-display-none\",\"selector\":\".ad\"},\"trigger\":{\"url-filter\":\"multi\"},\"_identifier\":3,\"_rulesetIdentifier\":\"Test Ruleset\"}"_s
+    "]"_s);
+
+    ASSERT_TRUE(actionsEqual(allActionsForResourceLoad(backend, mainDocumentRequest("https://example.com/multi-test"_s)), Vector<Action>::from(Action { ContentExtensions::BlockLoadAction() }, Action { ContentExtensions::ReportIdentifierAction { "Test Ruleset"_s, 1 } }, Action { ContentExtensions::BlockCookiesAction() }, Action { ContentExtensions::ReportIdentifierAction { "Test Ruleset"_s, 2 } }, Action { ContentExtensions::ReportIdentifierAction { "Test Ruleset"_s, 3 } }, Action { ContentExtensions::CSSDisplayNoneSelectorAction { { ".ad"_s } } })));
+
+    // With conditions
+    backend = makeBackend("["_s
+        "{\"action\":{\"type\":\"block\"},\"trigger\":{\"url-filter\":\"ads\",\"if-domain\":[\"example.com\"]},\"_identifier\":1,\"_rulesetIdentifier\":\"Test Ruleset\"},"_s
+        "{\"action\":{\"type\":\"block\"},\"trigger\":{\"url-filter\":\"ads\",\"unless-domain\":[\"trusted.com\"]},\"_identifier\":2,\"_rulesetIdentifier\":\"Test Ruleset\"}"_s
+    "]"_s);
+
+    ASSERT_TRUE(actionsEqual(allActionsForResourceLoad(backend, subResourceRequest("https://cdn.com/ads.js"_s, "https://example.com/"_s)),
+        Vector<Action>::from(Action { ContentExtensions::BlockLoadAction() }, Action { ContentExtensions::ReportIdentifierAction { "Test Ruleset"_s, 1 } }, Action { ContentExtensions::BlockLoadAction() }, Action { ContentExtensions::ReportIdentifierAction { "Test Ruleset"_s, 2 } })));
+    ASSERT_TRUE(actionsEqual(allActionsForResourceLoad(backend, subResourceRequest("https://cdn.com/ads.js"_s, "https://other.com/"_s)), Vector<Action>::from(Action { ContentExtensions::BlockLoadAction() }, Action { ContentExtensions::ReportIdentifierAction { "Test Ruleset"_s, 2 } })));
+    ASSERT_TRUE(actionsEqual(allActionsForResourceLoad(backend, subResourceRequest("https://cdn.com/ads.js"_s, "https://trusted.com/"_s)), Vector<Action>()));
+
+    // With resource types
+    backend = makeBackend("["_s
+        "{\"action\":{\"type\":\"block\"},\"trigger\":{\"url-filter\":\"track\",\"resource-type\":[\"script\"]},\"_identifier\":1,\"_rulesetIdentifier\":\"Test Ruleset\"},"_s
+        "{\"action\":{\"type\":\"block\"},\"trigger\":{\"url-filter\":\"track\",\"resource-type\":[\"image\"]},\"_identifier\":2,\"_rulesetIdentifier\":\"Test Ruleset\"}"_s
+    "]"_s);
+
+    ASSERT_TRUE(actionsEqual(allActionsForResourceLoad(backend, mainDocumentRequest("https://example.com/track.js"_s, ResourceType::Script)), Vector<Action>::from(Action { ContentExtensions::BlockLoadAction() }, Action { ContentExtensions::ReportIdentifierAction { "Test Ruleset"_s, 1 } })));
+    ASSERT_TRUE(actionsEqual(allActionsForResourceLoad(backend, mainDocumentRequest("https://example.com/track.png"_s, ResourceType::Image)), Vector<Action>::from(Action { ContentExtensions::BlockLoadAction() }, Action { ContentExtensions::ReportIdentifierAction { "Test Ruleset"_s, 2 } })));
+    ASSERT_TRUE(actionsEqual(allActionsForResourceLoad(backend, mainDocumentRequest("https://example.com/track.html"_s)), Vector<Action>()));
+
+    // With ignore rules
+    backend = makeBackend("["_s
+        "{\"action\":{\"type\":\"block\"},\"trigger\":{\"url-filter\":\"block-me\"},\"_identifier\":1,\"_rulesetIdentifier\":\"Test Ruleset\"},"_s
+        "{\"action\":{\"type\":\"ignore-previous-rules\"},\"trigger\":{\"url-filter\":\"ignore-previous\"}},"_s
+        "{\"action\":{\"type\":\"block\"},\"trigger\":{\"url-filter\":\"block-me\"},\"_identifier\":2,\"_rulesetIdentifier\":\"Test Ruleset\"}"_s
+    "]"_s);
+
+    ASSERT_TRUE(actionsEqual(allActionsForResourceLoad(backend, mainDocumentRequest("https://example.com/block-me"_s)), Vector<Action>::from(Action { ContentExtensions::BlockLoadAction() }, Action { ContentExtensions::ReportIdentifierAction { "Test Ruleset"_s, 1 } }, Action { ContentExtensions::BlockLoadAction() }, Action { ContentExtensions::ReportIdentifierAction { "Test Ruleset"_s, 2 } })));
+    ASSERT_TRUE(actionsEqual(allActionsForResourceLoad(backend, mainDocumentRequest("https://example.com/ignore-previous-block-me"_s)),
+        Vector<Action>::from(Action { ContentExtensions::BlockLoadAction() }, Action { ContentExtensions::ReportIdentifierAction { "Test Ruleset"_s, 2 } }), true));
+
+    // With load types
+    backend = makeBackend("["_s
+        "{\"action\":{\"type\":\"block\"},\"trigger\":{\"url-filter\":\"analytics\",\"load-type\":[\"third-party\"]},\"_identifier\":1,\"_rulesetIdentifier\":\"Test Ruleset\"},"_s
+        "{\"action\":{\"type\":\"block\"},\"trigger\":{\"url-filter\":\"analytics\",\"load-type\":[\"first-party\"]},\"_identifier\":2,\"_rulesetIdentifier\":\"Test Ruleset\"}"_s
+    "]"_s);
+
+    ASSERT_TRUE(actionsEqual(allActionsForResourceLoad(backend, subResourceRequest("https://analytics.com/track.js"_s, "https://example.com/"_s)), Vector<Action>::from(Action { ContentExtensions::BlockLoadAction() }, Action { ContentExtensions::ReportIdentifierAction { "Test Ruleset"_s, 1 } })));
+    ASSERT_TRUE(actionsEqual(allActionsForResourceLoad(backend, mainDocumentRequest("https://example.com/analytics"_s)), Vector<Action>::from(Action { ContentExtensions::BlockLoadAction() }, Action { ContentExtensions::ReportIdentifierAction { "Test Ruleset"_s, 2 } })));
+
+    // With complex regex
+    backend = makeBackend("["_s
+        "{\"action\":{\"type\":\"block\"},\"trigger\":{\"url-filter\":\"^https://[a-z]+\\\\.ads\\\\.com/\"},\"_identifier\":1,\"_rulesetIdentifier\":\"Test Ruleset\"},"_s
+        "{\"action\":{\"type\":\"block\"},\"trigger\":{\"url-filter\":\"\\\\.jpg\\\\?.*tracking\"},\"_identifier\":2,\"_rulesetIdentifier\":\"Test Ruleset\"}"_s
+    "]"_s);
+
+    ASSERT_TRUE(actionsEqual(allActionsForResourceLoad(backend, mainDocumentRequest("https://cdn.ads.com/banner"_s)), Vector<Action>::from(Action { ContentExtensions::BlockLoadAction() }, Action { ContentExtensions::ReportIdentifierAction { "Test Ruleset"_s, 1 } })));
+    ASSERT_TRUE(actionsEqual(allActionsForResourceLoad(backend, mainDocumentRequest("https://example.com/image.jpg?tracking=123"_s)), Vector<Action>::from(Action { ContentExtensions::BlockLoadAction() }, Action { ContentExtensions::ReportIdentifierAction { "Test Ruleset"_s, 2 } })));
 }
 
 } // namespace TestWebKitAPI

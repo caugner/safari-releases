@@ -1,26 +1,22 @@
 Modules/websockets/WorkerThreadableWebSocketChannel.h
-accessibility/AXObjectCache.h
+[ iOS ] accessibility/ios/WebAccessibilityObjectWrapperIOS.h
+[ iOS ] page/ios/ContentChangeObserver.h
+[ iOS ] platform/ios/DeviceMotionClientIOS.h
+[ iOS ] platform/ios/DeviceOrientationClientIOS.h
+[ iOS ] rendering/ios/RenderThemeIOS.mm
 bindings/js/JSLazyEventListener.cpp
 css/CSSToLengthConversionData.h
 css/SelectorChecker.h
 css/SelectorFilter.h
-css/calc/CSSCalcTree+CalculationValue.cpp
+css/calc/CSSCalcTree+StyleCalculationValue.cpp
 css/query/MediaQueryEvaluator.h
 dom/CollectionIndexCache.h
 dom/Node.cpp
 dom/Node.h
 editing/TextCheckingHelper.h
-editing/VisiblePosition.h
-html/HTMLLinkElement.h
 html/parser/HTMLTreeBuilder.h
-inspector/DOMPatchSupport.cpp
-inspector/InspectorController.h
-inspector/InspectorStyleSheet.cpp
 inspector/InstrumentingAgents.h
-inspector/agents/InspectorCSSAgent.h
-inspector/agents/InspectorDOMAgent.cpp
 inspector/agents/WebHeapAgent.cpp
-layout/formattingContexts/flex/FlexFormattingContext.h
 layout/formattingContexts/inline/AbstractLineBuilder.h
 layout/formattingContexts/inline/InlineContentBreaker.h
 layout/formattingContexts/inline/InlineFormattingContext.h
@@ -40,18 +36,12 @@ loader/DocumentThreadableLoader.h
 loader/WorkerThreadableLoader.h
 page/FrameSnapshotting.cpp
 page/UndoManager.h
-platform/OrientationNotifier.h
-platform/ScrollAnimator.h
-platform/Scrollbar.h
-platform/ScrollbarsController.h
-platform/graphics/TextBoxIterator.h
+platform/graphics/TextRunIterator.h
 platform/graphics/ca/TileCoverageMap.h
-platform/mac/VideoPresentationInterfaceMac.mm
 platform/mock/DeviceOrientationClientMock.h
 rendering/BackgroundPainter.h
 rendering/GlyphDisplayListCache.cpp
 rendering/GridTrackSizingAlgorithm.h
-rendering/ImageQualityController.h
 rendering/InlineBoxPainter.h
 rendering/LayerOverlapMap.cpp
 rendering/LayerOverlapMap.h
@@ -94,7 +84,6 @@ rendering/mathml/RenderMathMLScripts.h
 rendering/shapes/ShapeOutsideInfo.h
 rendering/svg/SVGRenderingContext.h
 rendering/svg/SVGTextBoxPainter.h
-rendering/svg/SVGTextLayoutEngineBaseline.h
 rendering/svg/legacy/SVGResourcesCache.h
 rendering/updating/RenderTreeBuilder.h
 rendering/updating/RenderTreeBuilderBlock.cpp

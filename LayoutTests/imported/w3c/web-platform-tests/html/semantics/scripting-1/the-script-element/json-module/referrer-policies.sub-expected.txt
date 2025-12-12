@@ -1,8 +1,10 @@
-CONSOLE MESSAGE: SyntaxError: Unexpected identifier 'assert'. Expected a ';' following a targeted import declaration.
-CONSOLE MESSAGE: SyntaxError: Unexpected identifier 'assert'. Expected a ';' following a targeted import declaration.
-CONSOLE MESSAGE: SyntaxError: Unexpected identifier 'assert'. Expected a ';' following a targeted import declaration.
-CONSOLE MESSAGE: SyntaxError: Unexpected identifier 'assert'. Expected a ';' following a targeted import declaration.
 
-Harness Error (TIMEOUT), message = null
-
+PASS Importing a same-origin top-level script with the default referrer policy.
+PASS Importing a remote-origin top-level script with the default referrer policy.
+PASS Importing a same-origin top-level script with the origin policy.
+PASS Importing a remote-origin top-level script with the origin policy.
+PASS Importing a same-origin top-level script with the no-referrer policy.
+PASS Importing a remote-origin top-level script with the no-referrer policy.
+PASS Importing a same-origin top-level script with the unsafe-url referrer policy.
+PASS Importing a remote-origin top-level script with the unsafe-url referrer policy.
 

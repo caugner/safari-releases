@@ -26,6 +26,8 @@
 #import "config.h"
 #import "TestWKWebView.h"
 
+#ifdef __cplusplus
+
 #import "CGImagePixelReader.h"
 #import "ClassMethodSwizzler.h"
 #import "HostWindowManager.h"
@@ -55,10 +57,14 @@
 #import <wtf/WeakObjCPtr.h>
 #import <wtf/cocoa/TypeCastsCocoa.h>
 
+#endif
+
 #if PLATFORM(MAC)
 #import <AppKit/AppKit.h>
 #import <Carbon/Carbon.h>
 #endif
+
+#ifdef __cplusplus
 
 #if PLATFORM(IOS_FAMILY)
 #import "UIKitSPIForTesting.h"
@@ -180,11 +186,6 @@ static NSString *overrideBundleIdentifier(id, SEL)
 }
 
 #if PLATFORM(IOS_FAMILY)
-
-- (UIView <UITextInputPrivate, UITextInputMultiDocument> *)textInputContentView
-{
-    return (UIView <UITextInputPrivate, UITextInputMultiDocument> *)[self valueForKey:@"_currentContentView"];
-}
 
 - (NSArray<_WKTextInputContext *> *)synchronouslyRequestTextInputContextsInRect:(CGRect)rect
 {
@@ -637,6 +638,21 @@ static WebEvent *unwrap(BEKeyEntry *event)
     return evalResult.autorelease();
 }
 
+- (id)objectByEvaluatingJavaScript:(NSString *)script inFrame:(WKFrameInfo *)frame inContentWorld:(WKContentWorld *)world
+{
+    __block RetainPtr<id> evalResult;
+    __block bool done { false };
+    [self evaluateJavaScript:script inFrame:frame inContentWorld:world completionHandler:^(id result, NSError *error) {
+        evalResult = result;
+        done = true;
+        EXPECT_FALSE(error);
+        if (error)
+            NSLog(@"Encountered error: %@ while evaluating script: %@", error, script);
+    }];
+    TestWebKitAPI::Util::run(&done);
+    return evalResult.autorelease();
+}
+
 - (id)objectByEvaluatingJavaScriptWithUserGesture:(NSString *)script
 {
     bool callbackComplete = false;
@@ -650,6 +666,14 @@ static WebEvent *unwrap(BEKeyEntry *event)
     }];
     TestWebKitAPI::Util::run(&callbackComplete);
     return evalResult.autorelease();
+}
+
+- (id)objectByCallingAsyncFunction:(NSString *)script withArguments:(NSDictionary *)arguments
+{
+    NSError *error = nil;
+    id result = [self objectByCallingAsyncFunction:script withArguments:arguments error:&error];
+    EXPECT_NULL(error);
+    return result;
 }
 
 - (id)objectByCallingAsyncFunction:(NSString *)script withArguments:(NSDictionary *)arguments error:(NSError **)errorOut
@@ -670,6 +694,21 @@ static WebEvent *unwrap(BEKeyEntry *event)
     if (errorOut)
         *errorOut = strongError.autorelease();
 
+    return evalResult.autorelease();
+}
+
+- (id)objectByCallingAsyncFunction:(NSString *)script withArguments:(NSDictionary *)arguments inFrame:(WKFrameInfo *)frame inContentWorld:(WKContentWorld *)world
+{
+    __block RetainPtr<id> evalResult;
+    __block bool done { false };
+    [self callAsyncJavaScript:script arguments:arguments inFrame:frame inContentWorld:world completionHandler:^(id result, NSError *error) {
+        evalResult = result;
+        done = true;
+        EXPECT_FALSE(error);
+        if (error)
+            NSLog(@"Encountered error: %@ while evaluating script: %@", error, script);
+    }];
+    TestWebKitAPI::Util::run(&done);
     return evalResult.autorelease();
 }
 
@@ -768,6 +807,21 @@ static IterationStatus forEachCALayer(CALayer *layer, IterationStatus(^visitor)(
 }
 
 @end
+
+#endif // __cplusplus
+
+@implementation WKWebView (TestWebKitAPI_NonCpp)
+
+#if PLATFORM(IOS_FAMILY)
+- (UIView <UITextInputPrivate, UITextInputMultiDocument> *)textInputContentView
+{
+    return (UIView <UITextInputPrivate, UITextInputMultiDocument> *)[self valueForKey:@"_currentContentView"];
+}
+#endif // PLATFORM(IOS_FAMILY)
+
+@end
+
+#ifdef __cplusplus
 
 @implementation TestMessageHandler {
     NSMutableDictionary<NSString *, dispatch_block_t> *_messageHandlers;
@@ -1271,6 +1325,20 @@ static UIWindowScene *windowScene()
     return samples;
 }
 
+- (RetainPtr<_WKFrameTreeNode>)frameTree
+{
+    __block RetainPtr<_WKFrameTreeNode> result;
+    __block bool isDone = false;
+
+    [self _frames:^(_WKFrameTreeNode *tree) {
+        result = tree;
+        isDone = true;
+    }];
+    TestWebKitAPI::Util::run(&isDone);
+
+    return result;
+}
+
 #if PLATFORM(IOS_FAMILY)
 
 - (NSString *)textForSpeakSelection
@@ -1682,3 +1750,5 @@ static WKContentView *recursiveFindWKContentView(UIView *view)
 }
 
 @end
+
+#endif // __cplusplus

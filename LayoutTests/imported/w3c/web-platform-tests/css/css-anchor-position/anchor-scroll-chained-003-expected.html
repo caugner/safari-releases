@@ -12,6 +12,7 @@ div {
 #scroller1 {
   width: 200px;
   height: 200px;
+  position: relative;
 }
 
 #scroller1,#scroller2 {
@@ -27,6 +28,7 @@ div {
   position: absolute;
   top: 70px;
   background: green;
+  z-index: 1;
 }
 
 #anchored2 {
@@ -37,6 +39,8 @@ div {
 
 </style>
 
+<div id="anchored2"></div>
+<div id="anchored1"></div>
 <div id="scroller1">
   <div style="height: 100px"></div>
   <div id="scroller2">
@@ -44,10 +48,8 @@ div {
     <div id="anchor"></div>
     <div style="height: 230px"></div>
   </div>
-  <div style="height: 250px"></div>
+  <div style="height: 100px"></div>
 </div>
-<div id="anchored1"></div>
-<div id="anchored2"></div>
 
 <script>
 scroller1.scrollTop = 80;

@@ -79,23 +79,6 @@ class StyleFactory(factory.BuildFactory):
         self.addStep(CheckStyle())
 
 
-class WatchListFactory(factory.BuildFactory):
-    def __init__(self, platform, configuration=None, architectures=None, triggers=None, remotes=None, additionalArguments=None, **kwargs):
-        factory.BuildFactory.__init__(self)
-        self.addStep(ConfigureBuild(platform=platform, configuration=configuration, architectures=architectures, buildOnly=False, triggers=triggers, remotes=remotes, additionalArguments=additionalArguments))
-        self.addStep(ValidateChange())
-        self.addStep(PrintConfiguration())
-        self.addStep(CleanGitRepo())
-        self.addStep(SetCredentialHelper())
-        self.addStep(CheckOutSource())
-        self.addStep(FetchBranches())
-        self.addStep(UpdateWorkingDirectory())
-        self.addStep(ShowIdentifier())
-        self.addStep(ApplyPatch())
-        self.addStep(CheckOutPullRequest())
-        self.addStep(ApplyWatchList())
-
-
 class SaferCPPStaticAnalyzerFactory(factory.BuildFactory):
     findModifiedLayoutTests = False
 
@@ -110,14 +93,15 @@ class SaferCPPStaticAnalyzerFactory(factory.BuildFactory):
         self.addStep(CheckOutSource())
         self.addStep(FetchBranches())
         self.addStep(ShowIdentifier())
-        self.addStep(InstallCMake())
-        self.addStep(InstallNinja())
-        self.addStep(PrintClangVersion())
-        self.addStep(CheckOutLLVMProject())
-        self.addStep(UpdateClang())
         self.addStep(CheckOutPullRequest())
         self.addStep(KillOldProcesses())
         self.addStep(ValidateChange(addURLs=False))
+        self.addStep(InstallCMake())
+        self.addStep(InstallNinja())
+        self.addStep(GetLLVMVersion())
+        self.addStep(PrintClangVersion())
+        self.addStep(CheckOutLLVMProject())
+        self.addStep(UpdateClang())
         self.addStep(FindModifiedSaferCPPExpectations())
         self.addStep(ScanBuild())
 
@@ -176,8 +160,6 @@ class TestFactory(Factory):
             self.addStep(InstallGtkDependencies())
         elif platform == 'wpe':
             self.addStep(InstallWpeDependencies())
-        elif platform == 'win':
-            self.addStep(InstallWinDependencies())
         self.addStep(KillOldProcesses())
         self.getProduct()
         if self.willTriggerCrashLogSubmission:

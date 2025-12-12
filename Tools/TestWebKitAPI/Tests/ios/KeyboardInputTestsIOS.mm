@@ -29,6 +29,7 @@
 
 #import "CGImagePixelReader.h"
 #import "ClassMethodSwizzler.h"
+#import "HTTPServer.h"
 #import "InstanceMethodSwizzler.h"
 #import "PlatformUtilities.h"
 #import "TestCocoa.h"
@@ -41,6 +42,7 @@
 #import "UserInterfaceSwizzler.h"
 #import "WKWebViewConfigurationExtras.h"
 #import <WebCore/Color.h>
+#import <WebKit/WKFrameInfoPrivate.h>
 #import <WebKit/WKProcessPoolPrivate.h>
 #import <WebKit/WKWebViewConfigurationPrivate.h>
 #import <WebKit/WKWebViewPrivate.h>
@@ -49,8 +51,10 @@
 #import <WebKit/_WKProcessPoolConfiguration.h>
 #import <WebKitLegacy/WebEvent.h>
 #import <cmath>
-#import <pal/cocoa/CoreTelephonySoftLink.h>
 #import <pal/spi/cocoa/NSAttributedStringSPI.h>
+#import <wtf/darwin/DispatchExtras.h>
+
+#import <pal/cocoa/CoreTelephonySoftLink.h>
 
 namespace TestWebKitAPI {
 
@@ -470,7 +474,7 @@ TEST(KeyboardInputTests, HandleKeyEventsWhileSwappingWebProcess)
 
     bool done = false;
     auto keyEvent = adoptNS([[WebEvent alloc] initWithKeyEventType:WebEventKeyDown timeStamp:CFAbsoluteTimeGetCurrent() characters:@"a" charactersIgnoringModifiers:@"a" modifiers:0 isRepeating:NO withFlags:0 withInputManagerHint:nil keyCode:65 isTabKey:NO]);
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.01 * NSEC_PER_SEC)), dispatch_get_main_queue(), [keyEvent, webView, &done] {
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.01 * NSEC_PER_SEC)), mainDispatchQueueSingleton(), [keyEvent, webView, &done] {
         [webView handleKeyEvent:keyEvent.get() completion:[keyEvent, &done](WebEvent *event, BOOL handled) {
             EXPECT_TRUE([event isEqual:keyEvent.get()]);
             EXPECT_FALSE(handled);
@@ -1436,7 +1440,7 @@ TEST(KeyboardInputTests, DeviceEIDAndIMEIAutoFill)
 #if HAVE(DELAY_INIT_LINKING)
         CoreTelephonyClient.class,
 #else
-        PAL::getCoreTelephonyClientClass(),
+        PAL::getCoreTelephonyClientClassSingleton(),
 #endif
         @selector(isAutofilleSIMIdAllowedForDomain:error:),
         reinterpret_cast<IMP>(allowESIMAutoFillForWebKit)
@@ -1525,6 +1529,39 @@ TEST(KeyboardInputTests, ImplementAllOptionalTextInputTraits)
     EXPECT_NULL(extendedTraits.selectionHandleColor);
     EXPECT_NULL(extendedTraits.selectionHighlightColor);
 #endif
+}
+
+TEST(KeyboardInputTests, TestFrameInfoServerTrustDuringStrongPasswordAssistance)
+{
+    HTTPServer server({
+        { "/"_s, { "<script>alert('done')</script><input type='password' id='input'>"_s } },
+    }, HTTPServer::Protocol::HttpsProxy);
+
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    [navigationDelegate allowAnyTLSCertificate];
+
+    RetainPtr configuration = server.httpsProxyConfiguration();
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get()]);
+    [webView setNavigationDelegate:navigationDelegate.get()];
+
+    RetainPtr inputDelegate = adoptNS([[TestInputDelegate alloc] init]);
+
+    [inputDelegate setFocusStartsInputSessionPolicyHandler:^_WKFocusStartsInputSessionPolicy(WKWebView *, id<_WKFocusedElementInfo>) {
+        return _WKFocusStartsInputSessionPolicyAllow;
+    }];
+
+    [inputDelegate setFocusRequiresStrongPasswordAssistanceHandler:[&] (WKWebView *, id<_WKFocusedElementInfo> info, void(^completionHandler)(BOOL)) {
+        EXPECT_NOT_NULL(info.frame);
+        EXPECT_NOT_NULL(info.frame._serverTrust);
+        completionHandler(YES);
+    }];
+
+    [webView _setInputDelegate:inputDelegate.get()];
+
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/"]]];
+    EXPECT_WK_STREQ([webView _test_waitForAlert], "done");
+
+    [webView evaluateJavaScriptAndWaitForInputSessionToChange:@"document.getElementById('input').focus()"];
 }
 
 } // namespace TestWebKitAPI

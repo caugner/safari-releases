@@ -551,10 +551,10 @@ using Collection = ListHashSet<RefPtr<ListHashSetReferencedItem>>;
 
 class FakeElementAnimationRareData {
     WTF_MAKE_NONCOPYABLE(FakeElementAnimationRareData);
-    WTF_MAKE_FAST_ALLOCATED;
+    WTF_DEPRECATED_MAKE_FAST_ALLOCATED(FakeElementAnimationRareData);
 public:
-    explicit FakeElementAnimationRareData() { };
-    ~FakeElementAnimationRareData() { };
+    explicit FakeElementAnimationRareData() = default;
+    ~FakeElementAnimationRareData() = default;
 
     Collection& collection() { return m_collection; }
     void setCollection(Collection&& collection) { m_collection = WTFMove(collection); }

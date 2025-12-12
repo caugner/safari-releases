@@ -859,6 +859,19 @@ window.UIHelper = class UIHelper {
         });
     }
 
+    static waitForViewControllerToShow()
+    {
+        if (!this.isWebKit2() || !this.isIOSFamily())
+            return Promise.resolve();
+
+        return new Promise(resolve => {
+            testRunner.runUIScript(`
+                (function() {
+                    uiController.didPresentViewControllerCallback = () => uiController.uiScriptComplete();
+                })()`, resolve);
+        });
+    }
+
     static waitForContextMenuToShow()
     {
         if (!this.isWebKit2() || !this.isIOSFamily())
@@ -963,6 +976,33 @@ window.UIHelper = class UIHelper {
     static horizontalScrollbarState(scroller)
     {
         return UIHelper.scrollbarState(scroller, false);
+    }
+
+    static didCallEnsurePositionInformationIsUpToDateSinceLastCheck()
+    {
+        if (!this.isWebKit2() || !this.isIOSFamily())
+            return Promise.resolve(false);
+
+        return new Promise(resolve => {
+            testRunner.runUIScript(`(function() {
+                uiController.uiScriptComplete(uiController.didCallEnsurePositionInformationIsUpToDateSinceLastCheck);
+            })()`, result => {
+                resolve(result === "true");
+            });
+        });
+    }
+
+    static clearEnsurePositionInformationIsUpToDateTracking()
+    {
+        if (!this.isWebKit2() || !this.isIOSFamily())
+            return Promise.resolve();
+
+        return new Promise(resolve => {
+            testRunner.runUIScript(`(function() {
+                uiController.clearEnsurePositionInformationIsUpToDateTracking();
+                uiController.uiScriptComplete();
+            })()`, resolve);
+        });
     }
 
     static getUICaretViewRect()
@@ -1632,6 +1672,14 @@ window.UIHelper = class UIHelper {
         return new Promise(resolve => testRunner.runUIScript(`uiController.setKeyboardInputModeIdentifier(\`${escapedIdentifier}\`)`, resolve));
     }
 
+    static setFocusStartsInputSessionPolicy(policy)
+    {
+        if (!this.isWebKit2() || !this.isIOSFamily())
+            return Promise.resolve();
+
+        return new Promise(resolve => testRunner.runUIScript(`uiController.setFocusStartsInputSessionPolicy("${policy}")`, resolve));
+    }
+
     static contentOffset()
     {
         if (!this.isIOSFamily())
@@ -2067,6 +2115,10 @@ window.UIHelper = class UIHelper {
 
     static setWindowIsKey(isKey)
     {
+        if (!this.isWebKit2()) {
+            testRunner.setWindowIsKey(isKey);
+            return Promise.resolve();
+        }
         const script = `uiController.windowIsKey = ${isKey}`;
         return new Promise(resolve => testRunner.runUIScript(script, resolve));
     }
@@ -2438,6 +2490,54 @@ window.UIHelper = class UIHelper {
                 await UIHelper.ensurePresentationUpdate();
             }, eventTarget || document.activeElement, waitForEvent);
         }
+    }
+
+    static async requestDebugText(options = { })
+    {
+        if (!this.isWebKit2())
+            return Promise.resolve("");
+
+        return new Promise(resolve => {
+            testRunner.runUIScript(`(() => {
+                uiController.requestDebugText(result => {
+                    uiController.uiScriptComplete(result);
+                }, ${JSON.stringify(options)});
+            })()`, debugText => {
+                if (options.normalize) {
+                    debugText = debugText
+                        .replace(/uid=\d+/g, "uid=…")
+                        .replace(/\[\d+,\d+;\d+x\d+\]/g, "[…]")
+                        .replace(/\t/g, "    ");
+                }
+                resolve(debugText);
+            });
+        });
+    }
+
+    static nodeIdentifierFromDebugText(text, searchTerm)
+    {
+        for (let line of text.split("\n")) {
+            if (!line.includes(searchTerm))
+                continue;
+
+            const match = line.match(/uid=(\d+)/);
+            if (match)
+                return match[1];
+        }
+        return null;
+    }
+
+    static async performTextExtractionInteraction(action, options)
+    {
+        if (!this.isWebKit2())
+            return Promise.resolve(false);
+
+        return new Promise(resolve => {
+            const scriptToRun = `uiController.performTextExtractionInteraction("${action}", ${JSON.stringify(options)}, result => {
+                uiController.uiScriptComplete(result)
+            })`;
+            testRunner.runUIScript(scriptToRun, resolve);
+        });
     }
 }
 

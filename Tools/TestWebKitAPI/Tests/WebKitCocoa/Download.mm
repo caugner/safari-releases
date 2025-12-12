@@ -38,6 +38,7 @@
 #import "TestWKWebView.h"
 #import <Foundation/NSURLResponse.h>
 #import <WebKit/WKDownload.h>
+#import <WebKit/WKDownloadDelegate.h>
 #import <WebKit/WKErrorPrivate.h>
 #import <WebKit/WKNavigationDelegatePrivate.h>
 #import <WebKit/WKNavigationResponsePrivate.h>
@@ -61,6 +62,7 @@
 #import <wtf/RetainPtr.h>
 #import <wtf/StdLibExtras.h>
 #import <wtf/WeakObjCPtr.h>
+#import <wtf/darwin/DispatchExtras.h>
 #import <wtf/text/MakeString.h>
 #import <wtf/text/WTFString.h>
 
@@ -855,38 +857,6 @@ static RetainPtr<NSString> destination;
 
 @end
 
-#if HAVE(MODERN_DOWNLOADPROGRESS)
-@interface ProgressObserver : NSObject
-- (instancetype)init;
-@end
-
-@implementation ProgressObserver {
-    bool receivedProgress;
-}
-
-- (instancetype)init
-{
-    if (!(self = [super init]))
-        return nil;
-    receivedProgress = false;
-    return self;
-}
-
-- (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context
-{
-    if (![keyPath isEqualToString:@"fractionCompleted"])
-        return;
-    receivedProgress = true;
-}
-
-- (void)waitForProgress
-{
-    while (!receivedProgress)
-        TestWebKitAPI::Util::spinRunLoop();
-}
-@end
-#endif
-
 namespace TestWebKitAPI {
 
 void respondSlowly(const Connection& connection, double kbps)
@@ -963,7 +933,7 @@ TEST(_WKDownload, DownloadMonitorCancel)
 TEST(_WKDownload, DISABLED_DownloadMonitorSurvive)
 {
     __block BOOL timeoutReached = NO;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2.5 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2.5 * NSEC_PER_SEC), mainDispatchQueueSingleton(), ^{
         [monitorDelegate() stopWaitingForDidFail];
         timeoutReached = YES;
     });
@@ -982,7 +952,7 @@ TEST(_WKDownload, DownloadMonitorReturnToForeground)
 #endif
 {
     __block BOOL timeoutReached = NO;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2.5 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2.5 * NSEC_PER_SEC), mainDispatchQueueSingleton(), ^{
         [monitorDelegate() stopWaitingForDidFail];
         timeoutReached = YES;
     });
@@ -1233,9 +1203,9 @@ TEST(WKDownload, ResumedDownloadCanHandleAuthenticationChallenge)
 }
 
 template<size_t length>
-String longString(LChar c)
+String longString(Latin1Character c)
 {
-    Vector<LChar> vector(length, c);
+    Vector<Latin1Character> vector(length, c);
     return vector.span();
 }
 
@@ -2374,8 +2344,8 @@ TEST(WKDownload, PlaceholderPolicyEnable)
         delegate.get().decideDestinationUsingResponse = ^(WKDownload *, NSURLResponse *, NSString *, void (^completionHandler)(NSURL *)) {
             completionHandler(expectedDownloadFile);
         };
-        delegate.get().decidePlaceholderPolicy = ^(WKDownload *, void (^completionHandler)(_WKPlaceholderPolicy, NSURL *)) {
-            completionHandler(_WKPlaceholderPolicyEnable, nil);
+        delegate.get().decidePlaceholderPolicy = ^(WKDownload *, void (^completionHandler)(WKDownloadPlaceholderPolicy, NSURL *)) {
+            completionHandler(WKDownloadPlaceholderPolicyEnable, nil);
         };
         delegate.get().downloadDidFinish = ^(WKDownload *download) {
             didFinish = true;
@@ -2406,14 +2376,11 @@ TEST(WKDownload, PlaceholderPolicyDisable)
     auto webView = adoptNS([WKWebView new]);
     [webView setNavigationDelegate:delegate.get()];
 
-    NSURL *tempFile = tempFileThatDoesNotExist();
-
-    auto progressObserver = adoptNS([[ProgressObserver alloc] init]);
-    auto progress = adoptNS([[NSProgress alloc] init]);
-    [progress addObserver:progressObserver.get() forKeyPath:@"fractionCompleted" options:NSKeyValueObservingOptionNew context:NULL];
-    progress.get().kind = NSProgressKindFile;
-    progress.get().fileOperationKind = NSProgressFileOperationKindDownloading;
-    progress.get().fileURL = tempFile;
+    // manually create a placeholder file
+    NSURL *tempDir = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:@"DownloadTëst"] isDirectory:YES];
+    [[NSFileManager defaultManager] createDirectoryAtURL:tempDir withIntermediateDirectories:YES attributes:nil error:nil];
+    NSURL *placeholderFile = [tempDir URLByAppendingPathComponent:@"placeholder.txt"];
+    [[NSFileManager defaultManager] removeItemAtURL:placeholderFile error:nil];
 
     __block bool didFinish = false;
     [webView startDownloadUsingRequest:server.request() completionHandler:^(WKDownload *download) {
@@ -2421,8 +2388,8 @@ TEST(WKDownload, PlaceholderPolicyDisable)
         delegate.get().decideDestinationUsingResponse = ^(WKDownload *, NSURLResponse *, NSString *, void (^completionHandler)(NSURL *)) {
             completionHandler(expectedDownloadFile);
         };
-        delegate.get().decidePlaceholderPolicy = ^(WKDownload *, void (^completionHandler)(_WKPlaceholderPolicy, NSURL *)) {
-            completionHandler(_WKPlaceholderPolicyDisable, tempFile);
+        delegate.get().decidePlaceholderPolicy = ^(WKDownload *, void (^completionHandler)(WKDownloadPlaceholderPolicy, NSURL *)) {
+            completionHandler(WKDownloadPlaceholderPolicyDisable, placeholderFile);
         };
         delegate.get().downloadDidFinish = ^(WKDownload *download) {
             didFinish = true;
@@ -2430,10 +2397,9 @@ TEST(WKDownload, PlaceholderPolicyDisable)
     }];
     Util::run(&didFinish);
 
-    [progressObserver waitForProgress];
-    EXPECT_GT(progress.get().fractionCompleted, 0);
-
     checkFileContents(expectedDownloadFile, "http body"_s);
+    // The placeholder file is deleted once the file is succesfully downloaded.
+    EXPECT_FALSE([[NSFileManager defaultManager] fileExistsAtPath:[placeholderFile path]]);
 
     checkCallbackRecord(delegate.get(), {
         DownloadCallback::DecideDestination,
@@ -3221,6 +3187,16 @@ TEST(WKDownload, DestinationFileAlreadyExists)
     Util::run(&failed);
 }
 
+static void frameInfoShouldBeEqual(WKFrameInfo *a, WKFrameInfo *b)
+{
+    EXPECT_EQ(a.isMainFrame, b.isMainFrame);
+    EXPECT_WK_STREQ(a.request.URL.absoluteString, b.request.URL.absoluteString);
+    EXPECT_WK_STREQ(a.securityOrigin.protocol, b.securityOrigin.protocol);
+    EXPECT_WK_STREQ(a.securityOrigin.host, b.securityOrigin.host);
+    EXPECT_EQ(a.securityOrigin.port, b.securityOrigin.port);
+    EXPECT_EQ(a.webView, b.webView);
+}
+
 TEST(WKDownload, OriginatingFrameWhenConvertingNavigationInNewWindow)
 {
     HTTPServer server { {
@@ -3257,6 +3233,7 @@ TEST(WKDownload, OriginatingFrameWhenConvertingNavigationInNewWindow)
     };
 
     __block bool checkedDownload { false };
+
     auto tryOpenerInitiatedDownloads = ^{
         checkedDownload = false;
         [webView evaluateJavaScript:@"a = document.createElement('a'); a.href = 'https://webkit.org/download'; a.target = '_blank'; document.body.appendChild(a); a.click()" completionHandler:nil];
@@ -3297,6 +3274,44 @@ TEST(WKDownload, OriginatingFrameWhenConvertingNavigationInNewWindow)
         checkedDownload = true;
     };
     tryOpenerInitiatedDownloads();
+}
+
+TEST(WKDownload, OriginatingFrameWhenNavigatingToNewDomainWithRedirect)
+{
+    TestWebKitAPI::HTTPServer server({
+        { "/original_page"_s, { "hi"_s } },
+        { "/redirect"_s, { 301, { { "Location"_s, "/redirectTarget"_s } } } },
+        { "/redirectTarget"_s, { "hi"_s } },
+    }, HTTPServer::Protocol::HttpsProxy);
+
+    auto configuration = server.httpsProxyConfiguration();
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectZero configuration:configuration]);
+    auto navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    [navigationDelegate allowAnyTLSCertificate];
+    [webView setNavigationDelegate:navigationDelegate.get()];
+    auto request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/original_page"]];
+    [webView loadRequest:request];
+    [navigationDelegate waitForDidFinishNavigation];
+
+    RetainPtr<WKFrameInfo> mainFrame = [webView mainFrame].info;
+    __block bool checkedDownload = false;
+    navigationDelegate.get().decidePolicyForNavigationAction = ^(WKNavigationAction *action, void (^completionHandler)(WKNavigationActionPolicy)) {
+        frameInfoShouldBeEqual(action.sourceFrame, mainFrame.get());
+        EXPECT_EQ(action.sourceFrame, action.targetFrame);
+        completionHandler(WKNavigationActionPolicyAllow);
+    };
+    navigationDelegate.get().decidePolicyForNavigationResponse = ^(WKNavigationResponse *response, void (^handler)(WKNavigationResponsePolicy)) {
+        frameInfoShouldBeEqual(response._navigationInitiatingFrame, mainFrame.get());
+        handler(WKNavigationResponsePolicyDownload);
+    };
+    navigationDelegate.get().navigationResponseDidBecomeDownload = ^(WKNavigationResponse *response, WKDownload *download) {
+        frameInfoShouldBeEqual(response._navigationInitiatingFrame, mainFrame.get());
+        frameInfoShouldBeEqual(download.originatingFrame, mainFrame.get());
+        checkedDownload = true;
+    };
+
+    [webView evaluateJavaScript:@"window.location.href = 'https://webkit.org/redirect'" completionHandler:nil];
+    TestWebKitAPI::Util::run(&checkedDownload);
 }
 
 TEST(WKDownload, OriginatingFrameHostWhenDownloadComesFromGoBackNavigation)

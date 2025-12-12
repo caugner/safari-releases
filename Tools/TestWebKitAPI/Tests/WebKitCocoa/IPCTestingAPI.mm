@@ -142,7 +142,12 @@ static RetainPtr<TestWKWebView> createWebViewWithIPCTestingAPIAndLockdownMode(bo
     return adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 300, 300) configuration:configuration.get()]);
 }
 
+// FIX ME: Re-enable this test once https://bugs.webkit.org/show_bug.cgi?id=300930 is resolved
+#if PLATFORM(MAC) && CPU(X86_64) && !defined(NDEBUG)
+TEST(IPCTestingAPI, DISABLED_CanDetectNilReplyBlocks)
+#else
 TEST(IPCTestingAPI, CanDetectNilReplyBlocks)
+#endif
 {
     auto webView = createWebViewWithIPCTestingAPI();
 
@@ -829,7 +834,7 @@ TEST(IPCTestingAPI, SpeechSynthesisWithFeatureFlag)
 
         EXPECT_TRUE(alertMessage.get() != nil);
         EXPECT_TRUE([alertMessage containsString:@"speechsynthesis_enabledby_blocked"]
-                    && [alertMessage containsString:@"Receiver cancelled the reply due to invalid destination or deserialization error"]);
+            && [alertMessage containsString:@"Receiver cancelled the reply due to invalid destination or deserialization error"]);
     }
 }
 
@@ -866,7 +871,7 @@ TEST(IPCTestingAPI, SpeechSynthesisWithLockdownMode)
 
     EXPECT_TRUE(alertMessage.get() != nil);
     EXPECT_TRUE([alertMessage containsString:@"speechsynthesis_lockdown_correctly_blocked"]
-                && [alertMessage containsString:@"Receiver cancelled the reply due to invalid destination or deserialization error"]);
+        && [alertMessage containsString:@"Receiver cancelled the reply due to invalid destination or deserialization error"]);
 
     [WKProcessPool _setCaptivePortalModeEnabledGloballyForTesting:NO];
 }

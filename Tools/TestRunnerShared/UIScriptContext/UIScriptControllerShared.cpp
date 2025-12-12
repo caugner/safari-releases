@@ -29,6 +29,7 @@
 #include "JSBasics.h"
 #include "JSUIScriptController.h"
 #include "UIScriptContext.h"
+#include <JavaScriptCore/JSRetainPtr.h>
 #include <JavaScriptCore/JSValueRef.h>
 #include <JavaScriptCore/OpaqueJSString.h>
 
@@ -64,14 +65,48 @@ ScrollToOptions* toScrollToOptions(JSContextRef context, JSValueRef argument)
     return &options;
 }
 
-TextExtractionOptions* toTextExtractionOptions(JSContextRef context, JSValueRef argument)
+TextExtractionTestOptions* toTextExtractionTestOptions(JSContextRef context, JSValueRef argument)
 {
     if (!JSValueIsObject(context, argument))
         return nullptr;
 
-    static TextExtractionOptions options;
+    static TextExtractionTestOptions options;
     options.clipToBounds = booleanProperty(context, (JSObjectRef)argument, "clipToBounds", false);
     options.includeRects = booleanProperty(context, (JSObjectRef)argument, "includeRects", false);
+    options.includeURLs = booleanProperty(context, (JSObjectRef)argument, "includeURLs", false);
+    options.wordLimit = static_cast<unsigned>(numericProperty(context, (JSObjectRef)argument, "wordLimit"));
+    options.mergeParagraphs = booleanProperty(context, (JSObjectRef)argument, "mergeParagraphs", false);
+    options.skipNearlyTransparentContent = booleanProperty(context, (JSObjectRef)argument, "skipNearlyTransparentContent", false);
+    options.canIncludeIdentifiers = booleanProperty(context, (JSObjectRef)argument, "canIncludeIdentifiers", false);
+    return &options;
+}
+
+TextExtractionInteractionOptions* toTextExtractionInteractionOptions(JSContextRef context, JSValueRef argument)
+{
+    if (!JSValueIsObject(context, argument))
+        return nullptr;
+
+    static TextExtractionInteractionOptions options;
+    if (auto nodeIdentifier = property(context, (JSObjectRef)argument, "nodeIdentifier"); isValidValue(context, nodeIdentifier))
+        options.nodeIdentifier = createJSString(context, nodeIdentifier);
+    else
+        options.nodeIdentifier = nullptr;
+
+    if (auto text = property(context, (JSObjectRef)argument, "text"); isValidValue(context, text))
+        options.text = createJSString(context, text);
+    else
+        options.text = nullptr;
+
+    options.replaceAll = booleanProperty(context, (JSObjectRef)argument, "replaceAll");
+
+    if (auto locationObject = objectProperty(context, (JSObjectRef)argument, "location")) {
+        options.location = {
+            numericProperty(context, locationObject, "x"),
+            numericProperty(context, locationObject, "y")
+        };
+    } else
+        options.location = std::nullopt;
+
     return &options;
 }
 
@@ -243,6 +278,16 @@ void UIScriptController::setDidDismissPopoverCallback(JSValueRef callback)
 JSValueRef UIScriptController::didDismissPopoverCallback() const
 {
     return m_context->callbackWithID(CallbackTypeDidDismissPopover);
+}
+
+void UIScriptController::setDidPresentViewControllerCallback(JSValueRef callback)
+{
+    m_context->registerCallback(callback, CallbackTypeDidPresentViewController);
+}
+
+JSValueRef UIScriptController::didPresentViewControllerCallback() const
+{
+    return m_context->callbackWithID(CallbackTypeDidPresentViewController);
 }
 
 void UIScriptController::setDidShowContactPickerCallback(JSValueRef callback)

@@ -41,6 +41,7 @@
 #import <WebKit/WKWebViewPrivateForTesting.h>
 #import <WebKit/_WKFeature.h>
 #import <wtf/BlockPtr.h>
+#import <wtf/darwin/DispatchExtras.h>
 
 constexpr CGFloat blackColorComponents[4] = { 0, 0, 0, 1 };
 constexpr CGFloat whiteColorComponents[4] = { 1, 1, 1, 1 };
@@ -557,7 +558,7 @@ TEST(WKScrollViewTests, AllowsKeyboardScrolling)
         auto secondWebEvent = adoptNS([[WebEvent alloc] initWithKeyEventType:WebEventKeyUp timeStamp:CFAbsoluteTimeGetCurrent() characters:@" " charactersIgnoringModifiers:@" " modifiers:0 isRepeating:NO withFlags:0 withInputManagerHint:nil keyCode:0 isTabKey:NO]);
 
         [webView handleKeyEvent:firstWebEvent.get() completion:^(WebEvent *theEvent, BOOL wasHandled) {
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), mainDispatchQueueSingleton(), ^{
                 [webView handleKeyEvent:secondWebEvent.get() completion:^(WebEvent *theEvent, BOOL wasHandled) {
                     completionHandler();
                 }];
@@ -823,12 +824,45 @@ TEST(WKScrollViewTests, TopScrollPocketCaptureColorAfterSettingHardStyle)
     [scrollView topEdgeEffect].style = UIScrollEdgeEffectStyle.hardStyle;
     [webView waitForNextPresentationUpdate];
 
-    auto topPocketColor = WebCore::colorFromCocoaColor([scrollView _pocketColorForEdge:UIRectEdgeTop]);
-    EXPECT_WK_STREQ("rgb(255, 99, 71)", WebCore::serializationForCSS(topPocketColor));
+    auto topHardPocketColor = WebCore::colorFromCocoaColor([scrollView _pocketColorForEdge:UIRectEdgeTop]);
+    EXPECT_WK_STREQ("rgb(255, 99, 71)", WebCore::serializationForCSS(topHardPocketColor));
     EXPECT_TRUE([scrollView _prefersSolidColorHardPocketForEdge:UIRectEdgeTop]);
+
+    [scrollView topEdgeEffect].style = UIScrollEdgeEffectStyle.softStyle;
+
+    // Removing the top fixed element should also remove the top color extension.
+    [webView objectByEvaluatingJavaScript:@"document.querySelector('header').remove()"];
+    [webView waitForNextPresentationUpdate];
+
+    EXPECT_NULL([scrollView _pocketColorForEdge:UIRectEdgeTop]);
 }
 
 #endif // HAVE(LIQUID_GLASS)
+
+TEST(WKScrollViewTests, SafeAreaEnvironmentVariablesAccountForObscuredContentInsets)
+{
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 400, 800)]);
+    [webView setOverrideSafeAreaInset:UIEdgeInsetsMake(66, 10, 34, 10)];
+
+    RetainPtr scrollView = [webView scrollView];
+
+    auto insets = UIEdgeInsetsMake(100, 0, 20, 0);
+    [webView setObscuredContentInsets:insets];
+
+    [scrollView setContentInsetAdjustmentBehavior:UIScrollViewContentInsetAdjustmentNever];
+    [scrollView setContentInset:insets];
+
+    [webView synchronouslyLoadTestPageNamed:@"safe-area-env"];
+    [webView waitForNextPresentationUpdate];
+
+    auto computedBodyPadding = [&](NSString *side) {
+        return [webView stringByEvaluatingJavaScript:[NSString stringWithFormat:@"getComputedStyle(document.body).padding%@", side]];
+    };
+    EXPECT_WK_STREQ("0px", computedBodyPadding(@"Top"));
+    EXPECT_WK_STREQ("10px", computedBodyPadding(@"Left"));
+    EXPECT_WK_STREQ("14px", computedBodyPadding(@"Bottom"));
+    EXPECT_WK_STREQ("10px", computedBodyPadding(@"Right"));
+}
 
 } // namespace TestWebKitAPI
 

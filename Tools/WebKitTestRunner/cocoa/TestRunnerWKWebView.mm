@@ -37,6 +37,7 @@
 #import <wtf/RetainPtr.h>
 #import <wtf/SoftLinking.h>
 #import <wtf/cocoa/TypeCastsCocoa.h>
+#import <wtf/darwin/DispatchExtras.h>
 
 #if PLATFORM(IOS_FAMILY)
 #import "UIKitSPIForTesting.h"
@@ -77,6 +78,7 @@ struct CustomMenuActionInfo {
     RetainPtr<UITapGestureRecognizer> _windowTapGestureRecognizer;
     BlockPtr<void()> _windowTapRecognizedCallback;
     UIInterfaceOrientationMask _supportedInterfaceOrientations;
+    BOOL _didCallEnsurePositionInformationIsUpToDate;
 #endif
 }
 
@@ -224,6 +226,7 @@ IGNORE_WARNINGS_END
     self.willStartInputSessionCallback = nil;
     self.willPresentPopoverCallback = nil;
     self.didDismissPopoverCallback = nil;
+    self.didPresentViewControllerCallback = nil;
     self.didEndScrollingCallback = nil;
     self.rotationDidEndCallback = nil;
     self.windowTapRecognizedCallback = nil;
@@ -256,6 +259,11 @@ IGNORE_WARNINGS_END
 
     if (self.didEndFormControlInteractionCallback)
         self.didEndFormControlInteractionCallback();
+}
+
+- (void)didEnsurePositionInformationIsUpToDate
+{
+    _didCallEnsurePositionInformationIsUpToDate = YES;
 }
 
 - (BOOL)isInteractingWithFormControl
@@ -304,7 +312,7 @@ IGNORE_WARNINGS_END
     ASSERT(!self.zoomToScaleCompletionHandler);
 
     if (self.scrollView.zoomScale == scale) {
-        dispatch_async(dispatch_get_main_queue(), ^{
+        dispatch_async(mainDispatchQueueSingleton(), ^{
             completionHandler();
         });
         return;
@@ -558,6 +566,9 @@ static bool isQuickboardViewController(UIViewController *viewController)
 
 - (void)_didPresentViewController:(UIViewController *)viewController
 {
+    if (self.didPresentViewControllerCallback)
+        self.didPresentViewControllerCallback();
+
     if (isQuickboardViewController(viewController))
         [self _invokeShowKeyboardCallbackIfNecessary];
 }
@@ -658,12 +669,28 @@ static bool isQuickboardViewController(UIViewController *viewController)
 
     [UIView performWithoutAnimation:^{
         for (id<UIInteraction> interaction in self.contentView.interactions) {
-            if ([interaction isKindOfClass:getUIEditMenuInteractionClass()])
+            if ([interaction isKindOfClass:getUIEditMenuInteractionClassSingleton()])
                 [(UIEditMenuInteraction *)interaction dismissMenu];
         }
     }];
 }
 
 #endif // HAVE(UI_EDIT_MENU_INTERACTION)
+
+#if PLATFORM(IOS_FAMILY)
+
+- (BOOL)didCallEnsurePositionInformationIsUpToDateSinceLastCheck
+{
+    const auto hasUpdated = _didCallEnsurePositionInformationIsUpToDate;
+    _didCallEnsurePositionInformationIsUpToDate = NO;
+    return hasUpdated;
+}
+
+- (void)clearEnsurePositionInformationIsUpToDateTracking
+{
+    _didCallEnsurePositionInformationIsUpToDate = NO;
+}
+
+#endif // PLATFORM(IOS_FAMILY)
 
 @end

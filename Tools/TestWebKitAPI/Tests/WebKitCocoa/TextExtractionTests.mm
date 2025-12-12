@@ -163,6 +163,10 @@ TEST(TextExtractionTests, InteractionDebugDescription)
     RetainPtr composeID = extractNodeIdentifier(debugText.get(), @"Compose");
     RetainPtr selectID = extractNodeIdentifier(debugText.get(), @"select");
 
+#if ENABLE(TEXT_EXTRACTION_FILTER)
+    EXPECT_FALSE([debugText containsString:@"crazy ones"]);
+#endif
+
     NSError *error = nil;
     NSString *description = nil;
     {
@@ -170,17 +174,17 @@ TEST(TextExtractionTests, InteractionDebugDescription)
 
         [interaction setNodeIdentifier:testButtonID.get()];
         description = [interaction debugDescriptionInWebView:webView.get() error:&error];
-        EXPECT_WK_STREQ("Click on button labeled 'Click Me', with rendered text 'Test'", description);
+        EXPECT_WK_STREQ("Click on button labeled “Click Me”, with rendered text “Test”", description);
         EXPECT_NULL(error);
 
         [interaction setNodeIdentifier:emailID.get()];
         description = [interaction debugDescriptionInWebView:webView.get() error:&error];
-        EXPECT_WK_STREQ("Click on input of type email with placeholder 'Recipient address'", description);
+        EXPECT_WK_STREQ("Click on input of type email with placeholder “Recipient address”", description);
         EXPECT_NULL(error);
 
         [interaction setNodeIdentifier:composeID.get()];
         description = [interaction debugDescriptionInWebView:webView.get() error:&error];
-        EXPECT_WK_STREQ("Click on editable div labeled 'Compose a new message', with rendered text 'Subject  Hello world.', containing child labeled 'Heading'", description);
+        EXPECT_WK_STREQ("Click on editable div labeled “Compose a new message”, with rendered text “Subject  'The quick brown fox jumped over the lazy dog'”, containing child labeled “Heading”", description);
         EXPECT_NULL(error);
     }
     {
@@ -190,14 +194,14 @@ TEST(TextExtractionTests, InteractionDebugDescription)
         [interaction setText:@"squirrelfish@webkit.org"];
         [interaction setReplaceAll:YES];
         description = [interaction debugDescriptionInWebView:webView.get() error:&error];
-        EXPECT_WK_STREQ("Enter text 'squirrelfish@webkit.org' into input of type email with placeholder 'Recipient address', replacing any existing content", description);
+        EXPECT_WK_STREQ("Enter text “squirrelfish@webkit.org” into input of type email with placeholder “Recipient address”, replacing any existing content", description);
         EXPECT_NULL(error);
 
         [interaction setNodeIdentifier:composeID.get()];
-        [interaction setText:@"Hello world"];
+        [interaction setText:@"«Testing»"];
         [interaction setReplaceAll:NO];
         description = [interaction debugDescriptionInWebView:webView.get() error:&error];
-        EXPECT_WK_STREQ("Enter text 'Hello world' into editable div labeled 'Compose a new message', with rendered text 'Subject  Hello world.', containing child labeled 'Heading'", description);
+        EXPECT_WK_STREQ("Enter text “'Testing'” into editable div labeled “Compose a new message”, with rendered text “Subject  'The quick brown fox jumped over the lazy dog'”, containing child labeled “Heading”", description);
         EXPECT_NULL(error);
     }
     {
@@ -205,7 +209,7 @@ TEST(TextExtractionTests, InteractionDebugDescription)
         [interaction setNodeIdentifier:selectID.get()];
         [interaction setText:@"Three"];
         description = [interaction debugDescriptionInWebView:webView.get() error:&error];
-        EXPECT_WK_STREQ("Select menu item 'Three' in select with role menu", description);
+        EXPECT_WK_STREQ("Select menu item “Three” in select with role “menu”", description);
         EXPECT_NULL(error);
     }
 }

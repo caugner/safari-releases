@@ -111,8 +111,7 @@ public:
             /*bindingIdx=*/0, // We only expect to encounter one input attachment
             PipelineStageFlags::kFragmentShader};
 
-    static sk_sp<VulkanGraphicsPipeline> Make(const VulkanSharedContext*,
-                                              VulkanResourceProvider*,
+    static sk_sp<VulkanGraphicsPipeline> Make(VulkanSharedContext*,
                                               const RuntimeEffectDictionary*,
                                               const UniqueKey&,
                                               const GraphicsPipelineDesc&,
@@ -125,8 +124,7 @@ public:
     static std::unique_ptr<VulkanProgramInfo> CreateLoadMSAAProgram(const VulkanSharedContext*);
 
     static sk_sp<VulkanGraphicsPipeline> MakeLoadMSAAPipeline(
-            const VulkanSharedContext*,
-            VulkanResourceProvider*,
+            VulkanSharedContext*,
             const VulkanProgramInfo& loadMSAAProgram,
             const RenderPassDesc&);
 
@@ -140,6 +138,11 @@ public:
     VkPipeline pipeline() const {
         SkASSERT(fPipeline != VK_NULL_HANDLE);
         return fPipeline;
+    }
+
+    // Returns null if the ith sampler is not an immutable sampler.
+    const VulkanSampler* immutableSampler(int i) const {
+        return fImmutableSamplers[i].get();
     }
 
     // Update any dynamic state (including none, if dynamic state is not available) that has changed
@@ -171,8 +174,7 @@ private:
 
     // The fragment shader can be null if no shading is performed by the pipeline.
     // This function does not cleanup any of the VulkanProgramInfo's objects on success or failure.
-    static VkPipeline MakePipeline(const VulkanSharedContext*,
-                                   VulkanResourceProvider*,
+    static VkPipeline MakePipeline(VulkanSharedContext*,
                                    const VulkanProgramInfo&,
                                    int subpassIndex,
                                    PrimitiveType,

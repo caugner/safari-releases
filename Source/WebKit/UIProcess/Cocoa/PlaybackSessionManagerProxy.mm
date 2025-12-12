@@ -38,6 +38,7 @@
 #import "WebPageProxy.h"
 #import "WebProcessPool.h"
 #import "WebProcessProxy.h"
+#import <Foundation/Foundation.h>
 #import <WebCore/NullPlaybackSessionInterface.h>
 #import <WebCore/PlaybackSessionInterfaceAVKit.h>
 #import <WebCore/PlaybackSessionInterfaceAVKitLegacy.h>
@@ -51,6 +52,7 @@
 #endif
 #import <wtf/LoggerHelper.h>
 #import <wtf/TZoneMallocInlines.h>
+#import <wtf/darwin/DispatchExtras.h>
 
 namespace WebKit {
 using namespace WebCore;
@@ -62,6 +64,7 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(PlaybackSessionModelContext);
 PlaybackSessionModelContext::PlaybackSessionModelContext(PlaybackSessionManagerProxy& manager, PlaybackSessionContextIdentifier contextId)
     : m_manager(manager)
     , m_contextId(contextId)
+    , m_prefersAutoDimming([[NSUserDefaults standardUserDefaults] boolForKey:@"WebKitPrefersFullScreenDimming"])
 {
 }
 
@@ -333,6 +336,14 @@ void PlaybackSessionModelContext::setPlayingOnSecondScreen(bool value)
         manager->setPlayingOnSecondScreen(m_contextId, value);
 }
 
+void PlaybackSessionModelContext::setPrefersAutoDimming(bool value)
+{
+    if (m_prefersAutoDimming != value) {
+        m_prefersAutoDimming = value;
+        [[NSUserDefaults standardUserDefaults] setBool:value forKey:@"WebKitPrefersFullScreenDimming"];
+    }
+}
+
 void PlaybackSessionModelContext::playbackStartedTimeChanged(double playbackStartedTime)
 {
     ALWAYS_LOG_IF_POSSIBLE(LOGIDENTIFIER, playbackStartedTime);
@@ -565,6 +576,14 @@ PlaybackSessionManagerProxy::PlaybackSessionManagerProxy(WebPageProxy& page)
 #endif
 {
     ALWAYS_LOG(LOGIDENTIFIER);
+
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        [[NSUserDefaults standardUserDefaults] registerDefaults:@{
+            @"WebKitPrefersFullScreenDimming": @YES
+        }];
+    });
+
     RefPtr protectedPage = m_page.get();
     protectedPage->protectedLegacyMainFrameProcess()->addMessageReceiver(Messages::PlaybackSessionManagerProxy::messageReceiverName(), protectedPage->webPageIDInMainFrameProcess(), *this);
 }
@@ -1047,7 +1066,7 @@ void PlaybackSessionManagerProxy::setVideoReceiverEndpoint(PlaybackSessionContex
         return;
 
     VideoReceiverEndpointMessage endpointMessage(WTFMove(processIdentifier), contextId.object(), WTFMove(playerIdentifier), endpoint, endpointIdentifier);
-    xpc_connection_send_message_with_reply(xpcConnection.get(), endpointMessage.encode().get(), dispatch_get_main_queue(), ^(xpc_object_t reply) {
+    xpc_connection_send_message_with_reply(xpcConnection.get(), endpointMessage.encode().get(), mainDispatchQueueSingleton(), ^(xpc_object_t reply) {
         RefPtr videoPresentationManager = page->videoPresentationManager();
         if (!videoPresentationManager)
             return;
@@ -1119,6 +1138,32 @@ void PlaybackSessionManagerProxy::removeNowPlayingMetadataObserver(PlaybackSessi
 void PlaybackSessionManagerProxy::setSoundStageSize(PlaybackSessionContextIdentifier contextId, WebCore::AudioSessionSoundStageSize size)
 {
     sendToWebProcess(contextId, Messages::PlaybackSessionManager::SetSoundStageSize(contextId.object(), size));
+}
+
+bool PlaybackSessionManagerProxy::prefersAutoDimming() const
+{
+    if (!m_controlsManagerContextId)
+        return false;
+
+    auto it = m_contextMap.find(*m_controlsManagerContextId);
+    if (it == m_contextMap.end())
+        return false;
+
+    Ref model = std::get<0>(it->value);
+    return model->prefersAutoDimming();
+}
+
+void PlaybackSessionManagerProxy::setPrefersAutoDimming(bool prefersAutoDimming)
+{
+    if (!m_controlsManagerContextId)
+        return;
+
+    auto it = m_contextMap.find(*m_controlsManagerContextId);
+    if (it == m_contextMap.end())
+        return;
+
+    Ref model = std::get<0>(it->value);
+    model->setPrefersAutoDimming(prefersAutoDimming);
 }
 
 bool PlaybackSessionManagerProxy::wirelessVideoPlaybackDisabled()

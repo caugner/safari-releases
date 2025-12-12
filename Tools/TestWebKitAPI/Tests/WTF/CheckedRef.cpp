@@ -37,14 +37,12 @@ namespace {
 
 class CheckedObject : public CanMakeCheckedPtr<CheckedObject> {
     WTF_MAKE_NONCOPYABLE(CheckedObject);
-    WTF_MAKE_FAST_ALLOCATED;
+    WTF_DEPRECATED_MAKE_FAST_ALLOCATED(CheckedObject);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(CheckedObject);
 public:
     CheckedObject(int value = -7)
         : m_value(value)
     { }
-    
-    ~CheckedObject() = default;
 
     int someFunction() const { return m_value; }
 
@@ -53,7 +51,7 @@ private:
 };
 
 class DerivedCheckedObject : public CheckedObject {
-    WTF_MAKE_FAST_ALLOCATED;
+    WTF_DEPRECATED_MAKE_FAST_ALLOCATED(DerivedCheckedObject);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(DerivedCheckedObject);
 public:
     DerivedCheckedObject(int value = -11)

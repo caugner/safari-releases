@@ -66,6 +66,15 @@ static unsigned globalKeyboardUpdateForChangedSelectionCount = 0;
 
 @end
 
+#if HAVE(MOUSE_DEVICE_OBSERVATION)
+
+@interface WKMouseDeviceObserver
++ (WKMouseDeviceObserver *)sharedInstance;
+- (void)_setHasMouseDeviceForTesting:(BOOL)hasMouseDevice;
+@end
+
+#endif
+
 #if HAVE(UI_WINDOW_SCENE_GEOMETRY_PREFERENCES)
 
 @interface WindowDidRotateObserver : NSObject
@@ -204,6 +213,11 @@ void TestController::platformDestroy()
     CFNotificationCenterRemoveObserver(center, this, (CFStringRef)UIMenuControllerWillHideMenuNotification, nullptr);
     CFNotificationCenterRemoveObserver(center, this, (CFStringRef)UIMenuControllerDidHideMenuNotification, nullptr);
     ALLOW_DEPRECATED_DECLARATIONS_END
+
+#if !ENABLE(DNS_SERVER_FOR_TESTING_IN_NETWORKING_PROCESS)
+    if (auto resolverConfig = m_resolverConfig)
+        nw_resolver_config_unpublish(resolverConfig.get());
+#endif
 }
 
 void TestController::initializeInjectedBundlePath()
@@ -313,7 +327,7 @@ bool TestController::platformResetStateToConsistentValues(const TestOptions& opt
     restorePortraitOrientationIfNeeded();
 
     // Ensures that only the UCB is on-screen when showing the keyboard, if the hardware keyboard is attached.
-    TIPreferencesController *textInputPreferences = [getTIPreferencesControllerClass() sharedPreferencesController];
+    TIPreferencesController *textInputPreferences = [getTIPreferencesControllerClassSingleton() sharedPreferencesController];
     if (!textInputPreferences.automaticMinimizationEnabled)
         textInputPreferences.automaticMinimizationEnabled = YES;
 
@@ -616,6 +630,17 @@ void TestController::unlockScreenOrientation()
     [UIView performWithoutAnimation:^{
         [webView.window.rootViewController setNeedsUpdateOfSupportedInterfaceOrientations];
     }];
+}
+#endif
+
+#if PLATFORM(IOS_FAMILY)
+void TestController::setHasMouseDeviceForTesting(bool hasMouseDevice)
+{
+#if HAVE(MOUSE_DEVICE_OBSERVATION)
+    [[NSClassFromString(@"WKMouseDeviceObserver") sharedInstance] _setHasMouseDeviceForTesting:hasMouseDevice];
+#else
+    UNUSED_PARAM(hasMouseDevice);
+#endif
 }
 #endif
 

@@ -25,7 +25,7 @@
 
 #import "config.h"
 
-#if PLATFORM(COCOA)
+#if ENABLE(SWIFTUI)
 
 #import "PlatformUtilities.h"
 #import "Test.h"
@@ -41,6 +41,8 @@
 @interface WKWebView (ScrollGeometryTesting)
 - (void)_setNeedsScrollGeometryUpdates:(BOOL)needsScrollGeometryUpdates;
 @end
+
+@class WKScrollGeometry;
 
 @interface TestScrollGeometryDelegate : NSObject <WKUIDelegate>
 
@@ -407,4 +409,4 @@ TEST(WKScrollGeometry, MarginBottomCollapsePrevented)
         "</html>", CGSizeMake(792, 268));
 }
 
-#endif
+#endif // ENABLE(SWIFTUI)

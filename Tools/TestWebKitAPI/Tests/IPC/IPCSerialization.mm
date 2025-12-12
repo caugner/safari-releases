@@ -38,7 +38,6 @@
 #import <WebCore/AttributedString.h>
 #import <WebCore/CVUtilities.h>
 #import <WebCore/ColorCocoa.h>
-#import <WebCore/FontCocoa.h>
 #import <WebCore/IOSurface.h>
 #import <limits.h>
 #import <pal/spi/cf/CFNetworkSPI.h>
@@ -397,7 +396,7 @@ bool dictionariesEqual(CFDictionaryRef a, CFDictionaryRef b)
         return false;
 
     struct Context {
-        WTF_MAKE_STRUCT_FAST_ALLOCATED;
+        WTF_DEPRECATED_MAKE_STRUCT_FAST_ALLOCATED(Context);
         Context(bool& result, CFDictionaryRef b)
             : result(result)
             , b(b) { }
@@ -440,7 +439,6 @@ struct ObjCHolderForTesting {
         RetainPtr<NSNumber>,
         RetainPtr<NSArray>,
         RetainPtr<NSDictionary>,
-        RetainPtr<WebCore::CocoaFont>,
         RetainPtr<NSError>,
         RetainPtr<NSNull>,
         RetainPtr<NSLocale>,
@@ -649,14 +647,14 @@ inline bool operator==(const ObjCHolderForTesting& a, const ObjCHolderForTesting
         class_addMethod([NSURLProtectionSpace class], @selector(oldIsEqual:), oldIsEqual2, "v@:@");
 
 #if USE(PASSKIT)
-        class_addMethod(PAL::getPKPaymentMethodClass(), @selector(isEqual:), (IMP)wkSecureCoding_isEqual, "v@:@");
-        class_addMethod(PAL::getPKPaymentTokenClass(), @selector(isEqual:), (IMP)wkSecureCoding_isEqual, "v@:@");
-        class_addMethod(PAL::getPKDateComponentsRangeClass(), @selector(isEqual:), (IMP)wkSecureCoding_isEqual, "v@:@");
-        class_addMethod(PAL::getPKShippingMethodClass(), @selector(isEqual:), (IMP)wkSecureCoding_isEqual, "v@:@");
-        class_addMethod(PAL::getPKPaymentClass(), @selector(isEqual:), (IMP)wkSecureCoding_isEqual, "v@:@");
+        class_addMethod(PAL::getPKPaymentMethodClassSingleton(), @selector(isEqual:), (IMP)wkSecureCoding_isEqual, "v@:@");
+        class_addMethod(PAL::getPKPaymentTokenClassSingleton(), @selector(isEqual:), (IMP)wkSecureCoding_isEqual, "v@:@");
+        class_addMethod(PAL::getPKDateComponentsRangeClassSingleton(), @selector(isEqual:), (IMP)wkSecureCoding_isEqual, "v@:@");
+        class_addMethod(PAL::getPKShippingMethodClassSingleton(), @selector(isEqual:), (IMP)wkSecureCoding_isEqual, "v@:@");
+        class_addMethod(PAL::getPKPaymentClassSingleton(), @selector(isEqual:), (IMP)wkSecureCoding_isEqual, "v@:@");
 #endif
 #if ENABLE(DATA_DETECTION) && PLATFORM(MAC)
-        class_addMethod(PAL::getWKDDActionContextClass(), @selector(isEqual:), (IMP)wkDDActionContext_isEqual, "v@:@");
+        class_addMethod(PAL::getWKDDActionContextClassSingleton(), @selector(isEqual:), (IMP)wkDDActionContext_isEqual, "v@:@");
 #endif
     });
 
@@ -670,7 +668,7 @@ inline bool operator==(const ObjCHolderForTesting& a, const ObjCHolderForTesting
     EXPECT_TRUE(bObject != nil);
 
 #if USE(PASSKIT)
-    if ([aObject isKindOfClass:PAL::getCNPostalAddressClass()])
+    if ([aObject isKindOfClass:PAL::getCNPostalAddressClassSingleton()])
         return CNPostalAddressTesting_isEqual(aObject, bObject);
 #endif
 
@@ -893,7 +891,7 @@ static void destroyTempKeychain(SecKeychainRef keychainRef)
 #if USE(PASSKIT)
 static RetainPtr<CNMutablePostalAddress> postalAddressForTesting()
 {
-    RetainPtr<CNMutablePostalAddress> address = adoptNS([PAL::getCNMutablePostalAddressClass() new]);
+    RetainPtr<CNMutablePostalAddress> address = adoptNS([PAL::getCNMutablePostalAddressClassSingleton() new]);
     address.get().street = @"1 Apple Park Way";
     address.get().subLocality = @"Birdland";
     address.get().city = @"Cupertino";
@@ -908,10 +906,10 @@ static RetainPtr<CNMutablePostalAddress> postalAddressForTesting()
 
 static RetainPtr<PKContact> pkContactForTesting()
 {
-    RetainPtr<PKContact> contact = adoptNS([PAL::getPKContactClass() new]);
+    RetainPtr<PKContact> contact = adoptNS([PAL::getPKContactClassSingleton() new]);
     contact.get().name = personNameComponentsForTesting().get();
     contact.get().emailAddress = @"admin@webkit.org";
-    contact.get().phoneNumber = [PAL::getCNPhoneNumberClass() phoneNumberWithDigits:@"4085551234" countryCode:@"us"];
+    contact.get().phoneNumber = [PAL::getCNPhoneNumberClassSingleton() phoneNumberWithDigits:@"4085551234" countryCode:@"us"];
     contact.get().postalAddress = postalAddressForTesting().get();
 ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     contact.get().supplementarySubLocality = @"City 17";
@@ -1062,9 +1060,6 @@ TEST(IPCSerialization, Basic)
     runTestCF({ cfDictionary.get() });
     runTestNS({ bridge_cast(cfDictionary.get()) });
 
-    // NSFont/UIFont
-    runTestNS({ [WebCore::CocoaFont systemFontOfSize:[WebCore::CocoaFont systemFontSize]] });
-
     // NSError
     RetainPtr<SecCertificateRef> cert = createCertificate();
     RetainPtr<SecKeyRef> key = createPrivateKey();
@@ -1158,7 +1153,7 @@ TEST(IPCSerialization, Basic)
     // Digits must be non-null at init-time, but countryCode can be null.
     // However, Contacts will calculate a default country code if you pass in a null one,
     // so testing encode/decode of such an instance is pointless.
-    RetainPtr<CNPhoneNumber> phoneNumber = [PAL::getCNPhoneNumberClass() phoneNumberWithDigits:@"4085551234" countryCode:@"us"];
+    RetainPtr<CNPhoneNumber> phoneNumber = [PAL::getCNPhoneNumberClassSingleton() phoneNumberWithDigits:@"4085551234" countryCode:@"us"];
     runTestNS({ phoneNumber.get() });
 
     // CNPostalAddress
@@ -1706,7 +1701,7 @@ TEST(IPCSerialization, NSURLRequest)
 #if USE(AVFOUNDATION) && PLATFORM(MAC)
 TEST(IPCSerialization, AVOutputContext)
 {
-    RetainPtr<AVOutputContext> outputContext = adoptNS([[PAL::getAVOutputContextClass() alloc] init]);
+    RetainPtr<AVOutputContext> outputContext = adoptNS([[PAL::getAVOutputContextClassSingleton() alloc] init]);
     runTestNS({ outputContext.get() });
 }
 #endif // USE(AVFOUNDATION) && PLATFORM(MAC)
@@ -1725,7 +1720,7 @@ static RetainPtr<DDScannerResult> fakeDataDetectorResultForTesting()
     if (!CFArrayGetCount(results.get()))
         return nil;
 
-    return [[PAL::getDDScannerResultClass() resultsFromCoreResults:results.get()] firstObject];
+    return [[PAL::getDDScannerResultClassSingleton() resultsFromCoreResults:results.get()] firstObject];
 }
 
 @interface PKPaymentMerchantSession ()
@@ -1772,7 +1767,7 @@ TEST(IPCSerialization, SecureCoding)
 
     // PKPaymentMerchantSession
     // This initializer doesn't exercise retryNonce or domain
-    RetainPtr<PKPaymentMerchantSession> session = adoptNS([[PAL::getPKPaymentMerchantSessionClass() alloc]
+    RetainPtr<PKPaymentMerchantSession> session = adoptNS([[PAL::getPKPaymentMerchantSessionClassSingleton() alloc]
         initWithMerchantIdentifier:@"WebKit Open Source Project"
         merchantSessionIdentifier:@"WebKitMerchantSession"
         nonce:@"WebKitNonce"
@@ -1788,7 +1783,7 @@ TEST(IPCSerialization, SecureCoding)
     runTestNS({ session.get() });
 
     // This initializer adds in domain, but retryNonce is still unexercised
-    session = adoptNS([[PAL::getPKPaymentMerchantSessionClass() alloc]
+    session = adoptNS([[PAL::getPKPaymentMerchantSessionClassSingleton() alloc]
         initWithMerchantIdentifier:@"WebKit Open Source Project"
         merchantSessionIdentifier:@"WebKitMerchantSession"
         nonce:@"WebKitNonce"
@@ -1801,11 +1796,11 @@ TEST(IPCSerialization, SecureCoding)
     runTestNS({ session.get() });
 
     RetainPtr<CNPostalAddress> address = postalAddressForTesting();
-    RetainPtr<CNLabeledValue> labeledPostalAddress = adoptNS([[PAL::getCNLabeledValueClass() alloc] initWithLabel:@"Work" value:address.get()]);
+    RetainPtr<CNLabeledValue> labeledPostalAddress = adoptNS([[PAL::getCNLabeledValueClassSingleton() alloc] initWithLabel:@"Work" value:address.get()]);
 
-    RetainPtr<CNLabeledValue> labeledEmailAddress = adoptNS([[PAL::getCNLabeledValueClass() alloc] initWithLabel:@"WorkSPAM" value:@"spam@webkit.org"]);
+    RetainPtr<CNLabeledValue> labeledEmailAddress = adoptNS([[PAL::getCNLabeledValueClassSingleton() alloc] initWithLabel:@"WorkSPAM" value:@"spam@webkit.org"]);
 
-    RetainPtr<CNMutableContact> billingContact = adoptNS([PAL::getCNMutableContactClass() new]);
+    RetainPtr<CNMutableContact> billingContact = adoptNS([PAL::getCNMutableContactClassSingleton() new]);
     billingContact.get().contactType = CNContactTypePerson;
     billingContact.get().namePrefix = @"Mrs";
     billingContact.get().givenName = @"WebKit";
@@ -1819,7 +1814,7 @@ TEST(IPCSerialization, SecureCoding)
     billingContact.get().emailAddresses = @[ labeledEmailAddress.get() ];
     runTestNS({ billingContact.get() });
 
-    RetainPtr<PKPaymentMethod> paymentMethod = adoptNS([PAL::getPKPaymentMethodClass() new]);
+    RetainPtr<PKPaymentMethod> paymentMethod = adoptNS([PAL::getPKPaymentMethodClassSingleton() new]);
     paymentMethod.get().displayName = @"WebKitPay";
     paymentMethod.get().network = @"WebKitCard";
     paymentMethod.get().type = PKPaymentMethodTypeCredit;
@@ -1827,7 +1822,7 @@ TEST(IPCSerialization, SecureCoding)
 
     runTestNS({ paymentMethod.get() });
 
-    RetainPtr<PKPaymentToken> paymentToken = adoptNS([PAL::getPKPaymentTokenClass() new]);
+    RetainPtr<PKPaymentToken> paymentToken = adoptNS([PAL::getPKPaymentTokenClassSingleton() new]);
     paymentToken.get().paymentMethod = paymentMethod.get();
     paymentToken.get().transactionIdentifier = @"WebKitTXIdentifier";
     paymentToken.get().paymentData = [NSData new];
@@ -1871,18 +1866,18 @@ TEST(IPCSerialization, SecureCoding)
 
     runTestNS({ endComponents.get() });
 
-    RetainPtr<PKDateComponentsRange> dateRange = adoptNS([[PAL::getPKDateComponentsRangeClass() alloc] initWithStartDateComponents:startComponents.get() endDateComponents:endComponents.get()]);
+    RetainPtr<PKDateComponentsRange> dateRange = adoptNS([[PAL::getPKDateComponentsRangeClassSingleton() alloc] initWithStartDateComponents:startComponents.get() endDateComponents:endComponents.get()]);
 
     runTestNS({ dateRange.get() });
 
-    RetainPtr<PKShippingMethod> shippingMethod = adoptNS([PAL::getPKShippingMethodClass() new]);
+    RetainPtr<PKShippingMethod> shippingMethod = adoptNS([PAL::getPKShippingMethodClassSingleton() new]);
     shippingMethod.get().identifier = @"WebKitPostalService";
     shippingMethod.get().detail = @"Ships in 1 to 2 bugzillas";
     shippingMethod.get().dateComponentsRange = dateRange.get();
 
     runTestNS({ shippingMethod.get() });
 
-    RetainPtr<PKPayment> payment = adoptNS([PAL::getPKPaymentClass() new]);
+    RetainPtr<PKPayment> payment = adoptNS([PAL::getPKPaymentClassSingleton() new]);
     payment.get().token = paymentToken.get();
     payment.get().billingContact = pkContactForTesting().get();
     payment.get().shippingContact = pkContactForTesting().get();

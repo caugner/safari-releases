@@ -43,20 +43,6 @@ class TestExpectedBuildSteps(unittest.TestCase):
             'checkout-pull-request',
             'check-webkit-style'
         ],
-        'Apply-WatchList-EWS': [
-            'configure-build',
-            'validate-change',
-            'configuration',
-            'clean-up-git-repo',
-            'set-credential-helper',
-            'checkout-source',
-            'fetch-branch-references',
-            'update-working-directory',
-            'show-identifier',
-            'apply-patch',
-            'checkout-pull-request',
-            'apply-watch-list'
-        ],
         'GTK-Build-EWS': [
             'configure-build',
             'validate-change',
@@ -324,14 +310,15 @@ class TestExpectedBuildSteps(unittest.TestCase):
             'checkout-source',
             'fetch-branch-references',
             'show-identifier',
-            'install-cmake',
-            'install-ninja',
-            'print-clang-version',
-            'checkout-llvm-project',
-            'update-clang',
             'checkout-pull-request',
             'kill-old-processes',
             'validate-change',
+            'install-cmake',
+            'install-ninja',
+            'get-llvm-version',
+            'print-clang-version',
+            'checkout-llvm-project',
+            'update-clang',
             'find-modified-safer-cpp-expectations',
             'scan-build'
         ],
@@ -524,7 +511,6 @@ class TestExpectedBuildSteps(unittest.TestCase):
             'show-identifier',
             'apply-patch',
             'checkout-pull-request',
-            'win-deps',
             'kill-old-processes',
             'download-built-product',
             'extract-built-product',
@@ -894,7 +880,6 @@ class TestExpectedBuildSteps(unittest.TestCase):
         ],
         'Safe-Merge-Queue': [
             'retrieve-pr-data-from-label',
-            'retrieve-pr-data-from-label',
             'retrieve-pr-data-from-label'
         ],
     }
@@ -909,7 +894,8 @@ class TestExpectedBuildSteps(unittest.TestCase):
         for builder in self.config['builders']:
             buildSteps = []
             for step in builder['factory'].steps:
-                buildSteps.append(step.factory.name)
+                step_name = step.kwargs.get('name', step.step_class.name)
+                buildSteps.append(step_name)
             self.assertTrue(builder['name'] in self.expected_steps, 'Missing expected steps for builder: %s\n Actual result is %s' % (builder['name'], buildSteps))
             self.assertListEqual(self.expected_steps[builder['name']], buildSteps, msg="Expected steps don't match for builder %s" % builder['name'])
 

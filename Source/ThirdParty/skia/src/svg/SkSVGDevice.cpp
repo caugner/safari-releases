@@ -32,7 +32,6 @@
 #include "include/core/SkShader.h"
 #include "include/core/SkSize.h"
 #include "include/core/SkSpan.h"
-#include "include/core/SkStream.h"
 #include "include/core/SkString.h"
 #include "include/core/SkSurfaceProps.h"
 #include "include/core/SkTileMode.h"
@@ -208,12 +207,12 @@ bool RequiresViewportReset(const SkPaint& paint) {
   return false;
 }
 
-void AddPath(const sktext::GlyphRun& glyphRun, const SkPoint& offset, SkPath* path) {
+void AddPath(const sktext::GlyphRun& glyphRun, const SkPoint& offset, SkPathBuilder* builder) {
     struct Rec {
-        SkPath*        fPath;
+        SkPathBuilder* fBuilder;
         const SkPoint  fOffset;
         const SkPoint* fPos;
-    } rec = { path, offset, glyphRun.positions().data() };
+    } rec = { builder, offset, glyphRun.positions().data() };
 
     glyphRun.font().getPaths(glyphRun.glyphsIDs(),
             [](const SkPath* path, const SkMatrix& mx, void* ctx) {
@@ -222,7 +221,7 @@ void AddPath(const sktext::GlyphRun& glyphRun, const SkPoint& offset, SkPath* pa
                     SkMatrix total = mx;
                     total.postTranslate(rec->fPos->fX + rec->fOffset.fX,
                                         rec->fPos->fY + rec->fOffset.fY);
-                    rec->fPath->addPath(*path, total);
+                    rec->fBuilder->addPath(*path, total);
                 } else {
                     // TODO: this is going to drop color emojis.
                 }
@@ -926,12 +925,12 @@ void SkSVGDevice::drawPoints(SkCanvas::PointMode mode, SkSpan<const SkPoint> pts
             break;
     }
 
-    this->drawPath(path.detach(), paint, true);
+    this->drawPath(path.detach(), paint);
 }
 
 void SkSVGDevice::drawRect(const SkRect& r, const SkPaint& paint) {
     if (paint.getPathEffect()) {
-        this->drawPath(SkPath::Rect(r), paint, true);
+        this->drawPath(SkPath::Rect(r), paint);
         return;
     }
 
@@ -955,7 +954,7 @@ void SkSVGDevice::drawRect(const SkRect& r, const SkPaint& paint) {
 
 void SkSVGDevice::drawOval(const SkRect& oval, const SkPaint& paint) {
     if (paint.getPathEffect()) {
-        this->drawPath(SkPath::Oval(oval), paint, true);
+        this->drawPath(SkPath::Oval(oval), paint);
         return;
     }
 
@@ -968,7 +967,7 @@ void SkSVGDevice::drawOval(const SkRect& oval, const SkPaint& paint) {
 
 void SkSVGDevice::drawRRect(const SkRRect& rr, const SkPaint& paint) {
     if (paint.getPathEffect()) {
-        this->drawPath(SkPath::RRect(rr), paint, true);
+        this->drawPath(SkPath::RRect(rr), paint);
         return;
     }
 
@@ -976,22 +975,22 @@ void SkSVGDevice::drawRRect(const SkRRect& rr, const SkPaint& paint) {
     elem.addPathAttributes(SkPath::RRect(rr), this->pathEncoding());
 }
 
-void SkSVGDevice::drawPath(const SkPath& path, const SkPaint& paint, bool pathIsMutable) {
+void SkSVGDevice::drawPath(const SkPath& path, const SkPaint& paint) {
     if (path.isInverseFillType()) {
       SkDebugf("Inverse path fill type not yet implemented.");
       return;
     }
 
     SkPath pathStorage;
-    SkPath* pathPtr = const_cast<SkPath*>(&path);
+    const SkPath* pathPtr = const_cast<SkPath*>(&path);
     SkTCopyOnFirstWrite<SkPaint> path_paint(paint);
 
     // Apply path effect from paint to path.
     if (path_paint->getPathEffect()) {
-      if (!pathIsMutable) {
-        pathPtr = &pathStorage;
-      }
-      bool fill = skpathutils::FillPathWithPaint(path, *path_paint, pathPtr);
+      SkPathBuilder builder;
+      bool fill = skpathutils::FillPathWithPaint(path, *path_paint, &builder);
+      pathStorage = builder.detach();
+      pathPtr = &pathStorage;
       if (fill) {
         // Path should be filled.
         path_paint.writable()->setStyle(SkPaint::kFill_Style);
@@ -1015,8 +1014,7 @@ void SkSVGDevice::drawPath(const SkPath& path, const SkPaint& paint, bool pathIs
 }
 
 static sk_sp<SkData> encode(const SkBitmap& src) {
-    SkDynamicMemoryWStream buf;
-    return SkPngEncoder::Encode(&buf, src.pixmap(), {}) ? buf.detachAsData() : nullptr;
+    return SkPngEncoder::Encode(src.pixmap(), {});
 }
 
 void SkSVGDevice::drawBitmapCommon(const MxCp& mc, const SkBitmap& bm, const SkPaint& paint) {
@@ -1067,7 +1065,8 @@ void SkSVGDevice::drawImageRect(const SkImage* image, const SkRect* src, const S
     }
 
     SkMatrix adjustedMatrix = this->localToDevice()
-                            * SkMatrix::RectToRect(src ? *src : SkRect::Make(bm.bounds()), dst);
+                            * SkMatrix::RectToRectOrIdentity(src ? *src : SkRect::Make(bm.bounds()),
+                                                             dst);
 
     drawBitmapCommon(MxCp(&adjustedMatrix, cs), bm, paint);
 }
@@ -1170,12 +1169,12 @@ void SkSVGDevice::onDrawGlyphRunList(SkCanvas* canvas,
 
     if (draw_as_path) {
         // Emit a single <path> element.
-        SkPath path;
+        SkPathBuilder builder;
         for (auto& glyphRun : glyphRunList) {
-            AddPath(glyphRun, glyphRunList.origin(), &path);
+            AddPath(glyphRun, glyphRunList.origin(), &builder);
         }
 
-        this->drawPath(path, paint);
+        this->drawPath(builder.detach(), paint);
 
         return;
     }

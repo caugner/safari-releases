@@ -4,25 +4,34 @@
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
-
-#include "src/gpu/graphite/BufferManager.h"
-
+#include "include/gpu/GpuTypes.h"
 #include "include/gpu/graphite/Recording.h"
+#include "include/private/base/SkAlign.h"
+#include "include/private/base/SkAssert.h"
+#include "include/private/base/SkMath.h"
+#include "include/private/base/SkTemplates.h"
+#include "include/private/base/SkTo.h"
+#include "src/gpu/graphite/BufferManager.h"
 #include "src/gpu/graphite/Caps.h"
-#include "src/gpu/graphite/ContextPriv.h"
+#include "src/gpu/graphite/GlobalCache.h"
 #include "src/gpu/graphite/Log.h"
 #include "src/gpu/graphite/QueueManager.h"
 #include "src/gpu/graphite/RecordingPriv.h"
+#include "src/gpu/graphite/Resource.h"
 #include "src/gpu/graphite/ResourceProvider.h"
-#include "src/gpu/graphite/SharedContext.h"
 #include "src/gpu/graphite/UploadBufferManager.h"
 #include "src/gpu/graphite/task/ClearBuffersTask.h"
 #include "src/gpu/graphite/task/CopyTask.h"
+#include "src/gpu/graphite/task/Task.h"
 #include "src/gpu/graphite/task/TaskList.h"
 
+#include <algorithm>
+#include <cstddef>
+#include <cstring>
 #include <limits>
 #include <numeric>
 #include <optional>
+#include <tuple>
 
 namespace skgpu::graphite {
 
@@ -275,8 +284,8 @@ std::pair<IndexWriter, BindBufferInfo> DrawBufferManager::getIndexWriter(size_t 
     return {IndexWriter(ptr, requiredBytes), bindInfo};
 }
 
-std::pair<UniformWriter, BindBufferInfo> DrawBufferManager::getUniformWriter(size_t count,
-                                                                             size_t stride) {
+std::pair<BufferWriter, BindBufferInfo> DrawBufferManager::getUniformWriter(size_t count,
+                                                                            size_t stride) {
     uint32_t requiredBytes = validate_count_and_stride(count, stride);
     if (!requiredBytes) {
         return {};
@@ -284,12 +293,12 @@ std::pair<UniformWriter, BindBufferInfo> DrawBufferManager::getUniformWriter(siz
 
     auto& info = fCurrentBuffers[kUniformBufferIndex];
     auto [ptr, bindInfo] = this->prepareMappedBindBuffer(&info, "UniformBuffer", requiredBytes);
-    return {UniformWriter(ptr, requiredBytes), bindInfo};
+    return {BufferWriter(ptr, requiredBytes), bindInfo};
 }
 
-std::pair<UniformWriter, BindBufferInfo> DrawBufferManager::getSsboWriter(size_t count,
-                                                                          size_t stride,
-                                                                          size_t alignment) {
+std::pair<BufferWriter, BindBufferInfo> DrawBufferManager::getSsboWriter(size_t count,
+                                                                         size_t stride,
+                                                                         size_t alignment) {
     uint32_t requiredBytes = validate_count_and_stride(count, stride);
     if (!requiredBytes) {
         return {};
@@ -298,41 +307,7 @@ std::pair<UniformWriter, BindBufferInfo> DrawBufferManager::getSsboWriter(size_t
     auto& info = fCurrentBuffers[kStorageBufferIndex];
     auto [ptr, bindInfo] =
             this->prepareMappedBindBuffer(&info, "StorageBuffer", requiredBytes, alignment);
-    return {UniformWriter(ptr, requiredBytes), bindInfo};
-}
-
-std::pair<UniformWriter, BindBufferInfo> DrawBufferManager::getSsboWriter(size_t count,
-                                                                          size_t stride) {
-    // By setting alignment=0, use the default buffer alignment requirement for storage buffers.
-    return this->getSsboWriter(count, stride, /*alignment=*/0);
-}
-
-std::pair<UniformWriter, BindBufferInfo> DrawBufferManager::getAlignedSsboWriter(size_t count,
-                                                                                 size_t stride) {
-    // Align to the provided element stride.
-    return this->getSsboWriter(count, stride, stride);
-}
-
-std::pair<void* /*mappedPtr*/, BindBufferInfo> DrawBufferManager::getUniformPointer(
-            size_t requiredBytes) {
-    uint32_t requiredBytes32 = validate_size(requiredBytes);
-    if (!requiredBytes32) {
-        return {};
-    }
-
-    auto& info = fCurrentBuffers[kUniformBufferIndex];
-    return this->prepareMappedBindBuffer(&info, "UniformBuffer", requiredBytes32);
-}
-
-std::pair<void* /*mappedPtr*/, BindBufferInfo> DrawBufferManager::getStoragePointer(
-        size_t requiredBytes) {
-    uint32_t requiredBytes32 = validate_size(requiredBytes);
-    if (!requiredBytes32) {
-        return {};
-    }
-
-    auto& info = fCurrentBuffers[kStorageBufferIndex];
-    return this->prepareMappedBindBuffer(&info, "StorageBuffer", requiredBytes32);
+    return {BufferWriter(ptr, requiredBytes), bindInfo};
 }
 
 BindBufferInfo DrawBufferManager::getStorage(size_t requiredBytes, ClearBuffer cleared) {
@@ -402,7 +377,7 @@ ScratchBuffer DrawBufferManager::getScratchStorage(size_t requiredBytes) {
 
     sk_sp<Buffer> buffer = this->findReusableSbo(bufferSize);
     if (!buffer) {
-        buffer = fResourceProvider->findOrCreateBuffer(
+        buffer = fResourceProvider->findOrCreateNonShareableBuffer(
                 bufferSize, BufferType::kStorage, AccessPattern::kGpuOnly, "ScratchStorageBuffer");
 
         if (!buffer) {
@@ -607,7 +582,7 @@ BindBufferInfo DrawBufferManager::prepareBindBuffer(BufferInfo* info,
         // This buffer can be GPU-only if
         //     a) the caller does not intend to ever upload CPU data to the buffer; or
         //     b) CPU data will get uploaded to fBuffer only via a transfer buffer
-        info->fBuffer = fResourceProvider->findOrCreateBuffer(
+        info->fBuffer = fResourceProvider->findOrCreateNonShareableBuffer(
                 bufferSize,
                 info->fType,
                 this->getGpuAccessPattern(useTransferBuffer || !supportCpuUpload),
@@ -732,11 +707,15 @@ void* StaticBufferManager::prepareStaticData(BufferInfo* info,
         return nullptr;
     }
 
+    info->fData.push_back(
+            {transferBindInfo,
+             target,
+             SkTo<uint32_t>(requiredAlignment),
 #if defined(GPU_TEST_UTILS)
-    info->fData.push_back({transferBindInfo, target, requiredAlignment, requiredBytes});
-#else
-    info->fData.push_back({transferBindInfo, target, requiredAlignment});
+             SkTo<uint32_t>(requiredBytes)
 #endif
+            });
+
     info->fTotalRequiredBytes =
         align_to_req_min_lcm(info->fTotalRequiredBytes,
                              requiredAlignment,
@@ -762,7 +741,7 @@ bool StaticBufferManager::BufferInfo::createAndUpdateBindings(
         AccessPattern::kGpuOnly;
 #endif
 
-    sk_sp<Buffer> staticBuffer = resourceProvider->findOrCreateBuffer(
+    sk_sp<Buffer> staticBuffer = resourceProvider->findOrCreateNonShareableBuffer(
             fTotalRequiredBytes,
             fBufferType,
             gpuAccessPattern,

@@ -57,12 +57,26 @@ struct ScrollToOptions {
 
 ScrollToOptions* toScrollToOptions(JSContextRef, JSValueRef);
 
-struct TextExtractionOptions {
+struct TextExtractionTestOptions {
+    unsigned wordLimit { 0 };
     bool clipToBounds { false };
     bool includeRects { false };
+    bool includeURLs { false };
+    bool mergeParagraphs { false };
+    bool skipNearlyTransparentContent { false };
+    bool canIncludeIdentifiers { false };
 };
 
-TextExtractionOptions* toTextExtractionOptions(JSContextRef, JSValueRef);
+TextExtractionTestOptions* toTextExtractionTestOptions(JSContextRef, JSValueRef);
+
+struct TextExtractionInteractionOptions {
+    JSRetainPtr<JSStringRef> nodeIdentifier;
+    JSRetainPtr<JSStringRef> text;
+    std::optional<std::pair<double, double>> location;
+    bool replaceAll { false };
+};
+
+TextExtractionInteractionOptions* toTextExtractionInteractionOptions(JSContextRef, JSValueRef);
 
 class UIScriptController : public JSWrappable {
 public:
@@ -263,6 +277,7 @@ public:
     virtual void setHardwareKeyboardAttached(bool) { }
 
     virtual void setKeyboardInputModeIdentifier(JSStringRef) { notImplemented(); }
+    virtual void setFocusStartsInputSessionPolicy(JSStringRef) { notImplemented(); }
 
     virtual void replaceTextAtRange(JSStringRef, int, int) { notImplemented(); }
 
@@ -423,6 +438,9 @@ public:
     virtual void setWillPresentPopoverCallback(JSValueRef);
     JSValueRef willPresentPopoverCallback() const;
 
+    virtual void setDidPresentViewControllerCallback(JSValueRef);
+    JSValueRef didPresentViewControllerCallback() const;
+
     virtual void setDidEndScrollingCallback(JSValueRef);
     JSValueRef didEndScrollingCallback() const;
 
@@ -432,7 +450,9 @@ public:
     virtual void installFakeMachineReadableCodeResultsForImageAnalysis() { }
 
     // Text Extraction
-    virtual void requestTextExtraction(JSValueRef, TextExtractionOptions*) { notImplemented(); }
+    virtual void requestTextExtraction(JSValueRef, TextExtractionTestOptions*) { notImplemented(); }
+    virtual void requestDebugText(JSValueRef, TextExtractionTestOptions*) { notImplemented(); }
+    virtual void performTextExtractionInteraction(JSStringRef, TextExtractionInteractionOptions*, JSValueRef) { notImplemented(); }
 
     // Element Targeting
     virtual void requestRenderedTextForFrontmostTarget(int, int, JSValueRef) { notImplemented(); }
@@ -440,6 +460,9 @@ public:
     virtual void resetVisibilityAdjustments(JSValueRef) { notImplemented(); }
 
     virtual JSRetainPtr<JSStringRef> frontmostViewAtPoint(int, int) { notImplemented(); return { }; }
+
+    virtual bool didCallEnsurePositionInformationIsUpToDateSinceLastCheck() const { notImplemented(); return false; }
+    virtual void clearEnsurePositionInformationIsUpToDateTracking() { notImplemented(); }
 
 protected:
     explicit UIScriptController(UIScriptContext&);

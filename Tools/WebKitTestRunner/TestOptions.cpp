@@ -54,7 +54,7 @@ static constexpr bool fullGPUProcessEnabledValue = false;
 #endif
 
 #if ENABLE(UNIFIED_PDF)
-#if ENABLE(UNIFIED_PDF_FOR_TESTING)
+#if ENABLE(UNIFIED_PDF_BY_DEFAULT)
 static constexpr bool unifiedPDFEnabledValue = true;
 #else
 static constexpr bool unifiedPDFEnabledValue = false;
@@ -98,6 +98,7 @@ const TestFeatures& TestOptions::defaults()
             { "DeveloperExtrasEnabled", true },
             { "DirectoryUploadEnabled", true },
             { "EncryptedMediaAPIEnabled", true },
+            { "EnumeratedARIAAttributeReflectionEnabled", false },
             { "EventHandlerDrivenSmoothKeyboardScrollingEnabled", eventHandlerDrivenSmoothKeyboardScrollingEnabledValue },
             { "ExposeSpeakersEnabled", true },
             { "FullScreenEnabled", true },
@@ -105,7 +106,7 @@ const TestFeatures& TestOptions::defaults()
             { "HiddenPageCSSAnimationSuspensionEnabled", false },
             { "HiddenPageDOMTimerThrottlingEnabled", false },
 #if ENABLE(CONTENT_EXTENSIONS)
-            { "IFrameResourceMonitoringEnabled", true },
+            { "IFrameResourceMonitoringEnabled", false },
 #endif
             { "InlineMediaPlaybackRequiresPlaysInlineAttribute", false },
             { "InputTypeDateEnabled", true },
@@ -184,6 +185,7 @@ const TestFeatures& TestOptions::defaults()
             { "ignoreSynchronousMessagingTimeouts", false },
             { "ignoresViewportScaleLimits", false },
             { "ignoreWebProcessTermination", false },
+            { "injectTestRunner", true },
             { "isAppBoundWebView", false },
             { "isAppInitiated", true },
             { "advancedPrivacyProtectionsEnabled", false },
@@ -212,6 +214,7 @@ const TestFeatures& TestOptions::defaults()
             { "enableMetalDebugDevice", false },
             { "enableMetalShaderValidation", false },
             { "pageTopColorSamplingEnabled", false },
+            { "enhancedSecurityEnabled", false },
         };
         features.doubleTestRunnerFeatures = {
             { "contentInset.top", 0 },
@@ -262,6 +265,7 @@ const std::unordered_map<std::string, TestHeaderKeyType>& TestOptions::keyTypeMa
         { "ignoreSynchronousMessagingTimeouts", TestHeaderKeyType::BoolTestRunner },
         { "ignoresViewportScaleLimits", TestHeaderKeyType::BoolTestRunner },
         { "ignoreWebProcessTermination", TestHeaderKeyType::BoolTestRunner },
+        { "injectTestRunner", TestHeaderKeyType::BoolTestRunner },
         { "isAppBoundWebView", TestHeaderKeyType::BoolTestRunner },
         { "isAppInitiated", TestHeaderKeyType::BoolTestRunner },
         { "advancedPrivacyProtectionsEnabled", TestHeaderKeyType::BoolTestRunner },
@@ -289,6 +293,7 @@ const std::unordered_map<std::string, TestHeaderKeyType>& TestOptions::keyTypeMa
         { "enableMetalDebugDevice", TestHeaderKeyType::BoolTestRunner },
         { "enableMetalShaderValidation", TestHeaderKeyType::BoolTestRunner },
         { "pageTopColorSamplingEnabled", TestHeaderKeyType::BoolTestRunner },
+        { "enhancedSecurityEnabled", TestHeaderKeyType::BoolTestRunner },
 
         { "contentInset.top", TestHeaderKeyType::DoubleTestRunner },
         { "obscuredInset.top", TestHeaderKeyType::DoubleTestRunner },

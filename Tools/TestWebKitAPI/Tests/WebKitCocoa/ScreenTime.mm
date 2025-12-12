@@ -27,6 +27,7 @@
 
 #if ENABLE(SCREEN_TIME)
 
+#import "AppKitSPI.h"
 #import "HTTPServer.h"
 #import "InstanceMethodSwizzler.h"
 #import "PlatformUtilities.h"
@@ -69,7 +70,7 @@ static RetainPtr<TestWKWebView> webViewForScreenTimeTests(WKWebViewConfiguration
 
 static std::unique_ptr<InstanceMethodSwizzler> swizzleEnforcesChildRestrictions(bool& done, bool enforces = YES)
 {
-    return WTF::makeUnique<InstanceMethodSwizzler>(PAL::getSTScreenTimeConfigurationClass(), @selector(enforcesChildRestrictions), imp_implementationWithBlock(^BOOL {
+    return WTF::makeUnique<InstanceMethodSwizzler>(PAL::getSTScreenTimeConfigurationClassSingleton(), @selector(enforcesChildRestrictions), imp_implementationWithBlock(^BOOL {
         done = true;
         return enforces;
     }));
@@ -82,7 +83,7 @@ static void testSuppressUsageRecordingWithDataStore(RetainPtr<WKWebsiteDataStore
     __block bool childRestrictionsDone = false;
 
     InstanceMethodSwizzler swizzler {
-        PAL::getSTWebpageControllerClass(),
+        PAL::getSTWebpageControllerClassSingleton(),
         @selector(setSuppressUsageRecording:),
         imp_implementationWithBlock(^(id object, bool value) {
             suppressUsageRecording = value;
@@ -368,7 +369,7 @@ TEST(ScreenTime, IdentifierNil)
     __block bool childRestrictionsDone = false;
 
     InstanceMethodSwizzler swizzler {
-        PAL::getSTWebpageControllerClass(),
+        PAL::getSTWebpageControllerClassSingleton(),
         @selector(setProfileIdentifier:),
         imp_implementationWithBlock(^(id object, NSString *profileIdentifier) {
             identifier = profileIdentifier;
@@ -395,7 +396,7 @@ TEST(ScreenTime, IdentifierString)
     __block bool childRestrictionsDone = false;
 
     InstanceMethodSwizzler swizzler {
-        PAL::getSTWebpageControllerClass(),
+        PAL::getSTWebpageControllerClassSingleton(),
         @selector(setProfileIdentifier:),
         imp_implementationWithBlock(^(id object, NSString *profileIdentifier) {
             identifier = profileIdentifier;
@@ -430,7 +431,7 @@ TEST(ScreenTime, IdentifierStringWithRemoveData)
     RetainPtr dataTypeScreenTime = adoptNS([[NSSet alloc] initWithArray:@[ WKWebsiteDataTypeScreenTime ]]);
 
     InstanceMethodSwizzler swizzler {
-        PAL::getSTWebHistoryClass(),
+        PAL::getSTWebHistoryClassSingleton(),
         @selector(deleteHistoryDuringInterval:),
         imp_implementationWithBlock(^(STWebHistory *object, NSDateInterval *) {
             identifier = object.profileIdentifier;
@@ -608,6 +609,7 @@ TEST(ScreenTime, URLIsPictureInPicture)
     RetainPtr contentHTML = [NSString stringWithContentsOfFile:[NSBundle.test_resourcesBundle pathForResource:@"PictureInPictureDelegate" ofType:@"html"] encoding:NSUTF8StringEncoding error:NULL];
     TestWebKitAPI::HTTPServer server({
         { "/"_s, { contentHTML.get() } },
+        { "/favicon.ico"_s, { "Actual response is immaterial."_s } },
         { "/test.mp4"_s, [NSData dataWithContentsOfURL:[NSBundle.test_resourcesBundle URLForResource:@"test" withExtension:@"mp4"]] },
     }, TestWebKitAPI::HTTPServer::Protocol::Http);
 
@@ -664,7 +666,7 @@ TEST(ScreenTime, FetchData)
 
     __block RetainPtr<NSSet<NSURL *>> urls;
     InstanceMethodSwizzler swizzler {
-        PAL::getSTWebHistoryClass(),
+        PAL::getSTWebHistoryClassSingleton(),
         @selector(fetchAllHistoryWithCompletionHandler:),
         imp_implementationWithBlock(^(id object, void (^completionHandler)(NSSet<NSURL *> *urls, NSError *error)) {
             urls = [NSSet setWithArray:@[ adoptNS([[NSURL alloc] initWithString:@"https://www.webkit.org/"]).get() ]];
@@ -701,7 +703,7 @@ TEST(ScreenTime, RemoveDataWithTimeInterval)
 
     __block bool removedHistory = false;
     InstanceMethodSwizzler swizzler {
-        PAL::getSTWebHistoryClass(),
+        PAL::getSTWebHistoryClassSingleton(),
         @selector(deleteHistoryDuringInterval:),
         imp_implementationWithBlock(^(id object, NSDateInterval *interval) {
             removedHistory = true;
@@ -745,7 +747,7 @@ TEST(ScreenTime, RemoveData)
     ]]);
 
     InstanceMethodSwizzler fetchHistorySwizzler {
-        PAL::getSTWebHistoryClass(),
+        PAL::getSTWebHistoryClassSingleton(),
         @selector(fetchAllHistoryWithCompletionHandler:),
         imp_implementationWithBlock(^(id object, void (^completionHandler)(NSSet<NSURL *> *urls, NSError *error)) {
             completionHandler(fetchedURLs.get(), nil);
@@ -754,7 +756,7 @@ TEST(ScreenTime, RemoveData)
 
     __block RetainPtr<NSMutableSet<NSURL *>> deletedURLs = adoptNS([[NSMutableSet alloc] init]);
     InstanceMethodSwizzler deleteHistorySwizzler {
-        PAL::getSTWebHistoryClass(),
+        PAL::getSTWebHistoryClassSingleton(),
         @selector(deleteHistoryForURL:),
         imp_implementationWithBlock(^(id object, NSURL *url) {
             [deletedURLs addObject:url];
@@ -854,6 +856,7 @@ TEST(ScreenTime, OffscreenBlurredScreenTimeBlockingView)
 }
 
 #if PLATFORM(MAC)
+
 TEST(ScreenTime, DoNotDonateURLsInOccludedWebView)
 {
     // FIXME: This test will fail if running on a full screen terminal window. It passes otherwise.
@@ -862,7 +865,7 @@ TEST(ScreenTime, DoNotDonateURLsInOccludedWebView)
     __block bool childRestrictionsDone = false;
 
     InstanceMethodSwizzler swizzler {
-        PAL::getSTWebpageControllerClass(),
+        PAL::getSTWebpageControllerClassSingleton(),
         @selector(setSuppressUsageRecording:),
         imp_implementationWithBlock(^(id object, bool value) {
             suppressUsageRecording = value;
@@ -905,6 +908,68 @@ TEST(ScreenTime, DoNotDonateURLsInOccludedWebView)
 
     EXPECT_FALSE(suppressUsageRecording);
 }
+
+TEST(ScreenTime, FullscreenWithSystemBlockingViewInHierarchy)
+{
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    [configuration preferences].elementFullscreenEnabled = YES;
+
+    RetainPtr webView = webViewForScreenTimeTests(configuration.get());
+
+    __block bool childRestrictionsDone = false;
+    auto swizzle = swizzleEnforcesChildRestrictions(childRestrictionsDone);
+    RetainPtr request = [NSURLRequest requestWithURL:[NSURL URLWithString:@"http://webkit.org"]];
+    [webView synchronouslyLoadSimulatedRequest:request.get() responseHTMLString:@"<div id=\"target\" style=\"width:150px;height:150px;background-color:red\"></div>"];
+    TestWebKitAPI::Util::run(&childRestrictionsDone);
+
+    [webView waitForNextPresentationUpdate];
+
+    EXPECT_TRUE(systemScreenTimeBlockingViewIsPresent(webView.get()));
+
+    RetainPtr controller = [webView _screenTimeWebpageController];
+    Class remoteViewClass = NSClassFromString(@"NSRemoteView");
+
+    TestWebKitAPI::Util::waitFor([&] {
+        return [[[controller view] subviews] indexOfObjectPassingTest:^BOOL(NSView *subview, NSUInteger, BOOL *) {
+            return [subview isKindOfClass:remoteViewClass];
+        }] != NSNotFound;
+    });
+
+    if ([webView _wantsConstraintBasedLayout]) {
+        [webView setTranslatesAutoresizingMaskIntoConstraints:NO];
+
+        RetainPtr superview = [webView superview];
+        [NSLayoutConstraint activateConstraints:@[
+            [[webView topAnchor] constraintEqualToAnchor:[superview topAnchor]],
+            [[webView leadingAnchor] constraintEqualToAnchor:[superview leadingAnchor]],
+            [[webView bottomAnchor] constraintEqualToAnchor:[superview bottomAnchor]],
+            [[webView trailingAnchor] constraintEqualToAnchor:[superview trailingAnchor]]
+        ]];
+    }
+
+    [webView objectByEvaluatingJavaScript:@"document.querySelector('#target').addEventListener('fullscreenchange', event => { window.webkit.messageHandlers.testHandler.postMessage('fullscreenchange'); });"];
+
+    bool receivedFullscreenChangeMessage = false;
+    [webView performAfterReceivingMessage:@"fullscreenchange" action:[&] {
+        receivedFullscreenChangeMessage = true;
+    }];
+
+    RetainPtr originalWindow = [webView window];
+
+    [webView objectByEvaluatingJavaScriptWithUserGesture:@"document.querySelector('#target').webkitRequestFullscreen()"];
+
+    TestWebKitAPI::Util::run(&receivedFullscreenChangeMessage);
+    receivedFullscreenChangeMessage = false;
+
+    TestWebKitAPI::Util::waitFor([&] {
+        RetainPtr window = [webView window];
+        return [window isVisible] && (window != originalWindow);
+    });
+
+    NSSize fullscreenWindowSize = [[webView window] frame].size;
+    EXPECT_EQ([webView frame], NSMakeRect(0, 0, fullscreenWindowSize.width, fullscreenWindowSize.height));
+}
+
 #endif
 
 TEST(ScreenTime, CreateControllerAfterOffscreenWebViewBecomesInWindow)
