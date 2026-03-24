@@ -28,7 +28,6 @@
 
 #import "PlatformViewHelpers.h"
 #import "TestController.h"
-#import "WebKitTestRunnerDraggingInfo.h"
 #import <WebKit/WKUIDelegatePrivate.h>
 #import <WebKit/WKWebViewPrivateForTesting.h>
 #import <WebKit/_WKFormInputSession.h>
@@ -38,6 +37,14 @@
 #import <wtf/SoftLinking.h>
 #import <wtf/cocoa/TypeCastsCocoa.h>
 #import <wtf/darwin/DispatchExtras.h>
+
+#if ENABLE(MODEL_ELEMENT_IMMERSIVE)
+#import <WebKit/_WKImmersiveEnvironmentDelegate.h>
+#endif
+
+#if PLATFORM(MAC)
+#import "WebKitTestRunnerDraggingInfo.h"
+#endif
 
 #if PLATFORM(IOS_FAMILY)
 #import "UIKitSPIForTesting.h"
@@ -69,11 +76,18 @@ struct CustomMenuActionInfo {
 #if PLATFORM(IOS_FAMILY)
     , UIGestureRecognizerDelegate
 #endif
+#if ENABLE(MODEL_ELEMENT_IMMERSIVE)
+    , _WKImmersiveEnvironmentDelegate
+#endif
 > {
     RetainPtr<NSNumber> _stableStateOverride;
     BOOL _isInteractingWithFormControl;
     BOOL _scrollingUpdatesDisabled;
     RetainPtr<NSArray<NSString *>> _allowedMenuActions;
+#if PLATFORM(MAC)
+    int _draggingSequenceNumber;
+    RetainPtr<WebKitTestRunnerDraggingInfo> _currentDraggingInfo;
+#endif
 #if PLATFORM(IOS_FAMILY)
     RetainPtr<UITapGestureRecognizer> _windowTapGestureRecognizer;
     BlockPtr<void()> _windowTapRecognizedCallback;
@@ -103,8 +117,38 @@ IGNORE_WARNINGS_BEGIN("deprecated-implementations")
 - (void)dragImage:(NSImage *)anImage at:(NSPoint)viewLocation offset:(NSSize)initialOffset event:(NSEvent *)event pasteboard:(NSPasteboard *)pboard source:(id)sourceObj slideBack:(BOOL)slideFlag
 IGNORE_WARNINGS_END
 {
-    auto draggingInfo = adoptNS([[WebKitTestRunnerDraggingInfo alloc] initWithImage:anImage offset:initialOffset pasteboard:pboard source:sourceObj]);
+    ++_draggingSequenceNumber;
+    RetainPtr draggingInfo = adoptNS([[WebKitTestRunnerDraggingInfo alloc] initWithImage:anImage offset:initialOffset pasteboard:pboard source:sourceObj sequenceNumber:_draggingSequenceNumber]);
+    _currentDraggingInfo = draggingInfo;
+    [self draggingEntered:draggingInfo.get()];
     [self draggingUpdated:draggingInfo.get()];
+}
+
+- (void)mouseDown:(NSEvent *)event
+{
+    if (_currentDraggingInfo) {
+        NSLog(@"[WKWebViewMac mouseDown:] with unexpected _currentDraggingInfo, missing mouseUp?");
+        _currentDraggingInfo = nil;
+    }
+    [super mouseDown:event];
+}
+
+- (void)mouseUp:(NSEvent *)event
+{
+    if (RetainPtr<WebKitTestRunnerDraggingInfo> draggingInfo = _currentDraggingInfo) {
+        [self prepareForDragOperation:draggingInfo.get()];
+        [self performDragOperation:draggingInfo.get()];
+        _currentDraggingInfo = nil;
+    } else
+        [super mouseUp:event];
+}
+
+- (void)mouseDragged:(NSEvent *)event
+{
+    if (RetainPtr<WebKitTestRunnerDraggingInfo> draggingInfo = _currentDraggingInfo)
+        [self draggingUpdated:draggingInfo.get()];
+    else
+        [super mouseDragged:event];
 }
 #endif
 
@@ -131,6 +175,10 @@ IGNORE_WARNINGS_END
         self._inputDelegate = self;
         self.focusStartsInputSessionPolicy = _WKFocusStartsInputSessionPolicyAuto;
         self.supportedInterfaceOrientations = UIInterfaceOrientationMaskAll;
+        self.traitOverrides.displayScale = 2.0f;
+#endif
+#if ENABLE(MODEL_ELEMENT_IMMERSIVE)
+        self._immersiveEnvironmentDelegate = self;
 #endif
     }
     return self;
@@ -692,5 +740,26 @@ static bool isQuickboardViewController(UIViewController *viewController)
 }
 
 #endif // PLATFORM(IOS_FAMILY)
+
+#if ENABLE(MODEL_ELEMENT_IMMERSIVE)
+
+#pragma mark - _WKImmersiveEnvironmentDelegate
+
+- (void)webView:(WKWebView *)webView allowImmersiveEnvironmentFromURL:(NSURL *)url completion:(void (^)(bool))completion
+{
+    completion(self.shouldAcceptImmersiveEnvironmentRequests);
+}
+
+- (void)webView:(WKWebView *)webView presentImmersiveEnvironment:(UIView *)environmentView completion:(void (^)(NSError * _Nullable))completion
+{
+    completion(nil);
+}
+
+- (void)webView:(WKWebView *)webView dismissImmersiveEnvironment:(void (^)())completion
+{
+    completion();
+}
+
+#endif
 
 @end

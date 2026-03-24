@@ -55,7 +55,7 @@ class GLibPort(Port):
                 self.set_option_default('wrapper', ' '.join(self._jhbuild_wrapper))
 
     def default_timeout_ms(self):
-        default_timeout = 15000
+        default_timeout = super().default_timeout_ms()
         # Starting an application under Valgrind takes a lot longer than normal
         # so increase the timeout (empirically 10x is enough to avoid timeouts).
         multiplier = 10 if self.get_option("leaks") else 1
@@ -63,6 +63,12 @@ class GLibPort(Port):
         if self.get_option('configuration') == 'Debug':
             multiplier *= 2
         return multiplier * default_timeout
+
+    @classmethod
+    def determine_full_port_name(cls, host, options, port_name):
+        """Return a fully-specified port name that can be used to construct objects."""
+        # gtk and wpe ports don't add a -wk2 suffix on the default port name because they don't support -wk1
+        return port_name
 
     def _built_executables_path(self, *path):
         return self._build_path(*(('bin',) + path))
@@ -95,6 +101,7 @@ class GLibPort(Port):
 
         # Copy all GStreamer related env vars
         self._copy_values_from_environ_with_prefix(environment, 'GST_')
+        self._copy_value_from_environ_if_set(environment, 'WEBKIT_GST_DISABLE_WEBRTC_NETWORK_SANDBOX')
 
         gst_feature_rank_override = os.environ.get('GST_PLUGIN_FEATURE_RANK')
         # Disable hardware-accelerated device providers, encoders and decoders. Depending on the underlying platform
@@ -128,6 +135,9 @@ class GLibPort(Port):
 
         # Disable SIMD optimization in GStreamer's ORC. Some bots (WPE release) crash in ORC's optimizations.
         environment['ORC_CODE'] = 'backup'
+
+        # Workaround for bots not using latest SDK version.
+        environment['RICE_LOG'] = 'none'
 
         if self.get_option("leaks"):
             # Turn off GLib memory optimisations https://wiki.gnome.org/Valgrind.

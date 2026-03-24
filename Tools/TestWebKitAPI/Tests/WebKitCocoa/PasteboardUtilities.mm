@@ -51,3 +51,60 @@ RetainPtr<TestWKWebView> createWebViewWithCustomPasteboardDataEnabled(bool color
     WKPreferencesSetCustomPasteboardDataEnabled(preferences, true);
     return webView;
 }
+
+RetainPtr<TestWKWebView> createLockdownModeWebViewWithCustomPasteboardDataEnabled()
+{
+#if PLATFORM(IOS_FAMILY)
+    TestWebKitAPI::Util::instantiateUIApplicationIfNeeded();
+#endif
+
+    RetainPtr webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    [[webViewConfiguration defaultWebpagePreferences] setLockdownModeEnabled: YES];
+
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400) configuration:webViewConfiguration.get()]);
+    auto preferences = (__bridge WKPreferencesRef)[[webView configuration] preferences];
+    WKPreferencesSetDataTransferItemsEnabled(preferences, true);
+    WKPreferencesSetCustomPasteboardDataEnabled(preferences, true);
+    return webView;
+}
+
+#if PLATFORM(MAC)
+NSString *readURLFromPasteboard()
+{
+    if (NSURL *url = [NSURL URLFromPasteboard:NSPasteboard.generalPasteboard])
+        return url.absoluteString;
+    NSURL *url = [NSURL URLWithString:[NSPasteboard.generalPasteboard stringForType:NSURLPboardType]];
+    return url.absoluteString;
+}
+
+NSString *readTitleFromPasteboard()
+{
+    NSArray *urlsAndTitles = [NSPasteboard.generalPasteboard propertyListForType:@"WebURLsWithTitlesPboardType"];
+    if (!urlsAndTitles || ![urlsAndTitles isKindOfClass:[NSArray class]] || urlsAndTitles.count != 2)
+        return nil;
+    NSArray *titles = urlsAndTitles.lastObject;
+    if (!titles || ![titles isKindOfClass:[NSArray class]] || titles.count != 1)
+        return nil;
+    return titles.firstObject;
+}
+
+void clearPasteboard()
+{
+    [NSPasteboard.generalPasteboard clearContents];
+}
+#else
+NSString *readURLFromPasteboard()
+{
+    return UIPasteboard.generalPasteboard.URL.absoluteString;
+}
+
+NSString *readTitleFromPasteboard()
+{
+    return UIPasteboard.generalPasteboard.URL._title;
+}
+
+void clearPasteboard()
+{
+    UIPasteboard.generalPasteboard.items = @[];
+}
+#endif

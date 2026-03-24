@@ -113,6 +113,9 @@ TEST(DragAndDropTests, DragPromisedImageFileIntoFileUpload)
     TestWebKitAPI::Util::waitForConditionWithLogging([&] () -> bool {
         return [webView stringByEvaluatingJavaScript:@"imageload.textContent"].boolValue;
     }, 2, @"Expected image to finish loading.");
+    static constexpr auto expectedDataTransferItems = "[{\"kind\":\"file\",\"type\":\"image/gif\",\"file\":null}]";
+    EXPECT_WK_STREQ(expectedDataTransferItems, [webView stringByEvaluatingJavaScript:@"dragenterItems.textContent"]);
+    EXPECT_WK_STREQ(expectedDataTransferItems, [webView stringByEvaluatingJavaScript:@"dragoverItems.textContent"]);
     EXPECT_EQ(1, [webView stringByEvaluatingJavaScript:@"filecount.textContent"].integerValue);
 
     TestDraggingInfo *draggingInfo = [simulator draggingInfo];
@@ -238,6 +241,28 @@ TEST(DragAndDropTests, ProvideImageDataAsTypeIdentifiers)
     [simulator runFrom:NSMakePoint(25, 25) to:NSMakePoint(300, 300)];
     [webView pasteboard:uniquePasteboard.get() provideDataForType:UTTypeGIF.identifier];
     EXPECT_GT([uniquePasteboard dataForType:UTTypeGIF.identifier].length, 0u);
+}
+
+TEST(DragAndDropTests, DragLocationForImageInScrolledSubframe)
+{
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
+    [configuration preferences]._largeImageAsyncDecodingEnabled = NO;
+
+    RetainPtr simulator = adoptNS([[DragAndDropSimulator alloc] initWithWebViewFrame:NSMakeRect(0, 0, 400, 400) configuration:configuration.get()]);
+    RetainPtr webView = [simulator webView];
+    [webView synchronouslyLoadTestPageNamed:@"image-in-scrolled-subframe"];
+
+    TestWebKitAPI::Util::waitForConditionWithLogging([&] -> bool {
+        return [webView stringByEvaluatingJavaScript:@"doneLoadingSubframe"].boolValue;
+    }, 3, @"Expected subframe to finish loading.");
+
+    [simulator runFrom:NSMakePoint(100, 100) to:NSMakePoint(200, 200)];
+
+    CGPoint dragLocation = [simulator initialDragImageLocationInView];
+    EXPECT_TRUE(NSPointInRect(dragLocation, [webView bounds]));
+
+    RetainPtr dragTypes = [[[simulator draggingInfo] draggingPasteboard] types];
+    EXPECT_TRUE([dragTypes containsObject:UTTypePNG.identifier]);
 }
 
 #endif // ENABLE(DRAG_SUPPORT) && PLATFORM(MAC)

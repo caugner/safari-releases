@@ -292,6 +292,12 @@ _PATH_RULES_SPECIFIER = [
     ([
       # These files define GObjects, which implies some definitions of
       # variables and functions containing underscores.
+      os.path.join('Source', 'WebCore', 'Modules', 'mediastream', 'gstreamer', 'GStreamerIceAgent.cpp'),
+      os.path.join('Source', 'WebCore', 'Modules', 'mediastream', 'gstreamer', 'GStreamerIceAgent.h'),
+      os.path.join('Source', 'WebCore', 'Modules', 'mediastream', 'gstreamer', 'GStreamerIceStream.cpp'),
+      os.path.join('Source', 'WebCore', 'Modules', 'mediastream', 'gstreamer', 'GStreamerIceStream.h'),
+      os.path.join('Source', 'WebCore', 'Modules', 'mediastream', 'gstreamer', 'GStreamerIceTransport.cpp'),
+      os.path.join('Source', 'WebCore', 'Modules', 'mediastream', 'gstreamer', 'GStreamerIceTransport.h'),
       os.path.join('Source', 'WebCore', 'platform', 'graphics', 'gstreamer', 'GStreamerSinksWorkarounds.cpp'),
       os.path.join('Source', 'WebCore', 'platform', 'graphics', 'gstreamer', 'GStreamerSinksWorkarounds.h'),
       os.path.join('Source', 'WebCore', 'platform', 'graphics', 'gstreamer', 'GLVideoSinkGStreamer.cpp'),
@@ -330,7 +336,8 @@ _PATH_RULES_SPECIFIER = [
       os.path.join('Source', 'WebCore', 'platform', 'network', 'soup', 'WebKitAutoconfigProxyResolver.h'),
       os.path.join('Source', 'WebCore', 'platform', 'network', 'soup', 'WebKitFormDataInputStream.cpp'),
       os.path.join('Source', 'WebCore', 'platform', 'network', 'soup', 'WebKitFormDataInputStream.h'),
-      os.path.join('Source', 'WebKit', 'NetworkProcess', 'soup', 'WebKitDirectoryInputStream.h')],
+      os.path.join('Source', 'WebKit', 'NetworkProcess', 'soup', 'WebKitDirectoryInputStream.h'),
+      os.path.join('Source', 'WebKit', 'Shared', 'glib', 'WebKitContextMenuGAction.cpp')],
      ["-readability/naming",
       "-readability/enum_casing"]),
     ([

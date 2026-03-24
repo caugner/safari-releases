@@ -655,6 +655,13 @@
    },
    {
       "emails" : [
+         "anand_srinivasan@apple.com"
+      ],
+      "github" : "asworkjsc",
+      "name" : "Anand Srinivasan"
+   },
+   {
+      "emails" : [
          "andersca@apple.com",
          "acarlsson@apple.com"
       ],
@@ -1951,6 +1958,17 @@
    },
    {
       "emails" : [
+         "cobrien22@apple.com",
+         "connor.p.obrien@gmail.com"
+      ],
+      "github" : "connorpobrien",
+      "name" : "Connor O'Brien",
+      "nicks" : [
+         "connorpobrien"
+      ]
+   },
+   {
+      "emails" : [
          "conrad_shultz@apple.com"
       ],
       "github" : "shultzc",
@@ -3243,7 +3261,8 @@
          "garrett_davidson@apple.com"
       ],
       "github" : "g-davidson",
-      "name" : "Garrett Davidson"
+      "name" : "Garrett Davidson",
+      "status" : "committer"
    },
    {
       "emails" : [
@@ -3598,6 +3617,13 @@
       "nicks" : [
          "helder"
       ]
+   },
+   {
+      "emails" : [
+         "helmut@januschka.com"
+      ],
+      "github" : "hjanuschka",
+      "name" : "Helmut Januschka"
    },
    {
       "emails" : [
@@ -4839,6 +4865,18 @@
    },
    {
       "emails" : [
+         "k_tamkun@apple.com",
+         "kai@tamkun.io"
+      ],
+      "github" : "heimskr",
+      "name" : "Kai Tamkun",
+      "nicks" : [
+         "kai",
+         "heimskr"
+      ]
+   },
+   {
+      "emails" : [
          "kalyan.kondapally@intel.com",
          "kondapallykalyan@gmail.com"
       ],
@@ -5180,6 +5218,13 @@
       "nicks" : [
          "kiranm"
       ]
+   },
+   {
+      "emails" : [
+         "k_bolisetty@apple.com"
+      ],
+      "github" : "kbolisetty",
+      "name" : "Kishore Sri Venkata Ganesh Bolisetty"
    },
    {
       "emails" : [
@@ -5654,7 +5699,7 @@
       "nicks" : [
          "marcus"
       ],
-      "status" : "committer"
+      "status" : "reviewer"
    },
    {
       "emails" : [
@@ -6113,6 +6158,14 @@
    },
    {
       "emails" : [
+         "michaeldo@chromium.org",
+         "michaeldo@google.com"
+      ],
+      "github" : "michaeldo1",
+      "name" : "Mike Dougherty"
+   },
+   {
+      "emails" : [
          "mifenton@blackberry.com",
          "mifenton@rim.com",
          "mike.fenton@torchmobile.com"
@@ -6439,6 +6492,7 @@
          "nipun_shukla@apple.com",
          "nipunshukla002@gmail.com"
       ],
+      "github" : "nipunshukla21",
       "name" : "Nipun Shukla",
       "nicks" : [
          "nipunshukla21"
@@ -7610,7 +7664,8 @@
       "name" : "Shu-yu Guo",
       "nicks" : [
          "syg"
-      ]
+      ],
+      "status" : "committer"
    },
    {
       "emails" : [

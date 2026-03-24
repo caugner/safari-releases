@@ -242,10 +242,7 @@ TEST(WKWebExtension, MultipleIconSizes)
 
     auto screenScale = 1.0;
 #if PLATFORM(IOS_FAMILY)
-ALLOW_DEPRECATED_DECLARATIONS_BEGIN
-    // FIXME: <rdar://155548417> ([ Build-Failure ] [ iOS26+ ] error: 'mainScreen' is deprecated: first deprecated in iOS 26.0)
-    screenScale = UIScreen.mainScreen.scale;
-ALLOW_DEPRECATED_DECLARATIONS_END
+    screenScale = UITraitCollection.currentTraitCollection.displayScale;
 #else
     screenScale = NSScreen.mainScreen.backingScaleFactor;
 #endif
@@ -362,6 +359,48 @@ TEST(WKWebExtension, SymbolImageIcon)
 
         @"action": @{
             @"default_icon": @"symbol:heart.fill"
+        }
+    };
+
+    auto testExtension = [[WKWebExtension alloc] _initWithManifestDictionary:testManifestDictionary resources:@{ }];
+    EXPECT_NS_EQUAL(testExtension.errors, @[ ]);
+
+    auto *icon = [testExtension iconForSize:CGSizeMake(16, 16)];
+    EXPECT_NOT_NULL(icon);
+#if PLATFORM(MAC)
+    EXPECT_TRUE([icon isKindOfClass:NSImage.class]);
+    EXPECT_TRUE(icon._isSymbolImage);
+#else
+    EXPECT_TRUE([icon isKindOfClass:UIImage.class]);
+    EXPECT_TRUE(icon.isSymbolImage);
+#endif
+
+    auto *actionIcon = [testExtension actionIconForSize:CGSizeMake(16, 16)];
+    EXPECT_NOT_NULL(actionIcon);
+#if PLATFORM(MAC)
+    EXPECT_TRUE([actionIcon isKindOfClass:NSImage.class]);
+    EXPECT_TRUE(actionIcon._isSymbolImage);
+#else
+    EXPECT_TRUE([actionIcon isKindOfClass:UIImage.class]);
+    EXPECT_TRUE(actionIcon.isSymbolImage);
+#endif
+}
+
+TEST(WKWebExtension, PrivateSymbolImageIcon)
+{
+    auto *testManifestDictionary = @{
+        @"manifest_version": @3,
+
+        @"name": @"Test",
+        @"version": @"1.0",
+        @"description": @"Test",
+
+        @"icons": @{
+            @"16": @"symbol:moon.and.stars.artframe"
+        },
+
+        @"action": @{
+            @"default_icon": @"symbol:person.lanyardcard.fill"
         }
     };
 

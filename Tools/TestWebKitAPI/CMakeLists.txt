@@ -55,6 +55,7 @@ set(TestWTF_SOURCES
     Tests/WTF/FixedBitVector.cpp
     Tests/WTF/FixedVector.cpp
     Tests/WTF/Function.cpp
+    Tests/WTF/GenerationalSet.cpp
     Tests/WTF/HashCountedSet.cpp
     Tests/WTF/HashMap.cpp
     Tests/WTF/HashSet.cpp
@@ -77,11 +78,13 @@ set(TestWTF_SOURCES
     Tests/WTF/Markable.cpp
     Tests/WTF/MathExtras.cpp
     Tests/WTF/MediaTime.cpp
+    Tests/WTF/MemoryDump.cpp
     Tests/WTF/MetaAllocator.cpp
     Tests/WTF/MoveOnlyLifecycleLogger.cpp
     Tests/WTF/NakedPtr.cpp
     Tests/WTF/NativePromise.cpp
     Tests/WTF/NeverDestroyed.cpp
+    Tests/WTF/OptionCountedSet.cpp
     Tests/WTF/OptionSet.cpp
     Tests/WTF/Packed.cpp
     Tests/WTF/PackedRef.cpp

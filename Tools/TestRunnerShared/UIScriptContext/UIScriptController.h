@@ -62,9 +62,14 @@ struct TextExtractionTestOptions {
     bool clipToBounds { false };
     bool includeRects { false };
     bool includeURLs { false };
+    bool shortenURLs { false };
+    JSRetainPtr<JSStringRef> nodeIdentifierInclusion;
+    bool includeEventListeners { false };
+    bool includeAccessibilityAttributes { false };
+    bool includeTextInAutoFilledControls { false };
     bool mergeParagraphs { false };
     bool skipNearlyTransparentContent { false };
-    bool canIncludeIdentifiers { false };
+    JSRetainPtr<JSStringRef> outputFormat;
 };
 
 TextExtractionTestOptions* toTextExtractionTestOptions(JSContextRef, JSValueRef);
@@ -73,7 +78,9 @@ struct TextExtractionInteractionOptions {
     JSRetainPtr<JSStringRef> nodeIdentifier;
     JSRetainPtr<JSStringRef> text;
     std::optional<std::pair<double, double>> location;
+    std::optional<std::pair<double, double>> scrollDelta;
     bool replaceAll { false };
+    bool scrollToVisible { false };
 };
 
 TextExtractionInteractionOptions* toTextExtractionInteractionOptions(JSContextRef, JSValueRef);
@@ -195,7 +202,9 @@ public:
     virtual JSRetainPtr<JSStringRef> scrollingTreeAsText() const { notImplemented(); return nullptr; }
     virtual JSRetainPtr<JSStringRef> uiViewTreeAsText() const { notImplemented(); return nullptr; }
     virtual JSRetainPtr<JSStringRef> caLayerTreeAsText() const { notImplemented(); return nullptr; }
-    
+    virtual JSRetainPtr<JSStringRef> caLayerTreeAsTextForLayerWithID(unsigned long long) const { notImplemented(); return nullptr; }
+    virtual JSRetainPtr<JSStringRef> uiViewTreeAsTextForViewWithLayerID(unsigned long long) const { notImplemented(); return nullptr; }
+
     virtual JSRetainPtr<JSStringRef> scrollbarStateForScrollingNodeID(unsigned long long, unsigned long long, bool) const { notImplemented(); return nullptr; }
 
     virtual void setAlwaysBounceVertical(bool) { notImplemented(); }
@@ -463,6 +472,12 @@ public:
 
     virtual bool didCallEnsurePositionInformationIsUpToDateSinceLastCheck() const { notImplemented(); return false; }
     virtual void clearEnsurePositionInformationIsUpToDateTracking() { notImplemented(); }
+
+#if ENABLE(THREADED_ANIMATIONS)
+    // Animations
+    virtual JSRetainPtr<JSStringRef> animationStackForLayerWithID(uint64_t) const { notImplemented(); return nullptr; }
+    virtual JSRetainPtr<JSStringRef> progressBasedTimelinesForScrollingNodeID(unsigned long long, unsigned long long) const { notImplemented(); return nullptr; }
+#endif
 
 protected:
     explicit UIScriptController(UIScriptContext&);

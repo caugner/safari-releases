@@ -35,6 +35,7 @@
 			isa = PBXAggregateTarget;
 			buildConfigurationList = BC952D7D11F3BF6A003398B4 /* Build configuration list for PBXAggregateTarget "Derived Sources" */;
 			buildPhases = (
+				DD453D922EC3A61700C1D6A8 /* Generate <wtf/Platform.h> args */,
 				BC952D8211F3BF78003398B4 /* Generate Derived Sources */,
 			);
 			dependencies = (
@@ -45,7 +46,7 @@
 /* End PBXAggregateTarget section */
 
 /* Begin PBXBuildFile section */
-		00E43E412D9781430060461A /* WebContentCaptivePortalExtension.appex in Embed Extensions */ = {isa = PBXBuildFile; fileRef = 00E43E3F2D977FC70060461A /* WebContentCaptivePortalExtension.appex */; platformFilters = (ios, ); settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		00E43E412D9781430060461A /* WebContentCaptivePortalExtension.appex in Embed Extensions */ = {isa = PBXBuildFile; fileRef = 00E43E3F2D977FC70060461A /* WebContentCaptivePortalExtension.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		0F18E6E51D6B9B9E0027E547 /* UIScriptContext.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0F18E6DD1D6B9AAF0027E547 /* UIScriptContext.cpp */; };
 		0F18E6E61D6B9BA20027E547 /* UIScriptControllerShared.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0F18E6DF1D6B9AAF0027E547 /* UIScriptControllerShared.cpp */; };
 		0F18E7181D6BC4560027E547 /* JSWrapper.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0F18E7151D6BC4560027E547 /* JSWrapper.cpp */; };
@@ -102,6 +103,7 @@
 		2E63EDA61891BDC0002A7AFC /* TestRunner.cpp in Sources */ = {isa = PBXBuildFile; fileRef = BCC9981711D3F51E0017BCA2 /* TestRunner.cpp */; };
 		2E749BF21891EBFA007FC175 /* EventSenderProxyIOS.mm in Sources */ = {isa = PBXBuildFile; fileRef = 2E63ED7A1891ACE9002A7AFC /* EventSenderProxyIOS.mm */; };
 		31DA8A3D1E7205CC00E1DF2F /* IOSLayoutTestCommunication.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3148A0531E6F85B600D3B316 /* IOSLayoutTestCommunication.cpp */; };
+		334BF3B92D4E5BE7004AE4EA /* EventSenderProxyCocoa.mm in Sources */ = {isa = PBXBuildFile; fileRef = 334BF3B82D4E5BE7004AE4EA /* EventSenderProxyCocoa.mm */; };
 		33558B2E2AF1C22B0041E63F /* WPTFunctions.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 93C7881F250C69E400C0AA24 /* WPTFunctions.cpp */; };
 		41C5378E21F13414008B1FAD /* TestWebsiteDataStoreDelegate.mm in Sources */ = {isa = PBXBuildFile; fileRef = 41C5378D21F1333C008B1FAD /* TestWebsiteDataStoreDelegate.mm */; };
 		41D5B62622DD9D36000F4C4A /* FakeHelvetica-SingleExtendedCharacter.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 41D5B62522DD9D36000F4C4A /* FakeHelvetica-SingleExtendedCharacter.ttf */; };
@@ -167,9 +169,9 @@
 		E132AA3A17CD5F1000611DF0 /* WebKitTestRunnerDraggingInfo.mm in Sources */ = {isa = PBXBuildFile; fileRef = E132AA3817CD5F1000611DF0 /* WebKitTestRunnerDraggingInfo.mm */; };
 		E132AA3D17CE776F00611DF0 /* WebKitTestRunnerEvent.mm in Sources */ = {isa = PBXBuildFile; fileRef = E132AA3B17CE776F00611DF0 /* WebKitTestRunnerEvent.mm */; };
 		E1C642C617CBCD4C00D66A3C /* WebKitTestRunnerPasteboard.mm in Sources */ = {isa = PBXBuildFile; fileRef = E1C642C417CBCD4C00D66A3C /* WebKitTestRunnerPasteboard.mm */; };
-		E372BC362C08E29C006DFE67 /* NetworkingExtension.appex in Embed Extensions */ = {isa = PBXBuildFile; fileRef = E372BC352C08E29C006DFE67 /* NetworkingExtension.appex */; platformFilters = (ios, ); settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		E372BC382C08EB01006DFE67 /* GPUExtension.appex in Embed Extensions */ = {isa = PBXBuildFile; fileRef = E372BC372C08EB01006DFE67 /* GPUExtension.appex */; platformFilters = (ios, ); settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		E372BC3A2C08F323006DFE67 /* WebContentExtension.appex in Embed Extensions */ = {isa = PBXBuildFile; fileRef = E372BC392C08F323006DFE67 /* WebContentExtension.appex */; platformFilters = (ios, ); settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		E372BC362C08E29C006DFE67 /* NetworkingExtension.appex in Embed Extensions */ = {isa = PBXBuildFile; fileRef = E372BC352C08E29C006DFE67 /* NetworkingExtension.appex */; platformFilter = ios; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		E372BC382C08EB01006DFE67 /* GPUExtension.appex in Embed Extensions */ = {isa = PBXBuildFile; fileRef = E372BC372C08EB01006DFE67 /* GPUExtension.appex */; platformFilter = ios; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		E372BC3A2C08F323006DFE67 /* WebContentExtension.appex in Embed Extensions */ = {isa = PBXBuildFile; fileRef = E372BC392C08F323006DFE67 /* WebContentExtension.appex */; platformFilter = ios; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		E3D8A94C2CC4B003006B43E3 /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E3E17D422CC4447B0077C3AE /* main.cpp */; };
 		F4010B7E24DA205300A876E2 /* PoseAsClass.mm in Sources */ = {isa = PBXBuildFile; fileRef = F4010B7C24DA204800A876E2 /* PoseAsClass.mm */; };
 		F415C22C27AF52D30028F505 /* UIPasteboardConsistencyEnforcer.h in Headers */ = {isa = PBXBuildFile; fileRef = F415C22A27AF52D30028F505 /* UIPasteboardConsistencyEnforcer.h */; };
@@ -378,6 +380,7 @@
 		3148A0531E6F85B600D3B316 /* IOSLayoutTestCommunication.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = IOSLayoutTestCommunication.cpp; path = ../TestRunnerShared/IOSLayoutTestCommunication.cpp; sourceTree = "<group>"; };
 		3148A0541E6F85B600D3B316 /* IOSLayoutTestCommunication.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = IOSLayoutTestCommunication.h; path = ../TestRunnerShared/IOSLayoutTestCommunication.h; sourceTree = "<group>"; };
 		3164C8EF15D1ADA100EF1FE0 /* WebNotificationProvider.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = WebNotificationProvider.cpp; sourceTree = "<group>"; };
+		334BF3B82D4E5BE7004AE4EA /* EventSenderProxyCocoa.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = EventSenderProxyCocoa.mm; sourceTree = "<group>"; };
 		378D442213346D00006A777B /* config.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = config.h; sourceTree = "<group>"; };
 		41230E16138C78BF00BCCFCA /* libWebCoreTestSupport.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; path = libWebCoreTestSupport.dylib; sourceTree = BUILT_PRODUCTS_DIR; };
 		4181731B138AD39D0057AAA4 /* WebCoreTestSupport.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = WebCoreTestSupport.h; path = WebCoreTestSupport/WebCoreTestSupport.h; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -729,6 +732,7 @@
 			children = (
 				0FEB90A21905BC6A000FDBF3 /* CrashReporterInfo.h */,
 				0FEB90A31905BC6A000FDBF3 /* CrashReporterInfo.mm */,
+				334BF3B82D4E5BE7004AE4EA /* EventSenderProxyCocoa.mm */,
 				2904FA1D265CC5D900A7EBC9 /* StringFunctionsCocoa.h */,
 				2DCE2CD11B84524500C7F832 /* TestControllerCocoa.mm */,
 				BC9192041333E4F8003011DC /* TestInvocationCocoa.mm */,
@@ -1345,6 +1349,32 @@
 			shellPath = /bin/sh;
 			shellScript = "Scripts/generate-derived-sources.sh\n";
 		};
+		DD453D922EC3A61700C1D6A8 /* Generate <wtf/Platform.h> args */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			dependencyFile = "$(DERIVED_FILES_DIR)/generate-platform-args.d";
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(WTF_BUILD_SCRIPTS_DIR)/generate-platform-args",
+			);
+			name = "Generate <wtf/Platform.h> args";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/DerivedSources/WebKitTestRunner/platform-enabled-swift-args.arm64.resp",
+				"$(BUILT_PRODUCTS_DIR)/DerivedSources/WebKitTestRunner/platform-enabled-swift-args.arm64_32.resp",
+				"$(BUILT_PRODUCTS_DIR)/DerivedSources/WebKitTestRunner/platform-enabled-swift-args.arm64e.resp",
+				"$(BUILT_PRODUCTS_DIR)/DerivedSources/WebKitTestRunner/platform-enabled-swift-args.armv7k.resp",
+				"$(BUILT_PRODUCTS_DIR)/DerivedSources/WebKitTestRunner/platform-enabled-swift-args.x86_64.resp",
+				"$(BUILT_PRODUCTS_DIR)/DerivedSources/WebKitTestRunner/rdar150228472.swift",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if [ \"${ACTION}\" = installhdrs ]\nthen touch \"${DERIVED_FILES_DIR}/generate-platform-args.d\"\nelse \"${SCRIPT_INPUT_FILE_0}\"\nfi\n";
+		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -1367,6 +1397,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				5670B8281386FCA5002EB355 /* EventSenderProxy.mm in Sources */,
+				334BF3B92D4E5BE7004AE4EA /* EventSenderProxyCocoa.mm in Sources */,
 				BC793400118F7C84005EA8E2 /* main.mm in Sources */,
 				F4FED324235823A3003C139C /* NSPasteboardAdditions.mm in Sources */,
 				BC7934E811906846005EA8E2 /* PlatformWebViewMac.mm in Sources */,

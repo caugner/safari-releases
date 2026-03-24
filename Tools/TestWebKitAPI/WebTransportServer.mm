@@ -37,9 +37,9 @@
 namespace TestWebKitAPI {
 
 struct WebTransportServer::Data : public RefCounted<WebTransportServer::Data> {
-    static Ref<Data> create(Function<ConnectionTask(ConnectionGroup)>&& connectionGroupHandler) { return adoptRef(*new Data(WTFMove(connectionGroupHandler))); }
+    static Ref<Data> create(Function<ConnectionTask(ConnectionGroup)>&& connectionGroupHandler) { return adoptRef(*new Data(WTF::move(connectionGroupHandler))); }
     Data(Function<ConnectionTask(ConnectionGroup)>&& connectionGroupHandler)
-        : connectionGroupHandler(WTFMove(connectionGroupHandler)) { }
+        : connectionGroupHandler(WTF::move(connectionGroupHandler)) { }
 
     Function<ConnectionTask(ConnectionGroup)> connectionGroupHandler;
     RetainPtr<nw_listener_t> listener;
@@ -48,7 +48,7 @@ struct WebTransportServer::Data : public RefCounted<WebTransportServer::Data> {
 };
 
 WebTransportServer::WebTransportServer(Function<ConnectionTask(ConnectionGroup)>&& connectionGroupHandler, sec_identity_t identity)
-    : m_data(Data::create(WTFMove(connectionGroupHandler)))
+    : m_data(Data::create(WTF::move(connectionGroupHandler)))
 {
     auto configureWebTransport = [](nw_protocol_options_t options) {
         nw_webtransport_options_set_is_datagram(options, true);
@@ -77,10 +77,18 @@ WebTransportServer::WebTransportServer(Function<ConnectionTask(ConnectionGroup)>
     nw_listener_set_new_connection_group_handler(listener.get(), [data = m_data] (nw_connection_group_t incomingConnectionGroup) {
         ConnectionGroup connectionGroup = ConnectionGroup(incomingConnectionGroup);
         data->connectionGroups.append(connectionGroup);
+
         nw_connection_group_set_state_changed_handler(incomingConnectionGroup, [connectionGroup, data] (nw_connection_group_state_t state, nw_error_t error) mutable {
-            if (state != nw_connection_group_state_ready)
-                return;
-            data->coroutineHandles.append(data->connectionGroupHandler(connectionGroup).handle);
+            switch (state) {
+            case nw_connection_group_state_ready:
+                data->coroutineHandles.append(data->connectionGroupHandler(connectionGroup).handle);
+                break;
+            case nw_connection_group_state_failed:
+                connectionGroup.markAsFailed();
+                break;
+            default:
+                break;
+            }
         });
 
         nw_connection_group_set_new_connection_handler(incomingConnectionGroup, [connectionGroup] (nw_connection_t incomingConnection) mutable {
@@ -101,7 +109,7 @@ WebTransportServer::WebTransportServer(Function<ConnectionTask(ConnectionGroup)>
     nw_listener_start(listener.get());
     Util::run(&ready);
 
-    m_data->listener = WTFMove(listener);
+    m_data->listener = WTF::move(listener);
 }
 
 WebTransportServer::~WebTransportServer() = default;

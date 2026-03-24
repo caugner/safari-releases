@@ -1,7 +1,1 @@
-wtf/AutomaticThread.cpp
 [ iOS ] wtf/MainThread.cpp
-wtf/MemoryPressureHandler.cpp
-wtf/text/AtomStringImpl.cpp
-wtf/text/CString.cpp
-wtf/text/StringImpl.cpp
-wtf/text/SymbolImpl.cpp

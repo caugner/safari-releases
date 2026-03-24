@@ -1769,13 +1769,25 @@
     "imported/w3c/web-platform-tests/cookies/ordering/resources/ordering-child.sub.html": [
         "slow"
     ],
+    "imported/w3c/web-platform-tests/cookies/partitioned-cookies/partitioned-cookies-a-b-a-embed.tentative.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/cookies/partitioned-cookies/partitioned-cookies-cross-site-subresource-to-same-site-redirect.tentative.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/cookies/partitioned-cookies/partitioned-cookies-parallel-iframes.embed.tentative.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/cookies/partitioned-cookies/partitioned-cookies-same-site-subresource-to-cross-site-redirect.tentative.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/cookies/partitioned-cookies/partitioned-cookies-samesite-attribute.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/cookies/partitioned-cookies/partitioned-cookies-top-level-redirect.tentative.https.html": [
+        "slow"
+    ],
     "imported/w3c/web-platform-tests/cookies/partitioned-cookies/partitioned-cookies.tentative.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/cookies/partitioned-cookies/resources/partitioned-cookies-cross-site-embed.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/cookies/partitioned-cookies/resources/partitioned-cookies-cross-site-window.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/cookies/path/match.html": [
@@ -1854,6 +1866,9 @@
         "slow"
     ],
     "imported/w3c/web-platform-tests/cors/status-async.htm": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/css/CSS2/linebox/animations/line-height-interpolation.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/css/css-animations/CSSAnimation-effect.tentative.html": [
@@ -2067,6 +2082,9 @@
         "slow"
     ],
     "imported/w3c/web-platform-tests/custom-elements/form-associated/ElementInternals-target-element-is-held-strongly.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/custom-elements/registries/valid-custom-element-names.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/custom-elements/state/custom-state-set-strong-ref.html": [
@@ -3068,6 +3086,12 @@
     "imported/w3c/web-platform-tests/fetch/redirect-navigate/preserve-fragment.html": [
         "slow"
     ],
+    "imported/w3c/web-platform-tests/fetch/security/dangling-markup/dangling-markup-mitigation-allowed-apis.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/fetch/security/dangling-markup/dangling-markup-mitigation.tentative.https.html": [
+        "slow"
+    ],
     "imported/w3c/web-platform-tests/focus/activeelement-after-calling-window-focus.sub.html": [
         "slow"
     ],
@@ -3617,6 +3641,129 @@
     "imported/w3c/web-platform-tests/html/dom/reflection-text.html": [
         "slow"
     ],
+    "imported/w3c/web-platform-tests/html/dom/render-blocking/element-render-blocking-001.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/dom/render-blocking/element-render-blocking-002.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/dom/render-blocking/element-render-blocking-003.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/dom/render-blocking/element-render-blocking-004.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/dom/render-blocking/element-render-blocking-005.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/dom/render-blocking/element-render-blocking-006.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/dom/render-blocking/element-render-blocking-007.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/dom/render-blocking/element-render-blocking-008.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/dom/render-blocking/element-render-blocking-009.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/dom/render-blocking/element-render-blocking-010.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/dom/render-blocking/element-render-blocking-011.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/dom/render-blocking/element-render-blocking-012.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/dom/render-blocking/element-render-blocking-013.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/dom/render-blocking/element-render-blocking-014.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/dom/render-blocking/element-render-blocking-015.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/dom/render-blocking/element-render-blocking-016.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/dom/render-blocking/element-render-blocking-017.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/dom/render-blocking/element-render-blocking-018.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/dom/render-blocking/element-render-blocking-019.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/dom/render-blocking/element-render-blocking-020.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/dom/render-blocking/element-render-blocking-021.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/dom/render-blocking/element-render-blocking-022.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/dom/render-blocking/element-render-blocking-023.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/dom/render-blocking/element-render-blocking-024.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/dom/render-blocking/element-render-blocking-025.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/dom/render-blocking/element-render-blocking-026.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/dom/render-blocking/element-render-blocking-027.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/dom/render-blocking/element-render-blocking-028.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/dom/render-blocking/element-render-blocking-029.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/dom/render-blocking/element-render-blocking-030.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/dom/render-blocking/element-render-blocking-031.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/dom/render-blocking/element-render-blocking-032.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/dom/render-blocking/element-render-blocking-033.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/dom/render-blocking/element-render-blocking-034.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/dom/render-blocking/element-render-blocking-035.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/dom/render-blocking/element-render-blocking-036.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/dom/render-blocking/element-render-blocking-037.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/dom/render-blocking/element-render-blocking-038.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/dom/render-blocking/element-render-blocking-039.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/dom/render-blocking/element-render-blocking-040.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/dom/render-blocking/element-render-blocking-041.html": [
+        "slow"
+    ],
     "imported/w3c/web-platform-tests/html/editing/the-hidden-attribute/beforematch-scroll-to-text-fragment.html": [
         "slow"
     ],
@@ -3681,6 +3828,12 @@
         "slow"
     ],
     "imported/w3c/web-platform-tests/html/rendering/replaced-elements/svg-embedded-sizing/svg-in-object-percentage.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/select/options-length-too-large.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/html/semantics/disabled-elements/disabled-event-dispatch-additional.tentative.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/html/semantics/disabled-elements/disabled-event-dispatch.tentative.html": [
@@ -4457,6 +4610,9 @@
     "imported/w3c/web-platform-tests/import-maps/import-maps-base-url.sub.html": [
         "slow"
     ],
+    "imported/w3c/web-platform-tests/intersection-observer/scroll-margin-propagation.html": [
+        "slow"
+    ],
     "imported/w3c/web-platform-tests/mathml/presentation-markup/operators/operator-dictionary-largeop-001.html": [
         "slow"
     ],
@@ -4626,6 +4782,15 @@
         "slow"
     ],
     "imported/w3c/web-platform-tests/mediacapture-record/MediaRecorder-peerconnection.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/mediacapture-streams/GUM-echoCancellation-all.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/mediacapture-streams/GUM-echoCancellation-boolean.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/mediacapture-streams/GUM-echoCancellation-remote-only.https.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/mediacapture-streams/MediaStreamTrack-getSettings.https.html": [
@@ -5099,6 +5264,9 @@
     "imported/w3c/web-platform-tests/mst-content-hint/RTCRtpSendParameters-degradationEffect.html": [
         "slow"
     ],
+    "imported/w3c/web-platform-tests/page-lifecycle/idlharness.html": [
+        "slow"
+    ],
     "imported/w3c/web-platform-tests/payment-request/payment-is-showing.https.html": [
         "slow"
     ],
@@ -5360,106 +5528,13 @@
     "imported/w3c/web-platform-tests/selection/user-select-on-input-and-contenteditable.html": [
         "slow"
     ],
-    "imported/w3c/web-platform-tests/service-workers/cache-storage/common.https.html": [
-        "slow"
-    ],
     "imported/w3c/web-platform-tests/service-workers/cache-storage/cross-partition.https.tentative.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/service-workers/cache-storage/sandboxed-iframes.https.html": [
         "slow"
     ],
-    "imported/w3c/web-platform-tests/service-workers/cache-storage/serviceworker/cache-abort.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/service-workers/cache-storage/serviceworker/cache-add.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/service-workers/cache-storage/serviceworker/cache-delete.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/service-workers/cache-storage/serviceworker/cache-keys.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/service-workers/cache-storage/serviceworker/cache-match.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/service-workers/cache-storage/serviceworker/cache-matchAll.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/service-workers/cache-storage/serviceworker/cache-put.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/service-workers/cache-storage/serviceworker/cache-storage-keys.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/service-workers/cache-storage/serviceworker/cache-storage-match.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/service-workers/cache-storage/serviceworker/cache-storage.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/service-workers/cache-storage/window/cache-abort.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/service-workers/cache-storage/window/cache-add.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/service-workers/cache-storage/window/cache-delete.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/service-workers/cache-storage/window/cache-keys.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/service-workers/cache-storage/window/cache-match.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/service-workers/cache-storage/window/cache-matchAll.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/service-workers/cache-storage/window/cache-put.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/service-workers/cache-storage/window/cache-storage-keys.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/service-workers/cache-storage/window/cache-storage-match.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/service-workers/cache-storage/window/cache-storage.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/service-workers/cache-storage/window/sandboxed-iframes.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/service-workers/cache-storage/worker/cache-abort.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/service-workers/cache-storage/worker/cache-add.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/service-workers/cache-storage/worker/cache-delete.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/service-workers/cache-storage/worker/cache-keys.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/service-workers/cache-storage/worker/cache-match.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/service-workers/cache-storage/worker/cache-matchAll.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/service-workers/cache-storage/worker/cache-put.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/service-workers/cache-storage/worker/cache-storage-keys.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/service-workers/cache-storage/worker/cache-storage-match.https.html": [
-        "slow"
-    ],
-    "imported/w3c/web-platform-tests/service-workers/cache-storage/worker/cache-storage.https.html": [
+    "imported/w3c/web-platform-tests/service-workers/service-worker/ServiceWorkerGlobalScope/error-message-event.https.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/service-workers/service-worker/about-blank-replacement.https.html": [
@@ -5475,6 +5550,12 @@
         "slow"
     ],
     "imported/w3c/web-platform-tests/service-workers/service-worker/clients-matchall-order.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/service-workers/service-worker/controlled-dedicatedworker-postMessage.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/service-workers/service-worker/controlled-iframe-postMessage.https.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/service-workers/service-worker/extendable-event-async-waituntil.https.html": [
@@ -5493,6 +5574,9 @@
         "slow"
     ],
     "imported/w3c/web-platform-tests/service-workers/service-worker/fetch-event-within-sw.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/service-workers/service-worker/fetch-event.https.h2.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/service-workers/service-worker/fetch-event.https.html": [
@@ -5519,9 +5603,6 @@
     "imported/w3c/web-platform-tests/service-workers/service-worker/interface-requirements-sw.https.html": [
         "slow"
     ],
-    "imported/w3c/web-platform-tests/service-workers/service-worker/interfaces-window.https.html": [
-        "slow"
-    ],
     "imported/w3c/web-platform-tests/service-workers/service-worker/local-url-inherit-controller.https.html": [
         "slow"
     ],
@@ -5537,6 +5618,9 @@
     "imported/w3c/web-platform-tests/service-workers/service-worker/navigation-sets-cookie.https.html": [
         "slow"
     ],
+    "imported/w3c/web-platform-tests/service-workers/service-worker/partitioned-cookies.tentative.https.html": [
+        "slow"
+    ],
     "imported/w3c/web-platform-tests/service-workers/service-worker/referrer-toplevel-script-fetch.https.html": [
         "slow"
     ],
@@ -5550,6 +5634,9 @@
         "slow"
     ],
     "imported/w3c/web-platform-tests/service-workers/service-worker/registration-updateviacache.https.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/service-workers/service-worker/resource-timing-bodySize.https.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/service-workers/service-worker/same-site-cookies.https.html": [
@@ -6575,10 +6662,13 @@
     "imported/w3c/web-platform-tests/webrtc/RTCDataChannel-iceRestart.html": [
         "slow"
     ],
-    "imported/w3c/web-platform-tests/webrtc/RTCDataChannel-send-close.html": [
+    "imported/w3c/web-platform-tests/webrtc/RTCDataChannel-id.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/webrtc/RTCDataChannel-send.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webrtc/RTCDataChannel-worker-GC.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/webrtc/RTCIceConnectionState-candidate-pair.https.html": [
@@ -6597,6 +6687,9 @@
         "slow"
     ],
     "imported/w3c/web-platform-tests/webrtc/RTCPeerConnection-addTcpIceCandidate.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webrtc/RTCPeerConnection-addTransceiver-renegotiation.https.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/webrtc/RTCPeerConnection-capture-video.https.html": [
@@ -6719,6 +6812,9 @@
     "imported/w3c/web-platform-tests/webrtc/protocol/h264-profile-levels.https.html": [
         "slow"
     ],
+    "imported/w3c/web-platform-tests/webrtc/protocol/h265-loopback.https.html": [
+        "slow"
+    ],
     "imported/w3c/web-platform-tests/webrtc/protocol/ice-state.https.html": [
         "slow"
     ],
@@ -6735,6 +6831,9 @@
         "slow"
     ],
     "imported/w3c/web-platform-tests/webrtc/protocol/vp8-fmtp.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webrtc/rtp-stats-lifetime.https.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/webrtc/simulcast/av1.https.html": [
@@ -6846,6 +6945,9 @@
         "slow"
     ],
     "imported/w3c/web-platform-tests/webvtt/rendering/cues-with-video/processing-model/evil/9_cues_overlapping_completely.html": [
+        "slow"
+    ],
+    "imported/w3c/web-platform-tests/webxr/xrSession_visibilityState_inline.https.html": [
         "slow"
     ],
     "imported/w3c/web-platform-tests/workers/Worker_cross_origin_security_err.htm": [

@@ -23,8 +23,12 @@
 
 import Foundation
 
+typealias String = Swift.String
+typealias URL = Foundation.URL
+
 #if compiler(>=6.2)
 
+@available(macOS 15.0, iOS 18.0, *)
 extension RangeReplaceableCollection {
     init<Failure>(
         _ sequence: some AsyncSequence<Element, Failure>,
@@ -39,6 +43,7 @@ extension RangeReplaceableCollection {
     }
 }
 
+@available(macOS 15.0, iOS 18.0, *)
 extension AsyncSequence {
     func wait(isolation: isolated (any Actor)? = #isolation) async throws(Failure) {
         // Safety: this is actually safe; false positive is rdar://154775389

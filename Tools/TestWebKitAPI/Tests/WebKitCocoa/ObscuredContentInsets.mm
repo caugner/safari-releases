@@ -250,8 +250,12 @@ TEST(ObscuredContentInsets, ScrollPocketCaptureColor)
     EXPECT_EQ(WebCore::serializationForCSS(colorBeforeChangingBackground), "rgb(255, 255, 255)"_s);
     EXPECT_EQ(WebCore::serializationForCSS(colorAfterChangingBackground), "rgb(34, 34, 34)"_s);
 }
-
+// FIXME when rdar://164512771 is resolved.
+#if PLATFORM(MAC)
+TEST(ObscuredContentInsets, DISABLED_TopOverhangColorExtensionLayer)
+#else
 TEST(ObscuredContentInsets, TopOverhangColorExtensionLayer)
+#endif
 {
     RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 600, 400)]);
 
@@ -320,6 +324,7 @@ TEST(ObscuredContentInsets, TopScrollPocketKVO)
 TEST(ObscuredContentInsets, NonObscuredTopContentInset)
 {
     RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 600, 400)]);
+    [webView _setAutomaticallyAdjustsContentInsets:NO];
     EXPECT_NULL([webView _topScrollPocket]);
 
     [webView _setTopContentInset:50];
@@ -329,6 +334,21 @@ TEST(ObscuredContentInsets, NonObscuredTopContentInset)
 
     [webView _setOverrideTopScrollEdgeEffectColor:NSColor.redColor];
     [webView waitForNextPresentationUpdate];
+    EXPECT_NOT_NULL([webView _topScrollPocket]);
+}
+
+TEST(ObscuredContentInsets, ScrollPocketWithAutomaticTopContentInset)
+{
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 600, 400)]);
+    RetainPtr window = [webView window];
+
+    [window setStyleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskFullSizeContentView];
+    [window setTitlebarAppearsTransparent:NO];
+    [window setToolbarStyle:NSWindowToolbarStyleExpanded];
+    [webView synchronouslyLoadTestPageNamed:@"simple-tall"];
+    [webView evaluateJavaScript:@"scrollBy(0, 1000)" completionHandler:nil];
+    [webView waitForNextPresentationUpdate];
+
     EXPECT_NOT_NULL([webView _topScrollPocket]);
 }
 

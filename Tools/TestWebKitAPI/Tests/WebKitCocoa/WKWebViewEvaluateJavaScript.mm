@@ -47,6 +47,8 @@
 #import <WebKit/_WKFrameTreeNode.h>
 #import <WebKit/_WKProcessPoolConfiguration.h>
 #import <wtf/RetainPtr.h>
+#import <wtf/Vector.h>
+#import <wtf/text/MakeString.h>
 
 TEST(WKWebView, EvaluateJavaScriptBlockCrash)
 {
@@ -83,16 +85,21 @@ TEST(WKWebView, EvaluateJavaScriptErrorCases)
     [webView loadRequest:request];
     [webView _test_waitForDidFinishNavigation];
 
-    [webView evaluateJavaScript:@"document.body" completionHandler:^(id result, NSError *error) {
-        EXPECT_NULL(result);
-        EXPECT_WK_STREQ(@"WKErrorDomain", [error domain]);
-        EXPECT_EQ(WKErrorJavaScriptResultTypeIsUnsupported, [error code]);
-
-        isDone = true;
-    }];
-
-    isDone = false;
-    TestWebKitAPI::Util::run(&isDone);
+    NSArray<NSString *> *unsupportedTypes = @[
+        @"document.body",
+        @"[ document.body ]",
+        @"{ a : document.body }",
+    ];
+    for (NSString *unsupported in unsupportedTypes) {
+        isDone = false;
+        [webView evaluateJavaScript:unsupported completionHandler:^(id result, NSError *error) {
+            EXPECT_NULL(result);
+            EXPECT_WK_STREQ(@"WKErrorDomain", [error domain]);
+            EXPECT_EQ(WKErrorJavaScriptResultTypeIsUnsupported, [error code]);
+            isDone = true;
+        }];
+        TestWebKitAPI::Util::run(&isDone);
+    }
 
     auto handler = adoptNS([TestScriptMessageHandler new]);
     auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
@@ -148,6 +155,52 @@ TEST(WKWebView, EvaluateJavaScriptErrorCases)
     TestWebKitAPI::Util::run(&isDone);
 }
 
+@interface ScriptMessageHandlerThatShouldNotReceiveAnything : NSObject <WKScriptMessageHandler>
+@end
+
+@implementation ScriptMessageHandlerThatShouldNotReceiveAnything
+- (void)userContentController:(WKUserContentController *)userContentController didReceiveScriptMessage:(WKScriptMessage *)message
+{
+    EXPECT_FALSE(true);
+}
+@end
+
+TEST(WKWebView, MessageHandlerFromIframe)
+{
+    TestWebKitAPI::HTTPServer server({
+        { "/"_s, { "<script>alert('iframe1 loaded')</script>"_s } }
+    });
+    RetainPtr handler1 = adoptNS([ScriptMessageHandlerThatShouldNotReceiveAnything new]);
+    RetainPtr handler2 = adoptNS([TestScriptMessageHandler new]);
+    RetainPtr configuration = adoptNS([WKWebViewConfiguration new]);
+    [configuration.get().userContentController addScriptMessageHandler:handler1.get() name:@"testhandler1"];
+    [configuration.get().userContentController addScriptMessageHandler:handler2.get() name:@"testhandler2"];
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr html = [NSString stringWithFormat:@"<script>onload = ()=>{"
+        "var iframe1 = document.createElement('iframe');"
+        "iframe1.src = 'http://127.0.0.1:%d/';"
+        "document.body.appendChild(iframe1);"
+        "window.handler1 = iframe1.contentWindow.window.webkit.messageHandlers.testhandler1;"
+        "var iframe2 = document.createElement('iframe');"
+        "document.body.appendChild(iframe2);"
+        "window.handler2 = iframe2.contentWindow.window.webkit.messageHandlers.testhandler2;"
+        "}</script>", server.port()];
+    [webView loadHTMLString:html.get() baseURL:[NSURL URLWithString:@"http://webkit.org/"]];
+    EXPECT_WK_STREQ([webView _test_waitForAlert], "iframe1 loaded");
+
+    __block bool done { false };
+    RetainPtr js1 = @"try { await window.handler1.postMessage('should fail') } catch (e) { return 'Sending resolved with exception: ' + e }; return 'sending succeeded'";
+    [webView callAsyncJavaScript:js1.get() arguments:nil inFrame:nil inContentWorld:WKContentWorld.pageWorld completionHandler:^(id result, NSError *error) {
+        EXPECT_WK_STREQ(result, "Sending resolved with exception: InvalidAccessError: Failed same-origin check.");
+        done = true;
+    }];
+    TestWebKitAPI::Util::run(&done);
+
+    RetainPtr js2 = @"window.handler2.postMessage('should succeed')";
+    [webView evaluateJavaScript:js2.get() completionHandler:nil];
+    EXPECT_WK_STREQ([handler2 waitForMessage].body, "should succeed");
+}
+
 TEST(WKWebView, WKContentWorld)
 {
     EXPECT_NULL(WKContentWorld.pageWorld.name);
@@ -171,7 +224,7 @@ TEST(WKWebView, WKContentWorld)
 TEST(WKWebView, EvaluateJavaScriptInWorlds)
 {
     RetainPtr<TestWKWebView> webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
-    [webView synchronouslyLoadHTMLString:@"<html></html>"];
+    [webView synchronouslyLoadHTMLString:@"<html><body><iframe sandbox=""></frame></html>"];
 
     // Set a variable in the main world via "normal" evaluateJavaScript
     __block bool isDone = false;
@@ -299,8 +352,21 @@ TEST(WKWebView, EvaluateJavaScriptInWorlds)
     }];
     TestWebKitAPI::Util::run(&isDone);
     isDone = false;
-    
-    EXPECT_EQ(testsPassed, 12u);
+
+    [webView _frames:^(_WKFrameTreeNode *mainFrame) {
+        EXPECT_EQ(mainFrame.childFrames.count, 1U);
+        [webView evaluateJavaScript:@"'PASS'" inFrame:mainFrame.childFrames[0].info inContentWorld:namedWorld.get() completionHandler:^(id result, NSError *error) {
+            EXPECT_TRUE([result isKindOfClass:[NSString class]]);
+            EXPECT_TRUE([result isEqualToString:@"PASS"]);
+            if (!error)
+                testsPassed++;
+            isDone = true;
+        }];
+    }];
+    TestWebKitAPI::Util::run(&isDone);
+    isDone = false;
+
+    EXPECT_EQ(testsPassed, 13u);
 }
 
 TEST(WKWebView, EvaluateJavaScriptInWorldsWithGlobalObjectAvailable)
@@ -1133,6 +1199,79 @@ TEST(EvaluateJavaScript, ReturnTypes)
     TestWebKitAPI::Util::run(&didEvaluateJavaScript);
 }
 
+TEST(EvaluateJavaScript, ExceptionAccessingProperty)
+{
+    RetainPtr webView = adoptNS([TestWKWebView new]);
+    id result = [webView objectByCallingAsyncFunction:@"return { get foo() { throw new Error(); }, get bar() { return 123; } }" withArguments:nil];
+    EXPECT_TRUE([result isEqual:@{ @"bar": @123 }]);
+}
+
+// Tests that evaluating @"" means the same as evaluating nil string. Also, no crashes.
+TEST(EvaluateJavaScript, EmptyStrings)
+{
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    bool didRunCase1 = false;
+    {
+        [webView evaluateJavaScript:@"" completionHandler:[&](id value, NSError *error) {
+            EXPECT_FALSE(value);
+            EXPECT_NULL(error);
+            didRunCase1 = true;
+        }];
+        EXPECT_FALSE(didRunCase1); // The evaluation is async.
+        TestWebKitAPI::Util::run(&didRunCase1);
+    }
+    {
+        bool didRunCase2 = false;
+        NSString *nilScript = nil;
+        [webView evaluateJavaScript:nilScript completionHandler:[&](id value, NSError *error) {
+            EXPECT_FALSE(value);
+            EXPECT_NULL(error);
+            didRunCase2 = true;
+        }];
+        EXPECT_FALSE(didRunCase2); // The evaluation is async.
+        TestWebKitAPI::Util::run(&didRunCase2);
+    }
+}
+
+// Tests that evaluating long strings work.
+TEST(EvaluateJavaScript, LongStrings)
+{
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    {
+        bool didRunCase1 = false;
+        RetainPtr<NSString> evalResult;
+        Vector<Latin1Character> longLatin1Data(1024*1024, ' ');
+        auto s1 = makeString("'a'"_s, String { longLatin1Data }, "+ 'b'"_s);
+        RetainPtr ns1 = s1.createNSString();
+        [webView evaluateJavaScript:ns1.get() completionHandler:[&](id value, NSError *error) {
+            EXPECT_NULL(error);
+            didRunCase1 = true;
+            evalResult = [NSString stringWithFormat:@"%@", value];
+
+        }];
+        EXPECT_FALSE(didRunCase1); // The evaluation is async.
+        TestWebKitAPI::Util::run(&didRunCase1);
+        EXPECT_WK_STREQ(evalResult.get(), "ab");
+    }
+    {
+        bool didRunCase2 = false;
+        RetainPtr<NSString> evalResult;
+        Vector<char16_t> longUnicodeData(1024*1200, u' ');
+        auto s2 = makeString(u"'z'"_str, String { longUnicodeData }, u"+ 'u'"_str);
+        RetainPtr ns2 = s2.createNSString();
+        [webView evaluateJavaScript:ns2.get() completionHandler:[&](id value, NSError *error) {
+            EXPECT_NULL(error);
+            didRunCase2 = true;
+            evalResult = [NSString stringWithFormat:@"%@", value];
+        }];
+        EXPECT_FALSE(didRunCase2); // The evaluation is async.
+        TestWebKitAPI::Util::run(&didRunCase2);
+        EXPECT_WK_STREQ(evalResult.get(), "zu");
+    }
+}
+
 @interface TestScriptMessageHandlerWithReply : NSObject <WKScriptMessageHandlerWithReply>
 @end
 
@@ -1155,3 +1294,86 @@ TEST(WKWebView, LegacySynchronousMessages)
     [webView loadHTMLString:@"<script>alert(window.webkit.messageHandlers.testHandler.postLegacySynchronousMessage('hello!'))</script>" baseURL:nil];
     EXPECT_WK_STREQ([webView _test_waitForAlert], "UI process received: hello!");
 }
+
+// Serialization of JavaScript objects using the old SerializedScriptValue code path
+// had a supported object depth of 40,000.
+// The new JSExtractor code path - when working recursively - blew out the stack well before 40,000.
+// This test validates that its iterative refactoring works at 40,000 deep.
+static constexpr auto deepObjectJS = R"SERIALIZEJS(
+window.deepObject = {
+    foo: "bar"
+};
+
+var currentObject = window.deepObject;
+
+for (var i = 0; i < 40000; ++i) {
+    currentObject.baz = {
+        foo: "bar"
+    }
+    currentObject = currentObject.baz
+}
+
+return 1;
+)SERIALIZEJS"_s;
+
+// Verify that an array with some serializable values, but some unserializable,
+// comes out as complete as possible in the UI process.
+static constexpr auto unserializableArrayJS = R"SERIALIZEJS(
+window.arrayObject = [1, 2, 3, 4, 5, 6];
+window.arrayObject[0] = window;
+
+return 1;
+)SERIALIZEJS"_s;
+
+// Verify that an object with some serializable values, and some unserializable,
+// comes out as complete as possible in the UI process.
+static constexpr auto unserializableObjectJS = R"SERIALIZEJS(
+window.objectObject = {
+    foo: "bar",
+    bar: 17,
+    baz: window
+};
+
+return 1;
+)SERIALIZEJS"_s;
+
+TEST(EvaluateJavaScript, Serialization)
+{
+    RetainPtr webView = adoptNS([TestWKWebView new]);
+
+    id result = [webView objectByCallingAsyncFunction:[NSString stringWithUTF8String:deepObjectJS] withArguments:nil];
+    EXPECT_TRUE([result isEqual:@1]);
+    result = [webView objectByCallingAsyncFunction:[NSString stringWithUTF8String:unserializableArrayJS] withArguments:nil];
+    EXPECT_TRUE([result isEqual:@1]);
+    result = [webView objectByCallingAsyncFunction:[NSString stringWithUTF8String:unserializableObjectJS] withArguments:nil];
+    EXPECT_TRUE([result isEqual:@1]);
+
+    // The full deepObject is 40,001 nesting levels deep, which should not be able to serialize.
+    NSError *error = nil;
+    result = [webView objectByCallingAsyncFunction:@"return window.deepObject" withArguments:nil error:&error];
+    EXPECT_TRUE(!!error);
+
+    // Returning an object 40,000 nesting levels deep should succeed.
+    error = nil;
+    result = [webView objectByCallingAsyncFunction:@"return window.deepObject.baz" withArguments:nil error:&error];
+    EXPECT_NULL(error);
+
+    size_t depth = 0;
+    NSDictionary *nextDictionary = (NSDictionary *)result;
+    while (nextDictionary) {
+        nextDictionary = (NSDictionary *)nextDictionary[@"baz"];
+        ++depth;
+    }
+    EXPECT_EQ(depth, 40000u);
+
+    // One of the array members is not serializable, so it should be missing from the result.
+    result = [webView objectByCallingAsyncFunction:@"return window.arrayObject" withArguments:nil error:&error];
+    EXPECT_NOT_NULL(error);
+    EXPECT_NULL(result);
+
+    // One of the object values is not serializable, so it should be missing from the result.
+    result = [webView objectByCallingAsyncFunction:@"return window.objectObject" withArguments:nil error:&error];
+    EXPECT_NOT_NULL(error);
+    EXPECT_NULL(result);
+}
+

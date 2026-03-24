@@ -148,6 +148,7 @@ PASS flex-wrap
 PASS float
 PASS flood-color
 PASS flood-opacity
+PASS flow-tolerance
 PASS font-family
 PASS font-feature-settings
 PASS font-kerning
@@ -230,6 +231,7 @@ PASS mask-origin
 PASS mask-repeat
 PASS mask-size
 PASS mask-type
+PASS math-depth
 PASS math-shift
 PASS math-style
 PASS max-block-size

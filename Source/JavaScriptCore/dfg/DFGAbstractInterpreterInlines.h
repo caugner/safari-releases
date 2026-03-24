@@ -47,6 +47,7 @@
 #include "JSInternalPromise.h"
 #include "JSInternalPromiseConstructor.h"
 #include "JSPromiseConstructor.h"
+#include "JSPromisePrototype.h"
 #include "JSWebAssemblyInstance.h"
 #include "MathCommon.h"
 #include "NumberConstructor.h"
@@ -1663,6 +1664,9 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
         break;
 
     case MapStorage:
+        setTypeForNode(node, SpecCellOther | SpecEmpty);
+        break;
+
     case MapStorageOrSentinel:
     case MapIterationNext:
         setTypeForNode(node, SpecCellOther);
@@ -3077,7 +3081,7 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
 
     case PutByValDirect:
     case PutByVal:
-    case PutByValAlias:
+    case PutByValDirectResolved:
     case PutByValMegamorphic: {
         switch (node->arrayMode().modeForPut().type()) {
         case Array::ForceExit:
@@ -3721,6 +3725,7 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
         break;
 
     case MaterializeNewArrayWithButterfly: {
+#if ASSERT_ENABLED
         SpeculatedType validTypes = [&]() {
             switch (node->indexingType()) {
             // We can get JSValue() (aka SpecEmpty) when the property hasn't been initialized yet and is still a hole.
@@ -3732,8 +3737,8 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
             RELEASE_ASSERT_NOT_REACHED();
         }();
         for (unsigned i = 2; i < node->numChildren(); ++i)
-            DFG_ASSERT(m_graph, node, isSubtypeSpeculation(forNode(m_graph.varArgChild(node, i)).m_type, validTypes));
-
+            ASSERT(isSubtypeSpeculation(forNode(m_graph.varArgChild(node, i)).m_type, validTypes));
+#endif
         [[fallthrough]];
     }
     case NewArrayWithButterfly: {
@@ -4351,6 +4356,24 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
 
                     if (attemptToFold(m_vm.propertyNames->replaceSymbol.impl(), globalObject->regExpProtoSymbolReplaceFunction()))
                         break;
+                }
+                if (structure->typeInfo().type() == JSPromiseType
+                    && !structure->hasPolyProto()
+                    && structure->storedPrototype() == globalObject->promisePrototype()
+                    && !structure->isDictionary()
+                    && structure->propertyAccessesAreCacheable()
+                    && structure->propertyAccessesAreCacheableForAbsence()
+                    && m_graph.isWatchingPromiseThenWatchpoint(node)) {
+                    UniquedStringImpl* uid = node->cacheableIdentifier().uid();
+                    if (uid == m_vm.propertyNames->then.impl()) {
+                        unsigned attributes;
+                        PropertyOffset offset = structure->getConcurrently(uid, attributes);
+                        if (!isValidOffset(offset)) {
+                            didFoldClobberWorld();
+                            setConstant(node, *m_graph.freeze(globalObject->promiseProtoThenFunction()));
+                            break;
+                        }
+                    }
                 }
             }
         }

@@ -45,7 +45,7 @@ static void runTestWhileRunLoopIsActive(Function<void()>&& testFunction, bool& d
     ASSERT(!done);
 
     // Schedule test to run immediately after RunLoop starts (0ms delay)
-    RunLoop::currentSingleton().dispatchAfter(0_ms, [testFunction = WTFMove(testFunction)] {
+    RunLoop::currentSingleton().dispatchAfter(0_ms, [testFunction = WTF::move(testFunction)] {
         testFunction();
     });
 
@@ -63,9 +63,8 @@ TEST(WTF_ActivityObserver, Create)
     WTF::initializeMainThread();
 
     bool observerCalled = false;
-    RefPtr observer = ActivityObserver::create(10, { RunLoop::Activity::BeforeWaiting }, [&] {
+    RefPtr observer = ActivityObserver::create(RunLoop::currentSingleton(), true, 10, { RunLoop::Activity::BeforeWaiting }, [&] {
         observerCalled = true;
-        return ActivityObserver::ContinueObservation::Yes;
     });
 
     EXPECT_TRUE(observer.get());
@@ -77,7 +76,9 @@ TEST(WTF_ActivityObserver, Create)
     EXPECT_FALSE(observerCalled);
 
     // Manually trigger notification
+    observer->start();
     observer->notify();
+    observer->stop();
     EXPECT_TRUE(observerCalled);
 }
 
@@ -91,16 +92,15 @@ TEST(WTF_ActivityObserver, MatchingActivity)
     RefPtr<ActivityObserver> observer;
 
     runTestWhileRunLoopIsActive([&] {
-        observer = ActivityObserver::create(1, { RunLoop::Activity::BeforeWaiting }, [&] {
+        observer = ActivityObserver::create(RunLoop::currentSingleton(), true, 1, { RunLoop::Activity::BeforeWaiting }, [&] {
             observerCalled = true;
-            return ActivityObserver::ContinueObservation::Yes;
         });
 
-        RunLoop::currentSingleton().observeActivity(*observer);
+        observer->start();
 
         RunLoop::currentSingleton().dispatchAfter(0_ms, [&] {
             done = true;
-            RunLoop::currentSingleton().unobserveActivity(*observer);
+            observer->stop();
         });
     }, done);
 
@@ -118,25 +118,23 @@ TEST(WTF_ActivityObserver, NonMatchingActivity)
 
     // This observer will fire upon run loop entry, as we observe the Entry activity.
     bool earlyObserverCalled = false;
-    RefPtr<ActivityObserver> earlyObserver = ActivityObserver::create(1, { RunLoop::Activity::Entry }, [&] {
+    RefPtr<ActivityObserver> earlyObserver = ActivityObserver::create(RunLoop::currentSingleton(), true, 1, { RunLoop::Activity::Entry }, [&] {
         earlyObserverCalled = true;
-        return ActivityObserver::ContinueObservation::Yes;
     });
 
-    RunLoop::currentSingleton().observeActivity(*earlyObserver);
+    earlyObserver->start();
 
     runTestWhileRunLoopIsActive([&] {
-        lateObserver = ActivityObserver::create(1, { RunLoop::Activity::Entry }, [&] {
+        lateObserver = ActivityObserver::create(RunLoop::currentSingleton(), true, 1, { RunLoop::Activity::Entry }, [&] {
             lateObserverCalled = true;
-            return ActivityObserver::ContinueObservation::Yes;
         });
 
-        RunLoop::currentSingleton().observeActivity(*lateObserver);
+        lateObserver->start();
 
         RunLoop::currentSingleton().dispatchAfter(0_ms, [&] {
             done = true;
-            RunLoop::currentSingleton().unobserveActivity(*earlyObserver);
-            RunLoop::currentSingleton().unobserveActivity(*lateObserver);
+            earlyObserver->stop();
+            lateObserver->stop();
         });
     }, done);
 
@@ -154,16 +152,15 @@ TEST(WTF_ActivityObserver, MultipleActivities)
     RefPtr<ActivityObserver> observer;
 
     runTestWhileRunLoopIsActive([&] {
-        observer = ActivityObserver::create(1, { RunLoop::Activity::BeforeWaiting }, [&] {
+        observer = ActivityObserver::create(RunLoop::currentSingleton(), true, 1, { RunLoop::Activity::BeforeWaiting }, [&] {
             ++observerCallCount;
-            return ActivityObserver::ContinueObservation::Yes;
         });
 
-        RunLoop::currentSingleton().observeActivity(*observer);
+        observer->start();
 
         RunLoop::currentSingleton().dispatchAfter(0_ms, [&] {
             done = true;
-            RunLoop::currentSingleton().unobserveActivity(*observer);
+            observer->stop();
         });
     }, done);
 
@@ -186,30 +183,27 @@ TEST(WTF_ActivityObserver, Ordering)
     RefPtr<ActivityObserver> observer3;
 
     runTestWhileRunLoopIsActive([&] {
-        observer1 = ActivityObserver::create(30, { RunLoop::Activity::BeforeWaiting }, [&] {
+        observer1 = ActivityObserver::create(RunLoop::currentSingleton(), true, 30, { RunLoop::Activity::BeforeWaiting }, [&] {
             observerExecutionOrder.append(30);
-            return ActivityObserver::ContinueObservation::Yes;
         });
 
-        observer2 = ActivityObserver::create(10, { RunLoop::Activity::BeforeWaiting }, [&] {
+        observer2 = ActivityObserver::create(RunLoop::currentSingleton(), true, 10, { RunLoop::Activity::BeforeWaiting }, [&] {
             observerExecutionOrder.append(10);
-            return ActivityObserver::ContinueObservation::Yes;
         });
 
-        observer3 = ActivityObserver::create(20, { RunLoop::Activity::BeforeWaiting }, [&] {
+        observer3 = ActivityObserver::create(RunLoop::currentSingleton(), true, 20, { RunLoop::Activity::BeforeWaiting }, [&] {
             observerExecutionOrder.append(20);
-            return ActivityObserver::ContinueObservation::Yes;
         });
 
-        RunLoop::currentSingleton().observeActivity(*observer1);
-        RunLoop::currentSingleton().observeActivity(*observer2);
-        RunLoop::currentSingleton().observeActivity(*observer3);
+        observer1->start();
+        observer2->start();
+        observer3->start();
 
         RunLoop::currentSingleton().dispatchAfter(0_ms, [&] {
             done = true;
-            RunLoop::currentSingleton().unobserveActivity(*observer1);
-            RunLoop::currentSingleton().unobserveActivity(*observer2);
-            RunLoop::currentSingleton().unobserveActivity(*observer3);
+            observer1->stop();
+            observer2->stop();
+            observer3->stop();
         });
     }, done);
 
@@ -231,23 +225,21 @@ TEST(WTF_ActivityObserver, SameOrder)
     RefPtr<ActivityObserver> observer2;
 
     runTestWhileRunLoopIsActive([&] {
-        observer1 = ActivityObserver::create(10, { RunLoop::Activity::BeforeWaiting }, [&] {
+        observer1 = ActivityObserver::create(RunLoop::currentSingleton(), true, 10, { RunLoop::Activity::BeforeWaiting }, [&] {
             ++observerCallCount1;
-            return ActivityObserver::ContinueObservation::Yes;
         });
 
-        observer2 = ActivityObserver::create(10, { RunLoop::Activity::Entry, RunLoop::Activity::BeforeWaiting }, [&] {
+        observer2 = ActivityObserver::create(RunLoop::currentSingleton(), true, 10, { RunLoop::Activity::Entry, RunLoop::Activity::BeforeWaiting }, [&] {
             ++observerCallCount2;
-            return ActivityObserver::ContinueObservation::Yes;
         });
 
-        RunLoop::currentSingleton().observeActivity(*observer1);
-        RunLoop::currentSingleton().observeActivity(*observer2);
+        observer1->start();
+        observer2->start();
 
         RunLoop::currentSingleton().dispatchAfter(0_ms, [&] {
             done = true;
-            RunLoop::currentSingleton().unobserveActivity(*observer1);
-            RunLoop::currentSingleton().unobserveActivity(*observer2);
+            observer1->stop();
+            observer2->stop();
         });
     }, done);
 

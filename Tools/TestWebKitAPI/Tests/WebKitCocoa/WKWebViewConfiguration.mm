@@ -36,6 +36,7 @@
 #import <WebKit/WKUserScriptPrivate.h>
 #import <WebKit/WKWebView.h>
 #import <WebKit/WKWebViewConfigurationPrivate.h>
+#import <WebKit/WKWebpagePreferencesPrivate.h>
 #import <WebKit/WKWebsiteDataStorePrivate.h>
 #import <WebKit/_WKWebsiteDataStoreConfiguration.h>
 #import <wtf/Function.h>
@@ -154,7 +155,7 @@ TEST(WebKit, ConfigurationHTTPSUpgrade)
     Vector<char> requestBytes;
     HTTPServer server([&] (Connection connection) {
         connection.receiveHTTPRequest([&, connection](Vector<char>&& bytes) mutable {
-            requestBytes = WTFMove(bytes);
+            requestBytes = WTF::move(bytes);
             done = true;
         });
     });
@@ -297,6 +298,20 @@ TEST(WebKit, ConfigurationMaskedURLSchemes)
     imageSource = [webView stringByEvaluatingJavaScript:@"document.querySelectorAll(\"img\")[1].getAttributeNode(\"src\").value"];
     EXPECT_WK_STREQ(imageSource, @"baz.png");
 
+    NSString *serializedHTML = [webView stringByEvaluatingJavaScript:@"new XMLSerializer().serializeToString(document.querySelectorAll(\"img\")[0])"];
+    EXPECT_TRUE([serializedHTML containsString:@"webkit-masked-url://hidden/"]);
+    EXPECT_FALSE([serializedHTML containsString:@"test-scheme://"]);
+
+    serializedHTML = [webView stringByEvaluatingJavaScript:@"new XMLSerializer().serializeToString(document.querySelectorAll(\"img\")[1])"];
+    EXPECT_TRUE([serializedHTML containsString:@"baz.png"]);
+    EXPECT_FALSE([serializedHTML containsString:@"webkit-masked-url://"]);
+    EXPECT_FALSE([serializedHTML containsString:@"test-scheme://"]);
+
+    serializedHTML = [webView stringByEvaluatingJavaScript:@"new XMLSerializer().serializeToString(document)"];
+    EXPECT_TRUE([serializedHTML containsString:@"webkit-masked-url://hidden/"]);
+    EXPECT_TRUE([serializedHTML containsString:@"baz.png"]);
+    EXPECT_FALSE([serializedHTML containsString:@"test-scheme://"]);
+
     [webView synchronouslyLoadHTMLString:@"<img srcset=\"test-scheme://foo.com/bar.jpg 1x, bar.jpg 2x, another-scheme://foo.com/bar.gif 3x\"><img srcset=\"https://apple.com/baz.png 2x, baz.png 1x\">" baseURL:[NSURL URLWithString:@"https://example.com"]];
 
     imageSource = [webView stringByEvaluatingJavaScript:@"document.querySelectorAll(\"img\")[0].srcset"];
@@ -332,6 +347,9 @@ TEST(WebKit, ConfigurationMaskedURLSchemes)
 
     NSString *htmlSource = [webView stringByEvaluatingJavaScript:@"document.body.innerHTML"];
     EXPECT_EQ([htmlSource containsString:@"<iframe src=\"webkit-masked-url://hidden/\"></iframe>"], YES);
+
+    NSString *xmlSource = [webView stringByEvaluatingJavaScript:@"(new XMLSerializer()).serializeToString(document.body)"];
+    EXPECT_WK_STREQ(xmlSource, @"<body xmlns=\"http://www.w3.org/1999/xhtml\"><iframe src=\"webkit-masked-url://hidden/\"></iframe><iframe src=\"http://apple.com/baz.html\"></iframe></body>");
 
     [webView synchronouslyLoadHTMLString:@""];
 
@@ -376,10 +394,15 @@ TEST(WebKit, OverrideReferrer)
     bool done { false };
     HTTPServer server(HTTPServer::UseCoroutines::Yes, [&] (Connection connection) -> ConnectionTask { while (true) {
         auto request = co_await connection.awaitableReceiveHTTPRequest();
+        auto path = HTTPServer::parsePath(request);
+        if (path == "/next_navigation"_s) {
+            EXPECT_FALSE(strnstr(request.span().data(), "\r\nReferer: overridereferer\r\n", request.size()));
+            co_await connection.awaitableSend(HTTPResponse("<script>alert('main frame loaded without referrer')</script>"_s).serialize());
+            continue;
+        }
         EXPECT_TRUE(strnstr(request.span().data(), "\r\nReferer: overridereferer\r\n", request.size()));
         EXPECT_FALSE(strnstr(request.span().data(), "eferrer", request.size()));
         EXPECT_EQ(String(request.span()).split("Referer"_s).size(), 2u);
-        auto path = HTTPServer::parsePath(request);
         if (path == "/example"_s) {
             co_await connection.awaitableSend(HTTPResponse("<script>window.location = 'https://webkit.org/webkit'</script>"_s).serialize());
             continue;
@@ -395,12 +418,28 @@ TEST(WebKit, OverrideReferrer)
         EXPECT_FALSE(true);
     } }, HTTPServer::Protocol::HttpsProxy);
 
-    auto configuration = server.httpsProxyConfiguration();
-    configuration._overrideReferrerForAllRequests = @"overridereferer";
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration]);
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:server.httpsProxyConfiguration()]);
     auto delegate = adoptNS([TestNavigationDelegate new]);
+    auto addReferrer = ^(WKNavigationAction *, WKWebpagePreferences *preferences, void (^completionHandler)(WKNavigationActionPolicy, WKWebpagePreferences *)) {
+        preferences._overrideReferrerForAllRequests = @"overridereferer";
+        completionHandler(WKNavigationActionPolicyAllow, preferences);
+    };
+    delegate.get().decidePolicyForNavigationActionWithPreferences = addReferrer;
     [delegate allowAnyTLSCertificate];
     webView.get().navigationDelegate = delegate.get();
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/example"]]];
+    Util::run(&done);
+
+    delegate.get().decidePolicyForNavigationActionWithPreferences = nil;
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/next_navigation"]]];
+    EXPECT_WK_STREQ([webView _test_waitForAlert], "main frame loaded without referrer");
+
+    done = false;
+    delegate.get().decidePolicyForNavigationActionWithPreferences = addReferrer;
+    [webView evaluateJavaScript:@"const iframe = document.createElement('iframe'); iframe.src = 'https://example.com/webkit'; document.body.appendChild(iframe)" completionHandler:nil];
+    Util::run(&done);
+
+    done = false;
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/example"]]];
     Util::run(&done);
 }

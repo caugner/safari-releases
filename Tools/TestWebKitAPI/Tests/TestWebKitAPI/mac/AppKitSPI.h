@@ -111,6 +111,7 @@ NSString * const NSInspectorBarTextAlignmentItemIdentifier = @"NSInspectorBarTex
 
 @interface NSScrollPocket : NSView
 @property (copy, nullable) NSColor *captureColor;
+@property BOOL prefersSolidColorHardPocket;
 @end
 
 @interface NSImage (SPI)
@@ -120,6 +121,35 @@ NSString * const NSInspectorBarTextAlignmentItemIdentifier = @"NSInspectorBarTex
 @interface NSView (_NSConstraintBasedLayoutEmbedding)
 @property (readonly) BOOL _wantsConstraintBasedLayout;
 @end
+
+#if HAVE(NSVIEW_CORNER_CONFIGURATION)
+
+@interface _NSCornerRadius : NSObject
+@property (class, copy, readonly) _NSCornerRadius *containerConcentricRadius;
++ (_NSCornerRadius *)fixedRadius:(CGFloat)radius;
+@end
+
+@interface NSViewCornerRadii : NSObject
+@property CGFloat topLeft;
+@property CGFloat topRight;
+@property CGFloat bottomLeft;
+@property CGFloat bottomRight;
+@property (copy) CALayerCornerCurve cornerCurve;
+@end
+
+@interface NSViewCornerConfiguration : NSObject
++ (NSViewCornerConfiguration *)configurationWithRadius:(_NSCornerRadius *)radius;
++ (instancetype)configurationWithTopLeftRadius:(nullable _NSCornerRadius *)topLeftRadius topRightRadius:(nullable _NSCornerRadius *)topRightRadius bottomLeftRadius:(nullable _NSCornerRadius *)bottomLeftRadius bottomRightRadius:(nullable _NSCornerRadius *)bottomRightRadius;
+@end
+
+@interface NSView (NSViewCornerConfiguration)
+@property (nullable, readonly) NSViewCornerRadii *_effectiveCornerRadii;
+@property (readonly, nullable, copy) NSViewCornerConfiguration *_cornerConfiguration;
+- (void)_viewDidChangeEffectiveCornerRadii;
+- (void)_invalidateCornerConfiguration;
+@end
+
+#endif
 
 #endif
 
@@ -142,6 +172,14 @@ NSString * const NSInspectorBarTextAlignmentItemIdentifier = @"NSInspectorBarTex
 
 @interface NSFontOptions : NSObject
 + (instancetype)sharedFontOptions;
+@end
+
+@interface NSFontPanel (IPI)
+@property (nonatomic, readonly) NSString *_selectedFaceName;
+- (void)_chooseFace:(id)sender;
+@end
+
+@interface NSFontEffectsBox : NSBox
 @end
 
 #endif // PLATFORM(MAC)

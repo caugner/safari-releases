@@ -342,17 +342,27 @@ TEST(SmartLists, InsertingSpaceAfterInvalidNumberDoesNotGenerateOrderedList)
     runTest(@"+42. Hello", expectedPlusPrefixedHTML.createNSString().get(), @"//body/text()", @"+42. Hello".length);
 }
 
+TEST(SmartLists, InsertingSpaceAfterLargeNumberDoesNotGenerateOrderedList)
+{
+    static constexpr auto expectedHTML = R"""(
+    <body>1000000000000000. hi</body>
+    )"""_s;
+
+    NSString *input = @"1000000000000000. hi";
+
+    runTest(input, expectedHTML.createNSString().get(), @"//body/text()", input.length);
+}
+
 TEST(SmartLists, InsertingListMergesWithPreviousListIfPossible)
 {
     static constexpr auto expectedHTML = R"""(
-    <body>
-        <ol start="1" style="list-style-type: decimal;">
+    <body contenteditable="">
+        <ol start="1" style="list-style-type: decimal;" class="Apple-decimal-list">
             <li>A</li>
             <li>B</li>
             <li>C</li>
         </ol>
-    </body>
-    )"""_s;
+    </body>)"""_s;
 
     RetainPtr input = @""
     "1. A\n"
@@ -367,13 +377,12 @@ TEST(SmartLists, InsertingListMergesWithPreviousListIfPossible)
 TEST(SmartLists, InsertingSpaceInsideListElementDoesNotActivateSmartLists)
 {
     static constexpr auto expectedHTML = R"""(
-    <body>
-        <ul>
+    <body contenteditable="">
+        <ul style="list-style-type: disc;" class="Apple-disc-list">
             <li>A</li>
             <li>1. Hi</li>
         </ul>
-    </body>
-    )"""_s;
+    </body>)"""_s;
 
     runTest(@"* A\n1. Hi", expectedHTML.createNSString().get(), @"//body/ul/li[2]/text()", @"1. Hi".length);
 }

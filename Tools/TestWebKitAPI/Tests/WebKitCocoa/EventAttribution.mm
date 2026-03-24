@@ -58,6 +58,7 @@
 #include "CoreCryptoSPI.h"
 
 #include <WebCore/PrivateClickMeasurement.h>
+#include <wtf/darwin/XPCObjectPtr.h>
 #include <wtf/spi/cocoa/SecuritySPI.h>
 
 #endif // HAVE(RSA_BSSA)
@@ -195,6 +196,48 @@ void runBasicPCMTest(WKWebViewConfiguration *configuration, Function<void(WKWebV
     Util::run(&done);
 }
 
+#if PLATFORM(MAC)
+void runManualPCMTest(WKWebViewConfiguration *configuration, NSURL *sourceURL, NSURL *destinationURL, Function<void(WKWebView *, const HTTPServer&)>&& addAttributionToWebView, bool setTestAppBundleID = true)
+{
+    [WKWebsiteDataStore _setNetworkProcessSuspensionAllowedForTesting:NO];
+    bool done = false;
+    HTTPServer server([&done] (Connection connection) mutable {
+        connection.receiveHTTPRequest([&done] (Vector<char>&& request) {
+            EXPECT_FALSE(contains(request.span(), "GET /conversionRequestBeforeRedirect HTTP/1.1\r\n"_span));
+            EXPECT_TRUE(contains(request.span(), "POST / HTTP/1.1\r\n"_span));
+            size_t bodyBegin = find(request.span(), "\r\n\r\n"_span) + strlen("\r\n\r\n");
+            EXPECT_TRUE(equalSpans(request.subspan(bodyBegin), "{\"source_engagement_type\":\"click\",\"source_site\":\"pcmsource.example\",\"source_id\":42,\"attributed_on_site\":\"pcmdestination.example\",\"trigger_data\":12,\"version\":3}"_span));
+            done = true;
+        });
+    }, HTTPServer::Protocol::Https);
+    NSURL *serverURL = server.request().URL;
+
+    auto webView = configuration ? adoptNS([[WKWebView alloc] initWithFrame:CGRectZero configuration:configuration]) : webViewWithoutUsingDaemon();
+    webView.get().navigationDelegate = delegateAllowingAllTLS();
+    [[webView configuration].websiteDataStore _setResourceLoadStatisticsEnabled:YES];
+    [[webView configuration].websiteDataStore _trustServerForLocalPCMTesting:secTrustFromCertificateChain(@[(id)testCertificate().get()]).get()];
+    // Clear existing data.
+    __block bool cleared = false;
+    [[webView configuration].websiteDataStore removeDataOfTypes:[WKWebsiteDataStore _allWebsiteDataTypesIncludingPrivate] modifiedSince:[NSDate distantPast] completionHandler:^() {
+        cleared = true;
+    }];
+    Util::run(&cleared);
+    addAttributionToWebView(webView.get(), server);
+    [webView _setPrivateClickMeasurementAttributionReportURLsForTesting:serverURL destinationURL:exampleURL() completionHandler:^{
+        [webView _setPrivateClickMeasurementOverrideTimerForTesting:YES completionHandler:^{
+
+            if (setTestAppBundleID) {
+                [webView _setPrivateClickMeasurementAppBundleIDForTesting:@"test.bundle.id" completionHandler:^{
+                    [webView _storeSimulatedPrivateClickMeasurementConversionWithPriority:0 triggerData:12 sourceURL:sourceURL destinationURL:destinationURL];
+                }];
+            } else
+                [webView _storeSimulatedPrivateClickMeasurementConversionWithPriority:0 triggerData:12 sourceURL:sourceURL destinationURL:destinationURL];
+        }];
+    }];
+    Util::run(&done);
+}
+#endif
+
 #if HAVE(RSA_BSSA)
 
 enum class TokenSigningParty : bool { Source, Destination };
@@ -206,7 +249,7 @@ static void triggerAttributionWithSubresourceRedirect(Connection& connection, co
     connection.receiveHTTPRequest([connection, location] (Vector<char>&& request1) {
         EXPECT_TRUE(contains(request1.span(), "GET /conversionRequestBeforeRedirect HTTP/1.1\r\n"_span));
         auto redirect = makeString("HTTP/1.1 302 Found\r\nLocation: "_s, location, "\r\nContent-Length: 0\r\n\r\n"_s);
-        connection.send(WTFMove(redirect), [connection, location] {
+        connection.send(WTF::move(redirect), [connection, location] {
             connection.receiveHTTPRequest([connection, location] (Vector<char>&& request2) {
                 auto expectedHttpGetString = makeString("GET "_s, location, " HTTP/1.1\r\n"_s).utf8();
                 EXPECT_TRUE(contains(request2.span(), expectedHttpGetString.span()));
@@ -279,7 +322,7 @@ static void signUnlinkableTokenAndSendSecretToken(TokenSigningParty signingParty
                     "Content-Type: application/json\r\n"
                     "Content-Length: "_s, 24 + keyData.length(), "\r\n\r\n"
                     "{\"token_public_key\": \""_s, keyData, "\"}"_s);
-                connection.send(WTFMove(response), [signingParty, connection, &rsaPrivateKey, &modulusNBytes, &rng, &keyData, &done, &secKey] {
+                connection.send(WTF::move(response), [signingParty, connection, &rsaPrivateKey, &modulusNBytes, &rng, &keyData, &done, &secKey] {
                     connection.receiveHTTPRequest([signingParty, connection, &rsaPrivateKey, &modulusNBytes, &rng, &keyData, &done, &secKey] (Vector<char>&& request2) {
                         EXPECT_TRUE(contains(request2.span(), "POST / HTTP/1.1\r\n"_span));
 
@@ -302,7 +345,7 @@ static void signUnlinkableTokenAndSendSecretToken(TokenSigningParty signingParty
                             "Content-Type: application/json\r\n"
                             "Content-Length: "_s, 24 + unlinkableToken.length(), "\r\n\r\n"
                             "{\"unlinkable_token\": \""_s, unlinkableToken, "\"}"_s);
-                        connection.send(WTFMove(response), [signingParty, connection, &keyData, &done, unlinkableToken, token, &secKey] {
+                        connection.send(WTF::move(response), [signingParty, connection, &keyData, &done, unlinkableToken, token, &secKey] {
                             connection.receiveHTTPRequest([signingParty, connection, &keyData, &done, unlinkableToken, token, &secKey] (Vector<char>&& request3) {
                                 EXPECT_TRUE(contains(request3.span(), "GET / HTTP/1.1\r\n"_span));
 
@@ -311,7 +354,7 @@ static void signUnlinkableTokenAndSendSecretToken(TokenSigningParty signingParty
                                     "Content-Type: application/json\r\n"
                                     "Content-Length: "_s, 24 + keyData.length(), "\r\n\r\n"
                                     "{\"token_public_key\": \""_s, keyData, "\"}"_s);
-                                connection.send(WTFMove(response), [signingParty, connection, &done, unlinkableToken, token, &secKey] {
+                                connection.send(WTF::move(response), [signingParty, connection, &done, unlinkableToken, token, &secKey] {
                                     connection.receiveHTTPRequest([signingParty, connection, &done, unlinkableToken, token, &secKey] (Vector<char>&& request4) {
                                         EXPECT_TRUE(contains(request4.span(), "POST / HTTP/1.1\r\n"_span));
                                         EXPECT_TRUE(contains(request4.span(), "{\"source_engagement_type\":\"click\",\"source_site\":\"127.0.0.1\",\"source_id\":42,\"attributed_on_site\":\"example.com\",\"trigger_data\":12,\"version\":3,"_span));
@@ -384,6 +427,17 @@ TEST(PrivateClickMeasurement, Basic)
         [webView _addEventAttributionWithSourceID:42 destinationURL:exampleURL() sourceDescription:@"test source description" purchaser:@"test purchaser" reportEndpoint:server.request().URL optionalNonce:nil applicationBundleID:@"test.bundle.id" ephemeral:NO];
     });
 }
+
+#if PLATFORM(MAC)
+TEST(PrivateClickMeasurement, ManualAttributionAndConversion)
+{
+    NSURL *sourceURL = [NSURL URLWithString:@"https://site.pcmsource.example/"];
+    NSURL *destinationURL = [NSURL URLWithString:@"https://site.pcmdestination.example/"];
+    runManualPCMTest(nil, sourceURL, destinationURL, [&sourceURL, &destinationURL](WKWebView *webView, const HTTPServer& server) {
+        [webView _storePrivateClickMeasurementWithSourceID:42 destinationURL:destinationURL reportEndpoint:sourceURL];
+    }, false);
+}
+#endif
 
 TEST(PrivateClickMeasurement, EphemeralWithAttributedBundleIdentifier)
 {
@@ -497,13 +551,15 @@ static void attemptConnectionInProcessWithoutEntitlement()
 {
 #if USE(APPLE_INTERNAL_SDK)
     __block bool done = false;
-    auto connection = adoptNS(xpc_connection_create_mach_service("org.webkit.pcmtestdaemon.service", mainDispatchQueueSingleton(), 0));
+    // FIXME: This is a false positive. <rdar://164843889>
+    SUPPRESS_RETAINPTR_CTOR_ADOPT auto connection = adoptXPCObject(xpc_connection_create_mach_service("org.webkit.pcmtestdaemon.service", mainDispatchQueueSingleton(), 0));
     xpc_connection_set_event_handler(connection.get(), ^(xpc_object_t event) {
         EXPECT_EQ(event, XPC_ERROR_CONNECTION_INTERRUPTED);
         done = true;
     });
     xpc_connection_activate(connection.get());
-    auto dictionary = adoptNS(xpc_dictionary_create(nullptr, nullptr, 0));
+    // FIXME: This is a false positive. <rdar://164843889>
+    SUPPRESS_RETAINPTR_CTOR_ADOPT auto dictionary = adoptXPCObject(xpc_dictionary_create(nullptr, nullptr, 0));
     xpc_connection_send_message(connection.get(), dictionary.get());
     TestWebKitAPI::Util::run(&done);
 #endif

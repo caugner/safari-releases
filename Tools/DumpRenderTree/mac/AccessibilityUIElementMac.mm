@@ -38,6 +38,11 @@
 #import <wtf/Vector.h>
 #import <wtf/cocoa/VectorCocoa.h>
 
+// Must include after any headers which include AppKit, because it contains
+// macros that clash with NSAccessibility declarations.
+// FIXME: Can be put back into sort order once building with -fmodules.
+#import <WebCore/CocoaAccessibilityConstants.h>
+
 #if HAVE(ACCESSIBILITY_FRAMEWORK)
 #import <Accessibility/Accessibility.h>
 #endif
@@ -169,6 +174,11 @@ static NSString* attributesOfElement(id accessibilityObject)
         // Skip screen-specific information.
         if ([attribute isEqualToString:@"_AXPrimaryScreenHeight"] || [attribute isEqualToString:@"AXRelativeFrame"])
             continue;
+
+        if ([attribute isEqualToString:@"AXPerformsOwnTextStitching"]) {
+            // Exposing this in tests is not valuable, so remove it to decrease test maintenance burden.
+            continue;
+        }
 
         // accessibilityAttributeValue: can throw an if an attribute is not returned.
         // For DumpRenderTree's purpose, we should ignore those exceptions
@@ -1961,6 +1971,9 @@ static JSRetainPtr<JSStringRef> createJSStringRef(id string)
             [mutableString appendFormat:@"%@: YES\n", NSAccessibilityStrikethroughTextAttribute];
             appendColorDescription(mutableString, NSAccessibilityStrikethroughColorTextAttribute, attributes);
         }
+
+        if ([attributes objectForKey:NSAccessibilityTableAttribute])
+            [mutableString appendFormat:@"%@: {present}\n", NSAccessibilityTableAttribute];
     };
     [string enumerateAttributesInRange:NSMakeRange(0, [string length]) options:(NSAttributedStringEnumerationOptions)0 usingBlock:attributeEnumerationBlock];
     [mutableString appendString:[string string]];

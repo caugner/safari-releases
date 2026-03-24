@@ -16,8 +16,10 @@ onload = function() {
         w = open("/navigation/resources/otherpage.html", "foo"); // Should create a new window.
         shouldBeEqualToString("w.location.href", "about:blank");
         w.onload = function() {
-            if (window.testRunner)
+            if (window.testRunner) {
+                // Same-site noopener popups now share a process, so all 3 windows are counted.
                 shouldBe("testRunner.windowCount()", "3");
+            }
             finishJSTest();
         }
     }, 100);

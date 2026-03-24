@@ -1,3 +1,4 @@
+//@ skip if !$isSIMDPlatform
 import { instantiate } from "../wabt-wrapper.js";
 import * as assert from "../assert.js";
 

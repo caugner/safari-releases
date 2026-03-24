@@ -1,7 +1,6 @@
 set(WebKitGLibAPITests_SOURCES
     ${TOOLS_DIR}/TestWebKitAPI/glib/WebKitGLib/LoadTrackingTest.cpp
     ${TOOLS_DIR}/TestWebKitAPI/glib/WebKitGLib/TestMain.cpp
-    ${TOOLS_DIR}/TestWebKitAPI/glib/WebKitGLib/WebExtensionUtilities.cpp
     ${TOOLS_DIR}/TestWebKitAPI/glib/WebKitGLib/WebKitTestServer.cpp
     ${TOOLS_DIR}/TestWebKitAPI/glib/WebKitGLib/WebViewTest.cpp
 )
@@ -169,6 +168,7 @@ if (ENABLE_WEBXR AND USE_OPENXR)
 endif ()
 
 if (ENABLE_2022_GLIB_API)
+    ADD_WK2_TEST(TestWebKitImage ${TOOLS_DIR}/TestWebKitAPI/Tests/WebKitGLib/TestWebKitImage.cpp)
     ADD_WK2_TEST(TestWebKitNetworkSession ${TOOLS_DIR}/TestWebKitAPI/Tests/WebKitGLib/TestWebKitNetworkSession.cpp)
 
 if (ENABLE_WK_WEB_EXTENSIONS)

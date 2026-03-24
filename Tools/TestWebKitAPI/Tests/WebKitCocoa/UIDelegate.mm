@@ -49,6 +49,7 @@
 #import <WebKit/WKWebViewConfiguration.h>
 #import <WebKit/WKWebViewPrivateForTesting.h>
 #import <WebKit/WKWebViewPrivateForTestingMac.h>
+#import <wtf/cocoa/TypeCastsCocoa.h>
 #import <wtf/darwin/DispatchExtras.h>
 
 #if ENABLE(POINTER_LOCK)
@@ -58,8 +59,8 @@
 - (instancetype)initWithName:(NSString *)name additionalButtons:(uint32_t)additionalButtons;
 @end
 
-@interface GCMouseInput ()
-- (void)handleMouseMovementEventWithDelta:(CGPoint)delta;
+@interface GCPhysicalInputProfile (SPI)
+@property (readonly) dispatch_queue_t handlerQueue;
 @end
 #endif
 
@@ -154,7 +155,7 @@ TEST(WebKit, WindowOpenWithoutUIDelegate)
 }
 
 - (void)setValidationHandler:(Function<void(WKFrameInfo*)>&&)validationHandler {
-    _validationHandler = WTFMove(validationHandler);
+    _validationHandler = WTF::move(validationHandler);
 }
 
 - (void)_webView:(WKWebView *)webView requestGeolocationPermissionForFrame:(WKFrameInfo *)frame decisionHandler:(void (^)(BOOL allowed))decisionHandler
@@ -255,7 +256,7 @@ TEST(WebKit, GeolocationPermission)
     Function<void(WKSecurityOrigin*, WKFrameInfo*)> _validationHandler;
 }
 - (void)setValidationHandler:(Function<void(WKSecurityOrigin*, WKFrameInfo*)>&&)validationHandler {
-    _validationHandler = WTFMove(validationHandler);
+    _validationHandler = WTF::move(validationHandler);
 }
 
 - (void)_webView:(WKWebView *)webView requestGeolocationPermissionForOrigin:(WKSecurityOrigin*)origin initiatedByFrame:(WKFrameInfo *)frame decisionHandler:(void (^)(WKPermissionDecision decision))decisionHandler {
@@ -1241,16 +1242,22 @@ static bool readyForClick;
 
 TEST(WebKit, ClickAutoFillButton)
 {
-    WKWebViewConfiguration *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"ClickAutoFillButton"];
+    RetainPtr configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"ClickAutoFillButton" configureJSCForTesting:YES];
 
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration]);
-    auto delegate = adoptNS([[AutoFillDelegate alloc] init]);
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([[AutoFillDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
-    [webView evaluateJavaScript:@"" completionHandler: nil]; // Ensure the WebProcess and injected bundle are running.
+
+    [webView synchronouslyLoadHTMLString:@""];
+
     TestWebKitAPI::Util::run(&readyForClick);
-    NSPoint buttonLocation = NSMakePoint(130, 577);
-    [webView mouseDownAtPoint:buttonLocation simulatePressure:NO];
-    [webView mouseUpAtPoint:buttonLocation];
+
+    RetainPtr<NSDictionary> jsRect = [webView objectByEvaluatingJavaScript:@"internals.shadowRoot(document.querySelector('input')).querySelector('[useragentpart=\\'-webkit-contacts-auto-fill-button\\']').getBoundingClientRect().toJSON()"];
+    NSRect rect = NSMakeRect([jsRect.get()[@"left"] floatValue], [jsRect.get()[@"top"] floatValue], [jsRect.get()[@"width"] floatValue], [jsRect.get()[@"height"] floatValue]);
+
+    NSPoint buttonLocation = NSMakePoint(rect.origin.x + rect.size.width / 2, [webView frame].size.height - (rect.origin.y + rect.size.height / 2));
+    [webView sendClickAtPoint:buttonLocation];
+
     TestWebKitAPI::Util::run(&done);
 }
 
@@ -1825,7 +1832,13 @@ TEST_F(PointerLockTests, MouseDeviceMove)
     float deltaX = 10.0f;
     float deltaY = 5.0f;
     RetainPtr mouseInput = [fakeMouse() mouseInput];
-    [mouseInput handleMouseMovementEventWithDelta:CGPointMake(deltaX, deltaY)];
+    if (GCMouseMoved handler = [mouseInput mouseMovedHandler]) {
+        RetainPtr profile = dynamic_objc_cast<GCPhysicalInputProfile>(mouseInput);
+        dispatch_async([profile handlerQueue], ^{
+            // Positive cursor movement is a move up, not down.
+            handler(mouseInput.get(), deltaX, -deltaY);
+        });
+    }
 
     [pointerLockDelegate() waitForMouseMoveEvents];
     CGPoint capturedDelta = [[pointerLockDelegate() mouseMoveEvents].firstObject CGPointValue];

@@ -30,6 +30,7 @@
 #include <WebCore/InlineLineTypes.h>
 #include <WebCore/InlineTextItem.h>
 #include <WebCore/RenderStyle.h>
+#include <ranges>
 #include <unicode/ubidi.h>
 #include <wtf/Range.h>
 
@@ -48,7 +49,7 @@ public:
 
     void initialize(const Vector<InlineItem, 1>& lineSpanningInlineBoxes, bool isFirstFormattedLine);
 
-    enum class ShapingBoundary : uint8_t { Start, Middle, End };
+    enum class ShapingBoundary : uint8_t { Start, Inside, End };
     void appendText(const InlineTextItem&, const RenderStyle&, InlineLayoutUnit logicalWidth, std::optional<ShapingBoundary>);
     void appendTextFast(const InlineTextItem&, const RenderStyle&, InlineLayoutUnit logicalWidth); // Reserved for TextOnlySimpleLineBuilder
     void appendAtomicInlineBox(const InlineItem&, const RenderStyle&, InlineLayoutUnit marginBoxLogicalWidth);
@@ -57,6 +58,7 @@ public:
     void appendLineBreak(const InlineItem&, const RenderStyle&);
     void appendWordBreakOpportunity(const InlineItem&, const RenderStyle&);
     void appendOpaqueBox(const InlineItem&, const RenderStyle&);
+    void appendBlock(const InlineItem&, InlineLayoutUnit marginBoxLogicalWidth);
 
     void setContentNeedsBidiReordering() { m_hasNonDefaultBidiLevelRun = true; }
 
@@ -100,7 +102,8 @@ public:
             InlineBoxStart,
             InlineBoxEnd,
             LineSpanningInlineBoxStart,
-            Opaque
+            Opaque,
+            Block
         };
 
         bool isText() const { return m_type == Type::Text || isWordSeparator() || isNonBreakingSpace(); }
@@ -119,8 +122,9 @@ public:
         bool isLineSpanningInlineBoxStart() const { return m_type == Type::LineSpanningInlineBoxStart; }
         bool isInlineBoxEnd() const { return m_type == Type::InlineBoxEnd; }
         bool isOpaque() const { return m_type == Type::Opaque; }
+        bool isBlock() const { return m_type == Type::Block; }
 
-        bool isContentful() const { return (isText() && textContent()->length) || isAtomicInlineBox() || isLineBreak() || isListMarker(); }
+        bool isContentful() const { return (isText() && textContent()->length) || isAtomicInlineBox() || isLineBreak() || isListMarker() || isBlock(); }
         bool isGenerated() const { return isListMarker(); }
         static bool isContentfulOrHasDecoration(const Run&, const InlineFormattingContext&);
 
@@ -151,7 +155,7 @@ public:
 
         bool isShapingBoundaryStart() const { return isShapingBoundary() && *m_shapingBoundary == Line::ShapingBoundary::Start; }
         bool isShapingBoundaryEnd() const { return isShapingBoundary() && *m_shapingBoundary == Line::ShapingBoundary::End; }
-        bool isBetweenShapingBoundaries() const { return isShapingBoundary() && *m_shapingBoundary == Line::ShapingBoundary::Middle; }
+        bool isInsideShapingBoundary() const { return isShapingBoundary() && *m_shapingBoundary == Line::ShapingBoundary::Inside; }
         bool isShapingBoundary() const { return m_shapingBoundary.has_value(); }
 
         // FIXME: Maybe add create functions intead?
@@ -209,7 +213,7 @@ public:
         std::optional<Line::ShapingBoundary> m_shapingBoundary;
         InlineLayoutUnit m_textSpacingAdjustment { 0 };
     };
-    using RunList = Vector<Run, 10>;
+    using RunList = Vector<Run, 1>;
     const RunList& runs() const { return m_runs; }
     RunList& runs() { return m_runs; }
     void inflateContentLogicalWidth(InlineLayoutUnit delta) { m_contentLogicalWidth += delta; }
@@ -233,6 +237,7 @@ public:
     Result close();
 
     static bool restoreTrimmedTrailingWhitespace(InlineLayoutUnit trimmedTrailingWhitespaceWidth, RunList&, InlineItemRange, const InlineItemList&);
+    static bool hasTrailingForcedLineBreak(const RunList&);
 
 private:
     InlineLayoutUnit lastRunLogicalRight() const { return m_runs.isEmpty() ? 0.0f : m_runs.last().logicalRight(); }
@@ -331,7 +336,7 @@ inline bool Line::hasContentOrListMarker() const
 
 inline bool Line::hasContent() const
 {
-    for (auto& run : makeReversedRange(m_runs)) {
+    for (auto& run : m_runs | std::views::reverse) {
         if (run.isContentful() && !run.isGenerated())
             return true;
     }

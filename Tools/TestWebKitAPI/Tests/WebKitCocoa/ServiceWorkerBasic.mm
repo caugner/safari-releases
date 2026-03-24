@@ -3049,12 +3049,11 @@ static bool didStartURLSchemeTaskForImportedScript = false;
     auto response = adoptNS([[NSHTTPURLResponse alloc] initWithURL:finalURL statusCode:200 HTTPVersion:@"HTTP/1.1" headerFields:headerDictionary]);
     [task didReceiveResponse:response.get()];
 
-    if (auto data = _dataMappings.get([finalURL absoluteString]))
+    if (RetainPtr data = _dataMappings.get([finalURL absoluteString]))
         [task didReceiveData:data.get()];
-    else if (_bytes) {
-        RetainPtr data = toNSDataNoCopy(unsafeSpan8(_bytes), FreeWhenDone::No);
-        [task didReceiveData:data.get()];
-    } else
+    else if (_bytes)
+        [task didReceiveData:toNSData(byteCast<uint8_t>(unsafeSpan(_bytes))).get()];
+    else
         [task didReceiveData:[@"Hello" dataUsingEncoding:NSUTF8StringEncoding]];
 
     [task didFinish];
@@ -3609,12 +3608,7 @@ void miniaturizeWebView(TestWKWebView* webView)
 }
 #endif // PLATFORM(MAC)
 
-// FIXME when rdar://158787776 is resolved
-#if PLATFORM(MAC)
-TEST(ServiceWorker, DISABLED_ServiceWorkerWindowClientFocus)
-#else
 TEST(ServiceWorker, ServiceWorkerWindowClientFocus)
-#endif
 {
     [WKWebsiteDataStore _allowWebsiteDataRecordsForAllOrigins];
 
@@ -3665,8 +3659,10 @@ TEST(ServiceWorker, ServiceWorkerWindowClientFocus)
 #if PLATFORM(MAC)
     EXPECT_TRUE([webView1 hostWindow].isVisible);
     EXPECT_FALSE([webView2 hostWindow].isVisible);
-    EXPECT_FALSE([webView1 hostWindow].isMiniaturized);
-    EXPECT_TRUE([webView2 hostWindow].isMiniaturized);
+    while ([webView1 hostWindow].isMiniaturized)
+        TestWebKitAPI::Util::spinRunLoop(1);
+    while (![webView2 hostWindow].isMiniaturized)
+        TestWebKitAPI::Util::spinRunLoop(1);
 
     // FIXME: We should be able to run these tests in iOS once pages are actually visible.
     done = false;
@@ -4401,7 +4397,7 @@ TEST(ServiceWorkers, ServiceWorkerStorageTiming)
     HashMap<String, String> sourceHeaders;
     sourceHeaders.add("Cache-Control"_s, "no-cache"_s);
     sourceHeaders.add("Content-Type"_s, "application/javascript"_s);
-    server.setResponse("/sw.js"_s, TestWebKitAPI::HTTPResponse { WTFMove(sourceHeaders), serviceWorkerStorageTimingScriptBytesV2 });
+    server.setResponse("/sw.js"_s, TestWebKitAPI::HTTPResponse { WTF::move(sourceHeaders), serviceWorkerStorageTimingScriptBytesV2 });
 
     done = false;
     expectedMessage = "Message from worker: V1"_s;

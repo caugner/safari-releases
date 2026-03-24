@@ -1,33 +1,26 @@
 root
-    role='banner'
-        aria-label='Main Page Title','Welcome to Test Page'
-    navigation,role='navigation',aria-label='Main navigation'
+    'Welcome to Test Page'
+    navigation
         list
             list-item
-                link,uid=…,events=[click],'Section 1'
+                link,'Section 1'
             list-item
-                link,uid=…,events=[click],'Section 2'
-    role='main'
-        '    \nHere’s to the crazy ones…\n\n\n    '
-        section,aria-label='Interactive Elements'
-            button,uid=…,events=[click],aria-label='Test button','Click Me'
-            '        \nThis button does nothing\n\n        '
-            textFormControl,'text',uid=…,placeholder='Enter text here','Enter text here'
-            uid=…,role='button',events=[click,keyboard],'Clickable Div'
-        section,aria-label='Content with Roles'
-            article,role='article','            \n\n                \nArticle Title\n\n\n                January 1, 2024\n            \n\n            \nThis is some article content…\n\n\n        '
-            role='complementary',aria-label='Related information'
-                '            \nRelated Links\n\n\n            '
-                list
-                    list-item
-                        link,uid=…,events=[hover],'Example Link'
-                    list-item
-                        link,uid=…,events=[hover],'Test Link'
-            role='region'
-                role='status','Ready'
-                button,uid=…,events=[click],'Update Status'
-        '    \nThe quick brown fox jumped…'
-    role='contentinfo'
-        '    \nFooter content with '
-        role='img',aria-label='copyright symbol','©'
-        ' 2024'
+                link,'Section 2'
+    'Here’s to the crazy ones…'
+    section
+        button,'Click Me'
+        'This button does nothing'
+        input,'text',placeholder='Enter text here'
+        'Clickable Div'
+    section
+        article,'Article Title\n\n\n                January 1, 2024\n            \n\n            \nThis is some article content…'
+        'Related Links'
+        list
+            list-item
+                link,'Example Link'
+            list-item
+                link,'Test Link'
+        'Ready'
+        button,'Update Status'
+    'The quick brown fox jumped…\n\n\n\n\n    \nFooter content with © 2024'
+version=2

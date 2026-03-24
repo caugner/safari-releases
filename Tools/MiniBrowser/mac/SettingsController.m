@@ -47,6 +47,7 @@ static NSString * const ReserveSpaceForBannersPreferenceKey = @"ReserveSpaceForB
 static NSString * const WebViewFillsWindowKey = @"WebViewFillsWindow";
 
 static NSString * const ResourceUsageOverlayVisiblePreferenceKey = @"ResourceUsageOverlayVisible";
+static NSString * const ShowWebProcessIdentifierInTitlePreferenceKey = @"ShowWebProcessIdentifierInTitle";
 static NSString * const LoadsAllSiteIconsKey = @"LoadsAllSiteIcons";
 static NSString * const UsesGameControllerFrameworkKey = @"UsesGameControllerFramework";
 static NSString * const IncrementalRenderingSuppressedPreferenceKey = @"IncrementalRenderingSuppressed";
@@ -57,6 +58,7 @@ static NSString * const ResourceLoadStatisticsEnabledPreferenceKey = @"ResourceL
 static NSString * const NonFastScrollableRegionOverlayVisiblePreferenceKey = @"NonFastScrollableRegionOverlayVisible";
 static NSString * const WheelEventHandlerRegionOverlayVisiblePreferenceKey = @"WheelEventHandlerRegionOverlayVisible";
 static NSString * const InteractionRegionOverlayVisiblePreferenceKey = @"InteractionRegionOverlayVisible";
+static NSString * const EnhancedSecurityOverlayVisiblePreferenceKey = @"EnhancedSecurityOverlayVisible";
 
 static NSString * const UseTransparentWindowsPreferenceKey = @"UseTransparentWindows";
 static NSString * const UsePaginatedModePreferenceKey = @"UsePaginatedMode";
@@ -85,6 +87,7 @@ typedef NS_ENUM(NSInteger, DebugOverylayMenuItemTag) {
     NonFastScrollableRegionOverlayTag = 100,
     WheelEventHandlerRegionOverlayTag,
     InteractionRegionOverlayTag,
+    EnhancedSecurityOverlayTag,
     ExperimentalFeatureTag,
     InternalDebugFeatureTag,
 };
@@ -225,7 +228,9 @@ static NSMenu *addSubmenuToMenu(NSMenu *menu, NSString *title)
     addItemToMenu(debugOverlaysMenu, @"Non-fast Scrollable Region", @selector(toggleDebugOverlay:), NO, NonFastScrollableRegionOverlayTag);
     addItemToMenu(debugOverlaysMenu, @"Wheel Event Handler Region", @selector(toggleDebugOverlay:), NO, WheelEventHandlerRegionOverlayTag);
     addItemToMenu(debugOverlaysMenu, @"Interaction Region", @selector(toggleDebugOverlay:), NO, InteractionRegionOverlayTag);
+    addItemToMenu(debugOverlaysMenu, @"Enhanced Security", @selector(toggleDebugOverlay:), NO, EnhancedSecurityOverlayTag);
     addItemToMenu(debugOverlaysMenu, @"Resource Usage", @selector(toggleShowResourceUsageOverlay:), NO, 0);
+    addItemToMenu(debugOverlaysMenu, @"Show Web Process ID in Window Title", @selector(toggleShowWebProcessIdentifierInTitle:), NO, 0);
 
     NSMenu *experimentalFeaturesMenu = addSubmenu(@"Experimental Features");
     for (_WKExperimentalFeature *feature in WKPreferences._experimentalFeatures) {
@@ -422,6 +427,8 @@ static NSMenu *addSubmenuToMenu(NSMenu *menu, NSString *title)
         [menuItem setState:[self tiledScrollingIndicatorVisible] ? NSControlStateValueOn : NSControlStateValueOff];
     else if (action == @selector(toggleShowResourceUsageOverlay:))
         [menuItem setState:[self resourceUsageOverlayVisible] ? NSControlStateValueOn : NSControlStateValueOff];
+    else if (action == @selector(toggleShowWebProcessIdentifierInTitle:))
+        [menuItem setState:[self showWebProcessIdentifierInTitle] ? NSControlStateValueOn : NSControlStateValueOff];
     else if (action == @selector(toggleLoadsAllSiteIcons:))
         [menuItem setState:[self loadsAllSiteIcons] ? NSControlStateValueOn : NSControlStateValueOff];
     else if (action == @selector(toggleUsesGameControllerFramework:))
@@ -613,6 +620,12 @@ static NSMenu *addSubmenuToMenu(NSMenu *menu, NSString *title)
     [self _toggleBooleanDefault:ResourceUsageOverlayVisiblePreferenceKey];
 }
 
+- (void)toggleShowWebProcessIdentifierInTitle:(id)sender
+{
+    [[NSUserDefaults standardUserDefaults] setBool:![self showWebProcessIdentifierInTitle] forKey:ShowWebProcessIdentifierInTitlePreferenceKey];
+    [[[NSApplication sharedApplication] browserAppDelegate] didChangeSettings];
+}
+
 - (BOOL)loadsAllSiteIcons
 {
     return [[NSUserDefaults standardUserDefaults] boolForKey:LoadsAllSiteIconsKey];
@@ -666,6 +679,13 @@ static NSMenu *addSubmenuToMenu(NSMenu *menu, NSString *title)
 - (BOOL)resourceUsageOverlayVisible
 {
     return [[NSUserDefaults standardUserDefaults] boolForKey:ResourceUsageOverlayVisiblePreferenceKey];
+}
+
+- (BOOL)showWebProcessIdentifierInTitle
+{
+    if (![[NSUserDefaults standardUserDefaults] objectForKey:ShowWebProcessIdentifierInTitlePreferenceKey])
+        return YES;
+    return [[NSUserDefaults standardUserDefaults] boolForKey:ShowWebProcessIdentifierInTitlePreferenceKey];
 }
 
 - (void)toggleResourceLoadStatisticsEnabled:(id)sender
@@ -813,6 +833,11 @@ static NSMenu *addSubmenuToMenu(NSMenu *menu, NSString *title)
     return [[NSUserDefaults standardUserDefaults] boolForKey:InteractionRegionOverlayVisiblePreferenceKey];
 }
 
+- (BOOL)enhancedSecurityOverlayVisible
+{
+    return [[NSUserDefaults standardUserDefaults] boolForKey:EnhancedSecurityOverlayVisiblePreferenceKey];
+}
+
 - (NSString *)preferenceKeyForRegionOverlayTag:(NSUInteger)tag
 {
     switch (tag) {
@@ -824,6 +849,9 @@ static NSMenu *addSubmenuToMenu(NSMenu *menu, NSString *title)
 
     case InteractionRegionOverlayTag:
         return InteractionRegionOverlayVisiblePreferenceKey;
+
+    case EnhancedSecurityOverlayTag:
+        return EnhancedSecurityOverlayVisiblePreferenceKey;
     }
     return nil;
 }

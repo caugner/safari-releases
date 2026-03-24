@@ -66,7 +66,7 @@ public:
     void didReceiveHeaderFromMultipart(Vector<String>&& headers) final
     {
         for (auto header : headers)
-            m_headers.append(WTFMove(header));
+            m_headers.append(WTF::move(header));
     }
 
     void didReceiveDataFromMultipart(std::span<const uint8_t> receivedData) final
@@ -96,6 +96,7 @@ private:
     uint32_t checkedPtrCountWithoutThreadCheck() const final { return CanMakeCheckedPtr::checkedPtrCountWithoutThreadCheck(); }
     void incrementCheckedPtrCount() const final { CanMakeCheckedPtr::incrementCheckedPtrCount(); }
     void decrementCheckedPtrCount() const final { CanMakeCheckedPtr::decrementCheckedPtrCount(); }
+    void setDidBeginCheckedPtrDeletion() final { CanMakeCheckedPtr::setDidBeginCheckedPtrDeletion(); }
 
     Vector<String> m_headers;
     Vector<uint8_t> m_data;

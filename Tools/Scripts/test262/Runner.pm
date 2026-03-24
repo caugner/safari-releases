@@ -46,6 +46,7 @@ use Time::HiRes qw(time);
 use IO::Handle;
 use IO::Select;
 use Pod::Usage;
+use lib $FindBin::Bin;
 use webkitdirs;
 
 my $Bin;
@@ -327,6 +328,9 @@ sub setupEnvironment()
 }
 
 sub main {
+    if ($^O eq "linux") {
+        maybeUseContainerSDKRootDir();
+    }
     processCLI();
     setupEnvironment();
 

@@ -13,7 +13,6 @@ TestIPC.ArgumentCoderTest/ArgumentCoderVectorTest/Encoder
 TestIPC.ArgumentCoderTest/ArgumentCoderVectorTest/StreamConnectionEncoder
 TestIPC.ConnectionTest
 TestIPC.ConnectionTest/ConnectionDidReceiveInvalidMessageTest
-TestIPC.ConnectionTest/ConnectionRunLoopTest
 TestIPC.ConnectionTest/ConnectionTestABBA
 TestIPC.CoreIPCCFDictionary
 TestIPC.EventTest/EventTestABBA
@@ -287,7 +286,6 @@ TestWebKitAPI.DisplayListRecorderTest/DisplayListRecorderResultStateTest/7
 TestWebKitAPI.DisplayListRecorderTest/DisplayListRecorderResultStateTest/8
 TestWebKitAPI.DisplayListRecorderTest/DisplayListRecorderResultStateTest/9
 TestWebKitAPI.DocumentOrder
-TestWebKitAPI.DrawingToPDF
 TestWebKitAPI.DynamicDeviceScaleFactor
 TestWebKitAPI.EditorStateTests
 TestWebKitAPI.ElementActionTests
@@ -303,8 +301,6 @@ TestWebKitAPI.FloatSize
 TestWebKitAPI.FocusPreservationTests
 TestWebKitAPI.FontCascadeTest
 TestWebKitAPI.FontShadowTest
-TestWebKitAPI.FormValidation
-TestWebKitAPI.FragmentDirectiveGeneration
 TestWebKitAPI.FragmentedSharedBufferTest
 TestWebKitAPI.Geolocation
 TestWebKitAPI.GestureRecognizerTests
@@ -366,7 +362,6 @@ TestWebKitAPI.Navigation
 TestWebKitAPI.Notification
 TestWebKitAPI.NowPlayingControlsTests
 TestWebKitAPI.NowPlayingInfoArtwork
-TestWebKitAPI.ObscuredContentInsets
 TestWebKitAPI.OverflowScrollViewTests
 TestWebKitAPI.PAL
 TestWebKitAPI.PDFSnapshot
@@ -458,7 +453,6 @@ TestWebKitAPI.WKWebExtensionAPIEvent
 TestWebKitAPI.WKWebExtensionAPIExtension
 TestWebKitAPI.WKWebExtensionAPILocalization
 TestWebKitAPI.WKWebExtensionAPINamespace
-TestWebKitAPI.WKWebExtensionAPIStorage
 TestWebKitAPI.WKWebExtensionContext
 TestWebKitAPI.WKWebExtensionController
 TestWebKitAPI.WKWebExtensionControllerConfiguration

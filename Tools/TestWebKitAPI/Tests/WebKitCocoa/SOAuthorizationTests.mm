@@ -467,12 +467,14 @@ static String generateOpenerHTML(const char* templateHTML, const String& substit
 ALLOW_NONLITERAL_FORMAT_END
 #endif
 
-static void checkAuthorizationOptions(bool userActionInitiated, String initiatorOrigin, int initiatingAction)
+static void checkAuthorizationOptions(bool userActionInitiated, String initiatorOrigin, int initiatingAction, String path = { })
 {
     EXPECT_TRUE(gAuthorization);
     EXPECT_EQ(((NSNumber *)[gAuthorization authorizationOptions][SOAuthorizationOptionUserActionInitiated]).boolValue, userActionInitiated);
     EXPECT_WK_STREQ([gAuthorization authorizationOptions][SOAuthorizationOptionInitiatorOrigin], initiatorOrigin);
     EXPECT_EQ(((NSNumber *)[gAuthorization authorizationOptions][SOAuthorizationOptionInitiatingAction]).intValue, initiatingAction);
+    if (!path.isNull())
+        EXPECT_WK_STREQ([gAuthorization authorizationOptions][kSOAuthorizationOptionInitiatingPath], path);
 }
 
 #define SWIZZLE_SOAUTH(SOAuthClass) \
@@ -862,9 +864,9 @@ TEST(SOAuthorizationRedirect, InterceptionSucceedWith302AfterRedirection)
     auto simpleURL = server.request("/simple.html"_s).URL;
     redirectHeaders.add("location"_s, simpleURL.absoluteString);
 
-    TestWebKitAPI::HTTPResponse redirectResponse(302, WTFMove(redirectHeaders));
+    TestWebKitAPI::HTTPResponse redirectResponse(302, WTF::move(redirectHeaders));
 
-    server.addResponse("/redirection.html"_s, WTFMove(redirectResponse));
+    server.addResponse("/redirection.html"_s, WTF::move(redirectResponse));
 
     navigationCompleted = false;
 
@@ -1471,6 +1473,25 @@ TEST(SOAuthorizationRedirect, AuthorizationOptions)
     [webView evaluateJavaScript: @"location = 'http://www.example.com'" completionHandler:nil];
     Util::run(&authorizationPerformed);
     checkAuthorizationOptions(true, "http://www.webkit.org"_s, 0);
+    EXPECT_TRUE(policyForAppSSOPerformed);
+}
+
+TEST(SOAuthorizationRedirect, AuthorizationOptionsWithPath)
+{
+    resetState();
+    SWIZZLE_SOAUTH(PAL::getSOAuthorizationClassSingleton());
+
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    auto delegate = adoptNS([[TestSOAuthorizationDelegate alloc] init]);
+    configureSOAuthorizationWebView(webView.get(), delegate.get());
+
+    [webView loadHTMLString:@"" baseURL:URL { "http://www.webkit.org/some/path"_str }.createNSURL().get()];
+    Util::run(&navigationCompleted);
+
+    [delegate setShouldOpenExternalSchemes:true];
+    [webView evaluateJavaScript: @"location = 'http://www.example.com/test/path'" completionHandler:nil];
+    Util::run(&authorizationPerformed);
+    checkAuthorizationOptions(true, "http://www.webkit.org"_s, 0, "/some/path"_s);
     EXPECT_TRUE(policyForAppSSOPerformed);
 }
 
@@ -2642,6 +2663,32 @@ TEST(SOAuthorizationSubFrame, NoInterceptionsNonAppleFirstPartyMainFrame)
     EXPECT_FALSE(policyForAppSSOPerformed);
 }
 
+TEST(SOAuthorizationSubFrame, UserCancel)
+{
+    resetState();
+    SWIZZLE_SOAUTH(PAL::getSOAuthorizationClassSingleton());
+    SWIZZLE_AKAUTH();
+
+    RetainPtr baseURL = [NSBundle.test_resourcesBundle URLForResource:@"simple2" withExtension:@"html"];
+    RetainPtr testURL = [NSBundle.test_resourcesBundle URLForResource:@"GetSessionCookie" withExtension:@"html"];
+    String testHtml = generateHTML(parentTemplate, testURL.get().absoluteString);
+
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr messageHandler = adoptNS([[TestSOAuthorizationScriptMessageHandler alloc] initWithExpectation:@[[NSNull null], @"SOAuthorizationDidStart"]]);
+    [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"testHandler"];
+
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([[TestSOAuthorizationDelegate alloc] init]);
+    configureSOAuthorizationWebView(webView.get(), delegate.get());
+
+    [webView loadHTMLString:testHtml.createNSString().get() baseURL:baseURL.get()];
+    Util::run(&allMessagesReceived);
+
+    [messageHandler extendExpectations:@[@"null", @"SOAuthorizationDidUserCancel", @""]];
+    [gDelegate authorization:gAuthorization didCompleteWithError:adoptNS([[NSError alloc] initWithDomain:@"AKAuthenticationError" code:-7003 userInfo:nil]).get()];
+    Util::run(&allMessagesReceived);
+}
+
 TEST(SOAuthorizationSubFrame, InterceptionError)
 {
     resetState();
@@ -2735,6 +2782,43 @@ TEST(SOAuthorizationSubFrame, InterceptionSuccess)
     auto iframeHtmlCString = generateHTML(iframeTemplate, emptyString()).utf8();
     [gDelegate authorization:gAuthorization didCompleteWithHTTPResponse:response.get() httpBody:adoptNS([[NSData alloc] initWithBytes:iframeHtmlCString.data() length:iframeHtmlCString.length()]).get()];
     Util::run(&allMessagesReceived);
+}
+
+TEST(SOAuthorizationSubFrame, InterceptionSuccessBackForwardList)
+{
+    resetState();
+    SWIZZLE_SOAUTH(PAL::getSOAuthorizationClassSingleton());
+    SWIZZLE_AKAUTH();
+
+    URL exampleURL { "http://www.example.com"_str };
+    auto parentHtml = generateHTML(parentTemplate, exampleURL.string());
+    TestWebKitAPI::HTTPServer server({
+        { "/"_s, { parentHtml } }
+    }, TestWebKitAPI::HTTPServer::Protocol::Http);
+
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    RetainPtr messageHandler = adoptNS([[TestSOAuthorizationScriptMessageHandler alloc] initWithExpectation:@[]]);
+    [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"testHandler"];
+
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500) configuration:configuration.get()]);
+    RetainPtr delegate = adoptNS([[TestSOAuthorizationDelegate alloc] init]);
+    configureSOAuthorizationWebView(webView.get(), delegate.get());
+
+    [messageHandler resetExpectations:@[@"http://www.example.com", @"SOAuthorizationDidStart"]];
+    [webView _loadRequest:server.request() shouldOpenExternalURLs:NO];
+    Util::run(&allMessagesReceived);
+
+    checkAuthorizationOptions(false, makeString("http://127.0.0.1:"_s, server.port()), 2);
+    EXPECT_TRUE(policyForAppSSOPerformed);
+
+    [messageHandler extendExpectations:@[@"http://www.example.com", @"Hello."]];
+
+    RetainPtr response = adoptNS([[NSHTTPURLResponse alloc] initWithURL:exampleURL.createNSURL().get() statusCode:200 HTTPVersion:@"HTTP/1.1" headerFields:nil]);
+    auto iframeHtmlCString = generateHTML(iframeTemplate, emptyString()).utf8();
+    [gDelegate authorization:gAuthorization didCompleteWithHTTPResponse:response.get() httpBody:adoptNS([[NSData alloc] initWithBytes:iframeHtmlCString.data() length:iframeHtmlCString.length()]).get()];
+    Util::run(&allMessagesReceived);
+
+    EXPECT_FALSE([webView canGoBack]);
 }
 
 TEST(SOAuthorizationSubFrame, InterceptionSucceedWithOtherHttpStatusCode)

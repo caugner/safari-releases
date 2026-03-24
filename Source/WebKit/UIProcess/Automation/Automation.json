@@ -131,7 +131,9 @@
                 "None",
                 "Left",
                 "Middle",
-                "Right"
+                "Right",
+                "Back",
+                "Forward"
             ]
         },
         {
@@ -460,6 +462,15 @@
         {
             "name": "switchToBrowsingContext",
             "description": "Activates the specified browsing context and optional frame, which gives them focus (causing the 'focus' DOM event to fire, and 'blur' DOM event to fire for the previous browsing context and frame).",
+            "parameters": [
+                { "name": "browsingContextHandle", "$ref": "BrowsingContextHandle", "description": "The handle for the browsing context that should be made focused." },
+                { "name": "frameHandle", "$ref": "FrameHandle", "optional": true, "description": "The handle for the frame that should be focused. Defaults to the main frame if omitted." }
+            ],
+            "async": true
+        },
+        {
+            "name": "resolveBrowsingContext",
+            "description": "Validates that the specified browsing context exists. Command fails with <code>WindowNotFound</code> or <code>FrameNotFound</code> if the browsing context is invalid. Does not depend on user prompt handler behaviors.",
             "parameters": [
                 { "name": "browsingContextHandle", "$ref": "BrowsingContextHandle", "description": "The handle for the browsing context that should be made focused." },
                 { "name": "frameHandle", "$ref": "FrameHandle", "optional": true, "description": "The handle for the frame that should be focused. Defaults to the main frame if omitted." }

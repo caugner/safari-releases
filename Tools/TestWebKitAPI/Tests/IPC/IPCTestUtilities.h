@@ -32,6 +32,7 @@
 #include <wtf/Deque.h>
 #include <wtf/Forward.h>
 #include <wtf/TZoneMalloc.h>
+#include <wtf/threads/BinarySemaphore.h>
 
 namespace TestWebKitAPI {
 
@@ -193,19 +194,19 @@ public:
     // Handler returns false if the message should be just recorded.
     void setAsyncMessageHandler(Function<bool(IPC::Connection&, IPC::Decoder&)>&& handler)
     {
-        m_asyncMessageHandler = WTFMove(handler);
+        m_asyncMessageHandler = WTF::move(handler);
     }
 
     // Handler contract as IPC::MessageReceiver::didReceiveSyncMessage: false on invalid message, may adopt encoder,
     // decoder used only during the call, if encoder not adopted it will be submitted.
     void setSyncMessageHandler(Function<bool(IPC::Connection&, IPC::Decoder&, UniqueRef<IPC::Encoder>&)>&& handler)
     {
-        m_syncMessageHandler = WTFMove(handler);
+        m_syncMessageHandler = WTF::move(handler);
     }
 
     void setInvalidMessageHandler(Function<bool(IPC::Connection&, IPC::MessageName, const Vector<uint32_t>&)>&& handler)
     {
-        m_invalidMessageHandler = WTFMove(handler);
+        m_invalidMessageHandler = WTF::move(handler);
     }
 
 private:
@@ -341,6 +342,49 @@ public:
     {
         teardownBase();
     }
+};
+
+class AutoWorkQueue {
+public:
+    class WorkQueueWithShutdown : public WorkQueue {
+    public:
+        static Ref<WorkQueueWithShutdown> create(ASCIILiteral name) { return adoptRef(*new WorkQueueWithShutdown(name)); }
+        void beginShutdown()
+        {
+            dispatch([this, strong = Ref { *this }] {
+                m_shutdown = true;
+                m_semaphore.signal();
+            });
+        }
+        void waitUntilShutdown()
+        {
+            while (!m_shutdown)
+                m_semaphore.wait();
+        }
+
+    private:
+        WorkQueueWithShutdown(ASCIILiteral name)
+            : WorkQueue(name, QOS::Default)
+        {
+        }
+        std::atomic<bool> m_shutdown { false };
+        BinarySemaphore m_semaphore;
+    };
+
+    AutoWorkQueue()
+        : m_workQueue(WorkQueueWithShutdown::create("com.apple.WebKit.Test.simple"_s))
+    {
+    }
+
+    Ref<WorkQueueWithShutdown> queue() { return m_workQueue; }
+
+    ~AutoWorkQueue()
+    {
+        m_workQueue->waitUntilShutdown();
+    }
+
+private:
+    Ref<WorkQueueWithShutdown> m_workQueue;
 };
 
 

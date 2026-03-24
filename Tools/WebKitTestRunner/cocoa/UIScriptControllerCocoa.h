@@ -53,6 +53,7 @@ private:
     JSRetainPtr<JSStringRef> lastUndoLabel() const override;
     JSRetainPtr<JSStringRef> firstRedoLabel() const override;
     JSRetainPtr<JSStringRef> caLayerTreeAsText() const override;
+    JSRetainPtr<JSStringRef> caLayerTreeAsTextForLayerWithID(uint64_t layerID) const override;
     NSUndoManager *platformUndoManager() const override;
     JSObjectRef propertiesOfLayerWithID(uint64_t layerID) const final;
 
@@ -103,6 +104,11 @@ private:
     void cancelFixedColorExtensionFadeAnimations() const final;
 
     void setObscuredInsets(double top, double right, double bottom, double left) final;
+
+#if ENABLE(THREADED_ANIMATIONS)
+    JSRetainPtr<JSStringRef> animationStackForLayerWithID(uint64_t layerID) const final;
+    JSRetainPtr<JSStringRef> progressBasedTimelinesForScrollingNodeID(unsigned long long scrollingNodeID, unsigned long long processID) const final;
+#endif
 };
 
 } // namespace WTR

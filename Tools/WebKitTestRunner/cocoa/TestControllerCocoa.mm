@@ -358,9 +358,6 @@ void TestController::platformCreateWebView(WKPageConfigurationRef configuration,
     if (options.punchOutWhiteBackgroundsInDarkMode())
         m_mainWebView->setDrawsBackground(false);
 
-    if (options.editable())
-        m_mainWebView->setEditable(true);
-
     m_mainWebView->platformView().allowsLinkPreview = options.allowsLinkPreview();
     [m_mainWebView->platformView() _setShareSheetCompletesImmediatelyWithResolutionForTesting:YES];
 }
@@ -565,7 +562,7 @@ unsigned TestController::imageCountInGeneralPasteboard() const
 void TestController::removeAllSessionCredentials(CompletionHandler<void(WKTypeRef)>&& completionHandler)
 {
     auto types = adoptNS([[NSSet alloc] initWithObjects:_WKWebsiteDataTypeCredentials, nil]);
-    [(__bridge WKWebsiteDataStore *)m_websiteDataStore.get() removeDataOfTypes:types.get() modifiedSince:[NSDate distantPast] completionHandler:makeBlockPtr([completionHandler = WTFMove(completionHandler)] () mutable {
+    [(__bridge WKWebsiteDataStore *)m_websiteDataStore.get() removeDataOfTypes:types.get() modifiedSince:[NSDate distantPast] completionHandler:makeBlockPtr([completionHandler = WTF::move(completionHandler)] () mutable {
         completionHandler(nullptr);
     }).get()];
 }
@@ -746,7 +743,7 @@ void TestController::configureWebpagePreferences(WKWebViewConfiguration *configu
         [webpagePreferences _setNetworkConnectionIntegrityPolicy:_WKWebsiteNetworkConnectionIntegrityPolicyNone];
 
     if (options.enhancedSecurityEnabled())
-        webpagePreferences.get()._enhancedSecurityEnabled = YES;
+        webpagePreferences.get().securityRestrictionMode = WKSecurityRestrictionModeMaximizeCompatibility;
 
 #if PLATFORM(IOS_FAMILY)
     [webpagePreferences setPreferredContentMode:contentMode(options)];
@@ -869,7 +866,7 @@ WKRetainPtr<WKStringRef> TestController::backgroundFetchState(WKStringRef identi
 
 void TestController::updatePresentation(CompletionHandler<void(WKTypeRef)>&& completionHandler)
 {
-    [m_mainWebView->platformView() _doAfterNextPresentationUpdate:makeBlockPtr([completionHandler = WTFMove(completionHandler)] mutable {
+    [m_mainWebView->platformView() _doAfterNextPresentationUpdate:makeBlockPtr([completionHandler = WTF::move(completionHandler)] mutable {
         completionHandler(nullptr);
     }).get()];
 }
