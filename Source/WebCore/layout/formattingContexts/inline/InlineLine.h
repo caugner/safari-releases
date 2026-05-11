@@ -62,8 +62,10 @@ public:
 
     void setContentNeedsBidiReordering() { m_hasNonDefaultBidiLevelRun = true; }
 
-    bool hasContent() const;
-    bool hasContentOrListMarker() const;
+    enum class IncludeInsideListMarker : bool { No, Yes };
+    bool hasContent(IncludeInsideListMarker = IncludeInsideListMarker::No) const;
+    bool hasContentOrDecoration(IncludeInsideListMarker = IncludeInsideListMarker::No) const;
+    bool hasLineSpanningInlineBoxOnly() const;
     bool hasRubyContent() const { return m_hasRubyContent; }
 
     InlineLayoutUnit contentLogicalWidth() const { return m_contentLogicalWidth; }
@@ -125,7 +127,6 @@ public:
         bool isBlock() const { return m_type == Type::Block; }
 
         bool isContentful() const { return (isText() && textContent()->length) || isAtomicInlineBox() || isLineBreak() || isListMarker() || isBlock(); }
-        bool isGenerated() const { return isListMarker(); }
         static bool isContentfulOrHasDecoration(const Run&, const InlineFormattingContext&);
 
         const Box& layoutBox() const { return *m_layoutBox; }
@@ -325,22 +326,28 @@ private:
     Vector<InlineLayoutUnit> m_inlineBoxLogicalLeftStack;
 };
 
-inline bool Line::hasContentOrListMarker() const
+inline bool Line::hasContent(IncludeInsideListMarker includeInsideListMarker) const
 {
     if (m_runs.isEmpty())
         return false;
-    if (m_runs.first().isListMarkerInside())
+    if (includeInsideListMarker == IncludeInsideListMarker::Yes && m_runs.first().isListMarkerInside())
         return true;
-    return Line::hasContent();
-}
-
-inline bool Line::hasContent() const
-{
     for (auto& run : m_runs | std::views::reverse) {
-        if (run.isContentful() && !run.isGenerated())
+        if (run.isContentful() && !run.isListMarker())
             return true;
     }
     return false;
+}
+
+inline bool Line::hasLineSpanningInlineBoxOnly() const
+{
+    if (m_runs.isEmpty())
+        return false;
+    for (auto& run : m_runs | std::views::reverse) {
+        if (!run.isLineSpanningInlineBoxStart() && !run.isInlineBoxEnd())
+            return false;
+    }
+    return true;
 }
 
 inline void Line::TrimmableTrailingContent::reset()

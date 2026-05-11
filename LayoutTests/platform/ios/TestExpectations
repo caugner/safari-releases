@@ -535,6 +535,7 @@ http/tests/local/fileapi/send-dragged-file.html [ Skip ]
 http/tests/local/fileapi/send-sliced-dragged-file.html [ Skip ]
 http/tests/misc/bubble-drag-events.html [ Skip ]
 # http/tests/security/drag-drop-same-unique-origin.html [ Skip ] # TODO: overridden by failure expectation below.
+fast/events/drag-relatedTarget.html [ Skip ]
 
 # No support for force events
 fast/events/force-click-link-selection-behavior.html [ Skip ]
@@ -709,6 +710,7 @@ fast/events/mousemove-events-within-no-element.html [ Skip ]
 fast/events/mouse-click-events.html [ Skip ]
 fast/events/mouse-cursor-change.html [ Skip ]
 fast/events/mouse-cursor-image-set.html [ Skip ]
+fast/events/mouse-cursor-image-set-svg.html [ Skip ]
 fast/events/mouse-cursor-multiframecur.html [ Skip ]
 fast/events/mouse-cursor-no-mousemove.html [ Skip ]
 fast/events/mouse-cursor-update-during-raf.html [ Skip ]
@@ -2403,6 +2405,7 @@ accessibility/image-map-link-title-text.html [ Pass ]
 accessibility/invalid-inputs.html [ Pass ]
 accessibility/insert-text-into-password-field.html [ Pass ]
 accessibility/language-attribute-change.html [ Pass ]
+accessibility/line-range-display-table-in-flex.html [ Pass ]
 accessibility/link-becomes-visited.html [ Pass ]
 accessibility/list-marker-text-stitching.html [ Pass ]
 accessibility/list-with-dynamically-changing-content.html [ Pass ]
@@ -3852,6 +3855,7 @@ imported/w3c/web-platform-tests/css/css-pseudo/highlight-cascade/highlight-casca
 imported/w3c/web-platform-tests/css/css-pseudo/highlight-styling-001.html [ Pass ]
 imported/w3c/web-platform-tests/css/css-pseudo/highlight-styling-004.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-pseudo/highlight-custom-properties-dynamic-001.html [ Pass ]
+imported/w3c/web-platform-tests/css/css-pseudo/input-element-pseudo-open-click.optional.html [ Skip ]
 
 imported/w3c/web-platform-tests/css/css-transforms/ttwf-css-3d-polygon-cycle.html [ ImageOnlyFailure ]
 
@@ -4095,6 +4099,9 @@ webkit.org/b/251219 fast/images/animated-avif.html [ ImageOnlyFailure ]
 # MSE isn't supported on iPhone at this time.
 media/mediacapabilities/mediacapabilities-allowed-codecs.html [ Failure ]
 media/mediacapabilities/mediacapabilities-allowed-containers.html [ Failure ]
+
+# Simulator doesn't support Spatial Audio Playback
+media/mediacapabilities/mediacapabilities-decodingInfo-spatialRendering.html [ Failure ]
 
 # Screen Orientation API doesn't support nested frames yet
 # TODO: figure out if this still applies.
@@ -5754,6 +5761,7 @@ imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customiz
 imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-appearance-writing-mode-vertical-rl.html [ Skip ]
 imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-option-arrow-scroll.optional.html [ Skip ]
 imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-tabindex-order.html [ Skip ]
+imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-events-2.optional.html [ Skip ]
 imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/select-tab-navigation.tentative.html [ Skip ]
 imported/w3c/web-platform-tests/uievents/click/auxclick_event.html [ Skip ]
 imported/w3c/web-platform-tests/uievents/click/click_event_target_child_parent.html [ Skip ]
@@ -6703,6 +6711,9 @@ imported/w3c/web-platform-tests/html/dom/render-blocking/remove-element-unblocks
 
 # Time out since import.
 imported/w3c/web-platform-tests/html/editing/focus/sequential-focus-navigation-and-the-tabindex-attribute/focus-tabindex-event.html [ Skip ]
+
+# Drag-and-drop testdriver automation is not supported on iOS.
+webkit.org/b/66547 imported/w3c/web-platform-tests/html/editing/dnd/events/dragenter-dragleave-related-target.html [ Skip ]
 
 ######################################################
 # Test failures from turning GPU Process on by default
@@ -8464,4 +8475,3 @@ webgl/webgl2-provoking-vertex-primitive-restart-uint16-nocrash.html [ Skip ]
 # Requires mousedown
 media/caption-display-settings/caption-display-settings-default-anchorBounds.html [ Skip ]
 
-webkit.org/b/308304 webanimations/threaded-animations/scroll-driven-animation-failed-assertion-in-scroll-timeline.html [ Pass Crash ]

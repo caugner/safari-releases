@@ -730,6 +730,15 @@ bool Quirks::needsGeforcenowWarningDisplayNoneQuirk() const
     return m_quirksData.quirkIsEnabled(QuirksData::SiteSpecificQuirk::NeedsGeforcenowWarningDisplayNoneQuirk);
 }
 
+// zillow.com rdar://171279940
+// FIXME: Remove after rdar://172303198 is implemented.
+bool Quirks::needsZillowFloorplanMarginQuirk() const
+{
+    QUIRKS_EARLY_RETURN_IF_DISABLED_WITH_VALUE(false);
+
+    return m_quirksData.quirkIsEnabled(QuirksData::SiteSpecificQuirk::NeedsZillowFloorplanMarginQuirk);
+}
+
 // Kugou Music rdar://74602294
 bool Quirks::shouldOmitHTMLDocumentSupportedPropertyNames()
 {
@@ -2224,6 +2233,13 @@ bool Quirks::needsSuppressPostLayoutBoundaryEventsQuirk() const
     return m_quirksData.quirkIsEnabled(QuirksData::SiteSpecificQuirk::NeedsSuppressPostLayoutBoundaryEventsQuirk);
 }
 
+bool Quirks::needsGlyphOverflowCollectQuirk() const
+{
+    QUIRKS_EARLY_RETURN_IF_DISABLED_WITH_VALUE(false);
+
+    return m_quirksData.quirkIsEnabled(QuirksData::SiteSpecificQuirk::NeedsGlyphOverflowCollectQuirk);
+}
+
 // tiktok.com rdar://149712691
 std::optional<Quirks::TikTokOverflowingContentQuirkType> Quirks::needsTikTokOverflowingContentQuirk(const Element& element, const RenderStyle& parentStyle) const
 {
@@ -2931,10 +2947,6 @@ static void handleGoogleQuirks(QuirksData& quirksData, const URL& quirksURL, con
     // docs.google.com https://bugs.webkit.org/show_bug.cgi?id=161984
     quirksData.setQuirkState(QuirksData::SiteSpecificQuirk::IsTouchBarUpdateSuppressedForHiddenContentEditableQuirk, quirksData.isGoogleDocs);
 #endif
-#if ENABLE(MEDIA_STREAM)
-    bool shouldEnableEnumerateDeviceQuirk = topDocumentHost == "meet.google.com"_s;
-    quirksData.setQuirkState(QuirksData::SiteSpecificQuirk::ShouldEnableEnumerateDeviceQuirk, shouldEnableEnumerateDeviceQuirk);
-#endif
     quirksData.isGoogleAccounts = topDocumentHost == "accounts.google.com"_s;
 }
 
@@ -3351,6 +3363,7 @@ static void handleZillowQuirks(QuirksData& quirksData, const URL& quirksURL, con
     // zillow.com rdar://53103732
     bool topDocumentHostIsZillow = quirksURL.host() == "www.zillow.com"_s;
     quirksData.setQuirkState(QuirksData::SiteSpecificQuirk::ShouldAvoidScrollingWhenFocusedContentIsVisibleQuirk, topDocumentHostIsZillow);
+    quirksData.enableQuirk(QuirksData::SiteSpecificQuirk::NeedsZillowFloorplanMarginQuirk);
 #if PLATFORM(IOS) || PLATFORM(VISION)
     // rdar://110097836
     quirksData.enableQuirk(QuirksData::SiteSpecificQuirk::ShouldSilenceResizeObservers);
@@ -3387,6 +3400,13 @@ static void handleCapitalGroupQuirks(QuirksData& quirksData, const URL&, const S
     QUIRKS_EARLY_RETURN_IF_NOT_DOMAIN("capitalgroup.com"_s);
 
     quirksData.enableQuirk(QuirksData::SiteSpecificQuirk::ShouldDelayReloadWhenRegisteringServiceWorker);
+}
+
+static void handleCogniaQuirks(QuirksData& quirksData, const URL&, const String& quirksDomainString, const URL&)
+{
+    QUIRKS_EARLY_RETURN_IF_NOT_DOMAIN("cognia.org"_s);
+
+    quirksData.enableQuirk(QuirksData::SiteSpecificQuirk::NeedsGlyphOverflowCollectQuirk);
 }
 
 static void handleCrunchyRollQuirks(QuirksData& quirksData, const URL&, const String& quirksDomainString, const URL&)
@@ -3456,6 +3476,7 @@ void Quirks::determineRelevantQuirks()
         { "digitaltrends"_s, &handleDigitalTrendsQuirks },
         { "steampowered"_s, &handleSteamQuirks },
 #endif
+        { "cognia"_s, &handleCogniaQuirks },
         { "crunchyroll"_s, &handleCrunchyRollQuirks },
         { "t-mobile"_s, &handleTMobileQuirks },
         { "descript"_s, &handleDescriptQuirks },

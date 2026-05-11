@@ -595,7 +595,6 @@ imported/w3c/web-platform-tests/css/css-grid/grid-model/grid-container-scrollbar
 imported/w3c/web-platform-tests/css/css-masking/clip/clip-rect-scroll.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-position/position-fixed-scroll-nested-fixed.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-ui/outline-negative-offset-composited-scroll.html [ ImageOnlyFailure ]
-imported/w3c/web-platform-tests/css/css-scroll-snap/snap-inline-block.html [ Failure ]
 imported/w3c/web-platform-tests/css/css-transforms/transform3d-preserve3d-001.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/cssom-view/scroll-behavior-element.html [ Failure ]
 
@@ -2523,5 +2522,3 @@ webkit.org/b/308326 [ Debug ] imported/w3c/web-platform-tests/fetch/api/basic/er
 webkit.org/b/308430 webanimations/threaded-animations/accelerated-timeline-preservation-during-update.html [ Pass Crash ]
 
 webkit.org/b/308334 [ Tahoe Debug ] http/tests/webgpu/webgpu/api/validation/gpu_external_texture_expiration.html [ Skip ]
-
-webkit.org/b/308304 webanimations/threaded-animations/scroll-driven-animation-failed-assertion-in-scroll-timeline.html [ Pass Crash ]

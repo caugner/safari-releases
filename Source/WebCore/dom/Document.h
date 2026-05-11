@@ -914,6 +914,7 @@ public:
 
     IDBClient::IDBConnectionProxy* idbConnectionProxy() final;
     RefPtr<IDBClient::IDBConnectionProxy> protectedIDBConnectionProxy();
+    void clearIDBConnectionProxy();
     StorageConnection* storageConnection();
     SocketProvider* socketProvider() final;
     RefPtr<SocketProvider> protectedSocketProvider();
@@ -1866,7 +1867,10 @@ public:
     WEBCORE_EXPORT static const Logger& sharedLogger();
 
     void updateAnimationsAndSendEvents();
+    void updateStaleScrollTimelines();
+#if ENABLE(THREADED_ANIMATIONS)
     void runPostRenderingUpdateAnimationTasks();
+#endif
     WEBCORE_EXPORT DocumentTimeline& timeline();
     DocumentTimeline* existingTimeline() const { return m_timeline.get(); }
     Vector<Ref<WebAnimation>> getAnimations();

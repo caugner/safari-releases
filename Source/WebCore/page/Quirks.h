@@ -133,6 +133,8 @@ public:
     bool needsGoogleTranslateScrollingQuirk() const;
     bool needsGeforcenowWarningDisplayNoneQuirk() const;
 
+    bool needsZillowFloorplanMarginQuirk() const;
+
     bool needsPrimeVideoUserSelectNoneQuirk() const;
 
     bool needsFacebookRemoveNotSupportedQuirk() const;
@@ -316,6 +318,8 @@ public:
 #endif
 
     bool shouldComparareUsedValuesForBorderWidthForTriggeringTransitions() const;
+
+    bool needsGlyphOverflowCollectQuirk() const;
 
     void determineRelevantQuirks();
 

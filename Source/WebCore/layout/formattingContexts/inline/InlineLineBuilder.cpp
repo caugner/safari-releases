@@ -553,6 +553,7 @@ UniqueRef<LineContent> LineBuilder::placeInlineAndFloatContent(const InlineItemR
                             // e.g. <span style="border-right: 10px solid green">text<br></span> where the <br>'s horizontal position is before the right border and not after.
                             auto& trailingLineBreak = *inlineContent.trailingLineBreak();
                             m_line.appendLineBreak(trailingLineBreak, trailingLineBreak.style());
+                            applyMarginInBlockDirectionIfNeeded(ShouldResetMarginValues::Yes);
                             if (trailingLineBreak.bidiLevel() != UBIDI_DEFAULT_LTR)
                                 m_line.setContentNeedsBidiReordering();
                             ++placedInlineItemCount;
@@ -606,7 +607,7 @@ UniqueRef<LineContent> LineBuilder::placeInlineAndFloatContent(const InlineItemR
         auto handleTrailingContent = [&] {
             auto& quirks = formattingContext().quirks();
             auto lineHasOverflow = [&] {
-                return horizontalAvailableSpace < m_line.contentLogicalWidth() && m_line.hasContentOrListMarker();
+                return horizontalAvailableSpace < m_line.contentLogicalWidth() && m_line.hasContent(Line::IncludeInsideListMarker::Yes);
             };
             auto isLineBreakAfterWhitespace = [&] {
                 return rootStyle.lineBreak() == LineBreak::AfterWhiteSpace && intrinsicWidthMode() != IntrinsicWidthMode::Minimum && (!isLastInlineContent || lineHasOverflow());
@@ -1325,7 +1326,7 @@ bool LineBuilder::tryPlacingFloatBox(const Box& floatBox, MayOverConstrainLine m
         return false;
 
     auto didApplyMargin = applyMarginInBlockDirectionIfNeeded(ShouldResetMarginValues::No);
-    ASSERT_UNUSED(didApplyMargin, !didApplyMargin || !m_line.hasContentOrListMarker());
+    ASSERT_UNUSED(didApplyMargin, !didApplyMargin || !m_line.hasContent(Line::IncludeInsideListMarker::Yes));
 
     auto& floatingContext = this->floatingContext();
     auto& boxGeometry = formattingContext().geometryForBox(floatBox);
@@ -1401,7 +1402,7 @@ void LineBuilder::handleBlockContent(const InlineItem& blockItem)
 {
     ASSERT(blockItem.isBlock());
     // Blocks are always the only content on the line.
-    ASSERT(!m_line.hasContentOrListMarker());
+    ASSERT(!m_line.hasContent(Line::IncludeInsideListMarker::Yes));
     if (isInIntrinsicWidthMode())
         return m_line.appendBlock(blockItem, formattingContext().formattingUtils().inlineItemWidth(blockItem, { }, false));
 
@@ -1418,8 +1419,16 @@ void LineBuilder::handleBlockContent(const InlineItem& blockItem)
 LineBuilder::Result LineBuilder::handleInlineContent(const InlineItemRange& layoutRange, LineCandidate& lineCandidate)
 {
     auto result = applyLineBreakingOnCandidateInlineContent(layoutRange, lineCandidate);
-    if (!m_line.hasContentOrListMarker())
+    if (!m_line.hasContentOrDecoration(Line::IncludeInsideListMarker::Yes)) {
+        if (m_line.hasLineSpanningInlineBoxOnly()) {
+            // FIXME: We should always move these empty lines after the margin,
+            // and then move them back retroactively once the block-end side margin collapsing is complete.
+            // At this stage, we don't yet know whether this margin will collapse into the root container's margin.
+            return result;
+        }
+        applyMarginInBlockDirectionIfNeeded(ShouldResetMarginValues::No);
         return result;
+    }
 
     if (!applyMarginInBlockDirectionIfNeeded(ShouldResetMarginValues::Yes) || floatingContext().isEmpty())
         return result;
@@ -1446,7 +1455,7 @@ LineBuilder::Result LineBuilder::handleInlineContent(const InlineItemRange& layo
             if (!precedingNonContentfulContent.inlineContent.isEmpty()) {
                 commitCandidateContent(precedingNonContentfulContent, { });
                 // At this point we can't yet have contentful runs on the line.
-                ASSERT(!m_line.hasContentOrListMarker());
+                ASSERT(!m_line.hasContentOrDecoration(Line::IncludeInsideListMarker::Yes));
             }
         };
         commitPrecedingNonContentfulContent();
@@ -1477,7 +1486,7 @@ LineBuilder::Result LineBuilder::applyLineBreakingOnCandidateInlineContent(const
         return availableWidth(m_line, availableTotalWidthForContent, intrinsicWidthMode());
     }();
 
-    auto lineHasContent = m_line.hasContentOrListMarker();
+    auto lineHasContent = m_line.hasContent(Line::IncludeInsideListMarker::Yes);
     auto verticalPositionHasFloatOrInlineContent = lineHasContent || isLineConstrainedByFloat() || !constraints.constrainedSideSet.isEmpty();
     auto lineBreakingResult = InlineContentBreaker::Result { InlineContentBreaker::Result::Action::Keep, InlineContentBreaker::IsEndOfLine::No, { }, { } };
 
@@ -1760,7 +1769,7 @@ LineBuilder::Result LineBuilder::processLineBreakingResult(LineCandidate& lineCa
         // We are keeping this content on the line but we need to check if we could have wrapped here
         // in order to be able to revert back to this position if needed.
         // Let's just ignore cases like collapsed leading whitespace for now.
-        if (lineCandidate.inlineContent.hasTrailingSoftWrapOpportunity() && m_line.hasContentOrListMarker()) {
+        if (lineCandidate.inlineContent.hasTrailingSoftWrapOpportunity() && m_line.hasContent(Line::IncludeInsideListMarker::Yes)) {
             auto& trailingRun = candidateRuns.last();
             auto& trailingInlineItem = trailingRun.inlineItem;
 

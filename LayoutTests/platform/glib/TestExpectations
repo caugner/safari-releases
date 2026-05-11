@@ -446,6 +446,10 @@ imported/w3c/web-platform-tests/html/canvas/element/text/direction-rtl.html [ Pa
 imported/w3c/web-platform-tests/html/editing/editing-0/spelling-and-grammar-checking/spelling-markers-008.html [ Pass ]
 imported/w3c/web-platform-tests/html/editing/editing-0/spelling-and-grammar-checking/spelling-markers-010.html [ Pass ]
 
+# Drag-and-drop testdriver automation is not supported on GTK/WPE.
+webkit.org/b/66547 imported/w3c/web-platform-tests/html/editing/dnd/events/dragenter-dragleave-related-target.html [ Skip ]
+webkit.org/b/66547 fast/events/drag-relatedTarget.html [ Skip ]
+
 imported/w3c/web-platform-tests/html/dom/elements/global-attributes/dir_auto-pre-N-between-Rs.html [ Pass ]
 imported/w3c/web-platform-tests/html/dom/elements/global-attributes/dir_auto-textarea-N-between-Rs.html [ Pass ]
 imported/w3c/web-platform-tests/html/dom/elements/global-attributes/dir_auto-textarea-script-N-between-Rs.html [ Pass ]
@@ -892,6 +896,7 @@ accessibility/insert-text-into-password-field.html [ Skip ]
 accessibility/native-label-geometry-with-aria-labelledby.html [ Skip ]
 
 # These test a Cocoa-only API.
+accessibility/line-range-display-table-in-flex.html [ Skip ]
 accessibility/mixed-contenteditable-visible-character-range-hang.html [ Skip ]
 accessibility/mixed-contenteditable-double-br-visible-character-range-hang.html [ Skip ]
 
@@ -1303,6 +1308,8 @@ webkit.org/b/230080 imported/w3c/web-platform-tests/css/css-transforms/transform
 
 webkit.org/b/264579 imported/w3c/web-platform-tests/css/css-transforms/animation/transform-interpolation-rotate.html [ ImageOnlyFailure ]
 webkit.org/b/264579 imported/w3c/web-platform-tests/css/css-transforms/transform-3d-rotateY-stair-above-001.xht [ ImageOnlyFailure ]
+
+imported/w3c/web-platform-tests/css/css-transforms/animation/rotate-explicit-and-implicit-keyframes.html [ ImageOnlyFailure ]
 
 imported/w3c/web-platform-tests/css/css-images/gradient/conic-gradient-001.html [ ImageOnlyFailure ]
 
@@ -3291,6 +3298,8 @@ webkit.org/b/201274 media/presentationmodechanged-fired-once.html [ Skip ]
 # Requires unsupported captive portal codec and container restrictions
 webkit.org/b/242145 media/mediacapabilities/mediacapabilities-allowed-codecs.html [ Skip ]
 webkit.org/b/242145 media/mediacapabilities/mediacapabilities-allowed-containers.html [ Skip ]
+# Reports supported for <= 2 channels
+webkit.org/b/309552 media/mediacapabilities/mediacapabilities-decodingInfo-spatialRendering.html [ Failure ]
 
 # These tests require platform support.
 media/media-allowed-codecs.html [ Skip ]
@@ -3553,12 +3562,10 @@ imported/w3c/web-platform-tests/css/css-ui/compute-kind-widget-generated/kind-of
 imported/w3c/web-platform-tests/css/css-ui/compute-kind-widget-generated/kind-of-widget-fallback-textarea-border-top-right-radius-001.html [ ImageOnlyFailure ]
 imported/w3c/web-platform-tests/css/css-ui/compute-kind-widget-generated/grouped-kind-of-widget-fallback-border-top-left-radius-001.html [ ImageOnlyFailure ]
 
+# Customizable select feature.
 imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select-in-page/customizable-select-in-page-keyboard-behavior.tentative.html [ Skip ]
 imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select-in-page/customizable-select-in-page-mouse-behavior.tentative.html [ Skip ]
-imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-inside-top-layer.html [ Skip ]
-imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-mouse-behavior.html [ Skip ]
-imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-picker-exit-animation.html [ Skip ]
-imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select/select-accessibility-minimum-target-size.html [ Skip ]
+imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/customizable-select [ Skip ]
 imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/select-listbox-touch.optional.html [ Skip ]
 imported/w3c/web-platform-tests/html/semantics/forms/the-select-element/select-marker-end-aligned.tentative.html [ Skip ]
 

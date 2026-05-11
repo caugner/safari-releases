@@ -87,6 +87,7 @@ struct QuirksData {
 #if PLATFORM(MAC)
         NeedsFormControlToBeMouseFocusableQuirk,
 #endif
+        NeedsGlyphOverflowCollectQuirk,
 #if PLATFORM(IOS_FAMILY)
         NeedsFullscreenDisplayNoneQuirk,
         NeedsFullscreenObjectFitQuirk,
@@ -236,6 +237,7 @@ struct QuirksData {
         ShouldAvoidStartingSelectionOnMouseDownOverPointerCursor,
         ShouldAllowNotificationPermissionWithoutUserGesture,
         NeedsInstagramResizingReelsQuirk,
+        NeedsZillowFloorplanMarginQuirk,
 #if PLATFORM(IOS_FAMILY)
         NeedsChromeOSNavigatorUserAgentQuirk,
 #endif

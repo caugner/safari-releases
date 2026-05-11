@@ -167,6 +167,7 @@ if (ENABLE_JAVASCRIPTCORE)
         Tests/JavaScriptCore/DisallowVMEntry.cpp
         Tests/JavaScriptCore/InspectorConsoleMessage.cpp
         Tests/JavaScriptCore/PropertySlot.cpp
+        Tests/JavaScriptCore/RegularExpression.cpp
     )
 
     set(TestJavaScriptCore_LIBRARIES
@@ -212,6 +213,7 @@ if (ENABLE_WEBCORE)
         Tests/WebCore/GridPosition.cpp
         Tests/WebCore/HTMLParserIdioms.cpp
         Tests/WebCore/HTTPParsers.cpp
+        Tests/WebCore/IDBKeyData.cpp
         Tests/WebCore/ImageBufferTests.cpp
         Tests/WebCore/IntPointTests.cpp
         Tests/WebCore/IntRectTests.cpp
