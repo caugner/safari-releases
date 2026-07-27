@@ -233,6 +233,8 @@ bool SWServerRegistration::tryClear()
 // https://w3c.github.io/ServiceWorker/#clear-registration
 void SWServerRegistration::clear()
 {
+    RELEASE_LOG(ServiceWorker, "SWServerRegistration::clear %" PRIu64, identifier().toUInt64());
+
     if (RefPtr preInstallationWorker = m_preInstallationWorker) {
         ASSERT(preInstallationWorker->state() == ServiceWorkerState::Parsed);
         preInstallationWorker->terminate();
@@ -396,7 +398,7 @@ std::optional<ExceptionData> SWServerRegistration::enableNavigationPreload()
         return ExceptionData { ExceptionCode::InvalidStateError, "No active worker"_s };
 
     m_preloadState.enabled = true;
-    protectedServer()->storeRegistrationForWorker(*activeWorker);
+    protectedServer()->storeRegistrationForWorkerIfNecessary(*activeWorker);
     return { };
 }
 
@@ -408,7 +410,7 @@ std::optional<ExceptionData> SWServerRegistration::disableNavigationPreload()
         return ExceptionData { ExceptionCode::InvalidStateError, "No active worker"_s };
 
     m_preloadState.enabled = false;
-    protectedServer()->storeRegistrationForWorker(*activeWorker);
+    protectedServer()->storeRegistrationForWorkerIfNecessary(*activeWorker);
     return { };
 }
 
@@ -423,7 +425,7 @@ std::optional<ExceptionData> SWServerRegistration::setNavigationPreloadHeaderVal
         return ExceptionData { ExceptionCode::InvalidStateError, "No active worker"_s };
 
     m_preloadState.headerValue = WTF::move(headerValue);
-    protectedServer()->storeRegistrationForWorker(*activeWorker);
+    protectedServer()->storeRegistrationForWorkerIfNecessary(*activeWorker);
     return { };
 }
 

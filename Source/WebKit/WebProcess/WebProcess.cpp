@@ -922,7 +922,8 @@ void WebProcess::registerURLSchemeAsDisplayIsolated(const String& urlScheme) con
 
 void WebProcess::registerURLSchemeAsCORSEnabled(const String& urlScheme)
 {
-    LegacySchemeRegistry::registerURLSchemeAsCORSEnabled(urlScheme);
+    if (LegacySchemeRegistry::registerURLSchemeAsCORSEnabled(urlScheme) == LegacySchemeRegistry::SchemeRegisteredForTheFirstTime::No)
+        return;
     ensureNetworkProcessConnection().connection().send(Messages::NetworkConnectionToWebProcess::RegisterURLSchemesAsCORSEnabled({ urlScheme }), 0);
 }
 
@@ -1390,9 +1391,6 @@ NetworkProcessConnection& WebProcess::ensureNetworkProcessConnection()
 #endif
         // This can be called during a WebPage's constructor, so wait until after the constructor returns to touch the WebPage.
         RunLoop::mainSingleton().dispatch([this, protectedThis = Ref { *this }] {
-            for (auto& webPage : m_pageMap.values())
-                webPage->synchronizeCORSDisablingPatternsWithNetworkProcess();
-
             if (std::exchange(m_needsIDBConnectionRefreshForWorkers, false))
                 refreshIDBConnectionForWorkers();
         });
@@ -1469,6 +1467,7 @@ void WebProcess::networkProcessConnectionClosed(NetworkProcessConnection* connec
     m_webLoaderStrategy->networkProcessCrashed();
     m_webSocketChannelManager.networkProcessCrashed();
     m_broadcastChannelRegistry->networkProcessCrashed();
+    WebMessagePortChannelProvider::singleton().networkProcessConnectionClosed();
 
 #if USE(LIBWEBRTC)
     if (m_libWebRTCNetwork)

@@ -48,6 +48,8 @@
 #include "ProcessTerminationReason.h"
 #include "ProvisionalFrameProxy.h"
 #include "ProvisionalPageProxy.h"
+#include "RemoteObjectRegistry.h"
+#include "RemoteObjectRegistryMessages.h"
 #include "RemotePageProxy.h"
 #include "RemoteWorkerType.h"
 #include "ServiceWorkerNotificationHandler.h"
@@ -361,6 +363,11 @@ WebProcessProxy::~WebProcessProxy()
     RELEASE_ASSERT(isMainThreadOrCheckDisabled());
     ASSERT(m_pageURLRetainCountMap.isEmpty());
     WEBPROCESSPROXY_RELEASE_LOG(Process, "destructor:");
+
+    // ~AuxiliaryProcessProxy() replies to pending messages after our members are gone; a reply
+    // handler that upgrades its still-live WeakPtr<WebProcessProxy> would then touch freed members
+    // (e.g. m_pagesPendingClose). Cancel them now, while our state is intact.
+    replyToPendingMessages();
 
     liveProcessesLRU().remove(*this);
 
@@ -934,17 +941,35 @@ void WebProcessProxy::removePagePendingClose(WebPageProxyIdentifier pageID)
 
 bool WebProcessProxy::hasCommittedClientOrigin(const WebCore::ClientOrigin& clientOrigin) const
 {
+    if (m_committedClientOrigins.contains(clientOrigin))
+        return true;
+
     if (isRunningWorkers()) {
         if (!m_site)
             return m_committedSites.contains(Site { clientOrigin.topOrigin }) && m_committedSites.contains(Site { clientOrigin.clientOrigin });
         return Site { clientOrigin.topOrigin } == *m_site && Site { clientOrigin.clientOrigin } == *m_site;
     }
-    return m_committedClientOrigins.contains(clientOrigin);
+
+    return false;
 }
 
 void WebProcessProxy::didCommitLoadClientOrigin(WebCore::ClientOrigin&& clientOrigin)
 {
     m_committedClientOrigins.add(WTF::move(clientOrigin));
+}
+
+void WebProcessProxy::sendPageCloseMessage(std::optional<WebPageProxyIdentifier> pageProxyID, WebCore::PageIdentifier pageID, CompletionHandler<void()>&& completionHandler)
+{
+    if (pageProxyID)
+        m_pagesPendingClose.add(*pageProxyID);
+    sendWithAsyncReply(Messages::WebPage::Close(), [weakThis = WeakPtr { *this }, pageProxyID, completionHandler = WTF::move(completionHandler)]() mutable {
+        if (RefPtr protectedThis = weakThis; protectedThis && pageProxyID) {
+            protectedThis->m_pagesPendingClose.remove(*pageProxyID);
+            protectedThis->reportProcessDisassociatedWithPageIfNecessary(*pageProxyID);
+        }
+        if (completionHandler)
+            completionHandler();
+    }, pageID);
 }
 
 void WebProcessProxy::addVisitedLinkStoreUser(VisitedLinkStore& visitedLinkStore, WebPageProxyIdentifier pageID)
@@ -1113,9 +1138,12 @@ bool WebProcessProxy::checkURLReceivedFromWebProcess(const URL& url, CheckBackFo
 
     // Items in back/forward list have been already checked.
     // One case where we don't have sandbox extensions for file URLs in b/f list is if the list has been reinstated after a crash or a browser restart.
+    // Only consider items belonging to a page hosted by this WebProcessProxy.
     if (checkBackForwardList == CheckBackForwardList::Yes) {
         String path = url.fileSystemPath();
         for (auto& item : WebBackForwardListItem::allItems().values()) {
+            if (!m_pageMap.contains(item->pageID()))
+                continue;
             URL itemURL { item->url() };
             if (itemURL.protocolIsFile() && itemURL.fileSystemPath() == path)
                 return true;
@@ -1276,6 +1304,29 @@ bool WebProcessProxy::shouldAllowNonValidInjectedCode() const
 }
 #endif
 
+#if PLATFORM(COCOA)
+bool WebProcessProxy::handleRemoteObjectRegistryMessage(IPC::Connection& connection, IPC::Decoder& decoder)
+{
+    if (!WebPageProxyIdentifier::isValidIdentifier(decoder.destinationID()))
+        return false;
+
+    WebPageProxyIdentifier pageID(decoder.destinationID());
+    if (!isAssociatedWithPage(pageID))
+        return false;
+
+    RefPtr page = WebPageProxy::fromIdentifier(pageID);
+    if (!page)
+        return false;
+
+    RefPtr registry = page->uiRemoteObjectRegistry();
+    if (!registry)
+        return false;
+
+    registry->didReceiveMessage(connection, decoder);
+    return true;
+}
+#endif
+
 bool WebProcessProxy::dispatchMessage(IPC::Connection& connection, IPC::Decoder& decoder)
 {
     // If AuxiliaryProcessProxy gets .messages.in, use WantsDispatchMessages and remove this.
@@ -1283,7 +1334,12 @@ bool WebProcessProxy::dispatchMessage(IPC::Connection& connection, IPC::Decoder&
         return true;
     if (protectedProcessPool()->dispatchMessage(connection, decoder))
         return true;
-    if (decoder.messageReceiverName() == Messages::WebFrameProxy::messageReceiverName()) {
+    auto messageName = decoder.messageReceiverName();
+#if PLATFORM(COCOA)
+    if (messageName == Messages::RemoteObjectRegistry::messageReceiverName())
+        return handleRemoteObjectRegistryMessage(connection, decoder);
+#endif
+    if (messageName == Messages::WebFrameProxy::messageReceiverName()) {
         if (RefPtr frame = FrameIdentifier::isValidIdentifier(decoder.destinationID()) ? WebFrameProxy::webFrame(FrameIdentifier(decoder.destinationID())) : nullptr)
             frame->didReceiveMessage(connection, decoder);
         else
@@ -1556,6 +1612,28 @@ bool WebProcessProxy::wasPreviouslyApprovedFileURL(const URL& url) const
     if (fileSystemPath.isEmpty())
         return false;
     return m_previouslyApprovedFilePaths.contains(fileSystemPath);
+}
+
+bool WebProcessProxy::hasGrantedSandboxExtensionForFile(const String& filePath) const
+{
+    if (m_mayHaveUniversalFileReadSandboxExtension)
+        return true;
+
+    auto startsWithPath = [&filePath](const String& accessPath) {
+        return filePath.startsWith(accessPath);
+    };
+
+    auto& platformPaths = platformPathsWithAssumedReadAccess();
+    if (std::ranges::find_if(platformPaths, startsWithPath) != platformPaths.end())
+        return true;
+
+    if (std::ranges::find_if(m_localPathsWithAssumedReadAccess, startsWithPath) != m_localPathsWithAssumedReadAccess.end())
+        return true;
+
+    if (m_previouslyApprovedFilePaths.contains(filePath))
+        return true;
+
+    return false;
 }
 
 void WebProcessProxy::recordUserGestureAuthorizationToken(FrameIdentifier frameID, PageIdentifier pageID, WTF::UUID authorizationToken)

@@ -659,7 +659,7 @@ void WebsiteDataStore::fetchDataAndApply(OptionSet<WebsiteDataType> dataTypes, O
             for (auto& entry : websiteData.entries) {
                 auto displayName = WebsiteDataRecord::displayNameForOrigin(entry.origin);
                 if (!displayName) {
-                    if (!allowsWebsiteDataRecordsForAllOrigins)
+                    if (!allowsWebsiteDataRecordsForAllOrigins && !m_fetchOptions.contains(WebsiteDataFetchOption::IncludeAllOrigins))
                         continue;
 
                     String hostString = entry.origin.host().isEmpty() ? emptyString() : makeString(' ', entry.origin.host());
@@ -2284,6 +2284,7 @@ WebsiteDataStoreParameters WebsiteDataStore::parameters()
         createHandleFromResolvedPathIfPossible(resolvedCookieStorageDirectory(), cookieStorageDirectoryExtensionHandle);
         parameters.cookieStorageDirectoryExtensionHandle = WTF::move(cookieStorageDirectoryExtensionHandle);
 
+        parameters.containerCachesDirectory = resolvedContainerCachesNetworkingDirectory();
         SandboxExtension::Handle containerCachesDirectoryExtensionHandle;
         createHandleFromResolvedPathIfPossible(resolvedContainerCachesNetworkingDirectory(), containerCachesDirectoryExtensionHandle);
         parameters.containerCachesDirectoryExtensionHandle = WTF::move(containerCachesDirectoryExtensionHandle);

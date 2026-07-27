@@ -197,6 +197,8 @@ bool gEnableRenderDocCapture = true;
 bool gEnableRenderDocCapture = false;
 #endif
 
+bool gDisableDebugLayers = false;
+
 bool IsConfigSelected()
 {
     return gSelectedConfig[0] != 0;
@@ -264,7 +266,7 @@ bool IsOzone()
     // for desktop Linux when USE_OZONE && USE_X11 are both defined results in incorrect tests'
     // expectations. We should also rework them and make IsOzone less vague.
     //
-    // TODO(crbug.com/angleproject/4977): make it possible to switch between X11 and Wayland on
+    // TODO(https://anglebug.com/42263550): make it possible to switch between X11 and Wayland on
     // Ozone/Linux builds. Probably, it's possible to identify the WAYLAND backend by checking
     // the WAYLAND_DISPLAY or XDG_SESSION_TYPE env vars. And also make the IsOzone method less
     // vague (read the comment above).

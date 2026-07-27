@@ -135,6 +135,8 @@ angle::Result TextureD3D::handleCopyImageSelfCopyRedefine(
     gl::Rectangle clippedArea;
     if (!ClipRectangle(sourceArea, gl::Rectangle(0, 0, fbSize.width, fbSize.height), &clippedArea))
     {
+        // We won't be copying, but redefine the destination texture in case sourceArea is larger
+        ANGLE_TRY(redefineDest(destExtents));
         return angle::Result::Continue;
     }
 
@@ -299,6 +301,13 @@ bool TextureD3D::shouldUseSetData(const ImageD3D *image) const
     // We can only handle full updates for depth-stencil textures, so to avoid complications
     // disable them entirely.
     if (internalFormat.depthBits > 0 || internalFormat.stencilBits > 0)
+    {
+        return false;
+    }
+
+    // Emulated RGBX/BGRX formats must always use the slow path to ensure the alpha channel is set
+    // to 1.0.
+    if (gl::IsRGBXOrBGRXFormat(internalFormat.sizedInternalFormat))
     {
         return false;
     }
@@ -768,11 +777,16 @@ angle::Result TextureD3D::setBaseLevel(const gl::Context *context, GLuint baseLe
 
     // When the base level changes, the texture storage might not be valid anymore, since it could
     // have been created based on the dimensions of the previous specified level range.
+    // For immutable textures (created via glTexStorage*D), the storage already covers all mip
+    // levels with the correct dimensions, so it should never be released on base level change.
+    // getLevelZeroWidth() can compute incorrect dimensions for NPOT textures because
+    // (width >> N) << N != width when width is not a power of two, which would cause a spurious
+    // dimension mismatch and lead to recreating the storage with wrong dimensions.
     const int newStorageWidth  = std::max(1, getLevelZeroWidth());
     const int newStorageHeight = std::max(1, getLevelZeroHeight());
     const int newStorageDepth  = std::max(1, getLevelZeroDepth());
     const int newStorageFormat = getBaseLevelInternalFormat();
-    if (mTexStorage &&
+    if (mTexStorage && !isImmutable() &&
         (newStorageWidth != oldStorageWidth || newStorageHeight != oldStorageHeight ||
          newStorageDepth != oldStorageDepth || newStorageFormat != oldStorageFormat))
     {
@@ -942,14 +956,28 @@ angle::Result TextureD3D::initializeContents(const gl::Context *context,
     const auto &formatInfo = gl::GetSizedInternalFormatInfo(image->getInternalFormat());
 
     GLuint imageBytes = 0;
-    ANGLE_CHECK_GL_MATH(contextD3D, formatInfo.computeRowPitch(formatInfo.type, image->getWidth(),
-                                                               1, 0, &imageBytes));
-    imageBytes *= image->getHeight() * image->getDepth();
+    if (formatInfo.compressed)
+    {
+        ANGLE_CHECK_GL_MATH(
+            contextD3D, formatInfo.computeCompressedImageSize(
+                            gl::Extents(image->getWidth(), image->getHeight(), image->getDepth()),
+                            &imageBytes));
+    }
+    else
+    {
+        ANGLE_CHECK_GL_MATH(contextD3D, formatInfo.computeRowPitch(
+                                            formatInfo.type, image->getWidth(), 1, 0, &imageBytes));
+
+        angle::CheckedNumeric<GLuint> checkedImageBytes(imageBytes);
+        checkedImageBytes *= image->getHeight();
+        checkedImageBytes *= image->getDepth();
+        ANGLE_CHECK_GL_MATH(contextD3D, checkedImageBytes.AssignIfValid(&imageBytes));
+    }
 
     gl::PixelUnpackState zeroDataUnpackState;
     zeroDataUnpackState.alignment = 1;
 
-    angle::MemoryBuffer *zeroBuffer = nullptr;
+    const angle::MemoryBuffer *zeroBuffer = nullptr;
     ANGLE_CHECK_GL_ALLOC(contextD3D, context->getZeroFilledBuffer(imageBytes, &zeroBuffer));
 
     if (shouldUseSetData(image))

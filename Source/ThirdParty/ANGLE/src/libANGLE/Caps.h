@@ -91,10 +91,8 @@ using ExtensionBool = bool Extensions::*;
 
 struct ExtensionInfo
 {
-    // If this extension can be enabled or disabled  with glRequestExtension
-    // (GL_ANGLE_request_extension)
+    // If this extension can be enabled with glRequestExtension from GL_ANGLE_request_extension
     bool Requestable = false;
-    bool Disablable  = false;
 
     // Pointer to a boolean member of the Extensions struct
     ExtensionBool ExtensionsMember = nullptr;
@@ -156,11 +154,12 @@ struct Limitations
     // ASTC texture support is emulated.
     bool emulatedAstc = false;
 
-    // No compressed TEXTURE_3D support.
-    bool noCompressedTexture3D = false;
-
     // D3D does not support compressed textures where the base mip level is not a multiple of 4
     bool compressedBaseMipLevelMultipleOfFour = false;
+
+    // True if the underlying API uses `base instance + instance` as its native
+    // instance id representation.
+    bool instanceIdMayOverflow = false;
 
     // An extra limit for WebGL texture size. Ignored if 0.
     GLint webGLTextureSizeLimit = 0;
@@ -172,6 +171,15 @@ struct Limitations
     // GL_ANGLE_base_vertex_base_instance is emulated and should only be exposed to WebGL. Emulated
     // by default in shared renderer code.
     bool baseInstanceBaseVertexEmulated = true;
+
+    // Size limit for buffers. GL_INVALID_OPERATION should be generated if trying to allocate a
+    // buffer larger than this limit.
+    size_t maxBufferBytes = std::numeric_limits<GLsizeiptr>::max();
+
+    // Maximum texture allocation size. Calculated by multiplying texture dimensions by
+    // bytes-per-pixel. 1Gb is chosen as a conservative limit to allow for backends to expand
+    // textures formats up to 4x and still stay within 32-bit sizes.
+    size_t maxTextureBytes = 1 * 1024 * 1024 * 1024;
 };
 
 struct TypePrecision

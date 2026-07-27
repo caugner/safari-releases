@@ -31,6 +31,7 @@
 #include "AddEventListenerOptionsInlines.h"
 #include "AnimationTimeline.h"
 #include "AnimationTimelinesController.h"
+#include "AudioMediaStreamTrackRendererUnit.h"
 #include "AudioSession.h"
 #include "AudioTrackPrivateMediaStream.h"
 #include "Autofill.h"
@@ -168,6 +169,7 @@
 #include "MediaUsageInfo.h"
 #include "MemoryCache.h"
 #include "MemoryInfo.h"
+#include "MemoryRelease.h"
 #include "MessagePort.h"
 #include "MockAudioDestinationCocoa.h"
 #include "MockLibWebRTCPeerConnection.h"
@@ -235,6 +237,7 @@
 #include "Settings.h"
 #include "ShadowRoot.h"
 #include "ShouldPartitionCookie.h"
+#include "SocketProvider.h"
 #include "SourceBuffer.h"
 #include "SpeechSynthesisUtterance.h"
 #include "SpellChecker.h"
@@ -1803,7 +1806,8 @@ void Internals::simulateSpeechSynthesizerVoiceListChange()
     if (m_platformSpeechSynthesizer) {
         m_platformSpeechSynthesizer->setInitialVoiceListToEmpty(false);
         m_platformSpeechSynthesizer->initializeVoiceList();
-        m_platformSpeechSynthesizer->client().voicesDidChange();
+        if (RefPtr client = m_platformSpeechSynthesizer->client())
+            client->voicesDidChange();
         return;
     }
 
@@ -1923,6 +1927,16 @@ void Internals::clearPeerConnectionFactory()
 {
     if (auto* page = contextDocument()->page())
         page->webRTCProvider().clearFactory();
+}
+
+void Internals::clearWebRTCCodecsConnection()
+{
+#if USE(LIBWEBRTC)
+    if (auto* page = contextDocument()->page()) {
+        auto& rtcProvider = downcast<LibWebRTCProvider>(page->webRTCProvider());
+        rtcProvider.clearCodecsConnectionForTesting();
+    }
+#endif
 }
 
 void Internals::applyRotationForOutgoingVideoSources(RTCPeerConnection& connection)
@@ -3266,6 +3280,12 @@ ExceptionOr<void> Internals::executeOpportunisticallyScheduledTasks() const
     if (!document || !document->page())
         return Exception { ExceptionCode::InvalidAccessError };
     document->page()->performOpportunisticallyScheduledTasks(MonotonicTime::now());
+    return { };
+}
+
+ExceptionOr<void> Internals::releaseMemoryNow() const
+{
+    WebCore::releaseMemory(Critical::Yes, Synchronous::Yes);
     return { };
 }
 
@@ -6626,6 +6646,11 @@ bool Internals::supportsMultiMicrophoneCaptureWithoutEchoCancellation() const
 #endif
 }
 
+void Internals::deleteAudioUnit()
+{
+    AudioMediaStreamTrackRendererUnit::singleton().deleteUnitForTesting();
+}
+
 bool Internals::isMediaStreamSourceInterrupted(MediaStreamTrack& track) const
 {
     return track.source().interrupted();
@@ -6892,6 +6917,23 @@ void Internals::whenServiceWorkerIsTerminated(ServiceWorker& worker, DOMPromiseD
 {
     return ServiceWorkerProvider::singleton().serviceWorkerConnection().whenServiceWorkerIsTerminatedForTesting(worker.identifier(), [promise = WTF::move(promise)]() mutable {
         promise.resolve();
+    });
+}
+
+void Internals::numberOfWebSocketChannelsInNetworkProcess(DOMPromiseDeferred<IDLUnsignedLong>&& promise)
+{
+    RefPtr document = contextDocument();
+    if (!document) {
+        promise.reject(ExceptionCode::InvalidStateError);
+        return;
+    }
+    RefPtr page = document->page();
+    if (!page) {
+        promise.reject(ExceptionCode::InvalidStateError);
+        return;
+    }
+    page->socketProvider().countWebSocketChannelsForTesting([promise = WTF::move(promise)](unsigned count) mutable {
+        promise.resolve(count);
     });
 }
 

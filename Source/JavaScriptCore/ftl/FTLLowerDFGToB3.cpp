@@ -3646,29 +3646,23 @@ private:
     {
         JSGlobalObject* globalObject = m_graph.globalObjectFor(m_origin.semantic);
         if (m_node->child1().useKind() == DoubleRepUse) {
-            LValue result = nullptr;
-            if (producesInteger(m_node->arithRoundingMode()) && !shouldCheckNegativeZero(m_node->arithRoundingMode())) {
-                LValue value = lowDouble(m_node->child1());
-                result = m_out.doubleFloor(m_out.doubleAdd(value, m_out.constDouble(0.5)));
-            } else {
-                LBasicBlock shouldRoundDown = m_out.newBlock();
-                LBasicBlock continuation = m_out.newBlock();
+            LBasicBlock shouldRoundDown = m_out.newBlock();
+            LBasicBlock continuation = m_out.newBlock();
 
-                LValue value = lowDouble(m_node->child1());
-                LValue integerValue = m_out.doubleCeil(value);
-                ValueFromBlock integerValueResult = m_out.anchor(integerValue);
+            LValue value = lowDouble(m_node->child1());
+            LValue integerValue = m_out.doubleCeil(value);
+            ValueFromBlock integerValueResult = m_out.anchor(integerValue);
 
-                LValue ceilMinusHalf = m_out.doubleSub(integerValue, m_out.constDouble(0.5));
-                m_out.branch(m_out.doubleGreaterThanOrUnordered(ceilMinusHalf, value), unsure(shouldRoundDown), unsure(continuation));
+            LValue ceilMinusHalf = m_out.doubleSub(integerValue, m_out.constDouble(0.5));
+            m_out.branch(m_out.doubleGreaterThanOrUnordered(ceilMinusHalf, value), unsure(shouldRoundDown), unsure(continuation));
 
-                LBasicBlock lastNext = m_out.appendTo(shouldRoundDown, continuation);
-                LValue integerValueRoundedDown = m_out.doubleSub(integerValue, m_out.constDouble(1));
-                ValueFromBlock integerValueRoundedDownResult = m_out.anchor(integerValueRoundedDown);
-                m_out.jump(continuation);
-                m_out.appendTo(continuation, lastNext);
+            LBasicBlock lastNext = m_out.appendTo(shouldRoundDown, continuation);
+            LValue integerValueRoundedDown = m_out.doubleSub(integerValue, m_out.constDouble(1));
+            ValueFromBlock integerValueRoundedDownResult = m_out.anchor(integerValueRoundedDown);
+            m_out.jump(continuation);
+            m_out.appendTo(continuation, lastNext);
 
-                result = m_out.phi(Double, integerValueResult, integerValueRoundedDownResult);
-            }
+            LValue result = m_out.phi(Double, integerValueResult, integerValueRoundedDownResult);
 
             if (producesInteger(m_node->arithRoundingMode())) {
                 LValue integerValue = convertDoubleToInt32(result, shouldCheckNegativeZero(m_node->arithRoundingMode()));
@@ -8646,12 +8640,12 @@ IGNORE_CLANG_WARNINGS_END
                     setInt32(vmCall(Int32, operationArrayIndexOfValueDouble, storage, lowJSValue(searchElementEdge), startIndex));
                 return;
             case Array::Contiguous:
-                // We have to keep base alive since that keeps content of storage alive.
-                ensureStillAliveHere(base);
                 if (isArrayIncludes)
                     setBoolean(vmCall(Int32, operationArrayIncludesValueInt32OrContiguous, weakPointer(globalObject), storage, lowJSValue(searchElementEdge), startIndex));
                 else
                     setInt32(vmCall(Int32, operationArrayIndexOfValueInt32OrContiguous, weakPointer(globalObject), storage, lowJSValue(searchElementEdge), startIndex));
+                // We have to keep base alive since that keeps content of storage alive.
+                ensureStillAliveHere(base);
                 return;
             case Array::Int32:
                 if (isArrayIncludes)

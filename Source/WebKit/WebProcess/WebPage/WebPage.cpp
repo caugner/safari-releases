@@ -862,8 +862,6 @@ WebPage::WebPage(PageIdentifier pageID, WebPageCreationParameters&& parameters)
 #endif
 
     m_corsDisablingPatterns = WTF::move(parameters.corsDisablingPatterns);
-    if (!m_corsDisablingPatterns.isEmpty())
-        synchronizeCORSDisablingPatternsWithNetworkProcess();
     pageConfiguration.corsDisablingPatterns = parseAndAllowAccessToCORSDisablingPatterns(m_corsDisablingPatterns);
 
     pageConfiguration.maskedURLSchemes = WTF::move(parameters.maskedURLSchemes);
@@ -1002,6 +1000,11 @@ WebPage::WebPage(PageIdentifier pageID, WebPageCreationParameters&& parameters)
     page->settings().setBackForwardCacheExpirationInterval(Seconds::infinity());
 
     m_mainFrame->initWithCoreMainFrame(*this, page->protectedMainFrame());
+
+    for (const auto& iterator : parameters.urlSchemeHandlers)
+        registerURLSchemeHandler(iterator.value, iterator.key);
+    for (auto& scheme : parameters.urlSchemesWithLegacyCustomProtocolHandlers)
+        LegacySchemeRegistry::registerURLSchemeAsHandledBySchemeHandler({ scheme });
 
     if (auto& remotePageParameters = parameters.remotePageParameters) {
         Ref frameTreeSyncData = remotePageParameters->frameTreeParameters.frameTreeSyncData;
@@ -1167,11 +1170,6 @@ WebPage::WebPage(PageIdentifier pageID, WebPageCreationParameters&& parameters)
         downcast<LibWebRTCProvider>(page->webRTCProvider()).enableEnumeratingVisibleNetworkInterfaces();
 #endif
 #endif
-
-    for (const auto& iterator : parameters.urlSchemeHandlers)
-        registerURLSchemeHandler(iterator.value, iterator.key);
-    for (auto& scheme : parameters.urlSchemesWithLegacyCustomProtocolHandlers)
-        LegacySchemeRegistry::registerURLSchemeAsHandledBySchemeHandler({ scheme });
 
 #if PLATFORM(IOS_FAMILY)
     setViewportConfigurationViewLayoutSize(parameters.viewportConfigurationViewLayoutSize, parameters.viewportConfigurationLayoutSizeScaleFactorFromClient, parameters.viewportConfigurationMinimumEffectiveDeviceWidth);
@@ -1498,11 +1496,6 @@ WebPage::~WebPage()
 {
     ASSERT(!m_page);
     WEBPAGE_RELEASE_LOG(Loading, "destructor:");
-
-    if (!m_corsDisablingPatterns.isEmpty()) {
-        m_corsDisablingPatterns.clear();
-        synchronizeCORSDisablingPatternsWithNetworkProcess();
-    }
 
     platformDetach();
 
@@ -1962,16 +1955,12 @@ void WebPage::exitAcceleratedCompositingMode(WebCore::Frame& frame)
     protectedDrawingArea()->setRootCompositingLayer(frame, nullptr);
 }
 
-void WebPage::closeWithReply(CompletionHandler<void()>&& completionHandler)
+void WebPage::close(CompletionHandler<void()>&& completionHandler)
 {
-    close();
-    completionHandler();
-}
-
-void WebPage::close()
-{
-    if (m_isClosed)
+    if (m_isClosed) {
+        completionHandler();
         return;
+    }
 
     flushDeferredDidReceiveMouseEvent();
 
@@ -2082,6 +2071,8 @@ void WebPage::close()
 
     if (isRunningModal)
         RunLoop::mainSingleton().stop();
+
+    completionHandler();
 }
 
 void WebPage::tryClose(CompletionHandler<void(bool)>&& completionHandler)
@@ -7857,7 +7848,12 @@ void WebPage::scheduleFullEditorStateUpdate()
 
 void WebPage::loadAndDecodeImage(WebCore::ResourceRequest&& request, std::optional<WebCore::FloatSize> sizeConstraint, uint64_t maximumBytesFromNetwork, CompletionHandler<void(Expected<Ref<WebCore::ShareableBitmap>, WebCore::ResourceError>&&)>&& completionHandler)
 {
-    URL url = request.url();
+    auto url = request.url();
+    RefPtr page = corePage();
+    if (!page)
+        return completionHandler(makeUnexpected(decodeError(url)));
+
+    request.setFirstPartyForCookies(page->mainFrameURL());
     WebProcess::singleton().ensureNetworkProcessConnection().connection().sendWithAsyncReply(Messages::NetworkConnectionToWebProcess::LoadImageForDecoding(WTF::move(request), m_webPageProxyIdentifier, maximumBytesFromNetwork), [completionHandler = WTF::move(completionHandler), sizeConstraint, url] (Expected<Ref<WebCore::FragmentedSharedBuffer>, WebCore::ResourceError>&& result) mutable {
         if (!result)
             return completionHandler(makeUnexpected(WTF::move(result.error())));
@@ -8297,8 +8293,10 @@ void WebPage::stopAllURLSchemeTasks()
 void WebPage::registerURLSchemeHandler(WebURLSchemeHandlerIdentifier handlerIdentifier, const String& scheme)
 {
     WEBPAGE_RELEASE_LOG(Process, "registerURLSchemeHandler: Registered handler %" PRIu64 " for the '%s' scheme", handlerIdentifier.toUInt64(), scheme.utf8().data());
+
     WebCore::LegacySchemeRegistry::registerURLSchemeAsHandledBySchemeHandler(scheme);
-    WebCore::LegacySchemeRegistry::registerURLSchemeAsCORSEnabled(scheme);
+    WebProcess::singleton().registerURLSchemeAsCORSEnabled(scheme);
+
     auto schemeResult = m_schemeToURLSchemeHandlerProxyMap.add(scheme, WebURLSchemeHandlerProxy::create(*this, handlerIdentifier));
     m_identifierToURLSchemeHandlerProxyMap.add(handlerIdentifier, Ref { *schemeResult.iterator->value }.get());
 }
@@ -8376,13 +8374,14 @@ void WebPage::hasStorageAccess(RegistrableDomain&& subFrameDomain, RegistrableDo
     WebProcess::singleton().ensureNetworkProcessConnection().connection().sendWithAsyncReply(Messages::NetworkConnectionToWebProcess::HasStorageAccess(WTF::move(subFrameDomain), WTF::move(topFrameDomain), frame.frameID(), m_identifier), WTF::move(completionHandler));
 }
 
-void WebPage::requestStorageAccess(RegistrableDomain&& subFrameDomain, RegistrableDomain&& topFrameDomain, WebFrame& frame, StorageAccessScope scope, HasOrShouldIgnoreUserGesture hasOrShouldIgnoreUserGesture, CompletionHandler<void(WebCore::RequestStorageAccessResult)>&& completionHandler)
+void WebPage::requestStorageAccess(RegistrableDomain&& subFrameDomain, RegistrableDomain&& topFrameDomain, WebFrame& frame, StorageAccessScope scope, HasUserGestureOrNoUserGestureRequired hasUserGestureOrNoUserGestureRequired, CompletionHandler<void(WebCore::RequestStorageAccessResult)>&& completionHandler)
 {
-    WebProcess::singleton().ensureNetworkProcessConnection().connection().sendWithAsyncReply(Messages::NetworkConnectionToWebProcess::RequestStorageAccess(WTF::move(subFrameDomain), WTF::move(topFrameDomain), frame.frameID(), m_identifier, m_webPageProxyIdentifier, scope, hasOrShouldIgnoreUserGesture), [this, protectedThis = Ref { *this }, completionHandler = WTF::move(completionHandler), frame = Ref { frame }, pageID = m_identifier, frameID = frame.frameID()](RequestStorageAccessResult result) mutable {
+    WebProcess::singleton().ensureNetworkProcessConnection().connection().sendWithAsyncReply(Messages::NetworkConnectionToWebProcess::RequestStorageAccess(WTF::move(subFrameDomain), WTF::move(topFrameDomain), frame.frameID(), m_identifier, m_webPageProxyIdentifier, scope, hasUserGestureOrNoUserGestureRequired), [this, protectedThis = Ref { *this }, completionHandler = WTF::move(completionHandler), frame = Ref { frame }, pageID = m_identifier, frameID = frame.frameID()](RequestStorageAccessResult result) mutable {
         if (result.wasGranted == StorageAccessWasGranted::Yes) {
             switch (result.scope) {
             case StorageAccessScope::PerFrame:
-                frame->protectedLocalFrameLoaderClient()->setHasFrameSpecificStorageAccess({ frameID, pageID });
+                if (RefPtr localFrameLoaderClient = frame->localFrameLoaderClient())
+                    localFrameLoaderClient->setHasFrameSpecificStorageAccess({ frameID, pageID });
                 break;
             case StorageAccessScope::PerPage:
                 addDomainWithPageLevelStorageAccess(result.topFrameDomain, result.subFrameDomain);
@@ -8944,14 +8943,7 @@ void WebPage::updateCORSDisablingPatterns(Vector<String>&& patterns)
         return;
 
     m_corsDisablingPatterns = WTF::move(patterns);
-    synchronizeCORSDisablingPatternsWithNetworkProcess();
     page->setCORSDisablingPatterns(parseAndAllowAccessToCORSDisablingPatterns(m_corsDisablingPatterns));
-}
-
-void WebPage::synchronizeCORSDisablingPatternsWithNetworkProcess()
-{
-    // FIXME: We should probably have this mechanism done between UIProcess and NetworkProcess directly.
-    WebProcess::singleton().ensureNetworkProcessConnection().connection().send(Messages::NetworkConnectionToWebProcess::SetCORSDisablingPatterns(m_identifier, m_corsDisablingPatterns), 0);
 }
 
 #if ENABLE(ACCESSIBILITY_ANIMATION_CONTROL)

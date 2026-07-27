@@ -1071,7 +1071,6 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/DateInstance.h
     runtime/DateInstanceCache.h
     runtime/DeferredWorkTimer.h
-    runtime/DeferredWorkTimerInlines.h
     runtime/DeferTermination.h
     runtime/DefinePropertyAttributes.h
     runtime/DeletePropertySlot.h
@@ -1480,6 +1479,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     wasm/js/JSWebAssemblyModule.h
     wasm/js/JSWebAssemblyTable.h
     wasm/js/WebAssemblyBuiltin.h
+    wasm/js/WebAssemblyCompileOptions.h
     wasm/js/WebAssemblyFunction.h
     wasm/js/WebAssemblyFunctionBase.h
     wasm/js/WebAssemblyGCStructure.h

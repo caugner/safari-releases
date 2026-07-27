@@ -37,6 +37,9 @@ class CLKernelImpl : angle::NonCopyable
         cl_ulong localMemSize                       = 0u;
         size_t prefWorkGroupSizeMultiple            = 0u;
         cl_ulong privateMemSize                     = 0u;
+
+        // Subgroups related info
+        uint32_t subGroupSizeForNDRange = 0u;
     };
 
     struct ArgInfo
@@ -86,6 +89,8 @@ class CLKernelImpl : angle::NonCopyable
     virtual angle::Result setArg(cl_uint argIndex, size_t argSize, const void *argValue) = 0;
 
     virtual angle::Result createInfo(Info *infoOut) const = 0;
+
+    virtual size_t getLocalMemSizeUsed(const cl::Device &device) const { return 0; }
 
   protected:
     const cl::Kernel &mKernel;

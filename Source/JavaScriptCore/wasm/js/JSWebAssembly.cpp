@@ -171,9 +171,11 @@ void JSWebAssembly::webAssemblyModuleValidateAsync(JSGlobalObject* globalObject,
     Vector<JSCell*> dependencies;
     dependencies.append(globalObject);
 
-    auto ticket = vm.deferredWorkTimer->addPendingWork(DeferredWorkTimer::WorkType::ImminentlyScheduled, vm, promise, WTF::move(dependencies));
-    Wasm::Module::validateAsync(vm, WTF::move(source), createSharedTask<Wasm::Module::CallbackType>([ticket, promise, globalObject, compileOptions = WTF::move(compileOptions), &vm] (Wasm::Module::ValidationResult&& result) mutable {
-        vm.deferredWorkTimer->scheduleWorkSoon(ticket, [promise, globalObject, result = WTF::move(result), compileOptions = WTF::move(compileOptions), &vm](DeferredWorkTimer::Ticket) mutable {
+    auto weakTicket = vm.deferredWorkTimer->addPendingWork(DeferredWorkTimer::WorkType::ImminentlyScheduled, vm, promise, WTF::move(dependencies));
+    Wasm::Module::validateAsync(vm, WTF::move(source), createSharedTask<Wasm::Module::CallbackType>([weakTicket = WTF::move(weakTicket), compileOptions = WTF::move(compileOptions), &vm] (Wasm::Module::ValidationResult&& result) mutable {
+        vm.deferredWorkTimer->scheduleWorkSoonIfActive(weakTicket, [result = WTF::move(result), compileOptions = WTF::move(compileOptions), &vm](DeferredWorkTimer::Ticket& ticket) mutable {
+            auto* promise = jsCast<JSPromise*>(ticket.target());
+            auto* globalObject = jsCast<JSGlobalObject*>(ticket.dependencies()[0]);
             auto scope = DECLARE_THROW_SCOPE(vm);
 
             if (!result.has_value()) [[unlikely]] {
@@ -222,10 +224,12 @@ static void instantiate(VM& vm, JSGlobalObject* globalObject, JSPromise* promise
     dependencies.append(promise);
 
     scope.release();
-    auto ticket = vm.deferredWorkTimer->addPendingWork(DeferredWorkTimer::WorkType::ImminentlyScheduled, vm, instance, WTF::move(dependencies));
+    auto weakTicket = vm.deferredWorkTimer->addPendingWork(DeferredWorkTimer::WorkType::ImminentlyScheduled, vm, instance, WTF::move(dependencies));
     // Note: This completion task may or may not get called immediately.
-    module->module().compileAsync(vm, instance->memoryMode(), createSharedTask<Wasm::CalleeGroup::CallbackType>([ticket, promise, instance, module, resolveKind, creationMode, &vm, alwaysAsync] (Ref<Wasm::CalleeGroup>&& calleeGroup, bool isAsync) mutable {
-        auto callback = [promise, instance, module, resolveKind, creationMode, &vm, calleeGroup = WTF::move(calleeGroup)](DeferredWorkTimer::Ticket) mutable {
+    module->module().compileAsync(vm, instance->memoryMode(), createSharedTask<Wasm::CalleeGroup::CallbackType>([weakTicket = WTF::move(weakTicket), module, resolveKind, creationMode, &vm, alwaysAsync] (Ref<Wasm::CalleeGroup>&& calleeGroup, bool isAsync) mutable {
+        auto callback = [module, resolveKind, creationMode, &vm, calleeGroup = WTF::move(calleeGroup)](DeferredWorkTimer::Ticket& ticket) mutable {
+            auto* instance = jsCast<JSWebAssemblyInstance*>(ticket.target());
+            auto* promise = jsCast<JSPromise*>(ticket.dependencies()[0]);
             auto scope = DECLARE_THROW_SCOPE(vm);
             JSGlobalObject* globalObject = instance->globalObject();
             instance->finalizeCreation(vm, globalObject, WTF::move(calleeGroup), creationMode);
@@ -258,11 +262,16 @@ static void instantiate(VM& vm, JSGlobalObject* globalObject, JSPromise* promise
         };
 
         if (alwaysAsync || isAsync) {
-            vm.deferredWorkTimer->scheduleWorkSoon(ticket, WTF::move(callback));
+            vm.deferredWorkTimer->scheduleWorkSoonIfActive(weakTicket, WTF::move(callback));
             return;
         }
-        vm.deferredWorkTimer->cancelPendingWork(ticket);
-        callback(ticket);
+        // Sync path: the callback recovers target/dependencies from the ticket, so it must run
+        // while the ticket is still active. Cancel afterwards so doWork's sweep removes it.
+        RefPtr ticket = weakTicket.get();
+        if (!ticket || ticket->isCancelled())
+            return;
+        callback(*ticket);
+        vm.deferredWorkTimer->cancelPendingWork(*ticket);
     }));
 }
 
@@ -281,9 +290,13 @@ static void compileAndInstantiate(VM& vm, JSGlobalObject* globalObject, JSPromis
     if (importObject)
         dependencies.append(importObject);
     dependencies.append(moduleKeyCell);
-    auto ticket = vm.deferredWorkTimer->addPendingWork(DeferredWorkTimer::WorkType::ImminentlyScheduled, vm, promise, WTF::move(dependencies));
-    Wasm::Module::validateAsync(vm, WTF::move(source), createSharedTask<Wasm::Module::CallbackType>([ticket, promise, importObject, sourceProvider = WTF::move(sourceProvider), compileOptions = WTF::move(compileOptions), moduleKeyCell, globalObject, resolveKind, creationMode, &vm] (Wasm::Module::ValidationResult&& result) mutable {
-        vm.deferredWorkTimer->scheduleWorkSoon(ticket, [promise, importObject, sourceProvider = WTF::move(sourceProvider), compileOptions = WTF::move(compileOptions), moduleKeyCell, globalObject, result = WTF::move(result), resolveKind, creationMode, &vm](DeferredWorkTimer::Ticket) mutable {
+    auto weakTicket = vm.deferredWorkTimer->addPendingWork(DeferredWorkTimer::WorkType::ImminentlyScheduled, vm, promise, WTF::move(dependencies));
+    Wasm::Module::validateAsync(vm, WTF::move(source), createSharedTask<Wasm::Module::CallbackType>([weakTicket = WTF::move(weakTicket), importObject, sourceProvider = WTF::move(sourceProvider), compileOptions = WTF::move(compileOptions), resolveKind, creationMode, &vm] (Wasm::Module::ValidationResult&& result) mutable {
+        vm.deferredWorkTimer->scheduleWorkSoonIfActive(weakTicket, [importObject, sourceProvider = WTF::move(sourceProvider), compileOptions = WTF::move(compileOptions), result = WTF::move(result), resolveKind, creationMode, &vm](DeferredWorkTimer::Ticket& ticket) mutable {
+            auto* promise = jsCast<JSPromise*>(ticket.target());
+            auto& deps = ticket.dependencies();
+            JSCell* moduleKeyCell = deps[deps.size() - 2];
+            auto* globalObject = promise->globalObject();
             auto scope = DECLARE_THROW_SCOPE(vm);
 
             if (!result.has_value()) [[unlikely]] {
@@ -420,20 +433,52 @@ JSC_DEFINE_HOST_FUNCTION(webAssemblyValidateFunc, (JSGlobalObject* globalObject,
 
 JSC_DEFINE_HOST_FUNCTION(webAssemblyCompileStreamingInternal, (JSGlobalObject* globalObject, CallFrame* callFrame))
 {
+    VM& vm = globalObject->vm();
+    auto scope = DECLARE_THROW_SCOPE(vm);
+
+    std::optional<WebAssemblyCompileOptions> compileOptions;
+    if (Options::useWasmJSStringBuiltins()) {
+        JSValue compileOptionsArgument = callFrame->argument(1);
+        JSObject* compileOptionsObject = compileOptionsArgument.getObject();
+        if (!compileOptionsArgument.isUndefined() && !compileOptionsObject) [[unlikely]]
+            RELEASE_AND_RETURN(scope, JSValue::encode(JSPromise::rejectedPromise(globalObject, createTypeError(globalObject, "second argument to WebAssembly.compileStreaming must be undefined or an Object"_s, defaultSourceAppender, runtimeTypeForValue(compileOptionsArgument)))));
+        compileOptions = WebAssemblyCompileOptions::tryCreate(globalObject, compileOptionsObject);
+        if (scope.exception()) [[unlikely]] {
+            auto* promise = JSPromise::create(vm, globalObject->promiseStructure());
+            RELEASE_AND_RETURN(scope, JSValue::encode(promise->rejectWithCaughtException(globalObject, scope)));
+        }
+    }
+
     ASSERT(globalObject->globalObjectMethodTable()->compileStreaming);
-    return JSValue::encode(globalObject->globalObjectMethodTable()->compileStreaming(globalObject, callFrame->argument(0)));
+    RELEASE_AND_RETURN(scope, JSValue::encode(globalObject->globalObjectMethodTable()->compileStreaming(globalObject, callFrame->argument(0), WTF::move(compileOptions))));
 }
 
 JSC_DEFINE_HOST_FUNCTION(webAssemblyInstantiateStreamingInternal, (JSGlobalObject* globalObject, CallFrame* callFrame))
 {
+    VM& vm = globalObject->vm();
+    auto scope = DECLARE_THROW_SCOPE(vm);
+
     JSValue importArgument = callFrame->argument(1);
     JSObject* importObject = importArgument.getObject();
     if (!importArgument.isUndefined() && !importObject) [[unlikely]]
-        return JSValue::encode(JSPromise::rejectedPromise(globalObject, createTypeError(globalObject, "second argument to WebAssembly.instantiateStreaming must be undefined or an Object"_s, defaultSourceAppender, runtimeTypeForValue(importArgument))));
+        RELEASE_AND_RETURN(scope, JSValue::encode(JSPromise::rejectedPromise(globalObject, createTypeError(globalObject, "second argument to WebAssembly.instantiateStreaming must be undefined or an Object"_s, defaultSourceAppender, runtimeTypeForValue(importArgument)))));
+
+    std::optional<WebAssemblyCompileOptions> compileOptions;
+    if (Options::useWasmJSStringBuiltins()) {
+        JSValue compileOptionsArgument = callFrame->argument(2);
+        JSObject* compileOptionsObject = compileOptionsArgument.getObject();
+        if (!compileOptionsArgument.isUndefined() && !compileOptionsObject) [[unlikely]]
+            RELEASE_AND_RETURN(scope, JSValue::encode(JSPromise::rejectedPromise(globalObject, createTypeError(globalObject, "third argument to WebAssembly.instantiateStreaming must be undefined or an Object"_s, defaultSourceAppender, runtimeTypeForValue(compileOptionsArgument)))));
+        compileOptions = WebAssemblyCompileOptions::tryCreate(globalObject, compileOptionsObject);
+        if (scope.exception()) [[unlikely]] {
+            auto* promise = JSPromise::create(vm, globalObject->promiseStructure());
+            RELEASE_AND_RETURN(scope, JSValue::encode(promise->rejectWithCaughtException(globalObject, scope)));
+        }
+    }
 
     ASSERT(globalObject->globalObjectMethodTable()->instantiateStreaming);
     // FIXME: <http://webkit.org/b/184888> if there's an importObject and it contains a Memory, then we can compile the module with the right memory type (fast or not) by looking at the memory's type.
-    return JSValue::encode(globalObject->globalObjectMethodTable()->instantiateStreaming(globalObject, callFrame->argument(0), importObject));
+    RELEASE_AND_RETURN(scope, JSValue::encode(globalObject->globalObjectMethodTable()->instantiateStreaming(globalObject, callFrame->argument(0), importObject, WTF::move(compileOptions))));
 }
 
 JSC_DEFINE_HOST_FUNCTION(webAssemblyGetterJSTag, (JSGlobalObject* globalObject, CallFrame*))

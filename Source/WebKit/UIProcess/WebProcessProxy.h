@@ -55,6 +55,7 @@
 #include <pal/SessionID.h>
 #include <wtf/Expected.h>
 #include <wtf/Forward.h>
+#include <wtf/HashCountedSet.h>
 #include <wtf/HashMap.h>
 #include <wtf/HashSet.h>
 #include <wtf/Logger.h>
@@ -263,6 +264,8 @@ public:
     void addPagePendingClose(WebPageProxyIdentifier);
     void removePagePendingClose(WebPageProxyIdentifier);
 
+    void sendPageCloseMessage(std::optional<WebPageProxyIdentifier>, WebCore::PageIdentifier, CompletionHandler<void()>&& = [] { });
+
     void addProvisionalPageProxy(ProvisionalPageProxy&);
     void removeProvisionalPageProxy(ProvisionalPageProxy&);
     void addRemotePageProxy(RemotePageProxy&);
@@ -310,6 +313,7 @@ public:
 
     void addPreviouslyApprovedFileURL(const URL&);
     bool wasPreviouslyApprovedFileURL(const URL&) const;
+    bool hasGrantedSandboxExtensionForFile(const String& filePath) const;
 
     void updateTextCheckerState();
 
@@ -628,8 +632,9 @@ private:
     void connectionWillOpen(IPC::Connection&) override;
     void processWillShutDown(IPC::Connection&) override;
     bool shouldSendPendingMessage(const PendingMessage&) final;
-    
 #if PLATFORM(COCOA)
+    bool handleRemoteObjectRegistryMessage(IPC::Connection&, IPC::Decoder&);
+
     void cacheMediaMIMETypesInternal(const Vector<String>&);
 #endif
 
@@ -801,7 +806,7 @@ private:
     WeakHashSet<RemotePageProxy> m_remotePages;
     WeakHashSet<ProvisionalPageProxy> m_provisionalPages;
     WeakHashSet<SuspendedPageProxy> m_suspendedPages;
-    HashSet<WebPageProxyIdentifier> m_pagesPendingClose;
+    HashCountedSet<WebPageProxyIdentifier> m_pagesPendingClose;
     UserInitiatedActionMap m_userInitiatedActionMap;
     HashMap<WebCore::PageIdentifier, UserInitiatedActionByAuthorizationTokenMap> m_userInitiatedActionByAuthorizationTokenMap;
 

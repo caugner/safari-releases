@@ -515,17 +515,20 @@ class ANGLETestBase : public ::testing::Test
     void setConfigAlphaBits(int bits);
     void setConfigDepthBits(int bits);
     void setConfigStencilBits(int bits);
+    void setConfigColorSpace(EGLenum colorSpace);
     void setConfigComponentType(EGLenum componentType);
     void setMultisampleEnabled(bool enabled);
     void setSamples(EGLint samples);
     void setDebugEnabled(bool enabled);
     void setNoErrorEnabled(bool enabled);
     void setWebGLCompatibilityEnabled(bool webglCompatibility);
+    void setHardenedContextEnabled(bool hardenedContext);
     void setExtensionsEnabled(bool extensionsEnabled);
     void setRobustAccess(bool enabled);
     void setBindGeneratesResource(bool bindGeneratesResource);
     void setClientArraysEnabled(bool enabled);
     void setRobustResourceInit(bool enabled);
+    void setPbuffer(bool enabled);
     void setMutableRenderBuffer(bool enabled);
     void setContextProgramCacheEnabled(bool enabled);
     void setContextResetStrategy(EGLenum resetStrategy);
@@ -589,6 +592,13 @@ class ANGLETestBase : public ::testing::Test
         return mCurrentParams->getRenderer() == EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE &&
                mCurrentParams->isSwiftshader();
     }
+
+    bool isMetalRenderer() const
+    {
+        return mCurrentParams->getRenderer() == EGL_PLATFORM_ANGLE_TYPE_METAL_ANGLE;
+    }
+
+    bool shouldShowWindow() const;
 
     bool isDriverSystemEgl() const
     {

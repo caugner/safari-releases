@@ -26,7 +26,6 @@
 #include "config.h"
 #include "WasmStreamingCompiler.h"
 
-#include "DeferredWorkTimerInlines.h"
 #include "JSBigInt.h"
 #include "JSWebAssembly.h"
 #include "JSWebAssemblyCompileError.h"
@@ -37,14 +36,16 @@
 #include "WasmIPIntPlan.h"
 #include "WasmStreamingPlan.h"
 #include "WasmWorklist.h"
+#include "WebAssemblyCompileOptions.h"
 
 #if ENABLE(WEBASSEMBLY)
 
 namespace JSC { namespace Wasm {
 
-StreamingCompiler::StreamingCompiler(VM& vm, CompilerMode compilerMode, JSGlobalObject* globalObject, JSPromise* promise, JSObject* importObject, const SourceCode& source)
+StreamingCompiler::StreamingCompiler(VM& vm, CompilerMode compilerMode, JSGlobalObject* globalObject, JSPromise* promise, JSObject* importObject, std::optional<WebAssemblyCompileOptions>&& compileOptions, const SourceCode& source)
     : m_vm(vm)
     , m_compilerMode(compilerMode)
+    , m_compileOptions(WTF::move(compileOptions))
     , m_info(Wasm::ModuleInformation::create())
     , m_parser(m_info.get(), *this)
     , m_source(source)
@@ -53,24 +54,25 @@ StreamingCompiler::StreamingCompiler(VM& vm, CompilerMode compilerMode, JSGlobal
     dependencies.append(globalObject);
     if (importObject)
         dependencies.append(importObject);
-    auto ticketPtr = vm.deferredWorkTimer->addPendingWork(DeferredWorkTimer::WorkType::AtSomePoint, vm, promise, WTF::move(dependencies));
-    m_ticket = ticketPtr;
-    ASSERT(vm.deferredWorkTimer->hasPendingWork(ticketPtr));
-    ASSERT(vm.deferredWorkTimer->hasDependencyInPendingWork(ticketPtr, globalObject));
-    ASSERT(!importObject || vm.deferredWorkTimer->hasDependencyInPendingWork(ticketPtr, importObject));
+    m_ticket = vm.deferredWorkTimer->addPendingWork(DeferredWorkTimer::WorkType::AtSomePoint, vm, promise, WTF::move(dependencies));
+#if ASSERT_ENABLED
+    RefPtr ticket = m_ticket.get();
+    ASSERT(ticket);
+    ASSERT(vm.deferredWorkTimer->hasPendingWork(*ticket));
+    ASSERT(vm.deferredWorkTimer->hasDependencyInPendingWork(*ticket, globalObject));
+    ASSERT(!importObject || vm.deferredWorkTimer->hasDependencyInPendingWork(*ticket, importObject));
+#endif
 }
 
 StreamingCompiler::~StreamingCompiler()
 {
-    if (auto ticket = m_ticket.get()) {
-        m_ticket = nullptr;
-        m_vm.deferredWorkTimer->scheduleWorkSoon(ticket.get(), [](DeferredWorkTimer::Ticket) { });
-    }
+    m_vm.deferredWorkTimer->scheduleWorkSoonIfActive(m_ticket, [](DeferredWorkTimer::Ticket&) { });
+    m_ticket = nullptr;
 }
 
-Ref<StreamingCompiler> StreamingCompiler::create(VM& vm, CompilerMode compilerMode, JSGlobalObject* globalObject, JSPromise* promise, JSObject* importObject, const SourceCode& source)
+Ref<StreamingCompiler> StreamingCompiler::create(VM& vm, CompilerMode compilerMode, JSGlobalObject* globalObject, JSPromise* promise, JSObject* importObject, std::optional<WebAssemblyCompileOptions>&& compileOptions, const SourceCode& source)
 {
-    return adoptRef(*new StreamingCompiler(vm, compilerMode, globalObject, promise, importObject, source));
+    return adoptRef(*new StreamingCompiler(vm, compilerMode, globalObject, promise, importObject, WTF::move(compileOptions), source));
 }
 
 bool StreamingCompiler::didReceiveFunctionData(FunctionCodeIndex functionIndex, const Wasm::FunctionData&)
@@ -141,14 +143,11 @@ void StreamingCompiler::didComplete()
     };
 
     auto result = makeValidationResult(*m_plan);
-    auto ticket = takeTicketIfActive();
-    if (!ticket)
-        return;
     switch (m_compilerMode) {
     case CompilerMode::Validation: {
-        m_vm.deferredWorkTimer->scheduleWorkSoon(ticket.get(), [result = WTF::move(result)](DeferredWorkTimer::Ticket ticket) mutable {
-            JSPromise* promise = jsCast<JSPromise*>(ticket->target());
-            JSGlobalObject* globalObject = jsCast<JSGlobalObject*>(ticket->dependencies()[0]);
+        m_vm.deferredWorkTimer->scheduleWorkSoonIfActive(m_ticket, [result = WTF::move(result), compileOptions = WTF::move(m_compileOptions)](DeferredWorkTimer::Ticket& ticket) mutable {
+            JSPromise* promise = jsCast<JSPromise*>(ticket.target());
+            JSGlobalObject* globalObject = jsCast<JSGlobalObject*>(ticket.dependencies()[0]);
             VM& vm = globalObject->vm();
             auto scope = DECLARE_THROW_SCOPE(vm);
 
@@ -158,20 +157,31 @@ void StreamingCompiler::didComplete()
                 return;
             }
 
+            if (compileOptions) {
+                auto errorMessage = compileOptions->validateBuiltinsAndImportedStrings(result.value());
+                if (errorMessage.has_value()) {
+                    throwException(globalObject, scope, createJSWebAssemblyCompileError(globalObject, vm, errorMessage.value()));
+                    promise->rejectWithCaughtException(globalObject, scope);
+                    return;
+                }
+                result.value()->applyCompileOptions(compileOptions.value());
+            }
+
             JSWebAssemblyModule* module = JSWebAssemblyModule::create(vm, globalObject->webAssemblyModuleStructure(), WTF::move(result.value()));
 
             scope.release();
             promise->resolve(globalObject, module);
         });
+        m_ticket = nullptr;
         return;
     }
 
     case CompilerMode::FullCompile: {
         RefPtr<SourceProvider> provider = m_source.provider();
-        m_vm.deferredWorkTimer->scheduleWorkSoon(ticket.get(), [result = WTF::move(result), provider = WTF::move(provider)](DeferredWorkTimer::Ticket ticket) mutable {
-            JSPromise* promise = jsCast<JSPromise*>(ticket->target());
-            JSGlobalObject* globalObject = jsCast<JSGlobalObject*>(ticket->dependencies()[0]);
-            JSObject* importObject = jsCast<JSObject*>(ticket->dependencies()[1]);
+        m_vm.deferredWorkTimer->scheduleWorkSoonIfActive(m_ticket, [result = WTF::move(result), provider = WTF::move(provider), compileOptions = WTF::move(m_compileOptions)](DeferredWorkTimer::Ticket& ticket) mutable {
+            JSPromise* promise = jsCast<JSPromise*>(ticket.target());
+            JSGlobalObject* globalObject = jsCast<JSGlobalObject*>(ticket.dependencies()[0]);
+            JSObject* importObject = jsCast<JSObject*>(ticket.dependencies()[1]);
             VM& vm = globalObject->vm();
             auto scope = DECLARE_THROW_SCOPE(vm);
 
@@ -179,6 +189,16 @@ void StreamingCompiler::didComplete()
                 throwException(globalObject, scope, createJSWebAssemblyCompileError(globalObject, vm, result.error()));
                 promise->rejectWithCaughtException(globalObject, scope);
                 return;
+            }
+
+            if (compileOptions) {
+                auto errorMessage = compileOptions->validateBuiltinsAndImportedStrings(result.value());
+                if (errorMessage.has_value()) {
+                    throwException(globalObject, scope, createJSWebAssemblyCompileError(globalObject, vm, errorMessage.value()));
+                    promise->rejectWithCaughtException(globalObject, scope);
+                    return;
+                }
+                result.value()->applyCompileOptions(compileOptions.value());
             }
 
             JSWebAssemblyModule* module = JSWebAssemblyModule::create(vm, globalObject->webAssemblyModuleStructure(), WTF::move(result.value()));
@@ -188,6 +208,7 @@ void StreamingCompiler::didComplete()
                 return;
             }
         });
+        m_ticket = nullptr;
         return;
     }
     }
@@ -220,11 +241,11 @@ void StreamingCompiler::fail(JSGlobalObject* globalObject, JSValue error)
     if (!ticket)
         return;
     JSPromise* promise = jsCast<JSPromise*>(ticket->target());
-    // The pending work TicketData was keeping the promise alive. We need to
+    // The pending work Ticket was keeping the promise alive. We need to
     // make sure it is reachable from the stack before we remove it from the
     // pending work list.
     WTF::compilerFence();
-    m_vm.deferredWorkTimer->cancelPendingWork(ticket.get());
+    m_vm.deferredWorkTimer->cancelPendingWork(*ticket);
     promise->reject(m_vm, globalObject, error);
 }
 
@@ -240,10 +261,10 @@ void StreamingCompiler::cancel()
     auto ticket = takeTicketIfActive();
     if (!ticket)
         return;
-    m_vm.deferredWorkTimer->cancelPendingWork(ticket.get());
+    m_vm.deferredWorkTimer->cancelPendingWork(*ticket);
 }
 
-RefPtr<DeferredWorkTimer::TicketData> StreamingCompiler::takeTicketIfActive()
+RefPtr<DeferredWorkTimer::Ticket> StreamingCompiler::takeTicketIfActive()
 {
     auto ticket = m_ticket.get();
     m_ticket = nullptr;

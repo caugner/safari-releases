@@ -157,11 +157,13 @@ angle::Result SetClearState(StateManagerGL *stateManager,
     }
     if (stencilClear)
     {
+        stateManager->setStencilFrontWritemask(static_cast<GLuint>(-1));
         stateManager->setClearStencil(0);
         *outClearMask |= GL_STENCIL_BUFFER_BIT;
     }
 
     stateManager->setScissorTestEnabled(false);
+    stateManager->setRasterizerDiscardEnabled(false);
 
     return angle::Result::Continue;
 }
@@ -394,8 +396,15 @@ angle::Result BlitGL::copySubImageToLUMAWorkaroundTexture(const gl::Context *con
         GL_ZERO,
         GL_ZERO,
     };
+    // Using per-channel swizzles because this workaround may be used with OpenGL ES backend.
     ANGLE_GL_TRY(context,
-                 mFunctions->texParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, swizzle));
+                 mFunctions->texParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_R, swizzle[0]));
+    ANGLE_GL_TRY(context,
+                 mFunctions->texParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_G, swizzle[1]));
+    ANGLE_GL_TRY(context,
+                 mFunctions->texParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_B, swizzle[2]));
+    ANGLE_GL_TRY(context,
+                 mFunctions->texParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_A, swizzle[3]));
 
     // Make a temporary framebuffer using the second scratch texture to render the swizzled result
     // to.
@@ -852,10 +861,10 @@ angle::Result BlitGL::copySubTextureCPUReadback(const gl::Context *context,
         readFunction     = angle::ReadColor<angle::R8G8B8A8, GLfloat>;
     }
 
-    gl::PixelUnpackState unpack;
-    unpack.alignment = 1;
-    ANGLE_TRY(mStateManager->setPixelUnpackState(context, unpack));
-    ANGLE_TRY(mStateManager->setPixelUnpackBuffer(context, nullptr));
+    gl::PixelPackState pack;
+    pack.alignment = 1;
+    ANGLE_TRY(mStateManager->setPixelPackState(context, pack));
+    ANGLE_TRY(mStateManager->setPixelPackBuffer(context, nullptr));
     ANGLE_GL_TRY(context, mFunctions->readPixels(readPixelsArea.x, readPixelsArea.y,
                                                  readPixelsArea.width, readPixelsArea.height,
                                                  readPixelsFormat, GL_UNSIGNED_BYTE, sourceMemory));
@@ -870,10 +879,10 @@ angle::Result BlitGL::copySubTextureCPUReadback(const gl::Context *context,
         destInternalFormatInfo.format, destInternalFormatInfo.componentType, readPixelsArea.width,
         readPixelsArea.height, 1, unpackFlipY, unpackPremultiplyAlpha, unpackUnmultiplyAlpha);
 
-    gl::PixelPackState pack;
-    pack.alignment = 1;
-    ANGLE_TRY(mStateManager->setPixelPackState(context, pack));
-    ANGLE_TRY(mStateManager->setPixelPackBuffer(context, nullptr));
+    gl::PixelUnpackState unpack;
+    unpack.alignment = 1;
+    ANGLE_TRY(mStateManager->setPixelUnpackState(context, unpack));
+    ANGLE_TRY(mStateManager->setPixelUnpackBuffer(context, nullptr));
 
     nativegl::TexSubImageFormat texSubImageFormat =
         nativegl::GetTexSubImageFormat(mFunctions, mFeatures, destFormat, destType);
@@ -1275,9 +1284,10 @@ angle::Result BlitGL::generateMipmap(const gl::Context *context,
 
         // Downsample from the source texture into the intermediate texture
         mStateManager->bindTexture(sourceType, intermediateTexture);
-        ANGLE_GL_TRY(context, mFunctions->texImage2D(
-                                  ToGLenum(sourceTarget), 0, format.internalFormat, levelSize.width,
-                                  levelSize.height, 0, format.format, format.type, nullptr));
+        ANGLE_GL_TRY_ALWAYS_CHECK(
+            context, mFunctions->texImage2D(ToGLenum(sourceTarget), 0, format.internalFormat,
+                                            levelSize.width, levelSize.height, 0, format.format,
+                                            format.type, nullptr));
 
         ANGLE_GL_TRY(context, mFunctions->framebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
                                                                ToGLenum(sourceTarget),
@@ -1340,8 +1350,8 @@ angle::Result BlitGL::initializeResources(const gl::Context *context)
         -0.5f, 0.0f, 1.5f, 0.0f, 0.5f, 2.0f,
     };
 
-    ANGLE_GL_TRY(context, mFunctions->bufferData(GL_ARRAY_BUFFER, sizeof(float) * 6, vertexData,
-                                                 GL_STATIC_DRAW));
+    ANGLE_GL_TRY_ALWAYS_CHECK(context, mFunctions->bufferData(GL_ARRAY_BUFFER, sizeof(float) * 6,
+                                                              vertexData, GL_STATIC_DRAW));
 
     VertexArrayStateGL *defaultVAOState = mStateManager->getDefaultVAOState();
     if (!mFeatures.syncAllVertexArraysToDefault.enabled)
@@ -1361,7 +1371,7 @@ angle::Result BlitGL::initializeResources(const gl::Context *context)
     }
 
     constexpr GLenum potentialSRGBMipmapGenerationFormats[] = {
-        GL_RGBA16, GL_RGBA16F, GL_RGBA32F,
+        GL_RGBA16F, GL_RGBA32F,
         GL_RGBA8,  // RGBA8 can have precision loss when generating mipmaps of a sRGBA8 texture
     };
     for (GLenum internalFormat : potentialSRGBMipmapGenerationFormats)

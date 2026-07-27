@@ -873,8 +873,72 @@ TEST_P(ProvokingVertexBufferUpdateTest, DrawFlatWithPartialBufferSubUpdatesBetwe
     checkFlatQuadColors(kWidth, kHeight, GLColor::red, GLColor::green);
 }
 
+// Only run these tests on Metal. Other backends tend to time out the test suite but not crash.
+class ProvokingVertexTestMetal : public ProvokingVertexTest
+{};
+
+// Test that a very large draw call with flat shading doesn't cause an integer overflow in the Metal
+// backend.
+TEST_P(ProvokingVertexTestMetal, LargeDrawTriangleFan)
+{
+    GLsizei count = 1431655768;
+    glUseProgram(mProgram);
+    glDrawArrays(GL_TRIANGLE_FAN, 0, count);
+    EXPECT_GL_ERROR(GL_INVALID_OPERATION);
+}
+
+// Test that a very large draw call with flat shading doesn't cause an integer overflow in the Metal
+// backend.
+TEST_P(ProvokingVertexTestMetal, LargeDrawTriangleStrip)
+{
+    GLsizei count = 1431655768;
+    glUseProgram(mProgram);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, count);
+}
+
+// Test that drawing TriangleStrip with primitive restart and flat shading doesn't read out of
+// bounds. Regression test for GPU memory disclosure vulnerability during index rewriting.
+TEST_P(ProvokingVertexTestMetal, PrimitiveRestartWithTriangleStrip)
+{
+    glEnable(GL_PRIMITIVE_RESTART_FIXED_INDEX);
+
+    GLfloat halfPixel = 1.0f / static_cast<GLfloat>(getWindowWidth());
+
+    // 3 vertices
+    GLint vertexData[]     = {1, 2, 3};
+    GLfloat positionData[] = {-1.0f + halfPixel, -1.0f, -1.0f + halfPixel, 1.0f,
+                              1.0f - halfPixel,  -1.0f};
+
+    glVertexAttribIPointer(mIntAttribLocation, 1, GL_INT, 0, vertexData);
+
+    GLint positionLocation = glGetAttribLocation(mProgram, "position");
+    glEnableVertexAttribArray(positionLocation);
+    glVertexAttribPointer(positionLocation, 2, GL_FLOAT, GL_FALSE, 0, positionData);
+
+    // [0, 1, 2, R, R, R, R] -> Triangle Strip with 10 indices
+    const GLuint R     = 0xFFFFFFFF;
+    GLuint indexData[] = {0, 1, 2, R, R, R, R, R, R, R};
+
+    GLBuffer indexBuffer;
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indexData), indexData, GL_STATIC_DRAW);
+
+    glUseProgram(mProgram);
+    glDrawElements(GL_TRIANGLE_STRIP, 10, GL_UNSIGNED_INT, 0);
+
+    ASSERT_GL_NO_ERROR();
+
+    // Verify it rendered the single triangle correctly
+    GLint pixelValue[4] = {0};
+    glReadPixels(0, 0, 1, 1, GL_RGBA_INTEGER, GL_INT, &pixelValue);
+    EXPECT_EQ(vertexData[2], pixelValue[0]);  // Flat shading with provoking vertex last (index 2)
+}
+
 GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(ProvokingVertexTest);
 ANGLE_INSTANTIATE_TEST_ES3(ProvokingVertexTest);
+
+GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(ProvokingVertexTestMetal);
+ANGLE_INSTANTIATE_TEST(ProvokingVertexTestMetal, ES3_METAL());
 
 GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(ProvokingVertexBufferUpdateTest);
 ANGLE_INSTANTIATE_TEST_ES3(ProvokingVertexBufferUpdateTest);

@@ -616,6 +616,7 @@ public:
     unsigned numberOfLiveDocuments() const;
     unsigned referencingNodeCount(const Document&) const;
     ExceptionOr<void> executeOpportunisticallyScheduledTasks() const;
+    ExceptionOr<void> releaseMemoryNow() const;
 
 #if ENABLE(WEB_AUDIO)
     // BaseAudioContext lifetime testing.
@@ -801,6 +802,7 @@ public:
     void setEnumeratingAllNetworkInterfacesEnabled(bool);
     void stopPeerConnection(RTCPeerConnection&);
     void clearPeerConnectionFactory();
+    void clearWebRTCCodecsConnection();
     void applyRotationForOutgoingVideoSources(RTCPeerConnection&);
     void setWebRTCH265Support(bool);
     void setWebRTCVP9Support(bool supportVP9Profile0, bool supportVP9Profile2);
@@ -1064,6 +1066,7 @@ public:
     bool isMediaStreamSourceEnded(MediaStreamTrack&) const;
     bool isMockRealtimeMediaSourceCenterEnabled();
     bool shouldAudioTrackPlay(const AudioTrack&);
+    void deleteAudioUnit();
 #endif // ENABLE(MEDIA_STREAM)
 #if ENABLE(WEB_RTC)
     String rtcNetworkInterfaceName() const;
@@ -1132,6 +1135,8 @@ public:
     void terminateServiceWorker(ServiceWorker&, DOMPromiseDeferred<void>&&);
     void whenServiceWorkerIsTerminated(ServiceWorker&, DOMPromiseDeferred<void>&&);
     NO_RETURN_DUE_TO_CRASH void terminateWebContentProcess();
+
+    void numberOfWebSocketChannelsInNetworkProcess(DOMPromiseDeferred<IDLUnsignedLong>&&);
 
 #if ENABLE(APPLE_PAY)
     ExceptionOr<Ref<MockPaymentCoordinator>> mockPaymentCoordinator(Document&);

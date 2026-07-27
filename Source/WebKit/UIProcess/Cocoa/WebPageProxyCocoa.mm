@@ -54,10 +54,11 @@
 #import "SafeBrowsingUtilities.h"
 #import "SharedBufferReference.h"
 #import "SynapseSPI.h"
+#import "UIRemoteObjectRegistry.h"
 #import "VideoPresentationManagerProxy.h"
 #import "WKErrorInternal.h"
 #import "WKHistoryDelegatePrivate.h"
-#import "WKWebView.h"
+#import "WKWebViewPrivate.h"
 #import "WebContextMenuProxy.h"
 #import "WebFrameProxy.h"
 #import "WebPage.h"
@@ -71,6 +72,7 @@
 #import "WebProcessProxy.h"
 #import "WebScreenOrientationManagerProxy.h"
 #import "WebsiteDataStore.h"
+#import "_WKRemoteObjectRegistryInternal.h"
 #import <Foundation/NSURLRequest.h>
 #import <WebCore/AXObjectCache.h>
 #import <WebCore/AppHighlight.h>
@@ -570,6 +572,18 @@ ResourceError WebPageProxy::errorForUnpermittedAppBoundDomainNavigation(const UR
 }
 
 WebPageProxy::Internals::~Internals() = default;
+
+_WKRemoteObjectRegistry *WebPageProxy::remoteObjectRegistry()
+{
+    return [cocoaView() _remoteObjectRegistry];
+}
+
+RemoteObjectRegistry* WebPageProxy::uiRemoteObjectRegistry()
+{
+    if (RetainPtr registry = remoteObjectRegistry())
+        return &[registry remoteObjectRegistry];
+    return nullptr;
+}
 
 #if ENABLE(APPLE_PAY)
 
@@ -1716,6 +1730,16 @@ void WebPageProxy::getInformationFromImageData(Vector<uint8_t>&& data, Completio
         return completionHandler(makeUnexpected(WebCore::ImageDecodingError::Internal));
 
     ensureProtectedRunningProcess()->sendWithAsyncReply(Messages::WebPage::GetInformationFromImageData(WTF::move(data)), [preventProcessShutdownScope = protectedLegacyMainFrameProcess()->shutdownPreventingScope(), completionHandler = WTF::move(completionHandler)] (auto result) mutable {
+        completionHandler(WTF::move(result));
+    }, webPageIDInMainFrameProcess());
+}
+
+void WebPageProxy::getImageMetadata(Vector<uint8_t>&& data, CompletionHandler<void(Expected<Vector<std::pair<String, float>>, WebCore::ImageDecodingError>&&)>&& completionHandler)
+{
+    if (isClosed())
+        return completionHandler(makeUnexpected(WebCore::ImageDecodingError::Internal));
+
+    protect(ensureRunningProcess())->sendWithAsyncReply(Messages::WebPage::GetImageMetadata(WTF::move(data)), [preventProcessShutdownScope = protect(legacyMainFrameProcess())->shutdownPreventingScope(), completionHandler = WTF::move(completionHandler)] (auto result) mutable {
         completionHandler(WTF::move(result));
     }, webPageIDInMainFrameProcess());
 }

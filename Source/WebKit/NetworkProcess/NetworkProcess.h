@@ -429,7 +429,7 @@ public:
     void clearBundleIdentifier(CompletionHandler<void()>&&);
 
     bool shouldDisableCORSForRequestTo(WebCore::PageIdentifier, const URL&) const;
-    void setCORSDisablingPatterns(NetworkConnectionToWebProcess&, WebCore::PageIdentifier, Vector<String>&&);
+    void setCORSDisablingPatternsForPage(WebCore::ProcessIdentifier, WebCore::PageIdentifier, Vector<String>&&);
 
 #if PLATFORM(COCOA)
     void appPrivacyReportTestingData(PAL::SessionID, CompletionHandler<void(const AppPrivacyReportTestingData&)>&&);
@@ -600,7 +600,6 @@ private:
 #if ENABLE(ALL_LEGACY_REGISTERED_SPECIAL_URL_SCHEMES)
     void registerURLSchemeAsNoAccess(const String&) const;
 #endif
-    void registerURLSchemeAsCORSEnabled(const String&) const;
 
 #if USE(RUNNINGBOARD)
     void setIsHoldingLockedFiles(bool);

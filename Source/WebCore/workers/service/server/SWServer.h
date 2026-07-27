@@ -236,7 +236,8 @@ public:
     WEBCORE_EXPORT void didSaveWorkerScriptsToDisk(ServiceWorkerIdentifier, ScriptBuffer&& mainScript, MemoryCompactRobinHoodHashMap<URL, ScriptBuffer>&& importedScripts);
     void registrationStoreImportComplete();
     void registrationStoreDatabaseFailedToOpen();
-    void storeRegistrationForWorker(SWServerWorker&);
+    void storeRegistrationForWorkerIfNecessary(SWServerWorker&);
+    void loadWorkerScripts(const SWServerWorker&, CompletionHandler<void(bool)>&&);
 
     WEBCORE_EXPORT void getOriginsWithRegistrations(Function<void(const HashSet<SecurityOriginData>&)>&&);
 
@@ -316,6 +317,8 @@ public:
 
     WEBCORE_EXPORT void addRoutes(ServiceWorkerRegistrationIdentifier, Vector<ServiceWorkerRoute>&&, CompletionHandler<void(Expected<void, ExceptionData>&&)>&&);
     WEBCORE_EXPORT bool addHandlerIfHasControlledClients(CompletionHandler<void()>&&);
+
+    bool hasPendingConnectionDomain(const RegistrableDomain& domain) const { return m_pendingConnectionDomains.contains(domain); }
 
 private:
     SWServer(SWServerDelegate&, UniqueRef<SWOriginStore>&&, bool processTerminationDelayEnabled, String&& registrationDatabaseDirectory, PAL::SessionID, bool shouldRunServiceWorkersOnMainThreadForTesting, bool hasServiceWorkerEntitlement, std::optional<unsigned> overrideServiceWorkerRegistrationCountTestingValue, ServiceWorkerIsInspectable);

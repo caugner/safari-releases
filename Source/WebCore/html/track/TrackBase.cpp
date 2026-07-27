@@ -30,6 +30,7 @@
 #include "Document.h"
 #include "Logging.h"
 #include "TrackListBase.h"
+#include "TrackOpaqueRoot.h"
 #include "TrackPrivateBase.h"
 #include "TrackPrivateBaseClient.h"
 #include <JavaScriptCore/ConsoleTypes.h>
@@ -92,6 +93,18 @@ void TrackBase::didMoveToNewDocument(Document& newDocument)
     observeContext(newDocument.protectedContextDocument().ptr());
 }
 
+void TrackBase::setOpaqueRoot(TrackOpaqueRoot& opaqueRoot)
+{
+    m_trackOpaqueRoot = opaqueRoot;
+}
+
+WebCoreOpaqueRoot TrackBase::opaqueRoot()
+{
+    if (RefPtr trackOpaqueRoot = m_trackOpaqueRoot)
+        return trackOpaqueRoot->opaqueRoot();
+    return WebCoreOpaqueRoot { const_cast<TrackBase*>(this) };
+}
+
 #if ENABLE(MEDIA_SOURCE)
 SourceBuffer* TrackBase::sourceBuffer() const
 {
@@ -107,13 +120,13 @@ void TrackBase::setSourceBuffer(SourceBuffer* buffer)
 void TrackBase::setTrackList(TrackListBase& trackList)
 {
     m_trackList = trackList;
-    m_opaqueRoot = WebCoreOpaqueRoot { &trackList };
+    m_trackOpaqueRoot = trackList.trackOpaqueRoot();
 }
 
 void TrackBase::clearTrackList()
 {
     m_trackList = nullptr;
-    m_opaqueRoot = WebCoreOpaqueRoot { this };
+    m_trackOpaqueRoot = nullptr;
 }
 
 TrackListBase* TrackBase::trackList() const

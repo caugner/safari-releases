@@ -395,7 +395,7 @@ RefPtr<PixelBuffer> GraphicsContextGLANGLE::readPixelsForPaintResults()
         return nullptr;
     ScopedBufferBinding scopedPixelPackBufferReset(GL_PIXEL_PACK_BUFFER, 0, m_isForWebGL2);
     setPackParameters(1, 0, false);
-    GL_ReadnPixelsRobustANGLE(0, 0, pixelBuffer->size().width(), pixelBuffer->size().height(), GL_RGBA, GL_UNSIGNED_BYTE, pixelBuffer->bytes().size(), nullptr, nullptr, nullptr, pixelBuffer->bytes().data());
+    GL_ReadPixelsRobustANGLE(0, 0, pixelBuffer->size().width(), pixelBuffer->size().height(), GL_RGBA, GL_UNSIGNED_BYTE, pixelBuffer->bytes().size(), nullptr, nullptr, nullptr, pixelBuffer->bytes().data());
     // FIXME: Rendering to GL_RGB textures with a IOSurface bound to the texture image leaves
     // the alpha in the IOSurface in incorrect state. Also ANGLE GL_ReadPixels will in some
     // cases expose the non-255 values.
@@ -653,11 +653,11 @@ void GraphicsContextGLANGLE::texSubImage2D(GCGLenum target, GCGLint level, GCGLi
     invalidateKnownTextureContent(m_state.currentBoundTexture());
 }
 
-void GraphicsContextGLANGLE::compressedTexImage2D(GCGLenum target, int level, GCGLenum internalformat, GCGLsizei width, GCGLsizei height, int border, GCGLsizei imageSize, std::span<const uint8_t> data)
+void GraphicsContextGLANGLE::compressedTexImage2D(GCGLenum target, int level, GCGLenum internalformat, GCGLsizei width, GCGLsizei height, int border, std::span<const uint8_t> data)
 {
     if (!makeContextCurrent())
         return;
-    GL_CompressedTexImage2DRobustANGLE(target, level, internalformat, width, height, border, imageSize, data.size(), data.data());
+    GL_CompressedTexImage2D(target, level, internalformat, width, height, border, data.size(), data.data());
     invalidateKnownTextureContent(m_state.currentBoundTexture());
 }
 
@@ -665,15 +665,15 @@ void GraphicsContextGLANGLE::compressedTexImage2D(GCGLenum target, int level, GC
 {
     if (!makeContextCurrent())
         return;
-    GL_CompressedTexImage2DRobustANGLE(target, level, internalformat, width, height, border, imageSize, 0, reinterpret_cast<GLvoid*>(offset));
+    GL_CompressedTexImage2D(target, level, internalformat, width, height, border, imageSize, reinterpret_cast<GLvoid*>(offset));
     invalidateKnownTextureContent(m_state.currentBoundTexture());
 }
 
-void GraphicsContextGLANGLE::compressedTexSubImage2D(GCGLenum target, int level, int xoffset, int yoffset, GCGLsizei width, GCGLsizei height, GCGLenum format, GCGLsizei imageSize, std::span<const uint8_t> data)
+void GraphicsContextGLANGLE::compressedTexSubImage2D(GCGLenum target, int level, int xoffset, int yoffset, GCGLsizei width, GCGLsizei height, GCGLenum format, std::span<const uint8_t> data)
 {
     if (!makeContextCurrent())
         return;
-    GL_CompressedTexSubImage2DRobustANGLE(target, level, xoffset, yoffset, width, height, format, imageSize, data.size(), data.data());
+    GL_CompressedTexSubImage2D(target, level, xoffset, yoffset, width, height, format, data.size(), data.data());
     invalidateKnownTextureContent(m_state.currentBoundTexture());
 }
 
@@ -681,7 +681,7 @@ void GraphicsContextGLANGLE::compressedTexSubImage2D(GCGLenum target, int level,
 {
     if (!makeContextCurrent())
         return;
-    GL_CompressedTexSubImage2DRobustANGLE(target, level, xoffset, yoffset, width, height, format, imageSize, 0, reinterpret_cast<GLvoid*>(offset));
+    GL_CompressedTexSubImage2D(target, level, xoffset, yoffset, width, height, format, imageSize, reinterpret_cast<GLvoid*>(offset));
     invalidateKnownTextureContent(m_state.currentBoundTexture());
 }
 
@@ -745,7 +745,7 @@ void GraphicsContextGLANGLE::readPixelsBufferObject(IntRect rect, GCGLenum forma
     // ANGLE validates the read size against the PBO size.
     GLsizei bufferSize = std::numeric_limits<GLsizei>::max();
 
-    GL_ReadnPixelsRobustANGLE(rect.x(), rect.y(), rect.width(), rect.height(), format, type, bufferSize, nullptr, nullptr, nullptr, reinterpret_cast<void*>(offset));
+    GL_ReadPixelsRobustANGLE(rect.x(), rect.y(), rect.width(), rect.height(), format, type, bufferSize, nullptr, nullptr, nullptr, reinterpret_cast<void*>(offset));
 
     if (attrs.antialias && m_state.boundReadFBO == m_multisampleFBO)
         GL_BindFramebuffer(GraphicsContextGL::READ_FRAMEBUFFER, m_multisampleFBO);
@@ -766,12 +766,12 @@ std::optional<IntSize> GraphicsContextGLANGLE::readPixelsImpl(IntRect rect, GCGL
     updateErrors();
     GLsizei rows = 0;
     GLsizei columns = 0;
-    GL_ReadnPixelsRobustANGLE(rect.x(), rect.y(), rect.width(), rect.height(), format, type, data.size(), nullptr, &rows, &columns, data.data());
+    GL_ReadPixelsRobustANGLE(rect.x(), rect.y(), rect.width(), rect.height(), format, type, data.size(), nullptr, &rows, &columns, data.data());
     if (attrs.antialias && m_state.boundReadFBO == m_multisampleFBO)
         GL_BindFramebuffer(framebufferTarget, m_multisampleFBO);
 
     if (updateErrors()) {
-        // ANGLE detected a failure during the ReadnPixelsRobustANGLE operation. Skip the alpha channel fixup below.
+        // ANGLE detected a failure during the ReadPixelsRobustANGLE operation. Skip the alpha channel fixup below.
         return std::nullopt;
     }
 
@@ -1151,32 +1151,32 @@ void GraphicsContextGLANGLE::texSubImage3D(GCGLenum target, int level, int xoffs
     GL_TexSubImage3DRobustANGLE(target, level, xoffset, yoffset, zoffset, width, height, depth, format, type, 0, reinterpret_cast<GLvoid*>(offset));
 }
 
-void GraphicsContextGLANGLE::compressedTexImage3D(GCGLenum target, int level, GCGLenum internalformat, GCGLsizei width, GCGLsizei height, GCGLsizei depth, int border, GCGLsizei imageSize, std::span<const uint8_t> data)
+void GraphicsContextGLANGLE::compressedTexImage3D(GCGLenum target, int level, GCGLenum internalformat, GCGLsizei width, GCGLsizei height, GCGLsizei depth, int border, std::span<const uint8_t> data)
 {
     if (!makeContextCurrent())
         return;
-    GL_CompressedTexImage3DRobustANGLE(target, level, internalformat, width, height, depth, border, imageSize, data.size(), data.data());
+    GL_CompressedTexImage3D(target, level, internalformat, width, height, depth, border, data.size(), data.data());
 }
 
 void GraphicsContextGLANGLE::compressedTexImage3D(GCGLenum target, int level, GCGLenum internalformat, GCGLsizei width, GCGLsizei height, GCGLsizei depth, int border, GCGLsizei imageSize, GCGLintptr offset)
 {
     if (!makeContextCurrent())
         return;
-    GL_CompressedTexImage3DRobustANGLE(target, level, internalformat, width, height, depth, border, imageSize, 0, reinterpret_cast<GLvoid*>(offset));
+    GL_CompressedTexImage3D(target, level, internalformat, width, height, depth, border, imageSize, reinterpret_cast<GLvoid*>(offset));
 }
 
-void GraphicsContextGLANGLE::compressedTexSubImage3D(GCGLenum target, int level, int xoffset, int yoffset, int zoffset, GCGLsizei width, GCGLsizei height, GCGLsizei depth, GCGLenum format, GCGLsizei imageSize, std::span<const uint8_t> data)
+void GraphicsContextGLANGLE::compressedTexSubImage3D(GCGLenum target, int level, int xoffset, int yoffset, int zoffset, GCGLsizei width, GCGLsizei height, GCGLsizei depth, GCGLenum format, std::span<const uint8_t> data)
 {
     if (!makeContextCurrent())
         return;
-    GL_CompressedTexSubImage3DRobustANGLE(target, level, xoffset, yoffset, zoffset, width, height, depth, format, imageSize, data.size(), data.data());
+    GL_CompressedTexSubImage3D(target, level, xoffset, yoffset, zoffset, width, height, depth, format, data.size(), data.data());
 }
 
 void GraphicsContextGLANGLE::compressedTexSubImage3D(GCGLenum target, int level, int xoffset, int yoffset, int zoffset, GCGLsizei width, GCGLsizei height, GCGLsizei depth, GCGLenum format, GCGLsizei imageSize, GCGLintptr offset)
 {
     if (!makeContextCurrent())
         return;
-    GL_CompressedTexSubImage3DRobustANGLE(target, level, xoffset, yoffset, zoffset, width, height, depth, format, imageSize, 0, reinterpret_cast<GLvoid*>(offset));
+    GL_CompressedTexSubImage3D(target, level, xoffset, yoffset, zoffset, width, height, depth, format, imageSize, reinterpret_cast<GLvoid*>(offset));
 }
 
 Vector<GCGLint> GraphicsContextGLANGLE::getActiveUniforms(PlatformGLObject program, const Vector<GCGLuint>& uniformIndices, GCGLenum pname)
@@ -1611,7 +1611,19 @@ void GraphicsContextGLANGLE::pixelStorei(GCGLenum pname, GCGLint param)
 {
     if (!makeContextCurrent())
         return;
-
+    switch (pname) {
+    case UNPACK_ALIGNMENT:
+    case UNPACK_ROW_LENGTH:
+    case UNPACK_IMAGE_HEIGHT:
+    case UNPACK_SKIP_PIXELS:
+    case UNPACK_SKIP_ROWS:
+    case UNPACK_SKIP_IMAGES:
+        break;
+    default:
+        // Should be never set, rather passed to the commands that need these.
+        addError(GCGLErrorCode::InvalidOperation);
+        return;
+    }
     GL_PixelStorei(pname, param);
 }
 

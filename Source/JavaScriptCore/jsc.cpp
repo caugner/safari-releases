@@ -2626,9 +2626,9 @@ JSC_DEFINE_HOST_FUNCTION(functionDollarAgentReceiveBroadcast, (JSGlobalObject* g
             auto handler = [&vm, jsMemory](Wasm::Memory::GrowSuccess, PageCount oldPageCount, PageCount newPageCount) { jsMemory->growSuccessCallback(vm, oldPageCount, newPageCount); };
             RefPtr<Wasm::Memory> memory;
             if (auto shared = std::get<RefPtr<SharedArrayBufferContents>>(WTF::move(content)))
-                memory = Wasm::Memory::create(shared.releaseNonNull(), WTF::move(handler), jsMemory);
+                memory = Wasm::Memory::create(shared.releaseNonNull(), WTF::move(handler));
             else
-                memory = Wasm::Memory::createZeroSized(MemorySharingMode::Shared, WTF::move(handler), jsMemory);
+                memory = Wasm::Memory::createZeroSized(MemorySharingMode::Shared, WTF::move(handler));
             jsMemory->adopt(memory.releaseNonNull());
             return jsMemory;
         }
@@ -2954,9 +2954,10 @@ JSC_DEFINE_HOST_FUNCTION(functionSetTimeout, (JSGlobalObject* globalObject, Call
     if (!callback)
         return throwVMTypeError(globalObject, scope, "First argument is not a JS function"_s);
 
-    auto ticket = vm.deferredWorkTimer->addPendingWork(DeferredWorkTimer::WorkType::AtSomePoint, vm, callback, { });
-    auto dispatch = [callback, ticket] {
-        callback->vm().deferredWorkTimer->scheduleWorkSoon(ticket, [callback](DeferredWorkTimer::Ticket) {
+    auto weakTicket = vm.deferredWorkTimer->addPendingWork(DeferredWorkTimer::WorkType::AtSomePoint, vm, callback, { });
+    auto dispatch = [weakTicket = WTF::move(weakTicket), vmPtr = &vm] {
+        vmPtr->deferredWorkTimer->scheduleWorkSoonIfActive(weakTicket, [](DeferredWorkTimer::Ticket& ticket) {
+            auto* callback = jsCast<JSFunction*>(ticket.target());
             JSGlobalObject* globalObject = callback->globalObject();
             MarkedArgumentBuffer args;
             call(globalObject, callback, jsUndefined(), args, "You shouldn't see this..."_s);

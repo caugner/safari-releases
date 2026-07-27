@@ -17,6 +17,7 @@
 #include <tuple>
 
 #include "common/MemoryBuffer.h"
+#include "common/base/anglebase/numerics/checked_math.h"
 #include "common/utilities.h"
 #include "image_util/loadimage.h"
 #include "libANGLE/Context.h"
@@ -892,29 +893,42 @@ angle::Result TextureStorage11::setData(const gl::Context *context,
     GLuint srcDepthPitch = 0;
     GLuint srcSkipBytes = 0;
 
-    ANGLE_CHECK_GL_MATH(context11,
-                        internalFormatInfo.computeRowDepthSkipBytes(
-                            type, gl::Extents{width, height, depth}, unpack, index.usesTex3D(),
-                            &srcRowPitch, &srcDepthPitch, &srcSkipBytes));
+    ANGLE_CHECK_GL_MATH(context11, internalFormatInfo.computeRowDepthSkipBytes(
+                                       type, width, height, unpack, index.usesTex3D(), &srcRowPitch,
+                                       &srcDepthPitch, &srcSkipBytes));
 
     const d3d11::Format &d3d11Format =
         d3d11::Format::Get(image->getInternalFormat(), mRenderer->getRenderer11DeviceCaps());
-    const d3d11::DXGIFormatSize &dxgiFormatInfo =
-        d3d11::GetDXGIFormatSizeInfo(d3d11Format.texFormat);
 
-    const size_t outputPixelSize = dxgiFormatInfo.pixelBytes;
-
-    UINT bufferRowPitch   = static_cast<unsigned int>(outputPixelSize) * width;
-    UINT bufferDepthPitch = bufferRowPitch * height;
-
-    const size_t neededSize               = bufferDepthPitch * depth;
     angle::MemoryBuffer *conversionBuffer = nullptr;
     const uint8_t *data                   = nullptr;
+    UINT bufferRowPitch                   = 0;
+    UINT bufferDepthPitch                 = 0;
 
     LoadImageFunctionInfo loadFunctionInfo = d3d11Format.getLoadFunctions()(type);
     if (loadFunctionInfo.requiresConversion)
     {
-        ANGLE_TRY(mRenderer->getScratchMemoryBuffer(context11, neededSize, &conversionBuffer));
+        const d3d11::DXGIFormatSize &dxgiFormatInfo =
+            d3d11::GetDXGIFormatSizeInfo(d3d11Format.texFormat);
+
+        const size_t outputPixelSize = dxgiFormatInfo.pixelBytes;
+
+        angle::CheckedNumeric<uint64_t> checkedBufferRowPitch = outputPixelSize;
+        checkedBufferRowPitch *= static_cast<uint64_t>(width);
+
+        angle::CheckedNumeric<uint64_t> checkedBufferDepthPitch = checkedBufferRowPitch * height;
+        angle::CheckedNumeric<uint64_t> checkedNeededSize       = checkedBufferDepthPitch * depth;
+
+        ANGLE_CHECK_GL_MATH(context11, checkedNeededSize.IsValid<size_t>() &&
+                                           checkedBufferRowPitch.IsValid<UINT>() &&
+                                           checkedBufferDepthPitch.IsValid<UINT>());
+
+        bufferRowPitch   = checkedBufferRowPitch.ValueOrDie<UINT>();
+        bufferDepthPitch = checkedBufferDepthPitch.ValueOrDie<UINT>();
+
+        ANGLE_CHECK_GL_ALLOC(
+            context11,
+            context->getScratchBuffer(checkedNeededSize.ValueOrDie<size_t>(), &conversionBuffer));
         loadFunctionInfo.loadFunction(mRenderer->getDisplay()->getImageLoadContext(), width, height,
                                       depth, pixelData + srcSkipBytes, srcRowPitch, srcDepthPitch,
                                       conversionBuffer->data(), bufferRowPitch, bufferDepthPitch);

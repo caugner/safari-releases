@@ -102,6 +102,7 @@
 #include <wtf/ProcessPrivilege.h>
 #include <wtf/RunLoop.h>
 #include <wtf/RuntimeApplicationChecks.h>
+#include <wtf/SafeStrerror.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/UUID.h>
 #include <wtf/UniqueRef.h>
@@ -120,6 +121,7 @@
 #include "CookieStorageUtilsCF.h"
 #include "LaunchServicesDatabaseObserver.h"
 #include "NetworkSessionCocoa.h"
+#include "PathsBlockedForSandboxExtensions.h"
 #include <wtf/cocoa/Entitlements.h>
 #endif
 
@@ -426,14 +428,22 @@ void NetworkProcess::createNetworkConnectionToWebProcess(ProcessIdentifier ident
     for (auto pageID : parameters.pagesWithRelaxedThirdPartyCookieBlocking)
         m_pagesWithRelaxedThirdPartyCookieBlocking.add(pageID);
 
+    // Apply CORS-disabling patterns supplied by the UIProcess at connection-creation time. This covers the case
+    // where _corsDisablingPatterns was set on a WebPageProxy before the NetworkProcess was launched, so no
+    // SetCORSDisablingPatternsForPage IPC could reach this process.
+    for (auto& [pageIdentifier, patterns] : parameters.corsDisablingPatternsPerPage)
+        setCORSDisablingPatternsForPage(identifier, pageIdentifier, WTF::move(patterns));
+
     if (CheckedPtr session = networkSession(sessionID)) {
-        Vector<WebCore::RegistrableDomain> allowedSites;
+        std::optional<HashSet<WebCore::RegistrableDomain>> allowedSites = HashSet<WebCore::RegistrableDomain> { };
         auto iter = m_allowedFirstPartiesForCookies.find(identifier);
         if (iter != m_allowedFirstPartiesForCookies.end()) {
-            for (auto& site : iter->value.second)
-                allowedSites.append(site);
+            if (iter->value.first == LoadedWebArchive::Yes)
+                allowedSites = std::nullopt; // All sites.
+            else
+                allowedSites = iter->value.second;
         }
-        session->storageManager().startReceivingMessageFromConnection(connection->connection(), allowedSites, connection->sharedPreferencesForWebProcessValue());
+        session->storageManager().startReceivingMessageFromConnection(connection->connection(), WTF::move(allowedSites), connection->sharedPreferencesForWebProcessValue());
     }
 }
 
@@ -449,22 +459,25 @@ void NetworkProcess::addAllowedFirstPartyForCookies(WebCore::ProcessIdentifier p
     if (!HashSet<WebCore::RegistrableDomain>::isValidValue(firstPartyForCookies))
         return completionHandler();
 
-    auto& pair = m_allowedFirstPartiesForCookies.ensure(processIdentifier, [] {
+    auto& [currentLoadedWebArchive, currentDomains] = m_allowedFirstPartiesForCookies.ensure(processIdentifier, [] {
         return std::make_pair(LoadedWebArchive::No, HashSet<RegistrableDomain> { });
     }).iterator->value;
 
-    auto addResult = pair.second.add(WTF::move(firstPartyForCookies));
-    if (addResult.isNewEntry) {
+    auto updateConnectionAllowedSitesForStorage = [&](auto& allowedSites) {
         auto iter = m_webProcessConnections.find(processIdentifier);
-        if (iter != m_webProcessConnections.end()) {
-            forEachNetworkSession([connection = iter->value->connection().uniqueID(), site = Vector<WebCore::RegistrableDomain> { *addResult.iterator }](auto& session) {
-                session.storageManager().addAllowedSitesForConnection(connection, site);
-            });
-        }
-    }
-
-    if (loadedWebArchive == LoadedWebArchive::Yes)
-        pair.first = LoadedWebArchive::Yes;
+        if (iter == m_webProcessConnections.end())
+            return;
+        forEachNetworkSession([connection = iter->value->connection().uniqueID(), allowedSites](auto& session) mutable {
+            auto allowedSitesCopy { allowedSites };
+            session.storageManager().updateAllowedSitesForConnection(connection, WTF::move(allowedSitesCopy));
+        });
+    };
+    auto addResult = currentDomains.add(WTF::move(firstPartyForCookies));
+    if (currentLoadedWebArchive == LoadedWebArchive::No && loadedWebArchive == LoadedWebArchive::Yes) {
+        currentLoadedWebArchive = LoadedWebArchive::Yes;
+        updateConnectionAllowedSitesForStorage(std::nullopt); // All sites.
+    } else if (currentLoadedWebArchive == LoadedWebArchive::No && addResult.isNewEntry)
+        updateConnectionAllowedSitesForStorage(currentDomains);
 
     completionHandler();
 }
@@ -513,6 +526,50 @@ auto NetworkProcess::allowsFirstPartyForCookies(WebCore::ProcessIdentifier proce
     return result ? AllowCookieAccess::Allow : terminateOrDisallow;
 }
 
+#if PLATFORM(COCOA)
+static void addPathsBlockedForSandboxExtensions(const WebsiteDataStoreParameters& parameters)
+{
+    String cacheDirectory = FileSystem::parentPath(parameters.networkSessionParameters.networkCacheDirectory);
+    String websiteDataDirectory = FileSystem::parentPath(parameters.networkSessionParameters.indexedDBDirectory);
+#if PLATFORM(MAC)
+    String homeDirectory = AuxiliaryProcess::getHomeDirectory();
+    String homeRelativeHTTPStoragesDirectory = makeString(homeDirectory, "/Library/HTTPStorages"_s);
+    String homeRelativeKeychainDirectory = makeString(homeDirectory, "/Library/Keychains"_s);
+#else
+    String homeDirectory = "/var/mobile"_s;
+    String containerCachesDirectory = parameters.containerCachesDirectory;
+#endif
+    String homeRelativePreferencesDirectory = makeString(homeDirectory, "/Library/Preferences"_s);
+
+    Vector<String> subPathsBlocked = {
+        "/Library/Keychains"_s,
+        "/Library/Preferences"_s,
+        "/private/var/db"_s,
+        cacheDirectory,
+#if PLATFORM(MAC)
+        homeRelativeHTTPStoragesDirectory,
+        homeRelativeKeychainDirectory,
+#else
+        "/private/var/Managed Preferences"_s,
+        "/private/var/MobileAsset"_s,
+        "/private/var/preferences"_s,
+#endif
+        homeRelativePreferencesDirectory,
+        parameters.cookieStoragePath,
+        websiteDataDirectory
+    };
+    addSubPathsBlockedForSandboxExtension(WTF::move(subPathsBlocked));
+
+    Vector<String> pathsBlocked = {
+#if PLATFORM(MAC)
+        "/private/etc/services"_s,
+        "/private/etc/hosts"_s,
+#endif
+    };
+    addPathsBlockedForSandboxExtension(WTF::move(pathsBlocked));
+}
+#endif // PLATFORM(COCOA)
+
 void NetworkProcess::addStorageSession(PAL::SessionID sessionID, const WebsiteDataStoreParameters& parameters)
 {
     auto addResult = m_networkStorageSessions.add(sessionID, nullptr);
@@ -545,6 +602,8 @@ void NetworkProcess::addStorageSession(PAL::SessionID sessionID, const WebsiteDa
         if (!uiProcessCookieStorage && storageSession)
             uiProcessCookieStorage = adoptCF(_CFURLStorageSessionCopyCookieStorage(kCFAllocatorDefault, storageSession.get()));
     }
+
+    addPathsBlockedForSandboxExtensions(parameters);
 
     addResult.iterator->value = makeUnique<NetworkStorageSession>(sessionID, WTF::move(storageSession), WTF::move(uiProcessCookieStorage));
 #elif USE(CURL)
@@ -3201,15 +3260,18 @@ bool NetworkProcess::shouldDisableCORSForRequestTo(PageIdentifier pageIdentifier
     });
 }
 
-void NetworkProcess::setCORSDisablingPatterns(NetworkConnectionToWebProcess& connection, PageIdentifier pageIdentifier, Vector<String>&& patterns)
+void NetworkProcess::setCORSDisablingPatternsForPage(WebCore::ProcessIdentifier webProcessIdentifier, PageIdentifier pageIdentifier, Vector<String>&& patterns)
 {
+    // This message is sent directly from the UIProcess rather than from the WebProcess because a compromised
+    // WebContent process must not be able to disable CORS on the NetworkProcess side; that would let it read
+    // the content of arbitrary cross-origin sites.
     auto parsedPatterns = WTF::compactMap(WTF::move(patterns), [&](auto&& pattern) -> std::optional<UserContentURLPattern> {
         UserContentURLPattern parsedPattern(WTF::move(pattern));
-        if (parsedPattern.isValid()) {
-            connection.originAccessPatterns().allowAccessTo(parsedPattern);
-            return parsedPattern;
-        }
-        return std::nullopt;
+        if (!parsedPattern.isValid())
+            return std::nullopt;
+        if (RefPtr connection = webProcessConnection(webProcessIdentifier))
+            connection->originAccessPatterns().allowAccessTo(parsedPattern);
+        return parsedPattern;
     });
 
     parsedPatterns.shrinkToFit();

@@ -75,6 +75,17 @@ class TypedResourceManager : public ResourceManagerBase
         return GetIDValue(handle) == 0 || mObjectMap.contains(handle);
     }
 
+    void recycleHandle(IDType handle)
+    {
+        if (isHandleGenerated(handle))
+        {
+            return;
+        }
+
+        // Requires an explicit this-> because of C++ template rules.
+        this->mHandleAllocator.release(GetIDValue(handle));
+    }
+
     const ResourceMap<ResourceType, IDType> &getResourcesForCapture() const { return mObjectMap; }
 
   protected:
@@ -275,7 +286,7 @@ class SamplerManager : public TypedResourceManager<Sampler, SamplerManager, Samp
 class SyncManager : public TypedResourceManager<Sync, SyncManager, SyncID>
 {
   public:
-    bool createSync(rx::GLImplFactory *factory, SyncID *outSync);
+    bool createSync(rx::GLImplFactory *factory, const Context *context, SyncID *outSync);
     Sync *getSync(SyncID handle) const;
 
     static void DeleteObject(const Context *context, Sync *sync);

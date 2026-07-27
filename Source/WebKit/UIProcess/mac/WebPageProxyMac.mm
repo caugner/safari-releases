@@ -35,6 +35,7 @@
 #import "FrameInfoData.h"
 #import "ImageAnalysisUtilities.h"
 #import "InsertTextOptions.h"
+#import "Logging.h"
 #import "MenuUtilities.h"
 #import "MessageSenderInlines.h"
 #import "NativeWebKeyboardEvent.h"
@@ -594,9 +595,7 @@ static RetainPtr<NSString> pathToPDFOnDisk(const String& suggestedFilename)
         return nil;
     }
 
-    // The NSFileManager expects a path string, while NSWorkspace uses file URLs, and will decode any percent encoding
-    // in its passed URLs before loading from disk. Create the files using decoded file paths so they match up.
-    RetainPtr path = [[pdfDirectoryPath stringByAppendingPathComponent:suggestedFilename.createNSString().get()] stringByRemovingPercentEncoding];
+    RetainPtr path = [pdfDirectoryPath stringByAppendingPathComponent:suggestedFilename.createNSString().get()];
 
     RetainPtr fileManager = [NSFileManager defaultManager];
     if ([fileManager fileExistsAtPath:path.get()]) {
@@ -610,6 +609,10 @@ static RetainPtr<NSString> pathToPDFOnDisk(const String& suggestedFilename)
         path = [fileManager stringWithFileSystemRepresentation:pathTemplateRepresentation.data() length:pathTemplateRepresentation.length()];
     }
 
+    // Reject any path that resolves outside the temporary PDF directory.
+    if (![[path stringByStandardizingPath] hasPrefix:[pdfDirectoryPath stringByStandardizingPath]])
+        return nil;
+
     return path;
 }
 
@@ -620,11 +623,23 @@ void WebPageProxy::savePDFToTemporaryFolderAndOpenWithNativeApplication(const St
         return;
     }
 
-    auto sanitizedFilename = ResourceResponseBase::sanitizeSuggestedFilename(suggestedFilename);
+    // Encoded path separator should get stripped rather than decoded into the assembled path after sanitisation.
+    // Otherwise, any encoded slash produces a path traversal on post-join decodes. (rdar://174079512)
+    RetainPtr nsSuggestedFilename = suggestedFilename.createNSString();
+    if (RetainPtr decoded = [nsSuggestedFilename stringByRemovingPercentEncoding])
+        nsSuggestedFilename = WTF::move(decoded);
+
+    auto sanitizedFilename = ResourceResponseBase::sanitizeSuggestedFilename(nsSuggestedFilename.get());
     if (!sanitizedFilename.endsWithIgnoringASCIICase(".pdf"_s)) {
         WTFLogAlways("Cannot save file without .pdf extension to the temporary directory.");
         return;
     }
+
+    if (sanitizedFilename != FileSystem::lastComponentOfPathIgnoringTrailingSlash(sanitizedFilename)) {
+        RELEASE_LOG(PDF, "Cannot save PDF whose sanitized filename is not a single path component.");
+        return;
+    }
+
     RetainPtr nsPath = pathToPDFOnDisk(sanitizedFilename);
 
     if (!nsPath)
@@ -738,6 +753,15 @@ CGRect WebPageProxy::boundsOfLayerInLayerBackedWindowCoordinates(CALayer *layer)
 void WebPageProxy::didUpdateEditorState(const EditorState& oldEditorState, const EditorState& newEditorState)
 {
     bool couldChangeSecureInputState = newEditorState.isInPasswordField != oldEditorState.isInPasswordField || oldEditorState.selectionIsNone;
+
+    // FIXME: <rdar://175390893> WebPageProxy::didUpdateEditorState only updates
+    // the secure input state if `isInPasswordField` changed across EditorStates.
+    // If a frame autofocuses a password input, `isInPasswordField` may be true
+    // for both the old and new state, and thus fail to update the state even
+    // though we just reset it. We force a reevaluation as a workaround.
+    if (std::exchange(internals().forceNeedsSecureInputReevaluation, false))
+        couldChangeSecureInputState = true;
+
     // Selection being none is a temporary state when editing. Flipping secure input state too quickly was causing trouble (not fully understood).
     if (couldChangeSecureInputState && !newEditorState.selectionIsNone) {
         if (RefPtr pageClient = this->pageClient())
@@ -789,12 +813,6 @@ RetainPtr<NSView> WebPageProxy::inspectorAttachmentView()
 {
     RefPtr pageClient = this->pageClient();
     return pageClient ? pageClient->inspectorAttachmentView() : nullptr;
-}
-
-_WKRemoteObjectRegistry *WebPageProxy::remoteObjectRegistry()
-{
-    RefPtr pageClient = this->pageClient();
-    return pageClient ? pageClient->remoteObjectRegistry() : nullptr;
 }
 
 #if ENABLE(CONTEXT_MENUS)

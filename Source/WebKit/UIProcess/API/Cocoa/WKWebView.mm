@@ -952,9 +952,6 @@ static void addBrowsingContextControllerMethodStubsIfNeeded()
 
 #if PLATFORM(IOS_FAMILY)
     [_contentView _webViewDestroyed];
-
-    if (_page && _remoteObjectRegistry)
-        _page->configuration().processPool().removeMessageReceiver(Messages::RemoteObjectRegistry::messageReceiverName(), _page->identifier());
 #endif
 
     if (_page)
@@ -4279,10 +4276,8 @@ static RetainPtr<NSArray> wkTextManipulationErrors(NSArray<_WKTextManipulationIt
 #if PLATFORM(MAC)
     return _impl->remoteObjectRegistry();
 #else
-    if (!_remoteObjectRegistry) {
+    if (!_remoteObjectRegistry)
         _remoteObjectRegistry = adoptNS([[_WKRemoteObjectRegistry alloc] _initWithWebPageProxy:*_page]);
-        _page->configuration().processPool().addMessageReceiver(Messages::RemoteObjectRegistry::messageReceiverName(), _page->identifier(), [_remoteObjectRegistry remoteObjectRegistry]);
-    }
 
     return _remoteObjectRegistry.get();
 #endif
@@ -4752,9 +4747,10 @@ static void convertAndAddHighlight(Vector<Ref<WebCore::SharedMemory>>& buffers, 
 
 - (void)_loadAndDecodeImage:(NSURLRequest *)request constrainedToSize:(CGSize)maxSize maximumBytesFromNetwork:(size_t)maximumBytesFromNetwork completionHandler:(void (^)(CocoaImage *, NSError *))completionHandler
 {
-    auto sizeConstraint = (maxSize.height || maxSize.width) ? std::optional(WebCore::FloatSize(maxSize)) : std::nullopt;
     WebCore::ResourceRequest resourceRequest(request);
     auto url = resourceRequest.url();
+    auto sizeConstraint = (maxSize.height || maxSize.width) ? std::optional(WebCore::FloatSize(maxSize)) : std::nullopt;
+
     _page->loadAndDecodeImage(request, sizeConstraint, maximumBytesFromNetwork, [completionHandler = makeBlockPtr(completionHandler), url](Expected<Ref<WebCore::ShareableBitmap>, WebCore::ResourceError>&& result) mutable {
         if (!result) {
             if (result.error().isNull())
@@ -4788,6 +4784,24 @@ static void convertAndAddHighlight(Vector<Ref<WebCore::SharedMemory>>& buffers, 
 #endif
         });
         return completionHandler(typeIdentifier.createNSString().get(), availableSizes.autorelease(), nil);
+    });
+}
+
+- (void)_getImageMetadata:(NSData *)imageData completionHandler:(void (^)(NSDictionary<NSString *, id> *metadata, NSError *error))completionHandler
+{
+    _page->getImageMetadata(makeVector(imageData), [completionHandler = makeBlockPtr(completionHandler)](auto result) mutable {
+        if (!result) {
+            RetainPtr error = adoptNS([[NSError alloc] initWithDomain:WKErrorDomain code:WKErrorUnknown userInfo:@{ NSLocalizedDescriptionKey: WebCore::descriptionString(result.error()).createNSString().get() }]);
+            return completionHandler(nil, error.get());
+        }
+
+        auto metadata = result.value();
+        RetainPtr valueMap = adoptNS([[NSMutableDictionary alloc] initWithCapacity:metadata.size()]);
+
+        for (const auto& pair : metadata)
+            [valueMap setObject:@(pair.second) forKey:pair.first.createNSString().get()];
+
+        return completionHandler(valueMap.autorelease(), nil);
     });
 }
 

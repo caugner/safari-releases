@@ -411,6 +411,76 @@ navigator.serviceWorker.register('/sw.js').then(function(reg) {
 </script>
 )SWRESOURCE"_s;
 
+static constexpr auto mainRegisteringWorkerInScopeBytes = R"SWRESOURCE(
+<script>
+try {
+function log(msg)
+{
+    window.webkit.messageHandlers.sw.postMessage(msg);
+}
+
+navigator.serviceWorker.register('/scope/sw.js').then(function(reg) {
+    if (reg.active) {
+        log("FAIL: Registration already has an active worker");
+        return;
+    }
+    worker = reg.installing;
+    worker.addEventListener('statechange', function() {
+        if (worker.state == 'activated')
+            log("PASS: Registration was successful and service worker was activated");
+    });
+}).catch(function(error) {
+    log("Registration failed with: " + error);
+});
+} catch(e) {
+    log("Exception: " + e);
+}
+</script>
+)SWRESOURCE"_s;
+
+// This page is loaded at a path OUTSIDE the service worker's scope so that the navigation does
+// not trigger runServiceWorkerIfNecessary (which would load scripts before the update check).
+// It finds the existing registration via getRegistrations(), calls update() to force an update
+// check, and verifies no new worker is installed (meaning scripts were lazy-loaded from disk and
+// matched the fetched script).
+static constexpr auto mainUpdatingRestoredWorkerBytes = R"SWRESOURCE(
+<script>
+try {
+function log(msg)
+{
+    window.webkit.messageHandlers.sw.postMessage(msg);
+}
+
+navigator.serviceWorker.getRegistrations().then(function(registrations) {
+    if (registrations.length === 0) {
+        log("FAIL: No registrations found");
+        return;
+    }
+    var reg = registrations[0];
+    if (!reg.active) {
+        log("FAIL: Registration has no active worker");
+        return;
+    }
+    reg.update().then(function() {
+        if (reg.installing) {
+            log("FAIL: Update installed a new worker, scripts should have matched");
+        } else if (reg.active) {
+            log("PASS: Update completed without installing a new worker");
+        } else {
+            log("FAIL: No active worker after update");
+        }
+    }).catch(function(error) {
+        log("FAIL: Update failed: " + error);
+    });
+}).catch(function(error) {
+    log("FAIL: getRegistrations failed: " + error);
+});
+} catch(e) {
+    log("Exception: " + e);
+}
+</script>
+)SWRESOURCE"_s;
+
 static constexpr auto mainBytesForSessionIDTest = R"SWRESOURCE(
 <script>
 
@@ -676,6 +746,252 @@ TEST(ServiceWorkers, RestoreFromDisk)
 
     TestWebKitAPI::Util::run(&done);
     done = false;
+}
+
+// This test verifies that the lazy script loading path in SWServerJobQueue::scriptFetchFinished()
+// works correctly. When service worker registrations are restored from disk, scripts are not loaded
+// during import. When an update check triggers scriptFetchFinished(), the existing worker's scripts
+// must be loaded from disk before the byte-for-byte comparison can happen. After scripts are loaded
+// and the comparison succeeds (same script), no new worker should be installed.
+//
+// Key details:
+// - The network process is terminated between phases to force a fresh import from disk
+//   (otherwise the SWServer retains registrations in memory with scripts already loaded).
+// - The SW is registered under /scope/ so the phase 2 page (at /second.html) is outside the scope,
+//   preventing the navigation from triggering runServiceWorkerIfNecessary (which would load scripts
+//   before the update check).
+// - Phase 2 uses registration.update() instead of register() to force an actual update check
+//   (register() with the same script URL takes a "directly reusable" fast path that skips the
+//   update check entirely).
+TEST(ServiceWorkers, UpdateCheckAfterRestoreFromDisk)
+{
+    [WKWebsiteDataStore _allowWebsiteDataRecordsForAllOrigins];
+
+    // Start with a clean slate data store
+    [[WKWebsiteDataStore defaultDataStore] removeDataOfTypes:[WKWebsiteDataStore allWebsiteDataTypes] modifiedSince:[NSDate distantPast] completionHandler:^() {
+        done = true;
+    }];
+    TestWebKitAPI::Util::run(&done);
+    done = false;
+
+    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+
+    RetainPtr<SWMessageHandlerForRestoreFromDiskTest> messageHandler = adoptNS([[SWMessageHandlerForRestoreFromDiskTest alloc] initWithExpectedMessage:@"PASS: Registration was successful and service worker was activated"]);
+    [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"sw"];
+
+    TestWebKitAPI::HTTPServer server({
+        { "/scope/first.html"_s, { mainRegisteringWorkerInScopeBytes } },
+        { "/second.html"_s, { mainUpdatingRestoredWorkerBytes } },
+        { "/scope/sw.js"_s, { { { "Content-Type"_s, "application/javascript"_s } }, scriptBytes } },
+    });
+
+    RetainPtr<WKWebView> webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+
+    // Phase 1: Register a service worker under /scope/ and wait for it to activate.
+    [webView loadRequest:server.request("/scope/first.html"_s)];
+
+    TestWebKitAPI::Util::run(&done);
+
+    // Flush registrations to disk and terminate the network process so that Phase 2 will
+    // import registrations from disk (with lazy script loading) in a fresh network process.
+    [[WKWebsiteDataStore defaultDataStore] _storeServiceWorkerRegistrations:^{
+        done = true;
+    }];
+    done = false;
+    TestWebKitAPI::Util::run(&done);
+    done = false;
+
+    webView = nullptr;
+    configuration = nullptr;
+    messageHandler = nullptr;
+
+    [[WKWebsiteDataStore defaultDataStore] _terminateNetworkProcess];
+
+    // Phase 2: Create a new web view, restoring registrations from disk with lazy script loading.
+    // Navigate to /second.html which is OUTSIDE the SW scope (/scope/) so the navigation does not
+    // start the worker. The page calls registration.update() to trigger an update check which calls
+    // scriptFetchFinished(). Since the worker was restored with lazy scripts (needsScriptLoading()
+    // is true), scripts are loaded from disk before the comparison. After comparison succeeds (same
+    // script), no new worker is installed.
+    configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    messageHandler = adoptNS([[SWMessageHandlerForRestoreFromDiskTest alloc] initWithExpectedMessage:@"PASS: Update completed without installing a new worker"]);
+    [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"sw"];
+
+    webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+
+    [webView loadRequest:server.request("/second.html"_s)];
+
+    TestWebKitAPI::Util::run(&done);
+    done = false;
+}
+
+TEST(ServiceWorkers, CheckRegistrationWithoutMainScript)
+{
+    [WKWebsiteDataStore _allowWebsiteDataRecordsForAllOrigins];
+
+    [[WKWebsiteDataStore defaultDataStore] removeDataOfTypes:[WKWebsiteDataStore allWebsiteDataTypes] modifiedSince:[NSDate distantPast] completionHandler:^() {
+        done = true;
+    }];
+    TestWebKitAPI::Util::run(&done);
+    done = false;
+
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+
+    RetainPtr<SWMessageHandlerForRestoreFromDiskTest> messageHandler = adoptNS([[SWMessageHandlerForRestoreFromDiskTest alloc] initWithExpectedMessage:@"PASS: Registration was successful and service worker was activated"]);
+    [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"sw"];
+
+    TestWebKitAPI::HTTPServer server({
+        { "/scope/first.html"_s, { mainRegisteringWorkerInScopeBytes } },
+        { "/scope/second.html"_s, { mainUpdatingRestoredWorkerBytes } },
+        { "/scope/sw.js"_s, { { { "Content-Type"_s, "application/javascript"_s } }, scriptBytes } },
+    });
+
+    RetainPtr<WKWebView> webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+
+    // Register a service worker under /scope/ and wait for it to activate.
+    [webView loadRequest:server.request("/scope/first.html"_s)];
+    TestWebKitAPI::Util::run(&done);
+
+    // Flush registrations to disk and terminate the network process so that Phase 2 will
+    // import registrations from disk (with lazy script loading) in a fresh network process.
+    [[WKWebsiteDataStore defaultDataStore] _storeServiceWorkerRegistrations:^{
+        done = true;
+    }];
+    done = false;
+    TestWebKitAPI::Util::run(&done);
+    done = false;
+
+    webView = nullptr;
+    configuration = nullptr;
+    messageHandler = nullptr;
+
+    // Verify there is a registration
+    RetainPtr websiteDataTypes = adoptNS([[NSSet alloc] initWithArray:@[WKWebsiteDataTypeServiceWorkerRegistrations]]);
+    done = false;
+    [[WKWebsiteDataStore defaultDataStore] fetchDataRecordsOfTypes:websiteDataTypes.get() completionHandler:^(NSArray<WKWebsiteDataRecord *> *dataRecords) {
+        EXPECT_EQ(1U, dataRecords.count);
+        done = true;
+    }];
+    TestWebKitAPI::Util::run(&done);
+
+    [[WKWebsiteDataStore defaultDataStore] _terminateNetworkProcess];
+
+    // We remove the registration script stored on disk. We do this by finding the Scripts folders and removing them.
+    NSURL *path = [NSURL fileURLWithPath:[@"~/Library/WebKit/com.apple.WebKit.TestWebKitAPI/WebsiteData/Default/" stringByExpandingTildeInPath]];
+    NSDirectoryEnumerator *enumerator = [[NSFileManager defaultManager] enumeratorAtURL:path includingPropertiesForKeys:@[NSURLIsDirectoryKey] options:NSDirectoryEnumerationSkipsHiddenFiles errorHandler:nil];
+    for (NSURL *url in enumerator) {
+        NSNumber *isDirectory;
+        [url getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:nil];
+        if ([isDirectory boolValue] && [[url lastPathComponent] isEqualToString:@"Scripts"])
+            [[NSFileManager defaultManager] removeItemAtURL:url error:nil];
+    }
+
+    // Create a new web view, restoring registration from disk with lazy script loading.
+    // Try launching the service worker, removal of main script should trigger unregistration of the service worker.
+    configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    messageHandler = adoptNS([[SWMessageHandlerForRestoreFromDiskTest alloc] initWithExpectedMessage:@"FAIL: No registrations found"]);
+    [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"sw"];
+
+    done = false;
+    webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    [webView loadRequest:server.request("/scope/second.html"_s)];
+    TestWebKitAPI::Util::run(&done);
+
+    done = false;
+    [[WKWebsiteDataStore defaultDataStore] fetchDataRecordsOfTypes:websiteDataTypes.get() completionHandler:^(NSArray<WKWebsiteDataRecord *> *dataRecords) {
+        EXPECT_EQ(0U, dataRecords.count);
+        done = true;
+    }];
+    TestWebKitAPI::Util::run(&done);
+}
+
+TEST(ServiceWorkers, CheckRegistrationWithoutImportedScript)
+{
+    [WKWebsiteDataStore _allowWebsiteDataRecordsForAllOrigins];
+
+    [[WKWebsiteDataStore defaultDataStore] removeDataOfTypes:[WKWebsiteDataStore allWebsiteDataTypes] modifiedSince:[NSDate distantPast] completionHandler:^() {
+        done = true;
+    }];
+    TestWebKitAPI::Util::run(&done);
+    done = false;
+
+    RetainPtr configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+
+    RetainPtr<SWMessageHandlerForRestoreFromDiskTest> messageHandler = adoptNS([[SWMessageHandlerForRestoreFromDiskTest alloc] initWithExpectedMessage:@"PASS: Registration was successful and service worker was activated"]);
+    [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"sw"];
+
+    TestWebKitAPI::HTTPServer server({
+        { "/scope/first.html"_s, { mainRegisteringWorkerInScopeBytes } },
+        { "/scope/second.html"_s, { mainUpdatingRestoredWorkerBytes } },
+        { "/scope/sw.js"_s, { { { "Content-Type"_s, "application/javascript"_s } }, "importScripts('/scope/importedScript.js');"_s } },
+        { "/scope/importedScript.js"_s, { { { "Content-Type"_s, "application/javascript"_s } }, scriptBytes } },
+    });
+
+    RetainPtr<WKWebView> webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+
+    // Register a service worker under /scope/ and wait for it to activate.
+    [webView loadRequest:server.request("/scope/first.html"_s)];
+    TestWebKitAPI::Util::run(&done);
+
+    // Flush registrations to disk and terminate the network process so that we will
+    // import registrations from disk (with lazy script loading) in a fresh network process.
+    [[WKWebsiteDataStore defaultDataStore] _storeServiceWorkerRegistrations:^{
+        done = true;
+    }];
+    done = false;
+    TestWebKitAPI::Util::run(&done);
+    done = false;
+
+    webView = nullptr;
+    configuration = nullptr;
+    messageHandler = nullptr;
+
+    // Verify there is a registration
+    RetainPtr websiteDataTypes = adoptNS([[NSSet alloc] initWithArray:@[WKWebsiteDataTypeServiceWorkerRegistrations]]);
+    done = false;
+    [[WKWebsiteDataStore defaultDataStore] fetchDataRecordsOfTypes:websiteDataTypes.get() completionHandler:^(NSArray<WKWebsiteDataRecord *> *dataRecords) {
+        EXPECT_EQ(1U, dataRecords.count);
+        done = true;
+    }];
+    TestWebKitAPI::Util::run(&done);
+
+    [[WKWebsiteDataStore defaultDataStore] _terminateNetworkProcess];
+
+    // We remove the registration imported script stored on disk. We do this by finding the Scripts folders and removing files in that folder whose size matches the imported script size.
+    NSURL *path = [NSURL fileURLWithPath:[@"~/Library/WebKit/com.apple.WebKit.TestWebKitAPI/WebsiteData/Default/" stringByExpandingTildeInPath]];
+    NSDirectoryEnumerator *enumerator = [[NSFileManager defaultManager] enumeratorAtURL:path includingPropertiesForKeys:@[NSURLIsDirectoryKey] options:NSDirectoryEnumerationSkipsHiddenFiles errorHandler:nil];
+    for (NSURL *url in enumerator) {
+        NSNumber *isDirectory;
+        [url getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:nil];
+        if ([isDirectory boolValue] && [[url lastPathComponent] isEqualToString:@"Scripts"]) {
+            NSDirectoryEnumerator *fileEnumerator = [[NSFileManager defaultManager] enumeratorAtURL:url includingPropertiesForKeys:@[NSURLFileSizeKey] options:NSDirectoryEnumerationSkipsHiddenFiles errorHandler:nil];
+            for (NSURL *fileURL in fileEnumerator) {
+                NSNumber *fileSizeNumber;
+                if (![fileURL getResourceValue:&fileSizeNumber forKey:NSURLFileSizeKey error:NULL])
+                    continue;
+                if ([fileSizeNumber unsignedLongLongValue] == scriptBytes.length())
+                    [[NSFileManager defaultManager] removeItemAtURL:fileURL error:nil];
+            }
+        }
+    }
+
+    // Create a new web view, restoring registration from disk with lazy script loading.
+    // Try launching the service worker, removal of imported script should trigger unregistration of the service worker.
+    configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    messageHandler = adoptNS([[SWMessageHandlerForRestoreFromDiskTest alloc] initWithExpectedMessage:@"FAIL: No registrations found"]);
+    [[configuration userContentController] addScriptMessageHandler:messageHandler.get() name:@"sw"];
+
+    done = false;
+    webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    [webView loadRequest:server.request("/scope/second.html"_s)];
+    TestWebKitAPI::Util::run(&done);
+
+    done = false;
+    [[WKWebsiteDataStore defaultDataStore] fetchDataRecordsOfTypes:websiteDataTypes.get() completionHandler:^(NSArray<WKWebsiteDataRecord *> *dataRecords) {
+        EXPECT_EQ(0U, dataRecords.count);
+        done = true;
+    }];
+    TestWebKitAPI::Util::run(&done);
 }
 
 static constexpr auto scriptBytesWithFetchSupport = R"SWRESOURCE(
@@ -1577,6 +1893,7 @@ TEST(ServiceWorkers, ServiceWorkerAndCacheStorageDefaultDirectories)
     [WKWebsiteDataStore _allowWebsiteDataRecordsForAllOrigins];
 
     auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    [configuration _setAllowTestOnlyIPC:YES];
     setConfigurationInjectedBundlePath(configuration.get());
 
     RetainPtr<DirectoryPageMessageHandler> directoryPageMessageHandler = adoptNS([[DirectoryPageMessageHandler alloc] init]);
@@ -1619,6 +1936,7 @@ TEST(ServiceWorkers, ServiceWorkerAndCacheStorageSpecificDirectories)
     [WKWebsiteDataStore _allowWebsiteDataRecordsForAllOrigins];
 
     auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    [configuration _setAllowTestOnlyIPC:YES];
     setConfigurationInjectedBundlePath(configuration.get());
     auto dataStoreConfiguration = adoptNS([_WKWebsiteDataStoreConfiguration new]);
     NSString* tempDirectory = @"/var/tmp";
@@ -3266,6 +3584,65 @@ TEST(ServiceWorker, ExtensionServiceWorkerWithModules)
     TestWebKitAPI::Util::run(&done);
 }
 
+TEST(ServiceWorker, ExtensionServiceWorkerNotPersistedToDisk)
+{
+    [WKWebsiteDataStore _allowWebsiteDataRecordsForAllOrigins];
+
+    RetainPtr swPath = [NSURL fileURLWithPath:[@"~/Library/Caches/com.apple.WebKit.TestWebKitAPI/WebKit/ExtensionSWNotPersisted/" stringByExpandingTildeInPath]];
+    [[NSFileManager defaultManager] removeItemAtURL:swPath.get() error:nil];
+    [[NSFileManager defaultManager] createDirectoryAtURL:swPath.get() withIntermediateDirectories:YES attributes:nil error:nil];
+
+    RetainPtr websiteDataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
+    websiteDataStoreConfiguration.get().unifiedOriginStorageLevel = _WKUnifiedOriginStorageLevelBasic;
+    websiteDataStoreConfiguration.get()._serviceWorkerRegistrationDirectory = swPath.get();
+    RetainPtr dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:websiteDataStoreConfiguration.get()]);
+
+    RetainPtr schemeHandler = adoptNS([ServiceWorkerSchemeHandler new]);
+    [schemeHandler addMappingFromURLString:@"sw-ext://ABC/other.html" toData:"foo"];
+    [schemeHandler addMappingFromURLString:@"sw-ext://ABC/sw.js" toData:"// Extension service worker"];
+
+    WKWebViewConfiguration *webViewConfiguration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"ServiceWorkerPagePlugIn"];
+
+    RetainPtr otherViewConfiguration = adoptNS([WKWebViewConfiguration new]);
+    otherViewConfiguration.get().processPool = webViewConfiguration.processPool;
+    [otherViewConfiguration setWebsiteDataStore:dataStore.get()];
+    [otherViewConfiguration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"sw-ext"];
+    RetainPtr otherWebView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:otherViewConfiguration.get()]);
+    [otherWebView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"sw-ext://ABC/other.html"]]];
+    [otherWebView _test_waitForDidFinishNavigation];
+
+    webViewConfiguration.websiteDataStore = dataStore.get();
+    ALLOW_DEPRECATED_DECLARATIONS_BEGIN
+    webViewConfiguration._relatedWebView = otherWebView.get();
+    ALLOW_DEPRECATED_DECLARATIONS_END
+    [webViewConfiguration setURLSchemeHandler:schemeHandler.get() forURLScheme:@"sw-ext"];
+    RetainPtr webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration]);
+
+    done = false;
+    didStartURLSchemeTask = false;
+    [webView _loadServiceWorker:[NSURL URLWithString:@"sw-ext://ABC/sw.js"] usingModules:NO completionHandler:^(BOOL success) {
+        EXPECT_TRUE(success);
+        EXPECT_TRUE(didStartURLSchemeTask);
+        done = true;
+    }];
+    TestWebKitAPI::Util::run(&done);
+
+    // Wait for the service worker to finish activating.
+    while (!webViewConfiguration.processPool._serviceWorkerProcessCount)
+        TestWebKitAPI::Util::spinRunLoop(10);
+    TestWebKitAPI::Util::runFor(0.5_s);
+
+    // Flush service worker registrations to disk.
+    done = false;
+    [dataStore _storeServiceWorkerRegistrations:^{
+        done = true;
+    }];
+    TestWebKitAPI::Util::run(&done);
+
+    // Extension service workers should not be persisted to disk.
+    EXPECT_FALSE([[NSFileManager defaultManager] fileExistsAtPath:[swPath URLByAppendingPathComponent:serviceWorkerRegistrationFilename].path]);
+}
+
 TEST(ServiceWorker, ExtensionServiceWorkerFailureBadScript)
 {
     [WKWebsiteDataStore _allowWebsiteDataRecordsForAllOrigins];
@@ -4610,6 +4987,7 @@ TEST(ServiceWorkers, ServiceWorkerCacheReference)
     done = false;
 
     auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    [configuration _setAllowTestOnlyIPC:YES];
 
     auto context = adoptWK(TestWebKitAPI::Util::createContextForInjectedBundleTest("InternalsInjectedBundleTest"));
     [configuration setProcessPool:(WKProcessPool *)context.get()];

@@ -166,13 +166,6 @@ class TextureGL : public TextureImpl
                                            const void *imageCreateInfoPNext) override;
 
     angle::Result setImageExternal(const gl::Context *context,
-                                   const gl::ImageIndex &index,
-                                   GLenum internalFormat,
-                                   const gl::Extents &size,
-                                   GLenum format,
-                                   GLenum type) override;
-
-    angle::Result setImageExternal(const gl::Context *context,
                                    gl::TextureType type,
                                    egl::Stream *stream,
                                    const egl::Stream::GLTextureDescription &desc) override;
@@ -197,8 +190,6 @@ class TextureGL : public TextureImpl
     angle::Result setEGLImageTarget(const gl::Context *context,
                                     gl::TextureType type,
                                     egl::Image *image) override;
-
-    GLint getNativeID() const override;
 
     GLuint getTextureID() const { return mTextureID; }
 
@@ -267,6 +258,7 @@ class TextureGL : public TextureImpl
                                                const gl::PixelUnpackState &unpack,
                                                const gl::Buffer *unpackBuffer,
                                                const uint8_t *pixels);
+    angle::Result allocateMipmapLevelsForGeneration(const gl::Context *context);
 
     angle::Result syncTextureStateSwizzle(const gl::Context *context,
                                           const FunctionsGL *functions,
@@ -286,6 +278,15 @@ class TextureGL : public TextureImpl
                       const LevelInfoGL &levelInfo);
     const LevelInfoGL &getLevelInfo(gl::TextureTarget target, size_t level) const;
     const LevelInfoGL &getBaseLevelInfo() const;
+
+    angle::Result handleCopyImageSelfCopyRedefine(const gl::Context *context,
+                                                  GLenum internalFormat,
+                                                  GLenum initTexFormat,
+                                                  GLenum initTexType,
+                                                  const gl::Rectangle &sourceArea,
+                                                  bool outside,
+                                                  const gl::ImageIndex &destIndex,
+                                                  gl::Framebuffer *source);
 
     std::vector<LevelInfoGL> mLevelInfo;
     gl::Texture::DirtyBits mLocalDirtyBits;

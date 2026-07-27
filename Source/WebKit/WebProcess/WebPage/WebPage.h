@@ -241,7 +241,7 @@ enum class EventHandling : uint8_t;
 enum class EventMakesGamepadsVisible : bool;
 enum class ExceptionCode : uint8_t;
 enum class FinalizeRenderingUpdateFlags : uint8_t;
-enum class HasOrShouldIgnoreUserGesture : bool;
+enum class HasUserGestureOrNoUserGestureRequired : bool;
 enum class HighlightRequestOriginatedInApp : bool;
 enum class ImageDecodingError : uint8_t;
 enum class InputMode : uint8_t;
@@ -589,8 +589,7 @@ public:
     void reinitializeWebPage(WebPageCreationParameters&&);
     void platformReinitializeAccessibilityToken();
 
-    void closeWithReply(CompletionHandler<void()>&&);
-    void close();
+    void close(CompletionHandler<void()>&&);
 
     static WebPage* fromCorePage(WebCore::Page&);
 
@@ -1707,12 +1706,13 @@ public:
     void loadAndDecodeImage(WebCore::ResourceRequest&&, std::optional<WebCore::FloatSize> sizeConstraint, uint64_t, CompletionHandler<void(Expected<Ref<WebCore::ShareableBitmap>, WebCore::ResourceError>&&)>&&);
 #if PLATFORM(COCOA)
     void getInformationFromImageData(const Vector<uint8_t>&, CompletionHandler<void(Expected<std::pair<String, Vector<WebCore::IntSize>>, WebCore::ImageDecodingError>&&)>&&);
+    void getImageMetadata(const Vector<uint8_t>&, CompletionHandler<void(Expected<Vector<std::pair<String, float>>, WebCore::ImageDecodingError>&&)>&&);
     void createBitmapsFromImageData(Ref<WebCore::SharedBuffer>&&, const Vector<unsigned>&, CompletionHandler<void(Vector<Ref<WebCore::ShareableBitmap>>&&)>&&);
     void decodeImageData(Ref<WebCore::SharedBuffer>&&, std::optional<WebCore::FloatSize>, CompletionHandler<void(RefPtr<WebCore::ShareableBitmap>&&)>&&);
 #endif
 
     void hasStorageAccess(WebCore::RegistrableDomain&& subFrameDomain, WebCore::RegistrableDomain&& topFrameDomain, WebFrame&, CompletionHandler<void(bool)>&&);
-    void requestStorageAccess(WebCore::RegistrableDomain&& subFrameDomain, WebCore::RegistrableDomain&& topFrameDomain, WebFrame&, WebCore::StorageAccessScope, WebCore::HasOrShouldIgnoreUserGesture, CompletionHandler<void(WebCore::RequestStorageAccessResult)>&&);
+    void requestStorageAccess(WebCore::RegistrableDomain&& subFrameDomain, WebCore::RegistrableDomain&& topFrameDomain, WebFrame&, WebCore::StorageAccessScope, WebCore::HasUserGestureOrNoUserGestureRequired, CompletionHandler<void(WebCore::RequestStorageAccessResult)>&&);
     void setLoginStatus(WebCore::RegistrableDomain&&, WebCore::IsLoggedIn, CompletionHandler<void()>&&);
     void isLoggedIn(WebCore::RegistrableDomain&&, CompletionHandler<void(bool)>&&);
     bool hasPageLevelStorageAccess(const WebCore::RegistrableDomain& topLevelDomain, const WebCore::RegistrableDomain& resourceDomain) const;
@@ -1892,8 +1892,6 @@ public:
 
     static void updatePreferencesGenerated(const WebPreferencesStore&);
     static void updateSettingsGenerated(const WebPreferencesStore&, WebCore::Settings&);
-
-    void synchronizeCORSDisablingPatternsWithNetworkProcess();
 
 #if ENABLE(GPU_PROCESS)
     void gpuProcessConnectionDidBecomeAvailable(GPUProcessConnection&);

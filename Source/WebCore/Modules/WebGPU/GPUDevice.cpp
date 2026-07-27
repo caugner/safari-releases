@@ -389,8 +389,18 @@ private:
 };
 #endif
 
-ExceptionOr<Ref<GPUExternalTexture>> GPUDevice::importExternalTexture(const GPUExternalTextureDescriptor& externalTextureDescriptor)
+ExceptionOr<Ref<GPUExternalTexture>> GPUDevice::importExternalTexture(ScriptExecutionContext& context, const GPUExternalTextureDescriptor& externalTextureDescriptor)
 {
+    UNUSED_PARAM(context);
+
+#if ENABLE(VIDEO)
+    auto checkVideoElementOriginTaint = [&context](const RefPtr<HTMLVideoElement>& videoElement) -> std::optional<Exception> {
+        if (videoElement->taintsOrigin(*protect(context.securityOrigin()).get()))
+            return Exception { ExceptionCode::SecurityError, "GPUDevice.importExternalTexture: Cross origin external videos are not allowed in WebGPU"_s };
+        return std::nullopt;
+    };
+#endif
+
 #if ENABLE(VIDEO) && PLATFORM(COCOA)
     if (RefPtr externalTexture = externalTextureForDescriptor(externalTextureDescriptor)) {
         externalTexture->undestroy();
@@ -399,6 +409,9 @@ ExceptionOr<Ref<GPUExternalTexture>> GPUDevice::importExternalTexture(const GPUE
 #else
         auto& videoElement = externalTextureDescriptor.source;
 #endif
+        if (auto exception = checkVideoElementOriginTaint(videoElement))
+            return WTF::move(*exception);
+
         m_videoElementToExternalTextureMap.remove(*videoElement.get());
         if (auto optionalMediaIdentifier = externalTextureDescriptor.mediaIdentifier()) {
             m_backing->updateExternalTexture(externalTexture->backing(), *optionalMediaIdentifier);
@@ -416,6 +429,9 @@ ExceptionOr<Ref<GPUExternalTexture>> GPUDevice::importExternalTexture(const GPUE
 #else
     if (auto* videoElement = &externalTextureDescriptor.source; videoElement && videoElement->get()) {
 #endif
+        if (auto exception = checkVideoElementOriginTaint(*videoElement))
+            return WTF::move(*exception);
+
         WeakPtr<HTMLVideoElement> videoElementPtr = videoElement->get();
         m_videoElementToExternalTextureMap.set(*videoElementPtr, externalTexture.get());
         m_previouslyImportedExternalTexture.first = *videoElement;

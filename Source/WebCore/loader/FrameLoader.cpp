@@ -460,6 +460,10 @@ void FrameLoader::initForSynthesizedDocument(const URL&)
     m_didCallImplicitClose = true;
     m_isComplete = true;
     m_state = FrameState::Complete;
+    // Synthesized documents bypass setState(FrameState::Complete), which normally
+    // stops recording responses on the DocumentLoader.
+    if (RefPtr documentLoader = m_documentLoader)
+        documentLoader->stopRecordingResponses();
     m_needsClear = true;
 
     m_networkingContext = m_client->createNetworkingContext();
@@ -1231,8 +1235,11 @@ void FrameLoader::setFirstPartyForCookies(const URL& url)
         RefPtr localFrame = dynamicDowncast<LocalFrame>(*descendantFrame);
         if (!localFrame)
             continue;
-        if (SecurityPolicy::shouldInheritSecurityOriginFromOwner(localFrame->document()->url()) || registrableDomain.matches(localFrame->document()->url()))
-            localFrame->protectedDocument()->setSiteForCookies(url);
+        if (SecurityPolicy::shouldInheritSecurityOriginFromOwner(localFrame->document()->url())) {
+            if (RefPtr parent = dynamicDowncast<LocalFrame>(localFrame->tree().parent()))
+                protect(localFrame->document())->setSiteForCookies(parent->document()->siteForCookies());
+        } else if (registrableDomain.matches(localFrame->document()->url()))
+            protect(localFrame->document())->setSiteForCookies(url);
     }
 }
 
@@ -4865,7 +4872,8 @@ std::pair<RefPtr<Frame>, CreatedNewPage> createWindow(LocalFrame& openerFrame, F
     if (!request.frameName().isEmpty() && !isBlankTargetFrameName(request.frameName())) {
         if (RefPtr frame = openerFrame.loader().findFrameForNavigation(request.frameName(), openerFrame.protectedDocument().get())) {
             if (!isSelfTargetFrameName(request.frameName())) {
-                if (RefPtr page = frame->page(); page && isInVisibleAndActivePage(openerFrame))
+                RefPtr openerWindow = openerFrame.window();
+                if (RefPtr page = frame->page(); page && isInVisibleAndActivePage(openerFrame) && openerWindow && openerWindow->consumeTransientActivation())
                     page->chrome().focus();
             }
             frame->updateOpener(openerFrame);

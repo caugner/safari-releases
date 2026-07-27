@@ -379,6 +379,14 @@ EGLAttrib GetPlatformTypeFromEnvironment()
 {
 #if defined(ANGLE_USE_OZONE)
     return 0;
+#elif defined(ANGLE_USE_X11) && defined(ANGLE_USE_WAYLAND)
+    // EGL 1.4 eglGetDisplay() carries no platform attribute, so consult
+    // WAYLAND_DISPLAY to break the tie between the two backends.
+    if (!angle::GetEnvironmentVar("WAYLAND_DISPLAY").empty())
+    {
+        return EGL_PLATFORM_WAYLAND_EXT;
+    }
+    return EGL_PLATFORM_X11_EXT;
 #elif defined(ANGLE_USE_X11)
     return EGL_PLATFORM_X11_EXT;
 #elif defined(ANGLE_USE_WAYLAND)
@@ -452,6 +460,13 @@ rx::DisplayImpl *CreateDisplayFromAttribs(EGLAttrib displayType,
                 break;
             }
 #        endif
+#        if defined(ANGLE_USE_WAYLAND)
+            if (platformType == EGL_PLATFORM_WAYLAND_EXT)
+            {
+                impl = new rx::DisplayEGL(state);
+                break;
+            }
+#        endif
             if (platformType == EGL_PLATFORM_SURFACELESS_MESA)
             {
                 impl = new rx::DisplayEGL(state);
@@ -502,6 +517,13 @@ rx::DisplayImpl *CreateDisplayFromAttribs(EGLAttrib displayType,
                 if (platformType == EGL_PLATFORM_X11_EXT)
                 {
                     impl = rx::CreateGLXDisplay(state);
+                    break;
+                }
+#        endif
+#        if defined(ANGLE_USE_WAYLAND)
+                if (platformType == EGL_PLATFORM_WAYLAND_EXT)
+                {
+                    impl = new rx::DisplayEGL(state);
                     break;
                 }
 #        endif
@@ -2493,7 +2515,7 @@ EGLint Display::programCacheGetAttrib(EGLenum attrib) const
     switch (attrib)
     {
         case EGL_PROGRAM_CACHE_KEY_LENGTH_ANGLE:
-            return static_cast<EGLint>(BlobCache::kKeyLength);
+            return static_cast<EGLint>(angle::kProgramCacheControlKeySize);
 
         case EGL_PROGRAM_CACHE_SIZE_ANGLE:
             return static_cast<EGLint>(mMemoryProgramCache.entryCount());
@@ -2526,7 +2548,8 @@ Error Display::programCacheQuery(EGLint index,
 
     if (key)
     {
-        ASSERT(*keysize == static_cast<EGLint>(BlobCache::kKeyLength));
+        ASSERT(*keysize == static_cast<EGLint>(angle::kProgramCacheControlKeySize));
+        memset(key, 0, angle::kProgramCacheControlKeySize);
         memcpy(key, programHash->data(), BlobCache::kKeyLength);
     }
 
@@ -2544,7 +2567,7 @@ Error Display::programCacheQuery(EGLint index,
     }
 
     *binarysize = static_cast<EGLint>(programBinary.size());
-    *keysize    = static_cast<EGLint>(BlobCache::kKeyLength);
+    *keysize    = static_cast<EGLint>(angle::kProgramCacheControlKeySize);
 
     return NoError();
 }
@@ -2554,7 +2577,7 @@ Error Display::programCachePopulate(const void *key,
                                     const void *binary,
                                     EGLint binarysize)
 {
-    ASSERT(keysize == static_cast<EGLint>(BlobCache::kKeyLength));
+    ASSERT(keysize == static_cast<EGLint>(angle::kProgramCacheControlKeySize));
 
     BlobCache::Key programHash;
     memcpy(programHash.data(), key, BlobCache::kKeyLength);

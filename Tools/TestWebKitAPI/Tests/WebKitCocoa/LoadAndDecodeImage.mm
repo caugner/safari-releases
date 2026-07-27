@@ -231,6 +231,59 @@ TEST(WebKit, GetInformationFromImageData)
     Util::run(&done);
 }
 
+TEST(WebKit, GetImageMetadata)
+{
+    RetainPtr webView = adoptNS([WKWebView new]);
+    done = false;
+    RetainPtr pngData = [NSData dataWithContentsOfURL:[NSBundle.test_resourcesBundle URLForResource:@"icon" withExtension:@"png"]];
+    [webView _getImageMetadata:pngData.get() completionHandler:^(NSDictionary *metadata, NSError *error) {
+        EXPECT_NULL(error);
+        EXPECT_EQ(5, (int)[metadata count]);
+        EXPECT_EQ(215, [metadata[@"PixelWidth"] intValue]);
+        EXPECT_EQ(174, [metadata[@"PixelHeight"] intValue]);
+        EXPECT_EQ(72, [metadata[@"DPIWidth"] floatValue]);
+        EXPECT_EQ(72, [metadata[@"DPIHeight"] floatValue]);
+        EXPECT_EQ(1, [metadata[@"ImageCount"] intValue]);
+        done = true;
+    }];
+    Util::run(&done);
+
+    done = false;
+    RetainPtr gifData = [NSData dataWithContentsOfURL:[NSBundle.test_resourcesBundle URLForResource:@"animated-red-green-blue-repeat-infinite" withExtension:@"gif"]];
+    [webView _getImageMetadata:gifData.get() completionHandler:^(NSDictionary *metadata, NSError *error) {
+        EXPECT_NULL(error);
+        EXPECT_EQ(100, [metadata[@"PixelWidth"] intValue]);
+        EXPECT_EQ(100, [metadata[@"PixelHeight"] intValue]);
+        EXPECT_EQ(72, [metadata[@"DPIWidth"] floatValue]);
+        EXPECT_EQ(72, [metadata[@"DPIHeight"] floatValue]);
+        EXPECT_EQ(3, [metadata[@"ImageCount"] intValue]);
+        done = true;
+    }];
+    Util::run(&done);
+
+    done = false;
+    RetainPtr tiffData = [NSData dataWithContentsOfURL:[NSBundle.test_resourcesBundle URLForResource:@"sunset-in-cupertino-100px" withExtension:@"tiff"]];
+    [webView _getImageMetadata:tiffData.get() completionHandler:^(NSDictionary *metadata, NSError *error) {
+        EXPECT_NULL(error);
+        EXPECT_EQ(100, [metadata[@"PixelWidth"] intValue]);
+        EXPECT_EQ(75, [metadata[@"PixelHeight"] intValue]);
+        EXPECT_EQ(72, [metadata[@"DPIWidth"] floatValue]);
+        EXPECT_EQ(72, [metadata[@"DPIHeight"] floatValue]);
+        EXPECT_EQ(1, [metadata[@"ImageCount"] intValue]);
+        done = true;
+    }];
+    Util::run(&done);
+
+    done = false;
+    RetainPtr svgData = [NSData dataWithContentsOfURL:[NSBundle.test_resourcesBundle URLForResource:@"AllAhem" withExtension:@"svg"]];
+    [webView _getImageMetadata:svgData.get() completionHandler:^(NSDictionary *metadata, NSError *error) {
+        EXPECT_NOT_NULL(error);
+        EXPECT_EQ(0u, [metadata count]);
+        done = true;
+    }];
+    Util::run(&done);
+}
+
 TEST(WebKit, GetInformationFromImageDataAfterClosingWebView)
 {
     RetainPtr webView = adoptNS([WKWebView new]);
@@ -383,6 +436,120 @@ TEST(WebKit, CreateIconDataFromImageDataSVGWithSubresource)
         done = true;
     }];
     Util::run(&done);
+}
+
+TEST(WebKit, LoadAndDecodeImageNilMainDocumentURLAfterNavigation)
+{
+    auto pngData = makeVector([NSData dataWithContentsOfURL:[NSBundle.test_resourcesBundle URLForResource:@"icon" withExtension:@"png"]]);
+
+    HTTPServer server {
+        { "/"_s, { "<html></html>"_s } },
+        { "/image.png"_s, { WTF::move(pngData) } },
+    };
+
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] init]);
+    [webView synchronouslyLoadRequest:server.request()];
+
+    __block bool completionHandlerCalled { false };
+    __block RetainPtr<Util::PlatformImage> resultImage;
+    __block RetainPtr<NSError> resultError;
+    __block bool processTerminated { false };
+
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    [navigationDelegate setWebContentProcessDidTerminate:^(WKWebView *, _WKProcessTerminationReason) {
+        processTerminated = true;
+    }];
+    [webView setNavigationDelegate:navigationDelegate.get()];
+
+    // This request has a nil mainDocumentURL.
+    [webView _loadAndDecodeImage:server.request("/image.png"_s) constrainedToSize:CGSizeZero maximumBytesFromNetwork:std::numeric_limits<size_t>::max() completionHandler:^(Util::PlatformImage *image, NSError *error) {
+        resultImage = image;
+        resultError = error;
+        completionHandlerCalled = true;
+    }];
+
+    Util::run(&completionHandlerCalled);
+    // Give webContentProcessDidTerminate enough time to get called before checking processTerminated.
+    Util::spinRunLoop(10);
+
+    EXPECT_NOT_NULL(resultImage);
+    EXPECT_NULL(resultError);
+    EXPECT_FALSE(processTerminated);
+}
+
+TEST(WebKit, LoadAndDecodeImageBeforeAnyNavigation)
+{
+    auto pngData = makeVector([NSData dataWithContentsOfURL:[NSBundle.test_resourcesBundle URLForResource:@"icon" withExtension:@"png"]]);
+
+    HTTPServer server {
+        { "/image.png"_s, { WTF::move(pngData) } },
+    };
+
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] init]);
+
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    __block bool processTerminated { false };
+    [navigationDelegate setWebContentProcessDidTerminate:^(WKWebView *, _WKProcessTerminationReason) {
+        processTerminated = true;
+    }];
+    [webView setNavigationDelegate:navigationDelegate.get()];
+
+    EXPECT_NULL([webView URL]);
+
+    __block bool completionHandlerCalled { false };
+    __block RetainPtr<Util::PlatformImage> resultImage;
+    __block RetainPtr<NSError> resultError;
+    [webView _loadAndDecodeImage:server.request("/image.png"_s) constrainedToSize:CGSizeZero maximumBytesFromNetwork:std::numeric_limits<size_t>::max() completionHandler:^(Util::PlatformImage *image, NSError *error) {
+        resultImage = image;
+        resultError = error;
+        completionHandlerCalled = true;
+    }];
+
+    Util::run(&completionHandlerCalled);
+    Util::spinRunLoop(10);
+
+    EXPECT_NOT_NULL(resultImage);
+    EXPECT_NULL(resultError);
+    EXPECT_FALSE(processTerminated);
+}
+
+TEST(WebKit, LoadAndDecodeImageWithCallerProvidedDisallowedMainDocumentURL)
+{
+    auto pngData = makeVector([NSData dataWithContentsOfURL:[NSBundle.test_resourcesBundle URLForResource:@"icon" withExtension:@"png"]]);
+
+    HTTPServer server {
+        { "/"_s, { "<html></html>"_s } },
+        { "/image.png"_s, { WTF::move(pngData) } },
+    };
+
+    RetainPtr webView = adoptNS([[TestWKWebView alloc] init]);
+    [webView synchronouslyLoadRequest:server.request()];
+
+    RetainPtr navigationDelegate = adoptNS([TestNavigationDelegate new]);
+    __block bool processTerminated { false };
+    [navigationDelegate setWebContentProcessDidTerminate:^(WKWebView *, _WKProcessTerminationReason) {
+        processTerminated = true;
+    }];
+    [webView setNavigationDelegate:navigationDelegate.get()];
+
+    RetainPtr request = adoptNS([[NSMutableURLRequest alloc] initWithURL:server.request("/image.png"_s).URL]);
+    [request setMainDocumentURL:[NSURL URLWithString:@"http://unrelated-domain.example/"]];
+
+    __block bool completionHandlerCalled { false };
+    __block RetainPtr<Util::PlatformImage> resultImage;
+    __block RetainPtr<NSError> resultError;
+    [webView _loadAndDecodeImage:request.get() constrainedToSize:CGSizeZero maximumBytesFromNetwork:std::numeric_limits<size_t>::max() completionHandler:^(Util::PlatformImage *image, NSError *error) {
+        resultImage = image;
+        resultError = error;
+        completionHandlerCalled = true;
+    }];
+
+    Util::run(&completionHandlerCalled);
+    Util::spinRunLoop(10);
+
+    EXPECT_NOT_NULL(resultImage);
+    EXPECT_NULL(resultError);
+    EXPECT_FALSE(processTerminated);
 }
 
 }

@@ -76,7 +76,6 @@ angle::Result RenderbufferVk::setStorageImpl(const gl::Context *context,
     {
         mImage              = new vk::ImageHelper();
         mOwnsImage          = true;
-        mImageSiblingSerial = {};
         mImageObserverBinding.bind(mImage);
         mImageViews.init(mRenderer);
     }
@@ -133,7 +132,8 @@ angle::Result RenderbufferVk::setStorageImpl(const gl::Context *context,
     ANGLE_TRY(mImage->initExternal(
         contextVk, gl::TextureType::_2D, extents, format.getIntendedFormatID(), textureFormatID,
         imageSamples, usage, createFlags, vk::ImageAccess::Undefined, nullptr, gl::LevelIndex(0), 1,
-        1, robustInit, false, tileMemoryPreference, vk::YcbcrConversionDesc{}, nullptr));
+        1, robustInit, false, tileMemoryPreference, vk::YcbcrConversionDesc{}, nullptr,
+        vk::ImageFormatReinterpretability::ColorspaceOverrides));
 
     VkMemoryPropertyFlags flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
     ANGLE_TRY(contextVk->initImageAllocation(mImage, false, flags,
@@ -151,13 +151,12 @@ angle::Result RenderbufferVk::setStorageImpl(const gl::Context *context,
             robustInit));
 
         mRenderTarget.init(&mMultisampledImage, &mMultisampledImageViews, mImage, &mImageViews,
-                           mImageSiblingSerial, gl::LevelIndex(0), 0, 1,
-                           RenderTargetTransience::MultisampledTransient);
+                           gl::LevelIndex(0), 0, 1, RenderTargetTransience::MultisampledTransient);
     }
     else
     {
-        mRenderTarget.init(mImage, &mImageViews, nullptr, nullptr, mImageSiblingSerial,
-                           gl::LevelIndex(0), 0, 1, RenderTargetTransience::Default);
+        mRenderTarget.init(mImage, &mImageViews, nullptr, nullptr, gl::LevelIndex(0), 0, 1,
+                           RenderTargetTransience::Default);
     }
 
     return angle::Result::Continue;
@@ -197,7 +196,6 @@ angle::Result RenderbufferVk::setStorageEGLImageTarget(const gl::Context *contex
     ImageVk *imageVk    = vk::GetImpl(image);
     mImage              = imageVk->getImage();
     mOwnsImage          = false;
-    mImageSiblingSerial = imageVk->generateSiblingSerial();
     mImageObserverBinding.bind(mImage);
     mImageViews.init(mRenderer);
 
@@ -209,12 +207,11 @@ angle::Result RenderbufferVk::setStorageEGLImageTarget(const gl::Context *contex
             (imageColorspaceAttribute == EGL_GL_COLORSPACE_SRGB_KHR) ? egl::ImageColorspace::SRGB
                                                                      : egl::ImageColorspace::Linear;
         ASSERT(mImage != nullptr);
-        mImageViews.updateEglImageColorspace(*mImage, imageColorspace);
+        mImageViews.updateEglImageColorspace(mImage->getActualFormat(), imageColorspace);
     }
 
-    mRenderTarget.init(mImage, &mImageViews, nullptr, nullptr, mImageSiblingSerial,
-                       imageVk->getImageLevel(), imageVk->getImageLayer(), 1,
-                       RenderTargetTransience::Default);
+    mRenderTarget.init(mImage, &mImageViews, nullptr, nullptr, imageVk->getImageLevel(),
+                       imageVk->getImageLayer(), 1, RenderTargetTransience::Default);
 
     return angle::Result::Continue;
 }
@@ -286,15 +283,13 @@ angle::Result RenderbufferVk::initializeContents(const gl::Context *context,
                                                  const gl::ImageIndex &imageIndex)
 {
     // Note: stageSubresourceRobustClear only uses the intended format to count channels.
-    mImage->stageRobustResourceClear(imageIndex);
+    mImage->stageRobustResourceClear(imageIndex, mImage->getAspectFlags());
     return mImage->flushAllStagedUpdates(vk::GetImpl(context));
 }
 
 void RenderbufferVk::releaseOwnershipOfImage(const gl::Context *context)
 {
     ContextVk *contextVk = vk::GetImpl(context);
-
-    ASSERT(!mImageSiblingSerial.valid());
 
     mOwnsImage = false;
     releaseAndDeleteImage(contextVk);
@@ -310,6 +305,8 @@ void RenderbufferVk::releaseAndDeleteImage(ContextVk *contextVk)
 void RenderbufferVk::releaseImage(ContextVk *contextVk)
 {
     vk::Renderer *renderer = contextVk->getRenderer();
+    ShareGroupVk *shareGroupVk = contextVk->getShareGroup();
+
     if (mImage == nullptr)
     {
         ASSERT(mImageViews.isImageViewGarbageEmpty() &&
@@ -322,24 +319,25 @@ void RenderbufferVk::releaseImage(ContextVk *contextVk)
         mMultisampledImageViews.release(renderer, mImage->getResourceUse());
     }
 
-    if (mImage && mOwnsImage)
+    if (mImage)
     {
-        mImage->releaseImageFromShareContexts(renderer, contextVk, mImageSiblingSerial);
-        mImage->releaseStagedUpdates(renderer);
-    }
-    else
-    {
-        if (mImage)
+        shareGroupVk->finalizeImageLayoutInAllSharedContexts(mImage);
+        if (mOwnsImage)
         {
-            mImage->finalizeImageLayoutInShareContexts(renderer, contextVk, mImageSiblingSerial);
+            mImage->releaseImage(contextVk);
+            mImage->releaseStagedUpdates(renderer);
         }
-        mImage = nullptr;
-        mImageObserverBinding.bind(nullptr);
+        else
+        {
+            mImageObserverBinding.bind(nullptr);
+            mImage = nullptr;
+        }
     }
 
     if (mMultisampledImage.valid())
     {
-        mMultisampledImage.releaseImageFromShareContexts(renderer, contextVk, mImageSiblingSerial);
+        shareGroupVk->finalizeImageLayoutInAllSharedContexts(&mMultisampledImage);
+        mMultisampledImage.releaseImage(contextVk);
     }
 }
 
@@ -396,7 +394,6 @@ void RenderbufferVk::onSubjectStateChange(angle::SubjectIndex index, angle::Subj
 {
     ASSERT(index == kRenderbufferImageSubjectIndex &&
            (message == angle::SubjectMessage::SubjectChanged ||
-            message == angle::SubjectMessage::InitializationComplete ||
             message == angle::SubjectMessage::VkImageChanged));
 
     if (message == angle::SubjectMessage::VkImageChanged)

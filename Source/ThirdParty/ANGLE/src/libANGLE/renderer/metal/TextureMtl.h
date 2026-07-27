@@ -165,7 +165,7 @@ class TextureMtl : public TextureImpl
     // of images through glTexImage*/glCopyTex* calls. During draw calls, the caller must make sure
     // the actual texture is created by calling this method to transfer the stored images data
     // to the actual texture.
-    angle::Result ensureNativeStorageCreated(const gl::Context *context);
+    angle::Result ensureNativeStorageCreated(const gl::Context *context, bool keepImages);
 
     angle::Result bindToShader(const gl::Context *context,
                                mtl::RenderCommandEncoder *cmdEncoder,
@@ -186,10 +186,10 @@ class TextureMtl : public TextureImpl
     void deallocateNativeStorage(bool keepImages);
     angle::Result createNativeStorage(const gl::Context *context,
                                       gl::TextureType type,
-                                      const mtl::Format &mtlFormat,
                                       GLuint mips,
                                       GLuint samples,
-                                      const gl::Extents &size);
+                                      const gl::Extents &size,
+                                      const mtl::Format &format);
     angle::Result onBaseMaxLevelsChanged(const gl::Context *context);
     angle::Result ensureSamplerStateCreated(const gl::Context *context);
     // Ensure all image views at all faces/levels are retained.
@@ -197,9 +197,9 @@ class TextureMtl : public TextureImpl
     mtl::TextureRef createImageViewFromTextureStorage(GLuint cubeFaceOrZero, GLuint glLevel);
     angle::Result createViewFromBaseToMaxLevel();
     angle::Result ensureLevelViewsWithinBaseMaxCreated();
-    angle::Result checkForEmulatedChannels(const gl::Context *context,
-                                           const mtl::Format &mtlFormat,
-                                           const mtl::TextureRef &texture);
+    angle::Result initializeNowIfNeeded(const gl::Context *context,
+                                        const mtl::Format &mtlFormat,
+                                        const mtl::TextureRef &texture);
     mtl::TextureRef &getImage(const gl::ImageIndex &imageIndex);
     ImageDefinitionMtl &getImageDefinition(const gl::ImageIndex &imageIndex);
     angle::Result getRenderTarget(ContextMtl *context,
@@ -327,7 +327,6 @@ class TextureMtl : public TextureImpl
 
     bool isImmutableOrPBuffer() const;
 
-    mtl::Format mFormat;
     egl::Surface *mBoundSurface = nullptr;
     class NativeTextureWrapper;
     class NativeTextureWrapperWithViewSupport;

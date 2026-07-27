@@ -447,20 +447,22 @@ bool ValidateGetPointerv(const Context *context,
 
 bool ValidateGetSamplerParameterIiv(const Context *context,
                                     angle::EntryPoint entryPoint,
-                                    SamplerID sampler,
-                                    GLenum pname,
+                                    SamplerID samplerPacked,
+                                    SamplerParameter pnamePacked,
                                     const GLint *params)
 {
-    return ValidateGetSamplerParameterBase(context, entryPoint, sampler, pname, nullptr, params);
+    return ValidateGetSamplerParameterBase(context, entryPoint, samplerPacked, pnamePacked, params,
+                                           nullptr);
 }
 
 bool ValidateGetSamplerParameterIuiv(const Context *context,
                                      angle::EntryPoint entryPoint,
-                                     SamplerID sampler,
-                                     GLenum pname,
+                                     SamplerID samplerPacked,
+                                     SamplerParameter pnamePacked,
                                      const GLuint *params)
 {
-    return ValidateGetSamplerParameterBase(context, entryPoint, sampler, pname, nullptr, params);
+    return ValidateGetSamplerParameterBase(context, entryPoint, samplerPacked, pnamePacked, params,
+                                           nullptr);
 }
 
 bool ValidateGetTexParameterIiv(const Context *context,
@@ -483,32 +485,32 @@ bool ValidateGetTexParameterIuiv(const Context *context,
 
 bool ValidateGetnUniformfv(const Context *context,
                            angle::EntryPoint entryPoint,
-                           ShaderProgramID program,
-                           UniformLocation location,
+                           ShaderProgramID programPacked,
+                           UniformLocation locationPacked,
                            GLsizei bufSize,
                            const GLfloat *params)
 {
-    return ValidateSizedGetUniform(context, entryPoint, program, location, bufSize, nullptr);
+    return ValidateSizedGetUniform(context, entryPoint, programPacked, locationPacked, bufSize);
 }
 
 bool ValidateGetnUniformiv(const Context *context,
                            angle::EntryPoint entryPoint,
-                           ShaderProgramID program,
-                           UniformLocation location,
+                           ShaderProgramID programPacked,
+                           UniformLocation locationPacked,
                            GLsizei bufSize,
                            const GLint *params)
 {
-    return ValidateSizedGetUniform(context, entryPoint, program, location, bufSize, nullptr);
+    return ValidateSizedGetUniform(context, entryPoint, programPacked, locationPacked, bufSize);
 }
 
 bool ValidateGetnUniformuiv(const Context *context,
                             angle::EntryPoint entryPoint,
-                            ShaderProgramID program,
-                            UniformLocation location,
+                            ShaderProgramID programPacked,
+                            UniformLocation locationPacked,
                             GLsizei bufSize,
                             const GLuint *params)
 {
-    return ValidateSizedGetUniform(context, entryPoint, program, location, bufSize, nullptr);
+    return ValidateSizedGetUniform(context, entryPoint, programPacked, locationPacked, bufSize);
 }
 
 bool ValidateIsEnabledi(const PrivateState &state,
@@ -611,32 +613,26 @@ bool ValidateReadnPixels(const Context *context,
                          GLsizei bufSize,
                          const void *data)
 {
-    if (bufSize < 0)
-    {
-        ANGLE_VALIDATION_ERROR(GL_INVALID_VALUE, kNegativeBufSize);
-        return false;
-    }
-
     return ValidateReadPixelsBase(context, entryPoint, x, y, width, height, format, type, bufSize,
-                                  nullptr, nullptr, nullptr, data);
+                                  data);
 }
 
 bool ValidateSamplerParameterIiv(const Context *context,
                                  angle::EntryPoint entryPoint,
-                                 SamplerID sampler,
-                                 GLenum pname,
+                                 SamplerID samplerPacked,
+                                 SamplerParameter pnamePacked,
                                  const GLint *param)
 {
-    return ValidateSamplerParameterBase(context, entryPoint, sampler, pname, -1, true, param);
+    return ValidateSamplerParameterBase(context, entryPoint, samplerPacked, pnamePacked, param);
 }
 
 bool ValidateSamplerParameterIuiv(const Context *context,
                                   angle::EntryPoint entryPoint,
-                                  SamplerID sampler,
-                                  GLenum pname,
+                                  SamplerID samplerPacked,
+                                  SamplerParameter pnamePacked,
                                   const GLuint *param)
 {
-    return ValidateSamplerParameterBase(context, entryPoint, sampler, pname, -1, true, param);
+    return ValidateSamplerParameterBase(context, entryPoint, samplerPacked, pnamePacked, param);
 }
 
 bool ValidateTexBuffer(const Context *context,
@@ -666,7 +662,7 @@ bool ValidateTexParameterIiv(const Context *context,
                              GLenum pname,
                              const GLint *params)
 {
-    return ValidateTexParameterBase(context, entryPoint, targetPacked, pname, -1, true, params);
+    return ValidateTexParameterBase(context, entryPoint, targetPacked, pname, params);
 }
 
 bool ValidateTexParameterIuiv(const Context *context,
@@ -675,7 +671,7 @@ bool ValidateTexParameterIuiv(const Context *context,
                               GLenum pname,
                               const GLuint *params)
 {
-    return ValidateTexParameterBase(context, entryPoint, targetPacked, pname, -1, true, params);
+    return ValidateTexParameterBase(context, entryPoint, targetPacked, pname, params);
 }
 
 bool ValidateTexStorage3DMultisample(const Context *context,

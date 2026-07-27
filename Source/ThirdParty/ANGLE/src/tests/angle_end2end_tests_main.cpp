@@ -9,9 +9,7 @@
 #endif
 
 #include "gtest/gtest.h"
-#if defined(ANGLE_HAS_RAPIDJSON)
-#    include "test_utils/runner/TestSuite.h"
-#endif  // defined(ANGLE_HAS_RAPIDJSON)
+#include "test_utils/runner/TestSuite.h"
 #include "util/OSWindow.h"
 
 void ANGLEProcessTestArgs(int *argc, char *argv[]);
@@ -50,9 +48,6 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
-    // TODO(b/279980674): TestSuite depends on rapidjson which we don't have in aosp builds,
-    // for now disable both TestSuite and expectations.
-#if defined(ANGLE_HAS_RAPIDJSON)
     ANGLEProcessTestArgs(&argc, argv);
 
     auto registerTestsCallback = [] {
@@ -72,9 +67,10 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
-    // end2end test expectations only allow SKIP at the moment.
+    // end2end test expectations only allow SKIP, TIMEOUT, and PASS at the moment.
     testSuite.setTestExpectationsAllowMask(angle::GPUTestExpectationsParser::kGpuTestSkip |
-                                           angle::GPUTestExpectationsParser::kGpuTestTimeout);
+                                           angle::GPUTestExpectationsParser::kGpuTestTimeout |
+                                           angle::GPUTestExpectationsParser::kGpuTestPass);
 
     if (!testSuite.loadAllTestExpectationsFromFile(std::string(foundDataPath.data())))
     {
@@ -82,8 +78,4 @@ int main(int argc, char **argv)
     }
 
     return testSuite.run();
-#else
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-#endif  // defined(ANGLE_HAS_RAPIDJSON)
 }

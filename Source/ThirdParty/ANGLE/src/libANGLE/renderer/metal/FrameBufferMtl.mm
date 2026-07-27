@@ -18,6 +18,7 @@
 
 #include "common/MemoryBuffer.h"
 #include "common/angleutils.h"
+#include "common/base/anglebase/numerics/checked_math.h"
 #include "common/debug.h"
 #include "libANGLE/ErrorStrings.h"
 #include "libANGLE/renderer/metal/BufferMtl.h"
@@ -77,14 +78,18 @@ angle::Result CopyTextureSliceLevelToTempBuffer(const gl::Context *context,
     const mtl::Format &metalFormat   = contextMtl->getPixelFormat(formatId);
     const angle::Format &angleFormat = metalFormat.actualAngleFormat();
 
-    uint32_t width       = srcTexture->width(mipNativeLevel);
-    uint32_t height      = srcTexture->height(mipNativeLevel);
-    uint32_t sizeInBytes = width * height * angleFormat.pixelBytes;
+    uint32_t width                                  = srcTexture->width(mipNativeLevel);
+    uint32_t height                                 = srcTexture->height(mipNativeLevel);
+    angle::base::CheckedNumeric<size_t> sizeInBytes = width;
+    sizeInBytes *= height;
+    sizeInBytes *= angleFormat.pixelBytes;
+
+    ANGLE_CHECK_GL_MATH(contextMtl, sizeInBytes.IsValid());
 
     mtl::BufferRef tempBuffer;
     ANGLE_TRY(mtl::Buffer::MakeBufferWithStorageMode(
-        contextMtl, mtl::Buffer::getStorageModeForSharedBuffer(contextMtl), sizeInBytes, nullptr,
-        &tempBuffer));
+        contextMtl, mtl::Buffer::getStorageModeForSharedBuffer(contextMtl),
+        sizeInBytes.ValueOrDie(), &tempBuffer));
 
     gl::Rectangle region(0, 0, width, height);
     uint32_t bytesPerRow = angleFormat.pixelBytes * width;
@@ -653,30 +658,18 @@ angle::Result FramebufferMtl::blitWithDraw(const gl::Context *context,
     return angle::Result::Continue;
 }
 
-bool FramebufferMtl::totalBitsUsedIsLessThanOrEqualToMaxBitsSupported(
-    const gl::Context *context) const
-{
-    ContextMtl *contextMtl = mtl::GetImpl(context);
-
-    uint32_t bitsUsed = 0;
-    for (const gl::FramebufferAttachment &attachment : mState.getColorAttachments())
-    {
-        if (attachment.isAttached())
-        {
-            bitsUsed += attachment.getRedSize() + attachment.getGreenSize() +
-                        attachment.getBlueSize() + attachment.getAlphaSize();
-        }
-    }
-
-    return bitsUsed <= contextMtl->getDisplay()->getMaxColorTargetBits();
-}
-
 gl::FramebufferStatus FramebufferMtl::checkStatus(const gl::Context *context) const
 {
+    // Read attachments from mState rather than the cached mColorRenderTargets:
+    // returning true from shouldSyncStateBeforeCheckStatus() would force a full
+    // state sync, but Framebuffer::syncState's "before-check-status" path is
+    // only implemented for the GL backend.
+    ContextMtl *contextMtl             = mtl::GetImpl(context);
+    const angle::FeaturesMtl &features = contextMtl->getDisplay()->getFeatures();
+
     if (mState.hasSeparateDepthAndStencilAttachments())
     {
-        ContextMtl *contextMtl = mtl::GetImpl(context);
-        if (!contextMtl->getDisplay()->getFeatures().allowSeparateDepthStencilBuffers.enabled)
+        if (!features.allowSeparateDepthStencilBuffers.enabled)
         {
             return gl::FramebufferStatus::Incomplete(
                 GL_FRAMEBUFFER_UNSUPPORTED,
@@ -695,11 +688,36 @@ gl::FramebufferStatus FramebufferMtl::checkStatus(const gl::Context *context) co
         }
     }
 
-    if (!totalBitsUsedIsLessThanOrEqualToMaxBitsSupported(context))
+    const mtl::ContextDevice &device        = contextMtl->getMetalDevice();
+    const std::optional<NSUInteger> maxSize = mtl::GetMaxRenderPassColorSizeBytes(features, device);
+    if (maxSize)
     {
-        return gl::FramebufferStatus::Incomplete(
-            GL_FRAMEBUFFER_UNSUPPORTED,
-            gl::err::kFramebufferIncompleteColorBitsUsedExceedsMaxColorBitsSupported);
+        const auto &colorAttachments = mState.getColorAttachments();
+        mtl::RenderPassDesc desc;
+        for (size_t i = 0; i < colorAttachments.size(); ++i)
+        {
+            const gl::FramebufferAttachment &attachment = colorAttachments[i];
+            if (!attachment.isAttached())
+            {
+                continue;
+            }
+            RenderTargetMtl *rt = nullptr;
+            if (attachment.getRenderTarget(context, attachment.getRenderToTextureSamples(), &rt) ==
+                    angle::Result::Stop ||
+                !rt || !rt->getTexture())
+            {
+                return gl::FramebufferStatus::Incomplete(
+                    GL_FRAMEBUFFER_UNSUPPORTED, gl::err::kFramebufferIncompleteInternalError);
+            }
+            rt->toRenderPassAttachmentDesc(&desc.colorAttachments[i]);
+        }
+        if (mtl::ComputeTotalSizeUsedForMTLRenderPassDescriptor(desc, contextMtl, device) >
+            *maxSize)
+        {
+            return gl::FramebufferStatus::Incomplete(
+                GL_FRAMEBUFFER_UNSUPPORTED,
+                gl::err::kFramebufferIncompleteColorBitsUsedExceedsMaxColorBitsSupported);
+        }
     }
 
     return gl::FramebufferStatus::Complete();
@@ -757,12 +775,14 @@ angle::Result FramebufferMtl::syncState(const gl::Context *context,
                 {
                     ASSERT(dirtyBit >= gl::Framebuffer::DIRTY_BIT_COLOR_BUFFER_CONTENTS_0 &&
                            dirtyBit < gl::Framebuffer::DIRTY_BIT_COLOR_BUFFER_CONTENTS_MAX);
-                    // NOTE: might need to notify context.
 
-                    // Restore color attachment load action as its content may have been updated
-                    // after framebuffer invalidation.
+                    // The drawable may have been released by swap. Re-fetch the render
+                    // target to ensure dimensions reflect the current drawable size.
                     size_t colorIndexGL = static_cast<size_t>(
                         dirtyBit - gl::Framebuffer::DIRTY_BIT_COLOR_BUFFER_CONTENTS_0);
+                    ANGLE_TRY(updateCachedRenderTarget(context,
+                                                       mState.getColorAttachment(colorIndexGL),
+                                                       &mColorRenderTargets[colorIndexGL]));
                     mRenderPassDesc.colorAttachments[colorIndexGL].loadAction = MTLLoadActionLoad;
                 }
                 break;
@@ -914,7 +934,11 @@ angle::Result FramebufferMtl::ensureRenderPassStarted(const gl::Context *context
     // texture, level, slice must be the same.
     ASSERT(desc.equalIgnoreLoadStoreOptions(mRenderPassDesc));
 
-    encoder                     = contextMtl->getRenderPassCommandEncoder(desc);
+    encoder = contextMtl->getRenderPassCommandEncoder(desc);
+    if (!encoder)
+    {
+        return angle::Result::Stop;
+    }
     mStartedRenderEncoderSerial = encoder->getSerial();
 
     ANGLE_TRY(unresolveIfNeeded(context, encoder));
@@ -1021,9 +1045,9 @@ angle::Result FramebufferMtl::updateColorRenderTarget(const gl::Context *context
 {
     ASSERT(colorIndexGL < mColorRenderTargets.size());
     // Reset load store action
-    mRenderPassDesc.colorAttachments[colorIndexGL].reset();
+    mRenderPassDesc.colorAttachments[colorIndexGL] = {};
     ANGLE_TRY(updateCachedRenderTarget(context, mState.getColorAttachment(colorIndexGL),
-                                       &mColorRenderTargets[colorIndexGL]));
+                                    &mColorRenderTargets[colorIndexGL]));
 #if ANGLE_WEBKIT_EXPLICIT_RESOLVE_TARGET_ENABLED
     if (mState.getColorResolveAttachment(colorIndexGL))
     {
@@ -1037,7 +1061,7 @@ angle::Result FramebufferMtl::updateColorRenderTarget(const gl::Context *context
 angle::Result FramebufferMtl::updateDepthRenderTarget(const gl::Context *context)
 {
     // Reset load store action
-    mRenderPassDesc.depthAttachment.reset();
+    mRenderPassDesc.depthAttachment = {};
     ANGLE_TRY(updateCachedRenderTarget(context, mState.getDepthAttachment(), &mDepthRenderTarget));
 #if ANGLE_WEBKIT_EXPLICIT_RESOLVE_TARGET_ENABLED
     if (mState.getDepthResolveAttachment())
@@ -1052,7 +1076,7 @@ angle::Result FramebufferMtl::updateDepthRenderTarget(const gl::Context *context
 angle::Result FramebufferMtl::updateStencilRenderTarget(const gl::Context *context)
 {
     // Reset load store action
-    mRenderPassDesc.stencilAttachment.reset();
+    mRenderPassDesc.stencilAttachment = {};
     ANGLE_TRY(
         updateCachedRenderTarget(context, mState.getStencilAttachment(), &mStencilRenderTarget));
 #if ANGLE_WEBKIT_EXPLICIT_RESOLVE_TARGET_ENABLED
@@ -1142,7 +1166,7 @@ angle::Result FramebufferMtl::prepareRenderPass(const gl::Context *context,
         }
         else
         {
-            colorAttachment.reset();
+            colorAttachment = {};
         }
     }
 
@@ -1160,7 +1184,7 @@ angle::Result FramebufferMtl::prepareRenderPass(const gl::Context *context,
     }
     else
     {
-        desc.depthAttachment.reset();
+        desc.depthAttachment = {};
     }
 
     if (mStencilRenderTarget)
@@ -1177,7 +1201,7 @@ angle::Result FramebufferMtl::prepareRenderPass(const gl::Context *context,
     }
     else
     {
-        desc.stencilAttachment.reset();
+        desc.stencilAttachment = {};
     }
 
     if (desc.numColorAttachments == 0 && mDepthRenderTarget == nullptr &&
@@ -1185,6 +1209,11 @@ angle::Result FramebufferMtl::prepareRenderPass(const gl::Context *context,
     {
         desc.defaultWidth  = mState.getDefaultWidth();
         desc.defaultHeight = mState.getDefaultHeight();
+    }
+    else
+    {
+        desc.defaultWidth  = 0;
+        desc.defaultHeight = 0;
     }
 
     return angle::Result::Continue;
@@ -1453,12 +1482,36 @@ angle::Result FramebufferMtl::clearImpl(const gl::Context *context,
     if (clearOpts.clearArea == renderArea &&
         (!clearOpts.clearColor.valid() || allBuffersUnmasked) &&
         (!clearOpts.clearStencil.valid() ||
-         (stencilMask & mtl::kStencilMaskAll) == mtl::kStencilMaskAll))
+         (stencilMask & mtl::kStencilMaskAll) == mtl::kStencilMaskAll) &&
+        !needsRG16UnormMSAAClearWorkaround(contextMtl, clearColorBuffers))
     {
         return clearWithLoadOp(context, clearColorBuffers, clearOpts);
     }
 
     return clearWithDraw(context, clearColorBuffers, clearOpts);
+}
+
+bool FramebufferMtl::needsRG16UnormMSAAClearWorkaround(const ContextMtl *contextMtl,
+                                                       gl::DrawBufferMask clearColorBuffers) const
+{
+    if (!contextMtl->getDisplay()->getFeatures().clearMsaaRg16UnormWithDrawWorkaround.enabled)
+    {
+        return false;
+    }
+    for (size_t i : clearColorBuffers)
+    {
+        if (i >= mColorRenderTargets.size())
+        {
+            break;
+        }
+        const RenderTargetMtl *rt = mColorRenderTargets[i];
+        if (rt && rt->getRenderSamples() > 1 &&
+            rt->getFormat().metalFormat == MTLPixelFormatRG16Unorm)
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 angle::Result FramebufferMtl::invalidateImpl(const gl::Context *context,
@@ -1704,11 +1757,11 @@ angle::Result FramebufferMtl::readPixelsImpl(const gl::Context *context,
         ANGLE_TRY(CopyTextureSliceLevelToTempBuffer(context, texture, renderTarget->getLevelIndex(),
                                                     renderTarget->getLayerIndex(), &buffer));
 
-        int bufferRowPitch =
-            texture->width(renderTarget->getLevelIndex()) * readAngleFormat.pixelBytes;
+        size_t bufferRowPitch = static_cast<size_t>(texture->width(renderTarget->getLevelIndex())) *
+                                readAngleFormat.pixelBytes;
 
         buffer->syncContent(contextMtl, contextMtl->getBlitCommandEncoder());
-        const uint8_t *bufferData = buffer->mapReadOnly(contextMtl);
+        const uint8_t *bufferData = buffer->mapReadOnly(contextMtl).data();
 
         angle::Result result = readPixelsCopyImpl(
             context, area, packPixelsParams, renderTarget,
@@ -1730,15 +1783,18 @@ angle::Result FramebufferMtl::readPixelsImpl(const gl::Context *context,
     }
 
     angle::MemoryBuffer readPixelRowBuffer;
-    int bufferRowPitch = area.width * readAngleFormat.pixelBytes;
+    auto checkedRowPitch = angle::CheckedNumeric<size_t>(area.width) * readAngleFormat.pixelBytes;
+    ANGLE_CHECK_GL_MATH(contextMtl, checkedRowPitch.IsValid());
+    size_t bufferRowPitch = checkedRowPitch.ValueOrDie();
     ANGLE_CHECK_GL_ALLOC(contextMtl, readPixelRowBuffer.resize(bufferRowPitch));
     return readPixelsCopyImpl(
         context, area, packPixelsParams, renderTarget,
         [&](const gl::Rectangle &region, const uint8_t *&src) {
             // Read the pixels data to the row buffer
+            ASSERT(region.height == 1);
             ANGLE_TRY(mtl::ReadTexturePerSliceBytes(
                 context, texture, bufferRowPitch, region, renderTarget->getLevelIndex(),
-                renderTarget->getLayerIndex(), readPixelRowBuffer.data()));
+                renderTarget->getLayerIndex(), readPixelRowBuffer.span()));
             src = readPixelRowBuffer.data();
             return angle::Result::Continue;
         },

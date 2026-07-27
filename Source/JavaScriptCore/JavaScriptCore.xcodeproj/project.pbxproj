@@ -805,7 +805,7 @@
 		233D76912E288BCA00EB9FFB /* syntaxError.js in CopyFiles */ = {isa = PBXBuildFile; fileRef = 233D767D2E288A8600EB9FFB /* syntaxError.js */; };
 		23863EEB2E5EC93E00E57879 /* WebAssemblyBuiltinTrampoline.h in Headers */ = {isa = PBXBuildFile; fileRef = 23863EEA2E5EC92900E57879 /* WebAssemblyBuiltinTrampoline.h */; };
 		2392A1302DD51DB100DD1CB9 /* WebAssemblyBuiltin.h in Headers */ = {isa = PBXBuildFile; fileRef = 2392A12A2DD51DB100DD1CB9 /* WebAssemblyBuiltin.h */; settings = {ATTRIBUTES = (Private, ); }; };
-		2392A1312DD51DB100DD1CB9 /* WebAssemblyCompileOptions.h in Headers */ = {isa = PBXBuildFile; fileRef = 2392A12C2DD51DB100DD1CB9 /* WebAssemblyCompileOptions.h */; };
+		2392A1312DD51DB100DD1CB9 /* WebAssemblyCompileOptions.h in Headers */ = {isa = PBXBuildFile; fileRef = 2392A12C2DD51DB100DD1CB9 /* WebAssemblyCompileOptions.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		2600B5A7152BAAA70091EE5F /* JSStringJoiner.h in Headers */ = {isa = PBXBuildFile; fileRef = 2600B5A5152BAAA70091EE5F /* JSStringJoiner.h */; };
 		262D85B71C0D650F006ACB61 /* AirFixPartialRegisterStalls.h in Headers */ = {isa = PBXBuildFile; fileRef = 262D85B51C0D650F006ACB61 /* AirFixPartialRegisterStalls.h */; };
 		2684D4381C00161C0081D663 /* AirLiveness.h in Headers */ = {isa = PBXBuildFile; fileRef = 2684D4371C00161C0081D663 /* AirLiveness.h */; };
@@ -1931,7 +1931,7 @@
 		DD4BEC1129CB85E000398E35 /* B3CanonicalizePrePostIncrements.h in Headers */ = {isa = PBXBuildFile; fileRef = DD4BEC0F29CB85AF00398E35 /* B3CanonicalizePrePostIncrements.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		DD4BEC1229CB950A00398E35 /* WasmEntryPlan.h in Headers */ = {isa = PBXBuildFile; fileRef = 14AB0C94231747B7000250BC /* WasmEntryPlan.h */; };
 		DD546FEC29CD2A5D00A5173B /* AirTmpWidthInlines.h in Headers */ = {isa = PBXBuildFile; fileRef = 0FEC858F2BDACDC70080FF74 /* AirTmpWidthInlines.h */; };
-		DD5F74F9283EF58D0027A8C6 /* copy-profiling-data.sh in Headers */ = {isa = PBXBuildFile; fileRef = DD5F74F8283EF4380027A8C6 /* copy-profiling-data.sh */; settings = {ATTRIBUTES = (Private, ); }; };
+		DD5F74F9283EF58D0027A8C6 /* copy-profiling-data.py in Headers */ = {isa = PBXBuildFile; fileRef = DD5F74F8283EF4380027A8C6 /* copy-profiling-data.py */; settings = {ATTRIBUTES = (Private, ); }; };
 		DDB04F41278E569A008D3678 /* libWTF.a in Product Dependencies */ = {isa = PBXBuildFile; fileRef = 1498CAD3214656C400710879 /* libWTF.a */; };
 		DDE99312278D089000F60D26 /* libWebKitAdditions.a in Product Dependencies */ = {isa = PBXBuildFile; fileRef = DDE9930E278D086600F60D26 /* libWebKitAdditions.a */; };
 		DE26E9031CB5DD0500D2BE82 /* BuiltinExecutableCreator.h in Headers */ = {isa = PBXBuildFile; fileRef = DE26E9021CB5DD0500D2BE82 /* BuiltinExecutableCreator.h */; };
@@ -2291,7 +2291,6 @@
 		FFE31BDB2E6212CD006FE0B7 /* WasmVirtualAddress.h in Headers */ = {isa = PBXBuildFile; fileRef = FFE31BDA2E6212CD006FE0B7 /* WasmVirtualAddress.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FFE88B9E2EC96CA700C9F5E2 /* ExecutionHandlerTest.cpp in Sources */ = {isa = PBXBuildFile; fileRef = FFE88B9D2EC96CA700C9F5E2 /* ExecutionHandlerTest.cpp */; };
 		FFF3373F2BCDF1240070D04B /* JSCBytecodeCacheVersion.h in Headers */ = {isa = PBXBuildFile; fileRef = FFF3373E2BCDF1240070D04B /* JSCBytecodeCacheVersion.h */; settings = {ATTRIBUTES = (Private, ); }; };
-		FFF4D5A32CE304CD006EA634 /* DeferredWorkTimerInlines.h in Headers */ = {isa = PBXBuildFile; fileRef = FFF4D5A22CE304C2006EA634 /* DeferredWorkTimerInlines.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FFFAF8CB2EC97B2B00042238 /* TestScripts.cpp in Sources */ = {isa = PBXBuildFile; fileRef = FFFAF8CA2EC97B2B00042238 /* TestScripts.cpp */; };
 		FFFAF8CE2EC9A7C000042238 /* ExecutionHandlerTestSupport.cpp in Sources */ = {isa = PBXBuildFile; fileRef = FFFAF8CD2EC9A7C000042238 /* ExecutionHandlerTestSupport.cpp */; };
 /* End PBXBuildFile section */
@@ -5728,7 +5727,7 @@
 		DD453DC62EC56E5900C1D6A8 /* generate-derived-sources.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = "generate-derived-sources.sh"; sourceTree = "<group>"; };
 		DD4BEC0E29CB85AF00398E35 /* B3CanonicalizePrePostIncrements.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = B3CanonicalizePrePostIncrements.cpp; path = b3/B3CanonicalizePrePostIncrements.cpp; sourceTree = "<group>"; };
 		DD4BEC0F29CB85AF00398E35 /* B3CanonicalizePrePostIncrements.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = B3CanonicalizePrePostIncrements.h; path = b3/B3CanonicalizePrePostIncrements.h; sourceTree = "<group>"; };
-		DD5F74F8283EF4380027A8C6 /* copy-profiling-data.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = "copy-profiling-data.sh"; sourceTree = "<group>"; };
+		DD5F74F8283EF4380027A8C6 /* copy-profiling-data.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = "copy-profiling-data.py"; sourceTree = "<group>"; };
 		DD71812F2E21D3B700A096B7 /* AllowedSPI.toml */ = {isa = PBXFileReference; lastKnownFileType = text; path = AllowedSPI.toml; sourceTree = "<group>"; };
 		DD7181302E21D3B700A096B7 /* AllowedSPI-legacy.toml */ = {isa = PBXFileReference; lastKnownFileType = text; path = "AllowedSPI-legacy.toml"; sourceTree = "<group>"; };
 		DDA35E4D29CACFDE006C1018 /* ExtraSymbolsForTAPI.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ExtraSymbolsForTAPI.h; sourceTree = "<group>"; };
@@ -6369,7 +6368,6 @@
 		FFE88B9D2EC96CA700C9F5E2 /* ExecutionHandlerTest.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ExecutionHandlerTest.cpp; sourceTree = "<group>"; };
 		FFF3373D2BCDF1240070D04B /* JSCBytecodeCacheVersion.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = JSCBytecodeCacheVersion.cpp; sourceTree = "<group>"; };
 		FFF3373E2BCDF1240070D04B /* JSCBytecodeCacheVersion.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = JSCBytecodeCacheVersion.h; sourceTree = "<group>"; };
-		FFF4D5A22CE304C2006EA634 /* DeferredWorkTimerInlines.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DeferredWorkTimerInlines.h; sourceTree = "<group>"; };
 		FFFAF8C92EC97B2B00042238 /* TestScripts.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = TestScripts.h; sourceTree = "<group>"; };
 		FFFAF8CA2EC97B2B00042238 /* TestScripts.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = TestScripts.cpp; sourceTree = "<group>"; };
 		FFFAF8CC2EC9A7C000042238 /* ExecutionHandlerTestSupport.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ExecutionHandlerTestSupport.h; sourceTree = "<group>"; };
@@ -8456,7 +8454,6 @@
 				276B38AB2A71D1E700252F4E /* DatePrototypeInlines.h */,
 				534638761E71E06E00F12AC1 /* DeferredWorkTimer.cpp */,
 				534638741E70DDEC00F12AC1 /* DeferredWorkTimer.h */,
-				FFF4D5A22CE304C2006EA634 /* DeferredWorkTimerInlines.h */,
 				FE9F3FC626163CA90069E89F /* DeferTermination.h */,
 				169948EDE68D4054B01EF797 /* DefinePropertyAttributes.h */,
 				734B655423F4A33100A069D1 /* DeletePropertySlot.h */,
@@ -10131,7 +10128,7 @@
 			children = (
 				535E08C9225460AB00DF00CA /* postprocess-header-rule */,
 				99DA00971BD598E000F4575C /* wkbuiltins */,
-				DD5F74F8283EF4380027A8C6 /* copy-profiling-data.sh */,
+				DD5F74F8283EF4380027A8C6 /* copy-profiling-data.py */,
 				9959E9271BD17FA0001AA413 /* cssmin.py */,
 				9959E92F1BD181F6001AA413 /* generate-combined-inspector-json.py */,
 				DD453DC62EC56E5900C1D6A8 /* generate-derived-sources.sh */,
@@ -11039,7 +11036,7 @@
 				E3FCCB642310A90D00238E72 /* ConstructorKind.h in Headers */,
 				A57D23F21891B5B40031C7FA /* ContentSearchUtilities.h in Headers */,
 				52678F911A04177C006A306D /* ControlFlowProfiler.h in Headers */,
-				DD5F74F9283EF58D0027A8C6 /* copy-profiling-data.sh in Headers */,
+				DD5F74F9283EF58D0027A8C6 /* copy-profiling-data.py in Headers */,
 				C4F4B6F41A05C944005CAB76 /* cpp_generator.py in Headers */,
 				C4F4B6F31A05C944005CAB76 /* cpp_generator_templates.py in Headers */,
 				0F30D7C01D95D6320053089D /* CPU.h in Headers */,
@@ -11071,7 +11068,6 @@
 				0FC712DF17CD877C008CC93C /* DeferredCompilationCallback.h in Headers */,
 				FE5068651AE246390009DAB7 /* DeferredSourceDump.h in Headers */,
 				534638751E70DDEC00F12AC1 /* DeferredWorkTimer.h in Headers */,
-				FFF4D5A32CE304CD006EA634 /* DeferredWorkTimerInlines.h in Headers */,
 				FE9F3FC826163CA90069E89F /* DeferTermination.h in Headers */,
 				473DA4A4764C45FE871B0485 /* DefinePropertyAttributes.h in Headers */,
 				0FBB73BB1DEF8645002C009E /* DeleteAllCodeEffort.h in Headers */,
@@ -13282,24 +13278,26 @@
 		F4CDF3C927E9147500191928 /* Copy Profiling Data */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
+			dependencyFile = "$(DERIVED_FILES_DIR)/copy-profiling-data.d";
 			files = (
 			);
 			inputFileListPaths = (
 			);
 			inputPaths = (
-				"$(WK_COMPRESSED_OPTIMIZATION_PROFILE_FILE)",
+				"$(WK_COMPRESSED_OPTIMIZATION_PROFILE_FOLDER)",
 				"$(SRCROOT)/../../Tools/Profiling/Empty.profdata",
-				"$(SRCROOT)/Scripts/copy-profiling-data.sh",
+				"$(SRCROOT)/Scripts/copy-profiling-data.py",
 			);
 			name = "Copy Profiling Data";
 			outputFileListPaths = (
 			);
 			outputPaths = (
-				"$(BUILT_PRODUCTS_DIR)/DerivedSources/JavaScriptCore/JavaScriptCore.profdata",
+				"$(BUILT_PRODUCTS_DIR)/DerivedSources/JavaScriptCore/Profiling/arm64e.profdata",
+				"$(BUILT_PRODUCTS_DIR)/DerivedSources/JavaScriptCore/Profiling/x86_64.profdata",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "if [ \"${ACTION}\" = \"installhdrs\" -o \"${ACTION}\" = \"installapi\" ]; then\n    exit 0;\nfi\n\"${SCRIPT_INPUT_FILE_2}\"\n";
+			shellScript = "if [ \"${ACTION}\" = \"installhdrs\" -o \"${ACTION}\" = \"installapi\" ]; then\n    echo \"dependencies: \" > \"${DERIVED_FILES_DIR}/copy-profiling-data.d\"\n    exit 0;\nfi\n\"${SCRIPT_INPUT_FILE_2}\"\n";
 		};
 		FEB9CA5829FDDEC000BF57FB /* Generate Entitlements */ = {
 			isa = PBXShellScriptBuildPhase;

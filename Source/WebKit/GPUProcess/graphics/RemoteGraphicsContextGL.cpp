@@ -157,7 +157,9 @@ void RemoteGraphicsContextGL::workQueueUninitialize()
 
 void RemoteGraphicsContextGL::didReceiveInvalidMessage(IPC::StreamServerConnection&, IPC::MessageName messageName, const Vector<uint32_t>&)
 {
-    RELEASE_LOG_FAULT(IPC, "Received an invalid message '%" PUBLIC_LOG_STRING "' from WebContent process, requesting for it to be terminated.", description(messageName).characters());
+    RefPtr gpuConnectionToWebProcess = m_gpuConnectionToWebProcess.get();
+    uint64_t webProcessID = gpuConnectionToWebProcess ? gpuConnectionToWebProcess->webProcessIdentifier().toUInt64() : 0;
+    RELEASE_LOG_FAULT_WITH_PAYLOAD(IPC, "Received an invalid message %s from WebContent process %" PRIu64 ", requesting for it to be terminated.", description(messageName), webProcessID);
     callOnMainRunLoop([weakGPUConnectionToWebProcess = m_gpuConnectionToWebProcess] {
         if (RefPtr gpuConnectionToWebProcess = weakGPUConnectionToWebProcess.get())
             gpuConnectionToWebProcess->terminateWebProcess();
@@ -274,17 +276,14 @@ void RemoteGraphicsContextGL::getBufferSubDataInline(uint32_t target, uint64_t o
         return;
     }
 
-    MallocSpan<uint8_t> bufferStore;
-    std::span<uint8_t> bufferData;
-    bufferStore = MallocSpan<uint8_t>::tryMalloc(dataSize);
-    if (bufferStore) {
-        bufferData = bufferStore.mutableSpan();
-        if (!context->getBufferSubDataWithStatus(target, offset, bufferData))
-            bufferData = { };
+    MallocSpan<uint8_t> buffer = MallocSpan<uint8_t>::tryMalloc(dataSize);
+    if (buffer) {
+        if (!context->getBufferSubDataWithStatus(target, offset, buffer.mutableSpan()))
+            buffer = { };
     } else
         context->addError(GCGLErrorCode::OutOfMemory);
 
-    completionHandler(bufferData);
+    completionHandler(buffer.span());
 }
 
 void RemoteGraphicsContextGL::getBufferSubDataSharedMemory(uint32_t target, uint64_t offset, uint64_t dataSize, WebCore::SharedMemory::Handle handle, CompletionHandler<void(bool)>&& completionHandler)
@@ -321,25 +320,19 @@ void RemoteGraphicsContextGL::readPixelsInline(WebCore::IntRect rect, uint32_t f
         completionHandler(std::nullopt, { });
         return;
     }
-    MallocSpan<uint8_t> pixelsStore;
-    std::span<uint8_t> pixels;
-    if (replyImageBytes && replyImageBytes <= readPixelsInlineSizeLimit) {
-        pixelsStore = MallocSpan<uint8_t>::tryMalloc(replyImageBytes);
-        if (pixelsStore)
-            pixels = pixelsStore.mutableSpan();
-    }
+    MallocSpan<uint8_t> pixels;
+    if (replyImageBytes && replyImageBytes <= readPixelsInlineSizeLimit)
+        pixels = MallocSpan<uint8_t>::tryZeroedMalloc(replyImageBytes);
 
     RefPtr context = m_context;
     std::optional<WebCore::IntSize> readArea;
-    if (pixels.size() == replyImageBytes)
-        readArea = context->readPixelsWithStatus(rect, format, type, packReverseRowOrder, pixels);
+    if (pixels.sizeInBytes() == replyImageBytes)
+        readArea = context->readPixelsWithStatus(rect, format, type, packReverseRowOrder, pixels.mutableSpan());
     else
         context->addError(GCGLErrorCode::OutOfMemory);
-    if (!readArea) {
+    if (!readArea)
         pixels = { };
-        pixelsStore = { };
-    }
-    completionHandler(readArea, pixels);
+    completionHandler(readArea, pixels.span());
 }
 
 

@@ -597,8 +597,13 @@ static RetainPtr<CGContextRef> createScratchContext()
 
 static inline CGContextRef scratchContext()
 {
-    static NeverDestroyed<RetainPtr<CGContextRef>> context = createScratchContext();
-    return context.get().get();
+    static NeverDestroyed<ThreadSpecific<RetainPtr<CGContextRef>>> context;
+
+    auto& result = *context.get();
+    if (!result)
+        result = createScratchContext();
+
+    return result.get();
 }
 
 bool PathCG::strokeContains(const FloatPoint& point, NOESCAPE const Function<void(GraphicsContext&)>& strokeStyleApplier) const

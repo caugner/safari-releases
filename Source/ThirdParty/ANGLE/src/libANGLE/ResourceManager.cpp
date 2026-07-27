@@ -97,8 +97,13 @@ void TypedResourceManager<ResourceType, ImplT, IDType>::deleteObject(const Conte
         return;
     }
 
-    // Requires an explicit this-> because of C++ template rules.
-    this->mHandleAllocator.release(GetIDValue(handle));
+    // if `BindGeneratesResource` is disabled then we do not recycle the handle ID until the object
+    // has had the `onDestroy` method called.
+    if (!context->retainIdUntilObjectDestroyed())
+    {
+        // Requires an explicit this-> because of C++ template rules.
+        this->mHandleAllocator.release(GetIDValue(handle));
+    }
 
     if (resource)
     {
@@ -263,7 +268,7 @@ bool TextureManager::createTexture(TextureID *outTexture)
 
 void TextureManager::signalAllTexturesDirty() const
 {
-    // Note: this function is called with glRequestExtensionANGLE and glDisableExtensionANGLE.  The
+    // Note: this function is called with glRequestExtensionANGLE.  The
     // GL_ANGLE_request_extension explicitly requires the application to ensure thread safety.
     for (const auto &texture : UnsafeResourceMapIter(mObjectMap))
     {
@@ -359,13 +364,13 @@ void SyncManager::DeleteObject(const Context *context, Sync *sync)
     sync->release(context);
 }
 
-bool SyncManager::createSync(rx::GLImplFactory *factory, SyncID *outSync)
+bool SyncManager::createSync(rx::GLImplFactory *factory, const Context *context, SyncID *outSync)
 {
     if (!mHandleAllocator.allocate(&outSync->value))
     {
         return false;
     }
-    Sync *sync = new Sync(factory, *outSync);
+    Sync *sync = new Sync(factory, *outSync, context);
     sync->addRef();
     mObjectMap.assign(*outSync, sync);
     return true;

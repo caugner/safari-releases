@@ -74,7 +74,7 @@ class ContextGL : public ContextImpl
     // Query and Fence creation
     QueryImpl *createQuery(gl::QueryType type) override;
     FenceNVImpl *createFenceNV() override;
-    SyncImpl *createSync() override;
+    SyncImpl *createSync(const gl::Context *context) override;
 
     // Transform Feedback creation
     TransformFeedbackImpl *createTransformFeedback(
@@ -287,8 +287,6 @@ class ContextGL : public ContextImpl
 
     void setMaxShaderCompilerThreads(GLuint count) override;
 
-    void invalidateTexture(gl::TextureType target) override;
-
     void validateState() const;
 
     void setNeedsFlushBeforeDeleteTextures();
@@ -296,7 +294,6 @@ class ContextGL : public ContextImpl
 
     void markWorkSubmitted();
 
-    MultiviewImplementationTypeGL getMultiviewImplementationType() const;
     bool hasNativeParallelCompile();
 
     const gl::Debug &getDebug() const { return mState.getDebug(); }
@@ -316,6 +313,8 @@ class ContextGL : public ContextImpl
 
     gl::AttributesMask updateAttributesForBaseInstance(GLuint baseInstance);
     void resetUpdatedAttributes(gl::AttributesMask attribMask);
+
+    angle::Result applyRecreateFboWorkaroundIfNeeded(const gl::Context *context);
 
   protected:
     std::shared_ptr<RendererGL> mRenderer;

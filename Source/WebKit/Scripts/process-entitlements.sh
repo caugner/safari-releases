@@ -101,7 +101,6 @@ function mac_process_webcontent_enhancedsecurity_entitlements()
 
     if (( "${TARGET_MAC_OS_X_VERSION_MAJOR}" >= 260000 ))
     then
-        plistbuddy Add :com.apple.security.hardened-process.checked-allocations.soft-mode bool YES
         plistbuddy Add :com.apple.security.hardened-process.checked-allocations.no-tagged-receive bool YES
     fi
 
@@ -247,6 +246,11 @@ function mac_process_network_entitlements()
         plistbuddy Add :com.apple.developer.hardened-process bool YES
         # FIXME: This should be removed after crash investigation as part of <rdar://problem/160965793>
         plistbuddy Add :com.apple.private.get-system-corpse bool YES
+
+        plistbuddy Add :com.apple.private.security.mutable-state-flags array
+        plistbuddy Add :com.apple.private.security.mutable-state-flags:0 string BlockNetworkAccess
+        plistbuddy Add :com.apple.private.security.enable-state-flags array
+        plistbuddy Add :com.apple.private.security.enable-state-flags:0 string BlockNetworkAccess
 
         if [[ "${WK_USE_FATAL_EXCEPTIONS}" == YES ]]
         then
@@ -498,7 +502,6 @@ function maccatalyst_process_webcontent_enhancedsecurity_entitlements()
 
     if (( "${TARGET_MAC_OS_X_VERSION_MAJOR}" >= 260000 ))
     then
-        plistbuddy Add :com.apple.security.hardened-process.checked-allocations.soft-mode bool YES
         plistbuddy Add :com.apple.security.hardened-process.checked-allocations.no-tagged-receive bool YES
     fi
 
@@ -655,7 +658,6 @@ function ios_family_process_webcontent_enhancedsecurity_entitlements()
 {
     plistbuddy Add :com.apple.private.webkit.enhanced-security bool YES
     plistbuddy Add :com.apple.developer.kernel.extended-virtual-addressing bool YES
-    plistbuddy Add :com.apple.security.hardened-process.checked-allocations.soft-mode bool YES
     plistbuddy Add :com.apple.security.hardened-process.checked-allocations.no-tagged-receive bool YES
 
     ios_family_process_webcontent_shared_entitlements

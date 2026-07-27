@@ -1396,7 +1396,6 @@ WebViewImpl::WebViewImpl(WKWebView *view, WebProcessPool& processPool, Ref<API::
 WebViewImpl::~WebViewImpl()
 {
     if (m_remoteObjectRegistry) {
-        m_page->configuration().protectedProcessPool()->removeMessageReceiver(Messages::RemoteObjectRegistry::messageReceiverName(), m_page->identifier());
         [m_remoteObjectRegistry _invalidate];
         m_remoteObjectRegistry = nil;
     }
@@ -2580,6 +2579,7 @@ void WebViewImpl::endDeferringViewInWindowChanges()
         flushPendingObscuredContentInsetChanges();
         m_page->activityStateDidChange(WebCore::ActivityState::IsInWindow);
         m_viewInWindowChangeWasDeferred = false;
+        m_page->webViewDidMoveToWindow();
     }
 }
 
@@ -2596,6 +2596,7 @@ void WebViewImpl::endDeferringViewInWindowChangesSync()
         flushPendingObscuredContentInsetChanges();
         m_page->activityStateDidChange(WebCore::ActivityState::IsInWindow);
         m_viewInWindowChangeWasDeferred = false;
+        m_page->webViewDidMoveToWindow();
     }
 }
 
@@ -4192,12 +4193,8 @@ RetainPtr<NSView> WebViewImpl::inspectorAttachmentView()
 
 _WKRemoteObjectRegistry *WebViewImpl::remoteObjectRegistry()
 {
-    if (!m_remoteObjectRegistry) {
+    if (!m_remoteObjectRegistry)
         m_remoteObjectRegistry = adoptNS([[_WKRemoteObjectRegistry alloc] _initWithWebPageProxy:m_page.get()]);
-        Ref webRemoteObjectRegistry = [m_remoteObjectRegistry remoteObjectRegistry];
-        m_page->configuration().protectedProcessPool()->addMessageReceiver(Messages::RemoteObjectRegistry::messageReceiverName(), m_page->identifier(), webRemoteObjectRegistry);
-    }
-
     return m_remoteObjectRegistry.get();
 }
 

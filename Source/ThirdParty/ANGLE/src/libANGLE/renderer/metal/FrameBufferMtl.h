@@ -160,6 +160,9 @@ class FramebufferMtl : public FramebufferImpl
                                 gl::DrawBufferMask clearColorBuffers,
                                 const mtl::ClearRectParams &clearOpts);
 
+    bool needsRG16UnormMSAAClearWorkaround(const ContextMtl *contextMtl,
+                                           gl::DrawBufferMask clearColorBuffers) const;
+
     // Initialize load store options for a render pass's first start (i.e. not render pass resuming
     // from interruptions such as those caused by a conversion compute pass)
     void setLoadStoreActionOnRenderPassFirstStart(mtl::RenderPassAttachmentDesc *attachmentOut,
@@ -196,8 +199,6 @@ class FramebufferMtl : public FramebufferImpl
                                      uint32_t dstBufferOffset,
                                      uint32_t dstBufferRowPitch,
                                      const mtl::BufferRef *dstBuffer) const;
-
-    bool totalBitsUsedIsLessThanOrEqualToMaxBitsSupported(const gl::Context *context) const;
 
     RenderTargetMtl *getColorReadRenderTargetNoCache(const gl::Context *context) const;
     angle::Result prepareForUse(const gl::Context *context) const;

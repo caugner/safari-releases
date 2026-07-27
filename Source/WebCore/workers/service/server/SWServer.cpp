@@ -228,11 +228,50 @@ void SWServer::addRegistrationFromStore(ServiceWorkerContextData&& data, Complet
             protectedThis->addRegistration(registration.copyRef());
 
             Ref worker = SWServerWorker::create(*protectedThis, registration, data.scriptURL, data.script, data.certificateInfo, data.contentSecurityPolicy, data.crossOriginEmbedderPolicy, WTF::move(data.referrerPolicy), data.workerType, data.serviceWorkerIdentifier, WTF::move(data.scriptResourceMap));
+            worker->setNeedsScriptLoading();
             registration->updateRegistrationState(ServiceWorkerRegistrationState::Active, worker.ptr());
             worker->setState(ServiceWorkerState::Activated);
         }
         completionHandler();
     });
+}
+
+void SWServer::loadWorkerScripts(const SWServerWorker& worker, CompletionHandler<void(bool)>&& callback)
+{
+    RefPtr store = m_registrationStore;
+    if (!store) {
+        callback(false);
+        return;
+    }
+
+    store->retrieveWorkerScripts(worker.identifier(), worker.registrationKey(), worker.scriptURL(), worker.importedScriptURLs(),
+        [weakThis = WeakPtr { *this }, workerIdentifier = worker.identifier(), callback = WTF::move(callback)](auto&& result) mutable {
+            RefPtr protectedThis = weakThis;
+            if (!protectedThis)
+                return callback(false);
+
+            bool success = !!result;
+            auto scope = makeScopeExit([&] {
+                callback(success);
+            });
+
+            RefPtr worker = protectedThis->workerByID(workerIdentifier);
+            if (!worker)
+                return;
+
+            if (!success) {
+                if (RefPtr registration = worker->registration()) {
+                    RELEASE_LOG_ERROR(ServiceWorker, "Unregistering registration %" PRIu64 " due to worker script retrieval failure", registration->identifier().toUInt64());
+                    auto contextIdentifier = ServiceWorkerIdentifier::generate();
+                    ServiceWorkerJobDataIdentifier jobIdentifier { Process::identifier(), ServiceWorkerJobIdentifier::generate() };
+                    protectedThis->scheduleUnregisterJob(jobIdentifier, *registration, contextIdentifier, registration->scriptURL());
+                }
+                worker->didFailToLoadWorkerScripts();
+                return;
+            }
+
+            worker->setWorkerScripts(WTF::move(result->mainScript), WTF::move(result->importedScripts));
+        });
 }
 
 void SWServer::didSaveWorkerScriptsToDisk(ServiceWorkerIdentifier serviceWorkerIdentifier, ScriptBuffer&& mainScript, MemoryCompactRobinHoodHashMap<URL, ScriptBuffer>&& importedScripts)
@@ -748,7 +787,7 @@ void SWServer::didFinishInstall(const std::optional<ServiceWorkerJobDataIdentifi
         return;
 
     if (wasSuccessful)
-        storeRegistrationForWorker(worker);
+        storeRegistrationForWorkerIfNecessary(worker);
 
     if (CheckedPtr jobQueue = m_jobQueues.get(worker.registrationKey()))
         jobQueue->didFinishInstall(*jobDataIdentifier, worker, wasSuccessful);
@@ -762,8 +801,15 @@ void SWServer::didFinishActivation(SWServerWorker& worker)
         registration->didFinishActivation(worker.identifier());
 }
 
-void SWServer::storeRegistrationForWorker(SWServerWorker& worker)
+void SWServer::storeRegistrationForWorkerIfNecessary(SWServerWorker& worker)
 {
+    RELEASE_LOG(ServiceWorker, "%p - SWServer::storeRegistrationForWorkerIfNecessary: service worker %" PRIu64, this, worker.identifier().toUInt64());
+
+    if (!worker.shouldPersistToDisk()) {
+        RELEASE_LOG(ServiceWorker, "%p - SWServer::storeRegistrationForWorkerIfNecessary: Not saving service worker %" PRIu64 " to disk since it is backing a browser extension", this, worker.identifier().toUInt64());
+        return;
+    }
+
     if (RefPtr store = m_registrationStore)
         store->updateRegistration(worker.contextData());
 }
@@ -1060,6 +1106,16 @@ void SWServer::runServiceWorkerIfNecessary(SWServerWorker& worker, RunServiceWor
         worker.whenTerminated([weakThis = WeakPtr { *this }, identifier = worker.identifier(), callback = WTF::move(callback)]() mutable {
             RefPtr protectedThis = weakThis.get();
             if (!protectedThis)
+                return callback(nullptr);
+            protectedThis->runServiceWorkerIfNecessary(identifier, WTF::move(callback));
+        });
+        return;
+    }
+
+    if (worker.needsScriptLoading()) {
+        loadWorkerScripts(worker, [weakThis = WeakPtr { *this }, identifier = worker.identifier(), callback = WTF::move(callback)](bool success) mutable {
+            RefPtr protectedThis = weakThis;
+            if (!protectedThis || !success)
                 return callback(nullptr);
             protectedThis->runServiceWorkerIfNecessary(identifier, WTF::move(callback));
         });

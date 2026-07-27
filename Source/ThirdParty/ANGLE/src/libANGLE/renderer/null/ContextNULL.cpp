@@ -119,8 +119,9 @@ ContextNULL::ContextNULL(const gl::State &state,
 
     if (mExtensions.shaderPixelLocalStorageANGLE)
     {
-        mPLSOptions.type             = ShPixelLocalStorageType::FramebufferFetch;
-        mPLSOptions.fragmentSyncType = ShFragmentSynchronizationType::Automatic;
+        mPLSOptions.type                = ShPixelLocalStorageType::FramebufferFetch;
+        mPLSOptions.fragmentSyncType    = ShFragmentSynchronizationType::Automatic;
+        mPLSOptions.supportsNoncoherent = true;
     }
 }
 
@@ -481,7 +482,7 @@ FenceNVImpl *ContextNULL::createFenceNV()
     return new FenceNVNULL();
 }
 
-SyncImpl *ContextNULL::createSync()
+SyncImpl *ContextNULL::createSync(const gl::Context *)
 {
     return new SyncNULL();
 }
